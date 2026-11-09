@@ -106,7 +106,7 @@ func (r *Runner) grabSeries(ctx context.Context, p grabPayload, key string, forc
 			if !slices.Contains(vp.Indexers, rel.Indexer) {
 				continue
 			}
-			searchedRels = append(searchedRels, rel)
+			searchedRels = append(searchedRels, searchRels[i]) // with cache evidence, as the main ranking
 			d, err := r.eng.DecideSearch(ctx, decide.Release{Release: searchRels[i]}, g.Title, v, ours)
 			if err != nil {
 				return nil, err
