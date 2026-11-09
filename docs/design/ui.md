@@ -269,10 +269,14 @@ See [quickstart](../quickstart.md#readiness-led-setup) for the completion rules;
   release for the library, matched by info hash against all the library's downloads (`Releases.outcomes`):
   `Grabbed · rd` (in flight), `Imported`, `Current file`, `Failed · <short reason>` (the newest attempt failed, even
   after an older import) or `Replaced` (by the current release), for the stored list and a live search alike. The
-  episode overview's Releases badge the same way from that episode's downloads and files only: current and replaced
-  come from the links that hold the episode, so a season pack whose episode was upgraded reads `Replaced` there
-  (also when the upgrade took over the same library path), and a pack whose recorded files (`download_file`) hold
-  none for the episode has no badge. Above the table one line says what the shown stored search did
+  episode overview's Releases badge the same way from that episode's downloads and files only, each release by its
+  newest download's own evidence: a link of that download holding the episode, or, once it is imported, its
+  recorded files (`download_file`) mapping one to it. So a season pack whose episode was upgraded reads `Replaced`
+  there, a manual choice not yet imported stays `Grabbed`, and an imported pack with no file known for the episode
+  (none recorded for it, or none recorded at all) has no badge; its search line then says only "→ imported", or
+  "→ imported, without a file for this episode" when its records hold none for it. Files are recorded per import
+  since `download_file` existed; a pack imported before that, with later partial corrections, may read as lacking
+  an episode it held. Above the table one line says what the shown stored search did
   (`Releases.grabbed`, for an episode its downloads of that episode): "Grabbed #1 via rd → imported" or "Nothing
   grabbed: <reason>" ("Nothing grabbed for this episode" when a season search routed only others); it describes
   the downloads that search opened. A live search no indexer answered is a failed search ("Live search failed",

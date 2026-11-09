@@ -419,8 +419,9 @@ func TestLiveReleasesNoAnswer(t *testing.T) {
 	}
 }
 
-// A later release that replaced a pack's episode at the same library path rewrote the pack's link in place: the
-// pack, imported with no record against the episode, still reads replaced there.
+// A later release that replaced a pack's episode at the same library path rewrote the pack's link in place. With no
+// recorded files the pack's hold on the episode is unknown: no badge, and its search says only that it imported.
+// With them it reads replaced.
 func TestEpisodeReplacedInPlace(t *testing.T) {
 	t.Parallel()
 	e := newManageEnv(t, nil)
@@ -446,19 +447,88 @@ func TestEpisodeReplacedInPlace(t *testing.T) {
 
 	var r Releases
 	e.call("GET", APIBase+"/titles/10/episodes/101/releases", nil, 200, &r)
-	if o := r.Outcomes[hp]; o.Outcome != "replaced" || o.ReplacedBy != "The.Show.S01E01.2160p.REMUX-UP" {
-		t.Errorf("pack on E01: %+v", o)
+	if o, ok := r.Outcomes[hp]; ok {
+		t.Errorf("pack on E01 badged %+v with nothing known for E01", o)
 	}
-	if r.Grabbed != "Grabbed #1 via rd → imported, later replaced" {
+	if r.Grabbed != "Grabbed #1 via rd → imported" {
 		t.Errorf("E01 summary %q", r.Grabbed)
 	}
-	// The same with the import's record of the pack's files.
+	// With the import's record of the pack's files.
 	e.exec(`INSERT INTO download_file (download_id, rel, episodes, source, how, updated_at) VALUES
 		(30, 'The.Show.S01E01.mkv', '[101]', 'import', 'number', ?), (30, 'The.Show.S01E02.mkv', '[102]', 'import', 'number', ?)`,
 		now-8000, now-8000)
 	r = Releases{}
 	e.call("GET", APIBase+"/titles/10/episodes/101/releases", nil, 200, &r)
-	if r.Outcomes[hp].Outcome != "replaced" || r.Grabbed != "Grabbed #1 via rd → imported, later replaced" {
+	if o := r.Outcomes[hp]; o.Outcome != "replaced" || o.ReplacedBy != "The.Show.S01E01.2160p.REMUX-UP" ||
+		r.Grabbed != "Grabbed #1 via rd → imported, later replaced" {
 		t.Errorf("with recorded files: %+v %q", r.Outcomes[hp], r.Grabbed)
+	}
+}
+
+// Another download of the same release speaks only for itself: an E02-only re-import's recorded files say nothing
+// about what the pack's first import held for E01.
+func TestEpisodeEvidenceOwnDownloadOnly(t *testing.T) {
+	t.Parallel()
+	e := newManageEnv(t, nil)
+	now := store.Millis(addNow)
+	const hp, hu = "1212121212121212121212121212121212121212", "3434343434343434343434343434343434343434"
+	e.exec(`INSERT INTO acquire_run (id, source, title_id, version_id, version_key, target, state, results, accepted,
+		message, created_at, updated_at) VALUES (90, 'wanted', 10, 10, 'tv-2160p', 's01', 'routed', 1, 1,
+		'1 of 1 results accepted', ?, ?)`, now-9000, now-9000)
+	e.exec(`INSERT INTO journal_decision (id, source, run_id, title_id, version_key, target, results, accepted,
+		candidates, created_at) VALUES (120, 'acquire:90', 90, 10, 'tv-2160p', 's01', 1, 1, ?, ?)`,
+		`[{"rank":1,"release":"The.Show.S01.2160p.WEB-PACK","info_hash":"`+hp+`","accepted":true,"episodes":["S01E01","S01E02"]}]`, now-9000)
+	e.exec(`INSERT INTO download (id, title_id, version_id, version_key, info_hash, release_title, indexer, provider,
+		state, source, episodes, created_at, updated_at, imported_at) VALUES
+		(40, 10, 10, 'tv-2160p', ?, 'The.Show.S01.2160p.WEB-PACK', 'idx', 'rd', 'imported', 'acquire:90', '[101,102]', ?, ?, ?),
+		(41, 10, 10, 'tv-2160p', ?, 'The.Show.S01E01.2160p.REMUX-UP', 'idx', 'tb', 'imported', 'ui:grab:alice', '[101]', ?, ?, ?),
+		(42, 10, 10, 'tv-2160p', ?, 'The.Show.S01.2160p.WEB-PACK', 'idx', 'rd', 'imported', 'api:manualimport', '[102]', ?, ?, ?)`,
+		hp, now-8900, now-8000, now-8000, hu, now-4900, now-4000, now-4000, hp, now-3000, now-2500, now-2500)
+	e.exec(`INSERT INTO link (id, path, target, title_id, download_id, release_title, state, created_at, updated_at) VALUES
+		(40, '/tv/Show/S01E01.mkv', '/mnt/__all__/Up/E01.mkv', 10, 41, 'The.Show.S01E01.2160p.REMUX-UP', 'active', ?, ?)`,
+		now-8000, now-4000)
+	e.exec(`INSERT INTO link_version (link_id, version_id) VALUES (40, 10)`)
+	e.exec(`INSERT INTO link_episode (link_id, episode_id) VALUES (40, 101)`)
+	e.exec(`INSERT INTO download_file (download_id, rel, episodes, source, how, updated_at) VALUES
+		(42, 'The.Show.S01E02.mkv', '[102]', 'import', 'number', ?)`, now-2500)
+
+	var r Releases
+	e.call("GET", APIBase+"/titles/10/episodes/101/releases", nil, 200, &r)
+	if r.Grabbed != "Grabbed #1 via rd → imported" {
+		t.Errorf("E01 summary %q", r.Grabbed)
+	}
+	if o, ok := r.Outcomes[hp]; ok {
+		t.Errorf("pack on E01: %+v", o)
+	}
+}
+
+// A manual choice recorded before its import is not a file yet: the pending pack stays grabbed while another
+// release holds the episode.
+func TestEpisodePendingManualChoice(t *testing.T) {
+	t.Parallel()
+	e := newManageEnv(t, nil)
+	now := store.Millis(addNow)
+	const hp, hu = "5656565656565656565656565656565656565656", "7878787878787878787878787878787878787878"
+	e.exec(`INSERT INTO download (id, title_id, version_id, version_key, info_hash, release_title, indexer, provider,
+		state, source, episodes, created_at, updated_at, imported_at) VALUES
+		(50, 10, 10, 'tv-2160p', ?, 'The.Show.S01E01.2160p.REMUX-UP', 'idx', 'tb', 'imported', 'ui:grab:alice', '[101]', ?, ?, ?),
+		(51, 10, 10, 'tv-2160p', ?, 'The.Show.S01.2160p.WEB-PACK', 'idx', 'rd', 'ready', 'api:manualimport', '[101,102]', ?, ?, NULL)`,
+		hu, now-8000, now-7000, now-7000, hp, now-3000, now-2000)
+	e.exec(`INSERT INTO link (id, path, target, title_id, download_id, release_title, state, created_at, updated_at) VALUES
+		(50, '/tv/Show/S01E01.mkv', '/mnt/__all__/Up/E01.mkv', 10, 50, 'The.Show.S01E01.2160p.REMUX-UP', 'active', ?, ?)`,
+		now-7000, now-7000)
+	e.exec(`INSERT INTO link_version (link_id, version_id) VALUES (50, 10)`)
+	e.exec(`INSERT INTO link_episode (link_id, episode_id) VALUES (50, 101)`)
+	e.exec(`INSERT INTO download_file (download_id, rel, episodes, source, how, updated_at) VALUES
+		(51, 'The.Show.S01E01.mkv', '[101]', 'manual', 'manual', ?), (51, 'The.Show.S01E02.mkv', '[102]', 'manual', 'manual', ?)`,
+		now-2500, now-2500)
+
+	var r Releases
+	e.call("GET", APIBase+"/titles/10/episodes/101/releases", nil, 200, &r)
+	if o := r.Outcomes[hp]; o.Outcome != "grabbed" {
+		t.Errorf("pending manual pack on E01: %+v", o)
+	}
+	if o := r.Outcomes[hu]; o.Outcome != "current" {
+		t.Errorf("E01's file: %+v", o)
 	}
 }

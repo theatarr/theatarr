@@ -315,7 +315,7 @@ func (w *Web) storedGrabbed(ctx context.Context, out *Releases, run sql.NullInt6
 		if err != nil && !errors.Is(err, sql.ErrNoRows) {
 			return err
 		}
-		err = scanAll(ctx, db, `SELECT info_hash, release_title, COALESCE(provider, ''), state, COALESCE(error, '')
+		err = scanAll(ctx, db, `SELECT id, info_hash, release_title, COALESCE(provider, ''), state, COALESCE(error, '')
 			FROM download WHERE source = ? AND (? = 0 OR EXISTS (SELECT 1 FROM json_each(download.episodes) j
 			WHERE j.value = ?)) ORDER BY id`, []any{"acquire:" + strconv.FormatInt(run.Int64, 10), episode, episode}, scan)
 		if err != nil {
@@ -328,7 +328,7 @@ func (w *Web) storedGrabbed(ctx context.Context, out *Releases, run sql.NullInt6
 				hashes[strings.ToLower(c.InfoHash)] = true
 			}
 		}
-		err := scanAll(ctx, db, `SELECT info_hash, release_title, COALESCE(provider, ''), state, COALESCE(error, '')
+		err := scanAll(ctx, db, `SELECT id, info_hash, release_title, COALESCE(provider, ''), state, COALESCE(error, '')
 			FROM download WHERE title_id = ? AND version_key = ? AND source = 'rss' AND created_at >= ?
 			AND (? = 0 OR EXISTS (SELECT 1 FROM json_each(download.episodes) j WHERE j.value = ?)) ORDER BY id`,
 			[]any{out.TitleID, out.Version, at, episode, episode}, func(r *sql.Rows) error {
@@ -355,13 +355,16 @@ func (w *Web) storedGrabbed(ctx context.Context, out *Releases, run sql.NullInt6
 				return nil
 			}
 		} else {
-			_, lacked, err := episodeFiles(ctx, db, out.TitleID, out.Version, episode)
+			files, err := episodeFiles(ctx, db, out.TitleID, out.Version, episode)
 			if err != nil {
 				return err
 			}
 			for i := range dls {
-				if dls[i].state == "imported" && lacked[strings.ToLower(dls[i].hash)] {
+				switch files[dls[i].id] {
+				case fileLacked:
 					dls[i].state = "imported-without"
+				case fileUnknown:
+					dls[i].state = "imported-unknown"
 				}
 			}
 		}
@@ -370,9 +373,9 @@ func (w *Web) storedGrabbed(ctx context.Context, out *Releases, run sql.NullInt6
 	return nil
 }
 
-// scanRunDownload reads info_hash, release_title, provider, state and error.
+// scanRunDownload reads id, info_hash, release_title, provider, state and error.
 func scanRunDownload(r *sql.Rows, d *runDownload) error {
-	return r.Scan(&d.hash, &d.release, &d.provider, &d.state, &d.err)
+	return r.Scan(&d.id, &d.hash, &d.release, &d.provider, &d.state, &d.err)
 }
 
 func sourceWord(target string) string {

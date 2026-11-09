@@ -163,20 +163,23 @@ func runOrigins(ctx context.Context, db *sql.DB, titleID int64) (map[int64]runOr
 
 // releaseOutcomes reads what came of each release of the title's version, by lower-case info hash: the newest
 // download per hash, and the version's current files (active links). episode > 0 scopes both to that episode: the
-// downloads aimed at it, and a release imported for a pack counts for the episode unless its recorded files show
-// none for it (episodeFiles: a pack can import without a file for every episode it was grabbed for).
+// downloads aimed at it, and whether the newest download imported a file for the episode (episodeFiles); without
+// that evidence an imported download of a pack has no badge for the episode.
 func releaseOutcomes(ctx context.Context, db *sql.DB, titleID int64, version string, episode int64) (map[string]ReleaseOutcome, error) {
-	type dl struct{ state, provider, err string }
+	type dl struct {
+		id                   int64
+		state, provider, err string
+	}
 	newest := map[string]dl{}
 	imported := map[string]bool{}
-	err := scanAll(ctx, db, `SELECT LOWER(info_hash), state, COALESCE(provider, ''), COALESCE(error, '')
+	err := scanAll(ctx, db, `SELECT id, LOWER(info_hash), state, COALESCE(provider, ''), COALESCE(error, '')
 		FROM download WHERE title_id = ? AND version_key = ? AND info_hash <> ''
 		AND (? = 0 OR EXISTS (SELECT 1 FROM json_each(download.episodes) j WHERE j.value = ?)) ORDER BY id`,
 		[]any{titleID, version, episode, episode},
 		func(r *sql.Rows) error {
 			var h string
 			var d dl
-			if err := r.Scan(&h, &d.state, &d.provider, &d.err); err != nil {
+			if err := r.Scan(&d.id, &h, &d.state, &d.provider, &d.err); err != nil {
 				return err
 			}
 			newest[h] = d
@@ -188,17 +191,17 @@ func releaseOutcomes(ctx context.Context, db *sql.DB, titleID int64, version str
 	if err != nil {
 		return nil, err
 	}
-	var lacked map[string]bool
+	var files map[int64]episodeFile
 	if episode > 0 {
-		var had map[string]bool
-		if had, lacked, err = episodeFiles(ctx, db, titleID, version, episode); err != nil {
+		if files, err = episodeFiles(ctx, db, titleID, version, episode); err != nil {
 			return nil, err
 		}
-		for h := range had {
-			imported[h] = true
-		}
-		for h := range lacked {
-			delete(imported, h)
+		// Only the newest download's own evidence counts for the episode.
+		imported = map[string]bool{}
+		for h, d := range newest {
+			if files[d.id] == fileHad {
+				imported[h] = true
+			}
 		}
 	}
 	current := map[string]bool{}
@@ -241,8 +244,8 @@ func releaseOutcomes(ctx context.Context, db *sql.DB, titleID int64, version str
 			o.Outcome, o.Reason = "failed", shortReason(d.err, d.provider)
 		case o.replaced:
 			o.Outcome, o.ReplacedBy = "replaced", replacedBy
-		case d.state == "imported" && lacked[h]:
-			// Imported, without a file for this episode.
+		case d.state == "imported" && episode > 0 && !imported[h]:
+			// Imported, with no file known for this episode (none, or not recorded).
 			continue
 		case d.state == "imported":
 			o.Outcome = "imported"
@@ -254,56 +257,70 @@ func releaseOutcomes(ctx context.Context, db *sql.DB, titleID int64, version str
 	return out, nil
 }
 
-// episodeFiles reads which releases (lower-case info hash) of the version had a file for the episode: had, when a
-// link of the version holds the episode from it or its recorded files (download_file) map one to the episode;
-// lacked, when its recorded files map none to it. A release with neither is unknown: a link rewritten in place for a
-// later release no longer names it, and older imports recorded no files.
-func episodeFiles(ctx context.Context, db *sql.DB, titleID int64, version string, episode int64) (had, lacked map[string]bool,
-	err error) {
-	had, lacked = map[string]bool{}, map[string]bool{}
-	err = scanAll(ctx, db, `SELECT DISTINCT LOWER(COALESCE(c.info_hash, d.info_hash, ''))
-		FROM version v JOIN link_version lv ON lv.version_id = v.id JOIN link l ON l.id = lv.link_id
-		JOIN link_episode le ON le.link_id = l.id AND le.episode_id = ?
-		LEFT JOIN content_file cf ON cf.id = l.content_file_id LEFT JOIN content c ON c.id = cf.content_id
-		LEFT JOIN download d ON d.id = l.download_id
-		WHERE v.title_id = ? AND v.policy_key = ?`, []any{episode, titleID, version},
+// episodeFile is what one download is known to have imported for an episode.
+type episodeFile int
+
+const (
+	// fileNone: not imported, and no link of it holds the episode.
+	fileNone episodeFile = iota
+	// fileHad: a link of it holds the episode, or it was imported and its recorded files map one to the episode.
+	fileHad
+	// fileLacked: imported, and its recorded files (download_file) map none to the episode.
+	fileLacked
+	// fileUnknown: imported, with no recorded files (an import from before they were recorded).
+	fileUnknown
+)
+
+// episodeFiles reads, per download of the version (by id), what it is known to have imported for the episode. Each
+// download speaks only for itself: another download of the same release says nothing about it, and a manual choice
+// recorded before its import is not a file until the download is imported.
+func episodeFiles(ctx context.Context, db *sql.DB, titleID int64, version string, episode int64) (map[int64]episodeFile, error) {
+	out := map[int64]episodeFile{}
+	err := scanAll(ctx, db, `SELECT d.id, d.state, COUNT(f.rel), COALESCE(MAX(EXISTS (SELECT 1 FROM json_each(f.episodes) j
+		WHERE j.value = ?)), 0) FROM download d LEFT JOIN download_file f ON f.download_id = d.id
+		WHERE d.title_id = ? AND d.version_key = ? GROUP BY d.id`, []any{episode, titleID, version},
 		func(r *sql.Rows) error {
-			var h string
-			if err := r.Scan(&h); err != nil {
+			var id int64
+			var state string
+			var rows int
+			var has bool
+			if err := r.Scan(&id, &state, &rows, &has); err != nil {
 				return err
 			}
-			if h != "" {
-				had[h] = true
+			switch {
+			case state != "imported":
+				out[id] = fileNone
+			case has:
+				out[id] = fileHad
+			case rows > 0:
+				out[id] = fileLacked
+			default:
+				out[id] = fileUnknown
 			}
 			return nil
 		})
 	if err != nil {
-		return nil, nil, err
+		return nil, err
 	}
-	err = scanAll(ctx, db, `SELECT LOWER(d.info_hash), MAX(EXISTS (SELECT 1 FROM json_each(f.episodes) j
-		WHERE j.value = ?)) FROM download d JOIN download_file f ON f.download_id = d.id
-		WHERE d.title_id = ? AND d.version_key = ? AND d.info_hash <> '' GROUP BY d.id`,
-		[]any{episode, titleID, version}, func(r *sql.Rows) error {
-			var h string
-			var has bool
-			if err := r.Scan(&h, &has); err != nil {
+	err = scanAll(ctx, db, `SELECT DISTINCT l.download_id FROM version v JOIN link_version lv ON lv.version_id = v.id
+		JOIN link l ON l.id = lv.link_id JOIN link_episode le ON le.link_id = l.id AND le.episode_id = ?
+		WHERE v.title_id = ? AND v.policy_key = ? AND l.download_id IS NOT NULL`, []any{episode, titleID, version},
+		func(r *sql.Rows) error {
+			var id int64
+			if err := r.Scan(&id); err != nil {
 				return err
 			}
-			if has {
-				had[h] = true
-			} else {
-				lacked[h] = true
-			}
+			out[id] = fileHad
 			return nil
 		})
-	for h := range had {
-		delete(lacked, h)
-	}
-	return had, lacked, err
+	return out, err
 }
 
 // runDownload is one download a search opened, with its own state and error.
-type runDownload struct{ hash, release, provider, state, err string }
+type runDownload struct {
+	id                                  int64
+	hash, release, provider, state, err string
+}
 
 // searchSummary says in one line what a search grabbed: "Grabbed #1 via rd → imported" (the rank in the stored
 // candidates, else the release's short title), or "Nothing grabbed: why". state and message are the acquire run's;
@@ -342,6 +359,9 @@ func searchSummary(dls []runDownload, cands []snapshot.Candidate, outcomes map[s
 	switch d.state {
 	case "imported-without":
 		s += " → imported, without a file for this episode"
+	case "imported-unknown":
+		// Imported; which episodes it held is not known.
+		s += " → imported"
 	case "imported":
 		switch {
 		case o.Outcome == "current":
