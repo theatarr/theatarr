@@ -113,3 +113,26 @@ it("refetches the franchises and review items when a build ends, and the lists e
     vi.useRealTimers();
   }
 });
+
+it("refetches an idle franchise detail every 30 s, so a build the loop starts shows up", async () => {
+  vi.useFakeTimers({ shouldAdvanceTime: true });
+  try {
+    let running = false;
+    const api = mockFetch([
+      {
+        method: "GET",
+        path: "/anime/franchises/mushoku-tensei",
+        reply: () => ({ ...franchise(running ? { id: 9, state: "running" } : null), orders: [], numbering: [] }),
+      },
+    ]);
+    renderPage(<Routes><Route path="/anime/:slug" element={<MetadataFranchise />} /></Routes>, "/anime/mushoku-tensei");
+    expect(await screen.findByText(/next refresh in 5 d/)).toBeTruthy();
+    const reads = api.calls("GET", "/anime/franchises/mushoku-tensei").length;
+    running = true;
+    await vi.advanceTimersByTimeAsync(30_000);
+    await waitFor(() => expect(api.calls("GET", "/anime/franchises/mushoku-tensei").length).toBeGreaterThan(reads));
+    expect(await screen.findByText("building")).toBeTruthy();
+  } finally {
+    vi.useRealTimers();
+  }
+});

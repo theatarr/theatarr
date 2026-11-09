@@ -139,7 +139,7 @@ export const useFranchise = (slug: string) => {
   const q = useQuery({
     queryKey: qk.anime.franchise(slug),
     queryFn: () => api<Franchise>(`/anime/franchises/${encodeURIComponent(slug)}`),
-    refetchInterval: (q) => (buildActive(q.state.data?.job) ? POLL_MS : false),
+    refetchInterval: (q) => (buildActive(q.state.data?.job) ? POLL_MS : LIST_MS),
   });
   useBuildEnd([q.data?.job]);
   return q;
