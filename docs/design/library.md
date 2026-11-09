@@ -622,9 +622,9 @@ takes a corrected episode first, and the other files still import as usual (`Tes
    An alternate-cut table missing a file number returns an explicit refusal (`FileEpisodes.Refused`), including
    gaps in a stored cut mapping; the file stays unmatched instead of using canonical numbers. The episodes must
    all be the download's (every episode for a pack the router did not narrow down); a download whose stored
-   franchise mapping changed since the grab (its entry no longer importable, or, grabbed through Sonarr's numbering,
-   a file the franchise now places outside its episodes) first has its episodes reconciled to where its release now
-   places (`rescope`, anime.md). An answer from the resolver is
+   franchise entry changed since the grab (no longer importable, or, for a grab through Sonarr's numbering that
+   named it, importable now) first has its episodes reconciled (`rescope`, anime.md), unless a new episode already
+   has a file: then the files are held as out of scope. An answer from the resolver is
    authoritative even when it cannot be used: the arr's mapping error (several episodes match: `ambiguous`),
    episodes outside the download's (`out of scope`: a scene or franchise mapping that lands elsewhere) and episodes
    another file of the release took (`conflict`) leave the file unmatched, with the reason in the plan's

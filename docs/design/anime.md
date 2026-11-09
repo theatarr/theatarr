@@ -128,25 +128,37 @@ name: review may pick another): `anime_entry` beside `anime_mapping: sonarr`, an
 
 **Library**: files resolve through the same rules (`decide.ResolveFile`); a decision's stored entry that is no longer
 importable at import time falls back to Sonarr's numbering too, and a fallback's stored entry maps files named only
-"01" once it is importable. Nothing is held (`TestAnimeUnreviewedImports`). When the franchise mapping changed
-between the grab and the import, the download's episodes no longer match where its files resolve, so the import first
-reconciles them (`library/resolve.go` `rescope`), in two cases:
+"01" once it is importable. Nothing is held (`TestAnimeUnreviewedImports`). When the mapping of the entry a download
+stored changed between the grab and the import, the download's episodes no longer match where its files resolve, so
+the import first reconciles them (`library/resolve.go` `rescope`), in two cases:
 
 - the stored franchise entry (or one of its split parts) is no longer importable (`EpisodeMap.Stale`): its files now
-  map through Sonarr's numbering (`TestAnimeRejectedMappingImports`);
-- the download was grabbed through Sonarr's numbering (no stored mapping, or a fallback) and a file now maps through
-  the franchise (an entry or a cut) outside its episodes, while the decision on the release title now maps through
-  the franchise too, or places nothing: review accepted the fallback's entry or another candidate for it
-  (`TestAnimeAcceptBeforeImport`, `TestAnimeCandidateBeforeImport`), or the series' first build placed the file
-  elsewhere (`TestAnimeFirstBuildBeforeImport`). A file the franchise does not place (an explicit SxxEyy:
-  `TestAnimeRescopeIgnoresExplicitFile`), one a client or an admin chose, or a decision still placed by Sonarr's
-  numbering leaves the episodes alone, and a series with no franchise mapping is never checked.
+  map through Sonarr's numbering. The episodes become the ones the decision now gives the release as the download
+  stored it (`release_data`: its TVDB id, kind and extras, so a pack matched by id keeps Sonarr's season:
+  `TestAnimeRejectedMappingKeepsReleaseIdentity`), or its files' when the release places nothing (a pack named by
+  the entry) (`TestAnimeRejectedMappingImports`);
+- the download was grabbed through Sonarr's numbering for an entry that was not importable (a fallback) and review
+  has accepted the entry, or another candidate for it, since (`TestAnimeAcceptBeforeImport`,
+  `TestAnimeCandidateBeforeImport`). Each file the entry now places, whose Sonarr placement is among the download's
+  episodes, swaps those episodes for the entry's. The release title is not decided again, and episodes no such file
+  holds stay: a pack the router narrowed is not widened (`TestAnimeAcceptKeepsNarrowedPack`), a file named for
+  another entry or by an explicit SxxEyy moves nothing, and neither does one a client or an admin chose. A candidate
+  that cannot hold the number leaves the download where Sonarr placed it.
 
-The episodes become the ones the decision now gives the release title, or its files' when the title places nothing (a
-pack named by the entry), and a real import writes them to `download.episodes`; `download.episode_map` stays, for a
-later re-link. A fallback's candidate that cannot hold the number leaves the download where Sonarr placed it. A
-mapping still importable, and one stored without an entry key (a split-parts pack grabbed before the key was kept),
-is never re-scoped (`TestAnimeSplitPackScope`). This is the counterpart, before the import, of the re-link below.
+Three rules keep this safe (`internal/library/animerescope_test.go`):
+
+- Only a stored entry re-scopes. A download with no stored mapping (grabbed through Sonarr's numbering for a release
+  that named no entry) keeps its episodes whatever the franchise mappings do; so does a mapping still importable, and
+  one stored without an entry key (a split-parts pack grabbed before the key was kept: `TestAnimeSplitPackScope`).
+- A file that cannot pass the import guards (a sample) moves nothing (`TestAnimeSampleDoesNotRescope`).
+- A re-scope never replaces a file the grab did not cover. When a new episode already has a file of the version
+  (Theatarr's link, a dead link or the arr's file), the download is not re-scoped at all: its files are held as out
+  of scope, the existing file stays, nothing goes to the trash (`TestAnimeRescopeKeepsOtherEpisodesLink`).
+
+A real import writes the new episodes to `download.episodes`; `download.episode_map` stays, for a later re-link.
+Whenever the episodes are not reconciled, a file that now maps outside them is held: the plan's `unresolved` says
+`out of scope`, the download stays `ready`, nothing is linked or moved aside, and Change episodes (or a manual
+import) places it. This is the counterpart, before the import, of the re-link below.
 
 **Re-link after review** (`library/animerelink.go`). When review accepts a mapping (`animestore.Resolve` or
 `ResolveCandidate`), or a saved build turns an entry's mapping importable (it was `conflict` or `rejected`), or review
@@ -190,6 +202,14 @@ the files held as out of scope (visible on the download, files intact); Change e
 Known limit: a download grabbed through a franchise entry that stays importable is not re-scoped when the entry's
 range moves before the import (a refresh or another candidate): files outside its episodes are held as out of scope,
 files intact; Change episodes places them.
+
+Known limit: a download with no stored entry is not re-scoped. One grabbed through Sonarr's numbering before the
+series had a franchise mapping, whose file the series' first build then maps to another episode before the import,
+is held as out of scope, files intact (`TestAnimeFirstBuildBeforeImport`, `TestAnimeFirstBuildKeepsOtherEpisodesLink`,
+`TestAnimeFirstBuildKeepsIdMatchedPack`; a build that agrees with Sonarr changes nothing:
+`TestAnimeFirstBuildKeepsNarrowedPack`). So is one whose release named no entry when review accepts an entry that
+places its files elsewhere. Change episodes places them. The build is not deferred while downloads wait: a download
+already held would defer it for good, and a franchise build maps other series than the one that queued it.
 
 Playlists need nothing: a sync reads the active link of each episode, so a re-linked file joins its playlist at the
 next sync.
