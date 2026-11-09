@@ -85,6 +85,9 @@ type Router struct {
 	// mountHealthy, if set, says whether the debrid mount answers (SetMountCheck); ready deadlines wait while not.
 	// Guarded by stateMu.
 	mountHealthy func(ctx context.Context) error
+	// readyNotify, if set, is called after a write that records a download as ready (SetReadyNotify). Guarded by
+	// stateMu.
+	readyNotify func()
 }
 
 // shared is the state the routers of every settings generation share, besides mu.
@@ -115,6 +118,25 @@ func (r *Router) mountCheck() func(ctx context.Context) error {
 	r.stateMu.Lock()
 	defer r.stateMu.Unlock()
 	return r.mountHealthy
+}
+
+// SetReadyNotify gives the router a function it calls, after the write commits, each time it records a download as
+// ready: theatarr serve wakes the library's import pass with it instead of waiting for the next tick. f must not
+// block.
+func (r *Router) SetReadyNotify(f func()) {
+	r.stateMu.Lock()
+	defer r.stateMu.Unlock()
+	r.readyNotify = f
+}
+
+// notifyReady calls the function set by SetReadyNotify, if any.
+func (r *Router) notifyReady() {
+	r.stateMu.Lock()
+	f := r.readyNotify
+	r.stateMu.Unlock()
+	if f != nil {
+		f()
+	}
 }
 
 // ignoringMissing says whether a provider's ErrNotFound is still inside the account-change grace

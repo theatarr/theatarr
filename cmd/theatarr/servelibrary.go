@@ -19,7 +19,8 @@ import (
 	"github.com/theatarr/theatarr/internal/store"
 )
 
-// serveLibrary runs the library in theatarr serve: imports of ready downloads every poll interval, the relink sweep,
+// serveLibrary runs the library in theatarr serve: imports of ready downloads every poll interval and as soon as one
+// turns ready, the relink sweep,
 // and a daily naming sync and trash purge (docs/design/library.md).
 type serveLibrary struct {
 	lib    *library.Library
@@ -33,7 +34,14 @@ type serveLibrary struct {
 	// breakerSeen is when the mount breaker last opened, as logged (backOff).
 	breakerSeen time.Time
 	manager     *settings.RuntimeCoordinator
+	// readyWake, when set, wakes the import pass: the router signals it each time it records a download as ready.
+	// It belongs to serve, not to a settings generation, so a router or library rebuilt by a save keeps it.
+	readyWake <-chan struct{}
 }
+
+// readyRecheck is how soon the next import pass runs while a download that turned ready moments ago waits for its
+// release to show on the mount (library.ReadyRecheckWindow).
+var readyRecheck = 2 * time.Second
 
 // newServeLibrary builds one generation's library service. Its mount metrics are not registered here: serve registers
 // them once, against the active generation's library (serveLibrary.current).
@@ -175,6 +183,23 @@ func (s *serveLibrary) Run(ctx context.Context) {
 	defer relinkTick.Stop()
 	defer dailyTick.Stop()
 	defer danglingTick.Stop()
+	// recheck runs the next import pass soon after one that left a just-ready download waiting for the mount.
+	recheck := time.NewTimer(readyRecheck)
+	recheck.Stop()
+	defer recheck.Stop()
+	importPass := func(ctx context.Context) {
+		ctx, current := s.forOperation(ctx)
+		if current.backOff("import pass") {
+			return
+		}
+		if _, err := current.lib.Run(ctx); err != nil && !errors.Is(err, library.ErrMountDown) {
+			s.log.Error("library: import pass", "err", err)
+		}
+		recheck.Stop()
+		if current.lib.FreshWaiting(ctx) {
+			recheck.Reset(readyRecheck)
+		}
+	}
 	for {
 		select {
 		case <-ctx.Done():
@@ -186,13 +211,12 @@ func (s *serveLibrary) Run(ctx context.Context) {
 			}
 			current.danglingReport(ctx)
 		case <-importTick.C:
-			ctx, current := s.forOperation(ctx)
-			if current.backOff("import pass") {
-				continue
-			}
-			if _, err := current.lib.Run(ctx); err != nil && !errors.Is(err, library.ErrMountDown) {
-				s.log.Error("library: import pass", "err", err)
-			}
+			importPass(ctx)
+		case <-s.readyWake:
+			// Several downloads turning ready at once share one wake-up, and so one pass.
+			importPass(ctx)
+		case <-recheck.C:
+			importPass(ctx)
 		case <-rotated:
 			ctx, current := s.forOperation(ctx)
 			if current.backOff("relink sweep") {

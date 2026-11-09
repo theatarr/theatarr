@@ -431,6 +431,33 @@ func TestWaitingAndMountDown(t *testing.T) {
 	}
 }
 
+// TestFreshWaiting: theatarr serve re-checks soon only while a download that turned ready within the window waits for
+// its release to show on the mount; past the window, or waiting for another reason, the poll interval applies.
+func TestFreshWaiting(t *testing.T) {
+	t.Parallel()
+	e := newEnv(t, true, policy.ModeActive)
+	e.download(1, "movie-remux", 1, 10, movieRelease, movieRelease, "[]")
+	if e.lib.FreshWaiting(e.ctx) {
+		t.Error("fresh before any import")
+	}
+	e.exec(`UPDATE download SET ready_at = ? WHERE id = 1`, store.Millis(e.now))
+	if plan, err := e.lib.Import(e.ctx, 1, false); err != nil || !plan.Waiting {
+		t.Fatalf("waiting: %+v %v", plan, err)
+	}
+	if !e.lib.FreshWaiting(e.ctx) {
+		t.Error("a just-ready download waiting for the mount is not fresh")
+	}
+	e.exec(`UPDATE library_import SET last_error = ? WHERE download_id = 1`, UnreadablePrefix+"EIO")
+	if e.lib.FreshWaiting(e.ctx) {
+		t.Error("an unreadable download is re-checked soon")
+	}
+	e.exec(`UPDATE library_import SET last_error = ? WHERE download_id = 1`, notOnMount)
+	e.now = e.now.Add(ReadyRecheckWindow)
+	if e.lib.FreshWaiting(e.ctx) {
+		t.Error("fresh past the window")
+	}
+}
+
 func TestRelink(t *testing.T) {
 	t.Parallel()
 	e := newEnv(t, true, policy.ModeActive)

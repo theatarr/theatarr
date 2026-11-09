@@ -18,6 +18,7 @@ import (
 	"github.com/theatarr/theatarr/internal/gateway"
 	"github.com/theatarr/theatarr/internal/health"
 	"github.com/theatarr/theatarr/internal/policy"
+	"github.com/theatarr/theatarr/internal/store"
 )
 
 // zurgServer serves the read-only endpoints of zurg's API (and /ready) with made-up torrents. Anything but a GET
@@ -741,6 +742,78 @@ func TestImportZurgNameForHash(t *testing.T) {
 		imported(e, zname)
 		if n := srv.count("/debug/torrents"); n != 0 {
 			t.Errorf("path import read the listing %d times", n)
+		}
+	})
+}
+
+// TestImportZurgFreshListing: a download that turned ready within ReadyRecheckWindow and is not in the cached listing
+// reads the listing again, at most once per freshListFloor; the listing's retry clock holds it back, and outside the
+// window the cached listing is used as before.
+func TestImportZurgFreshListing(t *testing.T) {
+	t.Parallel()
+	const (
+		zname   = "Movie.Name.2001.2160p.UHD.BluRay.REMUX.HDR.HEVC.TrueHD.Atmos.7.1-GRP[TGx]"
+		release = "Movie.Name.2001.2160p.UHD.BluRay.REMUX.HDR.HEVC.TrueHD.Atmos.7.1-GRP"
+	)
+	// zurg has the folder but listed the torrent after the first listing was read.
+	setup := func(t *testing.T, readyAgo time.Duration) (*env, *zurgServer) {
+		e := newEnv(t, true, policy.ModeActive)
+		e.release(zname, map[string]float64{"movie.mkv": 7000})
+		e.download(1, "movie-remux", 1, 10, release, strings.ToLower(release)+".mkv", "[]")
+		e.exec(`UPDATE download SET ready_at = ? WHERE id = 1`, store.Millis(e.now.Add(-readyAgo)))
+		srv := newZurgServer(t)
+		srv.torrents = []ZurgTorrent{{Name: "Other.Release", Hash: hashB, Size: 7}}
+		srv.entries[davPath(zname, "")] = ZurgEntry{Hash: hashA}
+		srv.entries[davPath(zname, "movie.mkv")] = ZurgEntry{Hash: hashA, Size: 5}
+		e.withZurg(srv)
+		return e, srv
+	}
+	importAt := func(e *env, srv *zurgServer, step time.Duration, reads int) {
+		e.t.Helper()
+		e.now = e.now.Add(step)
+		if _, err := e.lib.Import(e.ctx, 1, false); err != nil {
+			e.t.Fatal(err)
+		}
+		if n := srv.count("/debug/torrents"); n != reads {
+			e.t.Fatalf("after %v: %d listings read, want %d", step, n, reads)
+		}
+	}
+	state := func(e *env) string {
+		return e.one(`SELECT state FROM download WHERE id = 1`)
+	}
+
+	t.Run("read again on a miss, once per floor", func(t *testing.T) {
+		e, srv := setup(t, 0)
+		importAt(e, srv, 0, 1) // the listing just read is fresh enough
+		importAt(e, srv, freshListFloor, 2)
+		importAt(e, srv, time.Second, 2)
+		srv.set(func(s *zurgServer) { s.torrents = append(s.torrents, ZurgTorrent{Name: zname, Hash: hashA, Size: 7}) })
+		importAt(e, srv, time.Second, 3)
+		if s := state(e); s != "imported" {
+			t.Errorf("download %s", s)
+		}
+	})
+
+	t.Run("outside the window the cached listing stands", func(t *testing.T) {
+		e, srv := setup(t, ReadyRecheckWindow)
+		importAt(e, srv, 0, 1)
+		srv.set(func(s *zurgServer) { s.torrents = append(s.torrents, ZurgTorrent{Name: zname, Hash: hashA, Size: 7}) })
+		importAt(e, srv, 10*time.Second, 1)
+		if s := state(e); s != "ready" {
+			t.Errorf("download %s", s)
+		}
+	})
+
+	t.Run("a failed fresh read keeps the listing's retry clock", func(t *testing.T) {
+		e, srv := setup(t, 0)
+		importAt(e, srv, 0, 1)
+		srv.set(func(s *zurgServer) { s.listing = http.StatusInternalServerError })
+		importAt(e, srv, freshListFloor, 2)
+		srv.set(func(s *zurgServer) { s.listing = 0 })
+		importAt(e, srv, freshListFloor, 2)
+		importAt(e, srv, 30*time.Second, 2)
+		if s := state(e); s != "ready" {
+			t.Errorf("download %s", s)
 		}
 	})
 }

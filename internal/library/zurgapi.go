@@ -324,12 +324,28 @@ func (l *Library) mountHealthy(ctx context.Context) error {
 	return l.mount.Healthy(ctx)
 }
 
-// Torrents returns the torrent listing, fetched at most once per interval. A failed or missing listing is not asked
-// again for the interval, on its own clock: it does not mark the whole API down, so the per-folder entries an import
-// confirms its folder with are still asked.
+// Torrents returns the torrent listing, fetched at most once per interval (FreshTorrents may read it sooner). A
+// failed or missing listing is not asked again for the interval, on its own clock: it does not mark the whole API
+// down, so the per-folder entries an import confirms its folder with are still asked.
 func (z *ZurgAPI) Torrents(ctx context.Context) (*ZurgTorrents, error) {
+	return z.torrents(ctx, z.interval())
+}
+
+// freshListFloor is the least time between two reads of the listing when FreshTorrents asks for a newer one.
+const freshListFloor = 2 * time.Second
+
+// FreshTorrents is the listing no older than freshListFloor, for a download that turned ready moments ago and is not
+// in the cached listing: zurg lists a new torrent within seconds, while the cached listing can be an interval old.
+// zurg serves the listing from memory, so a read every few seconds is cheap, and freshListFloor bounds it across all
+// callers. A down API and the listing's own retry clock hold it back as they hold Torrents.
+func (z *ZurgAPI) FreshTorrents(ctx context.Context) (*ZurgTorrents, error) {
+	return z.torrents(ctx, freshListFloor)
+}
+
+// torrents returns the cached listing while it is younger than maxAge, else reads it again.
+func (z *ZurgAPI) torrents(ctx context.Context, maxAge time.Duration) (*ZurgTorrents, error) {
 	z.mu.Lock()
-	if z.list != nil && z.now().Sub(z.listAt) < z.interval() {
+	if z.list != nil && z.now().Sub(z.listAt) < maxAge {
 		l := z.list
 		z.mu.Unlock()
 		return l, nil

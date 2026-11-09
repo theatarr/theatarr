@@ -79,6 +79,8 @@ type importDownload struct {
 	// SourcePath is the path a path or manual import named on the mount (download.source_path), "" when the release
 	// is found by its hash and names.
 	SourcePath string
+	// ReadyAt is when the router recorded the download as ready (download.ready_at); zero when unknown.
+	ReadyAt time.Time
 	// Manual are a client's explicit files (download_file, source manual) by their path in the release folder: only
 	// these import, with these episodes. Recorded are the identities an earlier import of the download linked.
 	Manual, Recorded map[string]fileIdentity
@@ -98,17 +100,18 @@ func loadDownload(ctx context.Context, db *sql.DB, pol *policy.Policy, id int64)
 	var provider, client sql.NullString
 	var eps string
 	var formats, epMap, srcPath sql.NullString
+	var readyAt sql.NullInt64
 	err := db.QueryRowContext(ctx, `
 		SELECT d.state, d.provider, d.client, d.release_title, d.info_hash, d.indexer, d.name, d.quality, d.score, d.episodes,
-		       d.formats, d.episode_map, d.source_path, d.version_id, d.version_key, d.title_id
+		       d.formats, d.episode_map, d.source_path, d.ready_at, d.version_id, d.version_key, d.title_id
 		FROM download d WHERE d.id = ?`, id).
 		Scan(&d.State, &provider, &client, &d.ReleaseTitle, &d.InfoHash, &d.Indexer, &d.Name, &v.Quality, &v.Score, &eps,
-			&formats, &epMap, &srcPath, &v.VersionID, &v.Key, &v.Title.ID)
+			&formats, &epMap, &srcPath, &readyAt, &v.VersionID, &v.Key, &v.Title.ID)
 	if err != nil {
 		return nil, fmt.Errorf("library: download %d: %w", id, err)
 	}
 	d.Provider, d.Client, d.InfoHash = provider.String, client.String, strings.ToLower(d.InfoHash)
-	d.SourcePath = srcPath.String
+	d.SourcePath, d.ReadyAt = srcPath.String, store.NullMillis(readyAt)
 	if d.Manual, d.Recorded, err = loadFiles(ctx, db, id); err != nil {
 		return nil, err
 	}

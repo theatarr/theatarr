@@ -920,7 +920,11 @@ until `router.stalled_after`; then it fails and blocklists the download while ke
 
 **Status:**
 - `downloaded` → `ready` (`ready_at`, the provider's name, progress 100). `cached` = 1 when the first read already
-  showed it downloaded.
+  showed it downloaded. Once that write commits, the router calls its ready notifier (`SetReadyNotify`, also after a
+  download client's ready write), which never blocks: `theatarr serve` wakes the library's import pass with it, so
+  the import does not wait for the next `library.mount.poll_interval` (`docs/design/library.md`, "Import of a ready
+  download"). Every settings generation's router gets the same notifier (`TestRouteAddsAndPolls`,
+  `TestClientPollMapsStates`).
 - downloading → `downloading` with progress. Queued on the provider leaves the state as it is: `added` stays
   `added` (RD converting or queued, AD's queue, TorBox queued), `downloading` stays `downloading`.
 - `downloading` with no progress for `router.downloading_timeout` → `failed` as stalled ("Stalled downloads").

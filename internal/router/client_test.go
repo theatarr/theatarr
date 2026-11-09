@@ -6,6 +6,7 @@ import (
 	"io"
 	"log/slog"
 	"strings"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -223,6 +224,8 @@ func TestClientPollMapsStates(t *testing.T) {
 		t.Fatal(err)
 	}
 	id, _, _, _ := e.dl(h("a"))
+	var woken atomic.Int32
+	e.r.SetReadyNotify(func() { woken.Add(1) })
 	f.Set(h("a"), held("downloading", 0.4, ""))
 	if _, err := e.r.Poll(e.ctx); err != nil {
 		t.Fatal(err)
@@ -249,6 +252,10 @@ func TestClientPollMapsStates(t *testing.T) {
 	read()
 	if state != StateReady || progress != 100 || source.Valid {
 		t.Fatalf("ready: %s %v %v", state, progress, source)
+	}
+	// The ready write calls the notifier once; downloading did not.
+	if n := woken.Load(); n != 1 {
+		t.Errorf("ready notified %d times", n)
 	}
 	if f.CallCount(pathInfo) != 3 { // the pre-add check and one read per poll
 		t.Errorf("info reads %d", f.CallCount(pathInfo))

@@ -354,10 +354,16 @@ func (l *Library) importDownload(ctx context.Context, d *importDownload, dryRun 
 		// zurg names the folder after its own name for the torrent, which the providers may report otherwise
 		// (another case, a video file's name, a cut or different title). Its current name goes first: zurg may
 		// rename. Without a listing, or with the hash not listed, the provider's names alone are tried.
-		if list, err := l.zurg.Torrents(ctx); err == nil {
-			if zname, ok := list.Name(d.InfoHash); ok {
-				names = ReleaseFolderNames(d.InfoHash, append([]string{zname}, known...)...)
+		list, err := l.zurg.Torrents(ctx)
+		zname, ok := list.Name(d.InfoHash)
+		if err == nil && !ok && l.justReady(d) {
+			// A torrent zurg listed after the cached listing was read is not in it: read a newer one.
+			if fresh, err := l.zurg.FreshTorrents(ctx); err == nil {
+				zname, ok = fresh.Name(d.InfoHash)
 			}
+		}
+		if ok {
+			names = ReleaseFolderNames(d.InfoHash, append([]string{zname}, known...)...)
 		}
 	}
 	if !sourced && len(d.Manual) == 0 {
@@ -697,8 +703,33 @@ func (l *Library) unreadable(ctx context.Context, d *importDownload, err error) 
 	return fmt.Errorf("%w: %w", ErrUnreadable, err)
 }
 
+// notOnMount is the import error of a download whose release folder is not on the mount yet.
+const notOnMount = "release not on the mount yet"
+
 func (l *Library) markWaiting(ctx context.Context, d *importDownload) error {
-	return l.markWaitingWithError(ctx, d, "release not on the mount yet")
+	return l.markWaitingWithError(ctx, d, notOnMount)
+}
+
+// ReadyRecheckWindow is how long after a download turned ready its import is retried quickly while its release is not
+// on the mount yet (theatarr serve's re-check, FreshWaiting) and reads zurg's listing afresh (FreshTorrents): a new
+// torrent shows on the mount within seconds to about half a minute, so waiting for the next poll interval only
+// delays it. Past the window the poll interval and the cached listing apply.
+const ReadyRecheckWindow = 2 * time.Minute
+
+// justReady reports whether d turned ready within ReadyRecheckWindow.
+func (l *Library) justReady(d *importDownload) bool {
+	return !d.ReadyAt.IsZero() && l.now().Sub(d.ReadyAt) < ReadyRecheckWindow
+}
+
+// FreshWaiting reports whether a ready download that turned ready within ReadyRecheckWindow waits because its
+// release is not on the mount yet: theatarr serve then runs the next import pass after a short delay instead of at
+// the next poll interval.
+func (l *Library) FreshWaiting(ctx context.Context) bool {
+	var n int
+	err := l.st.Reader().QueryRowContext(ctx, `SELECT COUNT(*) FROM library_import li JOIN download d ON d.id = li.download_id
+		WHERE li.state = 'waiting_mount' AND li.last_error = ? AND d.state = 'ready' AND d.ready_at > ?`,
+		notOnMount, store.Millis(l.now().Add(-ReadyRecheckWindow))).Scan(&n)
+	return err == nil && n > 0
 }
 
 // TitleHoldPrefix starts the import error of a download held for its episode title; the ready timeout skips them.

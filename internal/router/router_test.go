@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"strings"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -132,7 +133,9 @@ func TestRouteAddsAndPolls(t *testing.T) {
 		t.Errorf("second route: %+v %v", res, err)
 	}
 	// Poll: RD converting, then waiting for files: every playable file is selected (not the sample or the nfo);
-	// then downloaded: ready.
+	// then downloaded: ready, which calls the ready notifier once.
+	var woken atomic.Int32
+	e.r.SetReadyNotify(func() { woken.Add(1) })
 	e.pr["rd"].set("rd-aaaa", provider.Torrent{Status: "magnet_conversion", State: provider.StateQueued})
 	if _, err := e.r.Poll(e.ctx); err != nil {
 		t.Fatal(err)
@@ -153,8 +156,14 @@ func TestRouteAddsAndPolls(t *testing.T) {
 	}
 	e.pr["rd"].set("rd-aaaa", provider.Torrent{Status: "downloaded", State: provider.StateDownloaded, Progress: 100,
 		Name: "Movie.2024.2160p.WEB.H265-GRP"})
+	if n := woken.Load(); n != 0 {
+		t.Errorf("notified %d times before ready", n)
+	}
 	if sum, err := e.r.Poll(e.ctx); err != nil || sum.Ready != 1 {
 		t.Fatalf("poll %+v %v", sum, err)
+	}
+	if n := woken.Load(); n != 1 {
+		t.Errorf("ready notified %d times", n)
 	}
 	if n := e.count(`SELECT COUNT(*) FROM download WHERE state = 'ready' AND cached = 1 AND ready_at IS NOT NULL
 		AND name = 'Movie.2024.2160p.WEB.H265-GRP' AND files_selected = 1`); n != 1 {
@@ -164,8 +173,8 @@ func TestRouteAddsAndPolls(t *testing.T) {
 	}
 	// Ready rows are the library's: the poller leaves them.
 	e.pr["rd"].set("rd-aaaa", provider.Torrent{Status: "error", State: provider.StateError})
-	if sum, _ := e.r.Poll(e.ctx); sum.Read != 0 {
-		t.Errorf("polled a ready download: %+v", sum)
+	if sum, _ := e.r.Poll(e.ctx); sum.Read != 0 || woken.Load() != 1 {
+		t.Errorf("polled a ready download: %+v, notified %d times", sum, woken.Load())
 	}
 }
 

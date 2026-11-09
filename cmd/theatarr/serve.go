@@ -338,6 +338,16 @@ func runServe(args []string) error {
 	var liveWorkers *serveWorkers
 	var wireRuntimeExtras func(ctx context.Context, next, previous *serveRuntime) error
 	var runtimeMountCheck func(context.Context) error
+	// readyWake wakes the library's import pass when the router records a download as ready, so it need not wait
+	// for the next poll interval. It lives here, not in a settings generation: every generation's router signals it
+	// and every generation's library loop reads it. Downloads turning ready while a wake-up is pending share it.
+	readyWake := make(chan struct{}, 1)
+	notifyReady := func() {
+		select {
+		case readyWake <- struct{}{}:
+		default:
+		}
+	}
 	if settingsSnapshot != nil {
 		settingsSnapshot, prepared, usedFallback, prepareErr := loaded.prepareStartup(ctx, settingsSnapshot, log,
 			func(ctx context.Context, snap *settings.Snapshot) (any, error) {
@@ -368,6 +378,7 @@ func runServe(args []string) error {
 					if runtimeMountCheck != nil {
 						next.Router.SetMountCheck(runtimeMountCheck)
 					}
+					next.Router.SetReadyNotify(notifyReady)
 					if wireRuntimeExtras != nil {
 						if err := wireRuntimeExtras(ctx, next, old); err != nil {
 							return nil, err
@@ -451,6 +462,7 @@ func runServe(args []string) error {
 			return err
 		}
 	}
+	rt.SetReadyNotify(notifyReady)
 	routeService = &serveRouter{manager: runtimeManager, fallback: rt}
 	if runtimeManager != nil {
 		rt.SetCurrentRuntime(func() *router.Router {
@@ -505,7 +517,7 @@ func runServe(args []string) error {
 	if err != nil {
 		return err
 	}
-	lb.manager = runtimeManager
+	lb.manager, lb.readyWake = runtimeManager, readyWake
 	// The mount metrics read the active generation's library: a save that moves the mount starts a fresh guard there.
 	library.RegisterMountMetrics(reg, lb.current)
 	if serveSnapshot != nil {
@@ -574,7 +586,7 @@ func runServe(args []string) error {
 				return err
 			}
 			// Its loops (serveliveworkers.go) resolve each pass's library like the startup one.
-			runtime.Library.manager = runtimeManager
+			runtime.Library.manager, runtime.Library.readyWake = runtimeManager, readyWake
 			// The mount guard, helpers and listing floor carry over from the generation being replaced (the startup
 			// library before the first save), so a save neither resets an open breaker nor keeps old mount settings.
 			prevLib := lb.lib

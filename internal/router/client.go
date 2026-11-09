@@ -465,6 +465,7 @@ func (r *Router) pollClientOne(ctx context.Context, x clientRead, cl *qbit.Clien
 			args: []any{t.State, t.Name, source, store.Millis(now), store.Millis(now), store.Millis(now)}})
 		if err == nil {
 			sum.Ready++
+			r.notifyReady()
 		}
 		if errors.Is(err, errAddTaken) {
 			return nil

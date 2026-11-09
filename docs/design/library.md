@@ -175,7 +175,17 @@ probes a sparse 50 GB file and a 20 GB MP4 with `moov` at the end reading under 
 
 ## Import of a ready download
 
-`Library.Run` (every `mount.poll_interval` in `theatarr serve`) takes downloads in `ready` (router, migration 00014):
+`Library.Run` (every `mount.poll_interval` in `theatarr serve`) takes downloads in `ready` (router, migration 00014).
+`theatarr serve` also runs it as soon as the router records a download as ready: the router's ready notifier fills a
+one-slot wake channel that serve owns (so a settings save that rebuilds the router or the library keeps it), and the
+library loop runs the same pass on it, behind the same mount breaker check; downloads turning ready together share one
+pass (`TestServeLibraryReadyWakesImport`). A new torrent shows on the mount only once zurg's own change poll and the
+mount's directory cache have caught up (up to about half a minute), so while a download that turned ready within
+`ReadyRecheckWindow` (2 min) waits with "release not on the mount yet", the next pass runs 2 s after the last one
+instead of at the next tick (`Library.FreshWaiting`, one timer in the loop; `TestServeLibraryRechecksFreshWait`,
+`TestFreshWaiting`). Past the window it is back on `poll_interval`. A quick pass retries every ready download, so older
+waiting downloads get a few extra mount checks, and `library_import.attempts` climbs faster for a waiting download;
+only a `partial` import's back-off reads `attempts`.
 
 1. **Mount health:** a `stat` of `<mount>/__all__` with a timeout. A hang, `ENOTCONN`/`EIO` or a missing root stops
    the pass (`ErrMountDown`): nothing is read as missing. Every mount call goes through the mount guard ("Mount
@@ -786,7 +796,7 @@ With `library.mount.zurg_api` set, `internal/library/zurgapi.go` reads four endp
 
 | Endpoint | Answer | Used for |
 |---|---|---|
-| `/debug/torrents` | array of `{name, hash, size}`; `size` is the torrent's full size as the debrid service reports it; 0 for a torrent with nothing usable. It is not what zurg can still serve: a torrent whose video is lost can report many GB while its folder holds only `.nfo`/`.txt` | Lost-video classification; the import's folder lookup (zurg's name for the hash) |
+| `/debug/torrents` | array of `{name, hash, size}`; `size` is the torrent's full size as the debrid service reports it; 0 for a torrent with nothing usable. It is not what zurg can still serve: a torrent whose video is lost can report many GB while its folder holds only `.nfo`/`.txt` | Lost-video classification; the import's folder lookup (zurg's name for the hash; read afresh for a download that just turned ready, below) |
 | `/api/library/entry?path=/dav/<all_dir>/<folder>[/<file>]` | `{hash, name, imdb_id, size, media_info}` (size for files; `media_info` null until zurg probed); 404 when there is no such path. It also has `signed_path`, which is never decoded, stored or logged | Per-file confirmation |
 | `/torrents/repair/status` | `{"running": bool}`, no torrents named | Repair grace |
 | `/ready` | 503 while zurg is still loading its library, 200 once loaded; outside basic auth ([zurg docker notes](https://notes.debridmediamanager.com/zurg/setup/docker/): "If /ready fails with error 503 the library is still loading") | Mount readiness |
@@ -794,7 +804,12 @@ With `library.mount.zurg_api` set, `internal/library/zurgapi.go` reads four endp
 Every use falls back to the mount alone when the API is off, a request fails (the API is then left alone for one
 interval), or there is no entry. The listing backs off on its own clock: a failed or missing `/debug/torrents` is not
 asked again for one interval but does not mark the API down, so the per-file confirmation still asks for entries
-(`TestImportZurgNameForHash`). Nothing is deleted, relinked, failed or blocklisted because of an API answer beyond
+(`TestImportZurgNameForHash`). The cached listing can be an interval old, so a torrent zurg listed since is not in
+it: when an import's hash is missing from it and the download turned ready within `ReadyRecheckWindow`, the import
+reads the listing again (`FreshTorrents`), at most once per 2 s (zurg serves the listing from memory). A down API and
+the listing's retry clock hold that read back as they hold the cached one; it goes through the gateway and counts
+against `zurg_api_budget`, and a refusal is a failed listing. Outside the window the cached listing is used
+(`TestImportZurgFreshListing`). Nothing is deleted, relinked, failed or blocklisted because of an API answer beyond
 what the dangling path already did.
 
 - **Lost video.** A listed torrent maps to its folders by `ReleaseFolderNames` (name without `.mkv`/`.mp4`, and with

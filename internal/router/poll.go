@@ -874,6 +874,9 @@ func (r *Router) applyStatus(ctx context.Context, dl int64, version string, kind
 	if state == StateDownloading && cur == StateAdded {
 		r.uncachedAdd(ctx, pk)
 	}
+	if state == StateReady {
+		r.notifyReady()
+	}
 	return false, nil
 }
 
