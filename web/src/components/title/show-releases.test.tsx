@@ -1,6 +1,9 @@
 // @vitest-environment jsdom
-import { fireEvent, screen, waitFor, within } from "@testing-library/react";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
+import { MemoryRouter } from "react-router";
 import { expect, it, vi } from "vitest";
+import { qk } from "@/api/query-keys";
 import { mockFetch, renderPage } from "@/test/page";
 import { ReleaseTable, ShowReleases } from "./show-releases";
 
@@ -67,8 +70,8 @@ it("a stored row's Grab searches first, then grabs that hash from the fresh answ
   const api = mockFetch([
     { method: "GET", path: "/auth/me", reply: { permissions: ["browse", "see_files", "manage"] } },
     { method: "GET", path: "/titles/7/releases", reply: stored([cand(1, "aaa"), cand(2, "BBB", false)]) },
-    { method: "GET", path: "/titles/7/releases", reply: fresh([cand(1, "bbb", false), cand(2, "aaa")]) },
-    { method: "POST", path: "/titles/7/releases/grab", reply: { version: "movie-web", release: "Alpha.2020.2160p.WEB-2", info_hash: "bbb", accepted: false, overridden: true, message: "Sent to the router" } },
+    { method: "GET", path: "/titles/7/releases", reply: fresh([cand(1, "bbb"), cand(2, "aaa")]) },
+    { method: "POST", path: "/titles/7/releases/grab", reply: { version: "movie-web", release: "Alpha.2020.2160p.WEB-2", info_hash: "bbb", accepted: true, overridden: false, message: "Sent to the router" } },
   ]);
   renderPage(<ShowReleases titleId={7} defaultOpen initialVersion="movie-web" />);
   await screen.findByTestId("releases-grabbed");
@@ -77,7 +80,8 @@ it("a stored row's Grab searches first, then grabs that hash from the fresh answ
   const gets = api.calls("GET", "/titles/7/releases");
   expect(gets.map((g) => g.search)).toEqual(["?version=movie-web", "?version=movie-web&live=1"]);
   const grabs = api.calls("POST", "/titles/7/releases/grab");
-  expect(grabs.map((g) => g.body)).toEqual([{ version: "movie-web", info_hash: "BBB", override: true }]);
+  // Accepted by the fresh search: no override, although the stored list rejected it.
+  expect(grabs.map((g) => g.body)).toEqual([{ version: "movie-web", info_hash: "BBB", override: false }]);
   expect(api.requests.indexOf(grabs[0])).toBeGreaterThan(api.requests.indexOf(gets[1]));
   fireEvent.click(screen.getByTestId("confirm-cancel"));
   await waitFor(() => expect(screen.getByTestId("releases-source").textContent).toBe("Live search"));
@@ -140,4 +144,87 @@ it("scrolls the followed release's card on a phone", () => {
   expect(scrolled[0].tagName).toBe("LI");
   expect(scrolled[0].getAttribute("data-release-hash")).toBe("bbb");
   Element.prototype.scrollIntoView = saved;
+});
+
+it("a stored row the fresh search now rejects asks again with the fresh reasons before grabbing", async () => {
+  const now = { ...cand(1, "aaa", false), rejections: [{ reason: "season", message: "not a season pack" }] };
+  const api = mockFetch([
+    { method: "GET", path: "/auth/me", reply: { permissions: ["browse", "see_files", "manage"] } },
+    { method: "GET", path: "/titles/7/releases", reply: stored([cand(1, "aaa")]) },
+    { method: "GET", path: "/titles/7/releases", reply: fresh([now]) },
+    { method: "POST", path: "/titles/7/releases/grab", reply: { version: "movie-web", release: "Alpha.2020.2160p.WEB-1", info_hash: "aaa", accepted: false, overridden: true, message: "Sent to the router" } },
+  ]);
+  renderPage(<ShowReleases titleId={7} defaultOpen initialVersion="movie-web" />);
+  await screen.findByTestId("releases-grabbed");
+  await grabStoredRow(0);
+  const dialog = await screen.findByTestId("grab-dialog");
+  await waitFor(() => expect(within(dialog).getByTestId("confirm-ok").textContent).toBe("Grab anyway"));
+  expect(dialog.textContent).toContain("not a season pack");
+  expect(api.calls("POST", "/titles/7/releases/grab")).toHaveLength(0);
+  fireEvent.click(within(dialog).getByTestId("confirm-ok"));
+  await screen.findByTestId("confirm-done");
+  expect(api.calls("POST", "/titles/7/releases/grab").map((g) => g.body)).toEqual([{ version: "movie-web", info_hash: "aaa", override: true }]);
+  expect(api.calls("GET", "/titles/7/releases")).toHaveLength(2);
+});
+
+it("the grab dialog stays until its grab settles", async () => {
+  let settle: (v: unknown) => void = () => {};
+  const api = mockFetch([
+    { method: "GET", path: "/auth/me", reply: { permissions: ["browse", "see_files", "manage"] } },
+    { method: "GET", path: "/titles/7/releases", reply: stored([cand(1, "aaa")]) },
+    { method: "GET", path: "/titles/7/releases", reply: fresh([cand(1, "aaa")]) },
+    { method: "POST", path: "/titles/7/releases/grab", reply: () => new Promise((r) => { settle = r; }) },
+  ]);
+  renderPage(<ShowReleases titleId={7} defaultOpen initialVersion="movie-web" />);
+  await screen.findByTestId("releases-grabbed");
+  await grabStoredRow(0);
+  await waitFor(() => expect(api.calls("POST", "/titles/7/releases/grab")).toHaveLength(1));
+  fireEvent.click(screen.getByTestId("confirm-cancel"));
+  expect(screen.getByTestId("grab-dialog")).toBeTruthy();
+  settle({ version: "movie-web", release: "Alpha.2020.2160p.WEB-1", info_hash: "aaa", accepted: true, overridden: false, message: "Sent to the router" });
+  await screen.findByTestId("confirm-done");
+  fireEvent.click(screen.getByTestId("confirm-cancel"));
+  await waitFor(() => expect(screen.queryByTestId("grab-dialog")).toBeNull());
+  expect(api.calls("POST", "/titles/7/releases/grab")).toHaveLength(1);
+});
+
+/** Render with a client that keeps unused answers and retries like the app's. */
+function renderKept(ui: React.ReactElement) {
+  const client = new QueryClient({ defaultOptions: { queries: { gcTime: Infinity, retry: (n) => n < 2, retryDelay: 0 }, mutations: { retry: false } } });
+  render(<MemoryRouter><QueryClientProvider client={client}>{ui}</QueryClientProvider></MemoryRouter>);
+  return client;
+}
+
+it("a stored row's grab waits for the new search, never an older live answer", async () => {
+  let answer: (v: unknown) => void = () => {};
+  const api = mockFetch([
+    { method: "GET", path: "/auth/me", reply: { permissions: ["browse", "see_files", "manage"] } },
+    { method: "GET", path: "/titles/7/releases", reply: stored([cand(1, "aaa")]) },
+    { method: "GET", path: "/titles/7/releases", reply: () => new Promise((r) => { answer = r; }) },
+  ]);
+  const client = new QueryClient({ defaultOptions: { queries: { gcTime: Infinity, retry: false } } });
+  // An older live answer that still offered the release.
+  client.setQueryData(qk.releases(7, "movie-web", true), fresh([cand(1, "aaa")]));
+  render(<MemoryRouter><QueryClientProvider client={client}><ShowReleases titleId={7} defaultOpen initialVersion="movie-web" /></QueryClientProvider></MemoryRouter>);
+  await screen.findByTestId("releases-grabbed");
+  await grabStoredRow(0);
+  await waitFor(() => expect(api.calls("GET", "/titles/7/releases")).toHaveLength(2));
+  await new Promise((r) => setTimeout(r, 20));
+  expect(api.calls("POST", "/titles/7/releases/grab")).toHaveLength(0);
+  answer(fresh([cand(1, "ccc")]));
+  await screen.findByTestId("releases-gone");
+  expect(api.calls("POST", "/titles/7/releases/grab")).toHaveLength(0);
+});
+
+it("a live search is not retried on its own", async () => {
+  const api = mockFetch([
+    { method: "GET", path: "/auth/me", reply: { permissions: ["browse", "see_files", "manage"] } },
+    { method: "GET", path: "/titles/7/releases", reply: stored([cand(1, "aaa")]) },
+    { method: "GET", path: "/titles/7/releases", reply: { status: 502, body: { error: "bad gateway" } } },
+  ]);
+  renderKept(<ShowReleases titleId={7} defaultOpen initialVersion="movie-web" />);
+  fireEvent.click(await screen.findByTestId("releases-live"));
+  await screen.findByText("bad gateway");
+  await new Promise((r) => setTimeout(r, 20));
+  expect(api.calls("GET", "/titles/7/releases").map((g) => g.search)).toEqual(["?version=movie-web", "?version=movie-web&live=1"]);
 });

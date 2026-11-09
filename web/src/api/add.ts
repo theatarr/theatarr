@@ -125,8 +125,9 @@ export function useReleases(titleId: number, version: string | undefined, live: 
   return useQuery({
     queryKey: qk.releases(titleId, version ?? "", live),
     queryFn: () => api<Releases>(`/titles/${titleId}/releases` + qs({ version, live: live ? 1 : undefined })),
-    // A live answer is a fresh indexer search: never refetched on its own.
+    // A live answer is a fresh indexer search: never refetched or retried on its own.
     staleTime: live ? Infinity : 30_000,
     refetchOnWindowFocus: !live,
+    ...(live ? { retry: false } : {}),
   });
 }

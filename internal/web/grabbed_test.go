@@ -1,8 +1,10 @@
 package web
 
 import (
+	"strings"
 	"testing"
 
+	"github.com/theatarr/theatarr/internal/policy"
 	"github.com/theatarr/theatarr/internal/store"
 )
 
@@ -332,5 +334,84 @@ func TestLatestSearchFollowsShadow(t *testing.T) {
 		candidates, created_at) VALUES (98, 'acquire:61', 61, 1, 'movie-remux', 'movie', 1, 0, '[]', 3000)`)
 	if l := latest(); !l[61] || l[60] {
 		t.Errorf("after a newer journal search: %v", l)
+	}
+}
+
+// A pack grabbed for E01 and E02 that linked only E01 is not imported for E02, and a season run that opened nothing
+// for an episode says so for that episode.
+func TestEpisodeOutcomeFromLinks(t *testing.T) {
+	t.Parallel()
+	e := newManageEnv(t, nil)
+	now := store.Millis(addNow)
+	const hp, h1 = "cccccccccccccccccccccccccccccccccccccccc", "dddddddddddddddddddddddddddddddddddddddd"
+	e.exec(`INSERT INTO acquire_run (id, source, title_id, version_id, version_key, target, state, results, accepted,
+		message, created_at, updated_at) VALUES (70, 'wanted', 10, 10, 'tv-2160p', 's01', 'routed', 2, 1,
+		'1 of 2 results accepted', ?, ?)`, now-9000, now-9000)
+	e.exec(`INSERT INTO journal_decision (id, source, run_id, title_id, version_key, target, results, accepted,
+		candidates, created_at) VALUES (99, 'acquire:70', 70, 10, 'tv-2160p', 's01', 2, 1, ?, ?)`,
+		`[{"rank":1,"release":"The.Show.S01.2160p.WEB-PACK","info_hash":"`+hp+`","accepted":true,"episodes":["S01E01","S01E02"]}]`, now-9000)
+	e.exec(`INSERT INTO download (id, title_id, version_id, version_key, info_hash, release_title, indexer, provider,
+		state, source, episodes, created_at, updated_at, imported_at) VALUES
+		(20, 10, 10, 'tv-2160p', ?, 'The.Show.S01.2160p.WEB-PACK', 'idx', 'rd', 'imported', 'acquire:70', '[101,102]', ?, ?, ?)`,
+		hp, now-8900, now-8000, now-8000)
+	e.exec(`INSERT INTO link (id, path, target, title_id, download_id, release_title, state, created_at, updated_at) VALUES
+		(20, '/tv/Show/S01E01.mkv', '/mnt/__all__/Pack/E01.mkv', 10, 20, 'The.Show.S01.2160p.WEB-PACK', 'active', ?, ?)`,
+		now-8000, now-8000)
+	e.exec(`INSERT INTO link_version (link_id, version_id) VALUES (20, 10)`)
+	e.exec(`INSERT INTO link_episode (link_id, episode_id) VALUES (20, 101)`)
+
+	var r Releases
+	e.call("GET", APIBase+"/titles/10/episodes/102/releases", nil, 200, &r)
+	if o, ok := r.Outcomes[hp]; ok {
+		t.Errorf("E02 pack badged %+v without a file for E02", o)
+	}
+	if r.Grabbed != "Grabbed #1 via rd → imported, without a file for this episode" {
+		t.Errorf("E02 summary %q", r.Grabbed)
+	}
+	r = Releases{}
+	e.call("GET", APIBase+"/titles/10/episodes/101/releases", nil, 200, &r)
+	if r.Outcomes[hp].Outcome != "current" || r.Grabbed != "Grabbed #1 via rd → imported (the current file)" {
+		t.Errorf("E01: %+v %q", r.Outcomes[hp], r.Grabbed)
+	}
+
+	// A newer season search that routed only E01's single.
+	e.exec(`INSERT INTO acquire_run (id, source, title_id, version_id, version_key, target, state, results, accepted,
+		message, created_at, updated_at) VALUES (71, 'wanted', 10, 10, 'tv-2160p', 's01', 'routed', 1, 1,
+		'1 of 1 results accepted', ?, ?)`, now-5000, now-5000)
+	e.exec(`INSERT INTO journal_decision (id, source, run_id, title_id, version_key, target, results, accepted,
+		candidates, created_at) VALUES (100, 'acquire:71', 71, 10, 'tv-2160p', 's01', 1, 1, ?, ?)`,
+		`[{"rank":1,"release":"The.Show.S01E01.2160p.WEB-ONE","info_hash":"`+h1+`","accepted":true,"episodes":["S01E01"]}]`, now-5000)
+	e.exec(`INSERT INTO download (id, title_id, version_id, version_key, info_hash, release_title, indexer, provider,
+		state, source, episodes, created_at, updated_at) VALUES
+		(21, 10, 10, 'tv-2160p', ?, 'The.Show.S01E01.2160p.WEB-ONE', 'idx', 'rd', 'downloading', 'acquire:71', '[101]', ?, ?)`,
+		h1, now-4900, now-4900)
+	r = Releases{}
+	e.call("GET", APIBase+"/titles/10/episodes/102/releases", nil, 200, &r)
+	if r.Grabbed != "Nothing grabbed for this episode" {
+		t.Errorf("E02 after a season search that routed E01 only: %q", r.Grabbed)
+	}
+}
+
+// A live search no indexer answered is a failed search: the stored decision answers, with the reason.
+func TestLiveReleasesNoAnswer(t *testing.T) {
+	t.Parallel()
+	e := newAddEnv(t, func(p *policy.Policy) {
+		p.Versions["movie-web"].Mode, p.Versions["movie-web"].Grab = policy.ModeActive, true
+		p.Versions["tv-2160p"].Mode, p.Versions["tv-2160p"].Grab = policy.ModeActive, true
+	})
+	e.exec(`INSERT INTO version (title_id, policy_key, state, created_at, updated_at) VALUES (1, 'movie-web', 'wanted', 0, 0)`)
+	e.acq.noAnswer = true
+	var r Releases
+	e.call("GET", APIBase+"/titles/1/releases?version=movie-web&live=1", nil, 200, &r)
+	if r.Source == "live" || !strings.HasPrefix(r.Message, "Live search failed: no indexer answered (dmm: timeout)") {
+		t.Errorf("movie: %q %q", r.Source, r.Message)
+	}
+	r = Releases{}
+	e.call("GET", APIBase+"/titles/10/episodes/101/releases?live=1", nil, 200, &r)
+	if r.Source == "live" || !strings.HasPrefix(r.Message, "Live search failed: no indexer answered") {
+		t.Errorf("episode: %q %q", r.Source, r.Message)
+	}
+	if _, i := e.acq.counts(); i != 2 {
+		t.Errorf("searches %d", i)
 	}
 }

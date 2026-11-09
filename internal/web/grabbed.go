@@ -163,7 +163,8 @@ func runOrigins(ctx context.Context, db *sql.DB, titleID int64) (map[int64]runOr
 
 // releaseOutcomes reads what came of each release of the title's version, by lower-case info hash: the newest
 // download per hash, and the version's current files (active links). episode > 0 scopes both to that episode: the
-// downloads and the links that hold it.
+// downloads aimed at it, and whether a release was imported for it is whether a link of it held the episode (a pack
+// can import without a file for every episode it was grabbed for).
 func releaseOutcomes(ctx context.Context, db *sql.DB, titleID int64, version string, episode int64) (map[string]ReleaseOutcome, error) {
 	type dl struct{ state, provider, err string }
 	newest := map[string]dl{}
@@ -186,6 +187,11 @@ func releaseOutcomes(ctx context.Context, db *sql.DB, titleID int64, version str
 		})
 	if err != nil {
 		return nil, err
+	}
+	if episode > 0 {
+		if imported, err = episodeLinked(ctx, db, titleID, version, episode); err != nil {
+			return nil, err
+		}
 	}
 	current := map[string]bool{}
 	titles := map[string]bool{}
@@ -227,14 +233,39 @@ func releaseOutcomes(ctx context.Context, db *sql.DB, titleID int64, version str
 			o.Outcome, o.Reason = "failed", shortReason(d.err, d.provider)
 		case o.replaced:
 			o.Outcome, o.ReplacedBy = "replaced", replacedBy
-		case d.state == "imported":
+		case d.state == "imported" && (episode == 0 || imported[h]):
 			o.Outcome = "imported"
+		case d.state == "imported":
+			// Imported, without a file for this episode.
+			continue
 		default:
 			o.Outcome = "grabbed"
 		}
 		out[h] = o
 	}
 	return out, nil
+}
+
+// episodeLinked reads the releases (lower-case info hash) a link of the version ever held the episode from.
+func episodeLinked(ctx context.Context, db *sql.DB, titleID int64, version string, episode int64) (map[string]bool, error) {
+	out := map[string]bool{}
+	err := scanAll(ctx, db, `SELECT DISTINCT LOWER(COALESCE(c.info_hash, d.info_hash, ''))
+		FROM version v JOIN link_version lv ON lv.version_id = v.id JOIN link l ON l.id = lv.link_id
+		JOIN link_episode le ON le.link_id = l.id AND le.episode_id = ?
+		LEFT JOIN content_file cf ON cf.id = l.content_file_id LEFT JOIN content c ON c.id = cf.content_id
+		LEFT JOIN download d ON d.id = l.download_id
+		WHERE v.title_id = ? AND v.policy_key = ?`, []any{episode, titleID, version},
+		func(r *sql.Rows) error {
+			var h string
+			if err := r.Scan(&h); err != nil {
+				return err
+			}
+			if h != "" {
+				out[h] = true
+			}
+			return nil
+		})
+	return out, err
 }
 
 // runDownload is one download a search opened, with its own state and error.
@@ -275,6 +306,8 @@ func searchSummary(dls []runDownload, cands []snapshot.Candidate, outcomes map[s
 	// What came of this download, not of a later one of the same release; outcomes says whether its file still is.
 	o := outcomes[strings.ToLower(d.hash)]
 	switch d.state {
+	case "imported-without":
+		s += " → imported, without a file for this episode"
 	case "imported":
 		switch {
 		case o.Outcome == "current":

@@ -269,13 +269,17 @@ See [quickstart](../quickstart.md#readiness-led-setup) for the completion rules;
   release for the library, matched by info hash against all the library's downloads (`Releases.outcomes`):
   `Grabbed · rd` (in flight), `Imported`, `Current file`, `Failed · <short reason>` (the newest attempt failed, even
   after an older import) or `Replaced` (by the current release), for the stored list and a live search alike. The
-  episode overview's Releases badge the same way from that episode's downloads and files only, so a season pack
-  whose episode was upgraded reads `Replaced` there. Above the table one line says what the shown stored search did
+  episode overview's Releases badge the same way from that episode's downloads and files only: imported, current and
+  replaced come from the links that held the episode, so a season pack whose episode was upgraded reads `Replaced`
+  there and a pack that linked no file for the episode has no badge. Above the table one line says what the shown stored search did
   (`Releases.grabbed`, for an episode its downloads of that episode): "Grabbed #1 via rd → imported" or "Nothing
-  grabbed: <reason>"; it describes the downloads that search opened. `?hash=` picks out the followed release's row, or says it is not in the list.
+  grabbed: <reason>" ("Nothing grabbed for this episode" when a season search routed only others); it describes
+  the downloads that search opened. A live search no indexer answered is a failed search ("Live search failed",
+  the stored list shown), and a live search is never retried on its own. `?hash=` picks out the followed release's row, or says it is not in the list.
   Managers can grab from the stored list too: Grab there runs a search first (one indexer query, as Search then Grab
   by hand) and grabs the row's hash from that answer; a release the fresh answer lacks is "No longer offered by the
-  indexer" and nothing is grabbed.
+  indexer" and nothing is grabbed, and one it now rejects is shown again with those reasons and grabbed only on
+  "Grab anyway". A grab's dialog stays open until its request settles.
 - **Episodes** (`components/title/seasons.tsx`, `episode-drawer.tsx`, logic in
   `lib/seasons.ts`), phone first:
   - **Season header:** one completion summary for the copies in view, "8 of 10 available · 2 missing · 1 upgrade

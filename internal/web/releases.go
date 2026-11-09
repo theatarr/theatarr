@@ -161,6 +161,9 @@ func (w *Web) liveReleases(ctx context.Context, out *Releases, r *http.Request) 
 		season = &n
 	}
 	sr, err := w.add.Acquirer.Interactive(ctx, out.TitleID, out.Version, season, nil)
+	if err == nil {
+		err = noAnswer(sr)
+	}
 	if err != nil {
 		return err
 	}
@@ -170,6 +173,17 @@ func (w *Web) liveReleases(ctx context.Context, out *Releases, r *http.Request) 
 		out.Target = "s" + strconv.Itoa(100 + *season)[1:]
 	}
 	return nil
+}
+
+// noAnswer fails a search no indexer answered (router.Searched.NoAnswer): it says nothing about the releases.
+func noAnswer(sr *router.Searched) error {
+	if !sr.NoAnswer {
+		return nil
+	}
+	if len(sr.Notes) > 0 {
+		return errors.New("no indexer answered (" + strings.Join(sr.Notes, "; ") + ")")
+	}
+	return errors.New("no indexer answered")
 }
 
 // rankedInto fills a live answer from a search's ranked decisions.
@@ -332,6 +346,25 @@ func (w *Web) storedGrabbed(ctx context.Context, out *Releases, run sql.NullInt6
 		}
 	} else {
 		return nil
+	}
+	if episode > 0 {
+		// The episode's own downloads say what the search did for it, not the run's state.
+		if len(dls) == 0 {
+			if state == "routed" {
+				out.Grabbed = "Nothing grabbed for this episode"
+				return nil
+			}
+		} else {
+			linked, err := episodeLinked(ctx, db, out.TitleID, out.Version, episode)
+			if err != nil {
+				return err
+			}
+			for i := range dls {
+				if dls[i].state == "imported" && !linked[strings.ToLower(dls[i].hash)] {
+					dls[i].state = "imported-without"
+				}
+			}
+		}
 	}
 	out.Grabbed = searchSummary(dls, out.Candidates, oc, state, message)
 	return nil

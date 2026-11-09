@@ -34,6 +34,8 @@ type fakeAcquirer struct {
 	mu          sync.Mutex
 	submits     []acquire.Selection
 	interactive []string
+	// noAnswer: every indexer of an interactive search fails.
+	noAnswer bool
 }
 
 func (f *fakeAcquirer) Submit(_ context.Context, _ int64, sel acquire.Selection) (int, int, error) {
@@ -48,6 +50,9 @@ func (f *fakeAcquirer) Interactive(_ context.Context, titleID int64, version str
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	f.interactive = append(f.interactive, fmt.Sprintf("%d/%s", titleID, version))
+	if f.noAnswer {
+		return &router.Searched{NoAnswer: true, Notes: []string{"dmm: timeout"}}, nil
+	}
 	good := &decide.Decision{Release: "Alpha.2020.2160p.WEB-DL.DV-GRP", Accepted: true, Quality: "WEBDL-2160p", Score: 1500}
 	bad := &decide.Decision{Release: "Alpha.2020.720p.HDTV-X", Quality: "HDTV-720p",
 		Rejections: []decide.Rejection{{Reason: "quality", Message: "HDTV-720p is not wanted"}}}

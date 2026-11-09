@@ -27,8 +27,10 @@ export function useEpisodeReleases(titleId: number, eid: number, version: string
     queryKey: ["releases", titleId, "episode", eid, version ?? "", live],
     queryFn: () => api<Releases>(`/titles/${titleId}/episodes/${eid}/releases` + qs({ version, live: live ? 1 : undefined })),
     enabled,
+    // A live answer is a fresh indexer search: never refetched or retried on its own.
     staleTime: live ? Infinity : 30_000,
     refetchOnWindowFocus: !live,
+    ...(live ? { retry: false } : {}),
   });
 }
 

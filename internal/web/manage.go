@@ -1072,6 +1072,9 @@ func (w *Web) apiEpisodeReleases(rw http.ResponseWriter, r *http.Request) {
 			s := int(season)
 			sr, err := w.add.Acquirer.Interactive(ctx, t.id, key, &s, []int64{eid})
 			if err == nil {
+				err = noAnswer(sr)
+			}
+			if err == nil {
 				rankedInto(&out, sr, w.now())
 				w.keepLive(&out, sr)
 				out.Target = strings.ToLower(it.code())

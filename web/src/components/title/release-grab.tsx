@@ -3,7 +3,8 @@
 // server decides the release again, and a release it rejects (then or now) is grabbed only after "Grab anyway".
 // Managers only: callers pass grab only for a live answer the server marked grabbable (Releases.grab). A row of a
 // stored answer has no live search behind it: its Grab hands the row to the panel (pick), whose GrabDialog runs the
-// search first and grabs the row's hash from that answer.
+// search first and grabs the row's hash from that answer, asking again when that answer rejects it. The dialog
+// cannot close while its grab is on its way.
 import { Download } from "lucide-react";
 import { useEffect, useState } from "react";
 import type { Candidate, Releases } from "@/api/add";
@@ -34,14 +35,19 @@ export type FreshSearch = { search: () => void; answer?: Releases; failed: boole
 
 export function GrabDialog({ c, target, onClose, fresh }: { c: Candidate; target: GrabTarget; onClose: () => void; fresh?: FreshSearch }) {
   const grab = useGrab(target.titleId);
-  // The override asked for while the search runs, and the result time it waits to pass.
-  const [armed, setArmed] = useState<{ override: boolean; after: number }>();
+  // A search running for the grab, and the result time it waits to pass.
+  const [armed, setArmed] = useState<{ after: number }>();
+  // The release as the fresh search decided it, when that rejects it: it is confirmed again with those reasons.
+  const [now, setNow] = useState<Candidate>();
+  const shown = now ?? c;
   // A 409 with rejections: the server's second look rejects it; the next confirm overrides.
   const late = grab.error instanceof ApiError && grab.error.status === 409 && grab.error.detail?.length ? grab.error.detail : undefined;
-  const scope = grabScope(c, target.label ?? target.version, late);
-  const override = !c.accepted || !!late;
+  const scope = grabScope(shown, target.label ?? target.version, late);
+  const override = !shown.accepted || !!late;
   const send = (o: boolean) => grab.mutate({ version: target.version, info_hash: c.info_hash ?? "", override: o });
   const close = () => {
+    // A grab on its way is not left behind: the dialog stays until it settles.
+    if (grab.isPending) return;
     grab.reset();
     onClose();
   };
@@ -57,11 +63,13 @@ export function GrabDialog({ c, target, onClose, fresh }: { c: Candidate; target
     } else if (fresh.answer) {
       setArmed(undefined);
       const hash = c.info_hash?.toLowerCase();
-      if (fresh.answer.candidates?.some((x) => x.info_hash?.toLowerCase() === hash)) send(armed.override);
-      else {
+      const fc = fresh.answer.candidates?.find((x) => x.info_hash?.toLowerCase() === hash);
+      if (!fc) {
         fresh.gone(c);
         onClose();
-      }
+      } else if (fc.accepted) send(false);
+      // Rejected now: shown with the fresh reasons, grabbed only on "Grab anyway".
+      else setNow(fc);
     }
     // Only the search's result moves this on; the callbacks are fresh each render.
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -69,7 +77,7 @@ export function GrabDialog({ c, target, onClose, fresh }: { c: Candidate; target
   return (
     <ConfirmDialog
       scope={scope}
-      subject={<span className="font-mono">{c.release}</span>}
+      subject={<span className="font-mono">{shown.release}</span>}
       danger={override}
       busy={grab.isPending || !!armed}
       error={late ? undefined : grab.error}
@@ -77,7 +85,7 @@ export function GrabDialog({ c, target, onClose, fresh }: { c: Candidate; target
       onClose={close}
       onConfirm={() => {
         if (fresh && !fresh.answer) {
-          setArmed({ override, after: fresh.at });
+          setArmed({ after: fresh.at });
           fresh.search();
         } else send(override);
       }}
