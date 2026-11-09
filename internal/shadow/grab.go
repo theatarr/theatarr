@@ -211,20 +211,21 @@ func (r *Runner) grab(ctx context.Context, p grabPayload, force bool) (*GrabResu
 	if err != nil {
 		return nil, err
 	}
-	searchRels := r.withArrCacheEvidence(ctx, found, &decidedRel, &arrRel)
+	searchRels := r.withArrCacheEvidence(ctx, found, &decidedRel)
 	arrD, err = r.eng.Decide(ctx, decidedRel, g.Title, v, existing)
 	if err != nil {
 		return nil, err
 	}
+	r.recacheArr(arrD, v, arrRel, decidedRel)
 	withoutOurs(arrD)
 	res.Arr = summarize(arrD, arrRel, true)
 	if found != nil {
 		vp := r.pol.Versions[key]
-		for _, rel := range searchRels {
+		for i, rel := range found.releases {
 			if !slices.Contains(vp.Indexers, rel.Indexer) {
 				continue
 			}
-			d, err := r.eng.Decide(ctx, decide.Release{Release: rel}, g.Title, v, existing)
+			d, err := r.eng.Decide(ctx, decide.Release{Release: searchRels[i]}, g.Title, v, existing)
 			if err != nil {
 				return nil, err
 			}
@@ -333,19 +334,25 @@ func (r *Runner) withCacheEvidence(ctx context.Context, rels []indexer.Release) 
 	return out
 }
 
-// withArrCacheEvidence applies withCacheEvidence to the arr's release and the search results together and returns
-// the results. The arr's release is ranked and planned with them, so it gets the same evidence: arr names its copies
-// (the one decided and the one kept, which differ in indexer only).
-func (r *Runner) withArrCacheEvidence(ctx context.Context, found *cachedSearch, arr ...*decide.Release) []indexer.Release {
-	all := []indexer.Release{arr[0].Release}
+// withArrCacheEvidence applies withCacheEvidence to the arr's release and the search results together: arr, the
+// release decided, gets its evidence, and the results with theirs are returned in found's order. Both only rank: the
+// evidence projects stored rows onto provider kinds, so plans carry the releases as read and order provider accounts
+// by their own per-account rows.
+func (r *Runner) withArrCacheEvidence(ctx context.Context, found *cachedSearch, arr *decide.Release) []indexer.Release {
+	all := []indexer.Release{arr.Release}
 	if found != nil {
 		all = append(all, found.releases...)
 	}
 	all = r.withCacheEvidence(ctx, all)
-	for _, a := range arr {
-		a.CachedOn, a.CachedVia = all[0].CachedOn, all[0].CachedVia
-	}
+	arr.CachedOn, arr.CachedVia = all[0].CachedOn, all[0].CachedVia
 	return all[1:]
+}
+
+// recacheArr sets the arr decision's cache standing from the release the plan carries (the arr's indexer, whose
+// provider allowlist applies) with the evidence decided gained.
+func (r *Runner) recacheArr(d *decide.Decision, v decide.Version, arr, decided decide.Release) {
+	arr.CachedOn, arr.CachedVia = decided.CachedOn, decided.CachedVia
+	r.eng.Recache(d, v, arr.Release)
 }
 
 // search returns the title's search results across the indexers of the shadowed versions: from the reuse cache,

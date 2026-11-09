@@ -92,21 +92,22 @@ func (r *Runner) grabSeries(ctx context.Context, p grabPayload, key string, forc
 	if err != nil {
 		return nil, err
 	}
-	searchRels := r.withArrCacheEvidence(ctx, found, &decidedRel, &arrRel)
+	searchRels := r.withArrCacheEvidence(ctx, found, &decidedRel)
 	arrD, err = r.eng.DecideSearch(ctx, decidedRel, g.Title, v, g.Search)
 	if err != nil {
 		return nil, err
 	}
+	r.recacheArr(arrD, v, arrRel, decidedRel)
 	withoutOurs(arrD)
 	res.Arr = summarize(arrD, arrRel, true)
 	if found != nil {
 		vp := r.pol.Versions[key]
-		for _, rel := range searchRels {
+		for i, rel := range found.releases {
 			if !slices.Contains(vp.Indexers, rel.Indexer) {
 				continue
 			}
 			searchedRels = append(searchedRels, rel)
-			d, err := r.eng.DecideSearch(ctx, decide.Release{Release: rel}, g.Title, v, ours)
+			d, err := r.eng.DecideSearch(ctx, decide.Release{Release: searchRels[i]}, g.Title, v, ours)
 			if err != nil {
 				return nil, err
 			}
