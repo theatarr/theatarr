@@ -5,6 +5,8 @@ import (
 	"time"
 
 	"github.com/theatarr/theatarr/internal/indexer"
+	"github.com/theatarr/theatarr/internal/policy"
+	"github.com/theatarr/theatarr/internal/provider"
 	"github.com/theatarr/theatarr/internal/store"
 )
 
@@ -37,5 +39,61 @@ func TestRSSStoredCacheBreaksTie(t *testing.T) {
 				t.Fatalf("adds %v, want the cached %s first", adds, cached)
 			}
 		})
+	}
+}
+
+// The stored evidence RSS ranks by does not reorder the route's provider accounts: with two TorBox accounts and a
+// cached row on the second only, the routed release is added there first.
+func TestRSSKeepsAccountOrder(t *testing.T) {
+	t.Parallel()
+	e := newEnv(t, false)
+	e.pol.Providers["tb2"] = &policy.Provider{Kind: provider.KindTorBox, Order: 3, URL: "https://api.torbox.app/v1",
+		APIKeyEnv: "THEATARR_TB2_KEY", Pacing: policy.Pacing{AddsPerMinute: 100}}
+	rt, _, w := e.withRouter(t, "movie-web")
+	e.pol.Versions["movie-web"].Providers = []string{"tb", "tb2"}
+	e.svc.SetEvidence(indexer.NewEvidence(indexer.EvidenceConfig{Store: e.st, Policy: e.pol, Now: e.clock}))
+	if _, err := e.r.Import(e.ctx); err != nil {
+		t.Fatal(err)
+	}
+	e.exec(t, `INSERT INTO provider_cache (info_hash, provider, state, source, checked_at, expires_at)
+		VALUES (?, 'tb2', 'cached', 'router:add', ?, ?)`, hAlienWeb, store.Millis(t0), store.Millis(t0.Add(time.Hour)))
+	e.prow.setRSS(item{title: alienWebRel, hash: hAlienWeb, size: 20e9, pub: t0.Add(-10 * time.Minute)})
+	if rs, err := e.r.RSS(e.ctx); err != nil || rs.Routed != 1 {
+		t.Fatalf("rss %+v %v", rs, err)
+	}
+	if _, err := w.RunOne(e.ctx); err != nil {
+		t.Fatal(err)
+	}
+	if tb, tb2 := rt.Adders["tb"].Adds(), rt.Adders["tb2"].Adds(); len(tb) != 0 || len(tb2) != 1 {
+		t.Fatalf("adds tb %v tb2 %v, want the cached account tb2 first", tb, tb2)
+	}
+}
+
+// The arr's release is ranked with our search results on the same cache evidence: at an equal score, the arr's
+// release cached on the version's first provider beats a search result cached on the second, and is the pick.
+func TestShadowGrabArrReleaseCacheEvidence(t *testing.T) {
+	t.Parallel()
+	const hOther = "9999999999999999999999999999999999999999"
+	e := newEnv(t, false)
+	e.withRouter(t)
+	e.svc.SetEvidence(indexer.NewEvidence(indexer.EvidenceConfig{Store: e.st, Policy: e.pol, Now: e.clock}))
+	if _, err := e.r.Import(e.ctx); err != nil {
+		t.Fatal(err)
+	}
+	for _, row := range [][2]string{{hDuneRemux, "rd"}, {hOther, "tb"}} {
+		e.exec(t, `INSERT INTO provider_cache (info_hash, provider, state, source, checked_at, expires_at)
+			VALUES (?, ?, 'cached', 'router:add', ?, ?)`, row[0], row[1], store.Millis(t0), store.Millis(t0.Add(time.Hour)))
+	}
+	e.prow.set(dune.imdb, item{title: duneRemux, hash: hOther, size: 40e9, pub: t0.Add(-48 * time.Hour)})
+	e.zurg.add(grabEvent(2, dune, t0.Add(-time.Hour), duneRemux, hDuneRemux, "Remux-2160p", 31, 1950, "Search"))
+	if _, err := e.r.Import(e.ctx); err != nil {
+		t.Fatal(err)
+	}
+	res, err := e.r.GrabByID(e.ctx, "radarr_zurg", 2, false)
+	if err != nil || !res.Searched || res.Results != 1 {
+		t.Fatalf("grab %+v %v", res, err)
+	}
+	if res.Pick == nil || !res.Pick.Arr || res.Pick.InfoHash != hDuneRemux {
+		t.Fatalf("pick %+v, want the arr's release (cached on rd)", res.Pick)
 	}
 }

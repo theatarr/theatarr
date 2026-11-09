@@ -192,9 +192,12 @@ Candidate order is `decide.Rank`'s: the arr comparer with Theatarr's cache tie-b
 `cached` and the TorBox check. The TorBox check runs on the ranked releases (`checkTop`); when it adds evidence to any
 of them the search ranks again, so the order the releases page shows (`#`) is the order the route tries
 (`TestCheckTopEvidenceReranks`). RSS and the shadow searches apply the same release-carried and stored evidence
-before deciding (`ApplyCachedOn`; no DMM or TorBox request: `TestRSSStoredCacheBreaksTie`). A route decided again
+before deciding (`ApplyCachedOn`; no DMM or TorBox request: `TestRSSStoredCacheBreaksTie`); a shadow search gives
+the arr's release the same evidence as its results (`TestShadowGrabArrReleaseCacheEvidence`). A route decided again
 under a newer policy revision reads the stored rows again for its candidates first (stored evidence only:
-`TestRedecideReadsStoredCacheEvidence`).
+`TestRedecideReadsStoredCacheEvidence`). In RSS and the re-decision that evidence only ranks: stored rows are per
+provider kind there, so the routed candidates keep the releases as read or queued and step 4 orders the provider
+accounts from its own per-account rows (`TestRSSKeepsAccountOrder`, `TestRedecideKeepsAccountOrder`).
 
 At most `router.max_candidates` releases are tried, best first. A release skipped without a request to any provider
 (a live miss or known uncached everywhere, blocklisted, no provider its indexer allows, no hash) does not count, so a search made again after
@@ -1199,7 +1202,8 @@ default; `-apply` writes only to the database (no provider call).
   the check stores its answers.
   Tests: `TestRankCachedOrdered`, `TestRankCachedNoPreference`, `TestRankCachedAfterQualityAndScore`,
   `TestRankCachedUsableProvidersOnly`, `TestRankCachedOnExtraOnly`, `TestSonarrCachedAfterEpisodeSteps`,
-  `TestCheckTopEvidenceReranks`, `TestRSSStoredCacheBreaksTie`, `TestRedecideReadsStoredCacheEvidence`.
+  `TestCheckTopEvidenceReranks`, `TestRSSStoredCacheBreaksTie`, `TestRedecideReadsStoredCacheEvidence`,
+  `TestRSSKeepsAccountOrder`, `TestRedecideKeepsAccountOrder`, `TestShadowGrabArrReleaseCacheEvidence`.
 - **The miss rule.** A miss needs a verdict from every provider that has a key. A provider that is only paced defers
   the route.
 - **Reuse.** A hash the provider already holds is reused, not added or selected again: the registry is read before

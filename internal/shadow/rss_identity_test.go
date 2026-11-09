@@ -77,7 +77,7 @@ func TestRSSAnimeEpisodesCannotBecomeMovies(t *testing.T) {
 			}
 			sum := &RSSSummary{remember: true}
 			rel := indexer.Release{Title: title, InfoHash: hAlienWeb, Size: 20e9, Indexer: "prowlarr", Privacy: policy.PrivacyPublic, Categories: []int{5070}, IMDb: alien.imdb}
-			if err := e.r.decideItem(e.ctx, rel, cands, byClean, decide.NewLibrary(ts), sum); err != nil {
+			if err := e.r.decideItem(e.ctx, rel, rel, cands, byClean, decide.NewLibrary(ts), sum); err != nil {
 				t.Fatal(err)
 			}
 			if sum.Decided != 0 || sum.Picks != 0 {
@@ -138,7 +138,7 @@ func TestRSSAnimeMovieRemainsEligible(t *testing.T) {
 	}
 	sum := &RSSSummary{remember: true}
 	rel := indexer.Release{Title: alienWebRel, IMDb: alien.imdb, Indexer: "prowlarr", Categories: []int{5070}, InfoHash: hAlienWeb, Size: 20e9, Privacy: policy.PrivacyPublic}
-	if err := e.r.decideItem(e.ctx, rel, cands, nil, decide.NewLibrary(ts), sum); err != nil {
+	if err := e.r.decideItem(e.ctx, rel, rel, cands, nil, decide.NewLibrary(ts), sum); err != nil {
 		t.Fatal(err)
 	}
 	if sum.Decided != 2 {

@@ -308,7 +308,9 @@ func (r *Runner) rss(ctx context.Context, sum *RSSSummary) error {
 		k, ri, res := feed.key, feed.info, feed.result
 		ri.Items = len(res.Releases)
 		// One feed page per sync, with a hard decision cap even if an indexer ignores its page size.
-		for _, rel := range r.withCacheEvidence(ctx, res.Releases[:min(len(res.Releases), indexer.DefaultPageCap)]) {
+		page := res.Releases[:min(len(res.Releases), indexer.DefaultPageCap)]
+		ranked := r.withCacheEvidence(ctx, page)
+		for i, rel := range page {
 			it := seenItem{k, r.seenKey(rel)}
 			if inRun[it] {
 				continue
@@ -325,7 +327,7 @@ func (r *Runner) rss(ctx context.Context, sum *RSSSummary) error {
 			sum.remember = true
 			ri.New++
 			if isTV(rel) {
-				matched, err := r.decideSeriesItem(ctx, rel, scands, six, sum)
+				matched, err := r.decideSeriesItem(ctx, rel, ranked[i], scands, six, sum)
 				if err != nil {
 					return err
 				}
@@ -339,7 +341,7 @@ func (r *Runner) rss(ctx context.Context, sum *RSSSummary) error {
 					continue
 				}
 			}
-			if err := r.decideItem(ctx, rel, cands, byClean, lib, sum); err != nil {
+			if err := r.decideItem(ctx, rel, ranked[i], cands, byClean, lib, sum); err != nil {
 				return err
 			}
 			if sum.remember && sum.Decided > rssDecided {
@@ -551,8 +553,9 @@ func (r *Runner) markSeen(ctx context.Context, items []seenItem, cursors []rssCu
 }
 
 // decideItem maps an item to our titles (the indexer's ids, else the parsed clean title) and decides it for every
-// candidate version; accepted decisions become picks.
-func (r *Runner) decideItem(ctx context.Context, rel indexer.Release, cands map[int64][]candidate,
+// candidate version; accepted decisions become picks. ranked is rel with the cache evidence the decision ranks by;
+// picks and routes carry rel, so the route orders its provider accounts by its own reads.
+func (r *Runner) decideItem(ctx context.Context, rel, ranked indexer.Release, cands map[int64][]candidate,
 	byClean map[string][]int64, lib decide.Library, sum *RSSSummary) error {
 	ctx = decide.WithParseMemo(ctx)
 	// Anime shares a category with films; episode/batch syntax remains authoritative even when no series matches.
@@ -610,7 +613,7 @@ func (r *Runner) decideItem(ctx context.Context, rel indexer.Release, cands map[
 			if err != nil {
 				return err
 			}
-			d, err := r.eng.Decide(ctx, decide.Release{Release: rel}, c.title, c.version, existing)
+			d, err := r.eng.Decide(ctx, decide.Release{Release: ranked}, c.title, c.version, existing)
 			if err != nil {
 				return err
 			}

@@ -211,6 +211,7 @@ func (r *Runner) grab(ctx context.Context, p grabPayload, force bool) (*GrabResu
 	if err != nil {
 		return nil, err
 	}
+	searchRels := r.withArrCacheEvidence(ctx, found, &decidedRel, &arrRel)
 	arrD, err = r.eng.Decide(ctx, decidedRel, g.Title, v, existing)
 	if err != nil {
 		return nil, err
@@ -219,7 +220,7 @@ func (r *Runner) grab(ctx context.Context, p grabPayload, force bool) (*GrabResu
 	res.Arr = summarize(arrD, arrRel, true)
 	if found != nil {
 		vp := r.pol.Versions[key]
-		for _, rel := range r.withCacheEvidence(ctx, found.releases) {
+		for _, rel := range searchRels {
 			if !slices.Contains(vp.Indexers, rel.Indexer) {
 				continue
 			}
@@ -330,6 +331,21 @@ func (r *Runner) withCacheEvidence(ctx context.Context, rels []indexer.Release) 
 		r.idx.ApplyCachedOn(ctx, out)
 	}
 	return out
+}
+
+// withArrCacheEvidence applies withCacheEvidence to the arr's release and the search results together and returns
+// the results. The arr's release is ranked and planned with them, so it gets the same evidence: arr names its copies
+// (the one decided and the one kept, which differ in indexer only).
+func (r *Runner) withArrCacheEvidence(ctx context.Context, found *cachedSearch, arr ...*decide.Release) []indexer.Release {
+	all := []indexer.Release{arr[0].Release}
+	if found != nil {
+		all = append(all, found.releases...)
+	}
+	all = r.withCacheEvidence(ctx, all)
+	for _, a := range arr {
+		a.CachedOn, a.CachedVia = all[0].CachedOn, all[0].CachedVia
+	}
+	return all[1:]
 }
 
 // search returns the title's search results across the indexers of the shadowed versions: from the reuse cache,

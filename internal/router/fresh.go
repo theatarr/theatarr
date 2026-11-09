@@ -253,16 +253,14 @@ func (r *Router) redecide(ctx context.Context, s *routeState, cands []Candidate)
 	} else if existing, err = decide.LoadExisting(ctx, db, v.ID); err != nil {
 		return nil, fmt.Errorf("router: re-decide: %w", err)
 	}
-	// Cache rows written while the route waited feed the ranking's cache tie-break, as the route reads them: stored
-	// evidence only, nothing is asked.
-	rels := make([]indexer.Release, len(cands))
+	// Cache rows written while the route waited feed the ranking's cache tie-break: stored evidence only, nothing is
+	// asked. The decisions read it; the candidates keep the releases they were queued with, so the route orders its
+	// provider accounts as before.
+	ranked := make([]indexer.Release, len(cands))
 	for i := range cands {
-		rels[i] = cands[i].Release
+		ranked[i] = cands[i].Release
 	}
-	indexer.NewEvidence(indexer.EvidenceConfig{Store: r.st, Policy: r.pol, Logger: r.log, Now: r.now}).ApplyStored(ctx, rels)
-	for i := range cands {
-		cands[i].Release = rels[i]
-	}
+	indexer.NewEvidence(indexer.EvidenceConfig{Store: r.st, Policy: r.pol, Logger: r.log, Now: r.now}).ApplyStored(ctx, ranked)
 	var kept []Candidate
 	var decisions []*decide.Decision
 	// One re-search for the batch's unproven candidates, with all their episodes (a per-candidate re-search would be
@@ -270,7 +268,9 @@ func (r *Router) redecide(ctx context.Context, s *routeState, cands []Candidate)
 	var unproven []int64
 	anyUnproven := false
 	byDecision := map[*decide.Decision]Candidate{}
-	for _, c := range cands {
+	for i, c := range cands {
+		queued := c.Release
+		c.Release = ranked[i]
 		var d *decide.Decision
 		switch {
 		case !s.vp.PreferSeaDex && series:
@@ -318,6 +318,7 @@ func (r *Router) redecide(ctx context.Context, s *routeState, cands []Candidate)
 			c.Episodes = append([]int64(nil), d.EpisodeIDs...)
 			s.remapped = true
 		}
+		c.Release = queued
 		decisions = append(decisions, d)
 		byDecision[d] = c
 	}

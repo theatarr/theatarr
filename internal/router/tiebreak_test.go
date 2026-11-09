@@ -1,7 +1,10 @@
 package router
 
 import (
+	"context"
 	"fmt"
+	"io"
+	"log/slog"
 	"net/http"
 	"net/http/httptest"
 	"slices"
@@ -12,6 +15,7 @@ import (
 	"github.com/theatarr/theatarr/internal/indexer"
 	"github.com/theatarr/theatarr/internal/policy"
 	"github.com/theatarr/theatarr/internal/provider"
+	"github.com/theatarr/theatarr/internal/provider/adder"
 )
 
 // Three equally ranked releases; the search-time TorBox check finds the last one cached. The check's evidence feeds
@@ -103,5 +107,50 @@ func TestRedecideReadsStoredCacheEvidence(t *testing.T) {
 	}
 	if got := e.ad["tb"].adds; len(got) != 1 || got[0] != h("b") || len(e.ad["rd"].adds) != 0 || len(e.ad["ad"].adds) != 0 {
 		t.Fatalf("adds rd %v ad %v tb %v, want the cached %s on tb only", e.ad["rd"].adds, e.ad["ad"].adds, got, h("b"))
+	}
+}
+
+// The stored evidence a re-decision ranks by does not reorder the route's provider accounts: with two AllDebrid
+// accounts and a cached row on the second only, the route still tries that account first, as it did when queued.
+func TestRedecideKeepsAccountOrder(t *testing.T) {
+	t.Parallel()
+	e := newEnv(t, true, policy.ModeActive)
+	freshMovie(e)
+	e.exec(`UPDATE title SET year=2024,runtime_minutes=110 WHERE id=1`)
+	e.pol.Providers["ad2"] = &policy.Provider{Kind: provider.KindAllDebrid, Order: 4, URL: "http://ad2.test/v4",
+		APIKeyEnv: "THEATARR_AD2_KEY", Pacing: policy.Pacing{AddsPerMinute: 10, BackoffMax: policy.Duration(2 * time.Hour)}}
+	e.pol.Versions["movie"].Providers = []string{"ad", "ad2"}
+	adders := map[string]adder.Adder{}
+	provs := map[string]provider.Provider{}
+	for k, pv := range e.pol.Providers {
+		e.ad[k] = &fakeAdder{key: k, kind: pv.Kind}
+		e.pr[k] = &fakeProvider{key: k, kind: pv.Kind}
+		adders[k], provs[k] = e.ad[k], e.pr[k]
+	}
+	var err error
+	e.r, err = New(Config{Store: e.st, Policy: e.pol, Adders: adders, Providers: provs,
+		Logger: slog.New(slog.NewTextHandler(io.Discard, nil)), Now: func() time.Time { return e.clock }})
+	if err != nil {
+		t.Fatal(err)
+	}
+	e.r.sleep = func(context.Context, time.Duration) error { return nil }
+	eng, err := decide.New(e.pol, decide.Options{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	e.r.SetProfiles(eng.Profile)
+	e.r.SetDecider(eng.Decide, eng.DecideSearch)
+	a := cand(h("a"), "Movie.2024.2160p.WEB-DL-GRP")
+	a.Release.Seeders = 10
+	e.exec(`INSERT INTO provider_cache (info_hash, provider, state, source, checked_at, expires_at)
+		VALUES (?, 'ad2', 'cached', 'router:add', ?, ?)`, h("a"), e.clock.UnixMilli(), e.clock.Add(time.Hour).UnixMilli())
+	e.pol.Revision = "rev2"
+	res, err := e.r.Route(e.ctx, Request{TitleID: 1, VersionID: 10, Version: "movie", Source: "rss",
+		Candidates: []Candidate{a}, DecisionRev: "rev1"})
+	if err != nil || res.Outcome != OutcomeAdded {
+		t.Fatalf("route %+v %v", res, err)
+	}
+	if got := e.ad["ad2"].adds; len(got) != 1 || len(e.ad["ad"].adds) != 0 {
+		t.Fatalf("adds ad %v ad2 %v, want the cached account ad2 first", e.ad["ad"].adds, got)
 	}
 }

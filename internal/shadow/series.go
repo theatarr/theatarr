@@ -92,6 +92,7 @@ func (r *Runner) grabSeries(ctx context.Context, p grabPayload, key string, forc
 	if err != nil {
 		return nil, err
 	}
+	searchRels := r.withArrCacheEvidence(ctx, found, &decidedRel, &arrRel)
 	arrD, err = r.eng.DecideSearch(ctx, decidedRel, g.Title, v, g.Search)
 	if err != nil {
 		return nil, err
@@ -100,7 +101,7 @@ func (r *Runner) grabSeries(ctx context.Context, p grabPayload, key string, forc
 	res.Arr = summarize(arrD, arrRel, true)
 	if found != nil {
 		vp := r.pol.Versions[key]
-		for _, rel := range r.withCacheEvidence(ctx, found.releases) {
+		for _, rel := range searchRels {
 			if !slices.Contains(vp.Indexers, rel.Indexer) {
 				continue
 			}
@@ -281,7 +282,8 @@ func (r *Runner) seriesIndex(ctx context.Context, cands map[int64][]seriesCandid
 
 // decideSeriesItem maps an RSS item to our series (the indexer's TVDB id, else the parsed series title against the
 // titles and scene mappings) and decides it for every candidate version with the RSS path (no search criteria).
-func (r *Runner) decideSeriesItem(ctx context.Context, rel indexer.Release, cands map[int64][]seriesCandidate,
+// ranked is rel with the cache evidence the decision ranks by, as for decideItem.
+func (r *Runner) decideSeriesItem(ctx context.Context, rel, ranked indexer.Release, cands map[int64][]seriesCandidate,
 	ix *seriesIndex, sum *RSSSummary) (bool, error) {
 	ctx = decide.WithParseMemo(ctx)
 	var ids []int64
@@ -314,7 +316,7 @@ func (r *Runner) decideSeriesItem(ctx context.Context, rel indexer.Release, cand
 			if err := decide.LoadSeriesVersion(ctx, r.st.Reader(), &t, c.version.ID); err != nil {
 				return matched, err
 			}
-			d, err := r.eng.Decide(ctx, decide.Release{Release: rel}, t, c.version, nil)
+			d, err := r.eng.Decide(ctx, decide.Release{Release: ranked}, t, c.version, nil)
 			if err != nil {
 				return matched, err
 			}
