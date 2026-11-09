@@ -99,7 +99,16 @@ func TestSetupAndPreflight(t *testing.T) {
 	if se.generation() != gen {
 		t.Fatal("the preflight wrote settings")
 	}
-	// GET /setup carries the run's summary, so the setup screen's readiness survives a reload.
+	// GET /setup carries the run's summary, so the setup screen's readiness survives a reload. The UI compares its
+	// generation with GET /settings/versions', so both must name the same one.
+	var listed struct {
+		Generation int64 `json:"generation"`
+	}
+	if rec := se.setupCall("GET", "/settings/versions", "", ""); rec.Code != http.StatusOK {
+		t.Fatalf("GET settings/versions: %d %s", rec.Code, rec.Body.String())
+	} else if err := json.Unmarshal(rec.Body.Bytes(), &listed); err != nil || listed.Generation != gen {
+		t.Fatalf("settings/versions generation = %d (%v), want %d", listed.Generation, err, gen)
+	}
 	last := se.lastPreflight()
 	if last == nil || last.Generation != gen || !last.Sources || last.OK != r.OK || last.Warn != r.Warn ||
 		last.Fail != r.Fail || !last.At.Equal(r.At) {
