@@ -51,7 +51,7 @@ import (
 func init() {
 	register(command{
 		name:    "serve",
-		summary: "run the service: load the policy, migrate, serve HTTP and run jobs",
+		summary: "run the service: migrate the database, load the stored settings, serve HTTP and run jobs",
 		run:     runServe,
 	})
 }

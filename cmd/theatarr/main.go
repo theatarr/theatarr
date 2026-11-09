@@ -5,6 +5,7 @@ import (
 	"errors"
 	"flag"
 	"fmt"
+	"io"
 	"os"
 	"sort"
 )
@@ -58,16 +59,48 @@ func helpArg(args []string) bool {
 	return len(args) > 0 && (args[0] == "-h" || args[0] == "-help" || args[0] == "--help")
 }
 
-func usage() {
-	names := make([]string, 0, len(commands))
-	for n, c := range commands {
-		if !c.hidden {
-			names = append(names, n)
+// usageGroups sorts the usage output under headings, in this order. A command missing here is still listed, under
+// "other" (TestUsageGroupsEveryCommand keeps the list complete); the groups change only the help, never a name.
+var usageGroups = []struct {
+	title    string
+	commands []string
+}{
+	{"run the service", []string{"serve", "healthcheck", "mcp", "admin", "backup", "version"}},
+	{"check an install", []string{"preflight", "golive", "health", "egress-check", "policy", "errors", "jobs", "journal"}},
+	{"migrate from the arrs", []string{"migrate", "import-arr", "settings", "shadow", "parallel"}},
+	{"debug and maintenance", []string{"debug", "decide", "search", "router", "providers", "library", "torrents", "anime",
+		"tvdb", "sonarr-parse", "demo"}},
+}
+
+func usage() { writeUsage(os.Stderr) }
+
+// writeUsage prints every command that is not hidden, under its usage group.
+func writeUsage(w io.Writer) {
+	fmt.Fprint(w, "usage: theatarr <command> [flags]\n")
+	listed := map[string]bool{}
+	section := func(title string, names []string) {
+		var shown []string
+		for _, n := range names {
+			if c, ok := commands[n]; ok && !c.hidden && !listed[n] {
+				shown = append(shown, n)
+				listed[n] = true
+			}
+		}
+		if len(shown) == 0 {
+			return
+		}
+		fmt.Fprintf(w, "\n%s:\n", title)
+		for _, n := range shown {
+			fmt.Fprintf(w, "  %-14s %s\n", n, commands[n].summary)
 		}
 	}
-	sort.Strings(names)
-	fmt.Fprint(os.Stderr, "usage: theatarr <command> [flags]\n\ncommands:\n")
-	for _, n := range names {
-		fmt.Fprintf(os.Stderr, "  %-14s %s\n", n, commands[n].summary)
+	for _, g := range usageGroups {
+		section(g.title, g.commands)
 	}
+	var rest []string
+	for n := range commands {
+		rest = append(rest, n)
+	}
+	sort.Strings(rest)
+	section("other", rest)
 }
