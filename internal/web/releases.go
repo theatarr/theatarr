@@ -355,12 +355,12 @@ func (w *Web) storedGrabbed(ctx context.Context, out *Releases, run sql.NullInt6
 				return nil
 			}
 		} else {
-			linked, err := episodeLinked(ctx, db, out.TitleID, out.Version, episode)
+			_, lacked, err := episodeFiles(ctx, db, out.TitleID, out.Version, episode)
 			if err != nil {
 				return err
 			}
 			for i := range dls {
-				if dls[i].state == "imported" && !linked[strings.ToLower(dls[i].hash)] {
+				if dls[i].state == "imported" && lacked[strings.ToLower(dls[i].hash)] {
 					dls[i].state = "imported-without"
 				}
 			}

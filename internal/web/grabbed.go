@@ -163,8 +163,8 @@ func runOrigins(ctx context.Context, db *sql.DB, titleID int64) (map[int64]runOr
 
 // releaseOutcomes reads what came of each release of the title's version, by lower-case info hash: the newest
 // download per hash, and the version's current files (active links). episode > 0 scopes both to that episode: the
-// downloads aimed at it, and whether a release was imported for it is whether a link of it held the episode (a pack
-// can import without a file for every episode it was grabbed for).
+// downloads aimed at it, and a release imported for a pack counts for the episode unless its recorded files show
+// none for it (episodeFiles: a pack can import without a file for every episode it was grabbed for).
 func releaseOutcomes(ctx context.Context, db *sql.DB, titleID int64, version string, episode int64) (map[string]ReleaseOutcome, error) {
 	type dl struct{ state, provider, err string }
 	newest := map[string]dl{}
@@ -188,9 +188,17 @@ func releaseOutcomes(ctx context.Context, db *sql.DB, titleID int64, version str
 	if err != nil {
 		return nil, err
 	}
+	var lacked map[string]bool
 	if episode > 0 {
-		if imported, err = episodeLinked(ctx, db, titleID, version, episode); err != nil {
+		var had map[string]bool
+		if had, lacked, err = episodeFiles(ctx, db, titleID, version, episode); err != nil {
 			return nil, err
+		}
+		for h := range had {
+			imported[h] = true
+		}
+		for h := range lacked {
+			delete(imported, h)
 		}
 	}
 	current := map[string]bool{}
@@ -233,11 +241,11 @@ func releaseOutcomes(ctx context.Context, db *sql.DB, titleID int64, version str
 			o.Outcome, o.Reason = "failed", shortReason(d.err, d.provider)
 		case o.replaced:
 			o.Outcome, o.ReplacedBy = "replaced", replacedBy
-		case d.state == "imported" && (episode == 0 || imported[h]):
-			o.Outcome = "imported"
-		case d.state == "imported":
+		case d.state == "imported" && lacked[h]:
 			// Imported, without a file for this episode.
 			continue
+		case d.state == "imported":
+			o.Outcome = "imported"
 		default:
 			o.Outcome = "grabbed"
 		}
@@ -246,10 +254,14 @@ func releaseOutcomes(ctx context.Context, db *sql.DB, titleID int64, version str
 	return out, nil
 }
 
-// episodeLinked reads the releases (lower-case info hash) a link of the version ever held the episode from.
-func episodeLinked(ctx context.Context, db *sql.DB, titleID int64, version string, episode int64) (map[string]bool, error) {
-	out := map[string]bool{}
-	err := scanAll(ctx, db, `SELECT DISTINCT LOWER(COALESCE(c.info_hash, d.info_hash, ''))
+// episodeFiles reads which releases (lower-case info hash) of the version had a file for the episode: had, when a
+// link of the version holds the episode from it or its recorded files (download_file) map one to the episode;
+// lacked, when its recorded files map none to it. A release with neither is unknown: a link rewritten in place for a
+// later release no longer names it, and older imports recorded no files.
+func episodeFiles(ctx context.Context, db *sql.DB, titleID int64, version string, episode int64) (had, lacked map[string]bool,
+	err error) {
+	had, lacked = map[string]bool{}, map[string]bool{}
+	err = scanAll(ctx, db, `SELECT DISTINCT LOWER(COALESCE(c.info_hash, d.info_hash, ''))
 		FROM version v JOIN link_version lv ON lv.version_id = v.id JOIN link l ON l.id = lv.link_id
 		JOIN link_episode le ON le.link_id = l.id AND le.episode_id = ?
 		LEFT JOIN content_file cf ON cf.id = l.content_file_id LEFT JOIN content c ON c.id = cf.content_id
@@ -261,11 +273,33 @@ func episodeLinked(ctx context.Context, db *sql.DB, titleID int64, version strin
 				return err
 			}
 			if h != "" {
-				out[h] = true
+				had[h] = true
 			}
 			return nil
 		})
-	return out, err
+	if err != nil {
+		return nil, nil, err
+	}
+	err = scanAll(ctx, db, `SELECT LOWER(d.info_hash), MAX(EXISTS (SELECT 1 FROM json_each(f.episodes) j
+		WHERE j.value = ?)) FROM download d JOIN download_file f ON f.download_id = d.id
+		WHERE d.title_id = ? AND d.version_key = ? AND d.info_hash <> '' GROUP BY d.id`,
+		[]any{episode, titleID, version}, func(r *sql.Rows) error {
+			var h string
+			var has bool
+			if err := r.Scan(&h, &has); err != nil {
+				return err
+			}
+			if has {
+				had[h] = true
+			} else {
+				lacked[h] = true
+			}
+			return nil
+		})
+	for h := range had {
+		delete(lacked, h)
+	}
+	return had, lacked, err
 }
 
 // runDownload is one download a search opened, with its own state and error.

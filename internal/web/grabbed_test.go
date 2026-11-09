@@ -337,7 +337,7 @@ func TestLatestSearchFollowsShadow(t *testing.T) {
 	}
 }
 
-// A pack grabbed for E01 and E02 that linked only E01 is not imported for E02, and a season run that opened nothing
+// A pack grabbed for E01 and E02 whose recorded files hold only E01 is not imported for E02, and a season run that opened nothing
 // for an episode says so for that episode.
 func TestEpisodeOutcomeFromLinks(t *testing.T) {
 	t.Parallel()
@@ -359,6 +359,9 @@ func TestEpisodeOutcomeFromLinks(t *testing.T) {
 		now-8000, now-8000)
 	e.exec(`INSERT INTO link_version (link_id, version_id) VALUES (20, 10)`)
 	e.exec(`INSERT INTO link_episode (link_id, episode_id) VALUES (20, 101)`)
+	// The import's record of the pack's files: one, for E01.
+	e.exec(`INSERT INTO download_file (download_id, rel, episodes, source, how, updated_at) VALUES
+		(20, 'The.Show.S01E01.mkv', '[101]', 'import', 'number', ?)`, now-8000)
 
 	var r Releases
 	e.call("GET", APIBase+"/titles/10/episodes/102/releases", nil, 200, &r)
@@ -413,5 +416,49 @@ func TestLiveReleasesNoAnswer(t *testing.T) {
 	}
 	if _, i := e.acq.counts(); i != 2 {
 		t.Errorf("searches %d", i)
+	}
+}
+
+// A later release that replaced a pack's episode at the same library path rewrote the pack's link in place: the
+// pack, imported with no record against the episode, still reads replaced there.
+func TestEpisodeReplacedInPlace(t *testing.T) {
+	t.Parallel()
+	e := newManageEnv(t, nil)
+	now := store.Millis(addNow)
+	const hp, hu = "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee", "ffffffffffffffffffffffffffffffffffffffff"
+	e.exec(`INSERT INTO acquire_run (id, source, title_id, version_id, version_key, target, state, results, accepted,
+		message, created_at, updated_at) VALUES (80, 'wanted', 10, 10, 'tv-2160p', 's01', 'routed', 1, 1,
+		'1 of 1 results accepted', ?, ?)`, now-9000, now-9000)
+	e.exec(`INSERT INTO journal_decision (id, source, run_id, title_id, version_key, target, results, accepted,
+		candidates, created_at) VALUES (110, 'acquire:80', 80, 10, 'tv-2160p', 's01', 1, 1, ?, ?)`,
+		`[{"rank":1,"release":"The.Show.S01.2160p.WEB-PACK","info_hash":"`+hp+`","accepted":true,"episodes":["S01E01","S01E02"]}]`, now-9000)
+	e.exec(`INSERT INTO download (id, title_id, version_id, version_key, info_hash, release_title, indexer, provider,
+		state, source, episodes, created_at, updated_at, imported_at) VALUES
+		(30, 10, 10, 'tv-2160p', ?, 'The.Show.S01.2160p.WEB-PACK', 'idx', 'rd', 'imported', 'acquire:80', '[101,102]', ?, ?, ?),
+		(31, 10, 10, 'tv-2160p', ?, 'The.Show.S01E01.2160p.REMUX-UP', 'idx', 'tb', 'imported', 'ui:grab:alice', '[101]', ?, ?, ?)`,
+		hp, now-8900, now-8000, now-8000, hu, now-4900, now-4000, now-4000)
+	// E01's link, first the pack's, now points at the upgrade (same path).
+	e.exec(`INSERT INTO link (id, path, target, title_id, download_id, release_title, state, created_at, updated_at) VALUES
+		(30, '/tv/Show/S01E01.mkv', '/mnt/__all__/Up/E01.mkv', 10, 31, 'The.Show.S01E01.2160p.REMUX-UP', 'active', ?, ?)`,
+		now-8000, now-4000)
+	e.exec(`INSERT INTO link_version (link_id, version_id) VALUES (30, 10)`)
+	e.exec(`INSERT INTO link_episode (link_id, episode_id) VALUES (30, 101)`)
+
+	var r Releases
+	e.call("GET", APIBase+"/titles/10/episodes/101/releases", nil, 200, &r)
+	if o := r.Outcomes[hp]; o.Outcome != "replaced" || o.ReplacedBy != "The.Show.S01E01.2160p.REMUX-UP" {
+		t.Errorf("pack on E01: %+v", o)
+	}
+	if r.Grabbed != "Grabbed #1 via rd → imported, later replaced" {
+		t.Errorf("E01 summary %q", r.Grabbed)
+	}
+	// The same with the import's record of the pack's files.
+	e.exec(`INSERT INTO download_file (download_id, rel, episodes, source, how, updated_at) VALUES
+		(30, 'The.Show.S01E01.mkv', '[101]', 'import', 'number', ?), (30, 'The.Show.S01E02.mkv', '[102]', 'import', 'number', ?)`,
+		now-8000, now-8000)
+	r = Releases{}
+	e.call("GET", APIBase+"/titles/10/episodes/101/releases", nil, 200, &r)
+	if r.Outcomes[hp].Outcome != "replaced" || r.Grabbed != "Grabbed #1 via rd → imported, later replaced" {
+		t.Errorf("with recorded files: %+v %q", r.Outcomes[hp], r.Grabbed)
 	}
 }
