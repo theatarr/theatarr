@@ -304,7 +304,7 @@ func reviewSection(res *anime.Result) string {
 			parts = append(parts, fmt.Sprintf("%s %d", s, counts[s]))
 		}
 	}
-	b.WriteString(strings.Join(parts, ", ") + ". Conflicts get no automatic import until reviewed.\n")
+	b.WriteString(strings.Join(parts, ", ") + ". Conflict and rejected entries import through Sonarr's numbering; accepting one in review re-links its files.\n")
 	if len(lines) > 0 {
 		b.WriteString("\n| Status | Entry | Mapping | Why | Candidates |\n|---|---|---|---|---|\n")
 		b.WriteString(strings.Join(lines, "\n") + "\n")
