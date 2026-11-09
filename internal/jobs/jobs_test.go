@@ -390,3 +390,37 @@ func TestEnqueueRejectsBadPayload(t *testing.T) {
 		t.Error("empty kind accepted")
 	}
 }
+
+func TestLaterRequeuesWithoutAnAttempt(t *testing.T) {
+	q, c := setup(t)
+	ctx := context.Background()
+	id, _, _ := q.Enqueue(ctx, "turn", nil, EnqueueOptions{MaxAttempts: 1})
+	w := worker(q, "w1")
+	runs := 0
+	w.Handle("turn", func(ctx context.Context, j *Job) error {
+		runs++
+		if runs < 3 {
+			return Later(time.Minute)
+		}
+		return nil
+	})
+	for i := 0; i < 2; i++ {
+		if ran, err := w.RunOne(ctx); err != nil || !ran {
+			t.Fatal(ran, err)
+		}
+		in := mustGet(t, q, id)
+		if in.State != StateQueued || in.Attempts != 0 || !in.RunAt.Equal(c.now().Add(time.Minute)) {
+			t.Fatalf("after Later: %+v", in)
+		}
+		if ran, _ := w.RunOne(ctx); ran {
+			t.Fatal("ran before its time")
+		}
+		c.add(time.Minute)
+	}
+	if ran, err := w.RunOne(ctx); err != nil || !ran {
+		t.Fatal(ran, err)
+	}
+	if in := mustGet(t, q, id); in.State != StateDone || in.Attempts != 1 {
+		t.Fatalf("%+v, want done on its one attempt", in)
+	}
+}

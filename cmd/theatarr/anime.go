@@ -15,15 +15,13 @@ import (
 	"strings"
 	"time"
 
-	"go.yaml.in/yaml/v3"
-
 	"github.com/theatarr/theatarr/internal/buildinfo"
 	"github.com/theatarr/theatarr/internal/gateway"
 	"github.com/theatarr/theatarr/internal/metadata/anime"
 	"github.com/theatarr/theatarr/internal/metadata/anime/animestore"
+	"github.com/theatarr/theatarr/internal/metadata/anime/autobuild"
 	"github.com/theatarr/theatarr/internal/metadata/anime/live"
 	"github.com/theatarr/theatarr/internal/metadata/anime/offlinecache"
-	"github.com/theatarr/theatarr/internal/metadata/tmdb"
 	"github.com/theatarr/theatarr/internal/policy"
 	"github.com/theatarr/theatarr/internal/store"
 )
@@ -55,19 +53,6 @@ func runAnime(args []string) error {
 	return fmt.Errorf("unknown subcommand %q (build, review, playlists)", args[0])
 }
 
-// loadFranchises reads a franchise list (franchises.json beside an offline cache, or YAML).
-func loadFranchises(path string) ([]anime.Franchise, error) {
-	b, err := os.ReadFile(path)
-	if err != nil {
-		return nil, err
-	}
-	var fs []anime.Franchise
-	if err := yaml.Unmarshal(b, &fs); err != nil {
-		return nil, fmt.Errorf("%s: %w", path, err)
-	}
-	return fs, nil
-}
-
 func runAnimeBuild(args []string) error {
 	fs := flag.NewFlagSet("anime build", flag.ContinueOnError)
 	settingsSourceFlag(fs)
@@ -92,7 +77,7 @@ func runAnimeBuild(args []string) error {
 	db := fs.String("db", defaultDBPath(), "database file (env THEATARR_DB); live builds and -save use it")
 	policyDir := policyDirDefault()
 	envFile := fs.String("env-file", "", "read KEY=VALUE secrets from this file (variables already set win)")
-	instance := fs.String("sonarr-instance", "sonarr_anime_debrid", "imported Sonarr instance whose episodes are TVDB (live)")
+	instance := fs.String("sonarr-instance", "", "live: limit the \"in Sonarr\" check to this imported Sonarr instance (default: any)")
 	tvdbCache := fs.String("tvdb-cache", "", "live: also read TVDB series the Sonarr lacks from an offline cache (its skyhook/)")
 	if err := fs.Parse(args); err != nil {
 		return err
@@ -148,7 +133,7 @@ func runAnimeBuild(args []string) error {
 		if path == "" {
 			return errors.New("no franchise list: pass -franchises or -cache with a franchises.json beside it, or set metadata.overrides_dir in the settings (relative to the policy directory, env THEATARR_POLICY)")
 		}
-		list, err := loadFranchises(path)
+		list, err := autobuild.LoadFranchises(path)
 		if err != nil {
 			return err
 		}
@@ -327,65 +312,37 @@ func reviewSection(res *anime.Result) string {
 	return b.String()
 }
 
-// liveSources wires the live adapters: AniList, Kitsu, TheXEM and the lists through the gateway, TVDB and the
-// Sonarr library from the imported Sonarr episodes, and TMDb through our client when the policy configures it.
+// liveSources wires the live sources the service uses too (autobuild.LiveSources), with the TVDB client when its key
+// is set, and loads the mapping lists.
 func liveSources(ctx context.Context, pol *policy.Policy, st *store.Store, instance string) (*anime.Sources, *live.Fetcher, error) {
-	gw, err := gateway.New(ctx, pol, gateway.Options{Store: st, Version: buildinfo.Version,
-		Logger: slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelWarn}))})
+	log := slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelWarn}))
+	gw, err := gateway.New(ctx, pol, gateway.Options{Store: st, Version: buildinfo.Version, Logger: log})
 	if err != nil {
 		return nil, nil, err
 	}
-	srcURL := func(key string) string {
-		if pol.Metadata != nil && pol.Metadata.Sources[key] != nil {
-			return pol.Metadata.Sources[key].URL
-		}
-		return ""
-	}
-	var missing []string
-	for _, k := range []string{live.SourceAniList, live.SourceKitsu, live.SourceXEM, live.SourceScudLee, live.SourceFribb,
-		live.SourceAnibridge, live.SourceManami} {
-		if srcURL(k) == "" {
-			missing = append(missing, k)
-		}
-	}
-	if len(missing) > 0 {
-		return nil, nil, fmt.Errorf("the policy needs metadata.sources entries for %s (see docs/design/anime.md)", strings.Join(missing, ", "))
-	}
-	f := &live.Fetcher{Doer: gw, Store: st}
-	urls := live.URLs{AniList: srcURL(live.SourceAniList), ScudLee: srcURL(live.SourceScudLee), Fribb: srcURL(live.SourceFribb),
-		Anibridge: srcURL(live.SourceAnibridge), Manami: srcURL(live.SourceManami)}
-	fmt.Fprintln(os.Stderr, "loading the mapping lists (daily) ...")
-	lists, err := live.Lists(ctx, f, urls)
-	if err != nil {
-		return nil, nil, err
-	}
-	db := animestore.SonarrTVDB{DB: st, Instance: instance}
-	src := &anime.Sources{AniList: live.AniList{F: f, URL: urls.AniList}, Kitsu: live.Kitsu{F: f}, TVDB: db, XEM: live.XEM{F: f},
-		Library: db, Lists: lists}
+	o := autobuild.SourceOptions{Store: st, Doer: gw, SonarrInstance: instance, Logger: log}
 	// TVDB v4 first when the policy has it and the key is set (cmd/theatarr/tvdb.go); the imported Sonarr when TVDB is
 	// down with nothing cached, or does not have the series
 	if tc, err := newTVDBClient(pol, st, gw); err != nil {
 		return nil, nil, err
 	} else if tc != nil {
-		src.TVDB = anime.TVDBChain{tc, db}
+		o.TVDB = tc
 	} else {
 		fmt.Fprintln(os.Stderr, "no TVDB key: TVDB episodes come from the imported Sonarr")
 	}
-	if s := srcURL("tmdb"); s != "" && pol.Metadata.Sources["tmdb"].APIKeyEnv != "" {
-		if key := os.Getenv(pol.Metadata.Sources["tmdb"].APIKeyEnv); key != "" {
-			tc, err := tmdb.New(tmdb.Options{BaseURL: s, APIKey: key,
-				Doer:  gatewayDoer{gw: gw, target: gateway.Target{Class: gateway.ClassMetadata, Key: "tmdb"}},
-				Cache: &tmdb.SQLCache{Store: st, Source: "tmdb"}})
-			if err != nil {
-				return nil, nil, err
-			}
-			src.Movies = live.TMDbMovies{C: tc}
-		}
+	l, err := autobuild.LiveSources(pol, o)
+	if err != nil {
+		return nil, nil, err
+	}
+	fmt.Fprintln(os.Stderr, "loading the mapping lists (daily) ...")
+	src, err := l.Sources(ctx)
+	if err != nil {
+		return nil, nil, err
 	}
 	if src.Movies == nil {
 		fmt.Fprintln(os.Stderr, "no TMDb key: TMDb ids are not checked")
 	}
-	return src, f, nil
+	return src, l.Fetcher, nil
 }
 
 func runAnimeReview(args []string) error {

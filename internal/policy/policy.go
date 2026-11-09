@@ -666,6 +666,8 @@ type Metadata struct {
 	Series *SeriesMeta `yaml:"series"`
 	// Lists schedules Radarr collections and TMDb import lists.
 	Lists *Lists `yaml:"lists"`
+	// Anime schedules the automatic anime franchise builds (animebuild.go).
+	Anime *AnimeBuild `yaml:"anime"`
 }
 
 // MetadataSource is one metadata API.

@@ -257,3 +257,20 @@ func IsPermanent(err error) bool {
 	var p permanentError
 	return errors.As(err, &p)
 }
+
+// laterError asks for the job to run again after a wait, without counting the run as an attempt.
+type laterError struct{ after time.Duration }
+
+func (l laterError) Error() string { return fmt.Sprintf("jobs: not now; again in %v", l.after) }
+
+// Later returns an error that hands the job back to the queue to run again after d, without counting the run as an
+// attempt or as a failure: for a handler that must wait its turn (one run of a kind at a time), not for errors.
+func Later(d time.Duration) error { return laterError{after: d} }
+
+func laterOf(err error) (time.Duration, bool) {
+	var l laterError
+	if errors.As(err, &l) {
+		return l.after, true
+	}
+	return 0, false
+}

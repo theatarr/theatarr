@@ -20,7 +20,7 @@ import (
 // overview, so the recap flag from TVDB overviews never fires. A TVDB v4 client goes behind the same interface.
 type SonarrTVDB struct {
 	DB *store.Store
-	// Instance limits SonarrEpisodes (the Library side) to one arr instance, e.g. sonarr_anime_debrid.
+	// Instance limits SonarrEpisodes (the Library side) to one arr instance; empty means any imported instance.
 	Instance string
 }
 
@@ -102,7 +102,7 @@ func (s SonarrTVDB) SonarrEpisodes(ctx context.Context, tvdbIDs []int) (map[int]
 	if len(tvdbIDs) == 0 {
 		return out, nil
 	}
-	args := []any{s.Instance}
+	args := []any{s.Instance, s.Instance}
 	ph := make([]string, len(tvdbIDs))
 	for i, t := range tvdbIDs {
 		ph[i] = "?"
@@ -110,7 +110,7 @@ func (s SonarrTVDB) SonarrEpisodes(ctx context.Context, tvdbIDs []int) (map[int]
 	}
 	rows, err := s.DB.Reader().QueryContext(ctx, `SELECT t.tvdb_id, e.season, e.number FROM arr_alias a
 		JOIN episode e ON e.id = a.target_id JOIN title t ON t.id = e.title_id
-		WHERE a.instance = ? AND a.kind = 'episode' AND t.tvdb_id IN (`+strings.Join(ph, ", ")+`)`, args...)
+		WHERE (? = '' OR a.instance = ?) AND a.kind = 'episode' AND t.tvdb_id IN (`+strings.Join(ph, ", ")+`)`, args...)
 	if err != nil {
 		return nil, err
 	}

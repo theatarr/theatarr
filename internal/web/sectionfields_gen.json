@@ -1,4 +1,8 @@
 {
+  "AnimeBuild": {
+    "auto_build": "This builds franchises for anime series without one and rebuilds old ones (default true). Building only writes mappings; episodes whose mapping is not settled import through sonarr's numbering, and their conflicts show in Admin › Reviews.",
+    "refresh_interval": "This is how old a franchise's build may get before it is rebuilt. Default 168h (7 days), minimum 24h. Rebuilds are spread over the interval; a franchise with a refresh held for review waits for the review."
+  },
   "ArrSource": {
     "api_key_env": "This names the environment variable holding the instance's API key.",
     "flavour": "This is radarr or sonarr.",
@@ -107,6 +111,7 @@
     "interval": "This is the time between refreshes. Default 24h, like Radarr."
   },
   "Metadata": {
+    "anime": "This schedules the automatic anime franchise builds (animebuild.go).",
     "art": "This schedules the meta.art job (art.go).",
     "lists": "This schedules Radarr collections and TMDb import lists.",
     "overrides_dir": "This points at external data. Legacy relative values resolve beneath the policy base.",

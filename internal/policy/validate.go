@@ -69,6 +69,7 @@ func (p *Policy) Validate() error {
 	p.validateArt(e)
 	p.validateSeriesMeta(e)
 	p.validateLists(e)
+	p.validateAnimeBuild(e)
 	p.validatePlexTV(e)
 	return e.err()
 }

@@ -763,6 +763,31 @@
             "help": "This is the time between refreshes. Default 24h, like Radarr."
           }
         ]
+      },
+      {
+        "name": "anime",
+        "label": "Anime franchises",
+        "type": "object",
+        "help": "This schedules the automatic anime franchise builds (animebuild.go).",
+        "nullable": true,
+        "fields": [
+          {
+            "name": "auto_build",
+            "default": "true",
+            "label": "Build franchises automatically",
+            "type": "boolean",
+            "help": "This builds franchises for anime series without one and rebuilds old ones (default true). Building only writes mappings; episodes whose mapping is not settled import through sonarr's numbering, and their conflicts show in Admin › Reviews.",
+            "nullable": true
+          },
+          {
+            "name": "refresh_interval",
+            "min": 86400,
+            "default": "168h",
+            "label": "Rebuild interval",
+            "type": "duration",
+            "help": "This is how old a franchise's build may get before it is rebuilt. Default 168h (7 days), minimum 24h. Rebuilds are spread over the interval; a franchise with a refresh held for review waits for the review."
+          }
+        ]
       }
     ],
     "notify": [

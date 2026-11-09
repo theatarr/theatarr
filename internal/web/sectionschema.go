@@ -178,6 +178,7 @@ var sectionAnnotations = map[string]SchemaField{
 	"metadata.series.interval":                    durationBounds(policy.MinSeriesMetaInterval, 0, "1h"),
 	"metadata.series.per_run":                     bounds(1, policy.MaxSeriesMetaPerRun, "50"),
 	"metadata.lists.interval":                     durationBounds(policy.MinListInterval, 0, "24h"),
+	"metadata.anime.refresh_interval":             durationBounds(policy.MinAnimeRefreshInterval, 0, "168h"),
 	"provider_sync.interval":                      durationBounds(policy.MinProviderSyncInterval, 0, "6h"),
 	"clients.*.kind":                              {Enum: []string{"decypharr", "qbittorrent"}},
 	"clients.*.import_from":                       {Enum: []string{policy.ImportFromMount, policy.ImportFromDownloadFolder}, Default: policy.ImportFromMount},
@@ -237,7 +238,7 @@ var sectionAnnotations = map[string]SchemaField{
 
 func floatPtr(v float64) *float64 { return &v }
 func init() {
-	for _, path := range []string{"metadata.series.enabled", "library.sample.resolution", "library.sample.mislabel", "library.plex.now_playing", "library.plex.prewarm", "shadow.rss", "shadow.search", "playlists.routes", "router.cached_only", "router.wanted.missing", "router.cache_evidence.torbox_check.enabled"} {
+	for _, path := range []string{"metadata.series.enabled", "metadata.anime.auto_build", "library.sample.resolution", "library.sample.mislabel", "library.plex.now_playing", "library.plex.prewarm", "shadow.rss", "shadow.search", "playlists.routes", "router.cached_only", "router.wanted.missing", "router.cache_evidence.torbox_check.enabled"} {
 		a := sectionAnnotations[path]
 		a.Default = "true"
 		sectionAnnotations[path] = a
@@ -360,6 +361,9 @@ var sectionLabels = map[string]string{
 	"metadata.series.interval":                    "Refresh interval",
 	"metadata.series.per_run":                     "Series per refresh",
 	"metadata.lists.interval":                     "Refresh interval",
+	"metadata.anime":                              "Anime franchises",
+	"metadata.anime.auto_build":                   "Build franchises automatically",
+	"metadata.anime.refresh_interval":             "Rebuild interval",
 	"notify.allow_hosts":                          "Allowed destination hosts",
 	"notify.poll":                                 "Delivery check interval",
 	"notify.targets":                              "Notification destinations",

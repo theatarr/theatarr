@@ -32,6 +32,7 @@ import (
 	"github.com/theatarr/theatarr/internal/journal"
 	"github.com/theatarr/theatarr/internal/library"
 	"github.com/theatarr/theatarr/internal/logring"
+	"github.com/theatarr/theatarr/internal/metadata/anime/autobuild"
 	"github.com/theatarr/theatarr/internal/metadata/art"
 	"github.com/theatarr/theatarr/internal/metadata/tvrefresh"
 	"github.com/theatarr/theatarr/internal/notify"
@@ -599,6 +600,7 @@ func runServe(args []string) error {
 			if err != nil {
 				return err
 			}
+			runtime.Anime = newServeAnime(runtime.Policy, st, q, runtime.Gateway, runtime.Metadata.tvc, log)
 			return nil
 		}
 	}
@@ -741,11 +743,31 @@ func runServe(args []string) error {
 	if serveSnapshot != nil {
 		serveSnapshot.Metadata = startMeta
 	}
+	// Anime franchises (docs/design/anime.md "Automatic builds"): anime_build jobs on the builder of the captured
+	// generation; the discovery and refresh loop is a live worker (serveliveworkers.go).
+	startAnime := newServeAnime(pol, st, q, gw, tvc, log)
+	if serveSnapshot != nil {
+		serveSnapshot.Anime = startAnime
+	}
+	currentAnime := func(ctx context.Context) (context.Context, *autobuild.Service) {
+		if runtimeManager != nil {
+			ctx = runtimeManager.Capture(ctx)
+			if runtime, err := runtimeForSearch(ctx, runtimeManager); err == nil && runtime.Anime != nil {
+				return ctx, runtime.Anime
+			}
+		}
+		return ctx, startAnime
+	}
+	autobuild.RegisterRuntimeJobs(w, currentAnime)
 	// Health checks (internal/health): the native API, the System screen, every view's GET health and the Health
 	// webhook read the same cached results.
 	hc := newServeHealth(serveHealthConfig{pol: pol, st: st, q: q, gw: gw, lib: lb.lib, dbPath: *dbPath, backupDir: *backupDir,
 		manager: runtimeManager, providers: ps.keys, providerInterval: ps.interval, accounts: ps.syncer.Providers, tmdb: ar.Enabled(), tvdb: tvc != nil, log: log})
 	av.SetHealth(hc)
+	hc.Add("AnimeBuildCheck", "Anime builds", animeBuildHealth(func(ctx context.Context) *autobuild.Service {
+		_, s := currentAnime(ctx)
+		return s
+	}))
 	var qualitySync *settings.QualitySync
 	if runtimeManager != nil {
 		qualitySync = newQualitySync(settingsStore, st, runtimeManager, os.Getenv("THEATARR_TRASH"))
@@ -854,7 +876,7 @@ func runServe(args []string) error {
 	startRuntime := serveSnapshot
 	if startRuntime == nil {
 		startRuntime = &serveRuntime{Policy: pol, Gateway: gw, Providers: ps, Router: rt, Acquirer: ac, Library: lb,
-			Playlists: pls, Metadata: startMeta}
+			Playlists: pls, Metadata: startMeta, Anime: startAnime}
 	}
 	loops := serveLoops{router: rt, sync: ps, shadow: sh, log: log, current: func(ctx context.Context) (context.Context, *serveRuntime) {
 		if runtimeManager != nil {

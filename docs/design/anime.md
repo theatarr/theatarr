@@ -171,6 +171,46 @@ playlists:
   interval: 6h             # for theatarr serve, minimum 1h
 ```
 
+## Automatic builds (`.../anime/autobuild`)
+
+`theatarr serve` builds franchises on its own while `metadata.anime.auto_build` is on (default true) and the policy
+has the anime sources (`anilist`, `kitsu`, `thexem`, `anime-lists`, `fribb`, `anibridge`, `manami`; the gateway
+refuses any other target). Building only writes mappings; episodes whose mapping is not settled import through
+Sonarr's numbering, and their conflicts show in Admin › Reviews. With a source missing, the "Anime builds" health
+check says which, and nothing builds; manual builds are refused the same way.
+
+**Discovery.** Every anime series (`title.anime`, kind series, with a TVDB id) that no franchise maps into gets a
+discovery pass, one at a time:
+
+1. Covered when a franchise has a mapping into the TVDB series, or an entry for one of its AniList ids (a franchise
+   whose mapping was rejected still covers it).
+2. The series' AniList ids: ScudLee's records for the TVDB id, through Fribb (else manami) from AniDB to AniList.
+   None is `no_mapping`.
+3. A franchise in the shipped list (`<overrides_dir>/franchises.yaml`) seeded by one of them is built under its own
+   slug and scope (origin `list`); covered if it is stored already.
+4. Otherwise an ad-hoc franchise (origin `auto`). The seed is the record ScudLee puts at TVDB season 1 (or absolute)
+   with no episode offset, lowest AniDB id first; else the earliest AniList start date (ties: lowest id). The crawl
+   walks prequels and sequels from any seed, so a later season still yields the whole line. The slug comes from the
+   series name (`Re:Zero - Starting Life in Another World` → `re-zero-starting-life-in-another-world`), with
+   `-<tvdb id>` appended when another franchise has it, or `tvdb-<id>` for a name with no ASCII letters.
+
+The outcome per title is kept in `anime_discovery` (`queued`, `built`, `covered`, `no_mapping`, `failed`, with the
+franchise and the error). A title is tried again after `refresh_interval` (an hour when its job was lost while
+`queued`), so a series the lists learn later is picked up.
+
+**Refresh.** A franchise built more than `metadata.anime.refresh_interval` ago (default 168h, minimum 24h) is rebuilt;
+one at most every interval / franchises, the stalest first, so the rebuilds spread over the interval. A franchise
+with a refresh held for review (`pending_result`) waits for the review. The origin (`list`, `auto`, `manual`) and the
+TVDB id are kept in the franchise's config, so a rebuild uses the same seed and scope; a shipped franchise takes its
+current list entry.
+
+**The job.** Builds run as `anime_build` jobs (dedupe by TVDB id, slug or seed; two attempts), one at a time in the
+process: a second job that finds a build running is put back a minute later without counting an attempt. The loop
+(every minute, first after two minutes) queues only when no `anime_build` job is queued or running. A job builds
+through the same live sources as the CLI and saves like `-save`: a rebuild that drops episodes or moves linked
+mappings is held for review. The lists (about 90 MB) are parsed once per process, kept a day, and released after
+30 idle minutes.
+
 ## Golden outputs
 
 The golden outputs (three franchises in `internal/metadata/anime/testdata/offline`) were produced by a Python
@@ -226,7 +266,7 @@ What it took to be exact, rather than close:
 | AniDB titles dump | — | Reserved fetch/cache policy; no active titles-dump caller | 1 day | — |
 | SeaDex | — | `live.SeaDex` per AniList id | 1 day | 2 s |
 | Movie lookup | `cache/arr` (Radarr's lookup) | the TMDb client: by id, and `search/movie` for entries without an id (`tmdb.SearchMovie`, adult titles left out) | movies per the client's TTLs; searches a week | TMDb client's |
-| Sonarr library | `cache/arr` | the `arr_alias` episodes of `-sonarr-instance` | — | — |
+| Sonarr library | `cache/arr` | the `arr_alias` episodes of any imported Sonarr (`-sonarr-instance` limits it to one) | — | — |
 
 Responses go into `metadata_cache` (gzip, keyed by method + URL (+ body hash for POSTs), with `etag` and
 `last_modified` from 00017). A stale entry is revalidated with `If-None-Match`/`If-Modified-Since`; a 304 extends it.
@@ -262,6 +302,12 @@ Import gating: `anime_mapping.status IN ('auto', 'arbitrated', 'override', 'heur
 | `anime_review.choice` | the candidate accepted instead of the proposed mapping |
 | `plex_playlist` | per franchise, order and route: name, Plex rating key, items synced, the last plan, mode (`dry_run`, `applied`, `failed`) and why |
 
+## Storage (migration 00110)
+
+| Table | Holds |
+|---|---|
+| `anime_discovery` | per anime series (title): its TVDB id, the last discovery outcome, the franchise built or covering it, the error, when |
+
 ## Commands
 
 ```sh
@@ -273,6 +319,8 @@ theatarr anime build -franchise re-zero -cache ... -db /data/theatarr.db -save
 theatarr anime build -franchise re-zero -env-file .../theatarr.env -db /data/theatarr.db -save
 # ad hoc
 theatarr anime build -franchise one-piece -seed 21 -db ...
+# live builds use the same sources as theatarr serve; the "in Sonarr" check covers every imported Sonarr
+theatarr anime build -franchise re-zero -sonarr-instance sonarr_anime ...
 # the queue
 theatarr anime review [-franchise re-zero] [-state open|accepted|rejected|superseded|all] [-json]
 theatarr anime review -accept 12 -note "anibridge is right"      # or -reject 12

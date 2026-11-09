@@ -271,6 +271,13 @@ func TestSonarrTVDB(t *testing.T) {
 	if err != nil || len(eps) != 1 || !eps[77][anime.SE{1, 1}] || eps[77][anime.SE{0, 1}] {
 		t.Errorf("sonarr episodes %v %v", eps, err)
 	}
+	// No instance: any imported instance; another instance: none of these.
+	if eps, err := (animestore.SonarrTVDB{DB: st}).SonarrEpisodes(ctx, []int{77}); err != nil || !eps[77][anime.SE{1, 1}] {
+		t.Errorf("any instance %v %v", eps, err)
+	}
+	if eps, err := (animestore.SonarrTVDB{DB: st, Instance: "other"}).SonarrEpisodes(ctx, []int{77}); err != nil || len(eps) != 0 {
+		t.Errorf("other instance %v %v", eps, err)
+	}
 }
 
 // Migration 00017 goes down and up cleanly.

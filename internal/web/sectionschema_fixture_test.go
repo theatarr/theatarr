@@ -51,6 +51,7 @@ func TestSectionDefaultTrue(t *testing.T) {
 	p := &policy.Policy{Library: &policy.Library{Plex: &policy.Plex{}}}
 	defaults := map[string]bool{
 		"metadata.series.enabled":                    p.SeriesMetaSettings().Enabled,
+		"metadata.anime.auto_build":                  p.AnimeBuildSettings().AutoBuild,
 		"library.sample.resolution":                  p.LibrarySettings().Resolution,
 		"library.sample.mislabel":                    p.LibrarySettings().Mislabel,
 		"library.plex.now_playing":                   p.LibrarySettings().NowPlaying,

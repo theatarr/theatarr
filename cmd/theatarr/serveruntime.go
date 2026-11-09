@@ -19,6 +19,7 @@ import (
 	"github.com/theatarr/theatarr/internal/gateway"
 	"github.com/theatarr/theatarr/internal/indexer"
 	"github.com/theatarr/theatarr/internal/jobs"
+	"github.com/theatarr/theatarr/internal/metadata/anime/autobuild"
 	"github.com/theatarr/theatarr/internal/metadata/anime/playlists"
 	"github.com/theatarr/theatarr/internal/policy"
 	"github.com/theatarr/theatarr/internal/provider"
@@ -47,6 +48,8 @@ type serveRuntime struct {
 	Library                       *serveLibrary
 	Playlists                     *playlists.Syncer
 	Metadata                      *serveMetadata
+	// Anime builds and refreshes anime franchises (metadata.anime, the anime metadata sources).
+	Anime *autobuild.Service
 	// Workers restarts the long-running loops whose settings this generation changed (serveliveworkers.go).
 	Workers *serveWorkers
 }

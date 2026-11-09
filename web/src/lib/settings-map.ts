@@ -371,7 +371,8 @@ export const SETTINGS_PANELS: SettingsPanel[] = [
     "keys": [
       "art",
       "series",
-      "lists"
+      "lists",
+      "anime"
     ]
   },
   {

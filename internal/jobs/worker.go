@@ -302,6 +302,13 @@ func (w *Worker) run(ctx context.Context, j *Job) {
 			log.Error("job release", "err", rerr)
 		}
 		log.Info("job interrupted by shutdown; requeued")
+	case isLater(err):
+		after, _ := laterOf(err)
+		if rerr := w.releaseAt(octx, j, w.q.now().Add(after)); rerr != nil {
+			log.Error("job release", "err", rerr)
+		}
+		w.runs.WithLabelValues(j.Kind, "later").Inc()
+		log.Debug("job handed back to run later", "after", after)
 	default:
 		outcome := "retry"
 		if IsPermanent(err) || j.Attempt >= j.MaxAttempts {
@@ -422,15 +429,20 @@ func (w *Worker) finish(ctx context.Context, j *Job, runErr error) (bool, error)
 	return n == 1, err
 }
 
+func isLater(err error) bool { _, ok := laterOf(err); return ok }
+
 // release hands an interrupted job back: queued, ready now, and the interrupted run not counted.
-func (w *Worker) release(ctx context.Context, j *Job) error {
+func (w *Worker) release(ctx context.Context, j *Job) error { return w.releaseAt(ctx, j, w.q.now()) }
+
+// releaseAt hands a job back, queued and ready at at, with the run not counted.
+func (w *Worker) releaseAt(ctx context.Context, j *Job, at time.Time) error {
 	now := store.Millis(w.q.now())
 	return w.q.st.WriteTx(ctx, func(tx *sql.Tx) error {
 		_, err := tx.ExecContext(ctx, `
 			UPDATE job SET state = 'queued', run_at = ?, updated_at = ?, lease_owner = NULL, lease_until = NULL,
 			       attempts = attempts - 1
 			WHERE id = ? AND state = 'running' AND lease_owner = ? AND attempts = ?`,
-			now, now, j.ID, w.opts.Owner, j.Attempt)
+			store.Millis(at), now, j.ID, w.opts.Owner, j.Attempt)
 		return err
 	})
 }

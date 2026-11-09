@@ -90,6 +90,12 @@ func (l serveLoops) workers() []serveWorker {
 			l.runPlaylists(ctx, rt.Policy.PlaylistSettings().Interval, rt.Playlists)
 			return nil
 		}},
+		// Anime franchise discovery and refresh (metadata.anime and the anime metadata sources); off while auto_build is
+		// off or a source is missing.
+		{name: "anime-build", key: animeWorkerKey, run: func(ctx context.Context, rt *serveRuntime, _ string) error {
+			rt.Anime.Run(ctx)
+			return nil
+		}},
 		// meta.art scheduling (metadata.art, metadata.sources.tmdb, ui.images).
 		// It returns at once, logging so, while TMDb is off.
 		{name: "art", key: func(rt *serveRuntime) string {
