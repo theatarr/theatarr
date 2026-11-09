@@ -126,6 +126,46 @@ describe("Versions page", () => {
     expect(fetch.calls("POST", "/settings/versions")[0].body).toMatchObject({ config: { client: "", storage: "debrid" } });
   });
 
+  it("offers only debrid storage and symlink imports to a library that uses neither seedbox nor hardlink or copy", async () => {
+    mockFetch(getRoutes());
+    const user = userEvent.setup();
+    renderPage(<VersionsPage />);
+    await user.click(await screen.findByRole("button", { name: "Edit" }));
+    const options = (name: string) => within(screen.getByRole("combobox", { name })).getAllByRole("option").map((option) => option.textContent);
+    expect(options("Storage")).toEqual(["debrid"]);
+    expect(options("Import mode")).toEqual(["symlink"]);
+  });
+
+  it("keeps a saved seedbox storage and hardlink import, labelled not supported yet, and saves them unchanged", async () => {
+    const legacy = { ...version(), config: { ...version().config, storage: "seedbox", import: "hardlink" } };
+    const fetch = mockFetch([...getRoutes({ ...versions(), versions: [legacy] }), { method: "PUT", path: "/settings/versions/movie-web", reply: json({ generation: 5 }) }]);
+    const user = userEvent.setup();
+    renderPage(<VersionsPage />);
+    await user.click(await screen.findByRole("button", { name: "Edit" }));
+    const storage = screen.getByRole("combobox", { name: "Storage" }) as HTMLSelectElement;
+    const importMode = screen.getByRole("combobox", { name: "Import mode" }) as HTMLSelectElement;
+    expect(storage.value).toBe("seedbox");
+    expect(importMode.value).toBe("hardlink");
+    expect(within(storage).getAllByRole("option").map((option) => option.textContent)).toEqual(["debrid", "seedbox (not supported yet)"]);
+    expect(within(importMode).getAllByRole("option").map((option) => option.textContent)).toEqual(["symlink", "hardlink (not supported yet)"]);
+    await user.selectOptions(screen.getByRole("combobox", { name: "Prefer SeaDex" }), "true");
+    await user.click(screen.getByRole("button", { name: "Save" }));
+    await waitFor(() => expect(fetch.calls("PUT", "/settings/versions/movie-web")).toHaveLength(1));
+    expect(fetch.calls("PUT", "/settings/versions/movie-web")[0].body).toMatchObject({ config: { storage: "seedbox", import: "hardlink", prefer_seadex: true } });
+  });
+
+  it("still offers the saved unsupported value after the draft moves away from it", async () => {
+    const legacy = { ...version(), config: { ...version().config, import: "copy" } };
+    mockFetch(getRoutes({ ...versions(), versions: [legacy] }));
+    const user = userEvent.setup();
+    renderPage(<VersionsPage />);
+    await user.click(await screen.findByRole("button", { name: "Edit" }));
+    const importMode = screen.getByRole("combobox", { name: "Import mode" }) as HTMLSelectElement;
+    await user.selectOptions(importMode, "symlink");
+    expect(importMode.value).toBe("symlink");
+    expect(within(importMode).getAllByRole("option").map((option) => option.textContent)).toEqual(["symlink", "copy (not supported yet)"]);
+  });
+
   it("sends a library's grabs to a download client", async () => {
     const fetch = mockFetch([...getRoutes(), { method: "PUT", path: "/settings/versions/movie-web", reply: json({ generation: 5 }) }]);
     const user = userEvent.setup();

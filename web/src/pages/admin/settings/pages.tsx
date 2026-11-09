@@ -26,7 +26,7 @@ import { VpnStatus, RequestLimitsStatus } from "./network";
 import { PolicyFiles } from "../policy";
 const HELP: Record<string, string> = {
  libraries: "Each library is a folder Theatarr fills and the Plex library that shows it, for example Movies 4K and Movies 1080p. Each has its own quality profile, indexers and debrid providers.",
- downloads: "Debrid providers are tried in the order shown. Download clients take the grabs of a library set to send them there: a decypharr client adds to its own debrid account, a qBittorrent client is a seedbox.",
+ downloads: "Debrid providers are tried in the order shown. Download clients take the grabs of a library set to send them there: a decypharr client adds to its own debrid account. A seedbox qBittorrent client is not supported yet: nothing sends grabs to it.",
  apps: "Sonarr- and Radarr-compatible addresses for Seerr and other apps. Each shows the libraries you choose.",
 };
 /** Phones (docs/design/ui.md "Settings"): the side list is hidden there, so a labelled select at the top of Settings

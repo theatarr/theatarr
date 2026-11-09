@@ -21,7 +21,7 @@ export const SECTION_LABELS: Record<string, { label: string; help: string }> = {
   metadata: { label: "Metadata sources", help: "TMDb, TVDB, image hosts and their keys." },
   library: { label: "Library and Plex", help: "Mount, link path, trash, dangling roots, zurg log and API, Plex. Library roots are set per library; the on/off switch is in Libraries." },
   notify: { label: "Notifications", help: "Targets, events and formats. The on/off switch is in Notifications." },
-  clients: { label: "Download clients", help: "Download clients: decypharr, which calls a view back and takes the grabs of libraries that send them to a download client, and qBittorrent for seedbox libraries." },
+  clients: { label: "Download clients", help: "Download clients: decypharr, which calls a view back and takes the grabs of libraries that send them to a download client. A seedbox qBittorrent client is not supported yet." },
   egress: { label: "VPN guard", help: "The check URL, VPN addresses and what must go through the VPN." },
   torrents: { label: "Torrents", help: "Scan roots and scheduled backups." },
   cardigann: { label: "Indexer catalog and Prowlarr", help: "Catalog on/off, FlareSolverr and the Prowlarr reader." },

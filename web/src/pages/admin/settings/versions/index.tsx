@@ -55,6 +55,20 @@ function Pick({ value, options, onChange, disabled, labels }: { value: string; o
   return <select className={SELECT_CLASS} value={value} onChange={(event) => onChange(event.target.value)} disabled={disabled}>{options.map((option) => <option key={option} value={option}>{labels?.[option] ?? (option || "None")}</option>)}</select>;
 }
 
+/** A picker's supported options, plus a not-yet-supported value only when the saved record or the draft already uses it,
+ * so an existing config still shows and saves as it is (seedbox storage, hardlink and copy imports: docs/not-supported.md). */
+function withSaved(supported: readonly string[], ...used: (string | undefined)[]): { options: string[]; labels: Record<string, string> } {
+  const options = [...supported];
+  const labels: Record<string, string> = {};
+  for (const value of used) {
+    if (value && !options.includes(value)) {
+      options.push(value);
+      labels[value] = `${value} (not supported yet)`;
+    }
+  }
+  return { options, labels };
+}
+
 function Multi({ label, choices, values, onChange }: { label: string; choices: string[]; values: string[]; onChange: (values: string[]) => void }) {
   return <fieldset className="space-y-1"><legend className="text-sm">{label}</legend><div className="flex flex-wrap gap-3">{choices.map((key) => <label key={key} className="flex items-center gap-1 text-sm"><input type="checkbox" checked={values.includes(key)} onChange={(event) => onChange(choices.filter((choice) => choice === key ? event.target.checked : values.includes(choice)))} />{key}</label>)}</div></fieldset>;
 }
@@ -302,10 +316,10 @@ function VersionForm({ session, data, defaults, profiles, error, onChange }: { s
       <Field label="Anime" {...mark("anime")}><Pick value={config.anime === null ? "both" : String(config.anime)} options={["false", "true", "both"]} labels={{ false: "Not anime", true: "Anime only", both: "Anime and not" }} onChange={(value) => recategorize({ ...config, anime: value === "both" ? null : value === "true" })} /></Field>
       <Field label="Root" changed={!same(config.library, saved.config.library)} error={fieldMessage(error, (path) => path === `versions[${record.key}].library`)}><Input value={config.library} onChange={(event) => { const root = event.target.value; const roots = record.roots?.length && record.roots.length > 1 ? record.roots.map((value) => value === config.library ? root : value) : [root]; setRootsText(roots.join(", ")); onChange({ ...record, config: { ...config, library: root }, roots }); }} /><span role="status" className="break-all text-xs">{rootStatus}</span></Field>
       <Field label="Write roots (comma separated)" name="Write roots" changed={rootsChanged} error={fieldMessage(error, (path) => path.startsWith(`library.versions[${record.key}].roots`))}><Input value={rootsText} onChange={(event) => { setRootsText(event.target.value); onChange({ ...record, roots: split(event.target.value) }); }} /></Field>
-      <Field label="Storage" {...mark("storage")}><Pick value={config.storage} options={["debrid", "seedbox"]} onChange={(value) => update("storage", value as VersionConfig["storage"])} /></Field>
+      <Field label="Storage" {...mark("storage")}><Pick value={config.storage} {...withSaved(["debrid"], saved.config.storage, config.storage)} onChange={(value) => update("storage", value as VersionConfig["storage"])} /></Field>
       <Field label="Send grabs to" {...mark("add_via")}><Pick value={viaClient ? "client" : "providers"} options={["providers", "client"]} labels={{ providers: "Debrid providers", client: "Download client" }} onChange={(value) => update("add_via", value as VersionConfig["add_via"])} /></Field>
-      <Field label={viaClient ? "Client (a decypharr client: it adds to its own debrid account)" : "Client (seedbox libraries; debrid libraries need none)"} name="Client" {...mark("client")}><Pick value={config.client} options={["", ...data.clients]} onChange={(value) => update("client", value)} /></Field>
-      <Field label="Import mode" {...mark("import")}><Pick value={config.import} options={["symlink", "hardlink", "copy"]} onChange={(value) => update("import", value as VersionConfig["import"])} /></Field>
+      <Field label={viaClient ? "Client (a decypharr client: it adds to its own debrid account)" : "Client (only when grabs go to a download client; debrid libraries need none)"} name="Client" {...mark("client")}><Pick value={config.client} options={["", ...data.clients]} onChange={(value) => update("client", value)} /></Field>
+      <Field label="Import mode" {...mark("import")}><Pick value={config.import} {...withSaved(["symlink"], saved.config.import, config.import)} onChange={(value) => update("import", value as VersionConfig["import"])} /></Field>
       <Field label="Follows" {...mark("follows")}><Pick value={config.follows} options={["", ...data.versions.filter((version) => version.key !== record.key).map((version) => version.key)]} onChange={(value) => update("follows", value)} /></Field>
     </Part>
     <Part title="Which releases" help="The quality profile decides which releases it takes and when it upgrades.">
@@ -315,7 +329,7 @@ function VersionForm({ session, data, defaults, profiles, error, onChange }: { s
       <Field label="Upgrades" {...mark("upgrades")}><Pick value={config.upgrades} options={["auto", "approve", "off"]} onChange={(value) => update("upgrades", value as VersionConfig["upgrades"])} /></Field>
       <div className="flex flex-col gap-1"><Field label="Prefer SeaDex" {...mark("prefer_seadex")}><Pick value={String(config.prefer_seadex ?? false)} options={["false", "true"]} onChange={(value) => update("prefer_seadex", value === "true")} /></Field><span className="text-xs text-muted-foreground">SeaDex picks take priority among allowed qualities and can replace higher-resolution files. Actual quality remains shown; size limits, upgrades and the other checks still apply.</span></div>
     </Part>
-    <Part title="Sources" help="Where it searches and which debrid or seedbox providers it adds through, in fallback order.">
+    <Part title="Sources" help="Where it searches and which debrid providers it adds through, in fallback order.">
       <div className="space-y-1"><Multi label="Indexers" choices={data.indexers} values={config.indexers ?? []} onChange={(values) => update("indexers", values)} />{mark("indexers").changed ? <ChangedMark name="Indexers" onUndo={mark("indexers").onUndo} /> : null}</div>
       {viaClient ? <p className="text-sm text-muted-foreground">Grabs go to download client {config.client || "(none picked)"}, which adds them to its own debrid account and decides cached-only, pacing and stalled downloads itself; the providers below are not used.</p> : null}
       <div className="space-y-1"><Multi label="Providers (fallback order)" choices={data.providers} values={config.providers ?? []} onChange={(values) => update("providers", values)} />{mark("providers").changed ? <ChangedMark name="Providers" onUndo={mark("providers").onUndo} /> : null}</div>

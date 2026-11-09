@@ -573,7 +573,7 @@ func (pv *Provider) EffectiveStalledAfter(global time.Duration) time.Duration {
 // Client is a download client.
 type Client struct {
 	// Kind selects decypharr (a debrid client: it calls a view back, and takes the grabs of versions with add_via:
-	// client) or qbittorrent (seedbox).
+	// client) or qbittorrent (a seedbox client: accepted, but nothing sends grabs to it yet).
 	Kind string `yaml:"kind"`
 	// URL is the download client endpoint.
 	URL string `yaml:"url"`
