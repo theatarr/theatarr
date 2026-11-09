@@ -212,8 +212,17 @@ is not searched on a schedule. It gets decisions two ways:
 - **Comparison with an arr.** A library fed by a Sonarr or Radarr instance (migration) decides each arr grab and
   runs its own search for it.
 
-To see a decision now, add a title from **Search** and run the decision engine against it from the shell. It searches
-the library's indexers and prints the ranked decisions with their score breakdown; it records nothing:
+To see how the library judges releases, start in the UI:
+
+- **Settings › Profiles › Check a release**: paste a release name and pick a title and library. It shows the parsed
+  quality, the matched formats, the score, any rejection and whether it would upgrade the file. It searches nothing
+  and records nothing.
+- The title's **Releases** page (from the title page): for an Active library it can search the indexers now; for a
+  shadow library it shows the last stored decision (from RSS or from an arr grab it compared), so a title added a
+  moment ago may show nothing yet.
+
+To search a shadow library's indexers for a title right away, run the decision engine from the shell. It prints the
+ranked decisions with their score breakdown and records nothing:
 
 ```sh
 docker compose exec theatarr theatarr decide -tmdb 603 -version movies -search                  # a movie, by TMDb id

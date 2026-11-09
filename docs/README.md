@@ -8,6 +8,8 @@ Start with the task you have. A **library** is what settings keys, API fields an
 | Guide | Use it for |
 |---|---|
 | [Quickstart](quickstart.md) | Build and run the container, first login, Setup, a first library in shadow, going live |
+| [Not supported yet](not-supported.md) | What Theatarr does not do yet (usenet, real torrent clients, Jellyfin and Emby, ...) and the workarounds |
+| [Troubleshooting](troubleshooting.md) | A restarting container, TMDb off, no profile, a library that does nothing, a failing go-live agreement line |
 | [Arr-to-Theatarr map](arr-map.md) | Where each familiar Sonarr, Radarr, Prowlarr and Recyclarr page lives |
 | [Migration](migration.md) | Bring an existing arr stack in, disabled and in shadow |
 | [Parallel libraries](parallel.md) | Follower libraries that run beside an arr on roots of their own |

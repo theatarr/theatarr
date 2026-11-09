@@ -23,7 +23,7 @@ claim of Sonarr v5 API parity. Recyclarr has no web pages; its table maps the CL
 | Settings | Admin › Settings — `/admin/settings` | Search by task or an arr page name. |
 | Settings › Media Management | Admin › Settings › Libraries — `/admin/settings/libraries` | Libraries have independent roots, profiles, indexers and providers; Naming and File management are tabs. |
 | Settings › Profiles | Admin › Settings › Profiles — `/admin/settings/profiles` | Quality, language preferences and scores are configured per profile. |
-| Settings › Quality | Admin › Settings › Profiles › Edit raw — `/admin/settings/profiles?raw=1` | Quality sizes are edited in the raw profile editor; Quality sync can manage TRaSH size definitions. |
+| Settings › Quality | Admin › Settings › Profiles — `/admin/settings/profiles` | Quality sizes are set per profile in the profile editor's Size limits form (the raw profile editor still works); Quality sync can manage TRaSH size definitions. |
 | Settings › Custom Formats | Admin › Settings › Custom formats — `/admin/settings/formats` | Shared definitions; scores are edited on profiles. |
 | Settings › Indexers | Admin › Settings › Indexers — `/admin/settings/indexers` | Built-in sources, native catalog and Torznab feeds coexist; each library chooses its feeds. |
 | Settings › Download Clients | Admin › Settings › Download clients — `/admin/settings/downloads` | Debrid providers are direct; seedbox clients use Other clients. Allow new downloads remains explicit. |
@@ -39,7 +39,7 @@ claim of Sonarr v5 API parity. Recyclarr has no web pages; its table maps the CL
 | System › Backups | Admin › System › Backup — `/admin/system/backup` | Full Theatarr backups and restore plus separate torrent-list backups. |
 | System › Updates | **not needed** | Deploy a new Theatarr binary/container; there is no in-app updater. |
 | System › Events | Admin › System › Errors — `/admin/system/errors` | Persistent error inbox; ordinary runtime messages are in Logs. |
-| System › Log Files | Admin › System › Logs — `/admin/system/logs` | Recent in-memory logs; use container/service logging for older files. |
+| System › Log Files | Admin › System › Logs — `/admin/system/logs` | Recent lines from memory, plus the rotated log files to download. |
 | System › Update Log Files | **not needed** | No in-app updater; inspect deployment/container logs. |
 | Activity › Queue | Activity › Queue — `/activity` | Downloads and imports; each action follows the account's permissions. |
 | Activity › History | Activity › History — `/activity/history` | Grabs, imports, failures and search decisions; admin decision links explain outcomes. |
@@ -60,7 +60,7 @@ claim of Sonarr v5 API parity. Recyclarr has no web pages; its table maps the CL
 | Settings | Admin › Settings — `/admin/settings` | Search by task or an arr page name. |
 | Settings › Media Management | Admin › Settings › Libraries — `/admin/settings/libraries` | Libraries have independent roots, profiles, indexers and providers; Naming and File management are tabs. |
 | Settings › Profiles | Admin › Settings › Profiles — `/admin/settings/profiles` | Quality, language preferences and scores are configured per profile. |
-| Settings › Quality | Admin › Settings › Profiles › Edit raw — `/admin/settings/profiles?raw=1` | Quality sizes are edited in the raw profile editor; Quality sync can manage TRaSH size definitions. |
+| Settings › Quality | Admin › Settings › Profiles — `/admin/settings/profiles` | Quality sizes are set per profile in the profile editor's Size limits form (the raw profile editor still works); Quality sync can manage TRaSH size definitions. |
 | Settings › Custom Formats | Admin › Settings › Custom formats — `/admin/settings/formats` | Shared definitions; scores are edited on profiles. |
 | Settings › Indexers | Admin › Settings › Indexers — `/admin/settings/indexers` | Built-in sources, native catalog and Torznab feeds coexist; each library chooses its feeds. |
 | Settings › Download Clients | Admin › Settings › Download clients — `/admin/settings/downloads` | Debrid providers are direct; seedbox clients use Other clients. Allow new downloads remains explicit. |
@@ -75,7 +75,7 @@ claim of Sonarr v5 API parity. Recyclarr has no web pages; its table maps the CL
 | System › Backup | Admin › System › Backup — `/admin/system/backup` | Full Theatarr backups and restore plus separate torrent-list backups. |
 | System › Updates | **not needed** | Deploy a new Theatarr binary/container; there is no in-app updater. |
 | System › Events | Admin › System › Errors — `/admin/system/errors` | Persistent error inbox; ordinary runtime messages are in Logs. |
-| System › Log Files | Admin › System › Logs — `/admin/system/logs` | Recent in-memory logs; use container/service logging for older files. |
+| System › Log Files | Admin › System › Logs — `/admin/system/logs` | Recent lines from memory, plus the rotated log files to download. |
 | Activity › Queue | Activity › Queue — `/activity` | Downloads and imports; each action follows the account's permissions. |
 | Activity › History | Activity › History — `/activity/history` | Grabs, imports, failures and search decisions; admin decision links explain outcomes. |
 | Activity › Blocklist | Activity › Blocklist — `/activity/blocklist` | Requires See files; provider deletes remain separate. |
@@ -104,7 +104,7 @@ claim of Sonarr v5 API parity. Recyclarr has no web pages; its table maps the CL
 | System › Backup | Admin › System › Backup — `/admin/system/backup` | Full Theatarr backups and restore plus separate torrent-list backups. |
 | System › Updates | **not needed** | Deploy a new Theatarr binary/container; there is no in-app updater. |
 | System › Events | Admin › System › Errors — `/admin/system/errors` | Persistent error inbox; ordinary runtime messages are in Logs. |
-| System › Log Files | Admin › System › Logs — `/admin/system/logs` | Recent in-memory logs; use container/service logging for older files. |
+| System › Log Files | Admin › System › Logs — `/admin/system/logs` | Recent lines from memory, plus the rotated log files to download. |
 
 ## Recyclarr (CLI)
 

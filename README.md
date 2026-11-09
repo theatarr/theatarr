@@ -84,6 +84,20 @@ When the files show up on the debrid mount, the library checks them and links th
 then asks Plex to scan. In shadow mode the same chain stops after the decision. See
 [docs/design/overview.md](docs/design/overview.md) for the architecture.
 
+## Not supported yet
+
+Theatarr does not do these yet. If you rely on one of them, keep the tool you use for it today.
+
+- **Native usenet.** There is no NZB downloader. A usenet-to-debrid helper can still drive a library through its
+  arr-compatible view.
+- **Real torrent clients.** Grabs go to debrid providers or to a qBittorrent-API debrid bridge such as decypharr.
+  A seedbox qBittorrent, and hardlink or copy imports of real files, are not supported.
+- **Jellyfin and Emby.** They work from the library folders alone; Theatarr does not scan them or sign in with them.
+- **Delay profiles and release profiles.** Migration reads them only to warn that they are not carried over.
+- **OIDC, LDAP and two-factor sign-in.** Sign-in is a local password or Plex.
+
+[docs/not-supported.md](docs/not-supported.md) has the details and the workarounds.
+
 ## Requirements
 
 Required:
@@ -109,7 +123,7 @@ Optional:
 There is no published image yet; you build it from this repository.
 
 ```sh
-git clone <this repository> theatarr && cd theatarr
+git clone https://github.com/theatarr/theatarr.git theatarr && cd theatarr
 cp examples/compose.yaml compose.yaml      # then edit the host paths
 mkdir -p data && sudo chown 65532:65532 data   # the image runs as uid 65532; so must the library roots and trash
 git clone --depth 1 https://github.com/TRaSH-Guides/Guides trash-guides   # optional: profile presets
