@@ -10,8 +10,9 @@ import (
 	"sort"
 )
 
-// command is one theatarr subcommand. Each lives in its own file and registers itself in init, so adding a subcommand
-// never touches this file. A command with subcommands of its own (theatarr policy validate) parses them itself.
+// command is one theatarr subcommand. Each lives in its own file and registers itself in init; a new subcommand also
+// gets a heading in usageGroups below. A command with subcommands of its own (theatarr policy validate) parses them
+// itself.
 type command struct {
 	name    string
 	summary string
