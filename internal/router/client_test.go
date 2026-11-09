@@ -225,7 +225,13 @@ func TestClientPollMapsStates(t *testing.T) {
 	}
 	id, _, _, _ := e.dl(h("a"))
 	var woken atomic.Int32
-	e.r.SetReadyNotify(func() { woken.Add(1) })
+	var seen atomic.Value
+	e.r.SetReadyNotify(func() {
+		woken.Add(1)
+		var state string
+		_ = e.st.Reader().QueryRow(`SELECT state FROM download WHERE id = ?`, id).Scan(&state)
+		seen.Store(state)
+	})
 	f.Set(h("a"), held("downloading", 0.4, ""))
 	if _, err := e.r.Poll(e.ctx); err != nil {
 		t.Fatal(err)
@@ -253,9 +259,9 @@ func TestClientPollMapsStates(t *testing.T) {
 	if state != StateReady || progress != 100 || source.Valid {
 		t.Fatalf("ready: %s %v %v", state, progress, source)
 	}
-	// The ready write calls the notifier once; downloading did not.
-	if n := woken.Load(); n != 1 {
-		t.Errorf("ready notified %d times", n)
+	// The ready write calls the notifier once, after it committed; downloading did not.
+	if n := woken.Load(); n != 1 || seen.Load() != StateReady {
+		t.Errorf("ready notified %d times, the notifier read %v", n, seen.Load())
 	}
 	if f.CallCount(pathInfo) != 3 { // the pre-add check and one read per poll
 		t.Errorf("info reads %d", f.CallCount(pathInfo))

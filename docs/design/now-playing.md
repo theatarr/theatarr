@@ -24,7 +24,7 @@ Code: `internal/nowplaying` (tracker, mapping, verdict, pre-warm, rclone rc clie
 | `library.mount.rclone_rc.url` | unset | The mount's rclone remote control (`rclone rc`, e.g. `http://rclone:5572`). Optional: without it there is no fetch speed and no cache state. It is an outbound host with its own gateway target class `rclonerc` (`rclonerc:rc`). |
 | `library.mount.rclone_rc.username_env`, `password_env` | unset | The rc basic-auth credentials (`--rc-user`, `--rc-pass`), by environment variable name. In DB settings mode they are write-only secrets (`mount.rclone_rc.username`, `mount.rclone_rc.password`). They go in the Authorization header only and are never logged or returned. |
 | `library.mount.rclone_rc.budget` | unset | A budget for rc calls. |
-| `library.mount.rclone_rc.forget_release_root` | false | Lets an import clear rclone's cached listing of the release root (`vfs/forget`), the one rc call that changes state, and only rclone's cache ([design/library.md](library.md), "Import of a ready download"). |
+| `library.mount.rclone_rc.forget_release_root` | false | Lets an import clear rclone's cached listing of the release root (`vfs/forget`), the one rc call that changes state, and only rclone's cache: the cached folders under the root and the parent's listing are listed again when next read ([design/library.md](library.md), "Import of a ready download"). |
 | `library.mount.zurg_api` | unset | Adds zurg's `/stats` (open streams, blocked reads) and, for a file Theatarr has no link for, its library entry. |
 | `library.mount.zurg_log` | unset | Adds zurg's log lines about the playing files (below). |
 

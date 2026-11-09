@@ -99,9 +99,8 @@ type RcloneRC struct {
 	PasswordEnv string `yaml:"password_env"`
 	// Budget names a budget for rc calls. Optional.
 	Budget string `yaml:"budget"`
-	// ForgetReleaseRoot clears rclone's cached listing of the release root (vfs/forget) when zurg's API lists an
-	// import's torrent but the mount does not show its folder yet, at most once every 3s; it changes rclone's cache
-	// only. Needs zurg_api. Default false.
+	// ForgetReleaseRoot clears rclone's cache of the release root (vfs/forget; its subfolders and parent too) when
+	// zurg_api lists a torrent the mount does not show yet, at most every 3s. Default false.
 	ForgetReleaseRoot bool `yaml:"forget_release_root"`
 }
 

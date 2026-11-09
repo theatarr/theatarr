@@ -452,9 +452,29 @@ func TestFreshWaiting(t *testing.T) {
 		t.Error("an unreadable download is re-checked soon")
 	}
 	e.exec(`UPDATE library_import SET last_error = ? WHERE download_id = 1`, notOnMount)
+	e.exec(`UPDATE download SET ready_at = ? WHERE id = 1`, store.Millis(e.now.Add(time.Second)))
+	if e.lib.FreshWaiting(e.ctx) {
+		t.Error("a ready time in the future is fresh")
+	}
+	e.exec(`UPDATE download SET ready_at = NULL WHERE id = 1`)
+	if e.lib.FreshWaiting(e.ctx) {
+		t.Error("a download without a ready time is fresh")
+	}
+	e.exec(`UPDATE download SET ready_at = ? WHERE id = 1`, store.Millis(e.now))
 	e.now = e.now.Add(ReadyRecheckWindow)
 	if e.lib.FreshWaiting(e.ctx) {
 		t.Error("fresh past the window")
+	}
+
+	// A version the gate refuses (library off) only plans its import: no quick re-check for it.
+	g := newEnv(t, false, policy.ModeActive)
+	g.download(1, "movie-remux", 1, 10, movieRelease, movieRelease, "[]")
+	g.exec(`UPDATE download SET ready_at = ? WHERE id = 1`, store.Millis(g.now))
+	if plan, err := g.lib.Import(g.ctx, 1, false); err != nil || !plan.Waiting {
+		t.Fatalf("gated waiting: %+v %v", plan, err)
+	}
+	if g.lib.FreshWaiting(g.ctx) {
+		t.Error("a gated version's wait is re-checked soon")
 	}
 }
 

@@ -760,20 +760,37 @@ func (l *Library) forgetReleaseRoot(ctx context.Context, id int64) {
 // delays it. Past the window the poll interval and the cached listing apply.
 const ReadyRecheckWindow = 2 * time.Minute
 
-// justReady reports whether d turned ready within ReadyRecheckWindow.
+// justReady reports whether d turned ready within ReadyRecheckWindow. A ready time in the future (a clock that
+// was ahead) is not fresh: it would keep the quick reads going for as long as it stays ahead.
 func (l *Library) justReady(d *importDownload) bool {
-	return !d.ReadyAt.IsZero() && l.now().Sub(d.ReadyAt) < ReadyRecheckWindow
+	if d.ReadyAt.IsZero() {
+		return false
+	}
+	age := l.now().Sub(d.ReadyAt)
+	return age >= 0 && age < ReadyRecheckWindow
 }
 
-// FreshWaiting reports whether a ready download that turned ready within ReadyRecheckWindow waits because its
-// release is not on the mount yet: theatarr serve then runs the next import pass after a short delay instead of at
-// the next poll interval.
+// FreshWaiting reports whether a ready download that turned ready within ReadyRecheckWindow (not in the future)
+// waits because its release is not on the mount yet, for a version the gate lets write: theatarr serve then runs the
+// next import pass after a short delay instead of at the next poll interval. A gated version's import is only
+// planned, so it gains nothing from a quick pass.
 func (l *Library) FreshWaiting(ctx context.Context) bool {
-	var n int
-	err := l.st.Reader().QueryRowContext(ctx, `SELECT COUNT(*) FROM library_import li JOIN download d ON d.id = li.download_id
-		WHERE li.state = 'waiting_mount' AND li.last_error = ? AND d.state = 'ready' AND d.ready_at > ?`,
-		notOnMount, store.Millis(l.now().Add(-ReadyRecheckWindow))).Scan(&n)
-	return err == nil && n > 0
+	now := l.now()
+	rows, err := l.st.Reader().QueryContext(ctx, `SELECT DISTINCT d.version_key FROM library_import li
+		JOIN download d ON d.id = li.download_id
+		WHERE li.state = 'waiting_mount' AND li.last_error = ? AND d.state = 'ready' AND d.ready_at > ? AND d.ready_at <= ?`,
+		notOnMount, store.Millis(now.Add(-ReadyRecheckWindow)), store.Millis(now))
+	if err != nil {
+		return false
+	}
+	defer rows.Close()
+	for rows.Next() {
+		var k string
+		if rows.Scan(&k) == nil && l.gate.Active(k) {
+			return true
+		}
+	}
+	return false
 }
 
 // TitleHoldPrefix starts the import error of a download held for its episode title; the ready timeout skips them.

@@ -462,7 +462,7 @@ func (r *Router) pollClientOne(ctx context.Context, x clientRead, cl *qbit.Clien
 			set: `state = 'ready', provider_status = ?, name = COALESCE(NULLIF(?, ''), name), progress = 100,
 			source_path = COALESCE(?, source_path), ready_at = COALESCE(ready_at, ?), missing_polls = 0,
 			missing_since = NULL, error = NULL, polled_at = ?, updated_at = ?`,
-			args: []any{t.State, t.Name, source, store.Millis(now), store.Millis(now), store.Millis(now)}})
+			args: []any{t.State, t.Name, source, store.Millis(r.now()), store.Millis(now), store.Millis(now)}})
 		if err == nil {
 			sum.Ready++
 			r.notifyReady()

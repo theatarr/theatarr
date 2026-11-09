@@ -6,6 +6,7 @@ import (
 	"io/fs"
 	"os"
 	"path/filepath"
+	"strconv"
 	"sync"
 	"testing"
 	"time"
@@ -68,6 +69,50 @@ func TestPartialImportRetried(t *testing.T) {
 	if got := e.one(`SELECT count(*) FROM link WHERE state = 'active'`); got != "2" {
 		t.Errorf("links %s", got)
 	}
+}
+
+// Passes spent waiting for the mount do not count toward a partial import's back-off: the first partial after many
+// waits is retried after the first delay, and a second partial doubles it.
+func TestPartialAfterWaitsStartsBackoffAgain(t *testing.T) {
+	t.Parallel()
+	e := newEnv(t, true, policy.ModeActive)
+	rel := "Show.S01.2160p.WEB-DL.DDP5.1.H.265-GRP"
+	e.download(1, "tv", 2, 20, rel, rel, "[201, 202]")
+	for range 7 {
+		if plan, err := e.lib.Import(e.ctx, 1, false); err != nil || !plan.Waiting {
+			t.Fatalf("waiting: %+v %v", plan, err)
+		}
+		e.now = e.now.Add(2 * time.Second)
+	}
+	if got := e.one(`SELECT attempts FROM library_import WHERE download_id = 1`); got != "7" {
+		t.Fatalf("waiting attempts %s", got)
+	}
+	e.release(rel, map[string]float64{"Show.S01E01.2160p.WEB-DL.DDP5.1.H.265-GRP.mkv": 2700,
+		"Show.S01E02.2160p.WEB-DL.DDP5.1.H.265-GRP.mkv": 2650})
+	blocker := filepath.Join(e.shows, "Show (2020)", "Season 01",
+		"Show (2020) - S01E02 - Second Part [WEBDL-2160p]-GRP.mkv")
+	if err := os.MkdirAll(filepath.Dir(blocker), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(blocker, []byte("x"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	partial := func(want string, delay time.Duration) {
+		t.Helper()
+		if _, err := e.lib.Import(e.ctx, 1, false); err == nil {
+			t.Fatal("a partial import reported no error")
+		}
+		if got := e.one(`SELECT state || ' ' || attempts FROM library_import WHERE download_id = 1`); got != "partial "+want {
+			t.Fatalf("library_import %s, want partial %s", got, want)
+		}
+		n, _ := strconv.Atoi(want)
+		if d := PartialRetryAt(e.now, n).Sub(e.now); d != delay {
+			t.Errorf("retry in %v, want %v", d, delay)
+		}
+	}
+	partial("1", 10*time.Minute)
+	e.now = e.now.Add(time.Hour)
+	partial("2", 20*time.Minute)
 }
 
 // Two importers of the same download (the periodic pass and a manual import): the second finds it claimed and stops

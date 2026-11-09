@@ -133,9 +133,16 @@ func TestRouteAddsAndPolls(t *testing.T) {
 		t.Errorf("second route: %+v %v", res, err)
 	}
 	// Poll: RD converting, then waiting for files: every playable file is selected (not the sample or the nfo);
-	// then downloaded: ready, which calls the ready notifier once.
+	// then downloaded: ready, which calls the ready notifier once, after the write committed (another connection
+	// already reads the ready row).
 	var woken atomic.Int32
-	e.r.SetReadyNotify(func() { woken.Add(1) })
+	var seen atomic.Value
+	e.r.SetReadyNotify(func() {
+		woken.Add(1)
+		var state string
+		_ = e.st.Reader().QueryRow(`SELECT state FROM download WHERE provider_torrent_id = 'rd-aaaa'`).Scan(&state)
+		seen.Store(state)
+	})
 	e.pr["rd"].set("rd-aaaa", provider.Torrent{Status: "magnet_conversion", State: provider.StateQueued})
 	if _, err := e.r.Poll(e.ctx); err != nil {
 		t.Fatal(err)
@@ -162,8 +169,8 @@ func TestRouteAddsAndPolls(t *testing.T) {
 	if sum, err := e.r.Poll(e.ctx); err != nil || sum.Ready != 1 {
 		t.Fatalf("poll %+v %v", sum, err)
 	}
-	if n := woken.Load(); n != 1 {
-		t.Errorf("ready notified %d times", n)
+	if n := woken.Load(); n != 1 || seen.Load() != StateReady {
+		t.Errorf("ready notified %d times, the notifier read %v", n, seen.Load())
 	}
 	if n := e.count(`SELECT COUNT(*) FROM download WHERE state = 'ready' AND cached = 1 AND ready_at IS NOT NULL
 		AND name = 'Movie.2024.2160p.WEB.H265-GRP' AND files_selected = 1`); n != 1 {

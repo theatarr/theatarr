@@ -38,6 +38,8 @@ type serveLibrary struct {
 	// readyWake, when set, wakes the import pass: the router signals it each time it records a download as ready.
 	// It belongs to serve, not to a settings generation, so a router or library rebuilt by a save keeps it.
 	readyWake <-chan struct{}
+	// afterImportPass, when set (tests), runs after each import pass with whether it armed the quick re-check.
+	afterImportPass func(rechecking bool)
 }
 
 // readyRecheck is how soon the next import pass runs while a download that turned ready moments ago waits for its
@@ -199,17 +201,27 @@ func (s *serveLibrary) Run(ctx context.Context) {
 	recheck := time.NewTimer(readyRecheck)
 	recheck.Stop()
 	defer recheck.Stop()
+	// A loop restarted by a settings save picks up the re-check the previous loop had pending.
+	if initial.lib.FreshWaiting(startCtx) {
+		recheck.Reset(readyRecheck)
+	}
 	importPass := func(ctx context.Context) {
 		ctx, current := s.forOperation(ctx)
 		if current.backOff("import pass") {
 			return
 		}
-		if _, err := current.lib.Run(ctx); err != nil && !errors.Is(err, library.ErrMountDown) {
+		_, err := current.lib.Run(ctx)
+		if err != nil && !errors.Is(err, library.ErrMountDown) {
 			s.log.Error("library: import pass", "err", err)
 		}
 		recheck.Stop()
-		if current.lib.FreshWaiting(ctx) {
+		// A mount that is down is not a release still on its way: the poll interval and the breaker pace that.
+		armed := !errors.Is(err, library.ErrMountDown) && current.lib.FreshWaiting(ctx)
+		if armed {
 			recheck.Reset(readyRecheck)
+		}
+		if s.afterImportPass != nil {
+			s.afterImportPass(armed)
 		}
 	}
 	for {

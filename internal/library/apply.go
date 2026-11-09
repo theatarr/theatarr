@@ -439,6 +439,8 @@ func (l *Library) apply(ctx context.Context, d *importDownload, vn *VersionNamin
 		}
 		// Every link made: imported. Some made, some failed: partial, and the download stays importing so the
 		// periodic pass (after a back-off) or a manual import finishes it. None made: failed.
+		// A row entering partial starts its count again: the back-off (partialBackoff) counts partial attempts, not
+		// the passes the download spent waiting for the mount before.
 		state, dl := "linked", "imported"
 		var lastErr any
 		if len(failures) > 0 {
@@ -451,7 +453,8 @@ func (l *Library) apply(ctx context.Context, d *importDownload, vn *VersionNamin
 		if _, err := tx.ExecContext(ctx, `INSERT INTO library_import (download_id, state, mount_folder, last_error, plan, attempts, created_at, updated_at)
 			VALUES (?, ?, ?, ?, ?, 1, ?, ?) ON CONFLICT (download_id) DO UPDATE SET state = excluded.state,
 			mount_folder = excluded.mount_folder, last_error = excluded.last_error, plan = excluded.plan,
-			attempts = library_import.attempts + 1, updated_at = excluded.updated_at`,
+			attempts = CASE WHEN excluded.state = 'partial' AND library_import.state <> 'partial' THEN 1
+				ELSE library_import.attempts + 1 END, updated_at = excluded.updated_at`,
 			d.ID, state, plan.Folder, lastErr, string(pj), now, now); err != nil {
 			return err
 		}

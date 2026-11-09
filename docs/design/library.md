@@ -182,11 +182,15 @@ one-slot wake channel that serve owns (so a settings save that rebuilds the rout
 library loop runs the same pass on it, behind the same mount breaker check; downloads turning ready together share one
 pass (`TestServeLibraryReadyWakesImport`). A new torrent shows on the mount only once zurg's own change poll and the
 mount's directory cache have caught up (up to about half a minute), so while a download that turned ready within
-`ReadyRecheckWindow` (2 min) waits with "release not on the mount yet", the next pass runs 2 s after the last one
-instead of at the next tick (`Library.FreshWaiting`, one timer in the loop; `TestServeLibraryRechecksFreshWait`,
-`TestFreshWaiting`). Past the window it is back on `poll_interval`. A quick pass retries every ready download, so older
-waiting downloads get a few extra mount checks, and `library_import.attempts` climbs faster for a waiting download;
-only a `partial` import's back-off reads `attempts`.
+`ReadyRecheckWindow` (2 min; a `ready_at` in the future or missing is not fresh) waits with "release not on the mount
+yet", for a version the gate lets write, the next pass runs 2 s after the last one instead of at the next tick
+(`Library.FreshWaiting`, one timer in the loop; `TestServeLibraryRechecksFreshWait`, `TestFreshWaiting`). A pass that
+ended with the mount down arms no re-check (`TestServeLibraryMountDownNoRecheck`), and a loop that starts or restarts
+after a settings save arms it when a fresh download waits (`TestServeLibraryRecheckArmedAtStart`). Past the window it
+is back on `poll_interval`. A quick pass retries every ready download, so older waiting downloads get a few extra mount
+checks, and `library_import.attempts` climbs faster for a waiting download. Only a `partial` import's back-off reads
+`attempts`, and a row entering `partial` from another state starts it again at 1, so passes spent waiting for the
+mount never lengthen that back-off (`TestPartialAfterWaitsStartsBackoffAgain`).
 
 1. **Mount health:** a `stat` of `<mount>/__all__` with a timeout. A hang, `ENOTCONN`/`EIO` or a missing root stops
    the pass (`ErrMountDown`): nothing is read as missing. Every mount call goes through the mount guard ("Mount
@@ -208,8 +212,11 @@ only a `partial` import's back-off reads `attempts`.
    listing holds the hash but the mount shows no folder for it, rclone's directory cache of the release root has not
    caught up yet (`--dir-cache-time`). With `library.mount.rclone_rc.forget_release_root` (default false) the import
    then clears that cached listing with one rc call, `vfs/forget` with `dir` = the release root (`all_dir`, relative
-   to the remote), and no `vfs/refresh`: the import's next stat reads the root again, once. It is the first rc call
-   that changes state, and it changes only rclone's cache, nothing on zurg or the debrid service. At most one per 3 s
+   to the remote), and no `vfs/refresh`: the import's next stat reads the root again, once. rclone's forget of a
+   directory also drops its cached descendant directories (every release folder under the root) and marks the
+   parent's listing stale (`vfs/dir.go` `ForgetPath`), so later reads list those again from zurg as they are next
+   opened. It is the first rc call that changes state, and it changes only rclone's cache, nothing on zurg or the
+   debrid service. At most one per 3 s
    across all imports (per settings generation), through the gateway against the rc budget; never for a dry run, a
    gated version, a path or manual import, or a hash zurg does not list (`TestImportZurgForgetsReleaseRoot`,
    `TestRcloneForgetSetting`). Not there yet:

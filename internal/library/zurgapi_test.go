@@ -804,6 +804,14 @@ func TestImportZurgFreshListing(t *testing.T) {
 		}
 	})
 
+	t.Run("a future or missing ready time reads no fresh listing", func(t *testing.T) {
+		e, srv := setup(t, -time.Minute)
+		importAt(e, srv, 0, 1)
+		importAt(e, srv, freshListFloor, 1)
+		e.exec(`UPDATE download SET ready_at = NULL WHERE id = 1`)
+		importAt(e, srv, freshListFloor, 1)
+	})
+
 	t.Run("a failed fresh read keeps the listing's retry clock", func(t *testing.T) {
 		e, srv := setup(t, 0)
 		importAt(e, srv, 0, 1)

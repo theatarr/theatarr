@@ -160,7 +160,7 @@
   },
   "RcloneRC": {
     "budget": "This names a budget for rc calls. Optional.",
-    "forget_release_root": "This clears rclone's cached listing of the release root (vfs/forget) when zurg's API lists an import's torrent but the mount does not show its folder yet, at most once every 3s; it changes rclone's cache only. Needs zurg_api. Default false.",
+    "forget_release_root": "This clears rclone's cache of the release root (vfs/forget; its subfolders and parent too) when zurg_api lists a torrent the mount does not show yet, at most every 3s. Default false.",
     "password_env": "This names the environment variable holding the rclone remote control password.",
     "url": "This is the rc base url, e.g. http://rclone:5572.",
     "username_env": "This and password_env name the basic auth credentials (--rc-user, --rc-pass). Optional."
