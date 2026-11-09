@@ -304,7 +304,9 @@ func seedService(t *testing.T, st *store.Store, shippedYAML string) (*Service, *
 	pol := &policy.Policy{Metadata: &policy.Metadata{OverridesDir: dir}}
 	lists := testLists(t)
 	s, q := service(t, st, &clock{t: time.Date(2026, 11, 9, 12, 0, 0, 0, time.UTC)}, pol,
-		func(context.Context) (*anime.Sources, error) { return &anime.Sources{Lists: lists, AniList: &fakeAniList{}}, nil })
+		func(context.Context) (*anime.Sources, error) {
+			return &anime.Sources{Lists: lists, AniList: &fakeAniList{}}, nil
+		})
 	w := jobs.NewWorker(q, jobs.WorkerOptions{Logger: quiet})
 	RegisterRuntimeJobs(w, func(ctx context.Context) (context.Context, *Service) { return ctx, s })
 	return s, q, w
@@ -352,6 +354,21 @@ func TestDiscoveryCrawlReachingShippedSeedBuildsIt(t *testing.T) {
 	}
 	if n := count(t, st, `SELECT count(*) FROM anime_discovery WHERE title_id = 2 AND outcome = 'built' AND franchise = 'big-show'`); n != 1 {
 		t.Fatal("outcome not built by the shipped franchise")
+	}
+	// once the shipped franchise is stored, a series whose crawl reaches it is covered by it, not rebuilt
+	finishJobs(t, st)
+	exec(t, st, `INSERT INTO title (id, kind, name, tvdb_id, anime, created_at, updated_at) VALUES (3, 'series', 'Show Three', 700, 1, 0, 0)`)
+	s.cfg.Build = fakeBuild(map[int][]int{3000: {1000}})
+	exec(t, st, `UPDATE anime_franchise SET built_at = 5 WHERE slug = 'big-show'`)
+	if _, err := s.EnqueueDiscover(ctx, 700); err != nil {
+		t.Fatal(err)
+	}
+	if ran, err := w.RunOne(ctx); err != nil || !ran {
+		t.Fatal(ran, err)
+	}
+	if n := count(t, st, `SELECT count(*) FROM anime_discovery WHERE title_id = 3 AND outcome = 'covered' AND franchise = 'big-show'`); n != 1 ||
+		franchises(t, st) != "big-show:1000:list" || count(t, st, `SELECT count(*) FROM anime_franchise WHERE built_at = 5`) != 1 {
+		t.Fatal("stored shipped franchise rebuilt or not covering")
 	}
 }
 

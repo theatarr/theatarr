@@ -233,7 +233,7 @@ discovery pass, one at a time:
    series name (`Re:Zero - Starting Life in Another World` → `re-zero-starting-life-in-another-world`), with
    `-<tvdb id>` appended when another franchise has it or the shipped list reserves it (built or not), or
    `tvdb-<id>` for a name with no ASCII letters. When the finished crawl reaches a shipped franchise's seed, that
-   franchise is built instead, under its own slug.
+   franchise is built instead, under its own slug (the series is covered by it when it is stored already).
 
 Before a new franchise is saved, the job checks ownership again (builds run one at a time, so the check holds until
 the save): a franchise built from the same seed meanwhile covers the series, and a slug a franchise of another seed

@@ -257,7 +257,19 @@ func (s *Service) run(ctx context.Context, p Payload) error {
 			return nil
 		}
 		if x := shippedIn(res, shipped, f.Slug); x != nil && origin != OriginList {
-			// The crawl reached a shipped franchise's seed: build that franchise instead, under its slug.
+			// The crawl reached a shipped franchise's seed: that franchise covers it once stored, else it is built
+			// instead, under its slug.
+			owner, err := seedOwner(ctx, s.cfg.Store, x.SeedAniList)
+			if err != nil {
+				return err
+			}
+			if owner != "" {
+				s.log.Info("anime: discovery", "tvdb", p.TVDBID, "outcome", OutcomeCovered, "franchise", owner)
+				if p.TitleID > 0 {
+					return s.record(ctx, p.TitleID, p.TVDBID, OutcomeCovered, owner, "")
+				}
+				return nil
+			}
 			s.log.Info("anime: crawl reached a shipped franchise", "franchise", f.Slug, "shipped", x.Slug)
 			f, origin = *x, OriginList
 			if res, err = s.build(ctx, src, f); err != nil {
