@@ -182,6 +182,7 @@ type Web struct {
 	settingsTests     *SettingsTestLimits
 	settingsLookup    settings.LookupSecret
 	preflight         PreflightHooks
+	lastPreflight     preflightMemory
 	art               ArtService
 	journal           *journal.Journal
 	add               AddConfig

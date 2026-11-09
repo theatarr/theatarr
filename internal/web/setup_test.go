@@ -61,6 +61,9 @@ func TestSetupAndPreflight(t *testing.T) {
 		t.Fatalf("admin_password_generated = false")
 	}
 	gen := se.generation()
+	if s.LastPreflight != nil {
+		t.Fatalf("last_preflight before any run = %+v", s.LastPreflight)
+	}
 
 	// A session write needs the CSRF token.
 	if rec := se.setupCall("POST", "/preflight", "", `{}`); rec.Code != http.StatusForbidden {
@@ -96,6 +99,12 @@ func TestSetupAndPreflight(t *testing.T) {
 	if se.generation() != gen {
 		t.Fatal("the preflight wrote settings")
 	}
+	// GET /setup carries the run's summary, so the setup screen's readiness survives a reload.
+	last := se.lastPreflight()
+	if last == nil || last.Generation != gen || !last.Sources || last.OK != r.OK || last.Warn != r.Warn ||
+		last.Fail != r.Fail || !last.At.Equal(r.At) {
+		t.Fatalf("last_preflight = %+v, report ok %d warn %d fail %d at %v, generation %d", last, r.OK, r.Warn, r.Fail, r.At, gen)
+	}
 
 	// sources:false makes no outbound call.
 	asked = nil
@@ -112,6 +121,23 @@ func TestSetupAndPreflight(t *testing.T) {
 	if !strings.Contains(rec.Body.String(), `"not tested"`) {
 		t.Fatalf("untested sources not reported as such: %s", rec.Body.String())
 	}
+	// The latest run wins: one without the source tests does not count as a full preflight.
+	if last := se.lastPreflight(); last == nil || last.Sources || last.Generation != gen {
+		t.Fatalf("last_preflight after sources:false = %+v", last)
+	}
+}
+
+func (se *settingsEnv) lastPreflight() *LastPreflight {
+	se.t.Helper()
+	rec := se.setupCall("GET", "/setup", "", "")
+	if rec.Code != http.StatusOK {
+		se.t.Fatalf("GET setup: %d %s", rec.Code, rec.Body.String())
+	}
+	var s SetupState
+	if err := json.Unmarshal(rec.Body.Bytes(), &s); err != nil {
+		se.t.Fatal(err)
+	}
+	return s.LastPreflight
 }
 
 func TestPreflightStoredCredentials(t *testing.T) {

@@ -326,8 +326,9 @@ Setup (`/admin/setup`) has five steps:
    editor.
 
 The first three steps are complete with a changed password, both download sources, and at least one library with a
-root and a mount. Readiness is complete when a full preflight has no failures (warnings stay visible), for the
-current settings in this browser session; a reload needs another preflight. Activation is complete only when a
+root and a mount. Readiness is complete when the latest full preflight for the current settings has no failures
+(warnings stay visible). The server remembers the latest run until it restarts, so a page reload keeps the step;
+after a restart, or once the settings change, run the preflight again. Activation is complete only when a
 library runs as Active with **Allow downloads for this library** and **Allow new downloads** on; otherwise it says
 **Not yet**.
 

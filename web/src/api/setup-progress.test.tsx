@@ -105,3 +105,28 @@ it("heads activation cards that share a display label with their distinct keys",
   expect(within(heading).getByText("4K WEB").className).toContain("text-muted-foreground");
  }
 });
+
+it.each([
+ ["a full run without failures", { sources: true, fail: 0, generation: 1 }, "5"],
+ ["a run with a failure", { sources: true, fail: 1, generation: 1 }, "4"],
+ ["a run without the source tests", { sources: false, fail: 0, generation: 1 }, "4"],
+ ["a run on an older settings generation", { sources: true, fail: 0, generation: 0 }, "4"],
+])("after a reload, counts the server's last preflight only for %s", async (_name, run, done) => {
+ // A fresh query client is a reloaded page: no preflight ran in this browser session.
+ mockFetch([{ method: "GET", path: "/setup", reply: { ...state, last_preflight: { at: "2026-11-09T10:00:00Z", ok: 3, warn: 1, ...run } } }, { method: "GET", path: "/settings/versions", reply: versions }]);
+ renderPage(<Progress id="r" />);
+ await waitFor(() => expect(screen.getByTestId("r").textContent).toBe(done));
+});
+it("shows the server's last preflight on the setup page, and a run in this session wins over it", async () => {
+ const user = userEvent.setup();
+ const fetch = mockFetch([{ method: "GET", path: "/auth/me", reply: { permissions: ["admin"] } }, { method: "GET", path: "/setup", reply: { ...state, last_preflight: { at: "2026-11-09T10:00:00Z", generation: 1, sources: true, ok: 3, warn: 1, fail: 0 } } }, { method: "GET", path: "/settings/versions", reply: versions }, { method: "POST", path: "/preflight", reply: { at: "", items: [], ok: 1, warn: 0, fail: 0 } }]);
+ renderPage(<><SetupPage /><Progress id="s" /></>);
+ await waitFor(() => expect(screen.getByTestId("s").textContent).toBe("5"));
+ expect(screen.getByTestId("preflight-last").textContent).toMatch(/3 ok · 1 warn · 0 fail/);
+ const setupReads = fetch.calls("GET", "/setup").length;
+ await user.click(screen.getByText("Local s"));
+ await waitFor(() => expect(screen.getByTestId("s").textContent).toBe("4"));
+ expect(screen.queryByTestId("preflight-last")).toBeNull();
+ // The run refetches GET /setup, so the server's summary stays the one a reload would read.
+ await waitFor(() => expect(fetch.calls("GET", "/setup").length).toBeGreaterThan(setupReads));
+});

@@ -5,7 +5,7 @@
 import { useState, type FormEvent, type ReactNode } from "react";
 import { Link } from "react-router";
 import { ApiError } from "@/api/client";
-import { usePreflight, type PreflightItem, type PreflightReport, type SetupState } from "@/api/setup";
+import { usePreflight, type LastPreflight, type PreflightItem, type PreflightReport, type SetupState } from "@/api/setup";
 import { useSetupProgress } from "@/api/useSetupProgress";
 import { libraryLabel } from "@/lib/library-label";
 import { settingHref } from "@/lib/settings-map";
@@ -21,6 +21,7 @@ import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { fmtTime } from "@/lib/format";
 
 const message = (error: unknown) => error instanceof Error ? error.message : String(error);
 
@@ -77,7 +78,7 @@ export function SetupPage() {
         <div className="space-y-1">{(s.version_states ?? []).map((v) => <div key={v.key} className="flex flex-wrap items-start gap-2"><span className="font-mono text-[13px]">{v.key}</span><VersionStatus state={v.grab_state} showMode settingsKey={v.key} canManage /></div>)}</div>
       </Step>
       <Step n={4} title="Check readiness" done={progress.steps[3]}>
-        <Preflight generation={progress.versions.data?.generation} report={progress.report} />
+        <Preflight generation={progress.versions.data?.generation} report={progress.report} last={progress.last} />
         <Link className="underline" to="/admin/advanced/journal">See example decisions</Link>
       </Step>
       <Step n={5} title="Review activation" done={progress.steps[4]}>
@@ -262,7 +263,7 @@ function Checks({ label, choices, values, onChange, empty }: { label: string; ch
 
 const tone = (s: PreflightItem["status"]) => s === "ok" ? "positive" : s === "info" ? "info" : s === "warn" ? "warning" : "negative";
 
-function Preflight({ generation, report }: { generation?: number; report?: PreflightReport }) {
+function Preflight({ generation, report, last }: { generation?: number; report?: PreflightReport; last?: LastPreflight }) {
   const run = usePreflight(generation);
   const [sources, setSources] = useState(true);
   const r = report;
@@ -271,6 +272,7 @@ function Preflight({ generation, report }: { generation?: number; report?: Prefl
     <label className="flex items-center gap-2"><input type="checkbox" checked={sources} onChange={(e) => setSources(e.target.checked)} />Test providers, indexers and Plex (outbound calls)</label>
     <Button type="button" className="w-fit" disabled={run.isPending} onClick={() => run.mutate(sources)}>{run.isPending ? "Running…" : "Run preflight"}</Button>
     {run.error ? <p role="alert">{message(run.error)}</p> : null}
+    {!r && last ? <p data-testid="preflight-last">Last run {fmtTime(last.at)}{last.sources ? "" : " (without the provider, indexer and Plex tests)"}: {last.ok} ok · {last.warn} warn · {last.fail} fail. Run it again to see each check.</p> : null}
     {r ? <>
       <p data-testid="preflight-summary">{r.ok} ok · {r.warn} warn · {r.fail} fail</p>
       <Table>

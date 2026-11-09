@@ -2,8 +2,9 @@ import { useMutationState } from "@tanstack/react-query";
 import { useSetup, setupUnfinished, type SetupState, type PreflightReport } from "./setup";
 import { useVersions, type VersionList } from "./settings-versions";
 
-/** Readiness is a full preflight without failures in this browser session, for the current settings generation.
- * Warnings remain visible; activation is a separate, optional admin decision. */
+/** Readiness is a full preflight without failures for the current settings generation: the latest run in this browser
+ * session, else the server's latest run (GET /setup last_preflight, kept until the server restarts), so a reload keeps
+ * the step. Warnings remain visible; activation is a separate, optional admin decision. */
 export function setupSteps(s?: SetupState, versions?: VersionList, readiness = false) {
  return [
   !!s && !s.admin_password_generated,
@@ -18,7 +19,10 @@ export function useSetupProgress(enabled = true) {
  const versions = useVersions(enabled);
  const reports = useMutationState({ filters: { mutationKey: ["setup-preflight", versions.data?.generation], exact: true }, select: m => ({ status: m.state.status, sources: m.state.variables, report: m.state.data as PreflightReport | undefined }) });
  const latest = reports.at(-1);
- const readiness = latest?.status === "success" && latest.sources === true && latest.report?.fail === 0;
+ const server = setup.data?.last_preflight;
+ const readiness = latest
+  ? latest.status === "success" && latest.sources === true && latest.report?.fail === 0
+  : !!server && server.sources && server.fail === 0 && versions.data !== undefined && server.generation === versions.data.generation;
  const steps = setupSteps(setup.data, versions.data, readiness);
- return { setup, versions, steps, done: steps.filter(Boolean).length, unfinished: enabled && setupUnfinished(setup.data), report: latest?.report };
+ return { setup, versions, steps, done: steps.filter(Boolean).length, unfinished: enabled && setupUnfinished(setup.data), report: latest?.report, last: !latest && server && server.generation === versions.data?.generation ? server : undefined };
 }

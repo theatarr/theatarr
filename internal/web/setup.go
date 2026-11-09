@@ -2,7 +2,8 @@ package web
 
 // The first-run screen and the install preflight (docs/quickstart.md, internal/preflight):
 //
-//	GET  setup       what a fresh install still lacks: versions, sources, roots, the first-start password
+//	GET  setup       what a fresh install still lacks: versions, sources, roots, the first-start password, and the
+//	                 latest preflight's summary (last_preflight, kept in memory until a restart)
 //	POST preflight   run the install checks; {"sources": false} skips the provider and indexer tests
 //
 // Both are admin only. Neither writes settings: the setup screen creates everything through the settings API, with
@@ -13,6 +14,8 @@ import (
 	"database/sql"
 	"errors"
 	"net/http"
+	"sync"
+	"time"
 
 	"github.com/theatarr/theatarr/internal/auth"
 	"github.com/theatarr/theatarr/internal/golive"
@@ -50,6 +53,42 @@ type SetupState struct {
 	Indexers  int `json:"indexers"`
 	Profiles  int `json:"profiles"`
 	APIKeys   int `json:"api_keys"`
+	// LastPreflight is the latest POST preflight this server ran since it started, nil before the first. Setup's
+	// readiness step reads it, so the step survives a page reload; a restart forgets it and the step is open again.
+	LastPreflight *LastPreflight `json:"last_preflight,omitempty"`
+}
+
+// LastPreflight summarizes one preflight run: when, against which settings generation, whether the provider,
+// indexer and Plex tests ran, and the counts.
+type LastPreflight struct {
+	At         time.Time `json:"at"`
+	Generation int64     `json:"generation"`
+	Sources    bool      `json:"sources"`
+	OK         int       `json:"ok"`
+	Warn       int       `json:"warn"`
+	Fail       int       `json:"fail"`
+}
+
+// preflightMemory holds the latest preflight summary for GET /setup.
+type preflightMemory struct {
+	mu   sync.Mutex
+	last *LastPreflight
+}
+
+func (m *preflightMemory) set(l LastPreflight) {
+	m.mu.Lock()
+	m.last = &l
+	m.mu.Unlock()
+}
+
+func (m *preflightMemory) get() *LastPreflight {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	if m.last == nil {
+		return nil
+	}
+	l := *m.last
+	return &l
 }
 
 func (w *Web) mountSetupAPI(mux *http.ServeMux) {
@@ -111,6 +150,7 @@ func (w *Web) apiSetup(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 	out.APIKeys = n
+	out.LastPreflight = w.lastPreflight.get()
 	writeJSON(rw, http.StatusOK, out)
 }
 
@@ -168,7 +208,12 @@ func (w *Web) apiPreflight(rw http.ResponseWriter, r *http.Request) {
 	} else if body.Sources != nil && !*body.Sources {
 		o.Plex = nil
 	}
-	writeJSON(rw, http.StatusOK, preflight.Run(ctx, o))
+	report := preflight.Run(ctx, o)
+	if snap != nil {
+		w.lastPreflight.set(LastPreflight{At: report.At, Generation: snap.Generation, Sources: o.Sources != nil,
+			OK: report.OK, Warn: report.Warn, Fail: report.Fail})
+	}
+	writeJSON(rw, http.StatusOK, report)
 }
 
 // preflightSources runs the settings tests of every enabled source of one kind, as POST <entity>/testall does.

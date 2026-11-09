@@ -156,6 +156,9 @@ Code: `internal/web/setup.go`, `internal/preflight`, `cmd/theatarr/preflight.go`
   or an existing profile, indexers, providers; Review, then `POST /settings/versions` with `mode: shadow`, `grab: false`,
   answering a 422 confirmation with the token; a retry after a failed version save reuses the profile it already made
   only for the same key and preset, and asks for another key when the preset changed), and the preflight table.
+  `GET /setup` also carries `last_preflight`, the summary of the latest `POST /preflight` (time, settings generation,
+  whether the source tests ran, counts), kept in memory until a restart. Readiness counts the latest run in the
+  browser session, else that summary when it is a full run without failures on the current generation.
 
 ## Logs
 
