@@ -53,8 +53,8 @@ func TestAnimeFranchiseMapping(t *testing.T) {
 		{"alternate cut, unmapped number", "[Group] Isekai Story Directors Cut - 07 (BD 1080p)", "auto", false, "UnknownEpisode", "", "alt_cut:Director's Cut", "kitsu:9", ""},
 		// An entry that cannot hold the number leaves it to Sonarr, which places the known series' absolute 5.
 		{"beyond the entry", "[Group] Isekai Story 2nd Season - 05 (1080p)", "auto", true, "", "S01E05", "sonarr", "", ""},
-		{"beyond a conflicted entry", "[Group] Isekai Story 2nd Season - 05 (1080p)", "conflict", true, "", "S01E05", "sonarr", "", ""},
-		{"beyond a rejected entry", "[Group] Isekai Story 2nd Season - 05 (1080p)", "rejected", true, "", "S01E05", "sonarr", "", ""},
+		{"beyond a conflicted entry", "[Group] Isekai Story 2nd Season - 05 (1080p)", "conflict", true, "", "S01E05", "sonarr", "al:2", "S01E05 al:2 conflict"},
+		{"beyond a rejected entry", "[Group] Isekai Story 2nd Season - 05 (1080p)", "rejected", true, "", "S01E05", "sonarr", "al:2", "S01E05 al:2 rejected"},
 	}
 	for _, c := range cases {
 		d, err := e.Decide(ctx, rel(c.release, "public", 2*gb), animeMapped(c.s2), v, nil)
@@ -124,7 +124,9 @@ func TestAnimeUnreviewedEntryUsesSonarrNumbering(t *testing.T) {
 
 // A release named after an entry whose mapping gives no placement (not importable, or the number is beyond its
 // range) imports through Sonarr's numbering, so the decision must place it where the import's file resolution does.
-// A fallback keeps the entry it named on the download's mapping: stale (re-scoped) once review accepts the entry.
+// A fallback keeps the entry it named on the download's mapping, also when the entry's candidate range cannot hold
+// the number (review may pick another). It is never stale: the import reconciles it only when its files no longer
+// fit (library/resolve.go).
 func TestAnimeFallbackMatchesFileResolution(t *testing.T) {
 	t.Parallel()
 	e := seriesEngine(t)
@@ -132,12 +134,11 @@ func TestAnimeFallbackMatchesFileResolution(t *testing.T) {
 	v := tvVersion(e, "anime-tv")
 	for _, c := range []struct {
 		status, release, episodes string
-		fallback                  bool // the release named the entry and its mapping is not importable
 	}{
-		{"conflict", "[Group] Isekai Story 2nd Season - 05 (1080p)", "S01E05", false},
-		{"rejected", "[Group] Isekai Story 2nd Season - 05 (1080p)", "S01E05", false},
-		{"conflict", "[Group] Isekai Story 2nd Season - 01-02 (BD 1080p)", "S01E01,S01E02", true},
-		{"rejected", "[Group] Isekai Story 2nd Season - 02 (1080p)", "S01E02", true},
+		{"conflict", "[Group] Isekai Story 2nd Season - 05 (1080p)", "S01E05"},
+		{"rejected", "[Group] Isekai Story 2nd Season - 05 (1080p)", "S01E05"},
+		{"conflict", "[Group] Isekai Story 2nd Season - 01-02 (BD 1080p)", "S01E01,S01E02"},
+		{"rejected", "[Group] Isekai Story 2nd Season - 02 (1080p)", "S01E02"},
 	} {
 		ti := animeMapped(c.status)
 		d, err := e.Decide(ctx, rel(c.release, "public", 2*gb), ti, v, nil)
@@ -156,21 +157,12 @@ func TestAnimeFallbackMatchesFileResolution(t *testing.T) {
 			t.Errorf("%s %s: decision %v, file resolution %v", c.status, c.release, d.EpisodeIDs, file.EpisodeIDs)
 		}
 		m := d.EpisodeMapping()
-		if !c.fallback {
-			if m != nil {
-				t.Errorf("%s %s: mapping %+v for a release no entry holds", c.status, c.release, m)
-			}
-			continue
-		}
 		if m == nil || *m != (EpisodeMap{How: AnimeMapFranchise, Entry: "al:2", Fallback: true}) {
 			t.Errorf("%s %s: mapping %+v, want the named entry as a fallback", c.status, c.release, m)
 			continue
 		}
-		if m.Stale(ti.AnimeMap) {
-			t.Errorf("%s: a fallback is stale while its entry is not importable", c.status)
-		}
-		if !m.Stale(animeMapped("override").AnimeMap) {
-			t.Errorf("%s: a fallback is not stale once review accepts its entry", c.status)
+		if m.Stale(ti.AnimeMap) || m.Stale(animeMapped("override").AnimeMap) {
+			t.Errorf("%s %s: a fallback is stale", c.status, c.release)
 		}
 	}
 }

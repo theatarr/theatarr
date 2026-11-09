@@ -51,13 +51,13 @@ func (d *Decision) EpisodeMapping() *EpisodeMap {
 	return &EpisodeMap{How: d.AnimeMapping, Entry: d.AnimeEntry}
 }
 
-// Stale says the episodes the download was grabbed for no longer follow its entry's mapping, so the import
-// reconciles them: a franchise mapping whose entry is no longer importable (rejected or in conflict since the grab,
-// or gone), whose files now map through Sonarr's numbering (fileFranchise); or a fallback whose entry's mapping has
-// become importable, whose files now map through the entry. A mapping with no entry key (a split-parts pack stored
-// before the key was kept) is never stale.
+// Stale says the franchise entry the download was grabbed through is no longer importable (rejected or in conflict
+// since the grab, or gone; for a split-parts pack, one of its parts), so its files now map through Sonarr's numbering
+// (fileFranchise) and the import reconciles its episodes. A fallback, or a mapping with no entry key (a split-parts
+// pack stored before the key was kept), is never stale: the import reconciles a fallback only when its files no longer
+// fit (library/resolve.go).
 func (m *EpisodeMap) Stale(am *animemap.Series) bool {
-	if m == nil || m.How != AnimeMapFranchise || m.Entry == "" {
+	if m == nil || m.How != AnimeMapFranchise || m.Entry == "" || m.Fallback {
 		return false
 	}
 	found, importable := false, true
@@ -68,9 +68,6 @@ func (m *EpisodeMap) Stale(am *animemap.Series) bool {
 				found, importable = true, importable && en.Importable()
 			}
 		}
-	}
-	if m.Fallback {
-		return found && importable
 	}
 	return !found || !importable
 }

@@ -137,8 +137,7 @@ func (l *Library) relinkAnime(ctx context.Context, tvdbID int) (*AnimeRelinked, 
 		}
 		res, err := decide.ResolveFile(t, sv, decide.FileInput{Path: rel, Release: d.ReleaseTitle, Folder: d.Name,
 			OtherVideoFiles: files > 1, Mapping: d.EpisodeMap})
-		if err != nil || res.Refused != "" || len(res.EpisodeIDs) == 0 ||
-			!(strings.Contains(res.How, "+"+decide.AnimeMapFranchise+":") || strings.Contains(res.How, "+"+decide.AnimeMapAltCut+":")) {
+		if err != nil || res.Refused != "" || len(res.EpisodeIDs) == 0 || !franchisePlaced(res.How) {
 			continue // only a placement through the franchise moves a file
 		}
 		cur, err := linkEpisodes(ctx, db, c.linkID)

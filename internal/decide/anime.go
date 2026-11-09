@@ -44,7 +44,8 @@ type AnimeFallback struct {
 
 // franchiseEpisodes maps a release through the franchise. ok is false when the franchise has no say (Sonarr's mapping
 // stays); with ok and no episodes, the release named an alternate cut whose table lacks a number. skipped is the
-// entry the release named whose mapping is not importable (Sonarr's mapping stays).
+// entry the release named whose mapping is not importable (Sonarr's mapping stays), also when its candidate range
+// cannot hold the numbers (the only entry of that name).
 func (s *series) franchiseEpisodes(p *sonarr.ParsedEpisodeInfo, releaseTitle string, am *animemap.Series) (eps []*Episode, how, entry string, ok bool, skipped *animemap.Entry, err error) {
 	nums := p.AbsoluteEpisodeNumbers
 	for _, c := range am.AltCuts {
@@ -81,6 +82,7 @@ func (s *series) franchiseEpisodes(p *sonarr.ParsedEpisodeInfo, releaseTitle str
 	}
 	clean := s.ver.CleanSeriesTitle(p.SeriesTitle)
 	var fit *animemap.Entry
+	var namedEntries []*animemap.Entry
 	for _, e := range am.Entries {
 		named := false
 		for _, n := range e.Names {
@@ -92,6 +94,7 @@ func (s *series) franchiseEpisodes(p *sonarr.ParsedEpisodeInfo, releaseTitle str
 		if !named {
 			continue
 		}
+		namedEntries = append(namedEntries, e)
 		reg := e.Regular()
 		holds := len(reg) > 0
 		for _, x := range nums {
@@ -106,6 +109,10 @@ func (s *series) franchiseEpisodes(p *sonarr.ParsedEpisodeInfo, releaseTitle str
 		fit = e
 	}
 	if fit == nil {
+		if len(namedEntries) == 1 && !namedEntries[0].Importable() {
+			// the one entry the release names: its candidate cannot hold the numbers, but review may pick another
+			return nil, "", "", false, namedEntries[0], nil
+		}
 		return nil, "", "", false, nil, nil
 	}
 	if !fit.Importable() {
