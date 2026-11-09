@@ -244,8 +244,10 @@ franchise and the error). A title is tried again after `refresh_interval` (an ho
 `queued`), so a series the lists learn later is picked up.
 
 **Refresh.** A franchise built more than `metadata.anime.refresh_interval` ago (default 168h, minimum 24h) is rebuilt;
-one at most every interval / franchises, the stalest first, so the rebuilds spread over the interval. A franchise
-with a refresh held for review (`pending_result`) waits for the review. The origin (`list`, `auto`, `manual`) and the
+one at most every interval / franchises, the one attempted longest ago first, so the rebuilds spread over the
+interval. Each rebuild records `last_attempt`, `last_outcome` (`ok`, `failed`) and `last_error` in the franchise's
+config; one that failed is not tried again for a day, so a franchise that keeps failing does not take every slot. A
+franchise with a refresh held for review (`pending_result`) waits for the review. The origin (`list`, `auto`, `manual`) and the
 TVDB id are kept in the franchise's config, so a rebuild uses the same seed and scope; a shipped franchise takes its
 current list entry.
 

@@ -3,6 +3,7 @@ package autobuild
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"io"
 	"log/slog"
 	"os"
@@ -418,3 +419,52 @@ func TestEnqueueSeedOwnership(t *testing.T) {
 	}
 }
 
+// A rebuild records its attempt in the franchise's config; the loop takes the franchise attempted longest ago and
+// skips one whose rebuild failed within a day, so a franchise that keeps failing does not take every refresh slot.
+func TestRefreshSkipsRecentlyFailedFranchise(t *testing.T) {
+	ctx := context.Background()
+	st := openStore(t)
+	s, _, w := seedService(t, st, "")
+	c := &clock{t: time.Date(2026, 11, 9, 12, 0, 0, 0, time.UTC)}
+	s.cfg.Now = c.now
+	ok := fakeBuild(nil)
+	s.cfg.Build = func(ctx context.Context, src *anime.Sources, f anime.Franchise, opt anime.Options) (*anime.Result, error) {
+		if f.Slug == "broken" {
+			return nil, jobs.Permanent(errors.New("bad overrides"))
+		}
+		return ok(ctx, src, f, opt)
+	}
+	old := store.Millis(c.now().Add(-30 * 24 * time.Hour))
+	exec(t, st, `INSERT INTO anime_franchise (slug, name, seed_anilist, built_at, created_at, updated_at) VALUES
+		('broken', 'Broken', 1, ?, 0, 0), ('fine', 'Fine', 2, ?, 0, 0)`, old-10, old)
+	var next time.Time
+	pass := func(want string) {
+		t.Helper()
+		next = time.Time{}
+		if err := s.Pass(ctx, &next); err != nil {
+			t.Fatal(err)
+		}
+		var got string
+		_ = st.Reader().QueryRow(`SELECT json_extract(payload, '$.slug') FROM job WHERE state = 'queued'`).Scan(&got)
+		if got != want {
+			t.Fatalf("queued %q, want %q", got, want)
+		}
+		if want != "" {
+			if ran, err := w.RunOne(ctx); !ran || err != nil {
+				t.Fatal(ran, err)
+			}
+		}
+	}
+	pass("broken")
+	if n := count(t, st, `SELECT count(*) FROM anime_franchise WHERE slug = 'broken' AND json_extract(config, '$.last_outcome') = 'failed'
+		AND json_extract(config, '$.last_attempt') = ? AND json_extract(config, '$.last_error') LIKE '%bad overrides%'`, store.Millis(c.now())); n != 1 {
+		t.Fatal("failed attempt not recorded")
+	}
+	pass("fine") // the failed one waits
+	if n := count(t, st, `SELECT count(*) FROM anime_franchise WHERE slug = 'fine' AND json_extract(config, '$.last_outcome') = 'ok'`); n != 1 {
+		t.Fatal("attempt not recorded")
+	}
+	pass("") // fine is built now; broken failed within the day
+	c.add(failedRetry + time.Minute)
+	pass("broken")
+}

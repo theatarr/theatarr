@@ -15,8 +15,9 @@ const queuedRetry = time.Hour
 // Run is the discovery and refresh loop of theatarr serve, while auto_build is on and the sources are configured.
 // Each pass, when no anime_build job is queued or running (builds run one at a time, so the loop feeds them one at a
 // time): the next anime series without a franchise that was not tried recently gets a discovery job; else, at most
-// one per refresh_interval / franchises (so rebuilds spread over the interval), the stalest franchise built more than
-// refresh_interval ago and not waiting for a held refresh's review gets a rebuild.
+// one per refresh_interval / franchises (so rebuilds spread over the interval), of the franchises built more than
+// refresh_interval ago and not waiting for a held refresh's review, the one attempted longest ago gets a rebuild (one
+// whose rebuild failed waits a day).
 func (s *Service) Run(ctx context.Context) {
 	if !s.Ready() {
 		s.log.Info("anime: automatic builds off", "reason", s.cfg.Off)
@@ -103,7 +104,12 @@ func (s *Service) nextUncovered(ctx context.Context, now time.Time) (int64, int,
 	return id, tvdb, err
 }
 
-// nextStale is the stalest franchise due for a rebuild (none with a held refresh), and how many franchises there are.
+// failedRetry is how long a franchise whose last rebuild failed waits before the loop tries it again.
+const failedRetry = 24 * time.Hour
+
+// nextStale is the franchise due for a rebuild that was attempted longest ago (none with a held refresh, none whose
+// rebuild failed within failedRetry), and how many franchises there are. The attempt is the config's last_attempt
+// (Service.attempted), else built_at, so a franchise that keeps failing does not take every refresh slot.
 func (s *Service) nextStale(ctx context.Context, now time.Time) (string, int, error) {
 	db := s.cfg.Store.Reader()
 	var total int
@@ -112,7 +118,10 @@ func (s *Service) nextStale(ctx context.Context, now time.Time) (string, int, er
 	}
 	var slug string
 	err := db.QueryRowContext(ctx, `SELECT slug FROM anime_franchise WHERE built_at IS NOT NULL AND built_at < ?
-		AND pending_result IS NULL ORDER BY built_at, slug LIMIT 1`, store.Millis(now.Add(-s.set.RefreshInterval))).Scan(&slug)
+		AND pending_result IS NULL AND NOT (COALESCE(json_extract(config, '$.last_outcome'), '') = 'failed'
+			AND COALESCE(json_extract(config, '$.last_attempt'), 0) >= ?)
+		ORDER BY COALESCE(json_extract(config, '$.last_attempt'), built_at), slug LIMIT 1`,
+		store.Millis(now.Add(-s.set.RefreshInterval)), store.Millis(now.Add(-failedRetry))).Scan(&slug)
 	if errors.Is(err, sql.ErrNoRows) {
 		return "", total, nil
 	}

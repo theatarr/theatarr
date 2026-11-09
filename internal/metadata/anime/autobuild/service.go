@@ -166,7 +166,26 @@ func (s *Service) Handle(ctx context.Context, j *jobs.Job) error {
 			s.log.Warn("anime: record outcome", "err", rerr)
 		}
 	}
+	if p.Slug != "" && p.AniListID == 0 && ctx.Err() == nil {
+		if rerr := s.attempted(ctx, p.Slug, err); rerr != nil {
+			s.log.Warn("anime: record rebuild attempt", "franchise", p.Slug, "err", rerr)
+		}
+	}
 	return err
+}
+
+// attempted records a rebuild's attempt in the franchise's config: last_attempt (Unix ms) and last_outcome ("ok" or
+// "failed", with last_error), which order and space the refreshes (nextStale).
+func (s *Service) attempted(ctx context.Context, slug string, err error) error {
+	outcome, msg := "ok", ""
+	if err != nil {
+		outcome, msg = "failed", err.Error()
+	}
+	return s.cfg.Store.WriteTx(ctx, func(tx *sql.Tx) error {
+		_, err := tx.ExecContext(ctx, `UPDATE anime_franchise SET config = json_set(config, '$.last_attempt', ?,
+			'$.last_outcome', ?, '$.last_error', ?) WHERE slug = ?`, store.Millis(s.cfg.Now()), outcome, msg, slug)
+		return err
+	})
 }
 
 func (s *Service) run(ctx context.Context, p Payload) error {
@@ -436,9 +455,6 @@ func (s *Service) EnqueueSeed(ctx context.Context, anilistID int, slug, name str
 	if anilistID <= 0 {
 		return 0, "", fmt.Errorf("%w: anilist_id must be positive", ErrInvalid)
 	}
-	if slug == "" {
-		slug = Slugify(name)
-	}
 	if slug != "" && Slugify(slug) != slug {
 		return 0, "", fmt.Errorf("%w: slug %q: use lower-case letters, digits and '-'", ErrInvalid, slug)
 	}
@@ -461,6 +477,9 @@ func (s *Service) EnqueueSeed(ctx context.Context, anilistID int, slug, name str
 		if x.SeedAniList == anilistID {
 			slug, name = x.Slug, x.Name
 		}
+	}
+	if slug == "" {
+		slug = Slugify(name)
 	}
 	if slug == "" {
 		slug = fmt.Sprintf("anilist-%d", anilistID)
