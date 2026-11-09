@@ -52,6 +52,12 @@ It is built so that nothing happens until you say so:
   autobrr and other clients, per library or several libraries behind one server.
 - **Plex.** Library scans after imports, Plex sign-in, and a now-playing page that shows where each played file
   comes from.
+- **Anime.** An anime metadata engine builds each franchise from AniList, AniDB, Kitsu and the community mapping
+  lists (ScudLee, Fribb, manami), and maps every entry onto TVDB and TMDb. Specials, OVAs, recaps, movies and split
+  cours land on the right episodes. Releases numbered by absolute episode or named after a franchise entry or an
+  alternate cut map through it. An episode it can't map with confidence waits in a review queue instead of importing
+  to the wrong place. A SeaDex pack covers only the cour it belongs to. Plex gets per-franchise playlists in watch or
+  story order. Details: [docs/design/anime.md](docs/design/anime.md).
 - **Decision journal.** Every grab, upgrade and shadow decision with its reasoning, runners-up and suspect flags.
 - **Migration from an arr stack.** Reads Sonarr, Radarr, Prowlarr, Seerr and Recyclarr with GET requests only and
   plans the move; everything lands disabled or in shadow.
@@ -92,7 +98,7 @@ Required:
 
 Optional:
 
-- A **TVDB key**, for Sonarr-style series numbering and for anime metadata.
+- A **TVDB key**, for Sonarr-style series numbering and for anime metadata: the anime mappings are built onto TVDB.
 - **Indexers**: Prowlarr or Jackett, private trackers, or the built-in sources alone.
 - A **TRaSH-Guides checkout** for the profile presets and quality sync.
 - **Seerr or Overseerr** for requests, and any arr client you already use.
