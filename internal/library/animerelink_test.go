@@ -202,36 +202,58 @@ func TestAnimeRelinkPlanOnly(t *testing.T) {
 }
 
 // A shifted range (E01-E03 to E02-E04) frees each target as the file ahead of it moves: passes repeat while a move
-// succeeds, so every file moves and nothing reaches the inbox.
+// succeeds, so every file moves and nothing reaches the inbox. When the arr holds S01E04, no move frees anything:
+// the passes stop, every file stays, and each is reported once.
 func TestAnimeRelinkShiftedRange(t *testing.T) {
 	t.Parallel()
-	e := newEnv(t, true, policy.ModeActive)
-	e.isekai()
-	e.exec(`UPDATE anime_mapping SET status = 'conflict', episodes = '[[1,2],[1,3],[1,4]]' WHERE entry_key = 'al:2'`)
-	rel := "[Group] Isekai Story 2nd Season (BD 1080p)"
-	files := map[string]float64{}
-	for n := 1; n <= 3; n++ {
-		files[fmt.Sprintf("[Group] Isekai Story 2nd Season - %02d (BD 1080p).mkv", n)] = 1440
-	}
-	e.release(rel, files)
-	e.videoSize(rel, 1920, 1080)
-	e.seriesDownload(1, 3, 30, hashA, rel, "[301,302,303]", nil)
-	if plan, err := e.lib.Import(e.ctx, 1, false); err != nil || len(plan.Links) != 3 {
-		t.Fatalf("import %+v %v", plan, err)
-	}
-	e.exec(`UPDATE anime_mapping SET status = 'override' WHERE entry_key = 'al:2'`)
-	inbox := e.inbox()
-	res, err := e.lib.RelinkAnime(e.ctx, 2002)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if len(res.Moved) != 3 || len(res.Occupied) != 0 || len(*inbox) != 0 {
-		t.Fatalf("relink %+v, inbox %+v", res, *inbox)
-	}
-	got := e.one(`SELECT group_concat(number, ',') FROM (SELECT e.number FROM link l JOIN link_episode le
-		ON le.link_id = l.id JOIN episode e ON e.id = le.episode_id WHERE l.state = 'active' ORDER BY e.number)`)
-	if got != "2,3,4" {
-		t.Errorf("episodes linked %s, want 2,3,4", got)
+	for _, c := range []struct {
+		name  string
+		arr   bool
+		moved int
+		want  string
+	}{
+		{"free end", false, 3, "2,3,4"},
+		{"blocked end", true, 0, "1,2,3"},
+	} {
+		t.Run(c.name, func(t *testing.T) {
+			t.Parallel()
+			e := newEnv(t, true, policy.ModeActive)
+			e.isekai()
+			e.exec(`UPDATE anime_mapping SET status = 'conflict', episodes = '[[1,2],[1,3],[1,4]]' WHERE entry_key = 'al:2'`)
+			rel := "[Group] Isekai Story 2nd Season (BD 1080p)"
+			files := map[string]float64{}
+			for n := 1; n <= 3; n++ {
+				files[fmt.Sprintf("[Group] Isekai Story 2nd Season - %02d (BD 1080p).mkv", n)] = 1440
+			}
+			e.release(rel, files)
+			e.videoSize(rel, 1920, 1080)
+			e.seriesDownload(1, 3, 30, hashA, rel, "[301,302,303]", nil)
+			if plan, err := e.lib.Import(e.ctx, 1, false); err != nil || len(plan.Links) != 3 {
+				t.Fatalf("import %+v %v", plan, err)
+			}
+			if c.arr {
+				e.exec(`INSERT INTO version_file (id, version_id, title_id, instance, arr_file_id, path) VALUES (1, 30, 3, 'sonarr', 1, '/arr/Isekai S01E04.mkv')`)
+				e.exec(`INSERT INTO version_file_episode (version_file_id, episode_id) VALUES (1, 304)`)
+			}
+			e.exec(`UPDATE anime_mapping SET status = 'override' WHERE entry_key = 'al:2'`)
+			inbox := e.inbox()
+			snap := tree(t, e.dir)
+			res, err := e.lib.RelinkAnime(e.ctx, 2002)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if len(res.Moved) != c.moved || len(res.Occupied) != 3-c.moved || len(*inbox) != 3-c.moved {
+				t.Fatalf("relink %+v, inbox %+v", res, *inbox)
+			}
+			got := e.one(`SELECT group_concat(number, ',') FROM (SELECT e.number FROM link l JOIN link_episode le
+				ON le.link_id = l.id JOIN episode e ON e.id = le.episode_id WHERE l.state = 'active' ORDER BY e.number)`)
+			if got != c.want {
+				t.Errorf("episodes linked %s, want %s", got, c.want)
+			}
+			if c.moved == 0 && strings.Join(tree(t, e.dir), "\n") != strings.Join(snap, "\n") {
+				t.Error("the tree changed")
+			}
+		})
 	}
 }
 
