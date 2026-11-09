@@ -428,6 +428,8 @@ func prepareServeRuntime(ctx context.Context, snap *settings.Snapshot, previous 
 	if len(skipped) > 0 {
 		log.Info("router: providers with no key set are skipped", "providers", skipped)
 	}
+	// The ranking's cache tie-break counts the providers routes can add to: enabled, with a key.
+	eng.SetUsableProviders(func(key string) bool { return adders[key] != nil })
 	var previousRouter *router.Router
 	if previous != nil {
 		previousRouter = previous.Router

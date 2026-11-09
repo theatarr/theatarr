@@ -186,6 +186,14 @@ The input is a `Request`:
 - the accepted decisions, ranked by `decide.Rank`, built by `router.Candidates`;
 - `router.SearchRequest` does search, decide and candidates in one call.
 
+Candidate order is `decide.Rank`'s: the arr comparer with Theatarr's cache tie-break after the format score
+("Deviations", "Cache tie-break"). Its evidence is what step 4 orders the providers by: the release's `CachedOn` and
+`cached_on` extra, which the search fills from the feeds, DMM's availability, stored `provider_cache` rows in state
+`cached` and the TorBox check. The TorBox check runs on the ranked releases (`checkTop`); when it adds evidence to any
+of them the search ranks again, so the order the releases page shows (`#`) is the order the route tries
+(`TestCheckTopEvidenceReranks`). A route resumed with a fresh decision ranks its stored candidates, evidence included,
+the same way.
+
 At most `router.max_candidates` releases are tried, best first. A release skipped without a request to any provider
 (a live miss or known uncached everywhere, blocklisted, no provider its indexer allows, no hash) does not count, so a search made again after
 a failure reaches releases the first route never tried. A release placed does not count either (a season of
@@ -307,8 +315,9 @@ debrid key to a third party (keys leaked through a third-party proxy before), so
   own: positives from the calls that answered before it are kept (applied and stored), and only the failed call's
   hashes stay unmarked, to be asked again by the next search. Storing a pass's positives is bounded (5 s): when the
   writer is busy the search keeps its marks in memory and nothing is stored. Availability
-  evidence, like every other kind, only orders providers and fills the cached badges: it never skips an add or a
-  check and never changes which release is chosen. It is never asked on the add or poll path. `theatarr router dry-run` applies the cross-feed part
+  evidence, like every other kind, orders providers, fills the cached badges and breaks ties between releases of
+  equal quality and format score ("Cache tie-break"): it never skips an add or a check and never puts a release
+  ahead of a better quality or format score. It is never asked on the add or poll path. `theatarr router dry-run` applies the cross-feed part
   only and makes no check (it sends nothing to a provider). The check is a search-side read, not the router's: it
   runs in `SearchRequest` whatever the version's mode (the views' interactive search serves shadow versions too) and
   whatever `router.enabled` says; `torbox_check.enabled: false` turns it off. The router's dry run still makes no
@@ -326,7 +335,8 @@ debrid key to a third party (keys leaked through a third-party proxy before), so
   another provider's row. For new content a route's `router:add` and `router:miss` rows last 1 hour, not `miss_ttl`
   ("Re-search after a failure"), and so does the `router:add` row a resumed cached-only check writes when the poller
   deletes Theatarr's uncached add (`TestCachedCheckResumedFreshTTL`).
-- **Router.** Evidence only orders providers. **Absence of evidence never means uncached**: a provider with none
+- **Router.** Evidence only orders providers (and, at ranking, breaks ties between releases: "Cache tie-break").
+  **Absence of evidence never means uncached**: a provider with none
   keeps its place and is tried exactly as before. Only the existing rules skip one (`miss`, `known_uncached` with
   `cached_only`, which a TorBox check's `uncached` answer now feeds too). The dry-run "would add" message names
   the evidence.
@@ -1160,6 +1170,27 @@ default; `-apply` writes only to the database (no provider call).
   which Theatarr would take for its own. So AllDebrid deletes nothing unless
   `router.alldebrid_delete_uncached: true`; by default an uncached AD add of Theatarr's is kept (`uncached_kept`) and
   the next provider tried. The opt-in suits an account nothing else writes to.
+- **Cache tie-break.** The arrs' comparer never looks at cache evidence. Theatarr ranks a debrid release cached on
+  more providers ahead of an otherwise equal one, because it has fallbacks: when one provider fails, the route tries
+  the next that holds it. One comparer step (`compareCached`), for Radarr right after the format score, for Sonarr after the lowest
+  episode number (a season pack still wins at an equal score), before protocol and indexer priority:
+  1. cached beats not cached;
+  2. with `provider_preference: ordered` (the default), the earliest position in the version's provider list among
+     the providers holding it: cached on the first beats cached only on the second, and so on;
+  3. then more providers holding it wins.
+
+  `versions[*].provider_preference` is `ordered` or `none` (YAML, the settings API, Admin › Settings › Libraries,
+  **Provider preference**); a change on an active version needs confirmation, as any unjudged version field.
+
+  With providers `rd, ad, tb`: rd+ad+tb > rd > ad+tb > ad > tb > not cached. With `provider_preference: none`
+  step 2 is skipped: rd+ad+tb, then any two, then any one, then none. Releases without evidence keep the arr order
+  among themselves, and a better quality or format score still wins; SeaDex standing (`prefer_seadex`) still comes
+  first. Only providers the release may go to count: the version's providers as the indexer's `providers`
+  allowlist narrows them (`policy.ReleaseProviders`), enabled and with a key (`decide.Engine.SetUsableProviders`;
+  without it, as in `theatarr decide`, every provider of the version counts). The evidence is the route's (see
+  "One route"). The route's provider order does not change: list order with cached providers first, in both modes.
+  Tests: `TestRankCachedOrdered`, `TestRankCachedNoPreference`, `TestRankCachedAfterQualityAndScore`,
+  `TestRankCachedUsableProvidersOnly`, `TestCheckTopEvidenceReranks`.
 - **The miss rule.** A miss needs a verdict from every provider that has a key. A provider that is only paced defers
   the route.
 - **Reuse.** A hash the provider already holds is reused, not added or selected again: the registry is read before

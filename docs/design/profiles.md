@@ -52,6 +52,9 @@ scores) and adds the quality part.
     preferred), seeders and peers, usenet age, size closest to preferred.
   - Sonarr order: quality, format score, protocol, then season pack and episode count (anime prefers more
     episodes, other series fewer), lowest episode number, indexer priority, peers, age, size.
+  - Theatarr adds one step, cache standing (`compareCached`, `Subject.Cached`): for Radarr right after the format
+    score, for Sonarr after the lowest episode number (docs/design/router.md "Deviations", "Cache tie-break"). The
+    arr fixtures carry no cache evidence, so the step ties there.
   - The two arrs differ in details. Sonarr has no flag step. It scores every usenet age over a week the same,
     where Radarr uses -log10(days). Its `Round` floors negative size differences, where Radarr's truncates them.
 

@@ -543,6 +543,7 @@ func (p *Policy) validateVersion(e *Errors, k string, v *VersionPolicy) {
 	validatePacks(e, path, v)
 	validateSonarr(e, path, v)
 	validateUpgrades(e, path, v)
+	validateProviderPreference(e, path, v)
 	if strings.ContainsAny(v.Edition, "{}/\\") {
 		e.add(path+".edition", "must not contain braces or slashes")
 	}

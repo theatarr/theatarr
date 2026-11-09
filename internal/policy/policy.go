@@ -162,6 +162,10 @@ type VersionPolicy struct {
 	Indexers []string `yaml:"indexers"`
 	// Providers is the debrid provider subset, listed in fallback order (providers[*].order). Debrid only.
 	Providers []string `yaml:"providers"`
+	// ProviderPreference is how the ranking breaks a tie between releases of equal quality and format score by cache
+	// evidence: ordered (the default: cached on an earlier provider of Providers first, then on more of them) or none
+	// (on more of them only). The route's provider order is the list order either way.
+	ProviderPreference string `yaml:"provider_preference,omitempty"`
 	// AddVia is who adds the version's grabs to debrid: providers (the default: the router adds to Providers itself)
 	// or client (the router sends them to Client, a decypharr client, which picks the account, checks the cache and
 	// reports the download complete; docs/design/external-clients.md).

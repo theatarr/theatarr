@@ -34,6 +34,17 @@ describe("Versions page", () => {
     await waitFor(() => expect(fetch.calls("PUT", "/settings/versions/movie-web")).toHaveLength(1));
     expect(fetch.calls("PUT", "/settings/versions/movie-web")[0].body).toMatchObject({ config: { prefer_seadex: true, mode: "shadow", profile: "web" } });
   });
+  it("saves the provider preference of the cache tie-break", async () => {
+    const fetch = mockFetch([...getRoutes(), { method: "PUT", path: "/settings/versions/movie-web", reply: json({ generation: 5 }) }]);
+    const user = userEvent.setup();
+    renderPage(<VersionsPage />);
+    await user.click(await screen.findByRole("button", { name: "Edit" }));
+    expect((screen.getByRole("combobox", { name: "Provider preference" }) as HTMLSelectElement).value).toBe("ordered");
+    await user.selectOptions(screen.getByRole("combobox", { name: "Provider preference" }), "none");
+    await user.click(screen.getByRole("button", { name: "Save" }));
+    await waitFor(() => expect(fetch.calls("PUT", "/settings/versions/movie-web")).toHaveLength(1));
+    expect(fetch.calls("PUT", "/settings/versions/movie-web")[0].body).toMatchObject({ config: { provider_preference: "none", providers: ["rd"] } });
+  });
   it("uses runtime gates for the list and bindings, and previews the draft against the forced-off router", async () => {
     const saved = { ...version(), config: { ...version().config, mode: "active", grab: true } };
     const data = { ...versions(), versions: [saved], switches: {

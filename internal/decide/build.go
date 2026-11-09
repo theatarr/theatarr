@@ -50,6 +50,8 @@ type Engine struct {
 	Policy   *policy.Policy
 	profiles map[string]*Profile // by profileKey(key, flavour)
 	library  Library
+	// usable reports whether routes can add to a policy provider (SetUsableProviders); nil counts every one.
+	usable func(key string) bool
 	// Warnings are formats that could not be built but that no used profile scores; they are left out.
 	Warnings []string
 }

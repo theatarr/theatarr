@@ -7,6 +7,9 @@ package profile
 // age (usenet), size.
 // Sonarr: quality, format score, protocol, episode count (season packs first; anime prefers more episodes, others
 // fewer), lowest episode number, indexer priority, peers, age, size.
+//
+// Theatarr adds one step the arrs don't have, cache standing (compareCached): for Radarr right after the format score,
+// for Sonarr after the lowest episode number (a season pack still wins at an equal score).
 
 import (
 	"math"
@@ -23,10 +26,10 @@ func (e *Engine) Compare(x, y *Subject) int {
 	var cmps []func(x, y *Subject) int
 	if e.Flavour == format.Sonarr {
 		cmps = []func(x, y *Subject) int{e.compareQuality, compareFormatScore, e.compareProtocol, compareEpisodeCount,
-			compareEpisodeNumber, compareIndexerPriority, e.comparePeers, e.compareAge, e.compareSize}
+			compareEpisodeNumber, compareCached, compareIndexerPriority, e.comparePeers, e.compareAge, e.compareSize}
 	} else {
-		cmps = []func(x, y *Subject) int{e.compareQuality, compareFormatScore, e.compareProtocol, compareIndexerPriority,
-			e.compareIndexerFlags, e.comparePeers, e.compareAge, e.compareSize}
+		cmps = []func(x, y *Subject) int{e.compareQuality, compareFormatScore, compareCached, e.compareProtocol,
+			compareIndexerPriority, e.compareIndexerFlags, e.comparePeers, e.compareAge, e.compareSize}
 	}
 	for _, c := range cmps {
 		if r := c(x, y); r != 0 {
@@ -56,6 +59,21 @@ func (e *Engine) compareQuality(x, y *Subject) int {
 
 func compareFormatScore(x, y *Subject) int {
 	return cmpInt(x.Release.FormatScore, y.Release.FormatScore)
+}
+
+// compareCached (Theatarr): among releases the arr would tie this far, a debrid release cached on more of the
+// version's providers has fallbacks when one fails. Cached beats not cached; then cached on an earlier provider of the
+// version's list wins (Cached.First, 0 with no provider preference), then cached on more of them. With rd, ad, tb:
+// rd+ad+tb, rd, ad+tb, ad, tb, none. Releases without evidence keep their order among themselves.
+func compareCached(x, y *Subject) int {
+	cx, cy := x.Cached, y.Cached
+	if c := cmpBool(cx.Count > 0, cy.Count > 0); c != 0 || cx.Count == 0 {
+		return c
+	}
+	if cx.First != cy.First {
+		return -cmpInt(cx.First, cy.First)
+	}
+	return cmpInt(cx.Count, cy.Count)
 }
 
 func (e *Engine) compareProtocol(x, y *Subject) int {

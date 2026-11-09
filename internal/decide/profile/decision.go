@@ -285,6 +285,19 @@ type Subject struct {
 	Search *Search
 	// SceneMapping is the scene mapping the release was mapped through, nil when none (Sonarr).
 	SceneMapping *SceneMapping
+	// Cached is Theatarr's cache standing of the release for the version (not an arr field), filled where the release
+	// is decided; the comparer's tie-break after the format score reads it.
+	Cached CacheStanding
+}
+
+// CacheStanding is where cache evidence says a release is held among the debrid providers its version may send it to
+// (the version's providers as the release's indexer allows them, with a key).
+type CacheStanding struct {
+	// First is the version's list position (1 first) of the earliest such provider holding the release cached; 0
+	// when none does, or when the version has no provider preference (provider_preference: none).
+	First int
+	// Count is how many such providers hold the release cached; 0 is no evidence.
+	Count int
 }
 
 // Score sets Release.FormatScore from the profile, as the arr does when it maps a release.

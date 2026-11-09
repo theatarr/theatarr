@@ -74,7 +74,8 @@ and models three versions with two criteria each.
      - Yes says "better quality / revision / format score: A over B".
      - No gives the upgrade specification's message, or "not an upgrade: …".
 - **`Rank(decisions)`:** per version, accepted decisions first, ordered by `profile.Engine.Prioritize` (the arr's
-  comparer); then the rejected ones.
+  comparer, with Theatarr's cache tie-break after the format score: docs/design/router.md "Deviations"); then the
+  rejected ones. The decision fills the tie-break's cache standing from the release's cache evidence (`Subject.Cached`).
 - **Shadow parity** (`internal/decide/shadow`) replays arr grabs:
   - from Theatarr's database: `arr_history`, with the file before each grab rebuilt from import and delete events, and the
     grab-time score from `data.customFormatScore`;

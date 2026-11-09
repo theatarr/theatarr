@@ -161,6 +161,9 @@ func runRouterDryRun(args []string, out io.Writer, dial func(context.Context, st
 			return fmt.Errorf("%w (egress %s: %s)", errNotOnVPN, s.Path, s.Error)
 		}
 	}
+	// Adders only tell the plan (and the ranking's cache tie-break) which providers have a key; Plan never calls them.
+	adders, _ := router.BuildAdders(pol, gw, os.Getenv, log)
+	e.SetUsableProviders(func(key string) bool { return adders[key] != nil })
 	// Nothing is stored here: lay the search's SeaDex answers over the stored standing, as decide -search does.
 	found, err := router.SearchRequest(decide.WithSeaDexOverlay(decide.WithParseMemo(ctx), db, nil), e, svc, t, v, existing, ss)
 	if err != nil {
@@ -170,8 +173,6 @@ func runRouterDryRun(args []string, out io.Writer, dial func(context.Context, st
 		return err
 	}
 	found.Request.Source = "cli"
-	// Adders only tell the plan which providers have a key; Plan never calls them.
-	adders, _ := router.BuildAdders(pol, gw, os.Getenv, log)
 	rt, err := router.New(router.Config{Store: st, Policy: pol, Adders: adders, Logger: log})
 	if err != nil {
 		return err

@@ -469,7 +469,7 @@ func (e *Engine) decideMovie(ctx context.Context, d *Decision, p *Profile, rel R
 			r.Peers = &pe
 		}
 	}
-	s := &profile.Subject{Profile: p.Profile, Media: media, Release: r}
+	s := &profile.Subject{Profile: p.Profile, Media: media, Release: r, Cached: e.cacheStanding(v.Policy, &rel.Release)}
 	if ctx.Value(searchContextKey{}) != nil {
 		s.Search = &profile.Search{}
 	}

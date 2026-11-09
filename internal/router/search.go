@@ -283,7 +283,14 @@ func SearchRequests(ctx context.Context, eng *decide.Engine, svc *indexer.Servic
 			ds = append(ds, d)
 		}
 		searched.Ranked = decide.Rank(ds)
-		checkTop(ctx, svc, target.Version.Policy, searched.Ranked, byDecision)
+		if checkTop(ctx, svc, target.Version.Policy, searched.Ranked, byDecision) {
+			// The check's positives feed the ranking's cache tie-break: rank again, so the order shown is the order
+			// the route tries.
+			for _, d := range ds {
+				eng.Recache(d, target.Version, byDecision[d])
+			}
+			searched.Ranked = decide.Rank(ds)
+		}
 		searched.Releases = byDecision
 		searched.Request = Request{TitleID: tt.ID, VersionID: target.Version.ID, Version: target.Version.Key,
 			Candidates: Candidates(searched.Ranked, byDecision)}
@@ -396,9 +403,9 @@ func appendCriteria(cs []*decide.SeriesSearch, more ...*decide.SeriesSearch) []*
 }
 
 // checkTop runs the bounded TorBox cache check on the best accepted releases for version v (rank order) and copies a
-// positive answer to every decision of the same hash.
+// positive answer to every decision of the same hash. It reports whether any release gained evidence.
 func checkTop(ctx context.Context, svc *indexer.Service, v *policy.VersionPolicy, ranked []*decide.Decision,
-	byDecision map[*decide.Decision]indexer.Release) {
+	byDecision map[*decide.Decision]indexer.Release) bool {
 	rels := make([]indexer.Release, len(ranked))
 	var priority, also []*indexer.Release
 	for i, d := range ranked {
@@ -414,13 +421,16 @@ func checkTop(ctx context.Context, svc *indexer.Service, v *policy.VersionPolicy
 		}
 	}
 	if len(priority) == 0 || svc.CheckCached(ctx, []*policy.VersionPolicy{v}, priority, also) == 0 {
-		return
+		return false
 	}
+	grew := false
 	for i, d := range ranked {
-		if _, ok := byDecision[d]; ok {
+		if old, ok := byDecision[d]; ok {
+			grew = grew || len(rels[i].CachedOn) != len(old.CachedOn)
 			byDecision[d] = rels[i]
 		}
 	}
+	return grew
 }
 
 // EpisodeCounts is episodes per season of a series' episodes (TVDB numbering, specials in season 0): what

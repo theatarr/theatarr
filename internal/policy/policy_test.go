@@ -146,6 +146,11 @@ func TestBadPolicies(t *testing.T) {
 			want: []string{`versions[movie-remux].upgrades: must be auto, approve or off, got "ask"`},
 		},
 		{
+			name: "unknown provider preference",
+			file: "versions.yaml", old: "provider_preference: ordered", new: "provider_preference: first",
+			want: []string{`versions[movie-web].provider_preference: must be ordered or none, got "first"`},
+		},
+		{
 			name: "unknown pack rule",
 			file: "versions.yaml", old: "plain Sonarr: every episode's file must be upgraded.\n    packs: any_upgradable", new: "plain Sonarr: every episode's file must be upgraded.\n    packs: some",
 			want: []string{`versions[tv-2160p].packs: must be all, any_upgradable or threshold, got "some"`},

@@ -214,7 +214,8 @@ func (e *Engine) decideSeries(ctx context.Context, d *Decision, p *Profile, rel 
 			pr.Peers = &x
 		}
 	}
-	subj := &profile.Subject{Profile: p.Profile, Media: media, Release: pr, Episodes: episodes}
+	subj := &profile.Subject{Profile: p.Profile, Media: media, Release: pr, Episodes: episodes,
+		Cached: e.cacheStanding(v.Policy, &rel.Release)}
 	if search != nil {
 		subj.Search = profileSearch(search, s)
 	}

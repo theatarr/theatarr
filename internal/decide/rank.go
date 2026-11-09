@@ -3,10 +3,14 @@ package decide
 import "github.com/theatarr/theatarr/internal/decide/profile"
 
 // Rank orders decisions per version: within each version the accepted decisions come first, best first by the arr's
-// comparer (profile.Engine.Prioritize: quality, format score, protocol, indexer priority, flags, peers, age, size),
-// then the rejected ones by the same comparer, as the arrs' DownloadDecisionPriorizationService sorts every parsed
-// release for their interactive search; rejected ones without a parsed subject go last in their given order. Only the
-// accepted order picks grabs. Versions keep the order in which they first appear. The input is not changed.
+// comparer (profile.Engine.Prioritize: quality, format score, cache standing, protocol, indexer priority, flags, peers,
+// age, size; Sonarr: quality, format score, protocol, episode count, lowest episode, cache standing, indexer priority,
+// peers, age, size), then the rejected ones by the same comparer, as the arrs' DownloadDecisionPriorizationService
+// sorts every parsed release for their interactive search; rejected ones without a parsed subject go last in their
+// given order. Cache standing is Theatarr's own step (the arrs have none): among releases tied so far, the one cached
+// on the version's earlier provider, then on more of its providers, wins (with rd, ad, tb: rd+ad+tb, rd, ad+tb, ad,
+// tb, none; provider_preference: none counts providers only). Only the accepted order picks grabs. Versions keep the
+// order in which they first appear. The input is not changed.
 func Rank(decisions []*Decision) []*Decision {
 	var order []string
 	byVersion := map[string][]*Decision{}

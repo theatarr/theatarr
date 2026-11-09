@@ -34,6 +34,11 @@ versions:
     kind: movie
     anime: false
     profile: web-2160p
+    # Among releases of equal quality and format score, the one cached on more providers wins (it has fallbacks).
+    # ordered (the default) asks first which provider: cached on rd beats cached only on ad, then more providers
+    # win (rd+ad+tb, rd, ad+tb, ad, tb, none). none counts providers only. Routes try the providers in list order
+    # either way (cached first) (docs/design/router.md "Cache tie-break").
+    provider_preference: ordered
     library: /media/movies-web
     storage: debrid
     indexers: [prowlarr-public, dmm, torrentio, zilean]
