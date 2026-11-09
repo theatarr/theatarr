@@ -2,14 +2,17 @@ package router
 
 import (
 	"bytes"
+	"context"
 	"database/sql"
 	"io"
 	"log/slog"
+	"net/http"
 	"strings"
 	"sync/atomic"
 	"testing"
 	"time"
 
+	"github.com/theatarr/theatarr/internal/gateway"
 	"github.com/theatarr/theatarr/internal/policy"
 	"github.com/theatarr/theatarr/internal/qbit"
 	"github.com/theatarr/theatarr/internal/qbit/qbittest"
@@ -600,5 +603,41 @@ func TestClientPollKeepsReadsBeforeAFailedOne(t *testing.T) {
 	if n := e.count(`SELECT COUNT(*) FROM download WHERE info_hash = ? AND state = 'added' AND missing_polls = 0
 		AND missing_since IS NULL`, h("b")); n != 1 {
 		t.Errorf("the unread download was not left as it was")
+	}
+}
+
+// slowDoer is a client read that takes a minute on the test clock.
+type slowDoer struct{ e *env }
+
+func (d slowDoer) Do(ctx context.Context, t gateway.Target, req *http.Request) (*http.Response, error) {
+	if strings.HasSuffix(req.URL.Path, pathInfo) {
+		d.e.clock = d.e.clock.Add(time.Minute)
+	}
+	return qbittest.Doer{}.Do(ctx, t, req)
+}
+
+func TestClientPollReadyAtIsTheWriteTime(t *testing.T) {
+	t.Parallel()
+	e, f := clientEnv(t, true, policy.ModeActive)
+	withQueue(e)
+	if _, err := e.r.Route(e.ctx, movieReq(cand(h("a"), "Movie.2024.2160p.WEB.H265-GRP"))); err != nil {
+		t.Fatal(err)
+	}
+	id, _, _, _ := e.dl(h("a"))
+	env := map[string]string{"DC_USER": f.User, "DC_PASS": f.Pass}
+	e.r.clients = BuildClients(e.pol, slowDoer{e}, func(k string) string { return env[k] }, e.r.log)
+	f.Set(h("a"), held("pausedUP", 1, "/data/symlinks/theatarr/Movie.2024.2160p.WEB.H265-GRP"))
+	start := e.clock
+	if _, err := e.r.Poll(e.ctx); err != nil {
+		t.Fatal(err)
+	}
+	var readyAt, polledAt int64
+	if err := e.st.Reader().QueryRow(`SELECT ready_at, polled_at FROM download WHERE id = ?`, id).
+		Scan(&readyAt, &polledAt); err != nil {
+		t.Fatal(err)
+	}
+	// A slow read must not age the download: ready_at is when the ready write ran, not when the poll began.
+	if want := store.Millis(e.clock); readyAt != want || polledAt != store.Millis(start) || e.clock == start {
+		t.Fatalf("ready_at %d, want %d (poll began %d)", readyAt, want, store.Millis(start))
 	}
 }

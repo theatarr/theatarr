@@ -186,8 +186,9 @@ mount's directory cache have caught up (up to about half a minute), so while a d
 yet", for a version the gate lets write, the next pass runs 2 s after the last one instead of at the next tick
 (`Library.FreshWaiting`, one timer in the loop; `TestServeLibraryRechecksFreshWait`, `TestFreshWaiting`). A pass that
 ended with the mount down arms no re-check (`TestServeLibraryMountDownNoRecheck`), and a loop that starts or restarts
-after a settings save arms it when a fresh download waits (`TestServeLibraryRecheckArmedAtStart`). Past the window it
-is back on `poll_interval`. A quick pass retries every ready download, so older waiting downloads get a few extra mount
+after a settings save arms it when a fresh download waits (`TestServeLibraryRecheckArmedAtStart`). A download that
+turns ready while its version is gated arms nothing; it is picked up on the next tick after the gate opens. Past the
+window it is back on `poll_interval`. A quick pass retries every ready download, so older waiting downloads get a few extra mount
 checks, and `library_import.attempts` climbs faster for a waiting download. Only a `partial` import's back-off reads
 `attempts`, and a row entering `partial` from another state starts it again at 1, so passes spent waiting for the
 mount never lengthen that back-off (`TestPartialAfterWaitsStartsBackoffAgain`).
