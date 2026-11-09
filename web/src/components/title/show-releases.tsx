@@ -105,7 +105,11 @@ const outcomeOf = (c: Candidate, outcomes?: Releases["outcomes"]) => (c.info_has
 export function ReleaseTable({ items, grab, outcomes, focus }: { items: Candidate[]; grab?: GrabTarget; outcomes?: Releases["outcomes"]; focus?: string }) {
   const picked = (c: Candidate) => !!focus && !!c.info_hash && c.info_hash.toLowerCase() === focus.toLowerCase();
   useEffect(() => {
-    if (focus && /^[0-9a-f]+$/i.test(focus)) document.querySelector(`[data-release-hash="${focus.toLowerCase()}"]`)?.scrollIntoView?.({ block: "center" });
+    if (!focus || !/^[0-9a-f]+$/i.test(focus)) return;
+    // The table from md up, the cards below it: scroll the one on screen.
+    const wide = typeof window.matchMedia === "function" ? window.matchMedia("(min-width: 768px)").matches : true;
+    const view = wide ? "releases-table" : "releases-list";
+    document.querySelector(`[data-testid="${view}"] [data-release-hash="${focus.toLowerCase()}"]`)?.scrollIntoView?.({ block: "center" });
   }, [focus, items]);
   return (
     <>
@@ -146,7 +150,7 @@ export function ReleaseTable({ items, grab, outcomes, focus }: { items: Candidat
       </div>
       <ul className="space-y-2 md:hidden" data-testid="releases-list">
         {items.map((c, i) => (
-          <li key={`${c.rank}-${i}`} className={cn("rounded-[5px] border border-[var(--line)] bg-[var(--surface)] p-3", picked(c) && "border-[var(--accent)] bg-[var(--accent-soft)]")}>
+          <li key={`${c.rank}-${i}`} data-release-hash={c.info_hash?.toLowerCase()} data-focus={picked(c) || undefined} className={cn("rounded-[5px] border border-[var(--line)] bg-[var(--surface)] p-3", picked(c) && "border-[var(--accent)] bg-[var(--accent-soft)]")}>
             <div className="flex items-start justify-between gap-3">
               <span className="font-mono text-[12px] text-[var(--ink)] [overflow-wrap:anywhere]">
                 <span className="mr-1.5 text-muted-foreground">{c.rank}.</span>

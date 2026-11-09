@@ -250,9 +250,10 @@ See [quickstart](../quickstart.md#readiness-led-setup) for the completion rules;
   search again after a failure, RSS, manual search, manual grab by a person, manual retry, approved upgrade, Seerr
   request (an arr command whose client names Seerr), arr search, release push, offer, manual import, old manager);
   grabs and failures name the provider and the release, a failure its short reason ("RD status error"); a search
-  shows one line, "12 results, 3 accepted · Grabbed #1 via rd → imported" or "Nothing grabbed: why". For managers the
+  shows one line, "12 results, 3 accepted · Grabbed #1 via rd → imported" or "Nothing grabbed: why", about the
+  download that search opened (a later retry of the same release does not change it). For managers the
   release of a grab or failure links to its row in the releases page (`?version=&hash=`), and the newest search
-  (`latest`, the one the releases page shows) links to "See this search's results"; older searches have no results
+  (`latest`, the one the releases page shows: none when the shadow runner searched since) links to "See this search's results"; older searches have no results
   link, the releases page keeping only the newest. Admins get a quiet "Journal entry" link on a search.
   This is the one place copies are managed: the section header has Search now for all copies (the releases page uses the same header).
 - **Tabs:** Episodes (series and anime, the default) / Libraries (series, "see files") / Watch order (anime with a
@@ -266,10 +267,12 @@ See [quickstart](../quickstart.md#readiness-led-setup) for the completion rules;
   the standard permission screen with a link back to title availability. Malformed or non-positive title ids show
   the not-found state and a Library link. Each row carries, next to accepted or its rejections, what came of that
   release for the library, matched by info hash against all the library's downloads (`Releases.outcomes`):
-  `Grabbed · rd` (in flight), `Imported`, `Current file`, `Failed · <short reason>` or `Replaced` (by the current
-  release), for the stored list and a live search alike (the episode overview's Releases too). Above the table one
-  line says what the shown stored search did (`Releases.grabbed`): "Grabbed #1 via rd → imported" or "Nothing
-  grabbed: <reason>". `?hash=` picks out the followed release's row, or says it is not in the list.
+  `Grabbed · rd` (in flight), `Imported`, `Current file`, `Failed · <short reason>` (the newest attempt failed, even
+  after an older import) or `Replaced` (by the current release), for the stored list and a live search alike. The
+  episode overview's Releases badge the same way from that episode's downloads and files only, so a season pack
+  whose episode was upgraded reads `Replaced` there. Above the table one line says what the shown stored search did
+  (`Releases.grabbed`, for an episode its downloads of that episode): "Grabbed #1 via rd → imported" or "Nothing
+  grabbed: <reason>"; it describes the downloads that search opened. `?hash=` picks out the followed release's row, or says it is not in the list.
   Managers can grab from the stored list too: Grab there runs a search first (one indexer query, as Search then Grab
   by hand) and grabs the row's hash from that answer; a release the fresh answer lacks is "No longer offered by the
   indexer" and nothing is grabbed.

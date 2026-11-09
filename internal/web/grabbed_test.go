@@ -175,3 +175,162 @@ func TestReleaseOutcomesAndHistory(t *testing.T) {
 		t.Errorf("latest: %v", latest)
 	}
 }
+
+// A search's summary says what its own download did, not a later retry of the same release; a release's newest
+// failure wins its badge over an older import that was replaced.
+func TestSearchSummaryKeepsItsOwnDownload(t *testing.T) {
+	t.Parallel()
+	e := newEnv(t)
+	key := e.apiKey()
+	now := store.Millis(testNow)
+	const h1, h5 = "1111111111111111111111111111111111111111", "5555555555555555555555555555555555555555"
+	e.exec(`INSERT INTO acquire_run (id, source, title_id, version_id, version_key, target, state, results, accepted,
+		message, created_at, updated_at) VALUES (41, 'wanted', 1, 2, 'movie-web', 'movie', 'routed', 5, 1,
+		'1 of 5 results accepted', ?, ?)`, now-6000, now-6000)
+	e.exec(`INSERT INTO journal_decision (id, source, run_id, title_id, version_key, target, results, accepted,
+		candidates, created_at) VALUES (91, 'acquire:41', 41, 1, 'movie-web', 'movie', 5, 1, ?, ?)`,
+		`[{"rank":1,"release":"Alpha.2020.2160p.WEB-ONE","info_hash":"`+h1+`","accepted":true},
+		  {"rank":2,"release":"Alpha.2020.2160p.WEB-FIVE","info_hash":"`+h5+`","accepted":false}]`, now-6000)
+	e.exec(`INSERT INTO download (id, title_id, version_id, version_key, info_hash, release_title, indexer, provider,
+		state, error, source, created_at, updated_at, imported_at) VALUES
+		(1, 1, 2, 'movie-web', ?, 'Alpha.2020.2160p.WEB-FIVE', 'idx', 'rd', 'imported', NULL, 'rss', ?, ?, ?),
+		(2, 1, 2, 'movie-web', ?, 'Alpha.2020.2160p.WEB-ONE', 'idx', 'rd', 'failed', 'provider status error', 'acquire:41', ?, ?, NULL),
+		(3, 1, 2, 'movie-web', ?, 'Alpha.2020.2160p.WEB-ONE', 'idx', 'tb', 'imported', NULL, 'ui:retry:2', ?, ?, ?),
+		(4, 1, 2, 'movie-web', ?, 'Alpha.2020.2160p.WEB-FIVE', 'idx', 'rd', 'failed', 'provider timeout: no answer', 'ui:grab:alice', ?, ?, NULL)`,
+		h5, now-20000, now-19000, now-19000, h1, now-5900, now-5500, h1, now-3000, now-2500, now-2500, h5, now-1000, now-900)
+	e.exec(`INSERT INTO link (id, path, target, title_id, download_id, release_title, state, created_at, updated_at)
+		VALUES (1, '/lib/Alpha (2020)/Alpha.mkv', '/mnt/__all__/Alpha/Alpha.mkv', 1, 3, 'Alpha.2020.2160p.WEB-ONE',
+		'active', ?, ?), (2, '/lib/Alpha (2020)/old/Alpha.mkv', '/mnt/__all__/Old/Alpha.mkv', 1, 1,
+		'Alpha.2020.2160p.WEB-FIVE', 'unlinked', ?, ?)`, now-2500, now-2500, now-19000, now-2500)
+	e.exec(`INSERT INTO link_version (link_id, version_id) VALUES (1, 2), (2, 2)`)
+
+	const want = "Grabbed #1 via rd → failed (RD status error)"
+	var r Releases
+	if code := e.getKey(APIBase+"/titles/1/releases?version=movie-web", key, &r); code != 200 {
+		t.Fatalf("releases %d", code)
+	}
+	if r.Grabbed != want {
+		t.Errorf("stored summary %q, want %q", r.Grabbed, want)
+	}
+	if o := r.Outcomes[h1]; o.Outcome != "current" || o.Provider != "tb" {
+		t.Errorf("retried release: %+v", o)
+	}
+	if o := r.Outcomes[h5]; o.Outcome != "failed" || o.Reason != "RD timeout" {
+		t.Errorf("replaced, then failed again: %+v", o)
+	}
+	var d TitleDetail
+	if code := e.getKey(APIBase+"/titles/1", key, &d); code != 200 {
+		t.Fatalf("title %d", code)
+	}
+	found := false
+	for _, v := range d.Versions {
+		for _, h := range v.History {
+			if h.Event == "searched" && h.RunID != nil && *h.RunID == 41 {
+				found = true
+				if h.Summary != want {
+					t.Errorf("searched summary %q, want %q", h.Summary, want)
+				}
+			}
+		}
+	}
+	if !found {
+		t.Fatal("no searched event for run 41")
+	}
+}
+
+// An episode's releases badge a season pack by the files of that episode, and its stored decision says what its
+// search grabbed for the episode.
+func TestEpisodeReleasesScopedToEpisode(t *testing.T) {
+	t.Parallel()
+	e := newManageEnv(t, nil)
+	now := store.Millis(addNow)
+	const hp, hu = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+	e.exec(`INSERT INTO acquire_run (id, source, title_id, version_id, version_key, target, state, results, accepted,
+		message, created_at, updated_at) VALUES
+		(50, 'wanted', 10, 10, 'tv-2160p', 's01', 'routed', 3, 1, '1 of 3 results accepted', ?, ?),
+		(51, 'wanted', 10, 10, 'tv-2160p', 's01e02', 'routed', 2, 1, '1 of 2 results accepted', ?, ?)`,
+		now-9000, now-9000, now-5000, now-5000)
+	e.exec(`INSERT INTO journal_decision (id, source, run_id, title_id, version_key, target, results, accepted,
+		candidates, created_at) VALUES
+		(95, 'acquire:50', 50, 10, 'tv-2160p', 's01', 3, 1, ?, ?),
+		(96, 'acquire:51', 51, 10, 'tv-2160p', 's01e02', 2, 1, ?, ?)`,
+		`[{"rank":1,"release":"The.Show.S01.2160p.WEB-PACK","info_hash":"`+hp+`","accepted":true,"episodes":["S01E01","S01E02"]}]`, now-9000,
+		`[{"rank":1,"release":"The.Show.S01E02.2160p.REMUX-UP","info_hash":"`+hu+`","accepted":true,"episodes":["S01E02"]},
+		  {"rank":2,"release":"The.Show.S01.2160p.WEB-PACK","info_hash":"`+hp+`","accepted":false,"episodes":["S01E01","S01E02"]}]`, now-5000)
+	e.exec(`INSERT INTO download (id, title_id, version_id, version_key, info_hash, release_title, indexer, provider,
+		state, source, episodes, created_at, updated_at, imported_at) VALUES
+		(10, 10, 10, 'tv-2160p', ?, 'The.Show.S01.2160p.WEB-PACK', 'idx', 'rd', 'imported', 'acquire:50', '[101,102]', ?, ?, ?),
+		(11, 10, 10, 'tv-2160p', ?, 'The.Show.S01E02.2160p.REMUX-UP', 'idx', 'tb', 'imported', 'acquire:51', '[102]', ?, ?, ?)`,
+		hp, now-8900, now-8000, now-8000, hu, now-4900, now-4000, now-4000)
+	e.exec(`INSERT INTO link (id, path, target, title_id, download_id, release_title, state, created_at, updated_at) VALUES
+		(10, '/tv/Show/S01E01.mkv', '/mnt/__all__/Pack/E01.mkv', 10, 10, 'The.Show.S01.2160p.WEB-PACK', 'active', ?, ?),
+		(11, '/tv/Show/old/S01E02.mkv', '/mnt/__all__/Pack/E02.mkv', 10, 10, 'The.Show.S01.2160p.WEB-PACK', 'unlinked', ?, ?),
+		(12, '/tv/Show/S01E02.mkv', '/mnt/__all__/Up/E02.mkv', 10, 11, 'The.Show.S01E02.2160p.REMUX-UP', 'active', ?, ?)`,
+		now-8000, now-8000, now-8000, now-4000, now-4000, now-4000)
+	e.exec(`INSERT INTO link_version (link_id, version_id) VALUES (10, 10), (11, 10), (12, 10)`)
+	e.exec(`INSERT INTO link_episode (link_id, episode_id) VALUES (10, 101), (11, 102), (12, 102)`)
+
+	var r Releases
+	e.call("GET", APIBase+"/titles/10/episodes/102/releases", nil, 200, &r)
+	if o := r.Outcomes[hp]; o.Outcome != "replaced" || o.ReplacedBy != "The.Show.S01E02.2160p.REMUX-UP" {
+		t.Errorf("E02 pack: %+v", o)
+	}
+	if o := r.Outcomes[hu]; o.Outcome != "current" {
+		t.Errorf("E02 upgrade: %+v", o)
+	}
+	if r.Grabbed != "Grabbed #1 via tb → imported (the current file)" {
+		t.Errorf("E02 summary %q", r.Grabbed)
+	}
+	r = Releases{}
+	e.call("GET", APIBase+"/titles/10/episodes/101/releases", nil, 200, &r)
+	if o := r.Outcomes[hp]; o.Outcome != "current" {
+		t.Errorf("E01 pack: %+v", o)
+	}
+	if _, ok := r.Outcomes[hu]; ok {
+		t.Errorf("E01 has E02's upgrade: %+v", r.Outcomes)
+	}
+	if r.Grabbed != "Grabbed #1 via rd → imported (the current file)" {
+		t.Errorf("E01 summary %q", r.Grabbed)
+	}
+}
+
+// latest marks the search the releases page shows: not a journal decision the shadow runner searched after.
+func TestLatestSearchFollowsShadow(t *testing.T) {
+	t.Parallel()
+	e := newManageEnv(t, nil)
+	// The seed's shadow search for movie-remux is at 2000.
+	e.exec(`INSERT INTO acquire_run (id, source, title_id, version_id, version_key, target, state, results, accepted,
+		message, created_at, updated_at) VALUES (60, 'command', 1, 1, 'movie-remux', 'movie', 'nothing', 1, 0,
+		'no accepted release among 1 results', 1000, 1000)`)
+	e.exec(`INSERT INTO journal_decision (id, source, run_id, title_id, version_key, target, results, accepted,
+		candidates, created_at) VALUES (97, 'acquire:60', 60, 1, 'movie-remux', 'movie', 1, 0, '[]', 1000)`)
+	latest := func() map[int64]bool {
+		var d TitleDetail
+		e.call("GET", APIBase+"/titles/1", nil, 200, &d)
+		out := map[int64]bool{}
+		for _, v := range d.Versions {
+			for _, h := range v.History {
+				if h.Event == "searched" && h.RunID != nil {
+					out[*h.RunID] = h.Latest
+				}
+			}
+		}
+		return out
+	}
+	var r Releases
+	e.call("GET", APIBase+"/titles/1/releases?version=movie-remux", nil, 200, &r)
+	if r.Source != "shadow" {
+		t.Fatalf("releases page shows %q", r.Source)
+	}
+	if l := latest(); len(l) != 1 || l[60] {
+		t.Errorf("before a newer journal search: %v", l)
+	}
+	e.exec(`INSERT INTO acquire_run (id, source, title_id, version_id, version_key, target, state, results, accepted,
+		message, created_at, updated_at) VALUES (61, 'command', 1, 1, 'movie-remux', 'movie', 'nothing', 1, 0,
+		'no accepted release among 1 results', 3000, 3000)`)
+	e.exec(`INSERT INTO journal_decision (id, source, run_id, title_id, version_key, target, results, accepted,
+		candidates, created_at) VALUES (98, 'acquire:61', 61, 1, 'movie-remux', 'movie', 1, 0, '[]', 3000)`)
+	if l := latest(); !l[61] || l[60] {
+		t.Errorf("after a newer journal search: %v", l)
+	}
+}

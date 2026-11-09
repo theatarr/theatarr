@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { fireEvent, screen, waitFor, within } from "@testing-library/react";
-import { expect, it } from "vitest";
+import { expect, it, vi } from "vitest";
 import { mockFetch, renderPage } from "@/test/page";
 import { ReleaseTable, ShowReleases } from "./show-releases";
 
@@ -128,4 +128,16 @@ it("a stored row has no Grab when the version cannot search", async () => {
   renderPage(<ShowReleases titleId={7} defaultOpen initialVersion="movie-web" />);
   await screen.findByTestId("releases-no-live");
   expect(screen.queryByTestId("release-grab")).toBeNull();
+});
+
+it("scrolls the followed release's card on a phone", () => {
+  vi.stubGlobal("matchMedia", (q: string) => ({ matches: false, media: q, addEventListener() {}, removeEventListener() {} }));
+  const scrolled: Element[] = [];
+  const saved = Element.prototype.scrollIntoView;
+  Element.prototype.scrollIntoView = function (this: Element) { scrolled.push(this); };
+  renderPage(<ReleaseTable items={[cand(1, "aaa"), cand(2, "bbb")]} focus="BBB" />);
+  expect(scrolled).toHaveLength(1);
+  expect(scrolled[0].tagName).toBe("LI");
+  expect(scrolled[0].getAttribute("data-release-hash")).toBe("bbb");
+  Element.prototype.scrollIntoView = saved;
 });

@@ -15,8 +15,8 @@ import (
 // (docs/design/ui.md "Title page" and "Releases page"): what started a grab or a search, a failure's short reason,
 // each release's outcome by info hash, and one line for what a search grabbed.
 
-// ReleaseOutcome is what came of one release (by info hash) for the version: its newest download, and whether its
-// file is the version's current one.
+// ReleaseOutcome is what came of one release (by info hash) for the version, or for one episode of it: its newest
+// download, and whether its file is the current one.
 type ReleaseOutcome struct {
 	// Outcome is grabbed (in flight), imported, current (the version's file now), failed or replaced (was the
 	// version's file, later replaced by another release).
@@ -26,6 +26,8 @@ type ReleaseOutcome struct {
 	Reason string `json:"reason,omitempty"`
 	// ReplacedBy names the release that replaced it, when the version has one current release.
 	ReplacedBy string `json:"replaced_by,omitempty"`
+	// replaced: an import of it was the file and another release's is now, whatever its newest download did.
+	replaced bool
 }
 
 // maxReason caps a short failure reason, in characters.
@@ -160,13 +162,16 @@ func runOrigins(ctx context.Context, db *sql.DB, titleID int64) (map[int64]runOr
 }
 
 // releaseOutcomes reads what came of each release of the title's version, by lower-case info hash: the newest
-// download per hash, and the version's current files (active links).
-func releaseOutcomes(ctx context.Context, db *sql.DB, titleID int64, version string) (map[string]ReleaseOutcome, error) {
+// download per hash, and the version's current files (active links). episode > 0 scopes both to that episode: the
+// downloads and the links that hold it.
+func releaseOutcomes(ctx context.Context, db *sql.DB, titleID int64, version string, episode int64) (map[string]ReleaseOutcome, error) {
 	type dl struct{ state, provider, err string }
 	newest := map[string]dl{}
 	imported := map[string]bool{}
 	err := scanAll(ctx, db, `SELECT LOWER(info_hash), state, COALESCE(provider, ''), COALESCE(error, '')
-		FROM download WHERE title_id = ? AND version_key = ? AND info_hash <> '' ORDER BY id`, []any{titleID, version},
+		FROM download WHERE title_id = ? AND version_key = ? AND info_hash <> ''
+		AND (? = 0 OR EXISTS (SELECT 1 FROM json_each(download.episodes) j WHERE j.value = ?)) ORDER BY id`,
+		[]any{titleID, version, episode, episode},
 		func(r *sql.Rows) error {
 			var h string
 			var d dl
@@ -188,7 +193,9 @@ func releaseOutcomes(ctx context.Context, db *sql.DB, titleID int64, version str
 		FROM version v JOIN link_version lv ON lv.version_id = v.id JOIN link l ON l.id = lv.link_id
 		LEFT JOIN content_file cf ON cf.id = l.content_file_id LEFT JOIN content c ON c.id = cf.content_id
 		LEFT JOIN download d ON d.id = l.download_id
-		WHERE v.title_id = ? AND v.policy_key = ? AND l.state = 'active'`, []any{titleID, version},
+		WHERE v.title_id = ? AND v.policy_key = ? AND l.state = 'active'
+		AND (? = 0 OR EXISTS (SELECT 1 FROM link_episode le WHERE le.link_id = l.id AND le.episode_id = ?))`,
+		[]any{titleID, version, episode, episode},
 		func(r *sql.Rows) error {
 			var h, title string
 			if err := r.Scan(&h, &title); err != nil {
@@ -211,16 +218,17 @@ func releaseOutcomes(ctx context.Context, db *sql.DB, titleID int64, version str
 	}
 	out := map[string]ReleaseOutcome{}
 	for h, d := range newest {
-		o := ReleaseOutcome{Provider: d.provider}
+		o := ReleaseOutcome{Provider: d.provider, replaced: !current[h] && imported[h] && len(titles) > 0}
 		switch {
 		case current[h]:
 			o.Outcome = "current"
-		case imported[h] && len(titles) > 0:
+		case d.state == "failed":
+			// The newest attempt's failure, over an older import's replacement.
+			o.Outcome, o.Reason = "failed", shortReason(d.err, d.provider)
+		case o.replaced:
 			o.Outcome, o.ReplacedBy = "replaced", replacedBy
 		case d.state == "imported":
 			o.Outcome = "imported"
-		case d.state == "failed":
-			o.Outcome, o.Reason = "failed", shortReason(d.err, d.provider)
 		default:
 			o.Outcome = "grabbed"
 		}
@@ -229,8 +237,8 @@ func releaseOutcomes(ctx context.Context, db *sql.DB, titleID int64, version str
 	return out, nil
 }
 
-// runDownload is one download a search opened.
-type runDownload struct{ hash, release, provider string }
+// runDownload is one download a search opened, with its own state and error.
+type runDownload struct{ hash, release, provider, state, err string }
 
 // searchSummary says in one line what a search grabbed: "Grabbed #1 via rd → imported" (the rank in the stored
 // candidates, else the release's short title), or "Nothing grabbed: why". state and message are the acquire run's;
@@ -264,18 +272,22 @@ func searchSummary(dls []runDownload, cands []snapshot.Candidate, outcomes map[s
 	if n := len(dls) - 1; n > 0 {
 		s += fmt.Sprintf(" and %d more", n)
 	}
+	// What came of this download, not of a later one of the same release; outcomes says whether its file still is.
 	o := outcomes[strings.ToLower(d.hash)]
-	switch o.Outcome {
+	switch d.state {
 	case "imported":
-		s += " → imported"
-	case "current":
-		s += " → imported (the current file)"
-	case "replaced":
-		s += " → imported, later replaced"
+		switch {
+		case o.Outcome == "current":
+			s += " → imported (the current file)"
+		case o.replaced:
+			s += " → imported, later replaced"
+		default:
+			s += " → imported"
+		}
 	case "failed":
 		s += " → failed"
-		if o.Reason != "" {
-			s += " (" + o.Reason + ")"
+		if r := shortReason(d.err, d.provider); r != "" {
+			s += " (" + r + ")"
 		}
 	}
 	return s

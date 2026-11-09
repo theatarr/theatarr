@@ -269,7 +269,8 @@ func (w *Web) versionHistory(ctx context.Context, db *sql.DB, titleID int64, kin
 			}
 			var run *runOrigin
 			if id := runIDOf(source); id > 0 {
-				runDLs[id] = append(runDLs[id], runDownload{hash: h.InfoHash, release: h.ReleaseTitle, provider: h.Source})
+				runDLs[id] = append(runDLs[id], runDownload{hash: h.InfoHash, release: h.ReleaseTitle,
+					provider: h.Source, state: state, err: errText})
 				if o, ok := origins[id]; ok {
 					run = &o
 				}
@@ -306,18 +307,36 @@ func (w *Web) versionHistory(ctx context.Context, db *sql.DB, titleID int64, kin
 		}
 		v.History = h
 	}
-	// The releases view shows each version's newest decision (storedReleases).
+	// The releases view shows each version's newest decision, unless the shadow runner searched since
+	// (storedReleases).
 	newest := map[string]int64{}
-	err = scanAll(ctx, db, `SELECT version_key, id FROM journal_decision WHERE title_id = ?
+	newestAt := map[string]int64{}
+	err = scanAll(ctx, db, `SELECT version_key, id, created_at FROM journal_decision WHERE title_id = ?
 		ORDER BY created_at, id`, []any{titleID}, func(rows *sql.Rows) error {
 		var key string
-		var id int64
-		if err := rows.Scan(&key, &id); err != nil {
+		var id, at int64
+		if err := rows.Scan(&key, &id, &at); err != nil {
 			return err
 		}
-		newest[key] = id
+		newest[key], newestAt[key] = id, at
 		return nil
 	})
+	if err != nil {
+		return err
+	}
+	err = scanAll(ctx, db, `SELECT version_key, MAX(COALESCE(searched_at, updated_at)) FROM shadow_grab
+		WHERE title_id = ? AND state = 'done' AND searched = 1 GROUP BY version_key`, []any{titleID},
+		func(rows *sql.Rows) error {
+			var key string
+			var at int64
+			if err := rows.Scan(&key, &at); err != nil {
+				return err
+			}
+			if at > newestAt[key] {
+				delete(newest, key)
+			}
+			return nil
+		})
 	if err != nil {
 		return err
 	}
@@ -342,7 +361,7 @@ func (w *Web) versionHistory(ctx context.Context, db *sql.DB, titleID int64, kin
 		oc, ok := outcomes[vid]
 		if !ok {
 			var err error
-			if oc, err = releaseOutcomes(ctx, db, titleID, key); err != nil {
+			if oc, err = releaseOutcomes(ctx, db, titleID, key, 0); err != nil {
 				return err
 			}
 			outcomes[vid] = oc

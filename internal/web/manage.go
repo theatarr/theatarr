@@ -1075,7 +1075,7 @@ func (w *Web) apiEpisodeReleases(rw http.ResponseWriter, r *http.Request) {
 				rankedInto(&out, sr, w.now())
 				w.keepLive(&out, sr)
 				out.Target = strings.ToLower(it.code())
-				w.writeReleases(ctx, rw, &out)
+				w.writeReleases(ctx, rw, &out, eid)
 				return
 			}
 			out.Message = "Live search failed: " + err.Error() + "; showing the last stored decision"
@@ -1086,15 +1086,18 @@ func (w *Web) apiEpisodeReleases(rw http.ResponseWriter, r *http.Request) {
 		w.internal(rw, err)
 		return
 	}
-	w.writeReleases(ctx, rw, &out)
+	w.writeReleases(ctx, rw, &out, eid)
 }
 
-// storedEpisodeReleases fills the answer from the newest stored decision that covered the episode.
+// storedEpisodeReleases fills the answer from the newest stored decision that covered the episode, and for a journal
+// decision what its search grabbed for the episode (storedGrabbed).
 func (w *Web) storedEpisodeReleases(ctx context.Context, out *Releases, it evItem) error {
 	db := w.st.Reader()
 	type stored struct {
 		at                int64
 		source, target    string
+		run               sql.NullInt64
+		decided           string // journal_decision.source
 		results, accepted int
 		notes             string
 		cands             []snapshot.Candidate
@@ -1121,12 +1124,12 @@ func (w *Web) storedEpisodeReleases(ctx context.Context, out *Releases, it evIte
 			best = &s
 		}
 	}
-	err := scanAll(ctx, db, `SELECT created_at, target, results, accepted, notes, candidates, rejections
+	err := scanAll(ctx, db, `SELECT created_at, target, results, accepted, notes, candidates, rejections, run_id, source
 		FROM journal_decision WHERE title_id = ? AND version_key = ? ORDER BY created_at DESC, id`, []any{out.TitleID, out.Version},
 		func(r *sql.Rows) error {
 			var s stored
 			var cj, rj string
-			if err := r.Scan(&s.at, &s.target, &s.results, &s.accepted, &s.notes, &cj, &rj); err != nil {
+			if err := r.Scan(&s.at, &s.target, &s.results, &s.accepted, &s.notes, &cj, &rj, &s.run, &s.decided); err != nil {
 				return err
 			}
 			s.source = "journal"
@@ -1202,6 +1205,9 @@ func (w *Web) storedEpisodeReleases(ctx context.Context, out *Releases, it evIte
 		default:
 			out.Message = "The last search Theatarr decided that covered " + it.code() + " (" + sourceWord(best.target) + ")"
 		}
+	}
+	if best.source == "journal" {
+		return w.storedGrabbed(ctx, out, best.run, best.decided, best.at, it.episodeID)
 	}
 	return nil
 }
