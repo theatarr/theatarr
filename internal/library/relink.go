@@ -337,6 +337,19 @@ const identityQuery = `SELECT MIN(CASE WHEN c.mount_folder = ? THEN LOWER(c.info
 		UNION SELECT id FROM content WHERE name IN (?, ?, ?)
 		UNION SELECT content_id FROM content_provider WHERE folder_name IN (?, ?, ?))`
 
+// claimedByOther reports whether the registry records folder name n for a torrent other than hash, by any of
+// identityQuery's claims.
+func claimedByOther(ctx context.Context, db *sql.DB, hash, n string) (bool, error) {
+	var mountHash, nameHash sql.NullString
+	var mountCount, nameCount int
+	err := db.QueryRowContext(ctx, identityQuery, n, n, n, n, n+".mkv", n+".mp4", n, n+".mkv", n+".mp4").
+		Scan(&mountHash, &mountCount, &nameHash, &nameCount)
+	if err != nil {
+		return false, err
+	}
+	return nameCount > 1 || (nameCount == 1 && nameHash.String != strings.ToLower(hash)), nil
+}
+
 // identityFolders prefers hash-suffixed folders over bare names. A replacement bare name needs an unambiguous registry
 // match; its existence alone cannot identify a torrent. If a suffixed folder exists but lacks the file, do not
 // fall back to the bare name: a different torrent may have taken it.

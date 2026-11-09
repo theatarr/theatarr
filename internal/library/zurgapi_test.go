@@ -746,6 +746,34 @@ func TestImportZurgNameForHash(t *testing.T) {
 		}
 	})
 
+	t.Run("API off, another torrent's folder of the original name waits", func(t *testing.T) {
+		// The registry records the bare folder for another hash: this torrent's folder is "name {hash6}".
+		e, _, _ := setup(t, zname)
+		e.exec(`UPDATE download SET original_name = ? WHERE id = 1`, zname)
+		e.exec(`INSERT INTO content (id, info_hash, name, mount_folder, state, first_seen_at, last_seen_at)
+			VALUES (7, ?, ?, ?, 'present', 0, 0)`, hashB, zname, zname)
+		if _, err := e.lib.Import(e.ctx, 1, false); err != nil {
+			t.Fatal(err)
+		}
+		waiting(e)
+		e.release(zname+" {"+hashA[:6]+"}", map[string]float64{"movie.mkv": 7000})
+		if _, err := e.lib.Import(e.ctx, 1, false); err != nil {
+			t.Fatal(err)
+		}
+		imported(e, zname+" {"+hashA[:6]+"}")
+	})
+
+	t.Run("API off, the original name's folder recorded for this torrent imports", func(t *testing.T) {
+		e, _, _ := setup(t, zname)
+		e.exec(`UPDATE download SET original_name = ? WHERE id = 1`, zname)
+		e.exec(`INSERT INTO content (id, info_hash, name, mount_folder, state, first_seen_at, last_seen_at)
+			VALUES (7, ?, ?, ?, 'present', 0, 0)`, hashA, zname, zname)
+		if _, err := e.lib.Import(e.ctx, 1, false); err != nil {
+			t.Fatal(err)
+		}
+		imported(e, zname)
+	})
+
 	t.Run("original name with zurg's API on logs nothing", func(t *testing.T) {
 		e, srv, buf := setup(t, zname)
 		e.exec(`UPDATE download SET original_name = ? WHERE id = 1`, zname)

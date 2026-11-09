@@ -354,12 +354,14 @@ func (l *Library) importDownload(ctx context.Context, d *importDownload, dryRun 
 	zurgCheck := l.zurg != nil && d.InfoHash != "" && !sourced && len(d.Manual) == 0
 	// zurgListed: zurg's listing holds the hash, so its folder is in zurg's release root.
 	zurgListed := false
+	var zname string
 	if zurgCheck {
 		// zurg names the folder after its own name for the torrent, which the providers may report otherwise
 		// (another case, a video file's name, a cut or different title). Its current name goes first: zurg may
 		// rename. Without a listing, or with the hash not listed, the provider's names alone are tried.
 		list, err := l.zurg.Torrents(ctx)
-		zname, ok := list.Name(d.InfoHash)
+		var ok bool
+		zname, ok = list.Name(d.InfoHash)
 		if err == nil && !ok && l.justReady(d) {
 			// A torrent zurg listed after the cached listing was read is not in it: read a newer one.
 			if fresh, err := l.zurg.FreshTorrents(ctx); err == nil {
@@ -370,6 +372,27 @@ func (l *Library) importDownload(ctx context.Context, d *importDownload, dryRun 
 			names = ReleaseFolderNames(d.InfoHash, append([]string{zname}, known...)...)
 		}
 		zurgListed = ok
+	}
+	if !sourced && len(d.Manual) == 0 && d.OriginalName != "" {
+		// Another torrent may have declared the same name and hold the bare folder (this one then shows as
+		// "name {hash6}"). A bare name only the original name gives is skipped when the registry records it for
+		// another torrent: the download waits for its own folder.
+		// The other candidates: zurg's name and known without the original name (known[1]).
+		others := ReleaseFolderNames(d.InfoHash, append([]string{zname, known[0]}, known[2:]...)...)
+		var skip []string
+		for _, n := range ReleaseFolderNames("", d.OriginalName) {
+			if slices.Contains(others, n) {
+				continue
+			}
+			claimed, err := claimedByOther(ctx, l.st.Reader(), d.InfoHash, n)
+			if err != nil {
+				return nil, errf(id, "%w", err)
+			}
+			if claimed {
+				skip = append(skip, n)
+			}
+		}
+		names = slices.DeleteFunc(names, func(n string) bool { return slices.Contains(skip, n) })
 	}
 	if !sourced && len(d.Manual) == 0 {
 		// A matching hash suffix identifies our torrent even when the bare name holds another one.

@@ -289,6 +289,7 @@ func (t *torBox) Torrent(ctx context.Context, id string) (*Torrent, error) {
 		}
 		for i := range list {
 			if list[i].ID == id {
+				list[i].OriginalName = originalName(list[i].Files, list[i].Name)
 				return &list[i], nil
 			}
 		}

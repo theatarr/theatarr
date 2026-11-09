@@ -202,10 +202,11 @@ mount never lengthen that back-off (`TestPartialAfterWaitsStartsBackoffAgain`).
    `__all__/<name>` for the content's `mount_folder`, the download's `original_name` (the name the torrent declared,
    recorded by the router's status read: Real-Debrid's `original_filename`, which zurg names the folder after while
    RD's `filename` may be a selected file's lower-cased name and drop `[TGx]`-style tags; it finds the folder with
-   zurg's API off, `TestImportZurgNameForHash`), the download's `name`, the registry's provider folder names, the
-   content name and the release title, each with `.mkv`/`.mp4` trimmed and with zurg's ` {hash6}` suffix
-   (`ReleaseFolderNames`:
-   zurg's exact rule first, `TrimSuffix(".mp4")` then `TrimSuffix(".mkv")`, case sensitive, so `X.mkv.mp4` is `X` and
+   zurg's API off, `TestImportZurgNameForHash`; another torrent may have declared the same name and hold the bare
+   folder, so a bare name only `original_name` gives is skipped when the registry records it, by mount folder,
+   content name or provider folder name, for another hash, and the download waits for its ` {hash6}` folder), the
+   download's `name`, the registry's provider folder names, the content name and the release title, each with
+   `.mkv`/`.mp4` trimmed and with zurg's ` {hash6}` suffix (`ReleaseFolderNames`: zurg's exact rule first, `TrimSuffix(".mp4")` then `TrimSuffix(".mkv")`, case sensitive, so `X.mkv.mp4` is `X` and
    `X.MKV` keeps its extension, [notes: naming](https://notes.debridmediamanager.com/zurg/internals/naming/); then an
    any-case `.mkv`-then-`.mp4` trim and the untrimmed name;
    `TestReleaseFolderNamesZurgExactFirst`). With zurg's API on, an automatic import puts zurg's name for the info

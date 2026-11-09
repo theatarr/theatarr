@@ -15,8 +15,9 @@ the router ([router.md](router.md)). Where this sits: [overview.md](overview.md)
   - `Torrent(id)`: one torrent with its files, and its original name (`OriginalName`, the name the torrent declared,
     which zurg names the folder after): Real-Debrid's `original_filename`; for TorBox and AllDebrid, read from the
     files as zurg does (the folder every path shares, else the single file's name, else the torrent's name; AllDebrid
-    lists files only for a ready magnet, so earlier reads leave it empty). List answers leave it empty
-    (`TestOriginalNameFromFiles`);
+    lists files only for a ready magnet, so earlier reads leave it empty). List answers leave it empty; TorBox's
+    single read that falls back to the list on a 5xx fills it from the listed item's files (`TestOriginalNameFromFiles`,
+    `TestTorBoxGoneIdOn5xx`);
   - `Cache` and `CheckCached`: the instant-availability check, where one still exists.
 - **Read-only by construction.** There is no add, select, delete, restart or unrestrict method anywhere.
   - The clients reach a provider only through an unexported `getter`, which builds `GET` requests and nothing else.

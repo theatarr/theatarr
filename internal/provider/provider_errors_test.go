@@ -89,7 +89,8 @@ func TestTorBoxGoneIdOn5xx(t *testing.T) {
 		found      bool
 	}{
 		{name: "gone", list: `[]`, notFound: true},
-		{name: "listed", list: `[{"id":101,"hash":"` + h("b") + `","name":"M","size":10,"download_state":"downloading","progress":0.5}]`, found: true},
+		{name: "listed", list: `[{"id":101,"hash":"` + h("b") + `","name":"M","size":10,"download_state":"downloading","progress":0.5,
+			"files":[{"id":0,"name":"M.Folder[TGx]/m.mkv","size":10}]}]`, found: true},
 		{name: "list fails", listFails: true},
 	} {
 		t.Run(c.name, func(t *testing.T) {
@@ -110,7 +111,8 @@ func TestTorBoxGoneIdOn5xx(t *testing.T) {
 					t.Fatalf("err %v, want ErrNotFound", err)
 				}
 			case c.found:
-				if err != nil || got.ID != "101" || got.State != StateDownloading {
+				// The listed item stands in for the single read: its original name comes from its files.
+				if err != nil || got.ID != "101" || got.State != StateDownloading || got.OriginalName != "M.Folder[TGx]" {
 					t.Fatalf("got %+v %v", got, err)
 				}
 			default:
