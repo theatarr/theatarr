@@ -308,7 +308,7 @@ func (r *Runner) rss(ctx context.Context, sum *RSSSummary) error {
 		k, ri, res := feed.key, feed.info, feed.result
 		ri.Items = len(res.Releases)
 		// One feed page per sync, with a hard decision cap even if an indexer ignores its page size.
-		for _, rel := range res.Releases[:min(len(res.Releases), indexer.DefaultPageCap)] {
+		for _, rel := range r.withCacheEvidence(ctx, res.Releases[:min(len(res.Releases), indexer.DefaultPageCap)]) {
 			it := seenItem{k, r.seenKey(rel)}
 			if inRun[it] {
 				continue

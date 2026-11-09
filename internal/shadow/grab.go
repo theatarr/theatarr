@@ -219,7 +219,7 @@ func (r *Runner) grab(ctx context.Context, p grabPayload, force bool) (*GrabResu
 	res.Arr = summarize(arrD, arrRel, true)
 	if found != nil {
 		vp := r.pol.Versions[key]
-		for _, rel := range found.releases {
+		for _, rel := range r.withCacheEvidence(ctx, found.releases) {
 			if !slices.Contains(vp.Indexers, rel.Indexer) {
 				continue
 			}
@@ -320,6 +320,17 @@ func (r *Runner) deferGrab(ctx context.Context, p grabPayload, g *dshadow.Grab, 
 }
 
 var errHourlyCap = errors.New("the hourly shadow search cap is reached")
+
+// withCacheEvidence is a copy of rels with the cache evidence a live search applies before deciding: the same hash in
+// another release and live stored provider_cache rows (Service.ApplyCachedOn), so the ranking's cache tie-break sees
+// what the route reads. Stored evidence only: it asks no provider or DMM.
+func (r *Runner) withCacheEvidence(ctx context.Context, rels []indexer.Release) []indexer.Release {
+	out := slices.Clone(rels) // evidence is added with fresh slices and maps: the cached search is not changed
+	if r.idx != nil {
+		r.idx.ApplyCachedOn(ctx, out)
+	}
+	return out
+}
 
 // search returns the title's search results across the indexers of the shadowed versions: from the reuse cache,
 // or a new search (one at a time, within the hourly cap, skipping indexers whose budget is spent or backing off).

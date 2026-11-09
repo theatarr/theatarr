@@ -76,3 +76,32 @@ func TestCheckTopEvidenceReranks(t *testing.T) {
 		t.Errorf("route tries %s on %s first, want %s on tb: %s", res.Hash, res.Provider, h("c"), steps(res))
 	}
 }
+
+// A route queued under an older policy revision is decided again with the cache rows written while it waited: of
+// two equally scored releases queued uncached-first, the one now stored cached is tried first.
+func TestRedecideReadsStoredCacheEvidence(t *testing.T) {
+	t.Parallel()
+	e := newEnv(t, true, policy.ModeActive)
+	freshMovie(e)
+	e.exec(`UPDATE title SET year=2024,runtime_minutes=110 WHERE id=1`)
+	eng, err := decide.New(e.pol, decide.Options{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	e.r.SetProfiles(eng.Profile)
+	e.r.SetDecider(eng.Decide, eng.DecideSearch)
+	a, b := cand(h("a"), "Movie.2024.2160p.WEB-DL-GRP"), cand(h("b"), "Movie.2024.2160p.WEB-DL-GRP")
+	a.Release.Seeders, b.Release.Seeders = 10, 10
+	e.exec(`INSERT INTO provider_cache (info_hash, provider, state, source, checked_at, expires_at)
+		VALUES (?, 'tb', 'cached', 'torbox:check', ?, ?)`, h("b"), e.clock.UnixMilli(), e.clock.Add(time.Hour).UnixMilli())
+	req := Request{TitleID: 1, VersionID: 10, Version: "movie", Source: "rss", Candidates: []Candidate{a, b},
+		DecisionRev: "rev1"}
+	e.pol.Revision = "rev2"
+	res, err := e.r.Route(e.ctx, req)
+	if err != nil || res.Outcome != OutcomeAdded {
+		t.Fatalf("route %+v %v", res, err)
+	}
+	if got := e.ad["tb"].adds; len(got) != 1 || got[0] != h("b") || len(e.ad["rd"].adds) != 0 || len(e.ad["ad"].adds) != 0 {
+		t.Fatalf("adds rd %v ad %v tb %v, want the cached %s on tb only", e.ad["rd"].adds, e.ad["ad"].adds, got, h("b"))
+	}
+}

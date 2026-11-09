@@ -134,3 +134,31 @@ func TestRankCachedUsableProvidersOnly(t *testing.T) {
 		t.Errorf("rank %s, want %s", got, want)
 	}
 }
+
+// The cached_on extra a feed carries is evidence on its own, with no CachedOn: it ranks like the same codes there.
+func TestRankCachedOnExtraOnly(t *testing.T) {
+	t.Parallel()
+	e := cachedEngine(t)
+	label := map[*Decision]string{}
+	var ds []*Decision
+	for i, extra := range []string{"", "tb", "rd"} {
+		r := rel(webNTb, "public", 20*gb)
+		r.InfoHash = fmt.Sprintf("%040x", i+1)
+		if extra != "" {
+			r.Extras = map[string]string{"cached_on": extra}
+		}
+		d, err := e.Decide(context.Background(), r, dune, Version{Key: "movie-remux"}, nil)
+		if err != nil || !d.Accepted {
+			t.Fatalf("%q: %+v %v", extra, d, err)
+		}
+		label[d] = extra
+		ds = append(ds, d)
+	}
+	var got []string
+	for _, d := range Rank(ds) {
+		got = append(got, label[d])
+	}
+	if s := strings.Join(got, ","); s != "rd,tb," {
+		t.Errorf("rank %q, want rd,tb, (none last)", s)
+	}
+}

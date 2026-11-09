@@ -191,8 +191,10 @@ Candidate order is `decide.Rank`'s: the arr comparer with Theatarr's cache tie-b
 `cached_on` extra, which the search fills from the feeds, DMM's availability, stored `provider_cache` rows in state
 `cached` and the TorBox check. The TorBox check runs on the ranked releases (`checkTop`); when it adds evidence to any
 of them the search ranks again, so the order the releases page shows (`#`) is the order the route tries
-(`TestCheckTopEvidenceReranks`). A route resumed with a fresh decision ranks its stored candidates, evidence included,
-the same way.
+(`TestCheckTopEvidenceReranks`). RSS and the shadow searches apply the same release-carried and stored evidence
+before deciding (`ApplyCachedOn`; no DMM or TorBox request: `TestRSSStoredCacheBreaksTie`). A route decided again
+under a newer policy revision reads the stored rows again for its candidates first (stored evidence only:
+`TestRedecideReadsStoredCacheEvidence`).
 
 At most `router.max_candidates` releases are tried, best first. A release skipped without a request to any provider
 (a live miss or known uncached everywhere, blocklisted, no provider its indexer allows, no hash) does not count, so a search made again after
@@ -1146,6 +1148,9 @@ stall timeout per provider ("Stalled downloads").
 **`theatarr router dry-run -title ID|-tmdb N|-tvdb N -version KEY [-season N [-episode N]] [-json]`.**
 - It searches like `theatarr decide -search`, through the gateway and its VPN check, then decides and ranks.
 - It prints the plan for every candidate and provider, then "would add X on P".
+- It and `theatarr decide -search` rank with the evidence the releases carry and count every provider of the version
+  in the cache tie-break: no stored `provider_cache` rows and no keys stored in settings, so the order of equally
+  scored releases can differ from a live search's.
 - Nothing is sent to a provider or recorded.
 
 **`theatarr router status [-json]`.** It reads only:
@@ -1187,10 +1192,14 @@ default; `-apply` writes only to the database (no provider call).
   among themselves, and a better quality or format score still wins; SeaDex standing (`prefer_seadex`) still comes
   first. Only providers the release may go to count: the version's providers as the indexer's `providers`
   allowlist narrows them (`policy.ReleaseProviders`), enabled and with a key (`decide.Engine.SetUsableProviders`;
-  without it, as in `theatarr decide`, every provider of the version counts). The evidence is the route's (see
-  "One route"). The route's provider order does not change: list order with cached providers first, in both modes.
+  without it, as in `theatarr decide` and `theatarr router dry-run`, every provider of the version counts). The
+  evidence is the route's (see "One route"). The route's provider order does not change: list order with cached
+  providers first, in both modes. A search across several libraries checks each target in turn: evidence a later
+  target's TorBox check gains is not applied to the order of targets already ranked; the next search sees it, since
+  the check stores its answers.
   Tests: `TestRankCachedOrdered`, `TestRankCachedNoPreference`, `TestRankCachedAfterQualityAndScore`,
-  `TestRankCachedUsableProvidersOnly`, `TestCheckTopEvidenceReranks`.
+  `TestRankCachedUsableProvidersOnly`, `TestRankCachedOnExtraOnly`, `TestSonarrCachedAfterEpisodeSteps`,
+  `TestCheckTopEvidenceReranks`, `TestRSSStoredCacheBreaksTie`, `TestRedecideReadsStoredCacheEvidence`.
 - **The miss rule.** A miss needs a verdict from every provider that has a key. A provider that is only paced defers
   the route.
 - **Reuse.** A hash the provider already holds is reused, not added or selected again: the registry is read before

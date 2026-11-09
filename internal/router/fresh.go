@@ -253,6 +253,16 @@ func (r *Router) redecide(ctx context.Context, s *routeState, cands []Candidate)
 	} else if existing, err = decide.LoadExisting(ctx, db, v.ID); err != nil {
 		return nil, fmt.Errorf("router: re-decide: %w", err)
 	}
+	// Cache rows written while the route waited feed the ranking's cache tie-break, as the route reads them: stored
+	// evidence only, nothing is asked.
+	rels := make([]indexer.Release, len(cands))
+	for i := range cands {
+		rels[i] = cands[i].Release
+	}
+	indexer.NewEvidence(indexer.EvidenceConfig{Store: r.st, Policy: r.pol, Logger: r.log, Now: r.now}).ApplyStored(ctx, rels)
+	for i := range cands {
+		cands[i].Release = rels[i]
+	}
 	var kept []Candidate
 	var decisions []*decide.Decision
 	// One re-search for the batch's unproven candidates, with all their episodes (a per-candidate re-search would be

@@ -363,6 +363,14 @@ func distinctHashes(rs []*Release) []string {
 	return out
 }
 
+// ApplyStored adds the live stored evidence (provider_cache rows in state cached) to rs, as ApplyCachedOn does after
+// the cross-feed part; it asks nothing. For releases that waited (a queued route) while rows were written.
+func (e *Evidence) ApplyStored(ctx context.Context, rs []Release) {
+	if e != nil {
+		e.applyStored(ctx, rs)
+	}
+}
+
 // applyStored adds live cached rows to the releases.
 func (e *Evidence) applyStored(ctx context.Context, rs []Release) {
 	if e.st == nil {

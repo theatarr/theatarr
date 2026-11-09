@@ -100,7 +100,7 @@ func (r *Runner) grabSeries(ctx context.Context, p grabPayload, key string, forc
 	res.Arr = summarize(arrD, arrRel, true)
 	if found != nil {
 		vp := r.pol.Versions[key]
-		for _, rel := range found.releases {
+		for _, rel := range r.withCacheEvidence(ctx, found.releases) {
 			if !slices.Contains(vp.Indexers, rel.Indexer) {
 				continue
 			}
