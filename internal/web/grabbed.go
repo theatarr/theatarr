@@ -68,6 +68,7 @@ func (o runOrigin) words() string {
 		// Search now, an add with a search, an approved request.
 		return "manual search"
 	case o.source == "command" && strings.Contains(strings.ToLower(o.agent), "seerr"):
+		// Seerr sends User-Agent: Seerr/<version> on its arr calls.
 		return "Seerr request"
 	case o.source == "command" && o.view != "":
 		return "arr search (" + o.view + ")"

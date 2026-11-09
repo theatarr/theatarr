@@ -2,16 +2,18 @@
 // version, ranked, with quality, custom formats, score and every rejection. For a version in mode active the panel can
 // search the indexers now; for a shadow version it shows the last stored decision (the journal's, or the shadow
 // runner's search for an arr grab) and sends no indexer traffic. A live answer's releases can be grabbed by managers
-// (release-grab.tsx). Mounted by the title page as <ShowReleases titleId />.
+// (release-grab.tsx); so can a stored answer's while the version may search, the grab running that search first. Mounted by the title page as <ShowReleases titleId />.
 // Table look adapted from Scryer (github.com/scryer-media/scryer) apps/scryer-web interactive search results @
 // 2ef7757c, GPL-3.0 (ranked rows, score column, rejection chips).
 import { CheckCircle2, ChevronDown, Loader2, RefreshCw, Search, XCircle } from "lucide-react";
+import { useQueryClient } from "@tanstack/react-query";
 import { useEffect, useState } from "react";
 import { useReleases, type Candidate, type ReleaseOutcome, type Releases } from "@/api/add";
 import { usePerms } from "@/api/library";
+import { qk } from "@/api/query-keys";
 import { VersionStatus } from "@/components/version-status";
 import { Empty, ErrorState, VersionTag } from "@/components/page";
-import { GrabButton, type GrabTarget } from "@/components/title/release-grab";
+import { GrabButton, GrabDialog, type GrabTarget } from "@/components/title/release-grab";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -215,13 +217,33 @@ export function ShowReleases({ titleId, defaultOpen = false, initialVersion, foc
 
 function Panel({ titleId, initialVersion, focus }: { titleId: number; initialVersion?: string; focus?: string }) {
   const perms = usePerms();
+  const qc = useQueryClient();
   const [version, setVersion] = useState<string | undefined>(initialVersion);
   const [live, setLive] = useState(false);
+  // A stored row picked for a grab (searched first), and the one the search no longer offered.
+  const [picked, setPicked] = useState<{ c: Candidate; version: string }>();
+  const [gone, setGone] = useState<Candidate>();
   const q = useReleases(titleId, version, live);
   const r = q.data;
   const versions = r?.versions ?? [];
   const items = r?.candidates ?? [];
-  const grab = useGrabTarget(r, titleId);
+  const liveGrab = useGrabTarget(r, titleId);
+  const storedGrab = r && r.source !== "live" && r.source !== "none" && r.live_allowed && perms.manage
+    ? { titleId, version: r.version, pick: (c: Candidate) => setPicked({ c, version: r.version }) }
+    : undefined;
+  const grab = liveGrab ?? storedGrab;
+  const search = () => {
+    setGone(undefined);
+    if (live) void q.refetch();
+    else {
+      // Never an older live answer: the grab is from what the indexers offer now.
+      qc.removeQueries({ queryKey: qk.releases(titleId, version ?? "", true) });
+      setLive(true);
+    }
+  };
+  // A blocked or failed live search answers with the stored decision and says why (Summary's message).
+  const searched = live && !q.isFetching && (q.isSuccess || q.isError);
+  const fresh = searched && r?.source === "live" ? r : undefined;
   // The followed release is picked out in the library it was followed for only.
   const shownFocus = focus && r?.version === initialVersion ? focus : undefined;
   return (
@@ -234,7 +256,7 @@ function Panel({ titleId, initialVersion, focus }: { titleId: number; initialVer
               type="button"
               role="tab"
               aria-selected={r?.version === k}
-              onClick={() => { setVersion(k); setLive(false); }}
+              onClick={() => { setVersion(k); setLive(false); setGone(undefined); }}
               className={cn("rounded-md p-0.5 ring-offset-0 transition", r?.version === k ? "ring-2 ring-[var(--line-focus)]" : "opacity-70 hover:opacity-100")}
             >
               <VersionTag k={k} />
@@ -243,7 +265,7 @@ function Panel({ titleId, initialVersion, focus }: { titleId: number; initialVer
           {r ? <VersionStatus state={r.grab_state} showMode settingsKey={r.version} canManage={perms.admin} /> : null}
         </div>
         {r?.live_allowed ? (
-          <Button size="sm" variant="outline" onClick={() => (live ? void q.refetch() : setLive(true))} disabled={q.isFetching} data-testid="releases-live">
+          <Button size="sm" variant="outline" onClick={() => (live ? (setGone(undefined), void q.refetch()) : setLive(true))} disabled={q.isFetching} data-testid="releases-live">
             {q.isFetching && live ? <Loader2 className="animate-spin" /> : <RefreshCw />}
             Search indexers now
           </Button>
@@ -261,8 +283,19 @@ function Panel({ titleId, initialVersion, focus }: { titleId: number; initialVer
           {shownFocus && !items.some((c) => c.info_hash?.toLowerCase() === shownFocus.toLowerCase()) ? (
             <p className="text-xs text-[var(--ink-3)]" data-testid="releases-focus-missing">The release you followed is not in this list: only the newest search's releases are kept here.</p>
           ) : null}
+          {gone && r.source === "live" ? (
+            <p className="text-xs text-[var(--ink-3)]" data-testid="releases-gone">No longer offered by the indexer: <span className="font-mono">{gone.release}</span>. Nothing was grabbed.</p>
+          ) : null}
           {items.length === 0 ? <Empty>No releases to show for {r.version}.</Empty> : <ReleaseTable items={items} grab={grab} outcomes={r.outcomes} focus={shownFocus} />}
         </>
+      ) : null}
+      {picked ? (
+        <GrabDialog
+          c={picked.c}
+          target={{ titleId, version: picked.version }}
+          onClose={() => setPicked(undefined)}
+          fresh={{ search, answer: fresh, failed: searched && !fresh, at: live ? Math.max(q.dataUpdatedAt, q.errorUpdatedAt) : 0, gone: setGone }}
+        />
       ) : null}
     </div>
   );
