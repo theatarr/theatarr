@@ -191,7 +191,7 @@ function TitleHistory({ d, versions }: { d: TitleDetail; versions: Version[] }) 
               <span className="size-2.5 rounded-[3px] bg-[var(--vc)]" data-vkey={v.key} aria-hidden />
               {v.label ?? v.key}
             </h3>
-            <History events={v.history ?? []} />
+            <History events={v.history ?? []} titleId={v.title_id ?? d.id} version={v.key} />
           </Card>
         ))}
       </div>

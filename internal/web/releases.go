@@ -45,6 +45,11 @@ type Releases struct {
 	Message string `json:"message,omitempty"`
 	// Grab: a live answer whose candidates may be grabbed for 30 minutes (POST /titles/{id}/releases/grab, ops.go).
 	Grab bool `json:"grab"`
+	// Outcomes says what came of each release of the version, by lower-case info hash (releaseOutcomes): for the
+	// stored list and a live search alike.
+	Outcomes map[string]ReleaseOutcome `json:"outcomes"`
+	// Grabbed says in one line what the stored decision's search grabbed (searchSummary); empty for a live answer.
+	Grabbed string `json:"grabbed,omitempty"`
 }
 
 // maxLiveCandidates caps a live answer's list.
@@ -118,7 +123,7 @@ func (w *Web) apiReleases(rw http.ResponseWriter, r *http.Request) {
 				out.Message = "Live search failed: " + err.Error() + "; showing the last stored decision"
 				w.log.Warn("releases: live search", "title", id, "version", key, "err", err)
 			} else {
-				writeJSON(rw, http.StatusOK, out)
+				w.writeReleases(ctx, rw, &out)
 				return
 			}
 		}
@@ -126,6 +131,19 @@ func (w *Web) apiReleases(rw http.ResponseWriter, r *http.Request) {
 	if err := w.storedReleases(ctx, &out); err != nil {
 		w.internal(rw, err)
 		return
+	}
+	w.writeReleases(ctx, rw, &out)
+}
+
+// writeReleases answers with the outcome of each of the version's releases filled in.
+func (w *Web) writeReleases(ctx context.Context, rw http.ResponseWriter, out *Releases) {
+	if out.Outcomes == nil {
+		oc, err := releaseOutcomes(ctx, w.st.Reader(), out.TitleID, out.Version)
+		if err != nil {
+			w.internal(rw, err)
+			return
+		}
+		out.Outcomes = oc
 	}
 	writeJSON(rw, http.StatusOK, out)
 }
@@ -189,11 +207,12 @@ func rankedInto(out *Releases, sr *router.Searched, now time.Time) {
 func (w *Web) storedReleases(ctx context.Context, out *Releases) error {
 	db := w.st.Reader()
 	var jAt int64
-	var cj, rj, notes, target string
+	var run sql.NullInt64
+	var cj, rj, notes, target, jSource string
 	var results, accepted int
-	err := db.QueryRowContext(ctx, `SELECT created_at, candidates, rejections, notes, target, results, accepted
-		FROM journal_decision WHERE title_id = ? AND version_key = ? ORDER BY created_at DESC, id DESC LIMIT 1`,
-		out.TitleID, out.Version).Scan(&jAt, &cj, &rj, &notes, &target, &results, &accepted)
+	err := db.QueryRowContext(ctx, `SELECT created_at, candidates, rejections, notes, target, results, accepted,
+		run_id, source FROM journal_decision WHERE title_id = ? AND version_key = ? ORDER BY created_at DESC, id DESC
+		LIMIT 1`, out.TitleID, out.Version).Scan(&jAt, &cj, &rj, &notes, &target, &results, &accepted, &run, &jSource)
 	if err != nil && !errors.Is(err, sql.ErrNoRows) && !strings.Contains(err.Error(), "no such table") {
 		return err
 	}
@@ -217,6 +236,9 @@ func (w *Web) storedReleases(ctx context.Context, out *Releases) error {
 		_ = json.Unmarshal([]byte(rj), &out.Rejections)
 		if out.Message == "" {
 			out.Message = "The last search Theatarr decided for this library (" + sourceWord(target) + ")"
+		}
+		if err := w.storedGrabbed(ctx, out, run, jSource, jAt); err != nil {
+			return err
 		}
 	case haveS:
 		out.Source, out.Results, out.Accepted, out.Notes = "shadow", sres, sacc, note
@@ -249,6 +271,65 @@ func (w *Web) storedReleases(ctx context.Context, out *Releases) error {
 	if out.Rejections == nil {
 		out.Rejections = map[string]int{}
 	}
+	return nil
+}
+
+// storedGrabbed fills the stored decision's outcomes and its one-line summary: the downloads its acquire run
+// opened, or for an RSS read (no run) the version's RSS downloads of its candidates since it.
+func (w *Web) storedGrabbed(ctx context.Context, out *Releases, run sql.NullInt64, source string, at int64) error {
+	db := w.st.Reader()
+	oc, err := releaseOutcomes(ctx, db, out.TitleID, out.Version)
+	if err != nil {
+		return err
+	}
+	out.Outcomes = oc
+	state, message := "routed", ""
+	var dls []runDownload
+	scan := func(r *sql.Rows) error {
+		var d runDownload
+		if err := r.Scan(&d.hash, &d.release, &d.provider); err != nil {
+			return err
+		}
+		dls = append(dls, d)
+		return nil
+	}
+	if run.Valid {
+		err := db.QueryRowContext(ctx, `SELECT state, message FROM acquire_run WHERE id = ?`, run.Int64).Scan(&state,
+			&message)
+		if err != nil && !errors.Is(err, sql.ErrNoRows) {
+			return err
+		}
+		err = scanAll(ctx, db, `SELECT info_hash, release_title, COALESCE(provider, '') FROM download WHERE source = ?
+			ORDER BY id`, []any{"acquire:" + strconv.FormatInt(run.Int64, 10)}, scan)
+		if err != nil {
+			return err
+		}
+	} else if source == "rss" {
+		hashes := map[string]bool{}
+		for _, c := range out.Candidates {
+			if c.InfoHash != "" {
+				hashes[strings.ToLower(c.InfoHash)] = true
+			}
+		}
+		err := scanAll(ctx, db, `SELECT info_hash, release_title, COALESCE(provider, '') FROM download
+			WHERE title_id = ? AND version_key = ? AND source = 'rss' AND created_at >= ? ORDER BY id`,
+			[]any{out.TitleID, out.Version, at}, func(r *sql.Rows) error {
+				var d runDownload
+				if err := r.Scan(&d.hash, &d.release, &d.provider); err != nil {
+					return err
+				}
+				if hashes[strings.ToLower(d.hash)] {
+					dls = append(dls, d)
+				}
+				return nil
+			})
+		if err != nil {
+			return err
+		}
+	} else {
+		return nil
+	}
+	out.Grabbed = searchSummary(dls, out.Candidates, oc, state, message)
 	return nil
 }
 

@@ -3,10 +3,12 @@ package web
 import (
 	"context"
 	"database/sql"
+	"encoding/json"
 	"fmt"
 	"sort"
 	"time"
 
+	"github.com/theatarr/theatarr/internal/journal/snapshot"
 	"github.com/theatarr/theatarr/internal/store"
 )
 
@@ -54,6 +56,43 @@ type HistoryEvent struct {
 	ReleaseTitle string `json:"release_title,omitempty"`
 	Score        *int64 `json:"score,omitempty"`
 	InfoHash     string `json:"info_hash,omitempty"`
+	// Trigger says in plain words what started the grab or search: automatic search, RSS, manual search, manual
+	// grab by a person, approved upgrade, Seerr request, an arr (grabWords, runOrigin.words).
+	Trigger string `json:"trigger,omitempty"`
+	// Theatarr's grabbed and failed events: the provider, and a failure's short reason.
+	Provider string `json:"provider,omitempty"`
+	Reason   string `json:"reason,omitempty"`
+	// Searched events: the search's results and accepted releases, what it grabbed in one line (searchSummary;
+	// InfoHash is then the first release it grabbed) and Latest when its results are the ones the releases view
+	// shows (the version's newest decision).
+	Results  *int   `json:"results,omitempty"`
+	Accepted *int   `json:"accepted,omitempty"`
+	Summary  string `json:"summary,omitempty"`
+	Latest   bool   `json:"latest,omitempty"`
+}
+
+// downloadEvents appends a Theatarr download's events: grabbed, then imported or failed. h carries the release
+// fields; run is the acquire run of an acquire:<run> source.
+func downloadEvents(out []HistoryEvent, h HistoryEvent, state string, created, done int64, source, errText string,
+	run *runOrigin) []HistoryEvent {
+	h.Provider = h.Source
+	if h.Source == "" {
+		h.Source = "theatarr"
+	} else {
+		h.Source = "theatarr via " + h.Source
+	}
+	h.Trigger = grabWords(source, run)
+	h.Event, h.Date = "grabbed", ts(created)
+	out = append(out, h)
+	switch state {
+	case "imported":
+		h.Event, h.Date = "imported", ts(done)
+		out = append(out, h)
+	case "failed":
+		h.Event, h.Date, h.Reason = "failed", ts(done), shortReason(errText, h.Provider)
+		out = append(out, h)
+	}
+	return out
 }
 
 // EpisodeCounts is a series version's episodes outside the specials.
@@ -194,7 +233,7 @@ func (w *Web) versionHistory(ctx context.Context, db *sql.DB, titleID int64, kin
 			if v == nil || !ok {
 				return nil
 			}
-			h.Event, h.Date, h.Score = ev, ts(at), nullInt(score)
+			h.Event, h.Date, h.Score, h.Trigger = ev, ts(at), nullInt(score), arrWords(h.Source)
 			if ev == "renamed" || ev == "deleted" {
 				// Their source title is the file's path, not a release.
 				h.ReleaseTitle = ""
@@ -208,36 +247,35 @@ func (w *Web) versionHistory(ctx context.Context, db *sql.DB, titleID int64, kin
 	if err != nil {
 		return err
 	}
+	origins, err := runOrigins(ctx, db, titleID)
+	if err != nil {
+		return err
+	}
+	runDLs := map[int64][]runDownload{}
 	err = scanAll(ctx, db, `SELECT version_id, state, created_at, COALESCE(imported_at, updated_at), release_title,
-		info_hash, COALESCE(provider, ''), quality, score FROM download WHERE title_id = ? ORDER BY created_at, id`,
+		info_hash, COALESCE(provider, ''), quality, score, source, COALESCE(error, '') FROM download WHERE title_id = ?
+		ORDER BY created_at, id`,
 		[]any{titleID}, func(r *sql.Rows) error {
 			var vid, created, done, score int64
-			var state string
+			var state, source, errText string
 			var h HistoryEvent
 			if err := r.Scan(&vid, &state, &created, &done, &h.ReleaseTitle, &h.InfoHash, &h.Source, &h.Quality,
-				&score); err != nil {
+				&score, &source, &errText); err != nil {
 				return err
 			}
 			v := byID[vid]
 			if v == nil {
 				return nil
 			}
-			if h.Source == "" {
-				h.Source = "theatarr"
-			} else {
-				h.Source = "theatarr via " + h.Source
+			var run *runOrigin
+			if id := runIDOf(source); id > 0 {
+				runDLs[id] = append(runDLs[id], runDownload{hash: h.InfoHash, release: h.ReleaseTitle, provider: h.Source})
+				if o, ok := origins[id]; ok {
+					run = &o
+				}
 			}
 			h.Score = &score
-			h.Event, h.Date = "grabbed", ts(created)
-			v.History = append(v.History, h)
-			switch state {
-			case "imported":
-				h.Event, h.Date = "imported", ts(done)
-				v.History = append(v.History, h)
-			case "failed":
-				h.Event, h.Date = "failed", ts(done)
-				v.History = append(v.History, h)
-			}
+			v.History = downloadEvents(v.History, h, state, created, done, source, errText, run)
 			return nil
 		})
 	if err != nil {
@@ -268,19 +306,57 @@ func (w *Web) versionHistory(ctx context.Context, db *sql.DB, titleID int64, kin
 		}
 		v.History = h
 	}
-	err = scanAll(ctx, db, `SELECT r.version_id, r.id, r.created_at, r.target, d.id
+	// The releases view shows each version's newest decision (storedReleases).
+	newest := map[string]int64{}
+	err = scanAll(ctx, db, `SELECT version_key, id FROM journal_decision WHERE title_id = ?
+		ORDER BY created_at, id`, []any{titleID}, func(rows *sql.Rows) error {
+		var key string
+		var id int64
+		if err := rows.Scan(&key, &id); err != nil {
+			return err
+		}
+		newest[key] = id
+		return nil
+	})
+	if err != nil {
+		return err
+	}
+	outcomes := map[int64]map[string]ReleaseOutcome{}
+	err = scanAll(ctx, db, `SELECT r.version_id, r.version_key, r.id, r.created_at, r.target, r.state, r.message,
+		r.results, r.accepted, d.id, COALESCE(d.candidates, '[]')
 		FROM acquire_run r LEFT JOIN journal_decision d ON d.run_id = r.id
 		AND d.id = (SELECT MAX(j.id) FROM journal_decision j WHERE j.run_id = r.id)
 		WHERE r.title_id = ? ORDER BY r.created_at DESC, r.id DESC LIMIT 10`, []any{titleID}, func(rows *sql.Rows) error {
 		var vid, id, at int64
+		var results, accepted int
 		var decision sql.NullInt64
-		var target string
-		if err := rows.Scan(&vid, &id, &at, &target, &decision); err != nil {
+		var key, target, state, message, cj string
+		if err := rows.Scan(&vid, &key, &id, &at, &target, &state, &message, &results, &accepted, &decision,
+			&cj); err != nil {
 			return err
 		}
-		if v := byID[vid]; v != nil {
-			v.History = append(v.History, HistoryEvent{Event: "searched", Date: ts(at), Episode: target, RunID: &id, DecisionID: nullInt(decision)})
+		v := byID[vid]
+		if v == nil {
+			return nil
 		}
+		oc, ok := outcomes[vid]
+		if !ok {
+			var err error
+			if oc, err = releaseOutcomes(ctx, db, titleID, key); err != nil {
+				return err
+			}
+			outcomes[vid] = oc
+		}
+		var cands []snapshot.Candidate
+		_ = json.Unmarshal([]byte(cj), &cands)
+		h := HistoryEvent{Event: "searched", Date: ts(at), Episode: target, RunID: &id, DecisionID: nullInt(decision),
+			Results: &results, Accepted: &accepted, Trigger: origins[id].words(),
+			Summary: searchSummary(runDLs[id], cands, oc, state, message),
+			Latest:  decision.Valid && newest[key] == decision.Int64}
+		if dls := runDLs[id]; len(dls) > 0 {
+			h.InfoHash, h.Provider = dls[0].hash, dls[0].provider
+		}
+		v.History = append(v.History, h)
 		return nil
 	})
 	if err != nil {

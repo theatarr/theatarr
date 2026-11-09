@@ -6,8 +6,8 @@
 // Table look adapted from Scryer (github.com/scryer-media/scryer) apps/scryer-web interactive search results @
 // 2ef7757c, GPL-3.0 (ranked rows, score column, rejection chips).
 import { CheckCircle2, ChevronDown, Loader2, RefreshCw, Search, XCircle } from "lucide-react";
-import { useState } from "react";
-import { useReleases, type Candidate, type Releases } from "@/api/add";
+import { useEffect, useState } from "react";
+import { useReleases, type Candidate, type ReleaseOutcome, type Releases } from "@/api/add";
 import { usePerms } from "@/api/library";
 import { VersionStatus } from "@/components/version-status";
 import { Empty, ErrorState, VersionTag } from "@/components/page";
@@ -46,6 +46,30 @@ function Rejections({ c }: { c: Candidate }) {
   );
 }
 
+/** What came of a release for this library, by its hash (Releases.outcomes): grabbed, imported, current, failed or
+ *  replaced. */
+export function Outcome({ o }: { o?: ReleaseOutcome }) {
+  if (!o) return null;
+  switch (o.outcome) {
+    case "grabbed":
+      return <Badge tone="info" data-testid="release-outcome">Grabbed{o.provider ? ` · ${o.provider}` : ""}</Badge>;
+    case "imported":
+      return <Badge tone="ok" data-testid="release-outcome">Imported</Badge>;
+    case "current":
+      return <Badge tone="ok" data-testid="release-outcome">Current file</Badge>;
+    case "failed":
+      return <Badge tone="bad" className="max-w-full" title={o.reason} data-testid="release-outcome"><span className="truncate">Failed{o.reason ? ` · ${o.reason}` : ""}</span></Badge>;
+    case "replaced":
+      return (
+        <span className="inline-flex flex-wrap items-baseline gap-1">
+          <Badge tone="neutral" data-testid="release-outcome">Replaced</Badge>
+          {o.replaced_by ? <span className="text-[11px] text-[var(--ink-3)] [overflow-wrap:anywhere]">by {o.replaced_by}</span> : null}
+        </span>
+      );
+  }
+  return null;
+}
+
 function Formats({ c }: { c: Candidate }) {
   const fs = c.formats ?? [];
   if (fs.length === 0) return null;
@@ -72,7 +96,15 @@ export function useGrabTarget(r: Releases | undefined, titleId: number): GrabTar
   return r?.grab && r.source === "live" && perms.manage ? { titleId, version: r.version } : undefined;
 }
 
-export function ReleaseTable({ items, grab }: { items: Candidate[]; grab?: GrabTarget }) {
+const outcomeOf = (c: Candidate, outcomes?: Releases["outcomes"]) => (c.info_hash ? outcomes?.[c.info_hash.toLowerCase()] : undefined);
+
+/** The releases, ranked. outcomes badges each row by what came of it; focus (a hash) picks one row out and scrolls
+ *  to it. */
+export function ReleaseTable({ items, grab, outcomes, focus }: { items: Candidate[]; grab?: GrabTarget; outcomes?: Releases["outcomes"]; focus?: string }) {
+  const picked = (c: Candidate) => !!focus && !!c.info_hash && c.info_hash.toLowerCase() === focus.toLowerCase();
+  useEffect(() => {
+    if (focus && /^[0-9a-f]+$/i.test(focus)) document.querySelector(`[data-release-hash="${focus.toLowerCase()}"]`)?.scrollIntoView?.({ block: "center" });
+  }, [focus, items]);
   return (
     <>
       <div className="hidden md:block">
@@ -89,7 +121,7 @@ export function ReleaseTable({ items, grab }: { items: Candidate[]; grab?: GrabT
           </TableHeader>
           <TableBody>
             {items.map((c, i) => (
-              <TableRow key={`${c.rank}-${i}`} className={cn(!c.accepted && "opacity-80")}>
+              <TableRow key={`${c.rank}-${i}`} data-release-hash={c.info_hash?.toLowerCase()} data-focus={picked(c) || undefined} className={cn(!c.accepted && "opacity-80", picked(c) && "bg-[var(--accent-soft)] opacity-100")}>
                 <TableCell className="align-top tabular-nums text-muted-foreground">{c.rank}</TableCell>
                 <TableCell className="align-top">
                   <div className="font-mono text-[12px] text-[var(--ink)] [overflow-wrap:anywhere]">{c.release}</div>
@@ -98,7 +130,12 @@ export function ReleaseTable({ items, grab }: { items: Candidate[]; grab?: GrabT
                 </TableCell>
                 <TableCell className="align-top whitespace-nowrap">{c.quality || "—"}</TableCell>
                 <TableCell className="align-top text-right font-semibold tabular-nums">{c.score ?? 0}</TableCell>
-                <TableCell className="align-top"><Rejections c={c} /></TableCell>
+                <TableCell className="align-top">
+                  <div className="flex flex-col items-start gap-1">
+                    <Rejections c={c} />
+                    <Outcome o={outcomeOf(c, outcomes)} />
+                  </div>
+                </TableCell>
                 {grab ? <TableCell className="align-top text-right"><GrabButton c={c} target={grab} /></TableCell> : null}
               </TableRow>
             ))}
@@ -107,7 +144,7 @@ export function ReleaseTable({ items, grab }: { items: Candidate[]; grab?: GrabT
       </div>
       <ul className="space-y-2 md:hidden" data-testid="releases-list">
         {items.map((c, i) => (
-          <li key={`${c.rank}-${i}`} className="rounded-[5px] border border-[var(--line)] bg-[var(--surface)] p-3">
+          <li key={`${c.rank}-${i}`} className={cn("rounded-[5px] border border-[var(--line)] bg-[var(--surface)] p-3", picked(c) && "border-[var(--accent)] bg-[var(--accent-soft)]")}>
             <div className="flex items-start justify-between gap-3">
               <span className="font-mono text-[12px] text-[var(--ink)] [overflow-wrap:anywhere]">
                 <span className="mr-1.5 text-muted-foreground">{c.rank}.</span>
@@ -120,7 +157,7 @@ export function ReleaseTable({ items, grab }: { items: Candidate[]; grab?: GrabT
               <Meta c={c} />
             </div>
             <Formats c={c} />
-            <div className="mt-1.5"><Rejections c={c} /></div>
+            <div className="mt-1.5 flex flex-col items-start gap-1"><Rejections c={c} /><Outcome o={outcomeOf(c, outcomes)} /></div>
             {grab ? <div className="mt-2"><GrabButton c={c} target={grab} /></div> : null}
           </li>
         ))}
@@ -140,6 +177,7 @@ export function Summary({ r }: { r: Releases }) {
         <span className="text-muted-foreground">· {r.results} results, {r.accepted} accepted</span>
       </div>
       {r.message ? <p className="text-xs text-[var(--ink-3)]" data-testid="releases-message">{r.message}</p> : null}
+      {r.grabbed ? <p className="text-sm font-medium text-[var(--ink)]" data-testid="releases-grabbed">{r.grabbed}</p> : null}
       {rej.length > 0 ? (
         <div className="flex flex-wrap gap-1.5">
           {rej.map(([k, n]) => (
@@ -155,7 +193,7 @@ export function Summary({ r }: { r: Releases }) {
 }
 
 /** The panel. Collapsed until opened (a closed panel loads nothing). */
-export function ShowReleases({ titleId, defaultOpen = false, initialVersion }: { titleId: number; defaultOpen?: boolean; initialVersion?: string }) {
+export function ShowReleases({ titleId, defaultOpen = false, initialVersion, focus }: { titleId: number; defaultOpen?: boolean; initialVersion?: string; focus?: string }) {
   const [open, setOpen] = useState(defaultOpen);
   return (
     <Card className="p-0" data-testid="show-releases">
@@ -170,12 +208,12 @@ export function ShowReleases({ titleId, defaultOpen = false, initialVersion }: {
         <span className="hidden text-xs text-muted-foreground sm:inline">what the decision engine sees, with scores and rejections</span>
         <ChevronDown className={cn("size-4 transition-transform", !open && "-rotate-90")} />
       </button>
-      {open ? <Panel titleId={titleId} initialVersion={initialVersion} /> : null}
+      {open ? <Panel titleId={titleId} initialVersion={initialVersion} focus={focus} /> : null}
     </Card>
   );
 }
 
-function Panel({ titleId, initialVersion }: { titleId: number; initialVersion?: string }) {
+function Panel({ titleId, initialVersion, focus }: { titleId: number; initialVersion?: string; focus?: string }) {
   const perms = usePerms();
   const [version, setVersion] = useState<string | undefined>(initialVersion);
   const [live, setLive] = useState(false);
@@ -184,6 +222,8 @@ function Panel({ titleId, initialVersion }: { titleId: number; initialVersion?: 
   const versions = r?.versions ?? [];
   const items = r?.candidates ?? [];
   const grab = useGrabTarget(r, titleId);
+  // The followed release is picked out in the library it was followed for only.
+  const shownFocus = focus && r?.version === initialVersion ? focus : undefined;
   return (
     <div className="space-y-4 border-t border-[var(--line)] p-4">
       <div className="flex flex-wrap items-center justify-between gap-3">
@@ -218,7 +258,10 @@ function Panel({ titleId, initialVersion }: { titleId: number; initialVersion?: 
       ) : r ? (
         <>
           <Summary r={r} />
-          {items.length === 0 ? <Empty>No releases to show for {r.version}.</Empty> : <ReleaseTable items={items} grab={grab} />}
+          {shownFocus && !items.some((c) => c.info_hash?.toLowerCase() === shownFocus.toLowerCase()) ? (
+            <p className="text-xs text-[var(--ink-3)]" data-testid="releases-focus-missing">The release you followed is not in this list: only the newest search's releases are kept here.</p>
+          ) : null}
+          {items.length === 0 ? <Empty>No releases to show for {r.version}.</Empty> : <ReleaseTable items={items} grab={grab} outcomes={r.outcomes} focus={shownFocus} />}
         </>
       ) : null}
     </div>

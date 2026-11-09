@@ -48,7 +48,7 @@ export function TitleReleasesPage() {
       />
       <div className="space-y-5">
         <TitleAddActions titleId={id} name={name} year={t.year} kind={t.kind === "series" ? "series" : "movie"} poster={t.poster} anime={t.anime} />
-        <ShowReleases titleId={id} defaultOpen initialVersion={params.get("version") ?? undefined} />
+        <ShowReleases titleId={id} defaultOpen initialVersion={params.get("version") ?? undefined} focus={params.get("hash") ?? undefined} />
       </div>
     </div>
   );

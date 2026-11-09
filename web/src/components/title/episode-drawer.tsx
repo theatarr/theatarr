@@ -74,7 +74,7 @@ function Releases({ titleId, eid, d }: { titleId: number; eid: number; d: Episod
       ) : r ? (
         <>
           <Summary r={r} />
-          {(r.candidates ?? []).length === 0 ? <Empty>No releases stored for this episode.</Empty> : <ReleaseTable items={r.candidates ?? []} grab={grab} />}
+          {(r.candidates ?? []).length === 0 ? <Empty>No releases stored for this episode.</Empty> : <ReleaseTable items={r.candidates ?? []} grab={grab} outcomes={r.outcomes} />}
         </>
       ) : null}
     </div>
@@ -222,7 +222,7 @@ function VersionPart({ titleId, eid, d, aired, manage, admin, single, acquisitio
         ) : null}
         <Disclosure title="History" count={history.length + journal.length} open={open.history} onToggle={() => flip("history")} testid="episode-history">
           <div className="space-y-3">
-            <History events={history} />
+            <History events={history} titleId={titleId} version={d.key} />
             {journal.length > 0 ? (
               <div data-testid="episode-journal">
                 <div className="mb-1.5 text-[11px] font-bold uppercase tracking-[0.05em] text-[var(--ink-3)]">Journal</div>

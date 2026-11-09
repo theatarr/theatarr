@@ -965,40 +965,36 @@ func (w *Web) episodeHistory(ctx context.Context, db *sql.DB, titleID, versionID
 				// Their source title is a path, not a release.
 				h.ReleaseTitle = ""
 			}
-			h.Event, h.Date, h.Score = ev, ts(at), nullInt(score)
+			h.Event, h.Date, h.Score, h.Trigger = ev, ts(at), nullInt(score), arrWords(h.Source)
 			out = append(out, h)
 			return nil
 		})
 	if err != nil {
 		return nil, err
 	}
+	origins, err := runOrigins(ctx, db, titleID)
+	if err != nil {
+		return nil, err
+	}
 	err = scanAll(ctx, db, `SELECT state, created_at, COALESCE(imported_at, updated_at), release_title, info_hash,
-		COALESCE(provider, ''), quality, score FROM download d WHERE d.version_id = ? AND EXISTS (SELECT 1 FROM
-		json_each(d.episodes) j WHERE j.value = ?)`, []any{versionID, eid}, func(r *sql.Rows) error {
-		var state string
-		var created, done, score int64
-		var h HistoryEvent
-		if err := r.Scan(&state, &created, &done, &h.ReleaseTitle, &h.InfoHash, &h.Source, &h.Quality, &score); err != nil {
-			return err
-		}
-		if h.Source == "" {
-			h.Source = "theatarr"
-		} else {
-			h.Source = "theatarr via " + h.Source
-		}
-		h.Score = &score
-		h.Event, h.Date = "grabbed", ts(created)
-		out = append(out, h)
-		switch state {
-		case "imported":
-			h.Event, h.Date = "imported", ts(done)
-			out = append(out, h)
-		case "failed":
-			h.Event, h.Date = "failed", ts(done)
-			out = append(out, h)
-		}
-		return nil
-	})
+		COALESCE(provider, ''), quality, score, source, COALESCE(error, '') FROM download d WHERE d.version_id = ?
+		AND EXISTS (SELECT 1 FROM json_each(d.episodes) j WHERE j.value = ?)`, []any{versionID, eid},
+		func(r *sql.Rows) error {
+			var state, source, errText string
+			var created, done, score int64
+			var h HistoryEvent
+			if err := r.Scan(&state, &created, &done, &h.ReleaseTitle, &h.InfoHash, &h.Source, &h.Quality, &score,
+				&source, &errText); err != nil {
+				return err
+			}
+			var run *runOrigin
+			if o, ok := origins[runIDOf(source)]; ok {
+				run = &o
+			}
+			h.Score = &score
+			out = downloadEvents(out, h, state, created, done, source, errText, run)
+			return nil
+		})
 	if err != nil {
 		return nil, err
 	}
@@ -1079,7 +1075,7 @@ func (w *Web) apiEpisodeReleases(rw http.ResponseWriter, r *http.Request) {
 				rankedInto(&out, sr, w.now())
 				w.keepLive(&out, sr)
 				out.Target = strings.ToLower(it.code())
-				writeJSON(rw, http.StatusOK, out)
+				w.writeReleases(ctx, rw, &out)
 				return
 			}
 			out.Message = "Live search failed: " + err.Error() + "; showing the last stored decision"
@@ -1090,7 +1086,7 @@ func (w *Web) apiEpisodeReleases(rw http.ResponseWriter, r *http.Request) {
 		w.internal(rw, err)
 		return
 	}
-	writeJSON(rw, http.StatusOK, out)
+	w.writeReleases(ctx, rw, &out)
 }
 
 // storedEpisodeReleases fills the answer from the newest stored decision that covered the episode.

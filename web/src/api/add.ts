@@ -16,6 +16,7 @@ export type AddedTitle = Schemas["AddedTitle"];
 export type SearchOutcome = Schemas["SearchOutcome"];
 export type Releases = Schemas["Releases"];
 export type Candidate = Schemas["JournalCandidate"];
+export type ReleaseOutcome = Schemas["ReleaseOutcome"];
 
 /** value, once it has stopped changing for ms. */
 export function useDebounced<T>(value: T, ms: number): T {
