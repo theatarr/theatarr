@@ -345,26 +345,43 @@ func TestAnimeCandidateBeforeImport(t *testing.T) {
 }
 
 // Known limit: a fallback pack whose files carry the name of another entry (the franchise's base title, al:1) while
-// the release names al:2. Review accepts al:2 before the import: the files name al:1, which places them inside the
-// download's episodes, so they import at S01E01-E02 (the file name outranks the stored identity) rather than being
-// held.
+// the release names al:2. The file name outranks the stored identity: review accepting al:2 before the import leaves
+// the files at al:1's S01E01-E02 (inside the download's episodes, so not held), and accepting it after the import
+// re-links nothing.
 func TestAnimeFallbackFilesNameOtherEntry(t *testing.T) {
 	t.Parallel()
-	e := newEnv(t, true, policy.ModeActive)
-	e.isekai()
-	e.exec(`UPDATE anime_mapping SET status = 'conflict' WHERE entry_key = 'al:2'`)
-	rel := "[Group] Isekai Story 2nd Season - 01-02 (1080p WEB-DL)"
-	e.release(rel, map[string]float64{"[Group] Isekai Story - 01 (1080p WEB-DL).mkv": 1440,
-		"[Group] Isekai Story - 02 (1080p WEB-DL).mkv": 1440})
-	e.videoSize(rel, 1920, 1080)
-	e.seriesDownload(1, 3, 30, hashA, rel, "[301,302]",
-		e.decidedMap(rel, `{"how":"franchise","entry":"al:2","fallback":true}`))
-	e.exec(`UPDATE anime_mapping SET status = 'override' WHERE entry_key = 'al:2'`)
-	plan, err := e.lib.Import(e.ctx, 1, false)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if got := e.links(plan); len(plan.Links) != 2 || !strings.Contains(got, "S01E01") || !strings.Contains(got, "S01E02") {
-		t.Fatalf("links\n%s\nunresolved %v", got, plan.Unresolved)
+	for _, before := range []bool{true, false} {
+		t.Run(map[bool]string{true: "before", false: "after"}[before], func(t *testing.T) {
+			e := newEnv(t, true, policy.ModeActive)
+			e.isekai()
+			e.exec(`UPDATE anime_mapping SET status = 'conflict' WHERE entry_key = 'al:2'`)
+			rel := "[Group] Isekai Story 2nd Season - 01-02 (1080p WEB-DL)"
+			e.release(rel, map[string]float64{"[Group] Isekai Story - 01 (1080p WEB-DL).mkv": 1440,
+				"[Group] Isekai Story - 02 (1080p WEB-DL).mkv": 1440})
+			e.videoSize(rel, 1920, 1080)
+			e.seriesDownload(1, 3, 30, hashA, rel, "[301,302]",
+				e.decidedMap(rel, `{"how":"franchise","entry":"al:2","fallback":true}`))
+			if before {
+				e.exec(`UPDATE anime_mapping SET status = 'override' WHERE entry_key = 'al:2'`)
+			}
+			plan, err := e.lib.Import(e.ctx, 1, false)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if got := e.links(plan); len(plan.Links) != 2 || !strings.Contains(got, "S01E01") || !strings.Contains(got, "S01E02") {
+				t.Fatalf("links\n%s\nunresolved %v", got, plan.Unresolved)
+			}
+			if !before {
+				e.exec(`UPDATE anime_mapping SET status = 'override' WHERE entry_key = 'al:2'`)
+				res, err := e.lib.RelinkAnime(e.ctx, 2002)
+				if err != nil || len(res.Moved)+len(res.Planned)+len(res.Occupied) != 0 {
+					t.Fatalf("relink %+v %v", res, err)
+				}
+			}
+			if got := e.one(`SELECT group_concat(episode_id, ' ') FROM (SELECT le.episode_id FROM link l
+				JOIN link_episode le ON le.link_id = l.id WHERE l.download_id = 1 AND l.state = 'active' ORDER BY 1)`); got != "301 302" {
+				t.Errorf("links hold %s", got)
+			}
+		})
 	}
 }
