@@ -26,29 +26,29 @@ workaround, it is here too.
 
 ## Sign-in
 
-- **OIDC, LDAP and two-factor sign-in.** Users sign in with a local password or with Plex. If you need single
-  sign-on, put Theatarr behind a reverse proxy that does it, and keep the local accounts for the arr-compatible API
-  keys.
+- **OIDC, LDAP and two-factor sign-in.** Users sign in with a local password or with Plex. A reverse proxy with its
+  own sign-in can sit in front of the web UI, but Theatarr still asks for its own login behind it, and the
+  arr-compatible views and API keys must stay reachable without the proxy's sign-in for Seerr and the arr apps.
 
 ## Notifications
 
 Theatarr sends notifications as webhooks: a generic JSON webhook (arr-shaped payloads, or Theatarr's own
 `theatarr.*` events) and a Discord format. There is no built-in email, Telegram, ntfy, Gotify or Pushover target.
 
-To reach one of those services, put [Apprise API](https://github.com/caronc/apprise-api) between Theatarr and the
-service:
+To reach one of those services, send the webhook to something that turns JSON into a message:
 
-1. Run Apprise API and give it a configuration with the services you want (email, Telegram, ntfy and so on).
-2. In Theatarr, add a target under **Settings › Notifications › Destinations** whose URL is that configuration's
-   notify address on Apprise API (leave the format empty for JSON; the `native` option adds Theatarr's own events),
-   and turn **Send notifications** on.
-3. Apprise API expects a message `body` (and an optional `title`), which Theatarr's JSON does not have. Apprise API
-   can rename fields of an incoming JSON body with query parameters that start with a colon; use them in the target
-   URL to map a field of the payload (for example the event type and the title name) to `title` and `body`. The
-   exact syntax is in the Apprise API documentation. Send a test event and check that the message arrives.
+- **A small relay** (n8n, Node-RED or a short script) that reads the JSON and posts a message to your service. This
+  works with any service and lets you choose the wording.
+- **[Apprise API](https://github.com/caronc/apprise-api)**, which forwards one message to many services (email,
+  Telegram, ntfy and so on). Apprise API expects a message `body` (and an optional `title`), which Theatarr's JSON
+  does not have. It can rename fields of an incoming JSON body with query parameters that start with a colon; use
+  them in the target URL to map fields of the payload to `title` and `body`. The exact syntax is in the Apprise API
+  documentation. This mapping has not been tested with Theatarr, so send a test event and check that the message
+  arrives.
 
-If you would rather not depend on that mapping, a small relay (n8n, Node-RED or a short script) that turns the JSON
-into a message works with any service.
+Either way, add a target under **Settings › Notifications › Destinations** with the relay's or Apprise API's
+address as its URL and the format left empty (JSON). A target needs something to send: list the arr views whose
+events it gets, or turn on the `native` option for Theatarr's own events. Then turn **Send notifications** on.
 
 ## Other gaps
 
