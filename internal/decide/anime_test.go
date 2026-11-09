@@ -125,8 +125,8 @@ func TestAnimeUnreviewedEntryUsesSonarrNumbering(t *testing.T) {
 // A release named after an entry whose mapping gives no placement (not importable, or the number is beyond its
 // range) imports through Sonarr's numbering, so the decision must place it where the import's file resolution does.
 // A fallback keeps the entry it named on the download's mapping, also when the entry's candidate range cannot hold
-// the number (review may pick another). It is never stale: the import reconciles it only when its files no longer
-// fit (library/resolve.go).
+// the number (review may pick another). It is never stale: the import reconciles it once its entry is importable
+// and places its files (library/resolve.go).
 func TestAnimeFallbackMatchesFileResolution(t *testing.T) {
 	t.Parallel()
 	e := seriesEngine(t)

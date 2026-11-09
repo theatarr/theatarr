@@ -80,8 +80,8 @@ type importDownload struct {
 	// EpisodeMap is the decision's own mapping of a series release (download.episode_map), nil for Sonarr's (unless
 	// the release named an entry whose mapping was not importable: Fallback).
 	EpisodeMap *decide.EpisodeMap
-	// rescoped are the download's episodes once its EpisodeMap is stale (rescope); a real import writes them to
-	// download.episodes. Nil when the scope was not changed.
+	// rescoped are the download's episodes once the mapping of its EpisodeMap's entry changed (rescope); a real
+	// import writes them to download.episodes. Nil when the scope was not changed.
 	rescoped []int64
 	// SourcePath is the path a path or manual import named on the mount (download.source_path), "" when the release
 	// is found by its hash and names.

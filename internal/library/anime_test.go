@@ -239,15 +239,17 @@ func (e *env) firstBuild(last int) {
 }
 
 // A download grabbed through Sonarr's numbering before the series had a franchise mapping waits while the first
-// build maps its file elsewhere: the import re-scopes it to the build's episode instead of holding it out of scope.
-// When the build agrees with Sonarr, the download keeps its episodes.
+// build runs. When the build agrees with Sonarr, the download imports at its episode. When the build maps its file
+// elsewhere, the download stored no entry to follow, so it is not re-scoped: the file is held as out of scope, with
+// the download ready and its episodes kept (a known limit, docs/design/anime.md).
 func TestAnimeFirstBuildBeforeImport(t *testing.T) {
 	t.Parallel()
 	for _, c := range []struct {
-		last          int
-		link, episode string
-	}{{2, "S02E02", "[314]"}, {1, "S02E01", "[313]"}} {
-		t.Run(c.link, func(t *testing.T) {
+		name string
+		last int
+		held bool
+	}{{"agrees", 1, false}, {"disagrees", 2, true}} {
+		t.Run(c.name, func(t *testing.T) {
 			e := newEnv(t, true, policy.ModeActive)
 			e.isekai()
 			e.exec(`DELETE FROM anime_mapping`)
@@ -261,18 +263,25 @@ func TestAnimeFirstBuildBeforeImport(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			if got := e.links(plan); len(plan.Links) != 1 || !strings.Contains(got, c.link) {
+			if c.held {
+				e.held(plan, 1, "[313]", "", "")
+				if why := plan.Unresolved[rel+".mkv"]; !strings.Contains(why, "maps to S02E02") {
+					t.Errorf("held as %q", why)
+				}
+				return
+			}
+			if got := e.links(plan); len(plan.Links) != 1 || !strings.Contains(got, "S02E01") {
 				t.Fatalf("links\n%s\nunresolved %v", got, plan.Unresolved)
 			}
-			if got := e.one(`SELECT state || ' ' || episodes FROM download WHERE id = 1`); got != "imported "+c.episode {
+			if got := e.one(`SELECT state || ' ' || episodes FROM download WHERE id = 1`); got != "imported [313]" {
 				t.Errorf("download %s", got)
 			}
 		})
 	}
 }
 
-// A file outside the download's episodes that the franchise does not place (an explicit SxxEyy) does not re-scope a
-// download grabbed through Sonarr's numbering: the files in scope import, the other is held as before.
+// A file outside the download's episodes (an explicit SxxEyy) does not re-scope a download grabbed through Sonarr's
+// numbering when the first build runs before its import: the files in scope import, the other is held as before.
 func TestAnimeRescopeIgnoresExplicitFile(t *testing.T) {
 	t.Parallel()
 	e := newEnv(t, true, policy.ModeActive)

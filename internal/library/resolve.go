@@ -2,7 +2,10 @@ package library
 
 import (
 	"context"
+	"database/sql"
+	"encoding/json"
 	"fmt"
+	"maps"
 	"slices"
 	"strings"
 
@@ -23,34 +26,32 @@ import (
 // episodes before the other files: an automatic mapping of another file of the download never takes them first.
 //
 // The resolver's episodes must be the download's (the episodes it was grabbed for; every episode for a pack the
-// router did not narrow down). A manual or recorded choice may name any episode of the title. When the franchise
-// mappings changed between the grab and the import, the download's episodes are reconciled first (rescope).
+// router did not narrow down). A manual or recorded choice may name any episode of the title. When the mapping of the
+// franchise entry the download stored changed between the grab and the import, the download's episodes are
+// reconciled first (rescope). Any other change of the franchise mappings leaves them alone: a file that now maps
+// outside them is held (out of scope), with nothing moved.
 
-// rescope reconciles the download's episodes with a franchise mapping that changed since the grab, in two cases:
+// rescope reconciles the download's episodes with the mapping of the franchise entry it stored (EpisodeMap), in two
+// cases:
 //   - the entry it was grabbed through is no longer importable (decide.EpisodeMap.Stale): its files now map through
-//     Sonarr's numbering;
-//   - it was grabbed through Sonarr's numbering (no stored mapping, or a fallback) and a file now maps through the
-//     franchise outside its episodes (review accepted the entry, or the series' first build placed it), while the
-//     decision now maps the release through the franchise too (or places nothing). A download whose files still fit
-//     is left alone.
+//     Sonarr's numbering, so the episodes become the ones the decision now gives the stored release, else, for a
+//     release that places nothing (a pack named by the entry), the ones its files resolve to;
+//   - it was grabbed through Sonarr's numbering for an entry that was not importable (EpisodeMap.Fallback) and is
+//     now: each file the entry now places, whose Sonarr placement is among the download's episodes, swaps those for
+//     the entry's. Episodes no such file holds stay, and the release title is not decided again, so a pack the router
+//     narrowed is not widened and a file named for another entry moves nothing.
 //
-// The episodes become the ones the decision now gives the release title, else, for a release title that places
-// nothing (a pack named by the entry), the ones the release's files resolve to. When neither places anything the
-// episodes stay. The stored mapping is kept: a later accept re-links the imported files through it (animerelink.go).
-func (l *Library) rescope(ctx context.Context, d *importDownload, files []PlannedFile) error {
+// A file that cannot pass the import guards (a sample) moves nothing. A download with no stored entry is never
+// re-scoped. And when a new episode already has a file of the version (a link, a dead link or the arr's file) the
+// download is not re-scoped at all: its files are held as out of scope instead of replacing a file the grab did not
+// cover. The stored mapping is kept: a later accept re-links the imported files through it (animerelink.go).
+func (l *Library) rescope(ctx context.Context, d *importDownload, files []PlannedFile, guard func(PlannedFile, []episodeInfo) string) error {
 	v := &d.Version
 	m := d.EpisodeMap
-	if l.engine == nil || d.rescoped != nil || (m != nil && m.How != decide.AnimeMapFranchise) {
+	if l.engine == nil || d.rescoped != nil || m == nil || m.How != decide.AnimeMapFranchise || m.Entry == "" {
 		return nil
 	}
 	db := l.st.Reader()
-	if m == nil || m.Fallback {
-		var mapped bool
-		if err := db.QueryRowContext(ctx, `SELECT EXISTS (SELECT 1 FROM anime_mapping WHERE tvdb_series = ?)`,
-			v.Title.TvdbID).Scan(&mapped); err != nil || !mapped {
-			return err
-		}
-	}
 	t, err := decide.LoadTitle(ctx, db, v.Title.ID)
 	if err != nil {
 		return err
@@ -58,25 +59,56 @@ func (l *Library) rescope(ctx context.Context, d *importDownload, files []Planne
 	if err := decide.LoadSeriesVersion(ctx, db, &t, v.VersionID); err != nil {
 		return err
 	}
-	if t.AnimeMap == nil && (m == nil || m.Fallback) {
+	if m.Fallback {
+		importable := false
+		if t.AnimeMap != nil {
+			for _, en := range t.AnimeMap.Entries {
+				importable = importable || en.Key == m.Entry && en.Importable()
+			}
+		}
+		if !importable {
+			return nil
+		}
+	} else if !m.Stale(t.AnimeMap) {
 		return nil
+	}
+	all, err := loadEpisodes(ctx, db, v.Title.ID, nil)
+	if err != nil {
+		return err
+	}
+	byID := map[int64]episodeInfo{}
+	for _, e := range all {
+		byID[e.ID] = e
 	}
 	sv := ""
 	if v.Policy != nil {
 		sv = v.Policy.Sonarr
 	}
-	resolve := func(f PlannedFile) (decide.FileEpisodes, error) {
-		return decide.ResolveFile(&t, sv, decide.FileInput{Path: f.Rel, Release: d.ReleaseTitle, Folder: d.Name,
+	// placed is where a file that passes the import guards maps (nothing for one that does not).
+	placed := func(t *decide.Title, f PlannedFile, m *decide.EpisodeMap) (decide.FileEpisodes, bool) {
+		res, err := decide.ResolveFile(t, sv, decide.FileInput{Path: f.Rel, Release: d.ReleaseTitle, Folder: d.Name,
 			OtherVideoFiles: len(files) > 1, Mapping: m})
-	}
-	stale := m.Stale(t.AnimeMap)
-	if !stale && (m == nil || m.Fallback) {
-		// a file the franchise now places outside the download's episodes (files chosen or recorded keep theirs)
-		scope := map[int64]bool{}
-		for _, e := range v.Episodes {
-			scope[e.ID] = true
+		if err != nil || res.Refused != "" || len(res.EpisodeIDs) == 0 {
+			return res, false
 		}
-		stranded := false
+		var eps []episodeInfo
+		for _, id := range res.EpisodeIDs {
+			eps = append(eps, byID[id])
+		}
+		return res, guard(f, eps) == ""
+	}
+	scope := map[int64]bool{}
+	for _, e := range v.Episodes {
+		scope[e.ID] = true
+	}
+	next := map[int64]bool{}
+	if m.Fallback {
+		sonarr := t // the series without its franchise mappings: where Sonarr's numbering places a file
+		sonarr.AnimeMap = nil
+		var in []int64
+		for id := range scope {
+			next[id] = true
+		}
 		for _, f := range files {
 			if _, ok := d.Manual[f.Rel]; ok {
 				continue
@@ -84,57 +116,93 @@ func (l *Library) rescope(ctx context.Context, d *importDownload, files []Planne
 			if _, ok := d.Recorded[f.Rel]; ok {
 				continue
 			}
-			res, err := resolve(f)
-			if err != nil || res.Refused != "" || !franchisePlaced(res.How) {
+			res, ok := placed(&t, f, m)
+			if !ok || !strings.HasSuffix(res.How, "+"+decide.AnimeMapFranchise+":"+m.Entry) {
 				continue
 			}
-			for _, id := range res.EpisodeIDs {
-				stranded = stranded || !scope[id]
+			was, ok := placed(&sonarr, f, nil)
+			if !ok || slices.ContainsFunc(was.EpisodeIDs, func(id int64) bool { return !scope[id] }) {
+				continue
+			}
+			for _, id := range was.EpisodeIDs {
+				delete(next, id)
+			}
+			in = append(in, res.EpisodeIDs...)
+		}
+		for _, id := range in {
+			next[id] = true
+		}
+	} else {
+		rel, err := l.storedRelease(ctx, d)
+		if err != nil {
+			return err
+		}
+		dec, err := l.engine.Decide(ctx, decide.Release{Release: rel}, t,
+			decide.Version{ID: v.VersionID, Key: v.Key, Policy: v.Policy}, nil)
+		if err != nil {
+			return err
+		}
+		if dec != nil {
+			for _, id := range dec.EpisodeIDs {
+				next[id] = true
 			}
 		}
-		if !stranded {
-			return nil
+		if len(next) == 0 {
+			for _, f := range files {
+				if res, ok := placed(&t, f, m); ok {
+					for _, id := range res.EpisodeIDs {
+						next[id] = true
+					}
+				}
+			}
 		}
-	} else if !stale {
+	}
+	ids := slices.Sorted(maps.Keys(next))
+	if len(ids) == 0 || slices.Equal(ids, slices.Sorted(maps.Keys(scope))) {
 		return nil
 	}
-	dec, err := l.engine.Decide(ctx, decide.Release{Release: indexer.Release{Title: d.ReleaseTitle, InfoHash: d.InfoHash,
-		Indexer: d.Indexer}}, t, decide.Version{ID: v.VersionID, Key: v.Key, Policy: v.Policy}, nil)
+	existing, err := existingFiles(ctx, db, v.VersionID, v.Title.ID)
 	if err != nil {
 		return err
 	}
-	var ids []int64
-	if dec != nil {
-		if !stale && len(dec.EpisodeIDs) > 0 && (dec.AnimeMapping == "" || dec.AnimeMapping == decide.AnimeMapSonarr) {
-			return nil // Sonarr's numbering still places the release: its episodes stand
-		}
-		ids = append(ids, dec.EpisodeIDs...)
+	dead, err := deadFiles(ctx, db, v.VersionID, v.Title.ID)
+	if err != nil {
+		return err
 	}
-	if len(ids) == 0 {
-		for _, f := range files {
-			res, err := resolve(f)
-			if err == nil && res.Refused == "" {
-				ids = append(ids, res.EpisodeIDs...)
+	for _, old := range append(existing, dead...) {
+		for _, id := range old.Episodes {
+			if next[id] && !scope[id] {
+				l.log.Warn("library: franchise mapping changed since the grab, but a new episode already has a file: "+
+					"the download keeps its episodes", "download", d.ID, "entry", m.Entry, "episodes", ids, "file", old.Path)
+				return nil
 			}
 		}
-	}
-	ids = slices.Compact(slices.Sorted(slices.Values(ids)))
-	var cur []int64
-	for _, e := range v.Episodes {
-		cur = append(cur, e.ID)
-	}
-	slices.Sort(cur)
-	if len(ids) == 0 || slices.Equal(cur, ids) {
-		return nil
 	}
 	eps, err := loadEpisodes(ctx, db, v.Title.ID, ids)
 	if err != nil {
 		return err
 	}
 	l.log.Info("library: franchise mapping changed since the grab, episodes reconciled", "download", d.ID,
-		"stale", stale, "episodes", ids)
+		"entry", m.Entry, "fallback", m.Fallback, "episodes", ids)
 	v.Episodes, d.rescoped = eps, ids
 	return nil
+}
+
+// storedRelease is the release as the download stored it (release_data: its TVDB id, kind and extras, which a title
+// alone may not carry), for deciding it again.
+func (l *Library) storedRelease(ctx context.Context, d *importDownload) (indexer.Release, error) {
+	var rel indexer.Release
+	if d.ID != 0 {
+		var data sql.NullString
+		if err := l.st.Reader().QueryRowContext(ctx, `SELECT release_data FROM download WHERE id = ?`, d.ID).Scan(&data); err != nil {
+			return rel, err
+		}
+		if data.Valid {
+			_ = json.Unmarshal([]byte(data.String), &rel) // a row from before release_data: the title alone
+		}
+	}
+	rel.Title, rel.InfoHash, rel.Indexer = d.ReleaseTitle, d.InfoHash, d.Indexer
+	return rel, nil
 }
 
 // franchisePlaced says the resolver placed a file through the franchise (an entry or an alternate cut).

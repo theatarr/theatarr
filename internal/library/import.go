@@ -1112,7 +1112,24 @@ func linkPointsAt(path, target string) bool {
 
 func (l *Library) planSeries(ctx context.Context, d *importDownload, vn *VersionNaming, root string, resolution int, labels labelClaim, plan *Plan) error {
 	v := &d.Version
-	if err := l.rescope(ctx, d, plan.Files); err != nil {
+	guard := func(f *PlannedFile, eps []episodeInfo) string {
+		runtime, special := 0, false
+		for _, e := range eps {
+			r := e.Runtime
+			if r == 0 {
+				r = v.Title.Runtime
+			}
+			runtime += r
+			special = special || e.Season == 0
+		}
+		reason := sampleCheck(l.set.MinRuntimeRatio, l.set.Resolution, "series", runtime, special, f, resolution)
+		if reason == "" && !special { // a special in a pack is often a disc extra, in SD
+			reason = l.mislabel(d, labels, f)
+		}
+		return reason
+	}
+	// a file the guards refuse moves no episode (on a copy: the guards note their findings on the file)
+	if err := l.rescope(ctx, d, plan.Files, func(f PlannedFile, eps []episodeInfo) string { return guard(&f, eps) }); err != nil {
 		return err
 	}
 	stype := naming.SeriesType(v.Title.SeriesType)
@@ -1184,20 +1201,7 @@ func (l *Library) planSeries(ctx context.Context, d *importDownload, vn *Version
 			plan.Unmatched = append(plan.Unmatched, f.Rel)
 			continue
 		}
-		runtime, special := 0, false
-		for _, e := range eps {
-			r := e.Runtime
-			if r == 0 {
-				r = v.Title.Runtime
-			}
-			runtime += r
-			special = special || e.Season == 0
-		}
-		reason := sampleCheck(l.set.MinRuntimeRatio, l.set.Resolution, "series", runtime, special, f, resolution)
-		if reason == "" && !special { // a special in a pack is often a disc extra, in SD
-			reason = l.mislabel(d, labels, f)
-		}
-		if reason != "" {
+		if reason := guard(f, eps); reason != "" {
 			f.Reason = reason
 			for _, e := range eps {
 				f.Episodes = append(f.Episodes, episodeLabel(e))
