@@ -585,6 +585,51 @@ func TestImportZurgConfirmsRelease(t *testing.T) {
 // name, a cut or different title), so an automatic import looks the folder up by zurg's name for the hash first, with
 // its " {hash6}" form when another torrent shares the name. A listing without the hash, or no listing, leaves the
 // import waiting for the mount as before; a path import never reads the listing.
+// A torrent marked absent that is added and imported again is present: its claim on the bare folder of its original
+// name holds against another download of the same name, which waits for its own folder.
+func TestImportOriginalNameReaddedClaim(t *testing.T) {
+	t.Parallel()
+	const (
+		original = "Movie.Name.2001.2160p.UHD.BluRay.REMUX.HDR.HEVC.TrueHD.Atmos.7.1-GRP[TGx]"
+		release  = "Movie.Name.2001.2160p.UHD.BluRay.REMUX.HDR.HEVC.TrueHD.Atmos.7.1-GRP"
+	)
+	e := newEnv(t, true, policy.ModeActive)
+	second := filepath.Join(e.dir, "media", "movies-second")
+	if err := os.MkdirAll(second, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	v := *e.pol.Versions["movie-remux"]
+	v.Library = second
+	e.pol.Versions["movie-second"] = &v
+	e.pol.Library.Versions["movie-second"] = &policy.LibraryVersion{Roots: []string{second}}
+	e.lib.gate = NewGate(e.pol)
+	e.lib.w.gate = e.lib.gate
+	e.exec(`INSERT INTO version (id, title_id, policy_key, created_at, updated_at) VALUES (11, 1, 'movie-second', 0, 0)`)
+	e.exec(`INSERT INTO content (id, info_hash, name, mount_folder, state, first_seen_at, last_seen_at)
+		VALUES (7, ?, ?, ?, 'absent', 0, 0)`, hashB, original, original)
+	e.exec(`INSERT INTO content_provider (content_id, provider, torrent_id, folder_name, state, seen_at, absent_at)
+		VALUES (7, 'rd', 'B', ?, 'absent', 0, 0)`, original)
+	e.release(original, map[string]float64{"movie.mkv": 7000})
+
+	// B is added again and imported from its bare folder.
+	e.download(1, "movie-remux", 1, 10, release, strings.ToLower(release)+".mkv", "[]")
+	e.exec(`UPDATE download SET info_hash = ?, original_name = ? WHERE id = 1`, hashB, original)
+	if p, err := e.lib.Import(e.ctx, 1, false); err != nil || p.Waiting {
+		t.Fatalf("import B: %+v %v", p, err)
+	}
+	if s := e.one(`SELECT state || ' ' || mount_folder FROM content WHERE id = 7`); s != "present "+original {
+		t.Errorf("content %s", s)
+	}
+
+	// A declared the same name; with zurg's API off it waits for its own folder.
+	e.download(2, "movie-second", 1, 11, release, strings.ToLower(release)+".mkv", "[]")
+	e.exec(`UPDATE download SET original_name = ? WHERE id = 2`, original)
+	p, err := e.lib.Import(e.ctx, 2, false)
+	if err != nil || !p.Waiting {
+		t.Fatalf("import A: %+v %v", p, err)
+	}
+}
+
 func TestImportZurgNameForHash(t *testing.T) {
 	t.Parallel()
 	const (
