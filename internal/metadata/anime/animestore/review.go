@@ -49,7 +49,7 @@ var ErrNoCandidate = errors.New("animestore: no such candidate")
 
 // ResolveCandidate accepts candidate i (an index into the item's candidates) of an open conflict or heuristic item:
 // the entry's mapping becomes that candidate's range with status override, and a later build proposing the same
-// mapping takes it again instead of asking.
+// mapping takes it again instead of asking. Its series gets an anime_relink job, as for Resolve.
 func (s *Store) ResolveCandidate(ctx context.Context, id int64, i int, note string) error {
 	it, err := s.Item(ctx, id)
 	if err != nil {
@@ -80,7 +80,10 @@ func (s *Store) ResolveCandidate(ctx context.Context, id int64, i int, note stri
 			updated_at = ? WHERE franchise = ? AND entry_key = ?`, anime.StatusOverride, c.Source, c.SeriesID,
 			jsonText(sortedEps(c.Episodes)), fmt.Sprintf("%s candidate accepted in review #%d", c.Source, id), now,
 			it.Franchise, it.EntryKey)
-		return err
+		if err != nil {
+			return err
+		}
+		return s.queueRelink(ctx, tx, c.SeriesID)
 	})
 }
 

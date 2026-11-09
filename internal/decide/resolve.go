@@ -21,7 +21,8 @@ import (
 //   - The franchise seam runs first, as in the decision. The alternate cut is matched on the file's name, then on
 //     the release title; the decision's mapping (EpisodeMap, stored on the download) is the fallback when neither
 //     names an entry or a cut, so a file named only "01" inside an entry's batch still maps through that entry.
-//   - Held episodes are not filtered here; the library holds them (library/anime.go).
+//   - An entry whose mapping is not importable is skipped (Sonarr's numbering applies); library/animerelink.go runs
+//     this again for a series once review accepts its mapping.
 
 // EpisodeMap is how a decision mapped a series release when it was not Sonarr's own mapping: through a franchise
 // entry (How AnimeMapFranchise, Entry the entry key) or an alternate cut (How "alt_cut:<name>"). The router stores it

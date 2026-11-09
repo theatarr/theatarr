@@ -51,12 +51,20 @@ type reassignConflict struct {
 func (l *Library) ReassignEpisodes(ctx context.Context, linkID int64, episodeIDs []int64, replace bool) (*Reassigned, error) {
 	if l.runtime != nil {
 		pinned, target := l.runtime(ctx)
-		return target.reassignEpisodes(pinned, linkID, episodeIDs, replace)
+		return target.reassignEpisodes(pinned, linkID, episodeIDs, replace, nil)
 	}
-	return l.reassignEpisodes(ctx, linkID, episodeIDs, replace)
+	return l.reassignEpisodes(ctx, linkID, episodeIDs, replace, nil)
 }
 
-func (l *Library) reassignEpisodes(ctx context.Context, linkID int64, episodeIDs []int64, replace bool) (*Reassigned, error) {
+// reassignNote is how a change of episodes that is not an admin's is recorded (an anime re-link, animerelink.go): the
+// how kept on the download's file identity (instead of HowManual, which a re-import ranks as a choice by hand) and
+// the action's detail, recorded with the download so the journal relates it to the decision.
+type reassignNote struct {
+	how, detail string
+}
+
+func (l *Library) reassignEpisodes(ctx context.Context, linkID int64, episodeIDs []int64, replace bool,
+	note *reassignNote) (*Reassigned, error) {
 	refuse := func(format string, args ...any) error {
 		return &Refused{Reason: "reassign", Detail: fmt.Sprintf(format, args...)}
 	}
@@ -286,7 +294,7 @@ func (l *Library) reassignEpisodes(ctx context.Context, linkID int64, episodeIDs
 		moved = append(moved, c)
 	}
 	if err == nil {
-		err = l.reassignMove(ctx, &v, linkID, downloadID.Int64, rel, ids, oldIDs, fileState, conflicts, out)
+		err = l.reassignMove(ctx, &v, linkID, downloadID.Int64, rel, ids, oldIDs, fileState, conflicts, out, note)
 	}
 	if err != nil {
 		if len(moved) > 0 {
@@ -300,7 +308,11 @@ func (l *Library) reassignEpisodes(ctx context.Context, linkID int64, episodeIDs
 			l.log.Warn("library: plex scan not queued", "dir", filepath.Dir(c.path), "err", err)
 		}
 	}
-	l.log.Info("library: episodes changed by hand", "link", linkID, "version", v.Key, "from", episodeList(out.Previous),
+	what := "library: episodes changed by hand"
+	if note != nil {
+		what = "library: " + note.detail
+	}
+	l.log.Info(what, "link", linkID, "version", v.Key, "from", episodeList(out.Previous),
 		"to", strings.Join(out.Episodes, ","), "path", out.Path, "replaced", len(out.Replaced))
 	return out, nil
 }
@@ -310,10 +322,14 @@ func (l *Library) reassignEpisodes(ctx context.Context, linkID int64, episodeIDs
 // episodes out of the replaced files' recorded identities and writes the link's episodes, the episode states and
 // its recorded choice.
 func (l *Library) reassignMove(ctx context.Context, v *importVersion, linkID, downloadID int64, rel string, ids,
-	oldIDs []int64, fileState string, conflicts []*reassignConflict, out *Reassigned) error {
+	oldIDs []int64, fileState string, conflicts []*reassignConflict, out *Reassigned, note *reassignNote) error {
 	dropped := slices.DeleteFunc(slices.Clone(oldIDs), func(id int64) bool { return slices.Contains(ids, id) })
 	choice, _ := json.Marshal(ids)
 	detail := fmt.Sprintf("episodes changed by hand: %s -> %s", episodeList(out.Previous), strings.Join(out.Episodes, ", "))
+	how, actionDownload := HowManual, int64(0)
+	if note != nil {
+		detail, how, actionDownload = note.detail, note.how, downloadID
+	}
 	return l.renameLink(ctx, linkID, out.Path, func(tx *sql.Tx) error {
 		now := store.Millis(l.now())
 		for _, c := range conflicts {
@@ -381,11 +397,11 @@ func (l *Library) reassignMove(ctx context.Context, v *importVersion, linkID, do
 		if _, err := tx.ExecContext(ctx, `INSERT INTO download_file (download_id, rel, episodes, source, how, updated_at)
 			VALUES (?, ?, ?, 'import', ?, ?) ON CONFLICT (download_id, rel) DO UPDATE SET episodes = excluded.episodes,
 			how = CASE download_file.source WHEN 'manual' THEN download_file.how ELSE excluded.how END,
-			updated_at = excluded.updated_at`, downloadID, rel, string(choice), HowManual, now); err != nil {
+			updated_at = excluded.updated_at`, downloadID, rel, string(choice), how, now); err != nil {
 			return err
 		}
 		return l.record(ctx, tx, action{Kind: "link", Mode: "applied", Version: v.Key, LinkID: linkID, Path: out.Path,
-			Detail: detail})
+			DownloadID: actionDownload, Detail: detail})
 	})
 }
 

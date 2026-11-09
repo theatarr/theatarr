@@ -120,8 +120,31 @@ entry (step 2 or a SeaDex pack), is listed in the decision's `anime_fallback` wi
 **Library**: files resolve through the same rules (`decide.ResolveFile`); a decision's stored entry that is no longer
 importable at import time falls back to Sonarr's numbering too. Nothing is held (`TestAnimeUnreviewedImports`).
 
-**A mapping accepted later** changes `anime_mapping` only: nothing relinks a file that imported under Sonarr's
-numbering; it stays where it landed. Later decisions and imports (an upgrade, a new grab) use the accepted mapping.
+**Re-link after review** (`library/animerelink.go`). When review accepts a mapping (`animestore.Resolve` or
+`ResolveCandidate`, including a held refresh it applies), or a saved build turns an entry's mapping importable (it was
+`conflict` or `rejected`), an `anime_relink` job is queued in the same transaction, one per TVDB series (dedupe
+`anime_relink/tvdb:<id>`, run a minute later so accepts in a row join it). A reject queues nothing, and neither
+does a franchise's first build (no earlier mapping). The job re-runs the import's resolver (`decide.ResolveFile`
+with the current mappings, the download's release, folder and stored mapping) for every active link Theatarr made
+for the series, and moves a link only when the resolver places the file through the franchise (`+franchise:` or
+`+alt_cut:`) on other episodes than it holds. The `anime_fallback` markers are not read. Left alone: an arr's file,
+an adopted link (no download), a link several versions share, a file whose episodes a client or an admin chose
+(`download_file` `manual`), and a file the resolver places by its own season and episode (Sonarr's meaning stands).
+
+A move is the change-of-episodes move (`library/reassign.go`, docs/design/library.md "Change episodes"): the
+version's naming for the new episodes, the gated compare-and-swap rename, the link's episodes and the episode states,
+the download's recorded file identity (with the resolver's `how`, not `manual`), and the Plex scans of both folders.
+Nothing is replaced, so nothing goes to the trash. Each move is recorded in `library_action` (kind `link`, with the
+download, detail `relinked after review: S00E26 → S01E12`), which the journal lists as a link entry related to the
+download's decision. Writes need the gate: for a version it refuses (library off, a followed or shadow version) the
+job records the same action as `dry_run` (the reason appended) and changes nothing; a root that does not answer
+retries the job. A target episode that already has another file (Theatarr's link or the arr's) is skipped after a
+second pass (a shifted range frees its own targets in order); both files stay, and one error-inbox entry (source
+`log`, component `anime-relink`, one per link) names the two paths. Tests: `internal/library/animerelink_test.go`,
+`TestRelinkQueued`.
+
+Playlists need nothing: a sync reads the active link of each episode, so a re-linked file joins its playlist at the
+next sync.
 
 ### Review screen and API (`internal/web/anime.go`)
 

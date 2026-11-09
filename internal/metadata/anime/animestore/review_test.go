@@ -13,6 +13,7 @@ import (
 	"github.com/pressly/goose/v3/database"
 
 	"github.com/theatarr/theatarr/internal/metadata/anime"
+	"github.com/theatarr/theatarr/internal/metadata/anime/animemap"
 	"github.com/theatarr/theatarr/internal/metadata/anime/animestore"
 	"github.com/theatarr/theatarr/internal/store"
 )
@@ -142,4 +143,96 @@ func TestMigration18(t *testing.T) {
 			t.Error("down: choice column still there")
 		}
 	}
+}
+
+// An accept in review, or a build that turns a conflict importable, queues one anime_relink job for the mapping's
+// series; a reject, a first build and a rebuild that changes no status queue none.
+func TestRelinkQueued(t *testing.T) {
+	ctx := context.Background()
+	const entry = "al:146065" // a conflict in the mushoku fixture
+	setup := func(t *testing.T) (*store.Store, *animestore.Store, *animestore.Item, int) {
+		st := openStore(t)
+		s := &animestore.Store{DB: st}
+		if _, err := s.Save(ctx, build(t, "mushoku-tensei"), "cache", false); err != nil {
+			t.Fatal(err)
+		}
+		items, _ := s.Items(ctx, "open", "mushoku-tensei")
+		var it *animestore.Item
+		for i := range items {
+			if items[i].EntryKey == entry && items[i].Kind == "conflict" {
+				it = &items[i]
+			}
+		}
+		if it == nil {
+			t.Fatal("no conflict")
+		}
+		series := count(t, st, `SELECT tvdb_series FROM anime_mapping WHERE franchise = 'mushoku-tensei' AND entry_key = ?`, entry)
+		if n := count(t, st, `SELECT count(*) FROM job WHERE kind = ?`, animemap.RelinkJobKind); n != 0 || series == 0 {
+			t.Fatalf("first build queued %d relinks (series %d)", n, series)
+		}
+		return st, s, it, series
+	}
+	jobsFor := func(t *testing.T, st *store.Store, series int) int {
+		return count(t, st, `SELECT count(*) FROM job WHERE kind = ? AND dedupe_key = ?`, animemap.RelinkJobKind,
+			animemap.RelinkDedupeKey(series))
+	}
+	all := func(t *testing.T, st *store.Store) int {
+		return count(t, st, `SELECT count(*) FROM job WHERE kind = ?`, animemap.RelinkJobKind)
+	}
+
+	t.Run("reject", func(t *testing.T) {
+		st, s, it, _ := setup(t)
+		if err := s.Resolve(ctx, it.ID, false, ""); err != nil {
+			t.Fatal(err)
+		}
+		if _, err := s.Save(ctx, build(t, "mushoku-tensei"), "cache", false); err != nil {
+			t.Fatal(err)
+		}
+		if n := all(t, st); n != 0 {
+			t.Errorf("%d relinks", n)
+		}
+	})
+	t.Run("accept", func(t *testing.T) {
+		st, s, it, series := setup(t)
+		if err := s.Resolve(ctx, it.ID, true, ""); err != nil {
+			t.Fatal(err)
+		}
+		if _, err := s.Save(ctx, build(t, "mushoku-tensei"), "cache", false); err != nil {
+			t.Fatal(err)
+		}
+		if n, m := jobsFor(t, st, series), all(t, st); n != 1 || m != 1 {
+			t.Errorf("relinks %d of %d", n, m)
+		}
+	})
+	t.Run("accept a candidate", func(t *testing.T) {
+		st, s, it, _ := setup(t)
+		d, _ := it.MappingDetail()
+		pick := -1
+		for i, c := range d.Candidates {
+			if c.Dropped == "" && len(c.Episodes) > 0 && c.SeriesID != 0 {
+				pick = i
+			}
+		}
+		if err := s.ResolveCandidate(ctx, it.ID, pick, ""); err != nil {
+			t.Fatal(err)
+		}
+		if n := jobsFor(t, st, d.Candidates[pick].SeriesID); n != 1 {
+			t.Errorf("relinks %d", n)
+		}
+	})
+	t.Run("build turns it importable", func(t *testing.T) {
+		st, s, _, series := setup(t)
+		res := build(t, "mushoku-tensei")
+		for _, e := range res.Entries {
+			if e.Key == entry {
+				e.Mapping.Status = anime.StatusAuto
+			}
+		}
+		if saved, err := s.Save(ctx, res, "cache", false); err != nil || !saved.Applied {
+			t.Fatalf("save %+v %v", saved, err)
+		}
+		if n, m := jobsFor(t, st, series), all(t, st); n != 1 || m != 1 {
+			t.Errorf("relinks %d of %d", n, m)
+		}
+	})
 }

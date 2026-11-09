@@ -8,7 +8,8 @@ import (
 )
 
 // TestAnimeUnreviewedImports: an episode only a conflict mapping covers is not held; it imports through Sonarr's
-// numbering like the others, its review item stays, and accepting the mapping later leaves the link where it landed.
+// numbering like the others, its review item stays. Accepting the mapping later re-links only files the mapping
+// places elsewhere (TestAnimeRelinkAfterReview); this one's range agrees with Sonarr's S01E01, so nothing moves.
 func TestAnimeUnreviewedImports(t *testing.T) {
 	t.Parallel()
 	e := newEnv(t, true, policy.ModeActive)
@@ -49,9 +50,12 @@ func TestAnimeUnreviewedImports(t *testing.T) {
 	if got := e.one(`SELECT count(*) FROM library_import WHERE state = 'dry_run'`); got != "0" {
 		t.Errorf("%s dry-run imports", got)
 	}
-	// reviewed later: the link stays where it landed
+	// reviewed later: the mapping agrees with Sonarr's placement, so the re-link and the library run move nothing
 	before := tree(t, e.dir)
 	e.exec(`UPDATE anime_mapping SET status = 'override' WHERE entry_key = 'al:1'`)
+	if res, err := e.lib.RelinkAnime(e.ctx, 5); err != nil || len(res.Moved)+len(res.Planned)+len(res.Occupied) != 0 {
+		t.Fatalf("relink %+v %v", res, err)
+	}
 	if _, err := e.lib.Run(e.ctx); err != nil {
 		t.Fatal(err)
 	}

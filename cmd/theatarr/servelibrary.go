@@ -123,10 +123,15 @@ func (s *serveLibrary) RegisterJobs(w *jobs.Worker) {
 			ctx, current := s.forOperation(ctx)
 			return current.lib.HandleAdopt(ctx, j)
 		})
+		w.Handle(library.AnimeRelinkJobKind, func(ctx context.Context, j *jobs.Job) error {
+			ctx, current := s.forOperation(ctx)
+			return current.lib.HandleAnimeRelink(ctx, j)
+		})
 		return
 	}
 	s.lib.RegisterJobs(w, s.scan)
 	s.lib.RegisterAdoptJob(w)
+	s.lib.RegisterAnimeRelinkJob(w)
 }
 
 func (s *serveLibrary) forOperation(ctx context.Context) (context.Context, *serveLibrary) {

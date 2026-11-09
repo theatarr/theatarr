@@ -665,7 +665,8 @@ exists and is not the replaced link, or another active link's row there, is refu
 at the new name by an earlier unlink makes way, as for an import (`TestReassignReplaceStaleRowAtDestination`). Plex scans of the old and new folders are queued as for a rename.
 The action is recorded in `library_action` (kind `link`, detail `episodes changed by hand: S01E01 -> S01E03`)
 and the log; it has no journal entry (the journal's action names are fixed by 00039). Tests:
-`internal/library/reassign_test.go`.
+`internal/library/reassign_test.go`. The anime re-link after review moves links the same way (docs/design/anime.md):
+its rows keep the resolver's `how`, and its action carries the download (detail `relinked after review: ...`).
 
 Each link carries `how` in the plan (`manual`, `file`, `release`, `folder`, `special`, with `+franchise:<entry>` or
 `+alt_cut:<name>`; `number`, `absolute`). Lifecycle tests: `TestImportFranchiseNumbering`,

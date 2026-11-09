@@ -26,7 +26,9 @@ import (
 	"strings"
 	"time"
 
+	"github.com/theatarr/theatarr/internal/jobs"
 	"github.com/theatarr/theatarr/internal/metadata/anime"
+	"github.com/theatarr/theatarr/internal/metadata/anime/animemap"
 	"github.com/theatarr/theatarr/internal/store"
 )
 
@@ -344,6 +346,13 @@ func bool01(b bool) int {
 // apply replaces the franchise's rows with the build and syncs the review queue.
 func (s *Store) apply(ctx context.Context, tx *sql.Tx, res *anime.Result, body []byte, source string, now int64) (int, error) {
 	slug := res.Slug
+	// Entries whose mapping this build turns importable (it was a conflict or rejected) re-link their series' files
+	// (queueRelink). A first build has no earlier mapping and moves nothing.
+	prev, err := s.previous(ctx, tx, slug)
+	if err != nil {
+		return 0, err
+	}
+	var relink []int
 	if _, err := tx.ExecContext(ctx, `UPDATE anime_franchise SET result = ?, built_at = ?, source = ?, pending_result = NULL,
 		pending_source = '', pending_at = NULL, updated_at = ? WHERE slug = ?`, gz(body), now, source, now, slug); err != nil {
 		return 0, err
@@ -434,6 +443,12 @@ func (s *Store) apply(ctx context.Context, tx *sql.Tx, res *anime.Result, body [
 			series, jsonText(nonNil(m.eps)), reason, jsonText(nonNilCands(cands)), now); err != nil {
 			return 0, err
 		}
+		if p := prev[e.Key]; p != nil && !animemap.Importable(p.status) && animemap.Importable(m.status) {
+			relink = append(relink, m.series)
+		}
+	}
+	if err := s.queueRelink(ctx, tx, relink...); err != nil {
+		return 0, err
 	}
 	// open items this build no longer raises, and held refreshes, are superseded
 	rows, err := tx.QueryContext(ctx, `SELECT id, entry_key, kind FROM anime_review WHERE franchise = ? AND state = 'open'`, slug)
@@ -591,7 +606,9 @@ var ErrNotOpen = errors.New("animestore: review item is not open")
 
 // Resolve accepts or rejects an open item. Accepting a held refresh applies the pending build (and closes the
 // franchise's other held-refresh items); rejecting one drops the pending build. Accepting a conflict or heuristic
-// mapping makes it an override until the candidates change; rejecting it keeps the range out of imports.
+// mapping makes it an override until the candidates change and queues an anime_relink job for its series (files
+// imported through Sonarr's numbering move to the episodes the mapping gives them); rejecting it keeps the range out of
+// imports (its episodes keep Sonarr's numbering) and queues nothing.
 func (s *Store) Resolve(ctx context.Context, id int64, accept bool, note string) error {
 	now := store.Millis(s.now())
 	return s.DB.WriteTx(ctx, func(tx *sql.Tx) error {
@@ -642,10 +659,40 @@ func (s *Store) Resolve(ctx context.Context, id int64, accept bool, note string)
 		if accept {
 			status, reason = anime.StatusOverride, fmt.Sprintf("accepted in review #%d", id)
 		}
-		_, err := tx.ExecContext(ctx, `UPDATE anime_mapping SET status = ?, reason = ?, updated_at = ? WHERE franchise = ? AND entry_key = ?`,
-			status, reason, now, slug, key)
-		return err
+		if _, err := tx.ExecContext(ctx, `UPDATE anime_mapping SET status = ?, reason = ?, updated_at = ? WHERE franchise = ? AND entry_key = ?`,
+			status, reason, now, slug, key); err != nil {
+			return err
+		}
+		if !accept {
+			return nil
+		}
+		var series int
+		if err := tx.QueryRowContext(ctx, `SELECT COALESCE(tvdb_series, 0) FROM anime_mapping WHERE franchise = ? AND entry_key = ?`,
+			slug, key).Scan(&series); err != nil && !errors.Is(err, sql.ErrNoRows) {
+			return err
+		}
+		return s.queueRelink(ctx, tx, series)
 	})
+}
+
+// queueRelink queues an anime_relink job per TVDB series (one per series while queued or running), a minute out so
+// accepts in a row join it. The library re-runs the import's resolver for the series' links and moves those whose
+// episodes changed.
+func (s *Store) queueRelink(ctx context.Context, tx *sql.Tx, series ...int) error {
+	q := jobs.NewQueue(s.DB)
+	q.SetClock(s.now)
+	done := map[int]bool{}
+	for _, id := range series {
+		if id <= 0 || done[id] {
+			continue
+		}
+		done[id] = true
+		if _, _, err := q.EnqueueTx(ctx, tx, animemap.RelinkJobKind, animemap.RelinkPayload{TVDBID: id}, jobs.EnqueueOptions{
+			RunAt: s.now().Add(animemap.RelinkDelay), DedupeKey: animemap.RelinkDedupeKey(id), MaxAttempts: 3}); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 // Result loads a franchise's applied build.
