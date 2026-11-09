@@ -763,6 +763,51 @@ func TestImportZurgNameForHash(t *testing.T) {
 		imported(e, zname+" {"+hashA[:6]+"}")
 	})
 
+	t.Run("API off, an absent torrent's claim on the original name does not hold", func(t *testing.T) {
+		// Provider sync marked the other torrent off every provider: the bare folder is this one's now.
+		e, _, _ := setup(t, zname)
+		e.exec(`UPDATE download SET original_name = ? WHERE id = 1`, zname)
+		e.exec(`INSERT INTO content (id, info_hash, name, mount_folder, state, first_seen_at, last_seen_at)
+			VALUES (7, ?, ?, ?, 'absent', 0, 0)`, hashB, zname, zname)
+		if _, err := e.lib.Import(e.ctx, 1, false); err != nil {
+			t.Fatal(err)
+		}
+		imported(e, zname)
+	})
+
+	t.Run("hash not listed, zurg's entry outweighs another torrent's claim", func(t *testing.T) {
+		claimed := func(t *testing.T) (*env, *zurgServer) {
+			e, srv, _ := setup(t, zname)
+			srv.torrents = nil
+			e.exec(`UPDATE download SET original_name = ? WHERE id = 1`, zname)
+			e.exec(`INSERT INTO content (id, info_hash, name, mount_folder, state, first_seen_at, last_seen_at)
+				VALUES (7, ?, ?, ?, 'present', 0, 0)`, hashB, zname, zname)
+			return e, srv
+		}
+		// The entry names this torrent: imported.
+		e, srv := claimed(t)
+		e.withZurg(srv)
+		if _, err := e.lib.Import(e.ctx, 1, false); err != nil {
+			t.Fatal(err)
+		}
+		imported(e, zname)
+		// The entry is unavailable, or names another torrent: the claim stands and the download waits.
+		e, srv = claimed(t)
+		delete(srv.entries, davPath(zname, ""))
+		e.withZurg(srv)
+		if _, err := e.lib.Import(e.ctx, 1, false); err != nil {
+			t.Fatal(err)
+		}
+		waiting(e)
+		e, srv = claimed(t)
+		srv.entries[davPath(zname, "")] = ZurgEntry{Hash: hashB}
+		e.withZurg(srv)
+		if _, err := e.lib.Import(e.ctx, 1, false); err != nil {
+			t.Fatal(err)
+		}
+		waiting(e)
+	})
+
 	t.Run("API off, the original name's folder recorded for this torrent imports", func(t *testing.T) {
 		e, _, _ := setup(t, zname)
 		e.exec(`UPDATE download SET original_name = ? WHERE id = 1`, zname)

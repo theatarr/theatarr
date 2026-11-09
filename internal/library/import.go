@@ -388,6 +388,12 @@ func (l *Library) importDownload(ctx context.Context, d *importDownload, dryRun 
 			if err != nil {
 				return nil, errf(id, "%w", err)
 			}
+			if claimed && zurgCheck {
+				// zurg's entry for the folder may name this torrent: that outweighs the registry's record.
+				if e, err := l.zurg.Entry(ctx, n, ""); err == nil && e != nil && strings.EqualFold(e.Hash, d.InfoHash) {
+					claimed = false
+				}
+			}
 			if claimed {
 				skip = append(skip, n)
 			}

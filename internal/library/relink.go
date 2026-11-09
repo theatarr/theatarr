@@ -337,17 +337,18 @@ const identityQuery = `SELECT MIN(CASE WHEN c.mount_folder = ? THEN LOWER(c.info
 		UNION SELECT id FROM content WHERE name IN (?, ?, ?)
 		UNION SELECT content_id FROM content_provider WHERE folder_name IN (?, ?, ?))`
 
-// claimedByOther reports whether the registry records folder name n for a torrent other than hash, by any of
-// identityQuery's claims.
+// claimedByOther reports whether the registry records folder name n (by mount folder, content name or provider
+// folder name, as identityQuery) for a torrent other than hash that may still hold it: a torrent provider sync
+// knows is off every provider (absent, gone) has freed the name.
 func claimedByOther(ctx context.Context, db *sql.DB, hash, n string) (bool, error) {
-	var mountHash, nameHash sql.NullString
-	var mountCount, nameCount int
-	err := db.QueryRowContext(ctx, identityQuery, n, n, n, n, n+".mkv", n+".mp4", n, n+".mkv", n+".mp4").
-		Scan(&mountHash, &mountCount, &nameHash, &nameCount)
-	if err != nil {
-		return false, err
-	}
-	return nameCount > 1 || (nameCount == 1 && nameHash.String != strings.ToLower(hash)), nil
+	var count int
+	err := db.QueryRowContext(ctx, `SELECT COUNT(*) FROM content c
+		WHERE c.state NOT IN ('absent', 'gone') AND LOWER(c.info_hash) <> ?
+		AND c.id IN (SELECT id FROM content WHERE mount_folder = ?
+			UNION SELECT id FROM content WHERE name IN (?, ?, ?)
+			UNION SELECT content_id FROM content_provider WHERE folder_name IN (?, ?, ?))`,
+		strings.ToLower(hash), n, n, n+".mkv", n+".mp4", n, n+".mkv", n+".mp4").Scan(&count)
+	return count > 0, err
 }
 
 // identityFolders prefers hash-suffixed folders over bare names. A replacement bare name needs an unambiguous registry
