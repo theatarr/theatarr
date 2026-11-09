@@ -56,6 +56,9 @@ func (l *Library) ReassignEpisodes(ctx context.Context, linkID int64, episodeIDs
 	return l.reassignEpisodes(ctx, linkID, episodeIDs, replace, nil)
 }
 
+// refusedTaken is the reassign refusal for a new name that another file (on disk or another link) already has.
+const refusedTaken = "taken"
+
 // reassignNote is how a change of episodes that is not an admin's is recorded (an anime re-link, animerelink.go): the
 // how kept on the download's file identity (instead of HowManual, which a re-import ranks as a choice by hand) and
 // the action's detail, recorded with the download so the journal relates it to the decision.
@@ -234,7 +237,8 @@ func (l *Library) reassignEpisodes(ctx context.Context, linkID int64, episodeIDs
 	}
 	if out.Path != filepath.Clean(out.PreviousPath) {
 		if _, err := os.Lstat(out.Path); err == nil && !replaced(0, out.Path) {
-			return out, refuse("the new name already exists and is not a link being replaced: %s", out.Path)
+			return out, &Refused{Reason: refusedTaken, Detail: "the new name already exists and is not a link being replaced: " +
+				out.Path}
 		} else if err != nil && !errors.Is(err, os.ErrNotExist) {
 			return out, err
 		}
@@ -243,7 +247,7 @@ func (l *Library) reassignEpisodes(ctx context.Context, linkID int64, episodeIDs
 			return nil, err
 		}
 		if r != nil && r.state == "active" && !replaced(r.id, "") {
-			return out, refuse("the new name is another link's (%d): %s", r.id, out.Path)
+			return out, &Refused{Reason: refusedTaken, Detail: fmt.Sprintf("the new name is another link's (%d): %s", r.id, out.Path)}
 		}
 	}
 

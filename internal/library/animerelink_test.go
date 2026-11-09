@@ -2,7 +2,9 @@ package library
 
 import (
 	"context"
+	"fmt"
 	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 	"time"
@@ -197,6 +199,78 @@ func TestAnimeRelinkPlanOnly(t *testing.T) {
 			t.Error("the tree changed")
 		}
 	})
+}
+
+// A shifted range (E01-E03 to E02-E04) frees each target as the file ahead of it moves: passes repeat while a move
+// succeeds, so every file moves and nothing reaches the inbox.
+func TestAnimeRelinkShiftedRange(t *testing.T) {
+	t.Parallel()
+	e := newEnv(t, true, policy.ModeActive)
+	e.isekai()
+	e.exec(`UPDATE anime_mapping SET status = 'conflict', episodes = '[[1,2],[1,3],[1,4]]' WHERE entry_key = 'al:2'`)
+	rel := "[Group] Isekai Story 2nd Season (BD 1080p)"
+	files := map[string]float64{}
+	for n := 1; n <= 3; n++ {
+		files[fmt.Sprintf("[Group] Isekai Story 2nd Season - %02d (BD 1080p).mkv", n)] = 1440
+	}
+	e.release(rel, files)
+	e.videoSize(rel, 1920, 1080)
+	e.seriesDownload(1, 3, 30, hashA, rel, "[301,302,303]", nil)
+	if plan, err := e.lib.Import(e.ctx, 1, false); err != nil || len(plan.Links) != 3 {
+		t.Fatalf("import %+v %v", plan, err)
+	}
+	e.exec(`UPDATE anime_mapping SET status = 'override' WHERE entry_key = 'al:2'`)
+	inbox := e.inbox()
+	res, err := e.lib.RelinkAnime(e.ctx, 2002)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(res.Moved) != 3 || len(res.Occupied) != 0 || len(*inbox) != 0 {
+		t.Fatalf("relink %+v, inbox %+v", res, *inbox)
+	}
+	got := e.one(`SELECT group_concat(number, ',') FROM (SELECT e.number FROM link l JOIN link_episode le
+		ON le.link_id = l.id JOIN episode e ON e.id = le.episode_id WHERE l.state = 'active' ORDER BY e.number)`)
+	if got != "2,3,4" {
+		t.Errorf("episodes linked %s, want 2,3,4", got)
+	}
+}
+
+// A new name another file already has on disk (not in the database) is skipped like a held episode: that file and
+// the link stay, and the error inbox names both paths. The other file moves.
+func TestAnimeRelinkDestinationOnDisk(t *testing.T) {
+	t.Parallel()
+	e, before := relinkEnv(t)
+	e.exec(`UPDATE anime_mapping SET status = 'override' WHERE entry_key = 'al:2'`)
+	var old string
+	for _, p := range before {
+		if strings.Contains(p, "S01E01") {
+			old = p
+		}
+	}
+	dest := filepath.Join(e.shows, "Isekai Story (2021)", "Season 02", "Isekai Story - S02E01 - Episode Bluray-1080p.mkv")
+	if err := os.MkdirAll(filepath.Dir(dest), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(dest, []byte("user file"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	inbox := e.inbox()
+	res, err := e.lib.RelinkAnime(e.ctx, 2002)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if b, err := os.ReadFile(dest); err != nil || string(b) != "user file" {
+		t.Fatalf("the file at the new name changed: %q %v", b, err)
+	}
+	if _, err := os.Lstat(old); err != nil {
+		t.Fatalf("the link moved: %v", err)
+	}
+	if len(res.Moved) != 1 || len(res.Occupied) != 1 || res.Occupied[0] != old {
+		t.Fatalf("relink %+v", res)
+	}
+	if len(*inbox) != 1 || !strings.Contains((*inbox)[0].Message, old) || !strings.Contains((*inbox)[0].Message, dest) {
+		t.Errorf("inbox %+v", *inbox)
+	}
 }
 
 // A release named after an entry in conflict, whose files use another alias ("Isekai Monogatari - 01"), imports

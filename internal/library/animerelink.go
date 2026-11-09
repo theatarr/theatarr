@@ -26,8 +26,9 @@ import (
 // Left alone: links an arr owns or that were adopted from one (no download), links shared by several versions, files
 // whose episodes a client or an admin chose, and files the resolver does not place through the franchise (an explicit
 // S01E02 or special keeps Sonarr's meaning). A version the gate refuses (library off, a followed or shadow version)
-// gets a dry-run plan only. A target episode that already has another file is skipped, both files stay, and the error
-// inbox names the two paths.
+// gets a dry-run plan only. A target episode that already has another file (after every move that frees one: a
+// shifted range moves from its free end), or a new name another file already has on disk, is skipped, both files
+// stay, and the error inbox names the two paths.
 
 // AnimeRelinkJobKind is the job animestore queues (animemap.RelinkJobKind).
 const AnimeRelinkJobKind = animemap.RelinkJobKind
@@ -175,10 +176,14 @@ func (l *Library) relinkAnime(ctx context.Context, tvdbID int) (*AnimeRelinked, 
 		live = append(live, c)
 	}
 
-	// Moves in turn; one whose target is taken waits a second pass (a shifted range frees it), then is skipped.
+	// Moves in turn; one whose target episode another file holds waits for the next pass (a shifted range frees it),
+	// and passes repeat while one moves something. What still waits after that is skipped, as is a move whose new
+	// name another file already has (on disk or another link): both files stay.
 	occupied := map[int64][]string{}
-	for pass := 0; pass < 2 && len(live) > 0; pass++ {
+	var taken []*relinkCandidate
+	for len(live) > 0 {
 		var wait []*relinkCandidate
+		progress := false
 		for _, c := range live {
 			holders, err := l.episodeHolders(ctx, c)
 			if err != nil {
@@ -191,24 +196,37 @@ func (l *Library) relinkAnime(ctx context.Context, tvdbID int) (*AnimeRelinked, 
 			}
 			delete(occupied, c.linkID)
 			r, err := l.reassignEpisodes(ctx, c.linkID, c.to, false, &reassignNote{how: c.how, detail: c.detail})
+			var refused *Refused
 			switch {
 			case Unavailable(err):
 				return out, err
+			case errors.As(err, &refused) && refused.Reason == refusedTaken:
+				occupied[c.linkID] = []string{r.Path}
+				taken = append(taken, c)
+				continue
 			case errors.Is(err, ErrRefused) || errors.Is(err, ErrLinkChanged):
 				l.log.Warn("library: anime relink skipped", "link", c.linkID, "path", c.path, "err", err)
 				continue
 			case err != nil:
 				return out, err
 			}
+			progress = true
 			out.Moved = append(out.Moved, r.Path+": "+c.detail)
 		}
 		live = wait
+		if !progress {
+			break
+		}
 	}
-	for _, c := range live {
+	for _, c := range append(live, taken...) {
 		holders := occupied[c.linkID]
 		out.Occupied = append(out.Occupied, c.path)
-		msg := fmt.Sprintf("anime relink skipped (%s): %s stays, the target episode already has %s",
-			strings.TrimPrefix(c.detail, "relinked after review: "), c.path, strings.Join(holders, ", "))
+		what := "the target episode already has"
+		if slices.Contains(taken, c) {
+			what = "its new name is already taken by"
+		}
+		msg := fmt.Sprintf("anime relink skipped (%s): %s stays, %s %s",
+			strings.TrimPrefix(c.detail, "relinked after review: "), c.path, what, strings.Join(holders, ", "))
 		l.log.Warn("library: "+msg, "link", c.linkID)
 		l.reportInbox(errinbox.Event{Source: errinbox.SourceLog, Component: "anime-relink", Level: "error", Message: msg,
 			Key: "link:" + strconv.FormatInt(c.linkID, 10), Context: map[string]string{"version": c.version,
