@@ -103,13 +103,16 @@ created, and Admin › Reviews shows it; playlists leave such an entry out ("mis
    entry's own episode n is the n-th TVDB episode of its range outside season 0 (`franchise`). A franchise name or an
    alternate cut also makes the series match when Sonarr's own lookup does not (`MatchAlias`). An entry that cannot
    hold every number, or two entries that both can, leave it to Sonarr; so does an entry whose mapping is not
-   importable. For that entry the series is known, so Sonarr's episode resolution runs as it would for the series
-   (series-wide absolute numbers, scene and XEM mappings): "2nd Season - 02" of a rejected entry is absolute 2,
-   S01E02, and `UnknownEpisode` only where Sonarr cannot place it.
+   importable. Whenever the franchise gives such a release no placement, the series is known, so Sonarr's episode
+   resolution runs as it would for the series (series-wide absolute numbers, scene and XEM mappings), exactly as the
+   import's file resolution places it: "2nd Season - 02" of a rejected entry is absolute 2, S01E02; "2nd Season -
+   05" of a two-episode entry is S01E05, whatever the entry's status; `UnknownEpisode` only where Sonarr cannot place
+   it. An alternate cut's missing number stays `UnknownEpisode`.
 3. Otherwise Sonarr's mapping (`sonarr`).
 
 SeaDex season packs carry their AniList entry id. When the franchise maps that entry into only part of a TVDB
-season (one cour), the decision covers only those regular episodes, keeping the entry mapping for import. A pack
+season (one cour), the decision covers only those regular episodes, keeping the entry mapping for import (for an
+entry split into parts, `al:N#1..k`, the AniList entry `al:N` they share: files never map through one part). A pack
 for one cour cannot take the rest of the season's episode slots (`TestSeaDexEntryCoversOnlyItsCour`). An entry whose
 mapping (or a split part's) is not importable does not narrow the pack: Sonarr's numbering takes the season
 (`TestSeaDexUnreviewedEntryUsesSonarrNumbering`).
@@ -117,18 +120,25 @@ mapping (or a split part's) is not importable does not narrow the pack: Sonarr's
 Then every episode only non-importable ranges cover, and every episode of a release that named a non-importable
 entry (step 2 or a SeaDex pack), is listed in the decision's `anime_fallback` with the entry and its status
 (`TestAnimeFranchiseMapping`, `TestAnimeUnreviewedEntryUsesSonarrNumbering`). The decision JSON gains
-`anime_mapping`, `anime_entry`, `anime_fallback`. Nothing is rejected for it.
+`anime_mapping`, `anime_entry`, `anime_fallback`. Nothing is rejected for it. A release that named a non-importable
+entry (step 2) keeps that entry: `anime_entry` beside `anime_mapping: sonarr`, and on the download
+`episode_map {"how":"franchise","entry":…,"fallback":true}`, so an accept can move its episodes later
+(`TestAnimeFallbackMatchesFileResolution`).
 
 **Library**: files resolve through the same rules (`decide.ResolveFile`); a decision's stored entry that is no longer
-importable at import time falls back to Sonarr's numbering too. Nothing is held (`TestAnimeUnreviewedImports`). Such a
-download was grabbed for the entry's episodes, so the import first reconciles its episodes (`library/resolve.go`
-`rescope`) to the ones Sonarr's numbering gives the release title, or its files when Sonarr cannot parse the title (a
-pack named by the entry), and a real import writes them to `download.episodes`; `download.episode_map` stays, for a
-later re-link (`TestAnimeRejectedMappingImports`). This is the counterpart, before the import, of the re-link below.
+importable at import time falls back to Sonarr's numbering too, and a fallback's stored entry maps files named only
+"01" once it is importable. Nothing is held (`TestAnimeUnreviewedImports`). When the stored mapping is stale
+(`EpisodeMap.Stale`: a franchise entry, or one of its split parts, no longer importable; or a fallback whose entry
+review has accepted since), the download's episodes no longer match where its files resolve, so the import first
+reconciles them (`library/resolve.go` `rescope`) to the ones the decision now gives the release title, or its files
+when the title places nothing (a pack named by the entry), and a real import writes them to `download.episodes`;
+`download.episode_map` stays, for a later re-link (`TestAnimeRejectedMappingImports`, `TestAnimeAcceptBeforeImport`).
+A mapping still importable, and one stored without an entry key (a split-parts pack grabbed before the key was kept),
+is never re-scoped (`TestAnimeSplitPackScope`). This is the counterpart, before the import, of the re-link below.
 
 **Re-link after review** (`library/animerelink.go`). When review accepts a mapping (`animestore.Resolve` or
-`ResolveCandidate`, including a held refresh it applies), or a saved build turns an entry's mapping importable (it was
-`conflict` or `rejected`), an `anime_relink` job is queued in the same transaction, one per TVDB series (dedupe
+`ResolveCandidate`), or a saved build turns an entry's mapping importable (it was `conflict` or `rejected`), or review
+accepts a held refresh that moves an importable mapping, an `anime_relink` job is queued in the same transaction, one per TVDB series (dedupe
 `anime_relink/tvdb:<id>`, run a minute later so accepts in a row join it). A reject queues nothing, and neither
 does a franchise's first build (no earlier mapping). The job re-runs the import's resolver (`decide.ResolveFile`
 with the current mappings, the download's release, folder and stored mapping) for every active link Theatarr made
@@ -144,10 +154,16 @@ Nothing is replaced, so nothing goes to the trash. Each move is recorded in `lib
 download, detail `relinked after review: S00E26 → S01E12`), which the journal lists as a link entry related to the
 download's decision. Writes need the gate: for a version it refuses (library off, a followed or shadow version) the
 job records the same action as `dry_run` (the reason appended) and changes nothing; a root that does not answer
-retries the job. A target episode that already has another file (Theatarr's link or the arr's) is skipped after a
-second pass (a shifted range frees its own targets in order); both files stay, and one error-inbox entry (source
-`log`, component `anime-relink`, one per link) names the two paths. Tests: `internal/library/animerelink_test.go`,
-`TestRelinkQueued`.
+retries the job. Passes repeat while a move succeeds, so a shifted range (E01-E03 to E02-E04) frees its own targets
+in turn. A target episode that still has another file afterwards (Theatarr's link or the arr's; a swap), or a new name
+another file already has on disk, is skipped: both files stay, nothing is overwritten, and one error-inbox entry
+(source `log`, component `anime-relink`, one per link) names the two paths. Tests:
+`internal/library/animerelink_test.go`, `TestRelinkQueued`.
+
+Known limit: a file named by another alias (neither the entry's name nor a cut) moves only through the decision's
+stored entry. A download whose decision stored none (grabbed through Sonarr's numbering for a release that named no
+entry, or before fallbacks kept their entry) keeps Sonarr's placement; Change episodes moves it by hand. The resolver
+does not infer the entry from the release title, which would change the placement of every anime grab.
 
 Playlists need nothing: a sync reads the active link of each episode, so a re-linked file joins its playlist at the
 next sync.
@@ -236,8 +252,9 @@ discovery pass, one at a time:
    franchise is built instead, under its own slug (the series is covered by it when it is stored already).
 
 Before a new franchise is saved, the job checks ownership again (builds run one at a time, so the check holds until
-the save): a franchise built from the same seed meanwhile covers the series, and a slug a franchise of another seed
-took (stored, or reserved by the shipped list) fails the build.
+the save): a franchise built from the same seed meanwhile, or one that has the seed as an entry (applied, or in a
+build held for review: a seed queued beside another of its line), covers it and the job finishes without a
+franchise, and a slug a franchise of another seed took (stored, or reserved by the shipped list) fails the build.
 
 The outcome per title is kept in `anime_discovery` (`queued`, `built`, `covered`, `no_mapping`, `failed`, with the
 franchise and the error). A title is tried again after `refresh_interval` (an hour when its job was lost while
@@ -263,8 +280,8 @@ last build, its next refresh (built_at + interval while automatic builds are on 
 latest build job while it is queued or running (or its error when it failed) and a **Rebuild** button; the franchise
 page has the same. Below, **Anime series without a franchise** lists the discovery candidates with the last outcome,
 its detail and time, and a **Build** button, with a note when builds cannot run (the missing source) or
-`auto_build` is off (manual builds still work). The lists poll every 5 s while a job is queued or running, else every
-30 s while the page is open (so builds the loop starts show up); when a build job a list showed ends, the franchises,
+`auto_build` is off (manual builds still work). The lists and the franchise page poll every 5 s while a job is queued
+or running, else every 30 s while the page is open (so builds the loop starts show up); when a build job a list showed ends, the franchises,
 the franchise page, the review items and the uncovered list are all fetched again.
 
 - `POST /anime/franchises/{slug}/build`: queue a rebuild; 202 `{"job_id", "slug"}` (the same job while it is queued).
