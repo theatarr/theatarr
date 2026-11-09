@@ -145,8 +145,9 @@ func TestMigration18(t *testing.T) {
 	}
 }
 
-// An accept in review, or a build that turns a conflict importable, queues one anime_relink job for the mapping's
-// series; a reject, a first build and a rebuild that changes no status queue none.
+// An accept in review, a build that turns a conflict importable, or an accepted held refresh that moves an importable
+// mapping, queues one anime_relink job for the mapping's series; a reject, a first build and a rebuild that changes no
+// status queue none.
 func TestRelinkQueued(t *testing.T) {
 	ctx := context.Background()
 	const entry = "al:146065" // a conflict in the mushoku fixture
@@ -230,6 +231,56 @@ func TestRelinkQueued(t *testing.T) {
 		}
 		if saved, err := s.Save(ctx, res, "cache", false); err != nil || !saved.Applied {
 			t.Fatalf("save %+v %v", saved, err)
+		}
+		if n, m := jobsFor(t, st, series), all(t, st); n != 1 || m != 1 {
+			t.Errorf("relinks %d of %d", n, m)
+		}
+	})
+	t.Run("accepted held refresh moves an importable mapping", func(t *testing.T) {
+		st := openStore(t)
+		s := &animestore.Store{DB: st}
+		if _, err := s.Save(ctx, build(t, "re-zero"), "cache", false); err != nil {
+			t.Fatal(err)
+		}
+		const key, series = "al:21355", 305089
+		if got := count(t, st, `SELECT count(*) FROM anime_mapping WHERE franchise = 're-zero' AND entry_key = ?
+			AND status IN ('auto', 'override', 'heuristic')`, key); got != 1 {
+			t.Fatalf("%s is not importable", key)
+		}
+		w := st.Writer()
+		mustExec(t, w, `INSERT INTO title (id, kind, name, tvdb_id, created_at, updated_at) VALUES (1, 'series', 'Re:Zero', ?, 0, 0)`, series)
+		mustExec(t, w, `INSERT INTO episode (id, title_id, season, number, created_at, updated_at) VALUES (1, 1, 1, 1, 0, 0)`)
+		mustExec(t, w, `INSERT INTO link (id, path, target, title_id, created_at, updated_at) VALUES (1, '/l/a.mkv', '/m/a.mkv', 1, 0, 0)`)
+		mustExec(t, w, `INSERT INTO link_episode (link_id, episode_id) VALUES (1, 1)`)
+		moved := build(t, "re-zero")
+		for _, e := range moved.Entries {
+			if e.Key == key {
+				for i := range e.TVDB.Episodes {
+					e.TVDB.Episodes[i][1]++
+				}
+			}
+		}
+		if saved, err := s.Save(ctx, moved, "live", false); err != nil || saved.Applied {
+			t.Fatalf("not held: %+v %v", saved, err)
+		}
+		if n := all(t, st); n != 0 {
+			t.Fatalf("a held refresh queued %d relinks", n)
+		}
+		items, err := s.Items(ctx, "open", "re-zero")
+		if err != nil {
+			t.Fatal(err)
+		}
+		var id int64
+		for _, it := range items {
+			if it.Kind == "refresh_moves_linked" && it.EntryKey == key {
+				id = it.ID
+			}
+		}
+		if id == 0 {
+			t.Fatalf("no refresh_moves_linked item: %+v", items)
+		}
+		if err := s.Resolve(ctx, id, true, ""); err != nil {
+			t.Fatal(err)
 		}
 		if n, m := jobsFor(t, st, series), all(t, st); n != 1 || m != 1 {
 			t.Errorf("relinks %d of %d", n, m)

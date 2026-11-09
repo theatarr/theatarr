@@ -304,7 +304,7 @@ func (s *Store) Save(ctx context.Context, res *anime.Result, source string, forc
 				return nil
 			}
 		}
-		n, err := s.apply(ctx, tx, res, body, source, now)
+		n, err := s.apply(ctx, tx, res, body, source, now, false)
 		out.Applied, out.NewReview = true, n
 		return err
 	})
@@ -343,11 +343,14 @@ func bool01(b bool) int {
 	return 0
 }
 
-// apply replaces the franchise's rows with the build and syncs the review queue.
-func (s *Store) apply(ctx context.Context, tx *sql.Tx, res *anime.Result, body []byte, source string, now int64) (int, error) {
+// apply replaces the franchise's rows with the build and syncs the review queue. held is a held refresh that review
+// accepted.
+func (s *Store) apply(ctx context.Context, tx *sql.Tx, res *anime.Result, body []byte, source string, now int64,
+	held bool) (int, error) {
 	slug := res.Slug
 	// Entries whose mapping this build turns importable (it was a conflict or rejected) re-link their series' files
-	// (queueRelink). A first build has no earlier mapping and moves nothing.
+	// (queueRelink), and so do importable mappings an accepted held refresh moves (a refresh that moves linked
+	// mappings is held for review). A first build has no earlier mapping and moves nothing.
 	prev, err := s.previous(ctx, tx, slug)
 	if err != nil {
 		return 0, err
@@ -443,7 +446,8 @@ func (s *Store) apply(ctx context.Context, tx *sql.Tx, res *anime.Result, body [
 			series, jsonText(nonNil(m.eps)), reason, jsonText(nonNilCands(cands)), now); err != nil {
 			return 0, err
 		}
-		if p := prev[e.Key]; p != nil && !animemap.Importable(p.status) && animemap.Importable(m.status) {
+		if p := prev[e.Key]; p != nil && animemap.Importable(m.status) && (!animemap.Importable(p.status) ||
+			held && (p.series != m.series || jsonText(sortedEps(p.eps)) != jsonText(sortedEps(m.eps)))) {
 			relink = append(relink, m.series)
 		}
 	}
@@ -605,7 +609,8 @@ func (s *Store) Items(ctx context.Context, state, franchise string) ([]Item, err
 var ErrNotOpen = errors.New("animestore: review item is not open")
 
 // Resolve accepts or rejects an open item. Accepting a held refresh applies the pending build (and closes the
-// franchise's other held-refresh items); rejecting one drops the pending build. Accepting a conflict or heuristic
+// franchise's other held-refresh items), queuing an anime_relink job for each series whose importable mappings it
+// moves; rejecting one drops the pending build. Accepting a conflict or heuristic
 // mapping makes it an override until the candidates change and queues an anime_relink job for its series (files
 // imported through Sonarr's numbering move to the episodes the mapping gives them); rejecting it keeps the range out of
 // imports (its episodes keep Sonarr's numbering) and queues nothing.
@@ -648,7 +653,7 @@ func (s *Store) Resolve(ctx context.Context, id int64, accept bool, note string)
 			}
 			var source string
 			_ = tx.QueryRowContext(ctx, `SELECT pending_source FROM anime_franchise WHERE slug = ?`, slug).Scan(&source)
-			_, err = s.apply(ctx, tx, &res, body, source, now)
+			_, err = s.apply(ctx, tx, &res, body, source, now, true)
 			return err
 		}
 		if _, err := tx.ExecContext(ctx, `UPDATE anime_review SET state = ?, note = ?, resolved_at = ? WHERE id = ?`,
