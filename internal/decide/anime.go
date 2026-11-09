@@ -16,12 +16,16 @@ import (
 //  2. A franchise entry whose name is the release's series title (Sonarr's clean title), with absolute numbers: the
 //     entry's own episode n is the n-th TVDB episode of its range (outside season 0). An entry that cannot hold every
 //     number, or two entries that both can, leave it to Sonarr.
-//  3. Otherwise Sonarr's mapping (absolute, scene, season and episode) as before.
+//  3. Otherwise Sonarr's mapping (absolute, scene, season and episode) as before. A release only a franchise name
+//     matched (Sonarr alone would not know the series) gets Sonarr's resolution for the known series, as its import
+//     would: series-wide absolute numbers, scene and XEM mappings.
 //
 // A franchise mapping that is not importable (conflict, or rejected in review) is never used: a release that names
 // such an entry (step 2, or a SeaDex pack's entry) maps through Sonarr instead, and so does an episode that only such
 // ranges cover. Nothing is held; the decision lists those episodes (AnimeFallback) with the entry and its status,
 // and the review item waits in Admin › Reviews. The best-scoring candidate of a conflict is never imported under.
+// The entry a release names (step 2) stays on the decision (AnimeEntry, and EpisodeMap.Fallback on the download), so
+// an accept before the import re-scopes the download and one after it re-links the files through the entry.
 
 // Mapping sources in Decision.AnimeMapping.
 const (
@@ -133,6 +137,7 @@ func (s *series) applyAnimeMap(d *Decision, p *sonarr.ParsedEpisodeInfo, rel Rel
 	if err != nil {
 		return nil, err
 	}
+	named := skipped // the entry the release title names, whose mapping is not importable
 	// SeaDex calls each AniList entry a season pack. A TVDB season may contain several cours; its synthetic
 	// Sxx title cannot claim episodes outside the entry's mapping.
 	if rel.Kind == "seadex" && p.FullSeason {
@@ -152,10 +157,13 @@ func (s *series) applyAnimeMap(d *Decision, p *sonarr.ParsedEpisodeInfo, rel Rel
 		d.AnimeMapping, d.AnimeEntry = how, entry
 	} else {
 		d.AnimeMapping = AnimeMapSonarr
-		if skipped != nil && r.matchType == MatchAlias {
-			// Sonarr's numbering for a release only the entry's name matched: the series is known, so Sonarr's
-			// episode resolution runs as an import of the series would (series-wide absolute numbers, scene and XEM
-			// mappings).
+		if named != nil {
+			d.AnimeEntry = named.Key // recognised, not used: a later accept re-scopes or re-links through it
+		}
+		if r.matchType == MatchAlias && (skipped != nil || len(r.episodes) == 0) {
+			// Sonarr's numbering for a release only a franchise name matched, when the franchise gives no placement
+			// (its entry is not importable or cannot hold the numbers): the series is known, so Sonarr's episode
+			// resolution runs as an import of the series would (series-wide absolute numbers, scene and XEM mappings).
 			known, err := s.mapKnown(p, search)
 			if err != nil {
 				return nil, err
@@ -195,6 +203,9 @@ func (s *series) seadexCour(id string, season int, am *animemap.Series) (eps []*
 		}
 	}
 	key = en.Key
+	if key == "" {
+		key = prefix // a union of split parts: the AniList entry they share
+	}
 	seen := map[int64]bool{}
 	for _, se := range en.Regular() {
 		if se[0] != season {

@@ -198,3 +198,30 @@ func TestAnimeRelinkPlanOnly(t *testing.T) {
 		}
 	})
 }
+
+// A release named after an entry in conflict, whose files use another alias ("Isekai Monogatari - 01"), imports
+// through Sonarr's numbering; the decision keeps the entry it named (a fallback mapping), so accepting the mapping
+// re-links the files through it.
+func TestAnimeRelinkFallbackMapping(t *testing.T) {
+	t.Parallel()
+	e := newEnv(t, true, policy.ModeActive)
+	e.isekai()
+	e.exec(`UPDATE anime_mapping SET status = 'conflict' WHERE entry_key = 'al:2'`)
+	rel := "[Group] Isekai Story 2nd Season - 01-02 (BD 1080p)"
+	e.release(rel, map[string]float64{"[Group] Isekai Monogatari - 01 (BD 1080p).mkv": 1440,
+		"[Group] Isekai Monogatari - 02 (BD 1080p).mkv": 1440})
+	e.videoSize(rel, 1920, 1080)
+	e.seriesDownload(1, 3, 30, hashA, rel, "[301,302]", e.decidedMap(rel, `{"how":"franchise","entry":"al:2","fallback":true}`))
+	plan, err := e.lib.Import(e.ctx, 1, false)
+	if err != nil || len(plan.Links) != 2 || strings.Contains(e.links(plan), "S02E") {
+		t.Fatalf("import links\n%s\nunresolved %v err %v", e.links(plan), plan.Unresolved, err)
+	}
+	e.exec(`UPDATE anime_mapping SET status = 'override' WHERE entry_key = 'al:2'`)
+	res, err := e.lib.RelinkAnime(e.ctx, 2002)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(res.Moved) != 2 || len(res.Planned)+len(res.Occupied) != 0 || !strings.Contains(strings.Join(res.Moved, "\n"), "S01E01 → S02E01") {
+		t.Fatalf("relink %+v", res)
+	}
+}

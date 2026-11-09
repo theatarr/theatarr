@@ -25,13 +25,14 @@ import (
 // The resolver's episodes must be the download's (the episodes it was grabbed for; every episode for a pack the
 // router did not narrow down). A manual or recorded choice may name any episode of the title. A download grabbed
 // through a franchise entry whose mapping is no longer importable (rejected or in conflict since the grab) maps its
-// files through Sonarr's numbering, so its episodes are reconciled first (rescope).
+// files through Sonarr's numbering, and one grabbed through Sonarr's numbering for an entry whose mapping review has
+// accepted since (EpisodeMap.Fallback) maps them through the entry, so its episodes are reconciled first (rescope).
 
-// rescope reconciles the download's episodes when the franchise mapping it was grabbed under is abandoned: they
-// become the episodes Sonarr's numbering gives the release title (the decision's, which now skips the entry), else,
-// for a release title Sonarr cannot place (a pack named by the entry), the episodes it gives the release's files.
-// When neither places anything the episodes stay. The stored mapping is kept: a later accept re-links the imported
-// files through it (animerelink.go).
+// rescope reconciles the download's episodes when its stored mapping is stale (decide.EpisodeMap.Stale): they become
+// the episodes the decision now gives the release title (Sonarr's numbering once the entry is skipped, the entry's
+// once it is accepted), else, for a release title that places nothing (a pack named by the entry), the episodes the
+// release's files resolve to. When neither places anything the episodes stay. The stored mapping is kept: a later
+// accept re-links the imported files through it (animerelink.go).
 func (l *Library) rescope(ctx context.Context, d *importDownload, files []PlannedFile) error {
 	v := &d.Version
 	if d.EpisodeMap == nil || l.engine == nil || d.rescoped != nil {
@@ -45,7 +46,7 @@ func (l *Library) rescope(ctx context.Context, d *importDownload, files []Planne
 	if err := decide.LoadSeriesVersion(ctx, db, &t, v.VersionID); err != nil {
 		return err
 	}
-	if !d.EpisodeMap.Abandoned(t.AnimeMap) {
+	if !d.EpisodeMap.Stale(t.AnimeMap) {
 		return nil
 	}
 	dec, err := l.engine.Decide(ctx, decide.Release{Release: indexer.Release{Title: d.ReleaseTitle, InfoHash: d.InfoHash,
@@ -83,8 +84,8 @@ func (l *Library) rescope(ctx context.Context, d *importDownload, files []Planne
 	if err != nil {
 		return err
 	}
-	l.log.Info("library: franchise mapping no longer importable, episodes through Sonarr's numbering", "download", d.ID,
-		"entry", d.EpisodeMap.Entry, "episodes", ids)
+	l.log.Info("library: franchise mapping changed since the grab, episodes reconciled", "download", d.ID,
+		"entry", d.EpisodeMap.Entry, "fallback", d.EpisodeMap.Fallback, "episodes", ids)
 	v.Episodes, d.rescoped = eps, ids
 	return nil
 }

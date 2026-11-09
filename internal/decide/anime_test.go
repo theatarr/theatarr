@@ -2,6 +2,7 @@ package decide
 
 import (
 	"context"
+	"strconv"
 	"strings"
 	"testing"
 
@@ -39,18 +40,21 @@ func TestAnimeFranchiseMapping(t *testing.T) {
 		how, entry        string
 		fallback          string
 	}{
-		{"entry name, conflict range", "[Group] Isekai Story 2nd Season - 02 (1080p)", "conflict", true, "", "S01E02", "sonarr", "", "S01E02 al:2 conflict"},
+		{"entry name, conflict range", "[Group] Isekai Story 2nd Season - 02 (1080p)", "conflict", true, "", "S01E02", "sonarr", "al:2", "S01E02 al:2 conflict"},
 		{"entry name, reviewed", "[Group] Isekai Story 2nd Season - 02 (1080p)", "override", true, "", "S02E02", "franchise", "al:2", ""},
 		{"entry name, heuristic", "[Group] Isekai Story 2nd Season - 01 (1080p)", "heuristic", true, "", "S02E01", "franchise", "al:2", ""},
-		{"entry name, rejected", "[Group] Isekai Story 2nd Season - 01 (1080p)", "rejected", true, "", "S01E01", "sonarr", "", "S01E01 al:2 rejected"},
+		{"entry name, rejected", "[Group] Isekai Story 2nd Season - 01 (1080p)", "rejected", true, "", "S01E01", "sonarr", "al:2", "S01E01 al:2 rejected"},
 		{"sonarr absolute into a conflict", "[SubsPlease] Isekai Story - 13 (1080p) [ABCD1234].mkv", "conflict", true, "", "S02E01", "sonarr", "", "S02E01 al:2 conflict"},
 		{"entry's own numbering", "[Group] Isekai Story - 01-03 (BD 1080p)", "conflict", true, "", "S01E01,S01E02,S01E03", "franchise", "al:1", ""},
 		{"batch partly in a conflict", "[Group] Isekai Story - 12-13 (BD 1080p)", "conflict", true, "", "S01E12,S02E01", "sonarr", "", "S02E01 al:2 conflict"},
 		{"season pack in a conflict", "[Group] Isekai Story S02 (BD 1080p)", "conflict", true, "", "S02E01,S02E02", "sonarr", "", "S02E01 al:2 conflict,S02E02 al:2 conflict"},
 		{"season pack in a rejected range", "[Group] Isekai Story S02 (BD 1080p)", "rejected", true, "", "S02E01,S02E02", "sonarr", "", "S02E01 al:2 rejected,S02E02 al:2 rejected"},
 		{"alternate cut", "[Group] Isekai Story Directors Cut - 01 (BD 1080p)", "auto", true, "", "S01E01,S01E02", "alt_cut:Director's Cut", "kitsu:9", ""},
-		{"alternate cut, unmapped number", "[Group] Isekai Story Directors Cut - 07 (BD 1080p)", "auto", false, "UnknownEpisode", "", "alt_cut:Director's Cut", "", ""},
-		{"beyond the entry", "[Group] Isekai Story 2nd Season - 05 (1080p)", "auto", false, "UnknownEpisode", "", "", "", ""},
+		{"alternate cut, unmapped number", "[Group] Isekai Story Directors Cut - 07 (BD 1080p)", "auto", false, "UnknownEpisode", "", "alt_cut:Director's Cut", "kitsu:9", ""},
+		// An entry that cannot hold the number leaves it to Sonarr, which places the known series' absolute 5.
+		{"beyond the entry", "[Group] Isekai Story 2nd Season - 05 (1080p)", "auto", true, "", "S01E05", "sonarr", "", ""},
+		{"beyond a conflicted entry", "[Group] Isekai Story 2nd Season - 05 (1080p)", "conflict", true, "", "S01E05", "sonarr", "", ""},
+		{"beyond a rejected entry", "[Group] Isekai Story 2nd Season - 05 (1080p)", "rejected", true, "", "S01E05", "sonarr", "", ""},
 	}
 	for _, c := range cases {
 		d, err := e.Decide(ctx, rel(c.release, "public", 2*gb), animeMapped(c.s2), v, nil)
@@ -64,7 +68,7 @@ func TestAnimeFranchiseMapping(t *testing.T) {
 		if got := strings.Join(d.Episodes, ","); got != c.episodes {
 			t.Errorf("%s: episodes %s, want %s", c.name, got, c.episodes)
 		}
-		if c.how != "" && d.AnimeMapping != c.how || c.entry != "" && d.AnimeEntry != c.entry {
+		if c.how != "" && d.AnimeMapping != c.how || d.AnimeEntry != c.entry {
 			t.Errorf("%s: mapped by %q %q, want %q %q", c.name, d.AnimeMapping, d.AnimeEntry, c.how, c.entry)
 		}
 		var fb []string
@@ -116,4 +120,65 @@ func TestAnimeUnreviewedEntryUsesSonarrNumbering(t *testing.T) {
 				d.Episodes, d.AnimeMapping, fb)
 		}
 	}
+}
+
+// A release named after an entry whose mapping gives no placement (not importable, or the number is beyond its
+// range) imports through Sonarr's numbering, so the decision must place it where the import's file resolution does.
+// A fallback keeps the entry it named on the download's mapping: stale (re-scoped) once review accepts the entry.
+func TestAnimeFallbackMatchesFileResolution(t *testing.T) {
+	t.Parallel()
+	e := seriesEngine(t)
+	ctx := context.Background()
+	v := tvVersion(e, "anime-tv")
+	for _, c := range []struct {
+		status, release, episodes string
+		fallback                  bool // the release named the entry and its mapping is not importable
+	}{
+		{"conflict", "[Group] Isekai Story 2nd Season - 05 (1080p)", "S01E05", false},
+		{"rejected", "[Group] Isekai Story 2nd Season - 05 (1080p)", "S01E05", false},
+		{"conflict", "[Group] Isekai Story 2nd Season - 01-02 (BD 1080p)", "S01E01,S01E02", true},
+		{"rejected", "[Group] Isekai Story 2nd Season - 02 (1080p)", "S01E02", true},
+	} {
+		ti := animeMapped(c.status)
+		d, err := e.Decide(ctx, rel(c.release, "public", 2*gb), ti, v, nil)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if !d.Accepted || strings.Join(d.Episodes, ",") != c.episodes {
+			t.Errorf("%s %s: accepted %v %v, episodes %v, want %s", c.status, c.release, d.Accepted, d.Rejections,
+				d.Episodes, c.episodes)
+		}
+		file, err := ResolveFile(&ti, "", FileInput{Path: c.release + ".mkv", Release: c.release})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if strings.Join(int64s(file.EpisodeIDs), ",") != strings.Join(int64s(d.EpisodeIDs), ",") {
+			t.Errorf("%s %s: decision %v, file resolution %v", c.status, c.release, d.EpisodeIDs, file.EpisodeIDs)
+		}
+		m := d.EpisodeMapping()
+		if !c.fallback {
+			if m != nil {
+				t.Errorf("%s %s: mapping %+v for a release no entry holds", c.status, c.release, m)
+			}
+			continue
+		}
+		if m == nil || *m != (EpisodeMap{How: AnimeMapFranchise, Entry: "al:2", Fallback: true}) {
+			t.Errorf("%s %s: mapping %+v, want the named entry as a fallback", c.status, c.release, m)
+			continue
+		}
+		if m.Stale(ti.AnimeMap) {
+			t.Errorf("%s: a fallback is stale while its entry is not importable", c.status)
+		}
+		if !m.Stale(animeMapped("override").AnimeMap) {
+			t.Errorf("%s: a fallback is not stale once review accepts its entry", c.status)
+		}
+	}
+}
+
+func int64s(ids []int64) []string {
+	var out []string
+	for _, id := range ids {
+		out = append(out, strconv.FormatInt(id, 10))
+	}
+	return out
 }

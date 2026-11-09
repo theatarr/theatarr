@@ -36,9 +36,19 @@ func TestSplitEntrySeasonPack(t *testing.T) {
 	if len(d.EpisodeIDs) != 3 {
 		t.Fatalf("split AniList entry (al:9#1..#3) season pack lost its episodes: %v", d.EpisodeIDs)
 	}
-	if d.AnimeEntry != "" {
-		t.Fatalf("split union has a single entry key: %q", d.AnimeEntry)
+	// The union keeps the AniList entry the parts share (so the import can tell whether a part's mapping is still
+	// importable), never one part's key (files must not map ordinally through one part).
+	if d.AnimeEntry != "al:9" {
+		t.Fatalf("split union entry key %q, want the shared al:9", d.AnimeEntry)
 	}
+	if m := d.EpisodeMapping(); m == nil || m.Stale(ti.AnimeMap) {
+		t.Fatalf("an importable split union's mapping is stale: %+v", m)
+	}
+	parts[2].Status = "conflict"
+	if m := d.EpisodeMapping(); !m.Stale(animemap.New(2002, parts, nil)) {
+		t.Fatal("a split union with a part in conflict is not stale")
+	}
+	parts[2].Status = first.Status
 	parts[1].Episodes = parts[0].Episodes
 	ti.AnimeMap = animemap.New(2002, parts, nil)
 	d, err = e.Decide(context.Background(), r, ti, tvVersion(e, "anime-tv"), nil)

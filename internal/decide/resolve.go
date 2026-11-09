@@ -22,40 +22,57 @@ import (
 //     the release title; the decision's mapping (EpisodeMap, stored on the download) is the fallback when neither
 //     names an entry or a cut, so a file named only "01" inside an entry's batch still maps through that entry.
 //   - An entry whose mapping is not importable is skipped (Sonarr's numbering applies); library/animerelink.go runs
-//     this again for a series once review accepts its mapping.
+//     this again for a series once review accepts its mapping. A fallback decision's mapping (EpisodeMap.Fallback)
+//     names the entry its release named, so files named only "01" follow the entry once it is accepted.
 
 // EpisodeMap is how a decision mapped a series release when it was not Sonarr's own mapping: through a franchise
-// entry (How AnimeMapFranchise, Entry the entry key) or an alternate cut (How "alt_cut:<name>"). The router stores it
-// on the download (download.episode_map), and the import maps the release's files the same way.
+// entry (How AnimeMapFranchise, Entry the entry key; for a SeaDex pack of split parts, the AniList entry "al:<id>"
+// they share) or an alternate cut (How "alt_cut:<name>"). Fallback marks a release that named the entry while its
+// mapping was not importable: its episodes are Sonarr's. The router stores it on the download (download.episode_map),
+// and the import maps the release's files the same way.
 type EpisodeMap struct {
-	How   string `json:"how"`
-	Entry string `json:"entry,omitempty"`
+	How      string `json:"how"`
+	Entry    string `json:"entry,omitempty"`
+	Fallback bool   `json:"fallback,omitempty"`
 }
 
-// EpisodeMapping is the decision's EpisodeMap, nil for Sonarr's mapping (or a movie).
+// EpisodeMapping is the decision's EpisodeMap, nil for Sonarr's mapping (or a movie) unless the release named a
+// franchise entry whose mapping was not importable (Fallback).
 func (d *Decision) EpisodeMapping() *EpisodeMap {
-	if d == nil || d.AnimeMapping == "" || d.AnimeMapping == AnimeMapSonarr {
+	if d == nil || d.AnimeMapping == "" {
 		return nil
+	}
+	if d.AnimeMapping == AnimeMapSonarr {
+		if d.AnimeEntry == "" {
+			return nil
+		}
+		return &EpisodeMap{How: AnimeMapFranchise, Entry: d.AnimeEntry, Fallback: true}
 	}
 	return &EpisodeMap{How: d.AnimeMapping, Entry: d.AnimeEntry}
 }
 
-// Abandoned says the mapping names a franchise entry whose mapping is no longer importable (rejected or in conflict
-// since the grab, or gone): the release's files map through Sonarr's numbering (fileFranchise), so the episodes the
-// download was grabbed for are the entry's, not the ones its files now import as.
-func (m *EpisodeMap) Abandoned(am *animemap.Series) bool {
-	if m == nil || m.How != AnimeMapFranchise {
+// Stale says the episodes the download was grabbed for no longer follow its entry's mapping, so the import
+// reconciles them: a franchise mapping whose entry is no longer importable (rejected or in conflict since the grab,
+// or gone), whose files now map through Sonarr's numbering (fileFranchise); or a fallback whose entry's mapping has
+// become importable, whose files now map through the entry. A mapping with no entry key (a split-parts pack stored
+// before the key was kept) is never stale.
+func (m *EpisodeMap) Stale(am *animemap.Series) bool {
+	if m == nil || m.How != AnimeMapFranchise || m.Entry == "" {
 		return false
 	}
-	if am == nil {
-		return true
-	}
-	for _, en := range am.Entries {
-		if en.Key == m.Entry {
-			return !en.Importable()
+	found, importable := false, true
+	if am != nil {
+		for _, en := range am.Entries {
+			base, _, _ := strings.Cut(en.Key, "#")
+			if en.Key == m.Entry || (!strings.Contains(m.Entry, "#") && base == m.Entry) {
+				found, importable = true, importable && en.Importable()
+			}
 		}
 	}
-	return true
+	if m.Fallback {
+		return found && importable
+	}
+	return !found || !importable
 }
 
 // FileInput is one video file of a series release, as the import sees it.
@@ -229,7 +246,7 @@ func (s *series) fileFranchise(p *sonarr.ParsedEpisodeInfo, in FileInput, am *an
 			continue
 		}
 		if !en.Importable() {
-			return nil, "", false, nil // no longer importable since the grab: Sonarr's numbering (Abandoned)
+			return nil, "", false, nil // not importable (since the grab, or a fallback's): Sonarr's numbering (Stale)
 		}
 		reg := en.Regular()
 		for _, x := range nums {
