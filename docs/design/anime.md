@@ -138,9 +138,9 @@ reconciles them (`library/resolve.go` `rescope`), in two cases:
   the franchise (an entry or a cut) outside its episodes, while the decision on the release title now maps through
   the franchise too, or places nothing: review accepted the fallback's entry or another candidate for it
   (`TestAnimeAcceptBeforeImport`, `TestAnimeCandidateBeforeImport`), or the series' first build placed the file
-  elsewhere (`TestAnimeFirstBuildBeforeImport`). A file the franchise does not place (an explicit SxxEyy), one a client
-  or an admin chose, or a decision still placed by Sonarr's numbering leaves the episodes alone
-  (`TestAnimeRescopeIgnoresExplicitFile`), and a series with no franchise mapping is never checked.
+  elsewhere (`TestAnimeFirstBuildBeforeImport`). A file the franchise does not place (an explicit SxxEyy:
+  `TestAnimeRescopeIgnoresExplicitFile`), one a client or an admin chose, or a decision still placed by Sonarr's
+  numbering leaves the episodes alone, and a series with no franchise mapping is never checked.
 
 The episodes become the ones the decision now gives the release title, or its files' when the title places nothing (a
 pack named by the entry), and a real import writes them to `download.episodes`; `download.episode_map` stays, for a
@@ -186,6 +186,10 @@ file name would place files by the release title.
 Known limit: a split-parts pack (`al:N#1..k` stored as `al:N`) stays current while any part or the unsplit entry is
 importable. A refresh that replaces the parts with one unsplit entry mapping other episodes before the import leaves
 the files held as out of scope (visible on the download, files intact); Change episodes or a re-grab places them.
+
+Known limit: a download grabbed through a franchise entry that stays importable is not re-scoped when the entry's
+range moves before the import (a refresh or another candidate): files outside its episodes are held as out of scope,
+files intact; Change episodes places them.
 
 Playlists need nothing: a sync reads the active link of each episode, so a re-linked file joins its playlist at the
 next sync.
