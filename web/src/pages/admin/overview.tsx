@@ -228,7 +228,7 @@ export function Overview() {
           <Stat testid="health-status" value={<span className="flex items-center gap-2">{r.status === "ready" ? <CheckCircle2 className="size-5 text-[var(--ok)]" /> : <AlertTriangle className="size-5 text-[var(--bad)]" />}{r.status ?? "unknown"}</span>} label="readiness (/readyz)" />
           <Stat value={egress?.mode === "off" ? "Off" : egress?.mode === "monitor-only" ? "Monitor-only" : vpn === undefined ? "—" : vpn ? "Up" : "Down"} tone={vpnOptional ? "warn" : vpn === false ? "bad" : vpn ? "ok" : undefined} label="VPN egress" />
           <Stat testid="health-checks" value={hc.data?.status ?? "—"} tone={healthStatTone(hc.data?.status)} label="health checks" />
-          <Stat value={`${st.data?.schema?.current ?? "—"} / ${st.data?.schema?.target ?? "—"}`} tone={schemaOK ? undefined : "warn"} label="schema library" />
+          <Stat value={`${st.data?.schema?.current ?? "—"} / ${st.data?.schema?.target ?? "—"}`} tone={schemaOK ? undefined : "warn"} label="schema version" />
           <Stat value={<Mono className="block truncate text-lg">{(st.data?.version ?? "—").split(" ")[0]}</Mono>} label={`${PRODUCT_NAME} version`} />
         </StatGrid>
         {r.error ? <div className="mt-4"><ErrorState error={r.error} /></div> : null}

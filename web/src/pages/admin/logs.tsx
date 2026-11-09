@@ -1,4 +1,5 @@
-// Admin › Advanced › Logs: recent log lines from the service's in-memory ring (GET /logs), newest first, polled every 5 s.
+// Admin › System › Logs: recent log lines from the service's in-memory ring (GET /logs), newest first, polled every 5 s,
+// and the rotated log files to download (GET /logs/files).
 import { useState } from "react";
 import { API_BASE } from "@/api/client";
 import { useLogFiles, useLogLevel, useLogs, useSetLogLevel } from "@/api/hooks";
