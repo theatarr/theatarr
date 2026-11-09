@@ -263,7 +263,9 @@ last build, its next refresh (built_at + interval while automatic builds are on 
 latest build job while it is queued or running (or its error when it failed) and a **Rebuild** button; the franchise
 page has the same. Below, **Anime series without a franchise** lists the discovery candidates with the last outcome,
 its detail and time, and a **Build** button, with a note when builds cannot run (the missing source) or
-`auto_build` is off (manual builds still work). The lists poll every 5 s while a job is queued or running.
+`auto_build` is off (manual builds still work). The lists poll every 5 s while a job is queued or running, else every
+30 s while the page is open (so builds the loop starts show up); when a build job a list showed ends, the franchises,
+the franchise page, the review items and the uncovered list are all fetched again.
 
 - `POST /anime/franchises/{slug}/build`: queue a rebuild; 202 `{"job_id", "slug"}` (the same job while it is queued).
 - `POST /anime/build`: `{"tvdb_id": n}` queues a discovery for an anime series (404 when it is not one);

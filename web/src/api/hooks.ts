@@ -1,5 +1,6 @@
 // Query hooks, one per API read, typed from the generated schema (openapi.json).
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useEffect, useRef } from "react";
 import { api, qs } from "./client";
 import { qk } from "./query-keys";
 import type { paths } from "./schema";
@@ -101,27 +102,54 @@ export const useShadowDiff = (id: string) =>
   useQuery({ queryKey: qk.shadow.diff(id), queryFn: () => api<ShadowDiff>(`/shadow/diffs/${encodeURIComponent(id)}`) });
 
 // A build job still to run or running: the anime lists poll until it ends.
+type BuildJob = { id: number; state?: string } | null | undefined;
 const buildActive = (j?: { state?: string } | null) => j?.state === "queued" || j?.state === "running";
 const POLL_MS = 5000;
+// While the page is open the lists refetch at this pace too, so builds the loop starts on its own show up.
+const LIST_MS = 30_000;
 
-export const useFranchises = () =>
-  useQuery({
+// useBuildEnd refetches every anime query (franchises, a franchise, review items, uncovered series) once a build
+// job the list showed queued or running is no longer: a finished build changes them together.
+function useBuildEnd(jobs: BuildJob[]) {
+  const qc = useQueryClient();
+  const seen = useRef<string[]>([]);
+  const key = jobs
+    .flatMap((j) => (j && buildActive(j) ? [String(j.id)] : []))
+    .sort()
+    .join(",");
+  useEffect(() => {
+    const now = key ? key.split(",") : [];
+    const ended = seen.current.some((id) => !now.includes(id));
+    seen.current = now;
+    if (ended) void qc.invalidateQueries({ queryKey: qk.anime.all });
+  }, [key, qc]);
+}
+
+export const useFranchises = () => {
+  const q = useQuery({
     queryKey: qk.anime.franchises,
     queryFn: () => api<Franchises>("/anime/franchises"),
-    refetchInterval: (q) => ((q.state.data?.items ?? []).some((f) => buildActive(f.job)) ? POLL_MS : false),
+    refetchInterval: (q) => ((q.state.data?.items ?? []).some((f) => buildActive(f.job)) ? POLL_MS : LIST_MS),
   });
+  useBuildEnd((q.data?.items ?? []).map((f) => f.job));
+  return q;
+};
 
-export const useFranchise = (slug: string) =>
-  useQuery({
+export const useFranchise = (slug: string) => {
+  const q = useQuery({
     queryKey: qk.anime.franchise(slug),
     queryFn: () => api<Franchise>(`/anime/franchises/${encodeURIComponent(slug)}`),
     refetchInterval: (q) => (buildActive(q.state.data?.job) ? POLL_MS : false),
   });
+  useBuildEnd([q.data?.job]);
+  return q;
+};
 
 export const useReview = (state: string, franchise?: string) =>
   useQuery({
     queryKey: qk.anime.review(state, franchise),
     queryFn: () => api<Review>("/anime/review" + qs({ state, franchise })),
+    refetchInterval: LIST_MS,
   });
 
 export function useResolveReview() {
@@ -136,12 +164,15 @@ export function useResolveReview() {
   });
 }
 
-export const useUncovered = () =>
-  useQuery({
+export const useUncovered = () => {
+  const q = useQuery({
     queryKey: qk.anime.uncovered,
     queryFn: () => api<Uncovered>("/anime/uncovered"),
-    refetchInterval: (q) => ((q.state.data?.items ?? []).some((u) => buildActive(u.job)) ? POLL_MS : false),
+    refetchInterval: (q) => ((q.state.data?.items ?? []).some((u) => buildActive(u.job)) ? POLL_MS : LIST_MS),
   });
+  useBuildEnd((q.data?.items ?? []).map((u) => u.job));
+  return q;
+};
 
 /** Queues an anime build: a franchise rebuild (slug) or a build for an anime series (tvdb_id). */
 export function useAnimeBuild() {

@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import { fireEvent, screen, waitFor, within } from "@testing-library/react";
 import { Route, Routes } from "react-router";
-import { expect, it } from "vitest";
+import { expect, it, vi } from "vitest";
 import { json, mockFetch, renderPage } from "@/test/page";
 import { AnimeMappings, MetadataFranchise } from "./anime-mappings";
 
@@ -84,4 +84,32 @@ it("rebuilds from the franchise page and shows the next refresh", async () => {
   expect(await screen.findByText("building")).toBeTruthy();
   expect(api.calls("POST", "/anime/franchises/mushoku-tensei/build")).toHaveLength(1);
   expect(screen.getByRole("button", { name: "Rebuild" })).toHaveProperty("disabled", true);
+});
+
+it("refetches the franchises and review items when a build ends, and the lists every 30 s", async () => {
+  vi.useFakeTimers({ shouldAdvanceTime: true });
+  try {
+    let done = false; // the discovery build of Frieren is running, then done with a new franchise
+    const api = mockFetch([
+      { method: "GET", path: "/anime/review", reply: { items: [] } },
+      { method: "GET", path: "/anime/franchises", reply: () => ({ items: done ? [franchise(null)] : [] }) },
+      { method: "GET", path: "/anime/uncovered", reply: () => uncovered(done ? { id: 8, state: "done" } : { id: 8, state: "running" }) },
+    ]);
+    renderPage(<AnimeMappings />);
+    expect(await screen.findByText("building")).toBeTruthy();
+    const reviews = api.calls("GET", "/anime/review").length;
+    done = true;
+    await vi.advanceTimersByTimeAsync(5000); // the uncovered list polls while its job runs, and sees it end
+    expect(await screen.findByText("Mushoku Tensei")).toBeTruthy();
+    expect(api.calls("GET", "/anime/review").length).toBeGreaterThan(reviews);
+
+    // nothing runs: the lists still refetch every 30 s, so a build the loop starts shows up
+    const franchises = api.calls("GET", "/anime/franchises").length;
+    await vi.advanceTimersByTimeAsync(10_000);
+    expect(api.calls("GET", "/anime/franchises").length).toBe(franchises);
+    await vi.advanceTimersByTimeAsync(20_000);
+    await waitFor(() => expect(api.calls("GET", "/anime/franchises").length).toBeGreaterThan(franchises));
+  } finally {
+    vi.useRealTimers();
+  }
 });
