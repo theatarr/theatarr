@@ -585,8 +585,8 @@ func TestImportZurgConfirmsRelease(t *testing.T) {
 // name, a cut or different title), so an automatic import looks the folder up by zurg's name for the hash first, with
 // its " {hash6}" form when another torrent shares the name. A listing without the hash, or no listing, leaves the
 // import waiting for the mount as before; a path import never reads the listing.
-// A torrent marked absent that is added and imported again is present: its claim on the bare folder of its original
-// name holds against another download of the same name, which waits for its own folder.
+// A torrent marked absent that is added and imported again keeps its claim on the bare folder of its original name,
+// whatever its state: another download of the same name waits for its own folder.
 func TestImportOriginalNameReaddedClaim(t *testing.T) {
 	t.Parallel()
 	const (
@@ -617,8 +617,8 @@ func TestImportOriginalNameReaddedClaim(t *testing.T) {
 	if p, err := e.lib.Import(e.ctx, 1, false); err != nil || p.Waiting {
 		t.Fatalf("import B: %+v %v", p, err)
 	}
-	if s := e.one(`SELECT state || ' ' || mount_folder FROM content WHERE id = 7`); s != "present "+original {
-		t.Errorf("content %s", s)
+	if s := e.one(`SELECT mount_folder FROM content WHERE id = 7`); s != original {
+		t.Errorf("content folder %s", s)
 	}
 
 	// A declared the same name; with zurg's API off it waits for its own folder.
@@ -808,8 +808,8 @@ func TestImportZurgNameForHash(t *testing.T) {
 		imported(e, zname+" {"+hashA[:6]+"}")
 	})
 
-	t.Run("API off, an absent torrent's claim on the original name does not hold", func(t *testing.T) {
-		// Provider sync marked the other torrent off every provider: the bare folder is this one's now.
+	t.Run("API off, an absent torrent's claim on the original name holds", func(t *testing.T) {
+		// A torrent sync marked absent may be back on a provider the last sync did not read: its claim stands.
 		e, _, _ := setup(t, zname)
 		e.exec(`UPDATE download SET original_name = ? WHERE id = 1`, zname)
 		e.exec(`INSERT INTO content (id, info_hash, name, mount_folder, state, first_seen_at, last_seen_at)
@@ -817,7 +817,7 @@ func TestImportZurgNameForHash(t *testing.T) {
 		if _, err := e.lib.Import(e.ctx, 1, false); err != nil {
 			t.Fatal(err)
 		}
-		imported(e, zname)
+		waiting(e)
 	})
 
 	t.Run("hash not listed, zurg's entry outweighs another torrent's claim", func(t *testing.T) {

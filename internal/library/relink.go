@@ -338,12 +338,11 @@ const identityQuery = `SELECT MIN(CASE WHEN c.mount_folder = ? THEN LOWER(c.info
 		UNION SELECT content_id FROM content_provider WHERE folder_name IN (?, ?, ?))`
 
 // claimedByOther reports whether the registry records folder name n (by mount folder, content name or provider
-// folder name, as identityQuery) for a torrent other than hash that may still hold it: a torrent provider sync
-// knows is off every provider (absent, gone) has freed the name.
+// folder name, as identityQuery) for a torrent other than hash, whatever its state: a torrent marked absent may be
+// back on a provider the last sync did not read.
 func claimedByOther(ctx context.Context, db *sql.DB, hash, n string) (bool, error) {
 	var count int
-	err := db.QueryRowContext(ctx, `SELECT COUNT(*) FROM content c
-		WHERE c.state NOT IN ('absent', 'gone') AND LOWER(c.info_hash) <> ?
+	err := db.QueryRowContext(ctx, `SELECT COUNT(*) FROM content c WHERE LOWER(c.info_hash) <> ?
 		AND c.id IN (SELECT id FROM content WHERE mount_folder = ?
 			UNION SELECT id FROM content WHERE name IN (?, ?, ?)
 			UNION SELECT content_id FROM content_provider WHERE folder_name IN (?, ?, ?))`,

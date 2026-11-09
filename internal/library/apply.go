@@ -286,10 +286,7 @@ func (l *Library) apply(ctx context.Context, d *importDownload, vn *VersionNamin
 			}
 		}
 		if contentID != 0 {
-			// The torrent is on the provider and now linked: present, as a new row is and as provider sync would
-			// record it. A stale absent or gone state would let another torrent take the folder's name.
-			if _, err := tx.ExecContext(ctx, `UPDATE content SET mount_folder = ?, state = 'present', last_seen_at = ?
-				WHERE id = ?`,
+			if _, err := tx.ExecContext(ctx, `UPDATE content SET mount_folder = ?, last_seen_at = ? WHERE id = ?`,
 				filepath.Base(plan.Folder), now, contentID); err != nil {
 				return err
 			}
