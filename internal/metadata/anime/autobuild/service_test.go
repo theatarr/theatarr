@@ -434,6 +434,27 @@ func TestEnqueueSeedOwnership(t *testing.T) {
 	if got := franchises(t, st); got != "b7:70: late:61: one-piece:21:" {
 		t.Fatalf("franchises %q", got)
 	}
+
+	// Two seeds of one line queued before either runs: the first build crawls the second seed as an entry, so the
+	// second job finishes without a franchise of its own.
+	finishJobs(t, st)
+	s.cfg.Build = fakeBuild(map[int][]int{80: {81}, 81: {80}})
+	for _, x := range []struct {
+		id   int
+		slug string
+	}{{80, "first"}, {81, "second"}} {
+		if _, _, err := s.EnqueueSeed(ctx, x.id, x.slug, ""); err != nil {
+			t.Fatal(err)
+		}
+	}
+	for range 2 {
+		if ran, err := w.RunOne(ctx); err != nil || !ran {
+			t.Fatal(ran, err)
+		}
+	}
+	if got := franchises(t, st); got != "b7:70: first:80:manual late:61: one-piece:21:" {
+		t.Fatalf("franchises %q", got)
+	}
 }
 
 // A rebuild records its attempt in the franchise's config; the loop takes the franchise attempted longest ago and

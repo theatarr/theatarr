@@ -323,12 +323,20 @@ func (s *Service) build(ctx context.Context, src *anime.Sources, f anime.Franchi
 	return res, nil
 }
 
-// owned checks a new franchise's ownership again just before its save: another franchise built from its seed covers
-// it (that franchise's slug), and a slug a stored franchise of another seed has, or the shipped list reserves for
-// one, is ErrSlugTaken.
+// owned checks a new franchise's ownership again just before its save: another franchise built from its seed, or
+// with its seed as an entry (applied, or in a build held for review: a build queued earlier may have crawled it),
+// covers it (that franchise's slug), and a slug a stored franchise of another seed has, or the shipped list reserves
+// for one, is ErrSlugTaken.
 func (s *Service) owned(ctx context.Context, f anime.Franchise, res *anime.Result, shipped []anime.Franchise) (string, error) {
 	owner, err := seedOwner(ctx, s.cfg.Store, f.SeedAniList)
 	if err != nil || owner != "" && owner != f.Slug {
+		return owner, err
+	}
+	held, err := animestore.Held(ctx, s.cfg.Store.Reader())
+	if err != nil {
+		return "", err
+	}
+	if owner, err = hasEntry(ctx, s.cfg.Store, held, []int{f.SeedAniList}); err != nil || owner != "" && owner != f.Slug {
 		return owner, err
 	}
 	var seed int
