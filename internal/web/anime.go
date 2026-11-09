@@ -16,6 +16,7 @@ import (
 	"github.com/theatarr/theatarr/internal/metadata/anime"
 	"github.com/theatarr/theatarr/internal/metadata/anime/animemap"
 	"github.com/theatarr/theatarr/internal/metadata/anime/animestore"
+	"github.com/theatarr/theatarr/internal/metadata/anime/autobuild"
 )
 
 // Anime metadata (the metadata review, the title page's order panel and numbering switcher; docs/design/anime.md): the franchises built, their three orders with each item's source, the numbering of each
@@ -31,6 +32,7 @@ func (w *Web) mountAnimeAPI(mux *http.ServeMux) {
 	w.handle(mux, "POST "+b+"/review/{id}/accept", SignedIn, auth.PermAdmin, w.apiAnimeResolve(true))
 	w.handle(mux, "POST "+b+"/review/{id}/reject", SignedIn, auth.PermAdmin, w.apiAnimeResolve(false))
 	w.handle(mux, "GET "+b+"/playlists", SignedIn, auth.PermBrowse, w.apiAnimePlaylists)
+	w.mountAnimeBuildAPI(mux)
 }
 
 // AnimeFranchise is a built franchise in the list.
@@ -43,6 +45,11 @@ type AnimeFranchise struct {
 	Entries    int            `json:"entries"`
 	Statuses   map[string]int `json:"statuses"`
 	OpenReview int            `json:"open_review"`
+	// NextRefresh is when automatic builds rebuild it (built_at + metadata.anime.refresh_interval); null while they
+	// are off or a refresh waits for review.
+	NextRefresh *time.Time `json:"next_refresh"`
+	// Job is the franchise's latest anime_build job (queued, running, done, failed); null when none is kept.
+	Job *autobuild.Job `json:"job"`
 }
 
 // AnimeOrderItem is one row of an order, with where its place comes from.
@@ -176,7 +183,10 @@ func (w *Web) listFranchises(ctx context.Context) ([]AnimeFranchise, error) {
 	if out == nil {
 		out = []AnimeFranchise{}
 	}
-	return out, err
+	if err != nil {
+		return nil, err
+	}
+	return out, w.annotateBuilds(ctx, out)
 }
 
 func str(p *string) string {

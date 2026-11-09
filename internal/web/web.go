@@ -141,6 +141,9 @@ type Config struct {
 	// NowPlaying is the now playing tracker's state (docs/design/now-playing.md); nil, or a nil answer, shows it off.
 	NowPlaying        NowPlayingSource
 	RcloneTestGateway RcloneTestGateway
+	// AnimeBuilds is the request's anime franchise builder (animebuild.go); nil, or a nil answer, answers the build
+	// endpoints 503.
+	AnimeBuilds func(context.Context) AnimeBuilder
 }
 
 // HealthChecker is the service's health checks (internal/health.Checker).
@@ -196,6 +199,7 @@ type Web struct {
 	torrents          TorrentsSource
 	nowPlaying        NowPlayingSource
 	rcloneTestGateway RcloneTestGateway
+	animeBuilds       func(context.Context) AnimeBuilder
 	notifyTest        func(ctx context.Context, target string) error
 
 	// polls counts the event poller's completed polls with a listener, the baseline included (tests wait on it).
@@ -247,7 +251,7 @@ func New(cfg Config) (*Web, error) {
 		logLevel: cfg.LogLevel, logDir: cfg.LogDir, reloadSettings: cfg.ReloadSettings,
 		captureRuntime: cfg.CaptureRuntime, settings: cfg.Settings, settingsTester: cfg.SettingsTester, qualitySync: cfg.QualitySync, trashRoot: cfg.TrashRoot,
 		settingsTests: cfg.SettingsTests, settingsLookup: cfg.SettingsLookup, cardigann: cfg.Cardigann, preflight: cfg.Preflight,
-		backups: cfg.Backups, restart: cfg.Restart, migration: cfg.Migration, torrents: cfg.Torrents, nowPlaying: cfg.NowPlaying, rcloneTestGateway: cfg.RcloneTestGateway,
+		backups: cfg.Backups, restart: cfg.Restart, migration: cfg.Migration, torrents: cfg.Torrents, nowPlaying: cfg.NowPlaying, rcloneTestGateway: cfg.RcloneTestGateway, animeBuilds: cfg.AnimeBuilds,
 		notifyTest: cfg.NotifyTest}, nil
 }
 

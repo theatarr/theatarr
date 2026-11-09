@@ -141,8 +141,9 @@ numbering; it stays where it landed. Later decisions and imports (an upgrade, a 
 - **Title page:** the watch-order panel links admins to franchise details for orders, mappings and episode numbering.
 - **API** (`openapi.json`): `GET /anime/franchises`, `GET /anime/franchises/{slug}`, `GET /anime/review`,
   `GET /anime/review/{id}/snippet`, `POST /anime/review/{id}/accept` (`{"candidate": n, "note": ...}`),
-  `POST /anime/review/{id}/reject`, `GET /anime/playlists`. Session auth with CSRF for session POSTs;
-  API keys as for the rest. Accept and reject are the only writes. `theatarr anime review` takes `-candidate N` (with
+  `POST /anime/review/{id}/reject`, `GET /anime/playlists`, and the build endpoints under "Automatic builds".
+  Session auth with CSRF for session POSTs; API keys as for the rest. Accept, reject and the build requests are the
+  only writes. `theatarr anime review` takes `-candidate N` (with
   `-accept`) and `-snippet ID`.
 
 ### Watch-order playlists in Plex (`.../playlists`, `internal/plex/playlists.go`)
@@ -218,6 +219,21 @@ process: a second job that finds a build running is put back a minute later with
 through the same live sources as the CLI and saves like `-save`: a rebuild that drops episodes or moves linked
 mappings is held for review. The lists (about 90 MB) are parsed once per process, kept a day, and released after
 30 idle minutes.
+
+**Screen and API** (`internal/web/animebuild.go`, admin only). Admin › Reviews › Anime mappings shows each franchise's
+last build, its next refresh (built_at + interval while automatic builds are on and no refresh waits for review), the
+latest build job while it is queued or running (or its error when it failed) and a **Rebuild** button; the franchise
+page has the same. Below, **Anime series without a franchise** lists the discovery candidates with the last outcome,
+its detail and time, and a **Build** button, with a note when builds cannot run (the missing source) or
+`auto_build` is off (manual builds still work). The lists poll every 5 s while a job is queued or running.
+
+- `POST /anime/franchises/{slug}/build`: queue a rebuild; 202 `{"job_id", "slug"}` (the same job while it is queued).
+- `POST /anime/build`: `{"tvdb_id": n}` queues a discovery for an anime series (404 when it is not one);
+  `{"anilist_id": n, "slug": "...", "name": "..."}` builds from an AniList seed (origin `manual`; slug from the name
+  when empty; 409 when another seed has the slug). Both ids, neither, or a slug/name with `tvdb_id` is a 400.
+- `GET /anime/uncovered`: `{"builds": {ready, off, auto_build, refresh_interval}, "items": [...]}`.
+- A missing source (or no running builder) answers 503 and queues nothing. `GET /anime/franchises` adds
+  `next_refresh` and `job` to each franchise.
 
 ## Golden outputs
 

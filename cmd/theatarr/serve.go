@@ -791,7 +791,13 @@ func runServe(args []string) error {
 		Ops: serveOps{av}, OnRequest: requestNotify, LogLevel: logLevel, LogDir: *logDir, ReloadSettings: reloadSettings,
 		CaptureRuntime: captureRuntime, SettingsTests: newSettingsTestLimits(), SettingsLookup: os.LookupEnv, TrashRoot: os.Getenv("THEATARR_TRASH"),
 		Torrents: torrentSvc, NowPlaying: nowPlayingSnapshot,
-		RcloneTestGateway: rcloneTestGateway(runtimeManager, gw, log), NotifyTest: nt.SendTest}
+		RcloneTestGateway: rcloneTestGateway(runtimeManager, gw, log), NotifyTest: nt.SendTest,
+		AnimeBuilds: func(ctx context.Context) web.AnimeBuilder {
+			if _, s := currentAnime(ctx); s != nil {
+				return s
+			}
+			return nil
+		}}
 	// The install preflight (POST /preflight): the current generation's gateway and views, the service's own handler.
 	var rootHandler http.Handler
 	uiConfig.Preflight = servePreflightHooks(notifyViews.current, func(ctx context.Context) (*gateway.Gateway, *policy.Policy) {

@@ -43,6 +43,7 @@ var (
 	ErrNoFranchise   = errors.New("no such franchise")
 	ErrNoSeries      = errors.New("no anime series with this TVDB id")
 	ErrSlugTaken     = errors.New("another franchise has this slug")
+	ErrInvalid       = errors.New("invalid build request")
 )
 
 // Config is one settings generation's anime builder.
@@ -354,7 +355,7 @@ func (s *Service) EnqueueSeed(ctx context.Context, anilistID int, slug, name str
 		return 0, "", ErrNotConfigured
 	}
 	if anilistID <= 0 {
-		return 0, "", errors.New("anilist_id must be positive")
+		return 0, "", fmt.Errorf("%w: anilist_id must be positive", ErrInvalid)
 	}
 	if slug == "" {
 		slug = Slugify(name)
@@ -363,7 +364,7 @@ func (s *Service) EnqueueSeed(ctx context.Context, anilistID int, slug, name str
 		slug = fmt.Sprintf("anilist-%d", anilistID)
 	}
 	if Slugify(slug) != slug {
-		return 0, "", fmt.Errorf("slug %q: use lower-case letters, digits and '-'", slug)
+		return 0, "", fmt.Errorf("%w: slug %q: use lower-case letters, digits and '-'", ErrInvalid, slug)
 	}
 	if name == "" {
 		name = slug

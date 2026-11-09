@@ -27,6 +27,7 @@ export type Franchises = Get<"/anime/franchises">;
 export type Franchise = Get<"/anime/franchises/{slug}">;
 export type Review = Get<"/anime/review">;
 export type Playlists = Get<"/anime/playlists">;
+export type Uncovered = Get<"/anime/uncovered">;
 export type Registry = Get<"/registry">;
 export type Content = Get<"/registry/{hash}">;
 export type Sources = Get<"/sources">;
@@ -99,13 +100,22 @@ export const useShadowDiffs = (f: DiffFilter) =>
 export const useShadowDiff = (id: string) =>
   useQuery({ queryKey: qk.shadow.diff(id), queryFn: () => api<ShadowDiff>(`/shadow/diffs/${encodeURIComponent(id)}`) });
 
+// A build job still to run or running: the anime lists poll until it ends.
+const buildActive = (j?: { state?: string } | null) => j?.state === "queued" || j?.state === "running";
+const POLL_MS = 5000;
+
 export const useFranchises = () =>
-  useQuery({ queryKey: qk.anime.franchises, queryFn: () => api<Franchises>("/anime/franchises") });
+  useQuery({
+    queryKey: qk.anime.franchises,
+    queryFn: () => api<Franchises>("/anime/franchises"),
+    refetchInterval: (q) => ((q.state.data?.items ?? []).some((f) => buildActive(f.job)) ? POLL_MS : false),
+  });
 
 export const useFranchise = (slug: string) =>
   useQuery({
     queryKey: qk.anime.franchise(slug),
     queryFn: () => api<Franchise>(`/anime/franchises/${encodeURIComponent(slug)}`),
+    refetchInterval: (q) => (buildActive(q.state.data?.job) ? POLL_MS : false),
   });
 
 export const useReview = (state: string, franchise?: string) =>
@@ -122,6 +132,25 @@ export function useResolveReview() {
         method: "POST",
         body: { candidate, note },
       }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: qk.anime.all }),
+  });
+}
+
+export const useUncovered = () =>
+  useQuery({
+    queryKey: qk.anime.uncovered,
+    queryFn: () => api<Uncovered>("/anime/uncovered"),
+    refetchInterval: (q) => ((q.state.data?.items ?? []).some((u) => buildActive(u.job)) ? POLL_MS : false),
+  });
+
+/** Queues an anime build: a franchise rebuild (slug) or a build for an anime series (tvdb_id). */
+export function useAnimeBuild() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (to: { slug: string } | { tvdb_id: number }) =>
+      "slug" in to
+        ? api<{ job_id: number; slug?: string }>(`/anime/franchises/${encodeURIComponent(to.slug)}/build`, { method: "POST" })
+        : api<{ job_id: number; slug?: string }>("/anime/build", { method: "POST", body: { tvdb_id: to.tvdb_id } }),
     onSuccess: () => qc.invalidateQueries({ queryKey: qk.anime.all }),
   });
 }

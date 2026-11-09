@@ -1,9 +1,11 @@
 // Admin › Metadata review: the anime review queue, franchises and Plex playlists (GET /anime/*), and a franchise
-// with its orders and mappings. Accept and reject go through POST /anime/review/{id}/accept|reject.
+// with its orders and mappings. Accept and reject go through POST /anime/review/{id}/accept|reject. Rebuild and Build
+// queue anime_build jobs (POST /anime/franchises/{slug}/build, POST /anime/build); "Anime series without a franchise"
+// is GET /anime/uncovered.
 import { useState } from "react";
 import { Link, useParams, useSearchParams } from "react-router";
 import { ApiError } from "@/api/client";
-import { useFranchise, useFranchises, usePlaylists, useResolveReview, useReview, type Review } from "@/api/hooks";
+import { useAnimeBuild, useFranchise, useFranchises, usePlaylists, useResolveReview, useReview, useUncovered, type Review, type Uncovered } from "@/api/hooks";
 import { Empty, ErrorState, Loading, Mono, PageHeader, Section } from "@/components/page";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -11,9 +13,55 @@ import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { fmtAgo, fmtNumber, fmtTime } from "@/lib/format";
+import { fmtAgo, fmtGoDuration, fmtNumber, fmtTime } from "@/lib/format";
 
 type Item = NonNullable<Review["items"]>[number];
+type BuildJob = { id?: number; state?: string; error?: string } | null | undefined;
+type UncoveredItem = Uncovered["items"][number];
+
+const OUTCOME: Record<string, { label: string; tone: "neutral" | "warning" | "negative" | "info" | "positive" }> = {
+  queued: { label: "queued", tone: "info" },
+  built: { label: "built", tone: "positive" },
+  covered: { label: "covered by another franchise", tone: "neutral" },
+  no_mapping: { label: "not in the mapping lists", tone: "warning" },
+  failed: { label: "failed", tone: "negative" },
+};
+
+/** The latest build job: queued or running (with a dot), failed with its error; nothing once done. */
+function BuildState({ job }: { job: BuildJob }) {
+  if (!job?.state || job.state === "done") return null;
+  if (job.state === "failed") return <Badge tone="negative" title={job.error}>build failed</Badge>;
+  return <Badge tone="info">{job.state === "running" ? "building" : "build queued"}</Badge>;
+}
+
+/** Rebuild (a franchise) or Build (an anime series): queues the job; the button waits while one is queued or running. */
+function BuildButton({ to, job, label }: { to: { slug: string } | { tvdb_id: number }; job: BuildJob; label: string }) {
+  const build = useAnimeBuild();
+  const [err, setErr] = useState("");
+  const active = job?.state === "queued" || job?.state === "running";
+  return (
+    <span className="inline-flex flex-wrap items-center justify-end gap-2">
+      <Button size="xs" variant="outline" disabled={active || build.isPending}
+        onClick={() => { setErr(""); build.mutate(to, { onError: (e) => setErr(e instanceof ApiError ? e.message : String(e)) }); }}>
+        {label}
+      </Button>
+      {err ? <span className="text-xs text-[var(--bad-ink)]">{err}</span> : null}
+    </span>
+  );
+}
+
+/** A Go duration in whole days ("168h0m0s" is "7 d"), else as fmtGoDuration shows it. */
+function fmtDays(d: string | undefined) {
+  const h = /^(\d+)h0m0s$/.exec(d ?? "");
+  return h && Number(h[1]) % 24 === 0 ? `${Number(h[1]) / 24} d` : fmtGoDuration(d);
+}
+
+/** "next refresh in 3 d", or why there is none. */
+function nextRefresh(f: { built_at?: string | null; next_refresh?: string | null; pending?: boolean }) {
+  if (f.pending) return "refresh waits for review";
+  if (!f.next_refresh) return "";
+  return new Date(f.next_refresh).getTime() <= Date.now() ? "refresh due" : `next refresh ${fmtAgo(f.next_refresh)}`;
+}
 
 const STATES = ["open", "accepted", "rejected", "superseded", "all"];
 
@@ -54,6 +102,7 @@ export function AnimeMappings() {
                   <TableHead className="hidden sm:table-cell">Statuses</TableHead>
                   <TableHead className="text-right">Open</TableHead>
                   <TableHead className="hidden md:table-cell">Built</TableHead>
+                  <TableHead className="text-right">Build</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -67,7 +116,8 @@ export function AnimeMappings() {
                     <TableCell className="text-right tabular-nums">{f.entries}</TableCell>
                     <TableCell className="hidden text-[13px] sm:table-cell">{Object.entries(f.statuses ?? {}).map(([k, v]) => `${k} ${v}`).join(" · ")}</TableCell>
                     <TableCell className="text-right tabular-nums">{f.open_review ? <Badge tone="warning">{f.open_review}</Badge> : 0}</TableCell>
-                    <TableCell className="hidden whitespace-nowrap md:table-cell">{fmtAgo(f.built_at)}</TableCell>
+                    <TableCell className="hidden whitespace-nowrap md:table-cell">{fmtAgo(f.built_at)}<div className="text-xs text-muted-foreground">{nextRefresh(f)}</div></TableCell>
+                    <TableCell className="text-right"><span className="inline-flex flex-wrap items-center justify-end gap-2"><BuildState job={f.job} /><BuildButton to={{ slug: f.slug ?? "" }} job={f.job} label="Rebuild" /></span></TableCell>
                   </TableRow>
                 ))}
               </TableBody>
@@ -75,7 +125,61 @@ export function AnimeMappings() {
           </Card>
         )}
       </Section>
+      <UncoveredSection />
     </div>
+  );
+}
+
+/** Anime series no franchise maps into: the last discovery and a Build button each. */
+function UncoveredSection() {
+  const q = useUncovered();
+  const builds = q.data?.builds;
+  const items = q.data?.items ?? [];
+  return (
+    <Section title="Anime series without a franchise">
+      {q.isPending ? <Loading /> : q.error ? <ErrorState error={q.error} /> : (
+        <>
+          <p className="mb-3 text-sm text-muted-foreground">
+            {!builds?.ready ? `Builds cannot run: ${builds?.off ?? "unknown"}.`
+              : builds.auto_build ? `Built automatically, one at a time; franchises are rebuilt every ${fmtDays(builds.refresh_interval)}.`
+              : "Automatic builds are off (metadata.anime.auto_build); Build and Rebuild still work."}
+            {" "}Building only writes mappings; episodes whose mapping is not settled import through Sonarr's numbering, and their conflicts show in the review queue above.
+          </p>
+          {items.length === 0 ? <Card><Empty>Every anime series has a franchise.</Empty></Card> : (
+            <Card className="p-0">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Series</TableHead>
+                    <TableHead>Last try</TableHead>
+                    <TableHead className="text-right">Build</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {items.map((u) => <UncoveredRow key={u.title_id} u={u} />)}
+                </TableBody>
+              </Table>
+            </Card>
+          )}
+        </>
+      )}
+    </Section>
+  );
+}
+
+function UncoveredRow({ u }: { u: UncoveredItem }) {
+  const o = u.outcome ? OUTCOME[u.outcome] : undefined;
+  return (
+    <TableRow>
+      <TableCell>{u.name}<div className="text-xs text-muted-foreground">TVDB <Mono>{u.tvdb_id}</Mono></div></TableCell>
+      <TableCell className="text-[13px]">
+        {o ? <Badge tone={o.tone}>{o.label}</Badge> : <span className="text-muted-foreground">not tried yet</span>}
+        {u.franchise ? <Link className="ml-2 hover:text-primary" to={`/admin/reviews/anime/${u.franchise}`}><Mono>{u.franchise}</Mono></Link> : null}
+        {u.tried_at ? <span className="ml-2 text-xs text-muted-foreground">{fmtAgo(u.tried_at)}</span> : null}
+        {u.detail ? <div className="max-w-[28rem] break-words text-xs text-muted-foreground">{u.detail}</div> : null}
+      </TableCell>
+      <TableCell className="text-right"><span className="inline-flex flex-wrap items-center justify-end gap-2"><BuildState job={u.job} /><BuildButton to={{ tvdb_id: u.tvdb_id }} job={u.job} label="Build" /></span></TableCell>
+    </TableRow>
   );
 }
 
@@ -85,7 +189,7 @@ function ReviewCard({ it }: { it: Item }) {
   const [err, setErr] = useState("");
   const open = it.state === "open";
   const act = (accept: boolean, candidate?: number) => {
-    if (!accept && !window.confirm("Reject: this range gets no automatic import.")) return;
+    if (!accept && !window.confirm("Reject: this mapping is not used; its episodes import through Sonarr's numbering.")) return;
     setErr("");
     resolve.mutate({ id: it.id ?? 0, accept, candidate, note: note || undefined }, {
       onError: (e) => setErr(e instanceof ApiError ? e.message : String(e)),
@@ -150,7 +254,9 @@ export function MetadataFranchise() {
   const orders = f.orders ?? [];
   return (
     <div>
-      <PageHeader crumb={crumb} title={f.name} description={<span><Mono>{f.slug}</Mono> · {f.source} · built {fmtTime(f.built_at)} · {fmtNumber(f.entries)} entries</span>} />
+      <PageHeader crumb={crumb} title={f.name}
+        description={<span><Mono>{f.slug}</Mono> · {f.source} · built {fmtTime(f.built_at)}{nextRefresh(f) ? ` · ${nextRefresh(f)}` : ""} · {fmtNumber(f.entries)} entries</span>}
+        actions={<span className="inline-flex items-center gap-2"><BuildState job={f.job} /><BuildButton to={{ slug: f.slug ?? slug }} job={f.job} label="Rebuild" /></span>} />
       {orders.length > 0 ? (
         <Tabs defaultValue={orders[0].kind}>
           <TabsList>
@@ -212,7 +318,7 @@ export function MetadataFranchise() {
             <TableBody>{(f.numbering ?? []).map((n, i) => <TableRow key={i}>
               <TableCell>{n.tvdb}</TableCell><TableCell><Mono>{n.episode}</Mono></TableCell><TableCell>{n.absolute ?? "—"}</TableCell>
               <TableCell><span>{n.entry_title}</span><div className="text-xs"><Mono>{n.entry}</Mono></div></TableCell><TableCell>{n.entry_number}</TableCell>
-              <TableCell><Badge tone={n.importable ? "positive" : "warning"}>{n.status}</Badge>{!n.importable ? <span className="ml-2">No import</span> : null}</TableCell><TableCell>{n.source}</TableCell>
+              <TableCell><Badge tone={n.importable ? "positive" : "warning"}>{n.status}</Badge>{!n.importable ? <span className="ml-2">Sonarr's numbering</span> : null}</TableCell><TableCell>{n.source}</TableCell>
             </TableRow>)}</TableBody>
           </Table>}
         </Card>

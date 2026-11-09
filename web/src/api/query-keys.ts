@@ -42,6 +42,7 @@ export const qk = {
     franchise: (slug: string) => ["anime", "franchise", slug] as const,
     review: (state: string, franchise?: string) => ["anime", "review", state, franchise ?? ""] as const,
     playlists: ["anime", "playlists"] as const,
+    uncovered: ["anime", "uncovered"] as const,
   },
   registry: {
     list: (q: string, state: string, offset: number) => ["registry", q, state, offset] as const,
