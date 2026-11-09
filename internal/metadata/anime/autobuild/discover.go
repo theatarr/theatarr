@@ -15,6 +15,7 @@ import (
 	"golang.org/x/text/unicode/norm"
 
 	"github.com/theatarr/theatarr/internal/metadata/anime"
+	"github.com/theatarr/theatarr/internal/metadata/anime/animestore"
 	"github.com/theatarr/theatarr/internal/store"
 )
 
@@ -108,13 +109,19 @@ type Discoverer struct {
 }
 
 // Discover decides the franchise for TVDB series tvdbID, named name:
-//  1. covered when a franchise maps into the series, or has an entry for one of its AniList ids;
+//  1. covered when a franchise maps into the series, or has an entry for one of its AniList ids, counting the builds
+//     held for review (anime_franchise.pending_result);
 //  2. the AniList ids from ScudLee (by tvdbid) through Fribb (else manami); none is OutcomeNoMapping;
-//  3. a shipped franchise whose seed is one of them;
+//  3. a shipped franchise whose seed is one of them (covered once a franchise with that seed is stored);
 //  4. else ad hoc: the candidate ScudLee puts at TVDB season 1 (or absolute) with offset 0, else the earliest by
-//     AniList start date. The crawl walks prequels and sequels from any seed, so a later season still yields the line.
+//     AniList start date, under a slug no stored or shipped franchise has. The crawl walks prequels and sequels from
+//     any seed, so a later season still yields the line; the job checks the finished crawl for a shipped seed.
 func (d *Discoverer) Discover(ctx context.Context, tvdbID int, name string) (*Seed, error) {
-	if slug, err := mapsSeries(ctx, d.Store, tvdbID); err != nil || slug != "" {
+	held, err := animestore.Held(ctx, d.Store.Reader())
+	if err != nil {
+		return nil, err
+	}
+	if slug, err := mapsSeries(ctx, d.Store, held, tvdbID); err != nil || slug != "" {
 		return &Seed{Outcome: OutcomeCovered, CoveredBy: slug}, err
 	}
 	idx := d.index
@@ -129,18 +136,18 @@ func (d *Discoverer) Discover(ctx context.Context, tvdbID int, name string) (*Se
 	for i, c := range cands {
 		ids[i] = c.anilist
 	}
-	if slug, err := hasEntry(ctx, d.Store, ids); err != nil || slug != "" {
+	if slug, err := hasEntry(ctx, d.Store, held, ids); err != nil || slug != "" {
 		return &Seed{Outcome: OutcomeCovered, CoveredBy: slug, Candidates: ids}, err
 	}
 	for _, f := range d.Shipped {
 		for _, id := range ids {
 			if f.SeedAniList == id {
-				exists, err := franchiseExists(ctx, d.Store, f.Slug)
+				owner, err := seedOwner(ctx, d.Store, f.SeedAniList)
 				if err != nil {
 					return nil, err
 				}
-				if exists {
-					return &Seed{Outcome: OutcomeCovered, CoveredBy: f.Slug, Candidates: ids}, nil
+				if owner != "" {
+					return &Seed{Outcome: OutcomeCovered, CoveredBy: owner, Candidates: ids}, nil
 				}
 				return &Seed{Franchise: f, Origin: OriginList, Candidates: ids}, nil
 			}
@@ -150,7 +157,7 @@ func (d *Discoverer) Discover(ctx context.Context, tvdbID int, name string) (*Se
 	if err != nil {
 		return nil, err
 	}
-	slug, err := freeSlug(ctx, d.Store, Slugify(name), tvdbID)
+	slug, err := freeSlug(ctx, d.Store, d.Shipped, Slugify(name), tvdbID)
 	if err != nil {
 		return nil, err
 	}
@@ -211,19 +218,19 @@ func dateKey(d anime.FuzzyDate) string {
 	return part(d.Year, 4) + part(d.Month, 2) + part(d.Day, 2)
 }
 
-// mapsSeries returns a franchise with a mapping into TVDB series tvdbID, or "".
-func mapsSeries(ctx context.Context, st *store.Store, tvdbID int) (string, error) {
+// mapsSeries returns a franchise with a mapping into TVDB series tvdbID, applied or in a held build, or "".
+func mapsSeries(ctx context.Context, st *store.Store, held map[string]*anime.Result, tvdbID int) (string, error) {
 	var slug string
 	err := st.Reader().QueryRowContext(ctx, `SELECT franchise FROM anime_mapping WHERE tvdb_series = ? ORDER BY franchise LIMIT 1`,
 		tvdbID).Scan(&slug)
 	if errors.Is(err, sql.ErrNoRows) {
-		return "", nil
+		return heldBy(held, func(series, _ map[int]bool) bool { return series[tvdbID] }), nil
 	}
 	return slug, err
 }
 
-// hasEntry returns a franchise with an entry for one of the AniList ids, or "".
-func hasEntry(ctx context.Context, st *store.Store, ids []int) (string, error) {
+// hasEntry returns a franchise with an entry for one of the AniList ids, applied or in a held build, or "".
+func hasEntry(ctx context.Context, st *store.Store, held map[string]*anime.Result, ids []int) (string, error) {
 	args := make([]any, len(ids))
 	for i, id := range ids {
 		args[i] = id
@@ -232,9 +239,31 @@ func hasEntry(ctx context.Context, st *store.Store, ids []int) (string, error) {
 	err := st.Reader().QueryRowContext(ctx, `SELECT franchise FROM anime_entry WHERE anilist_id IN (`+
 		store.Placeholders(len(ids))+`) ORDER BY franchise LIMIT 1`, args...).Scan(&slug)
 	if errors.Is(err, sql.ErrNoRows) {
-		return "", nil
+		return heldBy(held, func(_, anilist map[int]bool) bool {
+			for _, id := range ids {
+				if anilist[id] {
+					return true
+				}
+			}
+			return false
+		}), nil
 	}
 	return slug, err
+}
+
+// heldBy is the first franchise (by slug) whose held build covers what has asks for, or "".
+func heldBy(held map[string]*anime.Result, has func(series, anilist map[int]bool) bool) string {
+	slugs := make([]string, 0, len(held))
+	for slug := range held {
+		slugs = append(slugs, slug)
+	}
+	sort.Strings(slugs)
+	for _, slug := range slugs {
+		if has(animestore.Covers(held[slug])) {
+			return slug
+		}
+	}
+	return ""
 }
 
 func franchiseExists(ctx context.Context, st *store.Store, slug string) (bool, error) {
@@ -243,12 +272,34 @@ func franchiseExists(ctx context.Context, st *store.Store, slug string) (bool, e
 	return n > 0, err
 }
 
-// freeSlug is slug, or slug-<tvdbID> when another franchise has it.
-func freeSlug(ctx context.Context, st *store.Store, slug string, tvdbID int) (string, error) {
+// seedOwner is the stored franchise built from AniList seed id, or "".
+func seedOwner(ctx context.Context, st *store.Store, id int) (string, error) {
+	var slug string
+	err := st.Reader().QueryRowContext(ctx, `SELECT slug FROM anime_franchise WHERE seed_anilist = ? ORDER BY slug LIMIT 1`,
+		id).Scan(&slug)
+	if errors.Is(err, sql.ErrNoRows) {
+		return "", nil
+	}
+	return slug, err
+}
+
+// slugReserved says a stored franchise has slug, or the shipped list reserves it for a franchise with another seed
+// (seed 0: any shipped franchise).
+func slugReserved(ctx context.Context, st *store.Store, shipped []anime.Franchise, slug string, seed int) (bool, error) {
+	for _, f := range shipped {
+		if f.Slug == slug && f.SeedAniList != seed {
+			return true, nil
+		}
+	}
+	return franchiseExists(ctx, st, slug)
+}
+
+// freeSlug is slug, or slug-<tvdbID> when a stored franchise has it or the shipped list reserves it.
+func freeSlug(ctx context.Context, st *store.Store, shipped []anime.Franchise, slug string, tvdbID int) (string, error) {
 	if slug == "" {
 		return fmt.Sprintf("tvdb-%d", tvdbID), nil
 	}
-	taken, err := franchiseExists(ctx, st, slug)
+	taken, err := slugReserved(ctx, st, shipped, slug, 0)
 	if err != nil || !taken {
 		return slug, err
 	}

@@ -5,7 +5,10 @@ import (
 	"encoding/json"
 	"io"
 	"log/slog"
+	"os"
 	"path/filepath"
+	"strconv"
+	"strings"
 	"sync"
 	"testing"
 	"time"
@@ -287,3 +290,131 @@ func TestEnqueueSeedValidates(t *testing.T) {
 		t.Fatal(slug, err)
 	}
 }
+
+// seedService is a builder whose sources are the invented lists and whose shipped list is franchises.yaml.
+func seedService(t *testing.T, st *store.Store, shippedYAML string) (*Service, *jobs.Queue, *jobs.Worker) {
+	t.Helper()
+	dir := t.TempDir()
+	if shippedYAML != "" {
+		if err := os.WriteFile(filepath.Join(dir, "franchises.yaml"), []byte(shippedYAML), 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+	pol := &policy.Policy{Metadata: &policy.Metadata{OverridesDir: dir}}
+	lists := testLists(t)
+	s, q := service(t, st, &clock{t: time.Date(2026, 11, 9, 12, 0, 0, 0, time.UTC)}, pol,
+		func(context.Context) (*anime.Sources, error) { return &anime.Sources{Lists: lists, AniList: &fakeAniList{}}, nil })
+	w := jobs.NewWorker(q, jobs.WorkerOptions{Logger: quiet})
+	RegisterRuntimeJobs(w, func(ctx context.Context) (context.Context, *Service) { return ctx, s })
+	return s, q, w
+}
+
+// fakeBuild crawls a franchise to its seed plus the ids in more[seed].
+func fakeBuild(more map[int][]int) func(context.Context, *anime.Sources, anime.Franchise, anime.Options) (*anime.Result, error) {
+	return func(_ context.Context, _ *anime.Sources, f anime.Franchise, _ anime.Options) (*anime.Result, error) {
+		res := &anime.Result{Franchise: f.Name, Slug: f.Slug, SeedAniList: f.SeedAniList, StoryOrder: &anime.StoryOrder{}}
+		for _, id := range append([]int{f.SeedAniList}, more[f.SeedAniList]...) {
+			id := id
+			res.Entries = append(res.Entries, &anime.Entry{Key: "al:" + strconv.Itoa(id), Origin: "anilist", AniListID: &id})
+		}
+		return res, nil
+	}
+}
+
+func franchises(t *testing.T, st *store.Store) string {
+	t.Helper()
+	var out string
+	if err := st.Reader().QueryRow(`SELECT COALESCE(group_concat(slug || ':' || seed_anilist || ':' ||
+		COALESCE(json_extract(config, '$.origin'), ''), ' '), '') FROM (SELECT * FROM anime_franchise ORDER BY slug)`).Scan(&out); err != nil {
+		t.Fatal(err)
+	}
+	return out
+}
+
+// An ad-hoc discovery whose finished crawl reaches a shipped franchise's seed builds that franchise instead.
+func TestDiscoveryCrawlReachingShippedSeedBuildsIt(t *testing.T) {
+	ctx := context.Background()
+	st := openStore(t)
+	s, _, w := seedService(t, st, "- slug: big-show\n  name: Big Show\n  seed_anilist: 1000\n")
+	s.cfg.Build = fakeBuild(map[int][]int{2000: {2002, 1000}, 1000: {2000, 2002}})
+	exec(t, st, `INSERT INTO title (id, kind, name, tvdb_id, anime, created_at, updated_at) VALUES (2, 'series', 'Show Two', 600, 1, 0, 0)`)
+	if _, err := s.EnqueueDiscover(ctx, 600); err != nil {
+		t.Fatal(err)
+	}
+	if ran, err := w.RunOne(ctx); err != nil || !ran {
+		t.Fatal(ran, err)
+	}
+	if got := franchises(t, st); got != "big-show:1000:list" {
+		var jerr string
+		_ = st.Reader().QueryRow(`SELECT COALESCE(last_error, '') || ' ' || state FROM job`).Scan(&jerr)
+		t.Fatalf("franchises %q (job %s)", got, jerr)
+	}
+	if n := count(t, st, `SELECT count(*) FROM anime_discovery WHERE title_id = 2 AND outcome = 'built' AND franchise = 'big-show'`); n != 1 {
+		t.Fatal("outcome not built by the shipped franchise")
+	}
+}
+
+// A manual seed resolves by the seed first and never builds one seed under two slugs or two seeds under one slug.
+func TestEnqueueSeedOwnership(t *testing.T) {
+	ctx := context.Background()
+	st := openStore(t)
+	s, _, w := seedService(t, st, "- slug: frieren\n  name: Frieren\n  seed_anilist: 154587\n")
+	s.cfg.Build = fakeBuild(nil)
+	exec(t, st, `INSERT INTO anime_franchise (slug, name, seed_anilist, created_at, updated_at) VALUES ('one-piece', 'One Piece', 21, 0, 0)`)
+	exec(t, st, `INSERT INTO anime_entry (franchise, key, origin, anilist_id, body) VALUES ('one-piece', 'al:22', 'anilist', 22, '{}')`)
+	payload := func(id int64) string {
+		var out string
+		if err := st.Reader().QueryRow(`SELECT dedupe_key || ' ' || payload FROM job WHERE id = ?`, id).Scan(&out); err != nil {
+			t.Fatal(err)
+		}
+		return out
+	}
+	for _, c := range []struct {
+		seed       int
+		slug, want string
+		key        string
+	}{
+		{21, "other", "one-piece", SlugKey("one-piece")}, // the stored seed: a rebuild of its franchise
+		{22, "", "one-piece", SlugKey("one-piece")},      // an entry of a stored franchise
+		{154587, "mine", "frieren", SeedKey(154587)},     // a shipped seed, under its own slug
+	} {
+		id, slug, err := s.EnqueueSeed(ctx, c.seed, c.slug, "")
+		if err != nil || slug != c.want || !strings.HasPrefix(payload(id), c.key+" ") {
+			t.Fatalf("seed %d: %s %v (%s)", c.seed, slug, err, payload(id))
+		}
+	}
+	if _, _, err := s.EnqueueSeed(ctx, 40, "frieren", ""); err != ErrSlugTaken {
+		t.Fatalf("shipped slug: %v", err)
+	}
+	first, slug, err := s.EnqueueSeed(ctx, 50, "shared", "")
+	if err != nil || slug != "shared" {
+		t.Fatal(slug, err)
+	}
+	if _, _, err := s.EnqueueSeed(ctx, 51, "shared", ""); err != ErrSlugTaken {
+		t.Fatalf("queued slug: %v", err)
+	}
+	if id, slug, err := s.EnqueueSeed(ctx, 50, "elsewhere", ""); err != nil || id != first || slug != "shared" {
+		t.Fatalf("queued seed: %d %s %v", id, slug, err)
+	}
+
+	// The handler checks again before the save: the slug another seed took, or the seed another franchise took.
+	finishJobs(t, st)
+	if _, _, err := s.EnqueueSeed(ctx, 60, "late", ""); err != nil {
+		t.Fatal(err)
+	}
+	exec(t, st, `INSERT INTO anime_franchise (slug, name, seed_anilist, created_at, updated_at) VALUES ('late', 'Late', 61, 0, 0)`)
+	if ran, err := w.RunOne(ctx); err != nil || !ran {
+		t.Fatal(ran, err)
+	}
+	if _, _, err := s.EnqueueSeed(ctx, 70, "a7", ""); err != nil {
+		t.Fatal(err)
+	}
+	exec(t, st, `INSERT INTO anime_franchise (slug, name, seed_anilist, created_at, updated_at) VALUES ('b7', 'B7', 70, 0, 0)`)
+	if ran, err := w.RunOne(ctx); err != nil || !ran {
+		t.Fatal(ran, err)
+	}
+	if got := franchises(t, st); got != "b7:70: late:61: one-piece:21:" {
+		t.Fatalf("franchises %q", got)
+	}
+}
+

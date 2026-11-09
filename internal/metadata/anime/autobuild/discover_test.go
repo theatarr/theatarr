@@ -1,7 +1,10 @@
 package autobuild
 
 import (
+	"bytes"
+	"compress/gzip"
 	"context"
+	"encoding/json"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -167,5 +170,55 @@ func TestSlugify(t *testing.T) {
 		if got := Slugify(in); got != want {
 			t.Errorf("%q: %q, want %q", in, got, want)
 		}
+	}
+}
+
+// A build held for review covers the series it maps into and its entries' AniList ids, like an applied one.
+func TestDiscoverHeldBuildCovers(t *testing.T) {
+	ctx := context.Background()
+	st := openStore(t)
+	d := discoverer(t, st, &fakeAniList{})
+	id := 3001
+	res := anime.Result{Slug: "held", SeedAniList: 1, Entries: []*anime.Entry{
+		{Key: "al:5", TVDB: &anime.TVDBMap{SeriesID: 600, Episodes: []anime.SE{{1, 1}}}},
+		{Key: "al:3001", AniListID: &id}}}
+	body, err := json.Marshal(res)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var buf bytes.Buffer
+	w := gzip.NewWriter(&buf)
+	_, _ = w.Write(body)
+	_ = w.Close()
+	exec(t, st, `INSERT INTO anime_franchise (slug, name, seed_anilist, pending_result, created_at, updated_at)
+		VALUES ('held', 'Held', 1, ?, 0, 0)`, buf.Bytes())
+	if s, err := d.Discover(ctx, 600, "Show Two"); err != nil || s.Outcome != OutcomeCovered || s.CoveredBy != "held" {
+		t.Fatalf("held mapping: %+v %v", s, err)
+	}
+	if s, err := d.Discover(ctx, 700, "Show Three"); err != nil || s.Outcome != OutcomeCovered || s.CoveredBy != "held" {
+		t.Fatalf("held entry: %+v %v", s, err)
+	}
+	if s, err := d.Discover(ctx, 500, "Show One"); err != nil || s.Outcome != "" {
+		t.Fatalf("not covered: %+v %v", s, err)
+	}
+}
+
+// Ad-hoc slugs avoid every slug of the shipped list, built or not, and a shipped seed counts as covered only once a
+// franchise built from that seed is stored, not when another franchise merely has its slug.
+func TestDiscoverShippedOwnership(t *testing.T) {
+	ctx := context.Background()
+	st := openStore(t)
+	d := discoverer(t, st, &fakeAniList{}, anime.Franchise{Slug: "show-one", SeedAniList: 9999},
+		anime.Franchise{Slug: "show-three", Name: "Show Three", SeedAniList: 3000})
+	if s, err := d.Discover(ctx, 500, "Show One"); err != nil || s.Franchise.Slug != "show-one-500" || s.Origin != OriginAuto {
+		t.Fatalf("reserved slug: %+v %v", s, err)
+	}
+	exec(t, st, `INSERT INTO anime_franchise (slug, name, seed_anilist, created_at, updated_at) VALUES ('show-three', 'Other', 55, 0, 0)`)
+	if s, err := d.Discover(ctx, 700, "Show Three"); err != nil || s.Outcome != "" || s.Origin != OriginList {
+		t.Fatalf("slug of another seed: %+v %v", s, err)
+	}
+	exec(t, st, `UPDATE anime_franchise SET seed_anilist = 3000 WHERE slug = 'show-three'`)
+	if s, err := d.Discover(ctx, 700, "Show Three"); err != nil || s.Outcome != OutcomeCovered || s.CoveredBy != "show-three" {
+		t.Fatalf("built: %+v %v", s, err)
 	}
 }

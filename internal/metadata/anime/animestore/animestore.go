@@ -714,3 +714,45 @@ func (s *Store) Result(ctx context.Context, slug string) (*anime.Result, error) 
 	}
 	return &res, nil
 }
+
+// Held reads the builds held for review (anime_franchise.pending_result), by franchise slug.
+func Held(ctx context.Context, db *sql.DB) (map[string]*anime.Result, error) {
+	rows, err := db.QueryContext(ctx, `SELECT slug, pending_result FROM anime_franchise WHERE pending_result IS NOT NULL`)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	out := map[string]*anime.Result{}
+	for rows.Next() {
+		var slug string
+		var pending []byte
+		if err := rows.Scan(&slug, &pending); err != nil {
+			return nil, err
+		}
+		body, err := gunzip(pending)
+		if err != nil {
+			return nil, fmt.Errorf("%s: pending build: %w", slug, err)
+		}
+		var res anime.Result
+		if err := json.Unmarshal(body, &res); err != nil {
+			return nil, fmt.Errorf("%s: pending build: %w", slug, err)
+		}
+		out[slug] = &res
+	}
+	return out, rows.Err()
+}
+
+// Covers lists what a build result would own once applied: the TVDB series its mappings map into (anime_mapping
+// tvdb_series) and its entries' AniList ids (anime_entry anilist_id).
+func Covers(res *anime.Result) (series, anilist map[int]bool) {
+	series, anilist = map[int]bool{}, map[int]bool{}
+	for _, e := range res.Entries {
+		if e.AniListID != nil && *e.AniListID > 0 {
+			anilist[*e.AniListID] = true
+		}
+		if m := mappingOf(e); m != nil && m.series != 0 {
+			series[m.series] = true
+		}
+	}
+	return series, anilist
+}

@@ -221,16 +221,23 @@ check says which, and nothing builds; manual builds are refused the same way.
 discovery pass, one at a time:
 
 1. Covered when a franchise has a mapping into the TVDB series, or an entry for one of its AniList ids (a franchise
-   whose mapping was rejected still covers it).
+   whose mapping was rejected still covers it), applied or in a refresh held for review (`pending_result`).
 2. The series' AniList ids: ScudLee's records for the TVDB id, through Fribb (else manami) from AniDB to AniList.
    None is `no_mapping`.
 3. A franchise in the shipped list (`<overrides_dir>/franchises.yaml`) seeded by one of them is built under its own
-   slug and scope (origin `list`); covered if it is stored already.
+   slug and scope (origin `list`); covered once a franchise built from that seed is stored (another franchise that
+   merely has the slug does not cover it).
 4. Otherwise an ad-hoc franchise (origin `auto`). The seed is the record ScudLee puts at TVDB season 1 (or absolute)
    with no episode offset, lowest AniDB id first; else the earliest AniList start date (ties: lowest id). The crawl
    walks prequels and sequels from any seed, so a later season still yields the whole line. The slug comes from the
    series name (`Re:Zero - Starting Life in Another World` → `re-zero-starting-life-in-another-world`), with
-   `-<tvdb id>` appended when another franchise has it, or `tvdb-<id>` for a name with no ASCII letters.
+   `-<tvdb id>` appended when another franchise has it or the shipped list reserves it (built or not), or
+   `tvdb-<id>` for a name with no ASCII letters. When the finished crawl reaches a shipped franchise's seed, that
+   franchise is built instead, under its own slug.
+
+Before a new franchise is saved, the job checks ownership again (builds run one at a time, so the check holds until
+the save): a franchise built from the same seed meanwhile covers the series, and a slug a franchise of another seed
+took (stored, or reserved by the shipped list) fails the build.
 
 The outcome per title is kept in `anime_discovery` (`queued`, `built`, `covered`, `no_mapping`, `failed`, with the
 franchise and the error). A title is tried again after `refresh_interval` (an hour when its job was lost while
@@ -259,7 +266,10 @@ its detail and time, and a **Build** button, with a note when builds cannot run 
 - `POST /anime/franchises/{slug}/build`: queue a rebuild; 202 `{"job_id", "slug"}` (the same job while it is queued).
 - `POST /anime/build`: `{"tvdb_id": n}` queues a discovery for an anime series (404 when it is not one);
   `{"anilist_id": n, "slug": "...", "name": "..."}` builds from an AniList seed (origin `manual`; slug from the name
-  when empty; 409 when another seed has the slug). Both ids, neither, or a slug/name with `tvdb_id` is a 400.
+  when empty). The seed decides first: a seed a stored franchise was built from or has as an entry queues a rebuild
+  of that franchise, a shipped seed builds the shipped franchise under its slug, and a seed already queued keeps that
+  job; the response's `slug` is the one the build uses. 409 when a franchise of another seed has the slug, the shipped
+  list reserves it, or a queued build of another seed claims it. Both ids, neither, or a slug/name with `tvdb_id` is a 400.
 - `GET /anime/uncovered`: `{"builds": {ready, off, auto_build, refresh_interval}, "items": [...]}`.
 - A missing source (or no running builder) answers 503 and queues nothing. `GET /anime/franchises` adds
   `next_refresh` and `job` to each franchise.

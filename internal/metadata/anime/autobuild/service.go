@@ -208,28 +208,53 @@ func (s *Service) run(ctx context.Context, p Payload) error {
 	case p.AniListID > 0:
 		f = anime.Franchise{Slug: p.Slug, Name: p.Name, SeedAniList: p.AniListID}
 		for _, x := range shipped {
-			if x.Slug == p.Slug && x.SeedAniList == p.AniListID {
-				f, origin = x, OriginList
+			if x.SeedAniList == p.AniListID {
+				f, origin = x, OriginList // the shipped franchise of that seed, under its slug
 			}
 		}
 	default:
 		return jobs.Permanent(errors.New("anime_build: empty payload"))
 	}
-	ov, err := anime.LoadOverrides(s.cfg.Policy.OverridesPath(), f.Slug)
-	if err != nil {
-		return jobs.Permanent(err)
-	}
 	t0 := s.cfg.Now()
-	res, err := s.cfg.Build(ctx, src, f, anime.Options{Overrides: ov})
+	res, err := s.build(ctx, src, f)
 	if err != nil {
 		return err
-	}
-	if res.Config == nil {
-		res.Config = map[string]any{}
 	}
 	res.Config["origin"] = origin
 	if tvdb > 0 {
 		res.Config["tvdb_id"] = tvdb
+	}
+	if p.TVDBID > 0 || p.AniListID > 0 {
+		// A new franchise: builds run one at a time, so ownership read here holds until the save.
+		covered, err := s.owned(ctx, f, res, shipped)
+		if err != nil {
+			return err
+		}
+		if covered != "" {
+			s.log.Info("anime: discovery", "tvdb", p.TVDBID, "outcome", OutcomeCovered, "franchise", covered)
+			if p.TitleID > 0 {
+				return s.record(ctx, p.TitleID, p.TVDBID, OutcomeCovered, covered, "")
+			}
+			return nil
+		}
+		if x := shippedIn(res, shipped, f.Slug); x != nil && origin != OriginList {
+			// The crawl reached a shipped franchise's seed: build that franchise instead, under its slug.
+			s.log.Info("anime: crawl reached a shipped franchise", "franchise", f.Slug, "shipped", x.Slug)
+			f, origin = *x, OriginList
+			if res, err = s.build(ctx, src, f); err != nil {
+				return err
+			}
+			res.Config["origin"] = origin
+			if tvdb > 0 {
+				res.Config["tvdb_id"] = tvdb
+			}
+			if covered, err := s.owned(ctx, f, res, shipped); err != nil || covered != "" {
+				if err == nil {
+					err = jobs.Permanent(fmt.Errorf("shipped franchise %s: AniList %d is built as %s", x.Slug, x.SeedAniList, covered))
+				}
+				return err
+			}
+		}
 	}
 	// A run that lost its lease must not write: another run owns the job now.
 	if err := jobs.Fence(ctx); err != nil {
@@ -247,6 +272,57 @@ func (s *Service) run(ctx context.Context, p Payload) error {
 	}
 	if p.TitleID > 0 {
 		return s.record(ctx, p.TitleID, p.TVDBID, OutcomeBuilt, f.Slug, "")
+	}
+	return nil
+}
+
+// build crawls franchise f with its overrides.
+func (s *Service) build(ctx context.Context, src *anime.Sources, f anime.Franchise) (*anime.Result, error) {
+	ov, err := anime.LoadOverrides(s.cfg.Policy.OverridesPath(), f.Slug)
+	if err != nil {
+		return nil, jobs.Permanent(err)
+	}
+	res, err := s.cfg.Build(ctx, src, f, anime.Options{Overrides: ov})
+	if err != nil {
+		return nil, err
+	}
+	if res.Config == nil {
+		res.Config = map[string]any{}
+	}
+	return res, nil
+}
+
+// owned checks a new franchise's ownership again just before its save: another franchise built from its seed covers
+// it (that franchise's slug), and a slug a stored franchise of another seed has, or the shipped list reserves for
+// one, is ErrSlugTaken.
+func (s *Service) owned(ctx context.Context, f anime.Franchise, res *anime.Result, shipped []anime.Franchise) (string, error) {
+	owner, err := seedOwner(ctx, s.cfg.Store, f.SeedAniList)
+	if err != nil || owner != "" && owner != f.Slug {
+		return owner, err
+	}
+	var seed int
+	err = s.cfg.Store.Reader().QueryRowContext(ctx, `SELECT seed_anilist FROM anime_franchise WHERE slug = ?`, f.Slug).Scan(&seed)
+	if err == nil && seed != f.SeedAniList {
+		return "", jobs.Permanent(fmt.Errorf("%s: %w", f.Slug, ErrSlugTaken))
+	}
+	if err != nil && !errors.Is(err, sql.ErrNoRows) {
+		return "", err
+	}
+	for _, x := range shipped {
+		if x.Slug == f.Slug && x.SeedAniList != f.SeedAniList {
+			return "", jobs.Permanent(fmt.Errorf("%s: %w (shipped)", f.Slug, ErrSlugTaken))
+		}
+	}
+	return "", nil
+}
+
+// shippedIn is the shipped franchise (other than slug) whose seed the crawl reached, or nil.
+func shippedIn(res *anime.Result, shipped []anime.Franchise, slug string) *anime.Franchise {
+	_, anilist := animestore.Covers(res)
+	for i := range shipped {
+		if x := &shipped[i]; x.Slug != slug && anilist[x.SeedAniList] {
+			return x
+		}
 	}
 	return nil
 }
@@ -348,8 +424,11 @@ func (s *Service) EnqueueRebuild(ctx context.Context, slug string) (int64, error
 	return id, err
 }
 
-// EnqueueSeed queues an ad-hoc build from an AniList seed (the CLI's -seed). slug defaults to the name's slug, else
-// anilist-<id>; a slug another franchise with a different seed has is ErrSlugTaken.
+// EnqueueSeed queues an ad-hoc build from an AniList seed (the CLI's -seed) and returns the slug the build uses. The
+// seed decides first: a seed a stored franchise was built from, or has as an entry, queues a rebuild of that
+// franchise; a shipped franchise's seed builds it under its own slug. Else slug defaults to the name's slug, else
+// anilist-<id>; a slug a stored franchise of another seed has, the shipped list reserves, or a queued build of
+// another seed claims is ErrSlugTaken. A seed already queued keeps that job and its slug.
 func (s *Service) EnqueueSeed(ctx context.Context, anilistID int, slug, name string) (int64, string, error) {
 	if !s.Ready() {
 		return 0, "", ErrNotConfigured
@@ -360,23 +439,63 @@ func (s *Service) EnqueueSeed(ctx context.Context, anilistID int, slug, name str
 	if slug == "" {
 		slug = Slugify(name)
 	}
+	if slug != "" && Slugify(slug) != slug {
+		return 0, "", fmt.Errorf("%w: slug %q: use lower-case letters, digits and '-'", ErrInvalid, slug)
+	}
+	owner, err := seedOwner(ctx, s.cfg.Store, anilistID)
+	if err == nil && owner == "" {
+		owner, err = hasEntry(ctx, s.cfg.Store, nil, []int{anilistID})
+	}
+	if err != nil {
+		return 0, "", err
+	}
+	if owner != "" {
+		id, err := s.EnqueueRebuild(ctx, owner)
+		return id, owner, err
+	}
+	shipped, err := shippedFranchises(s.cfg.Policy.OverridesPath())
+	if err != nil {
+		return 0, "", err
+	}
+	for _, x := range shipped {
+		if x.SeedAniList == anilistID {
+			slug, name = x.Slug, x.Name
+		}
+	}
 	if slug == "" {
 		slug = fmt.Sprintf("anilist-%d", anilistID)
-	}
-	if Slugify(slug) != slug {
-		return 0, "", fmt.Errorf("%w: slug %q: use lower-case letters, digits and '-'", ErrInvalid, slug)
 	}
 	if name == "" {
 		name = slug
 	}
-	var seed int
-	err := s.cfg.Store.Reader().QueryRowContext(ctx, `SELECT seed_anilist FROM anime_franchise WHERE slug = ?`, slug).Scan(&seed)
-	if err == nil && seed != anilistID {
-		return 0, "", ErrSlugTaken
+	// a build of this seed already queued or running keeps its job and slug
+	db := s.cfg.Store.Reader()
+	var id int64
+	var payload string
+	err = db.QueryRowContext(ctx, `SELECT id, payload FROM job WHERE kind = ? AND dedupe_key = ?
+		AND state IN ('queued', 'running') ORDER BY id LIMIT 1`, JobKind, SeedKey(anilistID)).Scan(&id, &payload)
+	if err == nil {
+		var p Payload
+		_ = json.Unmarshal([]byte(payload), &p)
+		return id, p.Slug, nil
 	}
-	if err != nil && !errors.Is(err, sql.ErrNoRows) {
+	if !errors.Is(err, sql.ErrNoRows) {
 		return 0, "", err
 	}
-	id, _, err := s.cfg.Queue.Enqueue(ctx, JobKind, Payload{Slug: slug, AniListID: anilistID, Name: name}, jobOptions(SeedKey(anilistID)))
+	taken, err := slugReserved(ctx, s.cfg.Store, shipped, slug, anilistID)
+	if err == nil && !taken {
+		var n int
+		err = db.QueryRowContext(ctx, `SELECT count(*) FROM job WHERE kind = ? AND state IN ('queued', 'running')
+			AND json_extract(payload, '$.slug') = ? AND COALESCE(json_extract(payload, '$.anilist_id'), 0) <> ?`,
+			JobKind, slug, anilistID).Scan(&n)
+		taken = n > 0
+	}
+	if err != nil {
+		return 0, "", err
+	}
+	if taken {
+		return 0, "", ErrSlugTaken
+	}
+	id, _, err = s.cfg.Queue.Enqueue(ctx, JobKind, Payload{Slug: slug, AniListID: anilistID, Name: name}, jobOptions(SeedKey(anilistID)))
 	return id, slug, err
 }
