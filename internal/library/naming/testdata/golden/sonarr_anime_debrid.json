@@ -1,0 +1,5769 @@
+{
+ "instance": "sonarr_anime_debrid",
+ "naming": {
+  "renameEpisodes": true,
+  "replaceIllegalCharacters": true,
+  "colonReplacementFormat": 0,
+  "customColonReplacementFormat": "",
+  "multiEpisodeStyle": 5,
+  "standardEpisodeFormat": "{Series CleanTitleWithoutYear} {(Series Year)} - S{season:00}E{episode:00} - {Episode CleanTitle:90} {[Custom Formats]}{[Quality Full]}{[Mediainfo AudioCodec}{ Mediainfo AudioChannels]}{[MediaInfo VideoDynamicRangeType]}{[Mediainfo VideoCodec]}{-Release Group}",
+  "dailyEpisodeFormat": "{Series CleanTitleWithoutYear} {(Series Year)} - {Air-Date} - {Episode CleanTitle:90} {[Custom Formats]}{[Quality Full]}{[Mediainfo AudioCodec}{ Mediainfo AudioChannels]}{[MediaInfo VideoDynamicRangeType]}{[Mediainfo VideoCodec]}{-Release Group}",
+  "animeEpisodeFormat": "{Series CleanTitleWithoutYear} {(Series Year)} - S{season:00}E{episode:00} - {absolute:000} - {Episode CleanTitle:90} {[Custom Formats]}{[Quality Full]}{[Mediainfo AudioCodec}{ Mediainfo AudioChannels]}{MediaInfo AudioLanguages}{[MediaInfo VideoDynamicRangeType]}[{Mediainfo VideoCodec }{MediaInfo VideoBitDepth}bit]{-Release Group}",
+  "seriesFolderFormat": "{Series CleanTitleWithoutYear} {(Series Year)} {imdb-{ImdbId}}",
+  "seasonFolderFormat": "Season {season:00}",
+  "specialsFolderFormat": "Season 0",
+  "id": 1
+ },
+ "cases": [
+  {
+   "instance": "sonarr_anime_debrid",
+   "file_id": 1866,
+   "series": {
+    "Title": "Mushoku Tensei: Jobless Reincarnation",
+    "Year": 2021,
+    "Type": "anime",
+    "ImdbID": "tt13293588",
+    "TvdbID": 371310,
+    "TvMazeID": 0,
+    "TmdbID": 94664
+   },
+   "episodes": [
+    {
+     "Season": 1,
+     "Number": 4,
+     "Absolute": 4,
+     "Title": "Emergency Family Meeting",
+     "AirDate": "2021-02-01"
+    }
+   ],
+   "episode_file": {
+    "ID": 1866,
+    "Quality": {
+     "Title": "Bluray-1080p",
+     "Version": 1,
+     "Real": 0
+    },
+    "ReleaseGroup": "Thighs",
+    "ReleaseHash": "",
+    "SceneName": "",
+    "RelativePath": "Season 01/Mushoku Tensei Jobless Reincarnation (2021) - S01E04 - 004 - Emergency Family Meeting [Bluray-1080p][FLAC 2.0][JA+EN][x265 10bit]-Thighs.mkv",
+    "Path": "/media/anime/Mushoku Tensei Jobless Reincarnation (2021) {imdb-tt13293588}/Season 01/Mushoku Tensei Jobless Reincarnation (2021) - S01E04 - 004 - Emergency Family Meeting [Bluray-1080p][FLAC 2.0][JA+EN][x265 10bit]-Thighs.mkv",
+    "MediaInfo": {
+     "VideoCodec": "x265",
+     "VideoBitDepth": 10,
+     "VideoMultiViewCount": 0,
+     "AudioCodec": "FLAC",
+     "AudioChannels": 2,
+     "AudioLanguages": [
+      "jpn",
+      "eng"
+     ],
+     "Subtitles": null,
+     "VideoDynamicRange": "",
+     "VideoDynamicRangeType": ""
+    },
+    "CustomFormats": null
+   },
+   "root": "/media/anime",
+   "cf_source": "none",
+   "expect_folder": "Mushoku Tensei Jobless Reincarnation (2021) {imdb-tt13293588}",
+   "expect_season": "Season 01",
+   "expect_file": "Mushoku Tensei Jobless Reincarnation (2021) - S01E04 - 004 - Emergency Family Meeting [Bluray-1080p][FLAC 2.0][JA+EN][x265 10bit]-Thighs.mkv",
+   "ext": ".mkv"
+  },
+  {
+   "instance": "sonarr_anime_debrid",
+   "file_id": 1901,
+   "series": {
+    "Title": "Mushoku Tensei: Jobless Reincarnation",
+    "Year": 2021,
+    "Type": "anime",
+    "ImdbID": "tt13293588",
+    "TvdbID": 371310,
+    "TvMazeID": 0,
+    "TmdbID": 94664
+   },
+   "episodes": [
+    {
+     "Season": 2,
+     "Number": 23,
+     "Absolute": 48,
+     "Title": "Let's Go Home",
+     "AirDate": "2024-06-24"
+    }
+   ],
+   "episode_file": {
+    "ID": 1901,
+    "Quality": {
+     "Title": "Bluray-1080p",
+     "Version": 1,
+     "Real": 0
+    },
+    "ReleaseGroup": "MTBB",
+    "ReleaseHash": "",
+    "SceneName": "",
+    "RelativePath": "Season 02/Mushoku Tensei Jobless Reincarnation (2021) - S02E23 - 048 - Lets Go Home [Bluray-1080p][Opus 2.0][JA][x265 10bit]-MTBB.mkv",
+    "Path": "/media/anime/Mushoku Tensei Jobless Reincarnation (2021) {imdb-tt13293588}/Season 02/Mushoku Tensei Jobless Reincarnation (2021) - S02E23 - 048 - Lets Go Home [Bluray-1080p][Opus 2.0][JA][x265 10bit]-MTBB.mkv",
+    "MediaInfo": {
+     "VideoCodec": "x265",
+     "VideoBitDepth": 10,
+     "VideoMultiViewCount": 0,
+     "AudioCodec": "Opus",
+     "AudioChannels": 2,
+     "AudioLanguages": [
+      "jpn"
+     ],
+     "Subtitles": null,
+     "VideoDynamicRange": "",
+     "VideoDynamicRangeType": ""
+    },
+    "CustomFormats": null
+   },
+   "root": "/media/anime",
+   "cf_source": "none",
+   "expect_folder": "Mushoku Tensei Jobless Reincarnation (2021) {imdb-tt13293588}",
+   "expect_season": "Season 02",
+   "expect_file": "Mushoku Tensei Jobless Reincarnation (2021) - S02E23 - 048 - Lets Go Home [Bluray-1080p][Opus 2.0][JA][x265 10bit]-MTBB.mkv",
+   "ext": ".mkv"
+  },
+  {
+   "instance": "sonarr_anime_debrid",
+   "file_id": 1908,
+   "series": {
+    "Title": "Mushoku Tensei: Jobless Reincarnation",
+    "Year": 2021,
+    "Type": "anime",
+    "ImdbID": "tt13293588",
+    "TvdbID": 371310,
+    "TvMazeID": 0,
+    "TmdbID": 94664
+   },
+   "episodes": [
+    {
+     "Season": 1,
+     "Number": 23,
+     "Absolute": 24,
+     "Title": "Wake Up and Take a Step",
+     "AirDate": "2021-12-20"
+    }
+   ],
+   "episode_file": {
+    "ID": 1908,
+    "Quality": {
+     "Title": "Bluray-1080p",
+     "Version": 1,
+     "Real": 0
+    },
+    "ReleaseGroup": "Thighs",
+    "ReleaseHash": "",
+    "SceneName": "",
+    "RelativePath": "Season 01/Mushoku Tensei Jobless Reincarnation (2021) - S01E23 - 024 - Wake Up and Take a Step [Bluray-1080p][FLAC 2.0][JA+EN][x265 10bit]-Thighs.mkv",
+    "Path": "/media/anime/Mushoku Tensei Jobless Reincarnation (2021) {imdb-tt13293588}/Season 01/Mushoku Tensei Jobless Reincarnation (2021) - S01E23 - 024 - Wake Up and Take a Step [Bluray-1080p][FLAC 2.0][JA+EN][x265 10bit]-Thighs.mkv",
+    "MediaInfo": {
+     "VideoCodec": "x265",
+     "VideoBitDepth": 10,
+     "VideoMultiViewCount": 0,
+     "AudioCodec": "FLAC",
+     "AudioChannels": 2,
+     "AudioLanguages": [
+      "jpn",
+      "eng"
+     ],
+     "Subtitles": null,
+     "VideoDynamicRange": "",
+     "VideoDynamicRangeType": ""
+    },
+    "CustomFormats": null
+   },
+   "root": "/media/anime",
+   "cf_source": "none",
+   "expect_folder": "Mushoku Tensei Jobless Reincarnation (2021) {imdb-tt13293588}",
+   "expect_season": "Season 01",
+   "expect_file": "Mushoku Tensei Jobless Reincarnation (2021) - S01E23 - 024 - Wake Up and Take a Step [Bluray-1080p][FLAC 2.0][JA+EN][x265 10bit]-Thighs.mkv",
+   "ext": ".mkv"
+  },
+  {
+   "instance": "sonarr_anime_debrid",
+   "file_id": 1911,
+   "series": {
+    "Title": "Attack on Titan",
+    "Year": 2013,
+    "Type": "anime",
+    "ImdbID": "tt2560140",
+    "TvdbID": 267440,
+    "TvMazeID": 0,
+    "TmdbID": 1429
+   },
+   "episodes": [
+    {
+     "Season": 1,
+     "Number": 2,
+     "Absolute": 2,
+     "Title": "That Day: The Fall of Shiganshina (2)",
+     "AirDate": "2013-04-14"
+    }
+   ],
+   "episode_file": {
+    "ID": 1911,
+    "Quality": {
+     "Title": "Bluray-1080p",
+     "Version": 2,
+     "Real": 0
+    },
+    "ReleaseGroup": "MTBB",
+    "ReleaseHash": "",
+    "SceneName": "",
+    "RelativePath": "Season 01/Attack on Titan (2013) - S01E02 - 002 - That Day The Fall of Shiganshina 2 [v2 - Notifiarr][Bluray-1080p v2][Opus 2.0][JA][x265 10bit]-MTBB.mkv",
+    "Path": "/media/anime/Attack on Titan (2013) {imdb-tt2560140}/Season 01/Attack on Titan (2013) - S01E02 - 002 - That Day The Fall of Shiganshina 2 [v2 - Notifiarr][Bluray-1080p v2][Opus 2.0][JA][x265 10bit]-MTBB.mkv",
+    "MediaInfo": {
+     "VideoCodec": "x265",
+     "VideoBitDepth": 10,
+     "VideoMultiViewCount": 0,
+     "AudioCodec": "Opus",
+     "AudioChannels": 2,
+     "AudioLanguages": [
+      "jpn"
+     ],
+     "Subtitles": null,
+     "VideoDynamicRange": "",
+     "VideoDynamicRangeType": ""
+    },
+    "CustomFormats": [
+     "v2 - Notifiarr"
+    ]
+   },
+   "root": "/media/anime",
+   "cf_source": "name",
+   "expect_folder": "Attack on Titan (2013) {imdb-tt2560140}",
+   "expect_season": "Season 01",
+   "expect_file": "Attack on Titan (2013) - S01E02 - 002 - That Day The Fall of Shiganshina 2 [v2 - Notifiarr][Bluray-1080p v2][Opus 2.0][JA][x265 10bit]-MTBB.mkv",
+   "ext": ".mkv"
+  },
+  {
+   "instance": "sonarr_anime_debrid",
+   "file_id": 1928,
+   "series": {
+    "Title": "Attack on Titan",
+    "Year": 2013,
+    "Type": "anime",
+    "ImdbID": "tt2560140",
+    "TvdbID": 267440,
+    "TvMazeID": 0,
+    "TmdbID": 1429
+   },
+   "episodes": [
+    {
+     "Season": 1,
+     "Number": 19,
+     "Absolute": 19,
+     "Title": "Bite: The 57th Exterior Scouting Mission (3)",
+     "AirDate": "2013-08-18"
+    }
+   ],
+   "episode_file": {
+    "ID": 1928,
+    "Quality": {
+     "Title": "Bluray-1080p",
+     "Version": 1,
+     "Real": 0
+    },
+    "ReleaseGroup": "MTBB",
+    "ReleaseHash": "",
+    "SceneName": "",
+    "RelativePath": "Season 01/Attack on Titan (2013) - S01E19 - 019 - Bite The 57th Exterior Scouting Mission 3 [Bluray-1080p][Opus 2.0][JA][x265 10bit]-MTBB.mkv",
+    "Path": "/media/anime/Attack on Titan (2013) {imdb-tt2560140}/Season 01/Attack on Titan (2013) - S01E19 - 019 - Bite The 57th Exterior Scouting Mission 3 [Bluray-1080p][Opus 2.0][JA][x265 10bit]-MTBB.mkv",
+    "MediaInfo": {
+     "VideoCodec": "x265",
+     "VideoBitDepth": 10,
+     "VideoMultiViewCount": 0,
+     "AudioCodec": "Opus",
+     "AudioChannels": 2,
+     "AudioLanguages": [
+      "jpn"
+     ],
+     "Subtitles": null,
+     "VideoDynamicRange": "",
+     "VideoDynamicRangeType": ""
+    },
+    "CustomFormats": null
+   },
+   "root": "/media/anime",
+   "cf_source": "none",
+   "expect_folder": "Attack on Titan (2013) {imdb-tt2560140}",
+   "expect_season": "Season 01",
+   "expect_file": "Attack on Titan (2013) - S01E19 - 019 - Bite The 57th Exterior Scouting Mission 3 [Bluray-1080p][Opus 2.0][JA][x265 10bit]-MTBB.mkv",
+   "ext": ".mkv"
+  },
+  {
+   "instance": "sonarr_anime_debrid",
+   "file_id": 2008,
+   "series": {
+    "Title": "Violet Evergarden",
+    "Year": 2018,
+    "Type": "anime",
+    "ImdbID": "tt7078180",
+    "TvdbID": 330139,
+    "TvMazeID": 0,
+    "TmdbID": 75214
+   },
+   "episodes": [
+    {
+     "Season": 1,
+     "Number": 10,
+     "Absolute": 10,
+     "Title": "Loved Ones Will Always Watch Over You",
+     "AirDate": "2018-03-15"
+    }
+   ],
+   "episode_file": {
+    "ID": 2008,
+    "Quality": {
+     "Title": "Bluray-1080p",
+     "Version": 1,
+     "Real": 0
+    },
+    "ReleaseGroup": "sam",
+    "ReleaseHash": "",
+    "SceneName": "",
+    "RelativePath": "Season 01/Violet Evergarden (2018) - S01E10 - 010 - Loved Ones Will Always Watch Over You [Bluray-1080p][FLAC 2.0][JA+EN][x265 10bit]-sam.mkv",
+    "Path": "/media/anime/Violet Evergarden (2018) {imdb-tt7078180}/Season 01/Violet Evergarden (2018) - S01E10 - 010 - Loved Ones Will Always Watch Over You [Bluray-1080p][FLAC 2.0][JA+EN][x265 10bit]-sam.mkv",
+    "MediaInfo": {
+     "VideoCodec": "x265",
+     "VideoBitDepth": 10,
+     "VideoMultiViewCount": 0,
+     "AudioCodec": "FLAC",
+     "AudioChannels": 2,
+     "AudioLanguages": [
+      "jpn",
+      "eng"
+     ],
+     "Subtitles": null,
+     "VideoDynamicRange": "",
+     "VideoDynamicRangeType": ""
+    },
+    "CustomFormats": null
+   },
+   "root": "/media/anime",
+   "cf_source": "none",
+   "expect_folder": "Violet Evergarden (2018) {imdb-tt7078180}",
+   "expect_season": "Season 01",
+   "expect_file": "Violet Evergarden (2018) - S01E10 - 010 - Loved Ones Will Always Watch Over You [Bluray-1080p][FLAC 2.0][JA+EN][x265 10bit]-sam.mkv",
+   "ext": ".mkv"
+  },
+  {
+   "instance": "sonarr_anime_debrid",
+   "file_id": 2014,
+   "series": {
+    "Title": "JUJUTSU KAISEN",
+    "Year": 2020,
+    "Type": "anime",
+    "ImdbID": "tt12343534",
+    "TvdbID": 377543,
+    "TvMazeID": 0,
+    "TmdbID": 95479
+   },
+   "episodes": [
+    {
+     "Season": 1,
+     "Number": 3,
+     "Absolute": 3,
+     "Title": "Girl of Steel",
+     "AirDate": "2020-10-17"
+    }
+   ],
+   "episode_file": {
+    "ID": 2014,
+    "Quality": {
+     "Title": "Bluray-1080p",
+     "Version": 2,
+     "Real": 0
+    },
+    "ReleaseGroup": "Vodes",
+    "ReleaseHash": "",
+    "SceneName": "",
+    "RelativePath": "Season 01/JUJUTSU KAISEN (2020) - S01E03 - 003 - Girl of Steel [v2 - Notifiarr][Bluray-1080p v2][Opus 2.0][JA+EN+DE][x265 10bit]-Vodes.mkv",
+    "Path": "/media/anime/JUJUTSU KAISEN (2020) {imdb-tt12343534}/Season 01/JUJUTSU KAISEN (2020) - S01E03 - 003 - Girl of Steel [v2 - Notifiarr][Bluray-1080p v2][Opus 2.0][JA+EN+DE][x265 10bit]-Vodes.mkv",
+    "MediaInfo": {
+     "VideoCodec": "x265",
+     "VideoBitDepth": 10,
+     "VideoMultiViewCount": 0,
+     "AudioCodec": "Opus",
+     "AudioChannels": 2,
+     "AudioLanguages": [
+      "jpn",
+      "eng",
+      "ger"
+     ],
+     "Subtitles": null,
+     "VideoDynamicRange": "",
+     "VideoDynamicRangeType": ""
+    },
+    "CustomFormats": [
+     "v2 - Notifiarr"
+    ]
+   },
+   "root": "/media/anime",
+   "cf_source": "name",
+   "expect_folder": "JUJUTSU KAISEN (2020) {imdb-tt12343534}",
+   "expect_season": "Season 01",
+   "expect_file": "JUJUTSU KAISEN (2020) - S01E03 - 003 - Girl of Steel [v2 - Notifiarr][Bluray-1080p v2][Opus 2.0][JA+EN+DE][x265 10bit]-Vodes.mkv",
+   "ext": ".mkv"
+  },
+  {
+   "instance": "sonarr_anime_debrid",
+   "file_id": 2016,
+   "series": {
+    "Title": "JUJUTSU KAISEN",
+    "Year": 2020,
+    "Type": "anime",
+    "ImdbID": "tt12343534",
+    "TvdbID": 377543,
+    "TvMazeID": 0,
+    "TmdbID": 95479
+   },
+   "episodes": [
+    {
+     "Season": 1,
+     "Number": 5,
+     "Absolute": 5,
+     "Title": "Curse Womb Must Die -II-",
+     "AirDate": "2020-10-31"
+    }
+   ],
+   "episode_file": {
+    "ID": 2016,
+    "Quality": {
+     "Title": "Bluray-1080p",
+     "Version": 2,
+     "Real": 0
+    },
+    "ReleaseGroup": "Vodes",
+    "ReleaseHash": "",
+    "SceneName": "",
+    "RelativePath": "Season 01/JUJUTSU KAISEN (2020) - S01E05 - 005 - Curse Womb Must Die -II- [v2 - Notifiarr][Bluray-1080p v2][Opus 2.0][JA+EN+DE][x265 10bit]-Vodes.mkv",
+    "Path": "/media/anime/JUJUTSU KAISEN (2020) {imdb-tt12343534}/Season 01/JUJUTSU KAISEN (2020) - S01E05 - 005 - Curse Womb Must Die -II- [v2 - Notifiarr][Bluray-1080p v2][Opus 2.0][JA+EN+DE][x265 10bit]-Vodes.mkv",
+    "MediaInfo": {
+     "VideoCodec": "x265",
+     "VideoBitDepth": 10,
+     "VideoMultiViewCount": 0,
+     "AudioCodec": "Opus",
+     "AudioChannels": 2,
+     "AudioLanguages": [
+      "jpn",
+      "eng",
+      "ger"
+     ],
+     "Subtitles": null,
+     "VideoDynamicRange": "",
+     "VideoDynamicRangeType": ""
+    },
+    "CustomFormats": [
+     "v2 - Notifiarr"
+    ]
+   },
+   "root": "/media/anime",
+   "cf_source": "name",
+   "expect_folder": "JUJUTSU KAISEN (2020) {imdb-tt12343534}",
+   "expect_season": "Season 01",
+   "expect_file": "JUJUTSU KAISEN (2020) - S01E05 - 005 - Curse Womb Must Die -II- [v2 - Notifiarr][Bluray-1080p v2][Opus 2.0][JA+EN+DE][x265 10bit]-Vodes.mkv",
+   "ext": ".mkv"
+  },
+  {
+   "instance": "sonarr_anime_debrid",
+   "file_id": 2026,
+   "series": {
+    "Title": "JUJUTSU KAISEN",
+    "Year": 2020,
+    "Type": "anime",
+    "ImdbID": "tt12343534",
+    "TvdbID": 377543,
+    "TvMazeID": 0,
+    "TmdbID": 95479
+   },
+   "episodes": [
+    {
+     "Season": 1,
+     "Number": 15,
+     "Absolute": 15,
+     "Title": "Kyoto Sister School Exchange Event - Group Battle 1 -",
+     "AirDate": "2021-01-23"
+    }
+   ],
+   "episode_file": {
+    "ID": 2026,
+    "Quality": {
+     "Title": "Bluray-1080p",
+     "Version": 2,
+     "Real": 0
+    },
+    "ReleaseGroup": "Vodes",
+    "ReleaseHash": "",
+    "SceneName": "",
+    "RelativePath": "Season 01/JUJUTSU KAISEN (2020) - S01E15 - 015 - Kyoto Sister School Exchange Event Group Battle 1 - [v2 - Notifiarr][Bluray-1080p v2][Opus 2.0][JA+EN+DE][x265 10bit]-Vodes.mkv",
+    "Path": "/media/anime/JUJUTSU KAISEN (2020) {imdb-tt12343534}/Season 01/JUJUTSU KAISEN (2020) - S01E15 - 015 - Kyoto Sister School Exchange Event Group Battle 1 - [v2 - Notifiarr][Bluray-1080p v2][Opus 2.0][JA+EN+DE][x265 10bit]-Vodes.mkv",
+    "MediaInfo": {
+     "VideoCodec": "x265",
+     "VideoBitDepth": 10,
+     "VideoMultiViewCount": 0,
+     "AudioCodec": "Opus",
+     "AudioChannels": 2,
+     "AudioLanguages": [
+      "jpn",
+      "eng",
+      "ger"
+     ],
+     "Subtitles": null,
+     "VideoDynamicRange": "",
+     "VideoDynamicRangeType": ""
+    },
+    "CustomFormats": [
+     "v2 - Notifiarr"
+    ]
+   },
+   "root": "/media/anime",
+   "cf_source": "name",
+   "expect_folder": "JUJUTSU KAISEN (2020) {imdb-tt12343534}",
+   "expect_season": "Season 01",
+   "expect_file": "JUJUTSU KAISEN (2020) - S01E15 - 015 - Kyoto Sister School Exchange Event Group Battle 1 - [v2 - Notifiarr][Bluray-1080p v2][Opus 2.0][JA+EN+DE][x265 10bit]-Vodes.mkv",
+   "ext": ".mkv"
+  },
+  {
+   "instance": "sonarr_anime_debrid",
+   "file_id": 2031,
+   "series": {
+    "Title": "JUJUTSU KAISEN",
+    "Year": 2020,
+    "Type": "anime",
+    "ImdbID": "tt12343534",
+    "TvdbID": 377543,
+    "TvMazeID": 0,
+    "TmdbID": 95479
+   },
+   "episodes": [
+    {
+     "Season": 1,
+     "Number": 20,
+     "Absolute": 20,
+     "Title": "Nonstandard",
+     "AirDate": "2021-02-27"
+    }
+   ],
+   "episode_file": {
+    "ID": 2031,
+    "Quality": {
+     "Title": "Bluray-1080p",
+     "Version": 2,
+     "Real": 0
+    },
+    "ReleaseGroup": "Vodes",
+    "ReleaseHash": "",
+    "SceneName": "",
+    "RelativePath": "Season 01/JUJUTSU KAISEN (2020) - S01E20 - 020 - Nonstandard [v2 - Notifiarr][Bluray-1080p v2][Opus 2.0][JA+EN+DE][x265 10bit]-Vodes.mkv",
+    "Path": "/media/anime/JUJUTSU KAISEN (2020) {imdb-tt12343534}/Season 01/JUJUTSU KAISEN (2020) - S01E20 - 020 - Nonstandard [v2 - Notifiarr][Bluray-1080p v2][Opus 2.0][JA+EN+DE][x265 10bit]-Vodes.mkv",
+    "MediaInfo": {
+     "VideoCodec": "x265",
+     "VideoBitDepth": 10,
+     "VideoMultiViewCount": 0,
+     "AudioCodec": "Opus",
+     "AudioChannels": 2,
+     "AudioLanguages": [
+      "jpn",
+      "eng",
+      "ger"
+     ],
+     "Subtitles": null,
+     "VideoDynamicRange": "",
+     "VideoDynamicRangeType": ""
+    },
+    "CustomFormats": [
+     "v2 - Notifiarr"
+    ]
+   },
+   "root": "/media/anime",
+   "cf_source": "name",
+   "expect_folder": "JUJUTSU KAISEN (2020) {imdb-tt12343534}",
+   "expect_season": "Season 01",
+   "expect_file": "JUJUTSU KAISEN (2020) - S01E20 - 020 - Nonstandard [v2 - Notifiarr][Bluray-1080p v2][Opus 2.0][JA+EN+DE][x265 10bit]-Vodes.mkv",
+   "ext": ".mkv"
+  },
+  {
+   "instance": "sonarr_anime_debrid",
+   "file_id": 2035,
+   "series": {
+    "Title": "JUJUTSU KAISEN",
+    "Year": 2020,
+    "Type": "anime",
+    "ImdbID": "tt12343534",
+    "TvdbID": 377543,
+    "TvMazeID": 0,
+    "TmdbID": 95479
+   },
+   "episodes": [
+    {
+     "Season": 1,
+     "Number": 24,
+     "Absolute": 24,
+     "Title": "Accomplices",
+     "AirDate": "2021-03-27"
+    }
+   ],
+   "episode_file": {
+    "ID": 2035,
+    "Quality": {
+     "Title": "Bluray-1080p",
+     "Version": 2,
+     "Real": 0
+    },
+    "ReleaseGroup": "Vodes",
+    "ReleaseHash": "",
+    "SceneName": "",
+    "RelativePath": "Season 01/JUJUTSU KAISEN (2020) - S01E24 - 024 - Accomplices [v2 - Notifiarr][Bluray-1080p v2][Opus 2.0][JA+EN+DE][x265 10bit]-Vodes.mkv",
+    "Path": "/media/anime/JUJUTSU KAISEN (2020) {imdb-tt12343534}/Season 01/JUJUTSU KAISEN (2020) - S01E24 - 024 - Accomplices [v2 - Notifiarr][Bluray-1080p v2][Opus 2.0][JA+EN+DE][x265 10bit]-Vodes.mkv",
+    "MediaInfo": {
+     "VideoCodec": "x265",
+     "VideoBitDepth": 10,
+     "VideoMultiViewCount": 0,
+     "AudioCodec": "Opus",
+     "AudioChannels": 2,
+     "AudioLanguages": [
+      "jpn",
+      "eng",
+      "ger"
+     ],
+     "Subtitles": null,
+     "VideoDynamicRange": "",
+     "VideoDynamicRangeType": ""
+    },
+    "CustomFormats": [
+     "v2 - Notifiarr"
+    ]
+   },
+   "root": "/media/anime",
+   "cf_source": "name",
+   "expect_folder": "JUJUTSU KAISEN (2020) {imdb-tt12343534}",
+   "expect_season": "Season 01",
+   "expect_file": "JUJUTSU KAISEN (2020) - S01E24 - 024 - Accomplices [v2 - Notifiarr][Bluray-1080p v2][Opus 2.0][JA+EN+DE][x265 10bit]-Vodes.mkv",
+   "ext": ".mkv"
+  },
+  {
+   "instance": "sonarr_anime_debrid",
+   "file_id": 2069,
+   "series": {
+    "Title": "JUJUTSU KAISEN",
+    "Year": 2020,
+    "Type": "anime",
+    "ImdbID": "tt12343534",
+    "TvdbID": 377543,
+    "TvMazeID": 0,
+    "TmdbID": 95479
+   },
+   "episodes": [
+    {
+     "Season": 3,
+     "Number": 11,
+     "Absolute": 58,
+     "Title": "Tokyo Colony No. 1 - Part 5",
+     "AirDate": "2026-03-20"
+    }
+   ],
+   "episode_file": {
+    "ID": 2069,
+    "Quality": {
+     "Title": "Bluray-1080p",
+     "Version": 1,
+     "Real": 0
+    },
+    "ReleaseGroup": "Purple",
+    "ReleaseHash": "",
+    "SceneName": "",
+    "RelativePath": "Season 03/JUJUTSU KAISEN (2020) - S03E11 - 058 - Tokyo Colony No. 1 Part 5 [Bluray-1080p][Opus 2.0][JA+EN][x265 10bit]-Purple.mkv",
+    "Path": "/media/anime/JUJUTSU KAISEN (2020) {imdb-tt12343534}/Season 03/JUJUTSU KAISEN (2020) - S03E11 - 058 - Tokyo Colony No. 1 Part 5 [Bluray-1080p][Opus 2.0][JA+EN][x265 10bit]-Purple.mkv",
+    "MediaInfo": {
+     "VideoCodec": "x265",
+     "VideoBitDepth": 10,
+     "VideoMultiViewCount": 0,
+     "AudioCodec": "Opus",
+     "AudioChannels": 2,
+     "AudioLanguages": [
+      "jpn",
+      "eng"
+     ],
+     "Subtitles": null,
+     "VideoDynamicRange": "",
+     "VideoDynamicRangeType": ""
+    },
+    "CustomFormats": null
+   },
+   "root": "/media/anime",
+   "cf_source": "none",
+   "expect_folder": "JUJUTSU KAISEN (2020) {imdb-tt12343534}",
+   "expect_season": "Season 03",
+   "expect_file": "JUJUTSU KAISEN (2020) - S03E11 - 058 - Tokyo Colony No. 1 Part 5 [Bluray-1080p][Opus 2.0][JA+EN][x265 10bit]-Purple.mkv",
+   "ext": ".mkv"
+  },
+  {
+   "instance": "sonarr_anime_debrid",
+   "file_id": 2071,
+   "series": {
+    "Title": "86: Eighty Six",
+    "Year": 2021,
+    "Type": "anime",
+    "ImdbID": "tt13718450",
+    "TvdbID": 378609,
+    "TvMazeID": 0,
+    "TmdbID": 100565
+   },
+   "episodes": [
+    {
+     "Season": 1,
+     "Number": 1,
+     "Absolute": 1,
+     "Title": "Undertaker",
+     "AirDate": "2021-04-11"
+    }
+   ],
+   "episode_file": {
+    "ID": 2071,
+    "Quality": {
+     "Title": "Bluray-1080p",
+     "Version": 2,
+     "Real": 0
+    },
+    "ReleaseGroup": "koala",
+    "ReleaseHash": "",
+    "SceneName": "86.Eighty.Six.S01E01.REPACK.1080p.Blu-ray.Opus2.0.x265-koala",
+    "RelativePath": "Season 01/86 Eighty Six (2021) - S01E01 - 001 - Undertaker [v2 - Notifiarr][Bluray-1080p v2][Opus 2.0][JA+EN][x265 10bit]-koala.mkv",
+    "Path": "/media/anime/86 Eighty Six (2021) {imdb-tt13718450}/Season 01/86 Eighty Six (2021) - S01E01 - 001 - Undertaker [v2 - Notifiarr][Bluray-1080p v2][Opus 2.0][JA+EN][x265 10bit]-koala.mkv",
+    "MediaInfo": {
+     "VideoCodec": "x265",
+     "VideoBitDepth": 10,
+     "VideoMultiViewCount": 0,
+     "AudioCodec": "Opus",
+     "AudioChannels": 2,
+     "AudioLanguages": [
+      "jpn",
+      "eng"
+     ],
+     "Subtitles": null,
+     "VideoDynamicRange": "",
+     "VideoDynamicRangeType": ""
+    },
+    "CustomFormats": [
+     "v2 - Notifiarr"
+    ]
+   },
+   "root": "/media/anime",
+   "cf_source": "name",
+   "expect_folder": "86 Eighty Six (2021) {imdb-tt13718450}",
+   "expect_season": "Season 01",
+   "expect_file": "86 Eighty Six (2021) - S01E01 - 001 - Undertaker [v2 - Notifiarr][Bluray-1080p v2][Opus 2.0][JA+EN][x265 10bit]-koala.mkv",
+   "ext": ".mkv"
+  },
+  {
+   "instance": "sonarr_anime_debrid",
+   "file_id": 2075,
+   "series": {
+    "Title": "86: Eighty Six",
+    "Year": 2021,
+    "Type": "anime",
+    "ImdbID": "tt13718450",
+    "TvdbID": 378609,
+    "TvMazeID": 0,
+    "TmdbID": 100565
+   },
+   "episodes": [
+    {
+     "Season": 1,
+     "Number": 5,
+     "Absolute": 5,
+     "Title": "I'm With You",
+     "AirDate": "2021-05-09"
+    }
+   ],
+   "episode_file": {
+    "ID": 2075,
+    "Quality": {
+     "Title": "Bluray-1080p",
+     "Version": 2,
+     "Real": 0
+    },
+    "ReleaseGroup": "koala",
+    "ReleaseHash": "",
+    "SceneName": "86.Eighty.Six.S01E05.REPACK.1080p.Blu-ray.Opus2.0.x265-koala",
+    "RelativePath": "Season 01/86 Eighty Six (2021) - S01E05 - 005 - Im With You [v2 - Notifiarr][Bluray-1080p v2][Opus 2.0][JA+EN][x265 10bit]-koala.mkv",
+    "Path": "/media/anime/86 Eighty Six (2021) {imdb-tt13718450}/Season 01/86 Eighty Six (2021) - S01E05 - 005 - Im With You [v2 - Notifiarr][Bluray-1080p v2][Opus 2.0][JA+EN][x265 10bit]-koala.mkv",
+    "MediaInfo": {
+     "VideoCodec": "x265",
+     "VideoBitDepth": 10,
+     "VideoMultiViewCount": 0,
+     "AudioCodec": "Opus",
+     "AudioChannels": 2,
+     "AudioLanguages": [
+      "jpn",
+      "eng"
+     ],
+     "Subtitles": null,
+     "VideoDynamicRange": "",
+     "VideoDynamicRangeType": ""
+    },
+    "CustomFormats": [
+     "v2 - Notifiarr"
+    ]
+   },
+   "root": "/media/anime",
+   "cf_source": "name",
+   "expect_folder": "86 Eighty Six (2021) {imdb-tt13718450}",
+   "expect_season": "Season 01",
+   "expect_file": "86 Eighty Six (2021) - S01E05 - 005 - Im With You [v2 - Notifiarr][Bluray-1080p v2][Opus 2.0][JA+EN][x265 10bit]-koala.mkv",
+   "ext": ".mkv"
+  },
+  {
+   "instance": "sonarr_anime_debrid",
+   "file_id": 2088,
+   "series": {
+    "Title": "86: Eighty Six",
+    "Year": 2021,
+    "Type": "anime",
+    "ImdbID": "tt13718450",
+    "TvdbID": 378609,
+    "TvMazeID": 0,
+    "TmdbID": 100565
+   },
+   "episodes": [
+    {
+     "Season": 1,
+     "Number": 18,
+     "Absolute": 18,
+     "Title": "The Truth Is",
+     "AirDate": "2021-11-21"
+    }
+   ],
+   "episode_file": {
+    "ID": 2088,
+    "Quality": {
+     "Title": "Bluray-1080p",
+     "Version": 2,
+     "Real": 0
+    },
+    "ReleaseGroup": "koala",
+    "ReleaseHash": "",
+    "SceneName": "86.Eighty.Six.S01E18.REPACK.1080p.Blu-ray.Opus2.0.x265-koala",
+    "RelativePath": "Season 01/86 Eighty Six (2021) - S01E18 - 018 - The Truth Is [v2 - Notifiarr][Bluray-1080p v2][Opus 2.0][JA+EN][x265 10bit]-koala.mkv",
+    "Path": "/media/anime/86 Eighty Six (2021) {imdb-tt13718450}/Season 01/86 Eighty Six (2021) - S01E18 - 018 - The Truth Is [v2 - Notifiarr][Bluray-1080p v2][Opus 2.0][JA+EN][x265 10bit]-koala.mkv",
+    "MediaInfo": {
+     "VideoCodec": "x265",
+     "VideoBitDepth": 10,
+     "VideoMultiViewCount": 0,
+     "AudioCodec": "Opus",
+     "AudioChannels": 2,
+     "AudioLanguages": [
+      "jpn",
+      "eng"
+     ],
+     "Subtitles": null,
+     "VideoDynamicRange": "",
+     "VideoDynamicRangeType": ""
+    },
+    "CustomFormats": [
+     "v2 - Notifiarr"
+    ]
+   },
+   "root": "/media/anime",
+   "cf_source": "name",
+   "expect_folder": "86 Eighty Six (2021) {imdb-tt13718450}",
+   "expect_season": "Season 01",
+   "expect_file": "86 Eighty Six (2021) - S01E18 - 018 - The Truth Is [v2 - Notifiarr][Bluray-1080p v2][Opus 2.0][JA+EN][x265 10bit]-koala.mkv",
+   "ext": ".mkv"
+  },
+  {
+   "instance": "sonarr_anime_debrid",
+   "file_id": 2092,
+   "series": {
+    "Title": "86: Eighty Six",
+    "Year": 2021,
+    "Type": "anime",
+    "ImdbID": "tt13718450",
+    "TvdbID": 378609,
+    "TvMazeID": 0,
+    "TmdbID": 100565
+   },
+   "episodes": [
+    {
+     "Season": 1,
+     "Number": 22,
+     "Absolute": 22,
+     "Title": "Shin",
+     "AirDate": "2022-03-13"
+    }
+   ],
+   "episode_file": {
+    "ID": 2092,
+    "Quality": {
+     "Title": "Bluray-1080p",
+     "Version": 2,
+     "Real": 0
+    },
+    "ReleaseGroup": "koala",
+    "ReleaseHash": "",
+    "SceneName": "86.Eighty.Six.S01E22.REPACK.1080p.Blu-ray.Opus2.0.x265-koala",
+    "RelativePath": "Season 01/86 Eighty Six (2021) - S01E22 - 022 - Shin [v2 - Notifiarr][Bluray-1080p v2][Opus 2.0][JA+EN][x265 10bit]-koala.mkv",
+    "Path": "/media/anime/86 Eighty Six (2021) {imdb-tt13718450}/Season 01/86 Eighty Six (2021) - S01E22 - 022 - Shin [v2 - Notifiarr][Bluray-1080p v2][Opus 2.0][JA+EN][x265 10bit]-koala.mkv",
+    "MediaInfo": {
+     "VideoCodec": "x265",
+     "VideoBitDepth": 10,
+     "VideoMultiViewCount": 0,
+     "AudioCodec": "Opus",
+     "AudioChannels": 2,
+     "AudioLanguages": [
+      "jpn",
+      "eng"
+     ],
+     "Subtitles": null,
+     "VideoDynamicRange": "",
+     "VideoDynamicRangeType": ""
+    },
+    "CustomFormats": [
+     "v2 - Notifiarr"
+    ]
+   },
+   "root": "/media/anime",
+   "cf_source": "name",
+   "expect_folder": "86 Eighty Six (2021) {imdb-tt13718450}",
+   "expect_season": "Season 01",
+   "expect_file": "86 Eighty Six (2021) - S01E22 - 022 - Shin [v2 - Notifiarr][Bluray-1080p v2][Opus 2.0][JA+EN][x265 10bit]-koala.mkv",
+   "ext": ".mkv"
+  },
+  {
+   "instance": "sonarr_anime_debrid",
+   "file_id": 2215,
+   "series": {
+    "Title": "Dororo (2019)",
+    "Year": 2019,
+    "Type": "anime",
+    "ImdbID": "tt9458304",
+    "TvdbID": 354167,
+    "TvMazeID": 0,
+    "TmdbID": 83100
+   },
+   "episodes": [
+    {
+     "Season": 1,
+     "Number": 10,
+     "Absolute": 10,
+     "Title": "The story of Tahomaru",
+     "AirDate": "2019-03-11"
+    }
+   ],
+   "episode_file": {
+    "ID": 2215,
+    "Quality": {
+     "Title": "Bluray-1080p",
+     "Version": 1,
+     "Real": 0
+    },
+    "ReleaseGroup": "OZR",
+    "ReleaseHash": "",
+    "SceneName": "",
+    "RelativePath": "Season 01/Dororo (2019) - S01E10 - 010 - The story of Tahomaru [Bluray-1080p][FLAC 2.0][JA+EN][x265 10bit]-OZR.mkv",
+    "Path": "/media/anime/Dororo (2019) {imdb-tt9458304}/Season 01/Dororo (2019) - S01E10 - 010 - The story of Tahomaru [Bluray-1080p][FLAC 2.0][JA+EN][x265 10bit]-OZR.mkv",
+    "MediaInfo": {
+     "VideoCodec": "x265",
+     "VideoBitDepth": 10,
+     "VideoMultiViewCount": 0,
+     "AudioCodec": "FLAC",
+     "AudioChannels": 2,
+     "AudioLanguages": [
+      "jpn",
+      "eng"
+     ],
+     "Subtitles": null,
+     "VideoDynamicRange": "",
+     "VideoDynamicRangeType": ""
+    },
+    "CustomFormats": null
+   },
+   "root": "/media/anime",
+   "cf_source": "none",
+   "expect_folder": "Dororo (2019) {imdb-tt9458304}",
+   "expect_season": "Season 01",
+   "expect_file": "Dororo (2019) - S01E10 - 010 - The story of Tahomaru [Bluray-1080p][FLAC 2.0][JA+EN][x265 10bit]-OZR.mkv",
+   "ext": ".mkv"
+  },
+  {
+   "instance": "sonarr_anime_debrid",
+   "file_id": 2266,
+   "series": {
+    "Title": "Dr. STONE",
+    "Year": 2019,
+    "Type": "anime",
+    "ImdbID": "tt9679542",
+    "TvdbID": 355774,
+    "TvMazeID": 0,
+    "TmdbID": 86031
+   },
+   "episodes": [
+    {
+     "Season": 3,
+     "Number": 2,
+     "Absolute": 38,
+     "Title": "Greed Equals Justice",
+     "AirDate": "2023-04-13"
+    }
+   ],
+   "episode_file": {
+    "ID": 2266,
+    "Quality": {
+     "Title": "Bluray-1080p",
+     "Version": 2,
+     "Real": 0
+    },
+    "ReleaseGroup": "sam",
+    "ReleaseHash": "",
+    "SceneName": "",
+    "RelativePath": "Season 03/Dr. STONE (2019) - S03E02 - 038 - Greed Equals Justice [v2 - Notifiarr][Bluray-1080p v2][FLAC 2.0][JA+EN][x265 10bit]-sam.mkv",
+    "Path": "/media/anime/Dr. STONE (2019) {imdb-tt9679542}/Season 03/Dr. STONE (2019) - S03E02 - 038 - Greed Equals Justice [v2 - Notifiarr][Bluray-1080p v2][FLAC 2.0][JA+EN][x265 10bit]-sam.mkv",
+    "MediaInfo": {
+     "VideoCodec": "x265",
+     "VideoBitDepth": 10,
+     "VideoMultiViewCount": 0,
+     "AudioCodec": "FLAC",
+     "AudioChannels": 2,
+     "AudioLanguages": [
+      "jpn",
+      "eng"
+     ],
+     "Subtitles": null,
+     "VideoDynamicRange": "",
+     "VideoDynamicRangeType": ""
+    },
+    "CustomFormats": [
+     "v2 - Notifiarr"
+    ]
+   },
+   "root": "/media/anime",
+   "cf_source": "name",
+   "expect_folder": "Dr. STONE (2019) {imdb-tt9679542}",
+   "expect_season": "Season 03",
+   "expect_file": "Dr. STONE (2019) - S03E02 - 038 - Greed Equals Justice [v2 - Notifiarr][Bluray-1080p v2][FLAC 2.0][JA+EN][x265 10bit]-sam.mkv",
+   "ext": ".mkv"
+  },
+  {
+   "instance": "sonarr_anime_debrid",
+   "file_id": 2269,
+   "series": {
+    "Title": "Dr. STONE",
+    "Year": 2019,
+    "Type": "anime",
+    "ImdbID": "tt9679542",
+    "TvdbID": 355774,
+    "TvMazeID": 0,
+    "TmdbID": 86031
+   },
+   "episodes": [
+    {
+     "Season": 3,
+     "Number": 5,
+     "Absolute": 41,
+     "Title": "Science Vessel Perseus",
+     "AirDate": "2023-05-04"
+    }
+   ],
+   "episode_file": {
+    "ID": 2269,
+    "Quality": {
+     "Title": "Bluray-1080p",
+     "Version": 2,
+     "Real": 0
+    },
+    "ReleaseGroup": "sam",
+    "ReleaseHash": "",
+    "SceneName": "",
+    "RelativePath": "Season 03/Dr. STONE (2019) - S03E05 - 041 - Science Vessel Perseus [v2 - Notifiarr][Bluray-1080p v2][FLAC 2.0][JA+EN][x265 10bit]-sam.mkv",
+    "Path": "/media/anime/Dr. STONE (2019) {imdb-tt9679542}/Season 03/Dr. STONE (2019) - S03E05 - 041 - Science Vessel Perseus [v2 - Notifiarr][Bluray-1080p v2][FLAC 2.0][JA+EN][x265 10bit]-sam.mkv",
+    "MediaInfo": {
+     "VideoCodec": "x265",
+     "VideoBitDepth": 10,
+     "VideoMultiViewCount": 0,
+     "AudioCodec": "FLAC",
+     "AudioChannels": 2,
+     "AudioLanguages": [
+      "jpn",
+      "eng"
+     ],
+     "Subtitles": null,
+     "VideoDynamicRange": "",
+     "VideoDynamicRangeType": ""
+    },
+    "CustomFormats": [
+     "v2 - Notifiarr"
+    ]
+   },
+   "root": "/media/anime",
+   "cf_source": "name",
+   "expect_folder": "Dr. STONE (2019) {imdb-tt9679542}",
+   "expect_season": "Season 03",
+   "expect_file": "Dr. STONE (2019) - S03E05 - 041 - Science Vessel Perseus [v2 - Notifiarr][Bluray-1080p v2][FLAC 2.0][JA+EN][x265 10bit]-sam.mkv",
+   "ext": ".mkv"
+  },
+  {
+   "instance": "sonarr_anime_debrid",
+   "file_id": 2364,
+   "series": {
+    "Title": "Dragon Ball Z",
+    "Year": 1989,
+    "Type": "anime",
+    "ImdbID": "tt0121220",
+    "TvdbID": 81472,
+    "TvMazeID": 0,
+    "TmdbID": 12971
+   },
+   "episodes": [
+    {
+     "Season": 2,
+     "Number": 12,
+     "Absolute": 51,
+     "Title": "Vegeta Has a Ball",
+     "AirDate": "1990-06-06"
+    }
+   ],
+   "episode_file": {
+    "ID": 2364,
+    "Quality": {
+     "Title": "DVD",
+     "Version": 1,
+     "Real": 0
+    },
+    "ReleaseGroup": "SoM",
+    "ReleaseHash": "",
+    "SceneName": "Dragon.Ball.Z.051.480p.DBox.DVD.REGRADE.Dual-Audio.FLAC2.0.x264-SoM",
+    "RelativePath": "Season 02/Dragon Ball Z (1989) - S02E12 - 051 - Vegeta Has a Ball [DVD][FLAC 1.0][JA+EN][x264 8bit]-SoM.mkv",
+    "Path": "/media/anime/Dragon Ball Z (1989) {imdb-tt0121220}/Season 02/Dragon Ball Z (1989) - S02E12 - 051 - Vegeta Has a Ball [DVD][FLAC 1.0][JA+EN][x264 8bit]-SoM.mkv",
+    "MediaInfo": {
+     "VideoCodec": "x264",
+     "VideoBitDepth": 8,
+     "VideoMultiViewCount": 0,
+     "AudioCodec": "FLAC",
+     "AudioChannels": 1,
+     "AudioLanguages": [
+      "jpn",
+      "eng",
+      "eng",
+      "eng"
+     ],
+     "Subtitles": null,
+     "VideoDynamicRange": "",
+     "VideoDynamicRangeType": ""
+    },
+    "CustomFormats": null
+   },
+   "root": "/media/anime",
+   "cf_source": "none",
+   "expect_folder": "Dragon Ball Z (1989) {imdb-tt0121220}",
+   "expect_season": "Season 02",
+   "expect_file": "Dragon Ball Z (1989) - S02E12 - 051 - Vegeta Has a Ball [DVD][FLAC 1.0][JA+EN][x264 8bit]-SoM.mkv",
+   "ext": ".mkv"
+  },
+  {
+   "instance": "sonarr_anime_debrid",
+   "file_id": 2371,
+   "series": {
+    "Title": "Dragon Ball Z",
+    "Year": 1989,
+    "Type": "anime",
+    "ImdbID": "tt0121220",
+    "TvdbID": 81472,
+    "TvMazeID": 0,
+    "TmdbID": 12971
+   },
+   "episodes": [
+    {
+     "Season": 6,
+     "Number": 21,
+     "Absolute": 186,
+     "Title": "The Unstoppable Gohan",
+     "AirDate": "1993-05-19"
+    }
+   ],
+   "episode_file": {
+    "ID": 2371,
+    "Quality": {
+     "Title": "DVD",
+     "Version": 1,
+     "Real": 0
+    },
+    "ReleaseGroup": "SoM",
+    "ReleaseHash": "",
+    "SceneName": "Dragon.Ball.Z.186.480p.DBox.DVD.REGRADE.Dual-Audio.FLAC2.0.x264-SoM",
+    "RelativePath": "Season 06/Dragon Ball Z (1989) - S06E21 - 186 - The Unstoppable Gohan [DVD][FLAC 1.0][JA+EN][x264 8bit]-SoM.mkv",
+    "Path": "/media/anime/Dragon Ball Z (1989) {imdb-tt0121220}/Season 06/Dragon Ball Z (1989) - S06E21 - 186 - The Unstoppable Gohan [DVD][FLAC 1.0][JA+EN][x264 8bit]-SoM.mkv",
+    "MediaInfo": {
+     "VideoCodec": "x264",
+     "VideoBitDepth": 8,
+     "VideoMultiViewCount": 0,
+     "AudioCodec": "FLAC",
+     "AudioChannels": 1,
+     "AudioLanguages": [
+      "jpn",
+      "eng",
+      "eng",
+      "eng"
+     ],
+     "Subtitles": null,
+     "VideoDynamicRange": "",
+     "VideoDynamicRangeType": ""
+    },
+    "CustomFormats": null
+   },
+   "root": "/media/anime",
+   "cf_source": "none",
+   "expect_folder": "Dragon Ball Z (1989) {imdb-tt0121220}",
+   "expect_season": "Season 06",
+   "expect_file": "Dragon Ball Z (1989) - S06E21 - 186 - The Unstoppable Gohan [DVD][FLAC 1.0][JA+EN][x264 8bit]-SoM.mkv",
+   "ext": ".mkv"
+  },
+  {
+   "instance": "sonarr_anime_debrid",
+   "file_id": 2379,
+   "series": {
+    "Title": "Dragon Ball Z",
+    "Year": 1989,
+    "Type": "anime",
+    "ImdbID": "tt0121220",
+    "TvdbID": 81472,
+    "TvMazeID": 0,
+    "TmdbID": 12971
+   },
+   "episodes": [
+    {
+     "Season": 6,
+     "Number": 7,
+     "Absolute": 172,
+     "Title": "A New Guardian",
+     "AirDate": "1993-01-27"
+    }
+   ],
+   "episode_file": {
+    "ID": 2379,
+    "Quality": {
+     "Title": "DVD",
+     "Version": 1,
+     "Real": 0
+    },
+    "ReleaseGroup": "SoM",
+    "ReleaseHash": "",
+    "SceneName": "Dragon.Ball.Z.172.480p.DBox.DVD.REGRADE.Dual-Audio.FLAC2.0.x264-SoM",
+    "RelativePath": "Season 06/Dragon Ball Z (1989) - S06E07 - 172 - A New Guardian [DVD][FLAC 1.0][JA+EN][x264 8bit]-SoM.mkv",
+    "Path": "/media/anime/Dragon Ball Z (1989) {imdb-tt0121220}/Season 06/Dragon Ball Z (1989) - S06E07 - 172 - A New Guardian [DVD][FLAC 1.0][JA+EN][x264 8bit]-SoM.mkv",
+    "MediaInfo": {
+     "VideoCodec": "x264",
+     "VideoBitDepth": 8,
+     "VideoMultiViewCount": 0,
+     "AudioCodec": "FLAC",
+     "AudioChannels": 1,
+     "AudioLanguages": [
+      "jpn",
+      "eng",
+      "eng",
+      "eng"
+     ],
+     "Subtitles": null,
+     "VideoDynamicRange": "",
+     "VideoDynamicRangeType": ""
+    },
+    "CustomFormats": null
+   },
+   "root": "/media/anime",
+   "cf_source": "none",
+   "expect_folder": "Dragon Ball Z (1989) {imdb-tt0121220}",
+   "expect_season": "Season 06",
+   "expect_file": "Dragon Ball Z (1989) - S06E07 - 172 - A New Guardian [DVD][FLAC 1.0][JA+EN][x264 8bit]-SoM.mkv",
+   "ext": ".mkv"
+  },
+  {
+   "instance": "sonarr_anime_debrid",
+   "file_id": 2381,
+   "series": {
+    "Title": "Dragon Ball Z",
+    "Year": 1989,
+    "Type": "anime",
+    "ImdbID": "tt0121220",
+    "TvdbID": 81472,
+    "TvMazeID": 0,
+    "TmdbID": 12971
+   },
+   "episodes": [
+    {
+     "Season": 4,
+     "Number": 23,
+     "Absolute": 130,
+     "Title": "The Secret of Dr. Gero",
+     "AirDate": "1992-03-11"
+    }
+   ],
+   "episode_file": {
+    "ID": 2381,
+    "Quality": {
+     "Title": "DVD",
+     "Version": 1,
+     "Real": 0
+    },
+    "ReleaseGroup": "SoM",
+    "ReleaseHash": "",
+    "SceneName": "Dragon.Ball.Z.130.480p.DBox.DVD.REGRADE.Dual-Audio.FLAC2.0.x264-SoM",
+    "RelativePath": "Season 04/Dragon Ball Z (1989) - S04E23 - 130 - The Secret of Dr. Gero [DVD][FLAC 1.0][JA+EN][x264 8bit]-SoM.mkv",
+    "Path": "/media/anime/Dragon Ball Z (1989) {imdb-tt0121220}/Season 04/Dragon Ball Z (1989) - S04E23 - 130 - The Secret of Dr. Gero [DVD][FLAC 1.0][JA+EN][x264 8bit]-SoM.mkv",
+    "MediaInfo": {
+     "VideoCodec": "x264",
+     "VideoBitDepth": 8,
+     "VideoMultiViewCount": 0,
+     "AudioCodec": "FLAC",
+     "AudioChannels": 1,
+     "AudioLanguages": [
+      "jpn",
+      "eng",
+      "eng",
+      "eng"
+     ],
+     "Subtitles": null,
+     "VideoDynamicRange": "",
+     "VideoDynamicRangeType": ""
+    },
+    "CustomFormats": null
+   },
+   "root": "/media/anime",
+   "cf_source": "none",
+   "expect_folder": "Dragon Ball Z (1989) {imdb-tt0121220}",
+   "expect_season": "Season 04",
+   "expect_file": "Dragon Ball Z (1989) - S04E23 - 130 - The Secret of Dr. Gero [DVD][FLAC 1.0][JA+EN][x264 8bit]-SoM.mkv",
+   "ext": ".mkv"
+  },
+  {
+   "instance": "sonarr_anime_debrid",
+   "file_id": 2385,
+   "series": {
+    "Title": "Dragon Ball Z",
+    "Year": 1989,
+    "Type": "anime",
+    "ImdbID": "tt0121220",
+    "TvdbID": 81472,
+    "TvMazeID": 0,
+    "TmdbID": 12971
+   },
+   "episodes": [
+    {
+     "Season": 8,
+     "Number": 16,
+     "Absolute": 235,
+     "Title": "Meal Time",
+     "AirDate": "1994-08-03"
+    }
+   ],
+   "episode_file": {
+    "ID": 2385,
+    "Quality": {
+     "Title": "DVD",
+     "Version": 1,
+     "Real": 0
+    },
+    "ReleaseGroup": "SoM",
+    "ReleaseHash": "",
+    "SceneName": "Dragon.Ball.Z.235.480p.DBox.DVD.REGRADE.Dual-Audio.FLAC2.0.x264-SoM",
+    "RelativePath": "Season 08/Dragon Ball Z (1989) - S08E16 - 235 - Meal Time [DVD][FLAC 1.0][JA+EN][x264 8bit]-SoM.mkv",
+    "Path": "/media/anime/Dragon Ball Z (1989) {imdb-tt0121220}/Season 08/Dragon Ball Z (1989) - S08E16 - 235 - Meal Time [DVD][FLAC 1.0][JA+EN][x264 8bit]-SoM.mkv",
+    "MediaInfo": {
+     "VideoCodec": "x264",
+     "VideoBitDepth": 8,
+     "VideoMultiViewCount": 0,
+     "AudioCodec": "FLAC",
+     "AudioChannels": 1,
+     "AudioLanguages": [
+      "jpn",
+      "eng",
+      "eng",
+      "eng"
+     ],
+     "Subtitles": null,
+     "VideoDynamicRange": "",
+     "VideoDynamicRangeType": ""
+    },
+    "CustomFormats": null
+   },
+   "root": "/media/anime",
+   "cf_source": "none",
+   "expect_folder": "Dragon Ball Z (1989) {imdb-tt0121220}",
+   "expect_season": "Season 08",
+   "expect_file": "Dragon Ball Z (1989) - S08E16 - 235 - Meal Time [DVD][FLAC 1.0][JA+EN][x264 8bit]-SoM.mkv",
+   "ext": ".mkv"
+  },
+  {
+   "instance": "sonarr_anime_debrid",
+   "file_id": 2409,
+   "series": {
+    "Title": "Dragon Ball Z",
+    "Year": 1989,
+    "Type": "anime",
+    "ImdbID": "tt0121220",
+    "TvdbID": 81472,
+    "TvMazeID": 0,
+    "TmdbID": 12971
+   },
+   "episodes": [
+    {
+     "Season": 1,
+     "Number": 2,
+     "Absolute": 2,
+     "Title": "Reunions",
+     "AirDate": "1989-05-03"
+    }
+   ],
+   "episode_file": {
+    "ID": 2409,
+    "Quality": {
+     "Title": "DVD",
+     "Version": 1,
+     "Real": 0
+    },
+    "ReleaseGroup": "SoM",
+    "ReleaseHash": "",
+    "SceneName": "Dragon.Ball.Z.002.480p.DBox.DVD.REGRADE.Dual-Audio.FLAC2.0.x264-SoM",
+    "RelativePath": "Season 01/Dragon Ball Z (1989) - S01E02 - 002 - Reunions [DVD][FLAC 1.0][JA+EN][x264 8bit]-SoM.mkv",
+    "Path": "/media/anime/Dragon Ball Z (1989) {imdb-tt0121220}/Season 01/Dragon Ball Z (1989) - S01E02 - 002 - Reunions [DVD][FLAC 1.0][JA+EN][x264 8bit]-SoM.mkv",
+    "MediaInfo": {
+     "VideoCodec": "x264",
+     "VideoBitDepth": 8,
+     "VideoMultiViewCount": 0,
+     "AudioCodec": "FLAC",
+     "AudioChannels": 1,
+     "AudioLanguages": [
+      "jpn",
+      "eng",
+      "eng",
+      "eng"
+     ],
+     "Subtitles": null,
+     "VideoDynamicRange": "",
+     "VideoDynamicRangeType": ""
+    },
+    "CustomFormats": null
+   },
+   "root": "/media/anime",
+   "cf_source": "none",
+   "expect_folder": "Dragon Ball Z (1989) {imdb-tt0121220}",
+   "expect_season": "Season 01",
+   "expect_file": "Dragon Ball Z (1989) - S01E02 - 002 - Reunions [DVD][FLAC 1.0][JA+EN][x264 8bit]-SoM.mkv",
+   "ext": ".mkv"
+  },
+  {
+   "instance": "sonarr_anime_debrid",
+   "file_id": 2440,
+   "series": {
+    "Title": "Dragon Ball Z",
+    "Year": 1989,
+    "Type": "anime",
+    "ImdbID": "tt0121220",
+    "TvdbID": 81472,
+    "TvMazeID": 0,
+    "TmdbID": 12971
+   },
+   "episodes": [
+    {
+     "Season": 4,
+     "Number": 1,
+     "Absolute": 108,
+     "Title": "The Heavens Tremble",
+     "AirDate": "1991-09-18"
+    }
+   ],
+   "episode_file": {
+    "ID": 2440,
+    "Quality": {
+     "Title": "DVD",
+     "Version": 1,
+     "Real": 0
+    },
+    "ReleaseGroup": "SoM",
+    "ReleaseHash": "",
+    "SceneName": "Dragon.Ball.Z.108.480p.DBox.DVD.REGRADE.Dual-Audio.FLAC2.0.x264-SoM",
+    "RelativePath": "Season 04/Dragon Ball Z (1989) - S04E01 - 108 - The Heavens Tremble [DVD][FLAC 1.0][JA+EN][x264 8bit]-SoM.mkv",
+    "Path": "/media/anime/Dragon Ball Z (1989) {imdb-tt0121220}/Season 04/Dragon Ball Z (1989) - S04E01 - 108 - The Heavens Tremble [DVD][FLAC 1.0][JA+EN][x264 8bit]-SoM.mkv",
+    "MediaInfo": {
+     "VideoCodec": "x264",
+     "VideoBitDepth": 8,
+     "VideoMultiViewCount": 0,
+     "AudioCodec": "FLAC",
+     "AudioChannels": 1,
+     "AudioLanguages": [
+      "jpn",
+      "eng",
+      "eng",
+      "eng"
+     ],
+     "Subtitles": null,
+     "VideoDynamicRange": "",
+     "VideoDynamicRangeType": ""
+    },
+    "CustomFormats": null
+   },
+   "root": "/media/anime",
+   "cf_source": "none",
+   "expect_folder": "Dragon Ball Z (1989) {imdb-tt0121220}",
+   "expect_season": "Season 04",
+   "expect_file": "Dragon Ball Z (1989) - S04E01 - 108 - The Heavens Tremble [DVD][FLAC 1.0][JA+EN][x264 8bit]-SoM.mkv",
+   "ext": ".mkv"
+  },
+  {
+   "instance": "sonarr_anime_debrid",
+   "file_id": 2447,
+   "series": {
+    "Title": "Dragon Ball Z",
+    "Year": 1989,
+    "Type": "anime",
+    "ImdbID": "tt0121220",
+    "TvdbID": 81472,
+    "TvMazeID": 0,
+    "TmdbID": 12971
+   },
+   "episodes": [
+    {
+     "Season": 1,
+     "Number": 8,
+     "Absolute": 8,
+     "Title": "Gohan Goes Bananas!",
+     "AirDate": "1989-06-21"
+    }
+   ],
+   "episode_file": {
+    "ID": 2447,
+    "Quality": {
+     "Title": "DVD",
+     "Version": 1,
+     "Real": 0
+    },
+    "ReleaseGroup": "SoM",
+    "ReleaseHash": "",
+    "SceneName": "Dragon.Ball.Z.008.480p.DBox.DVD.REGRADE.Dual-Audio.FLAC2.0.x264-SoM",
+    "RelativePath": "Season 01/Dragon Ball Z (1989) - S01E08 - 008 - Gohan Goes Bananas! [DVD][FLAC 1.0][JA+EN][x264 8bit]-SoM.mkv",
+    "Path": "/media/anime/Dragon Ball Z (1989) {imdb-tt0121220}/Season 01/Dragon Ball Z (1989) - S01E08 - 008 - Gohan Goes Bananas! [DVD][FLAC 1.0][JA+EN][x264 8bit]-SoM.mkv",
+    "MediaInfo": {
+     "VideoCodec": "x264",
+     "VideoBitDepth": 8,
+     "VideoMultiViewCount": 0,
+     "AudioCodec": "FLAC",
+     "AudioChannels": 1,
+     "AudioLanguages": [
+      "jpn",
+      "eng",
+      "eng",
+      "eng"
+     ],
+     "Subtitles": null,
+     "VideoDynamicRange": "",
+     "VideoDynamicRangeType": ""
+    },
+    "CustomFormats": null
+   },
+   "root": "/media/anime",
+   "cf_source": "none",
+   "expect_folder": "Dragon Ball Z (1989) {imdb-tt0121220}",
+   "expect_season": "Season 01",
+   "expect_file": "Dragon Ball Z (1989) - S01E08 - 008 - Gohan Goes Bananas! [DVD][FLAC 1.0][JA+EN][x264 8bit]-SoM.mkv",
+   "ext": ".mkv"
+  },
+  {
+   "instance": "sonarr_anime_debrid",
+   "file_id": 2464,
+   "series": {
+    "Title": "Dragon Ball Z",
+    "Year": 1989,
+    "Type": "anime",
+    "ImdbID": "tt0121220",
+    "TvdbID": 81472,
+    "TvMazeID": 0,
+    "TmdbID": 12971
+   },
+   "episodes": [
+    {
+     "Season": 1,
+     "Number": 18,
+     "Absolute": 18,
+     "Title": "The End of Snake Way",
+     "AirDate": "1989-09-06"
+    }
+   ],
+   "episode_file": {
+    "ID": 2464,
+    "Quality": {
+     "Title": "DVD",
+     "Version": 1,
+     "Real": 0
+    },
+    "ReleaseGroup": "SoM",
+    "ReleaseHash": "",
+    "SceneName": "Dragon.Ball.Z.018.480p.DBox.DVD.REGRADE.Dual-Audio.FLAC2.0.x264-SoM",
+    "RelativePath": "Season 01/Dragon Ball Z (1989) - S01E18 - 018 - The End of Snake Way [DVD][FLAC 1.0][JA+EN][x264 8bit]-SoM.mkv",
+    "Path": "/media/anime/Dragon Ball Z (1989) {imdb-tt0121220}/Season 01/Dragon Ball Z (1989) - S01E18 - 018 - The End of Snake Way [DVD][FLAC 1.0][JA+EN][x264 8bit]-SoM.mkv",
+    "MediaInfo": {
+     "VideoCodec": "x264",
+     "VideoBitDepth": 8,
+     "VideoMultiViewCount": 0,
+     "AudioCodec": "FLAC",
+     "AudioChannels": 1,
+     "AudioLanguages": [
+      "jpn",
+      "eng",
+      "eng",
+      "eng"
+     ],
+     "Subtitles": null,
+     "VideoDynamicRange": "",
+     "VideoDynamicRangeType": ""
+    },
+    "CustomFormats": null
+   },
+   "root": "/media/anime",
+   "cf_source": "none",
+   "expect_folder": "Dragon Ball Z (1989) {imdb-tt0121220}",
+   "expect_season": "Season 01",
+   "expect_file": "Dragon Ball Z (1989) - S01E18 - 018 - The End of Snake Way [DVD][FLAC 1.0][JA+EN][x264 8bit]-SoM.mkv",
+   "ext": ".mkv"
+  },
+  {
+   "instance": "sonarr_anime_debrid",
+   "file_id": 2537,
+   "series": {
+    "Title": "Dragon Ball Z",
+    "Year": 1989,
+    "Type": "anime",
+    "ImdbID": "tt0121220",
+    "TvdbID": 81472,
+    "TvMazeID": 0,
+    "TmdbID": 12971
+   },
+   "episodes": [
+    {
+     "Season": 9,
+     "Number": 22,
+     "Absolute": 275,
+     "Title": "Deadly Vision",
+     "AirDate": "1995-08-16"
+    }
+   ],
+   "episode_file": {
+    "ID": 2537,
+    "Quality": {
+     "Title": "DVD",
+     "Version": 1,
+     "Real": 0
+    },
+    "ReleaseGroup": "SoM",
+    "ReleaseHash": "",
+    "SceneName": "Dragon.Ball.Z.275.480p.DBox.DVD.REGRADE.Dual-Audio.FLAC2.0.x264-SoM",
+    "RelativePath": "Season 09/Dragon Ball Z (1989) - S09E22 - 275 - Deadly Vision [DVD][FLAC 1.0][JA+EN][x264 8bit]-SoM.mkv",
+    "Path": "/media/anime/Dragon Ball Z (1989) {imdb-tt0121220}/Season 09/Dragon Ball Z (1989) - S09E22 - 275 - Deadly Vision [DVD][FLAC 1.0][JA+EN][x264 8bit]-SoM.mkv",
+    "MediaInfo": {
+     "VideoCodec": "x264",
+     "VideoBitDepth": 8,
+     "VideoMultiViewCount": 0,
+     "AudioCodec": "FLAC",
+     "AudioChannels": 1,
+     "AudioLanguages": [
+      "jpn",
+      "eng",
+      "eng",
+      "eng"
+     ],
+     "Subtitles": null,
+     "VideoDynamicRange": "",
+     "VideoDynamicRangeType": ""
+    },
+    "CustomFormats": null
+   },
+   "root": "/media/anime",
+   "cf_source": "none",
+   "expect_folder": "Dragon Ball Z (1989) {imdb-tt0121220}",
+   "expect_season": "Season 09",
+   "expect_file": "Dragon Ball Z (1989) - S09E22 - 275 - Deadly Vision [DVD][FLAC 1.0][JA+EN][x264 8bit]-SoM.mkv",
+   "ext": ".mkv"
+  },
+  {
+   "instance": "sonarr_anime_debrid",
+   "file_id": 2549,
+   "series": {
+    "Title": "Dragon Ball Z",
+    "Year": 1989,
+    "Type": "anime",
+    "ImdbID": "tt0121220",
+    "TvdbID": 81472,
+    "TvMazeID": 0,
+    "TmdbID": 12971
+   },
+   "episodes": [
+    {
+     "Season": 1,
+     "Number": 19,
+     "Absolute": 19,
+     "Title": "Defying Gravity",
+     "AirDate": "1989-09-13"
+    }
+   ],
+   "episode_file": {
+    "ID": 2549,
+    "Quality": {
+     "Title": "DVD",
+     "Version": 1,
+     "Real": 0
+    },
+    "ReleaseGroup": "SoM",
+    "ReleaseHash": "",
+    "SceneName": "Dragon.Ball.Z.019.480p.DBox.DVD.REGRADE.Dual-Audio.FLAC2.0.x264-SoM",
+    "RelativePath": "Season 01/Dragon Ball Z (1989) - S01E19 - 019 - Defying Gravity [DVD][FLAC 1.0][JA+EN][x264 8bit]-SoM.mkv",
+    "Path": "/media/anime/Dragon Ball Z (1989) {imdb-tt0121220}/Season 01/Dragon Ball Z (1989) - S01E19 - 019 - Defying Gravity [DVD][FLAC 1.0][JA+EN][x264 8bit]-SoM.mkv",
+    "MediaInfo": {
+     "VideoCodec": "x264",
+     "VideoBitDepth": 8,
+     "VideoMultiViewCount": 0,
+     "AudioCodec": "FLAC",
+     "AudioChannels": 1,
+     "AudioLanguages": [
+      "jpn",
+      "eng",
+      "eng",
+      "eng"
+     ],
+     "Subtitles": null,
+     "VideoDynamicRange": "",
+     "VideoDynamicRangeType": ""
+    },
+    "CustomFormats": null
+   },
+   "root": "/media/anime",
+   "cf_source": "none",
+   "expect_folder": "Dragon Ball Z (1989) {imdb-tt0121220}",
+   "expect_season": "Season 01",
+   "expect_file": "Dragon Ball Z (1989) - S01E19 - 019 - Defying Gravity [DVD][FLAC 1.0][JA+EN][x264 8bit]-SoM.mkv",
+   "ext": ".mkv"
+  },
+  {
+   "instance": "sonarr_anime_debrid",
+   "file_id": 2586,
+   "series": {
+    "Title": "The Eminence in Shadow",
+    "Year": 2022,
+    "Type": "anime",
+    "ImdbID": "tt14115938",
+    "TvdbID": 407520,
+    "TvMazeID": 0,
+    "TmdbID": 119495
+   },
+   "episodes": [
+    {
+     "Season": 1,
+     "Number": 9,
+     "Absolute": 9,
+     "Title": "The End of a Lie",
+     "AirDate": "2022-11-30"
+    }
+   ],
+   "episode_file": {
+    "ID": 2586,
+    "Quality": {
+     "Title": "Bluray-1080p",
+     "Version": 1,
+     "Real": 0
+    },
+    "ReleaseGroup": "OZR",
+    "ReleaseHash": "",
+    "SceneName": "",
+    "RelativePath": "Season 01/The Eminence in Shadow (2022) - S01E09 - 009 - The End of a Lie [v2 - Notifiarr][Bluray-1080p][Opus 2.0][JA+EN][x265 10bit]-OZR.mkv",
+    "Path": "/media/anime/The Eminence in Shadow (2022) {imdb-tt14115938}/Season 01/The Eminence in Shadow (2022) - S01E09 - 009 - The End of a Lie [v2 - Notifiarr][Bluray-1080p][Opus 2.0][JA+EN][x265 10bit]-OZR.mkv",
+    "MediaInfo": {
+     "VideoCodec": "x265",
+     "VideoBitDepth": 10,
+     "VideoMultiViewCount": 0,
+     "AudioCodec": "Opus",
+     "AudioChannels": 2,
+     "AudioLanguages": [
+      "jpn",
+      "eng"
+     ],
+     "Subtitles": null,
+     "VideoDynamicRange": "",
+     "VideoDynamicRangeType": ""
+    },
+    "CustomFormats": [
+     "v2 - Notifiarr"
+    ]
+   },
+   "root": "/media/anime",
+   "cf_source": "name",
+   "expect_folder": "The Eminence in Shadow (2022) {imdb-tt14115938}",
+   "expect_season": "Season 01",
+   "expect_file": "The Eminence in Shadow (2022) - S01E09 - 009 - The End of a Lie [v2 - Notifiarr][Bluray-1080p][Opus 2.0][JA+EN][x265 10bit]-OZR.mkv",
+   "ext": ".mkv"
+  },
+  {
+   "instance": "sonarr_anime_debrid",
+   "file_id": 2593,
+   "series": {
+    "Title": "The Eminence in Shadow",
+    "Year": 2022,
+    "Type": "anime",
+    "ImdbID": "tt14115938",
+    "TvdbID": 407520,
+    "TvMazeID": 0,
+    "TmdbID": 119495
+   },
+   "episodes": [
+    {
+     "Season": 1,
+     "Number": 16,
+     "Absolute": 16,
+     "Title": "Unseen Intentions",
+     "AirDate": "2023-01-18"
+    }
+   ],
+   "episode_file": {
+    "ID": 2593,
+    "Quality": {
+     "Title": "Bluray-1080p",
+     "Version": 1,
+     "Real": 0
+    },
+    "ReleaseGroup": "OZR",
+    "ReleaseHash": "",
+    "SceneName": "",
+    "RelativePath": "Season 01/The Eminence in Shadow (2022) - S01E16 - 016 - Unseen Intentions [v2 - Notifiarr][Bluray-1080p][Opus 2.0][JA+EN][x265 10bit]-OZR.mkv",
+    "Path": "/media/anime/The Eminence in Shadow (2022) {imdb-tt14115938}/Season 01/The Eminence in Shadow (2022) - S01E16 - 016 - Unseen Intentions [v2 - Notifiarr][Bluray-1080p][Opus 2.0][JA+EN][x265 10bit]-OZR.mkv",
+    "MediaInfo": {
+     "VideoCodec": "x265",
+     "VideoBitDepth": 10,
+     "VideoMultiViewCount": 0,
+     "AudioCodec": "Opus",
+     "AudioChannels": 2,
+     "AudioLanguages": [
+      "jpn",
+      "eng"
+     ],
+     "Subtitles": null,
+     "VideoDynamicRange": "",
+     "VideoDynamicRangeType": ""
+    },
+    "CustomFormats": [
+     "v2 - Notifiarr"
+    ]
+   },
+   "root": "/media/anime",
+   "cf_source": "name",
+   "expect_folder": "The Eminence in Shadow (2022) {imdb-tt14115938}",
+   "expect_season": "Season 01",
+   "expect_file": "The Eminence in Shadow (2022) - S01E16 - 016 - Unseen Intentions [v2 - Notifiarr][Bluray-1080p][Opus 2.0][JA+EN][x265 10bit]-OZR.mkv",
+   "ext": ".mkv"
+  },
+  {
+   "instance": "sonarr_anime_debrid",
+   "file_id": 2604,
+   "series": {
+    "Title": "The Eminence in Shadow",
+    "Year": 2022,
+    "Type": "anime",
+    "ImdbID": "tt14115938",
+    "TvdbID": 407520,
+    "TvMazeID": 0,
+    "TmdbID": 119495
+   },
+   "episodes": [
+    {
+     "Season": 2,
+     "Number": 7,
+     "Absolute": 27,
+     "Title": "Something Precious",
+     "AirDate": "2023-11-15"
+    }
+   ],
+   "episode_file": {
+    "ID": 2604,
+    "Quality": {
+     "Title": "Bluray-1080p",
+     "Version": 2,
+     "Real": 0
+    },
+    "ReleaseGroup": "Shadow Garden",
+    "ReleaseHash": "",
+    "SceneName": "",
+    "RelativePath": "Season 02/The Eminence in Shadow (2022) - S02E07 - 027 - Something Precious [v2 - Notifiarr][Bluray-1080p v2][FLAC 2.0][JA+EN][x265 10bit]-Shadow Garden.mkv",
+    "Path": "/media/anime/The Eminence in Shadow (2022) {imdb-tt14115938}/Season 02/The Eminence in Shadow (2022) - S02E07 - 027 - Something Precious [v2 - Notifiarr][Bluray-1080p v2][FLAC 2.0][JA+EN][x265 10bit]-Shadow Garden.mkv",
+    "MediaInfo": {
+     "VideoCodec": "x265",
+     "VideoBitDepth": 10,
+     "VideoMultiViewCount": 0,
+     "AudioCodec": "FLAC",
+     "AudioChannels": 2,
+     "AudioLanguages": [
+      "jpn",
+      "eng"
+     ],
+     "Subtitles": null,
+     "VideoDynamicRange": "",
+     "VideoDynamicRangeType": ""
+    },
+    "CustomFormats": [
+     "v2 - Notifiarr"
+    ]
+   },
+   "root": "/media/anime",
+   "cf_source": "name",
+   "expect_folder": "The Eminence in Shadow (2022) {imdb-tt14115938}",
+   "expect_season": "Season 02",
+   "expect_file": "The Eminence in Shadow (2022) - S02E07 - 027 - Something Precious [v2 - Notifiarr][Bluray-1080p v2][FLAC 2.0][JA+EN][x265 10bit]-Shadow Garden.mkv",
+   "ext": ".mkv"
+  },
+  {
+   "instance": "sonarr_anime_debrid",
+   "file_id": 2605,
+   "series": {
+    "Title": "The Eminence in Shadow",
+    "Year": 2022,
+    "Type": "anime",
+    "ImdbID": "tt14115938",
+    "TvdbID": 407520,
+    "TvMazeID": 0,
+    "TmdbID": 119495
+   },
+   "episodes": [
+    {
+     "Season": 2,
+     "Number": 8,
+     "Absolute": 28,
+     "Title": "The Dragon's Tears",
+     "AirDate": "2023-11-22"
+    }
+   ],
+   "episode_file": {
+    "ID": 2605,
+    "Quality": {
+     "Title": "Bluray-1080p",
+     "Version": 2,
+     "Real": 0
+    },
+    "ReleaseGroup": "Shadow Garden",
+    "ReleaseHash": "",
+    "SceneName": "",
+    "RelativePath": "Season 02/The Eminence in Shadow (2022) - S02E08 - 028 - The Dragons Tears [v2 - Notifiarr][Bluray-1080p v2][FLAC 2.0][JA+EN][x265 10bit]-Shadow Garden.mkv",
+    "Path": "/media/anime/The Eminence in Shadow (2022) {imdb-tt14115938}/Season 02/The Eminence in Shadow (2022) - S02E08 - 028 - The Dragons Tears [v2 - Notifiarr][Bluray-1080p v2][FLAC 2.0][JA+EN][x265 10bit]-Shadow Garden.mkv",
+    "MediaInfo": {
+     "VideoCodec": "x265",
+     "VideoBitDepth": 10,
+     "VideoMultiViewCount": 0,
+     "AudioCodec": "FLAC",
+     "AudioChannels": 2,
+     "AudioLanguages": [
+      "jpn",
+      "eng"
+     ],
+     "Subtitles": null,
+     "VideoDynamicRange": "",
+     "VideoDynamicRangeType": ""
+    },
+    "CustomFormats": [
+     "v2 - Notifiarr"
+    ]
+   },
+   "root": "/media/anime",
+   "cf_source": "name",
+   "expect_folder": "The Eminence in Shadow (2022) {imdb-tt14115938}",
+   "expect_season": "Season 02",
+   "expect_file": "The Eminence in Shadow (2022) - S02E08 - 028 - The Dragons Tears [v2 - Notifiarr][Bluray-1080p v2][FLAC 2.0][JA+EN][x265 10bit]-Shadow Garden.mkv",
+   "ext": ".mkv"
+  },
+  {
+   "instance": "sonarr_anime_debrid",
+   "file_id": 2661,
+   "series": {
+    "Title": "Goblin Slayer",
+    "Year": 2018,
+    "Type": "anime",
+    "ImdbID": "tt8690728",
+    "TvdbID": 350166,
+    "TvMazeID": 0,
+    "TmdbID": 82591
+   },
+   "episodes": [
+    {
+     "Season": 1,
+     "Number": 2,
+     "Absolute": 2,
+     "Title": "Goblin Slayer",
+     "AirDate": "2018-10-14"
+    }
+   ],
+   "episode_file": {
+    "ID": 2661,
+    "Quality": {
+     "Title": "Bluray-1080p",
+     "Version": 1,
+     "Real": 0
+    },
+    "ReleaseGroup": "OZR",
+    "ReleaseHash": "",
+    "SceneName": "",
+    "RelativePath": "Season 01/Goblin Slayer (2018) - S01E02 - 002 - Goblin Slayer [Bluray-1080p][FLAC 2.0][JA+EN][x265 10bit]-OZR.mkv",
+    "Path": "/media/anime/Goblin Slayer (2018) {imdb-tt8690728}/Season 01/Goblin Slayer (2018) - S01E02 - 002 - Goblin Slayer [Bluray-1080p][FLAC 2.0][JA+EN][x265 10bit]-OZR.mkv",
+    "MediaInfo": {
+     "VideoCodec": "x265",
+     "VideoBitDepth": 10,
+     "VideoMultiViewCount": 0,
+     "AudioCodec": "FLAC",
+     "AudioChannels": 2,
+     "AudioLanguages": [
+      "jpn",
+      "eng"
+     ],
+     "Subtitles": null,
+     "VideoDynamicRange": "",
+     "VideoDynamicRangeType": ""
+    },
+    "CustomFormats": null
+   },
+   "root": "/media/anime",
+   "cf_source": "none",
+   "expect_folder": "Goblin Slayer (2018) {imdb-tt8690728}",
+   "expect_season": "Season 01",
+   "expect_file": "Goblin Slayer (2018) - S01E02 - 002 - Goblin Slayer [Bluray-1080p][FLAC 2.0][JA+EN][x265 10bit]-OZR.mkv",
+   "ext": ".mkv"
+  },
+  {
+   "instance": "sonarr_anime_debrid",
+   "file_id": 2667,
+   "series": {
+    "Title": "Goblin Slayer",
+    "Year": 2018,
+    "Type": "anime",
+    "ImdbID": "tt8690728",
+    "TvdbID": 350166,
+    "TvMazeID": 0,
+    "TmdbID": 82591
+   },
+   "episodes": [
+    {
+     "Season": 1,
+     "Number": 8,
+     "Absolute": 8,
+     "Title": "Whispers and Prayers and Chants",
+     "AirDate": "2018-11-25"
+    }
+   ],
+   "episode_file": {
+    "ID": 2667,
+    "Quality": {
+     "Title": "Bluray-1080p",
+     "Version": 1,
+     "Real": 0
+    },
+    "ReleaseGroup": "OZR",
+    "ReleaseHash": "",
+    "SceneName": "",
+    "RelativePath": "Season 01/Goblin Slayer (2018) - S01E08 - 008 - Whispers and Prayers and Chants [Bluray-1080p][FLAC 2.0][JA+EN][x265 10bit]-OZR.mkv",
+    "Path": "/media/anime/Goblin Slayer (2018) {imdb-tt8690728}/Season 01/Goblin Slayer (2018) - S01E08 - 008 - Whispers and Prayers and Chants [Bluray-1080p][FLAC 2.0][JA+EN][x265 10bit]-OZR.mkv",
+    "MediaInfo": {
+     "VideoCodec": "x265",
+     "VideoBitDepth": 10,
+     "VideoMultiViewCount": 0,
+     "AudioCodec": "FLAC",
+     "AudioChannels": 2,
+     "AudioLanguages": [
+      "jpn",
+      "eng"
+     ],
+     "Subtitles": null,
+     "VideoDynamicRange": "",
+     "VideoDynamicRangeType": ""
+    },
+    "CustomFormats": null
+   },
+   "root": "/media/anime",
+   "cf_source": "none",
+   "expect_folder": "Goblin Slayer (2018) {imdb-tt8690728}",
+   "expect_season": "Season 01",
+   "expect_file": "Goblin Slayer (2018) - S01E08 - 008 - Whispers and Prayers and Chants [Bluray-1080p][FLAC 2.0][JA+EN][x265 10bit]-OZR.mkv",
+   "ext": ".mkv"
+  },
+  {
+   "instance": "sonarr_anime_debrid",
+   "file_id": 2668,
+   "series": {
+    "Title": "Goblin Slayer",
+    "Year": 2018,
+    "Type": "anime",
+    "ImdbID": "tt8690728",
+    "TvdbID": 350166,
+    "TvMazeID": 0,
+    "TmdbID": 82591
+   },
+   "episodes": [
+    {
+     "Season": 1,
+     "Number": 9,
+     "Absolute": 9,
+     "Title": "There and Back Again",
+     "AirDate": "2018-12-02"
+    }
+   ],
+   "episode_file": {
+    "ID": 2668,
+    "Quality": {
+     "Title": "Bluray-1080p",
+     "Version": 1,
+     "Real": 0
+    },
+    "ReleaseGroup": "OZR",
+    "ReleaseHash": "",
+    "SceneName": "",
+    "RelativePath": "Season 01/Goblin Slayer (2018) - S01E09 - 009 - There and Back Again [Bluray-1080p][FLAC 2.0][JA+EN][x265 10bit]-OZR.mkv",
+    "Path": "/media/anime/Goblin Slayer (2018) {imdb-tt8690728}/Season 01/Goblin Slayer (2018) - S01E09 - 009 - There and Back Again [Bluray-1080p][FLAC 2.0][JA+EN][x265 10bit]-OZR.mkv",
+    "MediaInfo": {
+     "VideoCodec": "x265",
+     "VideoBitDepth": 10,
+     "VideoMultiViewCount": 0,
+     "AudioCodec": "FLAC",
+     "AudioChannels": 2,
+     "AudioLanguages": [
+      "jpn",
+      "eng"
+     ],
+     "Subtitles": null,
+     "VideoDynamicRange": "",
+     "VideoDynamicRangeType": ""
+    },
+    "CustomFormats": null
+   },
+   "root": "/media/anime",
+   "cf_source": "none",
+   "expect_folder": "Goblin Slayer (2018) {imdb-tt8690728}",
+   "expect_season": "Season 01",
+   "expect_file": "Goblin Slayer (2018) - S01E09 - 009 - There and Back Again [Bluray-1080p][FLAC 2.0][JA+EN][x265 10bit]-OZR.mkv",
+   "ext": ".mkv"
+  },
+  {
+   "instance": "sonarr_anime_debrid",
+   "file_id": 2706,
+   "series": {
+    "Title": "Heavenly Delusion",
+    "Year": 2023,
+    "Type": "anime",
+    "ImdbID": "tt22817632",
+    "TvdbID": 426165,
+    "TvMazeID": 0,
+    "TmdbID": 208891
+   },
+   "episodes": [
+    {
+     "Season": 1,
+     "Number": 10,
+     "Absolute": 10,
+     "Title": "The Walled Town",
+     "AirDate": "2023-06-03"
+    }
+   ],
+   "episode_file": {
+    "ID": 2706,
+    "Quality": {
+     "Title": "Bluray-1080p",
+     "Version": 1,
+     "Real": 0
+    },
+    "ReleaseGroup": "Ignore",
+    "ReleaseHash": "",
+    "SceneName": "Tengoku.Daimakyou.S01E10.1080p.BluRay.Opus.2.0.x265-Ignore",
+    "RelativePath": "Season 01/Heavenly Delusion (2023) - S01E10 - 010 - The Walled Town [Bluray-1080p][Opus 2.0][JA+EN][x265 10bit]-Ignore.mkv",
+    "Path": "/media/anime/Heavenly Delusion (2023) {imdb-tt22817632}/Season 01/Heavenly Delusion (2023) - S01E10 - 010 - The Walled Town [Bluray-1080p][Opus 2.0][JA+EN][x265 10bit]-Ignore.mkv",
+    "MediaInfo": {
+     "VideoCodec": "x265",
+     "VideoBitDepth": 10,
+     "VideoMultiViewCount": 0,
+     "AudioCodec": "Opus",
+     "AudioChannels": 2,
+     "AudioLanguages": [
+      "jpn",
+      "eng"
+     ],
+     "Subtitles": null,
+     "VideoDynamicRange": "",
+     "VideoDynamicRangeType": ""
+    },
+    "CustomFormats": null
+   },
+   "root": "/media/anime",
+   "cf_source": "none",
+   "expect_folder": "Heavenly Delusion (2023) {imdb-tt22817632}",
+   "expect_season": "Season 01",
+   "expect_file": "Heavenly Delusion (2023) - S01E10 - 010 - The Walled Town [Bluray-1080p][Opus 2.0][JA+EN][x265 10bit]-Ignore.mkv",
+   "ext": ".mkv"
+  },
+  {
+   "instance": "sonarr_anime_debrid",
+   "file_id": 2710,
+   "series": {
+    "Title": "Insomniacs After School",
+    "Year": 2023,
+    "Type": "anime",
+    "ImdbID": "tt26450257",
+    "TvdbID": 414562,
+    "TvMazeID": 0,
+    "TmdbID": 155440
+   },
+   "episodes": [
+    {
+     "Season": 1,
+     "Number": 1,
+     "Absolute": 1,
+     "Title": "Capella",
+     "AirDate": "2023-04-11"
+    }
+   ],
+   "episode_file": {
+    "ID": 2710,
+    "Quality": {
+     "Title": "Bluray-1080p",
+     "Version": 2,
+     "Real": 0
+    },
+    "ReleaseGroup": "LostYears",
+    "ReleaseHash": "",
+    "SceneName": "",
+    "RelativePath": "Season 01/Insomniacs After School (2023) - S01E01 - 001 - Capella [v2 - Notifiarr][Bluray-1080p v2][Opus 2.0][JA+EN][x265 10bit]-LostYears.mkv",
+    "Path": "/media/anime/Insomniacs After School (2023) {imdb-tt26450257}/Season 01/Insomniacs After School (2023) - S01E01 - 001 - Capella [v2 - Notifiarr][Bluray-1080p v2][Opus 2.0][JA+EN][x265 10bit]-LostYears.mkv",
+    "MediaInfo": {
+     "VideoCodec": "x265",
+     "VideoBitDepth": 10,
+     "VideoMultiViewCount": 0,
+     "AudioCodec": "Opus",
+     "AudioChannels": 2,
+     "AudioLanguages": [
+      "jpn",
+      "eng"
+     ],
+     "Subtitles": null,
+     "VideoDynamicRange": "",
+     "VideoDynamicRangeType": ""
+    },
+    "CustomFormats": [
+     "v2 - Notifiarr"
+    ]
+   },
+   "root": "/media/anime",
+   "cf_source": "name",
+   "expect_folder": "Insomniacs After School (2023) {imdb-tt26450257}",
+   "expect_season": "Season 01",
+   "expect_file": "Insomniacs After School (2023) - S01E01 - 001 - Capella [v2 - Notifiarr][Bluray-1080p v2][Opus 2.0][JA+EN][x265 10bit]-LostYears.mkv",
+   "ext": ".mkv"
+  },
+  {
+   "instance": "sonarr_anime_debrid",
+   "file_id": 2740,
+   "series": {
+    "Title": "The Irregular at Magic High School",
+    "Year": 2014,
+    "Type": "anime",
+    "ImdbID": "tt3874528",
+    "TvdbID": 278329,
+    "TvMazeID": 0,
+    "TmdbID": 60833
+   },
+   "episodes": [
+    {
+     "Season": 1,
+     "Number": 18,
+     "Absolute": 18,
+     "Title": "Nine Schools Competition Part XI",
+     "AirDate": "2014-08-03"
+    }
+   ],
+   "episode_file": {
+    "ID": 2740,
+    "Quality": {
+     "Title": "Bluray-1080p",
+     "Version": 1,
+     "Real": 0
+    },
+    "ReleaseGroup": "sam",
+    "ReleaseHash": "",
+    "SceneName": "",
+    "RelativePath": "Season 01/The Irregular at Magic High School (2014) - S01E18 - 018 - Nine Schools Competition Part XI [Bluray-1080p][FLAC 2.0][JA+EN][x265 10bit]-sam.mkv",
+    "Path": "/media/anime/The Irregular at Magic High School (2014) {imdb-tt3874528}/Season 01/The Irregular at Magic High School (2014) - S01E18 - 018 - Nine Schools Competition Part XI [Bluray-1080p][FLAC 2.0][JA+EN][x265 10bit]-sam.mkv",
+    "MediaInfo": {
+     "VideoCodec": "x265",
+     "VideoBitDepth": 10,
+     "VideoMultiViewCount": 0,
+     "AudioCodec": "FLAC",
+     "AudioChannels": 2,
+     "AudioLanguages": [
+      "jpn",
+      "eng"
+     ],
+     "Subtitles": null,
+     "VideoDynamicRange": "",
+     "VideoDynamicRangeType": ""
+    },
+    "CustomFormats": null
+   },
+   "root": "/media/anime",
+   "cf_source": "none",
+   "expect_folder": "The Irregular at Magic High School (2014) {imdb-tt3874528}",
+   "expect_season": "Season 01",
+   "expect_file": "The Irregular at Magic High School (2014) - S01E18 - 018 - Nine Schools Competition Part XI [Bluray-1080p][FLAC 2.0][JA+EN][x265 10bit]-sam.mkv",
+   "ext": ".mkv"
+  },
+  {
+   "instance": "sonarr_anime_debrid",
+   "file_id": 2774,
+   "series": {
+    "Title": "Is It Wrong to Try to Pick Up Girls in a Dungeon?",
+    "Year": 2015,
+    "Type": "standard",
+    "ImdbID": "tt4728568",
+    "TvdbID": 289882,
+    "TvMazeID": 0,
+    "TmdbID": 62745
+   },
+   "episodes": [
+    {
+     "Season": 1,
+     "Number": 13,
+     "Absolute": 13,
+     "Title": "(Familia Myth) The Story of a Familia",
+     "AirDate": "2015-06-27"
+    }
+   ],
+   "episode_file": {
+    "ID": 2774,
+    "Quality": {
+     "Title": "Bluray-1080p",
+     "Version": 1,
+     "Real": 0
+    },
+    "ReleaseGroup": "sam",
+    "ReleaseHash": "",
+    "SceneName": "",
+    "RelativePath": "Season 01/Is It Wrong to Try to Pick Up Girls in a Dungeon (2015) - S01E13 - Familia Myth The Story of a Familia [Bluray-1080p][FLAC 2.0][x265]-sam.mkv",
+    "Path": "/media/anime/Is It Wrong to Try to Pick Up Girls in a Dungeon (2015) {imdb-tt4728568}/Season 01/Is It Wrong to Try to Pick Up Girls in a Dungeon (2015) - S01E13 - Familia Myth The Story of a Familia [Bluray-1080p][FLAC 2.0][x265]-sam.mkv",
+    "MediaInfo": {
+     "VideoCodec": "x265",
+     "VideoBitDepth": 10,
+     "VideoMultiViewCount": 0,
+     "AudioCodec": "FLAC",
+     "AudioChannels": 2,
+     "AudioLanguages": [
+      "jpn",
+      "eng"
+     ],
+     "Subtitles": null,
+     "VideoDynamicRange": "",
+     "VideoDynamicRangeType": ""
+    },
+    "CustomFormats": null
+   },
+   "root": "/media/anime",
+   "cf_source": "none",
+   "expect_folder": "Is It Wrong to Try to Pick Up Girls in a Dungeon (2015) {imdb-tt4728568}",
+   "expect_season": "Season 01",
+   "expect_file": "Is It Wrong to Try to Pick Up Girls in a Dungeon (2015) - S01E13 - Familia Myth The Story of a Familia [Bluray-1080p][FLAC 2.0][x265]-sam.mkv",
+   "ext": ".mkv"
+  },
+  {
+   "instance": "sonarr_anime_debrid",
+   "file_id": 2789,
+   "series": {
+    "Title": "Is It Wrong to Try to Pick Up Girls in a Dungeon?",
+    "Year": 2015,
+    "Type": "standard",
+    "ImdbID": "tt4728568",
+    "TvdbID": 289882,
+    "TvMazeID": 0,
+    "TmdbID": 62745
+   },
+   "episodes": [
+    {
+     "Season": 3,
+     "Number": 3,
+     "Absolute": 28,
+     "Title": "(Xenos) Heretics",
+     "AirDate": "2020-10-17"
+    }
+   ],
+   "episode_file": {
+    "ID": 2789,
+    "Quality": {
+     "Title": "Bluray-1080p",
+     "Version": 2,
+     "Real": 0
+    },
+    "ReleaseGroup": "sam",
+    "ReleaseHash": "",
+    "SceneName": "",
+    "RelativePath": "Season 03/Is It Wrong to Try to Pick Up Girls in a Dungeon (2015) - S03E03 - Xenos Heretics [v2 - Notifiarr][Bluray-1080p Proper][FLAC 2.0][x265]-sam.mkv",
+    "Path": "/media/anime/Is It Wrong to Try to Pick Up Girls in a Dungeon (2015) {imdb-tt4728568}/Season 03/Is It Wrong to Try to Pick Up Girls in a Dungeon (2015) - S03E03 - Xenos Heretics [v2 - Notifiarr][Bluray-1080p Proper][FLAC 2.0][x265]-sam.mkv",
+    "MediaInfo": {
+     "VideoCodec": "x265",
+     "VideoBitDepth": 10,
+     "VideoMultiViewCount": 0,
+     "AudioCodec": "FLAC",
+     "AudioChannels": 2,
+     "AudioLanguages": [
+      "jpn",
+      "eng"
+     ],
+     "Subtitles": null,
+     "VideoDynamicRange": "",
+     "VideoDynamicRangeType": ""
+    },
+    "CustomFormats": [
+     "v2 - Notifiarr"
+    ]
+   },
+   "root": "/media/anime",
+   "cf_source": "name",
+   "expect_folder": "Is It Wrong to Try to Pick Up Girls in a Dungeon (2015) {imdb-tt4728568}",
+   "expect_season": "Season 03",
+   "expect_file": "Is It Wrong to Try to Pick Up Girls in a Dungeon (2015) - S03E03 - Xenos Heretics [v2 - Notifiarr][Bluray-1080p Proper][FLAC 2.0][x265]-sam.mkv",
+   "ext": ".mkv"
+  },
+  {
+   "instance": "sonarr_anime_debrid",
+   "file_id": 2790,
+   "series": {
+    "Title": "Is It Wrong to Try to Pick Up Girls in a Dungeon?",
+    "Year": 2015,
+    "Type": "standard",
+    "ImdbID": "tt4728568",
+    "TvdbID": 289882,
+    "TvMazeID": 0,
+    "TmdbID": 62745
+   },
+   "episodes": [
+    {
+     "Season": 3,
+     "Number": 4,
+     "Absolute": 29,
+     "Title": "(Yearning) A Far-Off-Dream",
+     "AirDate": "2020-10-24"
+    }
+   ],
+   "episode_file": {
+    "ID": 2790,
+    "Quality": {
+     "Title": "Bluray-1080p",
+     "Version": 2,
+     "Real": 0
+    },
+    "ReleaseGroup": "sam",
+    "ReleaseHash": "",
+    "SceneName": "",
+    "RelativePath": "Season 03/Is It Wrong to Try to Pick Up Girls in a Dungeon (2015) - S03E04 - Yearning A Far-Off-Dream [v2 - Notifiarr][Bluray-1080p Proper][FLAC 2.0][x265]-sam.mkv",
+    "Path": "/media/anime/Is It Wrong to Try to Pick Up Girls in a Dungeon (2015) {imdb-tt4728568}/Season 03/Is It Wrong to Try to Pick Up Girls in a Dungeon (2015) - S03E04 - Yearning A Far-Off-Dream [v2 - Notifiarr][Bluray-1080p Proper][FLAC 2.0][x265]-sam.mkv",
+    "MediaInfo": {
+     "VideoCodec": "x265",
+     "VideoBitDepth": 10,
+     "VideoMultiViewCount": 0,
+     "AudioCodec": "FLAC",
+     "AudioChannels": 2,
+     "AudioLanguages": [
+      "jpn",
+      "eng"
+     ],
+     "Subtitles": null,
+     "VideoDynamicRange": "",
+     "VideoDynamicRangeType": ""
+    },
+    "CustomFormats": [
+     "v2 - Notifiarr"
+    ]
+   },
+   "root": "/media/anime",
+   "cf_source": "name",
+   "expect_folder": "Is It Wrong to Try to Pick Up Girls in a Dungeon (2015) {imdb-tt4728568}",
+   "expect_season": "Season 03",
+   "expect_file": "Is It Wrong to Try to Pick Up Girls in a Dungeon (2015) - S03E04 - Yearning A Far-Off-Dream [v2 - Notifiarr][Bluray-1080p Proper][FLAC 2.0][x265]-sam.mkv",
+   "ext": ".mkv"
+  },
+  {
+   "instance": "sonarr_anime_debrid",
+   "file_id": 2807,
+   "series": {
+    "Title": "Is It Wrong to Try to Pick Up Girls in a Dungeon?",
+    "Year": 2015,
+    "Type": "standard",
+    "ImdbID": "tt4728568",
+    "TvdbID": 289882,
+    "TvMazeID": 0,
+    "TmdbID": 62745
+   },
+   "episodes": [
+    {
+     "Season": 4,
+     "Number": 9,
+     "Absolute": 46,
+     "Title": "Lambton | Ill Omen",
+     "AirDate": "2022-09-17"
+    }
+   ],
+   "episode_file": {
+    "ID": 2807,
+    "Quality": {
+     "Title": "Bluray-1080p",
+     "Version": 1,
+     "Real": 0
+    },
+    "ReleaseGroup": "sam",
+    "ReleaseHash": "",
+    "SceneName": "",
+    "RelativePath": "Season 04/Is It Wrong to Try to Pick Up Girls in a Dungeon (2015) - S04E09 - Lambton Ill Omen [Bluray-1080p][FLAC 2.0][x265]-sam.mkv",
+    "Path": "/media/anime/Is It Wrong to Try to Pick Up Girls in a Dungeon (2015) {imdb-tt4728568}/Season 04/Is It Wrong to Try to Pick Up Girls in a Dungeon (2015) - S04E09 - Lambton Ill Omen [Bluray-1080p][FLAC 2.0][x265]-sam.mkv",
+    "MediaInfo": {
+     "VideoCodec": "x265",
+     "VideoBitDepth": 10,
+     "VideoMultiViewCount": 0,
+     "AudioCodec": "FLAC",
+     "AudioChannels": 2,
+     "AudioLanguages": [
+      "jpn",
+      "eng"
+     ],
+     "Subtitles": null,
+     "VideoDynamicRange": "",
+     "VideoDynamicRangeType": ""
+    },
+    "CustomFormats": null
+   },
+   "root": "/media/anime",
+   "cf_source": "none",
+   "expect_folder": "Is It Wrong to Try to Pick Up Girls in a Dungeon (2015) {imdb-tt4728568}",
+   "expect_season": "Season 04",
+   "expect_file": "Is It Wrong to Try to Pick Up Girls in a Dungeon (2015) - S04E09 - Lambton Ill Omen [Bluray-1080p][FLAC 2.0][x265]-sam.mkv",
+   "ext": ".mkv"
+  },
+  {
+   "instance": "sonarr_anime_debrid",
+   "file_id": 2811,
+   "series": {
+    "Title": "Is It Wrong to Try to Pick Up Girls in a Dungeon?",
+    "Year": 2015,
+    "Type": "standard",
+    "ImdbID": "tt4728568",
+    "TvdbID": 289882,
+    "TvMazeID": 0,
+    "TmdbID": 62745
+   },
+   "episodes": [
+    {
+     "Season": 4,
+     "Number": 13,
+     "Absolute": 50,
+     "Title": "Morgue | Victim",
+     "AirDate": "2023-01-14"
+    }
+   ],
+   "episode_file": {
+    "ID": 2811,
+    "Quality": {
+     "Title": "Bluray-1080p",
+     "Version": 1,
+     "Real": 0
+    },
+    "ReleaseGroup": "sam",
+    "ReleaseHash": "",
+    "SceneName": "",
+    "RelativePath": "Season 04/Is It Wrong to Try to Pick Up Girls in a Dungeon (2015) - S04E13 - Morgue Victim [Bluray-1080p][FLAC 2.0][x265]-sam.mkv",
+    "Path": "/media/anime/Is It Wrong to Try to Pick Up Girls in a Dungeon (2015) {imdb-tt4728568}/Season 04/Is It Wrong to Try to Pick Up Girls in a Dungeon (2015) - S04E13 - Morgue Victim [Bluray-1080p][FLAC 2.0][x265]-sam.mkv",
+    "MediaInfo": {
+     "VideoCodec": "x265",
+     "VideoBitDepth": 10,
+     "VideoMultiViewCount": 0,
+     "AudioCodec": "FLAC",
+     "AudioChannels": 2,
+     "AudioLanguages": [
+      "jpn",
+      "eng"
+     ],
+     "Subtitles": null,
+     "VideoDynamicRange": "",
+     "VideoDynamicRangeType": ""
+    },
+    "CustomFormats": null
+   },
+   "root": "/media/anime",
+   "cf_source": "none",
+   "expect_folder": "Is It Wrong to Try to Pick Up Girls in a Dungeon (2015) {imdb-tt4728568}",
+   "expect_season": "Season 04",
+   "expect_file": "Is It Wrong to Try to Pick Up Girls in a Dungeon (2015) - S04E13 - Morgue Victim [Bluray-1080p][FLAC 2.0][x265]-sam.mkv",
+   "ext": ".mkv"
+  },
+  {
+   "instance": "sonarr_anime_debrid",
+   "file_id": 2823,
+   "series": {
+    "Title": "Is It Wrong to Try to Pick Up Girls in a Dungeon?",
+    "Year": 2015,
+    "Type": "standard",
+    "ImdbID": "tt4728568",
+    "TvdbID": 289882,
+    "TvMazeID": 0,
+    "TmdbID": 62745
+   },
+   "episodes": [
+    {
+     "Season": 5,
+     "Number": 3,
+     "Absolute": 71,
+     "Title": "Odr | Partner",
+     "AirDate": "2024-10-19"
+    }
+   ],
+   "episode_file": {
+    "ID": 2823,
+    "Quality": {
+     "Title": "Bluray-1080p",
+     "Version": 1,
+     "Real": 0
+    },
+    "ReleaseGroup": "sam",
+    "ReleaseHash": "",
+    "SceneName": "",
+    "RelativePath": "Season 05/Is It Wrong to Try to Pick Up Girls in a Dungeon (2015) - S05E03 - Odr Partner [Bluray-1080p][FLAC 2.0][x265]-sam.mkv",
+    "Path": "/media/anime/Is It Wrong to Try to Pick Up Girls in a Dungeon (2015) {imdb-tt4728568}/Season 05/Is It Wrong to Try to Pick Up Girls in a Dungeon (2015) - S05E03 - Odr Partner [Bluray-1080p][FLAC 2.0][x265]-sam.mkv",
+    "MediaInfo": {
+     "VideoCodec": "x265",
+     "VideoBitDepth": 10,
+     "VideoMultiViewCount": 0,
+     "AudioCodec": "FLAC",
+     "AudioChannels": 2,
+     "AudioLanguages": [
+      "jpn",
+      "eng"
+     ],
+     "Subtitles": null,
+     "VideoDynamicRange": "",
+     "VideoDynamicRangeType": ""
+    },
+    "CustomFormats": null
+   },
+   "root": "/media/anime",
+   "cf_source": "none",
+   "expect_folder": "Is It Wrong to Try to Pick Up Girls in a Dungeon (2015) {imdb-tt4728568}",
+   "expect_season": "Season 05",
+   "expect_file": "Is It Wrong to Try to Pick Up Girls in a Dungeon (2015) - S05E03 - Odr Partner [Bluray-1080p][FLAC 2.0][x265]-sam.mkv",
+   "ext": ".mkv"
+  },
+  {
+   "instance": "sonarr_anime_debrid",
+   "file_id": 2841,
+   "series": {
+    "Title": "Kaguya-sama: Love Is War",
+    "Year": 2019,
+    "Type": "anime",
+    "ImdbID": "tt9522300",
+    "TvdbID": 354198,
+    "TvMazeID": 0,
+    "TmdbID": 83121
+   },
+   "episodes": [
+    {
+     "Season": 1,
+     "Number": 6,
+     "Absolute": 6,
+     "Title": "Yu Ishigami Wants to Live / Chika Fujiwara Wants to Test You / Kaguya Wants to Be Noticed",
+     "AirDate": "2019-02-16"
+    }
+   ],
+   "episode_file": {
+    "ID": 2841,
+    "Quality": {
+     "Title": "Bluray-1080p",
+     "Version": 2,
+     "Real": 0
+    },
+    "ReleaseGroup": "Flugel",
+    "ReleaseHash": "",
+    "SceneName": "",
+    "RelativePath": "Season 01/Kaguya-sama Love Is War (2019) - S01E06 - 006 - Yu Ishigami Wants to Live Chika Fujiwara Wants to Test You Kaguya Wants to Be Noticed [v2 - Notifiarr][Bluray-1080p v2][Opus 2.0][JA+EN+ES][x265 10bit]-Flugel.mkv",
+    "Path": "/media/anime/Kaguya-sama Love Is War (2019) {imdb-tt9522300}/Season 01/Kaguya-sama Love Is War (2019) - S01E06 - 006 - Yu Ishigami Wants to Live Chika Fujiwara Wants to Test You Kaguya Wants to Be Noticed [v2 - Notifiarr][Bluray-1080p v2][Opus 2.0][JA+EN+ES][x265 10bit]-Flugel.mkv",
+    "MediaInfo": {
+     "VideoCodec": "x265",
+     "VideoBitDepth": 10,
+     "VideoMultiViewCount": 0,
+     "AudioCodec": "Opus",
+     "AudioChannels": 2,
+     "AudioLanguages": [
+      "jpn",
+      "eng",
+      "spa"
+     ],
+     "Subtitles": null,
+     "VideoDynamicRange": "",
+     "VideoDynamicRangeType": ""
+    },
+    "CustomFormats": [
+     "v2 - Notifiarr"
+    ]
+   },
+   "root": "/media/anime",
+   "cf_source": "name",
+   "expect_folder": "Kaguya-sama Love Is War (2019) {imdb-tt9522300}",
+   "expect_season": "Season 01",
+   "expect_file": "Kaguya-sama Love Is War (2019) - S01E06 - 006 - Yu Ishigami Wants to Live Chika Fujiwara Wants to Test You Kaguya Wants to Be Noticed [v2 - Notifiarr][Bluray-1080p v2][Opus 2.0][JA+EN+ES][x265 10bit]-Flugel.mkv",
+   "ext": ".mkv"
+  },
+  {
+   "instance": "sonarr_anime_debrid",
+   "file_id": 2842,
+   "series": {
+    "Title": "Kaguya-sama: Love Is War",
+    "Year": 2019,
+    "Type": "anime",
+    "ImdbID": "tt9522300",
+    "TvdbID": 354198,
+    "TvMazeID": 0,
+    "TmdbID": 83121
+   },
+   "episodes": [
+    {
+     "Season": 1,
+     "Number": 7,
+     "Absolute": 7,
+     "Title": "Miyuki Shirogane Wants to Work / Kaguya Wants Him to Join In / Kaguya Wants to Control It",
+     "AirDate": "2019-02-23"
+    }
+   ],
+   "episode_file": {
+    "ID": 2842,
+    "Quality": {
+     "Title": "Bluray-1080p",
+     "Version": 2,
+     "Real": 0
+    },
+    "ReleaseGroup": "Flugel",
+    "ReleaseHash": "",
+    "SceneName": "",
+    "RelativePath": "Season 01/Kaguya-sama Love Is War (2019) - S01E07 - 007 - Miyuki Shirogane Wants to Work Kaguya Wants Him to Join In Kaguya Wants to Control It [v2 - Notifiarr][Bluray-1080p v2][Opus 2.0][JA+EN+ES][x265 10bit]-Flugel.mkv",
+    "Path": "/media/anime/Kaguya-sama Love Is War (2019) {imdb-tt9522300}/Season 01/Kaguya-sama Love Is War (2019) - S01E07 - 007 - Miyuki Shirogane Wants to Work Kaguya Wants Him to Join In Kaguya Wants to Control It [v2 - Notifiarr][Bluray-1080p v2][Opus 2.0][JA+EN+ES][x265 10bit]-Flugel.mkv",
+    "MediaInfo": {
+     "VideoCodec": "x265",
+     "VideoBitDepth": 10,
+     "VideoMultiViewCount": 0,
+     "AudioCodec": "Opus",
+     "AudioChannels": 2,
+     "AudioLanguages": [
+      "jpn",
+      "eng",
+      "spa"
+     ],
+     "Subtitles": null,
+     "VideoDynamicRange": "",
+     "VideoDynamicRangeType": ""
+    },
+    "CustomFormats": [
+     "v2 - Notifiarr"
+    ]
+   },
+   "root": "/media/anime",
+   "cf_source": "name",
+   "expect_folder": "Kaguya-sama Love Is War (2019) {imdb-tt9522300}",
+   "expect_season": "Season 01",
+   "expect_file": "Kaguya-sama Love Is War (2019) - S01E07 - 007 - Miyuki Shirogane Wants to Work Kaguya Wants Him to Join In Kaguya Wants to Control It [v2 - Notifiarr][Bluray-1080p v2][Opus 2.0][JA+EN+ES][x265 10bit]-Flugel.mkv",
+   "ext": ".mkv"
+  },
+  {
+   "instance": "sonarr_anime_debrid",
+   "file_id": 2846,
+   "series": {
+    "Title": "Kaguya-sama: Love Is War",
+    "Year": 2019,
+    "Type": "anime",
+    "ImdbID": "tt9522300",
+    "TvdbID": 354198,
+    "TvMazeID": 0,
+    "TmdbID": 83121
+   },
+   "episodes": [
+    {
+     "Season": 1,
+     "Number": 11,
+     "Absolute": 11,
+     "Title": "Ai Hayasaka Wants to Get Soaked / Chika Fujiwara Really Wants to Eat It / Miyuki Shirogane Wants to See You / I Can't Hear the Fireworks, Part 1",
+     "AirDate": "2019-03-23"
+    }
+   ],
+   "episode_file": {
+    "ID": 2846,
+    "Quality": {
+     "Title": "Bluray-1080p",
+     "Version": 2,
+     "Real": 0
+    },
+    "ReleaseGroup": "Flugel",
+    "ReleaseHash": "",
+    "SceneName": "",
+    "RelativePath": "Season 01/Kaguya-sama Love Is War (2019) - S01E11 - 011 - Ai Hayasaka Wants to Get Soaked Chika Fujiwara Really Wants to Eat It Miyuki Shirog... [v2 - Notifiarr][Bluray-1080p v2][Opus 2.0][JA+EN+ES][x265 10bit]-Flugel.mkv",
+    "Path": "/media/anime/Kaguya-sama Love Is War (2019) {imdb-tt9522300}/Season 01/Kaguya-sama Love Is War (2019) - S01E11 - 011 - Ai Hayasaka Wants to Get Soaked Chika Fujiwara Really Wants to Eat It Miyuki Shirog... [v2 - Notifiarr][Bluray-1080p v2][Opus 2.0][JA+EN+ES][x265 10bit]-Flugel.mkv",
+    "MediaInfo": {
+     "VideoCodec": "x265",
+     "VideoBitDepth": 10,
+     "VideoMultiViewCount": 0,
+     "AudioCodec": "Opus",
+     "AudioChannels": 2,
+     "AudioLanguages": [
+      "jpn",
+      "eng",
+      "spa"
+     ],
+     "Subtitles": null,
+     "VideoDynamicRange": "",
+     "VideoDynamicRangeType": ""
+    },
+    "CustomFormats": [
+     "v2 - Notifiarr"
+    ]
+   },
+   "root": "/media/anime",
+   "cf_source": "name",
+   "expect_folder": "Kaguya-sama Love Is War (2019) {imdb-tt9522300}",
+   "expect_season": "Season 01",
+   "expect_file": "Kaguya-sama Love Is War (2019) - S01E11 - 011 - Ai Hayasaka Wants to Get Soaked Chika Fujiwara Really Wants to Eat It Miyuki Shirog... [v2 - Notifiarr][Bluray-1080p v2][Opus 2.0][JA+EN+ES][x265 10bit]-Flugel.mkv",
+   "ext": ".mkv"
+  },
+  {
+   "instance": "sonarr_anime_debrid",
+   "file_id": 2857,
+   "series": {
+    "Title": "Kaguya-sama: Love Is War",
+    "Year": 2019,
+    "Type": "anime",
+    "ImdbID": "tt9522300",
+    "TvdbID": 354198,
+    "TvMazeID": 0,
+    "TmdbID": 83121
+   },
+   "episodes": [
+    {
+     "Season": 2,
+     "Number": 10,
+     "Absolute": 22,
+     "Title": "Kei Shirogane Can't Speak / Miyuki Shirogane Wants to Dance / Kobachi Osaragi Wants to Crack Down / Miyuki Shirogane's Dad Wants to Find Out",
+     "AirDate": "2020-06-13"
+    }
+   ],
+   "episode_file": {
+    "ID": 2857,
+    "Quality": {
+     "Title": "Bluray-1080p",
+     "Version": 2,
+     "Real": 0
+    },
+    "ReleaseGroup": "Flugel",
+    "ReleaseHash": "",
+    "SceneName": "Kaguya-sama.Love.Is.War.S02E10.REPACK.1080p.BluRay.Opus2.0.x265-Flugel",
+    "RelativePath": "Season 02/Kaguya-sama Love Is War (2019) - S02E10 - 022 - Kei Shirogane Cant Speak Miyuki Shirogane Wants to Dance Kobachi Osaragi Wants to C... [v2 - Notifiarr][Bluray-1080p v2][Opus 2.0][JA+EN+ES][x265 10bit]-Flugel.mkv",
+    "Path": "/media/anime/Kaguya-sama Love Is War (2019) {imdb-tt9522300}/Season 02/Kaguya-sama Love Is War (2019) - S02E10 - 022 - Kei Shirogane Cant Speak Miyuki Shirogane Wants to Dance Kobachi Osaragi Wants to C... [v2 - Notifiarr][Bluray-1080p v2][Opus 2.0][JA+EN+ES][x265 10bit]-Flugel.mkv",
+    "MediaInfo": {
+     "VideoCodec": "x265",
+     "VideoBitDepth": 10,
+     "VideoMultiViewCount": 0,
+     "AudioCodec": "Opus",
+     "AudioChannels": 2,
+     "AudioLanguages": [
+      "jpn",
+      "eng",
+      "spa"
+     ],
+     "Subtitles": null,
+     "VideoDynamicRange": "",
+     "VideoDynamicRangeType": ""
+    },
+    "CustomFormats": [
+     "v2 - Notifiarr"
+    ]
+   },
+   "root": "/media/anime",
+   "cf_source": "name",
+   "expect_folder": "Kaguya-sama Love Is War (2019) {imdb-tt9522300}",
+   "expect_season": "Season 02",
+   "expect_file": "Kaguya-sama Love Is War (2019) - S02E10 - 022 - Kei Shirogane Cant Speak Miyuki Shirogane Wants to Dance Kobachi Osaragi Wants to C... [v2 - Notifiarr][Bluray-1080p v2][Opus 2.0][JA+EN+ES][x265 10bit]-Flugel.mkv",
+   "ext": ".mkv"
+  },
+  {
+   "instance": "sonarr_anime_debrid",
+   "file_id": 2858,
+   "series": {
+    "Title": "Kaguya-sama: Love Is War",
+    "Year": 2019,
+    "Type": "anime",
+    "ImdbID": "tt9522300",
+    "TvdbID": 354198,
+    "TvMazeID": 0,
+    "TmdbID": 83121
+   },
+   "episodes": [
+    {
+     "Season": 2,
+     "Number": 11,
+     "Absolute": 23,
+     "Title": "Yu Ishigami Closes His Eyes, Part 3 / Miyuki Shirogane and Yu Ishigami / Kyoko Otomo Doesn't Realize",
+     "AirDate": "2020-06-20"
+    }
+   ],
+   "episode_file": {
+    "ID": 2858,
+    "Quality": {
+     "Title": "Bluray-1080p",
+     "Version": 2,
+     "Real": 0
+    },
+    "ReleaseGroup": "Flugel",
+    "ReleaseHash": "",
+    "SceneName": "Kaguya-sama.Love.Is.War.S02E11.REPACK.1080p.BluRay.Opus2.0.x265-Flugel",
+    "RelativePath": "Season 02/Kaguya-sama Love Is War (2019) - S02E11 - 023 - Yu Ishigami Closes His Eyes Part 3 Miyuki Shirogane and Yu Ishigami Kyoko Otomo Doe... [v2 - Notifiarr][Bluray-1080p v2][Opus 2.0][JA+EN+ES][x265 10bit]-Flugel.mkv",
+    "Path": "/media/anime/Kaguya-sama Love Is War (2019) {imdb-tt9522300}/Season 02/Kaguya-sama Love Is War (2019) - S02E11 - 023 - Yu Ishigami Closes His Eyes Part 3 Miyuki Shirogane and Yu Ishigami Kyoko Otomo Doe... [v2 - Notifiarr][Bluray-1080p v2][Opus 2.0][JA+EN+ES][x265 10bit]-Flugel.mkv",
+    "MediaInfo": {
+     "VideoCodec": "x265",
+     "VideoBitDepth": 10,
+     "VideoMultiViewCount": 0,
+     "AudioCodec": "Opus",
+     "AudioChannels": 2,
+     "AudioLanguages": [
+      "jpn",
+      "eng",
+      "spa"
+     ],
+     "Subtitles": null,
+     "VideoDynamicRange": "",
+     "VideoDynamicRangeType": ""
+    },
+    "CustomFormats": [
+     "v2 - Notifiarr"
+    ]
+   },
+   "root": "/media/anime",
+   "cf_source": "name",
+   "expect_folder": "Kaguya-sama Love Is War (2019) {imdb-tt9522300}",
+   "expect_season": "Season 02",
+   "expect_file": "Kaguya-sama Love Is War (2019) - S02E11 - 023 - Yu Ishigami Closes His Eyes Part 3 Miyuki Shirogane and Yu Ishigami Kyoko Otomo Doe... [v2 - Notifiarr][Bluray-1080p v2][Opus 2.0][JA+EN+ES][x265 10bit]-Flugel.mkv",
+   "ext": ".mkv"
+  },
+  {
+   "instance": "sonarr_anime_debrid",
+   "file_id": 2864,
+   "series": {
+    "Title": "Kaguya-sama: Love Is War",
+    "Year": 2019,
+    "Type": "anime",
+    "ImdbID": "tt9522300",
+    "TvdbID": 354198,
+    "TvMazeID": 0,
+    "TmdbID": 83121
+   },
+   "episodes": [
+    {
+     "Season": 3,
+     "Number": 5,
+     "Absolute": 29,
+     "Title": "Chika Fujiwara Wants to Beat a Rhythm / Ai Hayasaka Wants to Talk / Maki Shijo Wants Some Help",
+     "AirDate": "2022-05-07"
+    }
+   ],
+   "episode_file": {
+    "ID": 2864,
+    "Quality": {
+     "Title": "Bluray-1080p",
+     "Version": 1,
+     "Real": 0
+    },
+    "ReleaseGroup": "Flugel",
+    "ReleaseHash": "",
+    "SceneName": "",
+    "RelativePath": "Season 03/Kaguya-sama Love Is War (2019) - S03E05 - 029 - Chika Fujiwara Wants to Beat a Rhythm Ai Hayasaka Wants to Talk Maki Shijo Wants So... [Bluray-1080p][Opus 2.0][JA+EN+ES][x265 10bit]-Flugel.mkv",
+    "Path": "/media/anime/Kaguya-sama Love Is War (2019) {imdb-tt9522300}/Season 03/Kaguya-sama Love Is War (2019) - S03E05 - 029 - Chika Fujiwara Wants to Beat a Rhythm Ai Hayasaka Wants to Talk Maki Shijo Wants So... [Bluray-1080p][Opus 2.0][JA+EN+ES][x265 10bit]-Flugel.mkv",
+    "MediaInfo": {
+     "VideoCodec": "x265",
+     "VideoBitDepth": 10,
+     "VideoMultiViewCount": 0,
+     "AudioCodec": "Opus",
+     "AudioChannels": 2,
+     "AudioLanguages": [
+      "jpn",
+      "eng",
+      "spa"
+     ],
+     "Subtitles": null,
+     "VideoDynamicRange": "",
+     "VideoDynamicRangeType": ""
+    },
+    "CustomFormats": null
+   },
+   "root": "/media/anime",
+   "cf_source": "none",
+   "expect_folder": "Kaguya-sama Love Is War (2019) {imdb-tt9522300}",
+   "expect_season": "Season 03",
+   "expect_file": "Kaguya-sama Love Is War (2019) - S03E05 - 029 - Chika Fujiwara Wants to Beat a Rhythm Ai Hayasaka Wants to Talk Maki Shijo Wants So... [Bluray-1080p][Opus 2.0][JA+EN+ES][x265 10bit]-Flugel.mkv",
+   "ext": ".mkv"
+  },
+  {
+   "instance": "sonarr_anime_debrid",
+   "file_id": 2867,
+   "series": {
+    "Title": "Kaguya-sama: Love Is War",
+    "Year": 2019,
+    "Type": "anime",
+    "ImdbID": "tt9522300",
+    "TvdbID": 354198,
+    "TvMazeID": 0,
+    "TmdbID": 83121
+   },
+   "episodes": [
+    {
+     "Season": 3,
+     "Number": 8,
+     "Absolute": 32,
+     "Title": "Kei Shirogane Wants to Show Off / About Kaguya Shinomiya, Part 2 / Kaguya Wants to Confess",
+     "AirDate": "2022-05-28"
+    }
+   ],
+   "episode_file": {
+    "ID": 2867,
+    "Quality": {
+     "Title": "Bluray-1080p",
+     "Version": 1,
+     "Real": 0
+    },
+    "ReleaseGroup": "Flugel",
+    "ReleaseHash": "",
+    "SceneName": "",
+    "RelativePath": "Season 03/Kaguya-sama Love Is War (2019) - S03E08 - 032 - Kei Shirogane Wants to Show Off About Kaguya Shinomiya Part 2 Kaguya Wants to Confess [Bluray-1080p][Opus 2.0][JA+EN+ES][x265 10bit]-Flugel.mkv",
+    "Path": "/media/anime/Kaguya-sama Love Is War (2019) {imdb-tt9522300}/Season 03/Kaguya-sama Love Is War (2019) - S03E08 - 032 - Kei Shirogane Wants to Show Off About Kaguya Shinomiya Part 2 Kaguya Wants to Confess [Bluray-1080p][Opus 2.0][JA+EN+ES][x265 10bit]-Flugel.mkv",
+    "MediaInfo": {
+     "VideoCodec": "x265",
+     "VideoBitDepth": 10,
+     "VideoMultiViewCount": 0,
+     "AudioCodec": "Opus",
+     "AudioChannels": 2,
+     "AudioLanguages": [
+      "jpn",
+      "eng",
+      "spa"
+     ],
+     "Subtitles": null,
+     "VideoDynamicRange": "",
+     "VideoDynamicRangeType": ""
+    },
+    "CustomFormats": null
+   },
+   "root": "/media/anime",
+   "cf_source": "none",
+   "expect_folder": "Kaguya-sama Love Is War (2019) {imdb-tt9522300}",
+   "expect_season": "Season 03",
+   "expect_file": "Kaguya-sama Love Is War (2019) - S03E08 - 032 - Kei Shirogane Wants to Show Off About Kaguya Shinomiya Part 2 Kaguya Wants to Confess [Bluray-1080p][Opus 2.0][JA+EN+ES][x265 10bit]-Flugel.mkv",
+   "ext": ".mkv"
+  },
+  {
+   "instance": "sonarr_anime_debrid",
+   "file_id": 2887,
+   "series": {
+    "Title": "KonoSuba – God’s blessing on this wonderful world!!",
+    "Year": 2016,
+    "Type": "anime",
+    "ImdbID": "tt5370118",
+    "TvdbID": 303867,
+    "TvMazeID": 0,
+    "TmdbID": 65844
+   },
+   "episodes": [
+    {
+     "Season": 1,
+     "Number": 3,
+     "Absolute": 3,
+     "Title": "A Panty Treasure in This Right Hand!",
+     "AirDate": "2016-01-28"
+    }
+   ],
+   "episode_file": {
+    "ID": 2887,
+    "Quality": {
+     "Title": "Bluray-1080p",
+     "Version": 2,
+     "Real": 0
+    },
+    "ReleaseGroup": "YURASUKA",
+    "ReleaseHash": "",
+    "SceneName": "KonoSuba.Gods.Blessing.On.This.Wonderful.World.S01E03.v2.1080p.BluRay.Dual-Audio.Opus.2.0.x265-YURASUKA",
+    "RelativePath": "Season 01/KonoSuba – Gods blessing on this wonderful world!! (2016) - S01E03 - 003 - A Panty Treasure in This Right Hand! [v2 - Notifiarr][Bluray-1080p v2][Opus 2.0][EN+JA][x265 10bit]-YURASUKA.mkv",
+    "Path": "/media/anime/KonoSuba – Gods blessing on this wonderful world!! (2016) {imdb-tt5370118}/Season 01/KonoSuba – Gods blessing on this wonderful world!! (2016) - S01E03 - 003 - A Panty Treasure in This Right Hand! [v2 - Notifiarr][Bluray-1080p v2][Opus 2.0][EN+JA][x265 10bit]-YURASUKA.mkv",
+    "MediaInfo": {
+     "VideoCodec": "x265",
+     "VideoBitDepth": 10,
+     "VideoMultiViewCount": 0,
+     "AudioCodec": "Opus",
+     "AudioChannels": 2,
+     "AudioLanguages": [
+      "eng",
+      "jpn"
+     ],
+     "Subtitles": null,
+     "VideoDynamicRange": "",
+     "VideoDynamicRangeType": ""
+    },
+    "CustomFormats": [
+     "v2 - Notifiarr"
+    ]
+   },
+   "root": "/media/anime",
+   "cf_source": "name",
+   "expect_folder": "KonoSuba – Gods blessing on this wonderful world!! (2016) {imdb-tt5370118}",
+   "expect_season": "Season 01",
+   "expect_file": "KonoSuba – Gods blessing on this wonderful world!! (2016) - S01E03 - 003 - A Panty Treasure in This Right Hand! [v2 - Notifiarr][Bluray-1080p v2][Opus 2.0][EN+JA][x265 10bit]-YURASUKA.mkv",
+   "ext": ".mkv"
+  },
+  {
+   "instance": "sonarr_anime_debrid",
+   "file_id": 2888,
+   "series": {
+    "Title": "KonoSuba – God’s blessing on this wonderful world!!",
+    "Year": 2016,
+    "Type": "anime",
+    "ImdbID": "tt5370118",
+    "TvdbID": 303867,
+    "TvMazeID": 0,
+    "TmdbID": 65844
+   },
+   "episodes": [
+    {
+     "Season": 1,
+     "Number": 4,
+     "Absolute": 4,
+     "Title": "Explosion Magic for This Formidable Enemy!",
+     "AirDate": "2016-02-04"
+    }
+   ],
+   "episode_file": {
+    "ID": 2888,
+    "Quality": {
+     "Title": "Bluray-1080p",
+     "Version": 2,
+     "Real": 0
+    },
+    "ReleaseGroup": "YURASUKA",
+    "ReleaseHash": "",
+    "SceneName": "KonoSuba.Gods.Blessing.On.This.Wonderful.World.S01E04.v2.1080p.BluRay.Dual-Audio.Opus.2.0.x265-YURASUKA",
+    "RelativePath": "Season 01/KonoSuba – Gods blessing on this wonderful world!! (2016) - S01E04 - 004 - Explosion Magic for This Formidable Enemy! [v2 - Notifiarr][Bluray-1080p v2][Opus 2.0][EN+JA][x265 10bit]-YURASUKA.mkv",
+    "Path": "/media/anime/KonoSuba – Gods blessing on this wonderful world!! (2016) {imdb-tt5370118}/Season 01/KonoSuba – Gods blessing on this wonderful world!! (2016) - S01E04 - 004 - Explosion Magic for This Formidable Enemy! [v2 - Notifiarr][Bluray-1080p v2][Opus 2.0][EN+JA][x265 10bit]-YURASUKA.mkv",
+    "MediaInfo": {
+     "VideoCodec": "x265",
+     "VideoBitDepth": 10,
+     "VideoMultiViewCount": 0,
+     "AudioCodec": "Opus",
+     "AudioChannels": 2,
+     "AudioLanguages": [
+      "eng",
+      "jpn"
+     ],
+     "Subtitles": null,
+     "VideoDynamicRange": "",
+     "VideoDynamicRangeType": ""
+    },
+    "CustomFormats": [
+     "v2 - Notifiarr"
+    ]
+   },
+   "root": "/media/anime",
+   "cf_source": "name",
+   "expect_folder": "KonoSuba – Gods blessing on this wonderful world!! (2016) {imdb-tt5370118}",
+   "expect_season": "Season 01",
+   "expect_file": "KonoSuba – Gods blessing on this wonderful world!! (2016) - S01E04 - 004 - Explosion Magic for This Formidable Enemy! [v2 - Notifiarr][Bluray-1080p v2][Opus 2.0][EN+JA][x265 10bit]-YURASUKA.mkv",
+   "ext": ".mkv"
+  },
+  {
+   "instance": "sonarr_anime_debrid",
+   "file_id": 2893,
+   "series": {
+    "Title": "KonoSuba – God’s blessing on this wonderful world!!",
+    "Year": 2016,
+    "Type": "anime",
+    "ImdbID": "tt5370118",
+    "TvdbID": 303867,
+    "TvMazeID": 0,
+    "TmdbID": 65844
+   },
+   "episodes": [
+    {
+     "Season": 1,
+     "Number": 9,
+     "Absolute": 9,
+     "Title": "God's Blessing on This Wonderful Shop!",
+     "AirDate": "2016-03-10"
+    }
+   ],
+   "episode_file": {
+    "ID": 2893,
+    "Quality": {
+     "Title": "Bluray-1080p",
+     "Version": 2,
+     "Real": 0
+    },
+    "ReleaseGroup": "YURASUKA",
+    "ReleaseHash": "",
+    "SceneName": "KonoSuba.Gods.Blessing.On.This.Wonderful.World.S01E09.v2.1080p.BluRay.Dual-Audio.Opus.2.0.x265-YURASUKA",
+    "RelativePath": "Season 01/KonoSuba – Gods blessing on this wonderful world!! (2016) - S01E09 - 009 - Gods Blessing on This Wonderful Shop! [v2 - Notifiarr][Bluray-1080p v2][Opus 2.0][EN+JA][x265 10bit]-YURASUKA.mkv",
+    "Path": "/media/anime/KonoSuba – Gods blessing on this wonderful world!! (2016) {imdb-tt5370118}/Season 01/KonoSuba – Gods blessing on this wonderful world!! (2016) - S01E09 - 009 - Gods Blessing on This Wonderful Shop! [v2 - Notifiarr][Bluray-1080p v2][Opus 2.0][EN+JA][x265 10bit]-YURASUKA.mkv",
+    "MediaInfo": {
+     "VideoCodec": "x265",
+     "VideoBitDepth": 10,
+     "VideoMultiViewCount": 0,
+     "AudioCodec": "Opus",
+     "AudioChannels": 2,
+     "AudioLanguages": [
+      "eng",
+      "jpn"
+     ],
+     "Subtitles": null,
+     "VideoDynamicRange": "",
+     "VideoDynamicRangeType": ""
+    },
+    "CustomFormats": [
+     "v2 - Notifiarr"
+    ]
+   },
+   "root": "/media/anime",
+   "cf_source": "name",
+   "expect_folder": "KonoSuba – Gods blessing on this wonderful world!! (2016) {imdb-tt5370118}",
+   "expect_season": "Season 01",
+   "expect_file": "KonoSuba – Gods blessing on this wonderful world!! (2016) - S01E09 - 009 - Gods Blessing on This Wonderful Shop! [v2 - Notifiarr][Bluray-1080p v2][Opus 2.0][EN+JA][x265 10bit]-YURASUKA.mkv",
+   "ext": ".mkv"
+  },
+  {
+   "instance": "sonarr_anime_debrid",
+   "file_id": 2907,
+   "series": {
+    "Title": "KonoSuba – God’s blessing on this wonderful world!!",
+    "Year": 2016,
+    "Type": "anime",
+    "ImdbID": "tt5370118",
+    "TvdbID": 303867,
+    "TvMazeID": 0,
+    "TmdbID": 65844
+   },
+   "episodes": [
+    {
+     "Season": 3,
+     "Number": 3,
+     "Absolute": 26,
+     "Title": "A Re-education for This Bright Little Girl!",
+     "AirDate": "2024-04-24"
+    }
+   ],
+   "episode_file": {
+    "ID": 2907,
+    "Quality": {
+     "Title": "Bluray-1080p",
+     "Version": 2,
+     "Real": 0
+    },
+    "ReleaseGroup": "YURASUKA",
+    "ReleaseHash": "",
+    "SceneName": "KonoSuba.Gods.Blessing.On.This.Wonderful.World.S03E03.v2.1080p.BluRay.Dual-Audio.Opus.2.0.x265-YURASUKA",
+    "RelativePath": "Season 03/KonoSuba – Gods blessing on this wonderful world!! (2016) - S03E03 - 026 - A Re-education for This Bright Little Girl! [v2 - Notifiarr][Bluray-1080p v2][Opus 2.0][EN+JA][x265 10bit]-YURASUKA.mkv",
+    "Path": "/media/anime/KonoSuba – Gods blessing on this wonderful world!! (2016) {imdb-tt5370118}/Season 03/KonoSuba – Gods blessing on this wonderful world!! (2016) - S03E03 - 026 - A Re-education for This Bright Little Girl! [v2 - Notifiarr][Bluray-1080p v2][Opus 2.0][EN+JA][x265 10bit]-YURASUKA.mkv",
+    "MediaInfo": {
+     "VideoCodec": "x265",
+     "VideoBitDepth": 10,
+     "VideoMultiViewCount": 0,
+     "AudioCodec": "Opus",
+     "AudioChannels": 2,
+     "AudioLanguages": [
+      "eng",
+      "jpn"
+     ],
+     "Subtitles": null,
+     "VideoDynamicRange": "",
+     "VideoDynamicRangeType": ""
+    },
+    "CustomFormats": [
+     "v2 - Notifiarr"
+    ]
+   },
+   "root": "/media/anime",
+   "cf_source": "name",
+   "expect_folder": "KonoSuba – Gods blessing on this wonderful world!! (2016) {imdb-tt5370118}",
+   "expect_season": "Season 03",
+   "expect_file": "KonoSuba – Gods blessing on this wonderful world!! (2016) - S03E03 - 026 - A Re-education for This Bright Little Girl! [v2 - Notifiarr][Bluray-1080p v2][Opus 2.0][EN+JA][x265 10bit]-YURASUKA.mkv",
+   "ext": ".mkv"
+  },
+  {
+   "instance": "sonarr_anime_debrid",
+   "file_id": 2909,
+   "series": {
+    "Title": "KonoSuba – God’s blessing on this wonderful world!!",
+    "Year": 2016,
+    "Type": "anime",
+    "ImdbID": "tt5370118",
+    "TvdbID": 303867,
+    "TvMazeID": 0,
+    "TmdbID": 65844
+   },
+   "episodes": [
+    {
+     "Season": 3,
+     "Number": 5,
+     "Absolute": 28,
+     "Title": "Nefarious Friends for This Sheltered Princess!",
+     "AirDate": "2024-05-08"
+    }
+   ],
+   "episode_file": {
+    "ID": 2909,
+    "Quality": {
+     "Title": "Bluray-1080p",
+     "Version": 2,
+     "Real": 0
+    },
+    "ReleaseGroup": "YURASUKA",
+    "ReleaseHash": "",
+    "SceneName": "KonoSuba.Gods.Blessing.On.This.Wonderful.World.S03E05.v2.1080p.BluRay.Dual-Audio.Opus.2.0.x265-YURASUKA",
+    "RelativePath": "Season 03/KonoSuba – Gods blessing on this wonderful world!! (2016) - S03E05 - 028 - Nefarious Friends for This Sheltered Princess! [v2 - Notifiarr][Bluray-1080p v2][Opus 2.0][EN+JA][x265 10bit]-YURASUKA.mkv",
+    "Path": "/media/anime/KonoSuba – Gods blessing on this wonderful world!! (2016) {imdb-tt5370118}/Season 03/KonoSuba – Gods blessing on this wonderful world!! (2016) - S03E05 - 028 - Nefarious Friends for This Sheltered Princess! [v2 - Notifiarr][Bluray-1080p v2][Opus 2.0][EN+JA][x265 10bit]-YURASUKA.mkv",
+    "MediaInfo": {
+     "VideoCodec": "x265",
+     "VideoBitDepth": 10,
+     "VideoMultiViewCount": 0,
+     "AudioCodec": "Opus",
+     "AudioChannels": 2,
+     "AudioLanguages": [
+      "eng",
+      "jpn"
+     ],
+     "Subtitles": null,
+     "VideoDynamicRange": "",
+     "VideoDynamicRangeType": ""
+    },
+    "CustomFormats": [
+     "v2 - Notifiarr"
+    ]
+   },
+   "root": "/media/anime",
+   "cf_source": "name",
+   "expect_folder": "KonoSuba – Gods blessing on this wonderful world!! (2016) {imdb-tt5370118}",
+   "expect_season": "Season 03",
+   "expect_file": "KonoSuba – Gods blessing on this wonderful world!! (2016) - S03E05 - 028 - Nefarious Friends for This Sheltered Princess! [v2 - Notifiarr][Bluray-1080p v2][Opus 2.0][EN+JA][x265 10bit]-YURASUKA.mkv",
+   "ext": ".mkv"
+  },
+  {
+   "instance": "sonarr_anime_debrid",
+   "file_id": 2912,
+   "series": {
+    "Title": "KonoSuba – God’s blessing on this wonderful world!!",
+    "Year": 2016,
+    "Type": "anime",
+    "ImdbID": "tt5370118",
+    "TvdbID": 303867,
+    "TvMazeID": 0,
+    "TmdbID": 65844
+   },
+   "episodes": [
+    {
+     "Season": 3,
+     "Number": 8,
+     "Absolute": 31,
+     "Title": "An Eternal Rest for the Master of This Lake!",
+     "AirDate": "2024-05-29"
+    }
+   ],
+   "episode_file": {
+    "ID": 2912,
+    "Quality": {
+     "Title": "Bluray-1080p",
+     "Version": 2,
+     "Real": 0
+    },
+    "ReleaseGroup": "YURASUKA",
+    "ReleaseHash": "",
+    "SceneName": "KonoSuba.Gods.Blessing.On.This.Wonderful.World.S03E08.v2.1080p.BluRay.Dual-Audio.Opus.2.0.x265-YURASUKA",
+    "RelativePath": "Season 03/KonoSuba – Gods blessing on this wonderful world!! (2016) - S03E08 - 031 - An Eternal Rest for the Master of This Lake! [v2 - Notifiarr][Bluray-1080p v2][Opus 2.0][EN+JA][x265 10bit]-YURASUKA.mkv",
+    "Path": "/media/anime/KonoSuba – Gods blessing on this wonderful world!! (2016) {imdb-tt5370118}/Season 03/KonoSuba – Gods blessing on this wonderful world!! (2016) - S03E08 - 031 - An Eternal Rest for the Master of This Lake! [v2 - Notifiarr][Bluray-1080p v2][Opus 2.0][EN+JA][x265 10bit]-YURASUKA.mkv",
+    "MediaInfo": {
+     "VideoCodec": "x265",
+     "VideoBitDepth": 10,
+     "VideoMultiViewCount": 0,
+     "AudioCodec": "Opus",
+     "AudioChannels": 2,
+     "AudioLanguages": [
+      "eng",
+      "jpn"
+     ],
+     "Subtitles": null,
+     "VideoDynamicRange": "",
+     "VideoDynamicRangeType": ""
+    },
+    "CustomFormats": [
+     "v2 - Notifiarr"
+    ]
+   },
+   "root": "/media/anime",
+   "cf_source": "name",
+   "expect_folder": "KonoSuba – Gods blessing on this wonderful world!! (2016) {imdb-tt5370118}",
+   "expect_season": "Season 03",
+   "expect_file": "KonoSuba – Gods blessing on this wonderful world!! (2016) - S03E08 - 031 - An Eternal Rest for the Master of This Lake! [v2 - Notifiarr][Bluray-1080p v2][Opus 2.0][EN+JA][x265 10bit]-YURASUKA.mkv",
+   "ext": ".mkv"
+  },
+  {
+   "instance": "sonarr_anime_debrid",
+   "file_id": 2914,
+   "series": {
+    "Title": "KonoSuba – God’s blessing on this wonderful world!!",
+    "Year": 2016,
+    "Type": "anime",
+    "ImdbID": "tt5370118",
+    "TvdbID": 303867,
+    "TvMazeID": 0,
+    "TmdbID": 65844
+   },
+   "episodes": [
+    {
+     "Season": 3,
+     "Number": 10,
+     "Absolute": 33,
+     "Title": "Blessings for This Selfish Bride!",
+     "AirDate": "2024-06-12"
+    }
+   ],
+   "episode_file": {
+    "ID": 2914,
+    "Quality": {
+     "Title": "Bluray-1080p",
+     "Version": 2,
+     "Real": 0
+    },
+    "ReleaseGroup": "YURASUKA",
+    "ReleaseHash": "",
+    "SceneName": "KonoSuba.Gods.Blessing.On.This.Wonderful.World.S03E10.v2.1080p.BluRay.Dual-Audio.Opus.2.0.x265-YURASUKA",
+    "RelativePath": "Season 03/KonoSuba – Gods blessing on this wonderful world!! (2016) - S03E10 - 033 - Blessings for This Selfish Bride! [v2 - Notifiarr][Bluray-1080p v2][Opus 2.0][EN+JA][x265 10bit]-YURASUKA.mkv",
+    "Path": "/media/anime/KonoSuba – Gods blessing on this wonderful world!! (2016) {imdb-tt5370118}/Season 03/KonoSuba – Gods blessing on this wonderful world!! (2016) - S03E10 - 033 - Blessings for This Selfish Bride! [v2 - Notifiarr][Bluray-1080p v2][Opus 2.0][EN+JA][x265 10bit]-YURASUKA.mkv",
+    "MediaInfo": {
+     "VideoCodec": "x265",
+     "VideoBitDepth": 10,
+     "VideoMultiViewCount": 0,
+     "AudioCodec": "Opus",
+     "AudioChannels": 2,
+     "AudioLanguages": [
+      "eng",
+      "jpn"
+     ],
+     "Subtitles": null,
+     "VideoDynamicRange": "",
+     "VideoDynamicRangeType": ""
+    },
+    "CustomFormats": [
+     "v2 - Notifiarr"
+    ]
+   },
+   "root": "/media/anime",
+   "cf_source": "name",
+   "expect_folder": "KonoSuba – Gods blessing on this wonderful world!! (2016) {imdb-tt5370118}",
+   "expect_season": "Season 03",
+   "expect_file": "KonoSuba – Gods blessing on this wonderful world!! (2016) - S03E10 - 033 - Blessings for This Selfish Bride! [v2 - Notifiarr][Bluray-1080p v2][Opus 2.0][EN+JA][x265 10bit]-YURASUKA.mkv",
+   "ext": ".mkv"
+  },
+  {
+   "instance": "sonarr_anime_debrid",
+   "file_id": 2970,
+   "series": {
+    "Title": "My Hero Academia",
+    "Year": 2016,
+    "Type": "anime",
+    "ImdbID": "tt5626028",
+    "TvdbID": 305074,
+    "TvMazeID": 0,
+    "TmdbID": 65930
+   },
+   "episodes": [
+    {
+     "Season": 2,
+     "Number": 5,
+     "Absolute": 18,
+     "Title": "Cavalry Battle Finale",
+     "AirDate": "2017-04-29"
+    }
+   ],
+   "episode_file": {
+    "ID": 2970,
+    "Quality": {
+     "Title": "Bluray-1080p",
+     "Version": 2,
+     "Real": 0
+    },
+    "ReleaseGroup": "FLE",
+    "ReleaseHash": "",
+    "SceneName": "Boku.no.Hero.Academia.S02E05.Repack.1080p.BluRay.Opus2.0.x265-FLE",
+    "RelativePath": "Season 02/My Hero Academia (2016) - S02E05 - 018 - Cavalry Battle Finale [v2 - Notifiarr][Bluray-1080p v2][Opus 2.0][JA+EN][x265 10bit]-FLE.mkv",
+    "Path": "/media/anime/My Hero Academia (2016) {imdb-tt5626028}/Season 02/My Hero Academia (2016) - S02E05 - 018 - Cavalry Battle Finale [v2 - Notifiarr][Bluray-1080p v2][Opus 2.0][JA+EN][x265 10bit]-FLE.mkv",
+    "MediaInfo": {
+     "VideoCodec": "x265",
+     "VideoBitDepth": 10,
+     "VideoMultiViewCount": 0,
+     "AudioCodec": "Opus",
+     "AudioChannels": 2,
+     "AudioLanguages": [
+      "jpn",
+      "eng"
+     ],
+     "Subtitles": null,
+     "VideoDynamicRange": "",
+     "VideoDynamicRangeType": ""
+    },
+    "CustomFormats": [
+     "v2 - Notifiarr"
+    ]
+   },
+   "root": "/media/anime",
+   "cf_source": "name",
+   "expect_folder": "My Hero Academia (2016) {imdb-tt5626028}",
+   "expect_season": "Season 02",
+   "expect_file": "My Hero Academia (2016) - S02E05 - 018 - Cavalry Battle Finale [v2 - Notifiarr][Bluray-1080p v2][Opus 2.0][JA+EN][x265 10bit]-FLE.mkv",
+   "ext": ".mkv"
+  },
+  {
+   "instance": "sonarr_anime_debrid",
+   "file_id": 2977,
+   "series": {
+    "Title": "My Hero Academia",
+    "Year": 2016,
+    "Type": "anime",
+    "ImdbID": "tt5626028",
+    "TvdbID": 305074,
+    "TvMazeID": 0,
+    "TmdbID": 65930
+   },
+   "episodes": [
+    {
+     "Season": 2,
+     "Number": 12,
+     "Absolute": 25,
+     "Title": "Todoroki vs. Bakugo",
+     "AirDate": "2017-06-17"
+    }
+   ],
+   "episode_file": {
+    "ID": 2977,
+    "Quality": {
+     "Title": "Bluray-1080p",
+     "Version": 2,
+     "Real": 0
+    },
+    "ReleaseGroup": "FLE",
+    "ReleaseHash": "",
+    "SceneName": "Boku.no.Hero.Academia.S02E12.Repack.1080p.BluRay.Opus2.0.x265-FLE",
+    "RelativePath": "Season 02/My Hero Academia (2016) - S02E12 - 025 - Todoroki vs. Bakugo [v2 - Notifiarr][Bluray-1080p v2][Opus 2.0][JA+EN][x265 10bit]-FLE.mkv",
+    "Path": "/media/anime/My Hero Academia (2016) {imdb-tt5626028}/Season 02/My Hero Academia (2016) - S02E12 - 025 - Todoroki vs. Bakugo [v2 - Notifiarr][Bluray-1080p v2][Opus 2.0][JA+EN][x265 10bit]-FLE.mkv",
+    "MediaInfo": {
+     "VideoCodec": "x265",
+     "VideoBitDepth": 10,
+     "VideoMultiViewCount": 0,
+     "AudioCodec": "Opus",
+     "AudioChannels": 2,
+     "AudioLanguages": [
+      "jpn",
+      "eng"
+     ],
+     "Subtitles": null,
+     "VideoDynamicRange": "",
+     "VideoDynamicRangeType": ""
+    },
+    "CustomFormats": [
+     "v2 - Notifiarr"
+    ]
+   },
+   "root": "/media/anime",
+   "cf_source": "name",
+   "expect_folder": "My Hero Academia (2016) {imdb-tt5626028}",
+   "expect_season": "Season 02",
+   "expect_file": "My Hero Academia (2016) - S02E12 - 025 - Todoroki vs. Bakugo [v2 - Notifiarr][Bluray-1080p v2][Opus 2.0][JA+EN][x265 10bit]-FLE.mkv",
+   "ext": ".mkv"
+  },
+  {
+   "instance": "sonarr_anime_debrid",
+   "file_id": 2981,
+   "series": {
+    "Title": "My Hero Academia",
+    "Year": 2016,
+    "Type": "anime",
+    "ImdbID": "tt5626028",
+    "TvdbID": 305074,
+    "TvMazeID": 0,
+    "TmdbID": 65930
+   },
+   "episodes": [
+    {
+     "Season": 2,
+     "Number": 16,
+     "Absolute": 29,
+     "Title": "Hero Killer: Stain vs. U.A. Students",
+     "AirDate": "2017-07-22"
+    }
+   ],
+   "episode_file": {
+    "ID": 2981,
+    "Quality": {
+     "Title": "Bluray-1080p",
+     "Version": 2,
+     "Real": 0
+    },
+    "ReleaseGroup": "FLE",
+    "ReleaseHash": "",
+    "SceneName": "Boku.no.Hero.Academia.S02E16.Repack.1080p.BluRay.Opus2.0.x265-FLE",
+    "RelativePath": "Season 02/My Hero Academia (2016) - S02E16 - 029 - Hero Killer Stain vs. U.A. Students [v2 - Notifiarr][Bluray-1080p v2][Opus 2.0][JA+EN][x265 10bit]-FLE.mkv",
+    "Path": "/media/anime/My Hero Academia (2016) {imdb-tt5626028}/Season 02/My Hero Academia (2016) - S02E16 - 029 - Hero Killer Stain vs. U.A. Students [v2 - Notifiarr][Bluray-1080p v2][Opus 2.0][JA+EN][x265 10bit]-FLE.mkv",
+    "MediaInfo": {
+     "VideoCodec": "x265",
+     "VideoBitDepth": 10,
+     "VideoMultiViewCount": 0,
+     "AudioCodec": "Opus",
+     "AudioChannels": 2,
+     "AudioLanguages": [
+      "jpn",
+      "eng"
+     ],
+     "Subtitles": null,
+     "VideoDynamicRange": "",
+     "VideoDynamicRangeType": ""
+    },
+    "CustomFormats": [
+     "v2 - Notifiarr"
+    ]
+   },
+   "root": "/media/anime",
+   "cf_source": "name",
+   "expect_folder": "My Hero Academia (2016) {imdb-tt5626028}",
+   "expect_season": "Season 02",
+   "expect_file": "My Hero Academia (2016) - S02E16 - 029 - Hero Killer Stain vs. U.A. Students [v2 - Notifiarr][Bluray-1080p v2][Opus 2.0][JA+EN][x265 10bit]-FLE.mkv",
+   "ext": ".mkv"
+  },
+  {
+   "instance": "sonarr_anime_debrid",
+   "file_id": 2982,
+   "series": {
+    "Title": "My Hero Academia",
+    "Year": 2016,
+    "Type": "anime",
+    "ImdbID": "tt5626028",
+    "TvdbID": 305074,
+    "TvMazeID": 0,
+    "TmdbID": 65930
+   },
+   "episodes": [
+    {
+     "Season": 2,
+     "Number": 17,
+     "Absolute": 30,
+     "Title": "Climax",
+     "AirDate": "2017-07-29"
+    }
+   ],
+   "episode_file": {
+    "ID": 2982,
+    "Quality": {
+     "Title": "Bluray-1080p",
+     "Version": 2,
+     "Real": 0
+    },
+    "ReleaseGroup": "FLE",
+    "ReleaseHash": "",
+    "SceneName": "Boku.no.Hero.Academia.S02E17.Repack.1080p.BluRay.Opus2.0.x265-FLE",
+    "RelativePath": "Season 02/My Hero Academia (2016) - S02E17 - 030 - Climax [v2 - Notifiarr][Bluray-1080p v2][Opus 2.0][JA+EN][x265 10bit]-FLE.mkv",
+    "Path": "/media/anime/My Hero Academia (2016) {imdb-tt5626028}/Season 02/My Hero Academia (2016) - S02E17 - 030 - Climax [v2 - Notifiarr][Bluray-1080p v2][Opus 2.0][JA+EN][x265 10bit]-FLE.mkv",
+    "MediaInfo": {
+     "VideoCodec": "x265",
+     "VideoBitDepth": 10,
+     "VideoMultiViewCount": 0,
+     "AudioCodec": "Opus",
+     "AudioChannels": 2,
+     "AudioLanguages": [
+      "jpn",
+      "eng"
+     ],
+     "Subtitles": null,
+     "VideoDynamicRange": "",
+     "VideoDynamicRangeType": ""
+    },
+    "CustomFormats": [
+     "v2 - Notifiarr"
+    ]
+   },
+   "root": "/media/anime",
+   "cf_source": "name",
+   "expect_folder": "My Hero Academia (2016) {imdb-tt5626028}",
+   "expect_season": "Season 02",
+   "expect_file": "My Hero Academia (2016) - S02E17 - 030 - Climax [v2 - Notifiarr][Bluray-1080p v2][Opus 2.0][JA+EN][x265 10bit]-FLE.mkv",
+   "ext": ".mkv"
+  },
+  {
+   "instance": "sonarr_anime_debrid",
+   "file_id": 2983,
+   "series": {
+    "Title": "My Hero Academia",
+    "Year": 2016,
+    "Type": "anime",
+    "ImdbID": "tt5626028",
+    "TvdbID": 305074,
+    "TvMazeID": 0,
+    "TmdbID": 65930
+   },
+   "episodes": [
+    {
+     "Season": 2,
+     "Number": 18,
+     "Absolute": 31,
+     "Title": "The Aftermath of Hero Killer: Stain",
+     "AirDate": "2017-08-05"
+    }
+   ],
+   "episode_file": {
+    "ID": 2983,
+    "Quality": {
+     "Title": "Bluray-1080p",
+     "Version": 2,
+     "Real": 0
+    },
+    "ReleaseGroup": "FLE",
+    "ReleaseHash": "",
+    "SceneName": "Boku.no.Hero.Academia.S02E18.Repack.1080p.BluRay.Opus2.0.x265-FLE",
+    "RelativePath": "Season 02/My Hero Academia (2016) - S02E18 - 031 - The Aftermath of Hero Killer Stain [v2 - Notifiarr][Bluray-1080p v2][Opus 2.0][JA+EN][x265 10bit]-FLE.mkv",
+    "Path": "/media/anime/My Hero Academia (2016) {imdb-tt5626028}/Season 02/My Hero Academia (2016) - S02E18 - 031 - The Aftermath of Hero Killer Stain [v2 - Notifiarr][Bluray-1080p v2][Opus 2.0][JA+EN][x265 10bit]-FLE.mkv",
+    "MediaInfo": {
+     "VideoCodec": "x265",
+     "VideoBitDepth": 10,
+     "VideoMultiViewCount": 0,
+     "AudioCodec": "Opus",
+     "AudioChannels": 2,
+     "AudioLanguages": [
+      "jpn",
+      "eng"
+     ],
+     "Subtitles": null,
+     "VideoDynamicRange": "",
+     "VideoDynamicRangeType": ""
+    },
+    "CustomFormats": [
+     "v2 - Notifiarr"
+    ]
+   },
+   "root": "/media/anime",
+   "cf_source": "name",
+   "expect_folder": "My Hero Academia (2016) {imdb-tt5626028}",
+   "expect_season": "Season 02",
+   "expect_file": "My Hero Academia (2016) - S02E18 - 031 - The Aftermath of Hero Killer Stain [v2 - Notifiarr][Bluray-1080p v2][Opus 2.0][JA+EN][x265 10bit]-FLE.mkv",
+   "ext": ".mkv"
+  },
+  {
+   "instance": "sonarr_anime_debrid",
+   "file_id": 2990,
+   "series": {
+    "Title": "My Hero Academia",
+    "Year": 2016,
+    "Type": "anime",
+    "ImdbID": "tt5626028",
+    "TvdbID": 305074,
+    "TvMazeID": 0,
+    "TmdbID": 65930
+   },
+   "episodes": [
+    {
+     "Season": 2,
+     "Number": 25,
+     "Absolute": 38,
+     "Title": "Encounter",
+     "AirDate": "2017-09-30"
+    }
+   ],
+   "episode_file": {
+    "ID": 2990,
+    "Quality": {
+     "Title": "Bluray-1080p",
+     "Version": 2,
+     "Real": 0
+    },
+    "ReleaseGroup": "FLE",
+    "ReleaseHash": "",
+    "SceneName": "Boku.no.Hero.Academia.S02E25.Repack.1080p.BluRay.Opus2.0.x265-FLE",
+    "RelativePath": "Season 02/My Hero Academia (2016) - S02E25 - 038 - Encounter [v2 - Notifiarr][Bluray-1080p v2][Opus 2.0][JA+EN][x265 10bit]-FLE.mkv",
+    "Path": "/media/anime/My Hero Academia (2016) {imdb-tt5626028}/Season 02/My Hero Academia (2016) - S02E25 - 038 - Encounter [v2 - Notifiarr][Bluray-1080p v2][Opus 2.0][JA+EN][x265 10bit]-FLE.mkv",
+    "MediaInfo": {
+     "VideoCodec": "x265",
+     "VideoBitDepth": 10,
+     "VideoMultiViewCount": 0,
+     "AudioCodec": "Opus",
+     "AudioChannels": 2,
+     "AudioLanguages": [
+      "jpn",
+      "eng"
+     ],
+     "Subtitles": null,
+     "VideoDynamicRange": "",
+     "VideoDynamicRangeType": ""
+    },
+    "CustomFormats": [
+     "v2 - Notifiarr"
+    ]
+   },
+   "root": "/media/anime",
+   "cf_source": "name",
+   "expect_folder": "My Hero Academia (2016) {imdb-tt5626028}",
+   "expect_season": "Season 02",
+   "expect_file": "My Hero Academia (2016) - S02E25 - 038 - Encounter [v2 - Notifiarr][Bluray-1080p v2][Opus 2.0][JA+EN][x265 10bit]-FLE.mkv",
+   "ext": ".mkv"
+  },
+  {
+   "instance": "sonarr_anime_debrid",
+   "file_id": 2991,
+   "series": {
+    "Title": "My Hero Academia",
+    "Year": 2016,
+    "Type": "anime",
+    "ImdbID": "tt5626028",
+    "TvdbID": 305074,
+    "TvMazeID": 0,
+    "TmdbID": 65930
+   },
+   "episodes": [
+    {
+     "Season": 3,
+     "Number": 1,
+     "Absolute": 39,
+     "Title": "Game Start",
+     "AirDate": "2018-04-07"
+    }
+   ],
+   "episode_file": {
+    "ID": 2991,
+    "Quality": {
+     "Title": "Bluray-1080p",
+     "Version": 1,
+     "Real": 0
+    },
+    "ReleaseGroup": "FLE",
+    "ReleaseHash": "",
+    "SceneName": "Boku.no.Hero.Academia.S03E01.1080p.BluRay.Dual-Audio.Opus2.0.x265-FLE",
+    "RelativePath": "Season 03/My Hero Academia (2016) - S03E01 - 039 - Game Start [Bluray-1080p][Opus 2.0][JA+EN][x265 10bit]-FLE.mkv",
+    "Path": "/media/anime/My Hero Academia (2016) {imdb-tt5626028}/Season 03/My Hero Academia (2016) - S03E01 - 039 - Game Start [Bluray-1080p][Opus 2.0][JA+EN][x265 10bit]-FLE.mkv",
+    "MediaInfo": {
+     "VideoCodec": "x265",
+     "VideoBitDepth": 10,
+     "VideoMultiViewCount": 0,
+     "AudioCodec": "Opus",
+     "AudioChannels": 2,
+     "AudioLanguages": [
+      "jpn",
+      "eng"
+     ],
+     "Subtitles": null,
+     "VideoDynamicRange": "",
+     "VideoDynamicRangeType": ""
+    },
+    "CustomFormats": null
+   },
+   "root": "/media/anime",
+   "cf_source": "none",
+   "expect_folder": "My Hero Academia (2016) {imdb-tt5626028}",
+   "expect_season": "Season 03",
+   "expect_file": "My Hero Academia (2016) - S03E01 - 039 - Game Start [Bluray-1080p][Opus 2.0][JA+EN][x265 10bit]-FLE.mkv",
+   "ext": ".mkv"
+  },
+  {
+   "instance": "sonarr_anime_debrid",
+   "file_id": 3031,
+   "series": {
+    "Title": "My Hero Academia",
+    "Year": 2016,
+    "Type": "anime",
+    "ImdbID": "tt5626028",
+    "TvdbID": 305074,
+    "TvMazeID": 0,
+    "TmdbID": 65930
+   },
+   "episodes": [
+    {
+     "Season": 4,
+     "Number": 16,
+     "Absolute": 79,
+     "Title": "Win Those Kids' Hearts",
+     "AirDate": "2020-02-01"
+    }
+   ],
+   "episode_file": {
+    "ID": 3031,
+    "Quality": {
+     "Title": "Bluray-1080p Remux",
+     "Version": 1,
+     "Real": 0
+    },
+    "ReleaseGroup": "Erai-raws",
+    "ReleaseHash": "",
+    "SceneName": "",
+    "RelativePath": "Season 04/My Hero Academia (2016) - S04E16 - 079 - Win Those Kids Hearts [Bluray-1080p Remux][AAC 2.0][x264 8bit]-Erai-raws.mkv",
+    "Path": "/media/anime/My Hero Academia (2016) {imdb-tt5626028}/Season 04/My Hero Academia (2016) - S04E16 - 079 - Win Those Kids Hearts [Bluray-1080p Remux][AAC 2.0][x264 8bit]-Erai-raws.mkv",
+    "MediaInfo": {
+     "VideoCodec": "x264",
+     "VideoBitDepth": 8,
+     "VideoMultiViewCount": 0,
+     "AudioCodec": "AAC",
+     "AudioChannels": 2,
+     "AudioLanguages": null,
+     "Subtitles": null,
+     "VideoDynamicRange": "",
+     "VideoDynamicRangeType": ""
+    },
+    "CustomFormats": null
+   },
+   "root": "/media/anime",
+   "cf_source": "none",
+   "expect_folder": "My Hero Academia (2016) {imdb-tt5626028}",
+   "expect_season": "Season 04",
+   "expect_file": "My Hero Academia (2016) - S04E16 - 079 - Win Those Kids Hearts [Bluray-1080p Remux][AAC 2.0][x264 8bit]-Erai-raws.mkv",
+   "ext": ".mkv"
+  },
+  {
+   "instance": "sonarr_anime_debrid",
+   "file_id": 3039,
+   "series": {
+    "Title": "My Hero Academia",
+    "Year": 2016,
+    "Type": "anime",
+    "ImdbID": "tt5626028",
+    "TvdbID": 305074,
+    "TvMazeID": 0,
+    "TmdbID": 65930
+   },
+   "episodes": [
+    {
+     "Season": 4,
+     "Number": 24,
+     "Absolute": 87,
+     "Title": "Japanese Hero Billboard Chart",
+     "AirDate": "2020-03-28"
+    }
+   ],
+   "episode_file": {
+    "ID": 3039,
+    "Quality": {
+     "Title": "Bluray-1080p Remux",
+     "Version": 1,
+     "Real": 0
+    },
+    "ReleaseGroup": "Erai-raws",
+    "ReleaseHash": "",
+    "SceneName": "",
+    "RelativePath": "Season 04/My Hero Academia (2016) - S04E24 - 087 - Japanese Hero Billboard Chart [Bluray-1080p Remux][AAC 2.0][x264 8bit]-Erai-raws.mkv",
+    "Path": "/media/anime/My Hero Academia (2016) {imdb-tt5626028}/Season 04/My Hero Academia (2016) - S04E24 - 087 - Japanese Hero Billboard Chart [Bluray-1080p Remux][AAC 2.0][x264 8bit]-Erai-raws.mkv",
+    "MediaInfo": {
+     "VideoCodec": "x264",
+     "VideoBitDepth": 8,
+     "VideoMultiViewCount": 0,
+     "AudioCodec": "AAC",
+     "AudioChannels": 2,
+     "AudioLanguages": null,
+     "Subtitles": null,
+     "VideoDynamicRange": "",
+     "VideoDynamicRangeType": ""
+    },
+    "CustomFormats": null
+   },
+   "root": "/media/anime",
+   "cf_source": "none",
+   "expect_folder": "My Hero Academia (2016) {imdb-tt5626028}",
+   "expect_season": "Season 04",
+   "expect_file": "My Hero Academia (2016) - S04E24 - 087 - Japanese Hero Billboard Chart [Bluray-1080p Remux][AAC 2.0][x264 8bit]-Erai-raws.mkv",
+   "ext": ".mkv"
+  },
+  {
+   "instance": "sonarr_anime_debrid",
+   "file_id": 3057,
+   "series": {
+    "Title": "My Hero Academia",
+    "Year": 2016,
+    "Type": "anime",
+    "ImdbID": "tt5626028",
+    "TvdbID": 305074,
+    "TvMazeID": 0,
+    "TmdbID": 65930
+   },
+   "episodes": [
+    {
+     "Season": 5,
+     "Number": 17,
+     "Absolute": 105,
+     "Title": "The Hellish Todoroki Family",
+     "AirDate": "2021-07-24"
+    }
+   ],
+   "episode_file": {
+    "ID": 3057,
+    "Quality": {
+     "Title": "Bluray-1080p",
+     "Version": 1,
+     "Real": 0
+    },
+    "ReleaseGroup": "iAHD",
+    "ReleaseHash": "",
+    "SceneName": "My.Hero.Academia.S05E17.1080p.Blu-Ray.10-Bit.Dual-Audio.TrueHD.x265-iAHD",
+    "RelativePath": "Season 05/My Hero Academia (2016) - S05E17 - 105 - The Hellish Todoroki Family [Bluray-1080p][TrueHD 5.1][EN+JA][x265 10bit]-iAHD.mkv",
+    "Path": "/media/anime/My Hero Academia (2016) {imdb-tt5626028}/Season 05/My Hero Academia (2016) - S05E17 - 105 - The Hellish Todoroki Family [Bluray-1080p][TrueHD 5.1][EN+JA][x265 10bit]-iAHD.mkv",
+    "MediaInfo": {
+     "VideoCodec": "x265",
+     "VideoBitDepth": 10,
+     "VideoMultiViewCount": 0,
+     "AudioCodec": "TrueHD",
+     "AudioChannels": 5.1,
+     "AudioLanguages": [
+      "eng",
+      "jpn"
+     ],
+     "Subtitles": null,
+     "VideoDynamicRange": "",
+     "VideoDynamicRangeType": ""
+    },
+    "CustomFormats": null
+   },
+   "root": "/media/anime",
+   "cf_source": "none",
+   "expect_folder": "My Hero Academia (2016) {imdb-tt5626028}",
+   "expect_season": "Season 05",
+   "expect_file": "My Hero Academia (2016) - S05E17 - 105 - The Hellish Todoroki Family [Bluray-1080p][TrueHD 5.1][EN+JA][x265 10bit]-iAHD.mkv",
+   "ext": ".mkv"
+  },
+  {
+   "instance": "sonarr_anime_debrid",
+   "file_id": 3066,
+   "series": {
+    "Title": "My Hero Academia",
+    "Year": 2016,
+    "Type": "anime",
+    "ImdbID": "tt5626028",
+    "TvdbID": 305074,
+    "TvMazeID": 0,
+    "TmdbID": 65930
+   },
+   "episodes": [
+    {
+     "Season": 6,
+     "Number": 1,
+     "Absolute": 114,
+     "Title": "A Quiet Beginning",
+     "AirDate": "2022-10-01"
+    }
+   ],
+   "episode_file": {
+    "ID": 3066,
+    "Quality": {
+     "Title": "Bluray-1080p Remux",
+     "Version": 2,
+     "Real": 0
+    },
+    "ReleaseGroup": "fig",
+    "ReleaseHash": "",
+    "SceneName": "My.Hero.Academia.S06E01.REPACK.1080p.BluRay.Remux.Dual-Audio.FLAC.2.0.AVC-fig",
+    "RelativePath": "Season 06/My Hero Academia (2016) - S06E01 - 114 - A Quiet Beginning [v2 - Notifiarr][Bluray-1080p Remux v2][FLAC 2.0][JA+EN][AVC 8bit]-fig.mkv",
+    "Path": "/media/anime/My Hero Academia (2016) {imdb-tt5626028}/Season 06/My Hero Academia (2016) - S06E01 - 114 - A Quiet Beginning [v2 - Notifiarr][Bluray-1080p Remux v2][FLAC 2.0][JA+EN][AVC 8bit]-fig.mkv",
+    "MediaInfo": {
+     "VideoCodec": "AVC",
+     "VideoBitDepth": 8,
+     "VideoMultiViewCount": 0,
+     "AudioCodec": "FLAC",
+     "AudioChannels": 2,
+     "AudioLanguages": [
+      "jpn",
+      "eng"
+     ],
+     "Subtitles": null,
+     "VideoDynamicRange": "",
+     "VideoDynamicRangeType": ""
+    },
+    "CustomFormats": [
+     "v2 - Notifiarr"
+    ]
+   },
+   "root": "/media/anime",
+   "cf_source": "name",
+   "expect_folder": "My Hero Academia (2016) {imdb-tt5626028}",
+   "expect_season": "Season 06",
+   "expect_file": "My Hero Academia (2016) - S06E01 - 114 - A Quiet Beginning [v2 - Notifiarr][Bluray-1080p Remux v2][FLAC 2.0][JA+EN][AVC 8bit]-fig.mkv",
+   "ext": ".mkv"
+  },
+  {
+   "instance": "sonarr_anime_debrid",
+   "file_id": 3069,
+   "series": {
+    "Title": "My Hero Academia",
+    "Year": 2016,
+    "Type": "anime",
+    "ImdbID": "tt5626028",
+    "TvdbID": 305074,
+    "TvMazeID": 0,
+    "TmdbID": 65930
+   },
+   "episodes": [
+    {
+     "Season": 6,
+     "Number": 4,
+     "Absolute": 117,
+     "Title": "Inheritance",
+     "AirDate": "2022-10-22"
+    }
+   ],
+   "episode_file": {
+    "ID": 3069,
+    "Quality": {
+     "Title": "Bluray-1080p Remux",
+     "Version": 2,
+     "Real": 0
+    },
+    "ReleaseGroup": "fig",
+    "ReleaseHash": "",
+    "SceneName": "My.Hero.Academia.S06E04.REPACK.1080p.BluRay.Remux.Dual-Audio.FLAC.2.0.AVC-fig",
+    "RelativePath": "Season 06/My Hero Academia (2016) - S06E04 - 117 - Inheritance [v2 - Notifiarr][Bluray-1080p Remux v2][FLAC 2.0][JA+EN][AVC 8bit]-fig.mkv",
+    "Path": "/media/anime/My Hero Academia (2016) {imdb-tt5626028}/Season 06/My Hero Academia (2016) - S06E04 - 117 - Inheritance [v2 - Notifiarr][Bluray-1080p Remux v2][FLAC 2.0][JA+EN][AVC 8bit]-fig.mkv",
+    "MediaInfo": {
+     "VideoCodec": "AVC",
+     "VideoBitDepth": 8,
+     "VideoMultiViewCount": 0,
+     "AudioCodec": "FLAC",
+     "AudioChannels": 2,
+     "AudioLanguages": [
+      "jpn",
+      "eng"
+     ],
+     "Subtitles": null,
+     "VideoDynamicRange": "",
+     "VideoDynamicRangeType": ""
+    },
+    "CustomFormats": [
+     "v2 - Notifiarr"
+    ]
+   },
+   "root": "/media/anime",
+   "cf_source": "name",
+   "expect_folder": "My Hero Academia (2016) {imdb-tt5626028}",
+   "expect_season": "Season 06",
+   "expect_file": "My Hero Academia (2016) - S06E04 - 117 - Inheritance [v2 - Notifiarr][Bluray-1080p Remux v2][FLAC 2.0][JA+EN][AVC 8bit]-fig.mkv",
+   "ext": ".mkv"
+  },
+  {
+   "instance": "sonarr_anime_debrid",
+   "file_id": 3070,
+   "series": {
+    "Title": "My Hero Academia",
+    "Year": 2016,
+    "Type": "anime",
+    "ImdbID": "tt5626028",
+    "TvdbID": 305074,
+    "TvMazeID": 0,
+    "TmdbID": 65930
+   },
+   "episodes": [
+    {
+     "Season": 6,
+     "Number": 5,
+     "Absolute": 118,
+     "Title": "The Thrill of Destruction",
+     "AirDate": "2022-10-29"
+    }
+   ],
+   "episode_file": {
+    "ID": 3070,
+    "Quality": {
+     "Title": "Bluray-1080p Remux",
+     "Version": 2,
+     "Real": 0
+    },
+    "ReleaseGroup": "fig",
+    "ReleaseHash": "",
+    "SceneName": "My.Hero.Academia.S06E05.REPACK.1080p.BluRay.Remux.Dual-Audio.FLAC.2.0.AVC-fig",
+    "RelativePath": "Season 06/My Hero Academia (2016) - S06E05 - 118 - The Thrill of Destruction [v2 - Notifiarr][Bluray-1080p Remux v2][FLAC 2.0][JA+EN][AVC 8bit]-fig.mkv",
+    "Path": "/media/anime/My Hero Academia (2016) {imdb-tt5626028}/Season 06/My Hero Academia (2016) - S06E05 - 118 - The Thrill of Destruction [v2 - Notifiarr][Bluray-1080p Remux v2][FLAC 2.0][JA+EN][AVC 8bit]-fig.mkv",
+    "MediaInfo": {
+     "VideoCodec": "AVC",
+     "VideoBitDepth": 8,
+     "VideoMultiViewCount": 0,
+     "AudioCodec": "FLAC",
+     "AudioChannels": 2,
+     "AudioLanguages": [
+      "jpn",
+      "eng"
+     ],
+     "Subtitles": null,
+     "VideoDynamicRange": "",
+     "VideoDynamicRangeType": ""
+    },
+    "CustomFormats": [
+     "v2 - Notifiarr"
+    ]
+   },
+   "root": "/media/anime",
+   "cf_source": "name",
+   "expect_folder": "My Hero Academia (2016) {imdb-tt5626028}",
+   "expect_season": "Season 06",
+   "expect_file": "My Hero Academia (2016) - S06E05 - 118 - The Thrill of Destruction [v2 - Notifiarr][Bluray-1080p Remux v2][FLAC 2.0][JA+EN][AVC 8bit]-fig.mkv",
+   "ext": ".mkv"
+  },
+  {
+   "instance": "sonarr_anime_debrid",
+   "file_id": 3071,
+   "series": {
+    "Title": "My Hero Academia",
+    "Year": 2016,
+    "Type": "anime",
+    "ImdbID": "tt5626028",
+    "TvdbID": 305074,
+    "TvMazeID": 0,
+    "TmdbID": 65930
+   },
+   "episodes": [
+    {
+     "Season": 6,
+     "Number": 6,
+     "Absolute": 119,
+     "Title": "Encounter, Part 2",
+     "AirDate": "2022-11-05"
+    }
+   ],
+   "episode_file": {
+    "ID": 3071,
+    "Quality": {
+     "Title": "Bluray-1080p Remux",
+     "Version": 2,
+     "Real": 0
+    },
+    "ReleaseGroup": "fig",
+    "ReleaseHash": "",
+    "SceneName": "My.Hero.Academia.S06E06.REPACK.1080p.BluRay.Remux.Dual-Audio.FLAC.2.0.AVC-fig",
+    "RelativePath": "Season 06/My Hero Academia (2016) - S06E06 - 119 - Encounter Part 2 [v2 - Notifiarr][Bluray-1080p Remux v2][FLAC 2.0][JA+EN][AVC 8bit]-fig.mkv",
+    "Path": "/media/anime/My Hero Academia (2016) {imdb-tt5626028}/Season 06/My Hero Academia (2016) - S06E06 - 119 - Encounter Part 2 [v2 - Notifiarr][Bluray-1080p Remux v2][FLAC 2.0][JA+EN][AVC 8bit]-fig.mkv",
+    "MediaInfo": {
+     "VideoCodec": "AVC",
+     "VideoBitDepth": 8,
+     "VideoMultiViewCount": 0,
+     "AudioCodec": "FLAC",
+     "AudioChannels": 2,
+     "AudioLanguages": [
+      "jpn",
+      "eng"
+     ],
+     "Subtitles": null,
+     "VideoDynamicRange": "",
+     "VideoDynamicRangeType": ""
+    },
+    "CustomFormats": [
+     "v2 - Notifiarr"
+    ]
+   },
+   "root": "/media/anime",
+   "cf_source": "name",
+   "expect_folder": "My Hero Academia (2016) {imdb-tt5626028}",
+   "expect_season": "Season 06",
+   "expect_file": "My Hero Academia (2016) - S06E06 - 119 - Encounter Part 2 [v2 - Notifiarr][Bluray-1080p Remux v2][FLAC 2.0][JA+EN][AVC 8bit]-fig.mkv",
+   "ext": ".mkv"
+  },
+  {
+   "instance": "sonarr_anime_debrid",
+   "file_id": 3072,
+   "series": {
+    "Title": "My Hero Academia",
+    "Year": 2016,
+    "Type": "anime",
+    "ImdbID": "tt5626028",
+    "TvdbID": 305074,
+    "TvMazeID": 0,
+    "TmdbID": 65930
+   },
+   "episodes": [
+    {
+     "Season": 6,
+     "Number": 7,
+     "Absolute": 120,
+     "Title": "Disaster Walker",
+     "AirDate": "2022-11-12"
+    }
+   ],
+   "episode_file": {
+    "ID": 3072,
+    "Quality": {
+     "Title": "Bluray-1080p Remux",
+     "Version": 2,
+     "Real": 0
+    },
+    "ReleaseGroup": "fig",
+    "ReleaseHash": "",
+    "SceneName": "My.Hero.Academia.S06E07.REPACK.1080p.BluRay.Remux.Dual-Audio.FLAC.2.0.AVC-fig",
+    "RelativePath": "Season 06/My Hero Academia (2016) - S06E07 - 120 - Disaster Walker [v2 - Notifiarr][Bluray-1080p Remux v2][FLAC 2.0][JA+EN][AVC 8bit]-fig.mkv",
+    "Path": "/media/anime/My Hero Academia (2016) {imdb-tt5626028}/Season 06/My Hero Academia (2016) - S06E07 - 120 - Disaster Walker [v2 - Notifiarr][Bluray-1080p Remux v2][FLAC 2.0][JA+EN][AVC 8bit]-fig.mkv",
+    "MediaInfo": {
+     "VideoCodec": "AVC",
+     "VideoBitDepth": 8,
+     "VideoMultiViewCount": 0,
+     "AudioCodec": "FLAC",
+     "AudioChannels": 2,
+     "AudioLanguages": [
+      "jpn",
+      "eng"
+     ],
+     "Subtitles": null,
+     "VideoDynamicRange": "",
+     "VideoDynamicRangeType": ""
+    },
+    "CustomFormats": [
+     "v2 - Notifiarr"
+    ]
+   },
+   "root": "/media/anime",
+   "cf_source": "name",
+   "expect_folder": "My Hero Academia (2016) {imdb-tt5626028}",
+   "expect_season": "Season 06",
+   "expect_file": "My Hero Academia (2016) - S06E07 - 120 - Disaster Walker [v2 - Notifiarr][Bluray-1080p Remux v2][FLAC 2.0][JA+EN][AVC 8bit]-fig.mkv",
+   "ext": ".mkv"
+  },
+  {
+   "instance": "sonarr_anime_debrid",
+   "file_id": 3073,
+   "series": {
+    "Title": "My Hero Academia",
+    "Year": 2016,
+    "Type": "anime",
+    "ImdbID": "tt5626028",
+    "TvdbID": 305074,
+    "TvMazeID": 0,
+    "TmdbID": 65930
+   },
+   "episodes": [
+    {
+     "Season": 6,
+     "Number": 8,
+     "Absolute": 121,
+     "Title": "League of Villains vs. U.A. Students",
+     "AirDate": "2022-11-19"
+    }
+   ],
+   "episode_file": {
+    "ID": 3073,
+    "Quality": {
+     "Title": "Bluray-1080p Remux",
+     "Version": 2,
+     "Real": 0
+    },
+    "ReleaseGroup": "fig",
+    "ReleaseHash": "",
+    "SceneName": "My.Hero.Academia.S06E08.REPACK.1080p.BluRay.Remux.Dual-Audio.FLAC.2.0.AVC-fig",
+    "RelativePath": "Season 06/My Hero Academia (2016) - S06E08 - 121 - League of Villains vs. U.A. Students [v2 - Notifiarr][Bluray-1080p Remux v2][FLAC 2.0][JA+EN][AVC 8bit]-fig.mkv",
+    "Path": "/media/anime/My Hero Academia (2016) {imdb-tt5626028}/Season 06/My Hero Academia (2016) - S06E08 - 121 - League of Villains vs. U.A. Students [v2 - Notifiarr][Bluray-1080p Remux v2][FLAC 2.0][JA+EN][AVC 8bit]-fig.mkv",
+    "MediaInfo": {
+     "VideoCodec": "AVC",
+     "VideoBitDepth": 8,
+     "VideoMultiViewCount": 0,
+     "AudioCodec": "FLAC",
+     "AudioChannels": 2,
+     "AudioLanguages": [
+      "jpn",
+      "eng"
+     ],
+     "Subtitles": null,
+     "VideoDynamicRange": "",
+     "VideoDynamicRangeType": ""
+    },
+    "CustomFormats": [
+     "v2 - Notifiarr"
+    ]
+   },
+   "root": "/media/anime",
+   "cf_source": "name",
+   "expect_folder": "My Hero Academia (2016) {imdb-tt5626028}",
+   "expect_season": "Season 06",
+   "expect_file": "My Hero Academia (2016) - S06E08 - 121 - League of Villains vs. U.A. Students [v2 - Notifiarr][Bluray-1080p Remux v2][FLAC 2.0][JA+EN][AVC 8bit]-fig.mkv",
+   "ext": ".mkv"
+  },
+  {
+   "instance": "sonarr_anime_debrid",
+   "file_id": 3078,
+   "series": {
+    "Title": "My Hero Academia",
+    "Year": 2016,
+    "Type": "anime",
+    "ImdbID": "tt5626028",
+    "TvdbID": 305074,
+    "TvMazeID": 0,
+    "TmdbID": 65930
+   },
+   "episodes": [
+    {
+     "Season": 6,
+     "Number": 13,
+     "Absolute": 126,
+     "Title": "Final Performance",
+     "AirDate": "2022-12-24"
+    }
+   ],
+   "episode_file": {
+    "ID": 3078,
+    "Quality": {
+     "Title": "Bluray-1080p Remux",
+     "Version": 2,
+     "Real": 0
+    },
+    "ReleaseGroup": "fig",
+    "ReleaseHash": "",
+    "SceneName": "My.Hero.Academia.S06E13.REPACK.1080p.BluRay.Remux.Dual-Audio.FLAC.2.0.AVC-fig",
+    "RelativePath": "Season 06/My Hero Academia (2016) - S06E13 - 126 - Final Performance [v2 - Notifiarr][Bluray-1080p Remux v2][FLAC 2.0][JA+EN][AVC 8bit]-fig.mkv",
+    "Path": "/media/anime/My Hero Academia (2016) {imdb-tt5626028}/Season 06/My Hero Academia (2016) - S06E13 - 126 - Final Performance [v2 - Notifiarr][Bluray-1080p Remux v2][FLAC 2.0][JA+EN][AVC 8bit]-fig.mkv",
+    "MediaInfo": {
+     "VideoCodec": "AVC",
+     "VideoBitDepth": 8,
+     "VideoMultiViewCount": 0,
+     "AudioCodec": "FLAC",
+     "AudioChannels": 2,
+     "AudioLanguages": [
+      "jpn",
+      "eng"
+     ],
+     "Subtitles": null,
+     "VideoDynamicRange": "",
+     "VideoDynamicRangeType": ""
+    },
+    "CustomFormats": [
+     "v2 - Notifiarr"
+    ]
+   },
+   "root": "/media/anime",
+   "cf_source": "name",
+   "expect_folder": "My Hero Academia (2016) {imdb-tt5626028}",
+   "expect_season": "Season 06",
+   "expect_file": "My Hero Academia (2016) - S06E13 - 126 - Final Performance [v2 - Notifiarr][Bluray-1080p Remux v2][FLAC 2.0][JA+EN][AVC 8bit]-fig.mkv",
+   "ext": ".mkv"
+  },
+  {
+   "instance": "sonarr_anime_debrid",
+   "file_id": 3083,
+   "series": {
+    "Title": "My Hero Academia",
+    "Year": 2016,
+    "Type": "anime",
+    "ImdbID": "tt5626028",
+    "TvdbID": 305074,
+    "TvMazeID": 0,
+    "TmdbID": 65930
+   },
+   "episodes": [
+    {
+     "Season": 6,
+     "Number": 18,
+     "Absolute": 131,
+     "Title": "Izuku Midoriya and Tomura Shigaraki",
+     "AirDate": "2023-02-04"
+    }
+   ],
+   "episode_file": {
+    "ID": 3083,
+    "Quality": {
+     "Title": "Bluray-1080p Remux",
+     "Version": 2,
+     "Real": 0
+    },
+    "ReleaseGroup": "fig",
+    "ReleaseHash": "",
+    "SceneName": "My.Hero.Academia.S06E18.REPACK.1080p.BluRay.Remux.Dual-Audio.FLAC.2.0.AVC-fig",
+    "RelativePath": "Season 06/My Hero Academia (2016) - S06E18 - 131 - Izuku Midoriya and Tomura Shigaraki [v2 - Notifiarr][Bluray-1080p Remux v2][FLAC 2.0][JA+EN][AVC 8bit]-fig.mkv",
+    "Path": "/media/anime/My Hero Academia (2016) {imdb-tt5626028}/Season 06/My Hero Academia (2016) - S06E18 - 131 - Izuku Midoriya and Tomura Shigaraki [v2 - Notifiarr][Bluray-1080p Remux v2][FLAC 2.0][JA+EN][AVC 8bit]-fig.mkv",
+    "MediaInfo": {
+     "VideoCodec": "AVC",
+     "VideoBitDepth": 8,
+     "VideoMultiViewCount": 0,
+     "AudioCodec": "FLAC",
+     "AudioChannels": 2,
+     "AudioLanguages": [
+      "jpn",
+      "eng"
+     ],
+     "Subtitles": null,
+     "VideoDynamicRange": "",
+     "VideoDynamicRangeType": ""
+    },
+    "CustomFormats": [
+     "v2 - Notifiarr"
+    ]
+   },
+   "root": "/media/anime",
+   "cf_source": "name",
+   "expect_folder": "My Hero Academia (2016) {imdb-tt5626028}",
+   "expect_season": "Season 06",
+   "expect_file": "My Hero Academia (2016) - S06E18 - 131 - Izuku Midoriya and Tomura Shigaraki [v2 - Notifiarr][Bluray-1080p Remux v2][FLAC 2.0][JA+EN][AVC 8bit]-fig.mkv",
+   "ext": ".mkv"
+  },
+  {
+   "instance": "sonarr_anime_debrid",
+   "file_id": 3085,
+   "series": {
+    "Title": "My Hero Academia",
+    "Year": 2016,
+    "Type": "anime",
+    "ImdbID": "tt5626028",
+    "TvdbID": 305074,
+    "TvMazeID": 0,
+    "TmdbID": 65930
+   },
+   "episodes": [
+    {
+     "Season": 6,
+     "Number": 20,
+     "Absolute": 133,
+     "Title": "Hired Gun",
+     "AirDate": "2023-02-18"
+    }
+   ],
+   "episode_file": {
+    "ID": 3085,
+    "Quality": {
+     "Title": "Bluray-1080p Remux",
+     "Version": 2,
+     "Real": 0
+    },
+    "ReleaseGroup": "fig",
+    "ReleaseHash": "",
+    "SceneName": "My.Hero.Academia.S06E20.REPACK.1080p.BluRay.Remux.Dual-Audio.FLAC.2.0.AVC-fig",
+    "RelativePath": "Season 06/My Hero Academia (2016) - S06E20 - 133 - Hired Gun [v2 - Notifiarr][Bluray-1080p Remux v2][FLAC 2.0][JA+EN][AVC 8bit]-fig.mkv",
+    "Path": "/media/anime/My Hero Academia (2016) {imdb-tt5626028}/Season 06/My Hero Academia (2016) - S06E20 - 133 - Hired Gun [v2 - Notifiarr][Bluray-1080p Remux v2][FLAC 2.0][JA+EN][AVC 8bit]-fig.mkv",
+    "MediaInfo": {
+     "VideoCodec": "AVC",
+     "VideoBitDepth": 8,
+     "VideoMultiViewCount": 0,
+     "AudioCodec": "FLAC",
+     "AudioChannels": 2,
+     "AudioLanguages": [
+      "jpn",
+      "eng"
+     ],
+     "Subtitles": null,
+     "VideoDynamicRange": "",
+     "VideoDynamicRangeType": ""
+    },
+    "CustomFormats": [
+     "v2 - Notifiarr"
+    ]
+   },
+   "root": "/media/anime",
+   "cf_source": "name",
+   "expect_folder": "My Hero Academia (2016) {imdb-tt5626028}",
+   "expect_season": "Season 06",
+   "expect_file": "My Hero Academia (2016) - S06E20 - 133 - Hired Gun [v2 - Notifiarr][Bluray-1080p Remux v2][FLAC 2.0][JA+EN][AVC 8bit]-fig.mkv",
+   "ext": ".mkv"
+  },
+  {
+   "instance": "sonarr_anime_debrid",
+   "file_id": 3087,
+   "series": {
+    "Title": "My Hero Academia",
+    "Year": 2016,
+    "Type": "anime",
+    "ImdbID": "tt5626028",
+    "TvdbID": 305074,
+    "TvMazeID": 0,
+    "TmdbID": 65930
+   },
+   "episodes": [
+    {
+     "Season": 6,
+     "Number": 22,
+     "Absolute": 135,
+     "Title": "Friend",
+     "AirDate": "2023-03-04"
+    }
+   ],
+   "episode_file": {
+    "ID": 3087,
+    "Quality": {
+     "Title": "Bluray-1080p Remux",
+     "Version": 2,
+     "Real": 0
+    },
+    "ReleaseGroup": "fig",
+    "ReleaseHash": "",
+    "SceneName": "My.Hero.Academia.S06E22.REPACK.1080p.BluRay.Remux.Dual-Audio.FLAC.2.0.AVC-fig",
+    "RelativePath": "Season 06/My Hero Academia (2016) - S06E22 - 135 - Friend [v2 - Notifiarr][Bluray-1080p Remux v2][FLAC 2.0][JA+EN][AVC 8bit]-fig.mkv",
+    "Path": "/media/anime/My Hero Academia (2016) {imdb-tt5626028}/Season 06/My Hero Academia (2016) - S06E22 - 135 - Friend [v2 - Notifiarr][Bluray-1080p Remux v2][FLAC 2.0][JA+EN][AVC 8bit]-fig.mkv",
+    "MediaInfo": {
+     "VideoCodec": "AVC",
+     "VideoBitDepth": 8,
+     "VideoMultiViewCount": 0,
+     "AudioCodec": "FLAC",
+     "AudioChannels": 2,
+     "AudioLanguages": [
+      "jpn",
+      "eng"
+     ],
+     "Subtitles": null,
+     "VideoDynamicRange": "",
+     "VideoDynamicRangeType": ""
+    },
+    "CustomFormats": [
+     "v2 - Notifiarr"
+    ]
+   },
+   "root": "/media/anime",
+   "cf_source": "name",
+   "expect_folder": "My Hero Academia (2016) {imdb-tt5626028}",
+   "expect_season": "Season 06",
+   "expect_file": "My Hero Academia (2016) - S06E22 - 135 - Friend [v2 - Notifiarr][Bluray-1080p Remux v2][FLAC 2.0][JA+EN][AVC 8bit]-fig.mkv",
+   "ext": ".mkv"
+  },
+  {
+   "instance": "sonarr_anime_debrid",
+   "file_id": 3088,
+   "series": {
+    "Title": "My Hero Academia",
+    "Year": 2016,
+    "Type": "anime",
+    "ImdbID": "tt5626028",
+    "TvdbID": 305074,
+    "TvMazeID": 0,
+    "TmdbID": 65930
+   },
+   "episodes": [
+    {
+     "Season": 6,
+     "Number": 23,
+     "Absolute": 136,
+     "Title": "Deku vs. Class A",
+     "AirDate": "2023-03-11"
+    }
+   ],
+   "episode_file": {
+    "ID": 3088,
+    "Quality": {
+     "Title": "Bluray-1080p Remux",
+     "Version": 2,
+     "Real": 0
+    },
+    "ReleaseGroup": "fig",
+    "ReleaseHash": "",
+    "SceneName": "My.Hero.Academia.S06E23.REPACK.1080p.BluRay.Remux.Dual-Audio.FLAC.2.0.AVC-fig",
+    "RelativePath": "Season 06/My Hero Academia (2016) - S06E23 - 136 - Deku vs. Class A [v2 - Notifiarr][Bluray-1080p Remux v2][FLAC 2.0][JA+EN][AVC 8bit]-fig.mkv",
+    "Path": "/media/anime/My Hero Academia (2016) {imdb-tt5626028}/Season 06/My Hero Academia (2016) - S06E23 - 136 - Deku vs. Class A [v2 - Notifiarr][Bluray-1080p Remux v2][FLAC 2.0][JA+EN][AVC 8bit]-fig.mkv",
+    "MediaInfo": {
+     "VideoCodec": "AVC",
+     "VideoBitDepth": 8,
+     "VideoMultiViewCount": 0,
+     "AudioCodec": "FLAC",
+     "AudioChannels": 2,
+     "AudioLanguages": [
+      "jpn",
+      "eng"
+     ],
+     "Subtitles": null,
+     "VideoDynamicRange": "",
+     "VideoDynamicRangeType": ""
+    },
+    "CustomFormats": [
+     "v2 - Notifiarr"
+    ]
+   },
+   "root": "/media/anime",
+   "cf_source": "name",
+   "expect_folder": "My Hero Academia (2016) {imdb-tt5626028}",
+   "expect_season": "Season 06",
+   "expect_file": "My Hero Academia (2016) - S06E23 - 136 - Deku vs. Class A [v2 - Notifiarr][Bluray-1080p Remux v2][FLAC 2.0][JA+EN][AVC 8bit]-fig.mkv",
+   "ext": ".mkv"
+  },
+  {
+   "instance": "sonarr_anime_debrid",
+   "file_id": 3089,
+   "series": {
+    "Title": "My Hero Academia",
+    "Year": 2016,
+    "Type": "anime",
+    "ImdbID": "tt5626028",
+    "TvdbID": 305074,
+    "TvMazeID": 0,
+    "TmdbID": 65930
+   },
+   "episodes": [
+    {
+     "Season": 6,
+     "Number": 24,
+     "Absolute": 137,
+     "Title": "A Young Woman's Declaration",
+     "AirDate": "2023-03-18"
+    }
+   ],
+   "episode_file": {
+    "ID": 3089,
+    "Quality": {
+     "Title": "Bluray-1080p Remux",
+     "Version": 2,
+     "Real": 0
+    },
+    "ReleaseGroup": "fig",
+    "ReleaseHash": "",
+    "SceneName": "My.Hero.Academia.S06E24.REPACK.1080p.BluRay.Remux.Dual-Audio.FLAC.2.0.AVC-fig",
+    "RelativePath": "Season 06/My Hero Academia (2016) - S06E24 - 137 - A Young Womans Declaration [v2 - Notifiarr][Bluray-1080p Remux v2][FLAC 2.0][JA+EN][AVC 8bit]-fig.mkv",
+    "Path": "/media/anime/My Hero Academia (2016) {imdb-tt5626028}/Season 06/My Hero Academia (2016) - S06E24 - 137 - A Young Womans Declaration [v2 - Notifiarr][Bluray-1080p Remux v2][FLAC 2.0][JA+EN][AVC 8bit]-fig.mkv",
+    "MediaInfo": {
+     "VideoCodec": "AVC",
+     "VideoBitDepth": 8,
+     "VideoMultiViewCount": 0,
+     "AudioCodec": "FLAC",
+     "AudioChannels": 2,
+     "AudioLanguages": [
+      "jpn",
+      "eng"
+     ],
+     "Subtitles": null,
+     "VideoDynamicRange": "",
+     "VideoDynamicRangeType": ""
+    },
+    "CustomFormats": [
+     "v2 - Notifiarr"
+    ]
+   },
+   "root": "/media/anime",
+   "cf_source": "name",
+   "expect_folder": "My Hero Academia (2016) {imdb-tt5626028}",
+   "expect_season": "Season 06",
+   "expect_file": "My Hero Academia (2016) - S06E24 - 137 - A Young Womans Declaration [v2 - Notifiarr][Bluray-1080p Remux v2][FLAC 2.0][JA+EN][AVC 8bit]-fig.mkv",
+   "ext": ".mkv"
+  },
+  {
+   "instance": "sonarr_anime_debrid",
+   "file_id": 3126,
+   "series": {
+    "Title": "One-Punch Man",
+    "Year": 2015,
+    "Type": "anime",
+    "ImdbID": "tt4508902",
+    "TvdbID": 293088,
+    "TvMazeID": 0,
+    "TmdbID": 63926
+   },
+   "episodes": [
+    {
+     "Season": 2,
+     "Number": 10,
+     "Absolute": 34,
+     "Title": "The Encircling Net of Justice",
+     "AirDate": "2019-06-19"
+    }
+   ],
+   "episode_file": {
+    "ID": 3126,
+    "Quality": {
+     "Title": "Bluray-1080p",
+     "Version": 1,
+     "Real": 0
+    },
+    "ReleaseGroup": "sam",
+    "ReleaseHash": "",
+    "SceneName": "",
+    "RelativePath": "Season 02/One-Punch Man (2015) - S02E10 - 034 - The Encircling Net of Justice [Bluray-1080p][FLAC 2.0][JA+EN][x265 10bit]-sam.mkv",
+    "Path": "/media/anime/One-Punch Man (2015) {imdb-tt4508902}/Season 02/One-Punch Man (2015) - S02E10 - 034 - The Encircling Net of Justice [Bluray-1080p][FLAC 2.0][JA+EN][x265 10bit]-sam.mkv",
+    "MediaInfo": {
+     "VideoCodec": "x265",
+     "VideoBitDepth": 10,
+     "VideoMultiViewCount": 0,
+     "AudioCodec": "FLAC",
+     "AudioChannels": 2,
+     "AudioLanguages": [
+      "jpn",
+      "eng"
+     ],
+     "Subtitles": null,
+     "VideoDynamicRange": "",
+     "VideoDynamicRangeType": ""
+    },
+    "CustomFormats": null
+   },
+   "root": "/media/anime",
+   "cf_source": "none",
+   "expect_folder": "One-Punch Man (2015) {imdb-tt4508902}",
+   "expect_season": "Season 02",
+   "expect_file": "One-Punch Man (2015) - S02E10 - 034 - The Encircling Net of Justice [Bluray-1080p][FLAC 2.0][JA+EN][x265 10bit]-sam.mkv",
+   "ext": ".mkv"
+  },
+  {
+   "instance": "sonarr_anime_debrid",
+   "file_id": 3135,
+   "series": {
+    "Title": "One-Punch Man",
+    "Year": 2015,
+    "Type": "anime",
+    "ImdbID": "tt4508902",
+    "TvdbID": 293088,
+    "TvMazeID": 0,
+    "TmdbID": 63926
+   },
+   "episodes": [
+    {
+     "Season": 1,
+     "Number": 3,
+     "Absolute": 4,
+     "Title": "The Obsessive Scientist",
+     "AirDate": "2015-10-18"
+    }
+   ],
+   "episode_file": {
+    "ID": 3135,
+    "Quality": {
+     "Title": "Bluray-1080p",
+     "Version": 1,
+     "Real": 0
+    },
+    "ReleaseGroup": "sam",
+    "ReleaseHash": "",
+    "SceneName": "",
+    "RelativePath": "Season 01/One-Punch Man (2015) - S01E03 - 004 - The Obsessive Scientist [Bluray-1080p][FLAC 2.0][JA+EN][x265 10bit]-sam.mkv",
+    "Path": "/media/anime/One-Punch Man (2015) {imdb-tt4508902}/Season 01/One-Punch Man (2015) - S01E03 - 004 - The Obsessive Scientist [Bluray-1080p][FLAC 2.0][JA+EN][x265 10bit]-sam.mkv",
+    "MediaInfo": {
+     "VideoCodec": "x265",
+     "VideoBitDepth": 10,
+     "VideoMultiViewCount": 0,
+     "AudioCodec": "FLAC",
+     "AudioChannels": 2,
+     "AudioLanguages": [
+      "jpn",
+      "eng"
+     ],
+     "Subtitles": null,
+     "VideoDynamicRange": "",
+     "VideoDynamicRangeType": ""
+    },
+    "CustomFormats": null
+   },
+   "root": "/media/anime",
+   "cf_source": "none",
+   "expect_folder": "One-Punch Man (2015) {imdb-tt4508902}",
+   "expect_season": "Season 01",
+   "expect_file": "One-Punch Man (2015) - S01E03 - 004 - The Obsessive Scientist [Bluray-1080p][FLAC 2.0][JA+EN][x265 10bit]-sam.mkv",
+   "ext": ".mkv"
+  },
+  {
+   "instance": "sonarr_anime_debrid",
+   "file_id": 3166,
+   "series": {
+    "Title": "Rascal Does Not Dream of Bunny Girl Senpai",
+    "Year": 2018,
+    "Type": "anime",
+    "ImdbID": "tt8993398",
+    "TvdbID": 345596,
+    "TvMazeID": 0,
+    "TmdbID": 82739
+   },
+   "episodes": [
+    {
+     "Season": 1,
+     "Number": 5,
+     "Absolute": 5,
+     "Title": "All the Lies I Have for You",
+     "AirDate": "2018-11-01"
+    }
+   ],
+   "episode_file": {
+    "ID": 3166,
+    "Quality": {
+     "Title": "Bluray-1080p Remux",
+     "Version": 2,
+     "Real": 0
+    },
+    "ReleaseGroup": "StaFer",
+    "ReleaseHash": "",
+    "SceneName": "Rascal.Does.Not.Dream.of.Bunny.Girl.Senpai.S01E05.All.the.Lies.I.Have.for.You.REPACK.1080p.BluRay.REMUX.AVC.Dual-Audio.FLAC.2.0-StaFer",
+    "RelativePath": "Season 01/Rascal Does Not Dream of Bunny Girl Senpai (2018) - S01E05 - 005 - All the Lies I Have for You [v2 - Notifiarr][Bluray-1080p Remux v2][FLAC 2.0][JA+EN][AVC 8bit]-StaFer.mkv",
+    "Path": "/media/anime/Rascal Does Not Dream of Bunny Girl Senpai (2018) {imdb-tt8993398}/Season 01/Rascal Does Not Dream of Bunny Girl Senpai (2018) - S01E05 - 005 - All the Lies I Have for You [v2 - Notifiarr][Bluray-1080p Remux v2][FLAC 2.0][JA+EN][AVC 8bit]-StaFer.mkv",
+    "MediaInfo": {
+     "VideoCodec": "AVC",
+     "VideoBitDepth": 8,
+     "VideoMultiViewCount": 0,
+     "AudioCodec": "FLAC",
+     "AudioChannels": 2,
+     "AudioLanguages": [
+      "jpn",
+      "eng"
+     ],
+     "Subtitles": null,
+     "VideoDynamicRange": "",
+     "VideoDynamicRangeType": ""
+    },
+    "CustomFormats": [
+     "v2 - Notifiarr"
+    ]
+   },
+   "root": "/media/anime",
+   "cf_source": "name",
+   "expect_folder": "Rascal Does Not Dream of Bunny Girl Senpai (2018) {imdb-tt8993398}",
+   "expect_season": "Season 01",
+   "expect_file": "Rascal Does Not Dream of Bunny Girl Senpai (2018) - S01E05 - 005 - All the Lies I Have for You [v2 - Notifiarr][Bluray-1080p Remux v2][FLAC 2.0][JA+EN][AVC 8bit]-StaFer.mkv",
+   "ext": ".mkv"
+  },
+  {
+   "instance": "sonarr_anime_debrid",
+   "file_id": 3168,
+   "series": {
+    "Title": "Rascal Does Not Dream of Bunny Girl Senpai",
+    "Year": 2018,
+    "Type": "anime",
+    "ImdbID": "tt8993398",
+    "TvdbID": 345596,
+    "TvMazeID": 0,
+    "TmdbID": 82739
+   },
+   "episodes": [
+    {
+     "Season": 1,
+     "Number": 7,
+     "Absolute": 7,
+     "Title": "Adolescence Paradox",
+     "AirDate": "2018-11-15"
+    }
+   ],
+   "episode_file": {
+    "ID": 3168,
+    "Quality": {
+     "Title": "Bluray-1080p Remux",
+     "Version": 2,
+     "Real": 0
+    },
+    "ReleaseGroup": "StaFer",
+    "ReleaseHash": "",
+    "SceneName": "Rascal.Does.Not.Dream.of.Bunny.Girl.Senpai.S01E07.Adolescence.Paradox.REPACK.1080p.BluRay.REMUX.AVC.Dual-Audio.FLAC.2.0-StaFer",
+    "RelativePath": "Season 01/Rascal Does Not Dream of Bunny Girl Senpai (2018) - S01E07 - 007 - Adolescence Paradox [v2 - Notifiarr][Bluray-1080p Remux v2][FLAC 2.0][JA+EN][AVC 8bit]-StaFer.mkv",
+    "Path": "/media/anime/Rascal Does Not Dream of Bunny Girl Senpai (2018) {imdb-tt8993398}/Season 01/Rascal Does Not Dream of Bunny Girl Senpai (2018) - S01E07 - 007 - Adolescence Paradox [v2 - Notifiarr][Bluray-1080p Remux v2][FLAC 2.0][JA+EN][AVC 8bit]-StaFer.mkv",
+    "MediaInfo": {
+     "VideoCodec": "AVC",
+     "VideoBitDepth": 8,
+     "VideoMultiViewCount": 0,
+     "AudioCodec": "FLAC",
+     "AudioChannels": 2,
+     "AudioLanguages": [
+      "jpn",
+      "eng"
+     ],
+     "Subtitles": null,
+     "VideoDynamicRange": "",
+     "VideoDynamicRangeType": ""
+    },
+    "CustomFormats": [
+     "v2 - Notifiarr"
+    ]
+   },
+   "root": "/media/anime",
+   "cf_source": "name",
+   "expect_folder": "Rascal Does Not Dream of Bunny Girl Senpai (2018) {imdb-tt8993398}",
+   "expect_season": "Season 01",
+   "expect_file": "Rascal Does Not Dream of Bunny Girl Senpai (2018) - S01E07 - 007 - Adolescence Paradox [v2 - Notifiarr][Bluray-1080p Remux v2][FLAC 2.0][JA+EN][AVC 8bit]-StaFer.mkv",
+   "ext": ".mkv"
+  },
+  {
+   "instance": "sonarr_anime_debrid",
+   "file_id": 3172,
+   "series": {
+    "Title": "Rascal Does Not Dream of Bunny Girl Senpai",
+    "Year": 2018,
+    "Type": "anime",
+    "ImdbID": "tt8993398",
+    "TvdbID": 345596,
+    "TvMazeID": 0,
+    "TmdbID": 82739
+   },
+   "episodes": [
+    {
+     "Season": 1,
+     "Number": 11,
+     "Absolute": 11,
+     "Title": "The Kaede Quest",
+     "AirDate": "2018-12-13"
+    }
+   ],
+   "episode_file": {
+    "ID": 3172,
+    "Quality": {
+     "Title": "Bluray-1080p Remux",
+     "Version": 2,
+     "Real": 0
+    },
+    "ReleaseGroup": "StaFer",
+    "ReleaseHash": "",
+    "SceneName": "Rascal.Does.Not.Dream.of.Bunny.Girl.Senpai.S01E11.The.Kaede.Quest.REPACK.1080p.BluRay.REMUX.AVC.Dual-Audio.FLAC.2.0-StaFer",
+    "RelativePath": "Season 01/Rascal Does Not Dream of Bunny Girl Senpai (2018) - S01E11 - 011 - The Kaede Quest [v2 - Notifiarr][Bluray-1080p Remux v2][FLAC 2.0][JA+EN][AVC 8bit]-StaFer.mkv",
+    "Path": "/media/anime/Rascal Does Not Dream of Bunny Girl Senpai (2018) {imdb-tt8993398}/Season 01/Rascal Does Not Dream of Bunny Girl Senpai (2018) - S01E11 - 011 - The Kaede Quest [v2 - Notifiarr][Bluray-1080p Remux v2][FLAC 2.0][JA+EN][AVC 8bit]-StaFer.mkv",
+    "MediaInfo": {
+     "VideoCodec": "AVC",
+     "VideoBitDepth": 8,
+     "VideoMultiViewCount": 0,
+     "AudioCodec": "FLAC",
+     "AudioChannels": 2,
+     "AudioLanguages": [
+      "jpn",
+      "eng"
+     ],
+     "Subtitles": null,
+     "VideoDynamicRange": "",
+     "VideoDynamicRangeType": ""
+    },
+    "CustomFormats": [
+     "v2 - Notifiarr"
+    ]
+   },
+   "root": "/media/anime",
+   "cf_source": "name",
+   "expect_folder": "Rascal Does Not Dream of Bunny Girl Senpai (2018) {imdb-tt8993398}",
+   "expect_season": "Season 01",
+   "expect_file": "Rascal Does Not Dream of Bunny Girl Senpai (2018) - S01E11 - 011 - The Kaede Quest [v2 - Notifiarr][Bluray-1080p Remux v2][FLAC 2.0][JA+EN][AVC 8bit]-StaFer.mkv",
+   "ext": ".mkv"
+  },
+  {
+   "instance": "sonarr_anime_debrid",
+   "file_id": 3174,
+   "series": {
+    "Title": "Rascal Does Not Dream of Bunny Girl Senpai",
+    "Year": 2018,
+    "Type": "anime",
+    "ImdbID": "tt8993398",
+    "TvdbID": 345596,
+    "TvMazeID": 0,
+    "TmdbID": 82739
+   },
+   "episodes": [
+    {
+     "Season": 1,
+     "Number": 13,
+     "Absolute": 13,
+     "Title": "The Dawn After an Endless Night",
+     "AirDate": "2018-12-27"
+    }
+   ],
+   "episode_file": {
+    "ID": 3174,
+    "Quality": {
+     "Title": "Bluray-1080p Remux",
+     "Version": 2,
+     "Real": 0
+    },
+    "ReleaseGroup": "StaFer",
+    "ReleaseHash": "",
+    "SceneName": "Rascal.Does.Not.Dream.of.Bunny.Girl.Senpai.S01E13.The.Dawn.After.an.Endless.Night.REPACK.1080p.BluRay.REMUX.AVC.Dual-Audio.FLAC.2.0-StaFer",
+    "RelativePath": "Season 01/Rascal Does Not Dream of Bunny Girl Senpai (2018) - S01E13 - 013 - The Dawn After an Endless Night [v2 - Notifiarr][Bluray-1080p Remux v2][FLAC 2.0][JA+EN][AVC 8bit]-StaFer.mkv",
+    "Path": "/media/anime/Rascal Does Not Dream of Bunny Girl Senpai (2018) {imdb-tt8993398}/Season 01/Rascal Does Not Dream of Bunny Girl Senpai (2018) - S01E13 - 013 - The Dawn After an Endless Night [v2 - Notifiarr][Bluray-1080p Remux v2][FLAC 2.0][JA+EN][AVC 8bit]-StaFer.mkv",
+    "MediaInfo": {
+     "VideoCodec": "AVC",
+     "VideoBitDepth": 8,
+     "VideoMultiViewCount": 0,
+     "AudioCodec": "FLAC",
+     "AudioChannels": 2,
+     "AudioLanguages": [
+      "jpn",
+      "eng"
+     ],
+     "Subtitles": null,
+     "VideoDynamicRange": "",
+     "VideoDynamicRangeType": ""
+    },
+    "CustomFormats": [
+     "v2 - Notifiarr"
+    ]
+   },
+   "root": "/media/anime",
+   "cf_source": "name",
+   "expect_folder": "Rascal Does Not Dream of Bunny Girl Senpai (2018) {imdb-tt8993398}",
+   "expect_season": "Season 01",
+   "expect_file": "Rascal Does Not Dream of Bunny Girl Senpai (2018) - S01E13 - 013 - The Dawn After an Endless Night [v2 - Notifiarr][Bluray-1080p Remux v2][FLAC 2.0][JA+EN][AVC 8bit]-StaFer.mkv",
+   "ext": ".mkv"
+  },
+  {
+   "instance": "sonarr_anime_debrid",
+   "file_id": 3196,
+   "series": {
+    "Title": "Re: ZERO, Starting Life in Another World",
+    "Year": 2016,
+    "Type": "standard",
+    "ImdbID": "tt5607616",
+    "TvdbID": 305089,
+    "TvMazeID": 0,
+    "TmdbID": 65942
+   },
+   "episodes": [
+    {
+     "Season": 1,
+     "Number": 22,
+     "Absolute": 22,
+     "Title": "A Flash of Sloth",
+     "AirDate": "2016-08-29"
+    }
+   ],
+   "episode_file": {
+    "ID": 3196,
+    "Quality": {
+     "Title": "Bluray-1080p",
+     "Version": 1,
+     "Real": 0
+    },
+    "ReleaseGroup": "FLE",
+    "ReleaseHash": "",
+    "SceneName": "",
+    "RelativePath": "Season 01/Re ZERO Starting Life in Another World (2016) - S01E22 - A Flash of Sloth [Bluray-1080p][FLAC 2.0][x265]-FLE.mkv",
+    "Path": "/media/anime/Re ZERO Starting Life in Another World (2016) {imdb-tt5607616}/Season 01/Re ZERO Starting Life in Another World (2016) - S01E22 - A Flash of Sloth [Bluray-1080p][FLAC 2.0][x265]-FLE.mkv",
+    "MediaInfo": {
+     "VideoCodec": "x265",
+     "VideoBitDepth": 10,
+     "VideoMultiViewCount": 0,
+     "AudioCodec": "FLAC",
+     "AudioChannels": 2,
+     "AudioLanguages": [
+      "jpn",
+      "eng"
+     ],
+     "Subtitles": null,
+     "VideoDynamicRange": "",
+     "VideoDynamicRangeType": ""
+    },
+    "CustomFormats": null
+   },
+   "root": "/media/anime",
+   "cf_source": "none",
+   "expect_folder": "Re ZERO Starting Life in Another World (2016) {imdb-tt5607616}",
+   "expect_season": "Season 01",
+   "expect_file": "Re ZERO Starting Life in Another World (2016) - S01E22 - A Flash of Sloth [Bluray-1080p][FLAC 2.0][x265]-FLE.mkv",
+   "ext": ".mkv"
+  },
+  {
+   "instance": "sonarr_anime_debrid",
+   "file_id": 3226,
+   "series": {
+    "Title": "Re: ZERO, Starting Life in Another World",
+    "Year": 2016,
+    "Type": "standard",
+    "ImdbID": "tt5607616",
+    "TvdbID": 305089,
+    "TvMazeID": 0,
+    "TmdbID": 65942
+   },
+   "episodes": [
+    {
+     "Season": 3,
+     "Number": 2,
+     "Absolute": 52,
+     "Title": "A Showdown of Fire and Ice",
+     "AirDate": "2024-10-09"
+    }
+   ],
+   "episode_file": {
+    "ID": 3226,
+    "Quality": {
+     "Title": "Bluray-1080p",
+     "Version": 1,
+     "Real": 0
+    },
+    "ReleaseGroup": "Headpatter",
+    "ReleaseHash": "",
+    "SceneName": "Re.ZERO.Starting.Life.in.Another.World.S03E02.1080p.BluRay.Opus.2.0.x265-Headpatter",
+    "RelativePath": "Season 03/Re ZERO Starting Life in Another World (2016) - S03E02 - A Showdown of Fire and Ice [Bluray-1080p][Opus 2.0][x265]-Headpatter.mkv",
+    "Path": "/media/anime/Re ZERO Starting Life in Another World (2016) {imdb-tt5607616}/Season 03/Re ZERO Starting Life in Another World (2016) - S03E02 - A Showdown of Fire and Ice [Bluray-1080p][Opus 2.0][x265]-Headpatter.mkv",
+    "MediaInfo": {
+     "VideoCodec": "x265",
+     "VideoBitDepth": 10,
+     "VideoMultiViewCount": 0,
+     "AudioCodec": "Opus",
+     "AudioChannels": 2,
+     "AudioLanguages": [
+      "jpn",
+      "eng"
+     ],
+     "Subtitles": null,
+     "VideoDynamicRange": "",
+     "VideoDynamicRangeType": ""
+    },
+    "CustomFormats": null
+   },
+   "root": "/media/anime",
+   "cf_source": "none",
+   "expect_folder": "Re ZERO Starting Life in Another World (2016) {imdb-tt5607616}",
+   "expect_season": "Season 03",
+   "expect_file": "Re ZERO Starting Life in Another World (2016) - S03E02 - A Showdown of Fire and Ice [Bluray-1080p][Opus 2.0][x265]-Headpatter.mkv",
+   "ext": ".mkv"
+  },
+  {
+   "instance": "sonarr_anime_debrid",
+   "file_id": 3241,
+   "series": {
+    "Title": "Re: ZERO, Starting Life in Another World",
+    "Year": 2016,
+    "Type": "standard",
+    "ImdbID": "tt5607616",
+    "TvdbID": 305089,
+    "TvMazeID": 0,
+    "TmdbID": 65942
+   },
+   "episodes": [
+    {
+     "Season": 4,
+     "Number": 17,
+     "Absolute": 83,
+     "Title": "Good Loser",
+     "AirDate": "2026-09-16"
+    }
+   ],
+   "episode_file": {
+    "ID": 3241,
+    "Quality": {
+     "Title": "WEBDL-1080p",
+     "Version": 2,
+     "Real": 0
+    },
+    "ReleaseGroup": "ToonsHub",
+    "ReleaseHash": "",
+    "SceneName": "ReZERO.Starting.Life.in.Another.World.S04E17.Good.Loser.REPACK.1080p.AMZN.WEB-DL.JPN.DDP2.0.H.264.MSubs-ToonsHub",
+    "RelativePath": "Season 04/Re ZERO Starting Life in Another World (2016) - S04E17 - Good Loser [v2 - Notifiarr][WEBDL-1080p Proper][EAC3 2.0][h264]-ToonsHub.mkv",
+    "Path": "/media/anime/Re ZERO Starting Life in Another World (2016) {imdb-tt5607616}/Season 04/Re ZERO Starting Life in Another World (2016) - S04E17 - Good Loser [v2 - Notifiarr][WEBDL-1080p Proper][EAC3 2.0][h264]-ToonsHub.mkv",
+    "MediaInfo": {
+     "VideoCodec": "h264",
+     "VideoBitDepth": 8,
+     "VideoMultiViewCount": 0,
+     "AudioCodec": "EAC3",
+     "AudioChannels": 2,
+     "AudioLanguages": [
+      "jpn"
+     ],
+     "Subtitles": null,
+     "VideoDynamicRange": "",
+     "VideoDynamicRangeType": ""
+    },
+    "CustomFormats": [
+     "v2 - Notifiarr"
+    ]
+   },
+   "root": "/media/anime",
+   "cf_source": "name",
+   "expect_folder": "Re ZERO Starting Life in Another World (2016) {imdb-tt5607616}",
+   "expect_season": "Season 04",
+   "expect_file": "Re ZERO Starting Life in Another World (2016) - S04E17 - Good Loser [v2 - Notifiarr][WEBDL-1080p Proper][EAC3 2.0][h264]-ToonsHub.mkv",
+   "ext": ".mkv"
+  },
+  {
+   "instance": "sonarr_anime_debrid",
+   "file_id": 3368,
+   "series": {
+    "Title": "That Time I Got Reincarnated as a Slime",
+    "Year": 2018,
+    "Type": "anime",
+    "ImdbID": "tt9054364",
+    "TvdbID": 352408,
+    "TvMazeID": 0,
+    "TmdbID": 82684
+   },
+   "episodes": [
+    {
+     "Season": 3,
+     "Number": 17,
+     "Absolute": 65,
+     "Title": "The Lightspeed Hero",
+     "AirDate": "2024-08-02"
+    }
+   ],
+   "episode_file": {
+    "ID": 3368,
+    "Quality": {
+     "Title": "Bluray-1080p Remux",
+     "Version": 1,
+     "Real": 0
+    },
+    "ReleaseGroup": "uba",
+    "ReleaseHash": "",
+    "SceneName": "",
+    "RelativePath": "Season 03/That Time I Got Reincarnated as a Slime (2018) - S03E17 - 065 - The Lightspeed Hero [Bluray-1080p Remux][FLAC 2.0][JA+EN][AVC 8bit]-uba.mkv",
+    "Path": "/media/anime/That Time I Got Reincarnated as a Slime (2018) {imdb-tt9054364}/Season 03/That Time I Got Reincarnated as a Slime (2018) - S03E17 - 065 - The Lightspeed Hero [Bluray-1080p Remux][FLAC 2.0][JA+EN][AVC 8bit]-uba.mkv",
+    "MediaInfo": {
+     "VideoCodec": "AVC",
+     "VideoBitDepth": 8,
+     "VideoMultiViewCount": 0,
+     "AudioCodec": "FLAC",
+     "AudioChannels": 2,
+     "AudioLanguages": [
+      "jpn",
+      "eng"
+     ],
+     "Subtitles": null,
+     "VideoDynamicRange": "",
+     "VideoDynamicRangeType": ""
+    },
+    "CustomFormats": null
+   },
+   "root": "/media/anime",
+   "cf_source": "none",
+   "expect_folder": "That Time I Got Reincarnated as a Slime (2018) {imdb-tt9054364}",
+   "expect_season": "Season 03",
+   "expect_file": "That Time I Got Reincarnated as a Slime (2018) - S03E17 - 065 - The Lightspeed Hero [Bluray-1080p Remux][FLAC 2.0][JA+EN][AVC 8bit]-uba.mkv",
+   "ext": ".mkv"
+  },
+  {
+   "instance": "sonarr_anime_debrid",
+   "file_id": 3380,
+   "series": {
+    "Title": "That Time I Got Reincarnated as a Slime",
+    "Year": 2018,
+    "Type": "anime",
+    "ImdbID": "tt9054364",
+    "TvdbID": 352408,
+    "TvMazeID": 0,
+    "TmdbID": 82684
+   },
+   "episodes": [
+    {
+     "Season": 2,
+     "Number": 9,
+     "Absolute": 33,
+     "Title": "Putting Everything on the Line",
+     "AirDate": "2021-03-09"
+    }
+   ],
+   "episode_file": {
+    "ID": 3380,
+    "Quality": {
+     "Title": "HDTV-1080p",
+     "Version": 1,
+     "Real": 0
+    },
+    "ReleaseGroup": "FLE",
+    "ReleaseHash": "",
+    "SceneName": "",
+    "RelativePath": "Season 02/That Time I Got Reincarnated as a Slime (2018) - S02E09 - 033 - Putting Everything on the Line [HDTV-1080p][FLAC 2.0][JA+EN][x265 10bit]-FLE.mkv",
+    "Path": "/media/anime/That Time I Got Reincarnated as a Slime (2018) {imdb-tt9054364}/Season 02/That Time I Got Reincarnated as a Slime (2018) - S02E09 - 033 - Putting Everything on the Line [HDTV-1080p][FLAC 2.0][JA+EN][x265 10bit]-FLE.mkv",
+    "MediaInfo": {
+     "VideoCodec": "x265",
+     "VideoBitDepth": 10,
+     "VideoMultiViewCount": 0,
+     "AudioCodec": "FLAC",
+     "AudioChannels": 2,
+     "AudioLanguages": [
+      "jpn",
+      "eng"
+     ],
+     "Subtitles": null,
+     "VideoDynamicRange": "",
+     "VideoDynamicRangeType": ""
+    },
+    "CustomFormats": null
+   },
+   "root": "/media/anime",
+   "cf_source": "none",
+   "expect_folder": "That Time I Got Reincarnated as a Slime (2018) {imdb-tt9054364}",
+   "expect_season": "Season 02",
+   "expect_file": "That Time I Got Reincarnated as a Slime (2018) - S02E09 - 033 - Putting Everything on the Line [HDTV-1080p][FLAC 2.0][JA+EN][x265 10bit]-FLE.mkv",
+   "ext": ".mkv"
+  },
+  {
+   "instance": "sonarr_anime_debrid",
+   "file_id": 3416,
+   "series": {
+    "Title": "Vinland Saga",
+    "Year": 2019,
+    "Type": "anime",
+    "ImdbID": "tt10233448",
+    "TvdbID": 359274,
+    "TvMazeID": 0,
+    "TmdbID": 88803
+   },
+   "episodes": [
+    {
+     "Season": 2,
+     "Number": 5,
+     "Absolute": 29,
+     "Title": "The Path of Blood",
+     "AirDate": "2023-02-07"
+    }
+   ],
+   "episode_file": {
+    "ID": 3416,
+    "Quality": {
+     "Title": "WEBDL-1080p",
+     "Version": 1,
+     "Real": 0
+    },
+    "ReleaseGroup": "LostYears",
+    "ReleaseHash": "",
+    "SceneName": "",
+    "RelativePath": "Season 02/Vinland Saga (2019) - S02E05 - 029 - The Path of Blood [WEBDL-1080p][EAC3 2.0][JA+EN][x265 10bit]-LostYears.mkv",
+    "Path": "/media/anime/Vinland Saga (2019) {imdb-tt10233448}/Season 02/Vinland Saga (2019) - S02E05 - 029 - The Path of Blood [WEBDL-1080p][EAC3 2.0][JA+EN][x265 10bit]-LostYears.mkv",
+    "MediaInfo": {
+     "VideoCodec": "x265",
+     "VideoBitDepth": 10,
+     "VideoMultiViewCount": 0,
+     "AudioCodec": "EAC3",
+     "AudioChannels": 2,
+     "AudioLanguages": [
+      "jpn",
+      "eng",
+      "eng"
+     ],
+     "Subtitles": null,
+     "VideoDynamicRange": "",
+     "VideoDynamicRangeType": ""
+    },
+    "CustomFormats": null
+   },
+   "root": "/media/anime",
+   "cf_source": "none",
+   "expect_folder": "Vinland Saga (2019) {imdb-tt10233448}",
+   "expect_season": "Season 02",
+   "expect_file": "Vinland Saga (2019) - S02E05 - 029 - The Path of Blood [WEBDL-1080p][EAC3 2.0][JA+EN][x265 10bit]-LostYears.mkv",
+   "ext": ".mkv"
+  },
+  {
+   "instance": "sonarr_anime_debrid",
+   "file_id": 3468,
+   "series": {
+    "Title": "Death Note",
+    "Year": 2006,
+    "Type": "standard",
+    "ImdbID": "tt0877057",
+    "TvdbID": 79481,
+    "TvMazeID": 0,
+    "TmdbID": 13916
+   },
+   "episodes": [
+    {
+     "Season": 1,
+     "Number": 20,
+     "Absolute": 20,
+     "Title": "Makeshift",
+     "AirDate": "2007-02-28"
+    }
+   ],
+   "episode_file": {
+    "ID": 3468,
+    "Quality": {
+     "Title": "Unknown",
+     "Version": 2,
+     "Real": 0
+    },
+    "ReleaseGroup": "Arid",
+    "ReleaseHash": "",
+    "SceneName": "",
+    "RelativePath": "Season 01/Death Note (2006) - S01E20 - Makeshift [v2 - Notifiarr][Unknown Proper][FLAC 2.0][x264]-Arid.mkv",
+    "Path": "/media/anime/Death Note (2006) {imdb-tt0877057}/Season 01/Death Note (2006) - S01E20 - Makeshift [v2 - Notifiarr][Unknown Proper][FLAC 2.0][x264]-Arid.mkv",
+    "MediaInfo": {
+     "VideoCodec": "x264",
+     "VideoBitDepth": 10,
+     "VideoMultiViewCount": 0,
+     "AudioCodec": "FLAC",
+     "AudioChannels": 2,
+     "AudioLanguages": [
+      "jpn",
+      "eng"
+     ],
+     "Subtitles": null,
+     "VideoDynamicRange": "",
+     "VideoDynamicRangeType": ""
+    },
+    "CustomFormats": [
+     "v2 - Notifiarr"
+    ]
+   },
+   "root": "/media/anime",
+   "cf_source": "name",
+   "expect_folder": "Death Note (2006) {imdb-tt0877057}",
+   "expect_season": "Season 01",
+   "expect_file": "Death Note (2006) - S01E20 - Makeshift [v2 - Notifiarr][Unknown Proper][FLAC 2.0][x264]-Arid.mkv",
+   "ext": ".mkv"
+  },
+  {
+   "instance": "sonarr_anime_debrid",
+   "file_id": 3487,
+   "series": {
+    "Title": "Made in Abyss",
+    "Year": 2017,
+    "Type": "standard",
+    "ImdbID": "tt7222086",
+    "TvdbID": 326109,
+    "TvMazeID": 0,
+    "TmdbID": 72636
+   },
+   "episodes": [
+    {
+     "Season": 1,
+     "Number": 2,
+     "Absolute": 2,
+     "Title": "Resurrection Festival",
+     "AirDate": "2017-07-14"
+    }
+   ],
+   "episode_file": {
+    "ID": 3487,
+    "Quality": {
+     "Title": "Bluray-1080p",
+     "Version": 2,
+     "Real": 0
+    },
+    "ReleaseGroup": "Flugel",
+    "ReleaseHash": "",
+    "SceneName": "Made.in.Abyss.S01E02.REPACK.1080p.BluRay.Opus2.0.x265-Flugel",
+    "RelativePath": "Season 01/Made in Abyss (2017) - S01E02 - Resurrection Festival [v2 - Notifiarr][Bluray-1080p Proper][Opus 2.0][x265]-Flugel.mkv",
+    "Path": "/media/anime/Made in Abyss (2017) {imdb-tt7222086}/Season 01/Made in Abyss (2017) - S01E02 - Resurrection Festival [v2 - Notifiarr][Bluray-1080p Proper][Opus 2.0][x265]-Flugel.mkv",
+    "MediaInfo": {
+     "VideoCodec": "x265",
+     "VideoBitDepth": 10,
+     "VideoMultiViewCount": 0,
+     "AudioCodec": "Opus",
+     "AudioChannels": 2,
+     "AudioLanguages": [
+      "jpn",
+      "eng",
+      "spa"
+     ],
+     "Subtitles": null,
+     "VideoDynamicRange": "",
+     "VideoDynamicRangeType": ""
+    },
+    "CustomFormats": [
+     "v2 - Notifiarr"
+    ]
+   },
+   "root": "/media/anime",
+   "cf_source": "name",
+   "expect_folder": "Made in Abyss (2017) {imdb-tt7222086}",
+   "expect_season": "Season 01",
+   "expect_file": "Made in Abyss (2017) - S01E02 - Resurrection Festival [v2 - Notifiarr][Bluray-1080p Proper][Opus 2.0][x265]-Flugel.mkv",
+   "ext": ".mkv"
+  },
+  {
+   "instance": "sonarr_anime_debrid",
+   "file_id": 3488,
+   "series": {
+    "Title": "Made in Abyss",
+    "Year": 2017,
+    "Type": "standard",
+    "ImdbID": "tt7222086",
+    "TvdbID": 326109,
+    "TvMazeID": 0,
+    "TmdbID": 72636
+   },
+   "episodes": [
+    {
+     "Season": 1,
+     "Number": 3,
+     "Absolute": 3,
+     "Title": "Departure",
+     "AirDate": "2017-07-21"
+    }
+   ],
+   "episode_file": {
+    "ID": 3488,
+    "Quality": {
+     "Title": "Bluray-1080p",
+     "Version": 2,
+     "Real": 0
+    },
+    "ReleaseGroup": "Flugel",
+    "ReleaseHash": "",
+    "SceneName": "Made.in.Abyss.S01E03.REPACK.1080p.BluRay.Opus2.0.x265-Flugel",
+    "RelativePath": "Season 01/Made in Abyss (2017) - S01E03 - Departure [v2 - Notifiarr][Bluray-1080p Proper][Opus 2.0][x265]-Flugel.mkv",
+    "Path": "/media/anime/Made in Abyss (2017) {imdb-tt7222086}/Season 01/Made in Abyss (2017) - S01E03 - Departure [v2 - Notifiarr][Bluray-1080p Proper][Opus 2.0][x265]-Flugel.mkv",
+    "MediaInfo": {
+     "VideoCodec": "x265",
+     "VideoBitDepth": 10,
+     "VideoMultiViewCount": 0,
+     "AudioCodec": "Opus",
+     "AudioChannels": 2,
+     "AudioLanguages": [
+      "jpn",
+      "eng",
+      "spa"
+     ],
+     "Subtitles": null,
+     "VideoDynamicRange": "",
+     "VideoDynamicRangeType": ""
+    },
+    "CustomFormats": [
+     "v2 - Notifiarr"
+    ]
+   },
+   "root": "/media/anime",
+   "cf_source": "name",
+   "expect_folder": "Made in Abyss (2017) {imdb-tt7222086}",
+   "expect_season": "Season 01",
+   "expect_file": "Made in Abyss (2017) - S01E03 - Departure [v2 - Notifiarr][Bluray-1080p Proper][Opus 2.0][x265]-Flugel.mkv",
+   "ext": ".mkv"
+  },
+  {
+   "instance": "sonarr_anime_debrid",
+   "file_id": 3504,
+   "series": {
+    "Title": "Made in Abyss",
+    "Year": 2017,
+    "Type": "standard",
+    "ImdbID": "tt7222086",
+    "TvdbID": 326109,
+    "TvMazeID": 0,
+    "TmdbID": 72636
+   },
+   "episodes": [
+    {
+     "Season": 2,
+     "Number": 6,
+     "Absolute": 20,
+     "Title": "The Luring",
+     "AirDate": "2022-08-10"
+    }
+   ],
+   "episode_file": {
+    "ID": 3504,
+    "Quality": {
+     "Title": "Bluray-1080p",
+     "Version": 1,
+     "Real": 0
+    },
+    "ReleaseGroup": "Vodes",
+    "ReleaseHash": "",
+    "SceneName": "",
+    "RelativePath": "Season 02/Made in Abyss (2017) - S02E06 - The Luring [v2 - Notifiarr][Bluray-1080p][Opus 2.0][x265]-Vodes.mkv",
+    "Path": "/media/anime/Made in Abyss (2017) {imdb-tt7222086}/Season 02/Made in Abyss (2017) - S02E06 - The Luring [v2 - Notifiarr][Bluray-1080p][Opus 2.0][x265]-Vodes.mkv",
+    "MediaInfo": {
+     "VideoCodec": "x265",
+     "VideoBitDepth": 10,
+     "VideoMultiViewCount": 0,
+     "AudioCodec": "Opus",
+     "AudioChannels": 2,
+     "AudioLanguages": [
+      "jpn",
+      "eng",
+      "ger"
+     ],
+     "Subtitles": null,
+     "VideoDynamicRange": "",
+     "VideoDynamicRangeType": ""
+    },
+    "CustomFormats": [
+     "v2 - Notifiarr"
+    ]
+   },
+   "root": "/media/anime",
+   "cf_source": "name",
+   "expect_folder": "Made in Abyss (2017) {imdb-tt7222086}",
+   "expect_season": "Season 02",
+   "expect_file": "Made in Abyss (2017) - S02E06 - The Luring [v2 - Notifiarr][Bluray-1080p][Opus 2.0][x265]-Vodes.mkv",
+   "ext": ".mkv"
+  },
+  {
+   "instance": "sonarr_anime_debrid",
+   "file_id": 3509,
+   "series": {
+    "Title": "Made in Abyss",
+    "Year": 2017,
+    "Type": "standard",
+    "ImdbID": "tt7222086",
+    "TvdbID": 326109,
+    "TvMazeID": 0,
+    "TmdbID": 72636
+   },
+   "episodes": [
+    {
+     "Season": 2,
+     "Number": 11,
+     "Absolute": 25,
+     "Title": "Value",
+     "AirDate": "2022-09-14"
+    }
+   ],
+   "episode_file": {
+    "ID": 3509,
+    "Quality": {
+     "Title": "Bluray-1080p",
+     "Version": 1,
+     "Real": 0
+    },
+    "ReleaseGroup": "Vodes",
+    "ReleaseHash": "",
+    "SceneName": "",
+    "RelativePath": "Season 02/Made in Abyss (2017) - S02E11 - Value [v2 - Notifiarr][Bluray-1080p][Opus 2.0][x265]-Vodes.mkv",
+    "Path": "/media/anime/Made in Abyss (2017) {imdb-tt7222086}/Season 02/Made in Abyss (2017) - S02E11 - Value [v2 - Notifiarr][Bluray-1080p][Opus 2.0][x265]-Vodes.mkv",
+    "MediaInfo": {
+     "VideoCodec": "x265",
+     "VideoBitDepth": 10,
+     "VideoMultiViewCount": 0,
+     "AudioCodec": "Opus",
+     "AudioChannels": 2,
+     "AudioLanguages": [
+      "jpn",
+      "eng",
+      "ger"
+     ],
+     "Subtitles": null,
+     "VideoDynamicRange": "",
+     "VideoDynamicRangeType": ""
+    },
+    "CustomFormats": [
+     "v2 - Notifiarr"
+    ]
+   },
+   "root": "/media/anime",
+   "cf_source": "name",
+   "expect_folder": "Made in Abyss (2017) {imdb-tt7222086}",
+   "expect_season": "Season 02",
+   "expect_file": "Made in Abyss (2017) - S02E11 - Value [v2 - Notifiarr][Bluray-1080p][Opus 2.0][x265]-Vodes.mkv",
+   "ext": ".mkv"
+  },
+  {
+   "instance": "sonarr_anime_debrid",
+   "file_id": 3510,
+   "series": {
+    "Title": "Made in Abyss",
+    "Year": 2017,
+    "Type": "standard",
+    "ImdbID": "tt7222086",
+    "TvdbID": 326109,
+    "TvMazeID": 0,
+    "TmdbID": 72636
+   },
+   "episodes": [
+    {
+     "Season": 2,
+     "Number": 12,
+     "Absolute": 26,
+     "Title": "Gold",
+     "AirDate": "2022-09-28"
+    }
+   ],
+   "episode_file": {
+    "ID": 3510,
+    "Quality": {
+     "Title": "Bluray-1080p",
+     "Version": 1,
+     "Real": 0
+    },
+    "ReleaseGroup": "Vodes",
+    "ReleaseHash": "",
+    "SceneName": "",
+    "RelativePath": "Season 02/Made in Abyss (2017) - S02E12 - Gold [v2 - Notifiarr][Bluray-1080p][Opus 2.0][x265]-Vodes.mkv",
+    "Path": "/media/anime/Made in Abyss (2017) {imdb-tt7222086}/Season 02/Made in Abyss (2017) - S02E12 - Gold [v2 - Notifiarr][Bluray-1080p][Opus 2.0][x265]-Vodes.mkv",
+    "MediaInfo": {
+     "VideoCodec": "x265",
+     "VideoBitDepth": 10,
+     "VideoMultiViewCount": 0,
+     "AudioCodec": "Opus",
+     "AudioChannels": 2,
+     "AudioLanguages": [
+      "jpn",
+      "eng",
+      "ger"
+     ],
+     "Subtitles": null,
+     "VideoDynamicRange": "",
+     "VideoDynamicRangeType": ""
+    },
+    "CustomFormats": [
+     "v2 - Notifiarr"
+    ]
+   },
+   "root": "/media/anime",
+   "cf_source": "name",
+   "expect_folder": "Made in Abyss (2017) {imdb-tt7222086}",
+   "expect_season": "Season 02",
+   "expect_file": "Made in Abyss (2017) - S02E12 - Gold [v2 - Notifiarr][Bluray-1080p][Opus 2.0][x265]-Vodes.mkv",
+   "ext": ".mkv"
+  }
+ ]
+}

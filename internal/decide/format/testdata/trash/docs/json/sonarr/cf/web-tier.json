@@ -1,0 +1,11 @@
+{
+  "trash_id": "aaaa0000000000000000000000000001",
+  "trash_scores": {"default": 1700, "anime-sonarr": 0},
+  "name": "WEB Tier",
+  "includeCustomFormatWhenRenaming": false,
+  "specifications": [
+    {"name": "WEB-DL", "implementation": "SourceSpecification", "negate": false, "required": false, "fields": {"value": 3}},
+    {"name": "WEBRip", "implementation": "SourceSpecification", "negate": false, "required": false, "fields": {"value": 4}},
+    {"name": "Group", "implementation": "ReleaseGroupSpecification", "negate": false, "required": false, "fields": {"value": "^(FLUX|NTb)$"}}
+  ]
+}

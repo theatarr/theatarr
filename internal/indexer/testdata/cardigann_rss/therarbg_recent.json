@@ -1,0 +1,43 @@
+{
+ "results": [
+  {
+   "pk": 9100003,
+   "n": "Alien.Romulus.2024.1080p.WEB-DL.DDP5.1.H.264-FLUX",
+   "a": 1793268300,
+   "c": "Movies",
+   "s": 6871947673,
+   "t": null,
+   "u": "uploader",
+   "h": "b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1",
+   "i": "tt18412256",
+   "se": 2400,
+   "le": 310
+  },
+  {
+   "pk": 9100002,
+   "n": "Game.Name.v1.2-GRP",
+   "a": 1793268000,
+   "c": "Games",
+   "s": 30000000000,
+   "t": null,
+   "u": "uploader",
+   "h": "b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2",
+   "i": "",
+   "se": 40,
+   "le": 9
+  },
+  {
+   "pk": 9100001,
+   "n": "The.Show.S02E05.2160p.WEB.H265-GRP",
+   "a": 1793267000,
+   "c": "TV",
+   "s": 4294967296,
+   "t": null,
+   "u": "uploader",
+   "h": "b3b3b3b3b3b3b3b3b3b3b3b3b3b3b3b3b3b3b3b3",
+   "i": "",
+   "se": 300,
+   "le": 12
+  }
+ ]
+}

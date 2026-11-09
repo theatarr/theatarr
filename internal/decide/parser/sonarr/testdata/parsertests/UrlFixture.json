@@ -1,0 +1,301 @@
+{
+ "source": "Sonarr src/NzbDrone.Core.Test/ParserTests/UrlFixture.cs @ cab419a",
+ "fixture": "UrlFixture",
+ "cases": [
+  {
+   "id": "UrlFixture/should_not_parse_url_in_name/0",
+   "line": 11,
+   "call": "parseSeriesName",
+   "input": "[www.test.com] - Series.S03E14.720p.HDTV.X264-DIMENSION",
+   "compare": "cleanSeriesTitle",
+   "expect": {
+    "": "Series"
+   }
+  },
+  {
+   "id": "UrlFixture/should_not_parse_url_in_name/1",
+   "line": 12,
+   "call": "parseSeriesName",
+   "input": "test.net - Series.S03E14.720p.HDTV.X264-DIMENSION",
+   "compare": "cleanSeriesTitle",
+   "expect": {
+    "": "Series"
+   }
+  },
+  {
+   "id": "UrlFixture/should_not_parse_url_in_name/2",
+   "line": 13,
+   "call": "parseSeriesName",
+   "input": "[www.test-hyphen.com] - Series.S03E14.720p.HDTV.X264-DIMENSION",
+   "compare": "cleanSeriesTitle",
+   "expect": {
+    "": "Series"
+   }
+  },
+  {
+   "id": "UrlFixture/should_not_parse_url_in_name/3",
+   "line": 14,
+   "call": "parseSeriesName",
+   "input": "www.test123.org - Series.S03E14.720p.HDTV.X264-DIMENSION",
+   "compare": "cleanSeriesTitle",
+   "expect": {
+    "": "Series"
+   }
+  },
+  {
+   "id": "UrlFixture/should_not_parse_url_in_name/4",
+   "line": 15,
+   "call": "parseSeriesName",
+   "input": "[test.co.uk] - Series.S03E14.720p.HDTV.X264-DIMENSION",
+   "compare": "cleanSeriesTitle",
+   "expect": {
+    "": "Series"
+   }
+  },
+  {
+   "id": "UrlFixture/should_not_parse_url_in_name/5",
+   "line": 16,
+   "call": "parseSeriesName",
+   "input": "www.test-hyphen.net.au - Series.S03E14.720p.HDTV.X264-DIMENSION",
+   "compare": "cleanSeriesTitle",
+   "expect": {
+    "": "Series"
+   }
+  },
+  {
+   "id": "UrlFixture/should_not_parse_url_in_name/6",
+   "line": 17,
+   "call": "parseSeriesName",
+   "input": "[www.test123.co.nz] - Series.S03E14.720p.HDTV.X264-DIMENSION",
+   "compare": "cleanSeriesTitle",
+   "expect": {
+    "": "Series"
+   }
+  },
+  {
+   "id": "UrlFixture/should_not_parse_url_in_name/7",
+   "line": 18,
+   "call": "parseSeriesName",
+   "input": "test-hyphen123.org.au - Series.S03E14.720p.HDTV.X264-DIMENSION",
+   "compare": "cleanSeriesTitle",
+   "expect": {
+    "": "Series"
+   }
+  },
+  {
+   "id": "UrlFixture/should_not_parse_url_in_name/8",
+   "line": 19,
+   "call": "parseSeriesName",
+   "input": "[www.test123.de] - Mad Series - Season 1 [Bluray720p]",
+   "compare": "cleanSeriesTitle",
+   "expect": {
+    "": "Mad Series"
+   }
+  },
+  {
+   "id": "UrlFixture/should_not_parse_url_in_name/9",
+   "line": 20,
+   "call": "parseSeriesName",
+   "input": "www.test-hyphen.de - Mad Series - Season 1 [Bluray1080p]",
+   "compare": "cleanSeriesTitle",
+   "expect": {
+    "": "Mad Series"
+   }
+  },
+  {
+   "id": "UrlFixture/should_not_parse_url_in_name/10",
+   "line": 21,
+   "call": "parseSeriesName",
+   "input": "[test-hyphen123.co.za] - The Daily Series - 2023-05-26",
+   "compare": "cleanSeriesTitle",
+   "expect": {
+    "": "The Daily Series"
+   }
+  },
+  {
+   "id": "UrlFixture/should_not_parse_url_in_name/11",
+   "line": 22,
+   "call": "parseSeriesName",
+   "input": "www.test123.co.za - The Series Bros. (2006) - S01E01",
+   "compare": "cleanSeriesTitle",
+   "expect": {
+    "": "The Series Bros. (2006)"
+   }
+  },
+  {
+   "id": "UrlFixture/should_not_parse_url_in_name/12",
+   "line": 23,
+   "call": "parseSeriesName",
+   "input": "[www.test-hyphen.ca] - Series (2011) S01",
+   "compare": "cleanSeriesTitle",
+   "expect": {
+    "": "Series (2011)"
+   }
+  },
+  {
+   "id": "UrlFixture/should_not_parse_url_in_name/13",
+   "line": 24,
+   "call": "parseSeriesName",
+   "input": "test123.ca - Series Time S02 720p HDTV x264 CRON",
+   "compare": "cleanSeriesTitle",
+   "expect": {
+    "": "Series Time"
+   }
+  },
+  {
+   "id": "UrlFixture/should_not_parse_url_in_name/14",
+   "line": 25,
+   "call": "parseSeriesName",
+   "input": "[www.test-hyphen123.co.za] - Series Title S01E01",
+   "compare": "cleanSeriesTitle",
+   "expect": {
+    "": "Series Title"
+   }
+  },
+  {
+   "id": "UrlFixture/should_not_parse_url_in_name/15",
+   "line": 26,
+   "call": "parseSeriesName",
+   "input": "(seriesawake.com) Series Super - 57 [720p] [English Subbed]",
+   "compare": "cleanSeriesTitle",
+   "expect": {
+    "": "Series Super"
+   }
+  },
+  {
+   "id": "UrlFixture/should_not_parse_url_in_group/0",
+   "line": 34,
+   "call": "parseReleaseGroup",
+   "input": "Series.2009.S01E14.English.HDTV.XviD-LOL[www.abb.com]",
+   "expect": {
+    "": "LOL"
+   }
+  },
+  {
+   "id": "UrlFixture/should_not_parse_url_in_group/1",
+   "line": 35,
+   "call": "parseReleaseGroup",
+   "input": "Series 2009 S01E14 English HDTV XviD LOL[www.academy.org]",
+   "expect": {
+    "": null
+   }
+  },
+  {
+   "id": "UrlFixture/should_not_parse_url_in_group/2",
+   "line": 36,
+   "call": "parseReleaseGroup",
+   "input": "Series Now S05 EXTRAS DVDRip XviD RUNNER[www.aetna.net]",
+   "expect": {
+    "": null
+   }
+  },
+  {
+   "id": "UrlFixture/should_not_parse_url_in_group/3",
+   "line": 37,
+   "call": "parseReleaseGroup",
+   "input": "Series.Title.S01.EXTRAS.DVDRip.XviD-RUNNER[www.alfaromeo.io]",
+   "expect": {
+    "": "RUNNER"
+   }
+  },
+  {
+   "id": "UrlFixture/should_not_parse_url_in_group/4",
+   "line": 38,
+   "call": "parseReleaseGroup",
+   "input": "2020.Series.2011.12.02.PDTV.XviD-C4TV[rarbg.to]",
+   "expect": {
+    "": "C4TV"
+   }
+  },
+  {
+   "id": "UrlFixture/should_not_parse_url_in_group/5",
+   "line": 39,
+   "call": "parseReleaseGroup",
+   "input": "Series.Title.S01E14.English.HDTV.XviD-LOL[www.abbott.gov]",
+   "expect": {
+    "": "LOL"
+   }
+  },
+  {
+   "id": "UrlFixture/should_not_parse_url_in_group/6",
+   "line": 40,
+   "call": "parseReleaseGroup",
+   "input": "Series 2020 S01E14 English HDTV XviD LOL[www.actor.org]",
+   "expect": {
+    "": null
+   }
+  },
+  {
+   "id": "UrlFixture/should_not_parse_url_in_group/7",
+   "line": 41,
+   "call": "parseReleaseGroup",
+   "input": "Series Live S05 EXTRAS DVDRip XviD RUNNER[www.agency.net]",
+   "expect": {
+    "": null
+   }
+  },
+  {
+   "id": "UrlFixture/should_not_parse_url_in_group/8",
+   "line": 42,
+   "call": "parseReleaseGroup",
+   "input": "Series.Title.S02.EXTRAS.DVDRip.XviD-RUNNER[www.airbus.io]",
+   "expect": {
+    "": "RUNNER"
+   }
+  },
+  {
+   "id": "UrlFixture/should_not_parse_url_in_group/9",
+   "line": 43,
+   "call": "parseReleaseGroup",
+   "input": "2021.Series.2012.12.02.PDTV.XviD-C4TV[rarbg.to]",
+   "expect": {
+    "": "C4TV"
+   }
+  },
+  {
+   "id": "UrlFixture/should_not_parse_url_in_group/10",
+   "line": 44,
+   "call": "parseReleaseGroup",
+   "input": "Series.2020.S01E14.English.HDTV.XviD-LOL[www.afl.com]",
+   "expect": {
+    "": "LOL"
+   }
+  },
+  {
+   "id": "UrlFixture/should_not_parse_url_in_group/11",
+   "line": 45,
+   "call": "parseReleaseGroup",
+   "input": "Series 2021 S01E14 English HDTV XviD LOL[www.adult.org]",
+   "expect": {
+    "": null
+   }
+  },
+  {
+   "id": "UrlFixture/should_not_parse_url_in_group/12",
+   "line": 46,
+   "call": "parseReleaseGroup",
+   "input": "Series Future S05 EXTRAS DVDRip XviD RUNNER[www.allstate.net]",
+   "expect": {
+    "": null
+   }
+  },
+  {
+   "id": "UrlFixture/should_not_parse_url_in_group/13",
+   "line": 47,
+   "call": "parseReleaseGroup",
+   "input": "Series.Title.S03.EXTRAS.DVDRip.XviD-RUNNER[www.ally.io]",
+   "expect": {
+    "": "RUNNER"
+   }
+  },
+  {
+   "id": "UrlFixture/should_not_parse_url_in_group/14",
+   "line": 48,
+   "call": "parseReleaseGroup",
+   "input": "2022.Series.2013.12.02.PDTV.XviD-C4TV[rarbg.to]",
+   "expect": {
+    "": "C4TV"
+   }
+  }
+ ]
+}

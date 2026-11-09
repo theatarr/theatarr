@@ -1,0 +1,8 @@
+# jujutsu-kaisen: curated story-order moves (docs/design/anime.md "Overrides").
+# entry: a key (al:<id>[#n], adb:<id>, kitsu:<id>, tvdb:<id>:S00Exx), or key@SxxEyy-SxxEzz for an arc inside it.
+# after: a key, key@SxxEyy (splits there), key@SxxEyy-SxxEzz (after that slice) or start.
+source: "https://slashfilm.com/1572872/correct-order-to-watch-jujutsu-kaisen-series"
+moves:
+  - entry: "al:145064@S02E01-S02E05"
+    after: "start"
+    why: "Hidden Inventory / Premature Death is set in 2006, before JJK 0"

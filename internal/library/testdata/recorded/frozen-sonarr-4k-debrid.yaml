@@ -1,0 +1,404 @@
+# The arr profiles of instance "sonarr_4k_debrid": ["4k Preferred"], as policy YAML.
+format_sets:
+  sonarr-4k-debrid:
+    flavour: sonarr
+    formats:
+      AMZN - Notifiarr:
+        flavour: sonarr
+        file: formats/frozen-sonarr-4k-debrid-ff915b4b-amzn-notifiarr-9.json
+      ATVP - Notifiarr:
+        flavour: sonarr
+        file: formats/frozen-sonarr-4k-debrid-ff915b4b-atvp-notifiarr-10.json
+      AV1 - Notifiarr:
+        flavour: sonarr
+        file: formats/frozen-sonarr-4k-debrid-ff915b4b-av1-notifiarr-46.json
+      BR-DISK - Notifiarr:
+        ref: BR-DISK (tv)
+        include_when_renaming: false
+      Bad Dual Audio (Release Group):
+        flavour: sonarr
+        file: formats/frozen-sonarr-4k-debrid-ff915b4b-bad-dual-audio-release-group-41.json
+      Bad Dual Audio (Title):
+        flavour: sonarr
+        file: formats/frozen-sonarr-4k-debrid-ff915b4b-bad-dual-audio-title-40.json
+      CANAL+ - Notifiarr:
+        flavour: sonarr
+        file: formats/frozen-sonarr-4k-debrid-ff915b4b-canal-notifiarr-11.json
+      CC - Notifiarr:
+        flavour: sonarr
+        file: formats/frozen-sonarr-4k-debrid-ff915b4b-cc-notifiarr-12.json
+      CRAV - Notifiarr:
+        flavour: sonarr
+        file: formats/frozen-sonarr-4k-debrid-ff915b4b-crav-notifiarr-13.json
+      DCU - Notifiarr:
+        flavour: sonarr
+        file: formats/frozen-sonarr-4k-debrid-ff915b4b-dcu-notifiarr-14.json
+      DSNP - Notifiarr:
+        flavour: sonarr
+        file: formats/frozen-sonarr-4k-debrid-ff915b4b-dsnp-notifiarr-15.json
+      DV Boost:
+        flavour: sonarr
+        file: formats/frozen-sonarr-4k-debrid-ff915b4b-dv-boost-48.json
+      Extras - Notifiarr:
+        flavour: sonarr
+        file: formats/frozen-sonarr-4k-debrid-ff915b4b-extras-notifiarr-36.json
+      FGT:
+        flavour: sonarr
+        file: formats/frozen-sonarr-4k-debrid-ff915b4b-fgt-38.json
+      HBO - Notifiarr:
+        flavour: sonarr
+        file: formats/frozen-sonarr-4k-debrid-ff915b4b-hbo-notifiarr-16.json
+      HD Bluray Tier 01 - Notifiarr:
+        flavour: sonarr
+        file: formats/frozen-sonarr-4k-debrid-ff915b4b-hd-bluray-tier-01-notifiarr-42.json
+      HD Bluray Tier 01 - Notifiarr Fallback - End Group:
+        flavour: sonarr
+        file: formats/frozen-sonarr-4k-debrid-ff915b4b-hd-bluray-tier-01-notifiarr-fallback-end-group-56.json
+      HD Bluray Tier 02 - Notifiarr:
+        flavour: sonarr
+        file: formats/frozen-sonarr-4k-debrid-ff915b4b-hd-bluray-tier-02-notifiarr-43.json
+      HD Bluray Tier 02 - Notifiarr Fallback - End Group:
+        flavour: sonarr
+        file: formats/frozen-sonarr-4k-debrid-ff915b4b-hd-bluray-tier-02-notifiarr-fallback-end-group-57.json
+      HDR:
+        flavour: sonarr
+        file: formats/frozen-sonarr-4k-debrid-ff915b4b-hdr-49.json
+      HLG:
+        flavour: sonarr
+        file: formats/frozen-sonarr-4k-debrid-ff915b4b-hlg-58.json
+      HMAX - Notifiarr:
+        flavour: sonarr
+        file: formats/frozen-sonarr-4k-debrid-ff915b4b-hmax-notifiarr-17.json
+      HULU - Notifiarr:
+        flavour: sonarr
+        file: formats/frozen-sonarr-4k-debrid-ff915b4b-hulu-notifiarr-18.json
+      LQ - Notifiarr:
+        ref: LQ (tv)
+        include_when_renaming: false
+      MAX - Notifiarr:
+        flavour: sonarr
+        file: formats/frozen-sonarr-4k-debrid-ff915b4b-max-notifiarr-19.json
+      NF - Notifiarr:
+        flavour: sonarr
+        file: formats/frozen-sonarr-4k-debrid-ff915b4b-nf-notifiarr-21.json
+      NLZ - Notifiarr:
+        flavour: sonarr
+        file: formats/frozen-sonarr-4k-debrid-ff915b4b-nlz-notifiarr-20.json
+      OViD - Notifiarr:
+        flavour: sonarr
+        file: formats/frozen-sonarr-4k-debrid-ff915b4b-ovid-notifiarr-22.json
+      PCOK - Notifiarr:
+        flavour: sonarr
+        file: formats/frozen-sonarr-4k-debrid-ff915b4b-pcok-notifiarr-24.json
+      PMTP - Notifiarr:
+        flavour: sonarr
+        file: formats/frozen-sonarr-4k-debrid-ff915b4b-pmtp-notifiarr-23.json
+      PQ - Notifiarr:
+        flavour: sonarr
+        file: formats/frozen-sonarr-4k-debrid-ff915b4b-pq-notifiarr-1.json
+      QIBI - Notifiarr:
+        flavour: sonarr
+        file: formats/frozen-sonarr-4k-debrid-ff915b4b-qibi-notifiarr-25.json
+      RED - Notifiarr:
+        flavour: sonarr
+        file: formats/frozen-sonarr-4k-debrid-ff915b4b-red-notifiarr-33.json
+      RTBF - Notifiarr:
+        flavour: sonarr
+        file: formats/frozen-sonarr-4k-debrid-ff915b4b-rtbf-notifiarr-26.json
+      Remux Tier 01 - Notifiarr:
+        flavour: sonarr
+        file: formats/frozen-sonarr-4k-debrid-ff915b4b-remux-tier-01-notifiarr-44.json
+      Remux Tier 01 - Notifiarr Fallback - End Group:
+        flavour: sonarr
+        file: formats/frozen-sonarr-4k-debrid-ff915b4b-remux-tier-01-notifiarr-fallback-end-group-54.json
+      Remux Tier 02 - Notifiarr:
+        flavour: sonarr
+        file: formats/frozen-sonarr-4k-debrid-ff915b4b-remux-tier-02-notifiarr-45.json
+      Remux Tier 02 - Notifiarr Fallback - End Group:
+        flavour: sonarr
+        file: formats/frozen-sonarr-4k-debrid-ff915b4b-remux-tier-02-notifiarr-fallback-end-group-55.json
+      Repack v2 - Notifiarr:
+        flavour: sonarr
+        file: formats/frozen-sonarr-4k-debrid-ff915b4b-repack-v2-notifiarr-6.json
+      Repack v3 - Notifiarr:
+        flavour: sonarr
+        file: formats/frozen-sonarr-4k-debrid-ff915b4b-repack-v3-notifiarr-7.json
+      Repack/Proper - Notifiarr:
+        flavour: sonarr
+        file: formats/frozen-sonarr-4k-debrid-ff915b4b-repack-proper-notifiarr-8.json
+      SALTO - Notifiarr:
+        flavour: sonarr
+        file: formats/frozen-sonarr-4k-debrid-ff915b4b-salto-notifiarr-27.json
+      SHO - Notifiarr:
+        flavour: sonarr
+        file: formats/frozen-sonarr-4k-debrid-ff915b4b-sho-notifiarr-28.json
+      STAN - Notifiarr:
+        flavour: sonarr
+        file: formats/frozen-sonarr-4k-debrid-ff915b4b-stan-notifiarr-29.json
+      Season Pack:
+        flavour: sonarr
+        file: formats/frozen-sonarr-4k-debrid-ff915b4b-season-pack-39.json
+      UHD Streaming Boost - Notifiarr:
+        flavour: sonarr
+        file: formats/frozen-sonarr-4k-debrid-ff915b4b-uhd-streaming-boost-notifiarr-30.json
+      UHD Streaming Cut - Notifiarr:
+        flavour: sonarr
+        file: formats/frozen-sonarr-4k-debrid-ff915b4b-uhd-streaming-cut-notifiarr-31.json
+      Upscaled - Notifiarr:
+        flavour: sonarr
+        file: formats/frozen-sonarr-4k-debrid-ff915b4b-upscaled-notifiarr-47.json
+      VDL - Notifiarr:
+        flavour: sonarr
+        file: formats/frozen-sonarr-4k-debrid-ff915b4b-vdl-notifiarr-32.json
+      WEB Scene - Notifiarr:
+        flavour: sonarr
+        file: formats/frozen-sonarr-4k-debrid-ff915b4b-web-scene-notifiarr-2.json
+      WEB Tier 01 - Notifiarr:
+        ref: WEB Tier 01 (tv)
+        include_when_renaming: false
+      WEB Tier 01 - Notifiarr Fallback - End Group:
+        flavour: sonarr
+        file: formats/frozen-sonarr-4k-debrid-ff915b4b-web-tier-01-notifiarr-fallback-end-group-51.json
+      WEB Tier 02 - Notifiarr:
+        ref: WEB Tier 02 (tv)
+        include_when_renaming: false
+      WEB Tier 02 - Notifiarr Fallback - End Group:
+        flavour: sonarr
+        file: formats/frozen-sonarr-4k-debrid-ff915b4b-web-tier-02-notifiarr-fallback-end-group-52.json
+      WEB Tier 03 - Notifiarr:
+        flavour: sonarr
+        file: formats/frozen-sonarr-4k-debrid-ff915b4b-web-tier-03-notifiarr-5.json
+      WEB Tier 03 - Notifiarr Fallback - End Group:
+        flavour: sonarr
+        file: formats/frozen-sonarr-4k-debrid-ff915b4b-web-tier-03-notifiarr-fallback-end-group-53.json
+      iT - Notifiarr:
+        flavour: sonarr
+        file: formats/frozen-sonarr-4k-debrid-ff915b4b-it-notifiarr-34.json
+      x265 (HD):
+        flavour: sonarr
+        file: formats/frozen-sonarr-4k-debrid-ff915b4b-x265-hd-50.json
+profiles:
+  sonarr-4k-debrid:
+    qualities:
+      - group: Bluray-2160p Remux
+        qualities:
+          - Bluray-2160p Remux
+          - Bluray-2160p
+      - group: WEB 2160p
+        qualities:
+          - WEBDL-2160p
+          - WEBRip-2160p
+      - HDTV-2160p
+      - group: Bluray-1080p Remux
+        qualities:
+          - Bluray-1080p Remux
+          - Bluray-1080p
+      - group: WEB 1080p
+        qualities:
+          - WEBDL-1080p
+          - WEBRip-1080p
+      - HDTV-1080p
+      - Bluray-720p
+      - group: WEB 720p
+        qualities:
+          - WEBDL-720p
+          - WEBRip-720p
+      - HDTV-720p
+      - Bluray-576p
+      - Bluray-480p
+      - group: WEB 480p
+        qualities:
+          - WEBDL-480p
+          - WEBRip-480p
+    quality_order:
+      - group: Bluray-2160p Remux
+        qualities:
+          - Bluray-2160p Remux
+          - Bluray-2160p
+      - group: WEB 2160p
+        qualities:
+          - WEBDL-2160p
+          - WEBRip-2160p
+      - HDTV-2160p
+      - group: Bluray-1080p Remux
+        qualities:
+          - Bluray-1080p Remux
+          - Bluray-1080p
+      - group: WEB 1080p
+        qualities:
+          - WEBDL-1080p
+          - WEBRip-1080p
+      - HDTV-1080p
+      - Bluray-720p
+      - group: WEB 720p
+        qualities:
+          - WEBDL-720p
+          - WEBRip-720p
+      - HDTV-720p
+      - Bluray-576p
+      - Bluray-480p
+      - group: WEB 480p
+        qualities:
+          - WEBDL-480p
+          - WEBRip-480p
+      - Raw-HD
+      - DVD
+      - SDTV
+      - Unknown
+    cutoff: Bluray-2160p Remux
+    upgrades: true
+    min_score: 0
+    cutoff_score: 10000
+    min_upgrade_step: 1
+    sizes:
+      Bluray-480p:
+        min: 2
+        preferred: 95
+        max: 100
+      Bluray-576p:
+        min: 2
+        preferred: 95
+        max: 100
+      Bluray-720p:
+        min: 17.1
+        preferred: 995
+        max: 1000
+      Bluray-1080p:
+        min: 50.4
+        preferred: 995
+        max: 1000
+      Bluray-1080p Remux:
+        min: 69.1
+        preferred: 995
+        max: 1000
+      Bluray-2160p:
+        min: 94.6
+        preferred: 995
+        max: 1000
+      Bluray-2160p Remux:
+        min: 187.4
+        preferred: 995
+        max: 1000
+      DVD:
+        min: 2
+        preferred: 95
+        max: 100
+      HDTV-720p:
+        min: 10
+        preferred: 995
+        max: 1000
+      HDTV-1080p:
+        min: 15
+        preferred: 995
+        max: 1000
+      HDTV-2160p:
+        min: 25
+        preferred: 995
+        max: 1000
+      Raw-HD:
+        min: 4
+        preferred: 95
+        max: 95
+      SDTV:
+        min: 2
+        preferred: 95
+        max: 100
+      Unknown:
+        min: 1
+        preferred: 95
+        max: 199.9
+      WEBDL-480p:
+        min: 2
+        preferred: 95
+        max: 100
+      WEBDL-720p:
+        min: 10
+        preferred: 995
+        max: 1000
+      WEBDL-1080p:
+        min: 15
+        preferred: 995
+        max: 1000
+      WEBDL-2160p:
+        min: 25
+        preferred: 995
+        max: 1000
+      WEBRip-480p:
+        min: 2
+        preferred: 95
+        max: 100
+      WEBRip-720p:
+        min: 10
+        preferred: 995
+        max: 1000
+      WEBRip-1080p:
+        min: 15
+        preferred: 995
+        max: 1000
+      WEBRip-2160p:
+        min: 25
+        preferred: 995
+        max: 1000
+    format_set: sonarr-4k-debrid
+    formats:
+      AMZN - Notifiarr: 75
+      ATVP - Notifiarr: 75
+      AV1 - Notifiarr: -10000
+      BR-DISK - Notifiarr: -10000
+      Bad Dual Audio (Release Group): -10000
+      Bad Dual Audio (Title): -10000
+      CANAL+ - Notifiarr: 0
+      CC - Notifiarr: 75
+      CRAV - Notifiarr: 75
+      DCU - Notifiarr: 75
+      DSNP - Notifiarr: 75
+      DV Boost: 1000
+      Extras - Notifiarr: -10000
+      FGT: 10000
+      HBO - Notifiarr: 75
+      HD Bluray Tier 01 - Notifiarr: 1800
+      HD Bluray Tier 01 - Notifiarr Fallback - End Group: 1799
+      HD Bluray Tier 02 - Notifiarr: 1750
+      HD Bluray Tier 02 - Notifiarr Fallback - End Group: 1749
+      HDR: 500
+      HLG: -10000
+      HMAX - Notifiarr: 75
+      HULU - Notifiarr: 75
+      LQ - Notifiarr: -10000
+      MAX - Notifiarr: 75
+      NF - Notifiarr: 75
+      NLZ - Notifiarr: 75
+      OViD - Notifiarr: 75
+      PCOK - Notifiarr: 75
+      PMTP - Notifiarr: 75
+      PQ - Notifiarr: 500
+      QIBI - Notifiarr: 75
+      RED - Notifiarr: 75
+      RTBF - Notifiarr: 0
+      Remux Tier 01 - Notifiarr: 1900
+      Remux Tier 01 - Notifiarr Fallback - End Group: 1899
+      Remux Tier 02 - Notifiarr: 1850
+      Remux Tier 02 - Notifiarr Fallback - End Group: 1849
+      Repack v2 - Notifiarr: 6
+      Repack v3 - Notifiarr: 7
+      Repack/Proper - Notifiarr: 5
+      SALTO - Notifiarr: 0
+      SHO - Notifiarr: 75
+      STAN - Notifiarr: 75
+      Season Pack: 100
+      UHD Streaming Boost - Notifiarr: 75
+      UHD Streaming Cut - Notifiarr: -20
+      Upscaled - Notifiarr: -10000
+      VDL - Notifiarr: 75
+      WEB Scene - Notifiarr: 1600
+      WEB Tier 01 - Notifiarr: 1700
+      WEB Tier 01 - Notifiarr Fallback - End Group: 1699
+      WEB Tier 02 - Notifiarr: 1650
+      WEB Tier 02 - Notifiarr Fallback - End Group: 1649
+      WEB Tier 03 - Notifiarr: 1600
+      WEB Tier 03 - Notifiarr Fallback - End Group: 1599
+      iT - Notifiarr: 75
+      x265 (HD): -10000
+    language: ""
+    from_arr: ""
+    propers: do_not_prefer

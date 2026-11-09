@@ -1,0 +1,35 @@
+[
+  {
+    "id": 81,
+    "name": "TrueHD ATMOS",
+    "includeCustomFormatWhenRenaming": false,
+    "specifications": [
+      {"name": "TrueHD", "implementation": "ReleaseTitleSpecification", "implementationName": "Release Title", "negate": false, "required": true,
+       "fields": [{"order": 0, "name": "value", "label": "Regular Expression", "value": "True[ .-]?HD", "type": "textbox", "advanced": false}]},
+      {"name": "ATMOS", "implementation": "ReleaseTitleSpecification", "implementationName": "Release Title", "negate": false, "required": true,
+       "fields": [{"order": 0, "name": "value", "value": "\\bATMOS(\\b|\\d)"}]},
+      {"name": "Not Basic Dolby Digital", "implementation": "ReleaseTitleSpecification", "negate": true, "required": true,
+       "fields": [{"order": 0, "name": "value", "value": "\\bDD[^a-z+]|(?<!e)AC3"}]}
+    ]
+  },
+  {
+    "id": 99,
+    "name": "Remux Tier 01",
+    "specifications": [
+      {"name": "Remux", "implementation": "QualityModifierSpecification", "negate": false, "required": true, "fields": [{"name": "value", "value": 5}]},
+      {"name": "FraMeSToR", "implementation": "ReleaseGroupSpecification", "negate": false, "required": false, "fields": [{"name": "value", "value": "^(FraMeSToR)$"}]},
+      {"name": "BLURANiUM", "implementation": "ReleaseGroupSpecification", "negate": false, "required": false, "fields": [{"name": "value", "value": "^(BLURANiUM)$"}]}
+    ]
+  },
+  {
+    "id": 5,
+    "name": "Big Old English",
+    "specifications": [
+      {"name": "Size", "implementation": "SizeSpecification", "negate": false, "required": true, "fields": [{"name": "min", "value": 40}, {"name": "max", "value": 100.5}]},
+      {"name": "Year", "implementation": "YearSpecification", "negate": false, "required": true, "fields": [{"name": "min", "value": 1900}, {"name": "max", "value": 1999}]},
+      {"name": "English", "implementation": "LanguageSpecification", "negate": false, "required": true, "fields": [{"name": "value", "value": -2}, {"name": "exceptLanguage", "value": false}]},
+      {"name": "Freeleech", "implementation": "IndexerFlagSpecification", "negate": false, "required": false, "fields": [{"name": "value", "value": 1}]},
+      {"name": "IMAX", "implementation": "EditionSpecification", "negate": true, "required": false, "fields": [{"name": "value", "value": "IMAX"}]}
+    ]
+  }
+]

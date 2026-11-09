@@ -1,0 +1,96 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<anime-list>
+<anime anidbid="11370" tvdbid="305089" defaulttvdbseason="1" episodeoffset="" tmdbtv="65942" tmdbseason="1" tmdboffset="" tmdbid="" imdbid="">
+    <name>Re:Zero kara Hajimeru Isekai Seikatsu</name>
+    <mapping-list>
+      <mapping anidbseason="0" tvdbseason="0">;1-0;</mapping>
+      <mapping anidbseason="0" tvdbseason="0" start="2" end="26" offset="-1"/>
+    </mapping-list>
+  </anime>
+<anime anidbid="12681" tvdbid="326109" defaulttvdbseason="1" episodeoffset="" tmdbtv="72636" tmdbseason="1" tmdboffset="" tmdbid="" imdbid="">
+    <name>Made in Abyss</name>
+  </anime>
+<anime anidbid="13430" tvdbid="305089" defaulttvdbseason="0" episodeoffset="" tmdbtv="65942" tmdbseason="0" tmdboffset="" tmdbid="" imdbid="">
+    <name>Re:Zero kara Hajimeru Isekai Seikatsu (2018)</name>
+    <mapping-list>
+      <mapping anidbseason="0" tvdbseason="0">;1-27;2-29;</mapping>
+      <mapping anidbseason="1" tvdbseason="0">;1-26;2-28;</mapping>
+    </mapping-list>
+  </anime>
+<anime anidbid="13612" tvdbid="326109" defaulttvdbseason="0" episodeoffset="" tmdbtv="" tmdbseason="" tmdboffset="" tmdbid="573730" imdbid="tt10068916">
+    <name>Gekijouban Made in Abyss: Fukaki Tamashii no Reimei</name>
+    <mapping-list>
+      <mapping anidbseason="0" tvdbseason="0" start="1" end="4" offset="3"/>
+      <mapping anidbseason="1" tvdbseason="0">;1-3;</mapping>
+    </mapping-list>
+  </anime>
+<anime anidbid="13941" tvdbid="326109" defaulttvdbseason="0" episodeoffset="" tmdbtv="" tmdbseason="" tmdboffset="" tmdbid="526426,526429" imdbid="tt10068158,tt10068544">
+    <name>Gekijouban Soushuuhen Made in Abyss</name>
+  </anime>
+<anime anidbid="14435" tvdbid="357471" defaulttvdbseason="1" episodeoffset="" tmdbtv="87478" tmdbseason="1" tmdboffset="" tmdbid="" imdbid="">
+    <name>Isekai Quartet</name>
+  </anime>
+<anime anidbid="14758" tvdbid="371310" defaulttvdbseason="1" episodeoffset="" tmdbtv="94664" tmdbseason="1" tmdboffset="" tmdbid="" imdbid="">
+    <name>Mushoku Tensei: Isekai Ittara Honki Dasu</name>
+  </anime>
+<anime anidbid="14792" tvdbid="305089" defaulttvdbseason="2" episodeoffset="" tmdbtv="65942" tmdbseason="1" tmdboffset="26" tmdbid="" imdbid="">
+    <name>Re:Zero kara Hajimeru Isekai Seikatsu (2020)</name>
+    <mapping-list>
+      <mapping anidbseason="0" tvdbseason="0" start="1" end="13" offset="29"/>
+    </mapping-list>
+  </anime>
+<anime anidbid="14964" tvdbid="357471" defaulttvdbseason="2" episodeoffset="" tmdbtv="87478" tmdbseason="2" tmdboffset="" tmdbid="" imdbid="">
+    <name>Isekai Quartet 2</name>
+  </anime>
+<anime anidbid="15359" tvdbid="326109" defaulttvdbseason="2" episodeoffset="" tmdbtv="72636" tmdbseason="2" tmdboffset="" tmdbid="" imdbid="">
+    <name>Made in Abyss: Retsujitsu no Ougonkyou</name>
+    <mapping-list>
+      <mapping anidbseason="0" tvdbseason="0" start="1" end="2" offset="13"/>
+    </mapping-list>
+  </anime>
+<anime anidbid="15481" tvdbid="movie" defaulttvdbseason="" episodeoffset="" tmdbtv="" tmdbseason="" tmdboffset="" tmdbid="913612" imdbid="tt15801642">
+    <name>Gekijouban Isekai Quartet: Another World</name>
+  </anime>
+<anime anidbid="15593" tvdbid="305089" defaulttvdbseason="2" episodeoffset="13" tmdbtv="65942" tmdbseason="1" tmdboffset="38" tmdbid="" imdbid="">
+    <name>Re:Zero kara Hajimeru Isekai Seikatsu (2021)</name>
+    <mapping-list>
+      <mapping anidbseason="0" tvdbseason="0" start="1" end="12" offset="42"/>
+    </mapping-list>
+  </anime>
+<anime anidbid="15954" tvdbid="371310" defaulttvdbseason="1" episodeoffset="11" tmdbtv="94664" tmdbseason="1" tmdboffset="11" tmdbid="" imdbid="">
+    <name>Mushoku Tensei: Isekai Ittara Honki Dasu (2021)</name>
+    <mapping-list>
+      <mapping anidbseason="0" tvdbseason="0" start="2" end="17" offset="-17">;1-1;</mapping>
+    </mapping-list>
+  </anime>
+<anime anidbid="17079" tvdbid="339278" defaulttvdbseason="2" episodeoffset="" tmdbtv="76139" tmdbseason="2" tmdboffset="" tmdbid="" imdbid="">
+    <name>Pop Team Epic (2022)</name>
+  </anime>
+<anime anidbid="17236" tvdbid="371310" defaulttvdbseason="2" episodeoffset="" tmdbtv="94664" tmdbseason="2" tmdboffset="" tmdbid="" imdbid="">
+    <name>Mushoku Tensei II: Isekai Ittara Honki Dasu</name>
+    <mapping-list>
+      <mapping anidbseason="0" tvdbseason="0">;1-2;2-0;</mapping>
+    </mapping-list>
+  </anime>
+<anime anidbid="17824" tvdbid="" defaulttvdbseason="" episodeoffset="" tmdbtv="" tmdbseason="" tmdboffset="" tmdbid="" imdbid="">
+    <name>Made in Abyss (2026)</name>
+  </anime>
+<anime anidbid="17947" tvdbid="305089" defaulttvdbseason="3" episodeoffset="" tmdbtv="65942" tmdbseason="1" tmdboffset="50" tmdbid="" imdbid="">
+    <name>Re:Zero kara Hajimeru Isekai Seikatsu (2024)</name>
+  </anime>
+<anime anidbid="18060" tvdbid="436033" defaulttvdbseason="1" episodeoffset="" tmdbtv="236930" tmdbseason="1" tmdboffset="" tmdbid="" imdbid="">
+    <name>Snack Basue</name>
+  </anime>
+<anime anidbid="18104" tvdbid="371310" defaulttvdbseason="2" episodeoffset="12" tmdbtv="94664" tmdbseason="2" tmdboffset="12" tmdbid="" imdbid="">
+    <name>Mushoku Tensei II: Isekai Ittara Honki Dasu (2024)</name>
+  </anime>
+<anime anidbid="18727" tvdbid="371310" defaulttvdbseason="3" episodeoffset="" tmdbtv="94664" tmdbseason="3" tmdboffset="" tmdbid="" imdbid="">
+    <name>Mushoku Tensei III: Isekai Ittara Honki Dasu</name>
+  </anime>
+<anime anidbid="19242" tvdbid="305089" defaulttvdbseason="4" episodeoffset="" tmdbtv="65942" tmdbseason="1" tmdboffset="66" tmdbid="" imdbid="">
+    <name>Re:Zero kara Hajimeru Isekai Seikatsu (2026)</name>
+  </anime>
+<anime anidbid="19385" tvdbid="357471" defaulttvdbseason="3" episodeoffset="" tmdbtv="87478" tmdbseason="3" tmdboffset="" tmdbid="" imdbid="">
+    <name>Isekai Quartet 3</name>
+  </anime>
+</anime-list>

@@ -1,0 +1,177 @@
+/*
+ * The calendar's month grid and event chips. Adapted from Scryer (github.com/scryer-media/scryer)
+ * apps/scryer-web/app/globals.css @ 2ef7757c, GPL-3.0: the .fc-scryer rules (day grid, day cells and pills, the
+ * event chips with an accent edge, badges, the "+N more" link). Scryer styles FullCalendar's markup; ours
+ * styles our own grid (FullCalendar injects <style> elements, which the CSP refuses), so the selectors are renamed
+ * .theatarr-cal-* and the --scry- tokens --th-; restyled on the theme's tokens (ruled chips, ink text).
+ */
+.theatarr-cal {
+  --th-cal-grid-line: var(--line);
+  --th-cal-cell-bg: var(--surface);
+  --th-cal-cell-bg-active: var(--surface);
+  --th-cal-cell-bg-other: var(--bg);
+}
+/* Facet marks (an edge and dots): the theme's facet tokens, so both themes keep their contrast. */
+.theatarr-cal-facet-movie {
+  --ev-color: var(--th-facet-movie);
+}
+.theatarr-cal-facet-series {
+  --ev-color: var(--accent);
+}
+.theatarr-cal-facet-anime {
+  --ev-color: var(--th-facet-anime);
+}
+.theatarr-cal-grid {
+  border: 1px solid var(--th-cal-grid-line);
+  border-radius: 8px;
+  background: var(--surface);
+  overflow: hidden;
+}
+.theatarr-cal-head {
+  background: var(--sunken);
+  color: var(--ink-3);
+  font-size: 0.7rem;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  padding: 0.4rem 0;
+  text-align: center;
+  text-transform: uppercase;
+}
+.theatarr-cal-cell {
+  background: var(--th-cal-cell-bg);
+  border-top: 1px solid var(--th-cal-grid-line);
+  border-left: 1px solid var(--th-cal-grid-line);
+  min-width: 0;
+  min-height: 132px;
+  padding: 0.4rem 0.4rem 0.5rem;
+}
+.theatarr-cal-cell:nth-child(7n + 1) {
+  border-left: none;
+}
+.theatarr-cal-cell.has-events {
+  background: var(--th-cal-cell-bg-active);
+}
+.theatarr-cal-cell.is-today {
+  background: var(--accent-soft);
+}
+.theatarr-cal-cell.is-other {
+  background: var(--th-cal-cell-bg-other);
+  color: var(--ink-3);
+}
+.theatarr-cal-cell.is-selected {
+  box-shadow: inset 0 0 0 2px var(--line-focus);
+}
+.theatarr-cal-day-pill {
+  align-items: center;
+  border-radius: 3px;
+  color: var(--ink-2);
+  display: inline-flex;
+  font-size: 0.76rem;
+  font-variant-numeric: tabular-nums;
+  font-weight: 600;
+  height: 1.6rem;
+  justify-content: center;
+  min-width: 1.6rem;
+  padding: 0 0.4rem;
+}
+.theatarr-cal-cell.is-today .theatarr-cal-day-pill {
+  background: var(--accent);
+  color: var(--on-accent);
+}
+/* An event: a ruled surface chip with the facet's edge, ink text (no gradient, readable in both themes). */
+.theatarr-cal-event {
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 4px;
+  color: var(--ink);
+  display: block;
+  margin-top: 0.26rem;
+  min-width: 0;
+  overflow: hidden;
+  padding: 5px 7px 5px 10px;
+  position: relative;
+}
+.theatarr-cal-event::before {
+  background: var(--ev-color, var(--accent));
+  content: "";
+  inset: 0 auto 0 0;
+  position: absolute;
+  width: 3px;
+}
+.theatarr-cal-event:hover {
+  background: var(--hover);
+  border-color: var(--line-2);
+}
+.theatarr-cal-event.is-unmonitored {
+  opacity: 0.6;
+}
+.theatarr-cal-event-title {
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  color: var(--ink);
+  display: -webkit-box;
+  font-size: 12.5px;
+  font-weight: 600;
+  line-height: 1.25;
+  overflow: hidden;
+  overflow-wrap: anywhere;
+}
+.theatarr-cal-event-meta {
+  align-items: center;
+  display: flex;
+  gap: 6px;
+  margin-top: 3px;
+  min-width: 0;
+}
+.theatarr-cal-event-badge {
+  border-radius: 3px;
+  box-shadow: inset 0 0 0 1px var(--line-2);
+  color: var(--ink-2);
+  flex: none;
+  font-family: var(--font-mono);
+  font-size: 10.5px;
+  font-weight: 500;
+  padding: 0 5px;
+}
+.theatarr-cal-event-time {
+  color: var(--ink-3);
+  font-size: 10.5px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.theatarr-cal-more {
+  align-items: center;
+  border: 1px solid var(--line);
+  border-radius: 3px;
+  color: var(--ink-2);
+  display: inline-flex;
+  font-size: 0.68rem;
+  font-weight: 600;
+  line-height: 1;
+  margin-top: 0.35rem;
+  padding: 0.28rem 0.5rem;
+}
+.theatarr-cal-more:hover {
+  background: var(--hover);
+}
+.theatarr-cal-dot {
+  background: var(--ev-color, var(--accent));
+  border-radius: 999px;
+  display: inline-block;
+  height: 6px;
+  width: 6px;
+}
+/* Phone width: the grid keeps seven columns but shows dots; the chosen day's list sits below. */
+@media (max-width: 639px) {
+  .theatarr-cal-cell {
+    min-height: 3.4rem;
+    padding: 0.25rem;
+  }
+  .theatarr-cal-day-pill {
+    font-size: 0.7rem;
+    height: 1.45rem;
+    min-width: 1.45rem;
+    padding: 0 0.3rem;
+  }
+}

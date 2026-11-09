@@ -1,0 +1,44 @@
+[
+ {
+  "id": 71000003,
+  "name": "Alien.Romulus.2024.2160p.DSNP.WEB-DL.DDP5.1.Atmos.DV.HDR.H.265-FLUX",
+  "info_hash": "A1A1A1A1A1A1A1A1A1A1A1A1A1A1A1A1A1A1A1A1",
+  "leechers": 95,
+  "seeders": 812,
+  "num_files": 1,
+  "size": 20401094656,
+  "username": "uploader",
+  "added": 1793268000,
+  "status": "member",
+  "category": 211,
+  "imdb": "tt18412256"
+ },
+ {
+  "id": 71000002,
+  "name": "Some.Artist.Album.2026.FLAC",
+  "info_hash": "A2A2A2A2A2A2A2A2A2A2A2A2A2A2A2A2A2A2A2A2",
+  "leechers": 1,
+  "seeders": 5,
+  "num_files": 1,
+  "size": 400000000,
+  "username": "uploader",
+  "added": 1793267700,
+  "status": "member",
+  "category": 104,
+  "imdb": ""
+ },
+ {
+  "id": 71000001,
+  "name": "The.Show.S02E05.1080p.WEB.h264-GRP",
+  "info_hash": "A3A3A3A3A3A3A3A3A3A3A3A3A3A3A3A3A3A3A3A3",
+  "leechers": 30,
+  "seeders": 120,
+  "num_files": 1,
+  "size": 1610612736,
+  "username": "uploader",
+  "added": 1793267400,
+  "status": "member",
+  "category": 208,
+  "imdb": ""
+ }
+]

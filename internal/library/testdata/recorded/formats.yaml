@@ -1,0 +1,28 @@
+# Format references. TRaSH formats by trash_id (ids differ between Radarr and Sonarr, hence the flavour);
+# our own formats as arr-shaped JSON files next to this one. Profiles score them by key or by trash_id.
+formats:
+  Remux Tier 01:            {trash_id: 3a3ff47579026e76d6504ebea39390de, flavour: radarr}
+  Remux Tier 02:            {trash_id: 9f98181fe5a3fbeb0cc29340da2a468a, flavour: radarr}
+  WEB Tier 01:              {trash_id: c20f169ef63c5f40c2def54abaf4438e, flavour: radarr}
+  WEB Tier 02:              {trash_id: 403816d65392c79236dcb6dd591aeda4, flavour: radarr}
+  HDR10+ Boost:             {trash_id: caa37d0df9c348912df1fb1d88f9273a, flavour: radarr}
+  DV (w/o HDR fallback):    {trash_id: 923b6abef9b17f937fab56cfcf89e1f1, flavour: radarr}
+  BR-DISK:                  {trash_id: ed38b889b31be83fda192888e2286d83, flavour: radarr}
+  LQ:                       {trash_id: 90a6f9a284dff5103f6346090e6280c8, flavour: radarr}
+  3D:                       {trash_id: b8cd450cbfa689c0259a01d9e29ba3d6, flavour: radarr}
+  Anime BD Tier 01 (movie): {trash_id: fb3ccc5d5cc8f77c9055d4cb4561dded, flavour: radarr}
+  Anime Web Tier 01 (movie): {trash_id: 8167cffba4febfb9a6988ef24f274e7e, flavour: radarr}
+  Anime Raws (movie):       {trash_id: 06b6542a47037d1e33b15aa3677c2365, flavour: radarr}
+
+  WEB Tier 01 (tv):         {trash_id: e6258996055b9fbab7e9cb2f75819294, flavour: sonarr}
+  WEB Tier 02 (tv):         {trash_id: 58790d4e2fdcd9733aa7ae68ba2bb503, flavour: sonarr}
+  BR-DISK (tv):             {trash_id: 85c61753df5da1fb2aab6f2a47426b09, flavour: sonarr}
+  LQ (tv):                  {trash_id: 9c11cd3f07101cdba90a2d81cf0e56b4, flavour: sonarr}
+  Anime BD Tier 01 (tv):    {trash_id: 949c16fe0a8147f50ba82cc2df9411c9, flavour: sonarr}
+  Anime Web Tier 01 (tv):   {trash_id: e0014372773c8f0e1bef8824f00c7dc4, flavour: sonarr}
+  Anime Raws (tv):          {trash_id: b4a1b3d705159cdca36d71e57ca86871, flavour: sonarr}
+  v0:                       {trash_id: d2d7b8a9d39413da5f44054080e028a3, flavour: sonarr}
+  Uncensored:               {trash_id: 026d5aadd1a6b4e550b134cb6c72b3ca, flavour: sonarr}
+
+  # A SeaDex format (+5000), as our own definition. No flavour: usable by movies and series.
+  Seadex:                   {file: formats/seadex.json}

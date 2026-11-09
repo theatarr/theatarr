@@ -1,0 +1,225 @@
+{
+  "id": 43,
+  "name": "HD Bluray Tier 02 - Notifiarr",
+  "includeCustomFormatWhenRenaming": false,
+  "specifications": [
+    {
+      "name": "BLURAY",
+      "implementation": "SourceSpecification",
+      "negate": false,
+      "required": true,
+      "fields": [
+        {
+          "order": 0,
+          "name": "value",
+          "label": "Source",
+          "value": 6,
+          "type": "select",
+          "advanced": false,
+          "selectOptions": [
+            {
+              "value": 0,
+              "name": "Unknown",
+              "order": 0
+            },
+            {
+              "value": 1,
+              "name": "Television",
+              "order": 1
+            },
+            {
+              "value": 2,
+              "name": "TelevisionRaw",
+              "order": 2
+            },
+            {
+              "value": 3,
+              "name": "Web",
+              "order": 3
+            },
+            {
+              "value": 4,
+              "name": "WebRip",
+              "order": 4
+            },
+            {
+              "value": 5,
+              "name": "DVD",
+              "order": 5
+            },
+            {
+              "value": 6,
+              "name": "Bluray",
+              "order": 6
+            },
+            {
+              "value": 7,
+              "name": "BlurayRaw",
+              "order": 7
+            }
+          ],
+          "privacy": "normal",
+          "isFloat": false
+        }
+      ]
+    },
+    {
+      "name": "Not REMUX",
+      "implementation": "SourceSpecification",
+      "negate": true,
+      "required": true,
+      "fields": [
+        {
+          "order": 0,
+          "name": "value",
+          "label": "Source",
+          "value": 7,
+          "type": "select",
+          "advanced": false,
+          "selectOptions": [
+            {
+              "value": 0,
+              "name": "Unknown",
+              "order": 0
+            },
+            {
+              "value": 1,
+              "name": "Television",
+              "order": 1
+            },
+            {
+              "value": 2,
+              "name": "TelevisionRaw",
+              "order": 2
+            },
+            {
+              "value": 3,
+              "name": "Web",
+              "order": 3
+            },
+            {
+              "value": 4,
+              "name": "WebRip",
+              "order": 4
+            },
+            {
+              "value": 5,
+              "name": "DVD",
+              "order": 5
+            },
+            {
+              "value": 6,
+              "name": "Bluray",
+              "order": 6
+            },
+            {
+              "value": 7,
+              "name": "BlurayRaw",
+              "order": 7
+            }
+          ],
+          "privacy": "normal",
+          "isFloat": false
+        }
+      ]
+    },
+    {
+      "name": "Not 2160p",
+      "implementation": "ResolutionSpecification",
+      "negate": true,
+      "required": true,
+      "fields": [
+        {
+          "order": 0,
+          "name": "value",
+          "label": "Resolution",
+          "value": 2160,
+          "type": "select",
+          "advanced": false,
+          "selectOptions": [
+            {
+              "value": 0,
+              "name": "Unknown",
+              "order": 0
+            },
+            {
+              "value": 360,
+              "name": "R360p",
+              "order": 360
+            },
+            {
+              "value": 480,
+              "name": "R480p",
+              "order": 480
+            },
+            {
+              "value": 540,
+              "name": "R540p",
+              "order": 540
+            },
+            {
+              "value": 576,
+              "name": "R576p",
+              "order": 576
+            },
+            {
+              "value": 720,
+              "name": "R720p",
+              "order": 720
+            },
+            {
+              "value": 1080,
+              "name": "R1080p",
+              "order": 1080
+            },
+            {
+              "value": 2160,
+              "name": "R2160p",
+              "order": 2160
+            }
+          ],
+          "privacy": "normal",
+          "isFloat": false
+        }
+      ]
+    },
+    {
+      "name": "SA89",
+      "implementation": "ReleaseGroupSpecification",
+      "negate": false,
+      "required": false,
+      "fields": [
+        {
+          "order": 0,
+          "name": "value",
+          "label": "Regular Expression",
+          "helpText": "Custom Format RegEx is Case Insensitive",
+          "value": "^(SA89)$",
+          "type": "textbox",
+          "advanced": false,
+          "privacy": "normal",
+          "isFloat": false
+        }
+      ]
+    },
+    {
+      "name": "sbR",
+      "implementation": "ReleaseGroupSpecification",
+      "negate": false,
+      "required": false,
+      "fields": [
+        {
+          "order": 0,
+          "name": "value",
+          "label": "Regular Expression",
+          "helpText": "Custom Format RegEx is Case Insensitive",
+          "value": "^(sbR)$",
+          "type": "textbox",
+          "advanced": false,
+          "privacy": "normal",
+          "isFloat": false
+        }
+      ]
+    }
+  ]
+}

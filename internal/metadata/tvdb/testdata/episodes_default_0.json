@@ -1,0 +1,12 @@
+{
+  "status": "success",
+  "data": {
+    "series": {"id": 900001, "name": "テストアニメ", "slug": "test-anime", "status": {"id": 2, "name": "Ended", "recordType": "series", "keepUpdated": false}, "year": "2020"},
+    "episodes": [
+      {"id": 7001, "seriesId": 900001, "name": "第1話", "aired": "2020-01-05", "runtime": 24, "overview": "", "seasonNumber": 1, "number": 1, "absoluteNumber": 1, "isMovie": 0, "lastUpdated": "2026-01-01 00:00:00"},
+      {"id": 7002, "seriesId": 900001, "name": "第2話", "aired": "2020-01-12", "runtime": 24, "overview": "", "seasonNumber": 1, "number": 2, "absoluteNumber": 2, "isMovie": 0},
+      {"id": 7000, "seriesId": 900001, "name": "特別編", "aired": "2020-12-20", "runtime": 48, "overview": "総集編", "seasonNumber": 0, "number": 1, "absoluteNumber": 0, "isMovie": 0}
+    ]
+  },
+  "links": {"prev": null, "self": "page0", "next": "page1", "total_items": 5, "page_size": 3}
+}

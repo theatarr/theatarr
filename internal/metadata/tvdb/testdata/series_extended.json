@@ -1,0 +1,45 @@
+{
+  "status": "success",
+  "data": {
+    "id": 900001,
+    "name": "テストアニメ",
+    "slug": "test-anime",
+    "image": "",
+    "nameTranslations": ["eng", "jpn"],
+    "overviewTranslations": ["eng", "jpn"],
+    "aliases": [{"language": "eng", "name": "Test Anime: The Series"}, {"language": "jpn", "name": "テスアニ"}],
+    "firstAired": "2020-01-05",
+    "lastAired": "2021-03-28",
+    "nextAired": "",
+    "score": 1234,
+    "status": {"id": 2, "name": "Ended", "recordType": "series", "keepUpdated": false},
+    "originalCountry": "jpn",
+    "originalLanguage": "jpn",
+    "defaultSeasonType": 1,
+    "isOrderRandomized": false,
+    "lastUpdated": "2026-09-01 10:00:00",
+    "averageRuntime": 24,
+    "episodes": null,
+    "overview": "テスト",
+    "year": "2020",
+    "remoteIds": [{"id": "tt0000001", "type": 2, "sourceName": "IMDB"}, {"id": "120001", "type": 12, "sourceName": "TheMovieDB.com"}],
+    "seasons": [
+      {"id": 5001, "seriesId": 900001, "number": 0, "name": "Specials", "type": {"id": 1, "name": "Aired Order", "type": "official", "alternateName": null}, "year": "2020"},
+      {"id": 5002, "seriesId": 900001, "number": 1, "name": "Season 1", "type": {"id": 1, "name": "Aired Order", "type": "official", "alternateName": null}, "year": "2020"},
+      {"id": 5003, "seriesId": 900001, "number": 2, "name": "Season 2", "type": {"id": 1, "name": "Aired Order", "type": "official", "alternateName": null}, "year": "2021"},
+      {"id": 5004, "seriesId": 900001, "number": 1, "name": "Absolute", "type": {"id": 3, "name": "Absolute Order", "type": "absolute", "alternateName": null}, "year": "2020"}
+    ],
+    "seasonTypes": [
+      {"id": 1, "name": "Aired Order", "type": "official", "alternateName": null},
+      {"id": 3, "name": "Absolute Order", "type": "absolute", "alternateName": null}
+    ],
+    "translations": {
+      "nameTranslations": [
+        {"name": "Test Anime", "language": "eng", "isPrimary": true},
+        {"name": "TA", "language": "eng", "isAlias": true},
+        {"name": "テストアニメ", "language": "jpn", "isPrimary": true}
+      ],
+      "overviewTranslations": [{"overview": "A test.", "language": "eng"}]
+    }
+  }
+}

@@ -1,0 +1,90 @@
+# Version naming is DB-owned once the database is seeded; the version, roots and mode remain YAML-owned.
+# Versions: one per library. Each starts in shadow mode (docs/design/shadow.md) and is switched to active when it goes
+# live (docs/golive.md). Library roots are the arr roots the version replaces, so links keep the arr naming and paths.
+# After repointing a version's Homepage tile to its active Theatarr view and key, set golive_done: [homepage] on that
+# version. Omit it until then; only homepage is accepted, without duplicates (docs/golive.md).
+# grab (default false) lets an active version add torrents while router.enabled is true. An active version with grab
+# off imports and links but adds nothing and gets no automatic searches (wanted, add-time, re-search); its RSS picks
+# get dry-run plans only. In the DB settings, turning it on for an active version needs confirmation. Going live sets mode: active and grab: true
+# together (docs/golive.md); theatarr golive check warns about an active version with grab off.
+# add_via: providers (the default) adds to the version's providers. add_via: client sends its grabs to its client
+# (a decypharr, which picks its own debrid account) and imports what it finished (docs/design/router.md).
+versions:
+  movie-remux:
+    mode: shadow
+    kind: movie
+    anime: false
+    profile: remux-2160p
+    # What happens when a release would replace a file the copy already has: auto (the default) takes it, approve
+    # holds it until a manager approves it (Requests > Upgrades waiting, or the title's copy card), off never
+    # replaces a file. Releases for missing files are never held (docs/design/router.md "Upgrade approval").
+    upgrades: approve
+    library: /media/movies
+    storage: debrid
+    indexers: [prowlarr-public, dmm, torrentio, zilean]
+    providers: [rd, ad, tb]
+    client: decypharr
+    import: symlink
+    naming:
+      folder: "{Movie CleanTitle} ({Release Year}) {imdb-{ImdbId}}"
+      file: "{Movie CleanTitle} {(Release Year)} {imdb-{ImdbId}} - {edition-{Edition Tags}} {[Custom Formats]}{[Quality Full]}{[MediaInfo 3D]}{[MediaInfo VideoDynamicRangeType]}{[Mediainfo AudioCodec}{ Mediainfo AudioChannels]}{[Mediainfo VideoCodec]}{-Release Group}"
+
+  movie-web:
+    mode: shadow
+    kind: movie
+    anime: false
+    profile: web-2160p
+    library: /media/movies-web
+    storage: debrid
+    indexers: [prowlarr-public, dmm, torrentio, zilean]
+    providers: [rd, ad, tb]
+    client: decypharr
+
+  anime-movie:
+    mode: shadow
+    kind: movie
+    anime: true
+    profile: anime-remux-1080p-movie
+    # Curator preference is independent of the actual quality label and may replace a higher-resolution copy.
+    prefer_seadex: true
+    library: /media/anime-films
+    storage: debrid
+    indexers: [prowlarr-public, seadex, dmm]
+    providers: [rd, ad, tb]
+    client: decypharr
+
+  tv-2160p:
+    mode: shadow
+    kind: series
+    anime: false
+    profile: tv-2160p
+    # Season packs: any_upgradable takes a pack when any episode in it has no file or would be upgraded (the
+    # actuallyevan Sonarr fork's ACCEPT_RELEASE_ANY_UPGRADABLE). threshold, with
+    # packs_threshold: <percent>, takes a full-season pack when at least that share of its episodes would be filled
+    # or upgraded (Sonarr v5). all (the default) is plain Sonarr: every episode's file must be upgraded.
+    packs: any_upgradable
+    # Sonarr version releases are parsed and mapped as: v4plus (recommended: v4 with the v5 parser fixes that measure
+    # better on a release corpus and a few fixes of its own, without v5's regressions; docs/design/sonarr-v5.md "v4plus"), v4 (the
+    # default, exactly as Sonarr v4) or v5 (Sonarr v5's parser and mapping: multi-season packs, anime season
+    # packs named by season title, original titles). The shadow counts a difference v4plus explains as
+    # agree / parser_mode.
+    sonarr: v4plus
+    library: /media/tv
+    storage: debrid
+    indexers: [prowlarr-public, dmm, torrentio, zilean]
+    providers: [rd, ad, tb]
+    client: decypharr
+
+  anime-tv:
+    mode: shadow
+    kind: series
+    anime: true
+    profile: anime-tv
+    prefer_seadex: true
+    packs: any_upgradable
+    sonarr: v4plus                             # as tv-2160p
+    library: /media/anime
+    storage: debrid
+    indexers: [prowlarr-public, seadex, dmm]
+    providers: [rd, ad, tb]
+    client: decypharr

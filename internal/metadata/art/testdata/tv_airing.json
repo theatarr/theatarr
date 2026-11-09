@@ -1,0 +1,6 @@
+{"backdrop_path": null, "episode_run_time": [42], "first_air_date": "2024-02-01", "genres": [],
+ "id": 2000, "last_air_date": "2026-10-20", "next_episode_to_air": {"air_date": "2026-10-27"},
+ "name": "Airing Show", "networks": [], "original_language": "ja", "overview": "", "poster_path": null,
+ "status": "Returning Series", "tagline": "", "vote_average": 0, "vote_count": 0,
+ "external_ids": {"imdb_id": null, "tvdb_id": 400000}, "content_ratings": {"results": []},
+ "images": {"backdrops": [], "posters": [], "logos": [{"iso_639_1": "ja", "file_path": "/jaLogo0123456789abc.png", "vote_average": 1}]}}

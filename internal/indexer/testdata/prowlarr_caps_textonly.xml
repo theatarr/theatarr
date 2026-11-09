@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- A feed with text search only (TPB-style), same shape as prowlarr_caps.xml. -->
+<caps>
+  <limits default="50" max="50" />
+  <searching>
+    <search available="yes" supportedParams="q" />
+    <tv-search available="no" supportedParams="q" />
+    <movie-search available="no" supportedParams="q" />
+  </searching>
+</caps>

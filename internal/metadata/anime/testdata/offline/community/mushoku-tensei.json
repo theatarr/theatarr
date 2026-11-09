@@ -1,0 +1,26 @@
+{
+ "sources": {
+  "recommended": "https://myanimelist.net/stacks/49710",
+  "chronological": "https://en.wikipedia.org/wiki/List_of_Mushoku_Tensei_episodes (Eris special during ep 16)"
+ },
+ "recommended": [
+  "al:108465",
+  "al:127720",
+  "al:141534",
+  "al:146065",
+  "al:166873",
+  "al:178789",
+  "al:217434"
+ ],
+ "chronological": [
+  "al:108465",
+  "al:127720@S01E12-S01E16",
+  "al:141534",
+  "al:127720@S01E17-S01E23",
+  "al:146065",
+  "al:166873",
+  "al:178789",
+  "al:217434"
+ ],
+ "ignore": []
+}

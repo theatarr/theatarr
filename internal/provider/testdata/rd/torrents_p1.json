@@ -1,0 +1,33 @@
+[
+  {
+    "id": "RDID0001",
+    "filename": "Movie.A.2020.2160p.WEB-DL",
+    "hash": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    "bytes": 5000000000,
+    "host": "real-debrid.com",
+    "split": 2000,
+    "progress": 100,
+    "status": "downloaded",
+    "added": "2026-10-01T10:00:00.000Z",
+    "links": [
+      "https://example.invalid/d/1/0"
+    ],
+    "ended": "2026-10-01T10:00:00.000Z"
+  },
+  {
+    "id": "RDID0002",
+    "filename": "Movie.B.2021.1080p.BluRay",
+    "hash": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+    "bytes": 9000000000,
+    "host": "real-debrid.com",
+    "split": 2000,
+    "progress": 100,
+    "status": "downloaded",
+    "added": "2026-10-02T10:00:00.000Z",
+    "links": [
+      "https://example.invalid/d/2/0",
+      "https://example.invalid/d/2/1"
+    ],
+    "ended": "2026-10-02T10:00:00.000Z"
+  }
+]

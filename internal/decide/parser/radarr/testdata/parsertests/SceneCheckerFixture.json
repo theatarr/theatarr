@@ -1,0 +1,114 @@
+{
+ "source": "Radarr src/NzbDrone.Core.Test/ParserTests/SceneCheckerFixture.cs @ a96bf7c",
+ "fixture": "SceneCheckerFixture",
+ "cases": [
+  {
+   "id": "SceneCheckerFixture/should_return_true_for_scene_names/0",
+   "line": 10,
+   "call": "isSceneTitle",
+   "input": "Some.Movie.2..2013.German.DTS.DL.720p.BluRay.x264-Pate",
+   "expect": {
+    "": true
+   }
+  },
+  {
+   "id": "SceneCheckerFixture/should_return_false_for_non_scene_names/0",
+   "line": 16,
+   "call": "isSceneTitle",
+   "input": "S08E05 - Virtual In-Stanity [WEBDL-720p]",
+   "expect": {
+    "": false
+   }
+  },
+  {
+   "id": "SceneCheckerFixture/should_return_false_for_non_scene_names/1",
+   "line": 17,
+   "call": "isSceneTitle",
+   "input": "S08E05 - Virtual In-Stanity.With.Dots [WEBDL-720p]",
+   "expect": {
+    "": false
+   }
+  },
+  {
+   "id": "SceneCheckerFixture/should_return_false_for_non_scene_names/2",
+   "line": 18,
+   "call": "isSceneTitle",
+   "input": "Something",
+   "expect": {
+    "": false
+   }
+  },
+  {
+   "id": "SceneCheckerFixture/should_return_false_for_non_scene_names/3",
+   "line": 19,
+   "call": "isSceneTitle",
+   "input": "86de66b7ef385e2fa56a3e41b98481ea1658bfab",
+   "expect": {
+    "": false
+   }
+  },
+  {
+   "id": "SceneCheckerFixture/should_return_false_for_non_scene_names/4",
+   "line": 20,
+   "call": "isSceneTitle",
+   "input": "Some.Movie.2..2013.German.DTS.DL.720p.BluRay.x264-",
+   "expect": {
+    "": false
+   }
+  },
+  {
+   "id": "SceneCheckerFixture/should_return_false_for_non_scene_names/5",
+   "line": 21,
+   "call": "isSceneTitle",
+   "input": "Some.Movie.2..2013.German.DTS.DL-Pate",
+   "expect": {
+    "": false
+   }
+  },
+  {
+   "id": "SceneCheckerFixture/should_return_false_for_non_scene_names/6",
+   "line": 22,
+   "call": "isSceneTitle",
+   "input": "2013.German.DTS.DL.BluRay.x264-Pate",
+   "expect": {
+    "": false
+   }
+  },
+  {
+   "id": "SceneCheckerFixture/should_correctly_parse_scene_names/0",
+   "line": 28,
+   "call": "getSceneTitle",
+   "input": "Some.Movie.2..2013.German.DTS.DL.720p.BluRay.x264-Pate_",
+   "expect": {
+    "": "Some.Movie.2..2013.German.DTS.DL.720p.BluRay.x264-Pate"
+   }
+  },
+  {
+   "id": "SceneCheckerFixture/should_correctly_parse_scene_names/1",
+   "line": 29,
+   "call": "getSceneTitle",
+   "input": "Some.Movie.2..2013.German.DTS.DL.720p.BluRay.x264-Pate.mkv",
+   "expect": {
+    "": "Some.Movie.2..2013.German.DTS.DL.720p.BluRay.x264-Pate"
+   }
+  },
+  {
+   "id": "SceneCheckerFixture/should_correctly_parse_scene_names/2",
+   "line": 30,
+   "call": "getSceneTitle",
+   "input": "Some.Movie.2..2013.German.DTS.DL.720p.BluRay.x264-Pate.nzb",
+   "expect": {
+    "": "Some.Movie.2..2013.German.DTS.DL.720p.BluRay.x264-Pate"
+   }
+  },
+  {
+   "id": "SceneCheckerFixture/should_correctly_parse_scene_names/3",
+   "line": 31,
+   "call": "getSceneTitle",
+   "input": "Some.Movie.2..2013.German.DTS.DL.【720p】.BluRay.x264-Pate.nzb",
+   "expect": {
+    "": "Some.Movie.2..2013.German.DTS.DL.[720p].BluRay.x264-Pate"
+   }
+  }
+ ]
+}

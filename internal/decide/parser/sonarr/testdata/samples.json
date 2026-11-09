@@ -1,0 +1,494 @@
+[
+ {
+  "instance": "sonarr_4k_debrid",
+  "title": "The.Bear.S03E01.2160p.HULU.WEB-DL.DDP5.1.H.265-NTb",
+  "parsedEpisodeInfo": {
+   "releaseTitle": "The.Bear.S03E01.2160p.HULU.WEB-DL.DDP5.1.H.265-NTb",
+   "seriesTitle": "The Bear",
+   "seriesTitleInfo": {
+    "title": "The Bear",
+    "titleWithoutYear": "The Bear",
+    "year": 0
+   },
+   "quality": {
+    "quality": {
+     "id": 18,
+     "name": "WEBDL-2160p",
+     "source": "web",
+     "resolution": 2160
+    },
+    "revision": {
+     "version": 1,
+     "real": 0,
+     "isRepack": false
+    }
+   },
+   "seasonNumber": 3,
+   "episodeNumbers": [
+    1
+   ],
+   "absoluteEpisodeNumbers": [],
+   "specialAbsoluteEpisodeNumbers": [],
+   "languages": [
+    {
+     "id": 0,
+     "name": "Unknown"
+    }
+   ],
+   "fullSeason": false,
+   "isPartialSeason": false,
+   "isMultiSeason": false,
+   "isSeasonExtra": false,
+   "isSplitEpisode": false,
+   "isMiniSeries": false,
+   "special": false,
+   "releaseGroup": "NTb",
+   "releaseHash": "",
+   "seasonPart": 0,
+   "releaseTokens": ".2160p.HULU.WEB-DL.DDP5.1.H.265-NTb",
+   "isDaily": false,
+   "isAbsoluteNumbering": false,
+   "isPossibleSpecialEpisode": false,
+   "isPossibleSceneSeasonSpecial": false,
+   "releaseType": "singleEpisode"
+  }
+ },
+ {
+  "instance": "sonarr_anime",
+  "title": "[SubsPlease] One Piece - 1100 (1080p) [ABCD1234].mkv",
+  "parsedEpisodeInfo": {
+   "releaseTitle": "[SubsPlease] One Piece - 1100 (1080p) [ABCD1234]",
+   "seriesTitle": "One Piece",
+   "seriesTitleInfo": {
+    "title": "One Piece",
+    "titleWithoutYear": "One Piece",
+    "year": 0
+   },
+   "quality": {
+    "quality": {
+     "id": 9,
+     "name": "HDTV-1080p",
+     "source": "television",
+     "resolution": 1080
+    },
+    "revision": {
+     "version": 1,
+     "real": 0,
+     "isRepack": false
+    }
+   },
+   "seasonNumber": 0,
+   "episodeNumbers": [],
+   "absoluteEpisodeNumbers": [
+    1100
+   ],
+   "specialAbsoluteEpisodeNumbers": [],
+   "languages": [
+    {
+     "id": 0,
+     "name": "Unknown"
+    }
+   ],
+   "fullSeason": false,
+   "isPartialSeason": false,
+   "isMultiSeason": false,
+   "isSeasonExtra": false,
+   "isSplitEpisode": false,
+   "isMiniSeries": false,
+   "special": false,
+   "releaseGroup": "SubsPlease",
+   "releaseHash": "",
+   "seasonPart": 0,
+   "releaseTokens": " (1080p) [ABCD1234]",
+   "isDaily": false,
+   "isAbsoluteNumbering": true,
+   "isPossibleSpecialEpisode": false,
+   "isPossibleSceneSeasonSpecial": false,
+   "releaseType": "singleEpisode"
+  }
+ },
+ {
+  "instance": "sonarr_4k",
+  "title": "The.Daily.Show.2024.03.05.720p.WEB.h264-EDITH",
+  "parsedEpisodeInfo": {
+   "releaseTitle": "The.Daily.Show.2024.03.05.720p.WEB.h264-EDITH",
+   "seriesTitle": "The Daily Show",
+   "seriesTitleInfo": {
+    "title": "The Daily Show",
+    "titleWithoutYear": "The Daily Show",
+    "year": 0
+   },
+   "quality": {
+    "quality": {
+     "id": 5,
+     "name": "WEBDL-720p",
+     "source": "web",
+     "resolution": 720
+    },
+    "revision": {
+     "version": 1,
+     "real": 0,
+     "isRepack": false
+    }
+   },
+   "seasonNumber": 0,
+   "episodeNumbers": [],
+   "absoluteEpisodeNumbers": [],
+   "specialAbsoluteEpisodeNumbers": [],
+   "airDate": "2024-03-05",
+   "languages": [
+    {
+     "id": 0,
+     "name": "Unknown"
+    }
+   ],
+   "fullSeason": false,
+   "isPartialSeason": false,
+   "isMultiSeason": false,
+   "isSeasonExtra": false,
+   "isSplitEpisode": false,
+   "isMiniSeries": false,
+   "special": false,
+   "releaseGroup": "EDITH",
+   "releaseHash": "",
+   "seasonPart": 0,
+   "releaseTokens": ".720p.WEB.h264-EDITH",
+   "isDaily": true,
+   "isAbsoluteNumbering": false,
+   "isPossibleSpecialEpisode": false,
+   "isPossibleSceneSeasonSpecial": false,
+   "releaseType": "unknown"
+  }
+ },
+ {
+  "instance": "sonarr_4k",
+  "title": "Series Title 2018.04.28.Part.2.720p.HDTV",
+  "parsedEpisodeInfo": {
+   "releaseTitle": "Series Title 2018.04.28.Part.2.720p.HDTV",
+   "seriesTitle": "Series Title",
+   "seriesTitleInfo": {
+    "title": "Series Title",
+    "titleWithoutYear": "Series Title",
+    "year": 0
+   },
+   "quality": {
+    "quality": {
+     "id": 4,
+     "name": "HDTV-720p",
+     "source": "television",
+     "resolution": 720
+    },
+    "revision": {
+     "version": 1,
+     "real": 0,
+     "isRepack": false
+    }
+   },
+   "seasonNumber": 0,
+   "episodeNumbers": [],
+   "absoluteEpisodeNumbers": [],
+   "specialAbsoluteEpisodeNumbers": [],
+   "airDate": "2018-04-28",
+   "languages": [
+    {
+     "id": 0,
+     "name": "Unknown"
+    }
+   ],
+   "fullSeason": false,
+   "isPartialSeason": false,
+   "isMultiSeason": false,
+   "isSeasonExtra": false,
+   "isSplitEpisode": false,
+   "isMiniSeries": false,
+   "special": false,
+   "releaseHash": "",
+   "seasonPart": 0,
+   "releaseTokens": ".Part.2.720p.HDTV",
+   "dailyPart": 2,
+   "isDaily": true,
+   "isAbsoluteNumbering": false,
+   "isPossibleSpecialEpisode": false,
+   "isPossibleSceneSeasonSpecial": false,
+   "releaseType": "unknown"
+  }
+ },
+ {
+  "instance": "sonarr_anime",
+  "title": "[Group] Series Title - 06.50 [1080p]",
+  "parsedEpisodeInfo": {
+   "releaseTitle": "[Group] Series Title - 06.50 [1080p]",
+   "seriesTitle": "Series Title",
+   "seriesTitleInfo": {
+    "title": "Series Title",
+    "titleWithoutYear": "Series Title",
+    "year": 0
+   },
+   "quality": {
+    "quality": {
+     "id": 9,
+     "name": "HDTV-1080p",
+     "source": "television",
+     "resolution": 1080
+    },
+    "revision": {
+     "version": 1,
+     "real": 0,
+     "isRepack": false
+    }
+   },
+   "seasonNumber": 0,
+   "episodeNumbers": [],
+   "absoluteEpisodeNumbers": [],
+   "specialAbsoluteEpisodeNumbers": [
+    6.50
+   ],
+   "languages": [
+    {
+     "id": 0,
+     "name": "Unknown"
+    }
+   ],
+   "fullSeason": false,
+   "isPartialSeason": false,
+   "isMultiSeason": false,
+   "isSeasonExtra": false,
+   "isSplitEpisode": false,
+   "isMiniSeries": false,
+   "special": true,
+   "releaseGroup": "Group",
+   "releaseHash": "",
+   "seasonPart": 0,
+   "releaseTokens": " [1080p]",
+   "isDaily": false,
+   "isAbsoluteNumbering": false,
+   "isPossibleSpecialEpisode": true,
+   "isPossibleSceneSeasonSpecial": false,
+   "releaseType": "unknown"
+  }
+ },
+ {
+  "instance": "sonarr_4k",
+  "title": "Series.Title.S01E01.DVDRip.XviD-GROUP",
+  "parsedEpisodeInfo": {
+   "releaseTitle": "Series.Title.S01E01.DVDRip.XviD-GROUP",
+   "seriesTitle": "Series Title",
+   "seriesTitleInfo": {
+    "title": "Series Title",
+    "titleWithoutYear": "Series Title",
+    "year": 0
+   },
+   "quality": {
+    "quality": {
+     "id": 2,
+     "name": "DVD",
+     "source": "dvd",
+     "resolution": 480
+    },
+    "revision": {
+     "version": 1,
+     "real": 0,
+     "isRepack": false
+    }
+   },
+   "seasonNumber": 1,
+   "episodeNumbers": [
+    1
+   ],
+   "absoluteEpisodeNumbers": [],
+   "specialAbsoluteEpisodeNumbers": [],
+   "languages": [
+    {
+     "id": 0,
+     "name": "Unknown"
+    }
+   ],
+   "fullSeason": false,
+   "isPartialSeason": false,
+   "isMultiSeason": false,
+   "isSeasonExtra": false,
+   "isSplitEpisode": false,
+   "isMiniSeries": false,
+   "special": false,
+   "releaseGroup": "GROUP",
+   "releaseHash": "",
+   "seasonPart": 0,
+   "releaseTokens": ".DVDRip.XviD-GROUP",
+   "isDaily": false,
+   "isAbsoluteNumbering": false,
+   "isPossibleSpecialEpisode": false,
+   "isPossibleSceneSeasonSpecial": false,
+   "releaseType": "singleEpisode"
+  }
+ },
+ {
+  "instance": "sonarr_4k",
+  "title": "Series.Title.S04E17.720p.HDTV.X264",
+  "parsedEpisodeInfo": {
+   "releaseTitle": "Series.Title.S04E17.720p.HDTV.X264",
+   "seriesTitle": "Series Title",
+   "seriesTitleInfo": {
+    "title": "Series Title",
+    "titleWithoutYear": "Series Title",
+    "year": 0
+   },
+   "quality": {
+    "quality": {
+     "id": 4,
+     "name": "HDTV-720p",
+     "source": "television",
+     "resolution": 720
+    },
+    "revision": {
+     "version": 1,
+     "real": 0,
+     "isRepack": false
+    }
+   },
+   "seasonNumber": 4,
+   "episodeNumbers": [
+    17
+   ],
+   "absoluteEpisodeNumbers": [],
+   "specialAbsoluteEpisodeNumbers": [],
+   "languages": [
+    {
+     "id": 0,
+     "name": "Unknown"
+    }
+   ],
+   "fullSeason": false,
+   "isPartialSeason": false,
+   "isMultiSeason": false,
+   "isSeasonExtra": false,
+   "isSplitEpisode": false,
+   "isMiniSeries": false,
+   "special": false,
+   "releaseHash": "",
+   "seasonPart": 0,
+   "releaseTokens": ".720p.HDTV.X264",
+   "isDaily": false,
+   "isAbsoluteNumbering": false,
+   "isPossibleSpecialEpisode": false,
+   "isPossibleSceneSeasonSpecial": false,
+   "releaseType": "singleEpisode"
+  }
+ },
+ {
+  "instance": "sonarr_4k",
+  "title": "Босх: Спадок (S2E1) / Series: Legacy (S2E1) (2023) WEB-DL 1080p Ukr/Eng | sub Eng",
+  "parsedEpisodeInfo": {
+   "releaseTitle": "Босх: Спадок (S2E1) / Series: Legacy (S2E1) (2023) WEB-DL 1080p Ukr/Eng | sub Eng",
+   "seriesTitle": "Series: Legacy",
+   "seriesTitleInfo": {
+    "title": "Series: Legacy",
+    "titleWithoutYear": "Series: Legacy",
+    "year": 0,
+    "allTitles": [
+     "Босх: Спадок",
+     "Series: Legacy"
+    ]
+   },
+   "quality": {
+    "quality": {
+     "id": 3,
+     "name": "WEBDL-1080p",
+     "source": "web",
+     "resolution": 1080
+    },
+    "revision": {
+     "version": 1,
+     "real": 0,
+     "isRepack": false
+    }
+   },
+   "seasonNumber": 2,
+   "episodeNumbers": [
+    1
+   ],
+   "absoluteEpisodeNumbers": [],
+   "specialAbsoluteEpisodeNumbers": [],
+   "languages": [
+    {
+     "id": 30,
+     "name": "Ukrainian"
+    },
+    {
+     "id": 1,
+     "name": "English"
+    }
+   ],
+   "fullSeason": false,
+   "isPartialSeason": false,
+   "isMultiSeason": false,
+   "isSeasonExtra": false,
+   "isSplitEpisode": false,
+   "isMiniSeries": false,
+   "special": false,
+   "releaseHash": "",
+   "seasonPart": 0,
+   "releaseTokens": " (S2E1) (2023) WEB-DL 1080p Ukr/Eng | sub Eng",
+   "isDaily": false,
+   "isAbsoluteNumbering": false,
+   "isPossibleSpecialEpisode": false,
+   "isPossibleSceneSeasonSpecial": false,
+   "releaseType": "singleEpisode"
+  }
+ },
+ {
+  "instance": "sonarr_4k",
+  "title": "Series Title S01-S03 1080p WEB-DL",
+  "parsedEpisodeInfo": {
+   "releaseTitle": "Series Title S01-S03 1080p WEB-DL",
+   "seriesTitle": "Series Title",
+   "seriesTitleInfo": {
+    "title": "Series Title",
+    "titleWithoutYear": "Series Title",
+    "year": 0
+   },
+   "quality": {
+    "quality": {
+     "id": 3,
+     "name": "WEBDL-1080p",
+     "source": "web",
+     "resolution": 1080
+    },
+    "revision": {
+     "version": 1,
+     "real": 0,
+     "isRepack": false
+    }
+   },
+   "seasonNumber": 1,
+   "episodeNumbers": [],
+   "absoluteEpisodeNumbers": [],
+   "specialAbsoluteEpisodeNumbers": [],
+   "languages": [
+    {
+     "id": 0,
+     "name": "Unknown"
+    }
+   ],
+   "fullSeason": true,
+   "isPartialSeason": false,
+   "isMultiSeason": true,
+   "isSeasonExtra": false,
+   "isSplitEpisode": false,
+   "isMiniSeries": false,
+   "special": false,
+   "releaseHash": "",
+   "seasonPart": 0,
+   "releaseTokens": " 1080p WEB-DL",
+   "isDaily": false,
+   "isAbsoluteNumbering": false,
+   "isPossibleSpecialEpisode": false,
+   "isPossibleSceneSeasonSpecial": false,
+   "releaseType": "seasonPack"
+  }
+ },
+ {
+  "instance": "sonarr_4k",
+  "title": "just some words here",
+  "parsedEpisodeInfo": null
+ }
+]

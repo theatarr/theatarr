@@ -1,0 +1,39 @@
+# Debrid providers, tried in this order: RD, then AD, then TB. Adds go through decypharr as bare magnets; the URLs
+# here are for reading each account's torrent list (the registry).
+providers:
+  rd:
+    kind: realdebrid
+    order: 1
+    url: https://api.real-debrid.com/rest/1.0
+    api_key_env: THEATARR_RD_KEY
+    budget: rd-api
+    # No add limit of our own: RD and AD have no cache-check API, so the cached-only check is an add, and a cap would
+    # stop cached adds too once reached. The budget caps the requests (docs/design/router.md "Pacing").
+    # min_gap: RD refuses a second add sooner than 20s after the first (measured; docs/design/router.md "Pacing"). 20s is
+    # the default; written out here.
+    pacing: {adds_per_minute: 0, cooldown: 10m, backoff_max: 2h, min_gap: 20s}
+  ad:
+    kind: alldebrid
+    order: 2
+    url: https://api.alldebrid.com/v4
+    api_key_env: THEATARR_AD_KEY
+    budget: ad-api
+    pacing: {adds_per_minute: 0, cooldown: 5m, backoff_max: 2h}
+    # Healthy uncached AllDebrid jobs show zero progress for about 10 minutes; 25m is the default (docs/design/router.md
+    # "Stalled downloads").
+    stalled_after: 25m
+    # Magnets the account may hold, for Admin › Torrents and a health warning at 90% (report only; default 5000;
+    # zurg's notes say AllDebrid takes at most 1000, docs/design/torrents.md "Account limit").
+    magnet_limit: 5000
+  tb:
+    kind: torbox
+    order: 3
+    url: https://api.torbox.app/v1
+    api_key_env: THEATARR_TB_KEY
+    budget: torbox-api
+    pacing: {adds_per_minute: 0, uncached_adds_per_hour: 60, cooldown: 5m, backoff_max: 2h}  # TorBox's own limit
+
+# theatarr serve lists every provider whose key is set on this interval and updates the content registry (job
+# provider.sync). Default 6h, minimum 15m. A sync costs about one request per provider per 1000-5000 torrents.
+provider_sync:
+  interval: 6h

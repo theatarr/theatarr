@@ -1,0 +1,3 @@
+src/api/schema.ts
+node_modules/
+tsconfig.tsbuildinfo

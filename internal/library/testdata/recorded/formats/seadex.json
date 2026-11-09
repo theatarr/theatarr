@@ -1,0 +1,13 @@
+{
+  "name": "Seadex",
+  "includeCustomFormatWhenRenaming": false,
+  "specifications": [
+    {
+      "name": "SeaDex best",
+      "implementation": "SeaDexSpecification",
+      "negate": false,
+      "required": true,
+      "fields": { "value": "best" }
+    }
+  ]
+}

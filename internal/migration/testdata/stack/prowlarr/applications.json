@@ -1,0 +1,6 @@
+[{"id": 1, "name": "Radarr UHD", "implementation": "Radarr", "syncLevel": "fullSync",
+  "fields": [{"name": "prowlarrUrl", "value": "http://prowlarr:9696"}, {"name": "baseUrl", "value": "{{BASE}}/radarr_uhd"}, {"name": "apiKey", "value": "radarr-key-0123456789abcdef"}]},
+ {"id": 2, "name": "Sonarr Anime", "implementation": "Sonarr", "syncLevel": "fullSync",
+  "fields": [{"name": "baseUrl", "value": "{{BASE}}/sonarr_anime/"}, {"name": "apiKey", "value": "sonarr-key-fedcba9876543210"}]},
+ {"id": 3, "name": "Lidarr", "implementation": "Lidarr", "syncLevel": "addOnly",
+  "fields": [{"name": "baseUrl", "value": "http://lidarr:8686"}, {"name": "apiKey", "value": "lidarr-key-notinspected"}]}]

@@ -1,0 +1,101 @@
+{
+  "id": 159,
+  "name": "Remux lossless audio",
+  "includeCustomFormatWhenRenaming": false,
+  "specifications": [
+    {
+      "name": "Remux",
+      "implementation": "QualityModifierSpecification",
+      "negate": false,
+      "required": true,
+      "fields": [
+        {
+          "order": 0,
+          "name": "value",
+          "label": "Quality Modifier",
+          "value": 5,
+          "type": "select",
+          "advanced": false,
+          "selectOptions": [
+            {
+              "value": 0,
+              "name": "NONE",
+              "order": 0,
+              "dividerAfter": false
+            },
+            {
+              "value": 1,
+              "name": "REGIONAL",
+              "order": 1,
+              "dividerAfter": false
+            },
+            {
+              "value": 2,
+              "name": "SCREENER",
+              "order": 2,
+              "dividerAfter": false
+            },
+            {
+              "value": 3,
+              "name": "RAWHD",
+              "order": 3,
+              "dividerAfter": false
+            },
+            {
+              "value": 4,
+              "name": "BRDISK",
+              "order": 4,
+              "dividerAfter": false
+            },
+            {
+              "value": 5,
+              "name": "REMUX",
+              "order": 5,
+              "dividerAfter": false
+            }
+          ],
+          "privacy": "normal",
+          "isFloat": false
+        }
+      ]
+    },
+    {
+      "name": "Not DD+",
+      "implementation": "ReleaseTitleSpecification",
+      "negate": true,
+      "required": true,
+      "fields": [
+        {
+          "order": 0,
+          "name": "value",
+          "label": "Regular Expression",
+          "helpText": "Custom Format RegEx is Case Insensitive",
+          "value": "\\bDD[P+]|\\b(e[-_. ]?ac-?3)\\b",
+          "type": "textbox",
+          "advanced": false,
+          "privacy": "normal",
+          "isFloat": false
+        }
+      ]
+    },
+    {
+      "name": "Lossless codec",
+      "implementation": "ReleaseTitleSpecification",
+      "negate": false,
+      "required": true,
+      "fields": [
+        {
+          "order": 0,
+          "name": "value",
+          "label": "Regular Expression",
+          "helpText": "Custom Format RegEx is Case Insensitive",
+          "value": "True[ .-]?HD|\\bdts[-_. ]?(ma|hd([-_. ]?ma)?|xll)(\\b|\\d)|\\bdts[-_.: ]?x7?\\b|\\bFLAC(\\b|\\d)|\\bl?PCM(\\b|\\d)",
+          "type": "textbox",
+          "advanced": false,
+          "privacy": "normal",
+          "isFloat": false
+        }
+      ]
+    }
+  ]
+}

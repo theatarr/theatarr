@@ -1,0 +1,7 @@
+{
+  "status": "error",
+  "error": {
+    "code": "MAGNET_INVALID_ID",
+    "message": "This magnet ID does not exists or is invalid"
+  }
+}

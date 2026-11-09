@@ -1,0 +1,14 @@
+# Metadata overrides for the anime engine (docs/design/anime.md "Overrides"), one file per franchise:
+# <slug>.yaml, where the slug is the franchise's in franchises.yaml.
+#
+#   source: <where the order comes from>
+#   moves:      [{entry: KEY[@SxxEyy-SxxEzz], after: KEY[@SxxEyy[-SxxEzz]] | start, why: ...}]   # story order
+#   mappings:   [{entry: KEY, tvdb: <series id>, episodes: "S00E02, S02E01-E12", why: ...}]     # pins a mapping
+#   exclude:    [KEY, ...]                                                                     # out of every order
+#   alt_cuts:   [{name: ..., tvdb: <series id>, entry: KEY, match: <regex>, map: {DC1: S01E01, DC2: [S01E02, S01E03]}}]
+#               # an alternate cut no source numbers: a release matching the name (or match) maps through the table
+#   routes:     [KEY, ...]  and  line_position: first | last
+#               # route order: an alternate's root brings its block, a main-order key the main order up to the next
+#               # route key; the rest of the line goes first (default) or last
+#
+# KEY is al:<anilist id>[#part], adb:<anidb id>, kitsu:<kitsu id> or tvdb:<series>:S00Exx.

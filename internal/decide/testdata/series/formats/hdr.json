@@ -1,0 +1,2 @@
+{"name": "HDR", "specifications": [
+  {"name": "HDR", "implementation": "ReleaseTitleSpecification", "negate": false, "required": false, "fields": {"value": "\\bHDR(10)?\\b"}}]}

@@ -1,0 +1,31 @@
+# Minimal test-only dependencies; the recorded policy omits service configuration.
+egress:
+  check_url: http://127.0.0.1
+  vpn_ips: [127.0.0.1]
+indexers:
+  prowlarr-tpb: {kind: torznab, url: 'http://127.0.0.1', privacy: public}
+  prowlarr-therarbg: {kind: torznab, url: 'http://127.0.0.1', privacy: public}
+  dmm: {kind: dmm, url: 'http://127.0.0.1', privacy: public}
+  dmm-ad: {kind: dmm, url: 'http://127.0.0.1', privacy: public}
+  dmm-tb: {kind: dmm, url: 'http://127.0.0.1', privacy: public}
+  torrentio: {kind: torrentio, url: 'http://127.0.0.1', privacy: public}
+  zilean: {kind: zilean, url: 'http://127.0.0.1', privacy: public}
+  seadex: {kind: seadex, url: 'http://127.0.0.1', privacy: public}
+providers:
+  rd: {kind: realdebrid, order: 1, url: 'http://127.0.0.1', api_key_env: FIXTURE_RD_KEY}
+  ad: {kind: alldebrid, order: 2, url: 'http://127.0.0.1', api_key_env: FIXTURE_AD_KEY}
+  tb: {kind: torbox, order: 3, url: 'http://127.0.0.1', api_key_env: FIXTURE_TB_KEY}
+clients:
+  decypharr: {kind: decypharr, url: 'http://127.0.0.1', callback_view: fixture}
+views:
+  fixture:
+    flavour: radarr
+    path: /radarr
+    versions: [movie-web, movie-remux, anime-movie]
+    api_key_env: FIXTURE_VIEW_KEY
+import:
+  arr:
+    radarr_4k_web: {flavour: radarr, url: 'http://127.0.0.1', api_key_env: FIXTURE_ARR_KEY, version: movie-web}
+    radarr_4k_debrid: {flavour: radarr, url: 'http://127.0.0.1', api_key_env: FIXTURE_ARR_KEY, version: movie-remux}
+    sonarr_4k_debrid: {flavour: sonarr, url: 'http://127.0.0.1', api_key_env: FIXTURE_ARR_KEY, version: tv-2160p}
+    sonarr_anime_debrid: {flavour: sonarr, url: 'http://127.0.0.1', api_key_env: FIXTURE_ARR_KEY, version: anime-tv}

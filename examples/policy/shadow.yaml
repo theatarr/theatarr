@@ -1,0 +1,11 @@
+# The live shadow runner in theatarr serve (docs/design/shadow.md). Every field is optional; these are the
+# defaults. Versions in mode shadow are shadowed, movies and series.
+shadow:
+  import_interval: 15m     # arr.import: incremental theatarr import-arr of import.arr (minimum 5m)
+  rss_interval: 15m        # shadow.rss: one RSS request per torznab feed of the shadow and active versions (default 15m, minimum 10m)
+  rss: true
+  search: true             # shadow.grab: search every indexer of the grab's version once per title
+  searches_per_hour: 20    # cap on shadow searches per clock hour; grabs over it wait for the next hour
+  search_reuse: 6h         # one title's search serves later grabs of the same title (the other version)
+  keep_results: 10         # decided results stored per grab, best first, plus the arr's release
+  link_window: 24h         # an RSS pick with no arr grab of its version after this is "we'd grab, arr didn't"

@@ -1,0 +1,6 @@
+{
+  "status": "success",
+  "data": [
+    {"series": {"id": 900001, "name": "テストアニメ", "slug": "test-anime", "status": {"id": 2, "name": "Ended"}, "year": "2020"}, "movie": null, "episode": null, "people": null, "company": null}
+  ]
+}

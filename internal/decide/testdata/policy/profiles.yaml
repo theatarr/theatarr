@@ -1,0 +1,28 @@
+profiles:
+  remux-2160p:
+    qualities:
+      - Remux-2160p
+      - group: WEB 2160p
+        qualities: [WEBDL-2160p, WEBRip-2160p]
+    cutoff: Remux-2160p
+    min_score: 0
+    cutoff_score: 3000
+    sizes:
+      Remux-2160p: {min: 35, max: 400}
+    formats:
+      Remux Tier 01: 1950
+      WEB Tier 01: 1700
+      TrueHD ATMOS: 500
+      French audio: 10
+      Freeleech: 1
+      LQ: -10000
+  original:
+    language: original
+    qualities: [Remux-2160p, WEBDL-2160p]
+    cutoff: Remux-2160p
+  french:
+    language: French
+    qualities: [Remux-2160p, WEBDL-2160p]
+    cutoff: Remux-2160p
+  shadow:
+    from_arr: radarr_4k_debrid/Remux + WEB 2160p

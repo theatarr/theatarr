@@ -1,0 +1,520 @@
+{
+ "source": "Sonarr src/NzbDrone.Core.Test/ParserTests/ParserFixture.cs @ a6171f0ca",
+ "fixture": "ParserFixture",
+ "cases": [
+  {
+   "id": "ParserFixture/should_parse_series_name/0",
+   "line": 13,
+   "call": "parseSeriesName",
+   "input": "Series Title - 4x05 - Title",
+   "compare": "cleanSeriesTitle",
+   "expect": {
+    "": "seriestitle"
+   }
+  },
+  {
+   "id": "ParserFixture/should_parse_series_name/1",
+   "line": 14,
+   "call": "parseSeriesName",
+   "input": "Series & Title - 4x05 - Title",
+   "compare": "cleanSeriesTitle",
+   "expect": {
+    "": "seriestitle"
+   }
+  },
+  {
+   "id": "ParserFixture/should_parse_series_name/2",
+   "line": 15,
+   "call": "parseSeriesName",
+   "input": "Bad Format",
+   "compare": "cleanSeriesTitle",
+   "expect": {
+    "": "badformat"
+   }
+  },
+  {
+   "id": "ParserFixture/should_parse_series_name/3",
+   "line": 16,
+   "call": "parseSeriesName",
+   "input": "Mad Series - Season 1 [Bluray720p]",
+   "compare": "cleanSeriesTitle",
+   "expect": {
+    "": "madseries"
+   }
+  },
+  {
+   "id": "ParserFixture/should_parse_series_name/4",
+   "line": 17,
+   "call": "parseSeriesName",
+   "input": "Mad Series - Season 1 [Bluray1080p]",
+   "compare": "cleanSeriesTitle",
+   "expect": {
+    "": "madseries"
+   }
+  },
+  {
+   "id": "ParserFixture/should_parse_series_name/5",
+   "line": 18,
+   "call": "parseSeriesName",
+   "input": "The Daily Series -",
+   "compare": "cleanSeriesTitle",
+   "expect": {
+    "": "thedailyseries"
+   }
+  },
+  {
+   "id": "ParserFixture/should_parse_series_name/6",
+   "line": 19,
+   "call": "parseSeriesName",
+   "input": "The Series Bros. (2006)",
+   "compare": "cleanSeriesTitle",
+   "expect": {
+    "": "theseriesbros2006"
+   }
+  },
+  {
+   "id": "ParserFixture/should_parse_series_name/7",
+   "line": 20,
+   "call": "parseSeriesName",
+   "input": "Series (2011)",
+   "compare": "cleanSeriesTitle",
+   "expect": {
+    "": "series2011"
+   }
+  },
+  {
+   "id": "ParserFixture/should_parse_series_name/8",
+   "line": 21,
+   "call": "parseSeriesName",
+   "input": "Series Time S02 720p HDTV x264 CRON",
+   "compare": "cleanSeriesTitle",
+   "expect": {
+    "": "seriestime"
+   }
+  },
+  {
+   "id": "ParserFixture/should_parse_series_name/9",
+   "line": 22,
+   "call": "parseSeriesName",
+   "input": "Series Title 0",
+   "compare": "cleanSeriesTitle",
+   "expect": {
+    "": "seriestitle0"
+   }
+  },
+  {
+   "id": "ParserFixture/should_parse_series_name/10",
+   "line": 23,
+   "call": "parseSeriesName",
+   "input": "Series of the Day",
+   "compare": "cleanSeriesTitle",
+   "expect": {
+    "": "seriesday"
+   }
+  },
+  {
+   "id": "ParserFixture/should_parse_series_name/11",
+   "line": 24,
+   "call": "parseSeriesName",
+   "input": "Series of the Day 2",
+   "compare": "cleanSeriesTitle",
+   "expect": {
+    "": "seriesday2"
+   }
+  },
+  {
+   "id": "ParserFixture/should_parse_series_name/12",
+   "line": 25,
+   "call": "parseSeriesName",
+   "input": "[ www.Torrenting.com ] - Series.S03E14.720p.HDTV.X264-DIMENSION",
+   "compare": "cleanSeriesTitle",
+   "expect": {
+    "": "series"
+   }
+  },
+  {
+   "id": "ParserFixture/should_parse_series_name/13",
+   "line": 26,
+   "call": "parseSeriesName",
+   "input": "www.Torrenting.com - Series.S03E14.720p.HDTV.X264-DIMENSION",
+   "compare": "cleanSeriesTitle",
+   "expect": {
+    "": "series"
+   }
+  },
+  {
+   "id": "ParserFixture/should_parse_series_name/14",
+   "line": 27,
+   "call": "parseSeriesName",
+   "input": "Series S02E09 HDTV x264-2HD [eztv]-[rarbg.com]",
+   "compare": "cleanSeriesTitle",
+   "expect": {
+    "": "series"
+   }
+  },
+  {
+   "id": "ParserFixture/should_parse_series_name/15",
+   "line": 28,
+   "call": "parseSeriesName",
+   "input": "Series.911.S01.DVDRip.DD2.0.x264-DEEP",
+   "compare": "cleanSeriesTitle",
+   "expect": {
+    "": "series 911"
+   }
+  },
+  {
+   "id": "ParserFixture/should_parse_series_name/16",
+   "line": 29,
+   "call": "parseSeriesName",
+   "input": "www.Torrenting.org - Series.S03E14.720p.HDTV.X264-DIMENSION",
+   "compare": "cleanSeriesTitle",
+   "expect": {
+    "": "series"
+   }
+  },
+  {
+   "id": "ParserFixture/should_parse_series_title_info/0",
+   "line": 36,
+   "call": "parseTitle",
+   "input": "Series S03E14 720p HDTV X264-DIMENSION",
+   "expect": {
+    "seriesTitleInfo.titleWithoutYear": "Series",
+    "seriesTitleInfo.year": 0
+   }
+  },
+  {
+   "id": "ParserFixture/should_parse_series_title_info/1",
+   "line": 37,
+   "call": "parseTitle",
+   "input": "Series.S03E14.720p.HDTV.X264-DIMENSION",
+   "expect": {
+    "seriesTitleInfo.titleWithoutYear": "Series",
+    "seriesTitleInfo.year": 0
+   }
+  },
+  {
+   "id": "ParserFixture/should_parse_series_title_info/2",
+   "line": 38,
+   "call": "parseTitle",
+   "input": "Series-S03E14-720p-HDTV-X264-DIMENSION",
+   "expect": {
+    "seriesTitleInfo.titleWithoutYear": "Series",
+    "seriesTitleInfo.year": 0
+   }
+  },
+  {
+   "id": "ParserFixture/should_parse_series_title_info/3",
+   "line": 39,
+   "call": "parseTitle",
+   "input": "Series_S03E14_720p_HDTV_X264-DIMENSION",
+   "expect": {
+    "seriesTitleInfo.titleWithoutYear": "Series",
+    "seriesTitleInfo.year": 0
+   }
+  },
+  {
+   "id": "ParserFixture/should_parse_series_title_info/4",
+   "line": 40,
+   "call": "parseTitle",
+   "input": "Series 2022 S03E14 720p HDTV X264-DIMENSION",
+   "expect": {
+    "seriesTitleInfo.titleWithoutYear": "Series",
+    "seriesTitleInfo.year": 2022
+   }
+  },
+  {
+   "id": "ParserFixture/should_parse_series_title_info/5",
+   "line": 41,
+   "call": "parseTitle",
+   "input": "Series (2022) S03E14 720p HDTV X264-DIMENSION",
+   "expect": {
+    "seriesTitleInfo.titleWithoutYear": "Series",
+    "seriesTitleInfo.year": 2022
+   }
+  },
+  {
+   "id": "ParserFixture/should_parse_series_title_info/6",
+   "line": 42,
+   "call": "parseTitle",
+   "input": "Series.2022.S03E14.720p.HDTV.X264-DIMENSION",
+   "expect": {
+    "seriesTitleInfo.titleWithoutYear": "Series",
+    "seriesTitleInfo.year": 2022
+   }
+  },
+  {
+   "id": "ParserFixture/should_parse_series_title_info/7",
+   "line": 43,
+   "call": "parseTitle",
+   "input": "Series-2022-S03E14-720p-HDTV-X264-DIMENSION",
+   "expect": {
+    "seriesTitleInfo.titleWithoutYear": "Series",
+    "seriesTitleInfo.year": 2022
+   }
+  },
+  {
+   "id": "ParserFixture/should_parse_series_title_info/8",
+   "line": 44,
+   "call": "parseTitle",
+   "input": "Series_2022_S03E14_720p_HDTV_X264-DIMENSION",
+   "expect": {
+    "seriesTitleInfo.titleWithoutYear": "Series",
+    "seriesTitleInfo.year": 2022
+   }
+  },
+  {
+   "id": "ParserFixture/should_parse_series_title_info/9",
+   "line": 45,
+   "call": "parseTitle",
+   "input": "1234 S03E14 720p HDTV X264-DIMENSION",
+   "expect": {
+    "seriesTitleInfo.titleWithoutYear": "1234",
+    "seriesTitleInfo.year": 0
+   }
+  },
+  {
+   "id": "ParserFixture/should_parse_series_title_info/10",
+   "line": 46,
+   "call": "parseTitle",
+   "input": "1234.S03E14.720p.HDTV.X264-DIMENSION",
+   "expect": {
+    "seriesTitleInfo.titleWithoutYear": "1234",
+    "seriesTitleInfo.year": 0
+   }
+  },
+  {
+   "id": "ParserFixture/should_parse_series_title_info/11",
+   "line": 47,
+   "call": "parseTitle",
+   "input": "1234-S03E14-720p-HDTV-X264-DIMENSION",
+   "expect": {
+    "seriesTitleInfo.titleWithoutYear": "1234",
+    "seriesTitleInfo.year": 0
+   }
+  },
+  {
+   "id": "ParserFixture/should_parse_series_title_info/12",
+   "line": 48,
+   "call": "parseTitle",
+   "input": "1234_S03E14_720p_HDTV_X264-DIMENSION",
+   "expect": {
+    "seriesTitleInfo.titleWithoutYear": "1234",
+    "seriesTitleInfo.year": 0
+   }
+  },
+  {
+   "id": "ParserFixture/should_parse_series_title_info/13",
+   "line": 49,
+   "call": "parseTitle",
+   "input": "1234 2022 S03E14 720p HDTV X264-DIMENSION",
+   "expect": {
+    "seriesTitleInfo.titleWithoutYear": "1234",
+    "seriesTitleInfo.year": 2022
+   }
+  },
+  {
+   "id": "ParserFixture/should_parse_series_title_info/14",
+   "line": 50,
+   "call": "parseTitle",
+   "input": "1234 (2022) S03E14 720p HDTV X264-DIMENSION",
+   "expect": {
+    "seriesTitleInfo.titleWithoutYear": "1234",
+    "seriesTitleInfo.year": 2022
+   }
+  },
+  {
+   "id": "ParserFixture/should_parse_series_title_info/15",
+   "line": 51,
+   "call": "parseTitle",
+   "input": "1234.2022.S03E14.720p.HDTV.X264-DIMENSION",
+   "expect": {
+    "seriesTitleInfo.titleWithoutYear": "1234",
+    "seriesTitleInfo.year": 2022
+   }
+  },
+  {
+   "id": "ParserFixture/should_parse_series_title_info/16",
+   "line": 52,
+   "call": "parseTitle",
+   "input": "1234-2022-S03E14-720p-HDTV-X264-DIMENSION",
+   "expect": {
+    "seriesTitleInfo.titleWithoutYear": "1234",
+    "seriesTitleInfo.year": 2022
+   }
+  },
+  {
+   "id": "ParserFixture/should_parse_series_title_info/17",
+   "line": 53,
+   "call": "parseTitle",
+   "input": "1234_2022_S03E14_720p_HDTV_X264-DIMENSION",
+   "expect": {
+    "seriesTitleInfo.titleWithoutYear": "1234",
+    "seriesTitleInfo.year": 2022
+   }
+  },
+  {
+   "id": "ParserFixture/should_remove_accents_from_title/0",
+   "line": 62,
+   "call": "cleanSeriesTitle",
+   "input": "Seriàes",
+   "expect": {
+    "": "seriaes"
+   }
+  },
+  {
+   "id": "ParserFixture/should_clean_up_invalid_path_characters/0",
+   "line": 69,
+   "call": "parseTitle",
+   "input": "Sonar TV - Series Title : 02 Road From Code [S04].mp4",
+   "expect": {}
+  },
+  {
+   "id": "ParserFixture/should_remove_request_info_from_title/0",
+   "line": 75,
+   "call": "parseTitle",
+   "input": "[scnzbefnet][509103] 2.Developers.Series.S03E18.720p.HDTV.X264-DIMENSION",
+   "expect": {
+    "seriesTitle": "2 Developers Series"
+   }
+  },
+  {
+   "id": "ParserFixture/should_parse_quality_from_extension/0",
+   "line": 81,
+   "call": "parseTitleQualityDetection",
+   "input": "Series.S01E02.Chained.Title.mkv",
+   "expect": {
+    "sourceDetectionSource": "extension",
+    "resolutionDetectionSource": "extension"
+   },
+   "not": {
+    "quality.id": 0
+   }
+  },
+  {
+   "id": "ParserFixture/should_parse_quality_from_extension/1",
+   "line": 82,
+   "call": "parseTitleQualityDetection",
+   "input": "Show - S01E01 - Title.avi",
+   "expect": {
+    "sourceDetectionSource": "extension",
+    "resolutionDetectionSource": "extension"
+   },
+   "not": {
+    "quality.id": 0
+   }
+  },
+  {
+   "id": "ParserFixture/should_parse_releasetitle/0",
+   "line": 90,
+   "call": "parseTitle",
+   "input": "Series.S01E02.Chained.Title.mkv",
+   "expect": {
+    "releaseTitle": "Series.S01E02.Chained.Title"
+   }
+  },
+  {
+   "id": "ParserFixture/should_parse_multiple_series_titles/0",
+   "line": 97,
+   "call": "parseTitle",
+   "input": "Босх: Спадок (S2E1) / Series: Legacy (S2E1) (2023) WEB-DL 1080p Ukr/Eng | sub Eng",
+   "expect": {
+    "seriesTitleInfo.allTitles.#": 2
+   },
+   "contains": {
+    "seriesTitleInfo.allTitles": [
+     "Босх: Спадок",
+     "Series: Legacy"
+    ]
+   }
+  },
+  {
+   "id": "ParserFixture/should_parse_multiple_series_titles/1",
+   "line": 98,
+   "call": "parseTitle",
+   "input": "Босх: Спадок / Series: Legacy / S2E1-4 of 10 (2023) WEB-DL 1080p Ukr/Eng | sub Eng",
+   "expect": {
+    "seriesTitleInfo.allTitles.#": 2
+   },
+   "contains": {
+    "seriesTitleInfo.allTitles": [
+     "Босх: Спадок",
+     "Series: Legacy"
+    ]
+   }
+  },
+  {
+   "id": "ParserFixture/should_parse_multiple_series_titles/2",
+   "line": 99,
+   "call": "parseTitle",
+   "input": "Босх: Спадок AKA Series: Legacy S02 1080p NF WEB-DL Dual- Audio DD+ 5.1 Atmos H.264-APEX",
+   "expect": {
+    "seriesTitleInfo.allTitles.#": 2
+   },
+   "contains": {
+    "seriesTitleInfo.allTitles": [
+     "Босх: Спадок",
+     "Series: Legacy"
+    ]
+   }
+  },
+  {
+   "id": "ParserFixture/should_parse_multiple_series_titles/3",
+   "line": 100,
+   "call": "parseTitle",
+   "input": "Босх.Спадок.AKA.Series.Legacy.S02.1080p.NF.WEB-DL.DUAL.DDP5.1.Atmos.H.264-APEX",
+   "expect": {
+    "seriesTitleInfo.allTitles.#": 2
+   },
+   "contains": {
+    "seriesTitleInfo.allTitles": [
+     "Босх Спадок",
+     "Series Legacy"
+    ]
+   }
+  },
+  {
+   "id": "ParserFixture/should_parse_multiple_series_titles/4",
+   "line": 101,
+   "call": "parseTitle",
+   "input": "[Judas] Series E (Series J) (Season 04) [1080p][HEVC x265 10bit][Dual-Audio][Multi-Subs] (Batch)",
+   "expect": {
+    "seriesTitleInfo.allTitles.#": 2
+   },
+   "contains": {
+    "seriesTitleInfo.allTitles": [
+     "Series E",
+     "Series J"
+    ]
+   }
+  },
+  {
+   "id": "ParserFixture/should_parse_multiple_series_titles/5",
+   "line": 102,
+   "call": "parseTitle",
+   "input": "Serie / Series [S01E02] [MULTI] [1080p] [HMAX] [WEB-DL] [H.264] [DDP5.1.Atmos-K83] [Lektor i Napisy PL]",
+   "expect": {
+    "seriesTitleInfo.allTitles.#": 2
+   },
+   "contains": {
+    "seriesTitleInfo.allTitles": [
+     "Serie",
+     "Series"
+    ]
+   }
+  },
+  {
+   "id": "ParserFixture/should_parse_language_after_parsing_title/0",
+   "line": 109,
+   "call": "parseTitle",
+   "input": "[Reza] Series in Russian - S01E08 [WEBRip 1080p HEVC AAC] (Dual Audio) (Tokidoki Bosotto Russiago de Dereru Tonari no Alya-san)",
+   "expect": {
+    "languages.#": 1
+   },
+   "contains": {
+    "languages.#.name": [
+     "Unknown"
+    ]
+   }
+  }
+ ]
+}

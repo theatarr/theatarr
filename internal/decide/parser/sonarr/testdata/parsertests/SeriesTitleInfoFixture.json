@@ -1,0 +1,52 @@
+{
+ "source": "Sonarr src/NzbDrone.Core.Test/ParserTests/SeriesTitleInfoFixture.cs @ cab419a",
+ "fixture": "SeriesTitleInfoFixture",
+ "cases": [
+  {
+   "id": "SeriesTitleInfoFixture/should_have_year_zero_when_title_doesnt_have_a_year/0",
+   "line": 11,
+   "call": "parseTitle",
+   "input": "Series.Title.S01E01.pilot.720p.hdtv",
+   "expect": {
+    "seriesTitleInfo.year": 0
+   }
+  },
+  {
+   "id": "SeriesTitleInfoFixture/should_have_same_title_for_title_and_title_without_year_when_title_doesnt_have_a_year/0",
+   "line": 21,
+   "call": "parseTitle",
+   "input": "Series.Title.S01E01.pilot.720p.hdtv",
+   "expect": {
+    "seriesTitleInfo.title": "Series Title",
+    "seriesTitleInfo.titleWithoutYear": "Series Title"
+   }
+  },
+  {
+   "id": "SeriesTitleInfoFixture/should_have_year_when_title_has_a_year/0",
+   "line": 31,
+   "call": "parseTitle",
+   "input": "Series.Title.2004.S01E01.pilot.720p.hdtv",
+   "expect": {
+    "seriesTitleInfo.year": 2004
+   }
+  },
+  {
+   "id": "SeriesTitleInfoFixture/should_have_year_in_title_when_title_has_a_year/0",
+   "line": 41,
+   "call": "parseTitle",
+   "input": "Series.Title.2004.S01E01.pilot.720p.hdtv",
+   "expect": {
+    "seriesTitleInfo.title": "Series Title 2004"
+   }
+  },
+  {
+   "id": "SeriesTitleInfoFixture/should_title_without_year_should_not_contain_year/0",
+   "line": 51,
+   "call": "parseTitle",
+   "input": "Series.Title.2004.S01E01.pilot.720p.hdtv",
+   "expect": {
+    "seriesTitleInfo.titleWithoutYear": "Series Title"
+   }
+  }
+ ]
+}

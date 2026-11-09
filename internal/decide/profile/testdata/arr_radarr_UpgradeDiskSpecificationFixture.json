@@ -1,0 +1,486 @@
+{
+ "source": "Radarr src/NzbDrone.Core.Test/DecisionEngineTests/UpgradeDiskSpecificationFixture.cs @ a96bf7c",
+ "cases": [
+  {
+   "fixture": "UpgradeDiskSpecificationFixture",
+   "test": "should_return_true_if_movie_has_no_existing_file",
+   "spec": "UpgradeDisk",
+   "profile": {
+    "cutoff": "Bluray-1080p",
+    "upgradeAllowed": true
+   },
+   "release": {
+    "quality": {
+     "quality": "DVD",
+     "version": 2
+    }
+   },
+   "expect": {
+    "accepted": true
+   },
+   "note": "GivenProfile resets the format items to GetSampleFormatItems() with no formats given, so they are empty unless set after",
+   "flavour": "radarr"
+  },
+  {
+   "fixture": "UpgradeDiskSpecificationFixture",
+   "test": "should_be_upgradable_if_only_movie_is_upgradable",
+   "spec": "UpgradeDisk",
+   "profile": {
+    "cutoff": "Bluray-1080p",
+    "upgradeAllowed": true
+   },
+   "media": {
+    "file": {
+     "quality": {
+      "quality": "SDTV"
+     }
+    }
+   },
+   "release": {
+    "quality": {
+     "quality": "DVD",
+     "version": 2
+    }
+   },
+   "expect": {
+    "accepted": true
+   },
+   "note": "GivenProfile resets the format items to GetSampleFormatItems() with no formats given, so they are empty unless set after",
+   "flavour": "radarr"
+  },
+  {
+   "fixture": "UpgradeDiskSpecificationFixture",
+   "test": "should_not_be_upgradable_if_qualities_are_the_same",
+   "spec": "UpgradeDisk",
+   "profile": {
+    "cutoff": "Bluray-1080p",
+    "upgradeAllowed": true
+   },
+   "media": {
+    "file": {
+     "quality": {
+      "quality": "WEBDL-1080p"
+     }
+    }
+   },
+   "release": {
+    "quality": {
+     "quality": "WEBDL-1080p"
+    }
+   },
+   "expect": {
+    "accepted": false
+   },
+   "note": "GivenProfile resets the format items to GetSampleFormatItems() with no formats given, so they are empty unless set after",
+   "flavour": "radarr"
+  },
+  {
+   "fixture": "UpgradeDiskSpecificationFixture",
+   "test": "should_not_be_upgradable_if_revision_downgrade_if_propers_are_preferred",
+   "spec": "UpgradeDisk",
+   "profile": {
+    "cutoff": "Bluray-1080p",
+    "upgradeAllowed": true
+   },
+   "media": {
+    "file": {
+     "quality": {
+      "quality": "WEBDL-1080p",
+      "version": 2
+     }
+    }
+   },
+   "release": {
+    "quality": {
+     "quality": "WEBDL-1080p"
+    }
+   },
+   "expect": {
+    "accepted": false
+   },
+   "note": "GivenProfile resets the format items to GetSampleFormatItems() with no formats given, so they are empty unless set after",
+   "flavour": "radarr"
+  },
+  {
+   "fixture": "UpgradeDiskSpecificationFixture",
+   "test": "should_return_false_if_current_movie_is_equal_to_cutoff",
+   "spec": "UpgradeDisk",
+   "profile": {
+    "cutoff": "HDTV-720p",
+    "upgradeAllowed": true
+   },
+   "media": {
+    "file": {
+     "quality": {
+      "quality": "HDTV-720p",
+      "version": 2
+     }
+    }
+   },
+   "release": {
+    "quality": {
+     "quality": "DVD",
+     "version": 2
+    }
+   },
+   "expect": {
+    "accepted": false
+   },
+   "note": "GivenProfile resets the format items to GetSampleFormatItems() with no formats given, so they are empty unless set after",
+   "flavour": "radarr"
+  },
+  {
+   "fixture": "UpgradeDiskSpecificationFixture",
+   "test": "should_return_false_if_current_movie_is_greater_than_cutoff",
+   "spec": "UpgradeDisk",
+   "profile": {
+    "cutoff": "HDTV-720p",
+    "upgradeAllowed": true
+   },
+   "media": {
+    "file": {
+     "quality": {
+      "quality": "Bluray-1080p",
+      "version": 2
+     }
+    }
+   },
+   "release": {
+    "quality": {
+     "quality": "DVD",
+     "version": 2
+    }
+   },
+   "expect": {
+    "accepted": false
+   },
+   "note": "GivenProfile resets the format items to GetSampleFormatItems() with no formats given, so they are empty unless set after",
+   "flavour": "radarr"
+  },
+  {
+   "fixture": "UpgradeDiskSpecificationFixture",
+   "test": "should_return_true_when_new_movie_is_proper_but_existing_is_not",
+   "spec": "UpgradeDisk",
+   "profile": {
+    "cutoff": "HDTV-720p",
+    "upgradeAllowed": true
+   },
+   "media": {
+    "file": {
+     "quality": {
+      "quality": "HDTV-720p"
+     }
+    }
+   },
+   "release": {
+    "quality": {
+     "quality": "HDTV-720p",
+     "version": 2
+    }
+   },
+   "expect": {
+    "accepted": true
+   },
+   "note": "GivenProfile resets the format items to GetSampleFormatItems() with no formats given, so they are empty unless set after",
+   "flavour": "radarr"
+  },
+  {
+   "fixture": "UpgradeDiskSpecificationFixture",
+   "test": "should_return_false_if_cutoff_is_met_and_quality_is_higher",
+   "spec": "UpgradeDisk",
+   "profile": {
+    "cutoff": "HDTV-720p",
+    "upgradeAllowed": true
+   },
+   "media": {
+    "file": {
+     "quality": {
+      "quality": "HDTV-720p",
+      "version": 2
+     }
+    }
+   },
+   "release": {
+    "quality": {
+     "quality": "Bluray-1080p",
+     "version": 2
+    }
+   },
+   "expect": {
+    "accepted": false
+   },
+   "note": "GivenProfile resets the format items to GetSampleFormatItems() with no formats given, so they are empty unless set after",
+   "flavour": "radarr"
+  },
+  {
+   "fixture": "UpgradeDiskSpecificationFixture",
+   "test": "should_return_false_if_quality_cutoff_is_met_and_quality_is_higher_but_language_is_met",
+   "spec": "UpgradeDisk",
+   "profile": {
+    "cutoff": "HDTV-720p",
+    "upgradeAllowed": true
+   },
+   "media": {
+    "file": {
+     "quality": {
+      "quality": "HDTV-720p",
+      "version": 2
+     }
+    }
+   },
+   "release": {
+    "quality": {
+     "quality": "Bluray-1080p",
+     "version": 2
+    }
+   },
+   "expect": {
+    "accepted": false
+   },
+   "note": "GivenProfile resets the format items to GetSampleFormatItems() with no formats given, so they are empty unless set after",
+   "flavour": "radarr"
+  },
+  {
+   "fixture": "UpgradeDiskSpecificationFixture",
+   "test": "should_return_false_if_cutoff_is_met_and_quality_is_higher_and_language_is_higher",
+   "spec": "UpgradeDisk",
+   "profile": {
+    "cutoff": "HDTV-720p",
+    "upgradeAllowed": true
+   },
+   "media": {
+    "file": {
+     "quality": {
+      "quality": "HDTV-720p",
+      "version": 2
+     }
+    }
+   },
+   "release": {
+    "quality": {
+     "quality": "Bluray-1080p",
+     "version": 2
+    }
+   },
+   "expect": {
+    "accepted": false
+   },
+   "note": "GivenProfile resets the format items to GetSampleFormatItems() with no formats given, so they are empty unless set after",
+   "flavour": "radarr"
+  },
+  {
+   "fixture": "UpgradeDiskSpecificationFixture",
+   "test": "should_return_true_if_cutoff_is_not_met_and_new_quality_is_higher_and_language_is_higher",
+   "spec": "UpgradeDisk",
+   "profile": {
+    "cutoff": "HDTV-720p",
+    "upgradeAllowed": true
+   },
+   "media": {
+    "file": {
+     "quality": {
+      "quality": "SDTV",
+      "version": 2
+     }
+    }
+   },
+   "release": {
+    "quality": {
+     "quality": "Bluray-1080p",
+     "version": 2
+    }
+   },
+   "expect": {
+    "accepted": true
+   },
+   "note": "GivenProfile resets the format items to GetSampleFormatItems() with no formats given, so they are empty unless set after",
+   "flavour": "radarr"
+  },
+  {
+   "fixture": "UpgradeDiskSpecificationFixture",
+   "test": "should_return_true_if_cutoff_is_not_met_and_language_is_higher",
+   "spec": "UpgradeDisk",
+   "profile": {
+    "cutoff": "HDTV-720p",
+    "upgradeAllowed": true
+   },
+   "media": {
+    "file": {
+     "quality": {
+      "quality": "SDTV",
+      "version": 2
+     }
+    }
+   },
+   "release": {
+    "quality": {
+     "quality": "DVD",
+     "version": 2
+    }
+   },
+   "expect": {
+    "accepted": true
+   },
+   "note": "GivenProfile resets the format items to GetSampleFormatItems() with no formats given, so they are empty unless set after",
+   "flavour": "radarr"
+  },
+  {
+   "fixture": "UpgradeDiskSpecificationFixture",
+   "test": "should_return_false_if_custom_formats_is_met_and_quality_and_format_higher",
+   "spec": "UpgradeDisk",
+   "profile": {
+    "cutoff": "HDTV-720p",
+    "upgradeAllowed": true
+   },
+   "media": {
+    "file": {
+     "quality": {
+      "quality": "HDTV-720p"
+     }
+    }
+   },
+   "release": {
+    "quality": {
+     "quality": "Bluray-1080p"
+    },
+    "formats": [
+     "My Format"
+    ]
+   },
+   "expect": {
+    "accepted": false
+   },
+   "note": "GivenProfile resets the format items to GetSampleFormatItems() with no formats given, so they are empty unless set after",
+   "flavour": "radarr"
+  },
+  {
+   "fixture": "UpgradeDiskSpecificationFixture",
+   "test": "should_return_true_if_cutoffs_are_met_but_is_a_revision_upgrade",
+   "spec": "UpgradeDisk",
+   "profile": {
+    "cutoff": "HDTV-1080p",
+    "upgradeAllowed": true
+   },
+   "media": {
+    "file": {
+     "quality": {
+      "quality": "WEBDL-1080p"
+     }
+    }
+   },
+   "release": {
+    "quality": {
+     "quality": "WEBDL-1080p",
+     "version": 2
+    }
+   },
+   "expect": {
+    "accepted": true
+   },
+   "note": "GivenProfile resets the format items to GetSampleFormatItems() with no formats given, so they are empty unless set after",
+   "flavour": "radarr"
+  },
+  {
+   "fixture": "UpgradeDiskSpecificationFixture",
+   "test": "should_return_false_if_quality_profile_does_not_allow_upgrades_but_cutoff_is_set_to_highest_quality",
+   "spec": "UpgradeDisk",
+   "profile": {
+    "cutoff": "Raw-HD",
+    "upgradeAllowed": false
+   },
+   "media": {
+    "file": {
+     "quality": {
+      "quality": "WEBDL-1080p"
+     }
+    }
+   },
+   "release": {
+    "quality": {
+     "quality": "Bluray-1080p"
+    }
+   },
+   "expect": {
+    "accepted": false
+   },
+   "note": "GivenProfile resets the format items to GetSampleFormatItems() with no formats given, so they are empty unless set after",
+   "flavour": "radarr"
+  },
+  {
+   "fixture": "UpgradeDiskSpecificationFixture",
+   "test": "should_return_false_if_quality_profile_does_not_allow_upgrades_but_format_cutoff_is_above_current_score",
+   "spec": "UpgradeDisk",
+   "profile": {
+    "cutoff": "SDTV",
+    "upgradeAllowed": false,
+    "cutoffFormatScore": 10000,
+    "formatItems": [
+     {
+      "name": "My Format",
+      "score": 50
+     }
+    ]
+   },
+   "media": {
+    "file": {
+     "quality": {
+      "quality": "WEBDL-1080p"
+     }
+    }
+   },
+   "release": {
+    "quality": {
+     "quality": "WEBDL-1080p"
+    },
+    "formats": [
+     "My Format"
+    ]
+   },
+   "expect": {
+    "accepted": false
+   },
+   "note": "GivenProfile resets the format items to GetSampleFormatItems() with no formats given, so they are empty unless set after",
+   "flavour": "radarr"
+  },
+  {
+   "fixture": "UpgradeDiskSpecificationFixture",
+   "test": "should_return_false_if_quality_profile_does_not_allow_upgrades_but_format_cutoff_is_above_current_score_and_is_revision_upgrade",
+   "spec": "UpgradeDisk",
+   "profile": {
+    "cutoff": "SDTV",
+    "upgradeAllowed": false,
+    "cutoffFormatScore": 10000,
+    "formatItems": [
+     {
+      "name": "My Format",
+      "score": 50
+     }
+    ]
+   },
+   "config": {
+    "propers": "doNotPrefer"
+   },
+   "media": {
+    "file": {
+     "quality": {
+      "quality": "WEBDL-1080p"
+     }
+    }
+   },
+   "release": {
+    "quality": {
+     "quality": "WEBDL-1080p",
+     "version": 2
+    },
+    "formats": [
+     "My Format"
+    ]
+   },
+   "expect": {
+    "accepted": false
+   },
+   "note": "GivenProfile resets the format items to GetSampleFormatItems() with no formats given, so they are empty unless set after",
+   "flavour": "radarr"
+  }
+ ]
+}

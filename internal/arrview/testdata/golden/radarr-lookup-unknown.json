@@ -1,0 +1,24 @@
+[
+  {
+    "added": "0001-01-01T00:00:00Z",
+    "alternateTitles": [],
+    "genres": [],
+    "images": [],
+    "isAvailable": false,
+    "keywords": [],
+    "minimumAvailability": "released",
+    "monitored": true,
+    "movieFileId": 0,
+    "popularity": 0,
+    "qualityProfileId": 0,
+    "ratings": {},
+    "runtime": 0,
+    "secondaryYearSourceId": 0,
+    "status": "announced",
+    "tags": [],
+    "title": "",
+    "titleSlug": "555",
+    "tmdbId": 555,
+    "year": 0
+  }
+]

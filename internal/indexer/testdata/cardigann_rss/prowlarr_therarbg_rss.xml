@@ -1,0 +1,46 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- Hand-written in the shape Prowlarr writes (NewznabResults.cs), as Prowlarr's RSS of the TheRARBG indexer would list
+     the items of the site fixture next to it (cardigann_rss_test.go). Titles, hashes and links are made up. -->
+<rss version="1.0" xmlns:atom="http://www.w3.org/2005/Atom" xmlns:torznab="http://torznab.com/schemas/2015/feed">
+  <channel>
+    <atom:link rel="self" type="application/rss+xml" />
+    <title>Prowlarr</title>
+    <item>
+      <title>Alien.Romulus.2024.1080p.WEB-DL.DDP5.1.H.264-FLUX</title>
+      <description />
+      <guid>http://therarbg.test/post-detail/9100003/alien.romulus.2024.1080p.web-dl.ddp5.1.h.264-flux/</guid>
+      <prowlarrindexer id="7" type="public">TheRARBG</prowlarrindexer>
+      <comments>http://therarbg.test/post-detail/9100003/alien.romulus.2024.1080p.web-dl.ddp5.1.h.264-flux/</comments>
+      <pubDate>Thu, 29 Oct 2026 10:05:00 +0000</pubDate>
+      <size>6871947673</size>
+      <link>http://prowlarr.test/7/download?apikey=PLACEHOLDER&amp;link=b1b1b1b1</link>
+      <category>2000</category>
+      <enclosure url="http://prowlarr.test/7/download?apikey=PLACEHOLDER&amp;link=b1b1b1b1" length="6871947673" type="application/x-bittorrent" />
+      <torznab:attr name="category" value="2000" />
+      <torznab:attr name="imdb" value="18412256" />
+      <torznab:attr name="seeders" value="2400" />
+      <torznab:attr name="peers" value="2710" />
+      <torznab:attr name="infohash" value="B1B1B1B1B1B1B1B1B1B1B1B1B1B1B1B1B1B1B1B1" />
+      <torznab:attr name="downloadvolumefactor" value="0" />
+      <torznab:attr name="uploadvolumefactor" value="1" />
+    </item>
+    <item>
+      <title>The.Show.S02E05.2160p.WEB.H265-GRP</title>
+      <description />
+      <guid>http://therarbg.test/post-detail/9100001/the.show.s02e05.2160p.web.h265-grp/</guid>
+      <prowlarrindexer id="7" type="public">TheRARBG</prowlarrindexer>
+      <comments>http://therarbg.test/post-detail/9100001/the.show.s02e05.2160p.web.h265-grp/</comments>
+      <pubDate>Thu, 29 Oct 2026 09:43:20 +0000</pubDate>
+      <size>4294967296</size>
+      <link>http://prowlarr.test/7/download?apikey=PLACEHOLDER&amp;link=b3b3b3b3</link>
+      <category>5000</category>
+      <enclosure url="http://prowlarr.test/7/download?apikey=PLACEHOLDER&amp;link=b3b3b3b3" length="4294967296" type="application/x-bittorrent" />
+      <torznab:attr name="category" value="5000" />
+      <torznab:attr name="seeders" value="300" />
+      <torznab:attr name="peers" value="312" />
+      <torznab:attr name="infohash" value="B3B3B3B3B3B3B3B3B3B3B3B3B3B3B3B3B3B3B3B3" />
+      <torznab:attr name="downloadvolumefactor" value="0" />
+      <torznab:attr name="uploadvolumefactor" value="1" />
+    </item>
+  </channel>
+</rss>

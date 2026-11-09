@@ -1,0 +1,9 @@
+{
+  "trash_id": "bbbb0000000000000000000000000001",
+  "name": "WEB",
+  "trash_score_set": "anime-sonarr",
+  "minFormatScore": 0,
+  "cutoffFormatScore": 10000,
+  "minUpgradeFormatScore": 1,
+  "formatItems": {"WEB Tier": "aaaa0000000000000000000000000001", "Not Original": "aaaa0000000000000000000000000003"}
+}

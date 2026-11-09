@@ -1,0 +1,82 @@
+{
+ "source": "Sonarr src/NzbDrone.Core.Test/DecisionEngineTests/MaximumSizeSpecificationFixture.cs @ cab419a",
+ "cases": [
+  {
+   "test": "should_return_true_when_maximum_size_is_set_to_zero",
+   "spec": "MaximumSize",
+   "config": {
+    "maximumSize": 0
+   },
+   "release": {
+    "size": 1048576000
+   },
+   "expect": {
+    "accepted": true
+   },
+   "flavour": "sonarr",
+   "fixture": "MaximumSizeSpecificationFixture"
+  },
+  {
+   "test": "should_return_true_when_size_is_smaller_than_maximum_size",
+   "spec": "MaximumSize",
+   "config": {
+    "maximumSize": 2000
+   },
+   "release": {
+    "size": 2096103424
+   },
+   "expect": {
+    "accepted": true
+   },
+   "flavour": "sonarr",
+   "fixture": "MaximumSizeSpecificationFixture"
+  },
+  {
+   "test": "should_return_true_when_size_is_equals_to_maximum_size",
+   "spec": "MaximumSize",
+   "config": {
+    "maximumSize": 2000
+   },
+   "release": {
+    "size": 2097152000
+   },
+   "expect": {
+    "accepted": true
+   },
+   "flavour": "sonarr",
+   "fixture": "MaximumSizeSpecificationFixture"
+  },
+  {
+   "test": "should_return_false_when_size_is_bigger_than_maximum_size",
+   "spec": "MaximumSize",
+   "config": {
+    "maximumSize": 2000
+   },
+   "release": {
+    "size": 2098200576
+   },
+   "expect": {
+    "accepted": false,
+    "reason": "MaximumSizeExceeded",
+    "message": "2.0 GB is too big, maximum size is 2.0 GB (Settings->Indexers->Maximum Size)"
+   },
+   "flavour": "sonarr",
+   "fixture": "MaximumSizeSpecificationFixture"
+  },
+  {
+   "test": "should_return_true_when_size_is_zero",
+   "spec": "MaximumSize",
+   "config": {
+    "maximumSize": 2000
+   },
+   "release": {
+    "size": 0
+   },
+   "expect": {
+    "accepted": true
+   },
+   "flavour": "sonarr",
+   "fixture": "MaximumSizeSpecificationFixture"
+  }
+ ]
+}

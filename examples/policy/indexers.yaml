@@ -1,0 +1,73 @@
+# Indexers. Privacy is a label for badges, filters and sorting, nothing else (unset counts as private, except on
+# the built-in public sources torrentio, dmm, zilean and seadex).
+# Prowlarr keeps the definitions and credentials; we read its per-indexer Torznab feeds.
+indexers:
+  prowlarr-public:
+    kind: torznab
+    url: http://prowlarr:9696/1/api
+    api_key_env: THEATARR_PROWLARR_KEY
+    privacy: public
+    budget: prowlarr
+    # min_seeders: 1   # All torrent indexer kinds default to 1; 0 disables. Unknown counts (-1) pass.
+
+  dmm:
+    kind: dmm
+    url: https://debridmediamanager.com/api/torznab/rd/cached   # DMM's Torznab feed: /api/torznab/cached, or rd|ad|tb
+    api_key_env: THEATARR_DMM_KEY
+    privacy: public
+    # arr_names: other names for this indexer in arr history or release pushes (matched without regard to case)
+    # arr_names: ["DMM RD (Prowlarr)"]
+    budget: dmm-key
+    page_cap: 200
+    # providers: [rd]   # optional: the providers its releases may go to; empty means every provider of the version
+
+  torrentio:
+    kind: torrentio
+    url: https://torrentio.strem.fun
+    privacy: public
+    budget: torrentio
+
+  zilean:
+    kind: zilean
+    url: http://zilean:8181
+    privacy: public
+
+  seadex:
+    kind: seadex
+    url: https://seadex.moe   # releases.moe redirects here (docs/design/anime.md)
+    privacy: public
+    budget: seadex
+    # SeaDex scoring: which SeaDex entries are preferred (defaults: best 100, everything else 0).
+    # seadex:
+    #   dual_audio: 50
+    #   size_weight: -30
+    #   exclude_tags: [Deband Required]
+    #   tags: {HDR: 20, Dolby Vision: 20, Patch Required: -1000}
+
+  # A private tracker. No version lists it; listed in a debrid version, its releases go to that version's providers
+  # like any other indexer's.
+  tracker-example:
+    kind: torznab
+    url: http://prowlarr:9696/7/api
+    api_key_env: THEATARR_PROWLARR_KEY
+    privacy: private
+    budget: prowlarr
+
+  # A site run natively from the Cardigann catalog (docs/design/cardigann.md). Off: it needs the catalog section below and
+  # a budget of its own; no version lists it.
+  # tpb-native:
+  #   kind: cardigann
+  #   definition: thepiratebay
+  #   url: https://thepiratebay.org/
+  #   privacy: public          # a label; the definition's type labels its releases
+  #   budget: tpb-native       # budgets.yaml: tpb-native: {requests: 10, per: 1m}
+  #   settings: {sort: seeders}
+  #   hosts: [apibay.org]
+
+# The Cardigann definition catalog. Unset: nothing is fetched and no cardigann indexer runs.
+# cardigann:
+#   definitions: {}                       # Prowlarr/Indexers, master, refreshed every 24h
+#   flaresolverr_url: http://trawl:8191   # optional; trawl's traffic must leave through the VPN
+#   prowlarr:                             # optional; the read-only migration reader
+#     url: http://prowlarr:9696
+#     api_key_env: THEATARR_PROWLARR_KEY

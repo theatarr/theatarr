@@ -1,0 +1,21 @@
+{
+  "status": "success",
+  "data": {
+    "user": {
+      "username": "fixture",
+      "email": "fixture@example.invalid",
+      "isPremium": true,
+      "isSubscribed": false,
+      "isTrial": false,
+      "premiumUntil": 1798761600,
+      "lang": "en",
+      "preferedDomain": "com",
+      "fidelityPoints": 40,
+      "limitedHostersQuotas": {
+        "hosterx": 1000,
+        "hostera": 500
+      },
+      "notifications": []
+    }
+  }
+}

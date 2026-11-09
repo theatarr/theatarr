@@ -1,0 +1,25 @@
+# Read-only arr import (theatarr import-arr, docs/migration.md). Each instance's titles and files become one version. The arrs
+# get GET requests only; keys come from the named environment variables. Each url's host must be (or resolve only to)
+# a LAN address: loopback, RFC 1918 or ULA. The client checks the address again before every connection.
+import:
+  arr:
+    radarr_4k_debrid:
+      flavour: radarr
+      url: http://192.168.1.10:7878
+      api_key_env: THEATARR_ARR_RADARR_4K_DEBRID_KEY
+      version: movie-remux
+    radarr_4k_web:
+      flavour: radarr
+      url: http://192.168.1.10:7879
+      api_key_env: THEATARR_ARR_RADARR_4K_WEB_KEY
+      version: movie-web
+    sonarr_4k_debrid:
+      flavour: sonarr
+      url: http://192.168.1.10:8989
+      api_key_env: THEATARR_ARR_SONARR_4K_DEBRID_KEY
+      version: tv-2160p
+    sonarr_anime_debrid:
+      flavour: sonarr
+      url: http://192.168.1.10:8990
+      api_key_env: THEATARR_ARR_SONARR_ANIME_DEBRID_KEY
+      version: anime-tv

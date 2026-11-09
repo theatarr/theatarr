@@ -1,0 +1,219 @@
+{
+ "source": "Radarr src/NzbDrone.Core.Test/ParserTests/UrlFixture.cs @ a96bf7c",
+ "fixture": "UrlFixture",
+ "cases": [
+  {
+   "id": "UrlFixture/should_not_parse_url_in_name/0",
+   "line": 11,
+   "call": "parseMovieTitle",
+   "input": "[www.test.com] - Movie.Title.2023.720p.HDTV.X264-DIMENSION",
+   "expect": {
+    "movieTitle": "Movie Title"
+   },
+   "compare": "cleanMovieTitle"
+  },
+  {
+   "id": "UrlFixture/should_not_parse_url_in_name/1",
+   "line": 12,
+   "call": "parseMovieTitle",
+   "input": "test.net - Movie.Title.2023.720p.HDTV.X264-DIMENSION",
+   "expect": {
+    "movieTitle": "Movie Title"
+   },
+   "compare": "cleanMovieTitle"
+  },
+  {
+   "id": "UrlFixture/should_not_parse_url_in_name/2",
+   "line": 13,
+   "call": "parseMovieTitle",
+   "input": "[www.test-hyphen.com] - Movie.Title.2023.720p.HDTV.X264-DIMENSION",
+   "expect": {
+    "movieTitle": "Movie Title"
+   },
+   "compare": "cleanMovieTitle"
+  },
+  {
+   "id": "UrlFixture/should_not_parse_url_in_name/3",
+   "line": 14,
+   "call": "parseMovieTitle",
+   "input": "www.test123.org - Movie.Title.2023.720p.HDTV.X264-DIMENSION",
+   "expect": {
+    "movieTitle": "Movie Title"
+   },
+   "compare": "cleanMovieTitle"
+  },
+  {
+   "id": "UrlFixture/should_not_parse_url_in_name/4",
+   "line": 15,
+   "call": "parseMovieTitle",
+   "input": "[test.co.uk] - Movie.Title.2023.720p.HDTV.X264-DIMENSION",
+   "expect": {
+    "movieTitle": "Movie Title"
+   },
+   "compare": "cleanMovieTitle"
+  },
+  {
+   "id": "UrlFixture/should_not_parse_url_in_name/5",
+   "line": 16,
+   "call": "parseMovieTitle",
+   "input": "www.test-hyphen.net.au - Movie.Title.2023.720p.HDTV.X264-DIMENSION",
+   "expect": {
+    "movieTitle": "Movie Title"
+   },
+   "compare": "cleanMovieTitle"
+  },
+  {
+   "id": "UrlFixture/should_not_parse_url_in_name/6",
+   "line": 17,
+   "call": "parseMovieTitle",
+   "input": "[www.test123.co.nz] - Movie.Title.2023.720p.HDTV.X264-DIMENSION",
+   "expect": {
+    "movieTitle": "Movie Title"
+   },
+   "compare": "cleanMovieTitle"
+  },
+  {
+   "id": "UrlFixture/should_not_parse_url_in_name/7",
+   "line": 18,
+   "call": "parseMovieTitle",
+   "input": "test-hyphen123.org.au - Movie.Title.2023.720p.HDTV.X264-DIMENSION",
+   "expect": {
+    "movieTitle": "Movie Title"
+   },
+   "compare": "cleanMovieTitle"
+  },
+  {
+   "id": "UrlFixture/should_not_parse_url_in_name/8",
+   "line": 19,
+   "call": "parseMovieTitle",
+   "input": "[www.test123.de] - Mad Movie Title 2023 [Bluray720p]",
+   "expect": {
+    "movieTitle": "Mad Movie Title"
+   },
+   "compare": "cleanMovieTitle"
+  },
+  {
+   "id": "UrlFixture/should_not_parse_url_in_name/9",
+   "line": 20,
+   "call": "parseMovieTitle",
+   "input": "www.test-hyphen.de - Mad Movie Title 2023 [Bluray1080p]",
+   "expect": {
+    "movieTitle": "Mad Movie Title"
+   },
+   "compare": "cleanMovieTitle"
+  },
+  {
+   "id": "UrlFixture/should_not_parse_url_in_name/10",
+   "line": 21,
+   "call": "parseMovieTitle",
+   "input": "www.test123.co.za - The Movie Title Bros. (2023)",
+   "expect": {
+    "movieTitle": "The Movie Title Bros."
+   },
+   "compare": "cleanMovieTitle"
+  },
+  {
+   "id": "UrlFixture/should_not_parse_url_in_name/11",
+   "line": 22,
+   "call": "parseMovieTitle",
+   "input": "[www.test-hyphen.ca] - Movie Title (2023)",
+   "expect": {
+    "movieTitle": "Movie Title"
+   },
+   "compare": "cleanMovieTitle"
+  },
+  {
+   "id": "UrlFixture/should_not_parse_url_in_name/12",
+   "line": 23,
+   "call": "parseMovieTitle",
+   "input": "test123.ca - Movie Time 2023 720p HDTV x264 CRON",
+   "expect": {
+    "movieTitle": "Movie Time"
+   },
+   "compare": "cleanMovieTitle"
+  },
+  {
+   "id": "UrlFixture/should_not_parse_url_in_name/13",
+   "line": 24,
+   "call": "parseMovieTitle",
+   "input": "[www.test-hyphen123.co.za] - Movie Title 2023",
+   "expect": {
+    "movieTitle": "Movie Title"
+   },
+   "compare": "cleanMovieTitle"
+  },
+  {
+   "id": "UrlFixture/should_not_parse_url_in_name/14",
+   "line": 25,
+   "call": "parseMovieTitle",
+   "input": "(movieawake.com) Movie Title 2023 [720p] [English Subbed]",
+   "expect": {
+    "movieTitle": "Movie Title"
+   },
+   "compare": "cleanMovieTitle"
+  },
+  {
+   "id": "UrlFixture/should_not_parse_url_in_group/0",
+   "line": 32,
+   "call": "parseReleaseGroup",
+   "input": "Movie.2023.English.HDTV.XviD-LOL[www.abb.com]",
+   "expect": {
+    "": "LOL"
+   }
+  },
+  {
+   "id": "UrlFixture/should_not_parse_url_in_group/1",
+   "line": 33,
+   "call": "parseReleaseGroup",
+   "input": "Movie Title 2023 English HDTV XviD LOL[www.academy.org]",
+   "expect": {
+    "": null
+   }
+  },
+  {
+   "id": "UrlFixture/should_not_parse_url_in_group/2",
+   "line": 34,
+   "call": "parseReleaseGroup",
+   "input": "Movie Title Now 2023 DVDRip XviD RUNNER[www.aetna.net]",
+   "expect": {
+    "": null
+   }
+  },
+  {
+   "id": "UrlFixture/should_not_parse_url_in_group/3",
+   "line": 35,
+   "call": "parseReleaseGroup",
+   "input": "Movie.Title.2023.DVDRip.XviD-RUNNER[www.alfaromeo.io]",
+   "expect": {
+    "": "RUNNER"
+   }
+  },
+  {
+   "id": "UrlFixture/should_not_parse_url_in_group/4",
+   "line": 36,
+   "call": "parseReleaseGroup",
+   "input": "Movie.Title.2023.English.HDTV.XviD-LOL[www.abbott.gov]",
+   "expect": {
+    "": "LOL"
+   }
+  },
+  {
+   "id": "UrlFixture/should_not_parse_url_in_group/5",
+   "line": 37,
+   "call": "parseReleaseGroup",
+   "input": "Movie Title 2023 English HDTV XviD LOL[www.actor.org]",
+   "expect": {
+    "": null
+   }
+  },
+  {
+   "id": "UrlFixture/should_not_parse_url_in_group/6",
+   "line": 38,
+   "call": "parseReleaseGroup",
+   "input": "Movie Title Future 2023 DVDRip XviD RUNNER[www.allstate.net]",
+   "expect": {
+    "": null
+   }
+  }
+ ]
+}

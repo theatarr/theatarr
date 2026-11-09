@@ -1,0 +1,94 @@
+---
+# Written for the tests: an HTML site shaped like Nyaa's definition where RSS is concerned: without keywords it reads
+# the first two pages of the newest uploads (two search paths), and an anime upload maps to TV/Anime and Movies/Other.
+# Like the real one, its title fields use look-behind and look-ahead, which run on the .NET engine; the title sent
+# is the page's own unless sonarr_compatibility is set (off by default, as Prowlarr's feed was read). Not a copy of the
+# real definition.
+id: nyaasi
+name: Nyaa (test)
+type: public
+links:
+  - http://nyaa.test/
+caps:
+  categorymappings:
+    - {id: 1_2, cat: TV/Anime, desc: "Anime - English-translated"}
+    - {id: 1_4, cat: TV/Anime, desc: "Anime - Raw"}
+    - {id: 1_2, cat: Movies/Other, desc: "Anime - English-translated"}
+    - {id: 1_4, cat: Movies/Other, desc: "Anime - Raw"}
+    - {id: 2_1, cat: Audio, desc: "Audio - Lossless"}
+    - {id: 4_1, cat: TV, desc: "Live Action - English-translated"}
+  modes:
+    search: [q]
+settings:
+  - name: sonarr_compatibility
+    type: checkbox
+    label: Add a season to titles without one
+    default: false
+search:
+  paths:
+    - path: /
+      inputs:
+        q: "{{ .Keywords }}"
+    - path: /
+      inputs:
+        q: "{{ .Keywords }}"
+        p: "{{ if .Keywords }}{{ else }}2{{ end }}"
+  inputs:
+    f: 0
+    c: 0_0
+    s: id
+    o: desc
+  rows:
+    selector: tr.default,tr.danger,tr.success
+  fields:
+    category:
+      selector: td:nth-child(1) a
+      attribute: href
+      filters:
+        - name: split
+          args: ["=", -1]
+    category_group:
+      selector: td:nth-child(1) a
+      attribute: href
+      filters:
+        - name: split
+          args: ["=", -1]
+        - name: split
+          args: ["_", 0]
+    title_page:
+      selector: td:nth-child(2) a:last-of-type
+    title_is_special:
+      text: "{{ .Result.title_page }}"
+      filters:
+        - name: regexp
+          args: "(?i)(?<![a-z0-9])(OVA|Movie)(?![a-z0-9])"
+    title_with_season:
+      text: "{{ .Result.title_page }}"
+      filters:
+        - name: re_replace
+          args: ["^(\\[[^\\]]+\\] .+?)\\s*(?<![\\]\\)]) - (\\d+)\\b(?! ?S\\d)", "{{ if and (eq .Result.category_group \"1\") (eq .Result.title_is_special \"\") }}$1 S01E$2{{ else }}$0{{ end }}"]
+    title:
+      text: "{{ if .Config.sonarr_compatibility }}{{ .Result.title_with_season }}{{ else }}{{ .Result.title_page }}{{ end }}"
+    details:
+      selector: td:nth-child(2) a:last-of-type
+      attribute: href
+    magnet:
+      selector: td:nth-child(3) a[href^="magnet:?"]
+      attribute: href
+    size:
+      selector: td:nth-child(4)
+    date:
+      selector: td:nth-child(5)
+      filters:
+        - name: append
+          args: " -00:00"
+        - name: dateparse
+          args: "yyyy-MM-dd HH:mm zzz"
+    seeders:
+      selector: td:nth-child(6)
+    leechers:
+      selector: td:nth-child(7)
+    downloadvolumefactor:
+      text: 0
+    uploadvolumefactor:
+      text: 1

@@ -1,0 +1,20 @@
+{
+  "success": true,
+  "error": null,
+  "detail": "User profile retrieved.",
+  "data": {
+    "id": 1,
+    "auth_id": "fixture",
+    "created_at": "2025-01-01T00:00:00Z",
+    "updated_at": "2026-10-01T00:00:00Z",
+    "plan": 2,
+    "total_downloaded": 10,
+    "customer": "fixture",
+    "is_subscribed": true,
+    "premium_expires_at": "2027-01-01T00:00:00Z",
+    "cooldown_until": "2026-10-01T00:00:00Z",
+    "email": "fixture@example.invalid",
+    "user_referral": "fixture",
+    "base_email": "fixture@example.invalid"
+  }
+}

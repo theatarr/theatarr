@@ -1,0 +1,32 @@
+{
+  "status": "success",
+  "data": {
+    "magnets": [
+      {
+        "id": "101",
+        "files": [
+          {
+            "n": "Movie.B.2021.1080p.BluRay",
+            "e": [
+              {
+                "n": "Movie.B.2021.1080p.BluRay.mkv",
+                "s": 9000000000,
+                "l": "https://example.invalid/f/1"
+              },
+              {
+                "n": "Subs",
+                "e": [
+                  {
+                    "n": "en.srt",
+                    "s": 50000,
+                    "l": "https://example.invalid/f/2"
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      }
+    ]
+  }
+}

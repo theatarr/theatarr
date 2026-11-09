@@ -1,0 +1,3559 @@
+{
+ "franchise": "Re:Zero - Starting Life in Another World",
+ "slug": "re-zero",
+ "seed_anilist": 21355,
+ "generated": "2026-10-25",
+ "config": {
+  "seed_anilist": 21355
+ },
+ "tvdb_series": [
+  {
+   "id": 305089,
+   "title": "Re: ZERO, Starting Life in Another World",
+   "skyhook_anilist_ids": [
+    21355,
+    100049,
+    108632,
+    119661,
+    163134,
+    189046
+   ],
+   "in_sonarr": true,
+   "xem": {
+    "rows": 85,
+    "scene_differs_from_tvdb": 0,
+    "examples": []
+   }
+  }
+ ],
+ "entries": [
+  {
+   "key": "al:21355",
+   "title": "Re:Zero kara Hajimeru Isekai Seikatsu",
+   "title_en": "Re:ZERO -Starting Life in Another World-",
+   "names": [
+    "Re:Zero kara Hajimeru Isekai Seikatsu",
+    "Re:ZERO -Starting Life in Another World-",
+    "Re:ゼロから始める異世界生活",
+    "Re: Life in a different world from zero",
+    "ReZero",
+    "Re Zero",
+    "Re：从零开始的异世界生活",
+    "Re:Zero รีเซทชีวิต ฝ่าวิกฤตต่างโลก",
+    "Re:Zero — жизнь с нуля в другом мире",
+    "Re:Zero Empezar de cero en un mundo diferente",
+    "Re:Zero – Bắt đầu lại ở thế giới khác"
+   ],
+   "anilist_id": 21355,
+   "mal_id": 31240,
+   "anidb_id": 11370,
+   "kitsu_id": 11209,
+   "format": "TV",
+   "status": "FINISHED",
+   "start": "2016-04-04",
+   "end": "2016-09-19",
+   "episodes": 25,
+   "duration_min": 25,
+   "anilist_relations": [
+    [
+     "SPIN_OFF",
+     21780
+    ],
+    [
+     "SPIN_OFF",
+     21891
+    ],
+    [
+     "SIDE_STORY",
+     100049
+    ],
+    [
+     "CHARACTER",
+     104454
+    ],
+    [
+     "SEQUEL",
+     108632
+    ],
+    [
+     "CHARACTER",
+     110178
+    ],
+    [
+     "CHARACTER",
+     117074
+    ],
+    [
+     "CHARACTER",
+     166093
+    ],
+    [
+     "CHARACTER",
+     194447
+    ]
+   ],
+   "found_via": "seed",
+   "origin": "anilist",
+   "tvdb": {
+    "series_id": 305089,
+    "episodes": [
+     [
+      1,
+      1
+     ],
+     [
+      1,
+      2
+     ],
+     [
+      1,
+      3
+     ],
+     [
+      1,
+      4
+     ],
+     [
+      1,
+      5
+     ],
+     [
+      1,
+      6
+     ],
+     [
+      1,
+      7
+     ],
+     [
+      1,
+      8
+     ],
+     [
+      1,
+      9
+     ],
+     [
+      1,
+      10
+     ],
+     [
+      1,
+      11
+     ],
+     [
+      1,
+      12
+     ],
+     [
+      1,
+      13
+     ],
+     [
+      1,
+      14
+     ],
+     [
+      1,
+      15
+     ],
+     [
+      1,
+      16
+     ],
+     [
+      1,
+      17
+     ],
+     [
+      1,
+      18
+     ],
+     [
+      1,
+      19
+     ],
+     [
+      1,
+      20
+     ],
+     [
+      1,
+      21
+     ],
+     [
+      1,
+      22
+     ],
+     [
+      1,
+      23
+     ],
+     [
+      1,
+      24
+     ],
+     [
+      1,
+      25
+     ]
+    ],
+    "method": "scudlee",
+    "anidb_specials": [
+     [
+      2,
+      0,
+      1
+     ],
+     [
+      3,
+      0,
+      2
+     ],
+     [
+      4,
+      0,
+      3
+     ],
+     [
+      5,
+      0,
+      4
+     ],
+     [
+      6,
+      0,
+      5
+     ],
+     [
+      7,
+      0,
+      6
+     ],
+     [
+      8,
+      0,
+      7
+     ],
+     [
+      9,
+      0,
+      8
+     ],
+     [
+      10,
+      0,
+      9
+     ],
+     [
+      11,
+      0,
+      10
+     ],
+     [
+      12,
+      0,
+      11
+     ],
+     [
+      13,
+      0,
+      12
+     ],
+     [
+      14,
+      0,
+      13
+     ],
+     [
+      15,
+      0,
+      14
+     ],
+     [
+      16,
+      0,
+      15
+     ],
+     [
+      17,
+      0,
+      16
+     ],
+     [
+      18,
+      0,
+      17
+     ],
+     [
+      19,
+      0,
+      18
+     ],
+     [
+      20,
+      0,
+      19
+     ],
+     [
+      21,
+      0,
+      20
+     ],
+     [
+      22,
+      0,
+      21
+     ],
+     [
+      23,
+      0,
+      22
+     ],
+     [
+      24,
+      0,
+      23
+     ],
+     [
+      25,
+      0,
+      24
+     ],
+     [
+      26,
+      0,
+      25
+     ]
+    ],
+    "unmapped_anidb_eps": [],
+    "series_title": "Re: ZERO, Starting Life in Another World",
+    "missing_on_tvdb": [],
+    "missing_in_sonarr": [],
+    "tvdb_first_air": "2016-04-04",
+    "tvdb_first_title": "The End of the Beginning and the Beginning of the End",
+    "tvdb_overview": "In the series opening double episode, Natsuki Subaru is summoned to a alternate world on his way home one day. At first, he's enamored with this new fantasy world, but the cute girl summoned him? Nowhere to be found. He quickly learns that he doesn't have any of the powers as a gang surrounds him. R",
+    "range": "S01E01-E25",
+    "specials_range": "S00E01-E25"
+   },
+   "tmdb_movie": [],
+   "flags": [],
+   "notes": [],
+   "kind": "line",
+   "id_sources": [
+    "fribb"
+   ],
+   "scudlee": {
+    "tvdb": 305089,
+    "season": "1",
+    "offset": 0,
+    "mappings": 2
+   },
+   "anibridge": {
+    "tvdb": [
+     [
+      305089,
+      1,
+      1
+     ],
+     [
+      305089,
+      1,
+      2
+     ],
+     [
+      305089,
+      1,
+      3
+     ],
+     [
+      305089,
+      1,
+      4
+     ],
+     [
+      305089,
+      1,
+      5
+     ],
+     [
+      305089,
+      1,
+      6
+     ],
+     [
+      305089,
+      1,
+      7
+     ],
+     [
+      305089,
+      1,
+      8
+     ],
+     [
+      305089,
+      1,
+      9
+     ],
+     [
+      305089,
+      1,
+      10
+     ],
+     [
+      305089,
+      1,
+      11
+     ],
+     [
+      305089,
+      1,
+      12
+     ],
+     [
+      305089,
+      1,
+      13
+     ],
+     [
+      305089,
+      1,
+      14
+     ],
+     [
+      305089,
+      1,
+      15
+     ],
+     [
+      305089,
+      1,
+      16
+     ],
+     [
+      305089,
+      1,
+      17
+     ],
+     [
+      305089,
+      1,
+      18
+     ],
+     [
+      305089,
+      1,
+      19
+     ],
+     [
+      305089,
+      1,
+      20
+     ],
+     [
+      305089,
+      1,
+      21
+     ],
+     [
+      305089,
+      1,
+      22
+     ],
+     [
+      305089,
+      1,
+      23
+     ],
+     [
+      305089,
+      1,
+      24
+     ],
+     [
+      305089,
+      1,
+      25
+     ]
+    ],
+    "tmdb_movie": []
+   },
+   "anibridge_agrees": true,
+   "target": "sonarr",
+   "mainline": true
+  },
+  {
+   "key": "al:21780",
+   "title": "Re:Zero kara Hajimeru Kyuukei Jikan (Break Time)",
+   "title_en": "Re:ZERO ~Starting Break Time From Zero~",
+   "names": [
+    "Re:Zero kara Hajimeru Kyuukei Jikan (Break Time)",
+    "Re:ZERO ~Starting Break Time From Zero~",
+    "Re:ゼロから始める休憩時間(ブレイクタイム)"
+   ],
+   "anilist_id": 21780,
+   "mal_id": 33142,
+   "anidb_id": null,
+   "kitsu_id": 12047,
+   "format": "TV_SHORT",
+   "status": "FINISHED",
+   "start": "2016-04-08",
+   "end": "2016-06-21",
+   "episodes": 11,
+   "duration_min": 3,
+   "anilist_relations": [
+    [
+     "PARENT",
+     21355
+    ],
+    [
+     "SEQUEL",
+     21891
+    ]
+   ],
+   "found_via": "SPIN_OFF from 21355 (not expanded)",
+   "origin": "anilist",
+   "tvdb": {
+    "series_id": 305089,
+    "episodes": [
+     [
+      0,
+      1
+     ],
+     [
+      0,
+      2
+     ],
+     [
+      0,
+      3
+     ],
+     [
+      0,
+      4
+     ],
+     [
+      0,
+      5
+     ],
+     [
+      0,
+      6
+     ],
+     [
+      0,
+      7
+     ],
+     [
+      0,
+      8
+     ],
+     [
+      0,
+      9
+     ],
+     [
+      0,
+      10
+     ],
+     [
+      0,
+      11
+     ]
+    ],
+    "method": "anibridge",
+    "anidb_specials": [],
+    "unmapped_anidb_eps": [],
+    "series_title": "Re: ZERO, Starting Life in Another World",
+    "missing_on_tvdb": [],
+    "missing_in_sonarr": [],
+    "tvdb_first_air": "2016-04-05",
+    "tvdb_first_title": "Re:ZERO ~Starting Break Time From Zero~ World 1-1",
+    "tvdb_overview": "Subaru learns that objects in this new world are named very similarly to the ones in his own.",
+    "airs": {
+     "airedBeforeSeasonNumber": 1,
+     "airedBeforeEpisodeNumber": 2
+    },
+    "range": "S00E01-E11",
+    "specials_range": ""
+   },
+   "tmdb_movie": [],
+   "flags": [
+    "chibi-short",
+    "short"
+   ],
+   "notes": [],
+   "kind": "leaf",
+   "anibridge": {
+    "tvdb": [
+     [
+      305089,
+      0,
+      1
+     ],
+     [
+      305089,
+      0,
+      2
+     ],
+     [
+      305089,
+      0,
+      3
+     ],
+     [
+      305089,
+      0,
+      4
+     ],
+     [
+      305089,
+      0,
+      5
+     ],
+     [
+      305089,
+      0,
+      6
+     ],
+     [
+      305089,
+      0,
+      7
+     ],
+     [
+      305089,
+      0,
+      8
+     ],
+     [
+      305089,
+      0,
+      9
+     ],
+     [
+      305089,
+      0,
+      10
+     ],
+     [
+      305089,
+      0,
+      11
+     ]
+    ],
+    "tmdb_movie": []
+   },
+   "anibridge_agrees": true,
+   "target": "sonarr S00",
+   "mainline": false
+  },
+  {
+   "key": "al:21891",
+   "title": "Re:Petit kara Hajimeru Isekai Seikatsu",
+   "title_en": "Re:PETIT ~Re: Starting Life in Another World From PETIT~",
+   "names": [
+    "Re:Petit kara Hajimeru Isekai Seikatsu",
+    "Re:PETIT ~Re: Starting Life in Another World From PETIT~",
+    "Re:プチから始める異世界生活"
+   ],
+   "anilist_id": 21891,
+   "mal_id": 33569,
+   "anidb_id": null,
+   "kitsu_id": 12313,
+   "format": "TV_SHORT",
+   "status": "FINISHED",
+   "start": "2016-06-24",
+   "end": "2016-09-23",
+   "episodes": 14,
+   "duration_min": 3,
+   "anilist_relations": [
+    [
+     "PARENT",
+     21355
+    ],
+    [
+     "PREQUEL",
+     21780
+    ],
+    [
+     "SEQUEL",
+     120700
+    ]
+   ],
+   "found_via": "SPIN_OFF from 21355 (not expanded)",
+   "origin": "anilist",
+   "tvdb": {
+    "series_id": 305089,
+    "episodes": [
+     [
+      0,
+      12
+     ],
+     [
+      0,
+      13
+     ],
+     [
+      0,
+      14
+     ],
+     [
+      0,
+      15
+     ],
+     [
+      0,
+      16
+     ],
+     [
+      0,
+      17
+     ],
+     [
+      0,
+      18
+     ],
+     [
+      0,
+      19
+     ],
+     [
+      0,
+      20
+     ],
+     [
+      0,
+      21
+     ],
+     [
+      0,
+      22
+     ],
+     [
+      0,
+      23
+     ],
+     [
+      0,
+      24
+     ],
+     [
+      0,
+      25
+     ]
+    ],
+    "method": "anibridge",
+    "anidb_specials": [],
+    "unmapped_anidb_eps": [],
+    "series_title": "Re: ZERO, Starting Life in Another World",
+    "missing_on_tvdb": [],
+    "missing_in_sonarr": [],
+    "tvdb_first_air": "2016-06-21",
+    "tvdb_first_title": "Re:PETIT 1: Return to School",
+    "tvdb_overview": "Subaru wakes up to find himself in a classroom where Emilia is a teacher. Attempting to ask her about Puck, she tells him that the familiar is the school's principal. After his questions disrupt class and he is sent to stand in the hall, Subaru vows to return to his own world, before wondering what ",
+    "airs": {
+     "airedBeforeSeasonNumber": 1,
+     "airedBeforeEpisodeNumber": 13
+    },
+    "range": "S00E12-E25",
+    "specials_range": ""
+   },
+   "tmdb_movie": [],
+   "flags": [
+    "chibi-short",
+    "short"
+   ],
+   "notes": [],
+   "kind": "leaf",
+   "anibridge": {
+    "tvdb": [
+     [
+      305089,
+      0,
+      12
+     ],
+     [
+      305089,
+      0,
+      13
+     ],
+     [
+      305089,
+      0,
+      14
+     ],
+     [
+      305089,
+      0,
+      15
+     ],
+     [
+      305089,
+      0,
+      16
+     ],
+     [
+      305089,
+      0,
+      17
+     ],
+     [
+      305089,
+      0,
+      18
+     ],
+     [
+      305089,
+      0,
+      19
+     ],
+     [
+      305089,
+      0,
+      20
+     ],
+     [
+      305089,
+      0,
+      21
+     ],
+     [
+      305089,
+      0,
+      22
+     ],
+     [
+      305089,
+      0,
+      23
+     ],
+     [
+      305089,
+      0,
+      24
+     ],
+     [
+      305089,
+      0,
+      25
+     ]
+    ],
+    "tmdb_movie": []
+   },
+   "anibridge_agrees": true,
+   "target": "sonarr S00",
+   "mainline": false
+  },
+  {
+   "key": "al:100049#1",
+   "title": "Re:Zero kara Hajimeru Isekai Seikatsu OVAs #1: Memory Snow",
+   "title_en": "Re:ZERO -Starting Life in Another World- OVAs #1: Memory Snow",
+   "names": [
+    "Re:Zero kara Hajimeru Isekai Seikatsu OVAs",
+    "Re:ZERO -Starting Life in Another World- OVAs",
+    "Re:ゼロから始める異世界生活 OVAs",
+    "Re:ZERO -Starting Life in Another World- Memory Snow",
+    "Re:ZERO -Starting Life in Another World- The Frozen Bond",
+    "Re:Zero kara Hajimeru Isekai Seikatsu - Memory Snow",
+    "Re:Zero kara Hajimeru Isekai Seikatsu: Hyouketsu no Kizuna",
+    "Re:ゼロから始める異世界生活 Memory Snow",
+    "Re:ゼロから始める異世界生活 氷結の絆",
+    "Re:Zero รีเซทชีวิต ฝ่าวิกฤตต่างโลก Memory Snow",
+    "Re:Zero รีเซทชีวิต ฝ่าวิกฤตต่างโลก The Frozen Bond",
+    "Re:Zero — жизнь с нуля в другом мире OVA. Ледяные узы"
+   ],
+   "anilist_id": 100049,
+   "mal_id": 36286,
+   "anidb_id": 13430,
+   "kitsu_id": null,
+   "format": "OVA",
+   "status": "FINISHED",
+   "start": "2018-10-06",
+   "end": "2018-10-06",
+   "episodes": 1,
+   "duration_min": 68,
+   "anilist_relations": [
+    [
+     "PARENT",
+     21355
+    ]
+   ],
+   "found_via": "SIDE_STORY from 21355",
+   "origin": "anilist",
+   "tvdb": {
+    "series_id": 305089,
+    "episodes": [
+     [
+      0,
+      26
+     ]
+    ],
+    "method": "scudlee",
+    "anidb_specials": [
+     [
+      1,
+      0,
+      27
+     ],
+     [
+      2,
+      0,
+      29
+     ]
+    ],
+    "unmapped_anidb_eps": [],
+    "series_title": "Re: ZERO, Starting Life in Another World",
+    "missing_on_tvdb": [],
+    "missing_in_sonarr": [],
+    "tvdb_first_air": "2018-10-06",
+    "tvdb_first_title": "Memory Snow",
+    "tvdb_overview": "Subaru is looking forward to his date with Emilia, but the changing weather suddenly cools his excitement.",
+    "airs": {
+     "airedAfterSeasonNumber": 1
+    },
+    "range": "S00E26",
+    "specials_range": "S00E27, S00E29"
+   },
+   "tmdb_movie": [
+    532321
+   ],
+   "flags": [],
+   "notes": [
+    "split from al:100049 (episodes released 2018-10-06 .. 2019-11-08)",
+    "parent TMDb ids [532321] not assigned per part",
+    "TMDb 532321 found by Radarr title search 'Re:ZERO -Starting Life in Another World- OVAs #1: Memory Snow' (date match)"
+   ],
+   "kind": "side",
+   "id_sources": [
+    "fribb"
+   ],
+   "scudlee": {
+    "tvdb": 305089,
+    "season": "0",
+    "offset": 0,
+    "mappings": 2
+   },
+   "anibridge": {
+    "tvdb": [
+     [
+      305089,
+      0,
+      26
+     ],
+     [
+      305089,
+      0,
+      28
+     ]
+    ],
+    "tmdb_movie": [
+     532321
+    ]
+   },
+   "parent_key": "al:100049",
+   "anibridge_agrees": true,
+   "target": "sonarr S00",
+   "mainline": false,
+   "tmdb_check": [
+    {
+     "tmdb_id": 532321,
+     "title": "Re:ZERO -Starting Life in Another World- Memory Snow",
+     "year": 2018,
+     "inCinemas": "2018-10-06T00:00:00Z",
+     "collection": "Re:ZERO -Starting Life in Another World- Collection"
+    }
+   ]
+  },
+  {
+   "key": "tvdb:305089:S00E27",
+   "title": "Memory Snow - Theater Manners",
+   "title_en": null,
+   "names": [
+    "Memory Snow - Theater Manners"
+   ],
+   "anilist_id": null,
+   "mal_id": null,
+   "anidb_id": null,
+   "kitsu_id": null,
+   "format": "TVDB_SPECIAL",
+   "status": null,
+   "start": "2018-10-06",
+   "end": "2018-10-06",
+   "episodes": 1,
+   "duration_min": 3,
+   "anilist_relations": [],
+   "origin": "tvdb",
+   "found_via": "TVDB Season 0, not claimed by any entry",
+   "tvdb": {
+    "series_id": 305089,
+    "episodes": [
+     [
+      0,
+      27
+     ]
+    ],
+    "method": "tvdb-only",
+    "range": "S00E27",
+    "series_title": "Re: ZERO, Starting Life in Another World",
+    "tvdb_first_air": "2018-10-06",
+    "tvdb_first_title": "Memory Snow - Theater Manners",
+    "airs": {}
+   },
+   "tmdb_movie": [],
+   "flags": [
+    "extra",
+    "short"
+   ],
+   "notes": [
+    "ScudLee: AniDB special S1 of al:100049#2"
+   ],
+   "mainline": false,
+   "special_of": "al:100049#2",
+   "target": "sonarr S00"
+  },
+  {
+   "key": "al:100049#2",
+   "title": "Re:Zero kara Hajimeru Isekai Seikatsu OVAs #2: Frozen Bonds",
+   "title_en": "Re:ZERO -Starting Life in Another World- OVAs #2: Frozen Bonds",
+   "names": [
+    "Re:Zero kara Hajimeru Isekai Seikatsu OVAs",
+    "Re:ZERO -Starting Life in Another World- OVAs",
+    "Re:ゼロから始める異世界生活 OVAs",
+    "Re:ZERO -Starting Life in Another World- Memory Snow",
+    "Re:ZERO -Starting Life in Another World- The Frozen Bond",
+    "Re:Zero kara Hajimeru Isekai Seikatsu - Memory Snow",
+    "Re:Zero kara Hajimeru Isekai Seikatsu: Hyouketsu no Kizuna",
+    "Re:ゼロから始める異世界生活 Memory Snow",
+    "Re:ゼロから始める異世界生活 氷結の絆",
+    "Re:Zero รีเซทชีวิต ฝ่าวิกฤตต่างโลก Memory Snow",
+    "Re:Zero รีเซทชีวิต ฝ่าวิกฤตต่างโลก The Frozen Bond",
+    "Re:Zero — жизнь с нуля в другом мире OVA. Ледяные узы"
+   ],
+   "anilist_id": 100049,
+   "mal_id": 36286,
+   "anidb_id": 13430,
+   "kitsu_id": 42006,
+   "format": "OVA",
+   "status": "FINISHED",
+   "start": "2019-11-08",
+   "end": "2019-11-08",
+   "episodes": 1,
+   "duration_min": 68,
+   "anilist_relations": [
+    [
+     "PARENT",
+     21355
+    ]
+   ],
+   "found_via": "SIDE_STORY from 21355",
+   "origin": "anilist",
+   "tvdb": {
+    "series_id": 305089,
+    "episodes": [
+     [
+      0,
+      28
+     ]
+    ],
+    "method": "scudlee",
+    "anidb_specials": [
+     [
+      1,
+      0,
+      27
+     ],
+     [
+      2,
+      0,
+      29
+     ]
+    ],
+    "unmapped_anidb_eps": [],
+    "series_title": "Re: ZERO, Starting Life in Another World",
+    "missing_on_tvdb": [],
+    "missing_in_sonarr": [],
+    "tvdb_first_air": "2019-11-08",
+    "tvdb_first_title": "Frozen Bonds",
+    "tvdb_overview": "Covered in ice and snow, Elior Forest is the home to dangerous magical beasts and 50 elves frozen in ice. One day, the great spirit Puck helps a young girl break out of her ice prison. Her name is Emilia, a half-elf born with silver hair, long ears, and amethyst eyes—features that resemble the evil ",
+    "airs": {
+     "airedBeforeSeasonNumber": 1,
+     "airedBeforeEpisodeNumber": 1
+    },
+    "range": "S00E28",
+    "specials_range": "S00E27, S00E29"
+   },
+   "tmdb_movie": [
+    566451
+   ],
+   "flags": [],
+   "notes": [
+    "split from al:100049 (episodes released 2018-10-06 .. 2019-11-08)",
+    "kitsu:42006 'Re:Zero kara Hajimeru Isekai Seikatsu: Hyouketsu no Kizuna' is the same work on another site (merged)",
+    "TMDb 566451 found by Radarr title search 'Re:ZERO -Starting Life in Another World- OVAs #2: Frozen Bonds' (date match)"
+   ],
+   "kind": "side",
+   "id_sources": [
+    "fribb"
+   ],
+   "scudlee": {
+    "tvdb": 305089,
+    "season": "0",
+    "offset": 0,
+    "mappings": 2
+   },
+   "anibridge": {
+    "tvdb": [
+     [
+      305089,
+      0,
+      26
+     ],
+     [
+      305089,
+      0,
+      28
+     ]
+    ],
+    "tmdb_movie": [
+     532321
+    ]
+   },
+   "parent_key": "al:100049",
+   "anibridge_agrees": true,
+   "target": "sonarr S00",
+   "mainline": false,
+   "tmdb_check": [
+    {
+     "tmdb_id": 566451,
+     "title": "Re:ZERO -Starting Life in Another World- The Frozen Bond",
+     "year": 2019,
+     "inCinemas": "2019-11-08T00:00:00Z",
+     "collection": "Re:ZERO -Starting Life in Another World- Collection"
+    }
+   ]
+  },
+  {
+   "key": "tvdb:305089:S00E29",
+   "title": "Frozen Bonds - Theater Manners",
+   "title_en": null,
+   "names": [
+    "Frozen Bonds - Theater Manners"
+   ],
+   "anilist_id": null,
+   "mal_id": null,
+   "anidb_id": null,
+   "kitsu_id": null,
+   "format": "TVDB_SPECIAL",
+   "status": null,
+   "start": "2019-11-08",
+   "end": "2019-11-08",
+   "episodes": 1,
+   "duration_min": 3,
+   "anilist_relations": [],
+   "origin": "tvdb",
+   "found_via": "TVDB Season 0, not claimed by any entry",
+   "tvdb": {
+    "series_id": 305089,
+    "episodes": [
+     [
+      0,
+      29
+     ]
+    ],
+    "method": "tvdb-only",
+    "range": "S00E29",
+    "series_title": "Re: ZERO, Starting Life in Another World",
+    "tvdb_first_air": "2019-11-08",
+    "tvdb_first_title": "Frozen Bonds - Theater Manners",
+    "airs": {
+     "airedBeforeSeasonNumber": 1,
+     "airedBeforeEpisodeNumber": 1
+    }
+   },
+   "tmdb_movie": [],
+   "flags": [
+    "extra",
+    "short"
+   ],
+   "notes": [
+    "ScudLee: AniDB special S2 of al:100049#2"
+   ],
+   "mainline": false,
+   "special_of": "al:100049#2",
+   "target": "sonarr S00"
+  },
+  {
+   "key": "kitsu:42903",
+   "title": "Re:Zero kara Hajimeru Isekai Seikatsu: Shin Henshuu-ban",
+   "title_en": "Re:Zero Starting Life in Another World - Director's Cut",
+   "names": [
+    "Re:Zero kara Hajimeru Isekai Seikatsu: Shin Henshuu-ban",
+    "Re:Zero Starting Life in Another World - Director's Cut",
+    "Re:Zero kara Hajimeru Isekai Seikatsu: Shin Henshuu-ban",
+    "Re：ゼロから始める異世界生活",
+    "Re:ZERO - Starting Life in Another World (Re-Edit)",
+    "Re:ZERO - Starting Life in Another World: Director's Cut",
+    "Re:ZERO -Starting Life in Another World- Director's Cut",
+    "Re:Zero - Starting Life in Another World: Director’s Cut",
+    "Re:Zero New Edit Version",
+    "Re:Zero Starting Life in Another World - Director's Cut",
+    "Re:Zero kara Hajimeru Isekai Seikatsu RE_START",
+    "Re:Zero kara Hajimeru Isekai Seikatsu Shin Henshuu-ban",
+    "Re:Zero kara Hajimeru Isekai Seikatsu: Shin Henshū-ban",
+    "Re:ゼロから始める異世界生活 新編集版",
+    "Re：ゼロから始める異世界生活",
+    "Re：ゼロから始める異世界生活新編集版"
+   ],
+   "anilist_id": null,
+   "mal_id": null,
+   "anidb_id": null,
+   "kitsu_id": 42903,
+   "format": "TV",
+   "status": null,
+   "start": "2020-01-01",
+   "end": "2020-04-01",
+   "episodes": 13,
+   "duration_min": 45,
+   "anilist_relations": [],
+   "kitsu_role": {
+    "role": "alternative_version",
+    "of": "al:21355"
+   },
+   "found_via": "Kitsu alternative_version of al:21355 (kitsu 11209)",
+   "origin": "kitsu",
+   "tvdb": null,
+   "tmdb_movie": [],
+   "flags": [
+    "alternate-version",
+    "directors-cut",
+    "not-on-anidb",
+    "not-on-anilist"
+   ],
+   "notes": [],
+   "kind": "side",
+   "anibridge_agrees": null,
+   "target": "none",
+   "mainline": false
+  },
+  {
+   "key": "al:108632",
+   "title": "Re:Zero kara Hajimeru Isekai Seikatsu 2nd Season",
+   "title_en": "Re:ZERO -Starting Life in Another World- Season 2",
+   "names": [
+    "Re:Zero kara Hajimeru Isekai Seikatsu 2nd Season",
+    "Re:ZERO -Starting Life in Another World- Season 2",
+    "Re:ゼロから始める異世界生活 2nd Season",
+    "Re:Zero kara Hajimeru Isekai Seikatsu (2020)",
+    "Re: 제로부터 시작하는 이세계 생활 2기",
+    "Re:从零开始的异世界生活第二季（上半）",
+    "Re:从零开始的异世界生活 2 上半",
+    "Re:Zero รีเซทชีวิต ฝ่าวิกฤตต่างโลก ภาค 2",
+    "Re:Zero — жизнь с нуля в другом мире. Второй сезон"
+   ],
+   "anilist_id": 108632,
+   "mal_id": 39587,
+   "anidb_id": 14792,
+   "kitsu_id": 42198,
+   "format": "TV",
+   "status": "FINISHED",
+   "start": "2020-07-08",
+   "end": "2020-09-30",
+   "episodes": 13,
+   "duration_min": 26,
+   "anilist_relations": [
+    [
+     "PREQUEL",
+     21355
+    ],
+    [
+     "SEQUEL",
+     119661
+    ],
+    [
+     "SPIN_OFF",
+     120700
+    ]
+   ],
+   "found_via": "SEQUEL from 21355",
+   "origin": "anilist",
+   "tvdb": {
+    "series_id": 305089,
+    "episodes": [
+     [
+      2,
+      1
+     ],
+     [
+      2,
+      2
+     ],
+     [
+      2,
+      3
+     ],
+     [
+      2,
+      4
+     ],
+     [
+      2,
+      5
+     ],
+     [
+      2,
+      6
+     ],
+     [
+      2,
+      7
+     ],
+     [
+      2,
+      8
+     ],
+     [
+      2,
+      9
+     ],
+     [
+      2,
+      10
+     ],
+     [
+      2,
+      11
+     ],
+     [
+      2,
+      12
+     ],
+     [
+      2,
+      13
+     ]
+    ],
+    "method": "scudlee",
+    "anidb_specials": [
+     [
+      1,
+      0,
+      30
+     ],
+     [
+      2,
+      0,
+      31
+     ],
+     [
+      3,
+      0,
+      32
+     ],
+     [
+      4,
+      0,
+      33
+     ],
+     [
+      5,
+      0,
+      34
+     ],
+     [
+      6,
+      0,
+      35
+     ],
+     [
+      7,
+      0,
+      36
+     ],
+     [
+      8,
+      0,
+      37
+     ],
+     [
+      9,
+      0,
+      38
+     ],
+     [
+      10,
+      0,
+      39
+     ],
+     [
+      11,
+      0,
+      40
+     ],
+     [
+      12,
+      0,
+      41
+     ],
+     [
+      13,
+      0,
+      42
+     ]
+    ],
+    "unmapped_anidb_eps": [],
+    "series_title": "Re: ZERO, Starting Life in Another World",
+    "missing_on_tvdb": [],
+    "missing_in_sonarr": [],
+    "tvdb_first_air": "2020-07-08",
+    "tvdb_first_title": "Each One's Promise",
+    "tvdb_overview": "Amid dying countless times, Subaru finally led the troops to victory against the White Whale and struck down the schemes of the Sin Archbishop of Sloth. After overcoming a painful ending to his these ordeals, he was reunited at last with his beloved Emilia... only to learn that Rem's existence had b",
+    "range": "S02E01-E13",
+    "specials_range": "S00E30-E42"
+   },
+   "tmdb_movie": [],
+   "flags": [],
+   "notes": [
+    "Kitsu 43300 'Re:Zero kara Hajimeru Break Time 2nd Season' looks like a duplicate of this entry"
+   ],
+   "kind": "line",
+   "id_sources": [
+    "fribb"
+   ],
+   "scudlee": {
+    "tvdb": 305089,
+    "season": "2",
+    "offset": 0,
+    "mappings": 1
+   },
+   "anibridge": {
+    "tvdb": [
+     [
+      305089,
+      2,
+      1
+     ],
+     [
+      305089,
+      2,
+      2
+     ],
+     [
+      305089,
+      2,
+      3
+     ],
+     [
+      305089,
+      2,
+      4
+     ],
+     [
+      305089,
+      2,
+      5
+     ],
+     [
+      305089,
+      2,
+      6
+     ],
+     [
+      305089,
+      2,
+      7
+     ],
+     [
+      305089,
+      2,
+      8
+     ],
+     [
+      305089,
+      2,
+      9
+     ],
+     [
+      305089,
+      2,
+      10
+     ],
+     [
+      305089,
+      2,
+      11
+     ],
+     [
+      305089,
+      2,
+      12
+     ],
+     [
+      305089,
+      2,
+      13
+     ]
+    ],
+    "tmdb_movie": []
+   },
+   "anibridge_agrees": true,
+   "target": "sonarr",
+   "mainline": true
+  },
+  {
+   "key": "al:120700",
+   "title": "Re:Zero kara Hajimeru Kyuukei Jikan (Break Time) 2nd Season",
+   "title_en": null,
+   "names": [
+    "Re:Zero kara Hajimeru Kyuukei Jikan (Break Time) 2nd Season",
+    "Re:ゼロから始める休憩時間(ブレイクタイム) 2nd Season",
+    "Re:ZERO ~Starting Break Time From Zero~ Season 2"
+   ],
+   "anilist_id": 120700,
+   "mal_id": 42364,
+   "anidb_id": null,
+   "kitsu_id": null,
+   "format": "ONA",
+   "status": "FINISHED",
+   "start": "2020-07-10",
+   "end": "2020-10-02",
+   "episodes": 13,
+   "duration_min": 3,
+   "anilist_relations": [
+    [
+     "PREQUEL",
+     21891
+    ],
+    [
+     "PARENT",
+     108632
+    ],
+    [
+     "SEQUEL",
+     128306
+    ]
+   ],
+   "found_via": "SPIN_OFF from 108632 (not expanded)",
+   "origin": "anilist",
+   "tvdb": {
+    "series_id": 305089,
+    "episodes": [
+     [
+      0,
+      30
+     ],
+     [
+      0,
+      31
+     ],
+     [
+      0,
+      32
+     ],
+     [
+      0,
+      33
+     ],
+     [
+      0,
+      34
+     ],
+     [
+      0,
+      35
+     ],
+     [
+      0,
+      36
+     ],
+     [
+      0,
+      37
+     ],
+     [
+      0,
+      38
+     ],
+     [
+      0,
+      39
+     ],
+     [
+      0,
+      40
+     ],
+     [
+      0,
+      41
+     ],
+     [
+      0,
+      42
+     ]
+    ],
+    "method": "anibridge",
+    "anidb_specials": [],
+    "unmapped_anidb_eps": [],
+    "series_title": "Re: ZERO, Starting Life in Another World",
+    "missing_on_tvdb": [],
+    "missing_in_sonarr": [],
+    "tvdb_first_air": "2020-07-10",
+    "tvdb_first_title": "Re:Zero - Starting Break Time from Zero: Otto's Diary - 01",
+    "tvdb_overview": "Six days had passed since Petra worked as a maid in the Mathers' Domain. Frederica recalled the time that Petra wanted to apply to work as a maid. She warns her that working as the mansion's maid takes a lot of hardships and dedication and it isn't easy to do. Despite her warnings, Petra is still ob",
+    "airs": {
+     "airedBeforeSeasonNumber": 2,
+     "airedBeforeEpisodeNumber": 2
+    },
+    "range": "S00E30-E42",
+    "specials_range": ""
+   },
+   "tmdb_movie": [],
+   "flags": [
+    "chibi-short",
+    "short"
+   ],
+   "notes": [],
+   "kind": "leaf",
+   "anibridge": {
+    "tvdb": [
+     [
+      305089,
+      0,
+      30
+     ],
+     [
+      305089,
+      0,
+      31
+     ],
+     [
+      305089,
+      0,
+      32
+     ],
+     [
+      305089,
+      0,
+      33
+     ],
+     [
+      305089,
+      0,
+      34
+     ],
+     [
+      305089,
+      0,
+      35
+     ],
+     [
+      305089,
+      0,
+      36
+     ],
+     [
+      305089,
+      0,
+      37
+     ],
+     [
+      305089,
+      0,
+      38
+     ],
+     [
+      305089,
+      0,
+      39
+     ],
+     [
+      305089,
+      0,
+      40
+     ],
+     [
+      305089,
+      0,
+      41
+     ],
+     [
+      305089,
+      0,
+      42
+     ]
+    ],
+    "tmdb_movie": []
+   },
+   "anibridge_agrees": true,
+   "target": "sonarr S00",
+   "mainline": false
+  },
+  {
+   "key": "al:119661",
+   "title": "Re:Zero kara Hajimeru Isekai Seikatsu 2nd Season Part 2",
+   "title_en": "Re:ZERO -Starting Life in Another World- Season 2 Part 2",
+   "names": [
+    "Re:Zero kara Hajimeru Isekai Seikatsu 2nd Season Part 2",
+    "Re:ZERO -Starting Life in Another World- Season 2 Part 2",
+    "Re:ゼロから始める異世界生活 2nd Season Part 2",
+    "Re:Zero kara Hajimeru Isekai Seikatsu (2021)",
+    "Re: 제로부터 시작하는 이세계 생활 2기 파트 2",
+    "Re:从零开始的异世界生活第二季（下半）",
+    "Re:从零开始的异世界生活 2 下半",
+    "Re:Zero รีเซทชีวิต ฝ่าวิกฤตต่างโลก ภาค 2 พาร์ท 2",
+    "Re:Zero — жизнь с нуля в другом мире. Второй сезон"
+   ],
+   "anilist_id": 119661,
+   "mal_id": 42203,
+   "anidb_id": 15593,
+   "kitsu_id": 43247,
+   "format": "TV",
+   "status": "FINISHED",
+   "start": "2021-01-06",
+   "end": "2021-03-24",
+   "episodes": 12,
+   "duration_min": 30,
+   "anilist_relations": [
+    [
+     "PREQUEL",
+     108632
+    ],
+    [
+     "SPIN_OFF",
+     128306
+    ],
+    [
+     "SEQUEL",
+     163134
+    ]
+   ],
+   "found_via": "SEQUEL from 108632",
+   "origin": "anilist",
+   "tvdb": {
+    "series_id": 305089,
+    "episodes": [
+     [
+      2,
+      14
+     ],
+     [
+      2,
+      15
+     ],
+     [
+      2,
+      16
+     ],
+     [
+      2,
+      17
+     ],
+     [
+      2,
+      18
+     ],
+     [
+      2,
+      19
+     ],
+     [
+      2,
+      20
+     ],
+     [
+      2,
+      21
+     ],
+     [
+      2,
+      22
+     ],
+     [
+      2,
+      23
+     ],
+     [
+      2,
+      24
+     ],
+     [
+      2,
+      25
+     ]
+    ],
+    "method": "scudlee",
+    "anidb_specials": [
+     [
+      1,
+      0,
+      43
+     ],
+     [
+      2,
+      0,
+      44
+     ],
+     [
+      3,
+      0,
+      45
+     ],
+     [
+      4,
+      0,
+      46
+     ],
+     [
+      5,
+      0,
+      47
+     ],
+     [
+      6,
+      0,
+      48
+     ],
+     [
+      7,
+      0,
+      49
+     ],
+     [
+      8,
+      0,
+      50
+     ],
+     [
+      9,
+      0,
+      51
+     ],
+     [
+      10,
+      0,
+      52
+     ],
+     [
+      11,
+      0,
+      53
+     ],
+     [
+      12,
+      0,
+      54
+     ]
+    ],
+    "unmapped_anidb_eps": [],
+    "series_title": "Re: ZERO, Starting Life in Another World",
+    "missing_on_tvdb": [],
+    "missing_in_sonarr": [],
+    "tvdb_first_air": "2021-01-06",
+    "tvdb_first_title": "Straight Bet",
+    "tvdb_overview": "Tragedy strikes the Sanctuary, and Elsa takes aim at both Roswaal's mansion and the village of Arlam. After being told that all these threats are cruel traps, Subaru can't help but give in to despair. While he's stuck questioning himself and unable to come up with a way out of the dilemma closing in",
+    "range": "S02E14-E25",
+    "specials_range": "S00E43-E54"
+   },
+   "tmdb_movie": [],
+   "flags": [],
+   "notes": [],
+   "kind": "line",
+   "id_sources": [
+    "fribb"
+   ],
+   "scudlee": {
+    "tvdb": 305089,
+    "season": "2",
+    "offset": 13,
+    "mappings": 1
+   },
+   "anibridge": {
+    "tvdb": [
+     [
+      305089,
+      2,
+      14
+     ],
+     [
+      305089,
+      2,
+      15
+     ],
+     [
+      305089,
+      2,
+      16
+     ],
+     [
+      305089,
+      2,
+      17
+     ],
+     [
+      305089,
+      2,
+      18
+     ],
+     [
+      305089,
+      2,
+      19
+     ],
+     [
+      305089,
+      2,
+      20
+     ],
+     [
+      305089,
+      2,
+      21
+     ],
+     [
+      305089,
+      2,
+      22
+     ],
+     [
+      305089,
+      2,
+      23
+     ],
+     [
+      305089,
+      2,
+      24
+     ],
+     [
+      305089,
+      2,
+      25
+     ]
+    ],
+    "tmdb_movie": []
+   },
+   "anibridge_agrees": true,
+   "target": "sonarr",
+   "mainline": true
+  },
+  {
+   "key": "al:128306",
+   "title": "Re:Zero kara Hajimeru Kyuukei Jikan (Break Time) 2nd Season Part 2",
+   "title_en": null,
+   "names": [
+    "Re:Zero kara Hajimeru Kyuukei Jikan (Break Time) 2nd Season Part 2",
+    "Re:ゼロから始める休憩時間(ブレイクタイム) 2nd Season Part 2",
+    "Re:ZERO ~Starting Break Time From Zero~ Season 2 Part 2"
+   ],
+   "anilist_id": 128306,
+   "mal_id": null,
+   "anidb_id": null,
+   "kitsu_id": null,
+   "format": "ONA",
+   "status": "FINISHED",
+   "start": "2021-01-08",
+   "end": "2021-03-26",
+   "episodes": 12,
+   "duration_min": 3,
+   "anilist_relations": [
+    [
+     "PREQUEL",
+     120700
+    ],
+    [
+     "PARENT",
+     119661
+    ],
+    [
+     "SEQUEL",
+     182417
+    ]
+   ],
+   "found_via": "SPIN_OFF from 119661 (not expanded)",
+   "origin": "anilist",
+   "tvdb": {
+    "series_id": 305089,
+    "episodes": [
+     [
+      0,
+      43
+     ],
+     [
+      0,
+      44
+     ],
+     [
+      0,
+      45
+     ],
+     [
+      0,
+      46
+     ],
+     [
+      0,
+      47
+     ],
+     [
+      0,
+      48
+     ],
+     [
+      0,
+      49
+     ],
+     [
+      0,
+      50
+     ],
+     [
+      0,
+      51
+     ],
+     [
+      0,
+      52
+     ],
+     [
+      0,
+      53
+     ],
+     [
+      0,
+      54
+     ]
+    ],
+    "method": "anibridge",
+    "anidb_specials": [],
+    "unmapped_anidb_eps": [],
+    "series_title": "Re: ZERO, Starting Life in Another World",
+    "missing_on_tvdb": [],
+    "missing_in_sonarr": [],
+    "tvdb_first_air": "2021-01-08",
+    "tvdb_first_title": "Re:Zero - Starting Break Time from Zero: Otto and Subaru's Resolve",
+    "tvdb_overview": "It's a daily routine in the Sanctuary. Subaru and Ram's bickering, Emilia's helplessness, and Otto's worry and determination.",
+    "airs": {
+     "airedBeforeSeasonNumber": 2,
+     "airedBeforeEpisodeNumber": 15
+    },
+    "range": "S00E43-E54",
+    "specials_range": ""
+   },
+   "tmdb_movie": [],
+   "flags": [
+    "chibi-short",
+    "short"
+   ],
+   "notes": [],
+   "kind": "leaf",
+   "anibridge": {
+    "tvdb": [
+     [
+      305089,
+      0,
+      43
+     ],
+     [
+      305089,
+      0,
+      44
+     ],
+     [
+      305089,
+      0,
+      45
+     ],
+     [
+      305089,
+      0,
+      46
+     ],
+     [
+      305089,
+      0,
+      47
+     ],
+     [
+      305089,
+      0,
+      48
+     ],
+     [
+      305089,
+      0,
+      49
+     ],
+     [
+      305089,
+      0,
+      50
+     ],
+     [
+      305089,
+      0,
+      51
+     ],
+     [
+      305089,
+      0,
+      52
+     ],
+     [
+      305089,
+      0,
+      53
+     ],
+     [
+      305089,
+      0,
+      54
+     ]
+    ],
+    "tmdb_movie": []
+   },
+   "anibridge_agrees": true,
+   "target": "sonarr S00",
+   "mainline": false
+  },
+  {
+   "key": "al:163134",
+   "title": "Re:Zero kara Hajimeru Isekai Seikatsu 3rd Season",
+   "title_en": "Re:ZERO -Starting Life in Another World- Season 3",
+   "names": [
+    "Re:Zero kara Hajimeru Isekai Seikatsu 3rd Season",
+    "Re:ZERO -Starting Life in Another World- Season 3",
+    "Re:ゼロから始める異世界生活 3rd season",
+    "Re:ZERO – Жизнь с нуля в альтернативном мире 3"
+   ],
+   "anilist_id": 163134,
+   "mal_id": 54857,
+   "anidb_id": 17947,
+   "kitsu_id": 47235,
+   "format": "TV",
+   "status": "FINISHED",
+   "start": "2024-10-02",
+   "end": "2025-03-26",
+   "episodes": 16,
+   "duration_min": 24,
+   "anilist_relations": [
+    [
+     "PREQUEL",
+     119661
+    ],
+    [
+     "SPIN_OFF",
+     182417
+    ],
+    [
+     "SEQUEL",
+     189046
+    ]
+   ],
+   "found_via": "SEQUEL from 119661",
+   "origin": "anilist",
+   "tvdb": {
+    "series_id": 305089,
+    "episodes": [
+     [
+      3,
+      1
+     ],
+     [
+      3,
+      2
+     ],
+     [
+      3,
+      3
+     ],
+     [
+      3,
+      4
+     ],
+     [
+      3,
+      5
+     ],
+     [
+      3,
+      6
+     ],
+     [
+      3,
+      7
+     ],
+     [
+      3,
+      8
+     ],
+     [
+      3,
+      9
+     ],
+     [
+      3,
+      10
+     ],
+     [
+      3,
+      11
+     ],
+     [
+      3,
+      12
+     ],
+     [
+      3,
+      13
+     ],
+     [
+      3,
+      14
+     ],
+     [
+      3,
+      15
+     ],
+     [
+      3,
+      16
+     ]
+    ],
+    "method": "scudlee",
+    "anidb_specials": [],
+    "unmapped_anidb_eps": [],
+    "series_title": "Re: ZERO, Starting Life in Another World",
+    "missing_on_tvdb": [],
+    "missing_in_sonarr": [],
+    "tvdb_first_air": "2024-10-02",
+    "tvdb_first_title": "Theatrical Malice",
+    "tvdb_overview": "A year has passed since the battle at the Sanctuary, and Subaru has been spending fulfilling days united with Emilia's camp. However, his peaceful everyday life ends with the arrival of a single letter.",
+    "range": "S03E01-E16",
+    "specials_range": ""
+   },
+   "tmdb_movie": [],
+   "flags": [],
+   "notes": [],
+   "kind": "line",
+   "id_sources": [
+    "fribb"
+   ],
+   "scudlee": {
+    "tvdb": 305089,
+    "season": "3",
+    "offset": 0,
+    "mappings": 0
+   },
+   "anibridge": {
+    "tvdb": [
+     [
+      305089,
+      3,
+      1
+     ],
+     [
+      305089,
+      3,
+      2
+     ],
+     [
+      305089,
+      3,
+      3
+     ],
+     [
+      305089,
+      3,
+      4
+     ],
+     [
+      305089,
+      3,
+      5
+     ],
+     [
+      305089,
+      3,
+      6
+     ],
+     [
+      305089,
+      3,
+      7
+     ],
+     [
+      305089,
+      3,
+      8
+     ],
+     [
+      305089,
+      3,
+      9
+     ],
+     [
+      305089,
+      3,
+      10
+     ],
+     [
+      305089,
+      3,
+      11
+     ],
+     [
+      305089,
+      3,
+      12
+     ],
+     [
+      305089,
+      3,
+      13
+     ],
+     [
+      305089,
+      3,
+      14
+     ],
+     [
+      305089,
+      3,
+      15
+     ],
+     [
+      305089,
+      3,
+      16
+     ]
+    ],
+    "tmdb_movie": []
+   },
+   "anibridge_agrees": true,
+   "target": "sonarr",
+   "mainline": true
+  },
+  {
+   "key": "al:182417",
+   "title": "Re:Zero kara Hajimeru Kyuukei Jikan (Break Time) 3rd Season",
+   "title_en": null,
+   "names": [
+    "Re:Zero kara Hajimeru Kyuukei Jikan (Break Time) 3rd Season",
+    "Re:ゼロから始める休憩時間(ブレイクタイム) 3rd Season"
+   ],
+   "anilist_id": 182417,
+   "mal_id": 60012,
+   "anidb_id": null,
+   "kitsu_id": 49258,
+   "format": "ONA",
+   "status": "FINISHED",
+   "start": "2024-10-03",
+   "end": "2025-03-26",
+   "episodes": 16,
+   "duration_min": 3,
+   "anilist_relations": [
+    [
+     "PREQUEL",
+     128306
+    ],
+    [
+     "PARENT",
+     163134
+    ],
+    [
+     "SEQUEL",
+     210687
+    ]
+   ],
+   "found_via": "SPIN_OFF from 163134 (not expanded)",
+   "origin": "anilist",
+   "tvdb": {
+    "series_id": 305089,
+    "episodes": [
+     [
+      0,
+      55
+     ],
+     [
+      0,
+      56
+     ],
+     [
+      0,
+      57
+     ],
+     [
+      0,
+      58
+     ],
+     [
+      0,
+      59
+     ],
+     [
+      0,
+      60
+     ],
+     [
+      0,
+      61
+     ],
+     [
+      0,
+      62
+     ],
+     [
+      0,
+      63
+     ],
+     [
+      0,
+      64
+     ],
+     [
+      0,
+      65
+     ],
+     [
+      0,
+      66
+     ],
+     [
+      0,
+      67
+     ],
+     [
+      0,
+      68
+     ],
+     [
+      0,
+      69
+     ],
+     [
+      0,
+      70
+     ]
+    ],
+    "method": "anibridge",
+    "anidb_specials": [],
+    "unmapped_anidb_eps": [],
+    "series_title": "Re: ZERO, Starting Life in Another World",
+    "missing_on_tvdb": [],
+    "missing_in_sonarr": [],
+    "tvdb_first_air": "2024-10-02",
+    "tvdb_first_title": "Re:Zero - Starting Break Time from Zero: Night Tales of the Sleeping Oni",
+    "tvdb_overview": "Subaru talks about today's events in front of a sleeping Rem. Remembering Emilia and Beatrice's words, Subaru whispers that he wishes Rem was here, and he hears Rem's voice...",
+    "airs": {
+     "airedBeforeSeasonNumber": 3,
+     "airedBeforeEpisodeNumber": 2
+    },
+    "range": "S00E55-E70",
+    "specials_range": ""
+   },
+   "tmdb_movie": [],
+   "flags": [
+    "chibi-short",
+    "short"
+   ],
+   "notes": [],
+   "kind": "leaf",
+   "anibridge": {
+    "tvdb": [
+     [
+      305089,
+      0,
+      55
+     ],
+     [
+      305089,
+      0,
+      56
+     ],
+     [
+      305089,
+      0,
+      57
+     ],
+     [
+      305089,
+      0,
+      58
+     ],
+     [
+      305089,
+      0,
+      59
+     ],
+     [
+      305089,
+      0,
+      60
+     ],
+     [
+      305089,
+      0,
+      61
+     ],
+     [
+      305089,
+      0,
+      62
+     ],
+     [
+      305089,
+      0,
+      63
+     ],
+     [
+      305089,
+      0,
+      64
+     ],
+     [
+      305089,
+      0,
+      65
+     ],
+     [
+      305089,
+      0,
+      66
+     ],
+     [
+      305089,
+      0,
+      67
+     ],
+     [
+      305089,
+      0,
+      68
+     ],
+     [
+      305089,
+      0,
+      69
+     ],
+     [
+      305089,
+      0,
+      70
+     ]
+    ],
+    "tmdb_movie": []
+   },
+   "anibridge_agrees": true,
+   "target": "sonarr S00",
+   "mainline": false
+  },
+  {
+   "key": "al:189046",
+   "title": "Re:Zero kara Hajimeru Isekai Seikatsu 4th Season",
+   "title_en": "Re:ZERO -Starting Life in Another World- Season 4",
+   "names": [
+    "Re:Zero kara Hajimeru Isekai Seikatsu 4th Season",
+    "Re:ZERO -Starting Life in Another World- Season 4",
+    "Re:ゼロから始める異世界生活 4th season",
+    "Re:ZERO รีเซทชีวิต ฝ่าวิกฤตต่างโลก ซีซั่น 4",
+    "Re:ZERO – Жизнь с нуля в альтернативном мире 4"
+   ],
+   "anilist_id": 189046,
+   "mal_id": 61316,
+   "anidb_id": 19242,
+   "kitsu_id": 49746,
+   "format": "TV",
+   "status": "FINISHED",
+   "start": "2026-04-08",
+   "end": "2026-09-30",
+   "episodes": 19,
+   "duration_min": 24,
+   "anilist_relations": [
+    [
+     "PREQUEL",
+     163134
+    ],
+    [
+     "SPIN_OFF",
+     210687
+    ]
+   ],
+   "found_via": "SEQUEL from 163134",
+   "origin": "anilist",
+   "tvdb": {
+    "series_id": 305089,
+    "episodes": [
+     [
+      4,
+      1
+     ],
+     [
+      4,
+      2
+     ],
+     [
+      4,
+      3
+     ],
+     [
+      4,
+      4
+     ],
+     [
+      4,
+      5
+     ],
+     [
+      4,
+      6
+     ],
+     [
+      4,
+      7
+     ],
+     [
+      4,
+      8
+     ],
+     [
+      4,
+      9
+     ],
+     [
+      4,
+      10
+     ],
+     [
+      4,
+      11
+     ],
+     [
+      4,
+      12
+     ],
+     [
+      4,
+      13
+     ],
+     [
+      4,
+      14
+     ],
+     [
+      4,
+      15
+     ],
+     [
+      4,
+      16
+     ],
+     [
+      4,
+      17
+     ],
+     [
+      4,
+      18
+     ],
+     [
+      4,
+      19
+     ]
+    ],
+    "method": "scudlee",
+    "anidb_specials": [],
+    "unmapped_anidb_eps": [],
+    "series_title": "Re: ZERO, Starting Life in Another World",
+    "missing_on_tvdb": [],
+    "missing_in_sonarr": [],
+    "tvdb_first_air": "2026-04-08",
+    "tvdb_first_title": "The Reason I'm Taking You With Me / Gorgeous Tiger Reloaded",
+    "tvdb_overview": "Subaru sets out for the Pleiades Watchtower in hopes of saving his friends and the people of Priestella.",
+    "range": "S04E01-E19",
+    "specials_range": ""
+   },
+   "tmdb_movie": [],
+   "flags": [],
+   "notes": [],
+   "kind": "line",
+   "id_sources": [
+    "fribb"
+   ],
+   "scudlee": {
+    "tvdb": 305089,
+    "season": "4",
+    "offset": 0,
+    "mappings": 0
+   },
+   "anibridge": {
+    "tvdb": [
+     [
+      305089,
+      4,
+      1
+     ],
+     [
+      305089,
+      4,
+      2
+     ],
+     [
+      305089,
+      4,
+      3
+     ],
+     [
+      305089,
+      4,
+      4
+     ],
+     [
+      305089,
+      4,
+      5
+     ],
+     [
+      305089,
+      4,
+      6
+     ],
+     [
+      305089,
+      4,
+      7
+     ],
+     [
+      305089,
+      4,
+      8
+     ],
+     [
+      305089,
+      4,
+      9
+     ],
+     [
+      305089,
+      4,
+      10
+     ],
+     [
+      305089,
+      4,
+      11
+     ],
+     [
+      305089,
+      4,
+      12
+     ],
+     [
+      305089,
+      4,
+      13
+     ],
+     [
+      305089,
+      4,
+      14
+     ],
+     [
+      305089,
+      4,
+      15
+     ],
+     [
+      305089,
+      4,
+      16
+     ],
+     [
+      305089,
+      4,
+      17
+     ],
+     [
+      305089,
+      4,
+      18
+     ],
+     [
+      305089,
+      4,
+      19
+     ]
+    ],
+    "tmdb_movie": []
+   },
+   "anibridge_agrees": true,
+   "target": "sonarr",
+   "mainline": true
+  },
+  {
+   "key": "al:210687",
+   "title": "Re:Zero kara Hajimeru Kyuukei Jikan (Break Time) 4th Season",
+   "title_en": null,
+   "names": [
+    "Re:Zero kara Hajimeru Kyuukei Jikan (Break Time) 4th Season",
+    "Re:ゼロから始める休憩時間(ブレイクタイム) 4th Season",
+    "Re:ZERO ~Starting Break Time From Zero~ Season 4"
+   ],
+   "anilist_id": 210687,
+   "mal_id": 63830,
+   "anidb_id": null,
+   "kitsu_id": 50665,
+   "format": "ONA",
+   "status": "FINISHED",
+   "start": "2026-04-08",
+   "end": "2026-09-30",
+   "episodes": 19,
+   "duration_min": 3,
+   "anilist_relations": [
+    [
+     "PREQUEL",
+     182417
+    ],
+    [
+     "PARENT",
+     189046
+    ]
+   ],
+   "found_via": "SPIN_OFF from 189046 (not expanded)",
+   "origin": "anilist",
+   "tvdb": null,
+   "tmdb_movie": [],
+   "flags": [
+    "chibi-short",
+    "short"
+   ],
+   "notes": [],
+   "kind": "leaf",
+   "anibridge": {
+    "tvdb": [],
+    "tmdb_movie": []
+   },
+   "anibridge_agrees": null,
+   "target": "none",
+   "mainline": false
+  }
+ ],
+ "excluded_neighbours": [
+  {
+   "anilist_id": 104454,
+   "title": "Isekai Quartet",
+   "format": "TV_SHORT",
+   "why": "CHARACTER from 21355 (crossover or cameo)"
+  },
+  {
+   "anilist_id": 110178,
+   "title": "Isekai Quartet 2",
+   "format": "TV_SHORT",
+   "why": "CHARACTER from 21355 (crossover or cameo)"
+  },
+  {
+   "anilist_id": 117074,
+   "title": "Isekai Quartet: Another World",
+   "format": "MOVIE",
+   "why": "CHARACTER from 21355 (crossover or cameo)"
+  },
+  {
+   "anilist_id": 166093,
+   "title": "Snack Basue",
+   "format": "TV",
+   "why": "CHARACTER from 21355 (crossover or cameo)"
+  },
+  {
+   "anilist_id": 194447,
+   "title": "Isekai Quartet 3",
+   "format": "TV_SHORT",
+   "why": "CHARACTER from 21355 (crossover or cameo)"
+  }
+ ],
+ "tvdb_regular_unclaimed": [],
+ "release_order": [
+  {
+   "key": "al:21355",
+   "title": "Re:ZERO -Starting Life in Another World-",
+   "format": "TV",
+   "date": "2016-04-04",
+   "tvdb": "S01E01-E25",
+   "tmdb": null,
+   "flags": [],
+   "n": 1,
+   "premiered_during": null
+  },
+  {
+   "key": "al:21780",
+   "title": "Re:ZERO ~Starting Break Time From Zero~",
+   "format": "TV_SHORT",
+   "date": "2016-04-08",
+   "tvdb": "S00E01-E11",
+   "tmdb": null,
+   "flags": [
+    "chibi-short",
+    "short"
+   ],
+   "n": 2,
+   "premiered_during": [
+    "al:21355"
+   ]
+  },
+  {
+   "key": "al:21891",
+   "title": "Re:PETIT ~Re: Starting Life in Another World From PETIT~",
+   "format": "TV_SHORT",
+   "date": "2016-06-24",
+   "tvdb": "S00E12-E25",
+   "tmdb": null,
+   "flags": [
+    "chibi-short",
+    "short"
+   ],
+   "n": 3,
+   "premiered_during": [
+    "al:21355"
+   ]
+  },
+  {
+   "key": "al:100049#1",
+   "title": "Re:ZERO -Starting Life in Another World- OVAs #1: Memory Snow",
+   "format": "OVA",
+   "date": "2018-10-06",
+   "tvdb": "S00E26",
+   "tmdb": [
+    532321
+   ],
+   "flags": [],
+   "n": 4,
+   "premiered_during": null
+  },
+  {
+   "key": "al:100049#2",
+   "title": "Re:ZERO -Starting Life in Another World- OVAs #2: Frozen Bonds",
+   "format": "OVA",
+   "date": "2019-11-08",
+   "tvdb": "S00E28",
+   "tmdb": [
+    566451
+   ],
+   "flags": [],
+   "n": 5,
+   "premiered_during": null
+  },
+  {
+   "key": "kitsu:42903",
+   "title": "Re:Zero Starting Life in Another World - Director's Cut",
+   "format": "TV",
+   "date": "2020-01-01",
+   "tvdb": null,
+   "tmdb": null,
+   "flags": [
+    "alternate-version",
+    "directors-cut",
+    "not-on-anidb",
+    "not-on-anilist"
+   ],
+   "n": 6,
+   "premiered_during": null
+  },
+  {
+   "key": "al:108632",
+   "title": "Re:ZERO -Starting Life in Another World- Season 2",
+   "format": "TV",
+   "date": "2020-07-08",
+   "tvdb": "S02E01-E13",
+   "tmdb": null,
+   "flags": [],
+   "n": 7,
+   "premiered_during": null
+  },
+  {
+   "key": "al:120700",
+   "title": "Re:Zero kara Hajimeru Kyuukei Jikan (Break Time) 2nd Season",
+   "format": "ONA",
+   "date": "2020-07-10",
+   "tvdb": "S00E30-E42",
+   "tmdb": null,
+   "flags": [
+    "chibi-short",
+    "short"
+   ],
+   "n": 8,
+   "premiered_during": [
+    "al:108632"
+   ]
+  },
+  {
+   "key": "al:119661",
+   "title": "Re:ZERO -Starting Life in Another World- Season 2 Part 2",
+   "format": "TV",
+   "date": "2021-01-06",
+   "tvdb": "S02E14-E25",
+   "tmdb": null,
+   "flags": [],
+   "n": 9,
+   "premiered_during": null
+  },
+  {
+   "key": "al:128306",
+   "title": "Re:Zero kara Hajimeru Kyuukei Jikan (Break Time) 2nd Season Part 2",
+   "format": "ONA",
+   "date": "2021-01-08",
+   "tvdb": "S00E43-E54",
+   "tmdb": null,
+   "flags": [
+    "chibi-short",
+    "short"
+   ],
+   "n": 10,
+   "premiered_during": [
+    "al:119661"
+   ]
+  },
+  {
+   "key": "al:163134",
+   "title": "Re:ZERO -Starting Life in Another World- Season 3",
+   "format": "TV",
+   "date": "2024-10-02",
+   "tvdb": "S03E01-E16",
+   "tmdb": null,
+   "flags": [],
+   "n": 11,
+   "premiered_during": null
+  },
+  {
+   "key": "al:182417",
+   "title": "Re:Zero kara Hajimeru Kyuukei Jikan (Break Time) 3rd Season",
+   "format": "ONA",
+   "date": "2024-10-03",
+   "tvdb": "S00E55-E70",
+   "tmdb": null,
+   "flags": [
+    "chibi-short",
+    "short"
+   ],
+   "n": 12,
+   "premiered_during": [
+    "al:163134"
+   ]
+  },
+  {
+   "key": "al:189046",
+   "title": "Re:ZERO -Starting Life in Another World- Season 4",
+   "format": "TV",
+   "date": "2026-04-08",
+   "tvdb": "S04E01-E19",
+   "tmdb": null,
+   "flags": [],
+   "n": 13,
+   "premiered_during": null
+  },
+  {
+   "key": "al:210687",
+   "title": "Re:Zero kara Hajimeru Kyuukei Jikan (Break Time) 4th Season",
+   "format": "ONA",
+   "date": "2026-04-08",
+   "tvdb": null,
+   "tmdb": null,
+   "flags": [
+    "chibi-short",
+    "short"
+   ],
+   "n": 14,
+   "premiered_during": null
+  }
+ ],
+ "watch_order": [
+  {
+   "key": "al:21355",
+   "title": "Re:ZERO -Starting Life in Another World-",
+   "format": "TV",
+   "date": "2016-04-04",
+   "tvdb": "S01E01-E25",
+   "tmdb": null,
+   "flags": [],
+   "n": 1,
+   "role": "mainline",
+   "optional": false,
+   "alternates": [
+    "kitsu:42903"
+   ]
+  },
+  {
+   "key": "al:21780",
+   "title": "Re:ZERO ~Starting Break Time From Zero~",
+   "format": "TV_SHORT",
+   "date": "2016-04-08",
+   "tvdb": "S00E01-E11",
+   "tmdb": null,
+   "flags": [
+    "chibi-short",
+    "short"
+   ],
+   "n": 2,
+   "role": "spin-off",
+   "optional": true,
+   "placed_by": "release-date",
+   "tvdb_places_after": "al:21355 (mid-entry, before S01E02)"
+  },
+  {
+   "key": "al:21891",
+   "title": "Re:PETIT ~Re: Starting Life in Another World From PETIT~",
+   "format": "TV_SHORT",
+   "date": "2016-06-24",
+   "tvdb": "S00E12-E25",
+   "tmdb": null,
+   "flags": [
+    "chibi-short",
+    "short"
+   ],
+   "n": 3,
+   "role": "spin-off",
+   "optional": true,
+   "placed_by": "release-date",
+   "tvdb_places_after": "al:21355 (mid-entry, before S01E13)"
+  },
+  {
+   "key": "al:100049#1",
+   "title": "Re:ZERO -Starting Life in Another World- OVAs #1: Memory Snow",
+   "format": "OVA",
+   "date": "2018-10-06",
+   "tvdb": "S00E26",
+   "tmdb": [
+    532321
+   ],
+   "flags": [],
+   "n": 4,
+   "role": "side-story",
+   "optional": true,
+   "placed_by": "release-date"
+  },
+  {
+   "key": "al:100049#2",
+   "title": "Re:ZERO -Starting Life in Another World- OVAs #2: Frozen Bonds",
+   "format": "OVA",
+   "date": "2019-11-08",
+   "tvdb": "S00E28",
+   "tmdb": [
+    566451
+   ],
+   "flags": [],
+   "n": 5,
+   "role": "side-story",
+   "optional": true,
+   "placed_by": "release-date",
+   "tvdb_places_after": "start"
+  },
+  {
+   "key": "al:108632",
+   "title": "Re:ZERO -Starting Life in Another World- Season 2",
+   "format": "TV",
+   "date": "2020-07-08",
+   "tvdb": "S02E01-E13",
+   "tmdb": null,
+   "flags": [],
+   "n": 6,
+   "role": "mainline",
+   "optional": false,
+   "alternates": null
+  },
+  {
+   "key": "al:120700",
+   "title": "Re:Zero kara Hajimeru Kyuukei Jikan (Break Time) 2nd Season",
+   "format": "ONA",
+   "date": "2020-07-10",
+   "tvdb": "S00E30-E42",
+   "tmdb": null,
+   "flags": [
+    "chibi-short",
+    "short"
+   ],
+   "n": 7,
+   "role": "spin-off",
+   "optional": true,
+   "placed_by": "release-date",
+   "tvdb_places_after": "al:108632 (mid-entry, before S02E02)"
+  },
+  {
+   "key": "al:119661",
+   "title": "Re:ZERO -Starting Life in Another World- Season 2 Part 2",
+   "format": "TV",
+   "date": "2021-01-06",
+   "tvdb": "S02E14-E25",
+   "tmdb": null,
+   "flags": [],
+   "n": 8,
+   "role": "mainline",
+   "optional": false,
+   "alternates": null
+  },
+  {
+   "key": "al:128306",
+   "title": "Re:Zero kara Hajimeru Kyuukei Jikan (Break Time) 2nd Season Part 2",
+   "format": "ONA",
+   "date": "2021-01-08",
+   "tvdb": "S00E43-E54",
+   "tmdb": null,
+   "flags": [
+    "chibi-short",
+    "short"
+   ],
+   "n": 9,
+   "role": "spin-off",
+   "optional": true,
+   "placed_by": "release-date",
+   "tvdb_places_after": "al:119661 (mid-entry, before S02E15)"
+  },
+  {
+   "key": "al:163134",
+   "title": "Re:ZERO -Starting Life in Another World- Season 3",
+   "format": "TV",
+   "date": "2024-10-02",
+   "tvdb": "S03E01-E16",
+   "tmdb": null,
+   "flags": [],
+   "n": 10,
+   "role": "mainline",
+   "optional": false,
+   "alternates": null
+  },
+  {
+   "key": "al:182417",
+   "title": "Re:Zero kara Hajimeru Kyuukei Jikan (Break Time) 3rd Season",
+   "format": "ONA",
+   "date": "2024-10-03",
+   "tvdb": "S00E55-E70",
+   "tmdb": null,
+   "flags": [
+    "chibi-short",
+    "short"
+   ],
+   "n": 11,
+   "role": "spin-off",
+   "optional": true,
+   "placed_by": "release-date",
+   "tvdb_places_after": "al:163134 (mid-entry, before S03E02)"
+  },
+  {
+   "key": "al:189046",
+   "title": "Re:ZERO -Starting Life in Another World- Season 4",
+   "format": "TV",
+   "date": "2026-04-08",
+   "tvdb": "S04E01-E19",
+   "tmdb": null,
+   "flags": [],
+   "n": 12,
+   "role": "mainline",
+   "optional": false,
+   "alternates": null
+  },
+  {
+   "key": "al:210687",
+   "title": "Re:Zero kara Hajimeru Kyuukei Jikan (Break Time) 4th Season",
+   "format": "ONA",
+   "date": "2026-04-08",
+   "tvdb": null,
+   "tmdb": null,
+   "flags": [
+    "chibi-short",
+    "short"
+   ],
+   "n": 13,
+   "role": "spin-off",
+   "optional": true,
+   "placed_by": "release-date"
+  },
+  {
+   "key": "kitsu:42903",
+   "title": "Re:Zero Starting Life in Another World - Director's Cut",
+   "format": "TV",
+   "date": "2020-01-01",
+   "tvdb": null,
+   "tmdb": null,
+   "flags": [
+    "alternate-version",
+    "directors-cut",
+    "not-on-anidb",
+    "not-on-anilist"
+   ],
+   "n": null,
+   "role": "alternate",
+   "alternate_of": "al:21355",
+   "optional": true
+  }
+ ],
+ "story_order": {
+  "basis": "AniList chain (topological) + TVDB airs for single specials",
+  "moves_applied": 1,
+  "moves_failed": [],
+  "source": "https://myanimelist.net/stacks/53018",
+  "order": [
+   {
+    "key": "al:100049#2",
+    "title": "Re:ZERO -Starting Life in Another World- OVAs #2: Frozen Bonds",
+    "format": "OVA",
+    "date": "2019-11-08",
+    "tvdb": "S00E28",
+    "tmdb": [
+     566451
+    ],
+    "flags": [],
+    "n": 1,
+    "role": "side-story",
+    "optional": true,
+    "placed_by": "tvdb-airs"
+   },
+   {
+    "key": "al:21355",
+    "title": "Re:ZERO -Starting Life in Another World-",
+    "format": "TV",
+    "date": "2016-04-04",
+    "tvdb": "S01E01-E25",
+    "tmdb": null,
+    "flags": [],
+    "n": 2,
+    "role": "mainline",
+    "optional": false,
+    "alternates": [
+     "kitsu:42903"
+    ],
+    "part": "S01E01-E11"
+   },
+   {
+    "key": "al:100049#1",
+    "title": "Re:ZERO -Starting Life in Another World- OVAs #1: Memory Snow",
+    "format": "OVA",
+    "date": "2018-10-06",
+    "tvdb": "S00E26",
+    "tmdb": [
+     532321
+    ],
+    "flags": [],
+    "n": 3,
+    "role": "side-story",
+    "optional": true,
+    "placed_by": "tvdb-airs (after season)",
+    "part": null,
+    "moved_by_override": "Memory Snow is set between arc 2 and arc 3 (after S1 ep 11); TVDB only says 'after season 1'"
+   },
+   {
+    "key": "al:21355",
+    "title": "Re:ZERO -Starting Life in Another World-",
+    "format": "TV",
+    "date": "2016-04-04",
+    "tvdb": "S01E01-E25",
+    "tmdb": null,
+    "flags": [],
+    "n": 4,
+    "role": "mainline",
+    "optional": false,
+    "alternates": [
+     "kitsu:42903"
+    ],
+    "part": "S01E12-E25"
+   },
+   {
+    "key": "al:21780",
+    "title": "Re:ZERO ~Starting Break Time From Zero~",
+    "format": "TV_SHORT",
+    "date": "2016-04-08",
+    "tvdb": "S00E01-E11",
+    "tmdb": null,
+    "flags": [
+     "chibi-short",
+     "short"
+    ],
+    "n": 5,
+    "role": "spin-off",
+    "optional": true,
+    "placed_by": "release-date",
+    "tvdb_places_after": "al:21355 (mid-entry, before S01E02)"
+   },
+   {
+    "key": "al:21891",
+    "title": "Re:PETIT ~Re: Starting Life in Another World From PETIT~",
+    "format": "TV_SHORT",
+    "date": "2016-06-24",
+    "tvdb": "S00E12-E25",
+    "tmdb": null,
+    "flags": [
+     "chibi-short",
+     "short"
+    ],
+    "n": 6,
+    "role": "spin-off",
+    "optional": true,
+    "placed_by": "release-date",
+    "tvdb_places_after": "al:21355 (mid-entry, before S01E13)"
+   },
+   {
+    "key": "al:108632",
+    "title": "Re:ZERO -Starting Life in Another World- Season 2",
+    "format": "TV",
+    "date": "2020-07-08",
+    "tvdb": "S02E01-E13",
+    "tmdb": null,
+    "flags": [],
+    "n": 7,
+    "role": "mainline",
+    "optional": false,
+    "alternates": null
+   },
+   {
+    "key": "al:120700",
+    "title": "Re:Zero kara Hajimeru Kyuukei Jikan (Break Time) 2nd Season",
+    "format": "ONA",
+    "date": "2020-07-10",
+    "tvdb": "S00E30-E42",
+    "tmdb": null,
+    "flags": [
+     "chibi-short",
+     "short"
+    ],
+    "n": 8,
+    "role": "spin-off",
+    "optional": true,
+    "placed_by": "release-date",
+    "tvdb_places_after": "al:108632 (mid-entry, before S02E02)"
+   },
+   {
+    "key": "al:119661",
+    "title": "Re:ZERO -Starting Life in Another World- Season 2 Part 2",
+    "format": "TV",
+    "date": "2021-01-06",
+    "tvdb": "S02E14-E25",
+    "tmdb": null,
+    "flags": [],
+    "n": 9,
+    "role": "mainline",
+    "optional": false,
+    "alternates": null
+   },
+   {
+    "key": "al:128306",
+    "title": "Re:Zero kara Hajimeru Kyuukei Jikan (Break Time) 2nd Season Part 2",
+    "format": "ONA",
+    "date": "2021-01-08",
+    "tvdb": "S00E43-E54",
+    "tmdb": null,
+    "flags": [
+     "chibi-short",
+     "short"
+    ],
+    "n": 10,
+    "role": "spin-off",
+    "optional": true,
+    "placed_by": "release-date",
+    "tvdb_places_after": "al:119661 (mid-entry, before S02E15)"
+   },
+   {
+    "key": "al:163134",
+    "title": "Re:ZERO -Starting Life in Another World- Season 3",
+    "format": "TV",
+    "date": "2024-10-02",
+    "tvdb": "S03E01-E16",
+    "tmdb": null,
+    "flags": [],
+    "n": 11,
+    "role": "mainline",
+    "optional": false,
+    "alternates": null
+   },
+   {
+    "key": "al:182417",
+    "title": "Re:Zero kara Hajimeru Kyuukei Jikan (Break Time) 3rd Season",
+    "format": "ONA",
+    "date": "2024-10-03",
+    "tvdb": "S00E55-E70",
+    "tmdb": null,
+    "flags": [
+     "chibi-short",
+     "short"
+    ],
+    "n": 12,
+    "role": "spin-off",
+    "optional": true,
+    "placed_by": "release-date",
+    "tvdb_places_after": "al:163134 (mid-entry, before S03E02)"
+   },
+   {
+    "key": "al:189046",
+    "title": "Re:ZERO -Starting Life in Another World- Season 4",
+    "format": "TV",
+    "date": "2026-04-08",
+    "tvdb": "S04E01-E19",
+    "tmdb": null,
+    "flags": [],
+    "n": 13,
+    "role": "mainline",
+    "optional": false,
+    "alternates": null
+   },
+   {
+    "key": "al:210687",
+    "title": "Re:Zero kara Hajimeru Kyuukei Jikan (Break Time) 4th Season",
+    "format": "ONA",
+    "date": "2026-04-08",
+    "tvdb": null,
+    "tmdb": null,
+    "flags": [
+     "chibi-short",
+     "short"
+    ],
+    "n": 14,
+    "role": "spin-off",
+    "optional": true,
+    "placed_by": "release-date"
+   }
+  ],
+  "alternates": [
+   {
+    "key": "kitsu:42903",
+    "title": "Re:Zero Starting Life in Another World - Director's Cut",
+    "format": "TV",
+    "date": "2020-01-01",
+    "tvdb": null,
+    "tmdb": null,
+    "flags": [
+     "alternate-version",
+     "directors-cut",
+     "not-on-anidb",
+     "not-on-anilist"
+    ],
+    "n": null,
+    "role": "alternate",
+    "alternate_of": "al:21355",
+    "optional": true
+   }
+  ]
+ },
+ "community": {
+  "sources": {
+   "recommended": "https://myanimelist.net/stacks/63483 (Memory Snow and Frozen Bond after S1, before S2)",
+   "chronological": "https://myanimelist.net/stacks/53018 (Frozen Bond first; Memory Snow after S1 ep 11)"
+  },
+  "against": {
+   "watch_order vs recommended": {
+    "community_entries": 7,
+    "matched": 7,
+    "missing_here": [],
+    "extra_here": [],
+    "order_inversions": []
+   },
+   "story_order vs chronological": {
+    "community_entries": 7,
+    "matched": 7,
+    "missing_here": [],
+    "extra_here": [],
+    "order_inversions": []
+   }
+  }
+ },
+ "dataset_versions": {
+  "anibridge": {
+   "schema_version": "3.0.3",
+   "generated_on": "2026-10-25T17:16:58Z"
+  }
+ }
+}

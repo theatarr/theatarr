@@ -1,0 +1,4664 @@
+{
+ "instance": "radarr_4k_debrid",
+ "naming": {
+  "renameMovies": true,
+  "replaceIllegalCharacters": true,
+  "colonReplacementFormat": "delete",
+  "standardMovieFormat": "{Movie CleanTitle} {(Release Year)} {imdb-{ImdbId}} - {edition-{Edition Tags}} {[MediaInfo 3D]}{[Custom Formats]}{[Quality Full]}{[Mediainfo AudioCodec}{ Mediainfo AudioChannels]}{[MediaInfo VideoDynamicRangeType]}{[Mediainfo VideoCodec]}{-Release Group}",
+  "movieFolderFormat": "{Movie CleanTitle} ({Release Year})",
+  "id": 1
+ },
+ "cases": [
+  {
+   "instance": "radarr_4k_debrid",
+   "file_id": 491,
+   "movie": {
+    "Title": "Guardians of the Galaxy",
+    "OriginalTitle": "",
+    "Year": 2014,
+    "ImdbID": "tt2015381",
+    "TmdbID": 118340,
+    "Certification": "",
+    "Collection": ""
+   },
+   "movie_file": {
+    "Quality": {
+     "Title": "Remux-2160p",
+     "Version": 1,
+     "Real": 0
+    },
+    "ReleaseGroup": "FraMeSToR",
+    "Edition": "",
+    "SceneName": "Guardians.of.the.Galaxy.2014.UHD.BluRay.2160p.TrueHD.Atmos.7.1.DV.HEVC.HYBRID.REMUX-FraMeSToR",
+    "RelativePath": "Guardians of the Galaxy (2014) {imdb-tt2015381} - [Hybrid][Remux-2160p][TrueHD Atmos 7.1][DV HDR10][HEVC]-FraMeSToR.mkv",
+    "Path": "/media/movies/Guardians of the Galaxy (2014)/Guardians of the Galaxy (2014) {imdb-tt2015381} - [Hybrid][Remux-2160p][TrueHD Atmos 7.1][DV HDR10][HEVC]-FraMeSToR.mkv",
+    "MediaInfo": {
+     "VideoCodec": "HEVC",
+     "VideoBitDepth": 10,
+     "VideoMultiViewCount": 0,
+     "AudioCodec": "TrueHD Atmos",
+     "AudioChannels": 7.1,
+     "AudioLanguages": [
+      "eng",
+      "eng",
+      "eng"
+     ],
+     "Subtitles": null,
+     "VideoDynamicRange": "HDR",
+     "VideoDynamicRangeType": "DV HDR10"
+    },
+    "CustomFormats": [
+     "Hybrid"
+    ]
+   },
+   "root": "/media/movies",
+   "cf_source": "name",
+   "expect_folder": "Guardians of the Galaxy (2014)",
+   "expect_file": "Guardians of the Galaxy (2014) {imdb-tt2015381} - [Hybrid][Remux-2160p][TrueHD Atmos 7.1][DV HDR10][HEVC]-FraMeSToR",
+   "ext": ".mkv"
+  },
+  {
+   "instance": "radarr_4k_debrid",
+   "file_id": 501,
+   "movie": {
+    "Title": "Scream",
+    "OriginalTitle": "",
+    "Year": 1996,
+    "ImdbID": "tt0117571",
+    "TmdbID": 4232,
+    "Certification": "",
+    "Collection": ""
+   },
+   "movie_file": {
+    "Quality": {
+     "Title": "Remux-2160p",
+     "Version": 1,
+     "Real": 0
+    },
+    "ReleaseGroup": "FraMeSToR",
+    "Edition": "",
+    "SceneName": "Scream.1996.UHD.BluRay.2160p.DTS-HD.MA.5.1.DV.HEVC.REMUX-FraMeSToR",
+    "RelativePath": "Scream (1996) {imdb-tt0117571} - [Remux-2160p][DTS-HD MA 5.1][DV HDR10][HEVC]-FraMeSToR.mkv",
+    "Path": "/media/movies/Scream (1996)/Scream (1996) {imdb-tt0117571} - [Remux-2160p][DTS-HD MA 5.1][DV HDR10][HEVC]-FraMeSToR.mkv",
+    "MediaInfo": {
+     "VideoCodec": "HEVC",
+     "VideoBitDepth": 10,
+     "VideoMultiViewCount": 0,
+     "AudioCodec": "DTS-HD MA",
+     "AudioChannels": 5.1,
+     "AudioLanguages": [
+      "eng",
+      "eng"
+     ],
+     "Subtitles": null,
+     "VideoDynamicRange": "HDR",
+     "VideoDynamicRangeType": "DV HDR10"
+    },
+    "CustomFormats": null
+   },
+   "root": "/media/movies",
+   "cf_source": "none",
+   "expect_folder": "Scream (1996)",
+   "expect_file": "Scream (1996) {imdb-tt0117571} - [Remux-2160p][DTS-HD MA 5.1][DV HDR10][HEVC]-FraMeSToR",
+   "ext": ".mkv"
+  },
+  {
+   "instance": "radarr_4k_debrid",
+   "file_id": 502,
+   "movie": {
+    "Title": "Scream 2",
+    "OriginalTitle": "",
+    "Year": 1997,
+    "ImdbID": "tt0120082",
+    "TmdbID": 4233,
+    "Certification": "",
+    "Collection": ""
+   },
+   "movie_file": {
+    "Quality": {
+     "Title": "Remux-2160p",
+     "Version": 1,
+     "Real": 0
+    },
+    "ReleaseGroup": "FraMeSToR",
+    "Edition": "",
+    "SceneName": "Scream.2.1997.UHD.BluRay.2160p.DTS-HD.MA.5.1.DV.HEVC.REMUX-FraMeSToR",
+    "RelativePath": "Scream 2 (1997) {imdb-tt0120082} - [Remux-2160p][DTS-HD MA 5.1][DV HDR10][HEVC]-FraMeSToR.mkv",
+    "Path": "/media/movies/Scream 2 (1997)/Scream 2 (1997) {imdb-tt0120082} - [Remux-2160p][DTS-HD MA 5.1][DV HDR10][HEVC]-FraMeSToR.mkv",
+    "MediaInfo": {
+     "VideoCodec": "HEVC",
+     "VideoBitDepth": 10,
+     "VideoMultiViewCount": 0,
+     "AudioCodec": "DTS-HD MA",
+     "AudioChannels": 5.1,
+     "AudioLanguages": [
+      "eng",
+      "eng"
+     ],
+     "Subtitles": null,
+     "VideoDynamicRange": "HDR",
+     "VideoDynamicRangeType": "DV HDR10"
+    },
+    "CustomFormats": null
+   },
+   "root": "/media/movies",
+   "cf_source": "none",
+   "expect_folder": "Scream 2 (1997)",
+   "expect_file": "Scream 2 (1997) {imdb-tt0120082} - [Remux-2160p][DTS-HD MA 5.1][DV HDR10][HEVC]-FraMeSToR",
+   "ext": ".mkv"
+  },
+  {
+   "instance": "radarr_4k_debrid",
+   "file_id": 509,
+   "movie": {
+    "Title": "Killers of the Flower Moon",
+    "OriginalTitle": "",
+    "Year": 2023,
+    "ImdbID": "tt5537002",
+    "TmdbID": 466420,
+    "Certification": "",
+    "Collection": ""
+   },
+   "movie_file": {
+    "Quality": {
+     "Title": "Remux-2160p",
+     "Version": 1,
+     "Real": 0
+    },
+    "ReleaseGroup": "FraMeSToR",
+    "Edition": "",
+    "SceneName": "Killers.of.the.Flower.Moon.2023.UHD.BluRay.2160p.TrueHD.Atmos.7.1.DV.HDR10P.HEVC.HYBRID.REMUX-FraMeSToR",
+    "RelativePath": "Killers of the Flower Moon (2023) {imdb-tt5537002} - [Hybrid][Remux-2160p][TrueHD Atmos 7.1][DV HDR10Plus][HEVC]-FraMeSToR.mkv",
+    "Path": "/media/movies/Killers of the Flower Moon (2023)/Killers of the Flower Moon (2023) {imdb-tt5537002} - [Hybrid][Remux-2160p][TrueHD Atmos 7.1][DV HDR10Plus][HEVC]-FraMeSToR.mkv",
+    "MediaInfo": {
+     "VideoCodec": "HEVC",
+     "VideoBitDepth": 10,
+     "VideoMultiViewCount": 0,
+     "AudioCodec": "TrueHD Atmos",
+     "AudioChannels": 7.1,
+     "AudioLanguages": [
+      "eng",
+      "eng"
+     ],
+     "Subtitles": null,
+     "VideoDynamicRange": "HDR",
+     "VideoDynamicRangeType": "DV HDR10Plus"
+    },
+    "CustomFormats": [
+     "Hybrid"
+    ]
+   },
+   "root": "/media/movies",
+   "cf_source": "name",
+   "expect_folder": "Killers of the Flower Moon (2023)",
+   "expect_file": "Killers of the Flower Moon (2023) {imdb-tt5537002} - [Hybrid][Remux-2160p][TrueHD Atmos 7.1][DV HDR10Plus][HEVC]-FraMeSToR",
+   "ext": ".mkv"
+  },
+  {
+   "instance": "radarr_4k_debrid",
+   "file_id": 510,
+   "movie": {
+    "Title": "Elf",
+    "OriginalTitle": "",
+    "Year": 2003,
+    "ImdbID": "tt0319343",
+    "TmdbID": 10719,
+    "Certification": "",
+    "Collection": ""
+   },
+   "movie_file": {
+    "Quality": {
+     "Title": "Remux-2160p",
+     "Version": 1,
+     "Real": 0
+    },
+    "ReleaseGroup": "FraMeSToR",
+    "Edition": "",
+    "SceneName": "Elf.2003.UHD.BluRay.2160p.DTS-HD.MA.5.1.DV.HEVC.HYBRID.REMUX-FraMeSToR",
+    "RelativePath": "Elf (2003) {imdb-tt0319343} - [Hybrid][Remux-2160p][DTS-HD MA 5.1][DV HDR10][HEVC]-FraMeSToR.mkv",
+    "Path": "/media/movies/Elf (2003)/Elf (2003) {imdb-tt0319343} - [Hybrid][Remux-2160p][DTS-HD MA 5.1][DV HDR10][HEVC]-FraMeSToR.mkv",
+    "MediaInfo": {
+     "VideoCodec": "HEVC",
+     "VideoBitDepth": 10,
+     "VideoMultiViewCount": 0,
+     "AudioCodec": "DTS-HD MA",
+     "AudioChannels": 5.1,
+     "AudioLanguages": [
+      "eng",
+      "eng",
+      "eng"
+     ],
+     "Subtitles": null,
+     "VideoDynamicRange": "HDR",
+     "VideoDynamicRangeType": "DV HDR10"
+    },
+    "CustomFormats": [
+     "Hybrid"
+    ]
+   },
+   "root": "/media/movies",
+   "cf_source": "name",
+   "expect_folder": "Elf (2003)",
+   "expect_file": "Elf (2003) {imdb-tt0319343} - [Hybrid][Remux-2160p][DTS-HD MA 5.1][DV HDR10][HEVC]-FraMeSToR",
+   "ext": ".mkv"
+  },
+  {
+   "instance": "radarr_4k_debrid",
+   "file_id": 511,
+   "movie": {
+    "Title": "Die Hard",
+    "OriginalTitle": "",
+    "Year": 1988,
+    "ImdbID": "tt0095016",
+    "TmdbID": 562,
+    "Certification": "",
+    "Collection": ""
+   },
+   "movie_file": {
+    "Quality": {
+     "Title": "Remux-2160p",
+     "Version": 1,
+     "Real": 0
+    },
+    "ReleaseGroup": "FraMeSToR",
+    "Edition": "",
+    "SceneName": "Die.Hard.1988.UHD.BluRay.2160p.DTS-HD.MA.5.1.DV.HEVC.HYBRID.REMUX-FraMeSToR",
+    "RelativePath": "Die Hard (1988) {imdb-tt0095016} - [Hybrid][Remux-2160p][DTS-HD MA 5.1][DV HDR10][HEVC]-FraMeSToR.mkv",
+    "Path": "/media/movies/Die Hard (1988)/Die Hard (1988) {imdb-tt0095016} - [Hybrid][Remux-2160p][DTS-HD MA 5.1][DV HDR10][HEVC]-FraMeSToR.mkv",
+    "MediaInfo": {
+     "VideoCodec": "HEVC",
+     "VideoBitDepth": 10,
+     "VideoMultiViewCount": 0,
+     "AudioCodec": "DTS-HD MA",
+     "AudioChannels": 5.1,
+     "AudioLanguages": [
+      "eng",
+      "eng",
+      "eng",
+      "eng"
+     ],
+     "Subtitles": null,
+     "VideoDynamicRange": "HDR",
+     "VideoDynamicRangeType": "DV HDR10"
+    },
+    "CustomFormats": [
+     "Hybrid"
+    ]
+   },
+   "root": "/media/movies",
+   "cf_source": "name",
+   "expect_folder": "Die Hard (1988)",
+   "expect_file": "Die Hard (1988) {imdb-tt0095016} - [Hybrid][Remux-2160p][DTS-HD MA 5.1][DV HDR10][HEVC]-FraMeSToR",
+   "ext": ".mkv"
+  },
+  {
+   "instance": "radarr_4k_debrid",
+   "file_id": 521,
+   "movie": {
+    "Title": "The Santa Clause",
+    "OriginalTitle": "",
+    "Year": 1994,
+    "ImdbID": "tt0111070",
+    "TmdbID": 11395,
+    "Certification": "",
+    "Collection": ""
+   },
+   "movie_file": {
+    "Quality": {
+     "Title": "WEBDL-2160p",
+     "Version": 1,
+     "Real": 0
+    },
+    "ReleaseGroup": "FLUX",
+    "Edition": "",
+    "SceneName": "",
+    "RelativePath": "The Santa Clause (1994) {imdb-tt0111070} - [MA][WEBDL-2160p][DTS-HD MA 5.1][DV HDR10][h265]-FLUX.mkv",
+    "Path": "/media/movies/The Santa Clause (1994)/The Santa Clause (1994) {imdb-tt0111070} - [MA][WEBDL-2160p][DTS-HD MA 5.1][DV HDR10][h265]-FLUX.mkv",
+    "MediaInfo": {
+     "VideoCodec": "h265",
+     "VideoBitDepth": 10,
+     "VideoMultiViewCount": 0,
+     "AudioCodec": "DTS-HD MA",
+     "AudioChannels": 5.1,
+     "AudioLanguages": [
+      "eng"
+     ],
+     "Subtitles": null,
+     "VideoDynamicRange": "HDR",
+     "VideoDynamicRangeType": "DV HDR10"
+    },
+    "CustomFormats": [
+     "MA"
+    ]
+   },
+   "root": "/media/movies",
+   "cf_source": "name",
+   "expect_folder": "The Santa Clause (1994)",
+   "expect_file": "The Santa Clause (1994) {imdb-tt0111070} - [MA][WEBDL-2160p][DTS-HD MA 5.1][DV HDR10][h265]-FLUX",
+   "ext": ".mkv"
+  },
+  {
+   "instance": "radarr_4k_debrid",
+   "file_id": 523,
+   "movie": {
+    "Title": "Dungeons \u0026 Dragons: Honor Among Thieves",
+    "OriginalTitle": "",
+    "Year": 2023,
+    "ImdbID": "tt2906216",
+    "TmdbID": 493529,
+    "Certification": "",
+    "Collection": ""
+   },
+   "movie_file": {
+    "Quality": {
+     "Title": "Remux-2160p",
+     "Version": 1,
+     "Real": 0
+    },
+    "ReleaseGroup": "FraMeSToR",
+    "Edition": "",
+    "SceneName": "Dungeons and Dragons Honor Among Thieves 2023 UHD BluRay 2160p TrueHD Atmos 7 1 DV HEVC REMUX-FraMeSToR",
+    "RelativePath": "Dungeons and Dragons Honor Among Thieves (2023) {imdb-tt2906216} - [Remux-2160p][TrueHD Atmos 7.1][DV HDR10][HEVC]-FraMeSToR.mkv",
+    "Path": "/media/movies/Dungeons and Dragons Honor Among Thieves (2023)/Dungeons and Dragons Honor Among Thieves (2023) {imdb-tt2906216} - [Remux-2160p][TrueHD Atmos 7.1][DV HDR10][HEVC]-FraMeSToR.mkv",
+    "MediaInfo": {
+     "VideoCodec": "HEVC",
+     "VideoBitDepth": 10,
+     "VideoMultiViewCount": 0,
+     "AudioCodec": "TrueHD Atmos",
+     "AudioChannels": 7.1,
+     "AudioLanguages": [
+      "eng",
+      "eng"
+     ],
+     "Subtitles": null,
+     "VideoDynamicRange": "HDR",
+     "VideoDynamicRangeType": "DV HDR10"
+    },
+    "CustomFormats": null
+   },
+   "root": "/media/movies",
+   "cf_source": "none",
+   "expect_folder": "Dungeons and Dragons Honor Among Thieves (2023)",
+   "expect_file": "Dungeons and Dragons Honor Among Thieves (2023) {imdb-tt2906216} - [Remux-2160p][TrueHD Atmos 7.1][DV HDR10][HEVC]-FraMeSToR",
+   "ext": ".mkv"
+  },
+  {
+   "instance": "radarr_4k_debrid",
+   "file_id": 525,
+   "movie": {
+    "Title": "The Hunger Games: The Ballad of Songbirds \u0026 Snakes",
+    "OriginalTitle": "",
+    "Year": 2023,
+    "ImdbID": "tt10545296",
+    "TmdbID": 695721,
+    "Certification": "",
+    "Collection": ""
+   },
+   "movie_file": {
+    "Quality": {
+     "Title": "Remux-2160p",
+     "Version": 1,
+     "Real": 0
+    },
+    "ReleaseGroup": "FraMeSToR",
+    "Edition": "",
+    "SceneName": "The.Hunger.Games.The.Ballad.of.Songbirds.and.Snakes.2023.UHD.BluRay.2160p.TrueHD.Atmos.7.1.DV.HEVC.REMUX-FraMeSToR",
+    "RelativePath": "The Hunger Games The Ballad of Songbirds and Snakes (2023) {imdb-tt10545296} - [Remux-2160p][TrueHD Atmos 7.1][DV HDR10][HEVC]-FraMeSToR.mkv",
+    "Path": "/media/movies/The Hunger Games The Ballad of Songbirds and Snakes (2023)/The Hunger Games The Ballad of Songbirds and Snakes (2023) {imdb-tt10545296} - [Remux-2160p][TrueHD Atmos 7.1][DV HDR10][HEVC]-FraMeSToR.mkv",
+    "MediaInfo": {
+     "VideoCodec": "HEVC",
+     "VideoBitDepth": 10,
+     "VideoMultiViewCount": 0,
+     "AudioCodec": "TrueHD Atmos",
+     "AudioChannels": 7.1,
+     "AudioLanguages": [
+      "eng",
+      "eng",
+      "eng"
+     ],
+     "Subtitles": null,
+     "VideoDynamicRange": "HDR",
+     "VideoDynamicRangeType": "DV HDR10"
+    },
+    "CustomFormats": null
+   },
+   "root": "/media/movies",
+   "cf_source": "none",
+   "expect_folder": "The Hunger Games The Ballad of Songbirds and Snakes (2023)",
+   "expect_file": "The Hunger Games The Ballad of Songbirds and Snakes (2023) {imdb-tt10545296} - [Remux-2160p][TrueHD Atmos 7.1][DV HDR10][HEVC]-FraMeSToR",
+   "ext": ".mkv"
+  },
+  {
+   "instance": "radarr_4k_debrid",
+   "file_id": 529,
+   "movie": {
+    "Title": "The Polar Express",
+    "OriginalTitle": "",
+    "Year": 2004,
+    "ImdbID": "tt0338348",
+    "TmdbID": 5255,
+    "Certification": "",
+    "Collection": ""
+   },
+   "movie_file": {
+    "Quality": {
+     "Title": "Remux-2160p",
+     "Version": 1,
+     "Real": 0
+    },
+    "ReleaseGroup": "FraMeSToR",
+    "Edition": "",
+    "SceneName": "The.Polar.Express.2004.UHD.BluRay.2160p.DTS-HD.MA.5.1.DV.HEVC.HYBRID.REMUX-FraMeSToR",
+    "RelativePath": "The Polar Express (2004) {imdb-tt0338348} - [Hybrid][Remux-2160p][DTS-HD MA 5.1][DV HDR10][HEVC]-FraMeSToR.mkv",
+    "Path": "/media/movies/The Polar Express (2004)/The Polar Express (2004) {imdb-tt0338348} - [Hybrid][Remux-2160p][DTS-HD MA 5.1][DV HDR10][HEVC]-FraMeSToR.mkv",
+    "MediaInfo": {
+     "VideoCodec": "HEVC",
+     "VideoBitDepth": 10,
+     "VideoMultiViewCount": 0,
+     "AudioCodec": "DTS-HD MA",
+     "AudioChannels": 5.1,
+     "AudioLanguages": [
+      "eng"
+     ],
+     "Subtitles": null,
+     "VideoDynamicRange": "HDR",
+     "VideoDynamicRangeType": "DV HDR10"
+    },
+    "CustomFormats": [
+     "Hybrid"
+    ]
+   },
+   "root": "/media/movies",
+   "cf_source": "name",
+   "expect_folder": "The Polar Express (2004)",
+   "expect_file": "The Polar Express (2004) {imdb-tt0338348} - [Hybrid][Remux-2160p][DTS-HD MA 5.1][DV HDR10][HEVC]-FraMeSToR",
+   "ext": ".mkv"
+  },
+  {
+   "instance": "radarr_4k_debrid",
+   "file_id": 531,
+   "movie": {
+    "Title": "Home Alone 2: Lost in New York",
+    "OriginalTitle": "",
+    "Year": 1992,
+    "ImdbID": "tt0104431",
+    "TmdbID": 772,
+    "Certification": "",
+    "Collection": ""
+   },
+   "movie_file": {
+    "Quality": {
+     "Title": "WEBDL-2160p",
+     "Version": 1,
+     "Real": 0
+    },
+    "ReleaseGroup": "SiSO",
+    "Edition": "",
+    "SceneName": "Home.Alone.2.Lost.in.New.York.1992.2160p.DSNP.WEB-DL.DTS-HD.MA.5.1.DV.HDR.H.265.DUAL-SiSO",
+    "RelativePath": "Home Alone 2 Lost in New York (1992) {imdb-tt0104431} - [DSNP][WEBDL-2160p][AC3 2.0][DV HDR10][h265]-SiSO.mkv",
+    "Path": "/media/movies/Home Alone 2 Lost in New York (1992)/Home Alone 2 Lost in New York (1992) {imdb-tt0104431} - [DSNP][WEBDL-2160p][AC3 2.0][DV HDR10][h265]-SiSO.mkv",
+    "MediaInfo": {
+     "VideoCodec": "h265",
+     "VideoBitDepth": 10,
+     "VideoMultiViewCount": 0,
+     "AudioCodec": "AC3",
+     "AudioChannels": 2,
+     "AudioLanguages": [
+      "bul",
+      "eng"
+     ],
+     "Subtitles": null,
+     "VideoDynamicRange": "HDR",
+     "VideoDynamicRangeType": "DV HDR10"
+    },
+    "CustomFormats": [
+     "DSNP"
+    ]
+   },
+   "root": "/media/movies",
+   "cf_source": "name",
+   "expect_folder": "Home Alone 2 Lost in New York (1992)",
+   "expect_file": "Home Alone 2 Lost in New York (1992) {imdb-tt0104431} - [DSNP][WEBDL-2160p][AC3 2.0][DV HDR10][h265]-SiSO",
+   "ext": ".mkv"
+  },
+  {
+   "instance": "radarr_4k_debrid",
+   "file_id": 532,
+   "movie": {
+    "Title": "The Family Plan",
+    "OriginalTitle": "",
+    "Year": 2023,
+    "ImdbID": "tt16431870",
+    "TmdbID": 1029575,
+    "Certification": "",
+    "Collection": ""
+   },
+   "movie_file": {
+    "Quality": {
+     "Title": "WEBDL-2160p",
+     "Version": 1,
+     "Real": 0
+    },
+    "ReleaseGroup": "FLUX",
+    "Edition": "",
+    "SceneName": "The.Family.Plan.2023.2160p.ATVP.WEB-DL.DDP5.1.Atmos.DV.HDR.H.265-FLUX",
+    "RelativePath": "The Family Plan (2023) {imdb-tt16431870} - [ATVP][WEBDL-2160p][EAC3 Atmos 5.1][DV HDR10Plus][h265]-FLUX.mkv",
+    "Path": "/media/movies/The Family Plan (2023)/The Family Plan (2023) {imdb-tt16431870} - [ATVP][WEBDL-2160p][EAC3 Atmos 5.1][DV HDR10Plus][h265]-FLUX.mkv",
+    "MediaInfo": {
+     "VideoCodec": "h265",
+     "VideoBitDepth": 10,
+     "VideoMultiViewCount": 0,
+     "AudioCodec": "EAC3 Atmos",
+     "AudioChannels": 5.1,
+     "AudioLanguages": [
+      "eng"
+     ],
+     "Subtitles": null,
+     "VideoDynamicRange": "HDR",
+     "VideoDynamicRangeType": "DV HDR10Plus"
+    },
+    "CustomFormats": [
+     "ATVP"
+    ]
+   },
+   "root": "/media/movies",
+   "cf_source": "name",
+   "expect_folder": "The Family Plan (2023)",
+   "expect_file": "The Family Plan (2023) {imdb-tt16431870} - [ATVP][WEBDL-2160p][EAC3 Atmos 5.1][DV HDR10Plus][h265]-FLUX",
+   "ext": ".mkv"
+  },
+  {
+   "instance": "radarr_4k_debrid",
+   "file_id": 534,
+   "movie": {
+    "Title": "Maze Runner: The Death Cure",
+    "OriginalTitle": "",
+    "Year": 2018,
+    "ImdbID": "tt4500922",
+    "TmdbID": 336843,
+    "Certification": "",
+    "Collection": ""
+   },
+   "movie_file": {
+    "Quality": {
+     "Title": "Remux-2160p",
+     "Version": 1,
+     "Real": 0
+    },
+    "ReleaseGroup": "FraMeSToR",
+    "Edition": "",
+    "SceneName": "Maze.Runner.The.Death.Cure.2018.UHD.BluRay.2160p.TrueHD.Atmos.7.1.DV.HEVC.HYBRID.REMUX-FraMeSToR",
+    "RelativePath": "Maze Runner The Death Cure (2018) {imdb-tt4500922} - [Hybrid][Remux-2160p][TrueHD Atmos 7.1][DV HDR10][HEVC]-FraMeSToR.mkv",
+    "Path": "/media/movies/Maze Runner The Death Cure (2018)/Maze Runner The Death Cure (2018) {imdb-tt4500922} - [Hybrid][Remux-2160p][TrueHD Atmos 7.1][DV HDR10][HEVC]-FraMeSToR.mkv",
+    "MediaInfo": {
+     "VideoCodec": "HEVC",
+     "VideoBitDepth": 10,
+     "VideoMultiViewCount": 0,
+     "AudioCodec": "TrueHD Atmos",
+     "AudioChannels": 7.1,
+     "AudioLanguages": [
+      "eng",
+      "eng",
+      "eng"
+     ],
+     "Subtitles": null,
+     "VideoDynamicRange": "HDR",
+     "VideoDynamicRangeType": "DV HDR10"
+    },
+    "CustomFormats": [
+     "Hybrid"
+    ]
+   },
+   "root": "/media/movies",
+   "cf_source": "name",
+   "expect_folder": "Maze Runner The Death Cure (2018)",
+   "expect_file": "Maze Runner The Death Cure (2018) {imdb-tt4500922} - [Hybrid][Remux-2160p][TrueHD Atmos 7.1][DV HDR10][HEVC]-FraMeSToR",
+   "ext": ".mkv"
+  },
+  {
+   "instance": "radarr_4k_debrid",
+   "file_id": 536,
+   "movie": {
+    "Title": "Contact",
+    "OriginalTitle": "",
+    "Year": 1997,
+    "ImdbID": "tt0118884",
+    "TmdbID": 686,
+    "Certification": "",
+    "Collection": ""
+   },
+   "movie_file": {
+    "Quality": {
+     "Title": "Bluray-2160p",
+     "Version": 1,
+     "Real": 0
+    },
+    "ReleaseGroup": "",
+    "Edition": "",
+    "SceneName": "Contact.1997.BD.AI_UPSCALE_3840x2160_alq-13_Final",
+    "RelativePath": "Contact (1997) {imdb-tt0118884} - [Bluray-2160p][AC3 5.1][h265].mkv",
+    "Path": "/media/movies/Contact (1997)/Contact (1997) {imdb-tt0118884} - [Bluray-2160p][AC3 5.1][h265].mkv",
+    "MediaInfo": {
+     "VideoCodec": "h265",
+     "VideoBitDepth": 8,
+     "VideoMultiViewCount": 0,
+     "AudioCodec": "AC3",
+     "AudioChannels": 5.1,
+     "AudioLanguages": [
+      "rus",
+      "eng",
+      "eng"
+     ],
+     "Subtitles": null,
+     "VideoDynamicRange": "",
+     "VideoDynamicRangeType": ""
+    },
+    "CustomFormats": null
+   },
+   "root": "/media/movies",
+   "cf_source": "none",
+   "expect_folder": "Contact (1997)",
+   "expect_file": "Contact (1997) {imdb-tt0118884} - [Bluray-2160p][AC3 5.1][h265]",
+   "ext": ".mkv"
+  },
+  {
+   "instance": "radarr_4k_debrid",
+   "file_id": 539,
+   "movie": {
+    "Title": "Dave Chappelle: The Dreamer",
+    "OriginalTitle": "",
+    "Year": 2023,
+    "ImdbID": "tt18278698",
+    "TmdbID": 1215439,
+    "Certification": "",
+    "Collection": ""
+   },
+   "movie_file": {
+    "Quality": {
+     "Title": "WEBDL-1080p",
+     "Version": 1,
+     "Real": 0
+    },
+    "ReleaseGroup": "HONE",
+    "Edition": "",
+    "SceneName": "",
+    "RelativePath": "Dave Chappelle The Dreamer (2023) {imdb-tt18278698} - [NF][WEBDL-1080p][EAC3 Atmos 5.1][DV HDR10][h265]-HONE.mkv",
+    "Path": "/media/movies/Dave Chappelle The Dreamer (2023)/Dave Chappelle The Dreamer (2023) {imdb-tt18278698} - [NF][WEBDL-1080p][EAC3 Atmos 5.1][DV HDR10][h265]-HONE.mkv",
+    "MediaInfo": {
+     "VideoCodec": "h265",
+     "VideoBitDepth": 10,
+     "VideoMultiViewCount": 0,
+     "AudioCodec": "EAC3 Atmos",
+     "AudioChannels": 5.1,
+     "AudioLanguages": [
+      "eng"
+     ],
+     "Subtitles": null,
+     "VideoDynamicRange": "HDR",
+     "VideoDynamicRangeType": "DV HDR10"
+    },
+    "CustomFormats": [
+     "NF"
+    ]
+   },
+   "root": "/media/movies",
+   "cf_source": "name",
+   "expect_folder": "Dave Chappelle The Dreamer (2023)",
+   "expect_file": "Dave Chappelle The Dreamer (2023) {imdb-tt18278698} - [NF][WEBDL-1080p][EAC3 Atmos 5.1][DV HDR10][h265]-HONE",
+   "ext": ".mkv"
+  },
+  {
+   "instance": "radarr_4k_debrid",
+   "file_id": 540,
+   "movie": {
+    "Title": "Society of the Snow",
+    "OriginalTitle": "",
+    "Year": 2023,
+    "ImdbID": "tt16277242",
+    "TmdbID": 906126,
+    "Certification": "",
+    "Collection": ""
+   },
+   "movie_file": {
+    "Quality": {
+     "Title": "WEBDL-2160p",
+     "Version": 1,
+     "Real": 0
+    },
+    "ReleaseGroup": "FLUX",
+    "Edition": "",
+    "SceneName": "Society.of.the.Snow.2023.2160p.NF.WEB.DL.DUAL.DDP5.1.Atmos.DV.HDR.H.265-FLUX",
+    "RelativePath": "Society of the Snow (2023) {imdb-tt16277242} - [NF][WEBDL-2160p][EAC3 Atmos 5.1][DV HDR10][h265]-FLUX.mkv",
+    "Path": "/media/movies/Society of the Snow (2023)/Society of the Snow (2023) {imdb-tt16277242} - [NF][WEBDL-2160p][EAC3 Atmos 5.1][DV HDR10][h265]-FLUX.mkv",
+    "MediaInfo": {
+     "VideoCodec": "h265",
+     "VideoBitDepth": 10,
+     "VideoMultiViewCount": 0,
+     "AudioCodec": "EAC3 Atmos",
+     "AudioChannels": 5.1,
+     "AudioLanguages": [
+      "spa",
+      "eng"
+     ],
+     "Subtitles": null,
+     "VideoDynamicRange": "HDR",
+     "VideoDynamicRangeType": "DV HDR10"
+    },
+    "CustomFormats": [
+     "NF"
+    ]
+   },
+   "root": "/media/movies",
+   "cf_source": "name",
+   "expect_folder": "Society of the Snow (2023)",
+   "expect_file": "Society of the Snow (2023) {imdb-tt16277242} - [NF][WEBDL-2160p][EAC3 Atmos 5.1][DV HDR10][h265]-FLUX",
+   "ext": ".mkv"
+  },
+  {
+   "instance": "radarr_4k_debrid",
+   "file_id": 559,
+   "movie": {
+    "Title": "Finding Dory",
+    "OriginalTitle": "",
+    "Year": 2016,
+    "ImdbID": "tt2277860",
+    "TmdbID": 127380,
+    "Certification": "",
+    "Collection": ""
+   },
+   "movie_file": {
+    "Quality": {
+     "Title": "Remux-2160p",
+     "Version": 1,
+     "Real": 0
+    },
+    "ReleaseGroup": "FraMeSToR",
+    "Edition": "",
+    "SceneName": "Finding.Dory.2016.UHD.BluRay.2160p.TrueHD.Atmos.7.1.DV.HEVC.HYBRID.REMUX-FraMeSToR",
+    "RelativePath": "Finding Dory (2016) {imdb-tt2277860} - [Hybrid][Remux-2160p][TrueHD Atmos 7.1][DV HDR10][HEVC]-FraMeSToR.mkv",
+    "Path": "/media/movies/Finding Dory (2016)/Finding Dory (2016) {imdb-tt2277860} - [Hybrid][Remux-2160p][TrueHD Atmos 7.1][DV HDR10][HEVC]-FraMeSToR.mkv",
+    "MediaInfo": {
+     "VideoCodec": "HEVC",
+     "VideoBitDepth": 10,
+     "VideoMultiViewCount": 0,
+     "AudioCodec": "TrueHD Atmos",
+     "AudioChannels": 7.1,
+     "AudioLanguages": [
+      "eng",
+      "eng",
+      "eng"
+     ],
+     "Subtitles": null,
+     "VideoDynamicRange": "HDR",
+     "VideoDynamicRangeType": "DV HDR10"
+    },
+    "CustomFormats": [
+     "Hybrid"
+    ]
+   },
+   "root": "/media/movies",
+   "cf_source": "name",
+   "expect_folder": "Finding Dory (2016)",
+   "expect_file": "Finding Dory (2016) {imdb-tt2277860} - [Hybrid][Remux-2160p][TrueHD Atmos 7.1][DV HDR10][HEVC]-FraMeSToR",
+   "ext": ".mkv"
+  },
+  {
+   "instance": "radarr_4k_debrid",
+   "file_id": 561,
+   "movie": {
+    "Title": "The Truman Show",
+    "OriginalTitle": "",
+    "Year": 1998,
+    "ImdbID": "tt0120382",
+    "TmdbID": 37165,
+    "Certification": "",
+    "Collection": ""
+   },
+   "movie_file": {
+    "Quality": {
+     "Title": "Remux-2160p",
+     "Version": 2,
+     "Real": 0
+    },
+    "ReleaseGroup": "FraMeSToR",
+    "Edition": "",
+    "SceneName": "The.Truman.Show.1998.PROPER.UHD.BluRay.2160p.TrueHD.Atmos.7.1.DV.HEVC.HYBRID.REMUX-FraMeSToR",
+    "RelativePath": "The Truman Show (1998) {imdb-tt0120382} - [Hybrid][Remux-2160p Proper][TrueHD Atmos 7.1][DV HDR10][HEVC]-FraMeSToR.mkv",
+    "Path": "/media/movies/The Truman Show (1998)/The Truman Show (1998) {imdb-tt0120382} - [Hybrid][Remux-2160p Proper][TrueHD Atmos 7.1][DV HDR10][HEVC]-FraMeSToR.mkv",
+    "MediaInfo": {
+     "VideoCodec": "HEVC",
+     "VideoBitDepth": 10,
+     "VideoMultiViewCount": 0,
+     "AudioCodec": "TrueHD Atmos",
+     "AudioChannels": 7.1,
+     "AudioLanguages": [
+      "eng",
+      "eng"
+     ],
+     "Subtitles": null,
+     "VideoDynamicRange": "HDR",
+     "VideoDynamicRangeType": "DV HDR10"
+    },
+    "CustomFormats": [
+     "Hybrid"
+    ]
+   },
+   "root": "/media/movies",
+   "cf_source": "name",
+   "expect_folder": "The Truman Show (1998)",
+   "expect_file": "The Truman Show (1998) {imdb-tt0120382} - [Hybrid][Remux-2160p Proper][TrueHD Atmos 7.1][DV HDR10][HEVC]-FraMeSToR",
+   "ext": ".mkv"
+  },
+  {
+   "instance": "radarr_4k_debrid",
+   "file_id": 562,
+   "movie": {
+    "Title": "Step Brothers",
+    "OriginalTitle": "",
+    "Year": 2008,
+    "ImdbID": "tt0838283",
+    "TmdbID": 12133,
+    "Certification": "",
+    "Collection": ""
+   },
+   "movie_file": {
+    "Quality": {
+     "Title": "Remux-2160p",
+     "Version": 1,
+     "Real": 0
+    },
+    "ReleaseGroup": "FraMeSToR",
+    "Edition": "Unrated",
+    "SceneName": "Step.Brothers.2008.Unrated.UHD.BluRay.2160p.TrueHD.Atmos.7.1.HEVC.REMUX-FraMeSToR",
+    "RelativePath": "Step Brothers (2008) {imdb-tt0838283} - {edition-Unrated} [Remux-2160p][TrueHD Atmos 7.1][HDR10][HEVC]-FraMeSToR.mkv",
+    "Path": "/media/movies/Step Brothers (2008)/Step Brothers (2008) {imdb-tt0838283} - {edition-Unrated} [Remux-2160p][TrueHD Atmos 7.1][HDR10][HEVC]-FraMeSToR.mkv",
+    "MediaInfo": {
+     "VideoCodec": "HEVC",
+     "VideoBitDepth": 10,
+     "VideoMultiViewCount": 0,
+     "AudioCodec": "TrueHD Atmos",
+     "AudioChannels": 7.1,
+     "AudioLanguages": [
+      "eng",
+      "eng"
+     ],
+     "Subtitles": null,
+     "VideoDynamicRange": "HDR",
+     "VideoDynamicRangeType": "HDR10"
+    },
+    "CustomFormats": null
+   },
+   "root": "/media/movies",
+   "cf_source": "none",
+   "expect_folder": "Step Brothers (2008)",
+   "expect_file": "Step Brothers (2008) {imdb-tt0838283} - {edition-Unrated} [Remux-2160p][TrueHD Atmos 7.1][HDR10][HEVC]-FraMeSToR",
+   "ext": ".mkv"
+  },
+  {
+   "instance": "radarr_4k_debrid",
+   "file_id": 571,
+   "movie": {
+    "Title": "McFarland, USA",
+    "OriginalTitle": "",
+    "Year": 2015,
+    "ImdbID": "tt2097298",
+    "TmdbID": 228203,
+    "Certification": "",
+    "Collection": ""
+   },
+   "movie_file": {
+    "Quality": {
+     "Title": "Remux-1080p",
+     "Version": 1,
+     "Real": 0
+    },
+    "ReleaseGroup": "EPSiLON",
+    "Edition": "",
+    "SceneName": "McFarland.USA.2015.1080p.BluRay.REMUX.AVC.DTS-HD.MA.5.1-EPSiLON",
+    "RelativePath": "McFarland USA (2015) {imdb-tt2097298} - [Remux-1080p][DTS-HD MA 5.1][AVC]-EPSiLON.mkv",
+    "Path": "/media/movies/McFarland USA (2015)/McFarland USA (2015) {imdb-tt2097298} - [Remux-1080p][DTS-HD MA 5.1][AVC]-EPSiLON.mkv",
+    "MediaInfo": {
+     "VideoCodec": "AVC",
+     "VideoBitDepth": 8,
+     "VideoMultiViewCount": 0,
+     "AudioCodec": "DTS-HD MA",
+     "AudioChannels": 5.1,
+     "AudioLanguages": [
+      "eng"
+     ],
+     "Subtitles": null,
+     "VideoDynamicRange": "",
+     "VideoDynamicRangeType": ""
+    },
+    "CustomFormats": null
+   },
+   "root": "/media/movies",
+   "cf_source": "none",
+   "expect_folder": "McFarland USA (2015)",
+   "expect_file": "McFarland USA (2015) {imdb-tt2097298} - [Remux-1080p][DTS-HD MA 5.1][AVC]-EPSiLON",
+   "ext": ".mkv"
+  },
+  {
+   "instance": "radarr_4k_debrid",
+   "file_id": 579,
+   "movie": {
+    "Title": "The Matrix Reloaded",
+    "OriginalTitle": "",
+    "Year": 2003,
+    "ImdbID": "tt0234215",
+    "TmdbID": 604,
+    "Certification": "",
+    "Collection": ""
+   },
+   "movie_file": {
+    "Quality": {
+     "Title": "Remux-2160p",
+     "Version": 1,
+     "Real": 0
+    },
+    "ReleaseGroup": "FraMeSToR",
+    "Edition": "",
+    "SceneName": "The.Matrix.Reloaded.2003.UHD.BluRay.2160p.TrueHD.Atmos.7.1.DV.HEVC.REMUX-FraMeSToR",
+    "RelativePath": "The Matrix Reloaded (2003) {imdb-tt0234215} - [Remux-2160p][TrueHD Atmos 7.1][DV HDR10][HEVC]-FraMeSToR.mkv",
+    "Path": "/media/movies/The Matrix Reloaded (2003)/The Matrix Reloaded (2003) {imdb-tt0234215} - [Remux-2160p][TrueHD Atmos 7.1][DV HDR10][HEVC]-FraMeSToR.mkv",
+    "MediaInfo": {
+     "VideoCodec": "HEVC",
+     "VideoBitDepth": 10,
+     "VideoMultiViewCount": 0,
+     "AudioCodec": "TrueHD Atmos",
+     "AudioChannels": 7.1,
+     "AudioLanguages": [
+      "eng",
+      "eng",
+      "eng",
+      "eng"
+     ],
+     "Subtitles": null,
+     "VideoDynamicRange": "HDR",
+     "VideoDynamicRangeType": "DV HDR10"
+    },
+    "CustomFormats": null
+   },
+   "root": "/media/movies",
+   "cf_source": "none",
+   "expect_folder": "The Matrix Reloaded (2003)",
+   "expect_file": "The Matrix Reloaded (2003) {imdb-tt0234215} - [Remux-2160p][TrueHD Atmos 7.1][DV HDR10][HEVC]-FraMeSToR",
+   "ext": ".mkv"
+  },
+  {
+   "instance": "radarr_4k_debrid",
+   "file_id": 583,
+   "movie": {
+    "Title": "Exhuma",
+    "OriginalTitle": "",
+    "Year": 2024,
+    "ImdbID": "tt27802490",
+    "TmdbID": 838209,
+    "Certification": "",
+    "Collection": ""
+   },
+   "movie_file": {
+    "Quality": {
+     "Title": "Remux-2160p",
+     "Version": 1,
+     "Real": 0
+    },
+    "ReleaseGroup": "CiNEPHiLES",
+    "Edition": "",
+    "SceneName": "Exhuma.2024.AKA.Pamyo.DUAL.2160p.UHD.Blu-ray.Remux.DV.HDR.HEVC.TrueHD.Atmos.7.1-CiNEPHiLES",
+    "RelativePath": "Exhuma (2024) {imdb-tt27802490} - [Remux-2160p][TrueHD Atmos 7.1][DV HDR10][HEVC]-CiNEPHiLES.mkv",
+    "Path": "/media/movies/Exhuma (2024)/Exhuma (2024) {imdb-tt27802490} - [Remux-2160p][TrueHD Atmos 7.1][DV HDR10][HEVC]-CiNEPHiLES.mkv",
+    "MediaInfo": {
+     "VideoCodec": "HEVC",
+     "VideoBitDepth": 10,
+     "VideoMultiViewCount": 0,
+     "AudioCodec": "TrueHD Atmos",
+     "AudioChannels": 7.1,
+     "AudioLanguages": [
+      "kor",
+      "kor",
+      "eng"
+     ],
+     "Subtitles": null,
+     "VideoDynamicRange": "HDR",
+     "VideoDynamicRangeType": "DV HDR10"
+    },
+    "CustomFormats": null
+   },
+   "root": "/media/movies",
+   "cf_source": "none",
+   "expect_folder": "Exhuma (2024)",
+   "expect_file": "Exhuma (2024) {imdb-tt27802490} - [Remux-2160p][TrueHD Atmos 7.1][DV HDR10][HEVC]-CiNEPHiLES",
+   "ext": ".mkv"
+  },
+  {
+   "instance": "radarr_4k_debrid",
+   "file_id": 588,
+   "movie": {
+    "Title": "Alone",
+    "OriginalTitle": "",
+    "Year": 2020,
+    "ImdbID": "tt7711170",
+    "TmdbID": 509635,
+    "Certification": "",
+    "Collection": ""
+   },
+   "movie_file": {
+    "Quality": {
+     "Title": "Remux-1080p",
+     "Version": 1,
+     "Real": 0
+    },
+    "ReleaseGroup": "FraMeSToR",
+    "Edition": "",
+    "SceneName": "Alone.2020.BluRay.1080p.DTS-HD.MA.5.1.AVC.REMUX-FraMeSToR",
+    "RelativePath": "Alone (2020) {imdb-tt7711170} - [Remux-1080p][DTS-HD MA 5.1][AVC]-FraMeSToR.mkv",
+    "Path": "/media/movies/Alone (2020)/Alone (2020) {imdb-tt7711170} - [Remux-1080p][DTS-HD MA 5.1][AVC]-FraMeSToR.mkv",
+    "MediaInfo": {
+     "VideoCodec": "AVC",
+     "VideoBitDepth": 8,
+     "VideoMultiViewCount": 0,
+     "AudioCodec": "DTS-HD MA",
+     "AudioChannels": 5.1,
+     "AudioLanguages": [
+      "eng"
+     ],
+     "Subtitles": null,
+     "VideoDynamicRange": "",
+     "VideoDynamicRangeType": ""
+    },
+    "CustomFormats": null
+   },
+   "root": "/media/movies",
+   "cf_source": "none",
+   "expect_folder": "Alone (2020)",
+   "expect_file": "Alone (2020) {imdb-tt7711170} - [Remux-1080p][DTS-HD MA 5.1][AVC]-FraMeSToR",
+   "ext": ".mkv"
+  },
+  {
+   "instance": "radarr_4k_debrid",
+   "file_id": 608,
+   "movie": {
+    "Title": "Shrek",
+    "OriginalTitle": "",
+    "Year": 2001,
+    "ImdbID": "tt0126029",
+    "TmdbID": 808,
+    "Certification": "",
+    "Collection": ""
+   },
+   "movie_file": {
+    "Quality": {
+     "Title": "Remux-2160p",
+     "Version": 1,
+     "Real": 0
+    },
+    "ReleaseGroup": "FraMeSToR",
+    "Edition": "",
+    "SceneName": "Shrek.2001.UHD.BluRay.2160p.DTS-X.7.1.HEVC.REMUX-FraMeSToR",
+    "RelativePath": "Shrek (2001) {imdb-tt0126029} - [Remux-2160p][DTS-X 7.1][HDR10][HEVC]-FraMeSToR.mkv",
+    "Path": "/media/movies/Shrek (2001)/Shrek (2001) {imdb-tt0126029} - [Remux-2160p][DTS-X 7.1][HDR10][HEVC]-FraMeSToR.mkv",
+    "MediaInfo": {
+     "VideoCodec": "HEVC",
+     "VideoBitDepth": 10,
+     "VideoMultiViewCount": 0,
+     "AudioCodec": "DTS-X",
+     "AudioChannels": 7.1,
+     "AudioLanguages": [
+      "eng",
+      "eng"
+     ],
+     "Subtitles": null,
+     "VideoDynamicRange": "HDR",
+     "VideoDynamicRangeType": "HDR10"
+    },
+    "CustomFormats": null
+   },
+   "root": "/media/movies",
+   "cf_source": "none",
+   "expect_folder": "Shrek (2001)",
+   "expect_file": "Shrek (2001) {imdb-tt0126029} - [Remux-2160p][DTS-X 7.1][HDR10][HEVC]-FraMeSToR",
+   "ext": ".mkv"
+  },
+  {
+   "instance": "radarr_4k_debrid",
+   "file_id": 623,
+   "movie": {
+    "Title": "Late Night with the Devil",
+    "OriginalTitle": "",
+    "Year": 2024,
+    "ImdbID": "tt14966898",
+    "TmdbID": 938614,
+    "Certification": "",
+    "Collection": ""
+   },
+   "movie_file": {
+    "Quality": {
+     "Title": "Remux-2160p",
+     "Version": 1,
+     "Real": 0
+    },
+    "ReleaseGroup": "FraMeSToR",
+    "Edition": "",
+    "SceneName": "Late.Night.with.the.Devil.2023.UHD.BluRay.2160p.DTS-HD.MA.5.1.DV.HEVC.REMUX-FraMeSToR",
+    "RelativePath": "Late Night with the Devil (2024) {imdb-tt14966898} - [Remux-2160p][DTS-HD MA 5.1][DV HDR10][HEVC]-FraMeSToR.mkv",
+    "Path": "/media/movies/Late Night with the Devil (2024)/Late Night with the Devil (2024) {imdb-tt14966898} - [Remux-2160p][DTS-HD MA 5.1][DV HDR10][HEVC]-FraMeSToR.mkv",
+    "MediaInfo": {
+     "VideoCodec": "HEVC",
+     "VideoBitDepth": 10,
+     "VideoMultiViewCount": 0,
+     "AudioCodec": "DTS-HD MA",
+     "AudioChannels": 5.1,
+     "AudioLanguages": [
+      "eng",
+      "eng"
+     ],
+     "Subtitles": null,
+     "VideoDynamicRange": "HDR",
+     "VideoDynamicRangeType": "DV HDR10"
+    },
+    "CustomFormats": null
+   },
+   "root": "/media/movies",
+   "cf_source": "none",
+   "expect_folder": "Late Night with the Devil (2024)",
+   "expect_file": "Late Night with the Devil (2024) {imdb-tt14966898} - [Remux-2160p][DTS-HD MA 5.1][DV HDR10][HEVC]-FraMeSToR",
+   "ext": ".mkv"
+  },
+  {
+   "instance": "radarr_4k_debrid",
+   "file_id": 625,
+   "movie": {
+    "Title": "Mother of the Bride",
+    "OriginalTitle": "",
+    "Year": 2024,
+    "ImdbID": "tt26926267",
+    "TmdbID": 1093231,
+    "Certification": "",
+    "Collection": ""
+   },
+   "movie_file": {
+    "Quality": {
+     "Title": "WEBDL-2160p",
+     "Version": 1,
+     "Real": 0
+    },
+    "ReleaseGroup": "Hurtom",
+    "Edition": "",
+    "SceneName": "Mother of the Bride (2024) WEB-DL 2160p HDR DV P8 Ukr_Eng [Hurtom]",
+    "RelativePath": "Mother of the Bride (2024) {imdb-tt26926267} - [WEBDL-2160p][EAC3 5.1][DV HDR10][h265]-Hurtom.mkv",
+    "Path": "/media/movies/Mother of the Bride (2024)/Mother of the Bride (2024) {imdb-tt26926267} - [WEBDL-2160p][EAC3 5.1][DV HDR10][h265]-Hurtom.mkv",
+    "MediaInfo": {
+     "VideoCodec": "h265",
+     "VideoBitDepth": 10,
+     "VideoMultiViewCount": 0,
+     "AudioCodec": "EAC3",
+     "AudioChannels": 5.1,
+     "AudioLanguages": [
+      "ukr",
+      "eng"
+     ],
+     "Subtitles": null,
+     "VideoDynamicRange": "HDR",
+     "VideoDynamicRangeType": "DV HDR10"
+    },
+    "CustomFormats": null
+   },
+   "root": "/media/movies",
+   "cf_source": "none",
+   "expect_folder": "Mother of the Bride (2024)",
+   "expect_file": "Mother of the Bride (2024) {imdb-tt26926267} - [WEBDL-2160p][EAC3 5.1][DV HDR10][h265]-Hurtom",
+   "ext": ".mkv"
+  },
+  {
+   "instance": "radarr_4k_debrid",
+   "file_id": 633,
+   "movie": {
+    "Title": "Harry Potter and the Prisoner of Azkaban",
+    "OriginalTitle": "",
+    "Year": 2004,
+    "ImdbID": "tt0304141",
+    "TmdbID": 673,
+    "Certification": "",
+    "Collection": ""
+   },
+   "movie_file": {
+    "Quality": {
+     "Title": "Remux-2160p",
+     "Version": 1,
+     "Real": 0
+    },
+    "ReleaseGroup": "FraMeSToR",
+    "Edition": "",
+    "SceneName": "Harry.Potter.and.the.Prisoner.of.Azkaban.2004.UHD.BluRay.2160p.DTS-X.7.1.DV.HEVC.HYBRID.REMUX-FraMeSToR",
+    "RelativePath": "Harry Potter and the Prisoner of Azkaban (2004) {imdb-tt0304141} - [Hybrid][Remux-2160p][DTS-X 7.1][DV HDR10][HEVC]-FraMeSToR.mkv",
+    "Path": "/media/movies/Harry Potter and the Prisoner of Azkaban (2004)/Harry Potter and the Prisoner of Azkaban (2004) {imdb-tt0304141} - [Hybrid][Remux-2160p][DTS-X 7.1][DV HDR10][HEVC]-FraMeSToR.mkv",
+    "MediaInfo": {
+     "VideoCodec": "HEVC",
+     "VideoBitDepth": 10,
+     "VideoMultiViewCount": 0,
+     "AudioCodec": "DTS-X",
+     "AudioChannels": 7.1,
+     "AudioLanguages": [
+      "eng"
+     ],
+     "Subtitles": null,
+     "VideoDynamicRange": "HDR",
+     "VideoDynamicRangeType": "DV HDR10"
+    },
+    "CustomFormats": [
+     "Hybrid"
+    ]
+   },
+   "root": "/media/movies",
+   "cf_source": "name",
+   "expect_folder": "Harry Potter and the Prisoner of Azkaban (2004)",
+   "expect_file": "Harry Potter and the Prisoner of Azkaban (2004) {imdb-tt0304141} - [Hybrid][Remux-2160p][DTS-X 7.1][DV HDR10][HEVC]-FraMeSToR",
+   "ext": ".mkv"
+  },
+  {
+   "instance": "radarr_4k_debrid",
+   "file_id": 634,
+   "movie": {
+    "Title": "Mad Max: Fury Road",
+    "OriginalTitle": "",
+    "Year": 2015,
+    "ImdbID": "tt1392190",
+    "TmdbID": 76341,
+    "Certification": "",
+    "Collection": ""
+   },
+   "movie_file": {
+    "Quality": {
+     "Title": "Remux-2160p",
+     "Version": 3,
+     "Real": 0
+    },
+    "ReleaseGroup": "FraMeSToR",
+    "Edition": "",
+    "SceneName": "Mad.Max.Fury.Road.2015.REPACK2.UHD.BluRay.2160p.TrueHD.Atmos.7.1.DV.HEVC.HYBRID.REMUX-FraMeSToR",
+    "RelativePath": "Mad Max Fury Road (2015) {imdb-tt1392190} - [Hybrid Repack2][Remux-2160p Proper][TrueHD Atmos 7.1][DV HDR10][HEVC]-FraMeSToR.mkv",
+    "Path": "/media/movies/Mad Max Fury Road (2015)/Mad Max Fury Road (2015) {imdb-tt1392190} - [Hybrid Repack2][Remux-2160p Proper][TrueHD Atmos 7.1][DV HDR10][HEVC]-FraMeSToR.mkv",
+    "MediaInfo": {
+     "VideoCodec": "HEVC",
+     "VideoBitDepth": 10,
+     "VideoMultiViewCount": 0,
+     "AudioCodec": "TrueHD Atmos",
+     "AudioChannels": 7.1,
+     "AudioLanguages": [
+      "eng",
+      "eng"
+     ],
+     "Subtitles": null,
+     "VideoDynamicRange": "HDR",
+     "VideoDynamicRangeType": "DV HDR10"
+    },
+    "CustomFormats": [
+     "Hybrid Repack2"
+    ]
+   },
+   "root": "/media/movies",
+   "cf_source": "name",
+   "expect_folder": "Mad Max Fury Road (2015)",
+   "expect_file": "Mad Max Fury Road (2015) {imdb-tt1392190} - [Hybrid Repack2][Remux-2160p Proper][TrueHD Atmos 7.1][DV HDR10][HEVC]-FraMeSToR",
+   "ext": ".mkv"
+  },
+  {
+   "instance": "radarr_4k_debrid",
+   "file_id": 643,
+   "movie": {
+    "Title": "Unfrosted",
+    "OriginalTitle": "",
+    "Year": 2024,
+    "ImdbID": "tt14914430",
+    "TmdbID": 844185,
+    "Certification": "",
+    "Collection": ""
+   },
+   "movie_file": {
+    "Quality": {
+     "Title": "WEBDL-2160p",
+     "Version": 1,
+     "Real": 0
+    },
+    "ReleaseGroup": "Kitsune",
+    "Edition": "",
+    "SceneName": "",
+    "RelativePath": "Unfrosted (2024) {imdb-tt14914430} - [NF][WEBDL-2160p][EAC3 Atmos 5.1][DV HDR10][h265]-Kitsune.mkv",
+    "Path": "/media/movies/Unfrosted (2024)/Unfrosted (2024) {imdb-tt14914430} - [NF][WEBDL-2160p][EAC3 Atmos 5.1][DV HDR10][h265]-Kitsune.mkv",
+    "MediaInfo": {
+     "VideoCodec": "h265",
+     "VideoBitDepth": 10,
+     "VideoMultiViewCount": 0,
+     "AudioCodec": "EAC3 Atmos",
+     "AudioChannels": 5.1,
+     "AudioLanguages": [
+      "eng"
+     ],
+     "Subtitles": null,
+     "VideoDynamicRange": "HDR",
+     "VideoDynamicRangeType": "DV HDR10"
+    },
+    "CustomFormats": [
+     "NF"
+    ]
+   },
+   "root": "/media/movies",
+   "cf_source": "name",
+   "expect_folder": "Unfrosted (2024)",
+   "expect_file": "Unfrosted (2024) {imdb-tt14914430} - [NF][WEBDL-2160p][EAC3 Atmos 5.1][DV HDR10][h265]-Kitsune",
+   "ext": ".mkv"
+  },
+  {
+   "instance": "radarr_4k_debrid",
+   "file_id": 649,
+   "movie": {
+    "Title": "Twisters",
+    "OriginalTitle": "",
+    "Year": 2024,
+    "ImdbID": "tt12584954",
+    "TmdbID": 718821,
+    "Certification": "",
+    "Collection": ""
+   },
+   "movie_file": {
+    "Quality": {
+     "Title": "Remux-2160p",
+     "Version": 1,
+     "Real": 0
+    },
+    "ReleaseGroup": "FraMeSToR",
+    "Edition": "",
+    "SceneName": "Twisters.2024.UHD.BluRay.2160p.TrueHD.Atmos.7.1.DV.HEVC.REMUX-FraMeSToR",
+    "RelativePath": "Twisters (2024) {imdb-tt12584954} - [Remux-2160p][TrueHD Atmos 7.1][DV HDR10][HEVC]-FraMeSToR.mkv",
+    "Path": "/media/movies/Twisters (2024)/Twisters (2024) {imdb-tt12584954} - [Remux-2160p][TrueHD Atmos 7.1][DV HDR10][HEVC]-FraMeSToR.mkv",
+    "MediaInfo": {
+     "VideoCodec": "HEVC",
+     "VideoBitDepth": 10,
+     "VideoMultiViewCount": 0,
+     "AudioCodec": "TrueHD Atmos",
+     "AudioChannels": 7.1,
+     "AudioLanguages": [
+      "eng",
+      "eng",
+      "eng"
+     ],
+     "Subtitles": null,
+     "VideoDynamicRange": "HDR",
+     "VideoDynamicRangeType": "DV HDR10"
+    },
+    "CustomFormats": null
+   },
+   "root": "/media/movies",
+   "cf_source": "none",
+   "expect_folder": "Twisters (2024)",
+   "expect_file": "Twisters (2024) {imdb-tt12584954} - [Remux-2160p][TrueHD Atmos 7.1][DV HDR10][HEVC]-FraMeSToR",
+   "ext": ".mkv"
+  },
+  {
+   "instance": "radarr_4k_debrid",
+   "file_id": 656,
+   "movie": {
+    "Title": "The Karate Kid",
+    "OriginalTitle": "",
+    "Year": 1984,
+    "ImdbID": "tt0087538",
+    "TmdbID": 1885,
+    "Certification": "",
+    "Collection": ""
+   },
+   "movie_file": {
+    "Quality": {
+     "Title": "Remux-2160p",
+     "Version": 1,
+     "Real": 0
+    },
+    "ReleaseGroup": "FraMeSToR",
+    "Edition": "",
+    "SceneName": "The.Karate.Kid.1984.UHD.BluRay.2160p.TrueHD.Atmos.7.1.DV.HEVC.REMUX-FraMeSToR",
+    "RelativePath": "The Karate Kid (1984) {imdb-tt0087538} - [Remux-2160p][TrueHD Atmos 7.1][DV HDR10][HEVC]-FraMeSToR.mkv",
+    "Path": "/media/movies/The Karate Kid (1984)/The Karate Kid (1984) {imdb-tt0087538} - [Remux-2160p][TrueHD Atmos 7.1][DV HDR10][HEVC]-FraMeSToR.mkv",
+    "MediaInfo": {
+     "VideoCodec": "HEVC",
+     "VideoBitDepth": 10,
+     "VideoMultiViewCount": 0,
+     "AudioCodec": "TrueHD Atmos",
+     "AudioChannels": 7.1,
+     "AudioLanguages": [
+      "eng",
+      "eng",
+      "eng",
+      "eng",
+      "eng"
+     ],
+     "Subtitles": null,
+     "VideoDynamicRange": "HDR",
+     "VideoDynamicRangeType": "DV HDR10"
+    },
+    "CustomFormats": null
+   },
+   "root": "/media/movies",
+   "cf_source": "none",
+   "expect_folder": "The Karate Kid (1984)",
+   "expect_file": "The Karate Kid (1984) {imdb-tt0087538} - [Remux-2160p][TrueHD Atmos 7.1][DV HDR10][HEVC]-FraMeSToR",
+   "ext": ".mkv"
+  },
+  {
+   "instance": "radarr_4k_debrid",
+   "file_id": 667,
+   "movie": {
+    "Title": "The Godfather",
+    "OriginalTitle": "",
+    "Year": 1972,
+    "ImdbID": "tt0068646",
+    "TmdbID": 238,
+    "Certification": "",
+    "Collection": ""
+   },
+   "movie_file": {
+    "Quality": {
+     "Title": "Remux-2160p",
+     "Version": 2,
+     "Real": 0
+    },
+    "ReleaseGroup": "FraMeSToR",
+    "Edition": "",
+    "SceneName": "The.Godfather.1972.REPACK.UHD.BluRay.2160p.TrueHD.5.1.DV.HEVC.REMUX-FraMeSToR",
+    "RelativePath": "The Godfather (1972) {imdb-tt0068646} - [Remux-2160p Proper][TrueHD 5.1][DV HDR10][HEVC]-FraMeSToR.mkv",
+    "Path": "/media/movies/The Godfather (1972)/The Godfather (1972) {imdb-tt0068646} - [Remux-2160p Proper][TrueHD 5.1][DV HDR10][HEVC]-FraMeSToR.mkv",
+    "MediaInfo": {
+     "VideoCodec": "HEVC",
+     "VideoBitDepth": 10,
+     "VideoMultiViewCount": 0,
+     "AudioCodec": "TrueHD",
+     "AudioChannels": 5.1,
+     "AudioLanguages": [
+      "eng",
+      "eng",
+      "eng",
+      "eng"
+     ],
+     "Subtitles": null,
+     "VideoDynamicRange": "HDR",
+     "VideoDynamicRangeType": "DV HDR10"
+    },
+    "CustomFormats": null
+   },
+   "root": "/media/movies",
+   "cf_source": "none",
+   "expect_folder": "The Godfather (1972)",
+   "expect_file": "The Godfather (1972) {imdb-tt0068646} - [Remux-2160p Proper][TrueHD 5.1][DV HDR10][HEVC]-FraMeSToR",
+   "ext": ".mkv"
+  },
+  {
+   "instance": "radarr_4k_debrid",
+   "file_id": 671,
+   "movie": {
+    "Title": "Pixels",
+    "OriginalTitle": "",
+    "Year": 2015,
+    "ImdbID": "tt2120120",
+    "TmdbID": 257344,
+    "Certification": "",
+    "Collection": ""
+   },
+   "movie_file": {
+    "Quality": {
+     "Title": "WEBDL-2160p",
+     "Version": 1,
+     "Real": 0
+    },
+    "ReleaseGroup": "",
+    "Edition": "",
+    "SceneName": "Pixels.2015.2160p.HDR.WEB-DL.MediaClub",
+    "RelativePath": "Pixels (2015) {imdb-tt2120120} - [WEBDL-2160p][AC3 5.1][HDR10][h265].mkv",
+    "Path": "/media/movies/Pixels (2015)/Pixels (2015) {imdb-tt2120120} - [WEBDL-2160p][AC3 5.1][HDR10][h265].mkv",
+    "MediaInfo": {
+     "VideoCodec": "h265",
+     "VideoBitDepth": 10,
+     "VideoMultiViewCount": 0,
+     "AudioCodec": "AC3",
+     "AudioChannels": 5.1,
+     "AudioLanguages": [
+      "rus",
+      "ukr",
+      "eng",
+      "eng"
+     ],
+     "Subtitles": null,
+     "VideoDynamicRange": "HDR",
+     "VideoDynamicRangeType": "HDR10"
+    },
+    "CustomFormats": null
+   },
+   "root": "/media/movies",
+   "cf_source": "none",
+   "expect_folder": "Pixels (2015)",
+   "expect_file": "Pixels (2015) {imdb-tt2120120} - [WEBDL-2160p][AC3 5.1][HDR10][h265]",
+   "ext": ".mkv"
+  },
+  {
+   "instance": "radarr_4k_debrid",
+   "file_id": 672,
+   "movie": {
+    "Title": "Blink Twice",
+    "OriginalTitle": "",
+    "Year": 2024,
+    "ImdbID": "tt14858658",
+    "TmdbID": 840705,
+    "Certification": "",
+    "Collection": ""
+   },
+   "movie_file": {
+    "Quality": {
+     "Title": "WEBDL-2160p",
+     "Version": 1,
+     "Real": 0
+    },
+    "ReleaseGroup": "FLUX",
+    "Edition": "",
+    "SceneName": "Blink.Twice.2024.2160p.WEB-DL.DDP5.1.Atmos.DV.HDR.H.265-FLUX[TGx]",
+    "RelativePath": "Blink Twice (2024) {imdb-tt14858658} - [WEBDL-2160p][EAC3 Atmos 5.1][DV HDR10Plus][h265]-FLUX.mkv",
+    "Path": "/media/movies/Blink Twice (2024)/Blink Twice (2024) {imdb-tt14858658} - [WEBDL-2160p][EAC3 Atmos 5.1][DV HDR10Plus][h265]-FLUX.mkv",
+    "MediaInfo": {
+     "VideoCodec": "h265",
+     "VideoBitDepth": 10,
+     "VideoMultiViewCount": 0,
+     "AudioCodec": "EAC3 Atmos",
+     "AudioChannels": 5.1,
+     "AudioLanguages": [
+      "eng"
+     ],
+     "Subtitles": null,
+     "VideoDynamicRange": "HDR",
+     "VideoDynamicRangeType": "DV HDR10Plus"
+    },
+    "CustomFormats": null
+   },
+   "root": "/media/movies",
+   "cf_source": "none",
+   "expect_folder": "Blink Twice (2024)",
+   "expect_file": "Blink Twice (2024) {imdb-tt14858658} - [WEBDL-2160p][EAC3 Atmos 5.1][DV HDR10Plus][h265]-FLUX",
+   "ext": ".mkv"
+  },
+  {
+   "instance": "radarr_4k_debrid",
+   "file_id": 673,
+   "movie": {
+    "Title": "Migration",
+    "OriginalTitle": "",
+    "Year": 2023,
+    "ImdbID": "tt6495056",
+    "TmdbID": 940551,
+    "Certification": "",
+    "Collection": ""
+   },
+   "movie_file": {
+    "Quality": {
+     "Title": "Remux-2160p",
+     "Version": 1,
+     "Real": 0
+    },
+    "ReleaseGroup": "FraMeSToR",
+    "Edition": "",
+    "SceneName": "Migration.2023.UHD.BluRay.2160p.TrueHD.Atmos.7.1.DV.HEVC.REMUX-FraMeSToR",
+    "RelativePath": "Migration (2023) {imdb-tt6495056} - [Remux-2160p][TrueHD Atmos 7.1][DV HDR10][HEVC]-FraMeSToR.mkv",
+    "Path": "/media/movies/Migration (2023)/Migration (2023) {imdb-tt6495056} - [Remux-2160p][TrueHD Atmos 7.1][DV HDR10][HEVC]-FraMeSToR.mkv",
+    "MediaInfo": {
+     "VideoCodec": "HEVC",
+     "VideoBitDepth": 10,
+     "VideoMultiViewCount": 0,
+     "AudioCodec": "TrueHD Atmos",
+     "AudioChannels": 7.1,
+     "AudioLanguages": [
+      "eng",
+      "eng"
+     ],
+     "Subtitles": null,
+     "VideoDynamicRange": "HDR",
+     "VideoDynamicRangeType": "DV HDR10"
+    },
+    "CustomFormats": null
+   },
+   "root": "/media/movies",
+   "cf_source": "none",
+   "expect_folder": "Migration (2023)",
+   "expect_file": "Migration (2023) {imdb-tt6495056} - [Remux-2160p][TrueHD Atmos 7.1][DV HDR10][HEVC]-FraMeSToR",
+   "ext": ".mkv"
+  },
+  {
+   "instance": "radarr_4k_debrid",
+   "file_id": 674,
+   "movie": {
+    "Title": "Puss in Boots: The Last Wish",
+    "OriginalTitle": "",
+    "Year": 2022,
+    "ImdbID": "tt3915174",
+    "TmdbID": 315162,
+    "Certification": "",
+    "Collection": ""
+   },
+   "movie_file": {
+    "Quality": {
+     "Title": "Remux-2160p",
+     "Version": 1,
+     "Real": 0
+    },
+    "ReleaseGroup": "FraMeSToR",
+    "Edition": "",
+    "SceneName": "Puss.in.Boots.The.Last.Wish.2022.UHD.BluRay.2160p.TrueHD.Atmos.7.1.DV.HEVC.HYBRID.REMUX-FraMeSToR",
+    "RelativePath": "Puss in Boots The Last Wish (2022) {imdb-tt3915174} - [Hybrid][Remux-2160p][TrueHD Atmos 7.1][DV HDR10][HEVC]-FraMeSToR.mkv",
+    "Path": "/media/movies/Puss in Boots The Last Wish (2022)/Puss in Boots The Last Wish (2022) {imdb-tt3915174} - [Hybrid][Remux-2160p][TrueHD Atmos 7.1][DV HDR10][HEVC]-FraMeSToR.mkv",
+    "MediaInfo": {
+     "VideoCodec": "HEVC",
+     "VideoBitDepth": 10,
+     "VideoMultiViewCount": 0,
+     "AudioCodec": "TrueHD Atmos",
+     "AudioChannels": 7.1,
+     "AudioLanguages": [
+      "eng",
+      "eng",
+      "eng"
+     ],
+     "Subtitles": null,
+     "VideoDynamicRange": "HDR",
+     "VideoDynamicRangeType": "DV HDR10"
+    },
+    "CustomFormats": [
+     "Hybrid"
+    ]
+   },
+   "root": "/media/movies",
+   "cf_source": "name",
+   "expect_folder": "Puss in Boots The Last Wish (2022)",
+   "expect_file": "Puss in Boots The Last Wish (2022) {imdb-tt3915174} - [Hybrid][Remux-2160p][TrueHD Atmos 7.1][DV HDR10][HEVC]-FraMeSToR",
+   "ext": ".mkv"
+  },
+  {
+   "instance": "radarr_4k_debrid",
+   "file_id": 676,
+   "movie": {
+    "Title": "Lilo \u0026 Stitch",
+    "OriginalTitle": "",
+    "Year": 2002,
+    "ImdbID": "tt0275847",
+    "TmdbID": 11544,
+    "Certification": "",
+    "Collection": ""
+   },
+   "movie_file": {
+    "Quality": {
+     "Title": "Remux-2160p",
+     "Version": 1,
+     "Real": 0
+    },
+    "ReleaseGroup": "3L",
+    "Edition": "",
+    "SceneName": "Lilo.and.Stitch.2002.2160p.Remux.HEVC.DoVi.HDR10.TrueHD.7.1-3L",
+    "RelativePath": "Lilo and Stitch (2002) {imdb-tt0275847} - [Remux-2160p][TrueHD Atmos 7.1][DV HDR10][HEVC]-3L.mkv",
+    "Path": "/media/movies/Lilo and Stitch (2002)/Lilo and Stitch (2002) {imdb-tt0275847} - [Remux-2160p][TrueHD Atmos 7.1][DV HDR10][HEVC]-3L.mkv",
+    "MediaInfo": {
+     "VideoCodec": "HEVC",
+     "VideoBitDepth": 10,
+     "VideoMultiViewCount": 0,
+     "AudioCodec": "TrueHD Atmos",
+     "AudioChannels": 7.1,
+     "AudioLanguages": [
+      "eng",
+      "eng",
+      "eng"
+     ],
+     "Subtitles": null,
+     "VideoDynamicRange": "HDR",
+     "VideoDynamicRangeType": "DV HDR10"
+    },
+    "CustomFormats": null
+   },
+   "root": "/media/movies",
+   "cf_source": "none",
+   "expect_folder": "Lilo and Stitch (2002)",
+   "expect_file": "Lilo and Stitch (2002) {imdb-tt0275847} - [Remux-2160p][TrueHD Atmos 7.1][DV HDR10][HEVC]-3L",
+   "ext": ".mkv"
+  },
+  {
+   "instance": "radarr_4k_debrid",
+   "file_id": 678,
+   "movie": {
+    "Title": "Uglies",
+    "OriginalTitle": "",
+    "Year": 2024,
+    "ImdbID": "tt13186604",
+    "TmdbID": 748167,
+    "Certification": "",
+    "Collection": ""
+   },
+   "movie_file": {
+    "Quality": {
+     "Title": "WEBDL-2160p",
+     "Version": 1,
+     "Real": 0
+    },
+    "ReleaseGroup": "FLUX",
+    "Edition": "",
+    "SceneName": "Uglies.2024.2160p.NF.WEB.DL.DDP5.1.Atmos.DV.HDR.H.265-FLUX",
+    "RelativePath": "Uglies (2024) {imdb-tt13186604} - [NF][WEBDL-2160p][EAC3 Atmos 5.1][DV HDR10][h265]-FLUX.mkv",
+    "Path": "/media/movies/Uglies (2024)/Uglies (2024) {imdb-tt13186604} - [NF][WEBDL-2160p][EAC3 Atmos 5.1][DV HDR10][h265]-FLUX.mkv",
+    "MediaInfo": {
+     "VideoCodec": "h265",
+     "VideoBitDepth": 10,
+     "VideoMultiViewCount": 0,
+     "AudioCodec": "EAC3 Atmos",
+     "AudioChannels": 5.1,
+     "AudioLanguages": [
+      "eng"
+     ],
+     "Subtitles": null,
+     "VideoDynamicRange": "HDR",
+     "VideoDynamicRangeType": "DV HDR10"
+    },
+    "CustomFormats": [
+     "NF"
+    ]
+   },
+   "root": "/media/movies",
+   "cf_source": "name",
+   "expect_folder": "Uglies (2024)",
+   "expect_file": "Uglies (2024) {imdb-tt13186604} - [NF][WEBDL-2160p][EAC3 Atmos 5.1][DV HDR10][h265]-FLUX",
+   "ext": ".mkv"
+  },
+  {
+   "instance": "radarr_4k_debrid",
+   "file_id": 680,
+   "movie": {
+    "Title": "The Substance",
+    "OriginalTitle": "",
+    "Year": 2024,
+    "ImdbID": "tt17526714",
+    "TmdbID": 933260,
+    "Certification": "",
+    "Collection": ""
+   },
+   "movie_file": {
+    "Quality": {
+     "Title": "Remux-2160p",
+     "Version": 3,
+     "Real": 0
+    },
+    "ReleaseGroup": "CiNEPHiLES",
+    "Edition": "",
+    "SceneName": "The.Substance.2024.REPACK2.2160p.UHD.Blu-ray.Remux.DV.HDR.HEVC.DTS-HD.MA.5.1-CiNEPHiLES",
+    "RelativePath": "The Substance (2024) {imdb-tt17526714} - [Repack2][Remux-2160p Proper][DTS-HD MA 5.1][DV HDR10][HEVC]-CiNEPHiLES.mkv",
+    "Path": "/media/movies/The Substance (2024)/The Substance (2024) {imdb-tt17526714} - [Repack2][Remux-2160p Proper][DTS-HD MA 5.1][DV HDR10][HEVC]-CiNEPHiLES.mkv",
+    "MediaInfo": {
+     "VideoCodec": "HEVC",
+     "VideoBitDepth": 10,
+     "VideoMultiViewCount": 0,
+     "AudioCodec": "DTS-HD MA",
+     "AudioChannels": 5.1,
+     "AudioLanguages": [
+      "eng"
+     ],
+     "Subtitles": null,
+     "VideoDynamicRange": "HDR",
+     "VideoDynamicRangeType": "DV HDR10"
+    },
+    "CustomFormats": [
+     "Repack2"
+    ]
+   },
+   "root": "/media/movies",
+   "cf_source": "name",
+   "expect_folder": "The Substance (2024)",
+   "expect_file": "The Substance (2024) {imdb-tt17526714} - [Repack2][Remux-2160p Proper][DTS-HD MA 5.1][DV HDR10][HEVC]-CiNEPHiLES",
+   "ext": ".mkv"
+  },
+  {
+   "instance": "radarr_4k_debrid",
+   "file_id": 686,
+   "movie": {
+    "Title": "Alien",
+    "OriginalTitle": "",
+    "Year": 1979,
+    "ImdbID": "tt0078748",
+    "TmdbID": 348,
+    "Certification": "",
+    "Collection": ""
+   },
+   "movie_file": {
+    "Quality": {
+     "Title": "Remux-2160p",
+     "Version": 1,
+     "Real": 0
+    },
+    "ReleaseGroup": "FraMeSToR",
+    "Edition": "Directors Cut",
+    "SceneName": "Alien.1979.Directors.Cut.UHD.BluRay.2160p.DTS-HD.MA.5.1.HEVC.REMUX-FraMeSToR",
+    "RelativePath": "Alien (1979) {imdb-tt0078748} - {edition-Directors Cut} [Remux-2160p][DTS-HD MA 5.1][HDR10Plus][HEVC]-FraMeSToR.mkv",
+    "Path": "/media/movies/Alien (1979)/Alien (1979) {imdb-tt0078748} - {edition-Directors Cut} [Remux-2160p][DTS-HD MA 5.1][HDR10Plus][HEVC]-FraMeSToR.mkv",
+    "MediaInfo": {
+     "VideoCodec": "HEVC",
+     "VideoBitDepth": 10,
+     "VideoMultiViewCount": 0,
+     "AudioCodec": "DTS-HD MA",
+     "AudioChannels": 5.1,
+     "AudioLanguages": [
+      "eng",
+      "eng"
+     ],
+     "Subtitles": null,
+     "VideoDynamicRange": "HDR",
+     "VideoDynamicRangeType": "HDR10Plus"
+    },
+    "CustomFormats": null
+   },
+   "root": "/media/movies",
+   "cf_source": "none",
+   "expect_folder": "Alien (1979)",
+   "expect_file": "Alien (1979) {imdb-tt0078748} - {edition-Directors Cut} [Remux-2160p][DTS-HD MA 5.1][HDR10Plus][HEVC]-FraMeSToR",
+   "ext": ".mkv"
+  },
+  {
+   "instance": "radarr_4k_debrid",
+   "file_id": 699,
+   "movie": {
+    "Title": "Wicked",
+    "OriginalTitle": "",
+    "Year": 2024,
+    "ImdbID": "tt1262426",
+    "TmdbID": 402431,
+    "Certification": "",
+    "Collection": ""
+   },
+   "movie_file": {
+    "Quality": {
+     "Title": "Remux-2160p",
+     "Version": 1,
+     "Real": 0
+    },
+    "ReleaseGroup": "FraMeSToR",
+    "Edition": "",
+    "SceneName": "Wicked.2024.UHD.BluRay.2160p.TrueHD.Atmos.7.1.DV.HEVC.REMUX-FraMeSToR",
+    "RelativePath": "Wicked (2024) {imdb-tt1262426} - [Remux-2160p][TrueHD Atmos 7.1][DV HDR10][HEVC]-FraMeSToR.mkv",
+    "Path": "/media/movies/Wicked (2024)/Wicked (2024) {imdb-tt1262426} - [Remux-2160p][TrueHD Atmos 7.1][DV HDR10][HEVC]-FraMeSToR.mkv",
+    "MediaInfo": {
+     "VideoCodec": "HEVC",
+     "VideoBitDepth": 10,
+     "VideoMultiViewCount": 0,
+     "AudioCodec": "TrueHD Atmos",
+     "AudioChannels": 7.1,
+     "AudioLanguages": [
+      "eng",
+      "eng",
+      "eng",
+      "eng"
+     ],
+     "Subtitles": null,
+     "VideoDynamicRange": "HDR",
+     "VideoDynamicRangeType": "DV HDR10"
+    },
+    "CustomFormats": null
+   },
+   "root": "/media/movies",
+   "cf_source": "none",
+   "expect_folder": "Wicked (2024)",
+   "expect_file": "Wicked (2024) {imdb-tt1262426} - [Remux-2160p][TrueHD Atmos 7.1][DV HDR10][HEVC]-FraMeSToR",
+   "ext": ".mkv"
+  },
+  {
+   "instance": "radarr_4k_debrid",
+   "file_id": 702,
+   "movie": {
+    "Title": "Meet the Fockers",
+    "OriginalTitle": "",
+    "Year": 2004,
+    "ImdbID": "tt0290002",
+    "TmdbID": 693,
+    "Certification": "",
+    "Collection": ""
+   },
+   "movie_file": {
+    "Quality": {
+     "Title": "Remux-2160p",
+     "Version": 1,
+     "Real": 0
+    },
+    "ReleaseGroup": "SpaceHD13",
+    "Edition": "",
+    "SceneName": "Meet.the.Fockers.2004.2160p.UHD.BluRay.REMUX.DV.HDR.HEVC.TrueHD.Atmos.7.1-SpaceHD13",
+    "RelativePath": "Meet the Fockers (2004) {imdb-tt0290002} - [Remux-2160p][AC3 5.1][DV HDR10][HEVC]-SpaceHD13.mkv",
+    "Path": "/media/movies/Meet the Fockers (2004)/Meet the Fockers (2004) {imdb-tt0290002} - [Remux-2160p][AC3 5.1][DV HDR10][HEVC]-SpaceHD13.mkv",
+    "MediaInfo": {
+     "VideoCodec": "HEVC",
+     "VideoBitDepth": 10,
+     "VideoMultiViewCount": 0,
+     "AudioCodec": "AC3",
+     "AudioChannels": 5.1,
+     "AudioLanguages": [
+      "rus",
+      "rus",
+      "eng",
+      "eng",
+      "eng"
+     ],
+     "Subtitles": null,
+     "VideoDynamicRange": "HDR",
+     "VideoDynamicRangeType": "DV HDR10"
+    },
+    "CustomFormats": null
+   },
+   "root": "/media/movies",
+   "cf_source": "none",
+   "expect_folder": "Meet the Fockers (2004)",
+   "expect_file": "Meet the Fockers (2004) {imdb-tt0290002} - [Remux-2160p][AC3 5.1][DV HDR10][HEVC]-SpaceHD13",
+   "ext": ".mkv"
+  },
+  {
+   "instance": "radarr_4k_debrid",
+   "file_id": 706,
+   "movie": {
+    "Title": "Weird: The Al Yankovic Story",
+    "OriginalTitle": "",
+    "Year": 2022,
+    "ImdbID": "tt17076046",
+    "TmdbID": 928344,
+    "Certification": "",
+    "Collection": ""
+   },
+   "movie_file": {
+    "Quality": {
+     "Title": "Remux-2160p",
+     "Version": 1,
+     "Real": 0
+    },
+    "ReleaseGroup": "CiNEPHiLES",
+    "Edition": "",
+    "SceneName": "Weird.The.Al.Yankovic.Story.2022.2160p.UHD.Blu-ray.Remux.DV.HDR.HEVC.TrueHD.Atmos.7.1-CiNEPHiLES",
+    "RelativePath": "Weird The Al Yankovic Story (2022) {imdb-tt17076046} - [Remux-2160p][TrueHD Atmos 7.1][DV HDR10][HEVC]-CiNEPHiLES.mkv",
+    "Path": "/media/movies/Weird The Al Yankovic Story (2022)/Weird The Al Yankovic Story (2022) {imdb-tt17076046} - [Remux-2160p][TrueHD Atmos 7.1][DV HDR10][HEVC]-CiNEPHiLES.mkv",
+    "MediaInfo": {
+     "VideoCodec": "HEVC",
+     "VideoBitDepth": 10,
+     "VideoMultiViewCount": 0,
+     "AudioCodec": "TrueHD Atmos",
+     "AudioChannels": 7.1,
+     "AudioLanguages": [
+      "eng",
+      "eng",
+      "eng"
+     ],
+     "Subtitles": null,
+     "VideoDynamicRange": "HDR",
+     "VideoDynamicRangeType": "DV HDR10"
+    },
+    "CustomFormats": null
+   },
+   "root": "/media/movies",
+   "cf_source": "none",
+   "expect_folder": "Weird The Al Yankovic Story (2022)",
+   "expect_file": "Weird The Al Yankovic Story (2022) {imdb-tt17076046} - [Remux-2160p][TrueHD Atmos 7.1][DV HDR10][HEVC]-CiNEPHiLES",
+   "ext": ".mkv"
+  },
+  {
+   "instance": "radarr_4k_debrid",
+   "file_id": 707,
+   "movie": {
+    "Title": "Our Little Secret",
+    "OriginalTitle": "",
+    "Year": 2024,
+    "ImdbID": "tt31022050",
+    "TmdbID": 1234811,
+    "Certification": "",
+    "Collection": ""
+   },
+   "movie_file": {
+    "Quality": {
+     "Title": "WEBDL-2160p",
+     "Version": 1,
+     "Real": 0
+    },
+    "ReleaseGroup": "FW",
+    "Edition": "",
+    "SceneName": "[ Torrent911.lol ] Our.Little.Secret.2024.MULTi.HDR.2160p.WEB.H265-FW",
+    "RelativePath": "Our Little Secret (2024) {imdb-tt31022050} - [WEBDL-2160p][EAC3 5.1][HDR10][h265]-FW.mkv",
+    "Path": "/media/movies/Our Little Secret (2024)/Our Little Secret (2024) {imdb-tt31022050} - [WEBDL-2160p][EAC3 5.1][HDR10][h265]-FW.mkv",
+    "MediaInfo": {
+     "VideoCodec": "h265",
+     "VideoBitDepth": 10,
+     "VideoMultiViewCount": 0,
+     "AudioCodec": "EAC3",
+     "AudioChannels": 5.1,
+     "AudioLanguages": [
+      "fre",
+      "fre",
+      "eng"
+     ],
+     "Subtitles": null,
+     "VideoDynamicRange": "HDR",
+     "VideoDynamicRangeType": "HDR10"
+    },
+    "CustomFormats": null
+   },
+   "root": "/media/movies",
+   "cf_source": "none",
+   "expect_folder": "Our Little Secret (2024)",
+   "expect_file": "Our Little Secret (2024) {imdb-tt31022050} - [WEBDL-2160p][EAC3 5.1][HDR10][h265]-FW",
+   "ext": ".mkv"
+  },
+  {
+   "instance": "radarr_4k_debrid",
+   "file_id": 710,
+   "movie": {
+    "Title": "A Complete Unknown",
+    "OriginalTitle": "",
+    "Year": 2024,
+    "ImdbID": "tt11563598",
+    "TmdbID": 661539,
+    "Certification": "",
+    "Collection": ""
+   },
+   "movie_file": {
+    "Quality": {
+     "Title": "Remux-2160p",
+     "Version": 1,
+     "Real": 0
+    },
+    "ReleaseGroup": "CiNEPHiLES",
+    "Edition": "",
+    "SceneName": "A.Complete.Unknown.2024.Hybrid.2160p.UHD.Blu-ray.Remux.DV.HDR10Plus.HEVC.TrueHD.Atmos.7.1-CiNEPHiLES",
+    "RelativePath": "A Complete Unknown (2024) {imdb-tt11563598} - [Hybrid][Remux-2160p][TrueHD Atmos 7.1][DV HDR10Plus][HEVC]-CiNEPHiLES.mkv",
+    "Path": "/media/movies/A Complete Unknown (2024)/A Complete Unknown (2024) {imdb-tt11563598} - [Hybrid][Remux-2160p][TrueHD Atmos 7.1][DV HDR10Plus][HEVC]-CiNEPHiLES.mkv",
+    "MediaInfo": {
+     "VideoCodec": "HEVC",
+     "VideoBitDepth": 10,
+     "VideoMultiViewCount": 0,
+     "AudioCodec": "TrueHD Atmos",
+     "AudioChannels": 7.1,
+     "AudioLanguages": [
+      "eng",
+      "eng",
+      "eng"
+     ],
+     "Subtitles": null,
+     "VideoDynamicRange": "HDR",
+     "VideoDynamicRangeType": "DV HDR10Plus"
+    },
+    "CustomFormats": [
+     "Hybrid"
+    ]
+   },
+   "root": "/media/movies",
+   "cf_source": "name",
+   "expect_folder": "A Complete Unknown (2024)",
+   "expect_file": "A Complete Unknown (2024) {imdb-tt11563598} - [Hybrid][Remux-2160p][TrueHD Atmos 7.1][DV HDR10Plus][HEVC]-CiNEPHiLES",
+   "ext": ".mkv"
+  },
+  {
+   "instance": "radarr_4k_debrid",
+   "file_id": 719,
+   "movie": {
+    "Title": "Avicii - My Last Show",
+    "OriginalTitle": "",
+    "Year": 2024,
+    "ImdbID": "tt34619547",
+    "TmdbID": 1397314,
+    "Certification": "",
+    "Collection": ""
+   },
+   "movie_file": {
+    "Quality": {
+     "Title": "WEBDL-1080p",
+     "Version": 1,
+     "Real": 0
+    },
+    "ReleaseGroup": "ViSTA",
+    "Edition": "",
+    "SceneName": "Avicii.-.My.Last.Show.2024.1080p.NF.WEB.DL.DDP5.1.H.264-ViSTA",
+    "RelativePath": "Avicii My Last Show (2024) {imdb-tt34619547} - [NF][WEBDL-1080p][EAC3 5.1][x264]-ViSTA.mkv",
+    "Path": "/media/movies/Avicii My Last Show (2024)/Avicii My Last Show (2024) {imdb-tt34619547} - [NF][WEBDL-1080p][EAC3 5.1][x264]-ViSTA.mkv",
+    "MediaInfo": {
+     "VideoCodec": "x264",
+     "VideoBitDepth": 8,
+     "VideoMultiViewCount": 0,
+     "AudioCodec": "EAC3",
+     "AudioChannels": 5.1,
+     "AudioLanguages": [
+      "hin",
+      "eng"
+     ],
+     "Subtitles": null,
+     "VideoDynamicRange": "",
+     "VideoDynamicRangeType": ""
+    },
+    "CustomFormats": [
+     "NF"
+    ]
+   },
+   "root": "/media/movies",
+   "cf_source": "name",
+   "expect_folder": "Avicii My Last Show (2024)",
+   "expect_file": "Avicii My Last Show (2024) {imdb-tt34619547} - [NF][WEBDL-1080p][EAC3 5.1][x264]-ViSTA",
+   "ext": ".mkv"
+  },
+  {
+   "instance": "radarr_4k_debrid",
+   "file_id": 726,
+   "movie": {
+    "Title": "Juror #2",
+    "OriginalTitle": "",
+    "Year": 2024,
+    "ImdbID": "tt27403986",
+    "TmdbID": 1106739,
+    "Certification": "",
+    "Collection": ""
+   },
+   "movie_file": {
+    "Quality": {
+     "Title": "WEBDL-2160p",
+     "Version": 2,
+     "Real": 0
+    },
+    "ReleaseGroup": "FLUX",
+    "Edition": "",
+    "SceneName": "Juror.2.2024.REPACK.2160p.WEB-DL.DDP5.1.Atmos.DV.HDR.H.265-FLUX",
+    "RelativePath": "Juror #2 (2024) {imdb-tt27403986} - [WEBDL-2160p Proper][EAC3 Atmos 5.1][DV HDR10Plus][h265]-FLUX.mkv",
+    "Path": "/media/movies/Juror #2 (2024)/Juror #2 (2024) {imdb-tt27403986} - [WEBDL-2160p Proper][EAC3 Atmos 5.1][DV HDR10Plus][h265]-FLUX.mkv",
+    "MediaInfo": {
+     "VideoCodec": "h265",
+     "VideoBitDepth": 10,
+     "VideoMultiViewCount": 0,
+     "AudioCodec": "EAC3 Atmos",
+     "AudioChannels": 5.1,
+     "AudioLanguages": [
+      "eng"
+     ],
+     "Subtitles": null,
+     "VideoDynamicRange": "HDR",
+     "VideoDynamicRangeType": "DV HDR10Plus"
+    },
+    "CustomFormats": null
+   },
+   "root": "/media/movies",
+   "cf_source": "none",
+   "expect_folder": "Juror #2 (2024)",
+   "expect_file": "Juror #2 (2024) {imdb-tt27403986} - [WEBDL-2160p Proper][EAC3 Atmos 5.1][DV HDR10Plus][h265]-FLUX",
+   "ext": ".mkv"
+  },
+  {
+   "instance": "radarr_4k_debrid",
+   "file_id": 728,
+   "movie": {
+    "Title": "Saturday Night",
+    "OriginalTitle": "",
+    "Year": 2024,
+    "ImdbID": "tt27657135",
+    "TmdbID": 1120911,
+    "Certification": "",
+    "Collection": ""
+   },
+   "movie_file": {
+    "Quality": {
+     "Title": "WEBDL-2160p",
+     "Version": 2,
+     "Real": 0
+    },
+    "ReleaseGroup": "FLUX",
+    "Edition": "",
+    "SceneName": "Saturday.Night.2024.REPACK.2160p.WEB-DL.DDP5.1.Atmos.DV.HDR.H.265-FLUX",
+    "RelativePath": "Saturday Night (2024) {imdb-tt27657135} - [WEBDL-2160p Proper][EAC3 Atmos 5.1][DV HDR10Plus][h265]-FLUX.mkv",
+    "Path": "/media/movies/Saturday Night (2024)/Saturday Night (2024) {imdb-tt27657135} - [WEBDL-2160p Proper][EAC3 Atmos 5.1][DV HDR10Plus][h265]-FLUX.mkv",
+    "MediaInfo": {
+     "VideoCodec": "h265",
+     "VideoBitDepth": 10,
+     "VideoMultiViewCount": 0,
+     "AudioCodec": "EAC3 Atmos",
+     "AudioChannels": 5.1,
+     "AudioLanguages": [
+      "eng"
+     ],
+     "Subtitles": null,
+     "VideoDynamicRange": "HDR",
+     "VideoDynamicRangeType": "DV HDR10Plus"
+    },
+    "CustomFormats": null
+   },
+   "root": "/media/movies",
+   "cf_source": "none",
+   "expect_folder": "Saturday Night (2024)",
+   "expect_file": "Saturday Night (2024) {imdb-tt27657135} - [WEBDL-2160p Proper][EAC3 Atmos 5.1][DV HDR10Plus][h265]-FLUX",
+   "ext": ".mkv"
+  },
+  {
+   "instance": "radarr_4k_debrid",
+   "file_id": 734,
+   "movie": {
+    "Title": "Babygirl",
+    "OriginalTitle": "",
+    "Year": 2024,
+    "ImdbID": "tt30057084",
+    "TmdbID": 1097549,
+    "Certification": "",
+    "Collection": ""
+   },
+   "movie_file": {
+    "Quality": {
+     "Title": "Remux-2160p",
+     "Version": 1,
+     "Real": 0
+    },
+    "ReleaseGroup": "CiNEPHiLES",
+    "Edition": "",
+    "SceneName": "Babygirl.2024.Hybrid.2160p.UHD.Blu-ray.Remux.DV.HDR10P.HEVC.TrueHD.Atmos.7.1-CiNEPHiLES",
+    "RelativePath": "Babygirl (2024) {imdb-tt30057084} - [Hybrid][Remux-2160p][TrueHD Atmos 7.1][DV HDR10Plus][HEVC]-CiNEPHiLES.mkv",
+    "Path": "/media/movies/Babygirl (2024)/Babygirl (2024) {imdb-tt30057084} - [Hybrid][Remux-2160p][TrueHD Atmos 7.1][DV HDR10Plus][HEVC]-CiNEPHiLES.mkv",
+    "MediaInfo": {
+     "VideoCodec": "HEVC",
+     "VideoBitDepth": 10,
+     "VideoMultiViewCount": 0,
+     "AudioCodec": "TrueHD Atmos",
+     "AudioChannels": 7.1,
+     "AudioLanguages": [
+      "eng",
+      "eng",
+      "eng"
+     ],
+     "Subtitles": null,
+     "VideoDynamicRange": "HDR",
+     "VideoDynamicRangeType": "DV HDR10Plus"
+    },
+    "CustomFormats": [
+     "Hybrid"
+    ]
+   },
+   "root": "/media/movies",
+   "cf_source": "name",
+   "expect_folder": "Babygirl (2024)",
+   "expect_file": "Babygirl (2024) {imdb-tt30057084} - [Hybrid][Remux-2160p][TrueHD Atmos 7.1][DV HDR10Plus][HEVC]-CiNEPHiLES",
+   "ext": ".mkv"
+  },
+  {
+   "instance": "radarr_4k_debrid",
+   "file_id": 738,
+   "movie": {
+    "Title": "A Real Pain",
+    "OriginalTitle": "",
+    "Year": 2024,
+    "ImdbID": "tt21823606",
+    "TmdbID": 1013850,
+    "Certification": "",
+    "Collection": ""
+   },
+   "movie_file": {
+    "Quality": {
+     "Title": "WEBDL-2160p",
+     "Version": 1,
+     "Real": 0
+    },
+    "ReleaseGroup": "FLUX",
+    "Edition": "",
+    "SceneName": "A.Real.Pain.2024.2160p.WEB-DL.DDP5.1.Atmos.DV.HDR.H.265-FLUX",
+    "RelativePath": "A Real Pain (2024) {imdb-tt21823606} - [WEBDL-2160p][EAC3 Atmos 5.1][DV HDR10Plus][h265]-FLUX.mkv",
+    "Path": "/media/movies/A Real Pain (2024)/A Real Pain (2024) {imdb-tt21823606} - [WEBDL-2160p][EAC3 Atmos 5.1][DV HDR10Plus][h265]-FLUX.mkv",
+    "MediaInfo": {
+     "VideoCodec": "h265",
+     "VideoBitDepth": 10,
+     "VideoMultiViewCount": 0,
+     "AudioCodec": "EAC3 Atmos",
+     "AudioChannels": 5.1,
+     "AudioLanguages": [
+      "eng"
+     ],
+     "Subtitles": null,
+     "VideoDynamicRange": "HDR",
+     "VideoDynamicRangeType": "DV HDR10Plus"
+    },
+    "CustomFormats": null
+   },
+   "root": "/media/movies",
+   "cf_source": "none",
+   "expect_folder": "A Real Pain (2024)",
+   "expect_file": "A Real Pain (2024) {imdb-tt21823606} - [WEBDL-2160p][EAC3 Atmos 5.1][DV HDR10Plus][h265]-FLUX",
+   "ext": ".mkv"
+  },
+  {
+   "instance": "radarr_4k_debrid",
+   "file_id": 746,
+   "movie": {
+    "Title": "Jurassic World: Fallen Kingdom",
+    "OriginalTitle": "",
+    "Year": 2018,
+    "ImdbID": "tt4881806",
+    "TmdbID": 351286,
+    "Certification": "",
+    "Collection": ""
+   },
+   "movie_file": {
+    "Quality": {
+     "Title": "Remux-2160p",
+     "Version": 1,
+     "Real": 0
+    },
+    "ReleaseGroup": "FraMeSToR",
+    "Edition": "",
+    "SceneName": "Jurassic.World.Fallen.Kingdom.2018.UHD.BluRay.2160p.DTS-X.7.1.DV.HEVC.REMUX-FraMeSToR",
+    "RelativePath": "Jurassic World Fallen Kingdom (2018) {imdb-tt4881806} - [Remux-2160p][DTS-X 7.1][DV HDR10][HEVC]-FraMeSToR.mkv",
+    "Path": "/media/movies/Jurassic World Fallen Kingdom (2018)/Jurassic World Fallen Kingdom (2018) {imdb-tt4881806} - [Remux-2160p][DTS-X 7.1][DV HDR10][HEVC]-FraMeSToR.mkv",
+    "MediaInfo": {
+     "VideoCodec": "HEVC",
+     "VideoBitDepth": 10,
+     "VideoMultiViewCount": 0,
+     "AudioCodec": "DTS-X",
+     "AudioChannels": 7.1,
+     "AudioLanguages": [
+      "eng"
+     ],
+     "Subtitles": null,
+     "VideoDynamicRange": "HDR",
+     "VideoDynamicRangeType": "DV HDR10"
+    },
+    "CustomFormats": null
+   },
+   "root": "/media/movies",
+   "cf_source": "none",
+   "expect_folder": "Jurassic World Fallen Kingdom (2018)",
+   "expect_file": "Jurassic World Fallen Kingdom (2018) {imdb-tt4881806} - [Remux-2160p][DTS-X 7.1][DV HDR10][HEVC]-FraMeSToR",
+   "ext": ".mkv"
+  },
+  {
+   "instance": "radarr_4k_debrid",
+   "file_id": 753,
+   "movie": {
+    "Title": "Inception",
+    "OriginalTitle": "",
+    "Year": 2010,
+    "ImdbID": "tt1375666",
+    "TmdbID": 27205,
+    "Certification": "",
+    "Collection": ""
+   },
+   "movie_file": {
+    "Quality": {
+     "Title": "Remux-2160p",
+     "Version": 1,
+     "Real": 0
+    },
+    "ReleaseGroup": "FraMeSToR",
+    "Edition": "",
+    "SceneName": "Inception.2010.UHD.BluRay.2160p.DTS-HD.MA.5.1.DV.HEVC.HYBRID.REMUX-FraMeSToR",
+    "RelativePath": "Inception (2010) {imdb-tt1375666} - [Hybrid][Remux-2160p][DTS-HD MA 5.1][DV HDR10][HEVC]-FraMeSToR.mkv",
+    "Path": "/media/movies/Inception (2010)/Inception (2010) {imdb-tt1375666} - [Hybrid][Remux-2160p][DTS-HD MA 5.1][DV HDR10][HEVC]-FraMeSToR.mkv",
+    "MediaInfo": {
+     "VideoCodec": "HEVC",
+     "VideoBitDepth": 10,
+     "VideoMultiViewCount": 0,
+     "AudioCodec": "DTS-HD MA",
+     "AudioChannels": 5.1,
+     "AudioLanguages": [
+      "eng"
+     ],
+     "Subtitles": null,
+     "VideoDynamicRange": "HDR",
+     "VideoDynamicRangeType": "DV HDR10"
+    },
+    "CustomFormats": [
+     "Hybrid"
+    ]
+   },
+   "root": "/media/movies",
+   "cf_source": "name",
+   "expect_folder": "Inception (2010)",
+   "expect_file": "Inception (2010) {imdb-tt1375666} - [Hybrid][Remux-2160p][DTS-HD MA 5.1][DV HDR10][HEVC]-FraMeSToR",
+   "ext": ".mkv"
+  },
+  {
+   "instance": "radarr_4k_debrid",
+   "file_id": 754,
+   "movie": {
+    "Title": "The Prestige",
+    "OriginalTitle": "",
+    "Year": 2006,
+    "ImdbID": "tt0482571",
+    "TmdbID": 1124,
+    "Certification": "",
+    "Collection": ""
+   },
+   "movie_file": {
+    "Quality": {
+     "Title": "Remux-2160p",
+     "Version": 1,
+     "Real": 0
+    },
+    "ReleaseGroup": "FraMeSToR",
+    "Edition": "",
+    "SceneName": "The.Prestige.2006.UHD.BluRay.2160p.DTS-HD.MA.5.1.DV.HEVC.HYBRID.REMUX-FraMeSToR",
+    "RelativePath": "The Prestige (2006) {imdb-tt0482571} - [Hybrid][Remux-2160p][DTS-HD MA 5.1][DV HDR10][HEVC]-FraMeSToR.mkv",
+    "Path": "/media/movies/The Prestige (2006)/The Prestige (2006) {imdb-tt0482571} - [Hybrid][Remux-2160p][DTS-HD MA 5.1][DV HDR10][HEVC]-FraMeSToR.mkv",
+    "MediaInfo": {
+     "VideoCodec": "HEVC",
+     "VideoBitDepth": 10,
+     "VideoMultiViewCount": 0,
+     "AudioCodec": "DTS-HD MA",
+     "AudioChannels": 5.1,
+     "AudioLanguages": [
+      "eng"
+     ],
+     "Subtitles": null,
+     "VideoDynamicRange": "HDR",
+     "VideoDynamicRangeType": "DV HDR10"
+    },
+    "CustomFormats": [
+     "Hybrid"
+    ]
+   },
+   "root": "/media/movies",
+   "cf_source": "name",
+   "expect_folder": "The Prestige (2006)",
+   "expect_file": "The Prestige (2006) {imdb-tt0482571} - [Hybrid][Remux-2160p][DTS-HD MA 5.1][DV HDR10][HEVC]-FraMeSToR",
+   "ext": ".mkv"
+  },
+  {
+   "instance": "radarr_4k_debrid",
+   "file_id": 755,
+   "movie": {
+    "Title": "Dunkirk",
+    "OriginalTitle": "",
+    "Year": 2017,
+    "ImdbID": "tt5013056",
+    "TmdbID": 374720,
+    "Certification": "",
+    "Collection": ""
+   },
+   "movie_file": {
+    "Quality": {
+     "Title": "Remux-2160p",
+     "Version": 1,
+     "Real": 0
+    },
+    "ReleaseGroup": "WiLDCAT",
+    "Edition": "IMAX",
+    "SceneName": "Dunkirk.2017.IMAX.2160p.UHD.BluRay.REMUX.DV.HDR10Plus.HEVC.TrueHD.7.1.96K-WiLDCAT",
+    "RelativePath": "Dunkirk (2017) {imdb-tt5013056} - {edition-IMAX} [Remux-2160p][TrueHD 7.1][DV HDR10Plus][HEVC]-WiLDCAT.mkv",
+    "Path": "/media/movies/Dunkirk (2017)/Dunkirk (2017) {imdb-tt5013056} - {edition-IMAX} [Remux-2160p][TrueHD 7.1][DV HDR10Plus][HEVC]-WiLDCAT.mkv",
+    "MediaInfo": {
+     "VideoCodec": "HEVC",
+     "VideoBitDepth": 10,
+     "VideoMultiViewCount": 0,
+     "AudioCodec": "TrueHD",
+     "AudioChannels": 7.1,
+     "AudioLanguages": [
+      "eng",
+      "eng",
+      "eng"
+     ],
+     "Subtitles": null,
+     "VideoDynamicRange": "HDR",
+     "VideoDynamicRangeType": "DV HDR10Plus"
+    },
+    "CustomFormats": null
+   },
+   "root": "/media/movies",
+   "cf_source": "none",
+   "expect_folder": "Dunkirk (2017)",
+   "expect_file": "Dunkirk (2017) {imdb-tt5013056} - {edition-IMAX} [Remux-2160p][TrueHD 7.1][DV HDR10Plus][HEVC]-WiLDCAT",
+   "ext": ".mkv"
+  },
+  {
+   "instance": "radarr_4k_debrid",
+   "file_id": 757,
+   "movie": {
+    "Title": "The Village",
+    "OriginalTitle": "",
+    "Year": 2004,
+    "ImdbID": "tt0368447",
+    "TmdbID": 6947,
+    "Certification": "",
+    "Collection": ""
+   },
+   "movie_file": {
+    "Quality": {
+     "Title": "WEBDL-1080p",
+     "Version": 2,
+     "Real": 0
+    },
+    "ReleaseGroup": "oki-RePack",
+    "Edition": "",
+    "SceneName": "The.Village.2004.1080p.WEB-DL.DD+5.1.H264-oki-RePack",
+    "RelativePath": "The Village (2004) {imdb-tt0368447} - [WEBDL-1080p Proper][AC3 5.1][x264]-oki-RePack.mkv",
+    "Path": "/media/movies/The Village (2004)/The Village (2004) {imdb-tt0368447} - [WEBDL-1080p Proper][AC3 5.1][x264]-oki-RePack.mkv",
+    "MediaInfo": {
+     "VideoCodec": "x264",
+     "VideoBitDepth": 8,
+     "VideoMultiViewCount": 0,
+     "AudioCodec": "AC3",
+     "AudioChannels": 5.1,
+     "AudioLanguages": [
+      "fre",
+      "eng"
+     ],
+     "Subtitles": null,
+     "VideoDynamicRange": "",
+     "VideoDynamicRangeType": ""
+    },
+    "CustomFormats": null
+   },
+   "root": "/media/movies",
+   "cf_source": "none",
+   "expect_folder": "The Village (2004)",
+   "expect_file": "The Village (2004) {imdb-tt0368447} - [WEBDL-1080p Proper][AC3 5.1][x264]-oki-RePack",
+   "ext": ".mkv"
+  },
+  {
+   "instance": "radarr_4k_debrid",
+   "file_id": 758,
+   "movie": {
+    "Title": "Signs",
+    "OriginalTitle": "",
+    "Year": 2002,
+    "ImdbID": "tt0286106",
+    "TmdbID": 2675,
+    "Certification": "",
+    "Collection": ""
+   },
+   "movie_file": {
+    "Quality": {
+     "Title": "Remux-2160p",
+     "Version": 1,
+     "Real": 0
+    },
+    "ReleaseGroup": "FraMeSToR",
+    "Edition": "",
+    "SceneName": "Signs 2002 UHD BluRay 2160p DTS-HD MA 5 1 DV HEVC HYBRID REMUX-FraMeSToR",
+    "RelativePath": "Signs (2002) {imdb-tt0286106} - [Hybrid][Remux-2160p][DTS-HD MA 5.1][DV HDR10][HEVC]-FraMeSToR.mkv",
+    "Path": "/media/movies/Signs (2002)/Signs (2002) {imdb-tt0286106} - [Hybrid][Remux-2160p][DTS-HD MA 5.1][DV HDR10][HEVC]-FraMeSToR.mkv",
+    "MediaInfo": {
+     "VideoCodec": "HEVC",
+     "VideoBitDepth": 10,
+     "VideoMultiViewCount": 0,
+     "AudioCodec": "DTS-HD MA",
+     "AudioChannels": 5.1,
+     "AudioLanguages": [
+      "eng"
+     ],
+     "Subtitles": null,
+     "VideoDynamicRange": "HDR",
+     "VideoDynamicRangeType": "DV HDR10"
+    },
+    "CustomFormats": [
+     "Hybrid"
+    ]
+   },
+   "root": "/media/movies",
+   "cf_source": "name",
+   "expect_folder": "Signs (2002)",
+   "expect_file": "Signs (2002) {imdb-tt0286106} - [Hybrid][Remux-2160p][DTS-HD MA 5.1][DV HDR10][HEVC]-FraMeSToR",
+   "ext": ".mkv"
+  },
+  {
+   "instance": "radarr_4k_debrid",
+   "file_id": 759,
+   "movie": {
+    "Title": "Apocalypto",
+    "OriginalTitle": "",
+    "Year": 2006,
+    "ImdbID": "tt0472043",
+    "TmdbID": 1579,
+    "Certification": "",
+    "Collection": ""
+   },
+   "movie_file": {
+    "Quality": {
+     "Title": "Remux-2160p",
+     "Version": 1,
+     "Real": 0
+    },
+    "ReleaseGroup": "oli312-oarton27",
+    "Edition": "",
+    "SceneName": "Apocalypto 2006 UHD 2160p Remux HDR10 DTS-HD MA 5.1-oli312-oarton27",
+    "RelativePath": "Apocalypto (2006) {imdb-tt0472043} - [Remux-2160p][DTS-HD MA 5.1][HDR10][h265]-oli312-oarton27.mkv",
+    "Path": "/media/movies/Apocalypto (2006)/Apocalypto (2006) {imdb-tt0472043} - [Remux-2160p][DTS-HD MA 5.1][HDR10][h265]-oli312-oarton27.mkv",
+    "MediaInfo": {
+     "VideoCodec": "h265",
+     "VideoBitDepth": 10,
+     "VideoMultiViewCount": 0,
+     "AudioCodec": "DTS-HD MA",
+     "AudioChannels": 5.1,
+     "AudioLanguages": [
+      "myn"
+     ],
+     "Subtitles": null,
+     "VideoDynamicRange": "HDR",
+     "VideoDynamicRangeType": "HDR10"
+    },
+    "CustomFormats": null
+   },
+   "root": "/media/movies",
+   "cf_source": "none",
+   "expect_folder": "Apocalypto (2006)",
+   "expect_file": "Apocalypto (2006) {imdb-tt0472043} - [Remux-2160p][DTS-HD MA 5.1][HDR10][h265]-oli312-oarton27",
+   "ext": ".mkv"
+  },
+  {
+   "instance": "radarr_4k_debrid",
+   "file_id": 761,
+   "movie": {
+    "Title": "District 9",
+    "OriginalTitle": "",
+    "Year": 2009,
+    "ImdbID": "tt1136608",
+    "TmdbID": 17654,
+    "Certification": "",
+    "Collection": ""
+   },
+   "movie_file": {
+    "Quality": {
+     "Title": "Remux-2160p",
+     "Version": 1,
+     "Real": 0
+    },
+    "ReleaseGroup": "FraMeSToR",
+    "Edition": "",
+    "SceneName": "District.9.2009.UHD.BluRay.2160p.TrueHD.Atmos.7.1.DV.HEVC.HYBRID.REMUX-FraMeSToR",
+    "RelativePath": "District 9 (2009) {imdb-tt1136608} - [Hybrid][Remux-2160p][TrueHD Atmos 7.1][DV HDR10][HEVC]-FraMeSToR.mkv",
+    "Path": "/media/movies/District 9 (2009)/District 9 (2009) {imdb-tt1136608} - [Hybrid][Remux-2160p][TrueHD Atmos 7.1][DV HDR10][HEVC]-FraMeSToR.mkv",
+    "MediaInfo": {
+     "VideoCodec": "HEVC",
+     "VideoBitDepth": 10,
+     "VideoMultiViewCount": 0,
+     "AudioCodec": "TrueHD Atmos",
+     "AudioChannels": 7.1,
+     "AudioLanguages": [
+      "eng",
+      "eng",
+      "eng"
+     ],
+     "Subtitles": null,
+     "VideoDynamicRange": "HDR",
+     "VideoDynamicRangeType": "DV HDR10"
+    },
+    "CustomFormats": [
+     "Hybrid"
+    ]
+   },
+   "root": "/media/movies",
+   "cf_source": "name",
+   "expect_folder": "District 9 (2009)",
+   "expect_file": "District 9 (2009) {imdb-tt1136608} - [Hybrid][Remux-2160p][TrueHD Atmos 7.1][DV HDR10][HEVC]-FraMeSToR",
+   "ext": ".mkv"
+  },
+  {
+   "instance": "radarr_4k_debrid",
+   "file_id": 762,
+   "movie": {
+    "Title": "I Am Legend",
+    "OriginalTitle": "",
+    "Year": 2007,
+    "ImdbID": "tt0480249",
+    "TmdbID": 6479,
+    "Certification": "",
+    "Collection": ""
+   },
+   "movie_file": {
+    "Quality": {
+     "Title": "Remux-2160p",
+     "Version": 1,
+     "Real": 0
+    },
+    "ReleaseGroup": "FraMeSToR",
+    "Edition": "Theatrical",
+    "SceneName": "I.Am.Legend.2007.Theatrical.UHD.BluRay.2160p.DTS-HD.MA.5.1.DV.HEVC.HYBRID.REMUX-FraMeSToR",
+    "RelativePath": "I Am Legend (2007) {imdb-tt0480249} - {edition-Theatrical} [Hybrid][Remux-2160p][DTS-HD MA 5.1][DV HDR10][HEVC]-FraMeSToR.mkv",
+    "Path": "/media/movies/I Am Legend (2007)/I Am Legend (2007) {imdb-tt0480249} - {edition-Theatrical} [Hybrid][Remux-2160p][DTS-HD MA 5.1][DV HDR10][HEVC]-FraMeSToR.mkv",
+    "MediaInfo": {
+     "VideoCodec": "HEVC",
+     "VideoBitDepth": 10,
+     "VideoMultiViewCount": 0,
+     "AudioCodec": "DTS-HD MA",
+     "AudioChannels": 5.1,
+     "AudioLanguages": [
+      "eng",
+      "eng"
+     ],
+     "Subtitles": null,
+     "VideoDynamicRange": "HDR",
+     "VideoDynamicRangeType": "DV HDR10"
+    },
+    "CustomFormats": [
+     "Hybrid"
+    ]
+   },
+   "root": "/media/movies",
+   "cf_source": "name",
+   "expect_folder": "I Am Legend (2007)",
+   "expect_file": "I Am Legend (2007) {imdb-tt0480249} - {edition-Theatrical} [Hybrid][Remux-2160p][DTS-HD MA 5.1][DV HDR10][HEVC]-FraMeSToR",
+   "ext": ".mkv"
+  },
+  {
+   "instance": "radarr_4k_debrid",
+   "file_id": 765,
+   "movie": {
+    "Title": "The Illusionist",
+    "OriginalTitle": "",
+    "Year": 2006,
+    "ImdbID": "tt0443543",
+    "TmdbID": 1491,
+    "Certification": "",
+    "Collection": ""
+   },
+   "movie_file": {
+    "Quality": {
+     "Title": "Remux-1080p",
+     "Version": 2,
+     "Real": 0
+    },
+    "ReleaseGroup": "FraMeSToR",
+    "Edition": "",
+    "SceneName": "The.Illusionist.2006.REPACK.BluRay.1080p.DTS-HD.MA.5.1.AVC.HYBRID.REMUX-FraMeSToR",
+    "RelativePath": "The Illusionist (2006) {imdb-tt0443543} - [Hybrid][Remux-1080p Proper][DTS-HD MA 5.1][x264]-FraMeSToR.mkv",
+    "Path": "/media/movies/The Illusionist (2006)/The Illusionist (2006) {imdb-tt0443543} - [Hybrid][Remux-1080p Proper][DTS-HD MA 5.1][x264]-FraMeSToR.mkv",
+    "MediaInfo": {
+     "VideoCodec": "x264",
+     "VideoBitDepth": 8,
+     "VideoMultiViewCount": 0,
+     "AudioCodec": "DTS-HD MA",
+     "AudioChannels": 5.1,
+     "AudioLanguages": [
+      "eng",
+      "eng"
+     ],
+     "Subtitles": null,
+     "VideoDynamicRange": "",
+     "VideoDynamicRangeType": ""
+    },
+    "CustomFormats": [
+     "Hybrid"
+    ]
+   },
+   "root": "/media/movies",
+   "cf_source": "name",
+   "expect_folder": "The Illusionist (2006)",
+   "expect_file": "The Illusionist (2006) {imdb-tt0443543} - [Hybrid][Remux-1080p Proper][DTS-HD MA 5.1][x264]-FraMeSToR",
+   "ext": ".mkv"
+  },
+  {
+   "instance": "radarr_4k_debrid",
+   "file_id": 767,
+   "movie": {
+    "Title": "Cars",
+    "OriginalTitle": "",
+    "Year": 2006,
+    "ImdbID": "tt0317219",
+    "TmdbID": 920,
+    "Certification": "",
+    "Collection": ""
+   },
+   "movie_file": {
+    "Quality": {
+     "Title": "Remux-2160p",
+     "Version": 1,
+     "Real": 0
+    },
+    "ReleaseGroup": "FraMeSToR",
+    "Edition": "",
+    "SceneName": "Cars.2006.UHD.BluRay.2160p.TrueHD.Atmos.7.1.DV.HEVC.HYBRID.REMUX-FraMeSToR",
+    "RelativePath": "Cars (2006) {imdb-tt0317219} - [Hybrid][Remux-2160p][TrueHD Atmos 7.1][DV HDR10][HEVC]-FraMeSToR.mkv",
+    "Path": "/media/movies/Cars (2006)/Cars (2006) {imdb-tt0317219} - [Hybrid][Remux-2160p][TrueHD Atmos 7.1][DV HDR10][HEVC]-FraMeSToR.mkv",
+    "MediaInfo": {
+     "VideoCodec": "HEVC",
+     "VideoBitDepth": 10,
+     "VideoMultiViewCount": 0,
+     "AudioCodec": "TrueHD Atmos",
+     "AudioChannels": 7.1,
+     "AudioLanguages": [
+      "eng",
+      "eng",
+      "eng",
+      "eng"
+     ],
+     "Subtitles": null,
+     "VideoDynamicRange": "HDR",
+     "VideoDynamicRangeType": "DV HDR10"
+    },
+    "CustomFormats": [
+     "Hybrid"
+    ]
+   },
+   "root": "/media/movies",
+   "cf_source": "name",
+   "expect_folder": "Cars (2006)",
+   "expect_file": "Cars (2006) {imdb-tt0317219} - [Hybrid][Remux-2160p][TrueHD Atmos 7.1][DV HDR10][HEVC]-FraMeSToR",
+   "ext": ".mkv"
+  },
+  {
+   "instance": "radarr_4k_debrid",
+   "file_id": 768,
+   "movie": {
+    "Title": "Presence",
+    "OriginalTitle": "",
+    "Year": 2025,
+    "ImdbID": "tt28249919",
+    "TmdbID": 1140535,
+    "Certification": "",
+    "Collection": ""
+   },
+   "movie_file": {
+    "Quality": {
+     "Title": "Remux-2160p",
+     "Version": 1,
+     "Real": 0
+    },
+    "ReleaseGroup": "CiNEPHiLES",
+    "Edition": "",
+    "SceneName": "Presence 2024 2160p UHD Blu-ray Remux HDR HEVC TrueHD Atmos 7 1-CiNEPHiLES",
+    "RelativePath": "Presence (2025) {imdb-tt28249919} - [Remux-2160p][TrueHD Atmos 7.1][HDR10][HEVC]-CiNEPHiLES.mkv",
+    "Path": "/media/movies/Presence (2025)/Presence (2025) {imdb-tt28249919} - [Remux-2160p][TrueHD Atmos 7.1][HDR10][HEVC]-CiNEPHiLES.mkv",
+    "MediaInfo": {
+     "VideoCodec": "HEVC",
+     "VideoBitDepth": 10,
+     "VideoMultiViewCount": 0,
+     "AudioCodec": "TrueHD Atmos",
+     "AudioChannels": 7.1,
+     "AudioLanguages": [
+      "eng",
+      "eng"
+     ],
+     "Subtitles": null,
+     "VideoDynamicRange": "HDR",
+     "VideoDynamicRangeType": "HDR10"
+    },
+    "CustomFormats": null
+   },
+   "root": "/media/movies",
+   "cf_source": "none",
+   "expect_folder": "Presence (2025)",
+   "expect_file": "Presence (2025) {imdb-tt28249919} - [Remux-2160p][TrueHD Atmos 7.1][HDR10][HEVC]-CiNEPHiLES",
+   "ext": ".mkv"
+  },
+  {
+   "instance": "radarr_4k_debrid",
+   "file_id": 773,
+   "movie": {
+    "Title": "Top Gun: Maverick",
+    "OriginalTitle": "",
+    "Year": 2022,
+    "ImdbID": "tt1745960",
+    "TmdbID": 361743,
+    "Certification": "",
+    "Collection": ""
+   },
+   "movie_file": {
+    "Quality": {
+     "Title": "Remux-2160p",
+     "Version": 1,
+     "Real": 0
+    },
+    "ReleaseGroup": "WiLDCAT",
+    "Edition": "IMAX",
+    "SceneName": "Top.Gun.Maverick.2022.IMAX.Hybrid.2160p.UHD.BluRay.REMUX.DV.HDR10Plus.HEVC.TrueHD.7.1.Atmos-WiLDCAT",
+    "RelativePath": "Top Gun Maverick (2022) {imdb-tt1745960} - {edition-IMAX} [Hybrid][Remux-2160p][TrueHD Atmos 7.1][DV HDR10Plus][HEVC]-WiLDCAT.mkv",
+    "Path": "/media/movies/Top Gun Maverick (2022)/Top Gun Maverick (2022) {imdb-tt1745960} - {edition-IMAX} [Hybrid][Remux-2160p][TrueHD Atmos 7.1][DV HDR10Plus][HEVC]-WiLDCAT.mkv",
+    "MediaInfo": {
+     "VideoCodec": "HEVC",
+     "VideoBitDepth": 10,
+     "VideoMultiViewCount": 0,
+     "AudioCodec": "TrueHD Atmos",
+     "AudioChannels": 7.1,
+     "AudioLanguages": [
+      "eng",
+      "eng"
+     ],
+     "Subtitles": null,
+     "VideoDynamicRange": "HDR",
+     "VideoDynamicRangeType": "DV HDR10Plus"
+    },
+    "CustomFormats": [
+     "Hybrid"
+    ]
+   },
+   "root": "/media/movies",
+   "cf_source": "name",
+   "expect_folder": "Top Gun Maverick (2022)",
+   "expect_file": "Top Gun Maverick (2022) {imdb-tt1745960} - {edition-IMAX} [Hybrid][Remux-2160p][TrueHD Atmos 7.1][DV HDR10Plus][HEVC]-WiLDCAT",
+   "ext": ".mkv"
+  },
+  {
+   "instance": "radarr_4k_debrid",
+   "file_id": 775,
+   "movie": {
+    "Title": "Becoming Led Zeppelin",
+    "OriginalTitle": "",
+    "Year": 2025,
+    "ImdbID": "tt10365912",
+    "TmdbID": 857800,
+    "Certification": "",
+    "Collection": ""
+   },
+   "movie_file": {
+    "Quality": {
+     "Title": "Remux-2160p",
+     "Version": 1,
+     "Real": 0
+    },
+    "ReleaseGroup": "ZoroSenpai",
+    "Edition": "",
+    "SceneName": "Becoming.Led.Zeppelin.2025.2160p.UHD.Blu-ray.Remux.SDR.HEVC.DTS-HD.MA.5.1-ZoroSenpai",
+    "RelativePath": "Becoming Led Zeppelin (2025) {imdb-tt10365912} - [Remux-2160p][DTS-HD MA 5.1][HEVC]-ZoroSenpai.mkv",
+    "Path": "/media/movies/Becoming Led Zeppelin (2025)/Becoming Led Zeppelin (2025) {imdb-tt10365912} - [Remux-2160p][DTS-HD MA 5.1][HEVC]-ZoroSenpai.mkv",
+    "MediaInfo": {
+     "VideoCodec": "HEVC",
+     "VideoBitDepth": 10,
+     "VideoMultiViewCount": 0,
+     "AudioCodec": "DTS-HD MA",
+     "AudioChannels": 5.1,
+     "AudioLanguages": [
+      "eng",
+      "eng"
+     ],
+     "Subtitles": null,
+     "VideoDynamicRange": "",
+     "VideoDynamicRangeType": ""
+    },
+    "CustomFormats": null
+   },
+   "root": "/media/movies",
+   "cf_source": "none",
+   "expect_folder": "Becoming Led Zeppelin (2025)",
+   "expect_file": "Becoming Led Zeppelin (2025) {imdb-tt10365912} - [Remux-2160p][DTS-HD MA 5.1][HEVC]-ZoroSenpai",
+   "ext": ".mkv"
+  },
+  {
+   "instance": "radarr_4k_debrid",
+   "file_id": 776,
+   "movie": {
+    "Title": "One of Them Days",
+    "OriginalTitle": "",
+    "Year": 2025,
+    "ImdbID": "tt32221196",
+    "TmdbID": 1280672,
+    "Certification": "",
+    "Collection": ""
+   },
+   "movie_file": {
+    "Quality": {
+     "Title": "WEBDL-2160p",
+     "Version": 1,
+     "Real": 0
+    },
+    "ReleaseGroup": "TheBiscuitMan",
+    "Edition": "",
+    "SceneName": "One.of.Them.Days.2025.2160p.MA.WEB-DL.DUAL.DD+5.1.DV-HDR.H.265-TheBiscuitMan",
+    "RelativePath": "One of Them Days (2025) {imdb-tt32221196} - [MA][WEBDL-2160p][EAC3 5.1][DV HDR10][h265]-TheBiscuitMan.mkv",
+    "Path": "/media/movies/One of Them Days (2025)/One of Them Days (2025) {imdb-tt32221196} - [MA][WEBDL-2160p][EAC3 5.1][DV HDR10][h265]-TheBiscuitMan.mkv",
+    "MediaInfo": {
+     "VideoCodec": "h265",
+     "VideoBitDepth": 10,
+     "VideoMultiViewCount": 0,
+     "AudioCodec": "EAC3",
+     "AudioChannels": 5.1,
+     "AudioLanguages": [
+      "eng",
+      "hin"
+     ],
+     "Subtitles": null,
+     "VideoDynamicRange": "HDR",
+     "VideoDynamicRangeType": "DV HDR10"
+    },
+    "CustomFormats": [
+     "MA"
+    ]
+   },
+   "root": "/media/movies",
+   "cf_source": "name",
+   "expect_folder": "One of Them Days (2025)",
+   "expect_file": "One of Them Days (2025) {imdb-tt32221196} - [MA][WEBDL-2160p][EAC3 5.1][DV HDR10][h265]-TheBiscuitMan",
+   "ext": ".mkv"
+  },
+  {
+   "instance": "radarr_4k_debrid",
+   "file_id": 777,
+   "movie": {
+    "Title": "EuroTrip",
+    "OriginalTitle": "",
+    "Year": 2004,
+    "ImdbID": "tt0356150",
+    "TmdbID": 9352,
+    "Certification": "",
+    "Collection": ""
+   },
+   "movie_file": {
+    "Quality": {
+     "Title": "Remux-1080p",
+     "Version": 1,
+     "Real": 0
+    },
+    "ReleaseGroup": "FraMeSToR",
+    "Edition": "Unrated",
+    "SceneName": "EuroTrip.2004.Unrated.BluRay.1080p.DTS-HD.MA.5.1.AVC.REMUX-FraMeSToR",
+    "RelativePath": "EuroTrip (2004) {imdb-tt0356150} - {edition-Unrated} [Remux-1080p][DTS-HD MA 5.1][AVC]-FraMeSToR.mkv",
+    "Path": "/media/movies/EuroTrip (2004)/EuroTrip (2004) {imdb-tt0356150} - {edition-Unrated} [Remux-1080p][DTS-HD MA 5.1][AVC]-FraMeSToR.mkv",
+    "MediaInfo": {
+     "VideoCodec": "AVC",
+     "VideoBitDepth": 8,
+     "VideoMultiViewCount": 0,
+     "AudioCodec": "DTS-HD MA",
+     "AudioChannels": 5.1,
+     "AudioLanguages": [
+      "eng",
+      "eng",
+      "eng"
+     ],
+     "Subtitles": null,
+     "VideoDynamicRange": "",
+     "VideoDynamicRangeType": ""
+    },
+    "CustomFormats": null
+   },
+   "root": "/media/movies",
+   "cf_source": "none",
+   "expect_folder": "EuroTrip (2004)",
+   "expect_file": "EuroTrip (2004) {imdb-tt0356150} - {edition-Unrated} [Remux-1080p][DTS-HD MA 5.1][AVC]-FraMeSToR",
+   "ext": ".mkv"
+  },
+  {
+   "instance": "radarr_4k_debrid",
+   "file_id": 792,
+   "movie": {
+    "Title": "The Luckiest Man in America",
+    "OriginalTitle": "",
+    "Year": 2025,
+    "ImdbID": "tt32331377",
+    "TmdbID": 1288070,
+    "Certification": "",
+    "Collection": ""
+   },
+   "movie_file": {
+    "Quality": {
+     "Title": "WEBDL-2160p",
+     "Version": 1,
+     "Real": 0
+    },
+    "ReleaseGroup": "BYNDR",
+    "Edition": "",
+    "SceneName": "The.Luckiest.Man.in.America.2024.2160p.AMZN.WEB-DL.DDP5.1.H.265-BYNDR[PianYuan]",
+    "RelativePath": "The Luckiest Man in America (2025) {imdb-tt32331377} - [AMZN][WEBDL-2160p][EAC3 5.1][h265]-BYNDR.mkv",
+    "Path": "/media/movies/The Luckiest Man in America (2025)/The Luckiest Man in America (2025) {imdb-tt32331377} - [AMZN][WEBDL-2160p][EAC3 5.1][h265]-BYNDR.mkv",
+    "MediaInfo": {
+     "VideoCodec": "h265",
+     "VideoBitDepth": 8,
+     "VideoMultiViewCount": 0,
+     "AudioCodec": "EAC3",
+     "AudioChannels": 5.1,
+     "AudioLanguages": [
+      "eng"
+     ],
+     "Subtitles": null,
+     "VideoDynamicRange": "",
+     "VideoDynamicRangeType": ""
+    },
+    "CustomFormats": [
+     "AMZN"
+    ]
+   },
+   "root": "/media/movies",
+   "cf_source": "name",
+   "expect_folder": "The Luckiest Man in America (2025)",
+   "expect_file": "The Luckiest Man in America (2025) {imdb-tt32331377} - [AMZN][WEBDL-2160p][EAC3 5.1][h265]-BYNDR",
+   "ext": ".mkv"
+  },
+  {
+   "instance": "radarr_4k_debrid",
+   "file_id": 796,
+   "movie": {
+    "Title": "Toy Story 3",
+    "OriginalTitle": "",
+    "Year": 2010,
+    "ImdbID": "tt0435761",
+    "TmdbID": 10193,
+    "Certification": "",
+    "Collection": ""
+   },
+   "movie_file": {
+    "Quality": {
+     "Title": "Remux-2160p",
+     "Version": 2,
+     "Real": 0
+    },
+    "ReleaseGroup": "FraMeSToR",
+    "Edition": "",
+    "SceneName": "Toy.Story.3.2010.REPACK.UHD.BluRay.2160p.TrueHD.Atmos.7.1.DV.HEVC.HYBRID.REMUX-FraMeSToR",
+    "RelativePath": "Toy Story 3 (2010) {imdb-tt0435761} - [Hybrid][Remux-2160p Proper][TrueHD Atmos 7.1][DV HDR10][HEVC]-FraMeSToR.mkv",
+    "Path": "/media/movies/Toy Story 3 (2010)/Toy Story 3 (2010) {imdb-tt0435761} - [Hybrid][Remux-2160p Proper][TrueHD Atmos 7.1][DV HDR10][HEVC]-FraMeSToR.mkv",
+    "MediaInfo": {
+     "VideoCodec": "HEVC",
+     "VideoBitDepth": 10,
+     "VideoMultiViewCount": 0,
+     "AudioCodec": "TrueHD Atmos",
+     "AudioChannels": 7.1,
+     "AudioLanguages": [
+      "eng",
+      "eng",
+      "eng",
+      "eng"
+     ],
+     "Subtitles": null,
+     "VideoDynamicRange": "HDR",
+     "VideoDynamicRangeType": "DV HDR10"
+    },
+    "CustomFormats": [
+     "Hybrid"
+    ]
+   },
+   "root": "/media/movies",
+   "cf_source": "name",
+   "expect_folder": "Toy Story 3 (2010)",
+   "expect_file": "Toy Story 3 (2010) {imdb-tt0435761} - [Hybrid][Remux-2160p Proper][TrueHD Atmos 7.1][DV HDR10][HEVC]-FraMeSToR",
+   "ext": ".mkv"
+  },
+  {
+   "instance": "radarr_4k_debrid",
+   "file_id": 797,
+   "movie": {
+    "Title": "Toy Story",
+    "OriginalTitle": "",
+    "Year": 1995,
+    "ImdbID": "tt0114709",
+    "TmdbID": 862,
+    "Certification": "",
+    "Collection": ""
+   },
+   "movie_file": {
+    "Quality": {
+     "Title": "Remux-2160p",
+     "Version": 2,
+     "Real": 0
+    },
+    "ReleaseGroup": "FraMeSToR",
+    "Edition": "",
+    "SceneName": "Toy.Story.1995.REPACK.UHD.BluRay.2160p.TrueHD.Atmos.7.1.DV.HEVC.HYBRID.REMUX-FraMeSToR",
+    "RelativePath": "Toy Story (1995) {imdb-tt0114709} - [Hybrid][Remux-2160p Proper][TrueHD Atmos 7.1][DV HDR10][HEVC]-FraMeSToR.mkv",
+    "Path": "/media/movies/Toy Story (1995)/Toy Story (1995) {imdb-tt0114709} - [Hybrid][Remux-2160p Proper][TrueHD Atmos 7.1][DV HDR10][HEVC]-FraMeSToR.mkv",
+    "MediaInfo": {
+     "VideoCodec": "HEVC",
+     "VideoBitDepth": 10,
+     "VideoMultiViewCount": 0,
+     "AudioCodec": "TrueHD Atmos",
+     "AudioChannels": 7.1,
+     "AudioLanguages": [
+      "eng",
+      "eng",
+      "eng"
+     ],
+     "Subtitles": null,
+     "VideoDynamicRange": "HDR",
+     "VideoDynamicRangeType": "DV HDR10"
+    },
+    "CustomFormats": [
+     "Hybrid"
+    ]
+   },
+   "root": "/media/movies",
+   "cf_source": "name",
+   "expect_folder": "Toy Story (1995)",
+   "expect_file": "Toy Story (1995) {imdb-tt0114709} - [Hybrid][Remux-2160p Proper][TrueHD Atmos 7.1][DV HDR10][HEVC]-FraMeSToR",
+   "ext": ".mkv"
+  },
+  {
+   "instance": "radarr_4k_debrid",
+   "file_id": 800,
+   "movie": {
+    "Title": "The Ugly Stepsister",
+    "OriginalTitle": "",
+    "Year": 2025,
+    "ImdbID": "tt29344903",
+    "TmdbID": 1284120,
+    "Certification": "",
+    "Collection": ""
+   },
+   "movie_file": {
+    "Quality": {
+     "Title": "Remux-2160p",
+     "Version": 1,
+     "Real": 0
+    },
+    "ReleaseGroup": "CiNEPHiLES",
+    "Edition": "",
+    "SceneName": "The.Ugly.Stepsister.2025.2160p.UHD.Blu-ray.Remux.DV.HDR.HEVC.DTS-HD.MA.5.1-CiNEPHiLES",
+    "RelativePath": "The Ugly Stepsister (2025) {imdb-tt29344903} - [Remux-2160p][DTS-HD MA 5.1][DV HDR10][HEVC]-CiNEPHiLES.mkv",
+    "Path": "/media/movies/The Ugly Stepsister (2025)/The Ugly Stepsister (2025) {imdb-tt29344903} - [Remux-2160p][DTS-HD MA 5.1][DV HDR10][HEVC]-CiNEPHiLES.mkv",
+    "MediaInfo": {
+     "VideoCodec": "HEVC",
+     "VideoBitDepth": 10,
+     "VideoMultiViewCount": 0,
+     "AudioCodec": "DTS-HD MA",
+     "AudioChannels": 5.1,
+     "AudioLanguages": [
+      "nor",
+      "eng",
+      "eng",
+      "eng"
+     ],
+     "Subtitles": null,
+     "VideoDynamicRange": "HDR",
+     "VideoDynamicRangeType": "DV HDR10"
+    },
+    "CustomFormats": null
+   },
+   "root": "/media/movies",
+   "cf_source": "none",
+   "expect_folder": "The Ugly Stepsister (2025)",
+   "expect_file": "The Ugly Stepsister (2025) {imdb-tt29344903} - [Remux-2160p][DTS-HD MA 5.1][DV HDR10][HEVC]-CiNEPHiLES",
+   "ext": ".mkv"
+  },
+  {
+   "instance": "radarr_4k_debrid",
+   "file_id": 809,
+   "movie": {
+    "Title": "Happy Gilmore 2",
+    "OriginalTitle": "",
+    "Year": 2025,
+    "ImdbID": "tt31868189",
+    "TmdbID": 1263256,
+    "Certification": "",
+    "Collection": ""
+   },
+   "movie_file": {
+    "Quality": {
+     "Title": "WEBDL-2160p",
+     "Version": 1,
+     "Real": 0
+    },
+    "ReleaseGroup": "BYNDR",
+    "Edition": "",
+    "SceneName": "Happy.Gilmore.2.2025.2160p.NF.WEB.DL.DDP5.1.Atmos.DV.HDR.H.265-BYNDR",
+    "RelativePath": "Happy Gilmore 2 (2025) {imdb-tt31868189} - [NF][WEBDL-2160p][EAC3 Atmos 5.1][DV HDR10][h265]-BYNDR.mkv",
+    "Path": "/media/movies/Happy Gilmore 2 (2025)/Happy Gilmore 2 (2025) {imdb-tt31868189} - [NF][WEBDL-2160p][EAC3 Atmos 5.1][DV HDR10][h265]-BYNDR.mkv",
+    "MediaInfo": {
+     "VideoCodec": "h265",
+     "VideoBitDepth": 10,
+     "VideoMultiViewCount": 0,
+     "AudioCodec": "EAC3 Atmos",
+     "AudioChannels": 5.1,
+     "AudioLanguages": [
+      "eng"
+     ],
+     "Subtitles": null,
+     "VideoDynamicRange": "HDR",
+     "VideoDynamicRangeType": "DV HDR10"
+    },
+    "CustomFormats": [
+     "NF"
+    ]
+   },
+   "root": "/media/movies",
+   "cf_source": "name",
+   "expect_folder": "Happy Gilmore 2 (2025)",
+   "expect_file": "Happy Gilmore 2 (2025) {imdb-tt31868189} - [NF][WEBDL-2160p][EAC3 Atmos 5.1][DV HDR10][h265]-BYNDR",
+   "ext": ".mkv"
+  },
+  {
+   "instance": "radarr_4k_debrid",
+   "file_id": 813,
+   "movie": {
+    "Title": "Monsters University",
+    "OriginalTitle": "",
+    "Year": 2013,
+    "ImdbID": "tt1453405",
+    "TmdbID": 62211,
+    "Certification": "",
+    "Collection": ""
+   },
+   "movie_file": {
+    "Quality": {
+     "Title": "Remux-2160p",
+     "Version": 1,
+     "Real": 0
+    },
+    "ReleaseGroup": "FraMeSToR",
+    "Edition": "",
+    "SceneName": "Monsters.University.2013.UHD.BluRay.2160p.TrueHD.Atmos.7.1.DV.HEVC.HYBRID.REMUX-FraMeSToR",
+    "RelativePath": "Monsters University (2013) {imdb-tt1453405} - [Hybrid][Remux-2160p][TrueHD Atmos 7.1][DV HDR10][HEVC]-FraMeSToR.mkv",
+    "Path": "/media/movies/Monsters University (2013)/Monsters University (2013) {imdb-tt1453405} - [Hybrid][Remux-2160p][TrueHD Atmos 7.1][DV HDR10][HEVC]-FraMeSToR.mkv",
+    "MediaInfo": {
+     "VideoCodec": "HEVC",
+     "VideoBitDepth": 10,
+     "VideoMultiViewCount": 0,
+     "AudioCodec": "TrueHD Atmos",
+     "AudioChannels": 7.1,
+     "AudioLanguages": [
+      "eng",
+      "eng",
+      "eng"
+     ],
+     "Subtitles": null,
+     "VideoDynamicRange": "HDR",
+     "VideoDynamicRangeType": "DV HDR10"
+    },
+    "CustomFormats": [
+     "Hybrid"
+    ]
+   },
+   "root": "/media/movies",
+   "cf_source": "name",
+   "expect_folder": "Monsters University (2013)",
+   "expect_file": "Monsters University (2013) {imdb-tt1453405} - [Hybrid][Remux-2160p][TrueHD Atmos 7.1][DV HDR10][HEVC]-FraMeSToR",
+   "ext": ".mkv"
+  },
+  {
+   "instance": "radarr_4k_debrid",
+   "file_id": 814,
+   "movie": {
+    "Title": "28 Years Later",
+    "OriginalTitle": "",
+    "Year": 2025,
+    "ImdbID": "tt10548174",
+    "TmdbID": 1100988,
+    "Certification": "",
+    "Collection": ""
+   },
+   "movie_file": {
+    "Quality": {
+     "Title": "Remux-2160p",
+     "Version": 1,
+     "Real": 0
+    },
+    "ReleaseGroup": "CiNEPHiLES",
+    "Edition": "",
+    "SceneName": "28.Years.Later.2025.Hybrid.2160p.UHD.Blu-ray.Remux.DV.HDR10P.HEVC.TrueHD.Atmos.7.1-CiNEPHiLES",
+    "RelativePath": "28 Years Later (2025) {imdb-tt10548174} - [Hybrid][Remux-2160p][TrueHD Atmos 7.1][DV HDR10Plus][HEVC]-CiNEPHiLES.mkv",
+    "Path": "/media/movies/28 Years Later (2025)/28 Years Later (2025) {imdb-tt10548174} - [Hybrid][Remux-2160p][TrueHD Atmos 7.1][DV HDR10Plus][HEVC]-CiNEPHiLES.mkv",
+    "MediaInfo": {
+     "VideoCodec": "HEVC",
+     "VideoBitDepth": 10,
+     "VideoMultiViewCount": 0,
+     "AudioCodec": "TrueHD Atmos",
+     "AudioChannels": 7.1,
+     "AudioLanguages": [
+      "eng",
+      "eng"
+     ],
+     "Subtitles": null,
+     "VideoDynamicRange": "HDR",
+     "VideoDynamicRangeType": "DV HDR10Plus"
+    },
+    "CustomFormats": [
+     "Hybrid"
+    ]
+   },
+   "root": "/media/movies",
+   "cf_source": "name",
+   "expect_folder": "28 Years Later (2025)",
+   "expect_file": "28 Years Later (2025) {imdb-tt10548174} - [Hybrid][Remux-2160p][TrueHD Atmos 7.1][DV HDR10Plus][HEVC]-CiNEPHiLES",
+   "ext": ".mkv"
+  },
+  {
+   "instance": "radarr_4k_debrid",
+   "file_id": 815,
+   "movie": {
+    "Title": "28 Days Later",
+    "OriginalTitle": "",
+    "Year": 2002,
+    "ImdbID": "tt0289043",
+    "TmdbID": 170,
+    "Certification": "",
+    "Collection": ""
+   },
+   "movie_file": {
+    "Quality": {
+     "Title": "Remux-2160p",
+     "Version": 1,
+     "Real": 0
+    },
+    "ReleaseGroup": "CiNEPHiLES",
+    "Edition": "",
+    "SceneName": "28.Days.Later.2002.Hybrid.2160p.UHD.Blu-ray.Remux.DV.HDR10P.HEVC.TrueHD.Atmos.7.1-CiNEPHiLES",
+    "RelativePath": "28 Days Later (2002) {imdb-tt0289043} - [Hybrid][Remux-2160p][TrueHD Atmos 7.1][DV HDR10Plus][HEVC]-CiNEPHiLES.mkv",
+    "Path": "/media/movies/28 Days Later (2002)/28 Days Later (2002) {imdb-tt0289043} - [Hybrid][Remux-2160p][TrueHD Atmos 7.1][DV HDR10Plus][HEVC]-CiNEPHiLES.mkv",
+    "MediaInfo": {
+     "VideoCodec": "HEVC",
+     "VideoBitDepth": 10,
+     "VideoMultiViewCount": 0,
+     "AudioCodec": "TrueHD Atmos",
+     "AudioChannels": 7.1,
+     "AudioLanguages": [
+      "eng",
+      "eng",
+      "eng",
+      "eng"
+     ],
+     "Subtitles": null,
+     "VideoDynamicRange": "HDR",
+     "VideoDynamicRangeType": "DV HDR10Plus"
+    },
+    "CustomFormats": [
+     "Hybrid"
+    ]
+   },
+   "root": "/media/movies",
+   "cf_source": "name",
+   "expect_folder": "28 Days Later (2002)",
+   "expect_file": "28 Days Later (2002) {imdb-tt0289043} - [Hybrid][Remux-2160p][TrueHD Atmos 7.1][DV HDR10Plus][HEVC]-CiNEPHiLES",
+   "ext": ".mkv"
+  },
+  {
+   "instance": "radarr_4k_debrid",
+   "file_id": 817,
+   "movie": {
+    "Title": "Together",
+    "OriginalTitle": "",
+    "Year": 2025,
+    "ImdbID": "tt31184028",
+    "TmdbID": 1242011,
+    "Certification": "",
+    "Collection": ""
+   },
+   "movie_file": {
+    "Quality": {
+     "Title": "Remux-2160p",
+     "Version": 1,
+     "Real": 0
+    },
+    "ReleaseGroup": "CiNEPHiLES",
+    "Edition": "",
+    "SceneName": "Together.2025.Hybrid.2160p.UHD.Blu-ray.Remux.HDR10plus.HEVC.DTS-HD.MA.5.1-CiNEPHiLES[PianYuan]",
+    "RelativePath": "Together (2025) {imdb-tt31184028} - [Hybrid][Remux-2160p][DTS-HD MA 5.1][HDR10Plus][HEVC]-CiNEPHiLES.mkv",
+    "Path": "/media/movies/Together (2025)/Together (2025) {imdb-tt31184028} - [Hybrid][Remux-2160p][DTS-HD MA 5.1][HDR10Plus][HEVC]-CiNEPHiLES.mkv",
+    "MediaInfo": {
+     "VideoCodec": "HEVC",
+     "VideoBitDepth": 10,
+     "VideoMultiViewCount": 0,
+     "AudioCodec": "DTS-HD MA",
+     "AudioChannels": 5.1,
+     "AudioLanguages": [
+      "eng"
+     ],
+     "Subtitles": null,
+     "VideoDynamicRange": "HDR",
+     "VideoDynamicRangeType": "HDR10Plus"
+    },
+    "CustomFormats": [
+     "Hybrid"
+    ]
+   },
+   "root": "/media/movies",
+   "cf_source": "name",
+   "expect_folder": "Together (2025)",
+   "expect_file": "Together (2025) {imdb-tt31184028} - [Hybrid][Remux-2160p][DTS-HD MA 5.1][HDR10Plus][HEVC]-CiNEPHiLES",
+   "ext": ".mkv"
+  },
+  {
+   "instance": "radarr_4k_debrid",
+   "file_id": 825,
+   "movie": {
+    "Title": "Freakier Friday",
+    "OriginalTitle": "",
+    "Year": 2025,
+    "ImdbID": "tt31956415",
+    "TmdbID": 1125257,
+    "Certification": "",
+    "Collection": ""
+   },
+   "movie_file": {
+    "Quality": {
+     "Title": "WEBDL-2160p",
+     "Version": 1,
+     "Real": 0
+    },
+    "ReleaseGroup": "HONE",
+    "Edition": "",
+    "SceneName": "Freakier Friday (2025) (2160p WEB-DL Hybrid H265 DV HDR DDP Atmos 5.1 English - HONE)",
+    "RelativePath": "Freakier Friday (2025) {imdb-tt31956415} - [WEBDL-2160p][EAC3 Atmos 5.1][DV HDR10][h265]-HONE.mkv",
+    "Path": "/media/movies/Freakier Friday (2025)/Freakier Friday (2025) {imdb-tt31956415} - [WEBDL-2160p][EAC3 Atmos 5.1][DV HDR10][h265]-HONE.mkv",
+    "MediaInfo": {
+     "VideoCodec": "h265",
+     "VideoBitDepth": 10,
+     "VideoMultiViewCount": 0,
+     "AudioCodec": "EAC3 Atmos",
+     "AudioChannels": 5.1,
+     "AudioLanguages": [
+      "eng"
+     ],
+     "Subtitles": null,
+     "VideoDynamicRange": "HDR",
+     "VideoDynamicRangeType": "DV HDR10"
+    },
+    "CustomFormats": null
+   },
+   "root": "/media/movies",
+   "cf_source": "none",
+   "expect_folder": "Freakier Friday (2025)",
+   "expect_file": "Freakier Friday (2025) {imdb-tt31956415} - [WEBDL-2160p][EAC3 Atmos 5.1][DV HDR10][h265]-HONE",
+   "ext": ".mkv"
+  },
+  {
+   "instance": "radarr_4k_debrid",
+   "file_id": 830,
+   "movie": {
+    "Title": "Ghostbusters",
+    "OriginalTitle": "",
+    "Year": 1984,
+    "ImdbID": "tt0087332",
+    "TmdbID": 620,
+    "Certification": "",
+    "Collection": ""
+   },
+   "movie_file": {
+    "Quality": {
+     "Title": "Remux-2160p",
+     "Version": 2,
+     "Real": 0
+    },
+    "ReleaseGroup": "BLURANiUM",
+    "Edition": "",
+    "SceneName": "Ghostbusters.1984.REPACK.2160p.BluRay.REMUX.DV.HDR.HEVC.TrueHD.7.1.Atmos-BLURANiUM",
+    "RelativePath": "Ghostbusters (1984) {imdb-tt0087332} - [Remux-2160p Proper][AC3 2.0][DV HDR10][HEVC]-BLURANiUM.mkv",
+    "Path": "/media/movies/Ghostbusters (1984)/Ghostbusters (1984) {imdb-tt0087332} - [Remux-2160p Proper][AC3 2.0][DV HDR10][HEVC]-BLURANiUM.mkv",
+    "MediaInfo": {
+     "VideoCodec": "HEVC",
+     "VideoBitDepth": 10,
+     "VideoMultiViewCount": 0,
+     "AudioCodec": "AC3",
+     "AudioChannels": 2,
+     "AudioLanguages": [
+      "rus",
+      "rus",
+      "rus",
+      "rus",
+      "rus",
+      "rus",
+      "rus",
+      "rus",
+      "rus",
+      "rus",
+      "rus",
+      "rus",
+      "rus",
+      "rus",
+      "rus",
+      "rus",
+      "rus",
+      "rus",
+      "rus",
+      "ukr",
+      "ukr",
+      "ukr",
+      "eng",
+      "eng",
+      "eng",
+      "eng",
+      "eng"
+     ],
+     "Subtitles": null,
+     "VideoDynamicRange": "HDR",
+     "VideoDynamicRangeType": "DV HDR10"
+    },
+    "CustomFormats": null
+   },
+   "root": "/media/movies",
+   "cf_source": "none",
+   "expect_folder": "Ghostbusters (1984)",
+   "expect_file": "Ghostbusters (1984) {imdb-tt0087332} - [Remux-2160p Proper][AC3 2.0][DV HDR10][HEVC]-BLURANiUM",
+   "ext": ".mkv"
+  },
+  {
+   "instance": "radarr_4k_debrid",
+   "file_id": 834,
+   "movie": {
+    "Title": "The Shining",
+    "OriginalTitle": "",
+    "Year": 1980,
+    "ImdbID": "tt0081505",
+    "TmdbID": 694,
+    "Certification": "",
+    "Collection": ""
+   },
+   "movie_file": {
+    "Quality": {
+     "Title": "Remux-2160p",
+     "Version": 1,
+     "Real": 0
+    },
+    "ReleaseGroup": "FraMeSToR",
+    "Edition": "",
+    "SceneName": "The.Shining.1980.UHD.BluRay.2160p.DTS-HD.MA.5.1.DV.HEVC.REMUX-FraMeSToR",
+    "RelativePath": "The Shining (1980) {imdb-tt0081505} - [Remux-2160p][DTS-HD MA 5.1][DV HDR10Plus][HEVC]-FraMeSToR.mkv",
+    "Path": "/media/movies/The Shining (1980)/The Shining (1980) {imdb-tt0081505} - [Remux-2160p][DTS-HD MA 5.1][DV HDR10Plus][HEVC]-FraMeSToR.mkv",
+    "MediaInfo": {
+     "VideoCodec": "HEVC",
+     "VideoBitDepth": 10,
+     "VideoMultiViewCount": 0,
+     "AudioCodec": "DTS-HD MA",
+     "AudioChannels": 5.1,
+     "AudioLanguages": [
+      "eng",
+      "eng"
+     ],
+     "Subtitles": null,
+     "VideoDynamicRange": "HDR",
+     "VideoDynamicRangeType": "DV HDR10Plus"
+    },
+    "CustomFormats": null
+   },
+   "root": "/media/movies",
+   "cf_source": "none",
+   "expect_folder": "The Shining (1980)",
+   "expect_file": "The Shining (1980) {imdb-tt0081505} - [Remux-2160p][DTS-HD MA 5.1][DV HDR10Plus][HEVC]-FraMeSToR",
+   "ext": ".mkv"
+  },
+  {
+   "instance": "radarr_4k_debrid",
+   "file_id": 839,
+   "movie": {
+    "Title": "Roofman",
+    "OriginalTitle": "",
+    "Year": 2025,
+    "ImdbID": "tt4627382",
+    "TmdbID": 1242419,
+    "Certification": "",
+    "Collection": ""
+   },
+   "movie_file": {
+    "Quality": {
+     "Title": "Remux-2160p",
+     "Version": 1,
+     "Real": 0
+    },
+    "ReleaseGroup": "CiNEPHiLES",
+    "Edition": "",
+    "SceneName": "Roofman.2025.Hybrid.2160p.UHD.Blu-ray.Remux.DV.HDR10P.HEVC.TrueHD.5.1-CiNEPHiLES",
+    "RelativePath": "Roofman (2025) {imdb-tt4627382} - [Hybrid][Remux-2160p][TrueHD 5.1][DV HDR10Plus][HEVC]-CiNEPHiLES.mkv",
+    "Path": "/media/movies/Roofman (2025)/Roofman (2025) {imdb-tt4627382} - [Hybrid][Remux-2160p][TrueHD 5.1][DV HDR10Plus][HEVC]-CiNEPHiLES.mkv",
+    "MediaInfo": {
+     "VideoCodec": "HEVC",
+     "VideoBitDepth": 10,
+     "VideoMultiViewCount": 0,
+     "AudioCodec": "TrueHD",
+     "AudioChannels": 5.1,
+     "AudioLanguages": [
+      "eng",
+      "eng"
+     ],
+     "Subtitles": null,
+     "VideoDynamicRange": "HDR",
+     "VideoDynamicRangeType": "DV HDR10Plus"
+    },
+    "CustomFormats": [
+     "Hybrid"
+    ]
+   },
+   "root": "/media/movies",
+   "cf_source": "name",
+   "expect_folder": "Roofman (2025)",
+   "expect_file": "Roofman (2025) {imdb-tt4627382} - [Hybrid][Remux-2160p][TrueHD 5.1][DV HDR10Plus][HEVC]-CiNEPHiLES",
+   "ext": ".mkv"
+  },
+  {
+   "instance": "radarr_4k_debrid",
+   "file_id": 841,
+   "movie": {
+    "Title": "Zootopia 2",
+    "OriginalTitle": "",
+    "Year": 2025,
+    "ImdbID": "tt26443597",
+    "TmdbID": 1084242,
+    "Certification": "",
+    "Collection": ""
+   },
+   "movie_file": {
+    "Quality": {
+     "Title": "Remux-2160p",
+     "Version": 1,
+     "Real": 0
+    },
+    "ReleaseGroup": "CiNEPHiLES",
+    "Edition": "",
+    "SceneName": "Zootopia.2.2025.2160p.UHD.Blu-ray.Remux.DV.HDR.HEVC.TrueHD.Atmos.7.1-CiNEPHiLES",
+    "RelativePath": "Zootopia 2 (2025) {imdb-tt26443597} - [Remux-2160p][TrueHD Atmos 7.1][DV HDR10][HEVC]-CiNEPHiLES.mkv",
+    "Path": "/media/movies/Zootopia 2 (2025)/Zootopia 2 (2025) {imdb-tt26443597} - [Remux-2160p][TrueHD Atmos 7.1][DV HDR10][HEVC]-CiNEPHiLES.mkv",
+    "MediaInfo": {
+     "VideoCodec": "HEVC",
+     "VideoBitDepth": 10,
+     "VideoMultiViewCount": 0,
+     "AudioCodec": "TrueHD Atmos",
+     "AudioChannels": 7.1,
+     "AudioLanguages": [
+      "eng",
+      "eng"
+     ],
+     "Subtitles": null,
+     "VideoDynamicRange": "HDR",
+     "VideoDynamicRangeType": "DV HDR10"
+    },
+    "CustomFormats": null
+   },
+   "root": "/media/movies",
+   "cf_source": "none",
+   "expect_folder": "Zootopia 2 (2025)",
+   "expect_file": "Zootopia 2 (2025) {imdb-tt26443597} - [Remux-2160p][TrueHD Atmos 7.1][DV HDR10][HEVC]-CiNEPHiLES",
+   "ext": ".mkv"
+  },
+  {
+   "instance": "radarr_4k_debrid",
+   "file_id": 851,
+   "movie": {
+    "Title": "Monster-in-Law",
+    "OriginalTitle": "",
+    "Year": 2005,
+    "ImdbID": "tt0369735",
+    "TmdbID": 4379,
+    "Certification": "",
+    "Collection": ""
+   },
+   "movie_file": {
+    "Quality": {
+     "Title": "WEBDL-1080p",
+     "Version": 1,
+     "Real": 0
+    },
+    "ReleaseGroup": "playWEB",
+    "Edition": "",
+    "SceneName": "www.UIndex.org    -    Monster-in-Law 2005 1080p NF WEB-DL DD 5 1 H 264-playWEB",
+    "RelativePath": "Monster-in-Law (2005) {imdb-tt0369735} - [NF][WEBDL-1080p][EAC3 5.1][x264]-playWEB.mkv",
+    "Path": "/media/movies/Monster-in-Law (2005)/Monster-in-Law (2005) {imdb-tt0369735} - [NF][WEBDL-1080p][EAC3 5.1][x264]-playWEB.mkv",
+    "MediaInfo": {
+     "VideoCodec": "x264",
+     "VideoBitDepth": 8,
+     "VideoMultiViewCount": 0,
+     "AudioCodec": "EAC3",
+     "AudioChannels": 5.1,
+     "AudioLanguages": [
+      "eng"
+     ],
+     "Subtitles": null,
+     "VideoDynamicRange": "",
+     "VideoDynamicRangeType": ""
+    },
+    "CustomFormats": [
+     "NF"
+    ]
+   },
+   "root": "/media/movies",
+   "cf_source": "name",
+   "expect_folder": "Monster-in-Law (2005)",
+   "expect_file": "Monster-in-Law (2005) {imdb-tt0369735} - [NF][WEBDL-1080p][EAC3 5.1][x264]-playWEB",
+   "ext": ".mkv"
+  },
+  {
+   "instance": "radarr_4k_debrid",
+   "file_id": 855,
+   "movie": {
+    "Title": "The Housemaid",
+    "OriginalTitle": "",
+    "Year": 2025,
+    "ImdbID": "tt27543632",
+    "TmdbID": 1368166,
+    "Certification": "",
+    "Collection": ""
+   },
+   "movie_file": {
+    "Quality": {
+     "Title": "Remux-2160p",
+     "Version": 1,
+     "Real": 0
+    },
+    "ReleaseGroup": "FraMeSToR",
+    "Edition": "",
+    "SceneName": "The.Housemaid.2025.UHD.BluRay.2160p.TrueHD.Atmos.7.1.DV.HDR10P.HEVC.HYBRID.REMUX-FraMeSToR",
+    "RelativePath": "The Housemaid (2025) {imdb-tt27543632} - [Hybrid][Remux-2160p][TrueHD Atmos 7.1][DV HDR10Plus][HEVC]-FraMeSToR.mkv",
+    "Path": "/media/movies/The Housemaid (2025)/The Housemaid (2025) {imdb-tt27543632} - [Hybrid][Remux-2160p][TrueHD Atmos 7.1][DV HDR10Plus][HEVC]-FraMeSToR.mkv",
+    "MediaInfo": {
+     "VideoCodec": "HEVC",
+     "VideoBitDepth": 10,
+     "VideoMultiViewCount": 0,
+     "AudioCodec": "TrueHD Atmos",
+     "AudioChannels": 7.1,
+     "AudioLanguages": [
+      "eng",
+      "eng",
+      "eng",
+      "eng"
+     ],
+     "Subtitles": null,
+     "VideoDynamicRange": "HDR",
+     "VideoDynamicRangeType": "DV HDR10Plus"
+    },
+    "CustomFormats": [
+     "Hybrid"
+    ]
+   },
+   "root": "/media/movies",
+   "cf_source": "name",
+   "expect_folder": "The Housemaid (2025)",
+   "expect_file": "The Housemaid (2025) {imdb-tt27543632} - [Hybrid][Remux-2160p][TrueHD Atmos 7.1][DV HDR10Plus][HEVC]-FraMeSToR",
+   "ext": ".mkv"
+  },
+  {
+   "instance": "radarr_4k_debrid",
+   "file_id": 859,
+   "movie": {
+    "Title": "28 Years Later: The Bone Temple",
+    "OriginalTitle": "",
+    "Year": 2026,
+    "ImdbID": "tt32141377",
+    "TmdbID": 1272837,
+    "Certification": "",
+    "Collection": ""
+   },
+   "movie_file": {
+    "Quality": {
+     "Title": "Remux-2160p",
+     "Version": 1,
+     "Real": 0
+    },
+    "ReleaseGroup": "CiNEPHiLES",
+    "Edition": "",
+    "SceneName": "28.Years.Later.The.Bone.Temple.2026.Hybrid.2160p.UHD.Blu-ray.Remux.DV.HDR10P.HEVC.TrueHD.Atmos.7.1-CiNEPHiLES",
+    "RelativePath": "28 Years Later The Bone Temple (2026) {imdb-tt32141377} - [Hybrid][Remux-2160p][TrueHD Atmos 7.1][DV HDR10Plus][HEVC]-CiNEPHiLES.mkv",
+    "Path": "/media/movies/28 Years Later The Bone Temple (2026)/28 Years Later The Bone Temple (2026) {imdb-tt32141377} - [Hybrid][Remux-2160p][TrueHD Atmos 7.1][DV HDR10Plus][HEVC]-CiNEPHiLES.mkv",
+    "MediaInfo": {
+     "VideoCodec": "HEVC",
+     "VideoBitDepth": 10,
+     "VideoMultiViewCount": 0,
+     "AudioCodec": "TrueHD Atmos",
+     "AudioChannels": 7.1,
+     "AudioLanguages": [
+      "eng",
+      "eng",
+      "eng"
+     ],
+     "Subtitles": null,
+     "VideoDynamicRange": "HDR",
+     "VideoDynamicRangeType": "DV HDR10Plus"
+    },
+    "CustomFormats": [
+     "Hybrid"
+    ]
+   },
+   "root": "/media/movies",
+   "cf_source": "name",
+   "expect_folder": "28 Years Later The Bone Temple (2026)",
+   "expect_file": "28 Years Later The Bone Temple (2026) {imdb-tt32141377} - [Hybrid][Remux-2160p][TrueHD Atmos 7.1][DV HDR10Plus][HEVC]-CiNEPHiLES",
+   "ext": ".mkv"
+  },
+  {
+   "instance": "radarr_4k_debrid",
+   "file_id": 870,
+   "movie": {
+    "Title": "Spider-Man: Far From Home",
+    "OriginalTitle": "",
+    "Year": 2019,
+    "ImdbID": "tt6320628",
+    "TmdbID": 429617,
+    "Certification": "",
+    "Collection": ""
+   },
+   "movie_file": {
+    "Quality": {
+     "Title": "Remux-2160p",
+     "Version": 1,
+     "Real": 0
+    },
+    "ReleaseGroup": "FraMeSToR",
+    "Edition": "",
+    "SceneName": "Spider-Man.Far.from.Home.2019.UHD.BluRay.2160p.TrueHD.Atmos.7.1.DV.HEVC.REMUX-FraMeSToR",
+    "RelativePath": "Spider-Man Far From Home (2019) {imdb-tt6320628} - [Remux-2160p][TrueHD Atmos 7.1][DV HDR10][HEVC]-FraMeSToR.mkv",
+    "Path": "/media/movies/Spider-Man Far From Home (2019)/Spider-Man Far From Home (2019) {imdb-tt6320628} - [Remux-2160p][TrueHD Atmos 7.1][DV HDR10][HEVC]-FraMeSToR.mkv",
+    "MediaInfo": {
+     "VideoCodec": "HEVC",
+     "VideoBitDepth": 10,
+     "VideoMultiViewCount": 0,
+     "AudioCodec": "TrueHD Atmos",
+     "AudioChannels": 7.1,
+     "AudioLanguages": [
+      "eng",
+      "eng"
+     ],
+     "Subtitles": null,
+     "VideoDynamicRange": "HDR",
+     "VideoDynamicRangeType": "DV HDR10"
+    },
+    "CustomFormats": null
+   },
+   "root": "/media/movies",
+   "cf_source": "none",
+   "expect_folder": "Spider-Man Far From Home (2019)",
+   "expect_file": "Spider-Man Far From Home (2019) {imdb-tt6320628} - [Remux-2160p][TrueHD Atmos 7.1][DV HDR10][HEVC]-FraMeSToR",
+   "ext": ".mkv"
+  },
+  {
+   "instance": "radarr_4k_debrid",
+   "file_id": 879,
+   "movie": {
+    "Title": "Frankenstein",
+    "OriginalTitle": "",
+    "Year": 2025,
+    "ImdbID": "tt1312221",
+    "TmdbID": 1062722,
+    "Certification": "",
+    "Collection": ""
+   },
+   "movie_file": {
+    "Quality": {
+     "Title": "WEBDL-2160p",
+     "Version": 1,
+     "Real": 0
+    },
+    "ReleaseGroup": "FLUX",
+    "Edition": "",
+    "SceneName": "Frankenstein.2025.2160p.NF.WEB.DL.DDP5.1.Atmos.DV.HDR.H.265-FLUX",
+    "RelativePath": "Frankenstein (2025) {imdb-tt1312221} - [NF][WEBDL-2160p][EAC3 Atmos 5.1][DV HDR10][h265]-FLUX.mkv",
+    "Path": "/media/movies/Frankenstein (2025)/Frankenstein (2025) {imdb-tt1312221} - [NF][WEBDL-2160p][EAC3 Atmos 5.1][DV HDR10][h265]-FLUX.mkv",
+    "MediaInfo": {
+     "VideoCodec": "h265",
+     "VideoBitDepth": 10,
+     "VideoMultiViewCount": 0,
+     "AudioCodec": "EAC3 Atmos",
+     "AudioChannels": 5.1,
+     "AudioLanguages": [
+      "eng"
+     ],
+     "Subtitles": null,
+     "VideoDynamicRange": "HDR",
+     "VideoDynamicRangeType": "DV HDR10"
+    },
+    "CustomFormats": [
+     "NF"
+    ]
+   },
+   "root": "/media/movies",
+   "cf_source": "name",
+   "expect_folder": "Frankenstein (2025)",
+   "expect_file": "Frankenstein (2025) {imdb-tt1312221} - [NF][WEBDL-2160p][EAC3 Atmos 5.1][DV HDR10][h265]-FLUX",
+   "ext": ".mkv"
+  },
+  {
+   "instance": "radarr_4k_debrid",
+   "file_id": 881,
+   "movie": {
+    "Title": "Hoppers",
+    "OriginalTitle": "",
+    "Year": 2026,
+    "ImdbID": "tt26443616",
+    "TmdbID": 1327819,
+    "Certification": "",
+    "Collection": ""
+   },
+   "movie_file": {
+    "Quality": {
+     "Title": "Remux-2160p",
+     "Version": 1,
+     "Real": 0
+    },
+    "ReleaseGroup": "FraMeSToR",
+    "Edition": "",
+    "SceneName": "Hoppers.2026.UHD.BluRay.2160p.TrueHD.Atmos.7.1.DV.HDR10P.HEVC.HYBRID.REMUX-FraMeSToR",
+    "RelativePath": "Hoppers (2026) {imdb-tt26443616} - [Hybrid][Remux-2160p][TrueHD Atmos 7.1][DV HDR10Plus][HEVC]-FraMeSToR.mkv",
+    "Path": "/media/movies/Hoppers (2026)/Hoppers (2026) {imdb-tt26443616} - [Hybrid][Remux-2160p][TrueHD Atmos 7.1][DV HDR10Plus][HEVC]-FraMeSToR.mkv",
+    "MediaInfo": {
+     "VideoCodec": "HEVC",
+     "VideoBitDepth": 10,
+     "VideoMultiViewCount": 0,
+     "AudioCodec": "TrueHD Atmos",
+     "AudioChannels": 7.1,
+     "AudioLanguages": [
+      "eng",
+      "eng"
+     ],
+     "Subtitles": null,
+     "VideoDynamicRange": "HDR",
+     "VideoDynamicRangeType": "DV HDR10Plus"
+    },
+    "CustomFormats": [
+     "Hybrid"
+    ]
+   },
+   "root": "/media/movies",
+   "cf_source": "name",
+   "expect_folder": "Hoppers (2026)",
+   "expect_file": "Hoppers (2026) {imdb-tt26443616} - [Hybrid][Remux-2160p][TrueHD Atmos 7.1][DV HDR10Plus][HEVC]-FraMeSToR",
+   "ext": ".mkv"
+  },
+  {
+   "instance": "radarr_4k_debrid",
+   "file_id": 889,
+   "movie": {
+    "Title": "The Drama",
+    "OriginalTitle": "",
+    "Year": 2026,
+    "ImdbID": "tt33071426",
+    "TmdbID": 1325734,
+    "Certification": "",
+    "Collection": ""
+   },
+   "movie_file": {
+    "Quality": {
+     "Title": "Remux-2160p",
+     "Version": 1,
+     "Real": 0
+    },
+    "ReleaseGroup": "playBD",
+    "Edition": "",
+    "SceneName": "The.Drama.2026.2160p.UHD.Remux.HEVC.DoVi.TrueHD.Atmos.7.1-playBD",
+    "RelativePath": "The Drama (2026) {imdb-tt33071426} - [Remux-2160p][TrueHD Atmos 7.1][DV HDR10][HEVC]-playBD.mkv",
+    "Path": "/media/movies/The Drama (2026)/The Drama (2026) {imdb-tt33071426} - [Remux-2160p][TrueHD Atmos 7.1][DV HDR10][HEVC]-playBD.mkv",
+    "MediaInfo": {
+     "VideoCodec": "HEVC",
+     "VideoBitDepth": 10,
+     "VideoMultiViewCount": 0,
+     "AudioCodec": "TrueHD Atmos",
+     "AudioChannels": 7.1,
+     "AudioLanguages": [
+      "eng",
+      "eng",
+      "eng"
+     ],
+     "Subtitles": null,
+     "VideoDynamicRange": "HDR",
+     "VideoDynamicRangeType": "DV HDR10"
+    },
+    "CustomFormats": null
+   },
+   "root": "/media/movies",
+   "cf_source": "none",
+   "expect_folder": "The Drama (2026)",
+   "expect_file": "The Drama (2026) {imdb-tt33071426} - [Remux-2160p][TrueHD Atmos 7.1][DV HDR10][HEVC]-playBD",
+   "ext": ".mkv"
+  },
+  {
+   "instance": "radarr_4k_debrid",
+   "file_id": 910,
+   "movie": {
+    "Title": "Backrooms",
+    "OriginalTitle": "",
+    "Year": 2026,
+    "ImdbID": "tt26657236",
+    "TmdbID": 1083381,
+    "Certification": "",
+    "Collection": ""
+   },
+   "movie_file": {
+    "Quality": {
+     "Title": "Remux-2160p",
+     "Version": 1,
+     "Real": 0
+    },
+    "ReleaseGroup": "CiNEPHiLES",
+    "Edition": "",
+    "SceneName": "Backrooms.2026.Hybrid.2160p.UHD.Blu-ray.Remux.DV.HDR10P.HEVC.TrueHD.Atmos.7.1-CiNEPHiLES",
+    "RelativePath": "Backrooms (2026) {imdb-tt26657236} - [Hybrid][Remux-2160p][TrueHD Atmos 7.1][DV HDR10Plus][HEVC]-CiNEPHiLES.mkv",
+    "Path": "/media/movies/Backrooms (2026)/Backrooms (2026) {imdb-tt26657236} - [Hybrid][Remux-2160p][TrueHD Atmos 7.1][DV HDR10Plus][HEVC]-CiNEPHiLES.mkv",
+    "MediaInfo": {
+     "VideoCodec": "HEVC",
+     "VideoBitDepth": 10,
+     "VideoMultiViewCount": 0,
+     "AudioCodec": "TrueHD Atmos",
+     "AudioChannels": 7.1,
+     "AudioLanguages": [
+      "eng",
+      "eng",
+      "eng"
+     ],
+     "Subtitles": null,
+     "VideoDynamicRange": "HDR",
+     "VideoDynamicRangeType": "DV HDR10Plus"
+    },
+    "CustomFormats": [
+     "Hybrid"
+    ]
+   },
+   "root": "/media/movies",
+   "cf_source": "name",
+   "expect_folder": "Backrooms (2026)",
+   "expect_file": "Backrooms (2026) {imdb-tt26657236} - [Hybrid][Remux-2160p][TrueHD Atmos 7.1][DV HDR10Plus][HEVC]-CiNEPHiLES",
+   "ext": ".mkv"
+  },
+  {
+   "instance": "radarr_4k_debrid",
+   "file_id": 917,
+   "movie": {
+    "Title": "Sonic the Hedgehog 3",
+    "OriginalTitle": "",
+    "Year": 2024,
+    "ImdbID": "tt18259086",
+    "TmdbID": 939243,
+    "Certification": "",
+    "Collection": ""
+   },
+   "movie_file": {
+    "Quality": {
+     "Title": "Remux-2160p",
+     "Version": 1,
+     "Real": 0
+    },
+    "ReleaseGroup": "FraMeSToR",
+    "Edition": "",
+    "SceneName": "Sonic.the.Hedgehog.3.2024.UHD.BluRay.2160p.TrueHD.Atmos.7.1.DV.HEVC.REMUX-FraMeSToR",
+    "RelativePath": "Sonic the Hedgehog 3 (2024) {imdb-tt18259086} - [Remux-2160p][TrueHD Atmos 7.1][DV HDR10][HEVC]-FraMeSToR.mkv",
+    "Path": "/media/movies/Sonic the Hedgehog 3 (2024)/Sonic the Hedgehog 3 (2024) {imdb-tt18259086} - [Remux-2160p][TrueHD Atmos 7.1][DV HDR10][HEVC]-FraMeSToR.mkv",
+    "MediaInfo": {
+     "VideoCodec": "HEVC",
+     "VideoBitDepth": 10,
+     "VideoMultiViewCount": 0,
+     "AudioCodec": "TrueHD Atmos",
+     "AudioChannels": 7.1,
+     "AudioLanguages": [
+      "eng",
+      "eng",
+      "eng"
+     ],
+     "Subtitles": null,
+     "VideoDynamicRange": "HDR",
+     "VideoDynamicRangeType": "DV HDR10"
+    },
+    "CustomFormats": null
+   },
+   "root": "/media/movies",
+   "cf_source": "none",
+   "expect_folder": "Sonic the Hedgehog 3 (2024)",
+   "expect_file": "Sonic the Hedgehog 3 (2024) {imdb-tt18259086} - [Remux-2160p][TrueHD Atmos 7.1][DV HDR10][HEVC]-FraMeSToR",
+   "ext": ".mkv"
+  },
+  {
+   "instance": "radarr_4k_debrid",
+   "file_id": 918,
+   "movie": {
+    "Title": "Sonic the Hedgehog 2",
+    "OriginalTitle": "",
+    "Year": 2022,
+    "ImdbID": "tt12412888",
+    "TmdbID": 675353,
+    "Certification": "",
+    "Collection": ""
+   },
+   "movie_file": {
+    "Quality": {
+     "Title": "Remux-2160p",
+     "Version": 1,
+     "Real": 0
+    },
+    "ReleaseGroup": "FraMeSToR",
+    "Edition": "",
+    "SceneName": "Sonic.the.Hedgehog.2.2022.UHD.BluRay.2160p.TrueHD.Atmos.7.1.DV.HEVC.REMUX-FraMeSToR",
+    "RelativePath": "Sonic the Hedgehog 2 (2022) {imdb-tt12412888} - [Remux-2160p][TrueHD Atmos 7.1][DV HDR10][HEVC]-FraMeSToR.mkv",
+    "Path": "/media/movies/Sonic the Hedgehog 2 (2022)/Sonic the Hedgehog 2 (2022) {imdb-tt12412888} - [Remux-2160p][TrueHD Atmos 7.1][DV HDR10][HEVC]-FraMeSToR.mkv",
+    "MediaInfo": {
+     "VideoCodec": "HEVC",
+     "VideoBitDepth": 10,
+     "VideoMultiViewCount": 0,
+     "AudioCodec": "TrueHD Atmos",
+     "AudioChannels": 7.1,
+     "AudioLanguages": [
+      "eng",
+      "eng",
+      "eng"
+     ],
+     "Subtitles": null,
+     "VideoDynamicRange": "HDR",
+     "VideoDynamicRangeType": "DV HDR10"
+    },
+    "CustomFormats": null
+   },
+   "root": "/media/movies",
+   "cf_source": "none",
+   "expect_folder": "Sonic the Hedgehog 2 (2022)",
+   "expect_file": "Sonic the Hedgehog 2 (2022) {imdb-tt12412888} - [Remux-2160p][TrueHD Atmos 7.1][DV HDR10][HEVC]-FraMeSToR",
+   "ext": ".mkv"
+  },
+  {
+   "instance": "radarr_4k_debrid",
+   "file_id": 921,
+   "movie": {
+    "Title": "Practical Magic",
+    "OriginalTitle": "",
+    "Year": 1998,
+    "ImdbID": "tt0120791",
+    "TmdbID": 6435,
+    "Certification": "",
+    "Collection": ""
+   },
+   "movie_file": {
+    "Quality": {
+     "Title": "Remux-2160p",
+     "Version": 1,
+     "Real": 0
+    },
+    "ReleaseGroup": "FraMeSToR",
+    "Edition": "",
+    "SceneName": "Practical.Magic.1998.UHD.BluRay.2160p.TrueHD.Atmos.7.1.DV.HDR10P.HEVC.HYBRID.REMUX-FraMeSToR",
+    "RelativePath": "Practical Magic (1998) {imdb-tt0120791} - [Hybrid][Remux-2160p][TrueHD Atmos 7.1][DV HDR10Plus][HEVC]-FraMeSToR.mkv",
+    "Path": "/media/movies/Practical Magic (1998)/Practical Magic (1998) {imdb-tt0120791} - [Hybrid][Remux-2160p][TrueHD Atmos 7.1][DV HDR10Plus][HEVC]-FraMeSToR.mkv",
+    "MediaInfo": {
+     "VideoCodec": "HEVC",
+     "VideoBitDepth": 10,
+     "VideoMultiViewCount": 0,
+     "AudioCodec": "TrueHD Atmos",
+     "AudioChannels": 7.1,
+     "AudioLanguages": [
+      "eng",
+      "eng",
+      "eng"
+     ],
+     "Subtitles": null,
+     "VideoDynamicRange": "HDR",
+     "VideoDynamicRangeType": "DV HDR10Plus"
+    },
+    "CustomFormats": [
+     "Hybrid"
+    ]
+   },
+   "root": "/media/movies",
+   "cf_source": "name",
+   "expect_folder": "Practical Magic (1998)",
+   "expect_file": "Practical Magic (1998) {imdb-tt0120791} - [Hybrid][Remux-2160p][TrueHD Atmos 7.1][DV HDR10Plus][HEVC]-FraMeSToR",
+   "ext": ".mkv"
+  },
+  {
+   "instance": "radarr_4k_debrid",
+   "file_id": 925,
+   "movie": {
+    "Title": "Transformers: Revenge of the Fallen",
+    "OriginalTitle": "",
+    "Year": 2009,
+    "ImdbID": "tt1055369",
+    "TmdbID": 8373,
+    "Certification": "",
+    "Collection": ""
+   },
+   "movie_file": {
+    "Quality": {
+     "Title": "Remux-2160p",
+     "Version": 1,
+     "Real": 0
+    },
+    "ReleaseGroup": "FraMeSToR",
+    "Edition": "",
+    "SceneName": "Transformers.Revenge.of.the.Fallen.2009.UHD.BluRay.2160p.TrueHD.Atmos.7.1.DV.HEVC.REMUX-FraMeSToR",
+    "RelativePath": "Transformers Revenge of the Fallen (2009) {imdb-tt1055369} - [Remux-2160p][TrueHD Atmos 7.1][DV HDR10][HEVC]-FraMeSToR.mkv",
+    "Path": "/media/movies/Transformers Revenge of the Fallen (2009)/Transformers Revenge of the Fallen (2009) {imdb-tt1055369} - [Remux-2160p][TrueHD Atmos 7.1][DV HDR10][HEVC]-FraMeSToR.mkv",
+    "MediaInfo": {
+     "VideoCodec": "HEVC",
+     "VideoBitDepth": 10,
+     "VideoMultiViewCount": 0,
+     "AudioCodec": "TrueHD Atmos",
+     "AudioChannels": 7.1,
+     "AudioLanguages": [
+      "eng",
+      "eng",
+      "eng"
+     ],
+     "Subtitles": null,
+     "VideoDynamicRange": "HDR",
+     "VideoDynamicRangeType": "DV HDR10"
+    },
+    "CustomFormats": null
+   },
+   "root": "/media/movies",
+   "cf_source": "none",
+   "expect_folder": "Transformers Revenge of the Fallen (2009)",
+   "expect_file": "Transformers Revenge of the Fallen (2009) {imdb-tt1055369} - [Remux-2160p][TrueHD Atmos 7.1][DV HDR10][HEVC]-FraMeSToR",
+   "ext": ".mkv"
+  },
+  {
+   "instance": "radarr_4k_debrid",
+   "file_id": 927,
+   "movie": {
+    "Title": "Transformers: The Last Knight",
+    "OriginalTitle": "",
+    "Year": 2017,
+    "ImdbID": "tt3371366",
+    "TmdbID": 335988,
+    "Certification": "",
+    "Collection": ""
+   },
+   "movie_file": {
+    "Quality": {
+     "Title": "Remux-2160p",
+     "Version": 1,
+     "Real": 0
+    },
+    "ReleaseGroup": "FraMeSToR",
+    "Edition": "",
+    "SceneName": "Transformers.The.Last.Knight.2017.UHD.BluRay.2160p.TrueHD.Atmos.7.1.DV.HEVC.REMUX-FraMeSToR",
+    "RelativePath": "Transformers The Last Knight (2017) {imdb-tt3371366} - [Remux-2160p][TrueHD Atmos 7.1][DV HDR10][HEVC]-FraMeSToR.mkv",
+    "Path": "/media/movies/Transformers The Last Knight (2017)/Transformers The Last Knight (2017) {imdb-tt3371366} - [Remux-2160p][TrueHD Atmos 7.1][DV HDR10][HEVC]-FraMeSToR.mkv",
+    "MediaInfo": {
+     "VideoCodec": "HEVC",
+     "VideoBitDepth": 10,
+     "VideoMultiViewCount": 0,
+     "AudioCodec": "TrueHD Atmos",
+     "AudioChannels": 7.1,
+     "AudioLanguages": [
+      "eng",
+      "eng"
+     ],
+     "Subtitles": null,
+     "VideoDynamicRange": "HDR",
+     "VideoDynamicRangeType": "DV HDR10"
+    },
+    "CustomFormats": null
+   },
+   "root": "/media/movies",
+   "cf_source": "none",
+   "expect_folder": "Transformers The Last Knight (2017)",
+   "expect_file": "Transformers The Last Knight (2017) {imdb-tt3371366} - [Remux-2160p][TrueHD Atmos 7.1][DV HDR10][HEVC]-FraMeSToR",
+   "ext": ".mkv"
+  },
+  {
+   "instance": "radarr_4k_debrid",
+   "file_id": 942,
+   "movie": {
+    "Title": "Insidious: Out of the Further",
+    "OriginalTitle": "",
+    "Year": 2026,
+    "ImdbID": "tt32393988",
+    "TmdbID": 1291595,
+    "Certification": "",
+    "Collection": ""
+   },
+   "movie_file": {
+    "Quality": {
+     "Title": "WEBDL-2160p",
+     "Version": 1,
+     "Real": 0
+    },
+    "ReleaseGroup": "HONE",
+    "Edition": "",
+    "SceneName": "",
+    "RelativePath": "Insidious Out of the Further (2026) {imdb-tt32393988} - [MA][WEBDL-2160p][EAC3 5.1][DV HDR10][h265]-HONE.mkv",
+    "Path": "/media/movies/Insidious Out of the Further (2026)/Insidious Out of the Further (2026) {imdb-tt32393988} - [MA][WEBDL-2160p][EAC3 5.1][DV HDR10][h265]-HONE.mkv",
+    "MediaInfo": {
+     "VideoCodec": "h265",
+     "VideoBitDepth": 10,
+     "VideoMultiViewCount": 0,
+     "AudioCodec": "EAC3",
+     "AudioChannels": 5.1,
+     "AudioLanguages": [
+      "eng"
+     ],
+     "Subtitles": null,
+     "VideoDynamicRange": "HDR",
+     "VideoDynamicRangeType": "DV HDR10"
+    },
+    "CustomFormats": [
+     "MA"
+    ]
+   },
+   "root": "/media/movies",
+   "cf_source": "name",
+   "expect_folder": "Insidious Out of the Further (2026)",
+   "expect_file": "Insidious Out of the Further (2026) {imdb-tt32393988} - [MA][WEBDL-2160p][EAC3 5.1][DV HDR10][h265]-HONE",
+   "ext": ".mkv"
+  },
+  {
+   "instance": "radarr_4k_debrid",
+   "file_id": 943,
+   "movie": {
+    "Title": "Big Hero 6",
+    "OriginalTitle": "",
+    "Year": 2014,
+    "ImdbID": "tt2245084",
+    "TmdbID": 177572,
+    "Certification": "",
+    "Collection": ""
+   },
+   "movie_file": {
+    "Quality": {
+     "Title": "Remux-2160p",
+     "Version": 1,
+     "Real": 0
+    },
+    "ReleaseGroup": "FraMeSToR",
+    "Edition": "",
+    "SceneName": "Big.Hero.6.2014.UHD.BluRay.2160p.TrueHD.Atmos.7.1.DV.HEVC.HYBRID.REMUX-FraMeSToR",
+    "RelativePath": "Big Hero 6 (2014) {imdb-tt2245084} - [Hybrid][Remux-2160p][TrueHD Atmos 7.1][DV HDR10][HEVC]-FraMeSToR.mkv",
+    "Path": "/media/movies/Big Hero 6 (2014)/Big Hero 6 (2014) {imdb-tt2245084} - [Hybrid][Remux-2160p][TrueHD Atmos 7.1][DV HDR10][HEVC]-FraMeSToR.mkv",
+    "MediaInfo": {
+     "VideoCodec": "HEVC",
+     "VideoBitDepth": 10,
+     "VideoMultiViewCount": 0,
+     "AudioCodec": "TrueHD Atmos",
+     "AudioChannels": 7.1,
+     "AudioLanguages": [
+      "eng",
+      "eng"
+     ],
+     "Subtitles": null,
+     "VideoDynamicRange": "HDR",
+     "VideoDynamicRangeType": "DV HDR10"
+    },
+    "CustomFormats": [
+     "Hybrid"
+    ]
+   },
+   "root": "/media/movies",
+   "cf_source": "name",
+   "expect_folder": "Big Hero 6 (2014)",
+   "expect_file": "Big Hero 6 (2014) {imdb-tt2245084} - [Hybrid][Remux-2160p][TrueHD Atmos 7.1][DV HDR10][HEVC]-FraMeSToR",
+   "ext": ".mkv"
+  },
+  {
+   "instance": "radarr_4k_debrid",
+   "file_id": 947,
+   "movie": {
+    "Title": "Karate Kid: Legends",
+    "OriginalTitle": "",
+    "Year": 2025,
+    "ImdbID": "tt1674782",
+    "TmdbID": 1011477,
+    "Certification": "",
+    "Collection": ""
+   },
+   "movie_file": {
+    "Quality": {
+     "Title": "Remux-2160p",
+     "Version": 2,
+     "Real": 0
+    },
+    "ReleaseGroup": "FraMeSToR",
+    "Edition": "",
+    "SceneName": "Karate.Kid.Legends.2025.REPACK.UHD.BluRay.2160p.TrueHD.Atmos.7.1.DV.HDR10P.HEVC.HYBRID.REMUX-FraMeSToR",
+    "RelativePath": "Karate Kid Legends (2025) {imdb-tt1674782} - [Hybrid][Remux-2160p Proper][TrueHD Atmos 7.1][DV HDR10Plus][HEVC]-FraMeSToR.mkv",
+    "Path": "/media/movies/Karate Kid Legends (2025)/Karate Kid Legends (2025) {imdb-tt1674782} - [Hybrid][Remux-2160p Proper][TrueHD Atmos 7.1][DV HDR10Plus][HEVC]-FraMeSToR.mkv",
+    "MediaInfo": {
+     "VideoCodec": "HEVC",
+     "VideoBitDepth": 10,
+     "VideoMultiViewCount": 0,
+     "AudioCodec": "TrueHD Atmos",
+     "AudioChannels": 7.1,
+     "AudioLanguages": [
+      "eng",
+      "eng"
+     ],
+     "Subtitles": null,
+     "VideoDynamicRange": "HDR",
+     "VideoDynamicRangeType": "DV HDR10Plus"
+    },
+    "CustomFormats": [
+     "Hybrid"
+    ]
+   },
+   "root": "/media/movies",
+   "cf_source": "name",
+   "expect_folder": "Karate Kid Legends (2025)",
+   "expect_file": "Karate Kid Legends (2025) {imdb-tt1674782} - [Hybrid][Remux-2160p Proper][TrueHD Atmos 7.1][DV HDR10Plus][HEVC]-FraMeSToR",
+   "ext": ".mkv"
+  },
+  {
+   "instance": "radarr_4k_debrid",
+   "file_id": 952,
+   "movie": {
+    "Title": "Evil Dead Burn",
+    "OriginalTitle": "",
+    "Year": 2026,
+    "ImdbID": "tt31170389",
+    "TmdbID": 1212763,
+    "Certification": "",
+    "Collection": ""
+   },
+   "movie_file": {
+    "Quality": {
+     "Title": "Remux-2160p",
+     "Version": 1,
+     "Real": 0
+    },
+    "ReleaseGroup": "FraMeSToR",
+    "Edition": "",
+    "SceneName": "Evil.Dead.Burn.2026.UHD.BluRay.2160p.TrueHD.Atmos.7.1.DV.HDR10P.HEVC.HYBRID.REMUX-FraMeSToR",
+    "RelativePath": "Evil Dead Burn (2026) {imdb-tt31170389} - [Hybrid][Remux-2160p][TrueHD Atmos 7.1][DV HDR10Plus][HEVC]-FraMeSToR.mkv",
+    "Path": "/media/movies/Evil Dead Burn (2026)/Evil Dead Burn (2026) {imdb-tt31170389} - [Hybrid][Remux-2160p][TrueHD Atmos 7.1][DV HDR10Plus][HEVC]-FraMeSToR.mkv",
+    "MediaInfo": {
+     "VideoCodec": "HEVC",
+     "VideoBitDepth": 10,
+     "VideoMultiViewCount": 0,
+     "AudioCodec": "TrueHD Atmos",
+     "AudioChannels": 7.1,
+     "AudioLanguages": [
+      "eng",
+      "eng"
+     ],
+     "Subtitles": null,
+     "VideoDynamicRange": "HDR",
+     "VideoDynamicRangeType": "DV HDR10Plus"
+    },
+    "CustomFormats": [
+     "Hybrid"
+    ]
+   },
+   "root": "/media/movies",
+   "cf_source": "name",
+   "expect_folder": "Evil Dead Burn (2026)",
+   "expect_file": "Evil Dead Burn (2026) {imdb-tt31170389} - [Hybrid][Remux-2160p][TrueHD Atmos 7.1][DV HDR10Plus][HEVC]-FraMeSToR",
+   "ext": ".mkv"
+  },
+  {
+   "instance": "radarr_4k_debrid",
+   "file_id": 953,
+   "movie": {
+    "Title": "Jimmy O. Yang: Good Deal",
+    "OriginalTitle": "",
+    "Year": 2020,
+    "ImdbID": "tt11250926",
+    "TmdbID": 699198,
+    "Certification": "",
+    "Collection": ""
+   },
+   "movie_file": {
+    "Quality": {
+     "Title": "WEBDL-1080p",
+     "Version": 1,
+     "Real": 0
+    },
+    "ReleaseGroup": "TRUMP",
+    "Edition": "",
+    "SceneName": "jimmy.o.yang.good.deal.2020.1080p.web.h264-trump[ettv]",
+    "RelativePath": "Jimmy O. Yang Good Deal (2020) {imdb-tt11250926} - [WEBDL-1080p][EAC3 5.1][h264]-TRUMP.mkv",
+    "Path": "/media/movies/Jimmy O. Yang Good Deal (2020)/Jimmy O. Yang Good Deal (2020) {imdb-tt11250926} - [WEBDL-1080p][EAC3 5.1][h264]-TRUMP.mkv",
+    "MediaInfo": {
+     "VideoCodec": "h264",
+     "VideoBitDepth": 8,
+     "VideoMultiViewCount": 0,
+     "AudioCodec": "EAC3",
+     "AudioChannels": 5.1,
+     "AudioLanguages": [
+      "eng"
+     ],
+     "Subtitles": null,
+     "VideoDynamicRange": "",
+     "VideoDynamicRangeType": ""
+    },
+    "CustomFormats": null
+   },
+   "root": "/media/movies",
+   "cf_source": "none",
+   "expect_folder": "Jimmy O. Yang Good Deal (2020)",
+   "expect_file": "Jimmy O. Yang Good Deal (2020) {imdb-tt11250926} - [WEBDL-1080p][EAC3 5.1][h264]-TRUMP",
+   "ext": ".mkv"
+  },
+  {
+   "instance": "radarr_4k_debrid",
+   "file_id": 954,
+   "movie": {
+    "Title": "Ice Age",
+    "OriginalTitle": "",
+    "Year": 2002,
+    "ImdbID": "tt0268380",
+    "TmdbID": 425,
+    "Certification": "",
+    "Collection": ""
+   },
+   "movie_file": {
+    "Quality": {
+     "Title": "WEBDL-2160p",
+     "Version": 1,
+     "Real": 0
+    },
+    "ReleaseGroup": "SasukeducK",
+    "Edition": "",
+    "SceneName": "Ice.Age.2002.2160p.APPS.WEB.DL.DDP5.1.DV.HDR.H.265-SasukeducK",
+    "RelativePath": "Ice Age (2002) {imdb-tt0268380} - [WEBDL-2160p][EAC3 5.1][DV HDR10][x265]-SasukeducK.mkv",
+    "Path": "/media/movies/Ice Age (2002)/Ice Age (2002) {imdb-tt0268380} - [WEBDL-2160p][EAC3 5.1][DV HDR10][x265]-SasukeducK.mkv",
+    "MediaInfo": {
+     "VideoCodec": "x265",
+     "VideoBitDepth": 10,
+     "VideoMultiViewCount": 0,
+     "AudioCodec": "EAC3",
+     "AudioChannels": 5.1,
+     "AudioLanguages": [
+      "eng"
+     ],
+     "Subtitles": null,
+     "VideoDynamicRange": "HDR",
+     "VideoDynamicRangeType": "DV HDR10"
+    },
+    "CustomFormats": null
+   },
+   "root": "/media/movies",
+   "cf_source": "none",
+   "expect_folder": "Ice Age (2002)",
+   "expect_file": "Ice Age (2002) {imdb-tt0268380} - [WEBDL-2160p][EAC3 5.1][DV HDR10][x265]-SasukeducK",
+   "ext": ".mkv"
+  },
+  {
+   "instance": "radarr_4k_debrid",
+   "file_id": 961,
+   "movie": {
+    "Title": "We Bury the Dead",
+    "OriginalTitle": "",
+    "Year": 2026,
+    "ImdbID": "tt29713093",
+    "TmdbID": 1198984,
+    "Certification": "",
+    "Collection": ""
+   },
+   "movie_file": {
+    "Quality": {
+     "Title": "Bluray-2160p",
+     "Version": 1,
+     "Real": 0
+    },
+    "ReleaseGroup": "",
+    "Edition": "",
+    "SceneName": "We Bury the Dead 2024 2160p UHD BDRip HEVC 10bit DV HDR DTS-HD.MA.5.1 MUSHR00M",
+    "RelativePath": "We Bury the Dead (2026) {imdb-tt29713093} - [Bluray-2160p][DTS-HD MA 5.1][DV HDR10Plus][x265].mkv",
+    "Path": "/media/movies/We Bury the Dead (2026)/We Bury the Dead (2026) {imdb-tt29713093} - [Bluray-2160p][DTS-HD MA 5.1][DV HDR10Plus][x265].mkv",
+    "MediaInfo": {
+     "VideoCodec": "x265",
+     "VideoBitDepth": 10,
+     "VideoMultiViewCount": 0,
+     "AudioCodec": "DTS-HD MA",
+     "AudioChannels": 5.1,
+     "AudioLanguages": [
+      "eng",
+      "eng"
+     ],
+     "Subtitles": null,
+     "VideoDynamicRange": "HDR",
+     "VideoDynamicRangeType": "DV HDR10Plus"
+    },
+    "CustomFormats": null
+   },
+   "root": "/media/movies",
+   "cf_source": "none",
+   "expect_folder": "We Bury the Dead (2026)",
+   "expect_file": "We Bury the Dead (2026) {imdb-tt29713093} - [Bluray-2160p][DTS-HD MA 5.1][DV HDR10Plus][x265]",
+   "ext": ".mkv"
+  }
+ ]
+}

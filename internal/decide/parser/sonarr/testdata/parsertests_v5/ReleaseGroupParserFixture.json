@@ -1,0 +1,1374 @@
+{
+ "source": "Sonarr src/NzbDrone.Core.Test/ParserTests/ReleaseGroupParserFixture.cs @ a6171f0ca",
+ "fixture": "ReleaseGroupParserFixture",
+ "cases": [
+  {
+   "id": "ReleaseGroupParserFixture/should_parse_release_group/0",
+   "line": 10,
+   "call": "parseReleaseGroup",
+   "input": "Series.2009.S01E14.English.HDTV.XviD-LOL",
+   "expect": {
+    "": "LOL"
+   }
+  },
+  {
+   "id": "ReleaseGroupParserFixture/should_parse_release_group/1",
+   "line": 11,
+   "call": "parseReleaseGroup",
+   "input": "Series 2009 S01E14 English HDTV XviD LOL",
+   "expect": {
+    "": null
+   }
+  },
+  {
+   "id": "ReleaseGroupParserFixture/should_parse_release_group/2",
+   "line": 12,
+   "call": "parseReleaseGroup",
+   "input": "Series Now S05 EXTRAS DVDRip XviD RUNNER",
+   "expect": {
+    "": null
+   }
+  },
+  {
+   "id": "ReleaseGroupParserFixture/should_parse_release_group/3",
+   "line": 13,
+   "call": "parseReleaseGroup",
+   "input": "Series.Title.S01.EXTRAS.DVDRip.XviD-RUNNER",
+   "expect": {
+    "": "RUNNER"
+   }
+  },
+  {
+   "id": "ReleaseGroupParserFixture/should_parse_release_group/4",
+   "line": 14,
+   "call": "parseReleaseGroup",
+   "input": "2020.Series.2011.12.02.PDTV.XviD-C4TV",
+   "expect": {
+    "": "C4TV"
+   }
+  },
+  {
+   "id": "ReleaseGroupParserFixture/should_parse_release_group/5",
+   "line": 15,
+   "call": "parseReleaseGroup",
+   "input": "The.Series.S03E115.DVDRip.XviD-OSiTV",
+   "expect": {
+    "": "OSiTV"
+   }
+  },
+  {
+   "id": "ReleaseGroupParserFixture/should_parse_release_group/6",
+   "line": 16,
+   "call": "parseReleaseGroup",
+   "input": "Series Title - S01E01 - Pilot [HTDV-480p]",
+   "expect": {
+    "": null
+   }
+  },
+  {
+   "id": "ReleaseGroupParserFixture/should_parse_release_group/7",
+   "line": 17,
+   "call": "parseReleaseGroup",
+   "input": "Series Title - S01E01 - Pilot [HTDV-720p]",
+   "expect": {
+    "": null
+   }
+  },
+  {
+   "id": "ReleaseGroupParserFixture/should_parse_release_group/8",
+   "line": 18,
+   "call": "parseReleaseGroup",
+   "input": "Series Title - S01E01 - Pilot [HTDV-1080p]",
+   "expect": {
+    "": null
+   }
+  },
+  {
+   "id": "ReleaseGroupParserFixture/should_parse_release_group/9",
+   "line": 19,
+   "call": "parseReleaseGroup",
+   "input": "The.Series.Title.S04E13.720p.WEB-DL.AAC2.0.H.264-Cyphanix",
+   "expect": {
+    "": "Cyphanix"
+   }
+  },
+  {
+   "id": "ReleaseGroupParserFixture/should_parse_release_group/10",
+   "line": 20,
+   "call": "parseReleaseGroup",
+   "input": "Series.S02E01.720p.WEB-DL.DD5.1.H.264.mkv",
+   "expect": {
+    "": null
+   }
+  },
+  {
+   "id": "ReleaseGroupParserFixture/should_parse_release_group/11",
+   "line": 21,
+   "call": "parseReleaseGroup",
+   "input": "Series Title S01E01 Episode Title",
+   "expect": {
+    "": null
+   }
+  },
+  {
+   "id": "ReleaseGroupParserFixture/should_parse_release_group/12",
+   "line": 22,
+   "call": "parseReleaseGroup",
+   "input": "The Series Title - 2014-06-02 - Thomas Piketty.mkv",
+   "expect": {
+    "": null
+   }
+  },
+  {
+   "id": "ReleaseGroupParserFixture/should_parse_release_group/13",
+   "line": 23,
+   "call": "parseReleaseGroup",
+   "input": "The Series Title S12E17 May 23, 2014.mp4",
+   "expect": {
+    "": null
+   }
+  },
+  {
+   "id": "ReleaseGroupParserFixture/should_parse_release_group/14",
+   "line": 24,
+   "call": "parseReleaseGroup",
+   "input": "Reizen Waes - S01E08 - Transistrië, Zuid-Ossetië en Abchazië SDTV.avi",
+   "expect": {
+    "": null
+   }
+  },
+  {
+   "id": "ReleaseGroupParserFixture/should_parse_release_group/15",
+   "line": 25,
+   "call": "parseReleaseGroup",
+   "input": "The Series Title 10x11 - Wild Devs Cant Be Broken [rl].avi",
+   "expect": {
+    "": "rl"
+   }
+  },
+  {
+   "id": "ReleaseGroupParserFixture/should_parse_release_group/16",
+   "line": 26,
+   "call": "parseReleaseGroup",
+   "input": "[ www.Torrenting.com ] - Series.S03E14.720p.HDTV.X264-DIMENSION",
+   "expect": {
+    "": "DIMENSION"
+   }
+  },
+  {
+   "id": "ReleaseGroupParserFixture/should_parse_release_group/17",
+   "line": 27,
+   "call": "parseReleaseGroup",
+   "input": "Series S02E09 HDTV x264-2HD [eztv]-[rarbg.com]",
+   "expect": {
+    "": "2HD"
+   }
+  },
+  {
+   "id": "ReleaseGroupParserFixture/should_parse_release_group/18",
+   "line": 28,
+   "call": "parseReleaseGroup",
+   "input": "7s-Series-s02e01-720p.mkv",
+   "expect": {
+    "": null
+   }
+  },
+  {
+   "id": "ReleaseGroupParserFixture/should_parse_release_group/19",
+   "line": 29,
+   "call": "parseReleaseGroup",
+   "input": "The.Series.S09E13.720p.HEVC.x265-MeGusta-Pre",
+   "expect": {
+    "": "MeGusta"
+   }
+  },
+  {
+   "id": "ReleaseGroupParserFixture/should_parse_release_group/20",
+   "line": 30,
+   "call": "parseReleaseGroup",
+   "input": "Series Title - S01E01 - Episode Title [RlsGroup]",
+   "expect": {
+    "": "RlsGroup"
+   }
+  },
+  {
+   "id": "ReleaseGroupParserFixture/should_parse_release_group/21",
+   "line": 31,
+   "call": "parseReleaseGroup",
+   "input": "Red Series S01 E01-E02 1080p AMZN WEBRip DDP5.1 x264 monkee",
+   "expect": {
+    "": null
+   }
+  },
+  {
+   "id": "ReleaseGroupParserFixture/should_parse_release_group/22",
+   "line": 32,
+   "call": "parseReleaseGroup",
+   "input": "Series.Title.S01E05.The-Aniversary.WEBDL-1080p.mkv",
+   "expect": {
+    "": null
+   }
+  },
+  {
+   "id": "ReleaseGroupParserFixture/should_parse_release_group/23",
+   "line": 33,
+   "call": "parseReleaseGroup",
+   "input": "Series.Title.S01E05.The-Aniversary.HDTV-1080p.mkv",
+   "expect": {
+    "": null
+   }
+  },
+  {
+   "id": "ReleaseGroupParserFixture/should_parse_release_group/24",
+   "line": 34,
+   "call": "parseReleaseGroup",
+   "input": "Series US (2010) S04 (1080p BDRip x265 10bit DTS-HD MA 5 1 - WEM)[TAoE]",
+   "expect": {
+    "": "TAoE"
+   }
+  },
+  {
+   "id": "ReleaseGroupParserFixture/should_parse_release_group/25",
+   "line": 35,
+   "call": "parseReleaseGroup",
+   "input": "The.Series.S03E04.2160p.Amazon.WEBRip.DTS-HD.MA.5.1.x264",
+   "expect": {
+    "": null
+   }
+  },
+  {
+   "id": "ReleaseGroupParserFixture/should_parse_release_group/26",
+   "line": 36,
+   "call": "parseReleaseGroup",
+   "input": "SomeShow.S20E13.1080p.BluRay.DTS-X.MA.5.1.x264",
+   "expect": {
+    "": null
+   }
+  },
+  {
+   "id": "ReleaseGroupParserFixture/should_parse_release_group/27",
+   "line": 37,
+   "call": "parseReleaseGroup",
+   "input": "SomeShow.S20E13.1080p.BluRay.DTS-MA.5.1.x264",
+   "expect": {
+    "": null
+   }
+  },
+  {
+   "id": "ReleaseGroupParserFixture/should_parse_release_group/28",
+   "line": 38,
+   "call": "parseReleaseGroup",
+   "input": "SomeShow.S20E13.1080p.BluRay.DTS-ES.5.1.x264",
+   "expect": {
+    "": null
+   }
+  },
+  {
+   "id": "ReleaseGroupParserFixture/should_parse_release_group/29",
+   "line": 39,
+   "call": "parseReleaseGroup",
+   "input": "SomeShow.S20E13.1080p.Blu-Ray.DTS-ES.5.1.x264",
+   "expect": {
+    "": null
+   }
+  },
+  {
+   "id": "ReleaseGroupParserFixture/should_parse_release_group/30",
+   "line": 40,
+   "call": "parseReleaseGroup",
+   "input": "SomeShow.S20E13.1080p.Blu-Ray.DTS-ES.5.1.x264-ROUGH [PublicHD]",
+   "expect": {
+    "": "ROUGH"
+   }
+  },
+  {
+   "id": "ReleaseGroupParserFixture/should_parse_release_group/31",
+   "line": 41,
+   "call": "parseReleaseGroup",
+   "input": "SomeShow S01E168 1080p WEB-DL AAC 2.0 x264-Erai-raws",
+   "expect": {
+    "": "Erai-raws"
+   }
+  },
+  {
+   "id": "ReleaseGroupParserFixture/should_parse_release_group/32",
+   "line": 42,
+   "call": "parseReleaseGroup",
+   "input": "The.Good.Series.S05E03.Series.of.Intelligence.1080p.10bit.AMZN.WEB-DL.DDP5.1.HEVC-Vyndros",
+   "expect": {
+    "": "Vyndros"
+   }
+  },
+  {
+   "id": "ReleaseGroupParserFixture/should_parse_release_group/33",
+   "line": 43,
+   "call": "parseReleaseGroup",
+   "input": "[Tenrai-Sensei] Series [BD][1080p][HEVC 10bit x265][Dual Audio]",
+   "expect": {
+    "": "Tenrai-Sensei"
+   }
+  },
+  {
+   "id": "ReleaseGroupParserFixture/should_parse_release_group/34",
+   "line": 44,
+   "call": "parseReleaseGroup",
+   "input": "[Erai-raws] Series - 0955 ~ 1005 [1080p]",
+   "expect": {
+    "": "Erai-raws"
+   }
+  },
+  {
+   "id": "ReleaseGroupParserFixture/should_parse_release_group/35",
+   "line": 45,
+   "call": "parseReleaseGroup",
+   "input": "[Exiled-Destiny] Series Title",
+   "expect": {
+    "": "Exiled-Destiny"
+   }
+  },
+  {
+   "id": "ReleaseGroupParserFixture/should_parse_release_group/36",
+   "line": 46,
+   "call": "parseReleaseGroup",
+   "input": "Series.Title.S01E09.1080p.DSNP.WEB-DL.DDP2.0.H.264-VARYG",
+   "expect": {
+    "": "VARYG"
+   }
+  },
+  {
+   "id": "ReleaseGroupParserFixture/should_parse_release_group/37",
+   "line": 47,
+   "call": "parseReleaseGroup",
+   "input": "Series (1997) - S01E01-02 - Children of the Gods (Showtime) (1080p.BD.DD5.1.x265-TheSickle[TAoE])",
+   "expect": {
+    "": "TAoE"
+   }
+  },
+  {
+   "id": "ReleaseGroupParserFixture/should_parse_release_group/38",
+   "line": 48,
+   "call": "parseReleaseGroup",
+   "input": "Series Title S01 [2160p REMUX] [HEVC DV HYBRID HDR10+ Dolby TrueHD Atmos 7 1 24-bit Audio English] [Data Lass]",
+   "expect": {
+    "": null
+   }
+  },
+  {
+   "id": "ReleaseGroupParserFixture/should_parse_release_group/39",
+   "line": 49,
+   "call": "parseReleaseGroup",
+   "input": "Series Title S01 [2160p REMUX] [HEVC DV HYBRID HDR10+ Dolby TrueHD Atmos 7 1 24-bit Audio English]-DataLass",
+   "expect": {
+    "": "DataLass"
+   }
+  },
+  {
+   "id": "ReleaseGroupParserFixture/should_parse_release_group/40",
+   "line": 50,
+   "call": "parseReleaseGroup",
+   "input": "Series Title S01 REMUX Dual Audio AVC 1080p 8-Bit-ZR-",
+   "expect": {
+    "": "ZR"
+   }
+  },
+  {
+   "id": "ReleaseGroupParserFixture/should_parse_release_group/41",
+   "line": 51,
+   "call": "parseReleaseGroup",
+   "input": "Show.Name.2009.S01.1080p.BluRay.DTS5.1.x264-D-Z0N3",
+   "expect": {
+    "": "D-Z0N3"
+   }
+  },
+  {
+   "id": "ReleaseGroupParserFixture/should_parse_release_group/42",
+   "line": 52,
+   "call": "parseReleaseGroup",
+   "input": "Series Stampede S01 MULTi 1080p BD x265 Opus AAC -Báleygr",
+   "expect": {
+    "": "Báleygr"
+   }
+  },
+  {
+   "id": "ReleaseGroupParserFixture/should_parse_release_group/43",
+   "line": 53,
+   "call": "parseReleaseGroup",
+   "input": "Series S01E01 VOSTFR 1080p WEB x265 EAC3 -Hveðrungr",
+   "expect": {
+    "": "Hveðrungr"
+   }
+  },
+  {
+   "id": "ReleaseGroupParserFixture/should_parse_release_group/44",
+   "line": 54,
+   "call": "parseReleaseGroup",
+   "input": "Series.S01E06.1080p.AMZN.WEB-DL.JPN.DDP2.0.H.264-ToonsHub.mkv-[N-Z-B]-xpost",
+   "expect": {
+    "": "ToonsHub"
+   }
+  },
+  {
+   "id": "ReleaseGroupParserFixture/should_parse_exception_release_group/0",
+   "line": 60,
+   "call": "parseReleaseGroup",
+   "input": "Show.Name.S01E01.1080p.WEB-DL.H264.Fight-BB.mkv",
+   "expect": {
+    "": "Fight-BB"
+   }
+  },
+  {
+   "id": "ReleaseGroupParserFixture/should_parse_exception_release_group/1",
+   "line": 61,
+   "call": "parseReleaseGroup",
+   "input": "Show Name (2021) Season 1 S01 (1080p BluRay x265 HEVC 10bit AAC 5.1 Tigole) [QxR]",
+   "expect": {
+    "": "QxR"
+   }
+  },
+  {
+   "id": "ReleaseGroupParserFixture/should_parse_exception_release_group/2",
+   "line": 62,
+   "call": "parseReleaseGroup",
+   "input": "Show Name (2021) Season 1 S01 (1080p BluRay x265 HEVC 10bit AAC 2.0 afm72) [QxR]",
+   "expect": {
+    "": "QxR"
+   }
+  },
+  {
+   "id": "ReleaseGroupParserFixture/should_parse_exception_release_group/3",
+   "line": 63,
+   "call": "parseReleaseGroup",
+   "input": "Show Name (2021) Season 1 S01 (1080p DSNP WEB-DL x265 HEVC 10bit EAC3 5.1 Silence) [QxR]",
+   "expect": {
+    "": "QxR"
+   }
+  },
+  {
+   "id": "ReleaseGroupParserFixture/should_parse_exception_release_group/4",
+   "line": 64,
+   "call": "parseReleaseGroup",
+   "input": "Show Name (2021) Season 1 S01 (1080p BluRay x265 HEVC 10bit AAC 2.0 Panda) [QxR]",
+   "expect": {
+    "": "QxR"
+   }
+  },
+  {
+   "id": "ReleaseGroupParserFixture/should_parse_exception_release_group/5",
+   "line": 65,
+   "call": "parseReleaseGroup",
+   "input": "Show Name (2020) Season 1 S01 (1080p AMZN WEB-DL x265 HEVC 10bit EAC3 2.0 Ghost) [QxR]",
+   "expect": {
+    "": "QxR"
+   }
+  },
+  {
+   "id": "ReleaseGroupParserFixture/should_parse_exception_release_group/6",
+   "line": 66,
+   "call": "parseReleaseGroup",
+   "input": "Show Name (2020) Season 1 S01 (1080p WEB-DL x265 HEVC 10bit AC3 5.1 MONOLITH) [QxR]",
+   "expect": {
+    "": "QxR"
+   }
+  },
+  {
+   "id": "ReleaseGroupParserFixture/should_parse_exception_release_group/7",
+   "line": 67,
+   "call": "parseReleaseGroup",
+   "input": "The Show S08E09 The Series.1080p.AMZN.WEB-DL.x265.10bit.EAC3.6.0-Qman[UTR]",
+   "expect": {
+    "": "UTR"
+   }
+  },
+  {
+   "id": "ReleaseGroupParserFixture/should_parse_exception_release_group/8",
+   "line": 68,
+   "call": "parseReleaseGroup",
+   "input": "The Show S03E07 Fire and Series[1080p x265 10bit S87 Joy]",
+   "expect": {
+    "": "Joy"
+   }
+  },
+  {
+   "id": "ReleaseGroupParserFixture/should_parse_exception_release_group/9",
+   "line": 69,
+   "call": "parseReleaseGroup",
+   "input": "The Show (2016) - S02E01 - Soul Series #1 (1080p NF WEBRip x265 ImE)",
+   "expect": {
+    "": "ImE"
+   }
+  },
+  {
+   "id": "ReleaseGroupParserFixture/should_parse_exception_release_group/10",
+   "line": 70,
+   "call": "parseReleaseGroup",
+   "input": "The Show (2020) - S02E03 - Fighting His Series(1080p ATVP WEB-DL x265 t3nzin)",
+   "expect": {
+    "": "t3nzin"
+   }
+  },
+  {
+   "id": "ReleaseGroupParserFixture/should_parse_exception_release_group/11",
+   "line": 71,
+   "call": "parseReleaseGroup",
+   "input": "[Anime Time] A Show [BD][Dual Audio][1080p][HEVC 10bit x265][AAC][Eng Sub] [Batch] Title)",
+   "expect": {
+    "": "Anime Time"
+   }
+  },
+  {
+   "id": "ReleaseGroupParserFixture/should_parse_exception_release_group/12",
+   "line": 72,
+   "call": "parseReleaseGroup",
+   "input": "[Project Angel] Anime Series [DVD 480p] [10-bit x265 HEVC | Opus]",
+   "expect": {
+    "": "Project Angel"
+   }
+  },
+  {
+   "id": "ReleaseGroupParserFixture/should_parse_exception_release_group/13",
+   "line": 73,
+   "call": "parseReleaseGroup",
+   "input": "[Hakata Ramen] Show Title - Season 2 - Revival of The Commandments",
+   "expect": {
+    "": "Hakata Ramen"
+   }
+  },
+  {
+   "id": "ReleaseGroupParserFixture/should_parse_exception_release_group/14",
+   "line": 74,
+   "call": "parseReleaseGroup",
+   "input": "Show Name (2022) S01 (2160p DSNP WEB-DL H265 DV HDR DDP Atmos 5.1 English - HONE)",
+   "expect": {
+    "": "HONE"
+   }
+  },
+  {
+   "id": "ReleaseGroupParserFixture/should_parse_exception_release_group/15",
+   "line": 75,
+   "call": "parseReleaseGroup",
+   "input": "Show Title (2021) S01 (2160p ATVP WEB-DL Hybrid H265 DV HDR10+ DDP Atmos 5.1 English - HONE)",
+   "expect": {
+    "": "HONE"
+   }
+  },
+  {
+   "id": "ReleaseGroupParserFixture/should_parse_exception_release_group/16",
+   "line": 76,
+   "call": "parseReleaseGroup",
+   "input": "Series.Title.S01E09.1080p.DSNP.WEB-DL.DDP2.0.H.264-VARYG (Blue Lock, Multi-Subs)",
+   "expect": {
+    "": "VARYG"
+   }
+  },
+  {
+   "id": "ReleaseGroupParserFixture/should_parse_exception_release_group/17",
+   "line": 77,
+   "call": "parseReleaseGroup",
+   "input": "Series.Title (2014) S09E10 (1080p AMZN WEB-DL x265 HEVC 10bit DDP 5.1 Vyndros)",
+   "expect": {
+    "": "Vyndros"
+   }
+  },
+  {
+   "id": "ReleaseGroupParserFixture/should_parse_exception_release_group/18",
+   "line": 78,
+   "call": "parseReleaseGroup",
+   "input": "Series Title S02E03 Title 4k to 1080p DSNP WEBrip x265 DDP 5 1 Releaser[SEV]",
+   "expect": {
+    "": "SEV"
+   }
+  },
+  {
+   "id": "ReleaseGroupParserFixture/should_parse_exception_release_group/19",
+   "line": 79,
+   "call": "parseReleaseGroup",
+   "input": "Series Title Season 01 S01 1080p AMZN UHD WebRip x265 DDP 5.1 Atmos Releaser-SEV",
+   "expect": {
+    "": "SEV"
+   }
+  },
+  {
+   "id": "ReleaseGroupParserFixture/should_parse_exception_release_group/20",
+   "line": 80,
+   "call": "parseReleaseGroup",
+   "input": "Series Title - S01.E06 - Title 1080p AMZN WebRip x265 DDP 5.1 Atmos Releaser [SEV]",
+   "expect": {
+    "": "SEV"
+   }
+  },
+  {
+   "id": "ReleaseGroupParserFixture/should_parse_exception_release_group/21",
+   "line": 81,
+   "call": "parseReleaseGroup",
+   "input": "Series Title (2005) - S01E01 - A Hard Day's Night (1080p DSNP WEB-DL x265 Garshasp).mkv",
+   "expect": {
+    "": "Garshasp"
+   }
+  },
+  {
+   "id": "ReleaseGroupParserFixture/should_parse_exception_release_group/22",
+   "line": 82,
+   "call": "parseReleaseGroup",
+   "input": "Series Title (2015) - S02E04 - Smoke & Mirrors (1080p BluRay x265 Kappa).mkv",
+   "expect": {
+    "": "Kappa"
+   }
+  },
+  {
+   "id": "ReleaseGroupParserFixture/should_parse_exception_release_group/23",
+   "line": 83,
+   "call": "parseReleaseGroup",
+   "input": "Series Title (2020) - S02E03 - A Great Odyssey (1080p BluRay x265 Kappa).mkv",
+   "expect": {
+    "": "Kappa"
+   }
+  },
+  {
+   "id": "ReleaseGroupParserFixture/should_parse_exception_release_group/24",
+   "line": 84,
+   "call": "parseReleaseGroup",
+   "input": "Series Title (2019) - S01E01 - Episode 1 (1080p WEB-DL x265 Natty).mkv",
+   "expect": {
+    "": "Natty"
+   }
+  },
+  {
+   "id": "ReleaseGroupParserFixture/should_parse_exception_release_group/25",
+   "line": 85,
+   "call": "parseReleaseGroup",
+   "input": "Series Title (1999) - S03E01-E02 - Mermaid Man and Barnacle Boy IV & Doing Time (1080p AMZN WEB-DL x265 RCVR).mkv",
+   "expect": {
+    "": "RCVR"
+   }
+  },
+  {
+   "id": "ReleaseGroupParserFixture/should_parse_exception_release_group/26",
+   "line": 86,
+   "call": "parseReleaseGroup",
+   "input": "Series Title (2021) - S01E02 - Here Goes Nothing (1080p WEB-DL x265 SAMPA).mkv",
+   "expect": {
+    "": "SAMPA"
+   }
+  },
+  {
+   "id": "ReleaseGroupParserFixture/should_parse_exception_release_group/27",
+   "line": 87,
+   "call": "parseReleaseGroup",
+   "input": "Series Title (2021) - S01E01 - Aftermath (1080p DSNP WEB-DL x265 YOGI).mkv",
+   "expect": {
+    "": "YOGI"
+   }
+  },
+  {
+   "id": "ReleaseGroupParserFixture/should_parse_exception_release_group/28",
+   "line": 88,
+   "call": "parseReleaseGroup",
+   "input": "Series Title (2012) - S01E01 - Episode 1 (1080p BluRay x265 r00t).mkv",
+   "expect": {
+    "": "r00t"
+   }
+  },
+  {
+   "id": "ReleaseGroupParserFixture/should_parse_exception_release_group/29",
+   "line": 89,
+   "call": "parseReleaseGroup",
+   "input": "Series Title - S01E01 - Girls Gone Wild Exposed (720p x265 EDGE2020).mkv",
+   "expect": {
+    "": "EDGE2020"
+   }
+  },
+  {
+   "id": "ReleaseGroupParserFixture/should_parse_exception_release_group/30",
+   "line": 90,
+   "call": "parseReleaseGroup",
+   "input": "Series.Title.S01E02.1080p.BluRay.Remux.AVC.FLAC.2.0-E.N.D",
+   "expect": {
+    "": "E.N.D"
+   }
+  },
+  {
+   "id": "ReleaseGroupParserFixture/should_parse_exception_release_group/31",
+   "line": 91,
+   "call": "parseReleaseGroup",
+   "input": "Show Name (2016) Season 1 S01 (1080p AMZN WEB-DL x265 HEVC 10bit EAC3 5 1 RZeroX) QxR",
+   "expect": {
+    "": "QxR"
+   }
+  },
+  {
+   "id": "ReleaseGroupParserFixture/should_parse_exception_release_group/32",
+   "line": 92,
+   "call": "parseReleaseGroup",
+   "input": "Series Title S01 1080p Blu-ray Remux AVC FLAC 2.0 - KRaLiMaRKo",
+   "expect": {
+    "": "KRaLiMaRKo"
+   }
+  },
+  {
+   "id": "ReleaseGroupParserFixture/should_parse_exception_release_group/33",
+   "line": 93,
+   "call": "parseReleaseGroup",
+   "input": "Series Title S01 1080p Blu-ray Remux AVC DTS-HD MA 2.0 - BluDragon",
+   "expect": {
+    "": "BluDragon"
+   }
+  },
+  {
+   "id": "ReleaseGroupParserFixture/should_parse_exception_release_group/34",
+   "line": 94,
+   "call": "parseReleaseGroup",
+   "input": "Example (2013) S01E01 (1080p iP WEBRip x265 SDR AAC 2.0 English - DarQ)",
+   "expect": {
+    "": "DarQ"
+   }
+  },
+  {
+   "id": "ReleaseGroupParserFixture/should_parse_exception_release_group/35",
+   "line": 95,
+   "call": "parseReleaseGroup",
+   "input": "Series.Title.S08E03.720p.WEB.DL.AAC2.0.H.264.KCRT",
+   "expect": {
+    "": "KCRT"
+   }
+  },
+  {
+   "id": "ReleaseGroupParserFixture/should_parse_exception_release_group/36",
+   "line": 96,
+   "call": "parseReleaseGroup",
+   "input": "Series Title S02E05 2160p WEB-DL DV HDR ENG DDP5.1 Atmos H265 MP4-BEN THE MEN",
+   "expect": {
+    "": "BEN THE MEN"
+   }
+  },
+  {
+   "id": "ReleaseGroupParserFixture/should_parse_exception_release_group/37",
+   "line": 97,
+   "call": "parseReleaseGroup",
+   "input": "Series Title S02E05 2160p AMZN WEB-DL DV HDR10 PLUS DDP5 1 Atmos H265 MKV-BEN THE MEN-xpost",
+   "expect": {
+    "": "BEN THE MEN"
+   }
+  },
+  {
+   "id": "ReleaseGroupParserFixture/should_parse_exception_release_group/38",
+   "line": 98,
+   "call": "parseReleaseGroup",
+   "input": "Series.S01E05.1080p.WEB-DL.DDP5.1.H264-BEN.THE.MEN",
+   "expect": {
+    "": "BEN.THE.MEN"
+   }
+  },
+  {
+   "id": "ReleaseGroupParserFixture/should_parse_exception_release_group/39",
+   "line": 99,
+   "call": "parseReleaseGroup",
+   "input": "Series (2022) S01 (1080p BluRay x265 SDR DDP 5.1 English - JBENT TAoE)",
+   "expect": {
+    "": "TAoE"
+   }
+  },
+  {
+   "id": "ReleaseGroupParserFixture/should_parse_exception_release_group/40",
+   "line": 100,
+   "call": "parseReleaseGroup",
+   "input": "Series (2005) S21E12 (1080p AMZN WEB-DL x265 SDR DDP 5.1 English - Goki TAoE)",
+   "expect": {
+    "": "TAoE"
+   }
+  },
+  {
+   "id": "ReleaseGroupParserFixture/should_parse_exception_release_group/41",
+   "line": 101,
+   "call": "parseReleaseGroup",
+   "input": "Series (2022) S03E12 (1080p AMZN Webrip x265 10 bit EAC3 5 1 - Ainz)[TAoE]",
+   "expect": {
+    "": "TAoE"
+   }
+  },
+  {
+   "id": "ReleaseGroupParserFixture/should_parse_exception_release_group/42",
+   "line": 102,
+   "call": "parseReleaseGroup",
+   "input": "Series Things (2016) S04 Part 1 (1080p Webrip NF x265 10bit EAC3 5 1 - AJJMIN) [TAoE]",
+   "expect": {
+    "": "TAoE"
+   }
+  },
+  {
+   "id": "ReleaseGroupParserFixture/should_parse_exception_release_group/43",
+   "line": 103,
+   "call": "parseReleaseGroup",
+   "input": "Series Soup (2024) S01 (1080p NF Webrip x265 10bit EAC3 5 1 Multi - ANONAZ)[TAoE]",
+   "expect": {
+    "": "TAoE"
+   }
+  },
+  {
+   "id": "ReleaseGroupParserFixture/should_parse_exception_release_group/44",
+   "line": 104,
+   "call": "parseReleaseGroup",
+   "input": "Series (2022) S01 (1080p NF Webrip x265 10bit EAC3 5 1 Atmos - ArcX)[TAoE]",
+   "expect": {
+    "": "TAoE"
+   }
+  },
+  {
+   "id": "ReleaseGroupParserFixture/should_parse_exception_release_group/45",
+   "line": 105,
+   "call": "parseReleaseGroup",
+   "input": "Series - King of Titles (2021) S01 (1080p HMAX Webrip x265 10bit AC3 5 1 - bccornfo) [TAoE]",
+   "expect": {
+    "": "TAoE"
+   }
+  },
+  {
+   "id": "ReleaseGroupParserFixture/should_parse_exception_release_group/46",
+   "line": 106,
+   "call": "parseReleaseGroup",
+   "input": "Welcome to Series (2022) S04 (1080p AMZN Webrip x265 10bit EAC3 5 1 - DNU)[TAoE]",
+   "expect": {
+    "": "TAoE"
+   }
+  },
+  {
+   "id": "ReleaseGroupParserFixture/should_parse_exception_release_group/47",
+   "line": 107,
+   "call": "parseReleaseGroup",
+   "input": "Series Who (2005) S01 (1080p BDRip x265 10bit AC3 5 1 - DrainedDay)[TAoE]",
+   "expect": {
+    "": "TAoE"
+   }
+  },
+  {
+   "id": "ReleaseGroupParserFixture/should_parse_exception_release_group/48",
+   "line": 108,
+   "call": "parseReleaseGroup",
+   "input": "Series Down (2019) (1080p AMZN Webrip x265 10bit EAC3 5 1 - DUHiT)[TAoE]",
+   "expect": {
+    "": "TAoE"
+   }
+  },
+  {
+   "id": "ReleaseGroupParserFixture/should_parse_exception_release_group/49",
+   "line": 109,
+   "call": "parseReleaseGroup",
+   "input": "Series (2016) S09 (1080p CRAV Webrip x265 10bit EAC3 5 1 - Erie) [TAoE]",
+   "expect": {
+    "": "TAoE"
+   }
+  },
+  {
+   "id": "ReleaseGroupParserFixture/should_parse_exception_release_group/50",
+   "line": 110,
+   "call": "parseReleaseGroup",
+   "input": "Common Series Effects (2025) S01 (1080p AMZN Webrip x265 10bit EAC3 2 0 - Frys) [TAoE]",
+   "expect": {
+    "": "TAoE"
+   }
+  },
+  {
+   "id": "ReleaseGroupParserFixture/should_parse_exception_release_group/51",
+   "line": 111,
+   "call": "parseReleaseGroup",
+   "input": "Murderbot (2025) S01 (2160p HDR10 DV Hybrid ATVP Webrip x265 10bit EAC3 5 1 Atmos - Goki)[TAoE]",
+   "expect": {
+    "": "TAoE"
+   }
+  },
+  {
+   "id": "ReleaseGroupParserFixture/should_parse_exception_release_group/52",
+   "line": 112,
+   "call": "parseReleaseGroup",
+   "input": "Series In Real Life (2019) S01 REPACK (1080p DSNP Webrip x265 10bit AAC 2 0 - HxD)[TAoE]",
+   "expect": {
+    "": "TAoE"
+   }
+  },
+  {
+   "id": "ReleaseGroupParserFixture/should_parse_exception_release_group/53",
+   "line": 113,
+   "call": "parseReleaseGroup",
+   "input": "Series Discovery (2017) S02 (1080p BDRip x265 10bit DTS-HD MA 5 1 - jb2049) [TAoE]",
+   "expect": {
+    "": "TAoE"
+   }
+  },
+  {
+   "id": "ReleaseGroupParserFixture/should_parse_exception_release_group/54",
+   "line": 114,
+   "call": "parseReleaseGroup",
+   "input": "Series (2021) S03 (1080p DS4K NF Webrip x265 10bit EAC3 5 1 Atmos English - JBENT)[TAoE]",
+   "expect": {
+    "": "TAoE"
+   }
+  },
+  {
+   "id": "ReleaseGroupParserFixture/should_parse_exception_release_group/55",
+   "line": 115,
+   "call": "parseReleaseGroup",
+   "input": "SuSeriespergirl (2015) S04 (1080p BDRip x265 10bit AC3 5 1 - Nostradamus)[TAoE]",
+   "expect": {
+    "": "TAoE"
+   }
+  },
+  {
+   "id": "ReleaseGroupParserFixture/should_parse_exception_release_group/56",
+   "line": 116,
+   "call": "parseReleaseGroup",
+   "input": "Series (2019) S02 (4Kto1080p ATVP Webrip x265 10bit AC3 5 1 - r0b0t) [TAoE]",
+   "expect": {
+    "": "TAoE"
+   }
+  },
+  {
+   "id": "ReleaseGroupParserFixture/should_parse_exception_release_group/57",
+   "line": 117,
+   "call": "parseReleaseGroup",
+   "input": "v (1970) S01 (2160p AIUS HDR10 DV Hybrid BDRip x265 10bit DTS-HD MA 5 1 - Species180) [TAoE]",
+   "expect": {
+    "": "TAoE"
+   }
+  },
+  {
+   "id": "ReleaseGroupParserFixture/should_parse_exception_release_group/58",
+   "line": 118,
+   "call": "parseReleaseGroup",
+   "input": "Series (2024) S02 (1080p ATVP Webrip x265 10bit EAC3 5 1 - TheSickle)[TAoE]",
+   "expect": {
+    "": "TAoE"
+   }
+  },
+  {
+   "id": "ReleaseGroupParserFixture/should_parse_exception_release_group/59",
+   "line": 119,
+   "call": "parseReleaseGroup",
+   "input": "Series (2016) S05 Part 02 (1080p NF Webrip x265 10bit EAC3 5 1 - xtrem3x) [TAoE]",
+   "expect": {
+    "": "TAoE"
+   }
+  },
+  {
+   "id": "ReleaseGroupParserFixture/should_parse_exception_release_group/60",
+   "line": 120,
+   "call": "parseReleaseGroup",
+   "input": "Series (2013) S01 (1080p BDRip x265 10bit DTS-HD MA 5 1 - WEM)[TAoE]",
+   "expect": {
+    "": "TAoE"
+   }
+  },
+  {
+   "id": "ReleaseGroupParserFixture/should_parse_exception_release_group/61",
+   "line": 121,
+   "call": "parseReleaseGroup",
+   "input": "The.Series.1989.S00E65.1080p.DSNP.Webrip.x265.10bit.EAC3.5.1.Goki.TAoE",
+   "expect": {
+    "": "TAoE"
+   }
+  },
+  {
+   "id": "ReleaseGroupParserFixture/should_parse_exception_release_group/62",
+   "line": 122,
+   "call": "parseReleaseGroup",
+   "input": "Series (2008) S05E01 (1080p BDRip DDP2.0 x265) - Vialle",
+   "expect": {
+    "": "Vialle"
+   }
+  },
+  {
+   "id": "ReleaseGroupParserFixture/should_parse_exception_release_group/63",
+   "line": 123,
+   "call": "parseReleaseGroup",
+   "input": "The Series (2023) S03E01 (1080p DS4K NF Webrip DV HDR DDP5.1 x265) - Vialle.mkv",
+   "expect": {
+    "": "Vialle"
+   }
+  },
+  {
+   "id": "ReleaseGroupParserFixture/should_parse_exception_release_group/64",
+   "line": 124,
+   "call": "parseReleaseGroup",
+   "input": "The Show (2020) - S02E03 - Fighting His Series(1080p ATVP WEB-DL x265 t3nzinFAKE)",
+   "expect": {
+    "": null
+   }
+  },
+  {
+   "id": "ReleaseGroupParserFixture/should_parse_exception_release_group/65",
+   "line": 125,
+   "call": "parseReleaseGroup",
+   "input": "The Series (2023) S03E01 (1080p DS4K NF Webrip DV HDR DDP5.1 x265) - VialleFAKE.mkv",
+   "expect": {
+    "": null
+   }
+  },
+  {
+   "id": "ReleaseGroupParserFixture/should_parse_exception_release_group/66",
+   "line": 126,
+   "call": "parseReleaseGroup",
+   "input": "The Series (2025) S03E01 (1080p AMZN WEB-DL x265 SDR DDP 5.1 English - Celdra QxR)",
+   "expect": {
+    "": "QxR"
+   }
+  },
+  {
+   "id": "ReleaseGroupParserFixture/should_parse_exception_release_group/67",
+   "line": 127,
+   "call": "parseReleaseGroup",
+   "input": "The Series (2025) - S03E01 - We're Already Here (1080p AMZN WEB-DL x265 Celdra)",
+   "expect": {
+    "": "Celdra"
+   }
+  },
+  {
+   "id": "ReleaseGroupParserFixture/should_not_include_extension_in_release_group/0",
+   "line": 134,
+   "call": "parsePath",
+   "input": "C:\\Test\\Doctor.Series.2005.s01e01.internal.bdrip.x264-archivist.mkv",
+   "expect": {
+    "releaseGroup": "archivist"
+   }
+  },
+  {
+   "id": "ReleaseGroupParserFixture/should_not_include_language_in_release_group/0",
+   "line": 141,
+   "call": "parseReleaseGroup",
+   "input": "Series.Title.S02E04.720p.WEBRip.x264-SKGTV English",
+   "expect": {
+    "": "SKGTV"
+   }
+  },
+  {
+   "id": "ReleaseGroupParserFixture/should_not_include_language_in_release_group/1",
+   "line": 142,
+   "call": "parseReleaseGroup",
+   "input": "Series.Title.S02E04.720p.WEBRip.x264-SKGTV_English",
+   "expect": {
+    "": "SKGTV"
+   }
+  },
+  {
+   "id": "ReleaseGroupParserFixture/should_not_include_language_in_release_group/2",
+   "line": 143,
+   "call": "parseReleaseGroup",
+   "input": "Series.Title.S02E04.720p.WEBRip.x264-SKGTV.English",
+   "expect": {
+    "": "SKGTV"
+   }
+  },
+  {
+   "id": "ReleaseGroupParserFixture/should_not_include_repost_in_release_group/0",
+   "line": 151,
+   "call": "parseReleaseGroup",
+   "input": "Series.Title.S02E04.720p.WEB-DL.AAC2.0.H.264-EVL-RP",
+   "expect": {
+    "": "EVL"
+   }
+  },
+  {
+   "id": "ReleaseGroupParserFixture/should_not_include_repost_in_release_group/1",
+   "line": 152,
+   "call": "parseReleaseGroup",
+   "input": "Series.Title.S02E04.720p.WEB-DL.AAC2.0.H.264-EVL-RP-RP",
+   "expect": {
+    "": "EVL"
+   }
+  },
+  {
+   "id": "ReleaseGroupParserFixture/should_not_include_repost_in_release_group/2",
+   "line": 153,
+   "call": "parseReleaseGroup",
+   "input": "Series.Title.S02E04.720p.WEB-DL.AAC2.0.H.264-EVL-Obfuscated",
+   "expect": {
+    "": "EVL"
+   }
+  },
+  {
+   "id": "ReleaseGroupParserFixture/should_not_include_repost_in_release_group/3",
+   "line": 154,
+   "call": "parseReleaseGroup",
+   "input": "Series.Title.S04E04.720p.BluRay.x264-xHD-NZBgeek",
+   "expect": {
+    "": "xHD"
+   }
+  },
+  {
+   "id": "ReleaseGroupParserFixture/should_not_include_repost_in_release_group/4",
+   "line": 155,
+   "call": "parseReleaseGroup",
+   "input": "Series.Title.S05E11.720p.HDTV.X264-DIMENSION-NZBgeek",
+   "expect": {
+    "": "DIMENSION"
+   }
+  },
+  {
+   "id": "ReleaseGroupParserFixture/should_not_include_repost_in_release_group/5",
+   "line": 156,
+   "call": "parseReleaseGroup",
+   "input": "Series.Title.S04E04.720p.BluRay.x264-xHD-1",
+   "expect": {
+    "": "xHD"
+   }
+  },
+  {
+   "id": "ReleaseGroupParserFixture/should_not_include_repost_in_release_group/6",
+   "line": 157,
+   "call": "parseReleaseGroup",
+   "input": "Series.Title.S05E11.720p.HDTV.X264-DIMENSION-1",
+   "expect": {
+    "": "DIMENSION"
+   }
+  },
+  {
+   "id": "ReleaseGroupParserFixture/should_not_include_repost_in_release_group/7",
+   "line": 158,
+   "call": "parseReleaseGroup",
+   "input": "series.title.s40e11.kevin.hart_sia.720p.hdtv.x264-w4f-sample.mkv",
+   "expect": {
+    "": "w4f"
+   }
+  },
+  {
+   "id": "ReleaseGroupParserFixture/should_not_include_repost_in_release_group/8",
+   "line": 159,
+   "call": "parseReleaseGroup",
+   "input": "The.Series.2017.S05E02.1080p.WEB-DL.DD5.1.H264-EVL-Scrambled",
+   "expect": {
+    "": "EVL"
+   }
+  },
+  {
+   "id": "ReleaseGroupParserFixture/should_not_include_repost_in_release_group/9",
+   "line": 160,
+   "call": "parseReleaseGroup",
+   "input": "Series.S01E08.Haunted.Hayride.720p.AMZN.WEBRip.DDP5.1.x264-NTb-postbot",
+   "expect": {
+    "": "NTb"
+   }
+  },
+  {
+   "id": "ReleaseGroupParserFixture/should_not_include_repost_in_release_group/10",
+   "line": 161,
+   "call": "parseReleaseGroup",
+   "input": "Series.S01E08.Haunted.Hayride.720p.AMZN.WEBRip.DDP5.1.x264-NTb-xpost",
+   "expect": {
+    "": "NTb"
+   }
+  },
+  {
+   "id": "ReleaseGroupParserFixture/should_not_include_repost_in_release_group/11",
+   "line": 162,
+   "call": "parseReleaseGroup",
+   "input": "Series.Title.S08E05.The.Forgotten.1080p.AMZN.WEB-DL.DDP5.1.H.264-NTb-Rakuv",
+   "expect": {
+    "": "NTb"
+   }
+  },
+  {
+   "id": "ReleaseGroupParserFixture/should_not_include_repost_in_release_group/12",
+   "line": 163,
+   "call": "parseReleaseGroup",
+   "input": "The.Series.S30E01.Devs.Not.Dead.1080p.AMZN.WEB-DL.DDP5.1.H264-QOQ-Rakuv02",
+   "expect": {
+    "": "QOQ"
+   }
+  },
+  {
+   "id": "ReleaseGroupParserFixture/should_not_include_repost_in_release_group/13",
+   "line": 164,
+   "call": "parseReleaseGroup",
+   "input": "Lie.To.Developers.S01E13.720p.BluRay.x264-SiNNERS-Rakuvfinhel",
+   "expect": {
+    "": "SiNNERS"
+   }
+  },
+  {
+   "id": "ReleaseGroupParserFixture/should_not_include_repost_in_release_group/14",
+   "line": 165,
+   "call": "parseReleaseGroup",
+   "input": "Who.is.Sonarr.S01E01.INTERNAL.720p.HDTV.x264-aAF-RakuvUS-Obfuscated",
+   "expect": {
+    "": "aAF"
+   }
+  },
+  {
+   "id": "ReleaseGroupParserFixture/should_not_include_repost_in_release_group/15",
+   "line": 166,
+   "call": "parseReleaseGroup",
+   "input": "Deadly.Development.S01E10.Sink.With.Code.1080p.AMZN.WEB-DL.DDP5.1.H.264-NTG-WhiteRev",
+   "expect": {
+    "": "NTG"
+   }
+  },
+  {
+   "id": "ReleaseGroupParserFixture/should_not_include_repost_in_release_group/16",
+   "line": 167,
+   "call": "parseReleaseGroup",
+   "input": "The.Sonarr.Series.S09E12.Developers.REPACK.1080p.AMZN.WEB-DL.DD.5.1.H.264-CasStudio-BUYMORE",
+   "expect": {
+    "": "CasStudio"
+   }
+  },
+  {
+   "id": "ReleaseGroupParserFixture/should_not_include_repost_in_release_group/17",
+   "line": 168,
+   "call": "parseReleaseGroup",
+   "input": "2.Tired.Developers.S02E24.1080p.AMZN.WEBRip.DD5.1.x264-CasStudio-AsRequested",
+   "expect": {
+    "": "CasStudio"
+   }
+  },
+  {
+   "id": "ReleaseGroupParserFixture/should_not_include_repost_in_release_group/18",
+   "line": 169,
+   "call": "parseReleaseGroup",
+   "input": "Series.S04E11.Lines.1080p.AMZN.WEB-DL.DDP5.1.H.264-NTb-AlternativeToRequested",
+   "expect": {
+    "": "NTb"
+   }
+  },
+  {
+   "id": "ReleaseGroupParserFixture/should_not_include_repost_in_release_group/19",
+   "line": 170,
+   "call": "parseReleaseGroup",
+   "input": "Series.S16E04.Third.Wheel.1080p.AMZN.WEB-DL.DDP5.1.H.264-NTb-GEROV",
+   "expect": {
+    "": "NTb"
+   }
+  },
+  {
+   "id": "ReleaseGroupParserFixture/should_not_include_repost_in_release_group/20",
+   "line": 171,
+   "call": "parseReleaseGroup",
+   "input": "Series.and.Title.S10E06.Dev.n.Play.1080p.AMZN.WEB-DL.DDP5.1.H.264-NTb-Z0iDS3N",
+   "expect": {
+    "": "NTb"
+   }
+  },
+  {
+   "id": "ReleaseGroupParserFixture/should_not_include_repost_in_release_group/21",
+   "line": 172,
+   "call": "parseReleaseGroup",
+   "input": "Absolute.Series.S02E06.The.House.of.Sonarr.DVDRip.x264-MaG-Chamele0n",
+   "expect": {
+    "": "MaG"
+   }
+  },
+  {
+   "id": "ReleaseGroupParserFixture/should_not_include_repost_in_release_group/22",
+   "line": 173,
+   "call": "parseReleaseGroup",
+   "input": "The.Series.Title.S08E08.1080p.BluRay.x264-ROVERS-4P",
+   "expect": {
+    "": "ROVERS"
+   }
+  },
+  {
+   "id": "ReleaseGroupParserFixture/should_not_include_repost_in_release_group/23",
+   "line": 174,
+   "call": "parseReleaseGroup",
+   "input": "Series.Title.S01E02.720p.BluRay.X264-REWARD-4Planet",
+   "expect": {
+    "": "REWARD"
+   }
+  },
+  {
+   "id": "ReleaseGroupParserFixture/should_not_include_repost_in_release_group/24",
+   "line": 175,
+   "call": "parseReleaseGroup",
+   "input": "Series.S01E01.Rites.of.Passage.1080p.BluRay.x264-DON-AlteZachen",
+   "expect": {
+    "": "DON"
+   }
+  },
+  {
+   "id": "ReleaseGroupParserFixture/should_not_include_repost_in_release_group/25",
+   "line": 176,
+   "call": "parseReleaseGroup",
+   "input": "Series.Title.S04E06.Episode.Name.720p.WEB-DL.DD5.1.H.264-HarrHD-RePACKPOST",
+   "expect": {
+    "": "HarrHD"
+   }
+  },
+  {
+   "id": "ReleaseGroupParserFixture/should_parse_anime_release_groups/0",
+   "line": 182,
+   "call": "parseReleaseGroup",
+   "input": "[FFF] Series Title!! - S01E11 - Someday, With Sonarr",
+   "expect": {
+    "": "FFF"
+   }
+  },
+  {
+   "id": "ReleaseGroupParserFixture/should_parse_anime_release_groups/1",
+   "line": 183,
+   "call": "parseReleaseGroup",
+   "input": "[HorribleSubs] Series Title!! - S01E12 - Sonarr Going Well!!",
+   "expect": {
+    "": "HorribleSubs"
+   }
+  },
+  {
+   "id": "ReleaseGroupParserFixture/should_parse_anime_release_groups/2",
+   "line": 184,
+   "call": "parseReleaseGroup",
+   "input": "[Anime-Koi] Series Title - S01E06 - Guys From Sonarr",
+   "expect": {
+    "": "Anime-Koi"
+   }
+  },
+  {
+   "id": "ReleaseGroupParserFixture/should_parse_anime_release_groups/3",
+   "line": 185,
+   "call": "parseReleaseGroup",
+   "input": "[Anime-Koi] Series Title - S01E07 - A High-Grade Sonarr",
+   "expect": {
+    "": "Anime-Koi"
+   }
+  },
+  {
+   "id": "ReleaseGroupParserFixture/should_parse_anime_release_groups/4",
+   "line": 186,
+   "call": "parseReleaseGroup",
+   "input": "[Anime-Koi] Series Title 2 - 01 [h264-720p][28D54E2C]",
+   "expect": {
+    "": "Anime-Koi"
+   }
+  },
+  {
+   "id": "ReleaseGroupParserFixture/should_not_parse_anime_hash_as_release_group/0",
+   "line": 195,
+   "call": "parseReleaseGroup",
+   "input": "Terrible.Anime.Title.001.DBOX.480p.x264-iKaos [v3] [6AFFEF6B]",
+   "expect": {
+    "": null
+   }
+  },
+  {
+   "id": "ReleaseGroupParserFixture/should_not_parse_episode_title_as_release_group/0",
+   "line": 201,
+   "call": "parseReleaseGroup",
+   "input": "Some TV (1979) - S02E10 - Hart-Shaped Murder [SDTV][AAC 2.0][x264]",
+   "expect": {
+    "": null
+   }
+  },
+  {
+   "id": "ReleaseGroupParserFixture/should_not_parse_episode_title_as_release_group/1",
+   "line": 202,
+   "call": "parseReleaseGroup",
+   "input": "Some TV (1979) - S02E10 - Hart-Shaped Murder [HDTV-480p][AAC 2.0][x264]",
+   "expect": {
+    "": null
+   }
+  },
+  {
+   "id": "ReleaseGroupParserFixture/should_not_parse_episode_title_as_release_group/2",
+   "line": 203,
+   "call": "parseReleaseGroup",
+   "input": "Some TV (1979) - S02E10 - Hart-Shaped Murder [480p-HDTV][AAC 2.0][x264]",
+   "expect": {
+    "": null
+   }
+  }
+ ]
+}

@@ -1,0 +1,39 @@
+# Franchises the anime engine builds (theatarr anime build -franchise <slug>): a slug, a name, the AniList seed and an
+# optional scope ("stem": the line and branches extend only to same-stem works). Not an overrides file.
+- slug: made-in-abyss
+  name: "Made in Abyss"
+  seed_anilist: 97986
+- slug: re-zero
+  name: "Re:Zero - Starting Life in Another World"
+  seed_anilist: 21355
+- slug: tensei-slime
+  name: "That Time I Got Reincarnated as a Slime"
+  seed_anilist: 101280
+- slug: demon-slayer
+  name: "Demon Slayer: Kimetsu no Yaiba"
+  seed_anilist: 101922
+- slug: monogatari
+  name: "Monogatari series"
+  seed_anilist: 5081
+- slug: fate-stay-night
+  name: "Fate/stay night branch"
+  seed_anilist: 19603
+- slug: attack-on-titan
+  name: "Attack on Titan"
+  seed_anilist: 16498
+- slug: jujutsu-kaisen
+  name: "Jujutsu Kaisen"
+  seed_anilist: 113415
+- slug: mushoku-tensei
+  name: "Mushoku Tensei"
+  seed_anilist: 108465
+- slug: dragon-ball-z
+  name: "Dragon Ball Z"
+  seed_anilist: 813
+  scope: stem
+- slug: haikyuu
+  name: "Haikyuu!!"
+  seed_anilist: 20464
+- slug: sword-art-online
+  name: "Sword Art Online"
+  seed_anilist: 11757

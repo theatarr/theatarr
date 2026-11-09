@@ -1,0 +1,13 @@
+{"backdrop_path": "/tsRy63Mu5cu8etL1X7ZLyf7UP1M.jpg", "episode_run_time": [],
+ "first_air_date": "2008-01-20", "genres": [{"id": 18, "name": "Drama"}, {"id": 80, "name": "Crime"}],
+ "id": 1396, "in_production": false, "last_air_date": "2013-09-29",
+ "last_episode_to_air": {"air_date": "2013-09-29", "runtime": 55},
+ "name": "Breaking Bad", "networks": [{"id": 174, "name": "AMC"}], "next_episode_to_air": null,
+ "original_language": "en", "original_name": "Breaking Bad",
+ "overview": "Walter White, a New Mexico chemistry teacher, is diagnosed with Stage III cancer and given a prognosis of only two years left to live.",
+ "poster_path": "/ztkUQFLlC19CCMYHW9o1zWhJRNq.jpg", "status": "Ended", "tagline": "Change the equation.",
+ "vote_average": 8.9, "vote_count": 15000,
+ "external_ids": {"imdb_id": "tt0903747", "tvdb_id": 81189},
+ "content_ratings": {"results": [{"iso_3166_1": "DE", "rating": "16"}, {"iso_3166_1": "US", "rating": "TV-MA"}]},
+ "images": {"backdrops": [], "posters": [],
+   "logos": [{"aspect_ratio": 2.5, "height": 400, "iso_639_1": "en", "file_path": "/ggFHVNu6YYI5L9pCfOacjizRGt.png", "vote_average": 5.4, "vote_count": 2, "width": 1000}]}}

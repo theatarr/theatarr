@@ -1,0 +1,1580 @@
+# The download router (`internal/router`, `internal/provider/adder`)
+
+The router takes the decisions for a version and adds the chosen release to a debrid provider or a download client.
+Where it sits in the pipeline: [overview.md](overview.md). Shadow and active mode per version: [shadow.md](shadow.md).
+Code: `internal/router`, `internal/provider/adder`, migration
+`00014_router.sql`, the policy's `router` section, `internal/arrview/queue.go`, `cmd/theatarr/router.go`, a few lines in
+`cmd/theatarr/serve.go`, acquisition fanout in migration `00033_acquire_fanout.sql`, and upgrade approval
+(`internal/router/hold.go`, migration `00037_upgradeapproval.sql`).
+
+The provider tests run on fixtures written from the providers' API docs and decypharr's source.
+
+## The gate
+
+The router writes to a provider (adds a magnet, selects Real-Debrid files) only when **all three** hold:
+
+1. `router.enabled: true` in the policy. This is the global kill switch. It is off by default, and off when the
+   section is missing. In DB settings it is the Router global switch (Admin › Settings); the other `router` options
+   are a settings section that applies on save (the poll and wanted loops restart on a changed interval).
+2. The version's `mode` is `active`.
+3. The version's `grab` is `true`. It defaults to false, so a policy without the key grabs nothing.
+   It is read by this gate only: an active version with grab off still imports, refreshes from its arr
+   (`library.FollowerGrabs` is `Policy.Grabs`) and links; its routes are recorded as `disabled` dry runs
+   (`ErrNoGrab`). The automatic searches (wanted loop, add-time searches, re-searches) run only for the versions this
+   gate lets grab (`Policy.SearchVersions`); add-time intents for such a version wait until grab is on. RSS still
+   routes an active version's picks with grab off: the feeds are read for the shadowed versions anyway, and the
+   "would add" dry-run plans are the evidence for turning grab on. Those items are not marked seen, so each sync
+   decides them again (one page per feed, at most 1,000 items). User-invoked searches (interactive, arr commands) still run and
+   their routes are dry runs. With DB settings it is edited in the versions editor; turning it on for an active
+   version is a confirmed change, turning it off never needs confirmation. Going live sets it together with
+   `mode: active` (docs/golive.md; there is no switch command). `theatarr router status` shows it (GRAB), and
+   `theatarr golive check` warns about an active version with grab off while `router.enabled` is true.
+
+`Router.Gate` is that rule (`Policy.Grabs`), and every write passes it last: the add in `Route`, and the file
+selection in `Poll`. A router of an older settings generation also asks the published runtime's gate
+(`SetCurrentRuntime`), so turning grab or the kill switch off stops a route already running at its
+next write: the download it holds ends (`route stopped: ...`) and nothing is added (`TestGrabOffStopsRunningRoute`).
+Preparing and publishing that generation never waits for the running route: `New` copies the previous generation's
+account-change grace, and `SetMountCheck` / `PublishProviderChanges` set theirs, under each router's own small lock,
+never the shared route lock. So a save turning grab or `router.enabled` off while a route is sending is published at
+once, and the route's next add is refused (`TestGrabOffPublishedDuringRunningRoute`).
+
+When the gate refuses, `Route` runs the same decisions as a **dry run**:
+- it sends nothing to any provider and makes no cache check;
+- it records what it would have done in `router_plan`: mode `shadow` or `disabled`, the release, the provider, and
+  every step with its reason, for the shadow report;
+- a queued download it resumes ends (`failed`, `route ended: ...`), as a switch to shadow ends it through the
+  freshness check. It is not resumed every 10 minutes while grab or the kill switch is off and then
+  grabbed whenever they come back on; the next search grabs the title then (`TestGrabOffQueuedDownloadIsEnded`).
+
+`Plan` is the same dry run for any version, recorded nowhere (`theatarr router dry-run`).
+
+`theatarr serve` logs the gate at start, at WARN:
+- `ROUTER DISABLED: router.enabled is false; ...`;
+- `ROUTER ENABLED but no version is active`;
+- `ROUTER ENABLED but no active version has grab on`;
+- `ROUTER ENABLED: adds go to debrid providers for the active versions with grab on` with their names.
+
+**Proof (tests, `go test ./internal/router`).** The fake adders log every call, and they are the only writer the
+router has.
+- `TestShadowVersionNeverWrites`: switch on, version in shadow. Zero adds, no download rows, one `router_plan` row,
+  and the poller doesn't select files for a shadow download.
+- `TestKillSwitchBlocksWrites`: section missing, then `enabled: false`, version active. Zero adds and zero
+  selections, and `disabled` plans are recorded. `Plan` never writes, even when the gate would allow it.
+- `TestDeferredRouteReEnqueues`: a shadow version's `router.route` job records a plan and enqueues nothing.
+- `TestPrivateLabelFollowsIndexerProviders`: privacy is a label: a private-labelled release of an indexer
+  the version lists is routed like any other, only to the providers its indexer allows (`indexers.<key>.providers`).
+- `TestActiveVersionWithoutGrabNeverWrites`, `TestOfferWithoutGrabIsPlanned`: switch on, version active, grab off.
+  Zero adds, `disabled` plans; an offer stays `planned`.
+
+**Before a route opens a download**: a candidate every usable provider would skip anyway (a recorded
+cache miss, uncached under `cached_only`, or a release Real-Debrid refuses) is skipped with step `known_miss` and
+opens no download row (`TestKnownMissOpensNoDownload`).
+
+**Policy changes while a route waits**: every route job carries the policy revision it was decided
+under (`decision_rev`). A deferred automatic route that runs under another revision decides its candidates again
+with the running decision engine: a candidate now rejected is skipped (`rejected_now`), an accepted one carries the
+new quality, score and formats, and the accepted ones are tried in the order the new decisions rank them
+(`decide.Rank`). Without a decision engine the route is skipped (`stale_decision`). Manual and
+interactive grabs are not decided again (`TestDeferredAutomaticRouteRedecidedAfterPolicyChange`,
+`TestRedecisionRanksCandidatesAgain`). A series release the new decision maps to other episodes than it was queued
+with (a scene/XEM mapping changed while it waited) takes the new episodes and is checked for freshness again before
+any add (`TestDeferredRouteTakesNewEpisodeMapping`). A resumed series route that is not decided again (SeaDex
+preference off, same revision) still has each RSS release mapped again: only its episodes change, on an accepted
+decision (`remapResumed`, `TestDeferredRemapWithoutSeaDex`).
+
+A resumed queued download takes its candidate as the route refreshed it (episodes the freshness check dropped, a new
+decision's quality, score, formats, episode mapping and policy revision) in the write that resumes it, before any
+add, so the library imports what was placed (`TestResumedPackPersistsNarrowedEpisodes`). A resumed
+download no candidate of its route took up (another release ranked first and was placed or waits under its own row,
+or its release was skipped: blocklisted, in flight elsewhere, held) ends (`route ended: its release was not placed by
+the route that resumed it`) instead of being resumed by the stray sweep forever
+(`TestRedecisionEndsSupersededQueuedDownload`).
+
+A series freshness check reads episode monitoring and current files together once for the title/version, then
+reuses that snapshot across candidates and repeated episodes. A new check reads them again; the snapshot is never
+cached across routes. Current files are still scored under the running profile.
+
+The freshness check (is the release still an upgrade of the current file) and the movie queue check judge with the
+decision engine's compiled profile (`SetProfiles`: `decide.Engine.Profile`), with its minimum score, cutoff score and
+minimum upgrade step; a router without an engine builds the same thresholds from the policy (`TestFreshnessUsesProfileFormatThresholds`, `TestFreshnessUsesEngineProfile`). With the engine's profile the
+current file's custom format score is recalculated under it from the file's stored inputs (`decide.ScoreFileWith`,
+as the decision compares an existing file), not taken from `link.score` or `version_file.custom_format_score`, which
+are the import-time profile's: after a profile or TRaSH score change the router no longer cancels as
+`no_longer_upgrade` an upgrade the decision accepted. The upgrade hold's "current file" uses the same score
+(`TestFreshnessRescoresCurrentFile`). Without the engine's profiles the stored score stands.
+
+Form and JSON adder responses share bounded reading and body closure (1 MiB). A 429's numeric `Retry-After` is
+returned directly to the provider decoder as a duration. Confirmed user-delete JSON requests keep their existing target and refusal classification.
+
+## Provider writes (`internal/provider/adder`)
+
+The writes live in their own package. `internal/provider` stays GET-only: its `TestOnlyGET` and
+`TestNoWriteMethods` still pass unchanged, so code that holds a `Provider` can't add anything.
+
+| Provider | Add | Files |
+|---|---|---|
+| Real-Debrid | `POST /torrents/addMagnet` `magnet=` → 201 `{id}` | `POST /torrents/selectFiles/{id}` `files=1,3` → 204, or 202 when already done |
+| AllDebrid | `POST /v4.1/magnet/upload` `magnets[]=` → `data.magnets[0]` `{id, hash, name, ready}` or `{error}` | takes every file |
+| TorBox | `POST /api/torrents/createtorrent` with `magnet=`, `allow_zip=false`, `seed=3` (never seed), and `add_only_if_cached=true` when cached only | takes every file |
+
+- **TorBox never seeds.** Every TorBox add (routes and the torrent manager's restore) sends `seed=3`: with seeding on
+  a finished torrent holds an active slot for up to 30 days, and any value sent replaces the account's Seeding
+  setting ([notes: TorBox limits](https://notes.debridmediamanager.com/zurg/providers/torbox-limits/)).
+- **Magnets are bare.** A magnet is `magnet:?xt=urn:btih:<hash>`, plus `router.trackers` when any (default none).
+  - No `.torrent` is ever sent: no method takes one.
+  - Only `adder.NewMagnet` makes a `Magnet`. It refuses a missing or non-v1 hash and a keyed `router.trackers` entry.
+  - Every adder refuses the zero `Magnet` without a request.
+- **Privacy is a label.** Nothing branches on `indexers.<key>.privacy`:
+  whether an indexer's releases go to debrid is the user's choice, made by listing it in a version
+  (`versions.<key>.indexers`, decide's `IndexerNotInVersion`) and optionally limited per indexer by
+  `indexers.<key>.providers` (empty: every provider). The router walks `Policy.ReleaseProviders(version, indexer)`:
+  the version's provider order filtered by that allowlist; none left is a skip ("indexer X allows none of the
+  version's providers").
+- **One delete, no restart, unrestrict or link request.** The only deletes in Theatarr are in `adder/delete.go`, outside the
+  `Adder` interface: `Deleter.DeleteOwnUncachedAdd` (Real-Debrid and AllDebrid) and `StalledDeleter.DeleteOwnStalledAdd`
+  (Real-Debrid only) for the router, and `UserDeleter.DeleteUserChosen` for the torrent manager only (torrents a person
+  chose and confirmed, after a backup; `docs/design/torrents.md`, `TestOnlyTorrentsDeletesChosen`). `DeleteOwnUncachedAdd` runs on AllDebrid only with `router.alldebrid_delete_uncached`; see
+  "Cached-only on Real-Debrid and AllDebrid" and "Stalled downloads". `TestNoDeletes` checks
+  the method sets (TorBox has neither router delete, AllDebrid no stalled delete), the paths (`/torrents/delete/`,
+  `/v4/magnet/delete`, `/api/torrents/controltorrent`, in `delete.go` only) and the HTTP methods (DELETE in `delete.go` only, no PUT or PATCH).
+- The key goes in the `Authorization` header only. Error messages go through `provider.Redactor.Sanitize`, so
+  AllDebrid's `AUTH_BLOCKED` address is dropped.
+
+### Error codes and what the router does
+
+The first four codes are decypharr's (`internal/customerror/http.go`). The rest separate cases decypharr folds into
+plain errors.
+
+| Code | From | Router |
+|---|---|---|
+| `torrent_not_cached` | TorBox 400 `DOWNLOAD_NOT_CACHED` (with `add_only_if_cached`) | Miss at this provider. `provider_cache` gets `uncached` for `miss_ttl`, and the refusal counts toward TorBox's uncached adds per hour. Next provider |
+| `torrent_blocked` | RD 451 or error 35 on a name RD's rule refuses; RD 26, 28, 29; TorBox `DOWNLOAD_TOO_LARGE`, `BOZO_TORRENT` | Miss at this provider. Next provider |
+| `invalid` | RD 2, 30; AD `MAGNET_INVALID_URI`, `MAGNET_NO_URI`; TorBox `INVALID_OPTION` | Miss at this provider. Next provider |
+| `too_many_active_downloads` | RD 509 or 21; AD `MAGNET_TOO_MANY_ACTIVE`; TorBox `ACTIVE_LIMIT` | Exponential back-off (1, 2, 4 … min, up to `backoff_max`). Next provider |
+| `rate_limited` | HTTP 429, RD 5 or 34 | Exponential back-off; `Retry-After` wins when it is later. Next provider |
+| `traffic_exceeded` | RD 23, 36; AD `MAGNET_TOO_MANY`; TorBox `MONTHLY_LIMIT`, `COOLDOWN_LIMIT` | Back off straight to `backoff_max`. Next provider |
+| `auth` | RD 8, 9, 14, 15, 22, 401, 403; AD `AUTH_*`, `MAGNET_MUST_BE_PREMIUM`, `MAGNET_NO_SERVER`, `NO_SERVER`; TorBox `AUTH_ERROR`, `BAD_TOKEN`, `NO_AUTH`, `PLAN_RESTRICTED_FEATURE` | Back off straight to `backoff_max`. Next provider |
+| `account_hold` | RD 451 or error 35 on a name RD's rule does **not** refuse | The hash is blocked at this provider for `miss_ttl` (`provider_cache` `miss`, source `router:451`). Only a 451 on a hash of another title from another 451 within 10 minutes, or one during a running hold (`router_refusal_451`, migrations 00084 and 00086), holds the account instead: cooldown, escalating 5 → 15 → 60 min while it repeats (floor: the provider's `cooldown`; see "Pacing"); such a 451 blocks no hash. After 451s on 3 different hashes of one title within `miss_ttl`, the title's other releases are skipped there (`title_451`). Next provider, else the next release |
+| `unavailable` | Gateway refusal (back-off, budget, VPN), transport error, 5xx, RD 6 or 25, AD `GENERIC` or `MAINTENANCE` | Exponential back-off; the gateway's `RetryAt` wins. A gateway refusal (never sent) is no add and no failure: deferred to its `RetryAt` (else 1 min) without back-off. Next provider |
+| `unknown` | Anything else, including bare HTTP 4xx and unrecognised provider codes | Back off the provider as `unavailable`. Only recognised per-release codes count as a release miss; a definite refusal of an add alone does not prove a problem with that release. |
+
+Bare HTTP 451 without a recognised RD refusal code also backs the provider off; it does not poison the hash.
+
+**Why `account_hold`.** Real-Debrid answers every add with 451 `infringing_file` during short blocks on the whole
+account: seconds to minutes, after bursts (zurg's maintainers measured this). It also refuses single releases with
+451 every time, and its `infringing_file` blocks are usually per title: most releases of a DMCA'd film get 451. So
+one 451 blocks only its hash on RD and the route moves on; only 451s on hashes of two different titles within 10
+minutes hold the account. The same release refused again, or the next release of the same title, never counts as a
+hold, so a title RD refuses cannot pin RD on the hold ladder (`TestOne451BlocksTheHashNotTheAccount`,
+`TestTitleAll451DoesNotHoldAccount`). After 451s on 3 different hashes of one title within `miss_ttl` RD is skipped
+for the title's other releases (step `title_451`, with the count), so a route does not spend an add on each of them.
+A 451 that holds the account, or comes during a running hold, is the hold's and not the release's: its hash is not
+blocked, the window's earlier 451s lose their block too (the hold explains them), and none of them counts against its
+title; the resumed route tries the same release again after the hold (`TestHeld451DoesNotBlockHash`).
+Refusals already explained by a hold do not start another one after it ends. The all-provider miss retains
+`router:451` provenance, so a later explaining hold lifts it too; a hold started by torrent restore uses the same
+cleanup. The explained hashes are removed in one database delete.
+A name `indexer.RealDebridRefuses` matches is skipped before any request (`rd_name_rule`). The torrent manager's
+restore records its 451s the same way (with no title: any other hash's 451 within 10 minutes holds the account):
+one fails that torrent only.
+
+## One route
+
+The input is a `Request`:
+- the title, the version and its row id;
+- the accepted decisions, ranked by `decide.Rank`, built by `router.Candidates`;
+- `router.SearchRequest` does search, decide and candidates in one call.
+
+At most `router.max_candidates` releases are tried, best first. A release skipped without a request to any provider
+(a live miss or known uncached everywhere, blocklisted, no provider its indexer allows, no hash) does not count, so a search made again after
+a failure reaches releases the first route never tried. A release placed does not count either (a season of
+single-episode releases fills in one route); each placement still counts against the usual provider pacing and
+gateway budgets. For series, walk the ranked candidates and place every release whose episode
+set is disjoint from releases placed or deferred in this batch or already in flight for the version; a pack covers
+all its mapped episodes. A release that misses everywhere reserves nothing, so its overlapping alternatives remain
+eligible. Movies still stop after one placement, and upgrade approval applies separately to each release.
+
+Season targets still make one search, including when only some wanted episodes are in flight. Dry-run plans record
+every placement in their steps and simulate pacing between adds without writing it. A deferred batch retries from
+its first deferred release, retaining the later alternatives and resuming queued rows without duplicating successful
+placements. For each release:
+
+Automatic wanted, RSS, research, offer and resumed routes recheck current monitoring, movie availability, episode
+removal and files before placement; stale candidates are skipped and a queued download is cancelled when none remain.
+Explicit grabs, including approved upgrades, keep their override behavior.
+
+1. **Skip it if it can't go to debrid:** its indexer allows none of the version's providers (`indexers.<key>.providers`), or no v1 info hash. A `.torrent` is never fetched; a
+   hash-less release is skipped (`no_hash`): `.torrent` files are not fetched.
+2. **Skip it if it is in flight:** this version and title already hold the same hash in hand (`in_flight`). A
+   `queued` row with no `router.route` job queued or running for it is not in flight but **stranded** (a row from a
+   build before the row and its follow-up were written together, a route that died before it deferred, or a
+   follow-up that ran out of attempts): the route resumes that row instead (`TestRetriedRouteResumesStrandedQueuedRow`;
+   the poller resumes strays too, step 8).
+   **Movies: another release in flight** (Radarr's `QueueSpecification`, `queue.go`). A movie
+   version gets no second release while another hash of the same title and version is in flight (`queued`, `adding`,
+   `added`, `downloading`, `ready`, `importing`), unless the new release is an upgrade over the queued one by the
+   version's profile: refused when the queued release already meets the cutoff, when the new one is no upgrade of it
+   (`IsUpgradable`), when the profile does not allow the upgrade (`IsUpgradeAllowed`) or `versions.<key>.upgrades` is
+   off. A release that cannot be compared (no profile, an unknown quality) is refused: it fails closed. Skipped
+   `in_flight` ("download N holds another release of the movie: …"), the next candidate is tried, and a route that
+   placed nothing ends `in_flight` on that download. Every automatic source is checked (RSS, searches, re-searches,
+   offers, release pushes, deferred jobs; dry runs too). A release push (`arrview:push:<view>`, autobrr) was decided
+   against the current files when it was pushed; one deferred behind a paced provider gets the freshness check when
+   it resumes (still wanted, still an upgrade of the current file, decided again under a new policy revision), as an
+   RSS route does (`TestDeferredPushRechecksFreshness`). A person's grab is not (`ui:grab:`, `ui:retry:`,
+   `arrview:release:` and approved upgrades `upgrade:`), as Radarr lets an interactive grab through. Tests:
+   `TestMovieSecondReleaseWhileFirstInFlight`, `TestMovieQueuedReleaseUpgradeAndManual`,
+   `TestMovieInFlightIsPerVersion`.
+3. **Open a download row** (`queued`), or resume the queued row of a deferred or stranded route. A route that
+   resumes a download which was ended meanwhile (removed from the queue, failed, imported) stops there, `cancelled`
+   (`download_moved_on`): no new download replaces it ("Guarded transitions and queue removal").
+4. **Order the providers by cache evidence** (below): providers that evidence says hold the hash cached go first,
+   each group in the version's order. When that changes the order, the plan gets a step `ordered`/`cached_first`
+   ("cached on ad (dmm-ad): tried first; order ad, rd, tb (version order rd, ad, tb)") and the log a line
+   `providers reordered by cache evidence`. `PlanSummary` leaves the step out.
+5. **Try each provider, in that order:**
+
+| Check | Verdict |
+|---|---|
+| No API key | `no_key`: the provider doesn't count |
+| RD and its name rule refuses the title | `rd_name_rule`: miss |
+| `provider_cache` has a live `miss` | `miss` |
+| `provider_cache` has a live `uncached`, and `cached_only` is on | `known_uncached`: miss |
+| `router_pacing` has the provider backing off because it is **down** (`backoff_down`: unreachable, 5xx, its maintenance, or downloads that stalled while it was down: provider unavailable) | `paced`: deferred until the back-off ends, **reuse included**: a route queued again after an outage does not go straight back to the provider that was down. A back-off from refused or rate-limited adds does not stop a reuse (it needs no add; skipping it would add the hash again elsewhere): it is checked with the add pacing below |
+| The provider already holds the hash (registry `content_provider` from the provider sync, or one of Theatarr's downloads; with DB settings only a download recorded under the current provider epoch, see docs/design/settings.md), and a read of that torrent id finds it with the hash (an entry not found or holding another hash is not reused; its registry row is marked `absent`, a download's stale id is passed over and the next known id tried) | `reused`: the download points at that torrent, and **nothing is added**; a reuse sends no add and takes no add-pacing slot (gap, rate, cooldown and hold are checked after it) |
+| The read of that known torrent id fails otherwise (transport error, 5xx, gateway refusal), and fails again when retried once 2 s later (within the route's or pass's deadline; `TestHeldReadRetriedOnce`): presence not verified | `held_unread`: not reused, deferred 1 min; the route tries the next provider. When the read was only paced (a 429, or the gateway's request budget or VPN check refused it) the provider is not shown down, and adding the release elsewhere would leave the torrent it holds unreferenced: the whole release waits (until the refusal's retry time, at least 1 min) and no other provider is tried for it in this route (`TestPacedHeldReadDefersRelease`). The gateway's back-off after failed requests still counts as the provider down |
+| `router_pacing` says wait (add pacing) | `paced`: deferred until then |
+| TorBox with `cached_only`: its cache check (a read, cheaper than a refused add) says uncached | `known_uncached`: miss; `provider_cache` `uncached` (source `router:check`) for 30 min, at most `miss_ttl` (a read is cheap; DMM keeps its TorBox misses as long) |
+| AllDebrid with `cached_only`: a fresh read of the account's magnet list shows the hash | `reused`: nothing added |
+| The add | Its code, per the table above |
+| RD or AD with `cached_only`, the add accepted: the status read back (below) | `added` (cached, or no verdict), `uncached_deleted` (refused: miss here, next provider), `uncached_kept` (AD with deletes off: refused here, the magnet stays, next provider), `uncached_kept_shared` (accepted: the download waits) |
+
+6. **The release is placed** if a provider accepted it: the download is `added`. On Real-Debrid, one status read
+   follows, and the files are selected at once when RD already waits for that (with `cached_only`, the reads of
+   "Cached-only on Real-Debrid and AllDebrid" instead).
+7. **A miss on every provider that has a key**:
+   - every such provider gets a `miss` row in `provider_cache` for `miss_ttl` (6 h; 1 h for new content, below),
+     except where a live 451 (`router:451`) or a live read-check verdict (`router:check`, `check:*`) stands: that
+     row keeps its source and expiry (`TestFreshContentMissLivesAnHour`, `TestMissKeepsCheckVerdict`);
+   - the download fails with `miss on every provider`;
+   - the next candidate from the same search is tried, without searching again;
+   - when every candidate ended that way, the title is searched again at once ("Re-search after a failure").
+8. **Otherwise, deferred.** Some provider was only paced or backing off, so the download goes back to `queued`.
+   - The `router.route` job that resumes the download at the earliest free time is written in the same transaction
+     as the queued row, whoever called `Route` (a job, RSS, the CLI with a queue). It carries the
+     request from this release on and the time it first waited. An add whose answer did not say records its
+     follow-up with the unsettled row the same way.
+   - A lower-ranked release does not win just because a provider is busy.
+   - Deferred routes waiting on one provider get staggered slots: each next one wakes one `min_gap`
+     (else one `adds_per_minute` interval, else 2 s) after the last slot handed out, so a backlog does not all
+     wake at the same instant and defer again. The slots are kept in memory; a restart starts them afresh. A slot
+     is taken only once the route's continuation is recorded: a route that gives up or whose download moved on
+     leaves none behind (`TestDeferSlotTakenOnlyWhenUsed`).
+   - A deferral counts only when the run sent an add (refused, rate-limited); a wake-up that found the provider
+     still paced does not. After 100 counted deferrals, or 48 h of waiting (`maxDeferWait`), the download fails
+     ("giving up").
+   - The poller resumes a `queued` download with no route job queued or running for it after 10 minutes
+     (`resumeStrays`): a route rebuilt from the row (`requestOf`). One whose route job failed since it was queued
+     fails with that job's error instead ("its route job failed: …"), so a failing route is not retried forever.
+     Tests: `TestDeferredRouteWritesItsContinuation`, `TestStrayQueuedDownloadIsResumed`.
+
+Every provider considered is a `download_attempt` row: accepted, refused, skipped, error or deferred, with the code,
+a sanitised message and `retry_at`.
+
+## Cache evidence
+
+Which providers hold a release cached, for every release of a search, not only DMM's. Code:
+`internal/indexer/cachedon.go`, `internal/router/cachedon.go`, `router.SearchRequest`.
+
+The arrs got this from per-provider Torrentio indexers with the debrid key in Torrentio's URL. Theatarr never sends a
+debrid key to a third party (keys leaked through a third-party proxy before), so the evidence comes from:
+
+| Source | What | Stored |
+|---|---|---|
+| DMM's cached feeds | `/torznab/<rd\|ad\|tb>/cached` tags its releases `cached_on` with that provider, `/torznab/cached` with `rd,ad`; a path naming several (`/torznab/rd/ad/tb/cached`) tags each release with its own `cachedon` attribute (the named providers holding it), and a release without one gets none. Searches and the RSS sync's newly cached list alike | Every DMM result, whoever searched (acquirer, views, shadow runner, `theatarr search -db`): `provider_cache` state `cached`, source `feed:<indexer>`, for every policy provider of that kind, for `cache_evidence.ttl` |
+| Cross-feed, one search | Any release whose hash a DMM feed of the same search lists inherits those providers (a Torrentio release in `dmm-ad` is `ad`) | In memory (the DMM row is already stored) |
+| DMM's availability | `POST /api/sponsor/availability` on the DMM indexer's host with that indexer's key (`x-api-key`), through its gateway target and budget (DMM allows 25 calls a minute; keep the shared DMM budget at or under that). Asked right after `ApplyCachedOn`: the public-labelled releases of the search with no `rd`/`ad` evidence and no live row at a provider of that kind, for the kinds (`rd`, `ad`) a debrid version being searched may send them to (`indexers.K.providers` applies), 100 hashes a call, `rd` and `ad` taking turns, at most 4 calls and 15 s a search, without `imdbId` (an unscoped request lists more hashes). DMM lists a hash when a DMM user's own account showed it fully downloaded; a hash it does not list is unknown, not uncached. Needs an enabled `dmm` indexer with its key; the first by key is used | Listed hashes only: `provider_cache` `cached`, source `feed:<dmm indexer>/availability`, for every policy provider of that kind, for `cache_evidence.ttl` (feed evidence: the precedence below applies). Nothing for the rest; a hash DMM answered for is not asked again for 15 minutes (in memory) |
+| Stored evidence | Live `cached` rows, read back into every later search | — |
+| TorBox `checkcached` | The configured TorBox key, through the gateway (`torbox-api` budget): the best `top` hashes of a search with no live TorBox evidence whose indexer is listed by a debrid version being searched that has TorBox among its providers and that the indexer's `providers` allowlist allows (`TestTorBoxCheckFollowsIndexerProviders`), batched per source indexer | `cached` for `ttl`, `uncached` for 30 min (at most `router.miss_ttl`), source `check:torbox` |
+
+- **Where it is applied.** `router.SearchRequest` (acquirer searches and the arr views' interactive search) calls
+  `Service.ApplyCachedOn` on the merged releases before deciding, then `Service.CheckAvailability` (DMM's
+  availability) on the same releases, and `Service.CheckCached` on the accepted decisions in rank order after ranking
+  (rejected decisions of the same hash get the answer too). `theatarr search` applies all three to the releases it
+  prints, every version counting (`-torbox-check=false` skips the TorBox check). A failed, refused or slow
+  availability call ends that pass with one log line; the search goes on without it. Each call's answer stands on its
+  own: positives from the calls that answered before it are kept (applied and stored), and only the failed call's
+  hashes stay unmarked, to be asked again by the next search. Storing a pass's positives is bounded (5 s): when the
+  writer is busy the search keeps its marks in memory and nothing is stored. Availability
+  evidence, like every other kind, only orders providers and fills the cached badges: it never skips an add or a
+  check and never changes which release is chosen. It is never asked on the add or poll path. `theatarr router dry-run` applies the cross-feed part
+  only and makes no check (it sends nothing to a provider). The check is a search-side read, not the router's: it
+  runs in `SearchRequest` whatever the version's mode (the views' interactive search serves shadow versions too) and
+  whatever `router.enabled` says; `torbox_check.enabled: false` turns it off. The router's dry run still makes no
+  cache check of its own.
+- **Release fields.** `indexer.Release.CachedOn` (`["rd","ad","tb"]` order) and `CachedVia` (code → `dmm-ad`,
+  `feed:dmm-ad`, `feed:dmm/availability`, `check:torbox`); JSON `cached_on`, `cached_via` in `theatarr search -json`. `Release.CachedList` merges
+  them with the release's own `cached_on` extra, for releases that never went through a search.
+- **Precedence in `provider_cache`.** A provider's own verdict beats a feed: feed evidence never replaces a live
+  row from the router (`router:add`, `router:check`, `router:miss`) or a check; nothing written here replaces a
+  live `miss`. Expired rows are replaced. The router's own writes are unchanged. One exception: an item on DMM's
+  newly cached RSS list (not a search result) whose `pubDate`, when DMM listed it as cached, is newer than a live
+  verdict of Theatarr's own at a provider the item names (`uncached` from `router:add` or `router:check`, or the all-provider
+  `miss`, `router:miss`), turns that row `cached`: the next route tries the add and cached-only check there again. A
+  retry that misses writes a newer `checked_at`, so the same listing reopens it once. Never a 451 (`router:451`) nor
+  another provider's row. For new content a route's `router:add` and `router:miss` rows last 1 hour, not `miss_ttl`
+  ("Re-search after a failure"), and so does the `router:add` row a resumed cached-only check writes when the poller
+  deletes Theatarr's uncached add (`TestCachedCheckResumedFreshTTL`).
+- **Router.** Evidence only orders providers. **Absence of evidence never means uncached**: a provider with none
+  keeps its place and is tried exactly as before. Only the existing rules skip one (`miss`, `known_uncached` with
+  `cached_only`, which a TorBox check's `uncached` answer now feeds too). The dry-run "would add" message names
+  the evidence.
+- **TorBox check budget and DMM's TorBox probe.** On a DMM path naming `tb`, DMM asks TorBox live with the TorBox
+  key linked in DMM, but for at most 400 previously unknown hashes per request (`LIVE_PROBE_LIMIT`), and it
+  remembers answers (hits for 6 hours, misses for 30 minutes; `providerCache.ts`). On a large title some releases
+  TorBox holds are therefore not tagged `tb`; they stay unknown, and Theatarr's own check may still spend on them.
+  Because the probe answers per request, a later page of one search can tag `tb` on a release an earlier page
+  listed without it (Theatarr keeps one copy with the union of its providers, in path order), or surface a
+  TorBox-only release that sorts ahead of the offset already read, which that search then does not see. A
+  release that does arrive with `tb` in `cached_on` is skipped by the check: a candidate whose `CachedOn` has `tb` (its own DMM tag, or the same hash in a DMM result of
+  that search, applied by `ApplyCachedOn` before ranking) is never asked, nor a hash with a live TorBox row
+  (`knownOnTorBox`: any live `cached` row, or a first-party one). What DMM lists without `tb` is not stored as
+  uncached (feeds store positives only), so those hashes can still be asked. The `torbox_check` budget (60 an hour,
+  top 10) therefore goes to hashes DMM did not show on TorBox: Torrentio, Prowlarr, Zilean and SeaDex releases DMM
+  does not list, DMM-listed releases held only on RD or AD, and TorBox holders DMM's probe bound left untagged.
+- **Real-Debrid and AllDebrid** have no first-party cache check. RD's `instantAvailability` answers
+  `disabled_endpoint` since 2024-11. AllDebrid removed `magnet/instant` in 2024; v4.1 has only `magnet/upload`
+  (whose `ready` answers after the add, a write) — decypharr's AllDebrid client reports availability unsupported,
+  and zurg's AllDebrid client has no availability call either. So DMM is their only
+  source before an add: its `rd` and `ad` feeds, and its availability for the releases the feeds did not list
+  (Torrentio, Zilean, Prowlarr, anime sources). After one, the router's own answer is evidence too: a cached add
+  stores `cached`, source `add:<provider>`, for `cache_evidence.ttl` (decypharr's `hearsay` learning step); an
+  uncached add of Theatarr's own stores `uncached`, source `router:add`, for `miss_ttl`.
+- **Keys.** `TestDebridKeysOnlyGoToTheirProvider` runs Torrentio (movie, series), both DMM feeds and the TorBox check
+  with all three debrid keys set: no debrid key reaches any host but its own provider (URL or headers), Torrentio
+  URLs carry no query and no debrid option, TorBox's key is in its header only, nothing reaches the logs.
+  `TestTorrentioRefusesDebridConfig` and the gateway's `TestNoOtherOutboundClients` still hold. DMM's availability
+  carries DMM's key in its header only, never in the URL (`TestDMMAvailabilityEvidence`).
+
+Tests: `TestCrossFeedCachedOn` (Torrentio + `dmm-ad` → `[ad]`, stored, a later Torrentio-only search still sees
+it, gone after the TTL), `TestFeedEvidenceKeepsFirstPartyRows`, `TestTorBoxCheckAtSearch` (httptest TorBox: top,
+batching, per_hour, stored answers, nothing asked twice, off switch), `TestCheckTopFillsDecisions`,
+`TestRouterOrdersProvidersByCacheEvidence`, `TestCacheEvidenceNeverSkipsUnknownProviders`,
+`TestCacheEvidenceSettings`. DMM's availability: `TestDMMAvailabilityEvidence` (positives stored and applied,
+private-labelled and unset-privacy releases asked like any other, unknown hashes stay unknown, evidence and live
+verdicts not asked, the 15-minute memo, no `imdbId`),
+`TestDMMAvailabilityFollowsVersionProviders`, `TestDMMAvailabilityBatches` (100 a call, rd/ad turns, the call bound),
+`TestDMMAvailabilityFailureAndNoKey`, `TestDMMAvailabilityPartialFailureKeepsAnswers`,
+`TestDMMAvailabilityStoreBounded`, `TestAvailabilityEvidenceKeepsFirstPartyRows`,
+`TestDMMAvailabilityOrdersProviders` (router), `TestSearchCommandDMMAvailability` (`theatarr search`: the cached column and `cached_via`).
+
+## Cached-only on Real-Debrid and AllDebrid
+
+The rule: Theatarr may delete its own add right after it turns out uncached; a torrent other tools or instances
+may use is never deleted. Code: `internal/router/uncached.go`, `internal/provider/adder/delete.go`.
+
+decypharr (`pkg/manager/processor.go` `SubmitMagnet`, the providers' `CheckStatus`) with `download_uncached: false`
+adds, reads the status, takes `downloaded` as cached and anything still fetching as not cached, deletes that torrent
+id (`TorrentNotCachedError`) and tries the next debrid. Theatarr does the same with `router.cached_only`, on RD and AD:
+
+**Before the add (the guard).** Is the hash already on that account?
+- a registry row (`content_provider`, from the provider sync) in state `present`, with or without a torrent id (with
+  one, the hash is `reused` and nothing is added, as before);
+- AllDebrid only: a download of Theatarr's own on that provider with a torrent id, in any state (a failed
+  download's torrent was never deleted). On Real-Debrid such an old download does not count:
+  every `addMagnet` creates a new torrent, so the id the add returns is Theatarr's even when an old
+  failed Theatarr download (another version's, say) holds the same hash, and an uncached one is deleted as usual. The
+  id itself must still be unknown to every other download and the registry;
+- AllDebrid only: a fresh read of the whole magnet list (`GET /v4.1/magnet/status`, one request, no paging), since
+  the registry may be stale and an upload of a hash already there returns the existing magnet's id. A hash in the
+  list is `reused` (nothing added); its ids are kept. RD needs no list: every `addMagnet` creates a new torrent.
+
+**After the add (the reads).** `router.cached_grace` (default 2 s, decypharr's sleep):
+
+| Provider | Reads | Cached | Uncached |
+|---|---|---|---|
+| RD | `GET /torrents/info/{id}`; at `waiting_files_selection` the files are selected (every playable file: "File selection on Real-Debrid"), then one more read after the grace | `downloaded` | `magnet_conversion`, `queued`, `downloading` … after the grace (a converting magnet gets one re-read) |
+| AD | `ready: true` in the upload answer, else `GET /v4.1/magnet/status?id=` | `ready`, or statusCode 4 | statusCode 0–3 after one re-read |
+
+At most four reads; a read error, a provider error status or a rejected file list is "no verdict": the add stays and
+the poller finishes the check ("Unfinished checks" below). decypharr's effective behaviour is the same (one read
+after a 2 s sleep, one more after a selection).
+
+**Then:**
+- **cached:** `accepted/added`; `provider_cache` `cached`, source `add:<provider>`, for `cache_evidence.ttl`; the
+  download is recorded ready at once when the read showed it.
+- **uncached, provably Theatarr's (AllDebrid only with `router.alldebrid_delete_uncached: true`)** (the hash was not on the account, and the id is new: RD always, AD not in the list read
+  before; on both no registry row or other download knows the id; the entry shows the hash added): deleted
+  (`adder.Deleter.DeleteOwnUncachedAdd`), `provider_cache` `uncached` (source `router:add`) for `miss_ttl`, counted in
+  `uncached_adds_per_hour`, the download back to `queued` with no provider, step and attempt `refused/uncached_deleted`,
+  and the next provider is tried. If every provider misses, the usual miss rule applies.
+- **uncached, provably Theatarr's, on AllDebrid with `router.alldebrid_delete_uncached: false` (the default):** nothing is
+  deleted. Logged at INFO, `provider_cache` `uncached` for `miss_ttl`, counted in `uncached_adds_per_hour`, step and
+  attempt `refused/uncached_kept`, the download back to `queued`, and the next provider is tried, exactly as after a
+  delete. The magnet stays on AllDebrid and finishes downloading there (no uncached-add limit is known for AD); the
+  provider sync later lists it; the attempt and journal step keep its magnet id. Why: the proof has a hole on AD (see "Deviations"), and debrid torrents are shared and
+  never deleted except Theatarr's own just-made add. Real-Debrid needs no switch: every `addMagnet` returns a new id.
+  Volume: without the once-per-route guard, a route could leave up to
+  `max_candidates` (5) kept AD magnets, one per candidate tried. They count against the shared AllDebrid account, so many could hit AD's active-magnet limit
+  (`MAGNET_TOO_MANY_ACTIVE`) for decypharr and the arrs too. `router.alldebrid_delete_uncached` deletes Theatarr's
+  own uncached adds, and the once-per-route skip below bounds them. `uncached_adds_per_hour` stays unset on `ad` and
+  `rd` (see "Pacing"): a reached cap would block cached adds too.
+- **uncached, not provably Theatarr's** (the guard found the hash, the AD list could not be read, the id was there before,
+  on AllDebrid or TorBox a torrent manager restore of the hash journaled since the guard's look less `addSettle`
+  (`RestoredSince`: a restore's row is written as `sending` before its add, from any process;
+  `TestRestoreInFlightIsNeverOurAdd`)), or Theatarr's own with the delete blocked or failed (the delete is then owed:
+  "Unfinished checks" below): nothing deleted now, `accepted/uncached_kept_shared` with the reason, logged at WARN;
+  the download waits for it as before.
+After a cached-only delete error, Theatarr reads that id back with a bounded timeout, twice, `router.cached_grace`
+apart. Two definite not-founds confirm the delete and allow provider fallback; a single one is not trusted (the
+poller needs repeated misses too), and a present torrent or a failed read keeps it (`TestUncachedDeleteErrorReadBack`). The original
+ownership proof is still required before sending any delete. Before the delete is sent the download records it
+(`error` "deleting our uncached add <id> on <provider>"): a crash between the delete and its record leaves the
+download added with that note, and the poller that then finds the torrent gone fails it without blocklisting the
+release, since Theatarr's own delete took it (`TestCrashAfterUncachedDeleteNotBlocklisted`). A kept add clears
+the note.
+
+**Unfinished checks** (`internal/router/cachedcheck.go`, migration
+00104). When the reads give no verdict, or the verdict is uncached on an add of Theatarr's own but the delete is blocked by the
+stop switch (the version's Grab or `router.enabled` off), the route's lost job lease, or a failed delete, the add
+stays and the check stays open on the download: `download.cached_check` `pending` (no verdict) or `uncached` (the
+delete is owed). Kept for ownership reasons (not provably Theatarr's, the adder cannot delete, AllDebrid with
+`alldebrid_delete_uncached` off) sets nothing, as before. The marker counts only while the download is `added` or
+`downloading`; every new add and every reset to `queued` clears it. The poller finishes it after a successful read,
+before the stall timeouts, so an uncached add ends as a miss (nothing blocklisted), not as stalled:
+- `cached_only` off: the marker is cleared and the add stays;
+- the torrent is `downloaded`: the marker is cleared and nothing is deleted (no cache evidence is written);
+- `pending`, queued or downloading `router.cached_grace` after the add (AllDebrid) or after Theatarr's file selection
+  (Real-Debrid, `download.selected_at`, taken when the selection's answer came): uncached. On Real-Debrid there is
+  no verdict before a selection is recorded or inferred: a magnet still converting, waiting for files, or queued with
+  no selection recorded stays `pending` (the stall timeout still applies). A selection whose answer was lost is
+  inferred when Real-Debrid then shows Theatarr's add queued, downloading or downloaded, and its grace counts from there;
+  for a `pending` row the poller infers it before the stall timeouts and holds that poll, so a selection sent just
+  before `stalled_after` gets its full grace (`TestCachedCheckLostSelectionAtStallDeadline`,
+  `TestCachedCheckRDNeedsSelection`, `TestCachedCheckLostSelectionQueued`,
+  `TestCachedCheckGraceFromSelectionAnswer`);
+- `uncached`: deleted with the stalled delete's guard (Real-Debrid only, not reused, `own_add`, the entry shows the
+  hash, no other download or registry content knows the id, the gate open, `StalledDeleter`) and the route's
+  journaled delete (the "deleting our uncached add" note, a read-back after a failed call); then `provider_cache`
+  `uncached` for `miss_ttl`, counted in `uncached_adds_per_hour` (unless it was counted when it started
+  downloading), and the download goes back to `queued` with no provider and a route job, nothing blocklisted. That
+  route tries the version's next provider; when every allowed provider is a known miss it fails the download ("miss
+  on every provider") and searches the title again (`ReasonExhausted`), as a miss in a route does. Without a route
+  queue (a CLI poll) the download fails, not blocklisted. The largest-video second add (altRetry) is not tried from
+  the poller;
+- the gate closed, a failed ownership read or a failed delete, or `pending` within its grace: the marker stays for
+  the next poll, and that poll does not end the download as stalled or without progress (it would blocklist the
+  release and drop the check); progress and status are still recorded. A failed status read leaves the stall clock
+  as before (`TestCachedCheckGateClosedPastStall`);
+- a delete call that errors where the read-back says neither present nor gone (twice not found): the journal note
+  stays, in the route's settle and in the poller. A later poll that finds the torrent gone (the usual two misses
+  over 5 minutes) takes it as Theatarr's delete: the miss is recorded and the release routed again as above, nothing
+  blocklisted. A present torrent clears the note and the delete is tried again (
+  `TestCachedCheckAmbiguousDelete`, `TestCachedCheckAmbiguousInitialDelete`);
+- not provably Theatarr's (not Real-Debrid, reused, `own_add` unset, another hash, the id known elsewhere) and every
+  AllDebrid add (its just-made proof is gone by now): the marker is cleared, the add kept, and the download's error
+  says "uncached add kept: <why>; review it" (Activity), logged at WARN.
+
+If the gate stays closed long enough for RD to finish the uncached download, it is downloaded: the marker clears,
+it imports, and nothing is deleted. `theatarr router status` prints the number of unfinished checks, and the health
+check `CachedOnlyCheck` warns when one has been open more than 30 minutes after its add. Tests: `TestCachedCheck*`
+(`cachedcheck_test.go`), `TestUnfinishedCacheChecks`.
+
+- **One second selection on Real-Debrid (movies).** Real-Debrid caches per selected file
+  set, so an uncached answer is a verdict on the set tried, not on the torrent. When a movie's every playable file
+  comes back uncached on RD and Theatarr's add was deleted (`uncached_deleted`, its message ending "adding it once more with
+  the largest video alone selected"), the route adds the same release to RD once more with only its largest video
+  selected: the set tools streaming one file select. It
+  is the normal add (`provider`): it takes a pacing slot (the route first waits for RD's pacing, at most
+  `altPaceWait`, 1 minute, which covers the 20 s `min_gap`; paced longer, as after a burst cooldown or a used-up
+  `uncached_adds_per_hour`, it records `skipped/alt_selection_skipped` and moves on), it ignores the `uncached` mark
+  the first add just wrote (that verdict was on the other set), and its own outcome is settled as any add: cached
+  is `accepted/added` (and `provider_cache` `cached`), uncached is deleted, counted and recorded again, and the
+  next provider is tried. Never a third add of the release on RD in a route. No second add for a series (no other
+  set holds the episodes, and every file is what risks the RAR), for a movie with one playable file (the same set),
+  on AllDebrid or TorBox (no selection), or without `cached_only` (an uncached add is kept and downloads anyway).
+  The second set is recorded with its torrent (`download.select_alt_torrent`, migration 00096): if its
+  selection fails in the route's reads, the poller selects the largest video alone too, after a restart as well,
+  never the set RD just answered uncached for (`TestAltSelectionSurvivesFailedSelect`). The intent is written
+  with the add attempt before the add is sent (`adding` row), so a second add whose answer is lost and
+  that reconciliation adopts later selects the largest video alone as well (`TestAltSelectionSurvivesInterruptedAddAnswer`).
+  A new add has a new torrent id, so the mark ends with its add. The pacing wait before the second add does not hold the add lock
+  (`TestAltRetryWaitsWithoutLock`): the add after it is fenced on the download still queued,
+  reserves its pacing slot in one transaction and reads the account first, as any add. Tests: `TestCachedOnlyAltSelection` (playable set uncached, largest alone
+  cached: two adds, one delete, min_gap waited, one uncached counted), `TestCachedOnlyAltSelectionOnce` (both
+  uncached: two deletes then AllDebrid; a series and a single-file movie: one add), `TestCachedOnlyAltSelectionPaced`.
+- **AllDebrid once per route:** after an uncached AD add of Theatarr's own stayed there (`uncached_kept`,
+  or `uncached_kept_shared` on AD), AllDebrid is not tried again in that route: later releases of the batch get
+  `skipped/provider_done` there (it reserves nothing and records no miss), so a season of single-episode releases
+  leaves at most one magnet per route on the shared account. The next route (a deferred retry is a new route) may
+  try it again.
+
+**Opt-in for an account with no other writers:** `router.alldebrid_delete_uncached: true`, with `uncached_adds_per_hour`
+only on `tb` (60, TorBox's own limit; unset on `rd` and `ad`, see "Pacing"). The switch's default is `false`.
+Where a cap is set it works the same on every provider (`TestUncachedCapOnRealDebridAndAllDebrid`): once used, the
+provider is `paced` until the next clock hour and the route moves on, or waits when no other provider is free.
+
+**The remaining race.** With the switch on, AD's proof is a list read right before the upload: the hash is
+not on the account, and the id the upload returns was not in that list. AllDebrid answers an upload of a hash already
+on the account with that magnet's id, so if another client (decypharr, an arr, a person) uploads the same hash in the
+moment between Theatarr's list read and Theatarr's upload (about a second, the time of one request), Theatarr's upload returns its magnet,
+which then looks like Theatarr's own new one; if it is uncached, Theatarr deletes it. The two-minute ledger window, one use per
+add, the gate and the job lease narrow it no further than that second. Real-Debrid has no such hole: every
+`addMagnet` creates a new torrent id. Turn the switch on only for an AllDebrid account nothing else writes to.
+
+**The adder's own fence.** `DeleteOwnUncachedAdd` takes the `*Added` its own `AddMagnet` returned (pointer identity,
+kept in a per-adder ledger), once, within two minutes, and only with the router's proof (`OwnAdd{NotOnAccountBefore,
+NewEntry}`). Anything else is `ErrNotOwnAdd` before a request. Requests: RD `DELETE /torrents/delete/{id}` (204), AD
+`POST /v4/magnet/delete` `id=` (the docs' path; v4.1 changed only upload and status). TorBox has no delete: `add_only_if_cached` refuses before anything exists.
+
+**Dry run.** The plan's `would_add` message says what cached-only would do: "deleted (uncached_deleted) and the next
+provider tried" (AD with the switch on: unless the list shows the hash or the id), "stays on AllDebrid
+(uncached_kept …) and the next provider is tried" (AD with the switch off), or "stays (uncached_kept_shared …)" when
+the registry (or, on AllDebrid, Theatarr's downloads) place the hash on the account. A dry run reads no list.
+
+With `cached_only: false` nothing here runs: the add, one read and the selection, as before.
+
+Tests (`internal/router/uncached_test.go`, httptest RD and AD through a real gateway; `adder_test.go`):
+`TestCachedOnlyCachedAdd`, `TestCachedOnlyUncachedAddDeleted` (RD deleted, AD takes it; with the default RD deleted
+and AD kept (`uncached_kept`, no AD delete request), TorBox unchanged; with `alldebrid_delete_uncached` on both
+deleted; every provider misses), `TestCachedOnlyNeverDeletesExistingADMagnet` (list shows the hash: reused; upload
+returns an id the list had: kept; list unreadable: kept, even with the opt-in on),
+`TestAllDebridUncachedDeleteOptIn` (on/off and list proof with in-memory providers),
+`TestAllDebridUncachedDeleteUnprovable` (registry hash or id, download id, delete failure: kept), `TestCachedOnlyNeverDeletesKnownHash` (registry: kept; an old
+Theatarr download that failed: on RD the new add is deleted and the old torrent untouched, on AD kept), `TestCachedOnlyOffUnchanged`, `TestCachedOnlyGate` (shadow and kill switch: no request at all, the poller
+deletes nothing), `TestAllDebridUncachedKeptOncePerRoute`, `TestUncachedCapOnRealDebridAndAllDebrid`, `TestDeleteNeedsTheAddersOwnAdd`, `TestDeleteOwnUncachedAdd`, `TestAllDebridOwnUncachedDelete` (in-memory gateway), `TestNoDeletes`. The gate tests
+(`TestShadowVersionNeverWrites`, `TestKillSwitchBlocksWrites`) count deletes as writes.
+
+## Stalled downloads (`router.stalled_after`)
+
+decypharr's `remove_stalled_after: 10m` with queue cleanup `blacklist_research`. Code: `internal/router/stalled.go`.
+
+A download still `added` (accepted; not ready, not fetching: RD converting or waiting for a selection, AD queued)
+`stalled_after` (default 10 min, AllDebrid 25 min; 1 min to 24 h; `0s` off; per provider below) after `added_at`,
+read by the poller:
+- fails as `stalled: not ready 10m0s after the add (provider status …)`, and its hash goes on `router_blocklist` for
+  the version, source `stalled`, in one transaction;
+- Theatarr's add is deleted (`adder.StalledDeleter.DeleteOwnStalledAdd`) only on Real-Debrid, only when the add's guard
+  proved it a new entry of Theatarr's own (`download.own_add` = 1, migration 00022: the guard runs for every RD add while
+  `stalled_after` is on), the entry still shows the hash, no other download or registry content knows the id, and
+  the gate allows a write. Otherwise it stays and the error says why ("kept on rd: …"). Never on AllDebrid: every
+  upload of a hash returns the same magnet, so ten minutes later nothing proves no other client uses it;
+- the title is searched again (next section).
+
+**Per provider (`providers.<key>.stalled_after`).** Each provider may set its own timeout (`0s` off, else 1 m to
+24 h); unset, a provider takes `router.stalled_after`, except **AllDebrid, which waits at least 25 min** while the
+router's timeout is on. AllDebrid reports healthy uncached jobs with size 0 and every counter at zero for about ten
+minutes (622 s and 580 s measured, both finished), and "a ten minute no-movement timeout would abandon healthy
+AllDebrid jobs" ([notes: torrent lifecycle](https://notes.debridmediamanager.com/zurg/internals/torrent-lifecycle/)).
+The arr views' queue warning uses the same per-provider value. Tests: `TestProviderStalledAfter` (policy),
+`TestProviderStalledAfterOverride`, `TestADQueuedStillStalls` (now at AD's 25 min, and not at the router's 10).
+
+The RD stalled delete is safe because RD ids are unique per add,
+so an id the add returned that no one else knows is Theatarr's. A comment in `stalled.go` points here.
+
+A provider's queued state is not fetching: a download stays `added` while its provider reports it queued (AllDebrid's
+queue, RD converting, TorBox queued or stalled), so the stall timeout applies to it however often it was polled
+before (`TestADQueuedStillStalls`).
+
+**No progress while downloading (`router.downloading_timeout`).** A download in `downloading` whose
+provider progress has not risen for `downloading_timeout` (default 24 h; 1 h to 7 d; `0s` off) fails the same way:
+`stalled: no progress for 24h0m0s while downloading (provider status …, 40.0%)`, blocklisted (source `stalled`), Theatarr's
+own Real-Debrid add deleted with the same proof, and the title searched again. `download.progress_at` (migration
+00076) is when the poller last saw the progress rise; the clock starts when the poller first sees the download
+downloading, so a download from before 00076 gets the whole timeout. A dead swarm, an uncached add kept because it
+could not be proven Theatarr's (`uncached_kept_shared`) or a reused torrent another tool fetches no longer hold the title
+in flight forever (`TestDownloadingWithoutProgressTimesOut`).
+
+**Theatarr's own RD add that fails before a selection.** A Real-Debrid add of Theatarr's own refused for a dangerous
+file or for holding no video waits in `waiting_files_selection` forever. It is deleted with the stalled delete's
+proof (`own_add` = 1, the entry shows the hash, no other row knows the id, the gate open); the failure's reason stays
+the release's, and the log says when it was kept. Reused torrents and other providers are never deleted
+(`TestRDOwnAddFailedBeforeSelectionDeleted`).
+
+Tests: `TestStalledDownload`, `TestStalledNeverDeletesShared` (reused, not provably new, id known elsewhere,
+AllDebrid, kill switch, off).
+
+## Torrent no longer on the provider
+
+One read that does not find a download's torrent is not proof that it is gone (a listing lag, a short outage that
+answers 404). The poller counts consecutive not-found reads (`download.missing_polls`, `missing_since`, 00061) and
+fails and blocklists the release (`the torrent is no longer on <provider>`, source `provider`) only after at least two
+of them spanning five minutes; a read that finds the torrent clears the count. Within the window after a provider
+settings change the old rule stands: the download fails without a blocklist. A **reused** torrent (never Theatarr's add)
+that stays missing says nothing against the release: the download goes back to `queued` with no provider, the
+torrent's registry row is marked `absent`, and a `router.route` job resumes it with its own release (a fresh add, or
+the reuse of another entry that holds the hash); nothing is blocklisted. Without a route queue (a CLI poll) it fails
+unblocklisted. Tests: `TestNotFoundNeedsRepeatedPolls`, `TestNoVideoReusedOrFinished`, `TestStaleDownloadIDNotReused`,
+`TestStaleRegistryIDNotReused`, `TestReusedTorrentGoneRequeues`.
+
+## Ready deadline (`router.ready_timeout`)
+
+A download still `ready` after `router.ready_timeout` (default 6h, 1m to 7d) fails, its hash is blocklisted for the
+version (source `ready_timeout`), and a re-search is queued. The deadline starts at `ready_at` (legacy rows without
+it use `added_at`, then `created_at`); import retries do not extend it. While the mount is down (the library's mount
+check, `Router.SetMountCheck` with `Library.MountListed`: the release root answers and its listing is plausible, the
+check relink uses, so an empty or half-loaded `__all__` counts as down) no download expires: a zurg outage longer than the deadline must not blocklist every
+release that was only waiting to appear. The deadline counts only time the mount was healthy: the
+poller checks the mount while any download is ready and remembers the outages it saw (in memory, 30 days; a restart
+forgets the earlier ones), so downloads that became ready during a long outage get their full `ready_timeout` after
+it ends instead of failing the moment it does (`TestReadyDeadlineSkipsMountOutage`). Otherwise it is enforced
+without reading or deleting any provider torrent. A ready download whose provider has no client is left unpolled
+with that provider (`TestPollLeavesUnavailableProvidersUnpolled`). A held import never expires: one held for review
+(`library_import` `rejected`), for its episode title, or recorded as a `dry_run` (the library gate refuses the
+version, or every episode waits for its anime mapping review); a later pass imports it once that changes
+(`TestAnimeHeldImportExpires`).
+
+Expiry checks the state and library claim in one transaction: live import claims defer it, and `importing` or
+`imported` downloads are left alone. Expired claims are invalidated, and an existing `waiting_mount` import records
+the failure too. Tests: `TestReadyDeadline`, `TestReadyDeadlineKeepsOtherStates`, `TestReadyDeadlineWaitsForMount`,
+`TestFailureAndBlocklistAtomic`.
+
+## Re-search after a failure
+
+When a download fails for a reason the arrs and decypharr answer with "blocklist and search again", the router asks
+for a search at once instead of waiting for the wanted loop. Code: `internal/router/research.go`,
+`internal/acquire/research.go`.
+
+| Failure | Found by |
+|---|---|
+| Every candidate of a route missed on every provider (`exhausted`) | `Route`, active versions only |
+| Stalled, dangerous files (`torrent_files`), the library's sample, runtime or mislabel guard (`library`: a sample, or a mislabelled remux or 2160p) | the poller: `router_blocklist` rows of those sources with `researched_at` NULL (00022; older rows count as done), so the library needs no hook |
+| Provider error status, torrent no longer on the provider, no video to select (`provider`); ready deadline (`ready_timeout`) | the poller: failure and blocklist are recorded together, then the same blocklist scan queues the re-search |
+
+This follows Radarr and Sonarr v4's `FailedDownloadService`: their `DownloadFailedEvent` feeds both
+`BlocklistService` and `RedownloadFailedDownloadService`. Theatarr blocklists per version and keeps the shared torrent;
+provider errors and torrents without video take precedence over the stalled timeout so they cannot trigger
+stalled-torrent cleanup.
+
+The router enqueues job `acquire.research` (`router.ResearchRequest`: title, version, the failed download's
+episodes, reason) only when its gate allows writes for the version. The acquirer then:
+- skips a version that is not active, or `router.enabled: false`;
+- builds the targets like the wanted loop: the movie; for series the download's episodes, one season search per
+  season with several, an episode search for one;
+- skips a target with a download in flight;
+- counts the run against `router.wanted.per_hour` (source `wanted`, `acquire_run.research` = the reason); when the
+  hour's searches are used it queues the re-search again for when the oldest search of the hour leaves the window,
+  so the item is still searched with the wanted loop's missing and cutoff searches off. Test: `TestResearchPastPerHourRunsLater`;
+- searches a target again after a failure at most once per `router.wanted.again_after` (6 hours after a partial
+  answer, below), so a release that keeps failing cannot loop. A re-search that got no answer (below) does not count,
+  and is asked for again after 15 minutes, 1 hour and 4 hours, then not again (`TestResearchInfraFailureAskedAgain`,
+  `TestNoAnswerResearchGivesUp`, `TestPartialResearchDoesNotRepeat`).
+
+**New content is tried again later** (`internal/acquire/followup.go`). Debrid caches pick a new release up within
+minutes to hours, but RSS lists it once and the re-search at once runs while the miss is still live. Content is new
+for 7 days after its date (`availability.Fresh`): an episode's air date; a movie's digital or physical date, either
+one (a later disc release makes it new again); never a theatrical date (nothing worth caching exists yet) nor a
+torrent's date. For a route of new
+content the uncached add (`router:add`) and the miss on every provider (`router:miss`) last 1 hour instead of
+`miss_ttl` (at most `miss_ttl`; a 451 keeps `miss_ttl`), and an `exhausted` re-search also queues follow-up
+re-searches (reason `fresh`) 1, 2, 4, 8, ... hours after the miss while the content is new: about 8, most in the first
+day. There is one chain per title and version (misses on overlapping episode sets share it), one follow-up of it
+pending at a time. Each follow-up searches what is new when it runs: a series' monitored, wanted episodes that aired
+within the last 7 days, each by its own air date (an old episode that came in a batch with a new one is not
+followed), or the movie; in arr terms a search of new monitored items only, the missing search stays as set. The chain stops when nothing is new any more, the title's version is unmonitored, the new items are filled,
+unmonitored or have a download in flight, or the version is off (not active, `router.enabled` off, grab off). A title
+gets one chain per fresh window: a miss starts none while a chain of the title is pending or was queued since its
+newest new date (the `job` rows, finished ones kept 14 days), so neither a follow-up's miss nor the re-search it causes
+restarts it, and a release that stays uncached costs the first add and one per follow-up. A follow-up asked for again
+after no indexer answered searches only the failed run's episodes that are still new. Removed episodes are never new,
+and a route's freshness is its latest episode aired by now (one not aired yet does not hide it). It counts against `router.wanted.per_hour` (a used hour skips that
+step) but not `again_after`. Each follow-up whose release is still uncached costs one add and delete on RD or AD,
+counted in `uncached_adds_per_hour`; RSS, which decides its whole page each sync, may also try a release still on the
+feed's page again once the hour's miss expires. Tests: `TestFresh`, `TestFreshContentMissLivesAnHour`,
+`TestFreshEpisodes`, `TestFollowUpsAfterMissOnNewContent`, `TestFollowUpStops`, `TestFollowUpAddsOnceCached`,
+`TestFollowUpOneChainPerTitle`, `TestFollowUpPersistentMiss`, `TestFollowUpRetrySearchesItsEpisodes`.
+
+**A dead link is searched once** (reason `dead_link`). When relink marks an active version's
+link dead (`docs/design/library.md` "Relink and verify": two misses at least 30 min apart, the mount healthy, not within
+zurg's repair grace, and no provider folder holds the hash, since relink repoints by hash to any provider first), the
+library queues one `acquire.research` job in the dead mark's transaction for each of the link's versions the library
+gate lets write (a version the link shares that is shadow, followed or not listed gets none): the movie, or the dead
+link's own episodes, keyed per version, title and episodes so a pending one is not queued twice. It runs through the
+follow-up path with the same stops as `fresh`, without the freshness rule:
+- nothing while `router.enabled` or grab is off, the version is not active, or the library no longer writes for it
+  (disabled, not listed): the job ends skipped and never waits to fire later. Its search job checks these again
+  before it asks any indexer or provider, and ends skipped when one turned off in between (this recheck holds for
+  every re-search's search, `fresh` included; a `reconcile` one waits for grabbing again, as its job does). Such a
+  run is recorded with `acquire_run.infra` 3 (gated): nothing was searched, so `again_after`, the wanted loop, the
+  add-time drains and every `router.wanted.per_hour` count (and a deferral's time) leave it out
+  (`TestGatedRunNotInHourlyBudget`);
+- nothing when the version or episode is unmonitored, the item is filled again (revived or replaced) or a download
+  is in flight;
+- it runs whatever `router.wanted.missing` says and counts against `router.wanted.per_hour`; a used hour defers it,
+  like a re-search after a failure, to when the hour's oldest search expires, and the stops are checked again then.
+  A deferral's key holds its episodes (for every re-search), so two dead links of one series deferred to the same
+  window stay two jobs.
+
+It stays one search: the run and its route carry the reason (`acquire_run.research`, read by the router through the
+route's `acquire:<run>` source). A route of it adds only while its target is still missing: the movie still
+`wanted`, or a candidate that covers one of the dead link's episodes still `wanted`; filled again before the route
+runs, the route is cancelled (`not_wanted`), even for a release that would upgrade the new file. A route of it that
+misses everywhere queues no `exhausted` re-search, so no fresh follow-ups. A search no indexer answered is not asked
+for again (one attempt, unlike other re-searches). If it finds nothing or gets no answer, the item stays wanted for
+RSS and hand searches. The dead release is not blocklisted: found cached again, re-adding it is the repair; uncached,
+the cached-only check rejects it. Gated versions (followed, shadow, library disabled) only record the dead mark as a
+dry run and queue nothing. The dead mark waits only through zurg's existing repair grace; a repair zurg still
+reports after the grace does not hold the search back. Tests: `TestDeadLinkSearchesOnce`, `TestDeadLinkStops`,
+`TestDeadLinkDeferredPastPerHour`, `TestDeadLinkTwoDeferralsKeepTheirEpisodes`, `TestResearchSearchRechecksSwitches`,
+`TestGatedResearchRunNotASearch`, `TestDeadLinkNoChain`,
+`TestDeadLinkRouteStopsOnceFilled`, `TestRelinkDeadQueuesOneSearch`, `TestRelinkDeadSeriesQueuesItsEpisodes`,
+`TestRelinkDeadSharedLinkQueuesActiveVersionOnly`, `TestRelinkDeadWhileGated`.
+
+Blocklisted hashes are skipped by the new route, and known misses don't count against `max_candidates`, so the new
+search reaches releases the first one never tried.
+
+Tests: `TestExhaustedRouteResearches`, `TestBlocklistedFailuresResearch`, `TestStalledDownload` (router);
+`TestProviderFailuresBlocklistAndResearch`, `TestReadyDeadline`, `TestFailureAndBlocklistAtomic` (router);
+`TestResearchAfterFailure` (acquire).
+
+## Pacing (`router_pacing`, persisted)
+
+Each provider's `pacing` in the policy:
+- **`adds_per_minute`:** counted from the first add of the minute. When the last one is used, the provider enters
+  `cooldown` if it has one (the burst rule, "RD pauses adds"); otherwise it waits for the minute to end.
+- **`min_gap`:** the least time between two adds to the provider, counted from the last add sent, accepted or
+  refused (`router_pacing.last_add_at`, migration 00082). Default **20 s on Real-Debrid**, none on AllDebrid and
+  TorBox; `0s` turns it off, at most 10 m. Source: "Two adds on one account need 20 seconds between them." Six clean release names added ten seconds apart
+  were refused six times out of six; the same six twenty seconds apart were accepted every time
+  ([notes: Real-Debrid](https://notes.debridmediamanager.com/zurg/providers/realdebrid/); also
+  [torrent lifecycle](https://notes.debridmediamanager.com/zurg/internals/torrent-lifecycle/): "Nine adds at 20 s
+  spacing produced zero 451s"). A provider inside its gap is paced like any other (`deferred`/`paced`): the release
+  goes to the next provider of the version when one takes it, otherwise the route waits and its continuation runs
+  when the gap is over. A season route that places many single-episode releases on an RD-only version therefore
+  places the first at once and the rest one by one, 20 s apart; none is failed or dropped
+  (`TestMinGapSpacesSeasonBatch`). The restore of the torrent manager shares the rows and waits the same way.
+  A route reserves its add in one transaction right before sending it and records the outcome in another, as the
+  restore does (`ReserveAdd`, `RecordAddOutcome`), so neither overwrites the other's add (`TestRouteKeepsConcurrentRestoreReservation`). A request the gateway refused before sending it (budget, its own
+  back-off, VPN guard, host) takes its reservation back and does not back the provider off: the route waits for the
+  refusal's `RetryAt` (else 1 minute) (`TestGatewayRefusalIsNotAnAdd`).
+- **`cooldown`:** also follows RD's account hold (451s on hashes of different titles within 10 minutes; one hash's
+  451, or 451s on releases of one title, are verdicts on those hashes), which **escalates**: a 451 the name rule does not explain while the
+  last hold runs or within an hour after it ended takes the next step of 5 min → 15 min → 60 min (60 stays the top);
+  a 451 after a quiet hour starts at 5 min again. `cooldown` is the floor of every step (a `cooldown: 10m` gives 10,
+  15, 60), and a later `Retry-After` wins. Why: RD's throttle "has memory. Once tripped it keeps refusing through
+  minutes of quiet" and "clears with quiet and not with retries"; a sweep "spent four hours adding nothing because
+  three adds landed within thirteen seconds of each other"
+  ([notes: Real-Debrid](https://notes.debridmediamanager.com/zurg/providers/realdebrid/)). The step is
+  `router_pacing.hold_level` (0 to 2) and the last hold's end `hold_until`; Admin › Settings › Download clients shows both
+  (`hold_level`, `last_add_at`). Tests: `TestAccountHoldEscalates`, `TestAccountHoldEscalatesInRoute`.
+- **`uncached_adds_per_hour`:** counts per clock hour. It counts adds that turned out uncached (the first status read
+  after the add shows downloading, or the cached-only read deleted or kept them) and TorBox's not-cached refusals.
+  zurg's maintainers measured that these cost the same quota. Only TorBox has a known limit (60/h). Leave it unset
+  on RD and AD: they have no cache-check API, so every cached-only check is an add, and a reached cap blocks every
+  add to that provider, cached ones too, until the hour ends. AD deletes Theatarr's uncached adds with
+  `router.alldebrid_delete_uncached`, and the once-per-route skip bounds the kept ones.
+- **Limits:** apart from RD's 20 s spacing above, none of the providers limits adds separately; decypharr and zurg only pace all API calls
+  (RD 250/min, zurg 75/min for the torrent list; AD 600/min; TorBox 300/min, its download-link endpoint about 100
+  before a 5-minute lockout). The example's `adds_per_minute` is 0 (off) and the gateway budgets cap the requests.
+- **`backoff_max`:** caps the exponential back-off, 1 h by default.
+- **Back-off kind** (`router_pacing.backoff_down`, migration 00095): a back-off is marked *down* when the
+  failure says the provider is down: no answer (transport error), a 5xx, its own unavailable code (RD 6 and 25, AD
+  `MAINTENANCE`, TorBox server errors; not AD's `GENERIC` or `MAGNET_FILE_UPLOAD_FAILED`), or downloads that
+  stalled while it was down (provider unavailable, which also marks a back-off already running). A rate limit, too
+  many active torrents, a traffic or auth refusal and a bare 4xx back off without it. Any answered add clears it;
+  a refusal that extends a down back-off keeps it down. Only a down back-off stops a route reusing a torrent the
+  provider holds (`TestAddBackoffDoesNotBlockReuse`, `TestBackoffKind`); the torrent manager's restore passes
+  the kind through `AddOutcome.Down`. Migration 00097 marks a back-off still running at the deploy as down when its
+  stored reason is one an outage writes (`error`, `unavailable`, `unknown`, "provider unavailable: ..."), so an outage
+  under way while the column arrived blocks reuse too; the few non-outage refusals with such a reason then wait out
+  their back-off, the safe side (`TestBackoffDownBackfillMigration`).
+
+## Polling
+
+`Router.Run` polls every `router.poll_interval` (1 m). `Poll` reads every `added` or `downloading` download with the
+read-only `Provider.Torrent`, least recently tried first (`download.poll_tried_at`: every read attempt, answered or
+not; `polled_at` stays the last successful observation; migration 00084). One pass runs at a time. The sweeps (interrupted adds,
+stray queued rows, deleted versions, ready deadlines) and every write run under the router lock; the status reads do
+not, so routes and settings changes are not held up behind slow providers, and a pass stops reading after
+`pollPassLimit` (2 m), leaving the rest (`postponed` in the summary) for the next pass. A download that moved on while
+its read was out is left alone (`TestPollReleasesLockAndIsBounded`). The provider writes recording a
+status may make under the lock, Real-Debrid's file selection and the delete of Theatarr's own stalled or failed add, each
+have `providerWriteLimit` (30 s): a selection cut by it is an error retried at the next read, and a delete cut by it
+keeps the torrent ("the delete failed"), while the download still fails as decided. Their ownership checks are
+unchanged (`TestPollProviderWritesAreBounded`). A selection that failed on Theatarr's side may still have reached
+Real-Debrid: when a later read shows a non-reused add whose selection was sent, past
+`waiting_files_selection` and downloading or downloaded, it is recorded as selected, with a log line saying it was
+inferred, instead of stalling at added (`TestSelectionInferredForOwnAdd`). Selection inference is independent of
+`own_add`, which remains the deletion proof: cached-only and `stalled_after` can both be off, leaving it unset.
+The inferred download enters `downloading`, so the no-progress timeout still applies.
+
+**Failed status reads**. A read the provider did not answer (timeout, transport error, 5xx) counts as tried,
+so the next pass starts with the downloads behind it and failing reads cannot take the start of every pass. The
+download is backed off: read again after the poll interval doubled per failed read in a row (`poll_errors`), at most
+15 minutes. A read cut by the pass deadline only records the attempt: it neither counts as failed nor clears the
+failed reads in a row (`TestPollCutKeepsFailedStreak`). Read errors do not keep a download out of the stall
+timeouts: a failed read is not movement, so the stall clock runs on from the add (`stalled_after`, still `added`) or
+the last progress (`downloading_timeout`, `downloading`). Once it is past the limit with at least 3 failed reads in
+a row (they need not span the limit), the download fails as stalled and is blocklisted for
+re-search, unless its provider is down (below); nothing is deleted, since the torrent was not seen.
+`TestPollFailedReadsRotateAndStall`.
+
+**Provider outages**. Failed reads are recorded after the pass's other reads, and per provider the pass
+decides whether the provider is answering:
+- **Most of its downloads failing at once is its outage**, whatever its account says (RD's torrent
+  endpoint can fail while `/user` answers): at least 3 failing, and more than half of the provider's downloads in
+  the pass. Failing counts the reads that failed (5xx, 429, transport errors, gateway refusals) and the downloads
+  not read this pass because their reads keep failing (the per-download back-off below); answered reads (a status,
+  not found, a 4xx) and reads the gateway held back count only toward the total.
+- **Otherwise a few failing reads are the torrents' own** once the provider shows it answers: another of its reads
+  answered, or, when only 5xx answered, one account read. That read goes through the gateway's back-off for
+  failures in a row (`gateway.HealthCheck`, one at a time per provider, still budgeted; a rate limit or Retry-After
+  still refuses it): three failing torrent reads in a row back the provider off in the gateway, and the check must
+  still run. When the account answers, its success ends that back-off and the reads it held back are
+  read again (up to 3 rounds per provider within the pass deadline), so the decision rests on what the provider
+  said about them. Those downloads stall and are blocklisted as above; one or two broken torrents cannot stop
+  their stall clocks forever (`TestTorrent5xxThroughRealGateway`, real gateway and RD client on loopback;
+  `TestTorrent5xxDoesNotFreezeStallClock`).
+- **An account that fails too** (or is refused: a rate limit, a spent budget) means the provider is down.
+
+The account check is only there to tell those apart; it does not pause anything (as in
+zurg). An outage read is backed off like any failed
+read and the stall clock keeps running. A download that reaches its stall limit while its provider is down ends as
+**provider unavailable**: the provider gave up, not the release, so nothing is blocklisted. The download goes back
+to `queued` with its provider fields cleared and a route job is queued (`error` says why); the provider's adds back
+off through router pacing (unless a back-off already runs), so the route tries the next provider in the version's
+order or waits for this one. The back-off excludes the provider from reuse as well: the registry or another download
+may still name the torrent, and reusing it would restart its stall clock on the provider that is down. After the
+back-off a known id is reused only when a read verifies it; one the provider still cannot read is `held_unread`
+(`TestOutageContinuationUsesHealthyFallback`, `TestUnreadableHeldIDNotReused`,
+`TestHealthyReuseTakesNoPacingSlot`). Theatarr's own add is left on the provider, as in any blind stall: the torrent was not seen,
+so its ownership cannot be proved on it. Without a route queue (a CLI poll) the download fails, still not
+blocklisted. A short outage therefore does not blocklist and orphan the downloads added just before it,
+and a long one does not hold them forever (`TestProviderOutageEndsUnavailable`). A read held back by the gateway is
+recorded as a failed read when the provider is down, otherwise only as tried. A provider's error answer for the
+torrent (a 4xx) still counts as an answer; the provider saying it is unavailable does not, whatever the HTTP
+status: AllDebrid's `MAINTENANCE` and `GENERIC` and TorBox's `DATABASE_ERROR`, `SERVER_ERROR` and `UNKNOWN_ERROR`
+come in an error envelope on HTTP 200 and are read as a 5xx (`provider.ErrUnavailable`,
+`TestAllDebridMaintenanceIsOutage`). Ready downloads are not read from the provider; their `ready_timeout` waits out mount outages instead
+(`failure.go`).
+
+**Selection behind the write gate**. A non-reused Real-Debrid add that waits for its file selection
+while the router may not write for its version (grab or the router off, the version not grabbing) cannot be
+selected; the wait is the gate's, not the torrent's. This is the only pause of the stall clock, since it is Theatarr's own
+switch: the read clears the failed reads in a row and starts `download.poll_outage_since` (migration 00086; the
+column now records only this pause) until a read that is not gated; then the selection goes out and the gated time
+is added to `download.stall_offset`, which `stalled_after` does not count, and to `progress_at`. Turning grab off does not blocklist such adds as stalled
+(`TestGatedSelectionPausesStallClock`).
+
+**Dangerous and executable files** (Sonarr v5, PRs #8775 `2b7906724` and #9093 `1c01b720a`;
+`internal/router/extensions.go`). The first read that lists the torrent's files (any provider; on Real-Debrid
+before anything is selected) checks every file, as v5's `TorrentClientBase.ValidateFileNames` does with its default
+`FailDownloads = [Executables, PotentiallyDangerous]`:
+- a potentially dangerous file (`.arj .lnk .lzh .ps1 .scr .vbs .zipx`) or an executable (`.bat .cmd .exe .sh`)
+  anywhere in the torrent refuses the **whole release**, whatever else it holds (v5 rejects the release; it doesn't
+  skip the file);
+- the download goes `failed` with v5's message (`Caution:` then `Found potentially dangerous files with extensions:
+  .lnk` and/or `Found executables with extensions: .exe`, one per line) and its hash goes on `router_blocklist` for
+  the version, source `torrent_files`, in one transaction. Route and Plan skip it from then on (`blocklisted`);
+- nothing is selected, and nothing is deleted on the provider.
+
+Deviations: v5 checks a `.torrent` file before the add and never a magnet; Theatarr adds magnets only, so the check runs on
+the provider's file list after the add. It is always on (v5's default for torznab, newznab, nyaa and torrent RSS
+indexers); there is no per-indexer setting and no user-defined extension list. Tests: `TestTorrentFileRejection`
+(v5's fixture cases), `TestPollRefusesDangerousTorrents` (Real-Debrid before selection, AllDebrid already
+downloaded, the blocklisted hash not routed again).
+
+**Real-Debrid `waiting_files_selection`.** Files are selected, through the gate, as "File selection on
+Real-Debrid" below says: every playable file, for a movie and a series alike. For a non-reused torrent, no video at
+all fails and blocklists the download for re-search, with nothing selected.
+
+### File selection on Real-Debrid (`internal/router/playable.go`)
+
+Real-Debrid caches a torrent per selected file set. Its API documentation describes the (since removed)
+`/torrents/instantAvailability` answer as, per hash, "all file IDs variants", with "you must ask all file IDs from
+this array on /selectFiles to get instant downloading" (https://api.real-debrid.com/). One set of a torrent can be
+cached while another is not, so the set to select is the one most often selected by everyone else, whose
+downloads filled the cache:
+
+- Debrid Media Manager adds a magnet and selects every file its `isVideo` accepts, movie or series alike, and
+  every file only when none is a video (`src/utils/addMagnet.ts` `handleSelectFilesInRd`,
+  `src/utils/selectable.ts` `isVideo`, github.com/debridmediamanager/debrid-media-manager). Its cache index stores
+  the files of such downloads.
+- decypharr selects every file its `ValidateFileAllowed` accepts (video and audio extensions, samples, trailers and
+  extras skipped by a regex, optional size bounds), movie or series alike
+  (`pkg/debrid/providers/realdebrid/realdebrid.go` `CheckStatus`, `internal/config/misc.go`).
+- zurg's `force_select_playable_files` selects the playable files.
+
+**The rule (`Playable`, used by the router and the torrent manager's restore):**
+- every video that is not a sample or trailer, plus the audio files beside them; samples and trailers only when
+  nothing else is a video; nothing when no file is a video (an audio-only torrent too);
+- the extensions are DMM's `isVideo` list as shipped: `.avi .flv .m2ts .m4v .mkv .mov .mp4 .mpg .mpeg .ts .webm
+  .wmv`, and `.mp3 .flac .m4a` with a video. DMM's list, not decypharr's wider one, because the set has to match
+  what the cache was filled with. `.vob` and `.iso` were dropped (DMM ships `.vob` commented out as "not yet
+  confirmed working" on RD and has no `.iso`; decypharr has no `.iso`; RD cannot stream a disc image);
+- a sample or trailer is DMM's rule: the word `sample` or `trailer` anywhere in the path (`\b`, so `_sample_` is
+  not one); a file at the torrent's root named `rarbg*` (the RARBG promo video and text) is left out as DMM does;
+- subtitles are never selected: neither DMM nor decypharr selects them, a set with them is one the cache was not
+  filled with, and the library imports no subtitle file from a release. nfo, text, images and executables are never
+  selected: with them in the set Real-Debrid can pack the torrent into one RAR, which cannot be streamed.
+
+Movies get every playable file too, not only the largest video (a set few tools select). The
+library still links only the movie's largest non-sample video (`planMovie` takes the first of the release folder's
+videos, largest first, past the sample and runtime guard); the extras are on the mount beside it and never linked.
+A cached-only movie whose playable set is uncached gets one more add with the largest video alone ("Cached-only on
+Real-Debrid and AllDebrid", "One second selection"). Tests: `TestPlayable`, `TestChooseFiles`, `TestRouteAddsAndPolls`.
+
+A reused torrent is never selected by Theatarr. If a reused RD torrent remains waiting, the poller leaves it for its owner
+until `router.stalled_after`; then it fails and blocklists the download while keeping the shared torrent on RD.
+
+**Status:**
+- `downloaded` → `ready` (`ready_at`, the provider's name, progress 100). `cached` = 1 when the first read already
+  showed it downloaded.
+- downloading → `downloading` with progress. Queued on the provider leaves the state as it is: `added` stays
+  `added` (RD converting or queued, AD's queue, TorBox queued), `downloading` stays `downloading`.
+- `downloading` with no progress for `router.downloading_timeout` → `failed` as stalled ("Stalled downloads").
+- the provider's error statuses → `failed` with the status, blocklisted for re-search (source `provider`).
+- still `added` `router.stalled_after` past the add → `failed` as stalled ("Stalled downloads").
+- a torrent gone from the provider (`ErrNotFound`) → `failed`, blocklisted for re-search (source `provider`).
+  These failures delete nothing on the provider.
+- still `ready` past `router.ready_timeout` → `failed`, blocklisted for re-search ("Ready deadline").
+- `adding` for more than a minute (a crash between the add and its record, or an answer that did not say) is settled
+  from the account first ("Crash between add and record"), unless a route job for it is queued or running (the
+  route settles it, and resumes it when the add never landed); one it cannot settle stays `adding`, however long
+  that takes (never failed by time).
+- `queued` for 10 minutes with no route job for it → a route job resumes it (step 8 of "One route").
+- a download of a version deleted from settings (its key no longer in `versions`), `queued`, `added`,
+  `downloading` or `ready` → `failed` with the reason, on the next poll before any provider read
+  (`endDeletedVersions`). Nothing is blocklisted and nothing is read or deleted on the provider: the torrent stays on
+  the account. `adding` rows are settled first, and `importing` rows and ready downloads a live import claim holds
+  are left alone. Removing the last version counts too: with no versions left, every version-bound download is
+  ended. Tests: `TestDeletedVersionDownloadsEnd`, `TestLastVersionRemovedEndsDownloads`.
+
+### Crash between add and record
+
+Route jobs run at least once, and the add and its record are two steps (`reconcile.go`). Hard rule: a torrent is
+never added twice for one download, and an add whose outcome is unknown is settled from the provider before anything
+is added again; time alone never turns "unknown" into "add again".
+
+Before the add the router calls `jobs.Fence` (a route job that lost its lease stops there and sends nothing) and sets
+the download `adding`, from `queued` only, with the provider and a fresh attempt token (`download.add_attempt`,
+migration 00032); `updated_at` is when the add was sent. Every write that settles that add matches the token: the
+record of an accepted add, the return to `queued` after a refusal, an adoption from the account, a resume, a failure.
+So a route that lost the row to another process (which settled the add, or resumed and added it) writes nothing, and
+a late answer cannot overwrite a newer result (`errAddTaken`; the torrent it added stays on the account, nothing is
+deleted, and its id is logged). When the download was removed while the add was out (Dismiss), the route stops there
+(`download_moved_on`) instead of failing: a job retry would find nothing in flight and add the removed release again
+under a new row (`TestDismissDuringAddIsNotAddedAgainByTheRetry`). `failDownload` is a guarded move
+from explicit states (`queued` for a route's own download, `added`/`downloading` for the poller), so a route
+cancelled after its download moved on (imported, ready, added) leaves it alone (`TestCancelledRouteDoesNotFailAnImportedDownload`); neither it nor `queueDownload` touches a row in `adding`.
+
+### Guarded transitions and queue removal
+
+Every state change a route or the poller makes on a download goes through one primitive (`transition` and `move` in
+`db.go`): the write applies only while the row is still in the states it expects, holding the add attempt (and, after
+an add, the provider and torrent id) it expects; writes that start something (the add, a deferral) also need the
+route job's lease (`jobs.Fence`). What must commit with the change runs in the same transaction: the provider-epoch
+fence, the blocklist row, the follow-up route job. A write that finds the row elsewhere changes nothing
+(`errAddTaken`), and a route whose own download was ended or taken stops (`cancelled`, step `download_moved_on`).
+
+Removing a queue item (`Dismiss`: the arr queue, Activity, copy removal) ends the download in one transaction:
+`failed` with the reason, the blocklist entry when asked, and every queued `router.route` job that would resume it
+marked done ("cancelled: download N was ended"). A route already running finds it ended at its next write:
+- a deferred route resuming it stops instead of opening a new download for the same release;
+- the cached-only settle returns a deleted or kept uncached add to `queued` for the next provider only while the
+  download still holds that add, so a download removed or blocklisted during the settle wait stays ended and nothing
+  is added elsewhere. A blocklist entry for the release made during the wait (without a removal) ends the
+  release before the next provider too;
+- after an uncached add was deleted, the settle is recorded even if the route's context ends right then: the
+  download is `queued` again, not left `added` with a deleted torrent.
+
+Tests: `TestDismissCancelsDeferredRoute`, `TestDismissDuringSettleStaysEnded`, `TestUncachedDeleteRecordedAfterCancel`.
+
+After the add, what the provider accepted is recorded even if the context ends right then. The row stays in `adding`
+when the outcome is unknown:
+
+- the call was interrupted (context ended, crash, lost lease);
+- the answer does not say (`addUncertain`): a transport error, a 5xx, a body cut short or over the size limit, a
+  success answer without a torrent id or that does not parse. Then no other provider is tried for the download, the
+  attempt is recorded as `error` / `add_unsettled`, and the route is deferred past `addSettle`.
+
+A provider's own refusal (an error answer with a code, any 4xx) and a request the gateway never sent (back-off,
+budget, VPN) are definite: the row returns to `queued` and the next provider is tried. AllDebrid and
+TorBox answer errors with HTTP 200: their error envelope with a code (`adder.Error.Refused`) is a refusal even for a
+code it does not know (it backs the provider off, as `unknown` does); only TorBox's own server errors
+(`DATABASE_ERROR`, `SERVER_ERROR`, `UNKNOWN_ERROR`) and envelopes without a code stay uncertain (`TestErrorEnvelopeIsRefusal`).
+
+A row in `adding` is settled from the provider (`reconcileAdding`), by a route that reaches its hash and by the
+poller (rows older than a minute, every poll). The poller's recovery is bounded (`TestPollRecoveryIsBounded`):
+at most 25 rows a pass (selected in SQL: rows naming a provider with a read-only client, or none), least recently
+checked first (`poll_tried_at`); their provider reads (`lookupAdding`) run without the router lock, within one minute
+(`reconcilePassLimit`), with one account listing per provider per pass, each listing limited to an equal share of the
+pass. A lookup cut short (by its listing's share or the pass) settles and notes nothing, but its row is marked tried,
+so a provider that never answers in time goes to the back of the line instead of starving the other providers'
+rows (`TestPollRecoveryDoesNotStarveProviders`). The results are applied under the lock, each write fenced
+by the add attempt it read, so a row a route settled meanwhile is left alone:
+
+- the hash is held there already (registry, a download of Theatarr's own; a known id is taken only when a read of it verifies
+  it: one the provider does not answer for leaves the account's list to decide,
+  `TestReconcileDoesNotAdoptUnreadableID`) or the account's torrent list shows it: the download
+  points at that torrent (`added`, attempt code `reconciled`), nothing is added. When another download of Theatarr's own holds
+  that torrent it is a reuse (`reused` 1), as at the add. Otherwise it is the entry Theatarr's journaled add (the `adding`
+  row and its attempt) most likely made, and it is adopted as Theatarr's add (`reused` 0, `own_add` unset): the poller
+  selects its Real-Debrid files, where a reuse would sit in `waiting_files_selection` until the stall timeout
+  blocklisted a good release (`TestReconciledAddGetsFilesSelected`);
+- the list does not show it and the add was sent more than `addSettle` (5 min: past the gateway's 60 s whole-request
+  timeout and its 60 s budget wait) ago: the add never landed. A route resumes the same download and adds it; the
+  poller fails it ("the add was interrupted and never reached …"). After 3 such adds to one provider that never
+  landed (`maxUnlanded`, counted from the download's `reconciled` attempts), the resumed route skips that provider
+  and tries the version's next one (or the next release), so an answer it cannot read cannot loop the same add on
+  every resume (`TestUnlandedAddsCapped`);
+- otherwise (sent less than `addSettle` ago, so a request still in flight in another process could land; the list
+  cannot be read; no read-only client): it stays `adding`, unsettled, with the reason in `download.error` ("add not
+  settled: …"), and a route reports it in flight (`add_unsettled`, `in_flight`) and queues the route that settles it
+  (after `addSettle` from the add, at least a minute on), so the download is resumed once the account can tell
+  rather than failed by the poller (`TestUnsettledContinuationQueuesAnother`). There is no timeout: Activity shows
+  "Adding to X: not confirmed yet" and the `UnsettledAddsCheck` health check warns past 10 minutes.
+
+A row from a build before 00032 that names no provider is checked on every provider of its version. Reconciliation
+only reads. The adopted torrent is never provably Theatarr's (`own_add` unset), so neither the cached-only settle nor the
+stall timeout can delete it. Nothing Theatarr knows after a crash proves its own request created the entry: timing (dated after the add
+was sent), being the only entry with the hash and no other row knowing the id all hold just as well when another
+client added the same hash while Theatarr's add never landed, so ownership is never inferred. Such a torrent stays on the account if it stalls: safe clutter, never a delete of someone else's torrent
+(`TestCrashedAddTorrentNeverDeletedAsStalled`). Tests: `TestCrashAfterAddIsReconciledNotAddedAgain`,
+`TestCancelRightAfterAddStillRecords`, `TestCrashBeforeAddLandedResumes`, `TestUnreadableAccountAddsNothing`,
+`TestPollReconcilesInterruptedAdds`, `TestLostLeaseBeforeAddThenTakeover`, `TestUncertainAddIsSettledNotAddedAgain`,
+`TestUnreadableAccountNeverTimesOutIntoASecondAdd`, `TestTakeoverDuringAnAddInFlight`.
+
+## Download states (migration 00014): shared with the library
+
+00001's `download`, `download_version` and `download_attempt` were never written. They are replaced, and the down
+migration restores them.
+
+| State | Meaning | Set by |
+|---|---|---|
+| `queued` | Release chosen, every provider paced; retried later | router |
+| `adding` | The add is being sent to `provider` (set already, with `add_attempt`); left by a crash or an answer that does not say, settled from the account, never by time | router |
+| `added` | The provider accepted it (RD: files maybe not selected yet) | router |
+| `downloading` | The provider is fetching it; `progress` 0–100 | router (poll) |
+| `ready` | The provider holds every selected file. **The library imports these** | router (poll) |
+| `importing` | Import in progress (optional) | library |
+| `imported` | Linked into the version's library | library |
+| `failed` | `error` says why | router or library |
+
+`download` columns the library needs:
+- `title_id`, `version_id`, `version_key`, `info_hash`, `release_title`;
+- `provider`, `provider_torrent_id`, `name` (the provider's torrent name, the mount folder), `episodes` (JSON
+  episode ids for series);
+- `ready_at`, `imported_at`.
+
+Also new: `router_pacing` and `router_plan`. `provider_cache` (00001) holds the `miss` and `uncached` rows with
+`source` `router:*`, and (cache evidence) `cached` rows from `feed:<indexer>` and `cached`/`uncached` rows from
+`check:torbox`, and `cached` rows from a router add the provider had at once (`add:<provider>`). Its CHECK already
+allowed `cached`, so no migration. Migration 00022 adds `download.own_add`, `router_blocklist.researched_at` and
+`acquire_run.research`.
+
+## The arr views' queue
+
+`internal/arrview/queue.go` fills `GET queue`, `queue/status` and `queue/details` from `download`. It lists the
+states from `queued` to `importing`, for the view's versions.
+
+| Download | `status` | `trackedDownloadState` |
+|---|---|---|
+| `queued`, `adding`, `added` | `queued` | `downloading` |
+| `downloading` | `downloading` | `downloading` |
+| `ready` | `completed` | `importPending` |
+| `importing` | `completed` | `importing` |
+
+- `downloadId` is the upper-case info hash, as for the arrs' qBittorrent clients.
+- `downloadClient` is `theatarr router (<provider>)`, `protocol` is `torrent`, and `sizeleft` is computed from progress.
+  `timeleft` is left out.
+- Radarr lists one item per download, filtered by `movieIds` (view ids or aliases). Sonarr lists one per episode,
+  with `episode` when `includeEpisode=true` (Seerr asks for it), filtered by `seriesIds`, and in `queue/details` by
+  `seriesId` and `episodeIds`.
+- `queue/status` counts the items.
+- The empty goldens are unchanged. `TestQueueFromDownloads` covers the filled queue.
+
+## Policy (`router`, `examples/policy/router.yaml`)
+
+```yaml
+router:
+  enabled: false       # the kill switch; default false
+  cached_only: true    # skip known-uncached providers; TorBox adds only if cached; RD/AD: add, read, delete Theatarr's own
+  alldebrid_delete_uncached: false  # default; opt-in: delete Theatarr's own uncached AD add (see the accepted race above)
+  cached_grace: 2s     # RD/AD: wait before the one re-read of a fresh add; 1s to 30s
+  stalled_after: 10m   # fail, blocklist and re-search a download still added this long; 1m to 24h; 0s = off
+                       # (providers.<key>.stalled_after overrides it; AllDebrid defaults to at least 25m)
+  downloading_timeout: 24h  # the same for a download whose progress has not risen this long; 1h to 7d; 0s = off
+  ready_timeout: 6h    # fail, blocklist and re-search a download still ready this long; 1m to 7d
+  miss_ttl: 6h         # 10m to 7d
+  poll_interval: 1m    # 15s to 1h
+  max_candidates: 5    # 1 to 50
+  trackers: []         # public announce URLs added to magnets; none by default
+  cache_evidence:      # see "Cache evidence"
+    ttl: 24h           # positive evidence kept; 1h to 7d
+    torbox_check:
+      enabled: true    # nothing without a TorBox key
+      top: 10          # hashes of one search, best first; 1 to 100
+      per_hour: 60     # checkcached requests in any hour; 1 to 1000
+  wanted:              # the wanted search loop (Triggers)
+    # enabled: true    # default: on when some version is active; searches only while enabled is true
+    interval: 15m      # 5m to 24h
+    per_hour: 10       # searches in any hour; 1 to 200
+    again_after: 24h   # 1h to 30d
+    missing: true
+    cutoff_unmet: quality  # quality (default), score or off; true = quality, false = off
+```
+
+Each tracker must:
+- use udp, http or https;
+- have no credentials, query or fragment;
+- have a path of `""` or `/announce`.
+
+The provider order per version is the existing `versions[*].providers` (validated against `providers[*].order`).
+Pacing is the existing `providers[*].pacing` (with `min_gap`, "Pacing"); `providers[*].stalled_after` overrides the
+stall timeout per provider ("Stalled downloads").
+
+## Commands
+
+**`theatarr router dry-run -title ID|-tmdb N|-tvdb N -version KEY [-season N [-episode N]] [-json]`.**
+- It searches like `theatarr decide -search`, through the gateway and its VPN check, then decides and ranks.
+- It prints the plan for every candidate and provider, then "would add X on P".
+- Nothing is sent to a provider or recorded.
+
+**`theatarr router status [-json]`.** It reads only:
+- the switch, `cached_only`, and the active versions;
+- per version: may it write;
+- per provider: key set, adds this minute, uncached this hour, cooldown, back-off;
+- downloads by state, recent downloads and plans, live misses;
+- the blocklist: hashes a version never routes again, with the reason and who added them.
+
+**`theatarr router reconcile [-db FILE] [-apply] [-json]`.** See "Reconciling legacy queued routes" below. Dry run by
+default; `-apply` writes only to the database (no provider call).
+
+## Deviations
+
+- **Direct adds.** An arr setup routes adds through decypharr with a per-add `debrid` field. The router adds to the
+  providers directly, through the gateway: one outbound path, with budgets and the VPN guard enforced in one place.
+  decypharr stays a client of the arr views.
+- **Cached-only on RD and AD deletes, with a stricter guard than decypharr.** Neither has a cache check, so cached-only
+  is decypharr's add, read, delete-and-try-next. decypharr deletes whatever id the add returned; Theatarr deletes only an
+  entry it can prove is its own new one, and keeps (and downloads) any other. The proof has a hole on AllDebrid:
+  another client uploading the same hash between Theatarr's list read and Theatarr's upload (about a second) gets the same magnet,
+  which Theatarr would take for its own. So AllDebrid deletes nothing unless
+  `router.alldebrid_delete_uncached: true`; by default an uncached AD add of Theatarr's is kept (`uncached_kept`) and
+  the next provider tried. The opt-in suits an account nothing else writes to.
+- **The miss rule.** A miss needs a verdict from every provider that has a key. A provider that is only paced defers
+  the route.
+- **Reuse.** A hash the provider already holds is reused, not added or selected again: the registry is read before
+  every add, and the torrent id it names is read back from the provider before it is reused. A reused RD torrent waiting for its owner's file selection is polled until it downloads or reaches the
+  stalled deadline; if it stalls, Theatarr fails and blocklists its download while keeping the shared torrent on RD. A
+  reused or finished torrent whose files are known and hold no video fails at once instead (`no video file in the
+  torrent; ... kept on <provider>`), blocklisted on Theatarr's side only; Theatarr never selects or deletes on it. "No video"
+  is decided by path alone (`HasVideo`): any video extension of the selection below plus `.vob` and `.iso`, samples
+  included. It needs no file ids (AllDebrid and TorBox files have none) and does not apply Real-Debrid's selection
+  limits: AllDebrid and TorBox take every file, so a DVD's `.vob` is a video there (`TestAllDebridFinishedIsReady`, `TestOtherProvidersKeepVOB`).
+
+## Triggers (migrations 00016 and 00033)
+
+What hands work to the router in `theatarr serve`. Code: `internal/acquire`, `internal/shadow/route.go`,
+`internal/arrview/command.go`, `internal/router/hooks.go`.
+
+Movie searches (including add-time, wanted, re-search and version fanout), RSS and release grabs enforce minimum
+availability before acquisition. `announced`/`tba` is immediate, `inCinemas` uses the cinema date when known, and
+`released` uses the earlier digital/physical date, falling back to cinema plus 90 days only when both home dates
+are absent; unknown dates wait, with Radarr's default availability delay of zero. Wanted skips unavailable movies
+before its hourly budget is spent, and queued searches recheck the gate. The latest explicit setting on a view
+serving the version wins over its imported arr setting; without one, the default is `released`.
+
+| Trigger | Versions | What reaches the router |
+|---|---|---|
+| Arr view search commands and an add's search option | **active only** | `Router.Enqueue` per search, through `internal/acquire` |
+| The wanted search loop | **active only** | `Router.Enqueue` per search, through `internal/acquire` |
+| Shadow RSS read, items of active versions | **active only** | `Router.Enqueue` per title and version, its items ranked |
+| Shadow grab decisions and shadow RSS picks | **shadow only** | `Router.Route`, which for a shadow version only records a dry-run plan |
+
+**The acquirer (`internal/acquire`).**
+- A search group is one root `acquire_run`, one `acquire.search` job, and a row for every version-target it serves.
+  Child rows point to the root with `search_run` (00033), so command status and each version's route stay distinct
+  while the indexer query runs once. Identical `(indexer, query)` pairs are sent once; each version is decided only
+  against the queries in its own indexer list (`router.SearchRequests`).
+- Each accepted version gets its own `router.route` job with `Source` `acquire:<run id>`, committed with that target
+  row's `routed` state. The router reuses a provider torrent already added for another version of the same title.
+- The job claims the run for its lease (`acquire_run.claim`, migration 00027) and has three attempts. A run left
+  `searching` by a crash or a shutdown is taken over by the job's next lease and searched again; the outcome is
+  recorded only under the claim that holds it, so a run is never routed twice (`internal/acquire/recover_test.go`).
+- A target is a movie version, a season or an episode (`target` `movie`, `s01`, `s01e02`).
+- `Submit` drops every version that is not active. The job checks the mode again before it searches, and skips a
+  target whose title (movie) or episodes (series) have a download in flight (`router.InFlight`).
+- A command that names titles (or episodes) also serves the other active versions of those titles (the fanout), but
+  only where the title (or episode) is monitored in that version, the version was not removed (Seerr delete, "Remove
+  copy") and the movie is available, as an automatic search would take it. The user-invoked semantics (unmonitored
+  too, before minimum availability) apply to the versions the caller named only. A run for a version that joined
+  this way is stored with `acquire_run.requested = 0` (migration 00084), and its route runs the freshness check on
+  its first pass like an automatic route; a named version's route skips it until resumed.
+  `TestTitleSearchFanoutSkipsUnmonitoredAndRemovedVersions`, `TestJoinedCommandRouteChecksFreshness`.
+- A command that names none (`MissingMoviesSearch`, `CutOffUnmetMoviesSearch`, `MissingEpisodeSearch`,
+  `CutoffUnmetEpisodeSearch`) searches only the versions it asked for, the view's active ones. That is what that
+  arr would search: `/v/K` searches K only, `/radarr` its movie versions, `/sonarr` its series versions, never
+  another kind. `TestBulkCommandSearchesOnlyItsVersions`, `TestCutoffUnmetCommandsQualityOnly`.
+- Series:
+  - an episode search per named episode;
+  - otherwise a season search per season with selected episodes;
+  - a missing or cutoff search that finds one episode in a season searches that episode;
+  - specials only when named; missing and cutoff searches take aired episodes only.
+  - **upgrades off** (Sonarr v5 `b94cf9b3b`): a whole-series search (`SeriesSearch`) of a version whose profile
+    has `upgrades: false` (or an arr profile with `upgradeAllowed` false) takes only the episodes without a file, so a
+    season whose episodes all have one is not searched. As in v5 a season, episode, missing or cutoff search is
+    unchanged; the wanted loop's missing pass never searched such a season anyway, and with upgrades off the cutoff is
+    the first allowed quality, so files are rarely below it. `TestSeriesSearchSkipsFilledSeasonsWithoutUpgrades`.
+- A command over a whole view (`MissingMoviesSearch` and the like) starts at most 100 searches (`acquire.MaxBulk`),
+  the title-target groups searched longest ago first.
+
+**The wanted loop (`acquire.wanted`, every `router.wanted.interval`).** It defaults to on whenever a version is
+active (`router.wanted.enabled` unset: on, `missing: true`, `cutoff_unmet: quality`). A policy without those keys
+searches the whole backlog at `per_hour` from the first active start; `missing: false` and `cutoff_unmet: off` leave
+the backlog to RSS, add-time searches and searches by hand. The loop paces by `per_hour` and the router by provider
+pacing only; there is no separate per-season bulk pacing.
+- It takes the active versions' missing (`wanted`) and cutoff-unmet (`filled`) movies and episodes; cutoff-unmet
+  ones only of versions whose `upgrades` is not `off` ("Upgrade approval").
+- `router.wanted.cutoff_unmet` says which cutoff-unmet files it searches:
+  - `quality` (the default) searches only files whose quality is below the profile's quality cutoff. With
+    upgrades off, the cutoff is the first allowed quality. This is the arrs' Wanted > Cutoff Unmet list and its
+    search: Radarr `MovieCutoffService.MoviesWhereCutoffUnmet` and Sonarr
+    `EpisodeCutoffService.EpisodesWhereCutoffUnmet`, used by `CutoffUnmetMoviesSearch` and
+    `CutoffUnmetEpisodeSearch`. They select by quality only (`BuildQualityCutoffWhereClause`).
+  - `score` searches every `filled` file, also one at the cutoff quality but below `cutoff_score`.
+  - `off` searches no file for an upgrade.
+  - `true` and `false`, the earlier schema, still load as `quality` and `off`; anything else fails validation.
+- Only the loop's selection changes. Version and episode states (`filled` while below the quality or the score
+  cutoff), feeds and every upgrade decision keep the full cutoff, as the arrs' RSS sync and searches do
+  (`UpgradableSpecification.CutoffNotMet`). A file at the cutoff quality but below the score is still upgraded when
+  a feed or another search brings a better-scored release.
+- The file judged is the one decide compares against: the newest active link, else the arr's file. Without a
+  decision engine the state alone decides, as with `score`. `TestWantedCutoffMode`, `TestQualityCutoffSelection`.
+- The arr views always use the quality cutoff, whatever this setting: `GET wanted/cutoff` and the
+  `CutOffUnmetMoviesSearch` / `CutoffUnmetEpisodeSearch` commands list and search what the arr would. The setting
+  governs Theatarr's own loop only. `TestWantedCutoffQualityOnly`, `TestCutoffUnmetCommandsQualityOnly`.
+- Why: imported arr profiles often set a `cutoff_score` (10000, say) that no real file reaches. With
+  `score`, the loop would search every title with a file again every `again_after`. The arrs never search those.
+- It skips items searched within `again_after` and items with a download in flight, and searches the rest attempted
+  longest ago first (any attempt, one that got no answer too, so items that keep failing do not stay in front).
+- **No answer is not a search; a partial answer is a shorter one** (`acquire_run.infra`, migrations
+  00084 and 00100). A VPN refusal (`ErrVPNRequired`) or a search no indexer answered (`Searched.NoAnswer`) records
+  `infra = 1`: it does not count as searched, so the next round can take the item again (after the items attempted
+  less recently), and add-time intents and re-searches start it again after 15 minutes, 1 hour and 4 hours, then
+  give it up. A search where some indexer answered and some request failed (an error, a back-off or a spent budget, a
+  page that failed, a failed Cardigann keyword query, a plain Cardigann series query without episode criteria:
+  `Searched.Incomplete`) records `infra = 2`: it counts as searched, routes what it accepted as usual, and is due
+  again after 6 hours (`again_after` when shorter) instead of `again_after`. Theatarr's own `page_cap` stopping the paging
+  (DMM's 200) is not a failure (`indexer.Result.Capped`); it still leaves the indexer's coverage incomplete for the
+  ceiling. All of them spend the hourly budget. Counting a partial answer as no search at all would search popular titles
+  (always past DMM's cap) again at every round and drain, starving the rest. Tests:
+  `TestPartialSearchCountsAsSearchedSooner`, `TestPartialSearchDoesNotStarveBacklog`,
+  `TestNoAnswerSearchDoesNotStarveBacklog`, `router.TestSearchPartialAnswerIsIncomplete`,
+  `router.TestPlainKeywordAnswerDoesNotCountAsSeasonSearch`.
+- At most `per_hour` shared searches start in any hour, counted from root `acquire_run` rows; child version rows do
+  not spend another search.
+- A follower title added by arr import, or a monitored follower episode/season, is searched immediately when it is missing and aired. These searches use the same `per_hour` wanted budget, so an import cannot burst past the indexer pace. The import records each change as an add-time intent (`follow_search_intent`, 00060) in its own transaction; the acquirer drains the intents oldest first after every import and at the start of every wanted round, whether or not the loop selects missing or cutoff-unmet items itself. An intent over the budget waits for the next hour instead of being lost. It is deleted once each of its targets was searched (a run started since the intent or within `again_after` has finished), or when it asks for nothing any more (version gone, not active or unmonitored, nothing wanted). A failed search is not repeated, except one that got no answer (above): the intent is kept and a drain starts it again after 15 minutes, 1 hour and 4 hours, then gives the target up (`TestInfraFailedAddTimeSearchIsKept`, `TestNoAnswerAddTimeSearchGivesUp`); a partial answer counts as searched; a drain that keeps failing on an intent drops it after three attempts. While `router.enabled` is false the intents are dropped and nothing is searched. Tests: `TestAddTimeSearchesSurviveTheHourlyCap`, `TestAddTimeSearchBounded`, `importarr.TestFollowerAddSearchIntentRecorded`.
+- It does nothing while `router.enabled` is false, and searches only active versions with grab on
+  (`Policy.SearchVersions`): no search traffic for routes that could only be dry runs. An add-time intent for an
+  active version with grab off is kept, without counting an attempt, until grab is on. RSS keeps routing such a
+  version's picks as dry-run plans (no add, no re-search). Tests: `TestWantedSkipsGrabOff`,
+  `TestAddTimeSearchWaitsForGrab`, `TestResearchSkipsGrabOff`, `shadow.TestActiveRSSGrabOff`.
+
+**Command status.** A command's status follows its runs (`acquire.LoadCommandStatus`), the route job, and what the
+router did with the run's source:
+
+| Runs | Command |
+|---|---|
+| All waiting | `queued` |
+| Any searching, routing, or its download `queued` for a provider | `started` |
+| All ended | `completed`, with "added X on P", "no accepted release", "a download is in flight", or "dry run (disabled): would add X on P" while the kill switch is off |
+| All failed | `failed` |
+
+**Shadow plans.**
+- After each shadow grab is stored, the runner calls `Route` with the grab's ranked accepted decisions (the arr's
+  release among them), `Source` `shadow.grab`.
+- Each new shadow RSS pick gets `Route` with that release alone, `Source` `shadow.rss`.
+- The plan id goes on `shadow_grab.router_plan_id` / `shadow_rss_pick.router_plan_id`.
+- The runner calls `Route` only for versions it shadows. The router's gate refuses writes for them anyway, so the plan
+  is a dry run recorded in `router_plan` even with `router.enabled: true`.
+- The report shows `router.PlanSummary`: "would add X on P", "would wait to add X", or "would add nothing: <codes>".
+
+**Imported-release offers.** `router.offer` offers an imported movie or series release to the title's other versions
+of the same kind. Series decisions use the imported download's episode ids as Sonarr search criteria; accepted offers
+route one release, so the router reuses the provider torrent and the library links the season pack or episodes.
+The six-hour sweep also covers adopted/followed links and imported arr files, using recorded hashes (including
+unambiguous mount-folder identities); `-sweep -dry-run` lists decisions, unknown hashes are remembered as `no_hash`,
+and neither the source version nor versions following the same arr receive its files. Pending offers retry every
+15 minutes for six hours, then daily for at most seven further attempts; readiness changes can retry early within
+that cap, and the final `gave_up` carries `retry_limit`. Recorded replacements retire sources and cancel their
+pending offers as `declined` with reason `superseded`; every accepted offer still passes the existing router,
+mode, version-indexer, blocklist and library gates.
+
+Arr history names an indexer by the arr's own name ("TheRARBG (Prowlarr)", "DMM RD (Prowlarr)"), never a policy key.
+`Policy.IndexerByName` matches it to a configured indexer: the key itself, a name an indexer's `arr_names` lists
+(a plain alias list, without regard to case: "DMM RD (Prowlarr)" for `dmm`), or the name without a trailing " (…)" compared, letters and digits only and without regard to case,
+with the key or the key without its `prowlarr-` prefix; a name two indexers match is no match. A name that matches
+none keeps the offer `declined` `unknown_indexer`. That decline (and an old `private_indexer` one) is decided again on
+the next offer or sweep once the source's indexer resolves, and the target's own rules decide (`IndexerNotInVersion`
+when the version does not list it). Other declines stay remembered.
+
+An accepted offer to a target the router gate refuses (`router.enabled` off, or the target in shadow) is recorded
+`planned` (its route is a dry-run plan), not `routed`. A `planned` offer is offered again, and routed, by the
+next offer or six-hour sweep once the gate is open for the target; while it stays shut nothing is decided or queued
+again. After the flip the planned offers are paced: one offer pass routes at most
+`OfferPlannedPerPass` (20) planned offers, the rest wait for the next pass, and a planned offer not offered again for
+`OfferPlannedExpiry` (7 days) is declined `planned_expired` instead of routed. `theatarr golive check` reports how
+many planned offers wait for the version and how many the first sweep would route (`TestPlannedOffersPacedPerSweep`,
+`TestPlannedOffersExpire`, `golive.TestGrabAndPlannedOffers`). Migration 00069 turns `routed` rows that made no download of the target for that hash (accepted while the
+router was off) into `planned`. Tests: `TestOfferArrIndexerMatchedByName`, `policy.TestIndexerByName`,
+`TestOfferWhileGateShutIsRetried`, `TestOfferGateRetryMigration`.
+
+**Active RSS.** RSS reads the feeds of shadow and active versions. Accepted items of an active version are not
+shadow picks:
+- they are collected per title and version;
+- each group becomes one `router.route` job, `Source` `rss`, unless a download is in flight for it. The job's dedupe
+  key is a hash of the whole request (target, version, candidates with their episodes, policy revision), so a second
+  RSS read before the worker opens a download queues no second route, while other episode coverage or changed
+  candidates get their own job (`TestRSSRouteJobsDeduplicated`, `TestRSSPendingRouteNotDuplicated`).
+- A read marks its items seen (`shadow_rss_seen`) only after its picks are stored and its routes enqueued, in one
+  transaction; a read that fails before then leaves its items to the next read (`TestRSSSeenOnlyAfterRouting`).
+- A seen mark is per policy revision: after a settings save changes the revision, items still in the
+  feed are decided again under the new policy, so an item rejected before a profile or rule change can be picked
+  (`TestRSSSeenPerPolicyRevision`).
+
+**Proof (tests).** The fake adders (`internal/router/routertest`) log every call.
+- `TestShadowPlansNeverWrite` (shadow): plans for every grab and pick, zero adds, no download, no route job, with the
+  switch on.
+- `TestActiveRSSRoutes` (shadow): movie-web active, movie-remux shadow. The active picks are added, there are no
+  downloads for the shadow version, and its pick has a plan.
+- `TestSearchCommandsShadowNeverWrite` (arrview): every search command and the add option on shadow views. No search,
+  no run, zero writes.
+- `TestSearchCommandActiveVersion` (arrview): searches and adds for the active versions only, and the command status
+  follows them.
+- `TestShadowVersionsNeverSearchedOrWritten` (acquire): Submit, a stale run for a now-shadow version, and the wanted
+  loop.
+- `TestCommandFanoutSearchesTitleOnceAndRecordsServedVersions` (acquire) and `TestSearchRequestsSharesQueriesAcrossVersions`
+  (router): a shared query records both version targets and runs the upstream request once.
+- `TestKillSwitchDryRun` (acquire): an active version with the switch off. A dry-run plan and zero writes, and the
+  loop is off.
+
+## Decision formats and the blocklist (00016)
+
+Arr imports mirror the followed instance's blocklist into parallel followers. Hashless entries match source titles
+(ignoring case and surrounding whitespace); either a hash or title match prevents routing and expires pending
+upgrade holds. Title-only entries use a `title:` key in the blocklist's `info_hash` field; an unblock is reset by
+the next import while the arr still lists the entry.
+
+- **Formats.** `router.Candidate.Formats` carries the decision's matched custom formats with their scores
+  (`router.Candidates` fills it). The download stores them in `download.formats` (JSON `[{name, score}]`) beside
+  `quality` and `score`. The library names files from them (`library.Options.Matched`: the profile's
+  `includeCustomFormatWhenRenaming` formats, in profile order). A download without them (NULL) still decides its
+  release title again.
+- **Blocklist.** When the library's sample, runtime or mislabel guard rejects a download, it fails the download and calls
+  `router.Blocklist` in the same transaction: `router_blocklist` (version, hash, title, release, reason, source
+  `library`, download).
+  - Route and Plan skip a blocklisted hash for that version: step `blocklisted`, a content verdict, so the next
+    candidate is tried.
+  - `theatarr router status` lists the blocklist.
+  - Nothing is deleted on any provider.
+
+## Upgrade approval (migration 00037)
+
+A household may want to look before a big remux replaces a file it already watches. `versions[*].upgrades` says what
+a route does with a release that would **replace a file the version already has**:
+
+```yaml
+versions:
+  movie-remux:
+    upgrades: approve   # auto (default) | approve | off
+```
+
+| Rule | What a route does with an upgrade | Arr equivalent |
+|---|---|---|
+| `auto` (default) | routes it like any other release | profile `upgradeAllowed` on |
+| `approve` | holds it in `upgrade_hold` until a manager approves it; nothing is added | `upgradeAllowed` on plus a manual gate (the arrs have none; an interactive grab is the nearest) |
+| `off` | skips it (`upgrades_off`); the file stays whatever is found. Cutoff-unmet searches (wanted loop and commands) skip the version | `upgradeAllowed` off (`UpgradeAllowedSpecification`), for the version rather than the profile |
+
+The profile's own `upgrades: false` (arr `upgradeAllowed`) still applies inside the decision engine; the version rule
+sits on top of it in the router, so one profile can serve a version that upgrades freely and one that asks first.
+
+**What counts as an upgrade.** `Router.Route` reads the version's current files for the release's items before any
+candidate is tried (`hold.go` `currentFiles`): active links, then the arr's `version_file` rows of the owning
+instance (as the title page reads them). A movie release replaces a file when the version has one for the title; a
+series release when any of its episodes has one (a release without episode ids: any file of the title). The router
+reads the files itself rather than trusting the decision's `upgrade` flag, because the movie decision only sees arr
+files (`decide.LoadExisting`), and RSS, offers and resumed routes reach `Route` too. **Releases for items without a
+file are never held or refused:** in a series route a pack that would replace episode 1's file is held while a
+release that only fills episode 2 is tried as usual.
+
+**Holding (`approve`).**
+- Only a release the router could place is held: a provider its indexer allows, a v1 hash and the version's
+  blocklist are checked first (`preflight`, the same checks as a route).
+- A hash a manager declined for the version and title is skipped (`upgrade_declined`) and never held again.
+- One pending hold per version, title and episode set (`episodes`: sorted ids; a unique partial index). The best
+  upgrade of a route is held (`upgrade_held`, outcome `held`); later ones of the same set wait (`upgrade_waiting`).
+  A later route with the same release refreshes `seen_at`; a better one (quality rank in the version's profile,
+  `decide.Decision.QualityRank`, then score) replaces it (`replaced`); a worse one waits behind it.
+- The hold keeps the release, its quality, score and quality rank, the decision's upgrade reason, the file it would
+  replace (quality, score, time, episodes), the candidate as JSON (no links), the route's source and the policy
+  revision. Holding asks no provider anything and opens no download.
+- A route whose only result is a hold ends `held`, without searching again; the acquirer's command status reads
+  "held X for upgrade approval".
+
+**Approving and declining** (`router.Holds`, native API `POST upgrades/{id}/approve|decline`, managers only).
+- Approve checks the rule (`off` refuses), `router.enabled`, the version's mode and the preflight, then in one transaction marks
+  the hold `approved` (who: `decided_by`, `decided_via` = `session` or `key <name>`; when: `decided_at`) and enqueues
+  a `router.route` job with the held candidate and `Request.Hold`. That route does not hold it again; every other
+  rule applies: the gate again (a route that finds the switch off records a dry run), the preflight, the blocklist,
+  in-flight checks, cache evidence, pacing and the gateway's budgets. The hold records the route's outcome and
+  download. The library then imports it as any upgrade (link replacement, trash, Plex scan; docs/design/library.md).
+- An approval the router could not act on now answers 409 with the reason and the hold stays pending.
+- Approve also applies the expiry rules below to that hold before the next poll gets to it: a hold past
+  `HoldTTL`, blocklisted, under a rule that is no longer `approve`, or whose file was replaced by a newer one since it
+  was held expires there and the approval answers 409 with the reason. The approved route skips the freshness check,
+  so a stale approval must not replace a better file. A file that is gone does not end it at approval (the release
+  fills the item) (`TestApproveStaleHoldRefused`).
+- The approval stays with the download: a download of an approved upgrade routed again from its row (a reused
+  torrent that left the account, the stray sweep, a retry by hand) gets `Request.Hold` back from its source
+  `upgrade:N`, but only while hold N is `approved` for that same hash, version and title, so it is not held a second
+  time (`TestApprovedUpgradeKeepsApprovalAfterRequeue`).
+- Decline records who, how, when and an optional note.
+
+**Expiry** (`ExpireHolds`, every `Poll`). A pending hold expires, with the reason in `note`, when the version's rule is
+no longer `approve`, the release was blocklisted for the version, no search or RSS read offered it again for 14 days
+(`HoldTTL`: the release is gone), or the file it would replace changed: a newer file arrived (an approved pack, an
+arr import) or the file is gone (the next search decides again). A route that finds its pending hold's file changed
+expires it before holding again.
+
+**Shadow and the kill switch.** A dry run holds nothing: its plan has a `would_hold` step and the route outcome
+`would_hold` (stored as `none` in `router_plan`); `PlanSummary` reads "would hold X for upgrade approval".
+
+**Proof (tests).** `internal/router/hold_test.go`: held with zero writes and no download, missing files never held,
+series packs held while fills are added, dedupe and replacement (score and quality rank), approve routes the release
+(and records who and how), approve refused by the kill switch, shadow mode and `off`,
+declined releases not offered again, every expiry reason, `off`, and the shadow dry run. `internal/e2e`
+`TestUpgradeApproval`: an approve version holds the remux (one provider add so far), the native API approves it, and
+the add, import and link replacement follow. `internal/web/upgrades_test.go`: the routes per role, 409s and the audit
+fields; `TestEveryRoutePerRole` covers the three routes.
+
+## Client-routed versions (`add_via: client`, migration 00108)
+
+Spec: `docs/design/external-clients.md`. A version with `add_via: client` sends its grabs to its
+`client` (a `kind: decypharr` client; qBittorrent Web API, `internal/qbit`) instead of adding to the providers.
+The default, `add_via: providers`, is unchanged. A client-routed version lists no providers; the client picks its
+own debrid account, so `router.cached_only`, the providers' pacing and `stalled_after` do not apply to it
+(`theatarr golive check` warns about this).
+
+- **Rows.** The download row sets `download.client` (migration 00108) and keeps `provider` NULL, so every provider
+  path (`pollSweeps`, `checkStuck`, provider deletes, the unsettled-adds check, cap accounting) passes it over.
+  `provider_torrent_id` is the info hash. Attempts record `provider = client:<key>`.
+- **Before the add.** Releases from an indexer with a `providers` allowlist are skipped (`indexer_providers`): the
+  allowlist names debrid accounts, and the client chooses its own. A `client:<key>` miss in `provider_cache` within
+  `miss_ttl` skips the release (`known_miss`). A version whose client is not built (another kind, bad URL) gets
+  `no_client`. A dry run (`theatarr router dry-run`, the shadow plans) reports `would_add` with the client and makes
+  no call.
+- **The add.** One `torrents/info?hashes=<hash>` read first, with no category filter: a hash the client already
+  holds, under any category (an arr's from before the handover), is adopted as it is (`client_adopted`,
+  `reused = 1`), not added again. Then the row goes to `adding` and `torrents/add` sends the magnet with the client's `category`.
+  decypharr's JSON errors (`code`, `retryable`, `permanent`) decide the verdict (`qbit.Classify`):
+  - `torrent_not_cached` (404): a miss. A `client:<key>` miss row is cached and the route moves to the next release
+    (`client_not_cached`); nothing is blocklisted. It counts as a miss everywhere (`missedEverywhere`), so an
+    exhausted route searches again; a `known_miss` skip of a cached miss row does not.
+  - a permanent error, `torrent_blocked`, `invalid_magnet`, or a refused login (`Fails.`): the release is
+    blocklisted with source `client` and the route moves on (`client_refused`).
+  - anything else (traffic, too many active downloads, 5xx, no answer): the route stays queued and is retried after
+    `BackoffBase` (`client_deferred`), as when every provider is paced, until the route gives up.
+- **Polling.** `pollClients` reads each client's rows (`added`, `downloading`, and `adding` rows older than a
+  minute) with one `torrents/info?hashes=<hash>` call per row, under any category: decypharr 2.7.1 reads each
+  `hashes` value as one hash, not qBittorrent's `h1|h2`. Only the completed states (`pausedUP`, `stoppedUP`,
+  `uploading`, `stalledUP`, `queuedUP`, `forcedUP`, `checkingUP`) set `ready`, with the client's torrent name;
+  progress 1 in a downloading state is still downloading (decypharr reports it before its links exist). With
+  `import_from: download_folder` ready also sets `source_path` to the content path mapped from `remote_path` to
+  `local_path` (an empty content path waits as `downloading`). `error` and `missingFiles` fail the download, as a
+  dead provider torrent does: blocklist and re-search. A hash the client no longer lists goes through the same
+  missing-read check as a provider torrent before it fails. An `adding` row is settled from the client's list
+  (listed: `added`; not listed: back to `queued`).
+- **Outage.** Each read has its own deadline and is applied as it arrives; the first failed read ends that client's
+  pass, and the downloads not read are left for the next pass, never counted missing. A client that does not answer
+  fails nothing: its downloads wait, the reads back off, and one error
+  line per outage is logged ("download client does not answer; its downloads wait"), with an info line when it
+  answers again.
+- **Safety.** Nothing deletes from a client: Dismiss, failure, expiry and replacement only end Theatarr's row.
+  `router.ready_timeout` still applies. The gateway counts the client as a `client` target, and its password is
+  redacted from logs. The router switch's confirmation names the client of a client-routed version, and
+  `theatarr golive check` runs no provider `cached_only` check for it. Changing `add_via` on an active version needs confirmation in the settings.
+- **Tests.** `internal/router/client_test.go` (fake API: `internal/qbit/qbittest`), `internal/qbit/qbit_test.go`,
+  and `internal/e2e` `TestClientRoutedMovie`: one grab through the fake API to an imported link on the fake mount.
+
+## Limits
+
+- **`theatarr shadow run-once` makes no plans.** Only `theatarr serve` gives the runner a router.
+- **The acquirer searches without the shadow runner's planner budget checks.** The gateway still enforces the
+  budgets and back-offs, and the wanted loop's `per_hour` paces it.
+- **Hash-less releases.** Releases with only a `.torrent` link (nyaa through SeaDex) are skipped (`no_hash`):
+  `.torrent` files are not fetched and converted to their hash.
+- **Usenet and seedbox routing** are not part of the router.
+
+## Turning the router on
+
+  1. Run `theatarr router dry-run` for a few titles.
+  2. Check `theatarr router status`, and the router plans in the shadow report.
+  3. Set one version `active` and `router.enabled: true`. The wanted loop then starts at its default pace (10 searches
+     an hour).
+  4. Watch the log line and the first adds.
+
+## Release identity
+
+A release's torrent identity comes from its info hash and magnet only; SeaDex titles and record ids never supply a
+routable hash. A release whose reported hash conflicts with its magnet is rejected: the indexer service drops it, a
+release push rejects it before deciding, and the router checks the identities still available on every route (step
+`hash_conflict`) and refuses to queue it. A release reporting no hash is routed by its magnet's.
+
+The checks decode magnet queries and compare every v1 `xt` (hex or base32), including separate download and magnet
+links, enclosure magnets and repeated Torznab identities. Magnets are parsed leniently (any-case `xt`/`xt.N` keys,
+split on `&` and `#`, control characters tolerated), and a magnet naming no v1 identity beside another reported
+identity is a conflict. A SeaDex entry without a relation list (`trs` absent or null) offers no release. Links are
+kept in memory only, so the router cannot detect a conflict in an older row from its stored hash alone: rows queued
+by a build before these checks are listed and ended by `theatarr router reconcile` (below).
+
+For versions with `prefer_seadex` on, automatic re-decision keeps RSS or search semantics and the original search
+criteria, which are stored with the download (`release_data` route fields) so requeued, stray and retried downloads
+keep them. A prefer-on searched route stored without criteria, or a candidate without identity version 1 and an
+origin, is not re-decided: it is skipped and its episodes are searched again, one re-search per route; no criteria
+are reconstructed. Invalid stored release data carries unknown seeder evidence, like NULL data. The fresh check's
+same-torrent guard applies to prefer-on versions only. With `prefer_seadex` off, a route is decided again only on a
+policy revision change. The offer CLI supplies both movie and series deciders. Curator comparisons share one pinned
+stored snapshot per operation (one route, one offer sweep, one cutoff list); cached search results cannot replace
+it. How SeaDex standing is kept and used: [decide.md](decide.md#seadex-standing).
+
+### Candidate identity version and origin
+
+A producer's new request (`Route`, `Enqueue`, `EnqueueTx`, with no resumed download and no approved hold) stamps
+each candidate with `identity` = `RouteIdentityVersion` (1: the identity checks above ran on it while its links were in
+memory) and `origin`: `rss` (feeds, release pushes, movie offers, grabs by hand) or `search` (wanted, re-search,
+`acquire:` runs, series offers, or a series search candidate with its `criteria`). The marks travel through
+route job payloads, `download.release_data` (`route_identity`, `route_origin`, beside `route_search` and
+`route_criteria`) and hold candidates; a request rebuilt from a stored row keeps what was stored. Re-decision uses
+the explicit origin only. A prefer-on re-decision does not trust a candidate without identity
+version 1 and an origin (a row an older build queued), nor a series search candidate without its criteria: it is
+skipped (`search_criteria_unknown`) and its episodes are searched again (reason `legacy_criteria`). Nothing guesses
+an origin or recovers criteria.
+
+### Reconciling legacy queued routes (`theatarr router reconcile`)
+
+Rows queued by a build before the identity version cannot be proved: their links are gone and their origin is
+unknown. A prefer-on route ends such a row when it runs (above); `theatarr router reconcile` lists every such row still
+waiting, whatever the version, and ends the automatic ones up front:
+
+| Row | Listed when | `-apply`, automatic source | Manual source (`ui:grab:`, `ui:retry:`, `arrview:release:`, `upgrade:`) |
+|---|---|---|---|
+| route job (`router.route`, queued) | a candidate lacks identity or origin | failed and dismissed (`dismissed_by = reconcile`) | listed only |
+| route job (running), and the queued downloads of its title version (an initial route's download is not linked to its job) | same | left alone, listed (run reconcile again later) | left alone |
+| route job continuing a download whose add is in flight (`adding` and later) | same | left alone, listed | left alone |
+| download (`queued`, no add sent) | `release_data` lacks `route_identity`/`route_origin` | failed (`error` names reconcile) | listed only |
+| upgrade hold (`pending`) | its candidate lacks them | expired (note names reconcile) | listed only |
+
+With `-apply`, each title version with an ended automatic row gets one re-search (`acquire.research`, reason
+`reconcile`, the union of the rows' episodes; dedupe key `acquire.research/reconcile/<version>/<title>`, so a second
+run queues none while the first waits). The acquirer runs it only when `router.enabled` is true and the version is
+active and grabs; until then it is not consumed but queued again an hour later (each time a new job, no attempt
+counted), so the replacement searches retry hourly and run once grabbing is on; a search it already started that
+finds grabbing off by then waits the same way (`TestGatedResearchRunNotASearch`), subject to the normal search budget
+(`router.wanted.per_hour` defers them like any re-search). Other re-searches are
+dropped while off. Nothing is deleted: rows keep their history, `content_provider`
+ownership is untouched, and nothing is sent to any provider. Manual rows need a fresh selection by a person. Rows
+past `queued` (adding, added, downloading) are not touched. Runbook: [golive.md](../golive.md#before-the-trial), step 5
+(before `router.enabled: true`).

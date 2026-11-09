@@ -1,0 +1,6 @@
+[{"id": 3, "name": "TPB (Prowlarr)", "implementation": "Torznab", "protocol": "torrent", "enableRss": true, "enableAutomaticSearch": true, "priority": 25,
+  "fields": [{"name": "baseUrl", "value": "http://prowlarr:9696/1/"}, {"name": "apiPath", "value": "/api"}, {"name": "apiKey", "value": "********"}]},
+ {"id": 4, "name": "1337x (Prowlarr)", "implementation": "Torznab", "protocol": "torrent", "enableRss": true, "enableAutomaticSearch": true, "priority": 25,
+  "fields": [{"name": "baseUrl", "value": "http://prowlarr:9696/10/"}, {"name": "apiKey", "value": "********"}]},
+ {"id": 5, "name": "Private-1 (Prowlarr)", "implementation": "Torznab", "protocol": "torrent", "enableRss": true, "enableAutomaticSearch": true, "priority": 10,
+  "fields": [{"name": "baseUrl", "value": "http://prowlarr:9696/11/"}, {"name": "apiKey", "value": "********"}]}]

@@ -1,0 +1,131 @@
+{
+ "radarr": {
+  "title": "Dune.Part.Two.2024.2160p.UHD.BluRay.REMUX.DV.HDR.HEVC.TrueHD.7.1.Atmos-FraMeSToR",
+  "parsedMovieInfo": {
+   "releaseTitle": "Dune.Part.Two.2024.2160p.UHD.BluRay.REMUX.DV.HDR.HEVC.TrueHD.7.1.Atmos-FraMeSToR",
+   "simpleReleaseTitle": "A.Movie.2024.2160p.UHD.BluRay.REMUX.DV.HDR.HEVC.TrueHD.7.1.Atmos-FraMeSToR",
+   "quality": {
+    "quality": {
+     "id": 31,
+     "name": "Remux-2160p",
+     "source": "bluray",
+     "resolution": 2160,
+     "modifier": "remux"
+    },
+    "revision": {
+     "version": 1,
+     "real": 0,
+     "isRepack": false
+    }
+   },
+   "languages": [
+    {
+     "id": 0,
+     "name": "Unknown"
+    }
+   ],
+   "releaseGroup": "FraMeSToR",
+   "edition": "",
+   "year": 2024
+  },
+  "movie": {
+   "title": "Dune: Part Two",
+   "year": 2024,
+   "qualityProfileId": 7,
+   "originalLanguage": {
+    "id": 1,
+    "name": "English"
+   }
+  },
+  "languages": [
+   {
+    "id": 1,
+    "name": "English"
+   }
+  ],
+  "customFormats": [
+   {
+    "id": 147,
+    "name": "DV Boost"
+   },
+   {
+    "id": 93,
+    "name": "HDR"
+   },
+   {
+    "id": 99,
+    "name": "Remux Tier 01"
+   },
+   {
+    "id": 81,
+    "name": "TrueHD ATMOS"
+   }
+  ],
+  "customFormatScore": 8450
+ },
+ "sonarr": {
+  "title": "The.Last.of.Us.S02E01.2160p.MAX.WEB-DL.DDP5.1.Atmos.DV.HDR.H.265-FLUX",
+  "parsedEpisodeInfo": {
+   "releaseTitle": "The.Last.of.Us.S02E01.2160p.MAX.WEB-DL.DDP5.1.Atmos.DV.HDR.H.265-FLUX",
+   "quality": {
+    "quality": {
+     "id": 18,
+     "name": "WEBDL-2160p",
+     "source": "web",
+     "resolution": 2160
+    },
+    "revision": {
+     "version": 1,
+     "real": 0,
+     "isRepack": false
+    }
+   },
+   "episodeNumbers": [
+    1
+   ],
+   "languages": [
+    {
+     "id": 0,
+     "name": "Unknown"
+    }
+   ],
+   "fullSeason": false,
+   "releaseGroup": "FLUX",
+   "releaseType": "singleEpisode"
+  },
+  "series": {
+   "title": "The Last of Us",
+   "year": 2023,
+   "qualityProfileId": 7,
+   "originalLanguage": {
+    "id": 1,
+    "name": "English"
+   }
+  },
+  "languages": [
+   {
+    "id": 1,
+    "name": "English"
+   }
+  ],
+  "customFormats": [
+   {
+    "id": 126,
+    "name": "DV Boost"
+   },
+   {
+    "id": 127,
+    "name": "HDR"
+   },
+   {
+    "id": 90,
+    "name": "MAX - Notifiarr"
+   },
+   {
+    "id": 72,
+    "name": "WEB Tier 01 - Notifiarr"
+   }
+  ],
+  "customFormatScore": 3275
+ }
+}

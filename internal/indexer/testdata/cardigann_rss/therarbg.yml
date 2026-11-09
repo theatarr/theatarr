@@ -1,0 +1,69 @@
+---
+# Written for the tests: a JSON site shaped like TheRARBG's definition (Jackett's; Prowlarr/Indexers blocklists it)
+# where RSS is concerned: without keywords the path asks for the last ten days, a hundred per page. The comparison
+# loads it from the catalog's custom folder, as an operator would run it. Not a copy of the real definition.
+id: therarbg
+name: TheRARBG (test)
+type: public
+links:
+  - http://therarbg.test/
+caps:
+  categorymappings:
+    - {id: Movies, cat: Movies, desc: "Movies"}
+    - {id: TV, cat: TV, desc: "TV"}
+    - {id: Games, cat: PC/Games, desc: "Games"}
+    - {id: Anime, cat: TV/Anime, desc: "Anime"}
+  modes:
+    search: [q]
+settings:
+  - name: sort
+    type: select
+    label: Sort requested from site
+    default: -a
+    options:
+      -a: created desc
+search:
+  paths:
+    - path: "get-posts/order:{{ .Config.sort }}{{ range .Categories }}:category:{{.}}{{end}}{{ if or .Query.IMDBID .Keywords }}:keywords:{{ or .Query.IMDBID .Keywords }}{{ else }}:time:10D{{ end }}:paginate_by:100:format:json/"
+      response:
+        type: json
+  keywordsfilters:
+    - name: re_replace
+      args: ["\\W+", " "]
+    - name: trim
+  rows:
+    selector: results
+  fields:
+    category:
+      selector: c
+    title:
+      selector: n
+    _id:
+      selector: pk
+    details_url:
+      selector: n
+      filters:
+        - name: tolower
+        - name: re_replace
+          args: [" ", "-"]
+    details:
+      text: "/post-detail/{{ .Result._id }}/{{ .Result.details_url }}/"
+    infohash:
+      selector: h
+    imdbid:
+      selector: i
+      filters:
+        - name: replace
+          args: ["B", ""]
+    date:
+      selector: a
+    size:
+      selector: s
+    seeders:
+      selector: se
+    leechers:
+      selector: le
+    downloadvolumefactor:
+      text: 0
+    uploadvolumefactor:
+      text: 1

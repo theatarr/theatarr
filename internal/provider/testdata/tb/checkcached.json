@@ -1,0 +1,12 @@
+{
+  "success": true,
+  "error": null,
+  "detail": "Found 1 cached torrents.",
+  "data": {
+    "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee": {
+      "name": "Movie.E.2023.2160p",
+      "size": 20000000000,
+      "hash": "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee"
+    }
+  }
+}

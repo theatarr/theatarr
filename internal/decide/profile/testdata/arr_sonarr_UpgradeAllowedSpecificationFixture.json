@@ -1,0 +1,415 @@
+{
+ "source": "Sonarr src/NzbDrone.Core.Test/DecisionEngineTests/UpgradeAllowedSpecificationFixture .cs @ cab419a",
+ "cases": [
+  {
+   "test": "should_return_false_when_quality_is_better_custom_formats_are_the_same_and_upgrading_is_not_allowed",
+   "spec": "IsUpgradeAllowed",
+   "profile": {
+    "cutoff": "Bluray-1080p",
+    "upgradeAllowed": false,
+    "cutoffFormatScore": 100,
+    "formatItems": [
+     {
+      "name": "One",
+      "score": 50
+     },
+     {
+      "name": "Two",
+      "score": 100
+     }
+    ]
+   },
+   "current": {
+    "quality": "DVD"
+   },
+   "currentFormats": [],
+   "new": {
+    "quality": "Bluray-1080p"
+   },
+   "newFormats": [],
+   "expect": {
+    "result": false
+   },
+   "flavour": "sonarr",
+   "fixture": "UpgradeAllowedSpecificationFixture"
+  },
+  {
+   "test": "should_return_false_when_quality_is_same_and_custom_format_is_upgrade_and_upgrading_is_not_allowed",
+   "spec": "IsUpgradeAllowed",
+   "profile": {
+    "cutoff": "Bluray-1080p",
+    "upgradeAllowed": false,
+    "cutoffFormatScore": 100,
+    "formatItems": [
+     {
+      "name": "One",
+      "score": 50
+     },
+     {
+      "name": "Two",
+      "score": 100
+     }
+    ]
+   },
+   "current": {
+    "quality": "DVD"
+   },
+   "currentFormats": [
+    "One"
+   ],
+   "new": {
+    "quality": "DVD"
+   },
+   "newFormats": [
+    "Two"
+   ],
+   "expect": {
+    "result": false
+   },
+   "flavour": "sonarr",
+   "fixture": "UpgradeAllowedSpecificationFixture"
+  },
+  {
+   "test": "should_return_true_for_custom_format_upgrade_when_upgrading_is_allowed",
+   "spec": "IsUpgradeAllowed",
+   "profile": {
+    "cutoff": "Bluray-1080p",
+    "upgradeAllowed": true,
+    "cutoffFormatScore": 100,
+    "formatItems": [
+     {
+      "name": "One",
+      "score": 50
+     },
+     {
+      "name": "Two",
+      "score": 100
+     }
+    ]
+   },
+   "current": {
+    "quality": "DVD"
+   },
+   "currentFormats": [
+    "One"
+   ],
+   "new": {
+    "quality": "DVD"
+   },
+   "newFormats": [
+    "Two"
+   ],
+   "expect": {
+    "result": true
+   },
+   "flavour": "sonarr",
+   "fixture": "UpgradeAllowedSpecificationFixture"
+  },
+  {
+   "test": "should_return_true_for_same_custom_format_score_when_upgrading_is_not_allowed",
+   "spec": "IsUpgradeAllowed",
+   "profile": {
+    "cutoff": "Bluray-1080p",
+    "upgradeAllowed": false,
+    "cutoffFormatScore": 100,
+    "formatItems": [
+     {
+      "name": "One",
+      "score": 50
+     },
+     {
+      "name": "Two",
+      "score": 100
+     }
+    ]
+   },
+   "current": {
+    "quality": "DVD"
+   },
+   "currentFormats": [
+    "One"
+   ],
+   "new": {
+    "quality": "DVD"
+   },
+   "newFormats": [
+    "One"
+   ],
+   "expect": {
+    "result": true
+   },
+   "flavour": "sonarr",
+   "fixture": "UpgradeAllowedSpecificationFixture"
+  },
+  {
+   "test": "should_return_true_for_lower_custom_format_score_when_upgrading_is_allowed",
+   "spec": "IsUpgradeAllowed",
+   "profile": {
+    "cutoff": "Bluray-1080p",
+    "upgradeAllowed": true,
+    "cutoffFormatScore": 100,
+    "formatItems": [
+     {
+      "name": "One",
+      "score": 50
+     },
+     {
+      "name": "Two",
+      "score": 100
+     }
+    ]
+   },
+   "current": {
+    "quality": "DVD"
+   },
+   "currentFormats": [
+    "Two"
+   ],
+   "new": {
+    "quality": "DVD"
+   },
+   "newFormats": [
+    "One"
+   ],
+   "expect": {
+    "result": true
+   },
+   "flavour": "sonarr",
+   "fixture": "UpgradeAllowedSpecificationFixture"
+  },
+  {
+   "test": "should_return_true_for_lower_language_when_upgrading_is_not_allowed",
+   "spec": "IsUpgradeAllowed",
+   "profile": {
+    "cutoff": "Bluray-1080p",
+    "upgradeAllowed": false,
+    "cutoffFormatScore": 100,
+    "formatItems": [
+     {
+      "name": "One",
+      "score": 50
+     },
+     {
+      "name": "Two",
+      "score": 100
+     }
+    ]
+   },
+   "current": {
+    "quality": "DVD"
+   },
+   "currentFormats": [
+    "Two"
+   ],
+   "new": {
+    "quality": "DVD"
+   },
+   "newFormats": [
+    "One"
+   ],
+   "expect": {
+    "result": true
+   },
+   "flavour": "sonarr",
+   "fixture": "UpgradeAllowedSpecificationFixture"
+  },
+  {
+   "test": "should_return_true_for_quality_upgrade_when_upgrading_is_allowed",
+   "spec": "IsUpgradeAllowed",
+   "profile": {
+    "cutoff": "Bluray-1080p",
+    "upgradeAllowed": true,
+    "cutoffFormatScore": 100,
+    "formatItems": [
+     {
+      "name": "One",
+      "score": 50
+     },
+     {
+      "name": "Two",
+      "score": 100
+     }
+    ]
+   },
+   "current": {
+    "quality": "DVD"
+   },
+   "currentFormats": [],
+   "new": {
+    "quality": "Bluray-1080p"
+   },
+   "newFormats": [],
+   "expect": {
+    "result": true
+   },
+   "flavour": "sonarr",
+   "fixture": "UpgradeAllowedSpecificationFixture"
+  },
+  {
+   "test": "should_return_true_for_same_quality_when_upgrading_is_allowed",
+   "spec": "IsUpgradeAllowed",
+   "profile": {
+    "cutoff": "Bluray-1080p",
+    "upgradeAllowed": true,
+    "cutoffFormatScore": 100,
+    "formatItems": [
+     {
+      "name": "One",
+      "score": 50
+     },
+     {
+      "name": "Two",
+      "score": 100
+     }
+    ]
+   },
+   "current": {
+    "quality": "DVD"
+   },
+   "currentFormats": [],
+   "new": {
+    "quality": "DVD"
+   },
+   "newFormats": [],
+   "expect": {
+    "result": true
+   },
+   "flavour": "sonarr",
+   "fixture": "UpgradeAllowedSpecificationFixture"
+  },
+  {
+   "test": "should_return_true_for_same_quality_when_upgrading_is_not_allowed",
+   "spec": "IsUpgradeAllowed",
+   "profile": {
+    "cutoff": "Bluray-1080p",
+    "upgradeAllowed": false,
+    "cutoffFormatScore": 100,
+    "formatItems": [
+     {
+      "name": "One",
+      "score": 50
+     },
+     {
+      "name": "Two",
+      "score": 100
+     }
+    ]
+   },
+   "current": {
+    "quality": "DVD"
+   },
+   "currentFormats": [],
+   "new": {
+    "quality": "DVD"
+   },
+   "newFormats": [],
+   "expect": {
+    "result": true
+   },
+   "flavour": "sonarr",
+   "fixture": "UpgradeAllowedSpecificationFixture"
+  },
+  {
+   "test": "should_return_true_for_lower_quality_when_upgrading_is_allowed",
+   "spec": "IsUpgradeAllowed",
+   "profile": {
+    "cutoff": "Bluray-1080p",
+    "upgradeAllowed": true,
+    "cutoffFormatScore": 100,
+    "formatItems": [
+     {
+      "name": "One",
+      "score": 50
+     },
+     {
+      "name": "Two",
+      "score": 100
+     }
+    ]
+   },
+   "current": {
+    "quality": "DVD"
+   },
+   "currentFormats": [],
+   "new": {
+    "quality": "SDTV"
+   },
+   "newFormats": [],
+   "expect": {
+    "result": true
+   },
+   "flavour": "sonarr",
+   "fixture": "UpgradeAllowedSpecificationFixture"
+  },
+  {
+   "test": "should_return_true_for_lower_quality_when_upgrading_is_not_allowed",
+   "spec": "IsUpgradeAllowed",
+   "profile": {
+    "cutoff": "Bluray-1080p",
+    "upgradeAllowed": false,
+    "cutoffFormatScore": 100,
+    "formatItems": [
+     {
+      "name": "One",
+      "score": 50
+     },
+     {
+      "name": "Two",
+      "score": 100
+     }
+    ]
+   },
+   "current": {
+    "quality": "DVD"
+   },
+   "currentFormats": [],
+   "new": {
+    "quality": "SDTV"
+   },
+   "newFormats": [],
+   "expect": {
+    "result": true
+   },
+   "flavour": "sonarr",
+   "fixture": "UpgradeAllowedSpecificationFixture"
+  },
+  {
+   "test": "should_returntrue_when_quality_is_revision_upgrade_for_same_quality",
+   "spec": "IsUpgradeAllowed",
+   "profile": {
+    "cutoff": "Bluray-1080p",
+    "upgradeAllowed": false,
+    "cutoffFormatScore": 100,
+    "formatItems": [
+     {
+      "name": "One",
+      "score": 50
+     },
+     {
+      "name": "Two",
+      "score": 100
+     }
+    ]
+   },
+   "current": {
+    "quality": "DVD",
+    "version": 1
+   },
+   "currentFormats": [
+    "One"
+   ],
+   "new": {
+    "quality": "DVD",
+    "version": 2
+   },
+   "newFormats": [
+    "One"
+   ],
+   "expect": {
+    "result": true
+   },
+   "flavour": "sonarr",
+   "fixture": "UpgradeAllowedSpecificationFixture"
+  }
+ ]
+}

@@ -1,0 +1,6 @@
+{
+  "success": false,
+  "error": "BAD_TOKEN",
+  "detail": "Your token is invalid.",
+  "data": null
+}

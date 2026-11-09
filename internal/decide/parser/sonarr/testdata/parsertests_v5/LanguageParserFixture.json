@@ -1,0 +1,2767 @@
+{
+ "source": "Sonarr src/NzbDrone.Core.Test/ParserTests/LanguageParserFixture.cs @ a6171f0ca",
+ "fixture": "LanguageParserFixture",
+ "cases": [
+  {
+   "id": "LanguageParserFixture/should_parse_subtitle_language_unknown/0",
+   "line": 12,
+   "call": "parseSubtitleLanguage",
+   "input": "Series Title - S01E01 - Pilot.sub",
+   "expect": {
+    "name": "Unknown"
+   }
+  },
+  {
+   "id": "LanguageParserFixture/should_parse_subtitle_language_english/0",
+   "line": 19,
+   "call": "parseSubtitleLanguage",
+   "input": "Series Title - S01E01 - Pilot.en.sub",
+   "expect": {
+    "name": "English"
+   }
+  },
+  {
+   "id": "LanguageParserFixture/should_parse_subtitle_language_english/1",
+   "line": 20,
+   "call": "parseSubtitleLanguage",
+   "input": "Series Title - S01E01 - Pilot.EN.sub",
+   "expect": {
+    "name": "English"
+   }
+  },
+  {
+   "id": "LanguageParserFixture/should_parse_subtitle_language_english/2",
+   "line": 21,
+   "call": "parseSubtitleLanguage",
+   "input": "Series Title - S01E01 - Pilot.eng.sub",
+   "expect": {
+    "name": "English"
+   }
+  },
+  {
+   "id": "LanguageParserFixture/should_parse_subtitle_language_english/3",
+   "line": 22,
+   "call": "parseSubtitleLanguage",
+   "input": "Series Title - S01E01 - Pilot.ENG.sub",
+   "expect": {
+    "name": "English"
+   }
+  },
+  {
+   "id": "LanguageParserFixture/should_parse_subtitle_language_english/4",
+   "line": 23,
+   "call": "parseSubtitleLanguage",
+   "input": "Series Title - S01E01 - Pilot.English.sub",
+   "expect": {
+    "name": "English"
+   }
+  },
+  {
+   "id": "LanguageParserFixture/should_parse_subtitle_language_english/5",
+   "line": 24,
+   "call": "parseSubtitleLanguage",
+   "input": "Series Title - S01E01 - Pilot.english.sub",
+   "expect": {
+    "name": "English"
+   }
+  },
+  {
+   "id": "LanguageParserFixture/should_parse_subtitle_language_english/6",
+   "line": 25,
+   "call": "parseSubtitleLanguage",
+   "input": "Series Title - S01E01 - Pilot.en.cc.sub",
+   "expect": {
+    "name": "English"
+   }
+  },
+  {
+   "id": "LanguageParserFixture/should_parse_subtitle_language_english/7",
+   "line": 26,
+   "call": "parseSubtitleLanguage",
+   "input": "Series Title - S01E01 - Pilot.en.sdh.sub",
+   "expect": {
+    "name": "English"
+   }
+  },
+  {
+   "id": "LanguageParserFixture/should_parse_subtitle_language_english/8",
+   "line": 27,
+   "call": "parseSubtitleLanguage",
+   "input": "Series Title - S01E01 - Pilot.en.forced.sub",
+   "expect": {
+    "name": "English"
+   }
+  },
+  {
+   "id": "LanguageParserFixture/should_parse_subtitle_language_english/9",
+   "line": 28,
+   "call": "parseSubtitleLanguage",
+   "input": "Series Title - S01E01 - Pilot.en.sdh.forced.sub",
+   "expect": {
+    "name": "English"
+   }
+  },
+  {
+   "id": "LanguageParserFixture/should_parse_subtitle_language_english/10",
+   "line": 29,
+   "call": "parseSubtitleLanguage",
+   "input": "Series Title - S01E01 - Pilot.eng.sub",
+   "expect": {
+    "name": "English"
+   }
+  },
+  {
+   "id": "LanguageParserFixture/should_parse_language_unknown/0",
+   "line": 36,
+   "call": "parseLanguages",
+   "input": "Spanish Killroy was Here S02E02 Flodden 720p AMZN WEB-DL DDP5 1 H 264-NTb",
+   "expect": {},
+   "contains": {
+    "#.name": [
+     "Unknown"
+    ]
+   }
+  },
+  {
+   "id": "LanguageParserFixture/should_parse_language_unknown/1",
+   "line": 37,
+   "call": "parseLanguages",
+   "input": "Title.the.Spanish.Series.S02E02.1080p.WEB.H264-CAKES",
+   "expect": {},
+   "contains": {
+    "#.name": [
+     "Unknown"
+    ]
+   }
+  },
+  {
+   "id": "LanguageParserFixture/should_parse_language_unknown/2",
+   "line": 38,
+   "call": "parseLanguages",
+   "input": "Title.the.Spanish.Series.S02E06.Field.of.Cloth.of.Gold.1080p.AMZN.WEBRip.DDP5.1.x264-NTb",
+   "expect": {},
+   "contains": {
+    "#.name": [
+     "Unknown"
+    ]
+   }
+  },
+  {
+   "id": "LanguageParserFixture/should_parse_language_unknown/3",
+   "line": 39,
+   "call": "parseLanguages",
+   "input": "Title.the.Series.2009.S01E14.Germany.HDTV.XviD-LOL",
+   "expect": {},
+   "contains": {
+    "#.name": [
+     "Unknown"
+    ]
+   }
+  },
+  {
+   "id": "LanguageParserFixture/should_parse_language_unknown/4",
+   "line": 40,
+   "call": "parseLanguages",
+   "input": "Title.the.Series.2009.S01E14.HDTV.XviD-LOL",
+   "expect": {},
+   "contains": {
+    "#.name": [
+     "Unknown"
+    ]
+   }
+  },
+  {
+   "id": "LanguageParserFixture/should_parse_language_unknown/5",
+   "line": 41,
+   "call": "parseLanguages",
+   "input": "Title.the.Italian.Series.S01E01.The.Family.720p.HDTV.x264-FTP",
+   "expect": {},
+   "contains": {
+    "#.name": [
+     "Unknown"
+    ]
+   }
+  },
+  {
+   "id": "LanguageParserFixture/should_parse_language_unknown/6",
+   "line": 42,
+   "call": "parseLanguages",
+   "input": "Title.the.Italy.Series.S02E01.720p.HDTV.x264-TLA",
+   "expect": {},
+   "contains": {
+    "#.name": [
+     "Unknown"
+    ]
+   }
+  },
+  {
+   "id": "LanguageParserFixture/should_parse_language_unknown/7",
+   "line": 43,
+   "call": "parseLanguages",
+   "input": "Series Title - S01E01 - Pilot.en.sub",
+   "expect": {},
+   "contains": {
+    "#.name": [
+     "Unknown"
+    ]
+   }
+  },
+  {
+   "id": "LanguageParserFixture/should_parse_language_unknown/8",
+   "line": 44,
+   "call": "parseLanguages",
+   "input": "Series.Title.S01E01.SUBFRENCH.1080p.WEB.x264-GROUP",
+   "expect": {},
+   "contains": {
+    "#.name": [
+     "Unknown"
+    ]
+   }
+  },
+  {
+   "id": "LanguageParserFixture/should_parse_language_unknown/9",
+   "line": 45,
+   "call": "parseLanguages",
+   "input": "[Judas] Series Japanese Name (Series English Name) - S02E10 [1080P][HEVC x256 10bit][Eng-Subs] (Weekly)",
+   "expect": {},
+   "contains": {
+    "#.name": [
+     "Unknown"
+    ]
+   }
+  },
+  {
+   "id": "LanguageParserFixture/should_parse_language_unknown/10",
+   "line": 46,
+   "call": "parseLanguages",
+   "input": "Detektiv.Conan.1996.S33E39.Ger.Eng.Sub.AAC.1080p.WEB.H264-WeebPinn",
+   "expect": {},
+   "contains": {
+    "#.name": [
+     "Unknown"
+    ]
+   }
+  },
+  {
+   "id": "LanguageParserFixture/should_parse_language_unknown/11",
+   "line": 47,
+   "call": "parseLanguages",
+   "input": "Detektiv.Conan.1996.S33E39.Ger.Eng.Fre.Sub.AAC.1080p.WEB.H264-WeebPinn",
+   "expect": {},
+   "contains": {
+    "#.name": [
+     "Unknown"
+    ]
+   }
+  },
+  {
+   "id": "LanguageParserFixture/should_parse_language_unknown/12",
+   "line": 48,
+   "call": "parseLanguages",
+   "input": "Detektiv.Conan.1996.S33E39.Ger.Fre.Eng.Sub.AAC.1080p.WEB.H264-WeebPinn",
+   "expect": {},
+   "contains": {
+    "#.name": [
+     "Unknown"
+    ]
+   }
+  },
+  {
+   "id": "LanguageParserFixture/should_parse_language_unknown/13",
+   "line": 49,
+   "call": "parseLanguages",
+   "input": "Detektiv.Conan.1996.S33E39.Ger.Eng.Spa.Sub.AAC.1080p.WEB.H264-WeebPinn",
+   "expect": {},
+   "contains": {
+    "#.name": [
+     "Unknown"
+    ]
+   }
+  },
+  {
+   "id": "LanguageParserFixture/should_parse_language_unknown/14",
+   "line": 50,
+   "call": "parseLanguages",
+   "input": "Detektiv.Conan.1996.S33E39.Ger.Spa.Eng.Sub.AAC.1080p.WEB.H264-WeebPinn",
+   "expect": {},
+   "contains": {
+    "#.name": [
+     "Unknown"
+    ]
+   }
+  },
+  {
+   "id": "LanguageParserFixture/should_parse_language_english/0",
+   "line": 57,
+   "call": "parseLanguages",
+   "input": "Title.the.Series.2009.S01E14.English.HDTV.XviD-LOL",
+   "expect": {},
+   "contains": {
+    "#.name": [
+     "English"
+    ]
+   }
+  },
+  {
+   "id": "LanguageParserFixture/should_parse_language_english/1",
+   "line": 58,
+   "call": "parseLanguages",
+   "input": "Series Title - S01E01 - Pilot.English.sub",
+   "expect": {},
+   "contains": {
+    "#.name": [
+     "English"
+    ]
+   }
+  },
+  {
+   "id": "LanguageParserFixture/should_parse_language_english/2",
+   "line": 59,
+   "call": "parseLanguages",
+   "input": "Series Title - S01E01 - Pilot.english.sub",
+   "expect": {},
+   "contains": {
+    "#.name": [
+     "English"
+    ]
+   }
+  },
+  {
+   "id": "LanguageParserFixture/should_parse_language_english/3",
+   "line": 60,
+   "call": "parseLanguages",
+   "input": "Series S02 (1999–2003)[BDRemux 1080p AVC Esp DD2.0,Ing DTS-HD5.1,Cat DD2.0 Subs][HD-Olimpo][PACK]",
+   "expect": {},
+   "contains": {
+    "#.name": [
+     "English"
+    ]
+   }
+  },
+  {
+   "id": "LanguageParserFixture/should_parse_language_french/0",
+   "line": 67,
+   "call": "parseLanguages",
+   "input": "Title.the.Series.2009.S01E14.French.HDTV.XviD-LOL",
+   "expect": {},
+   "contains": {
+    "#.name": [
+     "French"
+    ]
+   }
+  },
+  {
+   "id": "LanguageParserFixture/should_parse_language_french/1",
+   "line": 68,
+   "call": "parseLanguages",
+   "input": "Title.the.Series.The.1x13.Tueurs.De.Flics.FR.DVDRip.XviD",
+   "expect": {},
+   "contains": {
+    "#.name": [
+     "French"
+    ]
+   }
+  },
+  {
+   "id": "LanguageParserFixture/should_parse_language_french/2",
+   "line": 69,
+   "call": "parseLanguages",
+   "input": "Title.S01.720p.VF.WEB-DL.AAC2.0.H.264-BTN",
+   "expect": {},
+   "contains": {
+    "#.name": [
+     "French"
+    ]
+   }
+  },
+  {
+   "id": "LanguageParserFixture/should_parse_language_french/3",
+   "line": 70,
+   "call": "parseLanguages",
+   "input": "Title.S01.720p.VF2.WEB-DL.AAC2.0.H.264-BTN",
+   "expect": {},
+   "contains": {
+    "#.name": [
+     "French"
+    ]
+   }
+  },
+  {
+   "id": "LanguageParserFixture/should_parse_language_french/4",
+   "line": 71,
+   "call": "parseLanguages",
+   "input": "Title.S01.720p.VFF.WEB-DL.AAC2.0.H.264-BTN",
+   "expect": {},
+   "contains": {
+    "#.name": [
+     "French"
+    ]
+   }
+  },
+  {
+   "id": "LanguageParserFixture/should_parse_language_french/5",
+   "line": 72,
+   "call": "parseLanguages",
+   "input": "Title.S01.720p.VFQ.WEB-DL.AAC2.0.H.264-BTN",
+   "expect": {},
+   "contains": {
+    "#.name": [
+     "French"
+    ]
+   }
+  },
+  {
+   "id": "LanguageParserFixture/should_parse_language_french/6",
+   "line": 73,
+   "call": "parseLanguages",
+   "input": "Title.S01.720p.TRUEFRENCH.WEB-DL.AAC2.0.H.264-BTN",
+   "expect": {},
+   "contains": {
+    "#.name": [
+     "French"
+    ]
+   }
+  },
+  {
+   "id": "LanguageParserFixture/should_parse_language_french/7",
+   "line": 74,
+   "call": "parseLanguages",
+   "input": "Series In The Middle S01 Multi VFI VO 1080p WEB x265 HEVC AAC 5.1-Papaya",
+   "expect": {},
+   "contains": {
+    "#.name": [
+     "French"
+    ]
+   }
+  },
+  {
+   "id": "LanguageParserFixture/should_parse_language_french/8",
+   "line": 75,
+   "call": "parseLanguages",
+   "input": "Series Title S01 AVC.1080p.Blu-ray HD.VOSTFR.VFF",
+   "expect": {},
+   "contains": {
+    "#.name": [
+     "French"
+    ]
+   }
+  },
+  {
+   "id": "LanguageParserFixture/should_parse_language_french/9",
+   "line": 76,
+   "call": "parseLanguages",
+   "input": "Series Title S01 Bluray 4k HDR HEVC AC3 VFF",
+   "expect": {},
+   "contains": {
+    "#.name": [
+     "French"
+    ]
+   }
+  },
+  {
+   "id": "LanguageParserFixture/should_parse_language_french/10",
+   "line": 77,
+   "call": "parseLanguages",
+   "input": "Series Title S01 AVC.1080p.Blu-ray Remux HD.VOSTFR.VFF",
+   "expect": {},
+   "contains": {
+    "#.name": [
+     "French"
+    ]
+   }
+  },
+  {
+   "id": "LanguageParserFixture/should_parse_language_french/11",
+   "line": 78,
+   "call": "parseLanguages",
+   "input": "Series Title S01 x264.720p.Blu-ray Rip HD.VOSTFR.VFF. ONLY",
+   "expect": {},
+   "contains": {
+    "#.name": [
+     "French"
+    ]
+   }
+  },
+  {
+   "id": "LanguageParserFixture/should_parse_language_french/12",
+   "line": 79,
+   "call": "parseLanguages",
+   "input": "Series Title S01 HEVC.2160p.Blu-ray 4K.VOSTFR.VFF. JATO",
+   "expect": {},
+   "contains": {
+    "#.name": [
+     "French"
+    ]
+   }
+  },
+  {
+   "id": "LanguageParserFixture/should_parse_language_french/13",
+   "line": 80,
+   "call": "parseLanguages",
+   "input": "Series_Title_S01_ENG_ITA_FRA_AAC_1080p_WebDL_x264",
+   "expect": {},
+   "contains": {
+    "#.name": [
+     "French"
+    ]
+   }
+  },
+  {
+   "id": "LanguageParserFixture/should_parse_language_french/14",
+   "line": 81,
+   "call": "parseLanguages",
+   "input": "Series.Title.S01.ENG-ITA-FRA.AAC.1080p.WebDL.x264",
+   "expect": {},
+   "contains": {
+    "#.name": [
+     "French"
+    ]
+   }
+  },
+  {
+   "id": "LanguageParserFixture/should_parse_language_french/15",
+   "line": 82,
+   "call": "parseLanguages",
+   "input": "Series Title S01 (BDrip 1080p ENG-ITA-FRA) Multisub x264",
+   "expect": {},
+   "contains": {
+    "#.name": [
+     "French"
+    ]
+   }
+  },
+  {
+   "id": "LanguageParserFixture/should_parse_language_french/16",
+   "line": 83,
+   "call": "parseLanguages",
+   "input": "Series.Title.S01.ENG-ITA-FRE.AAC.1080p.WebDL.x264",
+   "expect": {},
+   "contains": {
+    "#.name": [
+     "French"
+    ]
+   }
+  },
+  {
+   "id": "LanguageParserFixture/should_parse_language_french/17",
+   "line": 84,
+   "call": "parseLanguages",
+   "input": "Series Title S01 (BDrip 1080p ENG-ITA-FRE) Multisub x264",
+   "expect": {},
+   "contains": {
+    "#.name": [
+     "French"
+    ]
+   }
+  },
+  {
+   "id": "LanguageParserFixture/should_parse_language_french_english/0",
+   "line": 91,
+   "call": "parseLanguages",
+   "input": "Series Title S01 1080p Eng Fra [mkvonly]",
+   "expect": {},
+   "contains": {
+    "#.name": [
+     "French",
+     "English"
+    ]
+   }
+  },
+  {
+   "id": "LanguageParserFixture/should_parse_language_french_english/1",
+   "line": 92,
+   "call": "parseLanguages",
+   "input": "Series Title S01 Eng Fre Multi Subs 720p [H264 mp4]",
+   "expect": {},
+   "contains": {
+    "#.name": [
+     "French",
+     "English"
+    ]
+   }
+  },
+  {
+   "id": "LanguageParserFixture/should_parse_language_french_english/2",
+   "line": 93,
+   "call": "parseLanguages",
+   "input": "Series-Title-S01-[DVDRip]-H264-Fra-Ac3-2-0-Eng-5-1",
+   "expect": {},
+   "contains": {
+    "#.name": [
+     "French",
+     "English"
+    ]
+   }
+  },
+  {
+   "id": "LanguageParserFixture/should_parse_language_french_english/3",
+   "line": 94,
+   "call": "parseLanguages",
+   "input": "Series Title S01 1080p FR ENG [mkvonly]",
+   "expect": {},
+   "contains": {
+    "#.name": [
+     "French",
+     "English"
+    ]
+   }
+  },
+  {
+   "id": "LanguageParserFixture/should_parse_language_french_english/4",
+   "line": 95,
+   "call": "parseLanguages",
+   "input": "Series Title S01 1080p ENG FR [mkvonly]",
+   "expect": {},
+   "contains": {
+    "#.name": [
+     "French",
+     "English"
+    ]
+   }
+  },
+  {
+   "id": "LanguageParserFixture/should_parse_language_spanish/0",
+   "line": 104,
+   "call": "parseLanguages",
+   "input": "Title.the.Series.2009.S01E14.Spanish.HDTV.XviD-LOL",
+   "expect": {},
+   "contains": {
+    "#.name": [
+     "Spanish"
+    ]
+   }
+  },
+  {
+   "id": "LanguageParserFixture/should_parse_language_spanish/1",
+   "line": 105,
+   "call": "parseLanguages",
+   "input": "Series Title - Temporada 1 [HDTV 720p][Cap.101][AC3 5.1 Castellano][www.pctnew.ORG]",
+   "expect": {},
+   "contains": {
+    "#.name": [
+     "Spanish"
+    ]
+   }
+  },
+  {
+   "id": "LanguageParserFixture/should_parse_language_spanish/2",
+   "line": 106,
+   "call": "parseLanguages",
+   "input": "Series Title - Temporada 2 [HDTV 720p][Cap.206][AC3 5.1 Español Castellano]",
+   "expect": {},
+   "contains": {
+    "#.name": [
+     "Spanish"
+    ]
+   }
+  },
+  {
+   "id": "LanguageParserFixture/should_parse_language_german/0",
+   "line": 113,
+   "call": "parseLanguages",
+   "input": "Title.the.Series.2009.S01E14.German.HDTV.XviD-LOL",
+   "expect": {},
+   "contains": {
+    "#.name": [
+     "German"
+    ]
+   }
+  },
+  {
+   "id": "LanguageParserFixture/should_parse_language_german/1",
+   "line": 114,
+   "call": "parseLanguages",
+   "input": "Title.the.Series.S04E15.Brotherly.Love.GERMAN.DUBBED.WS.WEBRiP.XviD.REPACK-TVP",
+   "expect": {},
+   "contains": {
+    "#.name": [
+     "German"
+    ]
+   }
+  },
+  {
+   "id": "LanguageParserFixture/should_parse_language_german/2",
+   "line": 115,
+   "call": "parseLanguages",
+   "input": "The Series Title - S02E16 - Kampfhaehne - mkv - by Videomann",
+   "expect": {},
+   "contains": {
+    "#.name": [
+     "German"
+    ]
+   }
+  },
+  {
+   "id": "LanguageParserFixture/should_parse_language_german/3",
+   "line": 116,
+   "call": "parseLanguages",
+   "input": "Series.Title.S01E03.Ger.Dub.AAC.1080p.WebDL.x264-TKP21",
+   "expect": {},
+   "contains": {
+    "#.name": [
+     "German"
+    ]
+   }
+  },
+  {
+   "id": "LanguageParserFixture/should_parse_language_german/4",
+   "line": 117,
+   "call": "parseLanguages",
+   "input": "Series Title S01 Eng Fre Ger Ita Spa Cze Jpn 2160p BluRay Remux DV HDR HEVC Atmos SGF",
+   "expect": {},
+   "contains": {
+    "#.name": [
+     "German"
+    ]
+   }
+  },
+  {
+   "id": "LanguageParserFixture/should_parse_language_german/5",
+   "line": 118,
+   "call": "parseLanguages",
+   "input": "Series Title.S01.Eng.Fre.Ger.Ita.Por.Spa.2160p.WEBMux.DV.HDR.HEVC.Atmos-SGF",
+   "expect": {},
+   "contains": {
+    "#.name": [
+     "German"
+    ]
+   }
+  },
+  {
+   "id": "LanguageParserFixture/should_parse_language_german/6",
+   "line": 119,
+   "call": "parseLanguages",
+   "input": "Series.Title.S02E10.Episode.Title.German.DL.BD.x264-TVS",
+   "expect": {},
+   "contains": {
+    "#.name": [
+     "German"
+    ]
+   }
+  },
+  {
+   "id": "LanguageParserFixture/should_parse_language_german/7",
+   "line": 120,
+   "call": "parseLanguages",
+   "input": "Series Title S01 Eng Fre Ger Ita Por Spa 2160p WEBMux HDR HEVC DDP SGF",
+   "expect": {},
+   "contains": {
+    "#.name": [
+     "German"
+    ]
+   }
+  },
+  {
+   "id": "LanguageParserFixture/should_parse_language_german/8",
+   "line": 121,
+   "call": "parseLanguages",
+   "input": "Series Title S01 KOREAN ENG FRA GER ITA SPA MULTI 2160p NF WEB DL DDP5 1 DV HDR x265 Atmos MassModz",
+   "expect": {},
+   "contains": {
+    "#.name": [
+     "German"
+    ]
+   }
+  },
+  {
+   "id": "LanguageParserFixture/should_parse_language_german/9",
+   "line": 122,
+   "call": "parseLanguages",
+   "input": "Series.Title.S02E09.EpisodeName.German.DL.BD.x264-TVS",
+   "expect": {},
+   "contains": {
+    "#.name": [
+     "German"
+    ]
+   }
+  },
+  {
+   "id": "LanguageParserFixture/should_parse_language_german/10",
+   "line": 123,
+   "call": "parseLanguages",
+   "input": "Series.Title.S01E10.EpisodeName.SwissGerman.WEB-DL.h264-RlsGrp",
+   "expect": {},
+   "contains": {
+    "#.name": [
+     "German"
+    ]
+   }
+  },
+  {
+   "id": "LanguageParserFixture/should_parse_language_italian/0",
+   "line": 130,
+   "call": "parseLanguages",
+   "input": "Title.the.Series.2009.S01E14.Italian.HDTV.XviD-LOL",
+   "expect": {},
+   "contains": {
+    "#.name": [
+     "Italian"
+    ]
+   }
+  },
+  {
+   "id": "LanguageParserFixture/should_parse_language_italian/1",
+   "line": 131,
+   "call": "parseLanguages",
+   "input": "Title.the.Series.1x19.ita.720p.bdmux.x264-novarip",
+   "expect": {},
+   "contains": {
+    "#.name": [
+     "Italian"
+    ]
+   }
+  },
+  {
+   "id": "LanguageParserFixture/should_parse_language_italian/2",
+   "line": 132,
+   "call": "parseLanguages",
+   "input": "Title.the.Series.ENG-FRE-ITA.AAC.1080p.WebDL.x264",
+   "expect": {},
+   "contains": {
+    "#.name": [
+     "Italian"
+    ]
+   }
+  },
+  {
+   "id": "LanguageParserFixture/should_parse_language_italian/3",
+   "line": 133,
+   "call": "parseLanguages",
+   "input": "Title the Series (BDrip 1080p ENG-FRE-ITA) Multisub x264",
+   "expect": {},
+   "contains": {
+    "#.name": [
+     "Italian"
+    ]
+   }
+  },
+  {
+   "id": "LanguageParserFixture/should_parse_language_danish/0",
+   "line": 140,
+   "call": "parseLanguages",
+   "input": "Title.the.Series.2009.S01E14.Danish.HDTV.XviD-LOL",
+   "expect": {},
+   "contains": {
+    "#.name": [
+     "Danish"
+    ]
+   }
+  },
+  {
+   "id": "LanguageParserFixture/should_parse_language_dutch/0",
+   "line": 147,
+   "call": "parseLanguages",
+   "input": "Title.the.Series.2009.S01E14.Dutch.HDTV.XviD-LOL",
+   "expect": {},
+   "contains": {
+    "#.name": [
+     "Dutch"
+    ]
+   }
+  },
+  {
+   "id": "LanguageParserFixture/should_parse_language_japanese/0",
+   "line": 154,
+   "call": "parseLanguages",
+   "input": "Title.the.Series.2009.S01E14.Japanese.HDTV.XviD-LOL",
+   "expect": {},
+   "contains": {
+    "#.name": [
+     "Japanese"
+    ]
+   }
+  },
+  {
+   "id": "LanguageParserFixture/should_parse_language_japanese/1",
+   "line": 155,
+   "call": "parseLanguages",
+   "input": "[Erai-raws] To Be Series - 14 (JA) [1080p CR WEB-DL AVC AAC][MultiSub]",
+   "expect": {},
+   "contains": {
+    "#.name": [
+     "Japanese"
+    ]
+   }
+  },
+  {
+   "id": "LanguageParserFixture/should_parse_language_japanese/2",
+   "line": 156,
+   "call": "parseLanguages",
+   "input": "Spicchi di Series [Stagione 1] [COMPLETA] [1080p H265 ITA AAC JAP AC3 SUB ITA ENG] [by oldbelle]",
+   "expect": {},
+   "contains": {
+    "#.name": [
+     "Japanese"
+    ]
+   }
+  },
+  {
+   "id": "LanguageParserFixture/should_parse_language_japanese/3",
+   "line": 157,
+   "call": "parseLanguages",
+   "input": "Detective Series - Stagione 1 e01-29 (1996) [COMPLETA] 1080p H265 Ita Ac3 Jap Aac Sub Ita Eng [BDmux by thegatto][T7ST]",
+   "expect": {},
+   "contains": {
+    "#.name": [
+     "Japanese"
+    ]
+   }
+  },
+  {
+   "id": "LanguageParserFixture/should_parse_language_japanese/4",
+   "line": 158,
+   "call": "parseLanguages",
+   "input": "7th Series (2024) [Stagione 1] [COMPLETA] [1080p H265 JAP AAC 2.0 SUB ITA-ENG] [By Seregorn]\nand",
+   "expect": {},
+   "contains": {
+    "#.name": [
+     "Japanese"
+    ]
+   }
+  },
+  {
+   "id": "LanguageParserFixture/should_parse_language_japanese/5",
+   "line": 159,
+   "call": "parseLanguages",
+   "input": "Solo Series (2025) Stagione 1 [01/24] [IN CORSO] [1080p H265 JPN AAC SUB ITA ENG] [WebRip]",
+   "expect": {},
+   "contains": {
+    "#.name": [
+     "Japanese"
+    ]
+   }
+  },
+  {
+   "id": "LanguageParserFixture/should_parse_language_japanese/6",
+   "line": 160,
+   "call": "parseLanguages",
+   "input": "Le Series - Stagione 5 [COMPLETA] 1080p H264 ITA JPN EAC3 AAC SUB ITA JPN - UBI CreW",
+   "expect": {},
+   "contains": {
+    "#.name": [
+     "Japanese"
+    ]
+   }
+  },
+  {
+   "id": "LanguageParserFixture/should_parse_language_icelandic/0",
+   "line": 167,
+   "call": "parseLanguages",
+   "input": "Title.the.Series.2009.S01E14.Icelandic.HDTV.XviD-LOL",
+   "expect": {},
+   "contains": {
+    "#.name": [
+     "Icelandic"
+    ]
+   }
+  },
+  {
+   "id": "LanguageParserFixture/should_parse_language_icelandic/1",
+   "line": 168,
+   "call": "parseLanguages",
+   "input": "Title.the.Series.S01E03.1080p.WEB-DL.DD5.1.H.264-SbR Icelandic",
+   "expect": {},
+   "contains": {
+    "#.name": [
+     "Icelandic"
+    ]
+   }
+  },
+  {
+   "id": "LanguageParserFixture/should_parse_language_chinese/0",
+   "line": 175,
+   "call": "parseLanguages",
+   "input": "Title.the.Series.2009.S01E14.Chinese.HDTV.XviD-LOL",
+   "expect": {},
+   "contains": {
+    "#.name": [
+     "Chinese"
+    ]
+   }
+  },
+  {
+   "id": "LanguageParserFixture/should_parse_language_chinese/1",
+   "line": 176,
+   "call": "parseLanguages",
+   "input": "Title.the.Series.2009.S01E14.Cantonese.HDTV.XviD-LOL",
+   "expect": {},
+   "contains": {
+    "#.name": [
+     "Chinese"
+    ]
+   }
+  },
+  {
+   "id": "LanguageParserFixture/should_parse_language_chinese/2",
+   "line": 177,
+   "call": "parseLanguages",
+   "input": "Title.the.Series.2009.S01E14.Mandarin.HDTV.XviD-LOL",
+   "expect": {},
+   "contains": {
+    "#.name": [
+     "Chinese"
+    ]
+   }
+  },
+  {
+   "id": "LanguageParserFixture/should_parse_language_chinese/3",
+   "line": 178,
+   "call": "parseLanguages",
+   "input": "[abc] My Series - 01 [CHS]",
+   "expect": {},
+   "contains": {
+    "#.name": [
+     "Chinese"
+    ]
+   }
+  },
+  {
+   "id": "LanguageParserFixture/should_parse_language_chinese/4",
+   "line": 179,
+   "call": "parseLanguages",
+   "input": "[abc] My Series - 01 [CHT]",
+   "expect": {},
+   "contains": {
+    "#.name": [
+     "Chinese"
+    ]
+   }
+  },
+  {
+   "id": "LanguageParserFixture/should_parse_language_chinese/5",
+   "line": 180,
+   "call": "parseLanguages",
+   "input": "[abc] My Series - 01 [BIG5]",
+   "expect": {},
+   "contains": {
+    "#.name": [
+     "Chinese"
+    ]
+   }
+  },
+  {
+   "id": "LanguageParserFixture/should_parse_language_chinese/6",
+   "line": 181,
+   "call": "parseLanguages",
+   "input": "[abc] My Series - 01 [GB]",
+   "expect": {},
+   "contains": {
+    "#.name": [
+     "Chinese"
+    ]
+   }
+  },
+  {
+   "id": "LanguageParserFixture/should_parse_language_chinese/7",
+   "line": 182,
+   "call": "parseLanguages",
+   "input": "[abc] My Series - 01 [繁中]",
+   "expect": {},
+   "contains": {
+    "#.name": [
+     "Chinese"
+    ]
+   }
+  },
+  {
+   "id": "LanguageParserFixture/should_parse_language_chinese/8",
+   "line": 183,
+   "call": "parseLanguages",
+   "input": "[abc] My Series - 01 [繁体]",
+   "expect": {},
+   "contains": {
+    "#.name": [
+     "Chinese"
+    ]
+   }
+  },
+  {
+   "id": "LanguageParserFixture/should_parse_language_chinese/9",
+   "line": 184,
+   "call": "parseLanguages",
+   "input": "[abc] My Series - 01 [简繁外挂]",
+   "expect": {},
+   "contains": {
+    "#.name": [
+     "Chinese"
+    ]
+   }
+  },
+  {
+   "id": "LanguageParserFixture/should_parse_language_chinese/10",
+   "line": 185,
+   "call": "parseLanguages",
+   "input": "[abc] My Series - 01 [简繁内封字幕]",
+   "expect": {},
+   "contains": {
+    "#.name": [
+     "Chinese"
+    ]
+   }
+  },
+  {
+   "id": "LanguageParserFixture/should_parse_language_chinese/11",
+   "line": 186,
+   "call": "parseLanguages",
+   "input": "[ABC字幕组] My Series - 01 [HDTV]",
+   "expect": {},
+   "contains": {
+    "#.name": [
+     "Chinese"
+    ]
+   }
+  },
+  {
+   "id": "LanguageParserFixture/should_parse_language_chinese/12",
+   "line": 187,
+   "call": "parseLanguages",
+   "input": "[喵萌奶茶屋&LoliHouse] 拳愿阿修罗 / Kengan Ashura - 17 [WebRip 1080p HEVC-10bit AAC][中日双语字幕]",
+   "expect": {},
+   "contains": {
+    "#.name": [
+     "Chinese"
+    ]
+   }
+  },
+  {
+   "id": "LanguageParserFixture/should_parse_language_chinese/13",
+   "line": 188,
+   "call": "parseLanguages",
+   "input": "Series.Towards.You.S01.国语音轨.2023.1080p.NF.WEB-DL.H264.DDP2.0-SeeWEB",
+   "expect": {},
+   "contains": {
+    "#.name": [
+     "Chinese"
+    ]
+   }
+  },
+  {
+   "id": "LanguageParserFixture/should_parse_language_korean/0",
+   "line": 195,
+   "call": "parseLanguages",
+   "input": "Title.the.Series.2009.S01E14.Korean.HDTV.XviD-LOL",
+   "expect": {},
+   "contains": {
+    "#.name": [
+     "Korean"
+    ]
+   }
+  },
+  {
+   "id": "LanguageParserFixture/should_parse_language_latvian/0",
+   "line": 202,
+   "call": "parseLanguages",
+   "input": "Title.the.Series.2009.S01E08.2160p.WEB-DL.LAV.ENG",
+   "expect": {},
+   "contains": {
+    "#.name": [
+     "Latvian"
+    ]
+   }
+  },
+  {
+   "id": "LanguageParserFixture/should_parse_language_latvian/1",
+   "line": 203,
+   "call": "parseLanguages",
+   "input": "Title.the.Series.S01.COMPLETE.2009.1080p.WEB-DL.x264.AVC.AAC.LT.LV.RU",
+   "expect": {},
+   "contains": {
+    "#.name": [
+     "Latvian"
+    ]
+   }
+  },
+  {
+   "id": "LanguageParserFixture/should_parse_language_latvian/2",
+   "line": 204,
+   "call": "parseLanguages",
+   "input": "Title.the.Series.S03.1080p.WEB.x264.LAT.ENG",
+   "expect": {},
+   "contains": {
+    "#.name": [
+     "Latvian"
+    ]
+   }
+  },
+  {
+   "id": "LanguageParserFixture/should_parse_language_latvian/3",
+   "line": 205,
+   "call": "parseLanguages",
+   "input": "Title.the.Series.S02E02.LATViAN.1080p.WEB.XviD-LOL",
+   "expect": {},
+   "contains": {
+    "#.name": [
+     "Latvian"
+    ]
+   }
+  },
+  {
+   "id": "LanguageParserFixture/should_parse_language_russian/0",
+   "line": 212,
+   "call": "parseLanguages",
+   "input": "Title.the.Series.2009.S01E14.Russian.HDTV.XviD-LOL",
+   "expect": {},
+   "contains": {
+    "#.name": [
+     "Russian"
+    ]
+   }
+  },
+  {
+   "id": "LanguageParserFixture/should_parse_language_russian/1",
+   "line": 213,
+   "call": "parseLanguages",
+   "input": "Title.the.Series.S01E01.1080p.WEB-DL.Rus.Eng.TVKlondike",
+   "expect": {},
+   "contains": {
+    "#.name": [
+     "Russian"
+    ]
+   }
+  },
+  {
+   "id": "LanguageParserFixture/should_parse_language_russian/2",
+   "line": 214,
+   "call": "parseLanguages",
+   "input": "Title.the.Series.S01.COMPLETE.2009.1080p.WEB-DL.x264.AVC.AAC.LT.LV.RU",
+   "expect": {},
+   "contains": {
+    "#.name": [
+     "Russian"
+    ]
+   }
+  },
+  {
+   "id": "LanguageParserFixture/should_parse_language_polish/0",
+   "line": 221,
+   "call": "parseLanguages",
+   "input": "Title.the.Series.2009.S01E14.Polish.HDTV.XviD-LOL",
+   "expect": {},
+   "contains": {
+    "#.name": [
+     "Polish"
+    ]
+   }
+  },
+  {
+   "id": "LanguageParserFixture/should_parse_language_polish/1",
+   "line": 222,
+   "call": "parseLanguages",
+   "input": "Title.the.Series.2009.S01E14.PL.HDTV.XviD-LOL",
+   "expect": {},
+   "contains": {
+    "#.name": [
+     "Polish"
+    ]
+   }
+  },
+  {
+   "id": "LanguageParserFixture/should_parse_language_polish/2",
+   "line": 223,
+   "call": "parseLanguages",
+   "input": "Title.the.Series.2009.S01E14.PLLEK.HDTV.XviD-LOL",
+   "expect": {},
+   "contains": {
+    "#.name": [
+     "Polish"
+    ]
+   }
+  },
+  {
+   "id": "LanguageParserFixture/should_parse_language_polish/3",
+   "line": 224,
+   "call": "parseLanguages",
+   "input": "Title.the.Series.2009.S01E14.PL-LEK.HDTV.XviD-LOL",
+   "expect": {},
+   "contains": {
+    "#.name": [
+     "Polish"
+    ]
+   }
+  },
+  {
+   "id": "LanguageParserFixture/should_parse_language_polish/4",
+   "line": 225,
+   "call": "parseLanguages",
+   "input": "Title.the.Series.2009.S01E14.LEKPL.HDTV.XviD-LOL",
+   "expect": {},
+   "contains": {
+    "#.name": [
+     "Polish"
+    ]
+   }
+  },
+  {
+   "id": "LanguageParserFixture/should_parse_language_polish/5",
+   "line": 226,
+   "call": "parseLanguages",
+   "input": "Title.the.Series.2009.S01E14.LEK-PL.HDTV.XviD-LOL",
+   "expect": {},
+   "contains": {
+    "#.name": [
+     "Polish"
+    ]
+   }
+  },
+  {
+   "id": "LanguageParserFixture/should_parse_language_polish/6",
+   "line": 227,
+   "call": "parseLanguages",
+   "input": "Title.the.Series.2009.S01E14.PLDUB.HDTV.XviD-LOL",
+   "expect": {},
+   "contains": {
+    "#.name": [
+     "Polish"
+    ]
+   }
+  },
+  {
+   "id": "LanguageParserFixture/should_parse_language_polish/7",
+   "line": 228,
+   "call": "parseLanguages",
+   "input": "Title.the.Series.2009.S01E14.PL-DUB.HDTV.XviD-LOL",
+   "expect": {},
+   "contains": {
+    "#.name": [
+     "Polish"
+    ]
+   }
+  },
+  {
+   "id": "LanguageParserFixture/should_parse_language_polish/8",
+   "line": 229,
+   "call": "parseLanguages",
+   "input": "Title.the.Series.2009.S01E14.DUBPL.HDTV.XviD-LOL",
+   "expect": {},
+   "contains": {
+    "#.name": [
+     "Polish"
+    ]
+   }
+  },
+  {
+   "id": "LanguageParserFixture/should_parse_language_polish/9",
+   "line": 230,
+   "call": "parseLanguages",
+   "input": "Title.the.Series.2009.S01E14.DUB-PL.HDTV.XviD-LOL",
+   "expect": {},
+   "contains": {
+    "#.name": [
+     "Polish"
+    ]
+   }
+  },
+  {
+   "id": "LanguageParserFixture/should_parse_language_vietnamese/0",
+   "line": 237,
+   "call": "parseLanguages",
+   "input": "Title.the.Series.2009.S01E14.Vietnamese.HDTV.XviD-LOL",
+   "expect": {},
+   "contains": {
+    "#.name": [
+     "Vietnamese"
+    ]
+   }
+  },
+  {
+   "id": "LanguageParserFixture/should_parse_language_swedish/0",
+   "line": 244,
+   "call": "parseLanguages",
+   "input": "Title.the.Series.2009.S01E14.Swedish.HDTV.XviD-LOL",
+   "expect": {},
+   "contains": {
+    "#.name": [
+     "Swedish"
+    ]
+   }
+  },
+  {
+   "id": "LanguageParserFixture/should_parse_language_norwegian/0",
+   "line": 251,
+   "call": "parseLanguages",
+   "input": "Title.the.Series.2009.S01E14.Norwegian.HDTV.XviD-LOL",
+   "expect": {},
+   "contains": {
+    "#.name": [
+     "Norwegian"
+    ]
+   }
+  },
+  {
+   "id": "LanguageParserFixture/should_parse_language_finnish/0",
+   "line": 258,
+   "call": "parseLanguages",
+   "input": "Title.the.Series.2009.S01E14.Finnish.HDTV.XviD-LOL",
+   "expect": {},
+   "contains": {
+    "#.name": [
+     "Finnish"
+    ]
+   }
+  },
+  {
+   "id": "LanguageParserFixture/should_parse_language_turkish/0",
+   "line": 265,
+   "call": "parseLanguages",
+   "input": "Title.the.Series.2009.S01E14.Turkish.HDTV.XviD-LOL",
+   "expect": {},
+   "contains": {
+    "#.name": [
+     "Turkish"
+    ]
+   }
+  },
+  {
+   "id": "LanguageParserFixture/should_parse_language_portuguese/0",
+   "line": 272,
+   "call": "parseLanguages",
+   "input": "Title.the.Series.2009.S01E14.Portuguese.HDTV.XviD-LOL",
+   "expect": {},
+   "contains": {
+    "#.name": [
+     "Portuguese"
+    ]
+   }
+  },
+  {
+   "id": "LanguageParserFixture/should_parse_language_flemish/0",
+   "line": 279,
+   "call": "parseLanguages",
+   "input": "Title.the.Series.S01E01.FLEMISH.HDTV.x264-BRiGAND",
+   "expect": {},
+   "contains": {
+    "#.name": [
+     "Flemish"
+    ]
+   }
+  },
+  {
+   "id": "LanguageParserFixture/should_parse_language_greek/0",
+   "line": 286,
+   "call": "parseLanguages",
+   "input": "Title.the.Series.S03E13.Greek.PDTV.XviD-Ouzo",
+   "expect": {},
+   "contains": {
+    "#.name": [
+     "Greek"
+    ]
+   }
+  },
+  {
+   "id": "LanguageParserFixture/should_parse_language_hungarian/0",
+   "line": 293,
+   "call": "parseLanguages",
+   "input": "Title.the.Series.2009.S01E14.HDTV.XviD.HUNDUB-LOL",
+   "expect": {},
+   "contains": {
+    "#.name": [
+     "Hungarian"
+    ]
+   }
+  },
+  {
+   "id": "LanguageParserFixture/should_parse_language_hungarian/1",
+   "line": 294,
+   "call": "parseLanguages",
+   "input": "Title.the.Series.2009.S01E14.HDTV.XviD.ENG.HUN-LOL",
+   "expect": {},
+   "contains": {
+    "#.name": [
+     "Hungarian"
+    ]
+   }
+  },
+  {
+   "id": "LanguageParserFixture/should_parse_language_hungarian/2",
+   "line": 295,
+   "call": "parseLanguages",
+   "input": "Title.the.Series.2009.S01E14.HDTV.XviD.HUN-LOL",
+   "expect": {},
+   "contains": {
+    "#.name": [
+     "Hungarian"
+    ]
+   }
+  },
+  {
+   "id": "LanguageParserFixture/should_parse_language_hebrew/0",
+   "line": 302,
+   "call": "parseLanguages",
+   "input": "Title.the.Series.S01-03.DVDRip.HebDub",
+   "expect": {},
+   "contains": {
+    "#.name": [
+     "Hebrew"
+    ]
+   }
+  },
+  {
+   "id": "LanguageParserFixture/should_parse_language_lithuanian/0",
+   "line": 309,
+   "call": "parseLanguages",
+   "input": "Title.the.Series.S05E01.WEBRip.x264.AC3.LT.EN-CNN",
+   "expect": {},
+   "contains": {
+    "#.name": [
+     "Lithuanian"
+    ]
+   }
+  },
+  {
+   "id": "LanguageParserFixture/should_parse_language_czech/0",
+   "line": 316,
+   "call": "parseLanguages",
+   "input": "Title.the.Series.​S07E11.​WEB Rip.​XviD.​Louige-​CZ.​EN.​5.​1",
+   "expect": {},
+   "contains": {
+    "#.name": [
+     "Czech"
+    ]
+   }
+  },
+  {
+   "id": "LanguageParserFixture/should_parse_language_arabic/0",
+   "line": 323,
+   "call": "parseLanguages",
+   "input": "Series Title.S01.ARABIC.COMPLETE.720p.NF.WEBRip.x264-PTV",
+   "expect": {},
+   "contains": {
+    "#.name": [
+     "Arabic"
+    ]
+   }
+  },
+  {
+   "id": "LanguageParserFixture/should_parse_language_hindi/0",
+   "line": 330,
+   "call": "parseLanguages",
+   "input": "The Shadow Series S01 E01-08 WebRip Dual Audio [Hindi 5.1] 720p x264 AAC ESub",
+   "expect": {},
+   "contains": {
+    "#.name": [
+     "Hindi"
+    ]
+   }
+  },
+  {
+   "id": "LanguageParserFixture/should_parse_language_hindi/1",
+   "line": 331,
+   "call": "parseLanguages",
+   "input": "The Final Sonarr (2020) S04 Complete 720p NF WEBRip [Hindi] Dual audio",
+   "expect": {},
+   "contains": {
+    "#.name": [
+     "Hindi"
+    ]
+   }
+  },
+  {
+   "id": "LanguageParserFixture/should_parse_language_bulgarian/0",
+   "line": 338,
+   "call": "parseLanguages",
+   "input": "Title.the.Series.2009.S01E14.Bulgarian.HDTV.XviD-LOL",
+   "expect": {},
+   "contains": {
+    "#.name": [
+     "Bulgarian"
+    ]
+   }
+  },
+  {
+   "id": "LanguageParserFixture/should_parse_language_bulgarian/1",
+   "line": 339,
+   "call": "parseLanguages",
+   "input": "Title.the.Series.2009.S01E14.BGAUDIO.HDTV.XviD-LOL",
+   "expect": {},
+   "contains": {
+    "#.name": [
+     "Bulgarian"
+    ]
+   }
+  },
+  {
+   "id": "LanguageParserFixture/should_parse_language_bulgarian/2",
+   "line": 340,
+   "call": "parseLanguages",
+   "input": "Title.the.Series.2009.S01E14.BG.AUDIO.HDTV.XviD-LOL",
+   "expect": {},
+   "contains": {
+    "#.name": [
+     "Bulgarian"
+    ]
+   }
+  },
+  {
+   "id": "LanguageParserFixture/should_parse_language_malayalam/0",
+   "line": 347,
+   "call": "parseLanguages",
+   "input": "Series Title S01E01 Malayalam.1080p.WebRip.AVC.5.1-Rjaa",
+   "expect": {},
+   "contains": {
+    "#.name": [
+     "Malayalam"
+    ]
+   }
+  },
+  {
+   "id": "LanguageParserFixture/should_parse_language_malayalam/1",
+   "line": 348,
+   "call": "parseLanguages",
+   "input": "Series Title S01E01 Malayalam DVDRip XviD 5.1 ESub MTR",
+   "expect": {},
+   "contains": {
+    "#.name": [
+     "Malayalam"
+    ]
+   }
+  },
+  {
+   "id": "LanguageParserFixture/should_parse_language_malayalam/2",
+   "line": 349,
+   "call": "parseLanguages",
+   "input": "Series.Title.S01E01.DVDRip.1CD.Malayalam.Xvid.MP3 @Mastitorrents",
+   "expect": {},
+   "contains": {
+    "#.name": [
+     "Malayalam"
+    ]
+   }
+  },
+  {
+   "id": "LanguageParserFixture/should_parse_language_ukrainian/0",
+   "line": 356,
+   "call": "parseLanguages",
+   "input": "Гало(Сезон 1, серії 1-5) / SeriesTitle(Season 1, episodes 1-5) (2022) WEBRip-AVC Ukr/Eng",
+   "expect": {},
+   "contains": {
+    "#.name": [
+     "Ukrainian"
+    ]
+   }
+  },
+  {
+   "id": "LanguageParserFixture/should_parse_language_ukrainian/1",
+   "line": 357,
+   "call": "parseLanguages",
+   "input": "Архів 81 (Сезон 1) / Series 81 (Season 1) (2022) WEB-DLRip-AVC Ukr/Eng | Sub Ukr/Eng",
+   "expect": {},
+   "contains": {
+    "#.name": [
+     "Ukrainian"
+    ]
+   }
+  },
+  {
+   "id": "LanguageParserFixture/should_parse_language_ukrainian/2",
+   "line": 358,
+   "call": "parseLanguages",
+   "input": "Книга Боби Фетта(Сезон 1) / Series Title(Season 1) (2021) WEB-DLRip Ukr/Eng",
+   "expect": {},
+   "contains": {
+    "#.name": [
+     "Ukrainian"
+    ]
+   }
+  },
+  {
+   "id": "LanguageParserFixture/should_parse_language_slovak/0",
+   "line": 365,
+   "call": "parseLanguages",
+   "input": "Title.the.Series.2022.S02E22.Slovak.HDTV.XviD-LOL",
+   "expect": {},
+   "contains": {
+    "#.name": [
+     "Slovak"
+    ]
+   }
+  },
+  {
+   "id": "LanguageParserFixture/should_parse_language_slovak/1",
+   "line": 366,
+   "call": "parseLanguages",
+   "input": "Title.the.Series.2021.S01E11.HDTV.XviD.ENG.SK-LOL",
+   "expect": {},
+   "contains": {
+    "#.name": [
+     "Slovak"
+    ]
+   }
+  },
+  {
+   "id": "LanguageParserFixture/should_parse_language_thai/0",
+   "line": 373,
+   "call": "parseLanguages",
+   "input": "Thai.Series.Title.S01.THAI.1080p.WEBRip.x265-RARBG",
+   "expect": {},
+   "contains": {
+    "#.name": [
+     "Thai"
+    ]
+   }
+  },
+  {
+   "id": "LanguageParserFixture/should_parse_language_thai/1",
+   "line": 374,
+   "call": "parseLanguages",
+   "input": "Series.Title.S02.THAI.1080p.NF.WEBRip.DDP2.0.x264-PAAI[rartv]",
+   "expect": {},
+   "contains": {
+    "#.name": [
+     "Thai"
+    ]
+   }
+  },
+  {
+   "id": "LanguageParserFixture/should_parse_language_thai/2",
+   "line": 375,
+   "call": "parseLanguages",
+   "input": "Series.Title.S01.THAI.1080p.NF.WEBRip.DDP5.1.x264-NTG[rartv]",
+   "expect": {},
+   "contains": {
+    "#.name": [
+     "Thai"
+    ]
+   }
+  },
+  {
+   "id": "LanguageParserFixture/should_parse_language_portuguese_brazil/0",
+   "line": 382,
+   "call": "parseLanguages",
+   "input": "Title.the.Series.2009.S01E14.Brazilian.HDTV.XviD-LOL",
+   "expect": {},
+   "contains": {
+    "#.name": [
+     "Portuguese (Brazil)"
+    ]
+   }
+  },
+  {
+   "id": "LanguageParserFixture/should_parse_language_portuguese_brazil/1",
+   "line": 383,
+   "call": "parseLanguages",
+   "input": "Title.the.Series.2009.S01E14.Dublado.HDTV.XviD-LOL",
+   "expect": {},
+   "contains": {
+    "#.name": [
+     "Portuguese (Brazil)"
+    ]
+   }
+  },
+  {
+   "id": "LanguageParserFixture/should_parse_language_spanish_latino/0",
+   "line": 390,
+   "call": "parseLanguages",
+   "input": "Series.Title.S01.2019.720p_Eng-Spa(Latino)_MovieClubMx",
+   "expect": {},
+   "contains": {
+    "#.name": [
+     "Spanish (Latino)"
+    ]
+   }
+  },
+  {
+   "id": "LanguageParserFixture/should_parse_language_spanish_latino/1",
+   "line": 391,
+   "call": "parseLanguages",
+   "input": "Series.Title.1.WEB-DL.720p.Complete.Latino.YG",
+   "expect": {},
+   "contains": {
+    "#.name": [
+     "Spanish (Latino)"
+    ]
+   }
+  },
+  {
+   "id": "LanguageParserFixture/should_parse_language_spanish_latino/2",
+   "line": 392,
+   "call": "parseLanguages",
+   "input": "Series.Title.S08E01.1080p.WEB.H264.Latino.YG",
+   "expect": {},
+   "contains": {
+    "#.name": [
+     "Spanish (Latino)"
+    ]
+   }
+  },
+  {
+   "id": "LanguageParserFixture/should_parse_language_spanish_latino/3",
+   "line": 393,
+   "call": "parseLanguages",
+   "input": "Series Title latino",
+   "expect": {},
+   "contains": {
+    "#.name": [
+     "Spanish (Latino)"
+    ]
+   }
+  },
+  {
+   "id": "LanguageParserFixture/should_parse_language_spanish_latino/4",
+   "line": 394,
+   "call": "parseLanguages",
+   "input": "Series Title (Temporada 11 Completa) Audio Dual Ingles/Latino 1920x1080",
+   "expect": {},
+   "contains": {
+    "#.name": [
+     "Spanish (Latino)"
+    ]
+   }
+  },
+  {
+   "id": "LanguageParserFixture/should_parse_language_spanish_latino/5",
+   "line": 395,
+   "call": "parseLanguages",
+   "input": "series title 7x4 audio latino",
+   "expect": {},
+   "contains": {
+    "#.name": [
+     "Spanish (Latino)"
+    ]
+   }
+  },
+  {
+   "id": "LanguageParserFixture/should_parse_language_romanian/0",
+   "line": 402,
+   "call": "parseLanguages",
+   "input": "TV.Series.S01.720p.WEB-DL.RoDubbed-RLSGRP",
+   "expect": {},
+   "contains": {
+    "#.name": [
+     "Romanian"
+    ]
+   }
+  },
+  {
+   "id": "LanguageParserFixture/should_parse_language_romanian/1",
+   "line": 403,
+   "call": "parseLanguages",
+   "input": "TV Series S22E36 ROMANIAN 1080p WEB-DL AAC 2.0 H.264-RLSGRP",
+   "expect": {},
+   "contains": {
+    "#.name": [
+     "Romanian"
+    ]
+   }
+  },
+  {
+   "id": "LanguageParserFixture/should_parse_language_catalan/0",
+   "line": 410,
+   "call": "parseLanguages",
+   "input": "Series S02 (2009–2013)[BDRemux 1080p AVC Cat.DD2.0,Subs][HD-Olimpo][PACK]",
+   "expect": {},
+   "contains": {
+    "#.name": [
+     "Catalan"
+    ]
+   }
+  },
+  {
+   "id": "LanguageParserFixture/should_parse_language_catalan/1",
+   "line": 411,
+   "call": "parseLanguages",
+   "input": "Series S02 (2009–2013)[BDRemux 1080p AVC Esp.DD2.0,Ing.DD2.0,Cat.DD2.0,Subs][HD-Olimpo][PACK]",
+   "expect": {},
+   "contains": {
+    "#.name": [
+     "Catalan"
+    ]
+   }
+  },
+  {
+   "id": "LanguageParserFixture/should_parse_language_catalan/2",
+   "line": 412,
+   "call": "parseLanguages",
+   "input": "Series S02 (1999–2003)[BDRemux 1080p AVC Esp DD2.0,Ing DTS-HD5.1,Cat DD2.0 Subs][HD-Olimpo][PACK]",
+   "expect": {},
+   "contains": {
+    "#.name": [
+     "Catalan"
+    ]
+   }
+  },
+  {
+   "id": "LanguageParserFixture/should_parse_language_catalan/3",
+   "line": 413,
+   "call": "parseLanguages",
+   "input": "Series S01 [WEB-DL NF 1080p EAC3 2.0 esp cat Subs][HDOlimpo]",
+   "expect": {},
+   "contains": {
+    "#.name": [
+     "Catalan"
+    ]
+   }
+  },
+  {
+   "id": "LanguageParserFixture/should_parse_language_catalan/4",
+   "line": 414,
+   "call": "parseLanguages",
+   "input": "Series S02E08 M+ WEBDL 1080p SPA-CAT DD5.1 SUBS x264",
+   "expect": {},
+   "contains": {
+    "#.name": [
+     "Catalan"
+    ]
+   }
+  },
+  {
+   "id": "LanguageParserFixture/should_parse_language_catalan/5",
+   "line": 415,
+   "call": "parseLanguages",
+   "input": "Series Title S02 (2021) [WEB-DL 1080p Castellano DD 5.1 - Catalán DD 5.1 Subs] [HDOlimpo]",
+   "expect": {},
+   "contains": {
+    "#.name": [
+     "Catalan"
+    ]
+   }
+  },
+  {
+   "id": "LanguageParserFixture/should_parse_hindi_and_english/0",
+   "line": 422,
+   "call": "parseLanguages",
+   "input": "The Shadow Series S01 E01-08 WebRip Dual Audio [Hindi 5.1 + English 5.1] 720p x264 AAC ESub",
+   "expect": {
+    "#": 2
+   },
+   "contains": {
+    "#.name": [
+     "Hindi",
+     "English"
+    ]
+   }
+  },
+  {
+   "id": "LanguageParserFixture/should_parse_hindi_and_english/1",
+   "line": 423,
+   "call": "parseLanguages",
+   "input": "The Final Sonarr (2020) S04 Complete 720p NF WEBRip [Hindi+English] Dual audio",
+   "expect": {
+    "#": 2
+   },
+   "contains": {
+    "#.name": [
+     "Hindi",
+     "English"
+    ]
+   }
+  },
+  {
+   "id": "LanguageParserFixture/should_parse_spanish_and_catalan/0",
+   "line": 430,
+   "call": "parseLanguages",
+   "input": "Series S01 [WEB-DL NF 1080p EAC3 2.0 esp cat Subs][HDOlimpo]",
+   "expect": {
+    "#": 2
+   },
+   "contains": {
+    "#.name": [
+     "Spanish",
+     "Catalan"
+    ]
+   }
+  },
+  {
+   "id": "LanguageParserFixture/should_parse_spanish_and_catalan/1",
+   "line": 431,
+   "call": "parseLanguages",
+   "input": "Series S02E08 M+ WEBDL 1080p SPA-CAT DD5.1 SUBS x264",
+   "expect": {
+    "#": 2
+   },
+   "contains": {
+    "#.name": [
+     "Spanish",
+     "Catalan"
+    ]
+   }
+  },
+  {
+   "id": "LanguageParserFixture/should_parse_spanish_and_catalan/2",
+   "line": 432,
+   "call": "parseLanguages",
+   "input": "Series Title S02 (2021) [WEB-DL 1080p Castellano DD 5.1 - Catalán DD 5.1 Subs] [HDOlimpo]",
+   "expect": {
+    "#": 2
+   },
+   "contains": {
+    "#.name": [
+     "Spanish",
+     "Catalan"
+    ]
+   }
+  },
+  {
+   "id": "LanguageParserFixture/should_parse_english_spanish_and_catalan/0",
+   "line": 439,
+   "call": "parseLanguages",
+   "input": "Series S02 (2009–2013)[BDRemux 1080p AVC Esp.DD2.0,Ing.DD2.0,Cat.DD2.0,Subs][HD-Olimpo][PACK]",
+   "expect": {
+    "#": 3
+   },
+   "contains": {
+    "#.name": [
+     "English",
+     "Spanish",
+     "Catalan"
+    ]
+   }
+  },
+  {
+   "id": "LanguageParserFixture/should_parse_english_spanish_and_catalan/1",
+   "line": 440,
+   "call": "parseLanguages",
+   "input": "Series S02 (1999–2003)[BDRemux 1080p AVC Esp DD2.0,Ing DTS-HD5.1,Cat DD2.0 Subs][HD-Olimpo][PACK]",
+   "expect": {
+    "#": 3
+   },
+   "contains": {
+    "#.name": [
+     "English",
+     "Spanish",
+     "Catalan"
+    ]
+   }
+  },
+  {
+   "id": "LanguageParserFixture/should_add_original_language_to_german_release_with_dl_tag/0",
+   "line": 447,
+   "call": "parseTitle",
+   "input": "Series.Title.S01E01.German.DL.1080p.BluRay.x264-RlsGrp",
+   "expect": {
+    "languages.#": 2
+   },
+   "contains": {
+    "languages.#.name": [
+     "German",
+     "Original"
+    ]
+   }
+  },
+  {
+   "id": "LanguageParserFixture/should_add_original_language_to_german_release_with_dl_tag/1",
+   "line": 448,
+   "call": "parseTitle",
+   "input": "Series.Title.S01E01.GERMAN.DL.1080P.WEB.H264-RlsGrp",
+   "expect": {
+    "languages.#": 2
+   },
+   "contains": {
+    "languages.#.name": [
+     "German",
+     "Original"
+    ]
+   }
+  },
+  {
+   "id": "LanguageParserFixture/should_add_original_language_to_german_release_with_dl_tag/2",
+   "line": 449,
+   "call": "parseTitle",
+   "input": "Series.Title.2023.S01E01.German.DL.EAC3.1080p.DSNP.WEB.H264-RlsGrp",
+   "expect": {
+    "languages.#": 2
+   },
+   "contains": {
+    "languages.#.name": [
+     "German",
+     "Original"
+    ]
+   }
+  },
+  {
+   "id": "LanguageParserFixture/should_not_add_original_language_to_german_release_when_title_contains_web_dl/0",
+   "line": 458,
+   "call": "parseTitle",
+   "input": "Series.Title.2023.S01E01.GERMAN.1080P.WEB-DL.H264-RlsGrp",
+   "expect": {
+    "languages.#": 1
+   },
+   "contains": {
+    "languages.#.name": [
+     "German"
+    ]
+   }
+  },
+  {
+   "id": "LanguageParserFixture/should_not_add_original_language_to_german_release_when_title_contains_web_dl/1",
+   "line": 459,
+   "call": "parseTitle",
+   "input": "Series.Title.2023.S01E01.GERMAN.1080P.WEB.DL.H264-RlsGrp",
+   "expect": {
+    "languages.#": 1
+   },
+   "contains": {
+    "languages.#.name": [
+     "German"
+    ]
+   }
+  },
+  {
+   "id": "LanguageParserFixture/should_not_add_original_language_to_german_release_when_title_contains_web_dl/2",
+   "line": 460,
+   "call": "parseTitle",
+   "input": "Series Title 2023 S01E01 GERMAN 1080P WEB DL H264-RlsGrp",
+   "expect": {
+    "languages.#": 1
+   },
+   "contains": {
+    "languages.#.name": [
+     "German"
+    ]
+   }
+  },
+  {
+   "id": "LanguageParserFixture/should_not_add_original_language_to_german_release_when_title_contains_web_dl/3",
+   "line": 461,
+   "call": "parseTitle",
+   "input": "Series.Title.2023.S01E01.GERMAN.1080P.WEBDL.H264-RlsGrp",
+   "expect": {
+    "languages.#": 1
+   },
+   "contains": {
+    "languages.#.name": [
+     "German"
+    ]
+   }
+  },
+  {
+   "id": "LanguageParserFixture/should_add_original_language_and_english_to_german_release_with_ml_tag/0",
+   "line": 469,
+   "call": "parseTitle",
+   "input": "Series.Title.2023.S01.German.ML.EAC3.1080p.NF.WEB.H264-RlsGrp",
+   "expect": {
+    "languages.#": 3
+   },
+   "contains": {
+    "languages.#.name": [
+     "German",
+     "Original",
+     "English"
+    ]
+   }
+  },
+  {
+   "id": "LanguageParserFixture/should_parse_original_title_from_release_name/0",
+   "line": 479,
+   "call": "parseTitle",
+   "input": "Series.Title.S01E01.Original.1080P.WEB.H264-RlsGrp",
+   "expect": {
+    "languages.#": 1
+   },
+   "contains": {
+    "languages.#.name": [
+     "Original"
+    ]
+   }
+  },
+  {
+   "id": "LanguageParserFixture/should_parse_original_title_from_release_name/1",
+   "line": 480,
+   "call": "parseTitle",
+   "input": "Series.Title.S01E01.Orig.1080P.WEB.H264-RlsGrp",
+   "expect": {
+    "languages.#": 1
+   },
+   "contains": {
+    "languages.#.name": [
+     "Original"
+    ]
+   }
+  },
+  {
+   "id": "LanguageParserFixture/should_parse_original_title_from_release_name/2",
+   "line": 481,
+   "call": "parseTitle",
+   "input": "Series / S1E1-10 of 10 [2023, HEVC, HDR10, Dolby Vision, WEB-DL 2160p] [Hybrid] 3 XX + Original",
+   "expect": {
+    "languages.#": 1
+   },
+   "contains": {
+    "languages.#.name": [
+     "Original"
+    ]
+   }
+  },
+  {
+   "id": "LanguageParserFixture/should_parse_english_and_ukranian/0",
+   "line": 489,
+   "call": "parseTitle",
+   "input": "Остання серія (Сезон 1) / The Last Series (Season 1) (2024) WEB-DLRip-AVC 2xUkr/Eng | Sub Ukr/Eng",
+   "expect": {
+    "languages.#": 2
+   },
+   "contains": {
+    "languages.#.name": [
+     "Ukrainian",
+     "English"
+    ]
+   }
+  },
+  {
+   "id": "LanguageParserFixture/should_parse_english_and_ukranian/1",
+   "line": 490,
+   "call": "parseTitle",
+   "input": "Справжня серія (Сезон 1-3) / True Series (Season 1-3) (2014-2019) BDRip-AVC 3xUkr/Eng | Ukr/Eng",
+   "expect": {
+    "languages.#": 2
+   },
+   "contains": {
+    "languages.#.name": [
+     "Ukrainian",
+     "English"
+    ]
+   }
+  },
+  {
+   "id": "LanguageParserFixture/should_parse_english_and_ukranian/2",
+   "line": 491,
+   "call": "parseTitle",
+   "input": "Серія (Сезон 1-3) / The Series (Seasons 1-3) (2019-2022) BDRip-AVC 4xUkr/Eng | Sub 2xUkr/Eng",
+   "expect": {
+    "languages.#": 2
+   },
+   "contains": {
+    "languages.#.name": [
+     "Ukrainian",
+     "English"
+    ]
+   }
+  },
+  {
+   "id": "LanguageParserFixture/should_parse_turkish_and_ukranian/0",
+   "line": 500,
+   "call": "parseTitle",
+   "input": "Серія (Сезон 1, серії 01-26 із 51) / Seri (Season 1, episodes 01-26) (2018) WEBRip-AVC 2Ukr/Tur",
+   "expect": {
+    "languages.#": 2
+   },
+   "contains": {
+    "languages.#.name": [
+     "Ukrainian",
+     "Turkish"
+    ]
+   }
+  },
+  {
+   "id": "LanguageParserFixture/should_parse_azerbaijani/0",
+   "line": 509,
+   "call": "parseTitle",
+   "input": "series.title.s01e01.2023.[Azerbaijan.Dubbed].1080p.WEB-DLRip.TeeWee",
+   "expect": {
+    "languages.#": 1
+   },
+   "contains": {
+    "languages.#.name": [
+     "Azerbaijani"
+    ]
+   }
+  },
+  {
+   "id": "LanguageParserFixture/should_parse_azerbaijani/1",
+   "line": 510,
+   "call": "parseTitle",
+   "input": "Series s02e04 (2023) [Azerbaijani Dubbed] 1080p WEB-DLRip TeeWee",
+   "expect": {
+    "languages.#": 1
+   },
+   "contains": {
+    "languages.#.name": [
+     "Azerbaijani"
+    ]
+   }
+  },
+  {
+   "id": "LanguageParserFixture/should_parse_uzbek/0",
+   "line": 518,
+   "call": "parseTitle",
+   "input": "series.title.s01e01.2023.[Uzbekistan.Dubbed].1080p.WEB-DLRip.TeeWee",
+   "expect": {
+    "languages.#": 1
+   },
+   "contains": {
+    "languages.#.name": [
+     "Uzbek"
+    ]
+   }
+  },
+  {
+   "id": "LanguageParserFixture/should_parse_uzbek/1",
+   "line": 519,
+   "call": "parseTitle",
+   "input": "Sweet.Series.S02E08.2023.[Uzbek.Dubbed].1080p.WEB-DLRip.TeeWee",
+   "expect": {
+    "languages.#": 1
+   },
+   "contains": {
+    "languages.#.name": [
+     "Uzbek"
+    ]
+   }
+  },
+  {
+   "id": "LanguageParserFixture/should_parse_language_urdu/0",
+   "line": 527,
+   "call": "parseLanguages",
+   "input": "Title.the.Series.2009.S01E14.Urdu.HDTV.XviD-LOL",
+   "expect": {},
+   "contains": {
+    "#.name": [
+     "Urdu"
+    ]
+   }
+  },
+  {
+   "id": "LanguageParserFixture/should_parse_language_romansh/0",
+   "line": 534,
+   "call": "parseLanguages",
+   "input": "Title.the.Series.2025.S01.Romansh.1080p.WEB-DL.h264-RlsGrp",
+   "expect": {},
+   "contains": {
+    "#.name": [
+     "Romansh"
+    ]
+   }
+  },
+  {
+   "id": "LanguageParserFixture/should_parse_language_romansh/1",
+   "line": 535,
+   "call": "parseLanguages",
+   "input": "Title.the.Series.2025.S01.Rumantsch.1080p.WEB.DL.h264-RlsGrp",
+   "expect": {},
+   "contains": {
+    "#.name": [
+     "Romansh"
+    ]
+   }
+  },
+  {
+   "id": "LanguageParserFixture/should_parse_language_romansh/2",
+   "line": 536,
+   "call": "parseLanguages",
+   "input": "Title the Series 2025 S01 Romansch 1080p WEB DL h264-RlsGrp",
+   "expect": {},
+   "contains": {
+    "#.name": [
+     "Romansh"
+    ]
+   }
+  },
+  {
+   "id": "LanguageParserFixture/should_parse_language_georgian/0",
+   "line": 543,
+   "call": "parseLanguages",
+   "input": "Title.the.Series.2025.S01.Georgian.1080p.WEB-DL.h264-RlsGrp",
+   "expect": {},
+   "contains": {
+    "#.name": [
+     "Georgian"
+    ]
+   }
+  },
+  {
+   "id": "LanguageParserFixture/should_parse_language_georgian/1",
+   "line": 544,
+   "call": "parseLanguages",
+   "input": "Title.the.Series.2025.S01.Geo.1080p.WEB-DL.h264-RlsGrp",
+   "expect": {},
+   "contains": {
+    "#.name": [
+     "Georgian"
+    ]
+   }
+  },
+  {
+   "id": "LanguageParserFixture/should_parse_language_georgian/2",
+   "line": 545,
+   "call": "parseLanguages",
+   "input": "Title.the.Series.2025.S01.KA.1080p.WEB-DL.h264-RlsGrp",
+   "expect": {},
+   "contains": {
+    "#.name": [
+     "Georgian"
+    ]
+   }
+  },
+  {
+   "id": "LanguageParserFixture/should_parse_language_russian_and_georgian/0",
+   "line": 552,
+   "call": "parseLanguages",
+   "input": "Title.the.Series.2025.S01.RU-KA.1080p.WEB-DL.h264-RlsGrp",
+   "expect": {
+    "#": 2
+   },
+   "contains": {
+    "#.name": [
+     "Russian",
+     "Georgian"
+    ]
+   }
+  },
+  {
+   "id": "LanguageParserFixture/should_parse_language_irish/0",
+   "line": 559,
+   "call": "parseLanguages",
+   "input": "Title.the.Series.2025.S01.Irish.1080p.WEB-DL.h264-RlsGrp",
+   "expect": {},
+   "contains": {
+    "#.name": [
+     "Irish"
+    ]
+   }
+  },
+  {
+   "id": "LanguageParserFixture/should_parse_language_irish/1",
+   "line": 560,
+   "call": "parseLanguages",
+   "input": "Title.the.Series.2025.S01.Gaeilge.1080p.WEB-DL.h264-RlsGrp",
+   "expect": {},
+   "contains": {
+    "#.name": [
+     "Irish"
+    ]
+   }
+  },
+  {
+   "id": "LanguageParserFixture/should_parse_language_irish/2",
+   "line": 561,
+   "call": "parseLanguages",
+   "input": "Title the Series 2025 S01 Irish 1080p WEB DL h264-RlsGrp",
+   "expect": {},
+   "contains": {
+    "#.name": [
+     "Irish"
+    ]
+   }
+  },
+  {
+   "id": "LanguageParserFixture/should_parse_language_english_french_german_italian_portuguese_spanish/0",
+   "line": 568,
+   "call": "parseLanguages",
+   "input": "The Boys S02 Eng Fre Ger Ita Por Spa 2160p WEBMux HDR10Plus HDR HEVC DDP SGF",
+   "expect": {
+    "#": 6
+   },
+   "contains": {
+    "#.name": [
+     "English",
+     "French",
+     "German",
+     "Italian",
+     "Portuguese",
+     "Spanish"
+    ]
+   }
+  },
+  {
+   "id": "LanguageParserFixture/should_parse_title_and_tags/0",
+   "line": 583,
+   "call": "parseSubtitleLanguageInformation",
+   "input": "Name (2020) - S01E20 - [AAC 2.0].testtitle.default.eng.forced.ass",
+   "expect": {
+    "languageTags.#": 2,
+    "title": "testtitle",
+    "language.name": "English"
+   },
+   "contains": {
+    "languageTags": [
+     "default",
+     "forced"
+    ]
+   }
+  },
+  {
+   "id": "LanguageParserFixture/should_parse_title_and_tags/1",
+   "line": 584,
+   "call": "parseSubtitleLanguageInformation",
+   "input": "Name (2020) - S01E20 - [AAC 2.0].eng.default.testtitle.forced.ass",
+   "expect": {
+    "languageTags.#": 2,
+    "title": "testtitle",
+    "language.name": "English"
+   },
+   "contains": {
+    "languageTags": [
+     "default",
+     "forced"
+    ]
+   }
+  },
+  {
+   "id": "LanguageParserFixture/should_parse_title_and_tags/2",
+   "line": 585,
+   "call": "parseSubtitleLanguageInformation",
+   "input": "Name (2020) - S01E20 - [AAC 2.0].default.eng.testtitle.forced.ass",
+   "expect": {
+    "languageTags.#": 2,
+    "title": "testtitle",
+    "language.name": "English"
+   },
+   "contains": {
+    "languageTags": [
+     "default",
+     "forced"
+    ]
+   }
+  },
+  {
+   "id": "LanguageParserFixture/should_parse_title_and_tags/3",
+   "line": 586,
+   "call": "parseSubtitleLanguageInformation",
+   "input": "Name (2020) - S01E20 - [AAC 2.0].testtitle.forced.eng.ass",
+   "expect": {
+    "languageTags.#": 1,
+    "title": "testtitle",
+    "language.name": "English"
+   },
+   "contains": {
+    "languageTags": [
+     "forced"
+    ]
+   }
+  },
+  {
+   "id": "LanguageParserFixture/should_parse_title_and_tags/4",
+   "line": 587,
+   "call": "parseSubtitleLanguageInformation",
+   "input": "Name (2020) - S01E20 - [AAC 2.0].eng.forced.testtitle.ass",
+   "expect": {
+    "languageTags.#": 1,
+    "title": "testtitle",
+    "language.name": "English"
+   },
+   "contains": {
+    "languageTags": [
+     "forced"
+    ]
+   }
+  },
+  {
+   "id": "LanguageParserFixture/should_parse_title_and_tags/5",
+   "line": 588,
+   "call": "parseSubtitleLanguageInformation",
+   "input": "Name (2020) - S01E20 - [AAC 2.0].forced.eng.testtitle.ass",
+   "expect": {
+    "languageTags.#": 1,
+    "title": "testtitle",
+    "language.name": "English"
+   },
+   "contains": {
+    "languageTags": [
+     "forced"
+    ]
+   }
+  },
+  {
+   "id": "LanguageParserFixture/should_parse_title_and_tags/6",
+   "line": 589,
+   "call": "parseSubtitleLanguageInformation",
+   "input": "Name (2020) - S01E20 - [AAC 2.0].testtitle.default.fra.forced.ass",
+   "expect": {
+    "languageTags.#": 2,
+    "title": "testtitle",
+    "language.name": "French"
+   },
+   "contains": {
+    "languageTags": [
+     "default",
+     "forced"
+    ]
+   }
+  },
+  {
+   "id": "LanguageParserFixture/should_parse_title_and_tags/7",
+   "line": 590,
+   "call": "parseSubtitleLanguageInformation",
+   "input": "Name (2020) - S01E20 - [AAC 2.0].fra.default.testtitle.forced.ass",
+   "expect": {
+    "languageTags.#": 2,
+    "title": "testtitle",
+    "language.name": "French"
+   },
+   "contains": {
+    "languageTags": [
+     "default",
+     "forced"
+    ]
+   }
+  },
+  {
+   "id": "LanguageParserFixture/should_parse_title_and_tags/8",
+   "line": 591,
+   "call": "parseSubtitleLanguageInformation",
+   "input": "Name (2020) - S01E20 - [AAC 2.0].default.fra.testtitle.forced.ass",
+   "expect": {
+    "languageTags.#": 2,
+    "title": "testtitle",
+    "language.name": "French"
+   },
+   "contains": {
+    "languageTags": [
+     "default",
+     "forced"
+    ]
+   }
+  },
+  {
+   "id": "LanguageParserFixture/should_parse_title_and_tags/9",
+   "line": 592,
+   "call": "parseSubtitleLanguageInformation",
+   "input": "Name (2020) - S01E20 - [AAC 2.0].testtitle.forced.fra.ass",
+   "expect": {
+    "languageTags.#": 1,
+    "title": "testtitle",
+    "language.name": "French"
+   },
+   "contains": {
+    "languageTags": [
+     "forced"
+    ]
+   }
+  },
+  {
+   "id": "LanguageParserFixture/should_parse_title_and_tags/10",
+   "line": 593,
+   "call": "parseSubtitleLanguageInformation",
+   "input": "Name (2020) - S01E20 - [AAC 2.0].fra.forced.testtitle.ass",
+   "expect": {
+    "languageTags.#": 1,
+    "title": "testtitle",
+    "language.name": "French"
+   },
+   "contains": {
+    "languageTags": [
+     "forced"
+    ]
+   }
+  },
+  {
+   "id": "LanguageParserFixture/should_parse_title_and_tags/11",
+   "line": 594,
+   "call": "parseSubtitleLanguageInformation",
+   "input": "Name (2020) - S01E20 - [AAC 2.0].forced.fra.testtitle.ass",
+   "expect": {
+    "languageTags.#": 1,
+    "title": "testtitle",
+    "language.name": "French"
+   },
+   "contains": {
+    "languageTags": [
+     "forced"
+    ]
+   }
+  },
+  {
+   "id": "LanguageParserFixture/should_parse_title_and_tags/12",
+   "line": 595,
+   "call": "parseSubtitleLanguageInformation",
+   "input": "Name (2020) - S01E20 - [AAC 2.0].ru-something-else.srt",
+   "expect": {
+    "languageTags.#": 0,
+    "title": "something-else",
+    "language.name": "Russian"
+   },
+   "contains": {
+    "languageTags": []
+   }
+  },
+  {
+   "id": "LanguageParserFixture/should_parse_title_and_tags/13",
+   "line": 596,
+   "call": "parseSubtitleLanguageInformation",
+   "input": "Name (2020) - S01E20 - [AAC 2.0].Full Subtitles.eng.ass",
+   "expect": {
+    "languageTags.#": 0,
+    "title": "Full Subtitles",
+    "language.name": "English"
+   },
+   "contains": {
+    "languageTags": []
+   }
+  },
+  {
+   "id": "LanguageParserFixture/should_parse_title_and_tags/14",
+   "line": 597,
+   "call": "parseSubtitleLanguageInformation",
+   "input": "Name (2020) - S01E20 - [AAC 2.0].mytitle - 1.en.ass",
+   "expect": {
+    "languageTags.#": 0,
+    "title": "mytitle",
+    "language.name": "English"
+   },
+   "contains": {
+    "languageTags": []
+   }
+  },
+  {
+   "id": "LanguageParserFixture/should_parse_title_and_tags/15",
+   "line": 598,
+   "call": "parseSubtitleLanguageInformation",
+   "input": "Name (2020) - S01E20 - [AAC 2.0].mytitle 1.en.ass",
+   "expect": {
+    "languageTags.#": 0,
+    "title": "mytitle 1",
+    "language.name": "English"
+   },
+   "contains": {
+    "languageTags": []
+   }
+  },
+  {
+   "id": "LanguageParserFixture/should_parse_title_and_tags/16",
+   "line": 599,
+   "call": "parseSubtitleLanguageInformation",
+   "input": "Name (2020) - S01E20 - [AAC 2.0].mytitle.en.ass",
+   "expect": {
+    "languageTags.#": 0,
+    "title": "mytitle",
+    "language.name": "English"
+   },
+   "contains": {
+    "languageTags": []
+   }
+  },
+  {
+   "id": "LanguageParserFixture/should_not_parse_false_title/0",
+   "line": 609,
+   "call": "parseSubtitleLanguageInformation",
+   "input": "Name (2020) - S01E20 - [AAC 2.0].default.forced.ass",
+   "expect": {
+    "language.name": "Unknown",
+    "languageTags": [],
+    "rawTitle": null
+   }
+  },
+  {
+   "id": "LanguageParserFixture/should_not_parse_false_title/1",
+   "line": 610,
+   "call": "parseSubtitleLanguageInformation",
+   "input": "Name (2020) - S01E20 - [AAC 2.0].default.ass",
+   "expect": {
+    "language.name": "Unknown",
+    "languageTags": [],
+    "rawTitle": null
+   }
+  },
+  {
+   "id": "LanguageParserFixture/should_not_parse_false_title/2",
+   "line": 611,
+   "call": "parseSubtitleLanguageInformation",
+   "input": "Name (2020) - S01E20 - [AAC 2.0].ass",
+   "expect": {
+    "language.name": "Unknown",
+    "languageTags": [],
+    "rawTitle": null
+   }
+  },
+  {
+   "id": "LanguageParserFixture/should_not_parse_false_title/3",
+   "line": 612,
+   "call": "parseSubtitleLanguageInformation",
+   "input": "Name (2020) - S01E20 - [AAC 2.0].testtitle.ass",
+   "expect": {
+    "language.name": "Unknown",
+    "languageTags": [],
+    "rawTitle": null
+   }
+  }
+ ]
+}

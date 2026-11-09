@@ -1,0 +1,41 @@
+versions:
+  movie-remux:
+    kind: movie
+    anime: false
+    profile: remux-2160p
+    library: /media/movies
+    storage: debrid
+    indexers: [public, multi]
+    providers: [rd]
+    client: decypharr
+  movie-seedbox:
+    kind: movie
+    profile: remux-2160p
+    library: /mnt/seedbox/movies
+    storage: seedbox
+    indexers: [public, tracker]
+    client: seedbox
+  movie-shadow:
+    kind: movie
+    profile: shadow
+    library: /media/movies-shadow
+    storage: debrid
+    indexers: [public]
+    providers: [rd]
+    client: decypharr
+  movie-original:
+    kind: movie
+    profile: original
+    library: /media/movies-original
+    storage: debrid
+    indexers: [public]
+    providers: [rd]
+    client: decypharr
+  movie-french:
+    kind: movie
+    profile: french
+    library: /media/movies-french
+    storage: debrid
+    indexers: [public]
+    providers: [rd]
+    client: decypharr

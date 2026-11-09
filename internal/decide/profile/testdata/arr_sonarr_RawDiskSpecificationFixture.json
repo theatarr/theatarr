@@ -1,0 +1,264 @@
+{
+ "source": "Sonarr src/NzbDrone.Core.Test/DecisionEngineTests/RawDiskSpecificationFixture.cs @ cab419a",
+ "cases": [
+  {
+   "test": "should_return_true_if_no_container_specified_and_does_not_match_disc_release_pattern",
+   "spec": "RawDisk",
+   "release": {
+    "title": "Series.title.s01e01",
+    "protocol": "torrent"
+   },
+   "expect": {
+    "accepted": true
+   },
+   "flavour": "sonarr",
+   "fixture": "RawDiskSpecificationFixture"
+  },
+  {
+   "test": "should_return_true_if_mkv",
+   "spec": "RawDisk",
+   "release": {
+    "title": "Series.title.s01e01",
+    "protocol": "torrent",
+    "container": "MKV"
+   },
+   "expect": {
+    "accepted": true
+   },
+   "flavour": "sonarr",
+   "fixture": "RawDiskSpecificationFixture"
+  },
+  {
+   "test": "should_return_false_if_vob",
+   "spec": "RawDisk",
+   "release": {
+    "title": "Series.title.s01e01",
+    "protocol": "torrent",
+    "container": "VOB"
+   },
+   "expect": {
+    "accepted": false,
+    "reason": "Raw",
+    "message": "Raw DVD release"
+   },
+   "flavour": "sonarr",
+   "fixture": "RawDiskSpecificationFixture"
+  },
+  {
+   "test": "should_return_false_if_iso",
+   "spec": "RawDisk",
+   "release": {
+    "title": "Series.title.s01e01",
+    "protocol": "torrent",
+    "container": "ISO"
+   },
+   "expect": {
+    "accepted": false
+   },
+   "flavour": "sonarr",
+   "fixture": "RawDiskSpecificationFixture"
+  },
+  {
+   "test": "should_return_false_if_m2ts",
+   "spec": "RawDisk",
+   "release": {
+    "title": "Series.title.s01e01",
+    "protocol": "torrent",
+    "container": "M2TS"
+   },
+   "expect": {
+    "accepted": false,
+    "reason": "Raw",
+    "message": "Raw Bluray release"
+   },
+   "flavour": "sonarr",
+   "fixture": "RawDiskSpecificationFixture"
+  },
+  {
+   "test": "should_compare_case_insensitive",
+   "spec": "RawDisk",
+   "release": {
+    "title": "Series.title.s01e01",
+    "protocol": "torrent",
+    "container": "vob"
+   },
+   "expect": {
+    "accepted": false
+   },
+   "flavour": "sonarr",
+   "fixture": "RawDiskSpecificationFixture"
+  },
+  {
+   "test": "should_return_false_if_matches_disc_format",
+   "spec": "RawDisk",
+   "args": "\"Series Title S02 Disc 1 1080i Blu-ray DTS-HD MA 2.0 AVC-TrollHD\"",
+   "release": {
+    "title": "Series Title S02 Disc 1 1080i Blu-ray DTS-HD MA 2.0 AVC-TrollHD",
+    "protocol": "torrent"
+   },
+   "expect": {
+    "accepted": false,
+    "reason": "Raw",
+    "message": "Raw Bluray/DVD release"
+   },
+   "flavour": "sonarr",
+   "fixture": "RawDiskSpecificationFixture"
+  },
+  {
+   "test": "should_return_false_if_matches_disc_format",
+   "spec": "RawDisk",
+   "args": "\"Series Title S03 Disc 1 1080p Blu-ray LPCM 2.0 AVC-TrollHD\"",
+   "release": {
+    "title": "Series Title S03 Disc 1 1080p Blu-ray LPCM 2.0 AVC-TrollHD",
+    "protocol": "torrent"
+   },
+   "expect": {
+    "accepted": false,
+    "reason": "Raw",
+    "message": "Raw Bluray/DVD release"
+   },
+   "flavour": "sonarr",
+   "fixture": "RawDiskSpecificationFixture"
+  },
+  {
+   "test": "should_return_false_if_matches_disc_format",
+   "spec": "RawDisk",
+   "args": "\"SERIES TITLE S02 1080P FULL BLURAY AVC DTS-HD MA 5 1\"",
+   "release": {
+    "title": "SERIES TITLE S02 1080P FULL BLURAY AVC DTS-HD MA 5 1",
+    "protocol": "torrent"
+   },
+   "expect": {
+    "accepted": false,
+    "reason": "Raw",
+    "message": "Raw Bluray/DVD release"
+   },
+   "flavour": "sonarr",
+   "fixture": "RawDiskSpecificationFixture"
+  },
+  {
+   "test": "should_return_false_if_matches_disc_format",
+   "spec": "RawDisk",
+   "args": "\"Series.Title.S06.2016.DISC.3.BluRay.1080p.AVC.Atmos.TrueHD7.1-MTeam\"",
+   "release": {
+    "title": "Series.Title.S06.2016.DISC.3.BluRay.1080p.AVC.Atmos.TrueHD7.1-MTeam",
+    "protocol": "torrent"
+   },
+   "expect": {
+    "accepted": false,
+    "reason": "Raw",
+    "message": "Raw Bluray/DVD release"
+   },
+   "flavour": "sonarr",
+   "fixture": "RawDiskSpecificationFixture"
+  },
+  {
+   "test": "should_return_false_if_matches_disc_format",
+   "spec": "RawDisk",
+   "args": "\"Series Title S05 Disc 1 BluRay 1080p AVC Atmos TrueHD 7 1-MTeam\"",
+   "release": {
+    "title": "Series Title S05 Disc 1 BluRay 1080p AVC Atmos TrueHD 7 1-MTeam",
+    "protocol": "torrent"
+   },
+   "expect": {
+    "accepted": false,
+    "reason": "Raw",
+    "message": "Raw Bluray/DVD release"
+   },
+   "flavour": "sonarr",
+   "fixture": "RawDiskSpecificationFixture"
+  },
+  {
+   "test": "should_return_false_if_matches_disc_format",
+   "spec": "RawDisk",
+   "args": "\"Series Title S05 Disc 1 BluRay 1080p AVC Atmos TrueHD 7 1-MTeam\"",
+   "release": {
+    "title": "Series Title S05 Disc 1 BluRay 1080p AVC Atmos TrueHD 7 1-MTeam",
+    "protocol": "torrent"
+   },
+   "expect": {
+    "accepted": false,
+    "reason": "Raw",
+    "message": "Raw Bluray/DVD release"
+   },
+   "flavour": "sonarr",
+   "fixture": "RawDiskSpecificationFixture"
+  },
+  {
+   "test": "should_return_false_if_matches_disc_format",
+   "spec": "RawDisk",
+   "args": "\"Someone.the.Entertainer.Presents.S01.NTSC.3xDVD9.MPEG-2.DD2.0\"",
+   "release": {
+    "title": "Someone.the.Entertainer.Presents.S01.NTSC.3xDVD9.MPEG-2.DD2.0",
+    "protocol": "torrent"
+   },
+   "expect": {
+    "accepted": false,
+    "reason": "Raw",
+    "message": "Raw Bluray/DVD release"
+   },
+   "flavour": "sonarr",
+   "fixture": "RawDiskSpecificationFixture"
+  },
+  {
+   "test": "should_return_false_if_matches_disc_format",
+   "spec": "RawDisk",
+   "args": "\"Series.Title.S00.The.Christmas.Special.2011.PAL.DVD5.DD2.0\"",
+   "release": {
+    "title": "Series.Title.S00.The.Christmas.Special.2011.PAL.DVD5.DD2.0",
+    "protocol": "torrent"
+   },
+   "expect": {
+    "accepted": false,
+    "reason": "Raw",
+    "message": "Raw Bluray/DVD release"
+   },
+   "flavour": "sonarr",
+   "fixture": "RawDiskSpecificationFixture"
+  },
+  {
+   "test": "should_return_false_if_matches_disc_format",
+   "spec": "RawDisk",
+   "args": "\"Series.of.Desire.2000.S1_D01.NTSC.DVD5\"",
+   "release": {
+    "title": "Series.of.Desire.2000.S1_D01.NTSC.DVD5",
+    "protocol": "torrent"
+   },
+   "expect": {
+    "accepted": false,
+    "reason": "Raw",
+    "message": "Raw Bluray/DVD release"
+   },
+   "flavour": "sonarr",
+   "fixture": "RawDiskSpecificationFixture"
+  },
+  {
+   "test": "should_return_true_if_dvdrip",
+   "spec": "RawDisk",
+   "args": "\"Series Title EP50 USLT NTSC DVDRemux DD2.0\"",
+   "release": {
+    "title": "Series Title EP50 USLT NTSC DVDRemux DD2.0",
+    "protocol": "torrent"
+   },
+   "expect": {
+    "accepted": true
+   },
+   "flavour": "sonarr",
+   "fixture": "RawDiskSpecificationFixture"
+  },
+  {
+   "test": "should_return_true_if_dvdrip",
+   "spec": "RawDisk",
+   "args": "\"Series.Title.S01.NTSC.DVDRip.DD2.0.x264-PLAiD\"",
+   "release": {
+    "title": "Series.Title.S01.NTSC.DVDRip.DD2.0.x264-PLAiD",
+    "protocol": "torrent"
+   },
+   "expect": {
+    "accepted": true
+   },
+   "flavour": "sonarr",
+   "fixture": "RawDiskSpecificationFixture"
+  }
+ ]
+}

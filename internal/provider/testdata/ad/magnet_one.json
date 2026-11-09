@@ -1,0 +1,23 @@
+{
+  "status": "success",
+  "data": {
+    "magnets": {
+      "id": 101,
+      "filename": "Movie.B.2021.1080p.BluRay",
+      "size": 9000000000,
+      "hash": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+      "status": "Ready",
+      "statusCode": 4,
+      "downloaded": 9000000000,
+      "uploaded": 9000000000,
+      "seeders": 0,
+      "downloadSpeed": 0,
+      "uploadSpeed": 0,
+      "uploadDate": 1759399200,
+      "completionDate": 1759399260,
+      "type": "m",
+      "notified": false,
+      "version": 2
+    }
+  }
+}

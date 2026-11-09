@@ -1,0 +1,5 @@
+[{"id": 1, "name": "decypharr", "implementation": "QBittorrent", "protocol": "torrent", "enable": true, "priority": 1,
+  "fields": [{"name": "host", "value": "decypharr"}, {"name": "port", "value": 8282}, {"name": "useSsl", "value": false},
+             {"name": "username", "value": "http://radarr_uhd:7878"}, {"name": "password", "value": "********"}, {"name": "movieCategory", "value": "radarr_uhd"}]},
+ {"id": 2, "name": "nzbget", "implementation": "Nzbget", "protocol": "usenet", "enable": true, "priority": 1,
+  "fields": [{"name": "host", "value": "nzbget"}, {"name": "port", "value": 6789}, {"name": "password", "value": "********"}]}]

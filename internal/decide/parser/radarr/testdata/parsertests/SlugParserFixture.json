@@ -1,0 +1,916 @@
+{
+ "source": "Radarr src/NzbDrone.Core.Test/ParserTests/SlugParserFixture.cs @ a96bf7c",
+ "fixture": "SlugParserFixture",
+ "cases": [
+  {
+   "id": "SlugParserFixture/should_replace_accents/0",
+   "line": 12,
+   "call": "toUrlSlug",
+   "input": "tèst",
+   "expect": {
+    "": "test"
+   }
+  },
+  {
+   "id": "SlugParserFixture/should_replace_accents/1",
+   "line": 13,
+   "call": "toUrlSlug",
+   "input": "têst",
+   "expect": {
+    "": "test"
+   }
+  },
+  {
+   "id": "SlugParserFixture/should_replace_accents/2",
+   "line": 14,
+   "call": "toUrlSlug",
+   "input": "tëst",
+   "expect": {
+    "": "test"
+   }
+  },
+  {
+   "id": "SlugParserFixture/should_replace_accents/3",
+   "line": 15,
+   "call": "toUrlSlug",
+   "input": "tËst",
+   "expect": {
+    "": "test"
+   }
+  },
+  {
+   "id": "SlugParserFixture/should_replace_accents/4",
+   "line": 16,
+   "call": "toUrlSlug",
+   "input": "áccent",
+   "expect": {
+    "": "accent"
+   }
+  },
+  {
+   "id": "SlugParserFixture/should_replace_accents/5",
+   "line": 17,
+   "call": "toUrlSlug",
+   "input": "àccent",
+   "expect": {
+    "": "accent"
+   }
+  },
+  {
+   "id": "SlugParserFixture/should_replace_accents/6",
+   "line": 18,
+   "call": "toUrlSlug",
+   "input": "âccent",
+   "expect": {
+    "": "accent"
+   }
+  },
+  {
+   "id": "SlugParserFixture/should_replace_accents/7",
+   "line": 19,
+   "call": "toUrlSlug",
+   "input": "Äccent",
+   "expect": {
+    "": "accent"
+   }
+  },
+  {
+   "id": "SlugParserFixture/should_replace_accents/8",
+   "line": 20,
+   "call": "toUrlSlug",
+   "input": "åccent",
+   "expect": {
+    "": "accent"
+   }
+  },
+  {
+   "id": "SlugParserFixture/should_replace_accents/9",
+   "line": 21,
+   "call": "toUrlSlug",
+   "input": "acceñt",
+   "expect": {
+    "": "accent"
+   }
+  },
+  {
+   "id": "SlugParserFixture/should_replace_accents/10",
+   "line": 22,
+   "call": "toUrlSlug",
+   "input": "ßtest",
+   "expect": {
+    "": "test"
+   }
+  },
+  {
+   "id": "SlugParserFixture/should_replace_accents/11",
+   "line": 23,
+   "call": "toUrlSlug",
+   "input": "œtest",
+   "expect": {
+    "": "test"
+   }
+  },
+  {
+   "id": "SlugParserFixture/should_replace_accents/12",
+   "line": 24,
+   "call": "toUrlSlug",
+   "input": "Œtest",
+   "expect": {
+    "": "test"
+   }
+  },
+  {
+   "id": "SlugParserFixture/should_replace_accents/13",
+   "line": 25,
+   "call": "toUrlSlug",
+   "input": "Øtest",
+   "expect": {
+    "": "test"
+   }
+  },
+  {
+   "id": "SlugParserFixture/should_replace_special_characters/0",
+   "line": 31,
+   "call": "toUrlSlug",
+   "input": "Test'Result",
+   "expect": {
+    "": "testresult"
+   }
+  },
+  {
+   "id": "SlugParserFixture/should_replace_special_characters/1",
+   "line": 32,
+   "call": "toUrlSlug",
+   "input": "Test$Result",
+   "expect": {
+    "": "testresult"
+   }
+  },
+  {
+   "id": "SlugParserFixture/should_replace_special_characters/2",
+   "line": 33,
+   "call": "toUrlSlug",
+   "input": "Test(Result",
+   "expect": {
+    "": "testresult"
+   }
+  },
+  {
+   "id": "SlugParserFixture/should_replace_special_characters/3",
+   "line": 34,
+   "call": "toUrlSlug",
+   "input": "Test)Result",
+   "expect": {
+    "": "testresult"
+   }
+  },
+  {
+   "id": "SlugParserFixture/should_replace_special_characters/4",
+   "line": 35,
+   "call": "toUrlSlug",
+   "input": "Test*Result",
+   "expect": {
+    "": "testresult"
+   }
+  },
+  {
+   "id": "SlugParserFixture/should_replace_special_characters/5",
+   "line": 36,
+   "call": "toUrlSlug",
+   "input": "Test?Result",
+   "expect": {
+    "": "testresult"
+   }
+  },
+  {
+   "id": "SlugParserFixture/should_replace_special_characters/6",
+   "line": 37,
+   "call": "toUrlSlug",
+   "input": "Test/Result",
+   "expect": {
+    "": "testresult"
+   }
+  },
+  {
+   "id": "SlugParserFixture/should_replace_special_characters/7",
+   "line": 38,
+   "call": "toUrlSlug",
+   "input": "Test=Result",
+   "expect": {
+    "": "testresult"
+   }
+  },
+  {
+   "id": "SlugParserFixture/should_replace_special_characters/8",
+   "line": 39,
+   "call": "toUrlSlug",
+   "input": "Test\\Result",
+   "expect": {
+    "": "testresult"
+   }
+  },
+  {
+   "id": "SlugParserFixture/should_lowercase_capitals/0",
+   "line": 45,
+   "call": "toUrlSlug",
+   "input": "ThIS IS A MiXeD CaSe SensItIvE ValUe",
+   "expect": {
+    "": "this-is-a-mixed-case-sensitive-value"
+   }
+  },
+  {
+   "id": "SlugParserFixture/should_trim_trailing_dashes_and_underscores/0",
+   "line": 51,
+   "call": "toUrlSlug",
+   "input": "test----",
+   "expect": {
+    "": "test"
+   }
+  },
+  {
+   "id": "SlugParserFixture/should_trim_trailing_dashes_and_underscores/1",
+   "line": 52,
+   "call": "toUrlSlug",
+   "input": "test____",
+   "expect": {
+    "": "test"
+   }
+  },
+  {
+   "id": "SlugParserFixture/should_trim_trailing_dashes_and_underscores/2",
+   "line": 53,
+   "call": "toUrlSlug",
+   "input": "test-_--_",
+   "expect": {
+    "": "test"
+   }
+  },
+  {
+   "id": "SlugParserFixture/should_replace_spaces_with_dash/0",
+   "line": 59,
+   "call": "toUrlSlug",
+   "input": "test result",
+   "expect": {
+    "": "test-result"
+   }
+  },
+  {
+   "id": "SlugParserFixture/should_replace_spaces_with_dash/1",
+   "line": 60,
+   "call": "toUrlSlug",
+   "input": "test     result",
+   "expect": {
+    "": "test-result"
+   }
+  },
+  {
+   "id": "SlugParserFixture/should_replace_double_occurence/0",
+   "line": 66,
+   "call": "toUrlSlug",
+   "input": "test     result",
+   "expect": {
+    "": "test-result"
+   }
+  },
+  {
+   "id": "SlugParserFixture/should_replace_double_occurence/1",
+   "line": 67,
+   "call": "toUrlSlug",
+   "input": "test-----result",
+   "expect": {
+    "": "test-result"
+   }
+  },
+  {
+   "id": "SlugParserFixture/should_replace_double_occurence/2",
+   "line": 68,
+   "call": "toUrlSlug",
+   "input": "test_____result",
+   "expect": {
+    "": "test_result"
+   }
+  },
+  {
+   "id": "SlugParserFixture/should_replace_special_characters_with_dash_when_enabled/0",
+   "line": 74,
+   "call": "toUrlSlug",
+   "input": "Test'Result",
+   "args": {
+    "invalidDashReplacement": true
+   },
+   "expect": {
+    "": "test-result"
+   }
+  },
+  {
+   "id": "SlugParserFixture/should_replace_special_characters_with_dash_when_enabled/1",
+   "line": 75,
+   "call": "toUrlSlug",
+   "input": "Test$Result",
+   "args": {
+    "invalidDashReplacement": true
+   },
+   "expect": {
+    "": "test-result"
+   }
+  },
+  {
+   "id": "SlugParserFixture/should_replace_special_characters_with_dash_when_enabled/2",
+   "line": 76,
+   "call": "toUrlSlug",
+   "input": "Test(Result",
+   "args": {
+    "invalidDashReplacement": true
+   },
+   "expect": {
+    "": "test-result"
+   }
+  },
+  {
+   "id": "SlugParserFixture/should_replace_special_characters_with_dash_when_enabled/3",
+   "line": 77,
+   "call": "toUrlSlug",
+   "input": "Test)Result",
+   "args": {
+    "invalidDashReplacement": true
+   },
+   "expect": {
+    "": "test-result"
+   }
+  },
+  {
+   "id": "SlugParserFixture/should_replace_special_characters_with_dash_when_enabled/4",
+   "line": 78,
+   "call": "toUrlSlug",
+   "input": "Test*Result",
+   "args": {
+    "invalidDashReplacement": true
+   },
+   "expect": {
+    "": "test-result"
+   }
+  },
+  {
+   "id": "SlugParserFixture/should_replace_special_characters_with_dash_when_enabled/5",
+   "line": 79,
+   "call": "toUrlSlug",
+   "input": "Test?Result",
+   "args": {
+    "invalidDashReplacement": true
+   },
+   "expect": {
+    "": "test-result"
+   }
+  },
+  {
+   "id": "SlugParserFixture/should_replace_special_characters_with_dash_when_enabled/6",
+   "line": 80,
+   "call": "toUrlSlug",
+   "input": "Test/Result",
+   "args": {
+    "invalidDashReplacement": true
+   },
+   "expect": {
+    "": "test-result"
+   }
+  },
+  {
+   "id": "SlugParserFixture/should_replace_special_characters_with_dash_when_enabled/7",
+   "line": 81,
+   "call": "toUrlSlug",
+   "input": "Test=Result",
+   "args": {
+    "invalidDashReplacement": true
+   },
+   "expect": {
+    "": "test-result"
+   }
+  },
+  {
+   "id": "SlugParserFixture/should_replace_special_characters_with_dash_when_enabled/8",
+   "line": 82,
+   "call": "toUrlSlug",
+   "input": "Test\\Result",
+   "args": {
+    "invalidDashReplacement": true
+   },
+   "expect": {
+    "": "test-result"
+   }
+  },
+  {
+   "id": "SlugParserFixture/should__not_replace_special_characters_with_dash_when_disabled/0",
+   "line": 88,
+   "call": "toUrlSlug",
+   "input": "Test'Result",
+   "args": {
+    "invalidDashReplacement": false
+   },
+   "expect": {
+    "": "testresult"
+   }
+  },
+  {
+   "id": "SlugParserFixture/should__not_replace_special_characters_with_dash_when_disabled/1",
+   "line": 89,
+   "call": "toUrlSlug",
+   "input": "Test$Result",
+   "args": {
+    "invalidDashReplacement": false
+   },
+   "expect": {
+    "": "testresult"
+   }
+  },
+  {
+   "id": "SlugParserFixture/should__not_replace_special_characters_with_dash_when_disabled/2",
+   "line": 90,
+   "call": "toUrlSlug",
+   "input": "Test(Result",
+   "args": {
+    "invalidDashReplacement": false
+   },
+   "expect": {
+    "": "testresult"
+   }
+  },
+  {
+   "id": "SlugParserFixture/should__not_replace_special_characters_with_dash_when_disabled/3",
+   "line": 91,
+   "call": "toUrlSlug",
+   "input": "Test)Result",
+   "args": {
+    "invalidDashReplacement": false
+   },
+   "expect": {
+    "": "testresult"
+   }
+  },
+  {
+   "id": "SlugParserFixture/should__not_replace_special_characters_with_dash_when_disabled/4",
+   "line": 92,
+   "call": "toUrlSlug",
+   "input": "Test*Result",
+   "args": {
+    "invalidDashReplacement": false
+   },
+   "expect": {
+    "": "testresult"
+   }
+  },
+  {
+   "id": "SlugParserFixture/should__not_replace_special_characters_with_dash_when_disabled/5",
+   "line": 93,
+   "call": "toUrlSlug",
+   "input": "Test?Result",
+   "args": {
+    "invalidDashReplacement": false
+   },
+   "expect": {
+    "": "testresult"
+   }
+  },
+  {
+   "id": "SlugParserFixture/should__not_replace_special_characters_with_dash_when_disabled/6",
+   "line": 94,
+   "call": "toUrlSlug",
+   "input": "Test/Result",
+   "args": {
+    "invalidDashReplacement": false
+   },
+   "expect": {
+    "": "testresult"
+   }
+  },
+  {
+   "id": "SlugParserFixture/should__not_replace_special_characters_with_dash_when_disabled/7",
+   "line": 95,
+   "call": "toUrlSlug",
+   "input": "Test=Result",
+   "args": {
+    "invalidDashReplacement": false
+   },
+   "expect": {
+    "": "testresult"
+   }
+  },
+  {
+   "id": "SlugParserFixture/should__not_replace_special_characters_with_dash_when_disabled/8",
+   "line": 96,
+   "call": "toUrlSlug",
+   "input": "Test\\Result",
+   "args": {
+    "invalidDashReplacement": false
+   },
+   "expect": {
+    "": "testresult"
+   }
+  },
+  {
+   "id": "SlugParserFixture/should_trim_trailing_dashes_and_underscores_based_on_list/0",
+   "line": 102,
+   "call": "toUrlSlug",
+   "input": "test----",
+   "args": {
+    "invalidDashReplacement": false,
+    "trimEndChars": "-_",
+    "deduplicateChars": ""
+   },
+   "expect": {
+    "": "test"
+   }
+  },
+  {
+   "id": "SlugParserFixture/should_trim_trailing_dashes_and_underscores_based_on_list/1",
+   "line": 103,
+   "call": "toUrlSlug",
+   "input": "test____",
+   "args": {
+    "invalidDashReplacement": false,
+    "trimEndChars": "-_",
+    "deduplicateChars": ""
+   },
+   "expect": {
+    "": "test"
+   }
+  },
+  {
+   "id": "SlugParserFixture/should_trim_trailing_dashes_and_underscores_based_on_list/2",
+   "line": 104,
+   "call": "toUrlSlug",
+   "input": "test-_-_",
+   "args": {
+    "invalidDashReplacement": false,
+    "trimEndChars": "-_",
+    "deduplicateChars": ""
+   },
+   "expect": {
+    "": "test"
+   }
+  },
+  {
+   "id": "SlugParserFixture/should_trim_trailing_dashes_and_underscores_based_on_list/3",
+   "line": 105,
+   "call": "toUrlSlug",
+   "input": "test----",
+   "args": {
+    "invalidDashReplacement": false,
+    "trimEndChars": "-",
+    "deduplicateChars": ""
+   },
+   "expect": {
+    "": "test"
+   }
+  },
+  {
+   "id": "SlugParserFixture/should_trim_trailing_dashes_and_underscores_based_on_list/4",
+   "line": 106,
+   "call": "toUrlSlug",
+   "input": "test____",
+   "args": {
+    "invalidDashReplacement": false,
+    "trimEndChars": "-",
+    "deduplicateChars": ""
+   },
+   "expect": {
+    "": "test____"
+   }
+  },
+  {
+   "id": "SlugParserFixture/should_trim_trailing_dashes_and_underscores_based_on_list/5",
+   "line": 107,
+   "call": "toUrlSlug",
+   "input": "test-_-_",
+   "args": {
+    "invalidDashReplacement": false,
+    "trimEndChars": "-",
+    "deduplicateChars": ""
+   },
+   "expect": {
+    "": "test-_-_"
+   }
+  },
+  {
+   "id": "SlugParserFixture/should_trim_trailing_dashes_and_underscores_based_on_list/6",
+   "line": 108,
+   "call": "toUrlSlug",
+   "input": "test----",
+   "args": {
+    "invalidDashReplacement": false,
+    "trimEndChars": "_",
+    "deduplicateChars": ""
+   },
+   "expect": {
+    "": "test----"
+   }
+  },
+  {
+   "id": "SlugParserFixture/should_trim_trailing_dashes_and_underscores_based_on_list/7",
+   "line": 109,
+   "call": "toUrlSlug",
+   "input": "test____",
+   "args": {
+    "invalidDashReplacement": false,
+    "trimEndChars": "_",
+    "deduplicateChars": ""
+   },
+   "expect": {
+    "": "test"
+   }
+  },
+  {
+   "id": "SlugParserFixture/should_trim_trailing_dashes_and_underscores_based_on_list/8",
+   "line": 110,
+   "call": "toUrlSlug",
+   "input": "test-_-_",
+   "args": {
+    "invalidDashReplacement": false,
+    "trimEndChars": "_",
+    "deduplicateChars": ""
+   },
+   "expect": {
+    "": "test-_-"
+   }
+  },
+  {
+   "id": "SlugParserFixture/should_trim_trailing_dashes_and_underscores_based_on_list/9",
+   "line": 111,
+   "call": "toUrlSlug",
+   "input": "test----",
+   "args": {
+    "invalidDashReplacement": false,
+    "trimEndChars": "",
+    "deduplicateChars": ""
+   },
+   "expect": {
+    "": "test----"
+   }
+  },
+  {
+   "id": "SlugParserFixture/should_trim_trailing_dashes_and_underscores_based_on_list/10",
+   "line": 112,
+   "call": "toUrlSlug",
+   "input": "test____",
+   "args": {
+    "invalidDashReplacement": false,
+    "trimEndChars": "",
+    "deduplicateChars": ""
+   },
+   "expect": {
+    "": "test____"
+   }
+  },
+  {
+   "id": "SlugParserFixture/should_trim_trailing_dashes_and_underscores_based_on_list/11",
+   "line": 113,
+   "call": "toUrlSlug",
+   "input": "test-_-_",
+   "args": {
+    "invalidDashReplacement": false,
+    "trimEndChars": "",
+    "deduplicateChars": ""
+   },
+   "expect": {
+    "": "test-_-_"
+   }
+  },
+  {
+   "id": "SlugParserFixture/should_replace_duplicate_characters_based_on_list/0",
+   "line": 119,
+   "call": "toUrlSlug",
+   "input": "test----result",
+   "args": {
+    "invalidDashReplacement": false,
+    "trimEndChars": "",
+    "deduplicateChars": "-_"
+   },
+   "expect": {
+    "": "test-result"
+   }
+  },
+  {
+   "id": "SlugParserFixture/should_replace_duplicate_characters_based_on_list/1",
+   "line": 120,
+   "call": "toUrlSlug",
+   "input": "test____result",
+   "args": {
+    "invalidDashReplacement": false,
+    "trimEndChars": "",
+    "deduplicateChars": "-_"
+   },
+   "expect": {
+    "": "test_result"
+   }
+  },
+  {
+   "id": "SlugParserFixture/should_replace_duplicate_characters_based_on_list/2",
+   "line": 121,
+   "call": "toUrlSlug",
+   "input": "test_-_-result",
+   "args": {
+    "invalidDashReplacement": false,
+    "trimEndChars": "",
+    "deduplicateChars": "-_"
+   },
+   "expect": {
+    "": "test-result"
+   }
+  },
+  {
+   "id": "SlugParserFixture/should_replace_duplicate_characters_based_on_list/3",
+   "line": 122,
+   "call": "toUrlSlug",
+   "input": "test-_-_result",
+   "args": {
+    "invalidDashReplacement": false,
+    "trimEndChars": "",
+    "deduplicateChars": "-_"
+   },
+   "expect": {
+    "": "test_result"
+   }
+  },
+  {
+   "id": "SlugParserFixture/should_replace_duplicate_characters_based_on_list/4",
+   "line": 123,
+   "call": "toUrlSlug",
+   "input": "test----result",
+   "args": {
+    "invalidDashReplacement": false,
+    "trimEndChars": "",
+    "deduplicateChars": "-"
+   },
+   "expect": {
+    "": "test-result"
+   }
+  },
+  {
+   "id": "SlugParserFixture/should_replace_duplicate_characters_based_on_list/5",
+   "line": 124,
+   "call": "toUrlSlug",
+   "input": "test____result",
+   "args": {
+    "invalidDashReplacement": false,
+    "trimEndChars": "",
+    "deduplicateChars": "-"
+   },
+   "expect": {
+    "": "test____result"
+   }
+  },
+  {
+   "id": "SlugParserFixture/should_replace_duplicate_characters_based_on_list/6",
+   "line": 125,
+   "call": "toUrlSlug",
+   "input": "test-_-_result",
+   "args": {
+    "invalidDashReplacement": false,
+    "trimEndChars": "",
+    "deduplicateChars": "-"
+   },
+   "expect": {
+    "": "test-_-_result"
+   }
+  },
+  {
+   "id": "SlugParserFixture/should_replace_duplicate_characters_based_on_list/7",
+   "line": 126,
+   "call": "toUrlSlug",
+   "input": "test----result",
+   "args": {
+    "invalidDashReplacement": false,
+    "trimEndChars": "",
+    "deduplicateChars": "_"
+   },
+   "expect": {
+    "": "test----result"
+   }
+  },
+  {
+   "id": "SlugParserFixture/should_replace_duplicate_characters_based_on_list/8",
+   "line": 127,
+   "call": "toUrlSlug",
+   "input": "test____result",
+   "args": {
+    "invalidDashReplacement": false,
+    "trimEndChars": "",
+    "deduplicateChars": "_"
+   },
+   "expect": {
+    "": "test_result"
+   }
+  },
+  {
+   "id": "SlugParserFixture/should_replace_duplicate_characters_based_on_list/9",
+   "line": 128,
+   "call": "toUrlSlug",
+   "input": "test-_-_result",
+   "args": {
+    "invalidDashReplacement": false,
+    "trimEndChars": "",
+    "deduplicateChars": "_"
+   },
+   "expect": {
+    "": "test-_-_result"
+   }
+  },
+  {
+   "id": "SlugParserFixture/should_replace_duplicate_characters_based_on_list/10",
+   "line": 129,
+   "call": "toUrlSlug",
+   "input": "test----result",
+   "args": {
+    "invalidDashReplacement": false,
+    "trimEndChars": "",
+    "deduplicateChars": ""
+   },
+   "expect": {
+    "": "test----result"
+   }
+  },
+  {
+   "id": "SlugParserFixture/should_replace_duplicate_characters_based_on_list/11",
+   "line": 130,
+   "call": "toUrlSlug",
+   "input": "test____result",
+   "args": {
+    "invalidDashReplacement": false,
+    "trimEndChars": "",
+    "deduplicateChars": ""
+   },
+   "expect": {
+    "": "test____result"
+   }
+  },
+  {
+   "id": "SlugParserFixture/should_replace_duplicate_characters_based_on_list/12",
+   "line": 131,
+   "call": "toUrlSlug",
+   "input": "test-_-_result",
+   "args": {
+    "invalidDashReplacement": false,
+    "trimEndChars": "",
+    "deduplicateChars": ""
+   },
+   "expect": {
+    "": "test-_-_result"
+   }
+  },
+  {
+   "id": "SlugParserFixture/should_handle_null_trim_parameters/0",
+   "line": 138,
+   "call": "toUrlSlug",
+   "input": "test",
+   "args": {
+    "invalidDashReplacement": false,
+    "trimEndChars": null,
+    "deduplicateChars": "-_"
+   },
+   "expect": {
+    "": "test"
+   }
+  },
+  {
+   "id": "SlugParserFixture/should_handle_null_dedupe_parameters/0",
+   "line": 144,
+   "call": "toUrlSlug",
+   "input": "test",
+   "args": {
+    "invalidDashReplacement": false,
+    "trimEndChars": "-_",
+    "deduplicateChars": null
+   },
+   "expect": {
+    "": "test"
+   }
+  },
+  {
+   "id": "SlugParserFixture/should_handle_empty_trim_parameters/0",
+   "line": 150,
+   "call": "toUrlSlug",
+   "input": "test",
+   "args": {
+    "invalidDashReplacement": false,
+    "trimEndChars": "",
+    "deduplicateChars": "-_"
+   },
+   "expect": {
+    "": "test"
+   }
+  },
+  {
+   "id": "SlugParserFixture/should_handle_empty_dedupe_parameters/0",
+   "line": 156,
+   "call": "toUrlSlug",
+   "input": "test",
+   "args": {
+    "invalidDashReplacement": false,
+    "trimEndChars": "-_",
+    "deduplicateChars": ""
+   },
+   "expect": {
+    "": "test"
+   }
+  }
+ ]
+}

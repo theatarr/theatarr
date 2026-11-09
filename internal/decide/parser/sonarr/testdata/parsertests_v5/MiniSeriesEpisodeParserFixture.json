@@ -1,0 +1,193 @@
+{
+ "source": "Sonarr src/NzbDrone.Core.Test/ParserTests/MiniSeriesEpisodeParserFixture.cs @ a6171f0ca",
+ "fixture": "MiniSeriesEpisodeParserFixture",
+ "cases": [
+  {
+   "id": "MiniSeriesEpisodeParserFixture/should_parse_mini_series_episode/0",
+   "line": 11,
+   "call": "parseTitle",
+   "input": "The.Big.Series.Leader.Part.2.DSR.XviD-SYS",
+   "expect": {
+    "episodeNumbers": [
+     2
+    ],
+    "seasonNumbers": [
+     1
+    ],
+    "seriesTitle": "The Big Series Leader",
+    "absoluteEpisodeNumbers": [],
+    "fullSeason": false
+   }
+  },
+  {
+   "id": "MiniSeriesEpisodeParserFixture/should_parse_mini_series_episode/1",
+   "line": 12,
+   "call": "parseTitle",
+   "input": "kill-roy-was-here-e07-720p",
+   "expect": {
+    "episodeNumbers": [
+     7
+    ],
+    "seasonNumbers": [
+     1
+    ],
+    "seriesTitle": "kill-roy-was-here",
+    "absoluteEpisodeNumbers": [],
+    "fullSeason": false
+   }
+  },
+  {
+   "id": "MiniSeriesEpisodeParserFixture/should_parse_mini_series_episode/2",
+   "line": 13,
+   "call": "parseTitle",
+   "input": "Series and Show 2012 Part 1 REPACK 720p HDTV x264 2HD",
+   "expect": {
+    "episodeNumbers": [
+     1
+    ],
+    "seasonNumbers": [
+     1
+    ],
+    "seriesTitle": "Series and Show 2012",
+    "absoluteEpisodeNumbers": [],
+    "fullSeason": false
+   }
+  },
+  {
+   "id": "MiniSeriesEpisodeParserFixture/should_parse_mini_series_episode/3",
+   "line": 14,
+   "call": "parseTitle",
+   "input": "Series Show.2016.E04.Power.720p.WEB-DL.DD5.1.H.264-MARS",
+   "expect": {
+    "episodeNumbers": [
+     4
+    ],
+    "seasonNumbers": [
+     1
+    ],
+    "seriesTitle": "Series Show 2016",
+    "absoluteEpisodeNumbers": [],
+    "fullSeason": false
+   }
+  },
+  {
+   "id": "MiniSeriesEpisodeParserFixture/should_parse_korean_series_episode/0",
+   "line": 30,
+   "call": "parseTitle",
+   "input": "It's a Series Title.E56.190121.720p-NEXT.mp4",
+   "expect": {
+    "episodeNumbers": [
+     56
+    ],
+    "seasonNumbers": [
+     1
+    ],
+    "seriesTitle": "It's a Series Title",
+    "absoluteEpisodeNumbers": [],
+    "fullSeason": false
+   }
+  },
+  {
+   "id": "MiniSeriesEpisodeParserFixture/should_parse_korean_series_episode/1",
+   "line": 31,
+   "call": "parseTitle",
+   "input": "My Only Series Title.E37.190120.1080p-NEXT.mp4",
+   "expect": {
+    "episodeNumbers": [
+     37
+    ],
+    "seasonNumbers": [
+     1
+    ],
+    "seriesTitle": "My Only Series Title",
+    "absoluteEpisodeNumbers": [],
+    "fullSeason": false
+   }
+  },
+  {
+   "id": "MiniSeriesEpisodeParserFixture/should_parse_korean_series_episode/2",
+   "line": 32,
+   "call": "parseTitle",
+   "input": "Series.E191.190121.720p-NEXT.mp4",
+   "expect": {
+    "episodeNumbers": [
+     191
+    ],
+    "seasonNumbers": [
+     1
+    ],
+    "seriesTitle": "Series",
+    "absoluteEpisodeNumbers": [],
+    "fullSeason": false
+   }
+  },
+  {
+   "id": "MiniSeriesEpisodeParserFixture/should_parse_korean_series_episode/3",
+   "line": 33,
+   "call": "parseTitle",
+   "input": "The Series Title Challenge.E932.190120.720p-NEXT.mp4",
+   "expect": {
+    "episodeNumbers": [
+     932
+    ],
+    "seasonNumbers": [
+     1
+    ],
+    "seriesTitle": "The Series Title Challenge",
+    "absoluteEpisodeNumbers": [],
+    "fullSeason": false
+   }
+  },
+  {
+   "id": "MiniSeriesEpisodeParserFixture/should_parse_korean_series_episode/4",
+   "line": 34,
+   "call": "parseTitle",
+   "input": "백번의 추억.E12.251019.1080p-F1RST",
+   "expect": {
+    "episodeNumbers": [
+     12
+    ],
+    "seasonNumbers": [
+     1
+    ],
+    "seriesTitle": "백번의 추억",
+    "absoluteEpisodeNumbers": [],
+    "fullSeason": false
+   }
+  },
+  {
+   "id": "MiniSeriesEpisodeParserFixture/should_parse_korean_series_episode/5",
+   "line": 35,
+   "call": "parseTitle",
+   "input": "나는 SOLO <나는 솔로>.E223.251015.1080p-F1RST",
+   "expect": {
+    "episodeNumbers": [
+     223
+    ],
+    "seasonNumbers": [
+     1
+    ],
+    "seriesTitle": "나는 SOLO 나는 솔로",
+    "absoluteEpisodeNumbers": [],
+    "fullSeason": false
+   }
+  },
+  {
+   "id": "MiniSeriesEpisodeParserFixture/should_parse_korean_series_episode/6",
+   "line": 36,
+   "call": "parseTitle",
+   "input": "나는 SOLO 그 후, 사랑은 계속된다(나솔사계).E135.251016.1080p-F1RST",
+   "expect": {
+    "episodeNumbers": [
+     135
+    ],
+    "seasonNumbers": [
+     1
+    ],
+    "seriesTitle": "나는 SOLO 그 후, 사랑은 계속된다(나솔사계)",
+    "absoluteEpisodeNumbers": [],
+    "fullSeason": false
+   }
+  }
+ ]
+}

@@ -1,0 +1,8 @@
+# re-zero: curated story-order moves (docs/design/anime.md "Overrides").
+# entry: a key (al:<id>[#n], adb:<id>, kitsu:<id>, tvdb:<id>:S00Exx), or key@SxxEyy-SxxEzz for an arc inside it.
+# after: a key, key@SxxEyy (splits there), key@SxxEyy-SxxEzz (after that slice) or start.
+source: "https://myanimelist.net/stacks/53018"
+moves:
+  - entry: "al:100049#1"
+    after: "al:21355@S01E11"
+    why: "Memory Snow is set between arc 2 and arc 3 (after S1 ep 11); TVDB only says 'after season 1'"

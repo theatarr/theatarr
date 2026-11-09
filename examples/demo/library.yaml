@@ -1,0 +1,64 @@
+# Demo overlay: examples/policy/library.yaml with the roots of the parallel versions in versions-theatarr.yaml added at the
+# end of library.versions (a parallel version needs roots of its own). Replaces library.yaml in the demo's policy
+# directory (docs/demo.md "Two copies"); internal/demo's tests keep it equal to the example's otherwise.
+#
+# Library: imports of ready downloads into the version roots, relinks and Plex scans (docs/design/library.md).
+# Off by default. With enabled: false nothing writes to any filesystem and nothing calls Plex; shadow versions only
+# record what they would link. A version writes only when it is mode: active, listed below, and only under its roots.
+library:
+  enabled: false
+  mount:
+    path: /mnt/debrid            # where this service reads zurg (read-only)
+    link_path: /mnt/debrid       # what symlinks point at: where Plex sees the mount
+    all_dir: __all__
+    wait_timeout: 6m                 # alert (and keep waiting) when a ready release is not on the mount yet
+    # zurg_log: /logs/zurg.log       # zurg's log (read-only): relink as soon as zurg renames a folder
+    # Or, when zurg runs on another host or container, its /logs over HTTP through the gateway:
+    zurg_log: http://zurg:9999/logs
+    zurg_log_interval: 60s           # URL only, 5s to 10m: each fetch is the whole current log (~6-10 MB, no Range)
+    zurg_log_budget: zurg-log        # URL only, optional
+    # zurg's read-only API (GET /debug/torrents, /api/library/entry, /torrents/repair/status; nothing else): the
+    # dangling report, verify and the relink sweep name links whose torrent has no video upstream, imports and relinks
+    # confirm the torrent hash of the files they link, and dangling links are not marked dead while zurg repairs.
+    # Off when unset; every use falls back to the mount alone when the API does not answer.
+    zurg_api: http://zurg:9999
+    zurg_api_interval: 1m            # 10s to 1h: the torrent listing and repair state are reused this long
+    zurg_api_budget: zurg-api        # optional
+    zurg_api_repair_grace: 2h        # 10m to 24h: a repair that runs longer stops holding dangling links
+  probe:
+    max_bytes: 16777216              # header-only probe budget per file
+  sample:
+    min_runtime_ratio: 0.5           # on top of the arrs' sample rule
+  trash:
+    dir: /media/.trash          # replaced links are copied here, never deleted at once; outside every root
+    keep_days: 30
+  plex:
+    url: http://plex:32400
+    token_env: THEATARR_PLEX_TOKEN
+    budget: plex
+  # Dangling-link report: links into the mount whose target is gone. Read-only, at start and every interval, over the
+  # version roots plus these roots. theatarr library dangling prints it.
+  dangling:
+    interval: 6h
+    roots: [/media, /downloads]
+  versions:
+    movie-remux:
+      roots: [/media/movies]
+      plex_section: 1                # the Plex library section id ("Movies"); 0 or unset: no scans
+    movie-web:
+      roots: [/media/movies-web]
+      plex_section: 2                # "Movies WEB"
+    tv-2160p:
+      roots: [/media/tv]
+    anime-tv:
+      roots: [/media/anime]
+    # The parallel versions (versions-theatarr.yaml): Theatarr's own tree, apart from every arr root.
+    tv-2160p-theatarr:
+      roots: [/media/library/tv]
+    anime-tv-theatarr:
+      roots: [/media/library/anime]
+
+budgets:
+  plex: {requests: 30, per: 1m}
+  zurg-log: {requests: 3, per: 1m}     # zurg_log over HTTP: 1 poll a minute at 60s, with room to spare
+  zurg-api: {requests: 120, per: 1m}   # zurg_api: one entry per imported file, the listing and repair state per pass

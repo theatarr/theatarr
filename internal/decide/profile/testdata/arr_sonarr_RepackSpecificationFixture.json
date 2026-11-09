@@ -1,0 +1,299 @@
+{
+ "source": "Sonarr src/NzbDrone.Core.Test/DecisionEngineTests/RepackSpecificationFixture.cs @ cab419a",
+ "cases": [
+  {
+   "test": "should_return_true_if_it_is_not_a_repack",
+   "spec": "Repack",
+   "release": {
+    "quality": {
+     "quality": "SDTV",
+     "version": 2
+    },
+    "releaseGroup": "Sonarr"
+   },
+   "episodes": [
+    {
+     "season": 1,
+     "episode": 1
+    }
+   ],
+   "expect": {
+    "accepted": true
+   },
+   "flavour": "sonarr",
+   "fixture": "RepackSpecificationFixture"
+  },
+  {
+   "test": "should_return_true_if_there_are_is_no_episode_file",
+   "spec": "Repack",
+   "release": {
+    "quality": {
+     "quality": "SDTV",
+     "version": 2,
+     "isRepack": true
+    },
+    "releaseGroup": "Sonarr"
+   },
+   "episodes": [
+    {
+     "season": 1,
+     "episode": 1
+    }
+   ],
+   "expect": {
+    "accepted": true
+   },
+   "flavour": "sonarr",
+   "fixture": "RepackSpecificationFixture"
+  },
+  {
+   "test": "should_return_true_if_is_a_repack_for_a_different_quality",
+   "spec": "Repack",
+   "release": {
+    "quality": {
+     "quality": "SDTV",
+     "version": 2,
+     "isRepack": true
+    },
+    "releaseGroup": "Sonarr"
+   },
+   "episodes": [
+    {
+     "season": 1,
+     "episode": 1,
+     "file": {
+      "quality": {
+       "quality": "DVD"
+      },
+      "releaseGroup": "Sonarr"
+     }
+    }
+   ],
+   "expect": {
+    "accepted": true
+   },
+   "flavour": "sonarr",
+   "fixture": "RepackSpecificationFixture"
+  },
+  {
+   "test": "should_return_true_if_is_a_repack_for_existing_file",
+   "spec": "Repack",
+   "release": {
+    "quality": {
+     "quality": "SDTV",
+     "version": 2,
+     "isRepack": true
+    },
+    "releaseGroup": "Sonarr"
+   },
+   "episodes": [
+    {
+     "season": 1,
+     "episode": 1,
+     "file": {
+      "quality": {
+       "quality": "SDTV"
+      },
+      "releaseGroup": "Sonarr"
+     }
+    }
+   ],
+   "expect": {
+    "accepted": true
+   },
+   "flavour": "sonarr",
+   "fixture": "RepackSpecificationFixture"
+  },
+  {
+   "test": "should_return_false_if_is_a_repack_for_a_different_file",
+   "spec": "Repack",
+   "release": {
+    "quality": {
+     "quality": "SDTV",
+     "version": 2,
+     "isRepack": true
+    },
+    "releaseGroup": "Sonarr"
+   },
+   "episodes": [
+    {
+     "season": 1,
+     "episode": 1,
+     "file": {
+      "quality": {
+       "quality": "SDTV"
+      },
+      "releaseGroup": "NotSonarr"
+     }
+    }
+   ],
+   "expect": {
+    "accepted": false,
+    "reason": "RepackReleaseGroupDoesNotMatch",
+    "message": "Release is a repack for a different release group. Release Group: Sonarr. File release group: NotSonarr"
+   },
+   "flavour": "sonarr",
+   "fixture": "RepackSpecificationFixture"
+  },
+  {
+   "test": "should_return_false_if_release_group_for_existing_file_is_unknown",
+   "spec": "Repack",
+   "release": {
+    "quality": {
+     "quality": "SDTV",
+     "version": 2,
+     "isRepack": true
+    },
+    "releaseGroup": "Sonarr"
+   },
+   "episodes": [
+    {
+     "season": 1,
+     "episode": 1,
+     "file": {
+      "quality": {
+       "quality": "SDTV"
+      },
+      "releaseGroup": ""
+     }
+    }
+   ],
+   "expect": {
+    "accepted": false,
+    "reason": "RepackUnknownReleaseGroup",
+    "message": "Unable to determine release group for the existing file"
+   },
+   "flavour": "sonarr",
+   "fixture": "RepackSpecificationFixture"
+  },
+  {
+   "test": "should_return_false_if_release_group_for_release_is_unknown",
+   "spec": "Repack",
+   "release": {
+    "quality": {
+     "quality": "SDTV",
+     "version": 2,
+     "isRepack": true
+    },
+    "releaseGroup": ""
+   },
+   "episodes": [
+    {
+     "season": 1,
+     "episode": 1,
+     "file": {
+      "quality": {
+       "quality": "SDTV"
+      },
+      "releaseGroup": "Sonarr"
+     }
+    }
+   ],
+   "expect": {
+    "accepted": false,
+    "reason": "RepackUnknownReleaseGroup",
+    "message": "Unable to determine release group for this release"
+   },
+   "flavour": "sonarr",
+   "fixture": "RepackSpecificationFixture"
+  },
+  {
+   "test": "should_return_true_when_repacks_are_not_preferred",
+   "spec": "Repack",
+   "release": {
+    "quality": {
+     "quality": "SDTV",
+     "version": 2,
+     "isRepack": true
+    },
+    "releaseGroup": "Sonarr"
+   },
+   "episodes": [
+    {
+     "season": 1,
+     "episode": 1,
+     "file": {
+      "quality": {
+       "quality": "SDTV"
+      },
+      "releaseGroup": "Sonarr"
+     }
+    }
+   ],
+   "expect": {
+    "accepted": true
+   },
+   "config": {
+    "propers": "doNotPrefer"
+   },
+   "flavour": "sonarr",
+   "fixture": "RepackSpecificationFixture"
+  },
+  {
+   "test": "should_return_true_when_repack_but_auto_download_repacks_is_true",
+   "spec": "Repack",
+   "release": {
+    "quality": {
+     "quality": "SDTV",
+     "version": 2,
+     "isRepack": true
+    },
+    "releaseGroup": "Sonarr"
+   },
+   "episodes": [
+    {
+     "season": 1,
+     "episode": 1,
+     "file": {
+      "quality": {
+       "quality": "SDTV"
+      },
+      "releaseGroup": "Sonarr"
+     }
+    }
+   ],
+   "expect": {
+    "accepted": true
+   },
+   "config": {
+    "propers": "preferAndUpgrade"
+   },
+   "flavour": "sonarr",
+   "fixture": "RepackSpecificationFixture"
+  },
+  {
+   "test": "should_return_false_when_repack_but_auto_download_repacks_is_false",
+   "spec": "Repack",
+   "release": {
+    "quality": {
+     "quality": "SDTV",
+     "version": 2,
+     "isRepack": true
+    },
+    "releaseGroup": "Sonarr"
+   },
+   "episodes": [
+    {
+     "season": 1,
+     "episode": 1,
+     "file": {
+      "quality": {
+       "quality": "SDTV"
+      },
+      "releaseGroup": "Sonarr"
+     }
+    }
+   ],
+   "expect": {
+    "accepted": false,
+    "reason": "RepackDisabled",
+    "message": "Repack downloading is disabled"
+   },
+   "config": {
+    "propers": "doNotUpgrade"
+   },
+   "flavour": "sonarr",
+   "fixture": "RepackSpecificationFixture"
+  }
+ ]
+}

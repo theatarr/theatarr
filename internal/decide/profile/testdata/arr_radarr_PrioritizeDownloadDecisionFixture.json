@@ -1,0 +1,1696 @@
+{
+ "source": "Radarr src/NzbDrone.Core.Test/DecisionEngineTests/PrioritizeDownloadDecisionFixture.cs @ a96bf7c",
+ "cases": [
+  {
+   "fixture": "PrioritizeDownloadDecisionFixture",
+   "test": "should_put_reals_before_non_reals",
+   "spec": "Prioritize",
+   "profile": {
+    "formatItems": [
+     {
+      "name": "My Format 1",
+      "score": 1
+     },
+     {
+      "name": "My Format 2",
+      "score": 2
+     }
+    ],
+    "minFormatScore": 0
+   },
+   "definitions": [
+    {
+     "quality": "HDTV-720p",
+     "preferred": null
+    }
+   ],
+   "config": {
+    "preferredProtocol": "usenet"
+   },
+   "media": {
+    "title": "A Movie",
+    "runtime": 150
+   },
+   "releases": [
+    {
+     "release": {
+      "title": "A Movie 1998",
+      "quality": {
+       "quality": "HDTV-720p"
+      },
+      "size": 0,
+      "protocol": "usenet",
+      "indexerPriority": 25,
+      "ageHours": 0
+     }
+    },
+    {
+     "release": {
+      "title": "A Movie 1998",
+      "quality": {
+       "quality": "HDTV-720p",
+       "real": 1
+      },
+      "size": 0,
+      "protocol": "usenet",
+      "indexerPriority": 25,
+      "ageHours": 0
+     }
+    }
+   ],
+   "expect": {
+    "first": 1
+   },
+   "flavour": "radarr"
+  },
+  {
+   "fixture": "PrioritizeDownloadDecisionFixture",
+   "test": "should_put_propers_before_non_propers",
+   "spec": "Prioritize",
+   "profile": {
+    "formatItems": [
+     {
+      "name": "My Format 1",
+      "score": 1
+     },
+     {
+      "name": "My Format 2",
+      "score": 2
+     }
+    ],
+    "minFormatScore": 0
+   },
+   "definitions": [
+    {
+     "quality": "HDTV-720p",
+     "preferred": null
+    }
+   ],
+   "config": {
+    "preferredProtocol": "usenet"
+   },
+   "media": {
+    "title": "A Movie",
+    "runtime": 150
+   },
+   "releases": [
+    {
+     "release": {
+      "title": "A Movie 1998",
+      "quality": {
+       "quality": "HDTV-720p"
+      },
+      "size": 0,
+      "protocol": "usenet",
+      "indexerPriority": 25,
+      "ageHours": 0
+     }
+    },
+    {
+     "release": {
+      "title": "A Movie 1998",
+      "quality": {
+       "quality": "HDTV-720p",
+       "version": 2
+      },
+      "size": 0,
+      "protocol": "usenet",
+      "indexerPriority": 25,
+      "ageHours": 0
+     }
+    }
+   ],
+   "expect": {
+    "first": 1
+   },
+   "flavour": "radarr"
+  },
+  {
+   "fixture": "PrioritizeDownloadDecisionFixture",
+   "test": "should_put_higher_quality_before_lower",
+   "spec": "Prioritize",
+   "profile": {
+    "formatItems": [
+     {
+      "name": "My Format 1",
+      "score": 1
+     },
+     {
+      "name": "My Format 2",
+      "score": 2
+     }
+    ],
+    "minFormatScore": 0
+   },
+   "definitions": [
+    {
+     "quality": "SDTV",
+     "preferred": null
+    },
+    {
+     "quality": "HDTV-720p",
+     "preferred": null
+    }
+   ],
+   "config": {
+    "preferredProtocol": "usenet"
+   },
+   "media": {
+    "title": "A Movie",
+    "runtime": 150
+   },
+   "releases": [
+    {
+     "release": {
+      "title": "A Movie 1998",
+      "quality": {
+       "quality": "SDTV"
+      },
+      "size": 0,
+      "protocol": "usenet",
+      "indexerPriority": 25,
+      "ageHours": 0
+     }
+    },
+    {
+     "release": {
+      "title": "A Movie 1998",
+      "quality": {
+       "quality": "HDTV-720p"
+      },
+      "size": 0,
+      "protocol": "usenet",
+      "indexerPriority": 25,
+      "ageHours": 0
+     }
+    }
+   ],
+   "expect": {
+    "first": 1
+   },
+   "flavour": "radarr"
+  },
+  {
+   "fixture": "PrioritizeDownloadDecisionFixture",
+   "test": "should_order_by_age_then_largest_rounded_to_200mb",
+   "spec": "Prioritize",
+   "profile": {
+    "formatItems": [
+     {
+      "name": "My Format 1",
+      "score": 1
+     },
+     {
+      "name": "My Format 2",
+      "score": 2
+     }
+    ],
+    "minFormatScore": 0
+   },
+   "definitions": [
+    {
+     "quality": "SDTV",
+     "preferred": null
+    },
+    {
+     "quality": "HDTV-720p",
+     "preferred": null
+    }
+   ],
+   "config": {
+    "preferredProtocol": "usenet"
+   },
+   "media": {
+    "title": "A Movie",
+    "runtime": 150
+   },
+   "releases": [
+    {
+     "release": {
+      "title": "A Movie 1998",
+      "quality": {
+       "quality": "SDTV"
+      },
+      "size": 104857600,
+      "protocol": "usenet",
+      "indexerPriority": 25,
+      "ageHours": 24
+     }
+    },
+    {
+     "release": {
+      "title": "A Movie 1998",
+      "quality": {
+       "quality": "HDTV-720p"
+      },
+      "size": 1258291200,
+      "protocol": "usenet",
+      "indexerPriority": 25,
+      "ageHours": 24000
+     }
+    },
+    {
+     "release": {
+      "title": "A Movie 1998",
+      "quality": {
+       "quality": "HDTV-720p"
+      },
+      "size": 1310720000,
+      "protocol": "usenet",
+      "indexerPriority": 25,
+      "ageHours": 240
+     }
+    },
+    {
+     "release": {
+      "title": "A Movie 1998",
+      "quality": {
+       "quality": "HDTV-720p"
+      },
+      "size": 3145728000,
+      "protocol": "usenet",
+      "indexerPriority": 25,
+      "ageHours": 24
+     }
+    }
+   ],
+   "expect": {
+    "first": 3
+   },
+   "flavour": "radarr"
+  },
+  {
+   "fixture": "PrioritizeDownloadDecisionFixture",
+   "test": "should_order_by_closest_to_preferred_size_if_both_over",
+   "spec": "Prioritize",
+   "profile": {
+    "formatItems": [
+     {
+      "name": "My Format 1",
+      "score": 1
+     },
+     {
+      "name": "My Format 2",
+      "score": 2
+     }
+    ],
+    "minFormatScore": 0
+   },
+   "definitions": [
+    {
+     "quality": "HDTV-720p",
+     "preferred": 2
+    }
+   ],
+   "config": {
+    "preferredProtocol": "usenet"
+   },
+   "media": {
+    "title": "A Movie",
+    "runtime": 150
+   },
+   "releases": [
+    {
+     "release": {
+      "title": "A Movie 1998",
+      "quality": {
+       "quality": "HDTV-720p"
+      },
+      "size": 419430400,
+      "protocol": "usenet",
+      "indexerPriority": 25,
+      "ageHours": 24
+     }
+    },
+    {
+     "release": {
+      "title": "A Movie 1998",
+      "quality": {
+       "quality": "HDTV-720p"
+      },
+      "size": 15728640000,
+      "protocol": "usenet",
+      "indexerPriority": 25,
+      "ageHours": 24
+     }
+    }
+   ],
+   "expect": {
+    "first": 0
+   },
+   "flavour": "radarr"
+  },
+  {
+   "fixture": "PrioritizeDownloadDecisionFixture",
+   "test": "should_order_by_largest_to_if_zero_runtime",
+   "spec": "Prioritize",
+   "profile": {
+    "formatItems": [
+     {
+      "name": "My Format 1",
+      "score": 1
+     },
+     {
+      "name": "My Format 2",
+      "score": 2
+     }
+    ],
+    "minFormatScore": 0
+   },
+   "definitions": [
+    {
+     "quality": "HDTV-720p",
+     "preferred": 2
+    }
+   ],
+   "config": {
+    "preferredProtocol": "usenet"
+   },
+   "media": {
+    "title": "A Movie",
+    "runtime": 150
+   },
+   "releases": [
+    {
+     "release": {
+      "title": "A Movie 1998",
+      "quality": {
+       "quality": "HDTV-720p"
+      },
+      "size": 419430400,
+      "protocol": "usenet",
+      "indexerPriority": 25,
+      "ageHours": 24
+     },
+     "media": {
+      "title": "A Movie",
+      "runtime": 0
+     }
+    },
+    {
+     "release": {
+      "title": "A Movie 1998",
+      "quality": {
+       "quality": "HDTV-720p"
+      },
+      "size": 15728640000,
+      "protocol": "usenet",
+      "indexerPriority": 25,
+      "ageHours": 24
+     },
+     "media": {
+      "title": "A Movie",
+      "runtime": 0
+     }
+    }
+   ],
+   "expect": {
+    "first": 1
+   },
+   "flavour": "radarr"
+  },
+  {
+   "fixture": "PrioritizeDownloadDecisionFixture",
+   "test": "should_order_by_closest_to_preferred_size_if_both_under",
+   "spec": "Prioritize",
+   "profile": {
+    "formatItems": [
+     {
+      "name": "My Format 1",
+      "score": 1
+     },
+     {
+      "name": "My Format 2",
+      "score": 2
+     }
+    ],
+    "minFormatScore": 0
+   },
+   "definitions": [
+    {
+     "quality": "HDTV-720p",
+     "preferred": 390
+    }
+   ],
+   "config": {
+    "preferredProtocol": "usenet"
+   },
+   "media": {
+    "title": "A Movie",
+    "runtime": 150
+   },
+   "releases": [
+    {
+     "release": {
+      "title": "A Movie 1998",
+      "quality": {
+       "quality": "HDTV-720p"
+      },
+      "size": 104857600,
+      "protocol": "usenet",
+      "indexerPriority": 25,
+      "ageHours": 24
+     }
+    },
+    {
+     "release": {
+      "title": "A Movie 1998",
+      "quality": {
+       "quality": "HDTV-720p"
+      },
+      "size": 15728640000,
+      "protocol": "usenet",
+      "indexerPriority": 25,
+      "ageHours": 24
+     }
+    }
+   ],
+   "expect": {
+    "first": 1
+   },
+   "flavour": "radarr"
+  },
+  {
+   "fixture": "PrioritizeDownloadDecisionFixture",
+   "test": "should_order_by_closest_to_preferred_size_if_preferred_is_in_between",
+   "spec": "Prioritize",
+   "profile": {
+    "formatItems": [
+     {
+      "name": "My Format 1",
+      "score": 1
+     },
+     {
+      "name": "My Format 2",
+      "score": 2
+     }
+    ],
+    "minFormatScore": 0
+   },
+   "definitions": [
+    {
+     "quality": "HDTV-720p",
+     "preferred": 46
+    }
+   ],
+   "config": {
+    "preferredProtocol": "usenet"
+   },
+   "media": {
+    "title": "A Movie",
+    "runtime": 150
+   },
+   "releases": [
+    {
+     "release": {
+      "title": "A Movie 1998",
+      "quality": {
+       "quality": "HDTV-720p"
+      },
+      "size": 104857600,
+      "protocol": "usenet",
+      "indexerPriority": 25,
+      "ageHours": 24
+     }
+    },
+    {
+     "release": {
+      "title": "A Movie 1998",
+      "quality": {
+       "quality": "HDTV-720p"
+      },
+      "size": 524288000,
+      "protocol": "usenet",
+      "indexerPriority": 25,
+      "ageHours": 24
+     }
+    },
+    {
+     "release": {
+      "title": "A Movie 1998",
+      "quality": {
+       "quality": "HDTV-720p"
+      },
+      "size": 7340032000,
+      "protocol": "usenet",
+      "indexerPriority": 25,
+      "ageHours": 24
+     }
+    },
+    {
+     "release": {
+      "title": "A Movie 1998",
+      "quality": {
+       "quality": "HDTV-720p"
+      },
+      "size": 15728640000,
+      "protocol": "usenet",
+      "indexerPriority": 25,
+      "ageHours": 24
+     }
+    }
+   ],
+   "expect": {
+    "first": 2
+   },
+   "flavour": "radarr"
+  },
+  {
+   "fixture": "PrioritizeDownloadDecisionFixture",
+   "test": "should_order_by_youngest",
+   "spec": "Prioritize",
+   "profile": {
+    "formatItems": [
+     {
+      "name": "My Format 1",
+      "score": 1
+     },
+     {
+      "name": "My Format 2",
+      "score": 2
+     }
+    ],
+    "minFormatScore": 0
+   },
+   "definitions": [
+    {
+     "quality": "HDTV-720p",
+     "preferred": null
+    }
+   ],
+   "config": {
+    "preferredProtocol": "usenet"
+   },
+   "media": {
+    "title": "A Movie",
+    "runtime": 150
+   },
+   "releases": [
+    {
+     "release": {
+      "title": "A Movie 1998",
+      "quality": {
+       "quality": "HDTV-720p"
+      },
+      "size": 0,
+      "protocol": "usenet",
+      "indexerPriority": 25,
+      "ageHours": 240
+     }
+    },
+    {
+     "release": {
+      "title": "A Movie 1998",
+      "quality": {
+       "quality": "HDTV-720p"
+      },
+      "size": 0,
+      "protocol": "usenet",
+      "indexerPriority": 25,
+      "ageHours": 120
+     }
+    }
+   ],
+   "expect": {
+    "first": 1
+   },
+   "flavour": "radarr"
+  },
+  {
+   "fixture": "PrioritizeDownloadDecisionFixture",
+   "test": "should_put_usenet_above_torrent_when_usenet_is_preferred",
+   "spec": "Prioritize",
+   "profile": {
+    "formatItems": [
+     {
+      "name": "My Format 1",
+      "score": 1
+     },
+     {
+      "name": "My Format 2",
+      "score": 2
+     }
+    ],
+    "minFormatScore": 0
+   },
+   "definitions": [
+    {
+     "quality": "HDTV-720p",
+     "preferred": null
+    }
+   ],
+   "config": {
+    "preferredProtocol": "usenet"
+   },
+   "media": {
+    "title": "A Movie",
+    "runtime": 150
+   },
+   "releases": [
+    {
+     "release": {
+      "title": "A Movie 1998",
+      "quality": {
+       "quality": "HDTV-720p"
+      },
+      "size": 0,
+      "protocol": "torrent",
+      "indexerPriority": 25,
+      "ageHours": 0
+     }
+    },
+    {
+     "release": {
+      "title": "A Movie 1998",
+      "quality": {
+       "quality": "HDTV-720p"
+      },
+      "size": 0,
+      "protocol": "usenet",
+      "indexerPriority": 25,
+      "ageHours": 0
+     }
+    }
+   ],
+   "expect": {
+    "first": 1
+   },
+   "flavour": "radarr"
+  },
+  {
+   "fixture": "PrioritizeDownloadDecisionFixture",
+   "test": "should_put_torrent_above_usenet_when_torrent_is_preferred",
+   "spec": "Prioritize",
+   "profile": {
+    "formatItems": [
+     {
+      "name": "My Format 1",
+      "score": 1
+     },
+     {
+      "name": "My Format 2",
+      "score": 2
+     }
+    ],
+    "minFormatScore": 0
+   },
+   "definitions": [
+    {
+     "quality": "HDTV-720p",
+     "preferred": null
+    }
+   ],
+   "config": {
+    "preferredProtocol": "torrent"
+   },
+   "media": {
+    "title": "A Movie",
+    "runtime": 150
+   },
+   "releases": [
+    {
+     "release": {
+      "title": "A Movie 1998",
+      "quality": {
+       "quality": "HDTV-720p"
+      },
+      "size": 0,
+      "protocol": "torrent",
+      "indexerPriority": 25,
+      "ageHours": 0
+     }
+    },
+    {
+     "release": {
+      "title": "A Movie 1998",
+      "quality": {
+       "quality": "HDTV-720p"
+      },
+      "size": 0,
+      "protocol": "usenet",
+      "indexerPriority": 25,
+      "ageHours": 0
+     }
+    }
+   ],
+   "expect": {
+    "first": 0
+   },
+   "flavour": "radarr"
+  },
+  {
+   "fixture": "PrioritizeDownloadDecisionFixture",
+   "test": "should_prefer_releases_with_more_seeders",
+   "spec": "Prioritize",
+   "profile": {
+    "formatItems": [
+     {
+      "name": "My Format 1",
+      "score": 1
+     },
+     {
+      "name": "My Format 2",
+      "score": 2
+     }
+    ],
+    "minFormatScore": 0
+   },
+   "definitions": [
+    {
+     "quality": "HDTV-720p",
+     "preferred": null
+    }
+   ],
+   "config": {
+    "preferredProtocol": "usenet"
+   },
+   "media": {
+    "title": "A Movie",
+    "runtime": 150
+   },
+   "releases": [
+    {
+     "release": {
+      "title": "A Movie 1998",
+      "quality": {
+       "quality": "HDTV-720p"
+      },
+      "size": 0,
+      "protocol": "torrent",
+      "indexerPriority": 0,
+      "ageHours": 0,
+      "seeders": 10
+     }
+    },
+    {
+     "release": {
+      "title": "A Movie 1998",
+      "quality": {
+       "quality": "HDTV-720p"
+      },
+      "size": 0,
+      "protocol": "torrent",
+      "indexerPriority": 0,
+      "ageHours": 0,
+      "seeders": 100
+     }
+    }
+   ],
+   "expect": {
+    "first": 1
+   },
+   "flavour": "radarr"
+  },
+  {
+   "fixture": "PrioritizeDownloadDecisionFixture",
+   "test": "should_prefer_releases_with_more_peers_given_equal_number_of_seeds",
+   "spec": "Prioritize",
+   "profile": {
+    "formatItems": [
+     {
+      "name": "My Format 1",
+      "score": 1
+     },
+     {
+      "name": "My Format 2",
+      "score": 2
+     }
+    ],
+    "minFormatScore": 0
+   },
+   "definitions": [
+    {
+     "quality": "HDTV-720p",
+     "preferred": null
+    }
+   ],
+   "config": {
+    "preferredProtocol": "usenet"
+   },
+   "media": {
+    "title": "A Movie",
+    "runtime": 150
+   },
+   "releases": [
+    {
+     "release": {
+      "title": "A Movie 1998",
+      "quality": {
+       "quality": "HDTV-720p"
+      },
+      "size": 0,
+      "protocol": "torrent",
+      "indexerPriority": 0,
+      "ageHours": 0,
+      "seeders": 10,
+      "peers": 10
+     }
+    },
+    {
+     "release": {
+      "title": "A Movie 1998",
+      "quality": {
+       "quality": "HDTV-720p"
+      },
+      "size": 0,
+      "protocol": "torrent",
+      "indexerPriority": 0,
+      "ageHours": 0,
+      "seeders": 10,
+      "peers": 100
+     }
+    }
+   ],
+   "expect": {
+    "first": 1
+   },
+   "flavour": "radarr"
+  },
+  {
+   "fixture": "PrioritizeDownloadDecisionFixture",
+   "test": "should_prefer_releases_with_more_peers_no_seeds",
+   "spec": "Prioritize",
+   "profile": {
+    "formatItems": [
+     {
+      "name": "My Format 1",
+      "score": 1
+     },
+     {
+      "name": "My Format 2",
+      "score": 2
+     }
+    ],
+    "minFormatScore": 0
+   },
+   "definitions": [
+    {
+     "quality": "HDTV-720p",
+     "preferred": null
+    }
+   ],
+   "config": {
+    "preferredProtocol": "usenet"
+   },
+   "media": {
+    "title": "A Movie",
+    "runtime": 150
+   },
+   "releases": [
+    {
+     "release": {
+      "title": "A Movie 1998",
+      "quality": {
+       "quality": "HDTV-720p"
+      },
+      "size": 0,
+      "protocol": "torrent",
+      "indexerPriority": 0,
+      "ageHours": 0,
+      "seeders": 0,
+      "peers": 10
+     }
+    },
+    {
+     "release": {
+      "title": "A Movie 1998",
+      "quality": {
+       "quality": "HDTV-720p"
+      },
+      "size": 0,
+      "protocol": "torrent",
+      "indexerPriority": 0,
+      "ageHours": 0,
+      "seeders": 0,
+      "peers": 100
+     }
+    }
+   ],
+   "expect": {
+    "first": 1
+   },
+   "flavour": "radarr"
+  },
+  {
+   "fixture": "PrioritizeDownloadDecisionFixture",
+   "test": "should_prefer_first_release_if_peers_and_size_are_too_similar",
+   "spec": "Prioritize",
+   "profile": {
+    "formatItems": [
+     {
+      "name": "My Format 1",
+      "score": 1
+     },
+     {
+      "name": "My Format 2",
+      "score": 2
+     }
+    ],
+    "minFormatScore": 0
+   },
+   "definitions": [
+    {
+     "quality": "HDTV-720p",
+     "preferred": null
+    }
+   ],
+   "config": {
+    "preferredProtocol": "usenet"
+   },
+   "media": {
+    "title": "A Movie",
+    "runtime": 150
+   },
+   "releases": [
+    {
+     "release": {
+      "title": "A Movie 1998",
+      "quality": {
+       "quality": "HDTV-720p"
+      },
+      "size": 262144000,
+      "protocol": "torrent",
+      "indexerPriority": 0,
+      "ageHours": 0,
+      "seeders": 1000,
+      "peers": 10
+     }
+    },
+    {
+     "release": {
+      "title": "A Movie 1998",
+      "quality": {
+       "quality": "HDTV-720p"
+      },
+      "size": 209715200,
+      "protocol": "torrent",
+      "indexerPriority": 0,
+      "ageHours": 0,
+      "seeders": 1100,
+      "peers": 10
+     }
+    }
+   ],
+   "expect": {
+    "first": 0
+   },
+   "note": "the test sets torrentInfo1.Size to 250 MB after cloning (torrentInfo2 keeps 200 MB)",
+   "flavour": "radarr"
+  },
+  {
+   "fixture": "PrioritizeDownloadDecisionFixture",
+   "test": "should_prefer_first_release_if_age_and_size_are_too_similar",
+   "spec": "Prioritize",
+   "profile": {
+    "formatItems": [
+     {
+      "name": "My Format 1",
+      "score": 1
+     },
+     {
+      "name": "My Format 2",
+      "score": 2
+     }
+    ],
+    "minFormatScore": 0
+   },
+   "definitions": [
+    {
+     "quality": "HDTV-720p",
+     "preferred": null
+    }
+   ],
+   "config": {
+    "preferredProtocol": "usenet"
+   },
+   "media": {
+    "title": "A Movie",
+    "runtime": 150
+   },
+   "releases": [
+    {
+     "release": {
+      "title": "A Movie 1998",
+      "quality": {
+       "quality": "HDTV-720p"
+      },
+      "size": 209715200,
+      "protocol": "usenet",
+      "indexerPriority": 25,
+      "ageHours": 2400
+     }
+    },
+    {
+     "release": {
+      "title": "A Movie 1998",
+      "quality": {
+       "quality": "HDTV-720p"
+      },
+      "size": 262144000,
+      "protocol": "usenet",
+      "indexerPriority": 25,
+      "ageHours": 3600
+     }
+    }
+   ],
+   "expect": {
+    "first": 0
+   },
+   "flavour": "radarr"
+  },
+  {
+   "fixture": "PrioritizeDownloadDecisionFixture",
+   "test": "should_prefer_better_custom_format",
+   "spec": "Prioritize",
+   "profile": {
+    "formatItems": [
+     {
+      "name": "My Format 1",
+      "score": 1
+     },
+     {
+      "name": "My Format 2",
+      "score": 2
+     }
+    ],
+    "minFormatScore": 0
+   },
+   "definitions": [
+    {
+     "quality": "Bluray-720p",
+     "preferred": null
+    }
+   ],
+   "config": {
+    "preferredProtocol": "usenet"
+   },
+   "media": {
+    "title": "A Movie",
+    "runtime": 150
+   },
+   "releases": [
+    {
+     "release": {
+      "title": "A Movie 1998",
+      "quality": {
+       "quality": "Bluray-720p"
+      },
+      "size": 0,
+      "protocol": "usenet",
+      "indexerPriority": 25,
+      "ageHours": 0
+     }
+    },
+    {
+     "release": {
+      "title": "A Movie 1998",
+      "quality": {
+       "quality": "Bluray-720p"
+      },
+      "size": 0,
+      "protocol": "usenet",
+      "indexerPriority": 25,
+      "ageHours": 0,
+      "formats": [
+       "My Format 1"
+      ]
+     }
+    }
+   ],
+   "expect": {
+    "first": 1
+   },
+   "flavour": "radarr"
+  },
+  {
+   "fixture": "PrioritizeDownloadDecisionFixture",
+   "test": "should_prefer_better_custom_format2",
+   "spec": "Prioritize",
+   "profile": {
+    "formatItems": [
+     {
+      "name": "My Format 1",
+      "score": 1
+     },
+     {
+      "name": "My Format 2",
+      "score": 2
+     }
+    ],
+    "minFormatScore": 0
+   },
+   "definitions": [
+    {
+     "quality": "Bluray-720p",
+     "preferred": null
+    }
+   ],
+   "config": {
+    "preferredProtocol": "usenet"
+   },
+   "media": {
+    "title": "A Movie",
+    "runtime": 150
+   },
+   "releases": [
+    {
+     "release": {
+      "title": "A Movie 1998",
+      "quality": {
+       "quality": "Bluray-720p"
+      },
+      "size": 0,
+      "protocol": "usenet",
+      "indexerPriority": 25,
+      "ageHours": 0,
+      "formats": [
+       "My Format 1"
+      ]
+     }
+    },
+    {
+     "release": {
+      "title": "A Movie 1998",
+      "quality": {
+       "quality": "Bluray-720p"
+      },
+      "size": 0,
+      "protocol": "usenet",
+      "indexerPriority": 25,
+      "ageHours": 0,
+      "formats": [
+       "My Format 2"
+      ]
+     }
+    }
+   ],
+   "expect": {
+    "first": 1
+   },
+   "flavour": "radarr"
+  },
+  {
+   "fixture": "PrioritizeDownloadDecisionFixture",
+   "test": "should_prefer_2_custom_formats",
+   "spec": "Prioritize",
+   "profile": {
+    "formatItems": [
+     {
+      "name": "My Format 1",
+      "score": 1
+     },
+     {
+      "name": "My Format 2",
+      "score": 2
+     }
+    ],
+    "minFormatScore": 0
+   },
+   "definitions": [
+    {
+     "quality": "Bluray-720p",
+     "preferred": null
+    }
+   ],
+   "config": {
+    "preferredProtocol": "usenet"
+   },
+   "media": {
+    "title": "A Movie",
+    "runtime": 150
+   },
+   "releases": [
+    {
+     "release": {
+      "title": "A Movie 1998",
+      "quality": {
+       "quality": "Bluray-720p"
+      },
+      "size": 0,
+      "protocol": "usenet",
+      "indexerPriority": 25,
+      "ageHours": 0,
+      "formats": [
+       "My Format 1"
+      ]
+     }
+    },
+    {
+     "release": {
+      "title": "A Movie 1998",
+      "quality": {
+       "quality": "Bluray-720p"
+      },
+      "size": 0,
+      "protocol": "usenet",
+      "indexerPriority": 25,
+      "ageHours": 0,
+      "formats": [
+       "My Format 1",
+       "My Format 2"
+      ]
+     }
+    }
+   ],
+   "expect": {
+    "first": 1
+   },
+   "flavour": "radarr"
+  },
+  {
+   "fixture": "PrioritizeDownloadDecisionFixture",
+   "test": "should_prefer_proper_over_score_when_download_propers_is_prefer_and_upgrade",
+   "spec": "Prioritize",
+   "profile": {
+    "formatItems": [
+     {
+      "name": "My Format 1",
+      "score": 1
+     },
+     {
+      "name": "My Format 2",
+      "score": 2
+     }
+    ],
+    "minFormatScore": 0
+   },
+   "definitions": [
+    {
+     "quality": "WEBDL-1080p",
+     "preferred": null
+    }
+   ],
+   "config": {
+    "preferredProtocol": "usenet",
+    "propers": "preferAndUpgrade"
+   },
+   "media": {
+    "title": "A Movie",
+    "runtime": 150
+   },
+   "releases": [
+    {
+     "release": {
+      "title": "A Movie 1998",
+      "quality": {
+       "quality": "WEBDL-1080p"
+      },
+      "size": 0,
+      "protocol": "usenet",
+      "indexerPriority": 25,
+      "ageHours": 0,
+      "formatScore": 10
+     }
+    },
+    {
+     "release": {
+      "title": "A Movie 1998",
+      "quality": {
+       "quality": "WEBDL-1080p",
+       "version": 2
+      },
+      "size": 0,
+      "protocol": "usenet",
+      "indexerPriority": 25,
+      "ageHours": 0,
+      "formatScore": 0
+     }
+    }
+   ],
+   "expect": {
+    "first": 1
+   },
+   "flavour": "radarr"
+  },
+  {
+   "fixture": "PrioritizeDownloadDecisionFixture",
+   "test": "should_prefer_proper_over_score_when_download_propers_is_do_not_upgrade",
+   "spec": "Prioritize",
+   "profile": {
+    "formatItems": [
+     {
+      "name": "My Format 1",
+      "score": 1
+     },
+     {
+      "name": "My Format 2",
+      "score": 2
+     }
+    ],
+    "minFormatScore": 0
+   },
+   "definitions": [
+    {
+     "quality": "WEBDL-1080p",
+     "preferred": null
+    }
+   ],
+   "config": {
+    "preferredProtocol": "usenet",
+    "propers": "doNotUpgrade"
+   },
+   "media": {
+    "title": "A Movie",
+    "runtime": 150
+   },
+   "releases": [
+    {
+     "release": {
+      "title": "A Movie 1998",
+      "quality": {
+       "quality": "WEBDL-1080p"
+      },
+      "size": 0,
+      "protocol": "usenet",
+      "indexerPriority": 25,
+      "ageHours": 0,
+      "formatScore": 10
+     }
+    },
+    {
+     "release": {
+      "title": "A Movie 1998",
+      "quality": {
+       "quality": "WEBDL-1080p",
+       "version": 2
+      },
+      "size": 0,
+      "protocol": "usenet",
+      "indexerPriority": 25,
+      "ageHours": 0,
+      "formatScore": 0
+     }
+    }
+   ],
+   "expect": {
+    "first": 1
+   },
+   "flavour": "radarr"
+  },
+  {
+   "fixture": "PrioritizeDownloadDecisionFixture",
+   "test": "should_prefer_score_over_proper_when_download_propers_is_do_not_prefer",
+   "spec": "Prioritize",
+   "profile": {
+    "formatItems": [
+     {
+      "name": "My Format 1",
+      "score": 1
+     },
+     {
+      "name": "My Format 2",
+      "score": 2
+     }
+    ],
+    "minFormatScore": 0
+   },
+   "definitions": [
+    {
+     "quality": "WEBDL-1080p",
+     "preferred": null
+    }
+   ],
+   "config": {
+    "preferredProtocol": "usenet",
+    "propers": "doNotPrefer"
+   },
+   "media": {
+    "title": "A Movie",
+    "runtime": 150
+   },
+   "releases": [
+    {
+     "release": {
+      "title": "A Movie 1998",
+      "quality": {
+       "quality": "WEBDL-1080p"
+      },
+      "size": 0,
+      "protocol": "usenet",
+      "indexerPriority": 25,
+      "ageHours": 0,
+      "formatScore": 10
+     }
+    },
+    {
+     "release": {
+      "title": "A Movie 1998",
+      "quality": {
+       "quality": "WEBDL-1080p",
+       "version": 2
+      },
+      "size": 0,
+      "protocol": "usenet",
+      "indexerPriority": 25,
+      "ageHours": 0,
+      "formatScore": 0
+     }
+    }
+   ],
+   "expect": {
+    "first": 0
+   },
+   "flavour": "radarr"
+  },
+  {
+   "fixture": "PrioritizeDownloadDecisionFixture",
+   "test": "should_prefer_score_over_real_when_download_propers_is_do_not_prefer",
+   "spec": "Prioritize",
+   "profile": {
+    "formatItems": [
+     {
+      "name": "My Format 1",
+      "score": 1
+     },
+     {
+      "name": "My Format 2",
+      "score": 2
+     }
+    ],
+    "minFormatScore": 0
+   },
+   "definitions": [
+    {
+     "quality": "WEBDL-1080p",
+     "preferred": null
+    }
+   ],
+   "config": {
+    "preferredProtocol": "usenet",
+    "propers": "doNotPrefer"
+   },
+   "media": {
+    "title": "A Movie",
+    "runtime": 150
+   },
+   "releases": [
+    {
+     "release": {
+      "title": "A Movie 1998",
+      "quality": {
+       "quality": "WEBDL-1080p"
+      },
+      "size": 0,
+      "protocol": "usenet",
+      "indexerPriority": 25,
+      "ageHours": 0,
+      "formatScore": 10
+     }
+    },
+    {
+     "release": {
+      "title": "A Movie 1998",
+      "quality": {
+       "quality": "WEBDL-1080p",
+       "real": 1
+      },
+      "size": 0,
+      "protocol": "usenet",
+      "indexerPriority": 25,
+      "ageHours": 0,
+      "formatScore": 0
+     }
+    }
+   ],
+   "expect": {
+    "first": 0
+   },
+   "flavour": "radarr"
+  },
+  {
+   "fixture": "PrioritizeDownloadDecisionFixture",
+   "test": "sort_download_decisions_based_on_indexer_priority",
+   "spec": "Prioritize",
+   "profile": {
+    "formatItems": [
+     {
+      "name": "My Format 1",
+      "score": 1
+     },
+     {
+      "name": "My Format 2",
+      "score": 2
+     }
+    ],
+    "minFormatScore": 0
+   },
+   "definitions": [
+    {
+     "quality": "WEBDL-1080p",
+     "preferred": null
+    }
+   ],
+   "config": {
+    "preferredProtocol": "usenet"
+   },
+   "media": {
+    "title": "A Movie",
+    "runtime": 150
+   },
+   "releases": [
+    {
+     "release": {
+      "title": "A Movie 1998",
+      "quality": {
+       "quality": "WEBDL-1080p"
+      },
+      "size": 0,
+      "protocol": "usenet",
+      "indexerPriority": 25,
+      "ageHours": 0
+     }
+    },
+    {
+     "release": {
+      "title": "A Movie 1998",
+      "quality": {
+       "quality": "WEBDL-1080p"
+      },
+      "size": 0,
+      "protocol": "usenet",
+      "indexerPriority": 50,
+      "ageHours": 0
+     }
+    },
+    {
+     "release": {
+      "title": "A Movie 1998",
+      "quality": {
+       "quality": "WEBDL-1080p"
+      },
+      "size": 0,
+      "protocol": "usenet",
+      "indexerPriority": 1,
+      "ageHours": 0
+     }
+    }
+   ],
+   "expect": {
+    "order": [
+     2,
+     0,
+     1
+    ]
+   },
+   "flavour": "radarr"
+  },
+  {
+   "fixture": "PrioritizeDownloadDecisionFixture",
+   "test": "ensure_download_decisions_indexer_priority_is_not_perfered_over_quality",
+   "spec": "Prioritize",
+   "profile": {
+    "formatItems": [
+     {
+      "name": "My Format 1",
+      "score": 1
+     },
+     {
+      "name": "My Format 2",
+      "score": 2
+     }
+    ],
+    "minFormatScore": 0
+   },
+   "definitions": [
+    {
+     "quality": "HDTV-720p",
+     "preferred": null
+    },
+    {
+     "quality": "WEBDL-1080p",
+     "preferred": null
+    },
+    {
+     "quality": "SDTV",
+     "preferred": null
+    }
+   ],
+   "config": {
+    "preferredProtocol": "usenet"
+   },
+   "media": {
+    "title": "A Movie",
+    "runtime": 150
+   },
+   "releases": [
+    {
+     "release": {
+      "title": "A Movie 1998",
+      "quality": {
+       "quality": "HDTV-720p"
+      },
+      "size": 0,
+      "protocol": "usenet",
+      "indexerPriority": 25,
+      "ageHours": 0
+     }
+    },
+    {
+     "release": {
+      "title": "A Movie 1998",
+      "quality": {
+       "quality": "WEBDL-1080p"
+      },
+      "size": 0,
+      "protocol": "usenet",
+      "indexerPriority": 50,
+      "ageHours": 0
+     }
+    },
+    {
+     "release": {
+      "title": "A Movie 1998",
+      "quality": {
+       "quality": "SDTV"
+      },
+      "size": 0,
+      "protocol": "usenet",
+      "indexerPriority": 1,
+      "ageHours": 0
+     }
+    },
+    {
+     "release": {
+      "title": "A Movie 1998",
+      "quality": {
+       "quality": "WEBDL-1080p"
+      },
+      "size": 0,
+      "protocol": "usenet",
+      "indexerPriority": 25,
+      "ageHours": 0
+     }
+    }
+   ],
+   "expect": {
+    "order": [
+     3,
+     1,
+     0,
+     2
+    ]
+   },
+   "flavour": "radarr"
+  }
+ ]
+}

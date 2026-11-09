@@ -1,0 +1,6176 @@
+[
+ {
+  "id": 1,
+  "name": "ADN - Notifiarr",
+  "includeCustomFormatWhenRenaming": true,
+  "specifications": [
+   {
+    "name": "WEBDL",
+    "implementation": "SourceSpecification",
+    "negate": false,
+    "required": false,
+    "fields": [
+     {
+      "name": "value",
+      "value": 3
+     }
+    ]
+   },
+   {
+    "name": "WEBRIP",
+    "implementation": "SourceSpecification",
+    "negate": false,
+    "required": false,
+    "fields": [
+     {
+      "name": "value",
+      "value": 4
+     }
+    ]
+   },
+   {
+    "name": "WEB",
+    "implementation": "SourceSpecification",
+    "negate": false,
+    "required": false,
+    "fields": [
+     {
+      "name": "value",
+      "value": 1
+     }
+    ]
+   },
+   {
+    "name": "ADN",
+    "implementation": "ReleaseTitleSpecification",
+    "negate": false,
+    "required": true,
+    "fields": [
+     {
+      "name": "value",
+      "value": "\\b(ADN)\\b"
+     }
+    ]
+   }
+  ]
+ },
+ {
+  "id": 4,
+  "name": "CR - Notifiarr",
+  "includeCustomFormatWhenRenaming": true,
+  "specifications": [
+   {
+    "name": "WEBDL",
+    "implementation": "SourceSpecification",
+    "negate": false,
+    "required": false,
+    "fields": [
+     {
+      "name": "value",
+      "value": 3
+     }
+    ]
+   },
+   {
+    "name": "WEBRIP",
+    "implementation": "SourceSpecification",
+    "negate": false,
+    "required": false,
+    "fields": [
+     {
+      "name": "value",
+      "value": 4
+     }
+    ]
+   },
+   {
+    "name": "WEB",
+    "implementation": "SourceSpecification",
+    "negate": false,
+    "required": false,
+    "fields": [
+     {
+      "name": "value",
+      "value": 1
+     }
+    ]
+   },
+   {
+    "name": "Crunchyroll",
+    "implementation": "ReleaseTitleSpecification",
+    "negate": false,
+    "required": true,
+    "fields": [
+     {
+      "name": "value",
+      "value": "\\b(C(runchy)?[ .-]?R(oll)?)\\b"
+     }
+    ]
+   }
+  ]
+ },
+ {
+  "id": 5,
+  "name": "FUNi - Notifiarr",
+  "includeCustomFormatWhenRenaming": true,
+  "specifications": [
+   {
+    "name": "WEBDL",
+    "implementation": "SourceSpecification",
+    "negate": false,
+    "required": false,
+    "fields": [
+     {
+      "name": "value",
+      "value": 3
+     }
+    ]
+   },
+   {
+    "name": "WEBRIP",
+    "implementation": "SourceSpecification",
+    "negate": false,
+    "required": false,
+    "fields": [
+     {
+      "name": "value",
+      "value": 4
+     }
+    ]
+   },
+   {
+    "name": "WEB",
+    "implementation": "SourceSpecification",
+    "negate": false,
+    "required": false,
+    "fields": [
+     {
+      "name": "value",
+      "value": 1
+     }
+    ]
+   },
+   {
+    "name": "Funimation",
+    "implementation": "ReleaseTitleSpecification",
+    "negate": false,
+    "required": true,
+    "fields": [
+     {
+      "name": "value",
+      "value": "\\b(FUNi(mation)?)\\b"
+     }
+    ]
+   }
+  ]
+ },
+ {
+  "id": 7,
+  "name": "VRV - Notifiarr",
+  "includeCustomFormatWhenRenaming": true,
+  "specifications": [
+   {
+    "name": "VRV",
+    "implementation": "ReleaseTitleSpecification",
+    "negate": false,
+    "required": true,
+    "fields": [
+     {
+      "name": "value",
+      "value": "\\b(VRV)\\b"
+     }
+    ]
+   },
+   {
+    "name": "WEBDL",
+    "implementation": "SourceSpecification",
+    "negate": false,
+    "required": false,
+    "fields": [
+     {
+      "name": "value",
+      "value": 3
+     }
+    ]
+   },
+   {
+    "name": "WEBRIP",
+    "implementation": "SourceSpecification",
+    "negate": false,
+    "required": false,
+    "fields": [
+     {
+      "name": "value",
+      "value": 4
+     }
+    ]
+   },
+   {
+    "name": "WEB",
+    "implementation": "SourceSpecification",
+    "negate": false,
+    "required": false,
+    "fields": [
+     {
+      "name": "value",
+      "value": 1
+     }
+    ]
+   }
+  ]
+ },
+ {
+  "id": 9,
+  "name": "v0 - Notifiarr",
+  "includeCustomFormatWhenRenaming": true,
+  "specifications": [
+   {
+    "name": "v0",
+    "implementation": "ReleaseTitleSpecification",
+    "negate": false,
+    "required": true,
+    "fields": [
+     {
+      "name": "value",
+      "value": "(\\b|\\d)(v0)\\b"
+     }
+    ]
+   }
+  ]
+ },
+ {
+  "id": 10,
+  "name": "v1 - Notifiarr",
+  "includeCustomFormatWhenRenaming": true,
+  "specifications": [
+   {
+    "name": "v1",
+    "implementation": "ReleaseTitleSpecification",
+    "negate": false,
+    "required": true,
+    "fields": [
+     {
+      "name": "value",
+      "value": "(\\b|\\d)(v1)\\b"
+     }
+    ]
+   }
+  ]
+ },
+ {
+  "id": 11,
+  "name": "v2 - Notifiarr",
+  "includeCustomFormatWhenRenaming": true,
+  "specifications": [
+   {
+    "name": "v2",
+    "implementation": "ReleaseTitleSpecification",
+    "negate": false,
+    "required": true,
+    "fields": [
+     {
+      "name": "value",
+      "value": "(\\b|\\d)(v2)\\b|\\b(Repack|Proper|Rerip)\\b"
+     }
+    ]
+   },
+   {
+    "name": "Not Higher Versions",
+    "implementation": "ReleaseTitleSpecification",
+    "negate": true,
+    "required": true,
+    "fields": [
+     {
+      "name": "value",
+      "value": "(\\b|\\d)(v[3-4])\\b|\\b((repack|proper)[23])\\b|\\bREAL\\.(REAL\\.)?(PROPER|REPACK)\\b"
+     }
+    ]
+   }
+  ]
+ },
+ {
+  "id": 12,
+  "name": "v3 - Notifiarr",
+  "includeCustomFormatWhenRenaming": true,
+  "specifications": [
+   {
+    "name": "v3",
+    "implementation": "ReleaseTitleSpecification",
+    "negate": false,
+    "required": true,
+    "fields": [
+     {
+      "name": "value",
+      "value": "(\\b|\\d)(v3)\\b|\\b((repack|proper)2)\\b|\\b(REAL\\.(PROPER|REPACK))\\b"
+     }
+    ]
+   },
+   {
+    "name": "Not Higher Versions",
+    "implementation": "ReleaseTitleSpecification",
+    "negate": true,
+    "required": true,
+    "fields": [
+     {
+      "name": "value",
+      "value": "(\\b|\\d)(v[4])\\b|\\b((repack|proper)3)\\b|\\bREAL\\.(REAL\\.)(PROPER|REPACK)\\b"
+     }
+    ]
+   }
+  ]
+ },
+ {
+  "id": 13,
+  "name": "v4 - Notifiarr",
+  "includeCustomFormatWhenRenaming": true,
+  "specifications": [
+   {
+    "name": "v4",
+    "implementation": "ReleaseTitleSpecification",
+    "negate": false,
+    "required": true,
+    "fields": [
+     {
+      "name": "value",
+      "value": "(\\b|\\d)(v4)\\b|\\b((repack|proper)3)\\b|\\b(REAL\\.REAL\\.(PROPER|REPACK))\\b"
+     }
+    ]
+   }
+  ]
+ },
+ {
+  "id": 16,
+  "name": "Anime BD Tier 01 (Top SeaDex Muxers) - Notifiarr",
+  "includeCustomFormatWhenRenaming": false,
+  "specifications": [
+   {
+    "name": "Bluray",
+    "implementation": "SourceSpecification",
+    "negate": false,
+    "required": false,
+    "fields": [
+     {
+      "name": "value",
+      "value": 6
+     }
+    ]
+   },
+   {
+    "name": "Bluray Remux",
+    "implementation": "SourceSpecification",
+    "negate": false,
+    "required": false,
+    "fields": [
+     {
+      "name": "value",
+      "value": 7
+     }
+    ]
+   },
+   {
+    "name": "DVD",
+    "implementation": "SourceSpecification",
+    "negate": false,
+    "required": false,
+    "fields": [
+     {
+      "name": "value",
+      "value": 5
+     }
+    ]
+   },
+   {
+    "name": "DemiHuman",
+    "implementation": "ReleaseTitleSpecification",
+    "negate": false,
+    "required": false,
+    "fields": [
+     {
+      "name": "value",
+      "value": "\\b(DemiHuman)\\b"
+     }
+    ]
+   },
+   {
+    "name": "FLE",
+    "implementation": "ReleaseTitleSpecification",
+    "negate": false,
+    "required": false,
+    "fields": [
+     {
+      "name": "value",
+      "value": "\\b(FLE)\\b"
+     }
+    ]
+   },
+   {
+    "name": "Flugel",
+    "implementation": "ReleaseTitleSpecification",
+    "negate": false,
+    "required": false,
+    "fields": [
+     {
+      "name": "value",
+      "value": "\\b(Flugel)\\b"
+     }
+    ]
+   },
+   {
+    "name": "LYS1TH3A",
+    "implementation": "ReleaseTitleSpecification",
+    "negate": false,
+    "required": false,
+    "fields": [
+     {
+      "name": "value",
+      "value": "\\b(LYS1TH3A)\\b"
+     }
+    ]
+   },
+   {
+    "name": "Moxie",
+    "implementation": "ReleaseTitleSpecification",
+    "negate": false,
+    "required": false,
+    "fields": [
+     {
+      "name": "value",
+      "value": "\\[Moxie\\]|-Moxie\\b"
+     }
+    ]
+   },
+   {
+    "name": "sam",
+    "implementation": "ReleaseTitleSpecification",
+    "negate": false,
+    "required": false,
+    "fields": [
+     {
+      "name": "value",
+      "value": "\\[sam\\]|-sam\\b"
+     }
+    ]
+   },
+   {
+    "name": "smol",
+    "implementation": "ReleaseTitleSpecification",
+    "negate": false,
+    "required": false,
+    "fields": [
+     {
+      "name": "value",
+      "value": "\\[smol\\]|-smol\\b"
+     }
+    ]
+   },
+   {
+    "name": "SoM",
+    "implementation": "ReleaseTitleSpecification",
+    "negate": false,
+    "required": false,
+    "fields": [
+     {
+      "name": "value",
+      "value": "\\[SoM\\]|-SoM\\b"
+     }
+    ]
+   }
+  ]
+ },
+ {
+  "id": 17,
+  "name": "Anime BD Tier 02 (SeaDex Muxers) - Notifiarr",
+  "includeCustomFormatWhenRenaming": false,
+  "specifications": [
+   {
+    "name": "Bluray",
+    "implementation": "SourceSpecification",
+    "negate": false,
+    "required": false,
+    "fields": [
+     {
+      "name": "value",
+      "value": 6
+     }
+    ]
+   },
+   {
+    "name": "Bluray Remux",
+    "implementation": "SourceSpecification",
+    "negate": false,
+    "required": false,
+    "fields": [
+     {
+      "name": "value",
+      "value": 7
+     }
+    ]
+   },
+   {
+    "name": "DVD",
+    "implementation": "SourceSpecification",
+    "negate": false,
+    "required": false,
+    "fields": [
+     {
+      "name": "value",
+      "value": 5
+     }
+    ]
+   },
+   {
+    "name": "Aergia",
+    "implementation": "ReleaseTitleSpecification",
+    "negate": false,
+    "required": false,
+    "fields": [
+     {
+      "name": "value",
+      "value": "\\[Aergia\\]|-Aergia(?!-raws)\\b"
+     }
+    ]
+   },
+   {
+    "name": "Arg0",
+    "implementation": "ReleaseTitleSpecification",
+    "negate": false,
+    "required": false,
+    "fields": [
+     {
+      "name": "value",
+      "value": "\\b(Arg0)\\b"
+     }
+    ]
+   },
+   {
+    "name": "Arid",
+    "implementation": "ReleaseTitleSpecification",
+    "negate": false,
+    "required": false,
+    "fields": [
+     {
+      "name": "value",
+      "value": "\\[Arid\\]|-Arid\\b"
+     }
+    ]
+   },
+   {
+    "name": "BlackRose",
+    "implementation": "ReleaseTitleSpecification",
+    "negate": false,
+    "required": false,
+    "fields": [
+     {
+      "name": "value",
+      "value": "\\b(BlackRose)\\b"
+     }
+    ]
+   },
+   {
+    "name": "FateSucks",
+    "implementation": "ReleaseTitleSpecification",
+    "negate": false,
+    "required": false,
+    "fields": [
+     {
+      "name": "value",
+      "value": "\\b(FateSucks)\\b"
+     }
+    ]
+   },
+   {
+    "name": "hydes",
+    "implementation": "ReleaseTitleSpecification",
+    "negate": false,
+    "required": false,
+    "fields": [
+     {
+      "name": "value",
+      "value": "\\b(hydes)\\b"
+     }
+    ]
+   },
+   {
+    "name": "hchcsen",
+    "implementation": "ReleaseTitleSpecification",
+    "negate": false,
+    "required": false,
+    "fields": [
+     {
+      "name": "value",
+      "value": "\\b(hchcsen)\\b"
+     }
+    ]
+   },
+   {
+    "name": "JOHNTiTOR",
+    "implementation": "ReleaseTitleSpecification",
+    "negate": false,
+    "required": false,
+    "fields": [
+     {
+      "name": "value",
+      "value": "\\b(JOHNTiTOR)\\b"
+     }
+    ]
+   },
+   {
+    "name": "JySzE",
+    "implementation": "ReleaseTitleSpecification",
+    "negate": false,
+    "required": false,
+    "fields": [
+     {
+      "name": "value",
+      "value": "\\b(JySzE)\\b"
+     }
+    ]
+   },
+   {
+    "name": "koala",
+    "implementation": "ReleaseTitleSpecification",
+    "negate": false,
+    "required": false,
+    "fields": [
+     {
+      "name": "value",
+      "value": "\\[koala\\]|-koala\\b"
+     }
+    ]
+   },
+   {
+    "name": "Kulot",
+    "implementation": "ReleaseTitleSpecification",
+    "negate": false,
+    "required": false,
+    "fields": [
+     {
+      "name": "value",
+      "value": "\\b(Kulot)\\b"
+     }
+    ]
+   },
+   {
+    "name": "LostYears",
+    "implementation": "ReleaseTitleSpecification",
+    "negate": false,
+    "required": false,
+    "fields": [
+     {
+      "name": "value",
+      "value": "\\b(LostYears)\\b"
+     }
+    ]
+   },
+   {
+    "name": "Lulu",
+    "implementation": "ReleaseTitleSpecification",
+    "negate": false,
+    "required": false,
+    "fields": [
+     {
+      "name": "value",
+      "value": "\\[Lulu\\]|-Lulu\\b"
+     }
+    ]
+   },
+   {
+    "name": "Meakes",
+    "implementation": "ReleaseTitleSpecification",
+    "negate": false,
+    "required": false,
+    "fields": [
+     {
+      "name": "value",
+      "value": "\\b(Meakes)\\b"
+     }
+    ]
+   },
+   {
+    "name": "Orphan",
+    "implementation": "ReleaseTitleSpecification",
+    "negate": false,
+    "required": false,
+    "fields": [
+     {
+      "name": "value",
+      "value": "\\[Orphan\\]|-Orphan\\b"
+     }
+    ]
+   },
+   {
+    "name": "Vodes",
+    "implementation": "ReleaseTitleSpecification",
+    "negate": false,
+    "required": false,
+    "fields": [
+     {
+      "name": "value",
+      "value": "\\[Vodes\\]|(?<!Not)-Vodes\\b"
+     }
+    ]
+   },
+   {
+    "name": "WAP",
+    "implementation": "ReleaseTitleSpecification",
+    "negate": false,
+    "required": false,
+    "fields": [
+     {
+      "name": "value",
+      "value": "\\b(WAP)\\b"
+     }
+    ]
+   },
+   {
+    "name": "YURI",
+    "implementation": "ReleaseTitleSpecification",
+    "negate": false,
+    "required": false,
+    "fields": [
+     {
+      "name": "value",
+      "value": "\\[YURI\\]|-YURI\\b"
+     }
+    ]
+   },
+   {
+    "name": "ZeroBuild",
+    "implementation": "ReleaseTitleSpecification",
+    "negate": false,
+    "required": false,
+    "fields": [
+     {
+      "name": "value",
+      "value": "\\b(ZeroBuild)\\b"
+     }
+    ]
+   }
+  ]
+ },
+ {
+  "id": 18,
+  "name": "Anime BD Tier 03 (SeaDex Muxers) - Notifiarr",
+  "includeCustomFormatWhenRenaming": false,
+  "specifications": [
+   {
+    "name": "Bluray",
+    "implementation": "SourceSpecification",
+    "negate": false,
+    "required": false,
+    "fields": [
+     {
+      "name": "value",
+      "value": 6
+     }
+    ]
+   },
+   {
+    "name": "Bluray Remux",
+    "implementation": "SourceSpecification",
+    "negate": false,
+    "required": false,
+    "fields": [
+     {
+      "name": "value",
+      "value": 7
+     }
+    ]
+   },
+   {
+    "name": "DVD",
+    "implementation": "SourceSpecification",
+    "negate": false,
+    "required": false,
+    "fields": [
+     {
+      "name": "value",
+      "value": 5
+     }
+    ]
+   },
+   {
+    "name": "ARC",
+    "implementation": "ReleaseTitleSpecification",
+    "negate": false,
+    "required": false,
+    "fields": [
+     {
+      "name": "value",
+      "value": "\\[ARC\\]|-ARC\\b"
+     }
+    ]
+   },
+   {
+    "name": "BBT-RMX",
+    "implementation": "ReleaseTitleSpecification",
+    "negate": false,
+    "required": false,
+    "fields": [
+     {
+      "name": "value",
+      "value": "\\b(BBT-RMX)\\b"
+     }
+    ]
+   },
+   {
+    "name": "cappybara",
+    "implementation": "ReleaseTitleSpecification",
+    "negate": false,
+    "required": false,
+    "fields": [
+     {
+      "name": "value",
+      "value": "\\[cappybara\\]|-cappybara\\b"
+     }
+    ]
+   },
+   {
+    "name": "ChucksMux",
+    "implementation": "ReleaseTitleSpecification",
+    "negate": false,
+    "required": false,
+    "fields": [
+     {
+      "name": "value",
+      "value": "\\b(ChucksMux)\\b"
+     }
+    ]
+   },
+   {
+    "name": "CRUCiBLE",
+    "implementation": "ReleaseTitleSpecification",
+    "negate": false,
+    "required": false,
+    "fields": [
+     {
+      "name": "value",
+      "value": "\\[CRUCiBLE\\]|-CRUCiBLE\\b"
+     }
+    ]
+   },
+   {
+    "name": "CUNNY",
+    "implementation": "ReleaseTitleSpecification",
+    "negate": false,
+    "required": false,
+    "fields": [
+     {
+      "name": "value",
+      "value": "\\b(CUNNY)\\b"
+     }
+    ]
+   },
+   {
+    "name": "Cunnysseur",
+    "implementation": "ReleaseTitleSpecification",
+    "negate": false,
+    "required": false,
+    "fields": [
+     {
+      "name": "value",
+      "value": "\\b(Cunnysseur)\\b"
+     }
+    ]
+   },
+   {
+    "name": "Doc",
+    "implementation": "ReleaseTitleSpecification",
+    "negate": false,
+    "required": false,
+    "fields": [
+     {
+      "name": "value",
+      "value": "\\[Doc\\]|-Doc\\b"
+     }
+    ]
+   },
+   {
+    "name": "fig",
+    "implementation": "ReleaseTitleSpecification",
+    "negate": false,
+    "required": false,
+    "fields": [
+     {
+      "name": "value",
+      "value": "\\[fig\\]|-fig\\b"
+     }
+    ]
+   },
+   {
+    "name": "Headpatter",
+    "implementation": "ReleaseTitleSpecification",
+    "negate": false,
+    "required": false,
+    "fields": [
+     {
+      "name": "value",
+      "value": "\\[Headpatter\\]|-Headpatter\\b"
+     }
+    ]
+   },
+   {
+    "name": "Inka-Subs",
+    "implementation": "ReleaseTitleSpecification",
+    "negate": false,
+    "required": false,
+    "fields": [
+     {
+      "name": "value",
+      "value": "\\b(Inka-Subs)\\b"
+     }
+    ]
+   },
+   {
+    "name": "LaCroiX",
+    "implementation": "ReleaseTitleSpecification",
+    "negate": false,
+    "required": false,
+    "fields": [
+     {
+      "name": "value",
+      "value": "\\b(LaCroiX)\\b"
+     }
+    ]
+   },
+   {
+    "name": "Legion",
+    "implementation": "ReleaseTitleSpecification",
+    "negate": false,
+    "required": false,
+    "fields": [
+     {
+      "name": "value",
+      "value": "\\[Legion\\]|-Legion\\b"
+     }
+    ]
+   },
+   {
+    "name": "Mehul",
+    "implementation": "ReleaseTitleSpecification",
+    "negate": false,
+    "required": false,
+    "fields": [
+     {
+      "name": "value",
+      "value": "\\[Mehul\\]|-Mehul\\b"
+     }
+    ]
+   },
+   {
+    "name": "MTBB",
+    "implementation": "ReleaseTitleSpecification",
+    "negate": false,
+    "required": false,
+    "fields": [
+     {
+      "name": "value",
+      "value": "\\b(MTBB)\\b"
+     }
+    ]
+   },
+   {
+    "name": "Mysteria",
+    "implementation": "ReleaseTitleSpecification",
+    "negate": false,
+    "required": false,
+    "fields": [
+     {
+      "name": "value",
+      "value": "\\[Mysteria\\]|-Mysteria\\b"
+     }
+    ]
+   },
+   {
+    "name": "NAN0",
+    "implementation": "ReleaseTitleSpecification",
+    "negate": false,
+    "required": false,
+    "fields": [
+     {
+      "name": "value",
+      "value": "(?<=remux).*\\b(NAN0)\\b"
+     }
+    ]
+   },
+   {
+    "name": "nekotan",
+    "implementation": "ReleaseTitleSpecification",
+    "negate": false,
+    "required": false,
+    "fields": [
+     {
+      "name": "value",
+      "value": "\\b(nekotan)\\b"
+     }
+    ]
+   },
+   {
+    "name": "Netaro",
+    "implementation": "ReleaseTitleSpecification",
+    "negate": false,
+    "required": false,
+    "fields": [
+     {
+      "name": "value",
+      "value": "\\b(Netaro)\\b"
+     }
+    ]
+   },
+   {
+    "name": "Noiy",
+    "implementation": "ReleaseTitleSpecification",
+    "negate": false,
+    "required": false,
+    "fields": [
+     {
+      "name": "value",
+      "value": "\\b(Noiy)\\b"
+     }
+    ]
+   },
+   {
+    "name": "npz",
+    "implementation": "ReleaseTitleSpecification",
+    "negate": false,
+    "required": false,
+    "fields": [
+     {
+      "name": "value",
+      "value": "\\b(npz)\\b"
+     }
+    ]
+   },
+   {
+    "name": "NTRX",
+    "implementation": "ReleaseTitleSpecification",
+    "negate": false,
+    "required": false,
+    "fields": [
+     {
+      "name": "value",
+      "value": "\\b(NTRX)\\b"
+     }
+    ]
+   },
+   {
+    "name": "Okay-Subs",
+    "implementation": "ReleaseTitleSpecification",
+    "negate": false,
+    "required": false,
+    "fields": [
+     {
+      "name": "value",
+      "value": "\\b(Okay-Subs)\\b"
+     }
+    ]
+   },
+   {
+    "name": "P9",
+    "implementation": "ReleaseTitleSpecification",
+    "negate": false,
+    "required": false,
+    "fields": [
+     {
+      "name": "value",
+      "value": "\\b(P9)\\b"
+     }
+    ]
+   },
+   {
+    "name": "PMR",
+    "implementation": "ReleaseTitleSpecification",
+    "negate": false,
+    "required": false,
+    "fields": [
+     {
+      "name": "value",
+      "value": "^(?=.*\\b(PMR)\\b)(?=.*\\b(Remux)\\b)"
+     }
+    ]
+   },
+   {
+    "name": "RUDY",
+    "implementation": "ReleaseTitleSpecification",
+    "negate": false,
+    "required": false,
+    "fields": [
+     {
+      "name": "value",
+      "value": "\\[RUDY\\]|-RUDY\\b"
+     }
+    ]
+   },
+   {
+    "name": "RaiN",
+    "implementation": "ReleaseTitleSpecification",
+    "negate": false,
+    "required": false,
+    "fields": [
+     {
+      "name": "value",
+      "value": "\\[RaiN\\]|-RaiN\\b"
+     }
+    ]
+   },
+   {
+    "name": "RMX",
+    "implementation": "ReleaseTitleSpecification",
+    "negate": false,
+    "required": false,
+    "fields": [
+     {
+      "name": "value",
+      "value": "\\b(RMX)\\b"
+     }
+    ]
+   },
+   {
+    "name": "Sekkon",
+    "implementation": "ReleaseTitleSpecification",
+    "negate": false,
+    "required": false,
+    "fields": [
+     {
+      "name": "value",
+      "value": "\\b(Sekkon)\\b"
+     }
+    ]
+   },
+   {
+    "name": "Serendipity",
+    "implementation": "ReleaseTitleSpecification",
+    "negate": false,
+    "required": false,
+    "fields": [
+     {
+      "name": "value",
+      "value": "\\[Serendipity\\]|-Serendipity\\b"
+     }
+    ]
+   },
+   {
+    "name": "sgt",
+    "implementation": "ReleaseTitleSpecification",
+    "negate": false,
+    "required": false,
+    "fields": [
+     {
+      "name": "value",
+      "value": "\\[sgt\\]|-sgt\\b"
+     }
+    ]
+   },
+   {
+    "name": "SubsMix",
+    "implementation": "ReleaseTitleSpecification",
+    "negate": false,
+    "required": false,
+    "fields": [
+     {
+      "name": "value",
+      "value": "\\b(SubsMix)\\b"
+     }
+    ]
+   },
+   {
+    "name": "Sylvar",
+    "implementation": "ReleaseTitleSpecification",
+    "negate": false,
+    "required": false,
+    "fields": [
+     {
+      "name": "value",
+      "value": "\\b(Sylvar)\\b"
+     }
+    ]
+   },
+   {
+    "name": "uba",
+    "implementation": "ReleaseTitleSpecification",
+    "negate": false,
+    "required": false,
+    "fields": [
+     {
+      "name": "value",
+      "value": "\\[uba\\]|-uba\\b"
+     }
+    ]
+   },
+   {
+    "name": "ZR",
+    "implementation": "ReleaseTitleSpecification",
+    "negate": false,
+    "required": false,
+    "fields": [
+     {
+      "name": "value",
+      "value": "\\b(ZR)\\b|-ZR-"
+     }
+    ]
+   }
+  ]
+ },
+ {
+  "id": 19,
+  "name": "Anime BD Tier 04 (SeaDex Muxers) - Notifiarr",
+  "includeCustomFormatWhenRenaming": false,
+  "specifications": [
+   {
+    "name": "Bluray",
+    "implementation": "SourceSpecification",
+    "negate": false,
+    "required": false,
+    "fields": [
+     {
+      "name": "value",
+      "value": 6
+     }
+    ]
+   },
+   {
+    "name": "Bluray Remux",
+    "implementation": "SourceSpecification",
+    "negate": false,
+    "required": false,
+    "fields": [
+     {
+      "name": "value",
+      "value": 7
+     }
+    ]
+   },
+   {
+    "name": "DVD",
+    "implementation": "SourceSpecification",
+    "negate": false,
+    "required": false,
+    "fields": [
+     {
+      "name": "value",
+      "value": 5
+     }
+    ]
+   },
+   {
+    "name": "ABdex",
+    "implementation": "ReleaseTitleSpecification",
+    "negate": false,
+    "required": false,
+    "fields": [
+     {
+      "name": "value",
+      "value": "\\b(ABdex)\\b"
+     }
+    ]
+   },
+   {
+    "name": "Afro",
+    "implementation": "ReleaseTitleSpecification",
+    "negate": false,
+    "required": false,
+    "fields": [
+     {
+      "name": "value",
+      "value": "\\[Afro\\]|-Afro\\b"
+     }
+    ]
+   },
+   {
+    "name": "aRMX",
+    "implementation": "ReleaseTitleSpecification",
+    "negate": false,
+    "required": false,
+    "fields": [
+     {
+      "name": "value",
+      "value": "\\b(aRMX)\\b"
+     }
+    ]
+   },
+   {
+    "name": "BiRJU",
+    "implementation": "ReleaseTitleSpecification",
+    "negate": false,
+    "required": false,
+    "fields": [
+     {
+      "name": "value",
+      "value": "\\b(BiRJU)\\b"
+     }
+    ]
+   },
+   {
+    "name": "BKC",
+    "implementation": "ReleaseTitleSpecification",
+    "negate": false,
+    "required": false,
+    "fields": [
+     {
+      "name": "value",
+      "value": "\\b(BKC)\\b"
+     }
+    ]
+   },
+   {
+    "name": "CBT",
+    "implementation": "ReleaseTitleSpecification",
+    "negate": false,
+    "required": false,
+    "fields": [
+     {
+      "name": "value",
+      "value": "\\b(CBT)\\b"
+     }
+    ]
+   },
+   {
+    "name": "Chimera",
+    "implementation": "ReleaseTitleSpecification",
+    "negate": false,
+    "required": false,
+    "fields": [
+     {
+      "name": "value",
+      "value": "\\[Chimera\\]|-Chimera\\b"
+     }
+    ]
+   },
+   {
+    "name": "derp",
+    "implementation": "ReleaseTitleSpecification",
+    "negate": false,
+    "required": false,
+    "fields": [
+     {
+      "name": "value",
+      "value": "\\[derp\\]|-derp\\b"
+     }
+    ]
+   },
+   {
+    "name": "DIY",
+    "implementation": "ReleaseTitleSpecification",
+    "negate": false,
+    "required": false,
+    "fields": [
+     {
+      "name": "value",
+      "value": "\\[DIY\\]|-DIY\\b"
+     }
+    ]
+   },
+   {
+    "name": "EXP",
+    "implementation": "ReleaseTitleSpecification",
+    "negate": false,
+    "required": false,
+    "fields": [
+     {
+      "name": "value",
+      "value": "\\[EXP\\]|-EXP\\b"
+     }
+    ]
+   },
+   {
+    "name": "Foxtrot",
+    "implementation": "ReleaseTitleSpecification",
+    "negate": false,
+    "required": false,
+    "fields": [
+     {
+      "name": "value",
+      "value": "\\[Foxtrot\\]|-Foxtrot\\b"
+     }
+    ]
+   },
+   {
+    "name": "grimf",
+    "implementation": "ReleaseTitleSpecification",
+    "negate": false,
+    "required": false,
+    "fields": [
+     {
+      "name": "value",
+      "value": "\\b(grimf)\\b"
+     }
+    ]
+   },
+   {
+    "name": "IK",
+    "implementation": "ReleaseTitleSpecification",
+    "negate": false,
+    "required": false,
+    "fields": [
+     {
+      "name": "value",
+      "value": "\\b(IK)\\b"
+     }
+    ]
+   },
+   {
+    "name": "Iznjie Biznjie",
+    "implementation": "ReleaseTitleSpecification",
+    "negate": false,
+    "required": false,
+    "fields": [
+     {
+      "name": "value",
+      "value": "\\b(Iznjie[ .-]Biznjie)\\b"
+     }
+    ]
+   },
+   {
+    "name": "Kaleido-subs",
+    "implementation": "ReleaseTitleSpecification",
+    "negate": false,
+    "required": false,
+    "fields": [
+     {
+      "name": "value",
+      "value": "\\b(Kaleido-subs)\\b"
+     }
+    ]
+   },
+   {
+    "name": "Kametsu",
+    "implementation": "ReleaseTitleSpecification",
+    "negate": false,
+    "required": false,
+    "fields": [
+     {
+      "name": "value",
+      "value": "\\b(Kametsu)\\b"
+     }
+    ]
+   },
+   {
+    "name": "Kawatare",
+    "implementation": "ReleaseTitleSpecification",
+    "negate": false,
+    "required": false,
+    "fields": [
+     {
+      "name": "value",
+      "value": "\\[Kawatare\\]|-Kawatare\\b"
+     }
+    ]
+   },
+   {
+    "name": "KH",
+    "implementation": "ReleaseTitleSpecification",
+    "negate": false,
+    "required": false,
+    "fields": [
+     {
+      "name": "value",
+      "value": "\\b(KH)\\b"
+     }
+    ]
+   },
+   {
+    "name": "LazyRemux",
+    "implementation": "ReleaseTitleSpecification",
+    "negate": false,
+    "required": false,
+    "fields": [
+     {
+      "name": "value",
+      "value": "\\b(LazyRemux)\\b"
+     }
+    ]
+   },
+   {
+    "name": "Metal",
+    "implementation": "ReleaseTitleSpecification",
+    "negate": false,
+    "required": false,
+    "fields": [
+     {
+      "name": "value",
+      "value": "\\[Metal\\]|-Metal\\b"
+     }
+    ]
+   },
+   {
+    "name": "MK",
+    "implementation": "ReleaseTitleSpecification",
+    "negate": false,
+    "required": false,
+    "fields": [
+     {
+      "name": "value",
+      "value": "\\b(MK)\\b"
+     }
+    ]
+   },
+   {
+    "name": "neko-kBaraka",
+    "implementation": "ReleaseTitleSpecification",
+    "negate": false,
+    "required": false,
+    "fields": [
+     {
+      "name": "value",
+      "value": "\\b(neko-kBaraka)\\b"
+     }
+    ]
+   },
+   {
+    "name": "OZR",
+    "implementation": "ReleaseTitleSpecification",
+    "negate": false,
+    "required": false,
+    "fields": [
+     {
+      "name": "value",
+      "value": "\\b(OZR)\\b"
+     }
+    ]
+   },
+   {
+    "name": "Pizza",
+    "implementation": "ReleaseTitleSpecification",
+    "negate": false,
+    "required": false,
+    "fields": [
+     {
+      "name": "value",
+      "value": "\\[Pizza\\]|-Pizza\\b"
+     }
+    ]
+   },
+   {
+    "name": "pog42",
+    "implementation": "ReleaseTitleSpecification",
+    "negate": false,
+    "required": false,
+    "fields": [
+     {
+      "name": "value",
+      "value": "\\b(pog42)\\b"
+     }
+    ]
+   },
+   {
+    "name": "Quetzal",
+    "implementation": "ReleaseTitleSpecification",
+    "negate": false,
+    "required": false,
+    "fields": [
+     {
+      "name": "value",
+      "value": "\\b(Quetzal)\\b"
+     }
+    ]
+   },
+   {
+    "name": "Reza",
+    "implementation": "ReleaseTitleSpecification",
+    "negate": false,
+    "required": false,
+    "fields": [
+     {
+      "name": "value",
+      "value": "\\b(Reza)\\b"
+     }
+    ]
+   },
+   {
+    "name": "SCY",
+    "implementation": "ReleaseTitleSpecification",
+    "negate": false,
+    "required": false,
+    "fields": [
+     {
+      "name": "value",
+      "value": "\\b(SCY)\\b"
+     }
+    ]
+   },
+   {
+    "name": "Shimatta",
+    "implementation": "ReleaseTitleSpecification",
+    "negate": false,
+    "required": false,
+    "fields": [
+     {
+      "name": "value",
+      "value": "\\b(Shimatta)\\b"
+     }
+    ]
+   },
+   {
+    "name": "Smoke",
+    "implementation": "ReleaseTitleSpecification",
+    "negate": false,
+    "required": false,
+    "fields": [
+     {
+      "name": "value",
+      "value": "\\[Smoke\\]|-Smoke\\b"
+     }
+    ]
+   },
+   {
+    "name": "Spirale",
+    "implementation": "ReleaseTitleSpecification",
+    "negate": false,
+    "required": false,
+    "fields": [
+     {
+      "name": "value",
+      "value": "\\b(Spirale)\\b"
+     }
+    ]
+   },
+   {
+    "name": "UDF",
+    "implementation": "ReleaseTitleSpecification",
+    "negate": false,
+    "required": false,
+    "fields": [
+     {
+      "name": "value",
+      "value": "\\b(UDF)\\b"
+     }
+    ]
+   },
+   {
+    "name": "UQW",
+    "implementation": "ReleaseTitleSpecification",
+    "negate": false,
+    "required": false,
+    "fields": [
+     {
+      "name": "value",
+      "value": "\\b(UQW)\\b"
+     }
+    ]
+   },
+   {
+    "name": "Virtuality",
+    "implementation": "ReleaseTitleSpecification",
+    "negate": false,
+    "required": false,
+    "fields": [
+     {
+      "name": "value",
+      "value": "\\b(Virtuality)\\b"
+     }
+    ]
+   },
+   {
+    "name": "Vanilla",
+    "implementation": "ReleaseTitleSpecification",
+    "negate": false,
+    "required": false,
+    "fields": [
+     {
+      "name": "value",
+      "value": "\\[Vanilla\\]|-Vanilla\\b"
+     }
+    ]
+   },
+   {
+    "name": "VULCAN",
+    "implementation": "ReleaseTitleSpecification",
+    "negate": false,
+    "required": false,
+    "fields": [
+     {
+      "name": "value",
+      "value": "\\[VULCAN\\]|-VULCAN\\b"
+     }
+    ]
+   }
+  ]
+ },
+ {
+  "id": 20,
+  "name": "Anime BD Tier 05 (Remuxes) - Notifiarr",
+  "includeCustomFormatWhenRenaming": false,
+  "specifications": [
+   {
+    "name": "Bluray",
+    "implementation": "SourceSpecification",
+    "negate": false,
+    "required": false,
+    "fields": [
+     {
+      "name": "value",
+      "value": 6
+     }
+    ]
+   },
+   {
+    "name": "Bluray Remux",
+    "implementation": "SourceSpecification",
+    "negate": false,
+    "required": false,
+    "fields": [
+     {
+      "name": "value",
+      "value": 7
+     }
+    ]
+   },
+   {
+    "name": "DVD",
+    "implementation": "SourceSpecification",
+    "negate": false,
+    "required": false,
+    "fields": [
+     {
+      "name": "value",
+      "value": 5
+     }
+    ]
+   },
+   {
+    "name": "Animorphs",
+    "implementation": "ReleaseTitleSpecification",
+    "negate": false,
+    "required": false,
+    "fields": [
+     {
+      "name": "value",
+      "value": "\\b(Animorphs)\\b"
+     }
+    ]
+   },
+   {
+    "name": "AOmundson",
+    "implementation": "ReleaseTitleSpecification",
+    "negate": false,
+    "required": false,
+    "fields": [
+     {
+      "name": "value",
+      "value": "\\b(AOmundson)\\b"
+     }
+    ]
+   },
+   {
+    "name": "ASC",
+    "implementation": "ReleaseTitleSpecification",
+    "negate": false,
+    "required": false,
+    "fields": [
+     {
+      "name": "value",
+      "value": "\\b(ASC)\\b"
+     }
+    ]
+   },
+   {
+    "name": "Baws",
+    "implementation": "ReleaseTitleSpecification",
+    "negate": false,
+    "required": false,
+    "fields": [
+     {
+      "name": "value",
+      "value": "\\b(Baws|McBalls)\\b"
+     }
+    ]
+   },
+   {
+    "name": "Beatrice",
+    "implementation": "ReleaseTitleSpecification",
+    "negate": false,
+    "required": false,
+    "fields": [
+     {
+      "name": "value",
+      "value": "\\[Beatrice\\]|-Beatrice(?!-raws)\\b"
+     }
+    ]
+   },
+   {
+    "name": "B00BA",
+    "implementation": "ReleaseTitleSpecification",
+    "negate": false,
+    "required": false,
+    "fields": [
+     {
+      "name": "value",
+      "value": "\\b(B00BA)\\b"
+     }
+    ]
+   },
+   {
+    "name": "Cait-Sidhe",
+    "implementation": "ReleaseTitleSpecification",
+    "negate": false,
+    "required": false,
+    "fields": [
+     {
+      "name": "value",
+      "value": "\\b(Cait-Sidhe)\\b"
+     }
+    ]
+   },
+   {
+    "name": "CsS",
+    "implementation": "ReleaseTitleSpecification",
+    "negate": false,
+    "required": false,
+    "fields": [
+     {
+      "name": "value",
+      "value": "\\b(CsS)\\b"
+     }
+    ]
+   },
+   {
+    "name": "CTR",
+    "implementation": "ReleaseTitleSpecification",
+    "negate": false,
+    "required": false,
+    "fields": [
+     {
+      "name": "value",
+      "value": "\\b(CTR)\\b"
+     }
+    ]
+   },
+   {
+    "name": "D4C",
+    "implementation": "ReleaseTitleSpecification",
+    "negate": false,
+    "required": false,
+    "fields": [
+     {
+      "name": "value",
+      "value": "\\b(D4C)\\b"
+     }
+    ]
+   },
+   {
+    "name": "deanzel",
+    "implementation": "ReleaseTitleSpecification",
+    "negate": false,
+    "required": false,
+    "fields": [
+     {
+      "name": "value",
+      "value": "\\b(deanzel)\\b"
+     }
+    ]
+   },
+   {
+    "name": "Drag",
+    "implementation": "ReleaseTitleSpecification",
+    "negate": false,
+    "required": false,
+    "fields": [
+     {
+      "name": "value",
+      "value": "\\[Drag\\]|-Drag\\b"
+     }
+    ]
+   },
+   {
+    "name": "eldon",
+    "implementation": "ReleaseTitleSpecification",
+    "negate": false,
+    "required": false,
+    "fields": [
+     {
+      "name": "value",
+      "value": "\\b(eldon)\\b"
+     }
+    ]
+   },
+   {
+    "name": "Freehold",
+    "implementation": "ReleaseTitleSpecification",
+    "negate": false,
+    "required": false,
+    "fields": [
+     {
+      "name": "value",
+      "value": "\\b(Freehold)\\b"
+     }
+    ]
+   },
+   {
+    "name": "GHS",
+    "implementation": "ReleaseTitleSpecification",
+    "negate": false,
+    "required": false,
+    "fields": [
+     {
+      "name": "value",
+      "value": "\\b(GHS)\\b"
+     }
+    ]
+   },
+   {
+    "name": "Hark0N",
+    "implementation": "ReleaseTitleSpecification",
+    "negate": false,
+    "required": false,
+    "fields": [
+     {
+      "name": "value",
+      "value": "\\b(Hark0N)\\b"
+     }
+    ]
+   },
+   {
+    "name": "Holomux",
+    "implementation": "ReleaseTitleSpecification",
+    "negate": false,
+    "required": false,
+    "fields": [
+     {
+      "name": "value",
+      "value": "\\b(Holomux)\\b"
+     }
+    ]
+   },
+   {
+    "name": "Judgement",
+    "implementation": "ReleaseTitleSpecification",
+    "negate": false,
+    "required": false,
+    "fields": [
+     {
+      "name": "value",
+      "value": "\\[Judgment\\]|-Judgment\\b"
+     }
+    ]
+   },
+   {
+    "name": "MC",
+    "implementation": "ReleaseTitleSpecification",
+    "negate": false,
+    "required": false,
+    "fields": [
+     {
+      "name": "value",
+      "value": "\\b(MC)\\b"
+     }
+    ]
+   },
+   {
+    "name": "mottoj",
+    "implementation": "ReleaseTitleSpecification",
+    "negate": false,
+    "required": false,
+    "fields": [
+     {
+      "name": "value",
+      "value": "\\b(mottoj)\\b"
+     }
+    ]
+   },
+   {
+    "name": "NH",
+    "implementation": "ReleaseTitleSpecification",
+    "negate": false,
+    "required": false,
+    "fields": [
+     {
+      "name": "value",
+      "value": "\\b(NH)\\b"
+     }
+    ]
+   },
+   {
+    "name": "NTRM",
+    "implementation": "ReleaseTitleSpecification",
+    "negate": false,
+    "required": false,
+    "fields": [
+     {
+      "name": "value",
+      "value": "\\b(NTRM)\\b"
+     }
+    ]
+   },
+   {
+    "name": "o7",
+    "implementation": "ReleaseTitleSpecification",
+    "negate": false,
+    "required": false,
+    "fields": [
+     {
+      "name": "value",
+      "value": "\\b(o7)\\b"
+     }
+    ]
+   },
+   {
+    "name": "QM",
+    "implementation": "ReleaseTitleSpecification",
+    "negate": false,
+    "required": false,
+    "fields": [
+     {
+      "name": "value",
+      "value": "\\b(QM)\\b"
+     }
+    ]
+   },
+   {
+    "name": "Thighs",
+    "implementation": "ReleaseTitleSpecification",
+    "negate": false,
+    "required": false,
+    "fields": [
+     {
+      "name": "value",
+      "value": "\\[Thighs\\]|-Thighs\\b"
+     }
+    ]
+   },
+   {
+    "name": "TTGA",
+    "implementation": "ReleaseTitleSpecification",
+    "negate": false,
+    "required": false,
+    "fields": [
+     {
+      "name": "value",
+      "value": "\\b(TTGA)\\b"
+     }
+    ]
+   },
+   {
+    "name": "UltraRemux",
+    "implementation": "ReleaseTitleSpecification",
+    "negate": false,
+    "required": false,
+    "fields": [
+     {
+      "name": "value",
+      "value": "\\b(UltraRemux)\\b"
+     }
+    ]
+   },
+   {
+    "name": "WBDP",
+    "implementation": "ReleaseTitleSpecification",
+    "negate": false,
+    "required": false,
+    "fields": [
+     {
+      "name": "value",
+      "value": "\\b(WBDP)\\b"
+     }
+    ]
+   },
+   {
+    "name": "WSE",
+    "implementation": "ReleaseTitleSpecification",
+    "negate": false,
+    "required": false,
+    "fields": [
+     {
+      "name": "value",
+      "value": "\\b(WSE)\\b"
+     }
+    ]
+   },
+   {
+    "name": "Yuki",
+    "implementation": "ReleaseTitleSpecification",
+    "negate": false,
+    "required": false,
+    "fields": [
+     {
+      "name": "value",
+      "value": "\\[Yuki\\]|-Yuki\\b"
+     }
+    ]
+   }
+  ]
+ },
+ {
+  "id": 21,
+  "name": "Anime BD Tier 06 (FanSubs) - Notifiarr",
+  "includeCustomFormatWhenRenaming": false,
+  "specifications": [
+   {
+    "name": "Bluray",
+    "implementation": "SourceSpecification",
+    "negate": false,
+    "required": false,
+    "fields": [
+     {
+      "name": "value",
+      "value": 6
+     }
+    ]
+   },
+   {
+    "name": "Bluray Remux",
+    "implementation": "SourceSpecification",
+    "negate": false,
+    "required": false,
+    "fields": [
+     {
+      "name": "value",
+      "value": 7
+     }
+    ]
+   },
+   {
+    "name": "DVD",
+    "implementation": "SourceSpecification",
+    "negate": false,
+    "required": false,
+    "fields": [
+     {
+      "name": "value",
+      "value": 5
+     }
+    ]
+   },
+   {
+    "name": "ANE",
+    "implementation": "ReleaseTitleSpecification",
+    "negate": false,
+    "required": false,
+    "fields": [
+     {
+      "name": "value",
+      "value": "\\[ANE\\]|-ANE$"
+     }
+    ]
+   },
+   {
+    "name": "Bunny-Apocalypse",
+    "implementation": "ReleaseTitleSpecification",
+    "negate": false,
+    "required": false,
+    "fields": [
+     {
+      "name": "value",
+      "value": "\\b(Bunny-Apocalypse)\\b"
+     }
+    ]
+   },
+   {
+    "name": "CyC",
+    "implementation": "ReleaseTitleSpecification",
+    "negate": false,
+    "required": false,
+    "fields": [
+     {
+      "name": "value",
+      "value": "\\b(CyC)\\b"
+     }
+    ]
+   },
+   {
+    "name": "Datte13",
+    "implementation": "ReleaseTitleSpecification",
+    "negate": false,
+    "required": false,
+    "fields": [
+     {
+      "name": "value",
+      "value": "\\b(Datte13)\\b"
+     }
+    ]
+   },
+   {
+    "name": "EJF",
+    "implementation": "ReleaseTitleSpecification",
+    "negate": false,
+    "required": false,
+    "fields": [
+     {
+      "name": "value",
+      "value": "\\b(EJF)\\b"
+     }
+    ]
+   },
+   {
+    "name": "GetItTwisted",
+    "implementation": "ReleaseTitleSpecification",
+    "negate": false,
+    "required": false,
+    "fields": [
+     {
+      "name": "value",
+      "value": "\\b(GetItTwisted)\\b"
+     }
+    ]
+   },
+   {
+    "name": "GSK_kun",
+    "implementation": "ReleaseTitleSpecification",
+    "negate": false,
+    "required": false,
+    "fields": [
+     {
+      "name": "value",
+      "value": "\\b(GSK[._-]kun)\\b"
+     }
+    ]
+   },
+   {
+    "name": "iKaos",
+    "implementation": "ReleaseTitleSpecification",
+    "negate": false,
+    "required": false,
+    "fields": [
+     {
+      "name": "value",
+      "value": "\\b(iKaos)\\b"
+     }
+    ]
+   },
+   {
+    "name": "karios",
+    "implementation": "ReleaseTitleSpecification",
+    "negate": false,
+    "required": false,
+    "fields": [
+     {
+      "name": "value",
+      "value": "\\b(karios)\\b"
+     }
+    ]
+   },
+   {
+    "name": "Pookie",
+    "implementation": "ReleaseTitleSpecification",
+    "negate": false,
+    "required": false,
+    "fields": [
+     {
+      "name": "value",
+      "value": "\\b(Pookie)\\b"
+     }
+    ]
+   },
+   {
+    "name": "RASETSU",
+    "implementation": "ReleaseTitleSpecification",
+    "negate": false,
+    "required": false,
+    "fields": [
+     {
+      "name": "value",
+      "value": "\\b(RASETSU)\\b"
+     }
+    ]
+   },
+   {
+    "name": "Starbez",
+    "implementation": "ReleaseTitleSpecification",
+    "negate": false,
+    "required": false,
+    "fields": [
+     {
+      "name": "value",
+      "value": "\\b(Starbez)\\b"
+     }
+    ]
+   },
+   {
+    "name": "Tsundere",
+    "implementation": "ReleaseTitleSpecification",
+    "negate": false,
+    "required": false,
+    "fields": [
+     {
+      "name": "value",
+      "value": "\\[Tsundere\\]|-Tsundere(?!-)\\b"
+     }
+    ]
+   },
+   {
+    "name": "Yoghurt",
+    "implementation": "ReleaseTitleSpecification",
+    "negate": false,
+    "required": false,
+    "fields": [
+     {
+      "name": "value",
+      "value": "\\b(Yoghurt)\\b"
+     }
+    ]
+   },
+   {
+    "name": "YURASUKA",
+    "implementation": "ReleaseTitleSpecification",
+    "negate": false,
+    "required": false,
+    "fields": [
+     {
+      "name": "value",
+      "value": "\\[YURASUKA\\]|-YURASUKA\\b"
+     }
+    ]
+   }
+  ]
+ },
+ {
+  "id": 22,
+  "name": "Anime BD Tier 07 (P2P/Scene) - Notifiarr",
+  "includeCustomFormatWhenRenaming": false,
+  "specifications": [
+   {
+    "name": "Bluray",
+    "implementation": "SourceSpecification",
+    "negate": false,
+    "required": false,
+    "fields": [
+     {
+      "name": "value",
+      "value": 6
+     }
+    ]
+   },
+   {
+    "name": "Bluray Remux",
+    "implementation": "SourceSpecification",
+    "negate": false,
+    "required": false,
+    "fields": [
+     {
+      "name": "value",
+      "value": 7
+     }
+    ]
+   },
+   {
+    "name": "DVD",
+    "implementation": "SourceSpecification",
+    "negate": false,
+    "required": false,
+    "fields": [
+     {
+      "name": "value",
+      "value": 5
+     }
+    ]
+   },
+   {
+    "name": "9volt",
+    "implementation": "ReleaseTitleSpecification",
+    "negate": false,
+    "required": false,
+    "fields": [
+     {
+      "name": "value",
+      "value": "\\b(9volt)\\b"
+     }
+    ]
+   },
+   {
+    "name": "AC",
+    "implementation": "ReleaseTitleSpecification",
+    "negate": false,
+    "required": false,
+    "fields": [
+     {
+      "name": "value",
+      "value": "\\[AC\\]|-AC$"
+     }
+    ]
+   },
+   {
+    "name": "Almighty",
+    "implementation": "ReleaseTitleSpecification",
+    "negate": false,
+    "required": false,
+    "fields": [
+     {
+      "name": "value",
+      "value": "\\[Almighty\\]|-Almighty\\b"
+     }
+    ]
+   },
+   {
+    "name": "Asakura",
+    "implementation": "ReleaseTitleSpecification",
+    "negate": false,
+    "required": false,
+    "fields": [
+     {
+      "name": "value",
+      "value": "\\[Asakura\\]|-Asakura\\b"
+     }
+    ]
+   },
+   {
+    "name": "Asenshi",
+    "implementation": "ReleaseTitleSpecification",
+    "negate": false,
+    "required": false,
+    "fields": [
+     {
+      "name": "value",
+      "value": "\\b(Asenshi)\\b"
+     }
+    ]
+   },
+   {
+    "name": "BlurayDesuYo",
+    "implementation": "ReleaseTitleSpecification",
+    "negate": false,
+    "required": false,
+    "fields": [
+     {
+      "name": "value",
+      "value": "\\b(BlurayDesuYo)\\b"
+     }
+    ]
+   },
+   {
+    "name": "Bolshevik",
+    "implementation": "ReleaseTitleSpecification",
+    "negate": false,
+    "required": false,
+    "fields": [
+     {
+      "name": "value",
+      "value": "\\[Bolshevik\\]|-Bolshevik\\b"
+     }
+    ]
+   },
+   {
+    "name": "Brrrrrrr",
+    "implementation": "ReleaseTitleSpecification",
+    "negate": false,
+    "required": false,
+    "fields": [
+     {
+      "name": "value",
+      "value": "\\b(Brrrrrrr)\\b"
+     }
+    ]
+   },
+   {
+    "name": "Chihiro",
+    "implementation": "ReleaseTitleSpecification",
+    "negate": false,
+    "required": false,
+    "fields": [
+     {
+      "name": "value",
+      "value": "\\[Chihiro\\]|-Chihiro\\b"
+     }
+    ]
+   },
+   {
+    "name": "Commie",
+    "implementation": "ReleaseTitleSpecification",
+    "negate": false,
+    "required": false,
+    "fields": [
+     {
+      "name": "value",
+      "value": "\\b(Commie)\\b"
+     }
+    ]
+   },
+   {
+    "name": "Crow",
+    "implementation": "ReleaseTitleSpecification",
+    "negate": false,
+    "required": false,
+    "fields": [
+     {
+      "name": "value",
+      "value": "\\[Crow\\]|-Crow\\b"
+     }
+    ]
+   },
+   {
+    "name": "Dae",
+    "implementation": "ReleaseTitleSpecification",
+    "negate": false,
+    "required": false,
+    "fields": [
+     {
+      "name": "value",
+      "value": "\\b(Dae)\\b"
+     }
+    ]
+   },
+   {
+    "name": "Dekinai",
+    "implementation": "ReleaseTitleSpecification",
+    "negate": false,
+    "required": false,
+    "fields": [
+     {
+      "name": "value",
+      "value": "\\[Dekinai\\]|-Dekinai\\b"
+     }
+    ]
+   },
+   {
+    "name": "Dragon-Releases",
+    "implementation": "ReleaseTitleSpecification",
+    "negate": false,
+    "required": false,
+    "fields": [
+     {
+      "name": "value",
+      "value": "\\b(Dragon-Releases)\\b"
+     }
+    ]
+   },
+   {
+    "name": "DragsterPS",
+    "implementation": "ReleaseTitleSpecification",
+    "negate": false,
+    "required": false,
+    "fields": [
+     {
+      "name": "value",
+      "value": "\\b(DragsterPS)\\b"
+     }
+    ]
+   },
+   {
+    "name": "Exiled-Destiny",
+    "implementation": "ReleaseTitleSpecification",
+    "negate": false,
+    "required": false,
+    "fields": [
+     {
+      "name": "value",
+      "value": "\\b(Exiled-Destiny|E-D)\\b"
+     }
+    ]
+   },
+   {
+    "name": "FFF",
+    "implementation": "ReleaseTitleSpecification",
+    "negate": false,
+    "required": false,
+    "fields": [
+     {
+      "name": "value",
+      "value": "\\b(FFF)\\b"
+     }
+    ]
+   },
+   {
+    "name": "Final8",
+    "implementation": "ReleaseTitleSpecification",
+    "negate": false,
+    "required": false,
+    "fields": [
+     {
+      "name": "value",
+      "value": "\\b(Final8)\\b"
+     }
+    ]
+   },
+   {
+    "name": "Geonope",
+    "implementation": "ReleaseTitleSpecification",
+    "negate": false,
+    "required": false,
+    "fields": [
+     {
+      "name": "value",
+      "value": "\\b(Geonope)\\b"
+     }
+    ]
+   },
+   {
+    "name": "GJM",
+    "implementation": "ReleaseTitleSpecification",
+    "negate": false,
+    "required": false,
+    "fields": [
+     {
+      "name": "value",
+      "value": "\\b(GJM)\\b"
+     }
+    ]
+   },
+   {
+    "name": "iAHD",
+    "implementation": "ReleaseTitleSpecification",
+    "negate": false,
+    "required": false,
+    "fields": [
+     {
+      "name": "value",
+      "value": "\\b(iAHD)\\b"
+     }
+    ]
+   },
+   {
+    "name": "inid4c",
+    "implementation": "ReleaseTitleSpecification",
+    "negate": false,
+    "required": false,
+    "fields": [
+     {
+      "name": "value",
+      "value": "\\b(inid4c)\\b"
+     }
+    ]
+   },
+   {
+    "name": "Koten_Gars",
+    "implementation": "ReleaseTitleSpecification",
+    "negate": false,
+    "required": false,
+    "fields": [
+     {
+      "name": "value",
+      "value": "\\b(Koten[ ._-]Gars)\\b"
+     }
+    ]
+   },
+   {
+    "name": "kuchikirukia",
+    "implementation": "ReleaseTitleSpecification",
+    "negate": false,
+    "required": false,
+    "fields": [
+     {
+      "name": "value",
+      "value": "\\b(kuchikirukia)\\b"
+     }
+    ]
+   },
+   {
+    "name": "LCE",
+    "implementation": "ReleaseTitleSpecification",
+    "negate": false,
+    "required": false,
+    "fields": [
+     {
+      "name": "value",
+      "value": "\\b(LCE)\\b"
+     }
+    ]
+   },
+   {
+    "name": "NTW",
+    "implementation": "ReleaseTitleSpecification",
+    "negate": false,
+    "required": false,
+    "fields": [
+     {
+      "name": "value",
+      "value": "\\b(NTW)\\b"
+     }
+    ]
+   },
+   {
+    "name": "orz",
+    "implementation": "ReleaseTitleSpecification",
+    "negate": false,
+    "required": false,
+    "fields": [
+     {
+      "name": "value",
+      "value": "\\b(orz)\\b"
+     }
+    ]
+   },
+   {
+    "name": "RAI",
+    "implementation": "ReleaseTitleSpecification",
+    "negate": false,
+    "required": false,
+    "fields": [
+     {
+      "name": "value",
+      "value": "\\b(RAI)\\b"
+     }
+    ]
+   },
+   {
+    "name": "REVO",
+    "implementation": "ReleaseTitleSpecification",
+    "negate": false,
+    "required": false,
+    "fields": [
+     {
+      "name": "value",
+      "value": "\\b(REVO)\\b"
+     }
+    ]
+   },
+   {
+    "name": "SCP-2223",
+    "implementation": "ReleaseTitleSpecification",
+    "negate": false,
+    "required": false,
+    "fields": [
+     {
+      "name": "value",
+      "value": "\\b(SCP-2223)\\b"
+     }
+    ]
+   },
+   {
+    "name": "Senjou",
+    "implementation": "ReleaseTitleSpecification",
+    "negate": false,
+    "required": false,
+    "fields": [
+     {
+      "name": "value",
+      "value": "\\[Senjou\\]|-Senjou\\b"
+     }
+    ]
+   },
+   {
+    "name": "SEV",
+    "implementation": "ReleaseTitleSpecification",
+    "negate": false,
+    "required": false,
+    "fields": [
+     {
+      "name": "value",
+      "value": "\\b(SEV)\\b"
+     }
+    ]
+   },
+   {
+    "name": "THORA",
+    "implementation": "ReleaseTitleSpecification",
+    "negate": false,
+    "required": false,
+    "fields": [
+     {
+      "name": "value",
+      "value": "\\b(THORA)\\b"
+     }
+    ]
+   },
+   {
+    "name": "Vivid",
+    "implementation": "ReleaseTitleSpecification",
+    "negate": false,
+    "required": false,
+    "fields": [
+     {
+      "name": "value",
+      "value": "\\[Vivid\\]|-Vivid\\b"
+     }
+    ]
+   }
+  ]
+ },
+ {
+  "id": 23,
+  "name": "Anime BD Tier 08 (Mini Encodes) - Notifiarr",
+  "includeCustomFormatWhenRenaming": false,
+  "specifications": [
+   {
+    "name": "Bluray",
+    "implementation": "SourceSpecification",
+    "negate": false,
+    "required": false,
+    "fields": [
+     {
+      "name": "value",
+      "value": 6
+     }
+    ]
+   },
+   {
+    "name": "Bluray Remux",
+    "implementation": "SourceSpecification",
+    "negate": false,
+    "required": false,
+    "fields": [
+     {
+      "name": "value",
+      "value": 7
+     }
+    ]
+   },
+   {
+    "name": "DVD",
+    "implementation": "SourceSpecification",
+    "negate": false,
+    "required": false,
+    "fields": [
+     {
+      "name": "value",
+      "value": 5
+     }
+    ]
+   },
+   {
+    "name": "AkihitoSubs",
+    "implementation": "ReleaseTitleSpecification",
+    "negate": false,
+    "required": false,
+    "fields": [
+     {
+      "name": "value",
+      "value": "\\b(AkihitoSubs)\\b"
+     }
+    ]
+   },
+   {
+    "name": "Arukoru",
+    "implementation": "ReleaseTitleSpecification",
+    "negate": false,
+    "required": false,
+    "fields": [
+     {
+      "name": "value",
+      "value": "\\b(Arukoru)\\b"
+     }
+    ]
+   },
+   {
+    "name": "EDGE",
+    "implementation": "ReleaseTitleSpecification",
+    "negate": false,
+    "required": false,
+    "fields": [
+     {
+      "name": "value",
+      "value": "\\[EDGE\\]|-EDGE\\b"
+     }
+    ]
+   },
+   {
+    "name": "EMBER",
+    "implementation": "ReleaseTitleSpecification",
+    "negate": false,
+    "required": false,
+    "fields": [
+     {
+      "name": "value",
+      "value": "\\[EMBER\\]|-EMBER\\b"
+     }
+    ]
+   },
+   {
+    "name": "GHOST",
+    "implementation": "ReleaseTitleSpecification",
+    "negate": false,
+    "required": false,
+    "fields": [
+     {
+      "name": "value",
+      "value": "\\[GHOST\\]|-GHOST\\b"
+     }
+    ]
+   },
+   {
+    "name": "Judas",
+    "implementation": "ReleaseTitleSpecification",
+    "negate": false,
+    "required": false,
+    "fields": [
+     {
+      "name": "value",
+      "value": "\\[Judas\\]|-Judas"
+     }
+    ]
+   },
+   {
+    "name": "naiyas",
+    "implementation": "ReleaseTitleSpecification",
+    "negate": false,
+    "required": false,
+    "fields": [
+     {
+      "name": "value",
+      "value": "\\[naiyas\\]|-naiyas\\b"
+     }
+    ]
+   },
+   {
+    "name": "Nep_Blanc",
+    "implementation": "ReleaseTitleSpecification",
+    "negate": false,
+    "required": false,
+    "fields": [
+     {
+      "name": "value",
+      "value": "\\b(Nep[ ._-]Blanc)\\b"
+     }
+    ]
+   },
+   {
+    "name": "Prof",
+    "implementation": "ReleaseTitleSpecification",
+    "negate": false,
+    "required": false,
+    "fields": [
+     {
+      "name": "value",
+      "value": "\\[Prof\\]|-Prof\\b"
+     }
+    ]
+   },
+   {
+    "name": "Shir\u03c3",
+    "implementation": "ReleaseTitleSpecification",
+    "negate": false,
+    "required": false,
+    "fields": [
+     {
+      "name": "value",
+      "value": "\\b(Shir\u03c3)\\b"
+     }
+    ]
+   }
+  ]
+ },
+ {
+  "id": 24,
+  "name": "Anime LQ Groups - Notifiarr",
+  "includeCustomFormatWhenRenaming": false,
+  "specifications": [
+   {
+    "name": "$tore-Chill",
+    "implementation": "ReleaseTitleSpecification",
+    "negate": false,
+    "required": false,
+    "fields": [
+     {
+      "name": "value",
+      "value": "\\b(\\$tore-Chill)\\b"
+     }
+    ]
+   },
+   {
+    "name": "0neshot",
+    "implementation": "ReleaseTitleSpecification",
+    "negate": false,
+    "required": false,
+    "fields": [
+     {
+      "name": "value",
+      "value": "\\b(0neshot)\\b"
+     }
+    ]
+   },
+   {
+    "name": "224",
+    "implementation": "ReleaseTitleSpecification",
+    "negate": false,
+    "required": false,
+    "fields": [
+     {
+      "name": "value",
+      "value": "\\[224\\]|-224\\b"
+     }
+    ]
+   },
+   {
+    "name": "A-Destiny",
+    "implementation": "ReleaseTitleSpecification",
+    "negate": false,
+    "required": false,
+    "fields": [
+     {
+      "name": "value",
+      "value": "\\b(A-Destiny)\\b"
+     }
+    ]
+   },
+   {
+    "name": "AceAres",
+    "implementation": "ReleaseTitleSpecification",
+    "negate": false,
+    "required": false,
+    "fields": [
+     {
+      "name": "value",
+      "value": "\\b(AceAres)\\b"
+     }
+    ]
+   },
+   {
+    "name": "AhmadDev",
+    "implementation": "ReleaseTitleSpecification",
+    "negate": false,
+    "required": false,
+    "fields": [
+     {
+      "name": "value",
+      "value": "\\b(AhmadDev)\\b"
+     }
+    ]
+   },
+   {
+    "name": "Anime Chap",
+    "implementation": "ReleaseTitleSpecification",
+    "negate": false,
+    "required": false,
+    "fields": [
+     {
+      "name": "value",
+      "value": "\\b(Anime[ .-]?Chap)\\b"
+     }
+    ]
+   },
+   {
+    "name": "Anime Land",
+    "implementation": "ReleaseTitleSpecification",
+    "negate": false,
+    "required": false,
+    "fields": [
+     {
+      "name": "value",
+      "value": "\\b(Anime[ .-]?Land)\\b"
+     }
+    ]
+   },
+   {
+    "name": "Anime Time",
+    "implementation": "ReleaseTitleSpecification",
+    "negate": false,
+    "required": false,
+    "fields": [
+     {
+      "name": "value",
+      "value": "\\b(Anime[ .-]?Time)\\b"
+     }
+    ]
+   },
+   {
+    "name": "AnimeDynastyEN",
+    "implementation": "ReleaseTitleSpecification",
+    "negate": false,
+    "required": false,
+    "fields": [
+     {
+      "name": "value",
+      "value": "\\b(AnimeDynastyEN)\\b"
+     }
+    ]
+   },
+   {
+    "name": "AnimeKuro",
+    "implementation": "ReleaseTitleSpecification",
+    "negate": false,
+    "required": false,
+    "fields": [
+     {
+      "name": "value",
+      "value": "\\b(AnimeKuro)\\b"
+     }
+    ]
+   },
+   {
+    "name": "AnimeRG",
+    "implementation": "ReleaseTitleSpecification",
+    "negate": false,
+    "required": false,
+    "fields": [
+     {
+      "name": "value",
+      "value": "\\b(AnimeRG)\\b"
+     }
+    ]
+   },
+   {
+    "name": "Animesubs",
+    "implementation": "ReleaseTitleSpecification",
+    "negate": false,
+    "required": false,
+    "fields": [
+     {
+      "name": "value",
+      "value": "\\b(Animesubs)\\b"
+     }
+    ]
+   },
+   {
+    "name": "AnimeTR",
+    "implementation": "ReleaseTitleSpecification",
+    "negate": false,
+    "required": false,
+    "fields": [
+     {
+      "name": "value",
+      "value": "\\b(AnimeTR)\\b"
+     }
+    ]
+   },
+   {
+    "name": "Anitsu",
+    "implementation": "ReleaseTitleSpecification",
+    "negate": false,
+    "required": false,
+    "fields": [
+     {
+      "name": "value",
+      "value": "\\b(Anitsu)\\b"
+     }
+    ]
+   },
+   {
+    "name": "AniVoid",
+    "implementation": "ReleaseTitleSpecification",
+    "negate": false,
+    "required": false,
+    "fields": [
+     {
+      "name": "value",
+      "value": "\\b(AniVoid)\\b"
+     }
+    ]
+   },
+   {
+    "name": "ArataEnc",
+    "implementation": "ReleaseTitleSpecification",
+    "negate": false,
+    "required": false,
+    "fields": [
+     {
+      "name": "value",
+      "value": "\\b(ArataEnc)\\b"
+     }
+    ]
+   },
+   {
+    "name": "AREY",
+    "implementation": "ReleaseTitleSpecification",
+    "negate": false,
+    "required": false,
+    "fields": [
+     {
+      "name": "value",
+      "value": "\\b(AREY)\\b"
+     }
+    ]
+   },
+   {
+    "name": "Ari",
+    "implementation": "ReleaseTitleSpecification",
+    "negate": false,
+    "required": false,
+    "fields": [
+     {
+      "name": "value",
+      "value": "^\\[Ari\\]|-Ari$"
+     }
+    ]
+   },
+   {
+    "name": "ASW",
+    "implementation": "ReleaseTitleSpecification",
+    "negate": false,
+    "required": false,
+    "fields": [
+     {
+      "name": "value",
+      "value": "\\b(ASW)\\b"
+     }
+    ]
+   },
+   {
+    "name": "BJX",
+    "implementation": "ReleaseTitleSpecification",
+    "negate": false,
+    "required": false,
+    "fields": [
+     {
+      "name": "value",
+      "value": "\\b(BJX)\\b"
+     }
+    ]
+   },
+   {
+    "name": "BlackLuster",
+    "implementation": "ReleaseTitleSpecification",
+    "negate": false,
+    "required": false,
+    "fields": [
+     {
+      "name": "value",
+      "value": "\\b(BlackLuster)\\b"
+     }
+    ]
+   },
+   {
+    "name": "bonkai77",
+    "implementation": "ReleaseTitleSpecification",
+    "negate": false,
+    "required": false,
+    "fields": [
+     {
+      "name": "value",
+      "value": "\\b(bonkai77)\\b"
+     }
+    ]
+   },
+   {
+    "name": "CameEsp",
+    "implementation": "ReleaseTitleSpecification",
+    "negate": false,
+    "required": false,
+    "fields": [
+     {
+      "name": "value",
+      "value": "\\b(CameEsp)\\b"
+     }
+    ]
+   },
+   {
+    "name": "Cat66",
+    "implementation": "ReleaseTitleSpecification",
+    "negate": false,
+    "required": false,
+    "fields": [
+     {
+      "name": "value",
+      "value": "\\b(Cat66)\\b"
+     }
+    ]
+   },
+   {
+    "name": "CBB",
+    "implementation": "ReleaseTitleSpecification",
+    "negate": false,
+    "required": false,
+    "fields": [
+     {
+      "name": "value",
+      "value": "\\b(CBB)\\b"
+     }
+    ]
+   },
+   {
+    "name": "Cerberus",
+    "implementation": "ReleaseTitleSpecification",
+    "negate": false,
+    "required": false,
+    "fields": [
+     {
+      "name": "value",
+      "value": "\\[Cerberus\\]|-Cerberus\\b"
+     }
+    ]
+   },
+   {
+    "name": "Cleo",
+    "implementation": "ReleaseTitleSpecification",
+    "negate": false,
+    "required": false,
+    "fields": [
+     {
+      "name": "value",
+      "value": "\\[Cleo\\]|-Cleo"
+     }
+    ]
+   },
+   {
+    "name": "CuaP",
+    "implementation": "ReleaseTitleSpecification",
+    "negate": false,
+    "required": false,
+    "fields": [
+     {
+      "name": "value",
+      "value": "\\b(CuaP)\\b"
+     }
+    ]
+   },
+   {
+    "name": "DaddySubs",
+    "implementation": "ReleaseTitleSpecification",
+    "negate": false,
+    "required": false,
+    "fields": [
+     {
+      "name": "value",
+      "value": "\\[Daddy(Subs)?\\]|-Daddy(Subs)?$"
+     }
+    ]
+   },
+   {
+    "name": "DARKFLiX",
+    "implementation": "ReleaseTitleSpecification",
+    "negate": false,
+    "required": false,
+    "fields": [
+     {
+      "name": "value",
+      "value": "\\b(DARKFLiX)\\b"
+     }
+    ]
+   },
+   {
+    "name": "DB",
+    "implementation": "ReleaseTitleSpecification",
+    "negate": false,
+    "required": false,
+    "fields": [
+     {
+      "name": "value",
+      "value": "\\[DB\\]"
+     }
+    ]
+   },
+   {
+    "name": "DBArabic",
+    "implementation": "ReleaseTitleSpecification",
+    "negate": false,
+    "required": false,
+    "fields": [
+     {
+      "name": "value",
+      "value": "\\b(DBArabic)\\b"
+     }
+    ]
+   },
+   {
+    "name": "Deadmau- RAWS",
+    "implementation": "ReleaseTitleSpecification",
+    "negate": false,
+    "required": false,
+    "fields": [
+     {
+      "name": "value",
+      "value": "\\b(Deadmau[ .-]?[ .-]?RAWS)\\b"
+     }
+    ]
+   },
+   {
+    "name": "DKB",
+    "implementation": "ReleaseTitleSpecification",
+    "negate": false,
+    "required": false,
+    "fields": [
+     {
+      "name": "value",
+      "value": "\\b(DKB)\\b"
+     }
+    ]
+   },
+   {
+    "name": "DP",
+    "implementation": "ReleaseTitleSpecification",
+    "negate": false,
+    "required": false,
+    "fields": [
+     {
+      "name": "value",
+      "value": "\\b(DP)\\b"
+     }
+    ]
+   },
+   {
+    "name": "DsunS",
+    "implementation": "ReleaseTitleSpecification",
+    "negate": false,
+    "required": false,
+    "fields": [
+     {
+      "name": "value",
+      "value": "\\b(DsunS)\\b"
+     }
+    ]
+   },
+   {
+    "name": "Emmid",
+    "implementation": "ReleaseTitleSpecification",
+    "negate": false,
+    "required": false,
+    "fields": [
+     {
+      "name": "value",
+      "value": "\\[Emmid\\]|-Emmid\\b"
+     }
+    ]
+   },
+   {
+    "name": "ExREN",
+    "implementation": "ReleaseTitleSpecification",
+    "negate": false,
+    "required": false,
+    "fields": [
+     {
+      "name": "value",
+      "value": "\\b(ExREN)\\b"
+     }
+    ]
+   },
+   {
+    "name": "FAV",
+    "implementation": "ReleaseTitleSpecification",
+    "negate": false,
+    "required": false,
+    "fields": [
+     {
+      "name": "value",
+      "value": "\\[FAV\\]|-FAV\\b"
+     }
+    ]
+   },
+   {
+    "name": "Fish",
+    "implementation": "ReleaseTitleSpecification",
+    "negate": false,
+    "required": false,
+    "fields": [
+     {
+      "name": "value",
+      "value": "\\b((Baked|Dead|Space)Fish)\\b"
+     }
+    ]
+   },
+   {
+    "name": "FunArts",
+    "implementation": "ReleaseTitleSpecification",
+    "negate": false,
+    "required": false,
+    "fields": [
+     {
+      "name": "value",
+      "value": "\\b(FunArts)\\b"
+     }
+    ]
+   },
+   {
+    "name": "GERMini",
+    "implementation": "ReleaseTitleSpecification",
+    "negate": false,
+    "required": false,
+    "fields": [
+     {
+      "name": "value",
+      "value": "\\b(GERMini)\\b"
+     }
+    ]
+   },
+   {
+    "name": "Hakata Ramen",
+    "implementation": "ReleaseTitleSpecification",
+    "negate": false,
+    "required": false,
+    "fields": [
+     {
+      "name": "value",
+      "value": "\\b(Hakata[ .-]?Ramen)\\b"
+     }
+    ]
+   },
+   {
+    "name": "Hall_of_C",
+    "implementation": "ReleaseTitleSpecification",
+    "negate": false,
+    "required": false,
+    "fields": [
+     {
+      "name": "value",
+      "value": "\\b(Hall_of_C)\\b"
+     }
+    ]
+   },
+   {
+    "name": "Hatsuyuki",
+    "implementation": "ReleaseTitleSpecification",
+    "negate": false,
+    "required": false,
+    "fields": [
+     {
+      "name": "value",
+      "value": "\\[Hatsuyuki\\]|-Hatsuyuki\\b"
+     }
+    ]
+   },
+   {
+    "name": "HAV1T",
+    "implementation": "ReleaseTitleSpecification",
+    "negate": false,
+    "required": false,
+    "fields": [
+     {
+      "name": "value",
+      "value": "\\b(HAV1T)\\b"
+     }
+    ]
+   },
+   {
+    "name": "HENiL",
+    "implementation": "ReleaseTitleSpecification",
+    "negate": false,
+    "required": false,
+    "fields": [
+     {
+      "name": "value",
+      "value": "\\b(HENiL)\\b"
+     }
+    ]
+   },
+   {
+    "name": "Hitoku",
+    "implementation": "ReleaseTitleSpecification",
+    "negate": false,
+    "required": false,
+    "fields": [
+     {
+      "name": "value",
+      "value": "\\[Hitoku\\]|-Hitoku\\b"
+     }
+    ]
+   },
+   {
+    "name": "HollowRoxas",
+    "implementation": "ReleaseTitleSpecification",
+    "negate": false,
+    "required": false,
+    "fields": [
+     {
+      "name": "value",
+      "value": "\\b(HollowRoxas)\\b"
+     }
+    ]
+   },
+   {
+    "name": "HR",
+    "implementation": "ReleaseTitleSpecification",
+    "negate": false,
+    "required": false,
+    "fields": [
+     {
+      "name": "value",
+      "value": "\\[HR\\]|-HR\\b"
+     }
+    ]
+   },
+   {
+    "name": "ICEBLUE",
+    "implementation": "ReleaseTitleSpecification",
+    "negate": false,
+    "required": false,
+    "fields": [
+     {
+      "name": "value",
+      "value": "\\b(ICEBLUE)\\b"
+     }
+    ]
+   },
+   {
+    "name": "iPUNISHER",
+    "implementation": "ReleaseTitleSpecification",
+    "negate": false,
+    "required": false,
+    "fields": [
+     {
+      "name": "value",
+      "value": "\\b(iPUNISHER)\\b"
+     }
+    ]
+   },
+   {
+    "name": "JacobSwaggedUp",
+    "implementation": "ReleaseTitleSpecification",
+    "negate": false,
+    "required": false,
+    "fields": [
+     {
+      "name": "value",
+      "value": "\\b(JacobSwaggedUp)\\b"
+     }
+    ]
+   },
+   {
+    "name": "Johnny-englishsubs",
+    "implementation": "ReleaseTitleSpecification",
+    "negate": false,
+    "required": false,
+    "fields": [
+     {
+      "name": "value",
+      "value": "\\b(Johnny-englishsubs)\\b"
+     }
+    ]
+   },
+   {
+    "name": "Kallango",
+    "implementation": "ReleaseTitleSpecification",
+    "negate": false,
+    "required": false,
+    "fields": [
+     {
+      "name": "value",
+      "value": "\\[Kallango\\]|-Kallango\\b"
+     }
+    ]
+   },
+   {
+    "name": "Kanjouteki",
+    "implementation": "ReleaseTitleSpecification",
+    "negate": false,
+    "required": false,
+    "fields": [
+     {
+      "name": "value",
+      "value": "\\b(Kanjouteki)\\b"
+     }
+    ]
+   },
+   {
+    "name": "KEKMASTERS",
+    "implementation": "ReleaseTitleSpecification",
+    "negate": false,
+    "required": false,
+    "fields": [
+     {
+      "name": "value",
+      "value": "\\b(KEKMASTERS)\\b"
+     }
+    ]
+   },
+   {
+    "name": "Kirion",
+    "implementation": "ReleaseTitleSpecification",
+    "negate": false,
+    "required": false,
+    "fields": [
+     {
+      "name": "value",
+      "value": "\\b(Kirion)\\b"
+     }
+    ]
+   },
+   {
+    "name": "KQRM",
+    "implementation": "ReleaseTitleSpecification",
+    "negate": false,
+    "required": false,
+    "fields": [
+     {
+      "name": "value",
+      "value": "\\b(KQRM)\\b"
+     }
+    ]
+   },
+   {
+    "name": "KRP",
+    "implementation": "ReleaseTitleSpecification",
+    "negate": false,
+    "required": false,
+    "fields": [
+     {
+      "name": "value",
+      "value": "\\b(KRP)\\b"
+     }
+    ]
+   },
+   {
+    "name": "LoliHouse",
+    "implementation": "ReleaseTitleSpecification",
+    "negate": false,
+    "required": false,
+    "fields": [
+     {
+      "name": "value",
+      "value": "\\b(LoliHouse)\\b"
+     }
+    ]
+   },
+   {
+    "name": "M@nI",
+    "implementation": "ReleaseTitleSpecification",
+    "negate": false,
+    "required": false,
+    "fields": [
+     {
+      "name": "value",
+      "value": "\\b(M@nI)\\b"
+     }
+    ]
+   },
+   {
+    "name": "mal lu zen",
+    "implementation": "ReleaseTitleSpecification",
+    "negate": false,
+    "required": false,
+    "fields": [
+     {
+      "name": "value",
+      "value": "\\b(mal[ .-]lu[ .-]zen)\\b"
+     }
+    ]
+   },
+   {
+    "name": "Man.K",
+    "implementation": "ReleaseTitleSpecification",
+    "negate": false,
+    "required": false,
+    "fields": [
+     {
+      "name": "value",
+      "value": "\\b(Man\\.K)\\b"
+     }
+    ]
+   },
+   {
+    "name": "Maximus",
+    "implementation": "ReleaseTitleSpecification",
+    "negate": false,
+    "required": false,
+    "fields": [
+     {
+      "name": "value",
+      "value": "\\[Maximus\\]|-Maximus\\b"
+     }
+    ]
+   },
+   {
+    "name": "MD",
+    "implementation": "ReleaseTitleSpecification",
+    "negate": false,
+    "required": false,
+    "fields": [
+     {
+      "name": "value",
+      "value": "\\[MD\\]|-MD\\b"
+     }
+    ]
+   },
+   {
+    "name": "mdcx",
+    "implementation": "ReleaseTitleSpecification",
+    "negate": false,
+    "required": false,
+    "fields": [
+     {
+      "name": "value",
+      "value": "\\b(mdcx)\\b"
+     }
+    ]
+   },
+   {
+    "name": "Metaljerk",
+    "implementation": "ReleaseTitleSpecification",
+    "negate": false,
+    "required": false,
+    "fields": [
+     {
+      "name": "value",
+      "value": "\\b(Metaljerk)\\b"
+     }
+    ]
+   },
+   {
+    "name": "MGD",
+    "implementation": "ReleaseTitleSpecification",
+    "negate": false,
+    "required": false,
+    "fields": [
+     {
+      "name": "value",
+      "value": "\\b(MGD)\\b"
+     }
+    ]
+   },
+   {
+    "name": "MiniFreeza",
+    "implementation": "ReleaseTitleSpecification",
+    "negate": false,
+    "required": false,
+    "fields": [
+     {
+      "name": "value",
+      "value": "\\b(MiniFreeza)\\b"
+     }
+    ]
+   },
+   {
+    "name": "MiniMTBB",
+    "implementation": "ReleaseTitleSpecification",
+    "negate": false,
+    "required": false,
+    "fields": [
+     {
+      "name": "value",
+      "value": "\\b(MiniMTBB)\\b"
+     }
+    ]
+   },
+   {
+    "name": "MinisCuba",
+    "implementation": "ReleaseTitleSpecification",
+    "negate": false,
+    "required": false,
+    "fields": [
+     {
+      "name": "value",
+      "value": "\\b(MinisCuba)\\b"
+     }
+    ]
+   },
+   {
+    "name": "MiniTheatre",
+    "implementation": "ReleaseTitleSpecification",
+    "negate": false,
+    "required": false,
+    "fields": [
+     {
+      "name": "value",
+      "value": "\\b(MiniTheatre)\\b"
+     }
+    ]
+   },
+   {
+    "name": "Mites",
+    "implementation": "ReleaseTitleSpecification",
+    "negate": false,
+    "required": false,
+    "fields": [
+     {
+      "name": "value",
+      "value": "\\[Mites\\]|-Mites$"
+     }
+    ]
+   },
+   {
+    "name": "Modders Bay",
+    "implementation": "ReleaseTitleSpecification",
+    "negate": false,
+    "required": false,
+    "fields": [
+     {
+      "name": "value",
+      "value": "\\b(Modders[ .-]?Bay)\\b"
+     }
+    ]
+   },
+   {
+    "name": "Mr. Deadpool",
+    "implementation": "ReleaseTitleSpecification",
+    "negate": false,
+    "required": false,
+    "fields": [
+     {
+      "name": "value",
+      "value": "\\b(Mr\\.Deadpool)\\b"
+     }
+    ]
+   },
+   {
+    "name": "NemDiggers",
+    "implementation": "ReleaseTitleSpecification",
+    "negate": false,
+    "required": false,
+    "fields": [
+     {
+      "name": "value",
+      "value": "\\b(NemDiggers)\\b"
+     }
+    ]
+   },
+   {
+    "name": "neoHEVC",
+    "implementation": "ReleaseTitleSpecification",
+    "negate": false,
+    "required": false,
+    "fields": [
+     {
+      "name": "value",
+      "value": "\\b(neoHEVC)\\b"
+     }
+    ]
+   },
+   {
+    "name": "Nokou",
+    "implementation": "ReleaseTitleSpecification",
+    "negate": false,
+    "required": false,
+    "fields": [
+     {
+      "name": "value",
+      "value": "\\b(Nokou)\\b"
+     }
+    ]
+   },
+   {
+    "name": "NoobSubs",
+    "implementation": "ReleaseTitleSpecification",
+    "negate": false,
+    "required": false,
+    "fields": [
+     {
+      "name": "value",
+      "value": "\\b(N[eo][wo]b[ ._-]?Subs)\\b"
+     }
+    ]
+   },
+   {
+    "name": "NS",
+    "implementation": "ReleaseTitleSpecification",
+    "negate": false,
+    "required": false,
+    "fields": [
+     {
+      "name": "value",
+      "value": "\\b(NS)\\b"
+     }
+    ]
+   },
+   {
+    "name": "Nyanpasu",
+    "implementation": "ReleaseTitleSpecification",
+    "negate": false,
+    "required": false,
+    "fields": [
+     {
+      "name": "value",
+      "value": "\\b(Nyanpasu)\\b"
+     }
+    ]
+   },
+   {
+    "name": "OldCastle",
+    "implementation": "ReleaseTitleSpecification",
+    "negate": false,
+    "required": false,
+    "fields": [
+     {
+      "name": "value",
+      "value": "\\b(OldCastle)\\b"
+     }
+    ]
+   },
+   {
+    "name": "Pantsu",
+    "implementation": "ReleaseTitleSpecification",
+    "negate": false,
+    "required": false,
+    "fields": [
+     {
+      "name": "value",
+      "value": "\\[Pantsu\\]|-Pantsu\\b"
+     }
+    ]
+   },
+   {
+    "name": "Pao",
+    "implementation": "ReleaseTitleSpecification",
+    "negate": false,
+    "required": false,
+    "fields": [
+     {
+      "name": "value",
+      "value": "\\[Pao\\]|-Pao\\b"
+     }
+    ]
+   },
+   {
+    "name": "phazer11",
+    "implementation": "ReleaseTitleSpecification",
+    "negate": false,
+    "required": false,
+    "fields": [
+     {
+      "name": "value",
+      "value": "\\b(phazer11)\\b"
+     }
+    ]
+   },
+   {
+    "name": "Pixel",
+    "implementation": "ReleaseTitleSpecification",
+    "negate": false,
+    "required": false,
+    "fields": [
+     {
+      "name": "value",
+      "value": "\\[Pixel\\]|-Pixel\\b"
+     }
+    ]
+   },
+   {
+    "name": "Plex Friendly",
+    "implementation": "ReleaseTitleSpecification",
+    "negate": false,
+    "required": false,
+    "fields": [
+     {
+      "name": "value",
+      "value": "\\b(Plex[ .-]?Friendly)\\b"
+     }
+    ]
+   },
+   {
+    "name": "PnPSubs",
+    "implementation": "ReleaseTitleSpecification",
+    "negate": false,
+    "required": false,
+    "fields": [
+     {
+      "name": "value",
+      "value": "\\b(PnPSubs)\\b"
+     }
+    ]
+   },
+   {
+    "name": "Polarwindz",
+    "implementation": "ReleaseTitleSpecification",
+    "negate": false,
+    "required": false,
+    "fields": [
+     {
+      "name": "value",
+      "value": "\\b(Polarwindz)\\b"
+     }
+    ]
+   },
+   {
+    "name": "Project-gxs",
+    "implementation": "ReleaseTitleSpecification",
+    "negate": false,
+    "required": false,
+    "fields": [
+     {
+      "name": "value",
+      "value": "\\b(Project-gxs)\\b"
+     }
+    ]
+   },
+   {
+    "name": "PuyaSubs",
+    "implementation": "ReleaseTitleSpecification",
+    "negate": false,
+    "required": false,
+    "fields": [
+     {
+      "name": "value",
+      "value": "\\b(PuyaSubs)\\b"
+     }
+    ]
+   },
+   {
+    "name": "QaS",
+    "implementation": "ReleaseTitleSpecification",
+    "negate": false,
+    "required": false,
+    "fields": [
+     {
+      "name": "value",
+      "value": "\\b(QAS)\\b"
+     }
+    ]
+   },
+   {
+    "name": "QCE",
+    "implementation": "ReleaseTitleSpecification",
+    "negate": false,
+    "required": false,
+    "fields": [
+     {
+      "name": "value",
+      "value": "\\b(QCE)\\b"
+     }
+    ]
+   },
+   {
+    "name": "Rando235",
+    "implementation": "ReleaseTitleSpecification",
+    "negate": false,
+    "required": false,
+    "fields": [
+     {
+      "name": "value",
+      "value": "\\b(Rando235)\\b"
+     }
+    ]
+   },
+   {
+    "name": "Ranger",
+    "implementation": "ReleaseTitleSpecification",
+    "negate": false,
+    "required": false,
+    "fields": [
+     {
+      "name": "value",
+      "value": "\\[Ranger\\]|-Ranger\\b"
+     }
+    ]
+   },
+   {
+    "name": "Rapta",
+    "implementation": "ReleaseTitleSpecification",
+    "negate": false,
+    "required": false,
+    "fields": [
+     {
+      "name": "value",
+      "value": "\\[Rapta\\]|-Rapta\\b"
+     }
+    ]
+   },
+   {
+    "name": "Raw Files",
+    "implementation": "ReleaseTitleSpecification",
+    "negate": false,
+    "required": false,
+    "fields": [
+     {
+      "name": "value",
+      "value": "\\b(M2TS|BDMV|BDVD)\\b"
+     }
+    ]
+   },
+   {
+    "name": "Raze",
+    "implementation": "ReleaseTitleSpecification",
+    "negate": false,
+    "required": false,
+    "fields": [
+     {
+      "name": "value",
+      "value": "\\[Raze\\]|-Raze\\b"
+     }
+    ]
+   },
+   {
+    "name": "Reaktor",
+    "implementation": "ReleaseTitleSpecification",
+    "negate": false,
+    "required": false,
+    "fields": [
+     {
+      "name": "value",
+      "value": "\\b(Reaktor)\\b"
+     }
+    ]
+   },
+   {
+    "name": "RightShiftBy2",
+    "implementation": "ReleaseTitleSpecification",
+    "negate": false,
+    "required": false,
+    "fields": [
+     {
+      "name": "value",
+      "value": "\\b(RightShiftBy2)\\b"
+     }
+    ]
+   },
+   {
+    "name": "Rip Time",
+    "implementation": "ReleaseTitleSpecification",
+    "negate": false,
+    "required": false,
+    "fields": [
+     {
+      "name": "value",
+      "value": "\\b(Rip[ .-]?Time)\\b"
+     }
+    ]
+   },
+   {
+    "name": "SAD",
+    "implementation": "ReleaseTitleSpecification",
+    "negate": false,
+    "required": false,
+    "fields": [
+     {
+      "name": "value",
+      "value": "\\[SAD\\]|-SAD$"
+     }
+    ]
+   },
+   {
+    "name": "Salieri",
+    "implementation": "ReleaseTitleSpecification",
+    "negate": false,
+    "required": false,
+    "fields": [
+     {
+      "name": "value",
+      "value": "\\b(Salieri)\\b"
+     }
+    ]
+   },
+   {
+    "name": "Samir755",
+    "implementation": "ReleaseTitleSpecification",
+    "negate": false,
+    "required": false,
+    "fields": [
+     {
+      "name": "value",
+      "value": "\\b(Samir755)\\b"
+     }
+    ]
+   },
+   {
+    "name": "SanKyuu",
+    "implementation": "ReleaseTitleSpecification",
+    "negate": false,
+    "required": false,
+    "fields": [
+     {
+      "name": "value",
+      "value": "\\b(SanKyuu)\\b"
+     }
+    ]
+   },
+   {
+    "name": "SEiN",
+    "implementation": "ReleaseTitleSpecification",
+    "negate": false,
+    "required": false,
+    "fields": [
+     {
+      "name": "value",
+      "value": "\\[SEiN\\]|-SEiN\\b"
+     }
+    ]
+   },
+   {
+    "name": "sekkusu&ok",
+    "implementation": "ReleaseTitleSpecification",
+    "negate": false,
+    "required": false,
+    "fields": [
+     {
+      "name": "value",
+      "value": "\\b(sekkusu&ok)\\b"
+     }
+    ]
+   },
+   {
+    "name": "SHFS",
+    "implementation": "ReleaseTitleSpecification",
+    "negate": false,
+    "required": false,
+    "fields": [
+     {
+      "name": "value",
+      "value": "\\b(SHFS)\\b"
+     }
+    ]
+   },
+   {
+    "name": "shincaps",
+    "implementation": "ReleaseTitleSpecification",
+    "negate": false,
+    "required": false,
+    "fields": [
+     {
+      "name": "value",
+      "value": "\\b(shincaps)\\b"
+     }
+    ]
+   },
+   {
+    "name": "SLAX",
+    "implementation": "ReleaseTitleSpecification",
+    "negate": false,
+    "required": false,
+    "fields": [
+     {
+      "name": "value",
+      "value": "\\b(SLAX)\\b"
+     }
+    ]
+   },
+   {
+    "name": "Sokudo",
+    "implementation": "ReleaseTitleSpecification",
+    "negate": false,
+    "required": false,
+    "fields": [
+     {
+      "name": "value",
+      "value": "\\[Sokudo\\]|-Sokudo\\b"
+     }
+    ]
+   },
+   {
+    "name": "SRW",
+    "implementation": "ReleaseTitleSpecification",
+    "negate": false,
+    "required": false,
+    "fields": [
+     {
+      "name": "value",
+      "value": "\\b(SRW)\\b"
+     }
+    ]
+   },
+   {
+    "name": "SSA",
+    "implementation": "ReleaseTitleSpecification",
+    "negate": false,
+    "required": false,
+    "fields": [
+     {
+      "name": "value",
+      "value": "\\b(SSA)\\b"
+     }
+    ]
+   },
+   {
+    "name": "StrayGods",
+    "implementation": "ReleaseTitleSpecification",
+    "negate": false,
+    "required": false,
+    "fields": [
+     {
+      "name": "value",
+      "value": "\\b(StrayGods)\\b"
+     }
+    ]
+   },
+   {
+    "name": "Suki Desu",
+    "implementation": "ReleaseTitleSpecification",
+    "negate": false,
+    "required": false,
+    "fields": [
+     {
+      "name": "value",
+      "value": "\\[Suki[ .-]?Desu\\]|-Suki[ .-]?Desu\\b"
+     }
+    ]
+   },
+   {
+    "name": "TeamTurquoize",
+    "implementation": "ReleaseTitleSpecification",
+    "negate": false,
+    "required": false,
+    "fields": [
+     {
+      "name": "value",
+      "value": "\\b(TeamTurquoize)\\b"
+     }
+    ]
+   },
+   {
+    "name": "Tenrai Sensei",
+    "implementation": "ReleaseTitleSpecification",
+    "negate": false,
+    "required": false,
+    "fields": [
+     {
+      "name": "value",
+      "value": "\\b(Tenrai[ .-]?Sensei)\\b"
+     }
+    ]
+   },
+   {
+    "name": "TnF",
+    "implementation": "ReleaseTitleSpecification",
+    "negate": false,
+    "required": false,
+    "fields": [
+     {
+      "name": "value",
+      "value": "\\b(TnF)\\b"
+     }
+    ]
+   },
+   {
+    "name": "TOPKEK",
+    "implementation": "ReleaseTitleSpecification",
+    "negate": false,
+    "required": false,
+    "fields": [
+     {
+      "name": "value",
+      "value": "\\b(TOPKEK)\\b"
+     }
+    ]
+   },
+   {
+    "name": "Trix",
+    "implementation": "ReleaseTitleSpecification",
+    "negate": false,
+    "required": false,
+    "fields": [
+     {
+      "name": "value",
+      "value": "\\[Trix\\]|-Trix\\b"
+     }
+    ]
+   },
+   {
+    "name": "U3-Web",
+    "implementation": "ReleaseTitleSpecification",
+    "negate": false,
+    "required": false,
+    "fields": [
+     {
+      "name": "value",
+      "value": "\\b(U3-Web)\\b"
+     }
+    ]
+   },
+   {
+    "name": "UNBIASED",
+    "implementation": "ReleaseTitleSpecification",
+    "negate": false,
+    "required": false,
+    "fields": [
+     {
+      "name": "value",
+      "value": "\\[UNBIASED\\]|-UNBIASED\\b"
+     }
+    ]
+   },
+   {
+    "name": "uP",
+    "implementation": "ReleaseTitleSpecification",
+    "negate": false,
+    "required": false,
+    "fields": [
+     {
+      "name": "value",
+      "value": "\\[uP\\]"
+     }
+    ]
+   },
+   {
+    "name": "USD",
+    "implementation": "ReleaseTitleSpecification",
+    "negate": false,
+    "required": false,
+    "fields": [
+     {
+      "name": "value",
+      "value": "\\[USD\\]|-USD\\b"
+     }
+    ]
+   },
+   {
+    "name": "Valenciano",
+    "implementation": "ReleaseTitleSpecification",
+    "negate": false,
+    "required": false,
+    "fields": [
+     {
+      "name": "value",
+      "value": "\\b(Valenciano)\\b"
+     }
+    ]
+   },
+   {
+    "name": "VipapkStudios",
+    "implementation": "ReleaseTitleSpecification",
+    "negate": false,
+    "required": false,
+    "fields": [
+     {
+      "name": "value",
+      "value": "\\b(VipapkStudios)\\b"
+     }
+    ]
+   },
+   {
+    "name": "Wardevil",
+    "implementation": "ReleaseTitleSpecification",
+    "negate": false,
+    "required": false,
+    "fields": [
+     {
+      "name": "value",
+      "value": "\\[Wardevil\\]|-Wardevil\\b"
+     }
+    ]
+   },
+   {
+    "name": "WtF Anime",
+    "implementation": "ReleaseTitleSpecification",
+    "negate": false,
+    "required": false,
+    "fields": [
+     {
+      "name": "value",
+      "value": "\\b(WtF[ ._-]?Anime)\\b"
+     }
+    ]
+   },
+   {
+    "name": "xiao-av1",
+    "implementation": "ReleaseTitleSpecification",
+    "negate": false,
+    "required": false,
+    "fields": [
+     {
+      "name": "value",
+      "value": "\\b(xiao-av1)\\b"
+     }
+    ]
+   },
+   {
+    "name": "Yabai_Desu_NeRandomRemux",
+    "implementation": "ReleaseTitleSpecification",
+    "negate": false,
+    "required": false,
+    "fields": [
+     {
+      "name": "value",
+      "value": "\\b(Yabai_Desu_NeRandomRemux)\\b"
+     }
+    ]
+   },
+   {
+    "name": "YakuboEncodes",
+    "implementation": "ReleaseTitleSpecification",
+    "negate": false,
+    "required": false,
+    "fields": [
+     {
+      "name": "value",
+      "value": "\\b(YakuboEncodes)\\b"
+     }
+    ]
+   },
+   {
+    "name": "youshikibi",
+    "implementation": "ReleaseTitleSpecification",
+    "negate": false,
+    "required": false,
+    "fields": [
+     {
+      "name": "value",
+      "value": "\\b(youshikibi)\\b"
+     }
+    ]
+   },
+   {
+    "name": "YuiSubs",
+    "implementation": "ReleaseTitleSpecification",
+    "negate": false,
+    "required": false,
+    "fields": [
+     {
+      "name": "value",
+      "value": "\\b(YuiSubs)\\b"
+     }
+    ]
+   },
+   {
+    "name": "Yun",
+    "implementation": "ReleaseTitleSpecification",
+    "negate": false,
+    "required": false,
+    "fields": [
+     {
+      "name": "value",
+      "value": "\\[Yun\\]|-Yun\\b"
+     }
+    ]
+   },
+   {
+    "name": "zza",
+    "implementation": "ReleaseTitleSpecification",
+    "negate": false,
+    "required": false,
+    "fields": [
+     {
+      "name": "value",
+      "value": "\\[zza\\]|-zza\\b"
+     }
+    ]
+   }
+  ]
+ },
+ {
+  "id": 25,
+  "name": "Anime Raws - Notifiarr",
+  "includeCustomFormatWhenRenaming": false,
+  "specifications": [
+   {
+    "name": "AsukaRaws",
+    "implementation": "ReleaseTitleSpecification",
+    "negate": false,
+    "required": false,
+    "fields": [
+     {
+      "name": "value",
+      "value": "Asuka[ ._-]?(Raws)"
+     }
+    ]
+   },
+   {
+    "name": "Beatrice-Raws",
+    "implementation": "ReleaseTitleSpecification",
+    "negate": false,
+    "required": false,
+    "fields": [
+     {
+      "name": "value",
+      "value": "Beatrice[ ._-]?(Raws)"
+     }
+    ]
+   },
+   {
+    "name": "Daddy-Raws",
+    "implementation": "ReleaseTitleSpecification",
+    "negate": false,
+    "required": false,
+    "fields": [
+     {
+      "name": "value",
+      "value": "Daddy[ ._-]?(Raws)"
+     }
+    ]
+   },
+   {
+    "name": "Fumi-Raws",
+    "implementation": "ReleaseTitleSpecification",
+    "negate": false,
+    "required": false,
+    "fields": [
+     {
+      "name": "value",
+      "value": "Fumi[ ._-]?(Raws)"
+     }
+    ]
+   },
+   {
+    "name": "IrizaRaws",
+    "implementation": "ReleaseTitleSpecification",
+    "negate": false,
+    "required": false,
+    "fields": [
+     {
+      "name": "value",
+      "value": "Iriza[ ._-]?(Raws)"
+     }
+    ]
+   },
+   {
+    "name": "Kawaiika-Raws",
+    "implementation": "ReleaseTitleSpecification",
+    "negate": false,
+    "required": false,
+    "fields": [
+     {
+      "name": "value",
+      "value": "Kawaiika[ ._-]?(Raws)"
+     }
+    ]
+   },
+   {
+    "name": "km",
+    "implementation": "ReleaseTitleSpecification",
+    "negate": false,
+    "required": false,
+    "fields": [
+     {
+      "name": "value",
+      "value": "\\[km\\]|-km\\b"
+     }
+    ]
+   },
+   {
+    "name": "Koi-Raws",
+    "implementation": "ReleaseTitleSpecification",
+    "negate": false,
+    "required": false,
+    "fields": [
+     {
+      "name": "value",
+      "value": "Koi[ ._-]?(Raws)"
+     }
+    ]
+   },
+   {
+    "name": "Lilith-Raws",
+    "implementation": "ReleaseTitleSpecification",
+    "negate": false,
+    "required": false,
+    "fields": [
+     {
+      "name": "value",
+      "value": "Lilith[ ._-]?(Raws)"
+     }
+    ]
+   },
+   {
+    "name": "LowPower-Raws",
+    "implementation": "ReleaseTitleSpecification",
+    "negate": false,
+    "required": false,
+    "fields": [
+     {
+      "name": "value",
+      "value": "LowPower[ ._-]?(Raws)"
+     }
+    ]
+   },
+   {
+    "name": "Moozzi2",
+    "implementation": "ReleaseTitleSpecification",
+    "negate": false,
+    "required": false,
+    "fields": [
+     {
+      "name": "value",
+      "value": "\\b(Moozzi2)\\b"
+     }
+    ]
+   },
+   {
+    "name": "NanakoRaws",
+    "implementation": "ReleaseTitleSpecification",
+    "negate": false,
+    "required": false,
+    "fields": [
+     {
+      "name": "value",
+      "value": "Nanako[ ._-]?(Raws)"
+     }
+    ]
+   },
+   {
+    "name": "NC-Raws",
+    "implementation": "ReleaseTitleSpecification",
+    "negate": false,
+    "required": false,
+    "fields": [
+     {
+      "name": "value",
+      "value": "NC[ ._-]?(Raws)"
+     }
+    ]
+   },
+   {
+    "name": "neko-raws",
+    "implementation": "ReleaseTitleSpecification",
+    "negate": false,
+    "required": false,
+    "fields": [
+     {
+      "name": "value",
+      "value": "neko[ ._-]?(raws)"
+     }
+    ]
+   },
+   {
+    "name": "New-raws",
+    "implementation": "ReleaseTitleSpecification",
+    "negate": false,
+    "required": false,
+    "fields": [
+     {
+      "name": "value",
+      "value": "New[ ._-]?(raws)"
+     }
+    ]
+   },
+   {
+    "name": "Ohys-Raws",
+    "implementation": "ReleaseTitleSpecification",
+    "negate": false,
+    "required": false,
+    "fields": [
+     {
+      "name": "value",
+      "value": "Ohys[ ._-]?(Raws)"
+     }
+    ]
+   },
+   {
+    "name": "Pandoratv-Raws",
+    "implementation": "ReleaseTitleSpecification",
+    "negate": false,
+    "required": false,
+    "fields": [
+     {
+      "name": "value",
+      "value": "Pandoratv[ ._-]?(Raws)"
+     }
+    ]
+   },
+   {
+    "name": "Raws-Maji",
+    "implementation": "ReleaseTitleSpecification",
+    "negate": false,
+    "required": false,
+    "fields": [
+     {
+      "name": "value",
+      "value": "\\b(Raws-Maji)\\b"
+     }
+    ]
+   },
+   {
+    "name": "ReinForce",
+    "implementation": "ReleaseTitleSpecification",
+    "negate": false,
+    "required": false,
+    "fields": [
+     {
+      "name": "value",
+      "value": "\\b(ReinForce)\\b"
+     }
+    ]
+   },
+   {
+    "name": "Scryous-Raws",
+    "implementation": "ReleaseTitleSpecification",
+    "negate": false,
+    "required": false,
+    "fields": [
+     {
+      "name": "value",
+      "value": "Scryous[ ._-]?(Raws)"
+     }
+    ]
+   },
+   {
+    "name": "Seicher-Raws",
+    "implementation": "ReleaseTitleSpecification",
+    "negate": false,
+    "required": false,
+    "fields": [
+     {
+      "name": "value",
+      "value": "Seicher[ ._-]?(Raws)"
+     }
+    ]
+   },
+   {
+    "name": "Shiniori-Raws",
+    "implementation": "ReleaseTitleSpecification",
+    "negate": false,
+    "required": false,
+    "fields": [
+     {
+      "name": "value",
+      "value": "Shiniori[ ._-]?(Raws)"
+     }
+    ]
+   }
+  ]
+ },
+ {
+  "id": 26,
+  "name": "Anime Web Tier 01 (Muxers) - Notifiarr",
+  "includeCustomFormatWhenRenaming": false,
+  "specifications": [
+   {
+    "name": "WEBDL",
+    "implementation": "SourceSpecification",
+    "negate": false,
+    "required": false,
+    "fields": [
+     {
+      "name": "value",
+      "value": 3
+     }
+    ]
+   },
+   {
+    "name": "WEBRIP",
+    "implementation": "SourceSpecification",
+    "negate": false,
+    "required": false,
+    "fields": [
+     {
+      "name": "value",
+      "value": 4
+     }
+    ]
+   },
+   {
+    "name": "WEB",
+    "implementation": "SourceSpecification",
+    "negate": false,
+    "required": false,
+    "fields": [
+     {
+      "name": "value",
+      "value": 1
+     }
+    ]
+   },
+   {
+    "name": "Arg0",
+    "implementation": "ReleaseTitleSpecification",
+    "negate": false,
+    "required": false,
+    "fields": [
+     {
+      "name": "value",
+      "value": "\\b(Arg0)\\b"
+     }
+    ]
+   },
+   {
+    "name": "Arid",
+    "implementation": "ReleaseTitleSpecification",
+    "negate": false,
+    "required": false,
+    "fields": [
+     {
+      "name": "value",
+      "value": "\\[Arid\\]|-Arid\\b"
+     }
+    ]
+   },
+   {
+    "name": "Baws",
+    "implementation": "ReleaseTitleSpecification",
+    "negate": false,
+    "required": false,
+    "fields": [
+     {
+      "name": "value",
+      "value": "\\b(Baws)\\b"
+     }
+    ]
+   },
+   {
+    "name": "FLE",
+    "implementation": "ReleaseTitleSpecification",
+    "negate": false,
+    "required": false,
+    "fields": [
+     {
+      "name": "value",
+      "value": "\\b(FLE)\\b"
+     }
+    ]
+   },
+   {
+    "name": "LostYears",
+    "implementation": "ReleaseTitleSpecification",
+    "negate": false,
+    "required": false,
+    "fields": [
+     {
+      "name": "value",
+      "value": "\\b(LostYears)\\b"
+     }
+    ]
+   },
+   {
+    "name": "LYS1TH3A",
+    "implementation": "ReleaseTitleSpecification",
+    "negate": false,
+    "required": false,
+    "fields": [
+     {
+      "name": "value",
+      "value": "\\b(LYS1TH3A)\\b"
+     }
+    ]
+   },
+   {
+    "name": "McBalls",
+    "implementation": "ReleaseTitleSpecification",
+    "negate": false,
+    "required": false,
+    "fields": [
+     {
+      "name": "value",
+      "value": "\\b(McBalls)\\b"
+     }
+    ]
+   },
+   {
+    "name": "sam",
+    "implementation": "ReleaseTitleSpecification",
+    "negate": false,
+    "required": false,
+    "fields": [
+     {
+      "name": "value",
+      "value": "\\[sam\\]|-sam\\b"
+     }
+    ]
+   },
+   {
+    "name": "SCY",
+    "implementation": "ReleaseTitleSpecification",
+    "negate": false,
+    "required": false,
+    "fields": [
+     {
+      "name": "value",
+      "value": "\\b(SCY)\\b"
+     }
+    ]
+   },
+   {
+    "name": "Setsugen",
+    "implementation": "ReleaseTitleSpecification",
+    "negate": false,
+    "required": false,
+    "fields": [
+     {
+      "name": "value",
+      "value": "\\b(Setsugen)\\b"
+     }
+    ]
+   },
+   {
+    "name": "smol",
+    "implementation": "ReleaseTitleSpecification",
+    "negate": false,
+    "required": false,
+    "fields": [
+     {
+      "name": "value",
+      "value": "\\[smol\\]|-smol\\b"
+     }
+    ]
+   },
+   {
+    "name": "SoM",
+    "implementation": "ReleaseTitleSpecification",
+    "negate": false,
+    "required": false,
+    "fields": [
+     {
+      "name": "value",
+      "value": "\\[SoM\\]|-SoM\\b"
+     }
+    ]
+   },
+   {
+    "name": "Vodes",
+    "implementation": "ReleaseTitleSpecification",
+    "negate": false,
+    "required": false,
+    "fields": [
+     {
+      "name": "value",
+      "value": "\\[Vodes\\]|(?<!Not)-Vodes\\b"
+     }
+    ]
+   },
+   {
+    "name": "Z4ST1N",
+    "implementation": "ReleaseTitleSpecification",
+    "negate": false,
+    "required": false,
+    "fields": [
+     {
+      "name": "value",
+      "value": "\\b(Z4ST1N)\\b"
+     }
+    ]
+   },
+   {
+    "name": "ZeroBuild",
+    "implementation": "ReleaseTitleSpecification",
+    "negate": false,
+    "required": false,
+    "fields": [
+     {
+      "name": "value",
+      "value": "\\b(ZeroBuild)\\b"
+     }
+    ]
+   }
+  ]
+ },
+ {
+  "id": 27,
+  "name": "Anime Web Tier 02 (Top FanSubs) - Notifiarr",
+  "includeCustomFormatWhenRenaming": false,
+  "specifications": [
+   {
+    "name": "WEBDL",
+    "implementation": "SourceSpecification",
+    "negate": false,
+    "required": false,
+    "fields": [
+     {
+      "name": "value",
+      "value": 3
+     }
+    ]
+   },
+   {
+    "name": "WEBRIP",
+    "implementation": "SourceSpecification",
+    "negate": false,
+    "required": false,
+    "fields": [
+     {
+      "name": "value",
+      "value": 4
+     }
+    ]
+   },
+   {
+    "name": "WEB",
+    "implementation": "SourceSpecification",
+    "negate": false,
+    "required": false,
+    "fields": [
+     {
+      "name": "value",
+      "value": 1
+     }
+    ]
+   },
+   {
+    "name": "0x539",
+    "implementation": "ReleaseTitleSpecification",
+    "negate": false,
+    "required": false,
+    "fields": [
+     {
+      "name": "value",
+      "value": "\\b(0x539)\\b"
+     }
+    ]
+   },
+   {
+    "name": "Asakura",
+    "implementation": "ReleaseTitleSpecification",
+    "negate": false,
+    "required": false,
+    "fields": [
+     {
+      "name": "value",
+      "value": "\\[Asakura\\]|-Asakura\\b"
+     }
+    ]
+   },
+   {
+    "name": "BlackRose",
+    "implementation": "ReleaseTitleSpecification",
+    "negate": false,
+    "required": false,
+    "fields": [
+     {
+      "name": "value",
+      "value": "\\b(BlackRose)\\b"
+     }
+    ]
+   },
+   {
+    "name": "Cyan",
+    "implementation": "ReleaseTitleSpecification",
+    "negate": false,
+    "required": false,
+    "fields": [
+     {
+      "name": "value",
+      "value": "\\[Cyan\\]|-Cyan\\b"
+     }
+    ]
+   },
+   {
+    "name": "Cytox",
+    "implementation": "ReleaseTitleSpecification",
+    "negate": false,
+    "required": false,
+    "fields": [
+     {
+      "name": "value",
+      "value": "\\b(Cytox)\\b"
+     }
+    ]
+   },
+   {
+    "name": "Dae",
+    "implementation": "ReleaseTitleSpecification",
+    "negate": false,
+    "required": false,
+    "fields": [
+     {
+      "name": "value",
+      "value": "\\[Dae\\]|-Dae\\b"
+     }
+    ]
+   },
+   {
+    "name": "Foxtrot",
+    "implementation": "ReleaseTitleSpecification",
+    "negate": false,
+    "required": false,
+    "fields": [
+     {
+      "name": "value",
+      "value": "\\[Foxtrot\\]|-Foxtrot\\b"
+     }
+    ]
+   },
+   {
+    "name": "Gao",
+    "implementation": "ReleaseTitleSpecification",
+    "negate": false,
+    "required": false,
+    "fields": [
+     {
+      "name": "value",
+      "value": "\\[Gao\\]|-Gao\\b"
+     }
+    ]
+   },
+   {
+    "name": "GSK_kun",
+    "implementation": "ReleaseTitleSpecification",
+    "negate": false,
+    "required": false,
+    "fields": [
+     {
+      "name": "value",
+      "value": "\\b(GSK[._-]kun)\\b"
+     }
+    ]
+   },
+   {
+    "name": "Half-Baked",
+    "implementation": "ReleaseTitleSpecification",
+    "negate": false,
+    "required": false,
+    "fields": [
+     {
+      "name": "value",
+      "value": "\\b(Half-Baked)\\b"
+     }
+    ]
+   },
+   {
+    "name": "HatSubs",
+    "implementation": "ReleaseTitleSpecification",
+    "negate": false,
+    "required": false,
+    "fields": [
+     {
+      "name": "value",
+      "value": "\\b(HatSubs)\\b"
+     }
+    ]
+   },
+   {
+    "name": "MALD",
+    "implementation": "ReleaseTitleSpecification",
+    "negate": false,
+    "required": false,
+    "fields": [
+     {
+      "name": "value",
+      "value": "\\b(MALD)\\b"
+     }
+    ]
+   },
+   {
+    "name": "MTBB",
+    "implementation": "ReleaseTitleSpecification",
+    "negate": false,
+    "required": false,
+    "fields": [
+     {
+      "name": "value",
+      "value": "\\b(MTBB)\\b"
+     }
+    ]
+   },
+   {
+    "name": "Not-Vodes",
+    "implementation": "ReleaseTitleSpecification",
+    "negate": false,
+    "required": false,
+    "fields": [
+     {
+      "name": "value",
+      "value": "\\[Not-Vodes\\]|-Not-Vodes\\b"
+     }
+    ]
+   },
+   {
+    "name": "Okay-Subs",
+    "implementation": "ReleaseTitleSpecification",
+    "negate": false,
+    "required": false,
+    "fields": [
+     {
+      "name": "value",
+      "value": "\\b(Okay-Subs)\\b"
+     }
+    ]
+   },
+   {
+    "name": "Pizza",
+    "implementation": "ReleaseTitleSpecification",
+    "negate": false,
+    "required": false,
+    "fields": [
+     {
+      "name": "value",
+      "value": "\\[Pizza\\]|-Pizza\\b"
+     }
+    ]
+   },
+   {
+    "name": "Reza",
+    "implementation": "ReleaseTitleSpecification",
+    "negate": false,
+    "required": false,
+    "fields": [
+     {
+      "name": "value",
+      "value": "\\b(Reza)\\b"
+     }
+    ]
+   },
+   {
+    "name": "Slyfox",
+    "implementation": "ReleaseTitleSpecification",
+    "negate": false,
+    "required": false,
+    "fields": [
+     {
+      "name": "value",
+      "value": "\\b(Slyfox)\\b"
+     }
+    ]
+   },
+   {
+    "name": "SoLCE",
+    "implementation": "ReleaseTitleSpecification",
+    "negate": false,
+    "required": false,
+    "fields": [
+     {
+      "name": "value",
+      "value": "\\b(SoLCE)\\b"
+     }
+    ]
+   },
+   {
+    "name": "Tenshi",
+    "implementation": "ReleaseTitleSpecification",
+    "negate": false,
+    "required": false,
+    "fields": [
+     {
+      "name": "value",
+      "value": "\\[tenshi\\]|-tenshi$"
+     }
+    ]
+   }
+  ]
+ },
+ {
+  "id": 28,
+  "name": "Anime Web Tier 03 (Official Subs) - Notifiarr",
+  "includeCustomFormatWhenRenaming": false,
+  "specifications": [
+   {
+    "name": "WEBDL",
+    "implementation": "SourceSpecification",
+    "negate": false,
+    "required": false,
+    "fields": [
+     {
+      "name": "value",
+      "value": 3
+     }
+    ]
+   },
+   {
+    "name": "WEBRIP",
+    "implementation": "SourceSpecification",
+    "negate": false,
+    "required": false,
+    "fields": [
+     {
+      "name": "value",
+      "value": 4
+     }
+    ]
+   },
+   {
+    "name": "WEB",
+    "implementation": "SourceSpecification",
+    "negate": false,
+    "required": false,
+    "fields": [
+     {
+      "name": "value",
+      "value": 1
+     }
+    ]
+   },
+   {
+    "name": "AnoZu",
+    "implementation": "ReleaseTitleSpecification",
+    "negate": false,
+    "required": false,
+    "fields": [
+     {
+      "name": "value",
+      "value": "\\b(AnoZu)\\b"
+     }
+    ]
+   },
+   {
+    "name": "Dooky",
+    "implementation": "ReleaseTitleSpecification",
+    "negate": false,
+    "required": false,
+    "fields": [
+     {
+      "name": "value",
+      "value": "\\b(Dooky)\\b"
+     }
+    ]
+   },
+   {
+    "name": "Kitsune",
+    "implementation": "ReleaseTitleSpecification",
+    "negate": false,
+    "required": false,
+    "fields": [
+     {
+      "name": "value",
+      "value": "\\[Kitsune\\]|-Kitsune\\b"
+     }
+    ]
+   },
+   {
+    "name": "SubsPlus+",
+    "implementation": "ReleaseTitleSpecification",
+    "negate": false,
+    "required": false,
+    "fields": [
+     {
+      "name": "value",
+      "value": "\\b(SubsPlus\\+?)\\b"
+     }
+    ]
+   },
+   {
+    "name": "ZR",
+    "implementation": "ReleaseTitleSpecification",
+    "negate": false,
+    "required": false,
+    "fields": [
+     {
+      "name": "value",
+      "value": "\\b(ZR)\\b"
+     }
+    ]
+   }
+  ]
+ },
+ {
+  "id": 29,
+  "name": "Anime Web Tier 04 (Official Subs) - Notifiarr",
+  "includeCustomFormatWhenRenaming": false,
+  "specifications": [
+   {
+    "name": "WEBDL",
+    "implementation": "SourceSpecification",
+    "negate": false,
+    "required": false,
+    "fields": [
+     {
+      "name": "value",
+      "value": 3
+     }
+    ]
+   },
+   {
+    "name": "WEBRIP",
+    "implementation": "SourceSpecification",
+    "negate": false,
+    "required": false,
+    "fields": [
+     {
+      "name": "value",
+      "value": 4
+     }
+    ]
+   },
+   {
+    "name": "WEB",
+    "implementation": "SourceSpecification",
+    "negate": false,
+    "required": false,
+    "fields": [
+     {
+      "name": "value",
+      "value": 1
+     }
+    ]
+   },
+   {
+    "name": "Erai-Raws",
+    "implementation": "ReleaseTitleSpecification",
+    "negate": false,
+    "required": false,
+    "fields": [
+     {
+      "name": "value",
+      "value": "\\b(Erai-raws)\\b"
+     }
+    ]
+   },
+   {
+    "name": "ToonsHub",
+    "implementation": "ReleaseTitleSpecification",
+    "negate": false,
+    "required": false,
+    "fields": [
+     {
+      "name": "value",
+      "value": "\\b(ToonsHub)\\b"
+     }
+    ]
+   },
+   {
+    "name": "VARYG",
+    "implementation": "ReleaseTitleSpecification",
+    "negate": false,
+    "required": false,
+    "fields": [
+     {
+      "name": "value",
+      "value": "\\b(VARYG)\\b"
+     }
+    ]
+   }
+  ]
+ },
+ {
+  "id": 30,
+  "name": "Anime Web Tier 05 (FanSubs) - Notifiarr",
+  "includeCustomFormatWhenRenaming": false,
+  "specifications": [
+   {
+    "name": "WEBDL",
+    "implementation": "SourceSpecification",
+    "negate": false,
+    "required": false,
+    "fields": [
+     {
+      "name": "value",
+      "value": 3
+     }
+    ]
+   },
+   {
+    "name": "WEBRIP",
+    "implementation": "SourceSpecification",
+    "negate": false,
+    "required": false,
+    "fields": [
+     {
+      "name": "value",
+      "value": 4
+     }
+    ]
+   },
+   {
+    "name": "WEB",
+    "implementation": "SourceSpecification",
+    "negate": false,
+    "required": false,
+    "fields": [
+     {
+      "name": "value",
+      "value": 1
+     }
+    ]
+   },
+   {
+    "name": "BlueLobster",
+    "implementation": "ReleaseTitleSpecification",
+    "negate": false,
+    "required": false,
+    "fields": [
+     {
+      "name": "value",
+      "value": "\\b(BlueLobster)\\b"
+     }
+    ]
+   },
+   {
+    "name": "GST",
+    "implementation": "ReleaseTitleSpecification",
+    "negate": false,
+    "required": false,
+    "fields": [
+     {
+      "name": "value",
+      "value": "\\b(GST)\\b"
+     }
+    ]
+   },
+   {
+    "name": "HorribleRips",
+    "implementation": "ReleaseTitleSpecification",
+    "negate": false,
+    "required": false,
+    "fields": [
+     {
+      "name": "value",
+      "value": "\\b(HorribleRips)\\b"
+     }
+    ]
+   },
+   {
+    "name": "HorribleSubs",
+    "implementation": "ReleaseTitleSpecification",
+    "negate": false,
+    "required": false,
+    "fields": [
+     {
+      "name": "value",
+      "value": "\\b(HorribleSubs)\\b"
+     }
+    ]
+   },
+   {
+    "name": "KAN3D2M",
+    "implementation": "ReleaseTitleSpecification",
+    "negate": false,
+    "required": false,
+    "fields": [
+     {
+      "name": "value",
+      "value": "\\b(KAN3D2M)\\b"
+     }
+    ]
+   },
+   {
+    "name": "KiyoshiStar",
+    "implementation": "ReleaseTitleSpecification",
+    "negate": false,
+    "required": false,
+    "fields": [
+     {
+      "name": "value",
+      "value": "\\b(KS|KiyoshiStar)\\b"
+     }
+    ]
+   },
+   {
+    "name": "Lia",
+    "implementation": "ReleaseTitleSpecification",
+    "negate": false,
+    "required": false,
+    "fields": [
+     {
+      "name": "value",
+      "value": "\\[Lia\\]|-Lia\\b"
+     }
+    ]
+   },
+   {
+    "name": "NanDesuKa",
+    "implementation": "ReleaseTitleSpecification",
+    "negate": false,
+    "required": false,
+    "fields": [
+     {
+      "name": "value",
+      "value": "\\b(NanDesuKa)\\b"
+     }
+    ]
+   },
+   {
+    "name": "PlayWeb",
+    "implementation": "ReleaseTitleSpecification",
+    "negate": false,
+    "required": false,
+    "fields": [
+     {
+      "name": "value",
+      "value": "\\b(PlayWeb)\\b"
+     }
+    ]
+   },
+   {
+    "name": "SobsPlease",
+    "implementation": "ReleaseTitleSpecification",
+    "negate": false,
+    "required": false,
+    "fields": [
+     {
+      "name": "value",
+      "value": "\\b(SobsPlease)\\b"
+     }
+    ]
+   },
+   {
+    "name": "Some-Stuffs",
+    "implementation": "ReleaseTitleSpecification",
+    "negate": false,
+    "required": false,
+    "fields": [
+     {
+      "name": "value",
+      "value": "\\b(Some-Stuffs)\\b"
+     }
+    ]
+   },
+   {
+    "name": "SubsPlease",
+    "implementation": "ReleaseTitleSpecification",
+    "negate": false,
+    "required": false,
+    "fields": [
+     {
+      "name": "value",
+      "value": "\\b(SubsPlease)\\b"
+     }
+    ]
+   },
+   {
+    "name": "URANIME",
+    "implementation": "ReleaseTitleSpecification",
+    "negate": false,
+    "required": false,
+    "fields": [
+     {
+      "name": "value",
+      "value": "\\b(URANIME)\\b"
+     }
+    ]
+   },
+   {
+    "name": "ZigZag",
+    "implementation": "ReleaseTitleSpecification",
+    "negate": false,
+    "required": false,
+    "fields": [
+     {
+      "name": "value",
+      "value": "\\[ZigZag\\]|-ZigZab\b"
+     }
+    ]
+   }
+  ]
+ },
+ {
+  "id": 31,
+  "name": "Anime Web Tier 06 (FanSubs) - Notifiarr",
+  "includeCustomFormatWhenRenaming": false,
+  "specifications": [
+   {
+    "name": "WEBDL",
+    "implementation": "SourceSpecification",
+    "negate": false,
+    "required": false,
+    "fields": [
+     {
+      "name": "value",
+      "value": 3
+     }
+    ]
+   },
+   {
+    "name": "WEBRIP",
+    "implementation": "SourceSpecification",
+    "negate": false,
+    "required": false,
+    "fields": [
+     {
+      "name": "value",
+      "value": 4
+     }
+    ]
+   },
+   {
+    "name": "WEB",
+    "implementation": "SourceSpecification",
+    "negate": false,
+    "required": false,
+    "fields": [
+     {
+      "name": "value",
+      "value": 1
+     }
+    ]
+   },
+   {
+    "name": "9volt",
+    "implementation": "ReleaseTitleSpecification",
+    "negate": false,
+    "required": false,
+    "fields": [
+     {
+      "name": "value",
+      "value": "\\b(9volt)\\b"
+     }
+    ]
+   },
+   {
+    "name": "Asenshi",
+    "implementation": "ReleaseTitleSpecification",
+    "negate": false,
+    "required": false,
+    "fields": [
+     {
+      "name": "value",
+      "value": "\\b(Asenshi)\\b"
+     }
+    ]
+   },
+   {
+    "name": "Chihiro",
+    "implementation": "ReleaseTitleSpecification",
+    "negate": false,
+    "required": false,
+    "fields": [
+     {
+      "name": "value",
+      "value": "\\[Chihiro\\]|-Chihiro\\b"
+     }
+    ]
+   },
+   {
+    "name": "Commie",
+    "implementation": "ReleaseTitleSpecification",
+    "negate": false,
+    "required": false,
+    "fields": [
+     {
+      "name": "value",
+      "value": "\\b(Commie)\\b"
+     }
+    ]
+   },
+   {
+    "name": "DameDesuYo",
+    "implementation": "ReleaseTitleSpecification",
+    "negate": false,
+    "required": false,
+    "fields": [
+     {
+      "name": "value",
+      "value": "\\b(DameDesuYo)\\b"
+     }
+    ]
+   },
+   {
+    "name": "Doki",
+    "implementation": "ReleaseTitleSpecification",
+    "negate": false,
+    "required": false,
+    "fields": [
+     {
+      "name": "value",
+      "value": "\\[Doki\\]|-Doki\\b"
+     }
+    ]
+   },
+   {
+    "name": "GJM",
+    "implementation": "ReleaseTitleSpecification",
+    "negate": false,
+    "required": false,
+    "fields": [
+     {
+      "name": "value",
+      "value": "\\b(GJM)\\b"
+     }
+    ]
+   },
+   {
+    "name": "Kaleido",
+    "implementation": "ReleaseTitleSpecification",
+    "negate": false,
+    "required": false,
+    "fields": [
+     {
+      "name": "value",
+      "value": "\\b(Kaleido)\\b"
+     }
+    ]
+   },
+   {
+    "name": "Kantai",
+    "implementation": "ReleaseTitleSpecification",
+    "negate": false,
+    "required": false,
+    "fields": [
+     {
+      "name": "value",
+      "value": "\\[Kantai\\]|-Kantai\\b"
+     }
+    ]
+   },
+   {
+    "name": "KawaSubs",
+    "implementation": "ReleaseTitleSpecification",
+    "negate": false,
+    "required": false,
+    "fields": [
+     {
+      "name": "value",
+      "value": "\\b(KawaSubs)\\b"
+     }
+    ]
+   },
+   {
+    "name": "Tsundere",
+    "implementation": "ReleaseTitleSpecification",
+    "negate": false,
+    "required": false,
+    "fields": [
+     {
+      "name": "value",
+      "value": "\\[Tsundere\\]|-Tsundere(?!-)\\b"
+     }
+    ]
+   }
+  ]
+ },
+ {
+  "id": 32,
+  "name": "Dubs Only - Notifiarr",
+  "includeCustomFormatWhenRenaming": false,
+  "specifications": [
+   {
+    "name": "Dubbed",
+    "implementation": "ReleaseTitleSpecification",
+    "negate": false,
+    "required": false,
+    "fields": [
+     {
+      "name": "value",
+      "value": "^(?!.*(Dual|Multi)[-_. ]?Audio).*((?<!multi-)\\b(dub(bed)?)\\b|(funi|eng(lish)?)_?dub)"
+     }
+    ]
+   },
+   {
+    "name": "Golumpa",
+    "implementation": "ReleaseTitleSpecification",
+    "negate": false,
+    "required": false,
+    "fields": [
+     {
+      "name": "value",
+      "value": "\\b(Golumpa)\\b"
+     }
+    ]
+   },
+   {
+    "name": "KaiDubs (Not Dual Audio)",
+    "implementation": "ReleaseTitleSpecification",
+    "negate": false,
+    "required": false,
+    "fields": [
+     {
+      "name": "value",
+      "value": "^(?!.*(dual[ ._-]?audio|[([]dual[])]|(JA|ZH|KO)\\+EN|EN\\+(JA|ZH|KO))).*\\b(KaiDubs)\\b"
+     }
+    ]
+   },
+   {
+    "name": "KamiFS",
+    "implementation": "ReleaseTitleSpecification",
+    "negate": false,
+    "required": false,
+    "fields": [
+     {
+      "name": "value",
+      "value": "\\b(KamiFS)\\b"
+     }
+    ]
+   },
+   {
+    "name": "KS (Not Dual Audio)",
+    "implementation": "ReleaseTitleSpecification",
+    "negate": false,
+    "required": false,
+    "fields": [
+     {
+      "name": "value",
+      "value": "^(?!.*(dual[ ._-]?audio|[([]dual[])]|(JA|ZH|KO)\\+EN|EN\\+(JA|ZH|KO))).*\\bKS\\b"
+     }
+    ]
+   },
+   {
+    "name": "torenter69",
+    "implementation": "ReleaseTitleSpecification",
+    "negate": false,
+    "required": false,
+    "fields": [
+     {
+      "name": "value",
+      "value": "\\b(torenter69)\\b"
+     }
+    ]
+   },
+   {
+    "name": "Yameii",
+    "implementation": "ReleaseTitleSpecification",
+    "negate": false,
+    "required": false,
+    "fields": [
+     {
+      "name": "value",
+      "value": "\\[Yameii\\]|-Yameii\\b"
+     }
+    ]
+   }
+  ]
+ },
+ {
+  "id": 33,
+  "name": "Anime Web Tier 03 (Fan Subs)",
+  "includeCustomFormatWhenRenaming": false,
+  "specifications": [
+   {
+    "name": "WEBDL",
+    "implementation": "SourceSpecification",
+    "negate": false,
+    "required": false,
+    "fields": [
+     {
+      "name": "value",
+      "value": 3
+     }
+    ]
+   },
+   {
+    "name": "WEBRIP",
+    "implementation": "SourceSpecification",
+    "negate": false,
+    "required": false,
+    "fields": [
+     {
+      "name": "value",
+      "value": 4
+     }
+    ]
+   },
+   {
+    "name": "WEB",
+    "implementation": "SourceSpecification",
+    "negate": false,
+    "required": false,
+    "fields": [
+     {
+      "name": "value",
+      "value": 1
+     }
+    ]
+   },
+   {
+    "name": "Shadow Garden",
+    "implementation": "ReleaseTitleSpecification",
+    "negate": false,
+    "required": false,
+    "fields": [
+     {
+      "name": "value",
+      "value": "\\b(Shadow Garden)\\b"
+     }
+    ]
+   }
+  ]
+ },
+ {
+  "id": 34,
+  "name": "Frieren - 9volt",
+  "includeCustomFormatWhenRenaming": false,
+  "specifications": [
+   {
+    "name": "frieren",
+    "implementation": "ReleaseTitleSpecification",
+    "negate": false,
+    "required": false,
+    "fields": [
+     {
+      "name": "value",
+      "value": "(frieren)\\b"
+     }
+    ]
+   },
+   {
+    "name": "9volt",
+    "implementation": "ReleaseGroupSpecification",
+    "negate": false,
+    "required": false,
+    "fields": [
+     {
+      "name": "value",
+      "value": "\\b(9volt)\\b"
+     }
+    ]
+   }
+  ]
+ },
+ {
+  "id": 35,
+  "name": "AV1 - Notifiarr",
+  "includeCustomFormatWhenRenaming": false,
+  "specifications": [
+   {
+    "name": "AV1",
+    "implementation": "ReleaseTitleSpecification",
+    "negate": false,
+    "required": true,
+    "fields": [
+     {
+      "name": "value",
+      "value": "\\bAV1\\b"
+     }
+    ]
+   }
+  ]
+ },
+ {
+  "id": 36,
+  "name": "Seadex",
+  "includeCustomFormatWhenRenaming": false,
+  "specifications": [
+   {
+    "name": "Freeleech25",
+    "implementation": "IndexerFlagSpecification",
+    "negate": false,
+    "required": true,
+    "fields": [
+     {
+      "name": "value",
+      "value": 64
+     }
+    ]
+   },
+   {
+    "name": "DoubleUpload",
+    "implementation": "IndexerFlagSpecification",
+    "negate": false,
+    "required": true,
+    "fields": [
+     {
+      "name": "value",
+      "value": 4
+     }
+    ]
+   },
+   {
+    "name": "Internal",
+    "implementation": "IndexerFlagSpecification",
+    "negate": false,
+    "required": true,
+    "fields": [
+     {
+      "name": "value",
+      "value": 8
+     }
+    ]
+   },
+   {
+    "name": "Scene",
+    "implementation": "IndexerFlagSpecification",
+    "negate": false,
+    "required": true,
+    "fields": [
+     {
+      "name": "value",
+      "value": 16
+     }
+    ]
+   }
+  ]
+ }
+]

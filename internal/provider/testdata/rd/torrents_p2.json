@@ -1,0 +1,30 @@
+[
+  {
+    "id": "RDID0003",
+    "filename": "Movie.C.2022.REMUX",
+    "hash": "CCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCC",
+    "bytes": 30000000000,
+    "host": "real-debrid.com",
+    "split": 2000,
+    "progress": 42.5,
+    "status": "downloading",
+    "added": "2026-10-03T10:00:00.000Z",
+    "links": [],
+    "ended": "2026-10-03T10:00:00.000Z"
+  },
+  {
+    "id": "RDID0004",
+    "filename": "Movie.A.2020.2160p.WEB-DL",
+    "hash": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    "bytes": 5000000000,
+    "host": "real-debrid.com",
+    "split": 2000,
+    "progress": 100,
+    "status": "downloaded",
+    "added": "2026-10-05T10:00:00.000Z",
+    "links": [
+      "https://example.invalid/d/4/0"
+    ],
+    "ended": "2026-10-05T10:00:00.000Z"
+  }
+]

@@ -1,0 +1,7 @@
+# The web UI's server side. images is the /img proxy's disk cache (docs/design/artwork.md): TMDb art fetched through the
+# gateway (metadata.sources.tmdb-images) and kept here; the least recently used files go once max_bytes is passed.
+ui:
+  images:
+    dir: /data/images
+    max_bytes: 2GiB
+    original: false                  # full-resolution "original" files stay off

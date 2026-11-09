@@ -1,0 +1,4 @@
+[{"id": 0, "name": "Sonarr Anime", "hostname": "{{HOST}}", "port": {{PORT}}, "apiKey": "sonarr-key-fedcba9876543210", "useSsl": false, "baseUrl": "/sonarr_anime",
+  "activeProfileId": 7, "activeProfileName": "Remux-2160p Anime", "activeDirectory": "/data/anime",
+  "activeAnimeProfileId": 7, "activeAnimeProfileName": "Remux-2160p Anime", "activeAnimeDirectory": "/data/anime",
+  "is4k": false, "isDefault": true, "enableSeasonFolders": true}]

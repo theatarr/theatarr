@@ -1,0 +1,11 @@
+# Anime watch-order playlists in Plex (docs/design/anime.md). Off by default: Plex is written
+# only when library.enabled and playlists.enabled are both true; otherwise `theatarr anime playlists` is a dry run that
+# records what it would create and calls nothing. Server, token and section ids are library.plex and
+# library.versions[k].plex_section.
+playlists:
+  enabled: false
+  orders: [watch, story]          # release, watch, story
+  routes: true                    # one playlist per alternate route (Fate)
+  skip_optional: false            # leave out recaps, side stories and shorts
+  name: "{franchise} ({order})"
+  interval: 6h

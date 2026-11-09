@@ -1,0 +1,4 @@
+{"trash_id": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", "trash_scores": {"default": 100}, "name": "Fmt A",
+ "includeCustomFormatWhenRenaming": false,
+ "specifications": [{"name": "Alpha", "implementation": "ReleaseTitleSpecification", "negate": false, "required": true,
+   "fields": {"value": "\\bALPHA\\b"}}]}

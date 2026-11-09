@@ -1,0 +1,7 @@
+# fate-stay-night: route order (routes.go). Open data cannot say which route to watch first; the visual novel's
+# order is Fate (the 2006 series), Unlimited Blade Works, Heaven's Feel, with Fate/Zero (the prequel) last.
+# routes: an alternate's root brings its routed rows (specials, recaps, sequels); a main-order key brings the main
+# order from there to the next route key. line_position: where the rest of the line goes (first or last).
+source: "visual novel route order"
+routes: ["al:356", "al:19603", "al:20791"]
+line_position: last

@@ -1,0 +1,1 @@
+{"status": "error", "error": {"code": "AUTH_BLOCKED", "message": "This login is blocked; check the email sent to someone@example.invalid"}}

@@ -1,0 +1,46 @@
+{
+  "page": 1,
+  "pageSize": 10,
+  "records": [
+    {
+      "added": "2026-10-01T00:00:00Z",
+      "alternateTitles": [],
+      "folderName": "/media/anime-films/Gamma (2027)",
+      "genres": [],
+      "hasFile": false,
+      "id": 1000003,
+      "images": [],
+      "inCinemas": "2027-02-01T00:00:00Z",
+      "isAvailable": false,
+      "keywords": [],
+      "minimumAvailability": "released",
+      "monitored": true,
+      "movieFileId": 0,
+      "originalTitle": "Gamma",
+      "path": "/media/anime-films/Gamma (2027)",
+      "popularity": 0,
+      "qualityProfileId": 1,
+      "ratings": {},
+      "releaseDate": "2027-05-02T00:00:00Z",
+      "rootFolderPath": "/media/anime-films",
+      "runtime": 0,
+      "secondaryYearSourceId": 0,
+      "sizeOnDisk": 0,
+      "sortTitle": "gamma",
+      "statistics": {
+        "movieFileCount": 0,
+        "releaseGroups": [],
+        "sizeOnDisk": 0
+      },
+      "status": "announced",
+      "tags": [],
+      "title": "Gamma",
+      "titleSlug": "103",
+      "tmdbId": 103,
+      "year": 2027
+    }
+  ],
+  "sortDirection": "ascending",
+  "sortKey": "movieMetadata.sortTitle",
+  "totalRecords": 1
+}

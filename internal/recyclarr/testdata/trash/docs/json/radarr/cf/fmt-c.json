@@ -1,0 +1,4 @@
+{"trash_id": "cccccccccccccccccccccccccccccccc", "trash_scores": {"default": 10}, "name": "Fmt C",
+ "includeCustomFormatWhenRenaming": false,
+ "specifications": [{"name": "Gamma", "implementation": "ReleaseTitleSpecification", "negate": false, "required": true,
+   "fields": {"value": "\\bGAMMA\\b"}}]}

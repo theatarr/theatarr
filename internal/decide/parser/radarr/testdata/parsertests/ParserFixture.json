@@ -1,0 +1,1183 @@
+{
+ "source": "Radarr src/NzbDrone.Core.Test/ParserTests/ParserFixture.cs @ a96bf7c",
+ "fixture": "ParserFixture",
+ "cases": [
+  {
+   "id": "ParserFixture/should_remove_accents_from_title/0",
+   "line": 29,
+   "call": "cleanMovieTitle",
+   "input": "Carnivàle",
+   "expect": {
+    "": "carnivale"
+   }
+  },
+  {
+   "id": "ParserFixture/should_parse_movie_title/0",
+   "line": 36,
+   "call": "parseMovieTitle",
+   "input": "The.Movie.from.U.N.C.L.E.2015.1080p.BluRay.x264-SPARKS",
+   "expect": {
+    "primaryMovieTitle": "The Movie from U.N.C.L.E."
+   }
+  },
+  {
+   "id": "ParserFixture/should_parse_movie_title/1",
+   "line": 37,
+   "call": "parseMovieTitle",
+   "input": "1776.1979.EXTENDED.720p.BluRay.X264-AMIABLE",
+   "expect": {
+    "primaryMovieTitle": "1776"
+   }
+  },
+  {
+   "id": "ParserFixture/should_parse_movie_title/2",
+   "line": 38,
+   "call": "parseMovieTitle",
+   "input": "MY MOVIE (2016) [R][Action, Horror][720p.WEB-DL.AVC.8Bit.6ch.AC3].mkv",
+   "expect": {
+    "primaryMovieTitle": "MY MOVIE"
+   }
+  },
+  {
+   "id": "ParserFixture/should_parse_movie_title/3",
+   "line": 39,
+   "call": "parseMovieTitle",
+   "input": "R.I.P.D.2013.720p.BluRay.x264-SPARKS",
+   "expect": {
+    "primaryMovieTitle": "R.I.P.D."
+   }
+  },
+  {
+   "id": "ParserFixture/should_parse_movie_title/4",
+   "line": 40,
+   "call": "parseMovieTitle",
+   "input": "V.H.S.2.2013.LIMITED.720p.BluRay.x264-GECKOS",
+   "expect": {
+    "primaryMovieTitle": "V.H.S. 2"
+   }
+  },
+  {
+   "id": "ParserFixture/should_parse_movie_title/5",
+   "line": 41,
+   "call": "parseMovieTitle",
+   "input": "This Is A Movie (1999) [IMDB #] <Genre, Genre, Genre> {ACTORS} !DIRECTOR +MORE_SILLY_STUFF_NO_ONE_NEEDS ?",
+   "expect": {
+    "primaryMovieTitle": "This Is A Movie"
+   }
+  },
+  {
+   "id": "ParserFixture/should_parse_movie_title/6",
+   "line": 42,
+   "call": "parseMovieTitle",
+   "input": "We Are the Movie!.2013.720p.H264.mkv",
+   "expect": {
+    "primaryMovieTitle": "We Are the Movie!"
+   }
+  },
+  {
+   "id": "ParserFixture/should_parse_movie_title/7",
+   "line": 43,
+   "call": "parseMovieTitle",
+   "input": "(500).Days.Of.Movie.(2009).DTS.1080p.BluRay.x264.NLsubs",
+   "expect": {
+    "primaryMovieTitle": "(500) Days Of Movie"
+   }
+  },
+  {
+   "id": "ParserFixture/should_parse_movie_title/8",
+   "line": 44,
+   "call": "parseMovieTitle",
+   "input": "To.Live.and.Movie.in.L.A.1985.1080p.BluRay",
+   "expect": {
+    "primaryMovieTitle": "To Live and Movie in L.A."
+   }
+  },
+  {
+   "id": "ParserFixture/should_parse_movie_title/9",
+   "line": 45,
+   "call": "parseMovieTitle",
+   "input": "A.I.Artificial.Movie.(2001)",
+   "expect": {
+    "primaryMovieTitle": "A.I. Artificial Movie"
+   }
+  },
+  {
+   "id": "ParserFixture/should_parse_movie_title/10",
+   "line": 46,
+   "call": "parseMovieTitle",
+   "input": "A.Movie.Name.(1998)",
+   "expect": {
+    "primaryMovieTitle": "A Movie Name"
+   }
+  },
+  {
+   "id": "ParserFixture/should_parse_movie_title/11",
+   "line": 47,
+   "call": "parseMovieTitle",
+   "input": "www.Torrenting.com - Movie.2008.720p.X264-DIMENSION",
+   "expect": {
+    "primaryMovieTitle": "Movie"
+   }
+  },
+  {
+   "id": "ParserFixture/should_parse_movie_title/12",
+   "line": 48,
+   "call": "parseMovieTitle",
+   "input": "www.5MovieRulz.tc - Movie (2000) Malayalam HQ HDRip - x264 - AAC - 700MB.mkv",
+   "expect": {
+    "primaryMovieTitle": "Movie"
+   }
+  },
+  {
+   "id": "ParserFixture/should_parse_movie_title/13",
+   "line": 49,
+   "call": "parseMovieTitle",
+   "input": "Movie: The Movie World 2013",
+   "expect": {
+    "primaryMovieTitle": "Movie: The Movie World"
+   }
+  },
+  {
+   "id": "ParserFixture/should_parse_movie_title/14",
+   "line": 50,
+   "call": "parseMovieTitle",
+   "input": "Movie.The.Final.Chapter.2016",
+   "expect": {
+    "primaryMovieTitle": "Movie The Final Chapter"
+   }
+  },
+  {
+   "id": "ParserFixture/should_parse_movie_title/15",
+   "line": 51,
+   "call": "parseMovieTitle",
+   "input": "Der.Movie.James.German.Bluray.FuckYou.Pso.Why.cant.you.follow.scene.rules.1998",
+   "expect": {
+    "primaryMovieTitle": "Der Movie James"
+   }
+  },
+  {
+   "id": "ParserFixture/should_parse_movie_title/16",
+   "line": 52,
+   "call": "parseMovieTitle",
+   "input": "Movie.German.DL.AC3.Dubbed..BluRay.x264-PsO",
+   "expect": {
+    "primaryMovieTitle": "Movie"
+   }
+  },
+  {
+   "id": "ParserFixture/should_parse_movie_title/17",
+   "line": 53,
+   "call": "parseMovieTitle",
+   "input": "Valana la Movie TRUEFRENCH BluRay 720p 2016 kjhlj",
+   "expect": {
+    "primaryMovieTitle": "Valana la Movie"
+   }
+  },
+  {
+   "id": "ParserFixture/should_parse_movie_title/18",
+   "line": 54,
+   "call": "parseMovieTitle",
+   "input": "Mission Movie: Rogue Movie (2015)�[XviD - Ita Ac3 - SoftSub Ita]azione, spionaggio, thriller *Prima Visione* Team mulnic Tom Cruise",
+   "expect": {
+    "primaryMovieTitle": "Mission Movie: Rogue Movie"
+   }
+  },
+  {
+   "id": "ParserFixture/should_parse_movie_title/19",
+   "line": 55,
+   "call": "parseMovieTitle",
+   "input": "Movie.Movie.2000.FRENCH..BluRay.-AiRLiNE",
+   "expect": {
+    "primaryMovieTitle": "Movie Movie"
+   }
+  },
+  {
+   "id": "ParserFixture/should_parse_movie_title/20",
+   "line": 56,
+   "call": "parseMovieTitle",
+   "input": "My Movie 1999 German Bluray",
+   "expect": {
+    "primaryMovieTitle": "My Movie"
+   }
+  },
+  {
+   "id": "ParserFixture/should_parse_movie_title/21",
+   "line": 57,
+   "call": "parseMovieTitle",
+   "input": "Leaving Movie by Movie (1897) [DVD].mp4",
+   "expect": {
+    "primaryMovieTitle": "Leaving Movie by Movie"
+   }
+  },
+  {
+   "id": "ParserFixture/should_parse_movie_title/22",
+   "line": 58,
+   "call": "parseMovieTitle",
+   "input": "Movie.2018.1080p.AMZN.WEB-DL.DD5.1.H.264-NTG",
+   "expect": {
+    "primaryMovieTitle": "Movie"
+   }
+  },
+  {
+   "id": "ParserFixture/should_parse_movie_title/23",
+   "line": 59,
+   "call": "parseMovieTitle",
+   "input": "Movie.Title.Imax.2018.1080p.AMZN.WEB-DL.DD5.1.H.264-NTG",
+   "expect": {
+    "primaryMovieTitle": "Movie Title"
+   }
+  },
+  {
+   "id": "ParserFixture/should_parse_movie_title/24",
+   "line": 60,
+   "call": "parseMovieTitle",
+   "input": "World.Movie.Z.EXTENDED.2013.German.DL.1080p.BluRay.AVC-XANOR",
+   "expect": {
+    "primaryMovieTitle": "World Movie Z"
+   }
+  },
+  {
+   "id": "ParserFixture/should_parse_movie_title/25",
+   "line": 61,
+   "call": "parseMovieTitle",
+   "input": "World.Movie.Z.2.EXTENDED.2013.German.DL.1080p.BluRay.AVC-XANOR",
+   "expect": {
+    "primaryMovieTitle": "World Movie Z 2"
+   }
+  },
+  {
+   "id": "ParserFixture/should_parse_movie_title/26",
+   "line": 62,
+   "call": "parseMovieTitle",
+   "input": "G.I.Movie.Movie.2013.THEATRiCAL.COMPLETE.BLURAY-GLiMMER",
+   "expect": {
+    "primaryMovieTitle": "G.I. Movie Movie"
+   }
+  },
+  {
+   "id": "ParserFixture/should_parse_movie_title/27",
+   "line": 63,
+   "call": "parseMovieTitle",
+   "input": "www.Torrenting.org - Movie.2008.720p.X264-DIMENSION",
+   "expect": {
+    "primaryMovieTitle": "Movie"
+   }
+  },
+  {
+   "id": "ParserFixture/should_parse_movie_title/28",
+   "line": 64,
+   "call": "parseMovieTitle",
+   "input": "The.French.Movie.2013.720p.BluRay.x264 - ROUGH[PublicHD]",
+   "expect": {
+    "primaryMovieTitle": "The French Movie"
+   }
+  },
+  {
+   "id": "ParserFixture/should_parse_movie_title/29",
+   "line": 65,
+   "call": "parseMovieTitle",
+   "input": "The.Good.German.2006.720p.BluRay.x264-RlsGrp",
+   "expect": {
+    "primaryMovieTitle": "The Good German"
+   }
+  },
+  {
+   "id": "ParserFixture/should_parse_anime_movie_title/0",
+   "line": 71,
+   "call": "parseMovieTitle",
+   "input": "[MTBB] Kimi no Na wa. (2016) v2 [97681524].mkv",
+   "expect": {
+    "primaryMovieTitle": "Kimi no Na wa",
+    "releaseGroup": "MTBB",
+    "year": 2016
+   }
+  },
+  {
+   "id": "ParserFixture/should_parse_anime_movie_title/1",
+   "line": 72,
+   "call": "parseMovieTitle",
+   "input": "[sam] Toward the Terra (1980) [BD 1080p TrueHD].mkv",
+   "expect": {
+    "primaryMovieTitle": "Toward the Terra",
+    "releaseGroup": "sam",
+    "year": 1980
+   }
+  },
+  {
+   "id": "ParserFixture/should_parse_anime_movie_title/2",
+   "line": 73,
+   "call": "parseMovieTitle",
+   "input": "[Inka-Subs] Rokudenashi Blues 1993 (1993) [VHS]",
+   "expect": {
+    "primaryMovieTitle": "Rokudenashi Blues 1993",
+    "releaseGroup": "Inka-Subs",
+    "year": 1993
+   }
+  },
+  {
+   "id": "ParserFixture/should_parse_anime_movie_title_without_year/0",
+   "line": 85,
+   "call": "parseMovieTitle",
+   "input": "[Arid] Cowboy Bebop - Knockin' on Heaven's Door v2 [00F4CDA0].mkv",
+   "expect": {
+    "primaryMovieTitle": "Cowboy Bebop - Knockin' on Heaven's Door",
+    "releaseGroup": "Arid"
+   }
+  },
+  {
+   "id": "ParserFixture/should_parse_anime_movie_title_without_year/1",
+   "line": 86,
+   "call": "parseMovieTitle",
+   "input": "[Baws] Evangelion 1.11 - You Are (Not) Alone v2 (1080p BD HEVC FLAC) [BF42B1C8].mkv",
+   "expect": {
+    "primaryMovieTitle": "Evangelion 1 11 - You Are (Not) Alone",
+    "releaseGroup": "Baws"
+   }
+  },
+  {
+   "id": "ParserFixture/should_parse_anime_movie_title_without_year/2",
+   "line": 87,
+   "call": "parseMovieTitle",
+   "input": "[Arid] 5 Centimeters per Second (BDRip 1920x1080 Hi10 FLAC) [FD8B6FF2].mkv",
+   "expect": {
+    "primaryMovieTitle": "5 Centimeters per Second",
+    "releaseGroup": "Arid"
+   }
+  },
+  {
+   "id": "ParserFixture/should_parse_anime_movie_title_without_year/3",
+   "line": 88,
+   "call": "parseMovieTitle",
+   "input": "[Baws] Evangelion 2.22 - You Can (Not) Advance (1080p BD HEVC FLAC) [56E7A5B8].mkv",
+   "expect": {
+    "primaryMovieTitle": "Evangelion 2 22 - You Can (Not) Advance",
+    "releaseGroup": "Baws"
+   }
+  },
+  {
+   "id": "ParserFixture/should_parse_anime_movie_title_without_year/4",
+   "line": 89,
+   "call": "parseMovieTitle",
+   "input": "[sam] Goblin Slayer - Goblin's Crown [BD 1080p FLAC] [CD298D48].mkv",
+   "expect": {
+    "primaryMovieTitle": "Goblin Slayer - Goblin's Crown",
+    "releaseGroup": "sam"
+   }
+  },
+  {
+   "id": "ParserFixture/should_parse_anime_movie_title_without_year/5",
+   "line": 90,
+   "call": "parseMovieTitle",
+   "input": "[Kulot] Violet Evergarden Gaiden Eien to Jidou Shuki Ningyou [Dual-Audio][BDRip 1920x804 HEVC FLACx2] [91FC62A8].mkv",
+   "expect": {
+    "primaryMovieTitle": "Violet Evergarden Gaiden Eien to Jidou Shuki Ningyou",
+    "releaseGroup": "Kulot"
+   }
+  },
+  {
+   "id": "ParserFixture/should_parse_german_movie/0",
+   "line": 101,
+   "call": "parseMovieTitle",
+   "input": "Movie.Aufbruch.nach.Pandora.Extended.2009.German.DTS.720p.BluRay.x264-SoW",
+   "expect": {
+    "primaryMovieTitle": "Movie Aufbruch nach Pandora",
+    "edition": "Extended",
+    "year": 2009
+   }
+  },
+  {
+   "id": "ParserFixture/should_parse_german_movie/1",
+   "line": 102,
+   "call": "parseMovieTitle",
+   "input": "Drop.Movie.1994.German.AC3D.DL.720p.BluRay.x264-KLASSiGERHD",
+   "expect": {
+    "primaryMovieTitle": "Drop Movie",
+    "edition": "",
+    "year": 1994
+   }
+  },
+  {
+   "id": "ParserFixture/should_parse_german_movie/2",
+   "line": 103,
+   "call": "parseMovieTitle",
+   "input": "Kick.Movie.2.2013.German.DTS.DL.720p.BluRay.x264-Pate",
+   "expect": {
+    "primaryMovieTitle": "Kick Movie 2",
+    "edition": "",
+    "year": 2013
+   }
+  },
+  {
+   "id": "ParserFixture/should_parse_german_movie/3",
+   "line": 104,
+   "call": "parseMovieTitle",
+   "input": "Movie.Hills.2019.German.DL.AC3.Dubbed.1080p.BluRay.x264-muhHD",
+   "expect": {
+    "primaryMovieTitle": "Movie Hills",
+    "edition": "",
+    "year": 2019
+   }
+  },
+  {
+   "id": "ParserFixture/should_parse_german_movie/4",
+   "line": 105,
+   "call": "parseMovieTitle",
+   "input": "96.Hours.Movie.3.EXTENDED.2014.German.DL.1080p.BluRay.x264-ENCOUNTERS",
+   "expect": {
+    "primaryMovieTitle": "96 Hours Movie 3",
+    "edition": "EXTENDED",
+    "year": 2014
+   }
+  },
+  {
+   "id": "ParserFixture/should_parse_german_movie/5",
+   "line": 106,
+   "call": "parseMovieTitle",
+   "input": "Movie.War.Q.EXTENDED.CUT.2013.German.DL.1080p.BluRay.x264-HQX",
+   "expect": {
+    "primaryMovieTitle": "Movie War Q",
+    "edition": "EXTENDED CUT",
+    "year": 2013
+   }
+  },
+  {
+   "id": "ParserFixture/should_parse_german_movie/6",
+   "line": 107,
+   "call": "parseMovieTitle",
+   "input": "Sin.Movie.2005.RECUT.EXTENDED.German.DL.1080p.BluRay.x264-DETAiLS",
+   "expect": {
+    "primaryMovieTitle": "Sin Movie",
+    "edition": "RECUT EXTENDED",
+    "year": 2005
+   }
+  },
+  {
+   "id": "ParserFixture/should_parse_german_movie/7",
+   "line": 108,
+   "call": "parseMovieTitle",
+   "input": "2.Movie.in.L.A.1996.GERMAN.DL.720p.WEB.H264-SOV",
+   "expect": {
+    "primaryMovieTitle": "2 Movie in L.A.",
+    "edition": "",
+    "year": 1996
+   }
+  },
+  {
+   "id": "ParserFixture/should_parse_german_movie/8",
+   "line": 109,
+   "call": "parseMovieTitle",
+   "input": "8.2019.GERMAN.720p.BluRay.x264-UNiVERSUM",
+   "expect": {
+    "primaryMovieTitle": "8",
+    "edition": "",
+    "year": 2019
+   }
+  },
+  {
+   "id": "ParserFixture/should_parse_german_movie/9",
+   "line": 110,
+   "call": "parseMovieTitle",
+   "input": "Life.Movie.2014.German.DL.PAL.DVDR-ETM",
+   "expect": {
+    "primaryMovieTitle": "Life Movie",
+    "edition": "",
+    "year": 2014
+   }
+  },
+  {
+   "id": "ParserFixture/should_parse_german_movie/10",
+   "line": 111,
+   "call": "parseMovieTitle",
+   "input": "Joe.Movie.2.EXTENDED.EDITION.2015.German.DL.PAL.DVDR-ETM",
+   "expect": {
+    "primaryMovieTitle": "Joe Movie 2",
+    "edition": "EXTENDED EDITION",
+    "year": 2015
+   }
+  },
+  {
+   "id": "ParserFixture/should_parse_german_movie/11",
+   "line": 112,
+   "call": "parseMovieTitle",
+   "input": "Movie.EXTENDED.2011.HDRip.AC3.German.XviD-POE",
+   "expect": {
+    "primaryMovieTitle": "Movie",
+    "edition": "EXTENDED",
+    "year": 2011
+   }
+  },
+  {
+   "id": "ParserFixture/should_parse_german_movie/12",
+   "line": 115,
+   "call": "parseMovieTitle",
+   "input": "Movie.Klasse.von.1999.1990.German.720p.HDTV.x264-NORETAiL",
+   "expect": {
+    "primaryMovieTitle": "Movie Klasse von 1999",
+    "edition": "",
+    "year": 1990
+   }
+  },
+  {
+   "id": "ParserFixture/should_parse_german_movie/13",
+   "line": 116,
+   "call": "parseMovieTitle",
+   "input": "Movie.Squad.2016.EXTENDED.German.DL.AC3.BDRip.x264-hqc",
+   "expect": {
+    "primaryMovieTitle": "Movie Squad",
+    "edition": "EXTENDED",
+    "year": 2016
+   }
+  },
+  {
+   "id": "ParserFixture/should_parse_german_movie/14",
+   "line": 117,
+   "call": "parseMovieTitle",
+   "input": "Movie.and.Movie.2010.Extended.Cut.German.DTS.DL.720p.BluRay.x264-HDS",
+   "expect": {
+    "primaryMovieTitle": "Movie and Movie",
+    "edition": "Extended Cut",
+    "year": 2010
+   }
+  },
+  {
+   "id": "ParserFixture/should_parse_german_movie/15",
+   "line": 118,
+   "call": "parseMovieTitle",
+   "input": "Der.Movie.James.German.Bluray.FuckYou.Pso.Why.cant.you.follow.scene.rules.1998",
+   "expect": {
+    "primaryMovieTitle": "Der Movie James",
+    "edition": "",
+    "year": 1998
+   }
+  },
+  {
+   "id": "ParserFixture/should_parse_german_movie/16",
+   "line": 119,
+   "call": "parseMovieTitle",
+   "input": "Der.Movie.Eine.Unerwartete.Reise.Extended.German.720p.BluRay.x264-EXQUiSiTE",
+   "expect": {
+    "primaryMovieTitle": "Der Movie Eine Unerwartete Reise",
+    "edition": "Extended",
+    "year": 0
+   }
+  },
+  {
+   "id": "ParserFixture/should_parse_german_movie/17",
+   "line": 120,
+   "call": "parseMovieTitle",
+   "input": "Movie.Weg.des.Kriegers.EXTENDED.German.720p.BluRay.x264-EXQUiSiTE",
+   "expect": {
+    "primaryMovieTitle": "Movie Weg des Kriegers",
+    "edition": "EXTENDED",
+    "year": 0
+   }
+  },
+  {
+   "id": "ParserFixture/should_parse_german_movie/18",
+   "line": 121,
+   "call": "parseMovieTitle",
+   "input": "Die.Unfassbaren.Movie.Name.EXTENDED.German.DTS.720p.BluRay.x264-RHD",
+   "expect": {
+    "primaryMovieTitle": "Die Unfassbaren Movie Name",
+    "edition": "EXTENDED",
+    "year": 0
+   }
+  },
+  {
+   "id": "ParserFixture/should_parse_german_movie/19",
+   "line": 122,
+   "call": "parseMovieTitle",
+   "input": "Die Unfassbaren Movie Name EXTENDED German DTS 720p BluRay x264-RHD",
+   "expect": {
+    "primaryMovieTitle": "Die Unfassbaren Movie Name",
+    "edition": "EXTENDED",
+    "year": 0
+   }
+  },
+  {
+   "id": "ParserFixture/should_parse_german_movie/20",
+   "line": 123,
+   "call": "parseMovieTitle",
+   "input": "Passengers.German.DL.AC3.Dubbed..BluRay.x264-PsO",
+   "expect": {
+    "primaryMovieTitle": "Passengers",
+    "edition": "",
+    "year": 0
+   }
+  },
+  {
+   "id": "ParserFixture/should_parse_german_movie/21",
+   "line": 124,
+   "call": "parseMovieTitle",
+   "input": "Das.A.Team.Der.Film.Extended.Cut.German.720p.BluRay.x264-ANCIENT",
+   "expect": {
+    "primaryMovieTitle": "Das A Team Der Film",
+    "edition": "Extended Cut",
+    "year": 0
+   }
+  },
+  {
+   "id": "ParserFixture/should_parse_german_movie/22",
+   "line": 125,
+   "call": "parseMovieTitle",
+   "input": "Cars.2.German.DL.720p.BluRay.x264-EmpireHD",
+   "expect": {
+    "primaryMovieTitle": "Cars 2",
+    "edition": "",
+    "year": 0
+   }
+  },
+  {
+   "id": "ParserFixture/should_parse_german_movie/23",
+   "line": 126,
+   "call": "parseMovieTitle",
+   "input": "Die.fantastische.Reise.des.Dr.Dolittle.2020.German.DL.LD.1080p.WEBRip.x264-PRD",
+   "expect": {
+    "primaryMovieTitle": "Die fantastische Reise des Dr. Dolittle",
+    "edition": "",
+    "year": 2020
+   }
+  },
+  {
+   "id": "ParserFixture/should_parse_german_movie/24",
+   "line": 127,
+   "call": "parseMovieTitle",
+   "input": "Der.Film.deines.Lebens.German.2011.PAL.DVDR-ETM",
+   "expect": {
+    "primaryMovieTitle": "Der Film deines Lebens",
+    "edition": "",
+    "year": 2011
+   }
+  },
+  {
+   "id": "ParserFixture/should_parse_german_movie/25",
+   "line": 128,
+   "call": "parseMovieTitle",
+   "input": "Kick.Ass.2.2013.German.DTS.DL.720p.BluRay.x264-Pate_",
+   "expect": {
+    "primaryMovieTitle": "Kick Ass 2",
+    "edition": "",
+    "year": 2013
+   }
+  },
+  {
+   "id": "ParserFixture/should_parse_german_movie/26",
+   "line": 129,
+   "call": "parseMovieTitle",
+   "input": "The.Good.German.2006.GERMAN.720p.HDTV.x264-RLsGrp",
+   "expect": {
+    "primaryMovieTitle": "The Good German",
+    "edition": "",
+    "year": 2006
+   }
+  },
+  {
+   "id": "ParserFixture/should_parse_movie_alternative_titles/0",
+   "line": 141,
+   "call": "parseMovieTitle",
+   "input": "L'hypothèse.du.movie.volé.AKA.The.Hypothesis.of.the.Movie.Title.1978.1080p.CINET.WEB-DL.AAC2.0.x264-Cinefeel.mkv",
+   "args": {
+    "isDir": true
+   },
+   "expect": {
+    "movieTitles.#": 3,
+    "movieTitles.0": "L'hypothèse du movie volé AKA The Hypothesis of the Movie Title",
+    "movieTitles.1": "L'hypothèse du movie volé",
+    "movieTitles.2": "The Hypothesis of the Movie Title"
+   }
+  },
+  {
+   "id": "ParserFixture/should_parse_movie_alternative_titles/1",
+   "line": 148,
+   "call": "parseMovieTitle",
+   "input": "Skjegg.AKA.Rox.Beard.1965.CD1.CRiTERiON.DVDRip.XviD-KG.avi",
+   "args": {
+    "isDir": true
+   },
+   "expect": {
+    "movieTitles.#": 3,
+    "movieTitles.0": "Skjegg AKA Rox Beard",
+    "movieTitles.1": "Skjegg",
+    "movieTitles.2": "Rox Beard"
+   }
+  },
+  {
+   "id": "ParserFixture/should_parse_movie_alternative_titles/2",
+   "line": 155,
+   "call": "parseMovieTitle",
+   "input": "Kjeller.chitai.AKA.Basement.of.Shame.1956.1080p.BluRay.x264.FLAC.1.0.mkv",
+   "args": {
+    "isDir": true
+   },
+   "expect": {
+    "movieTitles.#": 3,
+    "movieTitles.0": "Kjeller chitai AKA Basement of Shame",
+    "movieTitles.1": "Kjeller chitai",
+    "movieTitles.2": "Basement of Shame"
+   }
+  },
+  {
+   "id": "ParserFixture/should_parse_movie_alternative_titles/3",
+   "line": 162,
+   "call": "parseMovieTitle",
+   "input": "Radarr.Under.Water.(aka.Beneath.the.Code.Freeze).1997.DVDRip.x264.CG-Grzechsin.mkv",
+   "args": {
+    "isDir": true
+   },
+   "expect": {
+    "movieTitles.#": 3,
+    "movieTitles.0": "Radarr Under Water (aka Beneath the Code Freeze)",
+    "movieTitles.1": "Radarr Under Water",
+    "movieTitles.2": "Beneath the Code Freeze"
+   }
+  },
+  {
+   "id": "ParserFixture/should_parse_movie_alternative_titles/4",
+   "line": 169,
+   "call": "parseMovieTitle",
+   "input": "Radarr.prodavet. AKA.Radarr.Shift.2005.DVDRip.x264-HANDJOB.mkv",
+   "args": {
+    "isDir": true
+   },
+   "expect": {
+    "movieTitles.#": 3,
+    "movieTitles.0": "Radarr prodavet  AKA Radarr Shift",
+    "movieTitles.1": "Radarr prodavet",
+    "movieTitles.2": "Radarr Shift"
+   }
+  },
+  {
+   "id": "ParserFixture/should_parse_movie_alternative_titles/5",
+   "line": 176,
+   "call": "parseMovieTitle",
+   "input": "AKA.2002.DVDRip.x264-HANDJOB.mkv",
+   "args": {
+    "isDir": true
+   },
+   "expect": {
+    "movieTitles.#": 1,
+    "movieTitles.0": "AKA"
+   }
+  },
+  {
+   "id": "ParserFixture/should_parse_movie_alternative_titles/6",
+   "line": 181,
+   "call": "parseMovieTitle",
+   "input": "KillRoyWasHere.2000.BluRay.1080p.DTS.x264.dxva-EuReKA.mkv",
+   "args": {
+    "isDir": true
+   },
+   "expect": {
+    "movieTitles.#": 1,
+    "movieTitles.0": "KillRoyWasHere"
+   }
+  },
+  {
+   "id": "ParserFixture/should_parse_movie_alternative_titles/7",
+   "line": 186,
+   "call": "parseMovieTitle",
+   "input": "Aka Rox (2008).avi",
+   "args": {
+    "isDir": true
+   },
+   "expect": {
+    "movieTitles.#": 1,
+    "movieTitles.0": "Aka Rox"
+   }
+  },
+  {
+   "id": "ParserFixture/should_parse_movie_alternative_titles/8",
+   "line": 191,
+   "call": "parseMovieTitle",
+   "input": "Return Earth to Normal 'em High aka World 2 (2022) 1080p.mp4",
+   "args": {
+    "isDir": true
+   },
+   "expect": {
+    "movieTitles.#": 3,
+    "movieTitles.0": "Return Earth to Normal 'em High aka World 2",
+    "movieTitles.1": "Return Earth to Normal 'em High",
+    "movieTitles.2": "World 2"
+   }
+  },
+  {
+   "id": "ParserFixture/should_parse_movie_alternative_titles/9",
+   "line": 198,
+   "call": "parseMovieTitle",
+   "input": "Енола Голмс / Enola Holmes (2020) UHD WEB-DL 2160p 4K HDR H.265 Ukr/Eng | Sub Ukr/Eng",
+   "args": {
+    "isDir": true
+   },
+   "expect": {
+    "movieTitles.#": 3,
+    "movieTitles.0": "Енола Голмс / Enola Holmes",
+    "movieTitles.1": "Енола Голмс",
+    "movieTitles.2": "Enola Holmes"
+   }
+  },
+  {
+   "id": "ParserFixture/should_parse_movie_alternative_titles/10",
+   "line": 205,
+   "call": "parseMovieTitle",
+   "input": "Mon cousin a.k.a. My Cousin 2020 1080p Blu-ray DD 5.1 x264.mkv",
+   "args": {
+    "isDir": true
+   },
+   "expect": {
+    "movieTitles.#": 3,
+    "movieTitles.0": "Mon cousin AKA My Cousin",
+    "movieTitles.1": "Mon cousin",
+    "movieTitles.2": "My Cousin"
+   }
+  },
+  {
+   "id": "ParserFixture/should_parse_movie_alternative_titles/11",
+   "line": 212,
+   "call": "parseMovieTitle",
+   "input": "Sydney A.K.A. Hard Eight 1996 1080p AMZN WEB-DL DD+ 2.0 H.264.mkv",
+   "args": {
+    "isDir": true
+   },
+   "expect": {
+    "movieTitles.#": 3,
+    "movieTitles.0": "Sydney AKA Hard Eight",
+    "movieTitles.1": "Sydney",
+    "movieTitles.2": "Hard Eight"
+   }
+  },
+  {
+   "id": "ParserFixture/should_parse_movie_folder_name/0",
+   "line": 231,
+   "call": "parseMovieTitle",
+   "input": "(1995) Movie Name",
+   "args": {
+    "isDir": true
+   },
+   "expect": {
+    "primaryMovieTitle": "Movie Name"
+   }
+  },
+  {
+   "id": "ParserFixture/should_parse_movie_year/0",
+   "line": 237,
+   "call": "parseMovieTitle",
+   "input": "1776.1979.EXTENDED.720p.BluRay.X264-AMIABLE",
+   "expect": {
+    "year": 1979
+   }
+  },
+  {
+   "id": "ParserFixture/should_parse_movie_year/1",
+   "line": 238,
+   "call": "parseMovieTitle",
+   "input": "Movie Name FRENCH BluRay 720p 2016 kjhlj",
+   "expect": {
+    "year": 2016
+   }
+  },
+  {
+   "id": "ParserFixture/should_parse_movie_year/2",
+   "line": 239,
+   "call": "parseMovieTitle",
+   "input": "Der.Movie.German.Bluray.FuckYou.Pso.Why.cant.you.follow.scene.rules.1998",
+   "expect": {
+    "year": 1998
+   }
+  },
+  {
+   "id": "ParserFixture/should_parse_movie_year/3",
+   "line": 240,
+   "call": "parseMovieTitle",
+   "input": "Movie Name (1897) [DVD].mp4",
+   "expect": {
+    "year": 1897
+   }
+  },
+  {
+   "id": "ParserFixture/should_parse_movie_year/4",
+   "line": 241,
+   "call": "parseMovieTitle",
+   "input": "World Movie Z Movie [2023]",
+   "expect": {
+    "year": 2023
+   }
+  },
+  {
+   "id": "ParserFixture/should_parse_tmdb_id/0",
+   "line": 247,
+   "call": "parseMovieTitle",
+   "input": "Movie Name (2016) {tmdbid-43074}",
+   "expect": {
+    "tmdbId": 43074
+   }
+  },
+  {
+   "id": "ParserFixture/should_parse_tmdb_id/1",
+   "line": 248,
+   "call": "parseMovieTitle",
+   "input": "Movie Name (2016) [tmdb-43074]",
+   "expect": {
+    "tmdbId": 43074
+   }
+  },
+  {
+   "id": "ParserFixture/should_parse_tmdb_id/2",
+   "line": 249,
+   "call": "parseMovieTitle",
+   "input": "Movie Name (2016) {tmdb-43074}",
+   "expect": {
+    "tmdbId": 43074
+   }
+  },
+  {
+   "id": "ParserFixture/should_parse_tmdb_id/3",
+   "line": 250,
+   "call": "parseMovieTitle",
+   "input": "Movie Name (2016) {tmdb-2020}",
+   "expect": {
+    "tmdbId": 2020
+   }
+  },
+  {
+   "id": "ParserFixture/should_not_parse_wrong_language_in_title/0",
+   "line": 256,
+   "call": "parseMovieTitle",
+   "input": "The.Italian.Movie.2025.720p.BluRay.X264-AMIABLE",
+   "args": {
+    "isDir": true
+   },
+   "expect": {
+    "languages.#": 1,
+    "languages.0.name": "Unknown"
+   }
+  },
+  {
+   "id": "ParserFixture/should_not_parse_wrong_language_in_title/1",
+   "line": 257,
+   "call": "parseMovieTitle",
+   "input": "The.French.Movie.2013.720p.BluRay.x264 - ROUGH[PublicHD]",
+   "args": {
+    "isDir": true
+   },
+   "expect": {
+    "languages.#": 1,
+    "languages.0.name": "Unknown"
+   }
+  },
+  {
+   "id": "ParserFixture/should_not_parse_wrong_language_in_title/2",
+   "line": 258,
+   "call": "parseMovieTitle",
+   "input": "The.German.Doctor.2013.LIMITED.DVDRip.x264-RedBlade",
+   "args": {
+    "isDir": true
+   },
+   "expect": {
+    "languages.#": 1,
+    "languages.0.name": "Unknown"
+   }
+  },
+  {
+   "id": "ParserFixture/should_not_parse_wrong_language_in_title/3",
+   "line": 259,
+   "call": "parseMovieTitle",
+   "input": "The.Good.German.2006.720p.HDTV.x264-TVP",
+   "args": {
+    "isDir": true
+   },
+   "expect": {
+    "languages.#": 1,
+    "languages.0.name": "Unknown"
+   }
+  },
+  {
+   "id": "ParserFixture/should_not_parse_wrong_language_in_title/4",
+   "line": 260,
+   "call": "parseMovieTitle",
+   "input": "German.Lancers.2019.720p.BluRay.x264-UNiVERSUM",
+   "args": {
+    "isDir": true
+   },
+   "expect": {
+    "languages.#": 1,
+    "languages.0.name": "Unknown"
+   }
+  },
+  {
+   "id": "ParserFixture/should_not_parse_wrong_language_in_title/5",
+   "line": 261,
+   "call": "parseMovieTitle",
+   "input": "The.German.2019.720p.BluRay.x264-UNiVERSUM",
+   "args": {
+    "isDir": true
+   },
+   "expect": {
+    "languages.#": 1,
+    "languages.0.name": "Unknown"
+   }
+  },
+  {
+   "id": "ParserFixture/should_not_parse_wrong_language_in_title/6",
+   "line": 262,
+   "call": "parseMovieTitle",
+   "input": "Movie Name (2016) BluRay 1080p DTS-ES AC3 x264-3Li",
+   "args": {
+    "isDir": true
+   },
+   "expect": {
+    "languages.#": 1,
+    "languages.0.name": "Unknown"
+   }
+  },
+  {
+   "id": "ParserFixture/should_parse_hardcoded_subs/0",
+   "line": 270,
+   "call": "parseMovieTitle",
+   "input": "Movie.Title.2016.1080p.KORSUB.WEBRip.x264.AAC2.0-RADARR",
+   "expect": {
+    "hardcodedSubs": "KORSUB"
+   }
+  },
+  {
+   "id": "ParserFixture/should_parse_hardcoded_subs/1",
+   "line": 271,
+   "call": "parseMovieTitle",
+   "input": "Movie.Title.2016.1080p.KORSUBS.WEBRip.x264.AAC2.0-RADARR",
+   "expect": {
+    "hardcodedSubs": "KORSUBS"
+   }
+  },
+  {
+   "id": "ParserFixture/should_parse_hardcoded_subs/2",
+   "line": 272,
+   "call": "parseMovieTitle",
+   "input": "Movie Title 2017 HC 720p HDRiP DD5 1 x264-LEGi0N",
+   "expect": {
+    "hardcodedSubs": "Generic Hardcoded Subs"
+   }
+  },
+  {
+   "id": "ParserFixture/should_parse_hardcoded_subs/3",
+   "line": 273,
+   "call": "parseMovieTitle",
+   "input": "Movie.Title.2017.720p.SUBBED.HDRip.V2.XViD-26k.avi",
+   "expect": {
+    "hardcodedSubs": "Generic Hardcoded Subs"
+   }
+  },
+  {
+   "id": "ParserFixture/should_parse_hardcoded_subs/4",
+   "line": 274,
+   "call": "parseMovieTitle",
+   "input": "Movie.Title.2000.1080p.BlueRay.x264.DTS.RoSubbed-playHD",
+   "expect": {
+    "hardcodedSubs": null
+   }
+  },
+  {
+   "id": "ParserFixture/should_parse_hardcoded_subs/5",
+   "line": 275,
+   "call": "parseMovieTitle",
+   "input": "Movie Title! 2018 [Web][MKV][h264][480p][AAC 2.0][Softsubs]",
+   "expect": {
+    "hardcodedSubs": null
+   }
+  },
+  {
+   "id": "ParserFixture/should_parse_hardcoded_subs/6",
+   "line": 276,
+   "call": "parseMovieTitle",
+   "input": "Movie Title! 2019 [HorribleSubs][Web][MKV][h264][848x480][AAC 2.0][Softsubs(HorribleSubs)]",
+   "expect": {
+    "hardcodedSubs": null
+   }
+  },
+  {
+   "id": "ParserFixture/should_parse_hardcoded_subs/7",
+   "line": 277,
+   "call": "parseMovieTitle",
+   "input": "Movie Title! 2024 [Web][x265][1080p][EAC3][MultiSubs]",
+   "expect": {
+    "hardcodedSubs": null
+   }
+  },
+  {
+   "id": "ParserFixture/should_parse_imdb_in_title/0",
+   "line": 283,
+   "call": "parseMovieTitle",
+   "input": "That Italian Movie 2008 [tt1234567] 720p BluRay X264",
+   "args": {
+    "isDir": true
+   },
+   "expect": {
+    "imdbId": "tt1234567"
+   }
+  },
+  {
+   "id": "ParserFixture/should_parse_imdb_in_title/1",
+   "line": 284,
+   "call": "parseMovieTitle",
+   "input": "That Italian Movie 2008 [tt12345678] 720p BluRay X264",
+   "args": {
+    "isDir": true
+   },
+   "expect": {
+    "imdbId": "tt12345678"
+   }
+  },
+  {
+   "id": "ParserFixture/should_normalize_imdbid/0",
+   "line": 291,
+   "call": "normalizeImdbId",
+   "input": "asfd",
+   "expect": {
+    "": null
+   }
+  },
+  {
+   "id": "ParserFixture/should_normalize_imdbid/1",
+   "line": 292,
+   "call": "normalizeImdbId",
+   "input": "123",
+   "expect": {
+    "": "tt0000123"
+   }
+  },
+  {
+   "id": "ParserFixture/should_normalize_imdbid/2",
+   "line": 293,
+   "call": "normalizeImdbId",
+   "input": "1234567",
+   "expect": {
+    "": "tt1234567"
+   }
+  },
+  {
+   "id": "ParserFixture/should_normalize_imdbid/3",
+   "line": 294,
+   "call": "normalizeImdbId",
+   "input": "tt1234567",
+   "expect": {
+    "": "tt1234567"
+   }
+  },
+  {
+   "id": "ParserFixture/should_normalize_imdbid/4",
+   "line": 295,
+   "call": "normalizeImdbId",
+   "input": "tt12345678",
+   "expect": {
+    "": "tt12345678"
+   }
+  },
+  {
+   "id": "ParserFixture/should_normalize_imdbid/5",
+   "line": 296,
+   "call": "normalizeImdbId",
+   "input": "12345678",
+   "expect": {
+    "": "tt12345678"
+   }
+  }
+ ]
+}

@@ -1,0 +1,5 @@
+[
+  {"id":1,"movieId":1,"seriesId":5,"sourceTitle":"Blocked.Release.1080p-GRP","downloadId":"ABCDEF0123456789ABCDEF0123456789ABCDEF01","protocol":"torrent","message":"manually blocklisted"},
+  {"id":2,"movieId":1,"seriesId":5,"sourceTitle":"Hashless.Release.1080p-GRP","downloadId":"client-job-42","protocol":"torrent","message":"download failed"},
+  {"id":3,"movieId":1,"seriesId":5,"sourceTitle":"Another.Hashless.Release.1080p-GRP","protocol":"usenet","message":"provider unavailable"}
+]

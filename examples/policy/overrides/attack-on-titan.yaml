@@ -1,0 +1,8 @@
+# attack-on-titan: curated story-order moves (docs/design/anime.md "Overrides").
+# entry: a key (al:<id>[#n], adb:<id>, kitsu:<id>, tvdb:<id>:S00Exx), or key@SxxEyy-SxxEzz for an arc inside it.
+# after: a key, key@SxxEyy (splits there), key@SxxEyy-SxxEzz (after that slice) or start.
+source: "https://en.wikipedia.org/wiki/Attack_on_Titan:_Lost_Girls"
+moves:
+  - entry: "al:99634"
+    after: "al:18397"
+    why: "Wall Sina, Goodbye is set before the 57th expedition (season 1, after the training-era OVA)"

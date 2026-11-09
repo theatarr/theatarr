@@ -1,0 +1,366 @@
+{
+ "source": "Radarr src/NzbDrone.Core.Test/ParserTests/RomanNumeralTests/RomanNumeralConversionFixture.cs @ a96bf7c",
+ "fixture": "RomanNumeralConversionFixture",
+ "cases": [
+  {
+   "id": "RomanNumeralConversionFixture/should_convert_arabic_numeral_to_roman_numeral/0/0",
+   "line": 27,
+   "call": "arabicToRoman",
+   "input": "1",
+   "expect": {
+    "": "I"
+   }
+  },
+  {
+   "id": "RomanNumeralConversionFixture/should_convert_arabic_numeral_to_roman_numeral/0/1",
+   "line": 27,
+   "call": "arabicToRoman",
+   "input": "2",
+   "expect": {
+    "": "II"
+   }
+  },
+  {
+   "id": "RomanNumeralConversionFixture/should_convert_arabic_numeral_to_roman_numeral/0/2",
+   "line": 27,
+   "call": "arabicToRoman",
+   "input": "3",
+   "expect": {
+    "": "III"
+   }
+  },
+  {
+   "id": "RomanNumeralConversionFixture/should_convert_arabic_numeral_to_roman_numeral/0/3",
+   "line": 27,
+   "call": "arabicToRoman",
+   "input": "4",
+   "expect": {
+    "": "IV"
+   }
+  },
+  {
+   "id": "RomanNumeralConversionFixture/should_convert_arabic_numeral_to_roman_numeral/0/4",
+   "line": 27,
+   "call": "arabicToRoman",
+   "input": "5",
+   "expect": {
+    "": "V"
+   }
+  },
+  {
+   "id": "RomanNumeralConversionFixture/should_convert_arabic_numeral_to_roman_numeral/0/5",
+   "line": 27,
+   "call": "arabicToRoman",
+   "input": "6",
+   "expect": {
+    "": "VI"
+   }
+  },
+  {
+   "id": "RomanNumeralConversionFixture/should_convert_arabic_numeral_to_roman_numeral/0/6",
+   "line": 27,
+   "call": "arabicToRoman",
+   "input": "7",
+   "expect": {
+    "": "VII"
+   }
+  },
+  {
+   "id": "RomanNumeralConversionFixture/should_convert_arabic_numeral_to_roman_numeral/0/7",
+   "line": 27,
+   "call": "arabicToRoman",
+   "input": "8",
+   "expect": {
+    "": "VIII"
+   }
+  },
+  {
+   "id": "RomanNumeralConversionFixture/should_convert_arabic_numeral_to_roman_numeral/0/8",
+   "line": 27,
+   "call": "arabicToRoman",
+   "input": "9",
+   "expect": {
+    "": "IX"
+   }
+  },
+  {
+   "id": "RomanNumeralConversionFixture/should_convert_arabic_numeral_to_roman_numeral/0/9",
+   "line": 27,
+   "call": "arabicToRoman",
+   "input": "10",
+   "expect": {
+    "": "X"
+   }
+  },
+  {
+   "id": "RomanNumeralConversionFixture/should_convert_arabic_numeral_to_roman_numeral/0/10",
+   "line": 27,
+   "call": "arabicToRoman",
+   "input": "11",
+   "expect": {
+    "": "XI"
+   }
+  },
+  {
+   "id": "RomanNumeralConversionFixture/should_convert_arabic_numeral_to_roman_numeral/0/11",
+   "line": 27,
+   "call": "arabicToRoman",
+   "input": "12",
+   "expect": {
+    "": "XII"
+   }
+  },
+  {
+   "id": "RomanNumeralConversionFixture/should_convert_arabic_numeral_to_roman_numeral/0/12",
+   "line": 27,
+   "call": "arabicToRoman",
+   "input": "13",
+   "expect": {
+    "": "XIII"
+   }
+  },
+  {
+   "id": "RomanNumeralConversionFixture/should_convert_arabic_numeral_to_roman_numeral/0/13",
+   "line": 27,
+   "call": "arabicToRoman",
+   "input": "14",
+   "expect": {
+    "": "XIV"
+   }
+  },
+  {
+   "id": "RomanNumeralConversionFixture/should_convert_arabic_numeral_to_roman_numeral/0/14",
+   "line": 27,
+   "call": "arabicToRoman",
+   "input": "15",
+   "expect": {
+    "": "XV"
+   }
+  },
+  {
+   "id": "RomanNumeralConversionFixture/should_convert_arabic_numeral_to_roman_numeral/0/15",
+   "line": 27,
+   "call": "arabicToRoman",
+   "input": "16",
+   "expect": {
+    "": "XVI"
+   }
+  },
+  {
+   "id": "RomanNumeralConversionFixture/should_convert_arabic_numeral_to_roman_numeral/0/16",
+   "line": 27,
+   "call": "arabicToRoman",
+   "input": "17",
+   "expect": {
+    "": "XVII"
+   }
+  },
+  {
+   "id": "RomanNumeralConversionFixture/should_convert_arabic_numeral_to_roman_numeral/0/17",
+   "line": 27,
+   "call": "arabicToRoman",
+   "input": "18",
+   "expect": {
+    "": "XVIII"
+   }
+  },
+  {
+   "id": "RomanNumeralConversionFixture/should_convert_arabic_numeral_to_roman_numeral/0/18",
+   "line": 27,
+   "call": "arabicToRoman",
+   "input": "19",
+   "expect": {
+    "": "XIX"
+   }
+  },
+  {
+   "id": "RomanNumeralConversionFixture/should_convert_arabic_numeral_to_roman_numeral/0/19",
+   "line": 27,
+   "call": "arabicToRoman",
+   "input": "20",
+   "expect": {
+    "": "XX"
+   }
+  },
+  {
+   "id": "RomanNumeralConversionFixture/should_convert_roman_numeral_to_arabic_numeral/0/0",
+   "line": 38,
+   "call": "romanToArabic",
+   "input": "I",
+   "expect": {
+    "": 1
+   }
+  },
+  {
+   "id": "RomanNumeralConversionFixture/should_convert_roman_numeral_to_arabic_numeral/0/1",
+   "line": 38,
+   "call": "romanToArabic",
+   "input": "II",
+   "expect": {
+    "": 2
+   }
+  },
+  {
+   "id": "RomanNumeralConversionFixture/should_convert_roman_numeral_to_arabic_numeral/0/2",
+   "line": 38,
+   "call": "romanToArabic",
+   "input": "III",
+   "expect": {
+    "": 3
+   }
+  },
+  {
+   "id": "RomanNumeralConversionFixture/should_convert_roman_numeral_to_arabic_numeral/0/3",
+   "line": 38,
+   "call": "romanToArabic",
+   "input": "IV",
+   "expect": {
+    "": 4
+   }
+  },
+  {
+   "id": "RomanNumeralConversionFixture/should_convert_roman_numeral_to_arabic_numeral/0/4",
+   "line": 38,
+   "call": "romanToArabic",
+   "input": "V",
+   "expect": {
+    "": 5
+   }
+  },
+  {
+   "id": "RomanNumeralConversionFixture/should_convert_roman_numeral_to_arabic_numeral/0/5",
+   "line": 38,
+   "call": "romanToArabic",
+   "input": "VI",
+   "expect": {
+    "": 6
+   }
+  },
+  {
+   "id": "RomanNumeralConversionFixture/should_convert_roman_numeral_to_arabic_numeral/0/6",
+   "line": 38,
+   "call": "romanToArabic",
+   "input": "VII",
+   "expect": {
+    "": 7
+   }
+  },
+  {
+   "id": "RomanNumeralConversionFixture/should_convert_roman_numeral_to_arabic_numeral/0/7",
+   "line": 38,
+   "call": "romanToArabic",
+   "input": "VIII",
+   "expect": {
+    "": 8
+   }
+  },
+  {
+   "id": "RomanNumeralConversionFixture/should_convert_roman_numeral_to_arabic_numeral/0/8",
+   "line": 38,
+   "call": "romanToArabic",
+   "input": "IX",
+   "expect": {
+    "": 9
+   }
+  },
+  {
+   "id": "RomanNumeralConversionFixture/should_convert_roman_numeral_to_arabic_numeral/0/9",
+   "line": 38,
+   "call": "romanToArabic",
+   "input": "X",
+   "expect": {
+    "": 10
+   }
+  },
+  {
+   "id": "RomanNumeralConversionFixture/should_convert_roman_numeral_to_arabic_numeral/0/10",
+   "line": 38,
+   "call": "romanToArabic",
+   "input": "XI",
+   "expect": {
+    "": 11
+   }
+  },
+  {
+   "id": "RomanNumeralConversionFixture/should_convert_roman_numeral_to_arabic_numeral/0/11",
+   "line": 38,
+   "call": "romanToArabic",
+   "input": "XII",
+   "expect": {
+    "": 12
+   }
+  },
+  {
+   "id": "RomanNumeralConversionFixture/should_convert_roman_numeral_to_arabic_numeral/0/12",
+   "line": 38,
+   "call": "romanToArabic",
+   "input": "XIII",
+   "expect": {
+    "": 13
+   }
+  },
+  {
+   "id": "RomanNumeralConversionFixture/should_convert_roman_numeral_to_arabic_numeral/0/13",
+   "line": 38,
+   "call": "romanToArabic",
+   "input": "XIV",
+   "expect": {
+    "": 14
+   }
+  },
+  {
+   "id": "RomanNumeralConversionFixture/should_convert_roman_numeral_to_arabic_numeral/0/14",
+   "line": 38,
+   "call": "romanToArabic",
+   "input": "XV",
+   "expect": {
+    "": 15
+   }
+  },
+  {
+   "id": "RomanNumeralConversionFixture/should_convert_roman_numeral_to_arabic_numeral/0/15",
+   "line": 38,
+   "call": "romanToArabic",
+   "input": "XVI",
+   "expect": {
+    "": 16
+   }
+  },
+  {
+   "id": "RomanNumeralConversionFixture/should_convert_roman_numeral_to_arabic_numeral/0/16",
+   "line": 38,
+   "call": "romanToArabic",
+   "input": "XVII",
+   "expect": {
+    "": 17
+   }
+  },
+  {
+   "id": "RomanNumeralConversionFixture/should_convert_roman_numeral_to_arabic_numeral/0/17",
+   "line": 38,
+   "call": "romanToArabic",
+   "input": "XVIII",
+   "expect": {
+    "": 18
+   }
+  },
+  {
+   "id": "RomanNumeralConversionFixture/should_convert_roman_numeral_to_arabic_numeral/0/18",
+   "line": 38,
+   "call": "romanToArabic",
+   "input": "XIX",
+   "expect": {
+    "": 19
+   }
+  },
+  {
+   "id": "RomanNumeralConversionFixture/should_convert_roman_numeral_to_arabic_numeral/0/19",
+   "line": 38,
+   "call": "romanToArabic",
+   "input": "XX",
+   "expect": {
+    "": 20
+   }
+  }
+ ]
+}

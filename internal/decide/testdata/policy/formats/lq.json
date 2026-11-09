@@ -1,0 +1,2 @@
+{"name": "LQ", "specifications": [
+  {"name": "YIFY", "implementation": "ReleaseGroupSpecification", "negate": false, "required": false, "fields": {"value": "^(YIFY|YTS)$"}}]}

@@ -1,0 +1,7 @@
+formats:
+  Remux Tier 01: {file: formats/remux-t1.json, flavour: radarr}
+  WEB Tier 01:   {file: formats/web-t1.json, flavour: radarr}
+  LQ:            {file: formats/lq.json, flavour: radarr}
+  TrueHD ATMOS:  {file: formats/atmos.json, flavour: radarr}
+  French audio:  {file: formats/french.json, flavour: radarr}
+  Freeleech:     {file: formats/freeleech.json, flavour: radarr}

@@ -1,0 +1,31 @@
+indexers:
+  public:
+    kind: torznab
+    url: http://prowlarr:9696/1/api
+    privacy: public
+  multi:
+    kind: torznab
+    url: http://prowlarr:9696/2/api
+    privacy: public
+    multi_languages: [Original, French]
+  tracker:
+    kind: torznab
+    url: http://prowlarr:9696/7/api
+    privacy: private
+providers:
+  rd: {kind: realdebrid, order: 1, url: https://api.real-debrid.com/rest/1.0, api_key_env: THEATARR_RD_KEY}
+clients:
+  decypharr: {kind: decypharr, url: http://decypharr:8282, callback_view: radarr}
+  seedbox: {kind: qbittorrent, url: https://seedbox.example.net/qbittorrent}
+import:
+  arr:
+    radarr_4k_debrid: {flavour: radarr, url: http://radarr-4k:7878, api_key_env: THEATARR_ARR_RADARR_4K_DEBRID_KEY, version: movie-shadow}
+views:
+  radarr:
+    flavour: radarr
+    path: /radarr
+    versions: [movie-remux, movie-seedbox, movie-shadow]
+    api_key_env: THEATARR_VIEW_RADARR_KEY
+egress:
+  check_url: https://api.ipify.org
+  vpn_ips: [192.0.2.1]

@@ -1,0 +1,2 @@
+[{"id": 7, "name": "UHD", "minFormatScore": 0, "cutoffFormatScore": 10000, "minUpgradeFormatScore": 1,
+  "formatItems": [{"format": 81, "name": "TrueHD ATMOS", "score": 5000}, {"format": 99, "name": "Remux Tier 01", "score": 1950}, {"format": 5, "name": "Big Old English", "score": -3}]}]

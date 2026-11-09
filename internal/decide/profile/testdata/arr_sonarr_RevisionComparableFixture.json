@@ -1,0 +1,212 @@
+{
+ "source": "Sonarr src/NzbDrone.Core.Test/Qualities/RevisionComparableFixture.cs @ cab419a",
+ "cases": [
+  {
+   "test": "should_be_greater_when_first_quality_is_a_real",
+   "spec": "RevisionCompare",
+   "left": {
+    "version": 1,
+    "real": 1
+   },
+   "right": {
+    "version": 1,
+    "real": 0
+   },
+   "expect": {
+    "compare": 1
+   },
+   "flavour": "sonarr",
+   "fixture": "RevisionComparableFixture"
+  },
+  {
+   "test": "should_be_greater_when_first_quality_is_a_proper",
+   "spec": "RevisionCompare",
+   "left": {
+    "version": 2,
+    "real": 0
+   },
+   "right": {
+    "version": 1,
+    "real": 0
+   },
+   "expect": {
+    "compare": 1
+   },
+   "flavour": "sonarr",
+   "fixture": "RevisionComparableFixture"
+  },
+  {
+   "test": "should_be_greater_when_first_is_a_proper_for_a_real",
+   "spec": "RevisionCompare",
+   "left": {
+    "version": 2,
+    "real": 1
+   },
+   "right": {
+    "version": 1,
+    "real": 1
+   },
+   "expect": {
+    "compare": 1
+   },
+   "flavour": "sonarr",
+   "fixture": "RevisionComparableFixture"
+  },
+  {
+   "test": "should_be_lesser_when_second_quality_is_a_real",
+   "spec": "RevisionCompare",
+   "left": {
+    "version": 1,
+    "real": 0
+   },
+   "right": {
+    "version": 1,
+    "real": 1
+   },
+   "expect": {
+    "compare": -1
+   },
+   "flavour": "sonarr",
+   "fixture": "RevisionComparableFixture"
+  },
+  {
+   "test": "should_be_lesser_when_second_quality_is_a_proper",
+   "spec": "RevisionCompare",
+   "left": {
+    "version": 1,
+    "real": 0
+   },
+   "right": {
+    "version": 2,
+    "real": 0
+   },
+   "expect": {
+    "compare": -1
+   },
+   "flavour": "sonarr",
+   "fixture": "RevisionComparableFixture"
+  },
+  {
+   "test": "should_be_lesser_when_second_is_a_proper_for_a_real",
+   "spec": "RevisionCompare",
+   "left": {
+    "version": 1,
+    "real": 1
+   },
+   "right": {
+    "version": 2,
+    "real": 1
+   },
+   "expect": {
+    "compare": -1
+   },
+   "flavour": "sonarr",
+   "fixture": "RevisionComparableFixture"
+  },
+  {
+   "test": "should_be_equal_when_both_real_and_version_match",
+   "spec": "RevisionCompare",
+   "left": {
+    "version": 1,
+    "real": 0
+   },
+   "right": {
+    "version": 1,
+    "real": 0
+   },
+   "expect": {
+    "compare": 0
+   },
+   "flavour": "sonarr",
+   "fixture": "RevisionComparableFixture"
+  },
+  {
+   "test": "should_be_equal_when_both_real_and_version_match_for_real",
+   "spec": "RevisionCompare",
+   "left": {
+    "version": 1,
+    "real": 1
+   },
+   "right": {
+    "version": 1,
+    "real": 1
+   },
+   "expect": {
+    "compare": 0
+   },
+   "flavour": "sonarr",
+   "fixture": "RevisionComparableFixture"
+  },
+  {
+   "test": "should_be_equal_when_both_real_and_version_match_for_real_proper",
+   "spec": "RevisionCompare",
+   "left": {
+    "version": 2,
+    "real": 1
+   },
+   "right": {
+    "version": 2,
+    "real": 1
+   },
+   "expect": {
+    "compare": 0
+   },
+   "flavour": "sonarr",
+   "fixture": "RevisionComparableFixture"
+  },
+  {
+   "test": "equal_operator_tests",
+   "spec": "RevisionCompare",
+   "left": {
+    "version": 1,
+    "real": 0
+   },
+   "right": {
+    "version": 1,
+    "real": 0
+   },
+   "expect": {
+    "compare": 0
+   },
+   "note": "operators reduce to CompareTo (and Equals on Version/Real)",
+   "flavour": "sonarr",
+   "fixture": "RevisionComparableFixture"
+  },
+  {
+   "test": "greater_than_operator_tests",
+   "spec": "RevisionCompare",
+   "left": {
+    "version": 2,
+    "real": 0
+   },
+   "right": {
+    "version": 1,
+    "real": 0
+   },
+   "expect": {
+    "compare": 1
+   },
+   "note": "operators reduce to CompareTo",
+   "flavour": "sonarr",
+   "fixture": "RevisionComparableFixture"
+  },
+  {
+   "test": "less_than_operator_tests",
+   "spec": "RevisionCompare",
+   "left": {
+    "version": 1,
+    "real": 0
+   },
+   "right": {
+    "version": 2,
+    "real": 0
+   },
+   "expect": {
+    "compare": -1
+   },
+   "note": "operators reduce to CompareTo",
+   "flavour": "sonarr",
+   "fixture": "RevisionComparableFixture"
+  }
+ ]
+}

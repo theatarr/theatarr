@@ -1,0 +1,8 @@
+{
+  "trash_id": "aaaa0000000000000000000000000003",
+  "trash_scores": {"anime-sonarr": 101},
+  "name": "Not Original",
+  "specifications": [
+    {"name": "Not Original", "implementation": "LanguageSpecification", "negate": true, "required": false, "fields": {"value": -2, "exceptLanguage": false}}
+  ]
+}

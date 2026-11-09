@@ -1,0 +1,4 @@
+{"status": "success", "data": [
+  {"entityType": "series", "method": "update", "recordId": 900001, "seriesId": 0, "mergeToId": 0, "mergeToEntityType": "", "timeStamp": 1792900000, "extraInfo": ""},
+  {"entityType": "series", "method": "update", "recordId": 123456, "seriesId": 0, "timeStamp": 1792900001}
+], "links": {"prev": null, "self": "page0", "next": null, "total_items": 2, "page_size": 1000}}

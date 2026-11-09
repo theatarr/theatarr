@@ -1,0 +1,13 @@
+{
+  "status": "success",
+  "data": {
+    "series": {"id": 900001, "name": "テストアニメ", "slug": "test-anime", "status": {"id": 2, "name": "Ended", "recordType": "series", "keepUpdated": false}, "year": "2020"},
+    "episodes": [
+      {"id": 7001, "seriesId": 900001, "name": "第1話", "seasonNumber": 1, "number": 1},
+      {"id": 7002, "seriesId": 900001, "name": "第2話", "seasonNumber": 1, "number": 2},
+      {"id": 7101, "seriesId": 900001, "name": "第3話", "seasonNumber": 1, "number": 3},
+      {"id": 7102, "seriesId": 900001, "name": "第4話", "seasonNumber": 1, "number": 4}
+    ]
+  },
+  "links": {"prev": null, "self": "page0", "next": null, "total_items": 4, "page_size": 500}
+}

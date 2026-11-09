@@ -1,0 +1,50 @@
+{
+  "id": 39,
+  "name": "Season Pack",
+  "includeCustomFormatWhenRenaming": false,
+  "specifications": [
+    {
+      "name": "Season Pack",
+      "implementation": "ReleaseTypeSpecification",
+      "negate": false,
+      "required": false,
+      "fields": [
+        {
+          "order": 0,
+          "name": "value",
+          "label": "Release Type",
+          "value": 3,
+          "type": "select",
+          "advanced": false,
+          "selectOptions": [
+            {
+              "value": 0,
+              "name": "Unknown",
+              "order": 0
+            },
+            {
+              "value": 1,
+              "name": "Single Episode",
+              "order": 9,
+              "hint": "(1)"
+            },
+            {
+              "value": 2,
+              "name": "Multi-Episode",
+              "order": 12,
+              "hint": "(2)"
+            },
+            {
+              "value": 3,
+              "name": "Season Pack",
+              "order": 15,
+              "hint": "(3)"
+            }
+          ],
+          "privacy": "normal",
+          "isFloat": false
+        }
+      ]
+    }
+  ]
+}

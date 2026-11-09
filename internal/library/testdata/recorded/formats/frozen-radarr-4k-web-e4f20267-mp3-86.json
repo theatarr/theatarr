@@ -1,0 +1,26 @@
+{
+  "id": 86,
+  "name": "MP3",
+  "includeCustomFormatWhenRenaming": false,
+  "specifications": [
+    {
+      "name": "MP3",
+      "implementation": "ReleaseTitleSpecification",
+      "negate": false,
+      "required": true,
+      "fields": [
+        {
+          "order": 0,
+          "name": "value",
+          "label": "Regular Expression",
+          "helpText": "Custom Format RegEx is Case Insensitive",
+          "value": "mp3",
+          "type": "textbox",
+          "advanced": false,
+          "privacy": "normal",
+          "isFloat": false
+        }
+      ]
+    }
+  ]
+}

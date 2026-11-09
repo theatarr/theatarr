@@ -1,0 +1,45 @@
+# The download router (docs/design/router.md). It adds releases to the debrid providers of versions in
+# mode: active with grab: true, in each version's providers order, and only while enabled is true. enabled is the
+# global kill switch: off (the default), nothing is written to any provider and every version is dry-run only,
+# whatever its mode and grab.
+# theatarr serve logs the switch and the active versions at start. Every other field is optional; these are the defaults.
+router:
+  enabled: false
+  cached_only: true    # skip a provider where the release is known uncached; TorBox adds only if cached; an RD
+                       # add not ready at once is deleted again when provably ours, and the next provider tried
+  alldebrid_delete_uncached: true  # opt-in for an account with no other writers; default false
+                       # Off: AD keeps an uncached add of ours (uncached_kept), and is not tried again in that route. On: AD behaves as decypharr with
+                       # download_uncached off: add, read, delete our own just-made uncached add, try the next
+                       # provider. The one hole: another client uploading the same hash in the second between our
+                       # list read and our upload gets the same magnet, which would look like ours and be deleted.
+                       # Turn it on only for an account nothing else writes to (docs/design/router.md).
+  cached_grace: 2s     # RD/AD: wait this long before the one re-read of a fresh add; 1s to 30s
+  stalled_after: 10m   # a download still not fetching this long after its add fails as stalled, is blocklisted and
+                       # searched again (our own RD add is deleted); 1m to 24h, 0s turns it off
+  downloading_timeout: 24h # a download whose progress has not risen this long fails the same way; 1h to 7d, 0s off
+  miss_ttl: 6h         # a release missed on every provider stays a miss this long
+  poll_interval: 1m    # how often added downloads are read back from their provider
+  max_candidates: 5    # accepted releases of one search tried, best first
+  trackers: []         # public announce URLs added to debrid magnets; none keeps them bare
+  # Cache evidence (docs/design/router.md): which providers hold a release cached. DMM's cached feeds (stored per hash
+  # and provider; any release of the same hash in a search inherits them) and TorBox's own check. A provider with
+  # evidence is tried first; one without is tried as before (unknown never means uncached). No debrid key ever goes
+  # to a third party.
+  cache_evidence:
+    ttl: 24h           # positive evidence is kept this long; 1h to 7d
+    torbox_check:      # TorBox checkcached with our key, through the gateway and its torbox-api budget
+      enabled: true    # does nothing without a TorBox key
+      top: 10          # best hashes of one search checked; 1 to 100
+      per_hour: 60     # checkcached requests in any hour; 1 to 1000
+  # The wanted search loop (internal/acquire): searches the active versions' missing and cutoff-unmet items and hands
+  # the accepted releases to the router. Off while router.enabled is false; on by default once a version is active.
+  wanted:
+    # enabled: true      # default: on when some version is active
+    interval: 15m        # between rounds; 5m to 24h
+    per_hour: 10         # searches (a title, season or episode each) in any hour; 1 to 200
+    again_after: 24h     # an item waits this long before it is searched again; 1h to 30d
+    missing: true        # items with no file
+    # Files searched for an upgrade: quality (default; below the profile's quality cutoff, the arrs' Cutoff Unmet
+    # search), score (also those at the cutoff quality but below cutoff_score) or off. States, feeds and upgrade
+    # decisions always use the full cutoff.
+    cutoff_unmet: quality

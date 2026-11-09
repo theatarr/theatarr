@@ -1,0 +1,26 @@
+{
+  "id": 7,
+  "name": "Repack v3 - Notifiarr",
+  "includeCustomFormatWhenRenaming": true,
+  "specifications": [
+    {
+      "name": "Repack/Proper 3 or REAL.REAL.PROPER/REPACK",
+      "implementation": "ReleaseTitleSpecification",
+      "negate": false,
+      "required": true,
+      "fields": [
+        {
+          "order": 0,
+          "name": "value",
+          "label": "Regular Expression",
+          "helpText": "Custom Format RegEx is Case Insensitive",
+          "value": "\\b((repack|proper)3)\\b|\\b(REAL\\.REAL\\.(PROPER|REPACK))\\b",
+          "type": "textbox",
+          "advanced": false,
+          "privacy": "normal",
+          "isFloat": false
+        }
+      ]
+    }
+  ]
+}

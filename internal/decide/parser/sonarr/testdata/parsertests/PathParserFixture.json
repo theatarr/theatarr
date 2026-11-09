@@ -1,0 +1,395 @@
+{
+ "source": "Sonarr src/NzbDrone.Core.Test/ParserTests/PathParserFixture.cs @ cab419a",
+ "fixture": "PathParserFixture",
+ "cases": [
+  {
+   "id": "PathParserFixture/should_parse_from_path/0",
+   "line": 11,
+   "call": "parsePath",
+   "input": "/z/tv shows/series title (2003)/Season 3/S03E05 - Title.mkv",
+   "expect": {
+    "episodeNumbers": [
+     5
+    ],
+    "seasonNumber": 3,
+    "absoluteEpisodeNumbers": [],
+    "fullSeason": false
+   }
+  },
+  {
+   "id": "PathParserFixture/should_parse_from_path/1",
+   "line": 12,
+   "call": "parsePath",
+   "input": "/z/tv showsseries title/Season 16/S16E03 - The Title.mkv",
+   "expect": {
+    "episodeNumbers": [
+     3
+    ],
+    "seasonNumber": 16,
+    "absoluteEpisodeNumbers": [],
+    "fullSeason": false
+   }
+  },
+  {
+   "id": "PathParserFixture/should_parse_from_path/2",
+   "line": 13,
+   "call": "parsePath",
+   "input": "/z/tv shows/series title/Specials/S00E16 - Dear Title - SD TV.avi",
+   "expect": {
+    "episodeNumbers": [
+     16
+    ],
+    "seasonNumber": 0,
+    "absoluteEpisodeNumbers": [],
+    "fullSeason": false
+   }
+  },
+  {
+   "id": "PathParserFixture/should_parse_from_path/3",
+   "line": 14,
+   "call": "parsePath",
+   "input": "/D/shares/TV Shows/series title/Season 2/S02E21 - 94 Title - 720p TV.mkv",
+   "expect": {
+    "episodeNumbers": [
+     21
+    ],
+    "seasonNumber": 2,
+    "absoluteEpisodeNumbers": [],
+    "fullSeason": false
+   }
+  },
+  {
+   "id": "PathParserFixture/should_parse_from_path/4",
+   "line": 15,
+   "call": "parsePath",
+   "input": "/D/shares/TV Shows/Series (2003)/Season 2/S02E21.avi",
+   "expect": {
+    "episodeNumbers": [
+     21
+    ],
+    "seasonNumber": 2,
+    "absoluteEpisodeNumbers": [],
+    "fullSeason": false
+   }
+  },
+  {
+   "id": "PathParserFixture/should_parse_from_path/5",
+   "line": 16,
+   "call": "parsePath",
+   "input": "/C/Test/TV/Series.4x05.HDTV.XviD-LOL",
+   "expect": {
+    "episodeNumbers": [
+     5
+    ],
+    "seasonNumber": 4,
+    "absoluteEpisodeNumbers": [],
+    "fullSeason": false
+   }
+  },
+  {
+   "id": "PathParserFixture/should_parse_from_path/6",
+   "line": 17,
+   "call": "parsePath",
+   "input": "/P/TV Shows/Series/Season 6/S06E13 - 5 to 9 - 720p BluRay.mkv",
+   "expect": {
+    "episodeNumbers": [
+     13
+    ],
+    "seasonNumber": 6,
+    "absoluteEpisodeNumbers": [],
+    "fullSeason": false
+   }
+  },
+  {
+   "id": "PathParserFixture/should_parse_from_path/7",
+   "line": 18,
+   "call": "parsePath",
+   "input": "/S/TV Drop/Series - 10x11 - Title [SDTV]/1011 - Title.avi",
+   "expect": {
+    "episodeNumbers": [
+     11
+    ],
+    "seasonNumber": 10,
+    "absoluteEpisodeNumbers": [],
+    "fullSeason": false
+   }
+  },
+  {
+   "id": "PathParserFixture/should_parse_from_path/8",
+   "line": 19,
+   "call": "parsePath",
+   "input": "/TV Drop/Series - 10x11 - Title [SDTV]/1011 - Title.avi",
+   "expect": {
+    "episodeNumbers": [
+     11
+    ],
+    "seasonNumber": 10,
+    "absoluteEpisodeNumbers": [],
+    "fullSeason": false
+   }
+  },
+  {
+   "id": "PathParserFixture/should_parse_from_path/9",
+   "line": 20,
+   "call": "parsePath",
+   "input": "/S/TV Drop/Series Title - 10x12 - 24 Hours of Development [SDTV]/1012 - Hours of Development.avi",
+   "expect": {
+    "episodeNumbers": [
+     12
+    ],
+    "seasonNumber": 10,
+    "absoluteEpisodeNumbers": [],
+    "fullSeason": false
+   }
+  },
+  {
+   "id": "PathParserFixture/should_parse_from_path/10",
+   "line": 21,
+   "call": "parsePath",
+   "input": "/TV Drop/Series Title - 10x12 - 24 Hours of Development [SDTV]/1012 - Hours of Development.avi",
+   "expect": {
+    "episodeNumbers": [
+     12
+    ],
+    "seasonNumber": 10,
+    "absoluteEpisodeNumbers": [],
+    "fullSeason": false
+   }
+  },
+  {
+   "id": "PathParserFixture/should_parse_from_path/11",
+   "line": 22,
+   "call": "parsePath",
+   "input": "/S/TV Drop/Series Title - 10x12 - 24 Hours of Development [SDTV]/Hours of Development.avi",
+   "expect": {
+    "episodeNumbers": [
+     12
+    ],
+    "seasonNumber": 10,
+    "absoluteEpisodeNumbers": [],
+    "fullSeason": false
+   }
+  },
+  {
+   "id": "PathParserFixture/should_parse_from_path/12",
+   "line": 23,
+   "call": "parsePath",
+   "input": "/TV Drop/Series Title - 10x12 - 24 Hours of Development [SDTV]/Hours of Development.avi",
+   "expect": {
+    "episodeNumbers": [
+     12
+    ],
+    "seasonNumber": 10,
+    "absoluteEpisodeNumbers": [],
+    "fullSeason": false
+   }
+  },
+  {
+   "id": "PathParserFixture/should_parse_from_path/13",
+   "line": 24,
+   "call": "parsePath",
+   "input": "/E/Downloads/tv/Series.Title.S01E01.720p.HDTV/ajifajjjeaeaeqwer_eppj.avi",
+   "expect": {
+    "episodeNumbers": [
+     1
+    ],
+    "seasonNumber": 1,
+    "absoluteEpisodeNumbers": [],
+    "fullSeason": false
+   }
+  },
+  {
+   "id": "PathParserFixture/should_parse_from_path/14",
+   "line": 25,
+   "call": "parsePath",
+   "input": "/C/Test/Unsorted/Series.Title.S01E01.720p.HDTV/tbbt101.avi",
+   "expect": {
+    "episodeNumbers": [
+     1
+    ],
+    "seasonNumber": 1,
+    "absoluteEpisodeNumbers": [],
+    "fullSeason": false
+   }
+  },
+  {
+   "id": "PathParserFixture/should_parse_from_path/15",
+   "line": 26,
+   "call": "parsePath",
+   "input": "/C/Test/Unsorted/Series.Title.S02E19.720p.BluRay.x264-SiNNERS-RP/ba27283b17c00d01193eacc02a8ba98eeb523a76.mkv",
+   "expect": {
+    "episodeNumbers": [
+     19
+    ],
+    "seasonNumber": 2,
+    "absoluteEpisodeNumbers": [],
+    "fullSeason": false
+   }
+  },
+  {
+   "id": "PathParserFixture/should_parse_from_path/16",
+   "line": 27,
+   "call": "parsePath",
+   "input": "/C/Test/Unsorted/Series.Title.S02E18.720p.BluRay.x264-SiNNERS-RP/45a55debe3856da318cc35882ad07e43cd32fd15.mkv",
+   "expect": {
+    "episodeNumbers": [
+     18
+    ],
+    "seasonNumber": 2,
+    "absoluteEpisodeNumbers": [],
+    "fullSeason": false
+   }
+  },
+  {
+   "id": "PathParserFixture/should_parse_from_path/17",
+   "line": 28,
+   "call": "parsePath",
+   "input": "/C/Test/Series/Season 01/01 Pilot (1080p HD).mkv",
+   "expect": {
+    "episodeNumbers": [
+     1
+    ],
+    "seasonNumber": 1,
+    "absoluteEpisodeNumbers": [],
+    "fullSeason": false
+   }
+  },
+  {
+   "id": "PathParserFixture/should_parse_from_path/18",
+   "line": 29,
+   "call": "parsePath",
+   "input": "/C/Test/Series/Season 01/1 Pilot (1080p HD).mkv",
+   "expect": {
+    "episodeNumbers": [
+     1
+    ],
+    "seasonNumber": 1,
+    "absoluteEpisodeNumbers": [],
+    "fullSeason": false
+   }
+  },
+  {
+   "id": "PathParserFixture/should_parse_from_path/19",
+   "line": 30,
+   "call": "parsePath",
+   "input": "/C/Test/Series/Season 1/02 Honor Thy Father (1080p HD).m4v",
+   "expect": {
+    "episodeNumbers": [
+     2
+    ],
+    "seasonNumber": 1,
+    "absoluteEpisodeNumbers": [],
+    "fullSeason": false
+   }
+  },
+  {
+   "id": "PathParserFixture/should_parse_from_path/20",
+   "line": 31,
+   "call": "parsePath",
+   "input": "/C/Test/Series/Season 1/2 Honor Thy Developer (1080p HD).m4v",
+   "expect": {
+    "episodeNumbers": [
+     2
+    ],
+    "seasonNumber": 1,
+    "absoluteEpisodeNumbers": [],
+    "fullSeason": false
+   }
+  },
+  {
+   "id": "PathParserFixture/should_parse_from_path/21",
+   "line": 32,
+   "call": "parsePath",
+   "input": "/C/Test/Series/Season 2 - Total Series Action/01. Total Series Action - Episode 1 - Monster Cash.mkv",
+   "expect": {
+    "episodeNumbers": [
+     1
+    ],
+    "seasonNumber": 2,
+    "absoluteEpisodeNumbers": [],
+    "fullSeason": false
+   }
+  },
+  {
+   "id": "PathParserFixture/should_parse_from_path/22",
+   "line": 33,
+   "call": "parsePath",
+   "input": "/C/Test/Series/Season 2/01. Total Series Action - Episode 1 - Monster Cash.mkv",
+   "expect": {
+    "episodeNumbers": [
+     1
+    ],
+    "seasonNumber": 2,
+    "absoluteEpisodeNumbers": [],
+    "fullSeason": false
+   }
+  },
+  {
+   "id": "PathParserFixture/should_parse_from_path/23",
+   "line": 34,
+   "call": "parsePath",
+   "input": "/C/Test/Series/Season 1/02.04.24 - S01E01 - The Rabbit Hole",
+   "expect": {
+    "episodeNumbers": [
+     1
+    ],
+    "seasonNumber": 1,
+    "absoluteEpisodeNumbers": [],
+    "fullSeason": false
+   }
+  },
+  {
+   "id": "PathParserFixture/should_parse_from_path/24",
+   "line": 35,
+   "call": "parsePath",
+   "input": "/C/Test/Series/Season 1/8 Series Rules - S01E01 - Pilot",
+   "expect": {
+    "episodeNumbers": [
+     1
+    ],
+    "seasonNumber": 1,
+    "absoluteEpisodeNumbers": [],
+    "fullSeason": false
+   }
+  },
+  {
+   "id": "PathParserFixture/should_parse_multi_episode_from_path/0",
+   "line": 51,
+   "call": "parsePath",
+   "input": "01-03/The Series Title (2010) - 1x01-02-03 - Episode Title HDTV-720p Proper",
+   "expect": {
+    "seriesTitle": "The Series Title (2010)",
+    "episodeNumbers.#": 3,
+    "seasonNumber": 1,
+    "absoluteEpisodeNumbers": [],
+    "fullSeason": false
+   },
+   "contains": {
+    "episodeNumbers": [
+     1,
+     2,
+     3
+    ]
+   }
+  },
+  {
+   "id": "PathParserFixture/should_parse_multi_episode_from_path/1",
+   "line": 52,
+   "call": "parsePath",
+   "input": "Season 2/E05-06 - Episode Title HDTV-720p Proper",
+   "expect": {
+    "seriesTitle": "",
+    "episodeNumbers.#": 2,
+    "seasonNumber": 2,
+    "absoluteEpisodeNumbers": [],
+    "fullSeason": false
+   },
+   "contains": {
+    "episodeNumbers": [
+     5,
+     6
+    ]
+   }
+  }
+ ]
+}

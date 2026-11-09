@@ -1,0 +1,4 @@
+[{"id": 1, "name": "Nyaa (Prowlarr)", "implementation": "Torznab", "protocol": "torrent", "enableRss": true, "enableAutomaticSearch": true, "priority": 25,
+  "fields": [{"name": "baseUrl", "value": "http://prowlarr:9696/13/"}, {"name": "apiKey", "value": "********"}]},
+ {"id": 2, "name": "AnimeTosho", "implementation": "Torznab", "protocol": "torrent", "enableRss": true, "enableAutomaticSearch": false, "priority": 30,
+  "fields": [{"name": "baseUrl", "value": "https://feed.animetosho.org"}, {"name": "apiKey", "value": "********"}]}]

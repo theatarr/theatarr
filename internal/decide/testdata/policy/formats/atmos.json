@@ -1,0 +1,2 @@
+{"name": "TrueHD ATMOS", "specifications": [
+  {"name": "Atmos", "implementation": "ReleaseTitleSpecification", "negate": false, "required": true, "fields": {"value": "\\bATMOS\\b"}}]}

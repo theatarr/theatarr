@@ -1,0 +1,25 @@
+{
+  "page": 1,
+  "pageSize": 10,
+  "records": [
+    {
+      "absoluteEpisodeNumber": 2,
+      "airDate": "2019-01-14",
+      "airDateUtc": "2019-01-15T02:00:00Z",
+      "episodeFileId": 0,
+      "episodeNumber": 2,
+      "hasFile": false,
+      "id": 102,
+      "monitored": true,
+      "runtime": 45,
+      "seasonNumber": 1,
+      "seriesId": 1000010,
+      "title": "Second",
+      "tvdbId": 0,
+      "unverifiedSceneNumbering": false
+    }
+  ],
+  "sortDirection": "ascending",
+  "sortKey": "episodes.airDateUtc",
+  "totalRecords": 1
+}

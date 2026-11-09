@@ -1,0 +1,682 @@
+{
+ "source": "Sonarr src/NzbDrone.Core.Test/ParserTests/SeasonParserFixture.cs @ cab419a",
+ "fixture": "SeasonParserFixture",
+ "cases": [
+  {
+   "id": "SeasonParserFixture/should_parse_full_season_release/0",
+   "line": 10,
+   "call": "parseTitle",
+   "input": "30.Series.Season.04.HDTV.XviD-DIMENSION",
+   "expect": {
+    "seasonNumber": 4,
+    "seriesTitle": "30 Series",
+    "episodeNumbers": [],
+    "absoluteEpisodeNumbers": [],
+    "fullSeason": true
+   }
+  },
+  {
+   "id": "SeasonParserFixture/should_parse_full_season_release/1",
+   "line": 11,
+   "call": "parseTitle",
+   "input": "Sonarr.and.Series.S02.720p.x264-DIMENSION",
+   "expect": {
+    "seasonNumber": 2,
+    "seriesTitle": "Sonarr and Series",
+    "episodeNumbers": [],
+    "absoluteEpisodeNumbers": [],
+    "fullSeason": true
+   }
+  },
+  {
+   "id": "SeasonParserFixture/should_parse_full_season_release/2",
+   "line": 12,
+   "call": "parseTitle",
+   "input": "The.Series.US.S03.720p.x264-DIMENSION",
+   "expect": {
+    "seasonNumber": 3,
+    "seriesTitle": "The Series US",
+    "episodeNumbers": [],
+    "absoluteEpisodeNumbers": [],
+    "fullSeason": true
+   }
+  },
+  {
+   "id": "SeasonParserFixture/should_parse_full_season_release/3",
+   "line": 13,
+   "call": "parseTitle",
+   "input": "Series.of.Sonarr.S03.720p.BluRay-CLUE\\REWARD",
+   "expect": {
+    "seasonNumber": 3,
+    "seriesTitle": "Series of Sonarr",
+    "episodeNumbers": [],
+    "absoluteEpisodeNumbers": [],
+    "fullSeason": true
+   }
+  },
+  {
+   "id": "SeasonParserFixture/should_parse_full_season_release/4",
+   "line": 14,
+   "call": "parseTitle",
+   "input": "Series Time S02 720p HDTV x264 CRON",
+   "expect": {
+    "seasonNumber": 2,
+    "seriesTitle": "Series Time",
+    "episodeNumbers": [],
+    "absoluteEpisodeNumbers": [],
+    "fullSeason": true
+   }
+  },
+  {
+   "id": "SeasonParserFixture/should_parse_full_season_release/5",
+   "line": 15,
+   "call": "parseTitle",
+   "input": "Series.2021.S04.iNTERNAL.DVDRip.XviD-VCDVaULT",
+   "expect": {
+    "seasonNumber": 4,
+    "seriesTitle": "Series 2021",
+    "episodeNumbers": [],
+    "absoluteEpisodeNumbers": [],
+    "fullSeason": true
+   }
+  },
+  {
+   "id": "SeasonParserFixture/should_parse_full_season_release/6",
+   "line": 16,
+   "call": "parseTitle",
+   "input": "Series Five 0 S01 720p WEB DL DD5 1 H 264 NT",
+   "expect": {
+    "seasonNumber": 1,
+    "seriesTitle": "Series Five 0",
+    "episodeNumbers": [],
+    "absoluteEpisodeNumbers": [],
+    "fullSeason": true
+   }
+  },
+  {
+   "id": "SeasonParserFixture/should_parse_full_season_release/7",
+   "line": 17,
+   "call": "parseTitle",
+   "input": "30 Series S03 WS PDTV XviD FUtV",
+   "expect": {
+    "seasonNumber": 3,
+    "seriesTitle": "30 Series",
+    "episodeNumbers": [],
+    "absoluteEpisodeNumbers": [],
+    "fullSeason": true
+   }
+  },
+  {
+   "id": "SeasonParserFixture/should_parse_full_season_release/8",
+   "line": 18,
+   "call": "parseTitle",
+   "input": "The Series Season 4 WS PDTV XviD FUtV",
+   "expect": {
+    "seasonNumber": 4,
+    "seriesTitle": "The Series",
+    "episodeNumbers": [],
+    "absoluteEpisodeNumbers": [],
+    "fullSeason": true
+   }
+  },
+  {
+   "id": "SeasonParserFixture/should_parse_full_season_release/9",
+   "line": 19,
+   "call": "parseTitle",
+   "input": "Series Season 1 720p WEB DL DD 5 1 h264 TjHD",
+   "expect": {
+    "seasonNumber": 1,
+    "seriesTitle": "Series",
+    "episodeNumbers": [],
+    "absoluteEpisodeNumbers": [],
+    "fullSeason": true
+   }
+  },
+  {
+   "id": "SeasonParserFixture/should_parse_full_season_release/10",
+   "line": 20,
+   "call": "parseTitle",
+   "input": "The Series Season4 WS PDTV XviD FUtV",
+   "expect": {
+    "seasonNumber": 4,
+    "seriesTitle": "The Series",
+    "episodeNumbers": [],
+    "absoluteEpisodeNumbers": [],
+    "fullSeason": true
+   }
+  },
+  {
+   "id": "SeasonParserFixture/should_parse_full_season_release/11",
+   "line": 21,
+   "call": "parseTitle",
+   "input": "Series S 01 720p WEB DL DD 5 1 h264 TjHD",
+   "expect": {
+    "seasonNumber": 1,
+    "seriesTitle": "Series",
+    "episodeNumbers": [],
+    "absoluteEpisodeNumbers": [],
+    "fullSeason": true
+   }
+  },
+  {
+   "id": "SeasonParserFixture/should_parse_full_season_release/12",
+   "line": 22,
+   "call": "parseTitle",
+   "input": "Series Confidential   Season 3",
+   "expect": {
+    "seasonNumber": 3,
+    "seriesTitle": "Series Confidential",
+    "episodeNumbers": [],
+    "absoluteEpisodeNumbers": [],
+    "fullSeason": true
+   }
+  },
+  {
+   "id": "SeasonParserFixture/should_parse_full_season_release/13",
+   "line": 23,
+   "call": "parseTitle",
+   "input": "Series.S01.720p.WEBDL.DD5.1.H.264-NTb",
+   "expect": {
+    "seasonNumber": 1,
+    "seriesTitle": "Series",
+    "episodeNumbers": [],
+    "absoluteEpisodeNumbers": [],
+    "fullSeason": true
+   }
+  },
+  {
+   "id": "SeasonParserFixture/should_parse_full_season_release/14",
+   "line": 24,
+   "call": "parseTitle",
+   "input": "Series.Makes.It.Right.S02.720p.HDTV.AAC5.1.x265-NOGRP",
+   "expect": {
+    "seasonNumber": 2,
+    "seriesTitle": "Series Makes It Right",
+    "episodeNumbers": [],
+    "absoluteEpisodeNumbers": [],
+    "fullSeason": true
+   }
+  },
+  {
+   "id": "SeasonParserFixture/should_parse_full_season_release/15",
+   "line": 25,
+   "call": "parseTitle",
+   "input": "My.Series.S2014.720p.HDTV.x264-ME",
+   "expect": {
+    "seasonNumber": 2014,
+    "seriesTitle": "My Series",
+    "episodeNumbers": [],
+    "absoluteEpisodeNumbers": [],
+    "fullSeason": true
+   }
+  },
+  {
+   "id": "SeasonParserFixture/should_parse_full_season_release/16",
+   "line": 26,
+   "call": "parseTitle",
+   "input": "Series.Saison3.VOSTFR.HDTV.XviD-NOTAG",
+   "expect": {
+    "seasonNumber": 3,
+    "seriesTitle": "Series",
+    "episodeNumbers": [],
+    "absoluteEpisodeNumbers": [],
+    "fullSeason": true
+   }
+  },
+  {
+   "id": "SeasonParserFixture/should_parse_full_season_release/17",
+   "line": 27,
+   "call": "parseTitle",
+   "input": "Series.SAISON.1.VFQ.PDTV.H264-ACC-ROLLED",
+   "expect": {
+    "seasonNumber": 1,
+    "seriesTitle": "Series",
+    "episodeNumbers": [],
+    "absoluteEpisodeNumbers": [],
+    "fullSeason": true
+   }
+  },
+  {
+   "id": "SeasonParserFixture/should_parse_full_season_release/18",
+   "line": 28,
+   "call": "parseTitle",
+   "input": "Series Title - Series 1 (1970) DivX",
+   "expect": {
+    "seasonNumber": 1,
+    "seriesTitle": "Series Title",
+    "episodeNumbers": [],
+    "absoluteEpisodeNumbers": [],
+    "fullSeason": true
+   }
+  },
+  {
+   "id": "SeasonParserFixture/should_parse_full_season_release/19",
+   "line": 29,
+   "call": "parseTitle",
+   "input": "SeriesTitle.S03.540p.AMZN.WEB-DL.DD+2.0.x264-RTN",
+   "expect": {
+    "seasonNumber": 3,
+    "seriesTitle": "SeriesTitle",
+    "episodeNumbers": [],
+    "absoluteEpisodeNumbers": [],
+    "fullSeason": true
+   }
+  },
+  {
+   "id": "SeasonParserFixture/should_parse_full_season_release/20",
+   "line": 30,
+   "call": "parseTitle",
+   "input": "Series.Title.S01.576p.BluRay.DD5.1.x264-HiSD",
+   "expect": {
+    "seasonNumber": 1,
+    "seriesTitle": "Series Title",
+    "episodeNumbers": [],
+    "absoluteEpisodeNumbers": [],
+    "fullSeason": true
+   }
+  },
+  {
+   "id": "SeasonParserFixture/should_parse_full_season_release/21",
+   "line": 31,
+   "call": "parseTitle",
+   "input": "Series.Stagione.3.HDTV.XviD-NOTAG",
+   "expect": {
+    "seasonNumber": 3,
+    "seriesTitle": "Series",
+    "episodeNumbers": [],
+    "absoluteEpisodeNumbers": [],
+    "fullSeason": true
+   }
+  },
+  {
+   "id": "SeasonParserFixture/should_parse_full_season_release/22",
+   "line": 32,
+   "call": "parseTitle",
+   "input": "Series.Stagione.3.HDTV.XviD-NOTAG",
+   "expect": {
+    "seasonNumber": 3,
+    "seriesTitle": "Series",
+    "episodeNumbers": [],
+    "absoluteEpisodeNumbers": [],
+    "fullSeason": true
+   }
+  },
+  {
+   "id": "SeasonParserFixture/should_parse_full_season_release/23",
+   "line": 33,
+   "call": "parseTitle",
+   "input": "Series No More S01 2023 1080p WEB-DL AVC AC3 2.0 Dual Audio -ZR-",
+   "expect": {
+    "seasonNumber": 1,
+    "seriesTitle": "Series No More",
+    "episodeNumbers": [],
+    "absoluteEpisodeNumbers": [],
+    "fullSeason": true
+   }
+  },
+  {
+   "id": "SeasonParserFixture/should_parse_full_season_release/24",
+   "line": 34,
+   "call": "parseTitle",
+   "input": "Series Title / S1E1-8 of 8 [2024, WEB-DL 1080p] + Original + RUS",
+   "expect": {
+    "seasonNumber": 1,
+    "seriesTitle": "Series Title",
+    "episodeNumbers": [],
+    "absoluteEpisodeNumbers": [],
+    "fullSeason": true
+   }
+  },
+  {
+   "id": "SeasonParserFixture/should_parse_full_season_release/25",
+   "line": 35,
+   "call": "parseTitle",
+   "input": "Series Title / S2E1-16 of 16 [2022, WEB-DL] RUS",
+   "expect": {
+    "seasonNumber": 2,
+    "seriesTitle": "Series Title",
+    "episodeNumbers": [],
+    "absoluteEpisodeNumbers": [],
+    "fullSeason": true
+   }
+  },
+  {
+   "id": "SeasonParserFixture/should_parse_full_season_release/26",
+   "line": 36,
+   "call": "parseTitle",
+   "input": "[hchcsen] Mobile Series 00 S01 [BD Remux Dual Audio 1080p AVC 2xFLAC] (Kidou Senshi Gundam 00 Season 1)",
+   "expect": {
+    "seasonNumber": 1,
+    "seriesTitle": "Mobile Series 00",
+    "episodeNumbers": [],
+    "absoluteEpisodeNumbers": [],
+    "fullSeason": true
+   }
+  },
+  {
+   "id": "SeasonParserFixture/should_parse_full_season_release/27",
+   "line": 37,
+   "call": "parseTitle",
+   "input": "[HorribleRips] Mobile Series 00 S1 [1080p]",
+   "expect": {
+    "seasonNumber": 1,
+    "seriesTitle": "Mobile Series 00",
+    "episodeNumbers": [],
+    "absoluteEpisodeNumbers": [],
+    "fullSeason": true
+   }
+  },
+  {
+   "id": "SeasonParserFixture/should_parse_full_season_release/28",
+   "line": 38,
+   "call": "parseTitle",
+   "input": "[Zoombie] Series 100: Bucket List S01 [Web][MKV][h265 10-bit][1080p][AC3 2.0][Softsubs (Zoombie)]",
+   "expect": {
+    "seasonNumber": 1,
+    "seriesTitle": "Series 100: Bucket List",
+    "episodeNumbers": [],
+    "absoluteEpisodeNumbers": [],
+    "fullSeason": true
+   }
+  },
+  {
+   "id": "SeasonParserFixture/should_parse_full_season_release/29",
+   "line": 39,
+   "call": "parseTitle",
+   "input": "Seriesless (2016/S01/WEB-DL/1080p/AC3 5.1/DUAL/SUB)",
+   "expect": {
+    "seasonNumber": 1,
+    "seriesTitle": "Seriesless (2016)",
+    "episodeNumbers": [],
+    "absoluteEpisodeNumbers": [],
+    "fullSeason": true
+   }
+  },
+  {
+   "id": "SeasonParserFixture/should_parse_season_extras/0",
+   "line": 50,
+   "call": "parseTitle",
+   "input": "Acropolis Series S05 EXTRAS DVDRip XviD RUNNER",
+   "expect": {
+    "seasonNumber": 5,
+    "seriesTitle": "Acropolis Series",
+    "episodeNumbers": [],
+    "absoluteEpisodeNumbers": [],
+    "fullSeason": true,
+    "isSeasonExtra": true
+   }
+  },
+  {
+   "id": "SeasonParserFixture/should_parse_season_extras/1",
+   "line": 51,
+   "call": "parseTitle",
+   "input": "Punky Series S01 EXTRAS DVDRip XviD RUNNER",
+   "expect": {
+    "seasonNumber": 1,
+    "seriesTitle": "Punky Series",
+    "episodeNumbers": [],
+    "absoluteEpisodeNumbers": [],
+    "fullSeason": true,
+    "isSeasonExtra": true
+   }
+  },
+  {
+   "id": "SeasonParserFixture/should_parse_season_extras/2",
+   "line": 52,
+   "call": "parseTitle",
+   "input": "Instant Series S03 EXTRAS DVDRip XviD OSiTV",
+   "expect": {
+    "seasonNumber": 3,
+    "seriesTitle": "Instant Series",
+    "episodeNumbers": [],
+    "absoluteEpisodeNumbers": [],
+    "fullSeason": true,
+    "isSeasonExtra": true
+   }
+  },
+  {
+   "id": "SeasonParserFixture/should_parse_season_extras/3",
+   "line": 53,
+   "call": "parseTitle",
+   "input": "The.Series.S03.Extras.01.Deleted.Scenes.720p",
+   "expect": {
+    "seasonNumber": 3,
+    "seriesTitle": "The Series",
+    "episodeNumbers": [],
+    "absoluteEpisodeNumbers": [],
+    "fullSeason": true,
+    "isSeasonExtra": true
+   }
+  },
+  {
+   "id": "SeasonParserFixture/should_parse_season_extras/4",
+   "line": 54,
+   "call": "parseTitle",
+   "input": "The.Series.S03.Extras.02.720p",
+   "expect": {
+    "seasonNumber": 3,
+    "seriesTitle": "The Series",
+    "episodeNumbers": [],
+    "absoluteEpisodeNumbers": [],
+    "fullSeason": true,
+    "isSeasonExtra": true
+   }
+  },
+  {
+   "id": "SeasonParserFixture/should_parse_season_subpack/0",
+   "line": 66,
+   "call": "parseTitle",
+   "input": "Series.to.Me.S03.SUBPACK.DVDRip.XviD-REWARD",
+   "expect": {
+    "seasonNumber": 3,
+    "seriesTitle": "Series to Me",
+    "episodeNumbers": [],
+    "absoluteEpisodeNumbers": [],
+    "fullSeason": true,
+    "isSeasonExtra": true
+   }
+  },
+  {
+   "id": "SeasonParserFixture/should_parse_season_subpack/1",
+   "line": 67,
+   "call": "parseTitle",
+   "input": "The.Series.S02.SUBPACK.DVDRip.XviD-REWARD",
+   "expect": {
+    "seasonNumber": 2,
+    "seriesTitle": "The Series",
+    "episodeNumbers": [],
+    "absoluteEpisodeNumbers": [],
+    "fullSeason": true,
+    "isSeasonExtra": true
+   }
+  },
+  {
+   "id": "SeasonParserFixture/should_parse_season_subpack/2",
+   "line": 68,
+   "call": "parseTitle",
+   "input": "Series.S11.SUBPACK.DVDRip.XviD-REWARD",
+   "expect": {
+    "seasonNumber": 11,
+    "seriesTitle": "Series",
+    "episodeNumbers": [],
+    "absoluteEpisodeNumbers": [],
+    "fullSeason": true,
+    "isSeasonExtra": true
+   }
+  },
+  {
+   "id": "SeasonParserFixture/should_parse_partial_season_release/0",
+   "line": 80,
+   "call": "parseTitle",
+   "input": "The.Series.2016.S02.Part.1.1080p.NF.WEBRip.DD5.1.x264-NTb",
+   "expect": {
+    "seasonNumber": 2,
+    "seriesTitle": "The Series 2016",
+    "episodeNumbers": [],
+    "absoluteEpisodeNumbers": [],
+    "fullSeason": false,
+    "isPartialSeason": true,
+    "seasonPart": 1
+   }
+  },
+  {
+   "id": "SeasonParserFixture/should_parse_partial_season_release/1",
+   "line": 81,
+   "call": "parseTitle",
+   "input": "The.Series.S07.Vol.1.1080p.NF.WEBRip.DD5.1.x264-NTb",
+   "expect": {
+    "seasonNumber": 7,
+    "seriesTitle": "The Series",
+    "episodeNumbers": [],
+    "absoluteEpisodeNumbers": [],
+    "fullSeason": false,
+    "isPartialSeason": true,
+    "seasonPart": 1
+   }
+  },
+  {
+   "id": "SeasonParserFixture/should_parse_partial_season_release/2",
+   "line": 82,
+   "call": "parseTitle",
+   "input": "The.Series.S06.P1.1080p.Blu-Ray.10-Bit.Dual-Audio.TrueHD.x265-iAHD",
+   "expect": {
+    "seasonNumber": 6,
+    "seriesTitle": "The Series",
+    "episodeNumbers": [],
+    "absoluteEpisodeNumbers": [],
+    "fullSeason": false,
+    "isPartialSeason": true,
+    "seasonPart": 1
+   }
+  },
+  {
+   "id": "SeasonParserFixture/should_parse_multi_season_release/0",
+   "line": 95,
+   "call": "parseTitle",
+   "input": "The Series S01-05 WS BDRip X264-REWARD-No Rars",
+   "expect": {
+    "seasonNumber": 1,
+    "seriesTitle": "The Series",
+    "episodeNumbers": [],
+    "absoluteEpisodeNumbers": [],
+    "fullSeason": true,
+    "isPartialSeason": false,
+    "isMultiSeason": true
+   }
+  },
+  {
+   "id": "SeasonParserFixture/should_parse_multi_season_release/1",
+   "line": 96,
+   "call": "parseTitle",
+   "input": "Series.Title.S01-S09.1080p.AMZN.WEB-DL.DDP2.0.H.264-NTb",
+   "expect": {
+    "seasonNumber": 1,
+    "seriesTitle": "Series Title",
+    "episodeNumbers": [],
+    "absoluteEpisodeNumbers": [],
+    "fullSeason": true,
+    "isPartialSeason": false,
+    "isMultiSeason": true
+   }
+  },
+  {
+   "id": "SeasonParserFixture/should_parse_multi_season_release/2",
+   "line": 97,
+   "call": "parseTitle",
+   "input": "Series Title S01 - S07 BluRay 1080p x264 REPACK -SacReD",
+   "expect": {
+    "seasonNumber": 1,
+    "seriesTitle": "Series Title",
+    "episodeNumbers": [],
+    "absoluteEpisodeNumbers": [],
+    "fullSeason": true,
+    "isPartialSeason": false,
+    "isMultiSeason": true
+   }
+  },
+  {
+   "id": "SeasonParserFixture/should_parse_multi_season_release/3",
+   "line": 98,
+   "call": "parseTitle",
+   "input": "Series Title Season 01-07 BluRay 1080p x264 REPACK -SacReD",
+   "expect": {
+    "seasonNumber": 1,
+    "seriesTitle": "Series Title",
+    "episodeNumbers": [],
+    "absoluteEpisodeNumbers": [],
+    "fullSeason": true,
+    "isPartialSeason": false,
+    "isMultiSeason": true
+   }
+  },
+  {
+   "id": "SeasonParserFixture/should_parse_multi_season_release/4",
+   "line": 99,
+   "call": "parseTitle",
+   "input": "Series Title Season 01 - Season 07 BluRay 1080p x264 REPACK -SacReD",
+   "expect": {
+    "seasonNumber": 1,
+    "seriesTitle": "Series Title",
+    "episodeNumbers": [],
+    "absoluteEpisodeNumbers": [],
+    "fullSeason": true,
+    "isPartialSeason": false,
+    "isMultiSeason": true
+   }
+  },
+  {
+   "id": "SeasonParserFixture/should_parse_multi_season_release/5",
+   "line": 100,
+   "call": "parseTitle",
+   "input": "Series Title Complete Series S01 S04 (1080p BluRay x265 HEVC 10bit AAC 5.1 Vyndros)",
+   "expect": {
+    "seasonNumber": 1,
+    "seriesTitle": "Series Title",
+    "episodeNumbers": [],
+    "absoluteEpisodeNumbers": [],
+    "fullSeason": true,
+    "isPartialSeason": false,
+    "isMultiSeason": true
+   }
+  },
+  {
+   "id": "SeasonParserFixture/should_parse_multi_season_release/6",
+   "line": 101,
+   "call": "parseTitle",
+   "input": "Series Title S01 S04 (1080p BluRay x265 HEVC 10bit AAC 5.1 Vyndros)",
+   "expect": {
+    "seasonNumber": 1,
+    "seriesTitle": "Series Title",
+    "episodeNumbers": [],
+    "absoluteEpisodeNumbers": [],
+    "fullSeason": true,
+    "isPartialSeason": false,
+    "isMultiSeason": true
+   }
+  },
+  {
+   "id": "SeasonParserFixture/should_parse_multi_season_release/7",
+   "line": 102,
+   "call": "parseTitle",
+   "input": "Series Title S01 04 (1080p BluRay x265 HEVC 10bit AAC 5.1 Vyndros)",
+   "expect": {
+    "seasonNumber": 1,
+    "seriesTitle": "Series Title",
+    "episodeNumbers": [],
+    "absoluteEpisodeNumbers": [],
+    "fullSeason": true,
+    "isPartialSeason": false,
+    "isMultiSeason": true
+   }
+  },
+  {
+   "id": "SeasonParserFixture/should_not_parse_season_folders/0",
+   "line": 116,
+   "call": "parseTitle",
+   "input": "Season 3",
+   "expect": {
+    "": null
+   }
+  }
+ ]
+}

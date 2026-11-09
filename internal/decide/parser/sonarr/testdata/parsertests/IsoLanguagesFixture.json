@@ -1,0 +1,123 @@
+{
+ "source": "Sonarr src/NzbDrone.Core.Test/ParserTests/IsoLanguagesFixture.cs @ cab419a",
+ "fixture": "IsoLanguagesFixture",
+ "cases": [
+  {
+   "id": "IsoLanguagesFixture/should_return_iso_language_for_English/0",
+   "line": 12,
+   "call": "findIsoLanguage",
+   "input": "en",
+   "expect": {
+    "language.name": "English"
+   }
+  },
+  {
+   "id": "IsoLanguagesFixture/should_return_iso_language_for_English/1",
+   "line": 13,
+   "call": "findIsoLanguage",
+   "input": "eng",
+   "expect": {
+    "language.name": "English"
+   }
+  },
+  {
+   "id": "IsoLanguagesFixture/should_return_iso_language_for_English/2",
+   "line": 14,
+   "call": "findIsoLanguage",
+   "input": "en-US",
+   "expect": {
+    "language.name": "English"
+   }
+  },
+  {
+   "id": "IsoLanguagesFixture/should_return_iso_language_for_English/3",
+   "line": 15,
+   "call": "findIsoLanguage",
+   "input": "en-GB",
+   "expect": {
+    "language.name": "English"
+   }
+  },
+  {
+   "id": "IsoLanguagesFixture/unknown_or_invalid_code_should_return_null/0",
+   "line": 22,
+   "call": "findIsoLanguage",
+   "input": "enus",
+   "expect": {
+    "": null
+   }
+  },
+  {
+   "id": "IsoLanguagesFixture/unknown_or_invalid_code_should_return_null/1",
+   "line": 23,
+   "call": "findIsoLanguage",
+   "input": "enusa",
+   "expect": {
+    "": null
+   }
+  },
+  {
+   "id": "IsoLanguagesFixture/unknown_or_invalid_code_should_return_null/2",
+   "line": 24,
+   "call": "findIsoLanguage",
+   "input": "wo",
+   "expect": {
+    "": null
+   }
+  },
+  {
+   "id": "IsoLanguagesFixture/unknown_or_invalid_code_should_return_null/3",
+   "line": 25,
+   "call": "findIsoLanguage",
+   "input": "fr-CA",
+   "expect": {
+    "": null
+   }
+  },
+  {
+   "id": "IsoLanguagesFixture/should_return_portuguese/0",
+   "line": 32,
+   "call": "findIsoLanguage",
+   "input": "pt",
+   "expect": {
+    "language.name": "Portuguese"
+   }
+  },
+  {
+   "id": "IsoLanguagesFixture/should_return_portuguese/1",
+   "line": 33,
+   "call": "findIsoLanguage",
+   "input": "por",
+   "expect": {
+    "language.name": "Portuguese"
+   }
+  },
+  {
+   "id": "IsoLanguagesFixture/should_return_portuguese/2",
+   "line": 34,
+   "call": "findIsoLanguage",
+   "input": "pt-PT",
+   "expect": {
+    "language.name": "Portuguese"
+   }
+  },
+  {
+   "id": "IsoLanguagesFixture/should_not_return_portuguese/0",
+   "line": 41,
+   "call": "findIsoLanguage",
+   "input": "de-AU",
+   "expect": {
+    "": null
+   }
+  },
+  {
+   "id": "IsoLanguagesFixture/should_lookup_cze_via_alternate_iso_code_mapping/0",
+   "line": 48,
+   "call": "findIsoLanguage",
+   "input": "cze",
+   "expect": {
+    "language.name": "Czech"
+   }
+  }
+ ]
+}

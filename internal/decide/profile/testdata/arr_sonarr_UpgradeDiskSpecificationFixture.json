@@ -1,0 +1,938 @@
+{
+ "source": "Sonarr src/NzbDrone.Core.Test/DecisionEngineTests/UpgradeDiskSpecificationFixture.cs @ cab419a",
+ "cases": [
+  {
+   "test": "should_return_true_if_episode_has_no_existing_file",
+   "spec": "UpgradeDisk",
+   "profile": {
+    "upgradeAllowed": true,
+    "cutoff": "Bluray-1080p",
+    "formatItems": []
+   },
+   "release": {
+    "quality": {
+     "quality": "DVD",
+     "version": 2
+    },
+    "languages": [
+     "English"
+    ],
+    "formats": []
+   },
+   "episodes": [
+    {
+     "season": 0,
+     "episode": 0
+    },
+    {
+     "season": 0,
+     "episode": 0
+    }
+   ],
+   "expect": {
+    "accepted": true
+   },
+   "flavour": "sonarr",
+   "fixture": "UpgradeDiskSpecificationFixture"
+  },
+  {
+   "test": "should_return_true_if_single_episode_doesnt_exist_on_disk",
+   "spec": "UpgradeDisk",
+   "profile": {
+    "upgradeAllowed": true,
+    "cutoff": "Bluray-1080p",
+    "formatItems": []
+   },
+   "release": {
+    "quality": {
+     "quality": "DVD",
+     "version": 2
+    },
+    "languages": [
+     "English"
+    ],
+    "formats": []
+   },
+   "episodes": [],
+   "expect": {
+    "accepted": true
+   },
+   "flavour": "sonarr",
+   "fixture": "UpgradeDiskSpecificationFixture"
+  },
+  {
+   "test": "should_be_upgradable_if_only_episode_is_upgradable",
+   "spec": "UpgradeDisk",
+   "profile": {
+    "upgradeAllowed": true,
+    "cutoff": "Bluray-1080p",
+    "formatItems": []
+   },
+   "release": {
+    "quality": {
+     "quality": "DVD",
+     "version": 2
+    },
+    "languages": [
+     "English"
+    ],
+    "formats": []
+   },
+   "episodes": [
+    {
+     "season": 0,
+     "episode": 0,
+     "file": {
+      "quality": {
+       "quality": "SDTV"
+      },
+      "formats": []
+     }
+    },
+    {
+     "season": 0,
+     "episode": 0
+    }
+   ],
+   "expect": {
+    "accepted": true
+   },
+   "flavour": "sonarr",
+   "fixture": "UpgradeDiskSpecificationFixture"
+  },
+  {
+   "test": "should_be_upgradable_if_both_episodes_are_upgradable",
+   "spec": "UpgradeDisk",
+   "profile": {
+    "upgradeAllowed": true,
+    "cutoff": "Bluray-1080p",
+    "formatItems": []
+   },
+   "release": {
+    "quality": {
+     "quality": "DVD",
+     "version": 2
+    },
+    "languages": [
+     "English"
+    ],
+    "formats": []
+   },
+   "episodes": [
+    {
+     "season": 0,
+     "episode": 0,
+     "file": {
+      "quality": {
+       "quality": "SDTV"
+      },
+      "formats": []
+     }
+    },
+    {
+     "season": 0,
+     "episode": 0,
+     "file": {
+      "quality": {
+       "quality": "SDTV"
+      },
+      "formats": []
+     }
+    },
+    {
+     "season": 0,
+     "episode": 0
+    }
+   ],
+   "expect": {
+    "accepted": true
+   },
+   "flavour": "sonarr",
+   "fixture": "UpgradeDiskSpecificationFixture"
+  },
+  {
+   "test": "should_be_not_upgradable_if_both_episodes_are_not_upgradable",
+   "spec": "UpgradeDisk",
+   "profile": {
+    "upgradeAllowed": true,
+    "cutoff": "Bluray-1080p",
+    "formatItems": []
+   },
+   "release": {
+    "quality": {
+     "quality": "DVD",
+     "version": 2
+    },
+    "languages": [
+     "English"
+    ],
+    "formats": []
+   },
+   "episodes": [
+    {
+     "season": 0,
+     "episode": 0,
+     "file": {
+      "quality": {
+       "quality": "Bluray-1080p",
+       "version": 2
+      },
+      "formats": []
+     }
+    },
+    {
+     "season": 0,
+     "episode": 0,
+     "file": {
+      "quality": {
+       "quality": "Bluray-1080p",
+       "version": 2
+      },
+      "formats": []
+     }
+    },
+    {
+     "season": 0,
+     "episode": 0
+    }
+   ],
+   "expect": {
+    "accepted": false
+   },
+   "flavour": "sonarr",
+   "fixture": "UpgradeDiskSpecificationFixture"
+  },
+  {
+   "test": "should_be_not_upgradable_if_only_first_episodes_is_upgradable",
+   "spec": "UpgradeDisk",
+   "profile": {
+    "upgradeAllowed": true,
+    "cutoff": "Bluray-1080p",
+    "formatItems": []
+   },
+   "release": {
+    "quality": {
+     "quality": "DVD",
+     "version": 2
+    },
+    "languages": [
+     "English"
+    ],
+    "formats": []
+   },
+   "episodes": [
+    {
+     "season": 0,
+     "episode": 0,
+     "file": {
+      "quality": {
+       "quality": "SDTV"
+      },
+      "formats": []
+     }
+    },
+    {
+     "season": 0,
+     "episode": 0,
+     "file": {
+      "quality": {
+       "quality": "Bluray-1080p",
+       "version": 2
+      },
+      "formats": []
+     }
+    },
+    {
+     "season": 0,
+     "episode": 0
+    }
+   ],
+   "expect": {
+    "accepted": false
+   },
+   "flavour": "sonarr",
+   "fixture": "UpgradeDiskSpecificationFixture"
+  },
+  {
+   "test": "should_be_not_upgradable_if_only_second_episodes_is_upgradable",
+   "spec": "UpgradeDisk",
+   "profile": {
+    "upgradeAllowed": true,
+    "cutoff": "Bluray-1080p",
+    "formatItems": []
+   },
+   "release": {
+    "quality": {
+     "quality": "DVD",
+     "version": 2
+    },
+    "languages": [
+     "English"
+    ],
+    "formats": []
+   },
+   "episodes": [
+    {
+     "season": 0,
+     "episode": 0,
+     "file": {
+      "quality": {
+       "quality": "Bluray-1080p",
+       "version": 2
+      },
+      "formats": []
+     }
+    },
+    {
+     "season": 0,
+     "episode": 0,
+     "file": {
+      "quality": {
+       "quality": "SDTV"
+      },
+      "formats": []
+     }
+    },
+    {
+     "season": 0,
+     "episode": 0
+    }
+   ],
+   "expect": {
+    "accepted": false
+   },
+   "flavour": "sonarr",
+   "fixture": "UpgradeDiskSpecificationFixture"
+  },
+  {
+   "test": "should_not_be_upgradable_if_qualities_are_the_same",
+   "spec": "UpgradeDisk",
+   "profile": {
+    "upgradeAllowed": true,
+    "cutoff": "Bluray-1080p",
+    "formatItems": []
+   },
+   "release": {
+    "quality": {
+     "quality": "WEBDL-1080p"
+    },
+    "languages": [
+     "English"
+    ],
+    "formats": []
+   },
+   "episodes": [
+    {
+     "season": 0,
+     "episode": 0,
+     "file": {
+      "quality": {
+       "quality": "WEBDL-1080p"
+      },
+      "formats": []
+     }
+    },
+    {
+     "season": 0,
+     "episode": 0
+    }
+   ],
+   "expect": {
+    "accepted": false
+   },
+   "flavour": "sonarr",
+   "fixture": "UpgradeDiskSpecificationFixture"
+  },
+  {
+   "test": "should_not_be_upgradable_if_revision_downgrade_and_preferred_word_upgrade_if_propers_are_preferred",
+   "spec": "UpgradeDisk",
+   "profile": {
+    "upgradeAllowed": true,
+    "cutoff": "Bluray-1080p",
+    "formatItems": []
+   },
+   "release": {
+    "quality": {
+     "quality": "WEBDL-1080p"
+    },
+    "languages": [
+     "English"
+    ],
+    "formats": [],
+    "formatScore": 10
+   },
+   "episodes": [
+    {
+     "season": 0,
+     "episode": 0,
+     "file": {
+      "quality": {
+       "quality": "WEBDL-1080p",
+       "version": 2
+      },
+      "formats": []
+     }
+    },
+    {
+     "season": 0,
+     "episode": 0
+    }
+   ],
+   "expect": {
+    "accepted": false
+   },
+   "flavour": "sonarr",
+   "fixture": "UpgradeDiskSpecificationFixture"
+  },
+  {
+   "test": "should_return_false_if_current_episode_is_equal_to_cutoff",
+   "spec": "UpgradeDisk",
+   "profile": {
+    "cutoff": "HDTV-720p",
+    "upgradeAllowed": true,
+    "formatItems": []
+   },
+   "release": {
+    "quality": {
+     "quality": "DVD",
+     "version": 2
+    },
+    "languages": [
+     "English"
+    ],
+    "formats": []
+   },
+   "episodes": [
+    {
+     "season": 0,
+     "episode": 0,
+     "file": {
+      "quality": {
+       "quality": "HDTV-720p",
+       "version": 2
+      },
+      "formats": []
+     }
+    },
+    {
+     "season": 0,
+     "episode": 0
+    }
+   ],
+   "expect": {
+    "accepted": false
+   },
+   "flavour": "sonarr",
+   "fixture": "UpgradeDiskSpecificationFixture"
+  },
+  {
+   "test": "should_return_false_if_current_episode_is_greater_than_cutoff",
+   "spec": "UpgradeDisk",
+   "profile": {
+    "cutoff": "HDTV-720p",
+    "upgradeAllowed": true,
+    "formatItems": []
+   },
+   "release": {
+    "quality": {
+     "quality": "DVD",
+     "version": 2
+    },
+    "languages": [
+     "English"
+    ],
+    "formats": []
+   },
+   "episodes": [
+    {
+     "season": 0,
+     "episode": 0,
+     "file": {
+      "quality": {
+       "quality": "Bluray-1080p",
+       "version": 2
+      },
+      "formats": []
+     }
+    },
+    {
+     "season": 0,
+     "episode": 0
+    }
+   ],
+   "expect": {
+    "accepted": false
+   },
+   "flavour": "sonarr",
+   "fixture": "UpgradeDiskSpecificationFixture"
+  },
+  {
+   "test": "should_return_true_when_new_episode_is_proper_but_existing_is_not",
+   "spec": "UpgradeDisk",
+   "profile": {
+    "cutoff": "HDTV-720p",
+    "upgradeAllowed": true,
+    "formatItems": []
+   },
+   "release": {
+    "quality": {
+     "quality": "HDTV-720p",
+     "version": 2
+    },
+    "languages": [
+     "English"
+    ],
+    "formats": []
+   },
+   "episodes": [
+    {
+     "season": 0,
+     "episode": 0,
+     "file": {
+      "quality": {
+       "quality": "HDTV-720p",
+       "version": 1
+      },
+      "formats": []
+     }
+    },
+    {
+     "season": 0,
+     "episode": 0
+    }
+   ],
+   "expect": {
+    "accepted": true
+   },
+   "flavour": "sonarr",
+   "fixture": "UpgradeDiskSpecificationFixture"
+  },
+  {
+   "test": "should_return_false_if_cutoff_is_met_and_quality_is_higher",
+   "spec": "UpgradeDisk",
+   "profile": {
+    "cutoff": "HDTV-720p",
+    "upgradeAllowed": true,
+    "formatItems": []
+   },
+   "release": {
+    "quality": {
+     "quality": "Bluray-1080p",
+     "version": 2
+    },
+    "languages": [
+     "English"
+    ],
+    "formats": []
+   },
+   "episodes": [
+    {
+     "season": 0,
+     "episode": 0,
+     "file": {
+      "quality": {
+       "quality": "HDTV-720p",
+       "version": 2
+      },
+      "formats": []
+     }
+    },
+    {
+     "season": 0,
+     "episode": 0
+    }
+   ],
+   "expect": {
+    "accepted": false
+   },
+   "flavour": "sonarr",
+   "fixture": "UpgradeDiskSpecificationFixture"
+  },
+  {
+   "test": "should_return_false_if_quality_cutoff_is_met_and_quality_is_higher_but_language_is_met",
+   "spec": "UpgradeDisk",
+   "profile": {
+    "cutoff": "HDTV-720p",
+    "upgradeAllowed": true,
+    "formatItems": []
+   },
+   "release": {
+    "quality": {
+     "quality": "Bluray-1080p",
+     "version": 2
+    },
+    "languages": [
+     "English"
+    ],
+    "formats": []
+   },
+   "episodes": [
+    {
+     "season": 0,
+     "episode": 0,
+     "file": {
+      "quality": {
+       "quality": "HDTV-720p",
+       "version": 2
+      },
+      "formats": []
+     }
+    },
+    {
+     "season": 0,
+     "episode": 0
+    }
+   ],
+   "expect": {
+    "accepted": false
+   },
+   "flavour": "sonarr",
+   "fixture": "UpgradeDiskSpecificationFixture"
+  },
+  {
+   "test": "should_return_false_if_cutoff_is_met_and_quality_is_higher_and_language_is_higher",
+   "spec": "UpgradeDisk",
+   "profile": {
+    "cutoff": "HDTV-720p",
+    "upgradeAllowed": true,
+    "formatItems": []
+   },
+   "release": {
+    "quality": {
+     "quality": "Bluray-1080p",
+     "version": 2
+    },
+    "languages": [
+     "English"
+    ],
+    "formats": []
+   },
+   "episodes": [
+    {
+     "season": 0,
+     "episode": 0,
+     "file": {
+      "quality": {
+       "quality": "HDTV-720p",
+       "version": 2
+      },
+      "formats": []
+     }
+    },
+    {
+     "season": 0,
+     "episode": 0
+    }
+   ],
+   "expect": {
+    "accepted": false
+   },
+   "flavour": "sonarr",
+   "fixture": "UpgradeDiskSpecificationFixture"
+  },
+  {
+   "test": "should_return_true_if_cutoff_is_not_met_and_new_quality_is_higher_and_language_is_higher",
+   "spec": "UpgradeDisk",
+   "profile": {
+    "cutoff": "HDTV-720p",
+    "upgradeAllowed": true,
+    "formatItems": []
+   },
+   "release": {
+    "quality": {
+     "quality": "Bluray-1080p",
+     "version": 2
+    },
+    "languages": [
+     "English"
+    ],
+    "formats": []
+   },
+   "episodes": [
+    {
+     "season": 0,
+     "episode": 0,
+     "file": {
+      "quality": {
+       "quality": "SDTV",
+       "version": 2
+      },
+      "formats": []
+     }
+    },
+    {
+     "season": 0,
+     "episode": 0
+    }
+   ],
+   "expect": {
+    "accepted": true
+   },
+   "flavour": "sonarr",
+   "fixture": "UpgradeDiskSpecificationFixture"
+  },
+  {
+   "test": "should_return_true_if_cutoff_is_not_met_and_language_is_higher",
+   "spec": "UpgradeDisk",
+   "profile": {
+    "cutoff": "HDTV-720p",
+    "upgradeAllowed": true,
+    "formatItems": []
+   },
+   "release": {
+    "quality": {
+     "quality": "DVD",
+     "version": 2
+    },
+    "languages": [
+     "English"
+    ],
+    "formats": []
+   },
+   "episodes": [
+    {
+     "season": 0,
+     "episode": 0,
+     "file": {
+      "quality": {
+       "quality": "SDTV",
+       "version": 2
+      },
+      "formats": []
+     }
+    },
+    {
+     "season": 0,
+     "episode": 0
+    }
+   ],
+   "expect": {
+    "accepted": true
+   },
+   "flavour": "sonarr",
+   "fixture": "UpgradeDiskSpecificationFixture"
+  },
+  {
+   "test": "should_return_false_if_custom_formats_is_met_and_quality_and_format_higher",
+   "spec": "UpgradeDisk",
+   "profile": {
+    "cutoff": "HDTV-720p",
+    "upgradeAllowed": true,
+    "formatItems": []
+   },
+   "release": {
+    "quality": {
+     "quality": "Bluray-1080p"
+    },
+    "languages": [
+     "English"
+    ],
+    "formats": [
+     "My Format"
+    ]
+   },
+   "episodes": [
+    {
+     "season": 0,
+     "episode": 0,
+     "file": {
+      "quality": {
+       "quality": "HDTV-720p"
+      },
+      "formats": []
+     }
+    },
+    {
+     "season": 0,
+     "episode": 0
+    }
+   ],
+   "expect": {
+    "accepted": false
+   },
+   "flavour": "sonarr",
+   "fixture": "UpgradeDiskSpecificationFixture"
+  },
+  {
+   "test": "should_return_true_if_cutoffs_are_met_but_is_a_revision_upgrade",
+   "spec": "UpgradeDisk",
+   "profile": {
+    "cutoff": "HDTV-1080p",
+    "upgradeAllowed": true,
+    "formatItems": []
+   },
+   "release": {
+    "quality": {
+     "quality": "WEBDL-1080p",
+     "version": 2
+    },
+    "languages": [
+     "English"
+    ],
+    "formats": []
+   },
+   "episodes": [
+    {
+     "season": 0,
+     "episode": 0,
+     "file": {
+      "quality": {
+       "quality": "WEBDL-1080p",
+       "version": 1
+      },
+      "formats": []
+     }
+    },
+    {
+     "season": 0,
+     "episode": 0
+    }
+   ],
+   "expect": {
+    "accepted": true
+   },
+   "flavour": "sonarr",
+   "fixture": "UpgradeDiskSpecificationFixture"
+  },
+  {
+   "test": "should_return_false_if_quality_profile_does_not_allow_upgrades_but_cutoff_is_set_to_highest_quality",
+   "spec": "UpgradeDisk",
+   "profile": {
+    "cutoff": "Raw-HD",
+    "upgradeAllowed": false,
+    "formatItems": []
+   },
+   "release": {
+    "quality": {
+     "quality": "Bluray-1080p"
+    },
+    "languages": [
+     "English"
+    ],
+    "formats": []
+   },
+   "episodes": [
+    {
+     "season": 0,
+     "episode": 0,
+     "file": {
+      "quality": {
+       "quality": "WEBDL-1080p"
+      },
+      "formats": []
+     }
+    },
+    {
+     "season": 0,
+     "episode": 0
+    }
+   ],
+   "expect": {
+    "accepted": false
+   },
+   "flavour": "sonarr",
+   "fixture": "UpgradeDiskSpecificationFixture"
+  },
+  {
+   "test": "should_return_false_if_quality_profile_does_not_allow_upgrades_but_format_cutoff_is_above_current_score",
+   "spec": "UpgradeDisk",
+   "profile": {
+    "cutoff": "SDTV",
+    "upgradeAllowed": false,
+    "minFormatScore": 0,
+    "cutoffFormatScore": 10000,
+    "formatItems": [
+     {
+      "name": "My Format",
+      "score": 50
+     }
+    ]
+   },
+   "release": {
+    "quality": {
+     "quality": "WEBDL-1080p"
+    },
+    "languages": [
+     "English"
+    ],
+    "formats": [
+     "My Format"
+    ]
+   },
+   "episodes": [
+    {
+     "season": 0,
+     "episode": 0,
+     "file": {
+      "quality": {
+       "quality": "WEBDL-1080p"
+      },
+      "formats": []
+     }
+    },
+    {
+     "season": 0,
+     "episode": 0
+    }
+   ],
+   "expect": {
+    "accepted": false
+   },
+   "flavour": "sonarr",
+   "fixture": "UpgradeDiskSpecificationFixture"
+  },
+  {
+   "test": "should_return_false_if_quality_profile_does_not_allow_upgrades_but_format_cutoff_is_above_current_score_and_is_revision_upgrade",
+   "spec": "UpgradeDisk",
+   "profile": {
+    "cutoff": "SDTV",
+    "upgradeAllowed": false,
+    "minFormatScore": 0,
+    "cutoffFormatScore": 10000,
+    "formatItems": [
+     {
+      "name": "My Format",
+      "score": 50
+     }
+    ]
+   },
+   "release": {
+    "quality": {
+     "quality": "WEBDL-1080p",
+     "version": 2
+    },
+    "languages": [
+     "English"
+    ],
+    "formats": [
+     "My Format"
+    ]
+   },
+   "episodes": [
+    {
+     "season": 0,
+     "episode": 0,
+     "file": {
+      "quality": {
+       "quality": "WEBDL-1080p",
+       "version": 1
+      },
+      "formats": []
+     }
+    },
+    {
+     "season": 0,
+     "episode": 0
+    }
+   ],
+   "expect": {
+    "accepted": false
+   },
+   "config": {
+    "propers": "doNotPrefer"
+   },
+   "flavour": "sonarr",
+   "fixture": "UpgradeDiskSpecificationFixture"
+  }
+ ]
+}

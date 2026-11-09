@@ -1,0 +1,190 @@
+{
+ "source": "Radarr src/NzbDrone.Core.Test/Profiles/Qualities/QualityIndexCompareToFixture.cs @ a96bf7c",
+ "cases": [
+  {
+   "fixture": "QualityIndexCompareToFixture",
+   "test": "should_match_expected_when_respect_group_order_is_true",
+   "args": "1, 0, 1, 0, 0",
+   "flavour": "radarr",
+   "spec": "QualityIndexCompare",
+   "left": {
+    "index": 1,
+    "groupIndex": 0
+   },
+   "right": {
+    "index": 1,
+    "groupIndex": 0
+   },
+   "expect": {
+    "compare": 0
+   },
+   "groupOrder": true
+  },
+  {
+   "fixture": "QualityIndexCompareToFixture",
+   "test": "should_match_expected_when_respect_group_order_is_true",
+   "args": "1, 1, 1, 0, 1",
+   "flavour": "radarr",
+   "spec": "QualityIndexCompare",
+   "left": {
+    "index": 1,
+    "groupIndex": 1
+   },
+   "right": {
+    "index": 1,
+    "groupIndex": 0
+   },
+   "expect": {
+    "compare": 1
+   },
+   "groupOrder": true
+  },
+  {
+   "fixture": "QualityIndexCompareToFixture",
+   "test": "should_match_expected_when_respect_group_order_is_true",
+   "args": "2, 0, 1, 0, 1",
+   "flavour": "radarr",
+   "spec": "QualityIndexCompare",
+   "left": {
+    "index": 2,
+    "groupIndex": 0
+   },
+   "right": {
+    "index": 1,
+    "groupIndex": 0
+   },
+   "expect": {
+    "compare": 1
+   },
+   "groupOrder": true
+  },
+  {
+   "fixture": "QualityIndexCompareToFixture",
+   "test": "should_match_expected_when_respect_group_order_is_true",
+   "args": "1, 0, 1, 1, -1",
+   "flavour": "radarr",
+   "spec": "QualityIndexCompare",
+   "left": {
+    "index": 1,
+    "groupIndex": 0
+   },
+   "right": {
+    "index": 1,
+    "groupIndex": 1
+   },
+   "expect": {
+    "compare": -1
+   },
+   "groupOrder": true
+  },
+  {
+   "fixture": "QualityIndexCompareToFixture",
+   "test": "should_match_expected_when_respect_group_order_is_true",
+   "args": "1, 0, 2, 0, -1",
+   "flavour": "radarr",
+   "spec": "QualityIndexCompare",
+   "left": {
+    "index": 1,
+    "groupIndex": 0
+   },
+   "right": {
+    "index": 2,
+    "groupIndex": 0
+   },
+   "expect": {
+    "compare": -1
+   },
+   "groupOrder": true
+  },
+  {
+   "fixture": "QualityIndexCompareToFixture",
+   "test": "should_match_expected_when_respect_group_order_is_false",
+   "args": "1, 0, 1, 0, 0",
+   "flavour": "radarr",
+   "spec": "QualityIndexCompare",
+   "left": {
+    "index": 1,
+    "groupIndex": 0
+   },
+   "right": {
+    "index": 1,
+    "groupIndex": 0
+   },
+   "expect": {
+    "compare": 0
+   }
+  },
+  {
+   "fixture": "QualityIndexCompareToFixture",
+   "test": "should_match_expected_when_respect_group_order_is_false",
+   "args": "1, 1, 1, 0, 0",
+   "flavour": "radarr",
+   "spec": "QualityIndexCompare",
+   "left": {
+    "index": 1,
+    "groupIndex": 1
+   },
+   "right": {
+    "index": 1,
+    "groupIndex": 0
+   },
+   "expect": {
+    "compare": 0
+   }
+  },
+  {
+   "fixture": "QualityIndexCompareToFixture",
+   "test": "should_match_expected_when_respect_group_order_is_false",
+   "args": "2, 0, 1, 0, 1",
+   "flavour": "radarr",
+   "spec": "QualityIndexCompare",
+   "left": {
+    "index": 2,
+    "groupIndex": 0
+   },
+   "right": {
+    "index": 1,
+    "groupIndex": 0
+   },
+   "expect": {
+    "compare": 1
+   }
+  },
+  {
+   "fixture": "QualityIndexCompareToFixture",
+   "test": "should_match_expected_when_respect_group_order_is_false",
+   "args": "1, 0, 1, 1, 0",
+   "flavour": "radarr",
+   "spec": "QualityIndexCompare",
+   "left": {
+    "index": 1,
+    "groupIndex": 0
+   },
+   "right": {
+    "index": 1,
+    "groupIndex": 1
+   },
+   "expect": {
+    "compare": 0
+   }
+  },
+  {
+   "fixture": "QualityIndexCompareToFixture",
+   "test": "should_match_expected_when_respect_group_order_is_false",
+   "args": "1, 0, 2, 0, -1",
+   "flavour": "radarr",
+   "spec": "QualityIndexCompare",
+   "left": {
+    "index": 1,
+    "groupIndex": 0
+   },
+   "right": {
+    "index": 2,
+    "groupIndex": 0
+   },
+   "expect": {
+    "compare": -1
+   }
+  }
+ ]
+}

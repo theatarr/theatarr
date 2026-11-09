@@ -1,0 +1,1942 @@
+{
+ "source": "Sonarr src/NzbDrone.Core.Test/DecisionEngineTests/AcceptableSizeSpecificationFixture.cs @ cab419a",
+ "cases": [
+  {
+   "test": "single_episode",
+   "spec": "AcceptableSize",
+   "args": "30, 50, false",
+   "definitions": [
+    {
+     "quality": "SDTV",
+     "min": 2,
+     "max": 10,
+     "preferred": 1
+    }
+   ],
+   "media": {
+    "title": "Title1",
+    "runtime": 30,
+    "pilot": {
+     "season": 1,
+     "episode": 1,
+     "runtime": 30,
+     "airDateHours": 0
+    }
+   },
+   "release": {
+    "title": "",
+    "size": 52428800,
+    "quality": {
+     "quality": "SDTV",
+     "version": 2
+    }
+   },
+   "episodes": [
+    {
+     "season": 1,
+     "episode": 1,
+     "runtime": 30,
+     "airDateHours": 0
+    }
+   ],
+   "expect": {
+    "accepted": false
+   },
+   "flavour": "sonarr",
+   "fixture": "AcceptableSizeSpecificationFixture"
+  },
+  {
+   "test": "single_episode",
+   "spec": "AcceptableSize",
+   "args": "30, 250, true",
+   "definitions": [
+    {
+     "quality": "SDTV",
+     "min": 2,
+     "max": 10,
+     "preferred": 1
+    }
+   ],
+   "media": {
+    "title": "Title1",
+    "runtime": 30,
+    "pilot": {
+     "season": 1,
+     "episode": 1,
+     "runtime": 30,
+     "airDateHours": 0
+    }
+   },
+   "release": {
+    "title": "",
+    "size": 262144000,
+    "quality": {
+     "quality": "SDTV",
+     "version": 2
+    }
+   },
+   "episodes": [
+    {
+     "season": 1,
+     "episode": 1,
+     "runtime": 30,
+     "airDateHours": 0
+    }
+   ],
+   "expect": {
+    "accepted": true
+   },
+   "flavour": "sonarr",
+   "fixture": "AcceptableSizeSpecificationFixture"
+  },
+  {
+   "test": "single_episode",
+   "spec": "AcceptableSize",
+   "args": "30, 500, false",
+   "definitions": [
+    {
+     "quality": "SDTV",
+     "min": 2,
+     "max": 10,
+     "preferred": 1
+    }
+   ],
+   "media": {
+    "title": "Title1",
+    "runtime": 30,
+    "pilot": {
+     "season": 1,
+     "episode": 1,
+     "runtime": 30,
+     "airDateHours": 0
+    }
+   },
+   "release": {
+    "title": "",
+    "size": 524288000,
+    "quality": {
+     "quality": "SDTV",
+     "version": 2
+    }
+   },
+   "episodes": [
+    {
+     "season": 1,
+     "episode": 1,
+     "runtime": 30,
+     "airDateHours": 0
+    }
+   ],
+   "expect": {
+    "accepted": false
+   },
+   "flavour": "sonarr",
+   "fixture": "AcceptableSizeSpecificationFixture"
+  },
+  {
+   "test": "single_episode",
+   "spec": "AcceptableSize",
+   "args": "60, 100, false",
+   "definitions": [
+    {
+     "quality": "SDTV",
+     "min": 2,
+     "max": 10,
+     "preferred": 1
+    }
+   ],
+   "media": {
+    "title": "Title1",
+    "runtime": 60,
+    "pilot": {
+     "season": 1,
+     "episode": 1,
+     "runtime": 30,
+     "airDateHours": 0
+    }
+   },
+   "release": {
+    "title": "",
+    "size": 104857600,
+    "quality": {
+     "quality": "SDTV",
+     "version": 2
+    }
+   },
+   "episodes": [
+    {
+     "season": 1,
+     "episode": 1,
+     "runtime": 60,
+     "airDateHours": 0
+    }
+   ],
+   "expect": {
+    "accepted": false
+   },
+   "flavour": "sonarr",
+   "fixture": "AcceptableSizeSpecificationFixture"
+  },
+  {
+   "test": "single_episode",
+   "spec": "AcceptableSize",
+   "args": "60, 500, true",
+   "definitions": [
+    {
+     "quality": "SDTV",
+     "min": 2,
+     "max": 10,
+     "preferred": 1
+    }
+   ],
+   "media": {
+    "title": "Title1",
+    "runtime": 60,
+    "pilot": {
+     "season": 1,
+     "episode": 1,
+     "runtime": 30,
+     "airDateHours": 0
+    }
+   },
+   "release": {
+    "title": "",
+    "size": 524288000,
+    "quality": {
+     "quality": "SDTV",
+     "version": 2
+    }
+   },
+   "episodes": [
+    {
+     "season": 1,
+     "episode": 1,
+     "runtime": 60,
+     "airDateHours": 0
+    }
+   ],
+   "expect": {
+    "accepted": true
+   },
+   "flavour": "sonarr",
+   "fixture": "AcceptableSizeSpecificationFixture"
+  },
+  {
+   "test": "single_episode",
+   "spec": "AcceptableSize",
+   "args": "60, 1000, false",
+   "definitions": [
+    {
+     "quality": "SDTV",
+     "min": 2,
+     "max": 10,
+     "preferred": 1
+    }
+   ],
+   "media": {
+    "title": "Title1",
+    "runtime": 60,
+    "pilot": {
+     "season": 1,
+     "episode": 1,
+     "runtime": 30,
+     "airDateHours": 0
+    }
+   },
+   "release": {
+    "title": "",
+    "size": 1048576000,
+    "quality": {
+     "quality": "SDTV",
+     "version": 2
+    }
+   },
+   "episodes": [
+    {
+     "season": 1,
+     "episode": 1,
+     "runtime": 60,
+     "airDateHours": 0
+    }
+   ],
+   "expect": {
+    "accepted": false
+   },
+   "flavour": "sonarr",
+   "fixture": "AcceptableSizeSpecificationFixture"
+  },
+  {
+   "test": "should_return_expected_result_for_first_episode_of_season",
+   "spec": "AcceptableSize",
+   "args": "30, 250, true",
+   "definitions": [
+    {
+     "quality": "SDTV",
+     "min": 2,
+     "max": 10,
+     "preferred": 1
+    }
+   ],
+   "media": {
+    "title": "Title1",
+    "runtime": 30,
+    "pilot": {
+     "season": 1,
+     "episode": 1,
+     "runtime": 30,
+     "airDateHours": 0
+    }
+   },
+   "release": {
+    "title": "",
+    "size": 262144000,
+    "quality": {
+     "quality": "SDTV",
+     "version": 2
+    }
+   },
+   "episodes": [
+    {
+     "season": 1,
+     "episode": 1,
+     "runtime": 30,
+     "airDateHours": 0
+    }
+   ],
+   "expect": {
+    "accepted": true
+   },
+   "flavour": "sonarr",
+   "fixture": "AcceptableSizeSpecificationFixture"
+  },
+  {
+   "test": "should_return_expected_result_for_first_episode_of_season",
+   "spec": "AcceptableSize",
+   "args": "30, 1000, false",
+   "definitions": [
+    {
+     "quality": "SDTV",
+     "min": 2,
+     "max": 10,
+     "preferred": 1
+    }
+   ],
+   "media": {
+    "title": "Title1",
+    "runtime": 30,
+    "pilot": {
+     "season": 1,
+     "episode": 1,
+     "runtime": 30,
+     "airDateHours": 0
+    }
+   },
+   "release": {
+    "title": "",
+    "size": 1048576000,
+    "quality": {
+     "quality": "SDTV",
+     "version": 2
+    }
+   },
+   "episodes": [
+    {
+     "season": 1,
+     "episode": 1,
+     "runtime": 30,
+     "airDateHours": 0
+    }
+   ],
+   "expect": {
+    "accepted": false
+   },
+   "flavour": "sonarr",
+   "fixture": "AcceptableSizeSpecificationFixture"
+  },
+  {
+   "test": "should_return_expected_result_for_first_episode_of_season",
+   "spec": "AcceptableSize",
+   "args": "60, 250, true",
+   "definitions": [
+    {
+     "quality": "SDTV",
+     "min": 2,
+     "max": 10,
+     "preferred": 1
+    }
+   ],
+   "media": {
+    "title": "Title1",
+    "runtime": 60,
+    "pilot": {
+     "season": 1,
+     "episode": 1,
+     "runtime": 30,
+     "airDateHours": 0
+    }
+   },
+   "release": {
+    "title": "",
+    "size": 262144000,
+    "quality": {
+     "quality": "SDTV",
+     "version": 2
+    }
+   },
+   "episodes": [
+    {
+     "season": 1,
+     "episode": 1,
+     "runtime": 30,
+     "airDateHours": 0
+    }
+   ],
+   "expect": {
+    "accepted": true
+   },
+   "flavour": "sonarr",
+   "fixture": "AcceptableSizeSpecificationFixture"
+  },
+  {
+   "test": "should_return_expected_result_for_first_episode_of_season",
+   "spec": "AcceptableSize",
+   "args": "60, 2000, false",
+   "definitions": [
+    {
+     "quality": "SDTV",
+     "min": 2,
+     "max": 10,
+     "preferred": 1
+    }
+   ],
+   "media": {
+    "title": "Title1",
+    "runtime": 60,
+    "pilot": {
+     "season": 1,
+     "episode": 1,
+     "runtime": 30,
+     "airDateHours": 0
+    }
+   },
+   "release": {
+    "title": "",
+    "size": 2097152000,
+    "quality": {
+     "quality": "SDTV",
+     "version": 2
+    }
+   },
+   "episodes": [
+    {
+     "season": 1,
+     "episode": 1,
+     "runtime": 30,
+     "airDateHours": 0
+    }
+   ],
+   "expect": {
+    "accepted": false
+   },
+   "flavour": "sonarr",
+   "fixture": "AcceptableSizeSpecificationFixture"
+  },
+  {
+   "test": "should_return_expected_result_for_last_episode_of_season",
+   "spec": "AcceptableSize",
+   "args": "30, 250, true",
+   "definitions": [
+    {
+     "quality": "SDTV",
+     "min": 2,
+     "max": 10,
+     "preferred": 1
+    }
+   ],
+   "media": {
+    "title": "Title1",
+    "runtime": 30,
+    "pilot": {
+     "season": 1,
+     "episode": 1,
+     "runtime": 30,
+     "airDateHours": 0
+    }
+   },
+   "release": {
+    "title": "",
+    "size": 262144000,
+    "quality": {
+     "quality": "SDTV",
+     "version": 2
+    }
+   },
+   "episodes": [
+    {
+     "season": 1,
+     "episode": 1,
+     "runtime": 30,
+     "airDateHours": 0
+    }
+   ],
+   "expect": {
+    "accepted": true
+   },
+   "flavour": "sonarr",
+   "fixture": "AcceptableSizeSpecificationFixture"
+  },
+  {
+   "test": "should_return_expected_result_for_last_episode_of_season",
+   "spec": "AcceptableSize",
+   "args": "30, 1000, false",
+   "definitions": [
+    {
+     "quality": "SDTV",
+     "min": 2,
+     "max": 10,
+     "preferred": 1
+    }
+   ],
+   "media": {
+    "title": "Title1",
+    "runtime": 30,
+    "pilot": {
+     "season": 1,
+     "episode": 1,
+     "runtime": 30,
+     "airDateHours": 0
+    }
+   },
+   "release": {
+    "title": "",
+    "size": 1048576000,
+    "quality": {
+     "quality": "SDTV",
+     "version": 2
+    }
+   },
+   "episodes": [
+    {
+     "season": 1,
+     "episode": 1,
+     "runtime": 30,
+     "airDateHours": 0
+    }
+   ],
+   "expect": {
+    "accepted": false
+   },
+   "flavour": "sonarr",
+   "fixture": "AcceptableSizeSpecificationFixture"
+  },
+  {
+   "test": "should_return_expected_result_for_last_episode_of_season",
+   "spec": "AcceptableSize",
+   "args": "60, 250, true",
+   "definitions": [
+    {
+     "quality": "SDTV",
+     "min": 2,
+     "max": 10,
+     "preferred": 1
+    }
+   ],
+   "media": {
+    "title": "Title1",
+    "runtime": 60,
+    "pilot": {
+     "season": 1,
+     "episode": 1,
+     "runtime": 30,
+     "airDateHours": 0
+    }
+   },
+   "release": {
+    "title": "",
+    "size": 262144000,
+    "quality": {
+     "quality": "SDTV",
+     "version": 2
+    }
+   },
+   "episodes": [
+    {
+     "season": 1,
+     "episode": 1,
+     "runtime": 30,
+     "airDateHours": 0
+    }
+   ],
+   "expect": {
+    "accepted": true
+   },
+   "flavour": "sonarr",
+   "fixture": "AcceptableSizeSpecificationFixture"
+  },
+  {
+   "test": "should_return_expected_result_for_last_episode_of_season",
+   "spec": "AcceptableSize",
+   "args": "60, 2000, false",
+   "definitions": [
+    {
+     "quality": "SDTV",
+     "min": 2,
+     "max": 10,
+     "preferred": 1
+    }
+   ],
+   "media": {
+    "title": "Title1",
+    "runtime": 60,
+    "pilot": {
+     "season": 1,
+     "episode": 1,
+     "runtime": 30,
+     "airDateHours": 0
+    }
+   },
+   "release": {
+    "title": "",
+    "size": 2097152000,
+    "quality": {
+     "quality": "SDTV",
+     "version": 2
+    }
+   },
+   "episodes": [
+    {
+     "season": 1,
+     "episode": 1,
+     "runtime": 30,
+     "airDateHours": 0
+    }
+   ],
+   "expect": {
+    "accepted": false
+   },
+   "flavour": "sonarr",
+   "fixture": "AcceptableSizeSpecificationFixture"
+  },
+  {
+   "test": "multi_episode",
+   "spec": "AcceptableSize",
+   "args": "30, 50 * 2, false",
+   "definitions": [
+    {
+     "quality": "SDTV",
+     "min": 2,
+     "max": 10,
+     "preferred": 1
+    }
+   ],
+   "media": {
+    "title": "Title1",
+    "runtime": 30,
+    "pilot": {
+     "season": 1,
+     "episode": 1,
+     "runtime": 30,
+     "airDateHours": 0
+    }
+   },
+   "release": {
+    "title": "",
+    "size": 104857600,
+    "quality": {
+     "quality": "SDTV",
+     "version": 2
+    }
+   },
+   "episodes": [
+    {
+     "season": 1,
+     "episode": 1,
+     "runtime": 30,
+     "airDateHours": 0
+    },
+    {
+     "season": 1,
+     "episode": 2,
+     "runtime": 30,
+     "airDateHours": 24
+    }
+   ],
+   "expect": {
+    "accepted": false
+   },
+   "flavour": "sonarr",
+   "fixture": "AcceptableSizeSpecificationFixture"
+  },
+  {
+   "test": "multi_episode",
+   "spec": "AcceptableSize",
+   "args": "30, 250 * 2, true",
+   "definitions": [
+    {
+     "quality": "SDTV",
+     "min": 2,
+     "max": 10,
+     "preferred": 1
+    }
+   ],
+   "media": {
+    "title": "Title1",
+    "runtime": 30,
+    "pilot": {
+     "season": 1,
+     "episode": 1,
+     "runtime": 30,
+     "airDateHours": 0
+    }
+   },
+   "release": {
+    "title": "",
+    "size": 524288000,
+    "quality": {
+     "quality": "SDTV",
+     "version": 2
+    }
+   },
+   "episodes": [
+    {
+     "season": 1,
+     "episode": 1,
+     "runtime": 30,
+     "airDateHours": 0
+    },
+    {
+     "season": 1,
+     "episode": 2,
+     "runtime": 30,
+     "airDateHours": 24
+    }
+   ],
+   "expect": {
+    "accepted": true
+   },
+   "flavour": "sonarr",
+   "fixture": "AcceptableSizeSpecificationFixture"
+  },
+  {
+   "test": "multi_episode",
+   "spec": "AcceptableSize",
+   "args": "30, 500 * 2, false",
+   "definitions": [
+    {
+     "quality": "SDTV",
+     "min": 2,
+     "max": 10,
+     "preferred": 1
+    }
+   ],
+   "media": {
+    "title": "Title1",
+    "runtime": 30,
+    "pilot": {
+     "season": 1,
+     "episode": 1,
+     "runtime": 30,
+     "airDateHours": 0
+    }
+   },
+   "release": {
+    "title": "",
+    "size": 1048576000,
+    "quality": {
+     "quality": "SDTV",
+     "version": 2
+    }
+   },
+   "episodes": [
+    {
+     "season": 1,
+     "episode": 1,
+     "runtime": 30,
+     "airDateHours": 0
+    },
+    {
+     "season": 1,
+     "episode": 2,
+     "runtime": 30,
+     "airDateHours": 24
+    }
+   ],
+   "expect": {
+    "accepted": false
+   },
+   "flavour": "sonarr",
+   "fixture": "AcceptableSizeSpecificationFixture"
+  },
+  {
+   "test": "multi_episode",
+   "spec": "AcceptableSize",
+   "args": "60, 100 * 2, false",
+   "definitions": [
+    {
+     "quality": "SDTV",
+     "min": 2,
+     "max": 10,
+     "preferred": 1
+    }
+   ],
+   "media": {
+    "title": "Title1",
+    "runtime": 60,
+    "pilot": {
+     "season": 1,
+     "episode": 1,
+     "runtime": 30,
+     "airDateHours": 0
+    }
+   },
+   "release": {
+    "title": "",
+    "size": 209715200,
+    "quality": {
+     "quality": "SDTV",
+     "version": 2
+    }
+   },
+   "episodes": [
+    {
+     "season": 1,
+     "episode": 1,
+     "runtime": 60,
+     "airDateHours": 0
+    },
+    {
+     "season": 1,
+     "episode": 2,
+     "runtime": 60,
+     "airDateHours": 24
+    }
+   ],
+   "expect": {
+    "accepted": false
+   },
+   "flavour": "sonarr",
+   "fixture": "AcceptableSizeSpecificationFixture"
+  },
+  {
+   "test": "multi_episode",
+   "spec": "AcceptableSize",
+   "args": "60, 500 * 2, true",
+   "definitions": [
+    {
+     "quality": "SDTV",
+     "min": 2,
+     "max": 10,
+     "preferred": 1
+    }
+   ],
+   "media": {
+    "title": "Title1",
+    "runtime": 60,
+    "pilot": {
+     "season": 1,
+     "episode": 1,
+     "runtime": 30,
+     "airDateHours": 0
+    }
+   },
+   "release": {
+    "title": "",
+    "size": 1048576000,
+    "quality": {
+     "quality": "SDTV",
+     "version": 2
+    }
+   },
+   "episodes": [
+    {
+     "season": 1,
+     "episode": 1,
+     "runtime": 60,
+     "airDateHours": 0
+    },
+    {
+     "season": 1,
+     "episode": 2,
+     "runtime": 60,
+     "airDateHours": 24
+    }
+   ],
+   "expect": {
+    "accepted": true
+   },
+   "flavour": "sonarr",
+   "fixture": "AcceptableSizeSpecificationFixture"
+  },
+  {
+   "test": "multi_episode",
+   "spec": "AcceptableSize",
+   "args": "60, 1000 * 2, false",
+   "definitions": [
+    {
+     "quality": "SDTV",
+     "min": 2,
+     "max": 10,
+     "preferred": 1
+    }
+   ],
+   "media": {
+    "title": "Title1",
+    "runtime": 60,
+    "pilot": {
+     "season": 1,
+     "episode": 1,
+     "runtime": 30,
+     "airDateHours": 0
+    }
+   },
+   "release": {
+    "title": "",
+    "size": 2097152000,
+    "quality": {
+     "quality": "SDTV",
+     "version": 2
+    }
+   },
+   "episodes": [
+    {
+     "season": 1,
+     "episode": 1,
+     "runtime": 60,
+     "airDateHours": 0
+    },
+    {
+     "season": 1,
+     "episode": 2,
+     "runtime": 60,
+     "airDateHours": 24
+    }
+   ],
+   "expect": {
+    "accepted": false
+   },
+   "flavour": "sonarr",
+   "fixture": "AcceptableSizeSpecificationFixture"
+  },
+  {
+   "test": "multiset_episode",
+   "spec": "AcceptableSize",
+   "args": "30, 50 * 6, false",
+   "definitions": [
+    {
+     "quality": "SDTV",
+     "min": 2,
+     "max": 10,
+     "preferred": 1
+    }
+   ],
+   "media": {
+    "title": "Title1",
+    "runtime": 30,
+    "pilot": {
+     "season": 1,
+     "episode": 1,
+     "runtime": 30,
+     "airDateHours": 0
+    }
+   },
+   "release": {
+    "title": "",
+    "size": 314572800,
+    "quality": {
+     "quality": "SDTV",
+     "version": 2
+    }
+   },
+   "episodes": [
+    {
+     "season": 1,
+     "episode": 1,
+     "runtime": 30,
+     "airDateHours": 0
+    },
+    {
+     "season": 1,
+     "episode": 2,
+     "runtime": 30,
+     "airDateHours": 24
+    },
+    {
+     "season": 1,
+     "episode": 3,
+     "runtime": 30,
+     "airDateHours": 48
+    },
+    {
+     "season": 1,
+     "episode": 4,
+     "runtime": 30,
+     "airDateHours": 72
+    },
+    {
+     "season": 1,
+     "episode": 5,
+     "runtime": 30,
+     "airDateHours": 96
+    },
+    {
+     "season": 1,
+     "episode": 6,
+     "runtime": 30,
+     "airDateHours": 120
+    }
+   ],
+   "expect": {
+    "accepted": false
+   },
+   "flavour": "sonarr",
+   "fixture": "AcceptableSizeSpecificationFixture"
+  },
+  {
+   "test": "multiset_episode",
+   "spec": "AcceptableSize",
+   "args": "30, 250 * 6, true",
+   "definitions": [
+    {
+     "quality": "SDTV",
+     "min": 2,
+     "max": 10,
+     "preferred": 1
+    }
+   ],
+   "media": {
+    "title": "Title1",
+    "runtime": 30,
+    "pilot": {
+     "season": 1,
+     "episode": 1,
+     "runtime": 30,
+     "airDateHours": 0
+    }
+   },
+   "release": {
+    "title": "",
+    "size": 1572864000,
+    "quality": {
+     "quality": "SDTV",
+     "version": 2
+    }
+   },
+   "episodes": [
+    {
+     "season": 1,
+     "episode": 1,
+     "runtime": 30,
+     "airDateHours": 0
+    },
+    {
+     "season": 1,
+     "episode": 2,
+     "runtime": 30,
+     "airDateHours": 24
+    },
+    {
+     "season": 1,
+     "episode": 3,
+     "runtime": 30,
+     "airDateHours": 48
+    },
+    {
+     "season": 1,
+     "episode": 4,
+     "runtime": 30,
+     "airDateHours": 72
+    },
+    {
+     "season": 1,
+     "episode": 5,
+     "runtime": 30,
+     "airDateHours": 96
+    },
+    {
+     "season": 1,
+     "episode": 6,
+     "runtime": 30,
+     "airDateHours": 120
+    }
+   ],
+   "expect": {
+    "accepted": true
+   },
+   "flavour": "sonarr",
+   "fixture": "AcceptableSizeSpecificationFixture"
+  },
+  {
+   "test": "multiset_episode",
+   "spec": "AcceptableSize",
+   "args": "30, 500 * 6, false",
+   "definitions": [
+    {
+     "quality": "SDTV",
+     "min": 2,
+     "max": 10,
+     "preferred": 1
+    }
+   ],
+   "media": {
+    "title": "Title1",
+    "runtime": 30,
+    "pilot": {
+     "season": 1,
+     "episode": 1,
+     "runtime": 30,
+     "airDateHours": 0
+    }
+   },
+   "release": {
+    "title": "",
+    "size": 3145728000,
+    "quality": {
+     "quality": "SDTV",
+     "version": 2
+    }
+   },
+   "episodes": [
+    {
+     "season": 1,
+     "episode": 1,
+     "runtime": 30,
+     "airDateHours": 0
+    },
+    {
+     "season": 1,
+     "episode": 2,
+     "runtime": 30,
+     "airDateHours": 24
+    },
+    {
+     "season": 1,
+     "episode": 3,
+     "runtime": 30,
+     "airDateHours": 48
+    },
+    {
+     "season": 1,
+     "episode": 4,
+     "runtime": 30,
+     "airDateHours": 72
+    },
+    {
+     "season": 1,
+     "episode": 5,
+     "runtime": 30,
+     "airDateHours": 96
+    },
+    {
+     "season": 1,
+     "episode": 6,
+     "runtime": 30,
+     "airDateHours": 120
+    }
+   ],
+   "expect": {
+    "accepted": false
+   },
+   "flavour": "sonarr",
+   "fixture": "AcceptableSizeSpecificationFixture"
+  },
+  {
+   "test": "multiset_episode",
+   "spec": "AcceptableSize",
+   "args": "60, 100 * 6, false",
+   "definitions": [
+    {
+     "quality": "SDTV",
+     "min": 2,
+     "max": 10,
+     "preferred": 1
+    }
+   ],
+   "media": {
+    "title": "Title1",
+    "runtime": 60,
+    "pilot": {
+     "season": 1,
+     "episode": 1,
+     "runtime": 30,
+     "airDateHours": 0
+    }
+   },
+   "release": {
+    "title": "",
+    "size": 629145600,
+    "quality": {
+     "quality": "SDTV",
+     "version": 2
+    }
+   },
+   "episodes": [
+    {
+     "season": 1,
+     "episode": 1,
+     "runtime": 60,
+     "airDateHours": 0
+    },
+    {
+     "season": 1,
+     "episode": 2,
+     "runtime": 60,
+     "airDateHours": 24
+    },
+    {
+     "season": 1,
+     "episode": 3,
+     "runtime": 60,
+     "airDateHours": 48
+    },
+    {
+     "season": 1,
+     "episode": 4,
+     "runtime": 60,
+     "airDateHours": 72
+    },
+    {
+     "season": 1,
+     "episode": 5,
+     "runtime": 60,
+     "airDateHours": 96
+    },
+    {
+     "season": 1,
+     "episode": 6,
+     "runtime": 60,
+     "airDateHours": 120
+    }
+   ],
+   "expect": {
+    "accepted": false
+   },
+   "flavour": "sonarr",
+   "fixture": "AcceptableSizeSpecificationFixture"
+  },
+  {
+   "test": "multiset_episode",
+   "spec": "AcceptableSize",
+   "args": "60, 500 * 6, true",
+   "definitions": [
+    {
+     "quality": "SDTV",
+     "min": 2,
+     "max": 10,
+     "preferred": 1
+    }
+   ],
+   "media": {
+    "title": "Title1",
+    "runtime": 60,
+    "pilot": {
+     "season": 1,
+     "episode": 1,
+     "runtime": 30,
+     "airDateHours": 0
+    }
+   },
+   "release": {
+    "title": "",
+    "size": 3145728000,
+    "quality": {
+     "quality": "SDTV",
+     "version": 2
+    }
+   },
+   "episodes": [
+    {
+     "season": 1,
+     "episode": 1,
+     "runtime": 60,
+     "airDateHours": 0
+    },
+    {
+     "season": 1,
+     "episode": 2,
+     "runtime": 60,
+     "airDateHours": 24
+    },
+    {
+     "season": 1,
+     "episode": 3,
+     "runtime": 60,
+     "airDateHours": 48
+    },
+    {
+     "season": 1,
+     "episode": 4,
+     "runtime": 60,
+     "airDateHours": 72
+    },
+    {
+     "season": 1,
+     "episode": 5,
+     "runtime": 60,
+     "airDateHours": 96
+    },
+    {
+     "season": 1,
+     "episode": 6,
+     "runtime": 60,
+     "airDateHours": 120
+    }
+   ],
+   "expect": {
+    "accepted": true
+   },
+   "flavour": "sonarr",
+   "fixture": "AcceptableSizeSpecificationFixture"
+  },
+  {
+   "test": "multiset_episode",
+   "spec": "AcceptableSize",
+   "args": "60, 1000 * 6, false",
+   "definitions": [
+    {
+     "quality": "SDTV",
+     "min": 2,
+     "max": 10,
+     "preferred": 1
+    }
+   ],
+   "media": {
+    "title": "Title1",
+    "runtime": 60,
+    "pilot": {
+     "season": 1,
+     "episode": 1,
+     "runtime": 30,
+     "airDateHours": 0
+    }
+   },
+   "release": {
+    "title": "",
+    "size": 6291456000,
+    "quality": {
+     "quality": "SDTV",
+     "version": 2
+    }
+   },
+   "episodes": [
+    {
+     "season": 1,
+     "episode": 1,
+     "runtime": 60,
+     "airDateHours": 0
+    },
+    {
+     "season": 1,
+     "episode": 2,
+     "runtime": 60,
+     "airDateHours": 24
+    },
+    {
+     "season": 1,
+     "episode": 3,
+     "runtime": 60,
+     "airDateHours": 48
+    },
+    {
+     "season": 1,
+     "episode": 4,
+     "runtime": 60,
+     "airDateHours": 72
+    },
+    {
+     "season": 1,
+     "episode": 5,
+     "runtime": 60,
+     "airDateHours": 96
+    },
+    {
+     "season": 1,
+     "episode": 6,
+     "runtime": 60,
+     "airDateHours": 120
+    }
+   ],
+   "expect": {
+    "accepted": false
+   },
+   "flavour": "sonarr",
+   "fixture": "AcceptableSizeSpecificationFixture"
+  },
+  {
+   "test": "should_return_true_if_size_is_zero",
+   "spec": "AcceptableSize",
+   "definitions": [
+    {
+     "quality": "SDTV",
+     "min": 10,
+     "max": 20,
+     "preferred": 1
+    }
+   ],
+   "media": {
+    "title": "Title1",
+    "runtime": 30,
+    "pilot": {
+     "season": 1,
+     "episode": 1,
+     "runtime": 30,
+     "airDateHours": 0
+    }
+   },
+   "release": {
+    "title": "",
+    "size": 0,
+    "quality": {
+     "quality": "SDTV",
+     "version": 2
+    }
+   },
+   "episodes": [
+    {
+     "season": 1,
+     "episode": 1,
+     "runtime": 30,
+     "airDateHours": 0
+    }
+   ],
+   "expect": {
+    "accepted": true
+   },
+   "flavour": "sonarr",
+   "fixture": "AcceptableSizeSpecificationFixture"
+  },
+  {
+   "test": "should_return_true_if_unlimited_30_minute",
+   "spec": "AcceptableSize",
+   "definitions": [
+    {
+     "quality": "SDTV",
+     "min": 2,
+     "max": null,
+     "preferred": 1
+    }
+   ],
+   "media": {
+    "title": "Title1",
+    "runtime": 30,
+    "pilot": {
+     "season": 1,
+     "episode": 1,
+     "runtime": 30,
+     "airDateHours": 0
+    }
+   },
+   "release": {
+    "title": "",
+    "size": 18457280000,
+    "quality": {
+     "quality": "SDTV",
+     "version": 2
+    }
+   },
+   "episodes": [
+    {
+     "season": 1,
+     "episode": 1,
+     "runtime": 30,
+     "airDateHours": 0
+    }
+   ],
+   "expect": {
+    "accepted": true
+   },
+   "flavour": "sonarr",
+   "fixture": "AcceptableSizeSpecificationFixture"
+  },
+  {
+   "test": "should_return_true_if_unlimited_60_minute",
+   "spec": "AcceptableSize",
+   "definitions": [
+    {
+     "quality": "SDTV",
+     "min": 2,
+     "max": null,
+     "preferred": 1
+    }
+   ],
+   "media": {
+    "title": "Title1",
+    "runtime": 60,
+    "pilot": {
+     "season": 1,
+     "episode": 1,
+     "runtime": 30,
+     "airDateHours": 0
+    }
+   },
+   "release": {
+    "title": "",
+    "size": 36857280000,
+    "quality": {
+     "quality": "SDTV",
+     "version": 2
+    }
+   },
+   "episodes": [
+    {
+     "season": 1,
+     "episode": 1,
+     "runtime": 60,
+     "airDateHours": 0
+    }
+   ],
+   "expect": {
+    "accepted": true
+   },
+   "flavour": "sonarr",
+   "fixture": "AcceptableSizeSpecificationFixture"
+  },
+  {
+   "test": "should_treat_daily_series_as_single_episode",
+   "spec": "AcceptableSize",
+   "definitions": [
+    {
+     "quality": "SDTV",
+     "min": 2,
+     "max": 10,
+     "preferred": 1
+    }
+   ],
+   "media": {
+    "title": "Title1",
+    "runtime": 60,
+    "pilot": {
+     "season": 1,
+     "episode": 1,
+     "runtime": 30,
+     "airDateHours": 0
+    }
+   },
+   "release": {
+    "title": "",
+    "size": 314572800,
+    "quality": {
+     "quality": "SDTV",
+     "version": 2
+    }
+   },
+   "episodes": [
+    {
+     "season": 1,
+     "episode": 1,
+     "runtime": 60,
+     "airDateHours": 0
+    }
+   ],
+   "expect": {
+    "accepted": true
+   },
+   "flavour": "sonarr",
+   "fixture": "AcceptableSizeSpecificationFixture"
+  },
+  {
+   "test": "should_return_true_if_RAWHD",
+   "spec": "AcceptableSize",
+   "definitions": [
+    {
+     "quality": "SDTV",
+     "min": 2,
+     "max": 10,
+     "preferred": 1
+    }
+   ],
+   "media": {
+    "title": "Title1",
+    "runtime": 45,
+    "pilot": {
+     "season": 1,
+     "episode": 1,
+     "runtime": 30,
+     "airDateHours": 0
+    }
+   },
+   "release": {
+    "title": "",
+    "size": 8388608000,
+    "quality": {
+     "quality": "Raw-HD"
+    }
+   },
+   "episodes": [
+    {
+     "season": 1,
+     "episode": 1,
+     "runtime": 30,
+     "airDateHours": 0
+    }
+   ],
+   "expect": {
+    "accepted": true
+   },
+   "flavour": "sonarr",
+   "fixture": "AcceptableSizeSpecificationFixture"
+  },
+  {
+   "test": "should_return_true_for_special",
+   "spec": "AcceptableSize",
+   "definitions": [
+    {
+     "quality": "SDTV",
+     "min": 2,
+     "max": 10,
+     "preferred": 1
+    }
+   ],
+   "media": {
+    "title": "Title1",
+    "runtime": 1,
+    "pilot": {
+     "season": 1,
+     "episode": 1,
+     "runtime": 30,
+     "airDateHours": 0
+    }
+   },
+   "release": {
+    "title": "",
+    "size": 0,
+    "quality": {
+     "quality": "SDTV",
+     "version": 2
+    },
+    "special": true
+   },
+   "episodes": [
+    {
+     "season": 1,
+     "episode": 1,
+     "runtime": 30,
+     "airDateHours": 0
+    }
+   ],
+   "expect": {
+    "accepted": true
+   },
+   "flavour": "sonarr",
+   "fixture": "AcceptableSizeSpecificationFixture"
+  },
+  {
+   "test": "should_return_false_if_series_runtime_is_zero_and_single_episode_is_not_from_first_season",
+   "spec": "AcceptableSize",
+   "definitions": [
+    {
+     "quality": "SDTV",
+     "min": 2,
+     "max": 10,
+     "preferred": 1
+    }
+   ],
+   "media": {
+    "title": "Title1",
+    "runtime": 0,
+    "pilot": {
+     "season": 1,
+     "episode": 1,
+     "runtime": 30,
+     "airDateHours": 0
+    }
+   },
+   "release": {
+    "title": "",
+    "size": 209715200,
+    "quality": {
+     "quality": "SDTV",
+     "version": 2
+    }
+   },
+   "episodes": [
+    {
+     "season": 2,
+     "episode": 1,
+     "runtime": 0,
+     "airDateHours": 0
+    }
+   ],
+   "expect": {
+    "accepted": false
+   },
+   "flavour": "sonarr",
+   "fixture": "AcceptableSizeSpecificationFixture"
+  },
+  {
+   "test": "should_return_false_if_series_runtime_is_zero_and_single_episode_aired_more_than_24_hours_after_first_aired_episode",
+   "spec": "AcceptableSize",
+   "definitions": [
+    {
+     "quality": "SDTV",
+     "min": 2,
+     "max": 10,
+     "preferred": 1
+    }
+   ],
+   "media": {
+    "title": "Title1",
+    "runtime": 0,
+    "pilot": {
+     "season": 1,
+     "episode": 1,
+     "runtime": 30,
+     "airDateHours": 0
+    }
+   },
+   "release": {
+    "title": "",
+    "size": 209715200,
+    "quality": {
+     "quality": "SDTV",
+     "version": 2
+    }
+   },
+   "episodes": [
+    {
+     "season": 1,
+     "episode": 2,
+     "runtime": 0,
+     "airDateHours": 168
+    }
+   ],
+   "expect": {
+    "accepted": false
+   },
+   "flavour": "sonarr",
+   "fixture": "AcceptableSizeSpecificationFixture"
+  },
+  {
+   "test": "should_return_true_if_series_runtime_is_zero_and_single_episode_aired_less_than_24_hours_after_first_aired_episode",
+   "spec": "AcceptableSize",
+   "definitions": [
+    {
+     "quality": "SDTV",
+     "min": 2,
+     "max": 10,
+     "preferred": 1
+    }
+   ],
+   "media": {
+    "title": "Title1",
+    "runtime": 0,
+    "pilot": {
+     "season": 1,
+     "episode": 1,
+     "runtime": 30,
+     "airDateHours": 0
+    }
+   },
+   "release": {
+    "title": "",
+    "size": 209715200,
+    "quality": {
+     "quality": "SDTV",
+     "version": 2
+    }
+   },
+   "episodes": [
+    {
+     "season": 1,
+     "episode": 2,
+     "runtime": 0,
+     "airDateHours": 1
+    }
+   ],
+   "expect": {
+    "accepted": true
+   },
+   "flavour": "sonarr",
+   "fixture": "AcceptableSizeSpecificationFixture"
+  },
+  {
+   "test": "should_return_false_if_series_runtime_is_zero_and_multi_episode_is_not_from_first_season",
+   "spec": "AcceptableSize",
+   "definitions": [
+    {
+     "quality": "SDTV",
+     "min": 2,
+     "max": 10,
+     "preferred": 1
+    }
+   ],
+   "media": {
+    "title": "Title1",
+    "runtime": 0,
+    "pilot": {
+     "season": 1,
+     "episode": 1,
+     "runtime": 30,
+     "airDateHours": 0
+    }
+   },
+   "release": {
+    "title": "",
+    "size": 209715200,
+    "quality": {
+     "quality": "SDTV",
+     "version": 2
+    }
+   },
+   "episodes": [
+    {
+     "season": 2,
+     "episode": 1,
+     "runtime": 0,
+     "airDateHours": 0
+    },
+    {
+     "season": 2,
+     "episode": 2,
+     "runtime": 0,
+     "airDateHours": 24
+    }
+   ],
+   "expect": {
+    "accepted": false
+   },
+   "flavour": "sonarr",
+   "fixture": "AcceptableSizeSpecificationFixture"
+  },
+  {
+   "test": "should_return_false_if_series_runtime_is_zero_and_multi_episode_aired_more_than_24_hours_after_first_aired_episode",
+   "spec": "AcceptableSize",
+   "definitions": [
+    {
+     "quality": "SDTV",
+     "min": 2,
+     "max": 10,
+     "preferred": 1
+    }
+   ],
+   "media": {
+    "title": "Title1",
+    "runtime": 0,
+    "pilot": {
+     "season": 1,
+     "episode": 1,
+     "runtime": 30,
+     "airDateHours": 0
+    }
+   },
+   "release": {
+    "title": "",
+    "size": 209715200,
+    "quality": {
+     "quality": "SDTV",
+     "version": 2
+    }
+   },
+   "episodes": [
+    {
+     "season": 1,
+     "episode": 1,
+     "runtime": 0,
+     "airDateHours": 168
+    },
+    {
+     "season": 1,
+     "episode": 2,
+     "runtime": 0,
+     "airDateHours": 168
+    }
+   ],
+   "expect": {
+    "accepted": false
+   },
+   "flavour": "sonarr",
+   "fixture": "AcceptableSizeSpecificationFixture"
+  },
+  {
+   "test": "should_return_true_if_series_runtime_is_zero_and_multi_episode_aired_less_than_24_hours_after_first_aired_episode",
+   "spec": "AcceptableSize",
+   "definitions": [
+    {
+     "quality": "SDTV",
+     "min": 2,
+     "max": 10,
+     "preferred": 1
+    }
+   ],
+   "media": {
+    "title": "Title1",
+    "runtime": 0,
+    "pilot": {
+     "season": 1,
+     "episode": 1,
+     "runtime": 30,
+     "airDateHours": 0
+    }
+   },
+   "release": {
+    "title": "",
+    "size": 209715200,
+    "quality": {
+     "quality": "SDTV",
+     "version": 2
+    }
+   },
+   "episodes": [
+    {
+     "season": 1,
+     "episode": 1,
+     "runtime": 0,
+     "airDateHours": 1
+    },
+    {
+     "season": 1,
+     "episode": 2,
+     "runtime": 0,
+     "airDateHours": 1
+    }
+   ],
+   "expect": {
+    "accepted": true
+   },
+   "flavour": "sonarr",
+   "fixture": "AcceptableSizeSpecificationFixture"
+  },
+  {
+   "test": "should_use_series_runtime_if_episode_runtime_is_not_set",
+   "spec": "AcceptableSize",
+   "definitions": [
+    {
+     "quality": "SDTV",
+     "min": 2,
+     "max": 10,
+     "preferred": 1
+    }
+   ],
+   "media": {
+    "title": "Title1",
+    "runtime": 30,
+    "pilot": {
+     "season": 1,
+     "episode": 1,
+     "runtime": 30,
+     "airDateHours": 0
+    }
+   },
+   "release": {
+    "title": "",
+    "size": 209715200,
+    "quality": {
+     "quality": "SDTV",
+     "version": 2
+    }
+   },
+   "episodes": [
+    {
+     "season": 1,
+     "episode": 1,
+     "runtime": 0,
+     "airDateHours": 1
+    }
+   ],
+   "expect": {
+    "accepted": true
+   },
+   "flavour": "sonarr",
+   "fixture": "AcceptableSizeSpecificationFixture"
+  }
+ ]
+}

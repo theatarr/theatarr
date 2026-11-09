@@ -1,0 +1,200 @@
+{
+ "source": "Radarr src/NzbDrone.Core.Test/DecisionEngineTests/CustomFormatAllowedByProfileSpecificationFixture.cs @ a96bf7c",
+ "cases": [
+  {
+   "fixture": "CustomFormatAllowedByProfileSpecificationFixture",
+   "test": "should_allow_if_format_score_greater_than_min",
+   "spec": "CustomFormatAllowedByProfile",
+   "profile": {
+    "cutoff": "Bluray-1080p",
+    "minFormatScore": 1,
+    "formatItems": [
+     {
+      "name": "Cool Format",
+      "score": -2
+     },
+     {
+      "name": "Awesome Format",
+      "score": 1
+     }
+    ]
+   },
+   "release": {
+    "quality": {
+     "quality": "DVD",
+     "version": 2
+    },
+    "formats": [
+     "Awesome Format"
+    ]
+   },
+   "expect": {
+    "accepted": true
+   },
+   "flavour": "radarr"
+  },
+  {
+   "fixture": "CustomFormatAllowedByProfileSpecificationFixture",
+   "test": "should_deny_if_format_score_not_greater_than_min",
+   "spec": "CustomFormatAllowedByProfile",
+   "profile": {
+    "cutoff": "Bluray-1080p",
+    "minFormatScore": 1,
+    "formatItems": [
+     {
+      "name": "Cool Format",
+      "score": -2
+     },
+     {
+      "name": "Awesome Format",
+      "score": 1
+     }
+    ]
+   },
+   "release": {
+    "quality": {
+     "quality": "DVD",
+     "version": 2
+    },
+    "formats": [
+     "Cool Format"
+    ]
+   },
+   "expect": {
+    "accepted": false,
+    "reason": "CustomFormatMinimumScore",
+    "message": "Custom Formats Cool Format have score -2 below Movie's profile minimum 1"
+   },
+   "flavour": "radarr"
+  },
+  {
+   "fixture": "CustomFormatAllowedByProfileSpecificationFixture",
+   "test": "should_deny_if_format_score_not_greater_than_min_2",
+   "spec": "CustomFormatAllowedByProfile",
+   "profile": {
+    "cutoff": "Bluray-1080p",
+    "minFormatScore": 1,
+    "formatItems": [
+     {
+      "name": "Cool Format",
+      "score": -2
+     },
+     {
+      "name": "Awesome Format",
+      "score": 1
+     }
+    ]
+   },
+   "release": {
+    "quality": {
+     "quality": "DVD",
+     "version": 2
+    },
+    "formats": [
+     "Cool Format",
+     "Awesome Format"
+    ]
+   },
+   "expect": {
+    "accepted": false,
+    "reason": "CustomFormatMinimumScore"
+   },
+   "flavour": "radarr"
+  },
+  {
+   "fixture": "CustomFormatAllowedByProfileSpecificationFixture",
+   "test": "should_allow_if_all_format_is_defined_in_profile",
+   "spec": "CustomFormatAllowedByProfile",
+   "profile": {
+    "cutoff": "Bluray-1080p",
+    "minFormatScore": 1,
+    "formatItems": [
+     {
+      "name": "Awesome Format",
+      "score": 1
+     },
+     {
+      "name": "Cool Format",
+      "score": 2
+     }
+    ]
+   },
+   "release": {
+    "quality": {
+     "quality": "DVD",
+     "version": 2
+    },
+    "formats": [
+     "Cool Format",
+     "Awesome Format"
+    ]
+   },
+   "expect": {
+    "accepted": true
+   },
+   "flavour": "radarr"
+  },
+  {
+   "fixture": "CustomFormatAllowedByProfileSpecificationFixture",
+   "test": "should_deny_if_no_format_was_parsed_and_min_score_positive",
+   "spec": "CustomFormatAllowedByProfile",
+   "profile": {
+    "cutoff": "Bluray-1080p",
+    "minFormatScore": 1,
+    "formatItems": [
+     {
+      "name": "Awesome Format",
+      "score": 1
+     },
+     {
+      "name": "Cool Format",
+      "score": 2
+     }
+    ]
+   },
+   "release": {
+    "quality": {
+     "quality": "DVD",
+     "version": 2
+    },
+    "formats": []
+   },
+   "expect": {
+    "accepted": false,
+    "reason": "CustomFormatMinimumScore",
+    "message": "Custom Formats  have score 0 below Movie's profile minimum 1"
+   },
+   "flavour": "radarr"
+  },
+  {
+   "fixture": "CustomFormatAllowedByProfileSpecificationFixture",
+   "test": "should_allow_if_no_format_was_parsed_min_score_is_zero",
+   "spec": "CustomFormatAllowedByProfile",
+   "profile": {
+    "cutoff": "Bluray-1080p",
+    "minFormatScore": 0,
+    "formatItems": [
+     {
+      "name": "Awesome Format",
+      "score": 1
+     },
+     {
+      "name": "Cool Format",
+      "score": 2
+     }
+    ]
+   },
+   "release": {
+    "quality": {
+     "quality": "DVD",
+     "version": 2
+    },
+    "formats": []
+   },
+   "expect": {
+    "accepted": true
+   },
+   "flavour": "radarr"
+  }
+ ]
+}

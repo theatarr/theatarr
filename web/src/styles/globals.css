@@ -1,0 +1,646 @@
+/*
+ * Theme tokens and the frame's base rules. The palette, type, spacing, radii and row heights are the "Cyanotype"
+ * theme's: ink on warm paper in light, warm charcoal in
+ * dark, one Prussian-blue accent, and green, amber and red only for ok, held and broken. Every text token is at least
+ * 4.5:1 on the surfaces it sits on and every control boundary 3:1 (lib/contrast.test.ts).
+ *
+ * The older names stay working as aliases of the new tokens (the --th-* block and the shadcn names below), so
+ * pages pick up the new look before they are converted; new code uses the short names (--ink, --line, --accent ...).
+ * The shell, sidebar and scrollbar layout rules were adapted from Scryer (github.com/scryer-media/scryer),
+ * apps/scryer-web/app/globals.css at commit 2ef7757c774672a50c1499e03ed3436af7359a42, GPL-3.0.
+ */
+@import "tailwindcss";
+@import "tw-animate-css";
+@import "./component-utilities.css";
+
+@custom-variant dark (&:is(.dark *));
+
+@theme {
+  /* Plex Sans for the interface, Plex Mono for machine data (keys, release names, paths, numbers), Newsreader for
+     page and title names. The heading face is the one token --f-display: point it at --f-ui to drop the serif. */
+  --font-sans: var(--f-ui);
+  --font-mono: var(--f-data);
+  --font-display: var(--f-display);
+  --radius: 5px;
+  --radius-xs: 2px;
+  --radius-sm: 3px;
+  --radius-md: 5px;
+  --radius-lg: 8px;
+  --radius-xl: 8px;
+  --radius-2xl: 12px;
+  --radius-3xl: 12px;
+  --radius-4xl: 12px;
+}
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  /* shadcn's "accent" is the hover surface; the theme's --accent is the blue. */
+  --color-accent: var(--hover);
+  --color-accent-foreground: var(--ink);
+  --color-destructive: var(--destructive);
+  --color-destructive-foreground: var(--destructive-foreground);
+  --color-border: var(--border-color);
+  --color-input: var(--input);
+  --color-field: var(--field);
+  --color-ring: var(--ring);
+  --color-sidebar-ring: var(--sidebar-ring);
+  --color-sidebar-border: var(--sidebar-border);
+  --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
+  --color-sidebar-accent: var(--sidebar-accent);
+  --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
+  --color-sidebar-primary: var(--sidebar-primary);
+  --color-sidebar-foreground: var(--sidebar-foreground);
+  --color-sidebar: var(--sidebar);
+}
+
+:root {
+  /* Type */
+  --f-ui: "IBM Plex Sans Variable", "IBM Plex Sans", ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+  --f-data: "IBM Plex Mono", ui-monospace, "SFMono-Regular", Menlo, Consolas, monospace;
+  --f-display: "Newsreader Variable", "Newsreader", "Iowan Old Style", Charter, Georgia, serif;
+  --t-11: 11px;
+  --t-12: 12px;
+  --t-13: 13px;
+  --t-14: 14px;
+  --t-16: 16px;
+  --t-20: 20px;
+  --t-28: 28px;
+  --t-36: 36px;
+  /* Space: a 4 px grid */
+  --s1: 4px;
+  --s2: 8px;
+  --s3: 12px;
+  --s4: 16px;
+  --s5: 20px;
+  --s6: 24px;
+  --s8: 32px;
+  --s10: 40px;
+  --s12: 48px;
+  /* Radii and sizes: rows 40 px (32 tight), controls 32, top bar 52, sidebar 236 */
+  --r1: 3px;
+  --r2: 5px;
+  --r3: 8px;
+  --r4: 12px;
+  --row: 40px;
+  --row-tight: 32px;
+  --ctl: 32px;
+  --top: 52px;
+  --side: 236px;
+
+  /* Light: ink on warm paper */
+  --bg: #f5f3ee;
+  --surface: #fdfcf9;
+  --sunken: #ece9e2;
+  --chip: #ebe7de;
+  --hover: #efece5;
+  --select: #e6edf6;
+  --line: #e0dbd0;
+  --line-2: #cbc4b5;
+  --line-focus: #1f4f8a;
+  /* Control boundaries (inputs, outline buttons): 3:1 against the surface and the paper (WCAG 1.4.11). */
+  --control: #8a8273;
+  --ink: #1b1d20;
+  --ink-2: #45484d;
+  --ink-3: #5f6166;
+  /* ink-4 is for marks only, never text. */
+  --ink-4: #8a8b8e;
+  --accent: #1f4f8a;
+  --accent-ink: #1d4a82;
+  --accent-soft: #e2eaf4;
+  --on-accent: #ffffff;
+  --accent-hover: #183f6f;
+  --ok: #2f7a47;
+  --ok-ink: #25603a;
+  --ok-soft: #e3efe5;
+  --warn: #b07a12;
+  --warn-ink: #7a5205;
+  --warn-soft: #f6ecd6;
+  --bad: #b23a24;
+  --bad-ink: #9a2f1c;
+  --bad-soft: #f7e3de;
+  --bad-solid: #b23a24;
+  --on-solid: #ffffff;
+  --shadow-1: 0 1px 2px rgba(40, 32, 20, 0.06), 0 4px 12px rgba(40, 32, 20, 0.06);
+  --shadow-2: 0 2px 6px rgba(40, 32, 20, 0.08), 0 18px 48px rgba(40, 32, 20, 0.16);
+  --scrim: rgba(28, 26, 22, 0.38);
+  --stripe: repeating-linear-gradient(135deg, transparent 0 4px, rgba(27, 29, 32, 0.07) 4px 5px);
+
+  /* shadcn names (Tailwind's bg-card, text-muted-foreground, border-input ...) */
+  --background: var(--bg);
+  --foreground: var(--ink);
+  --card: var(--surface);
+  --card-foreground: var(--ink);
+  --popover: var(--surface);
+  --popover-foreground: var(--ink);
+  --primary: var(--accent);
+  --primary-foreground: var(--on-accent);
+  --secondary: var(--sunken);
+  --secondary-foreground: var(--ink);
+  --muted: var(--chip);
+  --muted-foreground: var(--ink-3);
+  --destructive: var(--bad-solid);
+  --destructive-foreground: var(--on-solid);
+  --border-color: var(--line);
+  --input: var(--control);
+  --field: var(--surface);
+  --ring: var(--line-focus);
+  --sidebar: var(--bg);
+  --sidebar-foreground: var(--ink-2);
+  --sidebar-primary: var(--accent);
+  --sidebar-primary-foreground: var(--on-accent);
+  --sidebar-accent: var(--hover);
+  --sidebar-accent-foreground: var(--ink);
+  --sidebar-border: var(--line);
+  --sidebar-ring: var(--line-focus);
+
+  /* Old names (Scryer's --th-* set), aliased to the tokens above until each page moves to the short names. */
+  --font-inter: var(--f-ui);
+  --font-code: var(--f-data);
+  --th-page1: var(--bg);
+  --th-page2: var(--bg);
+  --th-page3: var(--bg);
+  --th-bg: var(--surface);
+  --th-card2: var(--bg);
+  --th-surf: var(--surface);
+  --th-surfA: var(--surface);
+  --th-surfB: var(--surface);
+  --th-surfC: var(--surface);
+  --th-surfD: var(--surface);
+  --th-surfE: var(--surface);
+  --th-surfF: var(--surface);
+  --th-pp1: var(--surface);
+  --th-pp2: var(--surface);
+  --th-raised: var(--surface);
+  --th-side1: var(--bg);
+  --th-side2: var(--bg);
+  --th-faintcell: var(--sunken);
+  --th-inset: var(--sunken);
+  --th-soft: var(--bg);
+  --th-soft2: var(--bg);
+  --th-soft3: var(--bg);
+  --th-rowHover: var(--hover);
+  --th-hover: var(--hover);
+  --th-chip: var(--chip);
+  --th-chip2: var(--chip);
+  --th-kbdbg: var(--bg);
+  --th-kbdbd: var(--line-2);
+  --th-border: var(--line);
+  --th-border2: var(--line);
+  --th-border3: var(--line);
+  --th-line: var(--line);
+  --th-line2: var(--line);
+  --th-line3: var(--line);
+  --th-bhover: var(--line-2);
+  --th-bhover2: var(--line-2);
+  --th-binput: var(--control);
+  --th-control: var(--control);
+  --th-baccent: color-mix(in srgb, var(--accent) 35%, var(--line));
+  --th-ink: var(--ink);
+  --th-ink2: var(--ink);
+  --th-ink3: var(--ink);
+  --th-body: var(--ink);
+  --th-text2: var(--ink-2);
+  --th-text3: var(--ink-2);
+  --th-text4: var(--ink-3);
+  --th-muted: var(--ink-3);
+  --th-muted2: var(--ink-3);
+  --th-muted3: var(--ink-3);
+  --th-faint: var(--ink-3);
+  --th-faint2: var(--ink-3);
+  --th-faint3: var(--ink-3);
+  --th-faint4: var(--ink-4);
+  --th-faint5: var(--ink-4);
+  --th-accent: var(--accent);
+  --th-accent2: var(--accent);
+  --th-accent-dark: var(--accent-hover);
+  --th-accent-ring: var(--line-focus);
+  --th-accent-text: var(--accent-ink);
+  --th-accent-grad: var(--accent);
+  --th-info: var(--accent);
+  --th-info-bg: var(--accent-soft);
+  --th-info-bg-strong: color-mix(in srgb, var(--accent) 22%, var(--surface));
+  --th-info-border: color-mix(in srgb, var(--accent) 35%, transparent);
+  --th-info-border-strong: color-mix(in srgb, var(--accent) 60%, transparent);
+  --th-info-text: var(--accent-ink);
+  --th-info-text-soft: var(--accent-ink);
+  --th-info-solid: var(--accent);
+  --th-info-solid-hover: var(--accent-hover);
+  --th-info-on-solid: var(--on-accent);
+  --th-success: var(--ok);
+  --th-success-bg: var(--ok-soft);
+  --th-success-bg-strong: color-mix(in srgb, var(--ok) 22%, var(--surface));
+  --th-success-border: color-mix(in srgb, var(--ok) 35%, transparent);
+  --th-success-border-strong: color-mix(in srgb, var(--ok) 60%, transparent);
+  --th-success-text: var(--ok-ink);
+  --th-success-text-soft: var(--ok-ink);
+  --th-success-solid: var(--ok-ink);
+  --th-success-solid-hover: var(--ok-ink);
+  --th-success-on-solid: var(--on-solid);
+  --th-warning: var(--warn);
+  --th-warning-bg: var(--warn-soft);
+  --th-warning-bg-strong: color-mix(in srgb, var(--warn) 24%, var(--surface));
+  --th-warning-border: color-mix(in srgb, var(--warn) 40%, transparent);
+  --th-warning-border-strong: color-mix(in srgb, var(--warn) 65%, transparent);
+  --th-warning-text: var(--warn-ink);
+  --th-warning-solid: var(--warn);
+  --th-warning-solid-hover: var(--warn-ink);
+  --th-warning-on-solid: #1b1404;
+  --th-danger: var(--bad);
+  --th-danger-bg: var(--bad-soft);
+  --th-danger-bg-strong: color-mix(in srgb, var(--bad) 22%, var(--surface));
+  --th-danger-border: color-mix(in srgb, var(--bad) 40%, transparent);
+  --th-danger-border-strong: color-mix(in srgb, var(--bad) 65%, transparent);
+  --th-danger-text: var(--bad-ink);
+  --th-danger-text-soft: var(--bad-ink);
+  --th-danger-solid: var(--bad-solid);
+  --th-danger-solid-hover: color-mix(in srgb, var(--bad-solid) 85%, #000);
+  --th-danger-on-solid: var(--on-solid);
+  /* Calendar facet marks by kind (an event chip's edge and dots; the facet toggles name them). */
+  --th-facet-movie: #3f7d78;
+  --th-facet-series: var(--accent);
+  --th-facet-anime: #7a5a8c;
+  --th-shell-bg: var(--bg);
+  --th-shell-main-bg: transparent;
+  --th-shell-side-bg: var(--bg);
+  --th-search-panel-bg: var(--surface);
+  --th-search-overlay-bg: var(--scrim);
+  --th-mobile-search-bg: var(--bg);
+  --th-search-sticky-bg: color-mix(in srgb, var(--bg) 92%, transparent);
+
+  color-scheme: light;
+  background: var(--background);
+  color: var(--foreground);
+}
+
+.dark {
+  /* Dark: warm charcoal */
+  --bg: #131416;
+  --surface: #1a1b1e;
+  --sunken: #0e0f11;
+  --chip: #26282c;
+  --hover: #222428;
+  --select: #1b2839;
+  --line: #2b2d32;
+  --line-2: #3e4148;
+  --line-focus: #8db3e6;
+  --control: #77766f;
+  --ink: #ece9e3;
+  --ink-2: #c6c3bc;
+  --ink-3: #9e9c96;
+  --ink-4: #6c6b67;
+  --accent: #8db3e6;
+  --accent-ink: #9fc0ec;
+  --accent-soft: #1d2a3b;
+  --on-accent: #0e1928;
+  --accent-hover: #a9c7ef;
+  --ok: #6cbf88;
+  --ok-ink: #8ed2a4;
+  --ok-soft: #18281e;
+  --warn: #d6a443;
+  --warn-ink: #e3bd70;
+  --warn-soft: #2d2415;
+  --bad: #e5806b;
+  --bad-ink: #f0a493;
+  --bad-soft: #331f1a;
+  --bad-solid: #b5432c;
+  --shadow-1: 0 1px 2px rgba(0, 0, 0, 0.4), 0 6px 16px rgba(0, 0, 0, 0.3);
+  --shadow-2: 0 2px 6px rgba(0, 0, 0, 0.5), 0 24px 60px rgba(0, 0, 0, 0.55);
+  --scrim: rgba(4, 5, 7, 0.6);
+  --stripe: repeating-linear-gradient(135deg, transparent 0 4px, rgba(236, 233, 227, 0.07) 4px 5px);
+  --th-facet-movie: #7fb8b2;
+  --th-facet-anime: #b99ac9;
+  --th-success-solid: #2f7a47;
+  --th-warning-on-solid: #1b1404;
+  color-scheme: dark;
+}
+
+html {
+  min-height: 100%;
+}
+
+body {
+  min-height: 100dvh;
+  color: var(--ink);
+  background: var(--bg);
+  font-family: var(--f-ui);
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
+
+#root {
+  min-height: 100dvh;
+}
+
+::selection {
+  background: var(--select);
+  color: var(--ink);
+}
+
+[data-slot="root-app-frame"] {
+  min-height: 100dvh;
+  background: var(--th-shell-bg);
+  background-attachment: fixed;
+}
+
+[data-slot="root-shell-frame"] {
+  min-width: 0;
+}
+
+[data-slot="sidebar-container"],
+[data-slot="sidebar-inner"][data-sidebar="sidebar"],
+[data-slot="sidebar"]:not([data-mobile="true"]),
+[data-slot="sidebar"][data-mobile="true"] {
+  background: var(--th-shell-side-bg);
+}
+
+[data-slot="root-content-panel"] {
+  background: var(--th-shell-main-bg);
+}
+
+[data-slot="root-main-scroll"] {
+  background: transparent;
+}
+
+[data-slot="root-shell-notice"] {
+  position: relative;
+  z-index: 40;
+}
+
+@media (min-width: 981px) {
+  [data-slot="root-shell-frame"] {
+    height: calc(100dvh - var(--root-shell-top-offset, 0px));
+    max-height: calc(100dvh - var(--root-shell-top-offset, 0px));
+    overflow: hidden;
+  }
+
+  [data-slot="root-main-scroll"] {
+    min-height: 0;
+    overscroll-behavior: contain;
+  }
+
+  /* Only the wide layout turns these panels into inner scrollers. At phone
+     width they size to their content, and a contain rule on a scroller with
+     nothing to scroll makes Chrome on Android swallow the touch instead of
+     chaining it to the document, so the page never moves. */
+  [data-slot="settings-main-scroll"],
+  [data-slot="settings-subnav-scroll"],
+  [data-slot="title-list-scroll"],
+  [data-slot="title-context-scroll"] {
+    overscroll-behavior: contain;
+  }
+
+  [data-slot="root-content-panel"] {
+    height: 100%;
+    max-height: 100%;
+    overflow: hidden;
+    background: var(--th-shell-main-bg);
+  }
+
+  /* The shadcn SidebarProvider wrapper defaults to min-h-svh, which lets it
+     grow to content height and breaks the percentage-height chain feeding the
+     scrollable main. A percentage height here is treated as indefinite in the
+     flex context, so pin it to the same viewport-based definite height the
+     frame uses (the custom property inherits down) so inner scroll works. */
+  [data-slot="root-shell-frame"] > * {
+    height: calc(100dvh - var(--root-shell-top-offset, 0px));
+    max-height: calc(100dvh - var(--root-shell-top-offset, 0px));
+    min-height: 0;
+    overflow: hidden;
+  }
+}
+
+[data-slot="global-search-panel"] {
+  background: var(--th-search-panel-bg);
+  box-shadow: var(--shadow-2);
+}
+
+[data-slot="global-search-overlay"] {
+  background: var(--th-search-overlay-bg);
+}
+
+[data-slot="mobile-global-search-overlay"] {
+  background: var(--th-mobile-search-bg);
+}
+
+[data-slot="mobile-global-search-header"],
+[data-slot="mobile-global-search-tabs"] {
+  background: var(--th-search-sticky-bg);
+  backdrop-filter: blur(8px);
+}
+
+[data-slot="global-search-results"],
+[data-slot="mobile-global-search-results"],
+[data-slot="root-main-scroll"],
+[data-slot="settings-main-scroll"],
+[data-slot="settings-subnav-scroll"],
+[data-slot="title-list-scroll"],
+[data-slot="title-context-scroll"],
+[data-slot="sidebar-content"] {
+  scrollbar-color: var(--line-2) transparent;
+  scrollbar-width: thin;
+}
+
+[data-slot="global-search-results"]::-webkit-scrollbar,
+[data-slot="mobile-global-search-results"]::-webkit-scrollbar,
+[data-slot="root-main-scroll"]::-webkit-scrollbar,
+[data-slot="settings-main-scroll"]::-webkit-scrollbar,
+[data-slot="settings-subnav-scroll"]::-webkit-scrollbar,
+[data-slot="title-list-scroll"]::-webkit-scrollbar,
+[data-slot="title-context-scroll"]::-webkit-scrollbar,
+[data-slot="sidebar-content"]::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+
+[data-slot="global-search-results"]::-webkit-scrollbar-thumb,
+[data-slot="mobile-global-search-results"]::-webkit-scrollbar-thumb,
+[data-slot="root-main-scroll"]::-webkit-scrollbar-thumb,
+[data-slot="settings-main-scroll"]::-webkit-scrollbar-thumb,
+[data-slot="settings-subnav-scroll"]::-webkit-scrollbar-thumb,
+[data-slot="title-list-scroll"]::-webkit-scrollbar-thumb,
+[data-slot="title-context-scroll"]::-webkit-scrollbar-thumb,
+[data-slot="sidebar-content"]::-webkit-scrollbar-thumb {
+  background: var(--line-2);
+  background-clip: content-box;
+  border: 3px solid transparent;
+  border-radius: 999px;
+}
+
+[data-slot="global-search-results"]::-webkit-scrollbar-track,
+[data-slot="mobile-global-search-results"]::-webkit-scrollbar-track,
+[data-slot="root-main-scroll"]::-webkit-scrollbar-track,
+[data-slot="settings-main-scroll"]::-webkit-scrollbar-track,
+[data-slot="settings-subnav-scroll"]::-webkit-scrollbar-track,
+[data-slot="title-list-scroll"]::-webkit-scrollbar-track,
+[data-slot="title-context-scroll"]::-webkit-scrollbar-track,
+[data-slot="sidebar-content"]::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+/* Machine data: keys, release names, paths and tabular numbers (font-mono uses the same token). */
+[data-code-font],
+[data-code-font] * {
+  font-family: var(--f-data);
+}
+
+/* Page and title names; the one heading token (--f-display) can switch to Plex Sans later. */
+.font-heading {
+  font-family: var(--f-display);
+  font-optical-sizing: auto;
+}
+
+/* The select primitive's chevron (components/ui/select.tsx): two gradient strokes, no image, so the CSP needs no
+   data: URIs. */
+.select-chevron {
+  background-image:
+    linear-gradient(45deg, transparent 50%, var(--ink-3) 50%),
+    linear-gradient(135deg, var(--ink-3) 50%, transparent 50%);
+  background-position:
+    calc(100% - 15px) 50%,
+    calc(100% - 10px) 50%;
+  background-size: 5px 5px;
+  background-repeat: no-repeat;
+}
+
+@layer base {
+  * {
+    @apply border-border outline-ring/50;
+  }
+  body {
+    @apply bg-background text-foreground;
+  }
+  /* Native controls the pages still use directly pick up the accent. */
+  input[type="checkbox"],
+  input[type="radio"] {
+    accent-color: var(--accent);
+  }
+  select {
+    color: var(--ink);
+  }
+  kbd {
+    font-family: var(--f-data);
+  }
+}
+
+/* Row-level rendering optimization for large tables.
+   The browser skips layout/paint for off-screen rows while preserving scroll height. */
+.cv-auto-row {
+  content-visibility: auto;
+  contain-intrinsic-size: auto 96px; /* h-24 = 6rem = 96px */
+}
+.cv-auto-row-sm {
+  content-visibility: auto;
+  contain-intrinsic-size: auto 44px; /* compact text-only episode rows */
+}
+.poster-grid-container {
+  container-type: inline-size;
+}
+.poster-grid-responsive {
+  grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+}
+.cv-auto-poster {
+  content-visibility: auto;
+  contain-intrinsic-size: auto 260px; /* minimum 150px wide poster card at 2:3 */
+}
+
+/* PWA safe area utilities for standalone mode on notched devices */
+@supports (padding: env(safe-area-inset-top)) {
+  .pt-safe {
+    padding-top: env(safe-area-inset-top);
+  }
+  @media (max-width: 767px) {
+    .pt-safe-comfort {
+      padding-top: calc(env(safe-area-inset-top) + 0.5rem);
+    }
+  }
+  .pb-safe {
+    padding-bottom: env(safe-area-inset-bottom);
+  }
+  .pl-safe {
+    padding-left: env(safe-area-inset-left);
+  }
+  .pr-safe {
+    padding-right: env(safe-area-inset-right);
+  }
+  .px-safe {
+    padding-left: env(safe-area-inset-left);
+    padding-right: env(safe-area-inset-right);
+  }
+}
+
+/* ---- Theatarr additions ---- */
+
+/* One fixed colour per version key (docs/design/ui.md), muted to sit with the paper and charcoal themes (marks only,
+ * never text); Theatarr's own copies (the -theatarr keys of docs/parallel.md) get their own; unknown keys fall back to the
+ * accent. */
+:root {
+  --v-movie-remux: #6a4c93;
+  --v-movie-web: #2b7a78;
+  --v-anime-movie: #9c4668;
+  --v-tv-2160p: #66682a;
+  --v-anime-tv: #7d5a3c;
+  --v-movie-remux-theatarr: #4a5aa0;
+  --v-movie-web-theatarr: #4d7a2e;
+  --v-anime-movie-theatarr: #5d6470;
+  --v-tv-2160p-theatarr: #8a3f8f;
+  --v-anime-tv-theatarr: #a0522d;
+  /* Overlays on artwork (poster badges, hover overview, in-flight chips): art is not themed, so one dark scrim with
+   * white text in both themes; marks on it use the dark theme's tokens (class "dark" on the overlay). */
+  --art-scrim: rgba(14, 15, 17, 0.74);
+  --art-scrim-strong: rgba(14, 15, 17, 0.92);
+}
+.dark {
+  --v-movie-remux: #b39ddb;
+  --v-movie-web: #6fbdb8;
+  --v-anime-movie: #d68aa8;
+  --v-tv-2160p: #c3c27c;
+  --v-anime-tv: #c4a07c;
+  --v-movie-remux-theatarr: #a3aee6;
+  --v-movie-web-theatarr: #9ccc7a;
+  --v-anime-movie-theatarr: #a9b0bb;
+  --v-tv-2160p-theatarr: #cf8fd3;
+  --v-anime-tv-theatarr: #e09a72;
+}
+[data-vkey] { --vc: var(--accent); }
+[data-vkey="movie-remux"] { --vc: var(--v-movie-remux); }
+[data-vkey="movie-web"] { --vc: var(--v-movie-web); }
+[data-vkey="anime-movie"] { --vc: var(--v-anime-movie); }
+[data-vkey="tv-2160p"] { --vc: var(--v-tv-2160p); }
+[data-vkey="anime-tv"] { --vc: var(--v-anime-tv); }
+[data-vkey="movie-remux-theatarr"] { --vc: var(--v-movie-remux-theatarr); }
+[data-vkey="movie-web-theatarr"] { --vc: var(--v-movie-web-theatarr); }
+[data-vkey="anime-movie-theatarr"] { --vc: var(--v-anime-movie-theatarr); }
+[data-vkey="tv-2160p-theatarr"] { --vc: var(--v-tv-2160p-theatarr); }
+[data-vkey="anime-tv-theatarr"] { --vc: var(--v-anime-tv-theatarr); }
+
+/* Generated poster art for titles without artwork yet. */
+[data-art] { background: linear-gradient(160deg, #3b4a8f, #141b38); }
+[data-art="0"] { background: linear-gradient(160deg, #4f46e5, #1e1b4b); }
+[data-art="1"] { background: linear-gradient(160deg, #0891b2, #082f49); }
+[data-art="2"] { background: linear-gradient(160deg, #7c3aed, #2e1065); }
+[data-art="3"] { background: linear-gradient(160deg, #059669, #022c22); }
+[data-art="4"] { background: linear-gradient(160deg, #db2777, #500724); }
+[data-art="5"] { background: linear-gradient(160deg, #d97706, #451a03); }
+[data-art="6"] { background: linear-gradient(160deg, #2563eb, #172554); }
+[data-art="7"] { background: linear-gradient(160deg, #9333ea, #3b0764); }
+[data-art="8"] { background: linear-gradient(160deg, #0d9488, #042f2e); }
+[data-art="9"] { background: linear-gradient(160deg, #e11d48, #4c0519); }
+[data-art="10"] { background: linear-gradient(160deg, #4338ca, #0f172a); }
+[data-art="11"] { background: linear-gradient(160deg, #0284c7, #0c4a6e); }
+
+/* The record a side sheet is editing stays marked in its list (components/ui/sheet.tsx). */
+[data-selected="true"] {
+  background: var(--select);
+  box-shadow: inset 3px 0 0 var(--accent);
+}

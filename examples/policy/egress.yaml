@@ -1,0 +1,15 @@
+# The optional VPN egress guard (docs/design/gateway.md), off in this example. It suits a host or container whose
+# traffic the router or a VPN container sends out through the tunnel: the service asks check_url which address it is
+# seen from, through each egress path, and refuses indexer requests unless the last check is fresh and the address is
+# one of vpn_ips or vpn_cidrs.
+# To turn it on, uncomment the section and put your VPN's own exit address(es) in vpn_ips (198.51.100.7 is a
+# documentation address: left in, it blocks every indexer request). With egress configured, require_vpn_for: []
+# monitors only; omit require_vpn_for to default to [indexers], or list any of indexers, providers and metadata.
+# egress:
+#   check_url: https://api.ipify.org   # answers the caller's address as plain text; allowlisted automatically
+#   vpn_ips: [198.51.100.7]            # the VPN's exit address(es), as check_url reports them
+#   vpn_cidrs: []
+#   interval: 2m
+#   max_age: 6m
+#   timeout: 10s
+#   require_vpn_for: [indexers]        # default [indexers]; [] monitors only; any subset of the three classes is allowed

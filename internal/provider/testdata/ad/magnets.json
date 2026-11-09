@@ -1,0 +1,61 @@
+{
+  "status": "success",
+  "data": {
+    "magnets": [
+      {
+        "id": 101,
+        "filename": "Movie.B.2021.1080p.BluRay",
+        "size": 9000000000,
+        "hash": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+        "status": "Ready",
+        "statusCode": 4,
+        "downloaded": 9000000000,
+        "uploaded": 9000000000,
+        "seeders": 0,
+        "downloadSpeed": 0,
+        "uploadSpeed": 0,
+        "uploadDate": 1759399200,
+        "completionDate": 1759399260,
+        "type": "m",
+        "notified": false,
+        "version": 2
+      },
+      {
+        "id": 102,
+        "filename": "Show.D.S01.1080p.WEB",
+        "size": 4000000000,
+        "hash": "dddddddddddddddddddddddddddddddddddddddd",
+        "status": "Downloading",
+        "statusCode": 1,
+        "downloaded": 1000000000,
+        "uploaded": 1000000000,
+        "seeders": 0,
+        "downloadSpeed": 0,
+        "uploadSpeed": 0,
+        "uploadDate": 1759485600,
+        "completionDate": 1759485660,
+        "type": "m",
+        "notified": false,
+        "version": 2
+      },
+      {
+        "id": 103,
+        "filename": "Broken upload",
+        "size": 0,
+        "hash": "",
+        "status": "Upload fail",
+        "statusCode": 5,
+        "downloaded": 0,
+        "uploaded": 0,
+        "seeders": 0,
+        "downloadSpeed": 0,
+        "uploadSpeed": 0,
+        "uploadDate": 1759485600,
+        "completionDate": 1759485660,
+        "type": "m",
+        "notified": false,
+        "version": 2
+      }
+    ]
+  }
+}

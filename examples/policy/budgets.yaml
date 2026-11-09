@@ -1,0 +1,18 @@
+# Token buckets shared by everything that uses them (docs/design/gateway.md). The bucket refills at requests per `per` and
+# holds `burst` tokens (default 1: evenly paced). hourly and daily cap requests per UTC clock hour and day; the counts
+# are persisted, so a restart doesn't reset them.
+budgets:
+  dmm-key:     {requests: 16, per: 1m}      # DMM allows 20/min per key; we use 16
+  torrentio:   {requests: 30, per: 1m, burst: 5, daily: 5000}   # the caps here are illustrative
+  prowlarr:    {requests: 60, per: 1m}
+  seadex:      {requests: 30, per: 1m, hourly: 600}
+  anilist:     {requests: 30, per: 1m}       # AniList's current limit
+  kitsu:       {requests: 60, per: 1m}
+  thexem:      {requests: 60, per: 1m}
+  rd-api:      {requests: 100, per: 1m}     # RD allows 250/min per account; the rest is left to decypharr and zurg
+  ad-api:      {requests: 300, per: 1m}     # AD allows 12/s and 600/min per key
+  torbox-api:  {requests: 250, per: 1m}     # TorBox allows 300/min per API key, across all endpoints
+  tmdb:        {requests: 30, per: 1s, burst: 40}
+  tmdb-images: {requests: 20, per: 1s, burst: 40, daily: 20000}   # image.tmdb.org: the /img proxy and poster pre-warm
+  tvdb:        {requests: 120, per: 1m, burst: 10}   # TVDB publishes no limit; a cold series is 5-20 requests
+  plex-tv:     {requests: 60, per: 1m, burst: 10, daily: 5000}   # Plex sign-in: a pin, ~1 poll a second, 2 checks

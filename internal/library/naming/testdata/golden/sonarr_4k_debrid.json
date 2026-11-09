@@ -1,0 +1,5682 @@
+{
+ "instance": "sonarr_4k_debrid",
+ "naming": {
+  "renameEpisodes": true,
+  "replaceIllegalCharacters": true,
+  "colonReplacementFormat": 0,
+  "customColonReplacementFormat": "",
+  "multiEpisodeStyle": 5,
+  "standardEpisodeFormat": "{Series CleanTitleWithoutYear} {(Series Year)} - S{season:00}E{episode:00} - {Episode CleanTitle:90} {[Custom Formats]}{[Quality Full]}{[Mediainfo AudioCodec}{ Mediainfo AudioChannels]}{[MediaInfo VideoDynamicRangeType]}{[Mediainfo VideoCodec]}{-Release Group}",
+  "dailyEpisodeFormat": "{Series CleanTitleWithoutYear} {(Series Year)} - {Air-Date} - {Episode CleanTitle:90} {[Custom Formats]}{[Quality Full]}{[Mediainfo AudioCodec}{ Mediainfo AudioChannels]}{[MediaInfo VideoDynamicRangeType]}{[Mediainfo VideoCodec]}{-Release Group}",
+  "animeEpisodeFormat": "{Series CleanTitleWithoutYear} {(Series Year)} - S{season:00}E{episode:00} - {absolute:000} - {Episode CleanTitle:90} {[Custom Formats]}{[Quality Full]}{[Mediainfo AudioCodec}{ Mediainfo AudioChannels]}{MediaInfo AudioLanguages}{[MediaInfo VideoDynamicRangeType]}[{Mediainfo VideoCodec }{MediaInfo VideoBitDepth}bit]{-Release Group}",
+  "seriesFolderFormat": "{Series CleanTitleWithoutYear} {(Series Year)}",
+  "seasonFolderFormat": "Season {season:00}",
+  "specialsFolderFormat": "Specials",
+  "id": 1
+ },
+ "cases": [
+  {
+   "instance": "sonarr_4k_debrid",
+   "file_id": 49,
+   "series": {
+    "Title": "The Kardashians",
+    "Year": 2022,
+    "Type": "standard",
+    "ImdbID": "tt15791630",
+    "TvdbID": 414093,
+    "TvMazeID": 0,
+    "TmdbID": 154521
+   },
+   "episodes": [
+    {
+     "Season": 4,
+     "Number": 5,
+     "Absolute": null,
+     "Title": "It Takes A Village",
+     "AirDate": "2023-10-26"
+    }
+   ],
+   "episode_file": {
+    "ID": 49,
+    "Quality": {
+     "Title": "WEBDL-2160p",
+     "Version": 1,
+     "Real": 0
+    },
+    "ReleaseGroup": "NTb",
+    "ReleaseHash": "",
+    "SceneName": "The.Kardashians.S04E05.It.Takes.A.Village.2160p.HULU.WEB-DL.DDP5.1.HDR.DoVi.H.265-NTb",
+    "RelativePath": "Season 04/The Kardashians (2022) - S04E05 - It Takes A Village [HULU - Notifiarr][WEBDL-2160p][EAC3 5.1][DV HDR10Plus][h265]-NTb.mkv",
+    "Path": "/media/tv/The Kardashians (2022)/Season 04/The Kardashians (2022) - S04E05 - It Takes A Village [HULU - Notifiarr][WEBDL-2160p][EAC3 5.1][DV HDR10Plus][h265]-NTb.mkv",
+    "MediaInfo": {
+     "VideoCodec": "h265",
+     "VideoBitDepth": 10,
+     "VideoMultiViewCount": 0,
+     "AudioCodec": "EAC3",
+     "AudioChannels": 5.1,
+     "AudioLanguages": [
+      "eng"
+     ],
+     "Subtitles": null,
+     "VideoDynamicRange": "HDR",
+     "VideoDynamicRangeType": "DV HDR10Plus"
+    },
+    "CustomFormats": [
+     "HULU - Notifiarr"
+    ]
+   },
+   "root": "/media/tv",
+   "cf_source": "name",
+   "expect_folder": "The Kardashians (2022)",
+   "expect_season": "Season 04",
+   "expect_file": "The Kardashians (2022) - S04E05 - It Takes A Village [HULU - Notifiarr][WEBDL-2160p][EAC3 5.1][DV HDR10Plus][h265]-NTb.mkv",
+   "ext": ".mkv"
+  },
+  {
+   "instance": "sonarr_4k_debrid",
+   "file_id": 73,
+   "series": {
+    "Title": "The Kardashians",
+    "Year": 2022,
+    "Type": "standard",
+    "ImdbID": "tt15791630",
+    "TvdbID": 414093,
+    "TvMazeID": 0,
+    "TmdbID": 154521
+   },
+   "episodes": [
+    {
+     "Season": 6,
+     "Number": 8,
+     "Absolute": null,
+     "Title": "She Is So Elle Woods",
+     "AirDate": "2025-03-27"
+    }
+   ],
+   "episode_file": {
+    "ID": 73,
+    "Quality": {
+     "Title": "WEBDL-1080p",
+     "Version": 1,
+     "Real": 0
+    },
+    "ReleaseGroup": "GRACE",
+    "ReleaseHash": "",
+    "SceneName": "www.UIndex.org    -    The.Kardashians.S06E08.1080p.WEB.h264-GRACE",
+    "RelativePath": "Season 06/The Kardashians (2022) - S06E08 - She Is So Elle Woods [WEBDL-1080p][EAC3 5.1][h264]-GRACE.mkv",
+    "Path": "/media/tv/The Kardashians (2022)/Season 06/The Kardashians (2022) - S06E08 - She Is So Elle Woods [WEBDL-1080p][EAC3 5.1][h264]-GRACE.mkv",
+    "MediaInfo": {
+     "VideoCodec": "h264",
+     "VideoBitDepth": 8,
+     "VideoMultiViewCount": 0,
+     "AudioCodec": "EAC3",
+     "AudioChannels": 5.1,
+     "AudioLanguages": [
+      "eng"
+     ],
+     "Subtitles": null,
+     "VideoDynamicRange": "",
+     "VideoDynamicRangeType": ""
+    },
+    "CustomFormats": null
+   },
+   "root": "/media/tv",
+   "cf_source": "none",
+   "expect_folder": "The Kardashians (2022)",
+   "expect_season": "Season 06",
+   "expect_file": "The Kardashians (2022) - S06E08 - She Is So Elle Woods [WEBDL-1080p][EAC3 5.1][h264]-GRACE.mkv",
+   "ext": ".mkv"
+  },
+  {
+   "instance": "sonarr_4k_debrid",
+   "file_id": 74,
+   "series": {
+    "Title": "The Kardashians",
+    "Year": 2022,
+    "Type": "standard",
+    "ImdbID": "tt15791630",
+    "TvdbID": 414093,
+    "TvMazeID": 0,
+    "TmdbID": 154521
+   },
+   "episodes": [
+    {
+     "Season": 7,
+     "Number": 8,
+     "Absolute": null,
+     "Title": "Stay The F*** Away From Me",
+     "AirDate": "2025-12-11"
+    }
+   ],
+   "episode_file": {
+    "ID": 74,
+    "Quality": {
+     "Title": "WEBDL-2160p",
+     "Version": 1,
+     "Real": 0
+    },
+    "ReleaseGroup": "GRACE",
+    "ReleaseHash": "",
+    "SceneName": "The.Kardashians.S07E08.DV.HDR.2160p.WEB.h265-GRACE",
+    "RelativePath": "Season 07/The Kardashians (2022) - S07E08 - Stay The F- Away From Me [WEBDL-2160p][EAC3 5.1][DV HDR10Plus][h265]-GRACE.mkv",
+    "Path": "/media/tv/The Kardashians (2022)/Season 07/The Kardashians (2022) - S07E08 - Stay The F- Away From Me [WEBDL-2160p][EAC3 5.1][DV HDR10Plus][h265]-GRACE.mkv",
+    "MediaInfo": {
+     "VideoCodec": "h265",
+     "VideoBitDepth": 10,
+     "VideoMultiViewCount": 0,
+     "AudioCodec": "EAC3",
+     "AudioChannels": 5.1,
+     "AudioLanguages": [
+      "eng"
+     ],
+     "Subtitles": null,
+     "VideoDynamicRange": "HDR",
+     "VideoDynamicRangeType": "DV HDR10Plus"
+    },
+    "CustomFormats": null
+   },
+   "root": "/media/tv",
+   "cf_source": "none",
+   "expect_folder": "The Kardashians (2022)",
+   "expect_season": "Season 07",
+   "expect_file": "The Kardashians (2022) - S07E08 - Stay The F- Away From Me [WEBDL-2160p][EAC3 5.1][DV HDR10Plus][h265]-GRACE.mkv",
+   "ext": ".mkv"
+  },
+  {
+   "instance": "sonarr_4k_debrid",
+   "file_id": 96,
+   "series": {
+    "Title": "The Sandman",
+    "Year": 2022,
+    "Type": "standard",
+    "ImdbID": "tt1751634",
+    "TvdbID": 366211,
+    "TvMazeID": 0,
+    "TmdbID": 90802
+   },
+   "episodes": [
+    {
+     "Season": 2,
+     "Number": 11,
+     "Absolute": null,
+     "Title": "A Tale of Graceful Ends",
+     "AirDate": "2025-07-24"
+    }
+   ],
+   "episode_file": {
+    "ID": 96,
+    "Quality": {
+     "Title": "WEBDL-2160p",
+     "Version": 2,
+     "Real": 0
+    },
+    "ReleaseGroup": "FLUX",
+    "ReleaseHash": "",
+    "SceneName": "www.UIndex.org    -    The Sandman S02E11 A Tale of Graceful Ends REPACK 2160p NF WEB-DL DDP5 1 Atmos DV HDR H 265-FLUX",
+    "RelativePath": "Season 02/The Sandman (2022) - S02E11 - A Tale of Graceful Ends [NF - Notifiarr][WEBDL-2160p Proper][EAC3 Atmos 5.1][DV HDR10][h265]-FLUX.mkv",
+    "Path": "/media/tv/The Sandman (2022)/Season 02/The Sandman (2022) - S02E11 - A Tale of Graceful Ends [NF - Notifiarr][WEBDL-2160p Proper][EAC3 Atmos 5.1][DV HDR10][h265]-FLUX.mkv",
+    "MediaInfo": {
+     "VideoCodec": "h265",
+     "VideoBitDepth": 10,
+     "VideoMultiViewCount": 0,
+     "AudioCodec": "EAC3 Atmos",
+     "AudioChannels": 5.1,
+     "AudioLanguages": [
+      "eng"
+     ],
+     "Subtitles": null,
+     "VideoDynamicRange": "HDR",
+     "VideoDynamicRangeType": "DV HDR10"
+    },
+    "CustomFormats": [
+     "NF - Notifiarr"
+    ]
+   },
+   "root": "/media/tv",
+   "cf_source": "name",
+   "expect_folder": "The Sandman (2022)",
+   "expect_season": "Season 02",
+   "expect_file": "The Sandman (2022) - S02E11 - A Tale of Graceful Ends [NF - Notifiarr][WEBDL-2160p Proper][EAC3 Atmos 5.1][DV HDR10][h265]-FLUX.mkv",
+   "ext": ".mkv"
+  },
+  {
+   "instance": "sonarr_4k_debrid",
+   "file_id": 105,
+   "series": {
+    "Title": "The Sandman",
+    "Year": 2022,
+    "Type": "standard",
+    "ImdbID": "tt1751634",
+    "TvdbID": 366211,
+    "TvMazeID": 0,
+    "TmdbID": 90802
+   },
+   "episodes": [
+    {
+     "Season": 2,
+     "Number": 3,
+     "Absolute": null,
+     "Title": "More Devils Than Vast Hell Can Hold",
+     "AirDate": "2025-07-03"
+    }
+   ],
+   "episode_file": {
+    "ID": 105,
+    "Quality": {
+     "Title": "WEBDL-2160p",
+     "Version": 1,
+     "Real": 0
+    },
+    "ReleaseGroup": "G66",
+    "ReleaseHash": "",
+    "SceneName": "The.Sandman.S02E03.Piu.diavoli.di.quanti.possa.tenerne.linferno.1080p.NF.WEB-DL.DDP5.1.HDR.H.265-G66",
+    "RelativePath": "Season 02/The Sandman (2022) - S02E03 - More Devils Than Vast Hell Can Hold [NF - Notifiarr][WEBDL-2160p][EAC3 5.1][DV HDR10][h265]-G66.mkv",
+    "Path": "/media/tv/The Sandman (2022)/Season 02/The Sandman (2022) - S02E03 - More Devils Than Vast Hell Can Hold [NF - Notifiarr][WEBDL-2160p][EAC3 5.1][DV HDR10][h265]-G66.mkv",
+    "MediaInfo": {
+     "VideoCodec": "h265",
+     "VideoBitDepth": 10,
+     "VideoMultiViewCount": 0,
+     "AudioCodec": "EAC3",
+     "AudioChannels": 5.1,
+     "AudioLanguages": [
+      "ita",
+      "eng"
+     ],
+     "Subtitles": null,
+     "VideoDynamicRange": "HDR",
+     "VideoDynamicRangeType": "DV HDR10"
+    },
+    "CustomFormats": [
+     "NF - Notifiarr"
+    ]
+   },
+   "root": "/media/tv",
+   "cf_source": "name",
+   "expect_folder": "The Sandman (2022)",
+   "expect_season": "Season 02",
+   "expect_file": "The Sandman (2022) - S02E03 - More Devils Than Vast Hell Can Hold [NF - Notifiarr][WEBDL-2160p][EAC3 5.1][DV HDR10][h265]-G66.mkv",
+   "ext": ".mkv"
+  },
+  {
+   "instance": "sonarr_4k_debrid",
+   "file_id": 143,
+   "series": {
+    "Title": "FROM",
+    "Year": 2022,
+    "Type": "standard",
+    "ImdbID": "tt9813792",
+    "TvdbID": 401003,
+    "TvMazeID": 0,
+    "TmdbID": 124364
+   },
+   "episodes": [
+    {
+     "Season": 1,
+     "Number": 7,
+     "Absolute": null,
+     "Title": "All Good Things",
+     "AirDate": "2022-04-03"
+    }
+   ],
+   "episode_file": {
+    "ID": 143,
+    "Quality": {
+     "Title": "WEBDL-2160p",
+     "Version": 1,
+     "Real": 0
+    },
+    "ReleaseGroup": "Kitsune",
+    "ReleaseHash": "",
+    "SceneName": "From.S01E07.All.Good.Things.2160p.STAN.WEB-DL.DDP5.1.H.265-Kitsune",
+    "RelativePath": "Season 01/FROM (2022) - S01E07 - All Good Things [STAN - Notifiarr][WEBDL-2160p][EAC3 5.1][h265]-Kitsune.mkv",
+    "Path": "/media/tv/FROM (2022)/Season 01/FROM (2022) - S01E07 - All Good Things [STAN - Notifiarr][WEBDL-2160p][EAC3 5.1][h265]-Kitsune.mkv",
+    "MediaInfo": {
+     "VideoCodec": "h265",
+     "VideoBitDepth": 8,
+     "VideoMultiViewCount": 0,
+     "AudioCodec": "EAC3",
+     "AudioChannels": 5.1,
+     "AudioLanguages": [
+      "eng"
+     ],
+     "Subtitles": null,
+     "VideoDynamicRange": "",
+     "VideoDynamicRangeType": ""
+    },
+    "CustomFormats": [
+     "STAN - Notifiarr"
+    ]
+   },
+   "root": "/media/tv",
+   "cf_source": "name",
+   "expect_folder": "FROM (2022)",
+   "expect_season": "Season 01",
+   "expect_file": "FROM (2022) - S01E07 - All Good Things [STAN - Notifiarr][WEBDL-2160p][EAC3 5.1][h265]-Kitsune.mkv",
+   "ext": ".mkv"
+  },
+  {
+   "instance": "sonarr_4k_debrid",
+   "file_id": 163,
+   "series": {
+    "Title": "FROM",
+    "Year": 2022,
+    "Type": "standard",
+    "ImdbID": "tt9813792",
+    "TvdbID": 401003,
+    "TvMazeID": 0,
+    "TmdbID": 124364
+   },
+   "episodes": [
+    {
+     "Season": 3,
+     "Number": 7,
+     "Absolute": null,
+     "Title": "These Fragile Lives",
+     "AirDate": "2024-11-03"
+    }
+   ],
+   "episode_file": {
+    "ID": 163,
+    "Quality": {
+     "Title": "WEBDL-2160p",
+     "Version": 1,
+     "Real": 0
+    },
+    "ReleaseGroup": "HONE",
+    "ReleaseHash": "",
+    "SceneName": "",
+    "RelativePath": "Season 03/FROM (2022) - S03E07 - These Fragile Lives [AMZN - Notifiarr][WEBDL-2160p][EAC3 5.1][h265]-HONE.mkv",
+    "Path": "/media/tv/FROM (2022)/Season 03/FROM (2022) - S03E07 - These Fragile Lives [AMZN - Notifiarr][WEBDL-2160p][EAC3 5.1][h265]-HONE.mkv",
+    "MediaInfo": {
+     "VideoCodec": "h265",
+     "VideoBitDepth": 8,
+     "VideoMultiViewCount": 0,
+     "AudioCodec": "EAC3",
+     "AudioChannels": 5.1,
+     "AudioLanguages": [
+      "eng"
+     ],
+     "Subtitles": null,
+     "VideoDynamicRange": "",
+     "VideoDynamicRangeType": ""
+    },
+    "CustomFormats": [
+     "AMZN - Notifiarr"
+    ]
+   },
+   "root": "/media/tv",
+   "cf_source": "name",
+   "expect_folder": "FROM (2022)",
+   "expect_season": "Season 03",
+   "expect_file": "FROM (2022) - S03E07 - These Fragile Lives [AMZN - Notifiarr][WEBDL-2160p][EAC3 5.1][h265]-HONE.mkv",
+   "ext": ".mkv"
+  },
+  {
+   "instance": "sonarr_4k_debrid",
+   "file_id": 172,
+   "series": {
+    "Title": "Reacher",
+    "Year": 2022,
+    "Type": "standard",
+    "ImdbID": "tt9288030",
+    "TvdbID": 366924,
+    "TvMazeID": 0,
+    "TmdbID": 108978
+   },
+   "episodes": [
+    {
+     "Season": 2,
+     "Number": 6,
+     "Absolute": null,
+     "Title": "New York's Finest",
+     "AirDate": "2024-01-05"
+    }
+   ],
+   "episode_file": {
+    "ID": 172,
+    "Quality": {
+     "Title": "Bluray-2160p Remux",
+     "Version": 1,
+     "Real": 0
+    },
+    "ReleaseGroup": "FraMeSToR",
+    "ReleaseHash": "",
+    "SceneName": "Reacher.S02E06.New.York's.Finest.UHD.BluRay.2160p.DTS-HD.MA.5.1.DV.HEVC.REMUX-FraMeSToR",
+    "RelativePath": "Season 02/Reacher (2022) - S02E06 - New Yorks Finest [Bluray-2160p Remux][DTS-HD MA 5.1][DV HDR10][HEVC]-FraMeSToR.mkv",
+    "Path": "/media/tv/Reacher (2022)/Season 02/Reacher (2022) - S02E06 - New Yorks Finest [Bluray-2160p Remux][DTS-HD MA 5.1][DV HDR10][HEVC]-FraMeSToR.mkv",
+    "MediaInfo": {
+     "VideoCodec": "HEVC",
+     "VideoBitDepth": 10,
+     "VideoMultiViewCount": 0,
+     "AudioCodec": "DTS-HD MA",
+     "AudioChannels": 5.1,
+     "AudioLanguages": [
+      "eng"
+     ],
+     "Subtitles": null,
+     "VideoDynamicRange": "HDR",
+     "VideoDynamicRangeType": "DV HDR10"
+    },
+    "CustomFormats": null
+   },
+   "root": "/media/tv",
+   "cf_source": "none",
+   "expect_folder": "Reacher (2022)",
+   "expect_season": "Season 02",
+   "expect_file": "Reacher (2022) - S02E06 - New Yorks Finest [Bluray-2160p Remux][DTS-HD MA 5.1][DV HDR10][HEVC]-FraMeSToR.mkv",
+   "ext": ".mkv"
+  },
+  {
+   "instance": "sonarr_4k_debrid",
+   "file_id": 177,
+   "series": {
+    "Title": "Reacher",
+    "Year": 2022,
+    "Type": "standard",
+    "ImdbID": "tt9288030",
+    "TvdbID": 366924,
+    "TvMazeID": 0,
+    "TmdbID": 108978
+   },
+   "episodes": [
+    {
+     "Season": 3,
+     "Number": 3,
+     "Absolute": null,
+     "Title": "Number 2 with a Bullet",
+     "AirDate": "2025-02-20"
+    }
+   ],
+   "episode_file": {
+    "ID": 177,
+    "Quality": {
+     "Title": "WEBDL-2160p",
+     "Version": 1,
+     "Real": 0
+    },
+    "ReleaseGroup": "HONE",
+    "ReleaseHash": "",
+    "SceneName": "",
+    "RelativePath": "Season 03/Reacher (2022) - S03E03 - Number 2 with a Bullet [AMZN - Notifiarr][WEBDL-2160p][EAC3 Atmos 5.1][DV HDR10Plus][h265]-HONE.mkv",
+    "Path": "/media/tv/Reacher (2022)/Season 03/Reacher (2022) - S03E03 - Number 2 with a Bullet [AMZN - Notifiarr][WEBDL-2160p][EAC3 Atmos 5.1][DV HDR10Plus][h265]-HONE.mkv",
+    "MediaInfo": {
+     "VideoCodec": "h265",
+     "VideoBitDepth": 10,
+     "VideoMultiViewCount": 0,
+     "AudioCodec": "EAC3 Atmos",
+     "AudioChannels": 5.1,
+     "AudioLanguages": [
+      "eng"
+     ],
+     "Subtitles": null,
+     "VideoDynamicRange": "HDR",
+     "VideoDynamicRangeType": "DV HDR10Plus"
+    },
+    "CustomFormats": [
+     "AMZN - Notifiarr"
+    ]
+   },
+   "root": "/media/tv",
+   "cf_source": "name",
+   "expect_folder": "Reacher (2022)",
+   "expect_season": "Season 03",
+   "expect_file": "Reacher (2022) - S03E03 - Number 2 with a Bullet [AMZN - Notifiarr][WEBDL-2160p][EAC3 Atmos 5.1][DV HDR10Plus][h265]-HONE.mkv",
+   "ext": ".mkv"
+  },
+  {
+   "instance": "sonarr_4k_debrid",
+   "file_id": 180,
+   "series": {
+    "Title": "Reacher",
+    "Year": 2022,
+    "Type": "standard",
+    "ImdbID": "tt9288030",
+    "TvdbID": 366924,
+    "TvMazeID": 0,
+    "TmdbID": 108978
+   },
+   "episodes": [
+    {
+     "Season": 3,
+     "Number": 6,
+     "Absolute": null,
+     "Title": "Smoke on the Water",
+     "AirDate": "2025-03-13"
+    }
+   ],
+   "episode_file": {
+    "ID": 180,
+    "Quality": {
+     "Title": "WEBDL-2160p",
+     "Version": 1,
+     "Real": 0
+    },
+    "ReleaseGroup": "HONE",
+    "ReleaseHash": "",
+    "SceneName": "",
+    "RelativePath": "Season 03/Reacher (2022) - S03E06 - Smoke on the Water [AMZN - Notifiarr][WEBDL-2160p][EAC3 Atmos 5.1][DV HDR10Plus][h265]-HONE.mkv",
+    "Path": "/media/tv/Reacher (2022)/Season 03/Reacher (2022) - S03E06 - Smoke on the Water [AMZN - Notifiarr][WEBDL-2160p][EAC3 Atmos 5.1][DV HDR10Plus][h265]-HONE.mkv",
+    "MediaInfo": {
+     "VideoCodec": "h265",
+     "VideoBitDepth": 10,
+     "VideoMultiViewCount": 0,
+     "AudioCodec": "EAC3 Atmos",
+     "AudioChannels": 5.1,
+     "AudioLanguages": [
+      "eng"
+     ],
+     "Subtitles": null,
+     "VideoDynamicRange": "HDR",
+     "VideoDynamicRangeType": "DV HDR10Plus"
+    },
+    "CustomFormats": [
+     "AMZN - Notifiarr"
+    ]
+   },
+   "root": "/media/tv",
+   "cf_source": "name",
+   "expect_folder": "Reacher (2022)",
+   "expect_season": "Season 03",
+   "expect_file": "Reacher (2022) - S03E06 - Smoke on the Water [AMZN - Notifiarr][WEBDL-2160p][EAC3 Atmos 5.1][DV HDR10Plus][h265]-HONE.mkv",
+   "ext": ".mkv"
+  },
+  {
+   "instance": "sonarr_4k_debrid",
+   "file_id": 196,
+   "series": {
+    "Title": "Reacher",
+    "Year": 2022,
+    "Type": "standard",
+    "ImdbID": "tt9288030",
+    "TvdbID": 366924,
+    "TvMazeID": 0,
+    "TmdbID": 108978
+   },
+   "episodes": [
+    {
+     "Season": 4,
+     "Number": 6,
+     "Absolute": null,
+     "Title": "Plum Out of Luck",
+     "AirDate": "2026-09-02"
+    }
+   ],
+   "episode_file": {
+    "ID": 196,
+    "Quality": {
+     "Title": "WEBDL-2160p",
+     "Version": 1,
+     "Real": 0
+    },
+    "ReleaseGroup": "playWEB",
+    "ReleaseHash": "",
+    "SceneName": "Reacher.S04E06.Plum.Out.of.Luck.2160p.AMZN.WEB.DL.DDP5.1.Atmos.DoVi.HDR.H.265-playWEB",
+    "RelativePath": "Season 04/Reacher (2022) - S04E06 - Plum Out of Luck [AMZN - Notifiarr][WEBDL-2160p][EAC3 Atmos 5.1][DV HDR10Plus][h265]-playWEB.mkv",
+    "Path": "/media/tv/Reacher (2022)/Season 04/Reacher (2022) - S04E06 - Plum Out of Luck [AMZN - Notifiarr][WEBDL-2160p][EAC3 Atmos 5.1][DV HDR10Plus][h265]-playWEB.mkv",
+    "MediaInfo": {
+     "VideoCodec": "h265",
+     "VideoBitDepth": 10,
+     "VideoMultiViewCount": 0,
+     "AudioCodec": "EAC3 Atmos",
+     "AudioChannels": 5.1,
+     "AudioLanguages": [
+      "eng"
+     ],
+     "Subtitles": null,
+     "VideoDynamicRange": "HDR",
+     "VideoDynamicRangeType": "DV HDR10Plus"
+    },
+    "CustomFormats": [
+     "AMZN - Notifiarr"
+    ]
+   },
+   "root": "/media/tv",
+   "cf_source": "name",
+   "expect_folder": "Reacher (2022)",
+   "expect_season": "Season 04",
+   "expect_file": "Reacher (2022) - S04E06 - Plum Out of Luck [AMZN - Notifiarr][WEBDL-2160p][EAC3 Atmos 5.1][DV HDR10Plus][h265]-playWEB.mkv",
+   "ext": ".mkv"
+  },
+  {
+   "instance": "sonarr_4k_debrid",
+   "file_id": 201,
+   "series": {
+    "Title": "The Bachelor",
+    "Year": 2002,
+    "Type": "standard",
+    "ImdbID": "tt0313038",
+    "TvdbID": 70869,
+    "TvMazeID": 0,
+    "TmdbID": 355
+   },
+   "episodes": [
+    {
+     "Season": 28,
+     "Number": 2,
+     "Absolute": null,
+     "Title": "Week 2",
+     "AirDate": "2024-01-29"
+    }
+   ],
+   "episode_file": {
+    "ID": 201,
+    "Quality": {
+     "Title": "WEBDL-1080p",
+     "Version": 1,
+     "Real": 0
+    },
+    "ReleaseGroup": "NTb",
+    "ReleaseHash": "",
+    "SceneName": "The Bachelor S28E02 Week 2 1080p AMZN WEB-DL DDP5 1 H 264-NTb[TGx]",
+    "RelativePath": "Season 28/The Bachelor (2002) - S28E02 - Week 2 [AMZN - Notifiarr][WEBDL-1080p][EAC3 5.1][h264]-NTb.mkv",
+    "Path": "/media/tv/The Bachelor (2002)/Season 28/The Bachelor (2002) - S28E02 - Week 2 [AMZN - Notifiarr][WEBDL-1080p][EAC3 5.1][h264]-NTb.mkv",
+    "MediaInfo": {
+     "VideoCodec": "h264",
+     "VideoBitDepth": 8,
+     "VideoMultiViewCount": 0,
+     "AudioCodec": "EAC3",
+     "AudioChannels": 5.1,
+     "AudioLanguages": [
+      "eng"
+     ],
+     "Subtitles": null,
+     "VideoDynamicRange": "",
+     "VideoDynamicRangeType": ""
+    },
+    "CustomFormats": [
+     "AMZN - Notifiarr"
+    ]
+   },
+   "root": "/media/tv",
+   "cf_source": "name",
+   "expect_folder": "The Bachelor (2002)",
+   "expect_season": "Season 28",
+   "expect_file": "The Bachelor (2002) - S28E02 - Week 2 [AMZN - Notifiarr][WEBDL-1080p][EAC3 5.1][h264]-NTb.mkv",
+   "ext": ".mkv"
+  },
+  {
+   "instance": "sonarr_4k_debrid",
+   "file_id": 213,
+   "series": {
+    "Title": "Foundation (2021)",
+    "Year": 2021,
+    "Type": "standard",
+    "ImdbID": "tt0804484",
+    "TvdbID": 366972,
+    "TvMazeID": 0,
+    "TmdbID": 93740
+   },
+   "episodes": [
+    {
+     "Season": 1,
+     "Number": 3,
+     "Absolute": null,
+     "Title": "The Mathematician's Ghost",
+     "AirDate": "2021-10-01"
+    }
+   ],
+   "episode_file": {
+    "ID": 213,
+    "Quality": {
+     "Title": "WEBDL-2160p",
+     "Version": 1,
+     "Real": 0
+    },
+    "ReleaseGroup": "HONE",
+    "ReleaseHash": "",
+    "SceneName": "",
+    "RelativePath": "Season 01/Foundation (2021) - S01E03 - The Mathematicians Ghost [ATVP - Notifiarr][WEBDL-2160p][EAC3 Atmos 5.1][DV HDR10Plus][h265]-HONE.mkv",
+    "Path": "/media/tv/Foundation (2021)/Season 01/Foundation (2021) - S01E03 - The Mathematicians Ghost [ATVP - Notifiarr][WEBDL-2160p][EAC3 Atmos 5.1][DV HDR10Plus][h265]-HONE.mkv",
+    "MediaInfo": {
+     "VideoCodec": "h265",
+     "VideoBitDepth": 10,
+     "VideoMultiViewCount": 0,
+     "AudioCodec": "EAC3 Atmos",
+     "AudioChannels": 5.1,
+     "AudioLanguages": [
+      "eng"
+     ],
+     "Subtitles": null,
+     "VideoDynamicRange": "HDR",
+     "VideoDynamicRangeType": "DV HDR10Plus"
+    },
+    "CustomFormats": [
+     "ATVP - Notifiarr"
+    ]
+   },
+   "root": "/media/tv",
+   "cf_source": "name",
+   "expect_folder": "Foundation (2021)",
+   "expect_season": "Season 01",
+   "expect_file": "Foundation (2021) - S01E03 - The Mathematicians Ghost [ATVP - Notifiarr][WEBDL-2160p][EAC3 Atmos 5.1][DV HDR10Plus][h265]-HONE.mkv",
+   "ext": ".mkv"
+  },
+  {
+   "instance": "sonarr_4k_debrid",
+   "file_id": 214,
+   "series": {
+    "Title": "Foundation (2021)",
+    "Year": 2021,
+    "Type": "standard",
+    "ImdbID": "tt0804484",
+    "TvdbID": 366972,
+    "TvMazeID": 0,
+    "TmdbID": 93740
+   },
+   "episodes": [
+    {
+     "Season": 1,
+     "Number": 4,
+     "Absolute": null,
+     "Title": "Barbarians at the Gate",
+     "AirDate": "2021-10-08"
+    }
+   ],
+   "episode_file": {
+    "ID": 214,
+    "Quality": {
+     "Title": "WEBDL-2160p",
+     "Version": 1,
+     "Real": 0
+    },
+    "ReleaseGroup": "HONE",
+    "ReleaseHash": "",
+    "SceneName": "",
+    "RelativePath": "Season 01/Foundation (2021) - S01E04 - Barbarians at the Gate [ATVP - Notifiarr][WEBDL-2160p][EAC3 Atmos 5.1][DV HDR10Plus][h265]-HONE.mkv",
+    "Path": "/media/tv/Foundation (2021)/Season 01/Foundation (2021) - S01E04 - Barbarians at the Gate [ATVP - Notifiarr][WEBDL-2160p][EAC3 Atmos 5.1][DV HDR10Plus][h265]-HONE.mkv",
+    "MediaInfo": {
+     "VideoCodec": "h265",
+     "VideoBitDepth": 10,
+     "VideoMultiViewCount": 0,
+     "AudioCodec": "EAC3 Atmos",
+     "AudioChannels": 5.1,
+     "AudioLanguages": [
+      "eng"
+     ],
+     "Subtitles": null,
+     "VideoDynamicRange": "HDR",
+     "VideoDynamicRangeType": "DV HDR10Plus"
+    },
+    "CustomFormats": [
+     "ATVP - Notifiarr"
+    ]
+   },
+   "root": "/media/tv",
+   "cf_source": "name",
+   "expect_folder": "Foundation (2021)",
+   "expect_season": "Season 01",
+   "expect_file": "Foundation (2021) - S01E04 - Barbarians at the Gate [ATVP - Notifiarr][WEBDL-2160p][EAC3 Atmos 5.1][DV HDR10Plus][h265]-HONE.mkv",
+   "ext": ".mkv"
+  },
+  {
+   "instance": "sonarr_4k_debrid",
+   "file_id": 215,
+   "series": {
+    "Title": "Foundation (2021)",
+    "Year": 2021,
+    "Type": "standard",
+    "ImdbID": "tt0804484",
+    "TvdbID": 366972,
+    "TvMazeID": 0,
+    "TmdbID": 93740
+   },
+   "episodes": [
+    {
+     "Season": 1,
+     "Number": 5,
+     "Absolute": null,
+     "Title": "Upon Awakening",
+     "AirDate": "2021-10-15"
+    }
+   ],
+   "episode_file": {
+    "ID": 215,
+    "Quality": {
+     "Title": "WEBDL-2160p",
+     "Version": 1,
+     "Real": 0
+    },
+    "ReleaseGroup": "HONE",
+    "ReleaseHash": "",
+    "SceneName": "",
+    "RelativePath": "Season 01/Foundation (2021) - S01E05 - Upon Awakening [ATVP - Notifiarr][WEBDL-2160p][EAC3 Atmos 5.1][DV HDR10Plus][h265]-HONE.mkv",
+    "Path": "/media/tv/Foundation (2021)/Season 01/Foundation (2021) - S01E05 - Upon Awakening [ATVP - Notifiarr][WEBDL-2160p][EAC3 Atmos 5.1][DV HDR10Plus][h265]-HONE.mkv",
+    "MediaInfo": {
+     "VideoCodec": "h265",
+     "VideoBitDepth": 10,
+     "VideoMultiViewCount": 0,
+     "AudioCodec": "EAC3 Atmos",
+     "AudioChannels": 5.1,
+     "AudioLanguages": [
+      "eng"
+     ],
+     "Subtitles": null,
+     "VideoDynamicRange": "HDR",
+     "VideoDynamicRangeType": "DV HDR10Plus"
+    },
+    "CustomFormats": [
+     "ATVP - Notifiarr"
+    ]
+   },
+   "root": "/media/tv",
+   "cf_source": "name",
+   "expect_folder": "Foundation (2021)",
+   "expect_season": "Season 01",
+   "expect_file": "Foundation (2021) - S01E05 - Upon Awakening [ATVP - Notifiarr][WEBDL-2160p][EAC3 Atmos 5.1][DV HDR10Plus][h265]-HONE.mkv",
+   "ext": ".mkv"
+  },
+  {
+   "instance": "sonarr_4k_debrid",
+   "file_id": 221,
+   "series": {
+    "Title": "Foundation (2021)",
+    "Year": 2021,
+    "Type": "standard",
+    "ImdbID": "tt0804484",
+    "TvdbID": 366972,
+    "TvMazeID": 0,
+    "TmdbID": 93740
+   },
+   "episodes": [
+    {
+     "Season": 2,
+     "Number": 1,
+     "Absolute": null,
+     "Title": "In Seldon's Shadow",
+     "AirDate": "2023-07-14"
+    }
+   ],
+   "episode_file": {
+    "ID": 221,
+    "Quality": {
+     "Title": "WEBDL-2160p",
+     "Version": 1,
+     "Real": 0
+    },
+    "ReleaseGroup": "FLUX",
+    "ReleaseHash": "",
+    "SceneName": "Foundation.2021.S02E01.In.Seldons.Shadow.2160p.ATVP.WEB-DL.DDP5.1.Atmos.DV.HDR.H.265-FLUX",
+    "RelativePath": "Season 02/Foundation (2021) - S02E01 - In Seldons Shadow [ATVP - Notifiarr][WEBDL-2160p][EAC3 Atmos 5.1][DV HDR10Plus][h265]-FLUX.mkv",
+    "Path": "/media/tv/Foundation (2021)/Season 02/Foundation (2021) - S02E01 - In Seldons Shadow [ATVP - Notifiarr][WEBDL-2160p][EAC3 Atmos 5.1][DV HDR10Plus][h265]-FLUX.mkv",
+    "MediaInfo": {
+     "VideoCodec": "h265",
+     "VideoBitDepth": 10,
+     "VideoMultiViewCount": 0,
+     "AudioCodec": "EAC3 Atmos",
+     "AudioChannels": 5.1,
+     "AudioLanguages": [
+      "eng"
+     ],
+     "Subtitles": null,
+     "VideoDynamicRange": "HDR",
+     "VideoDynamicRangeType": "DV HDR10Plus"
+    },
+    "CustomFormats": [
+     "ATVP - Notifiarr"
+    ]
+   },
+   "root": "/media/tv",
+   "cf_source": "name",
+   "expect_folder": "Foundation (2021)",
+   "expect_season": "Season 02",
+   "expect_file": "Foundation (2021) - S02E01 - In Seldons Shadow [ATVP - Notifiarr][WEBDL-2160p][EAC3 Atmos 5.1][DV HDR10Plus][h265]-FLUX.mkv",
+   "ext": ".mkv"
+  },
+  {
+   "instance": "sonarr_4k_debrid",
+   "file_id": 222,
+   "series": {
+    "Title": "Foundation (2021)",
+    "Year": 2021,
+    "Type": "standard",
+    "ImdbID": "tt0804484",
+    "TvdbID": 366972,
+    "TvMazeID": 0,
+    "TmdbID": 93740
+   },
+   "episodes": [
+    {
+     "Season": 2,
+     "Number": 2,
+     "Absolute": null,
+     "Title": "A Glimpse of Darkness",
+     "AirDate": "2023-07-21"
+    }
+   ],
+   "episode_file": {
+    "ID": 222,
+    "Quality": {
+     "Title": "WEBDL-2160p",
+     "Version": 1,
+     "Real": 0
+    },
+    "ReleaseGroup": "FLUX",
+    "ReleaseHash": "",
+    "SceneName": "Foundation.2021.S02E02.A.Glimpse.of.Darkness.2160p.ATVP.WEB-DL.DDP5.1.Atmos.DV.HDR.H.265-FLUX",
+    "RelativePath": "Season 02/Foundation (2021) - S02E02 - A Glimpse of Darkness [ATVP - Notifiarr][WEBDL-2160p][EAC3 Atmos 5.1][DV HDR10Plus][h265]-FLUX.mkv",
+    "Path": "/media/tv/Foundation (2021)/Season 02/Foundation (2021) - S02E02 - A Glimpse of Darkness [ATVP - Notifiarr][WEBDL-2160p][EAC3 Atmos 5.1][DV HDR10Plus][h265]-FLUX.mkv",
+    "MediaInfo": {
+     "VideoCodec": "h265",
+     "VideoBitDepth": 10,
+     "VideoMultiViewCount": 0,
+     "AudioCodec": "EAC3 Atmos",
+     "AudioChannels": 5.1,
+     "AudioLanguages": [
+      "eng"
+     ],
+     "Subtitles": null,
+     "VideoDynamicRange": "HDR",
+     "VideoDynamicRangeType": "DV HDR10Plus"
+    },
+    "CustomFormats": [
+     "ATVP - Notifiarr"
+    ]
+   },
+   "root": "/media/tv",
+   "cf_source": "name",
+   "expect_folder": "Foundation (2021)",
+   "expect_season": "Season 02",
+   "expect_file": "Foundation (2021) - S02E02 - A Glimpse of Darkness [ATVP - Notifiarr][WEBDL-2160p][EAC3 Atmos 5.1][DV HDR10Plus][h265]-FLUX.mkv",
+   "ext": ".mkv"
+  },
+  {
+   "instance": "sonarr_4k_debrid",
+   "file_id": 239,
+   "series": {
+    "Title": "Foundation (2021)",
+    "Year": 2021,
+    "Type": "standard",
+    "ImdbID": "tt0804484",
+    "TvdbID": 366972,
+    "TvMazeID": 0,
+    "TmdbID": 93740
+   },
+   "episodes": [
+    {
+     "Season": 3,
+     "Number": 9,
+     "Absolute": null,
+     "Title": "The Paths That Choose Us",
+     "AirDate": "2025-09-05"
+    }
+   ],
+   "episode_file": {
+    "ID": 239,
+    "Quality": {
+     "Title": "WEBDL-2160p",
+     "Version": 1,
+     "Real": 0
+    },
+    "ReleaseGroup": "NTb",
+    "ReleaseHash": "",
+    "SceneName": "Foundation.S03E09.The.Paths.That.Choose.Us.2160p.ATVP.WEB-DL.DDP5.1.DV.HDR.H.265-NTb",
+    "RelativePath": "Season 03/Foundation (2021) - S03E09 - The Paths That Choose Us [ATVP - Notifiarr][WEBDL-2160p][EAC3 Atmos 5.1][DV HDR10Plus][h265]-NTb.mkv",
+    "Path": "/media/tv/Foundation (2021)/Season 03/Foundation (2021) - S03E09 - The Paths That Choose Us [ATVP - Notifiarr][WEBDL-2160p][EAC3 Atmos 5.1][DV HDR10Plus][h265]-NTb.mkv",
+    "MediaInfo": {
+     "VideoCodec": "h265",
+     "VideoBitDepth": 10,
+     "VideoMultiViewCount": 0,
+     "AudioCodec": "EAC3 Atmos",
+     "AudioChannels": 5.1,
+     "AudioLanguages": [
+      "eng"
+     ],
+     "Subtitles": null,
+     "VideoDynamicRange": "HDR",
+     "VideoDynamicRangeType": "DV HDR10Plus"
+    },
+    "CustomFormats": [
+     "ATVP - Notifiarr"
+    ]
+   },
+   "root": "/media/tv",
+   "cf_source": "name",
+   "expect_folder": "Foundation (2021)",
+   "expect_season": "Season 03",
+   "expect_file": "Foundation (2021) - S03E09 - The Paths That Choose Us [ATVP - Notifiarr][WEBDL-2160p][EAC3 Atmos 5.1][DV HDR10Plus][h265]-NTb.mkv",
+   "ext": ".mkv"
+  },
+  {
+   "instance": "sonarr_4k_debrid",
+   "file_id": 327,
+   "series": {
+    "Title": "The Walking Dead: Daryl Dixon",
+    "Year": 2023,
+    "Type": "standard",
+    "ImdbID": "tt13062500",
+    "TvdbID": 427464,
+    "TvMazeID": 0,
+    "TmdbID": 211684
+   },
+   "episodes": [
+    {
+     "Season": 2,
+     "Number": 1,
+     "Absolute": 7,
+     "Title": "La Gentillesse des Étrangers",
+     "AirDate": "2024-09-29"
+    }
+   ],
+   "episode_file": {
+    "ID": 327,
+    "Quality": {
+     "Title": "WEBDL-2160p",
+     "Version": 1,
+     "Real": 0
+    },
+    "ReleaseGroup": "",
+    "ReleaseHash": "",
+    "SceneName": "The.Walking.Dead.Daryl.Dixon.S02E01.2160p.WEB.h265_iris2",
+    "RelativePath": "Season 02/The Walking Dead Daryl Dixon (2023) - S02E01 - La Gentillesse des Étrangers [WEBDL-2160p][EAC3 5.1][h265].mkv",
+    "Path": "/media/tv/The Walking Dead Daryl Dixon (2023)/Season 02/The Walking Dead Daryl Dixon (2023) - S02E01 - La Gentillesse des Étrangers [WEBDL-2160p][EAC3 5.1][h265].mkv",
+    "MediaInfo": {
+     "VideoCodec": "h265",
+     "VideoBitDepth": 10,
+     "VideoMultiViewCount": 0,
+     "AudioCodec": "EAC3",
+     "AudioChannels": 5.1,
+     "AudioLanguages": [
+      "eng"
+     ],
+     "Subtitles": null,
+     "VideoDynamicRange": "",
+     "VideoDynamicRangeType": ""
+    },
+    "CustomFormats": null
+   },
+   "root": "/media/tv",
+   "cf_source": "none",
+   "expect_folder": "The Walking Dead Daryl Dixon (2023)",
+   "expect_season": "Season 02",
+   "expect_file": "The Walking Dead Daryl Dixon (2023) - S02E01 - La Gentillesse des Étrangers [WEBDL-2160p][EAC3 5.1][h265].mkv",
+   "ext": ".mkv"
+  },
+  {
+   "instance": "sonarr_4k_debrid",
+   "file_id": 372,
+   "series": {
+    "Title": "Love is Blind",
+    "Year": 2020,
+    "Type": "standard",
+    "ImdbID": "tt11704040",
+    "TvdbID": 376459,
+    "TvMazeID": 0,
+    "TmdbID": 99353
+   },
+   "episodes": [
+    {
+     "Season": 6,
+     "Number": 5,
+     "Absolute": 75,
+     "Title": "She Lied to Me",
+     "AirDate": "2024-02-14"
+    }
+   ],
+   "episode_file": {
+    "ID": 372,
+    "Quality": {
+     "Title": "WEBDL-1080p",
+     "Version": 1,
+     "Real": 0
+    },
+    "ReleaseGroup": "NTb",
+    "ReleaseHash": "",
+    "SceneName": "Love Is Blind S06E05 She Lied to Me 1080p NF WEB-DL DDP5 1 x264-NTb[TGx]",
+    "RelativePath": "Season 06/Love is Blind (2020) - S06E05 - She Lied to Me [NF - Notifiarr][WEBDL-1080p][EAC3 5.1][x264]-NTb.mkv",
+    "Path": "/media/tv/Love is Blind (2020)/Season 06/Love is Blind (2020) - S06E05 - She Lied to Me [NF - Notifiarr][WEBDL-1080p][EAC3 5.1][x264]-NTb.mkv",
+    "MediaInfo": {
+     "VideoCodec": "x264",
+     "VideoBitDepth": 8,
+     "VideoMultiViewCount": 0,
+     "AudioCodec": "EAC3",
+     "AudioChannels": 5.1,
+     "AudioLanguages": [
+      "eng"
+     ],
+     "Subtitles": null,
+     "VideoDynamicRange": "",
+     "VideoDynamicRangeType": ""
+    },
+    "CustomFormats": [
+     "NF - Notifiarr"
+    ]
+   },
+   "root": "/media/tv",
+   "cf_source": "name",
+   "expect_folder": "Love is Blind (2020)",
+   "expect_season": "Season 06",
+   "expect_file": "Love is Blind (2020) - S06E05 - She Lied to Me [NF - Notifiarr][WEBDL-1080p][EAC3 5.1][x264]-NTb.mkv",
+   "ext": ".mkv"
+  },
+  {
+   "instance": "sonarr_4k_debrid",
+   "file_id": 399,
+   "series": {
+    "Title": "Love is Blind",
+    "Year": 2020,
+    "Type": "standard",
+    "ImdbID": "tt11704040",
+    "TvdbID": 376459,
+    "TvMazeID": 0,
+    "TmdbID": 99353
+   },
+   "episodes": [
+    {
+     "Season": 9,
+     "Number": 12,
+     "Absolute": 122,
+     "Title": "Vow or Never",
+     "AirDate": "2025-10-22"
+    }
+   ],
+   "episode_file": {
+    "ID": 399,
+    "Quality": {
+     "Title": "WEBDL-1080p",
+     "Version": 1,
+     "Real": 0
+    },
+    "ReleaseGroup": "playWEB",
+    "ReleaseHash": "",
+    "SceneName": "Love Is Blind S09E12 Vow or Never 1080p NF WEB-DL DD 5 1 H 264-playWEB[EZTVx.to]",
+    "RelativePath": "Season 09/Love is Blind (2020) - S09E12 - Vow or Never [NF - Notifiarr][WEBDL-1080p][EAC3 5.1][x264]-playWEB.mkv",
+    "Path": "/media/tv/Love is Blind (2020)/Season 09/Love is Blind (2020) - S09E12 - Vow or Never [NF - Notifiarr][WEBDL-1080p][EAC3 5.1][x264]-playWEB.mkv",
+    "MediaInfo": {
+     "VideoCodec": "x264",
+     "VideoBitDepth": 8,
+     "VideoMultiViewCount": 0,
+     "AudioCodec": "EAC3",
+     "AudioChannels": 5.1,
+     "AudioLanguages": [
+      "eng"
+     ],
+     "Subtitles": null,
+     "VideoDynamicRange": "",
+     "VideoDynamicRangeType": ""
+    },
+    "CustomFormats": [
+     "NF - Notifiarr"
+    ]
+   },
+   "root": "/media/tv",
+   "cf_source": "name",
+   "expect_folder": "Love is Blind (2020)",
+   "expect_season": "Season 09",
+   "expect_file": "Love is Blind (2020) - S09E12 - Vow or Never [NF - Notifiarr][WEBDL-1080p][EAC3 5.1][x264]-playWEB.mkv",
+   "ext": ".mkv"
+  },
+  {
+   "instance": "sonarr_4k_debrid",
+   "file_id": 401,
+   "series": {
+    "Title": "Love is Blind",
+    "Year": 2020,
+    "Type": "standard",
+    "ImdbID": "tt11704040",
+    "TvdbID": 376459,
+    "TvMazeID": 0,
+    "TmdbID": 99353
+   },
+   "episodes": [
+    {
+     "Season": 9,
+     "Number": 4,
+     "Absolute": 114,
+     "Title": "The Dangerous Games We Play",
+     "AirDate": "2025-10-01"
+    }
+   ],
+   "episode_file": {
+    "ID": 401,
+    "Quality": {
+     "Title": "WEBDL-1080p",
+     "Version": 1,
+     "Real": 0
+    },
+    "ReleaseGroup": "EDITH",
+    "ReleaseHash": "",
+    "SceneName": "Love.Is.Blind.S09E04.1080p.WEB.h264-EDITH[EZTVx.to]",
+    "RelativePath": "Season 09/Love is Blind (2020) - S09E04 - The Dangerous Games We Play [WEBDL-1080p][EAC3 5.1][x264]-EDITH.mkv",
+    "Path": "/media/tv/Love is Blind (2020)/Season 09/Love is Blind (2020) - S09E04 - The Dangerous Games We Play [WEBDL-1080p][EAC3 5.1][x264]-EDITH.mkv",
+    "MediaInfo": {
+     "VideoCodec": "x264",
+     "VideoBitDepth": 8,
+     "VideoMultiViewCount": 0,
+     "AudioCodec": "EAC3",
+     "AudioChannels": 5.1,
+     "AudioLanguages": [
+      "eng"
+     ],
+     "Subtitles": null,
+     "VideoDynamicRange": "",
+     "VideoDynamicRangeType": ""
+    },
+    "CustomFormats": null
+   },
+   "root": "/media/tv",
+   "cf_source": "none",
+   "expect_folder": "Love is Blind (2020)",
+   "expect_season": "Season 09",
+   "expect_file": "Love is Blind (2020) - S09E04 - The Dangerous Games We Play [WEBDL-1080p][EAC3 5.1][x264]-EDITH.mkv",
+   "ext": ".mkv"
+  },
+  {
+   "instance": "sonarr_4k_debrid",
+   "file_id": 406,
+   "series": {
+    "Title": "Love is Blind",
+    "Year": 2020,
+    "Type": "standard",
+    "ImdbID": "tt11704040",
+    "TvdbID": 376459,
+    "TvMazeID": 0,
+    "TmdbID": 99353
+   },
+   "episodes": [
+    {
+     "Season": 10,
+     "Number": 5,
+     "Absolute": null,
+     "Title": "Where the Hell is My Husband?",
+     "AirDate": "2026-02-11"
+    }
+   ],
+   "episode_file": {
+    "ID": 406,
+    "Quality": {
+     "Title": "WEBDL-1080p",
+     "Version": 1,
+     "Real": 0
+    },
+    "ReleaseGroup": "RAWR",
+    "ReleaseHash": "",
+    "SceneName": "www.UIndex.org    -    Love Is Blind S10E05 Where the Hell is My Husband 1080p NF WEB-DL DDP5 1 H 264-RAWR",
+    "RelativePath": "Season 10/Love is Blind (2020) - S10E05 - Where the Hell is My Husband [NF - Notifiarr][WEBDL-1080p][EAC3 5.1][x264]-RAWR.mkv",
+    "Path": "/media/tv/Love is Blind (2020)/Season 10/Love is Blind (2020) - S10E05 - Where the Hell is My Husband [NF - Notifiarr][WEBDL-1080p][EAC3 5.1][x264]-RAWR.mkv",
+    "MediaInfo": {
+     "VideoCodec": "x264",
+     "VideoBitDepth": 8,
+     "VideoMultiViewCount": 0,
+     "AudioCodec": "EAC3",
+     "AudioChannels": 5.1,
+     "AudioLanguages": [
+      "eng"
+     ],
+     "Subtitles": null,
+     "VideoDynamicRange": "",
+     "VideoDynamicRangeType": ""
+    },
+    "CustomFormats": [
+     "NF - Notifiarr"
+    ]
+   },
+   "root": "/media/tv",
+   "cf_source": "name",
+   "expect_folder": "Love is Blind (2020)",
+   "expect_season": "Season 10",
+   "expect_file": "Love is Blind (2020) - S10E05 - Where the Hell is My Husband [NF - Notifiarr][WEBDL-1080p][EAC3 5.1][x264]-RAWR.mkv",
+   "ext": ".mkv"
+  },
+  {
+   "instance": "sonarr_4k_debrid",
+   "file_id": 444,
+   "series": {
+    "Title": "Only Murders in the Building",
+    "Year": 2021,
+    "Type": "standard",
+    "ImdbID": "tt11691774",
+    "TvdbID": 399959,
+    "TvMazeID": 0,
+    "TmdbID": 107113
+   },
+   "episodes": [
+    {
+     "Season": 1,
+     "Number": 10,
+     "Absolute": null,
+     "Title": "Open and Shut",
+     "AirDate": "2021-10-19"
+    }
+   ],
+   "episode_file": {
+    "ID": 444,
+    "Quality": {
+     "Title": "WEBDL-2160p",
+     "Version": 1,
+     "Real": 0
+    },
+    "ReleaseGroup": "FLUX",
+    "ReleaseHash": "",
+    "SceneName": "Only.Murders.in.the.Building.S01E10.Open.and.Shut.2160p.DSNP.WEB-DL.DDP5.1.DV.HDR.H.265-FLUX",
+    "RelativePath": "Season 01/Only Murders in the Building (2021) - S01E10 - Open and Shut [DSNP - Notifiarr][WEBDL-2160p][EAC3 5.1][DV HDR10][h265]-FLUX.mkv",
+    "Path": "/media/tv/Only Murders in the Building (2021)/Season 01/Only Murders in the Building (2021) - S01E10 - Open and Shut [DSNP - Notifiarr][WEBDL-2160p][EAC3 5.1][DV HDR10][h265]-FLUX.mkv",
+    "MediaInfo": {
+     "VideoCodec": "h265",
+     "VideoBitDepth": 10,
+     "VideoMultiViewCount": 0,
+     "AudioCodec": "EAC3",
+     "AudioChannels": 5.1,
+     "AudioLanguages": [
+      "eng"
+     ],
+     "Subtitles": null,
+     "VideoDynamicRange": "HDR",
+     "VideoDynamicRangeType": "DV HDR10"
+    },
+    "CustomFormats": [
+     "DSNP - Notifiarr"
+    ]
+   },
+   "root": "/media/tv",
+   "cf_source": "name",
+   "expect_folder": "Only Murders in the Building (2021)",
+   "expect_season": "Season 01",
+   "expect_file": "Only Murders in the Building (2021) - S01E10 - Open and Shut [DSNP - Notifiarr][WEBDL-2160p][EAC3 5.1][DV HDR10][h265]-FLUX.mkv",
+   "ext": ".mkv"
+  },
+  {
+   "instance": "sonarr_4k_debrid",
+   "file_id": 455,
+   "series": {
+    "Title": "Only Murders in the Building",
+    "Year": 2021,
+    "Type": "standard",
+    "ImdbID": "tt11691774",
+    "TvdbID": 399959,
+    "TvMazeID": 0,
+    "TmdbID": 107113
+   },
+   "episodes": [
+    {
+     "Season": 4,
+     "Number": 2,
+     "Absolute": null,
+     "Title": "Gates of Heaven",
+     "AirDate": "2024-09-03"
+    }
+   ],
+   "episode_file": {
+    "ID": 455,
+    "Quality": {
+     "Title": "WEBDL-2160p",
+     "Version": 1,
+     "Real": 0
+    },
+    "ReleaseGroup": "K83",
+    "ReleaseHash": "",
+    "SceneName": "[DEVIL-TORRENTS.PL] Only.Murders.in.the.Building.S04E02.MULTi.2160p.DSNP.WEB-DL.DV.HDR.HEVC.DDP5.1-K83",
+    "RelativePath": "Season 04/Only Murders in the Building (2021) - S04E02 - Gates of Heaven [DSNP - Notifiarr][WEBDL-2160p][EAC3 5.1][DV HDR10Plus][HEVC]-K83.mkv",
+    "Path": "/media/tv/Only Murders in the Building (2021)/Season 04/Only Murders in the Building (2021) - S04E02 - Gates of Heaven [DSNP - Notifiarr][WEBDL-2160p][EAC3 5.1][DV HDR10Plus][HEVC]-K83.mkv",
+    "MediaInfo": {
+     "VideoCodec": "HEVC",
+     "VideoBitDepth": 10,
+     "VideoMultiViewCount": 0,
+     "AudioCodec": "EAC3",
+     "AudioChannels": 5.1,
+     "AudioLanguages": [
+      "pol",
+      "eng"
+     ],
+     "Subtitles": null,
+     "VideoDynamicRange": "HDR",
+     "VideoDynamicRangeType": "DV HDR10Plus"
+    },
+    "CustomFormats": [
+     "DSNP - Notifiarr"
+    ]
+   },
+   "root": "/media/tv",
+   "cf_source": "name",
+   "expect_folder": "Only Murders in the Building (2021)",
+   "expect_season": "Season 04",
+   "expect_file": "Only Murders in the Building (2021) - S04E02 - Gates of Heaven [DSNP - Notifiarr][WEBDL-2160p][EAC3 5.1][DV HDR10Plus][HEVC]-K83.mkv",
+   "ext": ".mkv"
+  },
+  {
+   "instance": "sonarr_4k_debrid",
+   "file_id": 463,
+   "series": {
+    "Title": "Only Murders in the Building",
+    "Year": 2021,
+    "Type": "standard",
+    "ImdbID": "tt11691774",
+    "TvdbID": 399959,
+    "TvMazeID": 0,
+    "TmdbID": 107113
+   },
+   "episodes": [
+    {
+     "Season": 5,
+     "Number": 8,
+     "Absolute": null,
+     "Title": "Cuckoo Chicks",
+     "AirDate": "2025-10-14"
+    }
+   ],
+   "episode_file": {
+    "ID": 463,
+    "Quality": {
+     "Title": "WEBDL-2160p",
+     "Version": 1,
+     "Real": 0
+    },
+    "ReleaseGroup": "NTb",
+    "ReleaseHash": "",
+    "SceneName": "Only.Murders.in.the.Building.S05E08.Cuckoo.Chicks.2160p.DSNP.WEB-DL.DDP5.1.DV.HDR.H.265-NTb",
+    "RelativePath": "Season 05/Only Murders in the Building (2021) - S05E08 - Cuckoo Chicks [DSNP - Notifiarr][WEBDL-2160p][EAC3 5.1][DV HDR10Plus][h265]-NTb.mkv",
+    "Path": "/media/tv/Only Murders in the Building (2021)/Season 05/Only Murders in the Building (2021) - S05E08 - Cuckoo Chicks [DSNP - Notifiarr][WEBDL-2160p][EAC3 5.1][DV HDR10Plus][h265]-NTb.mkv",
+    "MediaInfo": {
+     "VideoCodec": "h265",
+     "VideoBitDepth": 10,
+     "VideoMultiViewCount": 0,
+     "AudioCodec": "EAC3",
+     "AudioChannels": 5.1,
+     "AudioLanguages": [
+      "eng"
+     ],
+     "Subtitles": null,
+     "VideoDynamicRange": "HDR",
+     "VideoDynamicRangeType": "DV HDR10Plus"
+    },
+    "CustomFormats": [
+     "DSNP - Notifiarr"
+    ]
+   },
+   "root": "/media/tv",
+   "cf_source": "name",
+   "expect_folder": "Only Murders in the Building (2021)",
+   "expect_season": "Season 05",
+   "expect_file": "Only Murders in the Building (2021) - S05E08 - Cuckoo Chicks [DSNP - Notifiarr][WEBDL-2160p][EAC3 5.1][DV HDR10Plus][h265]-NTb.mkv",
+   "ext": ".mkv"
+  },
+  {
+   "instance": "sonarr_4k_debrid",
+   "file_id": 464,
+   "series": {
+    "Title": "Only Murders in the Building",
+    "Year": 2021,
+    "Type": "standard",
+    "ImdbID": "tt11691774",
+    "TvdbID": 399959,
+    "TvMazeID": 0,
+    "TmdbID": 107113
+   },
+   "episodes": [
+    {
+     "Season": 5,
+     "Number": 9,
+     "Absolute": null,
+     "Title": "LESTR",
+     "AirDate": "2025-10-21"
+    }
+   ],
+   "episode_file": {
+    "ID": 464,
+    "Quality": {
+     "Title": "WEBDL-2160p",
+     "Version": 1,
+     "Real": 0
+    },
+    "ReleaseGroup": "NTb",
+    "ReleaseHash": "",
+    "SceneName": "Only.Murders.in.the.Building.S05E09.LESTR.2160p.DSNP.WEB-DL.DDP5.1.DV.HDR.H.265-NTb",
+    "RelativePath": "Season 05/Only Murders in the Building (2021) - S05E09 - LESTR [DSNP - Notifiarr][WEBDL-2160p][EAC3 5.1][DV HDR10Plus][h265]-NTb.mkv",
+    "Path": "/media/tv/Only Murders in the Building (2021)/Season 05/Only Murders in the Building (2021) - S05E09 - LESTR [DSNP - Notifiarr][WEBDL-2160p][EAC3 5.1][DV HDR10Plus][h265]-NTb.mkv",
+    "MediaInfo": {
+     "VideoCodec": "h265",
+     "VideoBitDepth": 10,
+     "VideoMultiViewCount": 0,
+     "AudioCodec": "EAC3",
+     "AudioChannels": 5.1,
+     "AudioLanguages": [
+      "eng"
+     ],
+     "Subtitles": null,
+     "VideoDynamicRange": "HDR",
+     "VideoDynamicRangeType": "DV HDR10Plus"
+    },
+    "CustomFormats": [
+     "DSNP - Notifiarr"
+    ]
+   },
+   "root": "/media/tv",
+   "cf_source": "name",
+   "expect_folder": "Only Murders in the Building (2021)",
+   "expect_season": "Season 05",
+   "expect_file": "Only Murders in the Building (2021) - S05E09 - LESTR [DSNP - Notifiarr][WEBDL-2160p][EAC3 5.1][DV HDR10Plus][h265]-NTb.mkv",
+   "ext": ".mkv"
+  },
+  {
+   "instance": "sonarr_4k_debrid",
+   "file_id": 473,
+   "series": {
+    "Title": "Only Murders in the Building",
+    "Year": 2021,
+    "Type": "standard",
+    "ImdbID": "tt11691774",
+    "TvdbID": 399959,
+    "TvMazeID": 0,
+    "TmdbID": 107113
+   },
+   "episodes": [
+    {
+     "Season": 4,
+     "Number": 9,
+     "Absolute": null,
+     "Title": "Escape From Planet Klongo",
+     "AirDate": "2024-10-22"
+    }
+   ],
+   "episode_file": {
+    "ID": 473,
+    "Quality": {
+     "Title": "WEBDL-2160p",
+     "Version": 1,
+     "Real": 0
+    },
+    "ReleaseGroup": "",
+    "ReleaseHash": "",
+    "SceneName": "",
+    "RelativePath": "Season 04/Only Murders in the Building (2021) - S04E09 - Escape From Planet Klongo [WEBDL-2160p][AC3 2.0][DV HDR10][h265].mkv",
+    "Path": "/media/tv/Only Murders in the Building (2021)/Season 04/Only Murders in the Building (2021) - S04E09 - Escape From Planet Klongo [WEBDL-2160p][AC3 2.0][DV HDR10][h265].mkv",
+    "MediaInfo": {
+     "VideoCodec": "h265",
+     "VideoBitDepth": 10,
+     "VideoMultiViewCount": 0,
+     "AudioCodec": "AC3",
+     "AudioChannels": 2,
+     "AudioLanguages": [
+      "rus",
+      "rus",
+      "rus",
+      "rus",
+      "rus",
+      "rus",
+      "eng"
+     ],
+     "Subtitles": null,
+     "VideoDynamicRange": "HDR",
+     "VideoDynamicRangeType": "DV HDR10"
+    },
+    "CustomFormats": null
+   },
+   "root": "/media/tv",
+   "cf_source": "none",
+   "expect_folder": "Only Murders in the Building (2021)",
+   "expect_season": "Season 04",
+   "expect_file": "Only Murders in the Building (2021) - S04E09 - Escape From Planet Klongo [WEBDL-2160p][AC3 2.0][DV HDR10][h265].mkv",
+   "ext": ".mkv"
+  },
+  {
+   "instance": "sonarr_4k_debrid",
+   "file_id": 474,
+   "series": {
+    "Title": "Only Murders in the Building",
+    "Year": 2021,
+    "Type": "standard",
+    "ImdbID": "tt11691774",
+    "TvdbID": 399959,
+    "TvMazeID": 0,
+    "TmdbID": 107113
+   },
+   "episodes": [
+    {
+     "Season": 4,
+     "Number": 10,
+     "Absolute": null,
+     "Title": "My Best Friend's Wedding",
+     "AirDate": "2024-10-29"
+    }
+   ],
+   "episode_file": {
+    "ID": 474,
+    "Quality": {
+     "Title": "WEBDL-2160p",
+     "Version": 1,
+     "Real": 0
+    },
+    "ReleaseGroup": "",
+    "ReleaseHash": "",
+    "SceneName": "",
+    "RelativePath": "Season 04/Only Murders in the Building (2021) - S04E10 - My Best Friends Wedding [WEBDL-2160p][AC3 2.0][DV HDR10][h265].mkv",
+    "Path": "/media/tv/Only Murders in the Building (2021)/Season 04/Only Murders in the Building (2021) - S04E10 - My Best Friends Wedding [WEBDL-2160p][AC3 2.0][DV HDR10][h265].mkv",
+    "MediaInfo": {
+     "VideoCodec": "h265",
+     "VideoBitDepth": 10,
+     "VideoMultiViewCount": 0,
+     "AudioCodec": "AC3",
+     "AudioChannels": 2,
+     "AudioLanguages": [
+      "rus",
+      "rus",
+      "rus",
+      "rus",
+      "rus",
+      "rus",
+      "eng"
+     ],
+     "Subtitles": null,
+     "VideoDynamicRange": "HDR",
+     "VideoDynamicRangeType": "DV HDR10"
+    },
+    "CustomFormats": null
+   },
+   "root": "/media/tv",
+   "cf_source": "none",
+   "expect_folder": "Only Murders in the Building (2021)",
+   "expect_season": "Season 04",
+   "expect_file": "Only Murders in the Building (2021) - S04E10 - My Best Friends Wedding [WEBDL-2160p][AC3 2.0][DV HDR10][h265].mkv",
+   "ext": ".mkv"
+  },
+  {
+   "instance": "sonarr_4k_debrid",
+   "file_id": 493,
+   "series": {
+    "Title": "Love is Blind: UK",
+    "Year": 2024,
+    "Type": "standard",
+    "ImdbID": "tt26675358",
+    "TvdbID": 447983,
+    "TvMazeID": 0,
+    "TmdbID": 237316
+   },
+   "episodes": [
+    {
+     "Season": 1,
+     "Number": 3,
+     "Absolute": null,
+     "Title": "He's Here for Fame",
+     "AirDate": "2024-08-07"
+    }
+   ],
+   "episode_file": {
+    "ID": 493,
+    "Quality": {
+     "Title": "WEBDL-1080p",
+     "Version": 1,
+     "Real": 0
+    },
+    "ReleaseGroup": "EDITH",
+    "ReleaseHash": "",
+    "SceneName": "Love.is.Blind.UK.S01E03.1080p.WEB.h264-EDITH[EZTVx.to]",
+    "RelativePath": "Season 01/Love is Blind UK (2024) - S01E03 - Hes Here for Fame [WEBDL-1080p][EAC3 5.1][x264]-EDITH.mkv",
+    "Path": "/media/tv/Love is Blind UK (2024)/Season 01/Love is Blind UK (2024) - S01E03 - Hes Here for Fame [WEBDL-1080p][EAC3 5.1][x264]-EDITH.mkv",
+    "MediaInfo": {
+     "VideoCodec": "x264",
+     "VideoBitDepth": 8,
+     "VideoMultiViewCount": 0,
+     "AudioCodec": "EAC3",
+     "AudioChannels": 5.1,
+     "AudioLanguages": [
+      "eng"
+     ],
+     "Subtitles": null,
+     "VideoDynamicRange": "",
+     "VideoDynamicRangeType": ""
+    },
+    "CustomFormats": null
+   },
+   "root": "/media/tv",
+   "cf_source": "none",
+   "expect_folder": "Love is Blind UK (2024)",
+   "expect_season": "Season 01",
+   "expect_file": "Love is Blind UK (2024) - S01E03 - Hes Here for Fame [WEBDL-1080p][EAC3 5.1][x264]-EDITH.mkv",
+   "ext": ".mkv"
+  },
+  {
+   "instance": "sonarr_4k_debrid",
+   "file_id": 494,
+   "series": {
+    "Title": "Love is Blind: UK",
+    "Year": 2024,
+    "Type": "standard",
+    "ImdbID": "tt26675358",
+    "TvdbID": 447983,
+    "TvMazeID": 0,
+    "TmdbID": 237316
+   },
+   "episodes": [
+    {
+     "Season": 1,
+     "Number": 2,
+     "Absolute": null,
+     "Title": "Two's A Couple, Three's a Love Triangle",
+     "AirDate": "2024-08-07"
+    }
+   ],
+   "episode_file": {
+    "ID": 494,
+    "Quality": {
+     "Title": "WEBDL-1080p",
+     "Version": 1,
+     "Real": 0
+    },
+    "ReleaseGroup": "XEBEC",
+    "ReleaseHash": "",
+    "SceneName": "Love Is Blind UK S01E02 Twos a Couple Threes a Love Triangle 1080p NF WEB-DL DDP5 1 H 264-XEBEC[EZTVx.to]",
+    "RelativePath": "Season 01/Love is Blind UK (2024) - S01E02 - Twos A Couple Threes a Love Triangle [NF - Notifiarr][WEBDL-1080p][EAC3 5.1][x264]-XEBEC.mkv",
+    "Path": "/media/tv/Love is Blind UK (2024)/Season 01/Love is Blind UK (2024) - S01E02 - Twos A Couple Threes a Love Triangle [NF - Notifiarr][WEBDL-1080p][EAC3 5.1][x264]-XEBEC.mkv",
+    "MediaInfo": {
+     "VideoCodec": "x264",
+     "VideoBitDepth": 8,
+     "VideoMultiViewCount": 0,
+     "AudioCodec": "EAC3",
+     "AudioChannels": 5.1,
+     "AudioLanguages": [
+      "eng"
+     ],
+     "Subtitles": null,
+     "VideoDynamicRange": "",
+     "VideoDynamicRangeType": ""
+    },
+    "CustomFormats": [
+     "NF - Notifiarr"
+    ]
+   },
+   "root": "/media/tv",
+   "cf_source": "name",
+   "expect_folder": "Love is Blind UK (2024)",
+   "expect_season": "Season 01",
+   "expect_file": "Love is Blind UK (2024) - S01E02 - Twos A Couple Threes a Love Triangle [NF - Notifiarr][WEBDL-1080p][EAC3 5.1][x264]-XEBEC.mkv",
+   "ext": ".mkv"
+  },
+  {
+   "instance": "sonarr_4k_debrid",
+   "file_id": 504,
+   "series": {
+    "Title": "Love is Blind: UK",
+    "Year": 2024,
+    "Type": "standard",
+    "ImdbID": "tt26675358",
+    "TvdbID": 447983,
+    "TvMazeID": 0,
+    "TmdbID": 237316
+   },
+   "episodes": [
+    {
+     "Season": 3,
+     "Number": 5,
+     "Absolute": null,
+     "Title": "I'm Anything But Boring",
+     "AirDate": "2026-08-19"
+    }
+   ],
+   "episode_file": {
+    "ID": 504,
+    "Quality": {
+     "Title": "WEBDL-1080p",
+     "Version": 1,
+     "Real": 0
+    },
+    "ReleaseGroup": "RAWR",
+    "ReleaseHash": "",
+    "SceneName": "Love.Is.Blind.UK.S03E05.1080p.NF.WEB.DL.DDP5.1.Atmos.H.264-RAWR",
+    "RelativePath": "Season 03/Love is Blind UK (2024) - S03E05 - Im Anything But Boring [NF - Notifiarr][WEBDL-1080p][EAC3 Atmos 5.1][x264]-RAWR.mkv",
+    "Path": "/media/tv/Love is Blind UK (2024)/Season 03/Love is Blind UK (2024) - S03E05 - Im Anything But Boring [NF - Notifiarr][WEBDL-1080p][EAC3 Atmos 5.1][x264]-RAWR.mkv",
+    "MediaInfo": {
+     "VideoCodec": "x264",
+     "VideoBitDepth": 8,
+     "VideoMultiViewCount": 0,
+     "AudioCodec": "EAC3 Atmos",
+     "AudioChannels": 5.1,
+     "AudioLanguages": [
+      "eng"
+     ],
+     "Subtitles": null,
+     "VideoDynamicRange": "",
+     "VideoDynamicRangeType": ""
+    },
+    "CustomFormats": [
+     "NF - Notifiarr"
+    ]
+   },
+   "root": "/media/tv",
+   "cf_source": "name",
+   "expect_folder": "Love is Blind UK (2024)",
+   "expect_season": "Season 03",
+   "expect_file": "Love is Blind UK (2024) - S03E05 - Im Anything But Boring [NF - Notifiarr][WEBDL-1080p][EAC3 Atmos 5.1][x264]-RAWR.mkv",
+   "ext": ".mkv"
+  },
+  {
+   "instance": "sonarr_4k_debrid",
+   "file_id": 505,
+   "series": {
+    "Title": "Love is Blind: UK",
+    "Year": 2024,
+    "Type": "standard",
+    "ImdbID": "tt26675358",
+    "TvdbID": 447983,
+    "TvMazeID": 0,
+    "TmdbID": 237316
+   },
+   "episodes": [
+    {
+     "Season": 3,
+     "Number": 6,
+     "Absolute": null,
+     "Title": "If You Need to Walk Away, Walk Away",
+     "AirDate": "2026-08-19"
+    }
+   ],
+   "episode_file": {
+    "ID": 505,
+    "Quality": {
+     "Title": "WEBDL-1080p",
+     "Version": 1,
+     "Real": 0
+    },
+    "ReleaseGroup": "RAWR",
+    "ReleaseHash": "",
+    "SceneName": "Love.Is.Blind.UK.S03E06.1080p.NF.WEB.DL.DDP5.1.Atmos.H.264-RAWR",
+    "RelativePath": "Season 03/Love is Blind UK (2024) - S03E06 - If You Need to Walk Away Walk Away [NF - Notifiarr][WEBDL-1080p][EAC3 Atmos 5.1][x264]-RAWR.mkv",
+    "Path": "/media/tv/Love is Blind UK (2024)/Season 03/Love is Blind UK (2024) - S03E06 - If You Need to Walk Away Walk Away [NF - Notifiarr][WEBDL-1080p][EAC3 Atmos 5.1][x264]-RAWR.mkv",
+    "MediaInfo": {
+     "VideoCodec": "x264",
+     "VideoBitDepth": 8,
+     "VideoMultiViewCount": 0,
+     "AudioCodec": "EAC3 Atmos",
+     "AudioChannels": 5.1,
+     "AudioLanguages": [
+      "eng"
+     ],
+     "Subtitles": null,
+     "VideoDynamicRange": "",
+     "VideoDynamicRangeType": ""
+    },
+    "CustomFormats": [
+     "NF - Notifiarr"
+    ]
+   },
+   "root": "/media/tv",
+   "cf_source": "name",
+   "expect_folder": "Love is Blind UK (2024)",
+   "expect_season": "Season 03",
+   "expect_file": "Love is Blind UK (2024) - S03E06 - If You Need to Walk Away Walk Away [NF - Notifiarr][WEBDL-1080p][EAC3 Atmos 5.1][x264]-RAWR.mkv",
+   "ext": ".mkv"
+  },
+  {
+   "instance": "sonarr_4k_debrid",
+   "file_id": 508,
+   "series": {
+    "Title": "Love is Blind: UK",
+    "Year": 2024,
+    "Type": "standard",
+    "ImdbID": "tt26675358",
+    "TvdbID": 447983,
+    "TvMazeID": 0,
+    "TmdbID": 237316
+   },
+   "episodes": [
+    {
+     "Season": 3,
+     "Number": 9,
+     "Absolute": null,
+     "Title": "Are You Ready for the Real World?",
+     "AirDate": "2026-08-26"
+    }
+   ],
+   "episode_file": {
+    "ID": 508,
+    "Quality": {
+     "Title": "WEBDL-1080p",
+     "Version": 1,
+     "Real": 0
+    },
+    "ReleaseGroup": "RAWR",
+    "ReleaseHash": "",
+    "SceneName": "Love.Is.Blind.UK.S03E09.1080p.NF.WEB.DL.DDP5.1.Atmos.H.264-RAWR",
+    "RelativePath": "Season 03/Love is Blind UK (2024) - S03E09 - Are You Ready for the Real World [NF - Notifiarr][WEBDL-1080p][EAC3 Atmos 5.1][x264]-RAWR.mkv",
+    "Path": "/media/tv/Love is Blind UK (2024)/Season 03/Love is Blind UK (2024) - S03E09 - Are You Ready for the Real World [NF - Notifiarr][WEBDL-1080p][EAC3 Atmos 5.1][x264]-RAWR.mkv",
+    "MediaInfo": {
+     "VideoCodec": "x264",
+     "VideoBitDepth": 8,
+     "VideoMultiViewCount": 0,
+     "AudioCodec": "EAC3 Atmos",
+     "AudioChannels": 5.1,
+     "AudioLanguages": [
+      "eng"
+     ],
+     "Subtitles": null,
+     "VideoDynamicRange": "",
+     "VideoDynamicRangeType": ""
+    },
+    "CustomFormats": [
+     "NF - Notifiarr"
+    ]
+   },
+   "root": "/media/tv",
+   "cf_source": "name",
+   "expect_folder": "Love is Blind UK (2024)",
+   "expect_season": "Season 03",
+   "expect_file": "Love is Blind UK (2024) - S03E09 - Are You Ready for the Real World [NF - Notifiarr][WEBDL-1080p][EAC3 Atmos 5.1][x264]-RAWR.mkv",
+   "ext": ".mkv"
+  },
+  {
+   "instance": "sonarr_4k_debrid",
+   "file_id": 512,
+   "series": {
+    "Title": "Love is Blind: UK",
+    "Year": 2024,
+    "Type": "standard",
+    "ImdbID": "tt26675358",
+    "TvdbID": 447983,
+    "TvMazeID": 0,
+    "TmdbID": 237316
+   },
+   "episodes": [
+    {
+     "Season": 2,
+     "Number": 2,
+     "Absolute": null,
+     "Title": "This Is How Triangles Are Formed",
+     "AirDate": "2025-08-13"
+    }
+   ],
+   "episode_file": {
+    "ID": 512,
+    "Quality": {
+     "Title": "WEBDL-1080p",
+     "Version": 1,
+     "Real": 0
+    },
+    "ReleaseGroup": "playWEB",
+    "ReleaseHash": "",
+    "SceneName": "Love.Is.Blind.UK.S02E02.This.Is.How.Triangles.Are.Formed.1080p.NF.WEB.DL.DD+5.1.H.264-playWEB",
+    "RelativePath": "Season 02/Love is Blind UK (2024) - S02E02 - This Is How Triangles Are Formed [NF - Notifiarr][WEBDL-1080p][EAC3 5.1][x264]-playWEB.mkv",
+    "Path": "/media/tv/Love is Blind UK (2024)/Season 02/Love is Blind UK (2024) - S02E02 - This Is How Triangles Are Formed [NF - Notifiarr][WEBDL-1080p][EAC3 5.1][x264]-playWEB.mkv",
+    "MediaInfo": {
+     "VideoCodec": "x264",
+     "VideoBitDepth": 8,
+     "VideoMultiViewCount": 0,
+     "AudioCodec": "EAC3",
+     "AudioChannels": 5.1,
+     "AudioLanguages": [
+      "eng"
+     ],
+     "Subtitles": null,
+     "VideoDynamicRange": "",
+     "VideoDynamicRangeType": ""
+    },
+    "CustomFormats": [
+     "NF - Notifiarr"
+    ]
+   },
+   "root": "/media/tv",
+   "cf_source": "name",
+   "expect_folder": "Love is Blind UK (2024)",
+   "expect_season": "Season 02",
+   "expect_file": "Love is Blind UK (2024) - S02E02 - This Is How Triangles Are Formed [NF - Notifiarr][WEBDL-1080p][EAC3 5.1][x264]-playWEB.mkv",
+   "ext": ".mkv"
+  },
+  {
+   "instance": "sonarr_4k_debrid",
+   "file_id": 515,
+   "series": {
+    "Title": "Love is Blind: UK",
+    "Year": 2024,
+    "Type": "standard",
+    "ImdbID": "tt26675358",
+    "TvdbID": 447983,
+    "TvMazeID": 0,
+    "TmdbID": 237316
+   },
+   "episodes": [
+    {
+     "Season": 2,
+     "Number": 5,
+     "Absolute": null,
+     "Title": "I Don’t Want to Be a Villain",
+     "AirDate": "2025-08-20"
+    }
+   ],
+   "episode_file": {
+    "ID": 515,
+    "Quality": {
+     "Title": "WEBDL-1080p",
+     "Version": 1,
+     "Real": 0
+    },
+    "ReleaseGroup": "playWEB",
+    "ReleaseHash": "",
+    "SceneName": "Love.Is.Blind.UK.S02E05.I.Dont.Want.to.Be.a.Villain.1080p.NF.WEB.DL.DD+5.1.H.264-playWEB",
+    "RelativePath": "Season 02/Love is Blind UK (2024) - S02E05 - I Dont Want to Be a Villain [NF - Notifiarr][WEBDL-1080p][EAC3 5.1][x264]-playWEB.mkv",
+    "Path": "/media/tv/Love is Blind UK (2024)/Season 02/Love is Blind UK (2024) - S02E05 - I Dont Want to Be a Villain [NF - Notifiarr][WEBDL-1080p][EAC3 5.1][x264]-playWEB.mkv",
+    "MediaInfo": {
+     "VideoCodec": "x264",
+     "VideoBitDepth": 8,
+     "VideoMultiViewCount": 0,
+     "AudioCodec": "EAC3",
+     "AudioChannels": 5.1,
+     "AudioLanguages": [
+      "eng"
+     ],
+     "Subtitles": null,
+     "VideoDynamicRange": "",
+     "VideoDynamicRangeType": ""
+    },
+    "CustomFormats": [
+     "NF - Notifiarr"
+    ]
+   },
+   "root": "/media/tv",
+   "cf_source": "name",
+   "expect_folder": "Love is Blind UK (2024)",
+   "expect_season": "Season 02",
+   "expect_file": "Love is Blind UK (2024) - S02E05 - I Dont Want to Be a Villain [NF - Notifiarr][WEBDL-1080p][EAC3 5.1][x264]-playWEB.mkv",
+   "ext": ".mkv"
+  },
+  {
+   "instance": "sonarr_4k_debrid",
+   "file_id": 516,
+   "series": {
+    "Title": "Love is Blind: UK",
+    "Year": 2024,
+    "Type": "standard",
+    "ImdbID": "tt26675358",
+    "TvdbID": 447983,
+    "TvMazeID": 0,
+    "TmdbID": 237316
+   },
+   "episodes": [
+    {
+     "Season": 2,
+     "Number": 6,
+     "Absolute": null,
+     "Title": "Good Guys Finish Last",
+     "AirDate": "2025-08-20"
+    }
+   ],
+   "episode_file": {
+    "ID": 516,
+    "Quality": {
+     "Title": "WEBDL-1080p",
+     "Version": 1,
+     "Real": 0
+    },
+    "ReleaseGroup": "playWEB",
+    "ReleaseHash": "",
+    "SceneName": "Love.Is.Blind.UK.S02E06.Good.Guys.Finish.Last.1080p.NF.WEB.DL.DD+5.1.H.264-playWEB",
+    "RelativePath": "Season 02/Love is Blind UK (2024) - S02E06 - Good Guys Finish Last [NF - Notifiarr][WEBDL-1080p][EAC3 5.1][x264]-playWEB.mkv",
+    "Path": "/media/tv/Love is Blind UK (2024)/Season 02/Love is Blind UK (2024) - S02E06 - Good Guys Finish Last [NF - Notifiarr][WEBDL-1080p][EAC3 5.1][x264]-playWEB.mkv",
+    "MediaInfo": {
+     "VideoCodec": "x264",
+     "VideoBitDepth": 8,
+     "VideoMultiViewCount": 0,
+     "AudioCodec": "EAC3",
+     "AudioChannels": 5.1,
+     "AudioLanguages": [
+      "eng"
+     ],
+     "Subtitles": null,
+     "VideoDynamicRange": "",
+     "VideoDynamicRangeType": ""
+    },
+    "CustomFormats": [
+     "NF - Notifiarr"
+    ]
+   },
+   "root": "/media/tv",
+   "cf_source": "name",
+   "expect_folder": "Love is Blind UK (2024)",
+   "expect_season": "Season 02",
+   "expect_file": "Love is Blind UK (2024) - S02E06 - Good Guys Finish Last [NF - Notifiarr][WEBDL-1080p][EAC3 5.1][x264]-playWEB.mkv",
+   "ext": ".mkv"
+  },
+  {
+   "instance": "sonarr_4k_debrid",
+   "file_id": 518,
+   "series": {
+    "Title": "Love is Blind: UK",
+    "Year": 2024,
+    "Type": "standard",
+    "ImdbID": "tt26675358",
+    "TvdbID": 447983,
+    "TvMazeID": 0,
+    "TmdbID": 237316
+   },
+   "episodes": [
+    {
+     "Season": 2,
+     "Number": 8,
+     "Absolute": null,
+     "Title": "Walking Away",
+     "AirDate": "2025-08-20"
+    }
+   ],
+   "episode_file": {
+    "ID": 518,
+    "Quality": {
+     "Title": "WEBDL-1080p",
+     "Version": 1,
+     "Real": 0
+    },
+    "ReleaseGroup": "playWEB",
+    "ReleaseHash": "",
+    "SceneName": "Love.Is.Blind.UK.S02E08.Walking.Away.1080p.NF.WEB.DL.DD+5.1.H.264-playWEB",
+    "RelativePath": "Season 02/Love is Blind UK (2024) - S02E08 - Walking Away [NF - Notifiarr][WEBDL-1080p][EAC3 5.1][x264]-playWEB.mkv",
+    "Path": "/media/tv/Love is Blind UK (2024)/Season 02/Love is Blind UK (2024) - S02E08 - Walking Away [NF - Notifiarr][WEBDL-1080p][EAC3 5.1][x264]-playWEB.mkv",
+    "MediaInfo": {
+     "VideoCodec": "x264",
+     "VideoBitDepth": 8,
+     "VideoMultiViewCount": 0,
+     "AudioCodec": "EAC3",
+     "AudioChannels": 5.1,
+     "AudioLanguages": [
+      "eng"
+     ],
+     "Subtitles": null,
+     "VideoDynamicRange": "",
+     "VideoDynamicRangeType": ""
+    },
+    "CustomFormats": [
+     "NF - Notifiarr"
+    ]
+   },
+   "root": "/media/tv",
+   "cf_source": "name",
+   "expect_folder": "Love is Blind UK (2024)",
+   "expect_season": "Season 02",
+   "expect_file": "Love is Blind UK (2024) - S02E08 - Walking Away [NF - Notifiarr][WEBDL-1080p][EAC3 5.1][x264]-playWEB.mkv",
+   "ext": ".mkv"
+  },
+  {
+   "instance": "sonarr_4k_debrid",
+   "file_id": 529,
+   "series": {
+    "Title": "Vikings",
+    "Year": 2013,
+    "Type": "standard",
+    "ImdbID": "tt2306299",
+    "TvdbID": 260449,
+    "TvMazeID": 0,
+    "TmdbID": 44217
+   },
+   "episodes": [
+    {
+     "Season": 1,
+     "Number": 5,
+     "Absolute": 5,
+     "Title": "Raid",
+     "AirDate": "2013-03-31"
+    }
+   ],
+   "episode_file": {
+    "ID": 529,
+    "Quality": {
+     "Title": "Bluray-1080p Remux",
+     "Version": 1,
+     "Real": 0
+    },
+    "ReleaseGroup": "FraMeSToR",
+    "ReleaseHash": "",
+    "SceneName": "Vikings.S01.E05.Raid.2013.BluRay.1080p.DTS-HD.MA.5.1.AVC.REMUX-FraMeSToR",
+    "RelativePath": "Season 01/Vikings (2013) - S01E05 - Raid [Bluray-1080p Remux][DTS-HD MA 5.1][AVC]-FraMeSToR.mkv",
+    "Path": "/media/tv/Vikings (2013)/Season 01/Vikings (2013) - S01E05 - Raid [Bluray-1080p Remux][DTS-HD MA 5.1][AVC]-FraMeSToR.mkv",
+    "MediaInfo": {
+     "VideoCodec": "AVC",
+     "VideoBitDepth": 8,
+     "VideoMultiViewCount": 0,
+     "AudioCodec": "DTS-HD MA",
+     "AudioChannels": 5.1,
+     "AudioLanguages": [
+      "eng"
+     ],
+     "Subtitles": null,
+     "VideoDynamicRange": "",
+     "VideoDynamicRangeType": ""
+    },
+    "CustomFormats": null
+   },
+   "root": "/media/tv",
+   "cf_source": "none",
+   "expect_folder": "Vikings (2013)",
+   "expect_season": "Season 01",
+   "expect_file": "Vikings (2013) - S01E05 - Raid [Bluray-1080p Remux][DTS-HD MA 5.1][AVC]-FraMeSToR.mkv",
+   "ext": ".mkv"
+  },
+  {
+   "instance": "sonarr_4k_debrid",
+   "file_id": 540,
+   "series": {
+    "Title": "Vikings",
+    "Year": 2013,
+    "Type": "standard",
+    "ImdbID": "tt2306299",
+    "TvdbID": 260449,
+    "TvMazeID": 0,
+    "TmdbID": 44217
+   },
+   "episodes": [
+    {
+     "Season": 2,
+     "Number": 7,
+     "Absolute": 16,
+     "Title": "Blood Eagle",
+     "AirDate": "2014-04-10"
+    }
+   ],
+   "episode_file": {
+    "ID": 540,
+    "Quality": {
+     "Title": "Bluray-1080p Remux",
+     "Version": 1,
+     "Real": 0
+    },
+    "ReleaseGroup": "FraMeSToR",
+    "ReleaseHash": "",
+    "SceneName": "Vikings.S02E07.Blood.Eagle.Extended.BluRay.1080p.AVC.DTS-HD.MA.5.1.REMUX-FraMeSToR",
+    "RelativePath": "Season 02/Vikings (2013) - S02E07 - Blood Eagle [Bluray-1080p Remux][DTS-HD MA 5.1][AVC]-FraMeSToR.mkv",
+    "Path": "/media/tv/Vikings (2013)/Season 02/Vikings (2013) - S02E07 - Blood Eagle [Bluray-1080p Remux][DTS-HD MA 5.1][AVC]-FraMeSToR.mkv",
+    "MediaInfo": {
+     "VideoCodec": "AVC",
+     "VideoBitDepth": 8,
+     "VideoMultiViewCount": 0,
+     "AudioCodec": "DTS-HD MA",
+     "AudioChannels": 5.1,
+     "AudioLanguages": [
+      "eng",
+      "eng"
+     ],
+     "Subtitles": null,
+     "VideoDynamicRange": "",
+     "VideoDynamicRangeType": ""
+    },
+    "CustomFormats": null
+   },
+   "root": "/media/tv",
+   "cf_source": "none",
+   "expect_folder": "Vikings (2013)",
+   "expect_season": "Season 02",
+   "expect_file": "Vikings (2013) - S02E07 - Blood Eagle [Bluray-1080p Remux][DTS-HD MA 5.1][AVC]-FraMeSToR.mkv",
+   "ext": ".mkv"
+  },
+  {
+   "instance": "sonarr_4k_debrid",
+   "file_id": 542,
+   "series": {
+    "Title": "Vikings",
+    "Year": 2013,
+    "Type": "standard",
+    "ImdbID": "tt2306299",
+    "TvdbID": 260449,
+    "TvMazeID": 0,
+    "TmdbID": 44217
+   },
+   "episodes": [
+    {
+     "Season": 2,
+     "Number": 9,
+     "Absolute": 18,
+     "Title": "The Choice",
+     "AirDate": "2014-04-24"
+    }
+   ],
+   "episode_file": {
+    "ID": 542,
+    "Quality": {
+     "Title": "Bluray-1080p Remux",
+     "Version": 1,
+     "Real": 0
+    },
+    "ReleaseGroup": "FraMeSToR",
+    "ReleaseHash": "",
+    "SceneName": "Vikings.S02E09.The.Choice.Extended.BluRay.1080p.AVC.DTS-HD.MA.5.1.REMUX-FraMeSToR",
+    "RelativePath": "Season 02/Vikings (2013) - S02E09 - The Choice [Bluray-1080p Remux][DTS-HD MA 5.1][AVC]-FraMeSToR.mkv",
+    "Path": "/media/tv/Vikings (2013)/Season 02/Vikings (2013) - S02E09 - The Choice [Bluray-1080p Remux][DTS-HD MA 5.1][AVC]-FraMeSToR.mkv",
+    "MediaInfo": {
+     "VideoCodec": "AVC",
+     "VideoBitDepth": 8,
+     "VideoMultiViewCount": 0,
+     "AudioCodec": "DTS-HD MA",
+     "AudioChannels": 5.1,
+     "AudioLanguages": [
+      "eng"
+     ],
+     "Subtitles": null,
+     "VideoDynamicRange": "",
+     "VideoDynamicRangeType": ""
+    },
+    "CustomFormats": null
+   },
+   "root": "/media/tv",
+   "cf_source": "none",
+   "expect_folder": "Vikings (2013)",
+   "expect_season": "Season 02",
+   "expect_file": "Vikings (2013) - S02E09 - The Choice [Bluray-1080p Remux][DTS-HD MA 5.1][AVC]-FraMeSToR.mkv",
+   "ext": ".mkv"
+  },
+  {
+   "instance": "sonarr_4k_debrid",
+   "file_id": 543,
+   "series": {
+    "Title": "Vikings",
+    "Year": 2013,
+    "Type": "standard",
+    "ImdbID": "tt2306299",
+    "TvdbID": 260449,
+    "TvMazeID": 0,
+    "TmdbID": 44217
+   },
+   "episodes": [
+    {
+     "Season": 2,
+     "Number": 10,
+     "Absolute": 19,
+     "Title": "The Lord's Prayer",
+     "AirDate": "2014-05-01"
+    }
+   ],
+   "episode_file": {
+    "ID": 543,
+    "Quality": {
+     "Title": "Bluray-1080p Remux",
+     "Version": 1,
+     "Real": 0
+    },
+    "ReleaseGroup": "FraMeSToR",
+    "ReleaseHash": "",
+    "SceneName": "Vikings.S02E10.The.Lord's.Prayer.Extended.BluRay.1080p.AVC.DTS-HD.MA.5.1.REMUX-FraMeSToR",
+    "RelativePath": "Season 02/Vikings (2013) - S02E10 - The Lords Prayer [Bluray-1080p Remux][DTS-HD MA 5.1][AVC]-FraMeSToR.mkv",
+    "Path": "/media/tv/Vikings (2013)/Season 02/Vikings (2013) - S02E10 - The Lords Prayer [Bluray-1080p Remux][DTS-HD MA 5.1][AVC]-FraMeSToR.mkv",
+    "MediaInfo": {
+     "VideoCodec": "AVC",
+     "VideoBitDepth": 8,
+     "VideoMultiViewCount": 0,
+     "AudioCodec": "DTS-HD MA",
+     "AudioChannels": 5.1,
+     "AudioLanguages": [
+      "eng",
+      "eng"
+     ],
+     "Subtitles": null,
+     "VideoDynamicRange": "",
+     "VideoDynamicRangeType": ""
+    },
+    "CustomFormats": null
+   },
+   "root": "/media/tv",
+   "cf_source": "none",
+   "expect_folder": "Vikings (2013)",
+   "expect_season": "Season 02",
+   "expect_file": "Vikings (2013) - S02E10 - The Lords Prayer [Bluray-1080p Remux][DTS-HD MA 5.1][AVC]-FraMeSToR.mkv",
+   "ext": ".mkv"
+  },
+  {
+   "instance": "sonarr_4k_debrid",
+   "file_id": 568,
+   "series": {
+    "Title": "Vikings",
+    "Year": 2013,
+    "Type": "standard",
+    "ImdbID": "tt2306299",
+    "TvdbID": 260449,
+    "TvMazeID": 0,
+    "TmdbID": 44217
+   },
+   "episodes": [
+    {
+     "Season": 4,
+     "Number": 15,
+     "Absolute": 44,
+     "Title": "All His Angels",
+     "AirDate": "2016-12-28"
+    }
+   ],
+   "episode_file": {
+    "ID": 568,
+    "Quality": {
+     "Title": "Bluray-1080p Remux",
+     "Version": 1,
+     "Real": 0
+    },
+    "ReleaseGroup": "FraMeSToR",
+    "ReleaseHash": "",
+    "SceneName": "Vikings.S04E15.All.His.Angels.1080p.DTS-HD.MA.5.1.AVC.REMUX-FraMeSToR",
+    "RelativePath": "Season 04/Vikings (2013) - S04E15 - All His Angels [Bluray-1080p Remux][DTS-HD MA 5.1][AVC]-FraMeSToR.mkv",
+    "Path": "/media/tv/Vikings (2013)/Season 04/Vikings (2013) - S04E15 - All His Angels [Bluray-1080p Remux][DTS-HD MA 5.1][AVC]-FraMeSToR.mkv",
+    "MediaInfo": {
+     "VideoCodec": "AVC",
+     "VideoBitDepth": 8,
+     "VideoMultiViewCount": 0,
+     "AudioCodec": "DTS-HD MA",
+     "AudioChannels": 5.1,
+     "AudioLanguages": [
+      "eng",
+      "eng"
+     ],
+     "Subtitles": null,
+     "VideoDynamicRange": "",
+     "VideoDynamicRangeType": ""
+    },
+    "CustomFormats": null
+   },
+   "root": "/media/tv",
+   "cf_source": "none",
+   "expect_folder": "Vikings (2013)",
+   "expect_season": "Season 04",
+   "expect_file": "Vikings (2013) - S04E15 - All His Angels [Bluray-1080p Remux][DTS-HD MA 5.1][AVC]-FraMeSToR.mkv",
+   "ext": ".mkv"
+  },
+  {
+   "instance": "sonarr_4k_debrid",
+   "file_id": 570,
+   "series": {
+    "Title": "Vikings",
+    "Year": 2013,
+    "Type": "standard",
+    "ImdbID": "tt2306299",
+    "TvdbID": 260449,
+    "TvMazeID": 0,
+    "TmdbID": 44217
+   },
+   "episodes": [
+    {
+     "Season": 4,
+     "Number": 17,
+     "Absolute": 46,
+     "Title": "The Great Army",
+     "AirDate": "2017-01-11"
+    }
+   ],
+   "episode_file": {
+    "ID": 570,
+    "Quality": {
+     "Title": "Bluray-1080p Remux",
+     "Version": 1,
+     "Real": 0
+    },
+    "ReleaseGroup": "FraMeSToR",
+    "ReleaseHash": "",
+    "SceneName": "Vikings.S04E17.The.Great.Army.1080p.DTS-HD.MA.5.1.AVC.REMUX-FraMeSToR",
+    "RelativePath": "Season 04/Vikings (2013) - S04E17 - The Great Army [Bluray-1080p Remux][DTS-HD MA 5.1][AVC]-FraMeSToR.mkv",
+    "Path": "/media/tv/Vikings (2013)/Season 04/Vikings (2013) - S04E17 - The Great Army [Bluray-1080p Remux][DTS-HD MA 5.1][AVC]-FraMeSToR.mkv",
+    "MediaInfo": {
+     "VideoCodec": "AVC",
+     "VideoBitDepth": 8,
+     "VideoMultiViewCount": 0,
+     "AudioCodec": "DTS-HD MA",
+     "AudioChannels": 5.1,
+     "AudioLanguages": [
+      "eng"
+     ],
+     "Subtitles": null,
+     "VideoDynamicRange": "",
+     "VideoDynamicRangeType": ""
+    },
+    "CustomFormats": null
+   },
+   "root": "/media/tv",
+   "cf_source": "none",
+   "expect_folder": "Vikings (2013)",
+   "expect_season": "Season 04",
+   "expect_file": "Vikings (2013) - S04E17 - The Great Army [Bluray-1080p Remux][DTS-HD MA 5.1][AVC]-FraMeSToR.mkv",
+   "ext": ".mkv"
+  },
+  {
+   "instance": "sonarr_4k_debrid",
+   "file_id": 598,
+   "series": {
+    "Title": "Vikings",
+    "Year": 2013,
+    "Type": "standard",
+    "ImdbID": "tt2306299",
+    "TvdbID": 260449,
+    "TvMazeID": 0,
+    "TmdbID": 44217
+   },
+   "episodes": [
+    {
+     "Season": 5,
+     "Number": 5,
+     "Absolute": 54,
+     "Title": "The Prisoner",
+     "AirDate": "2017-12-20"
+    }
+   ],
+   "episode_file": {
+    "ID": 598,
+    "Quality": {
+     "Title": "Bluray-1080p Remux",
+     "Version": 1,
+     "Real": 0
+    },
+    "ReleaseGroup": "FraMeSToR",
+    "ReleaseHash": "",
+    "SceneName": "Vikings.S05E05.The.Prisoner.1080p.DTS-HD.MA.5.1.AVC.REMUX-FraMeSToR",
+    "RelativePath": "Season 05/Vikings (2013) - S05E05 - The Prisoner [Bluray-1080p Remux][DTS-HD MA 5.1][AVC]-FraMeSToR.mkv",
+    "Path": "/media/tv/Vikings (2013)/Season 05/Vikings (2013) - S05E05 - The Prisoner [Bluray-1080p Remux][DTS-HD MA 5.1][AVC]-FraMeSToR.mkv",
+    "MediaInfo": {
+     "VideoCodec": "AVC",
+     "VideoBitDepth": 8,
+     "VideoMultiViewCount": 0,
+     "AudioCodec": "DTS-HD MA",
+     "AudioChannels": 5.1,
+     "AudioLanguages": [
+      "eng"
+     ],
+     "Subtitles": null,
+     "VideoDynamicRange": "",
+     "VideoDynamicRangeType": ""
+    },
+    "CustomFormats": null
+   },
+   "root": "/media/tv",
+   "cf_source": "none",
+   "expect_folder": "Vikings (2013)",
+   "expect_season": "Season 05",
+   "expect_file": "Vikings (2013) - S05E05 - The Prisoner [Bluray-1080p Remux][DTS-HD MA 5.1][AVC]-FraMeSToR.mkv",
+   "ext": ".mkv"
+  },
+  {
+   "instance": "sonarr_4k_debrid",
+   "file_id": 601,
+   "series": {
+    "Title": "Vikings",
+    "Year": 2013,
+    "Type": "standard",
+    "ImdbID": "tt2306299",
+    "TvdbID": 260449,
+    "TvMazeID": 0,
+    "TmdbID": 44217
+   },
+   "episodes": [
+    {
+     "Season": 5,
+     "Number": 8,
+     "Absolute": 57,
+     "Title": "The Joke",
+     "AirDate": "2018-01-10"
+    }
+   ],
+   "episode_file": {
+    "ID": 601,
+    "Quality": {
+     "Title": "Bluray-1080p Remux",
+     "Version": 1,
+     "Real": 0
+    },
+    "ReleaseGroup": "FraMeSToR",
+    "ReleaseHash": "",
+    "SceneName": "Vikings.S05E08.The.Joke.1080p.DTS-HD.MA.5.1.AVC.REMUX-FraMeSToR",
+    "RelativePath": "Season 05/Vikings (2013) - S05E08 - The Joke [Bluray-1080p Remux][DTS-HD MA 5.1][AVC]-FraMeSToR.mkv",
+    "Path": "/media/tv/Vikings (2013)/Season 05/Vikings (2013) - S05E08 - The Joke [Bluray-1080p Remux][DTS-HD MA 5.1][AVC]-FraMeSToR.mkv",
+    "MediaInfo": {
+     "VideoCodec": "AVC",
+     "VideoBitDepth": 8,
+     "VideoMultiViewCount": 0,
+     "AudioCodec": "DTS-HD MA",
+     "AudioChannels": 5.1,
+     "AudioLanguages": [
+      "eng"
+     ],
+     "Subtitles": null,
+     "VideoDynamicRange": "",
+     "VideoDynamicRangeType": ""
+    },
+    "CustomFormats": null
+   },
+   "root": "/media/tv",
+   "cf_source": "none",
+   "expect_folder": "Vikings (2013)",
+   "expect_season": "Season 05",
+   "expect_file": "Vikings (2013) - S05E08 - The Joke [Bluray-1080p Remux][DTS-HD MA 5.1][AVC]-FraMeSToR.mkv",
+   "ext": ".mkv"
+  },
+  {
+   "instance": "sonarr_4k_debrid",
+   "file_id": 604,
+   "series": {
+    "Title": "Vikings",
+    "Year": 2013,
+    "Type": "standard",
+    "ImdbID": "tt2306299",
+    "TvdbID": 260449,
+    "TvMazeID": 0,
+    "TmdbID": 44217
+   },
+   "episodes": [
+    {
+     "Season": 5,
+     "Number": 11,
+     "Absolute": 60,
+     "Title": "The Revelation",
+     "AirDate": "2018-11-28"
+    }
+   ],
+   "episode_file": {
+    "ID": 604,
+    "Quality": {
+     "Title": "Bluray-1080p Remux",
+     "Version": 1,
+     "Real": 0
+    },
+    "ReleaseGroup": "FraMeSToR",
+    "ReleaseHash": "",
+    "SceneName": "Vikings.S05E11.The.Revelation.1080p.DTS-HD.MA.5.1.AVC.REMUX-FraMeSToR",
+    "RelativePath": "Season 05/Vikings (2013) - S05E11 - The Revelation [Bluray-1080p Remux][DTS-HD MA 5.1][AVC]-FraMeSToR.mkv",
+    "Path": "/media/tv/Vikings (2013)/Season 05/Vikings (2013) - S05E11 - The Revelation [Bluray-1080p Remux][DTS-HD MA 5.1][AVC]-FraMeSToR.mkv",
+    "MediaInfo": {
+     "VideoCodec": "AVC",
+     "VideoBitDepth": 8,
+     "VideoMultiViewCount": 0,
+     "AudioCodec": "DTS-HD MA",
+     "AudioChannels": 5.1,
+     "AudioLanguages": [
+      "eng"
+     ],
+     "Subtitles": null,
+     "VideoDynamicRange": "",
+     "VideoDynamicRangeType": ""
+    },
+    "CustomFormats": null
+   },
+   "root": "/media/tv",
+   "cf_source": "none",
+   "expect_folder": "Vikings (2013)",
+   "expect_season": "Season 05",
+   "expect_file": "Vikings (2013) - S05E11 - The Revelation [Bluray-1080p Remux][DTS-HD MA 5.1][AVC]-FraMeSToR.mkv",
+   "ext": ".mkv"
+  },
+  {
+   "instance": "sonarr_4k_debrid",
+   "file_id": 608,
+   "series": {
+    "Title": "Vikings",
+    "Year": 2013,
+    "Type": "standard",
+    "ImdbID": "tt2306299",
+    "TvdbID": 260449,
+    "TvMazeID": 0,
+    "TmdbID": 44217
+   },
+   "episodes": [
+    {
+     "Season": 5,
+     "Number": 15,
+     "Absolute": 64,
+     "Title": "Hell",
+     "AirDate": "2018-12-26"
+    }
+   ],
+   "episode_file": {
+    "ID": 608,
+    "Quality": {
+     "Title": "Bluray-1080p Remux",
+     "Version": 1,
+     "Real": 0
+    },
+    "ReleaseGroup": "FraMeSToR",
+    "ReleaseHash": "",
+    "SceneName": "Vikings.S05E15.Hell.1080p.DTS-HD.MA.5.1.AVC.REMUX-FraMeSToR",
+    "RelativePath": "Season 05/Vikings (2013) - S05E15 - Hell [Bluray-1080p Remux][DTS-HD MA 5.1][AVC]-FraMeSToR.mkv",
+    "Path": "/media/tv/Vikings (2013)/Season 05/Vikings (2013) - S05E15 - Hell [Bluray-1080p Remux][DTS-HD MA 5.1][AVC]-FraMeSToR.mkv",
+    "MediaInfo": {
+     "VideoCodec": "AVC",
+     "VideoBitDepth": 8,
+     "VideoMultiViewCount": 0,
+     "AudioCodec": "DTS-HD MA",
+     "AudioChannels": 5.1,
+     "AudioLanguages": [
+      "eng"
+     ],
+     "Subtitles": null,
+     "VideoDynamicRange": "",
+     "VideoDynamicRangeType": ""
+    },
+    "CustomFormats": null
+   },
+   "root": "/media/tv",
+   "cf_source": "none",
+   "expect_folder": "Vikings (2013)",
+   "expect_season": "Season 05",
+   "expect_file": "Vikings (2013) - S05E15 - Hell [Bluray-1080p Remux][DTS-HD MA 5.1][AVC]-FraMeSToR.mkv",
+   "ext": ".mkv"
+  },
+  {
+   "instance": "sonarr_4k_debrid",
+   "file_id": 620,
+   "series": {
+    "Title": "Emily in Paris",
+    "Year": 2020,
+    "Type": "standard",
+    "ImdbID": "tt8962124",
+    "TvdbID": 364439,
+    "TvMazeID": 0,
+    "TmdbID": 82596
+   },
+   "episodes": [
+    {
+     "Season": 1,
+     "Number": 7,
+     "Absolute": null,
+     "Title": "French Ending",
+     "AirDate": "2020-10-02"
+    }
+   ],
+   "episode_file": {
+    "ID": 620,
+    "Quality": {
+     "Title": "WEBDL-2160p",
+     "Version": 1,
+     "Real": 0
+    },
+    "ReleaseGroup": "HONE",
+    "ReleaseHash": "",
+    "SceneName": "Emily.in.Paris.2020.S01E07.2160p.NF.WEB.DL.Hybrid.H265.DV.HDR.DDP.5.1.English-HONE",
+    "RelativePath": "Season 01/Emily in Paris (2020) - S01E07 - French Ending [NF - Notifiarr][WEBDL-2160p][EAC3 5.1][DV HDR10][h265]-HONE.mkv",
+    "Path": "/media/tv/Emily in Paris (2020)/Season 01/Emily in Paris (2020) - S01E07 - French Ending [NF - Notifiarr][WEBDL-2160p][EAC3 5.1][DV HDR10][h265]-HONE.mkv",
+    "MediaInfo": {
+     "VideoCodec": "h265",
+     "VideoBitDepth": 10,
+     "VideoMultiViewCount": 0,
+     "AudioCodec": "EAC3",
+     "AudioChannels": 5.1,
+     "AudioLanguages": [
+      "eng"
+     ],
+     "Subtitles": null,
+     "VideoDynamicRange": "HDR",
+     "VideoDynamicRangeType": "DV HDR10"
+    },
+    "CustomFormats": [
+     "NF - Notifiarr"
+    ]
+   },
+   "root": "/media/tv",
+   "cf_source": "name",
+   "expect_folder": "Emily in Paris (2020)",
+   "expect_season": "Season 01",
+   "expect_file": "Emily in Paris (2020) - S01E07 - French Ending [NF - Notifiarr][WEBDL-2160p][EAC3 5.1][DV HDR10][h265]-HONE.mkv",
+   "ext": ".mkv"
+  },
+  {
+   "instance": "sonarr_4k_debrid",
+   "file_id": 621,
+   "series": {
+    "Title": "Emily in Paris",
+    "Year": 2020,
+    "Type": "standard",
+    "ImdbID": "tt8962124",
+    "TvdbID": 364439,
+    "TvMazeID": 0,
+    "TmdbID": 82596
+   },
+   "episodes": [
+    {
+     "Season": 1,
+     "Number": 8,
+     "Absolute": null,
+     "Title": "Family Affair",
+     "AirDate": "2020-10-02"
+    }
+   ],
+   "episode_file": {
+    "ID": 621,
+    "Quality": {
+     "Title": "WEBDL-2160p",
+     "Version": 1,
+     "Real": 0
+    },
+    "ReleaseGroup": "HONE",
+    "ReleaseHash": "",
+    "SceneName": "Emily.in.Paris.2020.S01E08.2160p.NF.WEB.DL.Hybrid.H265.DV.HDR.DDP.5.1.English-HONE",
+    "RelativePath": "Season 01/Emily in Paris (2020) - S01E08 - Family Affair [NF - Notifiarr][WEBDL-2160p][EAC3 5.1][DV HDR10][h265]-HONE.mkv",
+    "Path": "/media/tv/Emily in Paris (2020)/Season 01/Emily in Paris (2020) - S01E08 - Family Affair [NF - Notifiarr][WEBDL-2160p][EAC3 5.1][DV HDR10][h265]-HONE.mkv",
+    "MediaInfo": {
+     "VideoCodec": "h265",
+     "VideoBitDepth": 10,
+     "VideoMultiViewCount": 0,
+     "AudioCodec": "EAC3",
+     "AudioChannels": 5.1,
+     "AudioLanguages": [
+      "eng"
+     ],
+     "Subtitles": null,
+     "VideoDynamicRange": "HDR",
+     "VideoDynamicRangeType": "DV HDR10"
+    },
+    "CustomFormats": [
+     "NF - Notifiarr"
+    ]
+   },
+   "root": "/media/tv",
+   "cf_source": "name",
+   "expect_folder": "Emily in Paris (2020)",
+   "expect_season": "Season 01",
+   "expect_file": "Emily in Paris (2020) - S01E08 - Family Affair [NF - Notifiarr][WEBDL-2160p][EAC3 5.1][DV HDR10][h265]-HONE.mkv",
+   "ext": ".mkv"
+  },
+  {
+   "instance": "sonarr_4k_debrid",
+   "file_id": 645,
+   "series": {
+    "Title": "Emily in Paris",
+    "Year": 2020,
+    "Type": "standard",
+    "ImdbID": "tt8962124",
+    "TvdbID": 364439,
+    "TvMazeID": 0,
+    "TmdbID": 82596
+   },
+   "episodes": [
+    {
+     "Season": 4,
+     "Number": 2,
+     "Absolute": null,
+     "Title": "Love on the Run",
+     "AirDate": "2024-08-15"
+    }
+   ],
+   "episode_file": {
+    "ID": 645,
+    "Quality": {
+     "Title": "WEBDL-2160p",
+     "Version": 1,
+     "Real": 0
+    },
+    "ReleaseGroup": "HONE",
+    "ReleaseHash": "",
+    "SceneName": "Emily.in.Paris.2020.S04E02.2160p.NF.WEB.DL.Hybrid.H265.DV.HDR.DDP.5.1.English-HONE",
+    "RelativePath": "Season 04/Emily in Paris (2020) - S04E02 - Love on the Run [NF - Notifiarr][WEBDL-2160p][EAC3 5.1][DV HDR10][h265]-HONE.mkv",
+    "Path": "/media/tv/Emily in Paris (2020)/Season 04/Emily in Paris (2020) - S04E02 - Love on the Run [NF - Notifiarr][WEBDL-2160p][EAC3 5.1][DV HDR10][h265]-HONE.mkv",
+    "MediaInfo": {
+     "VideoCodec": "h265",
+     "VideoBitDepth": 10,
+     "VideoMultiViewCount": 0,
+     "AudioCodec": "EAC3",
+     "AudioChannels": 5.1,
+     "AudioLanguages": [
+      "eng"
+     ],
+     "Subtitles": null,
+     "VideoDynamicRange": "HDR",
+     "VideoDynamicRangeType": "DV HDR10"
+    },
+    "CustomFormats": [
+     "NF - Notifiarr"
+    ]
+   },
+   "root": "/media/tv",
+   "cf_source": "name",
+   "expect_folder": "Emily in Paris (2020)",
+   "expect_season": "Season 04",
+   "expect_file": "Emily in Paris (2020) - S04E02 - Love on the Run [NF - Notifiarr][WEBDL-2160p][EAC3 5.1][DV HDR10][h265]-HONE.mkv",
+   "ext": ".mkv"
+  },
+  {
+   "instance": "sonarr_4k_debrid",
+   "file_id": 650,
+   "series": {
+    "Title": "Emily in Paris",
+    "Year": 2020,
+    "Type": "standard",
+    "ImdbID": "tt8962124",
+    "TvdbID": 364439,
+    "TvMazeID": 0,
+    "TmdbID": 82596
+   },
+   "episodes": [
+    {
+     "Season": 4,
+     "Number": 7,
+     "Absolute": null,
+     "Title": "Lost in Translation",
+     "AirDate": "2024-09-12"
+    }
+   ],
+   "episode_file": {
+    "ID": 650,
+    "Quality": {
+     "Title": "WEBDL-2160p",
+     "Version": 1,
+     "Real": 0
+    },
+    "ReleaseGroup": "HONE",
+    "ReleaseHash": "",
+    "SceneName": "Emily.in.Paris.2020.S04E07.2160p.NF.WEB.DL.Hybrid.H265.DV.HDR.DDP.5.1.English-HONE",
+    "RelativePath": "Season 04/Emily in Paris (2020) - S04E07 - Lost in Translation [NF - Notifiarr][WEBDL-2160p][EAC3 5.1][DV HDR10][h265]-HONE.mkv",
+    "Path": "/media/tv/Emily in Paris (2020)/Season 04/Emily in Paris (2020) - S04E07 - Lost in Translation [NF - Notifiarr][WEBDL-2160p][EAC3 5.1][DV HDR10][h265]-HONE.mkv",
+    "MediaInfo": {
+     "VideoCodec": "h265",
+     "VideoBitDepth": 10,
+     "VideoMultiViewCount": 0,
+     "AudioCodec": "EAC3",
+     "AudioChannels": 5.1,
+     "AudioLanguages": [
+      "eng"
+     ],
+     "Subtitles": null,
+     "VideoDynamicRange": "HDR",
+     "VideoDynamicRangeType": "DV HDR10"
+    },
+    "CustomFormats": [
+     "NF - Notifiarr"
+    ]
+   },
+   "root": "/media/tv",
+   "cf_source": "name",
+   "expect_folder": "Emily in Paris (2020)",
+   "expect_season": "Season 04",
+   "expect_file": "Emily in Paris (2020) - S04E07 - Lost in Translation [NF - Notifiarr][WEBDL-2160p][EAC3 5.1][DV HDR10][h265]-HONE.mkv",
+   "ext": ".mkv"
+  },
+  {
+   "instance": "sonarr_4k_debrid",
+   "file_id": 654,
+   "series": {
+    "Title": "Emily in Paris",
+    "Year": 2020,
+    "Type": "standard",
+    "ImdbID": "tt8962124",
+    "TvdbID": 364439,
+    "TvMazeID": 0,
+    "TmdbID": 82596
+   },
+   "episodes": [
+    {
+     "Season": 5,
+     "Number": 1,
+     "Absolute": null,
+     "Title": "La Dolce Emily",
+     "AirDate": "2025-12-18"
+    }
+   ],
+   "episode_file": {
+    "ID": 654,
+    "Quality": {
+     "Title": "WEBDL-2160p",
+     "Version": 1,
+     "Real": 0
+    },
+    "ReleaseGroup": "HONE",
+    "ReleaseHash": "",
+    "SceneName": "Emily.in.Paris.2020.S05E01.2160p.NF.WEB.DL.Hybrid.H265.DV.HDR.DDP.5.1.English-HONE",
+    "RelativePath": "Season 05/Emily in Paris (2020) - S05E01 - La Dolce Emily [NF - Notifiarr][WEBDL-2160p][EAC3 5.1][DV HDR10][h265]-HONE.mkv",
+    "Path": "/media/tv/Emily in Paris (2020)/Season 05/Emily in Paris (2020) - S05E01 - La Dolce Emily [NF - Notifiarr][WEBDL-2160p][EAC3 5.1][DV HDR10][h265]-HONE.mkv",
+    "MediaInfo": {
+     "VideoCodec": "h265",
+     "VideoBitDepth": 10,
+     "VideoMultiViewCount": 0,
+     "AudioCodec": "EAC3",
+     "AudioChannels": 5.1,
+     "AudioLanguages": [
+      "eng"
+     ],
+     "Subtitles": null,
+     "VideoDynamicRange": "HDR",
+     "VideoDynamicRangeType": "DV HDR10"
+    },
+    "CustomFormats": [
+     "NF - Notifiarr"
+    ]
+   },
+   "root": "/media/tv",
+   "cf_source": "name",
+   "expect_folder": "Emily in Paris (2020)",
+   "expect_season": "Season 05",
+   "expect_file": "Emily in Paris (2020) - S05E01 - La Dolce Emily [NF - Notifiarr][WEBDL-2160p][EAC3 5.1][DV HDR10][h265]-HONE.mkv",
+   "ext": ".mkv"
+  },
+  {
+   "instance": "sonarr_4k_debrid",
+   "file_id": 705,
+   "series": {
+    "Title": "Stranger Things",
+    "Year": 2016,
+    "Type": "standard",
+    "ImdbID": "tt4574334",
+    "TvdbID": 305288,
+    "TvMazeID": 0,
+    "TmdbID": 66732
+   },
+   "episodes": [
+    {
+     "Season": 3,
+     "Number": 3,
+     "Absolute": 20,
+     "Title": "Chapter Three: The Case of the Missing Lifeguard",
+     "AirDate": "2019-07-04"
+    }
+   ],
+   "episode_file": {
+    "ID": 705,
+    "Quality": {
+     "Title": "WEBDL-2160p",
+     "Version": 1,
+     "Real": 0
+    },
+    "ReleaseGroup": "",
+    "ReleaseHash": "",
+    "SceneName": "",
+    "RelativePath": "Season 03/Stranger Things (2016) - S03E03 - Chapter Three The Case of the Missing Lifeguard [WEBDL-2160p][EAC3 5.1][h265].mkv",
+    "Path": "/media/tv/Stranger Things (2016)/Season 03/Stranger Things (2016) - S03E03 - Chapter Three The Case of the Missing Lifeguard [WEBDL-2160p][EAC3 5.1][h265].mkv",
+    "MediaInfo": {
+     "VideoCodec": "h265",
+     "VideoBitDepth": 10,
+     "VideoMultiViewCount": 0,
+     "AudioCodec": "EAC3",
+     "AudioChannels": 5.1,
+     "AudioLanguages": [
+      "eng"
+     ],
+     "Subtitles": null,
+     "VideoDynamicRange": "",
+     "VideoDynamicRangeType": ""
+    },
+    "CustomFormats": null
+   },
+   "root": "/media/tv",
+   "cf_source": "none",
+   "expect_folder": "Stranger Things (2016)",
+   "expect_season": "Season 03",
+   "expect_file": "Stranger Things (2016) - S03E03 - Chapter Three The Case of the Missing Lifeguard [WEBDL-2160p][EAC3 5.1][h265].mkv",
+   "ext": ".mkv"
+  },
+  {
+   "instance": "sonarr_4k_debrid",
+   "file_id": 721,
+   "series": {
+    "Title": "Stranger Things",
+    "Year": 2016,
+    "Type": "standard",
+    "ImdbID": "tt4574334",
+    "TvdbID": 305288,
+    "TvMazeID": 0,
+    "TmdbID": 66732
+   },
+   "episodes": [
+    {
+     "Season": 1,
+     "Number": 2,
+     "Absolute": 2,
+     "Title": "Chapter Two: The Weirdo on Maple Street",
+     "AirDate": "2016-07-15"
+    }
+   ],
+   "episode_file": {
+    "ID": 721,
+    "Quality": {
+     "Title": "Bluray-2160p Remux",
+     "Version": 1,
+     "Real": 0
+    },
+    "ReleaseGroup": "FraMeSToR",
+    "ReleaseHash": "",
+    "SceneName": "Stranger.Things.S01E02.Chapter.Two.The.Weirdo.on.Maple.Street.UHD.BluRay.2160p.DTS-HD.MA.5.1.DV.HEVC.REMUX-FraMeSToR",
+    "RelativePath": "Season 01/Stranger Things (2016) - S01E02 - Chapter Two The Weirdo on Maple Street [Bluray-2160p Remux][EAC3 5.1][DV HDR10][HEVC]-FraMeSToR.mkv",
+    "Path": "/media/tv/Stranger Things (2016)/Season 01/Stranger Things (2016) - S01E02 - Chapter Two The Weirdo on Maple Street [Bluray-2160p Remux][EAC3 5.1][DV HDR10][HEVC]-FraMeSToR.mkv",
+    "MediaInfo": {
+     "VideoCodec": "HEVC",
+     "VideoBitDepth": 10,
+     "VideoMultiViewCount": 0,
+     "AudioCodec": "EAC3",
+     "AudioChannels": 5.1,
+     "AudioLanguages": [
+      "rus",
+      "rus",
+      "rus",
+      "rus",
+      "ukr",
+      "eng"
+     ],
+     "Subtitles": null,
+     "VideoDynamicRange": "HDR",
+     "VideoDynamicRangeType": "DV HDR10"
+    },
+    "CustomFormats": null
+   },
+   "root": "/media/tv",
+   "cf_source": "none",
+   "expect_folder": "Stranger Things (2016)",
+   "expect_season": "Season 01",
+   "expect_file": "Stranger Things (2016) - S01E02 - Chapter Two The Weirdo on Maple Street [Bluray-2160p Remux][EAC3 5.1][DV HDR10][HEVC]-FraMeSToR.mkv",
+   "ext": ".mkv"
+  },
+  {
+   "instance": "sonarr_4k_debrid",
+   "file_id": 725,
+   "series": {
+    "Title": "Stranger Things",
+    "Year": 2016,
+    "Type": "standard",
+    "ImdbID": "tt4574334",
+    "TvdbID": 305288,
+    "TvMazeID": 0,
+    "TmdbID": 66732
+   },
+   "episodes": [
+    {
+     "Season": 1,
+     "Number": 6,
+     "Absolute": 6,
+     "Title": "Chapter Six: The Monster",
+     "AirDate": "2016-07-15"
+    }
+   ],
+   "episode_file": {
+    "ID": 725,
+    "Quality": {
+     "Title": "Bluray-2160p Remux",
+     "Version": 1,
+     "Real": 0
+    },
+    "ReleaseGroup": "FraMeSToR",
+    "ReleaseHash": "",
+    "SceneName": "Stranger.Things.S01E06.Chapter.Six.The.Monster.UHD.BluRay.2160p.DTS-HD.MA.5.1.DV.HEVC.REMUX-FraMeSToR",
+    "RelativePath": "Season 01/Stranger Things (2016) - S01E06 - Chapter Six The Monster [Bluray-2160p Remux][EAC3 5.1][DV HDR10][HEVC]-FraMeSToR.mkv",
+    "Path": "/media/tv/Stranger Things (2016)/Season 01/Stranger Things (2016) - S01E06 - Chapter Six The Monster [Bluray-2160p Remux][EAC3 5.1][DV HDR10][HEVC]-FraMeSToR.mkv",
+    "MediaInfo": {
+     "VideoCodec": "HEVC",
+     "VideoBitDepth": 10,
+     "VideoMultiViewCount": 0,
+     "AudioCodec": "EAC3",
+     "AudioChannels": 5.1,
+     "AudioLanguages": [
+      "rus",
+      "rus",
+      "rus",
+      "rus",
+      "ukr",
+      "eng"
+     ],
+     "Subtitles": null,
+     "VideoDynamicRange": "HDR",
+     "VideoDynamicRangeType": "DV HDR10"
+    },
+    "CustomFormats": null
+   },
+   "root": "/media/tv",
+   "cf_source": "none",
+   "expect_folder": "Stranger Things (2016)",
+   "expect_season": "Season 01",
+   "expect_file": "Stranger Things (2016) - S01E06 - Chapter Six The Monster [Bluray-2160p Remux][EAC3 5.1][DV HDR10][HEVC]-FraMeSToR.mkv",
+   "ext": ".mkv"
+  },
+  {
+   "instance": "sonarr_4k_debrid",
+   "file_id": 731,
+   "series": {
+    "Title": "The Penguin",
+    "Year": 2024,
+    "Type": "standard",
+    "ImdbID": "tt15435876",
+    "TvdbID": 417648,
+    "TvMazeID": 0,
+    "TmdbID": 194764
+   },
+   "episodes": [
+    {
+     "Season": 1,
+     "Number": 4,
+     "Absolute": 4,
+     "Title": "Cent'anni",
+     "AirDate": "2024-10-13"
+    }
+   ],
+   "episode_file": {
+    "ID": 731,
+    "Quality": {
+     "Title": "Bluray-2160p",
+     "Version": 1,
+     "Real": 0
+    },
+    "ReleaseGroup": "WiKi",
+    "ReleaseHash": "",
+    "SceneName": "The.Penguin.S01E04.2160p.BluRay.DoVi.x265.10bit.Atmos.TrueHD7.1-WiKi",
+    "RelativePath": "Season 01/The Penguin (2024) - S01E04 - Cent'anni [Bluray-2160p][TrueHD Atmos 7.1][DV HDR10][x265]-WiKi.mkv",
+    "Path": "/media/tv/The Penguin (2024)/Season 01/The Penguin (2024) - S01E04 - Cent'anni [Bluray-2160p][TrueHD Atmos 7.1][DV HDR10][x265]-WiKi.mkv",
+    "MediaInfo": {
+     "VideoCodec": "x265",
+     "VideoBitDepth": 10,
+     "VideoMultiViewCount": 0,
+     "AudioCodec": "TrueHD Atmos",
+     "AudioChannels": 7.1,
+     "AudioLanguages": [
+      "eng",
+      "eng"
+     ],
+     "Subtitles": null,
+     "VideoDynamicRange": "HDR",
+     "VideoDynamicRangeType": "DV HDR10"
+    },
+    "CustomFormats": null
+   },
+   "root": "/media/tv",
+   "cf_source": "none",
+   "expect_folder": "The Penguin (2024)",
+   "expect_season": "Season 01",
+   "expect_file": "The Penguin (2024) - S01E04 - Cent'anni [Bluray-2160p][TrueHD Atmos 7.1][DV HDR10][x265]-WiKi.mkv",
+   "ext": ".mkv"
+  },
+  {
+   "instance": "sonarr_4k_debrid",
+   "file_id": 736,
+   "series": {
+    "Title": "Dune: Prophecy",
+    "Year": 2024,
+    "Type": "standard",
+    "ImdbID": "tt10466872",
+    "TvdbID": 367118,
+    "TvMazeID": 0,
+    "TmdbID": 90228
+   },
+   "episodes": [
+    {
+     "Season": 1,
+     "Number": 1,
+     "Absolute": null,
+     "Title": "The Hidden Hand",
+     "AirDate": "2024-11-17"
+    }
+   ],
+   "episode_file": {
+    "ID": 736,
+    "Quality": {
+     "Title": "Bluray-2160p Remux",
+     "Version": 1,
+     "Real": 0
+    },
+    "ReleaseGroup": "HYPERION",
+    "ReleaseHash": "",
+    "SceneName": "Dune.Prophecy.S01E01.MULTI.VFF.2160p.UHD.BluRay.Remux.DV.HDR.TrueHD.Atmos.HEVC-HYPERION",
+    "RelativePath": "Season 01/Dune Prophecy (2024) - S01E01 - The Hidden Hand [Bluray-2160p Remux][TrueHD Atmos 7.1][DV HDR10][HEVC]-HYPERION.mkv",
+    "Path": "/media/tv/Dune Prophecy (2024)/Season 01/Dune Prophecy (2024) - S01E01 - The Hidden Hand [Bluray-2160p Remux][TrueHD Atmos 7.1][DV HDR10][HEVC]-HYPERION.mkv",
+    "MediaInfo": {
+     "VideoCodec": "HEVC",
+     "VideoBitDepth": 10,
+     "VideoMultiViewCount": 0,
+     "AudioCodec": "TrueHD Atmos",
+     "AudioChannels": 7.1,
+     "AudioLanguages": [
+      "eng",
+      "fre"
+     ],
+     "Subtitles": null,
+     "VideoDynamicRange": "HDR",
+     "VideoDynamicRangeType": "DV HDR10"
+    },
+    "CustomFormats": null
+   },
+   "root": "/media/tv",
+   "cf_source": "none",
+   "expect_folder": "Dune Prophecy (2024)",
+   "expect_season": "Season 01",
+   "expect_file": "Dune Prophecy (2024) - S01E01 - The Hidden Hand [Bluray-2160p Remux][TrueHD Atmos 7.1][DV HDR10][HEVC]-HYPERION.mkv",
+   "ext": ".mkv"
+  },
+  {
+   "instance": "sonarr_4k_debrid",
+   "file_id": 1030,
+   "series": {
+    "Title": "The Day of the Jackal",
+    "Year": 2024,
+    "Type": "standard",
+    "ImdbID": "tt24053860",
+    "TvdbID": 426866,
+    "TvMazeID": 0,
+    "TmdbID": 222766
+   },
+   "episodes": [
+    {
+     "Season": 1,
+     "Number": 5,
+     "Absolute": 5,
+     "Title": "Episode 5",
+     "AirDate": "2024-11-08"
+    }
+   ],
+   "episode_file": {
+    "ID": 1030,
+    "Quality": {
+     "Title": "WEBDL-2160p",
+     "Version": 1,
+     "Real": 0
+    },
+    "ReleaseGroup": "FLUX",
+    "ReleaseHash": "",
+    "SceneName": "The.Day.Of.The.Jackal.S01E05.2160p.NOW.WEB-DL.DDP5.1.Atmos.H.265-FLUX",
+    "RelativePath": "Season 01/The Day of the Jackal (2024) - S01E05 - Episode 5 [WEBDL-2160p][EAC3 Atmos 5.1][h265]-FLUX.mkv",
+    "Path": "/media/tv/The Day of the Jackal (2024)/Season 01/The Day of the Jackal (2024) - S01E05 - Episode 5 [WEBDL-2160p][EAC3 Atmos 5.1][h265]-FLUX.mkv",
+    "MediaInfo": {
+     "VideoCodec": "h265",
+     "VideoBitDepth": 8,
+     "VideoMultiViewCount": 0,
+     "AudioCodec": "EAC3 Atmos",
+     "AudioChannels": 5.1,
+     "AudioLanguages": [
+      "eng"
+     ],
+     "Subtitles": null,
+     "VideoDynamicRange": "",
+     "VideoDynamicRangeType": ""
+    },
+    "CustomFormats": null
+   },
+   "root": "/media/tv",
+   "cf_source": "none",
+   "expect_folder": "The Day of the Jackal (2024)",
+   "expect_season": "Season 01",
+   "expect_file": "The Day of the Jackal (2024) - S01E05 - Episode 5 [WEBDL-2160p][EAC3 Atmos 5.1][h265]-FLUX.mkv",
+   "ext": ".mkv"
+  },
+  {
+   "instance": "sonarr_4k_debrid",
+   "file_id": 1032,
+   "series": {
+    "Title": "The Day of the Jackal",
+    "Year": 2024,
+    "Type": "standard",
+    "ImdbID": "tt24053860",
+    "TvdbID": 426866,
+    "TvMazeID": 0,
+    "TmdbID": 222766
+   },
+   "episodes": [
+    {
+     "Season": 1,
+     "Number": 8,
+     "Absolute": 8,
+     "Title": "Episode 8",
+     "AirDate": "2024-11-28"
+    }
+   ],
+   "episode_file": {
+    "ID": 1032,
+    "Quality": {
+     "Title": "WEBDL-2160p",
+     "Version": 1,
+     "Real": 0
+    },
+    "ReleaseGroup": "FLUX",
+    "ReleaseHash": "",
+    "SceneName": "www.Torrenting.com - The Day Of The Jackal S01E08 2160p NOW WEB-DL DDP5 1 Atmos H 265-FLUX",
+    "RelativePath": "Season 01/The Day of the Jackal (2024) - S01E08 - Episode 8 [WEBDL-2160p][EAC3 Atmos 5.1][h265]-FLUX.mkv",
+    "Path": "/media/tv/The Day of the Jackal (2024)/Season 01/The Day of the Jackal (2024) - S01E08 - Episode 8 [WEBDL-2160p][EAC3 Atmos 5.1][h265]-FLUX.mkv",
+    "MediaInfo": {
+     "VideoCodec": "h265",
+     "VideoBitDepth": 8,
+     "VideoMultiViewCount": 0,
+     "AudioCodec": "EAC3 Atmos",
+     "AudioChannels": 5.1,
+     "AudioLanguages": [
+      "eng"
+     ],
+     "Subtitles": null,
+     "VideoDynamicRange": "",
+     "VideoDynamicRangeType": ""
+    },
+    "CustomFormats": null
+   },
+   "root": "/media/tv",
+   "cf_source": "none",
+   "expect_folder": "The Day of the Jackal (2024)",
+   "expect_season": "Season 01",
+   "expect_file": "The Day of the Jackal (2024) - S01E08 - Episode 8 [WEBDL-2160p][EAC3 Atmos 5.1][h265]-FLUX.mkv",
+   "ext": ".mkv"
+  },
+  {
+   "instance": "sonarr_4k_debrid",
+   "file_id": 1069,
+   "series": {
+    "Title": "Paradise (2025)",
+    "Year": 2025,
+    "Type": "standard",
+    "ImdbID": "tt27444205",
+    "TvdbID": 454565,
+    "TvMazeID": 0,
+    "TmdbID": 245927
+   },
+   "episodes": [
+    {
+     "Season": 1,
+     "Number": 5,
+     "Absolute": 5,
+     "Title": "In the Palaces of Crowned Kings",
+     "AirDate": "2025-02-11"
+    }
+   ],
+   "episode_file": {
+    "ID": 1069,
+    "Quality": {
+     "Title": "WEBDL-2160p",
+     "Version": 1,
+     "Real": 0
+    },
+    "ReleaseGroup": "FLUX",
+    "ReleaseHash": "",
+    "SceneName": "Paradise.2025.S01E05.In.the.Palaces.of.Crowned.Kings.2160p.DSNP.WEB-DL.DDP5.1.DV.HDR.H.265-FLUX",
+    "RelativePath": "Season 01/Paradise (2025) - S01E05 - In the Palaces of Crowned Kings [DSNP - Notifiarr][WEBDL-2160p][EAC3 5.1][DV HDR10][h265]-FLUX.mkv",
+    "Path": "/media/tv/Paradise (2025)/Season 01/Paradise (2025) - S01E05 - In the Palaces of Crowned Kings [DSNP - Notifiarr][WEBDL-2160p][EAC3 5.1][DV HDR10][h265]-FLUX.mkv",
+    "MediaInfo": {
+     "VideoCodec": "h265",
+     "VideoBitDepth": 10,
+     "VideoMultiViewCount": 0,
+     "AudioCodec": "EAC3",
+     "AudioChannels": 5.1,
+     "AudioLanguages": [
+      "eng"
+     ],
+     "Subtitles": null,
+     "VideoDynamicRange": "HDR",
+     "VideoDynamicRangeType": "DV HDR10"
+    },
+    "CustomFormats": [
+     "DSNP - Notifiarr"
+    ]
+   },
+   "root": "/media/tv",
+   "cf_source": "name",
+   "expect_folder": "Paradise (2025)",
+   "expect_season": "Season 01",
+   "expect_file": "Paradise (2025) - S01E05 - In the Palaces of Crowned Kings [DSNP - Notifiarr][WEBDL-2160p][EAC3 5.1][DV HDR10][h265]-FLUX.mkv",
+   "ext": ".mkv"
+  },
+  {
+   "instance": "sonarr_4k_debrid",
+   "file_id": 1102,
+   "series": {
+    "Title": "Sex and the City",
+    "Year": 1998,
+    "Type": "standard",
+    "ImdbID": "tt0159206",
+    "TvdbID": 76648,
+    "TvMazeID": 0,
+    "TmdbID": 105
+   },
+   "episodes": [
+    {
+     "Season": 2,
+     "Number": 10,
+     "Absolute": null,
+     "Title": "The Caste System",
+     "AirDate": "1999-08-08"
+    }
+   ],
+   "episode_file": {
+    "ID": 1102,
+    "Quality": {
+     "Title": "WEBDL-2160p",
+     "Version": 1,
+     "Real": 0
+    },
+    "ReleaseGroup": "HONE",
+    "ReleaseHash": "",
+    "SceneName": "",
+    "RelativePath": "Season 02/Sex and the City (1998) - S02E10 - The Caste System [MAX - Notifiarr][WEBDL-2160p][EAC3 Atmos 5.1][DV HDR10][h265]-HONE.mkv",
+    "Path": "/media/tv/Sex and the City (1998)/Season 02/Sex and the City (1998) - S02E10 - The Caste System [MAX - Notifiarr][WEBDL-2160p][EAC3 Atmos 5.1][DV HDR10][h265]-HONE.mkv",
+    "MediaInfo": {
+     "VideoCodec": "h265",
+     "VideoBitDepth": 10,
+     "VideoMultiViewCount": 0,
+     "AudioCodec": "EAC3 Atmos",
+     "AudioChannels": 5.1,
+     "AudioLanguages": [
+      "eng"
+     ],
+     "Subtitles": null,
+     "VideoDynamicRange": "HDR",
+     "VideoDynamicRangeType": "DV HDR10"
+    },
+    "CustomFormats": [
+     "MAX - Notifiarr"
+    ]
+   },
+   "root": "/media/tv",
+   "cf_source": "name",
+   "expect_folder": "Sex and the City (1998)",
+   "expect_season": "Season 02",
+   "expect_file": "Sex and the City (1998) - S02E10 - The Caste System [MAX - Notifiarr][WEBDL-2160p][EAC3 Atmos 5.1][DV HDR10][h265]-HONE.mkv",
+   "ext": ".mkv"
+  },
+  {
+   "instance": "sonarr_4k_debrid",
+   "file_id": 1104,
+   "series": {
+    "Title": "Sex and the City",
+    "Year": 1998,
+    "Type": "standard",
+    "ImdbID": "tt0159206",
+    "TvdbID": 76648,
+    "TvMazeID": 0,
+    "TmdbID": 105
+   },
+   "episodes": [
+    {
+     "Season": 2,
+     "Number": 12,
+     "Absolute": null,
+     "Title": "La Douleur Exquise",
+     "AirDate": "1999-08-22"
+    }
+   ],
+   "episode_file": {
+    "ID": 1104,
+    "Quality": {
+     "Title": "WEBDL-2160p",
+     "Version": 1,
+     "Real": 0
+    },
+    "ReleaseGroup": "HONE",
+    "ReleaseHash": "",
+    "SceneName": "",
+    "RelativePath": "Season 02/Sex and the City (1998) - S02E12 - La Douleur Exquise [MAX - Notifiarr][WEBDL-2160p][EAC3 Atmos 5.1][DV HDR10][h265]-HONE.mkv",
+    "Path": "/media/tv/Sex and the City (1998)/Season 02/Sex and the City (1998) - S02E12 - La Douleur Exquise [MAX - Notifiarr][WEBDL-2160p][EAC3 Atmos 5.1][DV HDR10][h265]-HONE.mkv",
+    "MediaInfo": {
+     "VideoCodec": "h265",
+     "VideoBitDepth": 10,
+     "VideoMultiViewCount": 0,
+     "AudioCodec": "EAC3 Atmos",
+     "AudioChannels": 5.1,
+     "AudioLanguages": [
+      "eng"
+     ],
+     "Subtitles": null,
+     "VideoDynamicRange": "HDR",
+     "VideoDynamicRangeType": "DV HDR10"
+    },
+    "CustomFormats": [
+     "MAX - Notifiarr"
+    ]
+   },
+   "root": "/media/tv",
+   "cf_source": "name",
+   "expect_folder": "Sex and the City (1998)",
+   "expect_season": "Season 02",
+   "expect_file": "Sex and the City (1998) - S02E12 - La Douleur Exquise [MAX - Notifiarr][WEBDL-2160p][EAC3 Atmos 5.1][DV HDR10][h265]-HONE.mkv",
+   "ext": ".mkv"
+  },
+  {
+   "instance": "sonarr_4k_debrid",
+   "file_id": 1113,
+   "series": {
+    "Title": "Sex and the City",
+    "Year": 1998,
+    "Type": "standard",
+    "ImdbID": "tt0159206",
+    "TvdbID": 76648,
+    "TvMazeID": 0,
+    "TmdbID": 105
+   },
+   "episodes": [
+    {
+     "Season": 3,
+     "Number": 3,
+     "Absolute": null,
+     "Title": "Attack of the Five-Foot-Ten Woman",
+     "AirDate": "2000-06-18"
+    }
+   ],
+   "episode_file": {
+    "ID": 1113,
+    "Quality": {
+     "Title": "WEBDL-2160p",
+     "Version": 1,
+     "Real": 0
+    },
+    "ReleaseGroup": "HONE",
+    "ReleaseHash": "",
+    "SceneName": "",
+    "RelativePath": "Season 03/Sex and the City (1998) - S03E03 - Attack of the Five-Foot-Ten Woman [MAX - Notifiarr][WEBDL-2160p][EAC3 Atmos 5.1][DV HDR10][h265]-HONE.mkv",
+    "Path": "/media/tv/Sex and the City (1998)/Season 03/Sex and the City (1998) - S03E03 - Attack of the Five-Foot-Ten Woman [MAX - Notifiarr][WEBDL-2160p][EAC3 Atmos 5.1][DV HDR10][h265]-HONE.mkv",
+    "MediaInfo": {
+     "VideoCodec": "h265",
+     "VideoBitDepth": 10,
+     "VideoMultiViewCount": 0,
+     "AudioCodec": "EAC3 Atmos",
+     "AudioChannels": 5.1,
+     "AudioLanguages": [
+      "eng"
+     ],
+     "Subtitles": null,
+     "VideoDynamicRange": "HDR",
+     "VideoDynamicRangeType": "DV HDR10"
+    },
+    "CustomFormats": [
+     "MAX - Notifiarr"
+    ]
+   },
+   "root": "/media/tv",
+   "cf_source": "name",
+   "expect_folder": "Sex and the City (1998)",
+   "expect_season": "Season 03",
+   "expect_file": "Sex and the City (1998) - S03E03 - Attack of the Five-Foot-Ten Woman [MAX - Notifiarr][WEBDL-2160p][EAC3 Atmos 5.1][DV HDR10][h265]-HONE.mkv",
+   "ext": ".mkv"
+  },
+  {
+   "instance": "sonarr_4k_debrid",
+   "file_id": 1136,
+   "series": {
+    "Title": "Sex and the City",
+    "Year": 1998,
+    "Type": "standard",
+    "ImdbID": "tt0159206",
+    "TvdbID": 76648,
+    "TvMazeID": 0,
+    "TmdbID": 105
+   },
+   "episodes": [
+    {
+     "Season": 4,
+     "Number": 8,
+     "Absolute": null,
+     "Title": "My Motherboard, My Self",
+     "AirDate": "2001-07-15"
+    }
+   ],
+   "episode_file": {
+    "ID": 1136,
+    "Quality": {
+     "Title": "WEBDL-2160p",
+     "Version": 1,
+     "Real": 0
+    },
+    "ReleaseGroup": "FLUX",
+    "ReleaseHash": "",
+    "SceneName": "Sex.and.the.City.S04E08.My.Motherboard.My.Self.2160p.MAX.WEB-DL.DDP5.1.Atmos.DV.HDR.H.265-FLUX",
+    "RelativePath": "Season 04/Sex and the City (1998) - S04E08 - My Motherboard My Self [MAX - Notifiarr][WEBDL-2160p][EAC3 Atmos 5.1][DV HDR10][h265]-FLUX.mkv",
+    "Path": "/media/tv/Sex and the City (1998)/Season 04/Sex and the City (1998) - S04E08 - My Motherboard My Self [MAX - Notifiarr][WEBDL-2160p][EAC3 Atmos 5.1][DV HDR10][h265]-FLUX.mkv",
+    "MediaInfo": {
+     "VideoCodec": "h265",
+     "VideoBitDepth": 10,
+     "VideoMultiViewCount": 0,
+     "AudioCodec": "EAC3 Atmos",
+     "AudioChannels": 5.1,
+     "AudioLanguages": [
+      "eng"
+     ],
+     "Subtitles": null,
+     "VideoDynamicRange": "HDR",
+     "VideoDynamicRangeType": "DV HDR10"
+    },
+    "CustomFormats": [
+     "MAX - Notifiarr"
+    ]
+   },
+   "root": "/media/tv",
+   "cf_source": "name",
+   "expect_folder": "Sex and the City (1998)",
+   "expect_season": "Season 04",
+   "expect_file": "Sex and the City (1998) - S04E08 - My Motherboard My Self [MAX - Notifiarr][WEBDL-2160p][EAC3 Atmos 5.1][DV HDR10][h265]-FLUX.mkv",
+   "ext": ".mkv"
+  },
+  {
+   "instance": "sonarr_4k_debrid",
+   "file_id": 1138,
+   "series": {
+    "Title": "Sex and the City",
+    "Year": 1998,
+    "Type": "standard",
+    "ImdbID": "tt0159206",
+    "TvdbID": 76648,
+    "TvMazeID": 0,
+    "TmdbID": 105
+   },
+   "episodes": [
+    {
+     "Season": 4,
+     "Number": 10,
+     "Absolute": null,
+     "Title": "Belles of the Balls",
+     "AirDate": "2001-07-29"
+    }
+   ],
+   "episode_file": {
+    "ID": 1138,
+    "Quality": {
+     "Title": "WEBDL-2160p",
+     "Version": 1,
+     "Real": 0
+    },
+    "ReleaseGroup": "FLUX",
+    "ReleaseHash": "",
+    "SceneName": "Sex.and.the.City.S04E10.Belles.of.the.Balls.2160p.MAX.WEB-DL.DDP5.1.Atmos.DV.HDR.H.265-FLUX",
+    "RelativePath": "Season 04/Sex and the City (1998) - S04E10 - Belles of the Balls [MAX - Notifiarr][WEBDL-2160p][EAC3 Atmos 5.1][DV HDR10][h265]-FLUX.mkv",
+    "Path": "/media/tv/Sex and the City (1998)/Season 04/Sex and the City (1998) - S04E10 - Belles of the Balls [MAX - Notifiarr][WEBDL-2160p][EAC3 Atmos 5.1][DV HDR10][h265]-FLUX.mkv",
+    "MediaInfo": {
+     "VideoCodec": "h265",
+     "VideoBitDepth": 10,
+     "VideoMultiViewCount": 0,
+     "AudioCodec": "EAC3 Atmos",
+     "AudioChannels": 5.1,
+     "AudioLanguages": [
+      "eng"
+     ],
+     "Subtitles": null,
+     "VideoDynamicRange": "HDR",
+     "VideoDynamicRangeType": "DV HDR10"
+    },
+    "CustomFormats": [
+     "MAX - Notifiarr"
+    ]
+   },
+   "root": "/media/tv",
+   "cf_source": "name",
+   "expect_folder": "Sex and the City (1998)",
+   "expect_season": "Season 04",
+   "expect_file": "Sex and the City (1998) - S04E10 - Belles of the Balls [MAX - Notifiarr][WEBDL-2160p][EAC3 Atmos 5.1][DV HDR10][h265]-FLUX.mkv",
+   "ext": ".mkv"
+  },
+  {
+   "instance": "sonarr_4k_debrid",
+   "file_id": 1173,
+   "series": {
+    "Title": "Sex and the City",
+    "Year": 1998,
+    "Type": "standard",
+    "ImdbID": "tt0159206",
+    "TvdbID": 76648,
+    "TvMazeID": 0,
+    "TmdbID": 105
+   },
+   "episodes": [
+    {
+     "Season": 6,
+     "Number": 19,
+     "Absolute": null,
+     "Title": "An American Girl in Paris (1)",
+     "AirDate": "2004-02-15"
+    }
+   ],
+   "episode_file": {
+    "ID": 1173,
+    "Quality": {
+     "Title": "WEBDL-2160p",
+     "Version": 1,
+     "Real": 0
+    },
+    "ReleaseGroup": "HONE",
+    "ReleaseHash": "",
+    "SceneName": "",
+    "RelativePath": "Season 06/Sex and the City (1998) - S06E19 - An American Girl in Paris 1 [MAX - Notifiarr][WEBDL-2160p][EAC3 Atmos 5.1][DV HDR10][h265]-HONE.mkv",
+    "Path": "/media/tv/Sex and the City (1998)/Season 06/Sex and the City (1998) - S06E19 - An American Girl in Paris 1 [MAX - Notifiarr][WEBDL-2160p][EAC3 Atmos 5.1][DV HDR10][h265]-HONE.mkv",
+    "MediaInfo": {
+     "VideoCodec": "h265",
+     "VideoBitDepth": 10,
+     "VideoMultiViewCount": 0,
+     "AudioCodec": "EAC3 Atmos",
+     "AudioChannels": 5.1,
+     "AudioLanguages": [
+      "eng"
+     ],
+     "Subtitles": null,
+     "VideoDynamicRange": "HDR",
+     "VideoDynamicRangeType": "DV HDR10"
+    },
+    "CustomFormats": [
+     "MAX - Notifiarr"
+    ]
+   },
+   "root": "/media/tv",
+   "cf_source": "name",
+   "expect_folder": "Sex and the City (1998)",
+   "expect_season": "Season 06",
+   "expect_file": "Sex and the City (1998) - S06E19 - An American Girl in Paris 1 [MAX - Notifiarr][WEBDL-2160p][EAC3 Atmos 5.1][DV HDR10][h265]-HONE.mkv",
+   "ext": ".mkv"
+  },
+  {
+   "instance": "sonarr_4k_debrid",
+   "file_id": 1188,
+   "series": {
+    "Title": "Parks and Recreation",
+    "Year": 2009,
+    "Type": "standard",
+    "ImdbID": "tt1266020",
+    "TvdbID": 84912,
+    "TvMazeID": 0,
+    "TmdbID": 8592
+   },
+   "episodes": [
+    {
+     "Season": 2,
+     "Number": 8,
+     "Absolute": 14,
+     "Title": "Ron and Tammy",
+     "AirDate": "2009-11-05"
+    }
+   ],
+   "episode_file": {
+    "ID": 1188,
+    "Quality": {
+     "Title": "Bluray-1080p Remux",
+     "Version": 1,
+     "Real": 0
+    },
+    "ReleaseGroup": "FraMeSToR",
+    "ReleaseHash": "",
+    "SceneName": "Parks.and.Recreation.S02E08.Ron.and.Tammy.1080p.DTS-HD.MA.5.1.AVC.REMUX-FraMeSToR",
+    "RelativePath": "Season 02/Parks and Recreation (2009) - S02E08 - Ron and Tammy [Bluray-1080p Remux][DTS-HD MA 5.1][AVC]-FraMeSToR.mkv",
+    "Path": "/media/tv/Parks and Recreation (2009)/Season 02/Parks and Recreation (2009) - S02E08 - Ron and Tammy [Bluray-1080p Remux][DTS-HD MA 5.1][AVC]-FraMeSToR.mkv",
+    "MediaInfo": {
+     "VideoCodec": "AVC",
+     "VideoBitDepth": 8,
+     "VideoMultiViewCount": 0,
+     "AudioCodec": "DTS-HD MA",
+     "AudioChannels": 5.1,
+     "AudioLanguages": [
+      "eng",
+      "eng"
+     ],
+     "Subtitles": null,
+     "VideoDynamicRange": "",
+     "VideoDynamicRangeType": ""
+    },
+    "CustomFormats": null
+   },
+   "root": "/media/tv",
+   "cf_source": "none",
+   "expect_folder": "Parks and Recreation (2009)",
+   "expect_season": "Season 02",
+   "expect_file": "Parks and Recreation (2009) - S02E08 - Ron and Tammy [Bluray-1080p Remux][DTS-HD MA 5.1][AVC]-FraMeSToR.mkv",
+   "ext": ".mkv"
+  },
+  {
+   "instance": "sonarr_4k_debrid",
+   "file_id": 1190,
+   "series": {
+    "Title": "Parks and Recreation",
+    "Year": 2009,
+    "Type": "standard",
+    "ImdbID": "tt1266020",
+    "TvdbID": 84912,
+    "TvMazeID": 0,
+    "TmdbID": 8592
+   },
+   "episodes": [
+    {
+     "Season": 2,
+     "Number": 10,
+     "Absolute": 16,
+     "Title": "Hunting Trip",
+     "AirDate": "2009-11-19"
+    }
+   ],
+   "episode_file": {
+    "ID": 1190,
+    "Quality": {
+     "Title": "Bluray-1080p Remux",
+     "Version": 1,
+     "Real": 0
+    },
+    "ReleaseGroup": "FraMeSToR",
+    "ReleaseHash": "",
+    "SceneName": "Parks.and.Recreation.S02E10.Hunting.Trip.1080p.DTS-HD.MA.5.1.AVC.REMUX-FraMeSToR",
+    "RelativePath": "Season 02/Parks and Recreation (2009) - S02E10 - Hunting Trip [Bluray-1080p Remux][DTS-HD MA 5.1][AVC]-FraMeSToR.mkv",
+    "Path": "/media/tv/Parks and Recreation (2009)/Season 02/Parks and Recreation (2009) - S02E10 - Hunting Trip [Bluray-1080p Remux][DTS-HD MA 5.1][AVC]-FraMeSToR.mkv",
+    "MediaInfo": {
+     "VideoCodec": "AVC",
+     "VideoBitDepth": 8,
+     "VideoMultiViewCount": 0,
+     "AudioCodec": "DTS-HD MA",
+     "AudioChannels": 5.1,
+     "AudioLanguages": [
+      "eng",
+      "eng"
+     ],
+     "Subtitles": null,
+     "VideoDynamicRange": "",
+     "VideoDynamicRangeType": ""
+    },
+    "CustomFormats": null
+   },
+   "root": "/media/tv",
+   "cf_source": "none",
+   "expect_folder": "Parks and Recreation (2009)",
+   "expect_season": "Season 02",
+   "expect_file": "Parks and Recreation (2009) - S02E10 - Hunting Trip [Bluray-1080p Remux][DTS-HD MA 5.1][AVC]-FraMeSToR.mkv",
+   "ext": ".mkv"
+  },
+  {
+   "instance": "sonarr_4k_debrid",
+   "file_id": 1193,
+   "series": {
+    "Title": "Parks and Recreation",
+    "Year": 2009,
+    "Type": "standard",
+    "ImdbID": "tt1266020",
+    "TvdbID": 84912,
+    "TvMazeID": 0,
+    "TmdbID": 8592
+   },
+   "episodes": [
+    {
+     "Season": 2,
+     "Number": 13,
+     "Absolute": 19,
+     "Title": "The Set Up",
+     "AirDate": "2010-01-14"
+    }
+   ],
+   "episode_file": {
+    "ID": 1193,
+    "Quality": {
+     "Title": "Bluray-1080p Remux",
+     "Version": 1,
+     "Real": 0
+    },
+    "ReleaseGroup": "FraMeSToR",
+    "ReleaseHash": "",
+    "SceneName": "Parks.and.Recreation.S02E13.The.Set.Up.Producers.Cut.1080p.DTS-HD.MA.5.1.AVC.REMUX-FraMeSToR",
+    "RelativePath": "Season 02/Parks and Recreation (2009) - S02E13 - The Set Up [Bluray-1080p Remux][DTS-HD MA 5.1][AVC]-FraMeSToR.mkv",
+    "Path": "/media/tv/Parks and Recreation (2009)/Season 02/Parks and Recreation (2009) - S02E13 - The Set Up [Bluray-1080p Remux][DTS-HD MA 5.1][AVC]-FraMeSToR.mkv",
+    "MediaInfo": {
+     "VideoCodec": "AVC",
+     "VideoBitDepth": 8,
+     "VideoMultiViewCount": 0,
+     "AudioCodec": "DTS-HD MA",
+     "AudioChannels": 5.1,
+     "AudioLanguages": [
+      "eng"
+     ],
+     "Subtitles": null,
+     "VideoDynamicRange": "",
+     "VideoDynamicRangeType": ""
+    },
+    "CustomFormats": null
+   },
+   "root": "/media/tv",
+   "cf_source": "none",
+   "expect_folder": "Parks and Recreation (2009)",
+   "expect_season": "Season 02",
+   "expect_file": "Parks and Recreation (2009) - S02E13 - The Set Up [Bluray-1080p Remux][DTS-HD MA 5.1][AVC]-FraMeSToR.mkv",
+   "ext": ".mkv"
+  },
+  {
+   "instance": "sonarr_4k_debrid",
+   "file_id": 1216,
+   "series": {
+    "Title": "Parks and Recreation",
+    "Year": 2009,
+    "Type": "standard",
+    "ImdbID": "tt1266020",
+    "TvdbID": 84912,
+    "TvMazeID": 0,
+    "TmdbID": 8592
+   },
+   "episodes": [
+    {
+     "Season": 3,
+     "Number": 12,
+     "Absolute": 42,
+     "Title": "Eagleton",
+     "AirDate": "2011-05-05"
+    }
+   ],
+   "episode_file": {
+    "ID": 1216,
+    "Quality": {
+     "Title": "Bluray-1080p Remux",
+     "Version": 1,
+     "Real": 0
+    },
+    "ReleaseGroup": "FraMeSToR",
+    "ReleaseHash": "",
+    "SceneName": "Parks.and.Recreation.S03E12.Eagleton.1080p.DTS-HD.MA.5.1.AVC.REMUX-FraMeSToR",
+    "RelativePath": "Season 03/Parks and Recreation (2009) - S03E12 - Eagleton [Bluray-1080p Remux][DTS-HD MA 5.1][AVC]-FraMeSToR.mkv",
+    "Path": "/media/tv/Parks and Recreation (2009)/Season 03/Parks and Recreation (2009) - S03E12 - Eagleton [Bluray-1080p Remux][DTS-HD MA 5.1][AVC]-FraMeSToR.mkv",
+    "MediaInfo": {
+     "VideoCodec": "AVC",
+     "VideoBitDepth": 8,
+     "VideoMultiViewCount": 0,
+     "AudioCodec": "DTS-HD MA",
+     "AudioChannels": 5.1,
+     "AudioLanguages": [
+      "eng"
+     ],
+     "Subtitles": null,
+     "VideoDynamicRange": "",
+     "VideoDynamicRangeType": ""
+    },
+    "CustomFormats": null
+   },
+   "root": "/media/tv",
+   "cf_source": "none",
+   "expect_folder": "Parks and Recreation (2009)",
+   "expect_season": "Season 03",
+   "expect_file": "Parks and Recreation (2009) - S03E12 - Eagleton [Bluray-1080p Remux][DTS-HD MA 5.1][AVC]-FraMeSToR.mkv",
+   "ext": ".mkv"
+  },
+  {
+   "instance": "sonarr_4k_debrid",
+   "file_id": 1225,
+   "series": {
+    "Title": "Parks and Recreation",
+    "Year": 2009,
+    "Type": "standard",
+    "ImdbID": "tt1266020",
+    "TvdbID": 84912,
+    "TvMazeID": 0,
+    "TmdbID": 8592
+   },
+   "episodes": [
+    {
+     "Season": 4,
+     "Number": 5,
+     "Absolute": 51,
+     "Title": "Meet 'n' Greet",
+     "AirDate": "2011-10-27"
+    }
+   ],
+   "episode_file": {
+    "ID": 1225,
+    "Quality": {
+     "Title": "Bluray-1080p Remux",
+     "Version": 1,
+     "Real": 0
+    },
+    "ReleaseGroup": "FraMeSToR",
+    "ReleaseHash": "",
+    "SceneName": "Parks.and.Recreation.S04E05.Meet.n.Greet.1080p.DTS-HD.MA.5.1.AVC.REMUX-FraMeSToR",
+    "RelativePath": "Season 04/Parks and Recreation (2009) - S04E05 - Meet 'n Greet [Bluray-1080p Remux][DTS-HD MA 5.1][AVC]-FraMeSToR.mkv",
+    "Path": "/media/tv/Parks and Recreation (2009)/Season 04/Parks and Recreation (2009) - S04E05 - Meet 'n Greet [Bluray-1080p Remux][DTS-HD MA 5.1][AVC]-FraMeSToR.mkv",
+    "MediaInfo": {
+     "VideoCodec": "AVC",
+     "VideoBitDepth": 8,
+     "VideoMultiViewCount": 0,
+     "AudioCodec": "DTS-HD MA",
+     "AudioChannels": 5.1,
+     "AudioLanguages": [
+      "eng"
+     ],
+     "Subtitles": null,
+     "VideoDynamicRange": "",
+     "VideoDynamicRangeType": ""
+    },
+    "CustomFormats": null
+   },
+   "root": "/media/tv",
+   "cf_source": "none",
+   "expect_folder": "Parks and Recreation (2009)",
+   "expect_season": "Season 04",
+   "expect_file": "Parks and Recreation (2009) - S04E05 - Meet 'n Greet [Bluray-1080p Remux][DTS-HD MA 5.1][AVC]-FraMeSToR.mkv",
+   "ext": ".mkv"
+  },
+  {
+   "instance": "sonarr_4k_debrid",
+   "file_id": 1257,
+   "series": {
+    "Title": "Parks and Recreation",
+    "Year": 2009,
+    "Type": "standard",
+    "ImdbID": "tt1266020",
+    "TvdbID": 84912,
+    "TvMazeID": 0,
+    "TmdbID": 8592
+   },
+   "episodes": [
+    {
+     "Season": 5,
+     "Number": 15,
+     "Absolute": 83,
+     "Title": "Correspondents' Lunch",
+     "AirDate": "2013-02-21"
+    }
+   ],
+   "episode_file": {
+    "ID": 1257,
+    "Quality": {
+     "Title": "Bluray-1080p Remux",
+     "Version": 1,
+     "Real": 0
+    },
+    "ReleaseGroup": "FraMeSToR",
+    "ReleaseHash": "",
+    "SceneName": "Parks.and.Recreation.S05E15.Correspondents.Lunch.1080p.DTS-HD.MA.5.1.AVC.REMUX-FraMeSToR",
+    "RelativePath": "Season 05/Parks and Recreation (2009) - S05E15 - Correspondents Lunch [Bluray-1080p Remux][DTS-HD MA 5.1][AVC]-FraMeSToR.mkv",
+    "Path": "/media/tv/Parks and Recreation (2009)/Season 05/Parks and Recreation (2009) - S05E15 - Correspondents Lunch [Bluray-1080p Remux][DTS-HD MA 5.1][AVC]-FraMeSToR.mkv",
+    "MediaInfo": {
+     "VideoCodec": "AVC",
+     "VideoBitDepth": 8,
+     "VideoMultiViewCount": 0,
+     "AudioCodec": "DTS-HD MA",
+     "AudioChannels": 5.1,
+     "AudioLanguages": [
+      "eng"
+     ],
+     "Subtitles": null,
+     "VideoDynamicRange": "",
+     "VideoDynamicRangeType": ""
+    },
+    "CustomFormats": null
+   },
+   "root": "/media/tv",
+   "cf_source": "none",
+   "expect_folder": "Parks and Recreation (2009)",
+   "expect_season": "Season 05",
+   "expect_file": "Parks and Recreation (2009) - S05E15 - Correspondents Lunch [Bluray-1080p Remux][DTS-HD MA 5.1][AVC]-FraMeSToR.mkv",
+   "ext": ".mkv"
+  },
+  {
+   "instance": "sonarr_4k_debrid",
+   "file_id": 1261,
+   "series": {
+    "Title": "Parks and Recreation",
+    "Year": 2009,
+    "Type": "standard",
+    "ImdbID": "tt1266020",
+    "TvdbID": 84912,
+    "TvMazeID": 0,
+    "TmdbID": 8592
+   },
+   "episodes": [
+    {
+     "Season": 5,
+     "Number": 19,
+     "Absolute": 87,
+     "Title": "Article Two",
+     "AirDate": "2013-04-18"
+    }
+   ],
+   "episode_file": {
+    "ID": 1261,
+    "Quality": {
+     "Title": "Bluray-1080p Remux",
+     "Version": 1,
+     "Real": 0
+    },
+    "ReleaseGroup": "FraMeSToR",
+    "ReleaseHash": "",
+    "SceneName": "Parks.and.Recreation.S05E19.Article.Two.1080p.DTS-HD.MA.5.1.AVC.REMUX-FraMeSToR",
+    "RelativePath": "Season 05/Parks and Recreation (2009) - S05E19 - Article Two [Bluray-1080p Remux][DTS-HD MA 5.1][AVC]-FraMeSToR.mkv",
+    "Path": "/media/tv/Parks and Recreation (2009)/Season 05/Parks and Recreation (2009) - S05E19 - Article Two [Bluray-1080p Remux][DTS-HD MA 5.1][AVC]-FraMeSToR.mkv",
+    "MediaInfo": {
+     "VideoCodec": "AVC",
+     "VideoBitDepth": 8,
+     "VideoMultiViewCount": 0,
+     "AudioCodec": "DTS-HD MA",
+     "AudioChannels": 5.1,
+     "AudioLanguages": [
+      "eng"
+     ],
+     "Subtitles": null,
+     "VideoDynamicRange": "",
+     "VideoDynamicRangeType": ""
+    },
+    "CustomFormats": null
+   },
+   "root": "/media/tv",
+   "cf_source": "none",
+   "expect_folder": "Parks and Recreation (2009)",
+   "expect_season": "Season 05",
+   "expect_file": "Parks and Recreation (2009) - S05E19 - Article Two [Bluray-1080p Remux][DTS-HD MA 5.1][AVC]-FraMeSToR.mkv",
+   "ext": ".mkv"
+  },
+  {
+   "instance": "sonarr_4k_debrid",
+   "file_id": 1269,
+   "series": {
+    "Title": "Parks and Recreation",
+    "Year": 2009,
+    "Type": "standard",
+    "ImdbID": "tt1266020",
+    "TvdbID": 84912,
+    "TvMazeID": 0,
+    "TmdbID": 8592
+   },
+   "episodes": [
+    {
+     "Season": 6,
+     "Number": 6,
+     "Absolute": 96,
+     "Title": "Filibuster",
+     "AirDate": "2013-11-14"
+    }
+   ],
+   "episode_file": {
+    "ID": 1269,
+    "Quality": {
+     "Title": "Bluray-1080p Remux",
+     "Version": 1,
+     "Real": 0
+    },
+    "ReleaseGroup": "FraMeSToR",
+    "ReleaseHash": "",
+    "SceneName": "Parks.and.Recreation.S06E06.Filibuster.1080p.DTS-HD.MA.5.1.AVC.REMUX-FraMeSToR",
+    "RelativePath": "Season 06/Parks and Recreation (2009) - S06E06 - Filibuster [Bluray-1080p Remux][DTS-HD MA 5.1][AVC]-FraMeSToR.mkv",
+    "Path": "/media/tv/Parks and Recreation (2009)/Season 06/Parks and Recreation (2009) - S06E06 - Filibuster [Bluray-1080p Remux][DTS-HD MA 5.1][AVC]-FraMeSToR.mkv",
+    "MediaInfo": {
+     "VideoCodec": "AVC",
+     "VideoBitDepth": 8,
+     "VideoMultiViewCount": 0,
+     "AudioCodec": "DTS-HD MA",
+     "AudioChannels": 5.1,
+     "AudioLanguages": [
+      "eng"
+     ],
+     "Subtitles": null,
+     "VideoDynamicRange": "",
+     "VideoDynamicRangeType": ""
+    },
+    "CustomFormats": null
+   },
+   "root": "/media/tv",
+   "cf_source": "none",
+   "expect_folder": "Parks and Recreation (2009)",
+   "expect_season": "Season 06",
+   "expect_file": "Parks and Recreation (2009) - S06E06 - Filibuster [Bluray-1080p Remux][DTS-HD MA 5.1][AVC]-FraMeSToR.mkv",
+   "ext": ".mkv"
+  },
+  {
+   "instance": "sonarr_4k_debrid",
+   "file_id": 1330,
+   "series": {
+    "Title": "Landman",
+    "Year": 2024,
+    "Type": "standard",
+    "ImdbID": "tt14186672",
+    "TvdbID": 397424,
+    "TvMazeID": 0,
+    "TmdbID": 157741
+   },
+   "episodes": [
+    {
+     "Season": 1,
+     "Number": 10,
+     "Absolute": null,
+     "Title": "The Crumbs of Hope",
+     "AirDate": "2025-01-12"
+    }
+   ],
+   "episode_file": {
+    "ID": 1330,
+    "Quality": {
+     "Title": "WEBDL-2160p",
+     "Version": 1,
+     "Real": 0
+    },
+    "ReleaseGroup": "NTb",
+    "ReleaseHash": "",
+    "SceneName": "Landman.S01E10.The.Crumbs.of.Hope.2160p.AMZN.WEB-DL.DDP5.1.H.265-NTb",
+    "RelativePath": "Season 01/Landman (2024) - S01E10 - The Crumbs of Hope [AMZN - Notifiarr][WEBDL-2160p][EAC3 5.1][h265]-NTb.mkv",
+    "Path": "/media/tv/Landman (2024)/Season 01/Landman (2024) - S01E10 - The Crumbs of Hope [AMZN - Notifiarr][WEBDL-2160p][EAC3 5.1][h265]-NTb.mkv",
+    "MediaInfo": {
+     "VideoCodec": "h265",
+     "VideoBitDepth": 8,
+     "VideoMultiViewCount": 0,
+     "AudioCodec": "EAC3",
+     "AudioChannels": 5.1,
+     "AudioLanguages": [
+      "eng"
+     ],
+     "Subtitles": null,
+     "VideoDynamicRange": "",
+     "VideoDynamicRangeType": ""
+    },
+    "CustomFormats": [
+     "AMZN - Notifiarr"
+    ]
+   },
+   "root": "/media/tv",
+   "cf_source": "name",
+   "expect_folder": "Landman (2024)",
+   "expect_season": "Season 01",
+   "expect_file": "Landman (2024) - S01E10 - The Crumbs of Hope [AMZN - Notifiarr][WEBDL-2160p][EAC3 5.1][h265]-NTb.mkv",
+   "ext": ".mkv"
+  },
+  {
+   "instance": "sonarr_4k_debrid",
+   "file_id": 1348,
+   "series": {
+    "Title": "The Buccaneers (2023)",
+    "Year": 2023,
+    "Type": "standard",
+    "ImdbID": "tt21108774",
+    "TvdbID": 421633,
+    "TvMazeID": 0,
+    "TmdbID": 213338
+   },
+   "episodes": [
+    {
+     "Season": 1,
+     "Number": 8,
+     "Absolute": 8,
+     "Title": "Wedding of the Season",
+     "AirDate": "2023-12-13"
+    }
+   ],
+   "episode_file": {
+    "ID": 1348,
+    "Quality": {
+     "Title": "WEBRip-2160p",
+     "Version": 1,
+     "Real": 0
+    },
+    "ReleaseGroup": "Amen",
+    "ReleaseHash": "",
+    "SceneName": "",
+    "RelativePath": "Season 01/The Buccaneers (2023) - S01E08 - Wedding of the Season [WEBRip-2160p][AC3 5.1][DV HDR10Plus][x265]-Amen.mkv",
+    "Path": "/media/tv/The Buccaneers (2023)/Season 01/The Buccaneers (2023) - S01E08 - Wedding of the Season [WEBRip-2160p][AC3 5.1][DV HDR10Plus][x265]-Amen.mkv",
+    "MediaInfo": {
+     "VideoCodec": "x265",
+     "VideoBitDepth": 10,
+     "VideoMultiViewCount": 0,
+     "AudioCodec": "AC3",
+     "AudioChannels": 5.1,
+     "AudioLanguages": [
+      "fre",
+      "fre",
+      "eng"
+     ],
+     "Subtitles": null,
+     "VideoDynamicRange": "HDR",
+     "VideoDynamicRangeType": "DV HDR10Plus"
+    },
+    "CustomFormats": null
+   },
+   "root": "/media/tv",
+   "cf_source": "none",
+   "expect_folder": "The Buccaneers (2023)",
+   "expect_season": "Season 01",
+   "expect_file": "The Buccaneers (2023) - S01E08 - Wedding of the Season [WEBRip-2160p][AC3 5.1][DV HDR10Plus][x265]-Amen.mkv",
+   "ext": ".mkv"
+  },
+  {
+   "instance": "sonarr_4k_debrid",
+   "file_id": 1356,
+   "series": {
+    "Title": "The Buccaneers (2023)",
+    "Year": 2023,
+    "Type": "standard",
+    "ImdbID": "tt21108774",
+    "TvdbID": 421633,
+    "TvMazeID": 0,
+    "TmdbID": 213338
+   },
+   "episodes": [
+    {
+     "Season": 2,
+     "Number": 8,
+     "Absolute": null,
+     "Title": "She Knows",
+     "AirDate": "2025-08-06"
+    }
+   ],
+   "episode_file": {
+    "ID": 1356,
+    "Quality": {
+     "Title": "WEBRip-2160p",
+     "Version": 1,
+     "Real": 0
+    },
+    "ReleaseGroup": "Amen",
+    "ReleaseHash": "",
+    "SceneName": "",
+    "RelativePath": "Season 02/The Buccaneers (2023) - S02E08 - She Knows [WEBRip-2160p][AC3 5.1][DV HDR10Plus][x265]-Amen.mkv",
+    "Path": "/media/tv/The Buccaneers (2023)/Season 02/The Buccaneers (2023) - S02E08 - She Knows [WEBRip-2160p][AC3 5.1][DV HDR10Plus][x265]-Amen.mkv",
+    "MediaInfo": {
+     "VideoCodec": "x265",
+     "VideoBitDepth": 10,
+     "VideoMultiViewCount": 0,
+     "AudioCodec": "AC3",
+     "AudioChannels": 5.1,
+     "AudioLanguages": [
+      "fre",
+      "fre",
+      "eng"
+     ],
+     "Subtitles": null,
+     "VideoDynamicRange": "HDR",
+     "VideoDynamicRangeType": "DV HDR10Plus"
+    },
+    "CustomFormats": null
+   },
+   "root": "/media/tv",
+   "cf_source": "none",
+   "expect_folder": "The Buccaneers (2023)",
+   "expect_season": "Season 02",
+   "expect_file": "The Buccaneers (2023) - S02E08 - She Knows [WEBRip-2160p][AC3 5.1][DV HDR10Plus][x265]-Amen.mkv",
+   "ext": ".mkv"
+  },
+  {
+   "instance": "sonarr_4k_debrid",
+   "file_id": 1359,
+   "series": {
+    "Title": "The Summer I Turned Pretty",
+    "Year": 2022,
+    "Type": "standard",
+    "ImdbID": "tt14016500",
+    "TvdbID": 396505,
+    "TvMazeID": 0,
+    "TmdbID": 194766
+   },
+   "episodes": [
+    {
+     "Season": 1,
+     "Number": 3,
+     "Absolute": null,
+     "Title": "Summer Nights",
+     "AirDate": "2022-06-16"
+    }
+   ],
+   "episode_file": {
+    "ID": 1359,
+    "Quality": {
+     "Title": "WEBDL-2160p",
+     "Version": 1,
+     "Real": 0
+    },
+    "ReleaseGroup": "HONE",
+    "ReleaseHash": "",
+    "SceneName": "",
+    "RelativePath": "Season 01/The Summer I Turned Pretty (2022) - S01E03 - Summer Nights [AMZN - Notifiarr][WEBDL-2160p][EAC3 5.1][HDR10Plus][h265]-HONE.mkv",
+    "Path": "/media/tv/The Summer I Turned Pretty (2022)/Season 01/The Summer I Turned Pretty (2022) - S01E03 - Summer Nights [AMZN - Notifiarr][WEBDL-2160p][EAC3 5.1][HDR10Plus][h265]-HONE.mkv",
+    "MediaInfo": {
+     "VideoCodec": "h265",
+     "VideoBitDepth": 10,
+     "VideoMultiViewCount": 0,
+     "AudioCodec": "EAC3",
+     "AudioChannels": 5.1,
+     "AudioLanguages": [
+      "eng"
+     ],
+     "Subtitles": null,
+     "VideoDynamicRange": "HDR",
+     "VideoDynamicRangeType": "HDR10Plus"
+    },
+    "CustomFormats": [
+     "AMZN - Notifiarr"
+    ]
+   },
+   "root": "/media/tv",
+   "cf_source": "name",
+   "expect_folder": "The Summer I Turned Pretty (2022)",
+   "expect_season": "Season 01",
+   "expect_file": "The Summer I Turned Pretty (2022) - S01E03 - Summer Nights [AMZN - Notifiarr][WEBDL-2160p][EAC3 5.1][HDR10Plus][h265]-HONE.mkv",
+   "ext": ".mkv"
+  },
+  {
+   "instance": "sonarr_4k_debrid",
+   "file_id": 1372,
+   "series": {
+    "Title": "The Summer I Turned Pretty",
+    "Year": 2022,
+    "Type": "standard",
+    "ImdbID": "tt14016500",
+    "TvdbID": 396505,
+    "TvMazeID": 0,
+    "TmdbID": 194766
+   },
+   "episodes": [
+    {
+     "Season": 3,
+     "Number": 1,
+     "Absolute": null,
+     "Title": "Last Season",
+     "AirDate": "2025-07-16"
+    }
+   ],
+   "episode_file": {
+    "ID": 1372,
+    "Quality": {
+     "Title": "WEBDL-2160p",
+     "Version": 1,
+     "Real": 0
+    },
+    "ReleaseGroup": "playWEB",
+    "ReleaseHash": "",
+    "SceneName": "The.Summer.I.Turned.Pretty.S03E01.Last.Season.2160p.AMZN.WEB-DL.DD+5.1.Atmos.HDR.H.265-playWEB",
+    "RelativePath": "Season 03/The Summer I Turned Pretty (2022) - S03E01 - Last Season [AMZN - Notifiarr][WEBDL-2160p][EAC3 Atmos 5.1][HDR10Plus][h265]-playWEB.mkv",
+    "Path": "/media/tv/The Summer I Turned Pretty (2022)/Season 03/The Summer I Turned Pretty (2022) - S03E01 - Last Season [AMZN - Notifiarr][WEBDL-2160p][EAC3 Atmos 5.1][HDR10Plus][h265]-playWEB.mkv",
+    "MediaInfo": {
+     "VideoCodec": "h265",
+     "VideoBitDepth": 10,
+     "VideoMultiViewCount": 0,
+     "AudioCodec": "EAC3 Atmos",
+     "AudioChannels": 5.1,
+     "AudioLanguages": [
+      "eng"
+     ],
+     "Subtitles": null,
+     "VideoDynamicRange": "HDR",
+     "VideoDynamicRangeType": "HDR10Plus"
+    },
+    "CustomFormats": [
+     "AMZN - Notifiarr"
+    ]
+   },
+   "root": "/media/tv",
+   "cf_source": "name",
+   "expect_folder": "The Summer I Turned Pretty (2022)",
+   "expect_season": "Season 03",
+   "expect_file": "The Summer I Turned Pretty (2022) - S03E01 - Last Season [AMZN - Notifiarr][WEBDL-2160p][EAC3 Atmos 5.1][HDR10Plus][h265]-playWEB.mkv",
+   "ext": ".mkv"
+  },
+  {
+   "instance": "sonarr_4k_debrid",
+   "file_id": 1377,
+   "series": {
+    "Title": "The Summer I Turned Pretty",
+    "Year": 2022,
+    "Type": "standard",
+    "ImdbID": "tt14016500",
+    "TvdbID": 396505,
+    "TvMazeID": 0,
+    "TmdbID": 194766
+   },
+   "episodes": [
+    {
+     "Season": 3,
+     "Number": 6,
+     "Absolute": null,
+     "Title": "Last Name",
+     "AirDate": "2025-08-13"
+    }
+   ],
+   "episode_file": {
+    "ID": 1377,
+    "Quality": {
+     "Title": "WEBDL-2160p",
+     "Version": 1,
+     "Real": 0
+    },
+    "ReleaseGroup": "playWEB",
+    "ReleaseHash": "",
+    "SceneName": "The.Summer.I.Turned.Pretty.S03E06.Last.Name.2160p.AMZN.WEB-DL.DD+5.1.Atmos.HDR.H.265-playWEB",
+    "RelativePath": "Season 03/The Summer I Turned Pretty (2022) - S03E06 - Last Name [AMZN - Notifiarr][WEBDL-2160p][EAC3 Atmos 5.1][HDR10Plus][h265]-playWEB.mkv",
+    "Path": "/media/tv/The Summer I Turned Pretty (2022)/Season 03/The Summer I Turned Pretty (2022) - S03E06 - Last Name [AMZN - Notifiarr][WEBDL-2160p][EAC3 Atmos 5.1][HDR10Plus][h265]-playWEB.mkv",
+    "MediaInfo": {
+     "VideoCodec": "h265",
+     "VideoBitDepth": 10,
+     "VideoMultiViewCount": 0,
+     "AudioCodec": "EAC3 Atmos",
+     "AudioChannels": 5.1,
+     "AudioLanguages": [
+      "eng"
+     ],
+     "Subtitles": null,
+     "VideoDynamicRange": "HDR",
+     "VideoDynamicRangeType": "HDR10Plus"
+    },
+    "CustomFormats": [
+     "AMZN - Notifiarr"
+    ]
+   },
+   "root": "/media/tv",
+   "cf_source": "name",
+   "expect_folder": "The Summer I Turned Pretty (2022)",
+   "expect_season": "Season 03",
+   "expect_file": "The Summer I Turned Pretty (2022) - S03E06 - Last Name [AMZN - Notifiarr][WEBDL-2160p][EAC3 Atmos 5.1][HDR10Plus][h265]-playWEB.mkv",
+   "ext": ".mkv"
+  },
+  {
+   "instance": "sonarr_4k_debrid",
+   "file_id": 1378,
+   "series": {
+    "Title": "The Summer I Turned Pretty",
+    "Year": 2022,
+    "Type": "standard",
+    "ImdbID": "tt14016500",
+    "TvdbID": 396505,
+    "TvMazeID": 0,
+    "TmdbID": 194766
+   },
+   "episodes": [
+    {
+     "Season": 3,
+     "Number": 7,
+     "Absolute": null,
+     "Title": "Last Hurrah",
+     "AirDate": "2025-08-20"
+    }
+   ],
+   "episode_file": {
+    "ID": 1378,
+    "Quality": {
+     "Title": "WEBDL-2160p",
+     "Version": 1,
+     "Real": 0
+    },
+    "ReleaseGroup": "playWEB",
+    "ReleaseHash": "",
+    "SceneName": "The.Summer.I.Turned.Pretty.S03E07.Last.Hurrah.2160p.AMZN.WEB-DL.DD+5.1.Atmos.HDR.H.265-playWEB",
+    "RelativePath": "Season 03/The Summer I Turned Pretty (2022) - S03E07 - Last Hurrah [AMZN - Notifiarr][WEBDL-2160p][EAC3 Atmos 5.1][HDR10Plus][h265]-playWEB.mkv",
+    "Path": "/media/tv/The Summer I Turned Pretty (2022)/Season 03/The Summer I Turned Pretty (2022) - S03E07 - Last Hurrah [AMZN - Notifiarr][WEBDL-2160p][EAC3 Atmos 5.1][HDR10Plus][h265]-playWEB.mkv",
+    "MediaInfo": {
+     "VideoCodec": "h265",
+     "VideoBitDepth": 10,
+     "VideoMultiViewCount": 0,
+     "AudioCodec": "EAC3 Atmos",
+     "AudioChannels": 5.1,
+     "AudioLanguages": [
+      "eng"
+     ],
+     "Subtitles": null,
+     "VideoDynamicRange": "HDR",
+     "VideoDynamicRangeType": "HDR10Plus"
+    },
+    "CustomFormats": [
+     "AMZN - Notifiarr"
+    ]
+   },
+   "root": "/media/tv",
+   "cf_source": "name",
+   "expect_folder": "The Summer I Turned Pretty (2022)",
+   "expect_season": "Season 03",
+   "expect_file": "The Summer I Turned Pretty (2022) - S03E07 - Last Hurrah [AMZN - Notifiarr][WEBDL-2160p][EAC3 Atmos 5.1][HDR10Plus][h265]-playWEB.mkv",
+   "ext": ".mkv"
+  },
+  {
+   "instance": "sonarr_4k_debrid",
+   "file_id": 1394,
+   "series": {
+    "Title": "South Park",
+    "Year": 1997,
+    "Type": "standard",
+    "ImdbID": "tt0121955",
+    "TvdbID": 75897,
+    "TvMazeID": 0,
+    "TmdbID": 2190
+   },
+   "episodes": [
+    {
+     "Season": 29,
+     "Number": 1,
+     "Absolute": null,
+     "Title": "South American Biker Gangs",
+     "AirDate": "2026-09-16"
+    }
+   ],
+   "episode_file": {
+    "ID": 1394,
+    "Quality": {
+     "Title": "WEBDL-2160p",
+     "Version": 1,
+     "Real": 0
+    },
+    "ReleaseGroup": "Kitsune",
+    "ReleaseHash": "",
+    "SceneName": "South Park S29E01 South American Biker Gangs 2160p AMZN WEB-DL DDP5 1 H 265-Kitsune [ UIndex.org ]",
+    "RelativePath": "Season 29/South Park (1997) - S29E01 - South American Biker Gangs [AMZN - Notifiarr][WEBDL-2160p][EAC3 5.1][h265]-Kitsune.mkv",
+    "Path": "/media/tv/South Park (1997)/Season 29/South Park (1997) - S29E01 - South American Biker Gangs [AMZN - Notifiarr][WEBDL-2160p][EAC3 5.1][h265]-Kitsune.mkv",
+    "MediaInfo": {
+     "VideoCodec": "h265",
+     "VideoBitDepth": 8,
+     "VideoMultiViewCount": 0,
+     "AudioCodec": "EAC3",
+     "AudioChannels": 5.1,
+     "AudioLanguages": [
+      "eng"
+     ],
+     "Subtitles": null,
+     "VideoDynamicRange": "",
+     "VideoDynamicRangeType": ""
+    },
+    "CustomFormats": [
+     "AMZN - Notifiarr"
+    ]
+   },
+   "root": "/media/tv",
+   "cf_source": "name",
+   "expect_folder": "South Park (1997)",
+   "expect_season": "Season 29",
+   "expect_file": "South Park (1997) - S29E01 - South American Biker Gangs [AMZN - Notifiarr][WEBDL-2160p][EAC3 5.1][h265]-Kitsune.mkv",
+   "ext": ".mkv"
+  },
+  {
+   "instance": "sonarr_4k_debrid",
+   "file_id": 1438,
+   "series": {
+    "Title": "Alice in Borderland (2020)",
+    "Year": 2020,
+    "Type": "standard",
+    "ImdbID": "tt10795658",
+    "TvdbID": 376472,
+    "TvMazeID": 0,
+    "TmdbID": 110316
+   },
+   "episodes": [
+    {
+     "Season": 3,
+     "Number": 3,
+     "Absolute": 19,
+     "Title": "Runaway Train",
+     "AirDate": "2025-09-25"
+    }
+   ],
+   "episode_file": {
+    "ID": 1438,
+    "Quality": {
+     "Title": "WEBDL-2160p",
+     "Version": 1,
+     "Real": 0
+    },
+    "ReleaseGroup": "",
+    "ReleaseHash": "",
+    "SceneName": "",
+    "RelativePath": "Season 03/Alice in Borderland (2020) - S03E03 - Runaway Train [WEBDL-2160p][EAC3 5.1][DV HDR10][h265].mkv",
+    "Path": "/media/tv/Alice in Borderland (2020)/Season 03/Alice in Borderland (2020) - S03E03 - Runaway Train [WEBDL-2160p][EAC3 5.1][DV HDR10][h265].mkv",
+    "MediaInfo": {
+     "VideoCodec": "h265",
+     "VideoBitDepth": 10,
+     "VideoMultiViewCount": 0,
+     "AudioCodec": "EAC3",
+     "AudioChannels": 5.1,
+     "AudioLanguages": [
+      "rus",
+      "rus",
+      "rus",
+      "rus",
+      "rus",
+      "rus",
+      "jpn",
+      "eng"
+     ],
+     "Subtitles": null,
+     "VideoDynamicRange": "HDR",
+     "VideoDynamicRangeType": "DV HDR10"
+    },
+    "CustomFormats": null
+   },
+   "root": "/media/tv",
+   "cf_source": "none",
+   "expect_folder": "Alice in Borderland (2020)",
+   "expect_season": "Season 03",
+   "expect_file": "Alice in Borderland (2020) - S03E03 - Runaway Train [WEBDL-2160p][EAC3 5.1][DV HDR10][h265].mkv",
+   "ext": ".mkv"
+  },
+  {
+   "instance": "sonarr_4k_debrid",
+   "file_id": 1443,
+   "series": {
+    "Title": "The Way Home (2023)",
+    "Year": 2023,
+    "Type": "standard",
+    "ImdbID": "tt20221678",
+    "TvdbID": 421842,
+    "TvMazeID": 0,
+    "TmdbID": 201836
+   },
+   "episodes": [
+    {
+     "Season": 3,
+     "Number": 10,
+     "Absolute": null,
+     "Title": "If You Could Read My Mind",
+     "AirDate": "2025-03-07"
+    }
+   ],
+   "episode_file": {
+    "ID": 1443,
+    "Quality": {
+     "Title": "WEBDL-1080p",
+     "Version": 1,
+     "Real": 0
+    },
+    "ReleaseGroup": "FLUX",
+    "ReleaseHash": "",
+    "SceneName": "The Way Home 2023 S03E10 If You Could Read My Mind 1080p AMZN WEB-DL DDP2 0 H 264-FLUX[EZTVx.to]",
+    "RelativePath": "Season 03/The Way Home (2023) - S03E10 - If You Could Read My Mind [AMZN - Notifiarr][WEBDL-1080p][EAC3 2.0][h264]-FLUX.mkv",
+    "Path": "/media/tv/The Way Home (2023)/Season 03/The Way Home (2023) - S03E10 - If You Could Read My Mind [AMZN - Notifiarr][WEBDL-1080p][EAC3 2.0][h264]-FLUX.mkv",
+    "MediaInfo": {
+     "VideoCodec": "h264",
+     "VideoBitDepth": 8,
+     "VideoMultiViewCount": 0,
+     "AudioCodec": "EAC3",
+     "AudioChannels": 2,
+     "AudioLanguages": [
+      "eng"
+     ],
+     "Subtitles": null,
+     "VideoDynamicRange": "",
+     "VideoDynamicRangeType": ""
+    },
+    "CustomFormats": [
+     "AMZN - Notifiarr"
+    ]
+   },
+   "root": "/media/tv",
+   "cf_source": "name",
+   "expect_folder": "The Way Home (2023)",
+   "expect_season": "Season 03",
+   "expect_file": "The Way Home (2023) - S03E10 - If You Could Read My Mind [AMZN - Notifiarr][WEBDL-1080p][EAC3 2.0][h264]-FLUX.mkv",
+   "ext": ".mkv"
+  },
+  {
+   "instance": "sonarr_4k_debrid",
+   "file_id": 1491,
+   "series": {
+    "Title": "Peacemaker",
+    "Year": 2022,
+    "Type": "standard",
+    "ImdbID": "tt13146488",
+    "TvdbID": 391153,
+    "TvMazeID": 0,
+    "TmdbID": 110492
+   },
+   "episodes": [
+    {
+     "Season": 1,
+     "Number": 6,
+     "Absolute": 6,
+     "Title": "Murn After Reading",
+     "AirDate": "2022-02-03"
+    }
+   ],
+   "episode_file": {
+    "ID": 1491,
+    "Quality": {
+     "Title": "WEBDL-2160p",
+     "Version": 1,
+     "Real": 0
+    },
+    "ReleaseGroup": "XEBEC",
+    "ReleaseHash": "",
+    "SceneName": "Peacemaker.S01E06.Murn.After.Reading.2160p.MAX.WEB-DL.DDP5.1.Atmos.DV.HEVC-XEBEC",
+    "RelativePath": "Season 01/Peacemaker (2022) - S01E06 - Murn After Reading [MAX - Notifiarr][WEBDL-2160p][EAC3 Atmos 5.1][DV][HEVC]-XEBEC.mkv",
+    "Path": "/media/tv/Peacemaker (2022)/Season 01/Peacemaker (2022) - S01E06 - Murn After Reading [MAX - Notifiarr][WEBDL-2160p][EAC3 Atmos 5.1][DV][HEVC]-XEBEC.mkv",
+    "MediaInfo": {
+     "VideoCodec": "HEVC",
+     "VideoBitDepth": 10,
+     "VideoMultiViewCount": 0,
+     "AudioCodec": "EAC3 Atmos",
+     "AudioChannels": 5.1,
+     "AudioLanguages": [
+      "eng"
+     ],
+     "Subtitles": null,
+     "VideoDynamicRange": "HDR",
+     "VideoDynamicRangeType": "DV"
+    },
+    "CustomFormats": [
+     "MAX - Notifiarr"
+    ]
+   },
+   "root": "/media/tv",
+   "cf_source": "name",
+   "expect_folder": "Peacemaker (2022)",
+   "expect_season": "Season 01",
+   "expect_file": "Peacemaker (2022) - S01E06 - Murn After Reading [MAX - Notifiarr][WEBDL-2160p][EAC3 Atmos 5.1][DV][HEVC]-XEBEC.mkv",
+   "ext": ".mkv"
+  },
+  {
+   "instance": "sonarr_4k_debrid",
+   "file_id": 1492,
+   "series": {
+    "Title": "Peacemaker",
+    "Year": 2022,
+    "Type": "standard",
+    "ImdbID": "tt13146488",
+    "TvdbID": 391153,
+    "TvMazeID": 0,
+    "TmdbID": 110492
+   },
+   "episodes": [
+    {
+     "Season": 1,
+     "Number": 7,
+     "Absolute": 7,
+     "Title": "Stop Dragon My Heart Around",
+     "AirDate": "2022-02-10"
+    }
+   ],
+   "episode_file": {
+    "ID": 1492,
+    "Quality": {
+     "Title": "WEBDL-2160p",
+     "Version": 1,
+     "Real": 0
+    },
+    "ReleaseGroup": "XEBEC",
+    "ReleaseHash": "",
+    "SceneName": "Peacemaker.S01E07.Stop.Dragon.My.Heart.Around.2160p.MAX.WEB-DL.DDP5.1.Atmos.DV.HEVC-XEBEC",
+    "RelativePath": "Season 01/Peacemaker (2022) - S01E07 - Stop Dragon My Heart Around [MAX - Notifiarr][WEBDL-2160p][EAC3 Atmos 5.1][DV][HEVC]-XEBEC.mkv",
+    "Path": "/media/tv/Peacemaker (2022)/Season 01/Peacemaker (2022) - S01E07 - Stop Dragon My Heart Around [MAX - Notifiarr][WEBDL-2160p][EAC3 Atmos 5.1][DV][HEVC]-XEBEC.mkv",
+    "MediaInfo": {
+     "VideoCodec": "HEVC",
+     "VideoBitDepth": 10,
+     "VideoMultiViewCount": 0,
+     "AudioCodec": "EAC3 Atmos",
+     "AudioChannels": 5.1,
+     "AudioLanguages": [
+      "eng"
+     ],
+     "Subtitles": null,
+     "VideoDynamicRange": "HDR",
+     "VideoDynamicRangeType": "DV"
+    },
+    "CustomFormats": [
+     "MAX - Notifiarr"
+    ]
+   },
+   "root": "/media/tv",
+   "cf_source": "name",
+   "expect_folder": "Peacemaker (2022)",
+   "expect_season": "Season 01",
+   "expect_file": "Peacemaker (2022) - S01E07 - Stop Dragon My Heart Around [MAX - Notifiarr][WEBDL-2160p][EAC3 Atmos 5.1][DV][HEVC]-XEBEC.mkv",
+   "ext": ".mkv"
+  },
+  {
+   "instance": "sonarr_4k_debrid",
+   "file_id": 1545,
+   "series": {
+    "Title": "Anthony Bourdain: No Reservations",
+    "Year": 2005,
+    "Type": "standard",
+    "ImdbID": "tt0475900",
+    "TvdbID": 79668,
+    "TvMazeID": 0,
+    "TmdbID": 4533
+   },
+   "episodes": [
+    {
+     "Season": 5,
+     "Number": 10,
+     "Absolute": null,
+     "Title": "Vietnam: There's No Place Like Home",
+     "AirDate": "2009-03-09"
+    }
+   ],
+   "episode_file": {
+    "ID": 1545,
+    "Quality": {
+     "Title": "WEBDL-1080p",
+     "Version": 1,
+     "Real": 0
+    },
+    "ReleaseGroup": "TrollHD",
+    "ReleaseHash": "",
+    "SceneName": "",
+    "RelativePath": "Season 05/Anthony Bourdain No Reservations (2005) - S05E10 - Vietnam Theres No Place Like Home [WEBDL-1080p][EAC3 2.0][x264]-TrollHD.mkv",
+    "Path": "/media/tv/Anthony Bourdain No Reservations (2005)/Season 05/Anthony Bourdain No Reservations (2005) - S05E10 - Vietnam Theres No Place Like Home [WEBDL-1080p][EAC3 2.0][x264]-TrollHD.mkv",
+    "MediaInfo": {
+     "VideoCodec": "x264",
+     "VideoBitDepth": 8,
+     "VideoMultiViewCount": 0,
+     "AudioCodec": "EAC3",
+     "AudioChannels": 2,
+     "AudioLanguages": [
+      "eng"
+     ],
+     "Subtitles": null,
+     "VideoDynamicRange": "",
+     "VideoDynamicRangeType": ""
+    },
+    "CustomFormats": null
+   },
+   "root": "/media/tv",
+   "cf_source": "none",
+   "expect_folder": "Anthony Bourdain No Reservations (2005)",
+   "expect_season": "Season 05",
+   "expect_file": "Anthony Bourdain No Reservations (2005) - S05E10 - Vietnam Theres No Place Like Home [WEBDL-1080p][EAC3 2.0][x264]-TrollHD.mkv",
+   "ext": ".mkv"
+  },
+  {
+   "instance": "sonarr_4k_debrid",
+   "file_id": 1563,
+   "series": {
+    "Title": "Anthony Bourdain: No Reservations",
+    "Year": 2005,
+    "Type": "standard",
+    "ImdbID": "tt0475900",
+    "TvdbID": 79668,
+    "TvMazeID": 0,
+    "TmdbID": 4533
+   },
+   "episodes": [
+    {
+     "Season": 6,
+     "Number": 9,
+     "Absolute": null,
+     "Title": "Provence",
+     "AirDate": "2010-03-22"
+    }
+   ],
+   "episode_file": {
+    "ID": 1563,
+    "Quality": {
+     "Title": "WEBDL-1080p",
+     "Version": 1,
+     "Real": 0
+    },
+    "ReleaseGroup": "TrollHD",
+    "ReleaseHash": "",
+    "SceneName": "",
+    "RelativePath": "Season 06/Anthony Bourdain No Reservations (2005) - S06E09 - Provence [WEBDL-1080p][EAC3 2.0][x264]-TrollHD.mkv",
+    "Path": "/media/tv/Anthony Bourdain No Reservations (2005)/Season 06/Anthony Bourdain No Reservations (2005) - S06E09 - Provence [WEBDL-1080p][EAC3 2.0][x264]-TrollHD.mkv",
+    "MediaInfo": {
+     "VideoCodec": "x264",
+     "VideoBitDepth": 8,
+     "VideoMultiViewCount": 0,
+     "AudioCodec": "EAC3",
+     "AudioChannels": 2,
+     "AudioLanguages": [
+      "eng"
+     ],
+     "Subtitles": null,
+     "VideoDynamicRange": "",
+     "VideoDynamicRangeType": ""
+    },
+    "CustomFormats": null
+   },
+   "root": "/media/tv",
+   "cf_source": "none",
+   "expect_folder": "Anthony Bourdain No Reservations (2005)",
+   "expect_season": "Season 06",
+   "expect_file": "Anthony Bourdain No Reservations (2005) - S06E09 - Provence [WEBDL-1080p][EAC3 2.0][x264]-TrollHD.mkv",
+   "ext": ".mkv"
+  },
+  {
+   "instance": "sonarr_4k_debrid",
+   "file_id": 1569,
+   "series": {
+    "Title": "Anthony Bourdain: No Reservations",
+    "Year": 2005,
+    "Type": "standard",
+    "ImdbID": "tt0475900",
+    "TvdbID": 79668,
+    "TvMazeID": 0,
+    "TmdbID": 4533
+   },
+   "episodes": [
+    {
+     "Season": 6,
+     "Number": 16,
+     "Absolute": null,
+     "Title": "Liberia",
+     "AirDate": "2010-07-19"
+    }
+   ],
+   "episode_file": {
+    "ID": 1569,
+    "Quality": {
+     "Title": "WEBDL-1080p",
+     "Version": 1,
+     "Real": 0
+    },
+    "ReleaseGroup": "TrollHD",
+    "ReleaseHash": "",
+    "SceneName": "",
+    "RelativePath": "Season 06/Anthony Bourdain No Reservations (2005) - S06E16 - Liberia [WEBDL-1080p][EAC3 2.0][x264]-TrollHD.mkv",
+    "Path": "/media/tv/Anthony Bourdain No Reservations (2005)/Season 06/Anthony Bourdain No Reservations (2005) - S06E16 - Liberia [WEBDL-1080p][EAC3 2.0][x264]-TrollHD.mkv",
+    "MediaInfo": {
+     "VideoCodec": "x264",
+     "VideoBitDepth": 8,
+     "VideoMultiViewCount": 0,
+     "AudioCodec": "EAC3",
+     "AudioChannels": 2,
+     "AudioLanguages": [
+      "eng"
+     ],
+     "Subtitles": null,
+     "VideoDynamicRange": "",
+     "VideoDynamicRangeType": ""
+    },
+    "CustomFormats": null
+   },
+   "root": "/media/tv",
+   "cf_source": "none",
+   "expect_folder": "Anthony Bourdain No Reservations (2005)",
+   "expect_season": "Season 06",
+   "expect_file": "Anthony Bourdain No Reservations (2005) - S06E16 - Liberia [WEBDL-1080p][EAC3 2.0][x264]-TrollHD.mkv",
+   "ext": ".mkv"
+  },
+  {
+   "instance": "sonarr_4k_debrid",
+   "file_id": 1587,
+   "series": {
+    "Title": "Anthony Bourdain: No Reservations",
+    "Year": 2005,
+    "Type": "standard",
+    "ImdbID": "tt0475900",
+    "TvdbID": 79668,
+    "TvMazeID": 0,
+    "TmdbID": 4533
+   },
+   "episodes": [
+    {
+     "Season": 8,
+     "Number": 6,
+     "Absolute": null,
+     "Title": "Finland",
+     "AirDate": "2012-05-14"
+    }
+   ],
+   "episode_file": {
+    "ID": 1587,
+    "Quality": {
+     "Title": "WEBDL-1080p",
+     "Version": 1,
+     "Real": 0
+    },
+    "ReleaseGroup": "TrollHD",
+    "ReleaseHash": "",
+    "SceneName": "",
+    "RelativePath": "Season 08/Anthony Bourdain No Reservations (2005) - S08E06 - Finland [WEBDL-1080p][EAC3 2.0][x264]-TrollHD.mkv",
+    "Path": "/media/tv/Anthony Bourdain No Reservations (2005)/Season 08/Anthony Bourdain No Reservations (2005) - S08E06 - Finland [WEBDL-1080p][EAC3 2.0][x264]-TrollHD.mkv",
+    "MediaInfo": {
+     "VideoCodec": "x264",
+     "VideoBitDepth": 8,
+     "VideoMultiViewCount": 0,
+     "AudioCodec": "EAC3",
+     "AudioChannels": 2,
+     "AudioLanguages": [
+      "eng"
+     ],
+     "Subtitles": null,
+     "VideoDynamicRange": "",
+     "VideoDynamicRangeType": ""
+    },
+    "CustomFormats": null
+   },
+   "root": "/media/tv",
+   "cf_source": "none",
+   "expect_folder": "Anthony Bourdain No Reservations (2005)",
+   "expect_season": "Season 08",
+   "expect_file": "Anthony Bourdain No Reservations (2005) - S08E06 - Finland [WEBDL-1080p][EAC3 2.0][x264]-TrollHD.mkv",
+   "ext": ".mkv"
+  },
+  {
+   "instance": "sonarr_4k_debrid",
+   "file_id": 1715,
+   "series": {
+    "Title": "All American",
+    "Year": 2018,
+    "Type": "standard",
+    "ImdbID": "tt7414406",
+    "TvdbID": 348200,
+    "TvMazeID": 0,
+    "TmdbID": 82428
+   },
+   "episodes": [
+    {
+     "Season": 2,
+     "Number": 1,
+     "Absolute": 17,
+     "Title": "Hussle \u0026 Motivate",
+     "AirDate": "2019-10-07"
+    }
+   ],
+   "episode_file": {
+    "ID": 1715,
+    "Quality": {
+     "Title": "WEBDL-1080p",
+     "Version": 1,
+     "Real": 0
+    },
+    "ReleaseGroup": "KiNGS",
+    "ReleaseHash": "",
+    "SceneName": "All.American.2018.S02E01.1080p.AMZN.WEB-DL.DDP5.1.H.264-KiNGS",
+    "RelativePath": "Season 02/All American (2018) - S02E01 - Hussle and Motivate [AMZN - Notifiarr][WEBDL-1080p][EAC3 5.1][h264]-KiNGS.mkv",
+    "Path": "/media/tv/All American (2018)/Season 02/All American (2018) - S02E01 - Hussle and Motivate [AMZN - Notifiarr][WEBDL-1080p][EAC3 5.1][h264]-KiNGS.mkv",
+    "MediaInfo": {
+     "VideoCodec": "h264",
+     "VideoBitDepth": 8,
+     "VideoMultiViewCount": 0,
+     "AudioCodec": "EAC3",
+     "AudioChannels": 5.1,
+     "AudioLanguages": [
+      "eng"
+     ],
+     "Subtitles": null,
+     "VideoDynamicRange": "",
+     "VideoDynamicRangeType": ""
+    },
+    "CustomFormats": [
+     "AMZN - Notifiarr"
+    ]
+   },
+   "root": "/media/tv",
+   "cf_source": "name",
+   "expect_folder": "All American (2018)",
+   "expect_season": "Season 02",
+   "expect_file": "All American (2018) - S02E01 - Hussle and Motivate [AMZN - Notifiarr][WEBDL-1080p][EAC3 5.1][h264]-KiNGS.mkv",
+   "ext": ".mkv"
+  },
+  {
+   "instance": "sonarr_4k_debrid",
+   "file_id": 1735,
+   "series": {
+    "Title": "All American",
+    "Year": 2018,
+    "Type": "standard",
+    "ImdbID": "tt7414406",
+    "TvdbID": 348200,
+    "TvMazeID": 0,
+    "TmdbID": 82428
+   },
+   "episodes": [
+    {
+     "Season": 3,
+     "Number": 5,
+     "Absolute": 37,
+     "Title": "How Come",
+     "AirDate": "2021-02-15"
+    }
+   ],
+   "episode_file": {
+    "ID": 1735,
+    "Quality": {
+     "Title": "WEBDL-1080p",
+     "Version": 1,
+     "Real": 0
+    },
+    "ReleaseGroup": "NTb",
+    "ReleaseHash": "",
+    "SceneName": "All.American.S03E05.1080p.AMZN.WEB-DL.DDP5.1.H.264-NTb",
+    "RelativePath": "Season 03/All American (2018) - S03E05 - How Come [AMZN - Notifiarr][WEBDL-1080p][EAC3 5.1][h264]-NTb.mkv",
+    "Path": "/media/tv/All American (2018)/Season 03/All American (2018) - S03E05 - How Come [AMZN - Notifiarr][WEBDL-1080p][EAC3 5.1][h264]-NTb.mkv",
+    "MediaInfo": {
+     "VideoCodec": "h264",
+     "VideoBitDepth": 8,
+     "VideoMultiViewCount": 0,
+     "AudioCodec": "EAC3",
+     "AudioChannels": 5.1,
+     "AudioLanguages": [
+      "eng"
+     ],
+     "Subtitles": null,
+     "VideoDynamicRange": "",
+     "VideoDynamicRangeType": ""
+    },
+    "CustomFormats": [
+     "AMZN - Notifiarr"
+    ]
+   },
+   "root": "/media/tv",
+   "cf_source": "name",
+   "expect_folder": "All American (2018)",
+   "expect_season": "Season 03",
+   "expect_file": "All American (2018) - S03E05 - How Come [AMZN - Notifiarr][WEBDL-1080p][EAC3 5.1][h264]-NTb.mkv",
+   "ext": ".mkv"
+  },
+  {
+   "instance": "sonarr_4k_debrid",
+   "file_id": 1743,
+   "series": {
+    "Title": "All American",
+    "Year": 2018,
+    "Type": "standard",
+    "ImdbID": "tt7414406",
+    "TvdbID": 348200,
+    "TvMazeID": 0,
+    "TmdbID": 82428
+   },
+   "episodes": [
+    {
+     "Season": 3,
+     "Number": 13,
+     "Absolute": 45,
+     "Title": "Bring the Noise",
+     "AirDate": "2021-05-24"
+    }
+   ],
+   "episode_file": {
+    "ID": 1743,
+    "Quality": {
+     "Title": "WEBDL-1080p",
+     "Version": 1,
+     "Real": 0
+    },
+    "ReleaseGroup": "NTb",
+    "ReleaseHash": "",
+    "SceneName": "All.American.S03E13.1080p.AMZN.WEB-DL.DDP5.1.H.264-NTb",
+    "RelativePath": "Season 03/All American (2018) - S03E13 - Bring the Noise [AMZN - Notifiarr][WEBDL-1080p][EAC3 5.1][h264]-NTb.mkv",
+    "Path": "/media/tv/All American (2018)/Season 03/All American (2018) - S03E13 - Bring the Noise [AMZN - Notifiarr][WEBDL-1080p][EAC3 5.1][h264]-NTb.mkv",
+    "MediaInfo": {
+     "VideoCodec": "h264",
+     "VideoBitDepth": 8,
+     "VideoMultiViewCount": 0,
+     "AudioCodec": "EAC3",
+     "AudioChannels": 5.1,
+     "AudioLanguages": [
+      "eng"
+     ],
+     "Subtitles": null,
+     "VideoDynamicRange": "",
+     "VideoDynamicRangeType": ""
+    },
+    "CustomFormats": [
+     "AMZN - Notifiarr"
+    ]
+   },
+   "root": "/media/tv",
+   "cf_source": "name",
+   "expect_folder": "All American (2018)",
+   "expect_season": "Season 03",
+   "expect_file": "All American (2018) - S03E13 - Bring the Noise [AMZN - Notifiarr][WEBDL-1080p][EAC3 5.1][h264]-NTb.mkv",
+   "ext": ".mkv"
+  },
+  {
+   "instance": "sonarr_4k_debrid",
+   "file_id": 1744,
+   "series": {
+    "Title": "All American",
+    "Year": 2018,
+    "Type": "standard",
+    "ImdbID": "tt7414406",
+    "TvdbID": 348200,
+    "TvMazeID": 0,
+    "TmdbID": 82428
+   },
+   "episodes": [
+    {
+     "Season": 3,
+     "Number": 14,
+     "Absolute": 46,
+     "Title": "Ready or Not",
+     "AirDate": "2021-06-14"
+    }
+   ],
+   "episode_file": {
+    "ID": 1744,
+    "Quality": {
+     "Title": "WEBDL-1080p",
+     "Version": 1,
+     "Real": 0
+    },
+    "ReleaseGroup": "NTb",
+    "ReleaseHash": "",
+    "SceneName": "All.American.S03E14.1080p.AMZN.WEB-DL.DDP5.1.H.264-NTb",
+    "RelativePath": "Season 03/All American (2018) - S03E14 - Ready or Not [AMZN - Notifiarr][WEBDL-1080p][EAC3 5.1][h264]-NTb.mkv",
+    "Path": "/media/tv/All American (2018)/Season 03/All American (2018) - S03E14 - Ready or Not [AMZN - Notifiarr][WEBDL-1080p][EAC3 5.1][h264]-NTb.mkv",
+    "MediaInfo": {
+     "VideoCodec": "h264",
+     "VideoBitDepth": 8,
+     "VideoMultiViewCount": 0,
+     "AudioCodec": "EAC3",
+     "AudioChannels": 5.1,
+     "AudioLanguages": [
+      "eng"
+     ],
+     "Subtitles": null,
+     "VideoDynamicRange": "",
+     "VideoDynamicRangeType": ""
+    },
+    "CustomFormats": [
+     "AMZN - Notifiarr"
+    ]
+   },
+   "root": "/media/tv",
+   "cf_source": "name",
+   "expect_folder": "All American (2018)",
+   "expect_season": "Season 03",
+   "expect_file": "All American (2018) - S03E14 - Ready or Not [AMZN - Notifiarr][WEBDL-1080p][EAC3 5.1][h264]-NTb.mkv",
+   "ext": ".mkv"
+  },
+  {
+   "instance": "sonarr_4k_debrid",
+   "file_id": 1782,
+   "series": {
+    "Title": "Dutton Ranch",
+    "Year": 2026,
+    "Type": "standard",
+    "ImdbID": "tt34991493",
+    "TvdbID": 463308,
+    "TvMazeID": 0,
+    "TmdbID": 299167
+   },
+   "episodes": [
+    {
+     "Season": 1,
+     "Number": 2,
+     "Absolute": null,
+     "Title": "Earn Another Day",
+     "AirDate": "2026-05-15"
+    }
+   ],
+   "episode_file": {
+    "ID": 1782,
+    "Quality": {
+     "Title": "WEBDL-2160p",
+     "Version": 1,
+     "Real": 0
+    },
+    "ReleaseGroup": "Kitsune",
+    "ReleaseHash": "",
+    "SceneName": "www.UIndex.org    -    Dutton Ranch S01E02 Earn Another Day 2160p PMTP WEB-DL DDP5 1 Atmos DV HDR10Plus H 265-Kitsune",
+    "RelativePath": "Season 01/Dutton Ranch (2026) - S01E02 - Earn Another Day [PMTP - Notifiarr][WEBDL-2160p][EAC3 Atmos 5.1][DV HDR10Plus][h265]-Kitsune.mkv",
+    "Path": "/media/tv/Dutton Ranch (2026)/Season 01/Dutton Ranch (2026) - S01E02 - Earn Another Day [PMTP - Notifiarr][WEBDL-2160p][EAC3 Atmos 5.1][DV HDR10Plus][h265]-Kitsune.mkv",
+    "MediaInfo": {
+     "VideoCodec": "h265",
+     "VideoBitDepth": 10,
+     "VideoMultiViewCount": 0,
+     "AudioCodec": "EAC3 Atmos",
+     "AudioChannels": 5.1,
+     "AudioLanguages": [
+      "eng"
+     ],
+     "Subtitles": null,
+     "VideoDynamicRange": "HDR",
+     "VideoDynamicRangeType": "DV HDR10Plus"
+    },
+    "CustomFormats": [
+     "PMTP - Notifiarr"
+    ]
+   },
+   "root": "/media/tv",
+   "cf_source": "name",
+   "expect_folder": "Dutton Ranch (2026)",
+   "expect_season": "Season 01",
+   "expect_file": "Dutton Ranch (2026) - S01E02 - Earn Another Day [PMTP - Notifiarr][WEBDL-2160p][EAC3 Atmos 5.1][DV HDR10Plus][h265]-Kitsune.mkv",
+   "ext": ".mkv"
+  },
+  {
+   "instance": "sonarr_4k_debrid",
+   "file_id": 1783,
+   "series": {
+    "Title": "Dutton Ranch",
+    "Year": 2026,
+    "Type": "standard",
+    "ImdbID": "tt34991493",
+    "TvdbID": 463308,
+    "TvMazeID": 0,
+    "TmdbID": 299167
+   },
+   "episodes": [
+    {
+     "Season": 1,
+     "Number": 1,
+     "Absolute": null,
+     "Title": "The Untold Want",
+     "AirDate": "2026-05-15"
+    }
+   ],
+   "episode_file": {
+    "ID": 1783,
+    "Quality": {
+     "Title": "WEBDL-2160p",
+     "Version": 1,
+     "Real": 0
+    },
+    "ReleaseGroup": "FLUX",
+    "ReleaseHash": "",
+    "SceneName": "Dutton.Ranch.S01E01.2160p.PMTP.WEB-DL.DDP5.1.Atmos.DV.HDR.H.265-FLUX",
+    "RelativePath": "Season 01/Dutton Ranch (2026) - S01E01 - The Untold Want [PMTP - Notifiarr][WEBDL-2160p][EAC3 Atmos 5.1][DV HDR10Plus][h265]-FLUX.mkv",
+    "Path": "/media/tv/Dutton Ranch (2026)/Season 01/Dutton Ranch (2026) - S01E01 - The Untold Want [PMTP - Notifiarr][WEBDL-2160p][EAC3 Atmos 5.1][DV HDR10Plus][h265]-FLUX.mkv",
+    "MediaInfo": {
+     "VideoCodec": "h265",
+     "VideoBitDepth": 10,
+     "VideoMultiViewCount": 0,
+     "AudioCodec": "EAC3 Atmos",
+     "AudioChannels": 5.1,
+     "AudioLanguages": [
+      "eng",
+      "cze"
+     ],
+     "Subtitles": null,
+     "VideoDynamicRange": "HDR",
+     "VideoDynamicRangeType": "DV HDR10Plus"
+    },
+    "CustomFormats": [
+     "PMTP - Notifiarr"
+    ]
+   },
+   "root": "/media/tv",
+   "cf_source": "name",
+   "expect_folder": "Dutton Ranch (2026)",
+   "expect_season": "Season 01",
+   "expect_file": "Dutton Ranch (2026) - S01E01 - The Untold Want [PMTP - Notifiarr][WEBDL-2160p][EAC3 Atmos 5.1][DV HDR10Plus][h265]-FLUX.mkv",
+   "ext": ".mkv"
+  },
+  {
+   "instance": "sonarr_4k_debrid",
+   "file_id": 1799,
+   "series": {
+    "Title": "The Other Bennet Sister",
+    "Year": 2026,
+    "Type": "standard",
+    "ImdbID": "tt37022512",
+    "TvdbID": 455324,
+    "TvMazeID": 0,
+    "TmdbID": 273866
+   },
+   "episodes": [
+    {
+     "Season": 1,
+     "Number": 1,
+     "Absolute": null,
+     "Title": "Chapter 1",
+     "AirDate": "2026-03-15"
+    }
+   ],
+   "episode_file": {
+    "ID": 1799,
+    "Quality": {
+     "Title": "WEBDL-2160p",
+     "Version": 1,
+     "Real": 0
+    },
+    "ReleaseGroup": "playWEB",
+    "ReleaseHash": "",
+    "SceneName": "www.UIndex.org    -    The Other Bennet Sister S01E01 Chapter One 2160p HMAX WEB-DL DD 5 1 H 265-playWEB",
+    "RelativePath": "Season 01/The Other Bennet Sister (2026) - S01E01 - Chapter 1 [HMAX - Notifiarr][WEBDL-2160p][EAC3 5.1][h265]-playWEB.mkv",
+    "Path": "/media/tv/The Other Bennet Sister (2026)/Season 01/The Other Bennet Sister (2026) - S01E01 - Chapter 1 [HMAX - Notifiarr][WEBDL-2160p][EAC3 5.1][h265]-playWEB.mkv",
+    "MediaInfo": {
+     "VideoCodec": "h265",
+     "VideoBitDepth": 10,
+     "VideoMultiViewCount": 0,
+     "AudioCodec": "EAC3",
+     "AudioChannels": 5.1,
+     "AudioLanguages": [
+      "eng"
+     ],
+     "Subtitles": null,
+     "VideoDynamicRange": "",
+     "VideoDynamicRangeType": ""
+    },
+    "CustomFormats": [
+     "HMAX - Notifiarr"
+    ]
+   },
+   "root": "/media/tv",
+   "cf_source": "name",
+   "expect_folder": "The Other Bennet Sister (2026)",
+   "expect_season": "Season 01",
+   "expect_file": "The Other Bennet Sister (2026) - S01E01 - Chapter 1 [HMAX - Notifiarr][WEBDL-2160p][EAC3 5.1][h265]-playWEB.mkv",
+   "ext": ".mkv"
+  },
+  {
+   "instance": "sonarr_4k_debrid",
+   "file_id": 1831,
+   "series": {
+    "Title": "The Expanse",
+    "Year": 2015,
+    "Type": "standard",
+    "ImdbID": "tt3230854",
+    "TvdbID": 280619,
+    "TvMazeID": 0,
+    "TmdbID": 63639
+   },
+   "episodes": [
+    {
+     "Season": 3,
+     "Number": 2,
+     "Absolute": 25,
+     "Title": "IFF",
+     "AirDate": "2018-04-18"
+    }
+   ],
+   "episode_file": {
+    "ID": 1831,
+    "Quality": {
+     "Title": "WEBDL-2160p",
+     "Version": 1,
+     "Real": 0
+    },
+    "ReleaseGroup": "HONE",
+    "ReleaseHash": "",
+    "SceneName": "",
+    "RelativePath": "Season 03/The Expanse (2015) - S03E02 - IFF [AMZN - Notifiarr][WEBDL-2160p][EAC3 5.1][HDR10Plus][h265]-HONE.mkv",
+    "Path": "/media/tv/The Expanse (2015)/Season 03/The Expanse (2015) - S03E02 - IFF [AMZN - Notifiarr][WEBDL-2160p][EAC3 5.1][HDR10Plus][h265]-HONE.mkv",
+    "MediaInfo": {
+     "VideoCodec": "h265",
+     "VideoBitDepth": 10,
+     "VideoMultiViewCount": 0,
+     "AudioCodec": "EAC3",
+     "AudioChannels": 5.1,
+     "AudioLanguages": [
+      "eng"
+     ],
+     "Subtitles": null,
+     "VideoDynamicRange": "HDR",
+     "VideoDynamicRangeType": "HDR10Plus"
+    },
+    "CustomFormats": [
+     "AMZN - Notifiarr"
+    ]
+   },
+   "root": "/media/tv",
+   "cf_source": "name",
+   "expect_folder": "The Expanse (2015)",
+   "expect_season": "Season 03",
+   "expect_file": "The Expanse (2015) - S03E02 - IFF [AMZN - Notifiarr][WEBDL-2160p][EAC3 5.1][HDR10Plus][h265]-HONE.mkv",
+   "ext": ".mkv"
+  },
+  {
+   "instance": "sonarr_4k_debrid",
+   "file_id": 1853,
+   "series": {
+    "Title": "The Expanse",
+    "Year": 2015,
+    "Type": "standard",
+    "ImdbID": "tt3230854",
+    "TvdbID": 280619,
+    "TvMazeID": 0,
+    "TmdbID": 63639
+   },
+   "episodes": [
+    {
+     "Season": 5,
+     "Number": 1,
+     "Absolute": 47,
+     "Title": "Exodus",
+     "AirDate": "2020-12-16"
+    }
+   ],
+   "episode_file": {
+    "ID": 1853,
+    "Quality": {
+     "Title": "WEBDL-2160p",
+     "Version": 1,
+     "Real": 0
+    },
+    "ReleaseGroup": "HONE",
+    "ReleaseHash": "",
+    "SceneName": "",
+    "RelativePath": "Season 05/The Expanse (2015) - S05E01 - Exodus [AMZN - Notifiarr][WEBDL-2160p][EAC3 Atmos 5.1][HDR10Plus][h265]-HONE.mkv",
+    "Path": "/media/tv/The Expanse (2015)/Season 05/The Expanse (2015) - S05E01 - Exodus [AMZN - Notifiarr][WEBDL-2160p][EAC3 Atmos 5.1][HDR10Plus][h265]-HONE.mkv",
+    "MediaInfo": {
+     "VideoCodec": "h265",
+     "VideoBitDepth": 10,
+     "VideoMultiViewCount": 0,
+     "AudioCodec": "EAC3 Atmos",
+     "AudioChannels": 5.1,
+     "AudioLanguages": [
+      "eng"
+     ],
+     "Subtitles": null,
+     "VideoDynamicRange": "HDR",
+     "VideoDynamicRangeType": "HDR10Plus"
+    },
+    "CustomFormats": [
+     "AMZN - Notifiarr"
+    ]
+   },
+   "root": "/media/tv",
+   "cf_source": "name",
+   "expect_folder": "The Expanse (2015)",
+   "expect_season": "Season 05",
+   "expect_file": "The Expanse (2015) - S05E01 - Exodus [AMZN - Notifiarr][WEBDL-2160p][EAC3 Atmos 5.1][HDR10Plus][h265]-HONE.mkv",
+   "ext": ".mkv"
+  }
+ ]
+}

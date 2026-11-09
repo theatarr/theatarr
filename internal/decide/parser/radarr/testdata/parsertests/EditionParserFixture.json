@@ -1,0 +1,447 @@
+{
+ "source": "Radarr src/NzbDrone.Core.Test/ParserTests/EditionParserFixture.cs @ a96bf7c",
+ "fixture": "EditionParserFixture",
+ "cases": [
+  {
+   "id": "EditionParserFixture/should_parse_edition/0",
+   "line": 10,
+   "call": "parseMovieTitle",
+   "input": "Movie Title 2012 Directors Cut",
+   "expect": {
+    "edition": "Directors Cut"
+   }
+  },
+  {
+   "id": "EditionParserFixture/should_parse_edition/1",
+   "line": 11,
+   "call": "parseMovieTitle",
+   "input": "Movie Title 1999 (Despecialized).mkv",
+   "expect": {
+    "edition": "Despecialized"
+   }
+  },
+  {
+   "id": "EditionParserFixture/should_parse_edition/2",
+   "line": 12,
+   "call": "parseMovieTitle",
+   "input": "Movie Title.2012.(Special.Edition.Remastered).[Bluray-1080p].mkv",
+   "expect": {
+    "edition": "Special Edition Remastered"
+   }
+  },
+  {
+   "id": "EditionParserFixture/should_parse_edition/3",
+   "line": 13,
+   "call": "parseMovieTitle",
+   "input": "Movie Title 2012 Extended",
+   "expect": {
+    "edition": "Extended"
+   }
+  },
+  {
+   "id": "EditionParserFixture/should_parse_edition/4",
+   "line": 14,
+   "call": "parseMovieTitle",
+   "input": "Movie Title 2012 Extended Directors Cut Fan Edit",
+   "expect": {
+    "edition": "Extended Directors Cut Fan Edit"
+   }
+  },
+  {
+   "id": "EditionParserFixture/should_parse_edition/5",
+   "line": 15,
+   "call": "parseMovieTitle",
+   "input": "Movie Title 2012 Director's Cut",
+   "expect": {
+    "edition": "Director's Cut"
+   }
+  },
+  {
+   "id": "EditionParserFixture/should_parse_edition/6",
+   "line": 16,
+   "call": "parseMovieTitle",
+   "input": "Movie Title 2012 Directors Cut",
+   "expect": {
+    "edition": "Directors Cut"
+   }
+  },
+  {
+   "id": "EditionParserFixture/should_parse_edition/7",
+   "line": 17,
+   "call": "parseMovieTitle",
+   "input": "Movie Title.2012.(Extended.Theatrical.Version.IMAX).BluRay.1080p.2012.asdf",
+   "expect": {
+    "edition": "Extended Theatrical Version IMAX"
+   }
+  },
+  {
+   "id": "EditionParserFixture/should_parse_edition/8",
+   "line": 18,
+   "call": "parseMovieTitle",
+   "input": "2021 A Movie (1968) Director's Cut .mkv",
+   "expect": {
+    "edition": "Director's Cut"
+   }
+  },
+  {
+   "id": "EditionParserFixture/should_parse_edition/9",
+   "line": 19,
+   "call": "parseMovieTitle",
+   "input": "2021 A Movie 1968 (Extended Directors Cut FanEdit)",
+   "expect": {
+    "edition": "Extended Directors Cut FanEdit"
+   }
+  },
+  {
+   "id": "EditionParserFixture/should_parse_edition/10",
+   "line": 20,
+   "call": "parseMovieTitle",
+   "input": "A Fake Movie 2035 2012 Directors.mkv",
+   "expect": {
+    "edition": "Directors"
+   }
+  },
+  {
+   "id": "EditionParserFixture/should_parse_edition/11",
+   "line": 21,
+   "call": "parseMovieTitle",
+   "input": "Movie 2049 Director's Cut.mkv",
+   "expect": {
+    "edition": "Director's Cut"
+   }
+  },
+  {
+   "id": "EditionParserFixture/should_parse_edition/12",
+   "line": 22,
+   "call": "parseMovieTitle",
+   "input": "Movie Title 2012 50th Anniversary Edition.mkv",
+   "expect": {
+    "edition": "50th Anniversary Edition"
+   }
+  },
+  {
+   "id": "EditionParserFixture/should_parse_edition/13",
+   "line": 23,
+   "call": "parseMovieTitle",
+   "input": "Movie 2012 2in1.mkv",
+   "expect": {
+    "edition": "2in1"
+   }
+  },
+  {
+   "id": "EditionParserFixture/should_parse_edition/14",
+   "line": 24,
+   "call": "parseMovieTitle",
+   "input": "Movie 2012 IMAX.mkv",
+   "expect": {
+    "edition": "IMAX"
+   }
+  },
+  {
+   "id": "EditionParserFixture/should_parse_edition/15",
+   "line": 25,
+   "call": "parseMovieTitle",
+   "input": "Movie 2012 Restored.mkv",
+   "expect": {
+    "edition": "Restored"
+   }
+  },
+  {
+   "id": "EditionParserFixture/should_parse_edition/16",
+   "line": 26,
+   "call": "parseMovieTitle",
+   "input": "Movie Title.Special.Edition.Fan Edit.2012..BRRip.x264.AAC-m2g",
+   "expect": {
+    "edition": "Special Edition Fan Edit"
+   }
+  },
+  {
+   "id": "EditionParserFixture/should_parse_edition/17",
+   "line": 27,
+   "call": "parseMovieTitle",
+   "input": "Movie Title (Despecialized) 1999.mkv",
+   "expect": {
+    "edition": "Despecialized"
+   }
+  },
+  {
+   "id": "EditionParserFixture/should_parse_edition/18",
+   "line": 28,
+   "call": "parseMovieTitle",
+   "input": "Movie Title.(Special.Edition.Remastered).2012.[Bluray-1080p].mkv",
+   "expect": {
+    "edition": "Special Edition Remastered"
+   }
+  },
+  {
+   "id": "EditionParserFixture/should_parse_edition/19",
+   "line": 29,
+   "call": "parseMovieTitle",
+   "input": "Movie Title Extended 2012",
+   "expect": {
+    "edition": "Extended"
+   }
+  },
+  {
+   "id": "EditionParserFixture/should_parse_edition/20",
+   "line": 30,
+   "call": "parseMovieTitle",
+   "input": "Movie Title Extended Directors Cut Fan Edit 2012",
+   "expect": {
+    "edition": "Extended Directors Cut Fan Edit"
+   }
+  },
+  {
+   "id": "EditionParserFixture/should_parse_edition/21",
+   "line": 31,
+   "call": "parseMovieTitle",
+   "input": "Movie Title Director's Cut 2012",
+   "expect": {
+    "edition": "Director's Cut"
+   }
+  },
+  {
+   "id": "EditionParserFixture/should_parse_edition/22",
+   "line": 32,
+   "call": "parseMovieTitle",
+   "input": "Movie Title Directors Cut 2012",
+   "expect": {
+    "edition": "Directors Cut"
+   }
+  },
+  {
+   "id": "EditionParserFixture/should_parse_edition/23",
+   "line": 33,
+   "call": "parseMovieTitle",
+   "input": "Movie Title.(Extended.Theatrical.Version.IMAX).2012.BluRay.1080p.asdf",
+   "expect": {
+    "edition": "Extended Theatrical Version IMAX"
+   }
+  },
+  {
+   "id": "EditionParserFixture/should_parse_edition/24",
+   "line": 34,
+   "call": "parseMovieTitle",
+   "input": "Movie Director's Cut (1968).mkv",
+   "expect": {
+    "edition": "Director's Cut"
+   }
+  },
+  {
+   "id": "EditionParserFixture/should_parse_edition/25",
+   "line": 35,
+   "call": "parseMovieTitle",
+   "input": "2021 A Movie (Extended Directors Cut FanEdit) 1968 Bluray 1080p",
+   "expect": {
+    "edition": "Extended Directors Cut FanEdit"
+   }
+  },
+  {
+   "id": "EditionParserFixture/should_parse_edition/26",
+   "line": 36,
+   "call": "parseMovieTitle",
+   "input": "A Fake Movie 2035 Directors 2012.mkv",
+   "expect": {
+    "edition": "Directors"
+   }
+  },
+  {
+   "id": "EditionParserFixture/should_parse_edition/27",
+   "line": 37,
+   "call": "parseMovieTitle",
+   "input": "Movie Director's Cut 2049.mkv",
+   "expect": {
+    "edition": "Director's Cut"
+   }
+  },
+  {
+   "id": "EditionParserFixture/should_parse_edition/28",
+   "line": 38,
+   "call": "parseMovieTitle",
+   "input": "Movie Title 50th Anniversary Edition 2012.mkv",
+   "expect": {
+    "edition": "50th Anniversary Edition"
+   }
+  },
+  {
+   "id": "EditionParserFixture/should_parse_edition/29",
+   "line": 39,
+   "call": "parseMovieTitle",
+   "input": "Movie 2in1 2012.mkv",
+   "expect": {
+    "edition": "2in1"
+   }
+  },
+  {
+   "id": "EditionParserFixture/should_parse_edition/30",
+   "line": 40,
+   "call": "parseMovieTitle",
+   "input": "Movie IMAX 2012.mkv",
+   "expect": {
+    "edition": "IMAX"
+   }
+  },
+  {
+   "id": "EditionParserFixture/should_parse_edition/31",
+   "line": 41,
+   "call": "parseMovieTitle",
+   "input": "Fake Movie Final Cut 2016",
+   "expect": {
+    "edition": "Final Cut"
+   }
+  },
+  {
+   "id": "EditionParserFixture/should_parse_edition/32",
+   "line": 42,
+   "call": "parseMovieTitle",
+   "input": "Fake Movie 2016 Final Cut ",
+   "expect": {
+    "edition": "Final Cut"
+   }
+  },
+  {
+   "id": "EditionParserFixture/should_parse_edition/33",
+   "line": 43,
+   "call": "parseMovieTitle",
+   "input": "My Movie GERMAN Extended Cut 2016",
+   "expect": {
+    "edition": "Extended Cut"
+   }
+  },
+  {
+   "id": "EditionParserFixture/should_parse_edition/34",
+   "line": 44,
+   "call": "parseMovieTitle",
+   "input": "My.Movie.GERMAN.Extended.Cut.2016",
+   "expect": {
+    "edition": "Extended Cut"
+   }
+  },
+  {
+   "id": "EditionParserFixture/should_parse_edition/35",
+   "line": 45,
+   "call": "parseMovieTitle",
+   "input": "My.Movie.GERMAN.Extended.Cut",
+   "expect": {
+    "edition": "Extended Cut"
+   }
+  },
+  {
+   "id": "EditionParserFixture/should_parse_edition/36",
+   "line": 46,
+   "call": "parseMovieTitle",
+   "input": "My.Movie.Assembly.Cut.1992.REPACK.1080p.BluRay.DD5.1.x264-Group",
+   "expect": {
+    "edition": "Assembly Cut"
+   }
+  },
+  {
+   "id": "EditionParserFixture/should_parse_edition/37",
+   "line": 47,
+   "call": "parseMovieTitle",
+   "input": "Movie.1987.Ultimate.Hunter.Edition.DTS-HD.DTS.MULTISUBS.1080p.BluRay.x264.HQ-TUSAHD",
+   "expect": {
+    "edition": "Ultimate Hunter Edition"
+   }
+  },
+  {
+   "id": "EditionParserFixture/should_parse_edition/38",
+   "line": 48,
+   "call": "parseMovieTitle",
+   "input": "Movie.1950.Diamond.Edition.1080p.BluRay.x264-nikt0",
+   "expect": {
+    "edition": "Diamond Edition"
+   }
+  },
+  {
+   "id": "EditionParserFixture/should_parse_edition/39",
+   "line": 49,
+   "call": "parseMovieTitle",
+   "input": "Movie.Title.1990.Ultimate.Rekall.Edition.NORDiC.REMUX.1080p.BluRay.AVC.DTS-HD.MA5.1-TWA",
+   "expect": {
+    "edition": "Ultimate Rekall Edition"
+   }
+  },
+  {
+   "id": "EditionParserFixture/should_parse_edition/40",
+   "line": 50,
+   "call": "parseMovieTitle",
+   "input": "Movie.Title.1971.Signature.Edition.1080p.BluRay.FLAC.2.0.x264-TDD",
+   "expect": {
+    "edition": "Signature Edition"
+   }
+  },
+  {
+   "id": "EditionParserFixture/should_parse_edition/41",
+   "line": 51,
+   "call": "parseMovieTitle",
+   "input": "Movie.1979.The.Imperial.Edition.BluRay.720p.DTS.x264-CtrlHD",
+   "expect": {
+    "edition": "Imperial Edition"
+   }
+  },
+  {
+   "id": "EditionParserFixture/should_parse_edition/42",
+   "line": 52,
+   "call": "parseMovieTitle",
+   "input": "Movie.1997.Open.Matte.1080p.BluRay.x264.DTS-FGT",
+   "expect": {
+    "edition": "Open Matte"
+   }
+  },
+  {
+   "id": "EditionParserFixture/should_not_parse_edition/0",
+   "line": 59,
+   "call": "parseMovieTitle",
+   "input": "Movie.Holiday.Special.1978.DVD.REMUX.DD.2.0-ViETNAM",
+   "expect": {
+    "edition": ""
+   }
+  },
+  {
+   "id": "EditionParserFixture/should_not_parse_edition/1",
+   "line": 60,
+   "call": "parseMovieTitle",
+   "input": "Directors.Cut.German.2006.COMPLETE.PAL.DVDR-LoD",
+   "expect": {
+    "edition": ""
+   }
+  },
+  {
+   "id": "EditionParserFixture/should_not_parse_edition/2",
+   "line": 61,
+   "call": "parseMovieTitle",
+   "input": "Movie Impossible: Rogue Movie 2012 Bluray",
+   "expect": {
+    "edition": ""
+   }
+  },
+  {
+   "id": "EditionParserFixture/should_not_parse_edition/3",
+   "line": 62,
+   "call": "parseMovieTitle",
+   "input": "Loving.Movie.2018.TS.FRENCH.MD.x264-DROGUERiE",
+   "expect": {
+    "edition": ""
+   }
+  },
+  {
+   "id": "EditionParserFixture/should_not_parse_edition/4",
+   "line": 63,
+   "call": "parseMovieTitle",
+   "input": "Uncut.Movie.2019.720p.BluRay.x264-YOL0W",
+   "expect": {
+    "edition": ""
+   }
+  },
+  {
+   "id": "EditionParserFixture/should_not_parse_edition/5",
+   "line": 64,
+   "call": "parseMovieTitle",
+   "input": "The.Christmas.Edition.1941.720p.HDTV.x264-CRiMSON",
+   "expect": {
+    "edition": ""
+   }
+  }
+ ]
+}

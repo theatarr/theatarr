@@ -1,0 +1,511 @@
+{
+ "source": "Radarr src/NzbDrone.Core.Test/ParserTests/NormalizeTitleFixture.cs @ a96bf7c",
+ "fixture": "NormalizeTitleFixture",
+ "cases": [
+  {
+   "id": "NormalizeTitleFixture/should_normalize_series_title/0",
+   "line": 11,
+   "call": "cleanMovieTitle",
+   "input": "Conan",
+   "expect": {
+    "": "conan"
+   }
+  },
+  {
+   "id": "NormalizeTitleFixture/should_normalize_series_title/1",
+   "line": 12,
+   "call": "cleanMovieTitle",
+   "input": "Castle (2009)",
+   "expect": {
+    "": "castle2009"
+   }
+  },
+  {
+   "id": "NormalizeTitleFixture/should_normalize_series_title/2",
+   "line": 13,
+   "call": "cleanMovieTitle",
+   "input": "Parenthood.2010",
+   "expect": {
+    "": "parenthood2010"
+   }
+  },
+  {
+   "id": "NormalizeTitleFixture/should_normalize_series_title/3",
+   "line": 14,
+   "call": "cleanMovieTitle",
+   "input": "Law_and_Order_SVU",
+   "expect": {
+    "": "lawordersvu"
+   }
+  },
+  {
+   "id": "NormalizeTitleFixture/should_remove_special_characters_and_casing/0",
+   "line": 21,
+   "call": "cleanMovieTitle",
+   "input": "CaPitAl",
+   "expect": {
+    "": "capital"
+   }
+  },
+  {
+   "id": "NormalizeTitleFixture/should_remove_special_characters_and_casing/1",
+   "line": 22,
+   "call": "cleanMovieTitle",
+   "input": "peri.od",
+   "expect": {
+    "": "period"
+   }
+  },
+  {
+   "id": "NormalizeTitleFixture/should_remove_special_characters_and_casing/2",
+   "line": 23,
+   "call": "cleanMovieTitle",
+   "input": "this.^&%^**$%@#$!That",
+   "expect": {
+    "": "thisthat"
+   }
+  },
+  {
+   "id": "NormalizeTitleFixture/should_remove_special_characters_and_casing/3",
+   "line": 24,
+   "call": "cleanMovieTitle",
+   "input": "test/test",
+   "expect": {
+    "": "testtest"
+   }
+  },
+  {
+   "id": "NormalizeTitleFixture/should_remove_special_characters_and_casing/4",
+   "line": 25,
+   "call": "cleanMovieTitle",
+   "input": "90210",
+   "expect": {
+    "": "90210"
+   }
+  },
+  {
+   "id": "NormalizeTitleFixture/should_remove_special_characters_and_casing/5",
+   "line": 26,
+   "call": "cleanMovieTitle",
+   "input": "24",
+   "expect": {
+    "": "24"
+   }
+  },
+  {
+   "id": "NormalizeTitleFixture/should_remove_special_characters_and_casing/6",
+   "line": 27,
+   "call": "cleanMovieTitle",
+   "input": "I'm a cyborg, but that's OK",
+   "expect": {
+    "": "imcyborgbutthatsok"
+   }
+  },
+  {
+   "id": "NormalizeTitleFixture/should_remove_special_characters_and_casing/7",
+   "line": 28,
+   "call": "cleanMovieTitle",
+   "input": "Im a cyborg, but thats ok",
+   "expect": {
+    "": "imcyborgbutthatsok"
+   }
+  },
+  {
+   "id": "NormalizeTitleFixture/should_remove_special_characters_and_casing/8",
+   "line": 29,
+   "call": "cleanMovieTitle",
+   "input": "Test: Something à Deux",
+   "expect": {
+    "": "testsomethingdeux"
+   }
+  },
+  {
+   "id": "NormalizeTitleFixture/should_remove_special_characters_and_casing/9",
+   "line": 30,
+   "call": "cleanMovieTitle",
+   "input": "Parler à",
+   "expect": {
+    "": "parlera"
+   }
+  },
+  {
+   "id": "NormalizeTitleFixture/should_remove_common_words_from_middle_of_title/0",
+   "line": 37,
+   "call": "cleanMovieTitle",
+   "inputs": [
+    "word.the.word",
+    "word the word",
+    "word-the-word"
+   ],
+   "expect": {
+    "": "wordword"
+   }
+  },
+  {
+   "id": "NormalizeTitleFixture/should_remove_common_words_from_middle_of_title/1",
+   "line": 38,
+   "call": "cleanMovieTitle",
+   "inputs": [
+    "word.and.word",
+    "word and word",
+    "word-and-word"
+   ],
+   "expect": {
+    "": "wordword"
+   }
+  },
+  {
+   "id": "NormalizeTitleFixture/should_remove_common_words_from_middle_of_title/2",
+   "line": 39,
+   "call": "cleanMovieTitle",
+   "inputs": [
+    "word.or.word",
+    "word or word",
+    "word-or-word"
+   ],
+   "expect": {
+    "": "wordword"
+   }
+  },
+  {
+   "id": "NormalizeTitleFixture/should_remove_common_words_from_middle_of_title/3",
+   "line": 40,
+   "call": "cleanMovieTitle",
+   "inputs": [
+    "word.an.word",
+    "word an word",
+    "word-an-word"
+   ],
+   "expect": {
+    "": "wordword"
+   }
+  },
+  {
+   "id": "NormalizeTitleFixture/should_remove_common_words_from_middle_of_title/4",
+   "line": 41,
+   "call": "cleanMovieTitle",
+   "inputs": [
+    "word.of.word",
+    "word of word",
+    "word-of-word"
+   ],
+   "expect": {
+    "": "wordword"
+   }
+  },
+  {
+   "id": "NormalizeTitleFixture/should_not_remove_common_words_from_end_of_title/0",
+   "line": 58,
+   "call": "cleanMovieTitle",
+   "inputs": [
+    "word.word.the",
+    "word-word-the",
+    "word-word the"
+   ],
+   "expect": {
+    "": "wordwordthe"
+   }
+  },
+  {
+   "id": "NormalizeTitleFixture/should_not_remove_common_words_from_end_of_title/1",
+   "line": 59,
+   "call": "cleanMovieTitle",
+   "inputs": [
+    "word.word.and",
+    "word-word-and",
+    "word-word and"
+   ],
+   "expect": {
+    "": "wordwordand"
+   }
+  },
+  {
+   "id": "NormalizeTitleFixture/should_not_remove_common_words_from_end_of_title/2",
+   "line": 60,
+   "call": "cleanMovieTitle",
+   "inputs": [
+    "word.word.or",
+    "word-word-or",
+    "word-word or"
+   ],
+   "expect": {
+    "": "wordwordor"
+   }
+  },
+  {
+   "id": "NormalizeTitleFixture/should_not_remove_common_words_from_end_of_title/3",
+   "line": 61,
+   "call": "cleanMovieTitle",
+   "inputs": [
+    "word.word.an",
+    "word-word-an",
+    "word-word an"
+   ],
+   "expect": {
+    "": "wordwordan"
+   }
+  },
+  {
+   "id": "NormalizeTitleFixture/should_not_remove_common_words_from_end_of_title/4",
+   "line": 62,
+   "call": "cleanMovieTitle",
+   "inputs": [
+    "word.word.of",
+    "word-word-of",
+    "word-word of"
+   ],
+   "expect": {
+    "": "wordwordof"
+   }
+  },
+  {
+   "id": "NormalizeTitleFixture/should_remove_a_from_middle_of_title/0",
+   "line": 80,
+   "call": "cleanMovieTitle",
+   "inputs": [
+    "word.a.word",
+    "word a word",
+    "word-a-word"
+   ],
+   "expect": {
+    "": "wordword"
+   }
+  },
+  {
+   "id": "NormalizeTitleFixture/should_not_remove_a_when_at_start_of_acronym/0",
+   "line": 97,
+   "call": "cleanMovieTitle",
+   "inputs": [
+    "word.a.N.K.L.E.word",
+    "word a N K L E word",
+    "word-a-N-K-L-E-word"
+   ],
+   "expect": {
+    "": "wordankleword"
+   }
+  },
+  {
+   "id": "NormalizeTitleFixture/should_not_remove_a_when_at_end_of_acronym/0",
+   "line": 114,
+   "call": "cleanMovieTitle",
+   "inputs": [
+    "word.N.K.L.E.a.word",
+    "word N K L E a word",
+    "word-N-K-L-E-a-word"
+   ],
+   "expect": {
+    "": "wordnkleaword"
+   }
+  },
+  {
+   "id": "NormalizeTitleFixture/should_not_remove_common_words_in_the_middle_of_word/0",
+   "line": 130,
+   "call": "cleanMovieTitle",
+   "inputs": [
+    "word.theword",
+    "word theword",
+    "word-theword",
+    "wordthe.word",
+    "wordthe-word",
+    "wordthe-word"
+   ],
+   "expect": {
+    "": "wordtheword"
+   }
+  },
+  {
+   "id": "NormalizeTitleFixture/should_not_remove_common_words_in_the_middle_of_word/1",
+   "line": 131,
+   "call": "cleanMovieTitle",
+   "inputs": [
+    "word.andword",
+    "word andword",
+    "word-andword",
+    "wordand.word",
+    "wordand-word",
+    "wordand-word"
+   ],
+   "expect": {
+    "": "wordandword"
+   }
+  },
+  {
+   "id": "NormalizeTitleFixture/should_not_remove_common_words_in_the_middle_of_word/2",
+   "line": 132,
+   "call": "cleanMovieTitle",
+   "inputs": [
+    "word.orword",
+    "word orword",
+    "word-orword",
+    "wordor.word",
+    "wordor-word",
+    "wordor-word"
+   ],
+   "expect": {
+    "": "wordorword"
+   }
+  },
+  {
+   "id": "NormalizeTitleFixture/should_not_remove_common_words_in_the_middle_of_word/3",
+   "line": 133,
+   "call": "cleanMovieTitle",
+   "inputs": [
+    "word.aword",
+    "word aword",
+    "word-aword",
+    "worda.word",
+    "worda-word",
+    "worda-word"
+   ],
+   "expect": {
+    "": "wordaword"
+   }
+  },
+  {
+   "id": "NormalizeTitleFixture/should_not_remove_common_words_in_the_middle_of_word/4",
+   "line": 134,
+   "call": "cleanMovieTitle",
+   "inputs": [
+    "word.anword",
+    "word anword",
+    "word-anword",
+    "wordan.word",
+    "wordan-word",
+    "wordan-word"
+   ],
+   "expect": {
+    "": "wordanword"
+   }
+  },
+  {
+   "id": "NormalizeTitleFixture/should_not_remove_common_words_in_the_middle_of_word/5",
+   "line": 135,
+   "call": "cleanMovieTitle",
+   "inputs": [
+    "word.ofword",
+    "word ofword",
+    "word-ofword",
+    "wordof.word",
+    "wordof-word",
+    "wordof-word"
+   ],
+   "expect": {
+    "": "wordofword"
+   }
+  },
+  {
+   "id": "NormalizeTitleFixture/should_not_remove_from_the_beginning_of_the_title/0",
+   "line": 155,
+   "call": "cleanMovieTitle",
+   "input": "The Office",
+   "expect": {
+    "": "theoffice"
+   }
+  },
+  {
+   "id": "NormalizeTitleFixture/should_not_remove_from_the_beginning_of_the_title/1",
+   "line": 156,
+   "call": "cleanMovieTitle",
+   "input": "The Tonight Show With Jay Leno",
+   "expect": {
+    "": "thetonightshowwithjayleno"
+   }
+  },
+  {
+   "id": "NormalizeTitleFixture/should_not_remove_from_the_beginning_of_the_title/2",
+   "line": 157,
+   "call": "cleanMovieTitle",
+   "input": "The.Daily.Show",
+   "expect": {
+    "": "thedailyshow"
+   }
+  },
+  {
+   "id": "NormalizeTitleFixture/should_not_clean_word_from_beginning_of_string/0",
+   "line": 164,
+   "call": "cleanMovieTitle",
+   "inputs": [
+    "the.word.word",
+    "the-word-word",
+    "the word word"
+   ],
+   "expect": {
+    "": "thewordword"
+   }
+  },
+  {
+   "id": "NormalizeTitleFixture/should_not_clean_word_from_beginning_of_string/1",
+   "line": 165,
+   "call": "cleanMovieTitle",
+   "inputs": [
+    "and.word.word",
+    "and-word-word",
+    "and word word"
+   ],
+   "expect": {
+    "": "andwordword"
+   }
+  },
+  {
+   "id": "NormalizeTitleFixture/should_not_clean_word_from_beginning_of_string/2",
+   "line": 166,
+   "call": "cleanMovieTitle",
+   "inputs": [
+    "or.word.word",
+    "or-word-word",
+    "or word word"
+   ],
+   "expect": {
+    "": "orwordword"
+   }
+  },
+  {
+   "id": "NormalizeTitleFixture/should_not_clean_word_from_beginning_of_string/3",
+   "line": 167,
+   "call": "cleanMovieTitle",
+   "inputs": [
+    "a.word.word",
+    "a-word-word",
+    "a word word"
+   ],
+   "expect": {
+    "": "awordword"
+   }
+  },
+  {
+   "id": "NormalizeTitleFixture/should_not_clean_word_from_beginning_of_string/4",
+   "line": 168,
+   "call": "cleanMovieTitle",
+   "inputs": [
+    "an.word.word",
+    "an-word-word",
+    "an word word"
+   ],
+   "expect": {
+    "": "anwordword"
+   }
+  },
+  {
+   "id": "NormalizeTitleFixture/should_not_clean_word_from_beginning_of_string/5",
+   "line": 169,
+   "call": "cleanMovieTitle",
+   "inputs": [
+    "of.word.word",
+    "of-word-word",
+    "of word word"
+   ],
+   "expect": {
+    "": "ofwordword"
+   }
+  },
+  {
+   "id": "NormalizeTitleFixture/should_not_clean_trailing_a/0",
+   "line": 187,
+   "call": "cleanMovieTitle",
+   "input": "Tokyo Ghoul A",
+   "expect": {
+    "": "tokyoghoula"
+   }
+  }
+ ]
+}

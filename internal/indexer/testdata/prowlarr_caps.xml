@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- Hand-written in the shape of Prowlarr's per-indexer t=caps answer (Prowlarr src/NzbDrone.Core/IndexerSearch/NewznabResults.cs and IndexerCapabilities). Sanitised: no keys. -->
+<caps>
+  <server title="Prowlarr" />
+  <limits default="100" max="100" />
+  <searching>
+    <search available="yes" supportedParams="q" />
+    <tv-search available="yes" supportedParams="q,season,ep,imdbid,tvdbid" />
+    <movie-search available="yes" supportedParams="q,imdbid,tmdbid" />
+  </searching>
+  <categories>
+    <category id="2000" name="Movies" />
+    <category id="5000" name="TV"><subcat id="5070" name="TV/Anime" /></category>
+  </categories>
+</caps>

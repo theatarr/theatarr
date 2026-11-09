@@ -1,0 +1,1 @@
+Minimal copy of TRaSH-Guides docs/json (radarr) at commit ed6d7226232c6194730c945938985dfa68c75e6b: two quality profiles, the default cf-groups that include them and the formats those name, plus DV (w/o HDR fallback) and UHD Bluray Tier 01-03 for the preset modifiers. Files are unchanged.

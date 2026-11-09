@@ -1,0 +1,20 @@
+# A test config in the shape of a typical recyclarr.yml.
+radarr:
+  radarr_x:
+    base_url: http://radarr.test:7878
+    api_key: !secret radarr_x_api_key
+    delete_old_custom_formats: false
+    quality_profiles:
+      - name: P
+        reset_unmatched_scores:
+          enabled: false
+    custom_formats:
+      - trash_ids:
+          - aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa  # Fmt A
+        assign_scores_to:
+          - name: P
+            score: 500
+      - trash_ids:
+          - bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb  # Fmt B, TRaSH's default score
+        assign_scores_to:
+          - name: P

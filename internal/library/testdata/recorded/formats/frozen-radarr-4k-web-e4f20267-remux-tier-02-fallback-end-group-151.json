@@ -1,0 +1,101 @@
+{
+  "id": 151,
+  "name": "Remux Tier 02 Fallback - End Group",
+  "includeCustomFormatWhenRenaming": false,
+  "specifications": [
+    {
+      "name": "Tier End Group Fallback",
+      "implementation": "ReleaseTitleSpecification",
+      "negate": false,
+      "required": true,
+      "fields": [
+        {
+          "order": 0,
+          "name": "value",
+          "label": "Regular Expression",
+          "helpText": "Custom Format RegEx is Case Insensitive",
+          "value": "(?i)(?:^|[ ._-])(?:ATELiER|NCmt|playBD|SiCFoI|SURFINBIRD|TEPES)(?:\\.(?:mkv|mp4|avi))?(?:\\[[^\\]]+\\])?$",
+          "type": "textbox",
+          "advanced": false,
+          "privacy": "normal",
+          "isFloat": false
+        }
+      ]
+    },
+    {
+      "name": "Parent Group Guard",
+      "implementation": "ReleaseGroupSpecification",
+      "negate": true,
+      "required": true,
+      "fields": [
+        {
+          "order": 0,
+          "name": "value",
+          "label": "Regular Expression",
+          "helpText": "Custom Format RegEx is Case Insensitive",
+          "value": "^(ATELiER|NCmt|playBD|SiCFoI|SURFINBIRD|TEPES)$",
+          "type": "textbox",
+          "advanced": false,
+          "privacy": "normal",
+          "isFloat": false
+        }
+      ]
+    },
+    {
+      "name": "Remux",
+      "implementation": "QualityModifierSpecification",
+      "negate": false,
+      "required": true,
+      "fields": [
+        {
+          "order": 0,
+          "name": "value",
+          "label": "Quality Modifier",
+          "value": 5,
+          "type": "select",
+          "advanced": false,
+          "selectOptions": [
+            {
+              "value": 0,
+              "name": "NONE",
+              "order": 0,
+              "dividerAfter": false
+            },
+            {
+              "value": 1,
+              "name": "REGIONAL",
+              "order": 1,
+              "dividerAfter": false
+            },
+            {
+              "value": 2,
+              "name": "SCREENER",
+              "order": 2,
+              "dividerAfter": false
+            },
+            {
+              "value": 3,
+              "name": "RAWHD",
+              "order": 3,
+              "dividerAfter": false
+            },
+            {
+              "value": 4,
+              "name": "BRDISK",
+              "order": 4,
+              "dividerAfter": false
+            },
+            {
+              "value": 5,
+              "name": "REMUX",
+              "order": 5,
+              "dividerAfter": false
+            }
+          ],
+          "privacy": "normal",
+          "isFloat": false
+        }
+      ]
+    }
+  ]
+}

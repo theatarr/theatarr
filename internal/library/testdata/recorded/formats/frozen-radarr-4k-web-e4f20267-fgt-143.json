@@ -1,0 +1,26 @@
+{
+  "id": 143,
+  "name": "FGT",
+  "includeCustomFormatWhenRenaming": false,
+  "specifications": [
+    {
+      "name": "FGT",
+      "implementation": "ReleaseGroupSpecification",
+      "negate": false,
+      "required": false,
+      "fields": [
+        {
+          "order": 0,
+          "name": "value",
+          "label": "Regular Expression",
+          "helpText": "Custom Format RegEx is Case Insensitive",
+          "value": "^(FGT)$",
+          "type": "textbox",
+          "advanced": false,
+          "privacy": "normal",
+          "isFloat": false
+        }
+      ]
+    }
+  ]
+}

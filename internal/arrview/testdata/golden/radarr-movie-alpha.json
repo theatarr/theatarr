@@ -1,0 +1,93 @@
+{
+  "added": "2025-03-04T05:06:07Z",
+  "alternateTitles": [],
+  "digitalRelease": "2020-08-01T00:00:00Z",
+  "folderName": "/media/movies/Alpha (2020)",
+  "genres": [],
+  "hasFile": true,
+  "id": 1000001,
+  "images": [],
+  "imdbId": "tt0000101",
+  "inCinemas": "2020-05-01T00:00:00Z",
+  "isAvailable": true,
+  "keywords": [],
+  "minimumAvailability": "released",
+  "monitored": true,
+  "movieFile": {
+    "customFormatScore": 3200,
+    "dateAdded": "2025-03-05T00:00:00Z",
+    "id": 1,
+    "indexerFlags": 0,
+    "languages": [
+      {
+        "id": 1,
+        "name": "English"
+      }
+    ],
+    "mediaInfo": {
+      "audioBitrate": 0,
+      "audioChannels": 0,
+      "audioStreamCount": 0,
+      "resolution": "3840x2160",
+      "videoBitDepth": 0,
+      "videoBitrate": 0,
+      "videoDynamicRangeType": "DV HDR10",
+      "videoFps": 0
+    },
+    "movieId": 1000001,
+    "path": "/media/movies/Alpha (2020)/Alpha (2020) Remux-2160p.mkv",
+    "quality": {
+      "quality": {
+        "id": 31,
+        "modifier": "remux",
+        "name": "Remux-2160p",
+        "resolution": 2160,
+        "source": "bluray"
+      },
+      "revision": {
+        "isRepack": false,
+        "real": 0,
+        "version": 1
+      }
+    },
+    "qualityCutoffNotMet": false,
+    "relativePath": "Alpha (2020) Remux-2160p.mkv",
+    "releaseGroup": "GRP",
+    "sceneName": "Alpha.2020.2160p.BluRay.REMUX-GRP",
+    "size": 60000000000
+  },
+  "movieFileId": 1,
+  "originalTitle": "Alpha",
+  "path": "/media/movies/Alpha (2020)",
+  "popularity": 0,
+  "qualityProfileId": 2,
+  "ratings": {},
+  "releaseDate": "2020-08-01T00:00:00Z",
+  "rootFolderPath": "/media/movies",
+  "runtime": 0,
+  "secondaryYearSourceId": 0,
+  "sizeOnDisk": 60000000000,
+  "sortTitle": "alpha",
+  "statistics": {
+    "movieFileCount": 1,
+    "movieFileQualities": [
+      {
+        "id": 31,
+        "modifier": "remux",
+        "name": "Remux-2160p",
+        "resolution": 2160,
+        "source": "bluray"
+      }
+    ],
+    "releaseGroups": [
+      "GRP"
+    ],
+    "sizeOnDisk": 60000000000
+  },
+  "status": "released",
+  "tags": [],
+  "title": "Alpha",
+  "titleSlug": "101",
+  "tmdbId": 101,
+  "year": 2020
+}

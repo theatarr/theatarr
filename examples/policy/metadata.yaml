@@ -1,0 +1,51 @@
+metadata:
+  overrides_dir: overrides
+  # The meta.art job (docs/design/artwork.md): overview, art paths, rating and the rest per title from TMDb, through the tmdb
+  # budget. New titles are filled within minutes; due ones every interval, at most per_run titles a run. Recent and
+  # airing titles are due after 3 days, last year's after 14, older ones after 90.
+  art:
+    per_run: 200
+    interval: 6h
+    prewarm: w342                    # pre-fetch each poster at this size into the image cache; off to skip
+  # Series metadata (docs/design/tv-metadata.md): Theatarr's own episode list from TVDB (TMDb for series TVDB lacks, never for
+  # anime). A new series is refreshed within a minute and its searches wait for it; a sweep every interval refreshes
+  # the due series (Sonarr's cadence: continuing every 12h, ended monthly), at most per_run; TVDB's hourly /updates
+  # queue changed series at once.
+  series:
+    enabled: true
+    interval: 1h
+    per_run: 50
+  sources:
+    tmdb:
+      url: https://api.themoviedb.org/3
+      api_key_env: THEATARR_TMDB_KEY
+      budget: tmdb
+    # TMDb's image host for the /img proxy (docs/design/artwork.md). Images need no key; browsers never talk to TMDb.
+    tmdb-images:
+      url: https://image.tmdb.org/t/p
+      budget: tmdb-images
+    # plex.tv for Plex sign-in (docs/design/users.md): pins, the account and its resources. No key: each sign-in uses the
+    # account's own token for two checks and drops it. Needs library.plex (the server whose access is checked).
+    plex-tv:
+      url: https://plex.tv
+      budget: plex-tv
+    anilist:
+      url: https://graphql.anilist.co
+      budget: anilist
+    # TVDB v4 (docs/design/tvdb.md): episodes, airs fields, absolute and alternate orders. A user-supported key also
+    # needs the subscriber PIN in THEATARR_TVDB_PIN.
+    tvdb:
+      url: https://api4.thetvdb.com/v4
+      api_key_env: THEATARR_TVDB_KEY
+      budget: tvdb
+    # Anime metadata (docs/design/anime.md). Lists are inputs only, never redistributed.
+    kitsu:          {url: https://kitsu.app/api/edge, budget: kitsu}
+    thexem:         {url: https://thexem.info, budget: thexem}
+    anime-lists:    {url: https://raw.githubusercontent.com/Anime-Lists/anime-lists/master/anime-list-master.xml}
+    fribb:          {url: https://raw.githubusercontent.com/Fribb/anime-lists/master/anime-list-full.json}
+    anibridge:      {url: https://github.com/anibridge/anibridge-mappings/releases/download/v3/mappings.json}
+    manami:         {url: https://github.com/manami-project/anime-offline-database/releases/latest/download/anime-offline-database-minified.json}
+    github-assets:  {url: https://release-assets.githubusercontent.com}   # GitHub release downloads redirect here
+    github-objects: {url: https://objects.githubusercontent.com}          # ... or here
+    anidb:          {url: https://anidb.net/api/anime-titles.xml.gz}
+    seadex:         {url: https://seadex.moe, budget: seadex}               # releases.moe redirects here

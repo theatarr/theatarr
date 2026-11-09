@@ -1,0 +1,4 @@
+{"trash_id": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb", "trash_scores": {"default": 50, "sqp-1": 70}, "name": "Fmt B",
+ "includeCustomFormatWhenRenaming": false,
+ "specifications": [{"name": "Beta", "implementation": "ReleaseTitleSpecification", "negate": false, "required": true,
+   "fields": {"value": "\\bBETA\\b"}}]}

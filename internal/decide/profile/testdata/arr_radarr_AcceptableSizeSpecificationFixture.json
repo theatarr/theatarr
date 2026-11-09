@@ -1,0 +1,311 @@
+{
+ "source": "Radarr src/NzbDrone.Core.Test/DecisionEngineTests/AcceptableSizeSpecificationFixture.cs @ a96bf7c",
+ "cases": [
+  {
+   "fixture": "AcceptableSizeSpecificationFixture",
+   "test": "single_episode",
+   "args": "30, 50, false",
+   "spec": "AcceptableSize",
+   "definitions": [
+    {
+     "quality": "SDTV",
+     "min": 2,
+     "max": 10,
+     "preferred": 1
+    }
+   ],
+   "media": {
+    "runtime": 30
+   },
+   "release": {
+    "size": 52428800,
+    "quality": {
+     "quality": "SDTV",
+     "version": 2
+    }
+   },
+   "expect": {
+    "accepted": false
+   },
+   "flavour": "radarr"
+  },
+  {
+   "fixture": "AcceptableSizeSpecificationFixture",
+   "test": "single_episode",
+   "args": "30, 250, true",
+   "spec": "AcceptableSize",
+   "definitions": [
+    {
+     "quality": "SDTV",
+     "min": 2,
+     "max": 10,
+     "preferred": 1
+    }
+   ],
+   "media": {
+    "runtime": 30
+   },
+   "release": {
+    "size": 262144000,
+    "quality": {
+     "quality": "SDTV",
+     "version": 2
+    }
+   },
+   "expect": {
+    "accepted": true
+   },
+   "flavour": "radarr"
+  },
+  {
+   "fixture": "AcceptableSizeSpecificationFixture",
+   "test": "single_episode",
+   "args": "30, 500, false",
+   "spec": "AcceptableSize",
+   "definitions": [
+    {
+     "quality": "SDTV",
+     "min": 2,
+     "max": 10,
+     "preferred": 1
+    }
+   ],
+   "media": {
+    "runtime": 30
+   },
+   "release": {
+    "size": 524288000,
+    "quality": {
+     "quality": "SDTV",
+     "version": 2
+    }
+   },
+   "expect": {
+    "accepted": false
+   },
+   "flavour": "radarr"
+  },
+  {
+   "fixture": "AcceptableSizeSpecificationFixture",
+   "test": "single_episode",
+   "args": "60, 100, false",
+   "spec": "AcceptableSize",
+   "definitions": [
+    {
+     "quality": "SDTV",
+     "min": 2,
+     "max": 10,
+     "preferred": 1
+    }
+   ],
+   "media": {
+    "runtime": 60
+   },
+   "release": {
+    "size": 104857600,
+    "quality": {
+     "quality": "SDTV",
+     "version": 2
+    }
+   },
+   "expect": {
+    "accepted": false
+   },
+   "flavour": "radarr"
+  },
+  {
+   "fixture": "AcceptableSizeSpecificationFixture",
+   "test": "single_episode",
+   "args": "60, 500, true",
+   "spec": "AcceptableSize",
+   "definitions": [
+    {
+     "quality": "SDTV",
+     "min": 2,
+     "max": 10,
+     "preferred": 1
+    }
+   ],
+   "media": {
+    "runtime": 60
+   },
+   "release": {
+    "size": 524288000,
+    "quality": {
+     "quality": "SDTV",
+     "version": 2
+    }
+   },
+   "expect": {
+    "accepted": true
+   },
+   "flavour": "radarr"
+  },
+  {
+   "fixture": "AcceptableSizeSpecificationFixture",
+   "test": "single_episode",
+   "args": "60, 1000, false",
+   "spec": "AcceptableSize",
+   "definitions": [
+    {
+     "quality": "SDTV",
+     "min": 2,
+     "max": 10,
+     "preferred": 1
+    }
+   ],
+   "media": {
+    "runtime": 60
+   },
+   "release": {
+    "size": 1048576000,
+    "quality": {
+     "quality": "SDTV",
+     "version": 2
+    }
+   },
+   "expect": {
+    "accepted": false
+   },
+   "flavour": "radarr"
+  },
+  {
+   "fixture": "AcceptableSizeSpecificationFixture",
+   "test": "should_return_true_if_size_is_zero",
+   "spec": "AcceptableSize",
+   "definitions": [
+    {
+     "quality": "SDTV",
+     "min": 10,
+     "max": 20,
+     "preferred": 1
+    }
+   ],
+   "media": {
+    "runtime": 120
+   },
+   "release": {
+    "size": 0,
+    "quality": {
+     "quality": "SDTV",
+     "version": 2
+    }
+   },
+   "expect": {
+    "accepted": true
+   },
+   "flavour": "radarr"
+  },
+  {
+   "fixture": "AcceptableSizeSpecificationFixture",
+   "test": "should_return_true_if_unlimited_30_minute",
+   "spec": "AcceptableSize",
+   "definitions": [
+    {
+     "quality": "SDTV",
+     "min": 2,
+     "max": null,
+     "preferred": 1
+    }
+   ],
+   "media": {
+    "runtime": 30
+   },
+   "release": {
+    "size": 18457280000,
+    "quality": {
+     "quality": "SDTV",
+     "version": 2
+    }
+   },
+   "expect": {
+    "accepted": true
+   },
+   "flavour": "radarr"
+  },
+  {
+   "fixture": "AcceptableSizeSpecificationFixture",
+   "test": "should_return_true_if_unlimited_60_minute",
+   "spec": "AcceptableSize",
+   "definitions": [
+    {
+     "quality": "SDTV",
+     "min": 2,
+     "max": null,
+     "preferred": 1
+    }
+   ],
+   "media": {
+    "runtime": 60
+   },
+   "release": {
+    "size": 36857280000,
+    "quality": {
+     "quality": "SDTV",
+     "version": 2
+    }
+   },
+   "expect": {
+    "accepted": true
+   },
+   "flavour": "radarr"
+  },
+  {
+   "fixture": "AcceptableSizeSpecificationFixture",
+   "test": "should_use_110_minutes_if_runtime_is_0",
+   "spec": "AcceptableSize",
+   "definitions": [
+    {
+     "quality": "SDTV",
+     "min": 2,
+     "max": 10,
+     "preferred": 1
+    }
+   ],
+   "media": {
+    "runtime": 0
+   },
+   "release": {
+    "size": 1148190720,
+    "quality": {
+     "quality": "SDTV",
+     "version": 2
+    }
+   },
+   "expect": {
+    "accepted": true
+   },
+   "note": "first assertion (1095 MB)",
+   "flavour": "radarr"
+  },
+  {
+   "fixture": "AcceptableSizeSpecificationFixture",
+   "test": "should_use_110_minutes_if_runtime_is_0",
+   "spec": "AcceptableSize",
+   "definitions": [
+    {
+     "quality": "SDTV",
+     "min": 2,
+     "max": 10,
+     "preferred": 1
+    }
+   ],
+   "media": {
+    "runtime": 0
+   },
+   "release": {
+    "size": 1158676480,
+    "quality": {
+     "quality": "SDTV",
+     "version": 2
+    }
+   },
+   "expect": {
+    "accepted": false,
+    "reason": "AboveMaximumSize"
+   },
+   "note": "second assertion (1105 MB)",
+   "flavour": "radarr"
+  }
+ ]
+}

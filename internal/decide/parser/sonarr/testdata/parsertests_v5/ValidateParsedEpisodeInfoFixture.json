@@ -1,0 +1,49 @@
+{
+ "source": "Sonarr src/NzbDrone.Core.Test/ParserTests/ValidateParsedEpisodeInfoFixture.cs @ a6171f0ca",
+ "fixture": "ValidateParsedEpisodeInfoFixture",
+ "cases": [
+  {
+   "id": "ValidateParsedEpisodeInfoFixture/should_return_true_if_episode_info_is_not_daily/0",
+   "line": 41,
+   "call": "validateForSeriesType",
+   "input": "",
+   "args": {
+    "parsedEpisodeInfo": {},
+    "seriesType": "standard"
+   },
+   "expect": {
+    "": true
+   }
+  },
+  {
+   "id": "ValidateParsedEpisodeInfoFixture/should_return_true_if_episode_info_is_daily_for_daily_series/0",
+   "line": 47,
+   "call": "validateForSeriesType",
+   "input": "",
+   "args": {
+    "parsedEpisodeInfo": {
+     "airDate": "2018-05-21"
+    },
+    "seriesType": "daily"
+   },
+   "expect": {
+    "": true
+   }
+  },
+  {
+   "id": "ValidateParsedEpisodeInfoFixture/should_return_false_if_episode_info_is_daily_for_standard_series/0",
+   "line": 56,
+   "call": "validateForSeriesType",
+   "input": "",
+   "args": {
+    "parsedEpisodeInfo": {
+     "airDate": "2018-05-21"
+    },
+    "seriesType": "standard"
+   },
+   "expect": {
+    "": false
+   }
+  }
+ ]
+}

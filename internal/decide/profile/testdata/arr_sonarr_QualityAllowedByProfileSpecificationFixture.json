@@ -1,0 +1,167 @@
+{
+ "source": "Sonarr src/NzbDrone.Core.Test/DecisionEngineTests/QualityAllowedByProfileSpecificationFixture.cs @ cab419a",
+ "cases": [
+  {
+   "test": "should_allow_if_quality_is_defined_in_profile",
+   "spec": "QualityAllowedByProfile",
+   "args": "DVD",
+   "profile": {
+    "cutoff": "Bluray-1080p",
+    "items": {
+     "getDefaultQualities": [
+      "DVD",
+      "HDTV-720p",
+      "Bluray-1080p"
+     ]
+    }
+   },
+   "release": {
+    "quality": {
+     "quality": "DVD",
+     "version": 2
+    }
+   },
+   "expect": {
+    "accepted": true
+   },
+   "flavour": "sonarr",
+   "fixture": "QualityAllowedByProfileSpecificationFixture"
+  },
+  {
+   "test": "should_allow_if_quality_is_defined_in_profile",
+   "spec": "QualityAllowedByProfile",
+   "args": "HDTV-720p",
+   "profile": {
+    "cutoff": "Bluray-1080p",
+    "items": {
+     "getDefaultQualities": [
+      "DVD",
+      "HDTV-720p",
+      "Bluray-1080p"
+     ]
+    }
+   },
+   "release": {
+    "quality": {
+     "quality": "HDTV-720p",
+     "version": 2
+    }
+   },
+   "expect": {
+    "accepted": true
+   },
+   "flavour": "sonarr",
+   "fixture": "QualityAllowedByProfileSpecificationFixture"
+  },
+  {
+   "test": "should_allow_if_quality_is_defined_in_profile",
+   "spec": "QualityAllowedByProfile",
+   "args": "Bluray-1080p",
+   "profile": {
+    "cutoff": "Bluray-1080p",
+    "items": {
+     "getDefaultQualities": [
+      "DVD",
+      "HDTV-720p",
+      "Bluray-1080p"
+     ]
+    }
+   },
+   "release": {
+    "quality": {
+     "quality": "Bluray-1080p",
+     "version": 2
+    }
+   },
+   "expect": {
+    "accepted": true
+   },
+   "flavour": "sonarr",
+   "fixture": "QualityAllowedByProfileSpecificationFixture"
+  },
+  {
+   "test": "should_not_allow_if_quality_is_not_defined_in_profile",
+   "spec": "QualityAllowedByProfile",
+   "args": "SDTV",
+   "profile": {
+    "cutoff": "Bluray-1080p",
+    "items": {
+     "getDefaultQualities": [
+      "DVD",
+      "HDTV-720p",
+      "Bluray-1080p"
+     ]
+    }
+   },
+   "release": {
+    "quality": {
+     "quality": "SDTV",
+     "version": 2
+    }
+   },
+   "expect": {
+    "accepted": false,
+    "reason": "QualityNotWanted",
+    "message": "SDTV is not wanted in profile"
+   },
+   "flavour": "sonarr",
+   "fixture": "QualityAllowedByProfileSpecificationFixture"
+  },
+  {
+   "test": "should_not_allow_if_quality_is_not_defined_in_profile",
+   "spec": "QualityAllowedByProfile",
+   "args": "WEBDL-720p",
+   "profile": {
+    "cutoff": "Bluray-1080p",
+    "items": {
+     "getDefaultQualities": [
+      "DVD",
+      "HDTV-720p",
+      "Bluray-1080p"
+     ]
+    }
+   },
+   "release": {
+    "quality": {
+     "quality": "WEBDL-720p",
+     "version": 2
+    }
+   },
+   "expect": {
+    "accepted": false,
+    "reason": "QualityNotWanted",
+    "message": "WEBDL-720p is not wanted in profile"
+   },
+   "flavour": "sonarr",
+   "fixture": "QualityAllowedByProfileSpecificationFixture"
+  },
+  {
+   "test": "should_not_allow_if_quality_is_not_defined_in_profile",
+   "spec": "QualityAllowedByProfile",
+   "args": "Bluray-720p",
+   "profile": {
+    "cutoff": "Bluray-1080p",
+    "items": {
+     "getDefaultQualities": [
+      "DVD",
+      "HDTV-720p",
+      "Bluray-1080p"
+     ]
+    }
+   },
+   "release": {
+    "quality": {
+     "quality": "Bluray-720p",
+     "version": 2
+    }
+   },
+   "expect": {
+    "accepted": false,
+    "reason": "QualityNotWanted",
+    "message": "Bluray-720p is not wanted in profile"
+   },
+   "flavour": "sonarr",
+   "fixture": "QualityAllowedByProfileSpecificationFixture"
+  }
+ ]
+}

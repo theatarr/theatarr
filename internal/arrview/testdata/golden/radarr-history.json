@@ -1,0 +1,76 @@
+{
+  "page": 1,
+  "pageSize": 10,
+  "records": [
+    {
+      "customFormatScore": 3200,
+      "customFormats": [],
+      "data": {},
+      "date": "2026-10-24T13:00:00Z",
+      "downloadId": "ABCDEF",
+      "eventType": "downloadFolderImported",
+      "id": 2,
+      "languages": [
+        {
+          "id": 1,
+          "name": "English"
+        }
+      ],
+      "movieId": 1000001,
+      "quality": {
+        "quality": {
+          "id": 31,
+          "modifier": "remux",
+          "name": "Remux-2160p",
+          "resolution": 2160,
+          "source": "bluray"
+        },
+        "revision": {
+          "isRepack": false,
+          "real": 0,
+          "version": 1
+        }
+      },
+      "qualityCutoffNotMet": false,
+      "sourceTitle": "Alpha.2020.2160p.BluRay.REMUX-GRP"
+    },
+    {
+      "customFormatScore": 3200,
+      "customFormats": [],
+      "data": {
+        "indexer": "DMM",
+        "size": "60000000000"
+      },
+      "date": "2026-10-24T12:00:00Z",
+      "downloadId": "ABCDEF",
+      "eventType": "grabbed",
+      "id": 1,
+      "languages": [
+        {
+          "id": 1,
+          "name": "English"
+        }
+      ],
+      "movieId": 1000001,
+      "quality": {
+        "quality": {
+          "id": 31,
+          "modifier": "remux",
+          "name": "Remux-2160p",
+          "resolution": 2160,
+          "source": "bluray"
+        },
+        "revision": {
+          "isRepack": false,
+          "real": 0,
+          "version": 1
+        }
+      },
+      "qualityCutoffNotMet": false,
+      "sourceTitle": "Alpha.2020.2160p.BluRay.REMUX-GRP"
+    }
+  ],
+  "sortDirection": "descending",
+  "sortKey": "date",
+  "totalRecords": 2
+}

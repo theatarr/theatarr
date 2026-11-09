@@ -1,0 +1,83 @@
+Theatarr third-party notices
+
+Theatarr includes code ported or adapted from the projects below, and test fixtures taken from open data. Each
+ported file says in its header which file and commit it comes from. Theatarr is licensed under AGPL-3.0 (LICENSE);
+each entry below gives its source's terms.
+
+Mediarium
+  https://github.com/rdborg/Mediarium @ f7d1e26
+  Copyright (C) Ryan Borg and the Mediarium contributors.
+  GNU Affero General Public License v3.0.
+  Ported: the Cardigann definition engine, catalog summaries and archive extraction, and their tests
+  (internal/indexer/cardigann; the package doc lists what changed). The licence text is
+  internal/indexer/cardigann/LICENSE.mediarium.
+
+Scryer
+  https://github.com/scryer-media/scryer @ 2ef7757c
+  GNU General Public License v3.0.
+  Adapted: web/src/components/ui/button.tsx.
+
+Radarr, Sonarr (the arrs)
+  https://github.com/Radarr/Radarr @ a96bf7c (v6.4.4.10685), https://github.com/Sonarr/Sonarr @ cab419a
+  (v4.0.20.3014)
+  GNU General Public License v3.0.
+  Ported: parsing, quality, custom format, language, naming and decision rules (files headed "Port of Radarr" or
+  "Port of Sonarr").
+
+Prowlarr
+  https://github.com/Prowlarr/Prowlarr
+  GNU General Public License v3.0.
+  Used as the reference for the Torznab feed shapes and the Cardigann behaviour; no file is a port.
+
+decypharr
+  https://github.com/sirrobot01/decypharr @ 917cfa2
+  MIT License, Copyright (c) 2025 Mukhtar Akere.
+  Ported: debrid response types, status mapping and paging (internal/provider; full notice in
+  internal/provider/LICENSE.decypharr).
+
+seadexerr
+  https://github.com/Ryder-C/seadexerr @ 6a6e5b7 (v3.2.0)
+  Copyright (C) Ryder-C. The repository publishes no licence file.
+  Adapted: the SeaDex scoring table and its preference rule (internal/policy SeaDexScoring,
+  internal/indexer/seadex.go seadexPriorities) and three of its scoring test cases (internal/indexer/helpers_test.go).
+  The rest of the SeaDex search follows its behaviour as a reference; the package comment in
+  internal/indexer/seadex.go lists what matches and what deliberately differs.
+
+Test fixtures (internal/metadata/anime/testdata/offline)
+  The offline cache the anime engine's golden test builds from. Only the records and responses the three test
+  builds read are kept, reduced to the fields the pipeline uses; internal/metadata/anime/testdata/README.md lists
+  each file.
+
+  manami-project anime-offline-database
+    https://github.com/manami-project/anime-offline-database
+    Open Database License 1.0 (http://opendatacommons.org/licenses/odbl/1.0/); individual contents under the
+    Database Contents License 1.0 (http://opendatacommons.org/licenses/dbcl/1.0/).
+    Kept: the 32 looked-up records, reduced to the fields the tests use (title, type, episodes, animeSeason,
+    duration, synonyms, sources, relatedAnime), in cache/static/manami-aod-minified.json. This excerpt stays under
+    ODbL 1.0.
+
+  anibridge/anibridge-mappings
+    https://github.com/anibridge/anibridge-mappings
+    MIT License, Copyright (c) 2026 AniBridge.
+    Kept: the 27 looked-up AniList keys of mappings.json, in cache/static/anibridge-mappings.json.
+
+  Anime-Lists/anime-lists (ScudLee)
+    https://github.com/Anime-Lists/anime-lists
+    The repository publishes no licence file.
+    Kept: 22 <anime> records of anime-list-master.xml (ids, default TVDB season, offsets, name and episode
+    mappings), in cache/static/scudlee-anime-list-master.xml.
+
+  Fribb/anime-lists
+    https://github.com/Fribb/anime-lists
+    The repository publishes no licence file.
+    Kept: 34 records of anime-list-full.json, three fields (anilist_id, anidb_id, themoviedb_id), in
+    cache/static/fribb-anime-list-full.json.
+
+  AniList, Kitsu, TheXEM, Sonarr SkyHook (TVDB data)
+    Recorded API responses, reduced to the fields the tests use: AniList GraphQL media batches (AniList terms: no
+    mirroring or hoarding; a few dozen records, for tests only), Kitsu relationships and titles (keyless public API,
+    no published terms), TheXEM map/all (no published terms), and SkyHook TVDB episode numbers, dates, titles,
+    overviews and airs fields (unofficial endpoint; TVDB data).
+
+The Cardigann definitions themselves (github.com/Prowlarr/Indexers) are not part of Theatarr: they are downloaded at
+run time into the data folder and never committed or shipped.

@@ -1,0 +1,314 @@
+# The arr profiles of instance "sonarr_anime_debrid": ["Remux-2160p Anime"], as policy YAML.
+format_sets:
+  sonarr-anime-debrid:
+    flavour: sonarr
+    formats:
+      10bit - Notifiarr:
+        flavour: sonarr
+        file: formats/frozen-sonarr-anime-debrid-faba41e5-10bit-notifiarr-14.json
+      ADN - Notifiarr:
+        flavour: sonarr
+        file: formats/frozen-sonarr-anime-debrid-faba41e5-adn-notifiarr-1.json
+      AV1 - Notifiarr:
+        include_when_renaming: false
+        flavour: sonarr
+        file: formats/frozen-sonarr-4k-debrid-ff915b4b-av1-notifiarr-46.json
+      Anime BD Tier 01 (Top SeaDex Muxers) - Notifiarr:
+        ref: Anime BD Tier 01 (tv)
+        include_when_renaming: false
+      Anime BD Tier 02 (SeaDex Muxers) - Notifiarr:
+        flavour: sonarr
+        file: formats/frozen-sonarr-anime-debrid-faba41e5-anime-bd-tier-02-seadex-muxers-notifiarr-17.json
+      Anime BD Tier 03 (SeaDex Muxers) - Notifiarr:
+        flavour: sonarr
+        file: formats/frozen-sonarr-anime-debrid-faba41e5-anime-bd-tier-03-seadex-muxers-notifiarr-18.json
+      Anime BD Tier 04 (SeaDex Muxers) - Notifiarr:
+        flavour: sonarr
+        file: formats/frozen-sonarr-anime-debrid-faba41e5-anime-bd-tier-04-seadex-muxers-notifiarr-19.json
+      Anime BD Tier 05 (Remuxes) - Notifiarr:
+        flavour: sonarr
+        file: formats/frozen-sonarr-anime-debrid-faba41e5-anime-bd-tier-05-remuxes-notifiarr-20.json
+      Anime BD Tier 06 (FanSubs) - Notifiarr:
+        flavour: sonarr
+        file: formats/frozen-sonarr-anime-debrid-faba41e5-anime-bd-tier-06-fansubs-notifiarr-21.json
+      Anime BD Tier 07 (P2P/Scene) - Notifiarr:
+        flavour: sonarr
+        file: formats/frozen-sonarr-anime-debrid-faba41e5-anime-bd-tier-07-p2p-scene-notifiarr-22.json
+      Anime BD Tier 08 (Mini Encodes) - Notifiarr:
+        flavour: sonarr
+        file: formats/frozen-sonarr-anime-debrid-faba41e5-anime-bd-tier-08-mini-encodes-notifiarr-23.json
+      Anime LQ Groups - Notifiarr:
+        flavour: sonarr
+        file: formats/frozen-sonarr-anime-debrid-faba41e5-anime-lq-groups-notifiarr-24.json
+      Anime Raws - Notifiarr:
+        ref: Anime Raws (tv)
+        include_when_renaming: false
+      Anime Web Tier 01 (Muxers) - Notifiarr:
+        ref: Anime Web Tier 01 (tv)
+        include_when_renaming: false
+      Anime Web Tier 02 (Top FanSubs) - Notifiarr:
+        flavour: sonarr
+        file: formats/frozen-sonarr-anime-debrid-faba41e5-anime-web-tier-02-top-fansubs-notifiarr-27.json
+      Anime Web Tier 03 (Fan Subs):
+        flavour: sonarr
+        file: formats/frozen-sonarr-anime-debrid-faba41e5-anime-web-tier-03-fan-subs-33.json
+      Anime Web Tier 03 (Official Subs) - Notifiarr:
+        flavour: sonarr
+        file: formats/frozen-sonarr-anime-debrid-faba41e5-anime-web-tier-03-official-subs-notifiarr-28.json
+      Anime Web Tier 04 (Official Subs) - Notifiarr:
+        flavour: sonarr
+        file: formats/frozen-sonarr-anime-debrid-faba41e5-anime-web-tier-04-official-subs-notifiarr-29.json
+      Anime Web Tier 05 (FanSubs) - Notifiarr:
+        flavour: sonarr
+        file: formats/frozen-sonarr-anime-debrid-faba41e5-anime-web-tier-05-fansubs-notifiarr-30.json
+      Anime Web Tier 06 (FanSubs) - Notifiarr:
+        flavour: sonarr
+        file: formats/frozen-sonarr-anime-debrid-faba41e5-anime-web-tier-06-fansubs-notifiarr-31.json
+      B-Global - Notifiarr:
+        flavour: sonarr
+        file: formats/frozen-sonarr-anime-debrid-faba41e5-b-global-notifiarr-2.json
+      Bilibili - Notifiarr:
+        flavour: sonarr
+        file: formats/frozen-sonarr-anime-debrid-faba41e5-bilibili-notifiarr-3.json
+      CR - Notifiarr:
+        flavour: sonarr
+        file: formats/frozen-sonarr-anime-debrid-faba41e5-cr-notifiarr-4.json
+      Dubs Only - Notifiarr:
+        flavour: sonarr
+        file: formats/frozen-sonarr-anime-debrid-faba41e5-dubs-only-notifiarr-32.json
+      FUNi - Notifiarr:
+        flavour: sonarr
+        file: formats/frozen-sonarr-anime-debrid-faba41e5-funi-notifiarr-5.json
+      Frieren - 9volt:
+        flavour: sonarr
+        file: formats/frozen-sonarr-anime-debrid-faba41e5-frieren-9volt-34.json
+      HIDIVE - Notifiarr:
+        flavour: sonarr
+        file: formats/frozen-sonarr-anime-debrid-faba41e5-hidive-notifiarr-6.json
+      Seadex:
+        flavour: sonarr
+        file: formats/frozen-sonarr-anime-debrid-faba41e5-seadex-36.json
+      Uncensored - Notifiarr:
+        ref: Uncensored
+        include_when_renaming: true
+      VRV - Notifiarr:
+        flavour: sonarr
+        file: formats/frozen-sonarr-anime-debrid-faba41e5-vrv-notifiarr-7.json
+      WKN - Notifiarr:
+        flavour: sonarr
+        file: formats/frozen-sonarr-anime-debrid-faba41e5-wkn-notifiarr-8.json
+      v0 - Notifiarr:
+        ref: v0
+        include_when_renaming: true
+      v1 - Notifiarr:
+        flavour: sonarr
+        file: formats/frozen-sonarr-anime-debrid-faba41e5-v1-notifiarr-10.json
+      v2 - Notifiarr:
+        flavour: sonarr
+        file: formats/frozen-sonarr-anime-debrid-faba41e5-v2-notifiarr-11.json
+      v3 - Notifiarr:
+        flavour: sonarr
+        file: formats/frozen-sonarr-anime-debrid-faba41e5-v3-notifiarr-12.json
+      v4 - Notifiarr:
+        flavour: sonarr
+        file: formats/frozen-sonarr-anime-debrid-faba41e5-v4-notifiarr-13.json
+profiles:
+  sonarr-anime-debrid:
+    qualities:
+      - group: Bluray-2160p Remux
+        qualities:
+          - Bluray-2160p Remux
+          - Bluray-2160p
+      - group: Bluray-1080p
+        qualities:
+          - Bluray-1080p Remux
+          - Bluray-1080p
+      - group: WEB 1080p
+        qualities:
+          - WEBDL-1080p
+          - WEBRip-1080p
+          - HDTV-1080p
+      - Bluray-720p
+      - group: WEB 720p
+        qualities:
+          - WEBDL-720p
+          - WEBRip-720p
+          - HDTV-720p
+      - Bluray-576p
+      - Bluray-480p
+      - group: WEB 480p
+        qualities:
+          - WEBDL-480p
+          - WEBRip-480p
+      - DVD
+      - SDTV
+    quality_order:
+      - group: Bluray-2160p Remux
+        qualities:
+          - Bluray-2160p Remux
+          - Bluray-2160p
+      - group: Bluray-1080p
+        qualities:
+          - Bluray-1080p Remux
+          - Bluray-1080p
+      - group: WEB 1080p
+        qualities:
+          - WEBDL-1080p
+          - WEBRip-1080p
+          - HDTV-1080p
+      - Bluray-720p
+      - group: WEB 720p
+        qualities:
+          - WEBDL-720p
+          - WEBRip-720p
+          - HDTV-720p
+      - Bluray-576p
+      - Bluray-480p
+      - group: WEB 480p
+        qualities:
+          - WEBDL-480p
+          - WEBRip-480p
+      - DVD
+      - SDTV
+      - group: WEB 2160p
+        qualities:
+          - WEBDL-2160p
+          - WEBRip-2160p
+      - HDTV-2160p
+      - Raw-HD
+      - Unknown
+    cutoff: Bluray-2160p Remux
+    upgrades: true
+    min_score: 0
+    cutoff_score: 10000
+    min_upgrade_step: 1
+    sizes:
+      Bluray-480p:
+        min: 2
+        preferred: 0
+        max: 0
+      Bluray-576p:
+        min: 2
+        preferred: 0
+        max: 0
+      Bluray-720p:
+        min: 4
+        preferred: 0
+        max: 0
+      Bluray-1080p:
+        min: 4
+        preferred: 0
+        max: 0
+      Bluray-1080p Remux:
+        min: 35
+        preferred: 0
+        max: 0
+      Bluray-2160p:
+        min: 35
+        preferred: 0
+        max: 0
+      Bluray-2160p Remux:
+        min: 35
+        preferred: 0
+        max: 0
+      DVD:
+        min: 2
+        preferred: 95
+        max: 100
+      HDTV-720p:
+        min: 3
+        preferred: 95
+        max: 125
+      HDTV-1080p:
+        min: 4
+        preferred: 95
+        max: 125
+      HDTV-2160p:
+        min: 35
+        preferred: 95
+        max: 199.9
+      Raw-HD:
+        min: 4
+        preferred: 95
+        max: 0
+      SDTV:
+        min: 2
+        preferred: 95
+        max: 100
+      Unknown:
+        min: 1
+        preferred: 95
+        max: 199.9
+      WEBDL-480p:
+        min: 2
+        preferred: 95
+        max: 100
+      WEBDL-720p:
+        min: 3
+        preferred: 95
+        max: 130
+      WEBDL-1080p:
+        min: 4
+        preferred: 95
+        max: 130
+      WEBDL-2160p:
+        min: 35
+        preferred: 95
+        max: 0
+      WEBRip-480p:
+        min: 2
+        preferred: 95
+        max: 100
+      WEBRip-720p:
+        min: 3
+        preferred: 95
+        max: 130
+      WEBRip-1080p:
+        min: 4
+        preferred: 95
+        max: 130
+      WEBRip-2160p:
+        min: 35
+        preferred: 95
+        max: 0
+    format_set: sonarr-anime-debrid
+    formats:
+      10bit - Notifiarr: 0
+      ADN - Notifiarr: 7
+      AV1 - Notifiarr: -10000
+      Anime BD Tier 01 (Top SeaDex Muxers) - Notifiarr: 1400
+      Anime BD Tier 02 (SeaDex Muxers) - Notifiarr: 1300
+      Anime BD Tier 03 (SeaDex Muxers) - Notifiarr: 1200
+      Anime BD Tier 04 (SeaDex Muxers) - Notifiarr: 1100
+      Anime BD Tier 05 (Remuxes) - Notifiarr: 1000
+      Anime BD Tier 06 (FanSubs) - Notifiarr: 900
+      Anime BD Tier 07 (P2P/Scene) - Notifiarr: 800
+      Anime BD Tier 08 (Mini Encodes) - Notifiarr: 700
+      Anime LQ Groups - Notifiarr: -10000
+      Anime Raws - Notifiarr: -10000
+      Anime Web Tier 01 (Muxers) - Notifiarr: 600
+      Anime Web Tier 02 (Top FanSubs) - Notifiarr: 500
+      Anime Web Tier 03 (Fan Subs): 405
+      Anime Web Tier 03 (Official Subs) - Notifiarr: 400
+      Anime Web Tier 04 (Official Subs) - Notifiarr: 300
+      Anime Web Tier 05 (FanSubs) - Notifiarr: 200
+      Anime Web Tier 06 (FanSubs) - Notifiarr: 100
+      B-Global - Notifiarr: 0
+      Bilibili - Notifiarr: 0
+      CR - Notifiarr: 6
+      Dubs Only - Notifiarr: -10000
+      FUNi - Notifiarr: 2
+      Frieren - 9volt: 100
+      HIDIVE - Notifiarr: 0
+      Seadex: 5000
+      Uncensored - Notifiarr: 0
+      VRV - Notifiarr: 3
+      WKN - Notifiarr: 0
+      v0 - Notifiarr: -51
+      v1 - Notifiarr: 1
+      v2 - Notifiarr: 2
+      v3 - Notifiarr: 3
+      v4 - Notifiarr: 4
+    language: ""
+    from_arr: ""
+    propers: prefer_and_upgrade

@@ -1,0 +1,2 @@
+{"name": "Season Pack", "specifications": [
+  {"name": "Season Pack", "implementation": "ReleaseTypeSpecification", "negate": false, "required": false, "fields": {"value": 3}}]}

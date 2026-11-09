@@ -1,0 +1,67 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- Hand-written in the shape Prowlarr writes (NewznabResults.cs), as Prowlarr's RSS of the Nyaa.si indexer would list
+     the items of the site fixture next to it (cardigann_rss_test.go). Titles, hashes and links are made up. -->
+<rss version="1.0" xmlns:atom="http://www.w3.org/2005/Atom" xmlns:torznab="http://torznab.com/schemas/2015/feed">
+  <channel>
+    <atom:link rel="self" type="application/rss+xml" />
+    <title>Prowlarr</title>
+    <item>
+      <title>[SubsGroup] The Anime Show - 05 (1080p) [ABCDEF01].mkv</title>
+      <description />
+      <guid>http://nyaa.test/view/2000004</guid>
+      <prowlarrindexer id="5" type="public">Nyaa.si</prowlarrindexer>
+      <comments>http://nyaa.test/view/2000004</comments>
+      <pubDate>Thu, 29 Oct 2026 10:15:00 +0000</pubDate>
+      <size>1503238553</size>
+      <link>http://prowlarr.test/5/download?apikey=PLACEHOLDER&amp;link=c1c1c1c1</link>
+      <category>5070</category>
+      <category>2060</category>
+      <enclosure url="http://prowlarr.test/5/download?apikey=PLACEHOLDER&amp;link=c1c1c1c1" length="1503238553" type="application/x-bittorrent" />
+      <torznab:attr name="category" value="5070" />
+      <torznab:attr name="category" value="2060" />
+      <torznab:attr name="seeders" value="250" />
+      <torznab:attr name="peers" value="280" />
+      <torznab:attr name="infohash" value="C1C1C1C1C1C1C1C1C1C1C1C1C1C1C1C1C1C1C1C1" />
+      <torznab:attr name="downloadvolumefactor" value="0" />
+      <torznab:attr name="uploadvolumefactor" value="1" />
+    </item>
+    <item>
+      <title>Live.Action.Show.S01E03.1080p.WEB-DL.AAC2.0.H.264-GRP</title>
+      <description />
+      <guid>http://nyaa.test/view/2000002</guid>
+      <prowlarrindexer id="5" type="public">Nyaa.si</prowlarrindexer>
+      <comments>http://nyaa.test/view/2000002</comments>
+      <pubDate>Thu, 29 Oct 2026 09:58:00 +0000</pubDate>
+      <size>2254857830</size>
+      <link>http://prowlarr.test/5/download?apikey=PLACEHOLDER&amp;link=c3c3c3c3</link>
+      <category>5000</category>
+      <enclosure url="http://prowlarr.test/5/download?apikey=PLACEHOLDER&amp;link=c3c3c3c3" length="2254857830" type="application/x-bittorrent" />
+      <torznab:attr name="category" value="5000" />
+      <torznab:attr name="seeders" value="80" />
+      <torznab:attr name="peers" value="84" />
+      <torznab:attr name="infohash" value="C3C3C3C3C3C3C3C3C3C3C3C3C3C3C3C3C3C3C3C3" />
+      <torznab:attr name="downloadvolumefactor" value="0" />
+      <torznab:attr name="uploadvolumefactor" value="1" />
+    </item>
+    <item>
+      <title>[Raws] Other Anime - 12 (BD 1080p HEVC FLAC)</title>
+      <description />
+      <guid>http://nyaa.test/view/2000001</guid>
+      <prowlarrindexer id="5" type="public">Nyaa.si</prowlarrindexer>
+      <comments>http://nyaa.test/view/2000001</comments>
+      <pubDate>Thu, 29 Oct 2026 09:40:00 +0000</pubDate>
+      <size>8804682956</size>
+      <link>http://prowlarr.test/5/download?apikey=PLACEHOLDER&amp;link=c4c4c4c4</link>
+      <category>5070</category>
+      <category>2060</category>
+      <enclosure url="http://prowlarr.test/5/download?apikey=PLACEHOLDER&amp;link=c4c4c4c4" length="8804682956" type="application/x-bittorrent" />
+      <torznab:attr name="category" value="5070" />
+      <torznab:attr name="category" value="2060" />
+      <torznab:attr name="seeders" value="33" />
+      <torznab:attr name="peers" value="40" />
+      <torznab:attr name="infohash" value="C4C4C4C4C4C4C4C4C4C4C4C4C4C4C4C4C4C4C4C4" />
+      <torznab:attr name="downloadvolumefactor" value="0" />
+      <torznab:attr name="uploadvolumefactor" value="1" />
+    </item>
+  </channel>
+</rss>

@@ -1,0 +1,3 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- Newznab/Torznab error answer (Newznab API spec; Prowlarr writes the same for a bad key). -->
+<error code="100" description="Invalid API Key" />

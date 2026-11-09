@@ -1,0 +1,20 @@
+clients:
+  # decypharr logs in with the view's URL and key, because it calls back.
+  decypharr:
+    kind: decypharr
+    url: http://decypharr:8282
+    category: theatarr
+    callback_view: radarr
+    # For versions with add_via: client: where the finished download is imported from. mount (the default) finds
+    # it on Theatarr's debrid mount by name; download_folder reads the client's folder of symlinks, with the
+    # client's path prefix (remote_path) mapped to the same folder as Theatarr sees it (local_path).
+    # import_from: download_folder
+    # remote_path: /data/symlinks
+    # local_path: /mnt/decypharr/symlinks
+  # A seedbox qBittorrent, for private-tracker versions.
+  seedbox:
+    kind: qbittorrent
+    url: https://seedbox.example.net/qbittorrent
+    username_env: THEATARR_SEEDBOX_QBIT_USER
+    password_env: THEATARR_SEEDBOX_QBIT_PASS
+    category: theatarr

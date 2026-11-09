@@ -1,0 +1,171 @@
+{
+ "source": "Sonarr src/NzbDrone.Core.Test/Qualities/QualityModelComparerFixture.cs @ cab419a",
+ "cases": [
+  {
+   "test": "should_be_greater_when_first_quality_is_greater_than_second",
+   "spec": "QualityModelCompare",
+   "profile": {
+    "items": {
+     "getDefaultQualities": []
+    }
+   },
+   "left": {
+    "quality": "Bluray-1080p"
+   },
+   "right": {
+    "quality": "DVD"
+   },
+   "expect": {
+    "compare": 1
+   },
+   "flavour": "sonarr",
+   "fixture": "QualityModelComparerFixture"
+  },
+  {
+   "test": "should_be_lesser_when_second_quality_is_greater_than_first",
+   "spec": "QualityModelCompare",
+   "profile": {
+    "items": {
+     "getDefaultQualities": []
+    }
+   },
+   "left": {
+    "quality": "DVD"
+   },
+   "right": {
+    "quality": "Bluray-1080p"
+   },
+   "expect": {
+    "compare": -1
+   },
+   "flavour": "sonarr",
+   "fixture": "QualityModelComparerFixture"
+  },
+  {
+   "test": "should_be_greater_when_first_quality_is_a_proper_for_the_same_quality",
+   "spec": "QualityModelCompare",
+   "profile": {
+    "items": {
+     "getDefaultQualities": []
+    }
+   },
+   "left": {
+    "quality": "Bluray-1080p",
+    "version": 2
+   },
+   "right": {
+    "quality": "Bluray-1080p",
+    "version": 1
+   },
+   "expect": {
+    "compare": 1
+   },
+   "flavour": "sonarr",
+   "fixture": "QualityModelComparerFixture"
+  },
+  {
+   "test": "should_be_greater_when_using_a_custom_profile",
+   "spec": "QualityModelCompare",
+   "profile": {
+    "items": {
+     "getDefaultQualities": [
+      "Bluray-720p",
+      "DVD"
+     ]
+    }
+   },
+   "left": {
+    "quality": "DVD"
+   },
+   "right": {
+    "quality": "Bluray-720p"
+   },
+   "expect": {
+    "compare": 1
+   },
+   "flavour": "sonarr",
+   "fixture": "QualityModelComparerFixture"
+  },
+  {
+   "test": "should_ignore_group_order_by_default",
+   "spec": "QualityModelCompare",
+   "profile": {
+    "items": [
+     {
+      "quality": "SDTV",
+      "allowed": false
+     },
+     {
+      "quality": "DVD",
+      "allowed": false
+     },
+     {
+      "id": 0,
+      "name": "",
+      "allowed": true,
+      "items": [
+       "HDTV-720p",
+       "WEBDL-720p"
+      ]
+     },
+     {
+      "quality": "Bluray-720p",
+      "allowed": true
+     }
+    ]
+   },
+   "left": {
+    "quality": "HDTV-720p"
+   },
+   "right": {
+    "quality": "WEBDL-720p"
+   },
+   "expect": {
+    "compare": 0
+   },
+   "flavour": "sonarr",
+   "fixture": "QualityModelComparerFixture"
+  },
+  {
+   "test": "should_respect_group_order",
+   "spec": "QualityModelCompare",
+   "profile": {
+    "items": [
+     {
+      "quality": "SDTV",
+      "allowed": false
+     },
+     {
+      "quality": "DVD",
+      "allowed": false
+     },
+     {
+      "id": 0,
+      "name": "",
+      "allowed": true,
+      "items": [
+       "HDTV-720p",
+       "WEBDL-720p"
+      ]
+     },
+     {
+      "quality": "Bluray-720p",
+      "allowed": true
+     }
+    ]
+   },
+   "left": {
+    "quality": "HDTV-720p"
+   },
+   "right": {
+    "quality": "WEBDL-720p"
+   },
+   "expect": {
+    "compare": -1
+   },
+   "groupOrder": true,
+   "flavour": "sonarr",
+   "fixture": "QualityModelComparerFixture"
+  }
+ ]
+}

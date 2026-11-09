@@ -1,0 +1,215 @@
+import { describe, expect, it } from "vitest";
+import {
+  DEFAULT_COLUMNS,
+  activityHref,
+  bulkExpect,
+  chipWords,
+  columnOwnerWords,
+  copyBar,
+  copyColumns,
+  copyStatus,
+  defaultDesc,
+  distinctLabels,
+  headerSort,
+  moveColumn,
+  nextWords,
+  normalizeColumns,
+  normalizePosters,
+  ownershipWords,
+  prefKey,
+  relabel,
+  shortOwnershipWords,
+  stageCounts,
+  stageWords,
+  titleAcquisition,
+  visibleColumns,
+  withDistinctLabels,
+} from "./copies";
+
+const followed = { mode: "shadow" as const, managed_by: "sonarr_4k", can_edit: false, can_search: false, live_releases: false };
+const managed = { mode: "active" as const, can_edit: true, can_search: true, live_releases: true };
+const acq = (stage: "queued" | "downloading" | "waiting_mount" | "blocked", extra = {}) => ({ stage, words: stage, download_id: 1, downloads: 1, updated_at: "2026-10-29T00:00:00Z", ...extra });
+
+describe("stage words", () => {
+  it("words each stage, with progress and the upgrade prefix", () => {
+    expect(stageWords(acq("downloading", { progress: 37.4 }))).toBe("Downloading · 37%");
+    expect(stageWords(acq("downloading", { progress: 37, upgrade: true }))).toBe("Upgrade downloading · 37%");
+    expect(stageWords(acq("waiting_mount"))).toBe("Waiting for mount");
+    expect(stageWords(undefined)).toBe("");
+    expect(chipWords(acq("downloading", { progress: 99.6 }))).toBe("Downloading 100%");
+    expect(chipWords(acq("queued"))).toBe("Queued");
+  });
+
+  it("counts downloads by stage in stage order", () => {
+    expect(stageCounts({ waiting_mount: 2, queued: 1, downloading: 1, blocked: 0 })).toBe("1 queued · 1 downloading · 2 waiting");
+    expect(stageCounts(undefined)).toBe("");
+  });
+
+  it("links each stage to its Activity filter", () => {
+    expect(activityHref("blocked")).toBe("/activity?show=attention");
+    expect(activityHref("downloading")).toBe("/activity?show=downloading");
+    expect(activityHref("queued")).toBe("/activity?show=waiting");
+    expect(activityHref(undefined)).toBe("/activity");
+  });
+
+  it("takes the most advanced copy for the title chip", () => {
+    const t = { versions: [{ key: "a", acquisition: acq("queued") }, { key: "b" }, { key: "c", acquisition: acq("waiting_mount") }] };
+    expect(titleAcquisition(t)?.version.key).toBe("c");
+    expect(titleAcquisition({ versions: [{ key: "b" }] })).toBeUndefined();
+  });
+});
+
+describe("ownership", () => {
+  it("words a copy's ownership", () => {
+    expect(ownershipWords(followed)).toBe("mirrors sonarr_4k");
+    expect(ownershipWords(managed)).toBe("Theatarr-managed");
+    expect(ownershipWords(undefined)).toBe("");
+  });
+
+  it("summarises each copy column across the titles in view", () => {
+    const cols = copyColumns([
+      { versions: [{ key: "tv-2160p", label: "4K", control: followed }, { key: "tv-web", label: "1080p WEB", control: managed }] },
+      { versions: [{ key: "tv-2160p", label: "4K", control: managed }, { key: "anime-tv", label: "Anime" }] },
+    ]);
+    expect(cols.map((c) => [c.key, c.owner])).toEqual([["tv-2160p", "mixed"], ["tv-web", "managed"], ["anime-tv", undefined]]);
+    expect(columnOwnerWords(cols[0])).toBe("Some followed (read-only)");
+    expect(columnOwnerWords(cols[1])).toBe("Theatarr-managed");
+    expect(columnOwnerWords(copyColumns([{ versions: [{ key: "x", control: followed }] }])[0])).toBe("Followed · sonarr_4k · read-only");
+  });
+});
+
+describe("distinct labels", () => {
+  it("keeps labels that do not collide", () => {
+    expect([...distinctLabels([{ key: "tv-2160p", label: "4K", owner: "followed" }, { key: "tv-web", label: "1080p WEB" }])]).toEqual([
+      ["tv-2160p", "4K"],
+      ["tv-web", "1080p WEB"],
+    ]);
+  });
+
+  it("keeps library names separate from ownership", () => {
+    const n = distinctLabels([{ key: "tv-2160p", label: "4K", owner: "followed" }, { key: "tv-2160p-theatarr", label: "4K", owner: "managed" }, { key: "tv-web", label: "WEB" }]);
+    expect([...n.values()]).toEqual(["4K · tv-2160p", "4K · tv-2160p-theatarr", "WEB"]);
+  });
+
+  it("keeps display labels with any ownership", () => {
+    expect([...distinctLabels([{ key: "anime-tv", label: "Anime", owner: "managed" }, { key: "anime-tv-theatarr", label: "Anime", owner: "managed" }]).values()]).toEqual([
+      "Anime · anime-tv",
+      "Anime · anime-tv-theatarr",
+    ]);
+    expect([...distinctLabels([{ key: "a", label: "4K" }, { key: "b", label: "4K", owner: "followed" }]).values()]).toEqual(["4K · a", "4K · b"]);
+    expect([...distinctLabels([{ key: "a", label: "4K", owner: "mixed" }, { key: "b", label: "4K", owner: "managed" }]).values()]).toEqual(["4K · a", "4K · b"]);
+    // Three of a name: the one followed copy keeps its ownership, the two managed ones need their keys.
+    expect([...distinctLabels([{ key: "a", label: "4K", owner: "followed" }, { key: "b", label: "4K", owner: "managed" }, { key: "c", label: "4K", owner: "managed" }]).values()]).toEqual([
+      "4K · a",
+      "4K · b",
+      "4K · c",
+    ]);
+  });
+
+  it("normalizes server suffixes before detecting collisions", () => {
+    expect([...distinctLabels([{ key: "a", label: "Anime · followed" }, { key: "b", label: "Anime · Theatarr" }, { key: "c", label: "WEB · c" }]).values()]).toEqual(["Anime · a", "Anime · b", "WEB"]);
+  });
+
+  it("names each key once, an empty label by its key", () => {
+    const n = distinctLabels([{ key: "a", label: "4K", owner: "followed" }, { key: "a", label: "4K", owner: "managed" }, { key: "b", label: "" }, { label: "x" }]);
+    expect([...n]).toEqual([["a", "4K"], ["b", "b"]]);
+  });
+
+  it("relabels a title's copies from their controls, and anything keyed from a map", () => {
+    const vs = withDistinctLabels([{ key: "anime-tv", label: "Anime", control: followed }, { key: "anime-tv-theatarr", label: "Anime", control: managed }]);
+    expect(vs.map((v) => v.label)).toEqual(["Anime · anime-tv", "Anime · anime-tv-theatarr"]);
+    // A caller without control (users) gets the keys.
+    expect(withDistinctLabels([{ key: "anime-tv", label: "Anime" }, { key: "anime-tv-theatarr", label: "Anime" }]).map((v) => v.label)).toEqual(["Anime · anime-tv", "Anime · anime-tv-theatarr"]);
+    const same = [{ key: "x", label: "X" }];
+    expect(relabel(same, new Map([["x", "X"]]))[0]).toBe(same[0]);
+    expect(relabel([{ key: "x", label: "X", titles: 3 }], new Map([["x", "X · x"]]))).toEqual([{ key: "x", label: "X · x", titles: 3 }]);
+  });
+
+  it("shortens the poster's ownership line", () => {
+    expect(shortOwnershipWords(followed)).toBe("Followed · read-only");
+    expect(shortOwnershipWords(managed)).toBe("Theatarr-managed");
+    expect(shortOwnershipWords(undefined)).toBe("");
+  });
+});
+
+describe("copy bars", () => {
+  it("counts a series copy's linked episodes and the part in flight", () => {
+    const b = copyBar({ key: "a", coverage: { have: 13, total: 17, aired: 17, upcoming: 1, in_flight: 2 } }, "series");
+    expect(b).toMatchObject({ have: 13, total: 17, flight: 2, count: "13/17" });
+    expect(b.label).toBe("13 of 17 episodes linked, 2 in progress");
+    // In flight never runs past what is missing.
+    expect(copyBar({ coverage: { have: 16, total: 17, aired: 17, upcoming: 0, in_flight: 3 } }, "series").flight).toBe(1);
+  });
+
+  it("shows a movie copy held or not, striped while it is fetched", () => {
+    expect(copyBar({ has_file: true }, "movie")).toMatchObject({ have: 1, flight: 0, count: "1/1" });
+    expect(copyBar({ has_file: false, acquisition: acq("downloading") }, "movie")).toMatchObject({ have: 0, flight: 1, count: "0/1" });
+    expect(copyBar({ has_file: true, acquisition: acq("downloading", { upgrade: true }) }, "movie").label).toBe("Linked, upgrade in progress");
+  });
+
+  it("heads a copy cell", () => {
+    expect(copyStatus({ coverage: { have: 3, total: 6, aired: 6, upcoming: 0 } }, "series", false)).toEqual({ label: "3 / 6 available", tone: "warning" });
+    expect(copyStatus({ coverage: { have: 0, total: 0, aired: 0, upcoming: 4 } }, "series", false).label).toBe("Nothing aired yet");
+    expect(copyStatus({ state: "cutoff_met", has_file: true }, "movie", false).label).toBe("Available");
+    // A wanted movie not released yet reads Upcoming with its date, not Missing.
+    expect(copyStatus({ state: "wanted", has_file: false }, "movie", false, "2026-12-01").label).toMatch(/^Upcoming · /);
+    expect(copyStatus({ state: "cutoff_met", has_file: true }, "movie", false, "2026-12-01").label).toBe("Available");
+  });
+});
+
+describe("columns and prefs", () => {
+  it("keeps known columns, appends new ones hidden, and moves them", () => {
+    const p = normalizeColumns({ order: ["size", "bogus", "next"], shown: ["size", "bogus"] });
+    expect(p.order.slice(0, 2)).toEqual(["size", "next"]);
+    expect(p.order).toHaveLength(DEFAULT_COLUMNS.order.length);
+    expect(p.shown).toEqual(["size"]);
+    expect(normalizeColumns("junk")).toEqual(DEFAULT_COLUMNS);
+    expect(moveColumn(p, "next", -1).order.slice(0, 2)).toEqual(["next", "size"]);
+    expect(moveColumn(p, "size", -1)).toBe(p);
+  });
+
+  it("leaves file columns out for accounts that do not see files", () => {
+    const p = { order: DEFAULT_COLUMNS.order, shown: ["next", "size", "quality", "added"] as const };
+    expect(visibleColumns({ ...p, shown: [...p.shown] }, false)).toEqual(["next", "added"]);
+    expect(visibleColumns({ ...p, shown: [...p.shown] }, true)).toEqual(["next", "quality", "size", "added"]);
+  });
+
+  it("reads poster options back safely", () => {
+    expect(normalizePosters({ size: "huge", details: ["year", "nope", "network"] })).toEqual({ size: "medium", details: ["year", "network"] });
+    expect(normalizePosters({ size: "small" }).size).toBe("small");
+  });
+
+  it("keys prefs per user", () => {
+    expect(prefKey("columns", 7)).toBe("theatarr.library.columns.7");
+    expect(prefKey("posters", undefined)).toBe("theatarr.library.posters.anon");
+  });
+});
+
+describe("sorting and next up", () => {
+  it("maps headers to grid sorts", () => {
+    expect(headerSort("copy", "tv-2160p")).toEqual({ sort: "completion", sort_version: "tv-2160p" });
+    expect(headerSort("title")).toEqual({ sort: "name" });
+    expect(headerSort("network")).toBeUndefined();
+    expect(defaultDesc("name")).toBe(false);
+    expect(defaultDesc("next")).toBe(false);
+    expect(defaultDesc("completion")).toBe(true);
+  });
+
+  it("words what comes next", () => {
+    const now = new Date(2026, 9, 29);
+    expect(nextWords({ date: "2026-11-04", season: 3, number: 6 }, "series", now)).toBe("S03E06 · Nov 4");
+    expect(nextWords({ date: "2027-01-10", type: "digital" }, "movie", now)).toBe("Digital release · Jan 10, 2027");
+    expect(nextWords(undefined, "movie", now)).toBe("");
+  });
+});
+
+describe("bulk expect", () => {
+  it("sends the preview's from values of the copies that change", () => {
+    const items = [
+      { title_id: 1, title: "A", version: "a", label: "A", outcome: "changed" as const, from: false, to: true },
+      { title_id: 2, title: "B", version: "a", label: "A", outcome: "read_only" as const, from: false, to: true },
+      { title_id: 3, title: "C", version: "a", label: "A", outcome: "unchanged" as const, from: true, to: true },
+    ];
+    expect(bulkExpect(items)).toEqual([{ title_id: 1, version: "a", monitored: false }]);
+  });
+});

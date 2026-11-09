@@ -1,0 +1,15 @@
+{
+  "status": "success",
+  "data": {
+    "series": {"id": 900001, "name": "Test Anime", "slug": "test-anime", "status": {"id": 2, "name": "Ended", "recordType": "series", "keepUpdated": false}, "year": "2020"},
+    "episodes": [
+      {"id": 7001, "seriesId": 900001, "name": "The Beginning", "overview": "It starts.", "seasonNumber": 1, "number": 1},
+      {"id": 7002, "seriesId": 900001, "name": "The Middle", "overview": null, "seasonNumber": 1, "number": 2},
+      {"id": 7000, "seriesId": 900001, "name": "Recap Special", "overview": "A recap of season 1.", "seasonNumber": 0, "number": 1},
+      {"id": 7101, "seriesId": 900001, "name": "", "seasonNumber": 2, "number": 1},
+      {"id": 7102, "seriesId": 900001, "name": "The End", "seasonNumber": 2, "number": 2},
+      {"id": 7010, "seriesId": 900001, "name": "Bonus", "seasonNumber": 0, "number": 2}
+    ]
+  },
+  "links": {"prev": null, "self": "page0", "next": null, "total_items": 6, "page_size": 500}
+}

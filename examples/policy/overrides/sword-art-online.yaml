@@ -1,0 +1,11 @@
+# sword-art-online: curated story-order moves (docs/design/anime.md "Overrides").
+# entry: a key (al:<id>[#n], adb:<id>, kitsu:<id>, tvdb:<id>:S00Exx), or key@SxxEyy-SxxEzz for an arc inside it.
+# after: a key, key@SxxEyy (splits there), key@SxxEyy-SxxEzz (after that slice) or start.
+source: "https://myanimelist.net/stacks/49827"
+moves:
+  - entry: "al:124140"
+    after: "al:11757@S01E01"
+    why: "Progressive: Aria covers floor 1, between ep 1 and ep 2"
+  - entry: "al:140999"
+    after: "al:124140"
+    why: "Progressive: Scherzo follows Aria"

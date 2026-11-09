@@ -1,0 +1,54 @@
+/*
+ * The library views' copy bars and poster sizes (docs/design/ui.md "Library views"). A bar is one copy: solid for what
+ * is linked, striped for what is in progress, in the copy's colour (--vc, from [data-vkey]). Widths come from the
+ * 5 % step classes (no inline styles: CSP).
+ */
+.copy-track {
+  display: flex;
+  height: 5px;
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  border-radius: 3px;
+  background: color-mix(in srgb, var(--line) 80%, transparent);
+}
+.copy-track > .copy-have {
+  height: 100%;
+  background: var(--vc);
+}
+.copy-track > .copy-flight {
+  height: 100%;
+  background: repeating-linear-gradient(
+    115deg,
+    var(--vc) 0 3px,
+    color-mix(in srgb, var(--vc) 38%, var(--surface)) 3px 5px
+  );
+}
+.dark .copy-track {
+  background: color-mix(in srgb, var(--line) 70%, var(--sunken));
+}
+.dark .copy-track > .copy-flight {
+  background: repeating-linear-gradient(
+    115deg,
+    var(--vc) 0 3px,
+    color-mix(in srgb, var(--vc) 30%, #000) 3px 5px
+  );
+}
+
+/* Poster sizes (Poster options). Phones: small fits three across, medium and large two. */
+.poster-grid-responsive.poster-size-small {
+  grid-template-columns: repeat(auto-fill, minmax(118px, 1fr));
+}
+.poster-grid-responsive.poster-size-large {
+  grid-template-columns: repeat(auto-fill, minmax(210px, 1fr));
+}
+@container (max-width: 560px) {
+  .poster-grid-responsive.poster-size-small {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+  .poster-grid-responsive.poster-size-medium,
+  .poster-grid-responsive.poster-size-large {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+

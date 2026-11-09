@@ -1,0 +1,9 @@
+{"page":1,"perPage":100,"totalItems":1,"totalPages":1,"items":[
+ {"alID":154587,"comparison":"","incomplete":false,"notes":"","theoreticalBest":"",
+  "trs":["abc123def456ghi","zzz999","ab0001"],"expand":{"trs":[
+   {"id":"abc123def456ghi","url":"https://nyaa.si/view/1234567","infoHash":"cccccccccccccccccccccccccccccccccccccccc","isBest":true,"dualAudio":true,"tags":[],"tracker":"Nyaa","releaseGroup":"GroupA","created":"2026-01-02 03:04:05.000Z","updated":"2026-02-03 04:05:06.000Z",
+    "files":[{"length":3000000000,"name":"[GroupA] Frieren - 01 (BD 1080p).mkv"},{"length":2900000000,"name":"[GroupA] Frieren - 02 (BD 1080p).mkv"},{"length":10000000,"name":"NCOP.mkv"}]},
+   {"id":"zzz999","url":"https://nyaa.si/view/7654321","infoHash":"dddddddddddddddddddddddddddddddddddddddd","isBest":false,"dualAudio":false,"tags":["Incomplete"],"tracker":"Nyaa","releaseGroup":"GroupB","files":[{"length":1,"name":"x.mkv"}]},
+   {"id":"ab0001","url":"/torrents.php?id=1&torrentid=2","infoHash":"<redacted>","isBest":true,"dualAudio":false,"tags":[],"tracker":"AB","releaseGroup":"GroupC","files":[{"length":5,"name":"y.mkv"}]}
+  ]}}
+]}

@@ -1,0 +1,12 @@
+{
+  "status": "success",
+  "data": {
+    "series": {"id": 900001, "name": "テストアニメ", "slug": "test-anime", "status": {"id": 2, "name": "Ended", "recordType": "series", "keepUpdated": false}, "year": "2020"},
+    "episodes": [
+      {"id": 7101, "seriesId": 900001, "name": "第3話", "aired": "2021-01-10", "runtime": 24, "seasonNumber": 2, "number": 1, "absoluteNumber": null, "isMovie": 0},
+      {"id": 7102, "seriesId": 900001, "name": "第4話", "aired": null, "runtime": null, "seasonNumber": 2, "number": 2, "isMovie": 0},
+      {"id": 7010, "seriesId": 900001, "name": "OVA", "aired": "2021-04-01", "runtime": 25, "seasonNumber": 0, "number": 2, "airsAfterSeason": 2, "isMovie": 0}
+    ]
+  },
+  "links": {"prev": "page0", "self": "page1", "next": null, "total_items": 6, "page_size": 3}
+}

@@ -1,0 +1,8 @@
+{
+  "status": "success",
+  "data": {
+    "id": 7000, "seriesId": 900001, "name": "特別編", "aired": "2020-12-20", "runtime": 48, "seasonNumber": 0, "number": 1,
+    "airsBeforeSeason": 2, "airsBeforeEpisode": 1, "airsAfterSeason": null, "absoluteNumber": 0, "isMovie": 0,
+    "productionCode": "", "finaleType": null, "remoteIds": [], "seasons": [], "trailers": [], "characters": []
+  }
+}

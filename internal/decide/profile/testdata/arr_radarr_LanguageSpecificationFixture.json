@@ -1,0 +1,131 @@
+{
+ "source": "Radarr src/NzbDrone.Core.Test/DecisionEngineTests/LanguageSpecificationFixture.cs @ a96bf7c",
+ "cases": [
+  {
+   "fixture": "LanguageSpecificationFixture",
+   "test": "should_return_true_if_language_is_english",
+   "spec": "Language",
+   "profile": {
+    "language": "English"
+   },
+   "media": {
+    "originalLanguage": "French"
+   },
+   "release": {
+    "languages": [
+     "English"
+    ]
+   },
+   "expect": {
+    "accepted": true
+   },
+   "flavour": "radarr"
+  },
+  {
+   "fixture": "LanguageSpecificationFixture",
+   "test": "should_return_false_if_language_is_german",
+   "spec": "Language",
+   "profile": {
+    "language": "English"
+   },
+   "media": {
+    "originalLanguage": "French"
+   },
+   "release": {
+    "languages": [
+     "German"
+    ]
+   },
+   "expect": {
+    "accepted": false,
+    "reason": "WantedLanguage",
+    "message": "English is wanted, but found German"
+   },
+   "flavour": "radarr"
+  },
+  {
+   "fixture": "LanguageSpecificationFixture",
+   "test": "should_return_false_if_release_is_german_and_profile_original",
+   "spec": "Language",
+   "profile": {
+    "language": "Original"
+   },
+   "media": {
+    "originalLanguage": "French"
+   },
+   "release": {
+    "languages": [
+     "German"
+    ]
+   },
+   "expect": {
+    "accepted": false,
+    "reason": "WantedLanguage",
+    "message": "Original Language (French) is wanted, but found German"
+   },
+   "flavour": "radarr"
+  },
+  {
+   "fixture": "LanguageSpecificationFixture",
+   "test": "should_return_true_if_release_is_french_and_profile_original",
+   "spec": "Language",
+   "profile": {
+    "language": "Original"
+   },
+   "media": {
+    "originalLanguage": "French"
+   },
+   "release": {
+    "languages": [
+     "French"
+    ]
+   },
+   "expect": {
+    "accepted": true
+   },
+   "flavour": "radarr"
+  },
+  {
+   "fixture": "LanguageSpecificationFixture",
+   "test": "should_return_true_if_allowed_language_any",
+   "spec": "Language",
+   "profile": {
+    "language": "Any"
+   },
+   "media": {
+    "originalLanguage": "French"
+   },
+   "release": {
+    "languages": [
+     "German"
+    ]
+   },
+   "expect": {
+    "accepted": true
+   },
+   "note": "first assertion (German release)",
+   "flavour": "radarr"
+  },
+  {
+   "fixture": "LanguageSpecificationFixture",
+   "test": "should_return_true_if_allowed_language_any",
+   "spec": "Language",
+   "profile": {
+    "language": "Any"
+   },
+   "media": {
+    "originalLanguage": "French"
+   },
+   "release": {
+    "languages": [
+     "English"
+    ]
+   },
+   "expect": {
+    "accepted": true
+   },
+   "note": "second assertion (English release)",
+   "flavour": "radarr"
+  }
+ ]
+}

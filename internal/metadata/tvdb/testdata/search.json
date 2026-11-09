@@ -1,0 +1,10 @@
+{
+  "status": "success",
+  "data": [
+    {"objectID": "series-900001", "id": "series-900001", "tvdb_id": "900001", "type": "series", "name": "テストアニメ", "slug": "test-anime",
+     "year": "2020", "first_air_time": "2020-01-05", "status": "Ended", "network": "Test TV", "country": "jpn", "primary_language": "jpn",
+     "aliases": ["Test Anime: The Series"], "translations": {"eng": "Test Anime", "jpn": "テストアニメ"},
+     "remote_ids": [{"id": "tt0000001", "type": 2, "sourceName": "IMDB"}]}
+  ],
+  "links": {"prev": null, "self": "page0", "next": null, "total_items": 1, "page_size": 50}
+}

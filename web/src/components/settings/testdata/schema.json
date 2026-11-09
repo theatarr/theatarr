@@ -1,0 +1,1596 @@
+{
+  "section_nullable": {
+    "cardigann": true,
+    "clients": true,
+    "egress": true,
+    "import": true,
+    "library": true,
+    "metadata": true,
+    "notify": true,
+    "playlists": true,
+    "provider_sync": true,
+    "router": true,
+    "shadow": true,
+    "torrents": true,
+    "ui": true
+  },
+  "sections": {
+    "cardigann": [
+      {
+        "name": "definitions",
+        "label": "Indexer definitions",
+        "type": "object",
+        "help": "This is the repository branch the catalog follows. Unset: the catalog is not fetched.",
+        "nullable": true,
+        "fields": [
+          {
+            "name": "repo",
+            "label": "Git repository",
+            "type": "string",
+            "help": "This is owner/repository on GitHub. Default prowlarr/indexers."
+          },
+          {
+            "name": "branch",
+            "label": "Branch",
+            "type": "string",
+            "help": "This selects the repository branch. Default master."
+          },
+          {
+            "name": "refresh",
+            "min": 3600,
+            "default": "24h",
+            "label": "Refresh interval",
+            "type": "duration",
+            "help": "This is how often the branch is checked. Default 24h, at least 1h."
+          }
+        ]
+      },
+      {
+        "name": "flaresolverr_url",
+        "label": "FlareSolverr address",
+        "type": "string",
+        "help": "This is a FlareSolverr-compatible service (trawl) that passes Cloudflare checks, e.g. http://trawl:8191. Its traffic must leave through the VPN; requests to it go through the gateway as the indexer's own."
+      },
+      {
+        "name": "prowlarr",
+        "label": "Prowlarr",
+        "type": "object",
+        "help": "This is a prowlarr instance on the LAN whose indexers the migration reader proposes as native ones. It is only read (GET /api/v1/indexer); nothing is written to it or to the settings.",
+        "nullable": true,
+        "fields": [
+          {
+            "name": "url",
+            "label": "Prowlarr address",
+            "type": "string",
+            "help": "This is the prowlarr server endpoint."
+          },
+          {
+            "name": "api_key",
+            "path": "cardigann.prowlarr.api_key",
+            "label": "API key",
+            "type": "secret",
+            "help": "Stored credential. Leave unchanged to keep the current value."
+          },
+          {
+            "name": "api_key_env",
+            "label": "API key environment variable fallback",
+            "advanced": true,
+            "type": "string",
+            "help": "This names the environment variable holding the prowlarr API key. Environment variable fallback."
+          }
+        ]
+      }
+    ],
+    "clients": [
+      {
+        "name": "",
+        "label": "Download clients",
+        "type": "keyed",
+        "help": "Named connections.",
+        "fields": [
+          {
+            "name": "kind",
+            "label": "Client type",
+            "type": "enum",
+            "enum": [
+              "decypharr",
+              "qbittorrent"
+            ],
+            "help": "This selects decypharr (a debrid client: it calls a view back, and takes the grabs of versions with add_via: client) or qbittorrent (seedbox)."
+          },
+          {
+            "name": "url",
+            "label": "Client address",
+            "type": "string",
+            "help": "This is the download client endpoint."
+          },
+          {
+            "name": "username",
+            "path": "clients.*.username",
+            "label": "Username",
+            "type": "secret",
+            "help": "Stored credential. Leave unchanged to keep the current value."
+          },
+          {
+            "name": "username_env",
+            "label": "Username environment variable fallback",
+            "advanced": true,
+            "type": "string",
+            "help": "This and password_env name environment variables with the client's login. decypharr reads them as an arr's: the username is the callback view's url, the password a Theatarr key for it (any login works without its use_auth). Environment variable fallback."
+          },
+          {
+            "name": "password",
+            "path": "clients.*.password",
+            "label": "Password",
+            "type": "secret",
+            "help": "Stored credential. Leave unchanged to keep the current value."
+          },
+          {
+            "name": "password_env",
+            "label": "Password environment variable fallback",
+            "advanced": true,
+            "type": "string",
+            "help": "This names the environment variable holding the client password. Environment variable fallback."
+          },
+          {
+            "name": "category",
+            "label": "Category",
+            "type": "string",
+            "help": "This is the download category Theatarr's adds go under; required for an add_via: client version. decypharr keys its arr settings on it: one client entry per view flavour."
+          },
+          {
+            "name": "callback_view",
+            "label": "Notification view",
+            "type": "string",
+            "help": "This is the view decypharr calls back (decypharr only)."
+          },
+          {
+            "name": "import_from",
+            "default": "mount",
+            "label": "Import finished downloads from",
+            "type": "enum",
+            "enum": [
+              "mount",
+              "download_folder"
+            ],
+            "help": "This is where a finished download is imported from: mount (the default: its release folder on Theatarr's debrid mount) or download_folder (the client's folder of symlinks into the mount)."
+          },
+          {
+            "name": "remote_path",
+            "label": "Client path (remote)",
+            "type": "string",
+            "help": "This and local_path map the client's paths to Theatarr's (an arr's remote path mapping): a content_path under remote_path is read under local_path. Both or neither, absolute."
+          },
+          {
+            "name": "local_path",
+            "label": "Same path in Theatarr (local)",
+            "type": "string",
+            "help": "This is where Theatarr sees the client's remote_path."
+          }
+        ]
+      }
+    ],
+    "egress": [
+      {
+        "name": "check_url",
+        "label": "Exit address check URL",
+        "type": "string",
+        "help": "This is an IP-echo endpoint. It answers the caller's address as plain text, or as JSON with an \"ip\" field. Its host is allowlisted automatically."
+      },
+      {
+        "name": "vpn_ips",
+        "label": "VPN exit IPs",
+        "type": "list",
+        "help": "This and vpn_cidrs are the expected exit addresses. At least one entry is required."
+      },
+      {
+        "name": "vpn_cidrs",
+        "label": "VPN address ranges",
+        "type": "list",
+        "help": "This lists the allowed VPN exit address ranges."
+      },
+      {
+        "name": "interval",
+        "min": 10,
+        "default": "2m",
+        "label": "Check interval",
+        "type": "duration",
+        "help": "This is the time between checks. Default 2m."
+      },
+      {
+        "name": "max_age",
+        "min": 0,
+        "default": "3 × interval",
+        "label": "Maximum check age",
+        "type": "duration",
+        "help": "This is how old the last good check may be before guarded requests are refused. Default 3 × interval."
+      },
+      {
+        "name": "timeout",
+        "min": 0,
+        "default": "10s",
+        "label": "Check timeout",
+        "type": "duration",
+        "help": "This bounds one check. Default 10s."
+      },
+      {
+        "name": "require_vpn_for",
+        "label": "Require VPN for",
+        "type": "list",
+        "enum": [
+          "indexers",
+          "providers",
+          "metadata"
+        ],
+        "help": "This lists the classes that need a good check: indexers, providers, metadata. Omitted defaults to indexers; an explicit empty list monitors without refusing requests."
+      }
+    ],
+    "import": [
+      {
+        "name": "arr",
+        "label": "Sonarr/Radarr instances",
+        "type": "keyed",
+        "help": "This maps an arr instance name (radarr_4k_debrid) to its source settings.",
+        "fields": [
+          {
+            "name": "flavour",
+            "label": "Sonarr or Radarr",
+            "type": "enum",
+            "enum": [
+              "radarr",
+              "sonarr"
+            ],
+            "help": "This is radarr or sonarr."
+          },
+          {
+            "name": "url",
+            "label": "Server address",
+            "type": "string",
+            "help": "This is the instance base url, without /api/v3. Its host must be a LAN address (loopback, RFC 1918 or ULA), since every request carries the API key."
+          },
+          {
+            "name": "api_key",
+            "path": "import.arr.*.api_key",
+            "label": "API key",
+            "type": "secret",
+            "help": "Stored credential. Leave unchanged to keep the current value."
+          },
+          {
+            "name": "api_key_env",
+            "label": "API key environment variable fallback",
+            "advanced": true,
+            "type": "string",
+            "help": "This names the environment variable holding the instance's API key. Environment variable fallback."
+          },
+          {
+            "name": "version",
+            "label": "Version",
+            "type": "string",
+            "help": "This is the version key the instance's titles and files map to. Several instances may map to one version; the import then reports titles whose files differ between them."
+          }
+        ]
+      }
+    ],
+    "library": [
+      {
+        "name": "mount",
+        "label": "Mount",
+        "type": "object",
+        "help": "This is where zurg is read.",
+        "fields": [
+          {
+            "name": "path",
+            "label": "Mount folder",
+            "type": "string",
+            "help": "This is where this service sees the mount, e.g. /mnt/debrid. Required once Write library links is on."
+          },
+          {
+            "name": "link_path",
+            "label": "Library link destination",
+            "type": "string",
+            "help": "This is the mount path written into symlinks: where plex sees it. Default path."
+          },
+          {
+            "name": "all_dir",
+            "label": "All torrents folder",
+            "type": "string",
+            "help": "This is zurg's directory holding every release. Default __all__."
+          },
+          {
+            "name": "wait_timeout",
+            "min": 60,
+            "default": "6m",
+            "label": "Wait for files timeout",
+            "type": "duration",
+            "help": "This is how long an import waits for the release to appear before it alerts (it keeps waiting; no re-grab). Default 6m."
+          },
+          {
+            "name": "poll_interval",
+            "min": 5,
+            "default": "20s",
+            "label": "File check interval",
+            "type": "duration",
+            "help": "This is how often a waiting import looks again. Default 20s, minimum 5s."
+          },
+          {
+            "name": "stat_timeout",
+            "min": 1,
+            "default": "5s",
+            "label": "File access timeout",
+            "advanced": true,
+            "type": "duration",
+            "help": "This bounds the health sentinel's stat; a hang or ENOTCONN pauses imports and sweeps. Default 5s."
+          },
+          {
+            "name": "zurg_log",
+            "label": "Zurg log",
+            "group": "Zurg log",
+            "type": "string",
+            "help": "This is zurg's log (read-only): an absolute file path, or the http(s) url of zurg's /logs endpoint when the file is on another host."
+          },
+          {
+            "name": "zurg_log_interval",
+            "min": 5,
+            "max": 600,
+            "default": "15s",
+            "label": "Zurg log check interval",
+            "group": "Zurg log",
+            "type": "duration",
+            "help": "This is how often a url zurg_log is fetched (each fetch returns the whole current log). Default 15s, 5s to 10m. A file is followed every 2s whatever this says."
+          },
+          {
+            "name": "zurg_log_budget",
+            "label": "Zurg log budget",
+            "group": "Zurg log",
+            "type": "string",
+            "help": "This names a budget for the fetches of a url zurg_log. Optional."
+          },
+          {
+            "name": "zurg_api",
+            "label": "Zurg API address",
+            "group": "Zurg API",
+            "type": "string",
+            "help": "This is zurg's base url (e.g. http://zurg:9999), read-only: GET /debug/torrents, /api/library/entry and /torrents/repair/status only."
+          },
+          {
+            "name": "zurg_api_interval",
+            "min": 10,
+            "max": 3600,
+            "default": "1m",
+            "label": "Zurg API check interval",
+            "group": "Zurg API",
+            "type": "duration",
+            "help": "This is the longest an answer of zurg_api is reused: the torrent listing and the repair state are fetched at most once per interval, when a pass needs them. Default 1m, 10s to 1h."
+          },
+          {
+            "name": "zurg_api_budget",
+            "label": "Zurg API budget",
+            "group": "Zurg API",
+            "type": "string",
+            "help": "This names a budget for zurg_api requests. Optional."
+          },
+          {
+            "name": "zurg_api_repair_grace",
+            "min": 600,
+            "max": 86400,
+            "default": "2h",
+            "label": "Zurg repair wait",
+            "group": "Zurg API",
+            "type": "duration",
+            "help": "This bounds how long a running repair keeps dangling links from being marked dead: past it the sweep marks them as it would without the API. Default 2h, 10m to 24h."
+          },
+          {
+            "name": "rclone_rc",
+            "label": "rclone remote control",
+            "type": "object",
+            "help": "This is the mount's rclone remote control (rclone rc), read-only: the now playing page asks core/stats for the playing file's fetch speed and vfs/stats for the cache state (docs/design/now-playing.md). Optional.",
+            "nullable": true,
+            "fields": [
+              {
+                "name": "url",
+                "label": "rclone address",
+                "type": "string",
+                "help": "This is the rc base url, e.g. http://rclone:5572."
+              },
+              {
+                "name": "username",
+                "path": "library.mount.rclone_rc.username",
+                "label": "Username",
+                "type": "secret",
+                "help": "Stored credential. Leave unchanged to keep the current value."
+              },
+              {
+                "name": "username_env",
+                "label": "Username environment variable fallback",
+                "advanced": true,
+                "type": "string",
+                "help": "This and password_env name the basic auth credentials (--rc-user, --rc-pass). Optional. Environment variable fallback."
+              },
+              {
+                "name": "password",
+                "path": "library.mount.rclone_rc.password",
+                "label": "Password",
+                "type": "secret",
+                "help": "Stored credential. Leave unchanged to keep the current value."
+              },
+              {
+                "name": "password_env",
+                "label": "Password environment variable fallback",
+                "advanced": true,
+                "type": "string",
+                "help": "This names the environment variable holding the rclone remote control password. Environment variable fallback."
+              },
+              {
+                "name": "budget",
+                "label": "Budget",
+                "type": "string",
+                "help": "This names a budget for rc calls. Optional."
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "name": "probe",
+        "label": "Media inspection",
+        "type": "object",
+        "help": "This bounds the header probe.",
+        "fields": [
+          {
+            "name": "max_bytes",
+            "min": 1048576,
+            "max": 268435456,
+            "default": "16777216",
+            "label": "Maximum size",
+            "type": "integer",
+            "help": "This limits how many bytes are read per file. Default 16 MiB, 1 to 256 MiB."
+          }
+        ]
+      },
+      {
+        "name": "sample",
+        "label": "Sample detection",
+        "type": "object",
+        "help": "This tunes the sample and fake guard.",
+        "fields": [
+          {
+            "name": "min_runtime_ratio",
+            "min": 0,
+            "max": 1,
+            "default": "0.5",
+            "label": "Minimum runtime fraction",
+            "type": "number",
+            "help": "This rejects a file shorter than this share of the title's (or episode's) known runtime. Default 0.5; 0 \u003c x \u003c= 1."
+          },
+          {
+            "name": "resolution",
+            "default": "true",
+            "label": "Check video resolution",
+            "type": "boolean",
+            "help": "This rejects a file whose probed resolution is two or more steps under the release's (a 2160p release holding a 720p file). Default true.",
+            "nullable": true
+          },
+          {
+            "name": "mislabel",
+            "default": "true",
+            "label": "Refuse mislabelled remuxes and 2160p",
+            "type": "boolean",
+            "help": "This refuses a file whose probe plainly contradicts its Remux or 2160p label (an x264/x265 CRF encode named Remux, 1080-line video named 2160p). Default true.",
+            "nullable": true
+          }
+        ]
+      },
+      {
+        "name": "trash",
+        "label": "Trash",
+        "type": "object",
+        "help": "This is where replaced links are moved aside (upgrades, relinks). Required once Write library links is on.",
+        "fields": [
+          {
+            "name": "dir",
+            "label": "Folder",
+            "type": "string",
+            "help": "This is absolute, outside every library root (plex must not scan it) and outside the mount."
+          },
+          {
+            "name": "keep_days",
+            "min": 0,
+            "default": "30",
+            "label": "Days to keep deleted files",
+            "type": "integer",
+            "help": "This is the number of days before a moved-aside link is removed for good (the link only; debrid content is never touched). Default 30."
+          }
+        ]
+      },
+      {
+        "name": "plex",
+        "label": "Plex",
+        "type": "object",
+        "help": "This is the plex server scanned after a change. Optional.",
+        "nullable": true,
+        "fields": [
+          {
+            "name": "url",
+            "label": "Plex address",
+            "type": "string",
+            "help": "This is the plex server endpoint."
+          },
+          {
+            "name": "token",
+            "path": "library.plex.token",
+            "label": "Token",
+            "type": "secret",
+            "help": "Stored credential. Leave unchanged to keep the current value."
+          },
+          {
+            "name": "token_env",
+            "label": "Token environment variable fallback",
+            "advanced": true,
+            "type": "string",
+            "help": "This names the environment variable holding the plex token. Environment variable fallback."
+          },
+          {
+            "name": "budget",
+            "label": "Budget",
+            "type": "string",
+            "help": "This names a budget for plex calls. Optional."
+          },
+          {
+            "name": "debounce",
+            "min": 1,
+            "default": "30s",
+            "label": "Scan delay",
+            "type": "duration",
+            "help": "This coalesces scans of one folder. Default 30s."
+          },
+          {
+            "name": "now_playing",
+            "default": "true",
+            "label": "Now playing",
+            "type": "boolean",
+            "help": "This follows plex's sessions for the now playing page (docs/design/now-playing.md). It only reads, so it does not need library.enabled. Default true.",
+            "nullable": true
+          },
+          {
+            "name": "prewarm",
+            "default": "true",
+            "label": "Preload next episode",
+            "type": "boolean",
+            "help": "This reads the head of the next episode of a show being watched through the mount, about a minute into an episode, and raises an error inbox item when that episode is missing or unreadable; past half of the episode it reads the next one…",
+            "nullable": true
+          },
+          {
+            "name": "prewarm_rate",
+            "min": 1000000,
+            "default": "25MB",
+            "unit": "bytes/s",
+            "label": "Preload speed limit",
+            "type": "bytes",
+            "help": "This caps the pre-warm's whole-file read of the next episode, in bytes per second (25MB: 25 MB/s), so it never starves a live stream. Default 25MB."
+          },
+          {
+            "name": "prewarm_max_size",
+            "default": "20GB",
+            "label": "Maximum preload size",
+            "type": "bytes",
+            "help": "This limits whole-file preloading; larger episodes get only a header check. Default 20GB."
+          }
+        ]
+      },
+      {
+        "name": "versions",
+        "label": "Versions",
+        "type": "keyed",
+        "help": "This lists, per version key, where the library may write and which plex section shows it. A version not listed here never gets a write.",
+        "fields": [
+          {
+            "name": "plex_section",
+            "min": 0,
+            "default": "0",
+            "label": "Plex library ID",
+            "type": "integer",
+            "help": "This is the plex library section id that shows this version's root. 0: no scans."
+          }
+        ]
+      },
+      {
+        "name": "relink_interval",
+        "min": 600,
+        "default": "1h",
+        "label": "Library link check interval",
+        "type": "duration",
+        "help": "This is how often theatarr serve looks for dangling links and repoints them. Default 1h, minimum 10m."
+      },
+      {
+        "name": "dangling",
+        "label": "Broken links",
+        "type": "object",
+        "help": "This configures the read-only report of dangling links into the mount.",
+        "fields": [
+          {
+            "name": "interval",
+            "min": 600,
+            "default": "6h",
+            "label": "Check interval",
+            "type": "duration",
+            "help": "This is the time between reports in theatarr serve (one at start). Default 6h, minimum 10m."
+          },
+          {
+            "name": "roots",
+            "label": "Folders to check",
+            "type": "list",
+            "help": "This lists folders walked besides the version roots, read-only: the libraries the arrs still own and decypharr's downloads (for example /media and /downloads)."
+          }
+        ]
+      }
+    ],
+    "metadata": [
+      {
+        "name": "overrides_dir",
+        "label": "Metadata overrides folder",
+        "advanced": true,
+        "type": "string",
+        "help": "This points at external data. Legacy relative values resolve beneath the policy base."
+      },
+      {
+        "name": "sources",
+        "label": "Sources",
+        "type": "keyed",
+        "help": "This lists metadata services by name.",
+        "fields": [
+          {
+            "name": "url",
+            "label": "Source address",
+            "type": "string",
+            "help": "This is the metadata service endpoint."
+          },
+          {
+            "name": "api_key",
+            "path": "metadata.sources.*.api_key",
+            "label": "API key",
+            "type": "secret",
+            "help": "Stored credential. Leave unchanged to keep the current value."
+          },
+          {
+            "name": "api_key_env",
+            "label": "API key environment variable fallback",
+            "advanced": true,
+            "type": "string",
+            "help": "This names the environment variable holding the service API key. Environment variable fallback."
+          },
+          {
+            "name": "budget",
+            "label": "Budget",
+            "type": "string",
+            "help": "This names the request budget for this service."
+          }
+        ]
+      },
+      {
+        "name": "art",
+        "label": "Artwork",
+        "type": "object",
+        "help": "This schedules the meta.art job (art.go).",
+        "nullable": true,
+        "fields": [
+          {
+            "name": "per_run",
+            "min": 1,
+            "max": 5000,
+            "default": "200",
+            "label": "Titles per refresh",
+            "type": "integer",
+            "help": "This caps the titles one run fetches. Default 200."
+          },
+          {
+            "name": "interval",
+            "min": 600,
+            "default": "6h",
+            "label": "Refresh interval",
+            "type": "duration",
+            "help": "This is the time between scheduled runs. Default 6h, minimum 10m."
+          },
+          {
+            "name": "prewarm",
+            "label": "Artwork sizes to preload",
+            "type": "enum",
+            "enum": [
+              "off",
+              "w92",
+              "w185",
+              "w342",
+              "w500",
+              "w780",
+              "w1280"
+            ],
+            "help": "This fetches each filled title's poster at this size into the image cache, so grids load at once. Default w342; \"off\" turns it off."
+          }
+        ]
+      },
+      {
+        "name": "series",
+        "label": "Series",
+        "type": "object",
+        "help": "This schedules the series metadata refresh (seriesmeta.go).",
+        "nullable": true,
+        "fields": [
+          {
+            "name": "enabled",
+            "default": "true",
+            "label": "Enabled",
+            "type": "boolean",
+            "help": "This turns the refresh on; default true when a tvdb or tmdb source is configured.",
+            "nullable": true
+          },
+          {
+            "name": "interval",
+            "min": 600,
+            "default": "1h",
+            "label": "Refresh interval",
+            "type": "duration",
+            "help": "This is the time between due-series sweeps. Default 1h, minimum 10m. Which series are due follows sonarr's ShouldRefreshSeries (continuing every 12h, ended monthly)."
+          },
+          {
+            "name": "per_run",
+            "min": 1,
+            "max": 2000,
+            "default": "50",
+            "label": "Series per refresh",
+            "type": "integer",
+            "help": "This caps the series one sweep refreshes. Default 50."
+          }
+        ]
+      },
+      {
+        "name": "lists",
+        "label": "Lists",
+        "type": "object",
+        "help": "This schedules Radarr collections and TMDb import lists.",
+        "nullable": true,
+        "fields": [
+          {
+            "name": "interval",
+            "min": 600,
+            "default": "24h",
+            "label": "Refresh interval",
+            "type": "duration",
+            "help": "This is the time between refreshes. Default 24h, like Radarr."
+          }
+        ]
+      }
+    ],
+    "notify": [
+      {
+        "name": "allow_hosts",
+        "label": "Allowed destination hosts",
+        "type": "list",
+        "help": "This lists the hosts (host or host:port) an installed notification may target. Each joins the gateway's allowlist. Empty: installed notifications are stored but never sent."
+      },
+      {
+        "name": "budget",
+        "label": "Budget",
+        "type": "string",
+        "help": "This names the budget every webhook request takes a token from (optional)."
+      },
+      {
+        "name": "retries",
+        "min": 0,
+        "max": 20,
+        "default": "5",
+        "label": "Retries",
+        "type": "integer",
+        "help": "This is how many times a failed delivery is retried. Default 5, 0 to 20.",
+        "nullable": true
+      },
+      {
+        "name": "poll",
+        "min": 1,
+        "max": 600,
+        "default": "15s",
+        "label": "Delivery check interval",
+        "type": "duration",
+        "help": "This is how often the notifier looks for new events and due deliveries. Default 15s, 1s to 10m."
+      },
+      {
+        "name": "targets",
+        "label": "Notification destinations",
+        "type": "keyed",
+        "help": "This lists webhook targets defined in the policy, by key.",
+        "fields": [
+          {
+            "name": "url",
+            "label": "Destination URL",
+            "type": "string",
+            "help": "This is where payloads are POSTed. Its host joins the gateway's allowlist."
+          },
+          {
+            "name": "views",
+            "label": "Sonarr/Radarr views",
+            "type": "list",
+            "help": "This lists the arr views (keys of views, or v/\u003cversion\u003e) whose arr-shaped payloads it gets."
+          },
+          {
+            "name": "native",
+            "label": "Send Theatarr events",
+            "type": "boolean",
+            "help": "This sends Theatarr's own per-version events (JSON, eventType theatarr.*)."
+          },
+          {
+            "name": "format",
+            "label": "Message format",
+            "type": "enum",
+            "enum": [
+              "discord"
+            ],
+            "help": "This is the message format: empty for the payloads above, or discord for Discord messages (the url is a Discord channel webhook): instant health and error alerts, the daily digest and request ready. A Discord target takes no views."
+          },
+          {
+            "name": "events",
+            "label": "Events",
+            "type": "list",
+            "enum": [
+              "grab",
+              "download",
+              "upgrade",
+              "rename",
+              "delete",
+              "health",
+              "health_restored",
+              "series_add",
+              "movie_added",
+              "manual_interaction_required",
+              "test",
+              "error",
+              "digest",
+              "request_ready"
+            ],
+            "help": "This limits what this target is sent to the events chosen. Empty: all."
+          },
+          {
+            "name": "versions",
+            "label": "Versions",
+            "type": "list",
+            "help": "This limits native events to these versions. Empty: all."
+          },
+          {
+            "name": "auth_header",
+            "path": "notify.targets.*.auth_header",
+            "label": "Authorization header",
+            "type": "secret",
+            "help": "Stored credential. Leave unchanged to keep the current value."
+          },
+          {
+            "name": "auth_header_env",
+            "label": "Authorization header environment variable fallback",
+            "advanced": true,
+            "type": "string",
+            "help": "This names an environment variable holding the Authorization header value, when the target needs one. Environment variable fallback."
+          }
+        ]
+      },
+      {
+        "name": "digest_at",
+        "default": "09:00",
+        "label": "Daily digest time",
+        "type": "string",
+        "help": "This is the local time (HH:MM, the container's TZ) the daily digest goes to Discord targets. Default 09:00."
+      }
+    ],
+    "playlists": [
+      {
+        "name": "enabled",
+        "label": "Enabled",
+        "type": "boolean",
+        "help": "This allows playlist writes in plex, together with library.enabled. Default false."
+      },
+      {
+        "name": "orders",
+        "label": "Watch orders",
+        "type": "list",
+        "enum": [
+          "release",
+          "watch",
+          "story"
+        ],
+        "help": "This lists the order kinds that get a playlist: release, watch, story. Default [watch, story]."
+      },
+      {
+        "name": "routes",
+        "default": "true",
+        "label": "Create alternate route playlists",
+        "type": "boolean",
+        "help": "This gives each alternate route of the watch order (Fate's routes) its own playlist. Default true.",
+        "nullable": true
+      },
+      {
+        "name": "skip_optional",
+        "label": "Skip optional",
+        "type": "boolean",
+        "help": "This leaves out optional rows (recaps, side stories, shorts). Default false."
+      },
+      {
+        "name": "name",
+        "label": "Playlist name template",
+        "type": "string",
+        "help": "This is the playlist title; {franchise} and {order} are replaced. Default \"{franchise} ({order})\"."
+      },
+      {
+        "name": "franchises",
+        "label": "Franchises",
+        "type": "list",
+        "help": "This limits the sync to these slugs; empty: every built franchise."
+      },
+      {
+        "name": "interval",
+        "min": 3600,
+        "default": "6h",
+        "label": "Sync interval",
+        "type": "duration",
+        "help": "This is how often theatarr serve syncs. Default 6h, minimum 1h."
+      }
+    ],
+    "provider_sync": [
+      {
+        "name": "interval",
+        "min": 900,
+        "default": "6h",
+        "label": "Sync interval",
+        "type": "duration",
+        "help": "This is the time between syncs. Default 6h, minimum 15m."
+      }
+    ],
+    "router": [
+      {
+        "name": "cached_only",
+        "default": "true",
+        "label": "Only add cached releases",
+        "type": "boolean",
+        "help": "This skips a provider where a release is known to be uncached (an earlier refusal, a cache check) and asks TorBox to add only if cached.",
+        "nullable": true
+      },
+      {
+        "name": "alldebrid_delete_uncached",
+        "label": "Delete uncached AllDebrid adds",
+        "type": "boolean",
+        "help": "This lets \"Only add cached releases\" delete an uncached AllDebrid add the router believes is its own. Default false: the add is kept, it finishes downloading on AllDebrid, and the next provider is tried."
+      },
+      {
+        "name": "cached_grace",
+        "min": 1,
+        "max": 30,
+        "default": "2s",
+        "label": "Cached download startup wait",
+        "advanced": true,
+        "type": "duration",
+        "help": "This is how long the router waits before reading a fresh Real-Debrid or AllDebrid add again when the first read shows it still converting or downloading (one re-read; on Real-Debrid also after selecting files), before it calls the add…"
+      },
+      {
+        "name": "stalled_after",
+        "min": 60,
+        "max": 86400,
+        "default": "10m",
+        "label": "Stalled download timeout",
+        "zero_allowed": true,
+        "type": "duration",
+        "help": "This fails a download still in state added (accepted, not ready, nothing fetched yet) this long after its add, as stalled (decypharr's remove_stalled_after): its hash is blocklisted for the version, our own Real-Debrid add is deleted,…",
+        "nullable": true
+      },
+      {
+        "name": "downloading_timeout",
+        "min": 3600,
+        "max": 604800,
+        "default": "24h",
+        "label": "No progress timeout",
+        "zero_allowed": true,
+        "type": "duration",
+        "help": "This fails a download in state downloading whose provider progress has not risen for this long (a dead swarm, a magnet that never leaves the provider's queue): its hash is blocklisted for the version, our own Real-Debrid add is deleted…",
+        "nullable": true
+      },
+      {
+        "name": "ready_timeout",
+        "min": 60,
+        "max": 604800,
+        "default": "6h",
+        "label": "Ready files timeout",
+        "type": "duration",
+        "help": "This fails a download still ready this long after ready_at, blocklists it and searches again. Default 6h, 1m to 7d. No torrent is deleted on the provider."
+      },
+      {
+        "name": "miss_ttl",
+        "min": 600,
+        "max": 604800,
+        "default": "6h",
+        "label": "Remember uncached results for",
+        "advanced": true,
+        "type": "duration",
+        "help": "This is how long a release missed on every provider stays a miss. Default 6h, 10m to 7d."
+      },
+      {
+        "name": "poll_interval",
+        "min": 15,
+        "max": 3600,
+        "default": "1m",
+        "label": "Download check interval",
+        "advanced": true,
+        "type": "duration",
+        "help": "This is how often added downloads are read back from their provider. Default 1m, 15s to 1h."
+      },
+      {
+        "name": "max_candidates",
+        "min": 1,
+        "max": 50,
+        "default": "5",
+        "label": "Maximum candidate releases",
+        "type": "integer",
+        "help": "This caps how many accepted releases of one search are tried, best first. Default 5, 1 to 50."
+      },
+      {
+        "name": "trackers",
+        "label": "Trackers",
+        "type": "list",
+        "help": "This lists public tracker announce URLs added to every debrid magnet. Default none: the magnet is bare. Each must be udp, http or https with no credentials, no query and a path of \"\" or /announce."
+      },
+      {
+        "name": "wanted",
+        "label": "Automatic wanted searches",
+        "type": "object",
+        "help": "This is the search loop for the active versions' missing and cutoff-unmet titles and episodes.",
+        "nullable": true,
+        "fields": [
+          {
+            "name": "enabled",
+            "default": "false",
+            "label": "Enabled",
+            "type": "boolean",
+            "help": "This turns the loop on. Default: on when some version is active, off otherwise.",
+            "nullable": true
+          },
+          {
+            "name": "interval",
+            "min": 300,
+            "max": 86400,
+            "default": "15m",
+            "label": "Search interval",
+            "type": "duration",
+            "help": "This is the time between rounds. Default 15m, 5m to 24h."
+          },
+          {
+            "name": "per_hour",
+            "min": 1,
+            "max": 200,
+            "default": "10",
+            "label": "Searches per hour",
+            "type": "integer",
+            "help": "This caps the loop's searches (one title, season or episode each) in any hour. Default 10, 1 to 200."
+          },
+          {
+            "name": "again_after",
+            "min": 3600,
+            "max": 2592000,
+            "default": "24h",
+            "label": "Wait before searching again",
+            "type": "duration",
+            "help": "This is how long an item waits before it is searched again. Default 24h, 1h to 30d."
+          },
+          {
+            "name": "missing",
+            "default": "true",
+            "label": "Search for missing files",
+            "type": "boolean",
+            "help": "This searches items with no file (default true). Which items with a file are searched for an upgrade is the upgrade search target below.",
+            "nullable": true
+          },
+          {
+            "name": "cutoff_unmet",
+            "label": "Upgrade search target",
+            "type": "enum",
+            "enum": [
+              "quality",
+              "score",
+              "off"
+            ],
+            "help": "This chooses automatic upgrade searches: quality, score or off."
+          }
+        ]
+      },
+      {
+        "name": "cache_evidence",
+        "label": "Provider cache results",
+        "type": "object",
+        "help": "This is what the router and the release views know about which providers hold a release cached.",
+        "nullable": true,
+        "fields": [
+          {
+            "name": "ttl",
+            "min": 3600,
+            "max": 604800,
+            "default": "24h",
+            "label": "Remember cached results for",
+            "type": "duration",
+            "help": "This is how long a provider's answer that a release is cached is remembered, per release and provider. Default 24h, 1h to 7d."
+          },
+          {
+            "name": "torbox_check",
+            "label": "Check TorBox cache",
+            "type": "object",
+            "help": "This asks TorBox, with our own key, whether the best releases of a search are cached.",
+            "nullable": true,
+            "fields": [
+              {
+                "name": "enabled",
+                "default": "true",
+                "label": "Enabled",
+                "type": "boolean",
+                "help": "This turns it on. Default true; it does nothing without a TorBox provider whose key is set.",
+                "nullable": true
+              },
+              {
+                "name": "top",
+                "min": 1,
+                "max": 100,
+                "default": "10",
+                "label": "Maximum releases checked per search",
+                "type": "integer",
+                "help": "This is how many hashes of one search are checked, best first. Default 10, 1 to 100."
+              },
+              {
+                "name": "per_hour",
+                "min": 1,
+                "max": 1000,
+                "default": "60",
+                "label": "Cache checks per hour",
+                "type": "integer",
+                "help": "This caps checkcached requests in any hour. Default 60, 1 to 1000."
+              }
+            ]
+          }
+        ]
+      }
+    ],
+    "shadow": [
+      {
+        "name": "import_interval",
+        "min": 300,
+        "default": "15m",
+        "label": "Sonarr/Radarr import interval",
+        "type": "duration",
+        "help": "This is how often the arr.import job reads the import.arr instances (incremental). Default 15m, minimum 5m."
+      },
+      {
+        "name": "rss_interval",
+        "min": 600,
+        "default": "15m",
+        "label": "RSS feed check interval",
+        "type": "duration",
+        "help": "This is how often the shadow.rss job reads the rss feeds of the shadow and active versions' indexers (it is also production rss for active versions). Default 15m, the arrs' default rss sync interval; minimum 10m."
+      },
+      {
+        "name": "rss",
+        "default": "true",
+        "label": "Check RSS feeds",
+        "type": "boolean",
+        "help": "This turns the shadow.rss job on or off. Default on.",
+        "nullable": true
+      },
+      {
+        "name": "search",
+        "default": "true",
+        "label": "Search after Sonarr/Radarr grabs",
+        "type": "boolean",
+        "help": "This turns our own search per arr grab on or off. Off, each grab is only decided. Default on.",
+        "nullable": true
+      },
+      {
+        "name": "searches_per_hour",
+        "min": 1,
+        "max": 200,
+        "default": "20",
+        "label": "Searches per hour",
+        "type": "integer",
+        "help": "This caps our shadow searches (one per title, every indexer of its versions) per clock hour. A grab over the cap waits for the next hour. Default 20, 1 to 200."
+      },
+      {
+        "name": "search_reuse",
+        "min": 60,
+        "max": 86400,
+        "default": "6h",
+        "label": "Reuse search results for",
+        "type": "duration",
+        "help": "This is how long one title's search results serve later grabs of the same title (the other version's arr grabs the same movie). Default 6h, at most 24h."
+      },
+      {
+        "name": "keep_results",
+        "min": 1,
+        "max": 50,
+        "default": "10",
+        "label": "Results to keep per grab",
+        "type": "integer",
+        "help": "This is how many decided search results are stored per grab (best first), besides the arr's release. Default 10, 1 to 50."
+      },
+      {
+        "name": "link_window",
+        "min": 3600,
+        "max": 604800,
+        "default": "24h",
+        "label": "Wait for matching Sonarr/Radarr grabs",
+        "type": "duration",
+        "help": "This is how long an rss pick waits for an arr grab of the same version before it counts as \"we'd grab, arr didn't\". Default 24h, 1h to 7 days."
+      }
+    ],
+    "torrents": [
+      {
+        "name": "scan_roots",
+        "label": "Folders to scan",
+        "type": "list",
+        "help": "This lists library roots other tools manage. The usage check walks them for symlinks into the debrid mount (library.mount), reading only the link targets, never the mount, so a torrent such a library uses is not offered as unused."
+      },
+      {
+        "name": "backup",
+        "label": "Backup",
+        "type": "object",
+        "help": "This schedules backups of the provider torrent lists. Off unless backup.every is set.",
+        "fields": [
+          {
+            "name": "every",
+            "min": 3600,
+            "default": "0s",
+            "label": "Backup interval",
+            "zero_allowed": true,
+            "type": "duration",
+            "help": "This is the interval of scheduled backups; 0 (the default) is off. Minimum 1h."
+          },
+          {
+            "name": "keep",
+            "min": 1,
+            "max": 1000,
+            "default": "30",
+            "label": "Backups to keep",
+            "type": "integer",
+            "help": "This is how many backups are kept (scheduled, by hand and before a delete alike); those from the last week are kept besides. Default 30."
+          }
+        ]
+      }
+    ],
+    "ui": [
+      {
+        "name": "images",
+        "label": "Images",
+        "type": "object",
+        "help": "This configures the image cache on disk.",
+        "nullable": true,
+        "fields": [
+          {
+            "name": "dir",
+            "label": "Folder",
+            "type": "string",
+            "help": "This is the cache directory, absolute. Default: images next to the database (/data/images in the container)."
+          },
+          {
+            "name": "max_bytes",
+            "min": 16777216,
+            "default": "2GiB",
+            "label": "Maximum size",
+            "type": "bytes",
+            "help": "This caps the cache; the least recently used files go first. Default 2GiB, minimum 16MiB."
+          },
+          {
+            "name": "original",
+            "label": "Allow original-size images",
+            "type": "boolean",
+            "help": "This allows the \"original\" size (full-resolution files, often several MB). Default false."
+          }
+        ]
+      }
+    ]
+  },
+  "indexers": {
+    "kinds": [
+      "torznab",
+      "dmm",
+      "torrentio",
+      "zilean",
+      "seadex",
+      "cardigann"
+    ],
+    "record": [
+      {
+        "name": "enabled",
+        "type": "boolean",
+        "help": "Disabled records stay validated but are not used. New records default to disabled."
+      },
+      {
+        "name": "priority",
+        "type": "integer",
+        "help": "Search order; lower numbers are searched first. Default 0."
+      },
+      {
+        "name": "secret",
+        "type": "secret",
+        "help": "API key or token. Write-only: responses show secret_set. Omit to keep the stored value; clear_secret: true removes it."
+      },
+      {
+        "name": "clear_secret",
+        "type": "boolean",
+        "help": "Remove the stored credential."
+      }
+    ],
+    "config": [
+      {
+        "name": "kind",
+        "type": "enum",
+        "required": true,
+        "enum": [
+          "torznab",
+          "dmm",
+          "torrentio",
+          "zilean",
+          "seadex",
+          "cardigann"
+        ],
+        "help": "Adapter: torznab (Prowlarr feeds), dmm, torrentio, zilean, seadex, or cardigann (a catalog definition run natively)."
+      },
+      {
+        "name": "url",
+        "type": "string",
+        "required": true,
+        "help": "Endpoint URL. Every outbound URL is configured; nothing has a default."
+      },
+      {
+        "name": "privacy",
+        "type": "enum",
+        "enum": [
+          "public",
+          "private",
+          "semi-private"
+        ],
+        "help": "A label for badges, filters and sorting. Unset shows as private, except on the built-in public sources (Torrentio, DMM, Zilean, SeaDex), where it shows as public."
+      },
+      {
+        "name": "providers",
+        "type": "list",
+        "help": "Providers this indexer's releases may go to (provider keys); empty means every provider of the library. The TorBox cache check only sends its hashes when TorBox is allowed."
+      },
+      {
+        "name": "budget",
+        "type": "string",
+        "help": "Key of a budget shared by the sources that name it."
+      },
+      {
+        "name": "page_cap",
+        "type": "integer",
+        "help": "Pages per search; 0 means no cap."
+      },
+      {
+        "name": "min_seeders",
+        "type": "integer",
+        "help": "Torrent minimum; default 1 (leave empty), 0 disables the check.",
+        "nullable": true
+      },
+      {
+        "name": "multi_languages",
+        "type": "list",
+        "help": "Languages a MULTI release holds, by arr language name."
+      },
+      {
+        "name": "arr_names",
+        "type": "list",
+        "help": "Other names for this indexer, as the arrs' history or a release push gives them (e.g. \"DMM RD (Prowlarr)\"); matched without regard to case."
+      },
+      {
+        "name": "proxy",
+        "type": "string",
+        "help": "Optional egress proxy (http:// or socks5://); the VPN guard checks the exit through it."
+      },
+      {
+        "name": "seadex",
+        "type": "object",
+        "kinds": [
+          "seadex"
+        ],
+        "help": "SeaDex scoring.",
+        "fields": [
+          {
+            "name": "best",
+            "type": "integer",
+            "help": "Weight of entries marked best. Default 100.",
+            "nullable": true
+          },
+          {
+            "name": "dual_audio",
+            "type": "integer",
+            "help": "Weight of dual-audio entries."
+          },
+          {
+            "name": "size_weight",
+            "type": "integer",
+            "help": "Below 0 favours smaller entries, above 0 larger ones."
+          },
+          {
+            "name": "exclude_tags",
+            "type": "list",
+            "help": "releases.moe tags that drop an entry."
+          },
+          {
+            "name": "tags",
+            "type": "map",
+            "help": "Weights by releases.moe tag."
+          }
+        ]
+      },
+      {
+        "name": "definition",
+        "type": "string",
+        "kinds": [
+          "cardigann"
+        ],
+        "help": "Catalog id of the definition this indexer runs (GET /cardigann/definitions)."
+      },
+      {
+        "name": "settings",
+        "type": "string_map",
+        "kinds": [
+          "cardigann"
+        ],
+        "help": "The definition's non-secret settings, name=value. Secret ones (password, cookie, API key) go in the credential as a JSON object."
+      },
+      {
+        "name": "hosts",
+        "type": "list",
+        "kinds": [
+          "cardigann"
+        ],
+        "help": "Hosts other than the site's that the definition reaches (the catalog lists them); they join the gateway's allowlist."
+      }
+    ],
+    "tests": true
+  },
+  "providers": {
+    "kinds": [
+      "realdebrid",
+      "alldebrid",
+      "torbox"
+    ],
+    "record": [
+      {
+        "name": "enabled",
+        "type": "boolean",
+        "help": "Disabled records stay validated but are not used. New records default to disabled."
+      },
+      {
+        "name": "secret",
+        "type": "secret",
+        "help": "API key or token. Write-only: responses show secret_set. Omit to keep the stored value; clear_secret: true removes it."
+      },
+      {
+        "name": "clear_secret",
+        "type": "boolean",
+        "help": "Remove the stored credential."
+      },
+      {
+        "name": "orphan_active_downloads",
+        "type": "boolean",
+        "required": true,
+        "help": "Required on provider updates, deletes and imports: true confirms that disabling or removing a provider fails its active downloads; false refuses such a save."
+      }
+    ],
+    "config": [
+      {
+        "name": "kind",
+        "type": "enum",
+        "required": true,
+        "enum": [
+          "realdebrid",
+          "alldebrid",
+          "torbox"
+        ],
+        "help": "Debrid service."
+      },
+      {
+        "name": "order",
+        "type": "integer",
+        "required": true,
+        "help": "Fallback rank, 1 first, unique. Libraries list providers in this order."
+      },
+      {
+        "name": "url",
+        "type": "string",
+        "required": true,
+        "help": "Provider API base URL."
+      },
+      {
+        "name": "budget",
+        "type": "string",
+        "help": "Key of a budget shared by the sources that name it."
+      },
+      {
+        "name": "pacing",
+        "type": "object",
+        "help": "Limits on adds.",
+        "fields": [
+          {
+            "name": "adds_per_minute",
+            "type": "integer",
+            "help": "Adds per minute."
+          },
+          {
+            "name": "uncached_adds_per_hour",
+            "type": "integer",
+            "help": "Uncached adds per hour."
+          },
+          {
+            "name": "cooldown",
+            "type": "duration",
+            "help": "Pause after a refusal."
+          },
+          {
+            "name": "backoff_max",
+            "type": "duration",
+            "help": "Longest back-off after failures."
+          },
+          {
+            "name": "min_gap",
+            "type": "duration",
+            "help": "Least time between two adds. Default: Real-Debrid 20s (measured), none elsewhere; 0s off, at most 10m.",
+            "nullable": true
+          }
+        ]
+      },
+      {
+        "name": "stalled_after",
+        "type": "duration",
+        "help": "This provider's stall timeout (router.stalled_after). Default: AllDebrid at least 25m (healthy uncached jobs sit at zero for about 10 minutes), the others the router's value; 0s off, else 1m to 24h.",
+        "nullable": true
+      },
+      {
+        "name": "magnet_limit",
+        "type": "integer",
+        "kinds": [
+          "alldebrid"
+        ],
+        "help": "How many magnets the account may hold, for Admin › Torrents and a health warning at 90%. Report only. Default 5000, 1 to 1000000.",
+        "nullable": true
+      }
+    ],
+    "tests": true
+  },
+  "budgets": {
+    "record": [],
+    "config": [
+      {
+        "name": "requests",
+        "type": "integer",
+        "required": true,
+        "help": "Requests per period (token refill)."
+      },
+      {
+        "name": "per",
+        "type": "duration",
+        "required": true,
+        "help": "The period, such as 1m or 1h."
+      },
+      {
+        "name": "burst",
+        "type": "integer",
+        "help": "Bucket size; default 1."
+      },
+      {
+        "name": "hourly",
+        "type": "integer",
+        "help": "Hard cap per UTC hour; 0 none."
+      },
+      {
+        "name": "daily",
+        "type": "integer",
+        "help": "Hard cap per UTC day; 0 none, not below hourly."
+      }
+    ],
+    "tests": false
+  },
+  "rules": [
+    "Every write sends generation (from the last read); a stale generation answers 409.",
+    "Unknown fields are refused. Global switches, library modes, views (/settings/view-bindings) and the other policy sections (/settings/sections) have their own settings editors and confirmations.",
+    "Secrets are write-only; *_env names are import-only.",
+    "Tests make outbound calls through the gateway (configured VPN requirements, budgets, back-offs); they never save or enable a source. No egress section turns the VPN guard off; require_vpn_for: [] monitors only; omitted require_vpn_for defaults to [indexers].",
+    "Testing changes to a saved source at a new scheme, host or port needs secret again; the stored credential only goes to the saved address."
+  ]
+}

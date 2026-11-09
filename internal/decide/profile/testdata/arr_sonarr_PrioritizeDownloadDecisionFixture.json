@@ -1,0 +1,5831 @@
+{
+ "source": "Sonarr src/NzbDrone.Core.Test/DecisionEngineTests/PrioritizeDownloadDecisionFixture.cs @ cab419a",
+ "cases": [
+  {
+   "test": "should_put_reals_before_non_reals",
+   "spec": "Prioritize",
+   "profile": {},
+   "definitions": [
+    {
+     "quality": "Unknown",
+     "min": null,
+     "max": null,
+     "preferred": null
+    },
+    {
+     "quality": "SDTV",
+     "min": null,
+     "max": null,
+     "preferred": null
+    },
+    {
+     "quality": "WEBRip-480p",
+     "min": null,
+     "max": null,
+     "preferred": null
+    },
+    {
+     "quality": "WEBDL-480p",
+     "min": null,
+     "max": null,
+     "preferred": null
+    },
+    {
+     "quality": "DVD",
+     "min": null,
+     "max": null,
+     "preferred": null
+    },
+    {
+     "quality": "Bluray-480p",
+     "min": null,
+     "max": null,
+     "preferred": null
+    },
+    {
+     "quality": "Bluray-576p",
+     "min": null,
+     "max": null,
+     "preferred": null
+    },
+    {
+     "quality": "HDTV-720p",
+     "min": null,
+     "max": null,
+     "preferred": null
+    },
+    {
+     "quality": "WEBRip-720p",
+     "min": null,
+     "max": null,
+     "preferred": null
+    },
+    {
+     "quality": "WEBDL-720p",
+     "min": null,
+     "max": null,
+     "preferred": null
+    },
+    {
+     "quality": "Bluray-720p",
+     "min": null,
+     "max": null,
+     "preferred": null
+    },
+    {
+     "quality": "Bluray-1080p",
+     "min": null,
+     "max": null,
+     "preferred": null
+    },
+    {
+     "quality": "HDTV-1080p",
+     "min": null,
+     "max": null,
+     "preferred": null
+    },
+    {
+     "quality": "WEBRip-1080p",
+     "min": null,
+     "max": null,
+     "preferred": null
+    },
+    {
+     "quality": "WEBDL-1080p",
+     "min": null,
+     "max": null,
+     "preferred": null
+    },
+    {
+     "quality": "Raw-HD",
+     "min": null,
+     "max": null,
+     "preferred": null
+    },
+    {
+     "quality": "HDTV-2160p",
+     "min": null,
+     "max": null,
+     "preferred": null
+    },
+    {
+     "quality": "WEBRip-2160p",
+     "min": null,
+     "max": null,
+     "preferred": null
+    },
+    {
+     "quality": "WEBDL-2160p",
+     "min": null,
+     "max": null,
+     "preferred": null
+    },
+    {
+     "quality": "Bluray-2160p",
+     "min": null,
+     "max": null,
+     "preferred": null
+    },
+    {
+     "quality": "Bluray-1080p Remux",
+     "min": null,
+     "max": null,
+     "preferred": null
+    },
+    {
+     "quality": "Bluray-2160p Remux",
+     "min": null,
+     "max": null,
+     "preferred": null
+    }
+   ],
+   "config": {
+    "preferredProtocol": "usenet"
+   },
+   "media": {
+    "title": "Title1",
+    "runtime": 60
+   },
+   "releases": [
+    {
+     "release": {
+      "quality": {
+       "quality": "HDTV-720p",
+       "version": 1
+      },
+      "languages": [
+       "English"
+      ],
+      "ageHours": 0,
+      "size": 0,
+      "protocol": "usenet",
+      "indexerPriority": 25
+     },
+     "episodes": [
+      {
+       "season": 1,
+       "episode": 1
+      }
+     ]
+    },
+    {
+     "release": {
+      "quality": {
+       "quality": "HDTV-720p",
+       "version": 1,
+       "real": 1
+      },
+      "languages": [
+       "English"
+      ],
+      "ageHours": 0,
+      "size": 0,
+      "protocol": "usenet",
+      "indexerPriority": 25
+     },
+     "episodes": [
+      {
+       "season": 1,
+       "episode": 1
+      }
+     ]
+    }
+   ],
+   "expect": {
+    "first": 1
+   },
+   "flavour": "sonarr",
+   "fixture": "PrioritizeDownloadDecisionFixture"
+  },
+  {
+   "test": "should_put_propers_before_non_propers",
+   "spec": "Prioritize",
+   "profile": {},
+   "definitions": [
+    {
+     "quality": "Unknown",
+     "min": null,
+     "max": null,
+     "preferred": null
+    },
+    {
+     "quality": "SDTV",
+     "min": null,
+     "max": null,
+     "preferred": null
+    },
+    {
+     "quality": "WEBRip-480p",
+     "min": null,
+     "max": null,
+     "preferred": null
+    },
+    {
+     "quality": "WEBDL-480p",
+     "min": null,
+     "max": null,
+     "preferred": null
+    },
+    {
+     "quality": "DVD",
+     "min": null,
+     "max": null,
+     "preferred": null
+    },
+    {
+     "quality": "Bluray-480p",
+     "min": null,
+     "max": null,
+     "preferred": null
+    },
+    {
+     "quality": "Bluray-576p",
+     "min": null,
+     "max": null,
+     "preferred": null
+    },
+    {
+     "quality": "HDTV-720p",
+     "min": null,
+     "max": null,
+     "preferred": null
+    },
+    {
+     "quality": "WEBRip-720p",
+     "min": null,
+     "max": null,
+     "preferred": null
+    },
+    {
+     "quality": "WEBDL-720p",
+     "min": null,
+     "max": null,
+     "preferred": null
+    },
+    {
+     "quality": "Bluray-720p",
+     "min": null,
+     "max": null,
+     "preferred": null
+    },
+    {
+     "quality": "Bluray-1080p",
+     "min": null,
+     "max": null,
+     "preferred": null
+    },
+    {
+     "quality": "HDTV-1080p",
+     "min": null,
+     "max": null,
+     "preferred": null
+    },
+    {
+     "quality": "WEBRip-1080p",
+     "min": null,
+     "max": null,
+     "preferred": null
+    },
+    {
+     "quality": "WEBDL-1080p",
+     "min": null,
+     "max": null,
+     "preferred": null
+    },
+    {
+     "quality": "Raw-HD",
+     "min": null,
+     "max": null,
+     "preferred": null
+    },
+    {
+     "quality": "HDTV-2160p",
+     "min": null,
+     "max": null,
+     "preferred": null
+    },
+    {
+     "quality": "WEBRip-2160p",
+     "min": null,
+     "max": null,
+     "preferred": null
+    },
+    {
+     "quality": "WEBDL-2160p",
+     "min": null,
+     "max": null,
+     "preferred": null
+    },
+    {
+     "quality": "Bluray-2160p",
+     "min": null,
+     "max": null,
+     "preferred": null
+    },
+    {
+     "quality": "Bluray-1080p Remux",
+     "min": null,
+     "max": null,
+     "preferred": null
+    },
+    {
+     "quality": "Bluray-2160p Remux",
+     "min": null,
+     "max": null,
+     "preferred": null
+    }
+   ],
+   "config": {
+    "preferredProtocol": "usenet"
+   },
+   "media": {
+    "title": "Title1",
+    "runtime": 60
+   },
+   "releases": [
+    {
+     "release": {
+      "quality": {
+       "quality": "HDTV-720p",
+       "version": 1
+      },
+      "languages": [
+       "English"
+      ],
+      "ageHours": 0,
+      "size": 0,
+      "protocol": "usenet",
+      "indexerPriority": 25
+     },
+     "episodes": [
+      {
+       "season": 1,
+       "episode": 1
+      }
+     ]
+    },
+    {
+     "release": {
+      "quality": {
+       "quality": "HDTV-720p",
+       "version": 2
+      },
+      "languages": [
+       "English"
+      ],
+      "ageHours": 0,
+      "size": 0,
+      "protocol": "usenet",
+      "indexerPriority": 25
+     },
+     "episodes": [
+      {
+       "season": 1,
+       "episode": 1
+      }
+     ]
+    }
+   ],
+   "expect": {
+    "first": 1
+   },
+   "flavour": "sonarr",
+   "fixture": "PrioritizeDownloadDecisionFixture"
+  },
+  {
+   "test": "should_put_higher_quality_before_lower",
+   "spec": "Prioritize",
+   "profile": {},
+   "definitions": [
+    {
+     "quality": "Unknown",
+     "min": null,
+     "max": null,
+     "preferred": null
+    },
+    {
+     "quality": "SDTV",
+     "min": null,
+     "max": null,
+     "preferred": null
+    },
+    {
+     "quality": "WEBRip-480p",
+     "min": null,
+     "max": null,
+     "preferred": null
+    },
+    {
+     "quality": "WEBDL-480p",
+     "min": null,
+     "max": null,
+     "preferred": null
+    },
+    {
+     "quality": "DVD",
+     "min": null,
+     "max": null,
+     "preferred": null
+    },
+    {
+     "quality": "Bluray-480p",
+     "min": null,
+     "max": null,
+     "preferred": null
+    },
+    {
+     "quality": "Bluray-576p",
+     "min": null,
+     "max": null,
+     "preferred": null
+    },
+    {
+     "quality": "HDTV-720p",
+     "min": null,
+     "max": null,
+     "preferred": null
+    },
+    {
+     "quality": "WEBRip-720p",
+     "min": null,
+     "max": null,
+     "preferred": null
+    },
+    {
+     "quality": "WEBDL-720p",
+     "min": null,
+     "max": null,
+     "preferred": null
+    },
+    {
+     "quality": "Bluray-720p",
+     "min": null,
+     "max": null,
+     "preferred": null
+    },
+    {
+     "quality": "Bluray-1080p",
+     "min": null,
+     "max": null,
+     "preferred": null
+    },
+    {
+     "quality": "HDTV-1080p",
+     "min": null,
+     "max": null,
+     "preferred": null
+    },
+    {
+     "quality": "WEBRip-1080p",
+     "min": null,
+     "max": null,
+     "preferred": null
+    },
+    {
+     "quality": "WEBDL-1080p",
+     "min": null,
+     "max": null,
+     "preferred": null
+    },
+    {
+     "quality": "Raw-HD",
+     "min": null,
+     "max": null,
+     "preferred": null
+    },
+    {
+     "quality": "HDTV-2160p",
+     "min": null,
+     "max": null,
+     "preferred": null
+    },
+    {
+     "quality": "WEBRip-2160p",
+     "min": null,
+     "max": null,
+     "preferred": null
+    },
+    {
+     "quality": "WEBDL-2160p",
+     "min": null,
+     "max": null,
+     "preferred": null
+    },
+    {
+     "quality": "Bluray-2160p",
+     "min": null,
+     "max": null,
+     "preferred": null
+    },
+    {
+     "quality": "Bluray-1080p Remux",
+     "min": null,
+     "max": null,
+     "preferred": null
+    },
+    {
+     "quality": "Bluray-2160p Remux",
+     "min": null,
+     "max": null,
+     "preferred": null
+    }
+   ],
+   "config": {
+    "preferredProtocol": "usenet"
+   },
+   "media": {
+    "title": "Title1",
+    "runtime": 60
+   },
+   "releases": [
+    {
+     "release": {
+      "quality": {
+       "quality": "SDTV"
+      },
+      "languages": [
+       "English"
+      ],
+      "ageHours": 0,
+      "size": 0,
+      "protocol": "usenet",
+      "indexerPriority": 25
+     },
+     "episodes": [
+      {
+       "season": 1,
+       "episode": 1
+      }
+     ]
+    },
+    {
+     "release": {
+      "quality": {
+       "quality": "HDTV-720p"
+      },
+      "languages": [
+       "English"
+      ],
+      "ageHours": 0,
+      "size": 0,
+      "protocol": "usenet",
+      "indexerPriority": 25
+     },
+     "episodes": [
+      {
+       "season": 1,
+       "episode": 1
+      }
+     ]
+    }
+   ],
+   "expect": {
+    "first": 1
+   },
+   "flavour": "sonarr",
+   "fixture": "PrioritizeDownloadDecisionFixture"
+  },
+  {
+   "test": "should_order_by_lowest_number_of_episodes",
+   "spec": "Prioritize",
+   "profile": {},
+   "definitions": [
+    {
+     "quality": "Unknown",
+     "min": null,
+     "max": null,
+     "preferred": null
+    },
+    {
+     "quality": "SDTV",
+     "min": null,
+     "max": null,
+     "preferred": null
+    },
+    {
+     "quality": "WEBRip-480p",
+     "min": null,
+     "max": null,
+     "preferred": null
+    },
+    {
+     "quality": "WEBDL-480p",
+     "min": null,
+     "max": null,
+     "preferred": null
+    },
+    {
+     "quality": "DVD",
+     "min": null,
+     "max": null,
+     "preferred": null
+    },
+    {
+     "quality": "Bluray-480p",
+     "min": null,
+     "max": null,
+     "preferred": null
+    },
+    {
+     "quality": "Bluray-576p",
+     "min": null,
+     "max": null,
+     "preferred": null
+    },
+    {
+     "quality": "HDTV-720p",
+     "min": null,
+     "max": null,
+     "preferred": null
+    },
+    {
+     "quality": "WEBRip-720p",
+     "min": null,
+     "max": null,
+     "preferred": null
+    },
+    {
+     "quality": "WEBDL-720p",
+     "min": null,
+     "max": null,
+     "preferred": null
+    },
+    {
+     "quality": "Bluray-720p",
+     "min": null,
+     "max": null,
+     "preferred": null
+    },
+    {
+     "quality": "Bluray-1080p",
+     "min": null,
+     "max": null,
+     "preferred": null
+    },
+    {
+     "quality": "HDTV-1080p",
+     "min": null,
+     "max": null,
+     "preferred": null
+    },
+    {
+     "quality": "WEBRip-1080p",
+     "min": null,
+     "max": null,
+     "preferred": null
+    },
+    {
+     "quality": "WEBDL-1080p",
+     "min": null,
+     "max": null,
+     "preferred": null
+    },
+    {
+     "quality": "Raw-HD",
+     "min": null,
+     "max": null,
+     "preferred": null
+    },
+    {
+     "quality": "HDTV-2160p",
+     "min": null,
+     "max": null,
+     "preferred": null
+    },
+    {
+     "quality": "WEBRip-2160p",
+     "min": null,
+     "max": null,
+     "preferred": null
+    },
+    {
+     "quality": "WEBDL-2160p",
+     "min": null,
+     "max": null,
+     "preferred": null
+    },
+    {
+     "quality": "Bluray-2160p",
+     "min": null,
+     "max": null,
+     "preferred": null
+    },
+    {
+     "quality": "Bluray-1080p Remux",
+     "min": null,
+     "max": null,
+     "preferred": null
+    },
+    {
+     "quality": "Bluray-2160p Remux",
+     "min": null,
+     "max": null,
+     "preferred": null
+    }
+   ],
+   "config": {
+    "preferredProtocol": "usenet"
+   },
+   "media": {
+    "title": "Title1",
+    "runtime": 60
+   },
+   "releases": [
+    {
+     "release": {
+      "quality": {
+       "quality": "HDTV-720p"
+      },
+      "languages": [
+       "English"
+      ],
+      "ageHours": 0,
+      "size": 0,
+      "protocol": "usenet",
+      "indexerPriority": 25
+     },
+     "episodes": [
+      {
+       "season": 1,
+       "episode": 2
+      }
+     ]
+    },
+    {
+     "release": {
+      "quality": {
+       "quality": "HDTV-720p"
+      },
+      "languages": [
+       "English"
+      ],
+      "ageHours": 0,
+      "size": 0,
+      "protocol": "usenet",
+      "indexerPriority": 25
+     },
+     "episodes": [
+      {
+       "season": 1,
+       "episode": 1
+      }
+     ]
+    }
+   ],
+   "expect": {
+    "first": 1
+   },
+   "flavour": "sonarr",
+   "fixture": "PrioritizeDownloadDecisionFixture"
+  },
+  {
+   "test": "should_order_by_lowest_number_of_episodes_with_multiple_episodes",
+   "spec": "Prioritize",
+   "profile": {},
+   "definitions": [
+    {
+     "quality": "Unknown",
+     "min": null,
+     "max": null,
+     "preferred": null
+    },
+    {
+     "quality": "SDTV",
+     "min": null,
+     "max": null,
+     "preferred": null
+    },
+    {
+     "quality": "WEBRip-480p",
+     "min": null,
+     "max": null,
+     "preferred": null
+    },
+    {
+     "quality": "WEBDL-480p",
+     "min": null,
+     "max": null,
+     "preferred": null
+    },
+    {
+     "quality": "DVD",
+     "min": null,
+     "max": null,
+     "preferred": null
+    },
+    {
+     "quality": "Bluray-480p",
+     "min": null,
+     "max": null,
+     "preferred": null
+    },
+    {
+     "quality": "Bluray-576p",
+     "min": null,
+     "max": null,
+     "preferred": null
+    },
+    {
+     "quality": "HDTV-720p",
+     "min": null,
+     "max": null,
+     "preferred": null
+    },
+    {
+     "quality": "WEBRip-720p",
+     "min": null,
+     "max": null,
+     "preferred": null
+    },
+    {
+     "quality": "WEBDL-720p",
+     "min": null,
+     "max": null,
+     "preferred": null
+    },
+    {
+     "quality": "Bluray-720p",
+     "min": null,
+     "max": null,
+     "preferred": null
+    },
+    {
+     "quality": "Bluray-1080p",
+     "min": null,
+     "max": null,
+     "preferred": null
+    },
+    {
+     "quality": "HDTV-1080p",
+     "min": null,
+     "max": null,
+     "preferred": null
+    },
+    {
+     "quality": "WEBRip-1080p",
+     "min": null,
+     "max": null,
+     "preferred": null
+    },
+    {
+     "quality": "WEBDL-1080p",
+     "min": null,
+     "max": null,
+     "preferred": null
+    },
+    {
+     "quality": "Raw-HD",
+     "min": null,
+     "max": null,
+     "preferred": null
+    },
+    {
+     "quality": "HDTV-2160p",
+     "min": null,
+     "max": null,
+     "preferred": null
+    },
+    {
+     "quality": "WEBRip-2160p",
+     "min": null,
+     "max": null,
+     "preferred": null
+    },
+    {
+     "quality": "WEBDL-2160p",
+     "min": null,
+     "max": null,
+     "preferred": null
+    },
+    {
+     "quality": "Bluray-2160p",
+     "min": null,
+     "max": null,
+     "preferred": null
+    },
+    {
+     "quality": "Bluray-1080p Remux",
+     "min": null,
+     "max": null,
+     "preferred": null
+    },
+    {
+     "quality": "Bluray-2160p Remux",
+     "min": null,
+     "max": null,
+     "preferred": null
+    }
+   ],
+   "config": {
+    "preferredProtocol": "usenet"
+   },
+   "media": {
+    "title": "Title1",
+    "runtime": 60
+   },
+   "releases": [
+    {
+     "release": {
+      "quality": {
+       "quality": "HDTV-720p"
+      },
+      "languages": [
+       "English"
+      ],
+      "ageHours": 0,
+      "size": 0,
+      "protocol": "usenet",
+      "indexerPriority": 25
+     },
+     "episodes": [
+      {
+       "season": 1,
+       "episode": 2
+      },
+      {
+       "season": 1,
+       "episode": 3
+      }
+     ]
+    },
+    {
+     "release": {
+      "quality": {
+       "quality": "HDTV-720p"
+      },
+      "languages": [
+       "English"
+      ],
+      "ageHours": 0,
+      "size": 0,
+      "protocol": "usenet",
+      "indexerPriority": 25
+     },
+     "episodes": [
+      {
+       "season": 1,
+       "episode": 1
+      },
+      {
+       "season": 1,
+       "episode": 2
+      }
+     ]
+    }
+   ],
+   "expect": {
+    "first": 1
+   },
+   "flavour": "sonarr",
+   "fixture": "PrioritizeDownloadDecisionFixture"
+  },
+  {
+   "test": "should_order_by_age_then_largest_rounded_to_200mb",
+   "spec": "Prioritize",
+   "profile": {},
+   "definitions": [
+    {
+     "quality": "Unknown",
+     "min": null,
+     "max": null,
+     "preferred": null
+    },
+    {
+     "quality": "SDTV",
+     "min": null,
+     "max": null,
+     "preferred": null
+    },
+    {
+     "quality": "WEBRip-480p",
+     "min": null,
+     "max": null,
+     "preferred": null
+    },
+    {
+     "quality": "WEBDL-480p",
+     "min": null,
+     "max": null,
+     "preferred": null
+    },
+    {
+     "quality": "DVD",
+     "min": null,
+     "max": null,
+     "preferred": null
+    },
+    {
+     "quality": "Bluray-480p",
+     "min": null,
+     "max": null,
+     "preferred": null
+    },
+    {
+     "quality": "Bluray-576p",
+     "min": null,
+     "max": null,
+     "preferred": null
+    },
+    {
+     "quality": "HDTV-720p",
+     "min": null,
+     "max": null,
+     "preferred": null
+    },
+    {
+     "quality": "WEBRip-720p",
+     "min": null,
+     "max": null,
+     "preferred": null
+    },
+    {
+     "quality": "WEBDL-720p",
+     "min": null,
+     "max": null,
+     "preferred": null
+    },
+    {
+     "quality": "Bluray-720p",
+     "min": null,
+     "max": null,
+     "preferred": null
+    },
+    {
+     "quality": "Bluray-1080p",
+     "min": null,
+     "max": null,
+     "preferred": null
+    },
+    {
+     "quality": "HDTV-1080p",
+     "min": null,
+     "max": null,
+     "preferred": null
+    },
+    {
+     "quality": "WEBRip-1080p",
+     "min": null,
+     "max": null,
+     "preferred": null
+    },
+    {
+     "quality": "WEBDL-1080p",
+     "min": null,
+     "max": null,
+     "preferred": null
+    },
+    {
+     "quality": "Raw-HD",
+     "min": null,
+     "max": null,
+     "preferred": null
+    },
+    {
+     "quality": "HDTV-2160p",
+     "min": null,
+     "max": null,
+     "preferred": null
+    },
+    {
+     "quality": "WEBRip-2160p",
+     "min": null,
+     "max": null,
+     "preferred": null
+    },
+    {
+     "quality": "WEBDL-2160p",
+     "min": null,
+     "max": null,
+     "preferred": null
+    },
+    {
+     "quality": "Bluray-2160p",
+     "min": null,
+     "max": null,
+     "preferred": null
+    },
+    {
+     "quality": "Bluray-1080p Remux",
+     "min": null,
+     "max": null,
+     "preferred": null
+    },
+    {
+     "quality": "Bluray-2160p Remux",
+     "min": null,
+     "max": null,
+     "preferred": null
+    }
+   ],
+   "config": {
+    "preferredProtocol": "usenet"
+   },
+   "media": {
+    "title": "Title1",
+    "runtime": 60
+   },
+   "releases": [
+    {
+     "release": {
+      "quality": {
+       "quality": "SDTV"
+      },
+      "languages": [
+       "English"
+      ],
+      "ageHours": 24,
+      "size": 104857600,
+      "protocol": "usenet",
+      "indexerPriority": 25
+     },
+     "episodes": [
+      {
+       "season": 1,
+       "episode": 1
+      }
+     ]
+    },
+    {
+     "release": {
+      "quality": {
+       "quality": "HDTV-720p"
+      },
+      "languages": [
+       "English"
+      ],
+      "ageHours": 24000,
+      "size": 1258291200,
+      "protocol": "usenet",
+      "indexerPriority": 25
+     },
+     "episodes": [
+      {
+       "season": 1,
+       "episode": 1
+      }
+     ]
+    },
+    {
+     "release": {
+      "quality": {
+       "quality": "HDTV-720p"
+      },
+      "languages": [
+       "English"
+      ],
+      "ageHours": 240,
+      "size": 1310720000,
+      "protocol": "usenet",
+      "indexerPriority": 25
+     },
+     "episodes": [
+      {
+       "season": 1,
+       "episode": 1
+      }
+     ]
+    },
+    {
+     "release": {
+      "quality": {
+       "quality": "HDTV-720p"
+      },
+      "languages": [
+       "English"
+      ],
+      "ageHours": 24,
+      "size": 3145728000,
+      "protocol": "usenet",
+      "indexerPriority": 25
+     },
+     "episodes": [
+      {
+       "season": 1,
+       "episode": 1
+      }
+     ]
+    }
+   ],
+   "expect": {
+    "first": 3
+   },
+   "flavour": "sonarr",
+   "fixture": "PrioritizeDownloadDecisionFixture"
+  },
+  {
+   "test": "should_order_by_closest_to_preferred_size_if_both_under",
+   "spec": "Prioritize",
+   "profile": {},
+   "definitions": [
+    {
+     "quality": "Unknown",
+     "min": null,
+     "max": null,
+     "preferred": 200
+    },
+    {
+     "quality": "SDTV",
+     "min": null,
+     "max": null,
+     "preferred": 200
+    },
+    {
+     "quality": "WEBRip-480p",
+     "min": null,
+     "max": null,
+     "preferred": 200
+    },
+    {
+     "quality": "WEBDL-480p",
+     "min": null,
+     "max": null,
+     "preferred": 200
+    },
+    {
+     "quality": "DVD",
+     "min": null,
+     "max": null,
+     "preferred": 200
+    },
+    {
+     "quality": "Bluray-480p",
+     "min": null,
+     "max": null,
+     "preferred": 200
+    },
+    {
+     "quality": "Bluray-576p",
+     "min": null,
+     "max": null,
+     "preferred": 200
+    },
+    {
+     "quality": "HDTV-720p",
+     "min": null,
+     "max": null,
+     "preferred": 200
+    },
+    {
+     "quality": "WEBRip-720p",
+     "min": null,
+     "max": null,
+     "preferred": 200
+    },
+    {
+     "quality": "WEBDL-720p",
+     "min": null,
+     "max": null,
+     "preferred": 200
+    },
+    {
+     "quality": "Bluray-720p",
+     "min": null,
+     "max": null,
+     "preferred": 200
+    },
+    {
+     "quality": "Bluray-1080p",
+     "min": null,
+     "max": null,
+     "preferred": 200
+    },
+    {
+     "quality": "HDTV-1080p",
+     "min": null,
+     "max": null,
+     "preferred": 200
+    },
+    {
+     "quality": "WEBRip-1080p",
+     "min": null,
+     "max": null,
+     "preferred": 200
+    },
+    {
+     "quality": "WEBDL-1080p",
+     "min": null,
+     "max": null,
+     "preferred": 200
+    },
+    {
+     "quality": "Raw-HD",
+     "min": null,
+     "max": null,
+     "preferred": 200
+    },
+    {
+     "quality": "HDTV-2160p",
+     "min": null,
+     "max": null,
+     "preferred": 200
+    },
+    {
+     "quality": "WEBRip-2160p",
+     "min": null,
+     "max": null,
+     "preferred": 200
+    },
+    {
+     "quality": "WEBDL-2160p",
+     "min": null,
+     "max": null,
+     "preferred": 200
+    },
+    {
+     "quality": "Bluray-2160p",
+     "min": null,
+     "max": null,
+     "preferred": 200
+    },
+    {
+     "quality": "Bluray-1080p Remux",
+     "min": null,
+     "max": null,
+     "preferred": 200
+    },
+    {
+     "quality": "Bluray-2160p Remux",
+     "min": null,
+     "max": null,
+     "preferred": 200
+    }
+   ],
+   "config": {
+    "preferredProtocol": "usenet"
+   },
+   "media": {
+    "title": "Title1",
+    "runtime": 60
+   },
+   "releases": [
+    {
+     "release": {
+      "quality": {
+       "quality": "HDTV-720p"
+      },
+      "languages": [
+       "English"
+      ],
+      "ageHours": 24,
+      "size": 1258291200,
+      "protocol": "usenet",
+      "indexerPriority": 25
+     },
+     "episodes": [
+      {
+       "season": 1,
+       "episode": 1
+      }
+     ]
+    },
+    {
+     "release": {
+      "quality": {
+       "quality": "HDTV-720p"
+      },
+      "languages": [
+       "English"
+      ],
+      "ageHours": 24,
+      "size": 10485760000,
+      "protocol": "usenet",
+      "indexerPriority": 25
+     },
+     "episodes": [
+      {
+       "season": 1,
+       "episode": 1
+      }
+     ]
+    }
+   ],
+   "expect": {
+    "first": 1
+   },
+   "flavour": "sonarr",
+   "fixture": "PrioritizeDownloadDecisionFixture"
+  },
+  {
+   "test": "should_order_by_closest_to_preferred_size_if_preferred_is_in_between",
+   "spec": "Prioritize",
+   "profile": {},
+   "definitions": [
+    {
+     "quality": "Unknown",
+     "min": null,
+     "max": null,
+     "preferred": 46
+    },
+    {
+     "quality": "SDTV",
+     "min": null,
+     "max": null,
+     "preferred": 46
+    },
+    {
+     "quality": "WEBRip-480p",
+     "min": null,
+     "max": null,
+     "preferred": 46
+    },
+    {
+     "quality": "WEBDL-480p",
+     "min": null,
+     "max": null,
+     "preferred": 46
+    },
+    {
+     "quality": "DVD",
+     "min": null,
+     "max": null,
+     "preferred": 46
+    },
+    {
+     "quality": "Bluray-480p",
+     "min": null,
+     "max": null,
+     "preferred": 46
+    },
+    {
+     "quality": "Bluray-576p",
+     "min": null,
+     "max": null,
+     "preferred": 46
+    },
+    {
+     "quality": "HDTV-720p",
+     "min": null,
+     "max": null,
+     "preferred": 46
+    },
+    {
+     "quality": "WEBRip-720p",
+     "min": null,
+     "max": null,
+     "preferred": 46
+    },
+    {
+     "quality": "WEBDL-720p",
+     "min": null,
+     "max": null,
+     "preferred": 46
+    },
+    {
+     "quality": "Bluray-720p",
+     "min": null,
+     "max": null,
+     "preferred": 46
+    },
+    {
+     "quality": "Bluray-1080p",
+     "min": null,
+     "max": null,
+     "preferred": 46
+    },
+    {
+     "quality": "HDTV-1080p",
+     "min": null,
+     "max": null,
+     "preferred": 46
+    },
+    {
+     "quality": "WEBRip-1080p",
+     "min": null,
+     "max": null,
+     "preferred": 46
+    },
+    {
+     "quality": "WEBDL-1080p",
+     "min": null,
+     "max": null,
+     "preferred": 46
+    },
+    {
+     "quality": "Raw-HD",
+     "min": null,
+     "max": null,
+     "preferred": 46
+    },
+    {
+     "quality": "HDTV-2160p",
+     "min": null,
+     "max": null,
+     "preferred": 46
+    },
+    {
+     "quality": "WEBRip-2160p",
+     "min": null,
+     "max": null,
+     "preferred": 46
+    },
+    {
+     "quality": "WEBDL-2160p",
+     "min": null,
+     "max": null,
+     "preferred": 46
+    },
+    {
+     "quality": "Bluray-2160p",
+     "min": null,
+     "max": null,
+     "preferred": 46
+    },
+    {
+     "quality": "Bluray-1080p Remux",
+     "min": null,
+     "max": null,
+     "preferred": 46
+    },
+    {
+     "quality": "Bluray-2160p Remux",
+     "min": null,
+     "max": null,
+     "preferred": 46
+    }
+   ],
+   "config": {
+    "preferredProtocol": "usenet"
+   },
+   "media": {
+    "title": "Title1",
+    "runtime": 60
+   },
+   "releases": [
+    {
+     "release": {
+      "quality": {
+       "quality": "HDTV-720p"
+      },
+      "languages": [
+       "English"
+      ],
+      "ageHours": 24,
+      "size": 524288000,
+      "protocol": "usenet",
+      "indexerPriority": 25
+     },
+     "episodes": [
+      {
+       "season": 1,
+       "episode": 1
+      }
+     ]
+    },
+    {
+     "release": {
+      "quality": {
+       "quality": "HDTV-720p"
+      },
+      "languages": [
+       "English"
+      ],
+      "ageHours": 24,
+      "size": 2097152000,
+      "protocol": "usenet",
+      "indexerPriority": 25
+     },
+     "episodes": [
+      {
+       "season": 1,
+       "episode": 1
+      }
+     ]
+    },
+    {
+     "release": {
+      "quality": {
+       "quality": "HDTV-720p"
+      },
+      "languages": [
+       "English"
+      ],
+      "ageHours": 24,
+      "size": 3145728000,
+      "protocol": "usenet",
+      "indexerPriority": 25
+     },
+     "episodes": [
+      {
+       "season": 1,
+       "episode": 1
+      }
+     ]
+    },
+    {
+     "release": {
+      "quality": {
+       "quality": "HDTV-720p"
+      },
+      "languages": [
+       "English"
+      ],
+      "ageHours": 24,
+      "size": 5242880000,
+      "protocol": "usenet",
+      "indexerPriority": 25
+     },
+     "episodes": [
+      {
+       "season": 1,
+       "episode": 1
+      }
+     ]
+    }
+   ],
+   "expect": {
+    "first": 2
+   },
+   "flavour": "sonarr",
+   "fixture": "PrioritizeDownloadDecisionFixture"
+  },
+  {
+   "test": "should_order_by_youngest",
+   "spec": "Prioritize",
+   "profile": {},
+   "definitions": [
+    {
+     "quality": "Unknown",
+     "min": null,
+     "max": null,
+     "preferred": null
+    },
+    {
+     "quality": "SDTV",
+     "min": null,
+     "max": null,
+     "preferred": null
+    },
+    {
+     "quality": "WEBRip-480p",
+     "min": null,
+     "max": null,
+     "preferred": null
+    },
+    {
+     "quality": "WEBDL-480p",
+     "min": null,
+     "max": null,
+     "preferred": null
+    },
+    {
+     "quality": "DVD",
+     "min": null,
+     "max": null,
+     "preferred": null
+    },
+    {
+     "quality": "Bluray-480p",
+     "min": null,
+     "max": null,
+     "preferred": null
+    },
+    {
+     "quality": "Bluray-576p",
+     "min": null,
+     "max": null,
+     "preferred": null
+    },
+    {
+     "quality": "HDTV-720p",
+     "min": null,
+     "max": null,
+     "preferred": null
+    },
+    {
+     "quality": "WEBRip-720p",
+     "min": null,
+     "max": null,
+     "preferred": null
+    },
+    {
+     "quality": "WEBDL-720p",
+     "min": null,
+     "max": null,
+     "preferred": null
+    },
+    {
+     "quality": "Bluray-720p",
+     "min": null,
+     "max": null,
+     "preferred": null
+    },
+    {
+     "quality": "Bluray-1080p",
+     "min": null,
+     "max": null,
+     "preferred": null
+    },
+    {
+     "quality": "HDTV-1080p",
+     "min": null,
+     "max": null,
+     "preferred": null
+    },
+    {
+     "quality": "WEBRip-1080p",
+     "min": null,
+     "max": null,
+     "preferred": null
+    },
+    {
+     "quality": "WEBDL-1080p",
+     "min": null,
+     "max": null,
+     "preferred": null
+    },
+    {
+     "quality": "Raw-HD",
+     "min": null,
+     "max": null,
+     "preferred": null
+    },
+    {
+     "quality": "HDTV-2160p",
+     "min": null,
+     "max": null,
+     "preferred": null
+    },
+    {
+     "quality": "WEBRip-2160p",
+     "min": null,
+     "max": null,
+     "preferred": null
+    },
+    {
+     "quality": "WEBDL-2160p",
+     "min": null,
+     "max": null,
+     "preferred": null
+    },
+    {
+     "quality": "Bluray-2160p",
+     "min": null,
+     "max": null,
+     "preferred": null
+    },
+    {
+     "quality": "Bluray-1080p Remux",
+     "min": null,
+     "max": null,
+     "preferred": null
+    },
+    {
+     "quality": "Bluray-2160p Remux",
+     "min": null,
+     "max": null,
+     "preferred": null
+    }
+   ],
+   "config": {
+    "preferredProtocol": "usenet"
+   },
+   "media": {
+    "title": "Title1",
+    "runtime": 60
+   },
+   "releases": [
+    {
+     "release": {
+      "quality": {
+       "quality": "HDTV-720p"
+      },
+      "languages": [
+       "English"
+      ],
+      "ageHours": 240,
+      "size": 0,
+      "protocol": "usenet",
+      "indexerPriority": 25
+     },
+     "episodes": [
+      {
+       "season": 1,
+       "episode": 1
+      }
+     ]
+    },
+    {
+     "release": {
+      "quality": {
+       "quality": "HDTV-720p"
+      },
+      "languages": [
+       "English"
+      ],
+      "ageHours": 120,
+      "size": 0,
+      "protocol": "usenet",
+      "indexerPriority": 25
+     },
+     "episodes": [
+      {
+       "season": 1,
+       "episode": 1
+      }
+     ]
+    }
+   ],
+   "expect": {
+    "first": 1
+   },
+   "flavour": "sonarr",
+   "fixture": "PrioritizeDownloadDecisionFixture"
+  },
+  {
+   "test": "should_not_throw_if_no_episodes_are_found",
+   "spec": "Prioritize",
+   "profile": {},
+   "definitions": [
+    {
+     "quality": "Unknown",
+     "min": null,
+     "max": null,
+     "preferred": null
+    },
+    {
+     "quality": "SDTV",
+     "min": null,
+     "max": null,
+     "preferred": null
+    },
+    {
+     "quality": "WEBRip-480p",
+     "min": null,
+     "max": null,
+     "preferred": null
+    },
+    {
+     "quality": "WEBDL-480p",
+     "min": null,
+     "max": null,
+     "preferred": null
+    },
+    {
+     "quality": "DVD",
+     "min": null,
+     "max": null,
+     "preferred": null
+    },
+    {
+     "quality": "Bluray-480p",
+     "min": null,
+     "max": null,
+     "preferred": null
+    },
+    {
+     "quality": "Bluray-576p",
+     "min": null,
+     "max": null,
+     "preferred": null
+    },
+    {
+     "quality": "HDTV-720p",
+     "min": null,
+     "max": null,
+     "preferred": null
+    },
+    {
+     "quality": "WEBRip-720p",
+     "min": null,
+     "max": null,
+     "preferred": null
+    },
+    {
+     "quality": "WEBDL-720p",
+     "min": null,
+     "max": null,
+     "preferred": null
+    },
+    {
+     "quality": "Bluray-720p",
+     "min": null,
+     "max": null,
+     "preferred": null
+    },
+    {
+     "quality": "Bluray-1080p",
+     "min": null,
+     "max": null,
+     "preferred": null
+    },
+    {
+     "quality": "HDTV-1080p",
+     "min": null,
+     "max": null,
+     "preferred": null
+    },
+    {
+     "quality": "WEBRip-1080p",
+     "min": null,
+     "max": null,
+     "preferred": null
+    },
+    {
+     "quality": "WEBDL-1080p",
+     "min": null,
+     "max": null,
+     "preferred": null
+    },
+    {
+     "quality": "Raw-HD",
+     "min": null,
+     "max": null,
+     "preferred": null
+    },
+    {
+     "quality": "HDTV-2160p",
+     "min": null,
+     "max": null,
+     "preferred": null
+    },
+    {
+     "quality": "WEBRip-2160p",
+     "min": null,
+     "max": null,
+     "preferred": null
+    },
+    {
+     "quality": "WEBDL-2160p",
+     "min": null,
+     "max": null,
+     "preferred": null
+    },
+    {
+     "quality": "Bluray-2160p",
+     "min": null,
+     "max": null,
+     "preferred": null
+    },
+    {
+     "quality": "Bluray-1080p Remux",
+     "min": null,
+     "max": null,
+     "preferred": null
+    },
+    {
+     "quality": "Bluray-2160p Remux",
+     "min": null,
+     "max": null,
+     "preferred": null
+    }
+   ],
+   "config": {
+    "preferredProtocol": "usenet"
+   },
+   "media": {
+    "title": "Title1",
+    "runtime": 60
+   },
+   "releases": [
+    {
+     "release": {
+      "quality": {
+       "quality": "HDTV-720p"
+      },
+      "languages": [
+       "English"
+      ],
+      "ageHours": 0,
+      "size": 524288000,
+      "protocol": "usenet",
+      "indexerPriority": 25
+     },
+     "episodes": []
+    },
+    {
+     "release": {
+      "quality": {
+       "quality": "HDTV-720p"
+      },
+      "languages": [
+       "English"
+      ],
+      "ageHours": 0,
+      "size": 524288000,
+      "protocol": "usenet",
+      "indexerPriority": 25
+     },
+     "episodes": [
+      {
+       "season": 1,
+       "episode": 1
+      }
+     ]
+    }
+   ],
+   "expect": {
+    "first": 0
+   },
+   "note": "the test only asserts no exception; first is derived from CompareEpisodeCount (non-anime prefers fewer episodes)",
+   "flavour": "sonarr",
+   "fixture": "PrioritizeDownloadDecisionFixture"
+  },
+  {
+   "test": "should_put_usenet_above_torrent_when_usenet_is_preferred",
+   "spec": "Prioritize",
+   "profile": {},
+   "definitions": [
+    {
+     "quality": "Unknown",
+     "min": null,
+     "max": null,
+     "preferred": null
+    },
+    {
+     "quality": "SDTV",
+     "min": null,
+     "max": null,
+     "preferred": null
+    },
+    {
+     "quality": "WEBRip-480p",
+     "min": null,
+     "max": null,
+     "preferred": null
+    },
+    {
+     "quality": "WEBDL-480p",
+     "min": null,
+     "max": null,
+     "preferred": null
+    },
+    {
+     "quality": "DVD",
+     "min": null,
+     "max": null,
+     "preferred": null
+    },
+    {
+     "quality": "Bluray-480p",
+     "min": null,
+     "max": null,
+     "preferred": null
+    },
+    {
+     "quality": "Bluray-576p",
+     "min": null,
+     "max": null,
+     "preferred": null
+    },
+    {
+     "quality": "HDTV-720p",
+     "min": null,
+     "max": null,
+     "preferred": null
+    },
+    {
+     "quality": "WEBRip-720p",
+     "min": null,
+     "max": null,
+     "preferred": null
+    },
+    {
+     "quality": "WEBDL-720p",
+     "min": null,
+     "max": null,
+     "preferred": null
+    },
+    {
+     "quality": "Bluray-720p",
+     "min": null,
+     "max": null,
+     "preferred": null
+    },
+    {
+     "quality": "Bluray-1080p",
+     "min": null,
+     "max": null,
+     "preferred": null
+    },
+    {
+     "quality": "HDTV-1080p",
+     "min": null,
+     "max": null,
+     "preferred": null
+    },
+    {
+     "quality": "WEBRip-1080p",
+     "min": null,
+     "max": null,
+     "preferred": null
+    },
+    {
+     "quality": "WEBDL-1080p",
+     "min": null,
+     "max": null,
+     "preferred": null
+    },
+    {
+     "quality": "Raw-HD",
+     "min": null,
+     "max": null,
+     "preferred": null
+    },
+    {
+     "quality": "HDTV-2160p",
+     "min": null,
+     "max": null,
+     "preferred": null
+    },
+    {
+     "quality": "WEBRip-2160p",
+     "min": null,
+     "max": null,
+     "preferred": null
+    },
+    {
+     "quality": "WEBDL-2160p",
+     "min": null,
+     "max": null,
+     "preferred": null
+    },
+    {
+     "quality": "Bluray-2160p",
+     "min": null,
+     "max": null,
+     "preferred": null
+    },
+    {
+     "quality": "Bluray-1080p Remux",
+     "min": null,
+     "max": null,
+     "preferred": null
+    },
+    {
+     "quality": "Bluray-2160p Remux",
+     "min": null,
+     "max": null,
+     "preferred": null
+    }
+   ],
+   "config": {
+    "preferredProtocol": "usenet"
+   },
+   "media": {
+    "title": "Title1",
+    "runtime": 60
+   },
+   "releases": [
+    {
+     "release": {
+      "quality": {
+       "quality": "HDTV-720p"
+      },
+      "languages": [
+       "English"
+      ],
+      "ageHours": 0,
+      "size": 0,
+      "protocol": "torrent",
+      "indexerPriority": 25
+     },
+     "episodes": [
+      {
+       "season": 1,
+       "episode": 1
+      }
+     ]
+    },
+    {
+     "release": {
+      "quality": {
+       "quality": "HDTV-720p"
+      },
+      "languages": [
+       "English"
+      ],
+      "ageHours": 0,
+      "size": 0,
+      "protocol": "usenet",
+      "indexerPriority": 25
+     },
+     "episodes": [
+      {
+       "season": 1,
+       "episode": 1
+      }
+     ]
+    }
+   ],
+   "expect": {
+    "first": 1
+   },
+   "flavour": "sonarr",
+   "fixture": "PrioritizeDownloadDecisionFixture"
+  },
+  {
+   "test": "should_put_torrent_above_usenet_when_torrent_is_preferred",
+   "spec": "Prioritize",
+   "profile": {},
+   "definitions": [
+    {
+     "quality": "Unknown",
+     "min": null,
+     "max": null,
+     "preferred": null
+    },
+    {
+     "quality": "SDTV",
+     "min": null,
+     "max": null,
+     "preferred": null
+    },
+    {
+     "quality": "WEBRip-480p",
+     "min": null,
+     "max": null,
+     "preferred": null
+    },
+    {
+     "quality": "WEBDL-480p",
+     "min": null,
+     "max": null,
+     "preferred": null
+    },
+    {
+     "quality": "DVD",
+     "min": null,
+     "max": null,
+     "preferred": null
+    },
+    {
+     "quality": "Bluray-480p",
+     "min": null,
+     "max": null,
+     "preferred": null
+    },
+    {
+     "quality": "Bluray-576p",
+     "min": null,
+     "max": null,
+     "preferred": null
+    },
+    {
+     "quality": "HDTV-720p",
+     "min": null,
+     "max": null,
+     "preferred": null
+    },
+    {
+     "quality": "WEBRip-720p",
+     "min": null,
+     "max": null,
+     "preferred": null
+    },
+    {
+     "quality": "WEBDL-720p",
+     "min": null,
+     "max": null,
+     "preferred": null
+    },
+    {
+     "quality": "Bluray-720p",
+     "min": null,
+     "max": null,
+     "preferred": null
+    },
+    {
+     "quality": "Bluray-1080p",
+     "min": null,
+     "max": null,
+     "preferred": null
+    },
+    {
+     "quality": "HDTV-1080p",
+     "min": null,
+     "max": null,
+     "preferred": null
+    },
+    {
+     "quality": "WEBRip-1080p",
+     "min": null,
+     "max": null,
+     "preferred": null
+    },
+    {
+     "quality": "WEBDL-1080p",
+     "min": null,
+     "max": null,
+     "preferred": null
+    },
+    {
+     "quality": "Raw-HD",
+     "min": null,
+     "max": null,
+     "preferred": null
+    },
+    {
+     "quality": "HDTV-2160p",
+     "min": null,
+     "max": null,
+     "preferred": null
+    },
+    {
+     "quality": "WEBRip-2160p",
+     "min": null,
+     "max": null,
+     "preferred": null
+    },
+    {
+     "quality": "WEBDL-2160p",
+     "min": null,
+     "max": null,
+     "preferred": null
+    },
+    {
+     "quality": "Bluray-2160p",
+     "min": null,
+     "max": null,
+     "preferred": null
+    },
+    {
+     "quality": "Bluray-1080p Remux",
+     "min": null,
+     "max": null,
+     "preferred": null
+    },
+    {
+     "quality": "Bluray-2160p Remux",
+     "min": null,
+     "max": null,
+     "preferred": null
+    }
+   ],
+   "config": {
+    "preferredProtocol": "torrent"
+   },
+   "media": {
+    "title": "Title1",
+    "runtime": 60
+   },
+   "releases": [
+    {
+     "release": {
+      "quality": {
+       "quality": "HDTV-720p"
+      },
+      "languages": [
+       "English"
+      ],
+      "ageHours": 0,
+      "size": 0,
+      "protocol": "torrent",
+      "indexerPriority": 25
+     },
+     "episodes": [
+      {
+       "season": 1,
+       "episode": 1
+      }
+     ]
+    },
+    {
+     "release": {
+      "quality": {
+       "quality": "HDTV-720p"
+      },
+      "languages": [
+       "English"
+      ],
+      "ageHours": 0,
+      "size": 0,
+      "protocol": "usenet",
+      "indexerPriority": 25
+     },
+     "episodes": [
+      {
+       "season": 1,
+       "episode": 1
+      }
+     ]
+    }
+   ],
+   "expect": {
+    "first": 0
+   },
+   "flavour": "sonarr",
+   "fixture": "PrioritizeDownloadDecisionFixture"
+  },
+  {
+   "test": "should_prefer_season_pack_above_single_episode",
+   "spec": "Prioritize",
+   "profile": {},
+   "definitions": [
+    {
+     "quality": "Unknown",
+     "min": null,
+     "max": null,
+     "preferred": null
+    },
+    {
+     "quality": "SDTV",
+     "min": null,
+     "max": null,
+     "preferred": null
+    },
+    {
+     "quality": "WEBRip-480p",
+     "min": null,
+     "max": null,
+     "preferred": null
+    },
+    {
+     "quality": "WEBDL-480p",
+     "min": null,
+     "max": null,
+     "preferred": null
+    },
+    {
+     "quality": "DVD",
+     "min": null,
+     "max": null,
+     "preferred": null
+    },
+    {
+     "quality": "Bluray-480p",
+     "min": null,
+     "max": null,
+     "preferred": null
+    },
+    {
+     "quality": "Bluray-576p",
+     "min": null,
+     "max": null,
+     "preferred": null
+    },
+    {
+     "quality": "HDTV-720p",
+     "min": null,
+     "max": null,
+     "preferred": null
+    },
+    {
+     "quality": "WEBRip-720p",
+     "min": null,
+     "max": null,
+     "preferred": null
+    },
+    {
+     "quality": "WEBDL-720p",
+     "min": null,
+     "max": null,
+     "preferred": null
+    },
+    {
+     "quality": "Bluray-720p",
+     "min": null,
+     "max": null,
+     "preferred": null
+    },
+    {
+     "quality": "Bluray-1080p",
+     "min": null,
+     "max": null,
+     "preferred": null
+    },
+    {
+     "quality": "HDTV-1080p",
+     "min": null,
+     "max": null,
+     "preferred": null
+    },
+    {
+     "quality": "WEBRip-1080p",
+     "min": null,
+     "max": null,
+     "preferred": null
+    },
+    {
+     "quality": "WEBDL-1080p",
+     "min": null,
+     "max": null,
+     "preferred": null
+    },
+    {
+     "quality": "Raw-HD",
+     "min": null,
+     "max": null,
+     "preferred": null
+    },
+    {
+     "quality": "HDTV-2160p",
+     "min": null,
+     "max": null,
+     "preferred": null
+    },
+    {
+     "quality": "WEBRip-2160p",
+     "min": null,
+     "max": null,
+     "preferred": null
+    },
+    {
+     "quality": "WEBDL-2160p",
+     "min": null,
+     "max": null,
+     "preferred": null
+    },
+    {
+     "quality": "Bluray-2160p",
+     "min": null,
+     "max": null,
+     "preferred": null
+    },
+    {
+     "quality": "Bluray-1080p Remux",
+     "min": null,
+     "max": null,
+     "preferred": null
+    },
+    {
+     "quality": "Bluray-2160p Remux",
+     "min": null,
+     "max": null,
+     "preferred": null
+    }
+   ],
+   "config": {
+    "preferredProtocol": "usenet"
+   },
+   "media": {
+    "title": "Title1",
+    "runtime": 60
+   },
+   "releases": [
+    {
+     "release": {
+      "quality": {
+       "quality": "HDTV-720p"
+      },
+      "languages": [
+       "English"
+      ],
+      "ageHours": 0,
+      "size": 0,
+      "protocol": "usenet",
+      "indexerPriority": 25,
+      "fullSeason": true
+     },
+     "episodes": [
+      {
+       "season": 1,
+       "episode": 1
+      },
+      {
+       "season": 1,
+       "episode": 2
+      }
+     ]
+    },
+    {
+     "release": {
+      "quality": {
+       "quality": "HDTV-720p"
+      },
+      "languages": [
+       "English"
+      ],
+      "ageHours": 0,
+      "size": 0,
+      "protocol": "usenet",
+      "indexerPriority": 25
+     },
+     "episodes": [
+      {
+       "season": 1,
+       "episode": 1
+      }
+     ]
+    }
+   ],
+   "expect": {
+    "first": 0
+   },
+   "flavour": "sonarr",
+   "fixture": "PrioritizeDownloadDecisionFixture"
+  },
+  {
+   "test": "should_prefer_multiepisode_over_single_episode_for_anime",
+   "spec": "Prioritize",
+   "profile": {},
+   "definitions": [
+    {
+     "quality": "Unknown",
+     "min": null,
+     "max": null,
+     "preferred": null
+    },
+    {
+     "quality": "SDTV",
+     "min": null,
+     "max": null,
+     "preferred": null
+    },
+    {
+     "quality": "WEBRip-480p",
+     "min": null,
+     "max": null,
+     "preferred": null
+    },
+    {
+     "quality": "WEBDL-480p",
+     "min": null,
+     "max": null,
+     "preferred": null
+    },
+    {
+     "quality": "DVD",
+     "min": null,
+     "max": null,
+     "preferred": null
+    },
+    {
+     "quality": "Bluray-480p",
+     "min": null,
+     "max": null,
+     "preferred": null
+    },
+    {
+     "quality": "Bluray-576p",
+     "min": null,
+     "max": null,
+     "preferred": null
+    },
+    {
+     "quality": "HDTV-720p",
+     "min": null,
+     "max": null,
+     "preferred": null
+    },
+    {
+     "quality": "WEBRip-720p",
+     "min": null,
+     "max": null,
+     "preferred": null
+    },
+    {
+     "quality": "WEBDL-720p",
+     "min": null,
+     "max": null,
+     "preferred": null
+    },
+    {
+     "quality": "Bluray-720p",
+     "min": null,
+     "max": null,
+     "preferred": null
+    },
+    {
+     "quality": "Bluray-1080p",
+     "min": null,
+     "max": null,
+     "preferred": null
+    },
+    {
+     "quality": "HDTV-1080p",
+     "min": null,
+     "max": null,
+     "preferred": null
+    },
+    {
+     "quality": "WEBRip-1080p",
+     "min": null,
+     "max": null,
+     "preferred": null
+    },
+    {
+     "quality": "WEBDL-1080p",
+     "min": null,
+     "max": null,
+     "preferred": null
+    },
+    {
+     "quality": "Raw-HD",
+     "min": null,
+     "max": null,
+     "preferred": null
+    },
+    {
+     "quality": "HDTV-2160p",
+     "min": null,
+     "max": null,
+     "preferred": null
+    },
+    {
+     "quality": "WEBRip-2160p",
+     "min": null,
+     "max": null,
+     "preferred": null
+    },
+    {
+     "quality": "WEBDL-2160p",
+     "min": null,
+     "max": null,
+     "preferred": null
+    },
+    {
+     "quality": "Bluray-2160p",
+     "min": null,
+     "max": null,
+     "preferred": null
+    },
+    {
+     "quality": "Bluray-1080p Remux",
+     "min": null,
+     "max": null,
+     "preferred": null
+    },
+    {
+     "quality": "Bluray-2160p Remux",
+     "min": null,
+     "max": null,
+     "preferred": null
+    }
+   ],
+   "config": {
+    "preferredProtocol": "usenet"
+   },
+   "media": {
+    "title": "Title1",
+    "runtime": 60
+   },
+   "releases": [
+    {
+     "release": {
+      "quality": {
+       "quality": "HDTV-720p"
+      },
+      "languages": [
+       "English"
+      ],
+      "ageHours": 0,
+      "size": 0,
+      "protocol": "usenet",
+      "indexerPriority": 25
+     },
+     "episodes": [
+      {
+       "season": 1,
+       "episode": 1
+      },
+      {
+       "season": 1,
+       "episode": 2
+      }
+     ],
+     "media": {
+      "title": "Title1",
+      "runtime": 60,
+      "anime": true
+     }
+    },
+    {
+     "release": {
+      "quality": {
+       "quality": "HDTV-720p"
+      },
+      "languages": [
+       "English"
+      ],
+      "ageHours": 0,
+      "size": 0,
+      "protocol": "usenet",
+      "indexerPriority": 25
+     },
+     "episodes": [
+      {
+       "season": 1,
+       "episode": 1
+      }
+     ],
+     "media": {
+      "title": "Title1",
+      "runtime": 60,
+      "anime": true
+     }
+    }
+   ],
+   "expect": {
+    "first": 0
+   },
+   "flavour": "sonarr",
+   "fixture": "PrioritizeDownloadDecisionFixture"
+  },
+  {
+   "test": "should_prefer_single_episode_over_multi_episode_for_non_anime",
+   "spec": "Prioritize",
+   "profile": {},
+   "definitions": [
+    {
+     "quality": "Unknown",
+     "min": null,
+     "max": null,
+     "preferred": null
+    },
+    {
+     "quality": "SDTV",
+     "min": null,
+     "max": null,
+     "preferred": null
+    },
+    {
+     "quality": "WEBRip-480p",
+     "min": null,
+     "max": null,
+     "preferred": null
+    },
+    {
+     "quality": "WEBDL-480p",
+     "min": null,
+     "max": null,
+     "preferred": null
+    },
+    {
+     "quality": "DVD",
+     "min": null,
+     "max": null,
+     "preferred": null
+    },
+    {
+     "quality": "Bluray-480p",
+     "min": null,
+     "max": null,
+     "preferred": null
+    },
+    {
+     "quality": "Bluray-576p",
+     "min": null,
+     "max": null,
+     "preferred": null
+    },
+    {
+     "quality": "HDTV-720p",
+     "min": null,
+     "max": null,
+     "preferred": null
+    },
+    {
+     "quality": "WEBRip-720p",
+     "min": null,
+     "max": null,
+     "preferred": null
+    },
+    {
+     "quality": "WEBDL-720p",
+     "min": null,
+     "max": null,
+     "preferred": null
+    },
+    {
+     "quality": "Bluray-720p",
+     "min": null,
+     "max": null,
+     "preferred": null
+    },
+    {
+     "quality": "Bluray-1080p",
+     "min": null,
+     "max": null,
+     "preferred": null
+    },
+    {
+     "quality": "HDTV-1080p",
+     "min": null,
+     "max": null,
+     "preferred": null
+    },
+    {
+     "quality": "WEBRip-1080p",
+     "min": null,
+     "max": null,
+     "preferred": null
+    },
+    {
+     "quality": "WEBDL-1080p",
+     "min": null,
+     "max": null,
+     "preferred": null
+    },
+    {
+     "quality": "Raw-HD",
+     "min": null,
+     "max": null,
+     "preferred": null
+    },
+    {
+     "quality": "HDTV-2160p",
+     "min": null,
+     "max": null,
+     "preferred": null
+    },
+    {
+     "quality": "WEBRip-2160p",
+     "min": null,
+     "max": null,
+     "preferred": null
+    },
+    {
+     "quality": "WEBDL-2160p",
+     "min": null,
+     "max": null,
+     "preferred": null
+    },
+    {
+     "quality": "Bluray-2160p",
+     "min": null,
+     "max": null,
+     "preferred": null
+    },
+    {
+     "quality": "Bluray-1080p Remux",
+     "min": null,
+     "max": null,
+     "preferred": null
+    },
+    {
+     "quality": "Bluray-2160p Remux",
+     "min": null,
+     "max": null,
+     "preferred": null
+    }
+   ],
+   "config": {
+    "preferredProtocol": "usenet"
+   },
+   "media": {
+    "title": "Title1",
+    "runtime": 60
+   },
+   "releases": [
+    {
+     "release": {
+      "quality": {
+       "quality": "HDTV-720p"
+      },
+      "languages": [
+       "English"
+      ],
+      "ageHours": 0,
+      "size": 0,
+      "protocol": "usenet",
+      "indexerPriority": 25
+     },
+     "episodes": [
+      {
+       "season": 1,
+       "episode": 1
+      },
+      {
+       "season": 1,
+       "episode": 2
+      }
+     ]
+    },
+    {
+     "release": {
+      "quality": {
+       "quality": "HDTV-720p"
+      },
+      "languages": [
+       "English"
+      ],
+      "ageHours": 0,
+      "size": 0,
+      "protocol": "usenet",
+      "indexerPriority": 25
+     },
+     "episodes": [
+      {
+       "season": 1,
+       "episode": 1
+      }
+     ]
+    }
+   ],
+   "expect": {
+    "first": 1
+   },
+   "flavour": "sonarr",
+   "fixture": "PrioritizeDownloadDecisionFixture"
+  },
+  {
+   "test": "should_prefer_releases_with_more_seeders",
+   "spec": "Prioritize",
+   "profile": {},
+   "definitions": [
+    {
+     "quality": "Unknown",
+     "min": null,
+     "max": null,
+     "preferred": null
+    },
+    {
+     "quality": "SDTV",
+     "min": null,
+     "max": null,
+     "preferred": null
+    },
+    {
+     "quality": "WEBRip-480p",
+     "min": null,
+     "max": null,
+     "preferred": null
+    },
+    {
+     "quality": "WEBDL-480p",
+     "min": null,
+     "max": null,
+     "preferred": null
+    },
+    {
+     "quality": "DVD",
+     "min": null,
+     "max": null,
+     "preferred": null
+    },
+    {
+     "quality": "Bluray-480p",
+     "min": null,
+     "max": null,
+     "preferred": null
+    },
+    {
+     "quality": "Bluray-576p",
+     "min": null,
+     "max": null,
+     "preferred": null
+    },
+    {
+     "quality": "HDTV-720p",
+     "min": null,
+     "max": null,
+     "preferred": null
+    },
+    {
+     "quality": "WEBRip-720p",
+     "min": null,
+     "max": null,
+     "preferred": null
+    },
+    {
+     "quality": "WEBDL-720p",
+     "min": null,
+     "max": null,
+     "preferred": null
+    },
+    {
+     "quality": "Bluray-720p",
+     "min": null,
+     "max": null,
+     "preferred": null
+    },
+    {
+     "quality": "Bluray-1080p",
+     "min": null,
+     "max": null,
+     "preferred": null
+    },
+    {
+     "quality": "HDTV-1080p",
+     "min": null,
+     "max": null,
+     "preferred": null
+    },
+    {
+     "quality": "WEBRip-1080p",
+     "min": null,
+     "max": null,
+     "preferred": null
+    },
+    {
+     "quality": "WEBDL-1080p",
+     "min": null,
+     "max": null,
+     "preferred": null
+    },
+    {
+     "quality": "Raw-HD",
+     "min": null,
+     "max": null,
+     "preferred": null
+    },
+    {
+     "quality": "HDTV-2160p",
+     "min": null,
+     "max": null,
+     "preferred": null
+    },
+    {
+     "quality": "WEBRip-2160p",
+     "min": null,
+     "max": null,
+     "preferred": null
+    },
+    {
+     "quality": "WEBDL-2160p",
+     "min": null,
+     "max": null,
+     "preferred": null
+    },
+    {
+     "quality": "Bluray-2160p",
+     "min": null,
+     "max": null,
+     "preferred": null
+    },
+    {
+     "quality": "Bluray-1080p Remux",
+     "min": null,
+     "max": null,
+     "preferred": null
+    },
+    {
+     "quality": "Bluray-2160p Remux",
+     "min": null,
+     "max": null,
+     "preferred": null
+    }
+   ],
+   "config": {
+    "preferredProtocol": "usenet"
+   },
+   "media": {
+    "title": "Title1",
+    "runtime": 60
+   },
+   "releases": [
+    {
+     "release": {
+      "quality": {
+       "quality": "HDTV-720p"
+      },
+      "languages": [
+       "English"
+      ],
+      "ageHours": 0,
+      "size": 0,
+      "protocol": "torrent",
+      "indexerPriority": 0,
+      "seeders": 10
+     },
+     "episodes": [
+      {
+       "season": 1,
+       "episode": 1
+      }
+     ]
+    },
+    {
+     "release": {
+      "quality": {
+       "quality": "HDTV-720p"
+      },
+      "languages": [
+       "English"
+      ],
+      "ageHours": 0,
+      "size": 0,
+      "protocol": "torrent",
+      "indexerPriority": 0,
+      "seeders": 100
+     },
+     "episodes": [
+      {
+       "season": 1,
+       "episode": 1
+      }
+     ]
+    }
+   ],
+   "expect": {
+    "first": 1
+   },
+   "flavour": "sonarr",
+   "fixture": "PrioritizeDownloadDecisionFixture"
+  },
+  {
+   "test": "should_prefer_releases_with_more_peers_given_equal_number_of_seeds",
+   "spec": "Prioritize",
+   "profile": {},
+   "definitions": [
+    {
+     "quality": "Unknown",
+     "min": null,
+     "max": null,
+     "preferred": null
+    },
+    {
+     "quality": "SDTV",
+     "min": null,
+     "max": null,
+     "preferred": null
+    },
+    {
+     "quality": "WEBRip-480p",
+     "min": null,
+     "max": null,
+     "preferred": null
+    },
+    {
+     "quality": "WEBDL-480p",
+     "min": null,
+     "max": null,
+     "preferred": null
+    },
+    {
+     "quality": "DVD",
+     "min": null,
+     "max": null,
+     "preferred": null
+    },
+    {
+     "quality": "Bluray-480p",
+     "min": null,
+     "max": null,
+     "preferred": null
+    },
+    {
+     "quality": "Bluray-576p",
+     "min": null,
+     "max": null,
+     "preferred": null
+    },
+    {
+     "quality": "HDTV-720p",
+     "min": null,
+     "max": null,
+     "preferred": null
+    },
+    {
+     "quality": "WEBRip-720p",
+     "min": null,
+     "max": null,
+     "preferred": null
+    },
+    {
+     "quality": "WEBDL-720p",
+     "min": null,
+     "max": null,
+     "preferred": null
+    },
+    {
+     "quality": "Bluray-720p",
+     "min": null,
+     "max": null,
+     "preferred": null
+    },
+    {
+     "quality": "Bluray-1080p",
+     "min": null,
+     "max": null,
+     "preferred": null
+    },
+    {
+     "quality": "HDTV-1080p",
+     "min": null,
+     "max": null,
+     "preferred": null
+    },
+    {
+     "quality": "WEBRip-1080p",
+     "min": null,
+     "max": null,
+     "preferred": null
+    },
+    {
+     "quality": "WEBDL-1080p",
+     "min": null,
+     "max": null,
+     "preferred": null
+    },
+    {
+     "quality": "Raw-HD",
+     "min": null,
+     "max": null,
+     "preferred": null
+    },
+    {
+     "quality": "HDTV-2160p",
+     "min": null,
+     "max": null,
+     "preferred": null
+    },
+    {
+     "quality": "WEBRip-2160p",
+     "min": null,
+     "max": null,
+     "preferred": null
+    },
+    {
+     "quality": "WEBDL-2160p",
+     "min": null,
+     "max": null,
+     "preferred": null
+    },
+    {
+     "quality": "Bluray-2160p",
+     "min": null,
+     "max": null,
+     "preferred": null
+    },
+    {
+     "quality": "Bluray-1080p Remux",
+     "min": null,
+     "max": null,
+     "preferred": null
+    },
+    {
+     "quality": "Bluray-2160p Remux",
+     "min": null,
+     "max": null,
+     "preferred": null
+    }
+   ],
+   "config": {
+    "preferredProtocol": "usenet"
+   },
+   "media": {
+    "title": "Title1",
+    "runtime": 60
+   },
+   "releases": [
+    {
+     "release": {
+      "quality": {
+       "quality": "HDTV-720p"
+      },
+      "languages": [
+       "English"
+      ],
+      "ageHours": 0,
+      "size": 0,
+      "protocol": "torrent",
+      "indexerPriority": 0,
+      "seeders": 10,
+      "peers": 10
+     },
+     "episodes": [
+      {
+       "season": 1,
+       "episode": 1
+      }
+     ]
+    },
+    {
+     "release": {
+      "quality": {
+       "quality": "HDTV-720p"
+      },
+      "languages": [
+       "English"
+      ],
+      "ageHours": 0,
+      "size": 0,
+      "protocol": "torrent",
+      "indexerPriority": 0,
+      "seeders": 10,
+      "peers": 100
+     },
+     "episodes": [
+      {
+       "season": 1,
+       "episode": 1
+      }
+     ]
+    }
+   ],
+   "expect": {
+    "first": 1
+   },
+   "flavour": "sonarr",
+   "fixture": "PrioritizeDownloadDecisionFixture"
+  },
+  {
+   "test": "should_prefer_releases_with_more_peers_no_seeds",
+   "spec": "Prioritize",
+   "profile": {},
+   "definitions": [
+    {
+     "quality": "Unknown",
+     "min": null,
+     "max": null,
+     "preferred": null
+    },
+    {
+     "quality": "SDTV",
+     "min": null,
+     "max": null,
+     "preferred": null
+    },
+    {
+     "quality": "WEBRip-480p",
+     "min": null,
+     "max": null,
+     "preferred": null
+    },
+    {
+     "quality": "WEBDL-480p",
+     "min": null,
+     "max": null,
+     "preferred": null
+    },
+    {
+     "quality": "DVD",
+     "min": null,
+     "max": null,
+     "preferred": null
+    },
+    {
+     "quality": "Bluray-480p",
+     "min": null,
+     "max": null,
+     "preferred": null
+    },
+    {
+     "quality": "Bluray-576p",
+     "min": null,
+     "max": null,
+     "preferred": null
+    },
+    {
+     "quality": "HDTV-720p",
+     "min": null,
+     "max": null,
+     "preferred": null
+    },
+    {
+     "quality": "WEBRip-720p",
+     "min": null,
+     "max": null,
+     "preferred": null
+    },
+    {
+     "quality": "WEBDL-720p",
+     "min": null,
+     "max": null,
+     "preferred": null
+    },
+    {
+     "quality": "Bluray-720p",
+     "min": null,
+     "max": null,
+     "preferred": null
+    },
+    {
+     "quality": "Bluray-1080p",
+     "min": null,
+     "max": null,
+     "preferred": null
+    },
+    {
+     "quality": "HDTV-1080p",
+     "min": null,
+     "max": null,
+     "preferred": null
+    },
+    {
+     "quality": "WEBRip-1080p",
+     "min": null,
+     "max": null,
+     "preferred": null
+    },
+    {
+     "quality": "WEBDL-1080p",
+     "min": null,
+     "max": null,
+     "preferred": null
+    },
+    {
+     "quality": "Raw-HD",
+     "min": null,
+     "max": null,
+     "preferred": null
+    },
+    {
+     "quality": "HDTV-2160p",
+     "min": null,
+     "max": null,
+     "preferred": null
+    },
+    {
+     "quality": "WEBRip-2160p",
+     "min": null,
+     "max": null,
+     "preferred": null
+    },
+    {
+     "quality": "WEBDL-2160p",
+     "min": null,
+     "max": null,
+     "preferred": null
+    },
+    {
+     "quality": "Bluray-2160p",
+     "min": null,
+     "max": null,
+     "preferred": null
+    },
+    {
+     "quality": "Bluray-1080p Remux",
+     "min": null,
+     "max": null,
+     "preferred": null
+    },
+    {
+     "quality": "Bluray-2160p Remux",
+     "min": null,
+     "max": null,
+     "preferred": null
+    }
+   ],
+   "config": {
+    "preferredProtocol": "usenet"
+   },
+   "media": {
+    "title": "Title1",
+    "runtime": 60
+   },
+   "releases": [
+    {
+     "release": {
+      "quality": {
+       "quality": "HDTV-720p"
+      },
+      "languages": [
+       "English"
+      ],
+      "ageHours": 0,
+      "size": 0,
+      "protocol": "torrent",
+      "indexerPriority": 0,
+      "seeders": 0,
+      "peers": 10
+     },
+     "episodes": [
+      {
+       "season": 1,
+       "episode": 1
+      }
+     ]
+    },
+    {
+     "release": {
+      "quality": {
+       "quality": "HDTV-720p"
+      },
+      "languages": [
+       "English"
+      ],
+      "ageHours": 0,
+      "size": 0,
+      "protocol": "torrent",
+      "indexerPriority": 0,
+      "seeders": 0,
+      "peers": 100
+     },
+     "episodes": [
+      {
+       "season": 1,
+       "episode": 1
+      }
+     ]
+    }
+   ],
+   "expect": {
+    "first": 1
+   },
+   "flavour": "sonarr",
+   "fixture": "PrioritizeDownloadDecisionFixture"
+  },
+  {
+   "test": "should_prefer_first_release_if_peers_and_size_are_too_similar",
+   "spec": "Prioritize",
+   "profile": {},
+   "definitions": [
+    {
+     "quality": "Unknown",
+     "min": null,
+     "max": null,
+     "preferred": null
+    },
+    {
+     "quality": "SDTV",
+     "min": null,
+     "max": null,
+     "preferred": null
+    },
+    {
+     "quality": "WEBRip-480p",
+     "min": null,
+     "max": null,
+     "preferred": null
+    },
+    {
+     "quality": "WEBDL-480p",
+     "min": null,
+     "max": null,
+     "preferred": null
+    },
+    {
+     "quality": "DVD",
+     "min": null,
+     "max": null,
+     "preferred": null
+    },
+    {
+     "quality": "Bluray-480p",
+     "min": null,
+     "max": null,
+     "preferred": null
+    },
+    {
+     "quality": "Bluray-576p",
+     "min": null,
+     "max": null,
+     "preferred": null
+    },
+    {
+     "quality": "HDTV-720p",
+     "min": null,
+     "max": null,
+     "preferred": null
+    },
+    {
+     "quality": "WEBRip-720p",
+     "min": null,
+     "max": null,
+     "preferred": null
+    },
+    {
+     "quality": "WEBDL-720p",
+     "min": null,
+     "max": null,
+     "preferred": null
+    },
+    {
+     "quality": "Bluray-720p",
+     "min": null,
+     "max": null,
+     "preferred": null
+    },
+    {
+     "quality": "Bluray-1080p",
+     "min": null,
+     "max": null,
+     "preferred": null
+    },
+    {
+     "quality": "HDTV-1080p",
+     "min": null,
+     "max": null,
+     "preferred": null
+    },
+    {
+     "quality": "WEBRip-1080p",
+     "min": null,
+     "max": null,
+     "preferred": null
+    },
+    {
+     "quality": "WEBDL-1080p",
+     "min": null,
+     "max": null,
+     "preferred": null
+    },
+    {
+     "quality": "Raw-HD",
+     "min": null,
+     "max": null,
+     "preferred": null
+    },
+    {
+     "quality": "HDTV-2160p",
+     "min": null,
+     "max": null,
+     "preferred": null
+    },
+    {
+     "quality": "WEBRip-2160p",
+     "min": null,
+     "max": null,
+     "preferred": null
+    },
+    {
+     "quality": "WEBDL-2160p",
+     "min": null,
+     "max": null,
+     "preferred": null
+    },
+    {
+     "quality": "Bluray-2160p",
+     "min": null,
+     "max": null,
+     "preferred": null
+    },
+    {
+     "quality": "Bluray-1080p Remux",
+     "min": null,
+     "max": null,
+     "preferred": null
+    },
+    {
+     "quality": "Bluray-2160p Remux",
+     "min": null,
+     "max": null,
+     "preferred": null
+    }
+   ],
+   "config": {
+    "preferredProtocol": "usenet"
+   },
+   "media": {
+    "title": "Title1",
+    "runtime": 60
+   },
+   "releases": [
+    {
+     "release": {
+      "quality": {
+       "quality": "HDTV-720p"
+      },
+      "languages": [
+       "English"
+      ],
+      "ageHours": 0,
+      "size": 262144000,
+      "protocol": "torrent",
+      "indexerPriority": 0,
+      "seeders": 1000,
+      "peers": 10
+     },
+     "episodes": [
+      {
+       "season": 1,
+       "episode": 1
+      }
+     ]
+    },
+    {
+     "release": {
+      "quality": {
+       "quality": "HDTV-720p"
+      },
+      "languages": [
+       "English"
+      ],
+      "ageHours": 0,
+      "size": 209715200,
+      "protocol": "torrent",
+      "indexerPriority": 0,
+      "seeders": 1100,
+      "peers": 10
+     },
+     "episodes": [
+      {
+       "season": 1,
+       "episode": 1
+      }
+     ]
+    }
+   ],
+   "expect": {
+    "first": 0
+   },
+   "flavour": "sonarr",
+   "fixture": "PrioritizeDownloadDecisionFixture"
+  },
+  {
+   "test": "should_prefer_first_release_if_age_and_size_are_too_similar",
+   "spec": "Prioritize",
+   "profile": {},
+   "definitions": [
+    {
+     "quality": "Unknown",
+     "min": null,
+     "max": null,
+     "preferred": null
+    },
+    {
+     "quality": "SDTV",
+     "min": null,
+     "max": null,
+     "preferred": null
+    },
+    {
+     "quality": "WEBRip-480p",
+     "min": null,
+     "max": null,
+     "preferred": null
+    },
+    {
+     "quality": "WEBDL-480p",
+     "min": null,
+     "max": null,
+     "preferred": null
+    },
+    {
+     "quality": "DVD",
+     "min": null,
+     "max": null,
+     "preferred": null
+    },
+    {
+     "quality": "Bluray-480p",
+     "min": null,
+     "max": null,
+     "preferred": null
+    },
+    {
+     "quality": "Bluray-576p",
+     "min": null,
+     "max": null,
+     "preferred": null
+    },
+    {
+     "quality": "HDTV-720p",
+     "min": null,
+     "max": null,
+     "preferred": null
+    },
+    {
+     "quality": "WEBRip-720p",
+     "min": null,
+     "max": null,
+     "preferred": null
+    },
+    {
+     "quality": "WEBDL-720p",
+     "min": null,
+     "max": null,
+     "preferred": null
+    },
+    {
+     "quality": "Bluray-720p",
+     "min": null,
+     "max": null,
+     "preferred": null
+    },
+    {
+     "quality": "Bluray-1080p",
+     "min": null,
+     "max": null,
+     "preferred": null
+    },
+    {
+     "quality": "HDTV-1080p",
+     "min": null,
+     "max": null,
+     "preferred": null
+    },
+    {
+     "quality": "WEBRip-1080p",
+     "min": null,
+     "max": null,
+     "preferred": null
+    },
+    {
+     "quality": "WEBDL-1080p",
+     "min": null,
+     "max": null,
+     "preferred": null
+    },
+    {
+     "quality": "Raw-HD",
+     "min": null,
+     "max": null,
+     "preferred": null
+    },
+    {
+     "quality": "HDTV-2160p",
+     "min": null,
+     "max": null,
+     "preferred": null
+    },
+    {
+     "quality": "WEBRip-2160p",
+     "min": null,
+     "max": null,
+     "preferred": null
+    },
+    {
+     "quality": "WEBDL-2160p",
+     "min": null,
+     "max": null,
+     "preferred": null
+    },
+    {
+     "quality": "Bluray-2160p",
+     "min": null,
+     "max": null,
+     "preferred": null
+    },
+    {
+     "quality": "Bluray-1080p Remux",
+     "min": null,
+     "max": null,
+     "preferred": null
+    },
+    {
+     "quality": "Bluray-2160p Remux",
+     "min": null,
+     "max": null,
+     "preferred": null
+    }
+   ],
+   "config": {
+    "preferredProtocol": "usenet"
+   },
+   "media": {
+    "title": "Title1",
+    "runtime": 60
+   },
+   "releases": [
+    {
+     "release": {
+      "quality": {
+       "quality": "HDTV-720p"
+      },
+      "languages": [
+       "English"
+      ],
+      "ageHours": 2400,
+      "size": 209715200,
+      "protocol": "usenet",
+      "indexerPriority": 25
+     },
+     "episodes": [
+      {
+       "season": 1,
+       "episode": 1
+      }
+     ]
+    },
+    {
+     "release": {
+      "quality": {
+       "quality": "HDTV-720p"
+      },
+      "languages": [
+       "English"
+      ],
+      "ageHours": 3600,
+      "size": 262144000,
+      "protocol": "usenet",
+      "indexerPriority": 25
+     },
+     "episodes": [
+      {
+       "season": 1,
+       "episode": 1
+      }
+     ]
+    }
+   ],
+   "expect": {
+    "first": 0
+   },
+   "flavour": "sonarr",
+   "fixture": "PrioritizeDownloadDecisionFixture"
+  },
+  {
+   "test": "should_prefer_quality_over_the_number_of_peers",
+   "spec": "Prioritize",
+   "profile": {},
+   "definitions": [
+    {
+     "quality": "Unknown",
+     "min": null,
+     "max": null,
+     "preferred": null
+    },
+    {
+     "quality": "SDTV",
+     "min": null,
+     "max": null,
+     "preferred": null
+    },
+    {
+     "quality": "WEBRip-480p",
+     "min": null,
+     "max": null,
+     "preferred": null
+    },
+    {
+     "quality": "WEBDL-480p",
+     "min": null,
+     "max": null,
+     "preferred": null
+    },
+    {
+     "quality": "DVD",
+     "min": null,
+     "max": null,
+     "preferred": null
+    },
+    {
+     "quality": "Bluray-480p",
+     "min": null,
+     "max": null,
+     "preferred": null
+    },
+    {
+     "quality": "Bluray-576p",
+     "min": null,
+     "max": null,
+     "preferred": null
+    },
+    {
+     "quality": "HDTV-720p",
+     "min": null,
+     "max": null,
+     "preferred": null
+    },
+    {
+     "quality": "WEBRip-720p",
+     "min": null,
+     "max": null,
+     "preferred": null
+    },
+    {
+     "quality": "WEBDL-720p",
+     "min": null,
+     "max": null,
+     "preferred": null
+    },
+    {
+     "quality": "Bluray-720p",
+     "min": null,
+     "max": null,
+     "preferred": null
+    },
+    {
+     "quality": "Bluray-1080p",
+     "min": null,
+     "max": null,
+     "preferred": null
+    },
+    {
+     "quality": "HDTV-1080p",
+     "min": null,
+     "max": null,
+     "preferred": null
+    },
+    {
+     "quality": "WEBRip-1080p",
+     "min": null,
+     "max": null,
+     "preferred": null
+    },
+    {
+     "quality": "WEBDL-1080p",
+     "min": null,
+     "max": null,
+     "preferred": null
+    },
+    {
+     "quality": "Raw-HD",
+     "min": null,
+     "max": null,
+     "preferred": null
+    },
+    {
+     "quality": "HDTV-2160p",
+     "min": null,
+     "max": null,
+     "preferred": null
+    },
+    {
+     "quality": "WEBRip-2160p",
+     "min": null,
+     "max": null,
+     "preferred": null
+    },
+    {
+     "quality": "WEBDL-2160p",
+     "min": null,
+     "max": null,
+     "preferred": null
+    },
+    {
+     "quality": "Bluray-2160p",
+     "min": null,
+     "max": null,
+     "preferred": null
+    },
+    {
+     "quality": "Bluray-1080p Remux",
+     "min": null,
+     "max": null,
+     "preferred": null
+    },
+    {
+     "quality": "Bluray-2160p Remux",
+     "min": null,
+     "max": null,
+     "preferred": null
+    }
+   ],
+   "config": {
+    "preferredProtocol": "usenet"
+   },
+   "media": {
+    "title": "Title1",
+    "runtime": 60
+   },
+   "releases": [
+    {
+     "release": {
+      "quality": {
+       "quality": "Bluray-1080p"
+      },
+      "languages": [
+       "English"
+      ],
+      "ageHours": 0,
+      "size": 262144000,
+      "protocol": "torrent",
+      "indexerPriority": 0,
+      "seeders": 100,
+      "peers": 10
+     },
+     "episodes": [
+      {
+       "season": 1,
+       "episode": 1
+      }
+     ]
+    },
+    {
+     "release": {
+      "quality": {
+       "quality": "SDTV"
+      },
+      "languages": [
+       "English"
+      ],
+      "ageHours": 0,
+      "size": 209715200,
+      "protocol": "torrent",
+      "indexerPriority": 0,
+      "seeders": 1100,
+      "peers": 10
+     },
+     "episodes": [
+      {
+       "season": 1,
+       "episode": 1
+      }
+     ]
+    }
+   ],
+   "expect": {
+    "first": 0
+   },
+   "flavour": "sonarr",
+   "fixture": "PrioritizeDownloadDecisionFixture"
+  },
+  {
+   "test": "should_put_higher_quality_before_lower_always",
+   "spec": "Prioritize",
+   "profile": {},
+   "definitions": [
+    {
+     "quality": "Unknown",
+     "min": null,
+     "max": null,
+     "preferred": null
+    },
+    {
+     "quality": "SDTV",
+     "min": null,
+     "max": null,
+     "preferred": null
+    },
+    {
+     "quality": "WEBRip-480p",
+     "min": null,
+     "max": null,
+     "preferred": null
+    },
+    {
+     "quality": "WEBDL-480p",
+     "min": null,
+     "max": null,
+     "preferred": null
+    },
+    {
+     "quality": "DVD",
+     "min": null,
+     "max": null,
+     "preferred": null
+    },
+    {
+     "quality": "Bluray-480p",
+     "min": null,
+     "max": null,
+     "preferred": null
+    },
+    {
+     "quality": "Bluray-576p",
+     "min": null,
+     "max": null,
+     "preferred": null
+    },
+    {
+     "quality": "HDTV-720p",
+     "min": null,
+     "max": null,
+     "preferred": null
+    },
+    {
+     "quality": "WEBRip-720p",
+     "min": null,
+     "max": null,
+     "preferred": null
+    },
+    {
+     "quality": "WEBDL-720p",
+     "min": null,
+     "max": null,
+     "preferred": null
+    },
+    {
+     "quality": "Bluray-720p",
+     "min": null,
+     "max": null,
+     "preferred": null
+    },
+    {
+     "quality": "Bluray-1080p",
+     "min": null,
+     "max": null,
+     "preferred": null
+    },
+    {
+     "quality": "HDTV-1080p",
+     "min": null,
+     "max": null,
+     "preferred": null
+    },
+    {
+     "quality": "WEBRip-1080p",
+     "min": null,
+     "max": null,
+     "preferred": null
+    },
+    {
+     "quality": "WEBDL-1080p",
+     "min": null,
+     "max": null,
+     "preferred": null
+    },
+    {
+     "quality": "Raw-HD",
+     "min": null,
+     "max": null,
+     "preferred": null
+    },
+    {
+     "quality": "HDTV-2160p",
+     "min": null,
+     "max": null,
+     "preferred": null
+    },
+    {
+     "quality": "WEBRip-2160p",
+     "min": null,
+     "max": null,
+     "preferred": null
+    },
+    {
+     "quality": "WEBDL-2160p",
+     "min": null,
+     "max": null,
+     "preferred": null
+    },
+    {
+     "quality": "Bluray-2160p",
+     "min": null,
+     "max": null,
+     "preferred": null
+    },
+    {
+     "quality": "Bluray-1080p Remux",
+     "min": null,
+     "max": null,
+     "preferred": null
+    },
+    {
+     "quality": "Bluray-2160p Remux",
+     "min": null,
+     "max": null,
+     "preferred": null
+    }
+   ],
+   "config": {
+    "preferredProtocol": "usenet"
+   },
+   "media": {
+    "title": "Title1",
+    "runtime": 60
+   },
+   "releases": [
+    {
+     "release": {
+      "quality": {
+       "quality": "SDTV"
+      },
+      "languages": [
+       "French"
+      ],
+      "ageHours": 0,
+      "size": 0,
+      "protocol": "usenet",
+      "indexerPriority": 25
+     },
+     "episodes": [
+      {
+       "season": 1,
+       "episode": 1
+      }
+     ]
+    },
+    {
+     "release": {
+      "quality": {
+       "quality": "HDTV-720p"
+      },
+      "languages": [
+       "German"
+      ],
+      "ageHours": 0,
+      "size": 0,
+      "protocol": "usenet",
+      "indexerPriority": 25
+     },
+     "episodes": [
+      {
+       "season": 1,
+       "episode": 1
+      }
+     ]
+    }
+   ],
+   "expect": {
+    "first": 1
+   },
+   "flavour": "sonarr",
+   "fixture": "PrioritizeDownloadDecisionFixture"
+  },
+  {
+   "test": "should_prefer_higher_score_over_lower_score",
+   "spec": "Prioritize",
+   "profile": {},
+   "definitions": [
+    {
+     "quality": "Unknown",
+     "min": null,
+     "max": null,
+     "preferred": null
+    },
+    {
+     "quality": "SDTV",
+     "min": null,
+     "max": null,
+     "preferred": null
+    },
+    {
+     "quality": "WEBRip-480p",
+     "min": null,
+     "max": null,
+     "preferred": null
+    },
+    {
+     "quality": "WEBDL-480p",
+     "min": null,
+     "max": null,
+     "preferred": null
+    },
+    {
+     "quality": "DVD",
+     "min": null,
+     "max": null,
+     "preferred": null
+    },
+    {
+     "quality": "Bluray-480p",
+     "min": null,
+     "max": null,
+     "preferred": null
+    },
+    {
+     "quality": "Bluray-576p",
+     "min": null,
+     "max": null,
+     "preferred": null
+    },
+    {
+     "quality": "HDTV-720p",
+     "min": null,
+     "max": null,
+     "preferred": null
+    },
+    {
+     "quality": "WEBRip-720p",
+     "min": null,
+     "max": null,
+     "preferred": null
+    },
+    {
+     "quality": "WEBDL-720p",
+     "min": null,
+     "max": null,
+     "preferred": null
+    },
+    {
+     "quality": "Bluray-720p",
+     "min": null,
+     "max": null,
+     "preferred": null
+    },
+    {
+     "quality": "Bluray-1080p",
+     "min": null,
+     "max": null,
+     "preferred": null
+    },
+    {
+     "quality": "HDTV-1080p",
+     "min": null,
+     "max": null,
+     "preferred": null
+    },
+    {
+     "quality": "WEBRip-1080p",
+     "min": null,
+     "max": null,
+     "preferred": null
+    },
+    {
+     "quality": "WEBDL-1080p",
+     "min": null,
+     "max": null,
+     "preferred": null
+    },
+    {
+     "quality": "Raw-HD",
+     "min": null,
+     "max": null,
+     "preferred": null
+    },
+    {
+     "quality": "HDTV-2160p",
+     "min": null,
+     "max": null,
+     "preferred": null
+    },
+    {
+     "quality": "WEBRip-2160p",
+     "min": null,
+     "max": null,
+     "preferred": null
+    },
+    {
+     "quality": "WEBDL-2160p",
+     "min": null,
+     "max": null,
+     "preferred": null
+    },
+    {
+     "quality": "Bluray-2160p",
+     "min": null,
+     "max": null,
+     "preferred": null
+    },
+    {
+     "quality": "Bluray-1080p Remux",
+     "min": null,
+     "max": null,
+     "preferred": null
+    },
+    {
+     "quality": "Bluray-2160p Remux",
+     "min": null,
+     "max": null,
+     "preferred": null
+    }
+   ],
+   "config": {
+    "preferredProtocol": "usenet"
+   },
+   "media": {
+    "title": "Title1",
+    "runtime": 60
+   },
+   "releases": [
+    {
+     "release": {
+      "quality": {
+       "quality": "WEBDL-1080p"
+      },
+      "languages": [
+       "English"
+      ],
+      "ageHours": 0,
+      "size": 0,
+      "protocol": "usenet",
+      "indexerPriority": 25,
+      "formatScore": 10
+     },
+     "episodes": [
+      {
+       "season": 1,
+       "episode": 1
+      }
+     ]
+    },
+    {
+     "release": {
+      "quality": {
+       "quality": "WEBDL-1080p"
+      },
+      "languages": [
+       "English"
+      ],
+      "ageHours": 0,
+      "size": 0,
+      "protocol": "usenet",
+      "indexerPriority": 25,
+      "formatScore": 0
+     },
+     "episodes": [
+      {
+       "season": 1,
+       "episode": 1
+      }
+     ]
+    }
+   ],
+   "expect": {
+    "first": 0
+   },
+   "flavour": "sonarr",
+   "fixture": "PrioritizeDownloadDecisionFixture"
+  },
+  {
+   "test": "should_prefer_proper_over_score_when_download_propers_is_prefer_and_upgrade",
+   "spec": "Prioritize",
+   "profile": {},
+   "definitions": [
+    {
+     "quality": "Unknown",
+     "min": null,
+     "max": null,
+     "preferred": null
+    },
+    {
+     "quality": "SDTV",
+     "min": null,
+     "max": null,
+     "preferred": null
+    },
+    {
+     "quality": "WEBRip-480p",
+     "min": null,
+     "max": null,
+     "preferred": null
+    },
+    {
+     "quality": "WEBDL-480p",
+     "min": null,
+     "max": null,
+     "preferred": null
+    },
+    {
+     "quality": "DVD",
+     "min": null,
+     "max": null,
+     "preferred": null
+    },
+    {
+     "quality": "Bluray-480p",
+     "min": null,
+     "max": null,
+     "preferred": null
+    },
+    {
+     "quality": "Bluray-576p",
+     "min": null,
+     "max": null,
+     "preferred": null
+    },
+    {
+     "quality": "HDTV-720p",
+     "min": null,
+     "max": null,
+     "preferred": null
+    },
+    {
+     "quality": "WEBRip-720p",
+     "min": null,
+     "max": null,
+     "preferred": null
+    },
+    {
+     "quality": "WEBDL-720p",
+     "min": null,
+     "max": null,
+     "preferred": null
+    },
+    {
+     "quality": "Bluray-720p",
+     "min": null,
+     "max": null,
+     "preferred": null
+    },
+    {
+     "quality": "Bluray-1080p",
+     "min": null,
+     "max": null,
+     "preferred": null
+    },
+    {
+     "quality": "HDTV-1080p",
+     "min": null,
+     "max": null,
+     "preferred": null
+    },
+    {
+     "quality": "WEBRip-1080p",
+     "min": null,
+     "max": null,
+     "preferred": null
+    },
+    {
+     "quality": "WEBDL-1080p",
+     "min": null,
+     "max": null,
+     "preferred": null
+    },
+    {
+     "quality": "Raw-HD",
+     "min": null,
+     "max": null,
+     "preferred": null
+    },
+    {
+     "quality": "HDTV-2160p",
+     "min": null,
+     "max": null,
+     "preferred": null
+    },
+    {
+     "quality": "WEBRip-2160p",
+     "min": null,
+     "max": null,
+     "preferred": null
+    },
+    {
+     "quality": "WEBDL-2160p",
+     "min": null,
+     "max": null,
+     "preferred": null
+    },
+    {
+     "quality": "Bluray-2160p",
+     "min": null,
+     "max": null,
+     "preferred": null
+    },
+    {
+     "quality": "Bluray-1080p Remux",
+     "min": null,
+     "max": null,
+     "preferred": null
+    },
+    {
+     "quality": "Bluray-2160p Remux",
+     "min": null,
+     "max": null,
+     "preferred": null
+    }
+   ],
+   "config": {
+    "preferredProtocol": "usenet",
+    "propers": "preferAndUpgrade"
+   },
+   "media": {
+    "title": "Title1",
+    "runtime": 60
+   },
+   "releases": [
+    {
+     "release": {
+      "quality": {
+       "quality": "WEBDL-1080p",
+       "version": 1
+      },
+      "languages": [
+       "English"
+      ],
+      "ageHours": 0,
+      "size": 0,
+      "protocol": "usenet",
+      "indexerPriority": 25,
+      "formatScore": 10
+     },
+     "episodes": [
+      {
+       "season": 1,
+       "episode": 1
+      }
+     ]
+    },
+    {
+     "release": {
+      "quality": {
+       "quality": "WEBDL-1080p",
+       "version": 2
+      },
+      "languages": [
+       "English"
+      ],
+      "ageHours": 0,
+      "size": 0,
+      "protocol": "usenet",
+      "indexerPriority": 25,
+      "formatScore": 0
+     },
+     "episodes": [
+      {
+       "season": 1,
+       "episode": 1
+      }
+     ]
+    }
+   ],
+   "expect": {
+    "first": 1
+   },
+   "flavour": "sonarr",
+   "fixture": "PrioritizeDownloadDecisionFixture"
+  },
+  {
+   "test": "should_prefer_proper_over_score_when_download_propers_is_do_not_upgrade",
+   "spec": "Prioritize",
+   "profile": {},
+   "definitions": [
+    {
+     "quality": "Unknown",
+     "min": null,
+     "max": null,
+     "preferred": null
+    },
+    {
+     "quality": "SDTV",
+     "min": null,
+     "max": null,
+     "preferred": null
+    },
+    {
+     "quality": "WEBRip-480p",
+     "min": null,
+     "max": null,
+     "preferred": null
+    },
+    {
+     "quality": "WEBDL-480p",
+     "min": null,
+     "max": null,
+     "preferred": null
+    },
+    {
+     "quality": "DVD",
+     "min": null,
+     "max": null,
+     "preferred": null
+    },
+    {
+     "quality": "Bluray-480p",
+     "min": null,
+     "max": null,
+     "preferred": null
+    },
+    {
+     "quality": "Bluray-576p",
+     "min": null,
+     "max": null,
+     "preferred": null
+    },
+    {
+     "quality": "HDTV-720p",
+     "min": null,
+     "max": null,
+     "preferred": null
+    },
+    {
+     "quality": "WEBRip-720p",
+     "min": null,
+     "max": null,
+     "preferred": null
+    },
+    {
+     "quality": "WEBDL-720p",
+     "min": null,
+     "max": null,
+     "preferred": null
+    },
+    {
+     "quality": "Bluray-720p",
+     "min": null,
+     "max": null,
+     "preferred": null
+    },
+    {
+     "quality": "Bluray-1080p",
+     "min": null,
+     "max": null,
+     "preferred": null
+    },
+    {
+     "quality": "HDTV-1080p",
+     "min": null,
+     "max": null,
+     "preferred": null
+    },
+    {
+     "quality": "WEBRip-1080p",
+     "min": null,
+     "max": null,
+     "preferred": null
+    },
+    {
+     "quality": "WEBDL-1080p",
+     "min": null,
+     "max": null,
+     "preferred": null
+    },
+    {
+     "quality": "Raw-HD",
+     "min": null,
+     "max": null,
+     "preferred": null
+    },
+    {
+     "quality": "HDTV-2160p",
+     "min": null,
+     "max": null,
+     "preferred": null
+    },
+    {
+     "quality": "WEBRip-2160p",
+     "min": null,
+     "max": null,
+     "preferred": null
+    },
+    {
+     "quality": "WEBDL-2160p",
+     "min": null,
+     "max": null,
+     "preferred": null
+    },
+    {
+     "quality": "Bluray-2160p",
+     "min": null,
+     "max": null,
+     "preferred": null
+    },
+    {
+     "quality": "Bluray-1080p Remux",
+     "min": null,
+     "max": null,
+     "preferred": null
+    },
+    {
+     "quality": "Bluray-2160p Remux",
+     "min": null,
+     "max": null,
+     "preferred": null
+    }
+   ],
+   "config": {
+    "preferredProtocol": "usenet",
+    "propers": "doNotUpgrade"
+   },
+   "media": {
+    "title": "Title1",
+    "runtime": 60
+   },
+   "releases": [
+    {
+     "release": {
+      "quality": {
+       "quality": "WEBDL-1080p",
+       "version": 1
+      },
+      "languages": [
+       "English"
+      ],
+      "ageHours": 0,
+      "size": 0,
+      "protocol": "usenet",
+      "indexerPriority": 25,
+      "formatScore": 10
+     },
+     "episodes": [
+      {
+       "season": 1,
+       "episode": 1
+      }
+     ]
+    },
+    {
+     "release": {
+      "quality": {
+       "quality": "WEBDL-1080p",
+       "version": 2
+      },
+      "languages": [
+       "English"
+      ],
+      "ageHours": 0,
+      "size": 0,
+      "protocol": "usenet",
+      "indexerPriority": 25,
+      "formatScore": 0
+     },
+     "episodes": [
+      {
+       "season": 1,
+       "episode": 1
+      }
+     ]
+    }
+   ],
+   "expect": {
+    "first": 1
+   },
+   "flavour": "sonarr",
+   "fixture": "PrioritizeDownloadDecisionFixture"
+  },
+  {
+   "test": "should_prefer_score_over_proper_when_download_propers_is_do_not_prefer",
+   "spec": "Prioritize",
+   "profile": {},
+   "definitions": [
+    {
+     "quality": "Unknown",
+     "min": null,
+     "max": null,
+     "preferred": null
+    },
+    {
+     "quality": "SDTV",
+     "min": null,
+     "max": null,
+     "preferred": null
+    },
+    {
+     "quality": "WEBRip-480p",
+     "min": null,
+     "max": null,
+     "preferred": null
+    },
+    {
+     "quality": "WEBDL-480p",
+     "min": null,
+     "max": null,
+     "preferred": null
+    },
+    {
+     "quality": "DVD",
+     "min": null,
+     "max": null,
+     "preferred": null
+    },
+    {
+     "quality": "Bluray-480p",
+     "min": null,
+     "max": null,
+     "preferred": null
+    },
+    {
+     "quality": "Bluray-576p",
+     "min": null,
+     "max": null,
+     "preferred": null
+    },
+    {
+     "quality": "HDTV-720p",
+     "min": null,
+     "max": null,
+     "preferred": null
+    },
+    {
+     "quality": "WEBRip-720p",
+     "min": null,
+     "max": null,
+     "preferred": null
+    },
+    {
+     "quality": "WEBDL-720p",
+     "min": null,
+     "max": null,
+     "preferred": null
+    },
+    {
+     "quality": "Bluray-720p",
+     "min": null,
+     "max": null,
+     "preferred": null
+    },
+    {
+     "quality": "Bluray-1080p",
+     "min": null,
+     "max": null,
+     "preferred": null
+    },
+    {
+     "quality": "HDTV-1080p",
+     "min": null,
+     "max": null,
+     "preferred": null
+    },
+    {
+     "quality": "WEBRip-1080p",
+     "min": null,
+     "max": null,
+     "preferred": null
+    },
+    {
+     "quality": "WEBDL-1080p",
+     "min": null,
+     "max": null,
+     "preferred": null
+    },
+    {
+     "quality": "Raw-HD",
+     "min": null,
+     "max": null,
+     "preferred": null
+    },
+    {
+     "quality": "HDTV-2160p",
+     "min": null,
+     "max": null,
+     "preferred": null
+    },
+    {
+     "quality": "WEBRip-2160p",
+     "min": null,
+     "max": null,
+     "preferred": null
+    },
+    {
+     "quality": "WEBDL-2160p",
+     "min": null,
+     "max": null,
+     "preferred": null
+    },
+    {
+     "quality": "Bluray-2160p",
+     "min": null,
+     "max": null,
+     "preferred": null
+    },
+    {
+     "quality": "Bluray-1080p Remux",
+     "min": null,
+     "max": null,
+     "preferred": null
+    },
+    {
+     "quality": "Bluray-2160p Remux",
+     "min": null,
+     "max": null,
+     "preferred": null
+    }
+   ],
+   "config": {
+    "preferredProtocol": "usenet",
+    "propers": "doNotPrefer"
+   },
+   "media": {
+    "title": "Title1",
+    "runtime": 60
+   },
+   "releases": [
+    {
+     "release": {
+      "quality": {
+       "quality": "WEBDL-1080p",
+       "version": 1
+      },
+      "languages": [
+       "English"
+      ],
+      "ageHours": 0,
+      "size": 0,
+      "protocol": "usenet",
+      "indexerPriority": 25,
+      "formatScore": 10
+     },
+     "episodes": [
+      {
+       "season": 1,
+       "episode": 1
+      }
+     ]
+    },
+    {
+     "release": {
+      "quality": {
+       "quality": "WEBDL-1080p",
+       "version": 2
+      },
+      "languages": [
+       "English"
+      ],
+      "ageHours": 0,
+      "size": 0,
+      "protocol": "usenet",
+      "indexerPriority": 25,
+      "formatScore": 0
+     },
+     "episodes": [
+      {
+       "season": 1,
+       "episode": 1
+      }
+     ]
+    }
+   ],
+   "expect": {
+    "first": 0
+   },
+   "flavour": "sonarr",
+   "fixture": "PrioritizeDownloadDecisionFixture"
+  },
+  {
+   "test": "should_prefer_score_over_real_when_download_propers_is_do_not_prefer",
+   "spec": "Prioritize",
+   "profile": {},
+   "definitions": [
+    {
+     "quality": "Unknown",
+     "min": null,
+     "max": null,
+     "preferred": null
+    },
+    {
+     "quality": "SDTV",
+     "min": null,
+     "max": null,
+     "preferred": null
+    },
+    {
+     "quality": "WEBRip-480p",
+     "min": null,
+     "max": null,
+     "preferred": null
+    },
+    {
+     "quality": "WEBDL-480p",
+     "min": null,
+     "max": null,
+     "preferred": null
+    },
+    {
+     "quality": "DVD",
+     "min": null,
+     "max": null,
+     "preferred": null
+    },
+    {
+     "quality": "Bluray-480p",
+     "min": null,
+     "max": null,
+     "preferred": null
+    },
+    {
+     "quality": "Bluray-576p",
+     "min": null,
+     "max": null,
+     "preferred": null
+    },
+    {
+     "quality": "HDTV-720p",
+     "min": null,
+     "max": null,
+     "preferred": null
+    },
+    {
+     "quality": "WEBRip-720p",
+     "min": null,
+     "max": null,
+     "preferred": null
+    },
+    {
+     "quality": "WEBDL-720p",
+     "min": null,
+     "max": null,
+     "preferred": null
+    },
+    {
+     "quality": "Bluray-720p",
+     "min": null,
+     "max": null,
+     "preferred": null
+    },
+    {
+     "quality": "Bluray-1080p",
+     "min": null,
+     "max": null,
+     "preferred": null
+    },
+    {
+     "quality": "HDTV-1080p",
+     "min": null,
+     "max": null,
+     "preferred": null
+    },
+    {
+     "quality": "WEBRip-1080p",
+     "min": null,
+     "max": null,
+     "preferred": null
+    },
+    {
+     "quality": "WEBDL-1080p",
+     "min": null,
+     "max": null,
+     "preferred": null
+    },
+    {
+     "quality": "Raw-HD",
+     "min": null,
+     "max": null,
+     "preferred": null
+    },
+    {
+     "quality": "HDTV-2160p",
+     "min": null,
+     "max": null,
+     "preferred": null
+    },
+    {
+     "quality": "WEBRip-2160p",
+     "min": null,
+     "max": null,
+     "preferred": null
+    },
+    {
+     "quality": "WEBDL-2160p",
+     "min": null,
+     "max": null,
+     "preferred": null
+    },
+    {
+     "quality": "Bluray-2160p",
+     "min": null,
+     "max": null,
+     "preferred": null
+    },
+    {
+     "quality": "Bluray-1080p Remux",
+     "min": null,
+     "max": null,
+     "preferred": null
+    },
+    {
+     "quality": "Bluray-2160p Remux",
+     "min": null,
+     "max": null,
+     "preferred": null
+    }
+   ],
+   "config": {
+    "preferredProtocol": "usenet",
+    "propers": "doNotPrefer"
+   },
+   "media": {
+    "title": "Title1",
+    "runtime": 60
+   },
+   "releases": [
+    {
+     "release": {
+      "quality": {
+       "quality": "WEBDL-1080p",
+       "version": 1
+      },
+      "languages": [
+       "English"
+      ],
+      "ageHours": 0,
+      "size": 0,
+      "protocol": "usenet",
+      "indexerPriority": 25,
+      "formatScore": 10
+     },
+     "episodes": [
+      {
+       "season": 1,
+       "episode": 1
+      }
+     ]
+    },
+    {
+     "release": {
+      "quality": {
+       "quality": "WEBDL-1080p",
+       "version": 1,
+       "real": 1
+      },
+      "languages": [
+       "English"
+      ],
+      "ageHours": 0,
+      "size": 0,
+      "protocol": "usenet",
+      "indexerPriority": 25,
+      "formatScore": 0
+     },
+     "episodes": [
+      {
+       "season": 1,
+       "episode": 1
+      }
+     ]
+    }
+   ],
+   "expect": {
+    "first": 0
+   },
+   "flavour": "sonarr",
+   "fixture": "PrioritizeDownloadDecisionFixture"
+  },
+  {
+   "test": "sort_download_decisions_based_on_indexer_priority",
+   "spec": "Prioritize",
+   "profile": {},
+   "definitions": [
+    {
+     "quality": "Unknown",
+     "min": null,
+     "max": null,
+     "preferred": null
+    },
+    {
+     "quality": "SDTV",
+     "min": null,
+     "max": null,
+     "preferred": null
+    },
+    {
+     "quality": "WEBRip-480p",
+     "min": null,
+     "max": null,
+     "preferred": null
+    },
+    {
+     "quality": "WEBDL-480p",
+     "min": null,
+     "max": null,
+     "preferred": null
+    },
+    {
+     "quality": "DVD",
+     "min": null,
+     "max": null,
+     "preferred": null
+    },
+    {
+     "quality": "Bluray-480p",
+     "min": null,
+     "max": null,
+     "preferred": null
+    },
+    {
+     "quality": "Bluray-576p",
+     "min": null,
+     "max": null,
+     "preferred": null
+    },
+    {
+     "quality": "HDTV-720p",
+     "min": null,
+     "max": null,
+     "preferred": null
+    },
+    {
+     "quality": "WEBRip-720p",
+     "min": null,
+     "max": null,
+     "preferred": null
+    },
+    {
+     "quality": "WEBDL-720p",
+     "min": null,
+     "max": null,
+     "preferred": null
+    },
+    {
+     "quality": "Bluray-720p",
+     "min": null,
+     "max": null,
+     "preferred": null
+    },
+    {
+     "quality": "Bluray-1080p",
+     "min": null,
+     "max": null,
+     "preferred": null
+    },
+    {
+     "quality": "HDTV-1080p",
+     "min": null,
+     "max": null,
+     "preferred": null
+    },
+    {
+     "quality": "WEBRip-1080p",
+     "min": null,
+     "max": null,
+     "preferred": null
+    },
+    {
+     "quality": "WEBDL-1080p",
+     "min": null,
+     "max": null,
+     "preferred": null
+    },
+    {
+     "quality": "Raw-HD",
+     "min": null,
+     "max": null,
+     "preferred": null
+    },
+    {
+     "quality": "HDTV-2160p",
+     "min": null,
+     "max": null,
+     "preferred": null
+    },
+    {
+     "quality": "WEBRip-2160p",
+     "min": null,
+     "max": null,
+     "preferred": null
+    },
+    {
+     "quality": "WEBDL-2160p",
+     "min": null,
+     "max": null,
+     "preferred": null
+    },
+    {
+     "quality": "Bluray-2160p",
+     "min": null,
+     "max": null,
+     "preferred": null
+    },
+    {
+     "quality": "Bluray-1080p Remux",
+     "min": null,
+     "max": null,
+     "preferred": null
+    },
+    {
+     "quality": "Bluray-2160p Remux",
+     "min": null,
+     "max": null,
+     "preferred": null
+    }
+   ],
+   "config": {
+    "preferredProtocol": "usenet"
+   },
+   "media": {
+    "title": "Title1",
+    "runtime": 60
+   },
+   "releases": [
+    {
+     "release": {
+      "quality": {
+       "quality": "WEBDL-1080p",
+       "version": 1
+      },
+      "languages": [
+       "English"
+      ],
+      "ageHours": 0,
+      "size": 0,
+      "protocol": "usenet",
+      "indexerPriority": 25
+     },
+     "episodes": [
+      {
+       "season": 1,
+       "episode": 1
+      }
+     ]
+    },
+    {
+     "release": {
+      "quality": {
+       "quality": "WEBDL-1080p",
+       "version": 1
+      },
+      "languages": [
+       "English"
+      ],
+      "ageHours": 0,
+      "size": 0,
+      "protocol": "usenet",
+      "indexerPriority": 50
+     },
+     "episodes": [
+      {
+       "season": 1,
+       "episode": 1
+      }
+     ]
+    },
+    {
+     "release": {
+      "quality": {
+       "quality": "WEBDL-1080p",
+       "version": 1
+      },
+      "languages": [
+       "English"
+      ],
+      "ageHours": 0,
+      "size": 0,
+      "protocol": "usenet",
+      "indexerPriority": 1
+     },
+     "episodes": [
+      {
+       "season": 1,
+       "episode": 1
+      }
+     ]
+    }
+   ],
+   "expect": {
+    "order": [
+     2,
+     0,
+     1
+    ]
+   },
+   "flavour": "sonarr",
+   "fixture": "PrioritizeDownloadDecisionFixture"
+  },
+  {
+   "test": "ensure_download_decisions_indexer_priority_is_not_perfered_over_quality",
+   "spec": "Prioritize",
+   "profile": {},
+   "definitions": [
+    {
+     "quality": "Unknown",
+     "min": null,
+     "max": null,
+     "preferred": null
+    },
+    {
+     "quality": "SDTV",
+     "min": null,
+     "max": null,
+     "preferred": null
+    },
+    {
+     "quality": "WEBRip-480p",
+     "min": null,
+     "max": null,
+     "preferred": null
+    },
+    {
+     "quality": "WEBDL-480p",
+     "min": null,
+     "max": null,
+     "preferred": null
+    },
+    {
+     "quality": "DVD",
+     "min": null,
+     "max": null,
+     "preferred": null
+    },
+    {
+     "quality": "Bluray-480p",
+     "min": null,
+     "max": null,
+     "preferred": null
+    },
+    {
+     "quality": "Bluray-576p",
+     "min": null,
+     "max": null,
+     "preferred": null
+    },
+    {
+     "quality": "HDTV-720p",
+     "min": null,
+     "max": null,
+     "preferred": null
+    },
+    {
+     "quality": "WEBRip-720p",
+     "min": null,
+     "max": null,
+     "preferred": null
+    },
+    {
+     "quality": "WEBDL-720p",
+     "min": null,
+     "max": null,
+     "preferred": null
+    },
+    {
+     "quality": "Bluray-720p",
+     "min": null,
+     "max": null,
+     "preferred": null
+    },
+    {
+     "quality": "Bluray-1080p",
+     "min": null,
+     "max": null,
+     "preferred": null
+    },
+    {
+     "quality": "HDTV-1080p",
+     "min": null,
+     "max": null,
+     "preferred": null
+    },
+    {
+     "quality": "WEBRip-1080p",
+     "min": null,
+     "max": null,
+     "preferred": null
+    },
+    {
+     "quality": "WEBDL-1080p",
+     "min": null,
+     "max": null,
+     "preferred": null
+    },
+    {
+     "quality": "Raw-HD",
+     "min": null,
+     "max": null,
+     "preferred": null
+    },
+    {
+     "quality": "HDTV-2160p",
+     "min": null,
+     "max": null,
+     "preferred": null
+    },
+    {
+     "quality": "WEBRip-2160p",
+     "min": null,
+     "max": null,
+     "preferred": null
+    },
+    {
+     "quality": "WEBDL-2160p",
+     "min": null,
+     "max": null,
+     "preferred": null
+    },
+    {
+     "quality": "Bluray-2160p",
+     "min": null,
+     "max": null,
+     "preferred": null
+    },
+    {
+     "quality": "Bluray-1080p Remux",
+     "min": null,
+     "max": null,
+     "preferred": null
+    },
+    {
+     "quality": "Bluray-2160p Remux",
+     "min": null,
+     "max": null,
+     "preferred": null
+    }
+   ],
+   "config": {
+    "preferredProtocol": "usenet"
+   },
+   "media": {
+    "title": "Title1",
+    "runtime": 60
+   },
+   "releases": [
+    {
+     "release": {
+      "quality": {
+       "quality": "HDTV-720p",
+       "version": 1
+      },
+      "languages": [
+       "English"
+      ],
+      "ageHours": 0,
+      "size": 0,
+      "protocol": "usenet",
+      "indexerPriority": 25
+     },
+     "episodes": [
+      {
+       "season": 1,
+       "episode": 1
+      }
+     ]
+    },
+    {
+     "release": {
+      "quality": {
+       "quality": "WEBDL-1080p",
+       "version": 1
+      },
+      "languages": [
+       "English"
+      ],
+      "ageHours": 0,
+      "size": 0,
+      "protocol": "usenet",
+      "indexerPriority": 50
+     },
+     "episodes": [
+      {
+       "season": 1,
+       "episode": 1
+      }
+     ]
+    },
+    {
+     "release": {
+      "quality": {
+       "quality": "SDTV",
+       "version": 1
+      },
+      "languages": [
+       "English"
+      ],
+      "ageHours": 0,
+      "size": 0,
+      "protocol": "usenet",
+      "indexerPriority": 1
+     },
+     "episodes": [
+      {
+       "season": 1,
+       "episode": 1
+      }
+     ]
+    },
+    {
+     "release": {
+      "quality": {
+       "quality": "WEBDL-1080p",
+       "version": 1
+      },
+      "languages": [
+       "English"
+      ],
+      "ageHours": 0,
+      "size": 0,
+      "protocol": "usenet",
+      "indexerPriority": 25
+     },
+     "episodes": [
+      {
+       "season": 1,
+       "episode": 1
+      }
+     ]
+    }
+   ],
+   "expect": {
+    "order": [
+     3,
+     1,
+     0,
+     2
+    ]
+   },
+   "flavour": "sonarr",
+   "fixture": "PrioritizeDownloadDecisionFixture"
+  }
+ ]
+}

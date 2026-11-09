@@ -1,0 +1,7 @@
+{
+ "sources": {"recommended": "https://myanimelist.net/stacks/63483 (Memory Snow and Frozen Bond after S1, before S2)",
+             "chronological": "https://myanimelist.net/stacks/53018 (Frozen Bond first; Memory Snow after S1 ep 11)"},
+ "recommended": ["al:21355", "al:100049#1", "al:100049#2", "al:108632", "al:119661", "al:163134", "al:189046"],
+ "chronological": ["al:100049#2", "al:21355", "al:100049#1", "al:108632", "al:119661", "al:163134", "al:189046"],
+ "ignore": ["al:21780", "al:21891", "al:120700", "al:128306", "al:182417", "al:210687", "kitsu:42903"]
+}

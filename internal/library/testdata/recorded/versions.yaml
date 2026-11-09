@@ -1,0 +1,98 @@
+# Versions: one per library. Each starts in shadow mode (docs/design/shadow.md) and is switched to active per area at
+# cutover. Library roots are the arr roots the version replaces, so links keep the arr naming and paths.
+versions:
+  movie-remux:
+    mode: shadow
+    kind: movie
+    anime: false
+    profile: radarr-4k-debrid
+    library: /media/movies
+    storage: debrid
+    indexers: [prowlarr-tpb, prowlarr-therarbg, dmm, dmm-ad, dmm-tb, torrentio, zilean]
+    providers: [rd, ad, tb]
+    client: decypharr
+    import: symlink
+    naming:
+      folder: '{Movie CleanTitle} ({Release Year})'
+      file: '{Movie CleanTitle} {(Release Year)} {imdb-{ImdbId}} - {edition-{Edition Tags}} {[MediaInfo 3D]}{[Custom Formats]}{[Quality Full]}{[Mediainfo AudioCodec}{ Mediainfo AudioChannels]}{[MediaInfo VideoDynamicRangeType]}{[Mediainfo VideoCodec]}{-Release Group}'
+      season: ""
+      specials: ""
+      daily: ""
+      anime: ""
+      colon: delete
+      multi_episode: ""
+      from_arr: ""
+  movie-web:
+    mode: shadow
+    kind: movie
+    anime: false
+    profile: radarr-4k-web
+    library: /media/movies-web
+    storage: debrid
+    indexers: [prowlarr-tpb, prowlarr-therarbg, dmm, dmm-ad, dmm-tb, torrentio, zilean]
+    providers: [rd, ad, tb]
+    client: decypharr
+    naming:
+      folder: '{Movie CleanTitle} ({Release Year})'
+      file: '{Movie CleanTitle} {(Release Year)} {imdb-{ImdbId}} - {edition-{Edition Tags}} {[MediaInfo 3D]}{[Custom Formats]}{[Quality Full]}{[Mediainfo AudioCodec}{ Mediainfo AudioChannels]}{[MediaInfo VideoDynamicRangeType]}{[Mediainfo VideoCodec]}{-Release Group}'
+      season: ""
+      specials: ""
+      daily: ""
+      anime: ""
+      colon: delete
+      multi_episode: ""
+      from_arr: ""
+  anime-movie:
+    mode: shadow
+    kind: movie
+    anime: true
+    profile: anime-remux-1080p-movie
+    library: /media/anime-movies
+    storage: debrid
+    indexers: [prowlarr-tpb, prowlarr-therarbg, seadex, dmm, dmm-ad, dmm-tb]
+    providers: [rd, ad, tb]
+    client: decypharr
+  tv-2160p:
+    mode: shadow
+    kind: series
+    anime: false
+    profile: sonarr-4k-debrid
+    packs: any_upgradable # the actuallyevan fork's season pack rule
+    sonarr: v4plus # v4 plus the good v5 fixes; shadow counts parser-only differences as explained
+    library: /media/tv
+    storage: debrid
+    indexers: [prowlarr-tpb, prowlarr-therarbg, dmm, dmm-ad, dmm-tb, torrentio, zilean]
+    providers: [rd, ad, tb]
+    client: decypharr
+    naming:
+      folder: '{Series CleanTitleWithoutYear} {(Series Year)}'
+      file: '{Series CleanTitleWithoutYear} {(Series Year)} - S{season:00}E{episode:00} - {Episode CleanTitle:90} {[Custom Formats]}{[Quality Full]}{[Mediainfo AudioCodec}{ Mediainfo AudioChannels]}{[MediaInfo VideoDynamicRangeType]}{[Mediainfo VideoCodec]}{-Release Group}'
+      season: Season {season:00}
+      specials: Specials
+      daily: '{Series CleanTitleWithoutYear} {(Series Year)} - {Air-Date} - {Episode CleanTitle:90} {[Custom Formats]}{[Quality Full]}{[Mediainfo AudioCodec}{ Mediainfo AudioChannels]}{[MediaInfo VideoDynamicRangeType]}{[Mediainfo VideoCodec]}{-Release Group}'
+      anime: '{Series CleanTitleWithoutYear} {(Series Year)} - S{season:00}E{episode:00} - {absolute:000} - {Episode CleanTitle:90} {[Custom Formats]}{[Quality Full]}{[Mediainfo AudioCodec}{ Mediainfo AudioChannels]}{MediaInfo AudioLanguages}{[MediaInfo VideoDynamicRangeType]}[{Mediainfo VideoCodec }{MediaInfo VideoBitDepth}bit]{-Release Group}'
+      colon: delete
+      multi_episode: prefixed_range
+      from_arr: ""
+  anime-tv:
+    mode: shadow
+    kind: series
+    anime: true
+    profile: sonarr-anime-debrid
+    packs: any_upgradable # the actuallyevan fork's season pack rule
+    sonarr: v4plus # v4 plus the good v5 fixes; shadow counts parser-only differences as explained
+    library: /media/anime
+    storage: debrid
+    indexers: [prowlarr-tpb, prowlarr-therarbg, seadex, dmm, dmm-ad, dmm-tb]
+    providers: [rd, ad, tb]
+    client: decypharr
+    naming:
+      folder: '{Series CleanTitleWithoutYear} {(Series Year)} {imdb-{ImdbId}}'
+      file: '{Series CleanTitleWithoutYear} {(Series Year)} - S{season:00}E{episode:00} - {Episode CleanTitle:90} {[Custom Formats]}{[Quality Full]}{[Mediainfo AudioCodec}{ Mediainfo AudioChannels]}{[MediaInfo VideoDynamicRangeType]}{[Mediainfo VideoCodec]}{-Release Group}'
+      season: Season {season:00}
+      specials: Season 0
+      daily: '{Series CleanTitleWithoutYear} {(Series Year)} - {Air-Date} - {Episode CleanTitle:90} {[Custom Formats]}{[Quality Full]}{[Mediainfo AudioCodec}{ Mediainfo AudioChannels]}{[MediaInfo VideoDynamicRangeType]}{[Mediainfo VideoCodec]}{-Release Group}'
+      anime: '{Series CleanTitleWithoutYear} {(Series Year)} - S{season:00}E{episode:00} - {absolute:000} - {Episode CleanTitle:90} {[Custom Formats]}{[Quality Full]}{[Mediainfo AudioCodec}{ Mediainfo AudioChannels]}{MediaInfo AudioLanguages}{[MediaInfo VideoDynamicRangeType]}[{Mediainfo VideoCodec }{MediaInfo VideoBitDepth}bit]{-Release Group}'
+      colon: delete
+      multi_episode: prefixed_range
+      from_arr: ""

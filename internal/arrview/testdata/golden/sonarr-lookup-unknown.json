@@ -1,0 +1,27 @@
+[
+  {
+    "added": "0001-01-01T00:00:00Z",
+    "alternateTitles": [],
+    "ended": false,
+    "genres": [],
+    "images": [],
+    "languageProfileId": 1,
+    "monitorNewItems": "all",
+    "monitored": true,
+    "qualityProfileId": 0,
+    "ratings": {},
+    "runtime": 0,
+    "seasonFolder": true,
+    "seasons": [],
+    "seriesType": "standard",
+    "status": "continuing",
+    "tags": [],
+    "title": "",
+    "tmdbId": 0,
+    "tvMazeId": 0,
+    "tvRageId": 0,
+    "tvdbId": 999,
+    "useSceneNumbering": false,
+    "year": 0
+  }
+]

@@ -1,0 +1,277 @@
+{
+ "source": "Sonarr src/NzbDrone.Core.Test/DecisionEngineTests/AnimeVersionUpgradeSpecificationFixture.cs @ cab419a",
+ "cases": [
+  {
+   "test": "should_be_true_when_no_existing_file",
+   "spec": "AnimeVersionUpgrade",
+   "config": {
+    "propers": "preferAndUpgrade"
+   },
+   "media": {
+    "anime": true
+   },
+   "release": {
+    "quality": {
+     "quality": "HDTV-720p",
+     "version": 2
+    },
+    "releaseGroup": "DRONE"
+   },
+   "episodes": [
+    {
+     "season": 1,
+     "episode": 1
+    }
+   ],
+   "expect": {
+    "accepted": true
+   },
+   "flavour": "sonarr",
+   "fixture": "AnimeVersionUpgradeSpecificationFixture"
+  },
+  {
+   "test": "should_be_true_if_series_is_not_anime",
+   "spec": "AnimeVersionUpgrade",
+   "config": {
+    "propers": "preferAndUpgrade"
+   },
+   "media": {
+    "anime": false
+   },
+   "release": {
+    "quality": {
+     "quality": "HDTV-720p",
+     "version": 2
+    },
+    "releaseGroup": "DRONE"
+   },
+   "episodes": [
+    {
+     "season": 1,
+     "episode": 1,
+     "file": {
+      "quality": {
+       "quality": "HDTV-720p"
+      },
+      "releaseGroup": "DRONE2"
+     }
+    }
+   ],
+   "expect": {
+    "accepted": true
+   },
+   "flavour": "sonarr",
+   "fixture": "AnimeVersionUpgradeSpecificationFixture"
+  },
+  {
+   "test": "should_be_true_if_is_not_a_version_upgrade_for_existing_file",
+   "spec": "AnimeVersionUpgrade",
+   "config": {
+    "propers": "preferAndUpgrade"
+   },
+   "media": {
+    "anime": true
+   },
+   "release": {
+    "quality": {
+     "quality": "HDTV-720p",
+     "version": 1
+    },
+    "releaseGroup": "DRONE"
+   },
+   "episodes": [
+    {
+     "season": 1,
+     "episode": 1,
+     "file": {
+      "quality": {
+       "quality": "HDTV-720p"
+      },
+      "releaseGroup": "DRONE2"
+     }
+    }
+   ],
+   "expect": {
+    "accepted": true
+   },
+   "flavour": "sonarr",
+   "fixture": "AnimeVersionUpgradeSpecificationFixture"
+  },
+  {
+   "test": "should_be_true_when_release_group_matches",
+   "spec": "AnimeVersionUpgrade",
+   "config": {
+    "propers": "preferAndUpgrade"
+   },
+   "media": {
+    "anime": true
+   },
+   "release": {
+    "quality": {
+     "quality": "HDTV-720p",
+     "version": 2
+    },
+    "releaseGroup": "DRONE"
+   },
+   "episodes": [
+    {
+     "season": 1,
+     "episode": 1,
+     "file": {
+      "quality": {
+       "quality": "HDTV-720p"
+      },
+      "releaseGroup": "DRONE"
+     }
+    }
+   ],
+   "expect": {
+    "accepted": true
+   },
+   "flavour": "sonarr",
+   "fixture": "AnimeVersionUpgradeSpecificationFixture"
+  },
+  {
+   "test": "should_be_false_when_existing_file_doesnt_have_a_release_group",
+   "spec": "AnimeVersionUpgrade",
+   "config": {
+    "propers": "preferAndUpgrade"
+   },
+   "media": {
+    "anime": true
+   },
+   "release": {
+    "quality": {
+     "quality": "HDTV-720p",
+     "version": 2
+    },
+    "releaseGroup": "DRONE"
+   },
+   "episodes": [
+    {
+     "season": 1,
+     "episode": 1,
+     "file": {
+      "quality": {
+       "quality": "HDTV-720p"
+      },
+      "releaseGroup": ""
+     }
+    }
+   ],
+   "expect": {
+    "accepted": false,
+    "reason": "UnknownReleaseGroup",
+    "message": "Existing release group is unknown"
+   },
+   "flavour": "sonarr",
+   "fixture": "AnimeVersionUpgradeSpecificationFixture"
+  },
+  {
+   "test": "should_should_be_false_when_release_doesnt_have_a_release_group",
+   "spec": "AnimeVersionUpgrade",
+   "config": {
+    "propers": "preferAndUpgrade"
+   },
+   "media": {
+    "anime": true
+   },
+   "release": {
+    "quality": {
+     "quality": "HDTV-720p",
+     "version": 2
+    },
+    "releaseGroup": ""
+   },
+   "episodes": [
+    {
+     "season": 1,
+     "episode": 1,
+     "file": {
+      "quality": {
+       "quality": "HDTV-720p"
+      },
+      "releaseGroup": "DRONE2"
+     }
+    }
+   ],
+   "expect": {
+    "accepted": false,
+    "reason": "UnknownReleaseGroup",
+    "message": "Release group is unknown"
+   },
+   "flavour": "sonarr",
+   "fixture": "AnimeVersionUpgradeSpecificationFixture"
+  },
+  {
+   "test": "should_be_false_when_release_group_does_not_match",
+   "spec": "AnimeVersionUpgrade",
+   "config": {
+    "propers": "preferAndUpgrade"
+   },
+   "media": {
+    "anime": true
+   },
+   "release": {
+    "quality": {
+     "quality": "HDTV-720p",
+     "version": 2
+    },
+    "releaseGroup": "DRONE"
+   },
+   "episodes": [
+    {
+     "season": 1,
+     "episode": 1,
+     "file": {
+      "quality": {
+       "quality": "HDTV-720p"
+      },
+      "releaseGroup": "DRONE2"
+     }
+    }
+   ],
+   "expect": {
+    "accepted": false,
+    "reason": "ReleaseGroupDoesNotMatch",
+    "message": "DRONE does not match existing release group DRONE2"
+   },
+   "flavour": "sonarr",
+   "fixture": "AnimeVersionUpgradeSpecificationFixture"
+  },
+  {
+   "test": "should_return_true_when_repacks_are_not_preferred",
+   "spec": "AnimeVersionUpgrade",
+   "config": {
+    "propers": "doNotPrefer"
+   },
+   "media": {
+    "anime": true
+   },
+   "release": {
+    "quality": {
+     "quality": "HDTV-720p",
+     "version": 2
+    },
+    "releaseGroup": "DRONE"
+   },
+   "episodes": [
+    {
+     "season": 1,
+     "episode": 1,
+     "file": {
+      "quality": {
+       "quality": "HDTV-720p"
+      },
+      "releaseGroup": "DRONE2"
+     }
+    }
+   ],
+   "expect": {
+    "accepted": true
+   },
+   "flavour": "sonarr",
+   "fixture": "AnimeVersionUpgradeSpecificationFixture"
+  }
+ ]
+}

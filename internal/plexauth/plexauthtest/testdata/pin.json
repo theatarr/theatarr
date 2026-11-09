@@ -1,0 +1,16 @@
+{
+  "id": 1234567890,
+  "code": "CODE",
+  "product": "theatarr",
+  "trusted": false,
+  "qr": "https://plex.tv/api/v2/pins/qr/CODE",
+  "clientIdentifier": "CLIENT",
+  "location": {"code": "US", "european_union_member": false, "continent_code": "NA", "country": "United States",
+    "city": "Example", "time_zone": "America/Chicago", "postal_code": "00000", "in_privacy_restricted_country": false,
+    "subdivisions": "Example", "coordinates": "0.0, 0.0"},
+  "expiresIn": 1800,
+  "createdAt": "2026-10-26T12:30:00Z",
+  "expiresAt": "2026-10-26T13:00:00Z",
+  "authToken": null,
+  "newRegistration": null
+}

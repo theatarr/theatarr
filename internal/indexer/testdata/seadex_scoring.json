@@ -1,0 +1,12 @@
+{"page":1,"perPage":100,"totalItems":1,"totalPages":1,"items":[
+ {"alID":500,"trs":["best1","alt1","one1","deb1"],"expand":{"trs":[
+   {"id":"best1","url":"https://nyaa.si/view/501","infoHash":"5000000000000000000000000000000000000001","isBest":true,"dualAudio":false,"tags":[],"tracker":"Nyaa","releaseGroup":"Big",
+    "files":[{"length":8000000000,"name":"[Big] Show - 01 (BDRip 1080p HEVC FLAC).mkv"},{"length":8000000000,"name":"[Big] Show - 02 (BDRip 1080p HEVC FLAC).mkv"}]},
+   {"id":"alt1","url":"https://nyaa.si/view/502","infoHash":"5000000000000000000000000000000000000002","isBest":false,"dualAudio":true,"tags":["HDR"],"tracker":"Nyaa","releaseGroup":"Small",
+    "files":[{"length":2000000000,"name":"Show S01E01 1080p WEB-DL AAC x264-Small.mkv"},{"length":2000000000,"name":"Show S01E02 1080p WEB-DL AAC x264-Small.mkv"}]},
+   {"id":"one1","url":"https://nyaa.si/view/503","infoHash":"5000000000000000000000000000000000000003","isBest":true,"dualAudio":false,"tags":[],"tracker":"Nyaa","releaseGroup":"Solo",
+    "files":[{"length":3000000000,"name":"[Solo] Show OVA (BD 1080p).mkv"},{"length":1000,"name":"NCED.mkv"}]},
+   {"id":"deb1","url":"https://nyaa.si/view/504","infoHash":"5000000000000000000000000000000000000004","isBest":false,"dualAudio":false,"tags":["Deband Required"],"tracker":"Nyaa","releaseGroup":"Band",
+    "files":[{"length":3000000000,"name":"a.mkv"},{"length":3000000000,"name":"b.mkv"}]}
+ ]}}
+]}

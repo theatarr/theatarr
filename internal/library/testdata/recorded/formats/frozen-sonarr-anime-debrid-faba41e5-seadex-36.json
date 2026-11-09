@@ -1,0 +1,247 @@
+{
+  "id": 36,
+  "name": "Seadex",
+  "includeCustomFormatWhenRenaming": false,
+  "specifications": [
+    {
+      "name": "Freeleech25",
+      "implementation": "IndexerFlagSpecification",
+      "negate": false,
+      "required": true,
+      "fields": [
+        {
+          "order": 0,
+          "name": "value",
+          "label": "Flag",
+          "value": 64,
+          "type": "select",
+          "advanced": false,
+          "selectOptions": [
+            {
+              "value": 1,
+              "name": "Freeleech",
+              "order": 1
+            },
+            {
+              "value": 2,
+              "name": "Halfleech",
+              "order": 2
+            },
+            {
+              "value": 4,
+              "name": "DoubleUpload",
+              "order": 4
+            },
+            {
+              "value": 8,
+              "name": "Internal",
+              "order": 8
+            },
+            {
+              "value": 16,
+              "name": "Scene",
+              "order": 16
+            },
+            {
+              "value": 32,
+              "name": "Freeleech75",
+              "order": 32
+            },
+            {
+              "value": 64,
+              "name": "Freeleech25",
+              "order": 64
+            },
+            {
+              "value": 128,
+              "name": "Nuked",
+              "order": 128
+            }
+          ],
+          "privacy": "normal",
+          "isFloat": false
+        }
+      ]
+    },
+    {
+      "name": "DoubleUpload",
+      "implementation": "IndexerFlagSpecification",
+      "negate": false,
+      "required": true,
+      "fields": [
+        {
+          "order": 0,
+          "name": "value",
+          "label": "Flag",
+          "value": 4,
+          "type": "select",
+          "advanced": false,
+          "selectOptions": [
+            {
+              "value": 1,
+              "name": "Freeleech",
+              "order": 1
+            },
+            {
+              "value": 2,
+              "name": "Halfleech",
+              "order": 2
+            },
+            {
+              "value": 4,
+              "name": "DoubleUpload",
+              "order": 4
+            },
+            {
+              "value": 8,
+              "name": "Internal",
+              "order": 8
+            },
+            {
+              "value": 16,
+              "name": "Scene",
+              "order": 16
+            },
+            {
+              "value": 32,
+              "name": "Freeleech75",
+              "order": 32
+            },
+            {
+              "value": 64,
+              "name": "Freeleech25",
+              "order": 64
+            },
+            {
+              "value": 128,
+              "name": "Nuked",
+              "order": 128
+            }
+          ],
+          "privacy": "normal",
+          "isFloat": false
+        }
+      ]
+    },
+    {
+      "name": "Internal",
+      "implementation": "IndexerFlagSpecification",
+      "negate": false,
+      "required": true,
+      "fields": [
+        {
+          "order": 0,
+          "name": "value",
+          "label": "Flag",
+          "value": 8,
+          "type": "select",
+          "advanced": false,
+          "selectOptions": [
+            {
+              "value": 1,
+              "name": "Freeleech",
+              "order": 1
+            },
+            {
+              "value": 2,
+              "name": "Halfleech",
+              "order": 2
+            },
+            {
+              "value": 4,
+              "name": "DoubleUpload",
+              "order": 4
+            },
+            {
+              "value": 8,
+              "name": "Internal",
+              "order": 8
+            },
+            {
+              "value": 16,
+              "name": "Scene",
+              "order": 16
+            },
+            {
+              "value": 32,
+              "name": "Freeleech75",
+              "order": 32
+            },
+            {
+              "value": 64,
+              "name": "Freeleech25",
+              "order": 64
+            },
+            {
+              "value": 128,
+              "name": "Nuked",
+              "order": 128
+            }
+          ],
+          "privacy": "normal",
+          "isFloat": false
+        }
+      ]
+    },
+    {
+      "name": "Scene",
+      "implementation": "IndexerFlagSpecification",
+      "negate": false,
+      "required": true,
+      "fields": [
+        {
+          "order": 0,
+          "name": "value",
+          "label": "Flag",
+          "value": 16,
+          "type": "select",
+          "advanced": false,
+          "selectOptions": [
+            {
+              "value": 1,
+              "name": "Freeleech",
+              "order": 1
+            },
+            {
+              "value": 2,
+              "name": "Halfleech",
+              "order": 2
+            },
+            {
+              "value": 4,
+              "name": "DoubleUpload",
+              "order": 4
+            },
+            {
+              "value": 8,
+              "name": "Internal",
+              "order": 8
+            },
+            {
+              "value": 16,
+              "name": "Scene",
+              "order": 16
+            },
+            {
+              "value": 32,
+              "name": "Freeleech75",
+              "order": 32
+            },
+            {
+              "value": 64,
+              "name": "Freeleech25",
+              "order": 64
+            },
+            {
+              "value": 128,
+              "name": "Nuked",
+              "order": 128
+            }
+          ],
+          "privacy": "normal",
+          "isFloat": false
+        }
+      ]
+    }
+  ]
+}

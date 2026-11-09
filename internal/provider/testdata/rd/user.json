@@ -1,0 +1,11 @@
+{
+  "id": 1,
+  "username": "fixture",
+  "email": "fixture@example.invalid",
+  "points": 1200,
+  "locale": "en",
+  "avatar": "https://example.invalid/a.png",
+  "type": "premium",
+  "premium": 2592000,
+  "expiration": "2026-12-01T10:00:00.000Z"
+}

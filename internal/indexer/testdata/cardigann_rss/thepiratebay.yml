@@ -1,0 +1,62 @@
+---
+# Written for the tests: a JSON API site shaped like The Pirate Bay's definition where RSS is concerned (its latest
+# list is a precompiled top-100 file on an API host; a search is q.php). Not a copy of the real definition: run the
+# comparison with THEATARR_CARDIGANN_DEFS for that (cardigann_rss_test.go).
+id: thepiratebay
+name: The Pirate Bay (test)
+type: public
+links:
+  - http://tpb.test/
+caps:
+  categorymappings:
+    - {id: 104, cat: Audio/Lossless, desc: "FLAC"}
+    - {id: 201, cat: Movies, desc: "Movies"}
+    - {id: 205, cat: TV, desc: "TV Shows"}
+    - {id: 207, cat: Movies/HD, desc: "HD - Movies"}
+    - {id: 208, cat: TV/HD, desc: "HD - TV shows"}
+    - {id: 211, cat: Movies/UHD, desc: "UHD/4k - Movies"}
+  modes:
+    search: [q]
+settings:
+  - name: apiurl
+    type: text
+    label: API URL
+    default: apibay.test
+  - name: top100
+    type: select
+    label: Top100
+    default: recent
+    options:
+      recent: All
+search:
+  paths:
+    - path: "http://{{ .Config.apiurl }}/{{ if .Keywords }}q.php?q={{ .Keywords }}&cat={{ join .Categories \",\" }}{{ else }}precompiled/data_top100_{{ .Config.top100 }}.json{{ end }}"
+      response:
+        type: json
+  rows:
+    selector: $
+  fields:
+    _id:
+      selector: id
+    category:
+      selector: category
+    title:
+      selector: name
+    details:
+      text: "{{ .Config.sitelink }}description.php?id={{ .Result._id }}"
+    infohash:
+      selector: info_hash
+    imdbid:
+      selector: imdb
+    date:
+      selector: added
+    size:
+      selector: size
+    seeders:
+      selector: seeders
+    leechers:
+      selector: leechers
+    downloadvolumefactor:
+      text: 0
+    uploadvolumefactor:
+      text: 1

@@ -1,0 +1,490 @@
+# The arr profiles of instance "radarr_4k_web": ["WEB 2160p"], as policy YAML.
+format_sets:
+  radarr-4k-web:
+    flavour: radarr
+    formats:
+      3D:
+        ref: 3D
+        include_when_renaming: false
+      4K Remaster:
+        flavour: radarr
+        file: formats/frozen-radarr-4k-web-e4f20267-4k-remaster-110.json
+      AAC:
+        flavour: radarr
+        file: formats/frozen-radarr-4k-web-e4f20267-aac-82.json
+      AMZN:
+        flavour: radarr
+        file: formats/frozen-radarr-4k-web-e4f20267-amzn-120.json
+      ATMOS (undefined):
+        flavour: radarr
+        file: formats/frozen-radarr-4k-web-e4f20267-atmos-undefined-73.json
+      ATVP:
+        flavour: radarr
+        file: formats/frozen-radarr-4k-web-e4f20267-atvp-121.json
+      AV1:
+        flavour: radarr
+        file: formats/frozen-radarr-4k-web-e4f20267-av1-146.json
+      BCORE:
+        flavour: radarr
+        file: formats/frozen-radarr-4k-web-e4f20267-bcore-122.json
+      BR-DISK:
+        ref: BR-DISK
+        include_when_renaming: false
+      CRAV:
+        flavour: radarr
+        file: formats/frozen-radarr-4k-web-e4f20267-crav-123.json
+      CRiT:
+        flavour: radarr
+        file: formats/frozen-radarr-4k-web-e4f20267-crit-124.json
+      Criterion Collection:
+        flavour: radarr
+        file: formats/frozen-radarr-4k-web-e4f20267-criterion-collection-111.json
+      DD:
+        flavour: radarr
+        file: formats/frozen-radarr-4k-web-e4f20267-dd-83.json
+      DD+:
+        flavour: radarr
+        file: formats/frozen-radarr-4k-web-e4f20267-dd-74.json
+      DD+ ATMOS:
+        flavour: radarr
+        file: formats/frozen-radarr-4k-web-e4f20267-dd-atmos-75.json
+      DSNP:
+        flavour: radarr
+        file: formats/frozen-radarr-4k-web-e4f20267-dsnp-125.json
+      DTS:
+        flavour: radarr
+        file: formats/frozen-radarr-4k-web-e4f20267-dts-76.json
+      DTS X:
+        flavour: radarr
+        file: formats/frozen-radarr-4k-web-e4f20267-dts-x-77.json
+      DTS-ES:
+        flavour: radarr
+        file: formats/frozen-radarr-4k-web-e4f20267-dts-es-78.json
+      DTS-HD HRA:
+        flavour: radarr
+        file: formats/frozen-radarr-4k-web-e4f20267-dts-hd-hra-84.json
+      DTS-HD MA:
+        flavour: radarr
+        file: formats/frozen-radarr-4k-web-e4f20267-dts-hd-ma-79.json
+      DV (w/o HDR fallback):
+        ref: DV (w/o HDR fallback)
+        include_when_renaming: false
+      DV Boost:
+        flavour: radarr
+        file: formats/frozen-radarr-4k-web-e4f20267-dv-boost-147.json
+      Extras:
+        flavour: radarr
+        file: formats/frozen-radarr-4k-web-e4f20267-extras-139.json
+      FGT:
+        flavour: radarr
+        file: formats/frozen-radarr-4k-web-e4f20267-fgt-143.json
+      FLAC:
+        flavour: radarr
+        file: formats/frozen-radarr-4k-web-e4f20267-flac-85.json
+      HBO:
+        flavour: radarr
+        file: formats/frozen-radarr-4k-web-e4f20267-hbo-126.json
+      HDR:
+        flavour: radarr
+        file: formats/frozen-radarr-4k-web-e4f20267-hdr-93.json
+      HMAX:
+        flavour: radarr
+        file: formats/frozen-radarr-4k-web-e4f20267-hmax-127.json
+      Hulu:
+        flavour: radarr
+        file: formats/frozen-radarr-4k-web-e4f20267-hulu-128.json
+      Hybrid:
+        flavour: radarr
+        file: formats/frozen-radarr-4k-web-e4f20267-hybrid-112.json
+      IMAX:
+        flavour: radarr
+        file: formats/frozen-radarr-4k-web-e4f20267-imax-113.json
+      IMAX Enhanced:
+        flavour: radarr
+        file: formats/frozen-radarr-4k-web-e4f20267-imax-enhanced-114.json
+      LQ:
+        ref: LQ
+        include_when_renaming: false
+      MA:
+        flavour: radarr
+        file: formats/frozen-radarr-4k-web-e4f20267-ma-130.json
+      MAX:
+        flavour: radarr
+        file: formats/frozen-radarr-4k-web-e4f20267-max-129.json
+      MP3:
+        flavour: radarr
+        file: formats/frozen-radarr-4k-web-e4f20267-mp3-86.json
+      Masters of Cinema:
+        flavour: radarr
+        file: formats/frozen-radarr-4k-web-e4f20267-masters-of-cinema-115.json
+      NF:
+        flavour: radarr
+        file: formats/frozen-radarr-4k-web-e4f20267-nf-131.json
+      OViD:
+        flavour: radarr
+        file: formats/frozen-radarr-4k-web-e4f20267-ovid-132.json
+      Opus:
+        flavour: radarr
+        file: formats/frozen-radarr-4k-web-e4f20267-opus-87.json
+      PCM:
+        flavour: radarr
+        file: formats/frozen-radarr-4k-web-e4f20267-pcm-88.json
+      PCOK:
+        flavour: radarr
+        file: formats/frozen-radarr-4k-web-e4f20267-pcok-135.json
+      PMTP:
+        flavour: radarr
+        file: formats/frozen-radarr-4k-web-e4f20267-pmtp-133.json
+      PQ:
+        flavour: radarr
+        file: formats/frozen-radarr-4k-web-e4f20267-pq-98.json
+      Pathe:
+        flavour: radarr
+        file: formats/frozen-radarr-4k-web-e4f20267-pathe-134.json
+      Remaster:
+        flavour: radarr
+        file: formats/frozen-radarr-4k-web-e4f20267-remaster-116.json
+      Remux Tier 01:
+        ref: Remux Tier 01
+        include_when_renaming: false
+      Remux Tier 01 Fallback - End Group:
+        flavour: radarr
+        file: formats/frozen-radarr-4k-web-e4f20267-remux-tier-01-fallback-end-group-150.json
+      Remux Tier 02:
+        ref: Remux Tier 02
+        include_when_renaming: false
+      Remux Tier 02 Fallback - End Group:
+        flavour: radarr
+        file: formats/frozen-radarr-4k-web-e4f20267-remux-tier-02-fallback-end-group-151.json
+      Remux Tier 03:
+        flavour: radarr
+        file: formats/frozen-radarr-4k-web-e4f20267-remux-tier-03-101.json
+      Remux Tier 03 Fallback - End Group:
+        flavour: radarr
+        file: formats/frozen-radarr-4k-web-e4f20267-remux-tier-03-fallback-end-group-152.json
+      Remux lossless audio:
+        flavour: radarr
+        file: formats/frozen-radarr-4k-web-e4f20267-remux-lossless-audio-159.json
+      Repack/Proper:
+        flavour: radarr
+        file: formats/frozen-radarr-4k-web-e4f20267-repack-proper-108.json
+      Repack2:
+        flavour: radarr
+        file: formats/frozen-radarr-4k-web-e4f20267-repack2-109.json
+      STAN:
+        flavour: radarr
+        file: formats/frozen-radarr-4k-web-e4f20267-stan-136.json
+      Special Edition:
+        flavour: radarr
+        file: formats/frozen-radarr-4k-web-e4f20267-special-edition-117.json
+      TrueHD:
+        flavour: radarr
+        file: formats/frozen-radarr-4k-web-e4f20267-truehd-80.json
+      TrueHD ATMOS:
+        flavour: radarr
+        file: formats/frozen-radarr-4k-web-e4f20267-truehd-atmos-81.json
+      UHD Bluray Tier 01:
+        flavour: radarr
+        file: formats/frozen-radarr-4k-web-e4f20267-uhd-bluray-tier-01-102.json
+      UHD Bluray Tier 01 Fallback - End Group:
+        flavour: radarr
+        file: formats/frozen-radarr-4k-web-e4f20267-uhd-bluray-tier-01-fallback-end-group-153.json
+      UHD Bluray Tier 02:
+        flavour: radarr
+        file: formats/frozen-radarr-4k-web-e4f20267-uhd-bluray-tier-02-103.json
+      UHD Bluray Tier 02 Fallback - End Group:
+        flavour: radarr
+        file: formats/frozen-radarr-4k-web-e4f20267-uhd-bluray-tier-02-fallback-end-group-154.json
+      UHD Bluray Tier 03:
+        flavour: radarr
+        file: formats/frozen-radarr-4k-web-e4f20267-uhd-bluray-tier-03-104.json
+      UHD Bluray Tier 03 Fallback - End Group:
+        flavour: radarr
+        file: formats/frozen-radarr-4k-web-e4f20267-uhd-bluray-tier-03-fallback-end-group-155.json
+      Upscaled:
+        flavour: radarr
+        file: formats/frozen-radarr-4k-web-e4f20267-upscaled-141.json
+      Vinegar Syndrome:
+        flavour: radarr
+        file: formats/frozen-radarr-4k-web-e4f20267-vinegar-syndrome-118.json
+      WEB Tier 01:
+        ref: WEB Tier 01
+        include_when_renaming: false
+      WEB Tier 01 Fallback - End Group:
+        flavour: radarr
+        file: formats/frozen-radarr-4k-web-e4f20267-web-tier-01-fallback-end-group-156.json
+      WEB Tier 02:
+        ref: WEB Tier 02
+        include_when_renaming: false
+      WEB Tier 02 Fallback - End Group:
+        flavour: radarr
+        file: formats/frozen-radarr-4k-web-e4f20267-web-tier-02-fallback-end-group-157.json
+      WEB Tier 03:
+        flavour: radarr
+        file: formats/frozen-radarr-4k-web-e4f20267-web-tier-03-107.json
+      WEB Tier 03 Fallback - End Group:
+        flavour: radarr
+        file: formats/frozen-radarr-4k-web-e4f20267-web-tier-03-fallback-end-group-158.json
+      iT:
+        flavour: radarr
+        file: formats/frozen-radarr-4k-web-e4f20267-it-144.json
+      x265 (no HDR/DV):
+        flavour: radarr
+        file: formats/frozen-radarr-4k-web-e4f20267-x265-no-hdr-dv-149.json
+profiles:
+  radarr-4k-web:
+    qualities:
+      - WEBDL-2160p
+      - WEBRip-2160p
+      - Remux-1080p
+      - Bluray-1080p
+      - group: WEB 1080p
+        qualities:
+          - WEBDL-1080p
+          - WEBRip-1080p
+    quality_order:
+      - WEBDL-2160p
+      - WEBRip-2160p
+      - Bluray-2160p
+      - Remux-2160p
+      - Remux-1080p
+      - Bluray-1080p
+      - group: WEB 1080p
+        qualities:
+          - WEBDL-1080p
+          - WEBRip-1080p
+      - HDTV-2160p
+      - Raw-HD
+      - BR-DISK
+      - HDTV-1080p
+      - Bluray-720p
+      - group: WEB 720p
+        qualities:
+          - WEBRip-720p
+          - WEBDL-720p
+      - HDTV-720p
+      - Bluray-576p
+      - Bluray-480p
+      - group: WEB 480p
+        qualities:
+          - WEBRip-480p
+          - WEBDL-480p
+      - DVD-R
+      - DVD
+      - SDTV
+      - DVDSCR
+      - REGIONAL
+      - TELECINE
+      - TELESYNC
+      - CAM
+      - WORKPRINT
+      - Unknown
+    cutoff: WEBDL-2160p
+    upgrades: true
+    min_score: 0
+    cutoff_score: 10000
+    min_upgrade_step: 1
+    sizes:
+      BR-DISK:
+        min: 0
+        preferred: 0
+        max: 0
+        preferred_zero: true
+      Bluray-480p:
+        min: 0
+        preferred: 95
+        max: 100
+      Bluray-576p:
+        min: 0
+        preferred: 95
+        max: 100
+      Bluray-720p:
+        min: 25.7
+        preferred: 399
+        max: 0
+      Bluray-1080p:
+        min: 50.8
+        preferred: 399
+        max: 0
+      Bluray-2160p:
+        min: 102
+        preferred: 399
+        max: 0
+      CAM:
+        min: 0
+        preferred: 95
+        max: 100
+      DVD:
+        min: 0
+        preferred: 95
+        max: 100
+      DVD-R:
+        min: 0
+        preferred: 95
+        max: 100
+      DVDSCR:
+        min: 0
+        preferred: 95
+        max: 100
+      HDTV-720p:
+        min: 17.1
+        preferred: 399
+        max: 0
+      HDTV-1080p:
+        min: 33.8
+        preferred: 399
+        max: 0
+      HDTV-2160p:
+        min: 85
+        preferred: 399
+        max: 0
+      REGIONAL:
+        min: 0
+        preferred: 95
+        max: 100
+      Raw-HD:
+        min: 0
+        preferred: 0
+        max: 0
+        preferred_zero: true
+      Remux-1080p:
+        min: 136.8
+        preferred: 399
+        max: 0
+      Remux-2160p:
+        min: 187.4
+        preferred: 399
+        max: 0
+      SDTV:
+        min: 0
+        preferred: 95
+        max: 100
+      TELECINE:
+        min: 0
+        preferred: 95
+        max: 100
+      TELESYNC:
+        min: 0
+        preferred: 95
+        max: 100
+      Unknown:
+        min: 0
+        preferred: 95
+        max: 100
+      WEBDL-480p:
+        min: 0
+        preferred: 95
+        max: 100
+      WEBDL-720p:
+        min: 12.5
+        preferred: 399
+        max: 0
+      WEBDL-1080p:
+        min: 12.5
+        preferred: 399
+        max: 0
+      WEBDL-2160p:
+        min: 34.5
+        preferred: 399
+        max: 0
+      WEBRip-480p:
+        min: 0
+        preferred: 95
+        max: 100
+      WEBRip-720p:
+        min: 12.5
+        preferred: 399
+        max: 0
+      WEBRip-1080p:
+        min: 12.5
+        preferred: 399
+        max: 0
+      WEBRip-2160p:
+        min: 34.5
+        preferred: 399
+        max: 0
+      WORKPRINT:
+        min: 0
+        preferred: 95
+        max: 100
+    format_set: radarr-4k-web
+    formats:
+      3D: -10000
+      4K Remaster: 25
+      AAC: 1000
+      AMZN: 0
+      ATMOS (undefined): 3000
+      ATVP: 0
+      AV1: -10000
+      BCORE: 15
+      BR-DISK: -10000
+      CRAV: 0
+      CRiT: 20
+      Criterion Collection: 25
+      DD: 750
+      DD+: 2500
+      DD+ ATMOS: 3000
+      DSNP: 0
+      DTS: 1250
+      DTS X: 1950
+      DTS-ES: 1500
+      DTS-HD HRA: 2200
+      DTS-HD MA: 1850
+      DV (w/o HDR fallback): -10000
+      DV Boost: 1000
+      Extras: -10000
+      FGT: 0
+      FLAC: 1800
+      HBO: 0
+      HDR: 500
+      HMAX: 0
+      Hulu: 0
+      Hybrid: 100
+      IMAX: 800
+      IMAX Enhanced: 800
+      LQ: -10000
+      MA: 20
+      MAX: 0
+      MP3: 500
+      Masters of Cinema: 25
+      NF: 0
+      OViD: 0
+      Opus: 250
+      PCM: 1800
+      PCOK: 0
+      PMTP: 0
+      PQ: 500
+      Pathe: 0
+      Remaster: 25
+      Remux Tier 01: 1950
+      Remux Tier 01 Fallback - End Group: 1949
+      Remux Tier 02: 1900
+      Remux Tier 02 Fallback - End Group: 1899
+      Remux Tier 03: 1850
+      Remux Tier 03 Fallback - End Group: 1849
+      Remux lossless audio: 1500
+      Repack/Proper: 5
+      Repack2: 6
+      STAN: 0
+      Special Edition: 125
+      TrueHD: 1900
+      TrueHD ATMOS: 2000
+      UHD Bluray Tier 01: 1800
+      UHD Bluray Tier 01 Fallback - End Group: 1799
+      UHD Bluray Tier 02: 1750
+      UHD Bluray Tier 02 Fallback - End Group: 1749
+      UHD Bluray Tier 03: 1700
+      UHD Bluray Tier 03 Fallback - End Group: 1699
+      Upscaled: -10000
+      Vinegar Syndrome: 25
+      WEB Tier 01: 1700
+      WEB Tier 01 Fallback - End Group: 1699
+      WEB Tier 02: 1650
+      WEB Tier 02 Fallback - End Group: 1649
+      WEB Tier 03: 1600
+      WEB Tier 03 Fallback - End Group: 1599
+      iT: 0
+      x265 (no HDR/DV): -10000
+    language: original
+    from_arr: ""
+    propers: do_not_prefer

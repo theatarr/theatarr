@@ -1,0 +1,393 @@
+{
+ "source": "Radarr src/NzbDrone.Core.Test/ParserTests/IsoLanguagesFixture.cs @ a96bf7c",
+ "fixture": "IsoLanguagesFixture",
+ "cases": [
+  {
+   "id": "IsoLanguagesFixture/should_return_iso_language_for_English/0",
+   "line": 12,
+   "call": "findIsoLanguage",
+   "input": "en",
+   "expect": {
+    "language.name": "English"
+   }
+  },
+  {
+   "id": "IsoLanguagesFixture/should_return_iso_language_for_English/1",
+   "line": 13,
+   "call": "findIsoLanguage",
+   "input": "eng",
+   "expect": {
+    "language.name": "English"
+   }
+  },
+  {
+   "id": "IsoLanguagesFixture/should_return_iso_language_for_English/2",
+   "line": 14,
+   "call": "findIsoLanguage",
+   "input": "en-US",
+   "expect": {
+    "language.name": "English"
+   }
+  },
+  {
+   "id": "IsoLanguagesFixture/should_return_iso_language_for_English/3",
+   "line": 15,
+   "call": "findIsoLanguage",
+   "input": "en-GB",
+   "expect": {
+    "language.name": "English"
+   }
+  },
+  {
+   "id": "IsoLanguagesFixture/unknown_or_invalid_code_should_return_null/0",
+   "line": 22,
+   "call": "findIsoLanguage",
+   "input": "enus",
+   "expect": {
+    "": null
+   }
+  },
+  {
+   "id": "IsoLanguagesFixture/unknown_or_invalid_code_should_return_null/1",
+   "line": 23,
+   "call": "findIsoLanguage",
+   "input": "enusa",
+   "expect": {
+    "": null
+   }
+  },
+  {
+   "id": "IsoLanguagesFixture/unknown_or_invalid_code_should_return_null/2",
+   "line": 24,
+   "call": "findIsoLanguage",
+   "input": "wo",
+   "expect": {
+    "": null
+   }
+  },
+  {
+   "id": "IsoLanguagesFixture/unknown_or_invalid_code_should_return_null/3",
+   "line": 25,
+   "call": "findIsoLanguage",
+   "input": "fr-CA",
+   "expect": {
+    "": null
+   }
+  },
+  {
+   "id": "IsoLanguagesFixture/should_return_portuguese/0",
+   "line": 32,
+   "call": "findIsoLanguage",
+   "input": "pt",
+   "expect": {
+    "language.name": "Portuguese"
+   }
+  },
+  {
+   "id": "IsoLanguagesFixture/should_return_portuguese/1",
+   "line": 33,
+   "call": "findIsoLanguage",
+   "input": "por",
+   "expect": {
+    "language.name": "Portuguese"
+   }
+  },
+  {
+   "id": "IsoLanguagesFixture/should_return_portuguese/2",
+   "line": 34,
+   "call": "findIsoLanguage",
+   "input": "pt-PT",
+   "expect": {
+    "language.name": "Portuguese"
+   }
+  },
+  {
+   "id": "IsoLanguagesFixture/should_not_return_portuguese/0",
+   "line": 41,
+   "call": "findIsoLanguage",
+   "input": "de-AU",
+   "expect": {
+    "": null
+   }
+  },
+  {
+   "id": "IsoLanguagesFixture/should_return_telugu/0",
+   "line": 48,
+   "call": "findIsoLanguage",
+   "input": "te",
+   "expect": {
+    "language.name": "Telugu"
+   }
+  },
+  {
+   "id": "IsoLanguagesFixture/should_return_telugu/1",
+   "line": 49,
+   "call": "findIsoLanguage",
+   "input": "tel",
+   "expect": {
+    "language.name": "Telugu"
+   }
+  },
+  {
+   "id": "IsoLanguagesFixture/should_return_telugu/2",
+   "line": 50,
+   "call": "findIsoLanguage",
+   "input": "te-IN",
+   "expect": {
+    "language.name": "Telugu"
+   }
+  },
+  {
+   "id": "IsoLanguagesFixture/should_return_afrikaans/0",
+   "line": 57,
+   "call": "findIsoLanguage",
+   "input": "af",
+   "expect": {
+    "language.name": "Afrikaans"
+   }
+  },
+  {
+   "id": "IsoLanguagesFixture/should_return_afrikaans/1",
+   "line": 58,
+   "call": "findIsoLanguage",
+   "input": "afr",
+   "expect": {
+    "language.name": "Afrikaans"
+   }
+  },
+  {
+   "id": "IsoLanguagesFixture/should_return_afrikaans/2",
+   "line": 59,
+   "call": "findIsoLanguage",
+   "input": "af-ZA",
+   "expect": {
+    "language.name": "Afrikaans"
+   }
+  },
+  {
+   "id": "IsoLanguagesFixture/should_return_marathi/0",
+   "line": 66,
+   "call": "findIsoLanguage",
+   "input": "mr",
+   "expect": {
+    "language.name": "Marathi"
+   }
+  },
+  {
+   "id": "IsoLanguagesFixture/should_return_marathi/1",
+   "line": 67,
+   "call": "findIsoLanguage",
+   "input": "mar",
+   "expect": {
+    "language.name": "Marathi"
+   }
+  },
+  {
+   "id": "IsoLanguagesFixture/should_return_marathi/2",
+   "line": 68,
+   "call": "findIsoLanguage",
+   "input": "mr-IN",
+   "expect": {
+    "language.name": "Marathi"
+   }
+  },
+  {
+   "id": "IsoLanguagesFixture/should_return_tagalog/0",
+   "line": 75,
+   "call": "findIsoLanguage",
+   "input": "tl",
+   "expect": {
+    "language.name": "Tagalog"
+   }
+  },
+  {
+   "id": "IsoLanguagesFixture/should_return_tagalog/1",
+   "line": 76,
+   "call": "findIsoLanguage",
+   "input": "tgl",
+   "expect": {
+    "language.name": "Tagalog"
+   }
+  },
+  {
+   "id": "IsoLanguagesFixture/should_return_tagalog/2",
+   "line": 77,
+   "call": "findIsoLanguage",
+   "input": "tl-PH",
+   "expect": {
+    "language.name": "Tagalog"
+   }
+  },
+  {
+   "id": "IsoLanguagesFixture/should_return_urdu/0",
+   "line": 84,
+   "call": "findIsoLanguage",
+   "input": "ur",
+   "expect": {
+    "language.name": "Urdu"
+   }
+  },
+  {
+   "id": "IsoLanguagesFixture/should_return_urdu/1",
+   "line": 85,
+   "call": "findIsoLanguage",
+   "input": "urd",
+   "expect": {
+    "language.name": "Urdu"
+   }
+  },
+  {
+   "id": "IsoLanguagesFixture/should_return_urdu/2",
+   "line": 86,
+   "call": "findIsoLanguage",
+   "input": "ur-PK",
+   "expect": {
+    "language.name": "Urdu"
+   }
+  },
+  {
+   "id": "IsoLanguagesFixture/should_return_romansh/0",
+   "line": 93,
+   "call": "findIsoLanguage",
+   "input": "rm",
+   "expect": {
+    "language.name": "Romansh"
+   }
+  },
+  {
+   "id": "IsoLanguagesFixture/should_return_romansh/1",
+   "line": 94,
+   "call": "findIsoLanguage",
+   "input": "roh",
+   "expect": {
+    "language.name": "Romansh"
+   }
+  },
+  {
+   "id": "IsoLanguagesFixture/should_return_romansh/2",
+   "line": 95,
+   "call": "findIsoLanguage",
+   "input": "rm-CH",
+   "expect": {
+    "language.name": "Romansh"
+   }
+  },
+  {
+   "id": "IsoLanguagesFixture/should_return_mongolian/0",
+   "line": 102,
+   "call": "findIsoLanguage",
+   "input": "mn",
+   "expect": {
+    "language.name": "Mongolian"
+   }
+  },
+  {
+   "id": "IsoLanguagesFixture/should_return_mongolian/1",
+   "line": 103,
+   "call": "findIsoLanguage",
+   "input": "mon",
+   "expect": {
+    "language.name": "Mongolian"
+   }
+  },
+  {
+   "id": "IsoLanguagesFixture/should_return_mongolian/2",
+   "line": 104,
+   "call": "findIsoLanguage",
+   "input": "khk",
+   "expect": {
+    "language.name": "Mongolian"
+   }
+  },
+  {
+   "id": "IsoLanguagesFixture/should_return_mongolian/3",
+   "line": 105,
+   "call": "findIsoLanguage",
+   "input": "mvf",
+   "expect": {
+    "language.name": "Mongolian"
+   }
+  },
+  {
+   "id": "IsoLanguagesFixture/should_return_mongolian/4",
+   "line": 106,
+   "call": "findIsoLanguage",
+   "input": "mn-Cyrl",
+   "expect": {
+    "language.name": "Mongolian"
+   }
+  },
+  {
+   "id": "IsoLanguagesFixture/should_return_bengali/0",
+   "line": 113,
+   "call": "findIsoLanguage",
+   "input": "bn",
+   "expect": {
+    "language.name": "Bengali"
+   }
+  },
+  {
+   "id": "IsoLanguagesFixture/should_return_bengali/1",
+   "line": 114,
+   "call": "findIsoLanguage",
+   "input": "ben",
+   "expect": {
+    "language.name": "Bengali"
+   }
+  },
+  {
+   "id": "IsoLanguagesFixture/should_return_bengali/2",
+   "line": 115,
+   "call": "findIsoLanguage",
+   "input": "bn-BD",
+   "expect": {
+    "language.name": "Bengali"
+   }
+  },
+  {
+   "id": "IsoLanguagesFixture/should_return_bengali/3",
+   "line": 116,
+   "call": "findIsoLanguage",
+   "input": "bn-IN",
+   "expect": {
+    "language.name": "Bengali"
+   }
+  },
+  {
+   "id": "IsoLanguagesFixture/should_return_georgian/0",
+   "line": 123,
+   "call": "findIsoLanguage",
+   "input": "ka",
+   "expect": {
+    "language.name": "Georgian"
+   }
+  },
+  {
+   "id": "IsoLanguagesFixture/should_return_georgian/1",
+   "line": 124,
+   "call": "findIsoLanguage",
+   "input": "geo",
+   "expect": {
+    "language.name": "Georgian"
+   }
+  },
+  {
+   "id": "IsoLanguagesFixture/should_return_georgian/2",
+   "line": 125,
+   "call": "findIsoLanguage",
+   "input": "kat",
+   "expect": {
+    "language.name": "Georgian"
+   }
+  },
+  {
+   "id": "IsoLanguagesFixture/should_return_georgian/3",
+   "line": 126,
+   "call": "findIsoLanguage",
+   "input": "ka-GE",
+   "expect": {
+    "language.name": "Georgian"
+   }
+  }
+ ]
+}

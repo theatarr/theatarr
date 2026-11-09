@@ -1,0 +1,1754 @@
+{
+ "franchise": "Made in Abyss",
+ "slug": "made-in-abyss",
+ "seed_anilist": 97986,
+ "generated": "2026-10-25",
+ "config": {
+  "seed_anilist": 97986
+ },
+ "tvdb_series": [
+  {
+   "id": 326109,
+   "title": "Made in Abyss",
+   "skyhook_anilist_ids": [
+    97986,
+    100643,
+    114745
+   ],
+   "in_sonarr": true,
+   "xem": {
+    "rows": 25,
+    "scene_differs_from_tvdb": 0,
+    "examples": []
+   }
+  }
+ ],
+ "entries": [
+  {
+   "key": "al:97986",
+   "title": "Made in Abyss",
+   "title_en": "Made in Abyss",
+   "names": [
+    "Made in Abyss",
+    "Made in Abyss",
+    "メイドインアビス",
+    "صنع في الهاوية",
+    "Созданный в Бездне",
+    "ผ่าเหวนรก",
+    "นักบุกเบิกหลุมยักษ์",
+    "Đến từ Abyss"
+   ],
+   "anilist_id": 97986,
+   "mal_id": 34599,
+   "anidb_id": 12681,
+   "kitsu_id": 13273,
+   "format": "TV",
+   "status": "FINISHED",
+   "start": "2017-07-07",
+   "end": "2017-09-29",
+   "episodes": 13,
+   "duration_min": 25,
+   "anilist_relations": [
+    [
+     "SEQUEL",
+     100643
+    ],
+    [
+     "SUMMARY",
+     101343
+    ],
+    [
+     "SUMMARY",
+     101344
+    ]
+   ],
+   "found_via": "seed",
+   "origin": "anilist",
+   "tvdb": {
+    "series_id": 326109,
+    "episodes": [
+     [
+      1,
+      1
+     ],
+     [
+      1,
+      2
+     ],
+     [
+      1,
+      3
+     ],
+     [
+      1,
+      4
+     ],
+     [
+      1,
+      5
+     ],
+     [
+      1,
+      6
+     ],
+     [
+      1,
+      7
+     ],
+     [
+      1,
+      8
+     ],
+     [
+      1,
+      9
+     ],
+     [
+      1,
+      10
+     ],
+     [
+      1,
+      11
+     ],
+     [
+      1,
+      12
+     ],
+     [
+      1,
+      13
+     ]
+    ],
+    "method": "scudlee",
+    "anidb_specials": [],
+    "unmapped_anidb_eps": [],
+    "series_title": "Made in Abyss",
+    "missing_on_tvdb": [],
+    "missing_in_sonarr": [],
+    "tvdb_first_air": "2017-07-07",
+    "tvdb_first_title": "The City of the Great Pit",
+    "tvdb_overview": "While exploring the Abyss, Riko comes across something she has never seen before. How does this new discovery impact her?",
+    "range": "S01E01-E13",
+    "specials_range": ""
+   },
+   "tmdb_movie": [],
+   "flags": [],
+   "notes": [
+    "Kitsu 51146 'Made in Abyss: Mezameru Shinpi Part 2' looks like a duplicate of this entry"
+   ],
+   "kind": "line",
+   "id_sources": [
+    "fribb"
+   ],
+   "scudlee": {
+    "tvdb": 326109,
+    "season": "1",
+    "offset": 0,
+    "mappings": 0
+   },
+   "anibridge": {
+    "tvdb": [
+     [
+      326109,
+      1,
+      1
+     ],
+     [
+      326109,
+      1,
+      2
+     ],
+     [
+      326109,
+      1,
+      3
+     ],
+     [
+      326109,
+      1,
+      4
+     ],
+     [
+      326109,
+      1,
+      5
+     ],
+     [
+      326109,
+      1,
+      6
+     ],
+     [
+      326109,
+      1,
+      7
+     ],
+     [
+      326109,
+      1,
+      8
+     ],
+     [
+      326109,
+      1,
+      9
+     ],
+     [
+      326109,
+      1,
+      10
+     ],
+     [
+      326109,
+      1,
+      11
+     ],
+     [
+      326109,
+      1,
+      12
+     ],
+     [
+      326109,
+      1,
+      13
+     ]
+    ],
+    "tmdb_movie": []
+   },
+   "anibridge_agrees": true,
+   "target": "sonarr",
+   "mainline": true
+  },
+  {
+   "key": "tvdb:326109:S00E08",
+   "title": "The Making of MADE IN ABYSS 01",
+   "title_en": null,
+   "names": [
+    "The Making of MADE IN ABYSS 01"
+   ],
+   "anilist_id": null,
+   "mal_id": null,
+   "anidb_id": null,
+   "kitsu_id": null,
+   "format": "TVDB_SPECIAL",
+   "status": null,
+   "start": "2017-10-25",
+   "end": "2017-10-25",
+   "episodes": 1,
+   "duration_min": 17,
+   "anilist_relations": [],
+   "origin": "tvdb",
+   "found_via": "TVDB Season 0, not claimed by any entry",
+   "tvdb": {
+    "series_id": 326109,
+    "episodes": [
+     [
+      0,
+      8
+     ]
+    ],
+    "method": "tvdb-only",
+    "range": "S00E08",
+    "series_title": "Made in Abyss",
+    "tvdb_first_air": "2017-10-25",
+    "tvdb_first_title": "The Making of MADE IN ABYSS 01",
+    "airs": {}
+   },
+   "tmdb_movie": [],
+   "flags": [
+    "extra"
+   ],
+   "notes": [],
+   "mainline": false,
+   "target": "sonarr S00"
+  },
+  {
+   "key": "tvdb:326109:S00E09",
+   "title": "The Making of MADE IN ABYSS 02",
+   "title_en": null,
+   "names": [
+    "The Making of MADE IN ABYSS 02"
+   ],
+   "anilist_id": null,
+   "mal_id": null,
+   "anidb_id": null,
+   "kitsu_id": null,
+   "format": "TVDB_SPECIAL",
+   "status": null,
+   "start": "2017-10-25",
+   "end": "2017-10-25",
+   "episodes": 1,
+   "duration_min": 19,
+   "anilist_relations": [],
+   "origin": "tvdb",
+   "found_via": "TVDB Season 0, not claimed by any entry",
+   "tvdb": {
+    "series_id": 326109,
+    "episodes": [
+     [
+      0,
+      9
+     ]
+    ],
+    "method": "tvdb-only",
+    "range": "S00E09",
+    "series_title": "Made in Abyss",
+    "tvdb_first_air": "2017-10-25",
+    "tvdb_first_title": "The Making of MADE IN ABYSS 02",
+    "airs": {}
+   },
+   "tmdb_movie": [],
+   "flags": [
+    "extra"
+   ],
+   "notes": [],
+   "mainline": false,
+   "target": "sonarr S00"
+  },
+  {
+   "key": "tvdb:326109:S00E10",
+   "title": "Music in Abyss",
+   "title_en": null,
+   "names": [
+    "Music in Abyss"
+   ],
+   "anilist_id": null,
+   "mal_id": null,
+   "anidb_id": null,
+   "kitsu_id": null,
+   "format": "TVDB_SPECIAL",
+   "status": null,
+   "start": "2017-10-25",
+   "end": "2017-10-25",
+   "episodes": 1,
+   "duration_min": 6,
+   "anilist_relations": [],
+   "origin": "tvdb",
+   "found_via": "TVDB Season 0, not claimed by any entry",
+   "tvdb": {
+    "series_id": 326109,
+    "episodes": [
+     [
+      0,
+      10
+     ]
+    ],
+    "method": "tvdb-only",
+    "range": "S00E10",
+    "series_title": "Made in Abyss",
+    "tvdb_first_air": "2017-10-25",
+    "tvdb_first_title": "Music in Abyss",
+    "airs": {}
+   },
+   "tmdb_movie": [],
+   "flags": [
+    "extra",
+    "short"
+   ],
+   "notes": [],
+   "mainline": false,
+   "target": "sonarr S00"
+  },
+  {
+   "key": "tvdb:326109:S00E13",
+   "title": "Kevin Penkin Long Interview",
+   "title_en": null,
+   "names": [
+    "Kevin Penkin Long Interview"
+   ],
+   "anilist_id": null,
+   "mal_id": null,
+   "anidb_id": null,
+   "kitsu_id": null,
+   "format": "TVDB_SPECIAL",
+   "status": null,
+   "start": "2017-10-25",
+   "end": "2017-10-25",
+   "episodes": 1,
+   "duration_min": 16,
+   "anilist_relations": [],
+   "origin": "tvdb",
+   "found_via": "TVDB Season 0, not claimed by any entry",
+   "tvdb": {
+    "series_id": 326109,
+    "episodes": [
+     [
+      0,
+      13
+     ]
+    ],
+    "method": "tvdb-only",
+    "range": "S00E13",
+    "series_title": "Made in Abyss",
+    "tvdb_first_air": "2017-10-25",
+    "tvdb_first_title": "Kevin Penkin Long Interview",
+    "airs": {}
+   },
+   "tmdb_movie": [],
+   "flags": [
+    "extra"
+   ],
+   "notes": [],
+   "mainline": false,
+   "target": "sonarr S00"
+  },
+  {
+   "key": "al:101343",
+   "title": "Made in Abyss: Tabidachi no Yoake",
+   "title_en": "Made in Abyss: Journey's Dawn",
+   "names": [
+    "Made in Abyss: Tabidachi no Yoake",
+    "Made in Abyss: Journey's Dawn",
+    "メイドインアビス 旅立ちの夜明け"
+   ],
+   "anilist_id": 101343,
+   "mal_id": 37514,
+   "anidb_id": 13941,
+   "kitsu_id": 41080,
+   "format": "MOVIE",
+   "status": "FINISHED",
+   "start": "2019-01-04",
+   "end": "2019-01-04",
+   "episodes": 1,
+   "duration_min": 120,
+   "anilist_relations": [
+    [
+     "PARENT",
+     97986
+    ],
+    [
+     "SEQUEL",
+     101344
+    ]
+   ],
+   "found_via": "PREQUEL from 101344",
+   "origin": "anilist",
+   "tvdb": {
+    "series_id": 326109,
+    "episodes": [
+     [
+      0,
+      1
+     ]
+    ],
+    "method": "anibridge",
+    "anidb_specials": [],
+    "unmapped_anidb_eps": [],
+    "series_title": "Made in Abyss",
+    "missing_on_tvdb": [],
+    "missing_in_sonarr": [],
+    "tvdb_first_air": "2019-01-04",
+    "tvdb_first_title": "Movie: Journey's Dawn",
+    "tvdb_overview": "First compilation movie of the TV series which covers episodes 1-8 with new scenes added for the introduction. It covers the period from when Riko descends into the Abyss with her robot companion Reg, reaching the second layer where they meet the White Whistle Ozen who reveals information about Riko",
+    "airs": {
+     "airedAfterSeasonNumber": 1
+    },
+    "range": "S00E01",
+    "specials_range": ""
+   },
+   "tmdb_movie": [
+    526426
+   ],
+   "flags": [
+    "recap"
+   ],
+   "notes": [
+    "TMDb id from anibridge only",
+    "AniDB 13941 ('Gekijouban Soushuuhen Made in Abyss') groups this with al:101344"
+   ],
+   "kind": "branch",
+   "anibridge": {
+    "tvdb": [
+     [
+      326109,
+      0,
+      1
+     ]
+    ],
+    "tmdb_movie": [
+     526426
+    ]
+   },
+   "anibridge_agrees": true,
+   "target": "both (sonarr S00 + radarr)",
+   "mainline": false,
+   "tmdb_check": [
+    {
+     "tmdb_id": 526426,
+     "title": "Made in Abyss: Journey's Dawn",
+     "year": 2019,
+     "inCinemas": "2019-01-04T00:00:00Z",
+     "collection": "Made in Abyss Collection"
+    }
+   ]
+  },
+  {
+   "key": "al:101344",
+   "title": "Made in Abyss: Hourou Suru Tasogare",
+   "title_en": "Made in Abyss: Wandering Twilight",
+   "names": [
+    "Made in Abyss: Hourou Suru Tasogare",
+    "Made in Abyss: Wandering Twilight",
+    "メイドインアビス 放浪する黄昏"
+   ],
+   "anilist_id": 101344,
+   "mal_id": 37515,
+   "anidb_id": 13941,
+   "kitsu_id": 41081,
+   "format": "MOVIE",
+   "status": "FINISHED",
+   "start": "2019-01-18",
+   "end": "2019-01-18",
+   "episodes": 1,
+   "duration_min": 110,
+   "anilist_relations": [
+    [
+     "PARENT",
+     97986
+    ],
+    [
+     "PREQUEL",
+     101343
+    ],
+    [
+     "SEQUEL",
+     100643
+    ]
+   ],
+   "found_via": "PREQUEL from 100643",
+   "origin": "anilist",
+   "tvdb": {
+    "series_id": 326109,
+    "episodes": [
+     [
+      0,
+      2
+     ]
+    ],
+    "method": "anibridge",
+    "anidb_specials": [],
+    "unmapped_anidb_eps": [],
+    "series_title": "Made in Abyss",
+    "missing_on_tvdb": [],
+    "missing_in_sonarr": [],
+    "tvdb_first_air": "2019-01-18",
+    "tvdb_first_title": "Movie: Wandering Twilight",
+    "tvdb_overview": "Second compilation movie of the TV series which covers episodes 9-13. Riko and Reg descend to the third layer where Riko has her first experience of the Curse. They descend to the fourth layer where Riko's arm is injured by an Orbed Piercer and Reg tries to save her. Nanachi comes to their aid and s",
+    "airs": {
+     "airedAfterSeasonNumber": 1
+    },
+    "range": "S00E02",
+    "specials_range": ""
+   },
+   "tmdb_movie": [
+    526429
+   ],
+   "flags": [
+    "recap"
+   ],
+   "notes": [
+    "TMDb id from anibridge only",
+    "AniDB 13941 ('Gekijouban Soushuuhen Made in Abyss') groups this with al:101343"
+   ],
+   "kind": "branch",
+   "anibridge": {
+    "tvdb": [
+     [
+      326109,
+      0,
+      2
+     ]
+    ],
+    "tmdb_movie": [
+     526429
+    ]
+   },
+   "anibridge_agrees": true,
+   "target": "both (sonarr S00 + radarr)",
+   "mainline": false,
+   "tmdb_check": [
+    {
+     "tmdb_id": 526429,
+     "title": "Made in Abyss: Wandering Twilight",
+     "year": 2019,
+     "inCinemas": "2019-01-18T00:00:00Z",
+     "collection": "Made in Abyss Collection"
+    }
+   ]
+  },
+  {
+   "key": "al:100643",
+   "title": "Made in Abyss: Fukaki Tamashii no Reimei",
+   "title_en": "Made in Abyss: Dawn of the Deep Soul",
+   "names": [
+    "Made in Abyss: Fukaki Tamashii no Reimei",
+    "Made in Abyss: Dawn of the Deep Soul",
+    "メイドインアビス 深き魂の黎明",
+    "Made in Abyss: Dawn of a Deep Soul"
+   ],
+   "anilist_id": 100643,
+   "mal_id": 36862,
+   "anidb_id": 13612,
+   "kitsu_id": 14027,
+   "format": "MOVIE",
+   "status": "FINISHED",
+   "start": "2020-01-17",
+   "end": "2020-01-17",
+   "episodes": 1,
+   "duration_min": 105,
+   "anilist_relations": [
+    [
+     "PREQUEL",
+     97986
+    ],
+    [
+     "PREQUEL",
+     101344
+    ],
+    [
+     "SIDE_STORY",
+     114744
+    ],
+    [
+     "SEQUEL",
+     114745
+    ]
+   ],
+   "found_via": "SEQUEL from 97986",
+   "origin": "anilist",
+   "tvdb": {
+    "series_id": 326109,
+    "episodes": [
+     [
+      0,
+      3
+     ]
+    ],
+    "method": "scudlee",
+    "anidb_specials": [
+     [
+      1,
+      0,
+      4
+     ],
+     [
+      2,
+      0,
+      5
+     ],
+     [
+      3,
+      0,
+      6
+     ],
+     [
+      4,
+      0,
+      7
+     ]
+    ],
+    "unmapped_anidb_eps": [],
+    "series_title": "Made in Abyss",
+    "missing_on_tvdb": [],
+    "missing_in_sonarr": [],
+    "tvdb_first_air": "2020-01-17",
+    "tvdb_first_title": "Movie: Dawn of the Deep Soul",
+    "tvdb_overview": "A continuation of the epic adventure of plucky Riko and Reg who are joined by their new friend Nanachi. Together they descend into the Abyss' treacherous fifth layer, the Sea of Corpses, and encounter the mysterious Bondrewd, a legendary White Whistle whose shadow looms over Nanachi's troubled past.",
+    "airs": {
+     "airedAfterSeasonNumber": 1
+    },
+    "range": "S00E03",
+    "specials_range": "S00E04-E07"
+   },
+   "tmdb_movie": [
+    573730
+   ],
+   "flags": [],
+   "notes": [],
+   "kind": "line",
+   "id_sources": [
+    "fribb"
+   ],
+   "scudlee": {
+    "tvdb": 326109,
+    "season": "0",
+    "offset": 0,
+    "mappings": 2
+   },
+   "anibridge": {
+    "tvdb": [
+     [
+      326109,
+      0,
+      3
+     ]
+    ],
+    "tmdb_movie": [
+     573730
+    ]
+   },
+   "anibridge_agrees": true,
+   "target": "both (sonarr S00 + radarr)",
+   "mainline": true,
+   "tmdb_check": [
+    {
+     "tmdb_id": 573730,
+     "title": "Made in Abyss: Dawn of the Deep Soul",
+     "year": 2020,
+     "inCinemas": "2020-01-17T00:00:00Z",
+     "collection": "Made in Abyss Collection"
+    }
+   ]
+  },
+  {
+   "key": "al:114744",
+   "title": "Marulk-chan no Nichijou",
+   "title_en": "Marulk's Daily Life",
+   "names": [
+    "Marulk-chan no Nichijou",
+    "Marulk's Daily Life",
+    "マルルクちゃんの日常",
+    "Marulk's Everyday"
+   ],
+   "anilist_id": 114744,
+   "mal_id": 40897,
+   "anidb_id": null,
+   "kitsu_id": 43460,
+   "format": "SPECIAL",
+   "status": "FINISHED",
+   "start": "2020-01-17",
+   "end": "2020-02-07",
+   "episodes": 4,
+   "duration_min": 4,
+   "anilist_relations": [
+    [
+     "PARENT",
+     100643
+    ]
+   ],
+   "found_via": "SIDE_STORY from 100643",
+   "origin": "anilist",
+   "tvdb": {
+    "series_id": 326109,
+    "episodes": [
+     [
+      0,
+      4
+     ],
+     [
+      0,
+      5
+     ],
+     [
+      0,
+      6
+     ],
+     [
+      0,
+      7
+     ]
+    ],
+    "method": "anibridge",
+    "anidb_specials": [],
+    "unmapped_anidb_eps": [],
+    "series_title": "Made in Abyss",
+    "missing_on_tvdb": [],
+    "missing_in_sonarr": [],
+    "tvdb_first_air": "2020-01-17",
+    "tvdb_first_title": "OVA: Maruruk's Everyday 1 - Please!",
+    "tvdb_overview": "Short played before Made in Abyss Movie 3: Dawn of the Deep Soul in Japan's theatrical screenings before the main movie from 2020-01-17 to 2020-01-23.",
+    "airs": {
+     "airedAfterSeasonNumber": 1
+    },
+    "range": "S00E04-E07",
+    "specials_range": ""
+   },
+   "tmdb_movie": [],
+   "flags": [
+    "short"
+   ],
+   "notes": [],
+   "kind": "side",
+   "anibridge": {
+    "tvdb": [
+     [
+      326109,
+      0,
+      4
+     ],
+     [
+      326109,
+      0,
+      5
+     ],
+     [
+      326109,
+      0,
+      6
+     ],
+     [
+      326109,
+      0,
+      7
+     ]
+    ],
+    "tmdb_movie": []
+   },
+   "anibridge_agrees": true,
+   "target": "sonarr S00",
+   "mainline": false
+  },
+  {
+   "key": "al:114745",
+   "title": "Made in Abyss: Retsujitsu no Ougonkyou",
+   "title_en": "Made in Abyss: The Golden City of the Scorching Sun",
+   "names": [
+    "Made in Abyss: Retsujitsu no Ougonkyou",
+    "Made in Abyss: The Golden City of the Scorching Sun",
+    "メイドインアビス 烈日の黄金郷",
+    "Made in Abyss Season 2",
+    "ผ่าเหวนรก ภาค 2",
+    "นักบุกเบิกหลุมยักษ์ ภาค 2",
+    "صنع في الهاوية 2",
+    "ผ่าเหวนรก นครทองคำแห่งอาทิตย์ที่เจิดจ้า",
+    "Đến từ Vực Thẳm Mùa 2"
+   ],
+   "anilist_id": 114745,
+   "mal_id": 41084,
+   "anidb_id": 15359,
+   "kitsu_id": 42951,
+   "format": "TV",
+   "status": "FINISHED",
+   "start": "2022-07-06",
+   "end": "2022-09-28",
+   "episodes": 12,
+   "duration_min": 24,
+   "anilist_relations": [
+    [
+     "PREQUEL",
+     100643
+    ],
+    [
+     "SIDE_STORY",
+     153791
+    ],
+    [
+     "CHARACTER",
+     143086
+    ],
+    [
+     "SEQUEL",
+     160275
+    ]
+   ],
+   "found_via": "SEQUEL from 100643",
+   "origin": "anilist",
+   "tvdb": {
+    "series_id": 326109,
+    "episodes": [
+     [
+      2,
+      1
+     ],
+     [
+      2,
+      2
+     ],
+     [
+      2,
+      3
+     ],
+     [
+      2,
+      4
+     ],
+     [
+      2,
+      5
+     ],
+     [
+      2,
+      6
+     ],
+     [
+      2,
+      7
+     ],
+     [
+      2,
+      8
+     ],
+     [
+      2,
+      9
+     ],
+     [
+      2,
+      10
+     ],
+     [
+      2,
+      11
+     ],
+     [
+      2,
+      12
+     ]
+    ],
+    "method": "scudlee",
+    "anidb_specials": [
+     [
+      1,
+      0,
+      14
+     ],
+     [
+      2,
+      0,
+      15
+     ]
+    ],
+    "unmapped_anidb_eps": [],
+    "series_title": "Made in Abyss",
+    "missing_on_tvdb": [],
+    "missing_in_sonarr": [],
+    "tvdb_first_air": "2022-07-06",
+    "tvdb_first_title": "The Compass Pointed to the Darkness",
+    "tvdb_overview": "An old man speaks of a golden city that lies within a devouring abyss somewhere in uncharted waters. One explorer may be the key to finding both.",
+    "range": "S02E01-E12",
+    "specials_range": "S00E14-E15"
+   },
+   "tmdb_movie": [],
+   "flags": [],
+   "notes": [],
+   "kind": "line",
+   "id_sources": [
+    "fribb"
+   ],
+   "scudlee": {
+    "tvdb": 326109,
+    "season": "2",
+    "offset": 0,
+    "mappings": 1
+   },
+   "anibridge": {
+    "tvdb": [
+     [
+      326109,
+      2,
+      1
+     ],
+     [
+      326109,
+      2,
+      2
+     ],
+     [
+      326109,
+      2,
+      3
+     ],
+     [
+      326109,
+      2,
+      4
+     ],
+     [
+      326109,
+      2,
+      5
+     ],
+     [
+      326109,
+      2,
+      6
+     ],
+     [
+      326109,
+      2,
+      7
+     ],
+     [
+      326109,
+      2,
+      8
+     ],
+     [
+      326109,
+      2,
+      9
+     ],
+     [
+      326109,
+      2,
+      10
+     ],
+     [
+      326109,
+      2,
+      11
+     ],
+     [
+      326109,
+      2,
+      12
+     ]
+    ],
+    "tmdb_movie": []
+   },
+   "anibridge_agrees": true,
+   "target": "sonarr",
+   "mainline": true
+  },
+  {
+   "key": "tvdb:326109:S00E15",
+   "title": "Made in Abyss Retsunichi Koganekyo Just before the final episode retrospective special! ! ~ Six layers of the deep world The secret of the village ~",
+   "title_en": null,
+   "names": [
+    "Made in Abyss Retsunichi Koganekyo Just before the final episode retrospective special! ! ~ Six layers of the deep world The secret of the village ~"
+   ],
+   "anilist_id": null,
+   "mal_id": null,
+   "anidb_id": null,
+   "kitsu_id": null,
+   "format": "TVDB_SPECIAL",
+   "status": null,
+   "start": "2022-09-21",
+   "end": "2022-09-21",
+   "episodes": 1,
+   "duration_min": 24,
+   "anilist_relations": [],
+   "origin": "tvdb",
+   "found_via": "TVDB Season 0, not claimed by any entry",
+   "tvdb": {
+    "series_id": 326109,
+    "episodes": [
+     [
+      0,
+      15
+     ]
+    ],
+    "method": "tvdb-only",
+    "range": "S00E15",
+    "series_title": "Made in Abyss",
+    "tvdb_first_air": "2022-09-21",
+    "tvdb_first_title": "Made in Abyss Retsunichi Koganekyo Just before the final episode retrospective special! ! ~ Six layers of the deep world The secret of the village ~",
+    "airs": {}
+   },
+   "tmdb_movie": [],
+   "flags": [
+    "recap?"
+   ],
+   "notes": [
+    "ScudLee: AniDB special S2 of al:114745"
+   ],
+   "mainline": false,
+   "special_of": "al:114745",
+   "target": "sonarr S00"
+  },
+  {
+   "key": "al:153791",
+   "title": "Made in Abyss: Retsujitsu no Ougonkyou - Papa to Issho",
+   "title_en": null,
+   "names": [
+    "Made in Abyss: Retsujitsu no Ougonkyou - Papa to Issho",
+    "メイドインアビス 烈日の黄金郷「パパといっしょ」",
+    "Made in Abyss: The Golden City of the Scorching Sun Mini Anime",
+    "メイドインアビス 烈日の黄金郷 ミニアニメ",
+    "Made in Abyss: Retsujitsu no Ougonkyou Mini Anime",
+    "Made in Abyss: The Golden City of the Scorching Sun: Together with Papa"
+   ],
+   "anilist_id": 153791,
+   "mal_id": 52149,
+   "anidb_id": null,
+   "kitsu_id": 46675,
+   "format": "SPECIAL",
+   "status": "FINISHED",
+   "start": "2022-10-26",
+   "end": "2022-10-26",
+   "episodes": 1,
+   "duration_min": 7,
+   "anilist_relations": [
+    [
+     "PARENT",
+     114745
+    ]
+   ],
+   "found_via": "SIDE_STORY from 114745",
+   "origin": "anilist",
+   "tvdb": {
+    "series_id": 326109,
+    "episodes": [
+     [
+      0,
+      14
+     ]
+    ],
+    "method": "anibridge",
+    "anidb_specials": [],
+    "unmapped_anidb_eps": [],
+    "series_title": "Made in Abyss",
+    "missing_on_tvdb": [],
+    "missing_in_sonarr": [],
+    "tvdb_first_air": "2022-10-26",
+    "tvdb_first_title": "Me and My Papa",
+    "tvdb_overview": "Short focusing on Prushka included with the first volume of the Made in Abyss: The Golden City of the Scorching Sun Blu-ray/DVD box set.",
+    "airs": {
+     "airedAfterSeasonNumber": 2
+    },
+    "range": "S00E14",
+    "specials_range": ""
+   },
+   "tmdb_movie": [],
+   "flags": [],
+   "notes": [],
+   "kind": "side",
+   "anibridge": {
+    "tvdb": [
+     [
+      326109,
+      0,
+      14
+     ]
+    ],
+    "tmdb_movie": []
+   },
+   "anibridge_agrees": true,
+   "target": "sonarr S00",
+   "mainline": false
+  },
+  {
+   "key": "al:160275",
+   "title": "Made in Abyss: Mezameru Shinpi",
+   "title_en": null,
+   "names": [
+    "Made in Abyss: Mezameru Shinpi",
+    "メイドインアビス 目覚める神秘",
+    "Made In Abyss 3",
+    "Made in Abyss: Awakening Mystery"
+   ],
+   "anilist_id": 160275,
+   "mal_id": 54250,
+   "anidb_id": 17824,
+   "kitsu_id": 47017,
+   "format": "MOVIE",
+   "status": "FINISHED",
+   "start": "2026-10-23",
+   "end": "2026-10-23",
+   "episodes": 1,
+   "duration_min": 71,
+   "anilist_relations": [
+    [
+     "PREQUEL",
+     114745
+    ],
+    [
+     "SEQUEL",
+     218721
+    ]
+   ],
+   "found_via": "SEQUEL from 114745",
+   "origin": "anilist",
+   "tvdb": {
+    "series_id": 326109,
+    "episodes": [
+     [
+      0,
+      16
+     ]
+    ],
+    "method": "heuristic",
+    "heuristic": {
+     "min_title_sim": 1.0,
+     "picked": 1,
+     "wanted": 1
+    },
+    "anidb_specials": [],
+    "unmapped_anidb_eps": [],
+    "series_title": "Made in Abyss",
+    "missing_on_tvdb": [],
+    "missing_in_sonarr": [],
+    "tvdb_first_air": "2026-10-23",
+    "tvdb_first_title": "Made in Abyss: Awakening Mystery",
+    "tvdb_overview": "Sequel to Made in Abyss: The Golden City of the Scorching Sun.",
+    "airs": {
+     "airedAfterSeasonNumber": 2
+    },
+    "range": "S00E16",
+    "specials_range": ""
+   },
+   "tmdb_movie": [
+    1526917
+   ],
+   "flags": [],
+   "notes": [
+    "TMDb id from anibridge only"
+   ],
+   "kind": "line",
+   "id_sources": [
+    "fribb"
+   ],
+   "scudlee": {
+    "tvdb": "",
+    "season": "",
+    "offset": 0,
+    "mappings": 0
+   },
+   "anibridge": {
+    "tvdb": [],
+    "tmdb_movie": [
+     1526917
+    ]
+   },
+   "anibridge_agrees": null,
+   "target": "both (sonarr S00 + radarr)",
+   "mainline": true,
+   "tmdb_check": [
+    {
+     "tmdb_id": 1526917,
+     "title": "Made in Abyss: Mezameru Shinpi",
+     "year": 2026,
+     "inCinemas": "2026-10-23T00:00:00Z",
+     "collection": "Made in Abyss Collection"
+    }
+   ]
+  },
+  {
+   "key": "al:218721",
+   "title": "Made in Abyss: Mezameru Shinpi Part 2",
+   "title_en": null,
+   "names": [
+    "Made in Abyss: Mezameru Shinpi Part 2",
+    "メイドインアビス 目覚める神秘 第二部"
+   ],
+   "anilist_id": 218721,
+   "mal_id": 65248,
+   "anidb_id": null,
+   "kitsu_id": null,
+   "format": "MOVIE",
+   "status": "NOT_YET_RELEASED",
+   "start": null,
+   "end": null,
+   "episodes": 1,
+   "duration_min": null,
+   "anilist_relations": [
+    [
+     "PREQUEL",
+     160275
+    ]
+   ],
+   "found_via": "SEQUEL from 160275",
+   "origin": "anilist",
+   "tvdb": null,
+   "tmdb_movie": [],
+   "flags": [
+    "unaired"
+   ],
+   "notes": [],
+   "kind": "line",
+   "anibridge": {
+    "tvdb": [],
+    "tmdb_movie": []
+   },
+   "anibridge_agrees": null,
+   "target": "none",
+   "mainline": true
+  }
+ ],
+ "excluded_neighbours": [
+  {
+   "anilist_id": 143086,
+   "title": "Poputepipikku 2",
+   "format": "TV",
+   "why": "CHARACTER from 114745 (crossover or cameo)"
+  }
+ ],
+ "tvdb_regular_unclaimed": [],
+ "release_order": [
+  {
+   "key": "al:97986",
+   "title": "Made in Abyss",
+   "format": "TV",
+   "date": "2017-07-07",
+   "tvdb": "S01E01-E13",
+   "tmdb": null,
+   "flags": [],
+   "n": 1,
+   "premiered_during": null
+  },
+  {
+   "key": "al:101343",
+   "title": "Made in Abyss: Journey's Dawn",
+   "format": "MOVIE",
+   "date": "2019-01-04",
+   "tvdb": "S00E01",
+   "tmdb": [
+    526426
+   ],
+   "flags": [
+    "recap"
+   ],
+   "n": 2,
+   "premiered_during": null
+  },
+  {
+   "key": "al:101344",
+   "title": "Made in Abyss: Wandering Twilight",
+   "format": "MOVIE",
+   "date": "2019-01-18",
+   "tvdb": "S00E02",
+   "tmdb": [
+    526429
+   ],
+   "flags": [
+    "recap"
+   ],
+   "n": 3,
+   "premiered_during": null
+  },
+  {
+   "key": "al:100643",
+   "title": "Made in Abyss: Dawn of the Deep Soul",
+   "format": "MOVIE",
+   "date": "2020-01-17",
+   "tvdb": "S00E03",
+   "tmdb": [
+    573730
+   ],
+   "flags": [],
+   "n": 4,
+   "premiered_during": null
+  },
+  {
+   "key": "al:114744",
+   "title": "Marulk's Daily Life",
+   "format": "SPECIAL",
+   "date": "2020-01-17",
+   "tvdb": "S00E04-E07",
+   "tmdb": null,
+   "flags": [
+    "short"
+   ],
+   "n": 5,
+   "premiered_during": null
+  },
+  {
+   "key": "al:114745",
+   "title": "Made in Abyss: The Golden City of the Scorching Sun",
+   "format": "TV",
+   "date": "2022-07-06",
+   "tvdb": "S02E01-E12",
+   "tmdb": null,
+   "flags": [],
+   "n": 6,
+   "premiered_during": null
+  },
+  {
+   "key": "tvdb:326109:S00E15",
+   "title": "Made in Abyss Retsunichi Koganekyo Just before the final episode retrospective special! ! ~ Six layers of the deep world The secret of the village ~",
+   "format": "TVDB_SPECIAL",
+   "date": "2022-09-21",
+   "tvdb": "S00E15",
+   "tmdb": null,
+   "flags": [
+    "recap?"
+   ],
+   "n": 7,
+   "premiered_during": [
+    "al:114745"
+   ]
+  },
+  {
+   "key": "al:153791",
+   "title": "Made in Abyss: Retsujitsu no Ougonkyou - Papa to Issho",
+   "format": "SPECIAL",
+   "date": "2022-10-26",
+   "tvdb": "S00E14",
+   "tmdb": null,
+   "flags": [],
+   "n": 8,
+   "premiered_during": null
+  },
+  {
+   "key": "al:160275",
+   "title": "Made in Abyss: Mezameru Shinpi",
+   "format": "MOVIE",
+   "date": "2026-10-23",
+   "tvdb": "S00E16",
+   "tmdb": [
+    1526917
+   ],
+   "flags": [],
+   "n": 9,
+   "premiered_during": null
+  },
+  {
+   "key": "al:218721",
+   "title": "Made in Abyss: Mezameru Shinpi Part 2",
+   "format": "MOVIE",
+   "date": null,
+   "tvdb": null,
+   "tmdb": null,
+   "flags": [
+    "unaired"
+   ],
+   "n": 10,
+   "premiered_during": null
+  }
+ ],
+ "watch_order": [
+  {
+   "key": "al:97986",
+   "title": "Made in Abyss",
+   "format": "TV",
+   "date": "2017-07-07",
+   "tvdb": "S01E01-E13",
+   "tmdb": null,
+   "flags": [],
+   "n": 1,
+   "role": "mainline",
+   "optional": false,
+   "alternates": null
+  },
+  {
+   "key": "al:101343",
+   "title": "Made in Abyss: Journey's Dawn",
+   "format": "MOVIE",
+   "date": "2019-01-04",
+   "tvdb": "S00E01",
+   "tmdb": [
+    526426
+   ],
+   "flags": [
+    "recap"
+   ],
+   "n": 2,
+   "role": "recap",
+   "optional": true,
+   "placed_by": "release-date"
+  },
+  {
+   "key": "al:101344",
+   "title": "Made in Abyss: Wandering Twilight",
+   "format": "MOVIE",
+   "date": "2019-01-18",
+   "tvdb": "S00E02",
+   "tmdb": [
+    526429
+   ],
+   "flags": [
+    "recap"
+   ],
+   "n": 3,
+   "role": "recap",
+   "optional": true,
+   "placed_by": "release-date"
+  },
+  {
+   "key": "al:100643",
+   "title": "Made in Abyss: Dawn of the Deep Soul",
+   "format": "MOVIE",
+   "date": "2020-01-17",
+   "tvdb": "S00E03",
+   "tmdb": [
+    573730
+   ],
+   "flags": [],
+   "n": 4,
+   "role": "mainline",
+   "optional": false,
+   "alternates": null
+  },
+  {
+   "key": "al:114744",
+   "title": "Marulk's Daily Life",
+   "format": "SPECIAL",
+   "date": "2020-01-17",
+   "tvdb": "S00E04-E07",
+   "tmdb": null,
+   "flags": [
+    "short"
+   ],
+   "n": 5,
+   "role": "side-story",
+   "optional": true,
+   "placed_by": "release-date"
+  },
+  {
+   "key": "al:114745",
+   "title": "Made in Abyss: The Golden City of the Scorching Sun",
+   "format": "TV",
+   "date": "2022-07-06",
+   "tvdb": "S02E01-E12",
+   "tmdb": null,
+   "flags": [],
+   "n": 6,
+   "role": "mainline",
+   "optional": false,
+   "alternates": null,
+   "part": "up to before S02E12"
+  },
+  {
+   "key": "tvdb:326109:S00E15",
+   "title": "Made in Abyss Retsunichi Koganekyo Just before the final episode retrospective special! ! ~ Six layers of the deep world The secret of the village ~",
+   "format": "TVDB_SPECIAL",
+   "date": "2022-09-21",
+   "tvdb": "S00E15",
+   "tmdb": null,
+   "flags": [
+    "recap?"
+   ],
+   "n": 7,
+   "role": "recap",
+   "optional": true,
+   "placed_by": "release-date (aired during al:114745, before S02E12)"
+  },
+  {
+   "key": "al:114745",
+   "title": "Made in Abyss: The Golden City of the Scorching Sun",
+   "format": "TV",
+   "date": "2022-07-06",
+   "tvdb": "S02E01-E12",
+   "tmdb": null,
+   "flags": [],
+   "n": 8,
+   "role": "mainline",
+   "optional": false,
+   "alternates": null,
+   "part": "from S02E12"
+  },
+  {
+   "key": "al:153791",
+   "title": "Made in Abyss: Retsujitsu no Ougonkyou - Papa to Issho",
+   "format": "SPECIAL",
+   "date": "2022-10-26",
+   "tvdb": "S00E14",
+   "tmdb": null,
+   "flags": [],
+   "n": 9,
+   "role": "side-story",
+   "optional": true,
+   "placed_by": "release-date"
+  },
+  {
+   "key": "al:160275",
+   "title": "Made in Abyss: Mezameru Shinpi",
+   "format": "MOVIE",
+   "date": "2026-10-23",
+   "tvdb": "S00E16",
+   "tmdb": [
+    1526917
+   ],
+   "flags": [],
+   "n": 10,
+   "role": "mainline",
+   "optional": false,
+   "alternates": null
+  },
+  {
+   "key": "al:218721",
+   "title": "Made in Abyss: Mezameru Shinpi Part 2",
+   "format": "MOVIE",
+   "date": null,
+   "tvdb": null,
+   "tmdb": null,
+   "flags": [
+    "unaired"
+   ],
+   "n": 11,
+   "role": "mainline",
+   "optional": false,
+   "alternates": null
+  }
+ ],
+ "story_order": {
+  "basis": "AniList chain (topological) + TVDB airs for single specials",
+  "moves_applied": 0,
+  "moves_failed": [],
+  "source": null,
+  "order": [
+   {
+    "key": "al:97986",
+    "title": "Made in Abyss",
+    "format": "TV",
+    "date": "2017-07-07",
+    "tvdb": "S01E01-E13",
+    "tmdb": null,
+    "flags": [],
+    "n": 1,
+    "role": "mainline",
+    "optional": false,
+    "alternates": null
+   },
+   {
+    "key": "al:101343",
+    "title": "Made in Abyss: Journey's Dawn",
+    "format": "MOVIE",
+    "date": "2019-01-04",
+    "tvdb": "S00E01",
+    "tmdb": [
+     526426
+    ],
+    "flags": [
+     "recap"
+    ],
+    "n": 2,
+    "role": "recap",
+    "optional": true,
+    "placed_by": "tvdb-airs (after season)"
+   },
+   {
+    "key": "al:101344",
+    "title": "Made in Abyss: Wandering Twilight",
+    "format": "MOVIE",
+    "date": "2019-01-18",
+    "tvdb": "S00E02",
+    "tmdb": [
+     526429
+    ],
+    "flags": [
+     "recap"
+    ],
+    "n": 3,
+    "role": "recap",
+    "optional": true,
+    "placed_by": "tvdb-airs (after season)"
+   },
+   {
+    "key": "al:100643",
+    "title": "Made in Abyss: Dawn of the Deep Soul",
+    "format": "MOVIE",
+    "date": "2020-01-17",
+    "tvdb": "S00E03",
+    "tmdb": [
+     573730
+    ],
+    "flags": [],
+    "n": 4,
+    "role": "mainline",
+    "optional": false,
+    "alternates": null
+   },
+   {
+    "key": "al:114744",
+    "title": "Marulk's Daily Life",
+    "format": "SPECIAL",
+    "date": "2020-01-17",
+    "tvdb": "S00E04-E07",
+    "tmdb": null,
+    "flags": [
+     "short"
+    ],
+    "n": 5,
+    "role": "side-story",
+    "optional": true,
+    "placed_by": "release-date"
+   },
+   {
+    "key": "al:114745",
+    "title": "Made in Abyss: The Golden City of the Scorching Sun",
+    "format": "TV",
+    "date": "2022-07-06",
+    "tvdb": "S02E01-E12",
+    "tmdb": null,
+    "flags": [],
+    "n": 6,
+    "role": "mainline",
+    "optional": false,
+    "alternates": null
+   },
+   {
+    "key": "tvdb:326109:S00E15",
+    "title": "Made in Abyss Retsunichi Koganekyo Just before the final episode retrospective special! ! ~ Six layers of the deep world The secret of the village ~",
+    "format": "TVDB_SPECIAL",
+    "date": "2022-09-21",
+    "tvdb": "S00E15",
+    "tmdb": null,
+    "flags": [
+     "recap?"
+    ],
+    "n": 7,
+    "role": "recap",
+    "optional": true,
+    "placed_by": "release-date"
+   },
+   {
+    "key": "al:153791",
+    "title": "Made in Abyss: Retsujitsu no Ougonkyou - Papa to Issho",
+    "format": "SPECIAL",
+    "date": "2022-10-26",
+    "tvdb": "S00E14",
+    "tmdb": null,
+    "flags": [],
+    "n": 8,
+    "role": "side-story",
+    "optional": true,
+    "placed_by": "tvdb-airs (after season)"
+   },
+   {
+    "key": "al:160275",
+    "title": "Made in Abyss: Mezameru Shinpi",
+    "format": "MOVIE",
+    "date": "2026-10-23",
+    "tvdb": "S00E16",
+    "tmdb": [
+     1526917
+    ],
+    "flags": [],
+    "n": 9,
+    "role": "mainline",
+    "optional": false,
+    "alternates": null
+   },
+   {
+    "key": "al:218721",
+    "title": "Made in Abyss: Mezameru Shinpi Part 2",
+    "format": "MOVIE",
+    "date": null,
+    "tvdb": null,
+    "tmdb": null,
+    "flags": [
+     "unaired"
+    ],
+    "n": 10,
+    "role": "mainline",
+    "optional": false,
+    "alternates": null
+   }
+  ],
+  "alternates": []
+ },
+ "community": {
+  "sources": {
+   "recommended": "https://myanimelist.net/stacks/41867 (MAL series guide); release and story order are the same"
+  },
+  "against": {
+   "watch_order vs recommended": {
+    "community_entries": 8,
+    "matched": 8,
+    "missing_here": [],
+    "extra_here": [],
+    "order_inversions": [
+     "community: al:114744 before al:100643; here: after"
+    ]
+   },
+   "story_order vs recommended": {
+    "community_entries": 8,
+    "matched": 8,
+    "missing_here": [],
+    "extra_here": [],
+    "order_inversions": [
+     "community: al:114744 before al:100643; here: after"
+    ]
+   }
+  }
+ },
+ "dataset_versions": {
+  "anibridge": {
+   "schema_version": "3.0.3",
+   "generated_on": "2026-10-25T17:16:58Z"
+  }
+ }
+}

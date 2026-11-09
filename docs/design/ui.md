@@ -1,0 +1,747 @@
+# The web UI
+
+The web UI is a React single-page app embedded in the binary (`web/`, served by `internal/webui`). It talks only to
+the native API (`/api/theatarr/v1`). Where it sits: [overview.md](overview.md).
+
+Two apps share one shell. The **library app** is for everyone: posters, discover rows, a title page, search and add,
+activity in plain words, and requests. The **admin panel** is for the operator: system status, jobs, budgets,
+indexers, providers, users and keys.
+
+**References.** The genre, the information architecture and the visual language follow Scryer and Seerr, and code
+from both is adapted under attribution (§9). Their branding is not used.
+- **Seerr** (MIT): discover rows, poster cards with a status badge, a title page with backdrop,
+  poster, overview and a request button, requests with approve/decline, permissions per user, settings kept apart.
+- **Scryer** (GPL-3.0; its theme and components are adapted under attribution, see §9): a
+  sidebar grouped into Overview / Catalogs (Movies, Series, Anime as separate facets) / Discover / Automation (Wanted,
+  Calendar, Activity) / System (Users, Jobs, Logs); a command palette for global search; title art kept in its own
+  store and served from its own route (`/images/titles/{id}/{kind}/{variant}?v=<hash>`, long cache) plus a token route
+  for art of titles not in the library; requests with pending/approved/rejected/canceled and the art captured at
+  request time; live updates over a subscription that the UI turns into toasts. Where Theatarr follows one of these, the
+  text says "Scryer does X".
+
+## 1. Surfaces
+
+Marks: **U** user-facing (the library app), **A** admin panel.
+
+### Native API (`/api/theatarr/v1`, `internal/web`)
+
+| Route | Data | Mark | Note |
+|---|---|---|---|
+| `GET openapi.json` | the hand-written spec | A | stays; TypeScript types are generated from it |
+| `GET status` | version, schema, row counts | A | System › Status / Backup |
+| `GET titles`, `titles/{id}` | titles with version coverage, art fields, sort and facets (§6); one title in full | U | |
+| `GET versions`, `versions/{id}` | versions by key, state, has_file | U | wanted lists; Home "Missing" row |
+| `GET registry`, `registry/{hash}` | contents and everything that points at them | A | |
+| `GET imports`, `imports/{id}` | arr import runs and summaries | A | Advanced › Sonarr/Radarr migration › Import runs |
+| `GET jobs` | counts and jobs | A | System › Tasks |
+| `GET gateway` | egress, budgets, back-offs | A | Settings › Indexers › VPN / Advanced › Request limits |
+| `GET policy`, `policy/validate` | policy summary, validation | A | |
+| `GET events` (SSE) | `jobs`, `gateway` and the user events (§6) | A | |
+| `POST auth/login`, `auth/logout`, `GET auth/me` | session login, who am I (with role and permissions) + CSRF | U | |
+| `GET/POST keys`, `DELETE keys/{id}` | API keys | A | per user (§3) |
+| `GET shadow/summary`, `shadow/diffs`, `shadow/diffs/{id}` | shadow report; active compare sources use `basis: live` for real grabs, timing, per-version agreement and disagreement reasons | A | |
+| `GET anime/franchises`, `franchises/{slug}`, `review`, `review/{id}/snippet`, `POST review/{id}/accept|reject`, `GET anime/playlists` | anime metadata | A (review), U (franchise orders, playlists) | A playlist plan's items keep their order for every browsing account; their file `path`, `from` and `rating_key` need see_files (`TestAnimePlaylistPlanHidesFilesWithoutSeeFiles`) |
+| `POST decide`, `POST import` | native decision and import for devices (`internal/arrview/nativeapi`) | A | API only; a "Test a release" box in Admin uses `decide` |
+
+### arr views (`internal/arrview`, mounted at `/radarr`, `/sonarr`, `/v/<version>/{radarr|sonarr}`)
+
+All `…/api/v3/…`: `system/status`, `qualityprofile`, `rootfolder`, `tag`, `movie`/`series` (+ lookup, POST/PUT/DELETE),
+`episode`, `episodefile`, `moviefile`, `queue` (+ status, details, DELETE), `wanted/missing`, `wanted/cutoff`,
+`history` (+ per title, failed), `release` (GET, POST, push), `parse`, `manualimport`, `calendar`, `indexer`,
+`notification` (+ schema, test), `command`, `diskspace` and the rest in [`docs/design/arrview.md`](arrview.md).
+**Not UI.** They serve Seerr, Homepage, decypharr, autobrr and the phone apps and keep their shapes. The UI never
+calls them. The UI shares two things with them (§3, §6): the add path (`catalog.Add`) and the queue rows.
+
+### Server (`internal/server`)
+
+`/healthz`, `/readyz`, `/metrics`: A (machine routes; System › Status reads the same checks).
+
+## 2. Information architecture
+
+### Shell
+
+- **Desktop:** a left sidebar, a top bar with global search (also `/` or Ctrl-K, as Scryer's command palette does),
+  the system signals, and the user menu. The signals are for admins and come from endpoints the shell already reads:
+  **New downloads off** (or **New downloads locked off** when `THEATARR_FORCE_OFF` forces it) from
+  `GET settings/versions` `switches`, linking to Settings › Download clients and hidden while new downloads are on
+  (the same words at every width, phones included);
+  and the live status dot (VPN and failed jobs), whose words always show when it is bad ("VPN down").
+- **Look**: tokens in
+  `web/src/styles/globals.css` (ink on warm paper, warm charcoal in dark, one Prussian-blue accent, ok/held/broken
+  colours, 40/32 px rows), with the shadcn names kept as aliases. Fonts are self-hosted
+  @fontsource packages, nothing loads from another origin: IBM Plex Sans for the interface, IBM Plex Mono for keys,
+  release names, paths and numbers, Newsreader for page and title names (one token, `--f-display`, so headings can
+  switch to Plex Sans). The primitives (button, input, select, switch, checkbox, chip, tag, table, dialog, sheet,
+  tabs, toast, skeleton, empty state) live in `web/src/components/ui`.
+- **Phone:** a bottom tab bar: Home, Browse (a sheet with Movies, Series, Anime, Collections for managers), Search, Requests (with its badge),
+  More (a sheet with Activity, Wanted (admins), Now playing, Calendar and the admin pages the account may open).
+- **Sidebar** (`web/src/components/shell/nav.ts`): Home, Library (Movies,
+  Series, Anime, Collections for managers and admins: `/collections`, docs/design/arrview.md), Requests, Activity, Wanted (admins), Now playing, Calendar; then **Admin**: System, Reviews, Torrents,
+  Settings, Users & access, Advanced. **Setup** appears first only when `/setup` reports `first_run` or
+  nonempty `missing`. Successful section, provider, indexer and library saves refresh this query, including metadata keys and mount changes. A Setup checklist link remains on Status and the Settings home footer.
+  System, Settings and Advanced show children while their pages are open; System includes `/admin`
+  and `/admin/system/*`. The phone More sheet uses the same groups. System's badge sums new errors excluding source=job
+  and attention jobs; Tasks and Errors retain their own badges. Reviews uses an accent badge for all
+  waiting decisions. Users and managers never see Admin; users-only accounts see Users & access,
+  and `/admin` takes them there. Sign-in still lands on Home.
+- Library keys get one fixed colour each (bars, title page, filters).
+
+### Library state
+
+Every page that shows a library (title copies, the add drawer, Setup, Libraries settings and its tables, policy,
+Status, Requests, Wanted) shows the same library state (`components/version-status.tsx` over `lib/version-grab.ts`):
+
+- the **mode marker**: **Shadow** (previews and compares, downloads nothing) or **Active** (manages files);
+- one **verdict**, decided by the server's `will_grab`: **Downloads on** when it grabs; otherwise **Preview only**
+  (Shadow), **Locked off** (`THEATARR_FORCE_OFF`), **Paused globally** (Allow new downloads off) or **Downloads off**
+  (the library's own switch, a library not in the saved settings, or a server hold);
+- a separate **New files won't be linked** mark for an Active library whose links are off;
+- **Why?**, a real button (keyboard reachable, `aria-expanded`), listing every closed gate, each with a link to where
+  it is changed for admins (Settings › Libraries `?edit=key`, Settings › Download clients). Dense rows (library
+  tables, request chips) show a small **?** button ("Why Downloads off?") instead; it opens the same list, with the
+  admin links, in a portalled popover (Radix) that stays on screen outside clipping rows, by keyboard or touch;
+  Escape closes it and returns focus to the button.
+
+`can_search` and `search_reason` are shown too; their notes use the verdict words, and a server hold with
+every displayed gate open keeps the server's reason beside **Downloads off**. Wanted takes each row's state from
+`GET /status` (`versions[].grab_state`): rows read **Locked off** under the environment lock, and a library's closed
+download gate stays visible while the search loop is off. Until `/status` answers (or if it fails) Wanted says only
+**New downloads off**, without naming a cause. The releases header names each monitored library's
+verdict when nothing would be searched. When new downloads are off
+(or locked off) for every library, a page says so once at the top (`DownloadsOffNotice`, from any row's
+`grab_state`) and the rows keep only their own verdict; the top-bar signal stays. Controls are named **Allow
+downloads for this library**, **Allow new downloads**, **Write library links**, **Send notifications** and, in the add
+drawer, **Add to these libraries**. The add drawer shows one row per library: a checkbox, then the name, key and
+kind on one wrapping row and its state on the next, with a footer "n libraries · m will download" (ticked
+libraries whose `will_grab` is true).
+
+### Library and activity pages
+
+- **Library lists** keep the poster and table views. The table has dense rows, a **Columns** chooser (one checkbox
+  per column, saved per browser and user in `theatarr.library.<what>.<user>`) and shows each library's state with the shared
+  component. While the table fits its frame it clips so its header sticks; when the libraries and chosen columns make
+  it wider (measured, not guessed from the viewport) it scrolls sideways inside its frame, so every column stays
+  reachable, and the page itself never scrolls sideways.
+- **Upcoming**: a missing movie that is not out at home yet reads **Upcoming · <date>** instead of Missing, on
+  library lists, posters, Home and Discover › Upcoming, all through the one rule (`upcomingRelease`): the row's
+  `home_release` (the earlier of the digital and disc dates, else the cinema date plus 90 days; the date Theatarr's
+  released minimum waits for, `availability.HomeRelease`) strictly after today, else, for a row without one, its TMDb
+  release date strictly after today (the UTC day, as the server's Missing row and fetching count it). A film in cinemas with its digital release to come reads Upcoming until that
+  day. It is still wanted; only the word changes, and Wanted's counts do not. `home_release` is per title: a
+  parallel copy that still follows an arr's own dates can differ.
+- **Family view**: accounts without See files get one **Availability** column (Available, Some episodes available,
+  Not available, Upcoming, Getting ready) instead of a column and a Libraries button per library, posters without
+  copy bars, and on a series' Episodes tab each season's combined summary without the per-library bars. Accounts that
+  see files keep the per-library detail. A missing title with a download in hand (the row's `acquiring`: a copy's acquisition that
+  is not blocked and not an upgrade; the title page's `acquiring` too) reads **Getting ready** there, on posters and
+  Home rows and in the title page's readiness chip, before Upcoming; a failed download is not in
+  hand, so it stays Not available;
+  accounts that see files keep their stage chips.
+- **Title page**: Newsreader title, the readiness chip, small-caps fact rows; library cards sit in one ruled panel. A
+  Shadow library says **Preview only** once (the chip); the note below it does not repeat the verdict. The Episodes
+  tab shows the page's downloads-off notice when new downloads are paused or locked for every library, and its
+  restrictions list does not repeat that per library.
+- **Activity**: queue rows are compact and open into their details in place. **Downloading** counts only
+  provider transfers in progress; starting (the provider add) and linking count under **Waiting**, the filter their
+  library stage links open; failures count under **Needs attention**. On phones the History
+  filters stack one per line with the date input full width.
+- **Decision journal**: on phones, where the kind and library columns hide, each entry shows its kind and library
+  inline under the title.
+- **Colours**: the library key colours (`--v-*`) have light and dark values, each at least 3:1 on the page and the
+  surface; Theatarr's own copies (the `-theatarr` keys, docs/parallel.md) have their own rather than the
+  accent. Calendar entries are surface chips with a 3 px facet-coloured edge. Labels over artwork (poster chips,
+  hover shade, Continue watching) sit on `--art-scrim`, which is dark in both themes. Modal backdrops use `--scrim`.
+- Wanted, Collections, Requests and Home use the shared Card, Chip, Tag, Checkbox and Select primitives.
+
+### Other pages
+
+The remaining pages use the same tokens and primitives:
+
+- **Search** (page and overlay): a Design A search field, underline kind tabs, ruled result rows with Button icon
+  actions, and the kind as a square chip with its facet mark (`FacetPill`, also in the add and request drawers). On
+  TMDb posters only the kind chip sits on the art scrim; In library and Requested sit under the year, since a status
+  chip beside the kind does not fit a phone-width poster.
+- **Reviews**: the waiting cards' Review is a Button, the empty inbox the shared empty state, and flagged decisions one
+  ruled list with each library's key tag.
+- **Login**: a ruled card, a Newsreader heading, Sign in with Plex as the primary button (no Plex orange), and the
+  error and pending notices as edge-marked notes.
+- **Users & access**: the role select, Discord id input and switches are the primitives; the "Requests ask for"
+  libraries are square toggle chips.
+- **Switches**: the monitor switch (library rows, title page, episode drawer, collections) and the add drawer's
+  Search now use the Switch primitive (size `sm` for dense rows); a locked monitor switch stays focusable
+  (`aria-disabled`) with its reason as the title. Search now's whole row is its label.
+- The confirmation dialog, filters panel and dropdown menu use the Button, Checkbox, Select and token shadows; the
+  components use the short tokens.
+- Sheets and dialogs (bulk monitor, copy, view options, episode drawer, upgrade why, add and request drawers) use
+  the 8px panel radius and the shadow token; a schema boolean with a default (On / Off / Default) stays a three-state
+  outline button rather than a Switch.
+- Keyboard focus: `outline-none` sets Tailwind v4's outline style to none, so a primitive that removes the browser
+  outline also sets `focus-visible:outline-solid` with its 2px focus outline (Button, Switch, Checkbox, tab triggers and
+  the focusable tab panel, search fields).
+- At 400 px no page scrolls sideways. Tables with long keys wrap them (`overflow-wrap:anywhere`; `break-words` does
+  not shrink a table cell); the indexer rows' phone grid drops the cell height. Request budgets (settings and Request
+  limits) and gateway back-offs stack below sm as labelled lines (Rate, Caps, This hour, Today, Used by, Failures,
+  Reason), so no value is hidden on a phone; from sm up they are table columns, Used by included. Home's poster rows, the anime YAML
+  preview, the franchise episode map and the comparison evidence grid still scroll inside their own frame; the
+  comparison's release names wrap, so at 1440 px the whole grid fits. A journal entry's summary wraps long release names.
+- Cancel closes a sheet or dialog; Discard resets a form's draft to saved (both sit in the record forms).
+
+### Navigation
+
+| Menu path | Route |
+|---|---|
+| Home | `/` |
+| Library › Movies / Series / Anime | `/movies`, `/series`, `/anime` |
+| Library › Collections (managers, admins) | `/collections` |
+| Requests | `/requests` |
+| Activity › Queue / History / Blocklist | `/activity`, `/activity/history`, `/activity/blocklist` |
+| Wanted › Missing / Cutoff unmet (admin) | `/wanted`, `/wanted/cutoff` |
+| Now playing / Calendar | `/now-playing`, `/calendar` |
+| Admin › Setup (while unfinished) | `/admin/setup` |
+| Admin › System › Status / Tasks / Backup / Errors / Logs | `/admin`, `/admin/system/tasks`, `/admin/system/backup`, `/admin/system/errors`, `/admin/system/logs` |
+| Admin › Reviews / Torrents | `/admin/reviews`, `/admin/torrents` |
+| Admin › Settings | `/admin/settings` (destinations below) |
+| Admin › Users & access | `/admin/users` |
+| Admin › Advanced | `/admin/advanced` (migration, manual import, journal, raw configuration, history and limits) |
+
+Phone tabs are Home, Browse, Search, Requests and More. More shows System, Settings, Users & access and Advanced
+as headings with vertical lists, plus Setup (when needed), Reviews and Torrents. Counts retain the desktop badge
+sources. Below 640 px route tabs become a **Section** select. Settings authority banners collapse to a single-line
+summary with **Details** on phones; source and fallback information remain available.
+
+Setup is a five-step readiness checklist with a read-only activation review. The shared `useSetupProgress` hook
+powers Setup, admin-only Home and Settings reminders and sidebar Setup visibility (`first_run || missing.length > 0`).
+See [quickstart](../quickstart.md#readiness-led-setup) for the completion rules; no step enables a global switch.
+
+### Library app (everyone)
+
+| Screen | Path | What | From |
+|---|---|---|---|
+| Home | `/` | rows: **Getting ready** (in progress: downloads and imports running now; API route `GET activity/continue`), **Recently added** (newest current files), **Missing** (wanted versions, released), **Upcoming** (digital/physical release dates and episode air dates in the next 30 days), **My requests** (users) / **Pending requests** (managers: each poster opens that request in the queue). A family account (no `see_files`, no `manage_requests`) gets Getting ready, My requests, **Recently available** and Upcoming only: Missing and Below cutoff are copy shortfalls, and `GET discover` leaves them empty for it. Each row scrolls sideways and has "See all". For admins the heading line reads "N titles across M libraries" (`GET status`: `counts.title` and the `versions` list; `counts.version` counts each title's place in each library) | `/titles`, `/versions`, `title_release_date`, `download`, `library_import` |
+| Movies / Series / Anime | `/movies`, `/series`, `/anime` | poster grid (every poster card, here, on Home and in search, has the title on two lines at most and the year under it, and one restrained availability badge; the overview on hover); filters: version (has / lacks each key; accounts with See files only, a family account filters by availability), state (wanted, filled, cutoff met), monitored, quality, provider, year, genre; sort: added, title, year, release, rating, size, completion, next episode / release, quality, latest activity; posters or table (posters by default, the choice kept across Movies, Series and Anime); each copy shown with its bar, stage and ownership (see **Library views** below) | `/titles` |
+| Title | `/title/{id}` | see **Title page** below | `/titles/{id}` + new |
+| Search | overlay, `/search?q=` | two sections: **In your library** (instant, local) and **Add from TMDb** (movies and TV, with "In library" / "Requested" marks). Add opens a sheet: versions to turn on (pre-ticked from the policy defaults), seasons for series, monitor, search now. An account without `add` sees **Request from TMDb** and Request buttons instead; one with neither `add` nor `request` sees **On TMDb** and no add or request control. A library result shows its library keys only to accounts with See files; others get the title's one availability word (`titleWatchWords`: Available in 4K, Some episodes available, Getting ready, Upcoming, Not available), as the table does. With no TMDb key the TMDb section says so; admins get **Set the TMDb key** (Settings › Metadata & artwork, metadata services), others are told an administrator can add one | new |
+| Calendar | `/calendar` | upcoming releases and episodes by week (arr views already serve `calendar`) | new |
+| Collections (managers, admins) | `/collections` | TMDb movie collections, monitored first: poster, movies in the library of the total, monitored switch, target libraries (only active movie libraries nothing follows; monitoring needs one), search on add, minimum availability; a name filter and **Monitored only**. Changes save at once; a monitored collection adds its missing movies at the next list refresh, and its searches go through the router. The arrs' monitored collections arrive with each Radarr import (docs/design/arrview.md, Collections) | `GET collections`, `PUT collections/{id}` |
+| Activity | `/activity` | **Queue:** downloads as compact rows (phone: stacked cards): title, copy, stage, progress or waiting time, last update and next retry when known, one Details action (Inspect when it needs attention) that opens the steps and, for admins, release, attempts and cache evidence. Filters (`?show=`): **Needs attention** (users: Delayed; a failed step, a refused or partial link, a wait past its limit, or no progress for 6 h), **Downloading**, **Waiting** (queued, starting, not started, finished, linking), **All**. A finished provider download is **Download complete** until it is linked; "ready to watch" is kept for library readiness. **History:** grabs, imports, upgrades, failures, each with a one-line reason, filtered by title, copy, event type (Grabs, Upgrades, Imports and links, Failures and blocks) and a since date, all in the URL (`?title=&copy=&event=&since=`; `GET activity?state=history&title=&version=&kinds=&since=`, `web/src/lib/activity-history.ts`). The journal link on a row is for admins only. Accounts without See files get no library key on a row (the resolution stays), and an opened failed download says in plain words that it did not work and that a manager can look at it. **Blocklist** (`/activity/blocklist`, accounts with See files). Users see the copies (versions and seasons) of the requests they are on, not another copy of the same title (history by version only; it pages over them, so each page is full until the last); admins see all. Bookmarks `/activity/now`, `/activity/blocked` and `/activity/wanted` redirect to `/activity`, `/activity/blocklist` and `/wanted`, preserving query and hash; Blocklist in the user view goes back to Queue | new (router, library); `waiting_since`, `next_retry` from `internal/web/activity.go` |
+| Wanted (admins) | `/wanted`, `/wanted/cutoff` | **Missing**, **Cutoff unmet** from the automatic loop's selectors, including active libraries with Allow downloads for this library off. Read-only: never starts searches or changes version state. Shows loop settings, hourly searches, target names, last search and decision links. Waiting precedence: loop off, Paused globally, Downloads off (the library's own switch), downloading, searched recently (next due time), due (oldest first position). Waiting chips and library filters precede 50-row paging; counts cover the whole selection. Shared title/season queries display each library separately so its gates remain visible. Due positions come from the merged Missing and Cutoff unmet queue of grabbing libraries, excluding recent targets and wholly in-flight groups; both tabs and copies of one group share numbering. Only due rows have a position. Pending add-time searches are counted separately and go first under the same hourly budget. Routed searches say “Sent to download”; “Grabbed” requires a download from that run. Closed gates link to their settings without toggles. Active title copies link to both queues when they have missing and below-cutoff episodes; shadow copies have no Wanted handoff. Search history links to **Why this decision**. At most ten newest searches are added after the fifty release-history events are selected. Search-entry verdicts only record feedback; their related downloads link to the download entry for release actions. | `GET wanted?only=missing\|cutoff&version=&waiting=&limit=&offset=` |
+| Requests | `/requests` | users: theirs, by status; admins: a queue with approve / decline / **Edit request** (versions, seasons). `/requests/<id>` opens a focused request detail; old `?request=<id>` links redirect there (the View request links). Managers (the `manage` permission) also get **Upgrades waiting** (`/requests/upgrades`): upgrades held by copies set to `upgrades: approve`, with Approve / Decline and the decided ones (docs/design/manage.md "Upgrades waiting"). It sits here, not in Admin, because managers decide it and never see the Admin group | new; `GET upgrades` |
+| Profile | `/me` | password, sessions, own API keys (if allowed), theme | new |
+
+**Title page** (`web/src/pages/title.tsx`,
+`lib/title-layout.ts`):
+
+- **Hero**, compact: poster, title and year, essential facts (certification, runtime, up to three genres, original
+  language, rating), readiness for everyone ("Ready to watch in 4K": the best resolution a usable copy has; "5 of 10
+  episodes ready"; "Not available yet", or "Getting ready" without See files while a download is in hand; a movie
+  missing one of its copies is still ready), audio languages, a
+  synopsis cut to three lines with More, and the primary action beside the title: **Add another library** (add),
+  else **Request** / **View request** (request). On phones that action also sticks above the bottom tabs.
+- **Libraries** (callers with "see files"): one compact card per library, side by side from 1024 px, stacked on
+  phones; right under the hero for a movie, on the Libraries tab for a series. Each card keeps separate fields:
+  **Library** (the display label, with “mirrors <arr name>” shown separately), **Current file** (resolution and source in words, "4K WEB"),
+  **Preferred quality** (the profile's cutoff in words, "4K Remux"), **Upgrade status** (the vocabulary in
+  docs/design/manage.md, with Why?), for managers an **Upgrade waiting for approval** block with Approve / Decline when
+  the copy holds one (docs/design/manage.md "Upgrades waiting"), monitoring (switch, "auto upgrades on/off", read-only
+  while an arr manages it) and Search now. Availability names what is held ("Available in 4K WEB"), never the copy's label. **Details**
+  discloses the raw version key, file, score, size, media, path, hash, release history and (admins) the journal.
+  This is the one place copies are managed: the section header has Search now for all copies (the releases page uses the same header).
+- **Tabs:** Episodes (series and anime, the default) / Libraries (series, "see files") / Watch order (anime with a
+  franchise) / About (overview when long, the fact table, outside links, Refresh metadata for managers; admins also
+  identifiers, release dates, files, arr records and registry) / History ("see files": each copy's release
+  history; admins the title's journal). About's Files inventory includes old-manager files and active native library
+  links, deduplicated by path. Old `?tab=seasons|versions|details` links open Episodes, Libraries, About.
+- **Family accounts** (no "see files"): hero with readiness and languages, their request card, Episodes for a
+  series, About; no copy cards, states or history (the API sends none).
+- **Releases page** (`/title/{id}/releases`): managers and admins only, matching the release API; other accounts see
+  the standard permission screen with a link back to title availability. Malformed or non-positive title ids show
+  the not-found state and a Library link.
+- **Episodes** (`components/title/seasons.tsx`, `episode-drawer.tsx`, logic in
+  `lib/seasons.ts`), phone first:
+  - **Season header:** one completion summary for the copies in view, "8 of 10 available · 2 missing · 1 upgrade
+    found · 1 not aired" (with several copies a missing count names its copy, "2 missing in 4K"). "Of N" counts the
+    episodes aired or already held. Per-copy counts, size, the upgrade status with Why?, the season monitor switch and
+    Search season sit behind the header's **Details** ("see files" only).
+  - **Restrictions once:** read-only monitoring (an arr still imports the copy) and disabled search are one note
+    above the seasons, a line per distinct reason, naming the copies only when not all share it. The controls stay
+    disabled with a lock and the reason as their title.
+  - **Filters per season:** All / Missing / Upgrade found (the last for "see files"), with counts; Missing and
+    Upgrade found match an episode when any copy in view is. The season checkbox selects the episodes shown, so
+    "Missing, select all, Search" works. The bulk toolbar (Monitor, Unmonitor, Search) shows only while something is
+    selected.
+  - **Desktop (768 px and up):** a table with a column per copy (the two-copy matrix), each cell a word, Available /
+    Missing / Not aired / Upgrade found / Not monitored, with the quality beside it and the monitored mark.
+  - **Phones:** a copy selector when there are two or more copies, then one row per episode for that copy: name,
+    number and air date, and the state in words on the right (the quality under it). Never a bare icon.
+  - **Numbering:** "E01"; anime with an absolute number "E01 · absolute 13", in the rows, the table and the episode
+    overview. Anime with a franchise get a **Watch order** link above the seasons (the tab stays).
+  - **Episode overview:** the shared Modal, a centred dialog on desktop and a bottom sheet on phones
+    (`?episode=<id>`): number, name, air date, runtime; per copy its state in the upgrade vocabulary, monitor switch
+    and Search now (managers), the upgrade block with Why?; then **File**, **History** (with the episode's journal
+    entries) and **Releases** as separate disclosures, all closed at first.
+  - **Family accounts** (no "see files"): one availability column across copies at every width (an episode is
+    Available in its best resolution when any copy holds it, Missing only when none does, Not aired, Not available
+    when nobody wants it), no copy names, selector, Details, upgrade filter or checkboxes; the overview is one
+    availability line. The API already sends them nothing more (`redactEpisodes`).
+
+**Title actions** (by permission): Search now (per version), Turn a version on or off, Monitor, Request a version (a
+user without add rights), Show releases (the "Search" panel: results × versions with reasons; managers), Grab a
+release from a live search, Remove a copy, Unlink a library file, Remove the title (managers; see **Recovery
+actions**; never deletes provider torrents or files on the mount).
+
+**Recovery actions** (`internal/web/ops.go`, `internal/arrview/ops.go`, SPA
+`components/{title/release-grab,title/copy-actions,activity/download-actions}.tsx`, scope words in `lib/ops.ts`).
+Managers and admins only (`manage`; 403 otherwise). Every action opens a confirmation that names its scope ("This
+will" / "Stays as it is") and is recorded in the journal as an `action` entry (`act:<id>`, table `journal_action`,
+00039) with who did it (user name, or `key:<name>` for an API key). They reuse the existing paths, never a second one:
+
+| Action | Where | Route | What runs |
+|---|---|---|---|
+| Grab a release | Releases panel and the episode overview's Releases, live answers only (`Releases.grab`) | `POST titles/{id}/releases/grab {version, info_hash, override}` | The release must come from this server's own live search for that title and copy in the last 30 min (never release data from the browser). It is decided again; a rejected release (then or now) answers 409 with the reasons and needs "Grab anyway" (`override`). The action is refused with the router-disabled or shadow-mode reason before enqueueing when provider writes cannot run; otherwise `router.Enqueue` applies the indexer's provider allowlist, blocklist, pacing and budgets |
+| Remove download | Activity › Queue, a download's Inspect/Details | `POST activity/downloads/{id}/remove {blocklist, search}` | `router.Dismiss` (as the arr views' `DELETE queue`): Theatarr's record ends as failed; the torrent at the provider stays (shared by every library), linked files stay. "Remove, blocklist and search" also blocklists the release for the copy (source `ui`, "Removed in Activity with blocklist") and searches the copy; `search` without `blocklist` is refused. A toast keeps the server's outcome visible when the row disappears |
+| Retry | the same panel, and History rows about a failed download | `POST activity/downloads/{id}/retry` | failed: the same release, as the download stored it (its release data with cache evidence, as the router rebuilds a download it resumes), goes to the router again as a new download only when `router.enabled` is true and its version is active; disabled or shadow routes are refused with the reason (409), as are blocklisted releases. Ready or importing: import now (`library.Import`), answered with its `outcome`: `imported`, `partial`, `rejected` (failed and blocklisted), `held` (left for review), `waiting` (mount) or `dry_run` (gate); anything but `imported` is shown as a warning and journalled as such. Anything else is refused (409) |
+| Unblock | Activity › Blocklist | `POST activity/blocked/unblock {version, info_hash, search}` | deletes the blocklist row (`router.Unblock`) in the same transaction as the journal record; optionally searches the copy. A toast keeps the server's search outcome visible when the blocked row disappears |
+| Remove a copy / the title | the copy's Details / About | `GET titles/{id}/removal?versions=` (scope), `POST titles/{id}/remove {versions, unlink}` | `catalog.Remove` (the arr views' removal: `arrview_removed_version`, unmonitor; the title leaves when no copy is left), downloads in hand dismissed in the same transaction (`router.EndRemoved`, shared with the arr views' DELETE; a running import then takes its links back); with `unlink`, the copies' active symlinks go to the trash through the gate (refused ones are reported as kept). A move that fails otherwise (a full disk) is reported in `failed` with the rest (200), not a 500 after the hide: the scope then lists the removed copies whose links remain (`leftover`) and the dialog offers "Unlink files", a removal with unlink that moves just those. The journal's remove entry claims no unlink; each moved link has its own `unlink_file` entry once it moved. A copy an arr still manages is refused (409). Adding the copy again restores it |
+| Change episodes (admins only) | the episode overview's File, for one of Theatarr's links | `POST links/{id}/episodes {episode_ids, replace}` | `library.ReassignEpisodes` ([library](library.md) "Which file is which episode"): the link is renamed for the chosen episodes and the choice is kept for later imports; a chosen episode with another file in that library is refused (409) unless **Replace** is chosen, which moves that file to the trash. Recorded in the library's actions, not the journal |
+| Unlink a file | the copy's Details › Library links | `POST links/{id}/unlink` | `library.Unlink`: only Theatarr's own active symlink, gate first; the copy is wanted again when it has no other file. Hardlinks, copies and the mount's files are never touched |
+
+There is no arr-shaped `DELETE blocklist/{id}` (the arr views serve no blocklist list to take ids from).
+
+**Request state everywhere** (`web/src/lib/request-state.ts`). For an account that requests,
+search cards, the title page (hero button and request card) and the request sheet show one action from the same
+rule: **View request** when the caller has an open request (pending, approved, processing) for the title, linked to
+`/requests?request=<id>`; **View availability** when every version the caller could ask for is in the library or
+monitored. The title hero keeps title-wide readiness; the request card uses only the versions applicable to this
+account's request set: **Available** only when those copies can be watched, else **Getting ready** (part of it) or
+**Waiting for a copy** (monitored, nothing yet). "On its way" and "being looked for" need a
+copy that is acquiring (`control.grab_state`, kept for every account: mode active, version grab on, router on); with
+none, the card says **Partly available** or **Not available yet** and that the rest is not being fetched yet. The card's sentence names those copies ("What you can ask for (4K Remux) is already monitored but not ready to watch yet…"), so beside a hero that says another copy is ready to watch it reads as about this account's copies, not the title;
+**Request more seasons** when the caller's versions are all there but some series seasons are not monitored (also on
+the Episodes tab); otherwise **Request**. The sheet never ends on a disabled button. The caller's open
+requests come from one `GET requests?mine=1&status=open` (the caller's own only), matched by title id or kind and
+TMDb id. Global search reads "Search movies, series and anime".
+
+**Library views** (`web/src/lib/copies.ts`,
+`web/src/components/library/`, `internal/web/copies.go`). A library holds one rendition of a title. Each library shows its
+**ownership**: *followed* when an arr still imports it (`control.managed_by`; its monitoring is read-only here and
+the server refuses changes) or *Theatarr-managed*. Its **coverage** is the episodes it holds against those aired (a
+movie copy is held or not), and its **acquisition** is one summary of the downloads in hand for it, in stages:
+Queued, Starting, Downloading N %, Download complete, Waiting for mount, Linking, Blocked ("Upgrade …" when the
+copy keeps a file meanwhile). Bars are solid for what is linked and striped (the copy's colour) for what is in
+progress. Every stage links to Activity (`?show=downloading`, `waiting`, `attention` for Blocked).
+
+**Library labels**: a library uses its generated display label while it is unique among the libraries shown together.
+When labels collide, each becomes “Label · key” (for example “4K · tv-2160p”). Ownership stays separate.
+Title cards show ownership separately as “mirrors <arr name>”. Setup activation cards are headed by the key, the
+display label beside it, so same-labelled libraries can be told apart. There is no editable display-name field.
+
+- **Table:** a column per copy key whose header names the copy and its ownership ("Followed · sonarr_4k ·
+  read-only", "Theatarr-managed", "Some followed (read-only)"). A cell has the state ("13 / 17 available", or the
+  movie state words), current quality, the stage, the bar and, for managers, the monitor switch (locked with the
+  reason on a followed copy). **Columns** shows and orders the extra columns: Next / activity, Quality per copy,
+  Size, Added, Network / studio. The headers sort the grid (a copy header sorts by that copy's completion,
+  `sort=completion&sort_version=<key>`). Below 640 px the rows stack as cards and the extra columns become lines.
+  **Libraries** under a title opens its library dialog (each copy's file, state, stage and monitoring; search and files
+  stay on the title page).
+- **Posters:** one availability badge, in precedence order: Missing, Some episodes, Upgrade waiting or Available.
+  Some episodes means a monitored, aired episode is missing; family accounts get the server's watchability as is;
+  a movie playable in one library shows Upgrade waiting while another, monitored library still lacks it, and
+  Available once that copy is unmonitored (the server then does not report it partial); never Missing.
+  Per-library grab badges are not shown. Source-ceiling evidence stays in **Why?**. One bar line per library between the art and the title, an in-flight chip over the art (the most
+  advanced stage, linked to Activity), and **Poster options**: size (small, medium, large; on a phone small fits
+  three across, the others two) and the details under each poster (year, next episode / release, network /
+  studio, each copy's quality, each copy's size, added). Each copy's monitoring and ownership always show, shortened
+  to "Followed · read-only" (the instance in its tooltip) or "Theatarr-managed".
+- **Select** (managers) works on both: tick titles, pick the target library (or **Every library**) and Monitor on / off;
+  **Review changes** asks `POST titles/monitor` with `dry_run` and lists what changes, what is already set and what
+  is excluded (followed copies, titles without the copy); **Apply** sends the preview's values as `expect`, so a
+  copy changed since is skipped as stale, and lists each outcome. It only sets `monitored` on existing copies: no
+  copy is added, nothing is searched or grabbed, and `router.enabled` is untouched. A table cell's switch uses the
+  same route for one copy.
+- **Series page:** each season header shows a bar per copy with its downloads by stage ("1 downloading · 1
+  queued"); copy column headers carry the ownership line; an episode cell shows its stage (and progress while
+  downloading); an **In progress** filter sits beside Missing; the episode overview shows each copy's acquisition
+  (words, progress, last update, waits, retries) with an Activity link. Anime keep "E13 · absolute 13".
+- **Preferences** stay in this browser per user: `theatarr.library.columns.<user>`, `theatarr.library.posters.<user>`, and the
+  view in `theatarr.catalog.view`.
+- **Live:** a download event refreshes its title and the lists at once on a change of state, and at most every
+  20 s for progress alone (`web/src/api/live-activity.ts`).
+
+API fields (all additive): `TitleRow.versions[]` (VersionBrief) gains `control`, `coverage` {have, total, aired,
+upcoming, missing, monitored, in_flight} and `acquisition` {stage, words, progress, download_id, downloads,
+episodes, stages, upgrade, quality, updated_at, waiting_since, next_retry}; `TitleRow` gains `next_up` {date,
+season, number, name, type}, `network`, `home_release` (movies, YYYY-MM-DD) and `acquiring` (every caller); the episode list's season counts gain `in_flight` and `stages`, its
+cells `acquisition`; `Version` (title page) gains `acquisition`. `GET titles` sorts gain `completion`, `next`,
+`quality` and `activity` (the last two need "see files") with `sort_version`. Accounts without "see files" get
+coverage counts only (no control, no acquisition, no missing/monitored/in_flight). New route: `POST titles/monitor`
+{title_ids (1–500), versions (absent: every copy), monitored, dry_run, expect} → {dry_run, items [{title_id, title,
+version, label, outcome: changed | unchanged | read_only | missing | stale, from, to, reason}], counts, message}
+(manage permission).
+
+Not in the library views: bulk Profile and Upgrades fields (no safe write API), Add another copy from the
+library (the title page's add flow stays the one place), Search / Releases / Grab buttons in the library views
+(monitoring only here; they stay on the title page and the episode overview), and an Audio / subtitles column (no
+list projection of media facts).
+
+### Admin panel (`/admin/…`)
+
+| Screen | Path | Holds |
+|---|---|---|
+| System › Status | `/admin` | Readiness: Downloads, Library links, Notifications (ON/OFF, linked to their settings) and newest complete Theatarr backup. Needs attention groups failed jobs by kind with newest error, Retry newest and See all; single failures retain Retry/Dismiss. Waiting Reviews count, health failures, back-offs and delayed downloads; then download/task summaries, libraries and diagnostics. |
+| System › Tasks | `/admin/system/tasks` | Attention, running/queued, and folded resolved/finished work; `?kind=` filters on the server before the limit. Technical job kinds and details are kept. |
+| System › Backup | `/admin/system/backup` | Theatarr backups and confirmed restore; torrent-list schedule, backups, import, download and restore preview; review-only settings export link; database counts, nightly run and `#backup-check`. |
+| System › Errors | `/admin/system/errors` | Existing error inbox and its actions. |
+| System › Logs | `/admin/system/logs` | Existing log viewer and filters. |
+| Reviews | `/admin/reviews` | Waiting cards for Quality updates (`/quality`), Anime mappings (`/anime`, franchise detail `/:slug`, with alternate cuts and episode numbering), Indexer definitions (`/indexers`) and Flagged decisions (`/decisions`). These suffixes are under `/admin/reviews`. Counts poll every 60 seconds for admins; catalog off returns an empty holds list (HTTP 200). Quality sync 409 (YAML) and 503 (not running) are unavailable, with no waiting items. Pending counts show Loading and failed counts show unavailable. Journal has no total: a full page or next_cursor marks a lower bound (`50+`, `1+`, or `?` when no matches were found in the scan). Waiting and Status never give an all-clear for unknown counts; Status names failed review sources. An empty scanned window says “None in the newest entries.” and links to all flagged decisions. Definition reviews show loading, errors, or “No definition updates waiting.”. Flagged rows link to the journal verdict controls. Wrong blocks and searches again only with new downloads on, an active library and a known release; otherwise it records the verdict. |
+| Torrents | `/admin/torrents` | Provider torrents: usage, filters, sorting, confirmed deletes and journal. An account that cannot be read gets one line: the provider's name, why in plain words (the provider asked to slow down, paused after failed requests, request limit used up, VPN not confirmed) and the next try in local time, with the raw error under Details. Saved inventory (`/inventory`, detail `/:hash`) shows known hashes and provider holdings. Backups live in System › Backup. |
+| Settings | `/admin/settings` | Search and task pages below. |
+| Users & access | `/admin/users` | Users, roles, permissions, sessions and API/view keys. |
+| Advanced | `/admin/advanced` | Exactly Sonarr/Radarr migration, Manual import, Decision journal, YAML settings, Settings history and Request limits. |
+| Sonarr/Radarr migration | `/admin/advanced/arr` | Instances; Migrate (`/migrate`), Comparison (`/comparison`, detail `/:id`) and Import runs (`/imports`). Comparison detail shows candidate formats, scores, rejection reasons and arr/search/RSS decisions in React. |
+| Manual import | `/admin/advanced/manual-import` | Existing file linking workflow. |
+| Decision journal | `/admin/advanced/journal[/:id]` | Decisions, evidence and Ok/Wrong verdicts. |
+
+Older Jobs, Errors, Logs, Database, Metadata review, inventory and migration URLs redirect to the current
+pages, preserving query and hash, including detail parameters. The General #torrent-backups bookmark goes to System Backup with its query; server registry, shadow and anime detail redirects go directly to the current inventory, comparison and Reviews routes. `/admin/system` and `/admin/system/health`
+redirect only on exact matches; they do not shadow the System pages. `/classic/` routes return 404. Inventory and journal detail links
+remain admin-only; managers keep copyable hashes and unlinked summaries.
+
+### Settings
+
+`/admin/settings` is the Settings home, with **Find a setting** and a card for each page below in sidebar order.
+Search understands familiar arr terms, schema field labels and technical paths; Enter opens the first result.
+Panel anchors scroll into view and briefly highlight. **Show advanced settings** is shared across all forms and
+remembered in this browser. Normal database mode has a compact saved-settings notice with a Details disclosure;
+Startup fallback retains the full notice and reload/confirmation behavior.
+
+| Page | Route | Tabs / contents |
+|---|---|---|
+| Libraries | `/admin/settings/libraries` | Libraries · Naming · File management |
+| Profiles | `/admin/settings/profiles` | Profiles · Check a release |
+| Custom formats | `/admin/settings/formats` | Rules that match releases and influence quality scores. |
+| Quality sync | `/admin/settings/quality-sync` | Sources, preview, run, link and recent runs; waiting count links to Reviews › Quality updates. How sync works is folded. |
+| Indexers | `/admin/settings/indexers` | Indexers · VPN · Catalog · RSS |
+| Download clients | `/admin/settings/downloads` | Debrid providers (with Provider account sync above their status) · Other clients · Behaviour |
+| Notifications | `/admin/settings/notifications` | Where and when Theatarr sends messages. |
+| Plex & playback | `/admin/settings/plex` | Plex connections, playback and playlists; read-only Playlists Theatarr keeps below the playlists panel. |
+| Metadata & artwork | `/admin/settings/metadata` | Metadata services, refresh schedules and the artwork cache. |
+| Connected apps | `/admin/settings/apps` | Compatible endpoints for Seerr and other apps: each app's libraries, profiles and API key. |
+
+Other libraries' folders (`#scan-roots`) are on Torrents, above the torrent list; `/admin/settings/general` redirects
+by anchor.
+
+Libraries includes the existing library editor (`?edit=key`); app bindings are on Connected apps. Profiles keeps `?raw=1`, presets,
+and the hidden `/admin/settings/profiles/format_sets` editor. Its **Check a release** tab
+(`/admin/settings/profiles/check`) judges a pasted release name for one title and library through `POST /decide`,
+read-only ([decide.md](decide.md#release-check)). Its optional size is in GiB, as sizes are shown, or carries a
+unit as in the settings forms (`36 GB` is 36×10⁹ bytes); text that is not a size is refused beside the field and
+nothing is checked. Indexers and debrid providers show status beside
+their editors, with Edit links. VPN status is above its settings. Allow new downloads, Write library links and
+Send notifications live on Download clients, Libraries and Notifications respectively.
+
+Advanced includes **Sonarr/Radarr migration** (`/admin/advanced/arr`), **YAML settings**
+(`/admin/advanced/config`, with Policy files, Sections and Import & export tabs), **Settings history**
+(`/admin/advanced/history`) and **Request limits** (`/admin/advanced/limits`, including back-offs and budgets).
+Previous admin URLs redirect with their query string and hash intact.
+On phones (below `md`) the side list is hidden, so the top of each Settings page has a labelled **Settings page**
+select that moves between the pages.
+
+**Settings forms.** Panels (`section-panel.tsx`, through `field-input.tsx`) and record sheets
+(`record-form.tsx`) share one pattern: an edited field is marked **Changed** with **Undo** back to the saved value;
+**Reset** sets a leaf back to its default (the key is removed); help text and the server's validation message sit
+beside the field and are tied to its control with `aria-describedby` (`aria-invalid` on an error). A panel with
+changes shows a sticky bar (above the phone tab bar) with the change count, **Discard** and **Save**; a record sheet
+shows the count and Discard in its footer, and Discard keeps the sheet open and clears the discarded draft's
+validation. A new provider or indexer is tracked against its first draft, its name included. Fields that generate other
+values have a Changed mark but no Undo (a record's Service, which fills a new record's name and URL; a library's
+Root and Write roots); Discard resets the whole draft. Undo under an object the saved settings
+did not have leaves it absent, so the draft equals the saved value again. The Libraries editor has the same marks (a new
+library's key included), count and Discard (it has no schema defaults, so no Reset); list rows tie their indexed error and the help to their
+control. A risky change keeps the server's 422
+confirmation: the dialog (`EffectsConfirmDialog`) lists the effects word for word as the server returns them,
+grouped by library (effects that name none first, under "This change"; nothing is added to what the server sends), says which libraries are affected and, when the change is about one
+library, names the other libraries it also affects; Cancel has the focus.
+The torrent-backups panel is owned by the System Backup page and is searchable without appearing in Settings navigation. The field placement table is in [Settings](settings.md).
+
+### Settings and system pages
+
+- There is no Settings › General: Provider account sync is on Download clients › Debrid providers, Artwork cache on
+  Metadata (renamed **Metadata & artwork**), other libraries' usage folders on Admin › Torrents. Old links, search
+  entries and `/admin/settings/general#…` bookmarks go to the new places (`lib/legacy-routes.ts`).
+- **Connected apps** (was Apps) is the one place for arr app bindings and keys; libraries and profiles are named
+  checkboxes and the key help links to Users & access. Libraries links there.
+- New indexers show name and URL up front; the indexer provider allowlist is Any or named checkboxes.
+- Profiles have structured **Size limits**; Custom formats is one definition list with Edit definition, linked both
+  ways with profile scores.
+- Settings history is newest first with Older/Newer.
+- Phones (400 px): Cache checks labels wrap with a one-word Reset; provider status cards do not push Download
+  clients sideways; Errors rows give the message the full width with Seen/Resolve/Ignore below.
+- Details: [settings.md](settings.md#form-details).
+
+## 3. Multi-user
+
+Details: [users.md](users.md) (permission matrix, Plex sign-in, requests API). Accounts, sessions, CSRF and API keys
+live in `internal/auth`.
+
+### Roles and permissions
+
+A role is a preset of permission bits; an admin can tick extra bits per user (Seerr does the same with a bitmask).
+
+| Permission | admin | manager | user |
+|---|---|---|---|
+| Browse library, title pages, calendar, own activity | yes | yes | yes |
+| Request a title or a version | yes | yes | yes |
+| `auto_approve` (requests apply at once) | yes | yes | optional |
+| `request_versions` (which version keys they may ask for; e.g. users may ask for `movie-web` but not `movie-remux`) | all | all | policy default list |
+| `add` (add titles and turn versions on directly, no request) | yes | yes | no |
+| Approve / decline others' requests | yes | yes | no |
+| See files, paths, hashes, providers, scores | yes | yes | no (quality and size only) |
+| Search now, show releases, relink, remove a version | yes | yes | no |
+| Admin panel (system, shadow, registry, policy, logs) | yes | no | no |
+| Users and API keys of others | yes | no | no |
+| Own API key | yes | yes | optional |
+
+`manager` is the operator role: it runs the library without seeing the plumbing. There are no request quotas.
+
+### What each sees
+
+- **user:** Home without the "Getting ready" row's provider detail and without the copy-shortfall rows (Missing,
+  Below cutoff); availability as watchability: a movie with any copy is Available, a series with some episodes and
+  no complete version "Some episodes available", nothing "Not available" (`docs/design/library-ui.md`); grids and title pages without the Details tab;
+  Search adds become requests; Activity only for the copies they requested; Requests: their own.
+- **manager:** everything in the library app; the Requests queue; no Admin group in the sidebar.
+- **admin:** everything.
+
+The API enforces this, not the UI: each handler declares the permission it needs next to its `Access`
+(`SignedIn`, `SessionOnly`, `Public`), and the field filter for "see files" runs in the handler. API keys belong to a
+user and carry that user's permissions; the arr views keep accepting admin keys and view keys only.
+
+### Requests
+
+`/requests/<id>` shows Requested → Awaiting approval → Getting ready → Available, or the declined/canceled branch, with recorded creation/decision/status times, decision actor and note; self-approval skips the approval wait. A failed request's Getting ready step reads **Did not work** ("This did not work. A manager can look at it."), before any paused-downloads words; each copy's progress stays under it. A user who joined another member's request sees "Someone else asked first; you joined" instead of a name (the server sends no other requester, docs/design/users.md). Getting ready uses Activity’s provider-free stage words for concurrent downloads, requested-season episode availability, or an honest waiting explanation; missing historical transition times and ETAs are left unknown (request events are streamed, not persisted). The phone layout stacks facts and timeline; desktop places them side by side.
+
+Managers keep inline queue Approve/Decline and see what approval does per requested version in the detail and editor: “Approval records this request; automatic downloads are paused” for shadow versions or a disabled router. Before submission, the sheet applies account copy defaults without version choices and says whether this account needs approval; detail visibility stays own/joined requests for users and all requests for managers, with no file, size, quality-source, provider or path fields in the progress projection.
+
+1. A user finds a title (library or TMDb); Theatarr applies the account’s request versions (by default every version that
+   fits the title) without asking them to pick copies. The sheet says whether approval is needed; for a series they
+   choose seasons, and may add a note.
+2. Theatarr stores a `request` row, `pending` (or `approved` at once with `auto_approve`). Duplicates merge: a second request
+   for the same title and version adds the user to the existing one; an `auto_approve` ask approves a pending one it
+   joins only when the request asks for nothing beyond that ask (docs/design/users.md), and the sheet says so.
+3. A manager or admin approves (optionally changing versions or seasons), or declines with a reason.
+4. **Approval runs the same add path as the arr write API**, `catalog.Add` (`internal/catalog`): find or create the
+   `title` row by TMDb/TVDB id, turn the versions on (new versions start `wanted`), apply seasons and monitoring, and
+   optionally record a search command. The arr views call it with the versions chosen from the view's profile;
+   request approval calls it with the request's versions. One code path, one set of tests; the arrview contract
+   tests keep Seerr's view unchanged.
+5. The request then follows the versions: `approved` → `processing` (a download exists) → `available` (every
+   requested version is filled) or `failed`. Users get an SSE event and, later, a notification (`internal/notify`).
+
+Seerr stays supported as a client of the arr views. Built-in requests are for people who use Theatarr directly.
+
+Approved and processing request text and timelines use the effective grab gates of their applicable versions.
+When all those versions are in shadow mode, have grabbing off, or the global router is off, they say the request
+is not being fetched yet. Available copies remain available. Copy cards and request progress show closed grab
+gates, with links to the version and global switches for admins who can change them.
+
+
+### Schema (migration `00026_users.sql`)
+
+- `web_user`: `role TEXT NOT NULL DEFAULT 'admin'`, `permissions INTEGER`,
+  `display_name`, `disabled_at`.
+- `api_key`: `user_id` is the owner.
+- `request`: `id`, `user_id`, `kind`, `tmdb_id`, `tvdb_id`, `title_id` (NULL until approved), `name`, `year`,
+  `poster_path` (art captured at request time, as Scryer does, so a pending request shows a poster before the title
+  exists), `versions` (JSON keys), `seasons` (JSON), `note`, `status` (`pending`, `approved`, `declined`, `canceled`,
+  `processing`, `available`, `failed`), `decided_by`, `decided_at`, `reason`, `created_at`, `updated_at`.
+- `request_user`: extra requesters of a merged request.
+
+## 4. Frontend stack
+
+**A single-page app in React + TypeScript + Vite + Tailwind CSS, built to `internal/webui/dist` and embedded
+in the binary with `go:embed`, talking to `/api/theatarr/v1` only.** Small dependency set: React Router, TanStack Query,
+openapi-typescript for types, shadcn-style components on Radix primitives with lucide icons (as Scryer and Seerr use),
+most of them copied from Scryer's `apps/scryer-web` under attribution.
+
+Versions (`web/package.json`, exact versions, lockfile committed): React 19.3, React Router 7 (library
+mode), TanStack Query 5, Tailwind CSS 4 through `@tailwindcss/vite`, `radix-ui`, `lucide-react`, Vite 7, TypeScript
+5.9, ESLint 9, Vitest 4. React 19 and Tailwind 4 are what Scryer's components are written for, so they copy without porting. Two CSP rules shape the code: no inline
+`style=""` (bar widths and generated poster art are class steps), and no Radix modal dialog or menu (react-remove-scroll
+injects a `<style>`), so menus run with `modal={false}` and every overlay and sheet (search, add, filters, phone
+navigation) is Theatarr's own `Modal` (`web/src/components/ui/modal.tsx`): focus moved in, kept in and given back, the rest of
+the page `inert`, and a reference-counted scroll lock class (`lib/modal-stack.ts`), so a sheet over the search overlay
+closes without unlocking the page. Query keys come from one module (`web/src/api/query-keys.ts`; title ids always
+strings), used by reads, mutations and the live event handlers alike.
+
+Why not server-rendered templates plus htmx partials: the screens are interactive (instant search
+across library and TMDb, filter chips with live counts, add sheets, sideways rows, a season grid, live activity).
+Built with templates, each of those is a hand-made partial endpoint plus JavaScript glue, and the result is two UIs
+(HTML partials and the JSON API) to keep in sync. With an SPA the UI is the first client of the same API the phone
+apps and scripts use, so every screen also proves an API. It is also the stack Seerr and Scryer both chose.
+
+| Concern | How the SPA handles it |
+|---|---|
+| CSP `default-src 'self'` (`img-src 'self' data:`, `script-src 'self'`, `style-src 'self'`) | Vite emits hashed `.js` and `.css` files: no inline script, no `eval` (React and Vite's production build need none). Tailwind is a compiled CSS file. Inline `style=""` attributes are blocked by `style-src 'self'`, but React sets styles through the CSSOM, which CSP allows; a lint rule bans raw HTML strings. Images come from `/img/…` (same origin) |
+| Session, cookie, CSRF | Login is `POST /api/theatarr/v1/auth/login` (JSON, returns the CSRF token); `GET auth/me` gives the token after a reload. The API client sends `X-CSRF-Token` on every non-GET. Cookie stays `HttpOnly`, `SameSite=Lax`; the SPA never sees it. A 401 sends the user to `/login?next=…` |
+| SSE (`events.go`) | `EventSource('/api/theatarr/v1/events')` is same-origin and sends the cookie. TanStack Query caches are updated from events (`jobs`, `gateway`, `download`, `request`, `title`). One connection per tab; it reconnects with the browser's built-in retry |
+| Docker multi-stage (`Dockerfile`, `make image`) | A first stage `node:20-alpine` (pinned) runs `npm ci && npm run build` in `web/`; the Go stage copies `dist/` into `internal/webui/dist` before `go build` |
+| `go test` / `make check` without node | `internal/webui` embeds `all:dist`; the repo commits only `dist/.keep`. When `index.html` is missing the handler serves a small built-in page ("UI not built: run `make ui`") with build instructions and the API link. Go tests use an `fstest.MapFS`. So `make check` needs no node. `make ui` builds it; `make ui-check` runs typecheck, lint and unit tests; CI gets a `ui` job with Node 20 |
+| Upkeep | React + TS + Tailwind is the most common web stack; the types are generated from `openapi.json` (which a Go test already keeps in step with the router), so a backend change that breaks the UI fails `tsc`. Each screen is one route file with its query hooks; the layout and components live in one place. Vitest for logic |
+| Phone width | Tailwind breakpoints, a bottom tab bar under 768 px, grids that go 2 / 3 / 4–8 columns, tables that become cards, 16 px gutters, no horizontal page scroll (rows scroll inside themselves) |
+
+Svelte would give smaller bundles, but React is what most contributors and
+tools know, and size is not a concern for a LAN service (expected ~150 KB gzipped).
+
+Routing: the SPA catch-all serves `index.html` for application GET and HEAD requests, including `/`, `/movies`
+and `/title/{id}`. API, image, asset, arr-view and service routes keep their own handlers; `/classic/`
+and `/static/` paths return 404. `index.html` gets `Cache-Control: no-cache`;
+hashed assets get a year, immutable. Unknown API paths return JSON 404;
+other application paths retain SPA fallback.
+
+## 5. Artwork and metadata
+
+### Metadata
+
+- `internal/metadata/tmdb` fetches movie and TV details: title, original title and language, release dates with
+  certifications, runtime, status, popularity, genres, collection, external ids, alternative titles, translations,
+  overview, tagline, art paths and rating, plus TV content ratings and networks. Responses are cached in SQL
+  (`metadata_cache`) and go through the gateway on the `tmdb` budget.
+- Titles carry `tmdb_id` (series also `tvdb_id`), `title_release_date` with `certification`, and `episode` rows for
+  series.
+
+### Title metadata (migration `00023_title_meta.sql`)
+
+`title_meta`, one row per title:
+
+| Column | From |
+|---|---|
+| `title_id` (PK) | |
+| `overview`, `tagline` | TMDb `overview`, `tagline` |
+| `poster_path`, `backdrop_path`, `logo_path` | TMDb paths (`/abc.jpg`); a new path means new art |
+| `genres` (JSON names) | `genres` |
+| `runtime_minutes` | movie `runtime`, TV `episode_run_time[0]` |
+| `rating`, `rating_votes` | `vote_average`, `vote_count` |
+| `certification` | US theatrical (movies, from `release_dates`), US `content_ratings` (TV) |
+| `status`, `network` | TMDb status; TV first network |
+| `original_language` | |
+| `art_hash` | short hash of the three paths, used as `?v=` on image URLs |
+| `fetched_at`, `refresh_after`, `error` | refresh bookkeeping |
+
+Movie details use `append_to_response`; `TV(id)` reads external ids, content ratings and images in one request;
+`Images` gives a logo in the title's language.
+
+### Image proxy
+
+- **Route:** `GET /img/t/{title_id}/{kind}/{size}?v={art_hash}` with `kind` ∈ `poster`, `backdrop`, `logo` and
+  `size` from a fixed list (`w92`, `w185`, `w342`, `w500`, `w780`, `w1280`; `original` only with `ui.images.original`). Scryer does the same with
+  `/images/titles/{id}/{kind}/{variant}`. Search results that are not in the library use
+  `GET /img/tmdb/{size}/{file}` where `file` must match `^[A-Za-z0-9]{10,40}\.(jpg|png)$` (a TMDb path; nothing else
+  is fetchable, so it is not an open proxy).
+- **Fetch:** through the gateway only, new source `tmdb-images` (`https://image.tmdb.org/t/p`) on the allowlist with
+  its own budget. TMDb images need no key, so no secret is involved.
+- **Cache:** `/data/images/{size}/{first two chars}/{file}`. TMDb paths never change content, so a cached file is
+  served forever; eviction is least-recently-used when the directory passes `max_bytes` (default 2 GiB). Single-flight
+  per file. Responses: `Cache-Control: private, max-age=31536000, immutable` (the `?v=` changes when the art does),
+  `Content-Type` from the file, `nosniff`. Access: signed in (cookie or key); the page's `<img>` sends the cookie.
+- **Fallback:** no art yet, or TMDb fails: a generated SVG poster (title and year on a gradient from the title id),
+  served from the same route, so the grid never shows a broken image.
+- The CSP stays `img-src 'self' data:`; browsers never talk to TMDb.
+
+### Refresh and budgets
+
+- **Job `meta.art`:** every 6 h. Order: titles with no `title_meta` first, then due ones (`refresh_after` passed).
+  Up to `per_run` titles (default 200) per run; at 1 request per title (movies need one with `append_to_response`;
+  TV one more for content ratings).
+- **Refresh age:** released in the last 90 days or unreleased: 3 days; released in the last year: 14 days; older:
+  90 days. A 404 from TMDb marks `error` and retries after 30 days.
+- **On add:** a new title (arr view add, UI add, approved request) gets a `meta.art` job for that title at once.
+- **Images:** fetched lazily on first view; the job pre-warms `w342` posters for library titles so grids load at once.
+- **Budgets** (policy, `budgets.yaml`): the details calls use `tmdb` (the example: 30/s, burst 40), which the job
+  paces well below; images use `tmdb-images` (the example: `{requests: 20, per: 1s, burst: 40, daily: 20000}`). The `meta.art` job also stops
+  for the run when the gateway reports `tmdb` back-off. Both budgets show in Admin › Advanced › Request limits.
+- **Policy:** `metadata.sources.tmdb-images: {url: https://image.tmdb.org/t/p, budget: tmdb-images}` and
+  `ui.images: {dir: /data/images, max_bytes: 2GiB}`, `metadata.art: {per_run: 200, interval: 6h}`.
+
+## 6. Native API for the UI
+
+All under `/api/theatarr/v1` unless noted. Every list pages with `limit` (≤ 200) and `cursor` or `offset`, and returns
+`total`.
+
+| Route | Purpose |
+|---|---|
+| `GET titles?…&sort=added|name|year|release|rating|size&order=asc|desc&genre=&quality=&provider=&year_from=&year_to=&anime=` | grids; items gain `poster`, `backdrop` (image URLs), `overview` (short), `rating`, `certification`, `runtime`, `genres`, `added_at` (newest current file), and per version `quality`, `size`, `provider` |
+| `GET titles/facets?kind=` | counts per version key and state, per quality, per genre, for the filter chips |
+| `GET titles/{id}` | includes `meta` (§5), `art`, and per version `history` (grabs, imports, upgrades), `provider`; fields for files and hashes only with "see files" |
+| `GET titles/{id}/episodes?season=` | seasons with episode lists and a state per version per episode (`episode_version_state`, `version_file_episode`) |
+| `GET /img/t/{id}/{kind}/{size}`, `GET /img/tmdb/{size}/{file}` | image proxy (§5) |
+| `POST titles/{id}/refresh` | refresh metadata and art now |
+| `GET discover` | Home rows in one call: `continue`, `recent`, `missing`, `upcoming`, `requests`, each ≤ 20 items with `more` links |
+| `GET calendar?from=&to=` | releases and episodes in a window (shares code with the arr view's `calendar`) |
+| `GET search?q=&kind=&offset=` | `{library: [...], library_total, tmdb: [...]}`; the kind applies before the limit, `offset` pages the library part; TMDb results through the gateway and `tmdb` budget, cached 1 day, marked `in_library` and `requested` |
+| `POST titles` | add `{kind, tmdb_id, tvdb_id?, versions[], seasons?, monitored, search}`, or `{title_id, versions[], …}` for a title already in the library (also one known only by its TVDB id); runs `catalog.Add` (§3); 201 with the title |
+| `PUT titles/{id}/versions/{key}` | turn a version on/off, monitor |
+| `POST titles/{id}/search` | search now for versions (records a command like the arr views' `MoviesSearch`) |
+| `GET activity?state=now|history&title_id=&user=` | download rows with plain-words state, progress, provider, attempts (admin), library import results; from `download`, `download_attempt`, `library_import`, `router_plan`, `acquire_run` (moved out of `arrview/queue.go` into a shared reader) |
+| `GET releases?title_id=&version=` | the title page "Show releases" panel (decision engine results with reasons; admin) |
+| `GET requests?status=&mine=1`, `POST requests`, `POST requests/{id}/approve` (body may change versions/seasons), `POST requests/{id}/decline`, `DELETE requests/{id}` (cancel own) | requests (§3) |
+| `GET users`, `POST users`, `PATCH users/{id}` (role, permissions, disable), `POST users/{id}/reset-password`, `DELETE users/{id}/sessions` | users |
+| `GET auth/me` | includes `role`, `permissions`, `display_name` |
+| `PATCH me`, `POST me/password` | own profile |
+| `GET keys?user=` | keys for all users (admin) |
+| `GET logs?level=&component=&since=` | ring buffer of recent log lines (admin) |
+| `GET logs/files`, `GET logs/files/{name}` | list/download persistent JSON logs, current file and numbered rotations (admin) |
+| `GET logs/level`, `PUT logs/level` | read/change the service threshold; body `{"level":"debug"}` (debug/info/warn/error), audited, admin and session CSRF on PUT |
+| `GET sources` | indexers and providers with state: last result, back-off, last sync, counts |
+| `GET events` | event types beside `jobs` and `gateway`: `download`, `request`, `title` (art or state changed), `toast` |
+
+## 7. Logs
+
+Admin › System › Logs keeps its ring level/component filters and adds persistent log downloads plus a separate
+service log-level selector, applied immediately to stderr, files and the ring. Rotated files survive restart; the ring
+empties and the runtime level resets to the configured default.
+
+Recent lines poll every five seconds using the existing `since` filter with a one-millisecond overlap and sequence/
+timestamp deduplication, retaining the latest 500 lines for each filter. A new service sequence clears the old
+process's lines. Log files poll every 30 seconds; the service level refreshes after its mutation and on query focus,
+without an interval. React Query's foreground-only interval default pauses log, file and request polling while the
+document is hidden, and resumes on visibility changes.
+
+## 8. Product rules
+
+1. **Sign-in: Plex.** Members sign in with their Plex account (Seerr's way: plex.tv PIN/OAuth, then check
+   that the account has access to the configured Plex server). The local `admin` login stays as the break-glass account.
+2. **Seerr stays supported** as a request front end through the arr views, beside Theatarr's own requests.
+3. **Requested versions:** a request asks for **every version that fits the title by default** (for example movie:
+   `movie-web` and `movie-remux`; series: `tv-2160p`; anime: the anime versions). An admin can set, per user, which
+   versions their requests ask for (e.g. only `movie-web`), so `request_versions` is a per-user default set chosen by
+   the admin, not a user-facing picker of allowed keys. Auto-approve is a per-user flag.
+4. **Users see availability only** ("Available in 4K WEB", "Available in 1080p"): no release names, sizes, paths, hashes or providers, no quality source, cutoff, file counts or history (`docs/design/users.md`).
+   Managers and admins see the files.
+5. **Name:** the product is Theatarr. The name lives in one place in
+   the SPA (`web/src/brand.ts`), so a rename is one change.
+6. **Admins land on Home**, with the status dot in the top bar linking to System › Status.
+
+## 9. Visual sources
+
+The visual language follows Scryer and Seerr: Seerr's poster cards with a status badge and hover overlay, sideways
+sliders, a backdrop hero, and Scryer's sidebar, top bar and settings layout, in light and dark. Code copied or adapted
+from them carries a header comment naming the source repo, path, commit and licence, and is listed in
+[`web/THIRD_PARTY.md`](../../web/THIRD_PARTY.md) (Scryer GPL-3.0, Seerr MIT, shadcn/ui MIT).
+
+## 10. Admin workflows
+
+### Migration wizard
+
+**Admin › Setup › Migrate from arrs** (also linked from Advanced) is a keyboard-accessible, phone-width wizard for
+source inspection, grouped migration gaps, saved plans, selected steps, confirmed apply with backup checkpoints,
+and verification. It reuses Setup's fields and the shared confirmation dialog; source keys stay in memory and only
+go to inspect. See [migration.md](../migration.md#in-the-ui) for resume, rollback and the later shadow-first handover.
+
+### Manual import
+
+Admin › Advanced › Manual import (`/admin/advanced/manual-import`) lists files for a download hash or mount folder
+in a chosen version, shows decisions and rejections, and edits each file's title, episodes, quality/revision,
+languages and release group. Review choices refreshes the decisions before Import selected files; errors receive
+focus and results use a live region. The admin/CSRF-protected native `/manualimport`, `/manualimport/options` and
+`/manualimport/execute` endpoints reuse the arr handlers because the SPA has a session rather than an arr API key;
+imports retain the library gate and create symlinks while preserving mount files.

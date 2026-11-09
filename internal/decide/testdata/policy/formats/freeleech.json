@@ -1,0 +1,2 @@
+{"name": "Freeleech", "specifications": [
+  {"name": "FL", "implementation": "IndexerFlagSpecification", "negate": false, "required": true, "fields": {"value": 1}}]}

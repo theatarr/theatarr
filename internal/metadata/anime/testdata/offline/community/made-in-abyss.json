@@ -1,0 +1,5 @@
+{
+ "sources": {"recommended": "https://myanimelist.net/stacks/41867 (MAL series guide); release and story order are the same"},
+ "recommended": ["al:97986", "al:101343", "al:101344", "al:114744", "al:100643", "al:114745", "al:153791", "al:160275"],
+ "ignore": ["al:218721", "tvdb:326109:S00E15"]
+}

@@ -1,0 +1,17 @@
+{"page":1,"perPage":100,"totalItems":3,"totalPages":1,"items":[
+ {"alID":113415,
+  "trs":["mtf4qfn237dgt3x"],"expand":{"trs":[
+   {"id":"mtf4qfn237dgt3x","url":"https://nyaa.si/view/1700001","infoHash":"1111111111111111111111111111111111111111","isBest":true,"dualAudio":false,"tags":[],"tracker":"Nyaa","releaseGroup":"Vodes","created":"2026-05-01 00:00:00.000Z","updated":"2026-05-02 00:00:00.000Z",
+    "files":[{"length":23432263892,"name":"[Vodes] JUJUTSU KAISEN - 01 (BD 1080p HEVC FLAC).mkv"},{"length":23432263892,"name":"[Vodes] JUJUTSU KAISEN - 02 (BD 1080p HEVC FLAC).mkv"},{"length":23432263893,"name":"[Vodes] JUJUTSU KAISEN - 03 (BD 1080p HEVC FLAC).mkv"}]}
+  ]}},
+ {"alID":47,
+  "trs":["mov1"],"expand":{"trs":[
+   {"id":"mov1","url":"https://nyaa.si/view/42","infoHash":"eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee","isBest":false,"dualAudio":false,"tags":[],"tracker":"Nyaa","releaseGroup":"GroupM","created":"2026-03-01 00:00:00.000Z","updated":"2026-03-01 00:00:00.000Z",
+    "files":[{"length":40000000000,"name":"Akira.1988.1080p.BluRay.Remux-GroupM.mkv"},{"length":100,"name":"Akira.nfo"}]}
+  ]}},
+ {"alID":999,
+  "trs":["nomap1"],"expand":{"trs":[
+   {"id":"nomap1","url":"https://nyaa.si/view/43","infoHash":"2222222222222222222222222222222222222222","isBest":true,"dualAudio":false,"tags":[],"tracker":"Nyaa","releaseGroup":"GroupX","created":"2026-03-01 00:00:00.000Z","updated":"2026-03-01 00:00:00.000Z",
+    "files":[{"length":1000,"name":"a - 01.mkv"},{"length":1000,"name":"a - 02.mkv"}]}
+  ]}}
+]}

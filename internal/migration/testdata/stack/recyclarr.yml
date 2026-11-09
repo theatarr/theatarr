@@ -1,0 +1,16 @@
+# Recyclarr in the shape of a typical recyclarr.yml; the keys are !secret references.
+radarr:
+  radarr_uhd:
+    base_url: !env_var RADARR_UHD_URL
+    api_key: !secret radarr_uhd_api_key
+    quality_profiles:
+      - name: Remux + WEB 2160p
+        trash_id: fd161a61e3ab826d3a22d53f935696dd
+        reset_unmatched_scores:
+          enabled: true
+sonarr:
+  anime:
+    base_url: http://sonarr-anime.example:8989
+    api_key: !secret sonarr_anime_api_key
+    quality_profiles:
+      - name: Remux-2160p Anime

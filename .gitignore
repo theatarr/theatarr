@@ -1,0 +1,30 @@
+# Build output
+/bin/
+/dist/
+
+# Local data: databases, corpora from live services, anything secret
+/private/
+/corpus/
+*.db
+*.db-wal
+*.db-shm
+**/*.db
+**/*.db-*
+**/*.db.*
+.env
+*.env
+
+# A compose install's own files in the checkout (docs/quickstart.md, docs/demo.md)
+/data/
+/trash-guides/
+/compose.yaml
+/demo/
+
+# SPA build output (make ui); only the placeholder is committed so go:embed always has a directory
+/internal/webui/dist/*
+!/internal/webui/dist/.keep
+/web/node_modules/
+
+# Binaries built at the repo root by mistake (go build ./cmd/theatarr)
+/theatarr
+/theatarr

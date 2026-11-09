@@ -1,0 +1,99 @@
+# Profiles, after TRaSH's "Remux + WEB 2160p", "WEB-2160p" and the anime profiles. Qualities are listed best first.
+# Sizes are MB per minute, as in the arrs' quality definitions. Scores are TRaSH defaults plus our own.
+profiles:
+  remux-2160p:
+    qualities:
+      - Remux-2160p
+      - group: WEB 2160p
+        qualities: [WEBDL-2160p, WEBRip-2160p]
+    cutoff: Remux-2160p
+    min_score: 0
+    cutoff_score: 10000
+    min_upgrade_step: 1
+    sizes:
+      Remux-2160p: {min: 35, max: 400}
+      WEBDL-2160p: {min: 25, max: 400}
+      WEBRip-2160p: {min: 25, max: 400}
+    formats:
+      Remux Tier 01: 1950
+      Remux Tier 02: 1900
+      WEB Tier 01: 1700
+      WEB Tier 02: 1650
+      HDR10+ Boost: 100
+      DV (w/o HDR fallback): -10000
+      BR-DISK: -10000
+      LQ: -10000
+      3D: -10000
+
+  web-2160p:
+    qualities:
+      - group: WEB 2160p
+        qualities: [WEBDL-2160p, WEBRip-2160p]
+    cutoff: WEB 2160p
+    min_score: 0
+    cutoff_score: 10000
+    formats:
+      WEB Tier 01: 1700
+      WEB Tier 02: 1650
+      HDR10+ Boost: 100
+      DV (w/o HDR fallback): -10000
+      BR-DISK: -10000
+      LQ: -10000
+
+  anime-remux-1080p-movie:
+    qualities:
+      - Remux-1080p
+      - Bluray-1080p
+      - group: WEB 1080p
+        qualities: [WEBDL-1080p, WEBRip-1080p]
+    cutoff: Remux-1080p
+    min_score: 0
+    cutoff_score: 10000
+    formats:
+      Anime BD Tier 01 (movie): 1400
+      Anime Web Tier 01 (movie): 600
+      Anime Raws (movie): -10000
+      Seadex: 5000
+
+  tv-2160p:
+    qualities:
+      - Bluray-2160p Remux
+      - group: WEB 2160p
+        qualities: [WEBDL-2160p, WEBRip-2160p]
+    cutoff: Bluray-2160p Remux
+    min_score: 0
+    cutoff_score: 10000
+    formats:
+      WEB Tier 01 (tv): 1700
+      WEB Tier 02 (tv): 1650
+      BR-DISK (tv): -10000
+      LQ (tv): -10000
+
+  anime-tv:
+    qualities:
+      - Bluray-2160p Remux
+      - Bluray-1080p Remux
+      - Bluray-1080p
+      - group: WEB 1080p
+        qualities: [WEBDL-1080p, WEBRip-1080p]
+    cutoff: Bluray-2160p Remux
+    min_score: 0
+    cutoff_score: 10000
+    formats:
+      949c16fe0a8147f50ba82cc2df9411c9: 1400   # Anime BD Tier 01, referenced by trash_id
+      Anime Web Tier 01 (tv): 600
+      Anime Raws (tv): -10000
+      v0: -51
+      Uncensored: 0
+      Seadex: 5000
+
+  # Shadow mode: the two 4K movie versions use the arr's own profiles, so the shadow report measures the engine
+  # against what Radarr actually does. The profiles above take over at cutover.
+  arr-zurg:
+    from_arr: radarr_4k_debrid/Remux + WEB 2160p
+  arr-web:
+    from_arr: radarr_4k_web/WEB 2160p
+  arr-tv:
+    from_arr: sonarr_4k_debrid/4k Preferred
+  arr-anime-tv:
+    from_arr: sonarr_anime_debrid/Remux-2160p Anime

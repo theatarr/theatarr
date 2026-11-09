@@ -1,0 +1,6 @@
+{"page":1,"perPage":100,"totalItems":1,"totalPages":1,"items":[
+ {"alID":47,"trs":["mov1"],"expand":{"trs":[
+   {"id":"mov1","url":"https://nyaa.si/view/42","infoHash":"eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee","isBest":true,"dualAudio":false,"tags":[],"tracker":"Nyaa","releaseGroup":"GroupM","updated":"2026-03-01 00:00:00.000Z",
+    "files":[{"length":40000000000,"name":"Akira.1988.1080p.BluRay.Remux-GroupM/Akira.1988.1080p.BluRay.Remux-GroupM.mkv"},{"length":100,"name":"Akira.1988.1080p.BluRay.Remux-GroupM/extras.txt"}]}
+ ]}}
+]}

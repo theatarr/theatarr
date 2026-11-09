@@ -1,0 +1,22 @@
+# Outbound webhooks (docs/design/devices.md). Off by default: events are recorded as dropped, nothing is sent.
+# Clients install webhooks through a view (Ruddarr: POST notification); they are sent only to allow_hosts. Policy
+# targets get arr-shaped payloads for the views they list and, with native, Theatarr's own per-version events. Every
+# request goes through the gateway (class webhook); hosts here join its allowlist.
+notify:
+  enabled: false
+  allow_hosts: [notify.ruddarr.com]   # Ruddarr's push relay
+  # budget: webhooks
+  # retries: 5
+  # poll: 15s
+  # digest_at: "09:00"   # local time of the daily digest (Discord targets)
+  # targets:
+  #   automation:
+  #     url: http://automation.example.com:8080/hooks/theatarr
+  #     views: [radarr, sonarr]
+  #     native: true
+  #     events: [grab, download, upgrade, rename, delete, health, health_restored, series_add, movie_added, manual_interaction_required]
+  #     auth_header_env: THEATARR_AUTOMATION_HOOK_AUTH
+  #   discord:                  # a Discord channel webhook; the URL is a write-only credential
+  #     url: https://discord.com/api/webhooks/<id>/<token>
+  #     format: discord           # health and error alerts, the daily digest, request ready, test
+  #     events: [health, health_restored, error, digest, request_ready]   # empty means all of these

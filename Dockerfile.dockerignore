@@ -1,0 +1,22 @@
+# Build context for Dockerfile (BuildKit reads <Dockerfile>.dockerignore).
+.git
+bin/
+dist/
+private/
+corpus/
+*.db
+*.db-wal
+*.db-shm
+**/*.db
+**/*.db-*
+**/*.db.*
+# A compose install's own files in the checkout: the data directory (database, backups, logs, the first admin
+# password), the TRaSH-Guides checkout, the compose file copied from examples/ and the demo directory.
+data/
+trash-guides/
+compose.yaml
+demo/
+.env
+*.env
+web/node_modules/
+internal/webui/dist/

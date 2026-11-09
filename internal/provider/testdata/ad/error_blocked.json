@@ -1,0 +1,7 @@
+{
+  "status": "error",
+  "error": {
+    "code": "AUTH_BLOCKED",
+    "message": "You are logging from a new location, device or app.. An <b>email has been sent</b> to someone.user+dmm@example.invalid with a link to approve it. Please <a href=\"https://alldebrid.com/\">check your inbox</a>."
+  }
+}

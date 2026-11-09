@@ -1,0 +1,9 @@
+{
+  "name": "[Release] Packs",
+  "trash_id": "cccc0000000000000000000000000001",
+  "default": "true",
+  "custom_formats": [
+    {"name": "Season Pack", "trash_id": "aaaa0000000000000000000000000002", "required": false, "default": true}
+  ],
+  "quality_profiles": {"include": {"WEB": "bbbb0000000000000000000000000001"}}
+}

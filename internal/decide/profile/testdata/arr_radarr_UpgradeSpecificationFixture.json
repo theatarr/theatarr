@@ -1,0 +1,761 @@
+{
+ "source": "Radarr src/NzbDrone.Core.Test/DecisionEngineTests/UpgradeSpecificationFixture.cs @ a96bf7c",
+ "cases": [
+  {
+   "fixture": "UpgradeSpecificationFixture",
+   "test": "IsUpgradeTest",
+   "args": "SDTV, 1, [], SDTV, 2, [], None",
+   "spec": "IsUpgradable",
+   "config": {
+    "propers": "preferAndUpgrade"
+   },
+   "profile": {
+    "upgradeAllowed": true,
+    "formatItems": [
+     {
+      "name": "My Format 1",
+      "score": 1
+     },
+     {
+      "name": "My Format 2",
+      "score": 2
+     }
+    ]
+   },
+   "current": {
+    "quality": "SDTV"
+   },
+   "currentFormats": [],
+   "new": {
+    "quality": "SDTV",
+    "version": 2
+   },
+   "newFormats": [],
+   "expect": {
+    "upgradeable": "None"
+   },
+   "flavour": "radarr"
+  },
+  {
+   "fixture": "UpgradeSpecificationFixture",
+   "test": "IsUpgradeTest",
+   "args": "SDTV, 1, [My Format 1], SDTV, 2, [My Format 1], None",
+   "spec": "IsUpgradable",
+   "config": {
+    "propers": "preferAndUpgrade"
+   },
+   "profile": {
+    "upgradeAllowed": true,
+    "formatItems": [
+     {
+      "name": "My Format 1",
+      "score": 1
+     },
+     {
+      "name": "My Format 2",
+      "score": 2
+     }
+    ]
+   },
+   "current": {
+    "quality": "SDTV"
+   },
+   "currentFormats": [
+    "My Format 1"
+   ],
+   "new": {
+    "quality": "SDTV",
+    "version": 2
+   },
+   "newFormats": [
+    "My Format 1"
+   ],
+   "expect": {
+    "upgradeable": "None"
+   },
+   "flavour": "radarr"
+  },
+  {
+   "fixture": "UpgradeSpecificationFixture",
+   "test": "IsUpgradeTest",
+   "args": "SDTV, 1, [My Format 1], SDTV, 2, [My Format 2], None",
+   "spec": "IsUpgradable",
+   "config": {
+    "propers": "preferAndUpgrade"
+   },
+   "profile": {
+    "upgradeAllowed": true,
+    "formatItems": [
+     {
+      "name": "My Format 1",
+      "score": 1
+     },
+     {
+      "name": "My Format 2",
+      "score": 2
+     }
+    ]
+   },
+   "current": {
+    "quality": "SDTV"
+   },
+   "currentFormats": [
+    "My Format 1"
+   ],
+   "new": {
+    "quality": "SDTV",
+    "version": 2
+   },
+   "newFormats": [
+    "My Format 2"
+   ],
+   "expect": {
+    "upgradeable": "None"
+   },
+   "flavour": "radarr"
+  },
+  {
+   "fixture": "UpgradeSpecificationFixture",
+   "test": "IsUpgradeTest",
+   "args": "SDTV, 1, [My Format 2], SDTV, 2, [My Format 1], None",
+   "spec": "IsUpgradable",
+   "config": {
+    "propers": "preferAndUpgrade"
+   },
+   "profile": {
+    "upgradeAllowed": true,
+    "formatItems": [
+     {
+      "name": "My Format 1",
+      "score": 1
+     },
+     {
+      "name": "My Format 2",
+      "score": 2
+     }
+    ]
+   },
+   "current": {
+    "quality": "SDTV"
+   },
+   "currentFormats": [
+    "My Format 2"
+   ],
+   "new": {
+    "quality": "SDTV",
+    "version": 2
+   },
+   "newFormats": [
+    "My Format 1"
+   ],
+   "expect": {
+    "upgradeable": "None"
+   },
+   "flavour": "radarr"
+  },
+  {
+   "fixture": "UpgradeSpecificationFixture",
+   "test": "IsUpgradeTest",
+   "args": "WEBDL-720p, 1, [], WEBDL-720p, 2, [], None",
+   "spec": "IsUpgradable",
+   "config": {
+    "propers": "preferAndUpgrade"
+   },
+   "profile": {
+    "upgradeAllowed": true,
+    "formatItems": [
+     {
+      "name": "My Format 1",
+      "score": 1
+     },
+     {
+      "name": "My Format 2",
+      "score": 2
+     }
+    ]
+   },
+   "current": {
+    "quality": "WEBDL-720p"
+   },
+   "currentFormats": [],
+   "new": {
+    "quality": "WEBDL-720p",
+    "version": 2
+   },
+   "newFormats": [],
+   "expect": {
+    "upgradeable": "None"
+   },
+   "flavour": "radarr"
+  },
+  {
+   "fixture": "UpgradeSpecificationFixture",
+   "test": "IsUpgradeTest",
+   "args": "WEBDL-720p, 1, [My Format 1], WEBDL-720p, 2, [My Format 1], None",
+   "spec": "IsUpgradable",
+   "config": {
+    "propers": "preferAndUpgrade"
+   },
+   "profile": {
+    "upgradeAllowed": true,
+    "formatItems": [
+     {
+      "name": "My Format 1",
+      "score": 1
+     },
+     {
+      "name": "My Format 2",
+      "score": 2
+     }
+    ]
+   },
+   "current": {
+    "quality": "WEBDL-720p"
+   },
+   "currentFormats": [
+    "My Format 1"
+   ],
+   "new": {
+    "quality": "WEBDL-720p",
+    "version": 2
+   },
+   "newFormats": [
+    "My Format 1"
+   ],
+   "expect": {
+    "upgradeable": "None"
+   },
+   "flavour": "radarr"
+  },
+  {
+   "fixture": "UpgradeSpecificationFixture",
+   "test": "IsUpgradeTest",
+   "args": "WEBDL-720p, 1, [My Format 1], WEBDL-720p, 2, [My Format 2], None",
+   "spec": "IsUpgradable",
+   "config": {
+    "propers": "preferAndUpgrade"
+   },
+   "profile": {
+    "upgradeAllowed": true,
+    "formatItems": [
+     {
+      "name": "My Format 1",
+      "score": 1
+     },
+     {
+      "name": "My Format 2",
+      "score": 2
+     }
+    ]
+   },
+   "current": {
+    "quality": "WEBDL-720p"
+   },
+   "currentFormats": [
+    "My Format 1"
+   ],
+   "new": {
+    "quality": "WEBDL-720p",
+    "version": 2
+   },
+   "newFormats": [
+    "My Format 2"
+   ],
+   "expect": {
+    "upgradeable": "None"
+   },
+   "flavour": "radarr"
+  },
+  {
+   "fixture": "UpgradeSpecificationFixture",
+   "test": "IsUpgradeTest",
+   "args": "WEBDL-720p, 1, [My Format 2], WEBDL-720p, 2, [My Format 1], None",
+   "spec": "IsUpgradable",
+   "config": {
+    "propers": "preferAndUpgrade"
+   },
+   "profile": {
+    "upgradeAllowed": true,
+    "formatItems": [
+     {
+      "name": "My Format 1",
+      "score": 1
+     },
+     {
+      "name": "My Format 2",
+      "score": 2
+     }
+    ]
+   },
+   "current": {
+    "quality": "WEBDL-720p"
+   },
+   "currentFormats": [
+    "My Format 2"
+   ],
+   "new": {
+    "quality": "WEBDL-720p",
+    "version": 2
+   },
+   "newFormats": [
+    "My Format 1"
+   ],
+   "expect": {
+    "upgradeable": "None"
+   },
+   "flavour": "radarr"
+  },
+  {
+   "fixture": "UpgradeSpecificationFixture",
+   "test": "IsUpgradeTest",
+   "args": "SDTV, 1, [], SDTV, 1, [], CustomFormatScore",
+   "spec": "IsUpgradable",
+   "config": {
+    "propers": "preferAndUpgrade"
+   },
+   "profile": {
+    "upgradeAllowed": true,
+    "formatItems": [
+     {
+      "name": "My Format 1",
+      "score": 1
+     },
+     {
+      "name": "My Format 2",
+      "score": 2
+     }
+    ]
+   },
+   "current": {
+    "quality": "SDTV"
+   },
+   "currentFormats": [],
+   "new": {
+    "quality": "SDTV"
+   },
+   "newFormats": [],
+   "expect": {
+    "upgradeable": "CustomFormatScore"
+   },
+   "flavour": "radarr"
+  },
+  {
+   "fixture": "UpgradeSpecificationFixture",
+   "test": "IsUpgradeTest",
+   "args": "SDTV, 1, [My Format 1], SDTV, 1, [My Format 1], CustomFormatScore",
+   "spec": "IsUpgradable",
+   "config": {
+    "propers": "preferAndUpgrade"
+   },
+   "profile": {
+    "upgradeAllowed": true,
+    "formatItems": [
+     {
+      "name": "My Format 1",
+      "score": 1
+     },
+     {
+      "name": "My Format 2",
+      "score": 2
+     }
+    ]
+   },
+   "current": {
+    "quality": "SDTV"
+   },
+   "currentFormats": [
+    "My Format 1"
+   ],
+   "new": {
+    "quality": "SDTV"
+   },
+   "newFormats": [
+    "My Format 1"
+   ],
+   "expect": {
+    "upgradeable": "CustomFormatScore"
+   },
+   "flavour": "radarr"
+  },
+  {
+   "fixture": "UpgradeSpecificationFixture",
+   "test": "IsUpgradeTest",
+   "args": "SDTV, 1, [My Format 1], SDTV, 1, [My Format 2], CustomFormatCutoff",
+   "spec": "IsUpgradable",
+   "config": {
+    "propers": "preferAndUpgrade"
+   },
+   "profile": {
+    "upgradeAllowed": true,
+    "formatItems": [
+     {
+      "name": "My Format 1",
+      "score": 1
+     },
+     {
+      "name": "My Format 2",
+      "score": 2
+     }
+    ]
+   },
+   "current": {
+    "quality": "SDTV"
+   },
+   "currentFormats": [
+    "My Format 1"
+   ],
+   "new": {
+    "quality": "SDTV"
+   },
+   "newFormats": [
+    "My Format 2"
+   ],
+   "expect": {
+    "upgradeable": "CustomFormatCutoff"
+   },
+   "flavour": "radarr"
+  },
+  {
+   "fixture": "UpgradeSpecificationFixture",
+   "test": "IsUpgradeTest",
+   "args": "SDTV, 1, [My Format 2], SDTV, 1, [My Format 1], CustomFormatScore",
+   "spec": "IsUpgradable",
+   "config": {
+    "propers": "preferAndUpgrade"
+   },
+   "profile": {
+    "upgradeAllowed": true,
+    "formatItems": [
+     {
+      "name": "My Format 1",
+      "score": 1
+     },
+     {
+      "name": "My Format 2",
+      "score": 2
+     }
+    ]
+   },
+   "current": {
+    "quality": "SDTV"
+   },
+   "currentFormats": [
+    "My Format 2"
+   ],
+   "new": {
+    "quality": "SDTV"
+   },
+   "newFormats": [
+    "My Format 1"
+   ],
+   "expect": {
+    "upgradeable": "CustomFormatScore"
+   },
+   "flavour": "radarr"
+  },
+  {
+   "fixture": "UpgradeSpecificationFixture",
+   "test": "IsUpgradeTest",
+   "args": "WEBDL-720p, 1, [], HDTV-720p, 2, [], BetterQuality",
+   "spec": "IsUpgradable",
+   "config": {
+    "propers": "preferAndUpgrade"
+   },
+   "profile": {
+    "upgradeAllowed": true,
+    "formatItems": [
+     {
+      "name": "My Format 1",
+      "score": 1
+     },
+     {
+      "name": "My Format 2",
+      "score": 2
+     }
+    ]
+   },
+   "current": {
+    "quality": "WEBDL-720p"
+   },
+   "currentFormats": [],
+   "new": {
+    "quality": "HDTV-720p",
+    "version": 2
+   },
+   "newFormats": [],
+   "expect": {
+    "upgradeable": "BetterQuality"
+   },
+   "flavour": "radarr"
+  },
+  {
+   "fixture": "UpgradeSpecificationFixture",
+   "test": "IsUpgradeTest",
+   "args": "WEBDL-720p, 1, [], HDTV-720p, 2, [], BetterQuality",
+   "spec": "IsUpgradable",
+   "config": {
+    "propers": "preferAndUpgrade"
+   },
+   "profile": {
+    "upgradeAllowed": true,
+    "formatItems": [
+     {
+      "name": "My Format 1",
+      "score": 1
+     },
+     {
+      "name": "My Format 2",
+      "score": 2
+     }
+    ]
+   },
+   "current": {
+    "quality": "WEBDL-720p"
+   },
+   "currentFormats": [],
+   "new": {
+    "quality": "HDTV-720p",
+    "version": 2
+   },
+   "newFormats": [],
+   "expect": {
+    "upgradeable": "BetterQuality"
+   },
+   "flavour": "radarr"
+  },
+  {
+   "fixture": "UpgradeSpecificationFixture",
+   "test": "IsUpgradeTest",
+   "args": "WEBDL-720p, 1, [], WEBDL-720p, 1, [], CustomFormatScore",
+   "spec": "IsUpgradable",
+   "config": {
+    "propers": "preferAndUpgrade"
+   },
+   "profile": {
+    "upgradeAllowed": true,
+    "formatItems": [
+     {
+      "name": "My Format 1",
+      "score": 1
+     },
+     {
+      "name": "My Format 2",
+      "score": 2
+     }
+    ]
+   },
+   "current": {
+    "quality": "WEBDL-720p"
+   },
+   "currentFormats": [],
+   "new": {
+    "quality": "WEBDL-720p"
+   },
+   "newFormats": [],
+   "expect": {
+    "upgradeable": "CustomFormatScore"
+   },
+   "flavour": "radarr"
+  },
+  {
+   "fixture": "UpgradeSpecificationFixture",
+   "test": "IsUpgradeTest",
+   "args": "WEBDL-1080p, 1, [], WEBDL-1080p, 1, [], CustomFormatScore",
+   "spec": "IsUpgradable",
+   "config": {
+    "propers": "preferAndUpgrade"
+   },
+   "profile": {
+    "upgradeAllowed": true,
+    "formatItems": [
+     {
+      "name": "My Format 1",
+      "score": 1
+     },
+     {
+      "name": "My Format 2",
+      "score": 2
+     }
+    ]
+   },
+   "current": {
+    "quality": "WEBDL-1080p"
+   },
+   "currentFormats": [],
+   "new": {
+    "quality": "WEBDL-1080p"
+   },
+   "newFormats": [],
+   "expect": {
+    "upgradeable": "CustomFormatScore"
+   },
+   "flavour": "radarr"
+  },
+  {
+   "fixture": "UpgradeSpecificationFixture",
+   "test": "should_return_true_if_proper_and_download_propers_is_do_not_download",
+   "spec": "IsUpgradable",
+   "config": {
+    "propers": "doNotUpgrade"
+   },
+   "profile": {},
+   "current": {
+    "quality": "DVD"
+   },
+   "new": {
+    "quality": "DVD",
+    "version": 2
+   },
+   "expect": {
+    "upgradeable": "None"
+   },
+   "flavour": "radarr"
+  },
+  {
+   "fixture": "UpgradeSpecificationFixture",
+   "test": "should_return_false_if_proper_and_autoDownloadPropers_is_do_not_prefer",
+   "spec": "IsUpgradable",
+   "config": {
+    "propers": "doNotPrefer"
+   },
+   "profile": {},
+   "current": {
+    "quality": "DVD"
+   },
+   "new": {
+    "quality": "DVD",
+    "version": 2
+   },
+   "expect": {
+    "upgradeable": "UpgradesNotAllowed"
+   },
+   "flavour": "radarr"
+  },
+  {
+   "fixture": "UpgradeSpecificationFixture",
+   "test": "should_return_false_if_release_and_existing_file_are_the_same",
+   "spec": "IsUpgradable",
+   "profile": {},
+   "current": {
+    "quality": "HDTV-720p"
+   },
+   "new": {
+    "quality": "HDTV-720p"
+   },
+   "expect": {
+    "upgradeable": "UpgradesNotAllowed"
+   },
+   "flavour": "radarr"
+  },
+  {
+   "fixture": "UpgradeSpecificationFixture",
+   "test": "should_return_true_if_release_has_higher_quality_and_cutoff_is_not_already_met",
+   "spec": "IsUpgradable",
+   "profile": {
+    "upgradeAllowed": true,
+    "cutoff": "HDTV-1080p"
+   },
+   "current": {
+    "quality": "HDTV-720p"
+   },
+   "new": {
+    "quality": "HDTV-1080p"
+   },
+   "expect": {
+    "upgradeable": "None"
+   },
+   "flavour": "radarr"
+  },
+  {
+   "fixture": "UpgradeSpecificationFixture",
+   "test": "should_return_false_if_release_has_higher_quality_and_cutoff_is_already_met",
+   "spec": "IsUpgradable",
+   "profile": {
+    "upgradeAllowed": true,
+    "cutoff": "HDTV-720p"
+   },
+   "current": {
+    "quality": "HDTV-720p"
+   },
+   "new": {
+    "quality": "HDTV-1080p"
+   },
+   "expect": {
+    "upgradeable": "QualityCutoff"
+   },
+   "flavour": "radarr"
+  },
+  {
+   "fixture": "UpgradeSpecificationFixture",
+   "test": "should_return_false_if_minimum_custom_score_is_not_met",
+   "spec": "IsUpgradable",
+   "profile": {
+    "upgradeAllowed": true,
+    "cutoffFormatScore": 100,
+    "formatItems": [
+     {
+      "name": "One",
+      "score": 10
+     },
+     {
+      "name": "Two",
+      "score": 20
+     }
+    ],
+    "minUpgradeFormatScore": 11
+   },
+   "current": {
+    "quality": "DVD"
+   },
+   "new": {
+    "quality": "DVD"
+   },
+   "currentFormats": [
+    "One"
+   ],
+   "newFormats": [
+    "Two"
+   ],
+   "expect": {
+    "upgradeable": "MinCustomFormatScore"
+   },
+   "flavour": "radarr"
+  },
+  {
+   "fixture": "UpgradeSpecificationFixture",
+   "test": "should_return_true_if_minimum_custom_score_is_met",
+   "spec": "IsUpgradable",
+   "profile": {
+    "upgradeAllowed": true,
+    "cutoffFormatScore": 100,
+    "formatItems": [
+     {
+      "name": "One",
+      "score": 10
+     },
+     {
+      "name": "Two",
+      "score": 20
+     }
+    ],
+    "minUpgradeFormatScore": 10
+   },
+   "current": {
+    "quality": "DVD"
+   },
+   "new": {
+    "quality": "DVD"
+   },
+   "currentFormats": [
+    "One"
+   ],
+   "newFormats": [
+    "Two"
+   ],
+   "expect": {
+    "upgradeable": "None"
+   },
+   "flavour": "radarr"
+  }
+ ]
+}

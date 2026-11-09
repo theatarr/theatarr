@@ -1,0 +1,6 @@
+{"status": "success", "data": [
+  {"id": 1, "name": "Aired Order", "type": "official", "alternateName": null},
+  {"id": 2, "name": "DVD Order", "type": "dvd", "alternateName": null},
+  {"id": 3, "name": "Absolute Order", "type": "absolute", "alternateName": null},
+  {"id": 4, "name": "Alternate Order", "type": "alternate", "alternateName": null}
+]}

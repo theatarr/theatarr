@@ -1,0 +1,2 @@
+{"name": "French audio", "specifications": [
+  {"name": "French", "implementation": "LanguageSpecification", "negate": false, "required": true, "fields": {"value": 2}}]}
