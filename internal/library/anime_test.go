@@ -7,9 +7,9 @@ import (
 	"github.com/theatarr/theatarr/internal/policy"
 )
 
-// TestAnimeHold: episodes only a conflict mapping covers are not imported; the others are. A download of held
-// episodes only stays ready, is recorded as a dry run, and imports once the mapping is reviewed.
-func TestAnimeHold(t *testing.T) {
+// TestAnimeUnreviewedImports: an episode only a conflict mapping covers is not held; it imports through Sonarr's
+// numbering like the others, its review item stays, and accepting the mapping later leaves the link where it landed.
+func TestAnimeUnreviewedImports(t *testing.T) {
 	t.Parallel()
 	e := newEnv(t, true, policy.ModeActive)
 	e.exec(`INSERT INTO anime_franchise (slug, name, seed_anilist, created_at, updated_at) VALUES ('show', 'Show', 1, 0, 0)`)
@@ -23,46 +23,39 @@ func TestAnimeHold(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(plan.Links) != 1 || !strings.Contains(plan.Links[0].Path, "S01E02") || len(plan.Held) != 1 ||
-		!strings.Contains(plan.Held[0], "S01E01 is in al:1") {
-		t.Fatalf("pack: links %+v held %v", plan.Links, plan.Held)
+	if plan.DryRun || len(plan.Links) != 2 {
+		t.Fatalf("pack: dry run %v (%s), links %+v", plan.DryRun, plan.Refused, plan.Links)
 	}
-	if got := e.one(`SELECT count(*) FROM link_episode WHERE episode_id = 201`); got != "0" {
-		t.Error("held episode linked")
+	if got := e.one(`SELECT count(*) FROM link_episode WHERE episode_id = 201`); got != "1" {
+		t.Error("the conflict episode was not linked")
 	}
 
-	// only the held episode: nothing is read or written, the download stays ready
+	// only the conflict episode: it imports too, nothing waits
 	rel2 := "Show.S01E01.2160p.WEB-DL.DDP5.1.H.265-OTHER"
 	e.exec(`INSERT INTO download (id, title_id, version_id, version_key, info_hash, release_title, indexer, quality, score,
 		episodes, provider, name, state, created_at, updated_at, ready_at)
 		VALUES (2, 2, 20, 'tv', 'bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb', ?, 'idx', 'Bluray-2160p Remux', 100, '[201]', 'rd', ?, 'ready', 0, 0, 0)`, rel2, rel2)
-	before := tree(t, e.dir)
+	e.release(rel2, map[string]float64{"Show.S01E01.2160p.WEB-DL.DDP5.1.H.265-OTHER.mkv": 2700})
 	plan, err = e.lib.Import(e.ctx, 2, false)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if !plan.DryRun || !strings.HasPrefix(plan.Refused, ReasonMappingNotReviewed) || plan.Folder != "" {
-		t.Errorf("held import: %+v", plan)
+	if plan.DryRun || len(plan.Links) != 1 || !strings.Contains(plan.Links[0].Path, "S01E01") {
+		t.Fatalf("conflict-only import: dry run %v (%s), links %+v", plan.DryRun, plan.Refused, plan.Links)
 	}
-	if strings.Join(tree(t, e.dir), "\n") != strings.Join(before, "\n") {
-		t.Error("a held import changed the tree")
-	}
-	if got := e.one(`SELECT state FROM download WHERE id = 2`); got != "ready" {
+	if got := e.one(`SELECT state FROM download WHERE id = 2`); got != "imported" {
 		t.Errorf("download %s", got)
 	}
-	if got := e.one(`SELECT state || ' ' || last_error FROM library_import WHERE download_id = 2`); !strings.HasPrefix(got, "dry_run S01E01") {
-		t.Errorf("library_import %s", got)
+	if got := e.one(`SELECT count(*) FROM library_import WHERE state = 'dry_run'`); got != "0" {
+		t.Errorf("%s dry-run imports", got)
 	}
-	if got := e.one(`SELECT count(*) FROM router_blocklist`); got != "0" {
-		t.Error("a held import blocklisted the hash")
-	}
-	// reviewed: the next pass imports it
+	// reviewed later: the link stays where it landed
+	before := tree(t, e.dir)
 	e.exec(`UPDATE anime_mapping SET status = 'override' WHERE entry_key = 'al:1'`)
-	e.release(rel2, map[string]float64{"Show.S01E01.2160p.WEB-DL.DDP5.1.H.265-OTHER.mkv": 2700})
 	if _, err := e.lib.Run(e.ctx); err != nil {
 		t.Fatal(err)
 	}
-	if got := e.one(`SELECT state FROM download WHERE id = 2`); got != "imported" {
-		t.Errorf("after review: download %s", got)
+	if strings.Join(tree(t, e.dir), "\n") != strings.Join(before, "\n") {
+		t.Error("accepting the mapping moved a link")
 	}
 }

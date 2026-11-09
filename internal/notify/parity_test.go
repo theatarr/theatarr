@@ -351,20 +351,26 @@ func TestPolicyParityEventFilters(t *testing.T) {
 	}
 }
 
-func TestMappingReviewHoldAndMovieManualPayload(t *testing.T) {
+func TestReviewHoldAndMovieManualPayload(t *testing.T) {
 	t.Parallel()
 	e := newParityEnv(t)
 	id := e.install("radarr", map[string]bool{"onManualInteractionRequired": true})
 	e.download(1, 1, "private", false)
 	e.exec(`INSERT INTO library_import (download_id,state,last_error,plan,created_at,updated_at)
-		VALUES (1,'dry_run','SECRET-MAPPING','{"refused":"MappingNotReviewed: SECRET-FILE"}',?,?)`, store.Millis(e.now), store.Millis(e.now))
+		VALUES (1,'rejected','SECRET-REVIEW','{}',?,?)`, store.Millis(e.now), store.Millis(e.now))
 	e.scan()
 	e.scan()
 	b := e.bodies(fmt.Sprintf("notification:%d", id), "ManualInteractionRequired")
 	if len(b) != 1 || b[0]["movie"] == nil || b[0]["downloadInfo"] == nil || b[0]["episodes"] != nil {
 		t.Fatal(b)
 	}
-	// An ordinary gated dry run does not ask for manual interaction.
+	// A dry run does not ask for manual interaction: an ordinary gated one, nor one an older Theatarr recorded for
+	// an anime mapping review (unreviewed mappings no longer hold imports).
+	e.exec(`UPDATE library_import SET state='dry_run', plan='{"refused":"MappingNotReviewed: SECRET-FILE"}', last_error='SECRET-MAPPING'`)
+	e.scan()
+	if got := e.bodies(fmt.Sprintf("notification:%d", id), "ManualInteractionRequired"); len(got) != 1 {
+		t.Fatal(got)
+	}
 	e.exec(`UPDATE library_import SET plan='{}', last_error='library disabled'`)
 	e.scan()
 	if got := e.bodies(fmt.Sprintf("notification:%d", id), "ManualInteractionRequired"); len(got) != 1 {

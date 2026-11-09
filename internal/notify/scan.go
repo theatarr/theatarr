@@ -92,8 +92,7 @@ func (n *Notifier) scanRenames(ctx context.Context) error {
 func (n *Notifier) scanHolds(ctx context.Context, since int64) error {
 	rows, err := n.st.Reader().QueryContext(ctx, `SELECT d.id, d.title_id, d.version_key, COALESCE(i.last_error, ''),
 		i.state, d.episodes FROM library_import i JOIN download d ON d.id = i.download_id
-		WHERE d.state = 'ready' AND i.updated_at >= ? AND (i.state = 'rejected' OR
-		(i.state = 'dry_run' AND json_extract(i.plan, '$.refused') LIKE 'MappingNotReviewed%')) ORDER BY d.id`, since)
+		WHERE d.state = 'ready' AND i.updated_at >= ? AND i.state = 'rejected' ORDER BY d.id`, since)
 	if err != nil {
 		return err
 	}
@@ -116,8 +115,6 @@ func (n *Notifier) scanHolds(ctx context.Context, since int64) error {
 		h.ev.Reason = "Import held for review"
 		if strings.HasPrefix(h.reason, "zurg") {
 			h.ev.Reason = "zurg has not confirmed the download's files"
-		} else if state == "dry_run" {
-			h.ev.Reason = "Episode mapping requires review"
 		}
 		events = append(events, h)
 	}

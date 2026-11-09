@@ -1,6 +1,6 @@
-// Package animemap reads the franchise mappings of one TVDB series for decisions and imports (a conflict
-// range gets no automatic import; docs/design/anime.md): which entries map into the series, with their names, status and TVDB episodes,
-// and the series' alternate cuts. It reads the tables animestore writes (migrations 00017 and 00018) and nothing
+// Package animemap reads the franchise mappings of one TVDB series for decisions and imports (a conflict range is
+// not used: its episodes take Sonarr's numbering; docs/design/anime.md): which entries map into the series, with
+// their names, status and TVDB episodes, and the series' alternate cuts. It reads the tables animestore writes (migrations 00017 and 00018) and nothing
 // else, so internal/decide and internal/library can use it without the pipeline.
 package animemap
 
@@ -14,8 +14,8 @@ import (
 	"github.com/theatarr/theatarr/internal/metadata/anime"
 )
 
-// Importable reports whether a mapping status may import automatically: auto, arbitrated, override and heuristic
-// (a heuristic that review rejects becomes rejected); conflict and rejected may not.
+// Importable reports whether a mapping status may be used to import: auto, arbitrated, override and heuristic
+// (a heuristic that review rejects becomes rejected); conflict and rejected may not (Sonarr's numbering applies).
 func Importable(status string) bool {
 	switch status {
 	case anime.StatusAuto, anime.StatusArbitrated, anime.StatusOverride, anime.StatusHeuristic:
@@ -157,9 +157,9 @@ func (s *Series) Covering(season, number int) []*Entry {
 	return s.byEp[anime.SE{season, number}]
 }
 
-// Blocked reports whether an episode lies only in ranges that may not import (conflict, rejected): at least one
-// entry maps it and none of them is importable. The entry returned is the first blocking one. An episode no entry
-// maps is not blocked (Sonarr's own mapping applies).
+// Blocked reports whether an episode lies only in ranges whose mapping is not importable (conflict, rejected): at
+// least one entry maps it and none of them is importable. The entry returned is the first such one. The episode
+// still imports through Sonarr's numbering, like one no entry maps; decisions list it as a fallback.
 func (s *Series) Blocked(season, number int) (*Entry, bool) {
 	cov := s.Covering(season, number)
 	if len(cov) == 0 {
@@ -171,11 +171,6 @@ func (s *Series) Blocked(season, number int) (*Entry, bool) {
 		}
 	}
 	return cov[0], true
-}
-
-// Reason is the text a held episode carries.
-func Reason(se anime.SE, e *Entry) string {
-	return fmt.Sprintf("%s is in %s: the mapping is not reviewed (%s)", se, e.Label(), e.Reason)
 }
 
 // New builds a Series from entries and cuts (tests, and callers that hold the mappings already).

@@ -165,12 +165,12 @@ func (s *series) fileFranchise(p *sonarr.ParsedEpisodeInfo, in FileInput, am *an
 		}
 		for _, c := range am.AltCuts {
 			if c.Matches(title) {
-				eps, how, _, ok, err = s.franchiseEpisodes(p, title, am)
+				eps, how, _, ok, _, err = s.franchiseEpisodes(p, title, am)
 				return eps, how, ok, err
 			}
 		}
 	}
-	if eps, how, entry, ok, err := s.franchiseEpisodes(p, name, am); err != nil || ok {
+	if eps, how, entry, ok, _, err := s.franchiseEpisodes(p, name, am); err != nil || ok {
 		return eps, how + ":" + entry, ok, err
 	}
 	m := in.Mapping
@@ -208,6 +208,9 @@ func (s *series) fileFranchise(p *sonarr.ParsedEpisodeInfo, in FileInput, am *an
 	for _, en := range am.Entries {
 		if en.Key != m.Entry {
 			continue
+		}
+		if !en.Importable() {
+			return nil, "", false, nil // no longer importable since the grab: Sonarr's numbering
 		}
 		reg := en.Regular()
 		for _, x := range nums {

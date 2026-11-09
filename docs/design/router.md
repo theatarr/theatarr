@@ -640,8 +640,7 @@ it ends instead of failing the moment it does (`TestReadyDeadlineSkipsMountOutag
 without reading or deleting any provider torrent. A ready download whose provider has no client is left unpolled
 with that provider (`TestPollLeavesUnavailableProvidersUnpolled`). A held import never expires: one held for review
 (`library_import` `rejected`), for its episode title, or recorded as a `dry_run` (the library gate refuses the
-version, or every episode waits for its anime mapping review); a later pass imports it once that changes
-(`TestAnimeHeldImportExpires`).
+version); a later pass imports it once that changes (`TestDryRunImportNeverExpires`).
 
 Expiry checks the state and library claim in one transaction: live import claims defer it, and `importing` or
 `imported` downloads are left alone. Expired claims are invalidated, and an existing `waiting_mount` import records

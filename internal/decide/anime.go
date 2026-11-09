@@ -1,7 +1,6 @@
 package decide
 
 import (
-	"fmt"
 	"strconv"
 	"strings"
 
@@ -11,8 +10,7 @@ import (
 )
 
 // The anime mapping seam (docs/design/anime.md): for a series with franchise mappings (Title.AnimeMap),
-// episodes come from the franchise first and from Sonarr's mapping second, and a release that maps only into
-// ranges whose mapping is not reviewed (conflict, rejected) is refused.
+// episodes come from the franchise first and from Sonarr's mapping second.
 //
 //  1. An alternate cut (overrides alt_cuts) the release title names: its numbers map through the cut's table.
 //  2. A franchise entry whose name is the release's series title (Sonarr's clean title), with absolute numbers: the
@@ -20,9 +18,10 @@ import (
 //     number, or two entries that both can, leave it to Sonarr.
 //  3. Otherwise Sonarr's mapping (absolute, scene, season and episode) as before.
 //
-// Then every mapped episode is checked: one that only conflict or rejected ranges cover is held. All held: the
-// release is rejected MappingNotReviewed. Some held: the decision lists them (AnimeHeld) and the library imports the
-// others only.
+// A franchise mapping that is not importable (conflict, or rejected in review) is never used: a release that names
+// such an entry (step 2, or a SeaDex pack's entry) maps through Sonarr instead, and so does an episode that only such
+// ranges cover. Nothing is held; the decision lists those episodes (AnimeFallback) with the entry and its status,
+// and the review item waits in Admin › Reviews. The best-scoring candidate of a conflict is never imported under.
 
 // Mapping sources in Decision.AnimeMapping.
 const (
@@ -31,12 +30,18 @@ const (
 	AnimeMapSonarr    = "sonarr"
 )
 
-// ReasonMappingNotReviewed is our rejection for a release inside unreviewed mapping ranges.
-const ReasonMappingNotReviewed = "MappingNotReviewed"
+// AnimeFallback is an episode that used Sonarr's numbering because its franchise mapping is not importable: the
+// TVDB episode, the entry and the mapping's status (conflict, rejected).
+type AnimeFallback struct {
+	Episode string `json:"episode"`
+	Entry   string `json:"entry"`
+	Status  string `json:"status"`
+}
 
 // franchiseEpisodes maps a release through the franchise. ok is false when the franchise has no say (Sonarr's mapping
-// stays); with ok and no episodes, the release named an alternate cut whose table lacks a number.
-func (s *series) franchiseEpisodes(p *sonarr.ParsedEpisodeInfo, releaseTitle string, am *animemap.Series) (eps []*Episode, how, entry string, ok bool, err error) {
+// stays); with ok and no episodes, the release named an alternate cut whose table lacks a number. skipped is the
+// entry the release named whose mapping is not importable (Sonarr's mapping stays).
+func (s *series) franchiseEpisodes(p *sonarr.ParsedEpisodeInfo, releaseTitle string, am *animemap.Series) (eps []*Episode, how, entry string, ok bool, skipped *animemap.Entry, err error) {
 	nums := p.AbsoluteEpisodeNumbers
 	for _, c := range am.AltCuts {
 		if !c.Matches(releaseTitle) {
@@ -47,28 +52,28 @@ func (s *series) franchiseEpisodes(p *sonarr.ParsedEpisodeInfo, releaseTitle str
 			n = p.EpisodeNumbers
 		}
 		if len(n) == 0 {
-			return nil, AnimeMapAltCut + ":" + c.Name, c.Entry, true, nil
+			return nil, AnimeMapAltCut + ":" + c.Name, c.Entry, true, nil, nil
 		}
 		for _, x := range n {
 			ses, has := c.Episodes[x]
 			if !has {
-				return nil, AnimeMapAltCut + ":" + c.Name, c.Entry, true, nil
+				return nil, AnimeMapAltCut + ":" + c.Name, c.Entry, true, nil, nil
 			}
 			for _, se := range ses {
 				e, err := s.find(se[0], se[1])
 				if err != nil {
-					return nil, "", "", false, err
+					return nil, "", "", false, nil, err
 				}
 				if e == nil {
-					return nil, AnimeMapAltCut + ":" + c.Name, c.Entry, true, nil
+					return nil, AnimeMapAltCut + ":" + c.Name, c.Entry, true, nil, nil
 				}
 				eps = append(eps, e)
 			}
 		}
-		return eps, AnimeMapAltCut + ":" + c.Name, c.Entry, true, nil
+		return eps, AnimeMapAltCut + ":" + c.Name, c.Entry, true, nil, nil
 	}
 	if len(nums) == 0 || p.FullSeason || p.Special {
-		return nil, "", "", false, nil
+		return nil, "", "", false, nil, nil
 	}
 	clean := s.ver.CleanSeriesTitle(p.SeriesTitle)
 	var fit *animemap.Entry
@@ -92,44 +97,50 @@ func (s *series) franchiseEpisodes(p *sonarr.ParsedEpisodeInfo, releaseTitle str
 			continue
 		}
 		if fit != nil {
-			return nil, "", "", false, nil // two entries of that name hold the numbers: Sonarr decides
+			return nil, "", "", false, nil, nil // two entries of that name hold the numbers: Sonarr decides
 		}
 		fit = e
 	}
 	if fit == nil {
-		return nil, "", "", false, nil
+		return nil, "", "", false, nil, nil
+	}
+	if !fit.Importable() {
+		return nil, "", "", false, fit, nil // not reviewed: Sonarr's numbering, never the conflict's candidate
 	}
 	reg := fit.Regular()
 	for _, x := range nums {
 		se := reg[x-1]
 		e, err := s.find(se[0], se[1])
 		if err != nil {
-			return nil, "", "", false, err
+			return nil, "", "", false, nil, err
 		}
 		if e == nil {
-			return nil, "", "", false, nil // the series lacks the episode: Sonarr decides
+			return nil, "", "", false, nil, nil // the series lacks the episode: Sonarr decides
 		}
 		eps = append(eps, e)
 	}
-	return eps, AnimeMapFranchise, fit.Key, true, nil
+	return eps, AnimeMapFranchise, fit.Key, true, nil, nil
 }
 
-// applyAnimeMap runs the seam on a mapped release: it may replace r.episodes, records how they were mapped, and
-// returns the MappingNotReviewed rejection when every episode is held.
+// applyAnimeMap runs the seam on a mapped release: it may replace r.episodes, records how they were mapped, and lists
+// the episodes that used Sonarr's numbering because their franchise mapping is not importable. It rejects nothing.
 func (s *series) applyAnimeMap(d *Decision, p *sonarr.ParsedEpisodeInfo, rel Release, r *remoteEpisode, am *animemap.Series) ([]Rejection, error) {
 	if am == nil {
 		return nil, nil
 	}
-	eps, how, entry, ok, err := s.franchiseEpisodes(p, rel.Title, am)
+	eps, how, entry, ok, skipped, err := s.franchiseEpisodes(p, rel.Title, am)
 	if err != nil {
 		return nil, err
 	}
 	// SeaDex calls each AniList entry a season pack. A TVDB season may contain several cours; its synthetic
 	// Sxx title cannot claim episodes outside the entry's mapping.
 	if rel.Kind == "seadex" && p.FullSeason {
-		if cour, key, mapped, mapErr := s.seadexCour(rel.Extras["anilist"], p.SeasonNumber, am); mapped || mapErr != nil {
+		cour, key, mapped, notReviewed, mapErr := s.seadexCour(rel.Extras["anilist"], p.SeasonNumber, am)
+		if mapped || mapErr != nil {
 			eps, entry, ok, err = cour, key, true, mapErr
 			how = AnimeMapFranchise
+		} else if notReviewed != nil {
+			skipped = notReviewed
 		}
 	}
 	if err != nil {
@@ -141,40 +152,35 @@ func (s *series) applyAnimeMap(d *Decision, p *sonarr.ParsedEpisodeInfo, rel Rel
 	} else {
 		d.AnimeMapping = AnimeMapSonarr
 	}
-	if len(r.episodes) == 0 {
-		return nil, nil
-	}
-	var held []string
-	var first string
+	var fallback []AnimeFallback
 	for _, ep := range r.episodes {
-		if e, blocked := am.Blocked(ep.Season, ep.Number); blocked {
-			se := animemeta.SE{ep.Season, ep.Number}
-			held = append(held, se.String())
-			if first == "" {
-				first = animemap.Reason(se, e)
-			}
+		se := animemeta.SE{ep.Season, ep.Number}.String()
+		if skipped != nil {
+			fallback = append(fallback, AnimeFallback{Episode: se, Entry: skipped.Key, Status: skipped.Status})
+		} else if e, blocked := am.Blocked(ep.Season, ep.Number); blocked {
+			fallback = append(fallback, AnimeFallback{Episode: se, Entry: e.Key, Status: e.Status})
 		}
 	}
-	d.AnimeHeld = held
-	if len(held) == len(r.episodes) {
-		msg := first
-		if len(held) > 1 {
-			msg = fmt.Sprintf("every episode (%s) is in a range whose mapping is not reviewed; %s", strings.Join(held, ", "), first)
-		}
-		return []Rejection{{Reason: ReasonMappingNotReviewed, Ours: true, Message: msg}}, nil
-	}
+	d.AnimeFallback = fallback
 	return nil, nil
 }
 
-// seadexCour narrows a season pack to the regular episodes mapped to its AniList entry.
-func (s *series) seadexCour(id string, season int, am *animemap.Series) (eps []*Episode, key string, mapped bool, err error) {
+// seadexCour narrows a season pack to the regular episodes mapped to its AniList entry. notReviewed is the entry
+// when its mapping (or a split part's) is not importable: the pack is not narrowed (Sonarr's numbering).
+func (s *series) seadexCour(id string, season int, am *animemap.Series) (eps []*Episode, key string, mapped bool, notReviewed *animemap.Entry, err error) {
 	n, err := strconv.Atoi(id)
 	if err != nil || n <= 0 {
-		return nil, "", false, nil
+		return nil, "", false, nil, nil
 	}
 	en, mapped := seaDexEntry(am, n)
 	if en == nil {
-		return nil, "", mapped, nil
+		return nil, "", mapped, nil, nil
+	}
+	prefix := "al:" + id
+	for _, part := range am.Entries {
+		if base, _, _ := strings.Cut(part.Key, "#"); base == prefix && !part.Importable() {
+			return nil, "", false, part, nil
+		}
 	}
 	key = en.Key
 	seen := map[int64]bool{}
@@ -184,14 +190,14 @@ func (s *series) seadexCour(id string, season int, am *animemap.Series) (eps []*
 		}
 		ep, err := s.find(se[0], se[1])
 		if err != nil {
-			return nil, "", true, err
+			return nil, "", true, nil, err
 		}
 		if ep != nil && !seen[ep.ID] {
 			seen[ep.ID] = true
 			eps = append(eps, ep)
 		}
 	}
-	return eps, key, mapped, nil
+	return eps, key, mapped, nil, nil
 }
 
 // seaDexEntry unions disjoint split parts; an exact key beside parts or overlapping parts is ambiguous.

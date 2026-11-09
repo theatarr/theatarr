@@ -230,8 +230,8 @@ mount never lengthen that back-off (`TestPartialAfterWaitsStartsBackoffAgain`).
    `TestRcloneForgetSetting`). Not there yet:
    `library_import` `waiting_mount`; after `wait_timeout` one `alert` action and a WARN log. It waits until the
    router's ready deadline (`router.ready_timeout`, default 6h from `ready_at`); a held import is excluded from that
-   expiry: one held for review, for its episode title, or recorded as a dry run (the gate refuses the version, or
-   every episode waits for its anime mapping review). Other overdue downloads fail and are blocklisted and re-searched, ending the mount wait without deleting a provider torrent. A live import claim defers
+   expiry: one held for review, for its episode title, or recorded as a dry run (the gate refuses the version).
+   Other overdue downloads fail and are blocklisted and re-searched, ending the mount wait without deleting a provider torrent. A live import claim defers
    expiry; retries do not extend the deadline (`docs/design/router.md`, "Ready deadline").
 3. **No video file** with a dangerous or executable extension fails the download and blocklists it. Other empty or
    unmatched imports are held in the queue with `importBlocked` and a warning reason; they are not blocklisted or

@@ -81,7 +81,7 @@ func TestPartialEntryCoverage(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	cour, _, mapped, err := newSeries(&title, ver).seadexCour("11", 1, title.AnimeMap)
+	cour, _, mapped, _, err := newSeries(&title, ver).seadexCour("11", 1, title.AnimeMap)
 	if err != nil || !mapped || len(cour) != 1 || cour[0].Number != 1 {
 		t.Fatalf("bad cour fixture: %v %v %v", cour, mapped, err)
 	}
@@ -252,7 +252,7 @@ func TestAmbiguousEntryIsUnknown(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	eps, key, mapped, err := newSeries(&title, ver).seadexCour("2", 2, title.AnimeMap)
+	eps, key, mapped, _, err := newSeries(&title, ver).seadexCour("2", 2, title.AnimeMap)
 	if err != nil || !mapped || len(eps) != 0 || key != "" {
 		t.Fatalf("ambiguous cour: %v %s %v %v", eps, key, mapped, err)
 	}

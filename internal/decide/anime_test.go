@@ -36,16 +36,18 @@ func TestAnimeFranchiseMapping(t *testing.T) {
 		name, release, s2 string
 		accepted          bool
 		reasons, episodes string
-		how, entry, held  string
+		how, entry        string
+		fallback          string
 	}{
-		{"entry name, conflict range", "[Group] Isekai Story 2nd Season - 02 (1080p)", "conflict", false, "MappingNotReviewed", "S02E02", "franchise", "al:2", "S02E02"},
+		{"entry name, conflict range", "[Group] Isekai Story 2nd Season - 02 (1080p)", "conflict", false, "UnknownEpisode", "", "sonarr", "", ""},
 		{"entry name, reviewed", "[Group] Isekai Story 2nd Season - 02 (1080p)", "override", true, "", "S02E02", "franchise", "al:2", ""},
 		{"entry name, heuristic", "[Group] Isekai Story 2nd Season - 01 (1080p)", "heuristic", true, "", "S02E01", "franchise", "al:2", ""},
-		{"entry name, rejected", "[Group] Isekai Story 2nd Season - 01 (1080p)", "rejected", false, "MappingNotReviewed", "S02E01", "franchise", "al:2", "S02E01"},
-		{"sonarr absolute into a conflict", "[SubsPlease] Isekai Story - 13 (1080p) [ABCD1234].mkv", "conflict", false, "MappingNotReviewed", "S02E01", "sonarr", "", "S02E01"},
+		{"entry name, rejected", "[Group] Isekai Story 2nd Season - 01 (1080p)", "rejected", false, "UnknownEpisode", "", "sonarr", "", ""},
+		{"sonarr absolute into a conflict", "[SubsPlease] Isekai Story - 13 (1080p) [ABCD1234].mkv", "conflict", true, "", "S02E01", "sonarr", "", "S02E01 al:2 conflict"},
 		{"entry's own numbering", "[Group] Isekai Story - 01-03 (BD 1080p)", "conflict", true, "", "S01E01,S01E02,S01E03", "franchise", "al:1", ""},
-		{"batch partly held", "[Group] Isekai Story - 12-13 (BD 1080p)", "conflict", true, "", "S01E12,S02E01", "sonarr", "", "S02E01"},
-		{"season pack in a conflict", "[Group] Isekai Story S02 (BD 1080p)", "conflict", false, "MappingNotReviewed", "S02E01,S02E02", "sonarr", "", "S02E01,S02E02"},
+		{"batch partly in a conflict", "[Group] Isekai Story - 12-13 (BD 1080p)", "conflict", true, "", "S01E12,S02E01", "sonarr", "", "S02E01 al:2 conflict"},
+		{"season pack in a conflict", "[Group] Isekai Story S02 (BD 1080p)", "conflict", true, "", "S02E01,S02E02", "sonarr", "", "S02E01 al:2 conflict,S02E02 al:2 conflict"},
+		{"season pack in a rejected range", "[Group] Isekai Story S02 (BD 1080p)", "rejected", true, "", "S02E01,S02E02", "sonarr", "", "S02E01 al:2 rejected,S02E02 al:2 rejected"},
 		{"alternate cut", "[Group] Isekai Story Directors Cut - 01 (BD 1080p)", "auto", true, "", "S01E01,S01E02", "alt_cut:Director's Cut", "kitsu:9", ""},
 		{"alternate cut, unmapped number", "[Group] Isekai Story Directors Cut - 07 (BD 1080p)", "auto", false, "UnknownEpisode", "", "alt_cut:Director's Cut", "", ""},
 		{"beyond the entry", "[Group] Isekai Story 2nd Season - 05 (1080p)", "auto", false, "UnknownEpisode", "", "", "", ""},
@@ -65,16 +67,53 @@ func TestAnimeFranchiseMapping(t *testing.T) {
 		if c.how != "" && d.AnimeMapping != c.how || c.entry != "" && d.AnimeEntry != c.entry {
 			t.Errorf("%s: mapped by %q %q, want %q %q", c.name, d.AnimeMapping, d.AnimeEntry, c.how, c.entry)
 		}
-		if got := strings.Join(d.AnimeHeld, ","); got != c.held {
-			t.Errorf("%s: held %s, want %s", c.name, got, c.held)
+		var fb []string
+		for _, f := range d.AnimeFallback {
+			fb = append(fb, f.Episode+" "+f.Entry+" "+f.Status)
 		}
-		if c.reasons == ReasonMappingNotReviewed && !strings.Contains(d.Rejections[0].Message, "not reviewed") {
-			t.Errorf("%s: message %q", c.name, d.Rejections[0].Message)
+		if got := strings.Join(fb, ","); got != c.fallback {
+			t.Errorf("%s: fallback %q, want %q", c.name, got, c.fallback)
 		}
 	}
 	// Without franchise mappings nothing changes.
 	d, _ := e.Decide(ctx, rel("[SubsPlease] Isekai Story - 13 (1080p) [ABCD1234].mkv", "public", 2*gb), anime(), v, nil)
 	if !d.Accepted || d.AnimeMapping != "" {
 		t.Errorf("no map: %v %q", d.Accepted, d.AnimeMapping)
+	}
+}
+
+// A release named after an entry whose mapping is not importable takes Sonarr's numbering, never the entry's
+// (best-scoring) candidate; the decision lists each episode as a fallback with the entry and its status.
+func TestAnimeUnreviewedEntryUsesSonarrNumbering(t *testing.T) {
+	t.Parallel()
+	e := seriesEngine(t)
+	ctx := context.Background()
+	v := tvVersion(e, "anime-tv")
+	var candidate []animemeta.SE
+	for n := 4; n <= 12; n++ {
+		candidate = append(candidate, animemeta.SE{1, n}) // the candidate puts the entry's episode 1 at S01E04
+	}
+	for _, c := range []struct {
+		status, episodes, how, fallback string
+	}{
+		{"conflict", "S01E01,S01E02,S01E03", "sonarr", "S01E01 al:1 conflict,S01E02 al:1 conflict,S01E03 al:1 conflict"},
+		{"rejected", "S01E01,S01E02,S01E03", "sonarr", "S01E01 al:1 rejected,S01E02 al:1 rejected,S01E03 al:1 rejected"},
+		{"auto", "S01E04,S01E05,S01E06", "franchise", ""},
+	} {
+		ti := anime()
+		ti.AnimeMap = animemap.New(2002, []*animemap.Entry{{Franchise: "isekai", Key: "al:1", Title: "Isekai Story",
+			Names: []string{"Isekai Story"}, Status: c.status, Episodes: candidate}}, nil)
+		d, err := e.Decide(ctx, rel("[Group] Isekai Story - 01-03 (BD 1080p)", "public", 2*gb), ti, v, nil)
+		if err != nil {
+			t.Fatal(err)
+		}
+		var fb []string
+		for _, f := range d.AnimeFallback {
+			fb = append(fb, f.Episode+" "+f.Entry+" "+f.Status)
+		}
+		if !d.Accepted || strings.Join(d.Episodes, ",") != c.episodes || d.AnimeMapping != c.how || strings.Join(fb, ",") != c.fallback {
+			t.Errorf("%s: accepted %v %v, episodes %v, mapped by %q, fallback %v", c.status, d.Accepted, d.Rejections,
+				d.Episodes, d.AnimeMapping, fb)
+		}
 	}
 }

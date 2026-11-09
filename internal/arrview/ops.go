@@ -180,9 +180,6 @@ func (s *Service) importOutcome(ctx context.Context, id int64, p *library.Plan, 
 	}
 	if p.DryRun {
 		out.Outcome, out.What = ImportDryRun, "planned only (dry run): "+p.Refused
-		if strings.HasPrefix(p.Refused, library.ReasonMappingNotReviewed) {
-			out.Outcome, out.What = ImportHeld, "held: "+p.Refused
-		}
 		return nil
 	}
 	var imp, why, state string

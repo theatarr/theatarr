@@ -76,8 +76,8 @@ func earlier(a, b time.Time) time.Time {
 // expireReady ends downloads still waiting to be imported past their deadline: ready_timeout of time the mount was
 // healthy since they became ready. The library's live claims are checked in the same transaction: an import already
 // holding the download gets to finish. A held import never expires: one held for review (rejected), for its episode
-// title, or planned as a dry run (the gate refused the version, or every episode waits for its anime mapping review),
-// which a later pass imports once that changes. No provider is touched. Called under r.mu.
+// title, or planned as a dry run (the gate refused the version), which a later pass imports once that changes. No
+// provider is touched. Called under r.mu.
 func (r *Router) expireReady(ctx context.Context, now time.Time) (int, error) {
 	mount := &r.shared.mount
 	if healthy := r.mountCheck(); healthy != nil {

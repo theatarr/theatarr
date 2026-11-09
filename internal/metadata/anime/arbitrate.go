@@ -13,7 +13,7 @@ import (
 const (
 	StatusAuto       = "auto"       // the lists agree, or one list is backed by a date fit
 	StatusArbitrated = "arbitrated" // the lists disagree and the winner has a clear margin or the anchor signal
-	StatusConflict   = "conflict"   // no clear winner: no automatic import of the range, a review item
+	StatusConflict   = "conflict"   // no clear winner: the range imports by Sonarr's numbering, a review item
 	StatusOverride   = "override"   // set by an override file
 	StatusHeuristic  = "heuristic"  // matched by date and title only: kept, and listed for review
 	StatusRejected   = "rejected"   // every candidate was dropped (no TVDB episodes, or dates that don't fit)

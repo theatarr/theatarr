@@ -32,14 +32,14 @@ release, watch and story orders. Each stage is a function; its output goes into 
 
 The arbitration's decision is kept as it is (that is what the golden outputs check). On top, every mapped entry gets a status:
 
-| Status | When | Import |
+| Status | When | Mapping used to import |
 |---|---|---|
 | `auto` | the two lists agree, or one list maps it and the TVDB air dates fit (or there are no dates to check) | yes |
 | `arbitrated` | the lists disagree and the winner leads by ≥ 0.5 (score range 0–5) or its placement matches TVDB airsBefore; or one list kept although the dates don't fit (the decision's "lists agree / title matches / direct AniDB join") | yes |
-| `conflict` | the lists disagree within 0.5, or the winner's placement contradicts TVDB airsBefore | **no**, review item |
+| `conflict` | the lists disagree within 0.5, or the winner's placement contradicts TVDB airsBefore | **no** (Sonarr's numbering), review item |
 | `heuristic` | no list maps it; matched by air date and title | yes, review item |
 | `override` | set by an overrides file, or accepted in review | yes |
-| `rejected` | every candidate dropped (TVDB lacks the episodes, dates don't fit, no date), or rejected in review | no |
+| `rejected` | every candidate dropped (TVDB lacks the episodes, dates don't fit, no date), or rejected in review | no (Sonarr's numbering) |
 
 **Anchor signal**: ScudLee's `<before>;1-13;</before>` says AniDB special 1 goes before episode 13. The special
 is found through the record's season-0 mapping list (or as the candidate's n-th episode for a record whose default
@@ -91,8 +91,10 @@ the sunny day special stay alternates.
 
 `animemap.Load` reads every franchise mapping into a TVDB series (`anime_mapping`, entry names from `anime_entry`,
 `anime_alt_cut`). Importable: `auto`, `arbitrated`, `override`, `heuristic` (a heuristic rejected in review becomes
-`rejected`). An episode is **held** when at least one entry maps it and none of them is importable (`conflict`,
-`rejected`); an episode no entry maps falls back to Sonarr's mapping.
+`rejected`). A mapping that is not importable (`conflict`, `rejected`) is never used, and nothing waits for it: its
+episodes import through Sonarr's numbering, exactly like an episode no entry maps (so specials land in Season 00 the
+way Sonarr puts them). The best-scoring candidate of a conflict is never imported under. The review item is still
+created, and Admin › Reviews shows it; playlists leave such an entry out ("missing") until it is reviewed.
 
 **Decisions** (`decide/anime.go`; `Title.AnimeMap`, loaded by `LoadSeriesVersion` for any series with mappings):
 1. An alternate cut the release title names: its numbers map through the cut's table (`anime_mapping: alt_cut:<name>`);
@@ -100,20 +102,26 @@ the sunny day special stay alternates.
 2. A franchise entry whose name (Sonarr's clean title) is the release's series title, with absolute numbers: the
    entry's own episode n is the n-th TVDB episode of its range outside season 0 (`franchise`). A franchise name or an
    alternate cut also makes the series match when Sonarr's own lookup does not (`MatchAlias`). An entry that cannot
-   hold every number, or two entries that both can, leave it to Sonarr.
+   hold every number, or two entries that both can, leave it to Sonarr; so does an entry whose mapping is not
+   importable.
 3. Otherwise Sonarr's mapping (`sonarr`).
 
 SeaDex season packs carry their AniList entry id. When the franchise maps that entry into only part of a TVDB
 season (one cour), the decision covers only those regular episodes, keeping the entry mapping for import. A pack
-for one cour cannot take the rest of the season's episode slots (`TestSeaDexEntryCoversOnlyItsCour`).
+for one cour cannot take the rest of the season's episode slots (`TestSeaDexEntryCoversOnlyItsCour`). An entry whose
+mapping (or a split part's) is not importable does not narrow the pack: Sonarr's numbering takes the season
+(`TestSeaDexUnreviewedEntryUsesSonarrNumbering`).
 
-Then: every episode held → rejected **`MappingNotReviewed`** (a Theatarr reason), with the entry, its status and reason; some held →
-accepted with `anime_held` listing them. The decision JSON gains `anime_mapping`, `anime_entry`, `anime_held`.
+Then every episode only non-importable ranges cover, and every episode of a release that named a non-importable
+entry (step 2 or a SeaDex pack), is listed in the decision's `anime_fallback` with the entry and its status
+(`TestAnimeFranchiseMapping`, `TestAnimeUnreviewedEntryUsesSonarrNumbering`). The decision JSON gains
+`anime_mapping`, `anime_entry`, `anime_fallback`. Nothing is rejected for it.
 
-**Library** (`library/anime.go`): held episodes are taken out of the download before the mount is read. The rest
-imports as usual (`plan.held` lists the others). A download whose every episode is held stays `ready`; the import is
-recorded as `dry_run` with the reason, the router's ready deadline skips it, nothing is blocklisted, and a later pass imports it once the mapping is
-reviewed (`TestAnimeHold`).
+**Library**: files resolve through the same rules (`decide.ResolveFile`); a decision's stored entry that is no longer
+importable at import time falls back to Sonarr's numbering too. Nothing is held (`TestAnimeUnreviewedImports`).
+
+**A mapping accepted later** changes `anime_mapping` only: nothing relinks a file that imported under Sonarr's
+numbering; it stays where it landed. Later decisions and imports (an upgrade, a new grab) use the accepted mapping.
 
 ### Review screen and API (`internal/web/anime.go`)
 
@@ -292,7 +300,8 @@ interface; `TVDBChain` combines backends ([tvdb.md](tvdb.md)).
 | `anime_review` | the review queue (one open item per franchise, entry and kind) |
 | `metadata_cache` | + `etag`, `last_modified` |
 
-Import gating: `anime_mapping.status IN ('auto', 'arbitrated', 'override', 'heuristic')` (see "Import gating").
+Mappings used to import: `anime_mapping.status IN ('auto', 'arbitrated', 'override', 'heuristic')` (see "Import
+gating").
 
 ## Storage (migration 00018)
 

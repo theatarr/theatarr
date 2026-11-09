@@ -503,7 +503,7 @@ downloads, including ones no longer in the arr queue.
 | Episode title hold | `warning` | `importBlocked` | `episode title hold: …` |
 | Held for review/no video/selected files absent | `warning` | `importBlocked` | Library's review reason |
 | zurg unconfirmed file | `warning` | `importBlocked` | Reason starting `zurg` |
-| Anime mapping review or library gate dry run | `warning` | `importBlocked` | Mapping review or gate refusal |
+| Library gate dry run | `warning` | `importBlocked` | Gate refusal |
 | Upgrade awaiting approval | `warning` | `importBlocked` | Upgrade awaiting approval and its reason |
 | Not an upgrade | `warning` | `importBlocked` | Not an upgrade for the existing files |
 | Sample or unmatched episode rejection | `warning` | `importBlocked` | Sample guard or episode matching reason |

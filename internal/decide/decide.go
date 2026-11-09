@@ -220,10 +220,11 @@ type Decision struct {
 	EpisodeIDs  []int64  `json:"episode_ids,omitempty"`
 	Missing     int      `json:"missing,omitempty"`
 	// Anime (franchise mappings, anime.go): how the episodes were mapped (franchise, alt_cut:<name>, sonarr), the
-	// franchise entry, and the episodes held because their mapping is not reviewed.
-	AnimeMapping string   `json:"anime_mapping,omitempty"`
-	AnimeEntry   string   `json:"anime_entry,omitempty"`
-	AnimeHeld    []string `json:"anime_held,omitempty"`
+	// franchise entry, and the episodes that used Sonarr's numbering because their franchise mapping is not
+	// importable (conflict, rejected).
+	AnimeMapping  string          `json:"anime_mapping,omitempty"`
+	AnimeEntry    string          `json:"anime_entry,omitempty"`
+	AnimeFallback []AnimeFallback `json:"anime_fallback,omitempty"`
 
 	Existing *Existing `json:"existing,omitempty"`
 	// Upgrade is whether an accepted release replaces the existing file; UpgradeReason says why or why not.

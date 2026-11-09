@@ -8,10 +8,9 @@ import (
 	"github.com/theatarr/theatarr/internal/store"
 )
 
-// An import whose every episode is held for anime mapping review (library.holdAnimeReview: library_import
-// dry_run, reason MappingNotReviewed) is documented to stay ready with nothing blocklisted. The ready deadline fails
-// and blocklists it.
-func TestAnimeHeldImportExpires(t *testing.T) {
+// An import recorded as a dry run (the library gate refused the version: library_import dry_run) stays ready with
+// nothing blocklisted past the ready deadline; a later pass imports it once the gate allows it.
+func TestDryRunImportNeverExpires(t *testing.T) {
 	t.Parallel()
 	e := newEnv(t, true, policy.ModeActive)
 	withQueue(e)
@@ -21,15 +20,15 @@ func TestAnimeHeldImportExpires(t *testing.T) {
 		ready_at, added_at, created_at, updated_at) VALUES (5, 1, 10, 'movie', ?, 'Movie', 'pub', 'ready', ?, ?, ?, ?)`,
 		h("a"), old, old, old, old)
 	e.exec(`INSERT INTO library_import (download_id, state, last_error, created_at, updated_at)
-		VALUES (5, 'dry_run', 'MappingNotReviewed: S01E01 franchise entry conflict', ?, ?)`, old, old)
+		VALUES (5, 'dry_run', 'library.enabled is false', ?, ?)`, old, old)
 	e.clock = start.Add(e.r.set.ReadyTimeout + time.Hour)
 	if _, err := e.r.Poll(e.ctx); err != nil {
 		t.Fatal(err)
 	}
 	if got := e.count(`SELECT COUNT(*) FROM download WHERE id = 5 AND state = 'ready'`); got != 1 {
-		t.Errorf("held (mapping review) download no longer ready")
+		t.Errorf("dry-run download no longer ready")
 	}
 	if got := e.count(`SELECT COUNT(*) FROM router_blocklist WHERE download_id = 5`); got != 0 {
-		t.Errorf("held (mapping review) download blocklisted: %d rows", got)
+		t.Errorf("dry-run download blocklisted: %d rows", got)
 	}
 }

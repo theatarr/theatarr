@@ -19,6 +19,7 @@ func TestResolveFile(t *testing.T) {
 	daily := show()
 	daily.SeriesType = "daily"
 	franchise := animeMapped("auto")
+	unreviewed := animeMapped("conflict") // al:2 (S02E01-E02) is a conflict
 	cases := []struct {
 		name string
 		t    Title
@@ -46,6 +47,11 @@ func TestResolveFile(t *testing.T) {
 			Release: "[Group] Isekai Story Directors Cut (BD 1080p)", OtherVideoFiles: true}, "[301 302] file+alt_cut:Director's Cut"},
 		{"alternate cut from the decision", franchise, FileInput{Path: "[Group] Isekai Monogatari - 02 (BD 1080p).mkv",
 			OtherVideoFiles: true, Mapping: &EpisodeMap{How: "alt_cut:Director's Cut", Entry: "kitsu:9"}}, "[303] file+alt_cut:Director's Cut"},
+		// An entry whose mapping is not importable, by name or from the decision: Sonarr's numbering (absolute 1).
+		{"entry name in a conflict", unreviewed, FileInput{Path: "[Group] Isekai Story 2nd Season - 01 (1080p).mkv",
+			OtherVideoFiles: true}, "[301] file"},
+		{"decision's mapping now a conflict", unreviewed, FileInput{Path: "[Group] Isekai Monogatari - 01 (1080p).mkv",
+			OtherVideoFiles: true, Mapping: &EpisodeMap{How: AnimeMapFranchise, Entry: "al:2"}}, "[301] file"},
 		{"unparseable", show(), FileInput{Path: "random.mkv", OtherVideoFiles: true}, "[] "},
 	}
 	for _, c := range cases {

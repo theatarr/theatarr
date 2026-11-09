@@ -40,7 +40,6 @@ type Plan struct {
 	// Unresolved says, for an unmatched file, why the resolver's own answer could not be used (resolver.episodes):
 	// ambiguous, out of scope or a conflict. Such a file is not read by its canonical numbers.
 	Unresolved map[string]string `json:"unresolved,omitempty"`
-	Held       []string          `json:"held,omitempty"` // episodes held: their franchise mapping is not reviewed (anime.go)
 	DryRun     bool              `json:"dry_run"`
 	Refused    string            `json:"refused,omitempty"` // why the gate made it a dry run
 	Naming     string            `json:"naming,omitempty"`
@@ -270,17 +269,6 @@ func (l *Library) importDownload(ctx context.Context, d *importDownload, dryRun 
 				rerr = l.unreadable(ctx, d, rerr)
 			}
 		}()
-	}
-	// A client's explicit episode choice (manual import) is the review: nothing is held.
-	if len(d.Manual) == 0 {
-		held, allHeld, err := l.animeHold(ctx, d)
-		if err != nil {
-			return nil, err
-		}
-		plan.Held = held
-		if allHeld {
-			return l.holdAnimeReview(ctx, d, plan, dryRun)
-		}
 	}
 	if err := l.gate.CheckVersion(v.Key); err != nil {
 		// A root that does not answer is a pause, like the mount (ErrRootDown): planning reads under the root
