@@ -103,7 +103,9 @@ created, and Admin › Reviews shows it; playlists leave such an entry out ("mis
    entry's own episode n is the n-th TVDB episode of its range outside season 0 (`franchise`). A franchise name or an
    alternate cut also makes the series match when Sonarr's own lookup does not (`MatchAlias`). An entry that cannot
    hold every number, or two entries that both can, leave it to Sonarr; so does an entry whose mapping is not
-   importable.
+   importable. For that entry the series is known, so Sonarr's episode resolution runs as it would for the series
+   (series-wide absolute numbers, scene and XEM mappings): "2nd Season - 02" of a rejected entry is absolute 2,
+   S01E02, and `UnknownEpisode` only where Sonarr cannot place it.
 3. Otherwise Sonarr's mapping (`sonarr`).
 
 SeaDex season packs carry their AniList entry id. When the franchise maps that entry into only part of a TVDB
@@ -118,7 +120,11 @@ entry (step 2 or a SeaDex pack), is listed in the decision's `anime_fallback` wi
 `anime_mapping`, `anime_entry`, `anime_fallback`. Nothing is rejected for it.
 
 **Library**: files resolve through the same rules (`decide.ResolveFile`); a decision's stored entry that is no longer
-importable at import time falls back to Sonarr's numbering too. Nothing is held (`TestAnimeUnreviewedImports`).
+importable at import time falls back to Sonarr's numbering too. Nothing is held (`TestAnimeUnreviewedImports`). Such a
+download was grabbed for the entry's episodes, so the import first reconciles its episodes (`library/resolve.go`
+`rescope`) to the ones Sonarr's numbering gives the release title, or its files when Sonarr cannot parse the title (a
+pack named by the entry), and a real import writes them to `download.episodes`; `download.episode_map` stays, for a
+later re-link (`TestAnimeRejectedMappingImports`). This is the counterpart, before the import, of the re-link below.
 
 **Re-link after review** (`library/animerelink.go`). When review accepts a mapping (`animestore.Resolve` or
 `ResolveCandidate`, including a held refresh it applies), or a saved build turns an entry's mapping importable (it was

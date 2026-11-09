@@ -1112,6 +1112,9 @@ func linkPointsAt(path, target string) bool {
 
 func (l *Library) planSeries(ctx context.Context, d *importDownload, vn *VersionNaming, root string, resolution int, labels labelClaim, plan *Plan) error {
 	v := &d.Version
+	if err := l.rescope(ctx, d, plan.Files); err != nil {
+		return err
+	}
 	stype := naming.SeriesType(v.Title.SeriesType)
 	if stype == "" {
 		stype = naming.SeriesStandard

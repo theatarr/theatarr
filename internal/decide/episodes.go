@@ -98,7 +98,7 @@ func (e *Engine) decideSeries(ctx context.Context, d *Decision, p *Profile, rel 
 	d.MatchType = r.matchType
 	var animeRejections []Rejection
 	if rel.Manual == nil {
-		animeRejections, err = s.applyAnimeMap(d, parsed, rel, r, t.AnimeMap)
+		animeRejections, err = s.applyAnimeMap(d, parsed, rel, r, t.AnimeMap, search)
 	}
 	if err != nil {
 		d.Rejections = append(e.ourRules(rel, v), Rejection{Reason: "Error", Message: "Unexpected error processing release"})

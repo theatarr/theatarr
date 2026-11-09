@@ -124,7 +124,8 @@ func (s *series) franchiseEpisodes(p *sonarr.ParsedEpisodeInfo, releaseTitle str
 
 // applyAnimeMap runs the seam on a mapped release: it may replace r.episodes, records how they were mapped, and lists
 // the episodes that used Sonarr's numbering because their franchise mapping is not importable. It rejects nothing.
-func (s *series) applyAnimeMap(d *Decision, p *sonarr.ParsedEpisodeInfo, rel Release, r *remoteEpisode, am *animemap.Series) ([]Rejection, error) {
+func (s *series) applyAnimeMap(d *Decision, p *sonarr.ParsedEpisodeInfo, rel Release, r *remoteEpisode, am *animemap.Series,
+	search *SeriesSearch) ([]Rejection, error) {
 	if am == nil {
 		return nil, nil
 	}
@@ -151,6 +152,17 @@ func (s *series) applyAnimeMap(d *Decision, p *sonarr.ParsedEpisodeInfo, rel Rel
 		d.AnimeMapping, d.AnimeEntry = how, entry
 	} else {
 		d.AnimeMapping = AnimeMapSonarr
+		if skipped != nil && r.matchType == MatchAlias {
+			// Sonarr's numbering for a release only the entry's name matched: the series is known, so Sonarr's
+			// episode resolution runs as an import of the series would (series-wide absolute numbers, scene and XEM
+			// mappings).
+			known, err := s.mapKnown(p, search)
+			if err != nil {
+				return nil, err
+			}
+			r.mappedSeason, r.noMappedSeason, r.sceneMapping, r.episodes = known.mappedSeason, known.noMappedSeason,
+				known.sceneMapping, known.episodes
+		}
 	}
 	var fallback []AnimeFallback
 	for _, ep := range r.episodes {

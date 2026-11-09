@@ -40,6 +40,24 @@ func (d *Decision) EpisodeMapping() *EpisodeMap {
 	return &EpisodeMap{How: d.AnimeMapping, Entry: d.AnimeEntry}
 }
 
+// Abandoned says the mapping names a franchise entry whose mapping is no longer importable (rejected or in conflict
+// since the grab, or gone): the release's files map through Sonarr's numbering (fileFranchise), so the episodes the
+// download was grabbed for are the entry's, not the ones its files now import as.
+func (m *EpisodeMap) Abandoned(am *animemap.Series) bool {
+	if m == nil || m.How != AnimeMapFranchise {
+		return false
+	}
+	if am == nil {
+		return true
+	}
+	for _, en := range am.Entries {
+		if en.Key == m.Entry {
+			return !en.Importable()
+		}
+	}
+	return true
+}
+
 // FileInput is one video file of a series release, as the import sees it.
 type FileInput struct {
 	// Path is the file's path inside the release folder (sub-folders included).
@@ -211,7 +229,7 @@ func (s *series) fileFranchise(p *sonarr.ParsedEpisodeInfo, in FileInput, am *an
 			continue
 		}
 		if !en.Importable() {
-			return nil, "", false, nil // no longer importable since the grab: Sonarr's numbering
+			return nil, "", false, nil // no longer importable since the grab: Sonarr's numbering (Abandoned)
 		}
 		reg := en.Regular()
 		for _, x := range nums {

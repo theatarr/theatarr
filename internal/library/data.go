@@ -79,6 +79,9 @@ type importDownload struct {
 	HasFormats bool
 	// EpisodeMap is the decision's own mapping of a series release (download.episode_map), nil for Sonarr's.
 	EpisodeMap *decide.EpisodeMap
+	// rescoped are the download's episodes Sonarr's numbering gives the release once its EpisodeMap is abandoned
+	// (rescope); a real import writes them to download.episodes. Nil when the scope was not changed.
+	rescoped []int64
 	// SourcePath is the path a path or manual import named on the mount (download.source_path), "" when the release
 	// is found by its hash and names.
 	SourcePath string

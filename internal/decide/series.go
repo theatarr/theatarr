@@ -536,6 +536,15 @@ func (s *series) mapRelease(p *sonarr.ParsedEpisodeInfo, tvdbID int, imdbID stri
 	return r, nil
 }
 
+// mapKnown is mapRelease with the series given, as an import maps it (Map(parsedEpisodeInfo, 0, 0, null, series,
+// criteria)).
+func (s *series) mapKnown(p *sonarr.ParsedEpisodeInfo, search *SeriesSearch) (*remoteEpisode, error) {
+	known := s.known
+	s.known = true
+	defer func() { s.known = known }()
+	return s.mapRelease(p, 0, "", search)
+}
+
 // mapRelease5 is v5's Map: the mapped season is nullable (no season parsed); a season-title release takes its
 // season from the scene mapping. Non-official episode orders (SeasonType) do not exist here: series are TVDB official
 // order, as on the v4 arrs.

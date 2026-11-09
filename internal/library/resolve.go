@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"github.com/theatarr/theatarr/internal/decide"
+	"github.com/theatarr/theatarr/internal/indexer"
 )
 
 // Which file is which episode (docs/design/library.md): a series file's episodes come, in order, from
@@ -22,7 +23,71 @@ import (
 // episodes before the other files: an automatic mapping of another file of the download never takes them first.
 //
 // The resolver's episodes must be the download's (the episodes it was grabbed for; every episode for a pack the
-// router did not narrow down). A manual or recorded choice may name any episode of the title.
+// router did not narrow down). A manual or recorded choice may name any episode of the title. A download grabbed
+// through a franchise entry whose mapping is no longer importable (rejected or in conflict since the grab) maps its
+// files through Sonarr's numbering, so its episodes are reconciled first (rescope).
+
+// rescope reconciles the download's episodes when the franchise mapping it was grabbed under is abandoned: they
+// become the episodes Sonarr's numbering gives the release title (the decision's, which now skips the entry), else,
+// for a release title Sonarr cannot place (a pack named by the entry), the episodes it gives the release's files.
+// When neither places anything the episodes stay. The stored mapping is kept: a later accept re-links the imported
+// files through it (animerelink.go).
+func (l *Library) rescope(ctx context.Context, d *importDownload, files []PlannedFile) error {
+	v := &d.Version
+	if d.EpisodeMap == nil || l.engine == nil || d.rescoped != nil {
+		return nil
+	}
+	db := l.st.Reader()
+	t, err := decide.LoadTitle(ctx, db, v.Title.ID)
+	if err != nil {
+		return err
+	}
+	if err := decide.LoadSeriesVersion(ctx, db, &t, v.VersionID); err != nil {
+		return err
+	}
+	if !d.EpisodeMap.Abandoned(t.AnimeMap) {
+		return nil
+	}
+	dec, err := l.engine.Decide(ctx, decide.Release{Release: indexer.Release{Title: d.ReleaseTitle, InfoHash: d.InfoHash,
+		Indexer: d.Indexer}}, t, decide.Version{ID: v.VersionID, Key: v.Key, Policy: v.Policy}, nil)
+	if err != nil {
+		return err
+	}
+	var ids []int64
+	if dec != nil {
+		ids = append(ids, dec.EpisodeIDs...)
+	}
+	if len(ids) == 0 {
+		sv := ""
+		if v.Policy != nil {
+			sv = v.Policy.Sonarr
+		}
+		for _, f := range files {
+			res, err := decide.ResolveFile(&t, sv, decide.FileInput{Path: f.Rel, Release: d.ReleaseTitle, Folder: d.Name,
+				OtherVideoFiles: len(files) > 1, Mapping: d.EpisodeMap})
+			if err == nil && res.Refused == "" {
+				ids = append(ids, res.EpisodeIDs...)
+			}
+		}
+	}
+	ids = slices.Compact(slices.Sorted(slices.Values(ids)))
+	var cur []int64
+	for _, e := range v.Episodes {
+		cur = append(cur, e.ID)
+	}
+	slices.Sort(cur)
+	if len(ids) == 0 || slices.Equal(cur, ids) {
+		return nil
+	}
+	eps, err := loadEpisodes(ctx, db, v.Title.ID, ids)
+	if err != nil {
+		return err
+	}
+	l.log.Info("library: franchise mapping no longer importable, episodes through Sonarr's numbering", "download", d.ID,
+		"entry", d.EpisodeMap.Entry, "episodes", ids)
+	v.Episodes, d.rescoped = eps, ids
+	return nil
+}
 
 type resolver struct {
 	d       *importDownload

@@ -39,10 +39,10 @@ func TestAnimeFranchiseMapping(t *testing.T) {
 		how, entry        string
 		fallback          string
 	}{
-		{"entry name, conflict range", "[Group] Isekai Story 2nd Season - 02 (1080p)", "conflict", false, "UnknownEpisode", "", "sonarr", "", ""},
+		{"entry name, conflict range", "[Group] Isekai Story 2nd Season - 02 (1080p)", "conflict", true, "", "S01E02", "sonarr", "", "S01E02 al:2 conflict"},
 		{"entry name, reviewed", "[Group] Isekai Story 2nd Season - 02 (1080p)", "override", true, "", "S02E02", "franchise", "al:2", ""},
 		{"entry name, heuristic", "[Group] Isekai Story 2nd Season - 01 (1080p)", "heuristic", true, "", "S02E01", "franchise", "al:2", ""},
-		{"entry name, rejected", "[Group] Isekai Story 2nd Season - 01 (1080p)", "rejected", false, "UnknownEpisode", "", "sonarr", "", ""},
+		{"entry name, rejected", "[Group] Isekai Story 2nd Season - 01 (1080p)", "rejected", true, "", "S01E01", "sonarr", "", "S01E01 al:2 rejected"},
 		{"sonarr absolute into a conflict", "[SubsPlease] Isekai Story - 13 (1080p) [ABCD1234].mkv", "conflict", true, "", "S02E01", "sonarr", "", "S02E01 al:2 conflict"},
 		{"entry's own numbering", "[Group] Isekai Story - 01-03 (BD 1080p)", "conflict", true, "", "S01E01,S01E02,S01E03", "franchise", "al:1", ""},
 		{"batch partly in a conflict", "[Group] Isekai Story - 12-13 (BD 1080p)", "conflict", true, "", "S01E12,S02E01", "sonarr", "", "S02E01 al:2 conflict"},

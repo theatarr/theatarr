@@ -450,6 +450,12 @@ func (l *Library) apply(ctx context.Context, d *importDownload, vn *VersionNamin
 		if len(linked) == 0 && raced < len(failures) {
 			state, dl = "failed", "failed"
 		}
+		if d.rescoped != nil {
+			eps, _ := json.Marshal(d.rescoped)
+			if _, err := tx.ExecContext(ctx, `UPDATE download SET episodes = ? WHERE id = ?`, string(eps), d.ID); err != nil {
+				return err
+			}
+		}
 		if _, err := tx.ExecContext(ctx, `INSERT INTO library_import (download_id, state, mount_folder, last_error, plan, attempts, created_at, updated_at)
 			VALUES (?, ?, ?, ?, ?, 1, ?, ?) ON CONFLICT (download_id) DO UPDATE SET state = excluded.state,
 			mount_folder = excluded.mount_folder, last_error = excluded.last_error, plan = excluded.plan,
