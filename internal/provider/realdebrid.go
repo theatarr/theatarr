@@ -87,15 +87,17 @@ func (r *realDebrid) Account(ctx context.Context) (*Account, error) {
 
 // rdTorrent is a list item, and the info answer without files.
 type rdTorrent struct {
-	ID       string    `json:"id"`
-	Filename string    `json:"filename"`
-	Hash     string    `json:"hash"`
-	Bytes    int64     `json:"bytes"`
-	Progress float64   `json:"progress"`
-	Status   string    `json:"status"`
-	Added    rdTime    `json:"added"`
-	Links    linkCount `json:"links"`
-	Files    []struct {
+	ID       string `json:"id"`
+	Filename string `json:"filename"`
+	// OriginalFilename is the torrent's declared name, in the info answer only.
+	OriginalFilename string    `json:"original_filename"`
+	Hash             string    `json:"hash"`
+	Bytes            int64     `json:"bytes"`
+	Progress         float64   `json:"progress"`
+	Status           string    `json:"status"`
+	Added            rdTime    `json:"added"`
+	Links            linkCount `json:"links"`
+	Files            []struct {
 		ID       int    `json:"id"`
 		Path     string `json:"path"`
 		Bytes    int64  `json:"bytes"`
@@ -195,6 +197,7 @@ func (r *realDebrid) Torrent(ctx context.Context, id string) (*Torrent, error) {
 		return nil, err
 	}
 	out := t.torrent()
+	out.OriginalName = t.OriginalFilename
 	return &out, nil
 }
 

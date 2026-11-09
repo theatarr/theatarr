@@ -122,8 +122,8 @@ Code notes:
 
 ## Migrations
 
-Numbered `internal/store/migrations/000NN_<name>.sql`, applied in order by goose. The newest is **00108**
-(`download_client`); a new migration takes the next number above the newest.
+Numbered `internal/store/migrations/000NN_<name>.sql`, applied in order by goose. The newest is **00109**
+(`download_original_name`); a new migration takes the next number above the newest.
 
 **Every unused number below the newest migration is retired.** Never fill a gap: goose refuses out-of-order lower
 migrations on databases already past them. Retired numbers are 00004, 00005, 00008, 00040, 00042–00050, 00071, 00085,

@@ -844,13 +844,14 @@ func (r *Router) applyStatus(ctx context.Context, dl int64, version string, kind
 	err := r.st.WriteTx(ctx, func(tx *sql.Tx) error {
 		res, err := tx.ExecContext(ctx, `UPDATE download SET state = ?, provider_status = ?,
 		name = COALESCE(NULLIF(?, ''), name), progress = ?, cached = COALESCE(cached, ?),
+		original_name = COALESCE(NULLIF(?, ''), original_name),
 		error = CASE WHEN ? IS NOT NULL THEN ? ELSE error END,
 		ready_at = CASE WHEN ? = 'ready' AND ready_at IS NULL THEN ? ELSE ready_at END,
 		progress_at = CASE WHEN ? = 'downloading' AND (progress_at IS NULL OR state <> 'downloading' OR ? > progress)
 			THEN ? ELSE progress_at END,
 		polled_at = COALESCE(?, polled_at), updated_at = ? WHERE id = ? AND state = ?`,
-			state, t.Status, t.Name, t.Progress, cached, errMsg, errMsg, state, now, state, t.Progress, now, polledAt,
-			now, dl, cur)
+			state, t.Status, t.Name, t.Progress, cached, t.OriginalName, errMsg, errMsg, state, now, state, t.Progress,
+			now, polledAt, now, dl, cur)
 		if err != nil {
 			return err
 		}

@@ -196,7 +196,8 @@ func TestRealDebrid(t *testing.T) {
 	if len(list) != 4 {
 		t.Fatalf("got %d torrents, want 4", len(list))
 	}
-	if list[0].Hash != h("a") || list[0].State != StateDownloaded || list[0].Links != 1 || list[0].Files != nil {
+	if list[0].Hash != h("a") || list[0].State != StateDownloaded || list[0].Links != 1 || list[0].Files != nil ||
+		list[0].OriginalName != "" {
 		t.Errorf("first: %+v", list[0])
 	}
 	if list[2].Hash != h("c") || list[2].State != StateDownloading || list[2].Progress != 42.5 {
@@ -213,7 +214,8 @@ func TestRealDebrid(t *testing.T) {
 		t.Fatal(err)
 	}
 	if len(one.Files) != 2 || one.Files[0].Path != "Movie.B.2021.1080p.BluRay.mkv" || !one.Files[0].Selected ||
-		one.Files[1].Selected || one.Links != 2 {
+		one.Files[1].Selected || one.Links != 2 || one.Name != "Movie.B.2021.1080p.BluRay" ||
+		one.OriginalName != "Movie.B.2021.1080p.BluRay[TGx]" {
 		t.Errorf("info: %+v", one)
 	}
 	noLinks(t, one)
@@ -323,7 +325,8 @@ func TestAllDebrid(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(one.Files) != 2 || one.Files[1].Path != "Movie.B.2021.1080p.BluRay/Subs/en.srt" || one.Links != 2 {
+	if len(one.Files) != 2 || one.Files[1].Path != "Movie.B.2021.1080p.BluRay/Subs/en.srt" || one.Links != 2 ||
+		one.OriginalName != "Movie.B.2021.1080p.BluRay" || list[0].OriginalName != "" {
 		t.Errorf("one: %+v", one)
 	}
 	noLinks(t, one)
@@ -406,7 +409,7 @@ func TestTorBox(t *testing.T) {
 	noLinks(t, list)
 
 	one, err := p.Torrent(ctx, "201")
-	if err != nil || one.ID != "201" {
+	if err != nil || one.ID != "201" || one.OriginalName != "Movie.E.2023.2160p" || list[0].OriginalName != "" {
 		t.Fatalf("one: %+v %v", one, err)
 	}
 	if _, err := p.Torrent(ctx, "999"); !errors.Is(err, ErrNotFound) {
@@ -433,6 +436,27 @@ func firstTB(t *testing.T) []byte {
 }
 
 // A cache check takes hashes only.
+// A TorBox or AllDebrid torrent's own name, as zurg reads it from the files: the shared folder, else the single
+// file's name, else the provider's name.
+func TestOriginalNameFromFiles(t *testing.T) {
+	for _, c := range []struct {
+		files []File
+		want  string
+	}{
+		{nil, ""},
+		{[]File{{Path: "Show.Name.S01E02[TGx]/a.mkv"}, {Path: "Show.Name.S01E02[TGx]/Subs/en.srt"}}, "Show.Name.S01E02[TGx]"},
+		{[]File{{Path: "Show.Name.S01E02.mkv"}}, "Show.Name.S01E02.mkv"},
+		{[]File{{Path: "Dir/Show.Name.S01E02.mkv"}}, "Dir"},
+		{[]File{{Path: "a.mkv"}, {Path: "b.mkv"}}, "provider name"},
+		{[]File{{Path: "A/a.mkv"}, {Path: "B/b.mkv"}}, "provider name"},
+		{[]File{{Path: "A/a.mkv"}, {Path: "b.mkv"}}, "provider name"},
+	} {
+		if got := originalName(c.files, "provider name"); got != c.want {
+			t.Errorf("%+v: %q, want %q", c.files, got, c.want)
+		}
+	}
+}
+
 func TestCacheCheckRefusesNonHashes(t *testing.T) {
 	f := newFakeNet(t)
 	f.serve("tb.test", keyTB, func(w http.ResponseWriter, r *http.Request) {

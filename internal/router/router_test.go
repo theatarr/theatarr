@@ -135,6 +135,7 @@ func TestRouteAddsAndPolls(t *testing.T) {
 	// Poll: RD converting, then waiting for files: every playable file is selected (not the sample or the nfo);
 	// then downloaded: ready, which calls the ready notifier once, after the write committed (another connection
 	// already reads the ready row).
+	// The torrent's declared name is recorded apart from the provider's name; later reads without one keep it.
 	var woken atomic.Int32
 	var seen atomic.Value
 	e.r.SetReadyNotify(func() {
@@ -143,12 +144,14 @@ func TestRouteAddsAndPolls(t *testing.T) {
 		_ = e.st.Reader().QueryRow(`SELECT state FROM download WHERE provider_torrent_id = 'rd-aaaa'`).Scan(&state)
 		seen.Store(state)
 	})
-	e.pr["rd"].set("rd-aaaa", provider.Torrent{Status: "magnet_conversion", State: provider.StateQueued})
+	e.pr["rd"].set("rd-aaaa", provider.Torrent{Status: "magnet_conversion", State: provider.StateQueued,
+		OriginalName: "Movie.2024.2160p.WEB.H265-GRP[TGx]"})
 	if _, err := e.r.Poll(e.ctx); err != nil {
 		t.Fatal(err)
 	}
-	if n := e.count(`SELECT COUNT(*) FROM download WHERE state = 'added'`); n != 1 {
-		t.Error("magnet_conversion should stay added")
+	if n := e.count(`SELECT COUNT(*) FROM download WHERE state = 'added'
+		AND original_name = 'Movie.2024.2160p.WEB.H265-GRP[TGx]'`); n != 1 {
+		t.Error("magnet_conversion should stay added, with the original name")
 	}
 	e.pr["rd"].set("rd-aaaa", provider.Torrent{Status: "waiting_files_selection", State: provider.StateQueued,
 		Name: "Movie.2024.2160p.WEB.H265-GRP", Files: []provider.File{{ID: "1", Path: "Movie/sample.mkv", Bytes: 50},
@@ -173,7 +176,8 @@ func TestRouteAddsAndPolls(t *testing.T) {
 		t.Errorf("ready notified %d times, the notifier read %v", n, seen.Load())
 	}
 	if n := e.count(`SELECT COUNT(*) FROM download WHERE state = 'ready' AND cached = 1 AND ready_at IS NOT NULL
-		AND name = 'Movie.2024.2160p.WEB.H265-GRP' AND files_selected = 1`); n != 1 {
+		AND name = 'Movie.2024.2160p.WEB.H265-GRP' AND original_name = 'Movie.2024.2160p.WEB.H265-GRP[TGx]'
+		AND files_selected = 1`); n != 1 {
 		var s string
 		e.st.Reader().QueryRow(`SELECT state || ' ' || COALESCE(cached, 'null') || ' ' || name FROM download`).Scan(&s)
 		t.Errorf("ready row: %s", s)

@@ -343,5 +343,6 @@ func (a *allDebrid) Torrent(ctx context.Context, id string) (*Torrent, error) {
 			}
 		}
 	}
+	t.OriginalName = originalName(t.Files, t.Name)
 	return &t, nil
 }

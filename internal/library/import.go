@@ -327,7 +327,8 @@ func (l *Library) importDownload(ctx context.Context, d *importDownload, dryRun 
 	}
 
 	// 1. The release on the mount: the folder a path import named, else found by the hash and names.
-	known := append(append([]string{d.MountFolder, d.Name}, d.FolderNames...), d.ContentName, d.ReleaseTitle)
+	known := append(append([]string{d.MountFolder, d.OriginalName, d.Name}, d.FolderNames...), d.ContentName,
+		d.ReleaseTitle)
 	names := ReleaseFolderNames(d.InfoHash, known...)
 	// mountNames are the candidates without zurg's name, to tell when only zurg's name found the folder.
 	mountNames := names

@@ -12,7 +12,11 @@ the router ([router.md](router.md)). Where this sits: [overview.md](overview.md)
     provider does not answer, an error when the account is not premium or the key is refused
     ([readiness.md](readiness.md) "Health checks");
   - `Torrents`: the whole list, paged;
-  - `Torrent(id)`: one torrent with its files;
+  - `Torrent(id)`: one torrent with its files, and its original name (`OriginalName`, the name the torrent declared,
+    which zurg names the folder after): Real-Debrid's `original_filename`; for TorBox and AllDebrid, read from the
+    files as zurg does (the folder every path shares, else the single file's name, else the torrent's name; AllDebrid
+    lists files only for a ready magnet, so earlier reads leave it empty). List answers leave it empty
+    (`TestOriginalNameFromFiles`);
   - `Cache` and `CheckCached`: the instant-availability check, where one still exists.
 - **Read-only by construction.** There is no add, select, delete, restart or unrestrict method anywhere.
   - The clients reach a provider only through an unexported `getter`, which builds `GET` requests and nothing else.

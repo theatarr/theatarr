@@ -1058,8 +1058,10 @@ migration restores them.
 
 `download` columns the library needs:
 - `title_id`, `version_id`, `version_key`, `info_hash`, `release_title`;
-- `provider`, `provider_torrent_id`, `name` (the provider's torrent name, the mount folder), `episodes` (JSON
-  episode ids for series);
+- `provider`, `provider_torrent_id`, `name` (the provider's torrent name, the mount folder), `original_name`
+  (migration 00109: the name the torrent declared, `provider.Torrent.OriginalName`, which a mount such as zurg names
+  the folder after; the poll's status record stores it when the read gives one and keeps it otherwise, as for
+  `name`; `TestRouteAddsAndPolls`), `episodes` (JSON episode ids for series);
 - `ready_at`, `imported_at`.
 
 Also new: `router_pacing` and `router_plan`. `provider_cache` (00001) holds the `miss` and `uncached` rows with

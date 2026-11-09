@@ -8,6 +8,7 @@ import (
 	"io"
 	"net/http"
 	"net/url"
+	"path"
 	"strings"
 	"time"
 
@@ -77,6 +78,10 @@ type Torrent struct {
 	Links int `json:"links"`
 	// Files is nil when the call didn't return files (list calls on RD and AD).
 	Files []File `json:"files,omitempty"`
+	// OriginalName is the name the torrent itself declared, the name a mount such as zurg gives its folder; the
+	// provider's Name may differ (Real-Debrid's can be a selected file's lower-cased name). Filled by Torrent only,
+	// "" from list calls and when the provider gives none.
+	OriginalName string `json:"original_name,omitempty"`
 }
 
 // File is one file of a torrent. Path is relative to the torrent.
@@ -85,6 +90,30 @@ type File struct {
 	Path     string `json:"path"`
 	Bytes    int64  `json:"bytes"`
 	Selected bool   `json:"selected"`
+}
+
+// originalName is a torrent's own name read from its files, as zurg names a TorBox or AllDebrid folder: the folder
+// every file path shares, else the single file's own name, else the provider's name. "" without files.
+func originalName(files []File, name string) string {
+	if len(files) == 0 {
+		return ""
+	}
+	if dir, _, ok := strings.Cut(files[0].Path, "/"); ok && dir != "" {
+		shared := true
+		for _, f := range files[1:] {
+			if d, _, ok := strings.Cut(f.Path, "/"); !ok || d != dir {
+				shared = false
+				break
+			}
+		}
+		if shared {
+			return dir
+		}
+	}
+	if len(files) == 1 {
+		return path.Base(files[0].Path)
+	}
+	return name
 }
 
 // CacheSupport describes a provider's instant-availability check.

@@ -199,8 +199,12 @@ mount never lengthen that back-off (`TestPartialAfterWaitsStartsBackoffAgain`).
    every import: that download waits in `waiting_mount` with "file unreadable on the mount: ..." as
    its error (Activity: "File unreadable on the mount, retrying"), is retried after 10 min, and the pass goes on.
 2. **Find the release:** the folder a path or manual import named (`download.source_path`, below), else
-   `__all__/<name>` for the download's `name`, the registry's provider folder names, the content
-   name and the release title, each with `.mkv`/`.mp4` trimmed and with zurg's ` {hash6}` suffix (`ReleaseFolderNames`:
+   `__all__/<name>` for the content's `mount_folder`, the download's `original_name` (the name the torrent declared,
+   recorded by the router's status read: Real-Debrid's `original_filename`, which zurg names the folder after while
+   RD's `filename` may be a selected file's lower-cased name and drop `[TGx]`-style tags; it finds the folder with
+   zurg's API off, `TestImportZurgNameForHash`), the download's `name`, the registry's provider folder names, the
+   content name and the release title, each with `.mkv`/`.mp4` trimmed and with zurg's ` {hash6}` suffix
+   (`ReleaseFolderNames`:
    zurg's exact rule first, `TrimSuffix(".mp4")` then `TrimSuffix(".mkv")`, case sensitive, so `X.mkv.mp4` is `X` and
    `X.MKV` keeps its extension, [notes: naming](https://notes.debridmediamanager.com/zurg/internals/naming/); then an
    any-case `.mkv`-then-`.mp4` trim and the untrimmed name;

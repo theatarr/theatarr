@@ -732,6 +732,33 @@ func TestImportZurgNameForHash(t *testing.T) {
 		waiting(e)
 	})
 
+	t.Run("API off, the torrent's original name finds the folder", func(t *testing.T) {
+		// The provider's status read recorded the name the torrent declared (Real-Debrid's original_filename),
+		// the name zurg gives the folder.
+		e, _, buf := setup(t, zname)
+		e.exec(`UPDATE download SET original_name = ? WHERE id = 1`, zname)
+		if _, err := e.lib.Import(e.ctx, 1, false); err != nil {
+			t.Fatal(err)
+		}
+		imported(e, zname)
+		if strings.Contains(buf.String(), "zurg's name") {
+			t.Errorf("log %q", buf.String())
+		}
+	})
+
+	t.Run("original name with zurg's API on logs nothing", func(t *testing.T) {
+		e, srv, buf := setup(t, zname)
+		e.exec(`UPDATE download SET original_name = ? WHERE id = 1`, zname)
+		e.withZurg(srv)
+		if _, err := e.lib.Import(e.ctx, 1, false); err != nil {
+			t.Fatal(err)
+		}
+		imported(e, zname)
+		if strings.Contains(buf.String(), "zurg's name") {
+			t.Errorf("log %q", buf.String())
+		}
+	})
+
 	t.Run("path import reads no listing", func(t *testing.T) {
 		e, srv, _ := setup(t, zname)
 		e.exec(`UPDATE download SET source_path = ? WHERE id = 1`, filepath.Join(e.mount, "__all__", zname))

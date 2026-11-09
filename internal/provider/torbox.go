@@ -299,6 +299,7 @@ func (t *torBox) Torrent(ctx context.Context, id string) (*Torrent, error) {
 		return nil, &APIError{Provider: t.g.provider, Status: 200, Code: "NOT_FOUND", kind: ErrNotFound}
 	}
 	x := one.t.torrent()
+	x.OriginalName = originalName(x.Files, x.Name)
 	return &x, nil
 }
 

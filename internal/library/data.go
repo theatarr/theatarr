@@ -66,6 +66,9 @@ type importDownload struct {
 	InfoHash     string
 	Indexer      string
 	Name         string // the provider's torrent name: the mount folder
+	// OriginalName is the name the torrent declared (download.original_name), "" when no read gave one: zurg names
+	// the folder after it when the provider's name differs.
+	OriginalName string
 	ContentID    int64
 	ContentName  string
 	FolderNames  []string // provider torrent names from the registry, the download's provider first
@@ -99,19 +102,19 @@ func loadDownload(ctx context.Context, db *sql.DB, pol *policy.Policy, id int64)
 	v := &d.Version
 	var provider, client sql.NullString
 	var eps string
-	var formats, epMap, srcPath sql.NullString
+	var formats, epMap, srcPath, origName sql.NullString
 	var readyAt sql.NullInt64
 	err := db.QueryRowContext(ctx, `
 		SELECT d.state, d.provider, d.client, d.release_title, d.info_hash, d.indexer, d.name, d.quality, d.score, d.episodes,
-		       d.formats, d.episode_map, d.source_path, d.ready_at, d.version_id, d.version_key, d.title_id
+		       d.formats, d.episode_map, d.source_path, d.ready_at, d.version_id, d.version_key, d.title_id, d.original_name
 		FROM download d WHERE d.id = ?`, id).
 		Scan(&d.State, &provider, &client, &d.ReleaseTitle, &d.InfoHash, &d.Indexer, &d.Name, &v.Quality, &v.Score, &eps,
-			&formats, &epMap, &srcPath, &readyAt, &v.VersionID, &v.Key, &v.Title.ID)
+			&formats, &epMap, &srcPath, &readyAt, &v.VersionID, &v.Key, &v.Title.ID, &origName)
 	if err != nil {
 		return nil, fmt.Errorf("library: download %d: %w", id, err)
 	}
 	d.Provider, d.Client, d.InfoHash = provider.String, client.String, strings.ToLower(d.InfoHash)
-	d.SourcePath, d.ReadyAt = srcPath.String, store.NullMillis(readyAt)
+	d.SourcePath, d.ReadyAt, d.OriginalName = srcPath.String, store.NullMillis(readyAt), origName.String
 	if d.Manual, d.Recorded, err = loadFiles(ctx, db, id); err != nil {
 		return nil, err
 	}
