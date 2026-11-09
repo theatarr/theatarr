@@ -12,6 +12,7 @@ import (
 	"slices"
 	"sort"
 	"strings"
+	"sync"
 	"sync/atomic"
 	"time"
 
@@ -350,6 +351,8 @@ func (l *Library) importDownload(ctx context.Context, d *importDownload, dryRun 
 		}
 	}
 	zurgCheck := l.zurg != nil && d.InfoHash != "" && !sourced && len(d.Manual) == 0
+	// zurgListed: zurg's listing holds the hash, so its folder is in zurg's release root.
+	zurgListed := false
 	if zurgCheck {
 		// zurg names the folder after its own name for the torrent, which the providers may report otherwise
 		// (another case, a video file's name, a cut or different title). Its current name goes first: zurg may
@@ -365,6 +368,7 @@ func (l *Library) importDownload(ctx context.Context, d *importDownload, dryRun 
 		if ok {
 			names = ReleaseFolderNames(d.InfoHash, append([]string{zname}, known...)...)
 		}
+		zurgListed = ok
 	}
 	if !sourced && len(d.Manual) == 0 {
 		// A matching hash suffix identifies our torrent even when the bare name holds another one.
@@ -408,6 +412,10 @@ func (l *Library) importDownload(ctx context.Context, d *importDownload, dryRun 
 	if folder == "" {
 		plan.Waiting = true
 		if !dryRun {
+			if zurgListed && !plan.DryRun {
+				// zurg has the folder; the mount's cached listing of the root does not show it yet.
+				l.forgetReleaseRoot(ctx, id)
+			}
 			if err := l.markWaiting(ctx, d); err != nil {
 				return nil, err
 			}
@@ -708,6 +716,42 @@ const notOnMount = "release not on the mount yet"
 
 func (l *Library) markWaiting(ctx context.Context, d *importDownload) error {
 	return l.markWaitingWithError(ctx, d, notOnMount)
+}
+
+// forgetFloor is the least time between two clears of the release root's cached listing.
+const forgetFloor = 3 * time.Second
+
+// rootForget clears the mount's cached listing of the release root (rclone rc vfs/forget), at most once per
+// forgetFloor across all imports.
+type rootForget struct {
+	call func(ctx context.Context, dir string) error
+	mu   sync.Mutex
+	at   time.Time
+}
+
+// forgetReleaseRoot clears rclone's cached listing of the release root when zurg lists a download's torrent but the
+// mount's stat did not find its folder: rclone keeps a directory's listing for its dir-cache-time, so a folder zurg
+// added since shows only once that expires. Only the listing is dropped (no refresh): the import's next stat reads
+// the root again, once. Nothing changes on zurg or the debrid service.
+func (l *Library) forgetReleaseRoot(ctx context.Context, id int64) {
+	f := l.forget
+	if f == nil {
+		return
+	}
+	now := l.now()
+	f.mu.Lock()
+	if !f.at.IsZero() && now.Sub(f.at) < forgetFloor {
+		f.mu.Unlock()
+		return
+	}
+	f.at = now
+	f.mu.Unlock()
+	if err := f.call(ctx, l.set.AllDir); err != nil {
+		l.log.Warn("library: clearing the mount's cached listing of the release root failed", "download", id,
+			"dir", l.set.AllDir, "err", err)
+		return
+	}
+	l.log.Debug("library: cleared the mount's cached listing of the release root", "download", id, "dir", l.set.AllDir)
 }
 
 // ReadyRecheckWindow is how long after a download turned ready its import is retried quickly while its release is not

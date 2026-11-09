@@ -76,7 +76,7 @@
     "link_path": "This is the mount path written into symlinks: where plex sees it. Default path.",
     "path": "This is where this service sees the mount, e.g. /mnt/debrid. Required once Write library links is on.",
     "poll_interval": "This is how often a waiting import looks again. Default 20s, minimum 5s.",
-    "rclone_rc": "This is the mount's rclone remote control (rclone rc), read-only: the now playing page asks core/stats for the playing file's fetch speed and vfs/stats for the cache state (docs/design/now-playing.md). Optional.",
+    "rclone_rc": "This is the mount's rclone remote control (rclone rc): the now playing page reads core/stats and vfs/stats (docs/design/now-playing.md); forget_release_root lets an import clear one cached listing. Optional.",
     "stat_timeout": "This bounds the health sentinel's stat; a hang or ENOTCONN pauses imports and sweeps. Default 5s.",
     "wait_timeout": "This is how long an import waits for the release to appear before it alerts (it keeps waiting; no re-grab). Default 6m.",
     "zurg_api": "This is zurg's base url (e.g. http://zurg:9999), read-only: GET /debug/torrents, /api/library/entry and /torrents/repair/status only.",
@@ -160,6 +160,7 @@
   },
   "RcloneRC": {
     "budget": "This names a budget for rc calls. Optional.",
+    "forget_release_root": "This clears rclone's cached listing of the release root (vfs/forget) when zurg's API lists an import's torrent but the mount does not show its folder yet, at most once every 3s; it changes rclone's cache only. Needs zurg_api. Default false.",
     "password_env": "This names the environment variable holding the rclone remote control password.",
     "url": "This is the rc base url, e.g. http://rclone:5572.",
     "username_env": "This and password_env name the basic auth credentials (--rc-user, --rc-pass). Optional."

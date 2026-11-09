@@ -84,8 +84,8 @@ type LibraryMount struct {
 	// ZurgAPIRepairGrace bounds how long a running repair keeps dangling links from being marked dead: past it the
 	// sweep marks them as it would without the API. Default 2h, 10m to 24h.
 	ZurgAPIRepairGrace Duration `yaml:"zurg_api_repair_grace"`
-	// RcloneRC is the mount's rclone remote control (rclone rc), read-only: the now playing page asks core/stats for
-	// the playing file's fetch speed and vfs/stats for the cache state (docs/design/now-playing.md). Optional.
+	// RcloneRC is the mount's rclone remote control (rclone rc): the now playing page reads core/stats and vfs/stats
+	// (docs/design/now-playing.md); forget_release_root lets an import clear one cached listing. Optional.
 	RcloneRC *RcloneRC `yaml:"rclone_rc"`
 }
 
@@ -99,6 +99,10 @@ type RcloneRC struct {
 	PasswordEnv string `yaml:"password_env"`
 	// Budget names a budget for rc calls. Optional.
 	Budget string `yaml:"budget"`
+	// ForgetReleaseRoot clears rclone's cached listing of the release root (vfs/forget) when zurg's API lists an
+	// import's torrent but the mount does not show its folder yet, at most once every 3s; it changes rclone's cache
+	// only. Needs zurg_api. Default false.
+	ForgetReleaseRoot bool `yaml:"forget_release_root"`
 }
 
 // ZurgLogIsURL reports whether a zurg_log value is an http(s) URL rather than a file path.

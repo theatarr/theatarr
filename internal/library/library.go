@@ -66,6 +66,9 @@ type Options struct {
 	Registerer prometheus.Registerer
 	// Zurg is zurg's read-only API (library.mount.zurg_api; zurgapi.go). Nil: the mount alone.
 	Zurg *ZurgAPI
+	// ForgetDir clears rclone's cached listing of a directory of the mount, relative to its remote (rclone rc
+	// vfs/forget; library.mount.rclone_rc.forget_release_root). Nil: off.
+	ForgetDir func(ctx context.Context, dir string) error
 }
 
 // Library is the import, relink and verify service.
@@ -85,6 +88,8 @@ type Library struct {
 	queue   *jobs.Queue
 	log     *slog.Logger
 	zurg    *ZurgAPI
+	// forget clears the mount's cached listing of the release root (Options.ForgetDir); nil when off.
+	forget *rootForget
 	// onImported runs after an import (Options.OnImported).
 	onImported func(ctx context.Context, downloadID int64)
 	now        func() time.Time
@@ -115,6 +120,9 @@ func New(o Options) *Library {
 			Now: o.Now},
 		probe: o.Probe, formats: o.Formats, matched: o.Matched, queue: o.Queue, log: o.Logger, now: o.Now,
 		onImported: o.OnImported, zurg: o.Zurg}
+	if o.ForgetDir != nil {
+		l.forget = &rootForget{call: o.ForgetDir}
+	}
 	if o.MountHelper == nil {
 		o.MountHelper = testMountHelper
 	}

@@ -12,6 +12,7 @@ import (
 	"github.com/theatarr/theatarr/internal/gateway"
 	"github.com/theatarr/theatarr/internal/jobs"
 	"github.com/theatarr/theatarr/internal/library"
+	"github.com/theatarr/theatarr/internal/nowplaying"
 	"github.com/theatarr/theatarr/internal/plex"
 	"github.com/theatarr/theatarr/internal/policy"
 	"github.com/theatarr/theatarr/internal/secrets"
@@ -63,8 +64,19 @@ func newServeLibrary(pol *policy.Policy, st *store.Store, q *jobs.Queue, gw *gat
 	}
 	s.lib = library.New(library.Options{Store: st, Policy: pol, Engine: engine, Queue: q, Logger: s.log, Formats: s.formats,
 		Matched: matchedRenameFormats(pol, s.decider), OnImported: onImported,
-		Zurg: newZurgAPI(s.set, gw, s.log), MountHelper: helper})
+		Zurg: newZurgAPI(s.set, gw, s.log), MountHelper: helper, ForgetDir: newRcloneForget(pol, s.set, gw)})
 	return s, nil
+}
+
+// newRcloneForget is the import's clear of the mount's cached release root listing through rclone's rc
+// (library.mount.rclone_rc.forget_release_root), through the gateway against the rc budget; nil when off.
+func newRcloneForget(pol *policy.Policy, set policy.LibrarySettings, gw *gateway.Gateway) func(context.Context, string) error {
+	r := set.RcloneRC
+	if r == nil || !r.ForgetReleaseRoot || gw == nil {
+		return nil
+	}
+	rc := &nowplaying.RC{URL: r.URL, User: pol.Getenv(r.UsernameEnv), Password: pol.Getenv(r.PasswordEnv), GW: gw}
+	return rc.Forget
 }
 
 // newZurgAPI is zurg's read-only API client (library.mount.zurg_api) through the gateway; nil when it is not set.

@@ -818,6 +818,70 @@ func TestImportZurgFreshListing(t *testing.T) {
 	})
 }
 
+// TestImportZurgForgetsReleaseRoot: with forget_release_root on, an import whose torrent zurg lists but whose folder
+// the mount does not show clears the mount's cached listing of the release root, at most once per forgetFloor; not
+// when zurg does not list the hash, and not when the setting is off.
+func TestImportZurgForgetsReleaseRoot(t *testing.T) {
+	t.Parallel()
+	const zname = "Movie.Name.2001.2160p.UHD.BluRay.REMUX.HDR.HEVC.TrueHD.Atmos.7.1-GRP[TGx]"
+	setup := func(t *testing.T, listed string, on bool) (*env, *[]string) {
+		e := newEnv(t, true, policy.ModeActive)
+		e.download(1, "movie-remux", 1, 10, "Movie.Name.2001.2160p.UHD.BluRay.REMUX.HDR.HEVC.TrueHD.Atmos.7.1-GRP",
+			"movie.name.2001.mkv", "[]")
+		srv := newZurgServer(t)
+		srv.torrents = []ZurgTorrent{{Name: zname, Hash: listed, Size: 7}}
+		e.withZurg(srv)
+		var dirs []string
+		if on {
+			e.lib.forget = &rootForget{call: func(_ context.Context, dir string) error {
+				dirs = append(dirs, dir)
+				return nil
+			}}
+		}
+		return e, &dirs
+	}
+	importAt := func(e *env, step time.Duration) {
+		e.t.Helper()
+		e.now = e.now.Add(step)
+		plan, err := e.lib.Import(e.ctx, 1, false)
+		if err != nil || !plan.Waiting {
+			e.t.Fatalf("import: %+v %v", plan, err)
+		}
+	}
+
+	t.Run("listed but not on the mount", func(t *testing.T) {
+		e, dirs := setup(t, hashA, true)
+		importAt(e, 0)
+		if strings.Join(*dirs, ",") != "__all__" {
+			t.Fatalf("forgot %q", *dirs)
+		}
+		importAt(e, time.Second)
+		if len(*dirs) != 1 {
+			t.Errorf("forgot %d times within the floor", len(*dirs))
+		}
+		importAt(e, forgetFloor)
+		if len(*dirs) != 2 {
+			t.Errorf("forgot %d times after the floor", len(*dirs))
+		}
+	})
+
+	t.Run("hash not listed", func(t *testing.T) {
+		e, dirs := setup(t, hashB, true)
+		importAt(e, 0)
+		if len(*dirs) != 0 {
+			t.Errorf("forgot %q", *dirs)
+		}
+	})
+
+	t.Run("setting off", func(t *testing.T) {
+		e, dirs := setup(t, hashA, false)
+		importAt(e, 0)
+		if len(*dirs) != 0 || e.lib.forget != nil {
+			t.Errorf("forgot %q", *dirs)
+		}
+	})
+}
+
 // TestZurgEntryPathEscaping: the entry path goes in the query, escaped; names with spaces, braces and & arrive whole.
 func TestZurgEntryPathEscaping(t *testing.T) {
 	t.Parallel()

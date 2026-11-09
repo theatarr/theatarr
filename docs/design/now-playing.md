@@ -24,6 +24,7 @@ Code: `internal/nowplaying` (tracker, mapping, verdict, pre-warm, rclone rc clie
 | `library.mount.rclone_rc.url` | unset | The mount's rclone remote control (`rclone rc`, e.g. `http://rclone:5572`). Optional: without it there is no fetch speed and no cache state. It is an outbound host with its own gateway target class `rclonerc` (`rclonerc:rc`). |
 | `library.mount.rclone_rc.username_env`, `password_env` | unset | The rc basic-auth credentials (`--rc-user`, `--rc-pass`), by environment variable name. In DB settings mode they are write-only secrets (`mount.rclone_rc.username`, `mount.rclone_rc.password`). They go in the Authorization header only and are never logged or returned. |
 | `library.mount.rclone_rc.budget` | unset | A budget for rc calls. |
+| `library.mount.rclone_rc.forget_release_root` | false | Lets an import clear rclone's cached listing of the release root (`vfs/forget`), the one rc call that changes state, and only rclone's cache ([design/library.md](library.md), "Import of a ready download"). |
 | `library.mount.zurg_api` | unset | Adds zurg's `/stats` (open streams, blocked reads) and, for a file Theatarr has no link for, its library entry. |
 | `library.mount.zurg_log` | unset | Adds zurg's log lines about the playing files (below). |
 
@@ -54,7 +55,8 @@ generation in force.
   names no file and counts when the account is the one serving the file.
 - **rclone rc** (with `rclone_rc`): `core/stats`, whose `transferring[]` is what the VFS cache is downloading now, with
   its speed. The playing file's speed over its bitrate is the **fetch ratio**. `vfs/stats` is read every minute for the
-  disk cache (full, errored files). rclone's rc takes POST even for reads; nothing else is called.
+  disk cache (full, errored files). rclone's rc takes POST even for reads; the tracker calls nothing else (an import's
+  `vfs/forget` with `forget_release_root` is the library's, not the tracker's).
 
 ## From Plex's file to Theatarr
 

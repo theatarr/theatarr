@@ -23,7 +23,8 @@ type Doer interface {
 }
 
 // RC reads the mount's rclone remote control: core/stats (what the VFS cache is fetching now, with its speed) and
-// vfs/stats (the disk cache). rclone's rc takes POST even for these reads; nothing else is called. The credentials go
+// vfs/stats (the disk cache). rclone's rc takes POST even for these reads. The one call that changes state is
+// Forget, which drops a cached directory listing (rclone's cache only); nothing else is called. The credentials go
 // in the Authorization header only and are never logged or returned.
 type RC struct {
 	URL      string
@@ -50,11 +51,20 @@ type Cache struct {
 }
 
 func (r *RC) call(ctx context.Context, method string, out any) error {
+	return r.callWith(ctx, method, struct{}{}, out)
+}
+
+// callWith posts in as the method's JSON parameters.
+func (r *RC) callWith(ctx context.Context, method string, in, out any) error {
 	u, err := url.Parse(strings.TrimRight(r.URL, "/") + "/" + method)
 	if err != nil || u.Host == "" {
 		return errors.New("nowplaying: bad rclone_rc URL")
 	}
-	req, err := http.NewRequestWithContext(ctx, http.MethodPost, u.String(), bytes.NewReader([]byte("{}")))
+	body, err := json.Marshal(in)
+	if err != nil {
+		return err
+	}
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, u.String(), bytes.NewReader(body))
 	if err != nil {
 		return err
 	}
@@ -98,6 +108,15 @@ func (r *RC) Cache(ctx context.Context) (*Cache, error) {
 		return nil, errors.New("nowplaying: rclone rc vfs/stats: no diskCache (is --vfs-cache-mode set?)")
 	}
 	return out.DiskCache, nil
+}
+
+// Forget drops the VFS's cached listing of dir (vfs/forget), a path relative to the remote's root: the next read of
+// dir lists it from the remote again. It changes rclone's directory cache only, nothing on the remote.
+func (r *RC) Forget(ctx context.Context, dir string) error {
+	var out struct {
+		Forgotten []string `json:"forgotten"`
+	}
+	return r.callWith(ctx, "vfs/forget", map[string]string{"dir": dir}, &out)
 }
 
 // Version tests an rc connection with the read-only core/version method.

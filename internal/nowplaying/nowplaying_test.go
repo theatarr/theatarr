@@ -3,6 +3,7 @@ package nowplaying
 import (
 	"context"
 	"database/sql"
+	"encoding/json"
 	"errors"
 	"io"
 	"net/http"
@@ -435,6 +436,13 @@ func TestRC(t *testing.T) {
 			_, _ = io.WriteString(w, `{"transferring":[{"name":"__all__/Rel/Movie.mkv","size":100,"bytes":40,"speed":500000,"speedAvg":400000}]}`)
 		case "/vfs/stats":
 			_, _ = io.WriteString(w, `{"diskCache":{"bytesUsed":10,"files":2,"erroredFiles":1,"outOfSpace":false}}`)
+		case "/vfs/forget":
+			var in map[string]string
+			if err := json.NewDecoder(r.Body).Decode(&in); err != nil || len(in) != 1 || in["dir"] != "__all__" {
+				http.Error(w, "bad params", http.StatusBadRequest)
+				return
+			}
+			_, _ = io.WriteString(w, `{"forgotten":["__all__"]}`)
 		default:
 			http.NotFound(w, r)
 		}
@@ -452,6 +460,9 @@ func TestRC(t *testing.T) {
 	cache, err := rc.Cache(context.Background())
 	if err != nil || cache.ErroredFiles != 1 || cache.Files != 2 {
 		t.Errorf("%v %+v", err, cache)
+	}
+	if err := rc.Forget(context.Background(), "__all__"); err != nil {
+		t.Errorf("forget: %v", err)
 	}
 	bad := &RC{URL: srv.URL, User: "rcuser", Password: "wrong", GW: httpDoer{}}
 	if _, err := bad.Transfers(context.Background()); err == nil || strings.Contains(err.Error(), "wrong") {

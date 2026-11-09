@@ -332,6 +332,7 @@ var sectionLabels = map[string]string{
 	"library.mount.zurg_api_repair_grace":         "Zurg repair wait",
 	"library.mount.rclone_rc":                     "rclone remote control",
 	"library.mount.rclone_rc.url":                 "rclone address",
+	"library.mount.rclone_rc.forget_release_root": "Clear cached release root listing",
 	"library.probe":                               "Media inspection",
 	"library.probe.max_bytes":                     "Maximum size",
 	"library.sample":                              "Sample detection",

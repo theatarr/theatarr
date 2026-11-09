@@ -10,6 +10,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/theatarr/theatarr/internal/gateway"
 	"github.com/theatarr/theatarr/internal/library"
 	"github.com/theatarr/theatarr/internal/policy"
 	"github.com/theatarr/theatarr/internal/store"
@@ -136,5 +137,27 @@ func TestServeLibraryRechecksFreshWait(t *testing.T) {
 	time.Sleep(200 * time.Millisecond)
 	if m := logs.passes(); m != n {
 		t.Errorf("passes went on past the window: %d, then %d", n, m)
+	}
+}
+
+// The import clears rclone's cached release root only with library.mount.rclone_rc.forget_release_root on.
+func TestRcloneForgetSetting(t *testing.T) {
+	t.Parallel()
+	pol := &policy.Policy{Library: &policy.Library{Mount: policy.LibraryMount{
+		RcloneRC: &policy.RcloneRC{URL: "http://rclone.invalid:5572"}}}}
+	gw, err := gateway.New(context.Background(), pol, gateway.Options{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if f := newRcloneForget(pol, pol.LibrarySettings(), gw); f != nil {
+		t.Error("forget wired with the setting off")
+	}
+	pol.Library.Mount.RcloneRC.ForgetReleaseRoot = true
+	if f := newRcloneForget(pol, pol.LibrarySettings(), gw); f == nil {
+		t.Error("forget not wired with the setting on")
+	}
+	pol.Library.Mount.RcloneRC = nil
+	if f := newRcloneForget(pol, pol.LibrarySettings(), gw); f != nil {
+		t.Error("forget wired without rclone_rc")
 	}
 }

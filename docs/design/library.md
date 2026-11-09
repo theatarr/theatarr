@@ -113,7 +113,8 @@ library:
   25MB/s) and `prewarm_max_size` (default 20GB) for the pre-warm's whole-file read, and `library.mount.rclone_rc` (url,
   username_env, password_env, budget; optional, gateway class `rclonerc`) drive the now playing page and the
   next-episode pre-warm, which read Plex's sessions, zurg's `/stats` and log, and rclone's rc
-  ([design/now-playing.md](now-playing.md)).
+  ([design/now-playing.md](now-playing.md)). `rclone_rc.forget_release_root` (default false) lets an import clear
+  rclone's cached listing of the release root ("Import of a ready download", step 2).
 
 ## Naming (`internal/library/naming`)
 
@@ -203,7 +204,15 @@ only a `partial` import's back-off reads `attempts`.
    which the providers may report otherwise (Real-Debrid's lower-cased video file name, TorBox's cut or other title,
    AllDebrid's bare hash). A listing that fails or does not hold the hash leaves the list as it was; one INFO line
    names a folder only zurg's name found (`TestImportZurgNameForHash`). Automatic imports
-   try folders whose suffix matches the download's info hash before bare names, even without zurg's API. Not there yet:
+   try folders whose suffix matches the download's info hash before bare names, even without zurg's API. When zurg's
+   listing holds the hash but the mount shows no folder for it, rclone's directory cache of the release root has not
+   caught up yet (`--dir-cache-time`). With `library.mount.rclone_rc.forget_release_root` (default false) the import
+   then clears that cached listing with one rc call, `vfs/forget` with `dir` = the release root (`all_dir`, relative
+   to the remote), and no `vfs/refresh`: the import's next stat reads the root again, once. It is the first rc call
+   that changes state, and it changes only rclone's cache, nothing on zurg or the debrid service. At most one per 3 s
+   across all imports (per settings generation), through the gateway against the rc budget; never for a dry run, a
+   gated version, a path or manual import, or a hash zurg does not list (`TestImportZurgForgetsReleaseRoot`,
+   `TestRcloneForgetSetting`). Not there yet:
    `library_import` `waiting_mount`; after `wait_timeout` one `alert` action and a WARN log. It waits until the
    router's ready deadline (`router.ready_timeout`, default 6h from `ready_at`); a held import is excluded from that
    expiry: one held for review, for its episode title, or recorded as a dry run (the gate refuses the version, or
