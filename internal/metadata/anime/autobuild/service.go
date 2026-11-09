@@ -279,11 +279,16 @@ func (s *Service) run(ctx context.Context, p Payload) error {
 			if tvdb > 0 {
 				res.Config["tvdb_id"] = tvdb
 			}
-			if covered, err := s.owned(ctx, f, res, shipped); err != nil || covered != "" {
-				if err == nil {
-					err = jobs.Permanent(fmt.Errorf("shipped franchise %s: AniList %d is built as %s", x.Slug, x.SeedAniList, covered))
-				}
+			covered, err := s.owned(ctx, f, res, shipped)
+			if err != nil {
 				return err
+			}
+			if covered != "" { // another build has the shipped seed as an entry
+				s.log.Info("anime: discovery", "tvdb", p.TVDBID, "outcome", OutcomeCovered, "franchise", covered)
+				if p.TitleID > 0 {
+					return s.record(ctx, p.TitleID, p.TVDBID, OutcomeCovered, covered, "")
+				}
+				return nil
 			}
 		}
 	}
