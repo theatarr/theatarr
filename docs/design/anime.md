@@ -121,19 +121,31 @@ Then every episode only non-importable ranges cover, and every episode of a rele
 entry (step 2 or a SeaDex pack), is listed in the decision's `anime_fallback` with the entry and its status
 (`TestAnimeFranchiseMapping`, `TestAnimeUnreviewedEntryUsesSonarrNumbering`). The decision JSON gains
 `anime_mapping`, `anime_entry`, `anime_fallback`. Nothing is rejected for it. A release that named a non-importable
-entry (step 2) keeps that entry: `anime_entry` beside `anime_mapping: sonarr`, and on the download
+entry (step 2) keeps that entry, also when the entry's candidate range cannot hold the number (the one entry of that
+name: review may pick another): `anime_entry` beside `anime_mapping: sonarr`, and on the download
 `episode_map {"how":"franchise","entry":…,"fallback":true}`, so an accept can move its episodes later
 (`TestAnimeFallbackMatchesFileResolution`).
 
 **Library**: files resolve through the same rules (`decide.ResolveFile`); a decision's stored entry that is no longer
 importable at import time falls back to Sonarr's numbering too, and a fallback's stored entry maps files named only
-"01" once it is importable. Nothing is held (`TestAnimeUnreviewedImports`). When the stored mapping is stale
-(`EpisodeMap.Stale`: a franchise entry, or one of its split parts, no longer importable; or a fallback whose entry
-review has accepted since), the download's episodes no longer match where its files resolve, so the import first
-reconciles them (`library/resolve.go` `rescope`) to the ones the decision now gives the release title, or its files
-when the title places nothing (a pack named by the entry), and a real import writes them to `download.episodes`;
-`download.episode_map` stays, for a later re-link (`TestAnimeRejectedMappingImports`, `TestAnimeAcceptBeforeImport`).
-A mapping still importable, and one stored without an entry key (a split-parts pack grabbed before the key was kept),
+"01" once it is importable. Nothing is held (`TestAnimeUnreviewedImports`). When the franchise mapping changed
+between the grab and the import, the download's episodes no longer match where its files resolve, so the import first
+reconciles them (`library/resolve.go` `rescope`), in two cases:
+
+- the stored franchise entry (or one of its split parts) is no longer importable (`EpisodeMap.Stale`): its files now
+  map through Sonarr's numbering (`TestAnimeRejectedMappingImports`);
+- the download was grabbed through Sonarr's numbering (no stored mapping, or a fallback) and a file now maps through
+  the franchise (an entry or a cut) outside its episodes, while the decision on the release title now maps through
+  the franchise too, or places nothing: review accepted the fallback's entry or another candidate for it
+  (`TestAnimeAcceptBeforeImport`, `TestAnimeCandidateBeforeImport`), or the series' first build placed the file
+  elsewhere (`TestAnimeFirstBuildBeforeImport`). A file the franchise does not place (an explicit SxxEyy), one a client
+  or an admin chose, or a decision still placed by Sonarr's numbering leaves the episodes alone
+  (`TestAnimeRescopeIgnoresExplicitFile`), and a series with no franchise mapping is never checked.
+
+The episodes become the ones the decision now gives the release title, or its files' when the title places nothing (a
+pack named by the entry), and a real import writes them to `download.episodes`; `download.episode_map` stays, for a
+later re-link. A fallback's candidate that cannot hold the number leaves the download where Sonarr placed it. A
+mapping still importable, and one stored without an entry key (a split-parts pack grabbed before the key was kept),
 is never re-scoped (`TestAnimeSplitPackScope`). This is the counterpart, before the import, of the re-link below.
 
 **Re-link after review** (`library/animerelink.go`). When review accepts a mapping (`animestore.Resolve` or
@@ -164,6 +176,16 @@ Known limit: a file named by another alias (neither the entry's name nor a cut) 
 stored entry. A download whose decision stored none (grabbed through Sonarr's numbering for a release that named no
 entry, or before fallbacks kept their entry) keeps Sonarr's placement; Change episodes moves it by hand. The resolver
 does not infer the entry from the release title, which would change the placement of every anime grab.
+
+Known limit: a file named after another entry outranks the stored identity. A fallback pack whose release names
+entry 2 ("2nd Season") but whose files carry the franchise's base title (entry 1's name) resolves through entry 1:
+accepted before the import it imports at entry 1's episodes, accepted after it the re-link moves nothing
+(`TestAnimeFallbackFilesNameOtherEntry`); Change episodes moves it by hand. Letting the stored fallback outrank the
+file name would place files by the release title.
+
+Known limit: a split-parts pack (`al:N#1..k` stored as `al:N`) stays current while any part or the unsplit entry is
+importable. A refresh that replaces the parts with one unsplit entry mapping other episodes before the import leaves
+the files held as out of scope (visible on the download, files intact); Change episodes or a re-grab places them.
 
 Playlists need nothing: a sync reads the active link of each episode, so a re-linked file joins its playlist at the
 next sync.
