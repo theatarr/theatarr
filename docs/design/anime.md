@@ -203,6 +203,12 @@ Known limit: a download grabbed through a franchise entry that stays importable 
 range moves before the import (a refresh or another candidate): files outside its episodes are held as out of scope,
 files intact; Change episodes places them.
 
+Known limit: a grab through an entry that review then rejects is decided again whole, so a pack the router had
+narrowed (an episode turned unmonitored while it waited) gets back every episode Sonarr's numbering gives its
+release: a narrowed two-episode pack imports both files. Nothing is replaced (a new episode that already has a file
+stops the re-scope). The download does not record which episodes the router dropped, and the same path rightly grows
+a split-parts pack to its season (`TestAnimeSplitPackScope`).
+
 Known limit: a download with no stored entry is not re-scoped. One grabbed through Sonarr's numbering before the
 series had a franchise mapping, whose file the series' first build then maps to another episode before the import,
 is held as out of scope, files intact (`TestAnimeFirstBuildBeforeImport`, `TestAnimeFirstBuildKeepsOtherEpisodesLink`,
