@@ -83,7 +83,7 @@ func TestEveryRoutePerRole(t *testing.T) {
 		}
 	}
 	// What a user may never reach, whatever else changes: the admin panel and the device routes.
-	adminOnly := []string{"/status", "/health", "/jobs", "/gateway", "/policy", "/registry", "/imports", "/shadow/summary",
+	adminOnly := []string{"/status", "/health", "/health/dangling", "/jobs", "/gateway", "/policy", "/registry", "/imports", "/shadow/summary",
 		"/journal", "/logs", "/sources", "/anime/review", "/anime/build", "/anime/uncovered", "/users", "/decide", "/import", "/setup", "/preflight"}
 	for _, p := range adminOnly {
 		found := false

@@ -26,6 +26,7 @@ func (w *Web) mountAPI(mux *http.ServeMux) {
 	})
 	w.handle(mux, "GET "+b+"/status", SignedIn, auth.PermAdmin, w.apiStatus)
 	w.handle(mux, "GET "+b+"/health", SignedIn, auth.PermAdmin, w.apiHealth)
+	w.handle(mux, "GET "+b+"/health/dangling", SignedIn, auth.PermAdmin, w.apiHealthDangling)
 	w.handle(mux, "GET "+b+"/titles", SignedIn, auth.PermBrowse, w.apiTitles)
 	w.handle(mux, "GET "+b+"/titles/{id}", SignedIn, auth.PermBrowse, w.apiTitle)
 	w.handle(mux, "GET "+b+"/versions", SignedIn, auth.PermBrowse, w.apiVersions)

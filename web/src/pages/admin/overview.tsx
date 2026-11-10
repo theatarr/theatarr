@@ -4,7 +4,7 @@
 // the API's (/readyz, /status, /health, /jobs, /gateway, /activity); job counts and the gateway update live.
 import { useQuery } from "@tanstack/react-query";
 import { AlertTriangle, CheckCircle2 } from "lucide-react";
-import type { ReactNode } from "react";
+import { type ReactNode, useState } from "react";
 import { Link } from "react-router";
 import { useReviewCounts } from "@/api/reviews";
 import { useSettings } from "@/api/settings";
@@ -12,6 +12,7 @@ import { useSetup, setupUnfinished } from "@/api/setup";
 import { useAppBackups } from "@/api/backups";
 import { SETTINGS_PAGES } from "@/lib/settings-map";
 import { useActivityNow } from "@/api/activity";
+import { useDanglingLinks } from "@/api/dangling";
 import { type Gateway, useGateway, useHealth, useStatus } from "@/api/hooks";
 import { useJobCounts, useJobsFiltered } from "@/api/jobs";
 import { qk } from "@/api/query-keys";
@@ -24,7 +25,7 @@ import { Card } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableRow } from "@/components/ui/table";
 import { needsAttention, showCounts, stageLabel, timing } from "@/lib/activity";
 import { fmtAgo, fmtNumber, fmtTime } from "@/lib/format";
-import { healthAttention, healthBadgeTone, healthEffect, healthLink, healthStatTone } from "@/lib/health";
+import { danglingNext, healthAttention, healthBadgeTone, healthEffect, healthLink, healthStatTone } from "@/lib/health";
 import { attentionCount, jobEffect, jobName, type Job } from "@/lib/jobs";
 import { JobActions } from "./jobs";
 
@@ -247,7 +248,10 @@ export function Overview() {
                   <TableRow key={c.source} data-testid={`check-${c.source}`}>
                     <TableCell className="w-0 whitespace-nowrap"><Badge tone={healthBadgeTone(c.type)}>{c.type}</Badge></TableCell>
                     <TableCell className="font-medium sm:whitespace-nowrap">{c.name}</TableCell>
-                    <TableCell className="text-[13px] text-muted-foreground [overflow-wrap:anywhere]">{c.message}</TableCell>
+                    <TableCell className="text-[13px] text-muted-foreground [overflow-wrap:anywhere]">
+                      {c.message}
+                      {c.source === "DanglingLinksCheck" ? <BrokenLinks count={Number((c.detail as { dangling?: number } | undefined)?.dangling ?? 0)} /> : null}
+                    </TableCell>
                   </TableRow>
                 ))}
               </TableBody>
@@ -255,6 +259,48 @@ export function Overview() {
           )}
         </Card>
       </Section>
+    </div>
+  );
+}
+
+/**
+ * The broken links behind the dangling-links check: a list that loads when opened (GET /health/dangling) and only
+ * shows; nothing is scanned or repaired from here.
+ */
+function BrokenLinks({ count }: { count: number }) {
+  const [open, setOpen] = useState(false);
+  const q = useDanglingLinks(open);
+  if (count <= 0) return null;
+  return (
+    <div className="mt-1.5" data-testid="broken-links">
+      <button type="button" className="text-primary hover:underline" aria-expanded={open} onClick={() => setOpen(!open)}>
+        {open ? "Hide the broken links" : `Show the ${fmtNumber(count)} broken link${count === 1 ? "" : "s"}`}
+      </button>
+      {!open ? null : q.error ? (
+        <div className="mt-2"><ErrorState error={q.error} /></div>
+      ) : !q.data ? (
+        <Loading />
+      ) : q.data.items.length === 0 ? (
+        <p className="mt-2">The latest report lists no broken link.</p>
+      ) : (
+        <>
+          <ul className="mt-2 divide-y divide-[var(--line)] rounded-[8px] border border-[var(--line)]">
+            {q.data.items.map((d) => (
+              <li key={d.path} className="px-3 py-2" data-testid="broken-link">
+                <div className="flex flex-wrap items-baseline gap-x-2 gap-y-0.5 text-[var(--ink)]">
+                  {d.title_id ? <Link className="font-medium hover:underline" to={`/title/${d.title_id}`}>{d.title}</Link> : <span className="font-medium">{d.folder || "Unknown"}</span>}
+                  {d.label ? <Badge>{d.label}</Badge> : null}
+                  <span className="text-muted-foreground">since {fmtAgo(d.first_seen)}</span>
+                  {d.cause === "no_video" ? <span className="text-muted-foreground">torrent has no video upstream</span> : null}
+                </div>
+                <div>{danglingNext(d.link_state)}</div>
+                <Mono className="block text-[11.5px] [overflow-wrap:anywhere]">{d.path}</Mono>
+              </li>
+            ))}
+          </ul>
+          {q.data.truncated ? <p className="mt-2">Showing the {fmtNumber(q.data.items.length)} oldest; <Mono>theatarr library dangling</Mono> lists all.</p> : null}
+        </>
+      )}
     </div>
   );
 }

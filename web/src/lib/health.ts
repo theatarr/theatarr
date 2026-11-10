@@ -47,7 +47,7 @@ export function healthEffect(source?: string): { effect: string; next: string } 
     case "DanglingLinksCheck":
       return {
         effect: "Some library files point at debrid content that is no longer there and will not play.",
-        next: "List them with theatarr library dangling; the relink sweep repoints renamed ones.",
+        next: "Open the list below; the repair sweep repoints renamed ones.",
       };
     case "JobBacklogCheck":
       return { effect: "Background work is running late.", next: "Look at the queue on Tasks." };
@@ -111,4 +111,21 @@ export function backupCheck(c: HealthCheck | undefined): { parts: BackupPart[]; 
     fix = "The newest set is incomplete: run theatarr backup now in the container (docker exec theatarr theatarr backup now), then theatarr backup list. A complete set has the database copy, the policy archive and the manifest; theatarr backup restore refuses a set without its manifest.";
   else fix = "The nightly db.nightly job has not written a set lately: check it on Tasks, then run theatarr backup now in the container (docker exec theatarr theatarr backup now).";
   return { ...out, fix };
+}
+
+/**
+ * What happens next to a broken link, from the state of the link Theatarr recorded for its path (GET
+ * /health/dangling link_state): a hint, not a repair log.
+ */
+export function danglingNext(linkState?: string): string {
+  switch (linkState) {
+    case "dead":
+      return "Marked missing; searched again";
+    case "active":
+      return "Waiting for the next repair sweep";
+    case "unlinked":
+      return "A link Theatarr let go of";
+    default:
+      return "Not a link Theatarr made";
+  }
 }

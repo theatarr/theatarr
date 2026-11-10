@@ -136,3 +136,60 @@ it.each(["pending", "error", "scan"])("Status does not give an all-clear for %s 
  if (state === "scan") expect(await screen.findByText("? decisions waiting in Reviews")).toBeTruthy();
  expect(screen.queryByText("Nothing needs attention.")).toBeNull();
 });
+
+it("lists the broken links behind the dangling-links check when opened, once, and only shows them", async () => {
+ const check = { source: "DanglingLinksCheck", name: "Dangling links", type: "notice", message: "3 of 40 links into the mount are dangling", detail: { dangling: 3, links: 40 }, checked_at: "2026-11-02T12:00:00Z" };
+ const fetch = mockFetch([...reviewRoutes,
+  { method: "GET", path: "/readyz", reply: { status: "ok" } },
+  { method: "GET", path: "/status", reply: status },
+  { method: "GET", path: "/jobs", reply: { items: [], counts: {} } },
+  { method: "GET", path: "/gateway", reply: { egress: { vpn_ok: true }, backoffs: [] } },
+  { method: "GET", path: "/health", reply: { checks: [check, { source: "MountCheck", name: "Mount", type: "ok", message: "fine" }] } },
+  { method: "GET", path: "/activity", reply: { now: [] } },
+  { method: "GET", path: "/health/dangling", reply: { at: "2026-11-02T12:00:00Z", links: 40, dangling: 3, truncated: true, items: [
+   { path: "/media/remux/Alpha (2020)/Alpha.mkv", target: "/mnt/zurg/Alpha.2020/Alpha.mkv", folder: "Alpha.2020", library: "movie-remux", label: "4K Remux", cause: "no_video", first_seen: "2026-10-30T12:00:00Z", title_id: 1, title: "Alpha", link_state: "dead" },
+   { path: "/media/web/Beta (2021)/Beta.mkv", target: "/mnt/zurg/Beta.2021/Beta.mkv", folder: "Beta.2021", library: "movie-web", label: "4K WEB", first_seen: "2026-10-31T12:00:00Z", title_id: 2, title: "Beta", link_state: "active" },
+   { path: "/media/other/Stray.mkv", target: "/mnt/zurg/Stray/Stray.mkv", folder: "Stray", first_seen: "2026-11-01T12:00:00Z" },
+  ] } },
+ ]);
+ renderPage(<Overview />);
+ const row = await screen.findByTestId("check-DanglingLinksCheck");
+ const toggle = within(row).getByRole("button", { name: "Show the 3 broken links" });
+ expect(within(screen.getByTestId("check-MountCheck")).queryByRole("button")).toBeNull();
+ expect(fetch.calls("GET", "/health/dangling")).toHaveLength(0);
+ fireEvent.click(toggle);
+ const items = await within(row).findAllByTestId("broken-link");
+ expect(items).toHaveLength(3);
+ expect(within(items[0]).getByRole("link", { name: "Alpha" }).getAttribute("href")).toBe("/title/1");
+ expect(within(items[0]).getByText("4K Remux")).toBeTruthy();
+ expect(within(items[0]).getByText("torrent has no video upstream")).toBeTruthy();
+ expect(within(items[0]).getByText("Marked missing; searched again")).toBeTruthy();
+ expect(within(items[0]).getByText("/media/remux/Alpha (2020)/Alpha.mkv")).toBeTruthy();
+ expect(within(items[1]).getByText("Waiting for the next repair sweep")).toBeTruthy();
+ expect(within(items[2]).getByText("Stray")).toBeTruthy();
+ expect(within(items[2]).queryByRole("link")).toBeNull();
+ expect(within(items[2]).getByText("Not a link Theatarr made")).toBeTruthy();
+ expect(within(row).getByText(/Showing the 3 oldest/)).toBeTruthy();
+ // Only a list: the one button in the row folds it again, and reopening does not load it a second time.
+ expect(within(row).getAllByRole("button")).toHaveLength(1);
+ fireEvent.click(within(row).getByRole("button", { name: "Hide the broken links" }));
+ expect(within(row).queryByTestId("broken-link")).toBeNull();
+ fireEvent.click(within(row).getByRole("button", { name: "Show the 3 broken links" }));
+ expect(await within(row).findAllByTestId("broken-link")).toHaveLength(3);
+ expect(fetch.calls("GET", "/health/dangling")).toHaveLength(1);
+ expect(fetch.calls("POST", "/health/dangling")).toHaveLength(0);
+});
+
+it("offers no broken-links list while the check counts none", async () => {
+ mockFetch([...reviewRoutes,
+  { method: "GET", path: "/readyz", reply: { status: "ok" } },
+  { method: "GET", path: "/status", reply: status },
+  { method: "GET", path: "/jobs", reply: { items: [], counts: {} } },
+  { method: "GET", path: "/gateway", reply: { egress: { vpn_ok: true }, backoffs: [] } },
+  { method: "GET", path: "/health", reply: { checks: [{ source: "DanglingLinksCheck", name: "Dangling links", type: "ok", message: "No dangling links (40 links into the mount)", detail: { dangling: 0, links: 40 } }] } },
+  { method: "GET", path: "/activity", reply: { now: [] } },
+ ]);
+ renderPage(<Overview />);
+ const row = await screen.findByTestId("check-DanglingLinksCheck");
+ expect(within(row).queryByRole("button")).toBeNull();
+});

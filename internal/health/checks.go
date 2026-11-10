@@ -414,7 +414,7 @@ func UnfinishedCacheChecks(st *store.Store, after time.Duration, now func() time
 
 // Dangling reports the latest dangling-link report (library_dangling_scan): links into the zurg mount whose target
 // is missing. A notice while there are any, naming how many zurg's API says lost their video upstream (when
-// library.mount.zurg_api is set) and whether zurg was repairing; the links themselves are in theatarr library dangling.
+// library.mount.zurg_api is set) and whether zurg was repairing; the links themselves are on Admin › Status (GET /health/dangling) and in theatarr library dangling.
 func Dangling(st *store.Store) Func {
 	return func(ctx context.Context) Result {
 		var links, dangling int
@@ -452,7 +452,7 @@ func Dangling(st *store.Store) Func {
 		if repairing.Bool {
 			msg += "; zurg was repairing"
 		}
-		return Result{Type: Notice, Detail: detail, Message: msg + " (theatarr library dangling lists them)"}
+		return Result{Type: Notice, Detail: detail, Message: msg + " (listed on Admin › Status; or theatarr library dangling)"}
 	}
 }
 

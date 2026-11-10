@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { backupCheck, healthAttention, healthBadgeTone, healthEffect, healthLink, healthStatTone, type HealthCheck } from "./health";
+import { backupCheck, danglingNext, healthAttention, healthBadgeTone, healthEffect, healthLink, healthStatTone, type HealthCheck } from "./health";
 
 const c = (source: string, type: HealthCheck["type"]): HealthCheck => ({ source, name: source, type, message: source });
 
@@ -27,6 +27,8 @@ describe("health", () => {
     expect(healthEffect("SettingsFallbackCheck").effect).toMatch(/not in force/);
     expect(healthAttention([{ source: "SettingsFallbackCheck", type: "error" } as HealthCheck]).map((c) => c.source)).toEqual(["SettingsFallbackCheck"]);
     expect(healthLink("SomethingNew")).toBe("/admin");
+    expect(healthEffect("DanglingLinksCheck").next).toMatch(/^Open the list below/);
+    expect(["dead", "active", "unlinked", undefined].map(danglingNext)).toEqual(["Marked missing; searched again", "Waiting for the next repair sweep", "A link Theatarr let go of", "Not a link Theatarr made"]);
   });
   it("names an effect and a next step for each known check", () => {
     for (const s of ["MountCheck", "JobBacklogCheck", "IndexerStatusCheck", "ProviderSyncCheck", "VpnEgressCheck", "BackupCheck", "DiskSpaceCheck", "MetadataRefreshCheck", "DanglingLinksCheck", "SetupCheck"]) {
