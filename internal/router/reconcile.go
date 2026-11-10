@@ -9,6 +9,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/theatarr/theatarr/internal/policy"
 	"github.com/theatarr/theatarr/internal/provider"
 	"github.com/theatarr/theatarr/internal/provider/adder"
 	"github.com/theatarr/theatarr/internal/store"
@@ -77,6 +78,7 @@ type addCheck struct {
 	sent     time.Time      // when the add was sent
 	hash     string
 	shared   bool   // recFound: another download of ours holds the torrent (a reuse); else it is adopted as our add
+	manual   bool   // the release was added by hand (policy.ManualIndexer): a found torrent is adopted as reused
 	client   string // a client download's client (settleClient); pk is then ""
 }
 
@@ -132,10 +134,11 @@ func (r *Router) accountList(ctx context.Context, rp provider.Provider, pk strin
 // it, and the caller only records that it was tried.
 func (r *Router) lookupAdding(ctx context.Context, dl int64, lists *accountLists) (addCheck, error) {
 	var c addCheck
-	var state, hash, version string
+	var state, hash, version, ix string
 	var sent int64
 	err := r.st.Writer().QueryRowContext(ctx, `SELECT state, provider, info_hash, version_key, add_attempt,
-		updated_at FROM download WHERE id = ?`, dl).Scan(&state, &c.provider, &hash, &version, &c.attempt, &sent)
+		updated_at, indexer FROM download WHERE id = ?`, dl).Scan(&state, &c.provider, &hash, &version, &c.attempt, &sent,
+		&ix)
 	if errors.Is(err, sql.ErrNoRows) {
 		return c, nil
 	}
@@ -146,6 +149,7 @@ func (r *Router) lookupAdding(ctx context.Context, dl int64, lists *accountLists
 		return c, nil
 	}
 	c.hash = hash
+	c.manual = policy.IsManualAdd(ix)
 	c.sent = store.FromMillis(sent)
 	pks := []string{c.provider.String}
 	if !c.provider.Valid || c.provider.String == "" {
@@ -232,7 +236,9 @@ func (r *Router) applyAdding(ctx context.Context, dl int64, c addCheck) (addChec
 	}
 	// Nothing proves the entry is our own new one, so nothing may ever delete it (own_add stays unset). Unless
 	// another download of ours holds it, it is adopted as our add (reused 0) so its files are selected.
-	if err := r.markAdded(ctx, dl, c.pk, &adder.Added{ID: c.tid, Hash: c.hash}, c.shared, fromAdding(c.attempt)); err != nil {
+	// A release a person added by hand is the exception: its hash is one another tool on the account may well hold
+	// already, so the entry found is adopted as reused, and no files are selected on it.
+	if err := r.markAdded(ctx, dl, c.pk, &adder.Added{ID: c.tid, Hash: c.hash}, c.shared || c.manual, fromAdding(c.attempt)); err != nil {
 		if errors.Is(err, errAddTaken) {
 			c.rec = recNone // settled by another route meanwhile
 			return c, nil

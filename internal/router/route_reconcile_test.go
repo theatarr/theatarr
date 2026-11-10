@@ -132,6 +132,68 @@ func TestReconciledAddGetsFilesSelected(t *testing.T) {
 	}
 }
 
+// manualCand is cand as arrview.AddRelease hands it over: a release a person added by magnet or hash.
+func manualCand(hash, title string) Candidate {
+	c := cand(hash, title)
+	c.Release.Indexer, c.Release.Kind, c.Release.Privacy, c.Release.Size = policy.ManualIndexer, "", "", 0
+	return c
+}
+
+// A person adds a hash another tool on the account already holds, waiting for that tool's file selection, and
+// Real-Debrid's answer to the add is lost (a 502). The entry the account shows is adopted as reused: no files are
+// selected on it and nothing is deleted, also when it then stalls. (TestReconciledAddGetsFilesSelected is the same for a searched release.)
+func TestReconciledManualAddIsReused(t *testing.T) {
+	t.Parallel()
+	e := newEnv(t, true, policy.ModeActive)
+	withQueue(e)
+	const tid = "rd-foreign"
+	foreign := provider.Torrent{ID: tid, Hash: h("a"), State: provider.StateQueued, Status: rdWaitingFiles,
+		Files: []provider.File{{ID: "1", Path: "Movie.mkv", Bytes: 10 << 30}}}
+	e.ad["rd"].add = func(m adder.Magnet, _ adder.AddOptions) (*adder.Added, error) {
+		// The other tool's torrent, as the account lists it by the time the add is settled.
+		p := e.pr["rd"]
+		p.mu.Lock()
+		p.list = append(p.list, provider.Torrent{ID: tid, Hash: m.Hash(), Status: rdWaitingFiles})
+		p.mu.Unlock()
+		p.set(tid, foreign)
+		return nil, &adder.Error{Provider: "rd", Code: adder.CodeUnavailable, Status: 502}
+	}
+	res, err := e.r.Route(e.ctx, grabReq(manualCand(h("a"), "Movie.2024.2160p.WEB.H265-GRP")))
+	if err != nil {
+		t.Fatal(err)
+	}
+	e.ad["rd"].add = nil
+	e.clock = e.clock.Add(addSettle + time.Second)
+	next := routeJobs(e, res.DownloadID)
+	if len(next) != 1 {
+		t.Fatalf("continuation %+v", next)
+	}
+	e.exec(`UPDATE job SET state = 'done' WHERE kind = ?`, JobRoute)
+	if _, err := e.r.Route(e.ctx, next[0].Request); err != nil {
+		t.Fatal(err)
+	}
+	for range 90 {
+		if _, err := e.r.Poll(e.ctx); err != nil {
+			t.Fatal(err)
+		}
+		e.clock = e.clock.Add(time.Minute)
+	}
+	state, _, got, reused, own := e.download(res.DownloadID)
+	// Nobody selects its files, so it stalls and fails; the other tool's torrent stays as it was.
+	if state != StateFailed {
+		t.Errorf("state %s, want failed (stalled, kept)", state)
+	}
+	if got != tid || reused != 1 || own != nil {
+		t.Errorf("adopted torrent %q reused %d own_add %v, want %s reused and own_add NULL", got, reused, own, tid)
+	}
+	if len(e.ad["rd"].selects) != 0 {
+		t.Errorf("selected files on another tool's torrent: %v", e.ad["rd"].selects)
+	}
+	if len(e.ad["rd"].deletes) != 0 {
+		t.Errorf("deleted %v", e.ad["rd"].deletes)
+	}
+}
+
 // An interrupted add whose hash another download of ours holds is settled as a reuse, as at the add: no
 // selection of ours on the shared torrent.
 func TestReconciledAddHeldByAnotherDownloadIsReuse(t *testing.T) {
