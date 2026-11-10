@@ -132,7 +132,7 @@ function VersionGroup({ title, versions, all, switches, selected, readOnly, busy
         </TableRow></TableHeader>
         <TableBody>{versions.map((record) => {
           const c = record.config;
-          const where = <><div className="break-all font-mono text-[12.5px]">{c.library || "no root"}</div><div className="text-xs text-muted-foreground">{c.storage} · {c.client} · {c.import}</div></>;
+          const where = <><div className="break-all font-mono text-[12.5px]">{c.library || "no root"}</div><div className="text-xs text-muted-foreground" data-testid="library-where">{[c.storage, c.client, c.import].filter(Boolean).join(" · ")}</div></>;
           const profile = <><div className="font-mono text-[12.5px] [overflow-wrap:anywhere]">{c.profile}</div></>;
           const sources = <div className="text-xs [overflow-wrap:anywhere]"><div>{(c.indexers ?? []).length ? (c.indexers ?? []).join(", ") : "no indexers"}</div><div className="text-muted-foreground">{c.add_via === "client" ? `via client ${c.client || "(none)"}` : (c.providers ?? []).length ? (c.providers ?? []).join(" › ") : "no providers"}</div></div>;
           return <TableRow key={record.key} data-record={record.key} data-selected={selected === record.key ? "true" : undefined}>

@@ -948,6 +948,13 @@ describe("Watch only / Live control", () => {
     await waitFor(() => expect(fetch.calls("GET", "/settings")).toHaveLength(2));
   });
 
+  it("leaves an empty client out of the row's storage line", async () => {
+    mockFetch(withConfig({ client: "" }));
+    renderPage(<VersionsPage />);
+    const r = await row();
+    expect(within(r).getAllByTestId("library-where").map((line) => line.textContent)).toContain("debrid · symlink");
+  });
+
   it("Watch only from a row on a library stored without grab sends no grab", async () => {
     const fetch = mockFetch([...withConfig({ mode: "active" }), put()]);
     const user = userEvent.setup();
