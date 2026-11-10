@@ -3,8 +3,13 @@
 #   docker build --build-arg VERSION=$(git describe --tags --always --dirty) -t theatarr:dev .
 #   docker run -v theatarr-data:/data -v /path/to/policy:/config/policy:ro -p 7700:7700 theatarr:dev
 
+#
+# Both builder stages run on the build machine's own platform (--platform=$BUILDPLATFORM) and the Go compiler
+# cross-compiles for the target, so a build for another platform (docker buildx build --platform linux/arm64)
+# compiles nothing under emulation. The final stage only copies files.
+
 # The web UI: npm ci and vite build in web/, output in internal/webui/dist (embedded by the Go build below).
-FROM node:20.20.1-alpine AS ui
+FROM --platform=$BUILDPLATFORM node:20.20.1-alpine AS ui
 WORKDIR /src/web
 COPY web/package.json web/package-lock.json ./
 RUN --mount=type=cache,target=/root/.npm npm ci --no-audit --no-fund
@@ -12,7 +17,7 @@ COPY internal/web/openapi.json /src/internal/web/openapi.json
 COPY web/ ./
 RUN mkdir -p /src/internal/webui/dist && npm run build
 
-FROM golang:1.27.3-alpine AS build
+FROM --platform=$BUILDPLATFORM golang:1.27.3-alpine AS build
 WORKDIR /src
 ENV CGO_ENABLED=0 GOTOOLCHAIN=local GOFLAGS=-trimpath
 COPY go.mod go.sum ./
@@ -20,9 +25,11 @@ RUN --mount=type=cache,target=/root/go/pkg/mod go mod download
 COPY . .
 COPY --from=ui /src/internal/webui/dist/ internal/webui/dist/
 ARG VERSION=dev
+# Set by the builder to the platform the image is for; on a plain docker build that is the machine's own.
+ARG TARGETOS TARGETARCH
 # -buildvcs=false: the build context has no usable .git (worktrees, .dockerignore); VERSION carries the revision.
 RUN --mount=type=cache,target=/root/go/pkg/mod --mount=type=cache,target=/root/.cache/go-build \
-    go build -buildvcs=false -ldflags "-s -w -X github.com/theatarr/theatarr/internal/buildinfo.Version=${VERSION}" \
+    GOOS=$TARGETOS GOARCH=$TARGETARCH go build -buildvcs=false -ldflags "-s -w -X github.com/theatarr/theatarr/internal/buildinfo.Version=${VERSION}" \
         -o /out/bin/theatarr ./cmd/theatarr \
  && mkdir -p /out/data/backups
 
