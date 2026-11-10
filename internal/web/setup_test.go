@@ -8,6 +8,7 @@ import (
 	"net/http/httptest"
 	"slices"
 	"strings"
+	"sync"
 	"testing"
 
 	"github.com/theatarr/theatarr/internal/auth"
@@ -227,8 +228,11 @@ func TestSetupTMDb(t *testing.T) {
 		return s
 	}
 	// A real process lookup: derived names are never environment variables.
+	var mu sync.Mutex
 	env := map[string]string{"THEATARR_TMDB_KEY": "fixture-env-key"}
 	lookup := func(name string) (string, bool) {
+		mu.Lock()
+		defer mu.Unlock()
 		v, ok := env[name]
 		return v, ok
 	}
@@ -239,9 +243,18 @@ func TestSetupTMDb(t *testing.T) {
 	if !state(se).TMDb {
 		t.Fatal("tmdb with its key in the environment is not done")
 	}
+	mu.Lock()
 	delete(env, "THEATARR_TMDB_KEY")
+	mu.Unlock()
 	if state(se).TMDb {
 		t.Fatal("tmdb without its environment variable is done")
+	}
+	// A key stored for that existing source finishes the step, its address and the other sources untouched.
+	before := findSection(t, se.want(se.call("GET", "/sections", nil), 200, "read"), "metadata")["config"]
+	se.want(se.call("PUT", "/sections/metadata", map[string]any{"generation": se.generation(), "config": before,
+		"secrets": map[string]string{"sources.tmdb.api_key": "invented-setup-tmdb"}}), 200, "store a key for the existing source")
+	if !state(se).TMDb {
+		t.Fatal("tmdb with a stored key is not done")
 	}
 
 	// No metadata sources at all, as on a fresh database.
@@ -249,6 +262,10 @@ func TestSetupTMDb(t *testing.T) {
 	se.web.settingsLookup = lookup
 	if s := state(se); s.TMDb || !slices.ContainsFunc(s.Missing, func(m string) bool { return strings.Contains(m, "no TMDb source") }) {
 		t.Fatalf("no sources: %+v", s)
+	}
+	// The setup screen reads the section before it saves: an install without metadata still lists it.
+	if section := findSection(t, se.want(se.call("GET", "/sections", nil), 200, "read"), "metadata"); section == nil {
+		t.Fatal("no metadata section on an install without metadata")
 	}
 	// What the setup screen sends: both sources with their public addresses and the one key, in one save.
 	gen := se.generation()
