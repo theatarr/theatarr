@@ -281,7 +281,7 @@ func (s *Service) RetryDownload(ctx context.Context, id int64, source string) (*
 	// A release added by hand (AddRelease) came from no indexer and is not held to the list, as in the decision
 	// engine's rule.
 	if vp := s.pol.Versions[out.Version]; vp != nil && len(req.Candidates) > 0 && len(vp.Indexers) > 0 &&
-		req.Candidates[0].Release.Indexer != policy.ManualIndexer && !slices.Contains(vp.Indexers, req.Candidates[0].Release.Indexer) {
+		!policy.IsManualAdd(req.Candidates[0].Release.Indexer) && !slices.Contains(vp.Indexers, req.Candidates[0].Release.Indexer) {
 		return out, refused("indexer %s is not one of version %s's indexers", req.Candidates[0].Release.Indexer, out.Version)
 	}
 	req.DownloadID, req.DecisionRev, req.Source = 0, "", source

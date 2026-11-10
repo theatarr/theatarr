@@ -528,7 +528,7 @@ func indexerMulti(pol *policy.Policy, key string) []string {
 // came from no indexer and is not held to the list.
 func (e *Engine) ourRules(rel Release, v Version) []Rejection {
 	var out []Rejection
-	if rel.Indexer != "" && rel.Indexer != policy.ManualIndexer && len(v.Policy.Indexers) > 0 && !slices.Contains(v.Policy.Indexers, rel.Indexer) {
+	if rel.Indexer != "" && !policy.IsManualAdd(rel.Indexer) && len(v.Policy.Indexers) > 0 && !slices.Contains(v.Policy.Indexers, rel.Indexer) {
 		out = append(out, Rejection{Reason: "IndexerNotInVersion", Ours: true, Message: fmt.Sprintf(
 			"Indexer %s is not one of version %s's indexers (%s)", rel.Indexer, v.Key, strings.Join(v.Policy.Indexers, ", "))})
 	}

@@ -52,6 +52,9 @@ func (s *Service) Decide(ctx context.Context, req DecideRequest) (*decide.Decisi
 	if vp == nil {
 		return nil, badf("unknown version %q", req.Version)
 	}
+	if policy.IsManualAdd(req.Indexer) {
+		return nil, badf("indexer %q is kept for releases added by hand", req.Indexer)
+	}
 	rel := indexer.Release{Title: strings.TrimSpace(req.Release), Indexer: req.Indexer, Size: req.Size, Seeders: -1,
 		Peers: -1, InfoHash: indexer.NormalizeHash(req.InfoHash), Languages: req.Languages, Flags: req.Flags}
 	if ix := s.pol.Indexers[req.Indexer]; ix != nil {

@@ -827,6 +827,12 @@ func (s *Service) releasePush(w http.ResponseWriter, r *request) {
 		if rel.Indexer == "" {
 			rel.Indexer = "push"
 		}
+		// The placeholder of a release added by hand is AddRelease's alone: a pushed release naming it would skip
+		// the version's indexer list.
+		if policy.IsManualAdd(rel.Indexer) {
+			pushError(w, "Indexer", fmt.Sprintf("'Indexer' must not be %q: the name is kept for releases added by hand.", policy.ManualIndexer), rel.Indexer)
+			return
+		}
 	}
 	if t, err := time.Parse(time.RFC3339, b.PublishDate); err == nil {
 		rel.PublishDate = t.UTC()

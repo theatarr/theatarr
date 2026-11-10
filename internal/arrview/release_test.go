@@ -5,6 +5,8 @@ import (
 	"strconv"
 	"strings"
 	"testing"
+
+	"github.com/theatarr/theatarr/internal/policy"
 )
 
 // Interactive search, grab and push. movie-web (active) and movie-remux (shadow) both hold Alpha in /radarr.
@@ -196,7 +198,21 @@ func TestReleasePush(t *testing.T) {
 	}
 	e.call("POST", "/radarr/api/v3/release/push", map[string]any{"title": "x", "magnetUrl": "magnet:?",
 		"protocol": "unknown", "publishDate": "2026-10-26T11:00:00Z"}, 400, &bad)
-	// Sonarr: imdbId as a "tt" string (autobrr's sonarr types.go L14-29), tvdbId.
+	// The placeholder of a release added by hand is not a pushed indexer's name: it would skip the version's indexer
+	// list. Refused, nothing decided or routed.
+	e.call("POST", "/v/movie-web/radarr/api/v3/release/push", map[string]any{"title": "Alpha.2020.2160p.WEB-DL.H265-GRP",
+		"magnetUrl": "magnet:?xt=urn:btih:" + strings.Repeat("3", 40), "protocol": "torrent", "size": 1 << 30,
+		"indexer": " " + policy.ManualIndexer + " ", "publishDate": "2026-10-26T11:00:00Z", "tmdbId": 101}, 400, &bad)
+	if len(bad) != 1 || bad[0]["propertyName"] != "Indexer" {
+		t.Errorf("a push naming the manual add placeholder %v", bad)
+	}
+	e.drain()
+	if adds := e.adds(); len(adds) != 1 {
+		t.Errorf("adds after a push naming the manual add placeholder %v", adds)
+	}
+	if n := e.one(`SELECT COUNT(*) FROM download WHERE info_hash = ?`, strings.Repeat("3", 40)); n != 0 {
+		t.Errorf("%d downloads for the refused push", n)
+	}
 	out = push("/sonarr/api/v3/release/push", map[string]any{"title": "The.Show.S01E02.2160p.WEB-DL-GRP",
 		"magnetUrl": "magnet:?xt=urn:btih:" + strings.Repeat("5", 40), "protocol": "torrent",
 		"indexer": "prowlarr-public", "publishDate": "2026-10-26T11:00:00Z", "tvdbId": 201, "imdbId": "tt0000201"}, 200)

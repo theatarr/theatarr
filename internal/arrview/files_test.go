@@ -235,6 +235,11 @@ func TestManualImportAndImportAPI(t *testing.T) {
 	if err != nil || !d.Accepted || d.Score != 50 {
 		t.Errorf("decide %+v %v", d, err)
 	}
+	// The placeholder of a release added by hand is not an indexer the API takes.
+	if _, err := e.svc.Decide(t.Context(), DecideRequest{TitleID: 1, Version: "movie-web",
+		Release: "Alpha.2020.2160p.WEB-DL.H265-GRP", Indexer: policy.ManualIndexer}); !errors.Is(err, ErrBadRequest) {
+		t.Errorf("decide with the manual add placeholder: %v", err)
+	}
 }
 
 // TestDryRunImportPublishesNoDownload: a dry run of the import API plans without any download row, so nothing the

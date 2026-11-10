@@ -400,7 +400,13 @@ type Indexer struct {
 // ManualIndexer is what a release a person added by magnet or hash carries as its indexer (arrview.AddRelease): no
 // search found it, so it has none. It is not an indexer of the policy and cannot be the key of one (a key has no
 // space: checkKey): such a release is not held to a version's indexer list and no indexer narrows its providers.
+//
+// Only arrview.AddRelease writes it: every place an indexer name comes in from outside (a release push, the decide
+// API) refuses this value, so it marks a release a person added by hand and nothing else.
 const ManualIndexer = "manual add"
+
+// IsManualAdd reports whether ix is the placeholder of a release a person added by magnet or hash.
+func IsManualAdd(ix string) bool { return ix == ManualIndexer }
 
 // ReleaseProviders is v's provider order limited to those indexer ix allows (indexers[ix].providers; all when empty,
 // when ix is not in the policy, or for a manual add).
@@ -409,7 +415,7 @@ func (p *Policy) ReleaseProviders(v *VersionPolicy, ix string) []string {
 		return nil
 	}
 	in := p.Indexers[ix]
-	if ix == ManualIndexer || in == nil || len(in.Providers) == 0 {
+	if IsManualAdd(ix) || in == nil || len(in.Providers) == 0 {
 		return v.Providers
 	}
 	var out []string
