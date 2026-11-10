@@ -529,8 +529,9 @@ func (l *Library) importDownload(ctx context.Context, d *importDownload, dryRun 
 			unlisted = append(unlisted, f.Rel)
 			continue
 		}
-		if l.decy != nil && dryRun && slices.Contains(unreadyStates, d.State) {
-			// A read through decypharr can make it replace the torrent of a download the router still polls.
+		if l.decy != nil && dryRun && (slices.Contains(unreadyStates, d.State) || (d.State == "failed" && d.ReadyAt.IsZero())) {
+			// A read through decypharr can make it replace the torrent of a download the router still polls; one
+			// that failed before it was ready has no files to read either.
 			pf.Reason = "probe: not read: the download is not ready"
 			plan.Files = append(plan.Files, pf)
 			continue

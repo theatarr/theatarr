@@ -314,6 +314,17 @@ func TestImportDecypharrFileList(t *testing.T) {
 			FROM download d WHERE d.id = 1`); s != "downloading 0 0" {
 			t.Errorf("after the dry run: %s", s)
 		}
+		// A download that failed before it was ready is not read either; one that failed after it was is.
+		e.exec(`UPDATE download SET state = 'failed', ready_at = NULL WHERE id = 1`)
+		if _, err := e.lib.Import(e.ctx, 1, true); err != nil || probed != 0 {
+			t.Errorf("failed before ready: probed %d, %v", probed, err)
+		}
+		e.exec(`UPDATE download SET ready_at = 1 WHERE id = 1`)
+		if _, err := e.lib.Import(e.ctx, 1, true); err != nil || probed != 1 {
+			t.Errorf("failed after ready: probed %d, %v", probed, err)
+		}
+		probed = 0
+		e.exec(`UPDATE download SET state = 'downloading' WHERE id = 1`)
 		// Without decypharr the dry run reads the file as before.
 		e.lib.decy = nil
 		if _, err := e.lib.Import(e.ctx, 1, true); err != nil || probed != 1 {
