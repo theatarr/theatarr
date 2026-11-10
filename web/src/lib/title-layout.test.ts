@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { Version } from "@/api/library";
-import { copyFields, parseTitleID, readiness, resolveTab, titleReleaseAccess, titleTabs } from "./title-layout";
+import { airFact, copyFields, parseTitleID, readiness, resolveTab, titleReleaseAccess, titleTabs } from "./title-layout";
 
 const v = (o: Partial<Version>): Version => ({ id: 1, key: "movie-remux", label: "4K Remux", has_file: true, state: "filled", ...o }) as Version;
 
@@ -65,5 +65,16 @@ describe("copy fields", () => {
     expect(copyFields(v({ has_file: false, state: "wanted", current: undefined }))).toMatchObject({ current: "None yet", availability: "Not available yet", preferred: "" });
     expect(copyFields(v({ label: "Anime", upgrade: { state: "below_cutoff", quality: "Bluray-1080p" }, episodes: { have: 3, total: 12, missing: 9 } })).availability).toBe("3 of 12 episodes");
     expect(copyFields(v({ label: "Anime", upgrade: { state: "below_cutoff", quality: "Bluray-1080p" }, episodes: { have: 12, total: 12, missing: 0 } })).availability).toBe("All 12 episodes · mostly 1080p Blu-ray");
+  });
+});
+
+describe("air fact", () => {
+  it("drops a cached next episode day that has passed", () => {
+    const m = { next_air_date: "2026-11-08", last_air_date: "2026-11-01" };
+    expect(airFact(m, "2026-11-08")).toEqual({ label: "Next episode", day: "2026-11-08" });
+    expect(airFact(m, "2026-11-09")).toEqual({ label: "Last aired", day: "2026-11-01" });
+    expect(airFact({ next_air_date: "2026-11-08" }, "2026-11-09")).toBeUndefined();
+    expect(airFact({ last_air_date: "2026-11-01" }, "2026-11-09")).toEqual({ label: "Last aired", day: "2026-11-01" });
+    expect(airFact(undefined, "2026-11-09")).toBeUndefined();
   });
 });

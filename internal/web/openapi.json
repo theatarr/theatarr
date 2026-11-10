@@ -1145,7 +1145,7 @@
           "label": { "type": "string", "description": "Title page only: the version's name for people" },
           "current": { "$ref": "#/components/schemas/CurrentFile" },
           "providers": { "type": "array", "items": { "type": "string" }, "description": "Title page, see_files only" },
-          "episodes": { "type": "object", "description": "Title page, series: episodes outside the specials", "required": ["total", "have", "missing"], "properties": { "total": { "type": "integer" }, "have": { "type": "integer" }, "missing": { "type": "integer", "description": "Aired, monitored, wanted" } } },
+          "episodes": { "type": "object", "description": "Title page, series: episodes outside the specials", "required": ["total", "have", "missing"], "properties": { "total": { "type": "integer", "description": "Aired or held" }, "have": { "type": "integer" }, "missing": { "type": "integer", "description": "Aired, monitored, wanted" } } },
           "history": { "type": "array", "description": "Title page: newest first, at most 50", "items": { "$ref": "#/components/schemas/HistoryEvent" } },
           "upgrade": { "$ref": "#/components/schemas/UpgradeInfo" },
           "control": { "$ref": "#/components/schemas/VersionControl" },

@@ -41,6 +41,11 @@ export function aired(e: Pick<Episode, "aired">): boolean {
   return !!e.aired;
 }
 
+/** "4/5 held" for a copy in a season: of the episodes aired (of all, before any airs), never fewer than it holds. */
+export function heldOf(have: number, season: { episodes: number; aired: number }): string {
+  return `${fmtNumber(have)}/${fmtNumber(Math.max(season.aired || season.episodes, have))} held`;
+}
+
 /** One copy's state for an episode. */
 export function cellStatus(c: Cell | undefined, isAired: boolean, seeFiles: boolean): Status {
   if (!c) return "none";

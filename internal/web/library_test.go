@@ -472,7 +472,8 @@ func TestTitlePage(t *testing.T) {
 		t.Errorf("web version: %+v; availability %q", d.Versions[1], d.Availability)
 	}
 	d = TitleDetail{}
-	if e.getKey(APIBase+"/titles/4", key, &d); d.Versions[0].Episodes == nil || *d.Versions[0].Episodes != (EpisodeCounts{Total: 4, Have: 2, Missing: 1}) {
+	if e.getKey(APIBase+"/titles/4", key, &d); d.Versions[0].Episodes == nil || *d.Versions[0].Episodes != (EpisodeCounts{Total: 3, Have: 2, Missing: 1}) {
+		// S02E01 has not aired and is not held: "2 of 3 episodes ready", as the episode list counts.
 		t.Errorf("Delta episodes: %+v", d.Versions[0].Episodes)
 	}
 	if c := d.Versions[0].Current; c == nil || c.Files != 2 || c.Path != "" || c.SizeBytes == nil || *c.SizeBytes != 2000000000 {

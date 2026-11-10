@@ -2,6 +2,7 @@
 // readiness line in the hero, and the fields of a copy card. Kept out of the components so it is tested.
 import type { Version } from "@/api/library";
 import { fmtNumber } from "./format";
+import { today } from "./library";
 import { resolutionWords, sourceWords } from "./upgrade";
 
 export type TitleTab = "episodes" | "copies" | "order" | "about" | "history";
@@ -69,6 +70,15 @@ export function readiness(kind: string | undefined, versions: Version[], getting
   }
   const r = bestResolution(complete.map((v) => v.current?.quality ?? v.upgrade?.quality));
   return { label: r ? `Ready to watch in ${r}` : "Ready to watch", tone: "positive" };
+}
+
+/**
+ * The Facts line about a series' airing: "Next episode" while the day TMDb gave is today or later, else "Last aired".
+ * The next day is a cached value, so one that has passed is dropped. Air dates are calendar days: today is the local day.
+ */
+export function airFact(m: { next_air_date?: string; last_air_date?: string } | undefined | null, day: string = today()): { label: string; day: string } | undefined {
+  if (m?.next_air_date && m.next_air_date.slice(0, 10) >= day) return { label: "Next episode", day: m.next_air_date };
+  return m?.last_air_date ? { label: "Last aired", day: m.last_air_date } : undefined;
 }
 
 /** A copy card's fields (managers): the copy's name, what its file is, and what its profile prefers. */

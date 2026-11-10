@@ -34,7 +34,7 @@ import { Chip } from "@/components/ui/badge";
 import { Card } from "@/components/ui/card";
 import { fmtAgo, fmtBytes } from "@/lib/format";
 import { fmtDay, fmtRuntime } from "@/lib/library";
-import { readiness, resolveTab, titleTabs, type TitleTab } from "@/lib/title-layout";
+import { airFact, readiness, resolveTab, titleTabs, type TitleTab } from "@/lib/title-layout";
 import { cn } from "@/lib/utils";
 
 function Fact({ label, children }: { label: string; children: ReactNode }) {
@@ -106,6 +106,7 @@ function About({ d }: { d: TitleDetail }) {
   const m = d.meta;
   const series = d.kind === "series";
   const runtime = fmtRuntime(d.runtime_minutes ?? m?.runtime_minutes);
+  const air = series ? airFact(m) : undefined;
   const digital = firstDate(d, "digital");
   const links = outsideLinks(d);
   return (
@@ -161,8 +162,7 @@ function About({ d }: { d: TitleDetail }) {
             {m?.status ? <Fact label="Status">{m.status}</Fact> : null}
             {d.release_date ? <Fact label={series ? "First aired" : "Released"}>{fmtDay(d.release_date)}</Fact> : null}
             {!series && digital ? <Fact label="Digital">{fmtDay(digital)}</Fact> : null}
-            {series && m?.next_air_date ? <Fact label="Next episode">{fmtDay(m.next_air_date)}</Fact> : null}
-            {series && !m?.next_air_date && m?.last_air_date ? <Fact label="Last aired">{fmtDay(m.last_air_date)}</Fact> : null}
+            {air ? <Fact label={air.label}>{fmtDay(air.day)}</Fact> : null}
             {runtime ? <Fact label="Runtime">{runtime}</Fact> : null}
             {m?.network ? <Fact label={series ? "Network" : "Studio"}>{m.network}</Fact> : null}
             {m?.original_language ? <Fact label="Language">{languageName(m.original_language)}</Fact> : null}

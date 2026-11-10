@@ -43,6 +43,7 @@ import {
   copiesInView,
   episodeLayout,
   episodeNumber,
+  heldOf,
   matchesFilter,
   mergedStatus,
   plainAvailable,
@@ -330,7 +331,7 @@ function SeasonVersion({ titleId, season, v, manage, seeFiles }: { titleId: numb
   const all = c.monitored >= season.episodes && season.episodes > 0;
   const some = c.monitored > 0 && !all;
   const facts = [
-    `${fmtNumber(c.have)}/${fmtNumber(season.aired || season.episodes)} held`,
+    heldOf(c.have, season),
     c.missing ? `${fmtNumber(c.missing)} missing` : "",
     seeFiles && c.below_cutoff ? `${fmtNumber(c.below_cutoff)} under preferred quality` : "",
     seeFiles && c.upgrade_seen ? `${fmtNumber(c.upgrade_seen)} upgrade${c.upgrade_seen === 1 ? "" : "s"} found` : "",
