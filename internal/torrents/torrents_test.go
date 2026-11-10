@@ -71,6 +71,9 @@ func (f *fakeProvider) Torrent(_ context.Context, id string) (*provider.Torrent,
 		if t.ID == id {
 			c := t
 			c.Files = []provider.File{}
+			if c.OriginalName == "" {
+				c.OriginalName = c.Name // a detail read names it (Real-Debrid's original_filename)
+			}
 			return &c, nil
 		}
 	}
@@ -678,14 +681,20 @@ func TestDeleteBackupFailsClosed(t *testing.T) {
 	if err != nil || plan.Count != 1 {
 		t.Fatal(plan, err)
 	}
-	e.rd.detailErr = errors.New("rd is down")
+	// The plan's read of its original name passes (a scan root link is known only by its folder); the backup's fails.
+	reads := 0
+	e.rd.onDetail = func() {
+		if reads++; reads > 1 {
+			e.rd.detailErr = errors.New("rd is down")
+		}
+	}
 	if _, err := e.m.Delete(ctx, sel, plan.Token, "admin"); !errors.Is(err, ErrBackupFailed) {
 		t.Fatalf("no backup, no delete: %v", err)
 	}
 	if e.ard.deleted != 0 {
 		t.Fatal("deleted without a backup")
 	}
-	e.rd.detailErr = nil
+	e.rd.onDetail, e.rd.detailErr = nil, nil
 	e.m.Dir = "" // no backup directory: fails closed too
 	if _, err := e.m.Delete(ctx, sel, plan.Token, "admin"); !errors.Is(err, ErrBackupFailed) || e.ard.deleted != 0 {
 		t.Fatalf("no backup dir: %v, %d deleted", err, e.ard.deleted)

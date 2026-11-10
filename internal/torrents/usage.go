@@ -61,6 +61,9 @@ type refIndex struct {
 	// nil when it could not be read: a torrent without references is unknown then, never unused.
 	decyOn bool
 	decy   *library.DecypharrIndex
+	// folderOnly: some reference is known only by its mount folder (a link without a hash, a scan root's link), so a
+	// torrent whose list name is not its folder's may be used under its original name (secondName).
+	folderOnly bool
 }
 
 // decypharrIndex reads decypharr's index when the mount is decypharr's (on). ix is nil when it cannot be read, and
@@ -87,6 +90,64 @@ func folderNames(decy *library.DecypharrIndex, hash, name string) []string {
 		}
 	}
 	return names
+}
+
+// secondName is the torrent's original name when the provider gave one: from a detail read, or from the files a list
+// gives (TorBox's), named as zurg names the folder. "" when neither is known (Real-Debrid's and AllDebrid's lists).
+func secondName(t provider.Torrent) string {
+	if t.OriginalName != "" {
+		return t.OriginalName
+	}
+	return provider.OriginalName(t.Files, t.Name)
+}
+
+// torrentFolders are folderNames of the provider's name and of its original name (secondName), which a mount may
+// use for its folder instead.
+func torrentFolders(decy *library.DecypharrIndex, hash string, t provider.Torrent) []string {
+	names := folderNames(decy, hash, t.Name)
+	if o := secondName(t); o != "" && o != t.Name {
+		for _, n := range folderNames(decy, hash, o) {
+			if !slices.Contains(names, n) {
+				names = append(names, n)
+			}
+		}
+	}
+	return names
+}
+
+// Reasons a delete's detail read leaves a torrent unknown (fixed strings: they are part of its override token).
+const (
+	reasonNoOriginal = "its original name could not be read from the provider, so the folder it is under is not known"
+	reasonNoName     = "the provider gives no original name for it yet, so the folder it is under is not known"
+)
+
+// deleteUsage is ix.usage for a delete (its plan and its last check). A torrent that would be unused while some
+// reference is known only by its folder, and whose original name the list did not give, has its detail read: the
+// mount may name its folder by that name. A failed read, or one without a name, leaves it unknown. reload gives the
+// references to judge t with its original name (a scoped load must read that folder's links too). Torrents matched
+// by hash or by their list name, and installs whose references all carry hashes, read nothing.
+func (m *Manager) deleteUsage(ctx context.Context, key string, t provider.Torrent, ix *refIndex,
+	reload func(provider.Torrent) (*refIndex, error)) (Usage, map[string]int, []Ref, []string, error) {
+	u, refs, list, reasons := ix.usage(key, t)
+	if u != Unused || !ix.folderOnly || secondName(t) != "" {
+		return u, refs, list, reasons, nil
+	}
+	p := m.Providers[key]
+	if p == nil {
+		return Unknown, nil, nil, []string{reasonNoOriginal}, nil
+	}
+	d, err := p.Torrent(ctx, t.ID)
+	if err != nil {
+		return Unknown, nil, nil, []string{reasonNoOriginal}, nil
+	}
+	if t.OriginalName = secondName(*d); t.OriginalName == "" {
+		return Unknown, nil, nil, []string{reasonNoName}, nil
+	}
+	if ix, err = reload(t); err != nil {
+		return "", nil, nil, nil, err
+	}
+	u, refs, list, reasons = ix.usage(key, t)
+	return u, refs, list, reasons, nil
 }
 
 // mountView maps a link target to the mount folder it names.
@@ -205,6 +266,7 @@ func (m *Manager) loadDBRefsFor(ctx context.Context, sc *refScope) (*refIndex, e
 		}
 		if folder != "" {
 			ix.byFolder[folder] = append(ix.byFolder[folder], r)
+			ix.folderOnly = ix.folderOnly || hash == ""
 		}
 		if hash == "" && folder == "" && (mv == nil || inMount) {
 			untied++
@@ -363,6 +425,7 @@ func (ix *refIndex) withScan(sc *refIndex) *refIndex {
 		ix.byFolder[f] = append(ix.byFolder[f], refs...)
 	}
 	ix.unknown = append(ix.unknown, sc.unknown...)
+	ix.folderOnly = ix.folderOnly || sc.folderOnly
 	return ix
 }
 
@@ -389,6 +452,7 @@ func scanRoot(ctx context.Context, root string, mounts []string, mv *mountView, 
 		}
 		if folder, _ := mv.folder(t); folder != "" {
 			ix.byFolder[folder] = append(ix.byFolder[folder], Ref{Kind: RefScan, Detail: p})
+			ix.folderOnly = true
 		}
 	})
 }
@@ -412,7 +476,7 @@ func (ix *refIndex) usage(key string, t provider.Torrent) (Usage, map[string]int
 	if h != "" {
 		add(ix.byHash[h])
 	}
-	for _, f := range folderNames(ix.decy, h, t.Name) {
+	for _, f := range torrentFolders(ix.decy, h, t) {
 		add(ix.byFolder[f])
 	}
 	sort.SliceStable(refs, func(i, j int) bool { return refs[i].Kind < refs[j].Kind })

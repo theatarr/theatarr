@@ -451,7 +451,7 @@ func TestOriginalNameFromFiles(t *testing.T) {
 		{[]File{{Path: "A/a.mkv"}, {Path: "B/b.mkv"}}, "provider name"},
 		{[]File{{Path: "A/a.mkv"}, {Path: "b.mkv"}}, "provider name"},
 	} {
-		if got := originalName(c.files, "provider name"); got != c.want {
+		if got := OriginalName(c.files, "provider name"); got != c.want {
 			t.Errorf("%+v: %q, want %q", c.files, got, c.want)
 		}
 	}

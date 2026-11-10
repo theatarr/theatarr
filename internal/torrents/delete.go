@@ -143,7 +143,11 @@ func (m *Manager) PlanDelete(ctx context.Context, sel []DeleteSelection) (*Delet
 		if found && it.Refusal == "" {
 			it.Hash = indexer.NormalizeHash(t.Hash)
 			it.Name, it.Bytes, it.Added, it.State = t.Name, t.Bytes, t.Added, t.State
-			it.Usage, it.Refs, it.RefList, it.Reasons = ix.usage(s.Provider, t)
+			it.Usage, it.Refs, it.RefList, it.Reasons, err = m.deleteUsage(ctx, s.Provider, t, ix,
+				func(provider.Torrent) (*refIndex, error) { return ix, nil })
+			if err != nil {
+				return nil, err
+			}
 			if it.Usage != Unused {
 				it.ExpectedOverride = overrideToken(s.Provider, t, it.Usage, it.Refs, it.RefList, it.Reasons)
 			}
@@ -374,12 +378,21 @@ func (m *Manager) usageChanged(ctx context.Context, plan *DeletePlan, it *Delete
 	}
 	h := indexer.NormalizeHash(t.Hash)
 	on, decy := m.decypharrIndex(ctx)
-	ix, err := m.loadDBRefsFor(ctx, &refScope{hash: h, folders: folderNames(decy, h, t.Name), decyOn: on, decy: decy})
+	load := func(t provider.Torrent) (*refIndex, error) {
+		ix, err := m.loadDBRefsFor(ctx, &refScope{hash: h, folders: torrentFolders(decy, h, t), decyOn: on, decy: decy})
+		if err != nil {
+			return nil, err
+		}
+		return ix.withScan(scan), nil
+	}
+	ix, err := load(t)
 	if err != nil {
 		return "", err
 	}
-	ix.withScan(scan)
-	u, refs, list, reasons := ix.usage(it.Provider, t)
+	u, refs, list, reasons, err := m.deleteUsage(ctx, it.Provider, t, ix, load)
+	if err != nil {
+		return "", err
+	}
 	token := ""
 	if u != Unused {
 		token = overrideToken(it.Provider, t, u, refs, list, reasons)

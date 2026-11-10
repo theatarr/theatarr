@@ -289,7 +289,7 @@ func (t *torBox) Torrent(ctx context.Context, id string) (*Torrent, error) {
 		}
 		for i := range list {
 			if list[i].ID == id {
-				list[i].OriginalName = originalName(list[i].Files, list[i].Name)
+				list[i].OriginalName = OriginalName(list[i].Files, list[i].Name)
 				return &list[i], nil
 			}
 		}
@@ -300,7 +300,7 @@ func (t *torBox) Torrent(ctx context.Context, id string) (*Torrent, error) {
 		return nil, &APIError{Provider: t.g.provider, Status: 200, Code: "NOT_FOUND", kind: ErrNotFound}
 	}
 	x := one.t.torrent()
-	x.OriginalName = originalName(x.Files, x.Name)
+	x.OriginalName = OriginalName(x.Files, x.Name)
 	return &x, nil
 }
 

@@ -92,9 +92,9 @@ type File struct {
 	Selected bool   `json:"selected"`
 }
 
-// originalName is a torrent's own name read from its files, as zurg names a TorBox or AllDebrid folder: the folder
+// OriginalName is a torrent's own name read from its files, as zurg names a TorBox or AllDebrid folder: the folder
 // every file path shares, else the single file's own name, else the provider's name. "" without files.
-func originalName(files []File, name string) string {
+func OriginalName(files []File, name string) string {
 	if len(files) == 0 {
 		return ""
 	}
