@@ -53,7 +53,6 @@ events it gets, or turn on the `native` option for Theatarr's own events. Then t
 
 ## Other gaps
 
-- **No published image yet.** Build the image from the repository ([quickstart.md](quickstart.md)).
 - **No update notice.** Theatarr does not check for new versions; `theatarr version` prints the build you run.
 - **Import lists.** Only TMDb movie lists (**Collections › Lists**, or the Radarr-compatible API). There are no
   series lists and no other list providers yet.
