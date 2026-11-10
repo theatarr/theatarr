@@ -88,7 +88,7 @@ Request pending, approved/auto-approved, declined, failed and available events q
 
 Payloads retain `eventType: theatarr.request_*` and use Seerr's `notification_type` names (`MEDIA_PENDING`, `MEDIA_APPROVED`, `MEDIA_AUTO_APPROVED`, `MEDIA_DECLINED`, `MEDIA_AVAILABLE`, `MEDIA_FAILED`), `event`, `subject`, `message`, `image`, `media`, `request` and `extra`, including joined requesters, title ids, seasons and copy keys/labels. Partial availability uses `MEDIA_AVAILABLE` with “Series Partially Available”; successful auto-approval skips the transient pending alert.
 
-Discord targets (`format: discord`, docs/design/devices.md) get only available and partially available, as "**Title (year)** is ready in Plex, requested by <name>" ("is partly ready" for a partial series). A requester with a Discord user id is mentioned (`<@id>`), and `allowed_mentions.users` lists only those ids, so nobody else is pinged. The id never reaches the request SSE stream or the theatarr.* payloads.
+Discord and ntfy targets (`format: discord` or `format: ntfy`, docs/design/devices.md) get only available and partially available, as "**Title (year)** is ready in Plex, requested by <name>" ("is partly ready" for a partial series; plain text on ntfy). On a Discord target a requester with a Discord user id is mentioned (`<@id>`), and `allowed_mentions.users` lists only those ids, so nobody else is pinged. The id never reaches the request SSE stream or the theatarr.* payloads.
 
 | Route | What |
 |---|---|

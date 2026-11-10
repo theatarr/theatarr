@@ -485,7 +485,7 @@ export const SETTINGS_ALIASES: { terms: string[]; href: string; title?: string }
  { terms: ["proxy", "vpn"], href: "/admin/settings/indexers/vpn" },
  { terms: ["debrid", "real-debrid", "alldebrid", "torbox", "router", "grabbing"], href: "/admin/settings/downloads" },
  { terms: ["qbittorrent", "seedbox", "decypharr", "download client"], href: "/admin/settings/downloads/clients" },
- { terms: ["connect", "webhook", "discord"], href: "/admin/settings/notifications" },
+ { terms: ["connect", "webhook", "discord", "ntfy"], href: "/admin/settings/notifications" },
  { terms: ["rclone"], href: "/admin/settings/libraries/files#mount" },
  { terms: ["seerr", "overseerr", "api key for seerr", "view bindings", "arr views", "applications"], href: "/admin/settings/apps" },
  { terms: ["backup", "restore", "theatarr backup"], href: "/admin/system/backup", title: "Theatarr backups and restore" },
