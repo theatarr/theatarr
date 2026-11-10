@@ -1,0 +1,162 @@
+package main
+
+import (
+	"bytes"
+	"context"
+	"encoding/json"
+	"io"
+	"log/slog"
+	"os"
+	"path/filepath"
+	"strings"
+	"testing"
+
+	"github.com/theatarr/theatarr/internal/policy"
+	"github.com/theatarr/theatarr/internal/settings"
+	"github.com/theatarr/theatarr/internal/store"
+)
+
+// TestCommandsUseStoredProviderKeys: a provider key kept in the settings database (as the web UI stores it) counts
+// as set for every command that reads provider keys, with nothing in the environment; a record that never had a
+// stored key still reads its env variable as before.
+func TestCommandsUseStoredProviderKeys(t *testing.T) {
+	for _, env := range []string{"THEATARR_RD_KEY", "THEATARR_AD_KEY", "THEATARR_TB_KEY"} {
+		t.Setenv(env, "")
+		os.Unsetenv(env)
+	}
+	ctx := context.Background()
+	polDir := filepath.Join("..", "..", "examples", "policy")
+	db := filepath.Join(t.TempDir(), "theatarr.db")
+	// The fixture stores each provider's key in the database ("fixture-<env name>").
+	commandSettingsArgs(t, []string{"-db", db, "-policy", polDir})
+	st, err := store.Open(ctx, db, store.Options{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	// ad: a record from before stored keys, with only its env variable.
+	if _, err := st.Writer().ExecContext(ctx, `UPDATE setting_provider SET secret_id = NULL WHERE key = 'ad'`); err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv("THEATARR_AD_KEY", "env-ad")
+
+	pol, snap, err := loadSettingsSnapshot(ctx, "db", polDir, db)
+	if err != nil {
+		t.Fatal(err)
+	}
+	keys := providerKeys(pol, snap)
+	if keys["rd"] != "fixture-THEATARR_RD_KEY" || keys["tb"] != "fixture-THEATARR_TB_KEY" || keys["ad"] != "env-ad" {
+		t.Fatalf("keys not resolved as serve does (values hidden): rd=%t tb=%t ad=%t", keys["rd"] != "",
+			keys["tb"] != "", keys["ad"] == "env-ad")
+	}
+	if nosnap := providerKeys(pol, nil); nosnap["rd"] != "" || nosnap["ad"] != "env-ad" {
+		t.Fatal("without a snapshot only the environment counts")
+	}
+
+	// providers sync / status -account / torrents.
+	e, err := openProviderEnv(ctx, db, polDir, "", false, false, "db")
+	if err != nil {
+		t.Fatal(err)
+	}
+	// Without the gateway no client is built; the keys the clients and torrents' adders take are resolved.
+	if e.keys["rd"] == "" || e.keys["ad"] != "env-ad" || e.keys["tb"] == "" {
+		t.Error("provider env: stored keys not resolved")
+	}
+	e.Close()
+	// With the gateway the read clients are built from those keys (nothing is sent here).
+	if e, err = openProviderEnv(ctx, db, polDir, "", false, true, "db"); err != nil {
+		t.Fatal(err)
+	}
+	if len(e.missing) != 0 || e.clients["rd"] == nil || e.clients["ad"] == nil || e.clients["tb"] == nil {
+		t.Errorf("provider clients: missing %v", e.missing)
+	}
+	e.Close()
+
+	// router dry-run reads the snapshot its engine loaded.
+	df := decideFlags{settingsSource: "db", policyDir: polDir, db: db}
+	if _, _, err := df.engine("movie-remux", io.Discard); err != nil {
+		t.Fatal(err)
+	}
+	if providerKeys(pol, df.snap)["rd"] == "" {
+		t.Error("router dry-run: the stored key is not seen")
+	}
+
+	// router status.
+	var out bytes.Buffer
+	if err := runRouter([]string{"status", "-db", db, "-json"}, &out, nil); err != nil {
+		t.Fatal(err)
+	}
+	var status struct {
+		Providers []struct {
+			Key    string `json:"key"`
+			KeySet bool   `json:"key_set"`
+		} `json:"providers"`
+	}
+	if err := json.Unmarshal(out.Bytes(), &status); err != nil {
+		t.Fatal(err)
+	}
+	set := map[string]bool{}
+	for _, p := range status.Providers {
+		set[p.Key] = p.KeySet
+	}
+	if !set["rd"] || !set["ad"] || !set["tb"] {
+		t.Errorf("router status key_set: %v", set)
+	}
+
+	// health and golive check's health part.
+	syncCheck := func(name string, msg string) {
+		if msg == "" || strings.Contains(msg, "No debrid provider keys set") {
+			t.Errorf("%s: ProviderSyncCheck %q", name, msg)
+		}
+	}
+	out.Reset()
+	_ = runHealth([]string{"-db", db, "-backup-dir", "off", "-json"}, &out)
+	var hr struct {
+		Checks []struct {
+			Source  string `json:"source"`
+			Message string `json:"message"`
+		} `json:"checks"`
+	}
+	if err := json.Unmarshal(out.Bytes(), &hr); err != nil {
+		t.Fatalf("%v\n%s", err, out.String())
+	}
+	msg := ""
+	for _, c := range hr.Checks {
+		if c.Source == "ProviderSyncCheck" {
+			msg = c.Message
+		}
+	}
+	syncCheck("health", msg)
+	msg = ""
+	for _, r := range goliveHealth(ctx, pol, snap, st, db, "off", slog.New(slog.NewTextHandler(io.Discard, nil))) {
+		if r.Source == "ProviderSyncCheck" {
+			msg = r.Message
+		}
+	}
+	syncCheck("golive", msg)
+	st.Close()
+
+	// backup: names the settings database holds are not env variables to set.
+	for _, s := range secretsOf(pol, os.Getenv) {
+		if settingsHeldSecret(s.Env) {
+			t.Errorf("backup lists %s as an env secret", s.Env)
+		}
+	}
+}
+
+func TestProviderKeyUnsetAndBackupWording(t *testing.T) {
+	if got := providerKeyUnset(&policy.Provider{APIKeyEnv: settings.CredentialSentinel}); strings.Contains(got, settings.CredentialSentinel) {
+		t.Errorf("sentinel named as an env variable: %q", got)
+	}
+	if got := providerKeyUnset(&policy.Provider{APIKeyEnv: "THEATARR_RD_KEY"}); got != "THEATARR_RD_KEY is not set" {
+		t.Errorf("env provider: %q", got)
+	}
+	var out bytes.Buffer
+	// An older manifest still lists the placeholder and derived names: they are not shown as MISSING.
+	printSecrets(&out, []backupSecret{{Env: settings.CredentialSentinel}, {Env: policy.SettingsSecretPrefix + "VIEWS_X"},
+		{Env: "THEATARR_TMDB_KEY", Set: true}}, nil)
+	s := out.String()
+	if strings.Contains(s, "MISSING") || strings.Contains(s, "never stored") || !strings.Contains(s, "stored in the database") ||
+		!strings.Contains(s, "keep it private") || !strings.Contains(s, "THEATARR_TMDB_KEY") {
+		t.Errorf("secrets block:\n%s", s)
+	}
+}

@@ -171,7 +171,7 @@ func runRouterDryRun(args []string, out io.Writer, dial func(context.Context, st
 	}
 	found.Request.Source = "cli"
 	// Adders only tell the plan which providers have a key; Plan never calls them.
-	adders, _ := router.BuildAdders(pol, gw, os.Getenv, log)
+	adders, _ := router.BuildAddersWithKeys(pol, gw, providerKeys(pol, df.snap), log)
 	rt, err := router.New(router.Config{Store: st, Policy: pol, Adders: adders, Logger: log})
 	if err != nil {
 		return err
@@ -258,7 +258,7 @@ func runRouterStatus(args []string, out io.Writer) error {
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), time.Minute)
 	defer cancel()
-	pol, err := loadCommandPolicy(fs, policyDir)
+	pol, snap, err := loadCommandSettings(fs, policyDir)
 	if err != nil {
 		return err
 	}
@@ -267,9 +267,14 @@ func runRouterStatus(args []string, out io.Writer) error {
 		return err
 	}
 	defer st.Close()
-	s, err := router.ReadStatus(ctx, st, pol, func(env string) bool { return os.Getenv(env) != "" }, time.Now(), *limit)
+	s, err := router.ReadStatus(ctx, st, pol, nil, time.Now(), *limit)
 	if err != nil {
 		return err
+	}
+	// Every provider keyed in the web UI shares one placeholder env name, so the key is looked up per provider.
+	keys := providerKeys(pol, snap)
+	for i := range s.Providers {
+		s.Providers[i].KeySet = keys[s.Providers[i].Key] != ""
 	}
 	if *asJSON {
 		enc := json.NewEncoder(out)

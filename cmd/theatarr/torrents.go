@@ -93,12 +93,12 @@ func (f *torrentFlags) open(ctx context.Context) (*torrents.Manager, func(), err
 	}
 	if f.needGateway {
 		for _, k := range e.missing {
-			fmt.Fprintf(os.Stderr, "%s: %s is not set; it is reported as unreadable\n", k,
-				e.pol.Providers[k].APIKeyEnv)
+			fmt.Fprintf(os.Stderr, "%s: %s; it is reported as unreadable\n", k,
+				providerKeyUnset(e.pol.Providers[k]))
 		}
 	}
 	if f.needAdders {
-		m.Adders, _ = router.BuildAdders(e.pol, e.gw, os.Getenv, log)
+		m.Adders, _ = router.BuildAddersWithKeys(e.pol, e.gw, e.keys, log)
 	}
 	return m, e.Close, nil
 }

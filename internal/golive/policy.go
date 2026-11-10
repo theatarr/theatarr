@@ -327,7 +327,7 @@ func (c *checker) secrets() {
 			fix: "store the key under " + map[string]string{"providers": uipages.Providers, "indexers": uipages.Indexers}[entity] +
 				" (or set the env variable it names)"})
 	}
-	setFix := "set it in the container env (the Dockhand stack's secret variables); a host change"
+	setFix := "set it in the container's environment; a host change"
 	for _, pk := range v.Providers {
 		if pv := p.Providers[pk]; pv != nil {
 			addRecord("providers", pk, pv.APIKeyEnv, "provider "+pk)

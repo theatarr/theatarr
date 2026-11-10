@@ -13,7 +13,6 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
-	"sort"
 	"strconv"
 	"strings"
 	"time"
@@ -222,16 +221,11 @@ func goliveHealth(ctx context.Context, pol *policy.Policy, snap *settings.Snapsh
 	case "off":
 		backupDir = ""
 	}
-	var providers []string
-	for k, pv := range pol.Providers {
-		if os.Getenv(pv.APIKeyEnv) != "" {
-			providers = append(providers, k)
-		}
-	}
-	sort.Strings(providers)
+	providers := keyedProviders(pol, snap)
+	// As serve sees them: keys stored in the settings database, or named env variables.
 	on := func(name string) bool {
 		src := metadataSource(pol, name)
-		return src != nil && src.URL != "" && src.APIKeyEnv != "" && os.Getenv(src.APIKeyEnv) != ""
+		return src != nil && src.URL != "" && src.APIKeyEnv != "" && pol.Getenv(src.APIKeyEnv) != ""
 	}
 	hc := newServeHealth(serveHealthConfig{pol: pol, snap: snap, st: st, q: jobs.NewQueue(st), dbPath: dbPath,
 		backupDir: backupDir, providers: providers, providerInterval: pol.ProviderSyncInterval(), tmdb: on("tmdb"),

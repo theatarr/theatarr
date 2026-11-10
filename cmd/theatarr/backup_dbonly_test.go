@@ -487,7 +487,7 @@ func TestRestoreLegacySetNamesSettingsImport(t *testing.T) {
 	}
 	want := "next: the set has no complete settings generation: import its policy before starting serve:\n" +
 		"  theatarr settings import -policy " + polOut + " -db " + dst + "   (review the preview, then repeat with -confirm)\n" +
-		"  then start theatarr serve with -db " + dst + " -policy " + polOut + " and the secrets above, wait for /readyz, then\n" +
+		"  then start theatarr serve with -db " + dst + " -policy " + polOut + " and the environment variables above, wait for /readyz, then\n" +
 		"  theatarr library dangling -scan; theatarr library relink -dry-run   (docs/restore.md)\n"
 	if !strings.HasSuffix(out.String(), want) {
 		t.Fatalf("restore output:\n%s", out.String())
@@ -534,8 +534,8 @@ func TestRestorePartialHeadThatLoadsIsADatabaseSet(t *testing.T) {
 	}
 	want := "  note     the policy files alone do not validate (router.yaml: yaml: line 1: did not find expected ',' or ']'); " +
 		"serve does not read them as settings\n" +
-		"  secrets  none named by the policy\n" +
-		"next: start theatarr serve with -db " + dst + " -policy " + polOut + " and the secrets above, wait for /readyz, then\n" +
+		"  secrets  no environment variables named by the settings; " + backupHoldsCredentials + "\n" +
+		"next: start theatarr serve with -db " + dst + " -policy " + polOut + " and the environment variables above, wait for /readyz, then\n" +
 		"  theatarr library dangling -scan; theatarr library relink -dry-run   (docs/restore.md)\n"
 	if !strings.HasSuffix(out.String(), want) {
 		t.Fatalf("restore output:\n%s", out.String())
@@ -725,7 +725,7 @@ func TestRestoreKeepsAnEmptyOverridesDirectory(t *testing.T) {
 	if err := restoreBackup(context.Background(), &out, set, dst, polOut, false, os.Getenv, time.Now()); err != nil {
 		t.Fatalf("restore: %v\n%s", err, out.String())
 	}
-	if !strings.Contains(out.String(), "next: start theatarr serve with -db "+dst+" -policy "+polOut+" and the secrets above") {
+	if !strings.Contains(out.String(), "next: start theatarr serve with -db "+dst+" -policy "+polOut+" and the environment variables above") {
 		t.Fatalf("restore output:\n%s", out.String())
 	}
 	if info, err := os.Stat(filepath.Join(polOut, "overrides")); err != nil || !info.IsDir() {
@@ -749,7 +749,7 @@ func TestRestoreRecreatesAnOverridesDirectoryMissingFromAnOlderArchive(t *testin
 		t.Fatalf("restore: %v\n%s", err, out.String())
 	}
 	if !strings.Contains(out.String(), "next: start theatarr serve with -db "+root+"/restored/theatarr.db -policy "+root+
-		"/restored/policy and the secrets above") {
+		"/restored/policy and the environment variables above") {
 		t.Fatalf("restore output:\n%s", out.String())
 	}
 	entries, err := os.ReadDir(root + "/restored/policy/overrides")
@@ -816,8 +816,8 @@ func TestRestoreChecksAnAbsoluteOverridesPathInsideThePolicyUnderTheStagedCopy(t
 	}
 	if !strings.Contains(out.String(), "next: install the restored policy "+root+"/restored/policy at "+root+
 		"/policy, the directory its stored metadata.overrides_dir ("+root+"/policy/overrides) is in (docs/restore.md "+
-		"step 4), then\n  start theatarr serve with -db "+root+"/restored/theatarr.db -policy "+root+"/policy and the secrets "+
-		"above") {
+		"step 4), then\n  start theatarr serve with -db "+root+"/restored/theatarr.db -policy "+root+"/policy and the environment "+
+		"variables above") {
 		t.Fatalf("restore output:\n%s", out.String())
 	}
 	st, err := store.Open(ctx, dst, store.Options{})

@@ -252,6 +252,10 @@ func (c *checker) clients(owners []string) {
 	if len(views) > 0 {
 		base = c.o.PublicURL + views[0].Path
 		key = views[0].APIKeyEnv + " or a per-client key from Settings"
+		if strings.HasPrefix(views[0].APIKeyEnv, policy.SettingsSecretPrefix) {
+			// A key kept in the settings database: its derived name is not something to type into a client.
+			key = "the view's API key or a per-client key (" + uipages.Apps + ")"
+		}
 	}
 	fix := "back up the client's settings first; the rollback restores them"
 	say := func(client, format string, args ...any) {

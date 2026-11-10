@@ -120,3 +120,36 @@ func TestPrivateIndexerInDebridVersion(t *testing.T) {
 		}
 	}
 }
+
+// A view whose key the settings database holds has a derived env name; the Seerr hint names the page with the key,
+// never that name.
+func TestHandoverViewKeyFromSettings(t *testing.T) {
+	t.Parallel()
+	p := examplePolicy(t)
+	p.Views["radarr"].APIKeyEnv = policy.SettingsSecretPrefix + "VIEWS_RADARR"
+	r := run(t, Options{Policy: p, Version: "movie-web", PublicURL: "http://theatarr:7700"})
+	lines := find(r, SecHandover, "client Seerr")
+	if len(lines) == 0 {
+		t.Fatal("no Seerr hint")
+	}
+	for _, l := range lines {
+		if strings.Contains(l.Message, policy.SettingsSecretPrefix) || !strings.Contains(l.Message, "Settings › Apps") {
+			t.Errorf("Seerr hint = %q", l.Message)
+		}
+	}
+}
+
+func TestSecretFixNamesNoHostTool(t *testing.T) {
+	t.Parallel()
+	p := examplePolicy(t)
+	seen := false
+	for _, x := range run(t, Options{Policy: p, Version: "movie-web", Env: func(string) string { return "" }}).Results {
+		seen = seen || strings.Contains(x.Fix, "container's environment")
+		if strings.Contains(x.Fix+x.Message, "Dockhand") {
+			t.Errorf("result names Dockhand: %+v", x)
+		}
+	}
+	if !seen {
+		t.Error("no unset env secret reported")
+	}
+}

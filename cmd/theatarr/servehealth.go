@@ -269,13 +269,7 @@ func runHealth(args []string, out io.Writer) error {
 		return err
 	}
 	defer st.Close()
-	var providers []string
-	for k, pv := range pol.Providers {
-		if os.Getenv(pv.APIKeyEnv) != "" {
-			providers = append(providers, k)
-		}
-	}
-	sort.Strings(providers)
+	providers := keyedProviders(pol, snap)
 	// The metadata sources count as on when their keys are set here, as theatarr serve would see them.
 	on := func(name string) bool {
 		src := metadataSource(pol, name)

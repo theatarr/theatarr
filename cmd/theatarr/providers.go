@@ -55,7 +55,8 @@ type providerEnv struct {
 	gw         *gateway.Gateway
 	configured []string // policy keys in fallback order
 	clients    map[string]provider.Provider
-	missing    []string // configured providers whose key env var is unset
+	missing    []string          // configured providers whose key is unset
+	keys       map[string]string // each provider's key as serve resolves it (providerKeys)
 }
 
 func (e *providerEnv) Close() {
@@ -77,14 +78,14 @@ func openProviderEnv(ctx context.Context, db, policyDir, envFile string, verbose
 	if len(source) > 0 {
 		settingsSource = source[0]
 	}
-	pol, err := loadSettingsPolicy(ctx, settingsSource, policyDir, db)
+	pol, snap, err := loadSettingsSnapshot(ctx, settingsSource, policyDir, db)
 	if err != nil {
 		return nil, err
 	}
 	if len(pol.Providers) == 0 {
 		return nil, errors.New("the policy has no providers")
 	}
-	e := &providerEnv{pol: pol, clients: map[string]provider.Provider{}}
+	e := &providerEnv{pol: pol, clients: map[string]provider.Provider{}, keys: providerKeys(pol, snap)}
 	for k := range pol.Providers {
 		e.configured = append(e.configured, k)
 	}
@@ -122,7 +123,7 @@ func openProviderEnv(ctx context.Context, db, policyDir, envFile string, verbose
 	}
 	for _, k := range e.configured {
 		pv := pol.Providers[k]
-		key := os.Getenv(pv.APIKeyEnv)
+		key := e.keys[k]
 		if key == "" {
 			e.missing = append(e.missing, k)
 			continue
@@ -161,7 +162,7 @@ func (e *providerEnv) pickProviders(names []string) ([]string, error) {
 			return nil, fmt.Errorf("provider %q is not in the policy", n)
 		}
 		if e.clients[found] == nil {
-			return nil, fmt.Errorf("provider %q: %s is not set", found, e.pol.Providers[found].APIKeyEnv)
+			return nil, fmt.Errorf("provider %q: %s", found, providerKeyUnset(e.pol.Providers[found]))
 		}
 		out = append(out, found)
 	}
@@ -206,8 +207,8 @@ func runProvidersSync(args []string) error {
 	}
 	if len(only) == 0 {
 		for _, k := range e.missing {
-			fmt.Fprintf(os.Stderr, "skipping %s: %s is not set (no content can become absent until it is listed)\n",
-				k, e.pol.Providers[k].APIKeyEnv)
+			fmt.Fprintf(os.Stderr, "skipping %s: %s (no content can become absent until it is listed)\n",
+				k, providerKeyUnset(e.pol.Providers[k]))
 		}
 		if len(e.clients) == 0 {
 			return errors.New("no provider has its key set")
@@ -321,7 +322,7 @@ func runProvidersStatus(args []string) error {
 		for _, k := range e.configured {
 			c := e.clients[k]
 			if c == nil {
-				accounts[k] = &live{Error: e.pol.Providers[k].APIKeyEnv + " is not set"}
+				accounts[k] = &live{Error: providerKeyUnset(e.pol.Providers[k])}
 				continue
 			}
 			a, err := c.Account(ctx)

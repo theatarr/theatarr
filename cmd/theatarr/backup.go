@@ -53,7 +53,7 @@ const backupUsage = `usage:
                                                              without a suffix): check hashes, validate the settings,
                                                              copy the database, unpack the policy (-policy-out; not
                                                              needed for a set without a policy directory), report
-                                                             which secrets are set (names only)
+                                                             which env secrets are set (names only)
   theatarr backup fingerprint [-db FILE]                      counts and hashes of titles, versions, links and users, to
                                                              compare a restored database with its source
 `
@@ -111,9 +111,13 @@ type backupSecret struct {
 }
 
 // secretsOf lists the secret env vars the policy names, and the optional ones the service reads beside them.
+// Credentials the settings database holds are left out: they are in the backup's database file.
 func secretsOf(pol *policy.Policy, getenv func(string) string) []backupSecret {
 	var out []backupSecret
 	for env, users := range pol.SecretEnvs() {
+		if settingsHeldSecret(env) {
+			continue
+		}
 		out = append(out, backupSecret{Env: env, UsedBy: users, Set: getenv(env) != ""})
 	}
 	if pol.Metadata != nil && pol.Metadata.Sources["tvdb"] != nil {
@@ -526,13 +530,24 @@ func readEnvNames(p string) (map[string]bool, error) {
 	return out, nil
 }
 
+// backupHoldsCredentials is the plain truth about what a backup set holds.
+const backupHoldsCredentials = "credentials entered in the web UI are stored in the database, so this backup " +
+	"holds them: keep it private"
+
 func printSecrets(out io.Writer, secrets []backupSecret, getenv func(string) string) {
-	if len(secrets) == 0 {
-		fmt.Fprintln(out, "  secrets  none named by the policy")
+	var env []backupSecret
+	for _, s := range secrets {
+		// Sets written before these names were left out list them too.
+		if !settingsHeldSecret(s.Env) {
+			env = append(env, s)
+		}
+	}
+	if len(env) == 0 {
+		fmt.Fprintln(out, "  secrets  no environment variables named by the settings; "+backupHoldsCredentials)
 		return
 	}
-	fmt.Fprintln(out, "  secrets (env names only; values are never stored in a backup):")
-	for _, s := range secrets {
+	fmt.Fprintln(out, "  secrets  "+backupHoldsCredentials+"; the environment variables below are not in it (names only):")
+	for _, s := range env {
 		set := s.Set
 		if getenv != nil {
 			set = getenv(s.Env) != ""
@@ -596,8 +611,12 @@ func listBackups(out io.Writer, dir string) error {
 			fmt.Fprintf(out, "%s  database only (%d bytes): no manifest\n", base, size)
 			continue
 		}
-		missing := 0
+		named, missing := 0, 0
 		for _, s := range m.Secrets {
+			if settingsHeldSecret(s.Env) {
+				continue
+			}
+			named++
 			if !s.Set && !s.Optional {
 				missing++
 			}
@@ -610,7 +629,7 @@ func listBackups(out io.Writer, dir string) error {
 			pol = "no policy files (database only)"
 		}
 		fmt.Fprintf(out, "%s  %s  schema %d  %s  %d secret(s) named, %d unset at backup\n", base,
-			m.CreatedAt.Format(time.RFC3339), m.Schema, pol, len(m.Secrets), missing)
+			m.CreatedAt.Format(time.RFC3339), m.Schema, pol, named, missing)
 	}
 	return nil
 }
@@ -798,7 +817,7 @@ func restoreBackupFor(ctx context.Context, out io.Writer, from, dbPath, policyOu
 		// Serve reads no settings from the policy files: without an import it would start with none or an incomplete set.
 		fmt.Fprintf(out, "next: the set has no complete settings generation: import its policy before starting serve:\n"+
 			"  theatarr settings import -policy %s -db %s   (review the preview, then repeat with -confirm)\n"+
-			"  then start theatarr serve with -db %s -policy %s and the secrets above, wait for /readyz, then\n"+
+			"  then start theatarr serve with -db %s -policy %s and the environment variables above, wait for /readyz, then\n"+
 			"  theatarr library dangling -scan; theatarr library relink -dry-run   (docs/restore.md)\n", polFlag, dbPath, dbPath, polFlag)
 		return nil
 	}
@@ -806,11 +825,11 @@ func restoreBackupFor(ctx context.Context, out io.Writer, from, dbPath, policyOu
 		// The stored absolute path names the source policy directory: serve finds it only with the policy back there.
 		fmt.Fprintf(out, "next: install the restored policy %s at %s, the directory its stored metadata.overrides_dir (%s) "+
 			"is in (docs/restore.md step 4), then\n", policyOut, m.Policy.Dir, atSource)
-		fmt.Fprintf(out, "  start theatarr serve with -db %s -policy %s and the secrets above, wait for /readyz, then\n"+
+		fmt.Fprintf(out, "  start theatarr serve with -db %s -policy %s and the environment variables above, wait for /readyz, then\n"+
 			"  theatarr library dangling -scan; theatarr library relink -dry-run   (docs/restore.md)\n", dbPath, m.Policy.Dir)
 		return nil
 	}
-	fmt.Fprintf(out, "next: start theatarr serve with -db %s -policy %s and the secrets above, wait for /readyz, then\n"+
+	fmt.Fprintf(out, "next: start theatarr serve with -db %s -policy %s and the environment variables above, wait for /readyz, then\n"+
 		"  theatarr library dangling -scan; theatarr library relink -dry-run   (docs/restore.md)\n", dbPath, polFlag)
 	return nil
 }

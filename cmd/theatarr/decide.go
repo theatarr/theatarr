@@ -25,6 +25,7 @@ import (
 	"github.com/theatarr/theatarr/internal/gateway"
 	"github.com/theatarr/theatarr/internal/indexer"
 	"github.com/theatarr/theatarr/internal/policy"
+	"github.com/theatarr/theatarr/internal/settings"
 	"github.com/theatarr/theatarr/internal/store"
 )
 
@@ -56,6 +57,7 @@ flags:
 type decideFlags struct {
 	policyDir, db, envFile, trash, arrSnapshot string
 	settingsSource                             string
+	snap                                       *settings.Snapshot // the stored settings engine loaded
 }
 
 func (f *decideFlags) register(fs *flag.FlagSet) {
@@ -75,10 +77,11 @@ func (f *decideFlags) engine(version string, warn io.Writer) (*policy.Policy, *d
 			return nil, nil, err
 		}
 	}
-	pol, err := loadSettingsPolicy(context.Background(), f.settingsSource, f.policyDir, f.db)
+	pol, snap, err := loadSettingsSnapshot(context.Background(), f.settingsSource, f.policyDir, f.db)
 	if err != nil {
 		return nil, nil, err
 	}
+	f.snap = snap
 	v := pol.Versions[version]
 	if v == nil {
 		return nil, nil, fmt.Errorf("the policy has no library %q", version)
