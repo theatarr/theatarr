@@ -519,3 +519,68 @@ func TestSearchedGrabTakesOverManualAddRow(t *testing.T) {
 		t.Errorf("replay left pub2's providers during the outage: ad %v tb %v", e.ad["ad"].adds, e.ad["tb"].adds)
 	}
 }
+
+// sizeAndCreated is a download row's stored size (nil: not known) and the time it was created.
+func sizeAndCreated(e *env, id int64) (*int64, int64) {
+	e.t.Helper()
+	var size sql.NullInt64
+	var created int64
+	if err := e.st.Reader().QueryRow(`SELECT size_bytes, created_at FROM download WHERE id = ?`, id).Scan(&size,
+		&created); err != nil {
+		e.t.Fatal(err)
+	}
+	if !size.Valid {
+		return nil, created
+	}
+	return &size.Int64, created
+}
+
+// A takeover from another indexer writes the size of the release that takes the row: a searched release gives a
+// manual add's row its size, and a release added by hand (no size known) clears the searched one, so the replay
+// from the row carries no size of another release. A route resuming its own row keeps the size.
+func TestTakeoverWritesCandidateSize(t *testing.T) {
+	t.Parallel()
+	e := newEnv(t, true, policy.ModeActive)
+	withQueue(e)
+	id := strandQueued(e, grabReq(manualCand(h("a"), "Movie.2024.2160p.WEB.H265-GRP")))
+	if size, _ := sizeAndCreated(e, id); size != nil {
+		t.Fatalf("manual add's row has size %d", *size)
+	}
+	c := cand(h("a"), "Movie.2024.2160p.WEB.H265-GRP")
+	c.Release.Indexer, c.Release.Size = "pub2", 7<<30
+	e.pol.Indexers["pub2"] = &policy.Indexer{Kind: "torznab", URL: "http://pub2.test/api", Privacy: policy.PrivacyPublic}
+	if res, err := e.r.Route(e.ctx, movieReq(c)); err != nil || res.DownloadID != id {
+		t.Fatalf("takeover: %+v %v", res, err)
+	}
+	e.exec(`DELETE FROM job WHERE kind = ?`, JobRoute)
+	if size, _ := sizeAndCreated(e, id); size == nil || *size != 7<<30 {
+		t.Errorf("size after a searched release took the row: %v, want 7 GiB", size)
+	}
+
+	// Its own route resumes it: the size stays.
+	own, err := e.r.requestOf(e.ctx, id)
+	if err != nil || own == nil {
+		t.Fatalf("%+v %v", own, err)
+	}
+	if res, err := e.r.Route(e.ctx, *own); err != nil || res.DownloadID != id {
+		t.Fatalf("own resume: %+v %v", res, err)
+	}
+	e.exec(`DELETE FROM job WHERE kind = ?`, JobRoute)
+	if size, _ := sizeAndCreated(e, id); size == nil || *size != 7<<30 {
+		t.Errorf("size after the own resume: %v, want 7 GiB", size)
+	}
+
+	// A release added by hand takes the row back: no size is known.
+	if res, err := e.r.Route(e.ctx, grabReq(manualCand(h("a"), "Movie.2024.2160p.WEB.H265-GRP"))); err != nil ||
+		res.DownloadID != id {
+		t.Fatalf("manual takeover: %+v %v", res, err)
+	}
+	e.exec(`DELETE FROM job WHERE kind = ?`, JobRoute)
+	if size, _ := sizeAndCreated(e, id); size != nil {
+		t.Errorf("size after a manual add took the row: %d, want none", *size)
+	}
+	replay, err := e.r.requestOf(e.ctx, id)
+	if err != nil || replay == nil || replay.Candidates[0].Release.Size != 0 {
+		t.Errorf("replay %+v %v, want no size", replay, err)
+	}
+}
