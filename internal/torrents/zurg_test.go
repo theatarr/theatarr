@@ -8,6 +8,7 @@ import (
 	"os"
 	"path/filepath"
 	"reflect"
+	"strings"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -116,14 +117,14 @@ func TestUsageZurgName(t *testing.T) {
 		t.Fatalf("no provider reads, one listing: rd %d tb %d zurg %d", e.rd.reads, e.tb.reads, z.reads.Load())
 	}
 
-	// The delete preview and its last check agree without a read; a hash zurg does not list still reads its
-	// original name (rd 3: used under it).
+	// The delete preview still reads each original name first (zurg's name never stands in for it), then zurg's
+	// name adds its folder: rd 1 used under zurg's name, rd 3 (not listed by zurg) under its original name.
 	plan, err := e.m.PlanDelete(ctx, []DeleteSelection{{Provider: "rd", ID: "1", Hash: hA},
 		{Provider: "rd", ID: "3", Hash: hC}})
 	if err != nil {
 		t.Fatal(err)
 	}
-	if plan.Items[0].Usage != Used || plan.Items[1].Usage != Used || e.rd.reads != 1 {
+	if plan.Items[0].Usage != Used || plan.Items[1].Usage != Used || e.rd.reads != 2 {
 		t.Fatalf("preview: %+v, %d reads", plan.Items, e.rd.reads)
 	}
 	if why, err := e.m.usageChanged(ctx, plan, &plan.Items[0], e.scan(ctx)); err != nil || why != "" {
@@ -166,5 +167,86 @@ func TestUsageZurgAdditiveOnly(t *testing.T) {
 	}
 	if z2.reads.Load() != 0 {
 		t.Fatalf("no folder-name references, zurg not read: %d", z2.reads.Load())
+	}
+}
+
+// A torrent with a link under its original name and one under zurg's name: the preview lists both, the override
+// names both, and a link under the original name written after the preview is seen by the last check.
+func TestDeleteZurgKeepsOriginalNameRefs(t *testing.T) {
+	t.Parallel()
+	e, z := zurgFixture(t)
+	ctx := context.Background()
+	z.list = append(z.list, library.ZurgTorrent{Hash: hC, Name: "Ember Road Z", Size: 300})
+	e.exec(`INSERT INTO link (path, target, title_id, created_at, updated_at) VALUES ('/lib/E/z.mkv', ?, 1, 0, 0)`,
+		mountPath+"/__all__/Ember Road Z/z.mkv")
+	plan, err := e.m.PlanDelete(ctx, []DeleteSelection{{Provider: "rd", ID: "3", Hash: hC}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	it := plan.Items[0]
+	if it.Usage != Used || it.Refs[RefScan] != 1 || it.Refs[RefLink] != 1 || len(it.RefList) != 2 {
+		t.Fatalf("both references: %+v", it)
+	}
+	sel := []DeleteSelection{{Provider: "rd", ID: "3", Hash: hC, Override: true, OverrideToken: it.ExpectedOverride}}
+	again, err := e.m.PlanDelete(ctx, sel)
+	if err != nil || again.Count != 1 {
+		t.Fatalf("override: %v %+v", err, again)
+	}
+	if why, err := e.m.usageChanged(ctx, again, &again.Items[0], e.scan(ctx)); err != nil || why != "" {
+		t.Fatalf("last check agrees: %q %v", why, err)
+	}
+	// A link under the original name written meanwhile (during the backup): the last check refuses.
+	e.exec(`INSERT INTO link (path, target, title_id, created_at, updated_at) VALUES ('/lib/E/o.mkv', ?, 1, 0, 0)`,
+		mountPath+"/__all__/Ember.Road.2016.1080p/o.mkv")
+	if why, _ := e.m.usageChanged(ctx, again, &again.Items[0], e.scan(ctx)); !strings.Contains(why, "changed") {
+		t.Fatalf("last check sees the new link: %q", why)
+	}
+
+	// The same through Delete: the link written during the backup stops the delete.
+	e2, z2 := zurgFixture(t)
+	z2.list = append(z2.list, library.ZurgTorrent{Hash: hC, Name: "Ember Road Z", Size: 300})
+	e2.rd.detail["3"].Files = []provider.File{{ID: "1", Path: "e.mkv", Bytes: 300, Selected: true}}
+	e2.exec(`INSERT INTO link (path, target, title_id, created_at, updated_at) VALUES ('/lib/E/z.mkv', ?, 1, 0, 0)`,
+		mountPath+"/__all__/Ember Road Z/z.mkv")
+	first, err := e2.m.PlanDelete(ctx, []DeleteSelection{{Provider: "rd", ID: "3", Hash: hC}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	sel = []DeleteSelection{{Provider: "rd", ID: "3", Hash: hC, Override: true,
+		OverrideToken: first.Items[0].ExpectedOverride}}
+	tok, err := e2.m.PlanDelete(ctx, sel)
+	if err != nil || tok.Count != 1 {
+		t.Fatalf("override: %v %+v", err, tok)
+	}
+	reads := e2.rd.reads
+	e2.rd.onDetail = func() {
+		// The backup's read of the files (after Delete's re-plan read): a link appears under the original name.
+		if e2.rd.reads == reads+2 {
+			e2.exec(`INSERT INTO link (path, target, title_id, created_at, updated_at) VALUES ('/lib/E/o.mkv', ?, 1,
+				0, 0)`, mountPath+"/__all__/Ember.Road.2016.1080p/o.mkv")
+		}
+	}
+	done, err := e2.m.Delete(ctx, sel, tok.Token, "admin")
+	if err != nil || e2.ard.deleted != 0 || !strings.Contains(done.Items[0].Error, "changed") {
+		t.Fatalf("not deleted: %v, %d, %+v", err, e2.ard.deleted, done)
+	}
+}
+
+// zurg never touches an unknown torrent: tb never synced stays unknown with its reason though zurg lists its hash
+// under a linked folder.
+func TestUsageZurgLeavesUnknown(t *testing.T) {
+	t.Parallel()
+	e, _ := zurgFixture(t)
+	e.exec(`DELETE FROM provider_sync_run WHERE provider = 'tb'`)
+	r, err := e.m.Report(context.Background())
+	if err != nil {
+		t.Fatal(err)
+	}
+	got := usages(t, r)["tb/9"]
+	if got.Usage != Unknown || len(got.Reasons) == 0 || !strings.Contains(got.Reasons[0], "no complete sync of tb") {
+		t.Fatalf("unknown with its reason: %+v", got)
+	}
+	if rd := usages(t, r)["rd/1"]; rd.Usage != Used {
+		t.Fatalf("rd 1 used through zurg: %+v", rd)
 	}
 }

@@ -151,8 +151,9 @@ const (
 // by hash or by their list name, and installs whose references all carry hashes, read nothing.
 func (m *Manager) deleteUsage(ctx context.Context, key string, t provider.Torrent, ix *refIndex,
 	reload func(provider.Torrent) (*refIndex, error)) (Usage, map[string]int, []Ref, []string, error) {
-	u, refs, list, reasons := ix.usage(key, t)
-	if u != Unused || !ix.folderOnly || secondName(t) != "" {
+	// The base usage decides the read (zurg's name never stands in for the original name), then usage adds zurg's.
+	if u, _, _, _ := ix.baseUsage(key, t); u != Unused || !ix.folderOnly || secondName(t) != "" {
+		u, refs, list, reasons := ix.usage(key, t)
 		return u, refs, list, reasons, nil
 	}
 	p := m.Providers[key]
@@ -171,7 +172,7 @@ func (m *Manager) deleteUsage(ctx context.Context, key string, t provider.Torren
 	if ix, err = reload(t); err != nil {
 		return "", nil, nil, nil, err
 	}
-	u, refs, list, reasons = ix.usage(key, t)
+	u, refs, list, reasons := ix.usage(key, t)
 	return u, refs, list, reasons, nil
 }
 
@@ -489,9 +490,27 @@ func scanRoot(ctx context.Context, root string, mounts []string, mv *mountView, 
 // maxRefList bounds the references listed per torrent; Refs still counts them all.
 const maxRefList = 20
 
-// usage decides one torrent of provider key.
+// usage decides one torrent of provider key: baseUsage, plus the references under the folders of zurg's name for its
+// hash when that is used or unused. zurg only adds references: it turns unused into used and never touches unknown.
 func (ix *refIndex) usage(key string, t provider.Torrent) (Usage, map[string]int, []Ref, []string) {
+	u, counts, refs, reasons := ix.baseUsage(key, t)
 	h := indexer.NormalizeHash(t.Hash)
+	if u == Unknown || h == "" {
+		return u, counts, refs, reasons
+	}
+	z, ok := ix.zurg.Name(h)
+	if !ok {
+		return u, counts, refs, reasons
+	}
+	folders := append(torrentFolders(ix.decy, nil, h, t), library.ReleaseFolderNames(h, z)...)
+	if c, r := ix.refsOf(h, folders); len(c) > 0 {
+		return Used, c, r, nil
+	}
+	return u, counts, refs, reasons
+}
+
+// refsOf are the references to hash (none for "") and to the folders, counted by kind and listed up to maxRefList.
+func (ix *refIndex) refsOf(h string, folders []string) (map[string]int, []Ref) {
 	var refs []Ref
 	seen := map[Ref]bool{}
 	add := func(rs []Ref) {
@@ -505,7 +524,7 @@ func (ix *refIndex) usage(key string, t provider.Torrent) (Usage, map[string]int
 	if h != "" {
 		add(ix.byHash[h])
 	}
-	for _, f := range torrentFolders(ix.decy, ix.zurg, h, t) {
+	for _, f := range folders {
 		add(ix.byFolder[f])
 	}
 	sort.SliceStable(refs, func(i, j int) bool { return refs[i].Kind < refs[j].Kind })
@@ -516,6 +535,13 @@ func (ix *refIndex) usage(key string, t provider.Torrent) (Usage, map[string]int
 	if len(refs) > maxRefList {
 		refs = refs[:maxRefList]
 	}
+	return counts, refs
+}
+
+// baseUsage decides one torrent of provider key from its hash and the folders of its own names, without zurg's.
+func (ix *refIndex) baseUsage(key string, t provider.Torrent) (Usage, map[string]int, []Ref, []string) {
+	h := indexer.NormalizeHash(t.Hash)
+	counts, refs := ix.refsOf(h, torrentFolders(ix.decy, nil, h, t))
 	if len(counts) > 0 {
 		return Used, counts, refs, nil
 	}
