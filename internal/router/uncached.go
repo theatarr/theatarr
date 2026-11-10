@@ -19,7 +19,8 @@ import (
 //
 // Neither provider has a read-only cache check, so with router.cached_only the router does what decypharr does with
 // download_uncached false: it adds, reads the status at once, calls the add cached when the provider holds it
-// downloaded (after at most one re-read, router.cached_grace later), and otherwise uncached. An uncached add is
+// downloaded (after at most one re-read, router.cached_grace later; a Real-Debrid magnet still converting gets up to
+// three), and otherwise uncached. An uncached add is
 // deleted again and the next provider tried, but only when the router can prove the entry is its own new one:
 //
 //   - before the add, the hash was not on the account: no registry row (content_provider, from the provider sync) in
@@ -188,9 +189,12 @@ const (
 )
 
 // readAfterAdd reads a fresh add back: decypharr's CheckStatus (RD: select files when RD waits for that, then the
-// status; AD: magnet/status by id), with at most one re-read after router.cached_grace while the provider is still
-// converting or downloading, and a grace after selecting files. handled is true when applyStatus already recorded
-// the last read (a selection, or a rejected torrent); t is then nil.
+// status; AD: magnet/status by id), with at most one re-read after router.cached_grace while the provider is
+// downloading or queued, and a grace after selecting files. A Real-Debrid magnet still converting (queued, no file
+// selection sent) is no verdict yet, as in the poller: it is re-read after each grace up to maxSettleReads reads and
+// called uncached only when it is still converting at the last one; a selection sent at the last read is followed by
+// one more read after its grace. handled is true when applyStatus already
+// recorded the last read (a selection, or a rejected torrent); t is then nil.
 func (r *Router) readAfterAdd(ctx context.Context, s *routeState, pv *policy.Provider, pk, hash string,
 	a *adder.Added) (cacheVerdict, *provider.Torrent, string) {
 	if pv.Kind == provider.KindAllDebrid && a.Ready {
@@ -202,7 +206,10 @@ func (r *Router) readAfterAdd(ctx context.Context, s *routeState, pv *policy.Pro
 	}
 	graced, selected := false, false
 	var t *provider.Torrent
-	for range maxSettleReads {
+	// limit: a selection sent at the last read gets one more read after its grace.
+	limit := maxSettleReads
+	for i := 0; i < limit; i++ {
+		last := i == limit-1
 		var err error
 		t, err = rp.Torrent(ctx, a.ID)
 		if err != nil {
@@ -219,11 +226,25 @@ func (r *Router) readAfterAdd(ctx context.Context, s *routeState, pv *policy.Pro
 			if state, _ := r.downloadState(ctx, s.dlID); state != StateAdded || !sel {
 				return cvUnknown, nil, "files not selected (download " + state + ")"
 			}
+			if last {
+				limit++ // selected on the last read (after a slow conversion): read the outcome once more
+			}
 			selected, graced = true, true
 			if err := r.sleep(ctx, r.set.CachedGrace); err != nil {
 				return cvUnknown, nil, err.Error()
 			}
 		case t.State == provider.StateDownloading || t.State == provider.StateQueued:
+			// Real-Debrid still converting (no selection sent): no verdict until the last read.
+			if pv.Kind == provider.KindRealDebrid && t.State == provider.StateQueued && !selected && graced {
+				if last {
+					return cvUncached, t, "status " + t.Status + " (still converting) after " +
+						(time.Duration(i) * r.set.CachedGrace).String()
+				}
+				if err := r.sleep(ctx, r.set.CachedGrace); err != nil {
+					return cvUnknown, nil, err.Error()
+				}
+				continue
+			}
 			if graced {
 				return cvUncached, t, "status " + t.Status + " after " + r.set.CachedGrace.String()
 			}

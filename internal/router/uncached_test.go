@@ -46,6 +46,9 @@ type fakeDebrid struct {
 	adMaint int
 	// rdStuck keeps new Real-Debrid torrents in magnet_conversion (no peers).
 	rdStuck bool
+	// rdConvertReads keeps new Real-Debrid torrents in magnet_conversion for that many status reads, then waiting
+	// for a file selection.
+	rdConvertReads int
 	// rdFiles replaces the one file of every Real-Debrid torrent; rdCachedSel, when set, says which selections
 	// ("<hash>|<file ids as sent>") are cached, as Real-Debrid caches per selected set.
 	rdFiles     []rdFile
@@ -59,6 +62,7 @@ type fakeRD struct {
 	hash, status string
 	selected     bool
 	sel          string // the file ids selected, as sent
+	convLeft     int    // status reads left in magnet_conversion (rdConvertReads)
 }
 
 type rdFile struct {
@@ -131,6 +135,9 @@ func (f *fakeDebrid) realDebrid(w http.ResponseWriter, r *http.Request) {
 		if f.rdStuck {
 			f.rd[id].status = "magnet_conversion"
 		}
+		if f.rdConvertReads > 0 {
+			f.rd[id].status, f.rd[id].convLeft = "magnet_conversion", f.rdConvertReads
+		}
 		writeJSON(w, http.StatusCreated, map[string]string{"id": id, "uri": "https://example.invalid/" + id})
 	case r.Method == http.MethodPost && strings.HasPrefix(p, "/torrents/selectFiles/"):
 		t := f.rd[strings.TrimPrefix(p, "/torrents/selectFiles/")]
@@ -155,8 +162,14 @@ func (f *fakeDebrid) realDebrid(w http.ResponseWriter, r *http.Request) {
 			writeJSON(w, http.StatusNotFound, map[string]any{"error": "unknown_ressource", "error_code": 7})
 			return
 		}
+		status := t.status
+		if t.convLeft > 0 {
+			if t.convLeft--; t.convLeft == 0 {
+				t.status = "waiting_files_selection"
+			}
+		}
 		progress := 3.0
-		if t.status == "downloaded" {
+		if status == "downloaded" {
 			progress = 100
 		}
 		files := []map[string]any{{"id": 1, "path": "/Movie.2024.2160p.WEB.H265-GRP.mkv", "bytes": 9000,
@@ -170,7 +183,7 @@ func (f *fakeDebrid) realDebrid(w http.ResponseWriter, r *http.Request) {
 			}
 		}
 		writeJSON(w, http.StatusOK, map[string]any{"id": id, "filename": "Movie.2024.2160p.WEB.H265-GRP",
-			"hash": t.hash, "bytes": 9000, "progress": progress, "status": t.status, "links": []string{},
+			"hash": t.hash, "bytes": 9000, "progress": progress, "status": status, "links": []string{},
 			"files": files})
 	case r.Method == http.MethodDelete && strings.HasPrefix(p, "/torrents/delete/"):
 		delete(f.rd, strings.TrimPrefix(p, "/torrents/delete/"))
@@ -773,6 +786,83 @@ func TestAllDebridUncachedDeleteOptIn(t *testing.T) {
 			}
 			if got := attempts(e, res.DownloadID); !strings.Contains(got, tc.code) {
 				t.Errorf("attempts %s", got)
+			}
+		})
+	}
+}
+
+// A Real-Debrid magnet still converting is re-read after each grace, up to four reads, before it is called uncached
+// (the poller's rule: no selection sent, no verdict); one that reaches the file selection within them goes on as
+// usual.
+func TestCachedOnlyRDConvertingUsesTheReads(t *testing.T) {
+	t.Parallel()
+	t.Run("still converting", func(t *testing.T) {
+		e, f, sleeps := newDebridEnv(t, true, policy.ModeActive, true)
+		f.rdStuck = true
+		f.cached["ad:"+h("a")] = true
+		res, err := e.r.Route(e.ctx, grabReq(cand(h("a"), "Movie.2024.2160p.WEB.H265-GRP")))
+		if err != nil {
+			t.Fatal(err)
+		}
+		if got := steps(res); got != "aaaa/rd/refused/uncached_deleted; aaaa/ad/accepted/added; " {
+			t.Fatalf("steps %s", got)
+		}
+		if n := f.count("rd.test GET /rest/1.0/torrents/info/RD1001"); n != 4 || *sleeps != 3 ||
+			f.count("rd.test DELETE /rest/1.0/torrents/delete/RD1001") != 1 {
+			t.Errorf("reads %d, sleeps %d, requests %v", n, *sleeps, f.list())
+		}
+		if !strings.Contains(res.Steps[0].Message, "still converting") {
+			t.Errorf("message %q", res.Steps[0].Message)
+		}
+		if n := e.count(`SELECT COUNT(*) FROM provider_cache WHERE info_hash = ? AND provider = 'rd'
+			AND state = 'uncached'`, h("a")); n != 1 {
+			t.Error("rd not recorded uncached")
+		}
+	})
+	t.Run("converts by the third read", func(t *testing.T) {
+		e, f, sleeps := newDebridEnv(t, true, policy.ModeActive, true)
+		f.rdConvertReads = 2
+		f.cached["rd:"+h("a")] = true
+		res, err := e.r.Route(e.ctx, grabReq(cand(h("a"), "Movie.2024.2160p.WEB.H265-GRP")))
+		if err != nil {
+			t.Fatal(err)
+		}
+		if res.Outcome != OutcomeAdded || res.Provider != "rd" || res.Steps[len(res.Steps)-1].Code != codeAddedCached {
+			t.Fatalf("%+v: %s", res, steps(res))
+		}
+		if f.deletes() != 0 || f.count("rd.test POST /rest/1.0/torrents/selectFiles/RD1001") != 1 || *sleeps != 3 {
+			t.Errorf("deletes %d, sleeps %d, requests %v", f.deletes(), *sleeps, f.list())
+		}
+		if n := e.count(`SELECT COUNT(*) FROM download WHERE state = 'ready' AND cached = 1
+			AND provider_torrent_id = 'RD1001'`); n != 1 {
+			t.Error("download not ready and cached")
+		}
+	})
+	// Conversion ends exactly at the last read: the selection is still followed by a read after its grace.
+	for _, cached := range []bool{true, false} {
+		t.Run(fmt.Sprintf("selected on the last read, cached %v", cached), func(t *testing.T) {
+			e, f, sleeps := newDebridEnv(t, true, policy.ModeActive, true)
+			f.rdConvertReads = 3
+			f.cached["rd:"+h("a")] = cached
+			f.cached["ad:"+h("a")] = true
+			res, err := e.r.Route(e.ctx, grabReq(cand(h("a"), "Movie.2024.2160p.WEB.H265-GRP")))
+			if err != nil {
+				t.Fatal(err)
+			}
+			want := "aaaa/rd/accepted/added; "
+			if !cached {
+				want = "aaaa/rd/refused/uncached_deleted; aaaa/ad/accepted/added; "
+			}
+			if got := steps(res); got != want || *sleeps != 4 ||
+				f.count("rd.test GET /rest/1.0/torrents/info/RD1001") != 5 ||
+				f.count("rd.test POST /rest/1.0/torrents/selectFiles/RD1001") != 1 ||
+				cachedCheck(e, res.DownloadID) != "" {
+				t.Fatalf("steps %s; sleeps %d, check %q, requests %v", got, *sleeps, cachedCheck(e, res.DownloadID),
+					f.list())
+			}
+			if cached && e.count(`SELECT COUNT(*) FROM download WHERE state = 'ready' AND cached = 1
+				AND provider_torrent_id = 'RD1001'`) != 1 {
+				t.Error("download not ready and cached")
 			}
 		})
 	}

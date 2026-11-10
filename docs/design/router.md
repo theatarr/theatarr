@@ -446,12 +446,13 @@ id (`TorrentNotCachedError`) and tries the next debrid. Theatarr does the same w
 
 | Provider | Reads | Cached | Uncached |
 |---|---|---|---|
-| RD | `GET /torrents/info/{id}`; at `waiting_files_selection` the files are selected (every playable file: "File selection on Real-Debrid"), then one more read after the grace | `downloaded` | `magnet_conversion`, `queued`, `downloading` … after the grace (a converting magnet gets one re-read) |
+| RD | `GET /torrents/info/{id}`; at `waiting_files_selection` the files are selected (every playable file: "File selection on Real-Debrid"), then one more read after the grace | `downloaded` | `queued`, `downloading` … after the grace; a magnet still converting (`magnet_conversion`, or queued with no file selection sent) is no verdict yet and is re-read after each grace, up to the four reads, and is uncached only when it is still converting at the last one (at most 3 graces, 6 s at the default) |
 | AD | `ready: true` in the upload answer, else `GET /v4.1/magnet/status?id=` | `ready`, or statusCode 4 | statusCode 0–3 after one re-read |
 
-At most four reads; a read error, a provider error status or a rejected file list is "no verdict": the add stays and
-the poller finishes the check ("Unfinished checks" below). decypharr's effective behaviour is the same (one read
-after a 2 s sleep, one more after a selection).
+At most four reads (five when the files are selected at the fourth: a selection is always followed by one read after
+its grace); a read error, a provider error status or a rejected file list is "no verdict": the add stays and the poller finishes the check ("Unfinished checks" below). decypharr's
+effective behaviour is the same (one read after a 2 s sleep, one more after a selection), except that Theatarr gives
+a converting Real-Debrid magnet the remaining reads, as its poller does not judge one either.
 
 **Then:**
 - **cached:** `accepted/added`; `provider_cache` `cached`, source `add:<provider>`, for `cache_evidence.ttl`; the
