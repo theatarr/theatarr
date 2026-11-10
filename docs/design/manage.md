@@ -20,7 +20,7 @@ One vocabulary for managers on the grid, the title page, season headers and epis
 | preferred target reached (`cutoff_met`) | Preferred quality met | Available |
 | known or manual source ceiling reached (`best_available`) | Best available | Best quality known |
 | provisional ceiling reached (`best_source_seen`) | Best source seen so far | Best quality known |
-| higher source known, no accepted replacement (`higher_source_exists`) | Better source known; no suitable release found | Best quality known |
+| higher source known, no accepted replacement (`higher_source_exists`) | No suitable release found; a better source is known to exist | Best quality known |
 | accepted replacement found (`upgrade_available`) | Upgrade found | Upgrade found |
 | target unmet, no replacement found (`below_cutoff`) | Preferred quality not met; no better copy found | Best quality known |
 

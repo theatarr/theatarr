@@ -24,7 +24,7 @@ export const UPGRADE_WORDS: Record<Exclude<UpgradeState, "none">, { label: strin
   // A provisional (likely) ceiling is reached.
   best_source_seen: { label: "Best source seen so far", short: "Best source seen so far", tone: "neutral", why: true },
   // A higher source is known, and no accepted replacement was found.
-  higher_source_exists: { label: "Better source known; no suitable release found", short: "Better source known", tone: "info", why: true },
+  higher_source_exists: { label: "No suitable release found; a better source is known to exist", short: "No suitable release found", tone: "info", why: true },
   // An accepted replacement was found.
   upgrade_available: { label: "Upgrade found", short: "Upgrade found", tone: "info", why: false },
   // Below the target, no replacement found.

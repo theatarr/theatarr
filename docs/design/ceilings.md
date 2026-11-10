@@ -54,7 +54,7 @@ Upgrade status uses one vocabulary everywhere for managers (grid, title, season,
 | `cutoff_met` | Preferred quality met |
 | `best_available` (known or manual ceiling reached) | Best available |
 | `best_source_seen` (likely, i.e. provisional, ceiling reached) | Best source seen so far |
-| `higher_source_exists` | Better source known; no suitable release found |
+| `higher_source_exists` | No suitable release found; a better source is known to exist |
 | `upgrade_available` | Upgrade found (keeps priority over every ceiling state) |
 | `below_cutoff` (fallback) | Preferred quality not met; no better copy found |
 

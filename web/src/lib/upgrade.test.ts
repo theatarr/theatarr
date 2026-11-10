@@ -11,7 +11,7 @@ describe("upgrade words", () => {
       ["cutoff_met", "Preferred quality met"],
       ["best_available", "Best available"],
       ["best_source_seen", "Best source seen so far"],
-      ["higher_source_exists", "Better source known; no suitable release found"],
+      ["higher_source_exists", "No suitable release found; a better source is known to exist"],
       ["upgrade_available", "Upgrade found"],
       ["below_cutoff", "Preferred quality not met; no better copy found"],
     ];
