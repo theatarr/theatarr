@@ -471,6 +471,9 @@ func TestSeriesOriginalLanguageCodes(t *testing.T) {
 		"en": "English", "ja": "Japanese", "ko": "Korean", "de": "German", "no": "Norwegian", "fr": "French",
 		"es": "Spanish", "sv": "Swedish", "zh": "Chinese", "lv": "Latvian", "cn": "Chinese", "zh-TW": "Chinese",
 		"pt-BR": "Portuguese (Brazil)", "eng": "English", "jpn": "Japanese", "xx": "English", "": "English",
+		"zh-HK": "Chinese", "zh-Hant": "Chinese", "zh-Hans": "Chinese", "fr-CA": "French", "de-AT": "German",
+		"yue": "Chinese", "nn": "Norwegian", "nno": "Norwegian", "es-419": "Spanish (Latino)", "es-MX": "Spanish (Latino)",
+		"iw": "Hebrew", "in": "Indonesian", "tl": "English", "ur": "English",
 	} {
 		if got := seriesOriginalLanguage(code); got != want {
 			t.Errorf("%q: %s, want %s", code, got, want)

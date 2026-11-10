@@ -56,7 +56,7 @@
 //     than taking an English one for a film that may not be English.
 //   - A series' original language is the arr's name import-arr stored (title.original_language); without one, the
 //     metadata's code (title_meta.original_language) through Sonarr's IsoLanguages.Find (the code, else
-//     its part before a hyphen; TMDb's "cn" as Chinese), else English.
+//     its base language before a hyphen, plus a few aliases such as TMDb's "cn"), else English.
 //   - The engine settings (propers, maximum size, prefer indexer flags) are the arr defaults, except propers when
 //     the policy profile sets it; a from_arr profile takes the instance's config when the snapshot has it.
 //   - Indexer flags are computed from torznab tags and volume factors as TorznabRssParser.GetFlags does.

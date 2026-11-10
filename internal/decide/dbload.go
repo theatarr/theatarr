@@ -426,21 +426,37 @@ func scanTitle(rows *sql.Rows) (Title, error) {
 }
 
 // seriesOriginalLanguage is the series original language for a title the arr import did not set (a native, Seerr
-// or Sonarr API add), from the metadata's code (TMDb's original_language) through Sonarr's IsoLanguages.Find: the
-// code, else its part before a hyphen ("zh-tw"), with TMDb's "cn" (Cantonese) read as Chinese; else English.
+// or Sonarr API add), from the metadata's code (TMDb's original_language): the code through Sonarr's
+// IsoLanguages.Find, else its base language before a hyphen ("zh-tw", "fr-ca"), with metadataLanguageAliases for
+// codes Sonarr's table lacks; else English. The ported table itself stays as Sonarr has it (release parsing uses it).
 func seriesOriginalLanguage(code string) string {
+	find := func(code string) string {
+		if l, ok := metadataLanguageAliases[code]; ok {
+			return l.Name
+		}
+		if iso := sonarr.FindIsoLanguage(code); iso != nil {
+			return iso.Language.Name
+		}
+		return ""
+	}
 	code = strings.ToLower(strings.TrimSpace(code))
-	if code == "cn" {
-		code = "zh"
+	name := find(code)
+	if base, _, ok := strings.Cut(code, "-"); name == "" && ok {
+		name = find(base)
 	}
-	iso := sonarr.FindIsoLanguage(code)
-	if base, _, ok := strings.Cut(code, "-"); iso == nil && ok {
-		iso = sonarr.FindIsoLanguage(base)
+	if name == "" {
+		return sonarr.LanguageEnglish.Name
 	}
-	if iso != nil {
-		return iso.Language.Name
-	}
-	return sonarr.LanguageEnglish.Name
+	return name
+}
+
+// metadataLanguageAliases are codes the metadata sources use that Sonarr's IsoLanguages lacks or reads otherwise:
+// TMDb's cn (Cantonese) and yue, Norwegian Nynorsk, the old ISO codes for Hebrew and Indonesian, and Latin American
+// Spanish (es-419), which Sonarr's table only knows as es-mx.
+var metadataLanguageAliases = map[string]sonarr.Language{
+	"cn": sonarr.LanguageChinese, "yue": sonarr.LanguageChinese, "nn": sonarr.LanguageNorwegian,
+	"nno": sonarr.LanguageNorwegian, "iw": sonarr.LanguageHebrew, "in": sonarr.LanguageIndonesian,
+	"es-419": sonarr.LanguageSpanishLatino,
 }
 
 // tmdbOriginalLanguage is SkyHookProxy.MapMovie's original language: IsoLanguages.Find(original_language.ToLower()),
