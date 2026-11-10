@@ -219,7 +219,7 @@
   "Wanted": {
     "again_after": "This is how long an item waits before it is searched again. Default 24h, 1h to 30d.",
     "cutoff_unmet": "This chooses automatic upgrade searches: quality, score or off.",
-    "enabled": "This turns the loop on. Default: on when some version is active, off otherwise.",
+    "enabled": "This turns the loop on. Default: on when some library is active, off otherwise.",
     "interval": "This is the time between rounds. Default 15m, 5m to 24h.",
     "missing": "This searches items with no file (default true). Which items with a file are searched for an upgrade is the upgrade search target below.",
     "per_hour": "This caps the loop's searches (one title, season or episode each) in any hour. Default 10, 1 to 200."

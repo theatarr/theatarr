@@ -264,7 +264,7 @@ describe("setup", () => {
   };
   const startEffects = [
     { version: "movies", effect: "Library movies becomes active and starts searching." },
-    { version: "movies", effect: "Active library movies grabs: torrent adds go to providers rd." },
+    { version: "movies", effect: "Allow downloads for this library (grab) is on for active library movies: torrent adds go to providers rd." },
     { version: "", effect: "Turn on Allow new downloads (router.enabled): new torrent adds to debrid are allowed." },
     { version: "", effect: "Turn on Write library links (library.enabled): links may be written." },
   ];

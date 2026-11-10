@@ -245,7 +245,7 @@ func importAcquisitionEffects(previous, next *policy.Policy) []ConfirmationEffec
 		if old != nil && old.Version == now.Version {
 			continue
 		}
-		effects = append(effects, ConfirmationEffect{Effect: fmt.Sprintf("Import titles into grabbing library %s from import.arr.%s: monitored missing titles can be searched, and grabbed when router.enabled is on (currently %t).", now.Version, key, routerEnabled)})
+		effects = append(effects, ConfirmationEffect{Effect: fmt.Sprintf("Import titles into library %s (Allow downloads for this library is on) from import.arr.%s: monitored missing titles can be searched, and downloaded when Allow new downloads (router.enabled) is on (currently %t).", now.Version, key, routerEnabled)})
 	}
 	return effects
 }

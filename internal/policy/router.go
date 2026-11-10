@@ -89,7 +89,7 @@ type TorBoxCheck struct {
 // search, and hands the accepted releases to the router. It runs only while router.enabled is true. Every field is
 // optional.
 type Wanted struct {
-	// Enabled turns the loop on. Default: on when some version is active, off otherwise.
+	// Enabled turns the loop on. Default: on when some library is active, off otherwise.
 	Enabled *bool `yaml:"enabled"`
 	// Interval is the time between rounds. Default 15m, 5m to 24h.
 	Interval Duration `yaml:"interval"`

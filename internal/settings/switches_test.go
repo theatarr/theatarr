@@ -334,7 +334,7 @@ func TestVersionConfirmationReportsDBSwitches(t *testing.T) {
 	for _, effect := range proof.Effects {
 		text += effect.Effect + "\n"
 	}
-	if !strings.Contains(text, "router.enabled is on (currently true)") || !strings.Contains(text, "library.enabled is on (currently false)") ||
+	if !strings.Contains(text, "Allow new downloads (router.enabled) is on (currently true)") || !strings.Contains(text, "Write library links (library.enabled) is on (currently false)") ||
 		strings.Contains(text, "router.enabled is on (currently false)") || strings.Contains(text, "library.enabled is on (currently true)") {
 		t.Fatalf("confirmation does not report the DB switches:\n%s", text)
 	}

@@ -1131,7 +1131,7 @@ router:
       top: 10          # hashes of one search, best first; 1 to 100
       per_hour: 60     # checkcached requests in any hour; 1 to 1000
   wanted:              # the wanted search loop (Triggers)
-    # enabled: true    # default: on when some version is active; searches only while enabled is true
+    # enabled: true    # default: on when some library is active; searches only while enabled is true
     interval: 15m      # 5m to 24h
     per_hour: 10       # searches in any hour; 1 to 200
     again_after: 24h   # 1h to 30d

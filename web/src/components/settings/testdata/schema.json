@@ -1074,7 +1074,7 @@
             "default": "false",
             "label": "Enabled",
             "type": "boolean",
-            "help": "This turns the loop on. Default: on when some version is active, off otherwise.",
+            "help": "This turns the loop on. Default: on when some library is active, off otherwise.",
             "nullable": true
           },
           {

@@ -25,7 +25,7 @@ func TestVersionGrabNeedsConfirmation(t *testing.T) {
 			t.Fatal(err)
 		}
 		for _, e := range effects {
-			if e.Version == "movie-web" && strings.Contains(e.Effect, "grabs") {
+			if e.Version == "movie-web" && strings.Contains(e.Effect, "Allow downloads for this library (grab) is on for active library movie-web") {
 				return true
 			}
 		}

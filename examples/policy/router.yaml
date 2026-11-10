@@ -34,7 +34,7 @@ router:
   # The wanted search loop (internal/acquire): searches the active versions' missing and cutoff-unmet items and hands
   # the accepted releases to the router. Off while router.enabled is false; on by default once a version is active.
   wanted:
-    # enabled: true      # default: on when some version is active
+    # enabled: true      # default: on when some library is active
     interval: 15m        # between rounds; 5m to 24h
     per_hour: 10         # searches (a title, season or episode each) in any hour; 1 to 200
     again_after: 24h     # an item waits this long before it is searched again; 1h to 30d
