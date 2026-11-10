@@ -1027,7 +1027,7 @@ links by design and shows no mark.
 
 ## Readiness and phone navigation
 
-Setup is a five-step checklist; [quickstart](../quickstart.md#readiness-led-setup) defines its shared progress count.
+Setup is a six-step checklist; [quickstart](../quickstart.md#readiness-led-setup) defines its shared progress count.
 Its activation review lists library keys (also their current display labels), roots, the library state (mode and verdict), indexers and
 providers, plus effective Allow new downloads, Write library links and Send notifications states and their sources.
 Each links to its existing editor; reviewing never writes settings. Home and Settings remind admins while setup is

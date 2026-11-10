@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"net/http"
 	"net/http/httptest"
+	"slices"
 	"strings"
 	"testing"
 
@@ -205,6 +206,82 @@ func TestPreflightStoredCredentials(t *testing.T) {
 	}
 	if strings.Contains(rec.Body.String(), "invented-preflight-") || strings.Contains(rec.Body.String(), policy.SettingsSecretPrefix) {
 		t.Fatal("preflight disclosed a credential or internal name")
+	}
+}
+
+// GET /setup tmdb: true while the tmdb source has its address and a key that resolves, from the environment variable
+// it names or from settings. The setup screen's one-field save (both sources and the key in one section PUT, one
+// confirmation) turns it on from nothing.
+func TestSetupTMDb(t *testing.T) {
+	t.Parallel()
+	state := func(se *settingsEnv) SetupState {
+		t.Helper()
+		rec := se.setupCall("GET", "/setup", "", "")
+		if rec.Code != http.StatusOK {
+			t.Fatalf("GET setup: %d %s", rec.Code, rec.Body.String())
+		}
+		var s SetupState
+		if err := json.Unmarshal(rec.Body.Bytes(), &s); err != nil {
+			t.Fatal(err)
+		}
+		return s
+	}
+	// A real process lookup: derived names are never environment variables.
+	env := map[string]string{"THEATARR_TMDB_KEY": "fixture-env-key"}
+	lookup := func(name string) (string, bool) {
+		v, ok := env[name]
+		return v, ok
+	}
+
+	// The example's tmdb source names an environment variable: done while it is set, with nothing stored.
+	se := seededSectionsEnv(t)
+	se.web.settingsLookup = lookup
+	if !state(se).TMDb {
+		t.Fatal("tmdb with its key in the environment is not done")
+	}
+	delete(env, "THEATARR_TMDB_KEY")
+	if state(se).TMDb {
+		t.Fatal("tmdb without its environment variable is done")
+	}
+
+	// No metadata sources at all, as on a fresh database.
+	se = seededSectionsEnvBase(t, func(p *policy.Policy) { p.Metadata, p.UI = nil, nil })
+	se.web.settingsLookup = lookup
+	if s := state(se); s.TMDb || !slices.ContainsFunc(s.Missing, func(m string) bool { return strings.Contains(m, "no TMDb source") }) {
+		t.Fatalf("no sources: %+v", s)
+	}
+	// What the setup screen sends: both sources with their public addresses and the one key, in one save.
+	gen := se.generation()
+	body := map[string]any{"generation": gen,
+		"config": map[string]any{"sources": map[string]any{
+			"tmdb":        map[string]any{"url": "https://api.themoviedb.org/3"},
+			"tmdb-images": map[string]any{"url": "https://image.tmdb.org/t/p"},
+		}},
+		"secrets": map[string]string{"sources.tmdb.api_key": "invented-setup-tmdb"}}
+	refused := se.want(se.call("PUT", "/sections/metadata", body), 422, "new hosts need proof")
+	confirmRefusal(t, refused, "metadata.sources.tmdb.url")
+	body["confirmation_token"] = confirmRefusal(t, refused, "metadata.sources.tmdb-images.url")
+	if state(se).TMDb || se.generation() != gen {
+		t.Fatal("the refused save changed something")
+	}
+	se.want(se.call("PUT", "/sections/metadata", body), 200, "confirmed")
+	if se.generation() != gen+1 {
+		t.Fatalf("the save took %d generations, want 1", se.generation()-gen)
+	}
+	s := state(se)
+	if !s.TMDb || slices.ContainsFunc(s.Missing, func(m string) bool { return strings.Contains(m, "TMDb") }) {
+		t.Fatalf("after the save: %+v", s)
+	}
+	read := findSection(t, se.want(se.call("GET", "/sections", nil), 200, "read"), "metadata")
+	if shown, _ := json.Marshal(read); strings.Contains(string(shown), "invented-setup-tmdb") ||
+		!strings.Contains(string(shown), "https://api.themoviedb.org/3") || !strings.Contains(string(shown), "https://image.tmdb.org/t/p") {
+		t.Fatalf("stored metadata section: %s", shown)
+	}
+	// The address alone is not enough: clearing the key reopens the step.
+	se.want(se.call("PUT", "/sections/metadata", map[string]any{"generation": se.generation(),
+		"clear_secrets": []string{"sources.tmdb.api_key"}}), 200, "clear the key")
+	if state(se).TMDb {
+		t.Fatal("tmdb without a key is done")
 	}
 }
 

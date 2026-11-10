@@ -7,6 +7,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/theatarr/theatarr/internal/policy"
 	"github.com/theatarr/theatarr/internal/settings"
 )
 
@@ -14,7 +15,13 @@ import (
 // seeded from the example policy files.
 func seededSectionsEnv(t *testing.T) *settingsEnv {
 	t.Helper()
-	return newSettingsEnv(t, nil, func(c *Config) {
+	return seededSectionsEnvBase(t, nil)
+}
+
+// seededSectionsEnvBase is seededSectionsEnv with base changing the YAML policy before the settings bootstrap.
+func seededSectionsEnvBase(t *testing.T, base func(*policy.Policy)) *settingsEnv {
+	t.Helper()
+	return newSettingsEnvBase(t, nil, base, func(c *Config) {
 		ctx := context.Background()
 		st, err := settings.New(c.Store)
 		if err != nil {

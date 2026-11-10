@@ -35,9 +35,10 @@ The library roots and the trash directory need the same owner. The debrid mount 
 
 **Symptom:** search shows "TMDb search is off", you cannot add titles, or every title shows generated art.
 
-**Cause:** metadata sources have no default address. Theatarr looks for sources with these exact names.
+**Cause:** the server has no default metadata address. Theatarr looks for sources with these exact names.
 
-**Fix:** under **Settings › Metadata & artwork**, add:
+**Fix:** enter your TMDb API key in **Setup › Add metadata (TMDb)**: it creates `tmdb` and `tmdb-images` with the
+addresses below. Or add them by hand under **Settings › Metadata & artwork**:
 
 | Name | Source address | Key |
 |---|---|---|

@@ -11,7 +11,7 @@ import { SetupPage } from "./setup";
 
 const fresh: SetupState = {
   first_run: true, settings_source: "db", admin_password_generated: true, versions: 0, versions_with_roots: 0,
-  providers: 1, indexers: 1, profiles: 0, api_keys: 0,
+  providers: 1, indexers: 1, profiles: 0, api_keys: 0, tmdb: false,
   missing: ["No versions: nothing is searched, grabbed or linked", "No TMDb key: titles cannot be added or matched"],
 };
 const versions: VersionList = {
@@ -63,6 +63,40 @@ describe("setup", () => {
     expect(body).toMatchObject({ generation: 4, key: "movies", roots: ["/media/movies"] });
     expect(body.config).toMatchObject({ mode: "shadow", grab: false, kind: "movie", profile: "movies", library: "/media/movies", storage: "debrid", indexers: ["feed"], providers: ["rd"], client: "" });
     await waitFor(() => expect(fetch.calls("GET", "/setup").length).toBeGreaterThan(1));
+  });
+
+  it("saves both TMDb sources and the one key from the metadata step, behind one confirmation", async () => {
+    const user = userEvent.setup();
+    let saved = false;
+    const effects = [{ version: "", effect: "Send requests to another host: metadata.sources.tmdb.url" }, { version: "", effect: "Send requests to another host: metadata.sources.tmdb-images.url" }];
+    const fetch = mockFetch([
+      { method: "GET", path: "/setup", reply: () => ({ ...fresh, tmdb: saved }) },
+      { method: "GET", path: "/settings/versions", reply: versions },
+      { method: "GET", path: "/settings/presets", reply: { flavour: "radarr", presets: [preset] } },
+      { method: "GET", path: "/settings/sections", reply: { source: "db", generation: 3, sections: [{ key: "metadata", config: { refresh: { movies: "24h" } }, secrets: [] }] } },
+      { method: "PUT", path: "/settings/sections/metadata", reply: { status: 422, body: { error: "explicit confirmation required", effects, confirmation: { token: "proof", generation: 3, effects } } } },
+      { method: "PUT", path: "/settings/sections/metadata", reply: () => { saved = true; return { generation: 4 }; } },
+    ]);
+    renderPage(<SetupPage />);
+    expect(await screen.findByText("Getting started: 1 of 6 steps complete")).toBeTruthy();
+    const save = screen.getByRole("button", { name: "Save TMDb key" }) as HTMLButtonElement;
+    expect(save.disabled).toBe(true);
+    await user.type(screen.getByLabelText("TMDb API key (v3)"), " invented-tmdb-key ");
+    await user.click(save);
+    await screen.findByRole("dialog", { name: "Confirm what this change enables" });
+    expect(screen.getByRole("dialog").textContent).toContain("metadata.sources.tmdb-images.url");
+    await user.click(screen.getByRole("button", { name: "Confirm and save" }));
+    await screen.findByText(/TMDb is set\./);
+    expect(screen.getByText("Getting started: 2 of 6 steps complete")).toBeTruthy();
+    expect(screen.queryByTestId("tmdb-key")).toBeNull();
+    const [first, second] = fetch.calls("PUT", "/settings/sections/metadata");
+    expect(first.body).toEqual({
+      generation: 3,
+      config: { refresh: { movies: "24h" }, sources: { tmdb: { url: "https://api.themoviedb.org/3" }, "tmdb-images": { url: "https://image.tmdb.org/t/p" } } },
+      secrets: { "sources.tmdb.api_key": "invented-tmdb-key" },
+    });
+    expect(second.body).toEqual(first.body);
+    expect(second.headers["x-confirmation-token"]).toBe("proof");
   });
 
   it("does not say Create makes a profile that already exists", async () => {

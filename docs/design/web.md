@@ -134,8 +134,9 @@ Code: `internal/web/setup.go`, `internal/preflight`, `cmd/theatarr/preflight.go`
 
 - `GET /setup` (admin): `first_run` (no version yet), `settings_source`, `admin_password_generated` (the caller is
   `admin` and still has the first-start password), one `missing` line per feature that is off (no versions, indexers,
-  providers, TMDb source or debrid mount), and counts of versions, versions with a root, providers, indexers,
-  profiles and active API keys.
+  providers, TMDb source or debrid mount), counts of versions, versions with a root, providers, indexers,
+  profiles and active API keys, and `tmdb`: the `tmdb` source has its address and a key that resolves, stored in
+  settings or in the environment variable it names (the predicate search and add use).
 - `POST /preflight {sources?}` (admin, CSRF): `preflight.Run` over the current generation's policy. Each item is
   `ok`, `warn` or `fail` with `why` and `next`. The mount check is the library's guarded mount check; roots and trash
   are stat and access(2), plus one filesystem when a version imports with hardlinks; providers and indexers are the
@@ -151,7 +152,10 @@ Code: `internal/web/setup.go`, `internal/preflight`, `cmd/theatarr/preflight.go`
 - UI: Admin › Setup (first admin entry while unfinished). `/admin` leads an admin there once per browser session while the
   install has no version and settings come from the database. Steps: the admin password (`POST /me/password`),
   providers and indexers (links to their editors under Settings, `/admin/settings/downloads` and
-  `/admin/settings/indexers`, with Prowlarr feeds and the native catalog side by side; status is beside the editors), a
+  `/admin/settings/indexers`, with Prowlarr feeds and the native catalog side by side; status is beside the editors),
+  the TMDb key (one field while `tmdb` is false: it adds the sources `tmdb` and `tmdb-images` with TMDb's public
+  addresses where they have none and stores the key, in one `PUT /settings/sections/metadata` with its confirmation;
+  `web/src/components/settings/tmdb-key.tsx`), a
   first version (key, kind, root with the validate-root check, a TRaSH preset through `POST /settings/presets/create`
   or an existing profile, indexers, providers; Review, then `POST /settings/versions` with `mode: shadow`, `grab: false`,
   answering a 422 confirmation with the token; a retry after a failed version save reuses the profile it already made

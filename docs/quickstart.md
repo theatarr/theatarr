@@ -79,7 +79,7 @@ sudo cat data/initial-admin-password      # mode 0600, owned by 65532
 Open `http://<host>:7700` and sign in as `admin`. The file is deleted at the first login. If you lose the password,
 run `docker compose exec theatarr theatarr admin reset-password`.
 
-After the first login an admin lands on **Home**, with a **Finish setting up Theatarr: 0 of 5** card. **Continue
+After the first login an admin lands on **Home**, with a **Finish setting up Theatarr: 0 of 6** card. **Continue
 setup** opens **Setup** (`/admin/setup`), which walks through the steps below and ends with the preflight. Set your
 own admin password there first.
 
@@ -106,9 +106,14 @@ Save validates and applies settings without a restart; new work and background l
 Use **Show advanced** for less common fields, or **Edit as YAML** for a section's raw editor. The first-library flow
 leaves **Allow downloads for this library** and the global switches off until you turn them on and confirm.
 
-**TMDb on Metadata & artwork.** Metadata sources are a list of named sources, and nothing has a default address.
-Add a source named exactly `tmdb` with the source address `https://api.themoviedb.org/3` and your TMDb API key.
-Add a second named `tmdb-images` with the address `https://image.tmdb.org/t/p` and no key: it serves posters and
+**TMDb.** Setup's **Add metadata (TMDb)** step has one field: your TMDb API key (the short v3 "API Key" from your
+TMDb account's API settings, not the long "API Read Access Token"). Saving it creates the two sources below with
+TMDb's public addresses and stores the key, after you confirm the two hosts. The step also counts as done when the
+`tmdb` source reads its key from an environment variable (`api_key_env`).
+
+By hand, on **Metadata & artwork**: metadata sources are a list of named sources, and the server has no default
+address. Add a source named exactly `tmdb` with the source address `https://api.themoviedb.org/3` and your TMDb API
+key. Add a second named `tmdb-images` with the address `https://image.tmdb.org/t/p` and no key: it serves posters and
 backdrops through Theatarr's image cache, and without it the UI shows generated art only. For TVDB, a source named
 `tvdb` with the address `https://api4.thetvdb.com/v4` and your TVDB key (a subscriber key also needs the PIN in
 `THEATARR_TVDB_PIN`). [`examples/policy/metadata.yaml`](../examples/policy/metadata.yaml) has the same sources.
@@ -313,23 +318,25 @@ running while Theatarr builds its own copy beside it.
 
 ## Readiness-led setup
 
-Home and Settings show admins **Finish setting up Theatarr: N of 5** and **Continue setup** while the install has no
+Home and Settings show admins **Finish setting up Theatarr: N of 6** and **Continue setup** while the install has no
 libraries or Setup reports missing pieces. Other users see no setup card. The
 [arr-to-Theatarr map](arr-map.md) has the page names and menu paths for familiar arr tasks.
 
-Setup (`/admin/setup`) has five steps:
+Setup (`/admin/setup`) has six steps:
 
 1. **Secure the admin account:** replace the generated password.
 2. **Connect downloads:** configure a debrid provider and an indexer; each has its own completion badge.
-3. **Connect your library:** configure the mount under **Settings › Libraries › File management** and Plex under
+3. **Add metadata (TMDb):** enter your TMDb API key; Setup creates the `tmdb` and `tmdb-images` sources.
+4. **Connect your library:** configure the mount under **Settings › Libraries › File management** and Plex under
    **Settings › Plex & playback**, then create your first library.
-4. **Check readiness:** run preflight and look at **See example decisions** in **Advanced › Decision journal**.
-5. **Review activation:** one card per library (its key, label, root, state, indexers and providers, and **Why?**
+5. **Check readiness:** run preflight and look at **See example decisions** in **Advanced › Decision journal**.
+6. **Review activation:** one card per library (its key, label, root, state, indexers and providers, and **Why?**
    listing every closed gate), then the three global switches. This review is read-only; each item links to its
    editor.
 
-The first three steps are complete with a changed password, both download sources, and at least one library with a
-root and a mount. Readiness is complete when the latest full preflight for the current settings has no failures
+The first four steps are complete with a changed password, both download sources, a `tmdb` source whose key
+resolves (stored in settings, or in the environment variable it names), and at least one library with a root and a
+mount. Readiness is complete when the latest full preflight for the current settings has no failures
 (warnings stay visible). The server remembers the latest run until it restarts, so a page reload keeps the step;
 after a restart, or once the settings change, run the preflight again. Activation is complete only when a
 library runs as Active with **Allow downloads for this library** and **Allow new downloads** on; otherwise it says

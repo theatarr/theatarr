@@ -743,6 +743,12 @@ export const PROVIDER_SERVICES: Record<string, { label: string; url: string }> =
   torbox: { label: "TorBox", url: "https://api.torbox.app/v1" },
 };
 
+/** TMDb's public addresses, which Setup's TMDb step stores for the two metadata sources it creates. */
+export const METADATA_SERVICES: Record<string, string> = {
+  tmdb: "https://api.themoviedb.org/3",
+  "tmdb-images": "https://image.tmdb.org/t/p",
+};
+
 /** The public address of the built-in indexers that have one, prefilled in a new indexer's form (the record still
  * starts disabled). Zilean is self-hosted and DMM's feed path depends on the providers, so neither has an entry. */
 export const INDEXER_SERVICES: Record<string, { url: string }> = {

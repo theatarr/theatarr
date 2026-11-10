@@ -1,6 +1,6 @@
 // Admin › Setup (docs/quickstart.md, docs/design/web.md "Setup"): the first-run screen. It leads a fresh install
 // through the admin password, the debrid providers, the indexers (Prowlarr feeds as Torznab and the native catalog),
-// a library root and a first version from a preset, then the preflight. Everything it creates goes through the
+// the TMDb key, a library root and a first version from a preset, then the preflight. Everything it creates goes through the
 // settings API; the version starts in Shadow with its downloads off, so nothing it does can grab.
 import { useState, type FormEvent, type ReactNode } from "react";
 import { Link } from "react-router";
@@ -16,6 +16,7 @@ import { DownloadsOffNotice, VersionStatus } from "@/components/version-status";
 import { globalDownloadsOff } from "@/lib/version-grab";
 import { ErrorState, Loading, PageHeader } from "@/components/page";
 import { SELECT_CLASS } from "@/components/settings/parts";
+import { TMDbKey } from "@/components/settings/tmdb-key";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -49,8 +50,8 @@ export function SetupPage() {
     <PageHeader crumb={[{ label: "Admin", to: "/admin" }]} title="Setup" description="What this install still needs, step by step, then a preflight of everything it relies on." />
     <Card className="space-y-2 text-sm"><h2 className="text-base font-semibold">Coming from Sonarr/Radarr?</h2><p>Inspect your existing stack and bring its settings into Theatarr, disabled or in shadow.</p><Link className="underline" to="/admin/advanced/arr/migrate">Migrate from arrs</Link></Card>
     {missing.length ? <Card><p className="text-sm font-medium">Off until set up:</p><ul className="mt-1 list-disc pl-5 text-sm" data-testid="setup-missing">{missing.map((m) => <li key={m}>{m}</li>)}</ul></Card> : null}
-    <p>Getting started: {progress.done} of 5 steps complete</p>
-    <progress className="h-2 w-full" aria-label="Setup progress" value={progress.done} max={5} />
+    <p>Getting started: {progress.done} of {progress.total} steps complete</p>
+    <progress className="h-2 w-full" aria-label="Setup progress" value={progress.done} max={progress.total} />
     <ol className="space-y-3">
       <Step n={1} title="Secure the admin account" done={progress.steps[0]}>
         {s.admin_password_generated ? <AdminPassword onDone={refresh} /> : <p>The admin account has its own password.</p>}
@@ -66,9 +67,14 @@ export function SetupPage() {
         </ul>
         <p>The VPN check is optional and off by default. Once set up under <Link className="underline" to="/admin/settings/indexers/vpn">Settings › Indexers › VPN</Link>, requests of the traffic it requires (indexers unless you change it) are refused while the VPN exit is not confirmed.</p>
       </Step>
-      <Step n={3} title="Connect your library" done={progress.steps[2]}>
+      <Step n={3} title="Add metadata (TMDb)" done={progress.steps[2]}>
+        {s.tmdb
+          ? <p>TMDb is set. Its sources and key, TVDB and the artwork cache are under <Link className="underline" to="/admin/settings/metadata">Settings › Metadata &amp; artwork</Link>.</p>
+          : <><p>Without a TMDb key, search and adding titles only see what the library already has, and there is no artwork or release date. TVDB (optional, for series numbering and anime) is under <Link className="underline" to="/admin/settings/metadata">Settings › Metadata &amp; artwork</Link>.</p><TMDbKey onSaved={refresh} /></>}
+      </Step>
+      <Step n={4} title="Connect your library" done={progress.steps[3]}>
         <p>Connect the debrid mount under <Link className="underline" to={settingHref("library", "mount")!}>Settings › Libraries › File management</Link>, then the Plex URL and token under <Link className="underline" to={settingHref("library", "plex")!}>Settings › Plex &amp; playback</Link>.</p>
-        <p>Arr views, metadata and notifications are under <Link className="underline" to="/admin/settings">Admin › Settings</Link>.</p>
+        <p>Arr views and notifications are under <Link className="underline" to="/admin/settings">Admin › Settings</Link>.</p>
         <h3 className="font-medium">Create your first library</h3>
 
         {s.versions > 0
@@ -77,11 +83,11 @@ export function SetupPage() {
         <DownloadsOffNotice off={globalDownloadsOff((s.version_states ?? []).map((v) => v.grab_state))} canManage />
         <div className="space-y-1">{(s.version_states ?? []).map((v) => <div key={v.key} className="flex flex-wrap items-start gap-2"><span className="font-mono text-[13px]">{v.key}</span><VersionStatus state={v.grab_state} showMode settingsKey={v.key} canManage /></div>)}</div>
       </Step>
-      <Step n={4} title="Check readiness" done={progress.steps[3]}>
+      <Step n={5} title="Check readiness" done={progress.steps[4]}>
         <Preflight generation={progress.versions.data?.generation} report={progress.report} last={progress.last} />
         <Link className="underline" to="/admin/advanced/journal">See example decisions</Link>
       </Step>
-      <Step n={5} title="Review activation" done={progress.steps[4]}>
+      <Step n={6} title="Review activation" done={progress.steps[5]}>
         <p>Theatarr doesn't turn these on for you. When you're ready, set a library to Active, turn on Allow downloads for this library, and Allow new downloads.</p>
         {progress.versions.isPending ? <Loading /> : progress.versions.error ? <ErrorState error={progress.versions.error} /> : <Activation data={progress.versions.data} />}
       </Step>

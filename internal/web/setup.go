@@ -20,6 +20,7 @@ import (
 	"github.com/theatarr/theatarr/internal/auth"
 	"github.com/theatarr/theatarr/internal/golive"
 	"github.com/theatarr/theatarr/internal/health"
+	"github.com/theatarr/theatarr/internal/policy"
 	"github.com/theatarr/theatarr/internal/preflight"
 	"github.com/theatarr/theatarr/internal/settings"
 )
@@ -53,6 +54,9 @@ type SetupState struct {
 	Indexers  int `json:"indexers"`
 	Profiles  int `json:"profiles"`
 	APIKeys   int `json:"api_keys"`
+	// TMDb: the metadata source tmdb has its address and a key that resolves, stored in settings or in the
+	// environment variable the source names: what search and adding titles need.
+	TMDb bool `json:"tmdb"`
 	// LastPreflight is the latest POST preflight this server ran since it started, nil before the first. Setup's
 	// readiness step reads it, so the step survives a page reload; a restart forgets it and the step is open again.
 	LastPreflight *LastPreflight `json:"last_preflight,omitempty"`
@@ -132,6 +136,7 @@ func (w *Web) apiSetup(rw http.ResponseWriter, r *http.Request) {
 			}
 		}
 	}
+	out.TMDb = tmdbReady(p, settings.Credentials{Policy: p, Snap: snap, Lookup: w.settingsLookup})
 	out.Missing = preflight.Missing(p, out.Indexers, out.Providers)
 	out.FirstRun = out.Versions == 0
 	if who := auth.FromContext(ctx); who != nil && who.Kind == "session" {
@@ -152,6 +157,16 @@ func (w *Web) apiSetup(rw http.ResponseWriter, r *http.Request) {
 	out.APIKeys = n
 	out.LastPreflight = w.lastPreflight.get()
 	writeJSON(rw, http.StatusOK, out)
+}
+
+// tmdbReady reports whether the tmdb metadata source would run: an address and a key, resolved as the running
+// service resolves it (a key stored in settings, or the environment variable api_key_env names).
+func tmdbReady(p *policy.Policy, creds settings.Credentials) bool {
+	if p == nil || p.Metadata == nil {
+		return false
+	}
+	src := p.Metadata.Sources["tmdb"]
+	return src != nil && src.URL != "" && src.APIKeyEnv != "" && creds.Resolves("", "", src.APIKeyEnv)
 }
 
 func (w *Web) activeAPIKeys(ctx context.Context) (int, error) {
