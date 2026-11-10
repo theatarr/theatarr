@@ -769,6 +769,9 @@ and paced exactly as without it.
   counts for these two readers as an ordinary search of its target (it can move the target back in the loop's
   order, and holds it back when `again_after` is longer than 14 days). With the switch on they leave every chain
   run out, whatever its age.
+- Retention keeps a target's latest ordinary run (and the parent of a shared search that holds it) also when a
+  chain's run of the target is newer, so pruning never makes the loop forget its own last search. Without chain
+  runs it prunes by the condition it had before (it looks once a night for a chain run: one more read of the table).
 - `per_hour` is one budget while the switch is on: the chain's searches take slots like any wanted search. With the
   switch off the hourly count leaves out what the chain searched before, so it delays nothing.
 - The chain after an `exhausted` route reads nothing of this one: it starts by its own key alone and never looks at

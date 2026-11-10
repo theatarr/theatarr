@@ -193,3 +193,61 @@ func TestPruneQualitySyncRuns(t *testing.T) {
 		}
 	}
 }
+
+// A newer search of a retry_new chain does not let a target's latest ordinary run be pruned: the wanted loop reads
+// only the ordinary one. The parent of a shared search that holds it stays with it. Without chain runs the acquire
+// runs are pruned by the condition they had before the switch existed.
+func TestPruneKeepsLatestOrdinaryAcquireRun(t *testing.T) {
+	t.Parallel()
+	st := openStore(t)
+	ctx := context.Background()
+	now := time.Date(2026, 10, 29, 3, 0, 0, 0, time.UTC)
+	old := store.Millis(now.Add(-400 * 24 * time.Hour))
+	title := exec(t, st, `INSERT INTO title (kind, name, created_at, updated_at) VALUES ('movie', 'M', 0, 0)`)
+	version := exec(t, st, `INSERT INTO version (title_id, policy_key, created_at, updated_at) VALUES (?, 'movie-web', 0, 0)`, title)
+	run := func(target string, research, parent any, at int64) int64 {
+		return exec(t, st, `INSERT INTO acquire_run (source, title_id, version_id, version_key, target, state, research,
+			search_run, created_at, updated_at) VALUES ('wanted', ?, ?, 'movie-web', ?, 'nothing', ?, ?, ?, ?)`,
+			title, version, target, research, parent, at, at)
+	}
+	var acquire rule
+	for _, r := range rules {
+		if r.table == "acquire_run" {
+			acquire = r
+		}
+	}
+	older := run("a", nil, nil, old)
+	ordinary := run("a", nil, nil, old+1)
+	parent := run("b", nil, nil, old+2)
+	parentLater := run("b", nil, nil, old+3)
+	child := run("c", nil, parent, old+2)
+	if where, err := acquire.condition(ctx, st); err != nil || where != acquire.where {
+		t.Fatalf("no chain runs: the condition is not the one without the switch: %v\n%s", err, where)
+	}
+	chainOlder := run("a", "retry_new", nil, old+3)
+	chain := run("a", "retry_new", nil, old+4)
+	chainC := run("c", "retry_new", nil, old+5)
+	if where, err := acquire.condition(ctx, st); err != nil || where == acquire.where {
+		t.Fatalf("chain runs: the condition is the one without the switch: %v", err)
+	}
+	if _, err := Prune(ctx, st, now, Defaults); err != nil {
+		t.Fatal(err)
+	}
+	for name, c := range map[string]struct {
+		id   int64
+		want int
+	}{
+		"an older ordinary run":                        {older, 0},
+		"the latest ordinary run under a chain's":      {ordinary, 1},
+		"the latest run, a chain's":                    {chain, 1},
+		"an older run of a chain":                      {chainOlder, 0},
+		"the parent of the latest ordinary child":      {parent, 1},
+		"the latest ordinary run of the parent target": {parentLater, 1},
+		"the latest ordinary child under a chain's":    {child, 1},
+		"the chain's latest run of the child's target": {chainC, 1},
+	} {
+		if got := count(t, st, `SELECT COUNT(*) FROM acquire_run WHERE id = ?`, c.id); got != c.want {
+			t.Errorf("%s: kept %d, want %d", name, got, c.want)
+		}
+	}
+}

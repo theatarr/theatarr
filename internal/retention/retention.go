@@ -14,7 +14,7 @@
 //     queued or running job refers to (download_attempt, download_file, download_progress and a finished
 //     library_import go with their download);
 //   - acquire runs that are not finished, the latest run of each version and target (the wanted loop's "last
-//     searched"), and runs a queued or running job refers to;
+//     searched") and the latest that no retry_new chain started, and runs a queued or running job refers to;
 //   - router plans a kept shadow grab or RSS pick refers to;
 //   - the applied link and replace library actions of a kept download or at a live link's path (the router's offer
 //     sources read them: which download a replacement superseded, which arr file Theatarr replaced); adoption provenance
@@ -75,6 +75,8 @@ type rule struct {
 	// it, so a run whose children are kept stays too.
 	where string
 	runs  bool
+	// more is added to where when the query when finds a row (neither is set for most tables).
+	when, more string
 }
 
 // rules run in order: shadow rows before the router plans they refer to.
@@ -117,7 +119,14 @@ var rules = []rule{
 			OR c.state NOT IN ('routed', 'nothing', 'skipped', 'failed')
 			OR c.id IN (SELECT MAX(id) FROM acquire_run GROUP BY version_id, target)))
 		AND NOT EXISTS (SELECT 1 FROM job j WHERE j.state IN ('queued', 'running') AND (j.id = acquire_run.route_job
-			OR json_extract(j.payload, '$.source') = 'acquire:' || acquire_run.id))`},
+			OR json_extract(j.payload, '$.source') = 'acquire:' || acquire_run.id))`,
+		// The searches of router.wanted.retry_new's chains (research retry_new) are left out by the readers that
+		// decide for an ordinary search (internal/acquire "ordinaryRuns"), so a target's latest ordinary run is
+		// kept too, with the parent of a shared search that holds it: a newer chain run must not let it go. An
+		// install without such runs prunes by the condition above alone.
+		when: `SELECT 1 FROM acquire_run WHERE research = 'retry_new' LIMIT 1`,
+		more: `id NOT IN (` + latestOrdinaryRun + `) AND NOT EXISTS (SELECT 1 FROM acquire_run c
+			WHERE c.search_run = acquire_run.id AND c.id IN (` + latestOrdinaryRun + `))`},
 	{table: "library_action", where: `at < ?1 AND NOT (mode = 'applied' AND kind IN ('link', 'replace') AND (
 		EXISTS (SELECT 1 FROM download d WHERE d.id = library_action.download_id)
 		OR EXISTS (SELECT 1 FROM link l WHERE l.path = library_action.path AND l.state IN ('active', 'dead'))))`},
@@ -129,6 +138,26 @@ var rules = []rule{
 	{table: "router_plan", where: `created_at < ?1
 		AND NOT EXISTS (SELECT 1 FROM shadow_grab g WHERE g.router_plan_id = router_plan.id)
 		AND NOT EXISTS (SELECT 1 FROM shadow_rss_pick p WHERE p.router_plan_id = router_plan.id)`},
+}
+
+// latestOrdinaryRun selects the latest run of each version and target that no retry_new chain started.
+const latestOrdinaryRun = `SELECT MAX(id) FROM acquire_run WHERE COALESCE(research, '') <> 'retry_new'
+	GROUP BY version_id, target`
+
+// condition is the rule's where for the store as it is now.
+func (r rule) condition(ctx context.Context, st *store.Store) (string, error) {
+	if r.when == "" {
+		return r.where, nil
+	}
+	var found int
+	err := st.Reader().QueryRowContext(ctx, r.when).Scan(&found)
+	if errors.Is(err, sql.ErrNoRows) {
+		return r.where, nil
+	}
+	if err != nil {
+		return "", err
+	}
+	return r.where + ` AND ` + r.more, nil
 }
 
 // Summary is the rows deleted per table.
@@ -162,7 +191,11 @@ func Prune(ctx context.Context, st *store.Store, now time.Time, cfg Config) (Sum
 		if strings.Contains(r.where, "?2") {
 			args = append(args, store.Millis(now))
 		}
-		q := fmt.Sprintf(`DELETE FROM %s WHERE rowid IN (SELECT rowid FROM %s WHERE %s LIMIT %d)`, r.table, r.table, r.where, batchSize)
+		where, err := r.condition(ctx, st)
+		if err != nil {
+			return out, fmt.Errorf("retention: %s: %w", r.table, err)
+		}
+		q := fmt.Sprintf(`DELETE FROM %s WHERE rowid IN (SELECT rowid FROM %s WHERE %s LIMIT %d)`, r.table, r.table, where, batchSize)
 		for range batches {
 			res, err := st.Writer().ExecContext(ctx, q, args...)
 			if err != nil {
