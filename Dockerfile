@@ -31,6 +31,8 @@ COPY --from=build /out/bin/ /usr/local/bin/
 COPY --from=build --chown=65532:65532 /out/data /data
 # The example policy, for a smoke test: theatarr serve --policy /usr/share/theatarr/examples/policy
 COPY examples/policy /usr/share/theatarr/examples/policy
+# Licences: Theatarr's own, the third-party notices, and the TRaSH-Guides licence (MIT) for the snapshot the binary embeds.
+COPY LICENSE NOTICE internal/trashbundle/LICENSE-TRaSH-Guides /licenses/
 ENV THEATARR_DB=/data/theatarr.db \
     THEATARR_POLICY=/config/policy \
     THEATARR_LISTEN=:7700 \

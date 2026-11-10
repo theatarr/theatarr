@@ -7,7 +7,9 @@ package format
 import (
 	"encoding/json"
 	"fmt"
+	"io/fs"
 	"os"
+	"path"
 	"path/filepath"
 	"sort"
 	"strings"
@@ -75,6 +77,32 @@ func (g *TrashGroup) IsDefault() bool {
 
 // LoadTrash reads the TRaSH JSON of flavour fl from a TRaSH-Guides checkout at root.
 func LoadTrash(root string, fl Flavour) (*Trash, error) {
+	return loadTrash(trashFiles{
+		read: func(name string) ([]byte, error) { return os.ReadFile(filepath.Join(root, name)) },
+		glob: func(dir string) ([]string, error) { return filepath.Glob(filepath.Join(root, dir, "*.json")) },
+		show: func(name string) string { return filepath.Join(root, name) },
+	}, fl)
+}
+
+// LoadTrashFS is LoadTrash over a file system rooted like a TRaSH-Guides checkout (metadata.json at its root), for a
+// tree that is not on disk.
+func LoadTrashFS(fsys fs.FS, fl Flavour) (*Trash, error) {
+	return loadTrash(trashFiles{
+		read: func(name string) ([]byte, error) { return fs.ReadFile(fsys, name) },
+		glob: func(dir string) ([]string, error) { return fs.Glob(fsys, path.Join(dir, "*.json")) },
+		show: func(name string) string { return name },
+	}, fl)
+}
+
+// trashFiles reads a TRaSH tree: read takes a path relative to its root, glob lists the JSON files of a
+// directory the way an error names them, and show is the path an error names for one read by name.
+type trashFiles struct {
+	read func(name string) ([]byte, error)
+	glob func(dir string) ([]string, error)
+	show func(name string) string
+}
+
+func loadTrash(src trashFiles, fl Flavour) (*Trash, error) {
 	if !fl.Valid() {
 		return nil, fmt.Errorf("trash: unknown flavour %q", fl)
 	}
@@ -85,7 +113,7 @@ func LoadTrash(root string, fl Flavour) (*Trash, error) {
 			CustomFormatGroups []string `json:"custom_format_groups"`
 		} `json:"json_paths"`
 	}
-	if err := readJSON(filepath.Join(root, "metadata.json"), &meta); err != nil {
+	if err := src.readJSON("metadata.json", &meta); err != nil {
 		return nil, err
 	}
 	paths, ok := meta.JSONPaths[string(fl)]
@@ -94,7 +122,7 @@ func LoadTrash(root string, fl Flavour) (*Trash, error) {
 	}
 	t := &Trash{Flavour: fl, byID: map[string]*Format{}, raw: map[string][]byte{}, Profiles: map[string]*TrashProfile{}, Groups: map[string]*TrashGroup{}}
 
-	err := eachJSON(root, paths.CustomFormats, func(path string, b []byte) error {
+	err := src.eachJSON(paths.CustomFormats, func(path string, b []byte) error {
 		f, err := ParseTrashFormat(fl, b)
 		if err != nil {
 			return fmt.Errorf("%s: %w", path, err)
@@ -115,7 +143,7 @@ func LoadTrash(root string, fl Flavour) (*Trash, error) {
 		f.ID = i + 1
 	}
 
-	err = eachJSON(root, paths.QualityProfiles, func(path string, b []byte) error {
+	err = src.eachJSON(paths.QualityProfiles, func(path string, b []byte) error {
 		var p TrashProfile
 		if err := json.Unmarshal(b, &p); err != nil {
 			return fmt.Errorf("%s: %w", path, err)
@@ -126,7 +154,7 @@ func LoadTrash(root string, fl Flavour) (*Trash, error) {
 	if err != nil {
 		return nil, err
 	}
-	err = eachJSON(root, paths.CustomFormatGroups, func(path string, b []byte) error {
+	err = src.eachJSON(paths.CustomFormatGroups, func(path string, b []byte) error {
 		var g TrashGroup
 		if err := json.Unmarshal(b, &g); err != nil {
 			return fmt.Errorf("%s: %w", path, err)
@@ -268,26 +296,28 @@ func includes(m map[string]string, id string) bool {
 	return false
 }
 
-func readJSON(path string, v any) error {
-	b, err := os.ReadFile(path)
+func (src trashFiles) readJSON(name string, v any) error {
+	b, err := src.read(name)
 	if err != nil {
 		return err
 	}
 	if err := json.Unmarshal(b, v); err != nil {
-		return fmt.Errorf("%s: %w", path, err)
+		return fmt.Errorf("%s: %w", src.show(name), err)
 	}
 	return nil
 }
 
-func eachJSON(root string, dirs []string, fn func(path string, b []byte) error) error {
+// eachJSON calls fn for every JSON file of dirs, in name order per directory. glob returns each match as the path an
+// error names; its base name under the directory is the path read takes.
+func (src trashFiles) eachJSON(dirs []string, fn func(path string, b []byte) error) error {
 	for _, d := range dirs {
-		matches, err := filepath.Glob(filepath.Join(root, d, "*.json"))
+		matches, err := src.glob(d)
 		if err != nil {
 			return err
 		}
 		sort.Strings(matches)
 		for _, m := range matches {
-			b, err := os.ReadFile(m)
+			b, err := src.read(path.Join(d, filepath.Base(m)))
 			if err != nil {
 				return err
 			}
@@ -295,6 +325,17 @@ func eachJSON(root string, dirs []string, fn func(path string, b []byte) error) 
 				return err
 			}
 		}
+	}
+	return nil
+}
+
+func readJSON(path string, v any) error {
+	b, err := os.ReadFile(path)
+	if err != nil {
+		return err
+	}
+	if err := json.Unmarshal(b, v); err != nil {
+		return fmt.Errorf("%s: %w", path, err)
 	}
 	return nil
 }

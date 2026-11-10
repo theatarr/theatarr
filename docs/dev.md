@@ -55,6 +55,7 @@ subcommands; each one takes `-h`.
 | `internal/secrets` | Shared rules for showing and restoring credentials (masking, webhook URLs) |
 | `internal/golive` | `theatarr golive check`: read-only go-live check per library ([golive.md](golive.md)) |
 | `internal/migration` | `theatarr migrate inspect/plan/apply/verify`: GET-only inventory of an arr stack, saved plans, apply through the settings after a backup checkpoint, readiness per library ([migration.md](migration.md)) |
+| `internal/trashbundle` | The TRaSH-Guides snapshot the binary embeds for the profile presets (one pinned commit, MIT). `scripts/update-trash-bundle.sh <checkout>` refreshes it before a release; update the commit in `NOTICE` with it |
 | `internal/recyclarr` | Recyclarr configurations and arr custom formats into Theatarr formats and profiles |
 | `internal/server` | HTTP server, health, metrics, logging setup |
 | `internal/decide/parser/radarr` | Port of Radarr's parser: movie titles, quality, language, release group |

@@ -43,6 +43,15 @@ seadexerr
   The rest of the SeaDex search follows its behaviour as a reference; the package comment in
   internal/indexer/seadex.go lists what matches and what deliberately differs.
 
+TRaSH-Guides
+  https://github.com/TRaSH-Guides/Guides @ ed6d7226232c6194730c945938985dfa68c75e6b (2026-10-26)
+  MIT License, Copyright (c) 2021 TRaSH.
+  Bundled, unchanged: the custom formats, custom format groups and quality profiles for Radarr and Sonarr
+  (metadata.json and docs/json/{radarr,sonarr}/{cf,cf-groups,quality-profiles}), as internal/trashbundle/guides.tar.gz.
+  The binary embeds the archive and offers its quality profiles as presets; internal/trashbundle/COMMIT names the
+  commit. The licence text is internal/trashbundle/LICENSE-TRaSH-Guides (in the image: /licenses/). A smaller copy of
+  some custom formats seeds the demo (internal/demo/formats, licence beside them).
+
 Test fixtures (internal/metadata/anime/testdata/offline)
   The offline cache the anime engine's golden test builds from. Only the records and responses the three test
   builds read are kept, reduced to the fields the pipeline uses; internal/metadata/anime/testdata/README.md lists
