@@ -9,7 +9,7 @@
 //   - redirects are refused, so a server cannot steer the client to another endpoint.
 //
 // The API key is sent in the X-Api-Key header, never in the URL, and is masked in every error the client returns. It
-// goes to LAN addresses only (loopback, RFC 1918, ULA): see lan.go.
+// goes to LAN addresses only (loopback, RFC 1918, 100.64.0.0/10, ULA): see lan.go.
 package arr
 
 import (

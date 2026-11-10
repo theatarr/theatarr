@@ -14,7 +14,8 @@ func TestLANAddr(t *testing.T) {
 	for addr, want := range map[string]bool{
 		"127.0.0.1": true, "127.8.9.10": true, "::1": true, "10.1.2.3": true, "172.16.0.1": true,
 		"172.31.255.255": true, "192.168.1.5": true, "fd00::5": true, "fc12::1": true, "::ffff:10.1.2.3": true,
-		"172.32.0.1": false, "8.8.8.8": false, "203.0.113.9": false, "100.64.0.1": false, "169.254.1.1": false,
+		"172.32.0.1": false, "8.8.8.8": false, "203.0.113.9": false, "100.64.0.1": true, "100.127.255.254": true, "::ffff:100.100.1.2": true,
+		"100.63.255.255": false, "100.128.0.1": false, "169.254.1.1": false,
 		"0.0.0.0": false, "2001:db8::1": false, "fe80::1": false, "::ffff:8.8.8.8": false,
 	} {
 		if got := LANAddr(netip.MustParseAddr(addr)); got != want {

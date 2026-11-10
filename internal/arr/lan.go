@@ -13,7 +13,8 @@ import (
 )
 
 // The arrs live on the LAN, and every request carries the instance's API key. So the client talks to LAN addresses
-// only: loopback, RFC 1918 (10/8, 172.16/12, 192.168/16) or IPv6 ULA (fc00::/7). It checks twice:
+// only: loopback, RFC 1918 (10/8, 172.16/12, 192.168/16), carrier-grade NAT space (100.64/10, which Tailscale and
+// similar overlays use) or IPv6 ULA (fc00::/7). It checks twice:
 //
 //   - CheckLiteral, when the policy is validated and in New: an IP-literal host must be a LAN address (no DNS
 //     lookups there, so tests and offline validation never touch the network);
@@ -24,13 +25,16 @@ import (
 // Arr traffic does not go through the gateway or the VPN: the arrs are on the LAN.
 
 // ErrNotLAN is returned for an arr host that is not a LAN address.
-var ErrNotLAN = errors.New("arr: not a LAN address (loopback, RFC 1918 or ULA); the arr client sends its API key " +
+var ErrNotLAN = errors.New("arr: not a LAN address (loopback, RFC 1918, 100.64.0.0/10 or ULA); the arr client sends its API key " +
 	"only to the LAN")
 
-// LANAddr reports whether ip is loopback, RFC 1918 or ULA.
+// cgnat is the shared address space of RFC 6598, used by Tailscale and other overlay networks.
+var cgnat = netip.MustParsePrefix("100.64.0.0/10")
+
+// LANAddr reports whether ip is loopback, RFC 1918, 100.64.0.0/10 or ULA.
 func LANAddr(ip netip.Addr) bool {
 	ip = ip.Unmap()
-	return ip.IsValid() && (ip.IsLoopback() || ip.IsPrivate())
+	return ip.IsValid() && (ip.IsLoopback() || ip.IsPrivate() || cgnat.Contains(ip))
 }
 
 // CheckLiteral refuses an IP-literal host (without port) that is not a LAN address. A name passes: it is checked when
