@@ -37,7 +37,7 @@ func (s *serveTorrents) Manager(ctx context.Context) (*torrents.Manager, error) 
 	pol, gw := s.pol, s.gw
 	var provs = s.ps.syncer.Providers
 	var keys map[string]string
-	var lib *serveLibrary = s.lib
+	lib := s.lib
 	if s.manager != nil {
 		rt := settings.ContextRuntime(ctx)
 		if rt == nil {

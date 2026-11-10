@@ -2,6 +2,7 @@ package library
 
 import (
 	"context"
+	"errors"
 	"os"
 	"path/filepath"
 	"sort"
@@ -128,6 +129,11 @@ func TestImportDecypharrFolder(t *testing.T) {
 		if s := e.one(`SELECT state FROM download WHERE id = 1`); s != "ready" {
 			t.Errorf("download %s", s)
 		}
+		// The router's ready deadline pauses as for a mount that is down.
+		if err := e.lib.MountListed(e.ctx); !errors.Is(err, ErrMountDown) ||
+			!strings.Contains(err.Error(), "decypharr") {
+			t.Errorf("mount listed with the index unknown: %v", err)
+		}
 	})
 
 	t.Run("a path import does not read decypharr", func(t *testing.T) {
@@ -215,6 +221,35 @@ func TestImportDecypharrFileList(t *testing.T) {
 		}
 		if s := e.one(`SELECT state FROM library_import WHERE download_id = 1`); s != "rejected" {
 			t.Errorf("library import %s", s)
+		}
+	})
+
+	t.Run("not listed yet: another torrent's folder of the same name waits", func(t *testing.T) {
+		e := newEnv(t, true, policy.ModeActive)
+		e.release(movieRelease, map[string]float64{"movie.mkv": 7000})
+		e.download(1, "movie-remux", 1, 10, movieRelease, movieRelease, "[]")
+		srv := e.withDecypharr()
+		e.listFiles(TorrentFile{Name: "movie.mkv", Size: 6})
+		plan, err := e.lib.Import(e.ctx, 1, false)
+		if err != nil || !plan.Waiting || len(plan.Links) != 0 {
+			t.Fatalf("plan %+v, err %v", plan, err)
+		}
+		if s := e.one(`SELECT state || ' ' || last_error FROM library_import WHERE download_id = 1`); s != "waiting_mount "+notOnMount {
+			t.Errorf("library import %s", s)
+		}
+		// decypharr lists the hash under that name and the mount shows the download's file: imported.
+		srv.Set(func(s *decypharrtest.Server) {
+			s.Torrents = []decypharrtest.Torrent{{Hash: hashA, Name: movieRelease, Provider: "realdebrid"}}
+		})
+		e.now = e.now.Add(2 * time.Minute)
+		if err := os.WriteFile(filepath.Join(e.mount, "__all__", movieRelease, "movie.mkv"), []byte("video!"), 0o644); err != nil {
+			t.Fatal(err)
+		}
+		if _, err := e.lib.Import(e.ctx, 1, false); err != nil {
+			t.Fatal(err)
+		}
+		if e.movieTarget() == "" {
+			t.Error("not imported once decypharr lists the hash")
 		}
 	})
 

@@ -537,6 +537,18 @@ func (l *Library) importDownload(ctx context.Context, d *importDownload, dryRun 
 		plan.Files = append(plan.Files, pf)
 	}
 
+	if listed != nil && len(plan.Files) == 0 && !sourced && !decyListed {
+		// decypharr does not list the hash yet (it reads a debrid's torrents every few minutes) and the folder a
+		// name found holds none of the download's files: another torrent of the same name. The download's own
+		// files show in it once decypharr lists the hash, so the import waits as for a folder that is not there.
+		plan.Waiting = true
+		if !dryRun {
+			if err := l.markWaiting(ctx, d); err != nil {
+				return nil, err
+			}
+		}
+		return plan, nil
+	}
 	if listed != nil && len(plan.Files) == 0 {
 		// The list exists, the folder is there and no file in it is the download's: as when zurg does not confirm
 		// the files, held for review and never failed or blocklisted.

@@ -243,12 +243,18 @@ func (l *Library) MountAnswers(ctx context.Context) (int, error) {
 
 // MountListed is MountHealthy plus the listing check relink uses (newMountIndex, Mount.checkListing): an empty or
 // half-loaded release root counts as ErrMountDown too. The router's ready deadline waits on it. nil without a mount.
+// On decypharr's mount an index that cannot be read counts as well: imports wait for it, so the deadline does too.
 func (l *Library) MountListed(ctx context.Context) error {
 	if l.mount == nil {
 		return nil
 	}
 	if err := l.mountHealthy(ctx); err != nil {
 		return err
+	}
+	if l.decy != nil {
+		if _, err := l.decy.Index(ctx); err != nil {
+			return fmt.Errorf("%w: %v", ErrMountDown, err)
+		}
 	}
 	_, err := l.newMountIndex(ctx)
 	return err
