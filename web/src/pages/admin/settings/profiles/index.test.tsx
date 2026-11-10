@@ -130,15 +130,20 @@ describe("Quality profiles page", () => {
   });
 
   it("suggests a key no format set has, also a set left behind by a deleted profile", async () => {
-    mockFetch([
+    // The sets are read at each Use, not once when the page loads: the set appears while the page is open.
+    let sets: { id: number; key: string; config: object }[] = [];
+    const fetch = mockFetch([
       ...routes(),
-      { method: "GET", path: "/settings/format_sets", reply: { generation: 4, records: [{ id: 3, key: "web-2160p-2", config: {} }] } },
+      { method: "GET", path: "/settings/format_sets", reply: () => json({ generation: 4, records: sets }) },
       { method: "POST", path: "/settings/presets/build", reply: { ...built, origin: { preset: "0537", name: "WEB 2160p", flavour: "radarr" } } },
     ]);
     const user = userEvent.setup();
     renderPage(<ProfilesPage />);
-    await user.click(await screen.findByRole("button", { name: "Use: WEB 2160p (Movies (Radarr))" }));
+    const use = await screen.findByRole("button", { name: "Use: WEB 2160p (Movies (Radarr))" });
+    sets = [{ id: 3, key: "web-2160p-2", config: {} }];
+    await user.click(use);
     const sheet = await screen.findByTestId("profile-sheet");
+    expect(fetch.calls("GET", "/settings/format_sets")).toHaveLength(1);
     // "web-2160p" is a profile and "web-2160p-2" a format set no profile uses.
     expect((within(sheet).getByRole("textbox", { name: "Key" }) as HTMLInputElement).value).toBe("web-2160p-3");
   });

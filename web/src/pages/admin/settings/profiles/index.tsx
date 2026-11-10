@@ -74,9 +74,6 @@ export function ProfilesPage({ compact = false }: { compact?: boolean }) {
   const raw = params.get("raw") === "1";
   const db = overview.data?.source === "db";
   const records = useQuery({ queryKey: [...qk.settings.all, "quality", "profiles"], queryFn: () => api<{ generation: number; records: QualityRecord[] }>("/settings/profiles"), enabled: db && !raw });
-  // Every format set, also one no profile uses any more (deleting a profile leaves its set): a new profile's key
-  // must be free among them too.
-  const formatSets = useQuery({ queryKey: [...qk.settings.all, "quality", "format_sets"], queryFn: () => api<{ generation: number; records: { key: string }[] }>("/settings/format_sets"), enabled: db && !raw });
   const [session, setSession] = useState<ProfileSession>();
   const [announcement, announce] = useAnnouncement();
   const newButton = useRef<HTMLButtonElement>(null);
@@ -144,7 +141,9 @@ export function ProfilesPage({ compact = false }: { compact?: boolean }) {
     <Defaults profiles={o.profiles.map((p) => p.key)} defaults={o.defaults} readOnly={readOnly} onSaved={(t) => { announce(t); void refresh(); }} />
     <TrashDefaults overview={o} readOnly={readOnly} onUse={async (flavour, preset, built) => {
       // The editor opens on a copy of the default, under a free key the user can change before creating it.
-      const sets = formatSets.data ?? (await formatSets.refetch()).data;
+      // Its key must be free among every format set too, read now: deleting a profile leaves its set, which no
+      // profile names any more. When that read fails the sets the profiles use are all that is known.
+      const sets = await api<{ records: { key: string }[] }>("/settings/format_sets").catch(() => undefined);
       const taken = [...o.profiles.map((p) => p.key), ...o.profiles.map((p) => p.format_set), ...(sets?.records ?? []).map((r) => r.key)];
       deleted.current = false;
       setSession({ mode: "create", generation: o.generation, flavour, key: freeKey(keyFromName(preset.name), taken), config: built.profile, preset: { trash_id: preset.trash_id, modifiers: [], built } });
