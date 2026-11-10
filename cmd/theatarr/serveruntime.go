@@ -201,6 +201,14 @@ func (r *serveRuntime) AfterPublish() {
 	if r != nil {
 		r.Workers.Apply(r)
 	}
+	// Turning router.wanted.retry_new off cancels what its chains still have queued (it does nothing while on).
+	if r != nil && r.Acquirer != nil {
+		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+		defer cancel()
+		if _, err := r.Acquirer.CancelRetryNew(ctx); err != nil {
+			slog.Warn("retry_new: queued searches not cancelled", "err", err)
+		}
+	}
 }
 
 func (r *serveRuntime) EgressGateway() *gateway.Gateway { return r.Gateway }

@@ -353,17 +353,11 @@ func (a *Acquirer) Submit(ctx context.Context, commandID int64, sel Selection) (
 	return queued, found, nil
 }
 
-// start records a run and enqueues its search. research is the failure a re-search follows ("" for none).
-// It is the path of the add-time searches, the re-searches and the follow-ups: its job is never marked retry_new.
+// start records a run and enqueues its search. research is the failure a re-search follows ("" for none), or
+// researchRetryNew for a search of a chain router.wanted.retry_new started. It is the path of the add-time searches,
+// the re-searches and the follow-ups: its job holds the run's id and nothing else.
 func (a *Acquirer) start(ctx context.Context, source string, commandID int64, t target, research string) error {
 	return a.startRuns(ctx, source, commandID, []target{t}, research, SearchJob{})
-}
-
-// startChained is start for a search of a follow-up chain router.wanted.retry_new started (or one asked for again
-// after no indexer answered): its job says so, and the search runs only while the switch is on (run). The mark is
-// not RetryNew: such a search starts no chain. Any other follow-up's job is start's, byte for byte.
-func (a *Acquirer) startChained(ctx context.Context, t target, research string, chained bool) error {
-	return a.startRuns(ctx, SourceWanted, 0, []target{t}, research, SearchJob{RetryNewChain: chained})
 }
 
 // startGroup records one search and its served version-target rows in the same transaction as its job. It is the
@@ -430,12 +424,9 @@ type SearchJob struct {
 	RunID int64 `json:"run_id"`
 	// RetryNew marks a search the wanted loop or the Search now queue started while router.wanted.retry_new was on:
 	// when it accepts nothing, its new content is followed up (followup.go). The run row cannot tell these from an
-	// add-time search, so the mark travels with the job. Left out when unset.
+	// add-time search, so the mark travels with the job. Left out when unset. The searches of the chain itself are
+	// told by their run row instead (researchRetryNew).
 	RetryNew bool `json:"retry_new,omitempty"`
-	// RetryNewChain marks the search of a follow-up whose chain such a search started: it searches only while the
-	// switch is on, and when no indexer answers it is asked for again with the chain's mark
-	// (router.ResearchRequest.RetryNew). It starts no chain. Left out when unset.
-	RetryNewChain bool `json:"retry_new_chain,omitempty"`
 }
 
 type wantedPayload struct{}
@@ -822,7 +813,7 @@ func (l lastRuns) searchedSince(since, partialSince int64) bool {
 func (a *Acquirer) lastSearched(ctx context.Context) (map[string]lastRuns, error) {
 	rows, err := a.st.Reader().QueryContext(ctx, `SELECT version_id, target,
 		COALESCE(MAX(CASE WHEN infra = 0 THEN created_at END), 0), COALESCE(MAX(CASE WHEN infra = 2 THEN created_at END), 0),
-		MAX(created_at) FROM acquire_run GROUP BY version_id, target`)
+		MAX(created_at) FROM acquire_run WHERE `+ordinaryRuns+` GROUP BY version_id, target`)
 	if err != nil {
 		return nil, err
 	}
@@ -995,6 +986,12 @@ func (a *Acquirer) run(ctx context.Context, sj SearchJob, claim string) error {
 		_, err := finishTx(state, msg, results, accepted, nil)
 		return err
 	}
+	// A retry_new chain's search runs only while the switch is on. This comes before every other check, so that with
+	// the switch off such a run always ends gated, whatever else was turned off with it.
+	if research == researchRetryNew && !a.set.RetryNew {
+		infra = runGated
+		return finish("skipped", "router.wanted.retry_new is off: nothing searched", 0, 0)
+	}
 	if vp := a.pol.Versions[t.key]; vp == nil || vp.Mode != policy.ModeActive {
 		return finish("skipped", "version "+t.key+" is not active: nothing searched", 0, 0)
 	}
@@ -1015,11 +1012,6 @@ func (a *Acquirer) run(ctx context.Context, sj SearchJob, claim string) error {
 				Version: t.key, Episodes: t.episodes, Reason: research}, off)
 			return err
 		}
-	}
-	// A retry_new chain's search runs only while the switch is on (its step checked it too, when it queued this).
-	if sj.RetryNewChain && !a.set.RetryNew {
-		infra = runGated
-		return finish("skipped", "router.wanted.retry_new is off: nothing searched", 0, 0)
 	}
 	db := a.st.Reader()
 	if busy, err := a.inFlight(ctx, t); err != nil {
@@ -1064,7 +1056,7 @@ func (a *Acquirer) run(ctx context.Context, sj SearchJob, claim string) error {
 			if err := finish("failed", "search failed: "+err.Error()+infraNote, 0, 0); err != nil {
 				return err
 			}
-			return a.retryInfraFailed(ctx, []int64{runID}, sj.RetryNewChain)
+			return a.retryInfraFailed(ctx, []int64{runID})
 		}
 		return finish("failed", "search failed: "+err.Error(), 0, 0)
 	}
@@ -1074,7 +1066,7 @@ func (a *Acquirer) run(ctx context.Context, sj SearchJob, claim string) error {
 		if err := finish("failed", noAnswerMessage(found)+infraNote, 0, 0); err != nil {
 			return err
 		}
-		return a.retryInfraFailed(ctx, []int64{runID}, sj.RetryNewChain)
+		return a.retryInfraFailed(ctx, []int64{runID})
 	}
 	req := found.Request
 	req.Source = Source(runID)
@@ -1411,8 +1403,7 @@ func (a *Acquirer) finishFanout(ctx context.Context, claim string, outcomes []fa
 			infra = append(infra, o.run.id)
 		}
 	}
-	// A follow-up's search is one target (start), never a shared search: none of these is a retry_new chain's.
-	return a.retryInfraFailed(ctx, infra, false)
+	return a.retryInfraFailed(ctx, infra)
 }
 
 // What a run's search established, recorded in acquire_run.infra:
@@ -1432,9 +1423,23 @@ const (
 	runPartial  = 2
 	// runGated: a re-search's run that ended before its search because grabbing (or, for a dead link, the library)
 	// was off by then. Nothing was searched: it counts as no search and no attempt, and not against
-	// router.wanted.per_hour (every hourly count and the deferral time leave it out: infra <> 3).
+	// router.wanted.per_hour (every hourly count and the deferral time leave it out: infra <> 3). Also a retry_new
+	// chain's run that ended because that switch was off, or was cancelled when it was turned off.
 	runGated = 3
 )
+
+// researchRetryNew is acquire_run.research of a search that a follow-up chain of router.wanted.retry_new started (a
+// step's search, or one asked for again after no indexer answered). It is the feature's mark in the run history:
+// every reader of that history that decides something for an ordinary search leaves these runs out (ordinaryRuns),
+// so what the switch searched changes nothing else, while it is on and after it is turned off. Only the chain's own
+// retry budget (infraRuns) and, while the switch is on, the hourly count (hourRuns) read them.
+const researchRetryNew = "retry_new"
+
+// ordinaryRuns is the acquire_run condition that leaves out the runs router.wanted.retry_new started.
+const ordinaryRuns = `COALESCE(research, '') <> '` + researchRetryNew + `'`
+
+// retryNewRuns is its opposite.
+const retryNewRuns = `COALESCE(research, '') = '` + researchRetryNew + `'`
 
 const (
 	infraNote   = "; not counted as searched: asked again later"
@@ -1484,11 +1489,17 @@ func noAnswerMessage(found *router.Searched) string {
 }
 
 // infraRuns counts a target's runs without an answer since its last run that had one, after since, and the latest.
-func (a *Acquirer) infraRuns(ctx context.Context, versionID int64, name string, since int64, research bool) (int,
-	int64, error) {
+// It reads the ordinary runs only; retryNew: the runs of router.wanted.retry_new's chains only (their own budget).
+func (a *Acquirer) infraRuns(ctx context.Context, versionID int64, name string, since int64, research,
+	retryNew bool) (int, int64, error) {
+	own := ordinaryRuns
+	if retryNew {
+		own = retryNewRuns
+	}
 	q := `SELECT COUNT(*), COALESCE(MAX(created_at), 0) FROM acquire_run WHERE version_id = ? AND target = ?
-		AND infra = 1 AND created_at > MAX(?, COALESCE((SELECT MAX(created_at) FROM acquire_run WHERE version_id = ?
-		AND target = ? AND infra NOT IN (1, 3) AND state NOT IN ('queued', 'searching')), 0))`
+		AND infra = 1 AND ` + own + ` AND created_at > MAX(?, COALESCE((SELECT MAX(created_at) FROM acquire_run
+		WHERE version_id = ? AND target = ? AND infra NOT IN (1, 3) AND state NOT IN ('queued', 'searching')
+		AND ` + own + `), 0))`
 	if research {
 		q += ` AND research IS NOT NULL`
 	}
@@ -1499,9 +1510,10 @@ func (a *Acquirer) infraRuns(ctx context.Context, versionID int64, name string, 
 }
 
 // retryInfraFailed asks again for the re-searches among runs (no answer: runInfra) after infraBackoff, until it is
-// spent. Wanted and add-time searches need nothing: the next round or drain finds them due. chained: the runs are
-// searches of a retry_new chain, and the request asked for again carries its mark, so it looks at the switch too.
-func (a *Acquirer) retryInfraFailed(ctx context.Context, runs []int64, chained bool) error {
+// spent. Wanted and add-time searches need nothing: the next round or drain finds them due. A search of a retry_new
+// chain (researchRetryNew) is asked for again as a follow-up with the chain's mark, so it looks at the switch too,
+// and its budget counts the chain's runs only, as an ordinary re-search's counts none of them.
+func (a *Acquirer) retryInfraFailed(ctx context.Context, runs []int64) error {
 	for _, id := range runs {
 		var p router.ResearchRequest
 		var research sql.NullString
@@ -1515,7 +1527,8 @@ func (a *Acquirer) retryInfraFailed(ctx context.Context, runs []int64, chained b
 		if !research.Valid || research.String == "" || research.String == router.ReasonDeadLink {
 			continue
 		}
-		n, last, err := a.infraRuns(ctx, p.VersionID, name, store.Millis(a.now().Add(-a.set.AgainAfter)), true)
+		chained := research.String == researchRetryNew
+		n, last, err := a.infraRuns(ctx, p.VersionID, name, store.Millis(a.now().Add(-a.set.AgainAfter)), true, chained)
 		if err != nil {
 			return err
 		}
@@ -1527,7 +1540,9 @@ func (a *Acquirer) retryInfraFailed(ctx context.Context, runs []int64, chained b
 		}
 		_ = json.Unmarshal([]byte(eps), &p.Episodes)
 		p.Reason = research.String
-		p.RetryNew = chained
+		if chained {
+			p.Reason, p.RetryNew = router.ReasonFresh, true
+		}
 		at := store.FromMillis(max(next, store.Millis(a.now())))
 		key := fmt.Sprintf("%s/infra/%d", router.JobResearch, id)
 		if _, _, err := a.q.Enqueue(ctx, router.JobResearch, p, jobs.EnqueueOptions{RunAt: at, DedupeKey: key,

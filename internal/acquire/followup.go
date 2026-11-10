@@ -2,6 +2,7 @@ package acquire
 
 import (
 	"context"
+	"database/sql"
 	"fmt"
 	"slices"
 	"strconv"
@@ -44,16 +45,23 @@ import (
 // With router.wanted.retry_new on (default off) a chain also starts without a route: when a missing search by the
 // wanted loop or by Search now ends with nothing accepted and its target holds new content (retryNew). The first
 // search of a just-aired episode is usually that one, and the loop would take the item again only after again_after.
-// It has the same steps, stops and per_hour charge, but is a chain of its own, under its own key (followUpKey): its
-// requests carry RetryNew, and a step of it that runs with the switch off stops it. A manual search, a search on
-// add, an add-time search and a re-search or follow-up's own search start none.
+// It has the same steps, stops and per_hour charge, but is a chain of its own. A manual search, a search on add, an
+// add-time search and a re-search or follow-up's own search start none.
 //
-// The chain after a route that missed everywhere reads nothing of it: it starts by its own key alone, as if the
-// switch did not exist, also while a retry_new chain of the title is queued or after one ended. The retry_new chain
-// looks at the switch before every search: at each step, in the search job the step queued (SearchJob.RetryNewChain)
-// and in a search asked for again after no indexer answered, which carries the chain's mark. It also
-// gives way: it does not start, and ends at its next step without a search, once the exhausted chain's key was seen
-// in the fresh window (exhaustedChain). So a title can get both kinds in one week, one after the other.
+// The rule it is built to: nothing this chain writes is read by an ordinary path, and turning the switch off removes
+// its queued work.
+//   - Its jobs have their own key (followUpKey) and carry RetryNew; its searches' runs have research
+//     researchRetryNew. Every reader of the run history that decides for an ordinary search leaves those runs out
+//     (ordinaryRuns: again_after for the loop and for re-searches, the loop's order, an add-time intent's and a
+//     Search now request's "already searched or queued", the retry budget after no answer), and the hourly count
+//     holds them only while the switch is on (hourRuns). The chain after a route that missed everywhere starts by
+//     its own key alone.
+//   - Each of its requests and each of its searches looks at the switch first, before any other check (Research,
+//     run): with the switch off the request does nothing and the run ends gated.
+//   - The settings save that turns the switch off cancels what is queued (CancelRetryNew).
+//
+// It also gives way: it does not start, and ends at its next step without a search, once the exhausted chain's key
+// was seen in the fresh window (exhaustedChain). So a title can get both kinds in one week, one after the other.
 
 // retryNew starts the follow-ups of a marked search's target that ended with nothing accepted (run, finishFanout).
 // The run is recorded already, so a failure here is logged, not returned.
@@ -82,6 +90,50 @@ func followUpKey(p router.ResearchRequest) string {
 
 // retryNewKey is ReasonFresh's place in the key of a retry_new chain.
 const retryNewKey = "retry_new"
+
+// retryNewOff is why a retry_new chain's request or search does nothing.
+const retryNewOff = "router.wanted.retry_new is off"
+
+// CancelRetryNew ends the queued work of the retry_new chains when the switch is off (it does nothing while it is
+// on): their queued requests (steps, and searches asked for again after no answer) and the queued search jobs of
+// their runs end as cancelled, and those runs end skipped and gated, in one transaction. It runs with every
+// published settings generation and at start (serve's AfterPublish), so the save that turns the switch off cancels
+// them; it finds nothing on an install that never had the switch on. A handler already running keeps the settings it
+// started with: what it still queues does nothing when it runs (Research, run).
+func (a *Acquirer) CancelRetryNew(ctx context.Context) (int, error) {
+	if a.set.RetryNew || a.st == nil { // no store: an acquirer built only to judge releases
+		return 0, nil
+	}
+	var n int64
+	err := a.st.WriteTx(ctx, func(tx *sql.Tx) error {
+		n = 0
+		at := store.Millis(a.now())
+		const why = "cancelled: " + retryNewOff
+		const end = `UPDATE job SET state = 'done', last_error = ?, finished_at = ?, updated_at = ?
+			WHERE state = 'queued' AND kind = ? AND `
+		for _, q := range []struct {
+			kind, where string
+		}{
+			{router.JobResearch, `CASE WHEN json_valid(payload) THEN json_extract(payload, '$.retry_new') END = 1`},
+			{JobSearch, `dedupe_key IN (SELECT '` + JobSearch + `/' || id FROM acquire_run WHERE state = 'queued'
+				AND ` + retryNewRuns + `)`},
+		} {
+			res, err := tx.ExecContext(ctx, end+q.where, why, at, at, q.kind)
+			if err != nil {
+				return err
+			}
+			m, _ := res.RowsAffected()
+			n += m
+		}
+		_, err := tx.ExecContext(ctx, `UPDATE acquire_run SET state = 'skipped', message = ?, infra = ?, updated_at = ?
+			WHERE state = 'queued' AND `+retryNewRuns, retryNewOff+": nothing searched", runGated, at)
+		return err
+	})
+	if err == nil && n > 0 {
+		a.log.Info("retry_new is off: its queued searches were cancelled", "jobs", n)
+	}
+	return int(n), err
+}
 
 // exhaustedChain says whether the title has a chain after a route that missed everywhere: one queued, or one that
 // ran in the fresh window ending at until. A retry_new chain gives way to it.
@@ -138,11 +190,6 @@ func (a *Acquirer) followUp(ctx context.Context, vp *policy.VersionPolicy, p rou
 		sum.Skipped++
 		a.log.Info("follow-up search stopped", "title", p.TitleID, "version", p.Version, "step", p.Step, "why", why)
 		return nil
-	}
-	// A chain an empty search started (retry_new) runs only while the switch is on: nothing searched, no next step.
-	// So does a search of it asked for again after no indexer answered.
-	if p.RetryNew && !a.set.RetryNew {
-		return skip("router.wanted.retry_new is off")
 	}
 	var monitored bool
 	var state string
@@ -226,10 +273,14 @@ func (a *Acquirer) followUp(ctx context.Context, vp *policy.VersionPolicy, p rou
 			return err
 		}
 	}
-	var searched int
-	if err := a.st.Reader().QueryRowContext(ctx, `SELECT COUNT(*) FROM acquire_run WHERE source = ?
-		AND search_run IS NULL AND infra <> 3 AND created_at > ?`, SourceWanted, store.Millis(now.Add(-time.Hour))).Scan(&searched); err != nil {
+	searched, err := a.wantedUsed(ctx, now)
+	if err != nil {
 		return err
+	}
+	// A retry_new chain's searches are marked in the run history (researchRetryNew), not in their job.
+	research := p.Reason
+	if p.RetryNew {
+		research = researchRetryNew
 	}
 	var later []int64
 	deferred := false
@@ -250,7 +301,7 @@ func (a *Acquirer) followUp(ctx context.Context, vp *policy.VersionPolicy, p rou
 				"version", p.Version, "target", t.name, "step", p.Step)
 			continue
 		}
-		if err := a.startChained(ctx, t, p.Reason, p.RetryNew); err != nil {
+		if err := a.start(ctx, SourceWanted, 0, t, research); err != nil {
 			return err
 		}
 		sum.Queued++

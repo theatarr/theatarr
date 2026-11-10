@@ -173,7 +173,7 @@ func (a *Acquirer) drainIntent(ctx context.Context, c importarr.FollowSearchTarg
 	for _, t := range ts {
 		var recent, pending int
 		if err := a.st.Reader().QueryRowContext(ctx, `SELECT COUNT(*), COALESCE(SUM(state IN ('queued', 'searching')), 0)
-			FROM acquire_run WHERE version_id = ? AND target = ? AND infra NOT IN (1, 3)
+			FROM acquire_run WHERE version_id = ? AND target = ? AND infra NOT IN (1, 3) AND `+ordinaryRuns+`
 			AND created_at > ?`, t.versionID, t.name, since).Scan(&recent, &pending); err != nil {
 			return n, false, err
 		}
@@ -184,7 +184,7 @@ func (a *Acquirer) drainIntent(ctx context.Context, c importarr.FollowSearchTarg
 			continue
 		}
 		// Runs without an answer: started again after infraBackoff; given up once it is spent.
-		fails, last, err := a.infraRuns(ctx, t.versionID, t.name, since, false)
+		fails, last, err := a.infraRuns(ctx, t.versionID, t.name, since, false, false)
 		if err != nil {
 			return n, false, err
 		}

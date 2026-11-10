@@ -61,6 +61,12 @@ func (a *Acquirer) Research(ctx context.Context, p router.ResearchRequest) (*Res
 	// The hour is checked and spent under the lock the wanted round and the drains take.
 	a.drainMu.Lock()
 	defer a.drainMu.Unlock()
+	// A request of a retry_new chain (a step, or its search asked for again) does nothing once the switch is off:
+	// looked at before any other check.
+	if p.RetryNew && !a.set.RetryNew {
+		a.log.Info("re-search skipped", "title", p.TitleID, "version", p.Version, "reason", p.Reason, "why", retryNewOff)
+		return &ResearchSummary{Off: retryNewOff}, nil
+	}
 	sum := &ResearchSummary{Off: a.researchOff(p.Version, p.Reason)}
 	vp := a.pol.Versions[p.Version]
 	if sum.Off != "" && p.Reason == router.ReasonReconcile {
@@ -238,7 +244,8 @@ func (a *Acquirer) researchBlocked(ctx context.Context, t target, now time.Time,
 	var n int
 	again := store.Millis(now.Add(-a.set.AgainAfter))
 	if err := a.st.Reader().QueryRowContext(ctx, `SELECT COUNT(*) FROM acquire_run WHERE version_id = ?
-		AND target = ? AND research IS NOT NULL AND ((infra = 0 AND created_at > ?) OR (infra = 2 AND created_at > ?))`,
+		AND target = ? AND research IS NOT NULL AND `+ordinaryRuns+`
+		AND ((infra = 0 AND created_at > ?) OR (infra = 2 AND created_at > ?))`,
 		t.versionID, t.name, again, max(again, store.Millis(now.Add(-partialAgain)))).Scan(&n); err != nil {
 		return "", err
 	}

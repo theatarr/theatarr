@@ -857,3 +857,64 @@ func TestServeSearchJobKeepsRetryNewMark(t *testing.T) {
 		}
 	}
 }
+
+// A published runtime with router.wanted.retry_new off cancels the queued work of its chains (AfterPublish, which
+// runs for every published generation and at start); one with the switch on leaves it.
+func TestAfterPublishCancelsRetryNewWhenOff(t *testing.T) {
+	t.Parallel()
+	for _, on := range []bool{false, true} {
+		ctx := context.Background()
+		db, err := store.Open(ctx, storetest.Seed(t, filepath.Join(t.TempDir(), "theatarr.db")), store.Options{})
+		if err != nil {
+			t.Fatal(err)
+		}
+		t.Cleanup(func() { db.Close() })
+		if _, err := db.Migrate(ctx); err != nil {
+			t.Fatal(err)
+		}
+		pol := &policy.Policy{
+			Indexers: map[string]*policy.Indexer{"pub": {Kind: "torznab", URL: "http://pub.test/api", Privacy: policy.PrivacyPublic}},
+			Providers: map[string]*policy.Provider{"rd": {Kind: provider.KindRealDebrid, Order: 1, URL: "http://rd.test/rest/1.0",
+				APIKeyEnv: "THEATARR_RD_KEY"}},
+			Versions: map[string]*policy.VersionPolicy{"movie": {Mode: policy.ModeActive, Grab: true, Kind: policy.KindMovie,
+				Storage: policy.StorageDebrid, Indexers: []string{"pub"}, Providers: []string{"rd"}}},
+			Router: &policy.Router{Enabled: true, Wanted: &policy.Wanted{RetryNew: on}},
+		}
+		q := jobs.NewQueue(db)
+		ac, err := acquire.New(acquire.Config{Store: db, Policy: pol, Queue: q, Router: &serveRouter{},
+			Logger: slog.New(slog.NewTextHandler(io.Discard, nil)),
+			Search: func(context.Context, decide.Title, decide.Version, *decide.ExistingFile, *decide.SeriesSearch) (*router.Searched, error) {
+				return nil, errors.New("not searched")
+			}})
+		if err != nil {
+			t.Fatal(err)
+		}
+		for key, p := range map[string]router.ResearchRequest{
+			"chain":    {TitleID: 1, VersionID: 101, Version: "movie", Reason: router.ReasonFresh, Step: 2, RetryNew: true},
+			"ordinary": {TitleID: 1, VersionID: 101, Version: "movie", Reason: router.ReasonFresh, Step: 2},
+		} {
+			if _, _, err := q.Enqueue(ctx, router.JobResearch, p, jobs.EnqueueOptions{DedupeKey: key,
+				RunAt: time.Now().Add(time.Hour)}); err != nil {
+				t.Fatal(err)
+			}
+		}
+		(&serveRuntime{Policy: pol, Acquirer: ac}).AfterPublish()
+		states := map[string]string{}
+		rows, err := db.Reader().QueryContext(ctx, `SELECT dedupe_key, state FROM job`)
+		if err != nil {
+			t.Fatal(err)
+		}
+		for rows.Next() {
+			var key, state string
+			if err := rows.Scan(&key, &state); err != nil {
+				t.Fatal(err)
+			}
+			states[key] = state
+		}
+		rows.Close()
+		want := map[bool]string{false: "done", true: "queued"}[on]
+		if states["chain"] != want || states["ordinary"] != "queued" {
+			t.Fatalf("retry_new %v: jobs %v, want the chain's %s and the ordinary one queued", on, states, want)
+		}
+	}
+}

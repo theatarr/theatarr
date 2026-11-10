@@ -23,7 +23,8 @@ import (
 // Order under the one budget: add-time searches (DrainFollowSearches), then Search now, then the loop's own
 // selection. A request does not consult again_after: the user asked. It is deleted when its search starts, and when
 // it asks for nothing any more (imported meanwhile, a download in flight, a search of it already queued or running,
-// unmonitored, the library not active or not grabbing). A search that fails is recorded on its run and not repeated
+// unmonitored, the library not active or not grabbing). A search of router.wanted.retry_new's chain is not such a
+// search: a request is never dropped for one. A search that fails is recorded on its run and not repeated
 // from the request. While router.enabled is false nothing is accepted and a drain drops what is queued, as it does
 // for add-time searches.
 //
@@ -310,7 +311,7 @@ func (a *Acquirer) searchNowReady(ctx context.Context, r searchRequest) ([]targe
 		}
 		var active int
 		if err := a.st.Reader().QueryRowContext(ctx, `SELECT COUNT(*) FROM acquire_run WHERE version_id = ? AND target = ?
-			AND state IN ('queued', 'searching')`, t.versionID, t.name).Scan(&active); err != nil {
+			AND state IN ('queued', 'searching') AND `+ordinaryRuns, t.versionID, t.name).Scan(&active); err != nil {
 			return nil, err
 		}
 		if active == 0 {
@@ -320,19 +321,30 @@ func (a *Acquirer) searchNowReady(ctx context.Context, r searchRequest) ([]targe
 	return ready, nil
 }
 
+// hourRuns is the acquire_run condition of the searches that draw on router.wanted.per_hour (its one parameter is
+// SourceWanted). The searches of router.wanted.retry_new's chains are among them only while the switch is on: the
+// hour is one budget then, and with the switch off what it searched before takes no slot from anything else.
+func (a *Acquirer) hourRuns() string {
+	q := `source = ? AND search_run IS NULL AND infra <> 3`
+	if !a.set.RetryNew {
+		q += ` AND ` + ordinaryRuns
+	}
+	return q
+}
+
 // wantedUsed counts the searches of the last hour that draw on router.wanted.per_hour.
 func (a *Acquirer) wantedUsed(ctx context.Context, now time.Time) (int, error) {
 	var used int
-	err := a.st.Reader().QueryRowContext(ctx, `SELECT COUNT(*) FROM acquire_run WHERE source = ? AND search_run IS NULL
-		AND infra <> 3 AND created_at > ?`, SourceWanted, store.Millis(now.Add(-time.Hour))).Scan(&used)
+	err := a.st.Reader().QueryRowContext(ctx, `SELECT COUNT(*) FROM acquire_run WHERE `+a.hourRuns()+`
+		AND created_at > ?`, SourceWanted, store.Millis(now.Add(-time.Hour))).Scan(&used)
 	return used, err
 }
 
 // budgetFreeAt is when the oldest counted search of the hour leaves the window; ok is false when the hour has none.
 func (a *Acquirer) budgetFreeAt(ctx context.Context, now time.Time) (at time.Time, ok bool, err error) {
 	var oldest sql.NullInt64
-	if err := a.st.Reader().QueryRowContext(ctx, `SELECT MIN(created_at) FROM acquire_run WHERE source = ?
-		AND search_run IS NULL AND infra <> 3 AND created_at > ?`, SourceWanted, store.Millis(now.Add(-time.Hour))).Scan(&oldest); err != nil {
+	if err := a.st.Reader().QueryRowContext(ctx, `SELECT MIN(created_at) FROM acquire_run WHERE `+a.hourRuns()+`
+		AND created_at > ?`, SourceWanted, store.Millis(now.Add(-time.Hour))).Scan(&oldest); err != nil {
 		return time.Time{}, false, err
 	}
 	if !oldest.Valid {

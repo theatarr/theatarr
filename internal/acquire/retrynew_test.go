@@ -2,6 +2,7 @@ package acquire
 
 import (
 	"encoding/json"
+	"strconv"
 	"strings"
 	"testing"
 	"time"
@@ -525,6 +526,21 @@ func (e *env) lastSearchJob() string {
 	return payload
 }
 
+// wantChainSearch: the newest search job holds its run's id and nothing else, as any re-search's does, and that run
+// carries the chain's mark in the run history.
+func (e *env) wantChainSearch(what string) {
+	e.t.Helper()
+	var id int64
+	var research string
+	if err := e.st.Reader().QueryRow(`SELECT id, COALESCE(research, '') FROM acquire_run ORDER BY id DESC LIMIT 1`).
+		Scan(&id, &research); err != nil {
+		e.t.Fatal(err)
+	}
+	if got, want := e.lastSearchJob(), `{"run_id":`+strconv.FormatInt(id, 10)+`}`; got != want || research != researchRetryNew {
+		e.t.Fatalf("%s: job %s (want %s), run research %q", what, got, want, research)
+	}
+}
+
 // hours runs the ready jobs every quarter of an hour for n hours.
 func (e *env) hours(n int) {
 	e.t.Helper()
@@ -547,9 +563,7 @@ func TestRetryNewOffStopsUnansweredFollowUps(t *testing.T) {
 		if step := e.runFollowUp(); step != 1 {
 			t.Fatalf("ran step %d", step)
 		}
-		if got := e.lastSearchJob(); !strings.Contains(got, `"retry_new_chain":true`) || strings.Contains(got, `"retry_new":`) {
-			t.Fatalf("the follow-up's search job %s", got)
-		}
+		e.wantChainSearch("the follow-up's search")
 		var again string
 		if err := e.st.Reader().QueryRow(`SELECT payload FROM job WHERE kind = ? AND state = 'queued'
 			AND dedupe_key LIKE 'acquire.research/infra/%'`, router.JobResearch).Scan(&again); err != nil {
@@ -566,9 +580,7 @@ func TestRetryNewOffStopsUnansweredFollowUps(t *testing.T) {
 			if n := len(e.searches()) - before; n != 1 {
 				t.Fatalf("switch on: %d searches asked for again", n)
 			}
-			if got := e.lastSearchJob(); !strings.Contains(got, `"retry_new_chain":true`) {
-				t.Fatalf("the search asked for again: job %s", got)
-			}
+			e.wantChainSearch("the search asked for again")
 			continue
 		}
 		e.hours(12)
@@ -600,14 +612,14 @@ func TestRetryNewOffBeforeAFollowUpsSearch(t *testing.T) {
 	e.exec(`DELETE FROM job WHERE kind = ?`, router.JobResearch)
 	e.advance(time.Hour)
 	e.research(p) // the step: it queues its search and step 2
-	if n := e.count(`SELECT COUNT(*) FROM acquire_run WHERE research = ? AND state = 'queued'`, router.ReasonFresh); n != 1 {
+	if n := e.count(`SELECT COUNT(*) FROM acquire_run WHERE research = ? AND state = 'queued'`, researchRetryNew); n != 1 {
 		t.Fatalf("%d follow-up runs queued", n)
 	}
 	e.a.set.RetryNew = false
 	before := len(e.searches())
 	e.drain()
 	if n := e.count(`SELECT COUNT(*) FROM acquire_run WHERE research = ? AND state = 'skipped' AND infra = ?`,
-		router.ReasonFresh, runGated); n != 1 || len(e.searches()) != before {
+		researchRetryNew, runGated); n != 1 || len(e.searches()) != before {
 		t.Fatalf("%d gated runs, %d searches with the switch off", n, len(e.searches())-before)
 	}
 	e.hours(3)
