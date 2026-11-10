@@ -90,14 +90,15 @@ type LibraryMount struct {
 	// (docs/design/now-playing.md); forget_release_root lets an import clear one cached listing. Optional.
 	RcloneRC *RcloneRC `yaml:"rclone_rc"`
 	// Decypharr sets decypharr as the debrid mount in place of zurg. Reading a file through decypharr, playback
-	// included, can make it replace a Real-Debrid torrent with a new copy. Theatarr itself only reads from
-	// decypharr. Off when unset.
+	// included, can make it replace a Real-Debrid torrent with a new copy. Over this connection Theatarr only
+	// reads. Off when unset.
 	Decypharr *LibraryDecypharr `yaml:"decypharr,omitempty" json:",omitempty"`
 }
 
 // LibraryDecypharr is decypharr as the debrid mount (library.mount.decypharr): its browse API and WebDAV, read-only.
-// Theatarr sends it PROPFIND, GET and HEAD only, which is not the same as no side effects: when a file is read,
-// decypharr may re-add a Real-Debrid torrent and delete the old one.
+// Over this connection Theatarr sends PROPFIND, GET and HEAD only (a download client of kind decypharr is a separate
+// connection that sends adds). Read-only is not the same as no side effects: when a file is read, decypharr may
+// re-add a Real-Debrid torrent and delete the old one.
 type LibraryDecypharr struct {
 	// URL is decypharr's address, e.g. http://decypharr:8282, with its base path when decypharr has one.
 	URL string `yaml:"url"`

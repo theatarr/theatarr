@@ -86,7 +86,7 @@
   },
   "LibraryMount": {
     "all_dir": "This is the name of the folder directly under the mount that holds every release: a folder name, not a path (zurg and mounts laid out like it call it __all__). Default __all__.",
-    "decypharr": "This sets decypharr as the debrid mount in place of zurg. Reading a file through decypharr, playback included, can make it replace a Real-Debrid torrent with a new copy. Theatarr itself only reads from decypharr. Off when unset.",
+    "decypharr": "This sets decypharr as the debrid mount in place of zurg. Reading a file through decypharr, playback included, can make it replace a Real-Debrid torrent with a new copy. Over this connection Theatarr only reads. Off when unset.",
     "link_path": "This is the mount as written into symlinks: the absolute path at which plex (or another player) sees the mount. Leave it empty when that is the mount folder itself: an empty value uses the mount folder.",
     "path": "This is where this service sees the mount, e.g. /mnt/debrid. Required once Write library links is on.",
     "poll_interval": "This is how often a waiting import looks again. Default 20s, minimum 5s.",
