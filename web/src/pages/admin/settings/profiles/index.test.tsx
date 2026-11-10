@@ -92,7 +92,7 @@ describe("Quality profiles page", () => {
     })));
     renderPage(<ProfilesPage />, "/admin/settings/profiles");
     const section = await screen.findByTestId("trash-defaults");
-    expect(within(section).getByTestId("trash-source").textContent).toBe("TRaSH defaults bundled with this version (commit ed6d722, 2026-10-26). A TRaSH-Guides checkout (THEATARR_TRASH) or a tracked source under Quality sync keeps them current.");
+    expect(within(section).getByTestId("trash-source").textContent).toBe("TRaSH defaults bundled with this version (commit ed6d722, 2026-10-26). This list changes with a new version of Theatarr, or follows a TRaSH-Guides checkout when one is mounted (THEATARR_TRASH). Quality sync updates the profiles bound to a source, not this list.");
     expect(within(section).getByRole("link", { name: "Quality sync" }).getAttribute("href")).toBe("/admin/settings/quality-sync");
     const radarr = await within(section).findByTestId("trash-defaults-radarr");
     await within(radarr).findByText("Remux + WEB 2160p");
@@ -127,6 +127,20 @@ describe("Quality profiles page", () => {
     await user.click(within(sheet).getByRole("button", { name: "Create profile" }));
     await waitFor(() => expect(fetch.calls("POST", "/settings/presets/create")).toHaveLength(1));
     expect(fetch.calls("POST", "/settings/presets/create")[0].body).toEqual({ generation: 4, key: "web-2160p-2", flavour: "radarr", preset: "0537", modifiers: [], config: built.profile });
+  });
+
+  it("suggests a key no format set has, also a set left behind by a deleted profile", async () => {
+    mockFetch([
+      ...routes(),
+      { method: "GET", path: "/settings/format_sets", reply: { generation: 4, records: [{ id: 3, key: "web-2160p-2", config: {} }] } },
+      { method: "POST", path: "/settings/presets/build", reply: { ...built, origin: { preset: "0537", name: "WEB 2160p", flavour: "radarr" } } },
+    ]);
+    const user = userEvent.setup();
+    renderPage(<ProfilesPage />);
+    await user.click(await screen.findByRole("button", { name: "Use: WEB 2160p (Movies (Radarr))" }));
+    const sheet = await screen.findByTestId("profile-sheet");
+    // "web-2160p" is a profile and "web-2160p-2" a format set no profile uses.
+    expect((within(sheet).getByRole("textbox", { name: "Key" }) as HTMLInputElement).value).toBe("web-2160p-3");
   });
 
   it("saves the defaults Add version preselects", async () => {

@@ -476,6 +476,38 @@ describe("Versions grouped by kind", () => {
     expect(fetch.calls("PUT", "/settings/versions/movie-web")[1].body).toMatchObject({ generation: 5, config: { profile: "movie-web" } });
   });
 
+  it("confirms creating the profile of a picked TRaSH default, repeats that request with its token, then saves the library", async () => {
+    const effects = [{ version: "movie-web", effect: "Stored settings that are not running yet enable grabs for movie-web" }];
+    const fetch = mockFetch([
+      ...withPresets(),
+      { method: "POST", path: "/settings/presets/create", reply: json({ error: "explicit confirmation required", effects, confirmation: { generation: 4, token: "preset-confirmation", effects } }, 422) },
+      { method: "POST", path: "/settings/presets/create", reply: json({ generation: 5, key: "movie-web", binding: "" }) },
+      { method: "PUT", path: "/settings/versions/movie-web", reply: json({ generation: 6 }) },
+    ]);
+    const user = userEvent.setup();
+    renderPage(<VersionsPage />);
+    const row = (await screen.findAllByText("movie-web"))[0].closest("tr")!;
+    await user.click(within(row).getByTestId("edit"));
+    const form = await screen.findByTestId("version-form");
+    const profile = within(form).getByRole("combobox", { name: "Profile" }) as HTMLSelectElement;
+    await waitFor(() => expect(optionsOf(profile, "TRaSH defaults")).toHaveLength(2));
+    await user.selectOptions(profile, "preset:fd16");
+    await user.click(within(form).getByRole("button", { name: "Save" }));
+    // The refusal is a confirmation, not a validation error: the standard dialog lists the effects.
+    const dialog = await screen.findByRole("dialog", { name: "Confirm what this change enables" });
+    expect(within(dialog).getByText(effects[0].effect)).toBeTruthy();
+    expect(fetch.calls("PUT", "/settings/versions/movie-web")).toHaveLength(0);
+    await user.click(within(dialog).getByRole("button", { name: "Confirm and save" }));
+    await waitFor(() => expect(fetch.calls("PUT", "/settings/versions/movie-web")).toHaveLength(1));
+    const [first, second] = fetch.calls("POST", "/settings/presets/create");
+    expect(fetch.calls("POST", "/settings/presets/create")).toHaveLength(2);
+    expect(first.headers["x-confirmation-token"]).toBeUndefined();
+    expect(second.headers["x-confirmation-token"]).toBe("preset-confirmation");
+    expect(second.body).toEqual(first.body);
+    expect(second.body).toEqual({ generation: 4, key: "movie-web", flavour: "radarr", preset: "fd16", modifiers: [] });
+    expect(fetch.calls("PUT", "/settings/versions/movie-web")[0].body).toMatchObject({ generation: 5, config: { profile: "movie-web" } });
+  });
+
   it("names the profile of a picked TRaSH default with the next free key when the library's key is taken", async () => {
     // "tv-web" is a profile already and "tv-web-2" a format set; the server then refuses "tv-web-3" (a format set it
     // alone knows), so "tv-web-4" is used.

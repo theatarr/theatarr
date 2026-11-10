@@ -7,7 +7,7 @@ import { checkRoot, confirmVersion, saveVersion, useVersions, type Confirmation,
 import { CATEGORY_LABEL, PRESET_PICK, categoryOf, ensurePresetProfile, originLabel, overviewKey, presetCopies, presetPick, usePresets, useQualityOverview, type Category, type Preset, type ProfileSummary } from "@/api/settings-profiles";
 import { DownloadsOffNotice, VersionStatus } from "@/components/version-status";
 import { PageHeader } from "@/components/page";
-import { EffectsConfirmDialog } from "@/components/settings/confirm-write";
+import { EffectsConfirmDialog, useWriteConfirmation } from "@/components/settings/confirm-write";
 import { Announcer, ChangedMark, ExplainBox, SELECT_CLASS, useAnnouncement } from "@/components/settings/parts";
 import { changedPaths } from "@/components/settings/section-draft";
 import { changeCount } from "@/components/settings/unsaved-bar";
@@ -137,6 +137,7 @@ export function VersionsPage({ embedded = false }: { embedded?: boolean }) {
   const [session, setSession] = useState<Session>();
   const [error, setError] = useState<unknown>();
   const [pending, setPending] = useState<Pending>();
+  const profileConfirm = useWriteConfirmation();
   const [busy, setBusy] = useState(false);
   // Discard remounts the form (its root text) without moving focus off the footer.
   const [discards, setDiscards] = useState(0);
@@ -217,12 +218,22 @@ export function VersionsPage({ embedded = false }: { embedded?: boolean }) {
 
   // A picked TRaSH default ("preset:<trash_id>") becomes a stored profile first, named after the library; the draft
   // then names that profile, so a retry or a confirmation saves the library with it and never creates it twice.
-  async function withPresetProfile(current: Session): Promise<Session> {
+  // When creating the profile itself needs a confirmation (after a startup fallback the save also applies stored
+  // settings), the standard dialog asks; confirming repeats that same request with its token and then saves the
+  // library. undefined says the dialog is open and nothing more happens until then.
+  async function withPresetProfile(current: Session, confirmed?: { key: string; token: string }): Promise<Session | undefined> {
     const preset = presetPick(current.record.config.profile);
     if (!preset || !data) return current;
     if (!current.record.key.trim()) throw new Error("Give the library a key first: the profile made from the TRaSH default is named after it.");
     const flavour = flavourOf(current.record.config.kind);
-    const profile = await ensurePresetProfile({ generation: current.generation, base: current.record.key.trim(), flavour, preset, taken: [...Object.keys(data.profiles), ...data.format_sets] });
+    let tried = confirmed?.key ?? "";
+    let profile: { generation: number; key: string };
+    try {
+      profile = await ensurePresetProfile({ generation: current.generation, base: current.record.key.trim(), flavour, preset, taken: [...Object.keys(data.profiles), ...data.format_sets], confirmed, onAttempt: (key) => { tried = key; } });
+    } catch (failure) {
+      if (tried && profileConfirm.ask(failure, (token) => void review(false, { key: tried, token }))) return undefined;
+      throw failure;
+    }
     const next = { ...current, generation: profile.generation, record: { ...current.record, config: { ...current.record.config, profile: profile.key } } };
     setSession(next);
     setMade({ key: profile.key, name: qc.getQueryData<{ presets: Preset[] }>(["settings", "presets", flavour])?.presets.find((p) => p.trash_id === preset)?.name ?? preset });
@@ -232,12 +243,13 @@ export function VersionsPage({ embedded = false }: { embedded?: boolean }) {
     return next;
   }
 
-  async function review(deleting = false) {
+  async function review(deleting = false, confirmed?: { key: string; token: string }) {
     if (!session) return;
     setBusy(true);
     setError(undefined);
     try {
-      const current = deleting ? session : await withPresetProfile(session);
+      const current = deleting ? session : await withPresetProfile(session, confirmed);
+      if (!current) return;
       const body: VersionBody = { generation: current.generation, key: current.record.key, ...(deleting ? { delete: true } : { config: current.record.config, roots: current.record.roots ?? [] }) };
       if (!deleting) {
         await apply(body);
@@ -288,6 +300,7 @@ export function VersionsPage({ embedded = false }: { embedded?: boolean }) {
       </Sheet> : null}
       <p className="text-sm text-muted-foreground">Which arr apps (Seerr, Radarr- and Sonarr-compatible clients) see each library is set under <Link className="underline" to="/admin/settings/apps">Connected apps</Link>.</p>
     </> : null}
+    {profileConfirm.dialog}
     {pending ? <EffectsConfirmDialog subject={pending.body.key} library={pending.body.key} effects={pending.effects ?? []} scope={{ title: "Confirm library change", does: [], keeps: ["Global switches keep their current settings; environment force-off overrides stay in force.", "Existing links, mount files and trash entries stay where they are."], confirm: "Confirm this change" }} busy={busy} onClose={() => setPending(undefined)} onConfirm={() => void approvePending()} /> : null}
   </div>;
 }

@@ -61,11 +61,17 @@ export const presetPick = (value: string | undefined) => value?.startsWith(PRESE
 
 /** Creates the profile a picked TRaSH default stands for, unchanged, under base or the next free key (base-2, …), and
  * returns its key and the new generation. taken are the profile and format-set keys known to be in use; a key the
- * server still refuses (a format set left behind by a deleted profile) is skipped the same way. */
-export async function ensurePresetProfile({ generation, base, flavour, preset, taken }: { generation: number; base: string; flavour: string; preset: string; taken: Iterable<string> }): Promise<{ generation: number; key: string }> {
+ * server still refuses is skipped the same way. onAttempt hears each key tried. confirmed repeats one request, under
+ * exactly its key, with the confirmation token the server answered it with. */
+export async function ensurePresetProfile({ generation, base, flavour, preset, taken, confirmed, onAttempt }: { generation: number; base: string; flavour: string; preset: string; taken: Iterable<string>; confirmed?: { key: string; token: string }; onAttempt?: (key: string) => void }): Promise<{ generation: number; key: string }> {
+  if (confirmed) {
+    const made = await createFromPreset({ generation, key: confirmed.key, flavour, preset, modifiers: [] }, confirmed.token);
+    return { generation: made.generation, key: confirmed.key };
+  }
   const used = new Set(taken);
   for (let attempt = 0; ; attempt++) {
     const key = freeKey(base, used);
+    onAttempt?.(key);
     try {
       const made = await createFromPreset({ generation, key, flavour, preset, modifiers: [] });
       return { generation: made.generation, key };
