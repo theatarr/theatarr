@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { UpgradeHold } from "@/api/upgrades";
-import { approveState, decisionLine, episodesText, holdLines, holdsFor } from "./upgrade-holds";
+import { approveState, decisionLine, episodesText, HOLD_HEADLINE, holdLines, holdsFor } from "./upgrade-holds";
 
 const hold = (o: Partial<UpgradeHold> = {}): UpgradeHold => ({
   id: 1,
@@ -47,4 +47,8 @@ describe("upgrade holds", () => {
     expect(decisionLine(hold({ state: "declined", decided_by: by, decided_via: "key phone", note: "too big" }))).toBe("Declined by Sam (key phone): too big");
     expect(decisionLine(hold({ state: "expired", note: "a newer file arrived" }))).toBe("Expired: a newer file arrived");
   });
+});
+
+it("words a held upgrade as found and waiting for approval", () => {
+  expect(HOLD_HEADLINE).toBe("Upgrade found, waiting for approval");
 });

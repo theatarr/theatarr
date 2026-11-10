@@ -12,7 +12,7 @@ and would rather run one service.
 ## Screenshots
 
 ![Theatarr's Home page](docs/images/home.png)
-*Home: recently added, upcoming, missing and waiting upgrades.*
+*Home: recently added, upcoming, missing and upgrades found.*
 
 ![A movie's page in Theatarr with its libraries](docs/images/title.png)
 *A movie's page, with its copy in each library.*

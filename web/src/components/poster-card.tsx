@@ -18,6 +18,7 @@ const DOT: Record<PosterStatus, string> = {
   available: "bg-[var(--ok)]",
   some_episodes: "bg-[var(--accent)]",
   upgrade: "bg-[var(--warn)]",
+  best_known: "bg-[var(--ok)]",
   wanted: "bg-[var(--bad)]",
   upcoming: "bg-[var(--ink-3)]",
   getting_ready: "bg-[var(--accent)]",

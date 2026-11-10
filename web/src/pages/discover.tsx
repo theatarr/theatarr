@@ -31,9 +31,9 @@ const DISCOVER_ROWS: Record<string, { title: string; description: string; empty:
     caption: (t) => t.note,
   },
   upgrades: {
-    title: "Upgrade waiting",
-    description: "Monitored titles with a library whose file is below its preferred quality; the badge says whether an upgrade was found or the file is the best available.",
-    empty: "Every file is at its preferred quality.",
+    title: "Upgrade found",
+    description: "Monitored titles with a library whose file is below its preferred quality and for which a better release was found, or is held for approval.",
+    empty: "No upgrades found.",
     caption: () => undefined,
   },
 };
@@ -41,7 +41,7 @@ const DISCOVER_ROWS: Record<string, { title: string; description: string; empty:
 export function DiscoverPage() {
   const row = useParams().row ?? "";
   const perms = usePerms();
-  // Missing and below cutoff are copy shortfalls: accounts without "see files" have neither row (discover.go).
+  // Missing and upgrades found are copy shortfalls: accounts without "see files" have neither row (discover.go).
   const shortfall = row === "upgrades" || row === "missing";
   const base = shortfall && !perms.seeFiles ? undefined : DISCOVER_ROWS[row];
   const def =

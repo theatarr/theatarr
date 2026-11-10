@@ -1,15 +1,16 @@
 // Library helpers shared by Home, the grids and the title page: kinds, badges, version states in words, and the
 // grid's URL parameters.
 import type { Availability, GridQuery, TitleRow } from "@/api/library";
-import { availableIn } from "@/lib/upgrade";
+import { availableIn, BEST_KNOWN } from "@/lib/upgrade";
 
 /** A poster card's availability badge. */
-export type PosterStatus = "available" | "wanted" | "upgrade" | "some_episodes" | "upcoming" | "getting_ready" | "not_available";
+export type PosterStatus = "available" | "wanted" | "upgrade" | "best_known" | "some_episodes" | "upcoming" | "getting_ready" | "not_available";
 
 export const POSTER_STATUS_LABEL: Record<PosterStatus, string> = {
   available: "Available",
   wanted: "Missing",
-  upgrade: "Upgrade waiting",
+  upgrade: "Upgrade found",
+  best_known: BEST_KNOWN,
   some_episodes: "Some episodes",
   upcoming: "Upcoming",
   getting_ready: "Getting ready",
@@ -47,17 +48,19 @@ export function kindOf(t: { anime?: boolean; kind?: string }): CardKind {
 
 /** Missing takes priority (Getting ready without "see files" while a download is in hand, else Upcoming for a movie
  * not out at home yet, upcomingRelease; else Missing, which reads Not available without "see files" as in the table),
- * then episode gaps, then a wanted upgrade, then available. */
+ * then episode gaps, then an upgrade found (a better release was seen), then best quality known (a copy below its
+ * preferred quality with nothing better found), then available. */
 export function posterStatus(a: Availability | undefined, upgradeSeen?: boolean, plain = false, upgradeState?: string, title?: Pick<TitleRow, "kind" | "versions" | "release_date" | "home_release" | "next_up" | "acquiring">): PosterStatus | undefined {
   if (a === "missing") return plain && title?.acquiring ? "getting_ready" : upcomingRelease(title) ? "upcoming" : plain ? "not_available" : "wanted";
   if (plain) return a === "partial" && title?.kind !== "movie" ? "some_episodes" : a === "available" || a === "upgrade" || a === "partial" ? "available" : undefined;
   const episodes = title?.kind === "series" && title.versions?.some(v => (v.coverage?.missing ?? 0) > 0);
   if (episodes && title?.versions?.some(v => (v.coverage?.have ?? 0) > 0)) return "some_episodes";
   if (a === "partial") {
-    return upgradeSeen || title?.versions?.some(v => v.state === "wanted" || v.state === "filled") ? "upgrade" : "available";
+    return upgradeSeen ? "upgrade" : title?.versions?.some(v => v.state === "filled") ? "best_known" : "available";
   }
-  if (a === "upgrade") return plain || upgradeState === "best_available" || upgradeState === "best_source_seen" || upgradeState === "cutoff_met" ? "available" : "upgrade";
-  if (a === "available") return !plain && (upgradeSeen || upgradeState === "higher_source_exists" || upgradeState === "upgrade_available" || upgradeState === "below_cutoff") ? "upgrade" : "available";
+  const found = upgradeSeen || upgradeState === "upgrade_available";
+  if (a === "upgrade") return upgradeState === "cutoff_met" ? "available" : found ? "upgrade" : "best_known";
+  if (a === "available") return found ? "upgrade" : upgradeState && upgradeState !== "cutoff_met" ? "best_known" : "available";
   return undefined;
 }
 

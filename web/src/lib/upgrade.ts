@@ -12,7 +12,8 @@ export type Tone = "positive" | "warning" | "negative" | "neutral" | "info";
 export type UpgradeState = UpgradeInfo["state"];
 
 /**
- * The vocabulary, for the title page's Why? explanation (posters and badges say Available or Upgrade waiting, upgradeBadge).
+ * The vocabulary, for the title page's Why? explanation (posters and badges say Available, Upgrade found or Best
+ * quality known, upgradeBadge).
  * label is the wording; short is its main clause; why marks the states a Why? explanation backs with source-ceiling evidence.
  */
 export const UPGRADE_WORDS: Record<Exclude<UpgradeState, "none">, { label: string; short: string; tone: Tone; why: boolean }> = {
@@ -30,13 +31,21 @@ export const UPGRADE_WORDS: Record<Exclude<UpgradeState, "none">, { label: strin
   below_cutoff: { label: "Preferred quality not met; no better copy found", short: "Preferred quality not met", tone: "warning", why: false },
 };
 
-/** The badge for an upgrade state, in the vocabulary; null for none or no state. */
+/** The short label of a copy that holds a file when nothing better has been found for its profile. */
+export const BEST_KNOWN = "Best quality known";
+
+/**
+ * The badge for an upgrade state; null for none or no state. Three short labels: "Upgrade found" once a better release
+ * was actually found, "Available" at the preferred quality, and "Best quality known" (never a warning) for every other
+ * copy with a file: nothing better has been found for its profile. The longer wording stays in Why? (UPGRADE_WORDS).
+ */
 export function upgradeBadge(u: Pick<UpgradeInfo, "state"> | undefined | null): { label: string; short: string; tone: Tone; why: boolean } | null {
   if (!u?.state || u.state === "none") return null;
   const words = UPGRADE_WORDS[u.state];
   if (!words) return null;
-  const waiting = ["upgrade_available", "higher_source_exists", "below_cutoff"].includes(u.state);
-  return { ...words, label: waiting ? "Upgrade waiting" : "Available", short: waiting ? "Upgrade waiting" : "Available" };
+  if (u.state === "upgrade_available") return { ...words, label: "Upgrade found", short: "Upgrade found" };
+  if (u.state === "cutoff_met") return { ...words, label: "Available", short: "Available" };
+  return { ...words, label: BEST_KNOWN, short: BEST_KNOWN, tone: words.tone === "positive" ? "positive" : "neutral" };
 }
 
 /** "Bluray-1080p · profile score 6,302 / 10,000 · cutoff Remux-2160p"; the score part only when known. */

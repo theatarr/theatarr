@@ -118,7 +118,7 @@ export function UpgradeBlock({
     <div
       className={cn(
         "rounded-[5px] border px-3 py-2.5 text-sm",
-        u.state === "upgrade_available" ? "border-[var(--th-info-border)] bg-[var(--accent-soft)]" : below ? "border-[var(--th-warning-border)] bg-[var(--warn-soft)]" : "border-[var(--line)] bg-[var(--surface)]",
+        u.state === "upgrade_available" ? "border-[var(--th-info-border)] bg-[var(--accent-soft)]" : "border-[var(--line)] bg-[var(--surface)]",
       )}
       data-testid="upgrade-block"
       data-state={u.state}

@@ -364,7 +364,7 @@ const upgradesNote = ": upgrade found"
 const upgradePickChunk = 500
 
 // upgradePicks: monitored titles with a monitored version whose file is below its cutoff and for which a better
-// release was found (upgrade_available, as on the posters: markUpgradeSeen), or that holds an upgrade waiting for
+// release was found (upgrade_available, as on the posters: markUpgradeSeen), or that holds one for a manager's
 // approval; newest file first. A file below its cutoff with nothing better found is not in the row.
 func (w *Web) upgradePicks(ctx context.Context, db *sql.DB) ([]pick, error) {
 	type cand struct {

@@ -17,7 +17,11 @@ describe("upgrade words", () => {
     ];
     for (const [state, label] of table) {
       expect(UPGRADE_WORDS[state as keyof typeof UPGRADE_WORDS].label).toBe(label);
-      expect(upgradeBadge({ state: state as keyof typeof UPGRADE_WORDS })?.label).toBe(["upgrade_available", "higher_source_exists", "below_cutoff"].includes(state) ? "Upgrade waiting" : "Available");
+      const badge = upgradeBadge({ state: state as keyof typeof UPGRADE_WORDS });
+      expect(badge?.label).toBe(state === "upgrade_available" ? "Upgrade found" : state === "cutoff_met" ? "Available" : "Best quality known");
+      expect(badge?.short).toBe(badge?.label);
+      // Best quality known is never a warning.
+      if (badge?.label === "Best quality known") expect(["neutral", "positive"]).toContain(badge.tone);
       // The short form is the wording's main clause.
       expect(label.startsWith(UPGRADE_WORDS[state as keyof typeof UPGRADE_WORDS].short)).toBe(true);
     }
@@ -38,15 +42,19 @@ describe("upgrade words", () => {
     expect(availabilityFilters(true).find((a) => a.id === "upgrade")?.label).toBe("Preferred quality not met");
   });
   it("puts a row's upgrade state on its poster", () => {
-    expect(posterStatus("upgrade", false, false, "best_available")).toBe("available");
-    expect(posterStatus("upgrade", false, false, "best_source_seen")).toBe("available");
-    expect(posterStatus("upgrade", false, false, "higher_source_exists")).toBe("upgrade");
+    expect(posterStatus("upgrade", false, false, "best_available")).toBe("best_known");
+    expect(posterStatus("upgrade", false, false, "best_source_seen")).toBe("best_known");
+    expect(posterStatus("upgrade", false, false, "higher_source_exists")).toBe("best_known");
     expect(posterStatus("upgrade", true, false, "upgrade_available")).toBe("upgrade");
-    expect(posterStatus("upgrade", false, false, "below_cutoff")).toBe("upgrade");
+    expect(posterStatus("upgrade", false, false, "upgrade_available")).toBe("upgrade");
+    expect(posterStatus("upgrade", false, false, "below_cutoff")).toBe("best_known");
+    expect(posterStatus("upgrade", false, false, "cutoff_met")).toBe("available");
     // An older server without upgrade_state.
     expect(posterStatus("upgrade", true)).toBe("upgrade");
-    expect(posterStatus("upgrade", false)).toBe("upgrade");
-    expect(posterStatus("available", false, false, "best_available")).toBe("available");
+    expect(posterStatus("upgrade", false)).toBe("best_known");
+    expect(posterStatus("available", false, false, "best_available")).toBe("best_known");
+    expect(posterStatus("available", false, false, "cutoff_met")).toBe("available");
+    expect(posterStatus("available", false)).toBe("available");
     // A family account never sees an upgrade state.
     expect(posterStatus("upgrade", false, true, "best_available")).toBe("available");
   });

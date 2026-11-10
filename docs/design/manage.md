@@ -15,18 +15,26 @@ One vocabulary for managers on the grid, the title page, season headers and epis
 `UPGRADE_WORDS`). "Below cutoff" is not shown to anyone: it stays the API state
 `below_cutoff` and the availability key `upgrade` (saved grid URLs keep working).
 
-| State | Wording | Short (poster badge, filter) |
+| State | Wording (Why?) | Short label (poster, badge, row) |
 |---|---|---|
-| preferred target reached (`cutoff_met`) | Preferred quality met | same |
-| known or manual source ceiling reached (`best_available`) | Best available | same |
-| provisional ceiling reached (`best_source_seen`) | Best source seen so far | same |
-| higher source known, no accepted replacement (`higher_source_exists`) | Better source known; no suitable release found | Better source known |
-| accepted replacement found (`upgrade_available`) | Upgrade found | same |
-| target unmet, no replacement found (`below_cutoff`) | Preferred quality not met; no better copy found | Preferred quality not met |
+| preferred target reached (`cutoff_met`) | Preferred quality met | Available |
+| known or manual source ceiling reached (`best_available`) | Best available | Best quality known |
+| provisional ceiling reached (`best_source_seen`) | Best source seen so far | Best quality known |
+| higher source known, no accepted replacement (`higher_source_exists`) | Better source known; no suitable release found | Best quality known |
+| accepted replacement found (`upgrade_available`) | Upgrade found | Upgrade found |
+| target unmet, no replacement found (`below_cutoff`) | Preferred quality not met; no better copy found | Best quality known |
+
+- The short label (`upgradeBadge`, `POSTER_STATUS_LABEL`) says what a person can act on. **Upgrade found** only when
+  a better release was actually found. **Best quality known**: the copy holds a file and nothing better has been
+  found for its profile (a movie with Remux-1080p whose profile prefers WEBDL-2160p, after a search that found
+  nothing better); it is neutral or positive, never a warning. **Available** at the preferred quality. The longer
+  wording stays in Why?.
 
 - The status opens **Why?** (docs/design/ceilings.md): the cutoff line ("WEBDL-2160p · profile score 2,244 / 2,000 ·
   cutoff Remux-2160p"), what falls short, what Theatarr would take next, and the source-ceiling evidence.
-- Poster badges word the row's `upgrade_state`; the grid filter and the Home row are "Preferred quality not met";
+- Poster badges word the row's `upgrade_state`; the grid filter is "Preferred quality not met"; the Home row
+  **Upgrade found** (`discover` `upgrades`, and its "See all" page) lists only titles with an upgrade found: a
+  monitored copy below its preferred quality for which a better release was seen, or that holds one for approval;
   season headers count "N under preferred quality · M upgrades found".
 - Users without "see files" get availability and resolution only.
 
@@ -57,7 +65,7 @@ A copy with `versions[*].upgrades: approve` keeps its file until a manager appro
 (docs/design/router.md "Upgrade approval"; `off` never replaces it, `auto` is the default). The upgrade-evidence rule above
 says what Theatarr has *seen*; a hold is what Theatarr *would take now* and is waiting on a person.
 
-- **Title page, copy card:** under Upgrade status (its Why? stays beside it) a block **"Upgrade waiting for
+- **Title page, copy card:** under Upgrade status (its Why? stays beside it) a block **"Upgrade found, waiting for
   approval"**: the release, "Would bring Remux-2160p · score 3,000", "Replaces WEBDL-2160p · score 1,400" (or "8
   episode files (…)" and the episode run for a series), the decision's reason, when it was found and last offered,
   and **Approve** / **Decline** (an optional note). Approve is off, with the server's reason beside it, while the copy
@@ -93,7 +101,7 @@ Discord and ntfy targets (`format: discord` or `format: ntfy`, docs/design/devic
 | Route | What |
 |---|---|
 | `GET titles/{id}` | per version `upgrade` (state, quality, score, cutoff, below/seen counts, next, last search) and `control` (mode, managed_by, can_edit, can_search with reasons, live_releases); a movie file's `current.media` |
-| `GET titles`, `discover` | `upgrade_seen` per row and version; the Home row's notes say "below cutoff" or "upgrade available" |
+| `GET titles`, `discover` | `upgrade_seen` per row and version; the Home row `upgrades` lists only titles with an upgrade found (seen, or held for approval), its notes say "upgrade found" |
 | `GET titles/{id}/episodes` | per version `control` and `cutoff`; per season and version `below_cutoff`, `upgrade_seen`, `monitored`, `quality`, `size_bytes`, `score`; per cell `upgrade_seen` |
 | `GET titles/{id}/episodes/{eid}` | the episode drawer: per version state, upgrade, control, file (release, quality, score, size, media, path), history, journal entries |
 | `GET titles/{id}/episodes/{eid}/releases?version=&live=` | the releases panel for one episode |

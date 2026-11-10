@@ -1,7 +1,7 @@
 // The title page's copies (docs/design/ui.md, Title page): one compact card per version, the one place a copy is
 // managed. Each card keeps apart the copy (the version's label: the lane), its current file in words ("4K WEB"), the
 // preferred quality (the profile's cutoff, "4K Remux") and the upgrade status in the one vocabulary
-// (lib/upgrade.ts, with Why?) and, for managers, an upgrade waiting for approval (Approve / Decline), then monitoring
+// (lib/upgrade.ts, with Why?) and, for managers, an upgrade found and held for approval (Approve / Decline), then monitoring
 // and search now. Details discloses the file, score, path, release history, journal and the raw version key. Only
 // for callers with "see files": the title page shows no copy cards to anyone else (docs/design/users.md). A version an arr still imports shows the arr's monitoring read-only
 // (docs/design/manage.md).

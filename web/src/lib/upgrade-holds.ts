@@ -4,7 +4,7 @@ import type { UpgradeHold } from "@/api/upgrades";
 import { fmtNumber } from "./format";
 import type { Tone } from "./upgrade";
 
-export const HOLD_HEADLINE = "Upgrade waiting for approval";
+export const HOLD_HEADLINE = "Upgrade found, waiting for approval";
 
 export const HOLD_STATE: Record<UpgradeHold["state"], { label: string; tone: Tone }> = {
   pending: { label: "Waiting for approval", tone: "warning" },

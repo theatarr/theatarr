@@ -7,19 +7,22 @@ const label = (...a: Parameters<typeof posterStatus>) => {
 };
 
 describe("the poster badge", () => {
-  it("says one of seven words", () => {
-    expect(Object.values(POSTER_STATUS_LABEL).sort()).toEqual(["Available", "Getting ready", "Missing", "Not available", "Some episodes", "Upcoming", "Upgrade waiting"]);
+  it("says one of eight words, never Upgrade waiting", () => {
+    expect(Object.values(POSTER_STATUS_LABEL).sort()).toEqual(["Available", "Best quality known", "Getting ready", "Missing", "Not available", "Some episodes", "Upcoming", "Upgrade found"]);
   });
   const series = (have: number, missing: number) => ({ kind: "series", versions: [{ key: "tv", coverage: { have, missing, total: have + missing } }] }) as Parameters<typeof posterStatus>[4];
   it.each([
     ["Missing", label("missing", true, false, "below_cutoff", series(0, 5))],
     ["Some episodes", label("upgrade", true, false, "below_cutoff", series(3, 2))],
-    ["Upgrade waiting", label("upgrade", false, false, "higher_source_exists", series(5, 0))],
-    ["Upgrade waiting", label("available", true, false, "upgrade_available")],
-    ["Available", label("upgrade", false, false, "best_available")],
-    ["Available", label("upgrade", false, false, "best_source_seen")],
+    ["Best quality known", label("upgrade", false, false, "higher_source_exists", series(5, 0))],
+    ["Upgrade found", label("available", true, false, "upgrade_available")],
+    ["Upgrade found", label("upgrade", true, false, "upgrade_available")],
+    ["Best quality known", label("upgrade", false, false, "best_available")],
+    ["Best quality known", label("upgrade", false, false, "best_source_seen")],
+    // The owner's case: Remux-1080p held, WEBDL-2160p preferred, a search found nothing better.
+    ["Best quality known", label("upgrade", false, false, "below_cutoff")],
     ["Available", label("available", false, false, "cutoff_met")],
-  ])("picks %s by priority: missing, episode gaps, an upgrade waiting, then available", (want, got) => {
+  ])("picks %s by priority: missing, episode gaps, an upgrade found, best quality known, then available", (want, got) => {
     expect(got).toBe(want);
   });
 });
@@ -37,8 +40,8 @@ describe("availability for family accounts", () => {
   it("keeps the copy wording for those who see files", () => {
     expect(label("partial")).toBe("Available");
     expect(label("missing")).toBe("Missing");
-    expect(label("upgrade")).toBe("Upgrade waiting");
-    expect(label("upgrade", true)).toBe("Upgrade waiting");
+    expect(label("upgrade")).toBe("Best quality known");
+    expect(label("upgrade", true)).toBe("Upgrade found");
   });
   it("says the title page's one status for family", () => {
     expect(watchWords("available", ["1080p", "2160p", undefined])?.label).toBe("Available in 4K");
@@ -66,20 +69,23 @@ it("gives missing and episode gaps precedence over upgrades", () => {
   const series = { kind: "series" as const, versions: [{ coverage: { have: 2, missing: 3, total: 5, aired: 5, upcoming: 0 } }] };
   expect(label("missing", true, false, "upgrade_available", series)).toBe("Missing");
   expect(label("upgrade", true, false, "upgrade_available", series)).toBe("Some episodes");
-  expect(label("available", true)).toBe("Upgrade waiting");
-  expect(label("available", false, false, "higher_source_exists")).toBe("Upgrade waiting");
+  expect(label("available", true)).toBe("Upgrade found");
+  expect(label("available", false, false, "higher_source_exists")).toBe("Best quality known");
   expect(label("available", false)).toBe("Available");
-  expect(Object.values(POSTER_STATUS_LABEL).sort()).toEqual(["Available", "Getting ready", "Missing", "Not available", "Some episodes", "Upcoming", "Upgrade waiting"]);
+  expect(Object.values(POSTER_STATUS_LABEL).sort()).toEqual(["Available", "Best quality known", "Getting ready", "Missing", "Not available", "Some episodes", "Upcoming", "Upgrade found"]);
 });
 
 
 it("uses monitored gaps and preserves family watchability", () => {
   const series = { kind: "series" as const, versions: [{ coverage: { have: 12, total: 24, missing: 0, aired: 24, upcoming: 0 } }] };
   expect(label("available", false, false, undefined, series)).toBe("Available");
-  expect(label("upgrade", true, false, undefined, series)).toBe("Upgrade waiting");
+  expect(label("upgrade", true, false, undefined, series)).toBe("Upgrade found");
   const mixed = { ...series, versions: [...series.versions, { coverage: { have: 1, total: 24, missing: 23, aired: 24, upcoming: 0 } }] };
   expect(label("available", false, true, undefined, mixed)).toBe("Available");
-  expect(label("partial", false, false, undefined, { kind: "movie", versions: [{ state: "wanted" }] })).toBe("Upgrade waiting");
+  // A movie playable in one library while another still lacks it: an upgrade found, else what the held copy says.
+  expect(label("partial", true, false, undefined, { kind: "movie", versions: [{ state: "wanted" }] })).toBe("Upgrade found");
+  expect(label("partial", false, false, undefined, { kind: "movie", versions: [{ state: "wanted" }, { state: "filled" }] })).toBe("Best quality known");
+  expect(label("partial", false, false, undefined, { kind: "movie", versions: [{ state: "wanted" }] })).toBe("Available");
   expect(label("partial", false, true, undefined, { kind: "movie" })).toBe("Available");
   expect(label("partial", false, false, undefined, { kind: "movie" })).toBe("Available");
 });

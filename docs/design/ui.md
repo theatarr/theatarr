@@ -265,7 +265,7 @@ See [quickstart](../quickstart.md#readiness-led-setup) for the completion rules;
   phones; right under the hero for a movie, on the Libraries tab for a series. Each card keeps separate fields:
   **Library** (the display label, with “mirrors <arr name>” shown separately), **Current file** (resolution and source in words, "4K WEB"),
   **Preferred quality** (the profile's cutoff in words, "4K Remux"), **Upgrade status** (the vocabulary in
-  docs/design/manage.md, with Why?), for managers an **Upgrade waiting for approval** block with Approve / Decline when
+  docs/design/manage.md, with Why?), for managers an **Upgrade found, waiting for approval** block with Approve / Decline when
   the copy holds one (docs/design/manage.md "Upgrades waiting"), monitoring (switch, "auto upgrades on/off", read-only
   while an arr manages it) and Search now. Availability names what is held ("Available in 4K WEB"), never the copy's label. **Details**
   discloses the raw version key, file, score, size, media, path, hash, release history and (admins) the journal.
@@ -413,10 +413,12 @@ display label beside it, so same-labelled libraries can be told apart. There is 
   `sort=completion&sort_version=<key>`). Below 640 px the rows stack as cards and the extra columns become lines.
   **Libraries** under a title opens its library dialog (each copy's file, state, stage and monitoring; search and files
   stay on the title page).
-- **Posters:** one availability badge, in precedence order: Missing, Some episodes, Upgrade waiting or Available.
+- **Posters:** one availability badge, in precedence order: Missing, Some episodes, Upgrade found, Best quality known or
+  Available (docs/design/manage.md, Words).
   Some episodes means a monitored, aired episode is missing; family accounts get the server's watchability as is;
-  a movie playable in one library shows Upgrade waiting while another, monitored library still lacks it, and
-  Available once that copy is unmonitored (the server then does not report it partial); never Missing.
+  a movie playable in one library while another, monitored library still lacks it shows Upgrade found when a
+  better release was found, else Best quality known when a held copy is below its preferred quality, else
+  Available, as it does once that copy is unmonitored (the server then does not report it partial); never Missing.
   Per-library grab badges are not shown. Source-ceiling evidence stays in **Why?**. One bar line per library between the art and the title, an in-flight chip over the art (the most
   advanced stage, linked to Activity), and **Poster options**: size (small, medium, large; on a phone small fits
   three across, the others two) and the details under each poster (year, next episode / release, network /

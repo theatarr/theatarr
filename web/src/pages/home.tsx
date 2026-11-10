@@ -193,7 +193,7 @@ export function Home() {
           {perms.seeFiles ? (
             <>
               <Row id="missing" title="Missing" row={d.data.missing} empty="Nothing released is missing." caption={(t) => t.note} />
-              <Row id="upgrades" title="Upgrade waiting" row={d.data.upgrades} empty="No upgrades waiting." caption={() => null} />
+              <Row id="upgrades" title="Upgrade found" row={d.data.upgrades} empty="No upgrades found." caption={() => null} />
             </>
           ) : null}
         </>
