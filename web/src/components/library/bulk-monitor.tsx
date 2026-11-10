@@ -40,8 +40,9 @@ const plural = (n: number, w: string, s = "s") => `${n} ${w}${n === 1 ? "" : s}`
 /** POST /wanted/search takes at most this many items (internal/web/wanted.go maxSearchNowItems). */
 const SEARCH_CHUNK = 200;
 
-/** What the Search now requests of one selection answered, added up: queued, started and skipped are per request;
- * pending and next_at describe the whole queue, so the last answer's stand. */
+/** What the Search now requests of one selection answered, added up: queued (the searches a request added) and skipped
+ * are per request and started is what each request let start; started and pending count the whole Search now queue,
+ * not only this selection's part, and pending and next_at are the last answer's. */
 type SearchSum = {
   /** The selection and library it was for; the bar shows it only while they are unchanged. */
   key: string;
@@ -59,7 +60,7 @@ type SearchSum = {
 const clock = (iso: string) => new Date(iso).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
 
 function searchWords(r: SearchSum): string {
-  const parts = [`Queued ${plural(r.queued, "search", "es")}: ${r.started} started, ${r.pending} waiting in the queue${r.pending && r.nextAt ? ` (next at ${clock(r.nextAt)})` : ""}`];
+  const parts = [`Queued ${plural(r.queued, "search", "es")}. ${r.started} started now, ${r.pending} waiting in the queue${r.pending && r.nextAt ? ` (next at ${clock(r.nextAt)})` : ""}`];
   for (const [reason, n] of r.skipped) parts.push(`Skipped ${plural(n, "title")}: ${reason}`);
   return parts.join(". ") + ".";
 }

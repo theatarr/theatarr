@@ -63,7 +63,7 @@ describe("Bulk Search now", () => {
     const posts = api.calls("POST", "/wanted/search");
     expect(posts).toHaveLength(1);
     expect(posts[0].body).toEqual({ only: "missing", items: [1, 2, 3].map((id) => ({ title_id: id, version: "movies-hd" })) });
-    expect(result.textContent).toMatch(/^Queued 3 searches: 2 started, 1 waiting in the queue \(next at .+\)\. Wanted$/);
+    expect(result.textContent).toMatch(/^Queued 3 searches\. 2 started now, 1 waiting in the queue \(next at .+\)\. Wanted$/);
     expect(within(result).getByRole("link", { name: "Wanted" }).getAttribute("href")).toBe("/wanted?version=movies-hd");
     expect(screen.queryByRole("dialog")).toBeNull();
   });
@@ -80,7 +80,7 @@ describe("Bulk Search now", () => {
     const posts = api.calls("POST", "/wanted/search");
     expect(posts.map((p) => (p.body as { items: unknown[] }).items.length)).toEqual([200, 200, 50]);
     expect((posts[2].body as { items: { title_id: number }[] }).items[0].title_id).toBe(401);
-    expect(result.textContent).toBe("Queued 450 searches: 10 started, 440 waiting in the queue. Wanted");
+    expect(result.textContent).toBe("Queued 450 searches. 10 started now, 440 waiting in the queue. Wanted");
   });
 
   it("groups what the server skipped by its reason", async () => {
@@ -92,7 +92,7 @@ describe("Bulk Search now", () => {
     }]);
     const bar = await searchNow(3);
     const result = await within(bar).findByTestId("bulk-search-result");
-    expect(result.textContent).toBe("Queued 1 search: 1 started, 0 waiting in the queue. Skipped 2 titles: nothing of it is wanted now. Wanted");
+    expect(result.textContent).toBe("Queued 1 search. 1 started now, 0 waiting in the queue. Skipped 2 titles: nothing of it is wanted now. Wanted");
   });
 
   it("shows the server's message when downloads are off", async () => {
@@ -113,6 +113,6 @@ describe("Bulk Search now", () => {
     const bar = await searchNow(450);
     const result = await within(bar).findByTestId("bulk-search-result");
     expect(api.calls("POST", "/wanted/search")).toHaveLength(2);
-    expect(result.textContent).toBe("Queued 200 searches: 4 started, 196 waiting in the queue. Stopped after 200 of 450 titles: New downloads are off, so nothing can be searched. Wanted");
+    expect(result.textContent).toBe("Queued 200 searches. 4 started now, 196 waiting in the queue. Stopped after 200 of 450 titles: New downloads are off, so nothing can be searched. Wanted");
   });
 });

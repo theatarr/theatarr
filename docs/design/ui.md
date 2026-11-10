@@ -392,8 +392,8 @@ display label beside it, so same-labelled libraries can be told apart. There is 
   select bar, **Search now** confirms and then sends the selected titles to `POST wanted/search`
   (`only: "missing"`, one item per title and that library, 200 a request, one request after another). They join
   the Wanted page's Search now queue under `router.wanted.per_hour`; nothing goes around it. The bar shows the
-  server's answers added up: searches queued and started, those waiting in the queue (the last answer's), and the
-  skipped titles by the server's reason, with a link to Wanted. A refused request (409 while new downloads are off)
+  server's answers added up: searches queued, then how many started now and how many wait in the whole queue (the
+  last answer's), and the skipped titles by the server's reason, with a link to Wanted. A refused request (409 while new downloads are off)
   shows the server's message and stops the rest. **Every library** has no Search now: the endpoint takes one
   library per item. There is no bulk remove and no bulk add to a library.
 - **Series page:** each season header shows a bar per copy with its downloads by stage ("1 downloading · 1
