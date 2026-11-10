@@ -132,6 +132,31 @@ describe("add-indexer sheet", () => {
     expect(fetch.calls("POST", "/settings/indexers")[0].body).toMatchObject({ generation: 4, key: "thepiratebay", enabled: true });
   });
 
+  it("withdraws Add and enable while a retest runs and after it fails with an HTTP error", async () => {
+    const ok = { key: "thepiratebay", entity: "indexers", status: "ok", results: 12, tested_at: "2026-11-09T10:00:00Z" };
+    let finish = (_: unknown) => {};
+    const fetch = mockFetch([
+      { method: "GET", path: "/cardigann/definitions", reply: json(catalog) },
+      { method: "POST", path: "/settings/budgets", reply: json({ generation: 5 }) },
+      { method: "POST", path: "/settings/indexers/test", reply: json(ok) },
+      { method: "POST", path: "/settings/indexers/test", reply: () => new Promise((resolve) => { finish = resolve; }) },
+    ]);
+    const user = userEvent.setup();
+    renderPage(indexers(), "/admin/settings/indexers");
+    await user.click(screen.getByRole("button", { name: "Add indexer" }));
+    await user.click(await screen.findByRole("button", { name: "Set up The Pirate Bay" }));
+    const setup = await screen.findByTestId("setup");
+    await user.click(within(setup).getByTestId("setup-test"));
+    await within(setup).findByTestId("setup-add-enable");
+    await user.click(within(setup).getByTestId("setup-test"));
+    await waitFor(() => expect(fetch.calls("POST", "/settings/indexers/test")).toHaveLength(2));
+    expect(within(setup).queryByTestId("setup-add-enable")).toBeNull();
+    finish(json({ error: "internal error" }, 500));
+    await waitFor(() => expect(within(setup).getByTestId("setup-test")).toHaveProperty("disabled", false));
+    expect(within(setup).queryByTestId("setup-add-enable")).toBeNull();
+    expect(within(setup).queryByTestId("test-result")).toBeNull();
+  });
+
   // The catalog off answers an empty list with the reason (not an error), so nothing retries or logs it.
   const catalogOff = { status: {}, total: 0, definitions: [], unavailable: "the definition catalog is off: turn it on under Settings › Indexers › Catalog (cardigann.definitions)" };
 

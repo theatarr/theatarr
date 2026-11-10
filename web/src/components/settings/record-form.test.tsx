@@ -219,6 +219,40 @@ it("offers no Enable and save after a failed test, nor once the tested values ar
   expect(fetch.calls("POST", "/settings/indexers")[0].body).toMatchObject({ enabled: false });
 });
 
+it("withdraws Enable and save while a retest is running", async () => {
+  let finish = (_: unknown) => {};
+  mockFetch([
+    { method: "POST", path: "/settings/indexers/test", reply: { body: passedTest } },
+    { method: "POST", path: "/settings/indexers/test", reply: () => new Promise((resolve) => { finish = resolve; }) },
+  ]);
+  const user = userEvent.setup();
+  renderPage(<RecordEditor entity="indexers" ent={indexerSchema} session={{ entity: "indexers", generation: 4, kind: "torrentio" }} nextOrder={1} onDone={vi.fn()} />);
+  await user.click(screen.getByRole("button", { name: "Test these values" }));
+  await screen.findByTestId("record-enable-save");
+  await user.click(screen.getByRole("button", { name: "Test these values" }));
+  await waitFor(() => expect(screen.queryByTestId("record-enable-save")).toBeNull());
+  expect(screen.queryByTestId("test-result")).toBeNull();
+  // Only the new pass brings it back.
+  finish({ body: passedTest });
+  await screen.findByTestId("record-enable-save");
+});
+
+it("withdraws Enable and save when a retest fails with an HTTP error", async () => {
+  const fetch = mockFetch([
+    { method: "POST", path: "/settings/indexers/test", reply: { body: passedTest } },
+    { method: "POST", path: "/settings/indexers/test", reply: { status: 500, body: { error: "internal error" } } },
+  ]);
+  const user = userEvent.setup();
+  renderPage(<RecordEditor entity="indexers" ent={indexerSchema} session={{ entity: "indexers", generation: 4, kind: "torrentio" }} nextOrder={1} onDone={vi.fn()} />);
+  await user.click(screen.getByRole("button", { name: "Test these values" }));
+  await screen.findByTestId("record-enable-save");
+  await user.click(screen.getByRole("button", { name: "Test these values" }));
+  await waitFor(() => expect(fetch.calls("POST", "/settings/indexers/test")).toHaveLength(2));
+  await waitFor(() => expect(screen.getByRole("button", { name: "Test these values" })).toHaveProperty("disabled", false));
+  expect(screen.queryByTestId("record-enable-save")).toBeNull();
+  expect(screen.queryByTestId("test-result")).toBeNull();
+});
+
 it("offers no Enable and save on a source that is already enabled", async () => {
   mockFetch([{ method: "POST", path: "/settings/indexers/test", reply: { body: { ...passedTest, key: "dmm" } } }]);
   const user = userEvent.setup();

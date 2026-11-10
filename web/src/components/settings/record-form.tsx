@@ -478,6 +478,9 @@ export function RecordEditor({
     if (bodyError) return setErrors({ secret: bodyError });
     setTesting(true);
     setError(undefined);
+    // A retest drops the last result: Enable and save comes back only with a new pass.
+    setTest(undefined);
+    setTested(undefined);
     const key = record?.key ?? st.key;
     // The live region names the source, or "the new indexer" before it has a key.
     const said = key || `the new ${NOUN[sess.entity]}`;
