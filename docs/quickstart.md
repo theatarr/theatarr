@@ -155,7 +155,7 @@ bound read-only into the container. Theatarr only reads it and links into the li
 
 **Settings › Download clients › Add provider**: Real-Debrid, AllDebrid or TorBox, with its API key. A new
 source is off until you turn it on, and one save does it: fill in the form, press **Test these values**, and when
-the test passes choose **Enable and save** beside the result. (**Save** alone keeps it disabled; change a value
+the test passes choose **Enable and save** beside the result. (**Save** alone stores the form as it is, so a new source stays disabled; change a value
 after the test and it must pass again before **Enable and save** comes back.) The name and URL default from the
 service; budget, pacing, stall timeout and the rest stay under **Show advanced**. The key is stored in the
 database, write-only. The test makes one read-only account call, with the values in the form and before anything
@@ -185,8 +185,8 @@ and Migrate from Prowlarr.
 A new indexer is off until you turn it on. Each form tests the values before it saves them (a probe query through
 the configured VPN check), and a passed test offers to enable the indexer in the same save:
 
-- **Built-in sources** (and editing any indexer later): **Test these values**, then **Enable and save** beside
-  the result. **Save** alone keeps it disabled.
+- **Built-in sources** (and a disabled indexer you edit later): **Test these values**, then **Enable and save**
+  beside the result. **Save** alone stores the current **Enabled** value.
 - **Catalog**: **Test search**, then **Add and enable**. **Add (disabled)** is always there, and is the only
   button until a test has passed.
 - **Migrate from Prowlarr** adds its indexers disabled; open each one under **Settings › Indexers**, test it and
