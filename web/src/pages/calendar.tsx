@@ -12,7 +12,7 @@ import { Empty, ErrorState, Loading, PageHeader } from "@/components/page";
 import { Chip } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
-import { episodeCode, monthDays, parseYmd, releaseLabel, ymd } from "@/lib/calendar";
+import { episodeCode, monthDays, parseYmd, placeEntries, releaseLabel, shiftDay, ymd } from "@/lib/calendar";
 import { cn } from "@/lib/utils";
 import "@/styles/calendar.css";
 
@@ -208,23 +208,25 @@ export function CalendarPageView() {
   const days = useMemo(() => monthDays(anchor.y, anchor.m), [anchor]);
   const from = view === "month" ? ymd(days[0]) : ymd(new Date(anchor.y, anchor.m, 1));
   const to = view === "month" ? ymd(days[days.length - 1]) : ymd(new Date(anchor.y, anchor.m + 1, 0));
-  const q = useCalendar(from, to);
+  // One day wider on each side: an episode's air moment can fall on the day before or after the network's here.
+  const q = useCalendar(shiftDay(from, -1), shiftDay(to, 1));
+  const placed = useMemo(() => placeEntries(q.data?.items ?? [], from, to), [q.data, from, to]);
 
   const byDay = useMemo(() => {
     const m = new Map<string, CalendarEntry[]>();
-    for (const e of q.data?.items ?? []) {
+    for (const { day, e } of placed) {
       if (!facets.includes(e.title.kind as Facet)) continue;
-      const list = m.get(e.date) ?? [];
+      const list = m.get(day) ?? [];
       list.push(e);
-      m.set(e.date, list);
+      m.set(day, list);
     }
     return m;
-  }, [q.data, facets]);
+  }, [placed, facets]);
   const counts = useMemo(() => {
     const c: Record<Facet, number> = { movie: 0, series: 0, anime: 0 };
-    for (const e of q.data?.items ?? []) c[e.title.kind as Facet] = (c[e.title.kind as Facet] ?? 0) + 1;
+    for (const { e } of placed) c[e.title.kind as Facet] = (c[e.title.kind as Facet] ?? 0) + 1;
     return c;
-  }, [q.data]);
+  }, [placed]);
 
   const move = (n: number) => {
     setSelected(null);

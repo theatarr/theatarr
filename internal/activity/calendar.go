@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"sort"
+	"strings"
 	"time"
 )
 
@@ -11,7 +12,8 @@ import (
 type CalendarItem struct {
 	// Date is the day, YYYY-MM-DD: the release date, or the episode's air date as the network gives it.
 	Date string
-	// At is the episode's air time in UTC, when known.
+	// At is the episode's air time in UTC, when the series has an air time (series_meta.air_time). Without one the
+	// stored instant is midnight in the network's zone, a made-up time: zero here, and Date alone is the day.
 	At time.Time
 	// Kind is movie or episode; Type is theatrical, digital or physical for a movie, episode for an episode.
 	Kind, Type string
@@ -78,9 +80,9 @@ func Calendar(ctx context.Context, db *sql.DB, from, to string, unmonitored bool
 		epMon = ``
 	}
 	rows, err = db.QueryContext(ctx, `SELECT t.id, t.name, COALESCE(t.year, 0), t.anime, t.monitored AND e.monitored,
-		e.id, e.season, e.number, e.name, e.air_date, COALESCE(e.air_date_utc_at, 0),
+		e.id, e.season, e.number, e.name, e.air_date, COALESCE(e.air_date_utc_at, 0), COALESCE(sm.air_time, ''),
 		EXISTS (SELECT 1 FROM episode_version_state s WHERE s.episode_id = e.id AND s.state IN ('filled', 'cutoff_met'))
-	FROM episode e JOIN title t ON t.id = e.title_id
+	FROM episode e JOIN title t ON t.id = e.title_id LEFT JOIN series_meta sm ON sm.title_id = t.id
 	WHERE t.kind = 'series' AND e.air_date IS NOT NULL AND e.air_date >= ? AND e.air_date <= ?`+epMon, from, to)
 	if err != nil {
 		return nil, err
@@ -88,12 +90,16 @@ func Calendar(ctx context.Context, db *sql.DB, from, to string, unmonitored bool
 	for rows.Next() {
 		it := CalendarItem{Kind: "episode", Type: "episode", Series: true}
 		var airMs int64
+		var airTime string
 		if err := rows.Scan(&it.TitleID, &it.TitleName, &it.TitleYear, &it.Anime, &it.Monitored, &it.EpisodeID,
-			&it.Season, &it.Number, &it.Episode, &it.Date, &airMs, &it.Available); err != nil {
+			&it.Season, &it.Number, &it.Episode, &it.Date, &airMs, &airTime, &it.Available); err != nil {
 			rows.Close()
 			return nil, err
 		}
-		it.At = at(airMs)
+		// The test the refresh builds the instant by (tvrefresh airUTC): a time that parses is a real air time.
+		if _, err := time.Parse("15:04", strings.TrimSpace(airTime)); err == nil {
+			it.At = at(airMs)
+		}
 		out = append(out, it)
 	}
 	if err := rows.Close(); err != nil {

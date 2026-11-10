@@ -36,6 +36,7 @@ func TestCalendar(t *testing.T) {
 		store.Millis(time.Date(2026, 11, 5, 2, 0, 0, 0, time.UTC)), now, now, now, now)
 	e.exec(`INSERT INTO version (id, title_id, policy_key, state, created_at, updated_at) VALUES
 		(4, 3, 'tv-2160p', 'wanted', ?, ?)`, now, now)
+	e.exec(`INSERT INTO series_meta (title_id, source, air_time, time_zone) VALUES (3, 'tvdb', '21:00', 'America/New_York')`)
 
 	var cal CalendarPage
 	if code := e.getKey(APIBase+"/calendar?from=2026-11-01&to=2026-11-30", key, &cal); code != 200 {
@@ -59,6 +60,14 @@ func TestCalendar(t *testing.T) {
 	e.getKey(APIBase+"/calendar?from=2026-11-01&to=2026-11-30&unmonitored=true", key, &cal)
 	if len(cal.Items) != 4 {
 		t.Errorf("with unmonitored: %d items", len(cal.Items))
+	}
+	// A series with no air time: its episodes' instants are midnight in the network's zone, a made-up time. The entry
+	// carries the day only.
+	e.exec(`UPDATE series_meta SET air_time = '' WHERE title_id = 3`)
+	cal = CalendarPage{}
+	e.getKey(APIBase+"/calendar?from=2026-11-01&to=2026-11-30", key, &cal)
+	if len(cal.Items) != 3 || cal.Items[1].Date != "2026-11-04" || cal.Items[1].At != nil {
+		t.Errorf("no air time: %+v", cal.Items)
 	}
 	e.getKey(APIBase+"/calendar?from=2026-11-01&to=2026-11-30&kind=movie", key, &cal)
 	if len(cal.Items) != 2 {
