@@ -388,6 +388,14 @@ display label beside it, so same-labelled libraries can be told apart. There is 
   copy changed since is skipped as stale, and lists each outcome. It only sets `monitored` on existing copies: no
   copy is added, nothing is searched or grabbed, and `router.enabled` is untouched. A table cell's switch uses the
   same route for one copy.
+- **Search now for a selection** (admins, the permission of `POST wanted/search`): with one library picked in the
+  select bar, **Search now** confirms and then sends the selected titles to `POST wanted/search`
+  (`only: "missing"`, one item per title and that library, 200 a request, one request after another). They join
+  the Wanted page's Search now queue under `router.wanted.per_hour`; nothing goes around it. The bar shows the
+  server's answers added up: searches queued and started, those waiting in the queue (the last answer's), and the
+  skipped titles by the server's reason, with a link to Wanted. A refused request (409 while new downloads are off)
+  shows the server's message and stops the rest. **Every library** has no Search now: the endpoint takes one
+  library per item. There is no bulk remove and no bulk add to a library.
 - **Series page:** each season header shows a bar per copy with its downloads by stage ("1 downloading · 1
   queued"); copy column headers carry the ownership line; an episode cell shows its stage (and progress while
   downloading); an **In progress** filter sits beside Missing; the episode overview shows each copy's acquisition

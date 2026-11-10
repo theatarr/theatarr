@@ -3,12 +3,16 @@
 // listing what changes, what is already set and what is excluded (followed copies are read-only; a title without
 // the copy has nothing to change). Apply sends the preview's values as expect, so a copy changed since is skipped,
 // and lists each item's outcome. Monitoring only: nothing is searched or grabbed, no copy is added.
+// Admins also get Search now: the selection goes to POST /wanted/search (the Wanted page's queue, under the hourly
+// limit) for the one library picked, 200 titles a request, and the bar shows what the server answered.
 import { Loader2, Lock, X } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
+import { Link } from "react-router";
 import { useBulkMonitor, type BulkItem, type BulkMonitorResult } from "@/api/copies";
-import type { TitleRow } from "@/api/library";
+import { usePerms, type TitleRow } from "@/api/library";
+import { useWanted, useWantedSearch } from "@/api/wanted";
 import { Button } from "@/components/ui/button";
-import { errText } from "@/components/ui/confirm-dialog";
+import { ConfirmDialog, errText } from "@/components/ui/confirm-dialog";
 import { Modal } from "@/components/ui/modal";
 import { SELECT } from "@/components/library/filters";
 import { bulkExpect, isFollowed, outcomeWords, type CopyColumn } from "@/lib/copies";
@@ -31,13 +35,71 @@ export function localPreview(titles: readonly TitleRow[], target: string): { edi
   return { editable, followed, missing };
 }
 
-const plural = (n: number, w: string) => `${n} ${w}${n === 1 ? "" : "s"}`;
+const plural = (n: number, w: string, s = "s") => `${n} ${w}${n === 1 ? "" : s}`;
+
+/** POST /wanted/search takes at most this many items (internal/web/wanted.go maxSearchNowItems). */
+const SEARCH_CHUNK = 200;
+
+/** What the Search now requests of one selection answered, added up: queued, started and skipped are per request;
+ * pending and next_at describe the whole queue, so the last answer's stand. */
+type SearchSum = {
+  /** The selection and library it was for; the bar shows it only while they are unchanged. */
+  key: string;
+  /** Titles in the requests that were answered. */
+  sent: number;
+  of: number;
+  queued: number;
+  started: number;
+  pending: number;
+  nextAt?: string | null;
+  skipped: Map<string, number>;
+  error?: unknown;
+};
+
+const clock = (iso: string) => new Date(iso).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+
+function searchWords(r: SearchSum): string {
+  const parts = [`Queued ${plural(r.queued, "search", "es")}: ${r.started} started, ${r.pending} waiting in the queue${r.pending && r.nextAt ? ` (next at ${clock(r.nextAt)})` : ""}`];
+  for (const [reason, n] of r.skipped) parts.push(`Skipped ${plural(n, "title")}: ${reason}`);
+  return parts.join(". ") + ".";
+}
 
 export function BulkBar({ titles, columns, onClear }: { titles: TitleRow[]; columns: CopyColumn[]; onClear: () => void }) {
   const [target, setTarget] = useState("");
   const [on, setOn] = useState(true);
   const [review, setReview] = useState(false);
   const p = useMemo(() => localPreview(titles, target), [titles, target]);
+  const perms = usePerms();
+  const search = useWantedSearch();
+  const [ask, setAsk] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const [sum, setSum] = useState<SearchSum>();
+  const ids = titles.map((t) => t.id ?? 0).filter(Boolean);
+  const key = `${target}/${ids.join()}`;
+  const targetLabel = columns.find((c) => c.key === target)?.label ?? target;
+  const result = sum?.key === key ? sum : undefined;
+  // One request after another: each answer's pending and next_at are the queue after it.
+  const runSearch = async () => {
+    const out: SearchSum = { key, sent: 0, of: ids.length, queued: 0, started: 0, pending: 0, skipped: new Map() };
+    setBusy(true);
+    try {
+      for (let i = 0; i < ids.length; i += SEARCH_CHUNK) {
+        const chunk = ids.slice(i, i + SEARCH_CHUNK);
+        const r = await search.mutateAsync({ only: "missing", items: chunk.map((id) => ({ title_id: id, version: target })) });
+        out.sent += chunk.length;
+        out.queued += r.queued;
+        out.started += r.started;
+        out.pending = r.pending;
+        out.nextAt = r.next_at;
+        for (const s of r.skipped ?? []) out.skipped.set(s.reason, (out.skipped.get(s.reason) ?? 0) + 1);
+      }
+    } catch (e) {
+      out.error = e;
+    }
+    setBusy(false);
+    setAsk(false);
+    setSum(out);
+  };
   if (titles.length === 0) return null;
   return (
     <section
@@ -59,6 +121,11 @@ export function BulkBar({ titles, columns, onClear }: { titles: TitleRow[]; colu
         </select>
         <span className="grow" />
         <Button variant="ghost" size="sm" onClick={onClear}>Clear</Button>
+        {perms.admin ? (
+          <Button variant="outline" size="sm" disabled={!target || ids.length === 0 || busy} title={target ? undefined : "Pick a library to search"} onClick={() => setAsk(true)}>
+            Search now
+          </Button>
+        ) : null}
         <Button size="sm" onClick={() => setReview(true)}>Review changes</Button>
       </div>
       <p className="mt-2 text-xs text-[var(--ink-3)]" data-testid="bulk-local">
@@ -67,6 +134,19 @@ export function BulkBar({ titles, columns, onClear }: { titles: TitleRow[]; colu
         {p.missing ? ` · ${plural(p.missing, "title")} without this library` : ""}
         {" · "}Files stay in place. No search is started.
       </p>
+      {perms.admin && !target ? <p className="mt-1 text-xs text-[var(--ink-3)]">Search now needs one library: pick it above.</p> : null}
+      {result ? (
+        <p className="mt-2 text-[13px] text-[var(--ink-2)]" data-testid="bulk-search-result">
+          {result.sent > 0 ? <span role="status">{searchWords(result)} </span> : null}
+          {result.error ? (
+            <span role="alert" className="text-[var(--bad-ink)]">
+              {result.sent > 0 ? `Stopped after ${result.sent} of ${plural(result.of, "title")}: ` : ""}{errText(result.error)}{" "}
+            </span>
+          ) : null}
+          {result.sent > 0 ? <Link className="text-primary hover:underline" to={`/wanted?version=${encodeURIComponent(target)}`}>Wanted</Link> : null}
+        </p>
+      ) : null}
+      {ask ? <SearchConfirm count={ids.length} target={target} label={targetLabel} busy={busy} onClose={() => setAsk(false)} onConfirm={runSearch} /> : null}
       {review ? (
         <ReviewDialog
           titleIds={titles.map((t) => t.id ?? 0).filter(Boolean)}
@@ -82,6 +162,31 @@ export function BulkBar({ titles, columns, onClear }: { titles: TitleRow[]; colu
         />
       ) : null}
     </section>
+  );
+}
+
+/** The confirmation before a selection is queued. The hourly limit is read here (GET /wanted, admins), not by the bar. */
+function SearchConfirm({ count, target, label, busy, onClose, onConfirm }: { count: number; target: string; label: string; busy: boolean; onClose: () => void; onConfirm: () => void }) {
+  const wanted = useWanted({ only: "missing", version: target, limit: 1, offset: 0 });
+  const perHour = wanted.data?.per_hour;
+  return (
+    <ConfirmDialog
+      danger={false}
+      testid="bulk-search-confirm"
+      busy={busy}
+      onClose={onClose}
+      onConfirm={onConfirm}
+      scope={{
+        title: `Search ${plural(count, "title")} in ${label}`,
+        confirm: `Queue ${plural(count, "title")}`,
+        does: [`Queue ${plural(count, "title")} for a search of what is missing in ${label}; a series is searched season by season`],
+        keeps: ["The hourly limit: no search goes around it", "Monitoring and files", "Titles with nothing missing in this library: they are skipped"],
+      }}
+    >
+      <p data-testid="bulk-search-estimate">
+        {perHour ? `Searches run at most ${perHour} an hour, oldest first.` : "Searches start oldest first, as the hourly limit allows."}
+      </p>
+    </ConfirmDialog>
   );
 }
 
