@@ -4,6 +4,10 @@ import userEvent from "@testing-library/user-event";
 import { describe, expect, it } from "vitest";
 import { VersionsPage } from ".";
 import { expectNamedControls, json, mockFetch, renderPage } from "@/test/page";
+import { useSettings } from "@/api/settings";
+
+/** Stands in for the header Pause: it reads the settings overview. */
+function OverviewReader() { useSettings(); return null; }
 
 const version = (library = "/library/movies") => ({
   id: 1, key: "movie-web", created_at: "2026-01-01T00:00:00Z", updated_at: "2026-01-01T00:00:00Z", roots: [library],
@@ -929,6 +933,16 @@ describe("Watch only / Live control", () => {
     await user.selectOptions(within(await row()).getByRole("combobox", { name: "State of movie-web" }), "watch");
     await waitFor(() => expect(fetch.calls("PUT", "/settings/versions/movie-web")).toHaveLength(1));
     expect(fetch.calls("PUT", "/settings/versions/movie-web")[0].body).toEqual({ generation: 4, key: "movie-web", config: { ...version().config, mode: "shadow", grab: true }, roots: version().roots });
+  });
+
+  it("a row save reads the settings overview again, so the header Pause saves with the new generation", async () => {
+    const fetch = mockFetch([...withConfig({ mode: "active", grab: true }), put(), { method: "GET", path: "/settings", reply: { source: "db", writable: true, generation: 4, switches: { router_enabled: true, library_enabled: true, notify_enabled: true } } }]);
+    const user = userEvent.setup();
+    renderPage(<><VersionsPage /><OverviewReader /></>);
+    const r = await row();
+    await waitFor(() => expect(fetch.calls("GET", "/settings")).toHaveLength(1));
+    await user.selectOptions(within(r).getByRole("combobox", { name: "State of movie-web" }), "watch");
+    await waitFor(() => expect(fetch.calls("GET", "/settings")).toHaveLength(2));
   });
 
   it("Watch only from a row on a library stored without grab sends no grab", async () => {

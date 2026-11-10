@@ -1,5 +1,6 @@
 import { useQueryClient } from "@tanstack/react-query";
 import { setupKey } from "@/api/setup";
+import { qk } from "@/api/query-keys";
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { Link } from "react-router";
 import { ApiError } from "@/api/client";
@@ -230,6 +231,8 @@ export function VersionsPage({ embedded = false }: { embedded?: boolean }) {
     try {
       await saveVersion(body, create);
       void qc.invalidateQueries({ queryKey: setupKey });
+      // The header Pause saves with the overview's generation, which this save moved on.
+      void qc.invalidateQueries({ queryKey: qk.settings.overview });
       setNotice(`${body.key} ${body.delete ? "is no longer managed" : "saved"}.`);
       // A stopped version's row goes away: focus goes to Add library instead of its Edit button.
       stopped.current = !!body.delete;

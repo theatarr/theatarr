@@ -8,6 +8,10 @@ import type { SetupState } from "@/api/setup";
 import type { VersionList } from "@/api/settings-versions";
 import { json, mockFetch, renderPage } from "@/test/page";
 import { SetupPage } from "./setup";
+import { useSettings } from "@/api/settings";
+
+/** Stands in for the header Pause: it reads the settings overview. */
+function OverviewReader() { useSettings(); return null; }
 
 const fresh: SetupState = {
   first_run: true, settings_source: "db", admin_password_generated: true, versions: 0, versions_with_roots: 0,
@@ -397,6 +401,27 @@ describe("setup", () => {
     await screen.findByText(/^1 library, 1 with a library root/);
     expect(screen.queryByTestId("first-version")).toBeNull();
     expect(screen.getByTestId("start-forced-off").textContent).toContain("Allow new downloads is forced off by environment");
+  });
+
+  it("reads the settings overview again after the start, so the header Pause shows the switches as they are now", async () => {
+    const user = userEvent.setup();
+    let created = false;
+    const fetch = mockFetch([
+      { method: "GET", path: "/setup", reply: () => ({ ...fresh, arr_instances: 0, ...(created ? { first_run: false, versions: 1, versions_with_roots: 1 } : {}) }) },
+      { method: "GET", path: "/settings/versions", reply: versions },
+      { method: "GET", path: "/settings/presets", reply: { flavour: "radarr", presets: [preset] } },
+      { method: "GET", path: "/settings", reply: { source: "db", writable: true, generation: 3, switches: { router_enabled: false, library_enabled: false, notify_enabled: true } } },
+      { method: "POST", path: "/setup/start", reply: () => { created = true; return { generation: 4, revision: "r", forced_off: [] }; } },
+    ]);
+    renderPage(<><SetupPage /><OverviewReader /></>);
+    await user.type(await screen.findByLabelText(/Library root/), "/media/movies");
+    await screen.findByRole("option", { name: "TRaSH preset: HD Bluray + WEB" });
+    await user.selectOptions(screen.getByLabelText("Quality profile"), `preset:${preset.trash_id}`);
+    await waitFor(() => expect(fetch.calls("GET", "/settings").length).toBeGreaterThan(0));
+    const before = fetch.calls("GET", "/settings").length;
+    await user.click(screen.getByRole("button", { name: "Create library and start downloading" }));
+    await waitFor(() => expect(fetch.calls("POST", "/setup/start")).toHaveLength(1));
+    await waitFor(() => expect(fetch.calls("GET", "/settings").length).toBeGreaterThan(before));
   });
 
   it("cancelling the start confirmation saves nothing", async () => {

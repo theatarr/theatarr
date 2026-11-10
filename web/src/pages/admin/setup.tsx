@@ -4,6 +4,7 @@
 // settings API. On an install no arr feeds, the first library can start downloading at once (POST setup/start: one
 // save, one confirmation that lists each switch it turns on); otherwise, and always on an install that migrates
 // from an arr, the version starts in Shadow with its downloads off and nothing Setup does can grab.
+import { useQueryClient } from "@tanstack/react-query";
 import { useState, type FormEvent, type ReactNode } from "react";
 import { Link } from "react-router";
 import { ApiError } from "@/api/client";
@@ -20,6 +21,7 @@ import { ErrorState, Loading, PageHeader } from "@/components/page";
 import { EffectsConfirmDialog } from "@/components/settings/confirm-write";
 import { SELECT_CLASS, TestResult } from "@/components/settings/parts";
 import { useSettings } from "@/api/settings";
+import { qk } from "@/api/query-keys";
 import { TMDbKey } from "@/components/settings/tmdb-key";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -51,6 +53,7 @@ export function SetupPage() {
   const { setup } = progress;
   // What the one-step start reported as forced off: kept here, since its form goes away once the library exists.
   const [forcedOff, setForcedOff] = useState<string[]>([]);
+  const qc = useQueryClient();
   if (setup.isPending) return <Loading />;
   if (setup.error) return <ErrorState error={setup.error} />;
   const s = setup.data;
@@ -95,7 +98,7 @@ export function SetupPage() {
 
         {s.versions > 0
           ? <p>{s.versions} {s.versions === 1 ? "library" : "libraries"}, {s.versions_with_roots} with a library root. Edit them under <Link className="underline" to="/admin/settings/libraries">Libraries</Link>.</p>
-          : <FirstVersion state={s} oneStep={oneStep} onDone={(forced) => { setForcedOff(forced ?? []); refresh(); }} />}
+          : <FirstVersion state={s} oneStep={oneStep} onDone={(forced) => { setForcedOff(forced ?? []); refresh(); void qc.invalidateQueries({ queryKey: qk.settings.overview }); }} />}
         {forcedOff.length ? <p role="status" data-testid="start-forced-off">The library was created and the switches are saved as on, but {forcedOff.map((k) => START_SWITCHES[k] ?? k).join(" and ")} {forcedOff.length === 1 ? "is" : "are"} forced off by environment (THEATARR_FORCE_OFF): {forcedOff.includes("router") ? "nothing downloads" : "no library link is written"} until that override is removed and the service restarted.</p> : null}
         <DownloadsOffNotice off={globalDownloadsOff((s.version_states ?? []).map((v) => v.grab_state))} canManage />
         <div className="space-y-1">{(s.version_states ?? []).map((v) => <div key={v.key} className="flex flex-wrap items-start gap-2"><span className="font-mono text-[13px]">{v.key}</span><VersionStatus state={v.grab_state} showMode settingsKey={v.key} canManage /></div>)}</div>
