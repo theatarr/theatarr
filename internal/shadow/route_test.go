@@ -298,3 +298,32 @@ func TestRSSSeriesOfflineCoverage(t *testing.T) {
 		})
 	}
 }
+
+// An arr's history names its indexer in free text. A grab whose indexer is named like the placeholder of a release
+// added by hand is planned as any arr grab: the name is shown with the grab, and is not the planned candidate's
+// indexer.
+func TestShadowPlanDropsReservedIndexerName(t *testing.T) {
+	t.Parallel()
+	e := newEnv(t, false)
+	e.withRouter(t)
+	if _, err := e.r.Import(e.ctx); err != nil {
+		t.Fatal(err)
+	}
+	ev := grabEvent(2, dune, t0.Add(-time.Hour), duneRemux, hDuneRemux, "Remux-2160p", 31, 1950, "Rss")
+	ev["data"].(map[string]any)["indexer"] = policy.ManualIndexer
+	e.zurg.add(ev)
+	if _, err := e.r.Import(e.ctx); err != nil {
+		t.Fatal(err)
+	}
+	var shown, planned, release string
+	if err := e.st.Reader().QueryRow(`SELECT g.arr_indexer, p.indexer, p.release_title FROM shadow_grab g
+		JOIN router_plan p ON p.id = g.router_plan_id WHERE g.history_id = 2`).Scan(&shown, &planned, &release); err != nil {
+		t.Fatal(err)
+	}
+	if shown != policy.ManualIndexer {
+		t.Errorf("the grab shows indexer %q, want the arr's name", shown)
+	}
+	if release != duneRemux || policy.IsManualAdd(planned) {
+		t.Errorf("plan for %q carries indexer %q", release, planned)
+	}
+}

@@ -246,7 +246,7 @@ func (r *Runner) grab(ctx context.Context, p grabPayload, force bool) (*GrabResu
 	}
 	ranked := decide.Rank(cands)
 	if arrD.Accepted {
-		rels[arrD] = arrRel.Release
+		rels[arrD] = arrCandidate(arrRel)
 	}
 	var kept []Decided
 	foundArr := false
@@ -283,6 +283,17 @@ func (r *Runner) grab(ctx context.Context, p grabPayload, force bool) (*GrabResu
 		r.log.Warn("shadow metrics", "err", err)
 	}
 	return res, nil
+}
+
+// arrCandidate is the arr's release as the router plans it. The arr's indexer name is free text from its history: one
+// equal to the placeholder of a release added by hand (policy.ManualIndexer) is not carried onto the candidate, so
+// the plan does not treat an arr's grab as a manual add. The summary shown for the grab keeps the name.
+func arrCandidate(rel decide.Release) indexer.Release {
+	out := rel.Release
+	if policy.IsManualAdd(out.Indexer) {
+		out.Indexer = ""
+	}
+	return out
 }
 
 // deferGrab stores the grab as pending and enqueues it again: at the next hour when the cap held it back, else in

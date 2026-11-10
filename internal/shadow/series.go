@@ -130,7 +130,7 @@ func (r *Runner) grabSeries(ctx context.Context, p grabPayload, key string, forc
 	foundArr := false
 	ranked := decide.Rank(cands)
 	if arrD.Accepted {
-		rels[arrD] = arrRel.Release
+		rels[arrD] = arrCandidate(arrRel)
 	}
 	for _, d := range ranked {
 		if d == arrD {
