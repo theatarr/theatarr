@@ -1,11 +1,12 @@
 // Sign in: with Plex (household members; docs/design/users.md) or with a local account (the break-glass admin), through
-// the JSON login (POST /api/theatarr/v1/auth/login). Card layout after Scryer's login page (GPL-3.0,
+// the JSON login (POST /api/theatarr/v1/auth/login). An install with no account at all shows "Create your admin
+// account" (create-admin.tsx) instead. Card layout after Scryer's login page (GPL-3.0,
 // github.com/scryer-media/scryer apps/scryer-web/src/pages/login.tsx @ 2ef7757c); the Plex button and its popup flow
 // after Seerr's login page and PlexLoginButton (MIT, github.com/seerr-team/seerr src/components/Login @ c167958).
 import { ChevronDown, Clock, KeyRound, Loader2 } from "lucide-react";
 import { useEffect, useState, type FormEvent } from "react";
 import { useNavigate, useSearchParams } from "react-router";
-import { PlexSignInError, useLogin, usePlexEnabled, usePlexLogin } from "@/api/auth";
+import { PlexSignInError, useFirstAccount, useLogin, usePlexEnabled, usePlexLogin } from "@/api/auth";
 import { ApiError } from "@/api/client";
 import { useMe } from "@/api/hooks";
 import { PRODUCT_NAME } from "@/brand";
@@ -14,6 +15,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { cn } from "@/lib/utils";
+import { CreateAdmin } from "./create-admin";
 
 /** A post-login target on this site: a path, never a scheme or host (mirrors the server's safeNext). */
 export function safeNext(n: string | null): string {
@@ -35,6 +37,7 @@ export function Login() {
   const [notice, setNotice] = useState("");
   const [busy, setBusy] = useState(false);
   const [plexBusy, setPlexBusy] = useState(false);
+  const first = useFirstAccount();
   const plexEnabled = usePlexEnabled();
   const plexLogin = usePlexLogin();
   const plex = plexEnabled.data?.enabled === true;
@@ -83,12 +86,22 @@ export function Login() {
     }
   }
 
+  // A new install with no account: create the admin first. Until the status is in, nothing (an older server, or an
+  // error, gets the sign-in form).
+  if (first.isPending) return null;
+  if (first.data?.needs_account) return <CreateAdmin onDone={go} />;
+
   return (
     <div className="grid min-h-dvh place-items-center px-4 py-10">
       <div data-slot="card" className="w-full max-w-[384px] rounded-[8px] border border-[var(--line)] bg-[var(--surface)] px-7 py-9">
         <div className="mb-7 flex flex-col items-center gap-5">
           <Logo className="scale-125" />
           <h1 className="font-heading text-[28px] font-medium leading-tight tracking-[-0.015em] text-[var(--ink)]">Sign in</h1>
+          {first.data?.password_pending ? (
+            <p data-testid="initial-password-hint" className="text-center text-sm text-[var(--ink-2)]">
+              The first admin password is in <code>&lt;data dir&gt;/initial-admin-password</code>.
+            </p>
+          ) : null}
         </div>
         {error ? (
           <div role="alert" className="mb-5 rounded-[5px] border border-l-[3px] border-[var(--line)] border-l-[var(--bad)] bg-[var(--bad-soft)] px-3 py-2.5 text-sm text-[var(--bad-ink)]">

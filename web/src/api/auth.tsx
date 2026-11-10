@@ -29,6 +29,34 @@ export function useLogin() {
   };
 }
 
+/** GET auth/first-account: whether the install has no account yet (the sign-in page then offers to create the admin),
+ * and whether an older version's generated admin password file is still unused. */
+export type FirstAccountStatus = { needs_account: boolean; password_pending: boolean };
+
+export function useFirstAccount() {
+  return useQuery({
+    queryKey: ["auth", "first-account"],
+    queryFn: () => api<FirstAccountStatus>("/auth/first-account", { redirectOn401: false }),
+    retry: false,
+  });
+}
+
+/** Creates the first account, an admin, and signs it in (POST auth/first-account; only while no account exists). */
+export function useCreateFirstAdmin() {
+  const qc = useQueryClient();
+  return async (username: string, password: string) => {
+    const r = await api<{ username: string; csrf_token: string }>("/auth/first-account", {
+      method: "POST",
+      body: { username, password },
+      redirectOn401: false,
+    });
+    setCSRF(r.csrf_token);
+    await qc.invalidateQueries({ queryKey: qk.me });
+    // Not awaited: the page moves on as signed in, without showing the sign-in form in between.
+    void qc.invalidateQueries({ queryKey: ["auth", "first-account"] });
+  };
+}
+
 export function useLogout() {
   const qc = useQueryClient();
   return async () => {
