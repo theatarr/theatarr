@@ -178,12 +178,12 @@ func TestBadPolicies(t *testing.T) {
 		{
 			name: "threshold on a movie version",
 			file: "versions.yaml", old: "    profile: web-2160p\n", new: "    profile: web-2160p\n    packs: threshold\n    packs_threshold: 80\n",
-			want: []string{`versions[movie-web].packs: only series versions take season packs`},
+			want: []string{`versions[movie-web].packs: only series libraries take season packs`},
 		},
 		{
 			name: "pack rule on a movie version",
 			file: "versions.yaml", old: "    profile: web-2160p\n", new: "    profile: web-2160p\n    packs: any_upgradable\n",
-			want: []string{`versions[movie-web].packs: only series versions take season packs`},
+			want: []string{`versions[movie-web].packs: only series libraries take season packs`},
 		},
 		{
 			name: "unknown Sonarr version",
@@ -193,7 +193,7 @@ func TestBadPolicies(t *testing.T) {
 		{
 			name: "Sonarr version on a movie version",
 			file: "versions.yaml", old: "    profile: web-2160p\n", new: "    profile: web-2160p\n    sonarr: v5\n",
-			want: []string{`versions[movie-web].sonarr: only series versions take a Sonarr version`},
+			want: []string{`versions[movie-web].sonarr: only series libraries take a Sonarr version`},
 		},
 		{
 			name: "unknown field",
@@ -242,12 +242,12 @@ func TestBadPolicies(t *testing.T) {
 		{
 			name: "series view with a movie version",
 			file: "views.yaml", old: "versions: [tv-2160p, anime-tv]", new: "versions: [tv-2160p, anime-tv, movie-web]",
-			want: []string{`views[sonarr].versions[2]: version "movie-web" is a movie version; a sonarr view serves series`},
+			want: []string{`views[sonarr].versions[2]: library "movie-web" is a movie library; a sonarr view serves series`},
 		},
 		{
 			name: "view profile outside the view",
 			file: "views.yaml", old: "WEB only: [movie-web]", new: "WEB only: [tv-2160p]",
-			want: []string{`views[radarr].profiles[WEB only]: version "tv-2160p" is not served by this view`},
+			want: []string{`views[radarr].profiles[WEB only]: library "tv-2160p" is not served by this view`},
 		},
 		{
 			name: "duplicate view path",
@@ -276,7 +276,7 @@ func TestBadPolicies(t *testing.T) {
 			name: "from_arr profile on a version of the other kind",
 			file: "profiles.yaml", old: "  tv-2160p:\n    qualities:\n      - Bluray-2160p Remux\n      - group: WEB 2160p\n        qualities: [WEBDL-2160p, WEBRip-2160p]\n    cutoff: Bluray-2160p Remux\n    min_score: 0\n    cutoff_score: 10000\n    formats:\n      WEB Tier 01 (tv): 1700\n      WEB Tier 02 (tv): 1650\n      BR-DISK (tv): -10000\n      LQ (tv): -10000\n",
 			new:  "  tv-2160p:\n    from_arr: radarr_4k_debrid/Remux + WEB 2160p\n",
-			want: []string{`versions[tv-2160p].profile: profile comes from radarr instance "radarr_4k_debrid", but the version is a series`},
+			want: []string{`versions[tv-2160p].profile: profile comes from radarr instance "radarr_4k_debrid", but the library is a series`},
 		},
 		{
 			name: "bad propers and multi languages",
@@ -292,7 +292,7 @@ func TestBadPolicies(t *testing.T) {
 		{
 			name: "language on a series profile",
 			file: "profiles.yaml", old: "  tv-2160p:\n    qualities:", new: "  tv-2160p:\n    language: original\n    qualities:",
-			want: []string{`versions[tv-2160p].profile.language: a series version uses this profile, and Sonarr v4 profiles have no language; remove it`},
+			want: []string{`versions[tv-2160p].profile.language: a series library uses this profile, and Sonarr v4 profiles have no language; remove it`},
 		},
 		{
 			name: "unknown profile language and language with from_arr",
@@ -318,7 +318,7 @@ func TestBadPolicies(t *testing.T) {
 			file: "versions.yaml", old: "profile: web-2160p", new: "profile: tv-2160p",
 			want: []string{
 				`versions[movie-web].profile: profile quality "Bluray-2160p Remux" is not a movie quality`,
-				`versions[movie-web].profile: profile format "WEB Tier 01 (tv)" is a sonarr format, but the version is a movie`,
+				`versions[movie-web].profile: profile format "WEB Tier 01 (tv)" is a sonarr format, but the library is a movie`,
 			},
 		},
 		{
@@ -334,7 +334,7 @@ func TestBadPolicies(t *testing.T) {
 		{
 			name: "debrid version with hardlinks",
 			file: "versions.yaml", old: "import: symlink", new: "import: hardlink",
-			want: []string{`versions[movie-remux].import: debrid versions symlink into the mount, got "hardlink"`},
+			want: []string{`versions[movie-remux].import: debrid libraries symlink into the mount, got "hardlink"`},
 		},
 		{
 			name: "client storage mismatch",
@@ -394,7 +394,7 @@ func TestBadPolicies(t *testing.T) {
 		{
 			name: "import version of the wrong kind",
 			file: "import.yaml", old: "version: movie-web", new: "version: tv-2160p",
-			want: []string{`import.arr[radarr_4k_web].version: version "tv-2160p" is a series version; a radarr instance holds movies`},
+			want: []string{`import.arr[radarr_4k_web].version: library "tv-2160p" is a series library; a radarr instance holds movies`},
 		},
 		{
 			name: "import unknown version and flavour",
@@ -424,7 +424,7 @@ func TestBadPolicies(t *testing.T) {
 		{
 			name: "import missing version",
 			file: "import.yaml", old: "version: movie-remux", new: "version: movie-nope",
-			want: []string{`import.arr[radarr_4k_debrid].version: unknown version "movie-nope"`},
+			want: []string{`import.arr[radarr_4k_debrid].version: unknown library "movie-nope"`},
 		},
 		{
 			name: "seedbox version without a client",

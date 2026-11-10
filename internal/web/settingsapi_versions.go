@@ -116,7 +116,7 @@ func versionSettingsRequest(snap *settings.Snapshot, body versionSettingsBody, c
 		}
 	}
 	if create && index >= 0 {
-		return req, bodyError("version already exists")
+		return req, bodyError("library already exists")
 	}
 	if !create && index < 0 {
 		return req, errNoRecord

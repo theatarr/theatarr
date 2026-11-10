@@ -85,23 +85,23 @@ func (p *Policy) validateFollow(e *Errors) {
 		f := p.Versions[v.Follows]
 		switch {
 		case v.Follows == k:
-			e.add(path, "a version cannot follow itself")
+			e.add(path, "a library cannot follow itself")
 			continue
 		case f == nil:
-			e.add(path, "unknown version %q", v.Follows)
+			e.add(path, "unknown library %q", v.Follows)
 			continue
 		case f.Follows != "":
-			e.add(path, "%q follows %q itself; a parallel version follows a version fed by its arr, never another "+
-				"parallel version", v.Follows, f.Follows)
+			e.add(path, "%q follows %q itself; a parallel library follows a library fed by its arr, never another "+
+				"parallel library", v.Follows, f.Follows)
 		}
 		if f.Mode == ModeActive {
 			// The followed version's roots are its arr's: Theatarr only reads them (settings/root.go holds the same rule
 			// for DB settings).
 			e.add(fmt.Sprintf("versions[%s].mode", v.Follows), "%q is followed by %s: its roots are its arr's and stay "+
-				"read-only; the followed version must stay shadow", v.Follows, k)
+				"read-only; the followed library must stay shadow", v.Follows, k)
 		}
 		if v.Kind != f.Kind {
-			e.add(path, "%q is a %s version and this one a %s version", v.Follows, f.Kind, v.Kind)
+			e.add(path, "%q is a %s library and this one a %s library", v.Follows, f.Kind, v.Kind)
 		}
 		if (v.Anime == nil) != (f.Anime == nil) || (v.Anime != nil && *v.Anime != *f.Anime) {
 			e.add(path, "anime must be the same as %q's: it takes every title %q has", v.Follows, v.Follows)
@@ -109,18 +109,18 @@ func (p *Policy) validateFollow(e *Errors) {
 		if p.Import != nil {
 			for _, inst := range sortedKeys(p.Import.Arr) {
 				if a := p.Import.Arr[inst]; a != nil && a.Version == k {
-					e.add(path, "import.arr[%s] feeds this version; a parallel version takes its titles from %q "+
+					e.add(path, "import.arr[%s] feeds this library; a parallel library takes its titles from %q "+
 						"and its files from nothing but Theatarr", inst, v.Follows)
 				}
 			}
 		}
 		n := v.Naming
 		if n.FromVersion == "" && n.FromArr == "" && n.Folder == "" && n.File == "" {
-			e.add(fmt.Sprintf("versions[%s].naming", k), "a parallel version names its files explicitly: set "+
-				"from_version: %s (the followed version's naming) or its own templates", v.Follows)
+			e.add(fmt.Sprintf("versions[%s].naming", k), "a parallel library names its files explicitly: set "+
+				"from_version: %s (the followed library's naming) or its own templates", v.Follows)
 		}
 		if p.Library == nil || p.Library.Versions[k] == nil {
-			e.add(fmt.Sprintf("library.versions[%s]", k), "required: a parallel version writes only under roots "+
+			e.add(fmt.Sprintf("library.versions[%s]", k), "required: a parallel library writes only under roots "+
 				"of its own")
 			continue
 		}
@@ -415,7 +415,7 @@ func (p *Policy) checkRootSeparation(key string, debrid []string, resolve func(s
 		for _, path := range p.versionRoots(k) {
 			r, err := resolve(path, debrid)
 			if err != nil {
-				return roots[key], fmt.Errorf("root %q of version %s: %w", path, k, err)
+				return roots[key], fmt.Errorf("root %q of library %s: %w", path, k, err)
 			}
 			roots[k] = append(roots[k], r.withMounts(mounts))
 		}
@@ -444,7 +444,7 @@ func (p *Policy) checkRootSeparation(key string, debrid []string, resolve func(s
 	for _, k := range sortedKeys(roots) {
 		for _, other := range roots[k] {
 			if trash != nil && trash.Overlaps(other) {
-				return roots[key], fmt.Errorf("trash %q resolves to %q and overlaps %q (resolved %q) of version %s",
+				return roots[key], fmt.Errorf("trash %q resolves to %q and overlaps %q (resolved %q) of library %s",
 					trash.Path, trash.Resolved, other.Path, other.Resolved, k)
 			}
 			if k == key {
@@ -452,7 +452,7 @@ func (p *Policy) checkRootSeparation(key string, debrid []string, resolve func(s
 			}
 			for _, mine := range roots[key] {
 				if mine.Overlaps(other) {
-					return roots[key], fmt.Errorf("%q resolves to %q and overlaps %q (resolved %q) of version %s",
+					return roots[key], fmt.Errorf("%q resolves to %q and overlaps %q (resolved %q) of library %s",
 						mine.Path, mine.Resolved, other.Path, other.Resolved, k)
 				}
 			}
@@ -466,13 +466,13 @@ func (p *Policy) validateNamingFromVersion(e *Errors, path, k string, v *Version
 	n := v.Naming
 	if n.FromArr != "" || n.Folder != "" || n.File != "" || n.Season != "" || n.Specials != "" || n.Daily != "" ||
 		n.Anime != "" || n.Colon != "" || n.MultiEpisode != "" {
-		e.add(path, "from_version takes the whole naming from the version; set nothing else")
+		e.add(path, "from_version takes the whole naming from that library; set nothing else")
 	}
 	switch {
 	case v.Follows == "":
-		e.add(path+".from_version", "only for a parallel version (versions[%s].follows)", k)
+		e.add(path+".from_version", "only for a parallel library (versions[%s].follows)", k)
 	case n.FromVersion != v.Follows:
-		e.add(path+".from_version", "must be the followed version %q, got %q", v.Follows, n.FromVersion)
+		e.add(path+".from_version", "must be the followed library %q, got %q", v.Follows, n.FromVersion)
 	}
 }
 
@@ -483,7 +483,7 @@ func (p *Policy) dirOverlap(dir string) string {
 	var list []named
 	for _, k := range sortedKeys(p.Versions) {
 		for _, r := range p.versionRoots(k) {
-			list = append(list, named{fmt.Sprintf("root %q of version %s", r, k), r})
+			list = append(list, named{fmt.Sprintf("root %q of library %s", r, k), r})
 		}
 	}
 	if p.Library != nil {

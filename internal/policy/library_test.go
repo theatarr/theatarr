@@ -127,7 +127,7 @@ func TestLibraryValidation(t *testing.T) {
 		{"library:\n  mount: {path: /mnt/debrid}\n  versions:\n    movie-remux: {roots: [/mnt]}\n", "overlaps the zurg mount"},
 		{"library:\n  versions:\n    movie-remux: {roots: [/srv/other]}\n", "is under none of the roots"},
 		{"library:\n  versions:\n    movie-remux: {roots: [/]}\n", "filesystem root"},
-		{"library:\n  versions:\n    nope: {roots: [/x]}\n", "unknown version"},
+		{"library:\n  versions:\n    nope: {roots: [/x]}\n", "unknown library"},
 		{"library:\n  versions:\n    movie-remux: {}\n", "library.versions[movie-remux].roots"},
 		{"library:\n  trash: {dir: /media/movies/.trash}\n  versions:\n    movie-remux: {roots: [/media/movies]}\n", "Plex would scan the trash"},
 		{"library:\n  versions:\n    movie-remux: {roots: [/media/movies], plex_section: 3}\n", "library.plex is not configured"},
@@ -196,12 +196,12 @@ func TestNamingValidation(t *testing.T) {
 		yaml, err string
 	}{
 		{"    naming: {from_arr: radarr_4k_debrid}\n", ""},
-		{"    naming: {from_arr: sonarr_4k_debrid}\n", "cannot name a movie version"},
+		{"    naming: {from_arr: sonarr_4k_debrid}\n", "cannot name a movie library"},
 		{"    naming: {from_arr: nope}\n", "unknown import.arr instance"},
 		{"    naming: {from_arr: radarr_4k_debrid, colon: dash}\n", "set nothing else"},
 		{"    naming: {colon: sideways}\n", "versions[x-movie].naming.colon"},
 		{"    naming: {multi_episode: range}\n", "only for series"},
-		{"    naming: {season: \"Season {season}\"}\n", "for series versions"},
+		{"    naming: {season: \"Season {season}\"}\n", "for series libraries"},
 	} {
 		dir := copyExample(t)
 		y := "versions:\n  x-movie:\n    kind: movie\n    profile: remux-2160p\n    library: /media/x\n    storage: debrid\n" +

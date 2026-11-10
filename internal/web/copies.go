@@ -618,7 +618,7 @@ func (w *Web) apiBulkMonitor(rw http.ResponseWriter, r *http.Request) {
 	}
 	for _, k := range req.Versions {
 		if w.pol.Versions[k] == nil {
-			badRequest(rw, fmt.Sprintf("unknown version %q", k))
+			badRequest(rw, fmt.Sprintf("unknown library %q", k))
 			return
 		}
 	}

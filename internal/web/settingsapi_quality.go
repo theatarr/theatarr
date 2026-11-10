@@ -488,7 +488,7 @@ func (w *Web) apiNamingPreview(rw http.ResponseWriter, r *http.Request) {
 	}
 	vp := p.Versions[body.Version]
 	if vp == nil {
-		badRequest(rw, "unknown version")
+		badRequest(rw, "unknown library")
 		return
 	}
 	if body.Naming != nil {

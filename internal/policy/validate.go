@@ -316,7 +316,7 @@ func (p *Policy) checkProfileFits(e *Errors, path string, pr *Profile, kind Kind
 		return
 	}
 	if pr.Language != "" && kind == KindSeries {
-		e.add(path+".language", "a series version uses this profile, and Sonarr v4 profiles have no language; remove it")
+		e.add(path+".language", "a series library uses this profile, and Sonarr v4 profiles have no language; remove it")
 	}
 	valid := qualitiesFor(kind)
 	for _, q := range sortedKeys(pr.Sizes) {
@@ -349,11 +349,11 @@ func (p *Policy) checkProfileFits(e *Errors, path string, pr *Profile, kind Kind
 		flavour = "sonarr"
 	}
 	if fs := p.FormatSets[pr.FormatSet]; fs != nil && fs.Flavour != flavour {
-		e.add(path+".format_set", "a %s set, but the version is a %s", fs.Flavour, kind)
+		e.add(path+".format_set", "a %s set, but the library is a %s", fs.Flavour, kind)
 	}
 	for _, ref := range sortedKeys(pr.Formats) {
 		if key, f := p.ProfileFormat(pr, ref); f != nil && f.Flavour != "" && f.Flavour != flavour {
-			e.add(path, "profile format %q is a %s format, but the version is a %s", key, f.Flavour, kind)
+			e.add(path, "profile format %q is a %s format, but the library is a %s", key, f.Flavour, kind)
 		}
 	}
 }
@@ -487,9 +487,9 @@ func (p *Policy) checkCallbackView(e *Errors, path, k string, v *VersionPolicy, 
 		return // reported on the client
 	}
 	if !slices.Contains(view.Versions, k) {
-		e.add(path, "client %q calls back view %q, which does not serve this version", v.Client, c.CallbackView)
+		e.add(path, "client %q calls back view %q, which does not serve this library", v.Client, c.CallbackView)
 	} else if kind, ok := flavours[view.Flavour]; ok && kind != v.Kind {
-		e.add(path, "client %q calls back view %q (%s), which does not serve %s versions", v.Client, c.CallbackView,
+		e.add(path, "client %q calls back view %q (%s), which does not serve %s libraries", v.Client, c.CallbackView,
 			view.Flavour, v.Kind)
 	}
 }
@@ -576,7 +576,7 @@ func (p *Policy) validateVersion(e *Errors, k string, v *VersionPolicy) {
 			p.checkCallbackView(e, path+".client", k, v, cl)
 			if cl.Category == "" {
 				e.add(path+".client", "client %q has no category: decypharr needs one for the adds of an "+
-					"add_via: client version", v.Client)
+					"add_via: client library", v.Client)
 			}
 		}
 	}
@@ -586,7 +586,7 @@ func (p *Policy) validateVersion(e *Errors, k string, v *VersionPolicy) {
 		e.add(path+".import", "must be symlink, hardlink or copy, got %q", v.Import)
 	}
 	if v.Storage == StorageDebrid && v.Import != "symlink" {
-		e.add(path+".import", "debrid versions symlink into the mount, got %q", v.Import)
+		e.add(path+".import", "debrid libraries symlink into the mount, got %q", v.Import)
 	}
 
 	// Providers: known, no repeats, debrid only, listed in fallback order.
@@ -615,7 +615,7 @@ func (p *Policy) validateVersion(e *Errors, k string, v *VersionPolicy) {
 
 	// Indexers.
 	if len(v.Indexers) == 0 {
-		e.add(path+".indexers", "required: list the indexers this version may search")
+		e.add(path+".indexers", "required: list the indexers this library may search")
 	}
 	for i, ik := range v.Indexers {
 		ip := fmt.Sprintf("%s.indexers[%d]", path, i)
@@ -659,25 +659,25 @@ func (p *Policy) validateViews(e *Errors) {
 		in := map[string]bool{}
 		for i, vk := range v.Versions {
 			vp := fmt.Sprintf("%s.versions[%d]", path, i)
-			if !checkRef(e, vp, "version", vk, p.Versions, true) {
+			if !checkRef(e, vp, "library", vk, p.Versions, true) {
 				continue
 			}
 			if in[vk] {
-				e.add(vp, "version %q listed twice", vk)
+				e.add(vp, "library %q listed twice", vk)
 			}
 			in[vk] = true
 			if ok && p.Versions[vk].Kind != kind {
-				e.add(vp, "version %q is a %s version; a %s view serves %ss", vk, p.Versions[vk].Kind, v.Flavour, kind)
+				e.add(vp, "library %q is a %s library; a %s view serves %ss", vk, p.Versions[vk].Kind, v.Flavour, kind)
 			}
 		}
 		for _, name := range sortedKeys(v.Profiles) {
 			pp := fmt.Sprintf("%s.profiles[%s]", path, name)
 			if len(v.Profiles[name]) == 0 {
-				e.add(pp, "lists no versions")
+				e.add(pp, "lists no libraries")
 			}
 			for _, vk := range v.Profiles[name] {
 				if !in[vk] {
-					e.add(pp, "version %q is not served by this view", vk)
+					e.add(pp, "library %q is not served by this view", vk)
 				}
 			}
 		}

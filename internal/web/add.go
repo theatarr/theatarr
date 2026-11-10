@@ -421,10 +421,10 @@ func (w *Web) checkVersions(keys []string, kind policy.Kind) error {
 	for _, k := range keys {
 		vp := w.pol.Versions[k]
 		if vp == nil {
-			return fmt.Errorf("unknown version %q", k)
+			return fmt.Errorf("unknown library %q", k)
 		}
 		if vp.Kind != kind {
-			return fmt.Errorf("version %q is for %s titles", k, vp.Kind)
+			return fmt.Errorf("library %q is for %s titles", k, vp.Kind)
 		}
 	}
 	return nil
@@ -534,7 +534,7 @@ func (w *Web) addTitle(ctx context.Context, req AddRequest, source string) (*Add
 	}
 	if req.Versions != nil {
 		if len(req.Versions) == 0 {
-			return nil, &addError{http.StatusBadRequest, "pick at least one version"}
+			return nil, &addError{http.StatusBadRequest, "pick at least one library"}
 		}
 		if err := w.checkVersions(req.Versions, kind); err != nil {
 			return nil, &addError{http.StatusBadRequest, err.Error()}
@@ -585,7 +585,7 @@ func (w *Web) addTitle(ctx context.Context, req AddRequest, source string) (*Add
 		return nil, &addError{http.StatusNotFound, "not found"}
 	}
 	if errors.Is(err, errNoFit) {
-		return nil, &addError{http.StatusBadRequest, "no version of the policy takes this title: pick versions"}
+		return nil, &addError{http.StatusBadRequest, "no library of the policy takes this title: pick versions"}
 	}
 	if err != nil {
 		return nil, err
@@ -616,7 +616,7 @@ func (w *Web) addTitle(ctx context.Context, req AddRequest, source string) (*Add
 	return out, nil
 }
 
-var errNoFit = errors.New("no version fits")
+var errNoFit = errors.New("no library fits")
 
 // searchNow searches the title for the versions catalog.Searchable lets through; the rest are skipped with the reason.
 func (w *Web) searchNow(ctx context.Context, titleID int64, keys []string) (*SearchOutcome, error) {
@@ -712,7 +712,7 @@ func (w *Web) apiSearchNow(rw http.ResponseWriter, r *http.Request) {
 		keys = nil
 		for _, k := range req.Versions {
 			if !slices.Contains(on, k) {
-				badRequest(rw, "the title has no monitored version "+strconv.Quote(k))
+				badRequest(rw, "the title has no monitored library "+strconv.Quote(k))
 				return
 			}
 			keys = append(keys, k)

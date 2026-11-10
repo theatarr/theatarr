@@ -1,7 +1,7 @@
 # Documentation
 
-Start with the task you have. A **library** is what settings keys, API fields and CLI flags call a `version`
-(`versions.movies`, `-version movies`).
+Start with the task you have. A **library** is what settings keys and API fields call a `version`
+(`versions.movies`). The CLI takes `-library movies`; the older `-version movies` still works.
 
 ## User guides
 

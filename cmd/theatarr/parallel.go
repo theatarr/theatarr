@@ -22,7 +22,7 @@ func init() {
 
 func runParallel(args []string, out io.Writer) error {
 	if len(args) == 0 || args[0] != "compare" {
-		const usage = "usage: theatarr parallel compare [-version K] [-since 7d] [-json]"
+		const usage = "usage: theatarr parallel compare [-library K] [-since 7d] [-json]"
 		if helpArg(args) {
 			fmt.Fprintln(os.Stderr, usage)
 			return flag.ErrHelp
@@ -32,7 +32,7 @@ func runParallel(args []string, out io.Writer) error {
 	fs := flag.NewFlagSet("parallel compare", flag.ContinueOnError)
 	settingsSourceFlag(fs)
 	fs.SetOutput(io.Discard)
-	version := fs.String("version", "", "follower version (default: every follower)")
+	version := libraryFlag(fs, "follower library (default: every follower)")
 	since := fs.String("since", "7d", "comparison window, Go duration (d is supported)")
 	asJSON := fs.Bool("json", false, "print JSON")
 	policyDir := policyDirDefault()

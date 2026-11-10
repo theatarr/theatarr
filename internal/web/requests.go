@@ -1034,7 +1034,7 @@ func (w *Web) approve(ctx context.Context, id, by int64, versions []string, seas
 	keys := req.keys
 	if versions != nil {
 		if len(versions) == 0 {
-			return nil, &addError{http.StatusBadRequest, "pick at least one version"}
+			return nil, &addError{http.StatusBadRequest, "pick at least one library"}
 		}
 		if err := w.checkVersions(versions, kind); err != nil {
 			return nil, &addError{http.StatusBadRequest, err.Error()}

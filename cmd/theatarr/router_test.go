@@ -38,7 +38,7 @@ func TestRouterStatusAndArgs(t *testing.T) {
 		t.Errorf("json: %v\n%s", err, out.String())
 	}
 	if err := runRouter(commandSettingsArgs(t, []string{"dry-run", "-db", db, "-policy", pol}), &out, nil); err == nil ||
-		!strings.Contains(err.Error(), "-version") {
+		!strings.Contains(err.Error(), "-library") {
 		t.Errorf("dry-run without a version: %v", err)
 	}
 	if err := runRouter(commandSettingsArgs(t, nil), &out, nil); err == nil {

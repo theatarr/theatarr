@@ -55,15 +55,15 @@ func TestFollowerValidation(t *testing.T) {
 		{"from_arr", followerYAML + "    naming: {from_arr: radarr_4k_debrid}\n", followerLib, ""},
 		{"default naming", followerYAML, followerLib, "names its files explicitly"},
 		{"from_version of another", followerYAML + "    naming: {from_version: movie-web}\n", followerLib,
-			"must be the followed version"},
+			"must be the followed library"},
 		{"from_version plus a template", followerYAML + "    naming: {from_version: movie-remux, colon: dash}\n",
 			followerLib, "set nothing else"},
 		{"unknown", strings.Replace(followerYAML, "follows: movie-remux", "follows: nope", 1) +
-			"    naming: {folder: x}\n", followerLib, `unknown version "nope"`},
+			"    naming: {folder: x}\n", followerLib, `unknown library "nope"`},
 		{"itself", strings.Replace(followerYAML, "follows: movie-remux", "follows: movie-remux-theatarr", 1) +
 			"    naming: {folder: x}\n", followerLib, "cannot follow itself"},
 		{"other kind", strings.Replace(followerYAML, "follows: movie-remux", "follows: tv-2160p", 1) +
-			"    naming: {folder: x}\n", followerLib, "is a series version"},
+			"    naming: {folder: x}\n", followerLib, "is a series library"},
 		{"anime differs", strings.Replace(followerYAML, "anime: false", "anime: true", 1) +
 			"    naming: {from_version: movie-remux}\n", followerLib, "anime must be the same"},
 		{"no library entry", followerYAML + "    naming: {from_version: movie-remux}\n", "",
@@ -75,12 +75,12 @@ func TestFollowerValidation(t *testing.T) {
 			"    naming: {from_version: movie-remux}\n", "    movie-remux-theatarr: {roots: [/media]}\n", "overlaps"},
 		{"same root", strings.Replace(followerYAML, "/media/movies-new", "/media/movies-web", 1) +
 			"    naming: {from_version: movie-remux}\n", "    movie-remux-theatarr: {roots: [/media/movies-web]}\n",
-			"of version movie-web"},
+			"of library movie-web"},
 		{"followed is a follower", followerYAML + "    naming: {from_version: movie-remux}\n" +
 			"  movie-remux-mm2:\n    follows: movie-remux-theatarr\n    kind: movie\n    anime: false\n    profile: remux-2160p\n" +
 			"    library: /media/movies-new2\n    storage: debrid\n    indexers: [prowlarr-public]\n" +
 			"    providers: [rd]\n    client: decypharr\n    naming: {from_version: movie-remux-theatarr}\n",
-			followerLib + "    movie-remux-mm2: {roots: [/media/movies-new2]}\n", "never another parallel version"},
+			followerLib + "    movie-remux-mm2: {roots: [/media/movies-new2]}\n", "never another parallel library"},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			_, err := Load(parallelPolicy(t, tc.version, tc.lib))
@@ -106,7 +106,7 @@ func TestFollowerFedByArrRefused(t *testing.T) {
 	if err := os.WriteFile(imp, []byte(s), 0o644); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := Load(dir); err == nil || !strings.Contains(err.Error(), "import.arr[radarr_4k_web] feeds this version") {
+	if _, err := Load(dir); err == nil || !strings.Contains(err.Error(), "import.arr[radarr_4k_web] feeds this library") {
 		t.Fatalf("want the arr-fed follower refused, got %v", err)
 	}
 }

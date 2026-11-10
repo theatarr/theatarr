@@ -324,16 +324,16 @@ func (w *Web) apiPatchUser(rw http.ResponseWriter, r *http.Request) {
 		var keys []string
 		if string(req.RequestVersions) != "null" {
 			if err := json.Unmarshal(req.RequestVersions, &keys); err != nil {
-				badRequest(rw, "request_versions: want a list of version keys or null")
+				badRequest(rw, "request_versions: want a list of library keys or null")
 				return
 			}
 			if len(keys) == 0 {
-				badRequest(rw, "request_versions: pick at least one version, or null for every version that fits")
+				badRequest(rw, "request_versions: pick at least one library, or null for every library that fits")
 				return
 			}
 			for _, k := range keys {
 				if w.pol == nil || w.pol.Versions[k] == nil {
-					badRequest(rw, "request_versions: unknown version "+strconv.Quote(k))
+					badRequest(rw, "request_versions: unknown library "+strconv.Quote(k))
 					return
 				}
 			}

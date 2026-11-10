@@ -74,7 +74,7 @@ func TestGoliveCheckCommand(t *testing.T) {
 	}
 
 	if err := runGolive(commandSettingsArgs(t, []string{"check", "-policy", filepath.Join("..", "..", "examples", "policy"), "-db", "none",
-		"-version", "nope"}), &out); err == nil || !strings.Contains(err.Error(), "no version") {
+		"-version", "nope"}), &out); err == nil || !strings.Contains(err.Error(), "no library") {
 		t.Errorf("unknown version: %v", err)
 	}
 }

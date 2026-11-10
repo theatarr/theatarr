@@ -35,22 +35,22 @@ func init() {
 }
 
 const routerUsage = `usage:
-  theatarr router dry-run [flags] -title ID|-tmdb N|-tvdb N -version KEY [-season N [-episode N]]
+  theatarr router dry-run [flags] -title ID|-tmdb N|-tvdb N -library KEY [-season N [-episode N]]
   theatarr router status [-policy DIR] [-db FILE] [-limit N] [-json]
   theatarr router offer [flags] -download ID | -sweep [-limit N]   [-dry-run] [-json]
   theatarr router reconcile [-db FILE] [-apply] [-json]
 
-dry-run searches the version's indexers through the gateway (with the configured VPN requirements, like
+dry-run searches the library's indexers through the gateway (with the configured VPN requirements, like
 theatarr decide -search), decides every result, and shows what the router would do with the accepted
 ones: which release, which provider, and why each was skipped. It sends nothing to any provider and records nothing,
-whatever router.enabled and the version's mode say. status reads the database: the kill switch, which versions the
+whatever router.enabled and the library's mode say. status reads the database: the kill switch, which libraries the
 router may write for, provider pacing, downloads by state, and recent downloads and dry-run plans. offer offers an
-imported download to the title's other versions (-sweep also offers adopted links and imported arr
-files): each version's own profile decides, an accepted offer queues a route that reuses the provider's torrent
-(a dry-run plan for a shadow version), and outcomes are remembered in router_offer. -dry-run decides only.
+imported download to the title's other libraries (-sweep also offers adopted links and imported arr
+files): each library's own profile decides, an accepted offer queues a route that reuses the provider's torrent
+(a dry-run plan for a shadow library), and outcomes are remembered in router_offer. -dry-run decides only.
 reconcile lists queued route jobs, queued downloads and pending upgrade holds queued by an older build, whose
 identity and origin cannot be proved (no identity validation version); -apply ends the automatic ones (job failed and
-dismissed, download failed, hold expired) and queues one re-search per title version; manual rows are only listed.
+dismissed, download failed, hold expired) and queues one re-search per title and library; manual rows are only listed.
 Nothing is deleted and nothing is sent to any provider.
 `
 
@@ -84,7 +84,7 @@ func runRouterDryRun(args []string, out io.Writer, dial func(context.Context, st
 	titleID := fs.Int64("title", 0, "our title id")
 	tmdb := fs.Int("tmdb", 0, "find the movie by TMDb id")
 	tvdb := fs.Int("tvdb", 0, "find the series by TVDB id")
-	version := fs.String("version", "", "version key from the policy")
+	version := libraryFlag(fs, "library key from the policy")
 	season := fs.Int("season", -1, "series: the season to search")
 	episode := fs.Int("episode", 0, "series: with -season, one episode")
 	limit := fs.Int("limit", 10, "ranked results to print (0: all)")
@@ -94,7 +94,7 @@ func runRouterDryRun(args []string, out io.Writer, dial func(context.Context, st
 	}
 	if *version == "" || (*titleID == 0 && *tmdb == 0 && *tvdb == 0) || fs.NArg() != 0 {
 		fs.Usage()
-		return errors.New("-version and -title, -tmdb or -tvdb are required")
+		return errors.New("-library and -title, -tmdb or -tvdb are required")
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Minute)
 	defer cancel()

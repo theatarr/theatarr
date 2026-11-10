@@ -36,19 +36,19 @@ func init() {
 
 const libraryUsage = `usage:
   theatarr library dry-run -download ID [flags]   plan one download's import: files, probes, guard, link paths. Writes nothing
-  theatarr library verify [-version KEY] [flags]  read-only scan of a version's roots: counts, dangling links, names that
+  theatarr library verify [-library KEY] [flags]  read-only scan of a library's roots: counts, dangling links, names that
                                                  differ from ours. Writes nothing
-  theatarr library relink [-version KEY] [-dry-run] [flags]
+  theatarr library relink [-library KEY] [-dry-run] [flags]
                                                  repoint dangling links by info hash; through the gate (library.enabled,
-                                                 mode: active, the version's roots), otherwise it reports what it would do
-  theatarr library adopt -version KEY [-dry-run] [-limit N] [-queue] [flags]
-                                                 start a parallel version (versions.KEY.follows) from links of its own to
-                                                 the files its followed version's arr has now (docs/parallel.md); through
+                                                 mode: active, the library's roots), otherwise it reports what it would do
+  theatarr library adopt -library KEY [-dry-run] [-limit N] [-queue] [flags]
+                                                 start a parallel library (versions.KEY.follows) from links of its own to
+                                                 the files its followed library's arr has now (docs/parallel.md); through
                                                  the gate. -dry-run writes nothing; -queue runs it as a job in theatarr serve
-  theatarr library adopt -version KEY -refresh [-dry-run] [-queue] [flags]
+  theatarr library adopt -library KEY -refresh [-dry-run] [-queue] [flags]
                                                  move the links adopt made to the arr's current files after arr upgrades:
                                                  the old link goes to the trash, Plex scans the folders. Never touches
-                                                 links of Theatarr's own imports, nor a version that grabs (router.enabled and
+                                                 links of Theatarr's own imports, nor a library that grabs (router.enabled and
                                                  mode: active). theatarr serve runs it after every arr.import for the titles
                                                  whose arr files changed
   theatarr library naming-sync [flags]            read config/naming and qualitydefinition (GET) from the import.arr
@@ -77,7 +77,7 @@ func runLibrary(args []string, out io.Writer) error {
 	f.register(fs)
 	fs.BoolVar(&f.asJSON, "json", false, "print JSON")
 	download := fs.Int64("download", 0, "dry-run: the download id")
-	version := fs.String("version", "", "verify, relink, adopt: one version (default every version under library.versions)")
+	version := libraryFlag(fs, "verify, relink, adopt: one library (default every library under library.versions)")
 	dryRun := fs.Bool("dry-run", false, "relink, adopt: report only")
 	limit := fs.Int("limit", 0, "adopt: stop after this many new links (0: all; not with -refresh)")
 	queue := fs.Bool("queue", false, "adopt: queue a library.adopt job for theatarr serve instead of running here")
@@ -129,7 +129,7 @@ func runLibrary(args []string, out io.Writer) error {
 	}
 	if args[0] == "adopt" {
 		if *version == "" {
-			return errors.New("-version is required")
+			return errors.New("-library is required")
 		}
 		if *queue {
 			key := library.AdoptJobKind + "/" + *version

@@ -148,7 +148,7 @@ func diagnosticCandidate(base *policy.Policy, records Records) (*policy.Policy, 
 		for _, r := range records.Naming {
 			version := p.Versions[r.Key]
 			if version == nil {
-				return nil, &policy.Errors{List: []policy.FieldError{{Path: "versions[" + r.Key + "].naming", Msg: "unknown version"}}}
+				return nil, &policy.Errors{List: []policy.FieldError{{Path: "versions[" + r.Key + "].naming", Msg: "unknown library"}}}
 			}
 			version.Naming = r.Config
 		}

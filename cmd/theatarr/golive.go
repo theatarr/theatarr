@@ -39,7 +39,7 @@ func init() {
 }
 
 const goliveUsage = `usage:
-  theatarr golive check [-version KEY] [flags]   read-only preflight before a version grabs (default: every version):
+  theatarr golive check [-library KEY] [flags]   read-only preflight before a library grabs (default: every library):
                                                 PASS/INFO/WARN/FAIL lines with the fix for each, exit 1 on any FAIL.
                                                 In the container: docker exec theatarr theatarr golive check
 `
@@ -63,7 +63,7 @@ func runGolive(args []string, out io.Writer) error {
 	backupDir := fs.String("backup-dir", envOr("THEATARR_BACKUP_DIR", ""), "backup directory, as theatarr serve's (default "+
 		"backups/ next to the database)")
 	trash := fs.String("trash", os.Getenv("THEATARR_TRASH"), "TRaSH-Guides docs/json, for trash_id formats (env THEATARR_TRASH)")
-	version := fs.String("version", "", "the version to check (default: every version)")
+	version := libraryFlag(fs, "the library to check (default: every library)")
 	service := fs.String("service", "http://127.0.0.1:7700", "the running theatarr serve, for VPN egress and indexer "+
 		"back-offs from /metrics; 'none' skips")
 	publicURL := fs.String("public-url", envOr("THEATARR_PUBLIC_URL", ""), "Theatarr's address as clients use it (env "+
@@ -100,7 +100,7 @@ func runGolive(args []string, out io.Writer) error {
 	versions := golive.Versions(pol)
 	if *version != "" {
 		if pol.Versions[*version] == nil {
-			return fmt.Errorf("the policy has no version %q (have %s)", *version, strings.Join(versions, ", "))
+			return fmt.Errorf("the policy has no library %q (have %s)", *version, strings.Join(versions, ", "))
 		}
 		versions = []string{*version}
 	}

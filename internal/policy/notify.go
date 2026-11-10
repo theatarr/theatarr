@@ -219,7 +219,7 @@ func (p *Policy) validateNotify(e *Errors) {
 		}
 		for _, v := range t.Versions {
 			if p.Versions[v] == nil {
-				e.add(path+".versions", "unknown version %q", v)
+				e.add(path+".versions", "unknown library %q", v)
 			}
 		}
 		switch t.Format {

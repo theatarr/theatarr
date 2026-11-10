@@ -78,7 +78,7 @@ func validateVersionRules(ctx context.Context, q rootQueryer, previous, next *po
 				return err
 			}
 			if links > 0 {
-				return rootFieldError("versions["+key+"].library", fmt.Sprintf("%d active link(s) of this library are outside its roots; use the old root, or the parallel-version adopt procedure in docs/parallel.md", links))
+				return rootFieldError("versions["+key+"].library", fmt.Sprintf("%d active link(s) of this library are outside its roots; use the old root, or the parallel-library adopt procedure in docs/parallel.md", links))
 			}
 		}
 	}
@@ -92,14 +92,14 @@ func activeLinksOutside(ctx context.Context, q rootQueryer, key string, roots []
 		JOIN version v ON v.id = lv.version_id
 		WHERE v.policy_key = ? AND l.state = 'active'`, key)
 	if err != nil {
-		return 0, errors.New("settings: cannot inspect version links")
+		return 0, errors.New("settings: cannot inspect library links")
 	}
 	defer rows.Close()
 	count := 0
 	for rows.Next() {
 		var path string
 		if err := rows.Scan(&path); err != nil {
-			return 0, errors.New("settings: cannot inspect version links")
+			return 0, errors.New("settings: cannot inspect library links")
 		}
 		inside := false
 		for _, root := range roots {
@@ -113,7 +113,7 @@ func activeLinksOutside(ctx context.Context, q rootQueryer, key string, roots []
 		}
 	}
 	if rows.Err() != nil {
-		return 0, errors.New("settings: cannot inspect version links")
+		return 0, errors.New("settings: cannot inspect library links")
 	}
 	return count, nil
 }
@@ -405,7 +405,7 @@ func activeVersionLinks(ctx context.Context, q rootQueryer, key string) (int, er
 		JOIN version v ON v.id = lv.version_id
 		WHERE v.policy_key = ? AND l.state = 'active'`, key).Scan(&count)
 	if err != nil {
-		return 0, errors.New("settings: cannot inspect version links")
+		return 0, errors.New("settings: cannot inspect library links")
 	}
 	return count, nil
 }
@@ -422,7 +422,7 @@ func versionLinks(ctx context.Context, q rootQueryer, key string) (int, error) {
 		JOIN version v ON v.id = lv.version_id
 		WHERE v.policy_key = ? AND l.state != 'unlinked'`, key).Scan(&count)
 	if err != nil {
-		return 0, errors.New("settings: cannot inspect version links")
+		return 0, errors.New("settings: cannot inspect library links")
 	}
 	return count, nil
 }

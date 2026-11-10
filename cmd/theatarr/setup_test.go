@@ -183,7 +183,7 @@ func TestServeStartsWithNothingConfigured(t *testing.T) {
 		Error string `json:"error"`
 	}
 	if code := call("POST", web.APIBase+"/titles", login.CSRF, map[string]any{"kind": "movie", "tmdb_id": 348}, &refused); code != http.StatusBadRequest ||
-		!strings.Contains(refused.Error, "no version") {
+		!strings.Contains(refused.Error, "no library") {
 		t.Errorf("add = %d %q", code, refused.Error)
 	}
 	// Nothing that could act is on: the global switches are off and there is no version to grab for.

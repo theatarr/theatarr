@@ -449,13 +449,13 @@ func pickVersions(all []manageVersion, keys []string) ([]manageVersion, error) {
 		return all, nil
 	}
 	if len(keys) == 0 {
-		return nil, errors.New("pick at least one version")
+		return nil, errors.New("pick at least one library")
 	}
 	var out []manageVersion
 	for _, k := range keys {
 		i := slices.IndexFunc(all, func(v manageVersion) bool { return v.key == k })
 		if i < 0 {
-			return nil, fmt.Errorf("the title has no version %q", k)
+			return nil, fmt.Errorf("the title has no library %q", k)
 		}
 		out = append(out, all[i])
 	}
@@ -672,7 +672,7 @@ func (w *Web) searchScoped(rw http.ResponseWriter, r *http.Request, season *int)
 		keys = nil
 		for _, k := range req.Versions {
 			if !slices.Contains(on, k) {
-				badRequest(rw, "the title has no monitored version "+strconv.Quote(k))
+				badRequest(rw, "the title has no monitored library "+strconv.Quote(k))
 				return
 			}
 			keys = append(keys, k)
@@ -1044,7 +1044,7 @@ func (w *Web) apiEpisodeReleases(rw http.ResponseWriter, r *http.Request) {
 		key = have[0]
 	}
 	if !slices.Contains(have, key) {
-		badRequest(rw, "the title has no version "+strconv.Quote(key))
+		badRequest(rw, "the title has no library "+strconv.Quote(key))
 		return
 	}
 	vp := w.pol.Versions[key]

@@ -381,7 +381,7 @@ func (p *Policy) validateNaming(e *Errors, k string, v *VersionPolicy) {
 		if src == nil {
 			e.add(path+".from_arr", "unknown import.arr instance %q", n.FromArr)
 		} else if kind, ok := flavours[src.Flavour]; ok && kind != v.Kind {
-			e.add(path+".from_arr", "%s instance %q cannot name a %s version", src.Flavour, n.FromArr, v.Kind)
+			e.add(path+".from_arr", "%s instance %q cannot name a %s library", src.Flavour, n.FromArr, v.Kind)
 		}
 		if n.Folder != "" || n.File != "" || n.Season != "" || n.Specials != "" || n.Daily != "" || n.Anime != "" ||
 			n.Colon != "" || n.MultiEpisode != "" {
@@ -394,13 +394,13 @@ func (p *Policy) validateNaming(e *Errors, k string, v *VersionPolicy) {
 	}
 	if n.MultiEpisode != "" {
 		if v.Kind != KindSeries {
-			e.add(path+".multi_episode", "only for series versions")
+			e.add(path+".multi_episode", "only for series libraries")
 		} else if !multiEpisodeStyles[n.MultiEpisode] {
 			e.add(path+".multi_episode", "must be one of %s, got %q", list(multiEpisodeStyles), n.MultiEpisode)
 		}
 	}
 	if v.Kind == KindMovie && (n.Season != "" || n.Specials != "" || n.Daily != "" || n.Anime != "") {
-		e.add(path, "season, specials, daily and anime are for series versions")
+		e.add(path, "season, specials, daily and anime are for series libraries")
 	}
 }
 
@@ -518,11 +518,11 @@ func (p *Policy) validateLibrary(e *Errors) {
 		path := fmt.Sprintf("library.versions[%s]", k)
 		vp, ok := p.Versions[k]
 		if !ok {
-			e.add(path, "unknown version %q", k)
+			e.add(path, "unknown library %q", k)
 			continue
 		}
 		if v == nil || len(v.Roots) == 0 {
-			e.add(path+".roots", "required: the directories this version may write under")
+			e.add(path+".roots", "required: the directories this library may write under")
 			continue
 		}
 		// A relative root or library folder is reported as that alone: whether the folder is under a root is

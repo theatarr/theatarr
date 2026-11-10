@@ -94,12 +94,12 @@ func (w *Web) apiReleases(rw http.ResponseWriter, r *http.Request) {
 		key = have[0]
 	}
 	if key == "" {
-		badRequest(rw, "the title has no version: give version")
+		badRequest(rw, "the title has no library: give version")
 		return
 	}
 	vp := w.pol.Versions[key]
 	if vp == nil || vp.Kind != t.kind {
-		badRequest(rw, "unknown version "+strconv.Quote(key)+" for this title")
+		badRequest(rw, "unknown library "+strconv.Quote(key)+" for this title")
 		return
 	}
 	out := Releases{GrabState: versionGrabState(w.pol, key), TitleID: id, Version: key, Versions: have, Mode: string(vp.Mode), Candidates: []snapshot.Candidate{},

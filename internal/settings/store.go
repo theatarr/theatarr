@@ -158,7 +158,7 @@ func rowsFrom(records Records) ([]row, error) {
 	for _, r := range records.Versions {
 		b, err := versionConfigJSON(r.Config, r.Roots)
 		if err != nil {
-			return nil, errors.New("settings: invalid version config")
+			return nil, errors.New("settings: invalid library config")
 		}
 		out = append(out, row{Record: r.Record, Entity: "versions", Enabled: true, Config: b})
 	}
@@ -232,7 +232,7 @@ func rowsFrom(records Records) ([]row, error) {
 	for _, r := range records.Naming {
 		b, err := json.Marshal(r.Config)
 		if err != nil {
-			return nil, errors.New("settings: invalid version naming")
+			return nil, errors.New("settings: invalid library naming")
 		}
 		out = append(out, row{Record: r.Record, Entity: "naming", Enabled: true, Config: b})
 	}
@@ -316,7 +316,7 @@ func recordsFrom(rows []row, qualityManaged bool) (Records, error) {
 			v := Version{Record: r.Record}
 			config, roots, err := versionConfigFromJSON(r.Config)
 			if err != nil {
-				return Records{}, errors.New("settings: corrupt version config")
+				return Records{}, errors.New("settings: corrupt library config")
 			}
 			v.Config, v.Roots = config, roots
 			records.Versions = append(records.Versions, v)
@@ -383,7 +383,7 @@ func recordsFrom(rows []row, qualityManaged bool) (Records, error) {
 			}
 			v := VersionNaming{Record: r.Record}
 			if err := json.Unmarshal(r.Config, &v.Config); err != nil {
-				return Records{}, errors.New("settings: corrupt version naming")
+				return Records{}, errors.New("settings: corrupt library naming")
 			}
 			records.Naming = append(records.Naming, v)
 		case "sync_sources":
@@ -1114,7 +1114,7 @@ func (s *Store) clampVersionsToHead(ctx context.Context, versions []Version) err
 		}
 		config, _, err := versionConfigFromJSON([]byte(raw))
 		if err != nil {
-			return fmt.Errorf("settings: corrupt version %q", key)
+			return fmt.Errorf("settings: corrupt library %q", key)
 		}
 		head[key] = headVersion{active: config.Mode == policy.ModeActive, grab: config.Grab}
 	}

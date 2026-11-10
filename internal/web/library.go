@@ -275,7 +275,7 @@ func gridFilter(r *http.Request) (TitleGridFilter, error) {
 	}
 	g.SortVersion = q.Get("sort_version")
 	if g.SortVersion != "" && !versionKeyRE.MatchString(g.SortVersion) {
-		return g, errors.New("sort_version must be a version key")
+		return g, errors.New("sort_version must be a library key")
 	}
 	if g.Order != "" && g.Order != "asc" && g.Order != "desc" {
 		return g, errors.New("order must be asc or desc")

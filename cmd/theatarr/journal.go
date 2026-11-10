@@ -41,7 +41,7 @@ func runJournal(args []string, out io.Writer) error {
 	id := fs.String("id", "", "print one entry")
 	since := fs.String("since", "", "entries at or after: RFC 3339, YYYY-MM-DD, or a duration back from now (72h)")
 	title := fs.String("title", "", "a title id, or part of a title's name")
-	version := fs.String("version", "", "a version key")
+	version := libraryFlag(fs, "a library key")
 	kind := fs.String("kind", "", "kinds, comma-separated: "+strings.Join(journal.Kinds, ", "))
 	suspect := fs.Bool("suspect", false, "only entries with an unacknowledged warn or error flag")
 	severity := fs.String("severity", "", "only entries with an unacknowledged flag of at least: info, warn, error")

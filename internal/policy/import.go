@@ -52,8 +52,8 @@ func (p *Policy) validateImport(e *Errors) {
 			}
 		}
 		checkEnv(e, field+".api_key_env", a.APIKeyEnv, true)
-		if checkRef(e, field+".version", "version", a.Version, p.Versions, true) && ok && p.Versions[a.Version].Kind != kind {
-			e.add(field+".version", "version %q is a %s version; a %s instance holds %ss",
+		if checkRef(e, field+".version", "library", a.Version, p.Versions, true) && ok && p.Versions[a.Version].Kind != kind {
+			e.add(field+".version", "library %q is a %s library; a %s instance holds %ss",
 				a.Version, p.Versions[a.Version].Kind, a.Flavour, kind)
 		}
 	}

@@ -38,7 +38,7 @@ func validateSonarr(e *Errors, path string, v *VersionPolicy) {
 	case "": // a movie version (ApplyDefaults gives a series version v4)
 	case SonarrV4, SonarrV5, SonarrV4Plus:
 		if v.Kind == KindMovie {
-			e.add(path+".sonarr", "only series versions take a Sonarr version")
+			e.add(path+".sonarr", "only series libraries take a Sonarr version")
 		}
 	default:
 		e.add(path+".sonarr", "must be %s, %s or %s, got %q", SonarrV4, SonarrV4Plus, SonarrV5, v.Sonarr)
@@ -51,7 +51,7 @@ func validatePacks(e *Errors, path string, v *VersionPolicy) {
 	switch v.Packs {
 	case PacksAll, PacksAnyUpgradable, PacksThreshold:
 		if v.Packs != PacksAll && v.Kind == KindMovie {
-			e.add(path+".packs", "only series versions take season packs")
+			e.add(path+".packs", "only series libraries take season packs")
 		}
 	default:
 		e.add(path+".packs", "must be %s, %s or %s, got %q", PacksAll, PacksAnyUpgradable, PacksThreshold, v.Packs)
@@ -140,7 +140,7 @@ func (p *Policy) checkFromArrFits(e *Errors, path string, pr *Profile, kind Kind
 		return
 	}
 	if k, known := flavours[p.Import.Arr[inst].Flavour]; known && k != kind {
-		e.add(path, "profile comes from %s instance %q, but the version is a %s", p.Import.Arr[inst].Flavour, inst, kind)
+		e.add(path, "profile comes from %s instance %q, but the library is a %s", p.Import.Arr[inst].Flavour, inst, kind)
 	}
 }
 

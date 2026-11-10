@@ -37,13 +37,13 @@ func init() {
 }
 
 const decideUsage = `usage:
-  theatarr decide [flags] -title ID|-tmdb N -version KEY 'Release.Title.2024.2160p.WEB-DL-GRP'
-  theatarr decide [flags] -title ID|-tmdb N -version KEY -search
-  theatarr decide [flags] -tvdb N -version KEY [-season N [-episode N]] 'Release.Title'   (a series version)
-  theatarr decide shadow [flags] -instance NAME -version KEY
+  theatarr decide [flags] -title ID|-tmdb N -library KEY 'Release.Title.2024.2160p.WEB-DL-GRP'
+  theatarr decide [flags] -title ID|-tmdb N -library KEY -search
+  theatarr decide [flags] -tvdb N -library KEY [-season N [-episode N]] 'Release.Title'   (a series library)
+  theatarr decide shadow [flags] -instance NAME -library KEY
 
 The first decides one release title, with optional indexer attributes (-size, -flags, -languages, -seeders,
--indexer, -imdb). The second searches the version's indexers through the gateway first and ranks what
+-indexer, -imdb). The second searches the library's indexers through the gateway first and ranks what
 comes back; like theatarr search it applies the configured VPN requirements. The third replays an
 arr instance's grab history from the database (or -corpus) through the engine and prints the agreement.
 
@@ -81,7 +81,7 @@ func (f *decideFlags) engine(version string, warn io.Writer) (*policy.Policy, *d
 	}
 	v := pol.Versions[version]
 	if v == nil {
-		return nil, nil, fmt.Errorf("the policy has no version %q", version)
+		return nil, nil, fmt.Errorf("the policy has no library %q", version)
 	}
 	var src decide.ArrSource
 	if f.arrSnapshot != "" {
@@ -155,7 +155,7 @@ func runDecide(args []string, out io.Writer, dial func(context.Context, string, 
 	tvdb := fs.Int("tvdb", 0, "find the series by TVDB id")
 	season := fs.Int("season", -1, "series: decide as found by a search for this season (with -search: search it)")
 	episode := fs.Int("episode", 0, "series: with -season, a search for this one episode")
-	version := fs.String("version", "", "version key from the policy")
+	version := libraryFlag(fs, "library key from the policy")
 	search := fs.Bool("search", false, "search the version's indexers through the gateway and decide every result")
 	size := fs.String("size", "", "release size: bytes, or with a unit (25GB, 700MiB)")
 	flags := fs.String("flags", "", "indexer flags: arr names (G_Freeleech,G_Scene) or torznab tags (freeleech,internal,scene)")
@@ -171,7 +171,7 @@ func runDecide(args []string, out io.Writer, dial func(context.Context, string, 
 	}
 	if *version == "" || (*titleID == 0 && *tmdb == 0 && *tvdb == 0) {
 		fs.Usage()
-		return errors.New("-version and -title, -tmdb or -tvdb are required")
+		return errors.New("-library and -title, -tmdb or -tvdb are required")
 	}
 	if *search == (fs.NArg() == 1) || fs.NArg() > 1 {
 		fs.Usage()
@@ -524,7 +524,7 @@ func runDecideShadow(args []string, out io.Writer) error {
 	var df decideFlags
 	df.register(fs)
 	instance := fs.String("instance", "", "arr instance whose grabs to replay")
-	version := fs.String("version", "", "version (with a from_arr profile of that instance) to decide them for")
+	version := libraryFlag(fs, "library (with a from_arr profile of that instance) to decide them for")
 	corpus := fs.String("corpus", "", "read the grabs from this corpus instead of the database (no existing files)")
 	aliases := fs.String("aliases", "", "corpus directory to take alternative titles from (database mode)")
 	seriesAliases := fs.String("series-aliases", "", "series: a saved GET series answer (JSON) to take scene mappings from")
@@ -534,7 +534,7 @@ func runDecideShadow(args []string, out io.Writer) error {
 	}
 	if *instance == "" || *version == "" {
 		fs.Usage()
-		return errors.New("-instance and -version are required")
+		return errors.New("-instance and -library are required")
 	}
 	ctx := context.Background()
 	_, e, err := df.engine(*version, os.Stderr)
