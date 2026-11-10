@@ -387,3 +387,11 @@ func TestFollowedRootMustBeReadable(t *testing.T) {
 	}
 	t.Fatal("unreadable followed root did not fail")
 }
+
+// Once a library exists an unset trash folder is a failure: upgrades and removals would keep no copy of the replaced
+// link. Before the first library it stays a warning (TestRunEmptyInstall).
+func TestRunTrashUnsetWithLibraryFails(t *testing.T) {
+	o, _ := good(t)
+	o.Policy.Library.Trash.Dir = ""
+	want(t, Run(context.Background(), o), "library/trash", Fail, "library.trash.dir is not set")
+}

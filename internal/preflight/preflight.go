@@ -279,7 +279,7 @@ func (c *checker) library(ctx context.Context) {
 
 	switch {
 	case lib.TrashDir == "" && len(c.p.Versions) > 0:
-		c.add(AreaLibrary, "trash", Warn, "set the trash folder in "+uipages.FileManagement+" to a writable directory outside "+
+		c.add(AreaLibrary, "trash", Fail, "set the trash folder in "+uipages.FileManagement+" to a writable directory outside "+
 			"every root and the mount", "library.trash.dir is not set: upgrades and removals keep no copy of the "+
 			"replaced link")
 	case lib.TrashDir == "":
