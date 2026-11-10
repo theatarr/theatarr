@@ -148,12 +148,13 @@ func versionSettingsRequest(snap *settings.Snapshot, body versionSettingsBody, c
 		return req, err
 	}
 	record.Config.Naming = naming
-	if body.Roots != nil {
+	stored := record.Roots
+	if body.Roots != nil && (len(*body.Roots) > 0 || len(stored) > 0) {
 		record.Roots = append([]string(nil), (*body.Roots)...)
 	}
-	// A new library, or an edit that sends empty roots, writes under its library folder, as the editor shows it. An
-	// edit that sends no roots keeps the stored ones.
-	if (create || body.Roots != nil) && len(record.Roots) == 0 && record.Config.Library != "" {
+	// A new library, or an edit that empties stored roots, writes under its library folder, as the editor shows it.
+	// A library stored without roots keeps none when an edit sends none (the editor sends [] for it).
+	if (create || len(stored) > 0) && len(record.Roots) == 0 && record.Config.Library != "" {
 		record.Roots = []string{record.Config.Library}
 	}
 	if index < 0 {

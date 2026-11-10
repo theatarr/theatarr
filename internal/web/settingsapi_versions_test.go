@@ -2,6 +2,7 @@ package web
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"fmt"
 	"net/http"
@@ -13,6 +14,7 @@ import (
 
 	"github.com/theatarr/theatarr/internal/auth"
 	"github.com/theatarr/theatarr/internal/policy"
+	"github.com/theatarr/theatarr/internal/settings"
 	"go.yaml.in/yaml/v3"
 )
 
@@ -332,5 +334,39 @@ func TestSettingsVersionEditEmptyRootsUsesLibraryFolder(t *testing.T) {
 	se.want(se.call("PUT", "/versions/test-version", map[string]any{"generation": se.generation(), "key": "test-version", "config": config}), 200, "edit without roots")
 	if got := roots(); len(got) != 2 {
 		t.Fatalf("stored roots changed by an edit without roots: %v", got)
+	}
+}
+
+// A library stored without roots keeps none when an edit sends the editor's [] for them: the edit does not start
+// writes under its folder.
+func TestSettingsVersionEditKeepsStoredNilRoots(t *testing.T) {
+	t.Parallel()
+	se := newSettingsEnvBase(t, nil, nil, nil)
+	snap, err := se.coord.Snapshot(context.Background())
+	if err != nil {
+		t.Fatal(err)
+	}
+	req := settings.SaveRequest{ExpectedGeneration: snap.Generation, Actor: "test", Records: cloneRecords(snap.Records)}
+	for i := range req.Records.Versions {
+		if req.Records.Versions[i].Key == "movie-remux" {
+			req.Records.Versions[i].Roots = nil
+		}
+	}
+	if _, err := se.coord.SaveAndApply(context.Background(), req); err != nil {
+		t.Fatal(err)
+	}
+	record := se.want(se.call("GET", "/versions/movie-remux", nil), 200, "get")["record"].(map[string]any)
+	if record["roots"] != nil {
+		t.Fatalf("fixture roots: %v", record["roots"])
+	}
+	config := record["config"].(map[string]any)
+	config["upgrades"] = "off"
+	se.want(se.call("PUT", "/versions/movie-remux", map[string]any{"generation": se.generation(), "key": "movie-remux", "config": config, "roots": []string{}}), 200, "edit")
+	after := se.want(se.call("GET", "/versions/movie-remux", nil), 200, "get")["record"].(map[string]any)
+	if after["roots"] != nil || after["config"].(map[string]any)["upgrades"] != "off" {
+		t.Fatalf("after the edit: roots %v, upgrades %v", after["roots"], after["config"].(map[string]any)["upgrades"])
+	}
+	if lv := se.coord.Current().Policy.Library.Versions["movie-remux"]; lv != nil {
+		t.Fatalf("the edit gave the library roots: %+v", lv)
 	}
 }
