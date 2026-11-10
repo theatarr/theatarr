@@ -91,7 +91,8 @@ you added a title, and nothing is downloaded or nothing reaches Plex.
 Start with **Wanted** (it says what each title is waiting for), the title's **Releases** page (what the indexers
 returned and why each release was accepted or rejected) and **System › Status**. The usual causes:
 
-- **The title has not been searched yet.** **Search now** in the add dialog is off by default. Without it a new title
+- **The title has not been searched yet.** **Search now** in the add dialog is off, unless you left it on the
+  last time you added a title in this browser. Without it a new title
   waits for the automatic search: a round every 15 minutes, at most 10 searches an hour, and the same item again
   only after 24 hours (**Settings › Download clients › Behaviour**, **Automatic searches**). **Search now** on
   the title page searches it at once. **Search now** on the **Wanted** page queues the search under the same hourly

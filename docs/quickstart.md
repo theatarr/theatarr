@@ -350,7 +350,17 @@ links** all on), add a title and watch it arrive:
 
 1. Type a film or series into the search in the top bar (or open **Search**) and choose **Add** on the result.
    Tick the library and turn **Search now** on: it is off by default, and without it the title waits for the
-   automatic search, which runs every 15 minutes and starts at most 10 searches an hour.
+   automatic search, which runs every 15 minutes and starts at most 10 searches an hour. Once you turn it on, this
+   browser keeps it on for the next add, until you turn it off again.
+
+   A series that is not in the library yet has two more choices, and leaving them alone adds it as before:
+   - **Monitor**: the seasons you tick (**Seasons I pick below**; **Every season** while the episodes are not
+     known yet), or one of **All episodes**, **Future episodes**, **Missing episodes**, **First season**,
+     **Latest season**, **Pilot only** and **None**.
+   - **Monitor seasons that appear later**, on by default. Off: a season announced after the add stays
+     unmonitored.
+
+   Neither is offered for a series that is already in a library; change its monitoring on the title page.
 2. Open **Activity › Queue**. A release that a provider has cached shows there as a download and is then linked
    into the library root; with Plex connected, Theatarr asks Plex to scan that folder.
 3. If nothing shows up, open **Wanted**: each row says what the title is waiting for, and **Search now** on the
