@@ -497,7 +497,7 @@ func (e *Engine) decideMovie(ctx context.Context, d *Decision, p *Profile, rel R
 	if m.title != t && (t.ID == 0 || m.title.ID != t.ID) {
 		group0 = append([]Rejection{{Reason: "WrongMovie", Message: "Wrong movie", Spec: "MovieSpecification"}}, group0...)
 	}
-	group0 = append(e.ourRules(rel, v), group0...)
+	group0 = append(append(e.ourRules(rel, v), unknownSize(rel, p.Engine, qm.Quality, false)...), group0...)
 	if len(group0) > 0 {
 		d.Rejections = group0
 	} else {
@@ -533,6 +533,34 @@ func (e *Engine) ourRules(rel Release, v Version) []Rejection {
 			"Indexer %s is not one of version %s's indexers (%s)", rel.Indexer, v.Key, strings.Join(v.Policy.Indexers, ", "))})
 	}
 	return out
+}
+
+// unknownSize is our rule for a release a person added by magnet or hash (policy.ManualIndexer): nothing reports its
+// size, and the size specifications accept a size of zero unchecked. When a size limit is set for its quality (the
+// quality definition's minimum or maximum, or the indexers' maximum size), the release is rejected with that as the
+// reason, for the person to add it anyway or not. A release from a search or a push with no size is decided as the
+// arrs decide it. special is Sonarr's: specials are not held to the quality's limits.
+func unknownSize(rel Release, eng *profile.Engine, q profile.Quality, special bool) []Rejection {
+	if !policy.IsManualAdd(rel.Indexer) || rel.Size != 0 {
+		return nil
+	}
+	var limits []string
+	if def := eng.Definitions.Get(q); !special {
+		if def.MinSize != nil && *def.MinSize > 0 {
+			limits = append(limits, fmt.Sprintf("%s minimum %s MB per minute", q.Name, strconv.FormatFloat(*def.MinSize, 'f', -1, 64)))
+		}
+		if def.MaxSize != nil && *def.MaxSize > 0 {
+			limits = append(limits, fmt.Sprintf("%s maximum %s MB per minute", q.Name, strconv.FormatFloat(*def.MaxSize, 'f', -1, 64)))
+		}
+	}
+	if eng.Config.MaximumSize > 0 {
+		limits = append(limits, fmt.Sprintf("maximum size %d MB", eng.Config.MaximumSize))
+	}
+	if len(limits) == 0 {
+		return nil
+	}
+	return []Rejection{{Reason: "UnknownSize", Ours: true, Message: "The size of a release added by hand is not known, so " +
+		"the size limits could not be checked (" + strings.Join(limits, ", ") + ")"}}
 }
 
 // upgradeOf says whether the release upgrades the existing file and why: the upgrade specifications' rejection when
