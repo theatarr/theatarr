@@ -2,11 +2,11 @@
 #
 # Each release publishes an image (linux/amd64) to ghcr.io/theatarr/theatarr; the repository's Releases page,
 # https://github.com/theatarr/theatarr/releases, lists the versions. The image tag is the version without the
-# leading v: release v0.1.3 is the image 0.1.3. compose.yaml beside this file builds the image from source instead;
+# leading v: release v0.1.4 is the image 0.1.4. compose.yaml beside this file builds the image from source instead;
 # an arm64 host needs that one (untested there), since no arm64 image is published yet.
 #
 #   cp examples/compose.image.yaml compose.yaml    # any directory; no checkout of the repository is needed
-#   echo THEATARR_VERSION=0.1.3 > .env             # a released version; every docker compose command reads it
+#   echo THEATARR_VERSION=0.1.4 > .env             # a released version; every docker compose command reads it
 #   mkdir -p data && sudo chown 65532:65532 data
 #   docker compose up -d
 #   sudo cat data/initial-admin-password           # the first admin password; sign in as admin at http://<host>:7700
@@ -14,7 +14,7 @@
 # Every host path below is a placeholder. docs/quickstart.md explains each one.
 services:
   theatarr:
-    image: ghcr.io/theatarr/theatarr:${THEATARR_VERSION:?set THEATARR_VERSION to a released version, for example 0.1.3}
+    image: ghcr.io/theatarr/theatarr:${THEATARR_VERSION:?set THEATARR_VERSION to a released version, for example 0.1.4}
     container_name: theatarr           # the name the app's "docker exec theatarr ..." hints use
     restart: unless-stopped            # also needed by the restore from the web UI, which restarts the service
     ports:

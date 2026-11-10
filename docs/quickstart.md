@@ -18,18 +18,18 @@ linux/amd64 to `ghcr.io/theatarr/theatarr`, and the
 [Releases page](https://github.com/theatarr/theatarr/releases) lists the versions. There is no published arm64
 image yet: on an arm64 host, build from source (below). CI cross-builds the arm64 image on an amd64 machine; a
 build on an arm64 host and the result on real hardware are untested. The image tag is the version
-without the leading `v`: release `v0.1.3` is the image `0.1.3`. Put the version in a `.env` file beside
+without the leading `v`: release `v0.1.4` is the image `0.1.4`. Put the version in a `.env` file beside
 `compose.yaml`, where every `docker compose` command reads it:
 
 ```sh
-echo THEATARR_VERSION=0.1.3 > .env
+echo THEATARR_VERSION=0.1.4 > .env
 ```
 
 ```yaml
 # compose.yaml
 services:
   theatarr:
-    image: ghcr.io/theatarr/theatarr:${THEATARR_VERSION:?set THEATARR_VERSION to a released version, for example 0.1.3}
+    image: ghcr.io/theatarr/theatarr:${THEATARR_VERSION:?set THEATARR_VERSION to a released version, for example 0.1.4}
     container_name: theatarr
     restart: unless-stopped
     ports:

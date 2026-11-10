@@ -132,12 +132,12 @@ Optional:
 Pull the released image with [`examples/compose.image.yaml`](examples/compose.image.yaml). Each release publishes
 an image for linux/amd64 to `ghcr.io/theatarr/theatarr`; the
 [Releases page](https://github.com/theatarr/theatarr/releases) lists the versions. The image tag is the version
-without the leading `v` (release `v0.1.3` is the image `0.1.3`).
+without the leading `v` (release `v0.1.4` is the image `0.1.4`).
 
 ```sh
 mkdir theatarr && cd theatarr
 curl -fsSL -o compose.yaml https://raw.githubusercontent.com/theatarr/theatarr/main/examples/compose.image.yaml
-echo THEATARR_VERSION=0.1.3 > .env             # a version from the Releases page; then edit the host paths in compose.yaml
+echo THEATARR_VERSION=0.1.4 > .env             # a version from the Releases page; then edit the host paths in compose.yaml
 mkdir -p data && sudo chown 65532:65532 data   # the image runs as uid 65532; so must the library roots and trash
 docker compose up -d
 sudo cat data/initial-admin-password
