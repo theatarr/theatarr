@@ -127,7 +127,8 @@ export function AddByHash({ titleId, version }: { titleId: number; version: stri
   const [typed, setTyped] = useState(false);
   const source = link.trim();
   // A 409 with rejections to a request that did not override: the next one may. One that did override was refused
-  // for another reason (no episode of the title matches the name), which is shown as it is.
+  // for another reason (the title has no copy for the library), which is shown as it is. A name that matches no
+  // episode is refused at the first request, with no rejections to override.
   const rejected = add.error instanceof ApiError && add.error.status === 409 && add.error.detail?.length && !add.variables?.override ? add.error.detail : undefined;
   const send = (override: boolean) => {
     const magnet = /^magnet:/i.test(source);
