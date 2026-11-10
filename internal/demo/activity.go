@@ -631,6 +631,29 @@ func (s *seeder) snapshot(t *title, v *version, rel *release, target string, run
 	}
 }
 
+// upgradesFound records, for two movies whose file is below its cutoff, a later search that found a better release:
+// they read "Upgrade found" and fill Home's row of that name; the others below cutoff read "Best quality known".
+// No draws here, so the rest of the seeded data is unchanged.
+func (s *seeder) upgradesFound() {
+	for i, name := range []string{"Saltglass Meridian", "Tidewater Requiem"} {
+		t := s.byName[name]
+		if s.err != nil || t == nil || len(t.versions) == 0 || t.versions[0].state != "filled" {
+			continue
+		}
+		v := t.versions[0]
+		rel := fmt.Sprintf("%s.%d.2160p.UHD.BluRay.REMUX.DV.HDR.TrueHD.7.1.Atmos-%s", strings.ReplaceAll(t.name, " ", "."), t.year,
+			movieGroups[i%len(movieGroups)])
+		d := &decide.Decision{Release: rel, Version: v.key, Accepted: true, Upgrade: true, Quality: "Remux-2160p", Score: 3200,
+			Parsed: true, Formats: []decide.FormatScore{{Name: "Remux Tier", Score: 3200}}}
+		if err := snapshot.Record(s.ctx, s.tx, snapshot.Search{Source: "wanted", TitleID: t.id, Version: v.key, Target: "movie",
+			Ranked: []*decide.Decision{d}, Releases: map[*decide.Decision]indexer.Release{d: {Title: rel, Indexer: "prowlarr-public",
+				InfoHash: fmt.Sprintf("%040x", 0xbe77e4+i), Size: 58 << 30, Seeders: 40 + i}},
+			Notes: []string{"1 results from 3 indexers"}, CreatedAt: s.now.Add(-time.Duration(3+i) * time.Hour)}); err != nil {
+			s.err = err
+		}
+	}
+}
+
 func rejectionText(r string) string {
 	return map[string]string{
 		"QualityNotWanted":         "the quality is not wanted by the profile",

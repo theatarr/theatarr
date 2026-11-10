@@ -392,7 +392,7 @@ func TestUserAvailabilityIsWatchability(t *testing.T) {
 	if want := map[string]int{"available": 2, "partial": 1, "missing": 1, "none": 1}; !maps.Equal(f.Availability, want) {
 		t.Errorf("facets as user: %v, want %v", f.Availability, want)
 	}
-	// Home: no Missing or Below cutoff row for a user; a manager keeps them.
+	// Home: no Missing or Upgrade found row for a user; a manager keeps them.
 	var home Discover
 	e.getKey(b+"/discover", ukey, &home)
 	if len(home.Missing.Items) != 0 || len(home.Upgrades.Items) != 0 || len(home.Recent.Items) == 0 {
@@ -408,6 +408,20 @@ func TestUserAvailabilityIsWatchability(t *testing.T) {
 	e.getKey(b+"/discover", akey, &home)
 	if len(home.Missing.Items) == 0 {
 		t.Error("admin discover lost the missing row")
+	}
+	// With an upgrade found the row has a title for a manager, and stays empty for a user.
+	e.exec(`INSERT INTO journal_decision(source,title_id,version_key,target,results,accepted,candidates,rejections,notes,created_at)
+		VALUES('test',2,'movie-web','movie',1,1,'[{"release":"Beta.Remux","accepted":true,"upgrade":true,"score":9000}]','{}','',?)`,
+		store.Millis(testNow))
+	if e.getKey(b+"/discover", akey, &home); len(home.Upgrades.Items) != 1 {
+		t.Errorf("admin discover: %d upgrades found, want 1", len(home.Upgrades.Items))
+	}
+	var r DiscoverRow
+	if code := e.getKey(b+"/discover/upgrades", ukey, &r); code != 200 || len(r.Items) != 0 || r.Total != 0 {
+		t.Errorf("discover/upgrades as user with an upgrade found: %d, %d items", code, len(r.Items))
+	}
+	if e.getKey(b+"/discover", ukey, &home); len(home.Upgrades.Items) != 0 {
+		t.Errorf("user discover with an upgrade found: %d upgrades", len(home.Upgrades.Items))
 	}
 }
 
