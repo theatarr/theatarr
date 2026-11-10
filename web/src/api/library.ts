@@ -79,6 +79,8 @@ export const useEpisodes = (id: string, season?: number, enabled = true) =>
     queryFn: () => api<EpisodeList>(`/titles/${encodeURIComponent(id)}/episodes` + qs({ season })),
     enabled,
     select: episodeLabels,
+    // "aired" is as of the response, and no event says an episode's air time has passed: ask again while the page is open.
+    refetchInterval: 3 * 60_000,
   });
 
 /** One Home row in full (GET /discover/{row}), paged as the grid scrolls: every kind, the row's own order. */
