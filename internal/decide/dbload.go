@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"github.com/theatarr/theatarr/internal/decide/parser/radarr"
+	"github.com/theatarr/theatarr/internal/decide/parser/sonarr"
 	"github.com/theatarr/theatarr/internal/library/naming"
 	"github.com/theatarr/theatarr/internal/metadata/anime/animemap"
 	"github.com/theatarr/theatarr/internal/policy"
@@ -400,6 +401,9 @@ func scanTitle(rows *sql.Rows) (Title, error) {
 	t.Kind, t.Anime = policy.Kind(kind), anime == 1
 	if t.Kind == policy.KindSeries {
 		t.Runtime, t.OriginalLanguage = runtime, lang
+		if lang == "" {
+			t.OriginalLanguage = seriesOriginalLanguage(metaLang)
+		}
 		return t, nil
 	}
 	t.Runtime, t.OriginalLanguage = runtime, lang
@@ -419,6 +423,15 @@ func scanTitle(rows *sql.Rows) (Title, error) {
 		t.OriginalTitle = original
 	}
 	return t, nil
+}
+
+// seriesOriginalLanguage is Sonarr's series original language for a title the arr import did not set (a native,
+// Seerr or Sonarr API add): IsoLanguages.Find(code.ToLower()) from the metadata, else English.
+func seriesOriginalLanguage(code string) string {
+	if iso := sonarr.FindIsoLanguage(strings.ToLower(code)); iso != nil {
+		return iso.Language.Name
+	}
+	return sonarr.LanguageEnglish.Name
 }
 
 // tmdbOriginalLanguage is SkyHookProxy.MapMovie's original language: IsoLanguages.Find(original_language.ToLower()),

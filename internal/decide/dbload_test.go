@@ -4,10 +4,13 @@ import (
 	"bytes"
 	"compress/gzip"
 	"context"
+	"os"
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 
+	"github.com/theatarr/theatarr/internal/policy"
 	"github.com/theatarr/theatarr/internal/store"
 	"github.com/theatarr/theatarr/internal/store/storetest"
 )
@@ -297,5 +300,111 @@ func TestLoadSeriesVersion(t *testing.T) {
 	d, err = e.Decide(ctx, rel("[G] Isekai Story - 03 (BD 1080p)", "public", 2*gb), tt, v, nil)
 	if err != nil || !d.Accepted {
 		t.Errorf("replacement absolute match: %+v, %v", d, err)
+	}
+}
+
+// A natively added series (title.original_language NULL, title_meta.original_language set by the art
+// refresh) must decide an untagged release with the series' original language, not Unknown.
+func TestSeriesOriginalLanguageFromMetadata(t *testing.T) {
+	ctx := context.Background()
+	dir := t.TempDir()
+	if err := os.CopyFS(dir, os.DirFS("testdata/series")); err != nil {
+		t.Fatal(err)
+	}
+	for name, body := range map[string]string{
+		"not-english.json":  `{"name":"Language: Not English","specifications":[{"name":"Not English","implementation":"LanguageSpecification","negate":true,"required":false,"fields":{"value":1}}]}`,
+		"not-original.json": `{"name":"Language: Not Original","specifications":[{"name":"Not Original","implementation":"LanguageSpecification","negate":true,"required":false,"fields":{"value":-2}}]}`,
+	} {
+		if err := os.WriteFile(filepath.Join(dir, "formats", name), []byte(body), 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+	raw, err := os.ReadFile(filepath.Join(dir, "policy.yaml"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	y := strings.Replace(string(raw), "      Season Pack: 10\n      HDR: 500\n",
+		"      Season Pack: 10\n      HDR: 500\n      \"Language: Not English\": -10000\n      \"Language: Not Original\": -10000\n", 1)
+	y = strings.Replace(y, "formats:\n  Season Pack:", "formats:\n  \"Language: Not English\": {file: formats/not-english.json, flavour: sonarr}\n  \"Language: Not Original\": {file: formats/not-original.json, flavour: sonarr}\n  Season Pack:", 1)
+	if y == string(raw) {
+		t.Fatal("policy not patched")
+	}
+	if err := os.WriteFile(filepath.Join(dir, "policy.yaml"), []byte(y), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	pol, err := policy.Load(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	e, err := New(pol, Options{Now: func() time.Time { return seriesClock }})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	st, err := store.Open(ctx, storetest.Seed(t, filepath.Join(t.TempDir(), "theatarr.db")), store.Options{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer st.Close()
+	if _, err := st.Migrate(ctx); err != nil {
+		t.Fatal(err)
+	}
+	w := st.Writer()
+	exec := func(q string, args ...any) {
+		t.Helper()
+		if _, err := w.ExecContext(ctx, q, args...); err != nil {
+			t.Fatalf("%s: %v", q, err)
+		}
+	}
+	// Rows as catalog.create writes them: no original_language. monitored set as the add does later.
+	for id, name := range map[int]string{1: "English Show", 2: "Nihon Show", 3: "Imported Show", 4: "Bare Show"} {
+		exec(`INSERT INTO title (id, kind, name, sort_name, year, tmdb_id, tvdb_id, imdb_id, anime, monitored, created_at, updated_at)
+			VALUES (?, 'series', ?, ?, 2020, ?, ?, NULL, 0, 1, 0, 0)`, id, name, strings.ToLower(name), 100+id, 1000+id)
+		exec(`INSERT INTO version (id, title_id, policy_key, monitored, created_at, updated_at) VALUES (?, ?, 'tv', 1, 0, 0)`, 10+id, id)
+		exec(`INSERT INTO episode (id, title_id, season, number, name, air_date, air_date_utc_at, runtime_minutes, monitored, created_at, updated_at)
+			VALUES (?, ?, 1, 1, 'Pilot', '2020-04-01', 1585706400000, 45, 1, 0, 0)`, 100+id, id)
+	}
+	// What art.Service.write stores for a series: title_meta only.
+	exec(`INSERT INTO title_meta (title_id, original_language, refreshed_at, attempted_at, refresh_after, error)
+		VALUES (1, 'en', 1, 2, 3, ''), (2, 'ja', 1, 2, 3, '')`)
+	// Control: what importarr stores for a Sonarr-imported series.
+	exec(`UPDATE title SET original_language = 'English' WHERE id = 3`)
+
+	for _, c := range []struct {
+		id        int64
+		name, rel string
+		wantLang  string
+	}{
+		{3, "control: imported, title.original_language=English", "Imported.Show.S01E01.2160p.WEB-DL-GRP", "English"},
+		{1, "native, title_meta en", "English.Show.S01E01.2160p.WEB-DL-GRP", "English"},
+		{2, "native, title_meta ja", "Nihon.Show.S01E01.2160p.WEB-DL-GRP", "Japanese"},
+		{4, "native, no metadata language (Sonarr: English)", "Bare.Show.S01E01.2160p.WEB-DL-GRP", "English"},
+	} {
+		t.Run(c.name, func(t *testing.T) {
+			title, err := LoadTitle(ctx, st.Reader(), c.id)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if err := LoadSeriesVersion(ctx, st.Reader(), &title, 10+c.id); err != nil {
+				t.Fatal(err)
+			}
+			d, err := e.Decide(ctx, rel(c.rel, "public", 8*gb), title, Version{ID: 10 + c.id, Key: "tv", Policy: e.Policy.Versions["tv"]}, nil)
+			if err != nil {
+				t.Fatal(err)
+			}
+			var formats []string
+			for _, f := range d.Formats {
+				formats = append(formats, f.Name)
+			}
+			if len(d.Languages) != 1 || d.Languages[0] != c.wantLang {
+				t.Errorf("languages %v, want %s", d.Languages, c.wantLang)
+			}
+			// Not Original never matches an untagged release; Not English only when the original is not English.
+			for _, f := range formats {
+				if f == "Language: Not Original" || (f == "Language: Not English" && c.wantLang == "English") {
+					t.Errorf("negated language format matched: %s (score %d)", f, d.Score)
+				}
+			}
+		})
 	}
 }
