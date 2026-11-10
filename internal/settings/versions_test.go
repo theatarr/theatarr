@@ -697,6 +697,21 @@ func TestVersionNameOptional(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	// The generation snapshot is the policy marshalled as JSON: an unnamed library adds no key there either.
+	snaps, err := db.Reader().Query("SELECT COALESCE(snapshot, '') FROM settings_generation")
+	if err != nil {
+		t.Fatal(err)
+	}
+	for snaps.Next() {
+		var raw string
+		if err := snaps.Scan(&raw); err != nil {
+			t.Fatal(err)
+		}
+		if strings.Contains(raw, `"Name":""`) {
+			t.Errorf("a generation snapshot stored an empty library name")
+		}
+	}
+	snaps.Close()
 	for key, raw := range stored() {
 		if strings.Contains(raw, `"name"`) {
 			t.Errorf("%s stored a name key without a name: %s", key, raw)

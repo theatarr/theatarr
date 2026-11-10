@@ -134,7 +134,7 @@ type VersionPolicy struct {
 	Ceiling Ceiling `yaml:"ceiling"`
 	// Name is an optional display name for people; empty uses the label guessed from the key and profile. It names
 	// nothing an arr client sees: keys, paths and arr-view profile names do not come from it.
-	Name string `yaml:"name,omitempty"`
+	Name string `yaml:"name,omitempty" json:",omitempty"`
 	// Mode is shadow (the default) or active.
 	Mode Mode `yaml:"mode"`
 	// Grab lets the router add torrents for the version (docs/design/decide.md). The router writes for a version
