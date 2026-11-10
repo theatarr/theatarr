@@ -123,10 +123,7 @@ func (l *Library) previewRename(ctx context.Context, titleID int64, season *int,
 			}
 		}
 		var path string
-		formats := make([]string, 0, len(facts.Formats))
-		for _, f := range facts.Formats {
-			formats = append(formats, f.Name)
-		}
+		formats := l.storedRenameFormats(ctx, key, facts)
 		if kind == "movie" {
 			path, err = l.nameMovie(ctx, &v, vn, root, facts.RelativePath, factsToFileFacts(facts), p, formats)
 		} else {
@@ -222,4 +219,17 @@ func hasSeason(eps []episodeInfo, season int) bool {
 		}
 	}
 	return false
+}
+
+// storedRenameFormats gives the {Custom Formats} names for a link's stored formats as import names them: through the
+// same include-when-renaming filter (l.matched), so a rename does not add scoring-only formats to the name.
+func (l *Library) storedRenameFormats(ctx context.Context, version string, facts decide.ExistingFile) []string {
+	names := make([]string, 0, len(facts.Formats))
+	for _, f := range facts.Formats {
+		names = append(names, f.Name)
+	}
+	if l.matched != nil {
+		return l.matched(ctx, version, names)
+	}
+	return names
 }

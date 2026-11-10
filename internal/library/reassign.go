@@ -218,10 +218,7 @@ func (l *Library) reassignEpisodes(ctx context.Context, linkID int64, episodeIDs
 	if root == "" {
 		return out, refuse("%s is not under the library's roots", out.PreviousPath)
 	}
-	formats := make([]string, 0, len(facts.Formats))
-	for _, f := range facts.Formats {
-		formats = append(formats, f.Name)
-	}
+	formats := l.storedRenameFormats(ctx, v.Key, facts)
 	newPath, err := l.nameSeries(ctx, &v, vn, root, facts.RelativePath, factsToFileFacts(facts), p, formats, eps)
 	if err != nil {
 		return out, refuse("naming: %v", err)
