@@ -305,8 +305,14 @@ func TestImportDecypharrFileList(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		if probed != 0 || len(plan.Files) != 1 || !strings.Contains(plan.Files[0].Reason, "not ready") {
+		// The preview is the plan by name, with the file marked as not read; nothing is recorded.
+		if probed != 0 || len(plan.Files) != 1 || !strings.Contains(plan.Files[0].Reason, "not ready") ||
+			len(plan.Links) != 1 || len(plan.Rejected) != 0 {
 			t.Errorf("probed %d, plan %+v", probed, plan)
+		}
+		if s := e.one(`SELECT d.state || ' ' || (SELECT COUNT(*) FROM library_import) || ' ' || (SELECT COUNT(*) FROM router_blocklist)
+			FROM download d WHERE d.id = 1`); s != "downloading 0 0" {
+			t.Errorf("after the dry run: %s", s)
 		}
 		// Without decypharr the dry run reads the file as before.
 		e.lib.decy = nil
