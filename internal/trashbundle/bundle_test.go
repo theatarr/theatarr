@@ -234,12 +234,12 @@ func newStore(t *testing.T) (*settings.Store, *policy.Policy, *settings.Snapshot
 	if err != nil {
 		t.Fatal(err)
 	}
-	snap, err := st.Bootstrap(ctx, p, settings.ImportRequest{Dir: dir, Actor: "admin", Lookup: func(name string) (string, bool) { return "invented-" + name, true }})
-	if err != nil {
+	if _, err := st.Bootstrap(ctx, p, settings.ImportRequest{Dir: dir, Actor: "admin", Lookup: func(name string) (string, bool) { return "invented-" + name, true }}); err != nil {
 		t.Fatal(err)
 	}
 	st.SetTrashRoot("../settings/testdata/trash")
-	if snap, err = st.BootstrapQuality(ctx, p, "upgrade"); err != nil {
+	snap, err := st.BootstrapQuality(ctx, p, "upgrade")
+	if err != nil {
 		t.Fatal(err)
 	}
 	st.SetTrashRoot("")
