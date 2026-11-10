@@ -27,7 +27,15 @@ func (s *QualitySync) Preview(ctx context.Context, source QualitySyncSource) (*Q
 	if source.Config, err = s.resolve(ctx, source.Config); err != nil {
 		return nil, err
 	}
-	return s.previewResolved(ctx, source)
+	return s.previewResolved(withBundledTrash(ctx), source)
+}
+
+// bundledTrashKey marks a context of a sync step the user started (a preview, a run from the page): only these fall
+// back to the bundled TRaSH snapshot without a checkout. A scheduled run without one fails, as before the bundle.
+type bundledTrashKey struct{}
+
+func withBundledTrash(ctx context.Context) context.Context {
+	return context.WithValue(ctx, bundledTrashKey{}, true)
 }
 
 // previewResolved builds the preview of a validated, resolved source (a tracked one carries its pinned archive).
@@ -335,10 +343,11 @@ func (s *QualitySync) loadTree(ctx context.Context, c QualitySyncConfig) (string
 }
 
 // trashTree is the TRaSH tree of a validated, resolved source: its pinned archive unpacked into a temporary
-// directory (removed by cleanup), the local tree, or without one the bundled snapshot. commit attributes it.
+// directory (removed by cleanup), the local tree, or without one, for a step the user started, the bundled snapshot.
+// commit attributes it.
 func (s *QualitySync) trashTree(ctx context.Context, c QualitySyncConfig) (root, commit string, cleanup func(), err error) {
 	cleanup = func() {}
-	if c.ArchiveURL == "" && s.TrashRoot == "" {
+	if c.ArchiveURL == "" && s.TrashRoot == "" && ctx.Value(bundledTrashKey{}) != nil {
 		// No local tree (THEATARR_TRASH unset): the snapshot bundled with the binary, copied out for the readers that
 		// take a directory (the Recyclarr converter, the size tables).
 		return bundledTrashTree()

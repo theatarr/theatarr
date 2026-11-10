@@ -79,7 +79,11 @@ func (s *QualitySync) RunSource(ctx context.Context, source QualitySyncSource, f
 	}
 	apply := false
 	if runErr == nil && outcome != "unchanged" {
-		p, runErr = s.previewResolved(ctx, QualitySyncSource{Record: source.Record, Config: resolved})
+		previewCtx := ctx
+		if force { // a run started from the page, not the schedule
+			previewCtx = withBundledTrash(ctx)
+		}
+		p, runErr = s.previewResolved(previewCtx, QualitySyncSource{Record: source.Record, Config: resolved})
 		if runErr == nil {
 			apply = autoApplies(source.Config, p)
 			// Earlier pending reviews stay until the automatic apply lands (or its review replaces them below).
