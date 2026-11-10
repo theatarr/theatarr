@@ -81,15 +81,19 @@ follows upstream between releases and is what quality sync from a local tree rea
 
 ## 2. First login
 
-The first start creates the `admin` account and writes its password to `data/initial-admin-password` (mode 0600). It
-is never logged.
+The first start creates the `admin` account and writes its password to `data/initial-admin-password` (mode 0600).
+Until the first login, every start also prints a short first-start block with the user `admin`, that password and the
+address to the container log. The block goes to the container output only, not to Theatarr's log files or the Logs
+page.
 
 ```sh
 docker compose up -d                      # built from source: docker compose up -d --build
-sudo cat data/initial-admin-password      # mode 0600, owned by 65532
+docker compose logs theatarr              # the first-start block
+sudo cat data/initial-admin-password      # the same password; mode 0600, owned by 65532
 ```
 
-Open `http://<host>:7700` and sign in as `admin`. The file is deleted at the first login. If you lose the password,
+Open `http://<host>:7700` and sign in as `admin`. The file is deleted at the first login, and the block is no longer
+printed. If you lose the password,
 run `docker compose exec theatarr theatarr admin reset-password`.
 
 After the first login an admin lands on **Home**, with a **Finish setting up Theatarr: 0 of 6** card. **Continue

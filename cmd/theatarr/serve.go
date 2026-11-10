@@ -669,10 +669,15 @@ func runServe(args []string) error {
 	wireCacheEvidence(pol, st, idx, ps.syncer.Providers, log)
 
 	// Auth is always on: the first start creates the signing secret and the admin account; its password goes to
-	// <data dir>/initial-admin-password (0600), never to the log, and the file is removed at the first login.
+	// <data dir>/initial-admin-password (0600), and the file is removed at the first login. While the file exists,
+	// each start prints the password in a first-start block on stderr (the container log) only: not through the
+	// logger, so the log files, the Logs page and the error inbox never hold it.
 	au, _, err := auth.New(ctx, st, auth.Options{Logger: log, CookieSecure: csec, DataDir: filepath.Dir(*dbPath)})
 	if err != nil {
 		return err
+	}
+	if banner := auth.FirstStartBanner(filepath.Dir(*dbPath), listenAddressHint(*listen)); banner != "" {
+		fmt.Fprint(os.Stderr, banner)
 	}
 	metaDeps.auth = au
 	// The arr views (/radarr, /sonarr, /v/<version>/...): arr-shaped APIs over our data. They write to our database,
@@ -1230,4 +1235,17 @@ func startRequestFlush(ctx context.Context, gw *gateway.Gateway) (stop func()) {
 	done := make(chan struct{})
 	go errinbox.Go("indexer-requests", func() { defer close(done); gw.RunRequestFlush(fctx) })()
 	return func() { cancel(); <-done }
+}
+
+// listenAddressHint is the address to open for a listen address: http://<this server>:PORT when it listens on every
+// interface, else the host it names.
+func listenAddressHint(listen string) string {
+	host, port, err := net.SplitHostPort(listen)
+	if err != nil {
+		return "http://<this server>" + listen
+	}
+	if host == "" || host == "0.0.0.0" || host == "::" {
+		host = "<this server>"
+	}
+	return "http://" + net.JoinHostPort(host, port)
 }
