@@ -45,6 +45,9 @@ const (
 	// ClassRcloneRC is the mount's rclone remote control on the LAN (library.mount.rclone_rc); its one target is
 	// RcloneRCKey.
 	ClassRcloneRC Class = "rclonerc"
+	// ClassDecypharr is decypharr's read-only surface on the LAN (library.mount.decypharr: the browse API, the
+	// per-hash file list and WebDAV listings); its one target is DecypharrKey.
+	ClassDecypharr Class = "decypharr"
 	// ClassWebhook is an outbound webhook (notify): a policy target by key, or InstalledWebhookKey for the
 	// notifications clients install through a view.
 	ClassWebhook Class = "webhook"
@@ -65,6 +68,9 @@ const ZurgAPIKey = "api"
 
 // RcloneRCKey is the key of the rclone rc target.
 const RcloneRCKey = "rc"
+
+// DecypharrKey is the key of the decypharr target.
+const DecypharrKey = "api"
 
 // Target says who a request is for.
 type Target struct {
