@@ -217,6 +217,10 @@ is held as out of scope, files intact (`TestAnimeFirstBuildBeforeImport`, `TestA
 places its files elsewhere. Change episodes places them. The build is not deferred while downloads wait: a download
 already held would defer it for good, and a franchise build maps other series than the one that queued it.
 
+Known limit: a download whose main file is held as out of scope while an explicitly numbered sample stays in scope
+ends failed and blocklisted, not held. The general import rule decides it (`internal/library/import.go`: no link
+planned and a file the sample guard rejected is a rejected release); it does not know the held file was the real one.
+
 Playlists need nothing: a sync reads the active link of each episode, so a re-linked file joins its playlist at the
 next sync.
 
