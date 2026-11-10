@@ -18,7 +18,6 @@ const (
 	Migration   = "Advanced › Sonarr/Radarr migration"
 	Import      = "Advanced › YAML settings › Import & export"
 	Tasks       = "System › Tasks"
-	Status      = "System › Status"
 	Torrents    = "Torrents"
 	Switches    = "Setup › Review activation"
 

@@ -131,10 +131,10 @@ it("says the catalog is on, with its defaults, when definitions is set", async (
  expect(screen.queryByRole("button", { name: "Turn the catalog on" })).toBeNull();
 });
 
-const plexLibraries = (libraryKeys: string[], stored?: Record<string, unknown>) => {
+const plexLibraries = (libraryKeys: string[], stored?: Record<string, unknown>, plex = true) => {
  const fetch = mockFetch([
   { method: "GET", path: "/settings/schema", reply: schema },
-  { method: "GET", path: "/settings/sections", reply: { source: "db", generation: 4, sections: [{ key: "library", config: { mount: { path: "/mnt" }, ...(stored ? { versions: stored } : {}) }, secrets: [] }] } },
+  { method: "GET", path: "/settings/sections", reply: { source: "db", generation: 4, sections: [{ key: "library", config: { mount: { path: "/mnt" }, ...(plex ? { plex: { url: "http://plex" } } : {}), ...(stored ? { versions: stored } : {}) }, secrets: [] }] } },
   { method: "GET", path: "/settings/versions", reply: { source: "db", generation: 4, versions: libraryKeys.map(key => ({ key })) } },
   { method: "PUT", path: "/settings/sections/library", reply: {} },
  ]);
@@ -154,7 +154,7 @@ it("gives every library a Plex library row on a fresh install, and writes only t
  fireEvent.change(ids[0], { target: { value: "3" } });
  fireEvent.click(screen.getByRole("button", { name: "Save" }));
  await screen.findByText("Saved.");
- expect(fetch.calls("PUT", "/settings/sections/library")[0].body).toEqual({ generation: 4, config: { mount: { path: "/mnt" }, versions: { movies: { plex_section: 3 } } } });
+ expect(fetch.calls("PUT", "/settings/sections/library")[0].body).toEqual({ generation: 4, config: { mount: { path: "/mnt" }, plex: { url: "http://plex" }, versions: { movies: { plex_section: 3 } } } });
 });
 it("keeps the stored Plex library rows as they are and adds a row for a library without one", async () => {
  const fetch = plexLibraries(["movies", "tv"], { movies: { plex_section: 1 } });
@@ -163,7 +163,22 @@ it("keeps the stored Plex library rows as they are and adds a row for a library 
  fireEvent.change(ids[0], { target: { value: "2" } });
  fireEvent.click(screen.getByRole("button", { name: "Save" }));
  await screen.findByText("Saved.");
- expect(fetch.calls("PUT", "/settings/sections/library")[0].body).toEqual({ generation: 4, config: { mount: { path: "/mnt" }, versions: { movies: { plex_section: 2 } } } });
+ expect(fetch.calls("PUT", "/settings/sections/library")[0].body).toEqual({ generation: 4, config: { mount: { path: "/mnt" }, plex: { url: "http://plex" }, versions: { movies: { plex_section: 2 } } } });
+});
+it("keeps the Plex library IDs closed until a Plex server is set, and says where to set it", async () => {
+ // No library.plex: the server would refuse an ID ("set, but library.plex is not configured"), so none can be typed.
+ const fetch = plexLibraries(["movies", "tv"], undefined, false);
+ const ids = await screen.findAllByRole("spinbutton", { name: "Plex library ID" }) as HTMLInputElement[];
+ expect(ids.map(i => i.disabled)).toEqual([true, true]);
+ expect(screen.getByTestId("plex-server-first").textContent).toBe("Set the Plex address and token above first.");
+ expect((screen.getByRole("button", { name: "Save" }) as HTMLButtonElement).disabled).toBe(true);
+ expect(fetch.calls("PUT", "/settings/sections/library")).toHaveLength(0);
+});
+it("opens the Plex library IDs once a Plex server is set", async () => {
+ plexLibraries(["movies"]);
+ const ids = await screen.findAllByRole("spinbutton", { name: "Plex library ID" }) as HTMLInputElement[];
+ expect(ids.map(i => i.disabled)).toEqual([false]);
+ expect(screen.queryByTestId("plex-server-first")).toBeNull();
 });
 it("says that libraries come first when there is none to map to a Plex library", async () => {
  plexLibraries([]);

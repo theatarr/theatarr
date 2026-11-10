@@ -805,6 +805,22 @@ describe("Versions grouped by kind", () => {
     await user.selectOptions(within(where).getByRole("combobox", { name: "Kind" }), "movie");
     expect(profile.value).toBe("web");
   });
+
+  it("keeps a profile picked in the field when the kind changes, also when it is the old kind's default", async () => {
+    mockFetch(routes());
+    const user = userEvent.setup();
+    renderPage(<VersionsPage />);
+    await screen.findByRole("region", { name: "Movies" });
+    await user.click(screen.getByRole("button", { name: "Add library" }));
+    const form = await screen.findByTestId("version-form");
+    const profile = within(form).getByRole("combobox", { name: "Profile" }) as HTMLSelectElement;
+    expect(profile.value).toBe("web");
+    // Picked in the field: the movie default, on purpose. Series has a default of its own, which does not replace it.
+    await user.selectOptions(profile, "web");
+    await user.selectOptions(within(form).getByRole("combobox", { name: "Kind" }), "series");
+    expect(profile.value).toBe("web");
+    expect(within(form).getByTestId("profile-other-kind").textContent).toContain("chosen while the library was a movie library");
+  });
 });
 
 

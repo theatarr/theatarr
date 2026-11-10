@@ -878,10 +878,10 @@ func Indexers(state func() gateway.State, indexers []string) Func {
 		detail := map[string]any{"unavailable": down}
 		if len(down) == len(indexers) {
 			return Result{Type: Error, Detail: detail, Message: fmt.Sprintf("All %d indexer(s) are unavailable "+
-				"(backed off or budget spent): see "+uipages.Status+" for which", len(indexers))}
+				"(backed off or budget spent): see "+uipages.Indexers+" for which", len(indexers))}
 		}
 		return Result{Type: Warning, Detail: detail, Message: fmt.Sprintf("%d of %d indexer(s) unavailable "+
-			"(backed off or budget spent): see "+uipages.Status+" for which", len(down), len(indexers))}
+			"(backed off or budget spent): see "+uipages.Indexers+" for which", len(down), len(indexers))}
 	}
 }
 

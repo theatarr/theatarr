@@ -327,7 +327,8 @@ function VersionForm({ session, data, defaults, profiles, error, onChange }: { s
   const [rootStatus, setRootStatus] = useState("");
   const [rootsText, setRootsText] = useState(record.roots?.join(", ") ?? "");
   const update = <K extends keyof VersionConfig,>(key: K, value: VersionConfig[K]) => onChange({ ...record, config: { ...config, [key]: value } });
-  // A new version takes the default profile of its kind while its profile is still the previous kind's default.
+  // A new version takes the default profile of its kind while nobody picked its profile here: a pick made in the
+  // Profile field stays through a change of kind, also when it equals the previous kind's default.
   const pickedByHand = useRef(false);
   // The kind the library had when its current profile was chosen, once the kind moved between movies and series
   // and the profile stayed: the picker then says so, instead of keeping it without a word.
@@ -344,7 +345,7 @@ function VersionForm({ session, data, defaults, profiles, error, onChange }: { s
       const was = defaults[categoryOf(config.kind, config.anime)] ?? "";
       const now = defaults[categoryOf(next.kind, next.anime)];
       const fits = now && Object.hasOwn(data.profiles, now) ? now : "";
-      if (fits && (config.profile === was || !next.profile)) next = { ...next, profile: fits };
+      if (fits && (!next.profile || (!pickedByHand.current && config.profile === was))) next = { ...next, profile: fits };
       // Movies to series or back, with the profile the form opened with (nobody picked it): it was preselected for
       // the other kind, so it is not kept. The new kind's default takes its place, else the picker asks. A profile
       // picked by hand stays.

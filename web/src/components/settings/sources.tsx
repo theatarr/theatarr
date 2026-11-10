@@ -135,11 +135,13 @@ function LastTest({ r, tests, now }: { r: SettingsRecord; tests: TestState; now?
   const err = tests.errors[key];
   if (err) return <span className="text-[13px] text-[var(--bad-ink)]" data-testid="test-error" data-key={key}>{err.title}: {err.message}</span>;
   const res = tests.results[key] ?? r.last_test;
-  if (!res) return <span className="text-[13px] text-muted-foreground">never tested</span>;
+  // Only a test of the source as saved is kept (this row's Test, Test all, a full preflight): the editor's test of
+  // unsaved values is not recorded, so a source tested before its save still reads as untested here.
+  if (!res) return <span className="text-[13px] text-muted-foreground" data-testid="test-none">saved source not tested since Theatarr started; a test of unsaved values is not recorded</span>;
   return (
     <div>
       <TestResult result={res} now={now} />
-      {res.tested_at ? <div className="text-xs text-muted-foreground">{fmtAgo(res.tested_at)}</div> : null}
+      <div className="text-xs text-muted-foreground" data-testid="test-of-saved">saved source{res.tested_at ? `, tested ${fmtAgo(res.tested_at)}` : ""}</div>
     </div>
   );
 }

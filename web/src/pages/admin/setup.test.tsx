@@ -171,8 +171,28 @@ describe("setup", () => {
     expect(indexers.textContent).toContain("backing off");
     expect(indexers.textContent).not.toContain("other");
     expect(indexers.querySelector("a")?.getAttribute("href")).toBe("/admin/settings/indexers?edit=feed");
-    expect(screen.getByTestId("source-states-providers").textContent).toContain("not tested since Theatarr started");
+    expect(indexers.textContent).toMatch(/last test of the saved source \(.+ ago\):/);
+    const untested = screen.getByTestId("source-states-providers").textContent;
+    expect(untested).toContain("the saved source has not been tested since Theatarr started");
+    expect(untested).toContain("a test of unsaved values in the editor is not recorded");
     expect(fetch.requests.every((r) => r.method === "GET")).toBe(true);
+  });
+
+  it("reads the sources' last tests again after a preflight, which tests them as saved", async () => {
+    const user = userEvent.setup();
+    const feed = (status: string, message: string) => ({ indexers: [{ id: 1, key: "feed", kind: "torznab", enabled: true, config: {},
+      last_test: { key: "feed", entity: "indexers", status, category: status === "ok" ? "" : "connectivity", message, latency_ms: 0, tested_at: "2026-11-10T10:00:00Z" } }], providers: [] });
+    let ran = false;
+    mockFetch([
+      { method: "GET", path: "/setup", reply: { ...fresh, first_run: false, admin_password_generated: false, versions: 1, versions_with_roots: 1, missing: [] } },
+      { method: "GET", path: "/settings", reply: () => ran ? feed("ok", "12 releases") : feed("failed", "could not reach the source") },
+      { method: "POST", path: "/preflight", reply: () => { ran = true; return { at: "2026-11-10T10:05:00Z", ok: 1, warn: 0, fail: 0, items: [{ area: "indexers", check: "feed", status: "ok", why: "answers" }] }; } },
+    ]);
+    renderPage(<SetupPage />);
+    expect((await screen.findByTestId("source-states-indexers")).textContent).toContain("could not reach the source");
+    await user.click(screen.getByRole("button", { name: "Run preflight" }));
+    await waitFor(() => expect(screen.getByTestId("source-states-indexers").textContent).toContain("12 releases"));
+    expect(screen.getByTestId("source-states-indexers").textContent).not.toContain("could not reach the source");
   });
 
   it("renders a complete install whose missing list is null, and links sources to their editors", async () => {

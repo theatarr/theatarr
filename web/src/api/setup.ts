@@ -3,6 +3,7 @@
 // and the VPN egress, each ok, warn or fail with the next step.
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { api, type Schemas } from "./client";
+import { qk } from "./query-keys";
 
 export type SetupState = Schemas["SetupState"];
 export type PreflightReport = Schemas["PreflightReport"];
@@ -18,7 +19,8 @@ export const useSetup = (enabled = true) => useQuery({ queryKey: setupKey, query
 export const usePreflight = (generation?: number) => {
   const client = useQueryClient();
   // The server keeps the latest run's summary (GET /setup last_preflight); refetch it so a reload agrees with this session.
-  return useMutation({ mutationKey: ["setup-preflight", generation], gcTime: Infinity, mutationFn: (sources: boolean) => api<PreflightReport>("/preflight", { method: "POST", body: { sources } }), onSettled: () => client.invalidateQueries({ queryKey: setupKey }) });
+  // A full run also tests every enabled source as saved, so the settings list's last tests are refetched with it.
+  return useMutation({ mutationKey: ["setup-preflight", generation], gcTime: Infinity, mutationFn: (sources: boolean) => api<PreflightReport>("/preflight", { method: "POST", body: { sources } }), onSettled: () => { void client.invalidateQueries({ queryKey: qk.settings.overview }); return client.invalidateQueries({ queryKey: setupKey }); } });
 };
 
 export const setupUnfinished = (state?: SetupState) => !!state && (state.first_run || (state.missing ?? []).length > 0);

@@ -323,7 +323,7 @@ func TestIndexersEgressDisk(t *testing.T) {
 	}
 	f := Indexers(func() gateway.State { return s }, []string{"dmm", "tpb", "zilean"})
 	r := f(ctx)
-	if r.Type != Warning || r.Message != "2 of 3 indexer(s) unavailable (backed off or budget spent): see System › Status for which" ||
+	if r.Type != Warning || r.Message != "2 of 3 indexer(s) unavailable (backed off or budget spent): see Settings › Indexers for which" ||
 		fmt.Sprint(r.Detail) != "map[unavailable:map[dmm:backed off: 5 failures tpb:budget prowlarr spent]]" {
 		t.Errorf("indexers: %+v", r)
 	}

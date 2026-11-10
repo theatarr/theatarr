@@ -26,7 +26,7 @@ import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { fmtTime } from "@/lib/format";
+import { fmtAgo, fmtTime } from "@/lib/format";
 import { confirmationOf, type WriteConfirmation } from "@/lib/settings";
 import { journalHome } from "@/lib/admin-links";
 
@@ -114,7 +114,8 @@ export function SetupPage() {
   </div>;
 }
 
-/** What the server already knows about the sources a step counts: each one's latest test since Theatarr started and
+/** What the server already knows about the sources a step counts: the latest test of each one as saved (a list row's
+ * Test, Test all or a full preflight; the editor's test of unsaved values is not recorded) since Theatarr started and
  * an active back-off, from the settings list (GET /settings). Nothing is tested and no request leaves the server. */
 function SourceStates({ entity, ready }: { entity: "indexers" | "providers"; ready: string[] }) {
   const settings = useSettings();
@@ -124,7 +125,7 @@ function SourceStates({ entity, ready }: { entity: "indexers" | "providers"; rea
   return <ul className="space-y-1" data-testid={`source-states-${entity}`}>{rows.map((r) => {
     const backoff = r.backoff as { active?: boolean; until?: string } | undefined;
     return <li key={r.key} className="flex flex-wrap items-center gap-2"><Link className="font-mono text-[13px] underline" to={`${page}?edit=${encodeURIComponent(r.key)}`}>{r.key}</Link>
-      {r.last_test ? <><span>last test:</span><TestResult result={r.last_test} /></> : <span className="text-muted-foreground">not tested since Theatarr started; Test it on its settings page.</span>}
+      {r.last_test ? <><span>last test of the saved source{r.last_test.tested_at ? ` (${fmtAgo(r.last_test.tested_at)})` : ""}:</span><TestResult result={r.last_test} /></> : <span className="text-muted-foreground">the saved source has not been tested since Theatarr started. Test in its row of the {entity === "indexers" ? "indexer" : "download client"} list records one; a test of unsaved values in the editor is not recorded.</span>}
       {backoff?.active ? <Badge tone="warning">backing off{backoff.until ? ` until ${new Date(backoff.until).toLocaleTimeString()}` : ""}</Badge> : null}
     </li>;
   })}</ul>;

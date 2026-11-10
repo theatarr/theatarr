@@ -309,7 +309,8 @@ describe("test and test-all", () => {
   it("shows the saved last test and back-off when nothing ran on this page", () => {
     const html = render(h(SourcesView, sourcesProps()));
     expect(tag(html, "test-result")).toContain('data-key="dmm"');
-    expect(html).toContain("never tested");
+    expect(html).toContain("saved source not tested since Theatarr started; a test of unsaved values is not recorded");
+    expect(html).toMatch(/data-testid="test-of-saved"[^>]*>saved source/);
     expect(html).toContain("backed off until");
   });
   it("shows a single test's cooldown (429)", () => {

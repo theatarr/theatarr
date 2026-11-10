@@ -73,6 +73,8 @@ function PanelEditor({ id, title, help, section: key, keys, onSaved }: Props) {
   const rows = Object.entries(objectValue(versions)).filter(([k, row]) => k in storedRows || Object.keys(objectValue(row)).length > 0);
   return rows.length || config.versions !== undefined ? Object.fromEntries(rows) : undefined;
  };
+ // A library ID needs the Plex server (the server refuses one while library.plex is unset), so the rows wait for it.
+ const plexMissing = perLibrary && config.plex == null;
  const loaded = withRows(select(config));
  const value = draft ?? loaded;
  const changes = changedPaths(value, loaded).length + Object.values(secrets.actions).filter(a => a !== "keep").length;
@@ -96,8 +98,9 @@ function PanelEditor({ id, title, help, section: key, keys, onSaved }: Props) {
   <h2 className="text-lg font-semibold">{title}</h2>
   {help ? <p className="mb-4 text-sm text-muted-foreground">{help}</p> : null}
   {readOnly ? <p>Read-only: these settings cannot be edited here.</p> : null}
+  {plexMissing ? <p className="mb-4 text-sm" data-testid="plex-server-first">Set the Plex address and token above first.</p> : null}
   {key === "cardigann" && keys.includes("definitions") ? <CatalogState saved={loaded.definitions} draft={value.definitions} disabled={readOnly || editor.busy} onTurnOn={() => { setDraft({ ...value, definitions: { repo: CATALOG_REPO } }); setSaved(false); }} /> : null}
-  <SectionFields fields={plainFields((schema.data.sections?.[key] ?? []).filter(f => keys.includes(f.name)), key)} config={value} saved={loaded} path={key} advanced={advanced} disabled={readOnly || editor.busy} onChange={v => { setDraft(v); setSaved(false); }} secrets={(section?.secrets ?? []).map(s => ({ ...s, path: `${key}.${s.path}` }))} secretDraft={secrets} onSecrets={v => { setSecrets(v); setSaved(false); }} errors={sectionErrors(editor.failure)} />
+  <SectionFields fields={plainFields((schema.data.sections?.[key] ?? []).filter(f => keys.includes(f.name)), key)} config={value} saved={loaded} path={key} advanced={advanced} disabled={readOnly || editor.busy || plexMissing} onChange={v => { setDraft(v); setSaved(false); }} secrets={(section?.secrets ?? []).map(s => ({ ...s, path: `${key}.${s.path}` }))} secretDraft={secrets} onSecrets={v => { setSecrets(v); setSaved(false); }} errors={sectionErrors(editor.failure)} />
   {perLibrary && libraries.data && !Object.keys(objectValue(value.versions)).length ? <p className="text-sm" data-testid="plex-libraries-empty">No libraries yet. Create one under <Link className="underline" to="/admin/settings/libraries">Settings › Libraries</Link>; each library then gets a row here for the ID of the Plex library that shows its folder.</p> : null}
   <UnsavedBar changes={changes} label={title}>
    <Button variant="outline" disabled={readOnly || editor.busy || !dirty} onClick={reset}>Discard</Button>
