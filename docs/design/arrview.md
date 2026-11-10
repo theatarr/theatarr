@@ -200,15 +200,17 @@ Theatarr owns a movie's minimum availability, one rule per library (`availabilit
 
 1. **Choice**: the newest `arrview_title` row with a value (by `updated_at`, then view key) whose view is the
    library's own (`v/<key>`) or a configured view that holds the library today.
-2. **Imported**: the owning arr's value (`arr_title`, through `follows` for a parallel library).
+2. **Imported**: the owning arr's value (`arr_title`, through `follows` for a parallel library); without an owner,
+   the first other arr record's, by instance name.
 3. **Default**: the library's `minimum_availability` setting (`announced`, `inCinemas` or `released`; movie libraries
    only, left out of the stored settings when unset), else `released`.
 
 The rule also carries the library's `availability_delay` (days, negative for earlier, unset is 0), applied as Radarr's
-`Movie.IsAvailable(delay)`: added to the date compared against, ignored for `announced`/`tba`, and a movie without a
-date is never available. `availability.Movie`, the gate of every automatic search and grab, reads the same rule, so a
-view cannot show one value while acquisition uses another. With neither setting set the rule is what it was before
-the settings existed (`TestRulesMatchMain`).
+`Movie.IsAvailable(delay)`: added to the date compared against; `announced` and `tba` are always available, with
+or without dates, and under the other values a movie without a date never is. `availability.Movie`, the gate of
+every automatic search and grab, reads the same rule per library, so a per-library view shows the value acquisition
+uses; a combined view shows the earliest, while another library it shows can resolve to a later one. With neither
+setting set the rule is what it was before the settings existed (`TestRulesMatchMain`).
 
 What a Radarr view answers:
 
@@ -218,11 +220,12 @@ What a Radarr view answers:
 - `isAvailable` is true when any shown library is available under its own minimum and delay
   (`availability.Available`, `TestViewIsAvailableWithDelays`); `releaseDate` ports `GetReleaseDate` for the shown
   minimum, without the delay, as Radarr.
-- Both follow the shown minimum, so a view whose shown value changed with this rule (it used to be the view's own
-  row, else an arr record) can answer another `isAvailable` and `releaseDate` for the same stored state. Clients
-  act on it: Seerr starts a named `MoviesSearch` for a movie the view reports available, and a named search skips
-  the availability gate for the view's libraries. Acquisition's own rule being unchanged does not mean a client
-  searches the same movies.
+- `isAvailable` comes from each library's rule and delay, not from the shown minimum alone, so it can change while
+  the shown minimum stays. Both answers used to come from the view's own row, else an arr record, so a view can
+  answer another `isAvailable` and `releaseDate` than before for the same stored state. Clients act on it: asked to
+  search now, Seerr starts a named `MoviesSearch` for an already monitored movie without a file that the view
+  reports available, and a named search skips the availability gate for the view's libraries. Acquisition's own
+  rule being unchanged does not mean a client searches the same movies.
 
 The write convention (`TestMinimumAvailabilityEchoChangesNothing`, `TestMinimumAvailabilityPutWritesShownLibraries`):
 
@@ -245,9 +248,10 @@ The write convention (`TestMinimumAvailabilityEchoChangesNothing`, `TestMinimumA
   `minimum_availability` set uses it, and the client's value is not stored for it; a library without stores the
   client's value as its choice. Copies already on keep their rule, so an add that turns nothing on stores nothing
   (`TestMinimumAvailabilityClientAdd`); a library turned on by the anime check asked again in the same add
-  counts as turned on by it (`TestMinimumAvailabilityClientAddAnimeRetry`). One exception to the library default:
-  a choice a combined view stored before (below) still applies to a library added to the movie later, and beats
-  that library's default. Seerr sends its Radarr server's setting with every add and the phone apps a
+  counts as turned on by it, as does one it creates unmonitored (`TestMinimumAvailabilityClientAddAnimeRetry`). The
+  library default is the last step of the rule, so it does not apply where an earlier step answers: a choice a
+  combined view stored before (below) reaches a library added to the movie later, and an unmonitored library turned
+  on again keeps its own earlier choice or its imported value. Seerr sends its Radarr server's setting with every add and the phone apps a
   per-add choice; the server cannot tell them apart, so a library default, once set, wins over both at add time. A
   PUT afterwards is still an edit.
 - **Storage**: new choices go to the libraries' own `v/<key>` rows only (`availability.Choose`; a row made for it
@@ -262,9 +266,10 @@ The write convention (`TestMinimumAvailabilityEchoChangesNothing`, `TestMinimumA
   deleting view's own record of the movie is deleted whole, as before: through a library's own view that is its
   `v/<key>` row, choice included. Any other library row it clears keeps the row and its other fields (a delete
   through a combined view, for the libraries it shows). A combined view's older row is only deleted by a delete
-  through that view, as before.
+  through that view, as before: otherwise its choice stays and applies again to a library added back later.
 - List and collection intake stores the list's or collection's own minimum as the choice of each library it adds
-  to a movie, on the library's own row; the view's record it writes holds the profile and root folder only. A copy
+  to a movie, on the library's own row; the view's record it writes holds the profile and root folder only (through
+  a per-library view the two are the same row, which then holds the minimum too). A copy
   the movie already had keeps its rule (`TestListIntakeMinimumReachesAddedLibraryOnly`). A library default does not
   apply to these movies: `movie_import_list` and `movie_collection` store `released` for a list or collection saved
   without a value, so "not set" cannot be told from an explicit `released`. Search on add then asks
