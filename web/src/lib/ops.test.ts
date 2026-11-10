@@ -65,9 +65,9 @@ describe("recovery scopes", () => {
   it("scopes a copy removal with its links and downloads", () => {
     const one = { name: "Dune", title: false, copies: [{ key: "movie-web", label: "4K WEB", links: 2, downloads: 1 }] };
     const keep = removalScope(one, false);
-    expect(keep.title).toBe("Remove the 4K WEB library");
+    expect(keep.title).toBe("Remove from 4K WEB");
     expect(keep.does).toEqual([
-      "The 4K WEB library stops being wanted, searched or upgraded",
+      "Dune is removed from 4K WEB: this copy stops being wanted, searched or upgraded",
       "It is hidden from Seerr and the other arr clients",
       "Theatarr stops following 1 download in progress",
     ]);
@@ -76,7 +76,8 @@ describe("recovery scopes", () => {
     const unlink = removalScope(one, true);
     expect(unlink.does).toContain("2 library links move to Theatarr's trash");
     expect(unlink.keeps).not.toContain("2 library files stay linked and playable");
-    expect(unlink.confirm).toBe("Remove library");
+    expect(unlink.confirm).toBe("Remove this copy");
+    expect(keep.keeps).toContain("Its history stays; adding Dune to the library again restores it");
   });
 
   it("scopes a title removal and refuses a copy an arr still owns", () => {
@@ -90,18 +91,18 @@ describe("recovery scopes", () => {
     };
     const s = removalScope(all, true);
     expect(s.title).toBe("Remove Dune");
-    expect(s.does[0]).toBe("Dune leaves the library: every library (4K Remux, 4K WEB) stops being wanted, searched or upgraded");
+    expect(s.does[0]).toBe("Dune is removed from every library it is in (4K Remux, 4K WEB): it stops being wanted, searched or upgraded there");
     expect(s.confirm).toBe("Remove title");
     expect(s.blocked).toBe("4K Remux is managed by radarr_4k_debrid until cutover: remove it there");
     expect(removalScope({ name: "X", title: false, copies: [] }, false).blocked).toBe("Nothing to remove");
   });
 
-  it("offers to move the links removed libraries left behind", () => {
+  it("offers to move the links removed copies left behind", () => {
     const left = { key: "movie-web", label: "4K WEB", links: 2, downloads: 0 };
     const s = removalScope({ name: "Dune", title: false, copies: [], leftover: [left] }, true);
     expect(s.blocked).toBeUndefined();
     expect(s.confirm).toBe("Unlink files");
-    expect(s.does).toEqual(["2 library links of removed libraries move to Theatarr's trash"]);
+    expect(s.does).toEqual(["2 library links of removed copies move to Theatarr's trash"]);
     const one = { name: "Dune", title: true, copies: [{ key: "movie-remux", label: "4K Remux", links: 1, downloads: 0 }], leftover: [left] };
     expect(removalLinks(one)).toBe(3);
     expect(removalScope(one, true).does).toContain("3 library links move to Theatarr's trash");

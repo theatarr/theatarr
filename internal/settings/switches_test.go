@@ -90,7 +90,7 @@ func TestGlobalSwitchesConfirmation(t *testing.T) {
 			if !errors.As(err, &refused) || refused.Confirmation == nil {
 				t.Fatalf("unconfirmed enable: %v", err)
 			}
-			if !strings.Contains(refused.Effects[0].Effect, "Enable "+key+".enabled") {
+			if !strings.Contains(refused.Effects[0].Effect, "("+key+".enabled): ") || !strings.HasPrefix(refused.Effects[0].Effect, "Turn on ") {
 				t.Fatalf("effects: %+v", refused.Effects)
 			}
 			stale := req
@@ -220,7 +220,7 @@ func TestGlobalSwitchEffectsNameDestinations(t *testing.T) {
 	for _, effect := range proof.Effects {
 		text += effect.Effect
 	}
-	for _, expected := range []string{"movie-web (grab on)", "rd, ad, tb", "movie-web: roots", active.Policy.Versions["movie-web"].Library, "household", "radarr/Phone"} {
+	for _, expected := range []string{"Turn on Allow new downloads (router.enabled)", "Turn on Write library links (library.enabled)", "Turn on Send notifications (notify.enabled)", "movie-web (downloads on)", "rd, ad, tb", "movie-web: roots", active.Policy.Versions["movie-web"].Library, "household", "radarr/Phone"} {
 		if !strings.Contains(text, expected) {
 			t.Fatalf("effect lacks %s: %s", expected, text)
 		}
@@ -433,7 +433,7 @@ func TestRouterSwitchWarnsWhenLibraryOff(t *testing.T) {
 	before := &Snapshot{Policy: &policy.Policy{}}
 	next := &Snapshot{Policy: &policy.Policy{}, Records: Records{Switches: &GlobalSwitches{RouterEnabled: true}}}
 	effects, err := globalSwitchEffects(context.Background(), nil, before, next)
-	if err != nil || len(effects) != 1 || !strings.Contains(effects[0].Effect, "library.enabled is off") {
+	if err != nil || len(effects) != 1 || !strings.Contains(effects[0].Effect, "Warning: Write library links (library.enabled) is off") {
 		t.Fatalf("missing library warning: %+v %v", effects, err)
 	}
 }
@@ -447,7 +447,7 @@ func TestRouterSwitchNamesTheClientOfAClientRoutedVersion(t *testing.T) {
 	before := &Snapshot{Policy: &policy.Policy{}}
 	next := &Snapshot{Policy: pol, Records: Records{Switches: &GlobalSwitches{RouterEnabled: true}}}
 	effects, err := globalSwitchEffects(context.Background(), nil, before, next)
-	if err != nil || len(effects) != 1 || !strings.Contains(effects[0].Effect, "movie (grab on): client decypharr") {
+	if err != nil || len(effects) != 1 || !strings.Contains(effects[0].Effect, "movie (downloads on): client decypharr") {
 		t.Fatalf("effects %+v %v", effects, err)
 	}
 }

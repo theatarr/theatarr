@@ -1,6 +1,6 @@
 // The title page (docs/design/ui.md, Title page). A compact hero answers why someone opened the title: poster, title,
 // year, essential facts (certification, runtime, genres, language, rating), whether it can be watched ("Ready to
-// watch in 4K"), a short synopsis with More, and the primary action the role allows (Add another library, Request or View
+// watch in 4K"), a short synopsis with More, and the primary action the role allows (Add to another library, Request or View
 // request, title-request.tsx TitleRequestButton) beside the title; on phones that action also sticks above the bottom tabs. Callers with "see files" get
 // the copies right under it (a movie; a series has them on its Copies tab), the one place copies are managed
 // (versions.tsx). Then tabs (lib/title-layout.ts): Episodes (series, the default), Copies (series), Watch order (anime
@@ -82,14 +82,14 @@ function Synopsis({ text }: { text: string }) {
 
 type Target = AddTarget & { title_id: number };
 
-/** The primary action the role allows: Add another library (add), else Request / View request (request). */
+/** The primary action the role allows: Add to another library (add), else Request / View request (request). */
 function PrimaryAction({ target, has, className }: { target: Target; has: boolean; className?: string }) {
   const perms = usePerms();
   const { openAdd } = useSearchUI();
   if (perms.add) {
     return (
       <Button onClick={() => openAdd(target)} className={className} data-testid="hero-add">
-        <Plus /> {has ? "Add another library" : "Add"}
+        <Plus /> {has ? "Add to another library" : "Add"}
       </Button>
     );
   }

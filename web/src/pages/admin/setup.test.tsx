@@ -265,8 +265,8 @@ describe("setup", () => {
   const startEffects = [
     { version: "movies", effect: "Library movies becomes active and starts searching." },
     { version: "movies", effect: "Active library movies grabs: torrent adds go to providers rd." },
-    { version: "", effect: "Enable router.enabled: new torrent adds to debrid are allowed." },
-    { version: "", effect: "Enable library.enabled: links may be written." },
+    { version: "", effect: "Turn on Allow new downloads (router.enabled): new torrent adds to debrid are allowed." },
+    { version: "", effect: "Turn on Write library links (library.enabled): links may be written." },
   ];
 
   it.each([[1, "Review"], [0, "Create in shadow (decide later)"]])("sends the same shadow request with arr_instances %i", async (arrInstances, button) => {

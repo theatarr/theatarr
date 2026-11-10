@@ -125,9 +125,9 @@ export function removalScope(s: RemovalScopeLike, unlink: boolean): Scope {
     // Only the links of copies removed before: removing again with unlink moves them.
     const managed = (s.leftover ?? []).find((c) => c.managed_by);
     return {
-      title: `Unlink the files left by removed libraries of ${s.name}`,
-      does: [`${plural(leftover, "library link")} of removed libraries ${leftover === 1 ? "moves" : "move"} to Theatarr's trash`],
-      keeps: ["Debrid torrents and the files on the mount are never deleted", "The libraries stay removed"],
+      title: `Unlink the files left by removed copies of ${s.name}`,
+      does: [`${plural(leftover, "library link")} of removed copies ${leftover === 1 ? "moves" : "move"} to Theatarr's trash`],
+      keeps: ["Debrid torrents and the files on the mount are never deleted", "The copies stay removed"],
       confirm: "Unlink files",
       blocked: managed ? `${managed.label} is managed by ${managed.managed_by} until cutover: remove it there` : undefined,
     };
@@ -137,21 +137,21 @@ export function removalScope(s: RemovalScopeLike, unlink: boolean): Scope {
   const downloads = s.copies.reduce((n, c) => n + c.downloads, 0);
   const names = s.copies.map((c) => c.label).join(", ");
   const does: string[] = [];
-  if (s.title) does.push(`${s.name} leaves the library: every library (${names}) stops being wanted, searched or upgraded`);
-  else does.push(`The ${names} ${s.copies.length === 1 ? "library stops" : "libraries stop"} being wanted, searched or upgraded`);
+  if (s.title) does.push(`${s.name} is removed from every library it is in (${names}): it stops being wanted, searched or upgraded there`);
+  else does.push(`${s.name} is removed from ${names}: ${s.copies.length === 1 ? "this copy stops" : "these copies stop"} being wanted, searched or upgraded`);
   does.push(`${s.title ? "It is" : s.copies.length === 1 ? "It is" : "They are"} hidden from Seerr and the other arr clients`);
   if (downloads > 0) does.push(`Theatarr stops following ${plural(downloads, "download")} in progress`);
   if (unlink && links > 0) does.push(`${plural(links, "library link")} ${links === 1 ? "moves" : "move"} to Theatarr's trash`);
   const keeps = [
     "Debrid torrents and the files on the mount are never deleted",
     ...(unlink || links === 0 ? [] : [`${plural(links, "library file")} ${links === 1 ? "stays" : "stay"} linked and playable`]),
-    "Its history stays; adding the library again restores it",
+    s.title ? "Its history stays; adding the title again restores it" : `Its history stays; adding ${s.name} to the library again restores it`,
   ];
   return {
-    title: s.title ? `Remove ${s.name}` : `Remove the ${names} ${s.copies.length === 1 ? "library" : "libraries"}`,
+    title: s.title ? `Remove ${s.name}` : `Remove from ${names}`,
     does,
     keeps,
-    confirm: s.title ? "Remove title" : s.copies.length === 1 ? "Remove library" : "Remove libraries",
+    confirm: s.title ? "Remove title" : s.copies.length === 1 ? "Remove this copy" : "Remove these copies",
     blocked:
       s.copies.length === 0
         ? "Nothing to remove"
@@ -166,7 +166,7 @@ export function unlinkScope(path: string, copy: string): Scope {
     title: "Unlink this file",
     does: [
       `The library link ${path} moves to Theatarr's trash`,
-      `The ${copy} library is wanted again when it has no other file (a search may then find a replacement)`,
+      `The ${copy} copy is wanted again when it has no other file (a search may then find a replacement)`,
     ],
     keeps: ["The file it points at on the debrid mount is untouched", SHARED_TORRENT],
     confirm: "Unlink file",

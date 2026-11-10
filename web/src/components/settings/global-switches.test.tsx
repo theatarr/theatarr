@@ -14,7 +14,7 @@ const overview = (source = "db", router = false, forced = false) => ({
 
 describe("Global switches", () => {
   it("shows DB state and retries the exact enable with its confirmation token", async () => {
-    const effects = [{ version: "", effect: "Enable router.enabled: movie-web (grab on): providers rd." }];
+    const effects = [{ version: "", effect: "Turn on Allow new downloads (router.enabled): movie-web (downloads on): providers rd." }];
     const fetch = mockFetch([
       { method: "GET", path: "/settings", reply: overview() },
       { method: "PUT", path: "/settings/switches", reply: json({ error: "explicit confirmation required", effects, confirmation: { token: "proof", generation: 8, effects } }, 422) },

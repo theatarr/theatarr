@@ -11,14 +11,14 @@ afterEach(cleanup);
 const scope = { title: "Confirm library change", does: [], keeps: ["Existing links stay."], confirm: "Confirm this change" };
 const effects = [
   { version: "movie-web", effect: "Grab for movie-web: grab false → true." },
-  { version: "", effect: "Enable router.enabled: new downloads may be added." },
+  { version: "", effect: "Turn on Allow new downloads (router.enabled): new downloads may be added." },
   { version: "movie-4k", effect: "movie-4k can now grab from provider rd." },
   { version: "movie-web", effect: "movie-web follows movie-4k." },
 ];
 
 it("groups the server's effects by library, global ones first, in the server's words", () => {
   expect(groupEffects(effects)).toEqual([
-    { version: "", effects: ["Enable router.enabled: new downloads may be added."] },
+    { version: "", effects: ["Turn on Allow new downloads (router.enabled): new downloads may be added."] },
     { version: "movie-web", effects: ["Grab for movie-web: grab false → true.", "movie-web follows movie-4k."] },
     { version: "movie-4k", effects: ["movie-4k can now grab from provider rd."] },
   ]);

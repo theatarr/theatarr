@@ -236,7 +236,7 @@ See [quickstart](../quickstart.md#readiness-led-setup) for the completion rules;
   language, rating), readiness for everyone ("Ready to watch in 4K": the best resolution a usable copy has; "5 of 10
   episodes ready"; "Not available yet", or "Getting ready" without See files while a download is in hand; a movie
   missing one of its copies is still ready), audio languages, a
-  synopsis cut to three lines with More, and the primary action beside the title: **Add another library** (add),
+  synopsis cut to three lines with More, and the primary action beside the title: **Add to another library** (add),
   else **Request** / **View request** (request). On phones that action also sticks above the bottom tabs.
 - **Libraries** (callers with "see files"): one compact card per library, side by side from 1024 px, stacked on
   phones; right under the hero for a movie, on the Libraries tab for a series. Each card keeps separate fields:
