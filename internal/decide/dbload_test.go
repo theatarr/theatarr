@@ -38,7 +38,7 @@ func TestLoadAnimeWithoutSeriesType(t *testing.T) {
 		(3, 'series', 'Unspecified Standard', 0, NULL, 0, 0)`); err != nil {
 		t.Fatal(err)
 	}
-	for id, want := range map[int64]string{1: "anime", 2: "standard", 3: ""} {
+	for id, want := range map[int64]string{1: "anime", 2: "standard", 3: "standard"} {
 		title, err := LoadTitle(ctx, st.Reader(), id)
 		if err != nil {
 			t.Fatal(err)
@@ -221,7 +221,8 @@ func TestLoadSeriesVersion(t *testing.T) {
 	if tt.OriginalTitle != "" {
 		t.Errorf("original title %q without a TVDB record", tt.OriginalTitle)
 	}
-	if tt.SeriesType != "anime" || len(tt.SceneMappings) != 1 || len(tt.Episodes) != 3 {
+	// One type per series: the title's standard, not the version's imported anime.
+	if tt.SeriesType != "standard" || len(tt.SceneMappings) != 1 || len(tt.Episodes) != 3 {
 		t.Fatalf("version: type %s, %d mappings, %d episodes", tt.SeriesType, len(tt.SceneMappings), len(tt.Episodes))
 	}
 	e3 := tt.Episodes[2]

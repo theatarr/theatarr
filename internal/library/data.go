@@ -173,21 +173,13 @@ func (n *NewImport) download(ctx context.Context, db *sql.DB, pol *policy.Policy
 func completeDownload(ctx context.Context, db *sql.DB, pol *policy.Policy, d *importDownload, eps []int64,
 	formats, epMap sql.NullString) error {
 	v := &d.Version
-	err := db.QueryRowContext(ctx, `SELECT kind, name, COALESCE(year, 0), COALESCE(imdb_id, ''), COALESCE(tmdb_id, 0),
-		COALESCE(tvdb_id, 0), COALESCE(series_type, ''), COALESCE(runtime_minutes, 0) FROM title WHERE id = ?`,
+	err := db.QueryRowContext(ctx, `SELECT t.kind, t.name, COALESCE(t.year, 0), COALESCE(t.imdb_id, ''),
+		COALESCE(t.tmdb_id, 0), COALESCE(t.tvdb_id, 0), `+store.SeriesTypeSQL("t")+`, COALESCE(t.runtime_minutes, 0)
+		FROM title t WHERE t.id = ?`,
 		v.Title.ID).Scan(&v.Title.Kind, &v.Title.Name, &v.Title.Year, &v.Title.ImdbID, &v.Title.TmdbID,
 		&v.Title.TvdbID, &v.Title.SeriesType, &v.Title.Runtime)
 	if err != nil {
 		return err
-	}
-	if v.Title.Kind == "series" {
-		s, err := store.LoadSourceSettings(ctx, db, v.VersionID)
-		if err != nil {
-			return err
-		}
-		if s.SeriesType != "" {
-			v.Title.SeriesType = s.SeriesType
-		}
 	}
 	if formats.Valid {
 		var fs []struct {

@@ -125,7 +125,7 @@ func (l *Library) checkNames(ctx context.Context, version, root string) *NameChe
 	rows, err := db.QueryContext(ctx, `
 		SELECT vf.id, vf.version_id, vf.path, vf.relative_path, vf.quality, vf.quality_revision, vf.release_group, vf.scene_name,
 		       vf.edition, vf.media_info, vf.original_file_path, t.name, COALESCE(t.year, 0), COALESCE(t.imdb_id, ''),
-		       COALESCE(t.tmdb_id, 0), COALESCE(t.tvdb_id, 0), COALESCE(t.series_type, '')
+		       COALESCE(t.tmdb_id, 0), COALESCE(t.tvdb_id, 0), `+store.SeriesTypeSQL("t")+`
 		FROM version_file vf JOIN version v ON v.id = vf.version_id JOIN title t ON t.id = vf.title_id
 		WHERE v.policy_key = ? ORDER BY vf.id`, version)
 	if err != nil {
@@ -152,16 +152,6 @@ func (l *Library) checkNames(ctx context.Context, version, root string) *NameChe
 	}
 	rows.Close()
 	for _, r := range all {
-		if vp.Kind == "series" {
-			s, err := store.LoadSourceSettings(ctx, db, r.versionID)
-			if err != nil {
-				nc.Error = err.Error()
-				return nc
-			}
-			if s.SeriesType != "" {
-				r.stype = s.SeriesType
-			}
-		}
 		nc.Files++
 		base := path.Base(r.p)
 		ext := path.Ext(r.p)

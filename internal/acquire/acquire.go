@@ -462,7 +462,7 @@ func (a *Acquirer) targets(ctx context.Context, sel Selection) ([]target, error)
 		if sel.Only == OnlyCutoff && vp.UpgradeRule() == policy.UpgradesOff {
 			continue // upgrades: off never replaces a file, so a cutoff search would find nothing it may take
 		}
-		q := `SELECT v.id, v.title_id, v.state, t.kind, t.anime, COALESCE(t.series_type, ''), v.created_at
+		q := `SELECT v.id, v.title_id, v.state, t.kind, t.anime, ` + store.SeriesTypeSQL("t") + `, v.created_at
 			FROM version v JOIN title t ON t.id = v.title_id
 			WHERE v.policy_key = ? AND t.kind = ?`
 		if !sel.named(vp.Kind) {

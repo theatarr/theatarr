@@ -27,8 +27,8 @@
 //     Version monitored is the movie's monitored flag. A series version is wanted while a monitored episode that has
 //     aired has no file (or no episode has one), filled while a file is below the cutoff, else cutoff_met; each
 //     episode has the same three states from its file.
-//   - Series: matched on TVDB id. The series type is kept per instance (arr_title.series_type) since one series can
-//     be anime in one Sonarr and standard in another; title.series_type is the first import's. Episodes are shared
+//   - Series: matched on TVDB id. The series type is recorded per instance (arr_title.series_type); the one every
+//     reader uses is title.series_type, the first import's when the title had none. Episodes are shared
 //     by the title's versions; an episode no instance lists any more (and no link holds) is deleted. Scene mappings
 //     and episode numbers carry the instance as source and are replaced per instance.
 //   - Ownership: the first instance to import a version owns its state (version_source). Another instance mapped to

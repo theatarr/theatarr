@@ -205,7 +205,7 @@ func (l *Library) adoptFiles(ctx context.Context, followed, follower string, tit
 		       COALESCE(vf.release_type, ''), COALESCE(c.info_hash, ''), vf.size_bytes, vf.indexer_flags,
 		       vf.custom_format_score, vf.cutoff_not_met, t.name, COALESCE(t.year, 0), COALESCE(t.imdb_id, ''),
 		       COALESCE(t.tmdb_id, 0), COALESCE(t.tvdb_id, 0),
-		       COALESCE(NULLIF(a.series_type, ''), t.series_type, ''), COALESCE(a.path, '')
+		       ` + store.SeriesTypeSQL("t") + `, COALESCE(a.path, '')
 		FROM version_file vf JOIN version v ON v.id = vf.version_id
 		JOIN version_source vs ON vs.version_id = vf.version_id AND vs.instance = vf.instance
 		JOIN title t ON t.id = vf.title_id

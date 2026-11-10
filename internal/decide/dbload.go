@@ -30,8 +30,8 @@ type tmdbDetails struct {
 }
 
 // titleSelect reads normalized metadata, with historical TMDb responses as a fallback for imported movies.
-const titleSelect = `SELECT t.id, t.kind, t.name, COALESCE(t.year, 0), COALESCE(t.secondary_year, 0),
-	COALESCE(t.imdb_id, ''), COALESCE(t.tmdb_id, 0), t.anime, COALESCE(t.tvdb_id, 0), COALESCE(t.series_type, ''),
+var titleSelect = `SELECT t.id, t.kind, t.name, COALESCE(t.year, 0), COALESCE(t.secondary_year, 0),
+	COALESCE(t.imdb_id, ''), COALESCE(t.tmdb_id, 0), t.anime, COALESCE(t.tvdb_id, 0), ` + store.SeriesTypeSQL("t") + `,
 	t.use_scene_numbering, COALESCE(t.runtime_minutes, 0), COALESCE(t.original_language, ''), t.monitored,
 	COALESCE(tm.runtime_minutes, 0), COALESCE(tm.original_language, ''),
 	COALESCE((SELECT a.name FROM title_alias a WHERE a.title_id = t.id AND a.source = 'tmdb-original' LIMIT 1), ''),
@@ -147,21 +147,12 @@ func LoadSeries(ctx context.Context, db *sql.DB) (map[int64]Title, error) {
 }
 
 // LoadSeriesVersion fills a series title for one of its versions: its scene mappings (every source), its episodes
-// with their absolute and scene numbers and the version's file of each (versionID 0: no files), and the series type
-// of its source instance, including a follower's source (one series can be anime in one arr and standard in another).
+// with their absolute and scene numbers and the version's file of each (versionID 0: no files). The series type is the
+// title's (store.SeriesTypeSQL, read with the title), the same for every version.
 func LoadSeriesVersion(ctx context.Context, db *sql.DB, t *Title, versionID int64) error {
 	t.cutoff = &cutoffCache{}
 	if t.Kind != policy.KindSeries {
 		return nil
-	}
-	if versionID != 0 {
-		s, err := store.LoadSourceSettings(ctx, db, versionID)
-		if err != nil {
-			return err
-		}
-		if s.SeriesType != "" {
-			t.SeriesType = s.SeriesType
-		}
 	}
 	t.SceneMappings = nil
 	rows, err := db.QueryContext(ctx, `SELECT name, season_number, scene_season_number, scene_origin, comment
@@ -408,9 +399,6 @@ func scanTitle(rows *sql.Rows) (Title, error) {
 	}
 	t.Kind, t.Anime = policy.Kind(kind), anime == 1
 	if t.Kind == policy.KindSeries {
-		if t.SeriesType == "" && t.Anime {
-			t.SeriesType = "anime"
-		}
 		t.Runtime, t.OriginalLanguage = runtime, lang
 		return t, nil
 	}

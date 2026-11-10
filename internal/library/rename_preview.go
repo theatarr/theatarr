@@ -8,6 +8,7 @@ import (
 
 	"github.com/theatarr/theatarr/internal/decide"
 	"github.com/theatarr/theatarr/internal/library/probe"
+	"github.com/theatarr/theatarr/internal/store"
 )
 
 // RenameFile is one active link whose name differs from the version's current naming.
@@ -48,7 +49,7 @@ func (l *Library) previewRename(ctx context.Context, titleID int64, season *int,
 	out := &RenamePreview{Files: []RenameFile{}}
 	rows, err := l.st.Reader().QueryContext(ctx, `
 		SELECT l.id, l.path, v.id, v.policy_key, t.kind, t.name, COALESCE(t.year, 0), COALESCE(t.imdb_id, ''),
-			COALESCE(t.tmdb_id, 0), COALESCE(t.tvdb_id, 0), COALESCE(t.series_type, ''), l.file_metadata
+			COALESCE(t.tmdb_id, 0), COALESCE(t.tvdb_id, 0), `+store.SeriesTypeSQL("t")+`, l.file_metadata
 		FROM link l JOIN link_version lv ON lv.link_id = l.id JOIN version v ON v.id = lv.version_id
 		JOIN title t ON t.id = l.title_id WHERE l.title_id = ? AND l.state = 'active' ORDER BY l.id`, titleID)
 	if err != nil {

@@ -244,7 +244,7 @@ type episodeRow struct {
 var errNoNext = errors.New("no next episode to warm")
 
 // nextEpisode is the episode after current (the playing link's episodes) in the version's order: a version whose
-// series type is anime (its arr instance's, else the title's) goes by absolute numbers where the episodes have them,
+// series type is anime (the title's, store.SeriesTypeSQL) goes by absolute numbers where the episodes have them,
 // skipping specials, anything else by season and number, specials staying among themselves.
 func (t *Tracker) nextEpisode(ctx context.Context, titleID, versionID int64, current []int64, nowMs int64) (*episodeRow, error) {
 	db := t.o.Store.Reader()
@@ -256,18 +256,11 @@ func (t *Tracker) nextEpisode(ctx context.Context, titleID, versionID int64, cur
 	if !monitored {
 		return nil, errNoNext
 	}
-	st, err := store.LoadSourceSettings(ctx, db, versionID)
+	typ, err := store.SeriesType(ctx, db, titleID)
 	if err != nil {
 		return nil, err
 	}
-	var anime bool
-	if err := db.QueryRowContext(ctx, `SELECT COALESCE(series_type, '') = 'anime' OR anime = 1 FROM title WHERE id = ?`,
-		titleID).Scan(&anime); err != nil {
-		return nil, err
-	}
-	if st.SeriesType != "" {
-		anime = st.SeriesType == "anime"
-	}
+	anime := typ == "anime"
 	rows, err := db.QueryContext(ctx, `SELECT e.id, e.season, e.number, e.name,
 		COALESCE((SELECT MIN(n.number) FROM episode_number n WHERE n.episode_id = e.id AND n.scheme = 'absolute'),
 			(SELECT MIN(n.number) FROM episode_number n WHERE n.episode_id = e.id AND n.scheme = 'absolute_tvdb')),

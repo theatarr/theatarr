@@ -65,8 +65,9 @@ func TestFollowerSourceSettings(t *testing.T) {
 	if err := decide.LoadSeriesVersion(ctx, st.Reader(), &title, vid); err != nil {
 		t.Fatal(err)
 	}
-	if title.SeriesType != "anime" {
-		t.Errorf("follower series type %q, want anime", title.SeriesType)
+	// One type per series: the title's (the first import's), not the follower's source instance's.
+	if title.SeriesType != "standard" {
+		t.Errorf("follower series type %q, want the title's standard", title.SeriesType)
 	}
 	movies.Titles[0].MinimumAvailability = "announced"
 	if _, err := im.Write(ctx, Source{Instance: "radarr_a", Version: "movie", Followers: []string{"movie-theatarr"}}, movies); err != nil {

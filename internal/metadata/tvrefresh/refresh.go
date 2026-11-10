@@ -38,22 +38,17 @@ type titleRow struct {
 	imdb       sql.NullString
 	anime      bool
 	runtime    sql.NullInt64
-	seriesType sql.NullString
+	seriesType string
 	addedAt    sql.NullInt64
 }
 
-// isAnime is Sonarr's series type anime: the title's type when set, else its anime flag.
-func (t titleRow) isAnime() bool {
-	if t.seriesType.Valid && t.seriesType.String != "" {
-		return t.seriesType.String == "anime"
-	}
-	return t.anime
-}
+// isAnime is Sonarr's series type anime (store.SeriesTypeSQL: the title's type, else its anime flag).
+func (t titleRow) isAnime() bool { return t.seriesType == "anime" }
 
 func (s *Service) loadTitle(ctx context.Context, id int64) (*titleRow, error) {
 	var t titleRow
 	err := s.st.Reader().QueryRowContext(ctx, `SELECT t.id, t.name, t.year, t.tvdb_id, t.tmdb_id, t.imdb_id, t.anime,
-		t.runtime_minutes, t.series_type, m.added_at FROM title t LEFT JOIN series_meta m ON m.title_id = t.id
+		t.runtime_minutes, `+store.SeriesTypeSQL("t")+`, m.added_at FROM title t LEFT JOIN series_meta m ON m.title_id = t.id
 		WHERE t.id = ? AND t.kind = 'series'`, id).Scan(&t.id, &t.name, &t.year, &t.tvdb, &t.tmdb, &t.imdb, &t.anime,
 		&t.runtime, &t.seriesType, &t.addedAt)
 	if errors.Is(err, sql.ErrNoRows) {

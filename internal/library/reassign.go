@@ -81,7 +81,7 @@ func (l *Library) reassignEpisodes(ctx context.Context, linkID int64, episodeIDs
 	err := db.QueryRowContext(ctx, `SELECT l.path, l.target, l.kind, l.state, l.download_id, COALESCE(cf.path, ''),
 		l.file_metadata, (SELECT COUNT(*) FROM link_version x WHERE x.link_id = l.id), t.id, t.kind, t.name,
 		COALESCE(t.year, 0), COALESCE(t.imdb_id, ''), COALESCE(t.tmdb_id, 0), COALESCE(t.tvdb_id, 0),
-		COALESCE(t.series_type, '') FROM link l JOIN title t ON t.id = l.title_id
+		`+store.SeriesTypeSQL("t")+` FROM link l JOIN title t ON t.id = l.title_id
 		LEFT JOIN content_file cf ON cf.id = l.content_file_id WHERE l.id = ?`, linkID).
 		Scan(&out.PreviousPath, new(string), &kind, &state, &downloadID, &rel, &raw, &owners, &t.ID, &t.Kind, &t.Name,
 			&t.Year, &t.ImdbID, &t.TmdbID, &t.TvdbID, &t.SeriesType)
