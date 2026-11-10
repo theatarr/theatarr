@@ -249,10 +249,12 @@ The write convention (`TestMinimumAvailabilityEchoChangesNothing`, `TestMinimumA
   and its other fields stay), so a later add takes the library's rule again: its default, or the client's value
   (`TestMinimumAvailabilityDeleteClearsChoice`). A combined view's older row is only deleted by a delete through
   that view, as before.
-- List and collection intake still stores the list's or collection's own minimum for the movies it adds, as a choice
-  (a library default does not apply to them: `movie_import_list` and `movie_collection` store `released` for a
-  list or collection saved without a value, so "not set" cannot be told from an explicit `released`), and searches on add only the libraries that are ready under it with
-  their own delay.
+- List and collection intake stores the list's or collection's own minimum as the choice of each library it adds
+  to a movie, on the library's own row; the view's record it writes holds the profile and root folder only. A copy
+  the movie already had keeps its rule (`TestListIntakeMinimumReachesAddedLibraryOnly`). A library default does not
+  apply to these movies: `movie_import_list` and `movie_collection` store `released` for a list or collection saved
+  without a value, so "not set" cannot be told from an explicit `released`. Search on add then asks
+  `availability.Movie` for each library added and searches only the ready ones.
 
 Left as before, on purpose:
 

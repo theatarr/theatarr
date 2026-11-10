@@ -414,40 +414,53 @@ func (s *MovieIntake) addMissingVersions(ctx context.Context, titleID int64, ani
 				views = append(views, "v/"+key)
 			}
 		}
+		// The view's record holds the profile and root folder only; the minimum availability is a choice of each
+		// library added, on its own row, so it never reaches a copy the movie already had.
 		for _, view := range views {
-			if _, err := tx.ExecContext(ctx, `INSERT INTO arrview_title(view,title_id,quality_profile_id,root_folder_path,minimum_availability,added_at,updated_at) VALUES(?,?,?,?,?,?,?)
-				ON CONFLICT DO NOTHING`, view, titleID, cfg.profile, cfg.root, minimum, store.Millis(now), store.Millis(now)); err != nil {
+			if _, err := tx.ExecContext(ctx, `INSERT INTO arrview_title(view,title_id,quality_profile_id,root_folder_path,added_at,updated_at) VALUES(?,?,?,?,?,?)
+				ON CONFLICT DO NOTHING`, view, titleID, cfg.profile, cfg.root, store.Millis(now), store.Millis(now)); err != nil {
 				return err
 			}
+		}
+		if err := availability.Choose(ctx, tx, titleID, added, minimum, now); err != nil {
+			return err
 		}
 		return SyncMonitored(ctx, tx, titleID, now)
 	})
 	if err != nil || len(added) == 0 {
 		return false, err
 	}
-	if cfg.search && cfg.monitored && s.OnAdd != nil {
-		var ready []string
-		for _, k := range added {
-			var vid int64
-			if err := s.Store.Reader().QueryRowContext(ctx, `SELECT id FROM version WHERE title_id=? AND policy_key=?`,
-				titleID, k).Scan(&vid); err != nil {
-				return true, err
-			}
-			ok, err := availability.Movie(ctx, s.Store.Reader(), s.Policy, titleID, vid, k, now)
-			if err != nil {
-				return true, err
-			}
-			if ok {
-				ready = append(ready, k)
-			}
-		}
-		if len(ready) > 0 {
-			if err := s.OnAdd(ctx, titleID, ready); err != nil {
-				return true, err
-			}
-		}
+	if cfg.search && cfg.monitored {
+		return true, s.searchReady(ctx, titleID, added, now)
 	}
 	return true, nil
+}
+
+// searchReady hands OnAdd the libraries of keys the movie is available in now, each by its own stored rule and
+// dates (availability.Movie, the gate of every automatic search).
+func (s *MovieIntake) searchReady(ctx context.Context, titleID int64, keys []string, now time.Time) error {
+	if s.OnAdd == nil {
+		return nil
+	}
+	var ready []string
+	for _, k := range keys {
+		var vid int64
+		if err := s.Store.Reader().QueryRowContext(ctx, `SELECT id FROM version WHERE title_id=? AND policy_key=?`,
+			titleID, k).Scan(&vid); err != nil {
+			return err
+		}
+		ok, err := availability.Movie(ctx, s.Store.Reader(), s.Policy, titleID, vid, k, now)
+		if err != nil {
+			return err
+		}
+		if ok {
+			ready = append(ready, k)
+		}
+	}
+	if len(ready) == 0 {
+		return nil
+	}
+	return s.OnAdd(ctx, titleID, ready)
 }
 
 func (s *MovieIntake) addMovie(ctx context.Context, summary tmdb.MovieSummary, cfg movieIntakeConfig, collectionID int64) (bool, error) {
@@ -563,12 +576,13 @@ func (s *MovieIntake) addMovie(ctx context.Context, summary tmdb.MovieSummary, c
 				views = append(views, "v/"+key)
 			}
 		}
+		// As in addMissingVersions: the view's record without a minimum, and a choice per library added.
 		for _, view := range views {
-			if _, err = tx.ExecContext(ctx, `INSERT INTO arrview_title(view,title_id,quality_profile_id,root_folder_path,minimum_availability,added_at,updated_at) VALUES(?,?,?,?,?,?,?)`, view, result.TitleID, cfg.profile, cfg.root, minimum, store.Millis(now), store.Millis(now)); err != nil {
+			if _, err = tx.ExecContext(ctx, `INSERT INTO arrview_title(view,title_id,quality_profile_id,root_folder_path,added_at,updated_at) VALUES(?,?,?,?,?,?)`, view, result.TitleID, cfg.profile, cfg.root, store.Millis(now), store.Millis(now)); err != nil {
 				return err
 			}
 		}
-		return nil
+		return availability.Choose(ctx, tx, result.TitleID, result.Versions, minimum, now)
 	})
 	if err != nil {
 		return false, err
@@ -576,24 +590,8 @@ func (s *MovieIntake) addMovie(ctx context.Context, summary tmdb.MovieSummary, c
 	if result == nil || !result.Created {
 		return false, nil
 	}
-	if cfg.search && cfg.monitored && s.OnAdd != nil {
-		// Each library is ready on its own: the list's minimum (the choice just stored for every library added)
-		// with the library's availability delay. Only the ready ones are searched.
-		var ready []string
-		for _, k := range result.Versions {
-			delay := 0
-			if vp := s.Policy.Versions[k]; vp != nil {
-				delay = vp.AvailabilityDelay
-			}
-			if availability.Available(minimum, dates, now, delay) {
-				ready = append(ready, k)
-			}
-		}
-		if len(ready) > 0 {
-			if err := s.OnAdd(ctx, result.TitleID, ready); err != nil {
-				return true, err
-			}
-		}
+	if cfg.search && cfg.monitored {
+		return true, s.searchReady(ctx, result.TitleID, result.Versions, now)
 	}
 	return true, nil
 }
