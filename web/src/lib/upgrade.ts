@@ -4,7 +4,7 @@
 // in the Why? explanation (components/title/upgrade-why.tsx). People without "see files" get availability and
 // resolution only, since the API leaves states, scores and releases out for them.
 import type { Cutoff, UpgradeInfo, VersionControl } from "@/api/manage";
-import { fmtAgo, fmtNumber } from "./format";
+import { fmtAgo, fmtNumber, localDay } from "./format";
 
 export type Tone = "positive" | "warning" | "negative" | "neutral" | "info";
 
@@ -218,19 +218,19 @@ export function whyOf(u: UpgradeInfo, now: Date = new Date(), by?: (id: number) 
     default:
       out.evidence = "No source evidence yet.";
   }
-  out.checked = `Checked ${fmtAgo(c.checked_at, now)}; next check ${c.next_check_at.slice(0, 10)}.`;
+  out.checked = `Checked ${fmtAgo(c.checked_at, now)}; next check ${localDay(c.next_check_at)}.`;
   for (const s of c.searches ?? []) {
     const ix = s.indexers.map((x) => x.indexer + (x.complete ? "" : " (partial or cached)")).join(", ");
-    out.coverage.push(`${s.searched_at.slice(0, 10)}: ${ix || "no successful indexer answers"}`);
+    out.coverage.push(`${localDay(s.searched_at)}: ${ix || "no successful indexer answers"}`);
   }
   for (const e of c.evidence ?? []) {
-    out.sightings.push(`${tierWords(e.tier)} · ${e.source}${e.example ? `: ${e.example}` : ""} · last seen ${e.last_seen_at.slice(0, 10)}${e.positive_only ? " · positive evidence only" : ""}`);
+    out.sightings.push(`${tierWords(e.tier)} · ${e.source}${e.example ? `: ${e.example}` : ""} · last seen ${localDay(e.last_seen_at)}${e.positive_only ? " · positive evidence only" : ""}`);
   }
   const o = c.override;
   if (o) {
     const who = o.by !== undefined && o.by !== null ? (by?.(o.by) ?? `user #${o.by}`) : "someone";
-    const until = o.expires_at ? `; until ${o.expires_at.slice(0, 10)}` : "";
-    out.override = `Set to ${tierWords(o.tier)} by ${who} on ${o.at.slice(0, 10)}${until}${o.note ? `: “${o.note}”` : ""}.`;
+    const until = o.expires_at ? `; until ${localDay(o.expires_at)}` : "";
+    out.override = `Set to ${tierWords(o.tier)} by ${who} on ${localDay(o.at)}${until}${o.note ? `: “${o.note}”` : ""}.`;
   }
   return out;
 }

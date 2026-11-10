@@ -1,5 +1,5 @@
-import { describe, expect, it } from "vitest";
-import { fmtAgo, fmtBytes, fmtDuration, fmtGoDuration, fmtPercent, fmtRate, fmtTime } from "./format";
+import { afterEach, describe, expect, it } from "vitest";
+import { fmtAgo, fmtBytes, fmtDuration, fmtGoDuration, fmtPercent, fmtRate, fmtTime, localDay } from "./format";
 
 describe("format", () => {
   const now = new Date("2026-10-26T19:00:00Z");
@@ -29,5 +29,24 @@ describe("format", () => {
   it("time", () => {
     expect(fmtTime("0001-01-01T00:00:00Z", now)).toBe("—");
     expect(fmtTime(undefined, now)).toBe("—");
+  });
+});
+
+describe("the day of a moment", () => {
+  const zone = process.env.TZ;
+  afterEach(() => {
+    if (zone === undefined) delete process.env.TZ;
+    else process.env.TZ = zone;
+  });
+  it("is the day in the browser's time zone, not the UTC day", () => {
+    process.env.TZ = "America/Los_Angeles";
+    expect(localDay("2026-10-27T03:00:00Z")).toBe("2026-10-26");
+    process.env.TZ = "Pacific/Auckland";
+    expect(localDay("2026-10-26T20:00:00Z")).toBe("2026-10-27");
+  });
+  it("leaves a calendar day as written", () => {
+    process.env.TZ = "America/Los_Angeles";
+    expect(localDay("2026-10-27")).toBe("2026-10-27");
+    expect(localDay(undefined)).toBe("—");
   });
 });

@@ -35,6 +35,17 @@ export function fmtTime(iso: string | null | undefined, now: Date = new Date()):
   return `${MONTHS[d.getMonth()]} ${d.getDate()}${year} ${hh}:${mm}`;
 }
 
+/**
+ * The day (YYYY-MM-DD) a moment falls on in this browser's time zone. A bare YYYY-MM-DD is a calendar day and stays as
+ * written.
+ */
+export function localDay(iso: string | null | undefined): string {
+  if (!iso) return "—";
+  const d = iso.length > 10 ? new Date(iso) : null;
+  if (!d || Number.isNaN(d.getTime())) return iso.slice(0, 10);
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+}
+
 /** "12 s ago", "5 min ago", "3 h ago", "2 d ago"; "in 4 min" for the future. */
 export function fmtAgo(iso: string | null | undefined, now: Date = new Date()): string {
   if (!iso) return "—";

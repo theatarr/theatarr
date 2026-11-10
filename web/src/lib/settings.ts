@@ -13,6 +13,7 @@ import type {
   SettingsRecord,
   SettingsTestResult,
 } from "@/api/settings";
+import { localDay } from "./format";
 
 // ---- source of authority ----
 
@@ -512,7 +513,7 @@ export function testSummary(r: SettingsTestResult, now = Date.now()): { tone: To
   if (r.results !== undefined) parts.push(`${r.results} release${r.results === 1 ? "" : "s"}`);
   if (r.account) {
     parts.push(r.account.premium ? "premium" : "not premium");
-    if (r.account.expires) parts.push(`expires ${r.account.expires.slice(0, 10)}`);
+    if (r.account.expires) parts.push(`expires ${localDay(r.account.expires)}`);
   }
   const extra = parts.length ? ` · ${parts.join(" · ")}` : "";
   switch (r.status) {

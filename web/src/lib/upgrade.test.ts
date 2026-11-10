@@ -71,8 +71,8 @@ describe("upgrade words", () => {
       label: "2160p WEB",
       checked_at: "2026-10-25T12:00:00Z",
       next_check_at: "2026-10-27T12:00:00Z",
-      evidence: [{ source: "arr_history", source_kind: "arr_history", positive_only: true, tier: "web_2160" as const, example: "Alpha.2160p.WEB-DL", count: 1, first_seen_at: "2026-07-01T00:00:00Z", last_seen_at: "2026-07-01T00:00:00Z" }],
-      searches: [{ searched_at: "2026-09-01T00:00:00Z", source: "search", best_tier: "web_2160", indexers: [{ indexer: "disc-feed", source_kind: "torznab", season: -1, complete: true }, { indexer: "dmm", source_kind: "dmm", season: -1, complete: false }] }],
+      evidence: [{ source: "arr_history", source_kind: "arr_history", positive_only: true, tier: "web_2160" as const, example: "Alpha.2160p.WEB-DL", count: 1, first_seen_at: "2026-07-01T12:00:00Z", last_seen_at: "2026-07-01T12:00:00Z" }],
+      searches: [{ searched_at: "2026-09-01T12:00:00Z", source: "search", best_tier: "web_2160", indexers: [{ indexer: "disc-feed", source_kind: "torznab", season: -1, complete: true }, { indexer: "dmm", source_kind: "dmm", season: -1, complete: false }] }],
     };
     const known = whyOf({ ...base, state: "best_available", ceiling: { ...ceiling, status: "known" } }, now);
     expect(known.headline).toBe("Best available");
@@ -88,7 +88,7 @@ describe("upgrade words", () => {
     expect(likely.headline).toBe("Best source seen so far");
     expect(likely.evidence).toMatch(/^Provisional/);
     const manual = whyOf(
-      { ...base, state: "best_available", ceiling: { ...ceiling, status: "override", override: { tier: "web_2160", note: "No disc exists", by: 3, at: "2026-10-20T09:00:00Z" } } },
+      { ...base, state: "best_available", ceiling: { ...ceiling, status: "override", override: { tier: "web_2160", note: "No disc exists", by: 3, at: "2026-10-20T12:00:00Z" } } },
       now,
       (id) => (id === 3 ? "Nick" : `user #${id}`),
     );

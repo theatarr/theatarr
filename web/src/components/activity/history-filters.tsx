@@ -18,6 +18,7 @@ import {
   type HistoryFilters as Filters,
 } from "@/lib/activity-history";
 import { distinctLabels, relabel } from "@/lib/copies";
+import { today } from "@/lib/library";
 
 const FIELD = "h-8 rounded-[5px] border border-input bg-field px-2 text-[13.5px]";
 
@@ -62,7 +63,7 @@ export function HistoryFilters() {
       </Select>
       <label className="flex min-w-0 items-center gap-1.5 text-sm text-[var(--ink-3)]">
         Since
-        <input type="date" aria-label="Since" value={f.since} max={new Date().toISOString().slice(0, 10)} onChange={(e) => set("since", e.target.value)} className={`${FIELD} w-full min-w-0 flex-1 text-foreground sm:w-auto`} data-testid="history-since" />
+        <input type="date" aria-label="Since" value={f.since} max={today()} onChange={(e) => set("since", e.target.value)} className={`${FIELD} w-full min-w-0 flex-1 text-foreground sm:w-auto`} data-testid="history-since" />
       </label>
       {count > 0 ? (
         <Button
