@@ -257,6 +257,11 @@ type request struct {
 	client string
 }
 
+// pingBody is the arrs' PingResource.
+type pingBody struct {
+	Status string `json:"status"`
+}
+
 func (s *Service) handler(v *View) http.Handler {
 	version := RadarrVersion
 	if v.Flavour == Sonarr {
@@ -268,6 +273,17 @@ func (s *Service) handler(v *View) http.Handler {
 		}
 		rest := r.URL.Path[len(v.Base):]
 		low := strings.ToLower(rest)
+		if low == "/ping" {
+			// The arrs' PingController (GET and HEAD /ping, AllowAnonymous): no key, and outside the API, so no
+			// X-Application-Version either. The same answer on every view; it says nothing about the view.
+			if r.Method != http.MethodGet && r.Method != http.MethodHead {
+				w.Header().Set("Allow", "GET, HEAD")
+				w.WriteHeader(http.StatusMethodNotAllowed)
+				return
+			}
+			writeJSON(w, http.StatusOK, pingBody{Status: "OK"})
+			return
+		}
 		if low != "/api/v3" && !strings.HasPrefix(low, "/api/v3/") {
 			// Not the API: the arrs serve their UI here. Nothing to serve.
 			http.NotFound(w, r)

@@ -816,6 +816,9 @@ func (s *Service) updateTitle(w http.ResponseWriter, r *request) {
 // still wanted could be replaced by a search, and a failed hide left it unlinked. A link whose move fails stays: the
 // answer says so, and Theatarr's title page moves the removed copies' leftover links (web RemovalScope.Leftover). A
 // version an arr instance still owns is refused (409), as in the web UI. 200, no body, like the arrs.
+// addImportExclusion=true on a Radarr view also puts the movie on the exclusion list (movie_exclusion, by TMDb id, for
+// every view, as the exclusions POST does), so lists and collections do not add it again; Sonarr's
+// addImportListExclusion is ignored (there is no series exclusion list).
 func (s *Service) deleteTitle(w http.ResponseWriter, r *request) {
 	ctx := r.Context()
 	id, _ := r.pathID(1)
@@ -874,6 +877,8 @@ func (s *Service) deleteTitle(w http.ResponseWriter, r *request) {
 		s.emit(ctx, notify.Event{Kind: notify.Delete, View: r.v.Key, TitleID: e.id, Version: e.versions[0].key,
 			Reason: "manual"})
 	}
+	// Radarr's addImportExclusion=true: the movie also goes on the exclusion list, with the remove.
+	exclude := r.v.Flavour == Radarr && e.kind == "movie" && e.tmdb > 0 && r.queryBool("addImportExclusion", false)
 	ended := 0
 	err = s.st.WriteTx(ctx, func(tx *sqlTx) error {
 		now := store.Millis(s.now())
@@ -893,6 +898,13 @@ func (s *Service) deleteTitle(w http.ResponseWriter, r *request) {
 		}
 		if err := syncTitleMonitored(ctx, tx, e.id, now); err != nil {
 			return err
+		}
+		if exclude {
+			// The statement of the exclusions POST (lists.go): lists and collections skip the movie from now on.
+			if _, err := tx.ExecContext(ctx, `INSERT INTO movie_exclusion(tmdb_id,created_at) VALUES(?,?)
+				ON CONFLICT DO NOTHING`, e.tmdb, now); err != nil {
+				return err
+			}
 		}
 		// Downloads in hand of the removed versions end in our records with the hide, so they are not imported
 		// back and the remove never half-succeeds; the provider keeps its torrents.

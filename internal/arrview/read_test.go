@@ -2,6 +2,7 @@ package arrview
 
 import (
 	"context"
+	"encoding/json"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -567,4 +568,53 @@ func TestMovieStatusPort(t *testing.T) {
 	if !isAvailable("announced", nil, now) {
 		t.Error("announced is always available")
 	}
+}
+
+// TestPing: GET and HEAD <view base>/ping answer as the arrs' PingController does (AllowAnonymous, outside the API):
+// 200 {"status":"OK"} without a key, the same on every view, and no X-Application-Version, so the answer does not say
+// which arr or version it stands for. Nothing else outside /api/v3 is served, and /api/v3/ping is no route.
+func TestPing(t *testing.T) {
+	t.Parallel()
+	e := newEnv(t)
+	bodies := map[string]bool{}
+	for _, base := range []string{"/radarr", "/sonarr", "/v/movie-web/radarr"} {
+		for _, method := range []string{"GET", "HEAD"} {
+			rec := e.do(method, base+"/ping", "", nil)
+			if rec.Code != 200 {
+				t.Fatalf("%s %s/ping: %d", method, base, rec.Code)
+			}
+			if ct := rec.Header().Get("Content-Type"); ct != "application/json; charset=utf-8" {
+				t.Errorf("%s %s/ping: Content-Type %q", method, base, ct)
+			}
+			if v := rec.Header().Get("X-Application-Version"); v != "" {
+				t.Errorf("%s %s/ping: X-Application-Version %q", method, base, v)
+			}
+			var got map[string]any
+			if err := json.Unmarshal(rec.Body.Bytes(), &got); err != nil {
+				t.Fatalf("%s %s/ping: %v: %q", method, base, err, rec.Body.String())
+			}
+			if len(got) != 1 || got["status"] != "OK" {
+				t.Errorf("%s %s/ping: %v", method, base, got)
+			}
+			bodies[rec.Body.String()] = true
+		}
+	}
+	if len(bodies) != 1 {
+		t.Errorf("ping bodies differ between views: %v", bodies)
+	}
+	// A key changes nothing; the path is case-insensitive like the arrs' routes.
+	if rec := e.do("GET", "/radarr/Ping", e.key, nil); rec.Code != 200 {
+		t.Errorf("GET /radarr/Ping with a key: %d", rec.Code)
+	}
+	rec := e.do("POST", "/radarr/ping", "", nil)
+	if rec.Code != 405 || rec.Body.Len() != 0 || rec.Header().Get("X-Application-Version") != "" {
+		t.Errorf("POST /radarr/ping: %d %q", rec.Code, rec.Body.String())
+	}
+	for path, want := range map[string]int{"/radarr/ping/x": 404, "/radarr/ping/": 404, "/radarr/pingx": 404,
+		"/radarr/api/v3/ping": 401, "/sonarr/api/v3/ping": 401} {
+		if rec := e.do("GET", path, "", nil); rec.Code != want {
+			t.Errorf("GET %s without a key: %d, want %d", path, rec.Code, want)
+		}
+	}
+	e.call("GET", "/radarr/api/v3/ping", nil, 404, nil)
 }

@@ -2,9 +2,15 @@ package arrview
 
 import (
 	"context"
+	"encoding/json"
 	"strconv"
 	"strings"
 	"testing"
+	"time"
+
+	"github.com/theatarr/theatarr/internal/catalog"
+	"github.com/theatarr/theatarr/internal/metadata/tmdb"
+	"github.com/theatarr/theatarr/internal/policy"
 )
 
 func (e *env) profileID(view, name string) int64 {
@@ -348,5 +354,84 @@ func TestDeleteEndsDownloadsAndRefusesManaged(t *testing.T) {
 	}
 	if n := e.one(`SELECT COUNT(*) FROM download WHERE id = 73 AND state = 'downloading'`); n != 1 {
 		t.Error("managed version's download ended")
+	}
+}
+
+// oneCollection is a TMDb source with one collection for a catalog.MovieIntake.
+type oneCollection struct{ c tmdb.Collection }
+
+func (f oneCollection) Collection(context.Context, int) (*tmdb.Collection, error) { return &f.c, nil }
+func (f oneCollection) List(context.Context, int) (*tmdb.List, error)             { return &tmdb.List{}, nil }
+func (f oneCollection) MovieDetails(_ context.Context, id int) (*tmdb.Movie, error) {
+	return &tmdb.Movie{ID: id, Title: "Movie " + strconv.Itoa(id), ReleaseDate: "2020-01-01"}, nil
+}
+
+// TestDeleteAddImportExclusion: Radarr's DELETE movie/{id}?addImportExclusion=true also puts the movie on the
+// exclusion list, so a monitored collection that holds it adds nothing for it afterwards. With false or the flag left
+// out nothing is written and the collection adds its version as before. A refused delete and a Sonarr view write
+// nothing.
+func TestDeleteAddImportExclusion(t *testing.T) {
+	t.Parallel()
+	beta := strconv.Itoa(IDBase + 2)
+	// refresh runs a monitored collection that holds Beta (TMDb 102) and wants movie-remux, which Beta does not
+	// have, and returns how many movies it added to.
+	refresh := func(t *testing.T, e *env) int {
+		t.Helper()
+		e.exec(`INSERT INTO movie_collection(tmdb_id,name,monitored,versions,minimum_availability,updated_at)
+			VALUES(7,'Collection',1,'["movie-remux"]','released',0)`)
+		var c tmdb.Collection
+		if err := json.Unmarshal([]byte(`{"id":7,"name":"Collection","parts":[{"id":102,"title":"Beta",
+			"release_date":"2021-01-01"}]}`), &c); err != nil {
+			t.Fatal(err)
+		}
+		in := &catalog.MovieIntake{Store: e.st, Policy: e.pol, TMDb: oneCollection{c},
+			Now: func() time.Time { return testNow }}
+		got, err := in.RefreshCollections(context.Background())
+		if err != nil {
+			t.Fatal(err)
+		}
+		return got.Added
+	}
+	for _, c := range []struct {
+		name, query string
+		excluded    bool
+	}{{"true", "?addImportExclusion=true", true}, {"false", "?addImportExclusion=false", false}, {"absent", "", false}} {
+		t.Run(c.name, func(t *testing.T) {
+			t.Parallel()
+			e := newEnv(t)
+			e.pol.Versions["movie-remux"].Mode = policy.ModeActive
+			e.cutover()
+			e.call("DELETE", "/v/movie-web/radarr/api/v3/movie/"+beta+c.query, nil, 200, nil)
+			rows, own := e.one(`SELECT COUNT(*) FROM movie_exclusion`),
+				e.one(`SELECT COUNT(*) FROM movie_exclusion WHERE tmdb_id = 102`)
+			added := refresh(t, e)
+			remux := e.one(`SELECT COUNT(*) FROM version WHERE title_id = 2 AND policy_key = 'movie-remux'`)
+			if c.excluded {
+				if rows != 1 || own != 1 {
+					t.Fatalf("exclusion rows %d (Beta's %d), want 1", rows, own)
+				}
+				if added != 0 || remux != 0 {
+					t.Errorf("an excluded movie came back: added %d, movie-remux rows %d", added, remux)
+				}
+				return
+			}
+			if rows != 0 {
+				t.Fatalf("%d exclusion rows, want none", rows)
+			}
+			if added != 1 || remux != 1 {
+				t.Errorf("collection without an exclusion: added %d, movie-remux rows %d, want 1 and 1", added, remux)
+			}
+		})
+	}
+	// A refused delete (radarr_4k_debrid still owns movie-remux) excludes nothing.
+	e := newEnv(t)
+	e.call("DELETE", "/radarr/api/v3/movie/7?addImportExclusion=true", nil, 409, nil)
+	// Sonarr has no such list: both spellings of the flag are ignored.
+	e.cutover()
+	show := strconv.Itoa(IDBase + 10)
+	e.call("DELETE", "/sonarr/api/v3/series/"+show+"?addImportListExclusion=true&addImportExclusion=true", nil, 200,
+		nil)
+	if n := e.one(`SELECT COUNT(*) FROM movie_exclusion`); n != 0 {
+		t.Fatalf("%d exclusion rows after a refused delete and a series delete", n)
 	}
 }
