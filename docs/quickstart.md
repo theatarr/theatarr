@@ -8,7 +8,7 @@ Every path, address and key below is a placeholder. Replace them with yours.
 
 Coming from a running arr stack? **Admin › Advanced › Sonarr/Radarr migration** (also linked from **Setup**) walks
 through [migration.md](migration.md): it reads the stack and adds its indexers, providers, profiles and libraries for
-you, disabled or in shadow. The steps below still apply for checking and going live.
+you, disabled or as Watch only. The steps below still apply for checking and going live.
 
 ## 1. Run the container
 
@@ -288,7 +288,7 @@ is not searched on a schedule. It gets decisions two ways:
 
 - **RSS.** Every 15 minutes Theatarr reads the RSS feeds of the library's indexers that have one: Torznab feeds
   (Prowlarr, Jackett), DMM's cached feed, SeaDex's recent feed and catalog indexers. Torrentio and Zilean have no
-  feed; they answer per title. A standalone shadow library needs at least one indexer with a feed.
+  feed; they answer per title. A standalone Watch only library needs at least one indexer with a feed.
 - **Comparison with an arr.** A library fed by a Sonarr or Radarr instance (migration) decides each arr grab and
   runs its own search for it.
 
@@ -297,11 +297,11 @@ To see how the library judges releases, start in the UI:
 - **Settings › Profiles › Check a release**: paste a release name and pick a title and library. It shows the parsed
   quality, the matched formats, the score, any rejection and whether it would upgrade the file. It searches nothing
   and records nothing.
-- The title's **Releases** page (from the title page): for an Active library it can search the indexers now; for a
-  shadow library it shows the last stored decision (from RSS or from an arr grab it compared), so a title added a
+- The title's **Releases** page (from the title page): for a Live library it can search the indexers now; for a
+  Watch only library it shows the last stored decision (from RSS or from an arr grab it compared), so a title added a
   moment ago may show nothing yet.
 
-To search a shadow library's indexers for a title right away, run the decision engine from the shell. It prints the
+To search a Watch only library's indexers for a title right away, run the decision engine from the shell. It prints the
 ranked decisions with their score breakdown and records nothing:
 
 ```sh
@@ -374,7 +374,7 @@ Two details for clients and monitors:
 
 A library created with **Create library and start downloading** (step 6) is already live: it is Active, its
 downloads are on and so are the two global switches. Watch it as in item 3 below. The rest of this step is for a
-library created in shadow.
+library created as Watch only.
 
 For a fresh library, read its decisions first: **Activity › Decision journal** (**Open the decision journal** in Setup)
 shows what it would have grabbed and why ([journal.md](journal.md)). Then run preflight and the go-live check:
@@ -448,7 +448,7 @@ Setup (`/admin/setup`) has six steps:
 2. **Connect downloads:** configure a debrid provider and an indexer; each has its own completion badge.
 3. **Add metadata (TMDb):** enter your TMDb API key; Setup creates the `tmdb` and `tmdb-images` sources.
 4. **Connect your library:** configure the mount under **Settings › Libraries › File management** and Plex under
-   **Settings › Plex & playback**, then create your first library: started at once, or in shadow
+   **Settings › Plex & playback**, then create your first library: started at once, or as Watch only
    ([above](#6-a-first-library)).
 5. **Check readiness:** run preflight and look at **Activity › Decision journal** (**Open the decision journal**).
 6. **Review activation:** one card per library (its key, label, root, state, indexers and providers, and **Why?**
