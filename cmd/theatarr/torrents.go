@@ -90,6 +90,7 @@ func (f *torrentFlags) open(ctx context.Context) (*torrents.Manager, func(), err
 		// With library.mount.decypharr a torrent's usage needs decypharr's folder names; without a gateway the
 		// usage is unknown.
 		m.Decypharr = newDecypharr(e.pol, e.pol.LibrarySettings(), e.gw, log)
+		m.Zurg = newZurgAPI(e.pol.LibrarySettings(), e.gw, log)
 	}
 	if f.needGateway {
 		for _, k := range e.missing {

@@ -40,6 +40,10 @@ type Manager struct {
 	// torrent's folder there is the name decypharr lists its hash under. Nil with the block set: every torrent
 	// without references is unknown.
 	Decypharr *library.Decypharr
+	// Zurg is the library's client of zurg's API (library.mount.zurg_api): the name zurg gives a hash names its
+	// folder, so a folder-name reference under it counts. It only adds references; nil, a failed listing or a hash it
+	// does not list leave the usage as without it.
+	Zurg *library.ZurgAPI
 	// AddLock is the router's add lock (router.Router.AddLock): a restore's add is sent under it, so it never lands
 	// between a route's look at the account and its own add, and a delete's per-item usage checks and its deletes
 	// run under it (local reference writers are kept out by reffence). nil (the CLI) relies on the journal row alone.

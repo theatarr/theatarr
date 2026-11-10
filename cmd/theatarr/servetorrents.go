@@ -64,6 +64,7 @@ func (s *serveTorrents) Manager(ctx context.Context) (*torrents.Manager, error) 
 	if lib != nil && lib.lib != nil {
 		// The library's own decypharr client (library.mount.decypharr), so its index is read once for both.
 		m.Decypharr = lib.lib.Decypharr()
+		m.Zurg = lib.lib.Zurg()
 	}
 	return m, nil
 }

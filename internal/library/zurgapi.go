@@ -98,8 +98,8 @@ func (t *ZurgTorrents) NoVideo(hash, folder string) bool {
 	return len(zs) > 0
 }
 
-// Name is zurg's name for the torrent of hash (its release folder's name by zurg's rule); false when the hash is
-// not listed.
+// Name is zurg's name for the torrent of hash, the torrent's original name; its release folder is named from it by
+// zurg's rule (ReleaseFolderNames). false when the hash is not listed.
 func (t *ZurgTorrents) Name(hash string) (string, bool) {
 	if t == nil {
 		return "", false

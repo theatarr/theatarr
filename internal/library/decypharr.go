@@ -46,6 +46,10 @@ func (d *Decypharr) inherit(prev *Decypharr) {
 // library.mount.decypharr is not set.
 func (l *Library) Decypharr() *Decypharr { return l.decy }
 
+// Zurg is the library's client of zurg's API (the torrents page and the import share its cached listing); nil when
+// library.mount.zurg_api is not set.
+func (l *Library) Zurg() *ZurgAPI { return l.zurg }
+
 // DecypharrState says why decypharr cannot be read now, for the mount's health check: ErrDecypharrLoading while it
 // loads, ErrDecypharrAuth when it refuses the credentials, any other error when its API does not answer. nil when
 // it answers, and without decypharr. It reads the API's root, one request, not the index.

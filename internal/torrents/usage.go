@@ -64,6 +64,21 @@ type refIndex struct {
 	// folderOnly: some reference is known only by its mount folder (a link without a hash, a scan root's link), so a
 	// torrent whose list name is not its folder's may be used under its original name (secondName).
 	folderOnly bool
+	// zurg is zurg's listing (Manager.Zurg), read only when folderOnly; nil without it or when it failed. It only adds
+	// folder names (torrentFolders).
+	zurg *library.ZurgTorrents
+}
+
+// zurgListing is zurg's listing for a usage with folder-name references; nil without zurg_api or when it fails.
+func (m *Manager) zurgListing(ctx context.Context) *library.ZurgTorrents {
+	if m.Zurg == nil {
+		return nil
+	}
+	l, err := m.Zurg.Torrents(ctx)
+	if err != nil {
+		return nil
+	}
+	return l
 }
 
 // decypharrIndex reads decypharr's index when the mount is decypharr's (on). ix is nil when it cannot be read, and
@@ -102,14 +117,22 @@ func secondName(t provider.Torrent) string {
 }
 
 // torrentFolders are folderNames of the provider's name and of its original name (secondName), which a mount may
-// use for its folder instead.
-func torrentFolders(decy *library.DecypharrIndex, hash string, t provider.Torrent) []string {
+// use for its folder instead, and the folder names of zurg's name for the hash (as the import names its folder).
+func torrentFolders(decy *library.DecypharrIndex, zurg *library.ZurgTorrents, hash string, t provider.Torrent) []string {
 	names := folderNames(decy, hash, t.Name)
-	if o := secondName(t); o != "" && o != t.Name {
-		for _, n := range folderNames(decy, hash, o) {
+	more := func(ns []string) {
+		for _, n := range ns {
 			if !slices.Contains(names, n) {
 				names = append(names, n)
 			}
+		}
+	}
+	if o := secondName(t); o != "" && o != t.Name {
+		more(folderNames(decy, hash, o))
+	}
+	if hash != "" {
+		if z, ok := zurg.Name(hash); ok {
+			more(library.ReleaseFolderNames(hash, z))
 		}
 	}
 	return names
@@ -198,6 +221,9 @@ func (m *Manager) loadRefs(ctx context.Context) (*refIndex, error) {
 		return nil, err
 	}
 	m.scanRefs(ctx, ix)
+	if ix.folderOnly {
+		ix.zurg = m.zurgListing(ctx)
+	}
 	return ix, nil
 }
 
@@ -210,9 +236,10 @@ func (m *Manager) loadDBRefs(ctx context.Context) (*refIndex, error) {
 type refScope struct {
 	hash    string
 	folders []string
-	// decyOn and decy are refIndex's, as read for folders.
+	// decyOn and decy are refIndex's, as read for folders; so is zurg.
 	decyOn bool
 	decy   *library.DecypharrIndex
+	zurg   *library.ZurgTorrents
 }
 
 // loadDBRefsFor is loadDBRefs, or with sc only the rows one torrent's usage can see (a delete's last check of each
@@ -226,7 +253,7 @@ func (m *Manager) loadDBRefsFor(ctx context.Context, sc *refScope) (*refIndex, e
 		synced: map[string]bool{}, added: map[string]bool{}, files: map[string]int{}}
 	mv := newMountView(m.Policy)
 	if sc != nil {
-		ix.decyOn, ix.decy = sc.decyOn, sc.decy
+		ix.decyOn, ix.decy, ix.zurg = sc.decyOn, sc.decy, sc.zurg
 	} else {
 		ix.decyOn, ix.decy = m.decypharrIndex(ctx)
 	}
@@ -478,7 +505,7 @@ func (ix *refIndex) usage(key string, t provider.Torrent) (Usage, map[string]int
 	if h != "" {
 		add(ix.byHash[h])
 	}
-	for _, f := range torrentFolders(ix.decy, h, t) {
+	for _, f := range torrentFolders(ix.decy, ix.zurg, h, t) {
 		add(ix.byFolder[f])
 	}
 	sort.SliceStable(refs, func(i, j int) bool { return refs[i].Kind < refs[j].Kind })

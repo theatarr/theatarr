@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/theatarr/theatarr/internal/indexer"
+	"github.com/theatarr/theatarr/internal/library"
 	"github.com/theatarr/theatarr/internal/provider"
 	"github.com/theatarr/theatarr/internal/provider/adder"
 	"github.com/theatarr/theatarr/internal/torrents/reffence"
@@ -379,12 +380,22 @@ func (m *Manager) usageChanged(ctx context.Context, plan *DeletePlan, it *Delete
 	}
 	h := indexer.NormalizeHash(t.Hash)
 	on, decy := m.decypharrIndex(ctx)
-	load := func(t provider.Torrent) (*refIndex, error) {
-		ix, err := m.loadDBRefsFor(ctx, &refScope{hash: h, folders: torrentFolders(decy, h, t), decyOn: on, decy: decy})
+	var zurg *library.ZurgTorrents
+	var load func(provider.Torrent) (*refIndex, error)
+	load = func(t provider.Torrent) (*refIndex, error) {
+		ix, err := m.loadDBRefsFor(ctx, &refScope{hash: h, folders: torrentFolders(decy, zurg, h, t), decyOn: on,
+			decy: decy, zurg: zurg})
 		if err != nil {
 			return nil, err
 		}
-		return ix.withScan(scan), nil
+		ix.withScan(scan)
+		if ix.folderOnly && zurg == nil && m.Zurg != nil {
+			// zurg's name may add a folder: read again with its links.
+			if zurg = m.zurgListing(ctx); zurg != nil {
+				return load(t)
+			}
+		}
+		return ix, nil
 	}
 	ix, err := load(t)
 	if err != nil {
