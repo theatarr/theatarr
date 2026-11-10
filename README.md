@@ -114,7 +114,7 @@ Required:
 - A **media server that follows symlinks**, such as Plex. Plex is the only one Theatarr talks to (scans, sign-in, now
   playing); others work from the folders alone.
 - A **TMDb API key**. Adding titles, search, artwork and release dates need it.
-- **Docker** to run the released image (linux/amd64, and linux/arm64 from 0.1.5), or to build it from source; Go 1.27
+- **Docker** to run the released image (linux/amd64 and linux/arm64), or to build it from source; Go 1.27
   and Node 20 to build without Docker. The arm64 image is untested on real hardware
   ([docs/not-supported.md](docs/not-supported.md#other-gaps)).
 
@@ -130,14 +130,14 @@ Optional:
 ## Quick start
 
 Pull the released image with [`examples/compose.image.yaml`](examples/compose.image.yaml). Each release publishes
-an image for linux/amd64 and linux/arm64 (arm64 from 0.1.5) to `ghcr.io/theatarr/theatarr`; the
+an image for linux/amd64 and linux/arm64 to `ghcr.io/theatarr/theatarr`; the
 [Releases page](https://github.com/theatarr/theatarr/releases) lists the versions. The image tag is the version
-without the leading `v` (release `v0.1.4` is the image `0.1.4`).
+without the leading `v` (release `v0.1.5` is the image `0.1.5`).
 
 ```sh
 mkdir theatarr && cd theatarr
 curl -fsSL -o compose.yaml https://raw.githubusercontent.com/theatarr/theatarr/main/examples/compose.image.yaml
-echo THEATARR_VERSION=0.1.4 > .env             # a version from the Releases page; then edit the host paths in compose.yaml
+echo THEATARR_VERSION=0.1.5 > .env             # a version from the Releases page; then edit the host paths in compose.yaml
 mkdir -p data && sudo chown 65532:65532 data   # the image runs as uid 65532; so must the library roots and trash
 docker compose up -d
 sudo cat data/initial-admin-password
