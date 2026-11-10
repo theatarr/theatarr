@@ -1171,7 +1171,7 @@
           "control": { "$ref": "#/components/schemas/VersionControl" },
           "acquisition": { "$ref": "#/components/schemas/Acquisition" },
           "minimum_availability": { "type": "string", "description": "Title page, movies: the minimum availability in force in this library: the explicit choice, else the imported value (which may be tba), else the library's minimum_availability, else released" },
-          "anime_skip": { "type": "boolean", "description": "Title page, series: true for a monitored copy acquisition does not search, because the library's anime rule does not fit the series (anime by its flag or its type); absent otherwise" }
+          "anime_skip": { "type": "boolean", "description": "Title page, series: true for a monitored copy in a library searches run for (mode active, grab and the router on) that acquisition does not search, because the library's anime rule does not fit the series (anime by its flag or its type); absent otherwise" }
         }
       },
       "CurrentFile": {

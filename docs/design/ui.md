@@ -295,9 +295,10 @@ See [quickstart](../quickstart.md#readiness-led-setup) for the completion rules;
   (`catalog.SetSeriesType`; the anime flag stays). The change is saved at once and can stop searches: acquisition
   searches a series only in libraries whose anime rule fits it (anime by its flag or its type; a library set to
   no anime skips an anime series, one set to anime only skips the rest), and neither Wanted nor search now says
-  why a copy is left out. So the monitored copies left out (`versions[].anime_skip`) are named under the control,
-  "Not searched in ...", with the reason, also after a change. Both endpoints take 1 to 500 titles, the page sends one, and a
-  title of the other kind answers 400 with nothing written. Without manage both show as text.
+  why a copy is left out. So the monitored copies left out in libraries searches run for
+  (`versions[].anime_skip`) are named under the control, "Not searched in ...", with the reason, also after a
+  change. Both endpoints take 1 to 500 titles, the page sends one, and a title of the other kind answers 400 with
+  nothing written. Without manage both show as text.
 - **Family accounts** (no "see files"): hero with readiness and languages, their request card, Episodes for a
   series, About; no copy cards, states or history (the API sends none).
 - **Add by magnet or hash** (admins, under the releases list, for the shown library): a magnet link or info hash

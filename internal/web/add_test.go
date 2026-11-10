@@ -1225,6 +1225,14 @@ func TestAddSeriesTypeLibraries(t *testing.T) {
 	if !slices.Equal(got, []string{"tv-2160p"}) || queued != 0 || skips(id) != "tv-2160p" {
 		t.Errorf("named library: libraries %v, %d searches, skipped %q", got, queued, skips(id))
 	}
+	// A library no search runs for (shadow here) is not marked: the anime rule is not why it is not searched.
+	shadow := newAddEnv(t, nil)
+	shadow.call("POST", APIBase+"/titles/series-type", map[string]any{"title_ids": []int64{10}, "series_type": "anime"}, 200, nil)
+	var d TitleDetail
+	shadow.call("GET", APIBase+"/titles/10", nil, 200, &d)
+	if len(d.Versions) != 1 || d.Versions[0].AnimeSkip {
+		t.Errorf("a shadow library: %+v", d.Versions)
+	}
 	// The title page follows a change of type, both ways.
 	if got := skips(10); got != "" {
 		t.Fatalf("the seeded series: skipped %q", got)

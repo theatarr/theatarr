@@ -312,8 +312,9 @@ type Version struct {
 	// the explicit choice, else the imported value, else the library's default, else released); the title route
 	// only, empty for a series.
 	MinimumAvailability string `json:"minimum_availability,omitempty"`
-	// AnimeSkip (title page, series): a monitored copy in the library that acquisition does not search, because the
-	// library's anime rule does not fit the series (its anime flag, or its type anime; acquire's targets).
+	// AnimeSkip (title page, series): a monitored copy in a library searches run for (catalog.Searchable) that
+	// acquisition does not search, because the library's anime rule does not fit the series (its anime flag, or its
+	// type anime; acquire's targets).
 	AnimeSkip bool `json:"anime_skip,omitempty"`
 }
 
@@ -443,7 +444,10 @@ func (w *Web) getTitle(ctx context.Context, id int64) (*TitleDetail, error) {
 			for i := range d.Versions {
 				v := &d.Versions[i]
 				vp := w.pol.Versions[v.Key]
-				v.AnimeSkip = vp != nil && v.Monitored && !slices.Contains(removed, v.ID) && !catalog.Fits(vp, policy.KindSeries, anime)
+				// Only a library searches run for: search now already says why another one is left out.
+				active, _ := catalog.Searchable(w.pol, []string{v.Key})
+				v.AnimeSkip = vp != nil && len(active) > 0 && v.Monitored && !slices.Contains(removed, v.ID) &&
+					!catalog.Fits(vp, policy.KindSeries, anime)
 			}
 		}
 	case w.pol != nil && len(d.Versions) > 0:
