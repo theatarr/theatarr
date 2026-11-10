@@ -171,7 +171,7 @@ export function explainError(e: unknown, now = Date.now()): Explained {
         return {
           kind: "account_orphan",
           title: "The new account cannot see active downloads",
-          message: `Changing this provider's account or address would lose ${plural(accountN, "active download")}: the new account cannot see their torrents. Nothing was saved. Let them finish first, or remove the provider (confirming that its active downloads fail) and add it again.`,
+          message: `Changing this provider's account or address would lose ${plural(accountN, "active download")}: the new account cannot see their torrents. Nothing was saved. To go ahead, tick "Fail its active downloads" and save again: those downloads are marked failed ("provider account changed by settings", not blocklisted). Otherwise let them finish first.`,
           server,
           detail,
         };

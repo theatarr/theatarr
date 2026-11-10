@@ -123,7 +123,7 @@ export function OrphanChoice({ checked, onChange, disabled, children }: { checke
       </Choice>
       <p className="mt-1.5 pl-6 text-muted-foreground">
         {children ??
-          "Leave this off and a save that disables or removes this provider while it has active downloads is refused; nothing changes. Tick it to go ahead anyway: those downloads are marked failed (\"provider removed by settings\", not blocklisted) and the router stops following them."}
+          "Leave this off and a save that disables or removes this provider while it has active downloads, or changes its account so that the new one cannot see some of them, is refused; nothing changes. Tick it to go ahead anyway: those downloads are marked failed (\"provider removed by settings\" or \"provider account changed by settings\", not blocklisted) and the router stops following them."}
       </p>
     </div>
   );

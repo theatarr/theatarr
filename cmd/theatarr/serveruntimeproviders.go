@@ -26,6 +26,9 @@ type providerContinuity struct {
 	removed []string
 	changed []string
 	probed  map[string]map[int64]activeProviderDownload
+	// missing: per changed key, the active downloads the new account cannot see, failed in the commit
+	// (orphan_active_downloads set).
+	missing map[string]map[int64]activeProviderDownload
 	orphan  bool
 }
 
@@ -65,7 +68,7 @@ func (r *serveRuntime) CommitSettings(ctx context.Context, tx *sql.Tx) error {
 	}
 	for key, probed := range c.probed {
 		for _, d := range rows {
-			if d.key == key && probed[d.id] != d {
+			if d.key == key && probed[d.id] != d && c.missing[key][d.id] != d {
 				return settings.ErrDownloadsChanged
 			}
 		}
@@ -92,6 +95,15 @@ func (r *serveRuntime) CommitSettings(ctx context.Context, tx *sql.Tx) error {
 			WHERE provider = ? AND state IN ('added', 'downloading', 'ready')`,
 			"provider removed by settings", store.Millis(time.Now()), key); err != nil {
 			return err
+		}
+	}
+	for key, missing := range c.missing {
+		for id := range missing {
+			if _, err := tx.ExecContext(ctx, `UPDATE download SET state = 'failed', error = ?, updated_at = ?
+				WHERE id = ? AND provider = ? AND state IN ('added', 'downloading', 'ready')`,
+				"provider account changed by settings", store.Millis(time.Now()), id, key); err != nil {
+				return err
+			}
 		}
 	}
 	for _, key := range c.changed {
@@ -181,7 +193,7 @@ func validateProviderContinuity(ctx context.Context, st *store.Store, snap *sett
 		jobs := make(chan activeProviderDownload)
 		var wg sync.WaitGroup
 		var mu sync.Mutex
-		missing, uncertain := 0, 0
+		missing, uncertain, adding := map[int64]activeProviderDownload{}, 0, 0
 		for range min(4, len(active)) {
 			wg.Go(func() {
 				for d := range jobs {
@@ -195,11 +207,11 @@ func validateProviderContinuity(ctx context.Context, st *store.Store, snap *sett
 					case d.torrent == "" || clients[key] == nil || ctx.Err() != nil:
 						uncertain++
 					case errors.Is(probeErr, provider.ErrNotFound):
-						missing++
+						missing[d.id] = d
 					case probeErr != nil || torrent == nil || indexer.NormalizeHash(torrent.Hash) == "":
 						uncertain++
 					case indexer.NormalizeHash(torrent.Hash) != indexer.NormalizeHash(d.hash):
-						missing++
+						missing[d.id] = d
 					default:
 						c.probed[key][d.id] = d
 					}
@@ -215,8 +227,22 @@ func validateProviderContinuity(ctx context.Context, st *store.Store, snap *sett
 		if uncertain > 0 {
 			return nil, continuityRefusal(key, fmt.Sprintf("could not verify %d active download(s) on the new account; retry", uncertain))
 		}
-		if missing > 0 {
-			return nil, continuityRefusal(key, fmt.Sprintf("account change would orphan %d active download(s): new account cannot see their torrents", missing))
+		if len(missing) > 0 && !c.orphan {
+			return nil, continuityRefusal(key, fmt.Sprintf("account change would orphan %d active download(s): new account cannot see their torrents; set orphan_active_downloads (\"Fail its active downloads\") to fail them and save", len(missing)))
+		}
+		for _, d := range missing {
+			if d.state == "adding" {
+				adding++
+			}
+		}
+		if adding > 0 {
+			return nil, continuityRefusal(key, fmt.Sprintf("%d add(s) in progress for provider %s; retry shortly", adding, key))
+		}
+		if len(missing) > 0 {
+			if c.missing == nil {
+				c.missing = map[string]map[int64]activeProviderDownload{}
+			}
+			c.missing[key] = missing
 		}
 	}
 	return c, nil
