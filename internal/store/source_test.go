@@ -27,7 +27,7 @@ func TestSourceSettings(t *testing.T) {
 	for _, tc := range []struct {
 		id   int64
 		want SourceSettings
-	}{{1, SourceSettings{"anime", "announced"}}, {2, SourceSettings{"anime", "announced"}}, {3, SourceSettings{}}, {0, SourceSettings{}}} {
+	}{{1, SourceSettings{"announced"}}, {2, SourceSettings{"announced"}}, {3, SourceSettings{}}, {0, SourceSettings{}}} {
 		got, err := LoadSourceSettings(ctx, st.Reader(), tc.id)
 		if err != nil || got != tc.want {
 			t.Errorf("version %d: %+v, %v; want %+v", tc.id, got, err, tc.want)
@@ -36,7 +36,7 @@ func TestSourceSettings(t *testing.T) {
 	if _, err := st.Writer().Exec(`DELETE FROM version_source`); err != nil {
 		t.Fatal(err)
 	}
-	if got, err := LoadSourceSettings(ctx, st.Reader(), 2); err != nil || got.SeriesType != "standard" {
+	if got, err := LoadSourceSettings(ctx, st.Reader(), 2); err != nil || got.MinimumAvailability != "released" {
 		t.Errorf("fallback imported view: %+v, %v", got, err)
 	}
 }
