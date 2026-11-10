@@ -192,7 +192,7 @@ function CopyCard({ v }: { v: Version }) {
         <div className="col-span-2">
           <Field label="Upgrade status" testid="copy-upgrade">
             {v.has_file && v.upgrade && v.upgrade.state !== "none" ? (
-              <UpgradeStatus u={v.upgrade} what={`${f.copy} library`} titleId={titleId} releases={releases} ceilingControl={!eps} />
+              <UpgradeStatus u={v.upgrade} what={`${f.copy} copy`} titleId={titleId} releases={releases} ceilingControl={!eps} />
             ) : (
               <span className="text-muted-foreground">{v.has_file ? "—" : "Waiting for a file"}</span>
             )}

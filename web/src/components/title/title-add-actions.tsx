@@ -1,9 +1,9 @@
-// The copies section's header (docs/design/ui.md, title actions): "Add another library" (the add sheet) and search now
+// The copies section's header (docs/design/ui.md, title actions): "Add to another library" (the add sheet) and search now
 // for every copy. Turning a copy on or off lives on its card (versions.tsx), the one place a copy is managed. Search
 // now is offered only when it would run: a monitored version in mode active while router.enabled is true; otherwise
 // the header says why nothing would be searched, except on the title page, where each library's card says it (as the
 // Episodes tab names the reason per library). A failed search now says so, with Retry; a new try clears the last
-// outcome first. "Add another library" opens the add sheet for this title by its id (the add posts title_id, so a series
+// outcome first. "Add to another library" opens the add sheet for this title by its id (the add posts title_id, so a series
 // known only by its TVDB id works). Mounted by the title page and the releases page as <TitleAddActions titleId
 // name kind />.
 import { AlertTriangle, Loader2, Plus, RotateCcw, Search } from "lucide-react";
@@ -23,7 +23,7 @@ export function TitleAddActions({ titleId, name, year, kind, poster, anime, add 
   kind: "movie" | "series";
   poster?: string;
   anime?: boolean;
-  /** Offer "Add another library" (the add permission). */
+  /** Offer "Add to another library" (the add permission). */
   add?: boolean;
   /** Each library's card below states its own download block (the copies tab), so the header does not repeat it. */
   cardNotes?: boolean;
@@ -60,7 +60,7 @@ export function TitleAddActions({ titleId, name, year, kind, poster, anime, add 
           ) : null}
           {add ? (
             <Button size="sm" variant="outline" onClick={() => openAdd(target)} data-testid="title-add-versions">
-              <Plus /> Add another library
+              <Plus /> Add to another library
             </Button>
           ) : null}
         </div>

@@ -60,7 +60,7 @@ function RemoveDialog({ titleId, versions, onClose }: { titleId: number; version
   );
 }
 
-/** Remove this library, and unlink its files one by one: shown in the copy's Details. */
+/** Remove this copy, and unlink its files one by one: shown in the copy's Details. */
 export function CopyActions({ v, label }: { v: Version; label: string }) {
   const titleId = v.title_id ?? 0;
   const [open, setOpen] = useState(false);
@@ -86,7 +86,7 @@ export function CopyActions({ v, label }: { v: Version; label: string }) {
         </div>
       ) : null}
       <Button size="xs" variant="outline" onClick={() => setOpen(true)} data-testid={`copy-remove-${v.key}`}>
-        <Trash2 /> Remove this library
+        <Trash2 /> Remove this copy
       </Button>
       {open ? <RemoveDialog titleId={titleId} versions={[v.key]} onClose={() => setOpen(false)} /> : null}
       {path ? (
