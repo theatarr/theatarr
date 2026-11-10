@@ -37,6 +37,13 @@ Theatarr sends notifications as webhooks: a generic JSON webhook (arr-shaped pay
 `theatarr.*` events), a Discord format and an ntfy format (not yet tested against an ntfy server). There is no
 built-in email, Telegram, Gotify or Pushover target.
 
+A Discord or ntfy target gets a message when a health check starts failing and when it stops, for new errors,
+the daily digest and a request that is ready. Health warnings, such as a mount that stopped answering, are not
+sent at once unless you turn **Also send warnings** on for that target (**Settings › Notifications ›
+Destinations**; off by default): it then also gets a
+check that starts to warn and a warning that eases or clears. Notices are never sent on their own; warnings and
+notices are both in the daily digest. A JSON webhook target has no such option: it is filtered by its events.
+
 To reach one of those services, send the webhook to something that turns JSON into a message:
 
 - **A small relay** (n8n, Node-RED or a short script) that reads the JSON and posts a message to your service. This

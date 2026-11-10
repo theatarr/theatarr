@@ -20,6 +20,7 @@ notify:
   #     url: https://discord.com/api/webhooks/<id>/<token>
   #     format: discord           # health and error alerts, the daily digest, request ready, test
   #     events: [health, health_restored, error, digest, request_ready]   # empty means all of these
+  #     # warnings: true        # also send health warnings (Discord and ntfy targets only); notices are never sent
   #   phone:                    # an ntfy topic: the server address followed by the topic
   #     url: https://ntfy.example.com/<topic>
   #     format: ntfy              # the same messages and events as a Discord target, as plain text
