@@ -81,7 +81,7 @@ func runSearch(args []string, out io.Writer, dial func(context.Context, string, 
 		return err
 	}
 
-	pol, err := loadCommandPolicy(fs, policyDir)
+	pol, snap, err := loadCommandSettings(fs, policyDir)
 	if err != nil {
 		return err
 	}
@@ -107,7 +107,7 @@ func runSearch(args []string, out io.Writer, dial func(context.Context, string, 
 		return err
 	}
 	defer gw.FlushRequests(context.WithoutCancel(ctx)) // the indexer request counts (docs/design/gateway.md)
-	svc, err := indexer.New(pol, gw, indexer.Options{Logger: log})
+	svc, err := indexer.New(pol, gw, indexer.Options{Logger: log, APIKeys: indexerKeys(pol, snap)})
 	if err != nil {
 		return err
 	}

@@ -244,7 +244,7 @@ func runDecide(args []string, out io.Writer, dial func(context.Context, string, 
 	e.SetLibrary(decide.NewLibrary(movies))
 
 	if *search {
-		return decideSearch(decide.WithSearch(ctx), db, out, pol, e, t, v, existing, ss, *limit, *asJSON, dial)
+		return decideSearch(decide.WithSearch(ctx), db, out, pol, indexerKeys(pol, df.snap), e, t, v, existing, ss, *limit, *asJSON, dial)
 	}
 
 	r := decide.Release{Release: indexer.Release{Indexer: *idx, Title: fs.Arg(0), Seeders: *seeders, Peers: *seeders,
@@ -351,7 +351,7 @@ func orDash(s string) string {
 }
 
 // decideSearch searches the version's indexers for the title, decides every release and prints them ranked.
-func decideSearch(ctx context.Context, db *sql.DB, out io.Writer, pol *policy.Policy, e *decide.Engine, t decide.Title, v decide.Version,
+func decideSearch(ctx context.Context, db *sql.DB, out io.Writer, pol *policy.Policy, apiKeys map[string]string, e *decide.Engine, t decide.Title, v decide.Version,
 	existing *decide.ExistingFile, ss *decide.SeriesSearch, limit int, asJSON bool,
 	dial func(context.Context, string, string) (net.Conn, error)) error {
 	log := slog.New(slog.NewTextHandler(io.Discard, nil))
@@ -359,7 +359,7 @@ func decideSearch(ctx context.Context, db *sql.DB, out io.Writer, pol *policy.Po
 	if err != nil {
 		return err
 	}
-	svc, err := indexer.New(pol, gw, indexer.Options{Logger: log})
+	svc, err := indexer.New(pol, gw, indexer.Options{Logger: log, APIKeys: apiKeys})
 	if err != nil {
 		return err
 	}

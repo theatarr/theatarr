@@ -6,9 +6,13 @@ import (
 	"encoding/json"
 	"io"
 	"log/slog"
+	"net"
+	"net/http"
+	"net/http/httptest"
 	"os"
 	"path/filepath"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -176,5 +180,76 @@ func TestProviderKeyUnsetAndBackupWording(t *testing.T) {
 	if strings.Contains(s, "MISSING") || strings.Contains(s, "never stored") || !strings.Contains(s, "stored in the database") ||
 		!strings.Contains(s, "keep it private") || !strings.Contains(s, "THEATARR_TMDB_KEY") {
 		t.Errorf("secrets block:\n%s", s)
+	}
+}
+
+// TestSearchCommandsUseStoredIndexerKeys: decide -search, search and router dry-run send the indexer key stored in
+// the settings database, with nothing in the environment.
+func TestSearchCommandsUseStoredIndexerKeys(t *testing.T) {
+	const env = "THEATARR_TEST_PUBLIC_KEY"
+	t.Setenv(env, "")
+	os.Unsetenv(env)
+	for _, tool := range []string{"decide", "search", "router"} {
+		t.Run(tool, func(t *testing.T) {
+			dir, db := decideFixture(t, "127.0.0.1")
+			rest := filepath.Join(dir, "rest.yaml")
+			b, err := os.ReadFile(rest)
+			if err != nil {
+				t.Fatal(err)
+			}
+			// The fixture stores "fixture-<env name>" as the key of every record naming an env variable.
+			s := strings.Replace(string(b), "url: http://prowlarr:9696/1/api\n", "url: http://prowlarr:9696/1/api\n    api_key_env: "+env+"\n", 1)
+			if err := os.WriteFile(rest, []byte(s), 0o644); err != nil {
+				t.Fatal(err)
+			}
+			var mu sync.Mutex
+			var sent []string
+			srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				if strings.HasPrefix(r.URL.Path, "/1/") { // "public"; the other indexers have no key
+					mu.Lock()
+					sent = append(sent, r.URL.Query().Get("apikey"))
+					mu.Unlock()
+				}
+				if r.URL.Query().Get("t") == "caps" {
+					io.WriteString(w, `<caps><searching><search available="yes" supportedParams="q" />`+
+						`<movie-search available="yes" supportedParams="q,imdbid,tmdbid" /></searching>`+
+						`<categories><category id="2000" name="Movies" /></categories></caps>`)
+					return
+				}
+				io.WriteString(w, `<rss version="2.0"><channel></channel></rss>`)
+			}))
+			defer srv.Close()
+			dial := func(ctx context.Context, network, addr string) (net.Conn, error) {
+				if addr == "prowlarr:9696" {
+					addr = srv.Listener.Addr().String()
+				}
+				var d net.Dialer
+				return d.DialContext(ctx, network, addr)
+			}
+			args := []string{"-policy", dir, "-db", db, "-arr-snapshot", filepath.Join("..", "..", "internal", "decide", "testdata", "arr"),
+				"-title", "7", "-version", "movie-remux"}
+			var out bytes.Buffer
+			switch tool {
+			case "decide":
+				err = runDecide(commandSettingsArgs(t, append(args, "-search")), &out, dial)
+			case "router":
+				err = runRouter(commandSettingsArgs(t, append([]string{"dry-run"}, args...)), &out, dial)
+			case "search":
+				err = runSearch(commandSettingsArgs(t, []string{"-policy", dir, "-db", db, "-indexer", "public", "-imdb", "tt0133093"}), &out, dial)
+			}
+			if err != nil {
+				t.Fatalf("%v\n%s", err, out.String())
+			}
+			mu.Lock()
+			defer mu.Unlock()
+			if len(sent) == 0 {
+				t.Fatal("no indexer was searched")
+			}
+			for _, k := range sent {
+				if k != "fixture-"+env {
+					t.Errorf("the stored key was not sent (set=%t)", k != "")
+				}
+			}
+		})
 	}
 }
