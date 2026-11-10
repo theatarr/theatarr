@@ -401,8 +401,10 @@ func TestMP4AC3Channels(t *testing.T) {
 	dac3 := box("dac3", []byte{0x50, 0x3d, 0xc0})                   // ffmpeg's 5.1 AC-3: acmod 7, lfeon 1
 	dec3 := box("dec3", []byte{0x0c, 0x00, 0x60, 0x0f, 0x00, 0x00}) // ffmpeg's 5.1 E-AC-3
 	dec3Atmos := box("dec3", []byte{0x0c, 0x00, 0x60, 0x0f, 0x00, 0x01})
-	dec3Stereo := box("dec3", []byte{0x0c, 0x00, 0x60, 0x04, 0x00, 0x00})          // acmod 2, no LFE
-	dec3Dependent := box("dec3", []byte{0x0c, 0x00, 0x60, 0x0f, 0x02, 0x00, 0x00}) // 5.1 plus a dependent substream
+	dec3Stereo := box("dec3", []byte{0x0c, 0x00, 0x60, 0x04, 0x00, 0x00}) // acmod 2, no LFE
+	// 5.1 plus a dependent substream with chan_loc Lrs/Rrs (7.1), and with Lw/Rw, Cs and LFE2 (10 channels).
+	dec3Dependent := box("dec3", []byte{0x0c, 0x00, 0x60, 0x0f, 0x02, 0x02, 0x00})
+	dec3Wide := box("dec3", []byte{0x0c, 0x00, 0x60, 0x0f, 0x03, 0x24, 0x00})
 	wave := func(format string, b []byte) []byte {
 		return box("wave", box("frma", []byte(format)), b, make([]byte, 8))
 	}
@@ -416,7 +418,8 @@ func TestMP4AC3Channels(t *testing.T) {
 		{"v0 ec-3", mp4Sound("ec-3", soundEntry(0, 2, 0), dec3), 6, ""},
 		{"v0 ec-3 atmos", mp4Sound("ec-3", soundEntry(0, 2, 0), dec3Atmos), 6, "ec+3"},
 		{"v0 ec-3 stereo", mp4Sound("ec-3", soundEntry(0, 6, 0), dec3Stereo), 2, ""},
-		{"v0 ec-3 dependent keeps 8", mp4Sound("ec-3", soundEntry(0, 8, 0), dec3Dependent), 8, ""},
+		{"v0 ec-3 7.1", mp4Sound("ec-3", soundEntry(0, 2, 0), dec3Dependent), 8, ""},
+		{"v0 ec-3 chan_loc pairs and singles", mp4Sound("ec-3", soundEntry(0, 2, 0), dec3Wide), 10, ""},
 		{"v1 ac-3 in wave", mp4Sound("ac-3", soundEntry(1, 2, 0), wave("ac-3", dac3)), 6, ""},
 		{"v1 ec-3 in wave", mp4Sound("ec-3", soundEntry(1, 2, 0), wave("ec-3", dec3Atmos)), 6, "ec+3"},
 		{"v1 ec-3 bare", mp4Sound("ec-3", soundEntry(1, 2, 0), dec3Atmos), 6, "ec+3"},

@@ -4,6 +4,7 @@ import (
 	"encoding/binary"
 	"errors"
 	"io"
+	"math/bits"
 	"strings"
 )
 
@@ -335,10 +336,11 @@ func mp4AudioEntry(a *Audio, format string, ext []byte) {
 				deps := int(d[p+2]>>1) & 0xF
 				if i == 0 {
 					// The first independent substream: fscod(2) bsid(5) reserved(1) asvc(1) bsmod(3) acmod(3)
-					// lfeon(1). Channels a dependent substream adds (7.1) are not counted, so a larger count from
-					// the sample entry is kept then.
-					if c := ac3Channels(d[p+1]>>1, d[p+1]); deps == 0 || c > a.Channels {
-						a.Channels = c
+					// lfeon(1) reserved(3) num_dep_sub(4), then chan_loc(9) with dependents: the channels its
+					// dependent substreams add (7.1: Lrs/Rrs).
+					a.Channels = ac3Channels(d[p+1]>>1, d[p+1])
+					if deps > 0 && p+4 <= len(d) {
+						a.Channels += ec3ChanLocChannels(uint16(d[p+2]&1)<<8 | uint16(d[p+3]))
 					}
 				}
 				p += 3
@@ -359,6 +361,12 @@ func mp4AudioEntry(a *Audio, format string, ext []byte) {
 		}
 	}
 	memBoxes(ext, child)
+}
+
+// ec3ChanLocChannels counts the channels a dec3 chan_loc declares (ETSI TS 102 366 Table F.6.1, bit 0 the least
+// significant): Lc/Rc, Lrs/Rrs, Cs, Ts, Lsd/Rsd, Lw/Rw, Vhl/Vhr, Vhc, LFE2; the pairs are bits 0, 1, 4, 5 and 6.
+func ec3ChanLocChannels(loc uint16) int {
+	return bits.OnesCount16(loc&0x1FF) + bits.OnesCount16(loc&0x073)
 }
 
 // ac3Channels is the channel count of an AC-3 acmod (low 3 bits) plus the LFE channel (lfeon, low bit).
