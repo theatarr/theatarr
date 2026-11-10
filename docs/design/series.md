@@ -64,7 +64,7 @@ Tests: `TestSeriesTypeEchoChangesNothing`, `TestSeriesTypeEdit`, `TestSeriesType
 
 ### Series decisions (`internal/decide`)
 
-Every version of a series, parallel followers included, decides and names with the title's series type (below);
+Every version of a series, parallel followers included, decides and names with the title's series type (above);
 removed episodes are excluded from ordinary matching loads. Each arr import also unmonitors follower episodes
 absent from its snapshot, retaining their links and file states.
 
@@ -81,7 +81,7 @@ absent from its snapshot, retaining their links and file states.
   (one `UpgradeDisk` failure rejects it), as Sonarr does. Each file's formats follow
   `ParseCustomFormat(EpisodeFile, Series)`: scene name, else original path, else relative path; the file's release
   type. The decision lists the episodes (`S01E02`), their ids, how many have no file, the release type and season.
-- **Loading** (`dbload.go`): `LoadSeries`, `LoadSeriesVersion` (owner's series type, scene mappings, episodes with
+- **Loading** (`dbload.go`): `LoadSeries`, `LoadSeriesVersion` (scene mappings, episodes with
   numbers and the version's files with their episode sets) and `LoadEpisodes`.
 - **Specifications added** (`internal/decide/profile/series.go`, additive): `FullSeason`, `MultiSeason`,
   `SplitEpisode`, `SameEpisodesGrab`, `SceneMapping`, `SeasonPackOnly`, `RssSync/MonitoredEpisode`,
