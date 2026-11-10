@@ -444,7 +444,9 @@ function VersionForm({ session, data, defaults, profiles, error, onChange }: { s
   // The TRaSH defaults of the library's kind (movies: Radarr's, series: Sonarr's), offered beside the stored profiles.
   const flavour = flavourOf(config.kind);
   const presets = usePresets(flavour, data.source === "db").data?.presets ?? [];
-  const stored = Object.keys(data.profiles);
+  // A stored profile whose format set is of the other kind (a Radarr set for a series library) is left out: saving
+  // refuses it. The current profile stays listed; a profile without a format set may suit either kind.
+  const stored = Object.keys(data.profiles).filter((key) => { const p = profiles.get(key); return key === config.profile || !p?.format_set || p.flavour === flavour; });
   const picked = presetPick(config.profile);
   const pickedPreset = picked ? presets.find((p) => p.trash_id === picked) : undefined;
   const copiesOf = (id: string) => presetCopies([...profiles.values()], flavour, id);

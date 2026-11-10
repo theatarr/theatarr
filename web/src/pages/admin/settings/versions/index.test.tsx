@@ -757,6 +757,21 @@ describe("Versions grouped by kind", () => {
     expect(fetch.calls("POST", "/settings/versions")[0].body).toMatchObject({ generation: 5, key: "movies", config: { profile: "movies", mode: "shadow" } });
   });
 
+  it("leaves profiles whose format set is of the other kind out of a series library's choices", async () => {
+    const tagged = { ...quality, profiles: [summary("web", null, { format_set: "web-set" }), summary("sonarr-web", null, { flavour: "sonarr", format_set: "sonarr-set" }), summary("anime-tv", null)] };
+    mockFetch([...routes().slice(0, 2), { method: "GET", path: "/settings/quality/overview", reply: tagged }]);
+    const user = userEvent.setup();
+    renderPage(<VersionsPage />);
+    await screen.findByRole("region", { name: "Movies" });
+    await user.click(screen.getByRole("button", { name: "Add library" }));
+    const form = await screen.findByTestId("version-form");
+    const profile = within(form).getByRole("combobox", { name: "Profile" }) as HTMLSelectElement;
+    const values = () => [...profile.options].map((o) => o.value);
+    await waitFor(() => expect(values()).toEqual(["web", "anime-tv"]));
+    await user.selectOptions(within(form).getByRole("combobox", { name: "Kind" }), "series");
+    await waitFor(() => expect(values()).toEqual(["sonarr-web", "anime-tv"]));
+  });
+
   it("does not keep the preselected movie profile when a new library becomes a series library without a series default", async () => {
     // No defaults for new libraries: the form opens with the first profile, a movie one.
     mockFetch([...routes().slice(0, 2), { method: "GET", path: "/settings/quality/overview", reply: { ...quality, defaults: {} } }]);
