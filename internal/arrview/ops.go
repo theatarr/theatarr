@@ -113,6 +113,18 @@ func (s *Service) grab(ctx context.Context, titleID int64, version string, rel i
 	if err != nil {
 		return nil, err
 	}
+	// A release added by hand is known by its name alone: one that maps to no episode of a series cannot be routed,
+	// with or without override, so it is refused here, before its rejections are offered for an override. Usually
+	// it is a season pack whose name carries no season (the parser cannot read it).
+	if vp := s.pol.Versions[version]; policy.IsManualAdd(rel.Indexer) && vp != nil && vp.Kind == policy.KindSeries &&
+		len(d.EpisodeIDs) == 0 {
+		why := ""
+		if len(d.Rejections) > 0 {
+			why = " (" + rejectionText(d) + ")"
+		}
+		return nil, refused("the release name matches no episode of the title%s. The season belongs in the "+
+			"release name: name a season pack with its season (Show.S02.1080p...) and an episode with its number (S02E05)", why)
+	}
 	out := &Grabbed{Decision: d}
 	if !d.Accepted {
 		if !override {

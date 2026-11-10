@@ -144,6 +144,20 @@ func TestAddReleaseByHand(t *testing.T) {
 		t.Errorf("retried manual add not added: %v", e.adds())
 	}
 
+	// A season pack whose name carries no season maps to no episode: refused at once, saying where the season goes,
+	// and not as a rejection to override (no decision comes back). A name with its episode is routed.
+	pack := indexer.Release{Title: "The.Show.Complete.2160p.WEB-DL-GRP", InfoHash: strings.Repeat("c", 40), Seeders: -1, Peers: -1}
+	for _, override := range []bool{false, true} {
+		if g, err := e.svc.AddRelease(ctx, 10, "tv-2160p", pack, override, "ui:grab:test"); !isRefused(err) || g != nil ||
+			!strings.Contains(err.Error(), "The season belongs in the release name") {
+			t.Errorf("a season pack without its season (override %v): %+v %v", override, g, err)
+		}
+	}
+	pack.Title = "The.Show.S01E02.2160p.WEB-DL-GRP"
+	if g, err := e.svc.AddRelease(ctx, 10, "tv-2160p", pack, false, "ui:grab:test"); err != nil || g.Job == 0 {
+		t.Errorf("an episode by its name: %+v %v", g, err)
+	}
+
 	nohash := good
 	nohash.InfoHash = ""
 	if _, err := e.svc.AddRelease(ctx, 1, "movie-web", nohash, true, "ui:grab:test"); !isRefused(err) {
