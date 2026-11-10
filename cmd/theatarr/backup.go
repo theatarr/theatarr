@@ -111,11 +111,21 @@ type backupSecret struct {
 }
 
 // secretsOf lists the secret env vars the policy names, and the optional ones the service reads beside them.
-// Credentials the settings database holds are left out: they are in the backup's database file.
-func secretsOf(pol *policy.Policy, getenv func(string) string) []backupSecret {
+// Credentials the settings database holds are left out: they are in the backup's database file. held reports, per
+// policy path ("providers[rd].api_key_env"), a record whose credential is stored there; nil: none.
+func secretsOf(pol *policy.Policy, getenv func(string) string, held func(user string) bool) []backupSecret {
 	var out []backupSecret
-	for env, users := range pol.SecretEnvs() {
+	for env, all := range pol.SecretEnvs() {
 		if settingsHeldSecret(env) {
+			continue
+		}
+		var users []string
+		for _, u := range all {
+			if held == nil || !held(u) {
+				users = append(users, u)
+			}
+		}
+		if len(users) == 0 {
 			continue
 		}
 		out = append(out, backupSecret{Env: env, UsedBy: users, Set: getenv(env) != ""})
@@ -152,7 +162,7 @@ func writeBackupSet(ctx context.Context, st *store.Store, pol *policy.Policy, di
 		return "", nil, err
 	}
 	m := &backupManifest{Format: manifestFormat, CreatedAt: now.UTC(), TheatarrVersion: buildinfo.String(),
-		Secrets: secretsOf(pol, os.Getenv), Restore: "docs/restore.md"}
+		Secrets: secretsOf(pol, os.Getenv, storedCredentials(ctx, st, pol)), Restore: "docs/restore.md"}
 	if m.Schema, _, err = st.SchemaVersion(ctx); err != nil {
 		return "", nil, err
 	}

@@ -10,6 +10,7 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/theatarr/theatarr/internal/policy"
 	"github.com/theatarr/theatarr/internal/settings"
@@ -133,13 +134,26 @@ func TestCommandsUseStoredProviderKeys(t *testing.T) {
 		}
 	}
 	syncCheck("golive", msg)
-	st.Close()
 
-	// backup: names the settings database holds are not env variables to set.
-	for _, s := range secretsOf(pol, os.Getenv) {
+	// backup: rd's key is in the database (and so in the backup), not an env variable to set; ad reads its env
+	// variable and is listed as before.
+	_, m, err := writeBackupSet(ctx, st, pol, t.TempDir(), time.Now())
+	st.Close()
+	if err != nil {
+		t.Fatal(err)
+	}
+	listed := map[string]backupSecret{}
+	for _, s := range m.Secrets {
+		listed[s.Env] = s
 		if settingsHeldSecret(s.Env) {
 			t.Errorf("backup lists %s as an env secret", s.Env)
 		}
+	}
+	if _, ok := listed["THEATARR_RD_KEY"]; ok {
+		t.Error("a key stored in the database is listed as an env secret")
+	}
+	if ad, ok := listed["THEATARR_AD_KEY"]; !ok || !ad.Set {
+		t.Errorf("the env-only provider: %+v", listed)
 	}
 }
 

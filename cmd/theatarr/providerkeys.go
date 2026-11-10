@@ -1,12 +1,14 @@
 package main
 
 import (
+	"context"
 	"os"
 	"sort"
 	"strings"
 
 	"github.com/theatarr/theatarr/internal/policy"
 	"github.com/theatarr/theatarr/internal/settings"
+	"github.com/theatarr/theatarr/internal/store"
 	"github.com/theatarr/theatarr/internal/uipages"
 )
 
@@ -53,4 +55,27 @@ func providerKeyUnset(pv *policy.Provider) string {
 // THEATARR_SETTINGS_SECRET_* names.
 func settingsHeldSecret(env string) bool {
 	return env == settings.CredentialSentinel || strings.HasPrefix(env, policy.SettingsSecretPrefix)
+}
+
+// storedCredentials reports, by policy path ("providers[rd].api_key_env", "indexers[x].api_key_env"), whether the
+// settings database in st holds that record's credential, so a backup of st has it. nil when st has no settings.
+func storedCredentials(ctx context.Context, st *store.Store, pol *policy.Policy) func(string) bool {
+	s, err := settings.New(st)
+	if err != nil {
+		return nil
+	}
+	snap, err := s.Load(ctx, &policy.Policy{Dir: pol.Dir})
+	if err != nil {
+		return nil
+	}
+	return func(user string) bool {
+		for _, entity := range []string{"providers", "indexers"} {
+			if key, ok := strings.CutPrefix(user, entity+"["); ok {
+				key, ok = strings.CutSuffix(key, "].api_key_env")
+				// A stored value only (no env lookup): the record's own key in the database.
+				return ok && snap.CredentialSet(entity, key, nil)
+			}
+		}
+		return false
+	}
 }

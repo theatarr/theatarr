@@ -345,7 +345,7 @@ func TestNightlyManifestNamesHeadSecrets(t *testing.T) {
 	dbPath, polDir := filepath.Join(dir, "theatarr.db"), filepath.Join(dir, "policy")
 	st, sst, snap, pol := dbOnlyInstall(t, dbPath, polDir)
 	const env = "THEATARR_TEST_HEAD_TMDB_KEY"
-	for _, s := range secretsOf(pol, os.Getenv) {
+	for _, s := range secretsOf(pol, os.Getenv, nil) {
 		if s.Env == env {
 			t.Fatal("the startup policy already names the secret")
 		}
