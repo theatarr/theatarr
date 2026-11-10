@@ -114,8 +114,8 @@ Required:
 - A **media server that follows symlinks**, such as Plex. Plex is the only one Theatarr talks to (scans, sign-in, now
   playing); others work from the folders alone.
 - A **TMDb API key**. Adding titles, search, artwork and release dates need it.
-- **Docker** to run the released image (linux/amd64 only), or to build it from source; Go 1.27 and Node 20 to
-  build without Docker. An arm64 host has to build from source for now
+- **Docker** to run the released image (linux/amd64, and linux/arm64 from 0.1.5), or to build it from source; Go 1.27
+  and Node 20 to build without Docker. The arm64 image is untested on real hardware
   ([docs/not-supported.md](docs/not-supported.md#other-gaps)).
 
 Optional:
@@ -130,7 +130,7 @@ Optional:
 ## Quick start
 
 Pull the released image with [`examples/compose.image.yaml`](examples/compose.image.yaml). Each release publishes
-an image for linux/amd64 to `ghcr.io/theatarr/theatarr`; the
+an image for linux/amd64 and linux/arm64 (arm64 from 0.1.5) to `ghcr.io/theatarr/theatarr`; the
 [Releases page](https://github.com/theatarr/theatarr/releases) lists the versions. The image tag is the version
 without the leading `v` (release `v0.1.4` is the image `0.1.4`).
 

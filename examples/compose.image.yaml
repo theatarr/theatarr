@@ -1,9 +1,8 @@
 # Example Docker Compose file for Theatarr that uses a published image instead of building one.
 #
-# Each release publishes an image (linux/amd64) to ghcr.io/theatarr/theatarr; the repository's Releases page,
+# Each release publishes an image (linux/amd64, and linux/arm64 from 0.1.5) to ghcr.io/theatarr/theatarr; the repository's Releases page,
 # https://github.com/theatarr/theatarr/releases, lists the versions. The image tag is the version without the
-# leading v: release v0.1.4 is the image 0.1.4. compose.yaml beside this file builds the image from source instead;
-# an arm64 host needs that one (untested there), since no arm64 image is published yet.
+# leading v: release v0.1.4 is the image 0.1.4. compose.yaml beside this file builds the image from source instead.
 #
 #   cp examples/compose.image.yaml compose.yaml    # any directory; no checkout of the repository is needed
 #   echo THEATARR_VERSION=0.1.4 > .env             # a released version; every docker compose command reads it
