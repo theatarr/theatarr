@@ -2,9 +2,12 @@ package library
 
 import (
 	"context"
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 
+	"github.com/theatarr/theatarr/internal/decide"
 	"github.com/theatarr/theatarr/internal/policy"
 )
 
@@ -76,5 +79,48 @@ func TestReassignKeepsIncludeWhenRenaming(t *testing.T) {
 	}
 	if !strings.HasSuffix(r.Path, "S01E03 [HDR].mkv") {
 		t.Fatalf("reassign named it %s", r.Path)
+	}
+}
+
+// An import without formats saved on the download names the file from the formats its metadata keeps (decided with
+// the release's size), so a size-based format is in the name and a rename right after import proposes nothing.
+func TestRenamePreviewAfterImportWithoutStoredFormats(t *testing.T) {
+	t.Parallel()
+	e := newEnv(t, true, policy.ModeActive)
+	body := `{"name":"Big","specifications":[{"name":"s","implementation":"SizeSpecification","negate":false,
+		"required":true,"fields":{"min":10,"max":1000}}]}`
+	if err := os.WriteFile(filepath.Join(e.dir, "big.json"), []byte(body), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	e.pol.Dir = e.dir
+	e.pol.Formats = map[string]*policy.FormatRef{"Big": {File: "big.json"}}
+	for _, p := range e.pol.Profiles {
+		p.Formats = map[string]int{"Big": 10}
+	}
+	engine, err := decide.New(e.pol, decide.Options{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	e.lib.engine = engine
+	e.pol.Versions["movie-remux"].Naming.File = "{Movie CleanTitle} {(Release Year)} {[Custom Formats]}"
+	// As cmd/theatarr: the title-alone decision cannot see the size; every matched format is included when renaming.
+	e.lib.formats = func(context.Context, string, int64, string) []string { return nil }
+	e.lib.matched = func(_ context.Context, _ string, names []string) []string { return names }
+	e.release(movieRelease, map[string]float64{"movie.mkv": 7000})
+	e.download(1, "movie-remux", 1, 10, movieRelease, movieRelease, "[]")
+	e.exec(`UPDATE download SET size_bytes = ?, release_data = '{"imdb":"tt0211915"}' WHERE id = 1`, int64(50)<<30)
+	plan, err := e.lib.Import(e.ctx, 1, false)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(plan.Links) != 1 || !strings.Contains(plan.Links[0].Path, "[Big]") {
+		t.Fatalf("links %+v rejected %+v", plan.Links, plan.Rejected)
+	}
+	p, err := e.lib.PreviewRename(e.ctx, 1, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(p.Files) != 0 {
+		t.Fatalf("rename right after import proposes %+v, want none", p.Files)
 	}
 }

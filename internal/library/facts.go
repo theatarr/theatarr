@@ -106,6 +106,19 @@ func (l *Library) manualMetadata(ctx context.Context, d *importDownload, facts d
 
 func (l *Library) fileFormats(ctx context.Context, d *importDownload, f *PlannedFile, facts decide.FileFacts) ([]string, error) {
 	if d.Manual[f.Rel].Overrides == nil {
+		if !d.HasFormats && l.matched != nil && l.engine != nil {
+			// No formats saved with the download: name from the formats the link's metadata keeps (the release
+			// decided with its size and saved inputs), so a rename right after import proposes nothing.
+			base, _, err := l.linkedMetadata(ctx, d)
+			if err != nil {
+				return nil, err
+			}
+			names := make([]string, 0, len(base.Formats))
+			for _, cf := range base.Formats {
+				names = append(names, cf.Name)
+			}
+			return l.matched(ctx, d.Version.Key, names), nil
+		}
 		return l.renameFormats(ctx, d), nil
 	}
 	file, err := l.manualMetadata(ctx, d, facts, f.Rel, l.mount.ToLink(f.Path), f.Size)
