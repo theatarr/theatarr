@@ -445,12 +445,20 @@ func offVersions(ctx context.Context, tx *sqlTx, titleID int64, keys []string) (
 }
 
 // activeVersions is which versions the movie with this TMDb id has on: monitored and not removed from the views.
-func activeVersions(ctx context.Context, tx interface {
+func activeVersions(ctx context.Context, tx versionQueryer, tmdbID int64) ([]string, error) {
+	return movieVersions(ctx, tx, tmdbID, true)
+}
+
+type versionQueryer interface {
 	QueryContext(ctx context.Context, query string, args ...any) (*sql.Rows, error)
-}, tmdbID int64) ([]string, error) {
+}
+
+// movieVersions is which versions the movie with this TMDb id has that are not removed from the views: the
+// monitored ones only, or all of them.
+func movieVersions(ctx context.Context, tx versionQueryer, tmdbID int64, monitored bool) ([]string, error) {
 	rows, err := tx.QueryContext(ctx, `SELECT v.policy_key FROM version v JOIN title t ON t.id = v.title_id
-		WHERE t.kind = 'movie' AND t.tmdb_id = ? AND v.monitored AND NOT EXISTS (SELECT 1 FROM
-		arrview_removed_version r WHERE r.version_id = v.id)`, tmdbID)
+		WHERE t.kind = 'movie' AND t.tmdb_id = ? AND (v.monitored OR NOT ?) AND NOT EXISTS (SELECT 1 FROM
+		arrview_removed_version r WHERE r.version_id = v.id)`, tmdbID, monitored)
 	if err != nil {
 		return nil, err
 	}
@@ -776,10 +784,14 @@ func (s *Service) addTitle(w http.ResponseWriter, r *request) {
 	}
 	if held {
 		// A title whose anime check failed before is asked about again. A library that answer turns on is turned on
-		// by this add, and takes its minimum availability as the others did.
-		var on []string
+		// by this add, and takes its minimum availability as the others did: one the answer monitors, and one it
+		// creates or restores, monitored or not.
+		var on, had []string
 		if v.Flavour == Radarr && minAvail != "" {
-			if on, err = activeVersions(ctx, s.st.Reader(), ext); err != nil {
+			if on, err = activeVersions(ctx, s.st.Reader(), ext); err == nil {
+				had, err = movieVersions(ctx, s.st.Reader(), ext, false)
+			}
+			if err != nil {
 				s.internal(w, r, err)
 				return
 			}
@@ -790,11 +802,21 @@ func (s *Service) addTitle(w http.ResponseWriter, r *request) {
 		}
 		if v.Flavour == Radarr && minAvail != "" {
 			err := s.st.WriteTx(ctx, func(tx *sqlTx) error {
-				now, err := activeVersions(ctx, tx, ext)
+				now, err := movieVersions(ctx, tx, ext, false)
 				if err != nil {
 					return err
 				}
-				return s.chooseTurnedOn(ctx, tx, titleID, on, now, minAvail)
+				active, err := activeVersions(ctx, tx, ext)
+				if err != nil {
+					return err
+				}
+				var turned []string
+				for _, k := range now {
+					if !slices.Contains(had, k) || slices.Contains(active, k) && !slices.Contains(on, k) {
+						turned = append(turned, k)
+					}
+				}
+				return s.chooseTurnedOn(ctx, tx, titleID, nil, turned, minAvail)
 			})
 			if err != nil {
 				s.internal(w, r, err)

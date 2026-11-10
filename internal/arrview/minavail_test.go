@@ -467,8 +467,12 @@ func TestMinimumAvailabilityDeleteClearsChoice(t *testing.T) {
 // A library the add turns on through the anime check asked again (after a TMDb outage at the first add) takes its
 // minimum availability as any library the add turns on: its own default, else the client's value.
 func TestMinimumAvailabilityClientAddAnimeRetry(t *testing.T) {
-	for _, def := range []string{"", "inCinemas"} {
-		t.Run("library default "+def, func(t *testing.T) {
+	for _, c := range []struct {
+		def       string
+		monitored bool
+	}{{"", true}, {"inCinemas", true}, {"", false}} {
+		def := c.def
+		t.Run(fmt.Sprintf("library default %s monitored %v", def, c.monitored), func(t *testing.T) {
 			e := newEnv(t)
 			e.pol.Versions["anime-movie"].MinimumAvailability = def
 			f := &fakeTMDb{fail: true, movies: map[int]string{
@@ -476,7 +480,7 @@ func TestMinimumAvailabilityClientAddAnimeRetry(t *testing.T) {
 			}}
 			e.withTMDb(f)
 			body := map[string]any{"title": "Anime", "tmdbId": 557, "qualityProfileId": e.profileID("radarr", "Rules default"),
-				"rootFolderPath": "/media/movies", "monitored": true, "minimumAvailability": "announced"}
+				"rootFolderPath": "/media/movies", "monitored": c.monitored, "minimumAvailability": "announced"}
 			var got map[string]any
 			e.call("POST", "/radarr/api/v3/movie", body, 201, &got)
 			tid := int64(got["id"].(float64)) - IDBase
