@@ -12,6 +12,8 @@ import (
 
 	"github.com/theatarr/theatarr/internal/decide"
 	"github.com/theatarr/theatarr/internal/decide/format"
+	"github.com/theatarr/theatarr/internal/decide/parser/radarr"
+	"github.com/theatarr/theatarr/internal/decide/parser/sonarr"
 	"github.com/theatarr/theatarr/internal/library"
 	"github.com/theatarr/theatarr/internal/library/probe"
 	"github.com/theatarr/theatarr/internal/policy"
@@ -213,5 +215,32 @@ func TestManualOverrideFallbackAndValidation(t *testing.T) {
 				}
 			}
 		})
+	}
+}
+
+// The language id a view sends reads back as the same language on POST: Sonarr views use Sonarr's table, Radarr
+// views Radarr's.
+func TestLanguagesFromRoundTripsPerFlavour(t *testing.T) {
+	t.Parallel()
+	for _, l := range sonarr.AllLanguages {
+		if l.ID <= 0 {
+			continue
+		}
+		sent := languagesFrom(Sonarr, []string{l.Name})[0]
+		if back, ok := manualLanguage(Sonarr, sent.ID); !ok || back.Name != l.Name || sent.ID != l.ID {
+			t.Errorf("Sonarr %q (id %d): sent id %d, read back %q (%v)", l.Name, l.ID, sent.ID, back.Name, ok)
+		}
+	}
+	for _, l := range radarr.AllLanguages {
+		if l.ID <= 0 {
+			continue
+		}
+		sent := languagesFrom(Radarr, []string{l.Name})[0]
+		if back, ok := manualLanguage(Radarr, sent.ID); !ok || back.Name != l.Name || sent.ID != l.ID {
+			t.Errorf("Radarr %q (id %d): sent id %d, read back %q (%v)", l.Name, l.ID, sent.ID, back.Name, ok)
+		}
+	}
+	if got := languagesFrom(Sonarr, []string{"Klingon"}); len(got) != 1 || got[0].ID != 0 || got[0].Name != "Klingon" {
+		t.Errorf("unknown name: %+v", got)
 	}
 }

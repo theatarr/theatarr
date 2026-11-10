@@ -212,7 +212,7 @@ func (s *Service) episodeFileFrom(v *View, e *entry, x *fileRow, seasons map[int
 	f := x.f
 	r := episodeFileResource{ID: x.id, SeriesID: viewID(x.titleID), RelativePath: f.relPath, Path: f.path,
 		Size: f.size, DateAdded: at(minTime), SceneName: f.scene, ReleaseGroup: f.group,
-		Languages: languagesFrom(f.languages), Quality: qualityModelFor(Sonarr, f.quality, f.revision),
+		Languages: languagesFrom(Sonarr, f.languages), Quality: qualityModelFor(Sonarr, f.quality, f.revision),
 		CustomFormats: []any{}, MediaInfo: f.mediaInfo, QualityCutoffNotMet: f.cutoffNotMet}
 	r.Quality.Revision.Real, r.Quality.Revision.IsRepack = f.real, f.isRepack
 	if f.added.Valid {

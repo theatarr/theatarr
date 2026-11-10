@@ -109,7 +109,7 @@ func (s *Service) blocklistRows(ctx context.Context, v *View, titleID int64, sel
 			}
 			b.MovieID = &mid
 		}
-		b.Quality, b.Languages = qualityModelFor(v.Flavour, qual, 1), languagesFrom(langs)
+		b.Quality, b.Languages = qualityModelFor(v.Flavour, qual, 1), languagesFrom(v.Flavour, langs)
 		var fs []decide.FormatScore
 		_ = json.Unmarshal([]byte(formats), &fs)
 		b.CustomFormats = formatIDs(fs)

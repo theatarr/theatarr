@@ -456,7 +456,7 @@ func (s *Service) manualFromDownload(ctx context.Context, r *request, hash strin
 			m.Quality = qualityModelFor(r.v.Flavour, f.Facts.Quality, f.Facts.Revision)
 			m.Quality.Revision.Real = f.Facts.Real
 			m.Quality.Revision.IsRepack = f.Facts.IsRepack
-			m.Languages, m.ReleaseGroup = languagesFrom(f.Facts.Languages), f.Facts.ReleaseGroup
+			m.Languages, m.ReleaseGroup = languagesFrom(r.v.Flavour, f.Facts.Languages), f.Facts.ReleaseGroup
 			m.QualityWeight = qualityWeight(r.v.Flavour, f.Facts.Quality, profile.Revision{Version: f.Facts.Revision, Real: f.Facts.Real})
 		}
 		m.RelativePath = f.Rel
@@ -670,7 +670,7 @@ func (s *Service) decideFile(ctx context.Context, v *View, p, folder, name strin
 		}
 		m.QualityWeight = qualityWeight(v.Flavour, d.Quality, d.Revision)
 		m.CustomFormats, m.CustomFormatScore = formatIDs(d.Formats), d.Score
-		m.Languages = languagesFrom(d.Languages)
+		m.Languages = languagesFrom(v.Flavour, d.Languages)
 		if d.ReleaseGroup != "" {
 			m.ReleaseGroup = d.ReleaseGroup
 		}

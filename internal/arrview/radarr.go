@@ -298,7 +298,7 @@ func tagsOrEmpty(t []int64) []int64 {
 func movieFileFrom(e *entry, f *vfile, moviePath string) *movieFileResource {
 	r := &movieFileResource{ID: f.id, MovieID: e.viewID(), RelativePath: f.relPath, Path: f.path, Size: f.size,
 		DateAdded: at(minTime), SceneName: f.scene, ReleaseGroup: f.group, Edition: f.edition,
-		Languages: languagesFrom(f.languages), Quality: qualityModelFor(Radarr, f.quality, f.revision),
+		Languages: languagesFrom(Radarr, f.languages), Quality: qualityModelFor(Radarr, f.quality, f.revision),
 		MediaInfo: mediaInfoWithResolution(f.mediaInfo, f.quality), OriginalFilePath: f.origPath,
 		QualityCutoffNotMet: f.cutoffNotMet}
 	r.Quality.Revision.Real, r.Quality.Revision.IsRepack = f.real, f.isRepack

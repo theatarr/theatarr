@@ -348,7 +348,7 @@ func (s *Service) releaseFrom(v *View, f *found, weight int) releaseResource {
 		QualityWeight: qualityWeight(v.Flavour, d.Quality, d.Revision), Age: int(age.Hours() / 24),
 		AgeHours: math.Round(age.Hours()*100) / 100, AgeMinutes: math.Round(age.Minutes()*100) / 100,
 		Size: rel.Size, IndexerID: s.indexerIDs()[rel.Indexer], Indexer: rel.Indexer, ReleaseGroup: d.ReleaseGroup,
-		Title: rel.Title, Languages: languagesFrom(d.Languages), PublishDate: at(rel.PublishDate),
+		Title: rel.Title, Languages: languagesFrom(v.Flavour, d.Languages), PublishDate: at(rel.PublishDate),
 		DownloadAllowed: hash != "", ReleaseWeight: weight, CustomFormats: formatIDs(d.Formats),
 		CustomFormatScore: d.Score, Protocol: "torrent", CachedOn: cachedOn(rel)}
 	if rel.PublishDate.IsZero() {

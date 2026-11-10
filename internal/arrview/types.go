@@ -51,14 +51,19 @@ type language struct {
 	Name string `json:"name"`
 }
 
-func languagesFrom(names []string) []language {
+// languagesFrom gives each language name the id of the view flavour's table; an unknown name gets id 0.
+func languagesFrom(flavour string, names []string) []language {
 	out := []language{}
 	for _, n := range names {
-		if l, ok := radarr.LanguageByName(n); ok {
-			out = append(out, language{ID: l.ID, Name: l.Name})
-		} else {
-			out = append(out, language{ID: 0, Name: n})
+		l := language{Name: n}
+		if flavour == Sonarr {
+			if s, ok := sonarr.FindLanguageByName(n); ok {
+				l = language{ID: s.ID, Name: s.Name}
+			}
+		} else if r, ok := radarr.LanguageByName(n); ok {
+			l = language{ID: r.ID, Name: r.Name}
 		}
+		out = append(out, l)
 	}
 	return out
 }

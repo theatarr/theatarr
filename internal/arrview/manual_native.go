@@ -41,18 +41,18 @@ func (s *Service) manualImportOptions(w http.ResponseWriter, r *request) {
 		s.internal(w, r, err)
 		return
 	}
+	var episodes map[int64][]*ep
+	if r.v.Flavour == Sonarr {
+		if episodes, err = s.loadEpisodesWith(r.Context(), r.v, entries, true); err != nil {
+			s.internal(w, r, err)
+			return
+		}
+	}
 	titles := []map[string]any{}
 	for _, e := range entries {
 		eps := []map[string]any{}
-		if r.v.Flavour == Sonarr {
-			rows, err := s.loadEpisodesWith(r.Context(), r.v, []*entry{e}, true)
-			if err != nil {
-				s.internal(w, r, err)
-				return
-			}
-			for _, ep := range rows[e.id] {
-				eps = append(eps, map[string]any{"id": ep.id, "name": ep.name, "season": ep.season, "number": ep.number})
-			}
+		for _, ep := range episodes[e.id] {
+			eps = append(eps, map[string]any{"id": ep.id, "name": ep.name, "season": ep.season, "number": ep.number})
 		}
 		titles = append(titles, map[string]any{"id": viewID(e.id), "name": e.name, "episodes": eps})
 	}

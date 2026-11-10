@@ -562,7 +562,7 @@ func (s *Service) arrHistoryRows(r *request, ids []int64) ([]historyResource, er
 		}
 		var names []string
 		_ = json.Unmarshal([]byte(langs), &names)
-		h.Languages = languagesFrom(names)
+		h.Languages = languagesFrom(r.v.Flavour, names)
 		h.Quality = qualityModelFor(r.v.Flavour, quality, 1)
 		h.CustomFormats = []any{}
 		h.Date = at(millis(date))

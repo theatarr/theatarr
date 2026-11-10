@@ -38,7 +38,7 @@ func init() {
 		var names []string
 		_ = json.Unmarshal([]byte(raw), &names)
 		ids := []int{}
-		for _, l := range languagesFrom(names) {
+		for _, l := range languagesFrom(Radarr, names) {
 			ids = append(ids, l.ID)
 		}
 		b, _ := json.MarshalIndent(ids, "", "  ")

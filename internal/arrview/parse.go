@@ -186,7 +186,7 @@ func (s *Service) parse(w http.ResponseWriter, r *request) {
 		writeJSON(w, http.StatusOK, out)
 		return
 	}
-	out["languages"] = languagesFrom(langs)
+	out["languages"] = languagesFrom(r.v.Flavour, langs)
 	out["customFormats"] = []customFormatID{}
 	out["customFormatScore"] = 0
 	if s.decider != nil {
@@ -197,7 +197,7 @@ func (s *Service) parse(w http.ResponseWriter, r *request) {
 		}
 		out["customFormats"], out["customFormatScore"] = formatIDs(d.Formats), d.Score
 		if len(d.Languages) > 0 {
-			out["languages"] = languagesFrom(d.Languages)
+			out["languages"] = languagesFrom(r.v.Flavour, d.Languages)
 		}
 		if r.v.Flavour == Sonarr {
 			eps, err := s.loadEpisodesWith(ctx, r.v, []*entry{e}, true)
