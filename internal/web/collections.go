@@ -104,6 +104,7 @@ func (w *Web) mountCollectionsAPI(mux *http.ServeMux) {
 	w.handle(mux, "GET "+b+"/search", SignedIn, auth.PermManage, w.apiSearchCollections)
 	w.handle(mux, "PUT "+b+"/{id}", SignedIn, auth.PermManage, w.apiSetCollection)
 	w.handle(mux, "POST "+b+"/{id}/refresh", SignedIn, auth.PermManage, w.apiRefreshCollection)
+	w.mountListsAPI(mux)
 }
 
 // collectionTargets are the libraries a collection may target (policy CollectionTargets), sorted.

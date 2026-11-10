@@ -91,6 +91,27 @@ Known limits, kept as they are:
 - The Radarr view's `GET collection` shows a held part that has no membership row as missing.
 - A refresh never removes a stale membership row (a movie TMDb moved out of a collection).
 
+### Lists
+
+The same `movie_import_list` rows back the **Lists** tab of the Collections page (`/collections/lists`, managers and
+admins): TMDb movie lists only; other providers and series lists are not supported. `GET /lists` shows every row, of
+any view; `GET /lists/lookup?tmdb_id=` reads a list's name, description and movie count from TMDb so the form can
+confirm it (the form takes the id or a pasted themoviedb.org list address); `POST /lists`, `PUT /lists/{id}` and
+`DELETE /lists/{id}` manage them, and `POST /lists/{id}/sync` imports one list now, enabled or not, through
+`MovieIntake.SyncList`, the one-list form of the scheduled sync (one TMDb request per new movie, in the request).
+
+- A list made on the page is a **native row**: `view = ''`, no profile, no root, and `enable_auto` equal to
+  `enabled`. Its `versions` are chosen explicitly from the movie libraries (any movie version, as an add offers them;
+  at least one), and intake picks the ones that fit each movie. No arr view lists it (`readImportLists` filters by
+  view), and the views' duplicate check still refuses a second row for the same TMDb list, as `POST /lists` does with
+  a 409 for a list any view already has.
+- A list an arr client made keeps its `view`, `quality_profile_id` and `root_folder_path`: `PUT /lists/{id}` never
+  writes them, so that view keeps listing it with its profile mapping (`TestListsKeepArrView`). It may change the
+  name, `enabled`, monitor, search on add, minimum availability and the libraries, which must stay within the view's
+  versions; `enable_auto` stays as the client set it. The page labels such a row "Created through the *view* view".
+- Deleting a list keeps the movies it added. Without TMDb the lists are still shown and edited; lookup and sync
+  answer 503 and `GET /lists` says `can_sync: false`.
+
 ## Views
 
 | Path | Flavour | Versions | Profiles | Key |

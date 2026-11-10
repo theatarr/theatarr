@@ -59,6 +59,7 @@ const WantedPage = lazyPage(() => import("./pages/wanted").then((m) => m.WantedP
 const ActivityPage = lazyPage(() => import("./pages/activity").then((m) => m.ActivityPageView));
 const NowPlayingPage = lazyPage(() => import("./pages/now-playing").then((m) => m.NowPlayingPage));
 const CollectionsPage = lazyPage(() => import("./pages/collections").then((m) => m.CollectionsPage));
+const ListsPage = lazyPage(() => import("./pages/lists").then((m) => m.ListsPage));
 const CalendarPage = lazyPage(() => import("./pages/calendar").then((m) => m.CalendarPageView));
 
 function Splash() {
@@ -159,6 +160,7 @@ export const routes: RouteObject[] = [
       { path: "/title/:id/releases", element: <TitleReleases /> },
       { path: "/calendar", element: <CalendarPage /> },
       { path: "/collections", element: <CollectionsPage /> },
+      { path: "/collections/lists", element: <ListsPage /> },
       { path: "/activity", element: <ActivityPage /> },
       { path: "/activity/:tab", element: <ActivityPage /> },
       { path: "/now-playing", element: <NowPlayingPage /> },

@@ -36,17 +36,20 @@ type AddConfig struct {
 	Acquirer Acquirer
 	// TMDb answers search and fills names and ids on add (tmdb.Client through the gateway and the tmdb budget).
 	TMDb TMDbClient
-	// Collections adds and refreshes collections from the Collections page (catalog.MovieIntake of the settings in
-	// force, with its TMDb client); nil without TMDb.
+	// Collections adds and refreshes collections and syncs lists from the Collections page (catalog.MovieIntake of
+	// the settings in force, with its TMDb client); nil without TMDb.
 	Collections MovieIntake
 }
 
-// MovieIntake is the part of the movie intake (catalog.MovieIntake and its TMDb client) the Collections page uses.
+// MovieIntake is the part of the movie intake (catalog.MovieIntake and its TMDb client) the Collections page and its Lists tab use.
 type MovieIntake interface {
 	SearchCollection(ctx context.Context, query string) ([]tmdb.CollectionResult, error)
 	Collection(ctx context.Context, id int) (*tmdb.Collection, error)
 	// RefreshCollection refreshes one known collection now and adds a monitored one's missing movies.
 	RefreshCollection(ctx context.Context, tmdbID int64) (catalog.IntakeResult, error)
+	List(ctx context.Context, id int) (*tmdb.List, error)
+	// SyncList imports one import list now, by its row id, enabled or not.
+	SyncList(ctx context.Context, id int64) (catalog.IntakeResult, error)
 }
 
 // Acquirer is the part of acquire.Acquirer search and add use.

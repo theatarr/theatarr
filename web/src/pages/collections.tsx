@@ -9,6 +9,7 @@ import { refreshWords, useCollections, useRefreshCollection, useSetCollection, t
 import { useAuth } from "@/api/auth";
 import { permsOf } from "@/api/library";
 import { AddCollectionDialog, AVAILABILITY, NO_LIBRARY } from "@/components/collections/add-collection";
+import { CollectionsTabs } from "@/components/collections/collections-tabs";
 import { Empty, ErrorState, Loading, PageHeader } from "@/components/page";
 import { MonitorSwitch } from "@/components/title/manage-bits";
 import { Chip } from "@/components/ui/badge";
@@ -90,6 +91,7 @@ export function CollectionsPage() {
   return <div>
     <PageHeader title="Collections" description="Movie collections from TMDb. Add one by name, or they appear when a movie in the library belongs to one. A monitored collection adds its missing movies to the chosen libraries when it is added and at each list refresh; search on add then searches for them, through the download settings, so nothing downloads while downloads are off."
       actions={d ? <Button onClick={() => setAdding(true)} disabled={!d.can_add} title={d.can_add ? undefined : "TMDb is not set up, so collections cannot be searched"}><Plus aria-hidden />Add collection</Button> : null} />
+    <CollectionsTabs active="collections" />
     {adding && d ? <AddCollectionDialog libraries={d.libraries} onClose={() => setAdding(false)} onExisting={show}
       onAdded={r => { setDone(`Added ${refreshWords(r)}`); show(r.collection.tmdb_id); }} /> : null}
     {q.isLoading ? <Loading /> : q.error ? <ErrorState error={q.error} /> : d ? <div className="space-y-4">

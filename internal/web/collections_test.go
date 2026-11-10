@@ -180,7 +180,7 @@ type testIntake struct {
 func withIntake(tm *fakeIntakeTMDb) func(*Config) {
 	return func(c *Config) {
 		c.Policy.Versions["movie-remux"].Mode = policy.ModeActive
-		c.Add.Collections = testIntake{&catalog.MovieIntake{Store: c.Store, Policy: c.Policy, TMDb: tm, Now: c.Now}, tm}
+		c.Add.Collections = testIntake{&catalog.MovieIntake{Store: c.Store, Policy: c.Policy, TMDb: tm, Now: c.Now, Log: c.Logger}, tm}
 	}
 }
 
