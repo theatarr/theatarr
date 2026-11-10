@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io/fs"
 	"net"
 	"net/http"
 	"net/http/cookiejar"
@@ -122,23 +123,28 @@ func TestServeStartsWithNothingConfigured(t *testing.T) {
 	if code := call("GET", "/", "", nil, nil); code != http.StatusOK {
 		t.Fatalf("GET / = %d", code)
 	}
-	// The first start made the admin account and wrote its password next to the database.
-	pw, err := os.ReadFile(filepath.Join(data, auth.InitialPasswordFile))
-	if err != nil {
-		t.Fatal(err)
+	// The first start made no account and wrote no password file: the first visit creates the admin.
+	if _, err := os.Stat(filepath.Join(data, auth.InitialPasswordFile)); !errors.Is(err, fs.ErrNotExist) {
+		t.Fatalf("password file on a new install: %v", err)
+	}
+	var first web.FirstAccountStatus
+	if code := call("GET", web.APIBase+"/auth/first-account", "", nil, &first); code != http.StatusOK ||
+		!first.NeedsAccount || first.PasswordPending {
+		t.Fatalf("first-account = %d %+v", code, first)
 	}
 	var login struct {
 		CSRF string `json:"csrf_token"`
 	}
-	if code := call("POST", web.APIBase+"/auth/login", "", map[string]string{"username": auth.AdminUsername,
-		"password": strings.TrimSpace(string(pw))}, &login); code != http.StatusOK || login.CSRF == "" {
-		t.Fatalf("login = %d", code)
+	if code := call("POST", web.APIBase+"/auth/first-account", "", map[string]string{"username": auth.AdminUsername,
+		"password": "my own admin password"}, &login); code != http.StatusOK || login.CSRF == "" {
+		t.Fatalf("create admin = %d", code)
 	}
 	var setup web.SetupState
 	if code := call("GET", web.APIBase+"/setup", "", nil, &setup); code != http.StatusOK {
 		t.Fatalf("GET setup = %d", code)
 	}
-	if !setup.FirstRun || setup.SettingsSource != "db" || !setup.AdminPasswordGenerated || setup.Versions != 0 ||
+	// The account step is done: the password was chosen on the create page.
+	if !setup.FirstRun || setup.SettingsSource != "db" || setup.AdminPasswordGenerated || setup.Versions != 0 ||
 		len(setup.Missing) != 5 {
 		t.Fatalf("setup = %+v", setup)
 	}

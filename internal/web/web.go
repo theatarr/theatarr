@@ -4,7 +4,8 @@
 // # Access
 //
 // Every route is registered through one function that takes an access level, and the default is "signed in": a
-// route is public only when it says so. The public routes are the login page and form, the static assets, and (in
+// route is public only when it says so. The public routes are the login page and form, the first-account status and
+// create (auth/first-account; the create works only while no account exists), the static assets, and (in
 // internal/server) /healthz, /readyz and /metrics, whose policy is [MetricsGuard]. API routes answer 401 JSON to an
 // unauthenticated request; UI routes redirect to /login. API key management and the auth endpoints accept sessions
 // only, so a client key cannot mint more keys. State-changing requests on a session need a CSRF token (see

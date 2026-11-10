@@ -74,6 +74,15 @@ func newEnv(t *testing.T) *env {
 // newEnvWith is newEnv with a chance to change the web config (logger, Plex sign-in) first.
 func newEnvWith(t *testing.T, cfg func(*Config)) *env {
 	t.Helper()
+	return newEnvAccount(t, cfg, true)
+}
+
+// testAdminPassword is the admin password of newEnv's admin account (id 1).
+const testAdminPassword = "test admin password"
+
+// newEnvAccount is newEnvWith; withAdmin false leaves the user table empty, as on a new install nobody has opened.
+func newEnvAccount(t *testing.T, cfg func(*Config), withAdmin bool) *env {
+	t.Helper()
 	ctx := context.Background()
 	st, err := store.Open(ctx, storetest.Seed(t, filepath.Join(t.TempDir(), "theatarr.db")), store.Options{})
 	if err != nil {
@@ -84,9 +93,17 @@ func newEnvWith(t *testing.T, cfg func(*Config)) *env {
 		t.Fatal(err)
 	}
 	log := slog.New(slog.NewTextHandler(io.Discard, nil))
-	au, pw, err := auth.New(ctx, st, auth.Options{Logger: log, Now: func() time.Time { return testNow }})
+	au, _, err := auth.New(ctx, st, auth.Options{Logger: log, Now: func() time.Time { return testNow }})
 	if err != nil {
 		t.Fatal(err)
+	}
+	pw := ""
+	if withAdmin {
+		// The first start creates no account; the admin is made here, as the create page or reset-password would.
+		if err := auth.ResetPassword(ctx, st, auth.AdminUsername, testAdminPassword); err != nil {
+			t.Fatal(err)
+		}
+		pw = testAdminPassword
 	}
 	dir := filepath.Join("..", "..", "examples", "policy")
 	pol, err := policy.Load(dir)
@@ -238,7 +255,8 @@ func TestEveryRouteNeedsAuth(t *testing.T) {
 	good := e.apiKey()
 
 	wantPublic := map[string]bool{"POST " + APIBase + "/auth/login": true, "/": true, "GET " + APIBase + "/auth/plex": true,
-		"POST " + APIBase + "/auth/plex/start": true, "POST " + APIBase + "/auth/plex/poll": true}
+		"POST " + APIBase + "/auth/plex/start": true, "POST " + APIBase + "/auth/plex/poll": true,
+		"GET " + APIBase + "/auth/first-account": true, "POST " + APIBase + "/auth/first-account": true}
 	for _, rd := range pageRedirects {
 		wantPublic["GET "+rd.from] = true
 	}

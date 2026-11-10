@@ -2,12 +2,15 @@
 //
 // # First start
 //
-// [New] makes sure the database holds a signing secret and at least one user. On the first start it generates the
-// secret (32 random bytes) and an account named "admin" with a random 24-character password, and stores only the
-// password's argon2id hash. The password itself goes to <data dir>/initial-admin-password (mode 0600), never to the
-// log: the log says only that the file exists and where. The file is deleted at the first successful login and by
-// `theatarr admin reset-password` for admin, which sets a new password (and ends every session of that user).
+// [New] makes sure the database holds a signing secret, generating it (32 random bytes) on the first start. It
+// creates no account: while the user table is empty, the web UI offers "Create your admin account" (the public
+// GET/POST auth/first-account routes, [Service.CreateFirstAdmin]), which works only on an empty table. The log says
+// that no admin account exists yet. `theatarr admin reset-password` can create the admin account from a shell too.
 //
+// An install created by an older version may still have a generated admin password in
+// <data dir>/initial-admin-password (mode 0600) that was never used. That file is kept and deleted at the first
+// successful login and by `theatarr admin reset-password` for admin, as before.
+
 // # Credentials
 //
 //   - Sessions, for the browser. POST /login with username and password sets the theatarr_session cookie: a 256-bit
@@ -102,13 +105,12 @@ type Options struct {
 	SessionMax   time.Duration
 	CookieSecure CookieSecure
 	Throttle     *Throttle
-	// DataDir is where the first start writes InitialPasswordFile (the database's directory). Without it the
-	// generated password is written nowhere: use `theatarr admin reset-password`.
+	// DataDir is the database's directory, where an older version's first start wrote InitialPasswordFile.
 	DataDir string
 }
 
-// InitialPasswordFile is the file in the data directory that holds the first start's admin password, mode 0600,
-// until the first successful login or `theatarr admin reset-password`.
+// InitialPasswordFile is the file in the data directory where an older version's first start wrote the generated
+// admin password, mode 0600. It stays until the first successful login or `theatarr admin reset-password`.
 const InitialPasswordFile = "initial-admin-password"
 
 // RemoveInitialPassword deletes dir's InitialPasswordFile; a missing file is fine. It reports whether one was
@@ -122,23 +124,6 @@ func RemoveInitialPassword(dir string) (bool, error) {
 		return false, nil
 	}
 	return err == nil, err
-}
-
-// writeInitialPassword writes the password to dir's InitialPasswordFile, mode 0600, replacing any older one.
-func writeInitialPassword(dir, password string) (string, error) {
-	path := filepath.Join(dir, InitialPasswordFile)
-	if err := os.Remove(path); err != nil && !errors.Is(err, fs.ErrNotExist) {
-		return "", err
-	}
-	f, err := os.OpenFile(path, os.O_WRONLY|os.O_CREATE|os.O_EXCL, 0o600)
-	if err != nil {
-		return "", err
-	}
-	if _, err := f.WriteString(password + "\n"); err != nil {
-		f.Close()
-		return "", err
-	}
-	return path, f.Close()
 }
 
 // Service checks credentials. It is safe for concurrent use.
@@ -175,9 +160,8 @@ func (t *Throttled) Error() string {
 	return "auth: too many failed logins, try again after " + t.Until.UTC().Format(time.RFC3339)
 }
 
-// New loads the signing secret and makes sure an account exists, creating both on the first start (see the
-// package doc). The generated admin password is written to o.DataDir's InitialPasswordFile, never logged, and
-// returned so callers and tests can use it; it is empty on every later start.
+// New loads the signing secret, creating it on the first start (see the package doc). It creates no account. The
+// string it returns is always empty: it was the generated admin password of older versions.
 func New(ctx context.Context, st *store.Store, o Options) (*Service, string, error) {
 	if o.Logger == nil {
 		o.Logger = slog.Default()
@@ -204,7 +188,7 @@ func New(ctx context.Context, st *store.Store, o Options) (*Service, string, err
 	if s.dummy, err = HashPassword("not a password"); err != nil {
 		return nil, "", err
 	}
-	var password, pwPath string
+	var users int
 	err = st.WriteTx(ctx, func(tx *sql.Tx) error {
 		now := store.Millis(s.now())
 		var hexSecret string
@@ -226,49 +210,20 @@ func New(ctx context.Context, st *store.Store, o Options) (*Service, string, err
 		if s.secret, err = hex.DecodeString(hexSecret); err != nil || len(s.secret) < 32 {
 			return errors.New("auth: signing secret in web_setting is malformed")
 		}
-		var users int
-		if err := tx.QueryRowContext(ctx, `SELECT COUNT(*) FROM web_user`).Scan(&users); err != nil {
-			return err
-		}
-		if users > 0 {
-			password = ""
-			return nil
-		}
-		if password, err = RandomPassword(); err != nil {
-			return err
-		}
-		hash, err := HashPassword(password)
-		if err != nil {
-			return err
-		}
-		_, err = tx.ExecContext(ctx, `INSERT INTO web_user (username, password_hash, created_at, updated_at,
-			password_changed_at) VALUES (?, ?, ?, ?, ?)`, AdminUsername, hash, now, now, now)
-		if err != nil || o.DataDir == "" {
-			return err
-		}
-		// Before the commit: when the file cannot be written, the account is not created either.
-		pwPath, err = writeInitialPassword(o.DataDir, password)
-		return err
+		return tx.QueryRowContext(ctx, `SELECT COUNT(*) FROM web_user`).Scan(&users)
 	})
 	if err != nil {
 		return nil, "", fmt.Errorf("auth: init: %w", err)
 	}
-	switch {
-	case password != "" && pwPath != "":
-		// Never the password itself: the log reaches docker logs and GET /logs.
-		s.log.Warn("first start: created the admin account; its password is in the file (mode 0600), which is "+
-			"deleted at the first login; or set one with 'theatarr admin reset-password'", "username", AdminUsername,
-			"file", pwPath)
-	case password != "":
-		s.log.Warn("first start: created the admin account; no data directory, so its password was written "+
-			"nowhere: set one with 'theatarr admin reset-password'", "username", AdminUsername)
+	if users == 0 {
+		s.log.Warn("no admin account exists yet: open Theatarr's web address in a browser to create one")
 	}
 	if o.DataDir != "" {
 		if _, err := os.Stat(filepath.Join(o.DataDir, InitialPasswordFile)); err == nil {
 			s.pwPending.Store(true)
 		}
 	}
-	return s, password, nil
+	return s, "", nil
 }
 
 // Identity is who a request is from.

@@ -153,6 +153,10 @@ func newAddEnvWith(t *testing.T, mutate func(*policy.Policy), noTMDb bool) *addE
 	if err != nil {
 		t.Fatal(err)
 	}
+	// The first start creates no account; the admin (id 1) is made here.
+	if err := auth.ResetPassword(ctx, st, auth.AdminUsername, testAdminPassword); err != nil {
+		t.Fatal(err)
+	}
 	pol, err := policy.Load(filepath.Join("..", "..", "examples", "policy"))
 	if err != nil {
 		t.Fatal(err)

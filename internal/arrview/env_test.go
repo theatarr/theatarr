@@ -66,6 +66,10 @@ func newEnv(t *testing.T) *env {
 	if err != nil {
 		t.Fatal(err)
 	}
+	// The first start creates no account; the admin (id 1) is made here.
+	if err := auth.ResetPassword(ctx, st, auth.AdminUsername, "test admin password"); err != nil {
+		t.Fatal(err)
+	}
 	e.pol, err = policy.Load(filepath.Join("..", "..", "examples", "policy"))
 	if err != nil {
 		t.Fatal(err)

@@ -376,6 +376,8 @@ func newEnvironment(t *testing.T, configure func(*policy.Policy)) *environment {
 	must(t, err)
 	au, _, err := auth.New(e.ctx, e.st, auth.Options{Logger: log, Now: clock, DataDir: dir})
 	must(t, err)
+	// The first start creates no account; the admin (id 1) is made here.
+	must(t, auth.ResetPassword(e.ctx, e.st, auth.AdminUsername, "test admin password"))
 	e.key, _, err = au.CreateKey(e.ctx, "e2e", 1)
 	must(t, err)
 	av, err := arrview.New(e.ctx, arrview.Config{Store: e.st, Auth: au, Policy: e.pol, Logger: log, Now: clock, Getenv: func(string) string { return "" }, Searcher: e.ac, Decider: e.ac, Router: e.rt, Library: e.lib})

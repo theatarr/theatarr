@@ -485,6 +485,25 @@
         }
       }
     },
+    "/auth/first-account": {
+      "get": {
+        "summary": "Whether the install has no account yet (the sign-in page then offers Create your admin account), and whether an older version's generated admin password file is still unused (only once an account exists)",
+        "security": [],
+        "responses": { "200": { "description": "OK", "content": { "application/json": { "schema": { "type": "object", "required": ["needs_account", "password_pending"], "properties": { "needs_account": { "type": "boolean" }, "password_pending": { "type": "boolean" } } } } } } }
+      },
+      "post": {
+        "summary": "Create the first account, an admin, and start its session (sets the theatarr_session cookie). Works only while no account exists",
+        "security": [],
+        "requestBody": { "required": true, "content": { "application/json": { "schema": { "type": "object", "required": ["username", "password"], "additionalProperties": false, "properties": { "username": { "type": "string", "maxLength": 64 }, "password": { "type": "string", "minLength": 12 } } } } } },
+        "responses": {
+          "200": { "description": "Created and signed in", "content": { "application/json": { "schema": { "type": "object", "properties": { "username": { "type": "string" }, "csrf_token": { "type": "string" } } } } } },
+          "400": { "$ref": "#/components/responses/BadRequest" },
+          "403": { "description": "Not application/json, or a foreign Origin" },
+          "409": { "description": "The install already has an account", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Error" } } } },
+          "429": { "description": "Busy; see Retry-After" }
+        }
+      }
+    },
     "/auth/logout": {
       "post": {
         "summary": "End the session (session only, CSRF token required)",

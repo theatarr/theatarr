@@ -107,6 +107,12 @@ func (w *Web) apiPlexPoll(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 	uid, status, created, err := w.auth.PlexSignIn(ctx, *acct)
+	if errors.Is(err, auth.ErrNoAdminYet) {
+		w.log.Warn("plex sign-in refused: no admin account exists yet", "plex_id", acct.ID, "remote", addr)
+		writeJSON(rw, http.StatusConflict, PlexPoll{Status: "error",
+			Error: "Theatarr has no admin account yet. Create it on the sign-in page first."})
+		return
+	}
 	if err != nil {
 		w.internal(rw, err)
 		return

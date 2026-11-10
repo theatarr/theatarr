@@ -50,13 +50,26 @@ func openStore(t *testing.T) *store.Store {
 	return st
 }
 
+// testAdminPassword is the admin password newService sets.
+const testAdminPassword = "test admin password"
+
+// newService starts the service and, when no account exists, creates admin with testAdminPassword (the first start
+// creates none).
 func newService(t *testing.T, st *store.Store, c *clock) (*Service, string) {
 	t.Helper()
-	s, pw, err := New(context.Background(), st, Options{Logger: slog.New(slog.NewTextHandler(io.Discard, nil)), Now: c.now})
+	ctx := context.Background()
+	s, _, err := New(ctx, st, Options{Logger: slog.New(slog.NewTextHandler(io.Discard, nil)), Now: c.now})
 	if err != nil {
 		t.Fatal(err)
 	}
-	return s, pw
+	if need, err := s.NeedsFirstAccount(ctx); err != nil {
+		t.Fatal(err)
+	} else if need {
+		if err := ResetPassword(ctx, st, AdminUsername, testAdminPassword); err != nil {
+			t.Fatal(err)
+		}
+	}
+	return s, testAdminPassword
 }
 
 func TestPasswordHash(t *testing.T) {
@@ -86,37 +99,9 @@ func TestPasswordHash(t *testing.T) {
 	}
 }
 
-func TestFirstStartCreatesAdminOnce(t *testing.T) {
-	t.Parallel()
-	st := openStore(t)
-	c := &clock{t: time.Date(2026, 10, 26, 12, 0, 0, 0, time.UTC)}
-	s, pw := newService(t, st, c)
-	if len(pw) < 20 {
-		t.Fatalf("generated password %q", pw)
-	}
-	var hash string
-	if err := st.Reader().QueryRow(`SELECT password_hash FROM web_user WHERE username = 'admin'`).Scan(&hash); err != nil {
-		t.Fatal(err)
-	}
-	if strings.Contains(hash, pw) {
-		t.Fatal("password stored in clear")
-	}
-	secret := s.secret
-	s2, pw2 := newService(t, st, c)
-	if pw2 != "" {
-		t.Error("second start generated a password again")
-	}
-	if string(s2.secret) != string(secret) {
-		t.Error("signing secret changed between starts")
-	}
-	if _, err := s2.Login(context.Background(), "admin", pw, "10.1.2.3", ""); err != nil {
-		t.Errorf("login with the first-start password: %v", err)
-	}
-}
-
-// The first start's password goes to <data dir>/initial-admin-password (0600) and never into a log record; the file
-// is removed at the first successful login.
-func TestFirstStartPasswordFileNotLog(t *testing.T) {
+// The first start makes the signing secret and no account; it logs that no admin exists yet. A later start keeps the
+// secret.
+func TestFirstStartCreatesNoAccount(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
 	var logs bytes.Buffer
@@ -124,53 +109,103 @@ func TestFirstStartPasswordFileNotLog(t *testing.T) {
 	dir := t.TempDir()
 	st := openStore(t)
 	c := &clock{t: time.Date(2026, 10, 26, 12, 0, 0, 0, time.UTC)}
-	_, pw, err := New(ctx, st, Options{Logger: log, Now: c.now, DataDir: dir})
-	if err != nil || pw == "" {
+	s, pw, err := New(ctx, st, Options{Logger: log, Now: c.now, DataDir: dir})
+	if err != nil || pw != "" {
 		t.Fatal(pw, err)
 	}
-	path := filepath.Join(dir, InitialPasswordFile)
-	fi, err := os.Stat(path)
+	var users int
+	if err := st.Reader().QueryRow(`SELECT COUNT(*) FROM web_user`).Scan(&users); err != nil || users != 0 {
+		t.Fatalf("users %d %v", users, err)
+	}
+	if _, err := os.Stat(filepath.Join(dir, InitialPasswordFile)); !errors.Is(err, fs.ErrNotExist) {
+		t.Errorf("password file on a new install: %v", err)
+	}
+	if need, err := s.NeedsFirstAccount(ctx); !need || err != nil || s.PasswordPending() {
+		t.Errorf("needs %v %v, pending %v", need, err, s.PasswordPending())
+	}
+	if n := strings.Count(logs.String(), "no admin account exists yet"); n != 1 {
+		t.Errorf("%d start-up lines about the missing admin: %s", n, logs.String())
+	}
+	s2, _, err := New(ctx, st, Options{Logger: log, Now: c.now, DataDir: dir})
 	if err != nil {
 		t.Fatal(err)
 	}
-	if fi.Mode().Perm() != 0o600 {
-		t.Errorf("mode %v, want 0600", fi.Mode().Perm())
+	if string(s2.secret) != string(s.secret) || len(s.secret) < 32 {
+		t.Error("signing secret changed between starts")
 	}
-	if b, _ := os.ReadFile(path); strings.TrimSpace(string(b)) != pw {
-		t.Error("the file does not hold the password")
+	// Once an account exists, a start says nothing about it.
+	if err := ResetPassword(ctx, st, AdminUsername, testAdminPassword); err != nil {
+		t.Fatal(err)
 	}
-	if !strings.Contains(logs.String(), path) {
-		t.Errorf("the log does not say where the file is: %s", logs.String())
+	logs.Reset()
+	if _, _, err := New(ctx, st, Options{Logger: log, Now: c.now, DataDir: dir}); err != nil {
+		t.Fatal(err)
 	}
-	// A restart before any login keeps the file and logs nothing about the password.
-	s2, pw2, err := New(ctx, st, Options{Logger: log, Now: c.now, DataDir: dir})
-	if err != nil || pw2 != "" {
-		t.Fatal(pw2, err)
+	if strings.Contains(logs.String(), "no admin account") {
+		t.Errorf("start with an account: %s", logs.String())
+	}
+}
+
+// An install made by an older version whose generated password was never used keeps its file and its normal login:
+// the file stays across restarts and failed logins, the first successful login removes it, and the create page is
+// refused.
+func TestPendingInitialPasswordFile(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+	var logs bytes.Buffer
+	log := slog.New(slog.NewJSONHandler(&logs, &slog.HandlerOptions{Level: slog.LevelDebug}))
+	dir := t.TempDir()
+	st := openStore(t)
+	c := &clock{t: time.Date(2026, 10, 26, 12, 0, 0, 0, time.UTC)}
+	// What an older first start left: the admin with a generated password and the file holding it.
+	pw := "generated-by-an-older-start"
+	if err := ResetPassword(ctx, st, AdminUsername, pw); err != nil {
+		t.Fatal(err)
+	}
+	path := filepath.Join(dir, InitialPasswordFile)
+	if err := os.WriteFile(path, []byte(pw+"\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	s, _, err := New(ctx, st, Options{Logger: log, Now: c.now, DataDir: dir})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if need, err := s.NeedsFirstAccount(ctx); need || err != nil || !s.PasswordPending() {
+		t.Fatalf("needs %v %v, pending %v", need, err, s.PasswordPending())
+	}
+	if _, err := s.CreateFirstAdmin(ctx, "bob", "a long enough password", "10.1.2.3", ""); !errors.Is(err, ErrClaimed) {
+		t.Fatalf("create on a pending install: %v", err)
 	}
 	if _, err := os.Stat(path); err != nil {
-		t.Errorf("restart removed the file: %v", err)
+		t.Errorf("start removed the file: %v", err)
 	}
-	// A failed login keeps it; the first successful one removes it.
-	if _, err := s2.Login(ctx, "admin", "wrong", "10.1.2.3", ""); !errors.Is(err, ErrInvalid) {
+	// reset-password (another process) removing the file ends the pending state too.
+	if err := os.Rename(path, path+".moved"); err != nil {
+		t.Fatal(err)
+	}
+	if s.PasswordPending() {
+		t.Error("pending without the file")
+	}
+	if err := os.Rename(path+".moved", path); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := s.Login(ctx, "admin", "wrong", "10.1.2.3", ""); !errors.Is(err, ErrInvalid) {
 		t.Fatal(err)
 	}
 	if _, err := os.Stat(path); err != nil {
 		t.Error("a failed login removed the file")
 	}
-	if _, err := s2.Login(ctx, "admin", pw, "10.1.2.3", ""); err != nil {
+	if _, err := s.Login(ctx, "admin", pw, "10.1.2.3", ""); err != nil {
 		t.Fatal(err)
 	}
 	if _, err := os.Stat(path); !errors.Is(err, fs.ErrNotExist) {
 		t.Errorf("file after the first login: %v", err)
 	}
-	// No data directory: written nowhere, still not logged.
-	if _, pw3, err := New(ctx, openStore(t), Options{Logger: log, Now: c.now}); err != nil || pw3 == "" {
-		t.Fatal(pw3, err)
-	} else if strings.Contains(logs.String(), pw3) {
-		t.Error("the password is in the log without a data dir")
+	if s.PasswordPending() {
+		t.Error("still pending after the first login")
 	}
-	if strings.Contains(logs.String(), pw) {
-		t.Errorf("a log record holds the password: %s", logs.String())
+	if strings.Contains(logs.String(), pw) || strings.Contains(logs.String(), "no admin account") {
+		t.Errorf("log: %s", logs.String())
 	}
 	// RemoveInitialPassword: a missing file is fine.
 	if removed, err := RemoveInitialPassword(dir); removed || err != nil {

@@ -51,6 +51,8 @@ func (w *Web) mountAPI(mux *http.ServeMux) {
 	w.mountErrorsAPI(mux)
 
 	w.handle(mux, "POST "+b+"/auth/login", Public, 0, w.apiLogin)
+	w.handle(mux, "GET "+b+"/auth/first-account", Public, 0, w.apiFirstAccountStatus)
+	w.handle(mux, "POST "+b+"/auth/first-account", Public, 0, w.apiFirstAccountCreate)
 	w.handle(mux, "POST "+b+"/auth/logout", SessionOnly, auth.PermBrowse, w.apiLogout)
 	w.mountUsersAPI(mux)
 	w.mountPlexLogin(mux)
@@ -488,6 +490,56 @@ func (w *Web) apiLogin(rw http.ResponseWriter, r *http.Request) {
 	w.auth.SetSessionCookie(rw, r, token)
 	// The CSRF token for this new session, so a script can go on to POST.
 	writeJSON(rw, http.StatusOK, map[string]any{"username": req.Username, "csrf_token": w.auth.SessionCSRF(token)})
+}
+
+// FirstAccountStatus is GET auth/first-account, for the sign-in page. NeedsAccount: the user table is empty, so the
+// page offers "Create your admin account". PasswordPending: an older version's generated admin password file is
+// still unused (only reported once an account exists).
+type FirstAccountStatus struct {
+	NeedsAccount    bool `json:"needs_account"`
+	PasswordPending bool `json:"password_pending"`
+}
+
+func (w *Web) apiFirstAccountStatus(rw http.ResponseWriter, r *http.Request) {
+	need, err := w.auth.NeedsFirstAccount(r.Context())
+	if err != nil {
+		w.internal(rw, err)
+		return
+	}
+	writeJSON(rw, http.StatusOK, FirstAccountStatus{NeedsAccount: need, PasswordPending: !need && w.auth.PasswordPending()})
+}
+
+// apiFirstAccountCreate creates the first account, an admin, and signs it in. It takes a username and a password
+// only, and works only while no account exists; afterwards it answers 409.
+func (w *Web) apiFirstAccountCreate(rw http.ResponseWriter, r *http.Request) {
+	var req loginRequest
+	dec := json.NewDecoder(io.LimitReader(r.Body, 4096))
+	dec.DisallowUnknownFields()
+	if err := dec.Decode(&req); err != nil {
+		badRequest(rw, "want JSON {\"username\", \"password\"}")
+		return
+	}
+	token, err := w.auth.CreateFirstAdmin(r.Context(), req.Username, req.Password, auth.ClientAddr(r), r.UserAgent())
+	var bad auth.InvalidAccount
+	var thr *auth.Throttled
+	switch {
+	case errors.Is(err, auth.ErrClaimed):
+		writeJSON(rw, http.StatusConflict, apiError{Error: "this install already has an account; sign in instead"})
+		return
+	case errors.As(err, &bad):
+		badRequest(rw, bad.Error())
+		return
+	case errors.As(err, &thr):
+		rw.Header().Set("Retry-After", retryAfter(thr, w.now()))
+		writeJSON(rw, http.StatusTooManyRequests, apiError{Error: "busy; try again in a moment"})
+		return
+	case err != nil:
+		w.internal(rw, err)
+		return
+	}
+	w.auth.SetSessionCookie(rw, r, token)
+	writeJSON(rw, http.StatusOK, map[string]any{"username": strings.TrimSpace(req.Username),
+		"csrf_token": w.auth.SessionCSRF(token)})
 }
 
 func (w *Web) apiLogout(rw http.ResponseWriter, r *http.Request) {

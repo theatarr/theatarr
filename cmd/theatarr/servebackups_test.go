@@ -303,6 +303,10 @@ func backupAPI(t *testing.T, b *serveBackups) (func(string, string, string) *htt
 	if err != nil {
 		t.Fatal(err)
 	}
+	// The first start creates no account; the admin (id 1) is made here.
+	if err := auth.ResetPassword(context.Background(), b.st, auth.AdminUsername, "test admin password"); err != nil {
+		t.Fatal(err)
+	}
 	restarted := &atomic.Int32{}
 	ui, err := web.New(web.Config{Store: b.st, Auth: au, Policy: b.policyNow(context.Background()), Logger: log, Backups: b, Restart: func() { restarted.Add(1) }})
 	if err != nil {

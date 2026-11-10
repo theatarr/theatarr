@@ -63,6 +63,10 @@ func TestSettingsAPIProviderContinuityRefusal(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	// The first start creates no account; the admin (id 1) is made here.
+	if err := auth.ResetPassword(ctx, db, auth.AdminUsername, "test admin password"); err != nil {
+		t.Fatal(err)
+	}
 	ui, err := web.New(web.Config{Store: db, Auth: au, Policy: initial.Policy, Logger: log, Settings: manager})
 	if err != nil {
 		t.Fatal(err)

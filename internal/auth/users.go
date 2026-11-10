@@ -317,8 +317,8 @@ func (s *Service) SetSetting(ctx context.Context, name, value string) error {
 
 // PlexSignIn finds or creates the account of a Plex user who has access to our server. A new account gets the
 // user role and the status the plex_new_users setting says (pending unless set to active). The profile (name, email,
-// avatar) is refreshed on every sign-in. It returns the account's id and status; only an active account may get a
-// session.
+// avatar) is refreshed on every sign-in. While no account exists it creates none and returns ErrNoAdminYet. It
+// returns the account's id and status; only an active account may get a session.
 func (s *Service) PlexSignIn(ctx context.Context, a PlexAccount) (int64, string, bool, error) {
 	if a.ID <= 0 {
 		return 0, "", false, errors.New("auth: Plex account without an id")
@@ -348,6 +348,13 @@ func (s *Service) PlexSignIn(ctx context.Context, a PlexAccount) (int64, string,
 			return err
 		case !errors.Is(err, sql.ErrNoRows):
 			return err
+		}
+		// The first account is the admin, made on the create page; Plex cannot make it.
+		var exists bool
+		if err := tx.QueryRowContext(ctx, `SELECT EXISTS (SELECT 1 FROM web_user)`).Scan(&exists); err != nil {
+			return err
+		} else if !exists {
+			return ErrNoAdminYet
 		}
 		username, err := freeUsername(ctx, tx, a)
 		if err != nil {

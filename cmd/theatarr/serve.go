@@ -668,8 +668,8 @@ func runServe(args []string) error {
 	// Cache evidence: DMM feeds stored per hash and provider, and the bounded TorBox check (docs/design/router.md).
 	wireCacheEvidence(pol, st, idx, ps.syncer.Providers, log)
 
-	// Auth is always on: the first start creates the signing secret and the admin account; its password goes to
-	// <data dir>/initial-admin-password (0600), never to the log, and the file is removed at the first login.
+	// Auth is always on: the first start creates the signing secret and no account; the first visit to the web UI
+	// creates the admin account. An older version's unused initial-admin-password file is removed at the first login.
 	au, _, err := auth.New(ctx, st, auth.Options{Logger: log, CookieSecure: csec, DataDir: filepath.Dir(*dbPath)})
 	if err != nil {
 		return err

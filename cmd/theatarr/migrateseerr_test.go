@@ -63,6 +63,10 @@ func seerrIDsViews(t *testing.T) (string, string) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	// The first start creates no account; the admin (id 1) is made here.
+	if err := auth.ResetPassword(ctx, st, auth.AdminUsername, "test admin password"); err != nil {
+		t.Fatal(err)
+	}
 	key, _, err := au.CreateKey(ctx, "cli", 1)
 	if err != nil {
 		t.Fatal(err)
