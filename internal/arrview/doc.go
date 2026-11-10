@@ -62,5 +62,6 @@
 //     LinkFileBase + link id for our links (a link of ours wins over the arr's file: it is newer).
 //   - The decision endpoints (release, release/push, parse, manualimport), file deletes, notifications and the
 //     outbound webhooks are described, with their deviations, in docs/design/devices.md.
-//   - Languages are mapped by name through Radarr's language list for both flavours.
+//   - Languages are mapped by name through the view flavour's language list: Sonarr's for Sonarr views, Radarr's for
+//     Radarr views.
 package arrview
