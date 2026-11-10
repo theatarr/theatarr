@@ -273,7 +273,12 @@ Explicit grabs, including approved upgrades, keep their override behavior.
    `TestMovieInFlightIsPerVersion`.
 3. **Open a download row** (`queued`), or resume the queued row of a deferred or stranded route. A route that
    resumes a download which was ended meanwhile (removed from the queue, failed, imported) stops there, `cancelled`
-   (`download_moved_on`): no new download replaces it ("Guarded transitions and queue removal").
+   (`download_moved_on`): no new download replaces it ("Guarded transitions and queue removal"). A stranded row taken over
+   by a candidate that found the same hash on another indexer becomes that candidate's in the same write, before any
+   add: its indexer, title, source, size (none when the candidate has no known size) and stored release are
+   rewritten, and the row dates from the takeover (`created_at`), so the journal shows the taking route's decision. A
+   route resuming its own row changes none of them (`TestStrandedRowTakenOverByAnotherIndexer`,
+   `TestTakeoverWritesCandidateSize`).
 4. **Order the providers by cache evidence** (below): providers that evidence says hold the hash cached go first,
    each group in the version's order. When that changes the order, the plan gets a step `ordered`/`cached_first`
    ("cached on ad (dmm-ad): tried first; order ad, rd, tb (version order rd, ad, tb)") and the log a line
