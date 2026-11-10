@@ -196,7 +196,7 @@ func Downloads(ctx context.Context, db *sql.DB, state string, limit int) ([]Down
 		limit = 20
 	}
 	rows, err := db.QueryContext(ctx, `SELECT id, title_id, version_key, release_title, info_hash,
-		COALESCE(provider, ''), COALESCE(provider_torrent_id, ''), state, progress, COALESCE(error, ''), updated_at
+		COALESCE(provider, client, ''), COALESCE(provider_torrent_id, ''), state, progress, COALESCE(error, ''), updated_at
 		FROM download WHERE ? = '' OR state = ? ORDER BY id DESC LIMIT ?`, state, state, limit)
 	if err != nil {
 		return nil, fmt.Errorf("router: downloads: %w", err)

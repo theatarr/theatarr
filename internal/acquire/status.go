@@ -136,7 +136,7 @@ func routeStatus(ctx context.Context, db *sql.DB, runID int64, jobState, jobErr,
 	}
 	src := Source(runID)
 	var state, release, prov, dlErr string
-	err := db.QueryRowContext(ctx, `SELECT state, release_title, COALESCE(provider, ''), COALESCE(error, '')
+	err := db.QueryRowContext(ctx, `SELECT state, release_title, COALESCE(provider, client, ''), COALESCE(error, '')
 		FROM download WHERE source = ? ORDER BY CASE WHEN state = 'failed' THEN 1 ELSE 0 END, id DESC LIMIT 1`, src).
 		Scan(&state, &release, &prov, &dlErr)
 	switch {
