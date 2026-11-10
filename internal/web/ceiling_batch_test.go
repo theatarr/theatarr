@@ -224,16 +224,17 @@ func TestRowUpgradeStateBatch(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	// Home's upgrades row: the titles the grid says have an upgrade found, and no others.
 	discover, err := w.discoverRow(ctx, w.st.Reader(), picks, 0, 60, "")
-	if err != nil || len(discover.Items) != 60 {
-		t.Fatalf("discover: %d rows: %v", len(discover.Items), err)
+	if err != nil || len(discover.Items) == 0 || len(discover.Items) != states["upgrade_available"] {
+		t.Fatalf("discover: %d rows, grid %d with an upgrade found: %v", len(discover.Items), states["upgrade_available"], err)
 	}
 	byID := map[int64]string{}
 	for _, row := range page.Items {
 		byID[row.ID] = row.UpgradeState
 	}
 	for _, row := range discover.Items {
-		if row.UpgradeState != byID[row.ID] {
+		if row.UpgradeState != "upgrade_available" || row.UpgradeState != byID[row.ID] {
 			t.Errorf("discover title %d: %s, grid %s", row.ID, row.UpgradeState, byID[row.ID])
 		}
 	}

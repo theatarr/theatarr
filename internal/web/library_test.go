@@ -501,7 +501,8 @@ func TestDiscover(t *testing.T) {
 		"recent":   {d.Recent, "Beta||2026-10-25; Delta||2026-10-21; Alpha||2026-10-16"},
 		"upcoming": {d.Upcoming, "Delta|S02E01 · Return|2026-10-31; Beta|Digital release|2026-11-05"},
 		"missing":  {d.Missing, "Delta|1 episode missing|2026-01-15; Alpha|Missing 4K WEB|2020-08-01"},
-		"upgrades": {d.Upgrades, "Beta|4K WEB: preferred quality not met|; Delta|Anime: preferred quality not met|"},
+		// Beta and Delta have files below their cutoff, and nothing better was found: not in the row.
+		"upgrades": {d.Upgrades, ""},
 	} {
 		if got := row(c.r); got != c.want {
 			t.Errorf("%s: %q, want %q", name, got, c.want)
@@ -544,6 +545,35 @@ func TestDiscover(t *testing.T) {
 	}
 	if code := e.getKey(APIBase+"/discover/nope", key, nil); code != 404 {
 		t.Errorf("discover/nope: %d", code)
+	}
+	// The upgrades row lists a title once a better release was found for its file...
+	upgrades := func() string {
+		t.Helper()
+		var r DiscoverRow
+		if code := e.getKey(APIBase+"/discover/upgrades", key, &r); code != 200 || r.Total != len(r.Items) {
+			t.Fatalf("discover/upgrades: %d %+v", code, r)
+		}
+		var home Discover
+		if code := e.getKey(APIBase+"/discover", key, &home); code != 200 || row(home.Upgrades) != row(r) {
+			t.Fatalf("discover upgrades: %d %q, row page %q", code, row(home.Upgrades), row(r))
+		}
+		return row(r)
+	}
+	e.exec(`INSERT INTO journal_decision(source,title_id,version_key,target,results,accepted,candidates,rejections,notes,created_at)
+		VALUES('test',2,'movie-web','movie',1,1,'[{"release":"Beta.Remux","accepted":true,"upgrade":true,"score":9000}]','{}','',?)`,
+		store.Millis(testNow))
+	if got := upgrades(); got != "Beta|4K WEB: upgrade found|" {
+		t.Errorf("upgrades with a release found: %q", got)
+	}
+	// ...or while one is held for a manager's approval.
+	e.exec(`INSERT INTO upgrade_hold (title_id, version_id, version_key, info_hash, release_title, candidate, created_at, seen_at)
+		VALUES (4, 4, 'anime-tv', 'h', 'Delta.S01.Remux', '{}', ?, ?)`, store.Millis(testNow), store.Millis(testNow))
+	if got := upgrades(); got != "Beta|4K WEB: upgrade found|; Delta|Anime: upgrade found|" {
+		t.Errorf("upgrades with a hold: %q", got)
+	}
+	e.exec(`UPDATE upgrade_hold SET state = 'declined'`)
+	if got := upgrades(); got != "Beta|4K WEB: upgrade found|" {
+		t.Errorf("upgrades after the hold was declined: %q", got)
 	}
 }
 

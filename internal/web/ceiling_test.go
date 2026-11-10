@@ -262,12 +262,17 @@ func TestRowUpgradeState(t *testing.T) {
 	}
 	fileViewer := http.NewServeMux()
 	viewer.Mount(fileViewer)
-	for _, path := range []string{"/titles?limit=500", "/discover/upgrades"} {
+	// A discover row redacts as the grid does; nothing better was found, so the title is not in the upgrades row.
+	for _, path := range []string{"/titles?limit=500", "/discover/recent"} {
 		if r := row(fileViewer, path); r.UpgradeState != "below_cutoff" {
 			t.Errorf("file viewer %s: %+v", path, r.TitleFacts)
 		}
 	}
 	if r := row(e.userMux(), "/titles?limit=500"); r.UpgradeState != "" || r.Availability != "available" {
 		t.Errorf("user: %+v", r.TitleFacts)
+	}
+	var up DiscoverRow
+	if e.call("GET", APIBase+"/discover/upgrades", nil, 200, &up); len(up.Items) != 0 || up.Total != 0 {
+		t.Errorf("upgrades row with nothing better found: %+v", up)
 	}
 }

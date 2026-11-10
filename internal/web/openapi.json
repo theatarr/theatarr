@@ -171,7 +171,7 @@
     },
     "/discover": {
       "get": {
-        "summary": "The Home rows: recently added, upcoming (next 30 days), missing (released, wanted) and upgrades (below cutoff); at most 20 items each. Missing and upgrades are copy shortfalls: empty without see_files",
+        "summary": "The Home rows: recently added, upcoming (next 30 days), missing (released, wanted) and upgrades (below cutoff with an upgrade found: a better release seen, or one held for approval); at most 20 items each. Missing and upgrades are copy shortfalls: empty without see_files",
         "responses": {
           "200": { "description": "OK", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Discover" } } } },
           "401": { "$ref": "#/components/responses/Unauthorized" }

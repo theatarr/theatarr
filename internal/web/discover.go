@@ -28,7 +28,8 @@ import (
 //   - missing: monitored titles with a monitored version that is wanted and out: a movie counts as out from its
 //     first digital or physical date, or 90 days after the TMDb release date when there is none, or after its year;
 //     a series has aired episodes (specials left out) that are monitored and wanted. Newest first.
-//   - upgrades: monitored titles with a version that has a file below its cutoff, newest file first.
+//   - upgrades: monitored titles with a version whose file is below its cutoff and that has an upgrade found (a
+//     better release seen, or one held for approval), newest file first.
 //
 // Missing and upgrades are copy shortfalls: a caller without "see files" (a family account) gets them empty.
 
@@ -42,7 +43,7 @@ const (
 // discoverRows are the rows GET discover/{row} serves, in Home order.
 var discoverRows = []string{"recent", "upcoming", "missing", "upgrades"}
 
-// shortfallRows are the rows about the household's copies (a version missing or below its cutoff): empty for a
+// shortfallRows are the rows about the household's copies (a version missing, or with an upgrade found): empty for a
 // caller without "see files", who sees whether a title can be watched.
 var shortfallRows = map[string]bool{"missing": true, "upgrades": true}
 
@@ -92,7 +93,7 @@ func (w *Web) apiDiscover(rw http.ResponseWriter, r *http.Request) {
 		redactDiscover(perms, row)
 	}
 	if !perms.SeeFiles {
-		// Missing and below cutoff are the household's copy shortfalls, not whether something can be watched
+		// Missing and upgrades are the household's copy shortfalls, not whether something can be watched
 		// (perms.go plainAvailability): the rows are empty for users.
 		d.Missing = DiscoverRow{Items: []DiscoverItem{}, More: d.Missing.More}
 		d.Upgrades = DiscoverRow{Items: []DiscoverItem{}, More: d.Upgrades.More}
@@ -357,33 +358,92 @@ func (w *Web) missingPicks(ctx context.Context, db *sql.DB) ([]pick, error) {
 }
 
 // upgradesNote ends an upgrades pick's caption (docs/design/manage.md, Words).
-const upgradesNote = ": preferred quality not met"
+const upgradesNote = ": upgrade found"
 
-// upgradePicks: monitored titles with a monitored version below its cutoff, newest file first.
+// upgradePickChunk is how many versions upgradePicks explains at once (bound parameters per query).
+const upgradePickChunk = 500
+
+// upgradePicks: monitored titles with a monitored version whose file is below its cutoff and for which a better
+// release was found (upgrade_available, as on the posters: markUpgradeSeen), or that holds an upgrade waiting for
+// approval; newest file first. A file below its cutoff with nothing better found is not in the row.
 func (w *Web) upgradePicks(ctx context.Context, db *sql.DB) ([]pick, error) {
-	var upgrades []pick
-	err := scanAll(ctx, db, `SELECT t.id, group_concat(v.policy_key), `+addedExpr+` AS added FROM title t
-		JOIN version v ON v.title_id = t.id AND v.state = 'filled' AND v.monitored = 1
+	type cand struct {
+		pick
+		vs []upgradeVersion
+	}
+	var cands []cand
+	err := scanAll(ctx, db, `SELECT t.id, t.kind, group_concat(v.id), group_concat(v.policy_key), `+addedExpr+` AS added
+		FROM title t JOIN version v ON v.title_id = t.id AND v.state = 'filled' AND v.monitored = 1
 		WHERE t.monitored = 1 GROUP BY t.id ORDER BY added IS NULL, added DESC, t.id DESC`, nil, func(r *sql.Rows) error {
-		var p pick
-		var keys string
+		var c cand
+		var kind, ids, keys string
 		var added sql.NullInt64
-		if err := r.Scan(&p.id, &keys, &added); err != nil {
+		if err := r.Scan(&c.id, &kind, &ids, &keys, &added); err != nil {
 			return err
 		}
-		var labels []string
 		ks := strings.Split(keys, ",")
-		names := w.keyLabels(ks)
-		for _, k := range ks {
-			labels = append(labels, names[k])
+		for i, id := range strings.Split(ids, ",") {
+			vid, err := strconv.ParseInt(id, 10, 64)
+			if err != nil || i >= len(ks) {
+				return fmt.Errorf("discover: version list of title %d: %q, %q", c.id, ids, keys)
+			}
+			c.vs = append(c.vs, upgradeVersion{id: vid, titleID: c.id, key: ks[i], kind: kind, state: "filled"})
 		}
-		sort.Strings(labels)
-		p.note = strings.Join(labels, " and ") + upgradesNote
-		upgrades = append(upgrades, p)
+		cands = append(cands, c)
 		return nil
 	})
 	if err != nil {
 		return nil, err
+	}
+	// The versions with an upgrade found, and those with one held for approval.
+	found := map[int64]bool{}
+	var all []upgradeVersion
+	for _, c := range cands {
+		all = append(all, c.vs...)
+	}
+	for len(all) > 0 {
+		vs := all[:min(len(all), upgradePickChunk)]
+		all = all[len(vs):]
+		s, err := w.loadUpgrades(ctx, db, vs, false)
+		if err != nil {
+			return nil, fmt.Errorf("upgrade evidence: %w", err)
+		}
+		for _, v := range vs {
+			if s.explain(v, 0).State == "upgrade_available" {
+				found[v.id] = true
+			}
+		}
+	}
+	err = scanAll(ctx, db, `SELECT DISTINCT version_id FROM upgrade_hold WHERE state = 'pending'`, nil, func(r *sql.Rows) error {
+		var vid int64
+		if err := r.Scan(&vid); err != nil {
+			return err
+		}
+		found[vid] = true
+		return nil
+	})
+	if err != nil {
+		return nil, err
+	}
+	var upgrades []pick
+	for _, c := range cands {
+		var keys []string
+		for _, v := range c.vs {
+			if found[v.id] {
+				keys = append(keys, v.key)
+			}
+		}
+		if len(keys) == 0 {
+			continue
+		}
+		names := w.keyLabels(keys)
+		labels := make([]string, len(keys))
+		for i, k := range keys {
+			labels[i] = names[k]
+		}
+		sort.Strings(labels)
+		c.note = strings.Join(labels, " and ") + upgradesNote
+		upgrades = append(upgrades, c.pick)
 	}
 	return upgrades, nil
 }
@@ -413,12 +473,7 @@ func (w *Web) discoverRow(ctx context.Context, db *sql.DB, picks []pick, offset,
 	}
 	for _, p := range picks {
 		if r, ok := byID[p.id]; ok {
-			note := p.note
-			// An upgrades pick says "upgrade found" once a better release was actually seen (ui-manage).
-			if r.UpgradeSeen && strings.HasSuffix(note, upgradesNote) {
-				note = strings.TrimSuffix(note, upgradesNote) + ": upgrade found"
-			}
-			row.Items = append(row.Items, DiscoverItem{TitleRow: r, Note: note, Date: p.date, At: p.at})
+			row.Items = append(row.Items, DiscoverItem{TitleRow: r, Note: p.note, Date: p.date, At: p.at})
 		}
 	}
 	return row, nil
