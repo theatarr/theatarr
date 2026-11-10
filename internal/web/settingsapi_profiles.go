@@ -20,7 +20,8 @@ import (
 )
 
 // The TRaSH trees the profile pages read: the local checkout (THEATARR_TRASH) when it loads, otherwise the snapshot
-// bundled with the binary (internal/trashbundle). Quality sync without a checkout uses the bundle too; the recyclarr
+// bundled with the binary (internal/trashbundle). A quality sync preview or a run started from the page
+// without a checkout uses the bundle too (a scheduled run does not); the recyclarr
 // import and the policy build read the configured checkout alone.
 const (
 	trashFromCheckout = "checkout"

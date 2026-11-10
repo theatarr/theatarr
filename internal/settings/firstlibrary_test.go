@@ -260,7 +260,7 @@ func TestTopLevelLibraryThenDeeperRoot(t *testing.T) {
 	}
 }
 
-// A second top-level library is refused, naming both folders and never /.
+// A second top-level library is refused, naming both folders and never /; doing what it says saves and activates both.
 func TestSecondTopLevelLibraryNamesBothAreas(t *testing.T) {
 	t.Parallel()
 	m, _, base, snap, movie := firstLibraryEnv(t)
@@ -268,47 +268,40 @@ func TestSecondTopLevelLibraryNamesBothAreas(t *testing.T) {
 	if len(dirs) < 2 {
 		t.Skip("fewer than two top-level directories")
 	}
+	snap = withTrash(t, m, base, snap)
 	saved, err := addLibrary(t, m, base, snap, movie, "movies", dirs[0])
 	if err != nil {
 		t.Fatal(err)
 	}
 	_, err = addLibrary(t, m, base, saved, movie, "tv", dirs[1])
-	want := "as " + strings.Join([]string{min(dirs[0], dirs[1]), max(dirs[0], dirs[1])}, ", ") + ", then"
-	if err == nil || !strings.Contains(err.Error(), want) || strings.Contains(err.Error(), "as /,") || strings.Contains(err.Error(), ", /,") {
-		t.Fatalf("refusal: %v (want %q)", err, want)
+	named := []string{min(dirs[0], dirs[1]), max(dirs[0], dirs[1])}
+	if err == nil || !strings.Contains(err.Error(), "as "+strings.Join(named, ", ")+", then") || strings.Contains(err.Error(), "as /,") || strings.Contains(err.Error(), ", /,") {
+		t.Fatalf("refusal: %v (want %v)", err, named)
 	}
+	followRefusal(t, m, base, saved, movie, named, dirs[1])
 }
 
-// Doing what the refusal says works: save library.dangling.roots as named, add the library, make both active.
-func TestLibraryAreaErrorNamesTheWayOut(t *testing.T) {
-	t.Parallel()
-	m, _, base, snap, movie := firstLibraryEnv(t)
-	dir := t.TempDir()
-	trash := filepath.Join(dir, ".trash")
-	first, second := filepath.Join(dir, "m", "movies"), filepath.Join(dir, "t", "tv")
-	for _, d := range []string{first, second, trash} {
-		if err := os.MkdirAll(d, 0o700); err != nil {
-			t.Fatal(err)
-		}
+// withTrash saves a trash folder, which making a library active needs.
+func withTrash(t *testing.T, m *RuntimeCoordinator, base *policy.Policy, snap *Snapshot) *Snapshot {
+	t.Helper()
+	trash := filepath.Join(t.TempDir(), ".trash")
+	if err := os.Mkdir(trash, 0o700); err != nil {
+		t.Fatal(err)
 	}
 	req := saveRequest(base, snap)
 	req.Records.Sections = []Section{{Record: Record{Key: "library"}, Config: json.RawMessage(`{"trash":{"dir":"` + trash + `"}}`)}}
-	snap, err := saveConfirmed(t, m, req)
+	next, err := saveConfirmed(t, m, req)
 	if err != nil {
 		t.Fatal(err)
 	}
-	saved, err := addLibrary(t, m, base, snap, movie, "movies", first)
-	if err != nil {
-		t.Fatal(err)
-	}
-	_, err = addLibrary(t, m, base, saved, movie, "tv", second)
-	named := []string{filepath.Join(dir, "m"), filepath.Join(dir, "t")}
-	if err == nil || !strings.Contains(err.Error(), "outside the configured library area") || !strings.Contains(err.Error(), "library.dangling.roots") ||
-		!strings.Contains(err.Error(), "as "+strings.Join(named, ", ")+", then") {
-		t.Fatalf("refusal: %v", err)
-	}
-	// What the message says, literally.
-	req = saveRequest(base, saved)
+	return next
+}
+
+// followRefusal does what the area refusal says: library.dangling.roots as named, then the "tv" library at second,
+// then both libraries active.
+func followRefusal(t *testing.T, m *RuntimeCoordinator, base *policy.Policy, saved *Snapshot, movie Version, named []string, second string) {
+	t.Helper()
+	req := saveRequest(base, saved)
 	for i, section := range req.Records.Sections {
 		if section.Key == "library" {
 			var config map[string]any
@@ -319,7 +312,8 @@ func TestLibraryAreaErrorNamesTheWayOut(t *testing.T) {
 			req.Records.Sections[i].Config, _ = json.Marshal(config)
 		}
 	}
-	if saved, err = saveConfirmed(t, m, req); err != nil {
+	saved, err := saveConfirmed(t, m, req)
+	if err != nil {
 		t.Fatalf("dangling roots as named: %v", err)
 	}
 	if saved, err = addLibrary(t, m, base, saved, movie, "tv", second); err != nil {
@@ -329,8 +323,7 @@ func TestLibraryAreaErrorNamesTheWayOut(t *testing.T) {
 	for i := range req.Records.Versions {
 		req.Records.Versions[i].Config.Mode = policy.ModeActive
 	}
-	saved, err = saveConfirmed(t, m, req)
-	if err != nil {
+	if saved, err = saveConfirmed(t, m, req); err != nil {
 		t.Fatalf("activate both: %v", err)
 	}
 	for _, key := range []string{"movies", "tv"} {
@@ -338,4 +331,29 @@ func TestLibraryAreaErrorNamesTheWayOut(t *testing.T) {
 			t.Fatalf("%s not active", key)
 		}
 	}
+}
+
+// Doing what the refusal says works: save library.dangling.roots as named, add the library, make both active.
+func TestLibraryAreaErrorNamesTheWayOut(t *testing.T) {
+	t.Parallel()
+	m, _, base, snap, movie := firstLibraryEnv(t)
+	dir := t.TempDir()
+	first, second := filepath.Join(dir, "m", "movies"), filepath.Join(dir, "t", "tv")
+	for _, d := range []string{first, second} {
+		if err := os.MkdirAll(d, 0o700); err != nil {
+			t.Fatal(err)
+		}
+	}
+	snap = withTrash(t, m, base, snap)
+	saved, err := addLibrary(t, m, base, snap, movie, "movies", first)
+	if err != nil {
+		t.Fatal(err)
+	}
+	_, err = addLibrary(t, m, base, saved, movie, "tv", second)
+	named := []string{filepath.Join(dir, "m"), filepath.Join(dir, "t")}
+	if err == nil || !strings.Contains(err.Error(), "outside the configured library area") || !strings.Contains(err.Error(), "library.dangling.roots") ||
+		!strings.Contains(err.Error(), "as "+strings.Join(named, ", ")+", then") {
+		t.Fatalf("refusal: %v", err)
+	}
+	followRefusal(t, m, base, saved, movie, named, second)
 }

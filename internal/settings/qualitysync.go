@@ -16,8 +16,8 @@ import (
 // QualitySyncConfig describes a reviewed upstream import. Profiles maps local profile keys to TRaSH score sets.
 // A Recyclarr config supplies its own scores and profiles. Retired formats are always retained.
 //
-// Origin says where the TRaSH tree comes from: empty is the local THEATARR_TRASH directory (when unset, the snapshot
-// bundled with the binary), or the archive pinned by
+// Origin says where the TRaSH tree comes from: empty is the local THEATARR_TRASH directory (when unset, a preview or
+// a run started from the page uses the snapshot bundled with the binary), or the archive pinned by
 // ArchiveURL/Commit; "github" tracks Repo's Branch (default TRaSH-Guides/Guides master): each run asks GitHub for the
 // branch's newest commit and fetches that commit's archive only when it differs from the last successful run's.
 type QualitySyncConfig struct {
