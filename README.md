@@ -1,3 +1,5 @@
+<img src="docs/images/logo.svg" alt="" width="96" align="right">
+
 # Theatarr
 
 Theatarr is a debrid-first media manager. One Go service takes the place of several Sonarr and Radarr instances,

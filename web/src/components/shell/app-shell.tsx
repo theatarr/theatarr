@@ -10,7 +10,7 @@ import { useMinWidth } from "@/components/library/copy-bits";
 import { ChevronDown, Search, X } from "lucide-react";
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { Link, NavLink, useLocation } from "react-router";
-import { PRODUCT_MARK, PRODUCT_NAME } from "@/brand";
+import { PRODUCT_NAME } from "@/brand";
 import { cn } from "@/lib/utils";
 import { AccountMenu, ThemeSwitch } from "./account-menu";
 import { allowed, isActive, itemActive, LIBRARY, moreFor, navFor, tabFor, TABS, type NavBadge, type NavGroup, type NavItem } from "./nav";
@@ -34,9 +34,7 @@ const NAV_BUTTON =
 export function Logo({ className }: { className?: string }) {
   return (
     <div className={cn("flex items-center gap-2.5", className)}>
-      <span className="grid size-[26px] place-items-center rounded-[5px] bg-[var(--accent)] font-heading text-[16px] font-semibold italic leading-none text-[var(--on-accent)]">
-        {PRODUCT_MARK}
-      </span>
+      <img src="/icon.svg" alt="" className="size-[26px] shrink-0" />
       <span className="font-heading text-[20px] font-semibold leading-none tracking-[-0.01em] text-[var(--ink)]">{PRODUCT_NAME}</span>
     </div>
   );
