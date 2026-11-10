@@ -272,7 +272,10 @@ func TestRowUpgradeState(t *testing.T) {
 		t.Errorf("user: %+v", r.TitleFacts)
 	}
 	var up DiscoverRow
-	if e.call("GET", APIBase+"/discover/upgrades", nil, 200, &up); len(up.Items) != 0 || up.Total != 0 {
-		t.Errorf("upgrades row with nothing better found: %+v", up)
+	e.call("GET", APIBase+"/discover/upgrades", nil, 200, &up)
+	for _, it := range up.Items {
+		if it.ID == 1 || !it.UpgradeSeen {
+			t.Errorf("upgrades row: %s (title %d, upgrade_seen %t) has no upgrade found", it.Name, it.ID, it.UpgradeSeen)
+		}
 	}
 }

@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
+	"maps"
 	"net/http"
 	"slices"
 	"sort"
@@ -83,20 +84,20 @@ type pick struct {
 }
 
 func (w *Web) apiDiscover(rw http.ResponseWriter, r *http.Request) {
-	d, err := w.discover(r.Context())
+	perms := w.permsOf(r)
+	d, err := w.discover(r.Context(), perms.SeeFiles)
 	if err != nil {
 		w.internal(rw, err)
 		return
 	}
-	perms := w.permsOf(r)
 	for _, row := range []*DiscoverRow{&d.Recent, &d.Upcoming, &d.Missing, &d.Upgrades} {
 		redactDiscover(perms, row)
 	}
 	if !perms.SeeFiles {
 		// Missing and upgrades are the household's copy shortfalls, not whether something can be watched
 		// (perms.go plainAvailability): the rows are empty for users.
-		d.Missing = DiscoverRow{Items: []DiscoverItem{}, More: d.Missing.More}
-		d.Upgrades = DiscoverRow{Items: []DiscoverItem{}, More: d.Upgrades.More}
+		d.Missing = DiscoverRow{Items: []DiscoverItem{}, More: discoverMore("missing")}
+		d.Upgrades = DiscoverRow{Items: []DiscoverItem{}, More: discoverMore("upgrades")}
 	}
 	writeJSON(rw, http.StatusOK, d)
 }
@@ -144,10 +145,14 @@ func (w *Web) apiDiscoverRow(rw http.ResponseWriter, r *http.Request) {
 	writeJSON(rw, http.StatusOK, row)
 }
 
-func (w *Web) discover(ctx context.Context) (*Discover, error) {
+// discover builds the Home rows. Without seeFiles the shortfall rows are not computed: the caller gets them empty.
+func (w *Web) discover(ctx context.Context, seeFiles bool) (*Discover, error) {
 	db := w.st.Reader()
 	d := &Discover{}
 	for _, name := range discoverRows {
+		if shortfallRows[name] && !seeFiles {
+			continue
+		}
 		picks, err := w.discoverPicks(ctx, db, name)
 		if err != nil {
 			return nil, err
@@ -360,34 +365,33 @@ func (w *Web) missingPicks(ctx context.Context, db *sql.DB) ([]pick, error) {
 // upgradesNote ends an upgrades pick's caption (docs/design/manage.md, Words).
 const upgradesNote = ": upgrade found"
 
-// upgradePickChunk is how many versions upgradePicks explains at once (bound parameters per query).
-const upgradePickChunk = 500
-
-// upgradePicks: monitored titles with a monitored version whose file is below its cutoff and for which a better
-// release was found (upgrade_available, as on the posters: markUpgradeSeen), or that holds one for a manager's
-// approval; newest file first. A file below its cutoff with nothing better found is not in the row.
+// upgradePicks: monitored titles with a monitored version whose file is below its cutoff (a series version with
+// episodes still missing counts by the files it has) and for which a better release was found (upgrade_available,
+// as on the posters: markUpgradeSeen), or that holds one for a manager's approval; newest file first. A file below
+// its cutoff with nothing better found is not in the row.
 func (w *Web) upgradePicks(ctx context.Context, db *sql.DB) ([]pick, error) {
 	type cand struct {
 		pick
 		vs []upgradeVersion
 	}
 	var cands []cand
-	err := scanAll(ctx, db, `SELECT t.id, t.kind, group_concat(v.id), group_concat(v.policy_key), `+addedExpr+` AS added
-		FROM title t JOIN version v ON v.title_id = t.id AND v.state = 'filled' AND v.monitored = 1
+	err := scanAll(ctx, db, `SELECT t.id, t.kind, group_concat(v.id), group_concat(v.policy_key), group_concat(v.state),
+		`+addedExpr+` AS added FROM title t JOIN version v ON v.title_id = t.id AND v.monitored = 1
+		AND (v.state = 'filled' OR (t.kind = 'series' AND v.state = 'wanted' AND `+hasFileSQL+`))
 		WHERE t.monitored = 1 GROUP BY t.id ORDER BY added IS NULL, added DESC, t.id DESC`, nil, func(r *sql.Rows) error {
 		var c cand
-		var kind, ids, keys string
+		var kind, ids, keys, states string
 		var added sql.NullInt64
-		if err := r.Scan(&c.id, &kind, &ids, &keys, &added); err != nil {
+		if err := r.Scan(&c.id, &kind, &ids, &keys, &states, &added); err != nil {
 			return err
 		}
-		ks := strings.Split(keys, ",")
+		ks, ss := strings.Split(keys, ","), strings.Split(states, ",")
 		for i, id := range strings.Split(ids, ",") {
 			vid, err := strconv.ParseInt(id, 10, 64)
-			if err != nil || i >= len(ks) {
-				return fmt.Errorf("discover: version list of title %d: %q, %q", c.id, ids, keys)
+			if err != nil || i >= len(ks) || i >= len(ss) {
+				return fmt.Errorf("discover: version list of title %d: %q, %q, %q", c.id, ids, keys, states)
 			}
-			c.vs = append(c.vs, upgradeVersion{id: vid, titleID: c.id, key: ks[i], kind: kind, state: "filled"})
+			c.vs = append(c.vs, upgradeVersion{id: vid, titleID: c.id, key: ks[i], kind: kind, state: ss[i]})
 		}
 		cands = append(cands, c)
 		return nil
@@ -401,30 +405,40 @@ func (w *Web) upgradePicks(ctx context.Context, db *sql.DB) ([]pick, error) {
 	for _, c := range cands {
 		all = append(all, c.vs...)
 	}
-	for len(all) > 0 {
-		vs := all[:min(len(all), upgradePickChunk)]
-		all = all[len(vs):]
-		s, err := w.loadUpgrades(ctx, db, vs, false)
-		if err != nil {
-			return nil, fmt.Errorf("upgrade evidence: %w", err)
-		}
-		for _, v := range vs {
-			if s.explain(v, 0).State == "upgrade_available" {
-				found[v.id] = true
-			}
-		}
-	}
-	err = scanAll(ctx, db, `SELECT DISTINCT version_id FROM upgrade_hold WHERE state = 'pending'`, nil, func(r *sql.Rows) error {
-		var vid int64
-		if err := r.Scan(&vid); err != nil {
+	// Only a version with a stored decision that accepted a release (or shadow evidence) can have an upgrade found:
+	// the others are left out before the evidence is read, so the common copy with nothing better costs nothing.
+	maybe := map[titleKey]bool{}
+	err = scanAll(ctx, db, `SELECT title_id, version_key FROM journal_decision WHERE accepted > 0
+		UNION SELECT title_id, version_key FROM shadow_grab WHERE state = 'done' AND searched = 1
+		UNION SELECT title_id, version_key FROM shadow_rss_pick`, nil, func(r *sql.Rows) error {
+		var k titleKey
+		if err := r.Scan(&k.titleID, &k.key); err != nil {
 			return err
 		}
-		found[vid] = true
+		maybe[k] = true
 		return nil
 	})
 	if err != nil {
 		return nil, err
 	}
+	all = slices.DeleteFunc(all, func(v upgradeVersion) bool { return !maybe[titleKey{v.titleID, v.key}] })
+	if len(all) > 0 {
+		// Every candidate at once: the stored decisions are read in one pass, not once per chunk of versions.
+		s, err := w.loadUpgrades(ctx, db, all, false)
+		if err != nil {
+			return nil, fmt.Errorf("upgrade evidence: %w", err)
+		}
+		for _, v := range all {
+			if s.explain(v, 0).State == "upgrade_available" {
+				found[v.id] = true
+			}
+		}
+	}
+	held, err := pendingHoldVersions(ctx, db)
+	if err != nil {
+		return nil, err
+	}
+	maps.Copy(found, held)
 	var upgrades []pick
 	for _, c := range cands {
 		var keys []string

@@ -565,12 +565,33 @@ func TestDiscover(t *testing.T) {
 	if got := upgrades(); got != "Beta|4K WEB: upgrade found|" {
 		t.Errorf("upgrades with a release found: %q", got)
 	}
-	// ...or while one is held for a manager's approval.
+	// ...or while one is held for a manager's approval: also for a series copy that still misses episodes (its
+	// state is wanted) but has files.
+	e.exec(`UPDATE version SET state = 'wanted' WHERE id = 4`)
 	e.exec(`INSERT INTO upgrade_hold (title_id, version_id, version_key, info_hash, release_title, candidate, created_at, seen_at)
 		VALUES (4, 4, 'anime-tv', 'h', 'Delta.S01.Remux', '{}', ?, ?)`, store.Millis(testNow), store.Millis(testNow))
 	if got := upgrades(); got != "Beta|4K WEB: upgrade found|; Delta|Anime: upgrade found|" {
 		t.Errorf("upgrades with a hold: %q", got)
 	}
+	// A held upgrade is a found one on the poster too, also after a later search that found nothing.
+	e.exec(`INSERT INTO upgrade_hold (title_id, version_id, version_key, info_hash, release_title, candidate, created_at, seen_at)
+		VALUES (2, 3, 'movie-web', 'h2', 'Beta.Remux', '{}', ?, ?)`, store.Millis(testNow), store.Millis(testNow))
+	e.exec(`INSERT INTO journal_decision(source,title_id,version_key,target,results,accepted,candidates,rejections,notes,created_at)
+		VALUES('test',2,'movie-web','movie',0,0,'[]','{}','',?)`, store.Millis(testNow)+1000)
+	var held DiscoverRow
+	if code := e.getKey(APIBase+"/discover/upgrades", key, &held); code != 200 || len(held.Items) != 2 {
+		t.Fatalf("discover/upgrades with holds: %d %+v", code, held)
+	}
+	for _, it := range held.Items {
+		if !it.UpgradeSeen || (it.Name == "Beta" && it.UpgradeState != "upgrade_available") {
+			t.Errorf("%s holds an upgrade: upgrade_seen %t, state %q", it.Name, it.UpgradeSeen, it.UpgradeState)
+		}
+	}
+	e.exec(`DELETE FROM upgrade_hold WHERE version_id = 3`)
+	if got := upgrades(); got != "Delta|Anime: upgrade found|" {
+		t.Errorf("upgrades after an empty newer search: %q", got)
+	}
+	e.exec(`DELETE FROM journal_decision WHERE title_id = 2 AND accepted = 0`)
 	e.exec(`UPDATE upgrade_hold SET state = 'declined'`)
 	if got := upgrades(); got != "Beta|4K WEB: upgrade found|" {
 		t.Errorf("upgrades after the hold was declined: %q", got)

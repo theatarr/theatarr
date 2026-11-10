@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"maps"
 	"slices"
 	"strings"
 	"time"
@@ -223,11 +224,11 @@ func loadEvidence(ctx context.Context, db *sql.DB, titleIDs []int64, items map[t
 	if len(items) == 0 {
 		return out, nil
 	}
-	ids := make([]any, len(titleIDs))
-	for i, id := range titleIDs {
-		ids[i] = id
-	}
-	in := store.Placeholders(len(ids))
+	// One JSON list instead of bound parameters: a caller may ask for every title at once (Home's upgrades row),
+	// and each of these reads is a single pass over its table however many titles are asked for.
+	list, _ := json.Marshal(titleIDs)
+	ids := []any{string(list)}
+	in := `SELECT value FROM json_each(?)`
 	err := scanAll(ctx, db, `SELECT id, title_id, version_key, created_at, target FROM journal_decision
 		WHERE title_id IN (`+in+`)`, ids, func(r *sql.Rows) error {
 		var k titleKey
@@ -442,6 +443,9 @@ type upgradeSet struct {
 	cutoffs  map[int64]*Cutoff
 }
 
+// upgradeLoadChunk is how many versions loadUpgrades reads files and episodes for at once (bound parameters).
+const upgradeLoadChunk = 500
+
 // loadUpgrades reads what explaining these versions needs. With cutoffs false the profiles are not read (the
 // grids only ask whether an upgrade was seen).
 func (w *Web) loadUpgrades(ctx context.Context, db *sql.DB, vs []upgradeVersion, cutoffs bool) (*upgradeSet, error) {
@@ -461,13 +465,19 @@ func (w *Web) loadUpgrades(ctx context.Context, db *sql.DB, vs []upgradeVersion,
 		}
 	}
 	var err error
-	if s.files, err = loadItemFiles(ctx, db, vids); err != nil {
-		return nil, err
+	// In chunks: these reads go by version id (indexed), and a caller may pass every version below its cutoff.
+	s.files = map[int64]map[int64]itemFile{}
+	for chunk := range slices.Chunk(vids, upgradeLoadChunk) {
+		files, err := loadItemFiles(ctx, db, chunk)
+		if err != nil {
+			return nil, err
+		}
+		maps.Copy(s.files, files)
 	}
-	if len(series) > 0 {
+	for chunk := range slices.Chunk(series, upgradeLoadChunk) {
 		err = scanAll(ctx, db, `SELECT s.version_id, e.id, e.season, e.number, s.state FROM episode_version_state s
-			JOIN episode e ON e.id = s.episode_id WHERE s.version_id IN (`+store.Placeholders(len(series))+`)
-			ORDER BY e.season, e.number`, series, func(r *sql.Rows) error {
+			JOIN episode e ON e.id = s.episode_id WHERE s.version_id IN (`+store.Placeholders(len(chunk))+`)
+			ORDER BY e.season, e.number`, chunk, func(r *sql.Rows) error {
 			var vid int64
 			var e upgradeEpisode
 			if err := r.Scan(&vid, &e.id, &e.season, &e.number, &e.state); err != nil {
@@ -700,8 +710,22 @@ func (w *Web) loadCutoffs(ctx context.Context, db *sql.DB, vs []upgradeVersion) 
 var rowUpgradeRank = map[string]int{"cutoff_met": 1, "best_available": 2, "best_source_seen": 3, "below_cutoff": 4,
 	"higher_source_exists": 5, "upgrade_available": 6}
 
-// markUpgradeSeen sets upgrade_seen on list rows: on each version below cutoff with a better release seen, and on
-// the row when any version has one. A row whose availability is upgrade also gets upgrade_state, with its source
+// pendingHoldVersions are the versions with an upgrade held for a manager's approval (upgrade_hold, pending).
+func pendingHoldVersions(ctx context.Context, db *sql.DB) (map[int64]bool, error) {
+	held := map[int64]bool{}
+	err := scanAll(ctx, db, `SELECT DISTINCT version_id FROM upgrade_hold WHERE state = 'pending'`, nil, func(r *sql.Rows) error {
+		var vid int64
+		if err := r.Scan(&vid); err != nil {
+			return err
+		}
+		held[vid] = true
+		return nil
+	})
+	return held, err
+}
+
+// markUpgradeSeen sets upgrade_seen on list rows: on each version below cutoff with a better release seen or held
+// for approval (a hold is a found upgrade even after a later search found none), and on the row when any version has one. A row whose availability is upgrade also gets upgrade_state, with its source
 // ceilings applied as on the title page.
 func (w *Web) markUpgradeSeen(ctx context.Context, db *sql.DB, items []TitleRow) error {
 	var vs []upgradeVersion
@@ -724,10 +748,17 @@ func (w *Web) markUpgradeSeen(ctx context.Context, db *sql.DB, items []TitleRow)
 	if err := w.loadCeilings(ctx, db, vs, s); err != nil {
 		return fmt.Errorf("source ceilings: %w", err)
 	}
+	held, err := pendingHoldVersions(ctx, db)
+	if err != nil {
+		return fmt.Errorf("upgrade holds: %w", err)
+	}
 	for _, v := range vs {
 		u := s.explain(v, 0)
 		p := where[v.id]
 		row := &items[p[0]]
+		if held[v.id] && u.State != "none" && u.State != "cutoff_met" {
+			u.State = "upgrade_available"
+		}
 		if u.State == "upgrade_available" {
 			row.Versions[p[1]].UpgradeSeen = true
 			row.UpgradeSeen = true

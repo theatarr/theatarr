@@ -34,7 +34,9 @@ One vocabulary for managers on the grid, the title page, season headers and epis
   cutoff Remux-2160p"), what falls short, what Theatarr would take next, and the source-ceiling evidence.
 - Poster badges word the row's `upgrade_state`; the grid filter is "Preferred quality not met"; the Home row
   **Upgrade found** (`discover` `upgrades`, and its "See all" page) lists only titles with an upgrade found: a
-  monitored copy below its preferred quality for which a better release was seen, or that holds one for approval;
+  monitored copy below its preferred quality for which a better release was seen, or that holds one for approval
+  (a held upgrade also sets the row's `upgrade_seen`, so its poster says Upgrade found; a series copy that still
+  misses episodes counts by the files it has);
   season headers count "N under preferred quality · M upgrades found".
 - Users without "see files" get availability and resolution only.
 
