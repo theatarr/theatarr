@@ -464,3 +464,16 @@ func TestHeldUnknownLanguageFile(t *testing.T) {
 		})
 	}
 }
+
+func TestSeriesOriginalLanguageCodes(t *testing.T) {
+	t.Parallel()
+	for code, want := range map[string]string{
+		"en": "English", "ja": "Japanese", "ko": "Korean", "de": "German", "no": "Norwegian", "fr": "French",
+		"es": "Spanish", "sv": "Swedish", "zh": "Chinese", "lv": "Latvian", "cn": "Chinese", "zh-TW": "Chinese",
+		"pt-BR": "Portuguese (Brazil)", "eng": "English", "jpn": "Japanese", "xx": "English", "": "English",
+	} {
+		if got := seriesOriginalLanguage(code); got != want {
+			t.Errorf("%q: %s, want %s", code, got, want)
+		}
+	}
+}

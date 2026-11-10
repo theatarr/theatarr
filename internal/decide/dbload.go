@@ -425,10 +425,19 @@ func scanTitle(rows *sql.Rows) (Title, error) {
 	return t, nil
 }
 
-// seriesOriginalLanguage is Sonarr's series original language for a title the arr import did not set (a native,
-// Seerr or Sonarr API add): IsoLanguages.Find(code.ToLower()) from the metadata, else English.
+// seriesOriginalLanguage is the series original language for a title the arr import did not set (a native, Seerr
+// or Sonarr API add), from the metadata's code (TMDb's original_language) through Sonarr's IsoLanguages.Find: the
+// code, else its part before a hyphen ("zh-tw"), with TMDb's "cn" (Cantonese) read as Chinese; else English.
 func seriesOriginalLanguage(code string) string {
-	if iso := sonarr.FindIsoLanguage(strings.ToLower(code)); iso != nil {
+	code = strings.ToLower(strings.TrimSpace(code))
+	if code == "cn" {
+		code = "zh"
+	}
+	iso := sonarr.FindIsoLanguage(code)
+	if base, _, ok := strings.Cut(code, "-"); iso == nil && ok {
+		iso = sonarr.FindIsoLanguage(base)
+	}
+	if iso != nil {
 		return iso.Language.Name
 	}
 	return sonarr.LanguageEnglish.Name
