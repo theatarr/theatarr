@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"log/slog"
+	"maps"
 	"net/http"
 	"net/http/httptest"
 	"path/filepath"
@@ -14,6 +15,7 @@ import (
 	"time"
 
 	"github.com/theatarr/theatarr/internal/auth"
+	"github.com/theatarr/theatarr/internal/policy"
 	"github.com/theatarr/theatarr/internal/store"
 	"github.com/theatarr/theatarr/internal/store/storetest"
 )
@@ -770,5 +772,27 @@ func TestMissingRowHomeRelease(t *testing.T) {
 	}
 	if _, ok := got["Refreshed"]; ok {
 		t.Errorf("Refreshed is not out at home yet but in the missing row %v", got)
+	}
+}
+
+// A library's own name wins over the guessed label; an empty or blank one falls back, and two libraries with the
+// same name are told apart by key like any other colliding labels.
+func TestVersionLabelName(t *testing.T) {
+	t.Parallel()
+	w := &Web{pol: &policy.Policy{Versions: map[string]*policy.VersionPolicy{
+		"movie-web":   {Profile: "web-2160p", Name: " Films "},
+		"movie-remux": {Profile: "remux-2160p", Name: "Films"},
+		"tv-2160p":    {Profile: "tv-2160p"},
+		"anime-tv":    {Profile: "anime-tv", Name: "  "},
+	}}}
+	for key, want := range map[string]string{"movie-web": "Films", "tv-2160p": "4K", "anime-tv": "Anime", "gone": "gone"} {
+		if got := w.versionLabel(key); got != want {
+			t.Errorf("%s: %q, want %q", key, got, want)
+		}
+	}
+	got := w.keyLabels([]string{"movie-web", "movie-remux", "tv-2160p"})
+	want := map[string]string{"movie-web": "Films · movie-web", "movie-remux": "Films · movie-remux", "tv-2160p": "4K"}
+	if !maps.Equal(got, want) {
+		t.Errorf("labels %v, want %v", got, want)
 	}
 }

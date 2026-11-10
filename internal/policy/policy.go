@@ -36,6 +36,8 @@ import (
 	"sort"
 	"strings"
 	"time"
+	"unicode"
+	"unicode/utf8"
 
 	"go.yaml.in/yaml/v3"
 )
@@ -130,6 +132,9 @@ type Ceiling struct {
 // VersionPolicy defines a version (docs/design/overview.md): which titles get it, how releases are judged, where files go.
 type VersionPolicy struct {
 	Ceiling Ceiling `yaml:"ceiling"`
+	// Name is an optional display name for people; empty uses the label guessed from the key and profile. It names
+	// nothing an arr client sees: keys, paths and arr-view profile names do not come from it.
+	Name string `yaml:"name,omitempty"`
 	// Mode is shadow (the default) or active.
 	Mode Mode `yaml:"mode"`
 	// Grab lets the router add torrents for the version (docs/design/decide.md). The router writes for a version
@@ -1164,4 +1169,18 @@ func (p *Policy) inCopy(abs string) (string, bool) {
 		return "", false
 	}
 	return rel, true
+}
+
+// versionNameMax is the longest display name of a version, in characters.
+const versionNameMax = 40
+
+// validateVersionName checks a version's optional display name: at most versionNameMax characters without the
+// spaces around it, and no control characters. Two versions may share a name; the label then gets the key.
+func validateVersionName(e *Errors, path, name string) {
+	if utf8.RuneCountInString(strings.TrimSpace(name)) > versionNameMax {
+		e.add(path+".name", "must be at most %d characters", versionNameMax)
+	}
+	if strings.ContainsFunc(name, unicode.IsControl) {
+		e.add(path+".name", "must not contain control characters")
+	}
 }

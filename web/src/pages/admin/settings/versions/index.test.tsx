@@ -29,7 +29,7 @@ describe("Versions page", () => {
     const user = userEvent.setup();
     renderPage(<VersionsPage />);
     await user.click(await screen.findByRole("button", { name: "Edit" }));
-    await user.selectOptions(screen.getByRole("combobox", { name: "Prefer SeaDex" }), "true");
+    await user.click(screen.getByRole("switch", { name: "Prefer SeaDex" }));
     await user.click(screen.getByRole("button", { name: "Save" }));
     await waitFor(() => expect(fetch.calls("PUT", "/settings/versions/movie-web")).toHaveLength(1));
     expect(fetch.calls("PUT", "/settings/versions/movie-web")[0].body).toMatchObject({ config: { prefer_seadex: true, mode: "shadow", profile: "web" } });
@@ -89,9 +89,10 @@ describe("Versions page", () => {
     const row = document.querySelector<HTMLElement>('tr[data-record="movie-web"]')!;
     expect(within(row).queryByText("Downloads on")).toBeNull();
     await user.click(within(row).getByRole("button", { name: "Edit" }));
-    const grab = screen.getByRole("combobox", { name: /^Allow downloads for this library/ });
-    expect((grab as HTMLSelectElement).value).toBe("false");
-    await user.selectOptions(grab, "true");
+    const grab = screen.getByRole("switch", { name: "Allow downloads for this library" });
+    expect(grab.getAttribute("aria-checked")).toBe("false");
+    await user.click(grab);
+    expect(grab.getAttribute("aria-checked")).toBe("true");
     await user.click(screen.getByRole("button", { name: "Save" }));
     await screen.findByRole("dialog", { name: "Confirm library change" });
     expect(fetch.calls("PUT", "/settings/versions/movie-web")[0].body).toMatchObject({ config: { grab: true } });
@@ -119,6 +120,7 @@ describe("Versions page", () => {
     renderPage(<VersionsPage />);
     await user.click(await screen.findByRole("button", { name: "Add library" }));
     await user.type(screen.getByRole("textbox", { name: "Key" }), "movie-new");
+    await user.click(screen.getByText("Advanced"));
     expect((screen.getByRole("combobox", { name: /^Client/ }) as HTMLSelectElement).value).toBe("");
     expect(within(screen.getByRole("combobox", { name: /^Client/ })).getByRole("option", { name: "None" })).toBeTruthy();
     await user.click(screen.getByRole("button", { name: "Save" }));
@@ -126,14 +128,117 @@ describe("Versions page", () => {
     expect(fetch.calls("POST", "/settings/versions")[0].body).toMatchObject({ config: { client: "", storage: "debrid" } });
   });
 
-  it("offers only debrid storage and symlink imports to a library that uses neither seedbox nor hardlink or copy", async () => {
+  it("shows no Storage or Import mode to a library that uses neither seedbox nor hardlink or copy, and keeps Advanced closed", async () => {
+    mockFetch(getRoutes());
+    const user = userEvent.setup();
+    renderPage(<VersionsPage />);
+    await user.click(await screen.findByRole("button", { name: "Edit" }));
+    const advanced = screen.getByTestId("library-advanced") as HTMLDetailsElement;
+    expect(advanced.open).toBe(false);
+    for (const name of ["Write roots", "Send grabs to", "Follows"]) expect(screen.queryByRole(name === "Write roots" ? "textbox" : "combobox", { name })).toBeNull();
+    await user.click(screen.getByText("Advanced"));
+    expect(advanced.open).toBe(true);
+    expect(screen.getByRole("textbox", { name: "Write roots" })).toBeTruthy();
+    expect(screen.getByRole("combobox", { name: "Send grabs to" })).toBeTruthy();
+    expect(screen.getByRole("combobox", { name: "Follows" })).toBeTruthy();
+    expect(screen.queryByRole("combobox", { name: "Storage" })).toBeNull();
+    expect(screen.queryByRole("combobox", { name: "Import mode" })).toBeNull();
+    expectNamedControls();
+    await user.click(screen.getByText("Advanced"));
+    expect(advanced.open).toBe(false);
+  });
+
+  it("opens Advanced for a library that follows another, sends its grabs to a client or has an extra write root", async () => {
+    const user = userEvent.setup();
+    for (const [config, roots] of [[{ follows: "movie-remux" }, undefined], [{ add_via: "client" }, undefined], [{}, ["/library/movies", "/library/extra"]]] as const) {
+      mockFetch(getRoutes({ ...versions(), versions: [{ ...version(), roots: roots ? [...roots] : version().roots, config: { ...version().config, ...config } }] }));
+      const page = renderPage(<VersionsPage />);
+      await user.click(await screen.findByRole("button", { name: "Edit" }));
+      expect((screen.getByTestId("library-advanced") as HTMLDetailsElement).open).toBe(true);
+      expect(screen.getByRole("textbox", { name: "Write roots" })).toBeTruthy();
+      page.unmount();
+    }
+  });
+
+  it("opens Advanced when the server refuses a field inside it", async () => {
+    const refusal = { error: "settings refused: versions[movie-web].client: unknown client \"gone\"", fields: [{ path: "versions[movie-web].client", message: "unknown client \"gone\"" }] };
+    mockFetch([...getRoutes(), { method: "PUT", path: "/settings/versions/movie-web", reply: json(refusal, 422) }]);
+    const user = userEvent.setup();
+    renderPage(<VersionsPage />);
+    await user.click(await screen.findByRole("button", { name: "Edit" }));
+    const advanced = screen.getByTestId("library-advanced") as HTMLDetailsElement;
+    expect(advanced.open).toBe(false);
+    await user.click(screen.getByRole("button", { name: "Save" }));
+    const alert = await within(advanced).findByText("unknown client \"gone\"");
+    expect(advanced.open).toBe(true);
+    expect(alert.closest("div")?.textContent).toContain("Client");
+  });
+
+  it("saves an untouched library with the body it was loaded with, and no name", async () => {
+    const fetch = mockFetch([...getRoutes(), { method: "PUT", path: "/settings/versions/movie-web", reply: json({ generation: 5 }) }]);
+    const user = userEvent.setup();
+    renderPage(<VersionsPage />);
+    await user.click(await screen.findByRole("button", { name: "Edit" }));
+    expect((screen.getByRole("textbox", { name: "Name" }) as HTMLInputElement).value).toBe("");
+    // Typing a name and removing it again leaves no trace either.
+    await user.type(screen.getByRole("textbox", { name: "Name" }), "Films");
+    expect(screen.getByTestId("unsaved-count").textContent).toBe("1 unsaved change");
+    await user.clear(screen.getByRole("textbox", { name: "Name" }));
+    expect(screen.queryByTestId("unsaved-count")).toBeNull();
+    expect(screen.queryAllByTestId("field-changed")).toHaveLength(0);
+    await user.click(screen.getByRole("button", { name: "Save" }));
+    await waitFor(() => expect(fetch.calls("PUT", "/settings/versions/movie-web")).toHaveLength(1));
+    expect(fetch.calls("PUT", "/settings/versions/movie-web")[0].body).toEqual({ generation: 4, key: "movie-web", config: version().config, roots: version().roots });
+  });
+
+  it("names a library, and clears a stored name by sending it empty", async () => {
+    const named = { ...version(), config: { ...version().config, name: "Films" } };
+    const fetch = mockFetch([...getRoutes(), { method: "PUT", path: "/settings/versions/movie-web", reply: json({ generation: 5 }) }]);
+    const user = userEvent.setup();
+    const page = renderPage(<VersionsPage />);
+    await user.click(await screen.findByRole("button", { name: "Edit" }));
+    await user.type(screen.getByRole("textbox", { name: "Name" }), "Films in 4K");
+    expect(screen.getByRole("button", { name: "Undo change to Name" })).toBeTruthy();
+    await user.click(screen.getByRole("button", { name: "Save" }));
+    await waitFor(() => expect(fetch.calls("PUT", "/settings/versions/movie-web")).toHaveLength(1));
+    expect(fetch.calls("PUT", "/settings/versions/movie-web")[0].body).toEqual({ generation: 4, key: "movie-web", config: { ...version().config, name: "Films in 4K" }, roots: version().roots });
+    page.unmount();
+
+    const again = mockFetch([...getRoutes({ ...versions(), versions: [named] }), { method: "PUT", path: "/settings/versions/movie-web", reply: json({ generation: 5 }) }]);
+    renderPage(<VersionsPage />);
+    await user.click(await screen.findByRole("button", { name: "Edit" }));
+    expect((screen.getByRole("textbox", { name: "Name" }) as HTMLInputElement).value).toBe("Films");
+    await user.clear(screen.getByRole("textbox", { name: "Name" }));
+    await user.click(screen.getByRole("button", { name: "Save" }));
+    await waitFor(() => expect(again.calls("PUT", "/settings/versions/movie-web")).toHaveLength(1));
+    expect(again.calls("PUT", "/settings/versions/movie-web")[0].body).toMatchObject({ config: { name: "" } });
+  });
+
+  it("sends the two switches as booleans in the usual body, with their Changed marks and Undo", async () => {
+    const fetch = mockFetch([...getRoutes(), { method: "PUT", path: "/settings/versions/movie-web", reply: json({ generation: 5 }) }]);
+    const user = userEvent.setup();
+    renderPage(<VersionsPage />);
+    await user.click(await screen.findByRole("button", { name: "Edit" }));
+    await user.click(screen.getByRole("switch", { name: "Allow downloads for this library" }));
+    await user.click(screen.getByRole("switch", { name: "Prefer SeaDex" }));
+    expect(screen.getByTestId("unsaved-count").textContent).toBe("2 unsaved changes");
+    await user.click(screen.getByRole("button", { name: "Undo change to Prefer SeaDex" }));
+    expect(screen.getByRole("switch", { name: "Prefer SeaDex" }).getAttribute("aria-checked")).toBe("false");
+    await user.click(screen.getByRole("switch", { name: "Prefer SeaDex" }));
+    await user.click(screen.getByRole("button", { name: "Save" }));
+    await waitFor(() => expect(fetch.calls("PUT", "/settings/versions/movie-web")).toHaveLength(1));
+    expect(fetch.calls("PUT", "/settings/versions/movie-web")[0].body).toEqual({ generation: 4, key: "movie-web", config: { ...version().config, grab: true, prefer_seadex: true }, roots: version().roots });
+  });
+
+  it("labels the modes and the upgrade rules in plain words", async () => {
     mockFetch(getRoutes());
     const user = userEvent.setup();
     renderPage(<VersionsPage />);
     await user.click(await screen.findByRole("button", { name: "Edit" }));
     const options = (name: string) => within(screen.getByRole("combobox", { name })).getAllByRole("option").map((option) => option.textContent);
-    expect(options("Storage")).toEqual(["debrid"]);
-    expect(options("Import mode")).toEqual(["symlink"]);
+    expect(options("Mode")).toEqual(["Shadow (preview only)", "Active (manages files)"]);
+    expect(options("Upgrades")).toEqual(["Automatic", "Ask first", "Never"]);
+    expect(screen.getByText("What happens when a better release would replace a file this library already has.")).toBeTruthy();
   });
 
   it("keeps a saved seedbox storage and hardlink import, labelled not supported yet, and saves them unchanged", async () => {
@@ -148,7 +253,7 @@ describe("Versions page", () => {
     expect(importMode.value).toBe("hardlink");
     expect(within(storage).getAllByRole("option").map((option) => option.textContent)).toEqual(["debrid", "seedbox (not supported yet)"]);
     expect(within(importMode).getAllByRole("option").map((option) => option.textContent)).toEqual(["symlink", "hardlink (not supported yet)"]);
-    await user.selectOptions(screen.getByRole("combobox", { name: "Prefer SeaDex" }), "true");
+    await user.click(screen.getByRole("switch", { name: "Prefer SeaDex" }));
     await user.click(screen.getByRole("button", { name: "Save" }));
     await waitFor(() => expect(fetch.calls("PUT", "/settings/versions/movie-web")).toHaveLength(1));
     expect(fetch.calls("PUT", "/settings/versions/movie-web")[0].body).toMatchObject({ config: { storage: "seedbox", import: "hardlink", prefer_seadex: true } });
@@ -171,6 +276,7 @@ describe("Versions page", () => {
     const user = userEvent.setup();
     renderPage(<VersionsPage />);
     await user.click(await screen.findByRole("button", { name: "Edit" }));
+    await user.click(screen.getByText("Advanced"));
     const send = screen.getByRole("combobox", { name: "Send grabs to" }) as HTMLSelectElement;
     expect(send.value).toBe("providers");
     expect(within(send).getByRole("option", { name: "Debrid providers" })).toBeTruthy();
@@ -266,7 +372,8 @@ describe("Versions page", () => {
     await user.clear(root);
     await user.type(root, "/library/other");
     // A separately added write root survives: Root and Write roots are marked but have no Undo.
-    const roots = within(form).getByRole("textbox", { name: "Write roots (comma separated)" });
+    await user.click(within(form).getByText("Advanced"));
+    const roots = within(form).getByRole("textbox", { name: "Write roots" });
     await user.type(roots, ", /library/extra");
     expect(within(form).getAllByTestId("field-changed")).toHaveLength(3);
     expect(within(form).queryByRole("button", { name: "Undo change to Root" })).toBeNull();
@@ -277,7 +384,10 @@ describe("Versions page", () => {
     expect(within(form).getByTestId("unsaved-count").textContent).toBe("2 unsaved changes");
     await user.click(within(form).getByTestId("version-discard"));
     expect((within(form).getByRole("textbox", { name: "Root" }) as HTMLInputElement).value).toBe("/library/movies");
-    expect((within(form).getByRole("textbox", { name: "Write roots (comma separated)" }) as HTMLInputElement).value).toBe("/library/movies");
+    // Discard also puts Advanced back as the stored record has it: closed.
+    expect((within(form).getByTestId("library-advanced") as HTMLDetailsElement).open).toBe(false);
+    await user.click(within(form).getByText("Advanced"));
+    expect((within(form).getByRole("textbox", { name: "Write roots" }) as HTMLInputElement).value).toBe("/library/movies");
     expect(within(form).queryByTestId("unsaved-count")).toBeNull();
     expect(within(form).queryAllByTestId("field-changed")).toHaveLength(0);
     expect(fetch.calls("PUT", "/settings/versions/movie-web")).toHaveLength(0);

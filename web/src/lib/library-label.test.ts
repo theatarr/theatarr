@@ -10,3 +10,9 @@ it.each([
 ])("names %s using its profile", (key, profile, label) => {
  expect(libraryLabel(key, profile)).toBe(label);
 });
+
+it("uses the library's own name when it has one", () => {
+ expect(libraryLabel("movie-web", "web-2160p", " Films ")).toBe("Films");
+ expect(libraryLabel("movie-web", "web-2160p", "  ")).toBe("4K WEB");
+ expect(libraryLabel("movie-web", "web-2160p", undefined)).toBe("4K WEB");
+});

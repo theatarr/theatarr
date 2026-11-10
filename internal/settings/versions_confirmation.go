@@ -653,6 +653,7 @@ func versionOtherEffects(key string, before, after *policy.VersionPolicy, router
 	for _, field := range changedFields(*before, *after, versionJudged) {
 		switch {
 		case field == "golive_done":
+		case field == "name":
 		case field == "anime" && before.Anime == nil:
 		case field == "packs" && (after.Packs == "" || after.Packs == "all"):
 		case field == "packs_threshold" && (after.PacksThreshold == nil || (before.PacksThreshold != nil && *after.PacksThreshold > *before.PacksThreshold)):

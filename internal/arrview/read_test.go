@@ -7,6 +7,7 @@ import (
 	"net/http/httptest"
 	"os"
 	"regexp"
+	"slices"
 	"strconv"
 	"sync/atomic"
 	"testing"
@@ -617,4 +618,26 @@ func TestPing(t *testing.T) {
 		}
 	}
 	e.call("GET", "/radarr/api/v3/ping", nil, 404, nil)
+}
+
+// A library's display name is for people only: the arr views keep naming its profile after the key.
+func TestLibraryNameKeepsArrProfileNames(t *testing.T) {
+	t.Parallel()
+	e := newEnv(t)
+	var before, after []struct {
+		ID   int64
+		Name string
+	}
+	e.call("GET", "/radarr/api/v3/qualityprofile", nil, 200, &before)
+	e.pol.Versions["movie-web"].Name = "Films in 4K"
+	e.start()
+	e.call("GET", "/radarr/api/v3/qualityprofile", nil, 200, &after)
+	if !slices.Equal(before, after) {
+		t.Errorf("a library name changed the view's profiles: %+v vs %+v", before, after)
+	}
+	var single []struct{ Name string }
+	e.call("GET", "/v/movie-web/radarr/api/v3/qualityprofile", nil, 200, &single)
+	if len(single) != 1 || single[0].Name != "movie-web" {
+		t.Errorf("per-version profiles %+v", single)
+	}
 }

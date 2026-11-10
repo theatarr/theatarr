@@ -662,3 +662,90 @@ func TestVersionConfirmationCoversActiveWriteSettings(t *testing.T) {
 		t.Fatalf("narrowing asked for confirmation: %+v", effects)
 	}
 }
+
+// The optional library name is stored only when set: an ordinary save of a library without one writes no name key
+// (an older build's strict decoder still loads the row), a set name round-trips, and an over-long one is refused.
+func TestVersionNameOptional(t *testing.T) {
+	t.Parallel()
+	s, db, p, initial := versionFixture(t)
+	ctx := context.Background()
+	stored := func() map[string]string {
+		t.Helper()
+		rows, err := db.Reader().Query("SELECT key, config FROM setting_version")
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer rows.Close()
+		out := map[string]string{}
+		for rows.Next() {
+			var key, raw string
+			if err := rows.Scan(&key, &raw); err != nil {
+				t.Fatal(err)
+			}
+			out[key] = raw
+		}
+		return out
+	}
+	before := stored()
+	if len(before) == 0 {
+		t.Fatal("no stored versions")
+	}
+	m := versionCoordinator(t, s, p, initial)
+	req := saveRequest(p, initial)
+	editVersion(&req.Records, "movie-web", func(v *Version) { v.Config.Edition = "Extended" })
+	snap, err := m.SaveAndApply(ctx, req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for key, raw := range stored() {
+		if strings.Contains(raw, `"name"`) {
+			t.Errorf("%s stored a name key without a name: %s", key, raw)
+		}
+		if key != "movie-web" && raw != before[key] {
+			t.Errorf("%s changed on a save of another library:\n%s\n%s", key, before[key], raw)
+		}
+	}
+	req = saveRequest(p, snap)
+	editVersion(&req.Records, "movie-web", func(v *Version) { v.Config.Name = "Films in 4K" })
+	if snap, err = m.SaveAndApply(ctx, req); err != nil {
+		t.Fatal(err)
+	}
+	if got := snap.Policy.Versions["movie-web"].Name; got != "Films in 4K" || !strings.Contains(stored()["movie-web"], `"name":"Films in 4K"`) {
+		t.Fatalf("name not stored: %q %s", got, stored()["movie-web"])
+	}
+	req = saveRequest(p, snap)
+	editVersion(&req.Records, "movie-web", func(v *Version) { v.Config.Name = "" })
+	if snap, err = m.SaveAndApply(ctx, req); err != nil {
+		t.Fatal(err)
+	}
+	if strings.Contains(stored()["movie-web"], `"name"`) {
+		t.Fatalf("a cleared name left its key: %s", stored()["movie-web"])
+	}
+	for _, bad := range []string{strings.Repeat("é", 41), "Films\n4K"} {
+		req = saveRequest(p, snap)
+		editVersion(&req.Records, "movie-web", func(v *Version) { v.Config.Name = bad })
+		if _, err := m.SaveAndApply(ctx, req); err == nil || !strings.Contains(err.Error(), "versions[movie-web].name") {
+			t.Errorf("name %q: %v", bad, err)
+		}
+	}
+	req = saveRequest(p, snap)
+	editVersion(&req.Records, "movie-web", func(v *Version) { v.Config.Name = strings.Repeat("é", 40) })
+	if _, err := m.SaveAndApply(ctx, req); err != nil {
+		t.Errorf("a 40-character name was refused: %v", err)
+	}
+}
+
+// Renaming an active library changes nothing it does, so it asks for no confirmation.
+func TestVersionRenameNeedsNoConfirmation(t *testing.T) {
+	t.Parallel()
+	p, err := policy.Load(exampleDir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	p.Versions["movie-web"].Mode = policy.ModeActive
+	next, _ := p.Clone()
+	next.Versions["movie-web"].Name = "Films in 4K"
+	if effects, err := versionConfirmationEffects(context.Background(), nil, p, next); err != nil || len(effects) != 0 {
+		t.Fatalf("a rename asked for confirmation: %+v %v", effects, err)
+	}
+}

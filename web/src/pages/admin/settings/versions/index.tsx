@@ -15,6 +15,7 @@ import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Sheet, SheetLayout, useEditParam } from "@/components/ui/sheet";
+import { Switch } from "@/components/ui/switch";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { explainError } from "@/lib/settings";
 
@@ -39,9 +40,11 @@ export function fieldMessage(error: unknown, match: (path: string) => boolean): 
   return Array.isArray(fields) ? fields.find((f) => f.path && match(f.path))?.message : undefined;
 }
 
-function Field({ label, children, changed, onUndo, name, error }: { label: string; children: ReactNode; changed?: boolean; onUndo?: () => void; name?: string; error?: string }) {
+/** help sits outside the label, so the control's accessible name stays the short label. */
+function Field({ label, children, changed, onUndo, name, error, help }: { label: string; children: ReactNode; changed?: boolean; onUndo?: () => void; name?: string; error?: string; help?: string }) {
   return <div className="flex flex-col gap-1 text-sm" data-changed={changed || undefined}>
     <label className="flex flex-col gap-1"><span>{label}</span>{children}</label>
+    {help ? <p className="text-xs text-muted-foreground">{help}</p> : null}
     {error ? <p role="alert" className="text-xs text-destructive">{error}</p> : null}
     {changed ? <ChangedMark name={name ?? label} onUndo={onUndo} /> : null}
   </div>;
@@ -346,6 +349,24 @@ function VersionForm({ session, data, defaults, profiles, error, onChange }: { s
   }, [generation, record.key, config.library, data.source]);
   const summary = profiles.get(config.profile);
   const viaClient = config.add_via === "client";
+  // The name is optional and stored only when set: an empty one is left out of the request unless it clears a stored name.
+  const setName = (value: string) => {
+    const next = { ...config };
+    if (value || saved.config.name) next.name = value;
+    else delete next.name;
+    onChange({ ...record, config: next });
+  };
+  const fieldError = (field: string) => fieldMessage(error, (path) => path === `versions[${record.key}].${field}`);
+  // Storage and Import mode offer one supported value each; they show only when the library uses another one.
+  const storage = withSaved(["debrid"], saved.config.storage, config.storage);
+  const importMode = withSaved(["symlink"], saved.config.import, config.import);
+  const rootsError = fieldMessage(error, (path) => path.startsWith(`library.versions[${record.key}].roots`));
+  const advancedError = rootsError ?? fieldError("storage") ?? fieldError("add_via") ?? fieldError("client") ?? fieldError("import") ?? fieldError("follows");
+  // Advanced starts open when the library uses something in it: write roots other than the root, a download client
+  // for its grabs, a followed library, or a storage or import mode that is not the supported one. A refused field
+  // inside keeps it open.
+  const [opened, setAdvanced] = useState(() => (!!record.roots?.length && !same(record.roots, [config.library])) || viaClient || !!config.follows || storage.options.length > 1 || importMode.options.length > 1);
+  const advanced = opened || !!advancedError;
   // The TRaSH defaults of the library's kind (movies: Radarr's, series: Sonarr's), offered beside the stored profiles.
   const flavour = flavourOf(config.kind);
   const presets = usePresets(flavour, data.source === "db").data?.presets ?? [];
@@ -357,18 +378,25 @@ function VersionForm({ session, data, defaults, profiles, error, onChange }: { s
   return <div className="space-y-6">
     <div className="flex flex-wrap items-center gap-2 text-sm"><span>Draft after saving:</span><VersionStatus showMode state={{ mode: config.mode, grab: config.grab ?? false, library_enabled: data.switches.library_enabled, router_enabled: data.switches.router_enabled, router_forced_off: data.switches.sources?.router === "forced off by environment" }} /></div>
     <Part title="Where" help="What the library holds, where its folder lives and how files get there.">
-      <Field label="Key" changed={record.key !== saved.key} onUndo={() => onChange({ ...record, key: saved.key })}><Input value={record.key} disabled={!session.create} onChange={(event) => onChange({ ...record, key: event.target.value })} /></Field>
-      <Field label="Mode (Shadow previews and compares; Active manages files)" name="Mode" {...mark("mode")}><Pick value={config.mode} options={["shadow", "active"]} labels={{ shadow: "Shadow", active: "Active" }} onChange={(value) => update("mode", value as VersionConfig["mode"])} /></Field>
-      <Field label="Allow downloads for this library (adds torrents when the library is Active and Allow new downloads is on)" name="Allow downloads for this library" {...mark("grab")}><Pick value={String(config.grab ?? false)} options={["false", "true"]} labels={{ false: "Off", true: "On" }} onChange={(value) => update("grab", value === "true")} /></Field>
+      <Field label="Name" help="Optional. Shown in place of the guessed label, such as 4K WEB. Connected apps never see it." changed={(config.name ?? "") !== (saved.config.name ?? "")} onUndo={() => setName(saved.config.name ?? "")} error={fieldError("name")}><Input value={config.name ?? ""} maxLength={40} onChange={(event) => setName(event.target.value)} /></Field>
+      <Field label="Key" help="Used by connected apps and in settings; fixed once the library exists." changed={record.key !== saved.key} onUndo={() => onChange({ ...record, key: saved.key })}><Input value={record.key} disabled={!session.create} onChange={(event) => onChange({ ...record, key: event.target.value })} /></Field>
+      <Field label="Mode" {...mark("mode")}><Pick value={config.mode} options={["shadow", "active"]} labels={{ shadow: "Shadow (preview only)", active: "Active (manages files)" }} onChange={(value) => update("mode", value as VersionConfig["mode"])} /></Field>
+      <Field label="Allow downloads for this library" help="Adds torrents when the library is Active and Allow new downloads is on." {...mark("grab")}><Switch className="self-start" checked={config.grab ?? false} onCheckedChange={(on) => update("grab", on)} /></Field>
       <Field label="Kind" {...mark("kind")}><Pick value={config.kind} options={["movie", "series"]} onChange={(value) => recategorize({ ...config, kind: value as VersionConfig["kind"] })} /></Field>
       <Field label="Anime" {...mark("anime")}><Pick value={config.anime === null ? "both" : String(config.anime)} options={["false", "true", "both"]} labels={{ false: "Not anime", true: "Anime only", both: "Anime and not" }} onChange={(value) => recategorize({ ...config, anime: value === "both" ? null : value === "true" })} /></Field>
-      <Field label="Root" changed={!same(config.library, saved.config.library)} error={fieldMessage(error, (path) => path === `versions[${record.key}].library`)}><Input value={config.library} onChange={(event) => { const root = event.target.value; const roots = record.roots?.length && record.roots.length > 1 ? record.roots.map((value) => value === config.library ? root : value) : [root]; setRootsText(roots.join(", ")); onChange({ ...record, config: { ...config, library: root }, roots }); }} /><span role="status" className="break-all text-xs">{rootStatus}</span></Field>
-      <Field label="Write roots (comma separated)" name="Write roots" changed={rootsChanged} error={fieldMessage(error, (path) => path.startsWith(`library.versions[${record.key}].roots`))}><Input value={rootsText} onChange={(event) => { setRootsText(event.target.value); onChange({ ...record, roots: split(event.target.value) }); }} /></Field>
-      <Field label="Storage" {...mark("storage")}><Pick value={config.storage} {...withSaved(["debrid"], saved.config.storage, config.storage)} onChange={(value) => update("storage", value as VersionConfig["storage"])} /></Field>
-      <Field label="Send grabs to" {...mark("add_via")}><Pick value={viaClient ? "client" : "providers"} options={["providers", "client"]} labels={{ providers: "Debrid providers", client: "Download client" }} onChange={(value) => update("add_via", value as VersionConfig["add_via"])} /></Field>
-      <Field label={viaClient ? "Client (a decypharr client: it adds to its own debrid account)" : "Client (only when grabs go to a download client; debrid libraries need none)"} name="Client" {...mark("client")}><Pick value={config.client} options={["", ...data.clients]} onChange={(value) => update("client", value)} /></Field>
-      <Field label="Import mode" {...mark("import")}><Pick value={config.import} {...withSaved(["symlink"], saved.config.import, config.import)} onChange={(value) => update("import", value as VersionConfig["import"])} /></Field>
-      <Field label="Follows" {...mark("follows")}><Pick value={config.follows} options={["", ...data.versions.filter((version) => version.key !== record.key).map((version) => version.key)]} onChange={(value) => update("follows", value)} /></Field>
+      <Field label="Root" changed={!same(config.library, saved.config.library)} error={fieldError("library")}><Input value={config.library} onChange={(event) => { const root = event.target.value; const roots = record.roots?.length && record.roots.length > 1 ? record.roots.map((value) => value === config.library ? root : value) : [root]; setRootsText(roots.join(", ")); onChange({ ...record, config: { ...config, library: root }, roots }); }} /><span role="status" className="break-all text-xs">{rootStatus}</span></Field>
+      <details className="md:col-span-2" open={advanced} data-testid="library-advanced">
+        {/* The click is handled here, so the open state has one owner. */}
+        <summary className="cursor-pointer text-sm font-medium" onClick={(event) => { event.preventDefault(); setAdvanced(!opened); }}>Advanced</summary>
+        {advanced ? <div className="mt-3 grid gap-4 md:grid-cols-2">
+          <Field label="Write roots" help="Extra folders this library may write to, comma separated. Leave as the root." changed={rootsChanged} error={rootsError}><Input value={rootsText} onChange={(event) => { setRootsText(event.target.value); onChange({ ...record, roots: split(event.target.value) }); }} /></Field>
+          {storage.options.length > 1 ? <Field label="Storage" {...mark("storage")} error={fieldError("storage")}><Pick value={config.storage} {...storage} onChange={(value) => update("storage", value as VersionConfig["storage"])} /></Field> : null}
+          <Field label="Send grabs to" {...mark("add_via")} error={fieldError("add_via")}><Pick value={viaClient ? "client" : "providers"} options={["providers", "client"]} labels={{ providers: "Debrid providers", client: "Download client" }} onChange={(value) => update("add_via", value as VersionConfig["add_via"])} /></Field>
+          <Field label={viaClient ? "Client (a decypharr client: it adds to its own debrid account)" : "Client (only when grabs go to a download client; debrid libraries need none)"} name="Client" {...mark("client")} error={fieldError("client")}><Pick value={config.client} options={["", ...data.clients]} onChange={(value) => update("client", value)} /></Field>
+          {importMode.options.length > 1 ? <Field label="Import mode" {...mark("import")} error={fieldError("import")}><Pick value={config.import} {...importMode} onChange={(value) => update("import", value as VersionConfig["import"])} /></Field> : null}
+          <Field label="Follows" {...mark("follows")} error={fieldError("follows")}><Pick value={config.follows} options={["", ...data.versions.filter((version) => version.key !== record.key).map((version) => version.key)]} onChange={(value) => update("follows", value)} /></Field>
+        </div> : null}
+      </details>
     </Part>
     <Part title="Which releases" help="The quality profile decides which releases it takes and when it upgrades.">
       <div className="flex flex-col gap-1"><Field label="Profile" {...mark("profile")}><select className={SELECT_CLASS} value={config.profile} onChange={(event) => select(event.target.value)}>
@@ -386,8 +414,8 @@ function VersionForm({ session, data, defaults, profiles, error, onChange }: { s
           ? <span className="text-xs text-muted-foreground [overflow-wrap:anywhere]" data-testid="preset-pick-note">TRaSH default{pickedPreset ? ` ${pickedPreset.name}` : ""}: saving first creates a profile of your own from it, named after this library{record.key.trim() ? <> (<span className="font-mono">{record.key.trim()}</span>, or the next free key)</> : null}, with its format set. You can edit it afterwards under <Link className="underline" to="/admin/settings/profiles">Profiles</Link>.{copiesOf(picked).length ? ` To reuse the copy you already have, pick ${copiesOf(picked).join(" or ")} under Your profiles.` : ""}</span>
           : <span className="text-xs text-muted-foreground [overflow-wrap:anywhere]">{summary ? `${profileOrigin(summary)} · ` : ""}its format set comes with it{data.profiles[config.profile] ? `: ${data.profiles[config.profile]}` : ""}. {config.profile ? <Link className="underline" to={`/admin/settings/profiles?edit=${encodeURIComponent(config.profile)}`}>Open the profile</Link> : null}</span>}
       </div>
-      <Field label="Upgrades" {...mark("upgrades")}><Pick value={config.upgrades} options={["auto", "approve", "off"]} onChange={(value) => update("upgrades", value as VersionConfig["upgrades"])} /></Field>
-      <div className="flex flex-col gap-1"><Field label="Prefer SeaDex" {...mark("prefer_seadex")}><Pick value={String(config.prefer_seadex ?? false)} options={["false", "true"]} onChange={(value) => update("prefer_seadex", value === "true")} /></Field><span className="text-xs text-muted-foreground">SeaDex picks take priority among allowed qualities and can replace higher-resolution files. Actual quality remains shown; size limits, upgrades and the other checks still apply.</span></div>
+      <Field label="Upgrades" help="What happens when a better release would replace a file this library already has." {...mark("upgrades")}><Pick value={config.upgrades} options={["auto", "approve", "off"]} labels={{ auto: "Automatic", approve: "Ask first", off: "Never" }} onChange={(value) => update("upgrades", value as VersionConfig["upgrades"])} /></Field>
+      <Field label="Prefer SeaDex" help="SeaDex picks take priority among allowed qualities and can replace higher-resolution files. Actual quality remains shown; size limits, upgrades and the other checks still apply." {...mark("prefer_seadex")}><Switch className="self-start" checked={config.prefer_seadex ?? false} onCheckedChange={(on) => update("prefer_seadex", on)} /></Field>
     </Part>
     <Part title="Sources" help="Where it searches and which debrid providers it adds through, in fallback order.">
       <div className="space-y-1"><Multi label="Indexers" choices={data.indexers} values={config.indexers ?? []} onChange={(values) => update("indexers", values)} />{mark("indexers").changed ? <ChangedMark name="Indexers" onUndo={mark("indexers").onUndo} /> : null}</div>

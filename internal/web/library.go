@@ -347,12 +347,15 @@ type VersionFiles struct {
 	Providers []string `json:"providers,omitempty"`
 }
 
-// versionLabel names a version for people, from its key and profile: movie-web with profile web-2160p is
-// "4K WEB", tv-2160p is "4K", anime-tv is "Anime".
+// versionLabel names a version for people: its name when it has one, else a label from its key and profile:
+// movie-web with profile web-2160p is "4K WEB", tv-2160p is "4K", anime-tv is "Anime".
 func (w *Web) versionLabel(key string) string {
 	profile := ""
 	if w.pol != nil {
 		if v := w.pol.Versions[key]; v != nil {
+			if name := strings.TrimSpace(v.Name); name != "" {
+				return name
+			}
 			profile = v.Profile
 		}
 	}

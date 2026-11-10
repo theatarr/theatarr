@@ -116,7 +116,7 @@ function Activation({ data }: { data: VersionList }) {
   {data.versions.length ? data.versions.map(v => {
    const running = data.switches.versions.find(s => s.key === v.key)?.grab_state;
    return <div key={v.key} className="rounded border p-3">
-   <h3 className="font-medium"><span className="font-mono">{v.key}</span> <span className="text-sm font-normal text-muted-foreground">{libraryLabel(v.key, v.config.profile)}</span></h3><p>Root: {v.config.library || (v.roots ?? []).join(", ") || "Not set"}</p>
+   <h3 className="font-medium"><span className="font-mono">{v.key}</span> <span className="text-sm font-normal text-muted-foreground">{libraryLabel(v.key, v.config.profile, v.config.name)}</span></h3><p>Root: {v.config.library || (v.roots ?? []).join(", ") || "Not set"}</p>
    {running ? <VersionStatus state={running} showMode settingsKey={v.key} canManage /> : <p>State: Unknown</p>}
    {running && v.config.mode !== running.mode ? <p className="text-xs text-muted-foreground">Mode saved: {v.config.mode}, running: {running.mode}</p> : null}
    {running && !!v.config.grab !== running.grab ? <p className="text-xs text-muted-foreground">Allow downloads for this library saved: {v.config.grab ? "On" : "Off"}, running: {running.grab ? "On" : "Off"}</p> : null}

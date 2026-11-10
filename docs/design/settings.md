@@ -851,6 +851,14 @@ version (`from_version`), any other version starts with the arr default names, e
 (Settings › Libraries › Naming). A version's naming record cannot be deleted on its own; deleting the version removes it.
 The existing parallel-policy naming validation still applies.
 
+A version has an optional `name`, a display name for people (at most 40 characters, no control characters; two
+versions may share one). When set it replaces the label guessed from the key and profile wherever Theatarr names a
+library (title pages, Wanted, request notifications); colliding names get the key appended like colliding guessed
+labels. It names nothing an arr client sees: keys, root folders and the arr views' profile names do not come from it,
+and renaming an active library asks for no confirmation. The field is left out of the stored record and of the API's
+record when it is empty, so a library without a name is stored as before; a build from before the field refuses to
+load settings that hold a name (the policy decoder is strict), until the name is cleared.
+
 The Libraries settings page is `/admin/settings/libraries`; it links to Connected apps for view bindings and to the naming editor
 (`/admin/settings/libraries/naming`). Admin APIs under `/api/theatarr/v1/settings` provide version CRUD, `versions/validate-root`,
 `versions/confirm`, view-binding list/update and `import/confirm`. Session writes require CSRF; writes require the
@@ -919,7 +927,7 @@ version saves, secret saves, import apply, reload and quality-sync approve/auto:
   "Profile … changes qualities, propers: …", "Formats LQ, … change their definition: …"). A quality reorder, a lower
   `min_upgrade_step`, `propers`, `packs`, `kind`, `anime` widened and naming are examples. Only these narrowing
   changes need no token: `anime` from unset to true or false, `packs` to `all` or a higher `packs_threshold`,
-  `golive_done` (a record of a go-live step), qualities only removed with the rest in order (the lowest whole items, or any
+  `golive_done` (a record of a go-live step), `name` (the display name), qualities only removed with the rest in order (the lowest whole items, or any
   under an unchanged `quality_order`), a higher
   `min_upgrade_step`, `propers` to `do_not_upgrade`, and the narrowing side of every field judged above (a higher
   `min_score`, a lower cutoff, upgrades off, a provider removed, a positive format removed from a profile whose version upgrades nothing, and so on). Fields added to the

@@ -483,6 +483,16 @@ nothing is checked. Indexers and debrid providers show status beside
 their editors, with Edit links. VPN status is above its settings. Allow new downloads, Write library links and
 Send notifications live on Download clients, Libraries and Notifications respectively.
 
+**Library editor.** "Where" starts with the optional **Name** (shown in place of the guessed label; the request
+leaves it out while it is empty, and sends it empty only to clear a stored one) and the **Key** (fixed once the
+library exists). Allow downloads for this library and Prefer SeaDex are switches; Mode reads "Shadow (preview only)"
+and "Active (manages files)", Upgrades "Automatic", "Ask first" and "Never". Write roots, Send grabs to, Client and
+Follows sit in an **Advanced** disclosure at the end of "Where", with Storage and Import mode, which are shown only
+when the saved or the draft value is not the one supported value (debrid, symlink). Advanced starts open when the
+library has write roots other than its root, sends its grabs to a download client, follows another library or shows
+Storage or Import mode, and a field inside that the server refuses keeps it open. The request body and its field
+names are the same as before.
+
 Advanced includes **Sonarr/Radarr migration** (`/admin/advanced/arr`), **YAML settings**
 (`/admin/advanced/config`, with Policy files, Sections and Import & export tabs), **Settings history**
 (`/admin/advanced/history`) and **Request limits** (`/admin/advanced/limits`, including back-offs and budgets).

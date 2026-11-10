@@ -508,6 +508,7 @@ func (p *Policy) ReachesDebrid(v *VersionPolicy) bool {
 func (p *Policy) validateVersion(e *Errors, k string, v *VersionPolicy) {
 	path := fmt.Sprintf("versions[%s]", k)
 	checkKey(e, path, k)
+	validateVersionName(e, path, v.Name)
 	switch v.Mode {
 	case ModeShadow, ModeActive:
 	default:
