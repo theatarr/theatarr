@@ -24,11 +24,14 @@ services:
       - /mnt/debrid:/mnt/debrid:ro     # the debrid mount (zurg, rclone, ...): Theatarr only reads it
       - /srv/media:/media              # library roots (/media/movies, /media/tv, /media/anime) and the link trash
                                        # (/media/.trash, outside every root); mount them where the media server sees them
-      # - ./trash-guides:/config/trash:ro  # optional: a TRaSH-Guides checkout (clone it first), with THEATARR_TRASH below
+      # Optional: a TRaSH-Guides checkout, to follow upstream between releases and for quality sync. The TRaSH
+      # quality profiles are built in without it. Clone it first, then uncomment this line and THEATARR_TRASH below:
+      #   git clone --depth 1 https://github.com/TRaSH-Guides/Guides.git trash-guides
+      # - ./trash-guides:/config/trash:ro
     environment:
       TZ: Etc/UTC                      # the nightly backup runs at 03:00 in this zone
+      # THEATARR_TRASH: /config/trash  # the optional TRaSH-Guides checkout above
       # Optional:
-      # THEATARR_TRASH: /config/trash                           # the TRaSH-Guides checkout above: profile presets and quality sync
       # THEATARR_PUBLIC_URL: http://theatarr.example.com:7700   # Theatarr's address as clients reach it
       # THEATARR_COOKIE_SECURE: always                          # behind an HTTPS reverse proxy
       # THEATARR_FORCE_OFF: router,library,notify               # keep downloads, library writes and notifications off

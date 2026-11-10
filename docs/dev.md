@@ -33,7 +33,8 @@ validation and an image build, on every push to `main`, on pull requests, and by
 `ci.yml`, then an amd64 image build pushed to the GitHub Container Registry as `ghcr.io/theatarr/theatarr:X.Y.Z`,
 `:X.Y` and `:latest`, with the tag as the version the binary reports. Tags with a suffix (`v1.2.3-rc1`) and other
 tags publish nothing. The registry package starts private: its visibility and the repository's Actions permission
-to write packages are set once on GitHub, by hand. [`examples/compose.image.yaml`](../examples/compose.image.yaml)
+to write packages are set once on GitHub, by hand. Before tagging, refresh the bundled TRaSH defaults with
+`scripts/update-trash-bundle.sh <checkout>` and update the commit in `NOTICE`. [`examples/compose.image.yaml`](../examples/compose.image.yaml)
 is the compose file for a released image.
 
 `theatarr policy validate examples/policy` checks the example policy. `go run ./cmd/theatarr help` lists the
