@@ -218,7 +218,8 @@ the indexers it searches and the providers it adds to. **Setup** builds the firs
    - **Create library and start downloading** creates the library **Active** with **Allow downloads for this
      library** on, and turns on the global switches **Allow new downloads** and **Write library links**, in one
      save. A dialog lists each of these first; nothing is saved until you confirm. The button is disabled, with the
-     reason, until a debrid provider and an indexer are enabled and the debrid mount is set. If
+     reason, until the library picks at least one enabled indexer and one enabled debrid provider with its key, and
+     the debrid mount and the trash folder (**Settings › Libraries › File management**) are set. If
      `THEATARR_FORCE_OFF` names a switch, the library is still created and Setup says which switch stays forced off.
    - **Create in shadow (decide later)**, then **Create library**: the library starts in **Shadow** mode with
      **Allow downloads for this library** off, and no global switch changes.

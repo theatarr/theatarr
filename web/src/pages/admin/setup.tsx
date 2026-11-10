@@ -193,11 +193,17 @@ function VersionForm({ data, state, oneStep, onDone, reload }: { data: VersionLi
     !!preset && made?.key === draft.key && !reuse && `another key (the profile "${draft.key}" was already created from a different preset; pick it as "Profile: ${draft.key}" to use it)`,
   ].filter(Boolean) as string[];
 
-  // Starting would do nothing without a source to search, a provider to add to and the mount to link from.
+  // Starting would do nothing without a source to search, a provider to add to and the mount to link from. It is
+  // the library's own picks that count: a disabled indexer or provider can be picked, and does nothing.
+  const readyProviders = state.ready_providers ?? [], readyIndexers = state.ready_indexers ?? [];
+  const noTrash = state.trash === false;
   const blocked = [
-    state.providers === 0 && "no enabled debrid provider with an API key (step 2)",
-    state.indexers === 0 && "no enabled indexer (step 2)",
+    !readyProviders.length ? "no enabled debrid provider with an API key (step 2)"
+      : !draft.providers.some((k) => readyProviders.includes(k)) && `none of the selected debrid providers is enabled with an API key (ready: ${readyProviders.join(", ")})`,
+    !readyIndexers.length ? "no enabled indexer (step 2)"
+      : !draft.indexers.some((k) => readyIndexers.includes(k)) && `none of the selected indexers is enabled and ready (ready: ${readyIndexers.join(", ")})`,
     (state.missing ?? []).some((m) => /no debrid mount/i.test(m)) && "the debrid mount is not connected (above)",
+    noTrash && "the trash folder is not set, and Write library links needs it",
   ].filter(Boolean) as string[];
 
   const config = (mode: "shadow" | "active", grab: boolean): VersionConfig => ({
@@ -302,7 +308,7 @@ function VersionForm({ data, state, oneStep, onDone, reload }: { data: VersionLi
     {missing.length ? <p>Still needed: {missing.join(", ")}.</p> : null}
     {oneStep ? <div className="space-y-1" data-testid="one-step-start">
       <Button type="button" className="w-fit" disabled={busy || missing.length > 0 || blocked.length > 0} onClick={() => void start()}>Create library and start downloading</Button>
-      {blocked.length ? <p data-testid="start-blocked">Starting is not possible yet: {blocked.join("; ")}.</p>
+      {blocked.length ? <p data-testid="start-blocked">Starting is not possible yet: {blocked.join("; ")}.{noTrash ? <> Set the trash folder under <Link className="underline" to={settingHref("library", "trash")!}>Settings › Libraries › File management › Trash</Link>.</> : null}</p>
         : <p className="text-muted-foreground">Sets the library to Active, turns on Allow downloads for this library, and turns on Allow new downloads and Write library links for the whole install. You confirm the list first.</p>}
     </div> : null}
     {!review

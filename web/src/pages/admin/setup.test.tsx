@@ -11,7 +11,7 @@ import { SetupPage } from "./setup";
 
 const fresh: SetupState = {
   first_run: true, settings_source: "db", admin_password_generated: true, versions: 0, versions_with_roots: 0,
-  providers: 1, indexers: 1, profiles: 0, api_keys: 0, tmdb: false, arr_instances: 1,
+  providers: 1, indexers: 1, profiles: 0, api_keys: 0, tmdb: false, arr_instances: 1, ready_providers: ["rd"], ready_indexers: ["feed"], trash: true,
   missing: ["No versions: nothing is searched, grabbed or linked", "No TMDb key: titles cannot be added or matched"],
 };
 const versions: VersionList = {
@@ -355,8 +355,12 @@ describe("setup", () => {
   });
 
   it.each([
-    [{ providers: 0 }, "no enabled debrid provider with an API key"],
-    [{ indexers: 0 }, "no enabled indexer"],
+    [{ providers: 0, ready_providers: [] }, "no enabled debrid provider with an API key"],
+    [{ indexers: 0, ready_indexers: [] }, "no enabled indexer"],
+    // The install has a ready source, but the form's picks ("rd", "feed") are not among them.
+    [{ ready_providers: ["ad"] }, "none of the selected debrid providers is enabled with an API key (ready: ad)"],
+    [{ ready_indexers: ["other"] }, "none of the selected indexers is enabled and ready (ready: other)"],
+    [{ trash: false }, "the trash folder is not set"],
     [{ missing: ["No debrid mount: nothing can be linked"] }, "the debrid mount is not connected"],
   ])("disables the start with the reason: %j", async (lacking, reason) => {
     const user = userEvent.setup();
@@ -370,6 +374,7 @@ describe("setup", () => {
     await user.selectOptions(screen.getByLabelText("Quality profile"), "hd");
     expect((screen.getByRole("button", { name: "Create library and start downloading" }) as HTMLButtonElement).disabled).toBe(true);
     expect(screen.getByTestId("start-blocked").textContent).toContain(reason);
+    if ("trash" in lacking) expect(screen.getByRole("link", { name: "Settings › Libraries › File management › Trash" }).getAttribute("href")).toContain("/admin/settings/libraries");
     // The shadow path stays open: it needs none of this.
     expect((screen.getByRole("button", { name: "Create in shadow (decide later)" }) as HTMLButtonElement).disabled).toBe(false);
   });

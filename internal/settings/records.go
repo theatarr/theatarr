@@ -177,14 +177,20 @@ func (s *Snapshot) WithSecret(entity, key string, lookup LookupSecret, use func(
 // (every provider; an indexer per policy.IndexerTakesKey). Setup's steps, its "Off until set up" list
 // (preflight.Missing) and SetupCheck all count these, as the running service builds only enabled records.
 func (s *Snapshot) Ready(lookup LookupSecret) (indexers, providers int) {
+	i, p := s.ReadyKeys(lookup)
+	return len(i), len(p)
+}
+
+// ReadyKeys names the indexers and providers Ready counts, in record order.
+func (s *Snapshot) ReadyKeys(lookup LookupSecret) (indexers, providers []string) {
 	for _, r := range s.Records.Indexers {
 		if r.Enabled && (!policy.IndexerTakesKey(r.Config.Kind) || s.CredentialSet("indexers", r.Key, lookup)) {
-			indexers++
+			indexers = append(indexers, r.Key)
 		}
 	}
 	for _, r := range s.Records.Providers {
 		if r.Enabled && s.CredentialSet("providers", r.Key, lookup) {
-			providers++
+			providers = append(providers, r.Key)
 		}
 	}
 	return indexers, providers

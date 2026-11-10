@@ -92,6 +92,20 @@ func (w *Web) apiSetupStart(rw http.ResponseWriter, r *http.Request) {
 		version.Config.Profile = body.Key
 	}
 	version.Config.Mode, version.Config.Grab = policy.ModeActive, true
+	// A library that starts downloading needs something to search and something to add to among its own picks: an
+	// enabled indexer and an enabled provider with their credentials, as GET /setup counts them.
+	indexers, providers := snap.ReadyKeys(w.settingsLookup)
+	usable := func(picked, ready []string) bool {
+		return slices.ContainsFunc(picked, func(k string) bool { return slices.Contains(ready, k) })
+	}
+	switch {
+	case !usable(version.Config.Indexers, indexers):
+		writeJSON(rw, http.StatusUnprocessableEntity, apiError{Error: "none of the library's indexers is enabled and ready: it could not search; enable one, or pick one that is"})
+		return
+	case !usable(version.Config.Providers, providers):
+		writeJSON(rw, http.StatusUnprocessableEntity, apiError{Error: "none of the library's debrid providers is enabled with an API key: nothing could be added; enable one, or pick one that is"})
+		return
+	}
 	switches := *snap.Records.Switches
 	switches.RouterEnabled, switches.LibraryEnabled = true, true
 	req.Records.Switches = &switches

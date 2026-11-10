@@ -53,6 +53,12 @@ type SetupState struct {
 	// Providers and Indexers count the sources that would run: enabled, with their credential set when they take one.
 	Providers int `json:"providers"`
 	Indexers  int `json:"indexers"`
+	// ReadyProviders and ReadyIndexers name the sources those counts count: a library started at once needs one
+	// of each among the ones it picks.
+	ReadyProviders []string `json:"ready_providers"`
+	ReadyIndexers  []string `json:"ready_indexers"`
+	// Trash: the trash folder (library.trash.dir) is set, which turning on library writes requires.
+	Trash bool `json:"trash"`
 	Profiles  int `json:"profiles"`
 	APIKeys   int `json:"api_keys"`
 	// TMDb: the metadata source tmdb has its address and a key that resolves, stored in settings or in the
@@ -117,23 +123,27 @@ func (w *Web) apiSetup(rw http.ResponseWriter, r *http.Request) {
 		}
 		p = snap.Policy
 	}
-	out := SetupState{VersionStates: versionGrabSummaries(p), SettingsSource: "db"}
+	out := SetupState{VersionStates: versionGrabSummaries(p), SettingsSource: "db", ReadyProviders: []string{}, ReadyIndexers: []string{}}
 	if p != nil {
 		out.Versions, out.Profiles = len(p.Versions), len(p.Profiles)
 		// The sources that would run (settings.Snapshot.Ready), the same count as SetupCheck's: a disabled record,
 		// or a provider or keyed indexer without its credential, adds nothing.
 		if snap != nil {
-			out.Indexers, out.Providers = snap.Ready(w.settingsLookup)
+			indexers, providers := snap.ReadyKeys(w.settingsLookup)
+			out.Indexers, out.Providers = len(indexers), len(providers)
+			out.ReadyIndexers, out.ReadyProviders = append(out.ReadyIndexers, indexers...), append(out.ReadyProviders, providers...)
 		} else {
-			out.Indexers = len(p.Indexers)
+			out.Indexers, out.ReadyIndexers = len(p.Indexers), sortedKeys(p.Indexers)
 			creds := settings.Credentials{Policy: p, Lookup: w.settingsLookup}
 			for _, fact := range golive.InspectProviders(p, sortedKeys(p.Providers), creds.Resolves) {
 				if fact.Credential {
 					out.Providers++
+					out.ReadyProviders = append(out.ReadyProviders, fact.Key)
 				}
 			}
 		}
 		lib := p.LibrarySettings()
+		out.Trash = lib.TrashDir != ""
 		for k := range p.Versions {
 			if lv := lib.Versions[k]; lv != nil && len(lv.Roots) > 0 {
 				out.VersionsWithRoots++

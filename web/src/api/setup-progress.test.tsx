@@ -9,7 +9,7 @@ import type { VersionList } from "./settings-versions";
 import { mockFetch, renderPage } from "@/test/page";
 import { SetupReminder } from "@/components/setup-reminder";
 import { SetupPage } from "@/pages/admin/setup";
-const state: SetupState = { first_run: false, settings_source: "db", admin_password_generated: false, providers: 1, indexers: 1, versions: 1, versions_with_roots: 1, profiles: 1, api_keys: 1, tmdb: true, arr_instances: 1, missing: ["no libraries"] };
+const state: SetupState = { first_run: false, settings_source: "db", admin_password_generated: false, providers: 1, indexers: 1, versions: 1, versions_with_roots: 1, profiles: 1, api_keys: 1, tmdb: true, arr_instances: 1, ready_providers: ["rd"], ready_indexers: ["feed"], trash: true, missing: ["no libraries"] };
 const versions: VersionList = { source: "db", generation: 1, versions: [{ id: 1, key: "movies", created_at: "", updated_at: "", roots: ["/media/movies"], config: { mode: "active", grab: true, kind: "movie", anime: false, profile: "hd", library: "/media/movies", storage: "debrid", indexers: ["feed"], providers: ["rd"], client: "", import: "symlink", upgrades: "auto", follows: "" } }], profiles: {}, format_sets: [], clients: [], indexers: ["feed"], providers: ["rd"], switches: { router_enabled: true, library_enabled: false, notify_enabled: false, versions: [{ key: "movies", mode: "active", grab_state: { mode: "active", grab: true, router_enabled: true, router_forced_off: false, will_grab: true } }] } };
 it("counts six independent steps without requiring activation or treating missing data as done", () => {
  expect(setupSteps()).toEqual([false, false, false, false, false, false]);

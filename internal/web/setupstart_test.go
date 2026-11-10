@@ -265,3 +265,42 @@ func TestSetupStartWithoutSettings(t *testing.T) {
 		t.Fatalf("start without settings: %d %s", rec.Code, rec.Body.String())
 	}
 }
+
+// The start is refused while none of the library's own indexers, or none of its own providers, would run: the
+// install-wide counts are not enough. GET /setup names the ready ones and whether the trash folder is set.
+func TestSetupStartNeedsUsableSources(t *testing.T) {
+	t.Parallel()
+	se, area := startEnv(t, false)
+	s := se.setupState()
+	if !s.Trash || !slices.Contains(s.ReadyProviders, "rd") || !slices.Contains(s.ReadyIndexers, "torrentio") ||
+		len(s.ReadyProviders) != s.Providers || len(s.ReadyIndexers) != s.Indexers {
+		t.Fatalf("setup state: %+v", s)
+	}
+	se.want(se.call("PUT", fmt.Sprintf("/providers/%d", se.id(entityProviders, "rd")),
+		map[string]any{"generation": se.generation(), "enabled": false, "orphan_active_downloads": false}), 200, "disable rd")
+	se.want(se.call("PUT", fmt.Sprintf("/indexers/%d", se.id(entityIndexers, "torrentio")),
+		map[string]any{"generation": se.generation(), "enabled": false}), 200, "disable torrentio")
+	if s := se.setupState(); slices.Contains(s.ReadyProviders, "rd") || slices.Contains(s.ReadyIndexers, "torrentio") {
+		t.Fatalf("disabled sources still ready: %+v", s)
+	}
+	gen := se.generation()
+	body := se.startBody("films", area)
+	body["config"].(map[string]any)["providers"] = []string{"rd"}
+	if out := se.start(body); out["status"] != 422 || out["confirmation"] != nil || !strings.Contains(fmt.Sprint(out["error"]), "debrid providers") {
+		t.Fatalf("only a disabled provider: %v", out)
+	}
+	body = se.startBody("films", area)
+	body["config"].(map[string]any)["indexers"] = []string{"torrentio"}
+	if out := se.start(body); out["status"] != 422 || out["confirmation"] != nil || !strings.Contains(fmt.Sprint(out["error"]), "indexers") {
+		t.Fatalf("only a disabled indexer: %v", out)
+	}
+	if se.generation() != gen {
+		t.Fatal("a refused start wrote settings")
+	}
+	// One usable pick beside the disabled ones is enough.
+	body = se.startBody("films", area)
+	body["config"].(map[string]any)["providers"] = []string{"rd", "ad"}
+	if out := se.start(body); out["status"] != 422 || out["confirmation"] == nil {
+		t.Fatalf("a usable provider beside a disabled one: %v", out)
+	}
+}
