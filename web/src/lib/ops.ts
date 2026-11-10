@@ -14,6 +14,18 @@ export type Scope = {
   confirm: string;
   /** Why it cannot run (the confirm button is disabled), when it cannot. */
   blocked?: string;
+  /** Where what stays is cleaned up: a line under "Stays as it is" that ends in a link (plain words for accounts
+   * that cannot open an admin page). */
+  cleanup?: { text: string; label: string; to: string; admin?: boolean };
+};
+
+/** Where torrents nothing uses are deleted: Admin › Torrents. The page has no address for its Unused filter, so the
+ * words name it. */
+export const UNUSED_TORRENTS = {
+  text: "To free space at the provider, delete torrents nothing uses any more under",
+  label: "Admin › Torrents (the Unused filter)",
+  to: "/admin/torrents",
+  admin: true,
 };
 
 export const SHARED_TORRENT = "The torrent at the debrid provider stays: torrents there are shared by every library";
@@ -152,6 +164,7 @@ export function removalScope(s: RemovalScopeLike, unlink: boolean): Scope {
     does,
     keeps,
     confirm: s.title ? "Remove title" : s.copies.length === 1 ? "Remove this copy" : "Remove these copies",
+    cleanup: UNUSED_TORRENTS,
     blocked:
       s.copies.length === 0
         ? "Nothing to remove"

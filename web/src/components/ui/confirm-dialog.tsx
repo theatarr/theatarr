@@ -3,7 +3,9 @@
 // centred dialog on desktop and a bottom sheet on phones, on the shared Modal (no Radix dialog: CSP).
 import { Check, Loader2, ShieldCheck, X } from "lucide-react";
 import { useRef, type ReactNode } from "react";
+import { Link } from "react-router";
 import { ApiError } from "@/api/client";
+import { usePerms } from "@/api/library";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Modal } from "@/components/ui/modal";
@@ -11,6 +13,18 @@ import type { Scope } from "@/lib/ops";
 
 export function errText(e: unknown): string {
   return e instanceof ApiError ? e.message : String((e as Error)?.message ?? e);
+}
+
+/** The scope's cleanup line: its page as a link, or as plain words for an account that cannot open an admin page. */
+function Cleanup({ cleanup }: { cleanup: NonNullable<Scope["cleanup"]> }) {
+  const perms = usePerms();
+  return (
+    <p className="mt-2 text-xs leading-5 text-[var(--ink-3)]" data-testid="confirm-cleanup">
+      {cleanup.text}{" "}
+      {cleanup.admin && !perms.admin ? cleanup.label : <Link className="text-primary hover:underline" to={cleanup.to}>{cleanup.label}</Link>}
+      .
+    </p>
+  );
 }
 
 export function ConfirmDialog({
@@ -87,6 +101,7 @@ export function ConfirmDialog({
               </li>
             ))}
           </ul>
+          {scope.cleanup ? <Cleanup cleanup={scope.cleanup} /> : null}
         </div>
         {children ? <div className="space-y-2 border-t border-[var(--line)] pt-3">{children}</div> : null}
         {scope.blocked ? (
