@@ -20,13 +20,36 @@ type decyDoer struct {
 	mu      sync.Mutex
 	n       int
 	targets []gateway.Target
+	hookAt  int
+	hook    func()
+	// refuse, when set, is returned instead of sending.
+	refuse error
+}
+
+// after runs f once, before the n-th request from now is sent.
+func (d *decyDoer) after(n int, f func()) {
+	d.mu.Lock()
+	defer d.mu.Unlock()
+	d.hookAt, d.hook = d.n+n, f
 }
 
 func (d *decyDoer) Do(ctx context.Context, t gateway.Target, req *http.Request) (*http.Response, error) {
 	d.mu.Lock()
 	d.n++
 	d.targets = append(d.targets, t)
+	hook := d.hook
+	if hook != nil && d.n >= d.hookAt {
+		d.hook = nil
+	} else {
+		hook = nil
+	}
 	d.mu.Unlock()
+	if hook != nil {
+		hook()
+	}
+	if d.refuse != nil {
+		return nil, d.refuse
+	}
 	c := &http.Client{}
 	if t.NoFollow {
 		c.CheckRedirect = func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse }
@@ -231,6 +254,19 @@ func TestDecypharrListings(t *testing.T) {
 	if files, found, err := e.d.TorrentFiles(ctx, decypharrtest.SharedFirst); err != nil || found || files != nil {
 		t.Errorf("unqueued torrent's files: %+v, found %v, err %v", files, found, err)
 	}
+	// In the queue but in no listing, and (SharedFirst above) the reverse.
+	if files, found, err := e.d.TorrentFiles(ctx, decypharrtest.QueueOnlyHash); err != nil || !found || len(files) != 1 {
+		t.Errorf("queue-only torrent's files: %+v, found %v, err %v", files, found, err)
+	}
+	if _, found, err := e.d.FolderFiles(ctx, "__all__", decypharrtest.QueueOnlyName); err != nil || found {
+		t.Errorf("queue-only torrent's folder: found %v, err %v", found, err)
+	}
+	if _, found, err := e.d.PropfindFolder(ctx, "__all__", decypharrtest.QueueOnlyName); err != nil || found {
+		t.Errorf("queue-only torrent's folder over WebDAV: found %v, err %v", found, err)
+	}
+	if _, listed := names[decypharrtest.QueueOnlyName]; listed {
+		t.Error("the queue-only torrent is listed")
+	}
 	e.srv.Set(func(s *decypharrtest.Server) { s.Fail = http.StatusInternalServerError })
 	if _, found, err := e.d.TorrentFiles(ctx, decypharrtest.QueuedHash); err == nil || found {
 		t.Errorf("failing torrents/files: found %v, err %v", found, err)
@@ -333,6 +369,27 @@ func TestDecypharrReady(t *testing.T) {
 	e.now = e.now.Add(readyLoadingTTL)
 	if err := e.d.Ready(ctx); err != nil {
 		t.Errorf("loaded: %v", err)
+	}
+	// A PROPFIND of a folder that gets the 503 records loading too, and a Ready the gateway refuses during the
+	// back-off that 503 starts keeps it.
+	e.now = e.now.Add(time.Minute)
+	e.srv.Set(func(s *decypharrtest.Server) { s.Loading = true })
+	if _, _, err := e.d.PropfindFolder(ctx, "__all__", decypharrtest.SharedName); !errors.Is(err, ErrDecypharrLoading) {
+		t.Errorf("PROPFIND while loading: %v", err)
+	}
+	if err := e.d.Ready(ctx); !errors.Is(err, ErrDecypharrLoading) {
+		t.Errorf("ready after a folder's 503: %v", err)
+	}
+	e.now = e.now.Add(readyLoadingTTL)
+	e.doer.refuse = &gateway.Refused{Reason: gateway.ReasonBackoff}
+	if err := e.d.Ready(ctx); !errors.Is(err, ErrDecypharrLoading) {
+		t.Errorf("ready during the gateway's back-off: %v", err)
+	}
+	e.doer.refuse = nil
+	e.srv.Set(func(s *decypharrtest.Server) { s.Loading = false })
+	e.now = e.now.Add(readyLoadingTTL)
+	if err := e.d.Ready(ctx); err != nil {
+		t.Errorf("loaded again: %v", err)
 	}
 	// Refused credentials are not "loading": the mount decides.
 	e.srv.Set(func(s *decypharrtest.Server) { s.DAVUser = "dav" })
@@ -440,6 +497,36 @@ func TestDecypharrIndex(t *testing.T) {
 	ix2, err := e.d.FreshIndex(ctx)
 	if err != nil || ix2 == ix || names(ix2, newHash) != "Amber.Switchback.2023.1080p.WEB.H264-ROWAN" {
 		t.Fatalf("fresh index after an add: err %v, names %q", err, names(ix2, newHash))
+	}
+	// A reading cancelled half-way after a changed total: the old reading is dropped (it is known to be out of
+	// date), the cancellation is not kept as a failure, and the next caller reads again at once.
+	e.srv.Set(func(s *decypharrtest.Server) {
+		s.Torrents = append(s.Torrents, decypharrtest.Torrent{Hash: decypharrtest.Hash(202), Name: "Wicker.Tollgate.2020.1080p.WEB.H264-ROWAN",
+			Provider: "torbox", AddedOn: e.now, Files: []decypharrtest.File{{Name: "Wicker.Tollgate.2020.mkv", Size: 7}}})
+	})
+	e.now = e.now.Add(decypharrHintFloor)
+	cctx, cancel := context.WithCancel(ctx)
+	e.doer.after(6, cancel) // the change check is 1 + 3 requests (it stops at the first changed total at most)
+	if cut, err := e.d.FreshIndex(cctx); err == nil || cut != nil {
+		t.Fatalf("cancelled reading: %v, %v", cut, err)
+	}
+	cancel()
+	ix2, err = e.d.Index(ctx)
+	if err != nil || names(ix2, decypharrtest.Hash(202)) != "Wicker.Tollgate.2020.1080p.WEB.H264-ROWAN" {
+		t.Fatalf("index after a cancelled reading: err %v, names %q", err, names(ix2, decypharrtest.Hash(202)))
+	}
+	// A change check that ends after the reading's age (the clock moves while it runs) does not return it.
+	e.now = ix2.At.Add(time.Minute - time.Second)
+	e.doer.after(1, func() { e.now = e.now.Add(2 * time.Second) })
+	aged, err := e.d.FreshIndex(ctx)
+	if err != nil || aged == ix2 {
+		t.Fatalf("fresh index whose check outlived the reading: err %v, same %v", err, aged == ix2)
+	}
+	ix2 = aged
+	e.srv.Set(func(s *decypharrtest.Server) { s.Torrents = s.Torrents[:len(s.Torrents)-1] })
+	e.now = ix2.At.Add(time.Minute)
+	if ix2, err = e.d.Index(ctx); err != nil {
+		t.Fatal(err)
 	}
 	// One torrent replaced by another leaves every total as it was: the hint misses it...
 	swapped := decypharrtest.Hash(201)

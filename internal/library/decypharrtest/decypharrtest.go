@@ -50,6 +50,9 @@ type Torrent struct {
 	// Queued torrents answer /api/v2/torrents/files; decypharr drops the queue entry of a finished torrent whose
 	// download action is none.
 	Queued bool
+	// Unlisted torrents are in the queue only: no group, folder or WebDAV listing shows them (not synced yet, or
+	// removed from the debrid). Queued without Unlisted is in both; neither is the usual listed torrent.
+	Unlisted bool
 }
 
 // Server is the fake. Change its state with Set.
@@ -264,7 +267,7 @@ func (s *Server) group(group string) (kind string, es []entry) {
 	}
 	seen := map[string]bool{}
 	for _, t := range s.Torrents {
-		if !keep(t) || seen[t.Name] {
+		if t.Unlisted || !keep(t) || seen[t.Name] {
 			continue
 		}
 		seen[t.Name] = true
@@ -287,7 +290,7 @@ func (s *Server) folder(name string) []entry {
 	}
 	files := map[string]owned{}
 	for _, t := range s.Torrents {
-		if t.Name != name {
+		if t.Unlisted || t.Name != name {
 			continue
 		}
 		for _, f := range t.Files {
@@ -528,6 +531,8 @@ const (
 	OddName = "Glass & Thistle #2 100% <Remux> (2021)"
 	// StrippedName is a single-file torrent's name with its extension removed by decypharr.
 	StrippedName = "Hollow.Meridian.2018.2160p.WEB-DL.DDP5.1.HEVC-OSPREY"
+	// QueueOnlyName is the name of a torrent that is in the queue but in no listing.
+	QueueOnlyName = "Brass.Estuary.2017.1080p.BluRay.x264-HAZEL"
 	// QueuedName was added through decypharr's qBittorrent API and is still queued.
 	QueuedName = "Pale.Ferry.S02.1080p.AMZN.WEB-DL.DDP2.0.H.264-TILLER"
 )
@@ -542,7 +547,9 @@ var (
 	StrippedHash = Hash(6)
 	BareHash     = Hash(7) // its folder name is the hash itself
 	QueuedHash   = Hash(8)
-	NZBHash      = Hash(9)
+	// QueueOnlyHash is queued but in no listing; its name is QueueOnlyName.
+	QueueOnlyHash = Hash(11)
+	NZBHash       = Hash(9)
 )
 
 // FixtureSeries is how many generated season folders Fixture adds, enough for three pages of 100.
@@ -579,6 +586,8 @@ func Fixture() (providers []string, torrents []Torrent) {
 		{Hash: Hash(10), Name: "The.Long.Quiet.Hours.Of.A.Lighthouse.Keeper.S01.COMPLETE.2160p.WEB-DL.DDP5.1.Atmos.DV.HDR.H.2",
 			Provider: "torbox", AddedOn: day(10), Files: []File{{Name: "The.Long.Quiet.Hours.S01E01.mkv", Size: 6_000_000_010}}},
 	}
+	torrents = append(torrents, Torrent{Hash: QueueOnlyHash, Name: QueueOnlyName, Provider: "realdebrid", AddedOn: day(11),
+		Queued: true, Unlisted: true, Files: []File{{Name: QueueOnlyName + ".mkv", Size: 9_000_000_011}}})
 	for i := 0; i < FixtureSeries; i++ {
 		p := "realdebrid"
 		if i%3 == 0 {

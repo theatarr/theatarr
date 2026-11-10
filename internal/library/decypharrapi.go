@@ -423,6 +423,7 @@ func (d *Decypharr) propfind(ctx context.Context, segs []string) (*davMultistatu
 	case http.StatusMultiStatus:
 	case http.StatusServiceUnavailable:
 		drainClose(resp)
+		d.setLoading(true)
 		return nil, fmt.Errorf("library: decypharr %s: %w", what, ErrDecypharrLoading)
 	default:
 		drainClose(resp)
@@ -480,22 +481,31 @@ func (d *Decypharr) Ready(ctx context.Context) error {
 		if ctx.Err() != nil {
 			return nil
 		}
-		loading = errors.Is(err, ErrDecypharrLoading)
-		d.mu.Lock()
-		if loading != d.loading {
-			if loading {
-				d.log().Warn("library: decypharr is loading (WebDAV 503); mount sweeps wait")
-			} else {
-				d.log().Info("library: decypharr has loaded")
-			}
-		}
-		d.readyAt, d.loading = d.now(), loading
-		d.mu.Unlock()
+		// The 503 carries Retry-After, so the gateway backs decypharr off: a request it refuses for that says
+		// nothing new, and a loading decypharr stays loading.
+		var refused *gateway.Refused
+		backoff := errors.As(err, &refused) && refused.Reason == gateway.ReasonBackoff
+		loading = errors.Is(err, ErrDecypharrLoading) || backoff && loading
+		d.setLoading(loading)
 	}
 	if loading {
 		return ErrDecypharrLoading
 	}
 	return nil
+}
+
+// setLoading records what WebDAV last said about loading (any PROPFIND's 503 counts, not only Ready's).
+func (d *Decypharr) setLoading(loading bool) {
+	d.mu.Lock()
+	defer d.mu.Unlock()
+	if loading != d.loading {
+		if loading {
+			d.log().Warn("library: decypharr is loading (WebDAV 503); mount sweeps wait")
+		} else {
+			d.log().Info("library: decypharr has loaded")
+		}
+	}
+	d.readyAt, d.loading = d.now(), loading
 }
 
 // decypharrAllGroup is the group that lists every entry.
@@ -575,7 +585,8 @@ func (d *Decypharr) index(ctx context.Context, fresh bool) (*DecypharrIndex, err
 		d.mu.Lock()
 		d.hintAt = now
 		d.mu.Unlock()
-		if err != nil || !changed {
+		// The check took time: the reading may have passed its age meanwhile, whatever the check said.
+		if now = d.now(); (err != nil || !changed) && now.Sub(ix.At) < d.interval() {
 			// A failed check says nothing; the reading is still within its age.
 			return ix, nil
 		}
@@ -586,14 +597,17 @@ func (d *Decypharr) index(ctx context.Context, fresh bool) (*DecypharrIndex, err
 	ix, err := d.readIndex(ctx)
 	if err != nil {
 		err = fmt.Errorf("%w: %w", ErrDecypharrIndexUnknown, err)
+		// The old reading goes whatever the cause (it was too old, or known to be out of date); a cancelled
+		// reading is not kept as the failure, so the next caller reads again at once.
+		d.mu.Lock()
+		d.ix = nil
 		if ctx.Err() == nil {
 			if failErr == nil {
 				d.log().Warn("library: decypharr index could not be read; what it lists is unknown for now", "err", err)
 			}
-			d.mu.Lock()
-			d.ix, d.failAt, d.failErr = nil, d.now(), err
-			d.mu.Unlock()
+			d.failAt, d.failErr = d.now(), err
 		}
+		d.mu.Unlock()
 		return nil, err
 	}
 	d.mu.Lock()
