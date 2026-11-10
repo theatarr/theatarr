@@ -175,3 +175,55 @@ it("refuses to save Only these providers with none ticked, with an inline error"
   await waitFor(() => expect(fetch.calls("PUT", "/settings/indexers/3")).toHaveLength(1));
   expect((fetch.calls("PUT", "/settings/indexers/3")[0].body as { config: Record<string, unknown> }).config.providers ?? []).toEqual([]);
 });
+
+const passedTest = { key: "torrentio", entity: "indexers", candidate: true, status: "ok", results: 12, latency_ms: 300, tested_at: "2026-11-09T10:00:00Z" };
+
+it("offers Enable and save only after a passed test of these values, and saves the new source enabled in one write", async () => {
+  const fetch = mockFetch([
+    { method: "POST", path: "/settings/indexers/test", reply: { body: passedTest } },
+    { method: "POST", path: "/settings/indexers", reply: { generation: 5 } },
+  ]);
+  const user = userEvent.setup();
+  const onDone = vi.fn();
+  renderPage(<RecordEditor entity="indexers" ent={indexerSchema} session={{ entity: "indexers", generation: 4, kind: "torrentio" }} nextOrder={1} onDone={onDone} />);
+  expect(screen.getByTestId("record-form").textContent).toContain("Fill in, press Test, then Enable and save.");
+  expect(screen.queryByTestId("record-enable-save")).toBeNull();
+  await user.click(screen.getByRole("button", { name: "Test these values" }));
+  await user.click(await screen.findByRole("button", { name: "Enable and save" }));
+  await waitFor(() => expect(onDone).toHaveBeenCalled());
+  // The test ran on the disabled draft; the one save carries enabled.
+  expect(fetch.calls("POST", "/settings/indexers/test")[0].body).toMatchObject({ key: "torrentio", enabled: false });
+  expect(fetch.calls("POST", "/settings/indexers")).toHaveLength(1);
+  expect(fetch.calls("POST", "/settings/indexers")[0].body).toEqual({ generation: 4, key: "torrentio", enabled: true, priority: 0, config: { kind: "torrentio", url: "https://torrentio.strem.fun" } });
+});
+
+it("offers no Enable and save after a failed test, nor once the tested values are edited; plain Save stays disabled", async () => {
+  const fetch = mockFetch([
+    { method: "POST", path: "/settings/indexers/test", reply: { body: { ...passedTest, status: "failed", message: "connection refused" } } },
+    { method: "POST", path: "/settings/indexers/test", reply: { body: passedTest } },
+    { method: "POST", path: "/settings/indexers", reply: { generation: 5 } },
+  ]);
+  const user = userEvent.setup();
+  renderPage(<RecordEditor entity="indexers" ent={indexerSchema} session={{ entity: "indexers", generation: 4, kind: "torrentio" }} nextOrder={1} onDone={vi.fn()} />);
+  await user.click(screen.getByRole("button", { name: "Test these values" }));
+  expect((await screen.findByTestId("test-result")).getAttribute("data-status")).toBe("failed");
+  expect(screen.queryByTestId("record-enable-save")).toBeNull();
+  await user.click(screen.getByRole("button", { name: "Test these values" }));
+  await screen.findByTestId("record-enable-save");
+  // The passed test was of other values once the form changes.
+  await user.click(screen.getByRole("textbox", { name: /Service URL/ }));
+  await user.paste("/alt");
+  expect(screen.queryByTestId("record-enable-save")).toBeNull();
+  await user.click(screen.getByRole("button", { name: "Save" }));
+  await waitFor(() => expect(fetch.calls("POST", "/settings/indexers")).toHaveLength(1));
+  expect(fetch.calls("POST", "/settings/indexers")[0].body).toMatchObject({ enabled: false });
+});
+
+it("offers no Enable and save on a source that is already enabled", async () => {
+  mockFetch([{ method: "POST", path: "/settings/indexers/test", reply: { body: { ...passedTest, key: "dmm" } } }]);
+  const user = userEvent.setup();
+  renderPage(<RecordEditor entity="indexers" ent={indexerSchema} session={{ entity: "indexers", generation: 4, record: dmm }} nextOrder={1} onDone={vi.fn()} />);
+  await user.click(screen.getByRole("button", { name: "Test these values" }));
+  expect((await screen.findByTestId("test-result")).getAttribute("data-status")).toBe("ok");
+  expect(screen.queryByTestId("record-enable-save")).toBeNull();
+});

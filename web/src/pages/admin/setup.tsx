@@ -69,6 +69,7 @@ export function SetupPage() {
         {s.admin_password_generated ? <AdminPassword onDone={refresh} /> : <p>The admin account has its own password.</p>}
       </Step>
       <Step n={2} title="Connect downloads" done={progress.steps[1]}>
+        <p>Add a download provider and an indexer. Each form can test before it saves, and a passed test offers enabling in the same save.</p>
         <h3>Debrid providers <Badge tone={s.providers > 0 ? "positive" : "neutral"}>{s.providers > 0 ? "Done" : "Not yet"}</Badge></h3>
         <p>{s.providers ? `${s.providers} enabled ${s.providers === 1 ? "provider" : "providers"} with an API key.` : "No enabled debrid provider with an API key yet: nothing can be added to debrid."} Add Real-Debrid, AllDebrid or TorBox with its API key under <Link className="underline" to="/admin/settings/downloads">Settings › Download clients</Link>; the key is tested with a read-only account call.</p>
         <h3>Indexers <Badge tone={s.indexers > 0 ? "positive" : "neutral"}>{s.indexers > 0 ? "Done" : "Not yet"}</Badge></h3>

@@ -142,6 +142,7 @@ describe("setup", () => {
     // The counts are the sources that would run, in words that agree with the server's "Off until set up" list.
     expect(screen.getByText(/1 enabled provider with an API key\./)).toBeTruthy();
     expect(screen.getByText(/1 enabled indexer ready to search\./)).toBeTruthy();
+    expect(screen.getByText(/Each form can test before it saves, and a passed test offers enabling in the same save\./)).toBeTruthy();
     expect(screen.queryAllByRole("link").map((l) => l.getAttribute("href"))).not.toContain("/admin/connections");
   });
 

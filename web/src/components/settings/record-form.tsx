@@ -83,6 +83,8 @@ export type RecordFormProps = {
   error?: Explained;
   test?: SettingsTestResult;
   onSave: () => void;
+  /** Offered beside a passed test of exactly these values while Enabled is off: turns Enabled on and saves, in one write. */
+  onEnableSave?: () => void;
   onTest?: () => void;
   onCancel: () => void;
   onReload?: () => void;
@@ -187,6 +189,11 @@ export function RecordFormView(p: RecordFormProps) {
   const changes = saved ? recordChanges(st, saved) : 0;
   const headingId = useId();
   const formId = useId();
+  // Save and Enable and save share the form's own check.
+  const submit = (save: () => void) => {
+    if (allowlist && onlyProviders && !chosenProviders.length) { setAllowlistError("Tick at least one provider, or choose Any."); return; }
+    if (!disabled) save();
+  };
   const nameField = record ? null : (
     <Field changed={!!saved && st.key !== saved.key} onUndo={() => { if (saved) { keyEdited.current = false; set({ key: saved.key }); } }} disabled={disabled} name="Name" label={<>Name <small className="font-normal text-muted-foreground">key</small> <span className="text-[var(--bad-ink)]">*</span></>} help="Stable name the libraries and budgets refer to; cannot be renamed later." error={errors.key}>
       <Input className="h-9" value={st.key} disabled={disabled} onChange={(e) => { keyEdited.current = true; set({ key: e.target.value }); }} data-field="key" />
@@ -200,7 +207,7 @@ export function RecordFormView(p: RecordFormProps) {
       headingId={headingId}
       headingRef={p.headingRef}
       title={record ? <>Edit {NOUN[entity]} <span className="font-mono text-[15px]">{record.key}</span></> : `Add ${NOUN[entity]}`}
-      subtitle={record ? [record.kind, record.updated_at ? `changed ${record.updated_at.slice(0, 16).replace("T", " ")} UTC` : ""].filter(Boolean).join(" · ") : entity === "budgets" ? undefined : "New sources start disabled: test first."}
+      subtitle={record ? [record.kind, record.updated_at ? `changed ${record.updated_at.slice(0, 16).replace("T", " ")} UTC` : ""].filter(Boolean).join(" · ") : entity === "budgets" ? undefined : "Fill in, press Test, then Enable and save."}
       onClose={p.onCancel}
       footer={
         <>
@@ -233,8 +240,7 @@ export function RecordFormView(p: RecordFormProps) {
         className="grid gap-3 sm:grid-cols-2"
         onSubmit={(e) => {
           e.preventDefault();
-          if (allowlist && onlyProviders && !chosenProviders.length) { setAllowlistError("Tick at least one provider, or choose Any."); return; }
-          if (!disabled) p.onSave();
+          submit(p.onSave);
         }}
       >
         {/* Service drives a new record's name and URL, so it has a Changed mark but no Undo; Discard resets all. */}
@@ -251,7 +257,7 @@ export function RecordFormView(p: RecordFormProps) {
         {entity !== "budgets" ? (
           <div className="flex flex-col justify-end gap-1 text-sm">
             <Choice checked={st.enabled} onChange={(v) => set({ enabled: v })} disabled={disabled} testid="record-enabled">
-              Enabled <span className="text-muted-foreground">{record ? "" : "(new sources start disabled: test first)"}</span>
+              Enabled <span className="text-muted-foreground">{record ? "" : "(off until you turn it on)"}</span>
             </Choice>
             {saved && st.enabled !== saved.enabled ? <ChangedMark name="Enabled" disabled={disabled} onUndo={() => set({ enabled: saved.enabled })} /> : null}
           </div>
@@ -308,7 +314,14 @@ export function RecordFormView(p: RecordFormProps) {
         {p.test ? (
           <div className="sm:col-span-2">
             <div className="mb-1 text-xs text-muted-foreground">Test of these unsaved values (nothing was saved)</div>
-            <TestResult result={p.test} now={p.now} />
+            <div className="flex flex-wrap items-center gap-2">
+              <TestResult result={p.test} now={p.now} />
+              {p.onEnableSave && p.test.status === "ok" && !st.enabled ? (
+                <Button type="button" size="sm" disabled={disabled} onClick={() => submit(p.onEnableSave!)} data-testid="record-enable-save">
+                  {p.saving ? <Loader2 className="animate-spin" /> : <Save />} Enable and save
+                </Button>
+              ) : null}
+            </div>
           </div>
         ) : null}
         <Announcer announcement={p.announcement} testid="candidate-announce" />
@@ -398,6 +411,8 @@ export function RecordEditor({
   const [st, setSt] = useState<EditorState>(first);
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [test, setTest] = useState<SettingsTestResult>();
+  // The draft the shown test ran on: Enable and save is offered only while the form still holds exactly it.
+  const [tested, setTested] = useState<EditorState>();
   const [testing, setTesting] = useState(false);
   const [confirmingDelete, setConfirmingDelete] = useState(false);
   const [deleteOrphan, setDeleteOrphan] = useState(false);
@@ -435,14 +450,14 @@ export function RecordEditor({
     );
   }
 
-  const build = () => {
-    const r = sessionInput(sess, entity, ent, st, nextOrder);
+  const build = (state: EditorState = st) => {
+    const r = sessionInput(sess, entity, ent, state, nextOrder);
     setErrors(r.errors);
     if (r.refused) setError(r.refused);
     return r.input;
   };
-  const save = () => {
-    const input = build();
+  const save = (state: EditorState = st) => {
+    const input = build(state);
     if (!input) return;
     const { body, error: bodyError } = writeBody(input);
     if (bodyError) return setErrors({ secret: bodyError });
@@ -469,6 +484,7 @@ export function RecordEditor({
     try {
       const result = await testCandidate(sess.entity, body);
       setTest(result);
+      setTested(st);
       announce(testAnnouncement({ type: "result", key: said, result }, NOUN[sess.entity]));
     } catch (e) {
       const a = testErrorAction(key, e);
@@ -514,7 +530,8 @@ export function RecordEditor({
       testing={testing}
       error={error}
       test={test}
-      onSave={save}
+      onSave={() => save()}
+      onEnableSave={tested === st ? () => { const on = { ...st, enabled: true }; setSt(on); save(on); } : undefined}
       onTest={ent.tests ? () => void runTest() : undefined}
       onCancel={() => onDone()}
       onReload={() => void editor.reload(false)}

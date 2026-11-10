@@ -5,7 +5,8 @@ import { settingHref } from "@/lib/settings-map";
 // definitions Theatarr runs itself, with a set-up form built from the chosen definition's settings; Built-in sources
 // opens the record editor for torznab/newznab, dmm, torrentio, zilean or seadex; Migrate from Prowlarr (once) turns
 // Prowlarr's indexers into native ones. Whatever is added here is saved disabled, with a budget of its own, and joins
-// no version: enabling it and listing it in a version stay separate steps. The held definition updates are listed by
+// no version: enabling it and listing it in a version stay separate steps. The one exception: a catalog set-up whose
+// test passed offers Add and enable, which saves it enabled. The held definition updates are listed by
 // HoldsCard, on the indexers page.
 import { ArrowLeft, Loader2, Plus, Zap } from "lucide-react";
 import { useEffect, useMemo, useRef, useState, type RefObject } from "react";
@@ -106,7 +107,7 @@ export function AddIndexer({
       testid="add-indexer"
       headingRef={headingRef}
       title="Add indexer"
-      subtitle="Saved disabled and in no library: enable it and add it to libraries afterwards."
+      subtitle="Added in no library: add it to libraries afterwards. A catalog indexer whose test passes can be added enabled; the rest start disabled."
       onClose={() => onDone()}
       footer={<Button type="button" size="sm" variant="outline" onClick={() => onDone()} data-testid="add-close">Close</Button>}
     >
@@ -240,14 +241,15 @@ function budgetState(overview: SettingsOverview, key: string): { exists: boolean
   return { exists, usedBy };
 }
 
-/** Writes the indexer's budget (unless it exists) and then the indexer, disabled. Returns the new generation. */
-async function addIndexer(write: ReturnType<typeof useSettingsWrite>, overview: SettingsOverview, w: IndexerWrite, generation: number, budgetMade = false): Promise<number> {
+/** Writes the indexer's budget (unless it exists) and then the indexer, disabled unless enabled is asked for (the
+ * set-up view, after its test passed). Returns the new generation. */
+async function addIndexer(write: ReturnType<typeof useSettingsWrite>, overview: SettingsOverview, w: IndexerWrite, generation: number, budgetMade = false, enabled = false): Promise<number> {
   const b = budgetState(overview, w.key);
   if (b.usedBy) throw new Error(`The budget ${w.key} is already used by indexer ${b.usedBy}; a catalog indexer needs one of its own. Pick another key.`);
   const bodies = writeBodies(w, generation, b.exists || budgetMade);
   let gen = generation;
   if (bodies.budget) gen = ((await write.mutateAsync({ method: "POST", path: "/budgets", body: bodies.budget })) as SettingsWrite).generation ?? gen;
-  return ((await write.mutateAsync({ method: "POST", path: "/indexers", body: bodies.indexer(gen) })) as SettingsWrite).generation ?? gen;
+  return ((await write.mutateAsync({ method: "POST", path: "/indexers", body: { ...bodies.indexer(gen), enabled } })) as SettingsWrite).generation ?? gen;
 }
 
 function SetupView({
@@ -268,7 +270,9 @@ function SetupView({
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [error, setError] = useState<Explained>();
   const [test, setTest] = useState<SettingsTestResult>();
-  const [busy, setBusy] = useState<"" | "test" | "add">("");
+  // The form the shown test ran on: Add and enable is offered only while the form still holds exactly it.
+  const [tested, setTested] = useState<SetupForm>();
+  const [busy, setBusy] = useState<"" | "test" | "add" | "enable">("");
   // The budget keys this view wrote (by Test search), so Add doesn't write them again before the overview reloads.
   const [made, setMade] = useState<string[]>([]);
   const [announcement, announce] = useAnnouncement();
@@ -302,6 +306,7 @@ function SetupView({
       delete body.generation;
       const res = await testCandidate("indexers", body);
       setTest(res);
+      setTested(form);
       announce(`Test finished: ${res.status}.`);
     } catch (e) {
       if (e instanceof ApiError && e.status === 429 && e.body) setTest(e.body as SettingsTestResult);
@@ -311,12 +316,13 @@ function SetupView({
       setBusy("");
     }
   };
-  const onAdd = async () => {
+  const passed = test?.status === "ok" && tested === form;
+  const onAdd = async (enabled = false) => {
     const w = build();
     if (!w) return;
-    setBusy("add");
+    setBusy(enabled ? "enable" : "add");
     try {
-      await addIndexer(write, overview, w, overview.generation, made.includes(w.key));
+      await addIndexer(write, overview, w, overview.generation, made.includes(w.key), enabled);
       onDone(w.key);
     } catch (e) {
       setError(explainError(e));
@@ -334,7 +340,7 @@ function SetupView({
       data-definition={def.id}
       headingRef={headingRef}
       title={`Set up ${def.name}`}
-      subtitle={`definition ${def.id} · saved disabled, in no library`}
+      subtitle={`definition ${def.id} · in no library`}
       onClose={() => onDone()}
       footer={
         <>
@@ -342,9 +348,14 @@ function SetupView({
           <Button type="button" size="sm" variant="outline" onClick={() => void onTest()} disabled={!!busy} data-testid="setup-test">
             {busy === "test" ? <Loader2 className="animate-spin" /> : <Zap />} Test search
           </Button>
-          <Button type="button" size="sm" onClick={() => void onAdd()} disabled={!!busy} className="ml-auto" data-testid="setup-add">
-            {busy === "add" ? <Loader2 className="animate-spin" /> : <Plus />} Add disabled
+          <Button type="button" size="sm" variant={passed ? "outline" : "default"} onClick={() => void onAdd()} disabled={!!busy} className="ml-auto" data-testid="setup-add">
+            {busy === "add" ? <Loader2 className="animate-spin" /> : <Plus />} Add (disabled)
           </Button>
+          {passed ? (
+            <Button type="button" size="sm" onClick={() => void onAdd(true)} disabled={!!busy} data-testid="setup-add-enable">
+              {busy === "enable" ? <Loader2 className="animate-spin" /> : <Plus />} Add and enable
+            </Button>
+          ) : null}
         </>
       }
     >
@@ -359,7 +370,7 @@ function SetupView({
         {error ? <><ExplainBox error={error} />{overview.source === "db" && error.title === "The indexer catalog is off" ? <a href={settingHref("cardigann", "definitions")}>Indexers › Catalog</a> : null}</> : null}
         <div className="grid gap-3 sm:grid-cols-2">
           {settings.filter(inCredential).map((s) => <SettingField key={s.name} s={s} value={form.values[s.name]} error={errors[`setting.${s.name}`]} onChange={(v) => setValue(s.name, v)} />)}
-          <p className="text-sm">Enabled: Off. Enable this indexer after testing it in Settings › Indexers.</p>
+          <p className="text-sm">Enabled: Off. After a passed Test search, Add and enable turns it on as it is added.</p>
         </div>
         <details open={Object.keys(errors).length > 0 || undefined}>
           <summary className="cursor-pointer text-sm font-medium">Show advanced</summary>

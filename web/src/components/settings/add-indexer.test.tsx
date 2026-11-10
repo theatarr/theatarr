@@ -1,7 +1,7 @@
 import { DefinitionHolds } from "./add-indexer";
 // @vitest-environment jsdom
 // The add-indexer sheet: the catalog with its filters and a set-up form from a definition, the Prowlarr migration,
-// and the held definition updates. Everything it adds is disabled, has a budget of its own and joins no version.
+// and the held definition updates. Everything it adds is disabled (unless a passed test's Add and enable is used), has a budget of its own and joins no version.
 import { screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it } from "vitest";
@@ -91,6 +91,45 @@ describe("add-indexer sheet", () => {
     expect(fetch.calls("POST", "/settings/budgets")[0].body).toEqual({ generation: 4, key: "privatesite", config: { requests: 10, per: "1m" } });
     expect(fetch.calls("POST", "/settings/indexers/test")[0].body).toEqual({ key: "privatesite", config, enabled: false, priority: 10, secret });
     expect(fetch.calls("POST", "/settings/indexers")[0].body).toEqual({ generation: 4, key: "privatesite", config, enabled: false, priority: 10, secret });
+  });
+
+  it("offers Add and enable only after a passed test, and then posts the indexer enabled", async () => {
+    const result = (status: string) => ({ key: "thepiratebay", entity: "indexers", status, tested_at: "2026-11-09T10:00:00Z" });
+    const fetch = mockFetch([
+      { method: "GET", path: "/cardigann/definitions", reply: json(catalog) },
+      { method: "POST", path: "/settings/budgets", reply: json({ generation: 5 }) },
+      { method: "POST", path: "/settings/indexers/test", reply: json({ ...result("failed"), message: "connection refused" }) },
+      { method: "POST", path: "/settings/indexers/test", reply: json({ ...result("cooldown"), retry_at: "2026-11-09T10:01:00Z" }, 429) },
+      { method: "POST", path: "/settings/indexers/test", reply: json({ ...result("ok"), results: 12 }) },
+      { method: "POST", path: "/settings/indexers", reply: json({ generation: 6 }) },
+    ]);
+    const user = userEvent.setup();
+    renderPage(indexers(), "/admin/settings/indexers");
+    await user.click(screen.getByRole("button", { name: "Add indexer" }));
+    await user.click(await screen.findByRole("button", { name: "Set up The Pirate Bay" }));
+    const setup = await screen.findByTestId("setup");
+    const status = async (want: string) => waitFor(() => expect(within(setup).getByTestId("test-result").getAttribute("data-status")).toBe(want));
+
+    // Before a test, and after a failed or rate-limited one, only the disabled add.
+    expect(within(setup).getByTestId("setup-add").textContent).toContain("Add (disabled)");
+    expect(within(setup).queryByTestId("setup-add-enable")).toBeNull();
+    await user.click(within(setup).getByTestId("setup-test"));
+    await status("failed");
+    expect(within(setup).queryByTestId("setup-add-enable")).toBeNull();
+    await user.click(within(setup).getByTestId("setup-test"));
+    await status("cooldown");
+    expect(within(setup).queryByTestId("setup-add-enable")).toBeNull();
+
+    await user.click(within(setup).getByTestId("setup-test"));
+    await status("ok");
+    expect(within(setup).getByTestId("setup-add").textContent).toContain("Add (disabled)");
+    await user.click(within(setup).getByRole("button", { name: "Add and enable" }));
+    await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
+    // The budget went first, once; the tests ran on the disabled candidate; the one indexer write carries enabled.
+    expect(fetch.calls("POST", "/settings/budgets")).toHaveLength(1);
+    expect(fetch.calls("POST", "/settings/indexers/test").map((r) => (r.body as { enabled: boolean }).enabled)).toEqual([false, false, false]);
+    expect(fetch.calls("POST", "/settings/indexers")).toHaveLength(1);
+    expect(fetch.calls("POST", "/settings/indexers")[0].body).toMatchObject({ generation: 4, key: "thepiratebay", enabled: true });
   });
 
   // The catalog off answers an empty list with the reason (not an error), so nothing retries or logs it.
