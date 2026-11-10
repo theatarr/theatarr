@@ -140,17 +140,18 @@ curl -fsSL -o compose.yaml https://raw.githubusercontent.com/theatarr/theatarr/m
 echo THEATARR_VERSION=0.1.5 > .env             # a version from the Releases page; then edit the host paths in compose.yaml
 mkdir -p data && sudo chown 65532:65532 data   # the image runs as uid 65532; so must the library roots and trash
 docker compose up -d
-sudo cat data/initial-admin-password
 ```
 
 To build the image from source instead, clone the repository, copy
 [`examples/compose.yaml`](examples/compose.yaml) to `compose.yaml` in the checkout and start it with
 `docker compose up -d --build`; the other steps are the same.
 
-Open `http://<host>:7700` and sign in as `admin` with that password. The file is deleted at the first login; if you
-lose the password, run `docker compose exec theatarr theatarr admin reset-password`.
+Open `http://<host>:7700` and create your admin account: the first visit to a new install asks for a username and
+password. If you lose the password, run `docker compose exec theatarr theatarr admin reset-password --username <yours>`
+(the default is `admin`). An install
+created by an older version whose generated password was never used keeps it in `data/initial-admin-password`.
 
-A fresh install lands on Home with a **Finish setting up** card that leads to **Setup** (`/admin/setup`): change the admin password, add a debrid provider and an indexer,
+A fresh install lands on Home with a **Finish setting up** card that leads to **Setup** (`/admin/setup`): add a debrid provider and an indexer,
 set the debrid mount and Plex, create a first library (downloading at once, or in shadow to look first), and run the
 preflight. The full walkthrough, with what each
 compose volume is for, is [docs/quickstart.md](docs/quickstart.md).

@@ -34,7 +34,7 @@ services:
     ports:
       - "7700:7700"
     volumes:
-      - ./data:/data                   # database, backups, logs and the first admin password
+      - ./data:/data                   # database, backups and logs
       - /mnt/debrid:/mnt/debrid:ro     # the debrid mount (zurg, rclone, ...): Theatarr only reads it
       - /srv/media:/media              # library roots (/media/movies, /media/tv, /media/anime) and the link trash
                                        # (/media/.trash, outside every root); mount them where the media server sees them
@@ -81,20 +81,21 @@ follows upstream between releases and is what quality sync from a local tree rea
 
 ## 2. First login
 
-The first start creates the `admin` account and writes its password to `data/initial-admin-password` (mode 0600). It
-is never logged.
+A new install has no account. Start it, open `http://<host>:7700`, and the first visit shows **Create your admin
+account**: pick a username (`admin` is filled in) and a password of at least 12 characters. You are signed in at once.
+The page is there only until the first account exists.
 
 ```sh
 docker compose up -d                      # built from source: docker compose up -d --build
-sudo cat data/initial-admin-password      # mode 0600, owned by 65532
 ```
 
-Open `http://<host>:7700` and sign in as `admin`. The file is deleted at the first login. If you lose the password,
-run `docker compose exec theatarr theatarr admin reset-password`.
+If you lose the password, run `docker compose exec theatarr theatarr admin reset-password --username <yours>` (the
+default is `admin`). An install created by an
+older version whose generated password was never used keeps it in `data/initial-admin-password`; the sign-in page
+says so.
 
 After the first login an admin lands on **Home**, with a **Finish setting up Theatarr: 0 of 6** card. **Continue
-setup** opens **Setup** (`/admin/setup`), which walks through the steps below and ends with the preflight. Set your
-own admin password there first.
+setup** opens **Setup** (`/admin/setup`), which walks through the steps below and ends with the preflight.
 
 ## 3. Follow Setup, then edit Settings forms
 
@@ -430,7 +431,8 @@ the **Setup checklist** link stays on Settings and System › Status. Other user
 
 Setup (`/admin/setup`) has six steps:
 
-1. **Secure the admin account:** replace the generated password.
+1. **Secure the admin account:** done when you created the account yourself; an install from an older version
+   replaces its generated password here.
 2. **Connect downloads:** configure a debrid provider and an indexer; each has its own completion badge.
 3. **Add metadata (TMDb):** enter your TMDb API key; Setup creates the `tmdb` and `tmdb-images` sources.
 4. **Connect your library:** configure the mount under **Settings › Libraries › File management** and Plex under

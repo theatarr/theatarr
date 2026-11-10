@@ -6,26 +6,43 @@ permissions: [users.md](users.md). Code: `internal/auth`, `internal/web`, migrat
 ## Auth model
 
 Auth is on by default and has no switch to turn it off. Public routes include `/healthz`, `/readyz`,
-`/metrics` (see below), the public SPA shell and assets, and JSON login. Protected API handlers require credentials.
+`/metrics` (see below), the public SPA shell and assets, JSON login and Plex sign-in, and the first-account status and
+create (below). Protected API handlers require credentials.
 
 **First start.** `theatarr serve` calls `auth.New`. When the database has no signing secret, it creates one (32 random
-bytes in `web_setting`). When it has no user, it creates `admin` with a random 24-character password, stores only its
-argon2id hash, and writes the password to **`<data dir>/initial-admin-password`** (the database's directory, mode
-0600), in the same transaction: if the file cannot be written, no account is made. The password never goes to the
-log (logs reach `docker logs` and `GET /logs`); the log says only where the file is:
+bytes in `web_setting`). It creates no account. While the user table is empty the log says, once per start:
 
 ```
-{"level":"WARN","msg":"first start: created the admin account; its password is in the file (mode 0600), which is deleted at the first login; or set one with 'theatarr admin reset-password'","component":"auth","username":"admin","file":"/data/initial-admin-password"}
+{"level":"WARN","msg":"no admin account exists yet: open Theatarr's web address in a browser to create one","component":"auth"}
 ```
 
-The file is deleted at the first successful login (any account) and by `theatarr admin reset-password` for `admin`. In a
-container: `docker exec theatarr cat /data/initial-admin-password` right after the first start. Without a data directory
-(`auth.Options.DataDir` empty, tests only) the password is written nowhere; use the reset. Test:
-`TestFirstStartPasswordFileNotLog` (no log record holds the password), `TestResetPasswordRemovesInitialPasswordFile`.
+and the sign-in page shows **Create your admin account** (username, default `admin`; password, at least 12
+characters; confirm). Two public routes serve it, and exist for this only:
+
+- `GET auth/first-account` returns `{"needs_account": bool, "password_pending": bool}` and nothing else.
+  `needs_account` is true while the user table is empty. `password_pending` is true only once an account exists and an
+  older version's generated `initial-admin-password` file is still unused; the sign-in page then says the first
+  password is in `<data dir>/initial-admin-password`.
+- `POST auth/first-account` takes JSON `{"username", "password"}` (any other field is a 400), same-origin like the
+  JSON login. It creates an active admin with the usual argon2id hash and starts a session (cookie plus `csrf_token`),
+  so the browser lands where a first sign-in lands (Setup). The emptiness check and the insert are one statement
+  (`INSERT … WHERE NOT EXISTS (SELECT 1 FROM web_user)`), so of two requests at once only one creates an account. Once
+  any account exists it answers 409, before hashing anything. The password is never logged.
+
+Plex sign-in cannot create the first account: while the table is empty it refuses (409, "no admin account yet") and
+creates nothing. No other route opens while the install is unclaimed. There is no setup token, LAN restriction or time
+limit. Setup's account step counts as done for this account (its `password_changed_at` differs from `created_at`).
+
+An install created by an older version, whose first start generated `admin` with a random password in
+**`<data dir>/initial-admin-password`** (mode 0600), keeps that file and its normal sign-in page; it is not offered the
+create page. The file is deleted at the first successful login (any account) and by `theatarr admin reset-password` for
+`admin`. Tests: `TestFirstStartCreatesNoAccount`, `TestPendingInitialPasswordFile`, `TestCreateFirstAdmin`,
+`TestCreateFirstAdminConcurrent`, `TestFirstAccountCreate`, `TestUnclaimedOpensNothingElse`,
+`TestResetPasswordRemovesInitialPasswordFile`.
 
 **Reset.** `theatarr admin reset-password [--db /data/theatarr.db] [--username admin] [--password-stdin]` generates and prints a
-new password (or reads one from stdin, at least 12 characters), creates the account if missing, and ends all its
-sessions. For `admin` it also deletes `initial-admin-password` next to the database. It works on the database alone, so it runs with the service stopped, or in the container with
+new password (or reads one from stdin, at least 12 characters), creates the account if missing (on a new install with
+no account it creates the admin, and the create page goes away), and ends all its sessions. For `admin` it also deletes `initial-admin-password` next to the database. It works on the database alone, so it runs with the service stopped, or in the container with
 `docker exec -it theatarr theatarr admin reset-password`.
 
 **Passwords.** argon2id (RFC 9106: 64 MiB, 3 passes, 4 lanes), PHC string in `web_user.password_hash`. An unknown

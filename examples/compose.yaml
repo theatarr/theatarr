@@ -4,7 +4,7 @@
 #   cp examples/compose.yaml compose.yaml    # in the root of a checkout of this repository
 #   mkdir -p data && sudo chown 65532:65532 data
 #   docker compose up -d --build
-#   sudo cat data/initial-admin-password     # the first admin password; sign in as admin at http://<host>:7700
+#   # open http://<host>:7700 and create your admin account
 #
 # Every host path below is a placeholder. docs/quickstart.md explains each one.
 services:
@@ -18,7 +18,7 @@ services:
     # The image runs as uid:gid 65532:65532. ./data, the library roots and the trash directory must be writable by
     # it; the debrid mount only needs to be readable.
     volumes:
-      - ./data:/data                   # database, backups, logs and the first admin password
+      - ./data:/data                   # database, backups and logs
       - /mnt/debrid:/mnt/debrid:ro     # the debrid mount (zurg, rclone, ...): Theatarr only reads it
       - /srv/media:/media              # library roots (/media/movies, /media/tv, /media/anime) and the link trash
                                        # (/media/.trash, outside every root); mount them where the media server sees them
