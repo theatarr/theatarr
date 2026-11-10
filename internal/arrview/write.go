@@ -445,7 +445,9 @@ func offVersions(ctx context.Context, tx *sqlTx, titleID int64, keys []string) (
 }
 
 // activeVersions is which versions the movie with this TMDb id has on: monitored and not removed from the views.
-func activeVersions(ctx context.Context, tx *sqlTx, tmdbID int64) ([]string, error) {
+func activeVersions(ctx context.Context, tx interface {
+	QueryContext(ctx context.Context, query string, args ...any) (*sql.Rows, error)
+}, tmdbID int64) ([]string, error) {
 	rows, err := tx.QueryContext(ctx, `SELECT v.policy_key FROM version v JOIN title t ON t.id = v.title_id
 		WHERE t.kind = 'movie' AND t.tmdb_id = ? AND v.monitored AND NOT EXISTS (SELECT 1 FROM
 		arrview_removed_version r WHERE r.version_id = v.id)`, tmdbID)
@@ -523,6 +525,20 @@ func (s *Service) chooseMinAvail(ctx context.Context, tx *sqlTx, titleID int64, 
 		return nil
 	}
 	return availability.Choose(ctx, tx, titleID, keys, value, s.now())
+}
+
+// chooseTurnedOn decides a client add's minimum availability per library the add turned on (in after, not in
+// before): one with its own minimum_availability uses it and the client's value is not stored for it; another stores
+// the client's value as its choice. A copy already on keeps its rule.
+func (s *Service) chooseTurnedOn(ctx context.Context, tx *sqlTx, titleID int64, before, after []string,
+	value string) error {
+	var keys []string
+	for _, k := range after {
+		if vp := s.pol.Versions[k]; !slices.Contains(before, k) && (vp == nil || vp.MinimumAvailability == "") {
+			keys = append(keys, k)
+		}
+	}
+	return s.chooseMinAvail(ctx, tx, titleID, keys, value)
 }
 
 // setTags adds (replace false) or sets (replace true) the title's tags on the view's versions of the title it shows
@@ -730,15 +746,7 @@ func (s *Service) addTitle(w http.ResponseWriter, r *request) {
 			}
 		}
 		if v.Flavour == Radarr {
-			// Per library the add turns on: one with its own minimum_availability uses it and the client's value
-			// is not stored for it; another stores the client's value as its choice. A copy already on keeps its rule.
-			var keys []string
-			for _, k := range res.Versions {
-				if vp := s.pol.Versions[k]; !slices.Contains(on, k) && (vp == nil || vp.MinimumAvailability == "") {
-					keys = append(keys, k)
-				}
-			}
-			if err := s.chooseMinAvail(ctx, tx, titleID, keys, minAvail); err != nil {
+			if err := s.chooseTurnedOn(ctx, tx, titleID, on, res.Versions, minAvail); err != nil {
 				return err
 			}
 		}
@@ -766,10 +774,31 @@ func (s *Service) addTitle(w http.ResponseWriter, r *request) {
 		return
 	}
 	if held {
-		// A title whose anime check failed before is asked about again.
+		// A title whose anime check failed before is asked about again. A library that answer turns on is turned on
+		// by this add, and takes its minimum availability as the others did.
+		var on []string
+		if v.Flavour == Radarr && minAvail != "" {
+			if on, err = activeVersions(ctx, s.st.Reader(), ext); err != nil {
+				s.internal(w, r, err)
+				return
+			}
+		}
 		if err := s.reclassify(ctx, v, titleID); err != nil {
 			s.internal(w, r, err)
 			return
+		}
+		if v.Flavour == Radarr && minAvail != "" {
+			err := s.st.WriteTx(ctx, func(tx *sqlTx) error {
+				now, err := activeVersions(ctx, tx, ext)
+				if err != nil {
+					return err
+				}
+				return s.chooseTurnedOn(ctx, tx, titleID, on, now, minAvail)
+			})
+			if err != nil {
+				s.internal(w, r, err)
+				return
+			}
 		}
 	}
 	if in.AddOptions != nil && (in.AddOptions.SearchForMovie || in.AddOptions.SearchForMissingEpisodes) {

@@ -463,3 +463,39 @@ func TestMinimumAvailabilityDeleteClearsChoice(t *testing.T) {
 		t.Errorf("after the add: %+v", got)
 	}
 }
+
+// A library the add turns on through the anime check asked again (after a TMDb outage at the first add) takes its
+// minimum availability as any library the add turns on: its own default, else the client's value.
+func TestMinimumAvailabilityClientAddAnimeRetry(t *testing.T) {
+	for _, def := range []string{"", "inCinemas"} {
+		t.Run("library default "+def, func(t *testing.T) {
+			e := newEnv(t)
+			e.pol.Versions["anime-movie"].MinimumAvailability = def
+			f := &fakeTMDb{fail: true, movies: map[int]string{
+				557: `{"id":557,"title":"Anime","original_language":"ja","genres":[{"id":16,"name":"Animation"}]}`,
+			}}
+			e.withTMDb(f)
+			body := map[string]any{"title": "Anime", "tmdbId": 557, "qualityProfileId": e.profileID("radarr", "Rules default"),
+				"rootFolderPath": "/media/movies", "monitored": true, "minimumAvailability": "announced"}
+			var got map[string]any
+			e.call("POST", "/radarr/api/v3/movie", body, 201, &got)
+			tid := int64(got["id"].(float64)) - IDBase
+			if e.versionsOf(tid)["anime-movie"] {
+				t.Fatal("fixture: anime version created without an answer")
+			}
+			f.mu.Lock()
+			f.fail = false
+			f.mu.Unlock()
+			e.tick()
+			e.call("POST", "/radarr/api/v3/movie", body, 201, &got)
+			want := availability.Rule{Minimum: "announced", Source: availability.SourceChoice}
+			if def != "" {
+				want = availability.Rule{Minimum: def, Source: availability.SourceDefault}
+			}
+			rules := e.libraryRules(tid)
+			if rule, ok := rules["anime-movie"]; !ok || rule != want {
+				t.Errorf("anime library: %+v, want %+v (all %+v)", rule, want, rules)
+			}
+		})
+	}
+}
