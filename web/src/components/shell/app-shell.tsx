@@ -24,6 +24,7 @@ import type { Perms } from "@/api/library";
 import { useRequestSummary } from "@/api/requests";
 import { useNewErrorCount, useNewNonJobErrorCount } from "@/api/errors";
 import { StatusDot } from "./status-dot";
+import { PauseSwitch } from "@/components/settings/global-switches";
 import { useSearchUI } from "@/components/search/search-context";
 import { Modal } from "@/components/ui/modal";
 import { topModal } from "@/lib/modal-stack";
@@ -260,7 +261,8 @@ function SearchTrigger() {
 }
 
 /** The top bar's "New downloads off" (admins): the global switch (Settings › Download clients), said once here so
- * rows need not repeat it. Nothing shows while new downloads are on. */
+ * rows need not repeat it. Nothing shows while new downloads are on. The header shows it only while Pause
+ * (components/settings/global-switches.tsx) cannot be used: settings read-only or a switch forced off. */
 export function DownloadsSignal() {
   const sw = useVersions().data?.switches;
   if (!sw) return null;
@@ -391,7 +393,7 @@ export function AppShell({ children, perms }: { children: ReactNode; perms: Perm
               <SearchTrigger />
             </div>
             <div className="flex shrink-0 items-center justify-end gap-1 sm:gap-2">
-              {perms.admin ? <DownloadsSignal /> : null}
+              {perms.admin ? <PauseSwitch fallback={<DownloadsSignal />} /> : null}
               {perms.admin ? <StatusDot /> : null}
               <AccountMenu />
             </div>

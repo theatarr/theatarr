@@ -36,10 +36,53 @@ export function linksOff(state: VersionGrabState): boolean {
 }
 
 export const MODE_WORDS: Record<string, { label: string; help: string }> = {
-  active: { label: "Active", help: "Active manages files: it downloads and links what the profile wants." },
-  shadow: { label: "Shadow", help: "Shadow previews and compares: it records what it would download, nothing more." },
+  active: { label: "Live", help: "Live searches, downloads and links what the profile wants." },
+  shadow: { label: "Watch only", help: "Watch only records what it would download; it downloads and links nothing." },
   off: { label: "Not set up", help: "This library is not in the saved settings yet." },
 };
+
+/** The per-library control on Settings › Libraries: Watch only is mode shadow, Live is mode active. Live with grab off
+ * is not a choice of its own; it reads "Live, downloads off" and is set by a tick under the library's Advanced. */
+export type LibraryChoice = "watch" | "live";
+export const CHOICE_LABEL: Record<LibraryChoice, string> = { watch: "Watch only", live: "Live" };
+export const CHOICE_HELP = "Watch only records what it would do and downloads and links nothing. Live searches, downloads and links.";
+
+/** The selector's value for a stored mode; undefined for a mode it cannot express. */
+export function choiceOf(mode: string | undefined): LibraryChoice | undefined {
+  return mode === "shadow" ? "watch" : mode === "active" ? "live" : undefined;
+}
+
+/** grab set to value, or put back exactly as stored (an absent key stays absent) when value is what is stored. */
+export function withGrab<C extends { grab?: boolean }>(config: C, value: boolean, saved: { grab?: boolean }): C {
+  const next = { ...config };
+  if (value === (saved.grab ?? false)) {
+    if ("grab" in saved) next.grab = saved.grab;
+    else delete next.grab;
+  } else next.grab = value;
+  return next;
+}
+
+/** A choice applied to a library's settings: only mode and grab change. Live from Watch only turns the library's
+ * downloads on; Watch only keeps grab as stored (the old Mode field left it alone), so nothing hidden changes. */
+export function withChoice<C extends { mode: string; grab?: boolean }>(config: C, choice: LibraryChoice, saved: { grab?: boolean }): C {
+  if (choice === "live") return config.mode === "active" ? config : { ...withGrab(config, true, saved), mode: "active" };
+  return { ...withGrab(config, saved.grab ?? false, saved), mode: "shadow" };
+}
+
+/** The library's state in plain words beside its control, built on verdict and linksOff: "Watch only", "Live",
+ * "Live, downloads off" (its own tick), or Live with the global switch that holds it back ("Live, paused" when both
+ * new downloads and library links are off: the header's Pause). */
+export function stateWords(state: VersionGrabState): { text: string; tone: VerdictTone } {
+  if (state.mode === "shadow") return { text: "Watch only", tone: "info" };
+  if (state.mode !== "active") return { text: MODE_WORDS.off.label, tone: "neutral" };
+  const v = verdict(state);
+  if (!state.grab) return { text: "Live, downloads off", tone: "neutral" };
+  if (v.word === "Locked off") return { text: "Live, but new downloads are locked off", tone: "bad" };
+  if (v.word === "Paused globally") return state.library_enabled === false ? { text: "Live, paused", tone: "warn" } : { text: "Live, but new downloads are off", tone: "warn" };
+  if (v.word === "Downloads off") return { text: "Live, downloads held by the server", tone: "neutral" };
+  if (linksOff(state)) return { text: "Live, but new files won't be linked", tone: "warn" };
+  return { text: "Live", tone: "ok" };
+}
 
 export type Gate = { text: string; label: string; to: string };
 
@@ -50,8 +93,8 @@ export function closedGates(state: VersionGrabState, key?: string): Gate[] {
   const downloads = { label: "Settings › Download clients", to: "/admin/settings/downloads" };
   const gates: Gate[] = [];
   if (state.mode === "off") gates.push({ text: "This library is not in the saved settings", ...library });
-  if (state.mode === "shadow") gates.push({ text: "Mode is Shadow: it previews and compares, it downloads nothing", ...library });
-  if (!state.grab) gates.push({ text: "Allow downloads for this library is off", ...library });
+  if (state.mode === "shadow") gates.push({ text: "Watch only: it records what it would download, it downloads nothing", ...library });
+  if (!state.grab) gates.push({ text: "Downloads are off for this library", ...library });
   if (state.router_forced_off) gates.push({ text: "New downloads are locked off by the environment (THEATARR_FORCE_OFF)", ...downloads });
   else if (!state.router_enabled) gates.push({ text: "Allow new downloads is off for every library", ...downloads });
   if (state.will_grab === false && !gates.length) gates.push({ text: "Automatic downloads are paused by the server", ...downloads });
@@ -71,8 +114,8 @@ export function downloadSettings(state?: VersionGrabState): { label: string; to:
 
 const VERDICT_REASON: Record<Verdict, string> = {
   "Downloads on": "Downloads on",
-  "Preview only": "Preview only (this library is in Shadow: it records what it would download)",
-  "Downloads off": "Downloads off (Allow downloads for this library is off)",
+  "Preview only": "Preview only (this library is Watch only: it records what it would download)",
+  "Downloads off": "Downloads off (downloads are off for this library)",
   "Paused globally": "Paused globally (Allow new downloads is off)",
   "Locked off": "Locked off (new downloads are forced off by the environment)",
 };

@@ -9,7 +9,7 @@ import { useSettings, useSettingsSchema } from "@/api/settings";
 import { PageHeader, RouteTabs, Loading, ErrorState } from "@/components/page";
 import { SETTINGS_PAGES, ADVANCED_SETTINGS_PAGES, SETTINGS_PANELS, ShowAdvancedToggle } from "@/lib/settings-map";
 import { SectionPanel } from "@/components/settings/section-panel";
-import { SwitchCard } from "@/components/settings/global-switches";
+import { AdvancedSwitch, SwitchCard } from "@/components/settings/global-switches";
 import { SettingsAuthority } from "@/components/settings/authority";
 import { SourcesPanel, BudgetsPanel } from "@/components/settings/sources";
 import { ViewsCard } from "@/components/settings/views";
@@ -56,7 +56,7 @@ export function SettingsPage() {
   {o && !["profiles", "formats", "quality-sync"].includes(page.id) && !(page.id === "libraries" && tab === "naming") ? <SettingsAuthority overview={o} compact /> : null}
   {overview.error || schema.error ? <ErrorState error={overview.error ?? schema.error} /> : null}
   {!o || !s ? <Loading /> : <>
-   {page.id === "libraries" ? <SwitchCard overview={o} field="library_enabled" /> : page.id === "downloads" ? <SwitchCard overview={o} field="router_enabled" /> : page.id === "notifications" ? <SwitchCard overview={o} field="notify_enabled" /> : null}
+   {page.id === "libraries" ? <AdvancedSwitch overview={o} field="library_enabled" /> : page.id === "downloads" ? <AdvancedSwitch overview={o} field="router_enabled" /> : page.id === "notifications" ? <SwitchCard overview={o} field="notify_enabled" /> : null}
    {page.tabs.length ? <RouteTabs tabs={page.tabs.map(t => ({ ...t, to: t.route }))} active={tab!} /> : null}
    {page.id === "libraries" && tab === "libraries" ? <VersionsPage embedded /> : null}
    {page.id === "libraries" && tab === "naming" ? <QualityPanel compact entity="naming" /> : null}

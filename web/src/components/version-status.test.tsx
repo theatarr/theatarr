@@ -12,18 +12,18 @@ describe("VersionStatus", () => {
 
   it("shows Downloads on only with every gate open, and no Why?", () => {
     render(<VersionStatus state={on} showMode />);
-    expect(screen.getByText("Active")).toBeTruthy();
+    expect(screen.getByText("Live")).toBeTruthy();
     expect(screen.getByText("Downloads on").dataset.tone).toBe("ok");
     expect(screen.queryByRole("button", { name: "Why?" })).toBeNull();
     expect(screen.queryByTestId("links-off")).toBeNull();
   });
 
   const cases: [Partial<typeof on>, string, string[]][] = [
-    [{ grab: false }, "Downloads off", ["Allow downloads for this library is off"]],
+    [{ grab: false }, "Downloads off", ["Downloads are off for this library"]],
     [{ router_enabled: false }, "Paused globally", ["Allow new downloads is off for every library"]],
     [{ router_enabled: false, router_forced_off: true }, "Locked off", ["New downloads are locked off by the environment (THEATARR_FORCE_OFF)"]],
-    [{ mode: "shadow" }, "Preview only", ["Mode is Shadow: it previews and compares, it downloads nothing"]],
-    [{ mode: "off", grab: false, router_enabled: false }, "Downloads off", ["This library is not in the saved settings", "Allow downloads for this library is off", "Allow new downloads is off for every library"]],
+    [{ mode: "shadow" }, "Preview only", ["Watch only: it records what it would download, it downloads nothing"]],
+    [{ mode: "off", grab: false, router_enabled: false }, "Downloads off", ["This library is not in the saved settings", "Downloads are off for this library", "Allow new downloads is off for every library"]],
   ];
   it.each(cases)("shows the verdict and every closed gate behind Why? for %j", async (gates, word, closed) => {
     render(<VersionStatus state={{ ...on, ...gates }} showMode />);
@@ -70,7 +70,7 @@ it("links library settings to Libraries without a key, and shows no links to oth
 it("keeps the gates reachable by keyboard in dense rows, with admin links, and Escape returns focus", async () => {
   render(<MemoryRouter><VersionStatus why={false} canManage settingsKey="movie-web" state={{ mode: "active", grab: false, router_enabled: true, router_forced_off: false }} /></MemoryRouter>);
   expect(screen.queryByRole("button", { name: "Why?" })).toBeNull();
-  expect(screen.getByText("Downloads off").title).toBe("Allow downloads for this library is off.");
+  expect(screen.getByText("Downloads off").title).toBe("Downloads are off for this library.");
   const why = screen.getByRole("button", { name: "Why Downloads off?" });
   await userEvent.tab();
   expect(document.activeElement).toBe(why);

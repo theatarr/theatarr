@@ -195,7 +195,7 @@ describe("Connected apps bindings (moved from Settings › Libraries)", () => {
     const user = userEvent.setup();
     renderPage(<GeneralSettingsPage />);
     const row = (await screen.findByText("API key set")).closest("li") as HTMLElement;
-    expect(await within(row).findByText("Shadow")).toBeTruthy();
+    expect(await within(row).findByText("Watch only")).toBeTruthy();
     await user.click(within(row).getByRole("button", { name: /Edit/ }));
     const sheet = await screen.findByTestId("view-editor");
     expect(within(sheet).getByRole("link", { name: "Users & access" }).getAttribute("href")).toBe("/admin/users");

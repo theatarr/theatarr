@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { fireEvent, screen } from "@testing-library/react";
+import { fireEvent, screen, within } from "@testing-library/react";
 import { expect, it } from "vitest";
 import { mockFetch, renderPage } from "@/test/page";
 import { overview } from "@/components/settings/fixtures";
@@ -20,6 +20,10 @@ it("composes the library file panels and shared advanced toggle with the library
  expect(screen.getByRole("heading", { name: "Trash" })).toBeTruthy();
  expect(screen.queryByRole("heading", { name: "Plex server" })).toBeNull();
  expect(screen.queryByRole("heading", { name: "Media inspection" })).toBeNull();
+ // The switch sits under an Advanced fold (the header's Pause sets it with Allow new downloads); closed while it is on.
+ expect(screen.queryByRole("switch", { name: "Write library links" })).toBeNull();
+ fireEvent.click(within(screen.getByTestId("switches-advanced")).getByText("Advanced"));
+ expect(screen.getByText(/Pause, at the top of every admin page/)).toBeTruthy();
  expect(screen.getByRole("switch", { name: "Write library links" })).toBeTruthy();
  expect(screen.getByRole("tab", { name: "Naming" }).getAttribute("href")).toBe("/admin/settings/libraries/naming");
  fireEvent.click(screen.getByRole("button", { name: "Show advanced settings" }));

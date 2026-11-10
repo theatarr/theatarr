@@ -84,11 +84,11 @@ it("shows running fallback gates, saved differences and a library display label"
  const card = screen.getByRole("heading", { name: "movie-web 4K WEB" }).parentElement!;
  expect(within(card).getByText("movie-web")).toBeTruthy();
  // The state comes from the running gates: shadow and downloads off, so nothing is downloaded.
- expect(within(card).getByText("Shadow")).toBeTruthy();
+ expect(within(card).getByText("Watch only")).toBeTruthy();
  expect(within(card).getByText("Preview only")).toBeTruthy();
  expect(within(card).queryByText("Downloads on")).toBeNull();
  await userEvent.click(within(card).getByRole("button", { name: "Why?" }));
- expect([...within(card).getByTestId("state-why").querySelectorAll("li")].map((li) => li.textContent?.split(" · ")[0])).toEqual(["Mode is Shadow: it previews and compares, it downloads nothing", "Allow downloads for this library is off"]);
+ expect([...within(card).getByTestId("state-why").querySelectorAll("li")].map((li) => li.textContent?.split(" · ")[0])).toEqual(["Watch only: it records what it would download, it downloads nothing", "Downloads are off for this library"]);
  const step = screen.getByRole("heading", { name: "6. Review activation" }).closest("li")!;
  expect(within(step).getByText("Not yet")).toBeTruthy();
 });

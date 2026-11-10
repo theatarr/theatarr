@@ -57,4 +57,23 @@ it("never asks for the switches without admin", async () => {
   await act(async () => {});
   expect(screen.queryByTestId("downloads-signal")).toBeNull();
   expect(fetch.calls("GET", "/settings/versions")).toHaveLength(0);
+  // Nor Pause: it needs the admin permission that changes settings.
+  expect(screen.queryByRole("switch", { name: "Pause" })).toBeNull();
+  expect(fetch.calls("GET", "/settings")).toHaveLength(0);
+});
+
+it("shows Pause to an admin in the header, and the downloads signal while settings are read-only", async () => {
+  const o = { source: "db", writable: true, generation: 3, switches: { router_enabled: false, library_enabled: false, notify_enabled: true, sources: {} } };
+  mockFetch([versions(false), { method: "GET", path: "/settings", reply: o }]);
+  vi.stubGlobal("matchMedia", () => ({ matches: true, addEventListener: () => {}, removeEventListener: () => {} }));
+  const admin = { ownKeys: false, admin: true, seeFiles: false, manage: false, add: false, request: false, manageRequests: false, users: false };
+  const first = renderPage(<AppShell perms={admin}><p>Page</p></AppShell>);
+  const header = document.querySelector<HTMLElement>('[data-slot="root-header"]')!;
+  await waitFor(() => expect(header.querySelector('[role="switch"][aria-label="Pause"]')).toBeTruthy());
+  expect(screen.queryByTestId("downloads-signal")).toBeNull();
+  first.unmount();
+  mockFetch([versions(false), { method: "GET", path: "/settings", reply: { ...o, writable: false } }]);
+  renderPage(<AppShell perms={admin}><p>Page</p></AppShell>);
+  expect(await screen.findByTestId("downloads-signal")).toBeTruthy();
+  expect(screen.queryByRole("switch", { name: "Pause" })).toBeNull();
 });

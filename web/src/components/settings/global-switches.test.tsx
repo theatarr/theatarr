@@ -1,9 +1,9 @@
 // @vitest-environment jsdom
-import { screen, waitFor } from "@testing-library/react";
+import { cleanup, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it } from "vitest";
-import { GlobalSwitchesCard } from "./global-switches";
-import { useSettings } from "@/api/settings";
+import { AdvancedSwitch, GlobalSwitchesCard, PauseSwitch } from "./global-switches";
+import { useSettings, type SettingsOverview } from "@/api/settings";
 function GeneralSettingsPage() { const q = useSettings(); return q.data ? <GlobalSwitchesCard overview={q.data} /> : null; }
 import { json, mockFetch, renderPage } from "@/test/page";
 
@@ -67,5 +67,80 @@ describe("Global switches", () => {
 it("explains that disabling adds still allows indexer reads", async () => {
  mockFetch([{ method: "GET", path: "/settings", reply: overview() }]);
  renderPage(<GeneralSettingsPage />);
- expect(await screen.findByText("Off: Theatarr adds no torrents to your debrid accounts. RSS checks and comparison searches still read indexers. Each library also has its own switch, Allow downloads for this library.")).toBeTruthy();
+ expect(await screen.findByText("Off: Theatarr adds no torrents to your debrid accounts. RSS checks and comparison searches still read indexers. Each library is also Live or Watch only on its own.")).toBeTruthy();
+});
+
+describe("Pause in the admin header", () => {
+  const both = (router: boolean, library: boolean, extra: Record<string, unknown> = {}) => {
+    const o = overview("db", router);
+    return { ...o, ...extra, switches: { ...o.switches, library_enabled: library, notify_enabled: true } } as unknown as SettingsOverview;
+  };
+
+  it("on: turns both switches off in one save, without a dialog", async () => {
+    const fetch = mockFetch([{ method: "GET", path: "/settings", reply: both(true, true) }, { method: "PUT", path: "/settings/switches", reply: { generation: 8 } }]);
+    renderPage(<PauseSwitch />);
+    const pause = await screen.findByRole("switch", { name: "Pause" });
+    expect((pause as HTMLInputElement).checked).toBe(false);
+    await userEvent.setup().click(pause);
+    await waitFor(() => expect(fetch.calls("PUT", "/settings/switches")).toHaveLength(1));
+    expect(fetch.calls("PUT", "/settings/switches")[0].body).toEqual({ generation: 7, router_enabled: false, library_enabled: false });
+    expect(screen.queryByRole("dialog")).toBeNull();
+  });
+
+  it("off: turns both on, through the confirmation listing both effects", async () => {
+    const effects = [{ effect: "Turn on Allow new downloads (router.enabled): new torrent adds to debrid are allowed for active libraries none." }, { effect: "Turn on Write library links (library.enabled): links may be written by active libraries none." }];
+    const fetch = mockFetch([
+      { method: "GET", path: "/settings", reply: both(false, false) },
+      { method: "PUT", path: "/settings/switches", reply: json({ error: "explicit confirmation required", effects, confirmation: { token: "proof", generation: 8, effects } }, 422) },
+      { method: "PUT", path: "/settings/switches", reply: { generation: 8 } },
+    ]);
+    const user = userEvent.setup();
+    renderPage(<PauseSwitch />);
+    const pause = await screen.findByRole("switch", { name: "Pause" });
+    expect((pause as HTMLInputElement).checked).toBe(true);
+    expect(screen.getByText("Paused")).toBeTruthy();
+    await user.click(pause);
+    await screen.findByRole("dialog", { name: "Confirm what this change enables" });
+    for (const e of effects) expect(screen.getByText(e.effect)).toBeTruthy();
+    await user.click(screen.getByRole("button", { name: "Confirm and save" }));
+    await waitFor(() => expect(fetch.calls("PUT", "/settings/switches")).toHaveLength(2));
+    const [first, second] = fetch.calls("PUT", "/settings/switches");
+    expect(first.body).toEqual({ generation: 7, router_enabled: true, library_enabled: true });
+    expect(second.body).toEqual(first.body);
+    expect(second.headers["x-confirmation-token"]).toBe("proof");
+  });
+
+  it.each([[true, false, "/admin/settings/libraries#switches"], [false, true, "/admin/settings/downloads#switches"]])("router %s, links %s: shows Custom linking to the switch that is off", async (router, library, href) => {
+    const fetch = mockFetch([{ method: "GET", path: "/settings", reply: both(router, library) }]);
+    renderPage(<PauseSwitch />);
+    const custom = await screen.findByTestId("pause-custom");
+    expect(custom.textContent).toBe("Pause: Custom");
+    expect(custom.getAttribute("href")).toBe(href);
+    expect(screen.queryByRole("switch")).toBeNull();
+    expect(fetch.calls("PUT", "/settings/switches")).toHaveLength(0);
+  });
+
+  it("shows the fallback instead when settings are read-only or a switch is forced off", async () => {
+    mockFetch([{ method: "GET", path: "/settings", reply: both(true, true, { writable: false }) }]);
+    const first = renderPage(<PauseSwitch fallback={<span>signal</span>} />);
+    expect(await screen.findByText("signal")).toBeTruthy();
+    expect(screen.queryByRole("switch", { name: "Pause" })).toBeNull();
+    first.unmount();
+    const forced = overview("db", false, true);
+    mockFetch([{ method: "GET", path: "/settings", reply: { ...forced, switches: { ...forced.switches, library_enabled: false } } }]);
+    renderPage(<PauseSwitch fallback={<span>signal</span>} />);
+    expect(await screen.findByText("signal")).toBeTruthy();
+    expect(screen.queryByTestId("pause-custom")).toBeNull();
+  });
+
+  it("puts each switch under an Advanced fold, open when it is off or linked to", async () => {
+    const o = both(true, false);
+    renderPage(<><AdvancedSwitch overview={o} field="router_enabled" /><AdvancedSwitch overview={o} field="library_enabled" /></>);
+    expect(screen.queryByRole("switch", { name: "Allow new downloads" })).toBeNull();
+    expect(screen.getByRole("switch", { name: "Write library links" })).toBeTruthy();
+    expect(screen.getByText(/Pause, at the top of every admin page/)).toBeTruthy();
+    cleanup();
+    renderPage(<AdvancedSwitch overview={o} field="router_enabled" />, "/admin/settings/downloads#switches");
+    expect(screen.getByRole("switch", { name: "Allow new downloads" })).toBeTruthy();
+  });
 });
