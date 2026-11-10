@@ -28,7 +28,7 @@ describe("health", () => {
     expect(healthAttention([{ source: "SettingsFallbackCheck", type: "error" } as HealthCheck]).map((c) => c.source)).toEqual(["SettingsFallbackCheck"]);
     expect(healthLink("SomethingNew")).toBe("/admin");
     expect(healthEffect("DanglingLinksCheck").next).toMatch(/^Open the list below/);
-    expect(["dead", "active", "unlinked", undefined].map(danglingNext)).toEqual(["Marked missing; searched again", "Waiting for the next repair sweep", "A link Theatarr let go of", "Not a link Theatarr made"]);
+    expect(["dead", "active", "unlinked", undefined].map(danglingNext)).toEqual(["Link marked missing", "Waiting for the next repair sweep", "A link Theatarr let go of", "Not a link Theatarr made"]);
   });
   it("names an effect and a next step for each known check", () => {
     for (const s of ["MountCheck", "JobBacklogCheck", "IndexerStatusCheck", "ProviderSyncCheck", "VpnEgressCheck", "BackupCheck", "DiskSpaceCheck", "MetadataRefreshCheck", "DanglingLinksCheck", "SetupCheck"]) {

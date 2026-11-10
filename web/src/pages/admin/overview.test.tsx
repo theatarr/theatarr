@@ -163,7 +163,7 @@ it("lists the broken links behind the dangling-links check when opened, once, an
  expect(within(items[0]).getByRole("link", { name: "Alpha" }).getAttribute("href")).toBe("/title/1");
  expect(within(items[0]).getByText("4K Remux")).toBeTruthy();
  expect(within(items[0]).getByText("torrent has no video upstream")).toBeTruthy();
- expect(within(items[0]).getByText("Marked missing; searched again")).toBeTruthy();
+ expect(within(items[0]).getByText("Link marked missing")).toBeTruthy();
  expect(within(items[0]).getByText("/media/remux/Alpha (2020)/Alpha.mkv")).toBeTruthy();
  expect(within(items[1]).getByText("Waiting for the next repair sweep")).toBeTruthy();
  expect(within(items[2]).getByText("Stray")).toBeTruthy();

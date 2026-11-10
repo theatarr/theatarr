@@ -120,7 +120,7 @@ export function backupCheck(c: HealthCheck | undefined): { parts: BackupPart[]; 
 export function danglingNext(linkState?: string): string {
   switch (linkState) {
     case "dead":
-      return "Marked missing; searched again";
+      return "Link marked missing";
     case "active":
       return "Waiting for the next repair sweep";
     case "unlinked":
