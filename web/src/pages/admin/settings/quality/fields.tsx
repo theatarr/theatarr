@@ -19,14 +19,18 @@ export function TextField({ label, value, onChange, type = "text" }: { label: st
 }
 
 /** A number input that keeps what is typed while it is not a number yet ("" or a lone "-"), so a negative value can be
- * typed; onChange hears every value that is a number, and leaving the field shows the stored value again. */
+ * typed; onChange hears every value that is a number, and a field left blank becomes 0 on leaving it. */
 export function NumberInput({ value, onChange, ...props }: Omit<ComponentProps<typeof Input>, "value" | "onChange" | "type"> & { value: string; onChange: (v: string) => void }) {
   const [draft, setDraft] = useState(value);
   const last = useRef(value);
   useEffect(() => { if (value !== last.current) { last.current = value; setDraft(value); } }, [value]);
   return <Input {...props} type="number" value={draft}
     onChange={(e) => { const v = e.target.value; setDraft(v); if (v.trim() !== "" && Number.isFinite(Number(v))) { last.current = String(Number(v)); onChange(v); } }}
-    onBlur={(e) => { setDraft(last.current); props.onBlur?.(e); }} />;
+    onBlur={(e) => {
+      // Left blank (or a lone "-"): 0, as a plain number input gave.
+      if (draft.trim() === "" || !Number.isFinite(Number(draft))) { last.current = "0"; onChange("0"); }
+      setDraft(last.current); props.onBlur?.(e);
+    }} />;
 }
 export function Toggle({ label, checked, onChange }: { label: string; checked: boolean; onChange: (v: boolean) => void }) {
   return <label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={checked} onChange={(e) => onChange(e.target.checked)} />{label}</label>;

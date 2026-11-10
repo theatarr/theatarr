@@ -1,9 +1,11 @@
 // @vitest-environment jsdom
-import { render, screen } from "@testing-library/react";
+import { cleanup, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { useState } from "react";
-import { expect, it } from "vitest";
+import { afterEach, expect, it } from "vitest";
 import { ProfileFields, type Config } from "./fields";
+
+afterEach(cleanup);
 
 function Harness({ initial, seen }: { initial: Config; seen: Config[] }) {
   const [config, setConfig] = useState(initial);
@@ -27,4 +29,22 @@ it("takes a typed negative number in the score, minimum and cutoff fields", asyn
     await user.tab();
     expect((input as HTMLInputElement).value).toBe("-25");
   }
+});
+
+it("turns a field left blank, or a lone minus, into 0 on leaving it", async () => {
+  const user = userEvent.setup();
+  const seen: Config[] = [];
+  render(<Harness initial={{ qualities: [], formats: {}, min_score: 40, cutoff_score: 30 }} seen={seen} />);
+  const min = screen.getByLabelText("Minimum format score") as HTMLInputElement;
+  await user.clear(min);
+  expect(min.value).toBe("");
+  await user.tab();
+  expect(seen.at(-1)!.min_score).toBe(0);
+  expect(min.value).toBe("0");
+  const cutoff = screen.getByLabelText("Cutoff format score (upgrade until)") as HTMLInputElement;
+  await user.clear(cutoff);
+  await user.type(cutoff, "-");
+  await user.tab();
+  expect(seen.at(-1)!.cutoff_score).toBe(0);
+  expect(cutoff.value).toBe("0");
 });
