@@ -67,7 +67,7 @@ func validateVersionRules(ctx context.Context, q rootQueryer, previous, next *po
 				return err
 			}
 			if links > 0 {
-				return rootFieldError("versions["+key+"].library", fmt.Sprintf("%d active link(s) would stay at the old root; use the parallel-library adopt procedure in docs/parallel.md", links))
+				return rootFieldError("versions["+key+"].library", fmt.Sprintf("%d active link(s) would stay at the old root; use the procedure in docs/migration.md#changing-a-root-with-links", links))
 			}
 		}
 		if before == nil {
@@ -78,7 +78,7 @@ func validateVersionRules(ctx context.Context, q rootQueryer, previous, next *po
 				return err
 			}
 			if links > 0 {
-				return rootFieldError("versions["+key+"].library", fmt.Sprintf("%d active link(s) of this library are outside its roots; use the old root, or the parallel-library adopt procedure in docs/parallel.md", links))
+				return rootFieldError("versions["+key+"].library", fmt.Sprintf("%d active link(s) of this library are outside its roots; use the old root, or the procedure in docs/migration.md#changing-a-root-with-links", links))
 			}
 		}
 	}
@@ -494,7 +494,7 @@ func (s *Store) ValidateRoot(ctx context.Context, base *policy.Policy, key, root
 			return RootCheck{}, err
 		}
 		if links > 0 {
-			return RootCheck{}, rootFieldError("root", "active links would stay at the old root; use the parallel-library adopt procedure in docs/parallel.md")
+			return RootCheck{}, rootFieldError("root", "active links would stay at the old root; use the procedure in docs/migration.md#changing-a-root-with-links")
 		}
 	}
 	checked, err := validateOneRoot(ctx, rr, p, allowed, key, root, version.Mode == policy.ModeActive)

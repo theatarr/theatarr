@@ -58,7 +58,7 @@ func (c *checker) handover(ctx context.Context) {
 	for _, inst := range owners {
 		a := c.o.Policy.Import.Arr[inst]
 		c.add(SecHandover, "owner", Info, "retire "+inst+"'s import entry once clients and Plex use the follower "+
-			"(docs/golive.md)", "%s owns %s today (%s %s)", inst, k, a.Flavour, a.URL)
+			"(docs/migration.md#5-hand-over-clients-and-plex-retire-the-arr)", "%s owns %s today (%s %s)", inst, k, a.Flavour, a.URL)
 		c.arr(ctx, inst, a)
 	}
 	c.clients(owners)
@@ -156,7 +156,7 @@ func (c *checker) arr(ctx context.Context, inst string, a *policy.ArrSource) {
 				"same titles", "%s still grabs (%d RSS, %d automatic search indexers) while %s is active", inst, rss,
 				auto, c.o.Version)
 		default:
-			c.add(SecHandover, "arr grabbing", Info, "stopped when the arr retires (docs/golive.md)",
+			c.add(SecHandover, "arr grabbing", Info, "stopped when the arr retires (docs/migration.md#5-hand-over-clients-and-plex-retire-the-arr)",
 				"%s grabs today: %d of %d indexers with RSS, %d with automatic search", inst, rss, len(ixs), auto)
 		}
 	}
@@ -177,7 +177,7 @@ func (c *checker) arr(ctx context.Context, inst string, a *policy.ArrSource) {
 			c.add(SecHandover, "arr client", Warn, "disable it once its queue is empty", "%s still has download "+
 				"clients enabled: %s", inst, strings.Join(on, ", "))
 		default:
-			c.add(SecHandover, "arr client", Info, "disabled once its queue is empty when the arr retires (docs/golive.md)",
+			c.add(SecHandover, "arr client", Info, "disabled once its queue is empty when the arr retires (docs/migration.md#5-hand-over-clients-and-plex-retire-the-arr)",
 				"%s sends to: %s", inst, strings.Join(on, ", "))
 		}
 	}

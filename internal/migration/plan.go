@@ -1002,7 +1002,7 @@ func (b *builder) manualSteps(a ArrInstance, vp *VersionPlan) {
 	if bridge {
 		follower := vp.Key + "-theatarr"
 		b.add(Step{ID: "follow/" + vp.Key, Kind: KindManual, What: fmt.Sprintf("optional, the parallel path "+
-			"(docs/parallel.md): add version %s following %s on a new root of its own, then theatarr library adopt "+
+			"(docs/migration.md#3-a-follower-library-beside-the-arr): add version %s following %s on a new root of its own, then theatarr library adopt "+
 			"-version %s -dry-run, and without -dry-run once the report is clean", follower, vp.Key, follower),
 			Why: "a follower builds Theatarr's own library beside the arr's from the same files, without taking " +
 				"anything over", Reversible: true, Undo: "delete the follower; its links stay until removed by hand",

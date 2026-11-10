@@ -33,7 +33,7 @@ import (
 func init() {
 	register(command{
 		name:    "golive",
-		summary: "golive check: read-only preflight before a library grabs (docs/golive.md)",
+		summary: "golive check: read-only preflight before a library grabs (docs/migration.md#4-the-go-live-check)",
 		run:     func(args []string) error { return runGolive(args, os.Stdout) },
 	})
 }

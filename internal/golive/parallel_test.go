@@ -79,7 +79,7 @@ func TestFollowedShadowCutover(t *testing.T) {
 	o.Version = "movie-remux"
 	o.FS = fakeFS{readOnly: map[string]bool{"/media/movies": true}}
 	r := run(t, o)
-	want(t, r, SecPolicy, "cutover", Info, "cut over through its follower movie-remux-theatarr (docs/golive.md)")
+	want(t, r, SecPolicy, "cutover", Info, "cut over through its follower movie-remux-theatarr (docs/migration.md#5-hand-over-clients-and-plex-retire-the-arr)")
 	if len(find(r, SecPolicy, "switched policy")) != 0 {
 		t.Fatal("followed library simulated an in-place switch")
 	}

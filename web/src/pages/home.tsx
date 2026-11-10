@@ -42,10 +42,14 @@ function Row({
   return (
     <section className="mt-6 first:mt-0" data-row={id}>
       <div className="mb-1 flex items-center justify-between gap-3">
-        <Link to={row?.more ?? "#"} className="group inline-flex min-w-0 items-center font-display text-lg font-semibold text-[var(--ink)] transition hover:text-[var(--accent-ink)] sm:text-xl">
-          <span className="truncate">{title}</span>
-          <ChevronRight className="ml-1 size-5 shrink-0 text-muted-foreground transition group-hover:translate-x-0.5 group-hover:text-foreground" />
-        </Link>
+        {row?.more ? (
+          <Link to={row.more} className="group inline-flex min-w-0 items-center font-display text-lg font-semibold text-[var(--ink)] transition hover:text-[var(--accent-ink)] sm:text-xl">
+            <span className="truncate">{title}</span>
+            <ChevronRight className="ml-1 size-5 shrink-0 text-muted-foreground transition group-hover:translate-x-0.5 group-hover:text-foreground" />
+          </Link>
+        ) : (
+          <h2 className="min-w-0 truncate font-display text-lg font-semibold text-[var(--ink)] sm:text-xl">{title}</h2>
+        )}
         {row && row.total > items.length ? (
           <Link to={row.more} className="shrink-0 text-sm text-muted-foreground hover:text-foreground">
             See all {fmtNumber(row.total)}

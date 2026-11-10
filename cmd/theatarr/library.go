@@ -43,7 +43,7 @@ const libraryUsage = `usage:
                                                  mode: active, the library's roots), otherwise it reports what it would do
   theatarr library adopt -library KEY [-dry-run] [-limit N] [-queue] [flags]
                                                  start a parallel library (versions.KEY.follows) from links of its own to
-                                                 the files its followed library's arr has now (docs/parallel.md); through
+                                                 the files its followed library's arr has now (docs/migration.md#adopt-and-refresh); through
                                                  the gate. -dry-run writes nothing; -queue runs it as a job in theatarr serve
   theatarr library adopt -library KEY -refresh [-dry-run] [-queue] [flags]
                                                  move the links adopt made to the arr's current files after arr upgrades:

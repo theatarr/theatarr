@@ -147,7 +147,7 @@ func TestGoliveFollowedLibraryReportsFollower(t *testing.T) {
 				if result.Check == "switched policy" {
 					t.Fatalf("simulated forbidden switch: %+v", result)
 				}
-				if result.Check == "cutover" && result.Section == golive.SecPolicy && result.Status == golive.Info && result.Message == "cut over through its follower movie-remux-theatarr (docs/golive.md)" {
+				if result.Check == "cutover" && result.Section == golive.SecPolicy && result.Status == golive.Info && result.Message == "cut over through its follower movie-remux-theatarr (docs/migration.md#5-hand-over-clients-and-plex-retire-the-arr)" {
 					found = true
 				}
 			}

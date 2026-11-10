@@ -136,7 +136,7 @@ export function WantedPage() {
     <PageHeader title="Wanted" description="What automatic searches are waiting for. Viewing this page never starts a search; Search now queues one under the hourly limit." />
     <WantedTabs active={only} query={tabQuery} />
     {q.isLoading ? <Loading /> : q.error ? <ErrorState error={q.error} /> : d ? <div className="space-y-4">
-      <p className="text-sm text-muted-foreground">Searches every {fmtGoDuration(d.interval)}, up to {d.per_hour} an hour, again after {fmtGoDuration(d.again_after)}. {d.searched_last_hour} searches in the last hour. {d.add_time_pending > 0 ? `${d.add_time_pending} searches for newly added titles go first.` : ""}</p>
+      <p className="text-sm text-muted-foreground">Searches every {fmtGoDuration(d.interval)}, up to {d.per_hour} an hour, again after {fmtGoDuration(d.again_after)}. {plural(d.searched_last_hour, "search")} in the last hour. {d.add_time_pending > 0 ? `${plural(d.add_time_pending, "search")} for newly added titles ${d.add_time_pending === 1 ? "goes" : "go"} first.` : ""}</p>
       {!d.enabled || (only === "missing" ? !d.missing : d.cutoff_unmet === "off") ? <p role="status" className="rounded-[5px] border border-[var(--line)] bg-[var(--sunken)] px-3 py-2 text-[13px] text-[var(--ink-2)]">{!d.enabled ? "Automatic searches are off." : only === "cutoff" ? "Cutoff-unmet searches are off." : "Missing searches are off."} <Link className="text-primary hover:underline" to={settingHref("router", "wanted.enabled") ?? "/admin/settings/downloads"}>Automatic search settings</Link></p> : null}
       <DownloadsOffNotice off={off} canManage />
       <label className="flex items-center gap-2 text-sm text-[var(--ink-3)]">Library

@@ -194,8 +194,9 @@ YAML is optional. To seed a new database from YAML files, stop the service and r
 and exports YAML under **Admin › Advanced › YAML settings › Import & export**. `theatarr policy validate DIR` checks
 a directory of YAML files.
 
-The environment sets what the service needs before it can read its database. Each variable has a matching
-`theatarr serve` flag (`theatarr serve -h`):
+The environment sets what the service needs before it can read its database. Most variables have a matching
+`theatarr serve` flag (`theatarr serve -h`); `THEATARR_TRASH`, `THEATARR_FORCE_OFF`, `THEATARR_PUBLIC_URL`,
+`THEATARR_TVDB_PIN` and `TZ` have no `serve` flag and are read from the environment:
 
 | Variable | Default (image) | What |
 |---|---|---|
@@ -214,6 +215,7 @@ The environment sets what the service needs before it can read its database. Eac
 | `THEATARR_RETENTION_DAYS`, `THEATARR_RETENTION_RUN_DAYS` | `180`, `30` | Days of history and of sync runs kept; `0` keeps them |
 | `THEATARR_MOUNT_HELPER` | `true` | Run calls on the debrid mount in helper processes that are killed when a call hangs |
 | `THEATARR_PUBLIC_URL` | unset | Theatarr's address as clients reach it, used in the client steps of `golive check` and `migrate verify` |
+| `THEATARR_TVDB_PIN` | unset | The subscriber PIN for a TVDB key that needs one (a user-supported key); other TVDB keys need none |
 | `TZ` | UTC | Time zone; the nightly backup runs at 03:00 local time (`-backup-hour`) |
 
 The CLI tools that talk to a running service read an admin API key from `THEATARR_API_KEY` (`theatarr migrate`) or

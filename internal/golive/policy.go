@@ -34,7 +34,7 @@ func (c *checker) policy(ctx context.Context) {
 				"with router.enabled", k)
 	}
 	if follower := c.o.Policy.FollowedBy(k); follower != "" {
-		c.add(SecPolicy, "cutover", Info, "", "cut over through its follower %s (docs/golive.md)", follower)
+		c.add(SecPolicy, "cutover", Info, "", "cut over through its follower %s (docs/migration.md#5-hand-over-clients-and-plex-retire-the-arr)", follower)
 	}
 	c.profile()
 	c.libraryPolicy(ctx)

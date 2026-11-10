@@ -232,7 +232,7 @@ func TestVersionRootChecksAndNoLinkDeletion(t *testing.T) {
 	}
 	req := saveRequest(p, initial)
 	editVersion(&req.Records, "movie-web", func(v *Version) { v.Config.Library = newRoot; v.Roots = []string{newRoot} })
-	if _, err := s.Candidate(ctx, req); err == nil || !strings.Contains(err.Error(), "active link") || !strings.Contains(err.Error(), "docs/parallel.md") {
+	if _, err := s.Candidate(ctx, req); err == nil || !strings.Contains(err.Error(), "active link") || !strings.Contains(err.Error(), "docs/migration.md#changing-a-root-with-links") {
 		t.Fatalf("root change: %v", err)
 	}
 	// Remove an unreferenced version with a link: the confirmation only stops management.
