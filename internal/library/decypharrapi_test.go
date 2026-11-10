@@ -527,4 +527,10 @@ func TestDecypharrThroughGateway(t *testing.T) {
 	if _, err := d.Groups(ctx); !errors.Is(err, ErrDecypharrRedirect) {
 		t.Errorf("redirect through the gateway: %v", err)
 	}
+	// WebDAV's 503 carries Retry-After, which the gateway takes as a rate limit: the loading answer still comes
+	// through. (The gateway then holds the next request to decypharr back for those seconds; not waited for here.)
+	srv.Set(func(s *decypharrtest.Server) { s.Redirect, s.Loading = "", true })
+	if _, _, err := d.PropfindFolder(ctx, "__all__", decypharrtest.SharedName); !errors.Is(err, ErrDecypharrLoading) {
+		t.Errorf("PROPFIND while loading, through the gateway: %v", err)
+	}
 }
