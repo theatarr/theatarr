@@ -34,7 +34,9 @@ validation and an image build, on every push to `main`, on pull requests, and by
 `:X.Y` and `:latest`, with the tag as the version the binary reports. Tags with a suffix (`v1.2.3-rc1`) and other
 tags publish nothing. The registry package is public; its visibility and the repository's Actions permission
 to write packages were set once on GitHub, by hand. Before tagging, refresh the bundled TRaSH defaults with
-`scripts/update-trash-bundle.sh <checkout>` and update the commit in `NOTICE`. [`examples/compose.image.yaml`](../examples/compose.image.yaml)
+`scripts/update-trash-bundle.sh <checkout>` and update the commit in `NOTICE`. The install docs name the newest version
+(`README.md`, `docs/quickstart.md`, `examples/compose.image.yaml`): bump that pin to `X.Y.Z` in the commit that
+gets tagged. [`examples/compose.image.yaml`](../examples/compose.image.yaml)
 is the compose file for a released image.
 
 `theatarr policy validate examples/policy` checks the example policy. `go run ./cmd/theatarr help` lists the
