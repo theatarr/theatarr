@@ -8,6 +8,7 @@ import (
 
 	"github.com/theatarr/theatarr/internal/arrview"
 	"github.com/theatarr/theatarr/internal/indexer"
+	"github.com/theatarr/theatarr/internal/router"
 	"github.com/theatarr/theatarr/internal/web"
 )
 
@@ -93,5 +94,49 @@ func TestManualAddByHash(t *testing.T) {
 	}
 	if n := e.edge.searchCount(); n != 0 {
 		t.Fatalf("%d indexer searches for a manual add", n)
+	}
+}
+
+// TestFailedManualAddStartsNoSearch: with cached_only on (the default), a release the provider does not have cached is
+// a miss on every provider. For a release a person added by magnet or hash that ends it: no re-search is queued, no
+// indexer is asked and no follow-up search is scheduled, although another release of the title is there to be found.
+// The same release grabbed by hand from a search (GrabRelease) is searched again, as before.
+func TestFailedManualAddStartsNoSearch(t *testing.T) {
+	t.Parallel()
+	for _, manual := range []bool{true, false} {
+		e := newEnvironment(t, nil)
+		e.edge.stalled = true // never cached: Real-Debrid keeps converting the magnet
+		rel, other := movieRelease(9, "2160p.WEB.H265"), movieRelease(10, "2160p.WEB.H265")
+		other.name = "Arrival.2016.2160p.WEB.H265-OTHER"
+		e.edge.set(rel, other)
+		id := e.addMovie(true, "movie")
+		if manual {
+			var got web.GrabResult
+			e.request("POST", fmt.Sprintf("%s/titles/%d/releases/add", web.APIBase, id),
+				web.AddReleaseRequest{Version: "movie", InfoHash: rel.hash, Name: rel.name}, &got)
+			if !got.Accepted {
+				t.Fatalf("add: %+v", got)
+			}
+		} else {
+			_, err := e.av.GrabRelease(e.ctx, id, "movie", indexer.Release{Title: rel.name, InfoHash: rel.hash,
+				Indexer: "public", Kind: "torznab", Privacy: "public", Size: 20 << 30, Seeders: 20, Peers: 20}, false,
+				"ui:grab:key:e2e")
+			must(t, err)
+		}
+		e.drain()
+		if row := e.text(`SELECT state || '|' || error FROM download WHERE info_hash = ?`, rel.hash); row != "failed|miss on every provider" {
+			t.Fatalf("manual %v: download %q\n%s", manual, row, e.logs.String())
+		}
+		research := e.count(`SELECT count(*) FROM job WHERE kind = ?`, router.JobResearch)
+		searches := e.edge.searchCount()
+		others := e.count(`SELECT count(*) FROM download WHERE info_hash = ?`, other.hash)
+		if manual && (research != 0 || searches != 0 || others != 0) {
+			t.Errorf("a failed manual add: %d re-search jobs, %d indexer searches, %d other downloads, want none\n%s",
+				research, searches, others, e.logs.String())
+		}
+		if !manual && (research == 0 || searches == 0 || others == 0) {
+			t.Errorf("a failed manual grab: %d re-search jobs, %d indexer searches, %d other downloads, want a search as before",
+				research, searches, others)
+		}
 	}
 }

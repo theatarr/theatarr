@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/theatarr/theatarr/internal/jobs"
+	"github.com/theatarr/theatarr/internal/policy"
 	"github.com/theatarr/theatarr/internal/store"
 )
 
@@ -27,6 +28,9 @@ import (
 //     its hash was blocklisted for the version (stall timeout, dangerous files, the library's sample, runtime or
 //     mislabel guard, provider failure, ready deadline). These are found by the poller from router_blocklist rows not
 //     researched yet (researched_at), so the library needs no hook of its own.
+//
+// A release a person added by magnet or hash (policy.ManualIndexer) is the exception to both: its failure starts no
+// search (manualAdd).
 //
 // ReasonFresh is the acquirer's own: the follow-ups it queues after a ReasonExhausted re-search for new content.
 // ReasonDeadLink is the library's: a relink sweep marked an active version's link dead (no provider holds its file).
@@ -95,10 +99,10 @@ func (r *Router) researchBlocklisted(ctx context.Context) (int, error) {
 		version, eps         string
 		hash                 string
 		title, versionID, dl int64
-		source               string
+		source, indexer      string
 	}
 	q := `SELECT b.version_key, b.info_hash, b.source, COALESCE(b.title_id, 0), COALESCE(d.version_id, 0),
-		COALESCE(b.download_id, 0), COALESCE(d.episodes, '[]') FROM router_blocklist b
+		COALESCE(b.download_id, 0), COALESCE(d.episodes, '[]'), COALESCE(d.indexer, '') FROM router_blocklist b
 		LEFT JOIN download d ON d.id = b.download_id WHERE b.researched_at IS NULL AND b.source IN (?, ?, ?, ?, ?)`
 	rows, err := r.st.Writer().QueryContext(ctx, q, researchSources[0], researchSources[1], researchSources[2],
 		researchSources[3], researchSources[4])
@@ -108,7 +112,8 @@ func (r *Router) researchBlocklisted(ctx context.Context) (int, error) {
 	var todo []row
 	for rows.Next() {
 		var x row
-		if err := rows.Scan(&x.version, &x.hash, &x.source, &x.title, &x.versionID, &x.dl, &x.eps); err != nil {
+		if err := rows.Scan(&x.version, &x.hash, &x.source, &x.title, &x.versionID, &x.dl, &x.eps,
+			&x.indexer); err != nil {
 			rows.Close()
 			return 0, err
 		}
@@ -122,7 +127,8 @@ func (r *Router) researchBlocklisted(ctx context.Context) (int, error) {
 	for _, x := range todo {
 		var eps []int64
 		_ = json.Unmarshal([]byte(x.eps), &eps)
-		if r.research(ctx, x.title, x.versionID, x.version, eps, x.source, x.dl) {
+		// The failed download of a release added by hand starts no search (manualAdd); its row is marked all the same.
+		if !policy.IsManualAdd(x.indexer) && r.research(ctx, x.title, x.versionID, x.version, eps, x.source, x.dl) {
 			n++
 		}
 		if _, err := r.st.Writer().ExecContext(ctx, `UPDATE router_blocklist SET researched_at = ?
@@ -153,6 +159,12 @@ func (r *Router) deadLinkRoute(ctx context.Context, source string) (bool, []int6
 	var out []int64
 	_ = json.Unmarshal([]byte(eps), &out)
 	return true, out, nil
+}
+
+// manualAdd reports whether a route's candidates are a release a person added by magnet or hash (arrview.AddRelease,
+// policy.ManualIndexer). Its failure starts no search: the person chose that release, not "any release of the title".
+func manualAdd(cs []Candidate) bool {
+	return len(cs) > 0 && !slices.ContainsFunc(cs, func(c Candidate) bool { return !policy.IsManualAdd(c.Release.Indexer) })
 }
 
 // missedEverywhere reports whether a route ended with at least one release missed on every provider, or not cached

@@ -231,6 +231,7 @@ type environment struct {
 	worker       *jobs.Worker
 	ac           *acquire.Acquirer
 	rt           *router.Router
+	av           *arrview.Service
 	lib          *library.Library
 	tv           *tvrefresh.Service
 	art          *art.Service
@@ -379,6 +380,7 @@ func newEnvironment(t *testing.T, configure func(*policy.Policy)) *environment {
 	must(t, err)
 	av, err := arrview.New(e.ctx, arrview.Config{Store: e.st, Auth: au, Policy: e.pol, Logger: log, Now: clock, Getenv: func(string) string { return "" }, Searcher: e.ac, Decider: e.ac, Router: e.rt, Library: e.lib})
 	must(t, err)
+	e.av = av
 	av.SetMaintenance(e.q, nil)
 	av.RegisterJobs(e.worker)
 	ui, err := web.New(web.Config{Store: e.st, Auth: au, Policy: e.pol, Logger: log, Now: clock, Devices: av, Add: web.AddConfig{Acquirer: e.ac, TMDb: tm}, Jobs: e.q, Ops: viewOps{av}})

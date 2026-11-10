@@ -322,7 +322,11 @@ func (r *Router) routeStored(ctx context.Context, req Request) (*Result, error) 
 			r.noteHoldRoute(ctx, req.Hold, res)
 		}
 		if err == nil && res.Outcome == OutcomeExhausted && missedEverywhere(res.Steps) {
-			if dead, _, derr := r.deadLinkRoute(ctx, req.Source); derr != nil {
+			if manualAdd(req.Candidates) {
+				// The person named this one release: when it fails, nothing else is searched for in its place.
+				r.log.Info("no re-search after a release added by hand missed everywhere", "title", req.TitleID,
+					"version", req.Version)
+			} else if dead, _, derr := r.deadLinkRoute(ctx, req.Source); derr != nil {
 				r.log.Warn("re-search not queued", "title", req.TitleID, "version", req.Version, "err", derr)
 			} else if dead {
 				r.log.Info("no re-search after a dead link's search missed everywhere", "title", req.TitleID,

@@ -35,6 +35,56 @@ func researchJobs(e *env) []ResearchRequest {
 	return out
 }
 
+// A release a person added by magnet or hash that stalls fails and is blocklisted as any other, but no search is
+// started for the title: the blocklist row is marked researched without a re-search job.
+func TestStalledManualAddStartsNoSearch(t *testing.T) {
+	t.Parallel()
+	e, f, _ := newDebridEnv(t, true, policy.ModeActive, false)
+	withQueue(e)
+	f.rdStuck = true
+	res, err := e.r.Route(e.ctx, grabReq(manualCand(h("a"), "Movie.2024.2160p.WEB.H265-GRP")))
+	if err != nil || res.Provider != "rd" {
+		t.Fatalf("%+v %v", res, err)
+	}
+	e.clock = e.clock.Add(10 * time.Minute)
+	sum, err := e.r.Poll(e.ctx)
+	if err != nil || sum.Stalled != 1 || sum.Researched != 0 {
+		t.Fatalf("%+v %v", sum, err)
+	}
+	if n := e.count(`SELECT COUNT(*) FROM router_blocklist WHERE info_hash = ? AND source = 'stalled'
+		AND version_key = 'movie' AND researched_at IS NOT NULL`, h("a")); n != 1 {
+		t.Error("not blocklisted, or left for a later pass")
+	}
+	if got := researchJobs(e); len(got) != 0 {
+		t.Errorf("research jobs %+v", got)
+	}
+}
+
+// A release added by hand that is a miss on every provider queues no re-search; a release grabbed by hand from a
+// search does, as before.
+func TestMissedManualAddStartsNoSearch(t *testing.T) {
+	t.Parallel()
+	e := newEnv(t, true, policy.ModeActive)
+	withQueue(e)
+	for k := range e.ad {
+		e.ad[k].add = refuse(adder.CodeNotCached)
+	}
+	res, err := e.r.Route(e.ctx, grabReq(manualCand(h("a"), "Movie.2024.2160p.WEB.H265-GRP")))
+	if err != nil || res.Outcome != OutcomeExhausted || !missedEverywhere(res.Steps) {
+		t.Fatalf("%+v %v", res, err)
+	}
+	if got := researchJobs(e); len(got) != 0 {
+		t.Errorf("research jobs after a manual add missed everywhere %+v", got)
+	}
+	res, err = e.r.Route(e.ctx, grabReq(cand(h("b"), "Movie.2024.2160p.WEB.H265-GRP")))
+	if err != nil || res.Outcome != OutcomeExhausted {
+		t.Fatalf("%+v %v", res, err)
+	}
+	if got := researchJobs(e); len(got) != 1 || got[0].Reason != ReasonExhausted {
+		t.Errorf("research jobs after a manual grab missed everywhere %+v", got)
+	}
+}
+
 // A download still in added stalled_after past its add fails as stalled, is blocklisted, our own Real-Debrid add is
 // deleted, and the title is searched again.
 func TestStalledDownload(t *testing.T) {
