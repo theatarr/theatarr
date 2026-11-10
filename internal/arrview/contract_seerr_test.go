@@ -26,6 +26,8 @@ type seerrTVDB struct {
 	missing    bool
 	query      string
 	extra      bool
+	slow       bool // the search waits out its deadline
+	remote     bool // the search result carries New Show's TMDb id (5000)
 }
 
 func (f *seerrTVDB) Do(ctx context.Context, target gateway.Target, r *http.Request) (*http.Response, error) {
@@ -45,6 +47,12 @@ func (f *seerrTVDB) Do(ctx context.Context, target gateway.Target, r *http.Reque
 		code, body = 404, `{"status":"failure"}`
 	case f.fail || f.detailFail && strings.HasSuffix(r.URL.Path, "/extended"):
 		code, body = 500, `{"status":"failure","message":"InternalServerError"}`
+	case f.slow && strings.HasSuffix(r.URL.Path, "/search"):
+		<-ctx.Done()
+		return nil, ctx.Err()
+	case f.remote && strings.HasSuffix(r.URL.Path, "/search"):
+		body = `{"status":"success","data":[{"tvdb_id":"900001","type":"series","name":"New Show","year":"2024",
+			"remote_ids":[{"id":"5000","type":12,"sourceName":"TheMovieDB.com"}]}]}`
 	case strings.HasSuffix(r.URL.Path, "/search"):
 		f.query = r.URL.Query().Get("query")
 		if r.URL.Query().Get("type") != "series" {
@@ -234,6 +242,43 @@ func TestSeriesLookupName(t *testing.T) {
 			}
 			if n := e.one(`SELECT COUNT(*) FROM title WHERE tvdb_id = 900001`); n != 0 {
 				t.Fatalf("lookup created %d titles", n)
+			}
+		})
+	}
+}
+
+// A TVDB search that times out leaves the catalog's matches as the answer.
+func TestSeriesLookupNameSearchTimeout(t *testing.T) {
+	t.Parallel()
+	e := newEnv(t)
+	seerrMetadata(t, e, &seerrTVDB{t: t, slow: true})
+	var out []seriesResource
+	e.call("GET", "/sonarr/api/v3/series/lookup?term=The%20Show", nil, 200, &out)
+	if len(out) != 1 || out[0].ID != IDBase+10 {
+		t.Fatalf("lookup: %+v", out)
+	}
+}
+
+// TVDB's results for series the catalog holds come back as those series, once: one known only by its TMDb id that the
+// name matched, and one under another name that the name did not match.
+func TestSeriesLookupNameOutsideHeld(t *testing.T) {
+	t.Parallel()
+	for _, c := range []struct {
+		name, update, term string
+		remote             bool
+	}{
+		{"tmdb only, matched by name", `UPDATE title SET tvdb_id = NULL, tmdb_id = 5000 WHERE id = 10`, "The%20Show", true},
+		{"tvdb id, other name", `UPDATE title SET tvdb_id = 900001 WHERE id = 10`, "New%20Show", false},
+	} {
+		t.Run(c.name, func(t *testing.T) {
+			e := newEnv(t)
+			f := &seerrTVDB{t: t, remote: c.remote}
+			seerrMetadata(t, e, f)
+			e.exec(c.update)
+			var out []seriesResource
+			e.call("GET", "/sonarr/api/v3/series/lookup?term="+c.term, nil, 200, &out)
+			if len(out) != 1 || out[0].ID != IDBase+10 || out[0].Title != "The Show" || f.calls == 0 {
+				t.Fatalf("lookup: %+v, calls %d", out, f.calls)
 			}
 		})
 	}

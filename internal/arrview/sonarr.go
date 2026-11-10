@@ -492,53 +492,20 @@ func (s *Service) seriesLookup(w http.ResponseWriter, r *request) {
 		s.internal(w, r, err)
 		return
 	}
-	if prefix == "" && len(bs) < lookupLimit {
-		// Series the catalog lacks: TVDB's name search after the catalog's matches, as movie lookups add TMDb's.
-		if search, ok := s.tvmeta.(interface {
-			SearchSeries(context.Context, string) ([]tvdb.SearchResult, error)
-		}); ok {
-			results, err := search.SearchSeries(ctx, val)
-			if err != nil {
-				s.log.Warn("series search failed", "view", r.v.Key, "err", err)
-			} else {
-				seen := map[int]bool{}
-				for _, b := range bs {
-					if b.tvdb > 0 {
-						seen[b.tvdb] = true
-					}
-				}
-				for _, result := range results {
-					id, err := strconv.Atoi(result.TVDBID)
-					if err != nil || id <= 0 || seen[id] || result.Type != "series" {
-						continue
-					}
-					seen[id] = true
-					year, _ := strconv.Atoi(result.Year)
-					bs = append(bs, titleBrief{tvdb: id, name: result.Name, year: year})
-					if len(bs) == lookupLimit {
-						break
-					}
-				}
-			}
-		}
-	}
-	out := make([]seriesResource, 0, len(bs))
-	for _, b := range bs {
+	hydrate := func(ctx context.Context, b titleBrief) (seriesResource, error) {
+		var err error
 		var e *entry
 		if b.id > 0 {
 			if e, err = s.loadOne(ctx, r.v, b.id); err != nil {
-				s.internal(w, r, err)
-				return
+				return seriesResource{}, err
 			}
 		}
 		if e != nil {
 			rs, err := s.seriesResources(ctx, r.v, []*entry{e})
 			if err != nil {
-				s.internal(w, r, err)
-				return
+				return seriesResource{}, err
 			}
-			out = append(out, rs[0])
-			continue
+			return rs[0], nil
 		}
 		sr := seriesResource{Title: b.name, AlternateTitles: []any{}, Status: "continuing", Images: []any{},
 			Seasons: []seasonResource{}, Year: b.year, SeasonFolder: true, Monitored: true, MonitorNewItems: "all",
@@ -547,8 +514,7 @@ func (s *Service) seriesLookup(w http.ResponseWriter, r *request) {
 		if b.id > 0 {
 			// A series Theatarr holds, in no library of this view: its type is the title's, as every view shows it.
 			if sr.SeriesType, err = store.SeriesType(ctx, s.st.Reader(), b.id); err != nil {
-				s.internal(w, r, err)
-				return
+				return seriesResource{}, err
 			}
 		}
 		if b.id == 0 && b.tvdb > 0 && s.tvmeta != nil {
@@ -577,8 +543,7 @@ func (s *Service) seriesLookup(w http.ResponseWriter, r *request) {
 			// Known to us but not in this view: its seasons, so Seerr can say which to monitor.
 			eps, err := s.loadEpisodes(ctx, r.v, []*entry{{id: b.id}})
 			if err != nil {
-				s.internal(w, r, err)
-				return
+				return seriesResource{}, err
 			}
 			seen := map[int]bool{}
 			for _, x := range eps[b.id] {
@@ -588,9 +553,86 @@ func (s *Service) seriesLookup(w http.ResponseWriter, r *request) {
 				}
 			}
 		}
+		return sr, nil
+	}
+	out := make([]seriesResource, 0, len(bs))
+	seen := map[int64]bool{}
+	for _, b := range bs {
+		sr, err := hydrate(ctx, b)
+		if err != nil {
+			s.internal(w, r, err)
+			return
+		}
+		seen[b.id] = true
 		out = append(out, sr)
 	}
+	if prefix == "" && len(out) < lookupLimit {
+		// Series the catalog lacks: TVDB's name search after the catalog's matches, as movie lookups add TMDb's. It
+		// has its own time budget, and when it fails the catalog's matches are the answer.
+		octx, ocancel := context.WithTimeout(r.Context(), 5*time.Second)
+		defer ocancel()
+		for _, b := range s.outsideSeries(octx, r.v, val, seen, lookupLimit-len(out)) {
+			sr, err := hydrate(octx, b)
+			if err != nil {
+				s.log.Warn("series search failed", "view", r.v.Key, "err", err)
+				break
+			}
+			out = append(out, sr)
+		}
+	}
 	writeJSON(w, http.StatusOK, out)
+}
+
+// outsideSeries is TVDB's name search for a series lookup: up to limit series not already listed (seen holds the
+// listed title ids). A result the catalog holds, by its TVDB id or its TMDb id, comes back as that title. nil when
+// there is no TVDB search or it fails.
+func (s *Service) outsideSeries(ctx context.Context, v *View, term string, seen map[int64]bool, limit int) []titleBrief {
+	search, ok := s.tvmeta.(interface {
+		SearchSeries(context.Context, string) ([]tvdb.SearchResult, error)
+	})
+	if !ok || limit <= 0 {
+		return nil
+	}
+	results, err := search.SearchSeries(ctx, term)
+	if err != nil {
+		s.log.Warn("series search failed", "view", v.Key, "err", err)
+		return nil
+	}
+	var out []titleBrief
+	seenTVDB := map[int]bool{}
+	for _, result := range results {
+		id, err := strconv.Atoi(result.TVDBID)
+		if err != nil || id <= 0 || seenTVDB[id] || result.Type != "series" {
+			continue
+		}
+		seenTVDB[id] = true
+		tmdb := 0
+		for _, rid := range result.RemoteIDs {
+			if rid.SourceName == "TheMovieDB.com" {
+				tmdb, _ = strconv.Atoi(rid.ID)
+			}
+		}
+		held, err := s.briefs(ctx, `kind = 'series' AND (tvdb_id = ? OR (? > 0 AND tmdb_id = ?)) ORDER BY tvdb_id = ? DESC, id LIMIT 1`,
+			id, tmdb, tmdb, id)
+		if err != nil {
+			s.log.Warn("series search failed", "view", v.Key, "err", err)
+			return out
+		}
+		b := titleBrief{tvdb: id, name: result.Name}
+		b.year, _ = strconv.Atoi(result.Year)
+		if len(held) == 1 {
+			if seen[held[0].id] {
+				continue
+			}
+			b = held[0]
+			seen[b.id] = true
+		}
+		out = append(out, b)
+		if len(out) == limit {
+			break
+		}
+	}
+	return out
 }
 
 // GET episode?seriesId=[&seasonNumber=] or ?episodeIds= (EpisodeController.GetEpisodes).
