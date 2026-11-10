@@ -1,11 +1,8 @@
 package e2e
 
 import (
-	"bytes"
 	"context"
-	"encoding/json"
 	"fmt"
-	"net/http/httptest"
 	"strings"
 	"testing"
 
@@ -145,11 +142,10 @@ func TestFailedManualAddStartsNoSearch(t *testing.T) {
 	}
 }
 
-// TestManualAddUnknownSizeOverridden: at a quality with a size limit (Radarr's default WEBDL-1080p maximum) a manual
-// add is rejected because its size is not known, nothing is sent, and "Add anyway" (override) takes it the whole
-// way: added, found ready, linked, the title filled. The rejection is asked once, at the add; neither the router
-// nor the import decides against it again.
-func TestManualAddUnknownSizeOverridden(t *testing.T) {
+// TestManualAddUnknownSizeAccepted: at a quality with a size limit (Radarr's default WEBDL-1080p maximum) a manual
+// add, whose size nothing reports, is accepted without override (the person picked the release) and goes the whole
+// way: added, found ready, linked, the title filled.
+func TestManualAddUnknownSizeAccepted(t *testing.T) {
 	t.Parallel()
 	e := newEnvironment(t, func(p *policy.Policy) {
 		p.Profiles["movie"].Qualities = append(p.Profiles["movie"].Qualities, policy.QualityItem{Name: "WEBDL-1080p"})
@@ -157,25 +153,11 @@ func TestManualAddUnknownSizeOverridden(t *testing.T) {
 	rel := movieRelease(12, "1080p.WEB.H265")
 	e.edge.set(rel)
 	id := e.addMovie(true, "movie")
-	body, err := json.Marshal(web.AddReleaseRequest{Version: "movie", InfoHash: rel.hash, Name: rel.name})
-	must(t, err)
-	req := httptest.NewRequest("POST", fmt.Sprintf("%s/titles/%d/releases/add", web.APIBase, id), bytes.NewReader(body))
-	req.Header.Set("X-Api-Key", e.key)
-	req.Header.Set("Content-Type", "application/json")
-	rw := httptest.NewRecorder()
-	e.mux.ServeHTTP(rw, req)
-	if rw.Code != 409 || !strings.Contains(rw.Body.String(), "size limits could not be checked") {
-		t.Fatalf("add without override: %d %s", rw.Code, rw.Body.String())
-	}
-	e.drain()
-	if adds, _, _ := e.edge.snapshot(); len(adds) != 0 {
-		t.Fatalf("a rejected add reached the provider: %v", adds)
-	}
 	var got web.GrabResult
 	e.request("POST", fmt.Sprintf("%s/titles/%d/releases/add", web.APIBase, id),
-		web.AddReleaseRequest{Version: "movie", InfoHash: rel.hash, Name: rel.name, Override: true}, &got)
-	if got.Accepted || !got.Overridden {
-		t.Fatalf("add anyway: %+v", got)
+		web.AddReleaseRequest{Version: "movie", InfoHash: rel.hash, Name: rel.name}, &got)
+	if !got.Accepted || got.Overridden {
+		t.Fatalf("add: %+v", got)
 	}
 	e.drain()
 

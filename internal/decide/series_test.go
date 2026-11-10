@@ -159,15 +159,14 @@ func TestSeriesDecisions(t *testing.T) {
 			t.Errorf("%s: upgrade %v (%s)", c.name, d.Upgrade, d.UpgradeReason)
 		}
 	}
-	// A release added by hand has no size: its quality's size limits could not be checked, and that is the rejection.
-	// The same release from a search with no size is accepted as before.
-	for ix, want := range map[string]string{policy.ManualIndexer: "UnknownSize", "public": ""} {
+	// A release with no size is accepted: one a person added by hand (nothing reports its size) as one from a search.
+	for _, ix := range []string{policy.ManualIndexer, "public"} {
 		d, err := e.DecideSearch(ctx, rel("The.Show.S01E02.2160p.WEB-DL.DDP5.1.H.265-GRP", ix, 0), show(), v, nil)
 		if err != nil {
 			t.Fatal(err)
 		}
-		if reasons(d) != want || d.Accepted != (want == "") {
-			t.Errorf("no size from %q: accepted %v, reasons %s (want %q)", ix, d.Accepted, reasons(d), want)
+		if !d.Accepted {
+			t.Errorf("no size from %q: rejected, reasons %s", ix, reasons(d))
 		}
 	}
 }

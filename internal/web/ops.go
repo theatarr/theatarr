@@ -380,8 +380,7 @@ func magnetHash(m string) string {
 // magnet or hash for the version, one no search of ours found (admins). It takes the grab's route from the decision
 // on: decided now under the given name, a rejected one needs override (409 with the rejections otherwise), then the
 // router with a person's grab as the source, so provider order, pacing, the cached-only rule, the record of our own
-// adds and the history are the grab's. The release has no indexer, and no size or seeders are known: a size limit set
-// for its quality could not be checked, which is a rejection like any other (decide: UnknownSize). Only for a
+// adds and the history are the grab's. The release has no indexer, and no size or seeders are known. Only for a
 // version a search would run for (mode active, router on). Nothing is sent to a provider here.
 func (w *Web) apiAddRelease(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()

@@ -234,8 +234,7 @@ func (e *Engine) decideSeries(ctx context.Context, d *Decision, p *Profile, rel 
 			group0 = append(group0, x)
 		}
 	}
-	group0 = append(append(append(e.ourRules(rel, v), unknownSize(rel, p.Engine, qm.Quality, parsed.Special)...),
-		animeRejections...), group0...)
+	group0 = append(append(e.ourRules(rel, v), animeRejections...), group0...)
 	if len(group0) > 0 {
 		d.Rejections = group0
 	} else {

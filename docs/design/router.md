@@ -138,8 +138,8 @@ The writes live in their own package. `internal/provider` stays GET-only: its `T
   `IndexerNotInVersion` and the retry's check skip it) and gets the version's whole provider order
   (`ReleaseProviders`). Everything else is a grab by hand: the same decision (rejected needs `override`), the source
   `ui:grab:<who>`, the same gate, blocklist, pacing, cached-only settle and ledger of our own adds. Its size and
-  seeders are unknown (0 and -1); a size limit set for its quality could not be checked, which decide reports as the
-  rejection `UnknownSize` (a searched release with no size is decided as before). Only the name the person gave and
+  seeders are unknown (0 and -1); a size limit set for its quality is not checked and does not reject it, as for a
+  searched release with no size (the person picked the release). Only the name the person gave and
   the hash are used; the magnet's trackers are not sent. An offer to another library declines it
   (`unknown_indexer`).
   - *One marker, one writer.* Only `AddRelease` writes the placeholder (`policy.IsManualAdd` reads it). A release
