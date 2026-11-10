@@ -303,3 +303,34 @@ func TestSettingsVersionAvailabilityFields(t *testing.T) {
 	config["minimum_availability"] = "tba"
 	save("movie-web", config, 422, "tba as a library default")
 }
+
+// An edit that sends empty roots ends with the library folder as its root, as a create does; an edit that sends no
+// roots keeps the stored ones.
+func TestSettingsVersionEditEmptyRootsUsesLibraryFolder(t *testing.T) {
+	t.Parallel()
+	area := t.TempDir()
+	se := newSettingsEnvBase(t, nil, func(p *policy.Policy) { p.Library.Dangling.Roots = []string{area} }, nil)
+	config := se.want(se.call("GET", "/versions/movie-web", nil), 200, "get")["record"].(map[string]any)["config"].(map[string]any)
+	root, wide := filepath.Join(area, "lib"), filepath.Join(area, "lib-wide")
+	for _, d := range []string{root, wide} {
+		if err := os.Mkdir(d, 0o700); err != nil {
+			t.Fatal(err)
+		}
+	}
+	config["library"] = root
+	delete(config, "mode")
+	se.want(se.call("POST", "/versions", map[string]any{"generation": se.generation(), "key": "test-version", "config": config, "roots": []string{root}}), 200, "create")
+	roots := func() []any {
+		return se.want(se.call("GET", "/versions/test-version", nil), 200, "get")["record"].(map[string]any)["roots"].([]any)
+	}
+	se.want(se.call("PUT", "/versions/test-version", map[string]any{"generation": se.generation(), "key": "test-version", "config": config, "roots": []string{}}), 200, "edit with empty roots")
+	if got := roots(); len(got) != 1 || got[0] != root {
+		t.Fatalf("roots after an edit with empty roots: %v", got)
+	}
+	// Explicit roots are kept by an edit that does not send any.
+	se.want(se.call("PUT", "/versions/test-version", map[string]any{"generation": se.generation(), "key": "test-version", "config": config, "roots": []string{root, wide}}), 200, "two roots")
+	se.want(se.call("PUT", "/versions/test-version", map[string]any{"generation": se.generation(), "key": "test-version", "config": config}), 200, "edit without roots")
+	if got := roots(); len(got) != 2 {
+		t.Fatalf("stored roots changed by an edit without roots: %v", got)
+	}
+}

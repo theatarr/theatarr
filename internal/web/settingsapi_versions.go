@@ -151,7 +151,9 @@ func versionSettingsRequest(snap *settings.Snapshot, body versionSettingsBody, c
 	if body.Roots != nil {
 		record.Roots = append([]string(nil), (*body.Roots)...)
 	}
-	if create && len(record.Roots) == 0 {
+	// A new library, or an edit that sends empty roots, writes under its library folder, as the editor shows it. An
+	// edit that sends no roots keeps the stored ones.
+	if (create || body.Roots != nil) && len(record.Roots) == 0 && record.Config.Library != "" {
 		record.Roots = []string{record.Config.Library}
 	}
 	if index < 0 {
