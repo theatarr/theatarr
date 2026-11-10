@@ -145,8 +145,8 @@ has been broken, "torrent has no video upstream" where that is the cause, the li
 |---|---|
 | Waiting for the next repair sweep | Theatarr made this link and will try to point it at the torrent's new folder. A renamed torrent is fixed this way without a new download. |
 | Link marked missing | The sweep found nothing to point the link at and recorded the file as gone. The title page and **Wanted** show whether that copy is searched again. |
-| A link Theatarr let go of | Theatarr made the link and has since dropped it from its records (the copy was replaced or removed). |
-| Not a link Theatarr made | A link from another tool, such as an arr, under one of the checked folders. Theatarr does not repair it. |
+| A link Theatarr let go of | Theatarr made the link and no longer uses it (the copy was replaced or removed). |
+| Not a link Theatarr made | Theatarr has no record of this link: it comes from another tool, such as an arr, under one of the checked folders. |
 
 The list only shows the report: opening it scans nothing and repairs nothing. The repair sweep needs **Write
 library links** on and an Active library. To run it by hand, see

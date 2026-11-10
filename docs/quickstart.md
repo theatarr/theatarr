@@ -16,7 +16,8 @@ Pull the released image with [`examples/compose.image.yaml`](../examples/compose
 `compose.yaml` into any directory; no checkout of the repository is needed. Each release publishes an image for
 linux/amd64 to `ghcr.io/theatarr/theatarr`, and the
 [Releases page](https://github.com/theatarr/theatarr/releases) lists the versions. There is no published arm64
-image yet: on an arm64 host, build from source (below). That build is checked in CI but untested on real hardware. The image tag is the version
+image yet: on an arm64 host, build from source (below). CI cross-builds the arm64 image on an amd64 machine; a
+build on an arm64 host and the result on real hardware are untested. The image tag is the version
 without the leading `v`: release `v0.1.3` is the image `0.1.3`. Put the version in a `.env` file beside
 `compose.yaml`, where every `docker compose` command reads it:
 
@@ -396,7 +397,7 @@ links** all on), add a title and watch it arrive:
    - **Monitor seasons that appear later**, on by default. Off: a season announced after the add stays
      unmonitored.
 
-   Neither is offered for a series that is already in a library; change its monitoring on the title page.
+   Neither is offered for a series that is already in a library.
 2. Open **Activity › Queue**. A release that a provider has cached shows there as a download and is then linked
    into the library root; with Plex connected, Theatarr asks Plex to scan that folder.
 3. If nothing shows up, open **Wanted**: each row says what the title is waiting for, and **Search now** on the
