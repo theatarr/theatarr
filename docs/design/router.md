@@ -192,7 +192,7 @@ Bare HTTP 451 without a recognised RD refusal code also backs the provider off; 
 
 **Why `account_hold`.** Real-Debrid answers every add with 451 `infringing_file` during short blocks on the whole
 account: seconds to minutes, after bursts (zurg's maintainers measured this). It also refuses single releases with
-451 every time, and its `infringing_file` blocks are usually per title: most releases of a DMCA'd film get 451. So
+451 every time, and its `infringing_file` blocks are usually per title: most releases of a title it has blocked get 451. So
 one 451 blocks only its hash on RD and the route moves on; only 451s on hashes of two different titles within 10
 minutes hold the account. The same release refused again, or the next release of the same title, never counts as a
 hold, so a title RD refuses cannot pin RD on the hold ladder (`TestOne451BlocksTheHashNotTheAccount`,

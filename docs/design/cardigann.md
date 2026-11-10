@@ -33,12 +33,12 @@ cardigann:
     api_key_env: THEATARR_PROWLARR_KEY
 
 indexers:
-  tpb-native:
+  site-native:
     kind: cardigann
-    definition: thepiratebay       # catalog id (an id it replaces works too)
-    url: https://thepiratebay.org/ # the site, one of the definition's links or a mirror
+    definition: examplesite        # catalog id (an id it replaces works too)
+    url: https://site.example/     # the site, one of the definition's links or a mirror
     privacy: public                # a label; the stricter of this and the definition's type is shown
-    budget: tpb-native             # required, and used by no other indexer
+    budget: site-native            # required, and used by no other indexer
     settings: {sort: seeders}      # the definition's non-secret settings
     hosts: [apibay.org]            # further hosts the definition reaches (the catalog lists them)
 ```
@@ -139,8 +139,8 @@ on every hop, and picks only planned (shadow) or
 routed (active versions, with grabbing on).
 
 - **The feed** is the definition's search without keywords, as in Prowlarr (Cardigann's RSS is an empty search).
-  The definitions choose their own "latest" page for an empty `.Keywords`: The Pirate Bay its top-100 recent file,
-  Nyaa its first two listing pages (two search paths), TheRARBG the last ten days at a hundred a page. Categories
+  The definitions choose their own "latest" page for an empty `.Keywords` (a recent-items file, the first
+  listing pages, or a date window). Categories
   are the versions' (2000, 5000, 5070 for anime), mapped to the site's.
 - **How far back:** one search per sync, whatever the definition's paths read. A definition has no offset, so the
   catch-up loop's next page is answered empty without a request (Prowlarr answers an offset on a Cardigann indexer
@@ -169,7 +169,7 @@ TheRARBG's case loads it from the catalog's custom folder. All three run nativel
   .NET engine (see "Regular expressions" above). The real definition from Prowlarr/Indexers matches.
 - **TheRARBG** is not in Prowlarr's catalog (Prowlarr/Indexers blocklists `therarbg.yml`); Prowlarr runs
   it as a custom definition. Copy that file to the custom folder (below).
-- **The Pirate Bay** matches. Its API host (`apibay.org`) must be in the indexer's `hosts`.
+- A site whose definition calls a separate API host needs that host in the indexer's `hosts`.
 
 ## The definition catalog (sync source)
 
