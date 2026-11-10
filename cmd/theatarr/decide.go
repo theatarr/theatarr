@@ -31,7 +31,7 @@ import (
 func init() {
 	register(command{
 		name:    "decide",
-		summary: "decide a release for a title's version and print the decision with its score breakdown (-search: search first, where the VPN routes indexer traffic); decide shadow: replay arr grab history",
+		summary: "decide a release for a title's library and print the decision with its score breakdown (-search: search first, where the VPN routes indexer traffic); decide shadow: replay arr grab history",
 		run:     func(args []string) error { return runDecide(args, os.Stdout, nil) },
 	})
 }
@@ -156,14 +156,14 @@ func runDecide(args []string, out io.Writer, dial func(context.Context, string, 
 	season := fs.Int("season", -1, "series: decide as found by a search for this season (with -search: search it)")
 	episode := fs.Int("episode", 0, "series: with -season, a search for this one episode")
 	version := libraryFlag(fs, "library key from the policy")
-	search := fs.Bool("search", false, "search the version's indexers through the gateway and decide every result")
+	search := fs.Bool("search", false, "search the library's indexers through the gateway and decide every result")
 	size := fs.String("size", "", "release size: bytes, or with a unit (25GB, 700MiB)")
 	flags := fs.String("flags", "", "indexer flags: arr names (G_Freeleech,G_Scene) or torznab tags (freeleech,internal,scene)")
 	languages := fs.String("languages", "", "languages the indexer gave, comma-separated (English,French)")
 	seeders := fs.Int("seeders", -1, "seeders")
 	idx := fs.String("indexer", "", "indexer key from the policy (privacy and multi languages come from it)")
 	imdb := fs.String("imdb", "", "IMDb id the indexer gave (tt…)")
-	noFile := fs.Bool("no-existing", false, "decide as if the version had no file")
+	noFile := fs.Bool("no-existing", false, "decide as if the library had no file")
 	asJSON := fs.Bool("json", false, "print JSON")
 	limit := fs.Int("limit", 30, "-search: decisions to print (0: all)")
 	if err := fs.Parse(args); err != nil {

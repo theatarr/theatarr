@@ -29,7 +29,7 @@ import (
 func init() {
 	register(command{
 		name:    "library",
-		summary: "library: dry-run an import, verify a version's root, relink dangling links, read arr naming",
+		summary: "library: dry-run an import, verify a library's root, relink dangling links, read arr naming",
 		run:     func(args []string) error { return runLibrary(args, os.Stdout) },
 	})
 }

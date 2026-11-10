@@ -73,7 +73,7 @@ func runGolive(args []string, out io.Writer) error {
 	minGrabs := fs.Int("min-grabs", 20, "fewest arr grabs in the window worth judging")
 	noArr := fs.Bool("no-arr", false, "do not read the owning arr instances (GET)")
 	noEngine := fs.Bool("no-engine", false, "do not build the profiles (from_arr profiles GET the arr)")
-	scan := fs.Bool("scan", true, "walk the version's roots read-only (library verify)")
+	scan := fs.Bool("scan", true, "walk the library's roots read-only (library verify)")
 	expiry := fs.String("provider-expiry", envOr("THEATARR_PROVIDER_EXPIRY", ""), "known plan ends, key=YYYY-MM-DD "+
 		"comma-separated (env THEATARR_PROVIDER_EXPIRY), e.g. tb=2027-01-31: a WARN within 30 days")
 	asJSON := fs.Bool("json", false, "print JSON")

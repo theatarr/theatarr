@@ -146,7 +146,7 @@ func (l *Library) Refresh(ctx context.Context, o RefreshOptions) (*RefreshReport
 	}
 	vp := l.pol.Versions[o.Version]
 	if vp == nil {
-		return nil, fmt.Errorf("library: refresh: unknown version %q", o.Version)
+		return nil, fmt.Errorf("library: refresh: unknown library %q", o.Version)
 	}
 	if vp.Follows == "" {
 		return nil, fmt.Errorf("library: refresh: %s is not a parallel version (versions.%s.follows)", o.Version, o.Version)

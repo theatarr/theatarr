@@ -141,7 +141,7 @@ func (l *Library) Adopt(ctx context.Context, o AdoptOptions) (*AdoptReport, erro
 	}
 	vp := l.pol.Versions[o.Version]
 	if vp == nil {
-		return nil, fmt.Errorf("library: adopt: unknown version %q", o.Version)
+		return nil, fmt.Errorf("library: adopt: unknown library %q", o.Version)
 	}
 	if vp.Follows == "" {
 		return nil, fmt.Errorf("library: adopt: %s is not a parallel version (versions.%s.follows)", o.Version, o.Version)

@@ -217,7 +217,7 @@ func SectionOwnedElsewhere(key string, config json.RawMessage) error {
 		for _, name := range sortedPolicyKeys(versions) {
 			if fields, ok := versions[name].(map[string]any); ok {
 				if _, ok := fields["roots"]; ok {
-					list = append(list, policy.FieldError{Path: "library.versions[" + name + "].roots", Msg: "set in the version's settings (roots)"})
+					list = append(list, policy.FieldError{Path: "library.versions[" + name + "].roots", Msg: "set in the library's settings (roots)"})
 				}
 			}
 		}

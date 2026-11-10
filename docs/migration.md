@@ -317,8 +317,8 @@ K starts complete instead of downloading everything again. It links only what is
 running it again is safe. `-dry-run` writes nothing; a real run needs the gate open for K (`library.enabled`,
 `mode: active`, roots). A file it cannot link is skipped with the reason in the report (`arr_file_missing`,
 `not_a_symlink`, `target_off_mount`, `dangling`, `path_taken`, `no_episodes`, `naming`). A pack that overlaps K's own
-episodes is skipped whole and counted under `missing_episodes` and `partial_packs`. A mount that is down, or a root
-that does not answer, stops the run before anything is read.
+episodes is skipped whole and counted under `missing_episodes` and `partial_packs`. A mount that is down aborts the
+run, and a root that does not answer (K's or F's) stops it before anything under it is read.
 
 **Refresh** moves the links adopt made to the arr's current files after the arr upgrades one: the old link goes to
 the trash and Plex scans the folder. It never touches a link of Theatarr's own imports. It leaves alone, and reports,
