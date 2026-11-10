@@ -84,7 +84,8 @@ export function pauseState(o: SettingsOverview): "paused" | "running" | "custom"
 
 /** The admin header's Pause: one switch for Allow new downloads and Write library links together. On turns both off,
  * off turns both on in one save, with the same confirmation the two switches ask for. When the two differ it shows
- * Custom and links to the one that is off; it never toggles them then. fallback renders while Pause cannot be used. */
+ * Custom and links to the one that is off; it never toggles them then. fallback (the header's downloads signal)
+ * renders while Pause cannot be used, and beside Custom when new downloads are the switch that is off. */
 export function PauseSwitch({ fallback = null }: { fallback?: ReactNode }) {
   const o = useSettings().data;
   const { save, busy, error, dialog } = useSwitchSave();
@@ -94,11 +95,15 @@ export function PauseSwitch({ fallback = null }: { fallback?: ReactNode }) {
   const pill = "flex h-8 shrink-0 items-center gap-1.5 rounded-[5px] px-2 text-[12.5px] text-[var(--ink-2)]";
   if (state === "custom") {
     const off = o.switches.router_enabled ? "library_enabled" : "router_enabled";
+    // New downloads off keeps its own signal (fallback) beside Custom, as before Pause.
     return (
+      <>
+      {off === "router_enabled" ? fallback : null}
       <Link to={SWITCH_PAGE[off] + "#switches"} data-testid="pause-custom" className={pill + " transition-colors hover:bg-[var(--hover)] hover:text-[var(--ink)]"}
         title={off === "router_enabled" ? "Allow new downloads is off and Write library links is on." : "Write library links is off and Allow new downloads is on."}>
         Pause: Custom
       </Link>
+      </>
     );
   }
   const paused = state === "paused";

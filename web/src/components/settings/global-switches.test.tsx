@@ -112,12 +112,14 @@ describe("Pause in the admin header", () => {
 
   it.each([[true, false, "/admin/settings/libraries#switches"], [false, true, "/admin/settings/downloads#switches"]])("router %s, links %s: shows Custom linking to the switch that is off", async (router, library, href) => {
     const fetch = mockFetch([{ method: "GET", path: "/settings", reply: both(router, library) }]);
-    renderPage(<PauseSwitch />);
+    renderPage(<PauseSwitch fallback={<span>signal</span>} />);
     const custom = await screen.findByTestId("pause-custom");
     expect(custom.textContent).toBe("Pause: Custom");
     expect(custom.getAttribute("href")).toBe(href);
     expect(screen.queryByRole("switch")).toBeNull();
     expect(fetch.calls("PUT", "/settings/switches")).toHaveLength(0);
+    // New downloads off keeps the header's signal beside Custom.
+    expect(!!screen.queryByText("signal")).toBe(!router);
   });
 
   it("shows the fallback instead when settings are read-only or a switch is forced off", async () => {
