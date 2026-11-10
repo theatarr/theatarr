@@ -13,6 +13,7 @@ import (
 
 	"github.com/theatarr/theatarr/internal/acquire"
 	"github.com/theatarr/theatarr/internal/auth"
+	"github.com/theatarr/theatarr/internal/availability"
 	"github.com/theatarr/theatarr/internal/catalog"
 	"github.com/theatarr/theatarr/internal/metadata/art"
 	"github.com/theatarr/theatarr/internal/metadata/tmdb"
@@ -335,6 +336,12 @@ type AddRequest struct {
 	// firstSeason, lastSeason, pilot, recent, none), applied after Seasons; empty keeps Seasons as given. For a
 	// new title only: a title already in the library answers 400.
 	Monitor string `json:"monitor"`
+	// SeriesType is a series' standard, daily or anime type, for a new title only (400 otherwise: an add never
+	// changes the type of a series the library has); empty stores none.
+	SeriesType string `json:"series_type"`
+	// MinimumAvailability is a movie's announced, inCinemas or released, stored as the explicit choice of each
+	// library this add adds the movie to (new or restored); empty stores nothing, so each library's own rule applies.
+	MinimumAvailability string `json:"minimum_availability"`
 	// Search asks for a search after the add, for the versions catalog.Searchable lets through.
 	Search bool `json:"search"`
 
@@ -555,13 +562,19 @@ func (w *Web) addTitle(ctx context.Context, req AddRequest, source string) (*Add
 	if req.Monitor != "" && (kind != policy.KindSeries || !slices.Contains(addMonitors, req.Monitor)) {
 		return nil, &addError{http.StatusBadRequest, "monitor is for a series: one of " + strings.Join(addMonitors, ", ")}
 	}
+	if req.SeriesType != "" && (kind != policy.KindSeries || !slices.Contains(seriesTypes, req.SeriesType)) {
+		return nil, &addError{http.StatusBadRequest, "series_type is for a series: one of " + strings.Join(seriesTypes, ", ")}
+	}
+	if req.MinimumAvailability != "" && (kind != policy.KindMovie || !slices.Contains(minimumAvailabilities, req.MinimumAvailability)) {
+		return nil, &addError{http.StatusBadRequest, "minimum_availability is for a movie: one of " + strings.Join(minimumAvailabilities, ", ")}
+	}
 	if req.TitleID <= 0 {
 		w.fillFromTMDb(ctx, &req, kind)
 	}
 	monitored := req.Monitored == nil || *req.Monitored
 	in := catalog.Input{Kind: kind, TitleID: req.TitleID, TmdbID: req.TMDbID, TvdbID: req.TVDbID, ImdbID: strings.TrimSpace(req.IMDbID),
 		Title: req.Title, Year: req.Year, Anime: req.Anime, Monitored: monitored, Seasons: req.Seasons, Source: source,
-		MonitorNew: req.MonitorNew, Monitor: req.Monitor, SeasonVersions: req.seasonVersions,
+		MonitorNew: req.MonitorNew, Monitor: req.Monitor, SeriesType: req.SeriesType, SeasonVersions: req.seasonVersions,
 		Versions: func(anime bool) ([]string, error) {
 			if req.Versions != nil {
 				return req.Versions, nil
@@ -574,12 +587,41 @@ func (w *Web) addTitle(ctx context.Context, req AddRequest, source string) (*Add
 	var res *catalog.Result
 	err := w.st.WriteTx(ctx, func(tx *sql.Tx) error {
 		var err error
+		// The movie's copies on before the add (as the arr views' add has them), to tell the ones this add adds.
+		var on []string
+		if req.MinimumAvailability != "" {
+			if err := queryEach(ctx, tx, `SELECT v.policy_key FROM version v JOIN title t ON t.id = v.title_id
+				WHERE t.kind = 'movie' AND (t.id = ? OR ? <= 0 AND t.tmdb_id = ?) AND v.monitored = 1 AND NOT EXISTS
+				(SELECT 1 FROM arrview_removed_version r WHERE r.version_id = v.id)`,
+				[]any{req.TitleID, req.TitleID, req.TMDbID}, func(rows *sql.Rows) error {
+					var k string
+					if err := rows.Scan(&k); err != nil {
+						return err
+					}
+					on = append(on, k)
+					return nil
+				}); err != nil {
+				return err
+			}
+		}
 		if res, err = catalog.Add(ctx, tx, in, w.now(), w.log); err != nil {
 			return err
 		}
 		if !res.Created && req.Monitor != "" {
 			// It would rewrite the monitoring of the copies the title has.
 			return &addError{http.StatusBadRequest, fmt.Sprintf("monitor is for a new title: this one is already in the library (title %d)", res.TitleID)}
+		}
+		if !res.Created && req.SeriesType != "" {
+			// The type is the series' one value, shared by the copies it has: an add never changes it.
+			return &addError{http.StatusBadRequest, fmt.Sprintf("series_type is for a new title: this one is already in the library (title %d)", res.TitleID)}
+		}
+		if req.MinimumAvailability != "" {
+			// A deliberate choice for the libraries this add adds the movie to, new or restored, whether or not the
+			// library has a default of its own. A copy that stayed in the library keeps its rule.
+			keys := slices.DeleteFunc(slices.Clone(res.Versions), func(k string) bool { return slices.Contains(on, k) })
+			if err := availability.Choose(ctx, tx, res.TitleID, keys, req.MinimumAvailability, w.now()); err != nil {
+				return err
+			}
 		}
 		if len(req.moreVersions) == 0 {
 			return nil

@@ -3,14 +3,17 @@ package web
 import (
 	"bytes"
 	"context"
+	"database/sql"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
 	"log/slog"
+	"maps"
 	"net/http"
 	"net/http/httptest"
 	"path/filepath"
+	"reflect"
 	"slices"
 	"strings"
 	"sync"
@@ -20,6 +23,8 @@ import (
 	"github.com/theatarr/theatarr/internal/acquire"
 	"github.com/theatarr/theatarr/internal/arrview"
 	"github.com/theatarr/theatarr/internal/auth"
+	"github.com/theatarr/theatarr/internal/availability"
+	"github.com/theatarr/theatarr/internal/catalog"
 	"github.com/theatarr/theatarr/internal/decide"
 	"github.com/theatarr/theatarr/internal/indexer"
 	"github.com/theatarr/theatarr/internal/metadata/tmdb"
@@ -738,6 +743,10 @@ func TestAddMonitorPreset(t *testing.T) {
 		{"kind": "series", "tvdb_id": 301, "monitor": "skip"},
 		{"kind": "movie", "tmdb_id": 105, "monitor": "all"},
 		{"title_id": 1, "monitor": "all"},
+		{"kind": "series", "tvdb_id": 301, "series_type": "weekly"},
+		{"kind": "movie", "tmdb_id": 105, "series_type": "daily"},
+		{"kind": "movie", "tmdb_id": 105, "minimum_availability": "tba"},
+		{"kind": "series", "tvdb_id": 301, "minimum_availability": "announced"},
 	} {
 		e.call("POST", APIBase+"/titles", body, 400, nil)
 	}
@@ -764,6 +773,9 @@ func TestAddMonitorPreset(t *testing.T) {
 		{"kind": "series", "tvdb_id": 201, "versions": []string{"tv-2160p"}, "monitor": "none"},
 		{"kind": "series", "tmdb_id": 987654, "tvdb_id": 201, "title": "The Show", "versions": []string{"tv-2160p", "anime-tv"},
 			"monitor": "all", "monitor_new": "none"},
+		// The type is the series' one value: an add to a series the library has never sets it, stored or not.
+		{"title_id": 10, "versions": []string{"tv-2160p"}, "series_type": "daily"},
+		{"kind": "series", "tvdb_id": 201, "versions": []string{"tv-2160p", "anime-tv"}, "series_type": "daily"},
 	} {
 		var refused struct {
 			Error string `json:"error"`
@@ -778,6 +790,9 @@ func TestAddMonitorPreset(t *testing.T) {
 	}
 	if n := e.count(`SELECT COUNT(*) FROM version WHERE title_id = 10`); n != 1 {
 		t.Errorf("a refused add wrote a version: %d versions", n)
+	}
+	if n := e.count(`SELECT COUNT(*) FROM title WHERE id = 10 AND COALESCE(series_type, '') = ''`); n != 1 {
+		t.Error("a refused series_type changed the title's type")
 	}
 	// The same request without the preset is today's add.
 	e.call("POST", APIBase+"/titles", map[string]any{"kind": "series", "tvdb_id": 201, "versions": []string{"tv-2160p", "anime-tv"}}, 201, nil)
@@ -843,5 +858,293 @@ func TestAddMonitorPreset(t *testing.T) {
 	e.call("POST", APIBase+"/titles", map[string]any{"title_id": 10, "versions": []string{"tv-2160p"}, "monitor_new": "none"}, 201, nil)
 	if got := intent(10); !strings.HasPrefix(got, "none ") || !strings.HasSuffix(got, " ") {
 		t.Errorf("later seasons off on a held series: %q", got)
+	}
+	// A new series takes the type of the request; without one none is stored.
+	seriesType := func(id int64) string {
+		var s string
+		if err := e.st.Reader().QueryRow(`SELECT COALESCE(series_type, '') FROM title WHERE id = ?`, id).Scan(&s); err != nil {
+			t.Fatal(err)
+		}
+		return s
+	}
+	plain := seriesType(res.Title.ID)
+	e.call("POST", APIBase+"/titles", map[string]any{"kind": "series", "tvdb_id": 302, "title": "Daily",
+		"versions": []string{"tv-2160p"}, "series_type": "daily"}, 201, &res)
+	if got := seriesType(res.Title.ID); got != "daily" || plain != "" {
+		t.Errorf("series_type: %q after daily, %q without", got, plain)
+	}
+	var page TitleDetail
+	e.call("GET", fmt.Sprintf("%s/titles/%d", APIBase, res.Title.ID), nil, 200, &page)
+	if page.SeriesType != "daily" {
+		t.Errorf("the title page reads series_type %q", page.SeriesType)
+	}
+}
+
+// TestAddMinimumAvailability: the choice is one arrview_title row on the own view (v/<key>) of each library the add
+// creates, which availability.Movie reads; an add without it writes no such row, and a later add leaves the rows of
+// the libraries the movie already had.
+func TestAddMinimumAvailability(t *testing.T) {
+	t.Parallel()
+	e := newAddEnv(t, nil)
+	ctx := context.Background()
+	records := func(titleID int64) string {
+		var out []string
+		rows, err := e.st.Reader().Query(`SELECT view, minimum_availability, quality_profile_id, root_folder_path
+			FROM arrview_title WHERE title_id = ? ORDER BY view`, titleID)
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer rows.Close()
+		for rows.Next() {
+			var view, minimum, root string
+			var qp int64
+			if err := rows.Scan(&view, &minimum, &qp, &root); err != nil {
+				t.Fatal(err)
+			}
+			out = append(out, fmt.Sprintf("%s=%s/%d/%s", view, minimum, qp, root))
+		}
+		return strings.Join(out, " ")
+	}
+	available := func(titleID int64, key string) bool {
+		var vid int64
+		if err := e.st.Reader().QueryRow(`SELECT id FROM version WHERE title_id = ? AND policy_key = ?`, titleID, key).Scan(&vid); err != nil {
+			t.Fatal(err)
+		}
+		ok, err := availability.Movie(ctx, e.st.Reader(), e.pol, titleID, vid, key, addNow)
+		if err != nil {
+			t.Fatal(err)
+		}
+		return ok
+	}
+	// Today's requests: no row, for a new movie, a series and a movie gaining a library.
+	var plain, res AddResult
+	e.call("POST", APIBase+"/titles", map[string]any{"kind": "movie", "tmdb_id": 105, "title": "Epsilon",
+		"versions": []string{"movie-remux", "movie-web"}}, 201, &plain)
+	e.call("POST", APIBase+"/titles", map[string]any{"kind": "series", "tvdb_id": 301, "title": "Kappa",
+		"versions": []string{"tv-2160p"}}, 201, nil)
+	e.call("POST", APIBase+"/titles", map[string]any{"title_id": 1, "versions": []string{"movie-remux", "movie-web"}}, 201, nil)
+	if n := e.count(`SELECT COUNT(*) FROM arrview_title`); n != 0 {
+		t.Fatalf("default adds wrote %d arrview_title rows", n)
+	}
+	// Epsilon has no release dates: not available as released (the default), available as announced.
+	if available(plain.Title.ID, "movie-web") {
+		t.Error("an unreleased movie added without a choice is available")
+	}
+	e.call("POST", APIBase+"/titles", map[string]any{"kind": "movie", "tmdb_id": 106, "title": "Zeta",
+		"versions": []string{"movie-remux"}, "minimum_availability": "inCinemas"}, 201, &res)
+	if got := records(res.Title.ID); got != "v/movie-remux=inCinemas/0/" {
+		t.Errorf("first add: %s", got)
+	}
+	if available(res.Title.ID, "movie-remux") {
+		t.Error("inCinemas without a cinema date is available")
+	}
+	// A second library with another choice: its own row; the first library's row stays.
+	e.call("POST", APIBase+"/titles", map[string]any{"title_id": res.Title.ID, "versions": []string{"movie-remux", "movie-web"},
+		"minimum_availability": "announced"}, 201, &res)
+	if got := records(res.Title.ID); got != "v/movie-remux=inCinemas/0/ v/movie-web=announced/0/" {
+		t.Errorf("second add: %s", got)
+	}
+	if !available(res.Title.ID, "movie-web") || available(res.Title.ID, "movie-remux") {
+		t.Error("announced applies to movie-web only")
+	}
+	// Nothing new in the request: nothing written.
+	e.call("POST", APIBase+"/titles", map[string]any{"title_id": res.Title.ID, "versions": []string{"movie-remux", "movie-web"},
+		"minimum_availability": "released"}, 201, nil)
+	if got := records(res.Title.ID); got != "v/movie-remux=inCinemas/0/ v/movie-web=announced/0/" {
+		t.Errorf("an add of nothing new changed the rows: %s", got)
+	}
+	// One row per new library of one add.
+	e.call("POST", APIBase+"/titles", map[string]any{"kind": "movie", "tmdb_id": 107, "title": "Eta",
+		"versions": []string{"movie-remux", "movie-web"}, "minimum_availability": "announced"}, 201, &res)
+	if got := records(res.Title.ID); got != "v/movie-remux=announced/0/ v/movie-web=announced/0/" {
+		t.Errorf("two libraries: %s", got)
+	}
+	// A copy removed and added again is an added copy too. Its row may hold what an arr client wrote: the choice
+	// alone changes, and the copy that stayed keeps its own.
+	id := res.Title.ID
+	remove := func(keys ...string) {
+		t.Helper()
+		if err := e.st.WriteTx(ctx, func(tx *sql.Tx) error {
+			_, err := catalog.Remove(ctx, tx, id, keys, "ui", addNow)
+			return err
+		}); err != nil {
+			t.Fatal(err)
+		}
+	}
+	both := []string{"movie-remux", "movie-web"}
+	e.exec(`UPDATE arrview_title SET quality_profile_id = 7, root_folder_path = '/x', added_at = 5 WHERE title_id = ?
+		AND view = 'v/movie-web'`, id)
+	remove("movie-web")
+	// Without the field a restored copy keeps the choice it had.
+	e.call("POST", APIBase+"/titles", map[string]any{"title_id": id, "versions": both}, 201, nil)
+	if got := records(id); got != "v/movie-remux=announced/0/ v/movie-web=announced/7//x" {
+		t.Errorf("restored without a choice: %s", got)
+	}
+	remove("movie-web")
+	e.call("POST", APIBase+"/titles", map[string]any{"title_id": id, "versions": both, "minimum_availability": "inCinemas"}, 201, nil)
+	if got := records(id); got != "v/movie-remux=announced/0/ v/movie-web=inCinemas/7//x" {
+		t.Errorf("restored with a choice: %s", got)
+	}
+	if n := e.count(`SELECT COUNT(*) FROM arrview_title WHERE title_id = ? AND view = 'v/movie-web' AND added_at = 5`, id); n != 1 {
+		t.Error("the restored copy's row changed in more than the choice")
+	}
+	if available(id, "movie-web") || !available(id, "movie-remux") {
+		t.Error("inCinemas applies to the restored movie-web only")
+	}
+	// Every copy removed (the rows go with them), then added again, found by its TMDb id, with a choice.
+	remove(both...)
+	if got := records(id); got != "" {
+		t.Fatalf("rows after removing every copy: %s", got)
+	}
+	e.call("POST", APIBase+"/titles", map[string]any{"kind": "movie", "tmdb_id": 107, "versions": both, "minimum_availability": "announced"}, 201, &res)
+	if got := records(id); res.Title.ID != id || got != "v/movie-remux=announced/0/ v/movie-web=announced/0/" {
+		t.Errorf("added again with a choice: title %d, %s", res.Title.ID, got)
+	}
+	if !available(id, "movie-web") || !available(id, "movie-remux") {
+		t.Error("announced does not apply after adding the movie again")
+	}
+}
+
+// TestAddMinimumAvailabilityLibraryDefault: the drawer's choice is deliberate, so it is stored for a library that has
+// a minimum_availability of its own too; without a choice ("Library default") nothing is stored and the library's
+// value applies.
+func TestAddMinimumAvailabilityLibraryDefault(t *testing.T) {
+	t.Parallel()
+	e := newAddEnv(t, func(p *policy.Policy) { p.Versions["movie-web"].MinimumAvailability = "announced" })
+	minimum := func(id int64) string {
+		var d TitleDetail
+		e.call("GET", fmt.Sprintf("%s/titles/%d", APIBase, id), nil, 200, &d)
+		var out []string
+		for _, v := range d.Versions {
+			out = append(out, v.Key+"="+v.MinimumAvailability)
+		}
+		return strings.Join(out, " ")
+	}
+	var res AddResult
+	e.call("POST", APIBase+"/titles", map[string]any{"kind": "movie", "tmdb_id": 105, "title": "Epsilon",
+		"versions": []string{"movie-remux", "movie-web"}}, 201, &res)
+	if n := e.count(`SELECT COUNT(*) FROM arrview_title`); n != 0 {
+		t.Fatalf("an add at the library default wrote %d arrview_title rows", n)
+	}
+	if got := minimum(res.Title.ID); got != "movie-remux=released movie-web=announced" {
+		t.Errorf("library default: %s", got)
+	}
+	e.call("POST", APIBase+"/titles", map[string]any{"kind": "movie", "tmdb_id": 106, "title": "Zeta",
+		"versions": []string{"movie-remux", "movie-web"}, "minimum_availability": "released"}, 201, &res)
+	if got := minimum(res.Title.ID); got != "movie-remux=released movie-web=released" {
+		t.Errorf("a choice of released: %s", got)
+	}
+	if n := e.count(`SELECT COUNT(*) FROM arrview_title WHERE title_id = ? AND minimum_availability = 'released'`, res.Title.ID); n != 2 {
+		t.Errorf("released is stored on %d rows, want 2", n)
+	}
+}
+
+// TestAddMinimumAvailabilityArrView: a connected Radarr client reads the library's own view. The row the add writes
+// there (empty root, profile 0, no added date) changes that view's movie in minimumAvailability and the two fields
+// Radarr derives from it (isAvailable, releaseDate) and in nothing else, and no other view's movie at all.
+func TestAddMinimumAvailabilityArrView(t *testing.T) {
+	t.Parallel()
+	cases := []struct {
+		name string
+		body map[string]any
+	}{
+		{"new movie", map[string]any{"kind": "movie", "tmdb_id": 105, "title": "Epsilon", "year": 2024,
+			"versions": []string{"movie-remux", "movie-web"}}},
+		{"second library", map[string]any{"title_id": 1, "versions": []string{"movie-remux", "movie-web"}}},
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			movie := func(minimum, path string) map[string]any {
+				e := newAddEnvWith(t, nil, true)
+				body := maps.Clone(c.body)
+				if minimum != "" {
+					body["minimum_availability"] = minimum
+				}
+				var res AddResult
+				e.call("POST", APIBase+"/titles", body, 201, &res)
+				if n := e.count(`SELECT COUNT(*) FROM arrview_title WHERE view = 'v/movie-web'`); (n == 1) != (minimum != "") {
+					t.Fatalf("minimum %q: %d rows on v/movie-web", minimum, n)
+				}
+				// Dates still ahead, so that both derived fields depend on the choice: released waits for the
+				// digital date, announced is available now and reports the earliest date.
+				e.exec(`DELETE FROM title_release_date WHERE title_id = ?`, res.Title.ID)
+				e.exec(`INSERT INTO title_release_date (title_id, source, country, type, date, fetched_at) VALUES
+					(?, 'tmdb', '', 'theatrical', '2090-01-01', 0), (?, 'tmdb', '', 'digital', '2090-06-01', 0)`,
+					res.Title.ID, res.Title.ID)
+				var m map[string]any
+				e.call("GET", fmt.Sprintf(path+"/radarr/api/v3/movie/%d", arrview.IDBase+res.Title.ID), nil, 200, &m)
+				return m
+			}
+			without, with := movie("", "/v/movie-web"), movie("announced", "/v/movie-web")
+			if without["rootFolderPath"] == "" || without["rootFolderPath"] == nil || without["qualityProfileId"] == float64(0) {
+				t.Fatalf("the view gives no root or profile: %v %v", without["rootFolderPath"], without["qualityProfileId"])
+			}
+			if without["minimumAvailability"] != "released" || with["minimumAvailability"] != "announced" {
+				t.Errorf("minimumAvailability: %v without, %v with", without["minimumAvailability"], with["minimumAvailability"])
+			}
+			var differ []string
+			for k := range with {
+				if !reflect.DeepEqual(with[k], without[k]) {
+					differ = append(differ, k)
+				}
+			}
+			for k := range without {
+				if _, ok := with[k]; !ok {
+					differ = append(differ, k)
+				}
+			}
+			slices.Sort(differ)
+			if !slices.Equal(differ, []string{"isAvailable", "minimumAvailability", "releaseDate"}) {
+				t.Errorf("the row changes the view's movie in %v", differ)
+			}
+			if without["isAvailable"] != false || with["isAvailable"] != true {
+				t.Errorf("isAvailable: %v without, %v with", without["isAvailable"], with["isAvailable"])
+			}
+			if without["releaseDate"] != "2090-06-01T00:00:00Z" || with["releaseDate"] != "2090-01-01T00:00:00Z" {
+				t.Errorf("releaseDate: %v without, %v with", without["releaseDate"], with["releaseDate"])
+			}
+			// The policy's radarr view shows both libraries: it reports the earliest of their values
+			// (docs/design/arrview.md "Minimum availability").
+			if a, b := movie("", ""), movie("announced", ""); a["minimumAvailability"] != "released" || b["minimumAvailability"] != "announced" {
+				t.Errorf("the radarr view: %v without, %v with", a["minimumAvailability"], b["minimumAvailability"])
+			}
+		})
+	}
+}
+
+// TestAddMinimumAvailabilityKeepsImportedDate: the row the choice is stored on carries no added date of its own, so
+// when a fed Radarr imports the movie later, the view shows the date that Radarr gives, as after a default add.
+func TestAddMinimumAvailabilityKeepsImportedDate(t *testing.T) {
+	t.Parallel()
+	imported := time.Date(2021, 3, 4, 5, 6, 7, 0, time.UTC)
+	for _, minimum := range []string{"", "announced"} {
+		e := newAddEnvWith(t, nil, true)
+		body := map[string]any{"kind": "movie", "tmdb_id": 105, "title": "Epsilon", "year": 2024, "versions": []string{"movie-web"}}
+		if minimum != "" {
+			body["minimum_availability"] = minimum
+		}
+		var res AddResult
+		e.call("POST", APIBase+"/titles", body, 201, &res)
+		if minimum != "" {
+			if n := e.count(`SELECT COUNT(*) FROM arrview_title WHERE view = 'v/movie-web' AND title_id = ? AND added_at = 0`, res.Title.ID); n != 1 {
+				t.Fatalf("minimum %q: the row's added date is set", minimum)
+			}
+		}
+		added := func() any {
+			var m map[string]any
+			e.call("GET", fmt.Sprintf("/v/movie-web/radarr/api/v3/movie/%d", arrview.IDBase+res.Title.ID), nil, 200, &m)
+			return m["added"]
+		}
+		// Before an import: the copy's own date.
+		if got := added(); got != addNow.UTC().Format(time.RFC3339) {
+			t.Errorf("minimum %q: added %v before the import, want %s", minimum, got, addNow.UTC().Format(time.RFC3339))
+		}
+		e.exec(`INSERT INTO arr_instance (name, flavour, policy_key, created_at, updated_at) VALUES ('radarr-web', 'radarr', 'movie-web', 0, 0)`)
+		e.exec(`INSERT INTO arr_title (instance, arr_id, kind, title_id, version_id, monitored, added_at)
+			SELECT 'radarr-web', 5, 'movie', title_id, id, 1, ? FROM version WHERE title_id = ?`, store.Millis(imported), res.Title.ID)
+		e.exec(`INSERT INTO version_source (version_id, instance, arr_id) SELECT id, 'radarr-web', 5 FROM version WHERE title_id = ?`, res.Title.ID)
+		if got := added(); got != imported.Format(time.RFC3339) {
+			t.Errorf("minimum %q: added %v after the import, want %s", minimum, got, imported.Format(time.RFC3339))
+		}
 	}
 }

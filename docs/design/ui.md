@@ -127,6 +127,15 @@ already in the library, because the request names the libraries it already has a
 the API answers 400 to `monitor` there, naming the library title, and writes nothing. **Search now** is off unless
 this browser last left it on (`localStorage` `theatarr.add.search`, kept only while on).
 
+A new series also gets **Series type** (Standard, Daily, Anime). The select shows the type the series gets without
+a choice (Anime when Anime is ticked, else Standard) and the request carries `series_type` only when the pick
+differs from it. It is not offered for a series already in the library: an add never changes a series' type, and
+the API answers 400 to `series_type` there. A movie with a library to add ticked gets **Minimum availability**:
+**Library default** (the start; sends nothing, so each library's own rule applies) or Announced, In cinemas,
+Released, sent as `minimum_availability` and stored as the explicit choice (`availability.Choose`, the library's own
+`v/<key>` row) of each library the add adds the movie to, new or restored, whether or not that library has a
+default; a library the movie already had keeps its rule.
+
 ### Library and activity pages
 
 - **Library lists** keep the poster and table views. The table has dense rows, a **Columns** chooser (one checkbox
@@ -274,6 +283,15 @@ See [quickstart](../quickstart.md#readiness-led-setup) for the completion rules;
   identifiers, release dates, files, arr records and registry) / History ("see files": each copy's release
   history; admins the title's journal). About's Files inventory includes old-manager files and active native library
   links, deduplicated by path. Old `?tab=seasons|versions|details` links open Episodes, Libraries, About.
+- **Minimum availability and series type.** A movie's library card shows **Minimum availability**, the value in
+  force for that library (`versions[].minimum_availability`, from `availability.Rules`: the explicit choice, else
+  the imported value, else the library's setting, else released), with no word on where it comes from. A manager
+  changes it there: `POST /titles/minimum-availability {title_ids, versions, minimum_availability}` writes an
+  explicit choice for that library only (libraries the movie is not in get none). An imported `tba` is shown but
+  cannot be picked. A series' About facts show **Series type** (`series_type`, the title's one type for every
+  library and arr view), which a manager changes with `POST /titles/series-type {title_ids, series_type}`
+  (`catalog.SetSeriesType`; the anime flag stays). Both endpoints take 1 to 500 titles, the page sends one, and a
+  title of the other kind answers 400 with nothing written. Without manage both show as text.
 - **Family accounts** (no "see files"): hero with readiness and languages, their request card, Episodes for a
   series, About; no copy cards, states or history (the API sends none).
 - **Add by magnet or hash** (admins, under the releases list, for the shown library): a magnet link or info hash
@@ -506,7 +524,11 @@ Follows sit in an **Advanced** disclosure at the end of "Where", with Storage an
 when the saved or the draft value is not the one supported value (debrid, symlink). Advanced starts open when the
 library has write roots other than its root, sends its grabs to a download client, follows another library or shows
 Storage or Import mode, and a field inside that the server refuses keeps it open. The request body and its field
-names are the same as before.
+names are the same as before. A movie library's "Which releases" also has **Minimum availability** (Not set,
+Announced, In cinemas, Released; `minimum_availability`, for movies with neither a choice of their own nor an
+imported value) and **Availability delay (days)** (`availability_delay`, whole days, negative for earlier, empty
+for none). Like the name, each is left out of the request while unset and sent empty or 0 only to clear a stored
+value, so a save that does not touch them stores the library unchanged; a library changed to series drops both.
 
 Advanced includes **Sonarr/Radarr migration** (`/admin/advanced/arr`), **YAML settings**
 (`/admin/advanced/config`, with Policy files, Sections and Import & export tabs), **Settings history**

@@ -28,6 +28,7 @@ import { TitleRemove } from "@/components/title/copy-actions";
 import { ShowReleases } from "@/components/title/show-releases";
 import { TitleAddActions } from "@/components/title/title-add-actions";
 import { RequestMoreSeasons, TitleRequest, TitleRequestButton } from "@/components/title/title-request";
+import { SeriesTypeControl } from "@/components/title/title-choices";
 import { CopyCards, History } from "@/components/title/versions";
 import { Button } from "@/components/ui/button";
 import { Chip } from "@/components/ui/badge";
@@ -160,6 +161,7 @@ function About({ d }: { d: TitleDetail }) {
         <div className="w-full lg:w-80 lg:shrink-0">
           <div className="overflow-hidden rounded-[8px] border border-[var(--line)] bg-card text-sm" data-testid="title-facts">
             {m?.status ? <Fact label="Status">{m.status}</Fact> : null}
+            {series && perms.seeFiles && d.id && d.series_type ? <Fact label="Series type"><SeriesTypeControl titleId={d.id} value={d.series_type} /></Fact> : null}
             {d.release_date ? <Fact label={series ? "First aired" : "Released"}>{fmtDay(d.release_date)}</Fact> : null}
             {!series && digital ? <Fact label="Digital">{fmtDay(digital)}</Fact> : null}
             {air ? <Fact label={air.label}>{fmtDay(air.day)}</Fact> : null}

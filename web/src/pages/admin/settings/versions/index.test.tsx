@@ -191,6 +191,82 @@ describe("Versions page", () => {
     expect(fetch.calls("PUT", "/settings/versions/movie-web")[0].body).toEqual({ generation: 4, key: "movie-web", config: version().config, roots: version().roots });
   });
 
+  it("leaves minimum availability and its delay out of an untouched save, with or without stored values", async () => {
+    const put = { method: "PUT", path: "/settings/versions/movie-web", reply: json({ generation: 5 }) };
+    const fetch = mockFetch([...getRoutes(), put]);
+    const user = userEvent.setup();
+    const page = renderPage(<VersionsPage />);
+    await user.click(await screen.findByRole("button", { name: "Edit" }));
+    const minimum = () => screen.getByRole("combobox", { name: "Minimum availability" }) as HTMLSelectElement;
+    const delay = () => screen.getByRole("textbox", { name: "Availability delay (days)" }) as HTMLInputElement;
+    expect(minimum().value).toBe("");
+    expect([...minimum().options].map((o) => o.textContent)).toEqual(["Not set", "Announced", "In cinemas", "Released"]);
+    expect(delay().value).toBe("");
+    // Set and put back, a lone minus sign and letters: no trace.
+    await user.selectOptions(minimum(), "inCinemas");
+    await user.type(delay(), "-x");
+    expect(delay().value).toBe("-");
+    expect(screen.getByTestId("unsaved-count").textContent).toBe("1 unsaved change");
+    await user.selectOptions(minimum(), "");
+    await user.clear(delay());
+    expect(screen.queryByTestId("unsaved-count")).toBeNull();
+    await user.click(screen.getByRole("button", { name: "Save" }));
+    await waitFor(() => expect(fetch.calls("PUT", "/settings/versions/movie-web")).toHaveLength(1));
+    const sent = fetch.calls("PUT", "/settings/versions/movie-web")[0].body as { config: object };
+    expect(sent).toEqual({ generation: 4, key: "movie-web", config: version().config, roots: version().roots });
+    expect(Object.keys(sent.config).sort()).toEqual(Object.keys(version().config).sort());
+    page.unmount();
+
+    // Stored values: shown, and an untouched save sends them as loaded.
+    const set = { ...version(), config: { ...version().config, minimum_availability: "announced", availability_delay: -3 } };
+    const again = mockFetch([...getRoutes({ ...versions(), versions: [set] }), put]);
+    renderPage(<VersionsPage />);
+    await user.click(await screen.findByRole("button", { name: "Edit" }));
+    expect(minimum().value).toBe("announced");
+    expect(delay().value).toBe("-3");
+    await user.click(screen.getByRole("button", { name: "Save" }));
+    await waitFor(() => expect(again.calls("PUT", "/settings/versions/movie-web")).toHaveLength(1));
+    expect(again.calls("PUT", "/settings/versions/movie-web")[0].body).toEqual({ generation: 4, key: "movie-web", config: set.config, roots: set.roots });
+  });
+
+  it("sets minimum availability and a negative delay, clears stored ones by sending them empty and 0, and offers neither to a series library", async () => {
+    const put = { method: "PUT", path: "/settings/versions/movie-web", reply: json({ generation: 5 }) };
+    const fetch = mockFetch([...getRoutes(), put]);
+    const user = userEvent.setup();
+    const page = renderPage(<VersionsPage />);
+    await user.click(await screen.findByRole("button", { name: "Edit" }));
+    await user.selectOptions(screen.getByRole("combobox", { name: "Minimum availability" }), "released");
+    await user.type(screen.getByRole("textbox", { name: "Availability delay (days)" }), "-14");
+    expect(screen.getByRole("button", { name: "Undo change to Minimum availability" })).toBeTruthy();
+    expect(screen.getByTestId("unsaved-count").textContent).toBe("2 unsaved changes");
+    await user.click(screen.getByRole("button", { name: "Save" }));
+    await waitFor(() => expect(fetch.calls("PUT", "/settings/versions/movie-web")).toHaveLength(1));
+    expect(fetch.calls("PUT", "/settings/versions/movie-web")[0].body).toEqual({ generation: 4, key: "movie-web", config: { ...version().config, minimum_availability: "released", availability_delay: -14 }, roots: version().roots });
+    page.unmount();
+
+    const set = { ...version(), config: { ...version().config, minimum_availability: "announced", availability_delay: 7 } };
+    const again = mockFetch([...getRoutes({ ...versions(), versions: [set] }), put]);
+    const second = renderPage(<VersionsPage />);
+    await user.click(await screen.findByRole("button", { name: "Edit" }));
+    await user.selectOptions(screen.getByRole("combobox", { name: "Minimum availability" }), "");
+    await user.clear(screen.getByRole("textbox", { name: "Availability delay (days)" }));
+    await user.click(screen.getByRole("button", { name: "Save" }));
+    await waitFor(() => expect(again.calls("PUT", "/settings/versions/movie-web")).toHaveLength(1));
+    expect(again.calls("PUT", "/settings/versions/movie-web")[0].body).toMatchObject({ config: { minimum_availability: "", availability_delay: 0 } });
+    second.unmount();
+
+    // A series library has neither field; a movie library turned into one drops what it had.
+    mockFetch([...getRoutes({ ...versions(), versions: [set] }), put]);
+    renderPage(<VersionsPage />);
+    await user.click(await screen.findByRole("button", { name: "Edit" }));
+    await user.selectOptions(screen.getByRole("combobox", { name: "Kind" }), "series");
+    expect(screen.queryByRole("combobox", { name: "Minimum availability" })).toBeNull();
+    expect(screen.queryByRole("textbox", { name: "Availability delay (days)" })).toBeNull();
+    await user.selectOptions(screen.getByRole("combobox", { name: "Kind" }), "movie");
+    expect((screen.getByRole("combobox", { name: "Minimum availability" }) as HTMLSelectElement).value).toBe("");
+    expect((screen.getByRole("textbox", { name: "Availability delay (days)" }) as HTMLInputElement).value).toBe("");
+  });
+
   it("names a library, and clears a stored name by sending it empty", async () => {
     const named = { ...version(), config: { ...version().config, name: "Films" } };
     const fetch = mockFetch([...getRoutes(), { method: "PUT", path: "/settings/versions/movie-web", reply: json({ generation: 5 }) }]);

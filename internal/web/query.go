@@ -9,6 +9,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/theatarr/theatarr/internal/availability"
 	"github.com/theatarr/theatarr/internal/gateway"
 	"github.com/theatarr/theatarr/internal/health"
 	"github.com/theatarr/theatarr/internal/jobs"
@@ -304,6 +305,10 @@ type Version struct {
 	Control *VersionControl `json:"control,omitempty"`
 	// Acquisition is the download in hand for the version (copies.go), for callers who see files.
 	Acquisition *Acquisition `json:"acquisition,omitempty"`
+	// MinimumAvailability is the minimum availability in force for a movie in this library (availability.Rules:
+	// the explicit choice, else the imported value, else the library's default, else released); the title route
+	// only, empty for a series.
+	MinimumAvailability string `json:"minimum_availability,omitempty"`
 }
 
 // ArrRec is how an arr instance holds the title for this version.
@@ -359,6 +364,8 @@ type TitleDetail struct {
 	Meta *TitleMeta `json:"meta"`
 	// Franchises are the anime franchises that map into the title (titlepage.go).
 	Franchises []FranchiseRef `json:"franchises,omitempty"`
+	// SeriesType is a series' type in force (store.SeriesType: standard, daily or anime); empty for a movie.
+	SeriesType string `json:"series_type,omitempty"`
 }
 
 func (w *Web) getTitle(ctx context.Context, id int64) (*TitleDetail, error) {
@@ -407,6 +414,20 @@ func (w *Web) getTitle(ctx context.Context, id int64) (*TitleDetail, error) {
 	}
 	if d.Versions, err = w.versions(ctx, "v.title_id = ?", []any{id}, 0, 0); err != nil {
 		return nil, err
+	}
+	switch {
+	case d.Kind == "series":
+		if d.SeriesType, err = store.SeriesType(ctx, db, id); err != nil {
+			return nil, err
+		}
+	case w.pol != nil && len(d.Versions) > 0:
+		rules, err := availability.Rules(ctx, db, w.pol, []int64{id})
+		if err != nil {
+			return nil, err
+		}
+		for i := range d.Versions {
+			d.Versions[i].MinimumAvailability = rules[d.Versions[i].ID].Minimum
+		}
 	}
 	err = scanAll(ctx, db, `SELECT c.info_hash, c.name, c.state, v.id, v.policy_key, cv.release_title, cv.source,
 		cv.grabbed_at, cv.imported_at, cv.failed_at FROM content_version cv JOIN content c ON c.id = cv.content_id

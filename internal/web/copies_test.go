@@ -3,6 +3,7 @@ package web
 import (
 	"bytes"
 	"context"
+	"database/sql"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -13,6 +14,7 @@ import (
 
 	"github.com/theatarr/theatarr/internal/auth"
 	"github.com/theatarr/theatarr/internal/availability"
+	"github.com/theatarr/theatarr/internal/policy"
 	"github.com/theatarr/theatarr/internal/store"
 )
 
@@ -443,5 +445,160 @@ func TestListRowFacts(t *testing.T) {
 				t.Errorf("user's %s title page copy %s has acquisition detail", u.Name, v.Key)
 			}
 		}
+	}
+}
+
+// asUser sends a request as a caller without manage.
+func (e *manageEnv) asUser(method, path string, body any) int {
+	e.t.Helper()
+	b, _ := json.Marshal(body)
+	r := httptest.NewRequest(method, path, bytes.NewReader(b))
+	r.Header.Set(auth.APIKeyHeader, e.key)
+	rec := httptest.NewRecorder()
+	e.userMux().ServeHTTP(rec, r)
+	return rec.Code
+}
+
+// TestMinimumAvailabilityEndpoint: POST /titles/minimum-availability writes an explicit choice on the own view of
+// each named library the movie is in, which the title page then reads as the value in force; a series, a library
+// the movie lacks, a value outside the list and a caller without manage change nothing.
+func TestMinimumAvailabilityEndpoint(t *testing.T) {
+	t.Parallel()
+	e := newManageEnv(t, func(p *policy.Policy) { p.Versions["movie-web"].MinimumAvailability = "inCinemas" })
+	seedCopies(e)
+	const path = APIBase + "/titles/minimum-availability"
+	shown := func() string {
+		var d TitleDetail
+		e.call("GET", APIBase+"/titles/1", nil, 200, &d)
+		var out []string
+		for _, v := range d.Versions {
+			out = append(out, v.Key+"="+v.MinimumAvailability)
+		}
+		return strings.Join(out, " ")
+	}
+	stored := func() string {
+		var out []string
+		if err := queryEach(context.Background(), e.st.Reader(), `SELECT view || '/' || title_id || '=' || minimum_availability
+			FROM arrview_title ORDER BY view, title_id`, nil, func(r *sql.Rows) error {
+			out = append(out, "")
+			return r.Scan(&out[len(out)-1])
+		}); err != nil {
+			t.Fatal(err)
+		}
+		return strings.Join(out, " ")
+	}
+	// Nothing chosen: released, or the library's own value.
+	if got := shown(); got != "movie-remux=released movie-web=inCinemas" || stored() != "" {
+		t.Fatalf("before: %s (%s)", got, stored())
+	}
+	var series TitleDetail
+	e.call("GET", APIBase+"/titles/10", nil, 200, &series)
+	if series.SeriesType != "standard" || series.Versions[0].MinimumAvailability != "" {
+		t.Errorf("a series: type %q, minimum availability %q", series.SeriesType, series.Versions[0].MinimumAvailability)
+	}
+
+	// Refused, nothing written: a series (alone or among movies), an unknown title, a bad value, bad libraries, no
+	// or too many titles.
+	many := make([]int64, maxBulkTitles+1)
+	for i := range many {
+		many[i] = int64(i + 1)
+	}
+	for _, c := range []struct {
+		body map[string]any
+		want int
+	}{
+		{map[string]any{"title_ids": []int64{10}, "minimum_availability": "announced"}, 400},
+		{map[string]any{"title_ids": []int64{1, 10}, "minimum_availability": "announced"}, 400},
+		{map[string]any{"title_ids": []int64{1, 999}, "minimum_availability": "announced"}, 404},
+		{map[string]any{"title_ids": []int64{1}, "minimum_availability": "tba"}, 400},
+		{map[string]any{"title_ids": []int64{1}}, 400},
+		{map[string]any{"title_ids": []int64{1}, "versions": []string{}, "minimum_availability": "announced"}, 400},
+		{map[string]any{"title_ids": []int64{1}, "versions": []string{"nope"}, "minimum_availability": "announced"}, 400},
+		{map[string]any{"title_ids": []int64{1}, "versions": []string{"tv-2160p"}, "minimum_availability": "announced"}, 400},
+		{map[string]any{"title_ids": []int64{}, "minimum_availability": "announced"}, 400},
+		{map[string]any{"title_ids": many, "minimum_availability": "announced"}, 400},
+	} {
+		e.call("POST", path, c.body, c.want, nil)
+	}
+	if code := e.asUser("POST", path, map[string]any{"title_ids": []int64{1}, "minimum_availability": "announced"}); code != 403 {
+		t.Errorf("a caller without manage: %d", code)
+	}
+	if got := stored(); got != "" {
+		t.Fatalf("a refused request wrote: %s", got)
+	}
+
+	// One library: its own row only. A library the movie is not in gets none.
+	var out TitleChoiceResult
+	e.call("POST", path, map[string]any{"title_ids": []int64{1}, "versions": []string{"movie-web", "anime-movie"},
+		"minimum_availability": "announced"}, 200, &out)
+	if got := stored(); out.Changed != 1 || got != "v/movie-web/1=announced" {
+		t.Errorf("one library: changed %d, %s", out.Changed, got)
+	}
+	if got := shown(); got != "movie-remux=released movie-web=announced" {
+		t.Errorf("after one library: %s", got)
+	}
+	// No libraries named: every library the movie is in. Released is a choice like the others.
+	e.call("POST", path, map[string]any{"title_ids": []int64{1}, "minimum_availability": "released"}, 200, &out)
+	if got := stored(); out.Changed != 2 || got != "v/movie-remux/1=released v/movie-web/1=released" {
+		t.Errorf("every library: changed %d, %s", out.Changed, got)
+	}
+	if got := shown(); got != "movie-remux=released movie-web=released" {
+		t.Errorf("after every library: %s", got)
+	}
+	// A copy removed from the library takes no choice.
+	e.exec(`INSERT INTO arrview_removed_version (version_id, view, removed_at) VALUES (2, 'ui', 0)`)
+	e.call("POST", path, map[string]any{"title_ids": []int64{1}, "minimum_availability": "inCinemas"}, 200, &out)
+	if got := stored(); out.Changed != 1 || got != "v/movie-remux/1=inCinemas v/movie-web/1=released" {
+		t.Errorf("a removed copy: changed %d, %s", out.Changed, got)
+	}
+}
+
+// TestSeriesTypeEndpoint: POST /titles/series-type edits the series' one type and leaves the anime flag; a movie, a
+// type outside the list and a caller without manage change nothing.
+func TestSeriesTypeEndpoint(t *testing.T) {
+	t.Parallel()
+	e := newManageEnv(t, nil)
+	const path = APIBase + "/titles/series-type"
+	typ := func() string {
+		var s string
+		if err := e.st.Reader().QueryRow(`SELECT COALESCE(series_type, '') || '/' || anime FROM title WHERE id = 10`).Scan(&s); err != nil {
+			t.Fatal(err)
+		}
+		return s
+	}
+	before := typ()
+	for _, c := range []struct {
+		body map[string]any
+		want int
+	}{
+		{map[string]any{"title_ids": []int64{1}, "series_type": "daily"}, 400},
+		{map[string]any{"title_ids": []int64{10, 1}, "series_type": "daily"}, 400},
+		{map[string]any{"title_ids": []int64{10, 999}, "series_type": "daily"}, 404},
+		{map[string]any{"title_ids": []int64{10}, "series_type": "weekly"}, 400},
+		{map[string]any{"title_ids": []int64{10}}, 400},
+		{map[string]any{"title_ids": []int64{}, "series_type": "daily"}, 400},
+	} {
+		e.call("POST", path, c.body, c.want, nil)
+	}
+	if code := e.asUser("POST", path, map[string]any{"title_ids": []int64{10}, "series_type": "daily"}); code != 403 {
+		t.Errorf("a caller without manage: %d", code)
+	}
+	if got := typ(); got != before {
+		t.Fatalf("a refused request changed the type: %s, was %s", got, before)
+	}
+	var out TitleChoiceResult
+	e.call("POST", path, map[string]any{"title_ids": []int64{10}, "series_type": "daily"}, 200, &out)
+	if got := typ(); out.Changed != 1 || got != "daily/0" {
+		t.Errorf("daily: changed %d, %s", out.Changed, got)
+	}
+	var d TitleDetail
+	e.call("GET", APIBase+"/titles/10", nil, 200, &d)
+	if d.SeriesType != "daily" {
+		t.Errorf("the title page reads %q", d.SeriesType)
+	}
+	var movie TitleDetail
+	e.call("GET", APIBase+"/titles/1", nil, 200, &movie)
+	if movie.SeriesType != "" {
+		t.Errorf("a movie has series type %q", movie.SeriesType)
 	}
 }

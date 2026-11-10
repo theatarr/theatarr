@@ -80,6 +80,29 @@ export function useScopedSearch(titleId: number) {
 export type SourceCeiling = Schemas["SourceCeiling"];
 export type CeilingOverrideRequest = Schemas["CeilingOverrideRequest"];
 
+export type MinimumAvailability = Schemas["MinimumAvailabilityRequest"]["minimum_availability"];
+export type SeriesType = Schemas["SeriesTypeRequest"]["series_type"];
+
+/** A movie's minimum availability in one library, as an explicit choice (POST /titles/minimum-availability). */
+export function useMinimumAvailability(titleId: number) {
+  const done = useInvalidateTitle(titleId);
+  return useMutation({
+    mutationFn: ({ version, value }: { version: string; value: MinimumAvailability }) =>
+      api<Schemas["TitleChoiceResult"]>("/titles/minimum-availability", { method: "POST", body: { title_ids: [titleId], versions: [version], minimum_availability: value } }),
+    onSettled: done,
+  });
+}
+
+/** A series' type (POST /titles/series-type). */
+export function useSeriesType(titleId: number) {
+  const done = useInvalidateTitle(titleId);
+  return useMutation({
+    mutationFn: (value: SeriesType) =>
+      api<Schemas["TitleChoiceResult"]>("/titles/series-type", { method: "POST", body: { title_ids: [titleId], series_type: value } }),
+    onSettled: done,
+  });
+}
+
 export function useCeiling(titleId: number) {
   const done = useInvalidateTitle(titleId);
   return useMutation({

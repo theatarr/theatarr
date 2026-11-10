@@ -243,3 +243,63 @@ func TestSettingsVersionsCreateDeleteWithQualityNaming(t *testing.T) {
 		t.Fatal("version still in the runtime policy")
 	}
 }
+
+// TestSettingsVersionAvailabilityFields: the library editor's save of what it loaded leaves the stored library
+// byte-identical and stores neither minimum_availability nor availability_delay; set, they are stored and read
+// back, and sent empty and 0 they are dropped again. A series library takes neither.
+func TestSettingsVersionAvailabilityFields(t *testing.T) {
+	t.Parallel()
+	se := newSettingsEnv(t, nil, nil)
+	stored := func(key string) string {
+		t.Helper()
+		var raw string
+		if err := se.st.Reader().QueryRow(`SELECT config FROM setting_version WHERE key = ?`, key).Scan(&raw); err != nil {
+			t.Fatal(err)
+		}
+		return raw
+	}
+	loaded := func(key string) map[string]any {
+		t.Helper()
+		return se.want(se.call("GET", "/versions/"+key, nil), 200, "get")["record"].(map[string]any)["config"].(map[string]any)
+	}
+	save := func(key string, config map[string]any, code int, label string) {
+		t.Helper()
+		se.want(se.call("PUT", "/versions/"+key, map[string]any{"generation": se.generation(), "key": key, "config": config}), code, label)
+	}
+	before := stored("movie-web")
+	config := loaded("movie-web")
+	if _, ok := config["minimum_availability"]; ok || strings.Contains(before, "availab") {
+		t.Fatalf("unset fields are present: %v / %s", config, before)
+	}
+	if _, ok := config["availability_delay"]; ok {
+		t.Fatalf("an unset delay is sent: %v", config)
+	}
+	save("movie-web", config, 200, "untouched save")
+	if got := stored("movie-web"); got != before {
+		t.Fatalf("an untouched save changed the stored library:\n%s\n%s", before, got)
+	}
+	config["minimum_availability"], config["availability_delay"] = "inCinemas", -3
+	save("movie-web", config, 200, "set")
+	config = loaded("movie-web")
+	if config["minimum_availability"] != "inCinemas" || config["availability_delay"] != float64(-3) {
+		t.Fatalf("read back: %v %v", config["minimum_availability"], config["availability_delay"])
+	}
+	set := stored("movie-web")
+	save("movie-web", config, 200, "untouched save of set fields")
+	if got := stored("movie-web"); got != set || !strings.Contains(got, `"availability_delay":-3`) {
+		t.Fatalf("an untouched save changed the set fields:\n%s\n%s", set, got)
+	}
+	// The editor clears a stored value by sending it empty or 0.
+	config["minimum_availability"], config["availability_delay"] = "", 0
+	save("movie-web", config, 200, "clear")
+	if got := stored("movie-web"); got != before {
+		t.Fatalf("cleared fields left a trace:\n%s\n%s", before, got)
+	}
+	for field, value := range map[string]any{"minimum_availability": "announced", "availability_delay": 2} {
+		series := loaded("tv-2160p")
+		series[field] = value
+		save("tv-2160p", series, 422, "series library "+field)
+	}
+	config["minimum_availability"] = "tba"
+	save("movie-web", config, 422, "tba as a library default")
+}

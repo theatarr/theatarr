@@ -19,6 +19,7 @@ import { globalDownloadsOff, willGrab } from "@/lib/version-grab";
 import { FacetPill, facetOf, Poster } from "@/components/search/search-results";
 import { Modal } from "@/components/ui/modal";
 import { Select } from "@/components/ui/select";
+import { MINIMUM_AVAILABILITY, SERIES_TYPES } from "@/components/title/title-choices";
 import { addRequest, libraryTitleId, type AddChoice } from "./add-request";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -146,6 +147,9 @@ export function AddSheet({ target, onClose }: { target: AddTarget; onClose: () =
   const setSearch = (on: boolean) => { setSearchState(on); storeSearch(on); };
   const [monitor, setMonitor] = useState<MonitorPreset | "">("");
   const [monitorNew, setMonitorNew] = useState(true);
+  // Unset until picked: the select then shows what applies without a choice, and the request carries none.
+  const [seriesType, setSeriesType] = useState<AddChoice["seriesType"]>();
+  const [minimum, setMinimum] = useState<AddChoice["minimumAvailability"]>();
   const [showOther, setShowOther] = useState(false);
   const [done, setDone] = useState<AddResult | null>(null);
 
@@ -165,6 +169,8 @@ export function AddSheet({ target, onClose }: { target: AddTarget; onClose: () =
   const seasonOn = (n: number, def: boolean) => seasons[n] ?? def;
   const seasonsChanged = (o?.seasons ?? []).some((s) => seasons[s.season] !== undefined && seasons[s.season] !== (s.monitored ?? true));
   const epKnown = Boolean(o?.episodes_known);
+  // The type a new series has without a choice: anime for an anime title, else standard.
+  const typeDefault = anime ? "anime" : "standard";
 
   const submit = () => {
     if (!o) return;
@@ -177,6 +183,8 @@ export function AddSheet({ target, onClose }: { target: AddTarget; onClose: () =
         anime,
         monitor: monitor || undefined,
         monitorNew,
+        seriesType: seriesType === typeDefault ? undefined : seriesType,
+        minimumAvailability: chosen.length > 0 ? minimum : undefined,
       }),
       { onSuccess: setDone },
     );
@@ -287,7 +295,7 @@ export function AddSheet({ target, onClose }: { target: AddTarget; onClose: () =
                         </p>
                       )}
                       {!inLibrary ? (
-                        <div className="mt-2">
+                        <div className="mt-2 space-y-2">
                           <SwitchRow
                             on={monitorNew}
                             onChange={setMonitorNew}
@@ -295,9 +303,27 @@ export function AddSheet({ target, onClose }: { target: AddTarget; onClose: () =
                             detail="Off: a season announced after the add stays unmonitored."
                             testid="add-monitor-new"
                           />
+                          <SelectRow
+                            label="Series type"
+                            detail="Daily shows are searched by air date, anime by absolute episode number."
+                            value={seriesType ?? typeDefault}
+                            onChange={(v) => setSeriesType(v as AddChoice["seriesType"])}
+                            options={SERIES_TYPES}
+                            testid="add-series-type"
+                          />
                         </div>
                       ) : null}
                     </section>
+                  ) : null}
+                  {o.kind === "movie" && chosen.length > 0 ? (
+                    <SelectRow
+                      label="Minimum availability"
+                      detail={`When the movie counts as out and is searched${inLibrary ? ", for the libraries added now" : ""}. Library default keeps each library's own setting.`}
+                      value={minimum ?? ""}
+                      onChange={(v) => setMinimum((v || undefined) as AddChoice["minimumAvailability"])}
+                      options={[["", "Library default"], ...MINIMUM_AVAILABILITY]}
+                      testid="add-minimum-availability"
+                    />
                   ) : null}
                   <section>
                     {canSearch ? (

@@ -67,6 +67,26 @@ describe("add sheet request", () => {
     // Later seasons on: no monitor of its own.
     expect("monitor" in addRequest(series, { kind: "series" }, { ...choice, seasons: undefined, monitorNew: true })).toBe(false);
   });
+  it("sends a new series' type and a movie's minimum availability only when set", () => {
+    const series = { kind: "series" as const, name: "Kaiju", year: 2023, tmdb_id: 4321 };
+    expect(addRequest(series, { kind: "series" }, { ...choice, seriesType: "daily", minimumAvailability: "announced" })).toEqual({
+      kind: "series", tmdb_id: 4321, title: "Kaiju", year: 2023, anime: false, versions: ["tv-2160p"], seasons: [{ season: 1, monitored: true }], search: false, series_type: "daily",
+    });
+    const movie = { kind: "movie" as const, name: "Alpha", year: 2024, tmdb_id: 101 };
+    const base = { versions: ["movie-web"], search: false, anime: false };
+    // "Library default" is no choice: the body is the one of a plain add. Released is a choice like the others.
+    expect(JSON.stringify(addRequest(movie, { kind: "movie" }, { ...base, minimumAvailability: undefined, seriesType: "daily" }))).toBe(
+      '{"kind":"movie","tmdb_id":101,"title":"Alpha","year":2024,"anime":false,"versions":["movie-web"],"search":false}',
+    );
+    expect(addRequest(movie, { kind: "movie" }, { ...base, minimumAvailability: "released" })).toMatchObject({ minimum_availability: "released" });
+    // A movie already in the library takes the choice for the libraries added now; a series there takes no type.
+    expect(addRequest({ kind: "movie" as const, name: "Alpha", title_id: 1 }, { kind: "movie" }, { ...base, minimumAvailability: "announced" })).toEqual({
+      title_id: 1, kind: "movie", versions: ["movie-web"], seasons: undefined, search: false, minimum_availability: "announced",
+    });
+    expect(addRequest({ kind: "series" as const, name: "The Show", title_id: 10 }, { kind: "series" }, { ...choice, seriesType: "daily", minimumAvailability: "announced" })).toEqual({
+      title_id: 10, kind: "series", versions: ["tv-2160p"], seasons: [{ season: 1, monitored: true }], search: false,
+    });
+  });
   it("sends neither choice for a title already in the library", () => {
     expect(addRequest({ kind: "series" as const, name: "The Show", title_id: 10 }, { kind: "series" }, { ...choice, monitor: "pilot", monitorNew: false })).toEqual({
       title_id: 10, kind: "series", versions: ["tv-2160p"], seasons: [{ season: 1, monitored: true }], search: false,

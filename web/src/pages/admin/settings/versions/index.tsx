@@ -331,6 +331,11 @@ function VersionForm({ session, data, defaults, profiles, error, onChange }: { s
   const recategorize = (next: VersionConfig) => {
     // A picked TRaSH default belongs to one flavour: a change of kind drops it (the new kind's default, if any, is taken below).
     if (presetPick(next.profile) && flavourOf(next.kind) !== flavourOf(config.kind)) next = { ...next, profile: "" };
+    // Minimum availability and its delay are a movie library's: another kind drops them.
+    if (next.kind !== "movie") {
+      next = withAvailability(withAvailability(next, "minimum_availability", ""), "availability_delay", 0);
+      setDelayText("");
+    }
     if (session.create) {
       const was = defaults[categoryOf(config.kind, config.anime)] ?? "";
       const now = defaults[categoryOf(next.kind, next.anime)];
@@ -355,6 +360,22 @@ function VersionForm({ session, data, defaults, profiles, error, onChange }: { s
     if (value.trim() || saved.config.name) next.name = value.trim() ? value : "";
     else delete next.name;
     onChange({ ...record, config: next });
+  };
+  // Minimum availability and its delay are optional and stored only when set: unset, each is left out of the
+  // request unless that clears a stored value (sent empty, or 0), so a save that does not touch them stores the
+  // library as it was.
+  const withAvailability = <K extends "minimum_availability" | "availability_delay",>(from: VersionConfig, key: K, value: NonNullable<VersionConfig[K]>): VersionConfig => {
+    const next = { ...from };
+    if (value || saved.config[key]) next[key] = value;
+    else delete next[key];
+    return next;
+  };
+  const [delayText, setDelayText] = useState(config.availability_delay ? String(config.availability_delay) : "");
+  // Whole days, negative for earlier; empty (or a lone minus sign while typing) is no delay.
+  const setDelay = (text: string) => {
+    if (!/^-?\d*$/.test(text)) return;
+    setDelayText(text);
+    onChange({ ...record, config: withAvailability(config, "availability_delay", /\d/.test(text) ? Number(text) : 0) });
   };
   const fieldError = (field: string) => fieldMessage(error, (path) => path === `versions[${record.key}].${field}`);
   // Storage and Import mode offer one supported value each; they show only when the library uses another one.
@@ -416,6 +437,10 @@ function VersionForm({ session, data, defaults, profiles, error, onChange }: { s
       </div>
       <Field label="Upgrades" help="What happens when a better release would replace a file this library already has." {...mark("upgrades")}><Pick value={config.upgrades} options={["auto", "approve", "off"]} labels={{ auto: "Automatic", approve: "Ask first", off: "Never" }} onChange={(value) => update("upgrades", value as VersionConfig["upgrades"])} /></Field>
       <Field label="Prefer SeaDex" help="SeaDex picks take priority among allowed qualities and can replace higher-resolution files. Actual quality remains shown; size limits, upgrades and the other checks still apply." {...mark("prefer_seadex")}><Switch className="self-start" checked={config.prefer_seadex ?? false} onCheckedChange={(on) => update("prefer_seadex", on)} /></Field>
+      {config.kind === "movie" ? <>
+        <Field label="Minimum availability" help="When a movie of this library counts as out and is searched, unless the movie has its own choice. Not set means Released." changed={(config.minimum_availability ?? "") !== (saved.config.minimum_availability ?? "")} onUndo={() => onChange({ ...record, config: withAvailability(config, "minimum_availability", saved.config.minimum_availability ?? "") })} error={fieldError("minimum_availability")}><Pick value={config.minimum_availability ?? ""} options={["", "announced", "inCinemas", "released"]} labels={{ "": "Not set", announced: "Announced", inCinemas: "In cinemas", released: "Released" }} onChange={(value) => onChange({ ...record, config: withAvailability(config, "minimum_availability", value as NonNullable<VersionConfig["minimum_availability"]>) })} /></Field>
+        <Field label="Availability delay (days)" help="Days to wait after that date before searching; negative starts earlier. Empty means none." changed={(config.availability_delay ?? 0) !== (saved.config.availability_delay ?? 0)} onUndo={() => setDelay(saved.config.availability_delay ? String(saved.config.availability_delay) : "")} error={fieldError("availability_delay")}><Input inputMode="numeric" value={delayText} onChange={(event) => setDelay(event.target.value)} /></Field>
+      </> : null}
     </Part>
     <Part title="Sources" help="Where it searches and which debrid providers it adds through, in fallback order.">
       <div className="space-y-1"><Multi label="Indexers" choices={data.indexers} values={config.indexers ?? []} onChange={(values) => update("indexers", values)} />{mark("indexers").changed ? <ChangedMark name="Indexers" onUndo={mark("indexers").onUndo} /> : null}</div>

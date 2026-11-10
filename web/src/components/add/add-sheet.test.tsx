@@ -2,7 +2,7 @@
 // The add drawer's library rows (audit 2): one checkbox per library, identity and state on their own rows, the
 // library state from grab_state, the global notice said once, and "n will download" from the ticked rows' will_grab.
 // Invented keys and names.
-import { screen, waitFor, within } from "@testing-library/react";
+import { cleanup, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
 import { json, mockFetch, renderPage } from "@/test/page";
@@ -112,6 +112,8 @@ it("sends today's request for a new series when every new choice is left alone",
   renderPage(<AddSheet target={{ kind: "series", name: "Kappa", year: 2025, tmdb_id: 8 }} onClose={() => {}} />);
   expect(((await screen.findByTestId("add-monitor")) as HTMLSelectElement).value).toBe("");
   expect(screen.getByTestId("add-monitor-new").getAttribute("aria-checked")).toBe("true");
+  expect((screen.getByTestId("add-series-type") as HTMLSelectElement).value).toBe("standard");
+  expect(screen.queryByTestId("add-minimum-availability")).toBeNull();
   expect(screen.getByRole("switch", { name: "Search now" }).getAttribute("aria-checked")).toBe("false");
   await user.click(screen.getByTestId("add-submit"));
   const body = await bodyOf(fetch);
@@ -161,9 +163,60 @@ it("offers neither series choice for a series already in the library", async () 
   const user = userEvent.setup();
   renderPage(<AddSheet target={{ kind: "series", name: "Kappa", title_id: 10 }} onClose={() => {}} />);
   expect(await screen.findByTestId("add-seasons")).toBeTruthy();
-  for (const id of ["add-monitor", "add-monitor-new", "add-anime"]) expect(screen.queryByTestId(id)).toBeNull();
+  for (const id of ["add-monitor", "add-monitor-new", "add-series-type", "add-anime", "add-minimum-availability"]) expect(screen.queryByTestId(id)).toBeNull();
   await user.click(screen.getByTestId("add-submit"));
   expect(await bodyOf(fetch)).toEqual({ title_id: 10, kind: "series", versions: ["tv-web", "tv-old"], seasons: [{ season: 1, monitored: true }], search: false });
+});
+
+it("sends a new series' type only when it differs from the one the series would get", async () => {
+  const fetch = mockFetch(routes(seriesOptions));
+  const user = userEvent.setup();
+  renderPage(<AddSheet target={{ kind: "series", name: "Kappa", year: 2025, tmdb_id: 8 }} onClose={() => {}} />);
+  const select = () => screen.getByTestId("add-series-type") as HTMLSelectElement;
+  await user.selectOptions(await screen.findByTestId("add-series-type"), "daily");
+  await user.click(screen.getByTestId("add-submit"));
+  expect(await bodyOf(fetch)).toEqual({ kind: "series", tmdb_id: 8, title: "Kappa", year: 2025, anime: false, versions: ["tv-web"], search: false, series_type: "daily" });
+  cleanup();
+
+  // Picked and put back to standard: nothing is sent. An anime title shows anime and sends nothing either.
+  const again = mockFetch(routes(seriesOptions));
+  renderPage(<AddSheet target={{ kind: "series", name: "Kappa", year: 2025, tmdb_id: 8 }} onClose={() => {}} />);
+  await user.selectOptions(await screen.findByTestId("add-series-type"), "daily");
+  await user.selectOptions(select(), "standard");
+  await user.click(screen.getByTestId("add-submit"));
+  expect("series_type" in ((await bodyOf(again)) as object)).toBe(false);
+  cleanup();
+
+  const anime = mockFetch(routes(seriesOptions));
+  renderPage(<AddSheet target={{ kind: "series", name: "Kappa", year: 2025, tmdb_id: 8, anime: true }} onClose={() => {}} />);
+  expect(((await screen.findByTestId("add-series-type")) as HTMLSelectElement).value).toBe("anime");
+  await user.click(screen.getByTestId("add-submit"));
+  expect(await bodyOf(anime)).toEqual({ kind: "series", tmdb_id: 8, title: "Kappa", year: 2025, anime: true, versions: ["tv-web"], search: false });
+});
+
+it("sends no minimum availability at Library default, and the picked one otherwise, Released included", async () => {
+  const one = { ...options, versions: versions.slice(0, 1) };
+  const fetch = mockFetch(routes(one));
+  const user = userEvent.setup();
+  renderPage(<AddSheet target={{ kind: "movie", name: "Alpha", year: 2024, tmdb_id: 7 }} onClose={() => {}} />);
+  const select = (await screen.findByTestId("add-minimum-availability")) as HTMLSelectElement;
+  expect(select.value).toBe("");
+  expect([...select.options].map((o) => o.textContent)).toEqual(["Library default", "Announced", "In cinemas", "Released"]);
+  expect(screen.queryByTestId("add-series-type")).toBeNull();
+  // Picked and put back: the body is the one of a plain add.
+  await user.selectOptions(select, "inCinemas");
+  await user.selectOptions(select, "");
+  await user.click(screen.getByTestId("add-submit"));
+  const plain = await bodyOf(fetch);
+  expect(plain).toEqual({ kind: "movie", tmdb_id: 7, title: "Alpha", year: 2024, anime: false, versions: ["movie-web"], search: false });
+  expect("minimum_availability" in (plain as object)).toBe(false);
+  cleanup();
+
+  const again = mockFetch(routes(one));
+  renderPage(<AddSheet target={{ kind: "movie", name: "Alpha", year: 2024, tmdb_id: 7 }} onClose={() => {}} />);
+  await user.selectOptions(await screen.findByTestId("add-minimum-availability"), "released");
+  await user.click(screen.getByTestId("add-submit"));
+  expect(await bodyOf(again)).toEqual({ kind: "movie", tmdb_id: 7, title: "Alpha", year: 2024, anime: false, versions: ["movie-web"], search: false, minimum_availability: "released" });
 });
 
 it("remembers Search now in this browser and starts off without a stored value", async () => {

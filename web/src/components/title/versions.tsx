@@ -19,6 +19,7 @@ import { journalLink } from "@/lib/admin-links";
 import { JournalList } from "@/components/title/journal-list";
 import { CopyActions } from "@/components/title/copy-actions";
 import { ControlNote, MonitorSwitch } from "@/components/title/manage-bits";
+import { MinimumAvailabilityControl } from "@/components/title/title-choices";
 import { UpgradeStatus } from "@/components/title/upgrade-why";
 import { CopyUpgradeHolds } from "@/components/upgrades/upgrade-hold";
 import { Button } from "@/components/ui/button";
@@ -199,6 +200,11 @@ function CopyCard({ v }: { v: Version }) {
             <CopyUpgradeHolds titleId={titleId} version={v.key} />
           </Field>
         </div>
+        {v.minimum_availability ? (
+          <div className="col-span-2">
+            <Field label="Minimum availability" testid="copy-minimum-availability"><MinimumAvailabilityControl v={v} label={f.copy} /></Field>
+          </div>
+        ) : null}
       </dl>
       {c ? (
         <div className="flex flex-wrap items-center gap-x-3 gap-y-2 border-t border-[var(--line)] pt-3" data-testid="version-controls">

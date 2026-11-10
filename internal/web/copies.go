@@ -13,6 +13,7 @@ import (
 	"github.com/theatarr/theatarr/internal/auth"
 	"github.com/theatarr/theatarr/internal/availability"
 	"github.com/theatarr/theatarr/internal/catalog"
+	"github.com/theatarr/theatarr/internal/policy"
 	"github.com/theatarr/theatarr/internal/store"
 )
 
@@ -594,6 +595,175 @@ const maxBulkTitles = 500
 
 func (w *Web) mountCopiesAPI(mux *http.ServeMux) {
 	w.handle(mux, "POST "+APIBase+"/titles/monitor", SignedIn, auth.PermManage, w.apiBulkMonitor)
+	w.handle(mux, "POST "+APIBase+"/titles/minimum-availability", SignedIn, auth.PermManage, w.apiMinimumAvailability)
+	w.handle(mux, "POST "+APIBase+"/titles/series-type", SignedIn, auth.PermManage, w.apiSeriesType)
+}
+
+// MinimumAvailabilityRequest is the body of POST /titles/minimum-availability.
+type MinimumAvailabilityRequest struct {
+	TitleIDs []int64 `json:"title_ids"`
+	// Versions are the libraries to set it for; absent means every library each movie is in.
+	Versions            []string `json:"versions"`
+	MinimumAvailability string   `json:"minimum_availability"`
+}
+
+// SeriesTypeRequest is the body of POST /titles/series-type.
+type SeriesTypeRequest struct {
+	TitleIDs   []int64 `json:"title_ids"`
+	SeriesType string  `json:"series_type"`
+}
+
+// TitleChoiceResult is the answer to both: the library choices, or the series, written.
+type TitleChoiceResult struct {
+	Changed int `json:"changed"`
+}
+
+// What a movie's minimum availability and a series' type may be set to (POST /titles too).
+var (
+	minimumAvailabilities = []string{"announced", "inCinemas", "released"}
+	seriesTypes           = []string{"standard", "daily", "anime"}
+)
+
+// choiceTitles checks a choice request's title ids: 1 to maxBulkTitles titles, every one of kind. It answers the
+// refusal itself and returns the ids sorted, without repeats.
+func (w *Web) choiceTitles(rw http.ResponseWriter, r *http.Request, titleIDs []int64, kind, field string) ([]int64, bool) {
+	ids := slices.Clone(titleIDs)
+	slices.Sort(ids)
+	ids = slices.Compact(ids)
+	if len(ids) == 0 || len(ids) > maxBulkTitles {
+		badRequest(rw, fmt.Sprintf("title_ids must name 1 to %d titles", maxBulkTitles))
+		return nil, false
+	}
+	args := make([]any, len(ids))
+	for i, id := range ids {
+		args[i] = id
+	}
+	kinds := map[int64]string{}
+	err := scanAll(r.Context(), w.st.Reader(), `SELECT id, kind FROM title WHERE id IN (`+store.Placeholders(len(args))+`)`,
+		args, func(rows *sql.Rows) error {
+			var id int64
+			var k string
+			if err := rows.Scan(&id, &k); err != nil {
+				return err
+			}
+			kinds[id] = k
+			return nil
+		})
+	if err != nil {
+		w.internal(rw, err)
+		return nil, false
+	}
+	for _, id := range ids {
+		switch k, ok := kinds[id]; {
+		case !ok:
+			notFound(rw)
+			return nil, false
+		case k != kind:
+			badRequest(rw, fmt.Sprintf("%s is for a %s: title %d is a %s", field, kind, id, k))
+			return nil, false
+		}
+	}
+	return ids, true
+}
+
+// apiMinimumAvailability sets movies' minimum availability as an explicit choice, per library: the title page's
+// control sends one movie and one library. Only libraries the movie is in get a choice.
+func (w *Web) apiMinimumAvailability(rw http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	var req MinimumAvailabilityRequest
+	if err := decodeJSON(r, &req); err != nil {
+		badRequest(rw, "invalid JSON: "+err.Error())
+		return
+	}
+	if !slices.Contains(minimumAvailabilities, req.MinimumAvailability) {
+		badRequest(rw, "minimum_availability must be one of "+strings.Join(minimumAvailabilities, ", "))
+		return
+	}
+	if req.Versions != nil && len(req.Versions) == 0 {
+		badRequest(rw, "pick at least one library")
+		return
+	}
+	if w.pol == nil {
+		writeJSON(rw, http.StatusServiceUnavailable, apiError{Error: "no policy loaded"})
+		return
+	}
+	if err := w.checkVersions(req.Versions, policy.KindMovie); err != nil {
+		badRequest(rw, err.Error())
+		return
+	}
+	ids, ok := w.choiceTitles(rw, r, req.TitleIDs, "movie", "minimum_availability")
+	if !ok {
+		return
+	}
+	var out TitleChoiceResult
+	now := w.now()
+	err := w.st.WriteTx(ctx, func(tx *sql.Tx) error {
+		out.Changed = 0
+		for _, id := range ids {
+			// The libraries the movie is in: a choice for another one would wait there for a later add.
+			var keys []string
+			if err := queryEach(ctx, tx, `SELECT v.policy_key FROM version v WHERE v.title_id = ? AND NOT EXISTS
+				(SELECT 1 FROM arrview_removed_version r WHERE r.version_id = v.id) ORDER BY v.policy_key`, []any{id},
+				func(rows *sql.Rows) error {
+					var k string
+					if err := rows.Scan(&k); err != nil {
+						return err
+					}
+					if req.Versions == nil || slices.Contains(req.Versions, k) {
+						keys = append(keys, k)
+					}
+					return nil
+				}); err != nil {
+				return err
+			}
+			if err := availability.Choose(ctx, tx, id, keys, req.MinimumAvailability, now); err != nil {
+				return err
+			}
+			out.Changed += len(keys)
+		}
+		return nil
+	})
+	if err != nil {
+		w.internal(rw, err)
+		return
+	}
+	if out.Changed > 0 {
+		w.log.Info("minimum availability set", "source", "ui", "titles", len(ids), "value", req.MinimumAvailability,
+			"libraries", out.Changed)
+	}
+	writeJSON(rw, http.StatusOK, out)
+}
+
+// apiSeriesType sets series' type (catalog.SetSeriesType: the one value of the series, for every library).
+func (w *Web) apiSeriesType(rw http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	var req SeriesTypeRequest
+	if err := decodeJSON(r, &req); err != nil {
+		badRequest(rw, "invalid JSON: "+err.Error())
+		return
+	}
+	if !slices.Contains(seriesTypes, req.SeriesType) {
+		badRequest(rw, "series_type must be one of "+strings.Join(seriesTypes, ", "))
+		return
+	}
+	ids, ok := w.choiceTitles(rw, r, req.TitleIDs, "series", "series_type")
+	if !ok {
+		return
+	}
+	err := w.st.WriteTx(ctx, func(tx *sql.Tx) error {
+		for _, id := range ids {
+			if err := catalog.SetSeriesType(ctx, tx, id, req.SeriesType); err != nil {
+				return err
+			}
+		}
+		return nil
+	})
+	if err != nil {
+		w.internal(rw, err)
+		return
+	}
+	w.log.Info("series type set", "source", "ui", "titles", len(ids), "value", req.SeriesType)
+	writeJSON(rw, http.StatusOK, TitleChoiceResult{Changed: len(ids)})
 }
 
 func (w *Web) apiBulkMonitor(rw http.ResponseWriter, r *http.Request) {

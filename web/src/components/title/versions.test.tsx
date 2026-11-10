@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { screen } from "@testing-library/react";
+import { screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it } from "vitest";
 import { json, mockFetch, renderPage } from "@/test/page";
@@ -132,4 +132,35 @@ it("says Preview only once on a Shadow library's card, keeping a server's own ho
   await screen.findAllByTestId("copy-card");
   expect(document.body.textContent?.match(/Preview only/g)).toHaveLength(1);
   expect(screen.getByTestId("control-note").textContent).toContain("Downloads off (indexers cooling down)");
+});
+
+describe("minimum availability on a library card", () => {
+  const movie = { ...copy, minimum_availability: "inCinemas" };
+
+  it("lets a manager change it for that library, and shows an imported tba without offering it", async () => {
+    const fetch = mockFetch([
+      { method: "GET", path: "/auth/me", reply: { permissions: ["browse", "see_files", "manage"] } },
+      { method: "POST", path: "/titles/minimum-availability", reply: { changed: 1 } },
+      { method: "GET", path: "/titles/7", reply: {} },
+    ]);
+    const user = userEvent.setup();
+    renderPage(<CopyCards versions={[movie, { ...copy, id: 2, key: "movie-remux", label: "Remux", minimum_availability: "tba" }] as never} />);
+    const select = (await screen.findByTestId("version-minimum-availability-movie-web")) as HTMLSelectElement;
+    expect(select.value).toBe("inCinemas");
+    expect([...select.options].map((o) => o.value)).toEqual(["announced", "inCinemas", "released"]);
+    const imported = screen.getByTestId("version-minimum-availability-movie-remux") as HTMLSelectElement;
+    expect(imported.value).toBe("tba");
+    expect([...imported.options].map((o) => o.value)).toEqual(["tba", "announced", "inCinemas", "released"]);
+    await user.selectOptions(select, "announced");
+    await waitFor(() => expect(fetch.calls("POST", "/titles/minimum-availability")).toHaveLength(1));
+    expect(fetch.calls("POST", "/titles/minimum-availability")[0].body).toEqual({ title_ids: [7], versions: ["movie-web"], minimum_availability: "announced" });
+  });
+
+  it("shows it as text without manage, and not at all on a series' card", async () => {
+    mockFetch([{ method: "GET", path: "/auth/me", reply: { permissions: ["browse", "see_files"] } }]);
+    renderPage(<CopyCards versions={[movie, { ...copy, id: 2, key: "tv-web", label: "TV" }] as never} />);
+    expect((await screen.findByTestId("copy-minimum-availability")).textContent).toContain("In cinemas");
+    expect(screen.getAllByTestId("copy-minimum-availability")).toHaveLength(1);
+    expect(screen.queryByTestId("version-minimum-availability-movie-web")).toBeNull();
+  });
 });
