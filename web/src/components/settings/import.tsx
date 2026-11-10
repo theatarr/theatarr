@@ -149,7 +149,8 @@ export function ImportView(p: ImportViewProps) {
             {importTouchesProviders(preview.changes) ? (
               <OrphanChoice checked={s.orphan} onChange={p.onOrphan} disabled={yaml || s.step !== "preview"}>
                 This import changes or removes providers. Leave this off and the import is refused if that would fail active downloads; nothing
-                changes. Tick it to import anyway: the removed or disabled providers' active downloads are marked failed (not blocklisted).
+                changes. Tick it to import anyway: the removed or disabled providers' active downloads, and those a changed credential's new account
+                cannot see, are marked failed (not blocklisted).
               </OrphanChoice>
             ) : null}
             <div className="flex flex-wrap gap-2">

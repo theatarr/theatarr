@@ -117,6 +117,17 @@ export function confirmationOf(e: unknown): WriteConfirmation | undefined {
   return { token, effects: body.effects as WriteConfirmation["effects"] };
 }
 
+/** explainError for the reload, which has no "Fail its active downloads" tick: a refusal that would fail active
+ * downloads says what works there instead. */
+export function explainReloadError(e: unknown): Explained {
+  const x = explainError(e);
+  if (x.kind !== "orphan" && x.kind !== "account_orphan") return x;
+  return {
+    ...x,
+    message: `${x.title}: the stored settings would fail active downloads, so nothing was reloaded. Wait for those downloads to finish and reload again, or make the provider change in Settings, where "Fail its active downloads" can confirm it.`,
+  };
+}
+
 export function explainError(e: unknown, now = Date.now()): Explained {
   if (!(e instanceof ApiError)) {
     const msg = e instanceof Error ? e.message : String(e);

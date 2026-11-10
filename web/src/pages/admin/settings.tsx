@@ -13,7 +13,7 @@ import { useWriteConfirmation } from "@/components/settings/confirm-write";
 import { ImportPanel } from "@/components/settings/import";
 import { AuthorityBanner, ExplainBox, ManagedInSettings } from "@/components/settings/parts";
 import { BudgetsPanel, SourcesPanel } from "@/components/settings/sources";
-import { authority, explainError, type Explained } from "@/lib/settings";
+import { authority, explainReloadError, type Explained } from "@/lib/settings";
 
 export const SETTINGS_TABS = ["indexers", "providers", "budgets", "import", "audit"] as const;
 export type SettingsTabId = (typeof SETTINGS_TABS)[number];
@@ -76,7 +76,7 @@ export function SettingsTab({ tab }: { tab: SettingsTabId }) {
     try {
       await api("/settings/reload", { method: "POST", body: { generation: o.data.generation }, headers: confirmationHeaders(token) });
     } catch (e) {
-      if (!confirm.ask(e, (next) => void reload(next))) setReloadError(explainError(e));
+      if (!confirm.ask(e, (next) => void reload(next))) setReloadError(explainReloadError(e));
     } finally {
       setReloading(false);
       void qc.invalidateQueries({ queryKey: qk.settings.all });

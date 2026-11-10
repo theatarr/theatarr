@@ -14,6 +14,7 @@ import {
   editorMismatch,
   editorReturn,
   explainError,
+  explainReloadError,
   formFromConfig,
   hasAdvancedValues,
   importCounts,
@@ -74,6 +75,12 @@ describe("refusals explained", () => {
     const account = explainError(new ApiError(422, "settings refused: providers[rd]: account change would orphan 2 active download(s): new account cannot see their torrents"));
     expect(account.kind).toBe("account_orphan");
     expect(account.message).toMatch(/Fail its active downloads/);
+    for (const msg of ["removal would orphan 3 active download(s); set orphan_active_downloads to confirm", "account change would orphan 2 active download(s): new account cannot see their torrents"]) {
+      const r = explainReloadError(new ApiError(422, "settings refused: providers[rd]: " + msg));
+      expect(r.message).toMatch(/Wait for those downloads to finish/);
+      expect(r.message).not.toMatch(/tick/);
+    }
+    expect(explainReloadError(new ApiError(422, "settings refused: providers[rd]: 1 add(s) in progress for provider rd; retry shortly")).kind).toBe("adds_in_progress");
     expect(explainError(new ApiError(422, "settings refused: providers[rd]: could not verify 1 active download(s) on the new account; retry")).kind).toBe("unverified");
     expect(explainError(new ApiError(422, "settings refused: providers[rd]: 1 add(s) in progress for provider rd; retry shortly")).kind).toBe("adds_in_progress");
   });

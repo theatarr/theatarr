@@ -187,13 +187,23 @@ func validateProviderContinuity(ctx context.Context, st *store.Store, snap *sett
 				active = append(active, d)
 			}
 		}
+		// An add in progress (usually no torrent id yet) cannot be probed: retry shortly, as on removal.
+		adding := 0
+		for _, d := range active {
+			if d.state == "adding" {
+				adding++
+			}
+		}
+		if adding > 0 {
+			return nil, continuityRefusal(key, fmt.Sprintf("%d add(s) in progress for provider %s; retry shortly", adding, key))
+		}
 		if len(active) > 100 {
 			return nil, continuityRefusal(key, "account change: probe limit is 100 active download(s)")
 		}
 		jobs := make(chan activeProviderDownload)
 		var wg sync.WaitGroup
 		var mu sync.Mutex
-		missing, uncertain, adding := map[int64]activeProviderDownload{}, 0, 0
+		missing, uncertain := map[int64]activeProviderDownload{}, 0
 		for range min(4, len(active)) {
 			wg.Go(func() {
 				for d := range jobs {
@@ -229,14 +239,6 @@ func validateProviderContinuity(ctx context.Context, st *store.Store, snap *sett
 		}
 		if len(missing) > 0 && !c.orphan {
 			return nil, continuityRefusal(key, fmt.Sprintf("account change would orphan %d active download(s): new account cannot see their torrents; set orphan_active_downloads (\"Fail its active downloads\") to fail them and save", len(missing)))
-		}
-		for _, d := range missing {
-			if d.state == "adding" {
-				adding++
-			}
-		}
-		if adding > 0 {
-			return nil, continuityRefusal(key, fmt.Sprintf("%d add(s) in progress for provider %s; retry shortly", adding, key))
 		}
 		if len(missing) > 0 {
 			if c.missing == nil {

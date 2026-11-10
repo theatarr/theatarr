@@ -101,12 +101,16 @@ func TestProviderKeyChangeFailsMissingDownloadsWhenConfirmed(t *testing.T) {
 		t.Error("blocklisted")
 	}
 
-	// A missing download still adding is not failed: retry shortly, as on removal.
-	if _, err := db.Writer().ExecContext(ctx, `UPDATE download SET state = 'adding', error = NULL WHERE id = 1`); err != nil {
+	// An add in progress, which has no torrent id yet, is not probed: retry shortly, as on removal, with or
+	// without the confirmation.
+	if _, err := db.Writer().ExecContext(ctx, `UPDATE download SET state = 'adding', error = NULL,
+		provider_torrent_id = NULL WHERE id = 1`); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := validateProviderContinuity(octx, db, candidate, previous, keys, clients); err == nil ||
-		!strings.Contains(err.Error(), "add(s) in progress") {
-		t.Fatalf("missing download adding: %v", err)
+	for _, c := range []context.Context{ctx, octx} {
+		if _, err := validateProviderContinuity(c, db, candidate, previous, keys, clients); err == nil ||
+			!strings.Contains(err.Error(), "1 add(s) in progress for provider rd; retry shortly") {
+			t.Fatalf("download adding: %v", err)
+		}
 	}
 }
