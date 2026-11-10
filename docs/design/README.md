@@ -1,5 +1,8 @@
 # Design docs
 
+Written for contributors. They describe how Theatarr is built and why, including history; you do not need them to
+run it. The user guides are indexed in [../README.md](../README.md).
+
 How Theatarr works inside, one part per page. Start with the overview.
 
 - [overview.md](overview.md): what Theatarr is, the domain model, the pipeline, the safety model and settings.

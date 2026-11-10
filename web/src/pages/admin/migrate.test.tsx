@@ -98,7 +98,7 @@ describe("migration wizard", () => {
     expect(screen.getByText("Enter Public feed's credential")).toBeTruthy();
     expect(screen.getByRole("link", { name: "Settings › Libraries" }).getAttribute("href")).toBe("/admin/settings/libraries");
     expect(screen.getByRole("link", { name: "Migration comparison (shadow)" }).getAttribute("href")).toBe("/admin/advanced/arr/comparison");
-    expect(screen.getByRole("link", { name: "docs/golive.md" }).getAttribute("href")).toContain("docs/golive.md");
+    expect(screen.getByRole("link", { name: "docs/migration.md" }).getAttribute("href")).toContain("docs/migration.md#2-shadow-compare-with-the-arr");
     expect(screen.queryByRole("button", { name: /enable|go live|switch router|switch library/i })).toBeNull();
     expect(fetch.requests.filter((r) => r.path !== "/migrate/inspect").some((r) => JSON.stringify(r).includes(key))).toBe(false);
     expect(local).not.toHaveBeenCalled();

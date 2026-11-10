@@ -100,7 +100,7 @@ arguments, unknown methods and unknown tools. Secrets are write-only; reads show
 | `settings_sections`, `settings_views` | Settings generation, sections and arr view identities/bindings |
 | `journal`, `activity` | Recent decisions/grabs and queue/download activity; normal account filtering applies |
 | `library_search` | Library titles by `q`, with optional `limit` and `offset`; no metadata/indexer search |
-| `errors_list`, `errors_get`, `errors_resolve` | Admin: the error inbox ([design/errors.md](design/errors.md)); list by `status` (`open` for new and seen), `source`, `since`, `limit`, `offset`; get by `id` with stack; resolve `id` with an optional `note` |
+| `errors_list`, `errors_get`, `errors_resolve` | Admin: the error inbox ([design/errors.md (internals)](design/errors.md)); list by `status` (`open` for new and seen), `source`, `since`, `limit`, `offset`; get by `id` with stack; resolve `id` with an optional `note` |
 | `preflight` | Read-only install checks; `sources: false` skips source probes and Plex |
 | `migration_inspect` | Sources and named key references, as in POST `/migrate/inspect`; keys resolve per request |
 | `migration_plan_create` | Inspect `sources` and save a plan, with optional `keys` and migration `options` |

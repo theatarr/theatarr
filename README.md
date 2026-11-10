@@ -61,7 +61,7 @@ It is built so that nothing happens until you say so:
   absolute episode or named after a franchise entry or an alternate cut map through it. An episode it can't map with
   confidence imports through Sonarr's numbering, and the mapping waits in a review queue. A SeaDex pack covers only the
   cour it belongs to. Plex gets per-franchise playlists in watch or story order. Details:
-  [docs/design/anime.md](docs/design/anime.md).
+  [docs/design/anime.md (internals)](docs/design/anime.md).
 - **Decision journal.** Every grab, upgrade and shadow decision with its reasoning, runners-up and suspect flags.
 - **Migration from an arr stack.** Reads Sonarr, Radarr, Prowlarr, Seerr and Recyclarr with GET requests only and
   plans the move; everything lands disabled or in shadow.
@@ -86,7 +86,7 @@ library's indexers through one outbound gateway (budgets, back-offs and the opti
 with the library's profile the way the arrs do, and adds the best cached one to the first provider that takes it.
 When the files show up on the debrid mount, the library checks them and links them into its root under arr naming,
 then asks Plex to scan. In shadow mode the same chain stops after the decision. See
-[docs/design/overview.md](docs/design/overview.md) for the architecture.
+[docs/design/overview.md (internals)](docs/design/overview.md) for the architecture.
 
 ## Not supported yet
 
@@ -163,10 +163,10 @@ See [docs/quickstart.md](docs/quickstart.md#6-a-first-library).
 title link and shows the chosen release, runners-up, rejections and suspect flags. **Admin › Reviews** collects what waits for you: quality updates, anime
 mappings, indexer definitions and flagged decisions. See [docs/journal.md](docs/journal.md).
 
-**Going live.** When the decisions look right, run `theatarr golive check -version KEY`, set the library to
+**Going live.** When the decisions look right, run `theatarr golive check -library KEY`, set the library to
 **Active**, turn on **Allow downloads for this library**, **Write library links** and **Allow new downloads**, and
 watch the first imports. See [docs/quickstart.md](docs/quickstart.md#9-go-live-deliberately) and
-[docs/golive.md](docs/golive.md).
+[the go-live check](docs/migration.md#4-the-go-live-check).
 
 **Requests.** Add Theatarr to Seerr or Overseerr as a Radarr or Sonarr server: the view path as URL base (for
 example `/v/movies/radarr`) and an API key from **Users & access**. See
@@ -179,7 +179,7 @@ familiar arr page lives.
 **Migrating an arr stack.** **Admin › Advanced › Sonarr/Radarr migration**, or `theatarr migrate inspect | plan |
 apply | verify`, reads your existing Sonarr, Radarr, Prowlarr, Seerr and Recyclarr setup and adds it disabled or in
 shadow. A follower library then runs beside each arr until you hand over clients and Plex. See
-[docs/migration.md](docs/migration.md), [docs/parallel.md](docs/parallel.md) and [docs/golive.md](docs/golive.md).
+[docs/migration.md](docs/migration.md), the one guide from inspecting the stack to retiring the arr.
 
 ## Configuration
 
@@ -254,7 +254,7 @@ policy directory if you bind one and reconciling the library links afterwards.
 ## Documentation
 
 [docs/README.md](docs/README.md) is the map: the user guides first, then the design and reference docs in
-[docs/design/](docs/design/README.md).
+[docs/design/ (internals)](docs/design/README.md).
 
 ## Development and contributing
 

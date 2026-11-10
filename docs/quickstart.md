@@ -135,7 +135,7 @@ backdrops through Theatarr's image cache, and without it the UI shows generated 
 stop the service, run `theatarr policy validate DIR`, then `theatarr settings import -policy DIR` to review the
 preview, and repeat with `-confirm` to save it. Importing never turns on the global switches. A running install
 imports and exports under **Advanced › YAML settings › Import & export**. See
-[the settings reference](design/settings.md).
+[the settings reference (internals)](design/settings.md).
 
 The database and listen paths, `THEATARR_FORCE_OFF`, `THEATARR_TRASH`, the log and backup paths and credentials read
 from environment variables need a restart. A credential stored in Settings wins over an environment variable.
@@ -159,10 +159,10 @@ ends. Several providers form a fallback order. Setup counts a provider as done o
 key (stored, or in the environment variable it names).
 
 To keep decypharr or another qBittorrent-API client, add it under **Settings › Download clients › Other clients**
-and let the library add through it ([external-clients.md](design/external-clients.md)).
+and let the library add through it ([external-clients.md (internals)](design/external-clients.md)).
 
 **Admin › Torrents** lists each account's torrents with what uses them, and backs them up or restores them
-([torrents.md](design/torrents.md)).
+([torrents.md (internals)](design/torrents.md)).
 
 ## 5. Indexers: keep Prowlarr, or go native
 
@@ -174,7 +174,7 @@ and Migrate from Prowlarr.
   indexer per Prowlarr indexer, using the catalog definition where one exists and the Torznab feed where none does.
   Jackett feeds work the same way.
 - **Native catalog.** Pick indexers from the Cardigann definitions (the catalog Prowlarr uses). Turn the catalog on
-  under **Settings › Indexers › Catalog** ([cardigann.md](design/cardigann.md)). Sites behind a Cloudflare check
+  under **Settings › Indexers › Catalog** ([cardigann.md (internals)](design/cardigann.md)). Sites behind a Cloudflare check
   need a FlareSolverr-compatible service, set in the same catalog settings. The built-in sources (DMM, Torrentio, Zilean,
   SeaDex) need no catalog.
 
@@ -226,7 +226,7 @@ the indexers it searches and the providers it adds to. **Setup** builds the firs
 
    An install that migrates from Sonarr/Radarr (its settings hold an arr instance, `import.arr`) has no start
    button: there it is **Review**, then **Create library**, always in shadow, and the library goes live as
-   [golive.md](golive.md) describes.
+   [migration.md](migration.md#3-a-follower-library-beside-the-arr) describes.
 
 A library in **Shadow** mode with **Allow downloads for this library** off reads **Preview only**. It decides what
 it would grab and records that in the database for comparison. It adds nothing to debrid and writes nothing to the
@@ -256,8 +256,8 @@ To search a shadow library's indexers for a title right away, run the decision e
 ranked decisions with their score breakdown and records nothing:
 
 ```sh
-docker compose exec theatarr theatarr decide -tmdb 603 -version movies -search                  # a movie, by TMDb id
-docker compose exec theatarr theatarr decide -tvdb 81189 -version tv -season 1 -search          # a series season
+docker compose exec theatarr theatarr decide -tmdb 603 -library movies -search                  # a movie, by TMDb id
+docker compose exec theatarr theatarr decide -tvdb 81189 -library tv -season 1 -search          # a series season
 ```
 
 ## 7. Preflight
@@ -307,7 +307,7 @@ go to **Settings → Services → Add Radarr server** (Sonarr is the same):
   library's root). Mark it the default server.
 
 Seerr adds and removes titles through the view. Its requests become wanted titles for that view's libraries.
-Homepage widgets, LunaSea and Ruddarr use the same URL and key ([arrview.md](design/arrview.md)).
+Homepage widgets, LunaSea and Ruddarr use the same URL and key ([arrview.md (internals)](design/arrview.md)).
 
 ## 9. Go live deliberately
 
@@ -319,13 +319,13 @@ For a fresh library, read its decisions first: **Activity › Decision journal**
 shows what it would have grabbed and why ([journal.md](journal.md)). Then run preflight and the go-live check:
 
 ```sh
-docker compose exec theatarr theatarr golive check -version movies
+docker compose exec theatarr theatarr golive check -library movies
 ```
 
 The check exits 1 when a line fails. On a library that no arr feeds, the shadow **window** and **agreement** lines
 read INFO ("no arr feeds movies: nothing to compare, skipped"): there are no arr grabs to compare with, so they do
 not fail the check. Read the decision journal instead, and go live deliberately once the decisions look right.
-[golive.md](golive.md) says which settings page each key the check names is on.
+[migration.md](migration.md#4-the-go-live-check) says which settings page each key the check names is on.
 
 1. **Settings › Libraries:** set the library to **Active** and turn **Allow downloads for this library** on,
    reviewing each confirmation.
@@ -340,7 +340,7 @@ new adds; ready downloads can still import. Turn library writes off too if impor
 not cancel work already in flight. `THEATARR_FORCE_OFF=router,library,notify` forces the switches off at startup
 whatever the saved settings say; it needs a restart and can never turn anything on.
 
-Moving an existing arr library? Use a follower library instead, as [golive.md](golive.md) describes: the arr keeps
+Moving an existing arr library? Use a follower library instead, as [migration.md](migration.md#3-a-follower-library-beside-the-arr) describes: the arr keeps
 running while Theatarr builds its own copy beside it.
 
 ## Readiness-led setup
@@ -375,10 +375,10 @@ arr feeds, after you confirm the list. Setup stays available from Settings after
 
 ## More
 
-- [migration.md](migration.md): moving an existing Sonarr/Radarr, Prowlarr, Seerr and Recyclarr setup into Theatarr
-- [golive.md](golive.md): follower libraries, client and Plex handover, rollback
+- [migration.md](migration.md): moving an existing Sonarr/Radarr, Prowlarr, Seerr and Recyclarr setup into Theatarr:
+  the plan, shadow, follower libraries, the go-live check, client and Plex handover, rollback
 - [restore.md](restore.md): backups, restore and upgrades
 - [mcp.md](mcp.md): set up and run Theatarr from an MCP client
-- [design/settings.md](design/settings.md): the settings database and API, presets and profiles
-- [design/web.md](design/web.md): accounts, API keys, the native API
-- [design/library.md](design/library.md): how imports link into the roots
+- [design/settings.md (internals)](design/settings.md): the settings database and API, presets and profiles
+- [design/web.md (internals)](design/web.md): accounts, API keys, the native API
+- [design/library.md (internals)](design/library.md): how imports link into the roots

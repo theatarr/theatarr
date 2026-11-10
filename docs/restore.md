@@ -167,15 +167,15 @@ docker tag theatarr:local theatarr:previous    # built from source only; a relea
 Note the set name and keep it out of nightly pruning for the rollback window (copy it elsewhere). Keep the old
 policy directory too, if you bind one. Then set `THEATARR_VERSION` to the new release and restart (`docker compose up -d`; built from source: rebuild
 with `docker compose up -d --build`), wait for
-`/readyz`, and run `migrate status` and `errors list -status open` as in step 5. Read the startup logs and
-**System › Status** before you go on.
+`/readyz`, and run `migrate status` and `errors list -status open` as in step 5, then `theatarr golive check`. Read
+the startup logs and **System › Status** before you go on. A ready image is no reason to turn grabbing on.
 
 To roll back: stop the service, restore the **pre-upgrade set with the old image** (step 3, with
 `THEATARR_VERSION` back at the old release, or `image: theatarr:previous` in the compose file when built from
 source, or `docker run` on that tag with the same volumes), install its
 policy if you bind one, then start the old image and wait for readiness. Start with
 `THEATARR_FORCE_OFF=router,library,notify` until you have reconciled. Never start the old image against the migrated
-database or try to downgrade it in place.
+database or try to downgrade it in place: startup and restore refuse that downgrade.
 
 Sets written by the new image may use a newer schema or manifest format that the old image cannot restore. They are
 recovery sets for the new image, not the rollback set. Restoring the pre-upgrade set loses the Theatarr records and

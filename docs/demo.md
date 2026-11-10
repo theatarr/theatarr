@@ -115,7 +115,7 @@ Many installs keep two or more copies of a title. Movies have two in the example
 through an overlay, `examples/demo`, which is not a policy on its own:
 
 - `versions-theatarr.yaml`: `tv-2160p-theatarr` follows `tv-2160p` and `anime-tv-theatarr` follows `anime-tv`, pairing each
-  arr-fed version with a parallel version of Theatarr's own ([parallel.md](parallel.md)): `mode: active`, the followed
+  arr-fed version with a parallel version of Theatarr's own ([migration.md](migration.md#3-a-follower-library-beside-the-arr)): `mode: active`, the followed
   version's profile and naming (`from_version`), roots under `/media/library`.
 - `library.yaml`: the example's `library.yaml` with those two roots added to `library.versions` (a parallel version
   needs roots of its own, and `library` is one section, so the file replaces the example's). A test keeps it equal to

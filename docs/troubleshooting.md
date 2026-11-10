@@ -76,7 +76,7 @@ on a schedule: it only sees releases from the RSS feeds of its indexers, so with
 - To see how it judges a release, paste a release name into **Settings › Profiles › Check a release**. Decisions it
   has recorded are in **Activity › Decision journal** and on the title's **Releases** page; a title added a
   moment ago may have none yet. To search the indexers for one title now, run
-  `docker compose exec theatarr theatarr decide -tmdb <id> -version <library> -search` (it records nothing).
+  `docker compose exec theatarr theatarr decide -tmdb <id> -library <library> -search` (it records nothing).
 - Give the library at least one indexer with an RSS feed (a Torznab feed, DMM, SeaDex or a catalog indexer) if you
   want it to keep recording decisions while in shadow.
 - To start downloading, follow [quickstart.md](quickstart.md#9-go-live-deliberately): set the library to
@@ -85,7 +85,7 @@ on a schedule: it only sees releases from the RSS feeds of its indexers, so with
 
 ## `golive check` skips or fails the agreement line
 
-**Symptom:** `theatarr golive check -version <library>` shows the shadow **window** and **agreement** lines as INFO,
+**Symptom:** `theatarr golive check -library <library>` shows the shadow **window** and **agreement** lines as INFO,
 "no arr feeds <library>", or fails them with "the shadow runner has not run" or "no arr grabs".
 
 **Cause:** the agreement line compares the library's decisions with the grabs of a Sonarr or Radarr that feeds it.
@@ -95,4 +95,4 @@ has arr grabs to compare.
 
 **Fix:** with no arr, nothing is broken. Read the library's decisions in the decision journal instead, make sure
 every other line passes, and go live once the decisions look right. If you are moving from an arr, add it under
-migration so the check has grabs to compare, and let it run for the window ([golive.md](golive.md)).
+migration so the check has grabs to compare, and let it run for the window ([migration.md](migration.md#2-shadow-compare-with-the-arr)).

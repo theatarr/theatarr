@@ -8,7 +8,7 @@ workaround, it is here too.
 
 - **Native usenet.** Theatarr has no NZB downloader and does not talk to SABnzbd or NZBGet. A usenet-to-debrid
   helper can still send grabs through a library's arr-compatible view (`/v/<library>/radarr` or `/sonarr`), as it
-  would with a Radarr or Sonarr; see [design/clients.md](design/clients.md).
+  would with a Radarr or Sonarr; see [design/clients.md (internals)](design/clients.md).
 - **Real torrent clients.** Grabs go to Real-Debrid, AllDebrid or TorBox directly, or to a qBittorrent-API debrid
   bridge such as decypharr, which adds them to its own debrid account. A qBittorrent on a seedbox or at home that
   downloads real files is not supported, and neither are hardlink or copy imports of those files. The library

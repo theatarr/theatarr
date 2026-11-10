@@ -872,6 +872,101 @@ what the dangling path already did.
   from the debrid service (the helper's only plain byte reads are the now playing pre-warm's), so the health check
   stays the stat, the listing and `/ready`.
 
+## Adopt and refresh for parallel libraries
+
+A parallel library K (`versions.K.follows: F`) starts from links of its own to the files F's arr has now, and follows
+the arr's upgrades until it grabs for itself. The user-facing steps are in
+[migration.md](../migration.md#adopt-and-refresh); this section has the rules.
+
+### Adopt (`theatarr library adopt`)
+
+```
+theatarr library adopt -version K [-dry-run] [-limit N] [-json]   link F's arr files into K's root
+theatarr library adopt -version K -queue                          run it as the library.adopt job in theatarr serve
+theatarr library adopt -version K -refresh [-dry-run] [-json]     move adopted links to the arr's current files (below)
+theatarr library adopt -version K -refresh -queue                 the same as a library.adopt job in theatarr serve
+```
+
+For each arr file of F (`version_file` owned through `version_source`): read the arr's symlink, keep its target if
+it is on the debrid mount, stat the target (a mount that is down aborts the run),
+and link it under K's root: the folder name from the arr's title folder, the file name from K's naming with the
+arr's quality, release group, media info and scene name (multi-episode, specials and anime absolute numbers as in a
+normal import). The link row records the arr's file as the existing file (upgrades compare against it), the
+episodes, and the version and episode states; every link is journaled in `library_action` ("adopted from ...") and
+Plex gets a partial scan per folder.
+
+Skipped, with the reason in the report: `arr_file_missing`, `not_a_symlink`, `target_off_mount`,
+`dangling`, `path_taken` (K's path holds something else, including a link K imported itself, whatever became of
+its symlink: a row with a download is never taken over, `TestAdoptLeavesOwnImportRow`), `no_episodes`, `naming`.
+A file K already links counts as
+`existing`. Re-running is safe: it links only what is missing and never overwrites; an arr upgrade of a file K
+adopted is what `-refresh` (below) handles. `-dry-run` writes nothing and
+runs with the library gate closed; a real run needs the gate open for K (`library.enabled`, `mode: active`, roots).
+A root that does not answer (K's or F's) stops either, dry run or not, before anything under it is read
+(`library.ErrRootDown`; a queued job retries).
+
+Any overlap with K's own episodes still preserves its files and skips the whole source pack. For skipped packs,
+the result/JSON reports `missing_episodes` and `partial_packs` counts, plus a capped `has_file` problem list with
+uncovered episode IDs; only active links whose mount targets exist count as coverage.
+
+### Refresh (`theatarr library adopt -refresh`, and after every arr.import)
+
+Adopt never replaces a link K already has, so when the arr upgrades a file, K's adopted link keeps pointing at the
+old file, and dangles once the arr deletes it. Refresh
+closes that gap (`internal/library/refresh.go`):
+
+- **Which links.** Only links adopt made: active links of K that carry no download and whose `link.adopted_from`
+  holds "<instance> <arr file>", set by adopt and by refresh (migration 00077 filled it from the "adopted from ..."
+  journal, so retention can prune old `library_action` rows without losing it). A link Theatarr's own import made, or
+  took over at the same path, has it cleared and is never touched (`link.adopted` is 0 for every row and is not used).
+- **Which libraries.** Only while K follows its arr: K is skipped when it grabs on its own, which is the router's own
+  gate (`router.Gate`, `library.FollowerGrabs`): `router.enabled`, `mode: active` and `grab: true`. A parallel library
+  is active to have links at all; refresh runs until both `router.enabled` and the library's own `grab` are on, so
+  the other followers keep refreshing while one follower grabs.
+- **The arr's current file.** For a movie, the title's file of F; for a series, the one arr file with exactly the
+  link's episodes, so each episode link follows its own file and a multi-episode link follows a multi-episode file.
+  The arr's symlink is read as adopt reads it. When its target is the link's target, nothing happens.
+- **The swap.** The new link is made under K's naming in the title's folder (in place when the name is the same),
+  the old link is copied to the trash (`library.trash`, `link_trash` reason `refresh: arr upgrade`) and removed, the
+  old row turns `unlinked`, and the new row is recorded as adopt records it ("adopted from <instance> <arr file>
+  (refresh: replaces ...)"), with the file's metadata and K's state recomputed. A `replace` action names the trash
+  copy. Plex gets a partial scan of the folders. The arr's files and links are only read.
+- **Left as they are, and reported** (the report's `skipped` and `problems`, and a log line each):
+  `arr_file_removed` (the arr has no file for the title or any of the episodes: the link stays, even if it
+  dangles), `arr_episodes_split` (the arr holds the episodes in another split), `target_missing` (the arr's new
+  target is not on the mount, for example during a mount outage: never swap to a missing file), plus adopt's `arr_file_missing`,
+  `not_a_symlink`, `target_off_mount`, `path_taken` and `naming`. A mount that is down aborts the run, and so does a
+  release-root listing that is empty or implausibly small ("An implausible listing", above).
+- **Dead adopted links are refreshed too.** An adopted link a sweep marked dead (the arr upgraded and its old
+  release left the mount before a refresh moved the link) is moved to the arr's current file like an active one.
+  Each swap holds the link leases of its old and new path through its
+  commit ("One link lease per path", above), so a reconcile or relink of either path waits for it.
+- **One failed link does not stop the rest.** A swap whose write is refused or fails (`swap_failed`), or whose link
+  changed under it (`link_changed`: a rename or relink got there first; each swap is a compare-and-swap on the
+  link's symlink and row) is recorded in `problems` and `failed`, the link is left, and the other links still run
+  (`TestRefreshContinuesPastFailedLink`, `TestRefreshLosesToConcurrentRename`).
+- **Idempotent.** A second run finds every link on the arr's current target (`current`) and changes nothing.
+  `-dry-run` plans the swaps and writes nothing, gate or not; a real run needs K's gate open, as adopt does.
+
+**Automatically after arr.import.** For each instance whose library has followers, the import notes each title's arr
+files (file ids, paths, episodes) before and after the write; titles whose files changed are handed to
+`library.RefreshFollowers`, which refreshes existing adopted links, then adopts missing files for every follower
+that does not grab and whose gate is open, on those titles only. This includes new titles and newly imported
+episodes. The adopt step uses the same source, mount, naming, ownership and path guards as manual adoption; it
+does not overwrite a follower's own files. Each skip, swap and problem is logged (`library: follower refresh ...`
+and `library: follower adoption ...`). A failure is logged and does not fail the arr import.
+
+**Catch-up.** The per-import trigger fires only on the import that sees the arr's files change, so a new file or an
+upgrade skipped while its mount target was unreadable, a gate was closed or a link failed would otherwise never
+be retried. `arr.import` therefore also runs `library.RefreshFollowersAll`, the same refresh and adoption over every
+title, for each followed library: at its first import after `theatarr serve` starts, then once an hour, and at the next
+import after any follower refresh of that library failed (including a link that failed), until one succeeds. While
+the catch-up is due it replaces the per-import refresh. It has the same gates (followers that do not grab, gate
+open). Refresh is idempotent and links already on the arr's current file cost one `readlink` each, so the hourly
+run is cheap; nothing is persisted (a restart makes it due), so no migration. Persisting pending titles was not
+needed: the full run finds every stale link from the arr's current files, which is the source of truth either way
+(`shadow.TestImportFollowerCatchUp`). `theatarr library adopt -refresh` still does the same by hand.
+
 ## Commands
 
 Manual rename applies only to theatarr-owned links: the new symlink is written under its version root, the link row is
@@ -895,7 +990,7 @@ theatarr library adopt -version KEY [-dry-run] [-limit N] [-queue] [-json]
 ```
 
 All take `-db` and `-env-file` (settings come from the database). `dry-run` and `verify` write nothing at all, to disk or database. `adopt`
-(start by copy for a parallel version) is described in [docs/parallel.md](../parallel.md).
+(start by copy for a parallel version) is described under "Adopt and refresh for parallel libraries" above.
 
 ## Migration 00015
 

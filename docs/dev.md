@@ -54,7 +54,7 @@ subcommands; each one takes `-h`.
 | `internal/policy` | YAML policy loader and validation |
 | `internal/settings` | The settings database: validated sections, credentials, generations, audit, and runtime generation swaps ([design/settings.md](design/settings.md)) |
 | `internal/secrets` | Shared rules for showing and restoring credentials (masking, webhook URLs) |
-| `internal/golive` | `theatarr golive check`: read-only go-live check per library ([golive.md](golive.md)) |
+| `internal/golive` | `theatarr golive check`: read-only go-live check per library ([migration.md](migration.md#4-the-go-live-check)) |
 | `internal/migration` | `theatarr migrate inspect/plan/apply/verify`: GET-only inventory of an arr stack, saved plans, apply through the settings after a backup checkpoint, readiness per library ([migration.md](migration.md)) |
 | `internal/trashbundle` | The TRaSH-Guides snapshot the binary embeds for the profile presets (one pinned commit, MIT). `scripts/update-trash-bundle.sh <checkout>` refreshes it before a release; update the commit in `NOTICE` with it |
 | `internal/recyclarr` | Recyclarr configurations and arr custom formats into Theatarr formats and profiles |
