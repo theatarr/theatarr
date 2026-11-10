@@ -46,10 +46,9 @@ type TitleGridFilter struct {
 	// SortVersion names the copy (version key) completion, quality and activity read; without it they take the
 	// title's best copy (activity: any copy).
 	Sort, Order, SortVersion string
-	// today is the day (YYYY-MM-DD, UTC) the next sort counts coming releases against, nowMs the moment the
-	// completion and next sorts count aired episodes against; listTitles sets them.
-	today string
-	nowMs int64
+	// clock is what the completion and next sorts count aired and coming episodes (and coming releases, by its day)
+	// against; listTitles sets it.
+	clock airClock
 }
 
 var (
@@ -221,7 +220,7 @@ func (g TitleGridFilter) orderBy() (string, []any) {
 	case "size":
 		expr = sizeExpr
 	case "completion", "quality", "activity", "next":
-		expr, args = copySortExpr(g.Sort, g.SortVersion, g.today, g.nowMs)
+		expr, args = copySortExpr(g.Sort, g.SortVersion, g.clock)
 	}
 	dir := "DESC"
 	if g.Order == "asc" || (g.Order == "" && (expr == "" || g.Sort == "next")) {

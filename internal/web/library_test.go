@@ -387,6 +387,83 @@ func TestAiredByInstant(t *testing.T) {
 	}
 }
 
+// An episode with an air date and no instant (an import can leave it so, and no refresh has filled it) is aired from
+// the day of its date, as before instants were read; one with an instant and no date goes by the instant, and Home
+// takes its day from the instant. The fixtures are written here, after seedLibrary's airAtMidnight: S01E03 (past) and
+// S02E01 (five days ahead) keep their dates and lose their instants; S02E02 has an instant an hour old and no date.
+func TestAiredWithoutInstantOrDate(t *testing.T) {
+	t.Parallel()
+	e := newEnv(t)
+	e.seedLibrary()
+	key := e.apiKey()
+	e.exec(`UPDATE episode SET air_date_utc_at = NULL WHERE id IN (43, 44)`)
+	e.exec(`INSERT INTO episode (id, title_id, season, number, name, air_date_utc_at, created_at, updated_at) VALUES
+		(45, 4, 2, 2, 'Undated', ?, 0, 0)`, store.Millis(testNow.Add(-time.Hour)))
+	e.exec(`INSERT INTO episode_version_state (version_id, episode_id, state, updated_at) VALUES (4, 45, 'wanted', 0)`)
+	var l EpisodeList
+	if code := e.getKey(APIBase+"/titles/4/episodes", key, &l); code != 200 {
+		t.Fatalf("episodes: %d", code)
+	}
+	aired := map[string]bool{}
+	for _, ep := range l.Episodes {
+		aired[episodeCode(ep.Season, ep.Number)] = ep.Aired
+	}
+	if !aired["S01E03"] || aired["S02E01"] || !aired["S02E02"] {
+		t.Errorf("aired: %v", aired)
+	}
+	var seasons []string
+	for _, s := range l.Seasons {
+		c := s.Versions["anime-tv"]
+		seasons = append(seasons, itoa(s.Season)+":"+itoa(int64(s.Aired))+"/"+itoa(int64(c.Missing)))
+	}
+	if got := strings.Join(seasons, " "); got != "1:3/1 2:1/1 0:1/1" {
+		t.Errorf("seasons (aired/missing): %s", got)
+	}
+	var d TitleDetail
+	if e.getKey(APIBase+"/titles/4", key, &d); d.Versions[0].Episodes == nil ||
+		*d.Versions[0].Episodes != (EpisodeCounts{Total: 4, Have: 2, Missing: 2}) {
+		t.Errorf("title page counts: %+v", d.Versions[0].Episodes)
+	}
+	var page TitlePage
+	if code := e.getKey(APIBase+"/titles?anime=true", key, &page); code != 200 {
+		t.Fatalf("titles: %d", code)
+	}
+	row := rowOf(t, page, 4)
+	if c := copyOf(t, row, "anime-tv").Coverage; c == nil || c.Aired != 4 || c.Upcoming != 1 || c.Missing != 2 {
+		t.Errorf("list coverage: %+v", c)
+	}
+	if n := row.Next; n == nil || n.Date != "2026-10-31" || *n.Season != 2 || *n.Number != 1 {
+		t.Errorf("next episode: %+v", n)
+	}
+	note := func(r DiscoverRow) string {
+		for _, it := range r.Items {
+			if it.ID == 4 {
+				return it.Note + "|" + it.Date
+			}
+		}
+		return ""
+	}
+	var dv Discover
+	if code := e.getKey(APIBase+"/discover", key, &dv); code != 200 {
+		t.Fatalf("discover: %d", code)
+	}
+	if got := note(dv.Missing); got != "2 episodes missing|2026-01-15" {
+		t.Errorf("Home missing: %q", got)
+	}
+	if got := note(dv.Upcoming); got != "S02E01 · Return|2026-10-31" {
+		t.Errorf("Home upcoming: %q", got)
+	}
+	// The only missing episode left has no air date: Home still answers, with the UTC day of its instant.
+	e.exec(`UPDATE episode_version_state SET monitored = 0 WHERE episode_id = 43`)
+	dv = Discover{}
+	if code := e.getKey(APIBase+"/discover", key, &dv); code != 200 {
+		t.Fatalf("discover with an undated missing episode: %d", code)
+	}
+	if got := note(dv.Missing); got != "1 episode missing|2026-10-26" {
+		t.Errorf("Home missing, undated: %q", got)
+	}
+}
+
 func TestDiscover(t *testing.T) {
 	t.Parallel()
 	e := newEnv(t)

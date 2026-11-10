@@ -36,7 +36,7 @@ export function statusWords(s: Status, seeFiles: boolean): { label: string; tone
   }
 }
 
-/** Whether an episode has aired: the server's flag (its air instant has passed, the rule searches go by), never the day of air_date. */
+/** Whether an episode has aired: the server's flag (its air instant has passed; the day of air_date only when it has no instant), never worked out here. */
 export function aired(e: Pick<Episode, "aired">): boolean {
   return !!e.aired;
 }

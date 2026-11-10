@@ -6,8 +6,6 @@ import (
 	"errors"
 	"net/http"
 	"sort"
-
-	"github.com/theatarr/theatarr/internal/store"
 )
 
 // GET titles/{id}/episodes?season=: a series' seasons with counts per version, and its episodes (all, or one
@@ -79,7 +77,8 @@ type Episode struct {
 	Absolute *int64 `json:"absolute,omitempty"`
 	Name     string `json:"name"`
 	AirDate  string `json:"air_date,omitempty"`
-	// Aired: the air instant is known and has passed, the rule the engine and Wanted search by.
+	// Aired: the air instant has passed; for an episode without an instant, its air date is today (UTC) or earlier
+	// (airClock).
 	Aired          bool                   `json:"aired"`
 	RuntimeMinutes *int64                 `json:"runtime_minutes,omitempty"`
 	Monitored      bool                   `json:"monitored"`
@@ -154,7 +153,7 @@ func (w *Web) titleEpisodes(ctx context.Context, id int64, season int, seeFiles 
 	}
 	var all []Episode
 	idx := map[int64]int{}
-	now := store.Millis(w.now())
+	clock := newAirClock(w.now())
 	if err := scanAll(ctx, db, `SELECT e.id, e.season, e.number, e.name, COALESCE(e.air_date, ''), e.runtime_minutes,
 		e.monitored, (SELECT MIN(n.number) FROM episode_number n WHERE n.episode_id = e.id AND n.scheme = 'absolute'),
 		e.air_date_utc_at
@@ -164,7 +163,7 @@ func (w *Web) titleEpisodes(ctx context.Context, id int64, season int, seeFiles 
 		if err := r.Scan(&e.ID, &e.Season, &e.Number, &e.Name, &e.AirDate, &rt, &e.Monitored, &abs, &airAt); err != nil {
 			return err
 		}
-		e.Aired = airAt.Valid && airAt.Int64 <= now
+		e.Aired = clock.aired(airAt, e.AirDate)
 		e.RuntimeMinutes, e.Absolute = nullInt(rt), nullInt(abs)
 		e.Versions = map[string]EpisodeCell{}
 		idx[e.ID] = len(all)

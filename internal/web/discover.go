@@ -206,7 +206,7 @@ func (w *Web) recentPicks(ctx context.Context, db *sql.DB) ([]pick, error) {
 }
 
 // upcomingPicks: the earliest release or air date per title in the next upcomingDays days; an episode is upcoming
-// until its air instant passes. A movie counts only when
+// while it is still to come (airClock). A movie counts only when
 // its first release of a type falls in the window: TMDb also lists later dates of the same type (a streaming service
 // picking up a 2015 film is a "digital" date in 2026), which are not upcoming releases.
 func (w *Web) upcomingPicks(ctx context.Context, db *sql.DB) ([]pick, error) {
@@ -235,11 +235,12 @@ func (w *Web) upcomingPicks(ctx context.Context, db *sql.DB) ([]pick, error) {
 	if err != nil {
 		return nil, err
 	}
+	coming, comingArgs := newAirClock(now).comingSQL("e")
 	err = scanAll(ctx, db, `SELECT title_id, season, number, name, air_date FROM (
 		SELECT e.title_id, e.season, e.number, e.name, e.air_date, ROW_NUMBER() OVER (PARTITION BY e.title_id
 			ORDER BY e.air_date, e.season, e.number) AS rn
-		FROM episode e WHERE e.season > 0 AND e.air_date_utc_at > ? AND e.air_date <= ?) WHERE rn = 1`,
-		[]any{store.Millis(now), end}, func(r *sql.Rows) error {
+		FROM episode e WHERE e.season > 0 AND `+coming+` AND e.air_date <= ?) WHERE rn = 1`,
+		append(comingArgs, end), func(r *sql.Rows) error {
 			var p pick
 			var season, number int64
 			var name string
@@ -269,8 +270,8 @@ func (w *Web) upcomingPicks(ctx context.Context, db *sql.DB) ([]pick, error) {
 	return upcoming, nil
 }
 
-// missingPicks: released movies and aired episodes (the air instant has passed, as the engine's rule) that are
-// monitored and wanted, newest first. A movie is released
+// missingPicks: released movies and aired episodes (airClock) that are monitored and wanted, newest first; an
+// episode's day is its air date, else the UTC day of its air instant. A movie is released
 // on its home release (availability.HomeRelease over the canonical dates, as list rows' home_release); without one,
 // on its earliest US or worldwide digital or disc date, else TMDb's release date plus 90 days, else at the end of its
 // year.
@@ -318,15 +319,23 @@ func (w *Web) missingPicks(ctx context.Context, db *sql.DB) ([]pick, error) {
 			missing = append(missing, p)
 		}
 	}
-	err = scanAll(ctx, db, `SELECT e.title_id, COUNT(DISTINCT e.id), MAX(e.air_date) FROM episode_version_state s
+	aired, airedArgs := newAirClock(now).airedSQL("e")
+	err = scanAll(ctx, db, `SELECT e.title_id, COUNT(DISTINCT e.id), MAX(e.air_date), MAX(e.air_date_utc_at)
+		FROM episode_version_state s
 		JOIN episode e ON e.id = s.episode_id JOIN version v ON v.id = s.version_id JOIN title t ON t.id = e.title_id
 		WHERE s.state = 'wanted' AND s.monitored = 1 AND v.monitored = 1 AND t.monitored = 1 AND e.monitored = 1
-			AND e.season > 0 AND e.air_date_utc_at IS NOT NULL AND e.air_date_utc_at <= ?
-		GROUP BY e.title_id`, []any{store.Millis(now)}, func(r *sql.Rows) error {
+			AND e.season > 0 AND `+aired+`
+		GROUP BY e.title_id`, airedArgs, func(r *sql.Rows) error {
 		var p pick
 		var n int
-		if err := r.Scan(&p.id, &n, &p.date); err != nil {
+		var day sql.NullString
+		var at sql.NullInt64
+		if err := r.Scan(&p.id, &n, &day, &at); err != nil {
 			return err
+		}
+		// No missing episode of the title has an air date (an import can bring the instant alone).
+		if p.date = day.String; p.date == "" && at.Valid {
+			p.date = store.FromMillis(at.Int64).UTC().Format(time.DateOnly)
 		}
 		p.note = strconv.Itoa(n) + " episodes missing"
 		if n == 1 {

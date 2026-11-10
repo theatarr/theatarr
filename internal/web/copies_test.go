@@ -189,6 +189,12 @@ func TestCopySorts(t *testing.T) {
 	if got := order("sort=completion&order=asc"); got != "The Show,Alpha" {
 		t.Errorf("completion asc: %s", got)
 	}
+	// The same with air dates alone (no instants): the dated episode not held still counts as aired.
+	e.exec(`UPDATE episode SET air_date_utc_at = NULL`)
+	if got := order("sort=completion&order=asc"); got != "The Show,Alpha" {
+		t.Errorf("completion asc, dates only: %s", got)
+	}
+	airAtMidnight(e.exec)
 	// movie-web has no file (0.0); The Show has no movie-web copy, so it comes last either way.
 	if got := order("sort=completion&sort_version=movie-web&order=asc"); got != "Alpha,The Show" {
 		t.Errorf("completion of movie-web: %s", got)

@@ -170,7 +170,7 @@ func heldEpisodes(ctx context.Context, db *sql.DB, versionIDs []any) (map[[2]int
 // covers the whole page.
 func (w *Web) fillCopies(ctx context.Context, db *sql.DB, items []TitleRow) error {
 	now := w.now()
-	today, nowMs := now.UTC().Format(time.DateOnly), store.Millis(now)
+	clock := newAirClock(now)
 	var titleIDs []int64
 	var tids, vids, seriesIDs []any
 	byID := map[int64]*VersionBrief{}
@@ -230,14 +230,15 @@ func (w *Web) fillCopies(ctx context.Context, db *sql.DB, items []TitleRow) erro
 	mon := map[[2]int64]bool{}
 	var held map[[2]int64]bool
 	if len(seriesVIDs) > 0 {
-		if err := scanAll(ctx, db, `SELECT title_id, id, air_date_utc_at FROM episode WHERE season > 0 AND title_id IN (`+
+		if err := scanAll(ctx, db, `SELECT title_id, id, air_date_utc_at, COALESCE(air_date, '') FROM episode WHERE season > 0 AND title_id IN (`+
 			store.Placeholders(len(seriesIDs))+`)`, seriesIDs, func(r *sql.Rows) error {
 			var tid, id int64
-			var air sql.NullInt64
-			if err := r.Scan(&tid, &id, &air); err != nil {
+			var at sql.NullInt64
+			var day string
+			if err := r.Scan(&tid, &id, &at, &day); err != nil {
 				return err
 			}
-			eps[tid] = append(eps[tid], ep{id, air.Valid && air.Int64 <= nowMs})
+			eps[tid] = append(eps[tid], ep{id, clock.aired(at, day)})
 			return nil
 		}); err != nil {
 			return err
@@ -306,14 +307,14 @@ func (w *Web) fillCopies(ctx context.Context, db *sql.DB, items []TitleRow) erro
 			}
 		}
 	}
-	return w.fillNext(ctx, db, items, tids, seriesIDs, today, nowMs)
+	return w.fillNext(ctx, db, items, tids, seriesIDs, clock)
 }
 
-// fillNext sets each row's next episode (series: the first whose air instant, nowMs, is still to come) or coming
-// release (movies: the first release date today or later, else TMDb's release date when it is still to come), and
-// each movie's home release.
-func (w *Web) fillNext(ctx context.Context, db *sql.DB, items []TitleRow, tids, seriesIDs []any, today string,
-	nowMs int64) error {
+// fillNext sets each row's next episode (series: the first still to come by the clock's rule) or coming release
+// (movies: the first release date today or later, else TMDb's release date when it is still to come), and each
+// movie's home release.
+func (w *Web) fillNext(ctx context.Context, db *sql.DB, items []TitleRow, tids, seriesIDs []any, clock airClock) error {
+	today := clock.today
 	idx := map[int64]*TitleRow{}
 	var movieIDs []any
 	for i := range items {
@@ -323,9 +324,10 @@ func (w *Web) fillNext(ctx context.Context, db *sql.DB, items []TitleRow, tids, 
 		}
 	}
 	if len(seriesIDs) > 0 {
+		coming, comingArgs := clock.comingSQL("")
 		if err := scanAll(ctx, db, `SELECT title_id, season, number, name, air_date FROM episode
-			WHERE air_date_utc_at > ? AND air_date IS NOT NULL AND title_id IN (`+store.Placeholders(len(seriesIDs))+`)
-			ORDER BY title_id, air_date, season = 0, season, number`, append([]any{nowMs}, seriesIDs...),
+			WHERE `+coming+` AND air_date IS NOT NULL AND title_id IN (`+store.Placeholders(len(seriesIDs))+`)
+			ORDER BY title_id, air_date, season = 0, season, number`, append(comingArgs, seriesIDs...),
 			func(r *sql.Rows) error {
 				var tid, s, n int64
 				var name, air string
@@ -494,8 +496,9 @@ const episodeHeld = `(EXISTS (SELECT 1 FROM version_file_episode fe JOIN version
 
 // copySortExpr is the per-title expression of the library views' sorts (TitleGridFilter), and its arguments in text
 // order. key narrows completion, quality and activity to one copy; without it they take the title's best copy (any
-// copy's newest change for activity). nowMs counts aired episodes (by their air instant), today coming releases.
-func copySortExpr(sort, key, today string, nowMs int64) (string, []any) {
+// copy's newest change for activity). clock counts aired and coming episodes, its day coming releases.
+func copySortExpr(sort, key string, clock airClock) (string, []any) {
+	today := clock.today
 	var args []any
 	versionCond := ""
 	if key != "" {
@@ -504,13 +507,14 @@ func copySortExpr(sort, key, today string, nowMs int64) (string, []any) {
 	switch sort {
 	case "completion":
 		// A movie copy is done or not; a series copy is the share of its aired (or held) episodes it holds.
-		args = append(args, nowMs)
+		aired, airedArgs := clock.airedSQL("e")
+		args = append(args, airedArgs...)
 		if key != "" {
 			args = append(args, key)
 		}
 		return `(SELECT MAX(CASE WHEN t.kind = 'movie' THEN (CASE WHEN ` + hasFileSQL + ` THEN 1.0 ELSE 0.0 END) ELSE
 			(SELECT CAST(SUM(CASE WHEN ` + episodeHeld + ` THEN 1 ELSE 0 END) AS REAL) / NULLIF(SUM(CASE WHEN
-				e.air_date_utc_at <= ? OR ` + episodeHeld + ` THEN 1 ELSE 0 END), 0) FROM episode e WHERE e.title_id = t.id
+				` + aired + ` OR ` + episodeHeld + ` THEN 1 ELSE 0 END), 0) FROM episode e WHERE e.title_id = t.id
 				AND e.season > 0) END) FROM version v WHERE v.title_id = t.id` + versionCond + `)`, args
 	case "quality":
 		if key != "" {
@@ -529,10 +533,11 @@ func copySortExpr(sort, key, today string, nowMs int64) (string, []any) {
 		return `(SELECT MAX(d.updated_at) FROM download d WHERE d.title_id = t.id AND d.state IN ('` +
 			strings.Join(activity.InHand, "', '") + `')` + cond + `)`, args
 	case "next":
+		coming, comingArgs := clock.comingSQL("e")
 		return `CASE WHEN t.kind = 'series' THEN (SELECT MIN(e.air_date) FROM episode e WHERE e.title_id = t.id
-			AND e.air_date_utc_at > ?) ELSE COALESCE((SELECT MIN(substr(rd.date, 1, 10)) FROM title_release_date rd
+			AND ` + coming + `) ELSE COALESCE((SELECT MIN(substr(rd.date, 1, 10)) FROM title_release_date rd
 			WHERE rd.title_id = t.id AND rd.date >= ?), CASE WHEN m.release_date >= ? THEN m.release_date END) END`,
-			[]any{nowMs, today, today}
+			append(comingArgs, today, today)
 	}
 	return "", nil
 }

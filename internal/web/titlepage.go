@@ -95,7 +95,7 @@ func downloadEvents(out []HistoryEvent, h HistoryEvent, state string, created, d
 	return out
 }
 
-// EpisodeCounts is a series version's episodes outside the specials. Aired is by the air instant, as the engine's.
+// EpisodeCounts is a series version's episodes outside the specials. Aired is airClock's rule.
 type EpisodeCounts struct {
 	// Total: episodes aired or held, what "of N" counts (an episode still to air is not one to be ready).
 	Total int `json:"total"`
@@ -396,14 +396,14 @@ func episodeCode(season, number int64) string {
 
 // episodeCounts sets each series version's episode counts, specials left out.
 func (w *Web) episodeCounts(ctx context.Context, db *sql.DB, ids []any, byID map[int64]*Version) error {
-	now := store.Millis(w.now())
+	aired, airedArgs := newAirClock(w.now()).airedSQL("e")
 	return scanAll(ctx, db, `SELECT s.version_id,
-		SUM(s.state IN ('filled', 'cutoff_met') OR (e.air_date_utc_at IS NOT NULL AND e.air_date_utc_at <= ?)),
+		SUM(s.state IN ('filled', 'cutoff_met') OR `+aired+`),
 		SUM(s.state IN ('filled', 'cutoff_met')),
-		SUM(s.state = 'wanted' AND s.monitored = 1 AND e.air_date_utc_at IS NOT NULL AND e.air_date_utc_at <= ?)
+		SUM(s.state = 'wanted' AND s.monitored = 1 AND `+aired+`)
 		FROM episode_version_state s JOIN episode e ON e.id = s.episode_id
 		WHERE s.version_id IN (`+store.Placeholders(len(ids))+`) AND e.season > 0 GROUP BY s.version_id`,
-		append([]any{now, now}, ids...), func(r *sql.Rows) error {
+		append(append(airedArgs, airedArgs...), ids...), func(r *sql.Rows) error {
 			var vid int64
 			var c EpisodeCounts
 			if err := r.Scan(&vid, &c.Total, &c.Have, &c.Missing); err != nil {
