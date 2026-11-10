@@ -101,7 +101,7 @@ export function SetupPage() {
       </Step>
       <Step n={6} title="Review activation" done={progress.steps[5]}>
         {oneStep
-          ? <p>"Create library and start downloading" in step 4 turns these on in one confirmed step. For a library created in Shadow mode: when you're ready, set it to Active, turn on Allow downloads for this library, and Allow new downloads.</p>
+          ? <p>A library created with "Create library and start downloading" has these on already. For any other library: when you're ready, set it to Active, turn on Allow downloads for this library, and Allow new downloads.</p>
           : <p>Theatarr doesn't turn these on for you. When you're ready, set a library to Active, turn on Allow downloads for this library, and Allow new downloads.</p>}
         {progress.versions.isPending ? <Loading /> : progress.versions.error ? <ErrorState error={progress.versions.error} /> : <Activation data={progress.versions.data} />}
       </Step>

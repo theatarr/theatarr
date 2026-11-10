@@ -5,12 +5,14 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"net/http/httptest"
 	"os"
 	"path/filepath"
 	"slices"
 	"strings"
 	"testing"
 
+	"github.com/theatarr/theatarr/internal/auth"
 	"github.com/theatarr/theatarr/internal/policy"
 	"github.com/theatarr/theatarr/internal/settings"
 )
@@ -249,5 +251,17 @@ func TestSetupStartForcedOff(t *testing.T) {
 	}
 	if router, library := se.switchesOn(); !router || !library {
 		t.Fatalf("stored switches: router %v library %v", router, library)
+	}
+}
+
+// Without the settings service there is nothing to save to: 409, as for an install that migrates from an arr.
+func TestSetupStartWithoutSettings(t *testing.T) {
+	t.Parallel()
+	e := newEnv(t)
+	r := httptest.NewRequest("POST", APIBase+"/setup/start", strings.NewReader(`{"generation":1,"key":"films","config":{}}`))
+	r.Header.Set("Content-Type", "application/json")
+	r.Header.Set(auth.APIKeyHeader, e.apiKey())
+	if rec := e.do(r); rec.Code != http.StatusConflict || !strings.Contains(rec.Body.String(), "not stored in the database") {
+		t.Fatalf("start without settings: %d %s", rec.Code, rec.Body.String())
 	}
 }
