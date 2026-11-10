@@ -296,8 +296,8 @@ func TestEpisodeReleasesScopedToEpisode(t *testing.T) {
 	}
 }
 
-// An episode's releases from a season search count only the candidates that cover the episode; an episode search
-// keeps its stored counts.
+// An episode's releases from a season search count only the candidates that cover the episode, even when every
+// stored candidate does; an episode search keeps its stored counts.
 func TestEpisodeReleasesCountsFromKeptCandidates(t *testing.T) {
 	t.Parallel()
 	e := newManageEnv(t, nil)
@@ -317,6 +317,16 @@ func TestEpisodeReleasesCountsFromKeptCandidates(t *testing.T) {
 	e.call("GET", APIBase+"/titles/10/episodes/102/releases", nil, 200, &r)
 	if r.Results != 2 || r.Accepted != 2 || len(r.Rejections) != 0 {
 		t.Errorf("E02: results %d accepted %d rejections %v", r.Results, r.Accepted, r.Rejections)
+	}
+	// A season search whose stored candidates all cover E01: the counts are still E01's own.
+	e.exec(`INSERT INTO journal_decision (id, source, title_id, version_key, target, results, accepted, candidates,
+		rejections, created_at) VALUES (99, 'acquire:62', 10, 'tv-2160p', 's01', 18, 18, ?, '{}', ?)`,
+		`[{"rank":1,"release":"The.Show.S01E01.2160p.WEB-A","accepted":true,"episodes":["S01E01"]},
+		  {"rank":2,"release":"The.Show.S01E01.2160p.WEB-B","accepted":true,"episodes":["S01E01"]}]`, now-7000)
+	r = Releases{}
+	e.call("GET", APIBase+"/titles/10/episodes/101/releases", nil, 200, &r)
+	if r.Results != 2 || r.Accepted != 2 || len(r.Rejections) != 0 {
+		t.Errorf("E01 all kept: results %d accepted %d rejections %v", r.Results, r.Accepted, r.Rejections)
 	}
 	// An episode search's candidates all cover the episode: the stored counts stand.
 	e.exec(`INSERT INTO journal_decision (id, source, title_id, version_key, target, results, accepted, candidates,

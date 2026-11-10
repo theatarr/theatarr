@@ -1122,8 +1122,10 @@ func (w *Web) storedEpisodeReleases(ctx context.Context, out *Releases, it evIte
 		if len(keep) == 0 && s.target == "rss" {
 			return
 		}
-		if len(keep) < len(s.cands) {
-			// A season or series search: its stored counts are the whole search's, so count the episode's own.
+		target := strings.ToLower(s.target)
+		oneEpisode := len(s.episodeIDs) == 1 || len(s.episodeIDs) == 0 && strings.HasPrefix(target, "s") && strings.Contains(target, "e")
+		if !oneEpisode {
+			// A season, series or RSS search: its stored counts are the whole search's, so count the episode's own.
 			s.results, s.accepted, s.rejections = len(keep), 0, map[string]int{}
 			for _, c := range keep {
 				if c.Accepted {
