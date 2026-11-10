@@ -352,7 +352,7 @@ function VersionForm({ session, data, defaults, profiles, error, onChange }: { s
   // The name is optional and stored only when set: an empty one is left out of the request unless it clears a stored name.
   const setName = (value: string) => {
     const next = { ...config };
-    if (value || saved.config.name) next.name = value;
+    if (value.trim() || saved.config.name) next.name = value.trim() ? value : "";
     else delete next.name;
     onChange({ ...record, config: next });
   };
