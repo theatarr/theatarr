@@ -34,6 +34,19 @@ library out of the collection's total, the monitored switch, target libraries, s
 availability. Monitoring a collection adds its missing movies at the next refresh. Search on add starts the usual
 add-time search through the acquirer and router, so nothing grabs while `router.enabled` is off.
 
+**Add collection** on the page adds a collection that has no movie in the library yet: `GET /collections/search?q=`
+searches TMDb (`/search/collection`, first page, cached a week; each result says whether it is already known), and
+`POST /collections` (`tmdb_id`, `versions`, `monitored` default true, `search_on_add`, `minimum_availability`) reads
+the collection from TMDb once and stores the row with its name and parts; a collection that is already known is
+updated as `PUT` does and keeps the view, profile and root an arr client gave it. A monitored collection then gets its
+missing movies in the same request, through `MovieIntake.RefreshCollection`, the one-collection form of the scheduled
+refresh (one TMDb request per missing movie). `POST /collections/{id}/refresh` is that refresh for a known collection
+(**Add missing movies now** on a monitored row). Both answer the collection with `added` and `skipped`; a refresh
+that fails after the row is stored still answers 200, with `refresh_error`, and the scheduled refresh retries. The
+validation is `PUT`'s: collection targets only, and a monitored collection needs one. Without TMDb
+(`metadata.sources.tmdb` and its key) the three endpoints answer 503 and `GET /collections` says `can_add: false`, so
+the page disables the buttons. The dialog turns search on add on by default; discovered rows keep it off.
+
 A collection's targets are always explicit, and only **collection targets** qualify (`policy.CollectionTarget`): movie
 versions in `mode: active` that no version follows, the versions the library gate lets write. The page lists only
 those; `PUT` refuses any other key, and refuses monitoring with no target (an empty list, or stored targets none of

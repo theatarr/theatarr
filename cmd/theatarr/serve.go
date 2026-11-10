@@ -738,6 +738,7 @@ func runServe(args []string) error {
 	if err != nil {
 		return err
 	}
+	add.Collections = webMovieIntake(mi)
 	// Plex sign-in (docs/design/users.md): plex.tv through the gateway (metadata.sources.plex-tv); off without it.
 	pl, err := newPlexLogin(pol, au, gw, log)
 	if err != nil {

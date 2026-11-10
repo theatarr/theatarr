@@ -1,18 +1,28 @@
 package web
 
 import (
+	"context"
 	"encoding/json"
+	"fmt"
 	"net/http/httptest"
+	"strconv"
 	"strings"
 	"testing"
 
 	"github.com/theatarr/theatarr/internal/auth"
+	"github.com/theatarr/theatarr/internal/catalog"
+	"github.com/theatarr/theatarr/internal/metadata/tmdb"
 	"github.com/theatarr/theatarr/internal/policy"
 )
 
 func (e *env) putCollection(path, body, key, role string) *httptest.ResponseRecorder {
 	e.t.Helper()
-	r := httptest.NewRequest("PUT", APIBase+path, strings.NewReader(body))
+	return e.sendCollection("PUT", path, body, key, role)
+}
+
+func (e *env) sendCollection(method, path, body, key, role string) *httptest.ResponseRecorder {
+	e.t.Helper()
+	r := httptest.NewRequest(method, APIBase+path, strings.NewReader(body))
 	r.Header.Set("Content-Type", "application/json")
 	if key == "" {
 		uid := e.account(role, role, auth.StatusActive, true)
@@ -124,5 +134,171 @@ func TestCollectionsAPI(t *testing.T) {
 	var monitored bool
 	if err := e.st.Reader().QueryRow(`SELECT monitored FROM movie_collection WHERE tmdb_id = 7`).Scan(&monitored); err != nil || monitored {
 		t.Errorf("monitored %v %v", monitored, err)
+	}
+}
+
+// fakeIntakeTMDb is TMDb for the movie intake behind the Collections and Lists pages: collection 7 with parts 101
+// (in the seeded library) and 901, 902 (new), list 9 with movie 903 and a series, and nothing else.
+type fakeIntakeTMDb struct{ fail bool }
+
+func (f *fakeIntakeTMDb) SearchCollection(context.Context, string) ([]tmdb.CollectionResult, error) {
+	return []tmdb.CollectionResult{{ID: 7, Name: "Alpha Collection", PosterPath: "/posterOne123.jpg", Overview: "All of Alpha."},
+		{ID: 70, Name: "Alpha Returns Collection"}}, nil
+}
+
+func (f *fakeIntakeTMDb) Collection(_ context.Context, id int) (*tmdb.Collection, error) {
+	if id != 7 {
+		return nil, fmt.Errorf("%w: collection %d", tmdb.ErrNotFound, id)
+	}
+	return &tmdb.Collection{ID: 7, Name: "Alpha Collection", Parts: []tmdb.MovieSummary{
+		{ID: 101, Title: "Alpha", ReleaseDate: "2020-01-01", PosterPath: "/posterOne123.jpg"},
+		{ID: 901, Title: "Alpha 2", ReleaseDate: "2021-01-01"}, {ID: 902, Title: "Alpha 3", ReleaseDate: "2022-01-01"}}}, nil
+}
+
+func (f *fakeIntakeTMDb) List(_ context.Context, id int) (*tmdb.List, error) {
+	if id != 9 {
+		return nil, fmt.Errorf("%w: list %d", tmdb.ErrNotFound, id)
+	}
+	return &tmdb.List{ID: 9, Name: "Favourites", Description: "The good ones", Items: []tmdb.MovieSummary{
+		{ID: 903, Title: "Listed", ReleaseDate: "2020-01-01", MediaType: "movie"}, {ID: 950, Title: "A show", MediaType: "tv"}}}, nil
+}
+
+func (f *fakeIntakeTMDb) MovieDetails(_ context.Context, id int) (*tmdb.Movie, error) {
+	if f.fail {
+		return nil, fmt.Errorf("tmdb: movie %d: unavailable", id)
+	}
+	return &tmdb.Movie{ID: id, Title: "Movie " + strconv.Itoa(id), ReleaseDate: "2020-01-01"}, nil
+}
+
+// testIntake is the web layer's movie intake as serve wires it: the real intake over a fake TMDb.
+type testIntake struct {
+	*catalog.MovieIntake
+	*fakeIntakeTMDb
+}
+
+// withIntake makes movie-remux an active library and gives the web layer a movie intake over tm.
+func withIntake(tm *fakeIntakeTMDb) func(*Config) {
+	return func(c *Config) {
+		c.Policy.Versions["movie-remux"].Mode = policy.ModeActive
+		c.Add.Collections = testIntake{&catalog.MovieIntake{Store: c.Store, Policy: c.Policy, TMDb: tm, Now: c.Now}, tm}
+	}
+}
+
+// Adding a collection from the page: search TMDb, POST it with its libraries, and its missing movies are added at
+// once; "Add missing movies now" is the same refresh for a known collection.
+func TestAddCollection(t *testing.T) {
+	t.Parallel()
+	tm := &fakeIntakeTMDb{}
+	e := newEnvWith(t, withIntake(tm))
+	key := e.apiKey()
+	var page CollectionsPage
+	if code := e.getKey(APIBase+"/collections", key, &page); code != 200 || !page.CanAdd {
+		t.Fatalf("GET %d can_add=%v", code, page.CanAdd)
+	}
+	e.exec(`INSERT INTO movie_collection (tmdb_id, name, versions, view, quality_profile_id, root_folder_path, updated_at)
+		VALUES (70, 'Alpha Returns Collection', '[]', 'radarr', 4, '/movies', 0)`)
+	var found CollectionSearch
+	if code := e.getKey(APIBase+"/collections/search?q=alpha", key, &found); code != 200 || len(found.Results) != 2 {
+		t.Fatalf("search %d %+v", code, found)
+	}
+	if h := found.Results[0]; h.TmdbID != 7 || h.Name != "Alpha Collection" || h.Added || h.Overview == "" ||
+		h.Poster != "/img/tmdb/"+tmdbPosterSize+"/posterOne123.jpg" {
+		t.Errorf("hit %+v", h)
+	}
+	if h := found.Results[1]; h.TmdbID != 70 || !h.Added {
+		t.Errorf("known hit %+v", h)
+	}
+	if code := e.getKey(APIBase+"/collections/search?q=", key, nil); code != 400 {
+		t.Errorf("empty search %d", code)
+	}
+
+	for _, body := range []string{
+		`{"tmdb_id":7}`,                          // monitored by default: needs a library
+		`{"tmdb_id":7,"versions":["movie-web"]}`, // shadow
+		`{"tmdb_id":7,"versions":["tv-2160p"]}`,  // series
+		`{"versions":["movie-remux"]}`,           // no id
+		`{"tmdb_id":7,"versions":["movie-remux"],"minimum_availability":"soon"}`,
+	} {
+		if rec := e.sendCollection("POST", "/collections", body, key, ""); rec.Code != 400 {
+			t.Errorf("%s: %d %s", body, rec.Code, rec.Body)
+		}
+	}
+	if rec := e.sendCollection("POST", "/collections", `{"tmdb_id":8,"versions":["movie-remux"]}`, key, ""); rec.Code != 404 {
+		t.Errorf("collection TMDb lacks: %d %s", rec.Code, rec.Body)
+	}
+	var n int
+	if err := e.st.Reader().QueryRow(`SELECT count(*) FROM movie_collection WHERE tmdb_id IN (7, 8)`).Scan(&n); err != nil || n != 0 {
+		t.Fatalf("refused adds left %d rows: %v", n, err)
+	}
+
+	// Monitored (the default): stored with name and parts, and the two movies the library lacks are added now.
+	rec := e.sendCollection("POST", "/collections", `{"tmdb_id":7,"versions":["movie-remux"],"search_on_add":true}`, "", auth.RoleManager)
+	var out CollectionRefreshed
+	if rec.Code != 200 || json.Unmarshal(rec.Body.Bytes(), &out) != nil {
+		t.Fatalf("POST %d %s", rec.Code, rec.Body)
+	}
+	if c := out.Collection; c.TmdbID != 7 || c.Name != "Alpha Collection" || !c.Monitored || strings.Join(c.Versions, ",") != "movie-remux" ||
+		!c.SearchOnAdd || c.MinimumAvailability != "released" || c.Total != 3 || c.Held != 3 || out.Added != 2 || out.RefreshError != "" {
+		t.Errorf("added %+v", out)
+	}
+	if err := e.st.Reader().QueryRow(`SELECT count(*) FROM title t JOIN version v ON v.title_id = t.id
+		WHERE t.tmdb_id IN (901, 902) AND v.policy_key = 'movie-remux' AND v.add_method = 'collection'`).Scan(&n); err != nil || n != 2 {
+		t.Errorf("collection movies in the library: %d %v", n, err)
+	}
+	// Again: nothing new; the refresh endpoint is the same pass.
+	rec = e.sendCollection("POST", "/collections/7/refresh", ``, key, "")
+	if rec.Code != 200 || json.Unmarshal(rec.Body.Bytes(), &out) != nil || out.Added != 0 || out.Skipped != 3 || out.Collection.Held != 3 {
+		t.Errorf("refresh %d %+v", rec.Code, out)
+	}
+	if rec := e.sendCollection("POST", "/collections/99/refresh", ``, key, ""); rec.Code != 404 {
+		t.Errorf("refresh of an unknown collection %d", rec.Code)
+	}
+
+	// A known collection is updated like PUT and keeps what an arr client stored on it.
+	e.exec(`UPDATE movie_collection SET view = 'radarr', quality_profile_id = 4, root_folder_path = '/movies' WHERE tmdb_id = 7`)
+	rec = e.sendCollection("POST", "/collections", `{"tmdb_id":7,"versions":[],"monitored":false,"minimum_availability":"announced"}`, key, "")
+	if rec.Code != 200 || json.Unmarshal(rec.Body.Bytes(), &out) != nil || out.Collection.Monitored || out.Collection.SearchOnAdd ||
+		out.Collection.MinimumAvailability != "announced" || out.Added != 0 {
+		t.Errorf("update by POST %d %+v", rec.Code, out)
+	}
+	var view, root string
+	var profile int
+	if err := e.st.Reader().QueryRow(`SELECT view, quality_profile_id, root_folder_path FROM movie_collection WHERE tmdb_id = 7`).
+		Scan(&view, &profile, &root); err != nil || view != "radarr" || profile != 4 || root != "/movies" {
+		t.Errorf("arr mapping after POST: %q %d %q %v", view, profile, root, err)
+	}
+
+	// A movie TMDb will not describe: the collection stays stored, and the answer says the refresh failed.
+	e.exec(`DELETE FROM movie_collection WHERE tmdb_id = 7`)
+	e.exec(`INSERT INTO movie_exclusion (tmdb_id, created_at) VALUES (901, 0)`)
+	e.exec(`DELETE FROM title WHERE tmdb_id = 902`)
+	tm.fail = true
+	rec = e.sendCollection("POST", "/collections", `{"tmdb_id":7,"versions":["movie-remux"]}`, key, "")
+	if rec.Code != 200 || json.Unmarshal(rec.Body.Bytes(), &out) != nil || out.RefreshError == "" || out.Collection.Name != "Alpha Collection" ||
+		strings.Contains(out.RefreshError, "unavailable") {
+		t.Errorf("failed refresh %d %+v", rec.Code, out)
+	}
+
+	if rec := e.sendCollection("POST", "/collections", `{"tmdb_id":7,"versions":["movie-remux"]}`, "", auth.RoleUser); rec.Code != 403 {
+		t.Errorf("user POST %d", rec.Code)
+	}
+}
+
+// Without TMDb the page lists and edits collections but cannot search, add or refresh.
+func TestAddCollectionNeedsTMDb(t *testing.T) {
+	t.Parallel()
+	e := newEnv(t)
+	key := e.apiKey()
+	var page CollectionsPage
+	if code := e.getKey(APIBase+"/collections", key, &page); code != 200 || page.CanAdd {
+		t.Fatalf("GET %d can_add=%v", code, page.CanAdd)
+	}
+	if code := e.getKey(APIBase+"/collections/search?q=alpha", key, nil); code != 503 {
+		t.Errorf("search %d", code)
+	}
+	for _, path := range []string{"/collections", "/collections/7/refresh"} {
+		if rec := e.sendCollection("POST", path, `{"tmdb_id":7}`, key, ""); rec.Code != 503 || !strings.Contains(rec.Body.String(), "TMDb is not set up") {
+			t.Errorf("%s: %d %s", path, rec.Code, rec.Body)
+		}
 	}
 }

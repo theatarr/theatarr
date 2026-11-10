@@ -5,6 +5,7 @@ import (
 	"context"
 	"database/sql"
 	"encoding/json"
+	"errors"
 	"log/slog"
 	"path/filepath"
 	"strconv"
@@ -479,5 +480,83 @@ func TestIntakeAnimeTargets(t *testing.T) {
 	}
 	if !isAnime || key != "anime-movie" {
 		t.Fatalf("anime=%v version=%s", isAnime, key)
+	}
+}
+
+// RefreshCollection is the scheduled refresh for one collection: it stores name and parts, adds a monitored
+// collection's missing movies, adds nothing while unmonitored, and leaves other collections alone.
+func TestRefreshOneCollection(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+	src := intakeSource{collection: intakeFixture[tmdb.Collection](t, `{"id":7,"name":"Collection","parts":[{"id":101,"title":"One","release_date":"2020-01-01"},{"id":102,"title":"Two","release_date":"2021-01-01"}]}`)}
+	s, st := newIntake(t, src)
+	if _, err := st.Writer().Exec(`INSERT INTO movie_collection(tmdb_id,monitored,versions,updated_at) VALUES(7,0,'["movie-web"]',0),(8,1,'["movie-web"]',0)`); err != nil {
+		t.Fatal(err)
+	}
+	got, err := s.RefreshCollection(ctx, 7)
+	if err != nil || got != (IntakeResult{Collections: 1}) {
+		t.Fatalf("unmonitored: %+v %v", got, err)
+	}
+	var name, movies string
+	var refreshed sql.NullInt64
+	if err := st.Reader().QueryRow(`SELECT name,movies,refreshed_at FROM movie_collection WHERE tmdb_id=7`).Scan(&name, &movies, &refreshed); err != nil ||
+		name != "Collection" || !strings.Contains(movies, `"id":102`) || !refreshed.Valid {
+		t.Fatalf("stored %q %q %v: %v", name, movies, refreshed, err)
+	}
+	// The other collection was not touched.
+	if err := st.Reader().QueryRow(`SELECT name FROM movie_collection WHERE tmdb_id=8`).Scan(&name); err != nil || name != "" {
+		t.Fatalf("collection 8 refreshed: %q %v", name, err)
+	}
+	if _, err := st.Writer().Exec(`UPDATE movie_collection SET monitored=1 WHERE tmdb_id=7`); err != nil {
+		t.Fatal(err)
+	}
+	if got, err = s.RefreshCollection(ctx, 7); err != nil || got != (IntakeResult{Collections: 1, Added: 2}) {
+		t.Fatalf("monitored: %+v %v", got, err)
+	}
+	if got, err = s.RefreshCollection(ctx, 7); err != nil || got != (IntakeResult{Collections: 1, Skipped: 2}) {
+		t.Fatalf("again: %+v %v", got, err)
+	}
+	if _, err := s.RefreshCollection(ctx, 99); !errors.Is(err, sql.ErrNoRows) {
+		t.Fatalf("unknown collection: %v", err)
+	}
+}
+
+// SyncList imports one list by hand, enabled or not: a native row (no view, explicit versions) adds its movies to
+// those versions, and last_sync_at moves only on a pass without failures.
+func TestSyncOneList(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+	src := intakeSource{list: intakeFixture[tmdb.List](t, `{"id":9,"items":[{"id":201,"title":"Movie","release_date":"2020-01-01"},{"id":202,"title":"Show","media_type":"tv"}]}`)}
+	s, st := newIntake(t, src)
+	if _, err := st.Writer().Exec(`INSERT INTO movie_import_list(id,name,list_type,tmdb_id,enabled,enable_auto,monitor,versions,updated_at,created_at)
+		VALUES(1,'off','tmdb',9,0,0,'movieOnly','["movie-web"]',0,0),(2,'other','tmdb',10,1,1,'movieOnly','["movie-web"]',0,0)`); err != nil {
+		t.Fatal(err)
+	}
+	got, err := s.SyncList(ctx, 1)
+	if err != nil || got != (IntakeResult{Lists: 1, Added: 1, Skipped: 1}) {
+		t.Fatalf("sync: %+v %v", got, err)
+	}
+	var key, view string
+	if err := st.Reader().QueryRow(`SELECT v.policy_key, a.view FROM version v JOIN arrview_title a ON a.title_id=v.title_id`).Scan(&key, &view); err != nil ||
+		key != "movie-web" || view != "v/movie-web" {
+		t.Fatalf("added to %q in view %q: %v", key, view, err)
+	}
+	var synced, other sql.NullInt64
+	if err := st.Reader().QueryRow(`SELECT (SELECT last_sync_at FROM movie_import_list WHERE id=1), (SELECT last_sync_at FROM movie_import_list WHERE id=2)`).Scan(&synced, &other); err != nil ||
+		!synced.Valid || other.Valid {
+		t.Fatalf("last_sync_at %v %v: %v", synced, other, err)
+	}
+	if _, err := s.SyncList(ctx, 99); !errors.Is(err, sql.ErrNoRows) {
+		t.Fatalf("unknown list: %v", err)
+	}
+	// A failing movie keeps last_sync_at where it was.
+	if _, err := st.Writer().Exec(`UPDATE movie_import_list SET last_sync_at=NULL, versions='["nope"]' WHERE id=1; DELETE FROM arrview_title; DELETE FROM version; DELETE FROM title`); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := s.SyncList(ctx, 1); err == nil {
+		t.Fatal("a list with no usable version synced cleanly")
+	}
+	if err := st.Reader().QueryRow(`SELECT last_sync_at FROM movie_import_list WHERE id=1`).Scan(&synced); err != nil || synced.Valid {
+		t.Fatalf("last_sync_at after a failed pass %v: %v", synced, err)
 	}
 }

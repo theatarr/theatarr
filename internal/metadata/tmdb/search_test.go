@@ -63,3 +63,51 @@ func TestSearchMovie(t *testing.T) {
 		t.Error("empty query")
 	}
 }
+
+type collectionSearchDoer struct{ reqs []*http.Request }
+
+// The recorded shape of TMDb's /search/collection: a page of results with id, name, overview and image paths.
+func (d *collectionSearchDoer) Do(r *http.Request) (*http.Response, error) {
+	d.reqs = append(d.reqs, r)
+	body := `{"page": 1, "results": [
+	  {"adult": false, "backdrop_path": "/back.jpg", "id": 8091, "name": "Alien Collection", "original_language": "en",
+	   "original_name": "Alien Collection", "overview": "A science fiction horror franchise.", "poster_path": "/poster.jpg"},
+	  {"id": 0, "name": "No id"}], "total_pages": 1, "total_results": 2}`
+	return &http.Response{StatusCode: 200, Body: io.NopCloser(strings.NewReader(body)), Header: http.Header{}}, nil
+}
+
+func TestSearchCollection(t *testing.T) {
+	ctx := context.Background()
+	st, err := store.Open(ctx, storetest.Seed(t, filepath.Join(t.TempDir(), "theatarr.db")), store.Options{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer st.Close()
+	if _, err := st.Migrate(ctx); err != nil {
+		t.Fatal(err)
+	}
+	d := &collectionSearchDoer{}
+	c, err := New(Options{BaseURL: "https://api.themoviedb.org/3", APIKey: key, Doer: d, MinInterval: time.Millisecond,
+		Cache: &SQLCache{Store: st, Source: "tmdb"}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	res, err := c.SearchCollection(ctx, "  alien   collection ")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(res) != 1 || res[0].ID != 8091 || res[0].Name != "Alien Collection" || res[0].PosterPath != "/poster.jpg" ||
+		res[0].Overview == "" {
+		t.Fatalf("results %+v", res)
+	}
+	if u := d.reqs[0].URL; u.Path != "/3/search/collection" || u.Query().Get("query") != "alien collection" {
+		t.Errorf("request %s %s", u.Path, u.Query().Get("query"))
+	}
+	// cached: the same search (spacing aside) sends nothing
+	if _, err := c.SearchCollection(ctx, "alien collection"); err != nil || len(d.reqs) != 1 {
+		t.Errorf("second search: %v, %d requests", err, len(d.reqs))
+	}
+	if _, err := c.SearchCollection(ctx, " "); err == nil {
+		t.Error("empty query")
+	}
+}

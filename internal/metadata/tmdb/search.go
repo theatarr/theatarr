@@ -69,4 +69,37 @@ func (c *Client) SearchMovie(ctx context.Context, query string, year int) ([]Sea
 	return out, nil
 }
 
+// CollectionResult is one collection of a collection search (GET /search/collection).
+type CollectionResult struct {
+	ID         int    `json:"id"`
+	Name       string `json:"name"`
+	PosterPath string `json:"poster_path"`
+	Overview   string `json:"overview"`
+}
+
+// SearchCollection searches TMDb collections by name (the first page, TMDb's relevance order), cached for SearchTTL
+// like SearchMovie. An empty query is an error.
+func (c *Client) SearchCollection(ctx context.Context, query string) ([]CollectionResult, error) {
+	query = strings.Join(strings.Fields(query), " ")
+	if query == "" {
+		return nil, errEmptyQuery
+	}
+	q := url.Values{}
+	q.Set("query", query)
+	q.Set("page", "1")
+	var r struct {
+		Results []CollectionResult `json:"results"`
+	}
+	if err := c.get(ctx, "/search/collection", q, &r, func(int, []byte) time.Duration { return SearchTTL }); err != nil {
+		return nil, err
+	}
+	out := r.Results[:0]
+	for _, x := range r.Results {
+		if x.ID > 0 {
+			out = append(out, x)
+		}
+	}
+	return out, nil
+}
+
 var errEmptyQuery = errors.New("tmdb: empty search query")

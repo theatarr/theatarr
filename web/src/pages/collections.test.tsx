@@ -12,6 +12,7 @@ const alien: Schemas["Collection"] = { tmdb_id: 8091, name: "Alien Collection", 
 const page: Schemas["CollectionsPage"] = {
   collections: [alien, { tmdb_id: 9100, name: "", monitored: false, versions: [], search_on_add: false, minimum_availability: "released", held: 1, total: 1 }],
   libraries: { "movie-remux": "4K Remux", "movie-web": "4K WEB" },
+  can_add: true,
 };
 
 it("lists collections and saves monitoring, libraries and search on add", async () => {
@@ -58,6 +59,83 @@ it("lists collections and saves monitoring, libraries and search on add", async 
   await user.click(row.getByLabelText("Search on add"));
   await waitFor(() => expect(fetch.calls("PUT", "/collections/8091").at(-1)?.body).toEqual({ search_on_add: false }));
 
+});
+
+const predator: Schemas["Collection"] = { tmdb_id: 399, name: "Predator Collection", monitored: true, versions: ["movie-remux"], search_on_add: true,
+  minimum_availability: "released", held: 5, total: 5 };
+
+it("adds a collection found on TMDb, and shows one that is already added instead", async () => {
+  const user = userEvent.setup();
+  let added = false;
+  const fetch = mockFetch([
+    { method: "GET", path: "/auth/me", reply: manager },
+    { method: "GET", path: "/collections", reply: () => added ? { ...page, collections: [...page.collections, predator] } : page },
+    { method: "GET", path: "/collections/search", reply: { results: [
+      { tmdb_id: 399, name: "Predator Collection", overview: "Hunters from the stars.", added: false },
+      { tmdb_id: 8091, name: "Alien Collection", added: true }] } },
+    { method: "POST", path: "/collections", reply: () => { added = true; return { collection: predator, added: 4, skipped: 1 }; } },
+    { method: "POST", path: "/collections/8091/refresh", reply: { collection: { ...alien, held: 3 }, added: 1, skipped: 5 } },
+  ]);
+  renderPage(<CollectionsPage />, "/collections");
+  await user.click(await screen.findByRole("button", { name: "Add collection" }));
+  const dialog = within(await screen.findByTestId("add-collection"));
+  expect(dialog.getByRole("button", { name: "Add" }).hasAttribute("disabled")).toBe(true);
+  await user.type(dialog.getByLabelText("Search TMDb collections"), "predator");
+  expect(within(await dialog.findByTestId("collection-hit-8091")).getByText("Already added")).toBeTruthy();
+  expect(fetch.calls("GET", "/collections/search").at(-1)?.search).toBe("?q=predator");
+  await user.click(dialog.getByTestId("collection-hit-399"));
+  // Two libraries: none is preselected, and a monitored collection needs one.
+  expect(dialog.getByText("Choose a library to monitor this collection.")).toBeTruthy();
+  expect(dialog.getByRole("button", { name: "Add" }).hasAttribute("disabled")).toBe(true);
+  await user.click(dialog.getByRole("button", { name: "4K Remux" }));
+  await user.click(dialog.getByRole("button", { name: "Add" }));
+  await waitFor(() => expect(fetch.calls("POST", "/collections")).toHaveLength(1));
+  expect(fetch.calls("POST", "/collections")[0].body).toEqual({ tmdb_id: 399, versions: ["movie-remux"], monitored: true, search_on_add: true, minimum_availability: "released" });
+  expect((await screen.findByTestId("collections-done")).textContent).toBe("Added Predator Collection: 4 movies added, 1 already in the library or excluded.");
+  expect(await screen.findByTestId("collection-399")).toBeTruthy();
+  expect(screen.queryByTestId("add-collection")).toBeNull();
+
+  // An already added collection is not added again: the dialog closes on its row.
+  await user.click(screen.getByRole("button", { name: "Add collection" }));
+  await user.type(within(screen.getByTestId("add-collection")).getByLabelText("Search TMDb collections"), "alien");
+  await user.click(await screen.findByTestId("collection-hit-8091"));
+  expect(screen.queryByTestId("add-collection")).toBeNull();
+  expect(fetch.calls("POST", "/collections")).toHaveLength(1);
+
+  // A monitored collection's missing movies on demand.
+  await user.click(within(screen.getByTestId("collection-8091")).getByRole("button", { name: "Add missing movies now" }));
+  await waitFor(() => expect(fetch.calls("POST", "/collections/8091/refresh")).toHaveLength(1));
+  await waitFor(() => expect(screen.getByTestId("collections-done").textContent).toBe("Alien Collection: 1 movie added, 5 already in the library or excluded."));
+  expect(within(screen.getByTestId("collection-9100")).queryByRole("button", { name: "Add missing movies now" })).toBeNull();
+});
+
+it("adds a collection unmonitored when no library can take its movies, and offers nothing without TMDb", async () => {
+  const user = userEvent.setup();
+  const fetch = mockFetch([
+    { method: "GET", path: "/auth/me", reply: manager },
+    { method: "GET", path: "/collections", reply: { collections: [], libraries: {}, can_add: true } },
+    { method: "GET", path: "/collections/search", reply: { results: [{ tmdb_id: 399, name: "Predator Collection", added: false }] } },
+    { method: "POST", path: "/collections", reply: { collection: { ...predator, monitored: false, versions: [] }, added: 0, skipped: 0 } },
+  ]);
+  const first = renderPage(<CollectionsPage />, "/collections");
+  expect(await screen.findByText("No collections yet. Add one, or they appear when a movie in the library belongs to one.")).toBeTruthy();
+  await user.click(screen.getByRole("button", { name: "Add collection" }));
+  const dialog = within(screen.getByTestId("add-collection"));
+  await user.type(dialog.getByLabelText("Search TMDb collections"), "predator");
+  await user.click(await dialog.findByTestId("collection-hit-399"));
+  expect(dialog.getByText("only an active movie library", { exact: false })).toBeTruthy();
+  await user.click(dialog.getByRole("button", { name: "Add" }));
+  await waitFor(() => expect(fetch.calls("POST", "/collections")[0]?.body).toMatchObject({ tmdb_id: 399, versions: [], monitored: false }));
+  first.unmount();
+
+  mockFetch([
+    { method: "GET", path: "/auth/me", reply: manager },
+    { method: "GET", path: "/collections", reply: { ...page, can_add: false } },
+  ]);
+  renderPage(<CollectionsPage />, "/collections");
+  const row = within(await screen.findByTestId("collection-8091"));
+  expect(screen.getByRole("button", { name: "Add collection" }).hasAttribute("disabled")).toBe(true);
+  expect(row.queryByRole("button", { name: "Add missing movies now" })).toBeNull();
 });
 
 it("is not for plain users and does not ask for collections", async () => {

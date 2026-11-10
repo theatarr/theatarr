@@ -18,10 +18,11 @@ import (
 )
 
 // Collections (docs/design/arrview.md, Collections): the movie_collection rows movie intake refreshes (internal/catalog
-// MovieIntake), for the native Collections page. A monitored collection adds its missing movies to its target
-// versions at the next intake refresh (metadata.lists.interval); searches on add go through the acquirer and router
-// like every other add, so nothing grabs while router.enabled is off. The same rows back the Radarr view's
-// collection endpoints.
+// MovieIntake), for the native Collections page. A collection is added by searching TMDb (GET /collections/search,
+// POST /collections); a monitored one adds its missing movies to its target versions when it is added, on "Add
+// missing movies now" (POST /collections/{id}/refresh) and at every intake refresh (metadata.lists.interval).
+// Searches on add go through the acquirer and router like every other add, so nothing grabs while router.enabled is
+// off. The same rows back the Radarr view's collection endpoints.
 
 // Collection is one TMDb collection as movie intake keeps it.
 type Collection struct {
@@ -46,6 +47,46 @@ type Collection struct {
 type CollectionsPage struct {
 	Collections []Collection      `json:"collections"`
 	Libraries   map[string]string `json:"libraries"`
+	// CanAdd: TMDb is set up, so collections can be searched, added and refreshed now.
+	CanAdd bool `json:"can_add"`
+}
+
+// CollectionHit is one TMDb collection of GET /collections/search.
+type CollectionHit struct {
+	TmdbID   int64  `json:"tmdb_id"`
+	Name     string `json:"name"`
+	Poster   string `json:"poster,omitempty"`
+	Overview string `json:"overview,omitempty"`
+	// Added: the collection is already on the Collections page.
+	Added bool `json:"added"`
+}
+
+// CollectionSearch is GET /collections/search.
+type CollectionSearch struct {
+	Results []CollectionHit `json:"results"`
+}
+
+// CollectionAdd is POST /collections.
+type CollectionAdd struct {
+	TmdbID   int64    `json:"tmdb_id"`
+	Versions []string `json:"versions"`
+	// Monitored defaults to true.
+	Monitored   *bool `json:"monitored"`
+	SearchOnAdd bool  `json:"search_on_add"`
+	// MinimumAvailability defaults to released.
+	MinimumAvailability string `json:"minimum_availability"`
+}
+
+// CollectionRefreshed answers POST /collections and POST /collections/{id}/refresh: the collection as stored and
+// what the refresh did.
+type CollectionRefreshed struct {
+	Collection Collection `json:"collection"`
+	// Added are the movies added to the library now; Skipped the parts left alone (already in the library, or
+	// excluded).
+	Added   int `json:"added"`
+	Skipped int `json:"skipped"`
+	// RefreshError: the collection is stored, but adding its movies failed in part; the scheduled refresh retries.
+	RefreshError string `json:"refresh_error,omitempty"`
 }
 
 // CollectionUpdate is PUT /collections/{id}; absent fields keep their value.
@@ -59,7 +100,10 @@ type CollectionUpdate struct {
 func (w *Web) mountCollectionsAPI(mux *http.ServeMux) {
 	b := APIBase + "/collections"
 	w.handle(mux, "GET "+b, SignedIn, auth.PermManage, w.apiCollections)
+	w.handle(mux, "POST "+b, SignedIn, auth.PermManage, w.apiAddCollection)
+	w.handle(mux, "GET "+b+"/search", SignedIn, auth.PermManage, w.apiSearchCollections)
 	w.handle(mux, "PUT "+b+"/{id}", SignedIn, auth.PermManage, w.apiSetCollection)
+	w.handle(mux, "POST "+b+"/{id}/refresh", SignedIn, auth.PermManage, w.apiRefreshCollection)
 }
 
 // collectionTargets are the libraries a collection may target (policy CollectionTargets), sorted.
@@ -98,7 +142,7 @@ func (w *Web) apiCollections(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 	targets := w.collectionTargets()
-	out := CollectionsPage{Collections: []Collection{}, Libraries: w.keyLabels(targets)}
+	out := CollectionsPage{Collections: []Collection{}, Libraries: w.keyLabels(targets), CanAdd: w.add.Collections != nil}
 	err = scanAll(ctx, w.st.Reader(), `SELECT tmdb_id, name, monitored, versions, search_on_add, minimum_availability,
 		movies FROM movie_collection ORDER BY monitored DESC, name = '', name COLLATE NOCASE, tmdb_id`, nil,
 		func(rows *sql.Rows) error {
@@ -190,9 +234,7 @@ func (w *Web) apiSetCollection(rw http.ResponseWriter, r *http.Request) {
 		set, args = append(set, "search_on_add = ?"), append(args, *in.SearchOnAdd)
 	}
 	if in.MinimumAvailability != nil {
-		switch *in.MinimumAvailability {
-		case "tba", "announced", "inCinemas", "released":
-		default:
+		if !validAvailability(*in.MinimumAvailability) {
 			badRequest(rw, "minimum_availability must be tba, announced, inCinemas or released")
 			return
 		}
@@ -250,13 +292,7 @@ func (w *Web) apiSetCollection(rw http.ResponseWriter, r *http.Request) {
 			return
 		}
 	}
-	held, err := w.heldMovies(ctx)
-	if err != nil {
-		w.internal(rw, err)
-		return
-	}
-	c, err := scanCollection(w.st.Reader().QueryRowContext(ctx, `SELECT tmdb_id, name, monitored, versions,
-		search_on_add, minimum_availability, movies FROM movie_collection WHERE tmdb_id = ?`, id), held, targets)
+	c, err := w.collection(ctx, id)
 	if errors.Is(err, sql.ErrNoRows) {
 		notFound(rw)
 		return
@@ -266,4 +302,174 @@ func (w *Web) apiSetCollection(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 	writeJSON(rw, http.StatusOK, c)
+}
+
+// collection reads one stored collection; sql.ErrNoRows when it is not known.
+func (w *Web) collection(ctx context.Context, id int64) (Collection, error) {
+	held, err := w.heldMovies(ctx)
+	if err != nil {
+		return Collection{}, err
+	}
+	return scanCollection(w.st.Reader().QueryRowContext(ctx, `SELECT tmdb_id, name, monitored, versions,
+		search_on_add, minimum_availability, movies FROM movie_collection WHERE tmdb_id = ?`, id), held,
+		w.collectionTargets())
+}
+
+func validAvailability(v string) bool {
+	return slices.Contains([]string{"tba", "announced", "inCinemas", "released"}, v)
+}
+
+// noTMDb answers 503 when TMDb is not set up; the Collections page hides its add and refresh actions then.
+func (w *Web) noTMDb(rw http.ResponseWriter) bool {
+	if w.add.Collections != nil {
+		return false
+	}
+	writeJSON(rw, http.StatusServiceUnavailable, apiError{Error: "TMDb is not set up"})
+	return true
+}
+
+// GET /collections/search?q=: TMDb collections by name, each marked when it is already on the page.
+func (w *Web) apiSearchCollections(rw http.ResponseWriter, r *http.Request) {
+	if w.noTMDb(rw) {
+		return
+	}
+	q := strings.TrimSpace(r.URL.Query().Get("q"))
+	if q == "" {
+		badRequest(rw, "q is required")
+		return
+	}
+	ctx := r.Context()
+	res, err := w.add.Collections.SearchCollection(ctx, q)
+	if err != nil {
+		w.log.Warn("collections: TMDb search", "err", err)
+		writeJSON(rw, http.StatusBadGateway, apiError{Error: "TMDb search failed; try again in a moment"})
+		return
+	}
+	known := map[int64]bool{}
+	err = scanAll(ctx, w.st.Reader(), `SELECT tmdb_id FROM movie_collection`, nil, func(rows *sql.Rows) error {
+		var id int64
+		err := rows.Scan(&id)
+		known[id] = true
+		return err
+	})
+	if err != nil {
+		w.internal(rw, err)
+		return
+	}
+	out := CollectionSearch{Results: []CollectionHit{}}
+	for _, x := range res {
+		h := CollectionHit{TmdbID: int64(x.ID), Name: x.Name, Overview: shortText(x.Overview, overviewShort), Added: known[int64(x.ID)]}
+		if f := strings.TrimPrefix(x.PosterPath, "/"); art.FileRE.MatchString(f) {
+			h.Poster = "/img/tmdb/" + tmdbPosterSize + "/" + f
+		}
+		out.Results = append(out.Results, h)
+	}
+	writeJSON(rw, http.StatusOK, out)
+}
+
+// POST /collections: add a TMDb collection with its name and parts, or update the one already known, and, when it
+// is monitored, add its missing movies now.
+func (w *Web) apiAddCollection(rw http.ResponseWriter, r *http.Request) {
+	if w.noTMDb(rw) {
+		return
+	}
+	var in CollectionAdd
+	if err := decodeJSON(r, &in); err != nil {
+		badRequest(rw, "invalid body: "+err.Error())
+		return
+	}
+	if in.TmdbID <= 0 {
+		badRequest(rw, "tmdb_id is required")
+		return
+	}
+	if in.MinimumAvailability == "" {
+		in.MinimumAvailability = "released"
+	}
+	if !validAvailability(in.MinimumAvailability) {
+		badRequest(rw, "minimum_availability must be tba, announced, inCinemas or released")
+		return
+	}
+	targets := w.collectionTargets()
+	for _, k := range in.Versions {
+		if !slices.Contains(targets, k) {
+			badRequest(rw, strconv.Quote(k)+" is not a library a collection may add to (an active movie library nothing follows)")
+			return
+		}
+	}
+	versions := eligible(in.Versions, targets)
+	monitored := in.Monitored == nil || *in.Monitored
+	if monitored && len(versions) == 0 {
+		badRequest(rw, "a monitored collection needs at least one library")
+		return
+	}
+	ctx := r.Context()
+	c, err := w.add.Collections.Collection(ctx, int(in.TmdbID))
+	if errors.Is(err, tmdb.ErrNotFound) {
+		writeJSON(rw, http.StatusNotFound, apiError{Error: "TMDb has no collection " + strconv.FormatInt(in.TmdbID, 10)})
+		return
+	}
+	if err != nil {
+		w.log.Warn("collections: TMDb collection", "collection", in.TmdbID, "err", err)
+		writeJSON(rw, http.StatusBadGateway, apiError{Error: "TMDb did not answer; try again in a moment"})
+		return
+	}
+	vb, _ := json.Marshal(versions)
+	parts, err := json.Marshal(c.Parts)
+	if err != nil {
+		w.internal(rw, err)
+		return
+	}
+	now := store.Millis(w.now())
+	// A known collection keeps the view, profile and root an arr client gave it.
+	if _, err := w.st.Writer().ExecContext(ctx, `INSERT INTO movie_collection (tmdb_id, name, movies, monitored, versions,
+		minimum_availability, search_on_add, refreshed_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+		ON CONFLICT(tmdb_id) DO UPDATE SET name = excluded.name, movies = excluded.movies, monitored = excluded.monitored,
+		versions = excluded.versions, minimum_availability = excluded.minimum_availability,
+		search_on_add = excluded.search_on_add, refreshed_at = excluded.refreshed_at, updated_at = excluded.updated_at`,
+		in.TmdbID, c.Name, string(parts), monitored, string(vb), in.MinimumAvailability, in.SearchOnAdd, now, now); err != nil {
+		w.internal(rw, err)
+		return
+	}
+	w.refreshCollection(rw, r, in.TmdbID, monitored)
+}
+
+// POST /collections/{id}/refresh: reread one collection from TMDb and add a monitored one's missing movies now.
+func (w *Web) apiRefreshCollection(rw http.ResponseWriter, r *http.Request) {
+	id, ok := pathID(r)
+	if !ok {
+		notFound(rw)
+		return
+	}
+	if w.noTMDb(rw) {
+		return
+	}
+	w.refreshCollection(rw, r, id, true)
+}
+
+// refreshCollection runs the one-collection refresh (when refresh is set) and answers the stored collection with
+// what it did. A failed refresh of a stored collection still answers 200, with refresh_error.
+func (w *Web) refreshCollection(rw http.ResponseWriter, r *http.Request, id int64, refresh bool) {
+	ctx := r.Context()
+	var out CollectionRefreshed
+	if refresh {
+		res, err := w.add.Collections.RefreshCollection(ctx, id)
+		if errors.Is(err, sql.ErrNoRows) {
+			notFound(rw)
+			return
+		}
+		if err != nil {
+			w.log.Warn("collections: refresh", "collection", id, "err", err)
+			out.RefreshError = "Some movies could not be added now; the next list refresh tries again."
+		}
+		out.Added, out.Skipped = res.Added, res.Skipped
+	}
+	var err error
+	if out.Collection, err = w.collection(ctx, id); errors.Is(err, sql.ErrNoRows) {
+		notFound(rw)
+		return
+	} else if err != nil {
+		w.internal(rw, err)
+		return
+	}
+	writeJSON(rw, http.StatusOK, out)
 }

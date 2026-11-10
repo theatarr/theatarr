@@ -168,6 +168,8 @@ func prepareServeMetadata(prev *serveMetadata, pol *policy.Policy, gw *gateway.G
 			m.intake.OnAdd = movieIntakeSearch(d.acquirer)
 		}
 	}
+	// The Collections page adds and refreshes through this generation's intake, also when search and add were kept.
+	m.add.Collections = webMovieIntake(m.intake)
 	if prev.plexBuilt && prev.plexKey == k.plex {
 		m.plex, m.plexBuilt = prev.plex, true
 	} else if d.auth != nil {

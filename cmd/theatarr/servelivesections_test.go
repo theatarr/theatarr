@@ -265,7 +265,7 @@ func TestLiveMetadataServicesFollowTheirInputs(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if off.art.Enabled() || off.add.TMDb != nil || off.intake != nil || off.viewTMDb != nil {
+	if off.art.Enabled() || off.add.TMDb != nil || off.intake != nil || off.viewTMDb != nil || off.add.Collections != nil {
 		t.Fatal("fixture: TMDb on without its key")
 	}
 	same, err := prepareServeMetadata(off, pol, gw, f.deps)
@@ -305,6 +305,10 @@ func TestLiveMetadataServicesFollowTheirInputs(t *testing.T) {
 	// The intake reads the versions of its generation; its TMDb client is kept.
 	if images.intake == on.intake || images.intake.Policy != next || images.intake.TMDb != on.intake.TMDb {
 		t.Fatal("intake not rebuilt on its generation's policy")
+	}
+	// The Collections page gets the intake of its generation, though search and add's TMDb client was kept.
+	if c, ok := images.add.Collections.(serveMovieIntake); !ok || c.MovieIntake != images.intake || on.add.Collections == nil {
+		t.Fatal("the web layer's movie intake is not its generation's")
 	}
 }
 

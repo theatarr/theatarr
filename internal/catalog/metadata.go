@@ -102,14 +102,16 @@ type movieIntakeConfig struct {
 	search, monitored                      bool
 }
 
-func (s *MovieIntake) configs(ctx context.Context, collections bool) ([]movieIntakeConfig, error) {
-	q := `SELECT id,tmdb_id,versions,minimum_availability,monitor,view,root_folder_path,quality_profile_id,search_on_add,1
-  FROM movie_import_list WHERE enabled=1 AND enable_auto=1 ORDER BY id`
-	if collections {
-		q = `SELECT tmdb_id,tmdb_id,versions,minimum_availability,'movieOnly',view,root_folder_path,quality_profile_id,search_on_add,monitored
-  FROM movie_collection ORDER BY tmdb_id`
-	}
-	rows, err := s.Store.Reader().QueryContext(ctx, q)
+const (
+	collectionConfigs = `SELECT tmdb_id,tmdb_id,versions,minimum_availability,'movieOnly',view,root_folder_path,quality_profile_id,search_on_add,monitored
+  FROM movie_collection`
+	listConfigs = `SELECT id,tmdb_id,versions,minimum_availability,monitor,view,root_folder_path,quality_profile_id,search_on_add,1
+  FROM movie_import_list`
+)
+
+// configs reads the intake rows of q (collectionConfigs or listConfigs plus a filter and order).
+func (s *MovieIntake) configs(ctx context.Context, q string, args ...any) ([]movieIntakeConfig, error) {
+	rows, err := s.Store.Reader().QueryContext(ctx, q, args...)
 	if err != nil {
 		return nil, err
 	}
@@ -125,6 +127,21 @@ func (s *MovieIntake) configs(ctx context.Context, collections bool) ([]movieInt
 	return out, rows.Err()
 }
 
+// config reads the one row of q; sql.ErrNoRows when there is none.
+func (s *MovieIntake) config(ctx context.Context, q string, id int64) (movieIntakeConfig, error) {
+	if err := s.init(); err != nil {
+		return movieIntakeConfig{}, err
+	}
+	configs, err := s.configs(ctx, q, id)
+	if err != nil {
+		return movieIntakeConfig{}, err
+	}
+	if len(configs) == 0 {
+		return movieIntakeConfig{}, sql.ErrNoRows
+	}
+	return configs[0], nil
+}
+
 // RefreshCollections rereads known memberships, adding only new movies for monitored collections.
 func (s *MovieIntake) RefreshCollections(ctx context.Context) (IntakeResult, error) {
 	if err := s.init(); err != nil {
@@ -133,50 +150,74 @@ func (s *MovieIntake) RefreshCollections(ctx context.Context) (IntakeResult, err
 	if err := DiscoverCollections(ctx, s.Store, s.Now()); err != nil {
 		return IntakeResult{}, err
 	}
-	configs, err := s.configs(ctx, true)
+	configs, err := s.configs(ctx, collectionConfigs+` ORDER BY tmdb_id`)
 	if err != nil {
 		return IntakeResult{}, err
 	}
 	var out IntakeResult
 	var errs []error
 	for _, cfg := range configs {
-		out.Collections++
-		c, err := s.TMDb.Collection(ctx, int(cfg.tmdbID))
-		if err != nil {
-			errs = append(errs, fmt.Errorf("collection %d: %w", cfg.tmdbID, err))
-			continue
-		}
-		parts, err := json.Marshal(c.Parts)
+		soft, err := s.refreshCollection(ctx, cfg, &out)
 		if err != nil {
 			return out, err
 		}
-		if _, err = s.Store.Writer().ExecContext(ctx, `UPDATE movie_collection SET name=?,movies=?,refreshed_at=? WHERE tmdb_id=?`, c.Name, string(parts), store.Millis(s.Now()), cfg.tmdbID); err != nil {
-			return out, err
-		}
-		if !cfg.monitored {
-			continue
-		}
-		if cfg.versions, err = s.collectionTargets(cfg); err != nil {
-			errs = append(errs, fmt.Errorf("collection %d: %w", cfg.tmdbID, err))
-			continue
-		}
-		if cfg.versions == "" {
-			continue
-		}
-		for _, m := range c.Parts {
-			n, err := s.addMovie(ctx, m, cfg, cfg.tmdbID)
-			if err != nil {
-				errs = append(errs, fmt.Errorf("collection %d movie %d: %w", cfg.tmdbID, m.ID, err))
-				continue
-			}
-			if n {
-				out.Added++
-			} else {
-				out.Skipped++
-			}
-		}
+		errs = append(errs, soft...)
 	}
 	return out, errors.Join(errs...)
+}
+
+// RefreshCollection refreshes one known collection now: its name and parts, and, when it is monitored, its missing
+// movies. sql.ErrNoRows when the collection is not known.
+func (s *MovieIntake) RefreshCollection(ctx context.Context, tmdbID int64) (IntakeResult, error) {
+	cfg, err := s.config(ctx, collectionConfigs+` WHERE tmdb_id=?`, tmdbID)
+	if err != nil {
+		return IntakeResult{}, err
+	}
+	var out IntakeResult
+	soft, err := s.refreshCollection(ctx, cfg, &out)
+	if err != nil {
+		return out, err
+	}
+	return out, errors.Join(soft...)
+}
+
+// refreshCollection is one collection's refresh, counted in out. TMDb and per-movie failures come back as soft (the
+// caller carries on with the next collection); err is a store failure.
+func (s *MovieIntake) refreshCollection(ctx context.Context, cfg movieIntakeConfig, out *IntakeResult) (soft []error, err error) {
+	out.Collections++
+	c, err := s.TMDb.Collection(ctx, int(cfg.tmdbID))
+	if err != nil {
+		return []error{fmt.Errorf("collection %d: %w", cfg.tmdbID, err)}, nil
+	}
+	parts, err := json.Marshal(c.Parts)
+	if err != nil {
+		return nil, err
+	}
+	if _, err = s.Store.Writer().ExecContext(ctx, `UPDATE movie_collection SET name=?,movies=?,refreshed_at=? WHERE tmdb_id=?`, c.Name, string(parts), store.Millis(s.Now()), cfg.tmdbID); err != nil {
+		return nil, err
+	}
+	if !cfg.monitored {
+		return nil, nil
+	}
+	if cfg.versions, err = s.collectionTargets(cfg); err != nil {
+		return []error{fmt.Errorf("collection %d: %w", cfg.tmdbID, err)}, nil
+	}
+	if cfg.versions == "" {
+		return nil, nil
+	}
+	for _, m := range c.Parts {
+		n, err := s.addMovie(ctx, m, cfg, cfg.tmdbID)
+		if err != nil {
+			soft = append(soft, fmt.Errorf("collection %d movie %d: %w", cfg.tmdbID, m.ID, err))
+			continue
+		}
+		if n {
+			out.Added++
+		} else {
+			out.Skipped++
+		}
+	}
+	return soft, nil
 }
 
 // collectionTargets revalidates a monitored collection's stored targets: only collection targets (policy
@@ -212,41 +253,64 @@ func (s *MovieIntake) SyncLists(ctx context.Context) (IntakeResult, error) {
 	if err := s.init(); err != nil {
 		return IntakeResult{}, err
 	}
-	configs, err := s.configs(ctx, false)
+	configs, err := s.configs(ctx, listConfigs+` WHERE enabled=1 AND enable_auto=1 ORDER BY id`)
 	if err != nil {
 		return IntakeResult{}, err
 	}
 	var out IntakeResult
 	var errs []error
 	for _, cfg := range configs {
-		out.Lists++
-		l, err := s.TMDb.List(ctx, int(cfg.tmdbID))
+		soft, err := s.syncList(ctx, cfg, &out)
 		if err != nil {
-			errs = append(errs, fmt.Errorf("list %d: %w", cfg.id, err))
-			continue
+			return out, err
 		}
-		cfg.monitored = cfg.monitor != "none"
-		failed := false
-		for _, m := range l.Items {
-			n, err := s.addMovie(ctx, m, cfg, 0)
-			if err != nil {
-				errs = append(errs, fmt.Errorf("list %d movie %d: %w", cfg.id, m.ID, err))
-				failed = true
-				continue
-			}
-			if n {
-				out.Added++
-			} else {
-				out.Skipped++
-			}
-		}
-		if !failed {
-			if _, err := s.Store.Writer().ExecContext(ctx, `UPDATE movie_import_list SET last_sync_at=? WHERE id=?`, store.Millis(s.Now()), cfg.id); err != nil {
-				return out, err
-			}
-		}
+		errs = append(errs, soft...)
 	}
 	return out, errors.Join(errs...)
+}
+
+// SyncList imports one list now, by its row id, whether or not it is enabled. sql.ErrNoRows when there is no such
+// list.
+func (s *MovieIntake) SyncList(ctx context.Context, id int64) (IntakeResult, error) {
+	cfg, err := s.config(ctx, listConfigs+` WHERE id=?`, id)
+	if err != nil {
+		return IntakeResult{}, err
+	}
+	var out IntakeResult
+	soft, err := s.syncList(ctx, cfg, &out)
+	if err != nil {
+		return out, err
+	}
+	return out, errors.Join(soft...)
+}
+
+// syncList is one list's import, counted in out; last_sync_at moves only on a pass without failures. soft and err
+// are as for refreshCollection.
+func (s *MovieIntake) syncList(ctx context.Context, cfg movieIntakeConfig, out *IntakeResult) (soft []error, err error) {
+	out.Lists++
+	l, err := s.TMDb.List(ctx, int(cfg.tmdbID))
+	if err != nil {
+		return []error{fmt.Errorf("list %d: %w", cfg.id, err)}, nil
+	}
+	cfg.monitored = cfg.monitor != "none"
+	for _, m := range l.Items {
+		n, err := s.addMovie(ctx, m, cfg, 0)
+		if err != nil {
+			soft = append(soft, fmt.Errorf("list %d movie %d: %w", cfg.id, m.ID, err))
+			continue
+		}
+		if n {
+			out.Added++
+		} else {
+			out.Skipped++
+		}
+	}
+	if len(soft) == 0 {
+		if _, err := s.Store.Writer().ExecContext(ctx, `UPDATE movie_import_list SET last_sync_at=? WHERE id=?`, store.Millis(s.Now()), cfg.id); err != nil {
+			return nil, err
+		}
+	}
+	return soft, nil
 }
 
 func intakeSkip(ctx context.Context, q Querier, id int) (bool, error) {

@@ -9,6 +9,7 @@ import (
 	"github.com/theatarr/theatarr/internal/metadata/tmdb"
 	"github.com/theatarr/theatarr/internal/policy"
 	"github.com/theatarr/theatarr/internal/store"
+	"github.com/theatarr/theatarr/internal/web"
 )
 
 func newServeMovieIntake(pol *policy.Policy, st *store.Store, gw *gateway.Gateway) (*catalog.MovieIntake, error) {
@@ -23,6 +24,25 @@ func newServeMovieIntake(pol *policy.Policy, st *store.Store, gw *gateway.Gatewa
 		return nil, err
 	}
 	return &catalog.MovieIntake{Store: st, Policy: pol, TMDb: c}, nil
+}
+
+// serveMovieIntake is what the Collections page uses of a generation's movie intake (web.MovieIntake): the intake's
+// one-collection refresh, and its TMDb client for the collection search and lookup.
+type serveMovieIntake struct {
+	*catalog.MovieIntake
+	*tmdb.Client
+}
+
+// webMovieIntake is mi for the web layer; nil (no interface value) when TMDb is not set up.
+func webMovieIntake(mi *catalog.MovieIntake) web.MovieIntake {
+	if mi == nil {
+		return nil
+	}
+	c, ok := mi.TMDb.(*tmdb.Client)
+	if !ok {
+		return nil
+	}
+	return serveMovieIntake{MovieIntake: mi, Client: c}
 }
 
 // newServeViewTMDb is the arr views' TMDb client (movie lookup by name, the anime guess of new titles), through the
