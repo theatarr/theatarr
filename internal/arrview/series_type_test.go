@@ -206,3 +206,23 @@ func TestSeriesTypeEditor(t *testing.T) {
 		t.Errorf("the editor's type: %q", got)
 	}
 }
+
+// series/lookup answers the title's type for a series Theatarr holds in a library the view does not show, as the
+// views that show it do; a series it does not hold keeps standard.
+func TestSeriesTypeLookupOutsideView(t *testing.T) {
+	e := newEnv(t)
+	e.exec(`UPDATE title SET series_type = 'daily' WHERE id = 10`)
+	for _, base := range []string{"/sonarr", "/v/tv-2160p/sonarr", "/v/anime-tv/sonarr"} {
+		var out []map[string]any
+		e.call("GET", base+"/api/v3/series/lookup?term=tvdb:201", nil, 200, &out)
+		if len(out) != 1 || out[0]["seriesType"] != "daily" {
+			t.Errorf("%s lookup: %v", base, out)
+		}
+	}
+	e.exec(`UPDATE title SET series_type = NULL, anime = 1 WHERE id = 10`)
+	var out []map[string]any
+	e.call("GET", "/v/anime-tv/sonarr/api/v3/series/lookup?term=tvdb:201", nil, 200, &out)
+	if len(out) != 1 || out[0]["seriesType"] != "anime" {
+		t.Errorf("flagged series with no type: %v", out)
+	}
+}

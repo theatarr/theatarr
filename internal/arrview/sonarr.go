@@ -538,6 +538,13 @@ func (s *Service) seriesLookup(w http.ResponseWriter, r *request) {
 			Seasons: []seasonResource{}, Year: b.year, SeasonFolder: true, Monitored: true, MonitorNewItems: "all",
 			TvdbID: b.tvdb, SeriesType: "standard", ImdbID: b.imdb, Genres: []string{}, Tags: []int64{},
 			Added: at(minTime), Ratings: map[string]any{}, LanguageProfileID: 1}
+		if b.id > 0 {
+			// A series Theatarr holds, in no library of this view: its type is the title's, as every view shows it.
+			if sr.SeriesType, err = store.SeriesType(ctx, s.st.Reader(), b.id); err != nil {
+				s.internal(w, r, err)
+				return
+			}
+		}
 		if b.id == 0 && b.tvdb > 0 && s.tvmeta != nil {
 			meta, err := s.tvmeta.LookupSeries(ctx, b.tvdb)
 			switch {
