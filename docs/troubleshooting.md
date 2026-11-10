@@ -50,22 +50,16 @@ The names must match exactly. Save; no restart is needed.
 
 ## There is no profile to pick for a library
 
-**Symptom:** the first-library step in Setup has no profile to choose, and the TRaSH presets say they are off.
+**Symptom:** a profile picker lists no TRaSH default, or the presets say they are unavailable.
 
-**Cause:** the presets come from a TRaSH-Guides checkout mounted at `THEATARR_TRASH`, and no profile ships built in.
+**Cause:** the TRaSH quality profiles are built in (a snapshot bundled with each release), so this only happens
+when `THEATARR_TRASH` names a TRaSH-Guides checkout that loads for one arr flavour and not the other: a checkout that
+loads is used alone. A `THEATARR_TRASH` directory with no checkout in it does not turn the defaults off; the bundled
+ones are used and **Settings › Profiles** says so.
 
-**Fix:** either clone the checkout next to your compose file and restart:
-
-```sh
-git clone --depth 1 https://github.com/TRaSH-Guides/Guides trash-guides
-docker compose restart theatarr
-```
-
-The example compose file mounts `./trash-guides` at `/config/trash` and sets `THEATARR_TRASH` to it. If Docker
-already created an empty, root-owned `trash-guides` directory, remove it first (`sudo rmdir trash-guides`).
-
-Or create a profile by hand under **Settings › Profiles** in the raw profile editor
-(`/admin/settings/profiles?raw=1`, **Add profiles**), then pick it in Setup.
+**Fix:** complete the checkout (`git -C trash-guides pull`, or clone it again), or remove `THEATARR_TRASH` and its
+mount to use the bundled defaults, then restart. A profile can also be made by hand under **Settings › Profiles** in
+the raw profile editor (`/admin/settings/profiles?raw=1`, **Add profiles**).
 
 ## A library exists but nothing happens
 

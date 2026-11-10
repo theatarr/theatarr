@@ -34,10 +34,10 @@ services:
       - /mnt/debrid:/mnt/debrid:ro     # the debrid mount (zurg, rclone, ...): Theatarr only reads it
       - /srv/media:/media              # library roots (/media/movies, /media/tv, /media/anime) and the link trash
                                        # (/media/.trash, outside every root); mount them where the media server sees them
-      - ./trash-guides:/config/trash:ro  # optional: a TRaSH-Guides checkout (clone it first), for the profile presets and quality sync
+      # - ./trash-guides:/config/trash:ro  # optional: a TRaSH-Guides checkout (clone it first), see below
     environment:
       TZ: Etc/UTC                      # the nightly backup runs at 03:00 in this zone
-      THEATARR_TRASH: /config/trash    # the TRaSH-Guides checkout above; remove both lines to build profiles by hand
+      # THEATARR_TRASH: /config/trash  # the optional TRaSH-Guides checkout above
 ```
 
 Theatarr starts with an empty data directory and no configuration. It serves the UI and shows what is missing
@@ -54,7 +54,6 @@ mkdir -p data
 sudo chown 65532:65532 data
 sudo mkdir -p /srv/media/movies /srv/media/tv /srv/media/.trash      # library roots and the trash, as you need them
 sudo chown 65532:65532 /srv/media/movies /srv/media/tv /srv/media/.trash
-git clone --depth 1 https://github.com/TRaSH-Guides/Guides trash-guides   # optional, recommended
 ```
 
 The trash directory (`/media/.trash` in the container) is outside every library root. Only chown the directories
@@ -64,9 +63,10 @@ Mount the library roots at the same path the media server sees them, and the deb
 should point at (or set the link path under **Settings › Libraries › File management** to the path the media server
 sees). Plex follows the links, so Plex must see the debrid mount too.
 
-The TRaSH checkout is `git clone --depth 1 https://github.com/TRaSH-Guides/Guides trash-guides`, before the first
-`up`. It gives the profile presets and quality sync. Without it (an empty `trash-guides` directory, or both TRaSH
-lines removed) the presets are off and say so, and you build profiles by hand in the raw profile editor (step 6).
+The TRaSH-Guides quality profiles are built in: each release bundles a snapshot of them, so the TRaSH defaults are
+listed under **Settings › Profiles** and in every profile picker with no setup. A TRaSH checkout is optional: it
+follows upstream between releases and is what quality sync from a local tree reads. To use one, run
+`git clone --depth 1 https://github.com/TRaSH-Guides/Guides trash-guides` and uncomment the two TRaSH lines.
 `THEATARR_TRASH` is this checkout; it is not the trash directory for replaced links, which you set in Settings.
 
 ## 2. First login
@@ -201,10 +201,8 @@ the indexers it searches and the providers it adds to. **Setup** builds the firs
    uid 65532 (step 1). **Check root** shows where it resolves and refuses a root that is missing, inside the mount
    or outside the library area. The first library's root sets that area (its parent directory) unless
    **File management › Broken link checks › Folders to check** names it;
-2. a quality profile: a TRaSH preset (with a TRaSH checkout in `THEATARR_TRASH`) builds a new profile with its
-   formats, or pick an existing profile. Without the checkout there are no presets: make a profile first under
-   **Settings › Profiles** in the raw profile editor (`/admin/settings/profiles?raw=1`, **Add profiles**), then
-   pick it here;
+2. a quality profile: a TRaSH default builds a new profile with its formats, or pick an existing profile. Every
+   TRaSH quality profile is offered, here and in the library editor under **Settings › Libraries**;
 3. the indexers and providers;
 4. **Review**, then **Create library**.
 

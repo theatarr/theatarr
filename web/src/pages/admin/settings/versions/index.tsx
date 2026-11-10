@@ -4,7 +4,7 @@ import { useEffect, useRef, useState, type ReactNode } from "react";
 import { Link } from "react-router";
 import { ApiError } from "@/api/client";
 import { checkRoot, confirmVersion, saveVersion, useVersions, type Confirmation, type VersionBody, type VersionConfig, type VersionList, type VersionRecord } from "@/api/settings-versions";
-import { CATEGORY_LABEL, categoryOf, originLabel, useQualityOverview, type Category, type ProfileSummary } from "@/api/settings-profiles";
+import { CATEGORY_LABEL, PRESET_PICK, categoryOf, ensurePresetProfile, originLabel, overviewKey, presetCopies, presetPick, usePresets, useQualityOverview, type Category, type Preset, type ProfileSummary } from "@/api/settings-profiles";
 import { DownloadsOffNotice, VersionStatus } from "@/components/version-status";
 import { PageHeader } from "@/components/page";
 import { EffectsConfirmDialog } from "@/components/settings/confirm-write";
@@ -21,6 +21,8 @@ import { explainError } from "@/lib/settings";
 /** saved: the record as stored (a new library: its first draft), for the changed marks, the count and Discard. */
 type Session = { record: VersionRecord; saved: VersionRecord; generation: number; create: boolean; draftID: number };
 type Pending = { body: VersionBody; effects: Confirmation["effects"]; proof?: Confirmation };
+/** The arr flavour whose TRaSH defaults fit a library kind. */
+const flavourOf = (kind: string) => kind === "series" ? "sonarr" : "radarr";
 const split = (text: string) => text.split(",").map((part) => part.trim()).filter(Boolean);
 const copy = <T,>(value: T): T => JSON.parse(JSON.stringify(value)) as T;
 const message = (error: unknown) => error instanceof Error ? error.message : String(error);
@@ -143,6 +145,8 @@ export function VersionsPage({ embedded = false }: { embedded?: boolean }) {
   const addButton = useRef<HTMLButtonElement>(null);
   const errorBox = useRef<HTMLDivElement>(null);
   const stopped = useRef(false);
+  // The profile this editor created from a picked TRaSH default, said beside the form until the library is saved.
+  const [made, setMade] = useState<{ key: string; name: string }>();
   const data = query.data;
   const readOnly = data?.source !== "db";
   // Focus moves to the heading when a session reloads (draftID); the sheet focuses it on open.
@@ -156,6 +160,7 @@ export function VersionsPage({ embedded = false }: { embedded?: boolean }) {
     setSession({ record: copy(first), saved: copy(first), generation: data.generation, create: !record, draftID: Date.now() });
     setError(undefined);
     setPending(undefined);
+    setMade(undefined);
   }
   const setEdit = useEditParam(!!data, !!session, (key) => {
     const record = data?.versions.find((version) => version.key === key);
@@ -171,6 +176,7 @@ export function VersionsPage({ embedded = false }: { embedded?: boolean }) {
     setSession(undefined);
     setPending(undefined);
     setError(undefined);
+    setMade(undefined);
     setEdit(null);
   }
 
@@ -209,12 +215,30 @@ export function VersionsPage({ embedded = false }: { embedded?: boolean }) {
     finally { setBusy(false); }
   }
 
+  // A picked TRaSH default ("preset:<trash_id>") becomes a stored profile first, named after the library; the draft
+  // then names that profile, so a retry or a confirmation saves the library with it and never creates it twice.
+  async function withPresetProfile(current: Session): Promise<Session> {
+    const preset = presetPick(current.record.config.profile);
+    if (!preset || !data) return current;
+    if (!current.record.key.trim()) throw new Error("Give the library a key first: the profile made from the TRaSH default is named after it.");
+    const flavour = flavourOf(current.record.config.kind);
+    const profile = await ensurePresetProfile({ generation: current.generation, base: current.record.key.trim(), flavour, preset, taken: [...Object.keys(data.profiles), ...data.format_sets] });
+    const next = { ...current, generation: profile.generation, record: { ...current.record, config: { ...current.record.config, profile: profile.key } } };
+    setSession(next);
+    setMade({ key: profile.key, name: qc.getQueryData<{ presets: Preset[] }>(["settings", "presets", flavour])?.presets.find((p) => p.trash_id === preset)?.name ?? preset });
+    // The pickers and the profiles page now list the new profile.
+    void qc.invalidateQueries({ queryKey: overviewKey });
+    await query.refetch();
+    return next;
+  }
+
   async function review(deleting = false) {
     if (!session) return;
-    const body: VersionBody = { generation: session.generation, key: session.record.key, ...(deleting ? { delete: true } : { config: session.record.config, roots: session.record.roots ?? [] }) };
     setBusy(true);
     setError(undefined);
     try {
+      const current = deleting ? session : await withPresetProfile(session);
+      const body: VersionBody = { generation: current.generation, key: current.record.key, ...(deleting ? { delete: true } : { config: current.record.config, roots: current.record.roots ?? [] }) };
       if (!deleting) {
         await apply(body);
         return;
@@ -255,6 +279,7 @@ export function VersionsPage({ embedded = false }: { embedded?: boolean }) {
           subtitle={session.create ? "Starts in Shadow mode unless you choose otherwise." : `${session.record.config.kind}${session.record.config.anime ? " · anime" : ""} · ${session.record.config.mode}`}
           footer={<><Button onClick={() => void review()} disabled={readOnly || busy}>Save</Button><Button variant="outline" onClick={close}>Cancel</Button>{libraryChanges(session.record, session.saved) ? <><span className="text-[13px] font-medium text-[var(--ink)]" data-testid="unsaved-count" aria-live="polite">{changeCount(libraryChanges(session.record, session.saved))}</span><Button variant="ghost" size="sm" disabled={busy} data-testid="version-discard" onClick={() => { setSession({ ...session, record: copy(session.saved) }); setError(undefined); setPending(undefined); setDiscards(discards + 1); }}>Discard</Button></> : null}<Link className="text-sm text-[var(--accent-ink)] underline" to="/admin/settings/libraries/naming">Edit naming</Link>{!session.create ? <Button className="ml-auto" variant="destructive" onClick={() => void review(true)} disabled={readOnly || busy}>Stop managing library</Button> : null}</>}>
           {session.record.config.mode === "active" && !session.create ? <p className="mb-4 rounded-md border border-[var(--th-warning-border)] bg-[var(--warn-soft)] px-3 py-2 text-[13px] text-[var(--warn-ink)]">Active library: a change that widens what it downloads or where it writes asks for confirmation first.</p> : null}
+          {made ? <p className="mb-4 rounded-md border border-[var(--line)] px-3 py-2 text-[13px]" role="status" data-testid="preset-profile-made">The profile <span className="font-mono">{made.key}</span> was created from the TRaSH default {made.name} and is selected. The library itself is saved when Save succeeds; the profile stays either way.</p> : null}
           {error ? <div ref={errorBox} tabIndex={-1} className="mb-4"><ExplainBox error={explainError(error)} onReload={() => void reload(false)} onReloadKeep={() => void reload(true)} /></div> : null}
           <fieldset disabled={readOnly || busy}>
             <VersionForm key={discards} session={session} data={data} defaults={defaults} profiles={profiles} error={error} onChange={(record) => { setSession({ ...session, record }); setPending(undefined); }} />
@@ -288,10 +313,12 @@ function VersionForm({ session, data, defaults, profiles, error, onChange }: { s
   const update = <K extends keyof VersionConfig,>(key: K, value: VersionConfig[K]) => onChange({ ...record, config: { ...config, [key]: value } });
   // A new version takes the default profile of its kind while its profile is still the previous kind's default.
   const recategorize = (next: VersionConfig) => {
+    // A picked TRaSH default belongs to one flavour: a change of kind drops it (the new kind's default, if any, is taken below).
+    if (presetPick(next.profile) && flavourOf(next.kind) !== flavourOf(config.kind)) next = { ...next, profile: "" };
     if (session.create) {
       const was = defaults[categoryOf(config.kind, config.anime)] ?? "";
       const now = defaults[categoryOf(next.kind, next.anime)];
-      if (now && Object.hasOwn(data.profiles, now) && (config.profile === was || !config.profile)) next = { ...next, profile: now };
+      if (now && Object.hasOwn(data.profiles, now) && (config.profile === was || !next.profile)) next = { ...next, profile: now };
     }
     onChange({ ...record, config: next });
   };
@@ -306,6 +333,14 @@ function VersionForm({ session, data, defaults, profiles, error, onChange }: { s
   }, [generation, record.key, config.library, data.source]);
   const summary = profiles.get(config.profile);
   const viaClient = config.add_via === "client";
+  // The TRaSH defaults of the library's kind (movies: Radarr's, series: Sonarr's), offered beside the stored profiles.
+  const flavour = flavourOf(config.kind);
+  const presets = usePresets(flavour, data.source === "db").data?.presets ?? [];
+  const stored = Object.keys(data.profiles);
+  const picked = presetPick(config.profile);
+  const pickedPreset = picked ? presets.find((p) => p.trash_id === picked) : undefined;
+  const copiesOf = (id: string) => presetCopies([...profiles.values()], flavour, id);
+  const select = (value: string) => update("profile", value);
   return <div className="space-y-6">
     <div className="flex flex-wrap items-center gap-2 text-sm"><span>Draft after saving:</span><VersionStatus showMode state={{ mode: config.mode, grab: config.grab ?? false, library_enabled: data.switches.library_enabled, router_enabled: data.switches.router_enabled, router_forced_off: data.switches.sources?.router === "forced off by environment" }} /></div>
     <Part title="Where" help="What the library holds, where its folder lives and how files get there.">
@@ -323,8 +358,20 @@ function VersionForm({ session, data, defaults, profiles, error, onChange }: { s
       <Field label="Follows" {...mark("follows")}><Pick value={config.follows} options={["", ...data.versions.filter((version) => version.key !== record.key).map((version) => version.key)]} onChange={(value) => update("follows", value)} /></Field>
     </Part>
     <Part title="Which releases" help="The quality profile decides which releases it takes and when it upgrades.">
-      <div className="flex flex-col gap-1"><Field label="Profile" {...mark("profile")}><Pick value={config.profile} options={Object.keys(data.profiles)} onChange={(value) => update("profile", value)} /></Field>
-        <span className="text-xs text-muted-foreground [overflow-wrap:anywhere]">{summary ? `${profileOrigin(summary)} · ` : ""}its format set comes with it{data.profiles[config.profile] ? `: ${data.profiles[config.profile]}` : ""}. <Link className="underline" to={`/admin/settings/profiles?edit=${encodeURIComponent(config.profile)}`}>Open the profile</Link></span>
+      <div className="flex flex-col gap-1"><Field label="Profile" {...mark("profile")}><select className={SELECT_CLASS} value={config.profile} onChange={(event) => select(event.target.value)}>
+          {/* One select element whether or not the TRaSH defaults have loaded, so a load never drops focus. */}
+          {presets.length || picked ? <>
+            {config.profile === "" || (!picked && !stored.includes(config.profile)) ? <option value={config.profile}>{config.profile || "Choose a profile"}</option> : null}
+            {stored.length ? <optgroup label="Your profiles">{stored.map((key) => <option key={key} value={key}>{key}</option>)}</optgroup> : null}
+            <optgroup label="TRaSH defaults">
+              {presets.map((p) => { const copies = copiesOf(p.trash_id); return <option key={p.trash_id} value={PRESET_PICK + p.trash_id}>{p.name}{copies.length ? ` (copy: ${copies.join(", ")})` : ""}</option>; })}
+              {picked && !pickedPreset ? <option value={config.profile}>TRaSH default {picked}</option> : null}
+            </optgroup>
+          </> : stored.map((key) => <option key={key} value={key}>{key || "None"}</option>)}
+        </select></Field>
+        {picked
+          ? <span className="text-xs text-muted-foreground [overflow-wrap:anywhere]" data-testid="preset-pick-note">TRaSH default{pickedPreset ? ` ${pickedPreset.name}` : ""}: saving first creates a profile of your own from it, named after this library{record.key.trim() ? <> (<span className="font-mono">{record.key.trim()}</span>, or the next free key)</> : null}, with its format set. You can edit it afterwards under <Link className="underline" to="/admin/settings/profiles">Profiles</Link>.{copiesOf(picked).length ? ` To reuse the copy you already have, pick ${copiesOf(picked).join(" or ")} under Your profiles.` : ""}</span>
+          : <span className="text-xs text-muted-foreground [overflow-wrap:anywhere]">{summary ? `${profileOrigin(summary)} · ` : ""}its format set comes with it{data.profiles[config.profile] ? `: ${data.profiles[config.profile]}` : ""}. {config.profile ? <Link className="underline" to={`/admin/settings/profiles?edit=${encodeURIComponent(config.profile)}`}>Open the profile</Link> : null}</span>}
       </div>
       <Field label="Upgrades" {...mark("upgrades")}><Pick value={config.upgrades} options={["auto", "approve", "off"]} onChange={(value) => update("upgrades", value as VersionConfig["upgrades"])} /></Field>
       <div className="flex flex-col gap-1"><Field label="Prefer SeaDex" {...mark("prefer_seadex")}><Pick value={String(config.prefer_seadex ?? false)} options={["false", "true"]} onChange={(value) => update("prefer_seadex", value === "true")} /></Field><span className="text-xs text-muted-foreground">SeaDex picks take priority among allowed qualities and can replace higher-resolution files. Actual quality remains shown; size limits, upgrades and the other checks still apply.</span></div>

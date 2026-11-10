@@ -407,6 +407,130 @@ describe("Versions grouped by kind", () => {
     expect(screen.queryByRole("region", { name: "Anime series" })).toBeNull();
   });
 
+  const radarrPresets = { flavour: "radarr", source: "bundled", presets: [
+    { trash_id: "fd16", name: "Remux + WEB 2160p", flavour: "radarr", description: "", group: 1, qualities: ["Remux-2160p"], cutoff: "Remux-2160p", formats: 56, modifiers: [] },
+    { trash_id: "0537", name: "WEB 2160p", flavour: "radarr", description: "", group: 2, qualities: ["WEB 2160p"], cutoff: "WEB 2160p", formats: 39, modifiers: [] },
+  ] };
+  const sonarrPresets = { flavour: "sonarr", source: "bundled", presets: [
+    { trash_id: "72da", name: "WEB-1080p", flavour: "sonarr", description: "", group: 1, qualities: ["WEB 1080p"], cutoff: "WEB 1080p", formats: 30, modifiers: [] },
+  ] };
+  const withPresets = (versionsReply: unknown = grouped) => [
+    { method: "GET", path: "/settings/versions", reply: versionsReply },
+    { method: "GET", path: "/settings/view-bindings", reply: viewBindings() },
+    { method: "GET", path: "/settings/quality/overview", reply: quality },
+    { method: "GET", path: "/settings/presets", reply: (request: { search: string }) => request.search.includes("sonarr") ? sonarrPresets : radarrPresets },
+  ];
+  const optionsOf = (select: HTMLSelectElement, group: string) => [...select.querySelectorAll<HTMLOptionElement>(`optgroup[label="${group}"] option`)].map((o) => `${o.value}=${o.text}`);
+
+  it("offers every TRaSH default of the library's kind beside the stored profiles, with a hint on the ones already copied", async () => {
+    const fetch = mockFetch(withPresets());
+    const user = userEvent.setup();
+    renderPage(<VersionsPage />);
+    await screen.findByRole("region", { name: "Movies" });
+    await user.click(screen.getByRole("button", { name: "Add library" }));
+    const releases = within(await screen.findByTestId("version-form")).getByRole("region", { name: "Which releases" });
+    const profile = within(releases).getByRole("combobox", { name: "Profile" }) as HTMLSelectElement;
+    await waitFor(() => expect(optionsOf(profile, "TRaSH defaults")).toHaveLength(2));
+    expect(optionsOf(profile, "Your profiles")).toEqual(["web=web", "sonarr-web=sonarr-web", "anime-tv=anime-tv"]);
+    // The default "web" was made from stays listed, with the copy named; a guessed origin (sonarr-web) is no copy.
+    expect(optionsOf(profile, "TRaSH defaults")).toEqual(["preset:fd16=Remux + WEB 2160p", "preset:0537=WEB 2160p (copy: web)"]);
+    expect(profile.value).toBe("web");
+    await user.selectOptions(profile, "preset:0537");
+    const note = within(releases).getByTestId("preset-pick-note");
+    expect(note.textContent).toContain("TRaSH default WEB 2160p: saving first creates a profile of your own from it");
+    expect(note.textContent).toContain("pick web under Your profiles");
+    expect(within(releases).queryByRole("link", { name: "Open the profile" })).toBeNull();
+    // Series libraries get Sonarr's defaults; a picked movie default does not carry over.
+    await user.selectOptions(screen.getByRole("combobox", { name: "Kind" }), "series");
+    await waitFor(() => expect(optionsOf(profile, "TRaSH defaults")).toEqual(["preset:72da=WEB-1080p"]));
+    expect(profile.value).toBe("sonarr-web");
+    expect(fetch.calls("GET", "/settings/presets").map((c) => c.search)).toEqual(["?flavour=radarr", "?flavour=sonarr"]);
+  });
+
+  it("saves a library with a picked TRaSH default: the profile is created first, named after the library, then the library names it", async () => {
+    const fetch = mockFetch([
+      ...withPresets(),
+      { method: "POST", path: "/settings/presets/create", reply: json({ generation: 5, key: "movie-web", binding: "" }) },
+      { method: "PUT", path: "/settings/versions/movie-web", reply: json({ error: "settings refused: versions[movie-web].library: directory must exist" }, 422) },
+      { method: "PUT", path: "/settings/versions/movie-web", reply: json({ generation: 6 }) },
+    ]);
+    const user = userEvent.setup();
+    renderPage(<VersionsPage />);
+    const row = (await screen.findAllByText("movie-web"))[0].closest("tr")!;
+    await user.click(within(row).getByTestId("edit"));
+    const form = await screen.findByTestId("version-form");
+    const profile = within(form).getByRole("combobox", { name: "Profile" }) as HTMLSelectElement;
+    await waitFor(() => expect(optionsOf(profile, "TRaSH defaults")).toHaveLength(2));
+    await user.selectOptions(profile, "preset:fd16");
+    await user.click(within(form).getByRole("button", { name: "Save" }));
+    await waitFor(() => expect(fetch.calls("PUT", "/settings/versions/movie-web")).toHaveLength(1));
+    expect(fetch.calls("POST", "/settings/presets/create")[0].body).toEqual({ generation: 4, key: "movie-web", flavour: "radarr", preset: "fd16", modifiers: [] });
+    // The library is saved at the generation the profile made, naming the profile: "preset:" never reaches the server.
+    expect(fetch.calls("PUT", "/settings/versions/movie-web")[0].body).toMatchObject({ generation: 5, config: { profile: "movie-web", kind: "movie" } });
+    // The library save failed: the profile exists and is selected, and a retry does not create it again.
+    expect((await within(form).findByTestId("preset-profile-made")).textContent).toContain("The profile movie-web was created from the TRaSH default Remux + WEB 2160p and is selected.");
+    expect((within(form).getByRole("combobox", { name: "Profile" }) as HTMLSelectElement).value).toBe("movie-web");
+    await user.click(within(form).getByRole("button", { name: "Save" }));
+    await waitFor(() => expect(fetch.calls("PUT", "/settings/versions/movie-web")).toHaveLength(2));
+    expect(fetch.calls("POST", "/settings/presets/create")).toHaveLength(1);
+    expect(fetch.calls("PUT", "/settings/versions/movie-web")[1].body).toMatchObject({ generation: 5, config: { profile: "movie-web" } });
+  });
+
+  it("names the profile of a picked TRaSH default with the next free key when the library's key is taken", async () => {
+    // "tv-web" is a profile already and "tv-web-2" a format set; the server then refuses "tv-web-3" (a format set it
+    // alone knows), so "tv-web-4" is used.
+    const taken = { ...grouped, profiles: { ...grouped.profiles, "tv-web": "tv-web" }, format_sets: ["web-set", "tv-web", "tv-web-2"] };
+    const fetch = mockFetch([
+      ...withPresets(taken),
+      { method: "POST", path: "/settings/presets/create", reply: json({ error: "settings refused: key: a format set with this key exists", fields: [{ path: "key", message: "a format set with this key exists" }] }, 422) },
+      { method: "POST", path: "/settings/presets/create", reply: json({ generation: 5, key: "tv-web-4", binding: "" }) },
+      { method: "PUT", path: "/settings/versions/tv-web", reply: json({ generation: 6 }) },
+    ]);
+    const user = userEvent.setup();
+    renderPage(<VersionsPage />);
+    const row = (await screen.findAllByText("tv-web"))[0].closest("tr")!;
+    await user.click(within(row).getByTestId("edit"));
+    const form = await screen.findByTestId("version-form");
+    const profile = within(form).getByRole("combobox", { name: "Profile" }) as HTMLSelectElement;
+    await waitFor(() => expect(optionsOf(profile, "TRaSH defaults")).toEqual(["preset:72da=WEB-1080p"]));
+    await user.selectOptions(profile, "preset:72da");
+    await user.click(within(form).getByRole("button", { name: "Save" }));
+    await waitFor(() => expect(fetch.calls("PUT", "/settings/versions/tv-web")).toHaveLength(1));
+    expect(fetch.calls("POST", "/settings/presets/create").map((c) => (c.body as { key: string; flavour: string }).key)).toEqual(["tv-web-3", "tv-web-4"]);
+    expect(fetch.calls("POST", "/settings/presets/create")[1].body).toEqual({ generation: 4, key: "tv-web-4", flavour: "sonarr", preset: "72da", modifiers: [] });
+    expect(fetch.calls("PUT", "/settings/versions/tv-web")[0].body).toMatchObject({ generation: 5, config: { profile: "tv-web-4" } });
+  });
+
+  it("lets a fresh install with no profile pick a TRaSH default for its first library", async () => {
+    const empty = { ...versions(), versions: [], profiles: {}, format_sets: [], switches: { ...versions().switches, versions: [] } };
+    const fetch = mockFetch([
+      { method: "GET", path: "/settings/versions", reply: empty },
+      { method: "GET", path: "/settings/view-bindings", reply: viewBindings() },
+      { method: "GET", path: "/settings/quality/overview", reply: { ...quality, profiles: [], defaults: {} } },
+      { method: "GET", path: "/settings/presets", reply: radarrPresets },
+      { method: "POST", path: "/settings/presets/create", reply: json({ generation: 5, key: "movies", binding: "" }) },
+      { method: "POST", path: "/settings/versions", reply: json({ generation: 6 }) },
+    ]);
+    const user = userEvent.setup();
+    renderPage(<VersionsPage />);
+    await user.click(await screen.findByRole("button", { name: "Add library" }));
+    const form = await screen.findByTestId("version-form");
+    const profile = within(form).getByRole("combobox", { name: "Profile" }) as HTMLSelectElement;
+    await waitFor(() => expect(optionsOf(profile, "TRaSH defaults")).toHaveLength(2));
+    expect(profile.value).toBe("");
+    expect(profile.querySelector('optgroup[label="Your profiles"]')).toBeNull();
+    await user.selectOptions(profile, "preset:0537");
+    // Without a key there is nothing to name the profile after: nothing is created.
+    await user.click(within(form).getByRole("button", { name: "Save" }));
+    expect(await within(form).findByText(/Give the library a key first/)).toBeTruthy();
+    expect(fetch.calls("POST", "/settings/presets/create")).toHaveLength(0);
+    await user.type(within(form).getByRole("textbox", { name: "Key" }), "movies");
+    await user.click(within(form).getByRole("button", { name: "Save" }));
+    await waitFor(() => expect(fetch.calls("POST", "/settings/versions")).toHaveLength(1));
+    expect(fetch.calls("POST", "/settings/presets/create")[0].body).toEqual({ generation: 4, key: "movies", flavour: "radarr", preset: "0537", modifiers: [] });
+    expect(fetch.calls("POST", "/settings/versions")[0].body).toMatchObject({ generation: 5, key: "movies", config: { profile: "movies", mode: "shadow" } });
+  });
+
   it("splits the editor into Where, Which releases and Sources and preselects the default profile per kind", async () => {
     mockFetch(routes());
     const user = userEvent.setup();

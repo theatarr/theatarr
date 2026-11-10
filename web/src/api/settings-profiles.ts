@@ -2,7 +2,7 @@
 // format with its TRaSH origin and score states, TRaSH presets, the decision impact of an edit and the default
 // profile per kind of version.
 import { useQuery } from "@tanstack/react-query";
-import { api, qs, type Schemas } from "./client";
+import { api, ApiError, qs, type Schemas } from "./client";
 import { confirmationHeaders } from "./settings";
 
 export type QualityOverview = Schemas["QualityOverview"];
@@ -55,6 +55,27 @@ export const buildPreset = (flavour: string, preset: string, modifiers: string[]
   api<Built>("/settings/presets/build", { method: "POST", body: { flavour, preset, modifiers } });
 export const createFromPreset = (body: { generation: number; key: string; flavour: string; preset: string; modifiers: string[]; config?: Record<string, unknown> }, token?: string) =>
   api<{ generation: number; key: string; binding: string }>("/settings/presets/create", { method: "POST", body, headers: confirmationHeaders(token) });
+/** A profile picker's value for a TRaSH default: "preset:<trash_id>". Never sent to the server as a profile key. */
+export const PRESET_PICK = "preset:";
+export const presetPick = (value: string | undefined) => value?.startsWith(PRESET_PICK) ? value.slice(PRESET_PICK.length) : undefined;
+
+/** Creates the profile a picked TRaSH default stands for, unchanged, under base or the next free key (base-2, …), and
+ * returns its key and the new generation. taken are the profile and format-set keys known to be in use; a key the
+ * server still refuses (a format set left behind by a deleted profile) is skipped the same way. */
+export async function ensurePresetProfile({ generation, base, flavour, preset, taken }: { generation: number; base: string; flavour: string; preset: string; taken: Iterable<string> }): Promise<{ generation: number; key: string }> {
+  const used = new Set(taken);
+  for (let attempt = 0; ; attempt++) {
+    const key = freeKey(base, used);
+    try {
+      const made = await createFromPreset({ generation, key, flavour, preset, modifiers: [] });
+      return { generation: made.generation, key };
+    } catch (e) {
+      const fields = e instanceof ApiError && e.status === 422 && e.body && typeof e.body === "object" ? (e.body as { fields?: { path?: string }[] }).fields : undefined;
+      if (attempt >= 5 || !key || !Array.isArray(fields) || !fields.some((f) => f.path === "key")) throw e;
+      used.add(key);
+    }
+  }
+}
 export const profileImpact = (generation: number, key: string, config: Record<string, unknown>, signal?: AbortSignal) =>
   api<ProfileImpact>("/settings/profiles/impact", { method: "POST", body: { generation, key, config }, signal });
 export const saveDefaults = (defaults: Record<string, string>) => api<ProfileDefaults>("/settings/profile-defaults", { method: "PUT", body: { defaults } });

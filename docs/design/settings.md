@@ -1013,6 +1013,29 @@ filters, set-up writes, the catalog-off message and Built-in sources, migration,
 The Libraries page, the quality profile pages, presets and the impact preview. Nothing here grabs, searches or touches the router, the library or
 notifications; `router.enabled`, `library.enabled` and `notify.enabled` have their own confirmed switch cards on Download clients, Libraries and Notifications.
 
+#### TRaSH defaults
+
+The binary carries a TRaSH-Guides snapshot at one pinned commit (`internal/trashbundle`: custom formats, groups and
+quality profiles of both flavours; MIT, licence beside it). The profile pages read the checkout in `THEATARR_TRASH`
+when it loads for at least one flavour, and that checkout alone; otherwise the snapshot. `GET /settings/presets`
+says which (`source`: `checkout` or `bundled`, with `commit`), and the quality overview likewise (`trash_source`,
+`trash_commit`). `THEATARR_TRASH` set to a directory without the guides uses the snapshot and keeps a `trash_note`.
+
+- Settings › Profiles lists every preset of both flavours under **TRaSH defaults**, with the stored copies of each.
+  **Use** (**Create a copy** when one exists) opens the profile editor on a copy under a free key.
+- The library editor's profile picker has two groups: the stored profiles and the TRaSH defaults of the library's
+  kind (movies: Radarr's, series: Sonarr's). Saving with a default picked first creates its profile, named after the
+  library (or the next free key), then saves the library with it: two saves, and the profile stays if the second
+  is refused. A default stays listed after it is used.
+- Nothing is stored until a default is used, so an upgrade writes no settings. A profile made from a default is an
+  ordinary profile with its own format set holding every format's full specification: the policy build, the decision
+  engine and "Check a release" never read a tree for it, and it decides releases exactly as the same preset made
+  from a checkout of the bundled commit. With no TRaSH sync source it is unbound; with one it is bound as before.
+- The fallback is for these pages only. Quality sync from a local tree, the recyclarr import, the settings import
+  of `trash_id` formats and the policy build read the configured checkout and behave as before without one.
+- `scripts/update-trash-bundle.sh` refreshes the snapshot before a release. New presets then appear in the lists;
+  existing copies change only through quality sync.
+
 ### Library switch warning
 
 The router-enable confirmation warns when the candidate's effective `library.enabled` is off. Runtime

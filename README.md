@@ -46,8 +46,9 @@ It is built so that nothing happens until you say so:
   pacing and stall handling. A library can also add through an external qBittorrent-API client such as decypharr.
 - **Links from the debrid mount.** Imports create symlinks under arr-style naming from a zurg or rclone mount into
   your library roots, repair links that dangle, and keep replaced links in a trash folder.
-- **TRaSH-Guides profiles.** Presets build quality profiles and custom formats from a TRaSH-Guides checkout, and
-  quality sync keeps their scores current. Recyclarr configs can be a sync source.
+- **TRaSH-Guides profiles.** Every TRaSH quality profile is built in and can be picked for a library; picking one
+  builds a profile with its custom formats that you can edit. Quality sync keeps scores current from a checkout or
+  a tracked source. Recyclarr configs can be a sync source.
 - **Arr-compatible views.** Radarr- and Sonarr-shaped APIs for Seerr, Overseerr, Homepage, LunaSea, Ruddarr,
   autobrr and other clients, per library or several libraries behind one server.
 - **Plex.** Library scans after imports, Plex sign-in, and a now-playing page that shows where each played file
@@ -115,7 +116,8 @@ Optional:
 
 - A **TVDB key**, for Sonarr-style series numbering and for anime metadata: the anime mappings are built onto TVDB.
 - **Indexers**: Prowlarr or Jackett, private trackers, or the built-in sources alone.
-- A **TRaSH-Guides checkout** for the profile presets and quality sync.
+- A **TRaSH-Guides checkout**, to follow TRaSH between releases and for quality sync. The TRaSH profiles are built in
+  without it.
 - **Seerr or Overseerr** for requests, and any arr client you already use.
 - A **VPN** for indexer traffic, with the optional egress check.
 
@@ -129,7 +131,6 @@ the only way.
 git clone https://github.com/theatarr/theatarr.git theatarr && cd theatarr
 cp examples/compose.yaml compose.yaml      # then edit the host paths
 mkdir -p data && sudo chown 65532:65532 data   # the image runs as uid 65532; so must the library roots and trash
-git clone --depth 1 https://github.com/TRaSH-Guides/Guides trash-guides   # optional: profile presets
 docker compose up -d --build
 sudo cat data/initial-admin-password
 ```
@@ -193,7 +194,7 @@ The environment sets what the service needs before it can read its database. Eac
 | `THEATARR_DB` | `/data/theatarr.db` | The SQLite database. Keep it on local storage, not a network share |
 | `THEATARR_LISTEN` | `:7700` | Listen address |
 | `THEATARR_POLICY` | `/config/policy` | Directory for data files the settings point at, archived with each backup. Optional; startup never imports it |
-| `THEATARR_TRASH` | unset | A TRaSH-Guides checkout, for the profile presets, custom formats and quality sync |
+| `THEATARR_TRASH` | unset | A TRaSH-Guides checkout, for trash_id custom formats and quality sync; the profile presets use it instead of the bundled TRaSH defaults |
 | `THEATARR_BACKUP_DIR` | `/data/backups` | Nightly backup sets; `off` turns them off |
 | `THEATARR_BACKUP_KEEP` | `14` | Nightly sets to keep |
 | `THEATARR_LOG_LEVEL` | `info` | `debug`, `info`, `warn` or `error` |
@@ -265,4 +266,5 @@ any debrid service.
 ## Licence and acknowledgements
 
 Theatarr is licensed under the GNU Affero General Public License v3.0 ([LICENSE](LICENSE)). Parts of it are ports of
-Radarr and Sonarr (GPL-3.0) and of other projects; [NOTICE](NOTICE) lists each one with its licence.
+Radarr and Sonarr (GPL-3.0) and of other projects; [NOTICE](NOTICE) lists each one with its licence. The built-in
+quality profiles and custom formats are [TRaSH-Guides](https://trash-guides.info/)' work (MIT), bundled unchanged.
