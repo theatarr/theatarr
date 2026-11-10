@@ -55,7 +55,7 @@ func (r *Router) inFlight(ctx context.Context, req Request, hash string) (int64,
 // new row in state queued. A resumed row takes the candidate as this route refreshed it (freshness narrowed its
 // episodes, a new decision its quality, score, formats and episode mapping) in the same write that resumes it, before
 // any add: the library imports what was placed. A row taken over from another indexer's release also takes this
-// route's indexer, stored release, title, size and source. rev is the policy revision the candidate was decided
+// route's indexer, stored release, title, size and source, and dates from the takeover. rev is the policy revision the candidate was decided
 // again under (nil: it was not).
 func (r *Router) openDownload(ctx context.Context, req Request, c *Candidate, hash string, rev any) (int64, error) {
 	now := store.Millis(r.now())
@@ -87,7 +87,10 @@ func (r *Router) openDownload(ctx context.Context, req Request, c *Candidate, ha
 		// route's in the same write, before any add: its indexer, stored release, title, size (none when this
 		// release has no known size) and source. What reads the row later (DownloadRequest's replay and its provider
 		// allowlist, the reconciliation of an interrupted add, the re-search after a failure, the offer to another
-		// library) then sees the release that was placed. The row's own release keeps them.
+		// library) then sees the release that was placed. The row's own release keeps them. created_at moves to
+		// the takeover with the source: the journal reads the decision of the row's source made by created_at, and
+		// its retention keeps a decision that a download of its source was created after (journal: decisionFor,
+		// Prune), and this route's search decided after the row was first queued.
 		ix := c.Release.Indexer
 		var size any
 		if c.Release.Size > 0 {
@@ -99,10 +102,11 @@ func (r *Router) openDownload(ctx context.Context, req Request, c *Candidate, ha
 				THEN json_set(CASE WHEN json_valid(release_data) AND json_type(release_data) = 'object' THEN release_data ELSE ? END, '$.route_search', json('true'), '$.route_criteria', json(?)) ELSE release_data END,
 			release_title = CASE WHEN indexer != ? THEN ? ELSE release_title END,
 			size_bytes = CASE WHEN indexer != ? THEN ? ELSE size_bytes END,
-			source = CASE WHEN indexer != ? THEN ? ELSE source END, indexer = ?
+			source = CASE WHEN indexer != ? THEN ? ELSE source END,
+			created_at = CASE WHEN indexer != ? THEN ? ELSE created_at END, indexer = ?
 			WHERE id = ? AND info_hash = ? AND state = 'queued'`, now, c.Quality, c.Score, string(eps), formats, epMap,
 			rev, ix, string(releaseData), criteria, string(releaseData), criteria, ix, c.Release.Title, ix, size, ix,
-			req.Source, ix, req.DownloadID, hash)
+			req.Source, ix, now, ix, req.DownloadID, hash)
 		if err != nil {
 			return 0, fmt.Errorf("router: resuming download %d: %w", req.DownloadID, err)
 		}

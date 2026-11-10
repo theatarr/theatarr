@@ -443,6 +443,8 @@ func TestStrandedRowTakenOverByAnotherIndexer(t *testing.T) {
 
 	// The row's own route resumes it (still backing off): nothing about its origin changes.
 	ix, title, source, data := provenance(e, id)
+	_, created := sizeAndCreated(e, id)
+	e.clock = e.clock.Add(time.Minute)
 	own, err := e.r.requestOf(e.ctx, id)
 	if err != nil || own == nil {
 		t.Fatalf("%+v %v", own, err)
@@ -454,6 +456,9 @@ func TestStrandedRowTakenOverByAnotherIndexer(t *testing.T) {
 	if ix2, title2, source2, data2 := provenance(e, id); ix2 != ix || title2 != title || source2 != source || data2 != data {
 		t.Errorf("own resume rewrote the row: %q %q %q %s, was %q %q %q %s", ix2, title2, source2, data2, ix, title,
 			source, data)
+	}
+	if _, at := sizeAndCreated(e, id); at != created {
+		t.Errorf("own resume moved created_at: %d, was %d", at, created)
 	}
 
 	c := cand(h("a"), "A.pub2")
@@ -469,6 +474,11 @@ func TestStrandedRowTakenOverByAnotherIndexer(t *testing.T) {
 	if ix != "pub2" || title != "A.pub2" || source != "test2" || !strings.Contains(data, `"A.pub2"`) ||
 		strings.Contains(data, `"A.pub"`) {
 		t.Errorf("row after the takeover: indexer %q title %q source %q data %s", ix, title, source, data)
+	}
+	// The row dates from the takeover: the journal reads the decision of the row's source made by then, and
+	// retention keeps a decision a download came from (journal: TestTakenOverDownloadKeepsItsDecision).
+	if _, at := sizeAndCreated(e, id); at != e.clock.UnixMilli() {
+		t.Errorf("created_at after the takeover: %d, want the takeover's %d (was %d)", at, e.clock.UnixMilli(), created)
 	}
 
 	// The replay from the row is pub2's release: its allowlist (AllDebrid only) holds.

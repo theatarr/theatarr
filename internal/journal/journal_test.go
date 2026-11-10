@@ -547,6 +547,41 @@ func TestPrune(t *testing.T) {
 	}
 }
 
+// A download taken over by a later search (router: openDownload) carries that search's source and dates from the
+// takeover, after the search decided: the entry shows that search's candidates, and retention keeps its decision
+// and deletes the one of the search the row first came from, which no download holds any more.
+func TestTakenOverDownloadKeepsItsDecision(t *testing.T) {
+	e := newEnv(t)
+	old := testNow.Add(-200 * 24 * time.Hour)
+	first := []*decide.Decision{dec("R0", true, "WEBDL-2160p", 100), dec("R1", true, "WEBDL-2160p", 99)}
+	second := []*decide.Decision{dec("S0", true, "WEBDL-2160p", 100), dec("S1", true, "WEBDL-2160p", 99)}
+	for _, s := range []snapshot.Search{
+		{Source: "acquire:1", TitleID: 1, Version: "movie-remux", Ranked: first, CreatedAt: old},
+		{Source: "acquire:2", TitleID: 1, Version: "movie-remux", Ranked: second, CreatedAt: old.Add(time.Hour)},
+	} {
+		if err := snapshot.Record(context.Background(), e.st.Writer(), s); err != nil {
+			t.Fatal(err)
+		}
+	}
+	e.exec(`INSERT INTO download (id, title_id, version_id, version_key, info_hash, release_title, indexer, state, source,
+		created_at, updated_at) VALUES (1, 1, 1, 'movie-remux', ?, 'S0', 'dmm', 'imported', 'acquire:2', ?, ?)`, hashA,
+		msOf(old.Add(time.Hour+time.Minute)), msOf(old.Add(2*time.Hour)))
+	if g := e.get("dl:1"); g.Reasoning == nil || g.Reasoning.Chosen == nil || g.Reasoning.Chosen.Release != "S0" {
+		t.Fatalf("reasoning: %+v", g.Reasoning)
+	}
+	if sum, err := Prune(context.Background(), e.st, testNow); err != nil || sum.Deleted != 1 {
+		t.Fatalf("prune: %+v %v", sum, err)
+	}
+	var sources string
+	e.st.Reader().QueryRow(`SELECT group_concat(source) FROM journal_decision`).Scan(&sources)
+	if sources != "acquire:2" {
+		t.Errorf("decisions after the prune: %q", sources)
+	}
+	if g := e.get("dl:1"); g.Reasoning == nil || g.Reasoning.Chosen == nil || g.Reasoning.Chosen.Release != "S0" {
+		t.Errorf("reasoning after the prune: %+v", g.Reasoning)
+	}
+}
+
 func TestClean(t *testing.T) {
 	for in, want := range map[string]string{
 		"plain text":                      "plain text",
