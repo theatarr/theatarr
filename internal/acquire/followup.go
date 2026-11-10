@@ -49,7 +49,8 @@ import (
 // add-time search and a re-search or follow-up's own search start none.
 //
 // The rule it is built to: nothing this chain writes is read by an ordinary path, and turning the switch off removes
-// its queued work.
+// its queued work. An install that never had the switch on behaves, and reads the run history, as a build without
+// it; the limits after the switch was on are in docs/design/router.md.
 //   - Its jobs have their own key (followUpKey) and carry RetryNew; its searches' runs have research
 //     researchRetryNew. Every reader of the run history that decides for an ordinary search leaves those runs out
 //     (ordinaryRuns: again_after for the loop and for re-searches, the loop's order, an add-time intent's and a

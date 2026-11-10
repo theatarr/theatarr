@@ -1515,9 +1515,10 @@ const (
 
 // researchRetryNew is acquire_run.research of a search that a follow-up chain of router.wanted.retry_new started (a
 // step's search, or one asked for again after no indexer answered). It is the feature's mark in the run history:
-// every reader of that history that decides something for an ordinary search leaves these runs out (ordinaryRuns),
-// so what the switch searched changes nothing else, while it is on and after it is turned off. Only the chain's own
-// retry budget (infraRuns) and, while the switch is on, the hourly count (hourRuns) read them.
+// every reader of that history that decides something for an ordinary search leaves these runs out (ordinaryRuns;
+// with the switch off, lastSearched and an intent's retry budget only while chainVersions finds the version). Only
+// the chain's own retry budget (infraRuns) and, while the switch is on, the hourly count (hourRuns) read them. The
+// limits are in docs/design/router.md.
 const researchRetryNew = "retry_new"
 
 // ordinaryRuns is the acquire_run condition that leaves out the runs router.wanted.retry_new started.
