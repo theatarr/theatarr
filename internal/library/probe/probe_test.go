@@ -319,3 +319,52 @@ func TestUnknownFormat(t *testing.T) {
 		t.Errorf("err %v", err)
 	}
 }
+
+// mkvSeek builds Segment[SeekHead, Info, Cluster, Tracks, SeekHead2?]: Tracks sits after the first Cluster, so only
+// the SeekHead finds it. mode "direct": the first SeekHead points at Tracks; "chained": it points at a second
+// SeekHead (after Tracks) that points at Tracks; "loop": as chained, but the second SeekHead points back at the first.
+func mkvSeek(mode string) []byte {
+	video := el(idTrackEntry, u(idTrackNumber, 1), u(idTrackType, 1), str(idCodecID, "V_MPEGH/ISO/HEVC"),
+		el(idCodecPrivate, testHvcC()), el(idVideo, u(idPixelWidth, 3840), u(idPixelHeight, 2160)))
+	audio := el(idTrackEntry, u(idTrackNumber, 2), u(idTrackType, 2), str(idCodecID, "A_AC3"),
+		str(idLanguage, "eng"), el(idAudio, u(idChannels, 6)))
+	tracks := el(idTracks, video, audio)
+	info := el(idInfo, u(idTimestampScale, 1000000), f64(idDuration, 7_200_000))
+	cluster := el(idCluster, u(0xE7, 0), simpleBlock(2, []byte{0x0B, 0x77, 0, 0}))
+	seek := func(id int64, pos int) []byte {
+		return el(idSeekHead, el(idSeek, el(idSeekID, ebmlID(id)), u(idSeekPosition, uint64(pos))))
+	}
+	headLen := len(seek(idTracks, 0))
+	tracksPos := headLen + len(info) + len(cluster)
+	var body []byte
+	switch mode {
+	case "direct":
+		body = bytes.Join([][]byte{seek(idTracks, tracksPos), info, cluster, tracks}, nil)
+	case "chained":
+		body = bytes.Join([][]byte{seek(idSeekHead, tracksPos+len(tracks)), info, cluster, tracks,
+			seek(idTracks, tracksPos)}, nil)
+	case "loop":
+		body = bytes.Join([][]byte{seek(idSeekHead, tracksPos+len(tracks)), info, cluster, tracks,
+			seek(idSeekHead, 0)}, nil)
+	}
+	return append(el(idEBML, u(0x4286, 1)), el(idSegment, body)...)
+}
+
+// A SeekHead that points at a second SeekHead holding Tracks is followed once; a loop back ends in the usual error.
+func TestMatroskaChainedSeekHead(t *testing.T) {
+	for _, mode := range []string{"direct", "chained"} {
+		data := mkvSeek(mode)
+		r, err := Reader(bytes.NewReader(data), int64(len(data)), 0)
+		if err != nil {
+			t.Fatalf("%s: %v", mode, err)
+		}
+		if r.Video == nil || r.Video.Width != 3840 || len(r.Audio) != 1 || r.Audio[0].Channels != 6 {
+			t.Fatalf("%s: tracks not read: %+v", mode, r)
+		}
+	}
+	data := mkvSeek("loop")
+	if _, err := Reader(bytes.NewReader(data), int64(len(data)), 0); err == nil ||
+		err.Error() != "probe: no Matroska Tracks element" {
+		t.Fatalf("loop: %v", err)
+	}
+}

@@ -349,6 +349,38 @@ func probeMatroska(b *budgetReader) (*Result, error) {
 		})
 	}
 
+	// headPos is where a SeekHead entry points at another SeekHead (a chained index), -1 if none.
+	var headPos int64 = -1
+	parseSeekHead := func(d []byte) {
+		_ = children(d, func(id int64, d []byte) error {
+			if id != idSeek {
+				return nil
+			}
+			var sid int64
+			var pos int64 = -1
+			_ = children(d, func(id int64, d []byte) error {
+				switch id {
+				case idSeekID:
+					sid = int64(uintOf(d))
+				case idSeekPosition:
+					pos = int64(uintOf(d))
+				}
+				return nil
+			})
+			switch sid {
+			case idTracks:
+				tracksPos = seg.dataOff + pos
+			case idInfo:
+				infoPos = seg.dataOff + pos
+			case idSeekHead:
+				if headPos < 0 && pos >= 0 {
+					headPos = seg.dataOff + pos
+				}
+			}
+			return nil
+		})
+	}
+
 	firstCluster := int64(-1)
 	for off := seg.dataOff; off < segEnd; {
 		e, err := b.readElement(off)
@@ -364,29 +396,7 @@ func probeMatroska(b *budgetReader) (*Result, error) {
 			if err != nil {
 				return nil, err
 			}
-			_ = children(d, func(id int64, d []byte) error {
-				if id != idSeek {
-					return nil
-				}
-				var sid int64
-				var pos int64 = -1
-				_ = children(d, func(id int64, d []byte) error {
-					switch id {
-					case idSeekID:
-						sid = int64(uintOf(d))
-					case idSeekPosition:
-						pos = int64(uintOf(d))
-					}
-					return nil
-				})
-				switch sid {
-				case idTracks:
-					tracksPos = seg.dataOff + pos
-				case idInfo:
-					infoPos = seg.dataOff + pos
-				}
-				return nil
-			})
+			parseSeekHead(d)
 		case idInfo:
 			d, err := readMaster(e)
 			if err != nil {
@@ -413,6 +423,15 @@ func probeMatroska(b *budgetReader) (*Result, error) {
 		if haveInfo && haveTracks {
 			// Keep walking only to find the first cluster.
 			continue
+		}
+	}
+	// A SeekHead that points at a second SeekHead (often at the end of the file) for Tracks or Info: read that one
+	// once. SeekHead entries inside it are not followed further.
+	if (!haveTracks && tracksPos < 0 || !haveInfo && infoPos < 0) && headPos >= 0 && headPos < segEnd {
+		if e, err := b.readElement(headPos); err == nil && e.id == idSeekHead {
+			if d, err := readMaster(e); err == nil {
+				parseSeekHead(d)
+			}
 		}
 	}
 	// Info or Tracks after the clusters: follow the SeekHead.
