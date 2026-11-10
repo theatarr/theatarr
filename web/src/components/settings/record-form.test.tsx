@@ -42,6 +42,25 @@ it.each(["providers", "indexers"] as const)("keeps a typed URL when changing %s 
   expect((url as HTMLInputElement).value).toBe("http://127.0.0.1/custom");
 });
 
+it("prefills the public address of a built-in indexer, follows the service, and hints at DMM's feed", async () => {
+  const fetch = mockFetch([{ method: "POST", path: "/settings/indexers", reply: { generation: 5 } }]);
+  const user = userEvent.setup();
+  renderPage(<RecordEditor entity="indexers" ent={indexerSchema} session={{ entity: "indexers", generation: 4, kind: "torrentio" }} nextOrder={1} onDone={vi.fn()} />);
+  const url = screen.getByRole("textbox", { name: /Service URL/ }) as HTMLInputElement;
+  expect(url.value).toBe("https://torrentio.strem.fun");
+  expect(screen.queryByTestId("dmm-url-hint")).toBeNull();
+  await user.selectOptions(screen.getByRole("combobox", { name: "Service" }), "dmm");
+  expect(url.value).toBe("");
+  expect(screen.getByTestId("dmm-url-hint").textContent).toContain("/api/torznab/cached");
+  await user.selectOptions(screen.getByRole("combobox", { name: "Service" }), "zilean");
+  expect(url.value).toBe("");
+  await user.selectOptions(screen.getByRole("combobox", { name: "Service" }), "seadex");
+  expect(url.value).toBe("https://seadex.moe");
+  await user.click(screen.getByRole("button", { name: "Save" }));
+  await waitFor(() => expect(fetch.calls("POST", "/settings/indexers")).toHaveLength(1));
+  expect(fetch.calls("POST", "/settings/indexers")[0].body).toMatchObject({ key: "seadex", enabled: false, config: { kind: "seadex", url: "https://seadex.moe" } });
+});
+
 it("suggests the next free key for a new indexer and service changes", async () => {
   mockFetch([]);
   const user = userEvent.setup();

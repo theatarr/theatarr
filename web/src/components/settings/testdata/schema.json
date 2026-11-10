@@ -1364,7 +1364,7 @@
         "name": "url",
         "type": "string",
         "required": true,
-        "help": "Endpoint URL. Every outbound URL is configured; nothing has a default."
+        "help": "Endpoint URL. Every outbound URL is stored in settings; the forms prefill the public address of known services."
       },
       {
         "name": "privacy",

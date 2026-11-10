@@ -15,6 +15,7 @@ import {
   editorReturn,
   explainError,
   formFromConfig,
+  hasAdvancedValues,
   importCounts,
   importReducer,
   initialImport,
@@ -28,6 +29,7 @@ import {
   secretPatch,
   sessionDelete,
   sessionInput,
+  serviceURL,
   sourceAddress,
   testAnnouncement,
   testErrorAction,
@@ -273,6 +275,27 @@ describe("forms from the schema", () => {
     const fresh = editorFrom("providers", providerSchema);
     expect(fresh.enabled).toBe(false);
     expect(editorInput("providers", providerSchema, { ...fresh, key: "tb2", config: { ...fresh.config, url: "https://api.torbox.app/v1" } }, 4, undefined, 9).input?.config.order).toBe(9);
+  });
+});
+
+describe("service addresses of a new record", () => {
+  it("prefills Torrentio and SeaDex, leaves the others empty, and keeps the record disabled", () => {
+    expect(serviceURL("indexers", "torrentio")).toBe("https://torrentio.strem.fun");
+    expect(serviceURL("indexers", "realdebrid")).toBe("");
+    expect(serviceURL("budgets", "torrentio")).toBe("");
+    for (const [kind, url] of [["torrentio", "https://torrentio.strem.fun"], ["seadex", "https://seadex.moe"], ["dmm", ""], ["zilean", ""], ["torznab", ""], ["cardigann", ""]]) {
+      const st = editorFrom("indexers", indexerSchema, undefined, kind);
+      expect(st.config.url, kind).toBe(url);
+      expect(st.enabled).toBe(false);
+      expect(st.key).toBe(kind);
+    }
+    expect(editorFrom("indexers", indexerSchema).config.url).toBe("");
+    expect(editorInput("indexers", indexerSchema, editorFrom("indexers", indexerSchema, undefined, "seadex"), 4, undefined, 1).input).toMatchObject({ enabled: false, config: { kind: "seadex", url: "https://seadex.moe" } });
+  });
+  it("never fills a saved record's address and does not count the prefill as an advanced value", () => {
+    const saved: SettingsRecord = { id: 9, key: "torrentio", kind: "torrentio", enabled: true, priority: 0, config: { kind: "torrentio", url: "" } };
+    expect(editorFrom("indexers", indexerSchema, saved).config.url).toBe("");
+    expect(hasAdvancedValues("indexers", indexerSchema, { ...saved, config: { kind: "torrentio", url: "https://torrentio.strem.fun" } })).toBe(false);
   });
 });
 

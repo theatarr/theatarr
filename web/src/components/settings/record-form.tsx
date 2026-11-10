@@ -30,6 +30,7 @@ import {
   candidateBody,
   editorFields,
   editorFrom,
+  serviceURL,
   editorMismatch,
   explainError,
   hasAdvancedValues,
@@ -241,7 +242,7 @@ export function RecordFormView(p: RecordFormProps) {
           <Field label="Service" changed={!!saved && st.kind !== saved.kind} disabled={disabled} error={errors.kind} help={ent.config.find((f) => f.name === "kind")?.help}>
             <select className={SELECT_CLASS} value={st.kind} disabled={disabled} onChange={(e) => {
               const kind = e.target.value;
-              set({ kind, ...(!record ? { key: keyEdited.current ? st.key : nextRecordKey(kind, p.records), config: { ...st.config, url: urlEdited.current ? st.config.url : PROVIDER_SERVICES[kind]?.url ?? "" } } : {}) });
+              set({ kind, ...(!record ? { key: keyEdited.current ? st.key : nextRecordKey(kind, p.records), config: { ...st.config, url: urlEdited.current ? st.config.url : serviceURL(entity, kind) } } : {}) });
             }} data-field="kind">
               {(ent.kinds ?? []).map((k) => <option key={k} value={k}>{PROVIDER_SERVICES[k]?.label ?? k}</option>)}
             </select>
@@ -270,6 +271,11 @@ export function RecordFormView(p: RecordFormProps) {
         ) : null}
         {upFront ? nameField : null}
         {required.length ? <ConfigFields fields={required} values={st.config} saved={saved?.config} errors={errors} onChange={configChange} disabled={disabled} /> : null}
+        {!record && entity === "indexers" && st.kind === "dmm" ? (
+          <p className="text-[12.5px] text-muted-foreground sm:col-span-2" data-testid="dmm-url-hint">
+            DMM has no prefilled address: its Service URL is DMM’s Torznab feed, <code>https://debridmediamanager.com/api/torznab/cached</code>, or with <code>rd</code>, <code>ad</code> or <code>tb</code> before <code>/cached</code> for one provider’s cache. It also needs your DMM API key.
+          </p>
+        ) : null}
         <details className="sm:col-span-2" open={entity === "budgets" || (!!record && hasAdvancedValues(entity, ent, record)) || Object.keys(errors).some(k => k !== "secret" && k !== "kind") || !!allowlistError || undefined}>
           <summary className="cursor-pointer text-sm font-medium">Show advanced</summary>
           <div className="mt-3 grid gap-3 sm:grid-cols-2">

@@ -743,6 +743,19 @@ export const PROVIDER_SERVICES: Record<string, { label: string; url: string }> =
   torbox: { label: "TorBox", url: "https://api.torbox.app/v1" },
 };
 
+/** The public address of the built-in indexers that have one, prefilled in a new indexer's form (the record still
+ * starts disabled). Zilean is self-hosted and DMM's feed path depends on the providers, so neither has an entry. */
+export const INDEXER_SERVICES: Record<string, { url: string }> = {
+  torrentio: { url: "https://torrentio.strem.fun" },
+  seadex: { url: "https://seadex.moe" },
+};
+
+/** The address a new record of this kind starts with, "" when the service has no public one. */
+export function serviceURL(entity: Entity, kind: string): string {
+  const services: Record<string, { url: string }> = entity === "providers" ? PROVIDER_SERVICES : entity === "indexers" ? INDEXER_SERVICES : {};
+  return services[kind]?.url ?? "";
+}
+
 /**
  * Whether a saved record has an advanced value of its own, so its editor opens Show advanced: a value set and not its
  * default (a provider's URL is the service's; an indexer's required URL is always set and does not count), or an
@@ -772,7 +785,7 @@ export function editorFrom(entity: Entity, ent: SchemaEntity, record?: SettingsR
     // New sources default to disabled: test first, then enable.
     enabled: record?.enabled ?? false,
     priority: String(record?.priority ?? 0),
-    config: formFromConfig(editorFields(entity, ent, kind), (record?.config ?? (entity === "providers" ? { url: PROVIDER_SERVICES[kind]?.url ?? "" } : {})) as Record<string, unknown>),
+    config: formFromConfig(editorFields(entity, ent, kind), (record?.config ?? (entity === "providers" || serviceURL(entity, kind) ? { url: serviceURL(entity, kind) } : {})) as Record<string, unknown>),
     secretAction: "keep",
     secretValue: "",
     orphan: false,

@@ -166,14 +166,16 @@ configured VPN check), then tick **Enabled** and save. Setup counts an indexer a
 or DMM indexer also needs its API key, while Torrentio, Zilean, SeaDex and catalog sites need none. Setup's steps,
 its **Off until set up** list and `golive check`'s SetupCheck all apply this rule.
 
-A built-in source needs its **Service URL**: nothing has a default. The public services are at:
+A built-in source needs its **Service URL**. The form for a new Torrentio or SeaDex indexer starts with the public
+address filled in (change it if you use another instance); DMM and Zilean start empty. Nothing is stored until you
+save, and the server has no default of its own. The public services are at:
 
 | Source | Service URL |
 |---|---|
-| Torrentio | `https://torrentio.strem.fun` |
+| Torrentio | `https://torrentio.strem.fun` (prefilled) |
 | DMM | `https://debridmediamanager.com/api/torznab/rd/cached` (DMM's Torznab feed: `/api/torznab/cached`, or `rd`, `ad` or `tb` in the path for one provider's cache), with your DMM API key |
 | Zilean | your own Zilean instance, for example `http://zilean:8181` |
-| SeaDex | `https://seadex.moe` (`releases.moe` redirects there) |
+| SeaDex | `https://seadex.moe` (prefilled; `releases.moe` redirects there) |
 
 [`examples/policy/indexers.yaml`](../examples/policy/indexers.yaml) uses the same addresses.
 

@@ -64,7 +64,7 @@ func settingsSchema() SettingsSchema {
 				secret, clear},
 			Config: []SchemaField{
 				{Name: "kind", Type: "enum", Required: true, Enum: indexerKinds, Help: "Adapter: torznab (Prowlarr feeds), dmm, torrentio, zilean, seadex, or cardigann (a catalog definition run natively)."},
-				{Name: "url", Type: "string", Required: true, Help: "Endpoint URL. Every outbound URL is configured; nothing has a default."},
+				{Name: "url", Type: "string", Required: true, Help: "Endpoint URL. Every outbound URL is stored in settings; the forms prefill the public address of known services."},
 				{Name: "privacy", Type: "enum", Enum: []string{"public", "private", "semi-private"}, Help: "A label for badges, filters and sorting. Unset shows as private, except on the built-in public sources (Torrentio, DMM, Zilean, SeaDex), where it shows as public."},
 				{Name: "providers", Type: "list", Help: "Providers this indexer's releases may go to (provider keys); empty means every provider of the library. The TorBox cache check only sends its hashes when TorBox is allowed."},
 				budget,
