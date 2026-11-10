@@ -764,3 +764,100 @@ func TestVersionRenameNeedsNoConfirmation(t *testing.T) {
 		t.Fatalf("a rename asked for confirmation: %+v %v", effects, err)
 	}
 }
+
+// The optional minimum availability and availability delay of a movie library are stored only when set: an ordinary
+// save of a library without them writes neither key, in the stored record or the generation snapshot (an older
+// build's strict decoder still loads both), set values round-trip, cleared ones leave no key, and a bad minimum or
+// a series library is refused.
+func TestVersionAvailabilityOptional(t *testing.T) {
+	t.Parallel()
+	s, db, p, initial := versionFixture(t)
+	ctx := context.Background()
+	stored := func(query string) map[string]string {
+		t.Helper()
+		rows, err := db.Reader().Query(query)
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer rows.Close()
+		out := map[string]string{}
+		for rows.Next() {
+			var key, raw string
+			if err := rows.Scan(&key, &raw); err != nil {
+				t.Fatal(err)
+			}
+			out[key] = raw
+		}
+		return out
+	}
+	versions := func() map[string]string { return stored("SELECT key, config FROM setting_version") }
+	unset := func(what string) {
+		t.Helper()
+		for key, raw := range versions() {
+			if strings.Contains(raw, "availab") {
+				t.Errorf("%s: %s stored an availability key: %s", what, key, raw)
+			}
+		}
+		for id, raw := range stored("SELECT CAST(generation AS TEXT), COALESCE(snapshot, '') FROM settings_generation") {
+			if strings.Contains(raw, `"MinimumAvailability"`) || strings.Contains(raw, `"AvailabilityDelay"`) {
+				t.Errorf("%s: generation %s stored an availability key", what, id)
+			}
+		}
+	}
+	before := versions()
+	m := versionCoordinator(t, s, p, initial)
+	req := saveRequest(p, initial)
+	editVersion(&req.Records, "movie-web", func(v *Version) { v.Config.Edition = "Extended" })
+	snap, err := m.SaveAndApply(ctx, req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	unset("an ordinary save")
+	if snaps := stored("SELECT CAST(generation AS TEXT), COALESCE(snapshot, '') FROM settings_generation"); len(snaps) == 0 ||
+		!strings.Contains(snaps["2"], `"Edition":"Extended"`) {
+		t.Fatalf("no generation snapshot to check: %d", len(snaps))
+	}
+	for key, raw := range versions() {
+		if key != "movie-web" && raw != before[key] {
+			t.Errorf("%s changed on a save of another library:\n%s\n%s", key, before[key], raw)
+		}
+	}
+	req = saveRequest(p, snap)
+	editVersion(&req.Records, "movie-web", func(v *Version) {
+		v.Config.MinimumAvailability, v.Config.AvailabilityDelay = "inCinemas", -3
+	})
+	if snap, err = m.SaveAndApply(ctx, req); err != nil {
+		t.Fatal(err)
+	}
+	got := snap.Policy.Versions["movie-web"]
+	if raw := versions()["movie-web"]; got.MinimumAvailability != "inCinemas" || got.AvailabilityDelay != -3 ||
+		!strings.Contains(raw, `"minimum_availability":"inCinemas"`) || !strings.Contains(raw, `"availability_delay":-3`) {
+		t.Fatalf("not stored: %q %d %s", got.MinimumAvailability, got.AvailabilityDelay, raw)
+	}
+	req = saveRequest(p, snap)
+	editVersion(&req.Records, "movie-web", func(v *Version) {
+		v.Config.MinimumAvailability, v.Config.AvailabilityDelay = "", 0
+	})
+	if snap, err = m.SaveAndApply(ctx, req); err != nil {
+		t.Fatal(err)
+	}
+	if raw := versions()["movie-web"]; strings.Contains(raw, "availab") {
+		t.Fatalf("cleared settings left their keys: %s", raw)
+	}
+	for key, change := range map[string]func(v *Version){
+		"movie-web": func(v *Version) { v.Config.MinimumAvailability = "soon" },
+		"tv-2160p":  func(v *Version) { v.Config.AvailabilityDelay = 2 },
+	} {
+		req = saveRequest(p, snap)
+		editVersion(&req.Records, key, change)
+		if _, err := m.SaveAndApply(ctx, req); err == nil || !strings.Contains(err.Error(), "versions["+key+"].") {
+			t.Errorf("%s: %v", key, err)
+		}
+	}
+	// A submitted section: both sent unset are dropped, set ones stay.
+	sent := `{"movie-web":{"kind":"movie","minimum_availability":"","availability_delay":0},"movie-remux":{"minimum_availability":"announced","availability_delay":-1}}`
+	want := `{"movie-remux":{"availability_delay":-1,"minimum_availability":"announced"},"movie-web":{"kind":"movie"}}`
+	if got := string(DropUnsetOptional("versions", json.RawMessage(sent))); got != want {
+		t.Errorf("DropUnsetOptional = %s, want %s", got, want)
+	}
+}

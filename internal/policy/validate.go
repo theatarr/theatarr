@@ -546,6 +546,7 @@ func (p *Policy) validateVersion(e *Errors, k string, v *VersionPolicy) {
 	validateSonarr(e, path, v)
 	validateUpgrades(e, path, v)
 	validateProviderPreference(e, path, v)
+	validateAvailability(e, path, v)
 	if strings.ContainsAny(v.Edition, "{}/\\") {
 		e.add(path+".edition", "must not contain braces or slashes")
 	}
@@ -727,4 +728,21 @@ func sortedKeys[M ~map[string]V, V any](m M) []string {
 func list(m map[string]bool) string {
 	ks := sortedKeys(m)
 	return strings.Join(ks, ", ")
+}
+
+// validateAvailability checks a library's minimum availability and availability delay: movie libraries only, the
+// minimum one of announced, inCinemas or released. The delay is any number of days, negative for earlier.
+func validateAvailability(e *Errors, path string, v *VersionPolicy) {
+	if v.MinimumAvailability != "" {
+		switch {
+		case v.Kind != KindMovie:
+			e.add(path+".minimum_availability", "is for movie libraries only")
+		case v.MinimumAvailability != "announced" && v.MinimumAvailability != "inCinemas" &&
+			v.MinimumAvailability != "released":
+			e.add(path+".minimum_availability", "must be announced, inCinemas or released, got %q", v.MinimumAvailability)
+		}
+	}
+	if v.AvailabilityDelay != 0 && v.Kind != KindMovie {
+		e.add(path+".availability_delay", "is for movie libraries only")
+	}
 }

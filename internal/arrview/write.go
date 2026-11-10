@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"encoding/json"
 	"errors"
+	"github.com/theatarr/theatarr/internal/availability"
 	"net/http"
 	"slices"
 	"strconv"
@@ -443,6 +444,26 @@ func offVersions(ctx context.Context, tx *sqlTx, titleID int64, keys []string) (
 	return out, nil
 }
 
+// activeVersions is which versions the movie with this TMDb id has on: monitored and not removed from the views.
+func activeVersions(ctx context.Context, tx *sqlTx, tmdbID int64) ([]string, error) {
+	rows, err := tx.QueryContext(ctx, `SELECT v.policy_key FROM version v JOIN title t ON t.id = v.title_id
+		WHERE t.kind = 'movie' AND t.tmdb_id = ? AND v.monitored AND NOT EXISTS (SELECT 1 FROM
+		arrview_removed_version r WHERE r.version_id = v.id)`, tmdbID)
+	if err != nil {
+		return nil, err
+	}
+	var out []string
+	for rows.Next() {
+		var k string
+		if err := rows.Scan(&k); err != nil {
+			rows.Close()
+			return nil, err
+		}
+		out = append(out, k)
+	}
+	return out, closeRows(rows)
+}
+
 // viewVersionIDs lists the title's versions in the view that are not removed.
 func viewVersionIDs(ctx context.Context, tx *sqlTx, v *View, titleID int64) ([]int64, error) {
 	where, args := scope(v, []int64{titleID})
@@ -465,6 +486,8 @@ func viewVersionIDs(ctx context.Context, tx *sqlTx, v *View, titleID int64) ([]i
 // saveRecord upserts the view's record of the title from a request. Fields the request leaves empty keep their value.
 // The series type is the title's, not the view's: the callers write it (catalog.SetSeriesType, AddSeriesType), and
 // the record's series_type column is no longer read.
+// updated_at orders the minimum availability choices (availability.Rules), so it moves only when one is written; the
+// movie writers blank the request's value first and store a choice per library (chooseMinAvail).
 func (s *Service) saveRecord(ctx context.Context, tx *sqlTx, v *View, titleID int64, in *titleIn) error {
 	now := store.Millis(s.now())
 	qp := in.profile()
@@ -485,11 +508,21 @@ func (s *Service) saveRecord(ctx context.Context, tx *sqlTx, v *View, titleID in
 		season_folder = CASE WHEN ? THEN excluded.season_folder ELSE season_folder END,
 		series_type = CASE WHEN excluded.series_type <> '' THEN excluded.series_type ELSE series_type END,
 		monitor_new_items = CASE WHEN excluded.monitor_new_items <> '' THEN excluded.monitor_new_items ELSE monitor_new_items END,
-		updated_at = excluded.updated_at`,
+		updated_at = CASE WHEN excluded.minimum_availability <> '' THEN excluded.updated_at ELSE updated_at END`,
 		v.Key, titleID, qp, strings.TrimSuffix(in.RootFolderPath, "/"), in.MinimumAvailability.minAvail(), sf,
 		in.SeriesType.value(seriesTypes...), in.MonitorNewItems.value("all", "none"), now, now,
 		in.SeasonFolder != nil)
 	return err
+}
+
+// chooseMinAvail stores a movie's minimum availability as an explicit choice of each library in keys, on the
+// library's own v/<key> row: never on a combined view's row, which would also reach copies the view does not show
+// and libraries added to it later.
+func (s *Service) chooseMinAvail(ctx context.Context, tx *sqlTx, titleID int64, keys []string, value string) error {
+	if value == "" || len(keys) == 0 {
+		return nil
+	}
+	return availability.Choose(ctx, tx, titleID, keys, value, s.now())
 }
 
 // setTags adds (replace false) or sets (replace true) the title's tags on the view's versions of the title it shows
@@ -652,6 +685,11 @@ func (s *Service) addTitle(w http.ResponseWriter, r *request) {
 			anime = &a
 		}
 	}
+	// A movie's minimum availability is stored per library, never on the view's record.
+	var minAvail string
+	if v.Flavour == Radarr {
+		minAvail, in.MinimumAvailability = in.MinimumAvailability.minAvail(), ""
+	}
 	// The add itself is catalog.Add, shared with the native API; the view keeps its own record and tags.
 	var titleID int64
 	err := s.st.WriteTx(ctx, func(tx *sqlTx) error {
@@ -672,6 +710,14 @@ func (s *Service) addTitle(w http.ResponseWriter, r *request) {
 		} else {
 			ci.TmdbID = ext
 		}
+		// The copies already on before the add: a movie's minimum availability is decided for the others.
+		var on []string
+		if v.Flavour == Radarr {
+			var err error
+			if on, err = activeVersions(ctx, tx, ext); err != nil {
+				return err
+			}
+		}
 		res, err := catalog.Add(ctx, tx, ci, s.now(), s.log.With("view", v.Key))
 		if err != nil {
 			return err
@@ -680,6 +726,19 @@ func (s *Service) addTitle(w http.ResponseWriter, r *request) {
 		if v.Flavour == Sonarr {
 			// An add gives a series its type only when it has none: a later add never changes a stored one.
 			if err := catalog.AddSeriesType(ctx, tx, titleID, in.SeriesType.value(seriesTypes...)); err != nil {
+				return err
+			}
+		}
+		if v.Flavour == Radarr {
+			// Per library the add turns on: one with its own minimum_availability uses it and the client's value
+			// is not stored for it; another stores the client's value as its choice. A copy already on keeps its rule.
+			var keys []string
+			for _, k := range res.Versions {
+				if vp := s.pol.Versions[k]; !slices.Contains(on, k) && (vp == nil || vp.MinimumAvailability == "") {
+					keys = append(keys, k)
+				}
+			}
+			if err := s.chooseMinAvail(ctx, tx, titleID, keys, minAvail); err != nil {
 				return err
 			}
 		}
@@ -778,6 +837,11 @@ func (s *Service) updateTitle(w http.ResponseWriter, r *request) {
 			return
 		}
 	}
+	// A movie's minimum availability is stored per library, never on the view's record.
+	var minAvail string
+	if v.Flavour == Radarr {
+		minAvail, in.MinimumAvailability = in.MinimumAvailability.minAvail(), ""
+	}
 	err = s.st.WriteTx(ctx, func(tx *sqlTx) error {
 		now := store.Millis(s.now())
 		// The body is the whole object, usually the view's own answer sent back with one field changed:
@@ -826,6 +890,16 @@ func (s *Service) updateTitle(w http.ResponseWriter, r *request) {
 			for _, id := range vids {
 				if _, err := tx.ExecContext(ctx, `UPDATE version SET monitored = ?, updated_at = ? WHERE id = ?
 					AND monitored <> ?`, mon, now, id, mon); err != nil {
+					return err
+				}
+			}
+		}
+		if v.Flavour == Radarr {
+			// A minimum availability equal to the one this view shows is the view's answer sent back and stores
+			// nothing; a different one is a choice for each library the view showed for the movie. A copy this
+			// PUT turns on takes its library's own rule.
+			if minAvail != s.minAvail(e) {
+				if err := s.chooseMinAvail(ctx, tx, e.id, e.versionKeys(), minAvail); err != nil {
 					return err
 				}
 			}

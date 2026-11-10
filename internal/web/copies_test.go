@@ -387,7 +387,7 @@ func TestListRowFacts(t *testing.T) {
 			t.Fatal(err)
 		}
 		out := r.HomeRelease != "" && r.HomeRelease <= addNow.Format(time.DateOnly)
-		if r.Kind == "movie" && availability.Available("released", dates, addNow) != out {
+		if r.Kind == "movie" && availability.Available("released", dates, addNow, 0) != out {
 			t.Errorf("%s: home_release %q disagrees with Available", r.Name, r.HomeRelease)
 		}
 	}

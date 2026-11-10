@@ -8,6 +8,7 @@ import (
 	"errors"
 	"log/slog"
 	"path/filepath"
+	"slices"
 	"strconv"
 	"strings"
 	"testing"
@@ -587,5 +588,66 @@ func TestListReadFailureIsNotASync(t *testing.T) {
 	var synced int64
 	if err := st.Reader().QueryRow(`SELECT last_sync_at FROM movie_import_list WHERE id=1`).Scan(&synced); err != nil || synced != 5 {
 		t.Fatalf("last_sync_at %d: %v", synced, err)
+	}
+}
+
+// A list's new movie is searched on add per library: the list's minimum with each library's own availability delay,
+// and only the ready libraries are handed to the search.
+func TestIntakeSearchOnAddPerLibraryDelay(t *testing.T) {
+	t.Parallel()
+	// The intake's clock is 2026-10-27; the movie came out at home the day before.
+	digital := time.Date(2026, 10, 26, 0, 0, 0, 0, time.UTC)
+	for _, tc := range []struct {
+		name       string
+		web, remux int
+		want       []string
+	}{
+		{"no delays", 0, 0, []string{"movie-remux", "movie-web"}},
+		{"one library waits", 0, 2, []string{"movie-web"}},
+		{"the other waits", 5, 1, []string{"movie-remux"}},
+		{"both wait", 2, 2, nil},
+		{"a negative delay changes nothing once out", -3, 2, []string{"movie-web"}},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			m := &tmdb.Movie{ID: 201, Title: "Movie", ReleaseDate: "2026-10-01"}
+			m.ReleaseDates.Results = []tmdb.CountryReleases{{Country: "US", Releases: []tmdb.Release{{Type: 4, Date: digital}}}}
+			s, st := newIntake(t, intakeSource{list: &tmdb.List{Items: []tmdb.MovieSummary{{ID: 201}}}, movies: map[int]*tmdb.Movie{201: m}})
+			s.Policy.Versions["movie-web"].AvailabilityDelay = tc.web
+			s.Policy.Versions["movie-remux"] = &policy.VersionPolicy{Kind: policy.KindMovie, Enable: "default",
+				Mode: policy.ModeActive, AvailabilityDelay: tc.remux}
+			if _, err := st.Writer().Exec(`INSERT INTO movie_import_list(name,tmdb_id,versions,minimum_availability,search_on_add,created_at,updated_at) VALUES('list',9,'["movie-web","movie-remux"]','released',1,0,0)`); err != nil {
+				t.Fatal(err)
+			}
+			var searched []string
+			calls := 0
+			s.OnAdd = func(_ context.Context, _ int64, keys []string) error {
+				calls++
+				searched = slices.Sorted(slices.Values(keys))
+				return nil
+			}
+			if got, err := s.SyncLists(context.Background()); err != nil || got.Added != 1 {
+				t.Fatalf("sync: %+v %v", got, err)
+			}
+			if !slices.Equal(searched, tc.want) || calls > 1 || (len(tc.want) == 0) != (calls == 0) {
+				t.Fatalf("searched %v in %d calls, want %v", searched, calls, tc.want)
+			}
+			// What was searched is what the stored rule gives each library.
+			rows, err := st.Reader().Query(`SELECT title_id, id, policy_key FROM version`)
+			if err != nil {
+				t.Fatal(err)
+			}
+			defer rows.Close()
+			for rows.Next() {
+				var tid, vid int64
+				var key string
+				if err := rows.Scan(&tid, &vid, &key); err != nil {
+					t.Fatal(err)
+				}
+				ok, err := availability.Movie(context.Background(), st.Reader(), s.Policy, tid, vid, key, s.Now())
+				if err != nil || ok != slices.Contains(tc.want, key) {
+					t.Errorf("%s: stored availability %v: %v", key, ok, err)
+				}
+			}
+		})
 	}
 }

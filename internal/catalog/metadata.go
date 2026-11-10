@@ -576,9 +576,23 @@ func (s *MovieIntake) addMovie(ctx context.Context, summary tmdb.MovieSummary, c
 	if result == nil || !result.Created {
 		return false, nil
 	}
-	if cfg.search && cfg.monitored && availability.Available(minimum, dates, now) && s.OnAdd != nil {
-		if err := s.OnAdd(ctx, result.TitleID, result.Versions); err != nil {
-			return true, err
+	if cfg.search && cfg.monitored && s.OnAdd != nil {
+		// Each library is ready on its own: the list's minimum (the choice just stored for every library added)
+		// with the library's availability delay. Only the ready ones are searched.
+		var ready []string
+		for _, k := range result.Versions {
+			delay := 0
+			if vp := s.Policy.Versions[k]; vp != nil {
+				delay = vp.AvailabilityDelay
+			}
+			if availability.Available(minimum, dates, now, delay) {
+				ready = append(ready, k)
+			}
+		}
+		if len(ready) > 0 {
+			if err := s.OnAdd(ctx, result.TitleID, ready); err != nil {
+				return true, err
+			}
 		}
 	}
 	return true, nil

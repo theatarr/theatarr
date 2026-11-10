@@ -135,6 +135,14 @@ type VersionPolicy struct {
 	// Name is an optional display name for people; empty uses the label guessed from the key and profile. It names
 	// nothing an arr client sees: keys, paths and arr-view profile names do not come from it.
 	Name string `yaml:"name,omitempty" json:",omitempty"`
+	// MinimumAvailability is the minimum availability of a movie in this library that has neither an explicit
+	// choice nor an imported value: announced, inCinemas or released; unset is released. An add from an arr client
+	// does not store the client's value for a library that sets it. Movie libraries only.
+	MinimumAvailability string `yaml:"minimum_availability,omitempty" json:",omitempty"`
+	// AvailabilityDelay is Radarr's availability delay in days for this library's movies: added to the date the
+	// minimum availability compares against, negative for earlier. Announced movies and movies without a date are
+	// not affected. Movie libraries only.
+	AvailabilityDelay int `yaml:"availability_delay,omitempty" json:",omitempty"`
 	// Mode is shadow (the default) or active.
 	Mode Mode `yaml:"mode"`
 	// Grab lets the router add torrents for the version (docs/design/decide.md). The router writes for a version

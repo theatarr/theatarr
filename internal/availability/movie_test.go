@@ -33,7 +33,7 @@ func TestAvailable(t *testing.T) {
 		{"known future home release overrides fallback", "released", map[string]time.Time{"theatrical": now.AddDate(0, 0, -100), "digital": now.AddDate(0, 0, 1)}, false},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			if got := Available(tc.minimum, tc.dates, now); got != tc.want {
+			if got := Available(tc.minimum, tc.dates, now, 0); got != tc.want {
 				t.Fatalf("available=%v, want %v", got, tc.want)
 			}
 		})
@@ -62,7 +62,7 @@ func TestHomeRelease(t *testing.T) {
 				t.Fatalf("home release %v, want %v", got, tc.want)
 			}
 			for _, at := range []time.Time{day(-200), day(-10), day(-5), now, day(3), day(20), day(60), day(200)} {
-				if Available("released", tc.dates, at) != (!got.IsZero() && !at.Before(got)) {
+				if Available("released", tc.dates, at, 0) != (!got.IsZero() && !at.Before(got)) {
 					t.Errorf("at %v: Available disagrees with home release %v", at, got)
 				}
 			}

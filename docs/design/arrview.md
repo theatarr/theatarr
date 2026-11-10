@@ -166,7 +166,7 @@ reference type that is null is left out; value types are always written; `id` 0 
 | `GET customformat`, `customformat/{id}` | `CustomFormatResource` | The captured runtime's full specifications; format IDs are scoped to the view and agree with its profile scores. No format/profile writes |
 | `GET rootfolder` | `RootFolderResource` | The libraries of the view's versions; `freeSpace` from statfs when the folder exists. Stat and statfs give up after 3 s per root (`internal/rootprobe`): a root on a share that stops answering is `accessible: false`, and is skipped without another call while a stat on its filesystem (mount) is stuck |
 | `GET tag`, `tag/{id}`, `POST tag`, `PUT tag[/{id}]` | `TagResource` | `TagService.Add`: an existing label (any case) returns the existing tag, new labels are stored lower-case; label must match `^[a-z0-9-]+$`. POST 201, PUT 202 |
-| `GET movie[?tmdbId=]`, `movie/{id}` | `MovieResource` with `movieFile` (`MovieFileResource`) and `statistics` | Only the view's versions count. `hasFile` = any of them has a file; `movieFile` = the file of the first version in the view's order that has one; `statistics.movieFileCount` counts distinct files. `status` uses refreshed canonical dates (SkyHookProxy), falling back to the imported arr status until refreshed; `isAvailable` and `releaseDate` port `Movie.IsAvailable` / `GetReleaseDate` (delay 0). 404 when the view does not have the title |
+| `GET movie[?tmdbId=]`, `movie/{id}` | `MovieResource` with `movieFile` (`MovieFileResource`) and `statistics` | Only the view's versions count. `hasFile` = any of them has a file; `movieFile` = the file of the first version in the view's order that has one; `statistics.movieFileCount` counts distinct files. `status` uses refreshed canonical dates (SkyHookProxy), falling back to the imported arr status until refreshed; `minimumAvailability`, `isAvailable` and `releaseDate` follow "Minimum availability" below. 404 when the view does not have the title |
 | `GET movie/lookup?term=`, `movie/lookup/tmdb?tmdbId=` | `MovieResource` | `tmdb:N`, `imdb:tt…` or text. Text: the catalog's titles by name, then TMDb's title search for movies the catalog lacks (below) |
 | `GET moviefile/{id}` | `MovieFileResource` | Files of the view's versions |
 | `POST movie`, `PUT movie[/{id}]`, `DELETE movie/{id}` | | See Writes. POST 201, PUT 202, DELETE 200 with no body |
@@ -193,6 +193,66 @@ Sonarr pack members have distinct, stable queue ids and share downloadId; deleti
 Movie status and `isAvailable` use canonical release dates from `meta.art`, shared with acquisition and the calendar;
 a successful refresh supersedes imported dates, including corrections/removals. Migration 00041 adds the date-refresh
 marker, makes existing movies due for refresh and clears the RSS seen cache.
+
+### Minimum availability
+
+Theatarr owns a movie's minimum availability, one rule per library (`availability.Rules`, by version). In order:
+
+1. **Choice**: the newest `arrview_title` row with a value (by `updated_at`, then view key) whose view is the
+   library's own (`v/<key>`) or a configured view that holds the library today.
+2. **Imported**: the owning arr's value (`arr_title`, through `follows` for a parallel library).
+3. **Default**: the library's `minimum_availability` setting (`announced`, `inCinemas` or `released`; movie libraries
+   only, left out of the stored settings when unset), else `released`.
+
+The rule also carries the library's `availability_delay` (days, negative for earlier, unset is 0), applied as Radarr's
+`Movie.IsAvailable(delay)`: added to the date compared against, ignored for `announced`/`tba`, and a movie without a
+date is never available. `availability.Movie`, the gate of every automatic search and grab, reads the same rule, so a
+view cannot show one value while acquisition uses another. With neither setting set the rule is what it was before
+the settings existed (`TestRulesMatchMain`).
+
+What a Radarr view answers:
+
+- `minimumAvailability` is the earliest value (tba, announced, inCinemas, released) among the libraries the view
+  shows for the movie; a per-library view shows its library's. The list, `movie/{id}`, and the POST, PUT and editor
+  answers all use it. A lookup result the view does not hold stays `released`.
+- `isAvailable` is true when any shown library is available under its own minimum and delay
+  (`availability.Available`, `TestViewIsAvailableWithDelays`); `releaseDate` ports `GetReleaseDate` for the shown
+  minimum, without the delay, as Radarr.
+
+The write convention (`TestMinimumAvailabilityEchoChangesNothing`, `TestMinimumAvailabilityPutWritesShownLibraries`):
+
+- **`PUT movie`**: a value equal to what this view shows for the movie is the view's answer sent back and stores
+  nothing: every library keeps its value and where it comes from, and the PUT answers what the GET did. One scalar
+  cannot tell an echo from "set every library to the value shown", so that edit needs the editor (or Theatarr's own
+  page). A different value is stored as the choice of each library the view shows for the movie, and no other: not a
+  copy removed from the views, not a library outside the view. A copy the same PUT turns on by a profile change
+  takes its library's own rule, not the body's value.
+- **`PUT movie/editor`** is outside the echo guarantee. A supplied `minimumAvailability` is a deliberate edit, as
+  Radarr applies it only when the field is present (`MovieEditorController.cs:64`): it becomes the choice of every
+  library the view shows for each movie, even when it equals the value shown. Without the field nothing is stored
+  (`TestMinimumAvailabilityEditor`).
+- **`POST movie`** is decided per library the add turns on (new, restored or unmonitored before): a library with
+  `minimum_availability` set uses it, and the client's value is not stored for it; a library without stores the
+  client's value as its choice. Copies already on keep their rule, so an add that turns nothing on stores nothing
+  (`TestMinimumAvailabilityClientAdd`). Seerr sends its Radarr server's setting with every add and the phone apps a
+  per-add choice; the server cannot tell them apart, so a library default, once set, wins over both at add time. A
+  PUT afterwards is still an edit.
+- **Storage**: new choices go to the libraries' own `v/<key>` rows only (`availability.Choose`; a row made for it
+  carries no profile, root folder or added time). Rows that combined views stored before stay readable with the
+  precedence above; none is rewritten or cleaned up. `arrview_title.updated_at` orders the choices and moves only
+  when a minimum availability is written: saving a profile, root folder or tags no longer promotes an old choice
+  over a newer one.
+- List and collection intake still stores the list's or collection's own minimum for the movies it adds, as a choice
+  (a library default does not apply to them), and searches on add only the libraries that are ready under it with
+  their own delay.
+
+Left as before, on purpose:
+
+- A PUT that succeeds in an anime check that failed earlier (above) can turn on the view's anime library for the
+  title; the view then shows the earliest value including that library's, so this one unchanged PUT can answer
+  another value than the GET did.
+- `isAvailable` uses the canonical dates, while acquisition uses the owning arr's dates for a library an arr still
+  feeds, until its cutover: the two can disagree for such a library when the arr's dates differ.
 
 ## Writes
 
@@ -224,8 +284,9 @@ marker, makes existing movies due for refresh and clears the RSS seen cache.
     `mapping`, `tmdb`, `none`, `unknown`; migrations 00072, 00103) and logged ("anime decided"), so a wrong guess is
     visible; editing the title's versions fixes it (`TestAddDecidesAnime`).
   - A title the view already has gets the extra versions and a 201, not Radarr's "already added" 400.
-  - Root folder, profile, minimum availability, season folder and monitor-new-items go to
-    `arrview_title` (per view and title); tags to `arrview_title_tag`, on the view's versions of the title.
+  - Root folder, profile, season folder and monitor-new-items go to
+    `arrview_title` (per view and title); tags to `arrview_title_tag`, on the view's versions of the title. A
+    movie's minimum availability is decided per library ("Minimum availability" above).
   - Sonarr's `seriesType` is the title's one type (`docs/design/series.md` "Series type"), shown the same on every
     view. An add stores it only for a series that has none (`TestSeriesTypeAddKeepsStored`); the request's
     `anime` type is the anime hint below only for a series Theatarr does not hold or one with no stored type.
@@ -244,7 +305,8 @@ marker, makes existing movies due for refresh and clears the RSS seen cache.
   what differs from the view's own answer changes (`TestPutEchoKeepsOtherCopies`): a `monitored` that
   differs from the reported one (monitored when any copy is) applies to all of them, and a known `qualityProfileId`
   other than the reported one turns on that profile's versions (never turns any off), restoring removed ones; echoing
-  the view's answer back leaves an unmonitored or removed copy alone. Tags are
+  the view's answer back leaves an unmonitored or removed copy alone; a movie's `minimumAvailability` follows
+  "Minimum availability" above. Tags are
   replaced on the view's versions; Sonarr seasons set per-version episode monitoring. As in Sonarr's `SeriesService.UpdateSeries`, only a
   season whose `monitored` differs from what the view reports (monitored when one of its episodes is) changes its
   episodes: Seerr re-requests a season by PUTting the whole lookup back, and a partly monitored season it echoes keeps
@@ -395,7 +457,7 @@ removes a view tag (`TestImportCopiesTagsToVersions`, `TestImportTagsNotToFollow
 | `arrview_tag` | Tags: id, label (unique, case-insensitive) |
 | `arrview_title_tag` | Tags on titles, per version (00105) |
 | `arrview_profile` | Profile ids per view and name |
-| `arrview_title` | Per view and title: profile, root folder, minimum availability, season folder, monitor new items, added (`series_type` is no longer read: the type is the title's); where the add's anime decision came from (`anime_source`, 00072, `unknown` 00103) |
+| `arrview_title` | Per view and title: profile, root folder, minimum availability (a library's choice on its `v/<key>` row; `updated_at` orders the choices), season folder, monitor new items, added (`series_type` is no longer read: the type is the title's); where the add's anime decision came from (`anime_source`, 00072, `unknown` 00103) |
 | `arrview_removed_version` | Versions a view's DELETE removed |
 | `arrview_command` | Commands: name, body as sent, status, result, message, user agent, times |
 

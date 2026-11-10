@@ -3,6 +3,7 @@ package arrview
 import (
 	"context"
 	"encoding/json"
+	"github.com/theatarr/theatarr/internal/availability"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -562,11 +563,11 @@ func TestMovieStatusPort(t *testing.T) {
 		if got := movieStatus(c.dates, now); got != c.status {
 			t.Errorf("case %d: status %s, want %s", i, got, c.status)
 		}
-		if got := isAvailable("released", c.dates, now); got != c.avail {
+		if got := availability.Available("released", c.dates, now, 0); got != c.avail {
 			t.Errorf("case %d: available %v, want %v", i, got, c.avail)
 		}
 	}
-	if !isAvailable("announced", nil, now) {
+	if !availability.Available("announced", nil, now, 0) {
 		t.Error("announced is always available")
 	}
 }

@@ -13,8 +13,10 @@ import (
 	"github.com/theatarr/theatarr/internal/store"
 )
 
-// Available ports Radarr Movie.IsAvailable (Movie.cs @ a96bf7c), with the default availability delay of zero.
-func Available(minimum string, dates map[string]time.Time, now time.Time) bool {
+// Available ports Radarr Movie.IsAvailable (Movie.cs @ a96bf7c): delay is the availability delay in days (negative
+// is earlier), added to the date compared against; announced and tba are always available and a movie without a
+// date never is, whatever the delay.
+func Available(minimum string, dates map[string]time.Time, now time.Time, delay int) bool {
 	if minimum == "announced" || minimum == "tba" {
 		return true
 	}
@@ -25,7 +27,7 @@ func Available(minimum string, dates map[string]time.Time, now time.Time) bool {
 	if date.IsZero() {
 		date = HomeRelease(dates)
 	}
-	return !date.IsZero() && !now.Before(date)
+	return !date.IsZero() && !now.Before(date.AddDate(0, 0, delay))
 }
 
 // HomeRelease is the day a movie is out at home, the date Available's "released" minimum compares against: the
@@ -58,42 +60,17 @@ func Status(dates map[string]time.Time, now time.Time) string {
 	return status
 }
 
-// Movie checks one version. A matching view's latest explicit choice wins over its imported arr setting;
-// titles with no explicit choice default to released, as the Radarr view does.
+// Movie checks one version against its rule (Rules): a matching view's latest explicit choice wins over its imported
+// arr setting, that over the library's minimum_availability, and a movie with none of them is gated as released.
 func Movie(ctx context.Context, db *sql.DB, pol *policy.Policy, titleID, versionID int64, key string, now time.Time) (bool, error) {
-	minimum := "released"
-	s, err := store.LoadSourceSettings(ctx, db, versionID)
-	if err != nil {
+	rules := map[int64]Rule{}
+	if err := rulesInto(ctx, db, pol, []copyRef{{titleID, versionID, key}}, rules); err != nil {
 		return false, err
 	}
-	if s.MinimumAvailability != "" {
-		minimum = s.MinimumAvailability
-	}
-	rows, err := db.QueryContext(ctx, `SELECT view, minimum_availability FROM arrview_title
-		WHERE title_id = ? AND minimum_availability <> '' ORDER BY updated_at DESC, view`, titleID)
-	if err != nil {
-		return false, err
-	}
-	for rows.Next() {
-		var view, value string
-		if err := rows.Scan(&view, &value); err != nil {
-			rows.Close()
-			return false, err
-		}
-		v := pol.Views[view]
-		if view == "v/"+key || v != nil && slices.Contains(v.Versions, key) {
-			minimum = value
-			break
-		}
-	}
-	err = rows.Err()
-	rows.Close()
-	if err != nil {
-		return false, err
-	}
+	rule := rules[versionID]
 	// Parallel versions inherit the owning arr's dates until cutover, including corrections after our TMDb fetch.
 	var instance string
-	err = db.QueryRowContext(ctx, `SELECT vs.instance FROM version v LEFT JOIN version_follow f ON f.version_id = v.id
+	err := db.QueryRowContext(ctx, `SELECT vs.instance FROM version v LEFT JOIN version_follow f ON f.version_id = v.id
 		JOIN version_source vs ON vs.version_id = COALESCE(f.follows_id, v.id) WHERE v.id = ?`, versionID).Scan(&instance)
 	if err != nil && err != sql.ErrNoRows {
 		return false, err
@@ -105,7 +82,7 @@ func Movie(ctx context.Context, db *sql.DB, pol *policy.Policy, titleID, version
 	if err != nil {
 		return false, err
 	}
-	return Available(minimum, dates, now), nil
+	return Available(rule.Minimum, dates, now, rule.Delay), nil
 }
 
 // Dates reads canonical dates (empty country), preferring a successful TMDb refresh over imported dates.

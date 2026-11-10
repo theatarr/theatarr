@@ -3,6 +3,7 @@ package arrview
 import (
 	"context"
 	"encoding/json"
+	"github.com/theatarr/theatarr/internal/availability"
 	"net/http"
 	"path"
 	"regexp"
@@ -89,46 +90,6 @@ func movieStatus(d map[string]time.Time, now time.Time) string {
 	return status
 }
 
-// availableFrom ports Movie.IsAvailable's date (src/NzbDrone.Core/Movies/Movie.cs @ a96bf7c), delay 0.
-func availableFrom(minAvail string, d map[string]time.Time) (t time.Time, always, never bool) {
-	switch minAvail {
-	case "tba", "announced":
-		return time.Time{}, true, false
-	case "inCinemas":
-		if c, ok := d["theatrical"]; ok {
-			return c, false, false
-		}
-	}
-	p, hp := d["physical"]
-	g, hg := d["digital"]
-	switch {
-	case hp && hg:
-		if g.Before(p) {
-			return g, false, false
-		}
-		return p, false, false
-	case hp:
-		return p, false, false
-	case hg:
-		return g, false, false
-	}
-	if c, ok := d["theatrical"]; ok {
-		return c.AddDate(0, 0, 90), false, false
-	}
-	return time.Time{}, false, true
-}
-
-func isAvailable(minAvail string, d map[string]time.Time, now time.Time) bool {
-	t, always, never := availableFrom(minAvail, d)
-	switch {
-	case always:
-		return true
-	case never:
-		return false
-	}
-	return !now.Before(t)
-}
-
 // releaseDate ports Movie.GetReleaseDate.
 func releaseDate(minAvail string, d map[string]time.Time) *arrTime {
 	pick := func(types ...string) *arrTime {
@@ -155,14 +116,25 @@ func releaseDate(minAvail string, d map[string]time.Time) *arrTime {
 	return nil
 }
 
+// minAvail is the minimum availability the view shows for a movie: the earliest among the libraries it shows for
+// the title, each by its own rule (availability.Rules).
 func (s *Service) minAvail(e *entry) string {
-	if e.rec != nil && e.rec.minAvail != "" {
-		return e.rec.minAvail
+	values := make([]string, len(e.versions))
+	for i, x := range e.versions {
+		values[i] = x.rule.Minimum
 	}
-	if a := e.arr(); a != nil && a.minAvail != "" {
-		return a.minAvail
+	return availability.Earliest(values...)
+}
+
+// isAvailable: any library the view shows for the movie is available under its own minimum and delay, over the
+// canonical dates.
+func isAvailable(e *entry, now time.Time) bool {
+	for _, x := range e.versions {
+		if availability.Available(x.rule.Minimum, e.dates, now, x.rule.Delay) {
+			return true
+		}
 	}
-	return "released"
+	return false
 }
 
 // qualityProfileID is the profile the client set, else the view profile whose versions match the title's best.
@@ -266,7 +238,7 @@ func (s *Service) movieResource(v *View, e *entry) movieResource {
 	m := movieResource{
 		ID: e.viewID(), Title: e.name, OriginalTitle: e.name, AlternateTitles: []any{}, SortTitle: sortTitle(e),
 		Status: status, Images: []any{}, Year: e.year, Path: p, QualityProfileID: qualityProfileID(v, e),
-		Monitored: e.monitored(), MinimumAvailability: minAvail, IsAvailable: isAvailable(minAvail, e.dates, now),
+		Monitored: e.monitored(), MinimumAvailability: minAvail, IsAvailable: isAvailable(e, now),
 		FolderName: p, ImdbID: e.imdb, TmdbID: e.tmdb, TitleSlug: strconv.Itoa(e.tmdb), RootFolderPath: root,
 		Genres: []string{}, Keywords: []string{}, Tags: tagsOrEmpty(e.tags), Added: at(s.added(e)),
 		Ratings: map[string]any{}, ReleaseDate: releaseDate(minAvail, e.dates),

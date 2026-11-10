@@ -8,6 +8,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/theatarr/theatarr/internal/availability"
 	"github.com/theatarr/theatarr/internal/store"
 )
 
@@ -44,6 +45,8 @@ type ver struct {
 	arr       *arrRec
 	// monitorNew is a series version's monitorNewItems intent (series_monitor), "" without a row.
 	monitorNew string
+	// rule is a movie version's availability rule (availability.Rules); Radarr views only.
+	rule availability.Rule
 }
 
 // vfile is a version_file row: the file an arr holds for a version, as imported.
@@ -370,6 +373,14 @@ func (s *Service) load(ctx context.Context, v *View, titleIDs []int64) ([]*entry
 	}
 
 	if v.Flavour == Radarr {
+		// Each library's minimum availability and delay, the rule acquisition gates on.
+		rules, err := availability.Rules(ctx, db, s.pol, entryIDs(order))
+		if err != nil {
+			return nil, err
+		}
+		for id, x := range vers {
+			x.rule = rules[id]
+		}
 		// Canonical release dates (country ''), preferring a successful TMDb date refresh.
 		rows, err = db.QueryContext(ctx, `SELECT d.title_id, d.type, MIN(d.date) FROM title_release_date d
 			WHERE d.country = '' AND (d.source = 'tmdb-art' OR NOT EXISTS

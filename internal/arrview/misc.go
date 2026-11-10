@@ -428,7 +428,8 @@ type editorIn struct {
 }
 
 // PUT movie/editor and series/editor (MovieEditorController / SeriesEditorController.SaveAll): bulk changes to the
-// view's versions of the titles, as a full PUT would make them: monitored, profile (turns on its versions, never
+// view's versions of the titles, as a full PUT would make them (except that a supplied minimum availability is
+// always stored, where a PUT skips the value the view shows): monitored, profile (turns on its versions, never
 // turns any off), minimum availability, root folder, series type, season folder, monitor new items, and tags with
 // applyTags add (default), remove or replace. Files never move. 202 with the titles.
 func (s *Service) editor(w http.ResponseWriter, r *request) {
@@ -480,8 +481,16 @@ func (s *Service) editor(w http.ResponseWriter, r *request) {
 			if in.Monitored != nil {
 				mon = *in.Monitored
 			}
-			ti := titleIn{RootFolderPath: in.RootFolderPath, MinimumAvailability: in.MinimumAvailability,
-				SeasonFolder: in.SeasonFolder, SeriesType: in.SeriesType, MonitorNewItems: in.MonitorNewItems}
+			ti := titleIn{RootFolderPath: in.RootFolderPath, SeasonFolder: in.SeasonFolder, SeriesType: in.SeriesType,
+				MonitorNewItems: in.MonitorNewItems}
+			if v.Flavour == Radarr {
+				// A supplied minimum availability is a deliberate edit, as Radarr applies it only when the field
+				// is present (MovieEditorController.cs:64): a choice for each library the view shows for the movie,
+				// even when it equals the value shown. Without the field nothing changes.
+				if err := s.chooseMinAvail(ctx, tx, e.id, e.versionKeys(), in.MinimumAvailability.minAvail()); err != nil {
+					return err
+				}
+			}
 			if in.QualityProfileID != nil {
 				ti.QualityProfileID = *in.QualityProfileID
 				if p := v.profileByID(ti.QualityProfileID); p != nil {

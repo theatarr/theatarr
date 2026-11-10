@@ -2,7 +2,9 @@ package policy
 
 import (
 	"bytes"
+	"encoding/json"
 	"errors"
+	"go.yaml.in/yaml/v3"
 	"io/fs"
 	"os"
 	"path/filepath"
@@ -149,6 +151,19 @@ func TestBadPolicies(t *testing.T) {
 			name: "unknown provider preference",
 			file: "versions.yaml", old: "provider_preference: ordered", new: "provider_preference: first",
 			want: []string{`versions[movie-web].provider_preference: must be ordered or none, got "first"`},
+		},
+		{
+			name: "unknown minimum availability",
+			file: "versions.yaml", old: "provider_preference: ordered", new: "provider_preference: ordered\n    minimum_availability: tba",
+			want: []string{`versions[movie-web].minimum_availability: must be announced, inCinemas or released, got "tba"`},
+		},
+		{
+			name: "availability settings on a series library",
+			file: "versions.yaml", old: "plain Sonarr: every episode's file must be upgraded.\n    packs: any_upgradable", new: "plain Sonarr: every episode's file must be upgraded.\n    packs: any_upgradable\n    minimum_availability: released\n    availability_delay: -2",
+			want: []string{
+				`versions[tv-2160p].availability_delay: is for movie libraries only`,
+				`versions[tv-2160p].minimum_availability: is for movie libraries only`,
+			},
 		},
 		{
 			name: "unknown pack rule",
@@ -828,5 +843,47 @@ func TestCheckURLQueryCredentialNames(t *testing.T) {
 		if len(e.List) != 0 {
 			t.Errorf("%s refused: %v", u, e.List)
 		}
+	}
+}
+
+// A movie library's optional minimum availability and availability delay: every value of the three, and any number
+// of days either way, load; unset they are left out of the policy as it is marshalled.
+func TestVersionAvailabilitySettings(t *testing.T) {
+	t.Parallel()
+	p, err := Load(filepath.Join("..", "..", "examples", "policy"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	v := p.Versions["movie-web"]
+	if v.MinimumAvailability != "" || v.AvailabilityDelay != 0 {
+		t.Fatalf("the example sets them: %q %d", v.MinimumAvailability, v.AvailabilityDelay)
+	}
+	for _, format := range []func(any) ([]byte, error){json.Marshal, yaml.Marshal} {
+		raw, err := format(v)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if s := strings.ToLower(string(raw)); strings.Contains(s, "availab") {
+			t.Errorf("unset availability settings are written: %s", raw)
+		}
+	}
+	for _, minimum := range []string{"announced", "inCinemas", "released"} {
+		for _, delay := range []int{0, 14, -14} {
+			v.MinimumAvailability, v.AvailabilityDelay = minimum, delay
+			if err := p.Validate(); err != nil {
+				t.Errorf("%s, %d days: %v", minimum, delay, err)
+			}
+		}
+	}
+	raw, err := yaml.Marshal(v)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var back VersionPolicy
+	if err := yaml.Unmarshal(raw, &back); err != nil {
+		t.Fatal(err)
+	}
+	if back.MinimumAvailability != "released" || back.AvailabilityDelay != -14 {
+		t.Errorf("read back %q %d from %s", back.MinimumAvailability, back.AvailabilityDelay, raw)
 	}
 }
