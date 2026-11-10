@@ -17,7 +17,7 @@ claim of Sonarr v5 API parity. Recyclarr has no web pages; its table maps the CL
 |---|---|---|
 | Series | Library › Series — `/series` | One title can have multiple libraries. |
 | Series › Add New | Search — `/search` | Choose libraries when adding. |
-| Series › Library Import | Admin › Advanced › Sonarr/Radarr migration › Migrate — `/admin/advanced/arr/migrate` | Import the arr inventory into shadow mode; Manual import handles existing files. |
+| Series › Library Import | Admin › Advanced › Sonarr/Radarr migration › Migrate — `/admin/advanced/arr/migrate` | Import the arr inventory into shadow mode; Wanted › Manual import (`/wanted/manual-import`) handles existing files. |
 | Calendar | Calendar — `/calendar` | Movies and episodes together. |
 | Statistics | **not needed** | No separate library-statistics dashboard; counts and filters are in the library and System Status. |
 | Settings | Admin › Settings — `/admin/settings` | Search by task or an arr page name. |
@@ -53,7 +53,7 @@ claim of Sonarr v5 API parity. Recyclarr has no web pages; its table maps the CL
 |---|---|---|
 | Movies | Library › Movies — `/movies` | Multiple libraries per movie. |
 | Movies › Add New | Search — `/search` | Choose libraries when adding. |
-| Movies › Import Library | Admin › Advanced › Sonarr/Radarr migration › Migrate — `/admin/advanced/arr/migrate` | Migrate arr inventory into shadow mode; Manual import handles files. |
+| Movies › Import Library | Admin › Advanced › Sonarr/Radarr migration › Migrate — `/admin/advanced/arr/migrate` | Migrate arr inventory into shadow mode; Wanted › Manual import (`/wanted/manual-import`) handles files. |
 | Movies › Collections | Library › Collections — `/collections` | Managers and admins. Targets are libraries; the arrs' monitored collections are carried over at each Radarr import. |
 | Movies › Discover | Home — `/` | Discovery rows and search share one library for every user. |
 | Calendar | Calendar — `/calendar` | Movies and episodes together. |
@@ -89,7 +89,7 @@ claim of Sonarr v5 API parity. Recyclarr has no web pages; its table maps the CL
 | Indexers | Admin › Settings › Indexers — `/admin/settings/indexers` | One indexer manager shared by libraries. |
 | Indexers › Stats | **not needed** | No separate indexer-statistics dashboard; per-source status and tests are beside Settings › Indexers (`/admin/settings/indexers`). |
 | Search | Search — `/search` | Find a title, then use its Releases action; no unrestricted all-indexer raw search page. |
-| History | Admin › Advanced › Decision journal — `/admin/advanced/journal` | Search and download decisions, not a full Prowlarr request log. |
+| History | Activity › Decision journal — `/activity/journal` | Search and download decisions, not a full Prowlarr request log. |
 | Settings | Admin › Settings — `/admin/settings` | Search by task or an arr page name. |
 | Settings › Indexers | Admin › Settings › Indexers › VPN — `/admin/settings/indexers/vpn` | Optional VPN guard and catalog settings replace proxy management; native definition reviews are under Reviews. |
 | Settings › Apps | Admin › Settings › Connected apps — `/admin/settings/apps` | Theatarr is its own indexer manager, so there is no indexer-to-arr sync; Connected apps exposes Radarr- and Sonarr-compatible APIs to Seerr and other clients. |

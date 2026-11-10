@@ -19,7 +19,7 @@ const ROLES = {
 const paths = (groups: NavGroup[]) => flatItems(groups).map((i) => i.to);
 const ADMIN_PAGES = ["/admin", "/admin", ...["tasks", "backup", "errors", "logs"].map(p => `/admin/system/${p}`), "/admin/reviews", "/admin/torrents", "/admin/settings",
  ...["libraries", "profiles", "formats", "quality-sync", "indexers", "downloads", "notifications", "plex", "metadata", "apps"].map(p => `/admin/settings/${p}`),
- "/admin/users", "/admin/advanced", ...["arr", "manual-import", "journal", "config", "history", "limits"].map(p => `/admin/advanced/${p}`)];
+ "/admin/users", "/admin/advanced", ...["arr", "config", "history", "limits"].map(p => `/admin/advanced/${p}`)];
 const MAIN = ["/", "/movies", "/series", "/anime", "/requests", "/activity", "/now-playing", "/calendar"];
 // Managers and admins also have Collections in Library.
 const MAIN_MANAGE = MAIN.flatMap(p => p === "/anime" ? [p, "/collections"] : [p]);
@@ -61,6 +61,8 @@ describe("active entries", () => {
     expect(tabFor("/requests/all")).toBe("requests");
     expect(tabFor("/wanted/cutoff")).toBe("more");
     expect(tabFor("/activity/history")).toBe("more");
+    expect(tabFor("/activity/journal/dl:3")).toBe("more");
+    expect(tabFor("/wanted/manual-import")).toBe("more");
     expect(tabFor("/now-playing")).toBe("more");
     expect(tabFor("/admin/system/logs")).toBe("more");
     expect(tabFor("/title/4")).toBe("home");
@@ -68,7 +70,8 @@ describe("active entries", () => {
   it("finds the deepest item; Status only on /admin itself", () => {
     expect(itemFor("/admin")?.label).toBe("Status");
     expect(itemFor("/admin/system/tasks")?.label).toBe("Tasks");
-    expect(itemFor("/admin/advanced/journal/dl:3")?.label).toBe("Decision journal");
+    expect(itemFor("/activity/journal/dl:3")?.label).toBe("Activity");
+    expect(itemFor("/wanted/manual-import")?.label).toBe("Wanted");
     expect(itemFor("/admin/advanced")?.label).toBe("Advanced");
     expect(itemFor("/movies")?.label).toBe("Movies");
     expect(itemFor("/title/3")).toBeUndefined();

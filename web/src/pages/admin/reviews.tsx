@@ -9,6 +9,7 @@ import { EmptyState } from "@/components/ui/empty-state";
 import { Card } from "@/components/ui/card";
 import { DefinitionHolds } from "@/components/settings/add-indexer";
 import { fmtTime } from "@/lib/format";
+import { journalHome, journalLink } from "@/lib/admin-links";
 import { AnimeMappings } from "./anime-mappings";
 import { SyncReviews } from "./settings/quality/sync";
 
@@ -53,12 +54,12 @@ function QualityReviews() {
 function FlaggedDecisions() {
   const q = useFlaggedDecisions();
   return <>
-    <p className="mb-3 text-[13px]"><Link className="text-[var(--accent-ink)] underline-offset-2 hover:underline" to="/admin/advanced/journal">See the full journal</Link></p>
+    <p className="mb-3 text-[13px]"><Link className="text-[var(--accent-ink)] underline-offset-2 hover:underline" to={journalHome()}>See the full journal</Link></p>
     {q.isPending ? <Loading /> : q.error ? <ErrorState error={q.error} /> : !q.data?.items?.length ? <Empty>{q.data?.next_cursor ? "None in the newest entries." : "No flagged decisions."}</Empty> : <ul className="divide-y divide-[var(--line)] rounded-[8px] border border-[var(--line)] bg-[var(--surface)]">{q.data.items.map(e => <li key={e.id} className="space-y-1 px-4 py-3">
-      <Link className="font-medium text-[var(--accent-ink)] [overflow-wrap:anywhere] hover:underline" to={`/admin/advanced/journal/${encodeURIComponent(e.id ?? "")}`}>{e.title?.name ?? e.summary ?? "Decision"}</Link>
+      <Link className="font-medium text-[var(--accent-ink)] [overflow-wrap:anywhere] hover:underline" to={journalLink(e.id ?? "")}>{e.title?.name ?? e.summary ?? "Decision"}</Link>
       <p className="flex flex-wrap items-center gap-2 text-[12.5px] text-[var(--ink-3)]">{e.version ? <VersionTag k={e.version} /> : null}<span>{fmtTime(e.at)}</span></p>
       <p className="text-[13px] text-[var(--ink-2)] [overflow-wrap:anywhere]">{e.flags?.filter(f => !f.acked).map(f => f.reason || f.code).join("; ") || e.summary}</p>
     </li>)}</ul>}
-    {q.data?.next_cursor ? <p className="mt-3 text-[13px]"><Link className="text-[var(--accent-ink)] underline-offset-2 hover:underline" to="/admin/advanced/journal?suspect=1">See all flagged decisions</Link></p> : null}
+    {q.data?.next_cursor ? <p className="mt-3 text-[13px]"><Link className="text-[var(--accent-ink)] underline-offset-2 hover:underline" to={journalHome("?suspect=1")}>See all flagged decisions</Link></p> : null}
   </>;
 }

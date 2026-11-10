@@ -74,7 +74,7 @@ on a schedule: it only sees releases from the RSS feeds of its indexers, so with
 **Fix:**
 
 - To see how it judges a release, paste a release name into **Settings › Profiles › Check a release**. Decisions it
-  has recorded are in **Admin › Advanced › Decision journal** and on the title's **Releases** page; a title added a
+  has recorded are in **Activity › Decision journal** and on the title's **Releases** page; a title added a
   moment ago may have none yet. To search the indexers for one title now, run
   `docker compose exec theatarr theatarr decide -tmdb <id> -version <library> -search` (it records nothing).
 - Give the library at least one indexer with an RSS feed (a Torznab feed, DMM, SeaDex or a catalog indexer) if you

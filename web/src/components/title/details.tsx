@@ -8,7 +8,7 @@ import { Empty, ErrorState, KV, Loading, Mono, Section, VersionTag } from "@/com
 import { Badge } from "@/components/ui/badge";
 import { Card } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { journalLink } from "@/lib/admin-links";
+import { journalHome, journalLink } from "@/lib/admin-links";
 import { fmtBytes, fmtTime } from "@/lib/format";
 import { fileInventoryRows } from "@/lib/file-inventory";
 
@@ -27,7 +27,7 @@ export function outsideLinks(d: TitleDetail) {
 /** The title's grab journal with a link to the full journal (admins). */
 export function TitleJournal({ id }: { id: number }) {
   return (
-    <Section title="Journal" aside={<Link to={`/admin/advanced/journal?title=${id}`} className="hover:text-foreground">Open in the journal ›</Link>}>
+    <Section title="Journal" aside={<Link to={journalHome(`?title=${id}`)} className="hover:text-foreground">Open in the journal ›</Link>}>
       <Journal id={id} />
     </Section>
   );

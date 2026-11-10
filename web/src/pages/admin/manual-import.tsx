@@ -3,6 +3,7 @@ import { useEffect, useRef, useState, type FormEvent } from "react";
 import { api, qs, type Schemas } from "@/api/client";
 import { usePolicy } from "@/api/hooks";
 import { PageHeader } from "@/components/page";
+import { WantedTabs } from "@/components/wanted-tabs";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -95,7 +96,8 @@ export function ManualImportPage() {
     setResult(command.message);
   });
   return <div>
-    <PageHeader crumb={[{ label: "Admin", to: "/admin" }, { label: "Advanced", to: "/admin/advanced" }]} title="Manual import" description="Review files from a download or mount folder, then link the chosen files into a library." />
+    <PageHeader title="Wanted" description="Manual import: review files from a download or mount folder, then link the chosen files into a library." />
+    <WantedTabs active="manual-import" />
     <div ref={errorRef} tabIndex={-1} role={problem ? "alert" : undefined}>{problem}</div>
     <div role="status" aria-live="polite">{busy ? "Working…" : result}</div>
     <form onSubmit={list} className="my-4 flex flex-wrap items-end gap-3">

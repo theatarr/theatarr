@@ -7,7 +7,12 @@ export function inventoryLink(hash: string): string {
 }
 
 export function journalLink(id: string): string {
-  return `/admin/advanced/journal/${encodeURIComponent(id)}`;
+  return `/activity/journal/${encodeURIComponent(id)}`;
+}
+
+/** The journal list (Activity › Decision journal), with an optional filter query such as "?suspect=1". */
+export function journalHome(query = ""): string {
+  return "/activity/journal" + query;
 }
 
 /** The link for an admin; undefined for everyone else. */

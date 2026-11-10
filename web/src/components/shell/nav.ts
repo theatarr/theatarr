@@ -1,6 +1,7 @@
 import { ADVANCED_SETTINGS_PAGES, SETTINGS_PAGES } from "@/lib/settings-map";
 // The navigation (docs/design/ui.md). Desktop: Home, Library (Movies, Series, Anime; Collections for managers), Requests, Activity, Now playing,
-// System, Settings and Advanced reveal their children only while open.
+// System, Settings and Advanced reveal their children only while open. The Decision journal is a tab of Activity and
+// Manual import a tab of Wanted (both admin only), so neither has an entry of its own.
 // Calendar, then Admin as its own group for accounts with admin pages (Users & access needs the users permission, the
 // rest admin). Phone: bottom tabs Home, Browse (Movies, Series, Anime), Search, Requests, More; More holds Activity,
 // Now playing, Calendar and the admin pages the account may open. The server enforces the permissions; this only hides what would fail.
@@ -28,7 +29,6 @@ import {
   ListChecks,
   ListTodo,
   MonitorPlay,
-  NotebookPen,
   type LucideIcon,
   ScrollText,
   Search,
@@ -73,8 +73,6 @@ export const SETTINGS: NavItem[] = SETTINGS_PAGES.filter(p => !p.system).map(p =
 
 export const ADVANCED: NavItem[] = [
   { to: "/admin/advanced/arr", label: "Sonarr/Radarr migration", icon: GitCompareArrows, need: "admin" },
-  { to: "/admin/advanced/manual-import", label: "Manual import", icon: Import, need: "admin" },
-  { to: "/admin/advanced/journal", label: "Decision journal", icon: NotebookPen, need: "admin" },
   ...["config", "history", "limits"].map(id => { const page = ADVANCED_SETTINGS_PAGES.find(p => p.id === id)!; return { to: page.route, label: page.label, icon: FileText, need: "admin" as const }; }),
 ];
 

@@ -27,6 +27,7 @@ import { Input } from "@/components/ui/input";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { fmtTime } from "@/lib/format";
 import { confirmationOf, type WriteConfirmation } from "@/lib/settings";
+import { journalHome } from "@/lib/admin-links";
 
 const message = (error: unknown) => error instanceof Error ? error.message : String(error);
 
@@ -97,7 +98,7 @@ export function SetupPage() {
       </Step>
       <Step n={5} title="Check readiness" done={progress.steps[4]}>
         <Preflight generation={progress.versions.data?.generation} report={progress.report} last={progress.last} />
-        <Link className="underline" to="/admin/advanced/journal">See example decisions</Link>
+        <Link className="underline" to={journalHome()}>See example decisions</Link>
       </Step>
       <Step n={6} title="Review activation" done={progress.steps[5]}>
         {oneStep

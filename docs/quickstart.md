@@ -315,7 +315,7 @@ A library created with **Create library and start downloading** (step 6) is alre
 downloads are on and so are the two global switches. Watch it as in item 3 below. The rest of this step is for a
 library created in shadow.
 
-For a fresh library, read its decisions first: **Advanced › Decision journal** (**See example decisions** in Setup)
+For a fresh library, read its decisions first: **Activity › Decision journal** (**See example decisions** in Setup)
 shows what it would have grabbed and why ([journal.md](journal.md)). Then run preflight and the go-live check:
 
 ```sh
@@ -357,7 +357,7 @@ Setup (`/admin/setup`) has six steps:
 4. **Connect your library:** configure the mount under **Settings › Libraries › File management** and Plex under
    **Settings › Plex & playback**, then create your first library: started at once, or in shadow
    ([above](#6-a-first-library)).
-5. **Check readiness:** run preflight and look at **See example decisions** in **Advanced › Decision journal**.
+5. **Check readiness:** run preflight and look at **See example decisions** in **Activity › Decision journal**.
 6. **Review activation:** one card per library (its key, label, root, state, indexers and providers, and **Why?**
    listing every closed gate), then the three global switches. This review is read-only; each item links to its
    editor.

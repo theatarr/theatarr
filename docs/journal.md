@@ -7,7 +7,7 @@ answers that without reading the code or the raw database. Code: `internal/journ
 
 | How | Use |
 |---|---|
-| **Admin › Advanced › Decision journal** (`/admin/advanced/journal`) | The list in the UI, newest first. An entry opens from its title link. |
+| **Activity › Decision journal** (`/activity/journal`, admins) | The list in the UI, newest first. An entry opens from its title link. |
 | `GET /api/theatarr/v1/journal` | List entries, newest first. Header `X-Api-Key: <key>`. |
 | `GET /api/theatarr/v1/journal/{id}` | Get one entry. |
 | `theatarr journal [flags]` | The same list on a database file. Output is JSONL (one entry per line, then `{"next_cursor": ...}` when there are more). `-format text` gives a few lines per entry. `-id ID` prints one entry. `-all` follows the cursor to the end. |

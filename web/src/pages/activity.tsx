@@ -3,12 +3,13 @@
 // Downloading, Waiting or All (?show=, lib/activity.ts); History, what
 // happened to downloads (the grab journal in plain words), filtered by title, copy, event and since date in the URL
 // (lib/activity-history.ts); Blocklist, the releases a version never routes again
-// (admins). Users see titles, versions and plain words; admins also see release names, providers, attempts and cache
+// (admins); Decision journal, every grab decision with its verdicts (accounts with the admin permission only, an
+// entry at /activity/journal/:id; pages/admin/journal.tsx). Users see titles, versions and plain words; admins also see release names, providers, attempts and cache
 // evidence. Live: the download events refresh it (api/events.tsx). Row layout after Scryer's activity queue
 // (github.com/scryer-media/scryer apps/scryer-web/components/views/activity/queue-row-presentation.tsx @ 2ef7757c,
 // GPL-3.0: the status pill, title and release lines, and the details panel's small uppercase labels).
 import { ChevronDown, ChevronUp, CircleSlash, Eye, History as HistoryIcon, Inbox, NotebookPen } from "lucide-react";
-import { useEffect, useState } from "react";
+import { lazy, Suspense, useEffect, useState } from "react";
 import { Link, Navigate, useParams, useSearchParams } from "react-router";
 import {
   useActivityAttempts,
@@ -30,9 +31,12 @@ import { filterDownloads, needsAttention, parseShow, showCounts, SHOWS, stageLab
 import { resolutionWords } from "@/lib/upgrade";
 import { cn } from "@/lib/utils";
 import { HistoryFilters, useHistoryFilters } from "@/components/activity/history-filters";
-import { adminLink, journalLink } from "@/lib/admin-links";
+import { adminLink, journalHome, journalLink } from "@/lib/admin-links";
 import { FAILED_WORDS } from "@/lib/request-timeline";
 import { historyFilterCount, historyParams } from "@/lib/activity-history";
+
+// Loaded on first use: only admins open the journal.
+const JournalList = lazy(() => import("./admin/journal").then((m) => ({ default: m.JournalList })));
 
 function Poster({ src, className }: { src: string; className?: string }) {
   return (
@@ -490,6 +494,8 @@ export function ActivityPageView() {
   const asUser = isAdmin && sp.get("as") === "user";
   const admin = isAdmin && !asUser;
   const suffix = asUser ? "?as=user" : "";
+  // The Decision journal needs the admin permission (its API does), not just "see files" as Blocklist does.
+  const journal = perms.admin && !asUser;
   const show = parseShow(sp.get("show"));
   const setShow = (v: ActivityShow) => {
     const next = new URLSearchParams(sp);
@@ -501,10 +507,11 @@ export function ActivityPageView() {
     { id: "queue", label: "Queue", to: `/activity${suffix}` },
     { id: "history", label: "History", to: `/activity/history${suffix}` },
     ...(isAdmin && !asUser ? [{ id: "blocklist", label: "Blocklist", to: "/activity/blocklist" }] : []),
+    ...(journal ? [{ id: "journal", label: "Decision journal", to: journalHome() }] : []),
   ];
   // The user view has Queue and History only.
-  if (tab === "blocklist" && asUser) return <Navigate to={`/activity${suffix}`} replace />;
-  if (!["queue", "history", "blocklist"].includes(tab) || (tab === "blocklist" && !isAdmin)) {
+  if ((tab === "blocklist" || (tab === "journal" && perms.admin)) && asUser) return <Navigate to={`/activity${suffix}`} replace />;
+  if (!["queue", "history", "blocklist", "journal"].includes(tab) || (tab === "blocklist" && !isAdmin) || (tab === "journal" && !journal)) {
     return (
       <div data-testid="activity-unknown-tab">
         <PageHeader title="Activity" description={`There is no Activity tab “${tab}”.`} />
@@ -547,7 +554,7 @@ export function ActivityPageView() {
         }
       />
       <RouteTabs tabs={tabs} active={tab} />
-      {tab === "history" ? <HistoryTab admin={admin} as={asUser ? "user" : undefined} /> : tab === "blocklist" && admin ? <BlockedTab /> : (
+      {tab === "journal" ? <Suspense fallback={<Loading />}><JournalList /></Suspense> : tab === "history" ? <HistoryTab admin={admin} as={asUser ? "user" : undefined} /> : tab === "blocklist" && admin ? <BlockedTab /> : (
         <NowTab admin={admin} as={asUser ? "user" : undefined} show={show} onShow={setShow} />
       )}
     </div>

@@ -22,7 +22,7 @@ it("shows read-only waits and handoffs, filters and pages on the server", async 
   expect(screen.getByText("Next in line (#1)")).toBeTruthy();
   expect(screen.getByText(/3 results, none accepted/)).toBeTruthy();
   expect(screen.getByRole("link", { name: "Releases" }).getAttribute("href")).toBe("/title/1/releases?version=movie-web");
-  expect(screen.getByRole("link", { name: "Decision" }).getAttribute("href")).toBe("/admin/advanced/journal/9");
+  expect(screen.getByRole("link", { name: "Decision" }).getAttribute("href")).toBe("/activity/journal/9");
   expect(screen.queryByRole("button", { name: /Downloading/ })).toBeNull();
   await user.click(screen.getByRole("button", { name: "Next" }));
   await waitFor(() => expect(new URLSearchParams(fetch.calls("GET", "/wanted").at(-1)?.search).get("offset")).toBe("50"));

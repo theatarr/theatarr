@@ -43,6 +43,13 @@ it("indexes every page name documented in the arr map", () => {
  }
 });
 
+it("sends Prowlarr's History to the Decision journal under Activity and finds Manual import under Wanted", () => {
+ const index = settingsIndex();
+ expect(findSettings(index, "History").some(r => r.href === "/activity/journal" && r.label === "Activity › Decision journal")).toBe(true);
+ expect(findSettings(index, "manual import").some(r => r.href === "/wanted/manual-import" && r.label === "Wanted › Manual import")).toBe(true);
+ expect([...findSettings(index, "History"), ...findSettings(index, "manual import")].some(r => /advanced\/(journal|manual-import)/.test(r.href))).toBe(false);
+});
+
 it("keeps titled aliases distinct", () => {
  const index = settingsIndex();
  for (const name of ["Tags", "Statistics", "UI", "Updates", "Development"]) expect(findSettings(index, name).some(r => r.label === `${name} — no separate page`), name).toBe(true);

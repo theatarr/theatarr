@@ -1,7 +1,9 @@
 import { Link, useLocation, useSearchParams } from "react-router";
 import { useStatus } from "@/api/hooks";
 import { useWanted, type WantedRow } from "@/api/wanted";
-import { Empty, ErrorState, Loading, PageHeader, RouteTabs, VersionTag } from "@/components/page";
+import { Empty, ErrorState, Loading, PageHeader, VersionTag } from "@/components/page";
+import { WantedTabs } from "@/components/wanted-tabs";
+import { journalLink } from "@/lib/admin-links";
 import { Card } from "@/components/ui/card";
 import { Select } from "@/components/ui/select";
 import { Button } from "@/components/ui/button";
@@ -85,7 +87,7 @@ export function WantedPage() {
   const tabQuery = version ? `?version=${encodeURIComponent(version)}` : "";
   return <div>
     <PageHeader title="Wanted" description="What automatic searches are waiting for. Viewing this page never starts a search." />
-    <RouteTabs active={only} tabs={[{ id: "missing", label: "Missing", to: `/wanted${tabQuery}` }, { id: "cutoff", label: "Cutoff unmet", to: `/wanted/cutoff${tabQuery}` }]} />
+    <WantedTabs active={only} query={tabQuery} />
     {q.isLoading ? <Loading /> : q.error ? <ErrorState error={q.error} /> : d ? <div className="space-y-4">
       <p className="text-sm text-muted-foreground">Searches every {fmtGoDuration(d.interval)}, up to {d.per_hour} an hour, again after {fmtGoDuration(d.again_after)}. {d.searched_last_hour} searches in the last hour. {d.add_time_pending > 0 ? `${d.add_time_pending} searches for newly added titles go first.` : ""}</p>
       {!d.enabled || (only === "missing" ? !d.missing : d.cutoff_unmet === "off") ? <p role="status" className="rounded-[5px] border border-[var(--line)] bg-[var(--sunken)] px-3 py-2 text-[13px] text-[var(--ink-2)]">{!d.enabled ? "Automatic searches are off." : only === "cutoff" ? "Cutoff-unmet searches are off." : "Missing searches are off."} <Link className="text-primary hover:underline" to={settingHref("router", "wanted.enabled") ?? "/admin/settings/downloads"}>Automatic search settings</Link></p> : null}
@@ -109,7 +111,7 @@ export function WantedPage() {
           <div>{targetWords(row.targets)}</div>
           <div><Waiting row={row} enabled={d.enabled} missing={d.missing} state={states.get(row.version)} off={off} /></div>
           <div>{row.last_run ? <span title={fmtTime(row.last_run.at)}>{fmtAgo(row.last_run.at)} · </span> : null}{searchResult(row.last_run)}</div>
-          <div className="flex flex-wrap gap-2"><Link className="text-primary hover:underline" to={`/title/${row.title_id}/releases?version=${encodeURIComponent(row.version)}`}>Releases</Link>{row.decision_id ? <Link className="text-primary hover:underline" to={`/admin/advanced/journal/${row.decision_id}`}>Decision</Link> : null}</div>
+          <div className="flex flex-wrap gap-2"><Link className="text-primary hover:underline" to={`/title/${row.title_id}/releases?version=${encodeURIComponent(row.version)}`}>Releases</Link>{row.decision_id ? <Link className="text-primary hover:underline" to={journalLink(String(row.decision_id))}>Decision</Link> : null}</div>
         </li>)}</ul>
       </Card>}
       <div className="flex items-center justify-between gap-3"><Button variant="outline" disabled={offset === 0 || q.isPlaceholderData} onClick={() => change("offset", String(Math.max(0, offset - 50)))}>Previous</Button><span className="text-sm text-muted-foreground">{d.total ? `${offset + 1}–${Math.min(offset + 50, d.total)} of ${d.total}` : "0 items"}</span><Button variant="outline" disabled={offset + 50 >= d.total || q.isPlaceholderData} onClick={() => change("offset", String(offset + 50))}>Next</Button></div>

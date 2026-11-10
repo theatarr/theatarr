@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { screen, waitFor } from "@testing-library/react";
+import { cleanup, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { Route, Routes } from "react-router";
 import { describe, expect, it } from "vitest";
@@ -32,6 +32,34 @@ describe("Activity tabs", () => {
   it("does not show Blocklist to a user", async () => {
     show("/activity/blocklist");
     expect(await screen.findByTestId("activity-unknown-tab")).toBeTruthy();
+  });
+
+  it("shows the Decision journal tab and its list to an admin", async () => {
+    const fetch = mockFetch([
+      { method: "GET", path: "/auth/me", reply: { ...user, permissions: ["see_files", "manage", "admin"] } },
+      { method: "GET", path: "/journal", reply: { items: [{ id: "dl:4", kind: "grab", at: "2026-11-07T10:00:00Z", title: { id: 3, name: "Ferrous Bay" }, summary: "Grabbed" }] } },
+    ]);
+    renderPage(<Routes><Route path="/activity/:tab" element={<ActivityPageView />} /></Routes>, "/activity/journal?title=3");
+    expect((await screen.findByRole("tab", { name: "Decision journal" })).getAttribute("aria-selected")).toBe("true");
+    expect((await screen.findByRole("link", { name: "Ferrous Bay" })).getAttribute("href")).toBe("/activity/journal/dl%3A4");
+    expect(fetch.calls("GET", "/journal")[0].search).toContain("title=3");
+    expect(fetch.requests.some((r) => r.path === "/activity")).toBe(false);
+  });
+
+  it("does not show the Decision journal to a user or to a manager who sees files", async () => {
+    for (const permissions of [["browse", "request"], ["browse", "see_files", "manage"]]) {
+      const fetch = show("/activity/journal", { ...user, permissions });
+      expect((await screen.findByTestId("activity-unknown-tab")).textContent).toContain("There is no Activity tab “journal”");
+      expect(screen.queryByRole("tab", { name: "Decision journal" })).toBeNull();
+      expect(fetch.requests.some((r) => r.path === "/journal")).toBe(false);
+      cleanup();
+    }
+  });
+
+  it("sends an admin viewing as a user from the Decision journal back to Queue", async () => {
+    const fetch = show("/activity/journal?as=user", { ...user, permissions: ["see_files", "manage", "admin"] });
+    expect(await screen.findByTestId("now-route")).toBeTruthy();
+    expect(fetch.requests.some((r) => r.path === "/journal")).toBe(false);
   });
 
   it("sends an admin viewing as a user from Blocklist back to Queue", async () => {

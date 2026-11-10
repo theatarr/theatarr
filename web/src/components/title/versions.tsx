@@ -15,6 +15,7 @@ import { DownloadsOffNotice, VersionStatus } from "@/components/version-status";
 import { globalDownloadsOff } from "@/lib/version-grab";
 import { KV, Mono } from "@/components/page";
 import { InfoHash } from "@/components/title/info-hash";
+import { journalLink } from "@/lib/admin-links";
 import { JournalList } from "@/components/title/journal-list";
 import { CopyActions } from "@/components/title/copy-actions";
 import { ControlNote, MonitorSwitch } from "@/components/title/manage-bits";
@@ -95,7 +96,7 @@ export function History({ events, titleId, version }: { events: HistoryEvent[]; 
               {h.event === "searched" && h.latest && target ? (
                 <Link className="mr-3 text-xs text-primary hover:underline" to={releasesHref(target.titleId, target.version, h.info_hash)}>See this search's results</Link>
               ) : null}
-              {admin && h.decision_id ? <Link className="text-[11.5px] text-[var(--ink-3)] hover:text-foreground hover:underline" to={`/admin/advanced/journal/${h.decision_id}`}>Journal entry</Link> : null}
+              {admin && h.decision_id ? <Link className="text-[11.5px] text-[var(--ink-3)] hover:text-foreground hover:underline" to={journalLink(String(h.decision_id))}>Journal entry</Link> : null}
             </li>
           );
         })}

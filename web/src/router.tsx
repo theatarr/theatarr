@@ -44,7 +44,6 @@ const ImportsPage = lazyPage(() => import("./pages/admin/advanced").then((m) => 
 const BackupPage = lazyPage(() => import("./pages/admin/backup").then((m) => m.BackupPage));
 const Shadow = lazyPage(() => import("./pages/admin/shadow").then((m) => m.Shadow));
 const ShadowDiffPage = lazyPage(() => import("./pages/admin/shadow").then((m) => m.ShadowDiffPage));
-const Journal = lazyPage(() => import("./pages/admin/journal").then((m) => m.Journal));
 const JournalEntryPage = lazyPage(() => import("./pages/admin/journal").then((m) => m.JournalEntryPage));
 const ReviewsPage = lazyPage(() => import("./pages/admin/reviews").then((m) => m.ReviewsPage));
 const MetadataFranchise = lazyPage(() => import("./pages/admin/anime-mappings").then((m) => m.MetadataFranchise));
@@ -166,6 +165,8 @@ export const router = createBrowserRouter([
         children: [
           { path: "/wanted", element: <WantedPage /> },
           { path: "/wanted/cutoff", element: <WantedPage /> },
+          { path: "/wanted/manual-import", element: <ManualImport /> },
+          { path: "/activity/journal/:id", element: <JournalEntryPage /> },
           { path: "/admin/setup", element: <SetupPage /> },
           { path: "/admin/advanced/arr/migrate", element: <MigratePage /> },
           { path: "/admin/system/tasks", element: <JobsPage /> },
@@ -183,11 +184,8 @@ export const router = createBrowserRouter([
           { path: "/admin/advanced/arr/comparison/:id", element: <ShadowDiffPage /> },
           { path: "/admin/torrents/inventory", element: <Registry /> },
           { path: "/admin/torrents/inventory/:hash", element: <RegistryContent /> },
-          { path: "/admin/advanced/journal", element: <Journal /> },
-          { path: "/admin/advanced/journal/:id", element: <JournalEntryPage /> },
           { path: "/admin/system/logs", element: <Logs /> },
           { path: "/admin/advanced/arr/imports", element: <ImportsPage /> },
-          { path: "/admin/advanced/manual-import", element: <ManualImport /> },
           { path: "/admin/system/backup", element: <BackupPage /> },
         ],
       },

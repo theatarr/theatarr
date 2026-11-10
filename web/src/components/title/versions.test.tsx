@@ -37,7 +37,7 @@ it("hands missing and cutoff copies to Wanted for admins", async () => {
 it("keeps the journal link for admins, quieter, as Journal entry", async () => {
   mockFetch([{ method: "GET", path: "/auth/me", reply: { permissions: ["admin", "manage", "browse", "see_files"] } }]);
   renderPage(<History events={[{ event: "searched", date: "2026-11-02T00:00:00Z", run_id: 1, decision_id: 7 }]} titleId={7} version="movie-web" />);
-  expect((await screen.findByRole("link", { name: "Journal entry" })).getAttribute("href")).toBe("/admin/advanced/journal/7");
+  expect((await screen.findByRole("link", { name: "Journal entry" })).getAttribute("href")).toBe("/activity/journal/7");
   expect(screen.queryByRole("link", { name: "Why this decision" })).toBeNull();
 });
 

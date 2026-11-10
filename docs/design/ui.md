@@ -194,15 +194,15 @@ The remaining pages use the same tokens and primitives:
 | Library › Movies / Series / Anime | `/movies`, `/series`, `/anime` |
 | Library › Collections (managers, admins) | `/collections` |
 | Requests | `/requests` |
-| Activity › Queue / History / Blocklist | `/activity`, `/activity/history`, `/activity/blocklist` |
-| Wanted › Missing / Cutoff unmet (admin) | `/wanted`, `/wanted/cutoff` |
+| Activity › Queue / History / Blocklist / Decision journal (admin) | `/activity`, `/activity/history`, `/activity/blocklist`, `/activity/journal` (entry `/:id`) |
+| Wanted › Missing / Cutoff unmet / Manual import (admin) | `/wanted`, `/wanted/cutoff`, `/wanted/manual-import` |
 | Now playing / Calendar | `/now-playing`, `/calendar` |
 | Admin › Setup (while unfinished) | `/admin/setup` |
 | Admin › System › Status / Tasks / Backup / Errors / Logs | `/admin`, `/admin/system/tasks`, `/admin/system/backup`, `/admin/system/errors`, `/admin/system/logs` |
 | Admin › Reviews / Torrents | `/admin/reviews`, `/admin/torrents` |
 | Admin › Settings | `/admin/settings` (destinations below) |
 | Admin › Users & access | `/admin/users` |
-| Admin › Advanced | `/admin/advanced` (migration, manual import, journal, raw configuration, history and limits) |
+| Admin › Advanced | `/admin/advanced` (migration, raw configuration, history and limits) |
 
 Phone tabs are Home, Browse, Search, Requests and More. More shows System, Settings, Users & access and Advanced
 as headings with vertical lists, plus Setup (when needed), Reviews and Torrents. Counts retain the desktop badge
@@ -426,12 +426,18 @@ list projection of media facts).
 | Torrents | `/admin/torrents` | Provider torrents: usage, filters, sorting, confirmed deletes and journal. An account that cannot be read gets one line: the provider's name, why in plain words (the provider asked to slow down, paused after failed requests, request limit used up, VPN not confirmed) and the next try in local time, with the raw error under Details. Saved inventory (`/inventory`, detail `/:hash`) shows known hashes and provider holdings. Backups live in System › Backup. |
 | Settings | `/admin/settings` | Search and task pages below. |
 | Users & access | `/admin/users` | Users, roles, permissions, sessions and API/view keys. |
-| Advanced | `/admin/advanced` | Exactly Sonarr/Radarr migration, Manual import, Decision journal, YAML settings, Settings history and Request limits. |
+| Advanced | `/admin/advanced` | Exactly Sonarr/Radarr migration, YAML settings, Settings history and Request limits. |
 | Sonarr/Radarr migration | `/admin/advanced/arr` | Instances; Migrate (`/migrate`), Comparison (`/comparison`, detail `/:id`) and Import runs (`/imports`). Comparison detail shows candidate formats, scores, rejection reasons and arr/search/RSS decisions in React. |
-| Manual import | `/admin/advanced/manual-import` | Existing file linking workflow. |
-| Decision journal | `/admin/advanced/journal[/:id]` | Decisions, evidence and Ok/Wrong verdicts. |
 
-Older Jobs, Errors, Logs, Database, Metadata review, inventory and migration URLs redirect to the current
+Two admin-only screens live outside `/admin`, beside the pages they belong with:
+
+| Screen | Path | Holds |
+|---|---|---|
+| Wanted › Manual import | `/wanted/manual-import` | Existing file linking workflow, as the third tab of Wanted. |
+| Activity › Decision journal | `/activity/journal[/:id]` | Decisions, evidence and Ok/Wrong verdicts. The list is a tab of Activity shown to accounts with the admin permission (not in "View as a user"); other accounts get the unknown-tab notice. |
+
+Older Jobs, Errors, Logs, Database, Metadata review, inventory, migration, journal (`/admin/journal[/:id]`,
+`/admin/advanced/journal[/:id]`) and manual import (`/admin/advanced/manual-import`) URLs redirect in one hop to the current
 pages, preserving query and hash, including detail parameters. The General #torrent-backups bookmark goes to System Backup with its query; server registry, shadow and anime detail redirects go directly to the current inventory, comparison and Reviews routes. `/admin/system` and `/admin/system/health`
 redirect only on exact matches; they do not shadow the System pages. `/classic/` routes return 404. Inventory and journal detail links
 remain admin-only; managers keep copyable hashes and unlinked summaries.
@@ -769,7 +775,7 @@ go to inspect. See [migration.md](../migration.md#in-the-ui) for resume, rollbac
 
 ### Manual import
 
-Admin › Advanced › Manual import (`/admin/advanced/manual-import`) lists files for a download hash or mount folder
+Wanted › Manual import (`/wanted/manual-import`, admins) lists files for a download hash or mount folder
 in a chosen version, shows decisions and rejections, and edits each file's title, episodes, quality/revision,
 languages and release group. Review choices refreshes the decisions before Import selected files; errors receive
 focus and results use a live region. The admin/CSRF-protected native `/manualimport`, `/manualimport/options` and

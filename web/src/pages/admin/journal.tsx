@@ -1,4 +1,4 @@
-// Admin › Advanced › Decision journal: the grab journal (GET /journal, /journal/{id}) with ok/wrong verdicts (POST /journal/{id}/verdict).
+// Activity › Decision journal (admins; the list is a tab of Activity, pages/activity.tsx): the grab journal (GET /journal, /journal/{id}) with ok/wrong verdicts (POST /journal/{id}/verdict).
 import { useState } from "react";
 import { Link, useParams, useSearchParams } from "react-router";
 import { useJournal, useJournalEntry, useJournalVerdict, useStatus, type JournalEntry } from "@/api/hooks";
@@ -10,6 +10,7 @@ import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { fmtBytes, fmtTime } from "@/lib/format";
+import { journalHome, journalLink } from "@/lib/admin-links";
 
 const KINDS = ["grab", "upgrade", "shadow", "plan", "search", "research", "failure", "stall", "blocklist", "import", "link", "verdict"];
 
@@ -45,7 +46,7 @@ function TitleCell({ e }: { e: JournalEntry }) {
     <span className="flex items-center gap-3">
       <TitleThumb id={e.title?.id} />
       <span>
-        <Link className="font-medium hover:text-primary" to={`/admin/advanced/journal/${encodeURIComponent(e.id ?? "")}`}>{e.title?.name ?? "—"}</Link>
+        <Link className="font-medium hover:text-primary" to={journalLink(e.id ?? "")}>{e.title?.name ?? "—"}</Link>
         {e.title?.year ? <span className="text-muted-foreground"> ({e.title.year})</span> : null}
         <div className="max-w-[30rem] text-xs text-muted-foreground [overflow-wrap:anywhere]">{e.summary}</div>
         {/* Phones and tablets: the columns that hide (when, kind, library, flags) stay inline under the title. */}
@@ -60,7 +61,8 @@ function TitleCell({ e }: { e: JournalEntry }) {
   );
 }
 
-export function Journal() {
+/** The journal list: the body of Activity › Decision journal, under Activity's header and tabs. */
+export function JournalList() {
   const [params, setParams] = useSearchParams();
   const suspect = params.get("suspect") === "1";
   const kind = params.get("kind") ?? "";
@@ -79,7 +81,7 @@ export function Journal() {
   const items = q.data?.items ?? [];
   return (
     <div>
-      <PageHeader crumb={[{ label: "Admin", to: "/admin" }, { label: "Advanced", to: "/admin/advanced" }]} title="Decision journal" description="Every grab decision and what followed it, newest first. Judge suspect entries ok or wrong." />
+      <p className="mb-4 text-sm text-muted-foreground">Every grab decision and what followed it, newest first. Judge suspect entries ok or wrong.</p>
       <div className="mb-4 flex flex-wrap items-center gap-3">
         <div className="flex gap-1">
           <Button size="xs" variant={suspect ? "ghost" : "secondary"} onClick={() => set("suspect")}>All</Button>
@@ -143,7 +145,7 @@ export function JournalEntryPage() {
   const status = useStatus();
   const verdict = useJournalVerdict();
   const [reason, setReason] = useState("");
-  const crumb = [{ label: "Admin", to: "/admin" }, { label: "Advanced", to: "/admin/advanced" }, { label: "Decision journal", to: "/admin/advanced/journal" }];
+  const crumb = [{ label: "Activity", to: "/activity" }, { label: "Decision journal", to: journalHome() }];
   if (q.isPending) return <Loading />;
   if (q.error) return (<div><PageHeader crumb={crumb} title={id} /><ErrorState error={q.error} /></div>);
   const e = q.data;
@@ -178,7 +180,7 @@ export function JournalEntryPage() {
             <Button size="sm" variant="destructive" disabled={verdict.isPending} onClick={() => judge("wrong")} data-testid="verdict-wrong">Wrong</Button>
           </div>
           <p className="mt-2 text-xs text-muted-foreground">{e.id?.startsWith("run:") ? "Records your verdict only. To block the release, use its download in Activity." : "Both acknowledge the flags. Wrong on an active library with the router on also blocklists the release and queues a re-search."}</p>
-          {e.id?.startsWith("run:") ? (e.related ?? []).filter(id => id.startsWith("dl:")).map(id => <Link key={id} className="text-sm text-primary hover:underline" to={`/admin/advanced/journal/${id}`}>View download</Link>) : null}
+          {e.id?.startsWith("run:") ? (e.related ?? []).filter(id => id.startsWith("dl:")).map(id => <Link key={id} className="text-sm text-primary hover:underline" to={journalLink(id)}>View download</Link>) : null}
           {verdict.error ? <div className="mt-2"><ErrorState error={verdict.error} /></div> : null}
         </Card>
       </Section>
@@ -239,7 +241,7 @@ export function JournalEntryPage() {
                 <li key={i} className="flex flex-wrap items-baseline gap-2 px-4 py-2">
                   <span className="whitespace-nowrap text-[13px] text-muted-foreground">{fmtTime(a.at)}</span>
                   <Badge tone="outline">{a.kind}</Badge>
-                  {a.ref ? <Link className="hover:text-primary" to={`/admin/advanced/journal/${encodeURIComponent(a.ref)}`}>{a.text}</Link> : <span>{a.text}</span>}
+                  {a.ref ? <Link className="hover:text-primary" to={journalLink(a.ref)}>{a.text}</Link> : <span>{a.text}</span>}
                 </li>
               ))}
             </ul>

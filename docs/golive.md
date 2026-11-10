@@ -23,7 +23,7 @@ Below, `movie-remux` is F and `movie-remux-theatarr` is K. Use your own keys.
 ## Before the trial
 
 1. **Read the shadow evidence.** Let F decide in shadow for a while and compare its decisions with the arr's grabs
-   in **Advanced › Sonarr/Radarr migration › Comparison** and **Advanced › Decision journal**. Explain each
+   in **Advanced › Sonarr/Radarr migration › Comparison** and **Activity › Decision journal**. Explain each
    difference before you go on. The go-live check's default bar is 95% agreement over 14 days, with at least 20
    arr grabs.
 2. **Create K.** In **Settings › Libraries**, add a library that follows F, with a root of its own (for example
@@ -149,7 +149,7 @@ that is not K adding content twice.
 
 ## What to watch
 
-**First hour:** the container logs, **Activity › Queue**, **System › Status**, **System › Errors** and **Advanced ›
+**First hour:** the container logs, **Activity › Queue**, **System › Status**, **System › Errors** and **Activity ›
 Decision journal**. Follow each download from add to poll, import, link and Plex; watch provider refusals and their
 reasons, mount and VPN health, and playback.
 

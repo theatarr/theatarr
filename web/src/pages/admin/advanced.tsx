@@ -21,14 +21,12 @@ const CRUMB = [{ label: "Admin", to: "/admin" }, { label: "Advanced", to: "/admi
 
 const ABOUT: Record<string, string> = {
   ...Object.fromEntries(ADVANCED_SETTINGS_PAGES.map(p => [p.route, p.description])),
-  "/admin/advanced/manual-import": "Review mount files and link selected titles and episodes into a library.",
-  "/admin/advanced/journal": "Every grab decision and what followed it; judge flagged entries.",
 };
 
 export function AdvancedPage() {
   return (
     <div>
-      <PageHeader crumb={[{ label: "Admin", to: "/admin" }]} title="Advanced" description="Diagnostics and records for when something needs a closer look." />
+      <PageHeader crumb={[{ label: "Admin", to: "/admin" }]} title="Advanced" description="YAML settings, request limits, settings history and the Sonarr/Radarr migration." />
       <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
         {ADVANCED.map((it) => (
           <Link key={it.to} to={it.to!} className="group" data-testid={`advanced-${it.to!.split("/").pop()}`}>

@@ -1,5 +1,5 @@
 // Old admin URLs and where they live since the Admin regrouping (docs/design/ui.md): bookmarks and links from other
-// screens keep working. The query string and hash are kept; path parameters carry over by name, exactly as they
+// screens keep working. The Decision journal and Manual import left Admin › Advanced for Activity and Wanted. The query string and hash are kept; path parameters carry over by name, exactly as they
 // appear in the old address (already URL-encoded there, so not encoded again).
 import { matchPath } from "react-router";
 
@@ -50,8 +50,11 @@ export const LEGACY_ROUTES: [from: string, to: string][] = [
   ["/admin/shadow/:id", "/admin/advanced/arr/comparison/:id"],
   ["/admin/registry", "/admin/torrents/inventory"],
   ["/admin/registry/:hash", "/admin/torrents/inventory/:hash"],
-  ["/admin/journal", "/admin/advanced/journal"],
-  ["/admin/journal/:id", "/admin/advanced/journal/:id"],
+  ["/admin/journal", "/activity/journal"],
+  ["/admin/journal/:id", "/activity/journal/:id"],
+  ["/admin/advanced/journal", "/activity/journal"],
+  ["/admin/advanced/journal/:id", "/activity/journal/:id"],
+  ["/admin/advanced/manual-import", "/wanted/manual-import"],
   ["/admin/logs", "/admin/system/logs"],
 ];
 

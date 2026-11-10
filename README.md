@@ -159,7 +159,7 @@ the install migrates from an arr). It records what it would have grabbed from th
 `theatarr decide`. Add titles from **Search**, or let requests come in.
 See [docs/quickstart.md](docs/quickstart.md#6-a-first-library).
 
-**Reading its decisions.** **Admin › Advanced › Decision journal** lists every decision; an entry opens from its
+**Reading its decisions.** **Activity › Decision journal** lists every decision; an entry opens from its
 title link and shows the chosen release, runners-up, rejections and suspect flags. **Admin › Reviews** collects what waits for you: quality updates, anime
 mappings, indexer definitions and flagged decisions. See [docs/journal.md](docs/journal.md).
 

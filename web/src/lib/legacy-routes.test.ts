@@ -19,20 +19,26 @@ describe("old admin URLs", () => {
       ["/admin/shadow/12", "/admin/advanced/arr/comparison/12"],
       ["/admin/registry", "/admin/torrents/inventory"],
       ["/admin/registry/abcdef", "/admin/torrents/inventory/abcdef"],
-      ["/admin/journal", "/admin/advanced/journal"],
-      ["/admin/journal/dl:7", "/admin/advanced/journal/dl:7"],
-      ["/admin/journal/dl%3A3", "/admin/advanced/journal/dl%3A3"],
-      ["/admin/journal/a%2Fb", "/admin/advanced/journal/a%2Fb"],
+      ["/admin/journal", "/activity/journal"],
+      ["/admin/journal/dl:7", "/activity/journal/dl:7"],
+      ["/admin/journal/dl%3A3", "/activity/journal/dl%3A3"],
+      ["/admin/journal/a%2Fb", "/activity/journal/a%2Fb"],
+      ["/admin/advanced/journal", "/activity/journal"],
+      ["/admin/advanced/journal/dl:7", "/activity/journal/dl:7"],
+      ["/admin/advanced/journal/dl%3A3", "/activity/journal/dl%3A3"],
+      ["/admin/advanced/journal/a%2Fb", "/activity/journal/a%2Fb"],
+      ["/admin/advanced/manual-import", "/wanted/manual-import"],
       ["/admin/registry/a%2Fb%3Ac", "/admin/torrents/inventory/a%2Fb%3Ac"],
       ["/admin/shadow/a%2Fb/", "/admin/advanced/arr/comparison/a%2Fb"],
       ["/admin/logs", "/admin/system/logs"],
     ];
     for (const [from, to] of cases) expect(legacyTarget(from)).toBe(to);
-    expect(legacyTarget("/admin/journal", "?title=4", "#x")).toBe("/admin/advanced/journal?title=4#x");
+    expect(legacyTarget("/admin/journal", "?title=4", "#x")).toBe("/activity/journal?title=4#x");
+    expect(legacyTarget("/admin/advanced/journal", "?suspect=1", "#x")).toBe("/activity/journal?suspect=1#x");
     expect(legacyTarget("/admin/shadow", "?bucket=agree")).toBe("/admin/advanced/arr/comparison?bucket=agree");
   });
   it("leaves current URLs alone", () => {
-    for (const p of ["/admin", "/admin/system/tasks", "/admin/users", "/admin/reviews/anime/x", "/admin/advanced/journal", "/movies"]) {
+    for (const p of ["/admin", "/admin/system/tasks", "/admin/users", "/admin/reviews/anime/x", "/activity/journal", "/activity/journal/dl:7", "/wanted/manual-import", "/movies"]) {
       expect(legacyTarget(p)).toBeNull();
     }
   });

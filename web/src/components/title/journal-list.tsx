@@ -1,5 +1,5 @@
 // A short list of grab journal entries (see files only), for a version card or an episode: when, kind, summary. For
-// admins each links to the entry in Admin › Advanced › Decision journal; managers see the summary as plain text,
+// admins each links to the entry in Activity › Decision journal; managers see the summary as plain text,
 // since the journal is an admin page they cannot open.
 import { Link } from "react-router";
 import { usePerms, type JournalPage } from "@/api/library";
