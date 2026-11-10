@@ -114,9 +114,9 @@ type LibraryDecypharr struct {
 	Interval Duration `yaml:"interval"`
 	// Budget names a budget for requests to decypharr. Optional.
 	Budget string `yaml:"budget"`
-	// Direct reads files from decypharr over the network, without a mount folder in Theatarr. The library link
-	// destination must then be where the media server sees decypharr's files. Each read can make decypharr
-	// replace a Real-Debrid torrent. Default false.
+	// Direct reads files from decypharr over the network, with no mount folder in Theatarr. Set the library link
+	// destination to where the media server sees decypharr's files. A read can make decypharr replace a
+	// Real-Debrid torrent. Default false.
 	Direct bool `yaml:"direct"`
 }
 

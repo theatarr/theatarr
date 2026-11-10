@@ -78,7 +78,7 @@
   "LibraryDecypharr": {
     "api_token_env": "This names the environment variable holding decypharr's API token. Needed when decypharr asks for a login.",
     "budget": "This names a budget for requests to decypharr. Optional.",
-    "direct": "This reads files from decypharr over the network, without a mount folder in Theatarr. The library link destination must then be where the media server sees decypharr's files. Each read can make decypharr replace a Real-Debrid torrent.",
+    "direct": "This reads files from decypharr over the network, with no mount folder in Theatarr. Set the library link destination to where the media server sees decypharr's files. A read can make decypharr replace a Real-Debrid torrent. Default false.",
     "interval": "This is the longest decypharr's list of torrents is reused before it is read again. Default 1m, 10s to 1h.",
     "password_env": "This names the environment variable holding the WebDAV password.",
     "url": "This is decypharr's address, e.g. http://decypharr:8282, with its base path when decypharr has one.",
