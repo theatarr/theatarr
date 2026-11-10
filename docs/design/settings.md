@@ -988,7 +988,10 @@ Contrast, editors and the indexer pages. Profiles and presets are in the next se
   cards, under a fallback line such as "1 RD › 2 AD › 3 TB". Definition updates held for review
   ([cardigann](cardigann.md#the-definition-catalog-sync-source)) are listed above the table with Approve, which asks first.
 - **Adding providers and built-in indexers.** Choose the service, review Enabled and set its write-only API key
-  when the service uses one. **Show advanced** exposes the record key, endpoint and tuning fields. Providers get
+  when the service uses one. Enabled starts off. Test these values tests the unsaved form; while the form still
+  holds exactly the values of a passed test and Enabled is off, the result line offers **Enable and save**, which
+  turns Enabled on and saves in one write. A retest clears the last result. Save alone stores the record as the
+  form has it. **Show advanced** exposes the record key, endpoint and tuning fields. Providers get
   editable service defaults; self-hosted indexers need their address entered.
 - **Adding an indexer.** Add indexer opens a sheet with three tabs:
   - *Catalog*: the cardigann definitions (`GET /cardigann/definitions`), searchable, filtered by privacy, content
@@ -998,9 +1001,10 @@ Contrast, editors and the indexer pages. Profiles and presets are in the next se
     secret settings and the account name go in the credential as a JSON object, other settings are sent only when
     they differ from the default, info notes are shown as text, extra hosts are listed. The indexer gets a budget of
     its own under its key (10 per 1m by default). Test search runs the candidate test (`POST /settings/indexers/test`)
-    and, because a candidate needs its budget to exist, writes that budget first; Add reuses it. Add writes the
-    budget (if new) and then the indexer with `enabled: false`. Credentials appear first; **Show advanced**
-    exposes the other settings. Enable the indexer separately in Settings › Indexers after testing.
+    and, because a candidate needs its budget to exist, writes that budget first; Add reuses it. **Add (disabled)** writes the
+    budget (if new) and then the indexer with `enabled: false`; after a passed Test search of exactly the form's
+    values, **Add and enable** writes it with `enabled: true` instead. A failed or missing test offers only the
+    disabled add. Credentials appear first; **Show advanced** exposes the other settings.
   - *Built-in sources*: torznab/newznab, dmm, torrentio, zilean and seadex open the record editor in the same sheet
     with that kind chosen.
   - *Migrate from Prowlarr (once)*: Read Prowlarr's indexers asks `GET /cardigann/prowlarr`; each `proposed` one
@@ -1008,7 +1012,7 @@ Contrast, editors and the indexer pages. Profiles and presets are in the next se
     its own budget plus a disabled indexer at the end of the priority list. Secret settings are named for adding
     afterwards; no-definition, unsupported and usenet proposals are shown and skipped.
 
-  Catalog and Prowlarr migration adds stay disabled. The built-in source editor exposes Enabled with the usual
+  Prowlarr migration adds stay disabled, and so does a catalog add without a passed test. The built-in source editor exposes Enabled with the usual
   confirmation. Adding an indexer does not change a library's indexer list or the global switches.
 - **Schema.** `GET /settings/schema` offers the `cardigann` kind with `definition` (string), `settings` (the new
   `string_map` field type: `name=value` pairs, comma or newline separated) and `hosts` (list), all for that kind

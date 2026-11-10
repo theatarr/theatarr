@@ -151,11 +151,13 @@ bound read-only into the container. Theatarr only reads it and links into the li
 
 ## 4. Debrid providers
 
-**Settings › Download clients › Add provider**: Real-Debrid, AllDebrid or TorBox, with its API key. New sources
-start disabled: save, **Test**, then tick **Enabled** and save again. The name and URL default from the service;
-budget, pacing, stall timeout and the rest stay under **Show advanced**. The key is stored in the database,
-write-only. **Test** makes one read-only account call, and the result shows whether the plan is premium and when it
-ends. Several providers form a fallback order. Setup counts a provider as done once it is enabled and has an API
+**Settings › Download clients › Add provider**: Real-Debrid, AllDebrid or TorBox, with its API key. A new
+source is off until you turn it on, and one save does it: fill in the form, press **Test these values**, and when
+the test passes choose **Enable and save** beside the result. (**Save** alone keeps it disabled; change a value
+after the test and it must pass again before **Enable and save** comes back.) The name and URL default from the
+service; budget, pacing, stall timeout and the rest stay under **Show advanced**. The key is stored in the
+database, write-only. The test makes one read-only account call, with the values in the form and before anything
+is saved, and the result shows whether the plan is premium and when it ends. Several providers form a fallback order. Setup counts a provider as done once it is enabled and has an API
 key (stored, or in the environment variable it names).
 
 To keep decypharr or another qBittorrent-API client, add it under **Settings › Download clients › Other clients**
@@ -178,9 +180,19 @@ and Migrate from Prowlarr.
   need a FlareSolverr-compatible service, set in the same catalog settings. The built-in sources (DMM, Torrentio, Zilean,
   SeaDex) need no catalog.
 
-Every new indexer starts disabled. Catalog and Prowlarr-migration additions get a request budget of their own;
-built-in sources get none automatically (assign one if you want it). **Test** the source (a probe query through the
-configured VPN check), then tick **Enabled** and save. Setup counts an indexer as done once it is enabled; a Torznab
+A new indexer is off until you turn it on. Each form tests the values before it saves them (a probe query through
+the configured VPN check), and a passed test offers to enable the indexer in the same save:
+
+- **Built-in sources** (and editing any indexer later): **Test these values**, then **Enable and save** beside
+  the result. **Save** alone keeps it disabled.
+- **Catalog**: **Test search**, then **Add and enable**. **Add (disabled)** is always there, and is the only
+  button until a test has passed.
+- **Migrate from Prowlarr** adds its indexers disabled; open each one under **Settings › Indexers**, test it and
+  enable it there.
+
+A new indexer is in no library yet: tick it in the libraries that should search it (**Settings ›
+Libraries**, or Setup's library step). Catalog and Prowlarr-migration additions get a request budget of their own;
+built-in sources get none automatically (assign one if you want it). Setup counts an indexer as done once it is enabled; a Torznab
 or DMM indexer also needs its API key, while Torrentio, Zilean, SeaDex and catalog sites need none. Setup's steps,
 its **Off until set up** list and `golive check`'s SetupCheck all apply this rule.
 
