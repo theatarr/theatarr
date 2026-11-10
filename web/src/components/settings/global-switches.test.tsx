@@ -6,6 +6,16 @@ import { AdvancedSwitch, GlobalSwitchesCard, PauseSwitch } from "./global-switch
 import { useSettings, type SettingsOverview } from "@/api/settings";
 function GeneralSettingsPage() { const q = useSettings(); return q.data ? <GlobalSwitchesCard overview={q.data} /> : null; }
 import { json, mockFetch, renderPage } from "@/test/page";
+import { useQuery } from "@tanstack/react-query";
+import { api } from "@/api/client";
+import { qk } from "@/api/query-keys";
+
+/** Reads what Wanted and the status read, under their keys. */
+function StatusAndWanted() {
+  useQuery({ queryKey: qk.status, queryFn: () => api("/status") });
+  useQuery({ queryKey: ["wanted", {}], queryFn: () => api("/wanted") });
+  return null;
+}
 
 const overview = (source = "db", router = false, forced = false) => ({
   source, writable: source === "db", generation: 7, active_generation: 7, provider_epoch: 0, policy_dir: "/policy", yaml_owned: [], indexers: [], providers: [], budgets: [],
@@ -85,6 +95,22 @@ describe("Pause in the admin header", () => {
     await waitFor(() => expect(fetch.calls("PUT", "/settings/switches")).toHaveLength(1));
     expect(fetch.calls("PUT", "/settings/switches")[0].body).toEqual({ generation: 7, router_enabled: false, library_enabled: false });
     expect(screen.queryByRole("dialog")).toBeNull();
+  });
+
+  it("a save reads the status and Wanted again, so due rows and search buttons follow the switches", async () => {
+    const fetch = mockFetch([
+      { method: "GET", path: "/settings", reply: both(true, true) },
+      { method: "GET", path: "/status", reply: {} },
+      { method: "GET", path: "/wanted", reply: { items: [] } },
+      { method: "PUT", path: "/settings/switches", reply: { generation: 8 } },
+    ]);
+    renderPage(<><PauseSwitch /><StatusAndWanted /></>);
+    const pause = await screen.findByRole("switch", { name: "Pause" });
+    await waitFor(() => expect(fetch.calls("GET", "/wanted")).toHaveLength(1));
+    expect(fetch.calls("GET", "/status")).toHaveLength(1);
+    await userEvent.setup().click(pause);
+    await waitFor(() => expect(fetch.calls("GET", "/wanted")).toHaveLength(2));
+    expect(fetch.calls("GET", "/status")).toHaveLength(2);
   });
 
   it("off: turns both on, through the confirmation listing both effects", async () => {

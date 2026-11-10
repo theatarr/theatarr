@@ -32,6 +32,9 @@ function useSwitchSave() {
       await api("/settings/switches", { method: "PUT", body: { generation, ...patch }, headers: confirmationHeaders(token) });
       void qc.invalidateQueries({ queryKey: qk.settings.all });
       void qc.invalidateQueries({ queryKey: qk.policy.all });
+      // Wanted and the status read the switches: their due rows and search buttons follow the save.
+      void qc.invalidateQueries({ queryKey: qk.status });
+      void qc.invalidateQueries({ queryKey: ["wanted"] });
     } catch (e) {
       if (!confirm.ask(e, (next) => void save(patch, generation, next))) setError(e instanceof Error ? e.message : String(e));
     } finally {
