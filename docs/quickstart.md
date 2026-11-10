@@ -122,7 +122,7 @@ when you choose **Create library and start downloading** and confirm the list it
 
 **TMDb.** Setup's **Add metadata (TMDb)** step has one field: your TMDb API key (the short v3 "API Key" from your
 TMDb account's API settings, not the long "API Read Access Token"). Saving it creates the two sources below with
-TMDb's public addresses and stores the key, after you confirm the two hosts. The step also counts as done when the
+TMDb's public addresses and stores the key. The step also counts as done when the
 `tmdb` source reads its key from an environment variable (`api_key_env`).
 
 By hand, on **Metadata & artwork**: metadata sources are a list of named sources, and the server has no default
