@@ -5,9 +5,9 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Link } from "react-router";
 import { ApiError } from "@/api/client";
-import { buildPreset, MODIFIER_LABEL, originLabel, profileImpact, usePresets, type Built, type ProfileImpact, type ProfileOrigin, type ProfileSummary, type ScoreRow } from "@/api/settings-profiles";
+import { buildPreset, MODIFIER_LABEL, originLabel, profileImpact, usePresets, useQualityOverview, type Built, type ProfileImpact, type ProfileOrigin, type ProfileSummary, type ScoreRow } from "@/api/settings-profiles";
 import { useSettingsEditor } from "@/components/settings/use-settings-editor";
-import { ExplainBox } from "@/components/settings/parts";
+import { ExplainBox, SELECT_CLASS } from "@/components/settings/parts";
 import { ErrorState, Loading } from "@/components/page";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -69,6 +69,24 @@ function ScoreGroups({ rows, readOnly, onScore }: { rows: Row[]; readOnly: boole
         </ul>
       </details>;
     })}
+  </div>;
+}
+
+/** Adds a standalone custom format of the profile's flavour that the profile does not score yet, at score 0. With a
+ * format set, the save adds the format to the set too (only the set's formats count). */
+function AddFormat({ flavour, scored, disabled, onAdd }: { flavour: string; scored: Record<string, unknown>; disabled: boolean; onAdd: (format: string) => void }) {
+  const overview = useQualityOverview();
+  const [chosen, setChosen] = useState("");
+  const keys = (overview.data?.formats ?? []).filter((f) => f.key && (f.flavour || "radarr") === flavour && !(f.key in scored)).map((f) => f.key!).sort((a, b) => a.localeCompare(b));
+  if (!keys.length) return null;
+  return <div className="flex flex-wrap items-end gap-2" data-testid="add-format">
+    <label className="flex flex-col gap-1 text-sm">Add a custom format
+      <select className={SELECT_CLASS} value={chosen} disabled={disabled} onChange={(e) => setChosen(e.target.value)}>
+        <option value="">Choose a format</option>
+        {keys.map((k) => <option key={k} value={k}>{k}</option>)}
+      </select>
+    </label>
+    <Button type="button" variant="outline" disabled={disabled || !keys.includes(chosen)} onClick={() => { onAdd(chosen); setChosen(""); }}>Add format</Button>
   </div>;
 }
 
@@ -232,6 +250,7 @@ export function ProfileSheet({ session: initial, readOnly, onClose, onSaved, onR
           <section className="space-y-2"><h3 className="font-semibold">Formats and scores</h3>
             <p className="text-xs text-muted-foreground">Grouped as TRaSH groups them. A score equal to TRaSH's follows TRaSH; one you change is yours and is kept when TRaSH changes it.</p>
             <ScoreGroups rows={rows} readOnly={readOnly} onScore={(format, score) => change({ ...config, formats: { ...object(config.formats), [format]: score } })} />
+            {edit && summary?.flavour ? <AddFormat flavour={summary.flavour} scored={object(config.formats)} disabled={readOnly} onAdd={(format) => change({ ...config, formats: { ...object(config.formats), [format]: 0 } })} /> : null}
           </section>
         </fieldset>
         {impact ? <ImpactView impact={impact} /> : null}

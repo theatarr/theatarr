@@ -475,3 +475,23 @@ func TestQualityImportRefusesInvalidFormatInput(t *testing.T) {
 		})
 	}
 }
+
+// A profile that evaluates a format set can score a standalone custom format: the save (and its impact preview) adds
+// the format to the set as a reference, so the score counts.
+func TestProfileScoreAddsStandaloneFormatToSet(t *testing.T) {
+	t.Parallel()
+	se := newQualityEnv(t)
+	spec := json.RawMessage(`{"name":"Mine","includeCustomFormatWhenRenaming":false,"specifications":[{"name":"Group","implementation":"ReleaseTitleSpecification","negate":false,"required":false,"fields":{"value":"NTb"}}]}`)
+	se.want(se.call("POST", "/formats/import", map[string]any{"generation": se.generation(), "key": "Mine", "config": map[string]any{"flavour": "radarr"}, "specification": spec}), 200, "standalone format")
+	other := json.RawMessage(strings.ReplaceAll(string(spec), `"Mine"`, `"Other"`))
+	se.want(se.call("POST", "/format_sets", map[string]any{"generation": se.generation(), "key": "my-set", "config": map[string]any{"flavour": "radarr", "formats": map[string]any{"Other": map[string]any{}}}, "specifications": map[string]any{"Other": other}}), 200, "format set")
+	profile := map[string]any{"qualities": []string{"WEBDL-1080p"}, "cutoff": "WEBDL-1080p", "upgrades": true, "format_set": "my-set", "formats": map[string]int{"Other": 10}}
+	se.want(se.call("POST", "/profiles", map[string]any{"generation": se.generation(), "key": "with-set", "config": profile}), 200, "profile")
+	profile["formats"] = map[string]int{"Other": 10, "Mine": 0}
+	se.want(se.call("POST", "/profiles/impact", map[string]any{"generation": se.generation(), "key": "with-set", "config": profile}), 200, "impact")
+	se.want(se.call("PUT", fmt.Sprintf("/profiles/%d", qualityID(t, se, "profiles", "with-set")), map[string]any{"generation": se.generation(), "config": profile}), 200, "score the standalone format")
+	set := se.coord.Current().Policy.FormatSets["my-set"]
+	if ref := set.Formats["Mine"]; ref == nil || ref.Ref != "Mine" || set.Formats["Other"] == nil {
+		t.Fatalf("set after the save: %+v", set.Formats)
+	}
+}

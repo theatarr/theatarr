@@ -2,7 +2,9 @@ package web
 
 import (
 	"encoding/json"
+	"maps"
 	"net/http"
+	"slices"
 	"sort"
 	"strconv"
 	"strings"
@@ -149,6 +151,48 @@ func (w *Web) apiQualityRead(entity string, one bool) http.HandlerFunc {
 	}
 }
 
+// addScoredFormatsToSet makes a profile score of a standalone custom format count when the profile evaluates a format
+// set: only the set's formats are in scope, so a scored standalone format the set lacks joins it as a reference
+// ({ref: key}, as a preset's set refers to one), when the flavours agree. Other scores are left to validation.
+func addScoredFormatsToSet(rs *settings.Records, pr policy.Profile) {
+	if pr.FormatSet == "" {
+		return
+	}
+	i := slices.IndexFunc(rs.FormatSets, func(s settings.FormatSet) bool { return s.Key == pr.FormatSet })
+	if i < 0 {
+		return
+	}
+	set := rs.FormatSets[i]
+	var added map[string]*policy.FormatRef
+	for _, name := range slices.Sorted(maps.Keys(pr.Formats)) {
+		if _, in := set.Config.Formats[name]; in {
+			continue
+		}
+		j := slices.IndexFunc(rs.Formats, func(f settings.CustomFormat) bool { return f.Key == name })
+		if j < 0 {
+			continue
+		}
+		flavour := rs.Formats[j].Config.Flavour
+		if flavour == "" {
+			flavour = "radarr"
+		}
+		if flavour != set.Config.Flavour {
+			continue
+		}
+		if added == nil {
+			added = maps.Clone(set.Config.Formats)
+			if added == nil {
+				added = map[string]*policy.FormatRef{}
+			}
+		}
+		added[name] = &policy.FormatRef{Ref: name}
+	}
+	if added != nil {
+		set.Config.Formats = added
+		rs.FormatSets[i] = set
+	}
+}
+
 func qualityApply(rs *settings.Records, entity, key string, id int64, body qualityBody, remove bool) error {
 	record := settings.Record{ID: id, Key: key}
 	switch entity {
@@ -180,6 +224,7 @@ func qualityApply(rs *settings.Records, entity, key string, id int64, body quali
 		}
 		if !remove {
 			out = append(out, settings.QualityProfile{Record: record, Config: c, Origin: origin})
+			addScoredFormatsToSet(rs, c)
 		}
 		rs.Profiles = out
 	case "formats":

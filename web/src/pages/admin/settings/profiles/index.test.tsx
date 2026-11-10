@@ -244,6 +244,32 @@ describe("Quality profiles page", () => {
     expect((first.body as { config: unknown }).config).toEqual({ ...webConfig, qualities: [webConfig.qualities[0], "Remux-1080p", "Bluray-1080p", webConfig.qualities[2]] });
   });
 
+  it("adds a standalone custom format to the scores at 0, and takes a typed negative score", async () => {
+    const format = (key: string, flavour: string) => ({ name: key, names: [key], flavour, definition: "ours" as const, group: "Our formats", scopes: ["global"], id: 3, key, scored_by: [] });
+    const fetch = mockFetch([
+      ...routes(qualityOverview({ formats: [format("Mine", "radarr"), format("Our Group", "radarr"), format("Series only", "sonarr")] })),
+      { method: "POST", path: "/settings/profiles/impact", reply: { generation: 4, key: "radarr-4k-web", versions: [], available: true, impact: { files: 0, changed: 0, score_changed: 0, cutoff_changed: 0, upgrade_changed: 0, examples: [] } } },
+    ]);
+    const user = userEvent.setup();
+    renderPage(<ProfilesPage />);
+    await user.click(await screen.findByRole("button", { name: "Edit radarr-4k-web" }));
+    const sheet = await screen.findByTestId("profile-sheet");
+    const picker = within(sheet).getByRole("combobox", { name: "Add a custom format" });
+    // Only unscored formats of the profile's flavour are offered.
+    expect(within(picker).getAllByRole("option").map((o) => o.textContent)).toEqual(["Choose a format", "Mine"]);
+    await user.selectOptions(picker, "Mine");
+    await user.click(within(sheet).getByRole("button", { name: "Add format" }));
+    const score = within(sheet).getByRole("spinbutton", { name: "Score for Mine" });
+    expect((score as HTMLInputElement).value).toBe("0");
+    expect(within(sheet).queryByTestId("add-format")).toBeNull();
+    await user.clear(score);
+    await user.type(score, "-30");
+    await user.click(within(sheet).getByRole("button", { name: "Review and save" }));
+    await within(sheet).findByTestId("profile-impact");
+    const sent = fetch.calls("POST", "/settings/profiles/impact")[0].body as { config: { formats: Record<string, number> } };
+    expect(sent.config.formats).toEqual({ ...webConfig.formats, Mine: -30 });
+  });
+
   it("edits size limits per quality, the same sizes map the raw editor edits", async () => {
     const sized = { ...webConfig, sizes: { "Remux-1080p": { min: 5, preferred: 0, max: 100, preferred_zero: true }, "WEBRip-1080p": { min: 2, preferred: 0, max: 0 } } };
     const fetch = mockFetch([
