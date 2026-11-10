@@ -372,12 +372,12 @@ func TestAddNeverSearchesShadow(t *testing.T) {
 	e.call("POST", APIBase+"/titles", map[string]any{"kind": "movie", "tmdb_id": 105, "title": "Epsilon", "search": true},
 		201, &res)
 	if res.Search == nil || res.Search.Started || len(res.Search.Versions) != 0 || len(res.Search.Skipped) != 2 ||
-		!strings.Contains(res.Search.Message, "shadow mode") {
+		!strings.Contains(res.Search.Message, "Watch only") {
 		t.Fatalf("shadow add: %+v", res.Search)
 	}
 	var so SearchOutcome
 	e.call("POST", fmt.Sprintf("%s/titles/%d/search", APIBase, res.Title.ID), nil, 200, &so)
-	if so.Started || !strings.Contains(so.Message, "shadow mode") {
+	if so.Started || !strings.Contains(so.Message, "Watch only") {
 		t.Errorf("shadow search now: %+v", so)
 	}
 	if n := len(searchCalls(e)); n != 0 {

@@ -320,7 +320,7 @@ func (s *Service) refuseDryRunRoute(version string) error {
 		return refused("there is no active policy for %s; no download will start", version)
 	}
 	if vp.Mode != policy.ModeActive {
-		return refused("the %s copy is in shadow mode; no download will start", version)
+		return refused("the %s copy is Watch only; no download will start", version)
 	}
 	if !vp.Grab {
 		return refused("the %s copy has grab off; no download will start", version)

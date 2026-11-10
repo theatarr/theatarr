@@ -121,7 +121,7 @@ func TestSearchCommandActiveVersion(t *testing.T) {
 	var c map[string]any
 	e.call("POST", "/radarr/api/v3/command", map[string]any{"name": "MoviesSearch", "movieIds": []int{IDBase + 1}},
 		201, &c)
-	if c["status"] != "queued" || c["message"] != "Searching 1 items for movie-web; shadow mode, nothing searched for movie-remux" {
+	if c["status"] != "queued" || c["message"] != "Searching 1 items for movie-web; Watch only, nothing searched for movie-remux" {
 		t.Fatalf("posted %v: %v", c["status"], c["message"])
 	}
 	e.currentGeneration = 24
@@ -196,7 +196,7 @@ func TestSearchCommandsShadowNeverWrite(t *testing.T) {
 		{"/v/anime-movie/radarr/api/v3/command", map[string]any{"name": "MoviesSearch", "movieIds": []int{IDBase + 3}}},
 	} {
 		e.call("POST", tc.path, tc.body, 201, &c)
-		if c["status"] != "completed" || !strings.HasPrefix(c["message"].(string), "Shadow mode: nothing searched") {
+		if c["status"] != "completed" || !strings.HasPrefix(c["message"].(string), "Watch only: nothing searched") {
 			t.Errorf("%s %v: %v %v", tc.path, tc.body["name"], c["status"], c["message"])
 		}
 	}

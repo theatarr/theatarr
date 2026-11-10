@@ -1,6 +1,6 @@
 [
   {
-    "message": "Versions in shadow mode acquire nothing: movie-remux, movie-web, anime-movie",
+    "message": "Watch only libraries download nothing: movie-remux, movie-web, anime-movie",
     "source": "ShadowModeCheck",
     "type": "notice",
     "wikiUrl": ""

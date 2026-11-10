@@ -515,7 +515,7 @@ func Searchable(pol *policy.Policy, keys []string) (active []string, skipped []S
 		case vp == nil:
 			skipped = append(skipped, Skip{k, "not in the policy"})
 		case vp.Mode != policy.ModeActive:
-			skipped = append(skipped, Skip{k, "shadow mode: nothing is searched or grabbed for this version"})
+			skipped = append(skipped, Skip{k, "Watch only: nothing is searched or grabbed for this library"})
 		case !on:
 			skipped = append(skipped, Skip{k, "router.enabled is false: nothing is searched or grabbed"})
 		case !vp.Grab:

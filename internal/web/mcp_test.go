@@ -414,7 +414,7 @@ func TestMCPMigrationActivationLimits(t *testing.T) {
 		}
 		out := se.mcpTool("migration_apply", map[string]any{"id": p.ID, "steps": []string{"version/unsafe"}}, 200).(map[string]any)
 		step := out["steps"].([]any)[0].(map[string]any)
-		if step["status"] != migration.StatusFailed || !strings.Contains(step["error"].(string), "shadow mode") || se.generation() != gen {
+		if step["status"] != migration.StatusFailed || !strings.Contains(step["error"].(string), "Watch only") || se.generation() != gen {
 			t.Fatalf("activation step: %v", step)
 		}
 	}

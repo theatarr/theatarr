@@ -337,7 +337,7 @@ func (w *Web) mayApprove(version string) (bool, string) {
 	case !w.pol.RouterSettings().Enabled:
 		return false, "Automatic downloads are off (router.enabled is false); the upgrade keeps waiting"
 	case vp.Mode != policy.ModeActive:
-		return false, "This library is still in shadow mode; the upgrade keeps waiting"
+		return false, "This library is still Watch only; the upgrade keeps waiting"
 	case !vp.Grab:
 		return false, "This library has grab off; the upgrade keeps waiting"
 	}

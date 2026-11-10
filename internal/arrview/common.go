@@ -447,7 +447,7 @@ func (s *Service) versionHealth(keys []string) []notify.HealthItem {
 	out := []notify.HealthItem{}
 	if sh := s.shadowVersions(keys); len(sh) > 0 {
 		out = append(out, notify.HealthItem{Source: "ShadowModeCheck", Type: "notice",
-			Message: "Versions in shadow mode acquire nothing: " + strings.Join(sh, ", ")})
+			Message: "Watch only libraries download nothing: " + strings.Join(sh, ", ")})
 	}
 	if s.pol.Router == nil || !s.pol.Router.Enabled {
 		var act []string

@@ -337,7 +337,7 @@ function VersionForm({ data, state, oneStep, onDone, reload }: { data: VersionLi
         : <p className="text-muted-foreground">Sets the library to Live with its downloads on, and turns Pause off for the whole install (Allow new downloads and Write library links on). You confirm the list first.</p>}
     </div> : null}
     {!review
-      ? <Button type="button" variant={oneStep ? "outline" : undefined} className="w-fit" disabled={missing.length > 0} onClick={() => setReview(true)}>{oneStep ? "Create in shadow (decide later)" : "Review"}</Button>
+      ? <Button type="button" variant={oneStep ? "outline" : undefined} className="w-fit" disabled={missing.length > 0} onClick={() => setReview(true)}>{oneStep ? "Create as Watch only (decide later)" : "Review"}</Button>
       : <div className="space-y-2 rounded-md border border-border p-3" data-testid="version-review">
         <p>This creates {newProfile}the library <strong>{draft.key}</strong> ({draft.kind}){profileUse} as Watch only with its downloads off, linking into {draft.library}, searching {draft.indexers.join(", ")} and adding to {draft.providers.join(", ")}. It downloads nothing until you make it Live on Libraries.</p>
         {effects?.length ? <><p>The settings API asks to confirm:</p><ul className="list-disc pl-5">{effects.map((e, i) => <li key={i}>{e.version}: {e.effect}</li>)}</ul><Button type="button" disabled={busy} onClick={() => void confirmEffects()}>Confirm and create</Button></>

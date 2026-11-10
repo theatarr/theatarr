@@ -1,6 +1,6 @@
 # Quickstart
 
-From nothing to a first library: live at once, or deciding in shadow mode first. Theatarr replaces Sonarr, Radarr, Prowlarr,
+From nothing to a first library: live at once, or deciding as Watch only first. Theatarr replaces Sonarr, Radarr, Prowlarr,
 Recyclarr and a debrid bridge (decypharr or similar) with one service. Seerr, Overseerr, Homepage and the arr phone
 apps keep working: they talk to Theatarr's arr-compatible views.
 
@@ -247,11 +247,11 @@ the indexers it searches and the providers it adds to. **Setup** builds the firs
      reason, until the library picks at least one enabled indexer and one enabled debrid provider with its key, and
      the debrid mount and the trash folder (**Settings › Libraries › File management**) are set. If
      `THEATARR_FORCE_OFF` names a switch, the library is still created and Setup says which switch stays forced off.
-   - **Create in shadow (decide later)**, then **Create library**: the library starts as **Watch only**
+   - **Create as Watch only (decide later)**, then **Create library**: the library starts as **Watch only**
      with its downloads off, and no global switch changes.
 
    An install that migrates from Sonarr/Radarr (its settings hold an arr instance, `import.arr`) has no start
-   button: there it is **Review**, then **Create library**, always in shadow, and the library goes live as
+   button: there it is **Review**, then **Create library**, always as Watch only, and the library goes live as
    [migration.md](migration.md#3-a-follower-library-beside-the-arr) describes.
 
 A **Watch only** library reads **Preview only**. It decides what
@@ -282,8 +282,8 @@ together, with the same confirmation as the two switches. When only one of them 
 to it. The two switches themselves are under **Advanced** on **Settings › Download clients** and **Settings ›
 Libraries**.
 
-**Where a shadow library's decisions come from.** The scheduled search for wanted titles runs only for a library
-that grabs (Live with its downloads on, and **Allow new downloads** on), so a shadow library
+**Where a Watch only library's decisions come from.** The scheduled search for wanted titles runs only for a library
+that grabs (Live with its downloads on, and **Allow new downloads** on), so a Watch only library
 is not searched on a schedule. It gets decisions two ways:
 
 - **RSS.** Every 15 minutes Theatarr reads the RSS feeds of the library's indexers that have one: Torznab feeds

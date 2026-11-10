@@ -334,7 +334,7 @@ describe("setup", () => {
     { version: "", effect: "Turn on Write library links (library.enabled): links may be written." },
   ];
 
-  it.each([[1, "Review"], [0, "Create in shadow (decide later)"]])("sends the same shadow request with arr_instances %i", async (arrInstances, button) => {
+  it.each([[1, "Review"], [0, "Create as Watch only (decide later)"]])("sends the same shadow request with arr_instances %i", async (arrInstances, button) => {
     const user = userEvent.setup();
     const fetch = mockFetch([
       { method: "GET", path: "/setup", reply: { ...fresh, profiles: 1, arr_instances: arrInstances } },
@@ -441,6 +441,6 @@ describe("setup", () => {
     expect(screen.getByTestId("start-blocked").textContent).toContain(reason);
     if ("trash" in lacking) expect(screen.getByRole("link", { name: "Settings › Libraries › File management › Trash" }).getAttribute("href")).toContain("/admin/settings/libraries");
     // The shadow path stays open: it needs none of this.
-    expect((screen.getByRole("button", { name: "Create in shadow (decide later)" }) as HTMLButtonElement).disabled).toBe(false);
+    expect((screen.getByRole("button", { name: "Create as Watch only (decide later)" }) as HTMLButtonElement).disabled).toBe(false);
   });
 });

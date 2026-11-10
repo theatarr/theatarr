@@ -65,7 +65,7 @@ func TestJournalAPI(t *testing.T) {
 	rec := post("dl:1", `{"verdict":"wrong","reason":"not the movie"}`, nil, true)
 	var v journal.Verdict
 	if rec.Code != 200 || json.Unmarshal(rec.Body.Bytes(), &v) != nil || v.Action != journal.ActionRecorded ||
-		v.By != "key:test-client" || !strings.Contains(v.Note, "shadow mode") {
+		v.By != "key:test-client" || !strings.Contains(v.Note, "Watch only") {
 		t.Fatalf("verdict: %d %s", rec.Code, rec.Body.String())
 	}
 	var n int

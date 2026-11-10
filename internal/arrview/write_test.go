@@ -209,7 +209,7 @@ func TestCommands(t *testing.T) {
 	wantKeys(t, "command", any(c), fields(`id name commandName message body priority status result queued started
 		ended duration trigger stateChangeTime sendUpdatesToClient updateScheduledTask`), "clientUserAgent")
 	if c["status"] != "completed" || c["commandName"] != "Movies Search" ||
-		c["message"] != "Shadow mode: nothing searched or grabbed (versions movie-remux, movie-web)" {
+		c["message"] != "Watch only: nothing searched or grabbed (libraries movie-remux, movie-web)" {
 		t.Errorf("command %v", c)
 	}
 	id := strconv.Itoa(int(c["id"].(float64)))
@@ -230,7 +230,7 @@ func TestCommands(t *testing.T) {
 	e.call("POST", "/radarr/api/v3/command", map[string]any{"name": "EpisodeSearch"}, 400, nil)
 	e.call("POST", "/sonarr/api/v3/command", map[string]any{"name": "SeasonSearch", "seriesId": 3, "seasonNumber": 1},
 		201, &c)
-	if c["message"] != "Shadow mode: nothing searched or grabbed (versions tv-2160p)" {
+	if c["message"] != "Watch only: nothing searched or grabbed (libraries tv-2160p)" {
 		t.Errorf("season search %v", c["message"])
 	}
 	e.call("POST", "/sonarr/api/v3/command", map[string]any{"name": "EpisodeSearch", "episodeIds": []int{101}}, 201, &c)

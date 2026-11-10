@@ -238,7 +238,7 @@ func TestApproveGates(t *testing.T) {
 	}
 	e.pol.Router.Enabled = true
 	e.pol.Versions["movie"].Mode = policy.ModeShadow
-	if err := hs.Approve(e.ctx, res.Hold, Decider{}); !errors.As(err, &refused) || !strings.Contains(err.Error(), "shadow") {
+	if err := hs.Approve(e.ctx, res.Hold, Decider{}); !errors.As(err, &refused) || !strings.Contains(err.Error(), "Watch only") {
 		t.Errorf("shadow: %v", err)
 	}
 	e.pol.Versions["movie"].Mode, e.pol.Versions["movie"].Grab = policy.ModeActive, true

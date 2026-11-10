@@ -383,7 +383,7 @@ func mutateVersion(r *settings.Records, p *Payload) (bool, error) {
 	}
 	// A migrated version starts in shadow with grabbing off, whatever the stored plan says.
 	if v.Mode != policy.ModeShadow || v.Grab || v.Follows != "" {
-		return false, &refusal{"refused: a migrated version is created in shadow mode, with grab off and no follows"}
+		return false, &refusal{"refused: a migrated library is created as Watch only, with downloads off and no follows"}
 	}
 	var naming policy.Naming
 	if len(p.Naming) > 0 {

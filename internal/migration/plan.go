@@ -800,10 +800,10 @@ func (b *builder) version(a ArrInstance, kind policy.Kind, anime *bool, provider
 	v := policy.VersionPolicy{Mode: policy.ModeShadow, Kind: kind, Anime: anime, Enable: "default", Profile: vp.Profile,
 		Library: vp.Library, Storage: policy.StorageDebrid, Indexers: vp.Indexers, Providers: vp.Providers,
 		Client: vp.Client, Import: "symlink"}
-	step := Step{ID: "version/" + key, Kind: KindVersion, What: fmt.Sprintf("add version %s for %s: shadow, grab off, "+
+	step := Step{ID: "version/" + key, Kind: KindVersion, What: fmt.Sprintf("add library %s for %s: Watch only, downloads off, "+
 		"library %s", key, a.Name, vp.Library), Why: fmt.Sprintf("one version per arr instance; %s is %s in the %s library",
 		a.Name, key, map[bool]string{true: "anime", false: string(kind)}[anime != nil && *anime]),
-		Reversible: true, Undo: "delete the library in " + uipages.Libraries + " (it has no links while in shadow)",
+		Reversible: true, Undo: "delete the library in " + uipages.Libraries + " (it has no links while Watch only)",
 		Automatic: true, Payload: &Payload{Key: key, Config: mustConfig(v)}}
 	if naming != nil {
 		step.Payload.Naming = mustConfig(*naming)

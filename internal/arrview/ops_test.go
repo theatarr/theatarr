@@ -80,7 +80,7 @@ func TestGrabReleaseByHand(t *testing.T) {
 	e.pol.Router.Enabled = true
 	e.pol.Versions["movie-web"].Mode = policy.ModeShadow
 	if _, err := e.svc.GrabRelease(ctx, 1, "movie-web", good, true, "ui:grab:test"); !isRefused(err) ||
-		!strings.Contains(err.Error(), "shadow mode") {
+		!strings.Contains(err.Error(), "Watch only") {
 		t.Errorf("shadow grab: %v", err)
 	}
 }
@@ -171,7 +171,7 @@ func TestAddReleaseByHand(t *testing.T) {
 	e.pol.Router.Enabled = true
 	e.pol.Versions["movie-web"].Mode = policy.ModeShadow
 	if _, err := e.svc.AddRelease(ctx, 1, "movie-web", good, true, "ui:grab:test"); !isRefused(err) ||
-		!strings.Contains(err.Error(), "shadow mode") {
+		!strings.Contains(err.Error(), "Watch only") {
 		t.Errorf("shadow add: %v", err)
 	}
 }
@@ -237,7 +237,7 @@ func TestRetryDownload(t *testing.T) {
 	e.pol.Router.Enabled = true
 	e.pol.Versions["movie-web"].Mode = policy.ModeShadow
 	if _, err := e.svc.RetryDownload(ctx, 50, "ui:retry:50"); !isRefused(err) ||
-		!strings.Contains(err.Error(), "shadow mode") {
+		!strings.Contains(err.Error(), "Watch only") {
 		t.Errorf("shadow retry: %v", err)
 	}
 }

@@ -79,7 +79,7 @@ func TestSearchable(t *testing.T) {
 	keys := []string{"movie-remux", "movie-web", "nope"}
 	// The example policy: every version in shadow, router off.
 	active, skipped := Searchable(pol, keys)
-	if len(active) != 0 || len(skipped) != 3 || !strings.Contains(skipped[0].Reason, "shadow") ||
+	if len(active) != 0 || len(skipped) != 3 || !strings.Contains(skipped[0].Reason, "Watch only") ||
 		!strings.Contains(skipped[2].Reason, "not in the policy") {
 		t.Fatalf("all shadow: %v %v", active, skipped)
 	}

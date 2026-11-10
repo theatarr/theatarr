@@ -237,7 +237,7 @@ func (s *Service) startSearch(ctx context.Context, id int64, sc *commandScope) e
 		msg = fmt.Sprintf("Searching %d items for %s", queued, strings.Join(active, ", "))
 	}
 	if len(shadow) > 0 {
-		msg += "; shadow mode, nothing searched for " + strings.Join(shadow, ", ")
+		msg += "; Watch only, nothing searched for " + strings.Join(shadow, ", ")
 	}
 	if queued == 0 {
 		_, err = s.st.Writer().ExecContext(ctx, `UPDATE arrview_command SET status = 'completed', result = 'successful',
@@ -534,7 +534,7 @@ func (s *Service) searchOutcome(keys []string, now int64) (status, result, msg s
 	case len(keys) == 0:
 		return "completed", "successful", "Nothing to search: no monitored version of this view for these titles", now, now
 	case len(shadow) == len(keys):
-		return "completed", "successful", "Shadow mode: nothing searched or grabbed (versions " +
+		return "completed", "successful", "Watch only: nothing searched or grabbed (libraries " +
 			strings.Join(shadow, ", ") + ")", now, now
 	}
 	return "queued", "unknown", "Queued for the searches of the active versions", nil, nil

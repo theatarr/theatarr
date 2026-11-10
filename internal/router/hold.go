@@ -526,7 +526,7 @@ func holdGate(pol *policy.Policy, version string, c *Candidate) error {
 	case !pol.RouterSettings().Enabled:
 		return &HoldRefused{Reason: "router.enabled is false: nothing is added to any provider; the hold stays pending"}
 	case vp.Mode != policy.ModeActive:
-		return &HoldRefused{Reason: "version " + version + " is in shadow mode: nothing is added for it; the hold " +
+		return &HoldRefused{Reason: "version " + version + " is Watch only: nothing is added for it; the hold " +
 			"stays pending"}
 	case !vp.Grab:
 		return &HoldRefused{Reason: "versions." + version + ".grab is off: nothing is added for it; the hold stays " +

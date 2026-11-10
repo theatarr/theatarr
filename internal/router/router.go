@@ -228,7 +228,7 @@ func (r *Router) Settings() policy.RouterSettings { return r.set }
 // Errors from the write gate.
 var (
 	ErrDisabled = errors.New("router: router.enabled is false; nothing is written to any provider")
-	ErrShadow   = errors.New("router: the version is in shadow mode; nothing is written for it")
+	ErrShadow   = errors.New("router: the library is Watch only; nothing is written for it")
 	ErrNoGrab   = errors.New("router: the version's grab switch is off; nothing is written for it")
 )
 

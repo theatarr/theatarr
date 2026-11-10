@@ -65,7 +65,7 @@ func (w *Web) apiSetupStart(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if arrInstances(snap.Policy) > 0 {
-		writeJSON(rw, http.StatusConflict, apiError{Error: "this install migrates from an arr: create the library in shadow"})
+		writeJSON(rw, http.StatusConflict, apiError{Error: "this install migrates from an arr: create the library as Watch only"})
 		return
 	}
 	if snap.Records.Switches == nil {

@@ -437,7 +437,7 @@ func TestVerdicts(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if v.Action != ActionRecorded || !strings.Contains(v.Note, "shadow mode") || v.ResearchJob != 0 {
+	if v.Action != ActionRecorded || !strings.Contains(v.Note, "Watch only") || v.ResearchJob != 0 {
 		t.Errorf("shadow verdict: %+v", v)
 	}
 	after := e.get("arr:radarr_4k_debrid:3")

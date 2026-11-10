@@ -34,7 +34,7 @@ func TestShadowVersionNeverWrites(t *testing.T) {
 		t.Fatalf("%d provider writes for a shadow version", e.writes())
 	}
 	if res.Mode != ModeShadow || res.Outcome != OutcomeWouldAdd || res.Provider != "rd" || res.PlanID == 0 ||
-		!strings.Contains(res.Why, "shadow") {
+		!strings.Contains(res.Why, "Watch only") {
 		t.Errorf("result %+v", res)
 	}
 	if n := e.count(`SELECT COUNT(*) FROM download`); n != 0 {

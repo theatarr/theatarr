@@ -198,7 +198,7 @@ func (j *Journal) mayAct(pol *policy.Policy, e *Entry, hash string) (bool, strin
 	case vp == nil:
 		return false, "recorded only: the policy has no version " + orDash(e.Version)
 	case vp.Mode != policy.ModeActive:
-		return false, "recorded only: version " + e.Version + " is in shadow mode"
+		return false, "recorded only: version " + e.Version + " is Watch only"
 	case !pol.RouterSettings().Enabled:
 		return false, "recorded only: router.enabled is false"
 	case hash == "":

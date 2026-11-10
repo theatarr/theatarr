@@ -200,7 +200,7 @@ func (c *checker) debridVersions() []string {
 func (c *checker) versions() {
 	if len(c.p.Versions) == 0 {
 		c.add(AreaVersions, "versions", Warn, "create a first library from a preset on the setup screen ("+uipages.Setup+") "+
-			"or in "+uipages.Libraries+"; it starts in shadow mode with grabbing off, unless Setup's one-step start is used",
+			"or in "+uipages.Libraries+"; it starts as Watch only with downloads off, unless Setup's one-step start is used",
 			"no libraries: nothing is searched, grabbed or linked")
 		return
 	}

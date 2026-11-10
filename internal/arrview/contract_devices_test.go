@@ -631,7 +631,7 @@ func TestUpgradeScriptViewGaps(t *testing.T) {
 	r := devClient(t, e, "/radarr", true)
 	r.must("GET", "/health", nil, nil, 200, &health)
 	if len(health) != 2 || health[0]["source"] != "ShadowModeCheck" ||
-		health[0]["message"] != "Versions in shadow mode acquire nothing: movie-remux, anime-movie" ||
+		health[0]["message"] != "Watch only libraries download nothing: movie-remux, anime-movie" ||
 		health[1]["message"] != "Router disabled: grabs are dry runs: movie-web" {
 		t.Errorf("radarr view health %v", health)
 	}

@@ -25,7 +25,7 @@ it("states forced-off once", () => {
 it.each([
   [{ mode: "active", router_enabled: false }, "router.enabled is false: nothing is searched or grabbed", "Paused globally (Allow new downloads is off)"],
   [{ mode: "active", router_forced_off: true }, "router.enabled is false: nothing is searched or grabbed", "Locked off (new downloads are forced off by the environment)"],
-  [{ mode: "shadow", router_enabled: false }, "shadow mode: nothing is searched or grabbed for this version", "Preview only (this library is Watch only: it records what it would download)"],
+  [{ mode: "shadow", router_enabled: false }, "Watch only: nothing is searched or grabbed for this library", "Preview only (this library is Watch only: it records what it would download)"],
   [{ mode: "active", grab: false }, "version grab is off: nothing is searched or grabbed", "Downloads off (downloads are off for this library)"],
 ] as const)("uses grab state for download notes %j", async (state, search_reason, expected) => {
   mockFetch([]);
@@ -39,7 +39,7 @@ it.each([
 });
 
 it.each([
-  ["shadow", "shadow mode: nothing is searched or grabbed for this version", "Preview only (this library is Watch only: it records what it would download)"],
+  ["shadow", "Watch only: nothing is searched or grabbed for this library", "Preview only (this library is Watch only: it records what it would download)"],
   ["off", "not in the policy", "not in the policy"],
 ] as const)("links an admin to Libraries for a library in mode %s while downloads are off globally", async (mode, search_reason, text) => {
   mockFetch([{ method: "GET", path: "/auth/me", reply: { id: 1, permissions: ["admin", "manage"] } }]);

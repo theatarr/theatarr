@@ -19,7 +19,7 @@ func (c *checker) policy(ctx context.Context) {
 	case policy.ModeActive:
 		c.add(SecPolicy, "mode", Info, "", "%s is already mode: active; the checks below describe it as it runs", k)
 	default:
-		c.add(SecPolicy, "mode", Pass, "", "%s is in shadow mode; nothing grabs or links for it yet", k)
+		c.add(SecPolicy, "mode", Pass, "", "%s is Watch only; nothing grabs or links for it yet", k)
 	}
 	if v.Grab {
 		c.add(SecPolicy, "grab", Info, "", "versions.%s.grab is on: with mode active and router.enabled (currently %t) "+

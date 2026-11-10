@@ -280,7 +280,7 @@ func TestManageShadowNoWrites(t *testing.T) {
 	var d TitleDetail
 	e.call("GET", APIBase+"/titles/10", nil, 200, &d)
 	if c := d.Versions[0].Control; c == nil || c.ManagedBy != "sonarr_4k_debrid" || c.CanEdit || c.CanSearch ||
-		!strings.Contains(c.EditReason, "Managed by sonarr_4k_debrid until cutover") || !strings.Contains(c.SearchReason, "shadow") {
+		!strings.Contains(c.EditReason, "Managed by sonarr_4k_debrid until cutover") || !strings.Contains(c.SearchReason, "Watch only") {
 		t.Fatalf("control: %+v", d.Versions[0].Control)
 	}
 	off := false
@@ -295,7 +295,7 @@ func TestManageShadowNoWrites(t *testing.T) {
 	e.call("PUT", APIBase+"/titles/10/versions/tv-2160p", map[string]any{"monitored": off}, 409, nil)
 	var so SearchOutcome
 	e.call("POST", APIBase+"/titles/10/seasons/1/search", nil, 200, &so)
-	if so.Started || !strings.Contains(so.Message, "shadow mode") {
+	if so.Started || !strings.Contains(so.Message, "Watch only") {
 		t.Errorf("season search: %+v", so)
 	}
 	e.call("POST", APIBase+"/titles/10/episodes/search", map[string]any{"episode_ids": []int64{101, 102}}, 200, &so)
