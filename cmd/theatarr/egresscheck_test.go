@@ -5,6 +5,7 @@ import (
 	"errors"
 	"io"
 	"io/fs"
+	"log/slog"
 	"net"
 	"net/http"
 	"net/http/httptest"
@@ -14,7 +15,10 @@ import (
 	"testing"
 
 	"github.com/theatarr/theatarr/internal/gateway"
+	"github.com/theatarr/theatarr/internal/jobs"
 	"github.com/theatarr/theatarr/internal/policy"
+	"github.com/theatarr/theatarr/internal/store"
+	"github.com/theatarr/theatarr/internal/store/storetest"
 )
 
 // examplePolicy copies the example policy and points check_url at a local echo server that answers the caller's
@@ -174,5 +178,44 @@ func TestEgressReadiness(t *testing.T) {
 	detail, _ = egressReadiness(base, gw)(context.Background())
 	if detail["egress"].(map[string]any)["vpn_ok"] != true {
 		t.Errorf("vpn_ok after a good check: %v", detail["egress"])
+	}
+}
+
+// TestVPNHealthReadsTheLiveGuard: a guard the running gateway has counts although the start-up policy had none.
+func TestVPNHealthReadsTheLiveGuard(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+	guarded, err := policy.Load(examplePolicy(t, "127.0.0.1"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	gw, err := gateway.New(ctx, guarded, gateway.Options{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	gw.CheckEgress(ctx)
+	st, err := store.Open(ctx, storetest.Seed(t, filepath.Join(t.TempDir(), "theatarr.db")), store.Options{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer st.Close()
+	if _, err := st.Migrate(ctx); err != nil {
+		t.Fatal(err)
+	}
+	unguarded := *guarded
+	unguarded.Egress = nil
+	hc := newServeHealth(serveHealthConfig{pol: &unguarded, gw: gw, st: st, q: jobs.NewQueue(st), dbPath: st.Path(),
+		log: slog.New(slog.NewTextHandler(io.Discard, nil))})
+	found := false
+	for _, r := range hc.Results(ctx) {
+		if r.Source == "VpnEgressCheck" {
+			found = true
+			if r.Message != "VPN egress confirmed" {
+				t.Fatalf("VPN check = %+v", r)
+			}
+		}
+	}
+	if !found {
+		t.Fatal("no VpnEgressCheck")
 	}
 }

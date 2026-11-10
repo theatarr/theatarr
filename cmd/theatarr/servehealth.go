@@ -228,7 +228,9 @@ func newServeHealth(c serveHealthConfig) *health.Checker {
 			if c.manager != nil {
 				ctx = c.manager.Capture(ctx)
 			}
-			return health.Egress(func() map[string]any { return c.gw.EgressSummaryFor(ctx) }, c.pol.Egress != nil)(ctx)
+			// The guard is read live: the gateway's summary says mode "off" while the egress section has none, and
+			// a guard turned on in Settings shows without a restart.
+			return health.Egress(func() map[string]any { return c.gw.EgressSummaryFor(ctx) }, true)(ctx)
 		})
 	} else if c.pol.Egress == nil {
 		hc.Add("VpnEgressCheck", "VPN egress", health.Egress(nil, false))
