@@ -273,9 +273,9 @@ The editor there has two things Setup does not ask for:
 Each library is **Watch only** or **Live**, chosen in its row on **Settings › Libraries** or at the top of its
 editor; the change saves at once, after the usual confirmation. Watch only records what it would do and downloads
 and links nothing. Live searches, downloads and links. A Live library with **Don't download for this library**
-ticked reads **Live, downloads off**: it searches and records its choices but adds no torrents. Beside the control,
-the row says when a global switch holds a Live library back, for example **Live, paused**. A library another library
-follows stays Watch only.
+ticked reads **Live, downloads off**: nothing is downloaded for it; RSS checks and manual searches may still record
+decisions. Beside the control, the row says when a global switch holds a Live library back, for example **Live,
+paused**. A library another library follows stays Watch only.
 
 **Pause**, at the top of every admin page, turns **Allow new downloads** and **Write library links** off or on
 together, with the same confirmation as the two switches. When only one of them is off it reads **Custom** and links
