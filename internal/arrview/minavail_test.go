@@ -426,3 +426,40 @@ func TestViewIsAvailableWithDelays(t *testing.T) {
 	e.pol.Versions["movie-remux"].AvailabilityDelay = -3
 	check("remux 3 days early", true, false, true)
 }
+
+// A DELETE through a view clears the minimum availability choice of the libraries it removes the copy from, and no
+// other: an add afterwards takes the library's default again instead of the choice left behind.
+func TestMinimumAvailabilityDeleteClearsChoice(t *testing.T) {
+	t.Parallel()
+	e := minAvailEnv(t, func(e *env) {
+		e.exec(`INSERT INTO arrview_title (view, title_id, quality_profile_id, root_folder_path, minimum_availability,
+			added_at, updated_at) VALUES ('v/movie-web', 1, 0, '/media/movies-web', 'announced', 7, 5),
+			('v/movie-remux', 1, 0, '', 'inCinemas', 0, 5)`)
+		e.pol.Versions["movie-web"].MinimumAvailability = "inCinemas"
+		// No arr owns the remux copy any more, so it can be removed.
+		e.exec(`DELETE FROM version_source WHERE version_id = 1`)
+	})
+	// Through the remux library's own view: its choice goes, the other library's stays.
+	e.call("DELETE", fmt.Sprintf("/v/movie-remux/radarr/api/v3/movie/%d", IDBase+1), nil, 200, nil)
+	got := e.libraryRules(1)
+	if got["movie-remux"] != (availability.Rule{Minimum: "released", Source: availability.SourceDefault}) ||
+		got["movie-web"] != (availability.Rule{Minimum: "announced", Source: availability.SourceChoice}) {
+		t.Fatalf("after the remux delete: %+v", got)
+	}
+	// Through the combined view: the web library's choice goes, its row's other fields stay.
+	e.call("DELETE", fmt.Sprintf("/radarr/api/v3/movie/%d", IDBase+1), nil, 200, nil)
+	if n := e.one(`SELECT count(*) FROM arrview_title WHERE view = 'v/movie-web' AND title_id = 1
+		AND minimum_availability = '' AND root_folder_path = '/media/movies-web' AND added_at = 7`); n != 1 {
+		t.Errorf("the web library's row was not kept with its choice cleared")
+	}
+	// Added again: the library with a default uses it, the other stores the client's value.
+	e.tick()
+	e.call("POST", "/radarr/api/v3/movie", map[string]any{"title": "Alpha", "tmdbId": 101,
+		"qualityProfileId": e.profileID("radarr", "Rules default"), "rootFolderPath": "/media/movies",
+		"minimumAvailability": "announced", "monitored": true}, 201, nil)
+	got = e.libraryRules(1)
+	if got["movie-remux"] != (availability.Rule{Minimum: "announced", Source: availability.SourceChoice}) ||
+		got["movie-web"] != (availability.Rule{Minimum: "inCinemas", Source: availability.SourceDefault}) {
+		t.Errorf("after the add: %+v", got)
+	}
+}

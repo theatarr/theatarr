@@ -1020,6 +1020,14 @@ func (s *Service) deleteTitle(w http.ResponseWriter, r *request) {
 			e.id); err != nil {
 			return err
 		}
+		// The removed copies' minimum availability choices go with them, so a later add takes the library's rule
+		// again; whatever else a library's own row holds stays.
+		for _, x := range e.versions {
+			if _, err := tx.ExecContext(ctx, `UPDATE arrview_title SET minimum_availability = '' WHERE view = ?
+				AND title_id = ?`, "v/"+x.key, e.id); err != nil {
+				return err
+			}
+		}
 		if err := syncTitleMonitored(ctx, tx, e.id, now); err != nil {
 			return err
 		}

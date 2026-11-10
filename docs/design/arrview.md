@@ -242,6 +242,10 @@ The write convention (`TestMinimumAvailabilityEchoChangesNothing`, `TestMinimumA
   precedence above; none is rewritten or cleaned up. `arrview_title.updated_at` orders the choices and moves only
   when a minimum availability is written: saving a profile, root folder or tags no longer promotes an old choice
   over a newer one.
+- **`DELETE movie/{id}`** clears the choice on the `v/<key>` row of each library it removes the copy from (the row
+  and its other fields stay), so a later add takes the library's rule again: its default, or the client's value
+  (`TestMinimumAvailabilityDeleteClearsChoice`). A combined view's older row is only deleted by a delete through
+  that view, as before.
 - List and collection intake still stores the list's or collection's own minimum for the movies it adds, as a choice
   (a library default does not apply to them), and searches on add only the libraries that are ready under it with
   their own delay.
