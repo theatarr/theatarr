@@ -97,8 +97,11 @@ returned and why each release was accepted or rejected) and **System › Status*
   the title page searches it at once. **Search now** on the **Wanted** page queues the search under the same hourly
   limit, so a long list takes hours.
 - **No release is cached.** **Only add cached releases** (**Settings › Download clients › Behaviour**, **What to grab**) is on by
-  default: a release that no provider has cached is not kept, and the title stays wanted. Turn it off to let the
-  providers download uncached releases.
+  default: a release that no provider has cached is not taken, and the title stays wanted. An uncached add is
+  removed again on Real-Debrid (when it is Theatarr's own) and never made on TorBox. AllDebrid is the exception: with the default settings
+  the uncached add stays on the account and finishes downloading there while Theatarr tries the next provider
+  (**Delete uncached AllDebrid adds** is off, because Theatarr cannot always prove the add is its own). Turn
+  **Only add cached releases** off to let the providers download uncached releases.
 - **A source is disabled.** Every new indexer and provider starts disabled: **Test** it, tick **Enabled** and save
   (**Settings › Indexers**, **Settings › Download clients**). The library must also list the indexer and the
   provider (**Settings › Libraries**).
@@ -107,9 +110,11 @@ returned and why each release was accepted or rejected) and **System › Status*
 - **The debrid mount is empty inside the container.** **System › Status** then says "The mount at /mnt/debrid is
   empty: is it mounted?", and finished downloads cannot be linked. This happens when the mount (zurg, rclone) came
   up or was remounted on the host after the container started: the container keeps the directory it bound at start.
-  Restart the container (`docker compose restart theatarr`). To have the container follow a remount, bind the
-  mount's parent directory with `rslave` propagation instead of the mount itself, for example
-  `/mnt:/mnt:ro,rslave` (see Docker's notes on bind propagation), and keep the same path inside the container.
+  Restart the container (`docker compose restart theatarr`). On a Linux host, the container can follow a remount
+  when you bind the mount's parent directory with `rslave` propagation instead of the mount itself, for example
+  `/mnt:/mnt:ro,rslave`, keeping the same path inside the container. This needs the parent to be a shared mount
+  on the host, and Docker Desktop does not support it; see
+  [Docker's notes on bind propagation](https://docs.docker.com/engine/storage/bind-mounts/#configure-bind-propagation).
 - **Plex cannot follow the links.** The links in the library root point at the mount path as Theatarr sees it
   unless **Library link destination** (**Settings › Libraries › File management**) names the path Plex sees. Plex
   must have the debrid mount too, at the path the links point at; a title that is linked but missing in Plex

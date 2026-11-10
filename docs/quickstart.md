@@ -359,9 +359,9 @@ links** all on), add a title and watch it arrive:
 
 By default only releases a provider already has cached are added (**Settings › Download clients › Behaviour**,
 **What to grab › Only add cached releases**), so a title with no cached release stays wanted and is searched again
-later.
-[troubleshooting.md](troubleshooting.md#a-live-library-downloads-nothing) lists the other reasons a live library
-stays quiet.
+later. One exception: on AllDebrid an add that turns out uncached stays on the account and finishes downloading
+there. [troubleshooting.md](troubleshooting.md#a-live-library-downloads-nothing) explains it and lists the other
+reasons a live library stays quiet.
 
 ## Readiness-led setup
 
