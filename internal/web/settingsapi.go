@@ -62,6 +62,7 @@ func (w *Web) mountSettingsAPI(mux *http.ServeMux) {
 	h("POST "+b+"/reload", w.apiSettingsReload)
 	h("POST "+b+"/notify/targets/{name}/test", w.apiNotifyTargetTest)
 	w.mountVersionSettingsAPI(mux, b)
+	w.mountSetupStartAPI(mux)
 	for _, entity := range []string{entityIndexers, entityProviders, entityBudgets} {
 		p := b + "/" + entity
 		h("GET "+p, w.apiSettingsList(entity))

@@ -6,8 +6,9 @@ package web
 //	                 latest preflight's summary (last_preflight, kept in memory until a restart)
 //	POST preflight   run the install checks; {"sources": false} skips the provider and indexer tests
 //
-// Both are admin only. Neither writes settings: the setup screen creates everything through the settings API, with
-// its confirmations, and the preflight's source tests are the settings tests (bounded, audited, through the gateway).
+// Both are admin only and write no settings: the setup screen creates everything through the settings API, with its
+// confirmations, and the preflight's source tests are the settings tests (bounded, audited, through the gateway).
+// POST setup/start (settingsapi_start.go) is a settings write like any other, with its confirmation.
 
 import (
 	"context"
@@ -57,6 +58,9 @@ type SetupState struct {
 	// TMDb: the metadata source tmdb has its address and a key that resolves, stored in settings or in the
 	// environment variable the source names: what search and adding titles need.
 	TMDb bool `json:"tmdb"`
+	// ArrInstances counts the arr instances the install migrates from (import.arr). With none, Setup offers the
+	// one-step start (POST setup/start); with any, a library starts in shadow.
+	ArrInstances int `json:"arr_instances"`
 	// LastPreflight is the latest POST preflight this server ran since it started, nil before the first. Setup's
 	// readiness step reads it, so the step survives a page reload; a restart forgets it and the step is open again.
 	LastPreflight *LastPreflight `json:"last_preflight,omitempty"`
@@ -136,6 +140,7 @@ func (w *Web) apiSetup(rw http.ResponseWriter, r *http.Request) {
 			}
 		}
 	}
+	out.ArrInstances = arrInstances(p)
 	out.TMDb = tmdbReady(p, settings.Credentials{Policy: p, Snap: snap, Lookup: w.settingsLookup})
 	out.Missing = preflight.Missing(p, out.Indexers, out.Providers)
 	out.FirstRun = out.Versions == 0

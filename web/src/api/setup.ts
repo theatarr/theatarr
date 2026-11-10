@@ -8,6 +8,8 @@ export type SetupState = Schemas["SetupState"];
 export type PreflightReport = Schemas["PreflightReport"];
 export type PreflightItem = Schemas["PreflightItem"];
 export type LastPreflight = Schemas["LastPreflight"];
+export type SetupStartBody = Schemas["SetupStartBody"];
+export type SetupStarted = Schemas["SetupStarted"];
 
 export const setupKey = ["setup"] as const;
 export const useSetup = (enabled = true) => useQuery({ queryKey: setupKey, queryFn: () => api<SetupState>("/setup"), enabled });
@@ -20,3 +22,7 @@ export const usePreflight = (generation?: number) => {
 };
 
 export const setupUnfinished = (state?: SetupState) => !!state && (state.first_run || (state.missing ?? []).length > 0);
+
+/** The one-step start of an install no arr feeds: the library active with its downloads on, the optional preset as
+ * its profile, and the global switches router and library on, in one save. A 422 lists the effects with a token. */
+export const startSetup = (body: SetupStartBody) => api<SetupStarted>("/setup/start", { method: "POST", body });

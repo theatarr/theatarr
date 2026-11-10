@@ -1,20 +1,23 @@
 // Admin › Setup (docs/quickstart.md, docs/design/web.md "Setup"): the first-run screen. It leads a fresh install
 // through the admin password, the debrid providers, the indexers (Prowlarr feeds as Torznab and the native catalog),
 // the TMDb key, a library root and a first version from a preset, then the preflight. Everything it creates goes through the
-// settings API; the version starts in Shadow with its downloads off, so nothing it does can grab.
+// settings API. On an install no arr feeds, the first library can start downloading at once (POST setup/start: one
+// save, one confirmation that lists each switch it turns on); otherwise, and always on an install that migrates
+// from an arr, the version starts in Shadow with its downloads off and nothing Setup does can grab.
 import { useState, type FormEvent, type ReactNode } from "react";
 import { Link } from "react-router";
 import { ApiError } from "@/api/client";
-import { usePreflight, type LastPreflight, type PreflightItem, type PreflightReport, type SetupState } from "@/api/setup";
+import { startSetup, usePreflight, type LastPreflight, type PreflightItem, type PreflightReport, type SetupStartBody, type SetupState } from "@/api/setup";
 import { useSetupProgress } from "@/api/useSetupProgress";
 import { libraryLabel } from "@/lib/library-label";
 import { settingHref } from "@/lib/settings-map";
 import { createFromPreset, usePresets } from "@/api/settings-profiles";
-import { checkRoot, confirmVersion, saveVersion, useVersions, type Confirmation, type VersionBody, type VersionList } from "@/api/settings-versions";
+import { checkRoot, confirmVersion, saveVersion, useVersions, type Confirmation, type VersionBody, type VersionConfig, type VersionList } from "@/api/settings-versions";
 import { useChangePassword } from "@/api/users";
 import { DownloadsOffNotice, VersionStatus } from "@/components/version-status";
 import { globalDownloadsOff } from "@/lib/version-grab";
 import { ErrorState, Loading, PageHeader } from "@/components/page";
+import { EffectsConfirmDialog } from "@/components/settings/confirm-write";
 import { SELECT_CLASS } from "@/components/settings/parts";
 import { TMDbKey } from "@/components/settings/tmdb-key";
 import { Badge } from "@/components/ui/badge";
@@ -23,8 +26,12 @@ import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { fmtTime } from "@/lib/format";
+import { confirmationOf, type WriteConfirmation } from "@/lib/settings";
 
 const message = (error: unknown) => error instanceof Error ? error.message : String(error);
+
+/** The global switches the one-step start turns on, by the key POST setup/start reports in forced_off. */
+const START_SWITCHES: Record<string, string> = { router: "Allow new downloads", library: "Write library links" };
 
 function Step({ n, title, done, children }: { n: number; title: string; done: boolean; children: ReactNode }) {
   return <li><Card>
@@ -40,9 +47,13 @@ export function Field({ label, children }: { label: string; children: ReactNode 
 export function SetupPage() {
   const progress = useSetupProgress();
   const { setup } = progress;
+  // What the one-step start reported as forced off: kept here, since its form goes away once the library exists.
+  const [forcedOff, setForcedOff] = useState<string[]>([]);
   if (setup.isPending) return <Loading />;
   if (setup.error) return <ErrorState error={setup.error} />;
   const s = setup.data;
+  // An install no arr feeds: the first library may start downloading at once. An older server sends no count.
+  const oneStep = s.arr_instances === 0 && s.settings_source === "db";
   const refresh = () => { void setup.refetch(); void progress.versions.refetch(); };
   // An older server sent null for a complete install.
   const missing = s.missing ?? [];
@@ -79,7 +90,8 @@ export function SetupPage() {
 
         {s.versions > 0
           ? <p>{s.versions} {s.versions === 1 ? "library" : "libraries"}, {s.versions_with_roots} with a library root. Edit them under <Link className="underline" to="/admin/settings/libraries">Libraries</Link>.</p>
-          : <FirstVersion state={s} onDone={refresh} />}
+          : <FirstVersion state={s} oneStep={oneStep} onDone={(forced) => { setForcedOff(forced ?? []); refresh(); }} />}
+        {forcedOff.length ? <p role="status" data-testid="start-forced-off">The library was created and the switches are saved as on, but {forcedOff.map((k) => START_SWITCHES[k] ?? k).join(" and ")} {forcedOff.length === 1 ? "is" : "are"} forced off by environment (THEATARR_FORCE_OFF): {forcedOff.includes("router") ? "nothing downloads" : "no library link is written"} until that override is removed and the service restarted.</p> : null}
         <DownloadsOffNotice off={globalDownloadsOff((s.version_states ?? []).map((v) => v.grab_state))} canManage />
         <div className="space-y-1">{(s.version_states ?? []).map((v) => <div key={v.key} className="flex flex-wrap items-start gap-2"><span className="font-mono text-[13px]">{v.key}</span><VersionStatus state={v.grab_state} showMode settingsKey={v.key} canManage /></div>)}</div>
       </Step>
@@ -88,7 +100,9 @@ export function SetupPage() {
         <Link className="underline" to="/admin/advanced/journal">See example decisions</Link>
       </Step>
       <Step n={6} title="Review activation" done={progress.steps[5]}>
-        <p>Theatarr doesn't turn these on for you. When you're ready, set a library to Active, turn on Allow downloads for this library, and Allow new downloads.</p>
+        {oneStep
+          ? <p>"Create library and start downloading" in step 4 turns these on in one confirmed step. For a library created in Shadow mode: when you're ready, set it to Active, turn on Allow downloads for this library, and Allow new downloads.</p>
+          : <p>Theatarr doesn't turn these on for you. When you're ready, set a library to Active, turn on Allow downloads for this library, and Allow new downloads.</p>}
         {progress.versions.isPending ? <Loading /> : progress.versions.error ? <ErrorState error={progress.versions.error} /> : <Activation data={progress.versions.data} />}
       </Step>
     </ol>
@@ -140,14 +154,14 @@ function AdminPassword({ onDone }: { onDone: () => void }) {
 type Draft = { key: string; kind: "movie" | "series"; library: string; profile: string; indexers: string[]; providers: string[] };
 
 /** The profile choice: "preset:<trash_id>" builds a new profile from a TRaSH preset, else an existing profile key. */
-function FirstVersion({ state, onDone }: { state: SetupState; onDone: () => void }) {
+function FirstVersion({ state, oneStep, onDone }: { state: SetupState; oneStep: boolean; onDone: (forcedOff?: string[]) => void }) {
   const versions = useVersions();
   if (versions.isPending) return <Loading />;
   if (versions.error) return <ErrorState error={versions.error} />;
-  return <VersionForm data={versions.data} state={state} onDone={onDone} reload={async () => (await versions.refetch()).data} />;
+  return <VersionForm data={versions.data} state={state} oneStep={oneStep} onDone={onDone} reload={async () => (await versions.refetch()).data} />;
 }
 
-function VersionForm({ data, state, onDone, reload }: { data: VersionList; state: SetupState; onDone: () => void; reload: () => Promise<VersionList | undefined> }) {
+function VersionForm({ data, state, oneStep, onDone, reload }: { data: VersionList; state: SetupState; oneStep: boolean; onDone: (forcedOff?: string[]) => void; reload: () => Promise<VersionList | undefined> }) {
   const [draft, setDraft] = useState<Draft>({ key: "movies", kind: "movie", library: "", profile: Object.keys(data.profiles)[0] ?? "", indexers: data.indexers, providers: data.providers });
   const flavour = draft.kind === "series" ? "sonarr" : "radarr";
   const presets = usePresets(flavour);
@@ -159,6 +173,8 @@ function VersionForm({ data, state, onDone, reload }: { data: VersionList; state
   const [made, setMade] = useState<{ key: string; preset: string }>();
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string>();
+  // The one-step start waiting for its confirmation: the request and what the server says it turns on.
+  const [starting, setStarting] = useState<{ body: SetupStartBody; confirmation: WriteConfirmation }>();
   const set = <K extends keyof Draft>(k: K, v: Draft[K]) => { setDraft({ ...draft, [k]: v }); setReview(false); setEffects(undefined); setPending(undefined); };
   const preset = draft.profile.startsWith("preset:") ? presets.data?.presets.find((p) => `preset:${p.trash_id}` === draft.profile) : undefined;
   const reuse = !!preset && made?.key === draft.key && made.preset === preset.trash_id;
@@ -176,6 +192,41 @@ function VersionForm({ data, state, onDone, reload }: { data: VersionList; state
     // the preset under review.
     !!preset && made?.key === draft.key && !reuse && `another key (the profile "${draft.key}" was already created from a different preset; pick it as "Profile: ${draft.key}" to use it)`,
   ].filter(Boolean) as string[];
+
+  // Starting would do nothing without a source to search, a provider to add to and the mount to link from.
+  const blocked = [
+    state.providers === 0 && "no enabled debrid provider with an API key (step 2)",
+    state.indexers === 0 && "no enabled indexer (step 2)",
+    (state.missing ?? []).some((m) => /no debrid mount/i.test(m)) && "the debrid mount is not connected (above)",
+  ].filter(Boolean) as string[];
+
+  const config = (mode: "shadow" | "active", grab: boolean): VersionConfig => ({
+    mode, grab, kind: draft.kind, anime: false, profile: preset ? draft.key : draft.profile, library: draft.library,
+    storage: "debrid", indexers: draft.indexers, providers: draft.providers, client: "", import: "symlink", upgrades: "auto", follows: "",
+  });
+
+  // The one-step start: one request creates the preset's profile, the active library and turns the switches on. The
+  // server answers 422 with what that enables; confirming sends the same request again with the token.
+  async function start(pendingStart?: { body: SetupStartBody; token: string }) {
+    setBusy(true);
+    setError(undefined);
+    setStarting(undefined);
+    setReview(false);
+    let body = pendingStart?.body;
+    try {
+      if (!body) {
+        const generation = (await reload())?.generation ?? data.generation;
+        body = { generation, key: draft.key, roots: [draft.library], config: config("active", true),
+          ...(preset && !reuse ? { preset: { flavour, preset: preset.trash_id, modifiers: [] } } : {}) };
+      }
+      const started = await startSetup(pendingStart ? { ...body, confirmation_token: pendingStart.token } : body);
+      onDone(started.forced_off ?? []);
+    } catch (failure) {
+      const confirmation = pendingStart ? undefined : confirmationOf(failure);
+      if (confirmation && body) setStarting({ body, confirmation });
+      else setError(message(failure));
+    } finally { setBusy(false); }
+  }
 
   async function check() {
     setRoot(undefined);
@@ -196,10 +247,7 @@ function VersionForm({ data, state, onDone, reload }: { data: VersionList; state
         generation = (await createFromPreset({ generation, key: draft.key, flavour, preset: preset.trash_id, modifiers: [] })).generation;
         setMade({ key: draft.key, preset: preset.trash_id });
       }
-      await submit({ generation, key: draft.key, roots: [draft.library], config: {
-        mode: "shadow", grab: false, kind: draft.kind, anime: false, profile: preset ? draft.key : draft.profile, library: draft.library,
-        storage: "debrid", indexers: draft.indexers, providers: draft.providers, client: "", import: "symlink", upgrades: "auto", follows: "",
-      } });
+      await submit({ generation, key: draft.key, roots: [draft.library], config: config("shadow", false) });
     } catch (failure) { setError(message(failure)); }
     finally { setBusy(false); }
   }
@@ -230,8 +278,10 @@ function VersionForm({ data, state, onDone, reload }: { data: VersionList; state
   }
 
   return <div className="grid max-w-xl gap-3" data-testid="first-version">
-    <p>Each library has its own settings: a kind, a profile, a root it links into, the indexers it searches and the providers it adds to. It starts in <strong>Shadow</strong> mode (Preview only): it decides and records what it would download, but downloads nothing and writes nothing until you make it Active.</p>
-    <VersionStatus showMode state={{ mode: "shadow", grab: false, library_enabled: data.switches.library_enabled, router_enabled: data.switches.router_enabled, router_forced_off: data.switches.sources?.router === "forced off by environment" }} />
+    {oneStep
+      ? <p>Each library has its own settings: a kind, a profile, a root it links into, the indexers it searches and the providers it adds to. Create it and start downloading at once, or create it in <strong>Shadow</strong> mode (Preview only): it then decides and records what it would download, but downloads nothing and writes nothing until you make it Active.</p>
+      : <p>Each library has its own settings: a kind, a profile, a root it links into, the indexers it searches and the providers it adds to. It starts in <strong>Shadow</strong> mode (Preview only): it decides and records what it would download, but downloads nothing and writes nothing until you make it Active.</p>}
+    {oneStep ? null : <VersionStatus showMode state={{ mode: "shadow", grab: false, library_enabled: data.switches.library_enabled, router_enabled: data.switches.router_enabled, router_forced_off: data.switches.sources?.router === "forced off by environment" }} />}
     <Field label="Key"><Input value={draft.key} onChange={(e) => set("key", e.target.value)} /></Field>
     <Field label="Kind"><select className={SELECT_CLASS} value={draft.kind} onChange={(e) => set("kind", e.target.value as Draft["kind"])}><option value="movie">Movies</option><option value="series">Series</option></select></Field>
     <Field label="Library root (absolute path the library links into; not inside the debrid mount)">
@@ -245,19 +295,39 @@ function VersionForm({ data, state, onDone, reload }: { data: VersionList; state
         {Object.keys(data.profiles).map((k) => <option key={k} value={k}>Profile: {k}</option>)}
       </select>
     </Field>
-    {presets.data?.unavailable ? <p data-testid="presets-off">{presets.data.unavailable}. Pick an existing profile, or put a TRaSH-Guides checkout in THEATARR_TRASH and reload.</p> : presets.error ? <p data-testid="presets-off">{message(presets.error)}</p> : null}
+    {presets.data?.unavailable ? <p data-testid="presets-off">{presets.data.unavailable}. Pick an existing profile.</p> : presets.error ? <p data-testid="presets-off">{message(presets.error)}</p> : null}
     <Checks label="Indexers" choices={data.indexers} values={draft.indexers} onChange={(v) => set("indexers", v)} empty="Add an indexer first (step 2)." />
     <Checks label="Debrid providers" choices={data.providers} values={draft.providers} onChange={(v) => set("providers", v)} empty="Add a provider first (step 2)." />
-    {state.profiles === 0 && !presets.data?.presets.length ? <p>There is no profile yet. Create one in the <Link className="underline" to="/admin/settings/profiles?raw=1">raw profile editor</Link>, or put a TRaSH-Guides checkout in THEATARR_TRASH for the presets.</p> : null}
+    {state.profiles === 0 && !presets.data?.presets.length ? <p>There is no profile yet. Create one in the <Link className="underline" to="/admin/settings/profiles?raw=1">raw profile editor</Link>.</p> : null}
     {missing.length ? <p>Still needed: {missing.join(", ")}.</p> : null}
+    {oneStep ? <div className="space-y-1" data-testid="one-step-start">
+      <Button type="button" className="w-fit" disabled={busy || missing.length > 0 || blocked.length > 0} onClick={() => void start()}>Create library and start downloading</Button>
+      {blocked.length ? <p data-testid="start-blocked">Starting is not possible yet: {blocked.join("; ")}.</p>
+        : <p className="text-muted-foreground">Sets the library to Active, turns on Allow downloads for this library, and turns on Allow new downloads and Write library links for the whole install. You confirm the list first.</p>}
+    </div> : null}
     {!review
-      ? <Button type="button" className="w-fit" disabled={missing.length > 0} onClick={() => setReview(true)}>Review</Button>
+      ? <Button type="button" variant={oneStep ? "outline" : undefined} className="w-fit" disabled={missing.length > 0} onClick={() => setReview(true)}>{oneStep ? "Create in shadow (decide later)" : "Review"}</Button>
       : <div className="space-y-2 rounded-md border border-border p-3" data-testid="version-review">
         <p>This creates {newProfile}the library <strong>{draft.key}</strong> ({draft.kind}){profileUse} in Shadow mode with its downloads off, linking into {draft.library}, searching {draft.indexers.join(", ")} and adding to {draft.providers.join(", ")}. It downloads nothing until you make it Active on Libraries.</p>
         {effects?.length ? <><p>The settings API asks to confirm:</p><ul className="list-disc pl-5">{effects.map((e, i) => <li key={i}>{e.version}: {e.effect}</li>)}</ul><Button type="button" disabled={busy} onClick={() => void confirmEffects()}>Confirm and create</Button></>
           : <Button type="button" disabled={busy} onClick={() => void create()}>Create library</Button>}
       </div>}
     {error ? <p role="alert" className="text-[var(--bad-ink)]">{error}</p> : null}
+    {starting ? <EffectsConfirmDialog
+      testid="start-confirm"
+      effects={starting.confirmation.effects}
+      library={draft.key}
+      scope={{
+        title: "Create the library and start downloading",
+        does: [],
+        keeps: ["Send notifications stays as it is.", "Environment force-off overrides stay in force."],
+        confirm: "Confirm and start",
+      }}
+      onClose={() => setStarting(undefined)}
+      onConfirm={() => void start({ body: starting.body, token: starting.confirmation.token })}
+    >
+      <p>In plain words: the library <strong>{draft.key}</strong> is created Active{starting.body.preset ? ` with a new profile "${draft.key}" from the TRaSH preset ${preset?.name ?? starting.body.preset.preset}` : ""}, with Allow downloads for this library on; and for the whole install, Allow new downloads and Write library links are turned on.</p>
+    </EffectsConfirmDialog> : null}
   </div>;
 }
 

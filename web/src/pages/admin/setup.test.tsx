@@ -11,7 +11,7 @@ import { SetupPage } from "./setup";
 
 const fresh: SetupState = {
   first_run: true, settings_source: "db", admin_password_generated: true, versions: 0, versions_with_roots: 0,
-  providers: 1, indexers: 1, profiles: 0, api_keys: 0, tmdb: false,
+  providers: 1, indexers: 1, profiles: 0, api_keys: 0, tmdb: false, arr_instances: 1,
   missing: ["No versions: nothing is searched, grabbed or linked", "No TMDb key: titles cannot be added or matched"],
 };
 const versions: VersionList = {
@@ -254,5 +254,123 @@ describe("setup", () => {
     expect(screen.getByTestId("preflight-metadata-tmdb").textContent).toContain("Set metadata.sources.tmdb.api_key_env");
     expect(screen.getByTestId("preflight-library-root movies").querySelector('[data-slot="badge"]')?.getAttribute("data-tone")).toBe("info");
     expect(fetch.calls("POST", "/preflight")[0].body).toEqual({ sources: false });
+  });
+
+  // The request the shadow path has always sent: the same bytes whether or not the one-step start is offered.
+  const shadowBody = {
+    generation: 3, key: "movies", roots: ["/media/movies"],
+    config: { mode: "shadow", grab: false, kind: "movie", anime: false, profile: "hd", library: "/media/movies", storage: "debrid",
+      indexers: ["feed"], providers: ["rd"], client: "", import: "symlink", upgrades: "auto", follows: "" },
+  };
+  const startEffects = [
+    { version: "movies", effect: "Library movies becomes active and starts searching." },
+    { version: "movies", effect: "Active library movies grabs: torrent adds go to providers rd." },
+    { version: "", effect: "Enable router.enabled: new torrent adds to debrid are allowed." },
+    { version: "", effect: "Enable library.enabled: links may be written." },
+  ];
+
+  it.each([[1, "Review"], [0, "Create in shadow (decide later)"]])("sends the same shadow request with arr_instances %i", async (arrInstances, button) => {
+    const user = userEvent.setup();
+    const fetch = mockFetch([
+      { method: "GET", path: "/setup", reply: { ...fresh, profiles: 1, arr_instances: arrInstances } },
+      { method: "GET", path: "/settings/versions", reply: { ...versions, profiles: { "hd": "hd" } } },
+      { method: "GET", path: "/settings/presets", reply: { flavour: "radarr", presets: [] } },
+      { method: "POST", path: "/settings/versions", reply: { generation: 4, revision: "r" } },
+    ]);
+    renderPage(<SetupPage />);
+    await user.type(await screen.findByLabelText(/Library root/), "/media/movies");
+    await user.selectOptions(screen.getByLabelText("Quality profile"), "hd");
+    // An install that migrates from an arr sees the form as it was: no start button, the Shadow wording, Review.
+    expect(!!screen.queryByTestId("one-step-start")).toBe(arrInstances === 0);
+    expect(!!screen.queryByText(/It starts in/)).toBe(arrInstances !== 0);
+    expect(!!screen.queryByText(/Theatarr doesn't turn these on for you/)).toBe(arrInstances !== 0);
+    await user.click(screen.getByRole("button", { name: button }));
+    expect(screen.getByTestId("version-review").textContent).toContain("in Shadow mode with its downloads off");
+    await user.click(screen.getByRole("button", { name: "Create library" }));
+    await waitFor(() => expect(fetch.calls("POST", "/settings/versions")).toHaveLength(1));
+    expect(fetch.calls("POST", "/settings/versions")[0].body).toEqual(shadowBody);
+    expect(fetch.calls("POST", "/setup/start")).toHaveLength(0);
+  });
+
+  it("starts downloading in one confirmed request on an install no arr feeds, and says what is forced off", async () => {
+    const user = userEvent.setup();
+    let created = false;
+    const fetch = mockFetch([
+      { method: "GET", path: "/setup", reply: () => ({ ...fresh, arr_instances: 0, ...(created ? { first_run: false, versions: 1, versions_with_roots: 1 } : {}) }) },
+      { method: "GET", path: "/settings/versions", reply: versions },
+      { method: "GET", path: "/settings/presets", reply: { flavour: "radarr", presets: [preset] } },
+      { method: "POST", path: "/setup/start", reply: { status: 422, body: { error: "explicit confirmation required", effects: startEffects, confirmation: { token: "proof", generation: 3, effects: startEffects } } } },
+      { method: "POST", path: "/setup/start", reply: () => { created = true; return { generation: 4, revision: "r", forced_off: ["router"] }; } },
+    ]);
+    renderPage(<SetupPage />);
+    const start = await screen.findByRole("button", { name: "Create library and start downloading" }) as HTMLButtonElement;
+    expect(start.disabled).toBe(true); // the form is not filled in yet
+    expect(screen.queryByTestId("start-blocked")).toBeNull();
+    await user.type(screen.getByLabelText(/Library root/), "/media/movies");
+    await screen.findByRole("option", { name: "TRaSH preset: HD Bluray + WEB" });
+    await user.selectOptions(screen.getByLabelText("Quality profile"), `preset:${preset.trash_id}`);
+    await user.click(start);
+
+    // One request, no separate profile save; the dialog lists each switch the server says it turns on.
+    const dialog = await screen.findByRole("dialog", { name: "Create the library and start downloading" });
+    for (const e of startEffects) expect(dialog.textContent).toContain(e.effect);
+    expect(dialog.textContent).toContain("Allow new downloads and Write library links are turned on");
+    expect(fetch.calls("POST", "/settings/presets/create")).toHaveLength(0);
+    expect(fetch.calls("POST", "/setup/start")).toHaveLength(1);
+    const first = fetch.calls("POST", "/setup/start")[0].body;
+    expect(first).toEqual({
+      generation: 3, key: "movies", roots: ["/media/movies"],
+      config: { ...shadowBody.config, mode: "active", grab: true, profile: "movies" },
+      preset: { flavour: "radarr", preset: preset.trash_id, modifiers: [] },
+    });
+    await user.click(screen.getByRole("button", { name: "Confirm and start" }));
+    await waitFor(() => expect(fetch.calls("POST", "/setup/start")).toHaveLength(2));
+    expect(fetch.calls("POST", "/setup/start")[1].body).toEqual({ ...(first as object), confirmation_token: "proof" });
+    expect(fetch.calls("POST", "/settings/versions")).toHaveLength(0);
+
+    // The form is gone once the library exists; the forced-off notice stays.
+    await screen.findByText(/^1 library, 1 with a library root/);
+    expect(screen.queryByTestId("first-version")).toBeNull();
+    expect(screen.getByTestId("start-forced-off").textContent).toContain("Allow new downloads is forced off by environment");
+  });
+
+  it("cancelling the start confirmation saves nothing", async () => {
+    const user = userEvent.setup();
+    const fetch = mockFetch([
+      { method: "GET", path: "/setup", reply: { ...fresh, profiles: 1, arr_instances: 0 } },
+      { method: "GET", path: "/settings/versions", reply: { ...versions, profiles: { "hd": "hd" } } },
+      { method: "GET", path: "/settings/presets", reply: { flavour: "radarr", presets: [] } },
+      { method: "POST", path: "/setup/start", reply: { status: 422, body: { error: "explicit confirmation required", effects: startEffects, confirmation: { token: "proof", generation: 3, effects: startEffects } } } },
+    ]);
+    renderPage(<SetupPage />);
+    await user.type(await screen.findByLabelText(/Library root/), "/media/movies");
+    await user.selectOptions(screen.getByLabelText("Quality profile"), "hd");
+    await user.click(screen.getByRole("button", { name: "Create library and start downloading" }));
+    await screen.findByRole("dialog");
+    expect(fetch.calls("POST", "/setup/start")[0].body).toEqual({ ...shadowBody, config: { ...shadowBody.config, mode: "active", grab: true } });
+    await user.click(screen.getByRole("button", { name: "Cancel" }));
+    expect(screen.queryByRole("dialog")).toBeNull();
+    expect(fetch.calls("POST", "/setup/start")).toHaveLength(1);
+    expect(screen.getByTestId("first-version")).toBeTruthy();
+  });
+
+  it.each([
+    [{ providers: 0 }, "no enabled debrid provider with an API key"],
+    [{ indexers: 0 }, "no enabled indexer"],
+    [{ missing: ["No debrid mount: nothing can be linked"] }, "the debrid mount is not connected"],
+  ])("disables the start with the reason: %j", async (lacking, reason) => {
+    const user = userEvent.setup();
+    mockFetch([
+      { method: "GET", path: "/setup", reply: { ...fresh, profiles: 1, arr_instances: 0, ...lacking } },
+      { method: "GET", path: "/settings/versions", reply: { ...versions, profiles: { "hd": "hd" } } },
+      { method: "GET", path: "/settings/presets", reply: { flavour: "radarr", presets: [] } },
+    ]);
+    renderPage(<SetupPage />);
+    await user.type(await screen.findByLabelText(/Library root/), "/media/movies");
+    await user.selectOptions(screen.getByLabelText("Quality profile"), "hd");
+    expect((screen.getByRole("button", { name: "Create library and start downloading" }) as HTMLButtonElement).disabled).toBe(true);
+    expect(screen.getByTestId("start-blocked").textContent).toContain(reason);
+    // The shadow path stays open: it needs none of this.
+    expect((screen.getByRole("button", { name: "Create in shadow (decide later)" }) as HTMLButtonElement).disabled).toBe(false);
   });
 });
