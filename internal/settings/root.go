@@ -14,6 +14,7 @@ import (
 
 	"github.com/theatarr/theatarr/internal/policy"
 	"github.com/theatarr/theatarr/internal/rootprobe"
+	"github.com/theatarr/theatarr/internal/uipages"
 )
 
 type rootQueryer interface {
@@ -151,11 +152,10 @@ func validateVersionRoots(ctx context.Context, previous, next *policy.Policy, bo
 	area := previous
 	if !hasLibraryArea(area) {
 		area = next
-		// The very first roots, all directly under / (/movies, /tv): their parent is no area, so each is its own.
-		if !hasLibraryArea(next) && len(allVersionRoots(previous)) == 0 {
-			area = topLevelRootsArea(next)
-		}
 	}
+	// A root directly under / (/movies, as Docker mounts often are) has no parent area, so it is its own: for the
+	// very first roots, and for one already saved (a Watch only library made Live). No new root is admitted by it.
+	area = withTopLevelRoots(area, topLevelRoots(next, previous))
 	for _, key := range keys {
 		field := "versions[" + key + "].library"
 		if _, err := next.CheckRootSeparationWith(key, rr); err != nil {
@@ -304,8 +304,9 @@ func validateOneRoot(ctx context.Context, rr *policy.RootResolver, p, allowed *p
 			return RootCheck{}, err
 		}
 		if !inside {
-			return RootCheck{}, fmt.Errorf("directory is outside the configured library area: first save "+
-				"library.dangling.roots (Settings, \"Library and Plex\") as %s, then add the library", strings.Join(widerArea(allowed, path), ", "))
+			return RootCheck{}, fmt.Errorf("directory is outside the configured library area: first save the "+
+				"dangling roots (library.dangling.roots, in %s › Broken link checks) as %s, then add the library",
+				uipages.FileManagement, strings.Join(widerArea(allowed, p, path), ", "))
 		}
 	}
 	if err := physicalPathSeparation(p, rr, key, root); err != nil {
@@ -365,40 +366,58 @@ func allVersionRoots(p *policy.Policy) []string {
 	return out
 }
 
-// topLevelRootsArea is p with its roots directly under / as the library area, for checking the first roots of an
-// install that has no area yet. p itself when it cannot be copied.
-func topLevelRootsArea(p *policy.Policy) *policy.Policy {
+// topLevelRoots is the roots of next directly under / that the area may hold as their own: all of them for the very
+// first roots (previous has none), else those previous already saved.
+func topLevelRoots(next, previous *policy.Policy) []string {
+	saved := allVersionRoots(previous)
+	var out []string
+	for _, root := range allVersionRoots(next) {
+		root = filepath.Clean(root)
+		if filepath.IsAbs(root) && root != "/" && rootArea(root) == root && (len(saved) == 0 || slices.Contains(saved, root)) {
+			out = append(out, root)
+		}
+	}
+	return out
+}
+
+// withTopLevelRoots is p with roots added to its library area, as library.dangling.roots on a copy. p itself when
+// there are none or it cannot be copied.
+func withTopLevelRoots(p *policy.Policy, roots []string) *policy.Policy {
+	if len(roots) == 0 {
+		return p
+	}
 	c, err := p.Clone()
 	if err != nil {
 		return p
 	}
-	var roots []string
-	for _, root := range allVersionRoots(c) {
-		if filepath.IsAbs(root) && rootArea(root) == root {
-			roots = append(roots, root)
-		}
-	}
+	areas := append(libraryAreas(p), roots...)
+	sort.Strings(areas)
 	if c.Library == nil {
 		c.Library = &policy.Library{}
 	}
-	c.Library.Dangling.Roots = roots
+	c.Library.Dangling.Roots = slices.Compact(areas)
 	return c
 }
 
-// widerArea is what library.dangling.roots must list for root to fit: the areas in force (or, without one, the
-// folders of the configured roots) and the folder of root. Never /.
-func widerArea(p *policy.Policy, root string) []string {
-	areas := libraryAreas(p)
-	if len(areas) == 0 {
-		for _, r := range allVersionRoots(p) {
-			if filepath.IsAbs(r) && r != "/" {
-				areas = append(areas, rootArea(r))
-			}
+// widerArea is what library.dangling.roots must list for root to fit without leaving out any library: the explicit
+// dangling roots, the folder of every configured root (of allowed and next) not already inside them, and the folder
+// of root. Never /.
+func widerArea(allowed, next *policy.Policy, root string) []string {
+	var areas []string
+	if allowed != nil && allowed.Library != nil {
+		areas = append(areas, allowed.Library.Dangling.Roots...)
+	}
+	explicit := len(areas)
+	roots := append(allVersionRoots(allowed), allVersionRoots(next)...)
+	for _, r := range append(roots, root) {
+		if !filepath.IsAbs(r) || filepath.Clean(r) == "/" {
+			continue
+		}
+		if !slices.ContainsFunc(areas[:explicit], func(a string) bool { return policy.Within(filepath.Clean(r), filepath.Clean(a)) }) {
+			areas = append(areas, rootArea(r))
 		}
 	}
-	if root != "/" {
-		areas = append(areas, rootArea(root))
-	}
+	areas = slices.DeleteFunc(areas, func(a string) bool { return filepath.Clean(a) == "/" })
 	sort.Strings(areas)
 	return slices.Compact(areas)
 }
@@ -561,6 +580,9 @@ func (s *Store) ValidateRoot(ctx context.Context, base *policy.Policy, key, root
 		if links > 0 {
 			return RootCheck{}, rootFieldError("root", "active links would stay at the old root; use the procedure in docs/migration.md#changing-a-root-with-links")
 		}
+	}
+	if allowed != nil {
+		allowed = withTopLevelRoots(allowed, topLevelRoots(p, snap.Policy))
 	}
 	checked, err := validateOneRoot(ctx, rr, p, allowed, key, root, version.Mode == policy.ModeActive)
 	if err != nil {

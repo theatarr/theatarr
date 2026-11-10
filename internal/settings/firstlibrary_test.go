@@ -183,16 +183,25 @@ func TestLibraryAreaNotWidenedWithNewRoot(t *testing.T) {
 	}
 }
 
-// The way out a refusal names lists the areas in force and the new root's folder, never /.
+// The way out a refusal names lists the explicit area and the folder of every library root and the new one, never /.
 func TestWiderAreaNamesBothAreas(t *testing.T) {
 	t.Parallel()
 	top := &policy.Policy{Versions: map[string]*policy.VersionPolicy{"movies": {Library: "/movies"}, "tv": {Library: "/tv"}}}
-	if got, want := widerArea(top, "/tv"), []string{"/movies", "/tv"}; !slices.Equal(got, want) {
+	if got, want := widerArea(top, top, "/tv"), []string{"/movies", "/tv"}; !slices.Equal(got, want) {
 		t.Fatalf("top-level: %v, want %v", got, want)
 	}
 	deep := &policy.Policy{Versions: map[string]*policy.VersionPolicy{"movies": {Library: "/media/movies/hd"}}}
-	if got, want := widerArea(deep, "/data/tv/hd"), []string{"/data/tv", "/media/movies"}; !slices.Equal(got, want) {
+	if got, want := widerArea(deep, deep, "/data/tv/hd"), []string{"/data/tv", "/media/movies"}; !slices.Equal(got, want) {
 		t.Fatalf("deep: %v, want %v", got, want)
+	}
+	mixed := &policy.Policy{Versions: map[string]*policy.VersionPolicy{"movies": {Library: "/movies"}, "tv": {Library: "/data/tv"}}}
+	if got, want := widerArea(mixed, mixed, "/other/anime"), []string{"/data", "/movies", "/other"}; !slices.Equal(got, want) {
+		t.Fatalf("mixed: %v, want %v", got, want)
+	}
+	explicit := &policy.Policy{Versions: map[string]*policy.VersionPolicy{"movies": {Library: "/media/movies"}, "kids": {Library: "/kids"}},
+		Library: &policy.Library{Dangling: policy.LibraryDangling{Roots: []string{"/media"}}}}
+	if got, want := widerArea(explicit, explicit, "/other/anime"), []string{"/kids", "/media", "/other"}; !slices.Equal(got, want) {
+		t.Fatalf("explicit: %v, want %v", got, want)
 	}
 }
 
@@ -301,6 +310,13 @@ func withTrash(t *testing.T, m *RuntimeCoordinator, base *policy.Policy, snap *S
 // then both libraries active.
 func followRefusal(t *testing.T, m *RuntimeCoordinator, base *policy.Policy, saved *Snapshot, movie Version, named []string, second string) {
 	t.Helper()
+	followRefusalKeys(t, m, base, saved, movie, named, "tv", second, []string{"movies", "tv"})
+}
+
+// followRefusalKeys saves library.dangling.roots as named, adds library key at root, and makes every library active;
+// active lists the keys that must end active.
+func followRefusalKeys(t *testing.T, m *RuntimeCoordinator, base *policy.Policy, saved *Snapshot, movie Version, named []string, key, root string, active []string) {
+	t.Helper()
 	req := saveRequest(base, saved)
 	for i, section := range req.Records.Sections {
 		if section.Key == "library" {
@@ -316,19 +332,19 @@ func followRefusal(t *testing.T, m *RuntimeCoordinator, base *policy.Policy, sav
 	if err != nil {
 		t.Fatalf("dangling roots as named: %v", err)
 	}
-	if saved, err = addLibrary(t, m, base, saved, movie, "tv", second); err != nil {
-		t.Fatalf("second library after the named area: %v", err)
+	if saved, err = addLibrary(t, m, base, saved, movie, key, root); err != nil {
+		t.Fatalf("library %s after the named area: %v", key, err)
 	}
 	req = saveRequest(base, saved)
 	for i := range req.Records.Versions {
 		req.Records.Versions[i].Config.Mode = policy.ModeActive
 	}
 	if saved, err = saveConfirmed(t, m, req); err != nil {
-		t.Fatalf("activate both: %v", err)
+		t.Fatalf("activate all: %v", err)
 	}
-	for _, key := range []string{"movies", "tv"} {
-		if saved.Policy.Versions[key].Mode != policy.ModeActive {
-			t.Fatalf("%s not active", key)
+	for _, k := range active {
+		if saved.Policy.Versions[k].Mode != policy.ModeActive {
+			t.Fatalf("%s not active", k)
 		}
 	}
 }
@@ -356,4 +372,66 @@ func TestLibraryAreaErrorNamesTheWayOut(t *testing.T) {
 		t.Fatalf("refusal: %v", err)
 	}
 	followRefusal(t, m, base, saved, movie, named, second)
+}
+
+// Three libraries at mixed depths (/movies-like top level, two deep): the refusal for the third names every
+// library's folder, and following it saves and activates all three.
+func TestLibraryAreaErrorCoversEveryLibrary(t *testing.T) {
+	t.Parallel()
+	m, _, base, snap, movie := firstLibraryEnv(t)
+	dirs := topLevelDirs(1)
+	if len(dirs) == 0 {
+		t.Skip("no top-level directory to use")
+	}
+	dir := t.TempDir()
+	tv, anime := filepath.Join(dir, "data", "tv"), filepath.Join(dir, "other", "anime")
+	for _, d := range []string{tv, anime} {
+		if err := os.MkdirAll(d, 0o700); err != nil {
+			t.Fatal(err)
+		}
+	}
+	snap = withTrash(t, m, base, snap)
+	saved, err := addLibrary(t, m, base, snap, movie, "movies", dirs[0])
+	if err != nil {
+		t.Fatal(err)
+	}
+	if saved, err = addLibrary(t, m, base, saved, movie, "tv", tv); err != nil {
+		t.Fatalf("deep second library: %v", err)
+	}
+	_, err = addLibrary(t, m, base, saved, movie, "anime", anime)
+	named := []string{dirs[0], filepath.Join(dir, "data"), filepath.Join(dir, "other")}
+	slices.Sort(named)
+	if err == nil || !strings.Contains(err.Error(), "as "+strings.Join(named, ", ")+", then") ||
+		!strings.Contains(err.Error(), "Settings › Libraries › File management › Broken link checks") {
+		t.Fatalf("refusal: %v (want %v)", err, named)
+	}
+	followRefusalKeys(t, m, base, saved, movie, named, "anime", anime, []string{"anime", "movies", "tv"})
+}
+
+// A Watch only library at a top-level folder can later be made Live: its unchanged, saved root is its own area.
+func TestTopLevelWatchOnlyThenLive(t *testing.T) {
+	t.Parallel()
+	m, _, base, snap, movie := firstLibraryEnv(t)
+	dirs := topLevelDirs(1)
+	if len(dirs) == 0 {
+		t.Skip("no top-level directory to use")
+	}
+	snap = withTrash(t, m, base, snap)
+	saved, err := addLibrary(t, m, base, snap, movie, "movies", dirs[0])
+	if err != nil {
+		t.Fatal(err)
+	}
+	if saved.Policy.Versions["movies"].Mode == policy.ModeActive {
+		t.Fatal("created live; want Watch only first")
+	}
+	req := saveRequest(base, saved)
+	for i := range req.Records.Versions {
+		req.Records.Versions[i].Config.Mode = policy.ModeActive
+	}
+	if saved, err = saveConfirmed(t, m, req); err != nil {
+		t.Fatalf("make live: %v", err)
+	}
+	if saved.Policy.Versions["movies"].Mode != policy.ModeActive {
+		t.Fatal("not active")
+	}
 }
