@@ -362,7 +362,7 @@ func TestVersionWriteEffects(t *testing.T) {
 		name, contains string
 		change         func(*policy.Policy)
 	}{
-		{"new-active", "becomes active", func(next *policy.Policy) { v := *next.Versions["movie-web"]; next.Versions["new"] = &v }},
+		{"new-active", "becomes Live", func(next *policy.Policy) { v := *next.Versions["movie-web"]; next.Versions["new"] = &v }},
 		{"active-root", "changes its library root", func(next *policy.Policy) { next.Versions["movie-web"].Library += "-new" }},
 		{"active-provider", "providers ad", func(next *policy.Policy) {
 			next.Versions["movie-web"].Providers = append(next.Versions["movie-web"].Providers, "ad")

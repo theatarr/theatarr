@@ -167,7 +167,7 @@ func globalSwitchEffects(ctx context.Context, q rootQueryer, previous, next *Sna
 			}
 			versions = append(versions, fmt.Sprintf("%s (downloads on): providers %s", key, providerList(providers)))
 		}
-		effect := "Turn on Allow new downloads (router.enabled): new torrent adds to debrid are allowed for active libraries " + switchList(versions) + "."
+		effect := "Turn on Allow new downloads (router.enabled): new torrent adds to debrid are allowed for Live libraries " + switchList(versions) + "."
 		if next.Policy.Library == nil || !next.Policy.Library.Enabled {
 			effect += " Warning: Write library links (library.enabled) is off; debrid adds can happen, but files will not be linked into the library or reach Plex."
 		}
@@ -181,7 +181,7 @@ func globalSwitchEffects(ctx context.Context, q rootQueryer, previous, next *Sna
 				versions = append(versions, key+": roots "+switchList(configuredVersionRoots(next.Policy, key)))
 			}
 		}
-		effects = append(effects, ConfirmationEffect{Effect: "Turn on Write library links (library.enabled): links may be written by active libraries " + switchList(versions) + "."})
+		effects = append(effects, ConfirmationEffect{Effect: "Turn on Write library links (library.enabled): links may be written by Live libraries " + switchList(versions) + "."})
 	}
 	if !before.NotifyEnabled && after.NotifyEnabled {
 		var targets []string

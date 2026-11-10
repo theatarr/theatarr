@@ -114,7 +114,7 @@ describe("Pause in the admin header", () => {
   });
 
   it("off: turns both on, through the confirmation listing both effects", async () => {
-    const effects = [{ effect: "Turn on Allow new downloads (router.enabled): new torrent adds to debrid are allowed for active libraries none." }, { effect: "Turn on Write library links (library.enabled): links may be written by active libraries none." }];
+    const effects = [{ effect: "Turn on Allow new downloads (router.enabled): new torrent adds to debrid are allowed for Live libraries none." }, { effect: "Turn on Write library links (library.enabled): links may be written by Live libraries none." }];
     const fetch = mockFetch([
       { method: "GET", path: "/settings", reply: both(false, false) },
       { method: "PUT", path: "/settings/switches", reply: json({ error: "explicit confirmation required", effects, confirmation: { token: "proof", generation: 8, effects } }, 422) },

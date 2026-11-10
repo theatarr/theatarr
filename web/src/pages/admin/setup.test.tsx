@@ -332,7 +332,7 @@ describe("setup", () => {
       indexers: ["feed"], providers: ["rd"], client: "", import: "symlink", upgrades: "auto", follows: "" },
   };
   const startEffects = [
-    { version: "movies", effect: "Library movies becomes active and starts searching." },
+    { version: "movies", effect: "Library movies becomes Live and starts searching." },
     { version: "movies", effect: "Downloads are on for Live library movies: torrent adds go to providers rd." },
     { version: "", effect: "Turn on Allow new downloads (router.enabled): new torrent adds to debrid are allowed." },
     { version: "", effect: "Turn on Write library links (library.enabled): links may be written." },

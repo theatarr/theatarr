@@ -345,14 +345,14 @@ func versionConfirmationEffects(ctx context.Context, q rootQueryer, previous, ne
 		routerEnabled := next.Router != nil && next.Router.Enabled
 		if before == nil && after.Mode == policy.ModeActive {
 			effects = append(effects, ConfirmationEffect{Version: key, Effect: fmt.Sprintf(
-				"Library %s becomes active and starts searching. Links may be written under %s when Write library links (library.enabled) is on (currently %t). Torrent adds may go to providers %s when Allow new downloads (router.enabled) is on (currently %t).",
+				"Library %s becomes Live and starts searching. Links may be written under %s when Write library links (library.enabled) is on (currently %t). Torrent adds may go to providers %s when Allow new downloads (router.enabled) is on (currently %t).",
 				key, root, libraryEnabled, providerList(after.Providers), routerEnabled)})
 		}
 		if after.Mode == policy.ModeActive && after.Follows != "" && (before == nil || before.Follows != after.Follows || before.Mode != policy.ModeActive) {
 			// Starting to follow (or activating a follower) inherits every title and monitoring choice of the followed
 			// version at once: a mass-search trigger.
 			effects = append(effects, ConfirmationEffect{Version: key, Effect: fmt.Sprintf(
-				"Active library %s starts following %s: it inherits every arr title and monitoring choice of %s at once and searches for all of them; adds may go to providers %s when Allow new downloads (router.enabled) is on (currently %t) and links under %s when Write library links (library.enabled) is on (currently %t).",
+				"Live library %s starts following %s: it inherits every arr title and monitoring choice of %s at once and searches for all of them; adds may go to providers %s when Allow new downloads (router.enabled) is on (currently %t) and links under %s when Write library links (library.enabled) is on (currently %t).",
 				key, after.Follows, after.Follows, providerList(after.Providers), routerEnabled, root, libraryEnabled)})
 		}
 		if after.Mode == policy.ModeActive && after.Grab && (before == nil || before.Mode != policy.ModeActive || !before.Grab) {
@@ -367,7 +367,7 @@ func versionConfirmationEffects(ctx context.Context, q rootQueryer, previous, ne
 		}
 		if before.Mode != policy.ModeActive && after.Mode == policy.ModeActive {
 			effects = append(effects, ConfirmationEffect{Version: key, Effect: fmt.Sprintf(
-				"Library %s becomes active and starts searching. Links may be written under %s when Write library links (library.enabled) is on (currently %t). Torrent adds may go to providers %s when Allow new downloads (router.enabled) is on (currently %t).",
+				"Library %s becomes Live and starts searching. Links may be written under %s when Write library links (library.enabled) is on (currently %t). Torrent adds may go to providers %s when Allow new downloads (router.enabled) is on (currently %t).",
 				key, root, libraryEnabled, providerList(after.Providers), routerEnabled)})
 		}
 		rootsChanged := versionRootsChanged(previous, next, key)

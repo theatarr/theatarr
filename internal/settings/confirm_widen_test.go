@@ -223,7 +223,7 @@ func TestFallbackReloadTakesConfirmationToken(t *testing.T) {
 	// The next start fell back to the initial generation.
 	fallback := versionCoordinator(t, s, p, initial)
 	err = fallback.Reload(ctx, head.Generation)
-	requireConfirmation(t, err, "becomes active")
+	requireConfirmation(t, err, "becomes Live")
 	var refused *ConfirmationError
 	errors.As(err, &refused)
 	if refused.Confirmation == nil || refused.Confirmation.Generation != head.Generation {
@@ -246,7 +246,7 @@ func TestFallbackReloadTakesConfirmationToken(t *testing.T) {
 		req.Records.Budgets[i].Config.Burst++
 	}
 	_, err = again.SaveAndApply(ctx, req)
-	requireConfirmation(t, err, "becomes active")
+	requireConfirmation(t, err, "becomes Live")
 	errors.As(err, &refused)
 	req.ConfirmationToken = refused.Confirmation.Token
 	if _, err := again.SaveAndApply(ctx, req); err != nil {
