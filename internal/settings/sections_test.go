@@ -699,4 +699,19 @@ func TestSectionConfigOmitsUnsetOptionalField(t *testing.T) {
 	if !back.Notify.Targets["chan"].Warnings || back.Notify.Targets["hook"].Warnings {
 		t.Fatalf("warnings read back wrong: %+v", back.Notify.Targets)
 	}
+
+	// A submitted section: warnings sent as false or null is dropped and nothing else is; warnings on, a section
+	// without the field and one that is not a mapping come back as they were sent.
+	for sent, want := range map[string]string{
+		`{"retries":0,"budget":"","targets":{"a":{"native":false,"url":"","views":null,"warnings":false},"b":{"warnings":null,"events":[]}}}`: `{"budget":"","retries":0,"targets":{"a":{"native":false,"url":"","views":null},"b":{"events":[]}}}`,
+		`{ "targets": {"a": {"warnings": true, "native": false}} }`:                                                                           `{ "targets": {"a": {"warnings": true, "native": false}} }`,
+		`{ "retries": 5.0, "targets": {"a": {"native": false}} }`:                                                                             `{ "retries": 5.0, "targets": {"a": {"native": false}} }`,
+		`{"targets":{"a":{"warnings":"maybe"}}}`:                                                                                              `{"targets":{"a":{"warnings":"maybe"}}}`,
+		`{"targets":[{"warnings":false}]}`:                                                                                                    `{"targets":[{"warnings":false}]}`,
+		`null`:                                                                                                                                `null`,
+	} {
+		if got := string(DropUnsetOptional("notify", json.RawMessage(sent))); got != want {
+			t.Errorf("DropUnsetOptional(%s) = %s, want %s", sent, got, want)
+		}
+	}
 }

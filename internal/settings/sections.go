@@ -97,6 +97,81 @@ func yamlName(f reflect.StructField) string {
 	return name
 }
 
+// omitEmpty reports whether f is marked omitempty: a stored section leaves it out at its zero value.
+func omitEmpty(f reflect.StructField) bool {
+	_, opts, _ := strings.Cut(f.Tag.Get("yaml"), ",")
+	return strings.Contains(opts, "omitempty")
+}
+
+// DropUnsetOptional removes from a submitted section every omitempty field sent at its zero value (warnings: false),
+// so the stored section leaves it out as [SectionConfig] does and a build from before the field existed still loads
+// it. A section without such a value is returned as it was sent.
+func DropUnsetOptional(key string, config json.RawMessage) json.RawMessage {
+	f, ok := policyField(&policy.Policy{}, key)
+	value, decoded := decodeSectionValue(config)
+	if !ok || !decoded || !dropUnset(value, f.Type()) {
+		return config
+	}
+	b, err := json.Marshal(value)
+	if err != nil {
+		return config
+	}
+	return b
+}
+
+// dropUnset deletes the zero-valued omitempty fields of value, a decoded section part of type t, and reports whether
+// it deleted any. A type that decodes itself is left alone.
+func dropUnset(value any, t reflect.Type) bool {
+	for t.Kind() == reflect.Pointer {
+		t = t.Elem()
+	}
+	if reflect.PointerTo(t).Implements(reflect.TypeFor[yaml.Unmarshaler]()) {
+		return false
+	}
+	dropped := false
+	switch v := value.(type) {
+	case map[string]any:
+		switch t.Kind() {
+		case reflect.Map:
+			for _, child := range v {
+				dropped = dropUnset(child, t.Elem()) || dropped
+			}
+		case reflect.Struct:
+			for i := 0; i < t.NumField(); i++ {
+				field := t.Field(i)
+				name := yamlName(field)
+				child, ok := v[name]
+				switch {
+				case name == "" || !ok:
+				case omitEmpty(field) && zeroValue(child, field.Type):
+					delete(v, name)
+					dropped = true
+				default:
+					dropped = dropUnset(child, field.Type) || dropped
+				}
+			}
+		}
+	case []any:
+		if t.Kind() == reflect.Slice {
+			for _, child := range v {
+				dropped = dropUnset(child, t.Elem()) || dropped
+			}
+		}
+	}
+	return dropped
+}
+
+// zeroValue reports whether a submitted value decodes to the zero value of t. One that does not decode stays for
+// validation to refuse.
+func zeroValue(value any, t reflect.Type) bool {
+	b, err := json.Marshal(value)
+	if err != nil {
+		return false
+	}
+	into := reflect.New(t)
+	return yaml.Unmarshal(b, into.Interface()) == nil && into.Elem().IsZero()
+}
+
 // yamlValue renders v as the policy files would hold it, keeping nil slices and maps as null: an omitted list can
 // mean something else than an empty one (egress.require_vpn_for).
 func yamlValue(v reflect.Value) (any, error) {
@@ -125,7 +200,7 @@ func yamlValue(v reflect.Value) (any, error) {
 			}
 			// An omitempty field at its zero value is left out, as the policy files leave it out: a build from
 			// before the field existed can still load the section.
-			if _, opts, _ := strings.Cut(v.Type().Field(i).Tag.Get("yaml"), ","); strings.Contains(opts, "omitempty") && v.Field(i).IsZero() {
+			if omitEmpty(v.Type().Field(i)) && v.Field(i).IsZero() {
 				continue
 			}
 			value, err := yamlValue(v.Field(i))

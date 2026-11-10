@@ -190,7 +190,8 @@ func (w *Web) apiSettingsSectionWrite(rw http.ResponseWriter, r *http.Request) {
 			w.settingsError(rw, r, err, scrub)
 			return
 		}
-		section.Config = config
+		// An optional field sent unset is left out, as an untouched section leaves it out.
+		section.Config = settings.DropUnsetOptional(key, config)
 	}
 	if err := settings.SectionOwnedElsewhere(key, section.Config); err != nil {
 		w.settingsError(rw, r, err, scrub)

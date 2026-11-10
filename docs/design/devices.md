@@ -204,8 +204,10 @@ SignalR, Sonarr v5, `downloadclient`.
     filtered by `events`): the target also gets a check starting to warn ("Health warning: <check>", amber), a
     warning easing to a notice ("Health warning eased, now notice: <check>") and a warning clearing ("Health check OK
     again"). Error messages are the same with the option on or off, and a notice is never sent. The field is left out
-    of the stored section while it is off (`settings.TestSectionConfigOmitsUnsetOptionalField`), so an older build
-    still loads the settings. Tests: `notify.TestHealthWarningsOptIn`, `notify.TestHealthMessageWantsAndText`.
+    of the stored section while it is off, also after a save that turns it off again (a section save drops an
+    optional field sent unset; `settings.TestSectionConfigOmitsUnsetOptionalField`,
+    `web.TestSettingsNotifySaveAddsNoWarningsKey`), so an older build still loads the settings. Tests:
+    `notify.TestHealthWarningsOptIn`, `notify.TestHealthMessageWantsAndText`.
   - Limits: content 2000 characters, 10 embeds, 6000 characters of embed text (a description 4096); lines that do not
     fit become "and N more". `allowed_mentions.parse` is always empty, and `users` names only the requesters a
     request-ready message mentions.

@@ -1,14 +1,18 @@
 package web
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"net/http"
+	"reflect"
+	"slices"
 	"strings"
 	"testing"
 
 	"github.com/theatarr/theatarr/internal/policy"
 	"github.com/theatarr/theatarr/internal/settings"
+	"go.yaml.in/yaml/v3"
 )
 
 // seededSectionsEnv is a settings database the serve bootstrap has reached: the switches, sections and views are
@@ -266,4 +270,58 @@ func TestSettingsNotifySaveAddsNoWarningsKey(t *testing.T) {
 	if !snap.Policy.Notify.Targets["chan"].Warnings || snap.Policy.Notify.Targets["hook"].Warnings {
 		t.Fatalf("warnings not applied: %+v", snap.Policy.Notify.Targets)
 	}
+	if raw := stored(); strings.Count(raw, `"warnings":true`) != 1 {
+		t.Fatalf("warnings on is not stored: %s", raw)
+	}
+
+	// Off again, as config and as YAML: the key is gone rather than stored as false, and a build whose target type
+	// has no warnings field decodes the stored section strictly. A field that is not optional keeps its false.
+	fields := reflect.VisibleFields(reflect.TypeOf(policy.NotifyTarget{}))
+	fields = slices.DeleteFunc(fields, func(f reflect.StructField) bool { return f.Name == "Warnings" })
+	older := reflect.StructOf([]reflect.StructField{{Name: "Targets", Type: reflect.MapOf(reflect.TypeOf(""), reflect.StructOf(fields)), Tag: `yaml:"targets"`}})
+	olderLoads := func() error {
+		section := map[string]any{}
+		if err := json.Unmarshal([]byte(stored()), &section); err != nil {
+			t.Fatal(err)
+		}
+		b, err := json.Marshal(map[string]any{"targets": section["targets"]})
+		if err != nil {
+			t.Fatal(err)
+		}
+		dec := yaml.NewDecoder(bytes.NewReader(b))
+		dec.KnownFields(true)
+		return dec.Decode(reflect.New(older).Interface())
+	}
+	if err := olderLoads(); err == nil {
+		t.Fatal("the older target type accepts a warnings key, so it proves nothing")
+	}
+	off := func(what string) {
+		t.Helper()
+		raw := stored()
+		if strings.Contains(raw, "warnings") || !strings.Contains(raw, `"native":false`) || !strings.Contains(raw, `"native":true`) {
+			t.Fatalf("stored after warnings off (%s): %s", what, raw)
+		}
+		if err := olderLoads(); err != nil {
+			t.Fatalf("an older build does not load the section after warnings off (%s): %v", what, err)
+		}
+		snap, err := se.coord.Snapshot(context.Background())
+		if err != nil {
+			t.Fatal(err)
+		}
+		if snap.Policy.Notify.Targets["chan"].Warnings {
+			t.Fatalf("warnings still on (%s)", what)
+		}
+	}
+	targets["chan"].(map[string]any)["warnings"] = false
+	se.want(se.call("PUT", "/sections/notify", map[string]any{"generation": se.generation(), "config": config}), 200, "warnings off")
+	off("config")
+	targets["chan"].(map[string]any)["warnings"] = true
+	se.want(se.call("PUT", "/sections/notify", map[string]any{"generation": se.generation(), "config": config}), 200, "warnings on again")
+	text := findSection(t, se.want(se.call("GET", "/sections", nil), 200, "read"), "notify")["yaml"].(string)
+	if !strings.Contains(text, "warnings: true") {
+		t.Fatalf("yaml does not show warnings on: %s", text)
+	}
+	text = strings.Replace(text, "warnings: true", "warnings: false", 1)
+	se.want(se.call("PUT", "/sections/notify", map[string]any{"generation": se.generation(), "yaml": text}), 200, "warnings off as yaml")
+	off("yaml")
 }
