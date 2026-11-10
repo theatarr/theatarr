@@ -402,3 +402,120 @@ func TestDeferralsCountAddsAndStagger(t *testing.T) {
 		t.Fatalf("download %s %q, want ended after maxDeferWait", state, why)
 	}
 }
+
+// strandQueued routes req while every provider backs off (3 minutes), so its download is left queued, and drops the
+// follow-up job: the row is stranded, as after a route that died before its follow-up was recorded.
+func strandQueued(e *env, req Request) int64 {
+	e.t.Helper()
+	for _, k := range []string{"rd", "ad", "tb"} {
+		e.exec(`INSERT INTO router_pacing (provider, backoff_until, failures, reason, updated_at) VALUES (?, ?, 1, 'x', 0)`,
+			k, e.clock.Add(3*time.Minute).UnixMilli())
+	}
+	res, err := e.r.Route(e.ctx, req)
+	if err != nil || res.Outcome != OutcomeDeferred || res.DownloadID == 0 {
+		e.t.Fatalf("stranding: %+v %v", res, err)
+	}
+	e.exec(`DELETE FROM job WHERE kind = ?`, JobRoute)
+	return res.DownloadID
+}
+
+// provenance is what a download row says about where its release came from.
+func provenance(e *env, id int64) (ix, title, source, data string) {
+	e.t.Helper()
+	if err := e.st.Reader().QueryRow(`SELECT indexer, release_title, COALESCE(source, ''), COALESCE(release_data, '')
+		FROM download WHERE id = ?`, id).Scan(&ix, &title, &source, &data); err != nil {
+		e.t.Fatal(err)
+	}
+	return
+}
+
+// A stranded queued row taken over by a route that found the same hash on another indexer becomes that route's:
+// indexer, stored release, title and source are written before any add, so a later replay from the row
+// (DownloadRequest) uses the provider allowlist of the indexer that placed it. A route resuming its own row changes
+// none of them.
+func TestStrandedRowTakenOverByAnotherIndexer(t *testing.T) {
+	t.Parallel()
+	e := newEnv(t, true, policy.ModeActive)
+	withQueue(e)
+	e.pol.Indexers["pub2"] = &policy.Indexer{Kind: "torznab", URL: "http://pub2.test/api", Privacy: policy.PrivacyPublic,
+		Providers: []string{"ad"}}
+	id := strandQueued(e, movieReq(cand(h("a"), "A.pub")))
+
+	// The row's own route resumes it (still backing off): nothing about its origin changes.
+	ix, title, source, data := provenance(e, id)
+	own, err := e.r.requestOf(e.ctx, id)
+	if err != nil || own == nil {
+		t.Fatalf("%+v %v", own, err)
+	}
+	if res, err := e.r.Route(e.ctx, *own); err != nil || res.Outcome != OutcomeDeferred || res.DownloadID != id {
+		t.Fatalf("own resume: %+v %v", res, err)
+	}
+	e.exec(`DELETE FROM job WHERE kind = ?`, JobRoute)
+	if ix2, title2, source2, data2 := provenance(e, id); ix2 != ix || title2 != title || source2 != source || data2 != data {
+		t.Errorf("own resume rewrote the row: %q %q %q %s, was %q %q %q %s", ix2, title2, source2, data2, ix, title,
+			source, data)
+	}
+
+	c := cand(h("a"), "A.pub2")
+	c.Release.Indexer = "pub2"
+	req := movieReq(c)
+	req.Source = "test2"
+	res, err := e.r.Route(e.ctx, req)
+	if err != nil || res.Outcome != OutcomeDeferred || res.DownloadID != id {
+		t.Fatalf("takeover: %+v %v", res, err)
+	}
+	e.exec(`DELETE FROM job WHERE kind = ?`, JobRoute)
+	ix, title, source, data = provenance(e, id)
+	if ix != "pub2" || title != "A.pub2" || source != "test2" || !strings.Contains(data, `"A.pub2"`) ||
+		strings.Contains(data, `"A.pub"`) {
+		t.Errorf("row after the takeover: indexer %q title %q source %q data %s", ix, title, source, data)
+	}
+
+	// The replay from the row is pub2's release: its allowlist (AllDebrid only) holds.
+	e.clock = e.clock.Add(5 * time.Minute)
+	replay, err := e.r.requestOf(e.ctx, id)
+	if err != nil || replay == nil {
+		t.Fatalf("%+v %v", replay, err)
+	}
+	res, err = e.r.Route(e.ctx, *replay)
+	if err != nil || res.Outcome != OutcomeAdded || res.Provider != "ad" {
+		t.Fatalf("replay: %+v %v", res, err)
+	}
+	if len(e.ad["rd"].adds) != 0 || len(e.ad["tb"].adds) != 0 {
+		t.Errorf("replay added outside pub2's providers: rd %v tb %v", e.ad["rd"].adds, e.ad["tb"].adds)
+	}
+}
+
+// A searched release that takes over the stranded row of a release added by hand does not inherit its marker: the
+// replay from the row keeps to the provider allowlist of the indexer that found it, also while that provider is down.
+func TestSearchedGrabTakesOverManualAddRow(t *testing.T) {
+	t.Parallel()
+	e := newEnv(t, true, policy.ModeActive)
+	withQueue(e)
+	e.pol.Indexers["pub2"] = &policy.Indexer{Kind: "torznab", URL: "http://pub2.test/api", Privacy: policy.PrivacyPublic,
+		Providers: []string{"rd"}}
+	id := strandQueued(e, grabReq(manualCand(h("a"), "Movie.2024.2160p.WEB.H265-GRP")))
+	c := cand(h("a"), "Movie.2024.2160p.WEB.H265-GRP")
+	c.Release.Indexer = "pub2"
+	res, err := e.r.Route(e.ctx, movieReq(c))
+	if err != nil || res.Outcome != OutcomeDeferred || res.DownloadID != id {
+		t.Fatalf("takeover: %+v %v", res, err)
+	}
+	e.exec(`DELETE FROM job WHERE kind = ?`, JobRoute)
+	if ix, _, source, _ := provenance(e, id); ix != "pub2" || source != "test" {
+		t.Errorf("row after the takeover: indexer %q source %q, want pub2 and test", ix, source)
+	}
+
+	e.clock = e.clock.Add(5 * time.Minute)
+	e.ad["rd"].add = refuse(adder.CodeUnavailable)
+	replay, err := e.r.requestOf(e.ctx, id)
+	if err != nil || replay == nil || policy.IsManualAdd(replay.Candidates[0].Release.Indexer) {
+		t.Fatalf("replay request %+v %v", replay, err)
+	}
+	if _, err := e.r.Route(e.ctx, *replay); err != nil {
+		t.Fatal(err)
+	}
+	if len(e.ad["ad"].adds) != 0 || len(e.ad["tb"].adds) != 0 {
+		t.Errorf("replay left pub2's providers during the outage: ad %v tb %v", e.ad["ad"].adds, e.ad["tb"].adds)
+	}
+}

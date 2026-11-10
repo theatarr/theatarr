@@ -250,3 +250,26 @@ func withEps(c Candidate, eps ...int64) Candidate {
 	c.Episodes = eps
 	return c
 }
+
+// A searched release that took over the stranded row of a release added by hand is a searched release: when it
+// stalls, the title is searched again, as for any other grab.
+func TestStalledSearchedGrabOnManualAddRowIsSearchedAgain(t *testing.T) {
+	t.Parallel()
+	e, f, _ := newDebridEnv(t, true, policy.ModeActive, false)
+	withQueue(e)
+	f.rdStuck = true
+	id := strandQueued(e, grabReq(manualCand(h("a"), "Movie.2024.2160p.WEB.H265-GRP")))
+	e.clock = e.clock.Add(5 * time.Minute)
+	res, err := e.r.Route(e.ctx, movieReq(cand(h("a"), "Movie.2024.2160p.WEB.H265-GRP")))
+	if err != nil || res.Provider != "rd" || res.DownloadID != id {
+		t.Fatalf("%+v %v", res, err)
+	}
+	e.clock = e.clock.Add(10 * time.Minute)
+	sum, err := e.r.Poll(e.ctx)
+	if err != nil || sum.Stalled != 1 || sum.Researched != 1 {
+		t.Fatalf("%+v %v", sum, err)
+	}
+	if got := researchJobs(e); len(got) != 1 {
+		t.Errorf("research jobs %+v", got)
+	}
+}

@@ -194,6 +194,61 @@ func TestReconciledManualAddIsReused(t *testing.T) {
 	}
 }
 
+// A person adds a hash whose stranded queued row came from a search. The add takes the row over as a manual add
+// before anything is added, so when Real-Debrid's answer is lost and the account shows the hash on another tool's
+// torrent, it is adopted as reused: no files are selected on it and nothing is deleted.
+func TestManualAddTakesOverSearchedRowIsReused(t *testing.T) {
+	t.Parallel()
+	e := newEnv(t, true, policy.ModeActive)
+	withQueue(e)
+	id := strandQueued(e, movieReq(cand(h("a"), "Movie.2024.2160p.WEB.H265-GRP")))
+	e.clock = e.clock.Add(5 * time.Minute)
+	const tid = "rd-foreign"
+	foreign := provider.Torrent{ID: tid, Hash: h("a"), State: provider.StateQueued, Status: rdWaitingFiles,
+		Files: []provider.File{{ID: "1", Path: "Movie.mkv", Bytes: 10 << 30}}}
+	e.ad["rd"].add = func(m adder.Magnet, _ adder.AddOptions) (*adder.Added, error) {
+		p := e.pr["rd"]
+		p.mu.Lock()
+		p.list = append(p.list, provider.Torrent{ID: tid, Hash: m.Hash(), Status: rdWaitingFiles})
+		p.mu.Unlock()
+		p.set(tid, foreign)
+		return nil, &adder.Error{Provider: "rd", Code: adder.CodeUnavailable, Status: 502}
+	}
+	res, err := e.r.Route(e.ctx, grabReq(manualCand(h("a"), "Movie.2024.2160p.WEB.H265-GRP")))
+	if err != nil || res.DownloadID != id {
+		t.Fatalf("%+v %v", res, err)
+	}
+	if ix, _, source, _ := provenance(e, id); !policy.IsManualAdd(ix) || source != "ui:grab:test" {
+		t.Errorf("row after the takeover: indexer %q source %q", ix, source)
+	}
+	e.ad["rd"].add = nil
+	e.clock = e.clock.Add(addSettle + time.Second)
+	next := routeJobs(e, id)
+	if len(next) != 1 {
+		t.Fatalf("continuation %+v", next)
+	}
+	e.exec(`UPDATE job SET state = 'done' WHERE kind = ?`, JobRoute)
+	if _, err := e.r.Route(e.ctx, next[0].Request); err != nil {
+		t.Fatal(err)
+	}
+	for range 90 {
+		if _, err := e.r.Poll(e.ctx); err != nil {
+			t.Fatal(err)
+		}
+		e.clock = e.clock.Add(time.Minute)
+	}
+	_, _, got, reused, own := e.download(id)
+	if got != tid || reused != 1 || own != nil {
+		t.Errorf("adopted torrent %q reused %d own_add %v, want %s reused and own_add NULL", got, reused, own, tid)
+	}
+	if len(e.ad["rd"].selects) != 0 {
+		t.Errorf("selected files on another tool's torrent: %v", e.ad["rd"].selects)
+	}
+	if len(e.ad["rd"].deletes) != 0 {
+		t.Errorf("deleted %v", e.ad["rd"].deletes)
+	}
+}
+
 // An interrupted add whose hash another download of ours holds is settled as a reuse, as at the add: no
 // selection of ours on the shared torrent.
 func TestReconciledAddHeldByAnotherDownloadIsReuse(t *testing.T) {
