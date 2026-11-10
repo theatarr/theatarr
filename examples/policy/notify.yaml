@@ -8,7 +8,7 @@ notify:
   # budget: webhooks
   # retries: 5
   # poll: 15s
-  # digest_at: "09:00"   # local time of the daily digest (Discord targets)
+  # digest_at: "09:00"   # local time of the daily digest (Discord and ntfy targets)
   # targets:
   #   automation:
   #     url: http://automation.example.com:8080/hooks/theatarr
@@ -20,3 +20,7 @@ notify:
   #     url: https://discord.com/api/webhooks/<id>/<token>
   #     format: discord           # health and error alerts, the daily digest, request ready, test
   #     events: [health, health_restored, error, digest, request_ready]   # empty means all of these
+  #   phone:                    # an ntfy topic: the server address followed by the topic
+  #     url: https://ntfy.example.com/<topic>
+  #     format: ntfy              # the same messages and events as a Discord target, as plain text
+  #     auth_header_env: THEATARR_NTFY_AUTH   # optional access token (sent as "Bearer <token>")

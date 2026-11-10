@@ -183,8 +183,10 @@ use the same policy validation, 422 confirmation token and explicit reload after
 Notifications › Destinations: each saved destination has **Send test**, which posts a test message to the saved
 target at once (`POST /settings/notify/targets/{name}/test`, admin; `{ok: true}` or `{ok: false, error}`, and an
 error while `notify.enabled` is off). Unsaved edits are not used, so save first. A destination's **Message format**
-(`format`) is empty for Theatarr's JSON or `discord` for Discord messages, and **Daily digest time** (`digest_at`,
-local `HH:MM`, default 09:00) sets when the Discord digest goes out (docs/design/devices.md).
+(`format`) is empty for Theatarr's JSON, `discord` for Discord messages or `ntfy` for ntfy messages (the URL is the
+ntfy server address followed by the topic; an access token goes in **Authorization header**), and **Daily digest
+time** (`digest_at`, local `HH:MM`, default 09:00) sets when the Discord and ntfy digest goes out
+(docs/design/devices.md).
 
 `GET /settings/schema` includes `sections` and `section_nullable`, built by reflection over policy types.
 Help comes from Go field comments: `go generate ./internal/web` parses policy source and writes the embedded

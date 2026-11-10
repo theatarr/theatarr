@@ -215,10 +215,36 @@ SignalR, Sonarr v5, `downloadclient`.
   - Request ready: "**Title (year)** is ready in Plex, requested by Ann (@Ann)" (partly ready for a partial series),
     mentioning each requester with a Discord user id (`web_user.discord_id`, docs/design/users.md).
   - Policy event names for filters: `health`, `health_restored`, `error`, `digest`, `request_ready`, `test`.
-  - theatarr.* targets get no error or digest events.
+  - theatarr.* targets get no error or digest events (Discord and ntfy targets do).
   - Send test: `POST /api/theatarr/v1/settings/notify/targets/{name}/test` (admin) sends a test to the saved target now, through
     the gateway, and answers `{ok}` or `{ok:false, error}`; it needs `notify.enabled`.
   - Tests: `notify.TestDiscord*`, `notify.TestDigest*`, `web.TestRequestReadyDiscord`, `web.TestNotifyTargetTest`.
+
+- **ntfy** (`format: ntfy`). A target with `format: ntfy` gets the same messages as a Discord target, for the same
+  events (health check failing and leaving error, new errors, the daily digest, request ready, the test) and with the
+  same `events` and `versions` filters, as plain text (`internal/notify/ntfy.go`; the wording is shared in
+  `message.go`). It takes no `views`, and uses the same outbox, retries, gateway class and allowlist as every target.
+  - URL: the ntfy server address followed by the topic, `https://<server>/<topic>` (a server under a sub-path:
+    `https://<server>/<path>/<topic>`). Validation refuses an ntfy target whose URL has no topic. Like any target URL
+    it is write-only and shown as scheme and host.
+  - Request: `POST` to the URL without its last path segment, with a JSON body `{"topic", "title", "message",
+    "priority", "tags"}`. The topic is split from the URL when a delivery is sent, so the stored delivery
+    (`notify_delivery.payload`, event `ntfy.<kind>`) holds no topic, and a changed URL applies to queued deliveries.
+    A delivery queued while the target had another format is dropped.
+  - Access token: the target's Authorization secret (`auth_header`, or `auth_header_env`). A value with a scheme
+    (`Bearer tk_...`, `Basic ...`) is sent as it is; a bare token is sent as `Bearer <token>`. No secret: no header.
+  - Priority and tags: priority 4 (high) and tag `warning` for a failing health check and an error; priority 3
+    (default) otherwise, with tag `warning` for a check eased to a warning or a digest with problems, and
+    `white_check_mark` for a check OK again and request ready.
+  - Text: no markdown and no Discord mention; request ready names the requesters ("Alpha (2020) is ready in Plex,
+    requested by Ann and bob"). The title is kept to 250 bytes and the message to 3800 bytes; lines that do not fit
+    become "and N more".
+  - **Not tested against an ntfy server.** The request follows ntfy's JSON publishing as remembered from its
+    documentation; nothing was checked against the documentation or a running server. Assumed: a JSON `POST` to the
+    server root with a `topic` field publishes to that topic; `title`, `message`, `priority` (1 to 5, 3 the default)
+    and `tags` (emoji short codes) are the field names; a message up to 4096 bytes is accepted as text; an access
+    token is accepted as `Authorization: Bearer <token>`. Use **Send test** after saving to check a target.
+  - Tests: `notify.TestNtfy*`, `policy.TestNotifyFormats`.
 
 ## Callers
 

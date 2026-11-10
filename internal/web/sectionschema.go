@@ -186,7 +186,7 @@ var sectionAnnotations = map[string]SchemaField{
 	"router.wanted.cutoff_unmet":                  {Enum: []string{string(policy.CutoffQuality), string(policy.CutoffScore), string(policy.CutoffOff)}},
 	"metadata.art.prewarm":                        {Enum: append([]string{"off"}, policy.ImageSizes...)},
 	"notify.targets.*.events":                     {Enum: policy.NotifyEvents},
-	"notify.targets.*.format":                     {Enum: []string{policy.NotifyFormatDiscord}},
+	"notify.targets.*.format":                     {Enum: []string{policy.NotifyFormatDiscord, policy.NotifyFormatNtfy}},
 	"notify.digest_at":                            {Default: policy.DefaultDigestAt},
 	"playlists.orders":                            {Enum: []string{"release", "watch", "story"}},
 	"egress.require_vpn_for":                      {Enum: []string{policy.EgressIndexers, policy.EgressProviders, policy.EgressMetadata}},

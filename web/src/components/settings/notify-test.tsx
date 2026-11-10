@@ -2,8 +2,8 @@ import { useState } from "react";
 import { api, ApiError } from "@/api/client";
 import { Button } from "@/components/ui/button";
 
-/** Send test for a saved notification destination (POST settings/notify/targets/{name}/test): a Discord channel gets
- * a short test message now. It tests what is saved, so unsaved edits are not part of it. */
+/** Send test for a saved notification destination (POST settings/notify/targets/{name}/test): a Discord channel or
+ * ntfy topic gets a short test message now. It tests what is saved, so unsaved edits are not part of it. */
 export function NotifyTestButton({ name, disabled }: { name: string; disabled?: boolean }) {
   const [state, setState] = useState<{ busy?: boolean; ok?: boolean; error?: string }>({});
   const send = async () => {

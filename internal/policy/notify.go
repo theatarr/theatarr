@@ -27,7 +27,8 @@ type Notify struct {
 	Poll Duration `yaml:"poll"`
 	// Targets lists webhook targets defined in the policy, by key.
 	Targets map[string]*NotifyTarget `yaml:"targets"`
-	// DigestAt is the local time (HH:MM, the container's TZ) the daily digest goes to Discord targets. Default 09:00.
+	// DigestAt is the local time (HH:MM, the container's TZ) the daily digest goes to Discord and ntfy targets.
+	// Default 09:00.
 	DigestAt string `yaml:"digest_at"`
 }
 
@@ -39,9 +40,10 @@ type NotifyTarget struct {
 	Views []string `yaml:"views"`
 	// Native sends Theatarr's own per-version events (JSON, eventType theatarr.*).
 	Native bool `yaml:"native"`
-	// Format is the message format: empty for the payloads above, or discord for Discord messages (the URL is a
-	// Discord channel webhook): instant health and error alerts, the daily digest and request ready. A Discord
-	// target takes no views.
+	// Format is the message format: empty for the payloads above, discord for a Discord channel webhook, or ntfy.
+	// For ntfy the URL is the server address followed by the topic, and an access token goes in the Authorization
+	// header. Both formats get Theatarr's own messages (instant health and error alerts, the daily digest, request
+	// ready) and take no views.
 	Format string `yaml:"format"`
 	// Events limits what this target is sent to the events chosen. Empty: all.
 	Events []string `yaml:"events"`
@@ -56,6 +58,27 @@ var NotifyEvents = []string{"grab", "download", "upgrade", "rename", "delete", "
 
 // NotifyFormatDiscord is the target format that sends Discord messages.
 const NotifyFormatDiscord = "discord"
+
+// NotifyFormatNtfy is the target format that publishes ntfy messages.
+const NotifyFormatNtfy = "ntfy"
+
+// NtfyEndpoint splits an ntfy target's URL into the address messages are POSTed to and the topic: the topic is the
+// last path segment, the address is the URL without it (https://host/topic gives https://host/ and topic; a server
+// under a sub-path keeps the path before the topic). ok is false when the URL has no topic.
+func NtfyEndpoint(raw string) (server, topic string, ok bool) {
+	u, err := url.Parse(raw)
+	if err != nil || u.Host == "" {
+		return "", "", false
+	}
+	path := strings.TrimRight(u.Path, "/")
+	i := strings.LastIndex(path, "/")
+	if i < 0 || path[i+1:] == "" {
+		return "", "", false
+	}
+	base := *u
+	base.Path, base.RawPath, base.Fragment = path[:i+1], "", ""
+	return base.String(), path[i+1:], true
+}
 
 // Notify defaults.
 const (
@@ -174,7 +197,8 @@ func (p *Policy) validateNotify(e *Errors) {
 			continue
 		}
 		u, err := url.Parse(t.URL)
-		if err != nil || (u.Scheme != "http" && u.Scheme != "https") || u.Host == "" {
+		validURL := err == nil && (u.Scheme == "http" || u.Scheme == "https") && u.Host != ""
+		if !validURL {
 			e.add(path+".url", "want an http(s) URL")
 		} else if u.User != nil {
 			e.add(path+".url", "no credentials in the URL; use auth_header_env")
@@ -203,8 +227,15 @@ func (p *Policy) validateNotify(e *Errors) {
 			if len(t.Views) > 0 {
 				e.add(path+".views", "a Discord target gets Theatarr's own messages, not arr payloads: remove views")
 			}
+		case NotifyFormatNtfy:
+			if len(t.Views) > 0 {
+				e.add(path+".views", "an ntfy target gets Theatarr's own messages, not arr payloads: remove views")
+			}
+			if _, _, ok := NtfyEndpoint(t.URL); !ok && validURL {
+				e.add(path+".url", "an ntfy target's URL ends in the topic: https://<server>/<topic>")
+			}
 		default:
-			e.add(path+".format", "unknown format %q (want discord, or leave it empty)", t.Format)
+			e.add(path+".format", "unknown format %q (want discord or ntfy, or leave it empty)", t.Format)
 		}
 		checkEnv(e, path+".auth_header_env", t.AuthHeaderEnv, false)
 	}

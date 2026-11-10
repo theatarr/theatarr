@@ -33,7 +33,8 @@ workaround, it is here too.
 ## Notifications
 
 Theatarr sends notifications as webhooks: a generic JSON webhook (arr-shaped payloads, or Theatarr's own
-`theatarr.*` events) and a Discord format. There is no built-in email, Telegram, ntfy, Gotify or Pushover target.
+`theatarr.*` events), a Discord format and an ntfy format (not yet tested against an ntfy server). There is no
+built-in email, Telegram, Gotify or Pushover target.
 
 To reach one of those services, send the webhook to something that turns JSON into a message:
 

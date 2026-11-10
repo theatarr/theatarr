@@ -28,9 +28,9 @@ const (
 	RequestAvailable          Kind = "request_available"
 	RequestPartial            Kind = "request_partial_available"
 	RequestFailed             Kind = "request_failed"
-	// Error is a new error-inbox group, or one that came back after it was resolved (Discord targets only).
+	// Error is a new error-inbox group, or one that came back after it was resolved (Discord and ntfy targets only).
 	Error Kind = "error"
-	// Digest is the daily summary (Discord targets only).
+	// Digest is the daily summary (Discord and ntfy targets only).
 	Digest Kind = "digest"
 )
 

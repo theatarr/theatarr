@@ -64,3 +64,39 @@ func TestNotifyParityEvents(t *testing.T) {
 		})
 	}
 }
+
+func TestNotifyFormats(t *testing.T) {
+	t.Parallel()
+	p := &Policy{Views: map[string]*View{"radarr": {}}, Notify: &Notify{Targets: map[string]*NotifyTarget{
+		"json":       {URL: "http://hooks.example/hook", Native: true},
+		"chan":       {URL: "https://discord.com/api/webhooks/1/token", Format: NotifyFormatDiscord},
+		"phone":      {URL: "https://ntfy.example/alerts", Format: NotifyFormatNtfy, AuthHeaderEnv: "THEATARR_NTFY_AUTH"},
+		"sub":        {URL: "http://ntfy.example:8080/push/alerts/", Format: NotifyFormatNtfy},
+		"ntfy-views": {URL: "https://ntfy.example/alerts", Format: NotifyFormatNtfy, Views: []string{"radarr"}},
+		"ntfy-root":  {URL: "https://ntfy.example", Format: NotifyFormatNtfy},
+		"ntfy-bad":   {URL: "ntfy.example/alerts", Format: NotifyFormatNtfy},
+		"slack":      {URL: "https://hooks.example/x", Format: "slack"},
+	}}}
+	e := &Errors{}
+	p.validateNotify(e)
+	got := e.Error()
+	for _, want := range []string{"targets[ntfy-views].views: an ntfy target gets Theatarr's own messages",
+		"targets[ntfy-root].url: an ntfy target's URL ends in the topic", "targets[ntfy-bad].url: want an http(s) URL",
+		`targets[slack].format: unknown format "slack" (want discord or ntfy, or leave it empty)`} {
+		if !strings.Contains(got, want) {
+			t.Errorf("missing %q in %s", want, got)
+		}
+	}
+	for _, not := range []string{"targets[json]", "targets[chan]", "targets[phone]", "targets[sub]"} {
+		if strings.Contains(got, not) {
+			t.Errorf("%s refused: %s", not, got)
+		}
+	}
+	if n := strings.Count(got, "targets[ntfy-bad]"); n != 1 {
+		t.Errorf("a bad URL reported %d times: %s", n, got)
+	}
+	if server, topic, ok := NtfyEndpoint("http://ntfy.example:8080/push/alerts/?x=1"); !ok ||
+		server != "http://ntfy.example:8080/push/?x=1" || topic != "alerts" {
+		t.Errorf("endpoint %q %q %v", server, topic, ok)
+	}
+}

@@ -2,7 +2,8 @@
 // (Grab, Download/Upgrade, Rename, MovieDelete/SeriesDelete, MovieFileDelete/EpisodeFileDelete, Health/HealthRestored,
 // SeriesAdd/MovieAdded, ManualInteractionRequired, Test) to
 // the notifications clients installed through that view (Ruddarr's push relay) and to the policy's targets, and
-// Theatarr's own per-version events (eventType theatarr.*) to policy targets that ask for them.
+// Theatarr's own per-version events (eventType theatarr.*) to policy targets that ask for them. Targets with a
+// message format (discord, ntfy) get Theatarr's own messages instead (message.go).
 //
 // # Never blocking
 //
@@ -222,12 +223,13 @@ func (n *Notifier) deliveries(ctx context.Context, ev Event) ([]delivery, error)
 	if ev.NotificationID > 0 {
 		return out, nil
 	}
-	var native, discord any
+	var native, discord, ntfy any
 	for _, k := range sortedKeys(set.Targets) {
 		t := set.Targets[k]
-		isDiscord := t.Format == policy.NotifyFormatDiscord
-		// Errors and the digest go to Discord targets only; a Discord target gets only its kinds.
-		if isDiscord && !discordWants(ev) || !isDiscord && (!t.Native || ev.Error != nil || ev.Digest != nil) {
+		isDiscord, isNtfy := t.Format == policy.NotifyFormatDiscord, t.Format == policy.NotifyFormatNtfy
+		isMessage := isDiscord || isNtfy
+		// Errors and the digest go to message targets (Discord, ntfy) only; a message target gets only its kinds.
+		if isMessage && !messageWants(ev) || !isMessage && (!t.Native || ev.Error != nil || ev.Digest != nil) {
 			continue
 		}
 		if !wants(t, ev.Kind) || ev.Target != "" && ev.Target != k {
@@ -256,6 +258,17 @@ func (n *Notifier) deliveries(ctx context.Context, ev Event) ([]delivery, error)
 				discord = b
 			}
 			out = append(out, delivery{target: "policy:" + k, event: "discord." + string(ev.Kind), body: discord})
+			continue
+		}
+		if isNtfy {
+			if ntfy == nil {
+				b, err := n.ntfyPayload(ctx, ev)
+				if err != nil {
+					return nil, err
+				}
+				ntfy = b
+			}
+			out = append(out, delivery{target: "policy:" + k, event: "ntfy." + string(ev.Kind), body: ntfy})
 			continue
 		}
 		if native == nil {
@@ -407,7 +420,7 @@ func (n *Notifier) Test(ctx context.Context, target string) error {
 }
 
 // testDeliveries are the Test bodies of one policy target: each of its views', the native one for a native target,
-// and the Discord test message for a Discord target.
+// and the test message for a Discord or ntfy target.
 func (n *Notifier) testDeliveries(ctx context.Context, target string, t *policy.NotifyTarget) ([]delivery, error) {
 	var ds []delivery
 	if t.Format == policy.NotifyFormatDiscord {
@@ -416,6 +429,13 @@ func (n *Notifier) testDeliveries(ctx context.Context, target string, t *policy.
 			return nil, err
 		}
 		return []delivery{{target: "policy:" + target, event: "discord.test", body: b}}, nil
+	}
+	if t.Format == policy.NotifyFormatNtfy {
+		b, err := n.ntfyPayload(ctx, Event{Kind: Test, At: n.now()})
+		if err != nil {
+			return nil, err
+		}
+		return []delivery{{target: "policy:" + target, event: "ntfy.test", body: b}}, nil
 	}
 	if n.pay != nil {
 		for _, v := range t.Views {
@@ -502,7 +522,15 @@ func (n *Notifier) sendPolicy(ctx context.Context, key string, body []byte) (int
 	if t == nil {
 		return 0, errGone
 	}
-	req, err := http.NewRequestWithContext(ctx, http.MethodPost, t.URL, bytes.NewReader(body))
+	// An ntfy target is POSTed at its server address, with the topic of its URL in the body.
+	isNtfy, to := t.Format == policy.NotifyFormatNtfy, t.URL
+	if isNtfy {
+		var err error
+		if to, body, err = ntfyRequest(t.URL, body); err != nil {
+			return 0, err
+		}
+	}
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, to, bytes.NewReader(body))
 	if err != nil {
 		return 0, err
 	}
@@ -512,6 +540,9 @@ func (n *Notifier) sendPolicy(ctx context.Context, key string, body []byte) (int
 	}
 	if t.AuthHeaderEnv != "" {
 		if v := getenv(t.AuthHeaderEnv); v != "" {
+			if isNtfy {
+				v = ntfyAuthorization(v)
+			}
 			req.Header.Set("Authorization", v)
 		}
 	}

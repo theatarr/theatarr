@@ -851,9 +851,10 @@
             "label": "Message format",
             "type": "enum",
             "enum": [
-              "discord"
+              "discord",
+              "ntfy"
             ],
-            "help": "This is the message format: empty for the payloads above, or discord for Discord messages (the url is a Discord channel webhook): instant health and error alerts, the daily digest and request ready. A Discord target takes no views."
+            "help": "This is the message format: empty for the payloads above, discord for a Discord channel webhook, or ntfy. For ntfy the url is the server address followed by the topic, and an access token goes in the Authorization header."
           },
           {
             "name": "events",
@@ -904,7 +905,7 @@
         "default": "09:00",
         "label": "Daily digest time",
         "type": "string",
-        "help": "This is the local time (HH:MM, the container's TZ) the daily digest goes to Discord targets. Default 09:00."
+        "help": "This is the local time (HH:MM, the container's TZ) the daily digest goes to Discord and ntfy targets. Default 09:00."
       }
     ],
     "playlists": [

@@ -9,7 +9,7 @@ import { mockFetch } from "@/test/page";
 afterEach(cleanup);
 const fields: SchemaField[] = [{ name: "targets", label: "Notification destinations", type: "keyed", help: "", fields: [
  { name: "url", label: "Destination URL", type: "string", help: "" },
- { name: "format", label: "Message format", type: "enum", enum: ["discord"], help: "" },
+ { name: "format", label: "Message format", type: "enum", enum: ["discord", "ntfy"], help: "" },
 ] }];
 function Form({ config }: { config: Record<string, unknown> }) {
  const [c, setC] = useState(config);
