@@ -1,11 +1,13 @@
 name: ci
 
 # The public checks (docs/dev.md): on every push to main, on pull requests, and by hand from the Actions tab.
+# release.yml calls them before it publishes an image.
 on:
   push:
     branches: [main]
   pull_request:
   workflow_dispatch:
+  workflow_call:
 
 permissions:
   contents: read

@@ -12,9 +12,12 @@ you, disabled or in shadow. The steps below still apply for checking and going l
 
 ## 1. Run the container
 
-There is no published image yet. Build it from a checkout of this repository with
-[`examples/compose.yaml`](../examples/compose.yaml), copied to the repository root (`compose.yaml`, `data/` and
-`trash-guides/` there are ignored by git and left out of the image build):
+Build the image from a checkout of this repository with [`examples/compose.yaml`](../examples/compose.yaml), copied
+to the repository root (`compose.yaml`, `data/` and `trash-guides/` there are ignored by git and left out of the
+image build). Tagged releases publish an image to `ghcr.io/theatarr/theatarr`, and
+[`examples/compose.image.yaml`](../examples/compose.image.yaml) pulls it: the same service with
+`image: ghcr.io/theatarr/theatarr:${THEATARR_VERSION}` in place of `build: .`. Use it once the repository's Releases
+page lists a version; until then, build from source:
 
 ```yaml
 # compose.yaml

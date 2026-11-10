@@ -28,7 +28,8 @@ race:
 lint:
 	$(GO) run honnef.co/go/tools/cmd/staticcheck@v0.8.2 ./...
 
-# Local image; never pushed. The Dockerfile builds the SPA in a node stage.
+# Local image; never pushed (releases are built by .github/workflows/release.yml). The Dockerfile builds the SPA in a
+# node stage.
 image:
 	docker build --build-arg VERSION=$(VERSION) -t theatarr:$(VERSION) .
 

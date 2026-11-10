@@ -121,7 +121,9 @@ Optional:
 
 ## Quick start
 
-There is no published image yet; you build it from this repository.
+Build the image from this repository. Tagged releases publish an image to `ghcr.io/theatarr/theatarr`; the
+repository's Releases page lists the versions that exist. Until a release is listed there, building from source is
+the only way.
 
 ```sh
 git clone https://github.com/theatarr/theatarr.git theatarr && cd theatarr
@@ -131,6 +133,10 @@ git clone --depth 1 https://github.com/TRaSH-Guides/Guides trash-guides   # opti
 docker compose up -d --build
 sudo cat data/initial-admin-password
 ```
+
+With a released version, [`examples/compose.image.yaml`](examples/compose.image.yaml) pulls the image instead of
+building it: copy it to `compose.yaml`, set `THEATARR_VERSION` to the release (for example `1.0.0`) and run
+`docker compose up -d`.
 
 Open `http://<host>:7700` and sign in as `admin` with that password. The file is deleted at the first login; if you
 lose the password, run `docker compose exec theatarr theatarr admin reset-password`.
@@ -213,7 +219,8 @@ database holds your credentials in plaintext, so keep backups as private as the 
 off the host with whatever backs up the host.
 
 To upgrade, write a backup set while the old image still runs, keep the old image under another tag, then rebuild
-from the new source:
+from the new source (with a released image, change `THEATARR_VERSION` instead; the old version's tag is the image
+to go back to):
 
 ```sh
 docker compose exec theatarr theatarr backup now    # note the set name it prints

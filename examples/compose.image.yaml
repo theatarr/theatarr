@@ -1,0 +1,34 @@
+# Example Docker Compose file for Theatarr that uses a published image instead of building one.
+#
+# Images are published from the first tagged release on (see the repository's Releases page for the versions that
+# exist). If the pull fails, no release has been published yet, or the version is wrong: use compose.yaml beside
+# this file, which builds the image from source.
+#
+#   cp examples/compose.image.yaml compose.yaml    # any directory; no checkout of the repository is needed
+#   mkdir -p data && sudo chown 65532:65532 data
+#   THEATARR_VERSION=1.0.0 docker compose up -d    # a released version, without the leading v; or set it in .env
+#   sudo cat data/initial-admin-password           # the first admin password; sign in as admin at http://<host>:7700
+#
+# Every host path below is a placeholder. docs/quickstart.md explains each one.
+services:
+  theatarr:
+    image: ghcr.io/theatarr/theatarr:${THEATARR_VERSION:?set THEATARR_VERSION to a released version, for example 1.0.0}
+    container_name: theatarr           # the name the app's "docker exec theatarr ..." hints use
+    restart: unless-stopped            # also needed by the restore from the web UI, which restarts the service
+    ports:
+      - "7700:7700"
+    # The image runs as uid:gid 65532:65532. ./data, the library roots and the trash directory must be writable by
+    # it; the debrid mount only needs to be readable.
+    volumes:
+      - ./data:/data                   # database, backups, logs and the first admin password
+      - /mnt/debrid:/mnt/debrid:ro     # the debrid mount (zurg, rclone, ...): Theatarr only reads it
+      - /srv/media:/media              # library roots (/media/movies, /media/tv, /media/anime) and the link trash
+                                       # (/media/.trash, outside every root); mount them where the media server sees them
+      # - ./trash-guides:/config/trash:ro  # optional: a TRaSH-Guides checkout (clone it first), with THEATARR_TRASH below
+    environment:
+      TZ: Etc/UTC                      # the nightly backup runs at 03:00 in this zone
+      # Optional:
+      # THEATARR_TRASH: /config/trash                           # the TRaSH-Guides checkout above: profile presets and quality sync
+      # THEATARR_PUBLIC_URL: http://theatarr.example.com:7700   # Theatarr's address as clients reach it
+      # THEATARR_COOKIE_SECURE: always                          # behind an HTTPS reverse proxy
+      # THEATARR_FORCE_OFF: router,library,notify               # keep downloads, library writes and notifications off

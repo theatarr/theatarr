@@ -22,12 +22,19 @@ How to build and test Theatarr, how the code is laid out, and the rules for chan
 | `make race` | The Go tests under the race detector (needs cgo) |
 | `make ui` | Builds the UI into `internal/webui/dist`, which `make build` embeds |
 | `make build` | `bin/theatarr`. Without `make ui` first, the binary serves a "UI not built" page |
-| `make image` | A local Docker image, `theatarr:<git describe>` |
+| `make image` | A local Docker image, `theatarr:<git describe>`; never pushed |
 | `make test`, `make vet`, `make fmt` | The single steps |
 
 Before a pull request, run `make check`, `make lint` and `make ui-check`; run `make e2e` and `make race` too when you
 touch acquisition, import or concurrency code. `.github/workflows/ci.yml` runs the same checks, the example policy's
 validation and an image build, on every push to `main`, on pull requests, and by hand from the Actions tab.
+
+**Releases.** Pushing a tag `vX.Y.Z` (three numbers, no suffix) runs `.github/workflows/release.yml`: the checks of
+`ci.yml`, then an amd64 image build pushed to the GitHub Container Registry as `ghcr.io/theatarr/theatarr:X.Y.Z`,
+`:X.Y` and `:latest`, with the tag as the version the binary reports. Tags with a suffix (`v1.2.3-rc1`) and other
+tags publish nothing. The registry package starts private: its visibility and the repository's Actions permission
+to write packages are set once on GitHub, by hand. [`examples/compose.image.yaml`](../examples/compose.image.yaml)
+is the compose file for a released image.
 
 `theatarr policy validate examples/policy` checks the example policy. `go run ./cmd/theatarr help` lists the
 subcommands; each one takes `-h`.
