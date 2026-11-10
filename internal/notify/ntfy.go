@@ -100,17 +100,24 @@ func fitBytes(lines []string, limit int) string {
 	return s
 }
 
+// ntfyEventPrefix starts the event name of every ntfy delivery ("ntfy.health").
+const ntfyEventPrefix = "ntfy."
+
 // ntfyRequest turns a stored ntfy delivery into the request for the target URL in force: the server address to POST
-// to and the body with the URL's topic added. A delivery that was queued while the target had another format is not
-// an ntfy message and is dropped. The errors name neither the URL nor the topic (the URL is a write-only credential).
-func ntfyRequest(targetURL string, stored []byte) (string, []byte, error) {
+// to and the body with the URL's topic added. A delivery that was queued while the target had another format (its
+// event is not ntfy.*) is not an ntfy message and is dropped. The errors name neither the URL nor the topic (the URL
+// is a write-only credential).
+func ntfyRequest(targetURL, event string, stored []byte) (string, []byte, error) {
+	if !strings.HasPrefix(event, ntfyEventPrefix) {
+		return "", nil, fmt.Errorf("queued before the target became an ntfy target: %w", errGone)
+	}
 	server, topic, ok := policy.NtfyEndpoint(targetURL)
 	if !ok {
 		return "", nil, fmt.Errorf("the ntfy target's URL has no topic: %w", errGone)
 	}
 	var body map[string]json.RawMessage
-	if err := json.Unmarshal(stored, &body); err != nil || body["message"] == nil {
-		return "", nil, fmt.Errorf("queued before the target became an ntfy target: %w", errGone)
+	if err := json.Unmarshal(stored, &body); err != nil {
+		return "", nil, fmt.Errorf("not an ntfy message: %w", errGone)
 	}
 	t, err := json.Marshal(topic)
 	if err != nil {

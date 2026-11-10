@@ -225,12 +225,14 @@ SignalR, Sonarr v5, `downloadclient`.
   same `events` and `versions` filters, as plain text (`internal/notify/ntfy.go`; the wording is shared in
   `message.go`). It takes no `views`, and uses the same outbox, retries, gateway class and allowlist as every target.
   - URL: the ntfy server address followed by the topic, `https://<server>/<topic>` (a server under a sub-path:
-    `https://<server>/<path>/<topic>`). Validation refuses an ntfy target whose URL has no topic. Like any target URL
+    `https://<server>/<path>/<topic>`). Validation refuses an ntfy target whose URL has no topic, or a topic that is
+    not 1 to 64 letters, digits, `-` or `_`. Like any target URL
     it is write-only and shown as scheme and host.
   - Request: `POST` to the URL without its last path segment, with a JSON body `{"topic", "title", "message",
     "priority", "tags"}`. The topic is split from the URL when a delivery is sent, so the stored delivery
     (`notify_delivery.payload`, event `ntfy.<kind>`) holds no topic, and a changed URL applies to queued deliveries.
-    A delivery queued while the target had another format is dropped.
+    A delivery queued under another format (its event is not `ntfy.*`) is dropped when the target is now ntfy, and
+    an `ntfy.*` delivery is dropped when the target no longer is.
   - Access token: the target's Authorization secret (`auth_header`, or `auth_header_env`). A value with a scheme
     (`Bearer tk_...`, `Basic ...`) is sent as it is; a bare token is sent as `Bearer <token>`. No secret: no header.
   - Priority and tags: priority 4 (high) and tag `warning` for a failing health check and an error; priority 3

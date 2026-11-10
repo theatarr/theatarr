@@ -3,6 +3,7 @@ package policy
 import (
 	"net"
 	"net/url"
+	"regexp"
 	"slices"
 	"strings"
 	"time"
@@ -61,6 +62,9 @@ const NotifyFormatDiscord = "discord"
 
 // NotifyFormatNtfy is the target format that publishes ntfy messages.
 const NotifyFormatNtfy = "ntfy"
+
+// ntfyTopic is what ntfy accepts as a topic name.
+var ntfyTopic = regexp.MustCompile(`^[-_A-Za-z0-9]{1,64}$`)
 
 // NtfyEndpoint splits an ntfy target's URL into the address messages are POSTed to and the topic: the topic is the
 // last path segment, the address is the URL without it (https://host/topic gives https://host/ and topic; a server
@@ -231,8 +235,10 @@ func (p *Policy) validateNotify(e *Errors) {
 			if len(t.Views) > 0 {
 				e.add(path+".views", "an ntfy target gets Theatarr's own messages, not arr payloads: remove views")
 			}
-			if _, _, ok := NtfyEndpoint(t.URL); !ok && validURL {
+			if _, topic, ok := NtfyEndpoint(t.URL); !ok && validURL {
 				e.add(path+".url", "an ntfy target's URL ends in the topic: https://<server>/<topic>")
+			} else if ok && validURL && !ntfyTopic.MatchString(topic) {
+				e.add(path+".url", "the ntfy topic at the end of the URL must be 1 to 64 letters, digits, - or _")
 			}
 		default:
 			e.add(path+".format", "unknown format %q (want discord or ntfy, or leave it empty)", t.Format)

@@ -60,7 +60,7 @@ func TestNotifySectionFollowsSave(t *testing.T) {
 	if err := e.n.Test(ctx, "grabs-only"); err == nil {
 		t.Fatal("a removed target was tested")
 	}
-	if _, err := e.n.sendPolicy(ctx, "grabs-only", []byte("{}")); err != errGone {
+	if _, err := e.n.sendPolicy(ctx, "grabs-only", "theatarr.test", []byte("{}")); err != errGone {
 		t.Fatalf("a removed target was sent to: %v", err)
 	}
 	retries := 9

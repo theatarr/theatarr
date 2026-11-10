@@ -129,7 +129,6 @@ func TestNtfyEndpointAndAuthorization(t *testing.T) {
 		"https://ntfy.example/alerts":           {"https://ntfy.example/", "alerts"},
 		"https://ntfy.example/alerts/":          {"https://ntfy.example/", "alerts"},
 		"http://ntfy.example:8080/sub/my_topic": {"http://ntfy.example:8080/sub/", "my_topic"},
-		"https://ntfy.example/a%20b":            {"https://ntfy.example/", "a b"},
 	} {
 		server, topic, ok := policy.NtfyEndpoint(raw)
 		if !ok || server != want[0] || topic != want[1] {
@@ -280,6 +279,37 @@ func TestNtfySend(t *testing.T) {
 	}
 	if n := e.one(`SELECT COUNT(*) FROM notify_delivery WHERE event = 'discord.test' AND state = 'dropped'`); n != 1 {
 		t.Errorf("not dropped: %d", n)
+	}
+	// So is a native request notification, whose body also has a "message" field, queued before the switch to ntfy;
+	// and an ntfy message queued before the target became a JSON webhook.
+	e.pol.Notify.Targets["phone"] = &policy.NotifyTarget{URL: "https://hooks.example/hook", Native: true}
+	e.rebuild()
+	e.n.Emit(ctx, Event{Kind: RequestPending, TitleID: 1, Request: &Request{ID: 7, Name: "Alpha", TitleID: 1, Status: "pending"}})
+	if n := e.one(`SELECT COUNT(*) FROM notify_delivery WHERE target = 'policy:phone' AND event = 'theatarr.request_pending'
+		AND state = 'pending' AND payload LIKE '%"message"%'`); n != 1 {
+		t.Fatalf("native request notification queued: %d", n)
+	}
+	e.pol.Notify.Targets["phone"] = &policy.NotifyTarget{URL: ntfyURL, Format: policy.NotifyFormatNtfy}
+	e.rebuild()
+	e.exec(`UPDATE notify_delivery SET state = 'sent' WHERE target != 'policy:phone'`)
+	before = len(e.doer.reqs)
+	if sent, err := e.n.SendDue(ctx, 50); err != nil || sent != 0 || len(e.doer.reqs) != before {
+		t.Errorf("a native request notification to ntfy: sent %d %v, requests %d", sent, err, len(e.doer.reqs)-before)
+	}
+	if n := e.one(`SELECT COUNT(*) FROM notify_delivery WHERE event = 'theatarr.request_pending' AND target = 'policy:phone'
+		AND state = 'dropped'`); n != 1 {
+		t.Errorf("native request notification not dropped: %d", n)
+	}
+	if err := e.n.Test(ctx, "phone"); err != nil {
+		t.Fatal(err)
+	}
+	e.pol.Notify.Targets["phone"] = &policy.NotifyTarget{URL: "https://hooks.example/hook", Native: true}
+	e.rebuild()
+	if sent, err := e.n.SendDue(ctx, 50); err != nil || sent != 0 || len(e.doer.reqs) != before {
+		t.Errorf("an ntfy message to a webhook: sent %d %v, requests %d", sent, err, len(e.doer.reqs)-before)
+	}
+	if n := e.one(`SELECT COUNT(*) FROM notify_delivery WHERE event = 'ntfy.test' AND state = 'dropped'`); n != 1 {
+		t.Errorf("ntfy message not dropped: %d", n)
 	}
 	// Other targets are sent as before: to their URL, with the header value as stored.
 	if err := e.n.SendTest(ctx, "automation"); err != nil {

@@ -477,7 +477,7 @@ func (n *Notifier) SendTest(ctx context.Context, target string) error {
 		if err != nil {
 			return err
 		}
-		if _, err := n.sendPolicy(ctx, target, b); err != nil {
+		if _, err := n.sendPolicy(ctx, target, d.event, b); err != nil {
 			return err
 		}
 	}
@@ -515,7 +515,10 @@ type errNotAllowed struct{ host string }
 
 func (e errNotAllowed) Error() string { return "host " + e.host + " is not in notify.allow_hosts" }
 
-func (n *Notifier) sendPolicy(ctx context.Context, key string, body []byte) (int, error) {
+// sendPolicy posts a delivery's body to policy target key. event is the delivery's event name: it tells an ntfy
+// message from the other bodies, so a delivery queued under one format is dropped, not sent, once the target's format
+// changed to or from ntfy.
+func (n *Notifier) sendPolicy(ctx context.Context, key, event string, body []byte) (int, error) {
 	// The target and its credential come from one generation: the one in force for ctx.
 	p := n.policy(ctx)
 	t := p.NotifySettings().Targets[key]
@@ -526,9 +529,11 @@ func (n *Notifier) sendPolicy(ctx context.Context, key string, body []byte) (int
 	isNtfy, to := t.Format == policy.NotifyFormatNtfy, t.URL
 	if isNtfy {
 		var err error
-		if to, body, err = ntfyRequest(t.URL, body); err != nil {
+		if to, body, err = ntfyRequest(t.URL, event, body); err != nil {
 			return 0, err
 		}
+	} else if strings.HasPrefix(event, ntfyEventPrefix) {
+		return 0, fmt.Errorf("queued while the target was an ntfy target: %w", errGone)
 	}
 	req, err := http.NewRequestWithContext(ctx, http.MethodPost, to, bytes.NewReader(body))
 	if err != nil {
@@ -581,7 +586,7 @@ func backoff(attempt int) time.Duration {
 // SendDue posts the deliveries that are due, oldest first (at most limit), and reports how many were sent.
 func (n *Notifier) SendDue(ctx context.Context, limit int) (int, error) {
 	now := n.now()
-	rows, err := n.st.Reader().QueryContext(ctx, `SELECT id, target, payload, attempts FROM notify_delivery
+	rows, err := n.st.Reader().QueryContext(ctx, `SELECT id, target, event, payload, attempts FROM notify_delivery
 		WHERE state = 'pending' AND next_at <= ? ORDER BY next_at, id LIMIT ?`, store.Millis(now), limit)
 	if err != nil {
 		return 0, err
@@ -589,6 +594,7 @@ func (n *Notifier) SendDue(ctx context.Context, limit int) (int, error) {
 	type due struct {
 		id       int64
 		target   string
+		event    string
 		payload  []byte
 		attempts int
 	}
@@ -596,7 +602,7 @@ func (n *Notifier) SendDue(ctx context.Context, limit int) (int, error) {
 	for rows.Next() {
 		var d due
 		var p string
-		if err := rows.Scan(&d.id, &d.target, &p, &d.attempts); err != nil {
+		if err := rows.Scan(&d.id, &d.target, &d.event, &p, &d.attempts); err != nil {
 			rows.Close()
 			return 0, err
 		}
@@ -636,7 +642,7 @@ func (n *Notifier) SendDue(ctx context.Context, limit int) (int, error) {
 				err = errGone
 			}
 		case "policy":
-			code, err = n.sendPolicy(ctx, ref, d.payload)
+			code, err = n.sendPolicy(ctx, ref, d.event, d.payload)
 		default:
 			err = errGone
 		}

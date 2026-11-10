@@ -75,6 +75,11 @@ func TestNotifyFormats(t *testing.T) {
 		"ntfy-views": {URL: "https://ntfy.example/alerts", Format: NotifyFormatNtfy, Views: []string{"radarr"}},
 		"ntfy-root":  {URL: "https://ntfy.example", Format: NotifyFormatNtfy},
 		"ntfy-bad":   {URL: "ntfy.example/alerts", Format: NotifyFormatNtfy},
+		"max":        {URL: "https://ntfy.example/" + strings.Repeat("a", 64), Format: NotifyFormatNtfy},
+		"t-space":    {URL: "https://ntfy.example/a%20b", Format: NotifyFormatNtfy},
+		"t-dot":      {URL: "https://ntfy.example/alerts.json", Format: NotifyFormatNtfy},
+		"t-unicode":  {URL: "https://ntfy.example/alérts", Format: NotifyFormatNtfy},
+		"t-long":     {URL: "https://ntfy.example/" + strings.Repeat("a", 65), Format: NotifyFormatNtfy},
 		"slack":      {URL: "https://hooks.example/x", Format: "slack"},
 	}}}
 	e := &Errors{}
@@ -87,7 +92,15 @@ func TestNotifyFormats(t *testing.T) {
 			t.Errorf("missing %q in %s", want, got)
 		}
 	}
-	for _, not := range []string{"targets[json]", "targets[chan]", "targets[phone]", "targets[sub]"} {
+	for _, k := range []string{"t-space", "t-dot", "t-unicode", "t-long"} {
+		if !strings.Contains(got, "targets["+k+"].url: the ntfy topic at the end of the URL must be 1 to 64 letters, digits, - or _") {
+			t.Errorf("topic of %s accepted: %s", k, got)
+		}
+	}
+	if strings.Contains(got, "a b") || strings.Contains(got, "alerts.json") {
+		t.Errorf("a topic echoed: %s", got)
+	}
+	for _, not := range []string{"targets[json]", "targets[chan]", "targets[phone]", "targets[sub]", "targets[max]"} {
 		if strings.Contains(got, not) {
 			t.Errorf("%s refused: %s", not, got)
 		}
