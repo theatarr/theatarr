@@ -276,12 +276,3 @@ func TestNightlyEnqueuesRetentionAfterSuccess(t *testing.T) {
 		t.Fatalf("retention job: priority %d, key %q", priority, key)
 	}
 }
-
-func TestListenAddressHint(t *testing.T) {
-	for listen, want := range map[string]string{":7700": "http://<this server>:7700",
-		"0.0.0.0:8080": "http://<this server>:8080", "127.0.0.1:7700": "http://127.0.0.1:7700"} {
-		if got := listenAddressHint(listen); got != want {
-			t.Errorf("%s: %q, want %q", listen, got, want)
-		}
-	}
-}

@@ -150,13 +150,6 @@ func TestFirstStartPasswordFileNotLog(t *testing.T) {
 	if _, err := os.Stat(path); err != nil {
 		t.Errorf("restart removed the file: %v", err)
 	}
-	// While the file exists, the first-start block (serve prints it on stderr) carries user, password and address.
-	banner := FirstStartBanner(dir, "http://<this server>:7700")
-	for _, want := range []string{"user      admin", "password  " + pw, "http://<this server>:7700", path} {
-		if !strings.Contains(banner, want) {
-			t.Errorf("first-start block lacks %q:\n%s", want, banner)
-		}
-	}
 	// A failed login keeps it; the first successful one removes it.
 	if _, err := s2.Login(ctx, "admin", "wrong", "10.1.2.3", ""); !errors.Is(err, ErrInvalid) {
 		t.Fatal(err)
@@ -169,9 +162,6 @@ func TestFirstStartPasswordFileNotLog(t *testing.T) {
 	}
 	if _, err := os.Stat(path); !errors.Is(err, fs.ErrNotExist) {
 		t.Errorf("file after the first login: %v", err)
-	}
-	if b := FirstStartBanner(dir, "http://x:7700"); b != "" {
-		t.Errorf("first-start block after the first login: %q", b)
 	}
 	// No data directory: written nowhere, still not logged.
 	if _, pw3, err := New(ctx, openStore(t), Options{Logger: log, Now: c.now}); err != nil || pw3 == "" {

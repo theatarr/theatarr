@@ -4,10 +4,8 @@
 //
 // [New] makes sure the database holds a signing secret and at least one user. On the first start it generates the
 // secret (32 random bytes) and an account named "admin" with a random 24-character password, and stores only the
-// password's argon2id hash. The password itself goes to <data dir>/initial-admin-password (mode 0600). theatarr
-// serve also prints it, with the user name, in a first-start block on stderr (the container log) at every start
-// while that file exists ([FirstStartBanner]); it never goes through the logger, so the log files, the Logs page
-// and the error inbox do not hold it. The file is deleted at the first successful login and by
+// password's argon2id hash. The password itself goes to <data dir>/initial-admin-password (mode 0600), never to the
+// log: the log says only that the file exists and where. The file is deleted at the first successful login and by
 // `theatarr admin reset-password` for admin, which sets a new password (and ends every session of that user).
 //
 // # Credentials
@@ -126,29 +124,6 @@ func RemoveInitialPassword(dir string) (bool, error) {
 	return err == nil, err
 }
 
-// FirstStartBanner is the block theatarr serve prints to stderr (the container log, not the logger) while the first
-// start's admin password is pending, that is while dir's InitialPasswordFile exists: the address to open, the user
-// and the password read from the file. It is "" once the file is gone (the first login removes it) or unreadable.
-func FirstStartBanner(dir, address string) string {
-	if dir == "" {
-		return ""
-	}
-	path := filepath.Join(dir, InitialPasswordFile)
-	b, err := os.ReadFile(path)
-	password := strings.TrimSpace(string(b))
-	if err != nil || password == "" {
-		return ""
-	}
-	line := strings.Repeat("=", 64)
-	return line + "\n" +
-		"  Theatarr first start: sign in at " + address + "\n" +
-		"    user      " + AdminUsername + "\n" +
-		"    password  " + password + "\n" +
-		"  The password is also in " + path + ".\n" +
-		"  That file is deleted at the first sign-in, and this message stops with it.\n" +
-		line + "\n"
-}
-
 // writeInitialPassword writes the password to dir's InitialPasswordFile, mode 0600, replacing any older one.
 func writeInitialPassword(dir, password string) (string, error) {
 	path := filepath.Join(dir, InitialPasswordFile)
@@ -201,8 +176,8 @@ func (t *Throttled) Error() string {
 }
 
 // New loads the signing secret and makes sure an account exists, creating both on the first start (see the
-// package doc). The generated admin password is written to o.DataDir's InitialPasswordFile, never passed to the
-// logger, and returned so callers and tests can use it; it is empty on every later start.
+// package doc). The generated admin password is written to o.DataDir's InitialPasswordFile, never logged, and
+// returned so callers and tests can use it; it is empty on every later start.
 func New(ctx context.Context, st *store.Store, o Options) (*Service, string, error) {
 	if o.Logger == nil {
 		o.Logger = slog.Default()
@@ -280,8 +255,7 @@ func New(ctx context.Context, st *store.Store, o Options) (*Service, string, err
 	}
 	switch {
 	case password != "" && pwPath != "":
-		// Never the password itself: the logger feeds the log files, GET /logs and the error inbox. theatarr serve
-		// prints it on stderr only (FirstStartBanner).
+		// Never the password itself: the log reaches docker logs and GET /logs.
 		s.log.Warn("first start: created the admin account; its password is in the file (mode 0600), which is "+
 			"deleted at the first login; or set one with 'theatarr admin reset-password'", "username", AdminUsername,
 			"file", pwPath)

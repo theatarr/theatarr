@@ -146,10 +146,6 @@ export function Login() {
             {busy ? <Loader2 className="animate-spin" /> : null}
             Sign in
           </Button>
-          <p data-testid="first-password-hint" className="text-center text-xs text-[var(--ink-3)]">
-            New install: the first password for <code>admin</code> is in the container log and in{" "}
-            <code>&lt;data dir&gt;/initial-admin-password</code>.
-          </p>
         </form>
       </div>
     </div>
