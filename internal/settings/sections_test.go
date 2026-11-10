@@ -715,3 +715,35 @@ func TestSectionConfigOmitsUnsetOptionalField(t *testing.T) {
 		}
 	}
 }
+
+// router.wanted.retry_new is optional the same way: the stored router section has the key only when it is on, and a
+// submitted false or null is dropped.
+func TestSectionConfigOmitsUnsetRetryNew(t *testing.T) {
+	t.Parallel()
+	p := &policy.Policy{Router: &policy.Router{Wanted: &policy.Wanted{PerHour: 20}}}
+	raw, err := SectionConfig(p, "router")
+	if err != nil || strings.Contains(string(raw), "retry_new") || !strings.Contains(string(raw), `"per_hour":20`) {
+		t.Fatalf("unset: %s %v", raw, err)
+	}
+	p.Router.Wanted.RetryNew = true
+	if raw, err = SectionConfig(p, "router"); err != nil || !strings.Contains(string(raw), `"retry_new":true`) {
+		t.Fatalf("on: %s %v", raw, err)
+	}
+	back := &policy.Policy{}
+	if err := applySection(back, Section{Record: Record{Key: "router"}, Config: raw}); err != nil {
+		t.Fatal(err)
+	}
+	if !back.WantedSettings().RetryNew {
+		t.Fatalf("retry_new read back off: %+v", back.Router.Wanted)
+	}
+	for sent, want := range map[string]string{
+		`{"wanted":{"per_hour":20,"retry_new":false}}`:  `{"wanted":{"per_hour":20}}`,
+		`{"wanted":{"retry_new":null,"missing":false}}`: `{"wanted":{"missing":false}}`,
+		`{"wanted":{"retry_new":true}}`:                 `{"wanted":{"retry_new":true}}`,
+		`{"wanted":null}`:                               `{"wanted":null}`,
+	} {
+		if got := string(DropUnsetOptional("router", json.RawMessage(sent))); got != want {
+			t.Errorf("DropUnsetOptional(%s) = %s, want %s", sent, got, want)
+		}
+	}
+}

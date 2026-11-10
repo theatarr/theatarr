@@ -1128,6 +1128,12 @@
               "off"
             ],
             "help": "This chooses automatic upgrade searches: quality, score or off."
+          },
+          {
+            "name": "retry_new",
+            "label": "Retry new episodes sooner",
+            "type": "boolean",
+            "help": "This searches again after 1, 2, 4, 8 and more hours, instead of a day later, when an automatic search for a missing item that aired or was released in the last week finds nothing. Each try counts against the hourly limit. Default false."
           }
         ]
       },

@@ -91,6 +91,15 @@ func TestWantedSettings(t *testing.T) {
 		got.AgainAfter != 24*time.Hour || !got.Missing || got.CutoffUnmet != CutoffQuality {
 		t.Errorf("example (no active version): %+v", got)
 	}
+	// retry_new is off unless the section turns it on.
+	for _, q := range []*Policy{p, {}, {Router: &Router{}}, {Router: &Router{Wanted: &Wanted{}}}} {
+		if q.WantedSettings().RetryNew {
+			t.Errorf("retry_new on by default: %+v", q.Router)
+		}
+	}
+	if !(&Policy{Router: &Router{Wanted: &Wanted{RetryNew: true}}}).WantedSettings().RetryNew {
+		t.Error("retry_new: true is not applied")
+	}
 	active := &Policy{Versions: map[string]*VersionPolicy{"a": {Mode: ModeActive}}}
 	if !active.WantedSettings().Enabled {
 		t.Error("the loop should default on once a version is active")

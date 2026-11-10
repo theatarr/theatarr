@@ -325,3 +325,110 @@ func TestSettingsNotifySaveAddsNoWarningsKey(t *testing.T) {
 	se.want(se.call("PUT", "/sections/notify", map[string]any{"generation": se.generation(), "yaml": text}), 200, "warnings off as yaml")
 	off("yaml")
 }
+
+// Saving the router section as it was read, as config and as YAML, stores no retry_new key; turned on it is stored,
+// and turned off again the key is gone rather than stored as false, so a build from before the option (it decodes
+// sections strictly) still loads the settings.
+func TestSettingsRouterSaveAddsNoRetryNewKey(t *testing.T) {
+	t.Parallel()
+	se := seededSectionsEnvBase(t, func(p *policy.Policy) {
+		if p.Router == nil {
+			p.Router = &policy.Router{}
+		}
+		p.Router.Wanted = &policy.Wanted{PerHour: 20}
+	})
+	stored := func() string {
+		t.Helper()
+		var raw string
+		if err := se.st.Reader().QueryRow(`SELECT config FROM setting_section WHERE key = 'router'`).Scan(&raw); err != nil {
+			t.Fatal(err)
+		}
+		return raw
+	}
+	retryNew := func() bool {
+		t.Helper()
+		snap, err := se.coord.Snapshot(context.Background())
+		if err != nil {
+			t.Fatal(err)
+		}
+		return snap.Policy.WantedSettings().RetryNew
+	}
+	if raw := stored(); strings.Contains(raw, "retry_new") || !strings.Contains(raw, `"per_hour":20`) {
+		t.Fatalf("seeded: %s", raw)
+	}
+	router := findSection(t, se.want(se.call("GET", "/sections", nil), 200, "read"), "router")
+	if shown, _ := json.Marshal(router); strings.Contains(string(shown), "retry_new") {
+		t.Fatalf("read shows a retry_new key: %s", shown)
+	}
+	config := router["config"].(map[string]any)
+	wanted := config["wanted"].(map[string]any)
+	se.want(se.call("PUT", "/sections/router", map[string]any{"generation": se.generation(), "config": config}), 200, "config as read")
+	wanted["per_hour"] = 30
+	se.want(se.call("PUT", "/sections/router", map[string]any{"generation": se.generation(), "config": config}), 200, "another field")
+	router = findSection(t, se.want(se.call("GET", "/sections", nil), 200, "reread"), "router")
+	se.want(se.call("PUT", "/sections/router", map[string]any{"generation": se.generation(), "yaml": router["yaml"]}), 200, "yaml as read")
+	if raw := stored(); strings.Contains(raw, "retry_new") || !strings.Contains(raw, `"per_hour":30`) {
+		t.Fatalf("stored after untouched saves: %s", raw)
+	}
+	if retryNew() {
+		t.Fatal("retry_new is on by default")
+	}
+
+	// A build whose Wanted has no retry_new field decodes the stored section strictly.
+	fields := reflect.VisibleFields(reflect.TypeOf(policy.Wanted{}))
+	fields = slices.DeleteFunc(fields, func(f reflect.StructField) bool { return f.Name == "RetryNew" })
+	if len(fields) != reflect.TypeOf(policy.Wanted{}).NumField()-1 {
+		t.Fatal("policy.Wanted has no RetryNew field")
+	}
+	older := reflect.StructOf(fields)
+	olderLoads := func() error {
+		section := map[string]any{}
+		if err := json.Unmarshal([]byte(stored()), &section); err != nil {
+			t.Fatal(err)
+		}
+		b, err := json.Marshal(section["wanted"])
+		if err != nil {
+			t.Fatal(err)
+		}
+		dec := yaml.NewDecoder(bytes.NewReader(b))
+		dec.KnownFields(true)
+		return dec.Decode(reflect.New(older).Interface())
+	}
+	if err := olderLoads(); err != nil {
+		t.Fatalf("an older build does not load the untouched section: %v", err)
+	}
+
+	wanted["retry_new"] = true
+	se.want(se.call("PUT", "/sections/router", map[string]any{"generation": se.generation(), "config": config}), 200, "retry_new on")
+	if raw := stored(); strings.Count(raw, `"retry_new":true`) != 1 || !retryNew() {
+		t.Fatalf("retry_new on is not stored or applied: %s", raw)
+	}
+	if err := olderLoads(); err == nil {
+		t.Fatal("the older type accepts a retry_new key, so it proves nothing")
+	}
+	off := func(what string) {
+		t.Helper()
+		raw := stored()
+		if strings.Contains(raw, "retry_new") || !strings.Contains(raw, `"per_hour":30`) {
+			t.Fatalf("stored after retry_new off (%s): %s", what, raw)
+		}
+		if err := olderLoads(); err != nil {
+			t.Fatalf("an older build does not load the section after retry_new off (%s): %v", what, err)
+		}
+		if retryNew() {
+			t.Fatalf("retry_new still on (%s)", what)
+		}
+	}
+	wanted["retry_new"] = false
+	se.want(se.call("PUT", "/sections/router", map[string]any{"generation": se.generation(), "config": config}), 200, "retry_new off")
+	off("config")
+	wanted["retry_new"] = true
+	se.want(se.call("PUT", "/sections/router", map[string]any{"generation": se.generation(), "config": config}), 200, "retry_new on again")
+	text := findSection(t, se.want(se.call("GET", "/sections", nil), 200, "read"), "router")["yaml"].(string)
+	if !strings.Contains(text, "retry_new: true") {
+		t.Fatalf("yaml does not show retry_new on: %s", text)
+	}
+	text = strings.Replace(text, "retry_new: true", "retry_new: false", 1)
+	se.want(se.call("PUT", "/sections/router", map[string]any{"generation": se.generation(), "yaml": text}), 200, "retry_new off as yaml")
+	off("yaml")
+}

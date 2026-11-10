@@ -223,6 +223,7 @@
     "enabled": "This turns the loop on. Default: on when some library is active, off otherwise.",
     "interval": "This is the time between rounds. Default 15m, 5m to 24h.",
     "missing": "This searches items with no file (default true). Which items with a file are searched for an upgrade is the upgrade search target below.",
-    "per_hour": "This caps the loop's searches (one title, season or episode each) in any hour. Default 10, 1 to 200."
+    "per_hour": "This caps the loop's searches (one title, season or episode each) in any hour. Default 10, 1 to 200.",
+    "retry_new": "This searches again after 1, 2, 4, 8 and more hours, instead of a day later, when an automatic search for a missing item that aired or was released in the last week finds nothing. Each try counts against the hourly limit. Default false."
   }
 }

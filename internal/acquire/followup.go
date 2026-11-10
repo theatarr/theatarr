@@ -40,6 +40,26 @@ import (
 // no indexer answered is not asked for again (retryInfraFailed), and
 // the router adds only for a target still missing and starts no exhausted re-search after it (router "deadLinkRoute").
 // The dead release is not excluded: found cached again, re-adding it is the repair.
+//
+// With router.wanted.retry_new on (default off) a chain also starts without a route: when a missing search by the
+// wanted loop or by Search now ends with nothing accepted and its target holds new content (retryNew). The first
+// search of a just-aired episode is usually that one, and the loop would take the item again only after again_after.
+// It is the same chain under the same key, steps, stops and per_hour charge; its requests carry RetryNew, and a step
+// of it that runs with the switch off stops the chain. A manual search, a search on add, an add-time search and a
+// re-search or follow-up's own search start none.
+
+// retryNew starts the follow-ups of a marked search's target that ended with nothing accepted (run, finishFanout).
+// The run is recorded already, so a failure here is logged, not returned.
+func (a *Acquirer) retryNew(ctx context.Context, t target) {
+	vp := a.pol.Versions[t.key]
+	if !a.set.RetryNew || vp == nil || t.reason != OnlyMissing {
+		return
+	}
+	if err := a.startFollowUps(ctx, vp, router.ResearchRequest{TitleID: t.titleID, VersionID: t.versionID,
+		Version: t.key, Episodes: t.episodes, RetryNew: true}); err != nil {
+		a.log.Warn("follow-up searches not queued", "title", t.titleID, "version", t.key, "target", t.name, "err", err)
+	}
+}
 
 // followUpAfter is the wait from the miss to the nth follow-up: 1 h doubled each time.
 func followUpAfter(n int) time.Duration { return time.Hour << (n - 1) }
@@ -58,7 +78,7 @@ func (a *Acquirer) startFollowUps(ctx context.Context, vp *policy.VersionPolicy,
 		return err
 	}
 	next := router.ResearchRequest{TitleID: p.TitleID, VersionID: p.VersionID, Version: p.Version,
-		Reason: router.ReasonFresh, MissedAt: now}
+		Reason: router.ReasonFresh, MissedAt: now, RetryNew: p.RetryNew}
 	if seen, err := a.q.Seen(ctx, router.JobResearch, followUpKey(next), until.Add(-availability.FreshWindow)); err != nil ||
 		seen {
 		return err
@@ -92,6 +112,10 @@ func (a *Acquirer) followUp(ctx context.Context, vp *policy.VersionPolicy, p rou
 		sum.Skipped++
 		a.log.Info("follow-up search stopped", "title", p.TitleID, "version", p.Version, "step", p.Step, "why", why)
 		return nil
+	}
+	// A chain an empty search started (retry_new) runs only while the switch is on: nothing searched, no next step.
+	if p.RetryNew && !a.set.RetryNew {
+		return skip("router.wanted.retry_new is off")
 	}
 	var monitored bool
 	var state string

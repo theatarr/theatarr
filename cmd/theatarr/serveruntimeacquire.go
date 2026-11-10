@@ -76,14 +76,12 @@ func (s *serveAcquirer) EnqueueFollowSearch(ctx context.Context, targets []impor
 
 func (s *serveAcquirer) RegisterJobs(w *jobs.Worker) {
 	w.Handle(acquire.JobSearch, func(ctx context.Context, j *jobs.Job) error {
-		var p struct {
-			RunID int64 `json:"run_id"`
-		}
+		var p acquire.SearchJob
 		if err := j.Decode(&p); err != nil {
 			return jobs.Permanent(err)
 		}
 		ctx, ac := s.forOperation(ctx)
-		return ac.Run1(ctx, p.RunID)
+		return ac.RunJob(ctx, p)
 	})
 	w.Handle(acquire.JobWanted, func(ctx context.Context, j *jobs.Job) error {
 		if len(j.Payload) > 0 {

@@ -102,6 +102,10 @@ type Wanted struct {
 	Missing *bool `yaml:"missing"`
 	// CutoffUnmet chooses automatic upgrade searches: quality, score or off.
 	CutoffUnmet CutoffMode `yaml:"cutoff_unmet"`
+	// RetryNew searches again after 1, 2, 4, 8 and more hours, instead of a day later, when an automatic search for
+	// a missing item that aired or was released in the last week finds nothing. Each try counts against the hourly
+	// limit. Default false.
+	RetryNew bool `yaml:"retry_new,omitempty"`
 }
 
 // CutoffMode is router.wanted.cutoff_unmet: which files the wanted loop searches an upgrade for. It changes only the
@@ -227,6 +231,7 @@ type WantedSettings struct {
 	AgainAfter  time.Duration
 	Missing     bool
 	CutoffUnmet CutoffMode // never ""
+	RetryNew    bool
 }
 
 // WantedSettings returns router.wanted with defaults: on when some version is active (and the section does not turn
@@ -256,6 +261,7 @@ func (p *Policy) WantedSettings() WantedSettings {
 	if w.CutoffUnmet != "" {
 		s.CutoffUnmet = w.CutoffUnmet
 	}
+	s.RetryNew = w.RetryNew
 	return s
 }
 

@@ -736,6 +736,20 @@ feed's page again once the hour's miss expires. Tests: `TestFresh`, `TestFreshCo
 `TestFreshEpisodes`, `TestFollowUpsAfterMissOnNewContent`, `TestFollowUpStops`, `TestFollowUpAddsOnceCached`,
 `TestFollowUpOneChainPerTitle`, `TestFollowUpPersistentMiss`, `TestFollowUpRetrySearchesItsEpisodes`.
 
+**An empty search of new content can start the same chain** (`router.wanted.retry_new`, default off). The wanted
+loop takes a missing episode as soon as it has aired, usually before any release exists; that search accepts
+nothing, no route runs, so nothing above applies and the loop takes the item again only after `again_after` (a day).
+With the switch on, a search that ends with nothing accepted starts the follow-up chain for its target's new content
+when it is a missing search (not an upgrade search) started by the wanted loop's own selection or by the Search now
+queue. A manual search, a search on add, an add-time search of a follower, and a re-search's or a follow-up's own
+search start none. The run row cannot tell a loop search from an add-time one, so the search job's payload carries the
+mark (`retry_new`, left out when unset; set only while the switch is on) and the switch is read again when the search
+ends. It is the same chain: the same key (so a title has one chain per fresh window whichever way it started), steps,
+stops and `per_hour` charge, at most about 8 searches in the week. Its requests carry `retry_new`, and each step
+checks the switch before it queues the next: turned off, the chain ends at its next step. A chain an `exhausted`
+route started never looks at the switch. With the switch off no payload, job or search differs from before it
+existed. Tests: `internal/acquire/retrynew_test.go`.
+
 **A dead link is searched once** (reason `dead_link`). When relink marks an active version's
 link dead (`docs/design/library.md` "Relink and verify": two misses at least 30 min apart, the mount healthy, not within
 zurg's repair grace, and no provider folder holds the hash, since relink repoints by hash to any provider first), the

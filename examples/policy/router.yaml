@@ -43,3 +43,6 @@ router:
     # search), score (also those at the cutoff quality but below cutoff_score) or off. States, feeds and upgrade
     # decisions always use the full cutoff.
     cutoff_unmet: quality
+    # retry_new: true    # default off. On: when a missing search by the loop or by Search now finds nothing for
+                         # an episode aired (or a movie released) in the last 7 days, it is searched again 1 h,
+                         # 2 h, 4 h, 8 h ... later instead of after again_after; each counts against per_hour

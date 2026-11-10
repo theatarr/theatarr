@@ -354,12 +354,21 @@ func (a *Acquirer) Submit(ctx context.Context, commandID int64, sel Selection) (
 }
 
 // start records a run and enqueues its search. research is the failure a re-search follows ("" for none).
+// It is the path of the add-time searches, the re-searches and the follow-ups: its job is never marked retry_new.
 func (a *Acquirer) start(ctx context.Context, source string, commandID int64, t target, research string) error {
-	return a.startGroup(ctx, source, commandID, []target{t}, research)
+	return a.startRuns(ctx, source, commandID, []target{t}, research, false)
 }
 
-// startGroup records one search and its served version-target rows in the same transaction as its job.
+// startGroup records one search and its served version-target rows in the same transaction as its job. It is the
+// path of the wanted loop's own selection, the Search now queue (both source wanted) and Submit (source command).
+// The first two are the searches router.wanted.retry_new follows up: while the switch is on their job is marked.
 func (a *Acquirer) startGroup(ctx context.Context, source string, commandID int64, ts []target, research string) error {
+	return a.startRuns(ctx, source, commandID, ts, research,
+		a.set.RetryNew && source == SourceWanted && research == "")
+}
+
+func (a *Acquirer) startRuns(ctx context.Context, source string, commandID int64, ts []target, research string,
+	retryNew bool) error {
 	if len(ts) == 0 {
 		return nil
 	}
@@ -397,7 +406,7 @@ func (a *Acquirer) startGroup(ctx context.Context, source string, commandID int6
 				rootID = id
 			}
 		}
-		_, _, err := a.q.EnqueueTx(ctx, tx, JobSearch, searchPayload{RunID: rootID}, jobs.EnqueueOptions{
+		_, _, err := a.q.EnqueueTx(ctx, tx, JobSearch, SearchJob{RunID: rootID, RetryNew: retryNew}, jobs.EnqueueOptions{
 			DedupeKey: JobSearch + "/" + strconv.FormatInt(rootID, 10), MaxAttempts: searchAttempts})
 		return err
 	})
@@ -407,8 +416,13 @@ func (a *Acquirer) startGroup(ctx context.Context, source string, commandID int6
 // attempts are for runs whose process died or shut down mid-search (the lease expires, or the job is handed back).
 const searchAttempts = 3
 
-type searchPayload struct {
+// SearchJob is the payload of a JobSearch job.
+type SearchJob struct {
 	RunID int64 `json:"run_id"`
+	// RetryNew marks a search the wanted loop or the Search now queue started while router.wanted.retry_new was on:
+	// when it accepts nothing, its new content is followed up (followup.go). The run row cannot tell these from an
+	// add-time search, so the mark travels with the job. Left out when unset.
+	RetryNew bool `json:"retry_new,omitempty"`
 }
 
 type wantedPayload struct{}
@@ -860,12 +874,12 @@ func orderTargets(ts []target, last map[string]lastRuns) []target {
 
 // handleSearch runs one acquire_run: search, decide, and enqueue the route.
 func (a *Acquirer) handleSearch(ctx context.Context, j *jobs.Job) error {
-	var p searchPayload
+	var p SearchJob
 	if err := j.Decode(&p); err != nil {
 		return jobs.Permanent(err)
 	}
 	ctx = a.captureRuntime(ctx)
-	return a.run(ctx, p.RunID, fmt.Sprintf("job:%d/%d", j.ID, j.Attempt))
+	return a.run(ctx, p, fmt.Sprintf("job:%d/%d", j.ID, j.Attempt))
 }
 
 // claims numbers the claims of runs started outside the job queue (Run1).
@@ -873,8 +887,13 @@ var claims atomic.Int64
 
 // Run1 runs one acquire_run now: a queued run, or one left searching by an interrupted search.
 func (a *Acquirer) Run1(ctx context.Context, runID int64) error {
+	return a.RunJob(ctx, SearchJob{RunID: runID})
+}
+
+// RunJob is Run1 for a search job's payload: it keeps the job's retry_new mark.
+func (a *Acquirer) RunJob(ctx context.Context, p SearchJob) error {
 	ctx = a.captureRuntime(ctx)
-	return a.run(ctx, runID, fmt.Sprintf("run1:%d/%d", a.now().UnixNano(), claims.Add(1)))
+	return a.run(ctx, p, fmt.Sprintf("run1:%d/%d", a.now().UnixNano(), claims.Add(1)))
 }
 
 // errLostClaim: another lease took the run over while this one searched; its outcome is not recorded.
@@ -882,7 +901,8 @@ var errLostClaim = errors.New("acquire: the run was claimed by another lease")
 
 // run is the job's body. It claims the run for the job's lease (claim), taking over a run left searching by an
 // interrupted lease, and records the outcome only while it still holds the claim.
-func (a *Acquirer) run(ctx context.Context, runID int64, claim string) error {
+func (a *Acquirer) run(ctx context.Context, sj SearchJob, claim string) error {
+	runID := sj.RunID
 	var t target
 	var eps, state, source, research string
 	var season sql.NullInt64
@@ -904,7 +924,7 @@ func (a *Acquirer) run(ctx context.Context, runID int64, claim string) error {
 		return err
 	}
 	if children > 0 {
-		return a.runFanout(ctx, runID, claim, state)
+		return a.runFanout(ctx, runID, claim, state, sj.RetryNew)
 	}
 	_ = json.Unmarshal([]byte(eps), &t.episodes)
 	t.anyMonitored = namedEpisode(source, t.reason, t.name, t.episodes)
@@ -1056,8 +1076,14 @@ func (a *Acquirer) run(ctx context.Context, runID int64, claim string) error {
 	if len(req.Candidates) == 0 {
 		a.log.Info("searched: nothing accepted", "run", runID, "title", title.Name, "version", t.key, "target", t.name,
 			"results", len(found.Ranked))
-		return finish("nothing", fmt.Sprintf("no accepted release among %d results%s", len(found.Ranked), notes),
-			len(found.Ranked), 0)
+		if err := finish("nothing", fmt.Sprintf("no accepted release among %d results%s", len(found.Ranked), notes),
+			len(found.Ranked), 0); err != nil {
+			return err
+		}
+		if sj.RetryNew && source == SourceWanted && research == "" {
+			a.retryNew(ctx, t)
+		}
+		return nil
 	}
 	// The route and the routed state commit together: a crash can't route twice or leave a run without its route.
 	job, err := finishTx("routed", fmt.Sprintf("%d of %d results accepted; best %s%s", len(req.Candidates),
@@ -1093,7 +1119,7 @@ type fanoutOutcome struct {
 
 // runFanout claims every target row, performs the union search once, and commits each target's route with its
 // outcome. A retry therefore resumes the whole shared search without routing any target twice.
-func (a *Acquirer) runFanout(ctx context.Context, rootID int64, claim, rootState string) error {
+func (a *Acquirer) runFanout(ctx context.Context, rootID int64, claim, rootState string, retryNew bool) error {
 	rows, err := a.st.Reader().QueryContext(ctx, `SELECT id, title_id, version_id, version_key, target, reason,
 		season, episodes, state, source FROM acquire_run WHERE id = ? OR search_run = ? ORDER BY id`, rootID, rootID)
 	if err != nil {
@@ -1306,7 +1332,18 @@ func (a *Acquirer) runFanout(ctx context.Context, rootID int64, claim, rootState
 		outcomes = append(outcomes, fanoutOutcome{run: item, state: "routed", message: message, infra: kind,
 			results: len(searched.Ranked), accepted: len(req.Candidates), route: &req})
 	}
-	return a.finishFanout(ctx, claim, outcomes)
+	if err := a.finishFanout(ctx, claim, outcomes); err != nil {
+		return err
+	}
+	// A shared search is one startGroup call, so the job's mark holds for each of its targets.
+	if retryNew {
+		for _, o := range outcomes {
+			if o.state == "nothing" && o.run.source == SourceWanted {
+				a.retryNew(ctx, o.run.target)
+			}
+		}
+	}
+	return nil
 }
 
 func fanoutFailures(runs []fanoutRun, message string) []fanoutOutcome {

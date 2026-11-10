@@ -394,6 +394,7 @@ var sectionLabels = map[string]string{
 	"router.wanted.again_after":                   "Wait before searching again",
 	"router.wanted.missing":                       "Search for missing files",
 	"router.wanted.cutoff_unmet":                  "Upgrade search target",
+	"router.wanted.retry_new":                     "Retry new episodes sooner",
 	"router.cache_evidence":                       "Provider cache results",
 	"router.cache_evidence.ttl":                   "Remember cached results for",
 	"router.cache_evidence.torbox_check":          "Check TorBox cache",

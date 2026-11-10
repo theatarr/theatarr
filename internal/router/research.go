@@ -70,6 +70,9 @@ type ResearchRequest struct {
 	// Step and MissedAt place a ReasonFresh follow-up in its schedule: the nth, from the miss at MissedAt.
 	Step     int       `json:"step,omitempty"`
 	MissedAt time.Time `json:"missed_at,omitzero"`
+	// RetryNew marks a follow-up chain started by an empty search under router.wanted.retry_new (internal/acquire):
+	// each step runs only while that switch is on. A chain started by a route that missed everywhere has it unset.
+	RetryNew bool `json:"retry_new,omitempty"`
 }
 
 // research enqueues a re-search, unless the router may not write for the version (shadow, or the kill switch off) or
