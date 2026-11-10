@@ -29,7 +29,7 @@ func originalFixture(t *testing.T) (*env, *fakeProvider) {
 	e.rd.list = append(e.rd.list, tor("20", hX, "movie.x.2013.1080p.web-dl.mkv.part", 900, old,
 		provider.StateDownloaded))
 	e.rd.detail = map[string]*provider.Torrent{"20": {ID: "20", Hash: hX, Name: "movie.x.2013.1080p.web-dl.mkv.part",
-		OriginalName: origFolder}}
+		OriginalName: origFolder, Files: []provider.File{{ID: "1", Path: "X.mkv", Bytes: 900, Selected: true}}}}
 	ad := &fakeProvider{key: "ad", kind: provider.KindAllDebrid,
 		list: []provider.Torrent{tor("30", hY, "Movie Y (2012)", 950, old, provider.StateDownloaded)},
 		detail: map[string]*provider.Torrent{"30": {ID: "30", Hash: hY, Name: "Movie Y (2012)",
@@ -86,6 +86,12 @@ func TestDeleteSeesOriginalName(t *testing.T) {
 	e.rd.detail["20"].OriginalName = "Movie.X.2013.REPACK"
 	if why, _ := e.m.usageChanged(ctx, again, &again.Items[0], e.scan(ctx)); !strings.Contains(why, "changed") {
 		t.Fatalf("last check sees the original name: %q", why)
+	}
+	// The override deletes it through Delete itself (its re-plan and last check read the same name).
+	e.rd.detail["20"].OriginalName = origFolder
+	done, err := e.m.Delete(ctx, sel, again.Token, "admin")
+	if err != nil || e.ard.deleted != 1 || done.Deleted != 1 {
+		t.Fatalf("override delete: %v, %d deleted, %+v", err, e.ard.deleted, done)
 	}
 }
 

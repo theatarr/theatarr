@@ -349,7 +349,10 @@ func (m *Manager) fencedDelete(ctx context.Context, plan *DeletePlan, it *Delete
 		m.AddLock.Lock()
 		defer m.AddLock.Unlock()
 	}
-	why, err := m.usageChanged(ctx, plan, it, scan)
+	// The bound covers the last check too: it may read the torrent's original name from the provider.
+	dctx, cancel := context.WithTimeout(ctx, deleteBound)
+	defer cancel()
+	why, err := m.usageChanged(dctx, plan, it, scan)
 	if err != nil {
 		it.Outcome, it.Error = OutSkipped, "checking its usage: "+err.Error()
 		return false, nil
@@ -358,8 +361,6 @@ func (m *Manager) fencedDelete(ctx context.Context, plan *DeletePlan, it *Delete
 		it.Outcome, it.Error = OutSkipped, why
 		return false, nil
 	}
-	dctx, cancel := context.WithTimeout(ctx, deleteBound)
-	defer cancel()
 	return true, m.deleteOne(dctx, it, backup, plan.Digest)
 }
 
