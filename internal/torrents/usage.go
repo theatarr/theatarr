@@ -140,7 +140,9 @@ func (m *Manager) deleteUsage(ctx context.Context, key string, t provider.Torren
 	if err != nil {
 		return Unknown, nil, nil, []string{reasonNoOriginal}, nil
 	}
-	if t.OriginalName = secondName(*d); t.OriginalName == "" {
+	// The provider's own answer only (each fills it from its detail): no guess from the files here, a detail
+	// without the name is unknown.
+	if t.OriginalName = d.OriginalName; t.OriginalName == "" {
 		return Unknown, nil, nil, []string{reasonNoName}, nil
 	}
 	if ix, err = reload(t); err != nil {

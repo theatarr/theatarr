@@ -171,3 +171,25 @@ func TestReportTorBoxOriginalName(t *testing.T) {
 		t.Fatalf("the report reads no detail: tb %d rd %d", e.tb.reads, e.rd.reads)
 	}
 }
+
+// A Real-Debrid detail without original_filename is unknown even with files: its folder is not guessed from them.
+func TestDeleteOriginalNameEmptyWithFilesIsUnknown(t *testing.T) {
+	t.Parallel()
+	e, _ := originalFixture(t)
+	ctx := context.Background()
+	e.rd.detail["20"].OriginalName = ""
+	e.rd.detail["20"].Files = []provider.File{{ID: "1", Path: "movie.x.2013.1080p.web-dl.mkv", Bytes: 900,
+		Selected: true}}
+	sel := []DeleteSelection{{Provider: "rd", ID: "20", Hash: hX}}
+	plan, err := e.m.PlanDelete(ctx, sel)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if it := plan.Items[0]; it.Usage != Unknown || len(it.Reasons) != 1 || it.Reasons[0] != reasonNoName ||
+		it.Action != ActRefuse {
+		t.Fatalf("unknown, never unused: %+v", it)
+	}
+	if _, err := e.m.Delete(ctx, sel, plan.Token, "admin"); err != nil || e.ard.deleted != 0 {
+		t.Fatalf("nothing deleted: %v, %d", err, e.ard.deleted)
+	}
+}

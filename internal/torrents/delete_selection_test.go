@@ -384,7 +384,7 @@ func TestDeleteTorrentAwaitingSelection(t *testing.T) {
 		Added: e.now.Add(-72 * time.Hour), Status: rdWaitingFiles})
 	e.content(hG, 1)
 	e.rd.detail = map[string]*provider.Torrent{"9": {ID: "9", Hash: hG, Status: rdWaitingFiles,
-		Files: []provider.File{{ID: "1", Path: "/G/g.mkv"}}}}
+		OriginalName: "Movie.G.2010.1080p.WEB-DL", Files: []provider.File{{ID: "1", Path: "/G/g.mkv"}}}}
 	sel := []DeleteSelection{{Provider: "rd", ID: "9", Hash: hG}}
 	plan, err := e.m.PlanDelete(ctx, sel)
 	if err != nil || plan.Count != 1 {
