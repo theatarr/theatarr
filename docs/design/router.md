@@ -764,6 +764,11 @@ one after the other (for example when a `retry_new` follow-up finds a release th
 total number of searches per title is promised: each chain alone is bounded by its steps within the week, and every
 search by `per_hour`. Tests: `internal/acquire/retrynew_test.go`.
 
+Known limit: a search reads the settings it started with. One by the loop or Search now that is already running
+when the switch is turned off may still queue the first follow-up when it ends empty. That follow-up searches
+nothing: its step sees the switch off and ends the chain. Having its own key, it does not hold back a chain after an
+`exhausted` route either.
+
 **A dead link is searched once** (reason `dead_link`). When relink marks an active version's
 link dead (`docs/design/library.md` "Relink and verify": two misses at least 30 min apart, the mount healthy, not within
 zurg's repair grace, and no provider folder holds the hash, since relink repoints by hash to any provider first), the
