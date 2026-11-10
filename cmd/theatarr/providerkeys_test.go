@@ -80,6 +80,10 @@ func TestCommandsUseStoredProviderKeys(t *testing.T) {
 	if providerKeys(pol, df.snap)["rd"] == "" {
 		t.Error("router dry-run: the stored key is not seen")
 	}
+	// Its search service gets the indexer keys stored in the database (the fixture stores prowlarr-public's).
+	if ik := indexerKeys(pol, df.snap); ik["prowlarr-public"] != "fixture-THEATARR_PROWLARR_KEY" {
+		t.Errorf("router dry-run indexer keys: prowlarr-public set=%t", ik["prowlarr-public"] != "")
+	}
 
 	// router status.
 	var out bytes.Buffer

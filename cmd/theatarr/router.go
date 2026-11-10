@@ -151,7 +151,7 @@ func runRouterDryRun(args []string, out io.Writer, dial func(context.Context, st
 	if err != nil {
 		return err
 	}
-	svc, err := indexer.New(pol, gw, indexer.Options{Logger: log})
+	svc, err := indexer.New(pol, gw, indexer.Options{Logger: log, APIKeys: indexerKeys(pol, df.snap)})
 	if err != nil {
 		return err
 	}

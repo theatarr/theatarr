@@ -30,6 +30,24 @@ func providerKeys(pol *policy.Policy, snap *settings.Snapshot) map[string]string
 	return keys
 }
 
+// indexerKeys returns the indexer keys the settings database holds (or a record's env fallback), as serve passes
+// them to the search service (indexer.Options.APIKeys); an indexer left out reads its api_key_env as before.
+func indexerKeys(pol *policy.Policy, snap *settings.Snapshot) map[string]string {
+	keys := map[string]string{}
+	if snap == nil {
+		return keys
+	}
+	for k := range pol.Indexers {
+		_ = snap.WithSecret("indexers", k, os.LookupEnv, func(v string) error {
+			if v != "" {
+				keys[k] = v
+			}
+			return nil
+		})
+	}
+	return keys
+}
+
 // keyedProviders lists, sorted, the providers whose key is set (providerKeys).
 func keyedProviders(pol *policy.Policy, snap *settings.Snapshot) []string {
 	var out []string
