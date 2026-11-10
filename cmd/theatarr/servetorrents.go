@@ -27,6 +27,8 @@ type serveTorrents struct {
 	pol     *policy.Policy
 	gw      *gateway.Gateway
 	ps      *providerSync
+	// lib is the start-up library service, whose decypharr client the manager reads without a settings runtime.
+	lib *serveLibrary
 	// addLock is the router's add lock, shared by every settings generation: restores add under it.
 	addLock sync.Locker
 }
@@ -35,6 +37,7 @@ func (s *serveTorrents) Manager(ctx context.Context) (*torrents.Manager, error) 
 	pol, gw := s.pol, s.gw
 	var provs = s.ps.syncer.Providers
 	var keys map[string]string
+	var lib *serveLibrary = s.lib
 	if s.manager != nil {
 		rt := settings.ContextRuntime(ctx)
 		if rt == nil {
@@ -48,6 +51,7 @@ func (s *serveTorrents) Manager(ctx context.Context) (*torrents.Manager, error) 
 			return nil, errors.New("torrents: the active settings runtime is unavailable")
 		}
 		pol, gw, provs, keys = active.Policy, active.Gateway, active.Providers.syncer.Providers, active.ProviderKeys
+		lib = active.Library
 	} else {
 		keys = map[string]string{}
 		for k, pv := range pol.Providers {
@@ -55,6 +59,11 @@ func (s *serveTorrents) Manager(ctx context.Context) (*torrents.Manager, error) 
 		}
 	}
 	adders, _ := router.BuildAddersWithKeys(pol, gw, keys, s.log)
-	return &torrents.Manager{Store: s.st, Policy: pol, Providers: provs, Adders: adders, Dir: s.dir, Queue: s.q,
-		Log: s.log, AddLock: s.addLock}, nil
+	m := &torrents.Manager{Store: s.st, Policy: pol, Providers: provs, Adders: adders, Dir: s.dir, Queue: s.q,
+		Log: s.log, AddLock: s.addLock}
+	if lib != nil && lib.lib != nil {
+		// The library's own decypharr client (library.mount.decypharr), so its index is read once for both.
+		m.Decypharr = lib.lib.Decypharr()
+	}
+	return m, nil
 }

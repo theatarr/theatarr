@@ -14,7 +14,7 @@ func (l *Library) WithPolicy(p *policy.Policy, engine *decide.Engine, formats Re
 	w := *l.w
 	w.gate = gate
 	return &Library{st: l.st, pol: p, engine: engine, set: p.LibrarySettings(), gate: gate, w: &w, mount: l.mount, probe: l.probe,
-		formats: formats, matched: matched, queue: l.queue, log: l.log, zurg: l.zurg, forget: l.forget, onImported: l.onImported, now: l.now}
+		formats: formats, matched: matched, queue: l.queue, log: l.log, zurg: l.zurg, decy: l.decy, files: l.files, forget: l.forget, onImported: l.onImported, now: l.now}
 }
 
 // SetRuntimeResolver pins a runtime at the beginning of an import or an explicit rename operation.

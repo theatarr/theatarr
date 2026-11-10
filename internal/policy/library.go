@@ -263,6 +263,9 @@ type LibrarySettings struct {
 	ZurgAPI            string
 	ZurgAPIInterval    time.Duration
 	ZurgAPIRepairGrace time.Duration
+	// Decypharr is library.mount.decypharr, nil when the mount is not decypharr's; DecypharrInterval its index age.
+	Decypharr         *LibraryDecypharr
+	DecypharrInterval time.Duration
 	// RcloneRC is the mount's rc, nil when off.
 	RcloneRC *RcloneRC
 	// NowPlaying and Prewarm: library.plex is set and its switch is not off.
@@ -339,6 +342,12 @@ func (p *Policy) LibrarySettings() LibrarySettings {
 		}
 	}
 	s.RcloneRC = l.Mount.RcloneRC
+	if d := l.Mount.Decypharr; d != nil {
+		s.Decypharr, s.DecypharrInterval = d, DefaultDecypharrInterval
+		if d.Interval != 0 {
+			s.DecypharrInterval = d.Interval.D()
+		}
+	}
 	if l.RelinkInterval != 0 {
 		s.RelinkInterval = l.RelinkInterval.D()
 	}

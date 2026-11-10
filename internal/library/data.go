@@ -58,10 +58,12 @@ type importVersion struct {
 }
 
 type importDownload struct {
-	ID           int64
-	State        string
-	Provider     string
-	Client       string // the download client of a client-routed download (download.client), "" otherwise
+	ID       int64
+	State    string
+	Provider string
+	Client   string // the download client of a client-routed download (download.client), "" otherwise
+	// TorrentID is the provider's id of the download's torrent (download.provider_torrent_id), "" when none.
+	TorrentID    string
 	ReleaseTitle string
 	InfoHash     string
 	Indexer      string
@@ -104,20 +106,22 @@ type importDownload struct {
 func loadDownload(ctx context.Context, db *sql.DB, pol *policy.Policy, id int64) (*importDownload, error) {
 	d := &importDownload{ID: id}
 	v := &d.Version
-	var provider, client sql.NullString
+	var provider, client, torrentID sql.NullString
 	var eps string
 	var formats, epMap, srcPath, origName sql.NullString
 	var readyAt sql.NullInt64
 	err := db.QueryRowContext(ctx, `
 		SELECT d.state, d.provider, d.client, d.release_title, d.info_hash, d.indexer, d.name, d.quality, d.score, d.episodes,
-		       d.formats, d.episode_map, d.source_path, d.ready_at, d.version_id, d.version_key, d.title_id, d.original_name
+		       d.formats, d.episode_map, d.source_path, d.ready_at, d.version_id, d.version_key, d.title_id, d.original_name,
+		       d.provider_torrent_id
 		FROM download d WHERE d.id = ?`, id).
 		Scan(&d.State, &provider, &client, &d.ReleaseTitle, &d.InfoHash, &d.Indexer, &d.Name, &v.Quality, &v.Score, &eps,
-			&formats, &epMap, &srcPath, &readyAt, &v.VersionID, &v.Key, &v.Title.ID, &origName)
+			&formats, &epMap, &srcPath, &readyAt, &v.VersionID, &v.Key, &v.Title.ID, &origName, &torrentID)
 	if err != nil {
 		return nil, fmt.Errorf("library: download %d: %w", id, err)
 	}
 	d.Provider, d.Client, d.InfoHash = provider.String, client.String, strings.ToLower(d.InfoHash)
+	d.TorrentID = torrentID.String
 	d.SourcePath, d.ReadyAt, d.OriginalName = srcPath.String, store.NullMillis(readyAt), origName.String
 	if d.Manual, d.Recorded, err = loadFiles(ctx, db, id); err != nil {
 		return nil, err

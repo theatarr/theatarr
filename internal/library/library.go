@@ -67,6 +67,12 @@ type Options struct {
 	Registerer prometheus.Registerer
 	// Zurg is zurg's read-only API (library.mount.zurg_api; zurgapi.go). Nil: the mount alone.
 	Zurg *ZurgAPI
+	// Decypharr is decypharr's read-only client (library.mount.decypharr; decypharrapi.go). Nil: the mount is not
+	// decypharr's.
+	Decypharr *Decypharr
+	// TorrentFiles reads a provider's selected files of a download's torrent, which filter the files of a
+	// decypharr folder (decypharr.go). Read only with Decypharr. Nil: no list, the import goes by name.
+	TorrentFiles TorrentFilesFunc
 	// ForgetDir clears rclone's cached listing of a directory of the mount, relative to its remote (rclone rc
 	// vfs/forget; library.mount.rclone_rc.forget_release_root). Nil: off.
 	ForgetDir func(ctx context.Context, dir string) error
@@ -89,6 +95,9 @@ type Library struct {
 	queue   *jobs.Queue
 	log     *slog.Logger
 	zurg    *ZurgAPI
+	// decy is Options.Decypharr and files Options.TorrentFiles (decypharr.go); nil without decypharr.
+	decy  *Decypharr
+	files TorrentFilesFunc
 	// forget clears the mount's cached listing of the release root (Options.ForgetDir); nil when off.
 	forget *rootForget
 	// onImported runs after an import (Options.OnImported).
@@ -122,7 +131,7 @@ func New(o Options) *Library {
 		mount: &Mount{Path: s.MountPath, LinkPath: s.LinkPath, AllDir: s.AllDir, StatTimeout: s.StatTimeout,
 			Now: o.Now},
 		probe: o.Probe, formats: o.Formats, matched: o.Matched, queue: o.Queue, log: o.Logger, now: o.Now,
-		onImported: o.OnImported, zurg: o.Zurg}
+		onImported: o.OnImported, zurg: o.Zurg, decy: o.Decypharr, files: o.TorrentFiles}
 	if o.ForgetDir != nil {
 		l.forget = &rootForget{call: o.ForgetDir}
 	}
@@ -156,6 +165,8 @@ func (l *Library) InheritMount(previous *Library) {
 	l.mount.inherit(previous.mount)
 	// zurg's cached list, backoff and repair grace carry over too: a save must not restart the grace.
 	l.zurg.inherit(previous.zurg)
+	// decypharr's index too: a save must not read it again.
+	l.decy.inherit(previous.decy)
 }
 
 // MountHealthy reports whether the mount's release root answers (Mount.Healthy); nil without a mount.

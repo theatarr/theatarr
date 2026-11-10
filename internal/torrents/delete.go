@@ -11,7 +11,6 @@ import (
 	"time"
 
 	"github.com/theatarr/theatarr/internal/indexer"
-	"github.com/theatarr/theatarr/internal/library"
 	"github.com/theatarr/theatarr/internal/provider"
 	"github.com/theatarr/theatarr/internal/provider/adder"
 	"github.com/theatarr/theatarr/internal/torrents/reffence"
@@ -374,7 +373,8 @@ func (m *Manager) usageChanged(ctx context.Context, plan *DeletePlan, it *Delete
 		}
 	}
 	h := indexer.NormalizeHash(t.Hash)
-	ix, err := m.loadDBRefsFor(ctx, &refScope{hash: h, folders: library.ReleaseFolderNames(h, t.Name)})
+	on, decy := m.decypharrIndex(ctx)
+	ix, err := m.loadDBRefsFor(ctx, &refScope{hash: h, folders: folderNames(decy, h, t.Name), decyOn: on, decy: decy})
 	if err != nil {
 		return "", err
 	}

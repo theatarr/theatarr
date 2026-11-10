@@ -103,6 +103,13 @@ func newServeHealth(c serveHealthConfig) *health.Checker {
 			return health.Result{Type: health.OK, Message: "Library off (library.enabled); the mount is not checked"}
 		}
 		path := filepath.Join(settings.MountPath, settings.AllDir)
+		if settings.Decypharr != nil && libService != nil {
+			// The mount is decypharr's: while it loads, refuses the credentials or does not answer, imports wait.
+			if err := libService.DecypharrState(ctx); err != nil {
+				return health.Result{Type: health.Error, Detail: map[string]any{"path": path},
+					Message: decypharrMountMessage(path, err)}
+			}
+		}
 		if libService != nil && libService.MountBreaker().Helper != nil {
 			return health.MountAnswering(path, libService.MountAnswers)(ctx)
 		}
@@ -343,4 +350,15 @@ func observeHealth(ctx context.Context, hc *health.Checker, inbox *errinbox.Inbo
 		}
 		inbox.ObserveHealth(checks)
 	}
+}
+
+// decypharrMountMessage is the mount check's message while decypharr (library.mount.decypharr) cannot be read.
+func decypharrMountMessage(path string, err error) string {
+	switch {
+	case errors.Is(err, library.ErrDecypharrLoading):
+		return "The mount at " + path + " is not ready: decypharr is still loading"
+	case errors.Is(err, library.ErrDecypharrAuth):
+		return "decypharr refuses the credentials (library.mount.decypharr); imports from the mount at " + path + " wait"
+	}
+	return "decypharr does not answer (library.mount.decypharr); imports from the mount at " + path + " wait"
 }

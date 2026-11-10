@@ -109,13 +109,15 @@ func runLibrary(args []string, out io.Writer) error {
 	log := slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelWarn}))
 	// Writes (adopt, refresh, relink) queue plex.scan jobs for theatarr serve to run, as its own library jobs do.
 	opts := library.Options{Store: st, Policy: pol, Logger: log, Queue: jobs.NewQueue(st)}
-	if set := pol.LibrarySettings(); set.ZurgAPI != "" {
-		// zurg's read-only API, through a gateway of this command's own (budgets are counted in the database).
+	if set := pol.LibrarySettings(); set.ZurgAPI != "" || set.Decypharr != nil {
+		// zurg's read-only API or decypharr's, through a gateway of this command's own (budgets are counted in the
+		// database). The command has no provider clients: on decypharr's mount it imports and relinks by name.
 		gw, err := gateway.New(ctx, pol, gateway.Options{Store: st, Logger: log, Version: buildinfo.Version})
 		if err != nil {
 			return err
 		}
 		opts.Zurg = newZurgAPI(set, gw, log)
+		opts.Decypharr = newDecypharr(pol, set, gw, log)
 	}
 	if args[0] == "dry-run" {
 		var key string

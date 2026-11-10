@@ -546,7 +546,8 @@ func (l *Library) relinkRoot(ctx context.Context, ix *mountIndex, zv *zurgView, 
 	if err != nil {
 		return sc, err
 	}
-	var found []mountLink // links whose file is there: a dead row revives, a noted miss is forgotten
+	var found []mountLink  // links whose file is there: a dead row revives, a noted miss is forgotten
+	lists := relinkLists{} // decypharr: the file lists read in this sweep
 	var recompute []stateVersion
 	for _, ml := range links {
 		knownHash, err := linkHash(ctx, db, ml.path)
@@ -604,6 +605,12 @@ func (l *Library) relinkRoot(ctx context.Context, ix *mountIndex, zv *zurgView, 
 				names = filtered
 			}
 		}
+		if l.decy != nil && !ok && !hinted && len(hash) == 40 {
+			// decypharr's current name for the hash, whatever the registry records.
+			if dnames, known := l.decypharrNames(ctx, hash, false); known {
+				names = withDecypharrNames(dnames, names)
+			}
+		}
 		newFolder := ""
 		for _, n := range names {
 			found, err := ix.has(n, ml.inner)
@@ -618,6 +625,12 @@ func (l *Library) relinkRoot(ctx context.Context, ix *mountIndex, zv *zurgView, 
 				if e, ok := l.zurgConfirm(ctx, hash, n, ml.inner); !ok {
 					l.log.Info("library: relink candidate holds another torrent", "link", ml.path, "folder", n,
 						"want", hash, "zurg_hash", e.Hash)
+					continue
+				}
+				// decypharr: the file there must be one of the download's own, when its list can be read.
+				if !l.relinkHolds(ctx, db, lists, ml, hash, n) {
+					l.log.Info("library: relink candidate holds another torrent's file", "link", ml.path, "folder", n,
+						"want", hash)
 					continue
 				}
 			}

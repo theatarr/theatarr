@@ -321,6 +321,10 @@ func (l *Library) mountHealthy(ctx context.Context) error {
 	if err := l.zurg.Ready(ctx); err != nil {
 		return fmt.Errorf("%w: %v", ErrMountDown, err)
 	}
+	// decypharr's WebDAV answers 503 while it loads: the same wait.
+	if err := l.decy.Ready(ctx); err != nil {
+		return fmt.Errorf("%w: %v", ErrMountDown, err)
+	}
 	return l.mount.Healthy(ctx)
 }
 

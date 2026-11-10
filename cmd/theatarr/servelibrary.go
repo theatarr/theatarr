@@ -2,8 +2,10 @@ package main
 
 import (
 	"context"
+	"database/sql"
 	"errors"
 	"log/slog"
+	"strings"
 	"sync"
 	"time"
 
@@ -15,6 +17,7 @@ import (
 	"github.com/theatarr/theatarr/internal/nowplaying"
 	"github.com/theatarr/theatarr/internal/plex"
 	"github.com/theatarr/theatarr/internal/policy"
+	"github.com/theatarr/theatarr/internal/provider"
 	"github.com/theatarr/theatarr/internal/secrets"
 	"github.com/theatarr/theatarr/internal/settings"
 	"github.com/theatarr/theatarr/internal/store"
@@ -49,7 +52,7 @@ var readyRecheck = 2 * time.Second
 // newServeLibrary builds one generation's library service. Its mount metrics are not registered here: serve registers
 // them once, against the active generation's library (serveLibrary.current).
 func newServeLibrary(pol *policy.Policy, st *store.Store, q *jobs.Queue, gw *gateway.Gateway, log *slog.Logger,
-	engine *decide.Engine, helper *library.MountHelper,
+	engine *decide.Engine, helper *library.MountHelper, provs map[string]provider.Provider,
 	onImported func(ctx context.Context, downloadID int64)) (*serveLibrary, error) {
 	s := &serveLibrary{pol: pol, st: st, log: log.With("component", "library"), set: pol.LibrarySettings(),
 		gw: gw, engine: engine}
@@ -66,7 +69,8 @@ func newServeLibrary(pol *policy.Policy, st *store.Store, q *jobs.Queue, gw *gat
 	}
 	s.lib = library.New(library.Options{Store: st, Policy: pol, Engine: engine, Queue: q, Logger: s.log, Formats: s.formats,
 		Matched: matchedRenameFormats(pol, s.decider), OnImported: onImported,
-		Zurg: newZurgAPI(s.set, gw, s.log), MountHelper: helper, ForgetDir: newRcloneForget(pol, s.set, gw)})
+		Zurg: newZurgAPI(s.set, gw, s.log), MountHelper: helper, ForgetDir: newRcloneForget(pol, s.set, gw),
+		Decypharr: newDecypharr(pol, s.set, gw, s.log), TorrentFiles: providerTorrentFiles(st, provs)})
 	return s, nil
 }
 
@@ -90,6 +94,61 @@ func newZurgAPI(set policy.LibrarySettings, gw *gateway.Gateway, log *slog.Logge
 		"repair_grace", set.ZurgAPIRepairGrace)
 	return &library.ZurgAPI{URL: set.ZurgAPI, GW: gw, AllDir: set.AllDir, Interval: set.ZurgAPIInterval,
 		RepairGrace: set.ZurgAPIRepairGrace, Logger: log}
+}
+
+// newDecypharr is decypharr's read-only client (library.mount.decypharr) through the gateway; nil when the block is
+// not set.
+func newDecypharr(pol *policy.Policy, set policy.LibrarySettings, gw *gateway.Gateway, log *slog.Logger) *library.Decypharr {
+	d := set.Decypharr
+	if d == nil || gw == nil {
+		return nil
+	}
+	log.Info("library: reading decypharr", "url", (secrets.URLMasker{}).Mask(d.URL), "interval", set.DecypharrInterval)
+	return &library.Decypharr{Config: library.DecypharrConfig{URL: d.URL, Token: pol.Getenv(d.APITokenEnv),
+		Username: pol.Getenv(d.UsernameEnv), Password: pol.Getenv(d.PasswordEnv), Interval: set.DecypharrInterval,
+		Budget: d.Budget}, GW: gw, Logger: log}
+}
+
+// providerTorrentFiles reads the selected files a provider holds for a download's torrent, for the library's file
+// filter on decypharr's mount (library.Options.TorrentFiles). The torrent is read by the id the download recorded;
+// when that id is gone or is another hash's now, by the id the registry records for the hash on that provider.
+func providerTorrentFiles(st *store.Store, provs map[string]provider.Provider) library.TorrentFilesFunc {
+	return func(ctx context.Context, key, id, hash string) ([]library.TorrentFile, bool) {
+		p := provs[key]
+		if p == nil || hash == "" {
+			return nil, false
+		}
+		read := func(id string) *provider.Torrent {
+			if id == "" {
+				return nil
+			}
+			t, err := p.Torrent(ctx, id)
+			if err != nil || t == nil || !strings.EqualFold(t.Hash, hash) {
+				return nil
+			}
+			return t
+		}
+		t := read(id)
+		if t == nil {
+			var current sql.NullString
+			_ = st.Reader().QueryRowContext(ctx, `SELECT cp.torrent_id FROM content_provider cp
+				JOIN content c ON c.id = cp.content_id WHERE cp.provider = ? AND lower(c.info_hash) = ?`,
+				key, strings.ToLower(hash)).Scan(&current)
+			if current.String != id {
+				t = read(current.String)
+			}
+		}
+		if t == nil {
+			return nil, false
+		}
+		var files []library.TorrentFile
+		for _, f := range t.Files {
+			if f.Selected {
+				files = append(files, library.TorrentFile{Name: f.Path, Size: f.Bytes})
+			}
+		}
+		return files, len(files) > 0
+	}
 }
 
 // decider returns the engine shared with the acquirer (from_arr profiles were read GET-only at startup).

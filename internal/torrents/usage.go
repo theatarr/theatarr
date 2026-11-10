@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"path/filepath"
+	"slices"
 	"sort"
 	"strings"
 
@@ -56,6 +57,36 @@ type refIndex struct {
 	added map[string]bool
 	// files counts the registry's files per hash, for providers whose list has none.
 	files map[string]int
+	// decyOn: the mount is decypharr's (library.mount.decypharr). decy is then its index of hash and folder name,
+	// nil when it could not be read: a torrent without references is unknown then, never unused.
+	decyOn bool
+	decy   *library.DecypharrIndex
+}
+
+// decypharrIndex reads decypharr's index when the mount is decypharr's (on). ix is nil when it cannot be read, and
+// without a client.
+func (m *Manager) decypharrIndex(ctx context.Context) (on bool, ix *library.DecypharrIndex) {
+	if m.Policy == nil || m.Policy.Library == nil || m.Policy.Library.Mount.Decypharr == nil {
+		return false, nil
+	}
+	if m.Decypharr != nil {
+		ix, _ = m.Decypharr.Index(ctx)
+	}
+	return true, ix
+}
+
+// folderNames are the mount folders a torrent may be under: the names any mount gives it and, on decypharr's mount,
+// the names decypharr lists its hash under. A link into one of them is a reference: decypharr serves same-named
+// torrents from one folder, so every hash listed under a linked folder's name counts as used.
+func folderNames(decy *library.DecypharrIndex, hash, name string) []string {
+	names := library.ReleaseFolderNames(hash, name)
+	dnames, _ := decy.Names(hash)
+	for _, n := range dnames {
+		if !slices.Contains(names, n) {
+			names = append(names, n)
+		}
+	}
+	return names
 }
 
 // mountView maps a link target to the mount folder it names.
@@ -116,6 +147,9 @@ func (m *Manager) loadDBRefs(ctx context.Context) (*refIndex, error) {
 type refScope struct {
 	hash    string
 	folders []string
+	// decyOn and decy are refIndex's, as read for folders.
+	decyOn bool
+	decy   *library.DecypharrIndex
 }
 
 // loadDBRefsFor is loadDBRefs, or with sc only the rows one torrent's usage can see (a delete's last check of each
@@ -128,6 +162,11 @@ func (m *Manager) loadDBRefsFor(ctx context.Context, sc *refScope) (*refIndex, e
 	ix := &refIndex{byHash: map[string][]Ref{}, byFolder: map[string][]Ref{}, registry: map[string]bool{},
 		synced: map[string]bool{}, added: map[string]bool{}, files: map[string]int{}}
 	mv := newMountView(m.Policy)
+	if sc != nil {
+		ix.decyOn, ix.decy = sc.decyOn, sc.decy
+	} else {
+		ix.decyOn, ix.decy = m.decypharrIndex(ctx)
+	}
 
 	// Library links: by the content's hash, the download's, the recorded file metadata's, and the mount folder of the
 	// target. A link with none of them in a configured mount cannot be tied to a torrent.
@@ -373,7 +412,7 @@ func (ix *refIndex) usage(key string, t provider.Torrent) (Usage, map[string]int
 	if h != "" {
 		add(ix.byHash[h])
 	}
-	for _, f := range library.ReleaseFolderNames(h, t.Name) {
+	for _, f := range folderNames(ix.decy, h, t.Name) {
 		add(ix.byFolder[f])
 	}
 	sort.SliceStable(refs, func(i, j int) bool { return refs[i].Kind < refs[j].Kind })
@@ -395,6 +434,9 @@ func (ix *refIndex) usage(key string, t provider.Torrent) (Usage, map[string]int
 		reasons = append(reasons, "the registry has no complete sync of "+key+" yet")
 	} else if h != "" && !ix.registry[h] {
 		reasons = append(reasons, "not in the registry yet (added since the last provider sync)")
+	}
+	if ix.decyOn && ix.decy == nil {
+		reasons = append(reasons, "decypharr's list of torrents could not be read, so the folder it is under is not known")
 	}
 	reasons = append(reasons, ix.unknown...)
 	if len(reasons) > 0 {

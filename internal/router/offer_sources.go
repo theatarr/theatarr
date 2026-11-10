@@ -144,6 +144,10 @@ func groupOfferFiles(files []offerSource) []offerSource {
 
 func (o *Offerer) folderHash(ctx context.Context, target string) (string, error) {
 	settings := o.Policy.LibrarySettings()
+	if settings.Decypharr != nil {
+		// decypharr serves same-named torrents from one folder: its name alone names no torrent.
+		return "", nil
+	}
 	for _, root := range []string{settings.LinkPath, settings.MountPath} {
 		if root == "" || target == "" {
 			continue

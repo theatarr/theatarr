@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/theatarr/theatarr/internal/jobs"
+	"github.com/theatarr/theatarr/internal/library"
 	"github.com/theatarr/theatarr/internal/policy"
 	"github.com/theatarr/theatarr/internal/provider"
 	"github.com/theatarr/theatarr/internal/provider/adder"
@@ -35,6 +36,10 @@ type Manager struct {
 	// MountPaths is the debrid mount and its aliases (policy.MountPaths); nil reads them from the policy. A scan root
 	// that is or leads into one is refused without touching it.
 	MountPaths []string
+	// Decypharr is the library's decypharr client when the mount is decypharr's (library.mount.decypharr): a
+	// torrent's folder there is the name decypharr lists its hash under. Nil with the block set: every torrent
+	// without references is unknown.
+	Decypharr *library.Decypharr
 	// AddLock is the router's add lock (router.Router.AddLock): a restore's add is sent under it, so it never lands
 	// between a route's look at the account and its own add, and a delete's per-item usage checks and its deletes
 	// run under it (local reference writers are kept out by reffence). nil (the CLI) relies on the journal row alone.

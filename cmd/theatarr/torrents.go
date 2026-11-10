@@ -86,6 +86,11 @@ func (f *torrentFlags) open(ctx context.Context) (*torrents.Manager, func(), err
 	}
 	log := slog.New(slog.NewTextHandler(io.Discard, nil))
 	m := &torrents.Manager{Store: e.st, Policy: e.pol, Providers: e.clients, Dir: torrentBackupDir(*f.db), Log: log}
+	if e.gw != nil {
+		// With library.mount.decypharr a torrent's usage needs decypharr's folder names; without a gateway the
+		// usage is unknown.
+		m.Decypharr = newDecypharr(e.pol, e.pol.LibrarySettings(), e.gw, log)
+	}
 	if f.needGateway {
 		for _, k := range e.missing {
 			fmt.Fprintf(os.Stderr, "%s: %s is not set; it is reported as unreadable\n", k,

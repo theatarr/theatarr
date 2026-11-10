@@ -19,6 +19,9 @@ func (l *Library) PurgeTrash(ctx context.Context) (int, error) {
 	if err := l.zurg.Ready(ctx); err != nil {
 		return 0, fmt.Errorf("library: trash purge: %w: %v", ErrMountDown, err)
 	}
+	if err := l.decy.Ready(ctx); err != nil {
+		return 0, fmt.Errorf("library: trash purge: %w: %v", ErrMountDown, err)
+	}
 	cutoff := l.now().Add(-time.Duration(l.set.TrashKeepDays) * 24 * time.Hour)
 	rows, err := l.st.Reader().QueryContext(ctx, `SELECT id, version_key, trash_path FROM link_trash
 		WHERE purged_at IS NULL AND moved_at < ? ORDER BY id`, store.Millis(cutoff))

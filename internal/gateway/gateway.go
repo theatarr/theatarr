@@ -400,6 +400,12 @@ func New(ctx context.Context, p *policy.Policy, o Options) (*Gateway, error) {
 			return nil, err
 		}
 	}
+	if p.Library != nil && p.Library.Mount.Decypharr != nil {
+		if err := add(&targetInfo{class: ClassDecypharr, key: DecypharrKey, budget: p.Library.Mount.Decypharr.Budget,
+			endpoint: endpoint(p.Library.Mount.Decypharr.URL)}, ""); err != nil {
+			return nil, err
+		}
+	}
 	if p.Library != nil && p.Library.Mount.RcloneRC != nil {
 		if err := add(&targetInfo{class: ClassRcloneRC, key: RcloneRCKey, budget: p.Library.Mount.RcloneRC.Budget,
 			endpoint: endpoint(p.Library.Mount.RcloneRC.URL)}, ""); err != nil {

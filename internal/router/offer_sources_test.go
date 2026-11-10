@@ -95,7 +95,7 @@ func TestOfferFileSources(t *testing.T) {
 
 func TestOfferFileHashDiscovery(t *testing.T) {
 	t.Parallel()
-	for _, method := range []string{"content", "history", "adopted_history", "mount_folder", "ambiguous_folder", "no_hash"} {
+	for _, method := range []string{"content", "history", "adopted_history", "mount_folder", "ambiguous_folder", "decypharr_folder", "no_hash"} {
 		t.Run(method, func(t *testing.T) {
 			e := newOfferEnv(t)
 			hash := strings.Repeat("b", 40)
@@ -117,11 +117,15 @@ func TestOfferFileHashDiscovery(t *testing.T) {
 				e.exec(`INSERT INTO arr_history (instance, arr_id, event_type, date_at, title_id, version_id,
 					download_id, info_hash, source_title, data) VALUES ('radarr', 2, 'grabbed', 0, 1, 10,
 					'torrent-1', ?, 'Movie.2001.2160p.WEB-DL-GRP', '{"indexer":"dmm"}')`, hash)
-			case "mount_folder", "ambiguous_folder":
+			case "mount_folder", "ambiguous_folder", "decypharr_folder":
 				e.off.Policy.Library = &policy.Library{Mount: policy.LibraryMount{Path: "/mount"}}
 				e.exec(`INSERT INTO content (info_hash, mount_folder, first_seen_at, last_seen_at) VALUES (?, 'Movie', 0, 0)`, hash)
 				if method == "ambiguous_folder" {
 					e.exec(`INSERT INTO content (info_hash, mount_folder, first_seen_at, last_seen_at) VALUES (?, 'Movie', 0, 0)`, strings.Repeat("c", 40))
+				}
+				if method == "decypharr_folder" {
+					// decypharr serves same-named torrents from one folder: its name alone names no torrent.
+					e.off.Policy.Library.Mount.Decypharr = &policy.LibraryDecypharr{URL: "http://decypharr.invalid"}
 				}
 			}
 			if method == "history" {
@@ -133,7 +137,7 @@ func TestOfferFileHashDiscovery(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			if method == "no_hash" || method == "ambiguous_folder" {
+			if method == "no_hash" || method == "ambiguous_folder" || method == "decypharr_folder" {
 				var reasons string
 				if err := e.st.Reader().QueryRow(`SELECT reasons FROM router_offer WHERE version_key = 'movie-extra' AND info_hash = ''`).Scan(&reasons); err != nil {
 					t.Fatal(err)

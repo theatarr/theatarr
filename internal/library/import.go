@@ -361,7 +361,26 @@ func (l *Library) importDownload(ctx context.Context, d *importDownload, dryRun 
 		}
 		zurgListed = ok
 	}
-	if !sourced && len(d.Manual) == 0 && d.OriginalName != "" {
+	// decypharr's name for the hash goes first; the names tried on any mount follow. An index that cannot be read
+	// says nothing about the hash's folder: the import waits as for a folder that is not there yet.
+	decyListed := false
+	if l.decy != nil && d.InfoHash != "" && !sourced && len(d.Manual) == 0 {
+		dnames, known := l.decypharrNames(ctx, d.InfoHash, l.justReady(d))
+		if !known {
+			plan.Waiting = true
+			if !dryRun {
+				if err := l.markWaiting(ctx, d); err != nil {
+					return nil, err
+				}
+			}
+			return plan, nil
+		}
+		names = withDecypharrNames(dnames, names)
+		decyListed = len(dnames) > 0
+	}
+	// decypharr makes no "name {hash6}" folders and serves same-named torrents from one folder, so a bare name the
+	// registry records for another torrent is still this one's folder there.
+	if !sourced && len(d.Manual) == 0 && d.OriginalName != "" && l.decy == nil {
 		// Another torrent may have declared the same name and hold the bare folder (this one then shows as
 		// "name {hash6}"). A bare name only the original name gives is skipped when the registry records it for
 		// another torrent: the download waits for its own folder.
@@ -430,8 +449,8 @@ func (l *Library) importDownload(ctx context.Context, d *importDownload, dryRun 
 	if folder == "" {
 		plan.Waiting = true
 		if !dryRun {
-			if zurgListed && !plan.DryRun {
-				// zurg has the folder; the mount's cached listing of the root does not show it yet.
+			if (zurgListed || decyListed) && !plan.DryRun {
+				// zurg (or decypharr) has the folder; the mount's cached listing of the root does not show it yet.
 				l.forgetReleaseRoot(ctx, id)
 			}
 			if err := l.markWaiting(ctx, d); err != nil {
@@ -466,6 +485,14 @@ func (l *Library) importDownload(ctx context.Context, d *importDownload, dryRun 
 		return l.holdForReview(ctx, d, plan, dryRun, "no video files in "+folder)
 	}
 
+	// On decypharr's mount the download's own file list filters the folder's files (decypharr.go): one read per
+	// attempt, now that the folder is found. A client's explicit path or files are its choice and are not filtered;
+	// a download client's completed download is.
+	var listed fileList
+	if l.decy != nil && len(d.Manual) == 0 && (!sourced || d.Client != "") {
+		listed = l.downloadFiles(ctx, d.InfoHash, d.Provider, d.TorrentID, d.Client)
+	}
+
 	// 2. Probe and guard.
 	resolution := releaseResolution(d.ReleaseTitle, v.Title.Kind, v.Policy.Sonarr)
 	labels := claimOf(d.ReleaseTitle, v.Title.Kind, v.Policy.Sonarr)
@@ -492,6 +519,12 @@ func (l *Library) importDownload(ctx context.Context, d *importDownload, dryRun 
 				}
 			}
 		}
+		if listed != nil && !listed.has(filepath.Base(f.Rel), f.Size) {
+			// Another torrent's file in the shared folder: skipped, not read.
+			pf.Reason = unlistedReason(filepath.Base(f.Rel))
+			plan.Rejected = append(plan.Rejected, pf)
+			continue
+		}
 		res, perr := l.mount.ProbeFile(ctx, f.Path, l.set.ProbeMaxBytes, l.probe)
 		if errors.Is(perr, ErrMountDown) || (perr != nil && ctx.Err() != nil) {
 			return nil, perr // the mount did not answer: no verdict on the file
@@ -502,6 +535,13 @@ func (l *Library) importDownload(ctx context.Context, d *importDownload, dryRun 
 			pf.Probe = res
 		}
 		plan.Files = append(plan.Files, pf)
+	}
+
+	if listed != nil && len(plan.Files) == 0 {
+		// The list exists, the folder is there and no file in it is the download's: as when zurg does not confirm
+		// the files, held for review and never failed or blocklisted.
+		return l.holdForReview(ctx, d, plan, dryRun, "decypharr's folder "+filepath.Base(folder)+
+			" holds none of the download's files ("+plan.Rejected[0].Reason+")")
 	}
 
 	// 3. Which file goes where.

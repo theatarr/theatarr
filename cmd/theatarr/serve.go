@@ -514,7 +514,7 @@ func runServe(args []string) error {
 	}
 	off := newServeOfferer(st, pol, eng, routeService, q, log, runtimeManager)
 	off.RegisterJobs(w)
-	lb, err := newServeLibrary(pol, st, q, gw, log, eng, helper, func(ctx context.Context, id int64) {
+	lb, err := newServeLibrary(pol, st, q, gw, log, eng, helper, ps.syncer.Providers, func(ctx context.Context, id int64) {
 		ctx = captureRuntime(ctx)
 		if err := router.EnqueueOffer(ctx, q, id, time.Now()); err != nil {
 			log.Warn("offer not queued", "download", id, "err", err)
@@ -524,6 +524,7 @@ func runServe(args []string) error {
 		return err
 	}
 	lb.manager, lb.readyWake = runtimeManager, readyWake
+	torrentSvc.lib = lb
 	// The mount metrics read the active generation's library: a save that moves the mount starts a fresh guard there.
 	library.RegisterMountMetrics(reg, lb.current)
 	if serveSnapshot != nil {
@@ -587,7 +588,7 @@ func runServe(args []string) error {
 			wireIndexerLookups(runtime.Policy, st, runtime.Gateway, runtime.Indexers, runtime.Metadata.tvc, log)
 			wireCacheEvidence(runtime.Policy, st, runtime.Indexers, runtime.Providers.syncer.Providers, log)
 			runtime.Library, err = newServeLibrary(runtime.Policy, st, q, runtime.Gateway, log, runtime.Engine, helper,
-				func(ctx context.Context, id int64) { _ = router.EnqueueOffer(ctx, q, id, time.Now()) })
+				runtime.Providers.syncer.Providers, func(ctx context.Context, id int64) { _ = router.EnqueueOffer(ctx, q, id, time.Now()) })
 			if err != nil {
 				return err
 			}
