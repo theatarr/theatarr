@@ -96,10 +96,13 @@ const retryNewOff = "router.wanted.retry_new is off"
 
 // CancelRetryNew ends the queued work of the retry_new chains when the switch is off (it does nothing while it is
 // on): their queued requests (steps, and searches asked for again after no answer) and the queued search jobs of
-// their runs end as cancelled, and those runs end skipped and gated, in one transaction. It runs with every
-// published settings generation and at start (serve's AfterPublish), so the save that turns the switch off cancels
-// them; it finds nothing on an install that never had the switch on. A handler already running keeps the settings it
-// started with: what it still queues does nothing when it runs (Research, run).
+// their runs end as cancelled, and those runs end skipped and gated, in one transaction. A queued search job's run
+// is queued, or still searching when a shutdown interrupted the search and handed the job back. A search that is
+// running is left to end by itself. It runs with every published settings generation (serve's AfterPublish) and at
+// start once the acquirer is built, so the save that turns the switch off cancels them, and a restart with the
+// switch off cancels what a handler queued after that; it finds nothing on an install that never had the switch on.
+// A handler already running keeps the settings it started with: what it still queues does nothing when it runs
+// (Research, run).
 func (a *Acquirer) CancelRetryNew(ctx context.Context) (int, error) {
 	if a.set.RetryNew || a.st == nil { // no store: an acquirer built only to judge releases
 		return 0, nil
@@ -115,8 +118,8 @@ func (a *Acquirer) CancelRetryNew(ctx context.Context) (int, error) {
 			kind, where string
 		}{
 			{router.JobResearch, retryNewJobs},
-			{JobSearch, `dedupe_key IN (SELECT '` + JobSearch + `/' || id FROM acquire_run WHERE state = 'queued'
-				AND ` + retryNewRuns + `)`},
+			{JobSearch, `dedupe_key IN (SELECT '` + JobSearch + `/' || id FROM acquire_run
+				WHERE state IN ('queued', 'searching') AND ` + retryNewRuns + `)`},
 		} {
 			res, err := tx.ExecContext(ctx, end+q.where, why, at, at, q.kind)
 			if err != nil {
@@ -125,8 +128,11 @@ func (a *Acquirer) CancelRetryNew(ctx context.Context) (int, error) {
 			m, _ := res.RowsAffected()
 			n += m
 		}
+		// The runs without a search job left to run them: not one whose search is running.
 		_, err := tx.ExecContext(ctx, `UPDATE acquire_run SET state = 'skipped', message = ?, infra = ?, updated_at = ?
-			WHERE state = 'queued' AND `+retryNewRuns, retryNewOff+": nothing searched", runGated, at)
+			WHERE state IN ('queued', 'searching') AND `+retryNewRuns+` AND NOT EXISTS (SELECT 1 FROM job j
+			WHERE j.state IN ('queued', 'running') AND j.dedupe_key = '`+JobSearch+`/' || acquire_run.id)`,
+			retryNewOff+": nothing searched", runGated, at)
 		return err
 	})
 	if err == nil && n > 0 {

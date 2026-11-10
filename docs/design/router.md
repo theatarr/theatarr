@@ -781,12 +781,15 @@ and paced exactly as without it.
 - Each request of the chain (a step, a search asked for again) and each of its searches looks at the switch before
   any other check: with the switch off the request does nothing and the run ends skipped without a search, also
   when the library was turned off with it.
-- Turning the switch off cancels what is queued: the chain's requests and the search jobs of its queued runs end as
-  done ("cancelled"), those runs as skipped. It is not part of the save's own transaction: it is one transaction of
-  its own, run right after the saved settings are published, and again for every later published generation and at
-  start (so a stop between the save and it loses nothing); it finds nothing on an install that never had the switch
-  on. A handler already running when the switch is turned off keeps the settings it started with and may still
-  queue a step or a search after the cancellation: that one does nothing when it runs.
+- Turning the switch off cancels what is queued: the chain's requests and the queued search jobs of its runs end
+  as done ("cancelled"), those runs as skipped. That includes a search a shutdown interrupted (its job is queued
+  again, its run still says searching). A search that is running is not cancelled. The cancellation is not part of
+  the save's own transaction: it is one transaction of its own, run right after the saved settings are published,
+  again for every later published generation, and at start once the acquirer is built, before any job runs (so a
+  stop between the save and it loses nothing); it finds nothing on an install that never had the switch on.
+- A search or request already running when the switch is turned off keeps the settings it started with: it
+  finishes as if the switch were on, and may still queue a step or a search after the cancellation. On this build
+  that one does nothing when it runs; it stays queued until then, or until the next start cancels it.
 
 The `retry_new` chain gives way to the other: it does not start, and ends at its next step without a search, once
 an `exhausted` chain of the title and version is queued or ran in the fresh window. So a title can get both kinds
@@ -795,9 +798,11 @@ misses everywhere), and no total number of searches per title is promised: each 
 within the week, and every search by `per_hour`. A chain ended by turning the switch off does not start again for
 the same content when the switch is turned on again within the week.
 
-Rolling back to a build without the switch: turn the switch off first (and save), so that nothing of a chain is
-queued. An older build does not know the mark and would run a queued step or search of a chain as an ordinary
-follow-up. Tests: `internal/acquire/retrynew_test.go`, `internal/acquire/retrynew_readers_test.go`.
+Rolling back to a build without the switch: turn the switch off and save, restart this build once, then roll
+back. An older build does not know the mark and would run a queued step or search of a chain as an ordinary
+follow-up. The save cancels what is queued; the restart cancels what a search still running at the save queued
+after it, and a search the shutdown itself interrupted. Not covered: a search whose process was killed (its job
+still marked running) is run by the older build when its lease expires. Tests: `internal/acquire/retrynew_test.go`, `internal/acquire/retrynew_readers_test.go`.
 
 **A dead link is searched once** (reason `dead_link`). When relink marks an active version's
 link dead (`docs/design/library.md` "Relink and verify": two misses at least 30 min apart, the mount healthy, not within

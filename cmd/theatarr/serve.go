@@ -651,6 +651,9 @@ func runServe(args []string) error {
 	if serveSnapshot != nil {
 		serveSnapshot.Acquirer = ac
 	}
+	// The runtime was published before the acquirer existed: with router.wanted.retry_new off, what its chains left
+	// queued is cancelled here, before any worker runs a job.
+	cancelRetryNew(ac)
 	if runtimeManager == nil {
 		ac.RegisterJobs(w)
 	} else {

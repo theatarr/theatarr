@@ -1,6 +1,7 @@
 package acquire
 
 import (
+	"strconv"
 	"strings"
 	"testing"
 	"time"
@@ -560,5 +561,56 @@ func TestRetryNewLastSearchedWithTheSwitchOff(t *testing.T) {
 	if len(on) != len(got) || on[runKey(102, "movie")] != got[runKey(102, "movie")] ||
 		on[runKey(103, "movie")] != got[runKey(103, "movie")] {
 		t.Fatalf("switch on: %+v, want %+v", on, got)
+	}
+}
+
+// A chain's search that a shutdown interrupted has its job queued again while its run still says searching: turning
+// the switch off cancels that job and ends the run gated, so that nothing of the chain is left for another build
+// to run. A chain's search that is running (its job running) is left to end by itself.
+func TestRetryNewOffCancelsAnInterruptedSearch(t *testing.T) {
+	t.Parallel()
+	e := retryNewEnv(t, &policy.Wanted{PerHour: 100, RetryNew: true})
+	job := func(run int64, state string) {
+		e.exec(`INSERT INTO job (kind, payload, dedupe_key, state, run_at, created_at, updated_at)
+			VALUES (?, json_object('run_id', ?), ?, ?, 0, 0, 0)`, JobSearch, run, JobSearch+"/"+strconv.FormatInt(run, 10),
+			state)
+	}
+	run := func(research any) int64 {
+		e.exec(`INSERT INTO acquire_run (source, title_id, version_id, version_key, target, reason, state, research,
+			claim, created_at, updated_at) VALUES ('wanted', 10, 201, 'series', 's02e01', 'missing', 'searching', ?, 'job:1/1',
+			0, 0)`, research)
+		return int64(e.count(`SELECT MAX(id) FROM acquire_run`))
+	}
+	interrupted, running, ordinary := run(researchRetryNew), run(researchRetryNew), run(nil)
+	job(interrupted, "queued")
+	job(running, "running")
+	job(ordinary, "queued")
+	if n, err := e.a.CancelRetryNew(e.ctx); err != nil || n != 0 {
+		t.Fatalf("switch on: %d cancelled: %v", n, err)
+	}
+	e.a.set.RetryNew = false
+	if n, err := e.a.CancelRetryNew(e.ctx); err != nil || n != 1 {
+		t.Fatalf("%d cancelled, want the interrupted search's job: %v", n, err)
+	}
+	for id, want := range map[int64][2]string{interrupted: {"skipped", "done"}, running: {"searching", "running"},
+		ordinary: {"searching", "queued"}} {
+		var state, jobState string
+		var infra int
+		if err := e.st.Reader().QueryRow(`SELECT r.state, r.infra, j.state FROM acquire_run r JOIN job j
+			ON j.dedupe_key = ? || '/' || r.id WHERE r.id = ?`, JobSearch, id).Scan(&state, &infra, &jobState); err != nil {
+			t.Fatal(err)
+		}
+		if state != want[0] || jobState != want[1] || (id == interrupted) != (infra == runGated) {
+			t.Fatalf("run %d: %s (infra %d), job %s; want %s, job %s", id, state, infra, jobState, want[0], want[1])
+		}
+	}
+	// The ordinary interrupted search runs; nothing of the chain does.
+	before := len(e.searches())
+	e.drain()
+	if got := e.searches()[before:]; len(got) != 1 {
+		t.Fatalf("%d searches after the cancellation, want the ordinary one", len(got))
+	}
+	if n := e.count(`SELECT COUNT(*) FROM acquire_run WHERE id = ? AND state = 'skipped'`, interrupted); n != 1 {
+		t.Fatal("the cancelled run did not stay skipped")
 	}
 }
