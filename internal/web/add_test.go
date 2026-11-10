@@ -27,9 +27,11 @@ import (
 	"github.com/theatarr/theatarr/internal/catalog"
 	"github.com/theatarr/theatarr/internal/decide"
 	"github.com/theatarr/theatarr/internal/indexer"
+	"github.com/theatarr/theatarr/internal/jobs"
 	"github.com/theatarr/theatarr/internal/metadata/tmdb"
 	"github.com/theatarr/theatarr/internal/policy"
 	"github.com/theatarr/theatarr/internal/router"
+	"github.com/theatarr/theatarr/internal/router/routertest"
 	"github.com/theatarr/theatarr/internal/store"
 	"github.com/theatarr/theatarr/internal/store/storetest"
 )
@@ -1145,6 +1147,92 @@ func TestAddMinimumAvailabilityKeepsImportedDate(t *testing.T) {
 		e.exec(`INSERT INTO version_source (version_id, instance, arr_id) SELECT id, 'radarr-web', 5 FROM version WHERE title_id = ?`, res.Title.ID)
 		if got := added(); got != imported.Format(time.RFC3339) {
 			t.Errorf("minimum %q: added %v after the import, want %s", minimum, got, imported.Format(time.RFC3339))
+		}
+	}
+}
+
+// TestAddSeriesTypeLibraries: an add that names no libraries takes the ones acquisition will search the series in,
+// which reads a series as anime by its flag or its type; an add without series_type picks as before, and libraries
+// the request names are left alone. The searches run through a real acquirer: its targets apply the rule. The title
+// page marks a monitored copy the rule leaves out (anime_skip), also after a change of type.
+func TestAddSeriesTypeLibraries(t *testing.T) {
+	e := newAddEnv(t, func(p *policy.Policy) {
+		for _, k := range []string{"tv-2160p", "anime-tv"} {
+			p.Versions[k].Mode, p.Versions[k].Grab = policy.ModeActive, true
+		}
+		p.Router = &policy.Router{Enabled: true}
+	})
+	q := jobs.NewQueue(e.st)
+	rt, err := routertest.New(e.st, e.pol, q, nil, func() time.Time { return addNow })
+	if err != nil {
+		t.Fatal(err)
+	}
+	acq, err := acquire.New(acquire.Config{Store: e.st, Policy: e.pol, Queue: q, Router: rt,
+		Logger: slog.New(slog.NewTextHandler(io.Discard, nil)), Now: func() time.Time { return addNow },
+		Search: func(context.Context, decide.Title, decide.Version, *decide.ExistingFile, *decide.SeriesSearch) (*router.Searched, error) {
+			return &router.Searched{}, nil
+		}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	e.web.add.Acquirer = acq
+	plain, anime := catalog.DefaultVersions(e.pol, policy.KindSeries, false), catalog.DefaultVersions(e.pol, policy.KindSeries, true)
+	if slices.Equal(plain, anime) || len(plain) == 0 || len(anime) == 0 {
+		t.Fatalf("the policy's defaults: %v, anime %v", plain, anime)
+	}
+	// add adds a new series, gives it an aired episode and searches it: the libraries it got and the searches queued.
+	add := func(body map[string]any) (int64, []string, int) {
+		t.Helper()
+		var res AddResult
+		e.call("POST", APIBase+"/titles", body, 201, &res)
+		now := store.Millis(addNow)
+		e.exec(`INSERT INTO episode (title_id, season, number, name, air_date_utc_at, monitored, created_at, updated_at)
+			VALUES (?, 1, 1, 'One', ?, 1, ?, ?)`, res.Title.ID, now-1000, now, now)
+		var so SearchOutcome
+		e.call("POST", fmt.Sprintf("%s/titles/%d/search", APIBase, res.Title.ID), nil, 200, &so)
+		return res.Title.ID, res.Versions, so.Queued
+	}
+	skips := func(id int64) string {
+		t.Helper()
+		var d TitleDetail
+		e.call("GET", fmt.Sprintf("%s/titles/%d", APIBase, id), nil, 200, &d)
+		var out []string
+		for _, v := range d.Versions {
+			if v.AnimeSkip {
+				out = append(out, v.Key)
+			}
+		}
+		return strings.Join(out, " ")
+	}
+	// No series_type: the libraries main picks, by the flag alone.
+	if _, got, queued := add(map[string]any{"kind": "series", "tvdb_id": 301, "title": "Plain"}); !slices.Equal(got, plain) || queued == 0 {
+		t.Errorf("no series_type: libraries %v (want %v), %d searches", got, plain, queued)
+	}
+	if _, got, queued := add(map[string]any{"kind": "series", "tvdb_id": 302, "title": "Flagged", "anime": true}); !slices.Equal(got, anime) || queued == 0 {
+		t.Errorf("anime flag: libraries %v (want %v), %d searches", got, anime, queued)
+	}
+	// Type anime with the flag off: the anime libraries, which are searched.
+	id, got, queued := add(map[string]any{"kind": "series", "tvdb_id": 303, "title": "Typed", "series_type": "anime"})
+	if !slices.Equal(got, anime) || queued == 0 || skips(id) != "" {
+		t.Errorf("series_type anime: libraries %v (want %v), %d searches, skipped %q", got, anime, queued, skips(id))
+	}
+	if n := e.count(`SELECT COUNT(*) FROM title WHERE id = ? AND anime = 0`, id); n != 1 {
+		t.Error("series_type anime set the anime flag")
+	}
+	// Named libraries are left alone: acquisition does not search that copy, and the title page says so.
+	id, got, queued = add(map[string]any{"kind": "series", "tvdb_id": 304, "title": "Named", "series_type": "anime",
+		"versions": []string{"tv-2160p"}})
+	if !slices.Equal(got, []string{"tv-2160p"}) || queued != 0 || skips(id) != "tv-2160p" {
+		t.Errorf("named library: libraries %v, %d searches, skipped %q", got, queued, skips(id))
+	}
+	// The title page follows a change of type, both ways.
+	if got := skips(10); got != "" {
+		t.Fatalf("the seeded series: skipped %q", got)
+	}
+	for _, c := range []struct{ typ, want string }{{"anime", "tv-2160p"}, {"standard", ""}} {
+		e.call("POST", APIBase+"/titles/series-type", map[string]any{"title_ids": []int64{10}, "series_type": c.typ}, 200, nil)
+		if got := skips(10); got != c.want {
+			t.Errorf("type %s: skipped %q, want %q", c.typ, got, c.want)
 		}
 	}
 }

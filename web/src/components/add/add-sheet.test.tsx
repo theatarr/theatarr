@@ -266,3 +266,21 @@ it("works with Search now off when the browser's storage throws", async () => {
   await user.click(screen.getByTestId("add-submit"));
   expect(((await bodyOf(fetch)) as { search: boolean }).search).toBe(true);
 });
+
+it("ticks the libraries of an anime series when the type picked is Anime, with the Anime box left off", async () => {
+  // The server answers by the anime the sheet asks for: the box, or the type picked.
+  const plain = { ...tv, anime: false };
+  const animeTv = { ...tv, key: "anime-tv", label: "Anime TV", anime: true };
+  const reply = (request: { search: string }) => {
+    const anime = new URLSearchParams(request.search).get("anime") === "1";
+    return { ...seriesOptions, anime, versions: [{ ...plain, fits: !anime, default: !anime }, { ...animeTv, fits: anime, default: anime }] };
+  };
+  const fetch = mockFetch(routes(reply));
+  const user = userEvent.setup();
+  renderPage(<AddSheet target={{ kind: "series", name: "Kappa", year: 2025, tmdb_id: 8 }} onClose={() => {}} />);
+  await user.selectOptions(await screen.findByTestId("add-series-type"), "anime");
+  await waitFor(() => expect(fetch.calls("GET", "/add/options").at(-1)?.search).toContain("anime=1"));
+  await waitFor(() => expect((screen.getByTestId("add-series-type") as HTMLSelectElement).value).toBe("anime"));
+  await user.click(screen.getByTestId("add-submit"));
+  expect(await bodyOf(fetch)).toEqual({ kind: "series", tmdb_id: 8, title: "Kappa", year: 2025, anime: false, versions: ["anime-tv"], search: false, series_type: "anime" });
+});

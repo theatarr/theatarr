@@ -579,7 +579,9 @@ func (w *Web) addTitle(ctx context.Context, req AddRequest, source string) (*Add
 			if req.Versions != nil {
 				return req.Versions, nil
 			}
-			if ks := catalog.DefaultVersions(w.pol, kind, anime); len(ks) > 0 {
+			// The libraries acquisition will search the title in: it takes a series as anime by its flag or its
+			// type (as the arr views' add does).
+			if ks := catalog.DefaultVersions(w.pol, kind, anime || req.SeriesType == "anime"); len(ks) > 0 {
 				return ks, nil
 			}
 			return nil, errNoFit

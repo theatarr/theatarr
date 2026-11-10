@@ -130,7 +130,9 @@ this browser last left it on (`localStorage` `theatarr.add.search`, kept only wh
 A new series also gets **Series type** (Standard, Daily, Anime). The select shows the type the series gets without
 a choice (Anime when Anime is ticked, else Standard) and the request carries `series_type` only when the pick
 differs from it. It is not offered for a series already in the library: an add never changes a series' type, and
-the API answers 400 to `series_type` there. A movie with a library to add ticked gets **Minimum availability**:
+the API answers 400 to `series_type` there. Acquisition reads a series as anime by its anime flag or its type, so
+the type Anime ticks the libraries of an anime series, as the Anime box does (the box itself stays as it is);
+`POST /titles` without `versions` picks the same way, and libraries the request names are left alone. A movie with a library to add ticked gets **Minimum availability**:
 **Library default** (the start; sends nothing, so each library's own rule applies) or Announced, In cinemas,
 Released, sent as `minimum_availability` and stored as the explicit choice (`availability.Choose`, the library's own
 `v/<key>` row) of each library the add adds the movie to, new or restored, whether or not that library has a
@@ -290,7 +292,11 @@ See [quickstart](../quickstart.md#readiness-led-setup) for the completion rules;
   explicit choice for that library only (libraries the movie is not in get none). An imported `tba` is shown but
   cannot be picked. A series' About facts show **Series type** (`series_type`, the title's one type for every
   library and arr view), which a manager changes with `POST /titles/series-type {title_ids, series_type}`
-  (`catalog.SetSeriesType`; the anime flag stays). Both endpoints take 1 to 500 titles, the page sends one, and a
+  (`catalog.SetSeriesType`; the anime flag stays). The change is saved at once and can stop searches: acquisition
+  searches a series only in libraries whose anime rule fits it (anime by its flag or its type; a library set to
+  no anime skips an anime series, one set to anime only skips the rest), and neither Wanted nor search now says
+  why a copy is left out. So the monitored copies left out (`versions[].anime_skip`) are named under the control,
+  "Not searched in ...", with the reason, also after a change. Both endpoints take 1 to 500 titles, the page sends one, and a
   title of the other kind answers 400 with nothing written. Without manage both show as text.
 - **Family accounts** (no "see files"): hero with readiness and languages, their request card, Episodes for a
   series, About; no copy cards, states or history (the API sends none).

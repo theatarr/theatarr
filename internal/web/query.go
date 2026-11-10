@@ -6,13 +6,16 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"slices"
 	"strings"
 	"time"
 
 	"github.com/theatarr/theatarr/internal/availability"
+	"github.com/theatarr/theatarr/internal/catalog"
 	"github.com/theatarr/theatarr/internal/gateway"
 	"github.com/theatarr/theatarr/internal/health"
 	"github.com/theatarr/theatarr/internal/jobs"
+	"github.com/theatarr/theatarr/internal/policy"
 	"github.com/theatarr/theatarr/internal/store"
 )
 
@@ -309,6 +312,9 @@ type Version struct {
 	// the explicit choice, else the imported value, else the library's default, else released); the title route
 	// only, empty for a series.
 	MinimumAvailability string `json:"minimum_availability,omitempty"`
+	// AnimeSkip (title page, series): a monitored copy in the library that acquisition does not search, because the
+	// library's anime rule does not fit the series (its anime flag, or its type anime; acquire's targets).
+	AnimeSkip bool `json:"anime_skip,omitempty"`
 }
 
 // ArrRec is how an arr instance holds the title for this version.
@@ -419,6 +425,26 @@ func (w *Web) getTitle(ctx context.Context, id int64) (*TitleDetail, error) {
 	case d.Kind == "series":
 		if d.SeriesType, err = store.SeriesType(ctx, db, id); err != nil {
 			return nil, err
+		}
+		if w.pol != nil && len(d.Versions) > 0 {
+			var removed []int64
+			if err := scanAll(ctx, db, `SELECT r.version_id FROM arrview_removed_version r JOIN version v
+				ON v.id = r.version_id WHERE v.title_id = ?`, []any{id}, func(r *sql.Rows) error {
+				var vid int64
+				if err := r.Scan(&vid); err != nil {
+					return err
+				}
+				removed = append(removed, vid)
+				return nil
+			}); err != nil {
+				return nil, err
+			}
+			anime := d.Anime || d.SeriesType == "anime"
+			for i := range d.Versions {
+				v := &d.Versions[i]
+				vp := w.pol.Versions[v.Key]
+				v.AnimeSkip = vp != nil && v.Monitored && !slices.Contains(removed, v.ID) && !catalog.Fits(vp, policy.KindSeries, anime)
+			}
 		}
 	case w.pol != nil && len(d.Versions) > 0:
 		rules, err := availability.Rules(ctx, db, w.pol, []int64{id})

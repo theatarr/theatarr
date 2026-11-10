@@ -138,7 +138,11 @@ function storeSearch(on: boolean) {
 export function AddSheet({ target, onClose }: { target: AddTarget; onClose: () => void }) {
   const perms = usePerms();
   const [anime, setAnime] = useState(Boolean(target.anime));
-  const opts = useAddOptions(target, anime);
+  // Unset until picked: the select then shows what applies without a choice, and the request carries none.
+  const [seriesType, setSeriesType] = useState<AddChoice["seriesType"]>();
+  // The libraries offered ticked are the ones acquisition will search the title in: it reads a series as anime by
+  // the Anime mark or the type picked here.
+  const opts = useAddOptions(target, anime || seriesType === "anime");
   const inLibrary = libraryTitleId(target, opts.data) !== undefined;
   const add = useAddTitle();
   const [picked, setPicked] = useState<Record<string, boolean>>({});
@@ -147,8 +151,6 @@ export function AddSheet({ target, onClose }: { target: AddTarget; onClose: () =
   const setSearch = (on: boolean) => { setSearchState(on); storeSearch(on); };
   const [monitor, setMonitor] = useState<MonitorPreset | "">("");
   const [monitorNew, setMonitorNew] = useState(true);
-  // Unset until picked: the select then shows what applies without a choice, and the request carries none.
-  const [seriesType, setSeriesType] = useState<AddChoice["seriesType"]>();
   const [minimum, setMinimum] = useState<AddChoice["minimumAvailability"]>();
   const [showOther, setShowOther] = useState(false);
   const [done, setDone] = useState<AddResult | null>(null);
@@ -307,7 +309,7 @@ export function AddSheet({ target, onClose }: { target: AddTarget; onClose: () =
                             label="Series type"
                             detail="Daily shows are searched by air date, anime by absolute episode number."
                             value={seriesType ?? typeDefault}
-                            onChange={(v) => setSeriesType(v as AddChoice["seriesType"])}
+                            onChange={(v) => { setSeriesType(v as AddChoice["seriesType"]); setPicked({}); }}
                             options={SERIES_TYPES}
                             testid="add-series-type"
                           />

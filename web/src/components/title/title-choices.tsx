@@ -31,11 +31,23 @@ export function MinimumAvailabilityControl({ v, label }: { v: Version; label: st
   );
 }
 
-/** A series' type: the one value of the series, for every library. */
-export function SeriesTypeControl({ titleId, value }: { titleId: number; value: string }) {
+/** A series' type: the one value of the series, for every library. Acquisition reads a series as anime by its
+ *  Anime mark or this type and leaves out a library whose anime rule does not fit; the copies the title page marks
+ *  (anime_skip) are named under the control, so a change that stops a library's searches shows once it is saved. */
+export function SeriesTypeControl({ titleId, value, anime = false, versions = [] }: { titleId: number; value: string; anime?: boolean; versions?: Version[] }) {
   const perms = usePerms();
   const save = useSeriesType(titleId);
-  if (!perms.manage) return <>{labelOf(SERIES_TYPES, value)}</>;
+  const skipped = versions.filter((v) => v.anime_skip).map((v) => v.label || v.key);
+  const one = skipped.length === 1;
+  const note = skipped.length === 0 ? null : (
+    <p className="mt-1 text-xs text-[var(--ink-3)]" role="note" data-testid="series-type-skipped">
+      Not searched in {skipped.join(", ")}:{" "}
+      {anime || value === "anime"
+        ? `the series counts as anime, and ${one ? "that library does" : "those libraries do"} not take anime.`
+        : `${one ? "that library takes" : "those libraries take"} anime only, and the series does not count as anime.`}
+    </p>
+  );
+  if (!perms.manage) return <>{labelOf(SERIES_TYPES, value)}{note}</>;
   return (
     <>
       <Select className="w-auto" aria-label="Series type" value={value} disabled={save.isPending}
@@ -43,6 +55,7 @@ export function SeriesTypeControl({ titleId, value }: { titleId: number; value: 
         {SERIES_TYPES.map(([o, l]) => <option key={o} value={o}>{l}</option>)}
       </Select>
       {save.error ? <p className="mt-1 text-xs text-[var(--bad-ink)]" role="alert">{(save.error as Error).message}</p> : null}
+      {note}
     </>
   );
 }
