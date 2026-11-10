@@ -32,17 +32,19 @@ func (in *Inbox) ObserveHealth(results []HealthCheck) {
 		in.loadOpenHealth()
 	}
 	for _, r := range results {
-		fp, failing := in.health[r.Source]
+		fps, failing := in.health[r.Source]
 		switch {
 		case r.Type == "error" && !failing:
 			ev := Event{Source: SourceHealth, Component: r.Source, Level: "error", Message: r.Message, Time: now,
 				Context: map[string]string{"check": r.Source, "name": r.Name}}
-			in.health[r.Source] = in.prepare(ev).fp
+			in.health[r.Source] = []string{in.prepare(ev).fp}
 			in.enqueue(item{ev: ev})
 		case r.Type != "error" && failing:
 			delete(in.health, r.Source)
-			in.enqueue(item{resolve: fp, resolveAfter: now,
-				resolveNote: "recovered " + now.UTC().Format(time.RFC3339) + ": " + r.Type + " " + r.Message})
+			for _, fp := range fps {
+				in.enqueue(item{resolve: fp, resolveAfter: now,
+					resolveNote: "recovered " + now.UTC().Format(time.RFC3339) + ": " + r.Type + " " + r.Message})
+			}
 		}
 	}
 	b, err := json.Marshal(map[string]any{"at": now.UTC(), "checks": results})
@@ -57,7 +59,7 @@ func (in *Inbox) ObserveHealth(results []HealthCheck) {
 }
 
 // loadOpenHealth fills in.health with the health rows still open from earlier runs, so a check that failed before a
-// restart and is fine now resolves its row. Later rows win for a check with several.
+// restart and is fine now resolves its rows (earlier runs can have left several with different messages).
 func (in *Inbox) loadOpenHealth() {
 	ctx := Quiet(context.Background())
 	rows, err := in.st.Reader().QueryContext(ctx, `SELECT component, fingerprint FROM error_event
@@ -70,7 +72,7 @@ func (in *Inbox) loadOpenHealth() {
 	for rows.Next() {
 		var check, fp string
 		if rows.Scan(&check, &fp) == nil {
-			in.health[check] = fp
+			in.health[check] = append(in.health[check], fp)
 		}
 	}
 }

@@ -47,9 +47,9 @@ type Inbox struct {
 	mu          sync.Mutex
 	lastWarn    time.Time
 	savedDrops  int64
-	health      map[string]string // check source -> fingerprint of its open failure
-	healthRead  bool              // the open health rows of earlier runs are in health
-	healthState string            // the last snapshot written, for change detection
+	health      map[string][]string // check source -> fingerprints of its open failures
+	healthRead  bool                // the open health rows of earlier runs are in health
+	healthState string              // the last snapshot written, for change detection
 	healthAt    time.Time
 }
 
@@ -85,7 +85,7 @@ func New(st *store.Store, opts Options) *Inbox {
 		opts.Now = time.Now
 	}
 	return &Inbox{st: st, opts: opts, log: opts.Logger.With("component", "errinbox"),
-		queue: make(chan item, opts.QueueSize), health: map[string]string{}}
+		queue: make(chan item, opts.QueueSize), health: map[string][]string{}}
 }
 
 // SetKnownSecrets installs a function that masks the running settings' known credentials (the gateway's redactor);

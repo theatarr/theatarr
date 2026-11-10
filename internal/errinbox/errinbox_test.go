@@ -376,11 +376,22 @@ func TestHealthRecoveryAfterRestart(t *testing.T) {
 	if len(rows) != 1 {
 		t.Fatalf("rows = %+v", rows)
 	}
+	// A second run sees the check fail with another message: a second open row.
+	second := newInbox(t, st, Options{})
+	second.health = map[string][]string{}
+	second.healthRead = true
+	second.ObserveHealth([]HealthCheck{{Source: "MountCheck", Type: "error", Message: "listing timed out"}})
+	flush(t, second)
+	if rows = all(t, st); len(rows) != 2 {
+		t.Fatalf("rows = %+v", rows)
+	}
 	after := newInbox(t, st, Options{})
 	after.ObserveHealth([]HealthCheck{{Source: "MountCheck", Type: "ok", Message: "listed"}})
 	flush(t, after)
-	if r, _ := Get(ctx, st, rows[0].ID); r.Status != StatusResolved || !strings.Contains(r.Note, "recovered") {
-		t.Errorf("after restart and recovery = %+v", r)
+	for _, row := range rows {
+		if r, _ := Get(ctx, st, row.ID); r.Status != StatusResolved || !strings.Contains(r.Note, "recovered") {
+			t.Errorf("after restart and recovery = %+v", r)
+		}
 	}
 }
 
