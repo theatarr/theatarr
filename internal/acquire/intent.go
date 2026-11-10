@@ -85,11 +85,12 @@ func (a *Acquirer) DrainFollowSearches(ctx context.Context) (int, error) {
 		return 0, err
 	}
 	started := 0
+	var chained chainSeen // read once a pass, by the first intent that counts unanswered searches
 	for _, in := range intents {
 		if used >= a.set.PerHour {
 			break
 		}
-		n, done, err := a.drainIntent(ctx, in.change, in.created, a.set.PerHour-used)
+		n, done, err := a.drainIntent(ctx, in.change, in.created, a.set.PerHour-used, &chained)
 		started += n
 		used += n
 		switch {
@@ -120,9 +121,10 @@ func (a *Acquirer) DrainFollowSearches(ctx context.Context) (int, error) {
 }
 
 // drainIntent starts at most left of an intent's searches; done when nothing of it is left to start or wait for.
+// chained is the pass's read of the versions a retry_new chain has a request for (ordinaryOf).
 // A target counts as searched by a run within again_after, or since the intent was recorded (created).
-func (a *Acquirer) drainIntent(ctx context.Context, c importarr.FollowSearchTarget, created int64, left int) (int,
-	bool, error) {
+func (a *Acquirer) drainIntent(ctx context.Context, c importarr.FollowSearchTarget, created int64, left int,
+	chained *chainSeen) (int, bool, error) {
 	vp := a.pol.Versions[c.VersionKey]
 	if vp == nil || vp.Mode != policy.ModeActive {
 		return 0, true, nil
@@ -187,7 +189,7 @@ func (a *Acquirer) drainIntent(ctx context.Context, c importarr.FollowSearchTarg
 		}
 		// Runs without an answer: started again after infraBackoff; given up once it is spent.
 		if !ownRead { // once an intent, when a target needs it
-			o, err := a.ordinaryOf(ctx, vid)
+			o, err := a.ordinaryOf(ctx, vid, chained)
 			if err != nil {
 				return n, false, err
 			}

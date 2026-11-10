@@ -487,7 +487,7 @@ func TestRetryNewNeverOnKeepsTheQueryPlans(t *testing.T) {
 	const infra = `SELECT COUNT(*), COALESCE(MAX(created_at), 0) FROM acquire_run WHERE version_id = ? AND target = ?
 		AND infra = 1 AND created_at > MAX(?, COALESCE((SELECT MAX(created_at) FROM acquire_run WHERE version_id = ?
 		AND target = ? AND infra NOT IN (1, 3) AND state NOT IN ('queued', 'searching')), 0))`
-	own, err := e.a.ordinaryOf(e.ctx, 101)
+	own, err := e.a.ordinaryOf(e.ctx, 101, nil)
 	if err != nil || own != "" {
 		t.Fatalf("never on: an intent's retry budget reads %q: %v", own, err)
 	}
@@ -509,11 +509,20 @@ func TestRetryNewNeverOnKeepsTheQueryPlans(t *testing.T) {
 	if err != nil || len(reads) != 2 || len(chained) != 1 || !chained[101] || e.plan(reads[0]) != e.plan(last) {
 		t.Fatalf("after a chain: %d reads, chained %v: %v", len(reads), chained, err)
 	}
-	if own, err := e.a.ordinaryOf(e.ctx, 101); err != nil || own != ordinaryRuns {
+	if own, err := e.a.ordinaryOf(e.ctx, 101, nil); err != nil || own != ordinaryRuns {
 		t.Fatalf("after a chain: its version reads %q: %v", own, err)
 	}
-	if own, err := e.a.ordinaryOf(e.ctx, 102); err != nil || own != "" {
+	if own, err := e.a.ordinaryOf(e.ctx, 102, nil); err != nil || own != "" {
 		t.Fatalf("after a chain: another version reads %q: %v", own, err)
+	}
+	// One drain pass reads the job table once: what its first intent found serves the others.
+	var pass chainSeen
+	if own, err := e.a.ordinaryOf(e.ctx, 102, &pass); err != nil || own != "" || !pass.read {
+		t.Fatalf("a pass: version 102 reads %q, read %v: %v", own, pass.read, err)
+	}
+	e.exec(`DELETE FROM job`)
+	if own, err := e.a.ordinaryOf(e.ctx, 101, &pass); err != nil || own != ordinaryRuns {
+		t.Fatalf("a pass: its second intent read the job table again (%q): %v", own, err)
 	}
 }
 

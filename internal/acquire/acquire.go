@@ -905,15 +905,31 @@ func (a *Acquirer) chainVersions(ctx context.Context) (map[int64]bool, error) {
 
 // ordinaryOf is the condition that leaves the chain's runs out of a read of one version's runs: ordinaryRuns, or ""
 // (every run, the query without the switch) when the switch is off and no chain has a request for the version.
-func (a *Acquirer) ordinaryOf(ctx context.Context, versionID int64) (string, error) {
+// seen keeps chainVersions for the versions asked after the first (one drain pass); nil reads it each time.
+func (a *Acquirer) ordinaryOf(ctx context.Context, versionID int64, seen *chainSeen) (string, error) {
 	if a.set.RetryNew {
 		return ordinaryRuns, nil
 	}
-	chained, err := a.chainVersions(ctx)
-	if err != nil || !chained[versionID] {
-		return "", err
+	if seen == nil {
+		seen = &chainSeen{}
+	}
+	if !seen.read {
+		chained, err := a.chainVersions(ctx)
+		if err != nil {
+			return "", err
+		}
+		seen.versions, seen.read = chained, true
+	}
+	if !seen.versions[versionID] {
+		return "", nil
 	}
 	return ordinaryRuns, nil
+}
+
+// chainSeen is chainVersions as one drain pass of the add-time intents read it: once, when its first intent needs it.
+type chainSeen struct {
+	read     bool
+	versions map[int64]bool
 }
 
 func runKey(versionID int64, t string) string { return strconv.FormatInt(versionID, 10) + "/" + t }
