@@ -17,7 +17,7 @@ offered that button, and the server refuses the request.
 
 | Stage | What you do | Where | How to undo |
 |---|---|---|---|
-| [1. Inspect and plan](#1-inspect-and-plan) | Read the old services, save a plan and apply its automatic steps; everything lands disabled or in shadow | **Admin › Advanced › Sonarr/Radarr migration › Migrate**, or `theatarr migrate inspect`, `plan`, `apply`, `verify` | Each step's `undo`, or restore the checkpoint apply took ([rolling back the migration](#rolling-back-the-migration)) |
+| [1. Inspect and plan](#1-inspect-and-plan) | Read the old services, save a plan and apply its automatic steps; everything lands disabled or as Watch only | **Admin › Advanced › Sonarr/Radarr migration › Migrate**, or `theatarr migrate inspect`, `plan`, `apply`, `verify` | Each step's `undo`, or restore the checkpoint apply took ([rolling back the migration](#rolling-back-the-migration)) |
 | [2. Shadow](#2-shadow-compare-with-the-arr) | Let the migrated library decide without grabbing, and compare its decisions with the arr's grabs | **Advanced › Sonarr/Radarr migration › Comparison**, **Activity › Decision journal**, `theatarr parallel compare` | Nothing to undo: a shadow library adds and links nothing |
 | [3. Follower](#3-a-follower-library-beside-the-arr) | Add a follower library with a root and a Plex library of its own, adopt the arr's files, run a trial | **Settings › Libraries**, **Settings › Plex & playback**, `theatarr library adopt` | Turn the follower's downloads off or set it to shadow; the arr never stopped ([stage 6](#6-stop-switches-and-rollback)) |
 | [4. Go-live check](#4-the-go-live-check) | Run the check before the trial, during it and before the handover | `theatarr golive check` | It only reads |
@@ -32,7 +32,7 @@ recipe for agents.
 `theatarr migrate inspect | plan | apply | verify` moves the setup of an existing
 Sonarr/Radarr fleet (with Prowlarr, Seerr and Recyclarr) into Theatarr's settings. The same operations are on the API
 under `/api/theatarr/v1/migrate`. The migration never touches the old services, and it never turns grabbing on: everything it
-adds lands disabled or in shadow, and the cutover per library stays a manual, confirmed step.
+adds lands disabled or as Watch only, and the cutover per library stays a manual, confirmed step.
 
 `theatarr migrate up | status` are the database migrations, a separate tool.
 
@@ -527,7 +527,7 @@ searches; the arr does not adopt K's roots. Never turn both sides back on at onc
 roots; don't move K's links into F's root.
 
 **Emergency stop:** turn **Pause** on at the top of any admin page (it turns **Allow new downloads** and **Write
-library links** off), and **Send notifications** off on its Settings page; they affect every library. `THEATARR_FORCE_OFF=router,library,notify` forces them off at startup
+library links** off; when it reads **Custom**, turn the one still on off on its Settings page), and **Send notifications** off on its Settings page; they affect every library. `THEATARR_FORCE_OFF=router,library,notify` forces them off at startup
 whatever the saved settings say; it needs a restart and can never turn anything on. A database or image rollback
 uses a backup set ([restore.md](restore.md)); it cannot undo provider adds or filesystem changes.
 

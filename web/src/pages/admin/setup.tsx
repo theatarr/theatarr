@@ -64,7 +64,7 @@ export function SetupPage() {
   const missing = s.missing ?? [];
   return <div className="space-y-4">
     <PageHeader crumb={[{ label: "Admin", to: "/admin" }]} title="Setup" description="What this install still needs, step by step, then a preflight of everything it relies on." />
-    <Card className="space-y-2 text-sm"><h2 className="text-base font-semibold">Coming from Sonarr/Radarr?</h2><p>Inspect your existing stack and bring its settings into Theatarr, disabled or in shadow.</p><Link className="underline" to="/admin/advanced/arr/migrate">Migrate from arrs</Link></Card>
+    <Card className="space-y-2 text-sm"><h2 className="text-base font-semibold">Coming from Sonarr/Radarr?</h2><p>Inspect your existing stack and bring its settings into Theatarr, disabled or as Watch only.</p><Link className="underline" to="/admin/advanced/arr/migrate">Migrate from arrs</Link></Card>
     {missing.length ? <Card><p className="text-sm font-medium">Off until set up:</p><ul className="mt-1 list-disc pl-5 text-sm" data-testid="setup-missing">{missing.map((m) => <li key={m}>{m}</li>)}</ul></Card> : null}
     <p>Getting started: {progress.done} of {progress.total} steps complete</p>
     <progress className="h-2 w-full" aria-label="Setup progress" value={progress.done} max={progress.total} />
@@ -109,8 +109,8 @@ export function SetupPage() {
       </Step>
       <Step n={6} title="Review activation" done={progress.steps[5]}>
         {oneStep
-          ? <p>A library created with "Create library and start downloading" has these on already. For any other library: when you're ready, set it to Live on Libraries and turn Pause off at the top of the page.</p>
-          : <p>Theatarr doesn't turn these on for you. When you're ready, set a library to Live on Libraries and turn Pause off at the top of the page.</p>}
+          ? <p>A library created with "Create library and start downloading" has these on already. For any other library: when you're ready, set it to Live on Libraries and turn Pause off at the top of the page. If Pause reads Custom, turn on Allow new downloads and Write library links on their settings pages. A Live library with "Don't download for this library" ticked (under Advanced in its editor) downloads nothing until you untick it.</p>
+          : <p>Theatarr doesn't turn these on for you. When you're ready, set a library to Live on Libraries and turn Pause off at the top of the page. If Pause reads Custom, turn on Allow new downloads and Write library links on their settings pages. A Live library with "Don't download for this library" ticked (under Advanced in its editor) downloads nothing until you untick it.</p>}
         {progress.versions.isPending ? <Loading /> : progress.versions.error ? <ErrorState error={progress.versions.error} /> : <Activation data={progress.versions.data} />}
       </Step>
     </ol>
