@@ -72,9 +72,15 @@ func (a *Acquirer) Wanted(ctx context.Context) (*WantedSummary, error) {
 			AND e.removed_at IS NULL AND e.air_date_utc_at <= ?)`, store.Millis(a.now()), store.Millis(a.now())); err != nil {
 		return nil, err
 	}
+	// The round's own searches check and spend the hour under the lock the drains and Research take.
+	a.drainMu.Lock()
+	defer a.drainMu.Unlock()
 	now := a.now()
 	if sum.SearchedLastHour, err = a.wantedUsed(ctx, now); err != nil {
 		return nil, err
+	}
+	if a.testHook != nil {
+		a.testHook("round")
 	}
 	for _, key := range active {
 		if a.pol.Versions[key].PreferSeaDex {
@@ -199,10 +205,13 @@ type WantedRow struct {
 	Position int        `json:"position,omitempty"`
 	// Season is the row's season (absent for a movie); SearchQueued its 1-based place among the Search now requests
 	// (0: not queued).
-	Season       *int       `json:"season,omitempty"`
-	SearchQueued int        `json:"search_queued,omitempty"`
-	LastRun      *WantedRun `json:"last_run"`
-	DecisionID   *int64     `json:"decision_id"`
+	Season       *int `json:"season,omitempty"`
+	SearchQueued int  `json:"search_queued,omitempty"`
+	// SearchBlocked says why Search now cannot search the row, independent of Waiting (which names the loop's
+	// reason first): downloads_off, grab_off or in_flight; "" when it can.
+	SearchBlocked string     `json:"search_blocked,omitempty"`
+	LastRun       *WantedRun `json:"last_run"`
+	DecisionID    *int64     `json:"decision_id"`
 }
 
 type WantedList struct {
@@ -220,6 +229,9 @@ type WantedList struct {
 	DownloadsEnabled bool              `json:"downloads_enabled"`
 	AddTimePending   int               `json:"add_time_pending"`
 	SearchedLastHour int               `json:"searched_last_hour"`
+	// Searchable counts the rows of the filtered list Search now can search (no SearchBlocked): what "Search all"
+	// queues.
+	Searchable int `json:"searchable"`
 	// SearchNowPending counts the queued Search now requests; SearchNowNextAt is when the next of them can start.
 	SearchNowPending int        `json:"search_now_pending"`
 	SearchNowNextAt  *time.Time `json:"search_now_next_at"`
@@ -352,10 +364,11 @@ func (a *Acquirer) wantedRows(ctx context.Context, q WantedQuery, out *WantedLis
 		for _, key := range keys {
 			group := byVersion[key]
 			row := WantedRow{TitleID: group[0].titleID, Version: key, Reason: q.Only, Targets: []string{}, Season: group[0].season}
-			recent, busy := true, false
+			recent, busy, allBusy := true, false, true
 			var next int64
 			for _, t := range group {
 				row.Targets = append(row.Targets, t.name)
+				allBusy = allBusy && flight.busy(t)
 				if a.set.Enabled && out.DownloadsEnabled && slices.Contains(grabbing, key) && (q.Only == OnlyMissing && a.set.Missing || q.Only == OnlyCutoff && a.set.CutoffUnmet != policy.CutoffOff) {
 					busy = busy || flight.busy(t)
 				}
@@ -388,9 +401,21 @@ func (a *Acquirer) wantedRows(ctx context.Context, q WantedQuery, out *WantedLis
 					}
 				}
 			}
+			// What stops a search asked for by hand, whatever the loop's own state says.
+			switch {
+			case !out.DownloadsEnabled:
+				row.SearchBlocked = "downloads_off"
+			case !slices.Contains(grabbing, key):
+				row.SearchBlocked = "grab_off"
+			case allBusy:
+				row.SearchBlocked = "in_flight"
+			}
 			out.Counts[row.Waiting]++
 			if q.Waiting != "" && row.Waiting != q.Waiting {
 				continue
+			}
+			if row.SearchBlocked == "" {
+				out.Searchable++
 			}
 			list = append(list, row)
 		}

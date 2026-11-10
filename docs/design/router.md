@@ -1331,13 +1331,21 @@ pacing only; there is no separate per-season bulk pacing.
   one shared search with source `wanted`, so it is counted in `per_hour` with the loop's searches, the add-time
   searches and the re-searches. It resolves each request with the list's selector (`targets` with the title, library,
   reason and season), does not consult `again_after` (the user asked), and deletes the request when its search
-  starts and when it asks for nothing any more (imported meanwhile, a download in flight, unmonitored, the library
-  not active or not grabbing). A search that fails is recorded on its run and not repeated from the request. While
+  starts and when it asks for nothing any more (imported meanwhile, a download in flight, a search of it already
+  queued or running, such as an add-time search of the same row started earlier in the round, unmonitored, the
+  library not active or not grabbing). A search that fails is recorded on its run and not repeated from the request. While
   `router.enabled` is false a drain drops the queue, as it does for add-time intents. `DELETE /wanted/search` drops
-  it on request ("Cancel queued searches"); searches already started are not touched.
-- **Order under the one budget:** add-time intents, then Search now, then the loop's own selection. A wanted round
-  runs the two drains first, with the loop on or off. While Search now requests wait they take the whole hour ahead
-  of the loop, and re-searches after a failure are deferred with the same budget.
+  it on request ("Cancel queued searches"), also during a drain: the drain claims each request by deleting it just
+  before it starts that row's search, so a cancelled request does not start. A search that has started stays
+  started. The list reports what stops a search by hand apart from the loop's waiting reason
+  (`WantedRow.search_blocked`: `downloads_off`, `grab_off`, `in_flight`; `waiting` says `loop_off` first), the page's
+  controls follow it, and "all" queues only the rows without it (`searchable`).
+- **One budget, one lock.** A wanted round's own searches, the two drains and a re-search after a failure check and
+  spend the hour under the acquirer's `drainMu`, so two of them never spend the same slot and `per_hour` holds when
+  a request arrives during a round.
+- **Order inside a wanted round:** add-time intents, then Search now, then the loop's own selection; the round runs
+  the two drains first, with the loop on or off. The order is not enforced across paths: a request and the Search
+  now job drain Search now only, and a re-search after a failure may take a slot that frees while requests wait.
 - **The Search now job (`acquire.searchnow`).** What the hour does not allow is drained by a job that runs when the
   oldest counted search of the hour leaves the window (`budgetFreeAt`, shared with the deferred re-search), never
   sooner than a minute from now, and queues the next run while requests remain. Its dedupe key carries the run time
@@ -1347,7 +1355,11 @@ pacing only; there is no separate per-season bulk pacing.
   without the loop and a queue survives a restart. `GET /wanted` reports the queue (`search_now_pending`,
   `search_now_next_at`) and each row's place in it (`search_queued`). Title-page searches, the search after an add
   made in Theatarr and arr-view commands keep their own path (`Submit`, source `command`), outside `per_hour`.
-  Tests: `TestSearchNowAllPacedByTheHourlyBudget`, `TestSearchNowSearchesARecentlySearchedRow`,
+  After its rows are stored a request drains and schedules without the caller's context, so a cancelled HTTP request
+  does not leave a queue without its job.
+  Tests: `TestSearchNowDuringARoundKeepsTheHourlyBudget`, `TestSearchNowCancelDuringADrain`,
+  `TestSearchNowSkipsARowAlreadyBeingSearched`, `TestWantedListSearchBlockedBehindLoopOff`,
+  `TestSearchNowAllPacedByTheHourlyBudget`, `TestSearchNowSearchesARecentlySearchedRow`,
   `TestSearchNowCutoffAndSeasons`, `TestSearchNowDropsRequestsThatAskForNothing`, `TestSearchNowSkipsWithReasons`,
   `TestSearchNowRefusedWhileDownloadsAreOff`, `TestSearchNowDuplicateAndClear`,
   `TestSearchNowDrainsAfterAddTimeSearches`, `TestSearchNowScheduledAtStart`, `TestWantedListSearchNowQueue`,

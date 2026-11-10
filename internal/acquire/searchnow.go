@@ -22,9 +22,16 @@ import (
 //
 // Order under the one budget: add-time searches (DrainFollowSearches), then Search now, then the loop's own
 // selection. A request does not consult again_after: the user asked. It is deleted when its search starts, and when
-// it asks for nothing any more (imported meanwhile, a download in flight, unmonitored, the library not active or
-// not grabbing). A search that fails is recorded on its run and not repeated from the request. While router.enabled
-// is false nothing is accepted and a drain drops what is queued, as it does for add-time searches.
+// it asks for nothing any more (imported meanwhile, a download in flight, a search of it already queued or running,
+// unmonitored, the library not active or not grabbing). A search that fails is recorded on its run and not repeated
+// from the request. While router.enabled is false nothing is accepted and a drain drops what is queued, as it does
+// for add-time searches.
+//
+// The order above holds inside a wanted round, which runs the two drains before its own selection. A request and
+// JobSearchNow drain Search now only, and a re-search after a failure may take a slot of the hour that frees while
+// requests wait: every consumer checks and spends the hour under one lock (drainMu), but nothing arbitrates between
+// them. Cancel (ClearSearchNow) stops every request whose search has not started; a drain claims each request by
+// deleting it just before it starts that search, and a search that has started stays started.
 
 // JobSearchNow drains the Search now requests and schedules itself again while some remain.
 const JobSearchNow = "acquire.searchnow"
@@ -63,6 +70,7 @@ const (
 	skipNotActive = "the library is not active"
 	skipGrabOff   = "downloads are off for this library"
 	skipNothing   = "nothing of it is wanted now"
+	skipInFlight  = "a download for it is in progress"
 )
 
 type searchRequest struct {
@@ -141,8 +149,12 @@ func (a *Acquirer) RequestSearchNowAll(ctx context.Context, q WantedQuery) (*Sea
 	out := &SearchNowResult{Skipped: []SearchNowSkip{}}
 	var reqs []searchRequest
 	for _, row := range rows {
-		if !a.pol.Grabs(row.Version) {
-			out.Skipped = append(out.Skipped, SearchNowSkip{TitleID: row.TitleID, Version: row.Version, Reason: skipGrabOff})
+		if row.SearchBlocked != "" {
+			why := skipGrabOff
+			if row.SearchBlocked == "in_flight" {
+				why = skipInFlight
+			}
+			out.Skipped = append(out.Skipped, SearchNowSkip{TitleID: row.TitleID, Version: row.Version, Reason: why})
 			continue
 		}
 		reqs = append(reqs, searchRequest{titleID: row.TitleID, key: row.Version, reason: q.Only, season: seasonOf(row.Season)})
@@ -170,6 +182,9 @@ func (a *Acquirer) queueSearchNow(ctx context.Context, reqs []searchRequest, out
 			return nil, err
 		}
 	}
+	// The requests are stored: draining and scheduling them no longer depend on the caller (a cancelled HTTP request
+	// must not leave a queue without its job).
+	ctx = context.WithoutCancel(ctx)
 	var err error
 	if out.Started, err = a.DrainSearchNow(ctx); err != nil {
 		return nil, err
@@ -242,21 +257,29 @@ func (a *Acquirer) DrainSearchNow(ctx context.Context) (int, error) {
 		if used+started >= a.set.PerHour {
 			break
 		}
+		if a.testHook != nil {
+			a.testHook("request")
+		}
 		ready, err := a.searchNowReady(ctx, r)
+		if err != nil && ctx.Err() != nil {
+			return started, ctx.Err()
+		}
+		// Claim the request by deleting it: one cancelled since the queue was read is gone and does not start.
+		res, derr := a.st.Writer().ExecContext(ctx, `DELETE FROM search_request WHERE id = ?`, r.id)
+		if derr != nil {
+			return started, derr
+		}
+		if n, _ := res.RowsAffected(); n == 0 {
+			continue
+		}
 		if err == nil && len(ready) > 0 {
 			if err = a.startGroup(ctx, SourceWanted, 0, ready, ""); err == nil {
 				started++
 			}
 		}
 		if err != nil {
-			if ctx.Err() != nil {
-				return started, ctx.Err()
-			}
 			// Not kept: the row shows no search and the user can ask again.
 			a.log.Warn("search now request dropped", "title", r.titleID, "version", r.key, "reason", r.reason, "err", err)
-		}
-		if _, err := a.st.Writer().ExecContext(ctx, `DELETE FROM search_request WHERE id = ?`, r.id); err != nil {
-			return started, err
 		}
 	}
 	if started > 0 {
@@ -266,7 +289,8 @@ func (a *Acquirer) DrainSearchNow(ctx context.Context) (int, error) {
 }
 
 // searchNowReady are the targets a request still asks for: none when its library is not active or not grabbing, when
-// nothing of it is wanted any more, or when a download for it is in flight.
+// nothing of it is wanted any more, or when a download for it is in flight or a search of it is already queued or
+// running (an add-time search of the same row started earlier in the round).
 func (a *Acquirer) searchNowReady(ctx context.Context, r searchRequest) ([]target, error) {
 	if vp := a.pol.Versions[r.key]; vp == nil || vp.Mode != policy.ModeActive || !a.pol.Grabs(r.key) {
 		return nil, nil
@@ -281,7 +305,15 @@ func (a *Acquirer) searchNowReady(ctx context.Context, r searchRequest) ([]targe
 		if err != nil {
 			return nil, err
 		}
-		if !busy {
+		if busy {
+			continue
+		}
+		var active int
+		if err := a.st.Reader().QueryRowContext(ctx, `SELECT COUNT(*) FROM acquire_run WHERE version_id = ? AND target = ?
+			AND state IN ('queued', 'searching')`, t.versionID, t.name).Scan(&active); err != nil {
+			return nil, err
+		}
+		if active == 0 {
 			ready = append(ready, t)
 		}
 	}
@@ -347,7 +379,8 @@ func (a *Acquirer) HandleSearchNow(ctx context.Context) error {
 	return errors.Join(err, a.ScheduleSearchNow(ctx))
 }
 
-// ClearSearchNow drops every queued request (searches already started are not touched) and reports how many.
+// ClearSearchNow drops every queued request and reports how many. A drain in progress starts none of them (it claims
+// each request before its search); searches already started are not touched.
 func (a *Acquirer) ClearSearchNow(ctx context.Context) (int, error) {
 	res, err := a.st.Writer().ExecContext(ctx, `DELETE FROM search_request`)
 	if err != nil {

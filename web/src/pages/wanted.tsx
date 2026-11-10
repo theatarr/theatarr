@@ -70,9 +70,10 @@ function Waiting({ row, enabled, missing, state, off }: { row: WantedRow; enable
   }
 }
 
-/** Why a row cannot be searched now ("" when it can): its search could only be refused or dropped. */
+/** Why a row cannot be searched now ("" when it can): its search could only be refused or dropped. The server names
+ * it apart from the loop's waiting reason, which says "loop off" first. */
 function blocked(row: WantedRow): string {
-  switch (row.waiting) {
+  switch (row.search_blocked) {
     case "grab_off": return "Downloads are off for this library";
     case "downloads_off": return "New downloads are off";
     case "in_flight": return "A download for it is in progress";
@@ -155,7 +156,7 @@ export function WantedPage() {
       </p> : null}
       <div className="flex flex-wrap items-center gap-2" aria-label="Search now">
         <Button variant="outline" size="sm" disabled={!chosen.length || search.isPending} onClick={() => request({ body: { only, items: chosen.map(rowItem) }, count: chosen.length, title: `Search ${chosen.length} selected` }, chosen.length > left)}>Search selected ({chosen.length})</Button>
-        <Button variant="outline" size="sm" disabled={!d.total || !d.downloads_enabled || search.isPending} title={d.downloads_enabled ? undefined : "New downloads are off"} onClick={() => request({ body: { only, all: { ...(version ? { version } : {}), ...(waiting ? { waiting: waiting as NonNullable<WantedSearchBody["all"]>["waiting"] } : {}) } }, count: d.total, title: `Search all ${d.total} ${what}${version ? ` in ${label(version)}` : ""}` }, true)}>Search all {d.total} {what}{version ? ` in ${label(version)}` : ""}</Button>
+        <Button variant="outline" size="sm" disabled={!d.searchable || !d.downloads_enabled || search.isPending} title={d.downloads_enabled ? undefined : "New downloads are off"} onClick={() => request({ body: { only, all: { ...(version ? { version } : {}), ...(waiting ? { waiting: waiting as NonNullable<WantedSearchBody["all"]>["waiting"] } : {}) } }, count: d.searchable, title: `Search all ${d.searchable} ${what}${version ? ` in ${label(version)}` : ""}` }, true)}>Search all {d.searchable} {what}{version ? ` in ${label(version)}` : ""}</Button>
         {search.data && !ask ? <span role="status" className="text-[13px] text-[var(--ink-2)]" data-testid="search-now-result">{searchNowWords(search.data)}</span> : null}
         {(search.error && !ask) || clear.error ? <span role="alert" className="text-[13px] text-[var(--bad-ink)]">{errText(search.error ?? clear.error)}</span> : null}
       </div>
@@ -180,7 +181,7 @@ export function WantedPage() {
     </div> : null}
     {ask && d ? <ConfirmDialog danger={false} testid="search-now-confirm" busy={search.isPending} error={search.error} onClose={() => setAsk(undefined)} onConfirm={() => send(ask.body)}
       scope={{ title: ask.title, confirm: `Queue ${plural(ask.count, "search")}`, does: [`Queue ${plural(ask.count, "search")}; they start oldest first as the hourly limit allows`], keeps: ["The hourly limit: no search goes around it", "Searches that already started"] }}>
-      <p data-testid="search-now-estimate">{plural(ask.count, "search")}. Up to {d.per_hour} start each hour ({d.searched_last_hour} used this hour){waitingHours > 0 ? `, so this takes about ${waitingHours} hour${waitingHours === 1 ? "" : "s"}` : ", so they start now"}. Automatic and repair searches wait behind them. Raise <em>Searches per hour</em> in <Link className="text-primary hover:underline" to={settingHref("router", "wanted.per_hour") ?? "/admin/settings/downloads"}>Settings › Download clients</Link> to go faster.</p>
+      <p data-testid="search-now-estimate">{plural(ask.count, "search")}. Up to {d.per_hour} start each hour ({d.searched_last_hour} used this hour){waitingHours > 0 ? `, so this takes about ${waitingHours} hour${waitingHours === 1 ? "" : "s"}` : ", so they start now"}. While they wait, each automatic search round starts them before its own searches. Raise <em>Searches per hour</em> in <Link className="text-primary hover:underline" to={settingHref("router", "wanted.per_hour") ?? "/admin/settings/downloads"}>Settings › Download clients</Link> to go faster.</p>
     </ConfirmDialog> : null}
   </div>;
 }

@@ -2,6 +2,7 @@ package acquire
 
 import (
 	"errors"
+	"fmt"
 	"testing"
 	"time"
 
@@ -272,5 +273,123 @@ func TestSearchNowScheduledAtStart(t *testing.T) {
 	e.drain()
 	if got := e.searches(); len(got) != 1 || got[0].Title != "One" || e.searchNowJobs() != 0 {
 		t.Fatalf("searches %+v, %d jobs", got, e.searchNowJobs())
+	}
+}
+
+// Every consumer of the hourly budget checks and spends it under one lock: a request that arrives while a wanted
+// round is between its count and its searches waits for the round, so per_hour holds.
+func TestSearchNowDuringARoundKeepsTheHourlyBudget(t *testing.T) {
+	t.Parallel()
+	e := newEnv(t, true, &policy.Wanted{PerHour: 1})
+	e.accept = false
+	done := make(chan error, 1)
+	e.a.testHook = func(point string) {
+		if point != "round" {
+			return
+		}
+		go func() {
+			_, err := e.a.RequestSearchNow(e.ctx, OnlyMissing, []SearchNowItem{{TitleID: 2, Version: "movie"}})
+			done <- err
+		}()
+		select {
+		case err := <-done:
+			t.Errorf("the request did not wait for the round: %v", err)
+			done <- err
+		case <-time.After(200 * time.Millisecond):
+		}
+	}
+	sum, err := e.a.Wanted(e.ctx)
+	if err != nil || sum.Queued != 1 {
+		t.Fatalf("round %+v %v", sum, err)
+	}
+	if err := <-done; err != nil {
+		t.Fatal(err)
+	}
+	if runs, left := e.count(`SELECT COUNT(*) FROM acquire_run`), e.count(`SELECT COUNT(*) FROM search_request`); runs != 1 || left != 1 {
+		t.Fatalf("%d runs with per_hour 1, %d requests waiting", runs, left)
+	}
+}
+
+// Cancel during a bulk drain stops every request whose search has not started; the one already started stays.
+func TestSearchNowCancelDuringADrain(t *testing.T) {
+	t.Parallel()
+	e := newEnv(t, true, loopOff(10))
+	e.accept = false
+	e.request(1, "movie", OnlyMissing, -1)
+	e.request(2, "movie", OnlyMissing, -1)
+	e.request(10, "series", OnlyMissing, 2)
+	seen := 0
+	e.a.testHook = func(point string) {
+		if seen++; point == "request" && seen == 2 {
+			if n, err := e.a.ClearSearchNow(e.ctx); err != nil || n != 2 {
+				t.Errorf("clear %d %v", n, err)
+			}
+		}
+	}
+	n, err := e.a.DrainSearchNow(e.ctx)
+	if err != nil || n != 1 {
+		t.Fatalf("drain started %d %v", n, err)
+	}
+	if runs, first := e.count(`SELECT COUNT(*) FROM acquire_run`), e.count(`SELECT COUNT(*) FROM acquire_run WHERE title_id = 1`); runs != 1 || first != 1 {
+		t.Fatalf("%d runs, %d for the first request", runs, first)
+	}
+}
+
+// A queued request whose row an add-time search has just started in the same round is dropped, not searched twice.
+func TestSearchNowSkipsARowAlreadyBeingSearched(t *testing.T) {
+	t.Parallel()
+	e := newEnv(t, true, loopOff(5))
+	e.accept = false
+	e.request(1, "movie", OnlyMissing, -1)
+	e.exec(`INSERT INTO follow_search_intent (title_id, version_key, all_items, created_at, updated_at)
+		VALUES (1, 'movie', 1, 0, 0)`)
+	sum, err := e.a.Wanted(e.ctx)
+	if err != nil || sum.AddTime != 1 || sum.SearchNow != 0 {
+		t.Fatalf("round %+v %v", sum, err)
+	}
+	if runs, left := e.count(`SELECT COUNT(*) FROM acquire_run`), e.count(`SELECT COUNT(*) FROM search_request`); runs != 1 || left != 0 {
+		t.Fatalf("%d runs, %d requests left", runs, left)
+	}
+}
+
+// With the loop off every row waits as loop_off; what stops a search by hand is reported apart from it, and "Search
+// all" queues only the rows without such a blocker.
+func TestWantedListSearchBlockedBehindLoopOff(t *testing.T) {
+	t.Parallel()
+	e := newEnv(t, true, loopOff(10))
+	e.accept = false
+	e.pol.Versions["movie-shadow"].Mode = policy.ModeActive
+	e.pol.Versions["movie-shadow"].Grab = false
+	e.exec(`INSERT INTO download (title_id, version_id, version_key, info_hash, release_title, indexer, state,
+		created_at, updated_at) VALUES (2, 102, 'movie', ?, 'x', 'pub', 'downloading', 0, 0)`, h("f"))
+	list, err := e.a.WantedList(e.ctx, WantedQuery{Only: OnlyMissing})
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := map[string]string{"1/movie": "", "2/movie": "in_flight", "1/movie-shadow": "grab_off", "2/movie-shadow": "grab_off"}
+	searchable := 0
+	for _, row := range list.Items {
+		if row.Waiting != "loop_off" {
+			t.Errorf("row %+v", row)
+		}
+		if w, ok := want[fmt.Sprintf("%d/%s", row.TitleID, row.Version)]; ok && row.SearchBlocked != w {
+			t.Errorf("%d/%s: blocked %q, want %q", row.TitleID, row.Version, row.SearchBlocked, w)
+		}
+		if row.SearchBlocked == "" {
+			searchable++
+		}
+	}
+	// Movie 1 and the series' three rows.
+	if list.Searchable != 4 || searchable != 4 || list.Total != 7 {
+		t.Fatalf("searchable %d (%d rows), total %d", list.Searchable, searchable, list.Total)
+	}
+	res, err := e.a.RequestSearchNowAll(e.ctx, WantedQuery{Only: OnlyMissing})
+	if err != nil || res.Queued != 4 || res.Started != 4 || len(res.Skipped) != 3 {
+		t.Fatalf("all %+v %v", res, err)
+	}
+	off := newEnv(t, false, loopOff(10))
+	if list, err = off.a.WantedList(off.ctx, WantedQuery{Only: OnlyMissing}); err != nil || list.Searchable != 0 ||
+		list.Items[0].SearchBlocked != "downloads_off" {
+		t.Fatalf("downloads off %+v %v", list, err)
 	}
 }

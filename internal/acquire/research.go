@@ -58,6 +58,9 @@ func (a *Acquirer) handleResearch(ctx context.Context, j *jobs.Job) error {
 
 // Research starts the searches a router.ResearchRequest asks for, within the wanted loop's pacing.
 func (a *Acquirer) Research(ctx context.Context, p router.ResearchRequest) (*ResearchSummary, error) {
+	// The hour is checked and spent under the lock the wanted round and the drains take.
+	a.drainMu.Lock()
+	defer a.drainMu.Unlock()
 	sum := &ResearchSummary{Off: a.researchOff(p.Version, p.Reason)}
 	vp := a.pol.Versions[p.Version]
 	if sum.Off != "" && p.Reason == router.ReasonReconcile {

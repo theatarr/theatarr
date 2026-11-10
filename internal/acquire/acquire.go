@@ -122,9 +122,12 @@ type Acquirer struct {
 	set               policy.WantedSettings
 	log               *slog.Logger
 	now               func() time.Time
-	// drainMu serialises DrainFollowSearches (after an import and in a wanted round) and DrainSearchNow, so no target
-	// starts twice.
+	// drainMu serialises everything that checks and spends router.wanted.per_hour: DrainFollowSearches,
+	// DrainSearchNow, a wanted round's own searches and Research. So no target starts twice and two of them never
+	// spend the same slot of the hour.
 	drainMu sync.Mutex
+	// testHook, when set, is called at named points of a round and a drain (tests).
+	testHook func(point string)
 }
 
 // New builds the acquirer.
