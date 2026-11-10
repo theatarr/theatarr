@@ -27,7 +27,7 @@ claim of Sonarr v5 API parity. Recyclarr has no web pages; its table maps the CL
 | Settings › Custom Formats | Admin › Settings › Custom formats — `/admin/settings/formats` | Shared definitions; scores are edited on profiles. |
 | Settings › Indexers | Admin › Settings › Indexers — `/admin/settings/indexers` | Built-in sources, native catalog and Torznab feeds coexist; each library chooses its feeds. |
 | Settings › Download Clients | Admin › Settings › Download clients — `/admin/settings/downloads` | Debrid providers are direct; a decypharr-style debrid client goes under Other clients (seedbox clients are not supported yet). Allow new downloads remains explicit. |
-| Settings › Import Lists | **no equivalent** | Series import lists are not supported; list intake is limited to TMDb movie lists through the Radarr-compatible API. |
+| Settings › Import Lists | **no equivalent for series** | Series import lists are not supported. TMDb movie lists live under Library › Collections › Lists (`/collections/lists`). |
 | Settings › Connect | Admin › Settings › Notifications — `/admin/settings/notifications` | Webhook, Discord and ntfy targets and Send notifications; Plex lives under Plex & playback. |
 | Settings › Metadata | **not needed** | No NFO/sidecar consumer editor in this debrid/Plex workflow; metadata services live in Settings › Metadata & artwork. |
 | Settings › Tags | **not needed** | No tag-based routing page; library indexer lists and per-indexer provider allowlists make routing explicit. |
@@ -44,8 +44,8 @@ claim of Sonarr v5 API parity. Recyclarr has no web pages; its table maps the CL
 | Activity › Queue | Activity › Queue — `/activity` | Downloads and imports; each action follows the account's permissions. |
 | Activity › History | Activity › History — `/activity/history` | Grabs, imports, failures and search decisions; admin decision links explain outcomes. |
 | Activity › Blocklist | Activity › Blocklist — `/activity/blocklist` | Requires See files; provider deletes remain separate. |
-| Wanted › Missing | Wanted › Missing — `/wanted` | Admin-only read-only automatic queue with waiting reasons; no Search all button. |
-| Wanted › Cutoff Unmet | Wanted › Cutoff unmet — `/wanted/cutoff` | Read-only upgrade queue; library and global gates remain visible. |
+| Wanted › Missing | Wanted › Missing — `/wanted` | Admin-only automatic queue with waiting reasons. **Search now** for a row, the selection or the whole tab queues searches under the hourly limit. |
+| Wanted › Cutoff Unmet | Wanted › Cutoff unmet — `/wanted/cutoff` | Upgrade queue with the same **Search now** actions; library and global gates remain visible. |
 
 ## Radarr
 
@@ -54,7 +54,7 @@ claim of Sonarr v5 API parity. Recyclarr has no web pages; its table maps the CL
 | Movies | Library › Movies — `/movies` | Multiple libraries per movie. |
 | Movies › Add New | Search — `/search` | Choose libraries when adding. |
 | Movies › Import Library | Admin › Advanced › Sonarr/Radarr migration › Migrate — `/admin/advanced/arr/migrate` | Migrate arr inventory into shadow mode; Wanted › Manual import (`/wanted/manual-import`) handles files. |
-| Movies › Collections | Library › Collections — `/collections` | Managers and admins. Targets are libraries; the arrs' monitored collections are carried over at each Radarr import. |
+| Movies › Collections | Library › Collections — `/collections` | Managers and admins. **Add collection** searches TMDb; targets are libraries; the arrs' monitored collections are carried over at each Radarr import. |
 | Movies › Discover | Home — `/` | Discovery rows and search share one library for every user. |
 | Calendar | Calendar — `/calendar` | Movies and episodes together. |
 | Settings | Admin › Settings — `/admin/settings` | Search by task or an arr page name. |
@@ -64,7 +64,7 @@ claim of Sonarr v5 API parity. Recyclarr has no web pages; its table maps the CL
 | Settings › Custom Formats | Admin › Settings › Custom formats — `/admin/settings/formats` | Shared definitions; scores are edited on profiles. |
 | Settings › Indexers | Admin › Settings › Indexers — `/admin/settings/indexers` | Built-in sources, native catalog and Torznab feeds coexist; each library chooses its feeds. |
 | Settings › Download Clients | Admin › Settings › Download clients — `/admin/settings/downloads` | Debrid providers are direct; a decypharr-style debrid client goes under Other clients (seedbox clients are not supported yet). Allow new downloads remains explicit. |
-| Settings › Import Lists | **no separate page** | The Radarr-compatible API supports TMDb movie lists. Settings › Metadata & artwork › Refresh schedules (`/admin/settings/metadata#refresh`) controls timing only. |
+| Settings › Import Lists | Library › Collections › Lists — `/collections/lists` | Managers and admins. TMDb movie lists only: add, edit, sync now and delete; lists made through the Radarr-compatible API show here too. Settings › Metadata & artwork › Refresh schedules (`/admin/settings/metadata#refresh`) controls timing. |
 | Settings › Connect | Admin › Settings › Notifications — `/admin/settings/notifications` | Webhook, Discord and ntfy targets and Send notifications; Plex lives under Plex & playback. |
 | Settings › Metadata | **not needed** | No NFO/sidecar consumer editor in this debrid/Plex workflow; metadata services live in Settings › Metadata & artwork. |
 | Settings › Tags | **not needed** | No tag-based routing page; library indexer lists and per-indexer provider allowlists make routing explicit. |
@@ -79,8 +79,8 @@ claim of Sonarr v5 API parity. Recyclarr has no web pages; its table maps the CL
 | Activity › Queue | Activity › Queue — `/activity` | Downloads and imports; each action follows the account's permissions. |
 | Activity › History | Activity › History — `/activity/history` | Grabs, imports, failures and search decisions; admin decision links explain outcomes. |
 | Activity › Blocklist | Activity › Blocklist — `/activity/blocklist` | Requires See files; provider deletes remain separate. |
-| Wanted › Missing | Wanted › Missing — `/wanted` | Admin-only read-only automatic queue with waiting reasons; no Search all button. |
-| Wanted › Cutoff Unmet | Wanted › Cutoff unmet — `/wanted/cutoff` | Read-only upgrade queue; library and global gates remain visible. |
+| Wanted › Missing | Wanted › Missing — `/wanted` | Admin-only automatic queue with waiting reasons. **Search now** for a row, the selection or the whole tab queues searches under the hourly limit. |
+| Wanted › Cutoff Unmet | Wanted › Cutoff unmet — `/wanted/cutoff` | Upgrade queue with the same **Search now** actions; library and global gates remain visible. |
 
 ## Prowlarr
 

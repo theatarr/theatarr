@@ -55,7 +55,7 @@ events it gets, or turn on the `native` option for Theatarr's own events. Then t
 
 - **No published image yet.** Build the image from the repository ([quickstart.md](quickstart.md)).
 - **No update notice.** Theatarr does not check for new versions; `theatarr version` prints the build you run.
-- **Import lists.** Only TMDb movie lists, created through the Radarr-compatible API. There is no settings page for
-  lists and no series lists.
+- **Import lists.** Only TMDb movie lists (**Collections › Lists**, or the Radarr-compatible API). There are no
+  series lists and no other list providers yet.
 - **Tags.** There is no tag-based routing; each library lists its indexers and providers instead
   ([arr-map.md](arr-map.md)).
