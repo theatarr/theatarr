@@ -123,6 +123,11 @@ func yamlValue(v reflect.Value) (any, error) {
 			if name == "" {
 				continue
 			}
+			// An omitempty field at its zero value is left out, as the policy files leave it out: a build from
+			// before the field existed can still load the section.
+			if _, opts, _ := strings.Cut(v.Type().Field(i).Tag.Get("yaml"), ","); strings.Contains(opts, "omitempty") && v.Field(i).IsZero() {
+				continue
+			}
 			value, err := yamlValue(v.Field(i))
 			if err != nil {
 				return nil, err
