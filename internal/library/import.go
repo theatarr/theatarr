@@ -361,8 +361,9 @@ func (l *Library) importDownload(ctx context.Context, d *importDownload, dryRun 
 		}
 		zurgListed = ok
 	}
-	// decypharr's name for the hash goes first; the names tried on any mount follow. An index that cannot be read
-	// says nothing about the hash's folder: the import waits as for a folder that is not there yet.
+	// The folder is the one decypharr names for the hash; a hash it does not list is looked for under the names
+	// tried on any mount. An index that cannot be read says nothing about the hash's folder: the import waits as
+	// for a folder that is not there yet.
 	decyListed := false
 	if l.decy != nil && d.InfoHash != "" && !sourced && len(d.Manual) == 0 {
 		dnames, known := l.decypharrNames(ctx, d.InfoHash, l.justReady(d))
@@ -375,8 +376,10 @@ func (l *Library) importDownload(ctx context.Context, d *importDownload, dryRun 
 			}
 			return plan, nil
 		}
-		names = withDecypharrNames(dnames, names)
-		decyListed = len(dnames) > 0
+		if decyListed = len(dnames) > 0; decyListed {
+			// Only the folders decypharr names for the hash: a folder another name finds is another torrent's.
+			names = dnames
+		}
 	}
 	// decypharr makes no "name {hash6}" folders and serves same-named torrents from one folder, so a bare name the
 	// registry records for another torrent is still this one's folder there.
@@ -489,6 +492,7 @@ func (l *Library) importDownload(ctx context.Context, d *importDownload, dryRun 
 	// attempt, now that the folder is found. A client's explicit path or files are its choice and are not filtered;
 	// a download client's completed download is.
 	var listed fileList
+	var unlisted []string // the files the list skipped
 	if l.decy != nil && len(d.Manual) == 0 && (!sourced || d.Client != "") {
 		listed = l.downloadFiles(ctx, d.InfoHash, d.Provider, d.TorrentID, d.Client)
 	}
@@ -520,9 +524,15 @@ func (l *Library) importDownload(ctx context.Context, d *importDownload, dryRun 
 			}
 		}
 		if listed != nil && !listed.has(filepath.Base(f.Rel), f.Size) {
-			// Another torrent's file in the shared folder: skipped, not read.
-			pf.Reason = unlistedReason(filepath.Base(f.Rel))
-			plan.Rejected = append(plan.Rejected, pf)
+			// Another torrent's file in the shared folder: skipped and not read. It is no verdict on the release,
+			// so it is not among the rejected files the guard's outcome is read from.
+			unlisted = append(unlisted, f.Rel)
+			continue
+		}
+		if l.decy != nil && dryRun && slices.Contains(unreadyStates, d.State) {
+			// A read through decypharr can make it replace the torrent of a download the router still polls.
+			pf.Reason = "probe: not read: the download is not ready"
+			plan.Files = append(plan.Files, pf)
 			continue
 		}
 		res, perr := l.mount.ProbeFile(ctx, f.Path, l.set.ProbeMaxBytes, l.probe)
@@ -537,23 +547,16 @@ func (l *Library) importDownload(ctx context.Context, d *importDownload, dryRun 
 		plan.Files = append(plan.Files, pf)
 	}
 
-	if listed != nil && len(plan.Files) == 0 && !sourced && !decyListed {
-		// decypharr does not list the hash yet (it reads a debrid's torrents every few minutes) and the folder a
-		// name found holds none of the download's files: another torrent of the same name. The download's own
-		// files show in it once decypharr lists the hash, so the import waits as for a folder that is not there.
-		plan.Waiting = true
-		if !dryRun {
-			if err := l.markWaiting(ctx, d); err != nil {
-				return nil, err
-			}
-		}
-		return plan, nil
-	}
-	if listed != nil && len(plan.Files) == 0 {
+	if len(unlisted) > 0 && len(plan.Files) == 0 {
 		// The list exists, the folder is there and no file in it is the download's: as when zurg does not confirm
 		// the files, held for review and never failed or blocklisted.
 		return l.holdForReview(ctx, d, plan, dryRun, "decypharr's folder "+filepath.Base(folder)+
-			" holds none of the download's files ("+plan.Rejected[0].Reason+")")
+			" holds none of the download's files ("+unlistedReason(unlisted[0])+")")
+	}
+
+	if len(unlisted) > 0 {
+		l.log.Info("library: files of decypharr's folder that are not the download's were skipped", "download", id,
+			"folder", filepath.Base(folder), "files", unlisted)
 	}
 
 	// 3. Which file goes where.

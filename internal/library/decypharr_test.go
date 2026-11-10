@@ -12,6 +12,7 @@ import (
 
 	"github.com/theatarr/theatarr/internal/gateway"
 	"github.com/theatarr/theatarr/internal/library/decypharrtest"
+	"github.com/theatarr/theatarr/internal/library/probe"
 	"github.com/theatarr/theatarr/internal/policy"
 )
 
@@ -58,9 +59,10 @@ func (e *env) movieTarget() string {
 	return tg
 }
 
-// TestImportDecypharrFolder: on decypharr's mount the release folder is decypharr's name for the download's hash,
-// tried before the names any mount is tried with. A hash decypharr does not list yet, or a folder the mount does not
-// show yet, waits; so does an index that cannot be read, even when a folder of the download's own name is there.
+// TestImportDecypharrFolder: on decypharr's mount the release folder is decypharr's name for the download's hash and
+// no other; a hash decypharr does not list is looked for under the names any mount is tried with. A folder the mount
+// does not show yet waits; so does an index that cannot be read, even when a folder of the download's own name is
+// there.
 func TestImportDecypharrFolder(t *testing.T) {
 	t.Parallel()
 	torrent := decypharrtest.Torrent{Hash: hashA, Name: decyFolder, Provider: "realdebrid"}
@@ -110,6 +112,23 @@ func TestImportDecypharrFolder(t *testing.T) {
 		}
 		if forgot != 1 {
 			t.Errorf("decypharr lists the hash: the mount's cached root listing is cleared once, got %d", forgot)
+		}
+	})
+
+	t.Run("listed: never another folder of the download's name", func(t *testing.T) {
+		e := newEnv(t, true, policy.ModeActive)
+		e.release(movieRelease, map[string]float64{"movie.mkv": 7000}) // an older torrent's folder
+		e.download(1, "movie-remux", 1, 10, movieRelease, movieRelease, "[]")
+		e.withDecypharr(torrent)
+		plan, err := e.lib.Import(e.ctx, 1, false)
+		if err != nil || !plan.Waiting {
+			t.Fatalf("plan %+v, err %v", plan, err)
+		}
+		if s := e.one(`SELECT last_error FROM library_import WHERE download_id = 1`); s != notOnMount {
+			t.Errorf("waits with %q", s)
+		}
+		if e.movieTarget() != "" {
+			t.Error("imported from a folder decypharr does not name for the hash")
 		}
 	})
 
@@ -209,8 +228,11 @@ func TestImportDecypharrFileList(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		if len(plan.Links) != 0 || len(plan.Rejected) != 1 || !strings.Contains(plan.Rejected[0].Reason, "decypharr") {
+		if len(plan.Links) != 0 || len(plan.Rejected) != 0 {
 			t.Fatalf("plan %+v", plan)
+		}
+		if s := e.one(`SELECT last_error FROM library_import WHERE download_id = 1`); !strings.Contains(s, "holds none of the download's files") {
+			t.Errorf("held with %q", s)
 		}
 		// As a file zurg does not confirm: held for review, the download neither failed nor blocklisted.
 		if s := e.one(`SELECT state FROM download WHERE id = 1`); s != "ready" {
@@ -224,32 +246,72 @@ func TestImportDecypharrFileList(t *testing.T) {
 		}
 	})
 
-	t.Run("not listed yet: another torrent's folder of the same name waits", func(t *testing.T) {
+	t.Run("not listed: another torrent's folder of the same name is held", func(t *testing.T) {
 		e := newEnv(t, true, policy.ModeActive)
 		e.release(movieRelease, map[string]float64{"movie.mkv": 7000})
 		e.download(1, "movie-remux", 1, 10, movieRelease, movieRelease, "[]")
-		srv := e.withDecypharr()
+		e.withDecypharr()
 		e.listFiles(TorrentFile{Name: "movie.mkv", Size: 6})
 		plan, err := e.lib.Import(e.ctx, 1, false)
-		if err != nil || !plan.Waiting || len(plan.Links) != 0 {
+		if err != nil || plan.Waiting || len(plan.Links) != 0 {
 			t.Fatalf("plan %+v, err %v", plan, err)
 		}
-		if s := e.one(`SELECT state || ' ' || last_error FROM library_import WHERE download_id = 1`); s != "waiting_mount "+notOnMount {
-			t.Errorf("library import %s", s)
+		// The one stop: a list, a folder, no file of the list in it. Held as a zurg mismatch is, with no timer.
+		if s := e.one(`SELECT li.state || ' ' || d.state FROM library_import li JOIN download d ON d.id = li.download_id`); s != "rejected ready" {
+			t.Errorf("import and download: %s", s)
 		}
-		// decypharr lists the hash under that name and the mount shows the download's file: imported.
-		srv.Set(func(s *decypharrtest.Server) {
-			s.Torrents = []decypharrtest.Torrent{{Hash: hashA, Name: movieRelease, Provider: "realdebrid"}}
-		})
-		e.now = e.now.Add(2 * time.Minute)
-		if err := os.WriteFile(filepath.Join(e.mount, "__all__", movieRelease, "movie.mkv"), []byte("video!"), 0o644); err != nil {
+		if n := e.one(`SELECT COUNT(*) FROM router_blocklist`); n != "0" {
+			t.Errorf("blocklisted %s", n)
+		}
+	})
+
+	t.Run("pack: a skipped file is no verdict on the release", func(t *testing.T) {
+		// Grabbed for E02. E01 is the download's file but not an episode it was grabbed for; E02 in the shared folder
+		// is another torrent's (another size). No file failed a guard: held as unmatched, not failed or blocklisted.
+		e := newEnv(t, true, policy.ModeActive)
+		folder := "Pale.Ferry.S01.2160p.WEB-DL.DDP5.1.H.265-TILLER"
+		e.release(folder, map[string]float64{"Show.S01E01.2160p.WEB-DL.DDP5.1.H.265-GRP.mkv": 2700,
+			"Show.S01E02.2160p.WEB-DL.DDP5.1.H.265-GRP.mkv": 2650})
+		rel := "Show.S01.2160p.WEB-DL.DDP5.1.H.265-GRP"
+		e.download(1, "tv", 2, 20, rel, rel, "[202]")
+		e.withDecypharr(decypharrtest.Torrent{Hash: hashA, Name: folder, Provider: "realdebrid"})
+		e.listFiles(TorrentFile{Name: "Show.S01E01.2160p.WEB-DL.DDP5.1.H.265-GRP.mkv", Size: 5},
+			TorrentFile{Name: "Show.S01E02.2160p.WEB-DL.DDP5.1.H.265-GRP.mkv", Size: 50})
+		plan, err := e.lib.Import(e.ctx, 1, false)
+		if err != nil {
 			t.Fatal(err)
 		}
-		if _, err := e.lib.Import(e.ctx, 1, false); err != nil {
+		if len(plan.Links) != 0 || len(plan.Rejected) != 0 {
+			t.Fatalf("plan %+v", plan)
+		}
+		if s := e.one(`SELECT li.state || ' ' || d.state || ' ' || li.last_error FROM library_import li JOIN download d ON d.id = li.download_id`); s != "rejected ready no file matched the download's episodes" {
+			t.Errorf("import and download: %s", s)
+		}
+		if n := e.one(`SELECT COUNT(*) FROM router_blocklist`); n != "0" {
+			t.Errorf("blocklisted %s", n)
+		}
+	})
+
+	t.Run("dry run of a download that is not ready reads no file", func(t *testing.T) {
+		e := newEnv(t, true, policy.ModeActive)
+		e.release(movieRelease, map[string]float64{"movie.mkv": 7000})
+		e.download(1, "movie-remux", 1, 10, movieRelease, movieRelease, "[]")
+		e.withDecypharr()
+		e.exec(`UPDATE download SET state = 'downloading' WHERE id = 1`)
+		var probed int
+		read := e.lib.probe
+		e.lib.probe = func(p string, max int64) (*probe.Result, error) { probed++; return read(p, max) }
+		plan, err := e.lib.Import(e.ctx, 1, true)
+		if err != nil {
 			t.Fatal(err)
 		}
-		if e.movieTarget() == "" {
-			t.Error("not imported once decypharr lists the hash")
+		if probed != 0 || len(plan.Files) != 1 || !strings.Contains(plan.Files[0].Reason, "not ready") {
+			t.Errorf("probed %d, plan %+v", probed, plan)
+		}
+		// Without decypharr the dry run reads the file as before.
+		e.lib.decy = nil
+		if _, err := e.lib.Import(e.ctx, 1, true); err != nil || probed != 1 {
+			t.Errorf("without decypharr: probed %d, %v", probed, err)
 		}
 	})
 
@@ -273,7 +335,7 @@ func TestImportDecypharrFileList(t *testing.T) {
 			paths = append(paths, strings.TrimPrefix(l.Path, e.shows+"/"))
 		}
 		sort.Strings(paths)
-		if len(paths) != 1 || !strings.Contains(paths[0], "S01E01") || len(plan.Rejected) != 1 {
+		if len(paths) != 1 || !strings.Contains(paths[0], "S01E01") || len(plan.Rejected) != 0 {
 			t.Errorf("links %q, rejected %+v", paths, plan.Rejected)
 		}
 		if n := e.one(`SELECT COUNT(*) FROM router_blocklist`); n != "0" {
@@ -355,6 +417,40 @@ func TestRelinkDecypharr(t *testing.T) {
 				t.Errorf("file list read %d times in the sweep", *calls)
 			}
 		})
+	}
+}
+
+// TestRelinkDecypharrListPerTorrent: a sweep reads a file list once per provider torrent, not once per hash: two
+// downloads of one hash under two torrent ids each get their own.
+func TestRelinkDecypharrListPerTorrent(t *testing.T) {
+	t.Parallel()
+	e := newEnv(t, true, policy.ModeActive)
+	e.release(decyFolder, map[string]float64{"movie.mkv": 7000, "extra.mkv": 7000})
+	e.exec(`INSERT INTO content (id, info_hash, name, state, first_seen_at, last_seen_at) VALUES (1, ?, 'Movie.Release', 'present', 0, 0)`, hashA)
+	e.download(1, "movie-remux", 1, 10, movieRelease, "Movie.Release", "[]")
+	e.download(2, "movie-remux", 1, 10, movieRelease, "Movie.Release", "[]")
+	e.exec(`UPDATE download SET provider_torrent_id = 'T' || id`)
+	for i, f := range []string{"movie.mkv", "extra.mkv", "movie.mkv"} {
+		link := filepath.Join(e.movies, "Movie (2001)", "Movie "+string(rune('a'+i))+".mkv")
+		os.MkdirAll(filepath.Dir(link), 0o755)
+		target := filepath.Join(e.mount, "__all__", "Movie.Release", f)
+		if err := os.Symlink(target, link); err != nil {
+			t.Fatal(err)
+		}
+		e.exec(`INSERT INTO link (path, target, title_id, state, download_id, created_at, updated_at) VALUES (?, ?, 1, 'active', ?, 0, 0)`,
+			link, target, i/2+1)
+	}
+	e.withDecypharr(decypharrtest.Torrent{Hash: hashA, Name: decyFolder, Provider: "realdebrid"})
+	calls := map[string]int{}
+	e.lib.files = func(_ context.Context, _, id, _ string) ([]TorrentFile, bool) {
+		calls[id]++
+		return nil, false
+	}
+	if _, err := e.lib.Relink(e.ctx, "movie-remux", false); err != nil {
+		t.Fatal(err)
+	}
+	if len(calls) != 2 || calls["T1"] != 1 || calls["T2"] != 1 {
+		t.Errorf("file lists read: %v", calls)
 	}
 }
 

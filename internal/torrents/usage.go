@@ -437,6 +437,12 @@ func (ix *refIndex) usage(key string, t provider.Torrent) (Usage, map[string]int
 	}
 	if ix.decyOn && ix.decy == nil {
 		reasons = append(reasons, "decypharr's list of torrents could not be read, so the folder it is under is not known")
+	} else if ix.decyOn {
+		// decypharr lists one hash of same-named torrents on a debrid: a hash it does not list may sit in a linked
+		// folder under another name than the provider's.
+		if names, _ := ix.decy.Names(h); len(names) == 0 {
+			reasons = append(reasons, "decypharr does not list it, so the folder it is under is not known")
+		}
 	}
 	reasons = append(reasons, ix.unknown...)
 	if len(reasons) > 0 {

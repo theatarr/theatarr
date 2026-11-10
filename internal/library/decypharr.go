@@ -6,7 +6,6 @@ import (
 	"path"
 	"path/filepath"
 	"slices"
-	"strings"
 )
 
 // decypharr as the mount (library.mount.decypharr, Options.Decypharr), in mount mode: the mount is read as any
@@ -114,7 +113,10 @@ func (l *Library) downloadFiles(ctx context.Context, hash, provider, torrentID, 
 	return fl
 }
 
-// relinkLists are the file lists a relink sweep read, by hash.
+// unreadyStates are the states of a download the router still polls at its provider.
+var unreadyStates = []string{"queued", "adding", "added", "downloading"}
+
+// relinkLists are the file lists a relink sweep read, by provider, torrent id, client and hash.
 type relinkLists map[string]fileList
 
 // relinkHolds reports whether a relink candidate (folder n holding the link's file) is the link's own: with a file
@@ -124,13 +126,14 @@ func (l *Library) relinkHolds(ctx context.Context, db *sql.DB, lists relinkLists
 	if l.decy == nil {
 		return true
 	}
-	fl, ok := lists[hash]
+	var provider, tid, client sql.NullString
+	_ = db.QueryRowContext(ctx, `SELECT d.provider, d.provider_torrent_id, d.client FROM link lk
+		JOIN download d ON d.id = lk.download_id WHERE lk.path = ?`, ml.path).Scan(&provider, &tid, &client)
+	key := provider.String + "\x00" + tid.String + "\x00" + client.String + "\x00" + hash
+	fl, ok := lists[key]
 	if !ok {
-		var provider, tid, client sql.NullString
-		_ = db.QueryRowContext(ctx, `SELECT d.provider, d.provider_torrent_id, d.client FROM link lk
-			JOIN download d ON d.id = lk.download_id WHERE lk.path = ?`, ml.path).Scan(&provider, &tid, &client)
 		fl = l.downloadFiles(ctx, hash, provider.String, tid.String, client.String)
-		lists[hash] = fl
+		lists[key] = fl
 	}
 	if fl == nil {
 		return true
@@ -142,7 +145,7 @@ func (l *Library) relinkHolds(ctx context.Context, db *sql.DB, lists relinkLists
 	return fl.has(filepath.Base(ml.inner), fi.Size())
 }
 
-// withDecypharrNames puts decypharr's names for hash before names, each once.
+// withDecypharrNames puts decypharr's names for hash before a relink's candidates, each once.
 func withDecypharrNames(dnames, names []string) []string {
 	out := slices.Clone(dnames)
 	for _, n := range names {
@@ -154,6 +157,6 @@ func withDecypharrNames(dnames, names []string) []string {
 }
 
 // unlistedReason is why a file of the folder is skipped: it is not in the download's own list.
-func unlistedReason(name string) string {
-	return "decypharr: " + strings.TrimSpace(name) + " is not a file of the download (its name and size are not in the download's file list)"
+func unlistedReason(rel string) string {
+	return "decypharr: " + filepath.Base(rel) + " is not a file of the download (its name and size are not in the download's file list)"
 }
