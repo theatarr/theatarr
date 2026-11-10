@@ -61,14 +61,40 @@ func TestCalendar(t *testing.T) {
 	if len(cal.Items) != 4 {
 		t.Errorf("with unmonitored: %d items", len(cal.Items))
 	}
-	// A series with no air time: its episodes' instants are midnight in the network's zone, a made-up time. The entry
-	// carries the day only.
-	e.exec(`UPDATE series_meta SET air_time = '' WHERE title_id = 3`)
-	cal = CalendarPage{}
-	e.getKey(APIBase+"/calendar?from=2026-11-01&to=2026-11-30", key, &cal)
-	if len(cal.Items) != 3 || cal.Items[1].Date != "2026-11-04" || cal.Items[1].At != nil {
-		t.Errorf("no air time: %+v", cal.Items)
+	// An imported series: no air time in series_meta (or no row at all), yet its episode has a real evening instant.
+	// The entry keeps the moment.
+	evening := time.Date(2026, 11, 5, 2, 0, 0, 0, time.UTC)
+	for _, q := range []string{`UPDATE series_meta SET air_time = '' WHERE title_id = 3`, `DELETE FROM series_meta WHERE title_id = 3`} {
+		e.exec(q)
+		cal = CalendarPage{}
+		e.getKey(APIBase+"/calendar?from=2026-11-01&to=2026-11-30", key, &cal)
+		if len(cal.Items) != 3 || cal.Items[1].Date != "2026-11-04" || cal.Items[1].At == nil || !cal.Items[1].At.Equal(evening) {
+			t.Errorf("imported air time (%s): %+v", q, cal.Items)
+		}
 	}
+	// An instant at midnight of the air date in the series' zone is what the refresh writes for an unknown air time
+	// (here New York, then UTC for a series without a zone): the entry carries the day only. So does a second episode
+	// of that day, which the refresh puts a runtime after the first.
+	e.exec(`INSERT INTO episode (id, title_id, season, number, name, air_date, air_date_utc_at, monitored, created_at,
+		updated_at) VALUES (3, 3, 1, 3, 'Three', '2026-11-04', ?, 1, ?, ?)`,
+		store.Millis(time.Date(2026, 11, 4, 5, 45, 0, 0, time.UTC)), now, now)
+	for _, c := range []struct {
+		zone string
+		at   time.Time
+	}{{"America/New_York", time.Date(2026, 11, 4, 5, 0, 0, 0, time.UTC)}, {"", time.Date(2026, 11, 4, 0, 0, 0, 0, time.UTC)}} {
+		e.exec(`DELETE FROM series_meta WHERE title_id = 3`)
+		if c.zone != "" {
+			e.exec(`INSERT INTO series_meta (title_id, source, time_zone) VALUES (3, 'tmdb', ?)`, c.zone)
+		}
+		e.exec(`UPDATE episode SET air_date_utc_at = ? WHERE id = 1`, store.Millis(c.at))
+		e.exec(`UPDATE episode SET air_date_utc_at = ? WHERE id = 3`, store.Millis(c.at.Add(45*time.Minute)))
+		cal = CalendarPage{}
+		e.getKey(APIBase+"/calendar?from=2026-11-01&to=2026-11-30", key, &cal)
+		if len(cal.Items) != 4 || cal.Items[1].Date != "2026-11-04" || cal.Items[1].At != nil || cal.Items[2].At != nil {
+			t.Errorf("unknown air time (zone %q): %+v", c.zone, cal.Items)
+		}
+	}
+	e.exec(`DELETE FROM episode WHERE id = 3`)
 	e.getKey(APIBase+"/calendar?from=2026-11-01&to=2026-11-30&kind=movie", key, &cal)
 	if len(cal.Items) != 2 {
 		t.Errorf("movies only: %d items", len(cal.Items))

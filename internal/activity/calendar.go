@@ -4,16 +4,19 @@ import (
 	"context"
 	"database/sql"
 	"sort"
-	"strings"
 	"time"
+
+	"github.com/theatarr/theatarr/internal/metadata/tvrefresh"
+	"github.com/theatarr/theatarr/internal/store"
 )
 
 // CalendarItem is one movie release date or one episode air date.
 type CalendarItem struct {
 	// Date is the day, YYYY-MM-DD: the release date, or the episode's air date as the network gives it.
 	Date string
-	// At is the episode's air time in UTC, when the series has an air time (series_meta.air_time). Without one the
-	// stored instant is midnight in the network's zone, a made-up time: zero here, and Date alone is the day.
+	// At is the episode's air time in UTC, when it has a real one. An instant that is midnight of the air date in
+	// the series' zone is what the refresh writes when the air time is unknown (tvrefresh.MidnightAir), a made-up
+	// time: zero here, and Date alone is the day.
 	At time.Time
 	// Kind is movie or episode; Type is theatrical, digital or physical for a movie, episode for an episode.
 	Kind, Type string
@@ -80,7 +83,9 @@ func Calendar(ctx context.Context, db *sql.DB, from, to string, unmonitored bool
 		epMon = ``
 	}
 	rows, err = db.QueryContext(ctx, `SELECT t.id, t.name, COALESCE(t.year, 0), t.anime, t.monitored AND e.monitored,
-		e.id, e.season, e.number, e.name, e.air_date, COALESCE(e.air_date_utc_at, 0), COALESCE(sm.air_time, ''),
+		e.id, e.season, e.number, e.name, e.air_date, COALESCE(e.air_date_utc_at, 0), COALESCE(sm.time_zone, ''),
+		COALESCE((SELECT MIN(x.air_date_utc_at) FROM episode x WHERE x.title_id = e.title_id AND x.season = e.season
+			AND x.air_date = e.air_date), 0),
 		EXISTS (SELECT 1 FROM episode_version_state s WHERE s.episode_id = e.id AND s.state IN ('filled', 'cutoff_met'))
 	FROM episode e JOIN title t ON t.id = e.title_id LEFT JOIN series_meta sm ON sm.title_id = t.id
 	WHERE t.kind = 'series' AND e.air_date IS NOT NULL AND e.air_date >= ? AND e.air_date <= ?`+epMon, from, to)
@@ -89,15 +94,17 @@ func Calendar(ctx context.Context, db *sql.DB, from, to string, unmonitored bool
 	}
 	for rows.Next() {
 		it := CalendarItem{Kind: "episode", Type: "episode", Series: true}
-		var airMs int64
-		var airTime string
+		var airMs, firstMs int64
+		var zone string
 		if err := rows.Scan(&it.TitleID, &it.TitleName, &it.TitleYear, &it.Anime, &it.Monitored, &it.EpisodeID,
-			&it.Season, &it.Number, &it.Episode, &it.Date, &airMs, &airTime, &it.Available); err != nil {
+			&it.Season, &it.Number, &it.Episode, &it.Date, &airMs, &zone, &firstMs, &it.Available); err != nil {
 			rows.Close()
 			return nil, err
 		}
-		// The test the refresh builds the instant by (tvrefresh airUTC): a time that parses is a real air time.
-		if _, err := time.Parse("15:04", strings.TrimSpace(airTime)); err == nil {
+		// The instant is the episode's own (an import brings real ones without a series air time). It is made up
+		// when the day's first episode of the season sits at the refresh's midnight: the refresh spaces the later
+		// ones of that day a runtime apart from it.
+		if mid, ok := tvrefresh.MidnightAir(it.Date, zone); !ok || firstMs != store.Millis(mid) {
 			it.At = at(airMs)
 		}
 		out = append(out, it)

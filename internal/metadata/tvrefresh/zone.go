@@ -62,6 +62,21 @@ func zoneFor(countries ...string) (*time.Location, string) {
 	return time.UTC, "UTC"
 }
 
+// MidnightAir is the instant the refresh gives an episode whose series has no airs time: midnight of its air date
+// (YYYY-MM-DD) in zone, a series_meta.time_zone ("" or a name that does not load: UTC). False for a missing or bad
+// date. The calendar reads an instant equal to it as a day without a time.
+func MidnightAir(date, zone string) (time.Time, bool) {
+	loc, err := time.LoadLocation(zone)
+	if err != nil {
+		loc = time.UTC
+	}
+	t := airUTC(date, "", loc)
+	if t == nil {
+		return time.Time{}, false
+	}
+	return *t, true
+}
+
 // airUTC is an episode's air time in UTC: its air date (YYYY-MM-DD) at the series' airs time (HH:MM, midnight when
 // unknown) in loc. nil for a missing or bad date.
 func airUTC(date, airsTime string, loc *time.Location) *time.Time {
