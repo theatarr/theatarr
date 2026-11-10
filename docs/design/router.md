@@ -748,8 +748,10 @@ ends. It runs like the chain above: the same steps (1, 2, 4, 8 ... hours after t
 is new), stops and `per_hour` charge.
 
 It is built to one rule: nothing the chain writes is read by an ordinary path, and turning the switch off removes
-its queued work. So with the switch never on, or on and then off, every other search is started, held back, ordered
-and paced exactly as without it.
+its queued work. What is promised: with the switch never on, every search is started, held back, ordered and paced
+exactly as on a build without it, and its queries keep their query plans; and with the switch off nothing of a chain starts a search on
+this build. After the switch was on and is turned off, other searches are not promised to run exactly as if it had
+never been on: the known limits are listed below.
 
 - Its jobs are its own: the steps have their own key (`acquire.research/retry_new/<version>/<title>/<step>`; the
   chain above keeps `acquire.research/fresh/...`) and its requests carry `retry_new`. Its searches are marked in the
@@ -761,19 +763,24 @@ and paced exactly as without it.
   Search now request's "a search of it is queued or running" (so a request is never dropped for a chain's search;
   the two may then both search the target), and the number of unanswered searches that sets when a re-search is
   asked for again. The chain's own searches asked for again count the chain's unanswered runs only.
-- An install that never had the switch on runs the same queries, with the same query plans, as a build without it.
-  The chain's mark is in no index, so with the switch off the two readers an index answers alone (the loop's "last
-  searched" and an add-time intent's count of unanswered searches) run their query without the switch and leave the
-  chain's runs out only for the versions a chain has a request for in the job table (one more small read of the
-  re-search jobs). Finished jobs are kept 14 days. Limit: with the switch off, a chain's search older than that
-  counts for these two readers as an ordinary search of its target (it can move the target back in the loop's
-  order, and holds it back when `again_after` is longer than 14 days). With the switch on they leave every chain
-  run out, whatever its age.
+- An install that never had the switch on reads the run history with the query plans of a build without the
+  switch, for every query that build runs, and adds two small reads (below). The chain's mark is in no index, so
+  with the switch off the two readers an index answers alone (the loop's "last searched" and an add-time intent's
+  count of unanswered searches) run their query without the switch, and leave the chain's runs out only for the
+  versions a chain has a request for in the job table. Finding those versions is the first added read: every kept
+  re-search job (`acquire.research`), once for each "last searched" and once for an intent that counts unanswered
+  searches. The nightly prune deletes finished jobs 14 days after they finished (nothing else deletes jobs).
+  Limit: with the switch off, once every request of a version's chains finished or was cancelled more than 14 days
+  ago, the searches those chains made count for these two readers as ordinary searches of their targets (they can
+  move a target back in the loop's order, and hold it back when `again_after` is longer than 14 days). With the
+  switch on they leave every chain run out, whatever its age.
 - Retention keeps a target's latest ordinary run (and the parent of a shared search that holds it) also when a
   chain's run of the target is newer, so pruning never makes the loop forget its own last search. Without chain
-  runs it prunes by the condition it had before (it looks once a night for a chain run: one more read of the table).
+  runs it prunes by the condition it had before; to know, it looks for a chain run once a night, which reads the
+  whole run table when there is none (the second added read).
 - `per_hour` is one budget while the switch is on: the chain's searches take slots like any wanted search. With the
-  switch off the hourly count leaves out what the chain searched before, so it delays nothing.
+  switch off the hourly count leaves out what the chain searched before, so those searches take no slot from a
+  search started after that (what was deferred before stays deferred, see the limits).
 - The chain after an `exhausted` route reads nothing of this one: it starts by its own key alone and never looks at
   the switch, also while a `retry_new` chain of the title is queued or after one ended for any reason. A route
   started by a chain's search that then misses everywhere is an ordinary miss: it gets its re-search at once and
@@ -797,6 +804,22 @@ of chain in one week, one after the other (for example when a `retry_new` follow
 misses everywhere), and no total number of searches per title is promised: each chain alone is bounded by its steps
 within the week, and every search by `per_hour`. A chain ended by turning the switch off does not start again for
 the same content when the switch is turned on again within the week.
+
+Known limits of the switch:
+
+- A re-search or a Search now request that was put off to the next hour because a chain's search had taken the
+  hour's last slot stays put off until the time it was given (at most the rest of that hour) after the switch is
+  turned off. Nothing wakes it earlier.
+- Turning the switch off and on again within an hour can let more than `per_hour` searches run in that hour:
+  while it is off the chain's earlier searches are not counted, and searches started then come on top of them.
+- A retry step runs at the moment a slot frees and can take it ahead of a Search now request that has waited
+  longer; with a small `per_hour` this can happen several hours in a row.
+- A search already running when the switch is turned off finishes under the old setting (it may ask the indexers
+  and queue a step, which then does nothing on this build).
+- With the switch off, a chain's searches count as ordinary searches of their targets for the loop's "last
+  searched" and an add-time intent's retry count once the version's last chain request finished or was cancelled
+  more than 14 days ago (above).
+- A chain ended by turning the switch off does not start again for the same content within the week.
 
 Rolling back to a build without the switch: turn the switch off and save, restart this build once, then roll
 back. An older build does not know the mark and would run a queued step or search of a chain as an ordinary
