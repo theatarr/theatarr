@@ -16,6 +16,7 @@ import (
 
 	"github.com/theatarr/theatarr/internal/decide/format"
 	"github.com/theatarr/theatarr/internal/policy"
+	"github.com/theatarr/theatarr/internal/trashbundle"
 )
 
 func (s *QualitySync) Preview(ctx context.Context, source QualitySyncSource) (*QualityPreview, error) {
@@ -334,9 +335,14 @@ func (s *QualitySync) loadTree(ctx context.Context, c QualitySyncConfig) (string
 }
 
 // trashTree is the TRaSH tree of a validated, resolved source: its pinned archive unpacked into a temporary
-// directory (removed by cleanup), or the local tree. commit attributes it.
+// directory (removed by cleanup), the local tree, or without one the bundled snapshot. commit attributes it.
 func (s *QualitySync) trashTree(ctx context.Context, c QualitySyncConfig) (root, commit string, cleanup func(), err error) {
 	cleanup = func() {}
+	if c.ArchiveURL == "" && s.TrashRoot == "" {
+		// No local tree (THEATARR_TRASH unset): the snapshot bundled with the binary, copied out for the readers that
+		// take a directory (the Recyclarr converter, the size tables).
+		return bundledTrashTree()
+	}
 	if c.ArchiveURL == "" {
 		commit, err = trashCommit(s.TrashRoot)
 		return s.TrashRoot, commit, cleanup, err
@@ -353,6 +359,24 @@ func (s *QualitySync) trashTree(ctx context.Context, c QualitySyncConfig) (root,
 		return "", "", cleanup, err
 	}
 	return dir, c.Commit, func() { os.RemoveAll(dir) }, nil
+}
+
+// bundledTrashTree is the bundled TRaSH snapshot (internal/trashbundle) in a temporary directory, removed by cleanup.
+func bundledTrashTree() (root, commit string, cleanup func(), err error) {
+	cleanup = func() {}
+	fsys, err := trashbundle.FS()
+	if err != nil {
+		return "", "", cleanup, err
+	}
+	dir, err := os.MkdirTemp("", "theatarr-trash-bundle-")
+	if err != nil {
+		return "", "", cleanup, err
+	}
+	if err := os.CopyFS(dir, fsys); err != nil {
+		os.RemoveAll(dir)
+		return "", "", cleanup, err
+	}
+	return dir, trashbundle.Commit(), func() { os.RemoveAll(dir) }, nil
 }
 
 func customTrashID(f CustomFormat) string {
