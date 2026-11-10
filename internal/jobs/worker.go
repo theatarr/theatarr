@@ -225,14 +225,15 @@ func (w *Worker) lease(ctx context.Context, urgentOnly bool) (*Job, error) {
 			now, now, now); err != nil {
 			return err
 		}
-		args := []any{w.opts.Owner, leaseUntil, now}
+		args := []any{w.opts.Owner, leaseUntil, now, now}
 		for _, k := range kinds {
 			args = append(args, k)
 		}
 		args = append(args, now, now)
 		args = append(args, urgentArgs...)
 		row := tx.QueryRowContext(ctx, `
-			UPDATE job SET state = 'running', lease_owner = ?, lease_until = ?, attempts = attempts + 1, updated_at = ?
+			UPDATE job SET state = 'running', lease_owner = ?, lease_until = ?, attempts = attempts + 1, updated_at = ?,
+				started_at = ?
 			WHERE id = (
 				SELECT id FROM job
 				WHERE kind IN (`+in+`)

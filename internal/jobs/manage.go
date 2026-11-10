@@ -48,6 +48,9 @@ type Status struct {
 	CreatedAt   time.Time       `json:"created_at"`
 	UpdatedAt   time.Time       `json:"updated_at"`
 	FinishedAt  *time.Time      `json:"finished_at,omitempty"`
+	// StartedAt is when the current (or last) run was claimed; nil for a job never claimed, or claimed before the
+	// column existed.
+	StartedAt *time.Time `json:"started_at,omitempty"`
 	// RetryOf is the failed job this one re-runs, 0 if none.
 	RetryOf int64 `json:"retry_of,omitempty"`
 	// RetriedAs is the newest job that re-runs this one, 0 if none.
@@ -81,23 +84,24 @@ const (
 		resolvedBySQL + ` IS NULL)`
 	statusColumns = `j.id, j.kind, j.state, j.priority, j.attempts, j.max_attempts, j.run_at, COALESCE(j.last_error, ''),
 		COALESCE(j.dedupe_key, ''), j.payload, j.created_at, j.updated_at, j.finished_at, COALESCE(j.retry_of, 0),
-		COALESCE(` + retriedAsSQL + `, 0), COALESCE(` + resolvedBySQL + `, 0), j.dismissed_at, COALESCE(j.dismissed_by, '')`
+		COALESCE(` + retriedAsSQL + `, 0), COALESCE(` + resolvedBySQL + `, 0), j.dismissed_at, COALESCE(j.dismissed_by, ''),
+		j.started_at`
 )
 
 func scanStatus(sc interface{ Scan(...any) error }) (Status, error) {
 	var s Status
 	var payload string
 	var runAt, created, updated int64
-	var finished, dismissed sql.NullInt64
+	var finished, dismissed, started sql.NullInt64
 	err := sc.Scan(&s.ID, &s.Kind, &s.State, &s.Priority, &s.Attempts, &s.MaxAttempts, &runAt, &s.LastError,
 		&s.DedupeKey, &payload, &created, &updated, &finished, &s.RetryOf, &s.RetriedAs, &s.ResolvedBy, &dismissed,
-		&s.DismissedBy)
+		&s.DismissedBy, &started)
 	if err != nil {
 		return s, err
 	}
 	s.Payload = json.RawMessage(payload)
 	s.RunAt, s.CreatedAt, s.UpdatedAt = store.FromMillis(runAt), store.FromMillis(created), store.FromMillis(updated)
-	s.FinishedAt, s.DismissedAt = optTime(finished), optTime(dismissed)
+	s.FinishedAt, s.DismissedAt, s.StartedAt = optTime(finished), optTime(dismissed), optTime(started)
 	s.Attention = s.State == StateFailed && s.DismissedAt == nil && s.RetriedAs == 0 && s.ResolvedBy == 0
 	return s, nil
 }

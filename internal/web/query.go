@@ -868,6 +868,7 @@ type Job struct {
 	CreatedAt   time.Time  `json:"created_at"`
 	UpdatedAt   time.Time  `json:"updated_at"`
 	FinishedAt  *time.Time `json:"finished_at,omitempty"`
+	StartedAt   *time.Time `json:"started_at,omitempty"`
 	RetryOf     int64      `json:"retry_of,omitempty"`
 	RetriedAs   int64      `json:"retried_as,omitempty"`
 	ResolvedBy  int64      `json:"resolved_by,omitempty"`
@@ -879,7 +880,7 @@ type Job struct {
 func jobFromStatus(s jobs.Status) Job {
 	return Job{ID: s.ID, Kind: s.Kind, State: s.State, Priority: s.Priority, Attempts: s.Attempts,
 		MaxAttempts: s.MaxAttempts, RunAt: s.RunAt, LastError: s.LastError, DedupeKey: s.DedupeKey,
-		CreatedAt: s.CreatedAt, UpdatedAt: s.UpdatedAt, FinishedAt: s.FinishedAt, RetryOf: s.RetryOf,
+		CreatedAt: s.CreatedAt, UpdatedAt: s.UpdatedAt, FinishedAt: s.FinishedAt, StartedAt: s.StartedAt, RetryOf: s.RetryOf,
 		RetriedAs: s.RetriedAs, ResolvedBy: s.ResolvedBy, DismissedAt: s.DismissedAt, DismissedBy: s.DismissedBy,
 		Attention: s.Attention}
 }

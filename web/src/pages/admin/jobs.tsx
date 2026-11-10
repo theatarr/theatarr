@@ -118,8 +118,8 @@ export function JobList({ items, showEffect, flat, testid }: { items: Job[]; sho
 }
 
 function jobTiming(j: Job): string {
-  // A running job's updated_at is the time its run was claimed; lease renewals leave it alone.
-  if (j.state === "running") return `started ${fmtAgo(j.updated_at)}`;
+  // started_at is when the run was claimed. A job claimed before it was recorded has none: updated_at, as before.
+  if (j.state === "running") return `started ${fmtAgo(j.started_at ?? j.updated_at)}`;
   if (j.state === "queued") {
     const at = j.run_at ? new Date(j.run_at).getTime() : NaN;
     return !Number.isNaN(at) && at > Date.now() ? `next run ${fmtAgo(j.run_at)} (${fmtTime(j.run_at)})` : `waiting since ${fmtTime(j.run_at)}`;

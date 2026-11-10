@@ -41,17 +41,15 @@ func (f *fence) lose() {
 // not (no row matched, or the lease committed is already over). The clock is read inside the write transaction, on
 // every try: a wait for the writer (or a stall) longer than the lease must not write a deadline already past, and a
 // lease that ran out while this run waited is not revived, since another worker may have taken the job meanwhile.
-// updated_at is left alone: for a running job it is the time this run was claimed, which the Tasks page shows as its
-// start; lease_until is the heartbeat.
 func (f *fence) extend(ctx context.Context) (ok bool, err error) {
 	var n, until int64
 	err = f.w.q.st.WriteTx(ctx, func(tx *sql.Tx) error {
 		now := f.w.q.now()
 		until = store.Millis(now.Add(f.w.opts.Lease))
 		res, err := tx.ExecContext(ctx, `
-			UPDATE job SET lease_until = ?
+			UPDATE job SET lease_until = ?, updated_at = ?
 			WHERE id = ? AND state = 'running' AND lease_owner = ? AND attempts = ? AND lease_until > ?`,
-			until, f.j.ID, f.w.opts.Owner, f.j.Attempt, store.Millis(now))
+			until, store.Millis(now), f.j.ID, f.w.opts.Owner, f.j.Attempt, store.Millis(now))
 		if err != nil {
 			return err
 		}
