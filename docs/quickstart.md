@@ -16,18 +16,18 @@ Pull the released image with [`examples/compose.image.yaml`](../examples/compose
 `compose.yaml` into any directory; no checkout of the repository is needed. Each release publishes an image for
 linux/amd64 to `ghcr.io/theatarr/theatarr`, and the
 [Releases page](https://github.com/theatarr/theatarr/releases) lists the versions. The image tag is the version
-without the leading `v`: release `v0.1.0` is the image `0.1.0`. Put the version in a `.env` file beside
+without the leading `v`: release `v0.1.1` is the image `0.1.1`. Put the version in a `.env` file beside
 `compose.yaml`, where every `docker compose` command reads it:
 
 ```sh
-echo THEATARR_VERSION=0.1.0 > .env
+echo THEATARR_VERSION=0.1.1 > .env
 ```
 
 ```yaml
 # compose.yaml
 services:
   theatarr:
-    image: ghcr.io/theatarr/theatarr:${THEATARR_VERSION:?set THEATARR_VERSION to a released version, for example 0.1.0}
+    image: ghcr.io/theatarr/theatarr:${THEATARR_VERSION:?set THEATARR_VERSION to a released version, for example 0.1.1}
     container_name: theatarr
     restart: unless-stopped
     ports:
