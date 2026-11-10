@@ -257,10 +257,12 @@ The write convention (`TestMinimumAvailabilityEchoChangesNothing`, `TestMinimumA
   copy turned on after it was written; none is rewritten or cleaned up. `arrview_title.updated_at` orders the choices and moves only
   when a minimum availability is written: saving a profile, root folder or tags no longer promotes an old choice
   over a newer one.
-- **`DELETE movie/{id}`** clears the choice on the `v/<key>` row of each library it removes the copy from (the row
-  and its other fields stay), so a later add takes the library's rule again: its default, or the client's value
-  (`TestMinimumAvailabilityDeleteClearsChoice`). A combined view's older row is only deleted by a delete through
-  that view, as before.
+- **`DELETE movie/{id}`** removes the choice of each library it removes the copy from, so a later add takes the
+  library's rule again: its default, or the client's value (`TestMinimumAvailabilityDeleteClearsChoice`). The
+  deleting view's own record of the movie is deleted whole, as before: through a library's own view that is its
+  `v/<key>` row, choice included. Any other library row it clears keeps the row and its other fields (a delete
+  through a combined view, for the libraries it shows). A combined view's older row is only deleted by a delete
+  through that view, as before.
 - List and collection intake stores the list's or collection's own minimum as the choice of each library it adds
   to a movie, on the library's own row; the view's record it writes holds the profile and root folder only. A copy
   the movie already had keeps its rule (`TestListIntakeMinimumReachesAddedLibraryOnly`). A library default does not
