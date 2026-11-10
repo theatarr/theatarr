@@ -191,7 +191,7 @@ func (w *Web) recentPicks(ctx context.Context, db *sql.DB) ([]pick, error) {
 		if err := r.Scan(&p.id, &added); err != nil {
 			return err
 		}
-		p.date = ts(added).UTC().Format(time.DateOnly)
+		p.date = ts(added).Local().Format(time.DateOnly)
 		recent = append(recent, p)
 		return nil
 	})
