@@ -24,6 +24,7 @@ import (
 type fakeOps struct {
 	mu            sync.Mutex
 	grabs         []indexer.Release
+	added         []string // the source of each AddRelease that went through (its release is in grabs)
 	retries       []int64
 	unlinks       []int64
 	renameApplied []int64
@@ -86,6 +87,17 @@ func (f *fakeOps) GrabRelease(_ context.Context, _ int64, version string, rel in
 	}
 	f.grabs = append(f.grabs, rel)
 	return &GrabbedRelease{Decision: d, Overridden: f.reject, Job: 1}, nil
+}
+
+func (f *fakeOps) AddRelease(ctx context.Context, id int64, version string, rel indexer.Release, override bool,
+	source string) (*GrabbedRelease, error) {
+	g, err := f.GrabRelease(ctx, id, version, rel, override, source)
+	if err == nil {
+		f.mu.Lock()
+		f.added = append(f.added, source)
+		f.mu.Unlock()
+	}
+	return g, err
 }
 
 func (f *fakeOps) RetryDownload(_ context.Context, id int64, _ string) (*RetriedDownload, error) {
@@ -305,6 +317,96 @@ func TestGrabFromLiveSearch(t *testing.T) {
 	}
 	if code := o.jsonCall("POST", b+"/releases/grab", map[string]any{"version": "movie-web"}, o.mc, o.mcsrf, nil); code != 400 {
 		t.Errorf("no hash: %d", code)
+	}
+}
+
+// TestAddReleaseByMagnetOrHash: an admin hands over a magnet or a hash no search found. The hash comes from the
+// magnet's btih or the hash field (hex or base32), the name from the body or the magnet's dn; the release goes to
+// Ops with no indexer and unknown seeders, as a person's grab; a rejection needs override; a shadow library and a
+// router that is off refuse; managers may not; each add is recorded as a manual add.
+func TestAddReleaseByMagnetOrHash(t *testing.T) {
+	t.Parallel()
+	o := newOpsEnv(t)
+	ac, csrf := o.session(o.account("admin-add", auth.RoleAdmin, auth.StatusActive, false))
+	u := APIBase + "/titles/1/releases/add"
+	hash := strings.Repeat("ab", 20)
+	magnet := "magnet:?xt=urn:btih:" + strings.ToUpper(hash) + "&dn=Alpha.2020.2160p.WEB-DL-GRP&tr=udp%3A%2F%2Ftracker.example%3A1337"
+	var apiErr apiError
+	// Shadow (and the router off): refused, nothing routed.
+	if code := o.jsonCall("POST", u, AddReleaseRequest{Version: "movie-web", Magnet: magnet}, ac, csrf, &apiErr); code != http.StatusConflict ||
+		!strings.Contains(apiErr.Error, "Not added") {
+		t.Fatalf("shadow add: %d %+v", code, apiErr)
+	}
+	o.activate("movie-web")
+	o.web.pol.Router.Enabled = false
+	if code := o.jsonCall("POST", u, AddReleaseRequest{Version: "movie-web", Magnet: magnet}, ac, csrf, nil); code != http.StatusConflict {
+		t.Fatalf("add with downloads off: %d", code)
+	}
+	o.web.pol.Router.Enabled = true
+	// Managers may grab what a search found; adding a hash from outside is the admin's.
+	if code := o.jsonCall("POST", u, AddReleaseRequest{Version: "movie-web", Magnet: magnet}, o.mc, o.mcsrf, nil); code != http.StatusForbidden {
+		t.Fatalf("manager: %d", code)
+	}
+	if code := o.jsonCall("POST", u, AddReleaseRequest{Version: "movie-web", Magnet: magnet}, o.uc, o.ucsrf, nil); code != http.StatusForbidden {
+		t.Fatalf("user: %d", code)
+	}
+	for name, body := range map[string]AddReleaseRequest{
+		"no version":          {Magnet: magnet},
+		"neither":             {Version: "movie-web", Name: "Alpha.2020.2160p.WEB-DL-GRP"},
+		"both":                {Version: "movie-web", Magnet: magnet, InfoHash: hash},
+		"bare hash, no name":  {Version: "movie-web", InfoHash: hash},
+		"magnet without name": {Version: "movie-web", Magnet: "magnet:?xt=urn:btih:" + hash},
+		"bad hash":            {Version: "movie-web", InfoHash: "nothex", Name: "Alpha.2020.2160p.WEB-DL-GRP"},
+		"magnet, no btih":     {Version: "movie-web", Magnet: "magnet:?dn=Alpha.2020.2160p.WEB-DL-GRP"},
+		"magnet, two hashes":  {Version: "movie-web", Magnet: magnet + "&xt=urn:btih:" + strings.Repeat("1", 40)},
+	} {
+		if code := o.jsonCall("POST", u, body, ac, csrf, nil); code != http.StatusBadRequest {
+			t.Errorf("%s: %d", name, code)
+		}
+	}
+	if code := o.jsonCall("POST", APIBase+"/titles/999/releases/add", AddReleaseRequest{Version: "movie-web", Magnet: magnet}, ac, csrf, nil); code != http.StatusNotFound {
+		t.Errorf("unknown title: %d", code)
+	}
+	if len(o.ops.grabs) != 0 || len(o.actions()) != 0 {
+		t.Fatalf("a refused add was routed or recorded: %+v", o.ops.grabs)
+	}
+
+	var got GrabResult
+	if code := o.jsonCall("POST", u, AddReleaseRequest{Version: "movie-web", Magnet: magnet}, ac, csrf, &got); code != 200 ||
+		!got.Accepted || got.Release != "Alpha.2020.2160p.WEB-DL-GRP" || got.InfoHash != hash {
+		t.Fatalf("magnet add: %d %+v", code, got)
+	}
+	if len(o.ops.grabs) != 1 || len(o.ops.added) != 1 || o.ops.added[0] != "ui:grab:admin-add" {
+		t.Fatalf("routed %+v as %v", o.ops.grabs, o.ops.added)
+	}
+	if r := o.ops.grabs[0]; r.Indexer != "" || r.InfoHash != hash || r.Seeders != -1 || r.Peers != -1 || r.Size != 0 {
+		t.Errorf("release %+v", r)
+	}
+	// A base32 hash with a name; the name given wins over nothing else.
+	b32 := "VOV2XK5LVOV2XK5LVOV2XK5LVOV2XK5L" // 20 bytes of 0xab
+	if code := o.jsonCall("POST", u, AddReleaseRequest{Version: "movie-web", InfoHash: b32, Name: " Alpha.2020.2160p.WEB-DL-B32 "}, ac, csrf,
+		&got); code != 200 || got.InfoHash != hash || got.Release != "Alpha.2020.2160p.WEB-DL-B32" {
+		t.Fatalf("base32 add: %d %+v", code, got)
+	}
+	// Rejected now: 409 with the rejections, then added with override.
+	o.ops.reject = true
+	apiErr = apiError{}
+	if code := o.jsonCall("POST", u, AddReleaseRequest{Version: "movie-web", Magnet: magnet}, ac, csrf, &apiErr); code != http.StatusConflict ||
+		len(apiErr.Detail) != 1 {
+		t.Fatalf("rejected: %d %+v", code, apiErr)
+	}
+	if len(o.ops.grabs) != 2 {
+		t.Fatalf("a rejected add was routed: %+v", o.ops.grabs)
+	}
+	if code := o.jsonCall("POST", u, AddReleaseRequest{Version: "movie-web", Magnet: magnet, Override: true}, ac, csrf, &got); code != 200 ||
+		!got.Overridden || got.Accepted || !strings.HasPrefix(got.Message, "Added although rejected") {
+		t.Fatalf("override: %d %+v", code, got)
+	}
+	acts := o.actions()
+	if len(acts) != 3 || acts[0].Action != journal.ActGrab || acts[0].By != "admin-add" || acts[0].InfoHash != hash ||
+		acts[0].Target != "manual add" || acts[0].Detail != "manual add: routed" ||
+		!strings.Contains(acts[2].Detail, "manual add: routed although rejected") {
+		t.Errorf("actions %+v", acts)
 	}
 }
 

@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"net/url"
 	"slices"
 	"strconv"
 	"strings"
@@ -79,6 +80,7 @@ type refusedErr interface {
 func (w *Web) mountOpsAPI(mux *http.ServeMux) {
 	b := APIBase
 	w.handle(mux, "POST "+b+"/titles/{id}/releases/grab", SignedIn, auth.PermManage, w.apiGrab)
+	w.handle(mux, "POST "+b+"/titles/{id}/releases/add", SignedIn, auth.PermAdmin, w.apiAddRelease)
 	w.handle(mux, "GET "+b+"/titles/{id}/removal", SignedIn, auth.PermManage, w.apiRemovalScope)
 	w.handle(mux, "POST "+b+"/titles/{id}/remove", SignedIn, auth.PermManage, w.apiRemove)
 	w.handle(mux, "POST "+b+"/links/{id}/unlink", SignedIn, auth.PermManage, w.apiUnlink)
@@ -251,7 +253,15 @@ func (w *Web) apiGrab(rw http.ResponseWriter, r *http.Request) {
 	}
 	by := actor(r)
 	g, err := w.ops.GrabRelease(ctx, id, req.Version, rel, req.Override, "ui:grab:"+by)
-	out := GrabResult{Version: req.Version, Release: rel.Title, InfoHash: hash}
+	w.grabbed(rw, r, id, req.Version, rel, g, err, "")
+}
+
+// grabbed answers a grab or a manual add from what Ops did and records it; how is "" for a grab from a search and
+// "manual add" for a release added by its hash.
+func (w *Web) grabbed(rw http.ResponseWriter, r *http.Request, id int64, version string, rel indexer.Release,
+	g *GrabbedRelease, err error, how string) {
+	ctx, by, hash := r.Context(), actor(r), indexer.NormalizeHash(rel.InfoHash)
+	out := GrabResult{Version: version, Release: rel.Title, InfoHash: hash}
 	if g != nil && g.Decision != nil {
 		out.Accepted, out.Overridden = g.Decision.Accepted, g.Overridden
 		for _, rj := range g.Decision.Rejections {
@@ -273,15 +283,140 @@ func (w *Web) apiGrab(rw http.ResponseWriter, r *http.Request) {
 	}
 	out.Message = "Sent to the router: it adds the release at the first provider that has it"
 	if out.Overridden {
-		out.Message = "Grabbed although rejected; " + strings.ToLower(out.Message[:1]) + out.Message[1:]
+		verb := "Grabbed"
+		if how != "" {
+			verb = "Added"
+		}
+		out.Message = verb + " although rejected; " + strings.ToLower(out.Message[:1]) + out.Message[1:]
 	}
 	detail := "routed"
 	if out.Overridden {
 		detail = "routed although rejected: " + strings.Join(out.Rejections, "; ")
 	}
-	w.record(ctx, journal.Action{Action: journal.ActGrab, TitleID: id, Version: req.Version, InfoHash: hash,
-		Release: rel.Title, Target: rel.Indexer, Detail: detail, By: by})
+	target := rel.Indexer
+	if how != "" {
+		detail, target = how+": "+detail, how
+	}
+	w.record(ctx, journal.Action{Action: journal.ActGrab, TitleID: id, Version: version, InfoHash: hash,
+		Release: rel.Title, Target: target, Detail: detail, By: by})
 	writeJSON(rw, http.StatusOK, out)
+}
+
+// ---- Add by magnet or hash ----
+
+// addOps is the part of Ops that routes a release no search found (arrview.Service.AddRelease in theatarr serve).
+type addOps interface {
+	AddRelease(ctx context.Context, titleID int64, version string, rel indexer.Release, override bool,
+		source string) (*GrabbedRelease, error)
+}
+
+// AddReleaseRequest is the body of POST /titles/{id}/releases/add.
+type AddReleaseRequest struct {
+	Version string `json:"version"`
+	// Magnet or InfoHash names the torrent: a magnet link's btih, or a 40-character hex (32 base32) v1 hash.
+	Magnet   string `json:"magnet,omitempty"`
+	InfoHash string `json:"info_hash,omitempty"`
+	// Name is the release name the rules judge; default the magnet's dn.
+	Name string `json:"name,omitempty"`
+	// Override adds a release the decision engine rejects (the person saw the rejections and confirmed).
+	Override bool `json:"override"`
+}
+
+// magnetName is a magnet's display name (dn), "" when it has none.
+func magnetName(m string) string {
+	_, q, ok := strings.Cut(strings.TrimSpace(m), "?")
+	if !ok {
+		return ""
+	}
+	for _, part := range strings.FieldsFunc(q, func(r rune) bool { return r == '&' || r == '#' }) {
+		k, v, _ := strings.Cut(part, "=")
+		if !strings.EqualFold(k, "dn") {
+			continue
+		}
+		if u, err := url.QueryUnescape(v); err == nil {
+			v = u
+		}
+		return strings.TrimSpace(v)
+	}
+	return ""
+}
+
+// POST /titles/{id}/releases/add {version, magnet | info_hash, name, override}: route a release the person names by
+// magnet or hash for the version, one no search of ours found (admins). It takes the grab's route from the decision
+// on: decided now under the given name, a rejected one needs override (409 with the rejections otherwise), then the
+// router with a person's grab as the source, so provider order, pacing, the cached-only rule, the record of our own
+// adds and the history are the grab's. The release has no indexer, and no size or seeders are known. Only for a
+// version a search would run for (mode active, router on). Nothing is sent to a provider here.
+func (w *Web) apiAddRelease(rw http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	id, ok := pathID(r)
+	if !ok {
+		notFound(rw)
+		return
+	}
+	var req AddReleaseRequest
+	if err := decodeJSON(r, &req); err != nil {
+		badRequest(rw, "invalid JSON: "+err.Error())
+		return
+	}
+	if req.Version == "" {
+		badRequest(rw, "version is required")
+		return
+	}
+	req.Magnet, req.InfoHash = strings.TrimSpace(req.Magnet), strings.TrimSpace(req.InfoHash)
+	var hash string
+	switch {
+	case req.Magnet != "" && req.InfoHash != "":
+		badRequest(rw, "Give a magnet link or an info hash, not both")
+		return
+	case req.Magnet != "":
+		hash = indexer.HashFromMagnet(req.Magnet)
+	case req.InfoHash != "":
+		hash = indexer.NormalizeHash(req.InfoHash)
+	default:
+		badRequest(rw, "Give a magnet link or an info hash")
+		return
+	}
+	if hash == "" {
+		badRequest(rw, "Not a magnet link with one BitTorrent v1 hash, nor a 40-character info hash")
+		return
+	}
+	name := strings.TrimSpace(req.Name)
+	if name == "" {
+		name = magnetName(req.Magnet)
+	}
+	if name == "" {
+		badRequest(rw, "Give the release name: the rules judge the release by it")
+		return
+	}
+	if w.noOps(rw) {
+		return
+	}
+	ops, ok := w.ops.(addOps)
+	if !ok {
+		writeJSON(rw, http.StatusServiceUnavailable, apiError{Error: "adding a release by hash is unavailable"})
+		return
+	}
+	if w.pol == nil {
+		writeJSON(rw, http.StatusServiceUnavailable, apiError{Error: "no policy loaded"})
+		return
+	}
+	var exists int
+	if err := w.st.Reader().QueryRowContext(ctx, `SELECT 1 FROM title WHERE id = ?`, id).Scan(&exists); errors.Is(err, sql.ErrNoRows) {
+		notFound(rw)
+		return
+	} else if err != nil {
+		w.internal(rw, err)
+		return
+	}
+	if why := w.searchBlock(req.Version); why != "" && why != "The acquirer is not running" {
+		writeJSON(rw, http.StatusConflict, apiError{Error: "Not added: " + why})
+		return
+	}
+	// No size, seeders or peers are known for a release nobody searched for: 0 and -1 are "unknown".
+	rel := indexer.Release{Title: name, InfoHash: hash, Seeders: -1, Peers: -1}
+	g, err := ops.AddRelease(ctx, id, req.Version, rel, req.Override, "ui:grab:"+actor(r))
+	w.grabbed(rw, r, id, req.Version, rel, g, err, "manual add")
 }
 
 // ---- Downloads ----

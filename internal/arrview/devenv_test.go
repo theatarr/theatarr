@@ -162,7 +162,8 @@ func (e *devEnv) decideOne(rel indexer.Release, titleID int64, version string) *
 		Formats: []decide.FormatScore{{Name: "x265", Score: 50}}, Score: 50, Languages: []string{"English"},
 		MovieTitles: []string{"Alpha"}}
 	switch {
-	case e.pol.Versions[version] != nil && !slices.Contains(e.pol.Versions[version].Indexers, rel.Indexer):
+	case e.pol.Versions[version] != nil && rel.Indexer != policy.ManualIndexer &&
+		!slices.Contains(e.pol.Versions[version].Indexers, rel.Indexer):
 		d.Rejections = []decide.Rejection{{Reason: "IndexerNotInVersion", Ours: true,
 			Message: "Indexer " + rel.Indexer + " is not one of version " + version + "'s indexers"}}
 	case !strings.Contains(rel.Title, "2160p"):

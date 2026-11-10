@@ -381,7 +381,7 @@ func newEnvironment(t *testing.T, configure func(*policy.Policy)) *environment {
 	must(t, err)
 	av.SetMaintenance(e.q, nil)
 	av.RegisterJobs(e.worker)
-	ui, err := web.New(web.Config{Store: e.st, Auth: au, Policy: e.pol, Logger: log, Now: clock, Devices: av, Add: web.AddConfig{Acquirer: e.ac, TMDb: tm}, Jobs: e.q})
+	ui, err := web.New(web.Config{Store: e.st, Auth: au, Policy: e.pol, Logger: log, Now: clock, Devices: av, Add: web.AddConfig{Acquirer: e.ac, TMDb: tm}, Jobs: e.q, Ops: viewOps{av}})
 	must(t, err)
 	e.mux = http.NewServeMux()
 	av.Mount(e.mux)

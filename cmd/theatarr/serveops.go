@@ -24,6 +24,17 @@ func (o serveOps) GrabRelease(ctx context.Context, titleID int64, version string
 	return &web.GrabbedRelease{Decision: g.Decision, Overridden: g.Overridden, Job: g.Job}, err
 }
 
+// AddRelease gives the release panel's "Add by magnet or hash" (internal/web/ops.go) the same route as a grab, for
+// a release no search found.
+func (o serveOps) AddRelease(ctx context.Context, titleID int64, version string, rel indexer.Release, override bool,
+	source string) (*web.GrabbedRelease, error) {
+	g, err := o.av.AddRelease(ctx, titleID, version, rel, override, source)
+	if g == nil {
+		return nil, err
+	}
+	return &web.GrabbedRelease{Decision: g.Decision, Overridden: g.Overridden, Job: g.Job}, err
+}
+
 func (o serveOps) RetryDownload(ctx context.Context, id int64, source string) (*web.RetriedDownload, error) {
 	r, err := o.av.RetryDownload(ctx, id, source)
 	if r == nil {

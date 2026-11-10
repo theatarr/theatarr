@@ -131,6 +131,16 @@ The writes live in their own package. `internal/provider` stays GET-only: its `T
   `indexers.<key>.providers` (empty: every provider). The router walks `Policy.ReleaseProviders(version, indexer)`:
   the version's provider order filtered by that allowlist; none left is a skip ("indexer X allows none of the
   version's providers").
+- **A manual add has no indexer.** A release a person adds by magnet or hash (`POST titles/{id}/releases/add`,
+  admins; `arrview.Service.AddRelease`) was found by no search. It carries `policy.ManualIndexer` (`manual`) where
+  the indexer goes, because the adders refuse a magnet that names no source; `manual` is not an indexer of the policy
+  and is never looked up as one. Such a release is not held to the version's indexer list (decide's
+  `IndexerNotInVersion` and the retry's check skip it) and gets the version's whole provider order
+  (`ReleaseProviders`). Everything else is a grab by hand: the same decision (rejected needs `override`), the source
+  `ui:grab:<who>`, the same gate, blocklist, pacing, cached-only settle and ledger of our own adds. Its size and
+  seeders are unknown (0 and -1). Only the name the person gave and the hash are used; the magnet's trackers are
+  not sent. An offer to another library declines it (`unknown_indexer`). `TestManualAddByHash` (e2e) runs it from
+  the add to the filled title.
 - **One delete, no restart, unrestrict or link request.** The only deletes in Theatarr are in `adder/delete.go`, outside the
   `Adder` interface: `Deleter.DeleteOwnUncachedAdd` (Real-Debrid and AllDebrid) and `StalledDeleter.DeleteOwnStalledAdd`
   (Real-Debrid only) for the router, and `UserDeleter.DeleteUserChosen` for the torrent manager only (torrents a person

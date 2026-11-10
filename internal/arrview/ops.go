@@ -84,6 +84,22 @@ func (s *Service) GrabRelease(ctx context.Context, titleID int64, version string
 	if s.pol.Indexers[rel.Indexer] == nil {
 		return nil, refused("release indexer is no longer enabled: %s", rel.Indexer)
 	}
+	return s.grab(ctx, titleID, version, rel, override, source)
+}
+
+// AddRelease routes a release a person names by its hash for a version of a title (the release panel's "Add by
+// magnet or hash"): a release no search found, so it has no indexer and carries policy.ManualIndexer in its place
+// (the adders refuse a magnet that names no source). It is GrabRelease without the indexer check and nothing else:
+// decided now for the version, refused when rejected unless override, then the router's own rules (gate, blocklist,
+// provider order, pacing, cached-only, the record of our own adds).
+func (s *Service) AddRelease(ctx context.Context, titleID int64, version string, rel indexer.Release, override bool,
+	source string) (*Grabbed, error) {
+	rel.Indexer, rel.Kind, rel.Privacy = policy.ManualIndexer, "", ""
+	return s.grab(ctx, titleID, version, rel, override, source)
+}
+
+func (s *Service) grab(ctx context.Context, titleID int64, version string, rel indexer.Release, override bool,
+	source string) (*Grabbed, error) {
 	if s.decider == nil {
 		return nil, refused("the decision engine is not running")
 	}
@@ -262,8 +278,10 @@ func (s *Service) RetryDownload(ctx context.Context, id int64, source string) (*
 	}
 	// The version's indexer list is the user's choice of where releases come from: a release of an indexer the
 	// version no longer lists is not routed again.
+	// A release added by hand (AddRelease) came from no indexer and is not held to the list, as in the decision
+	// engine's rule.
 	if vp := s.pol.Versions[out.Version]; vp != nil && len(req.Candidates) > 0 && len(vp.Indexers) > 0 &&
-		!slices.Contains(vp.Indexers, req.Candidates[0].Release.Indexer) {
+		req.Candidates[0].Release.Indexer != policy.ManualIndexer && !slices.Contains(vp.Indexers, req.Candidates[0].Release.Indexer) {
 		return out, refused("indexer %s is not one of version %s's indexers", req.Candidates[0].Release.Indexer, out.Version)
 	}
 	req.DownloadID, req.DecisionRev, req.Source = 0, "", source

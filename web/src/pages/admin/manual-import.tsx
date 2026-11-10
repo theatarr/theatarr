@@ -59,6 +59,14 @@ export function ManualImportFiles({ rows, options, disabled, change }: {
     })}</TableBody></Table>;
 }
 
+/** Where a magnet or hash Theatarr has not seen goes: this page only reads downloads Theatarr started. */
+const NEW_HASH_HELP = "To add a new magnet or hash, open the title and use Add by magnet or hash.";
+
+/** What listing a source found; a hash with no download of ours says where a new hash goes instead of "0". */
+export function listedWords(files: number, kind: string): string {
+  return files === 0 && kind === "downloadId" ? `No download of Theatarr's has this hash. ${NEW_HASH_HELP}` : `${files} candidate file(s)`;
+}
+
 export function ManualImportPage() {
   const policy = usePolicy();
   const [version, setVersion] = useState("");
@@ -81,7 +89,8 @@ export function ManualImportPage() {
     e.preventDefault();
     void run(async () => {
       const files = await api<Candidate[]>("/manualimport" + qs({ version, [kind]: source.trim() }));
-      setRows(files.map(importRow)); setDirty(false); setResult(`${files.length} candidate file(s)`);
+      setRows(files.map(importRow)); setDirty(false);
+      setResult(listedWords(files.length, kind));
     });
   };
   const review = () => void run(async () => {
@@ -106,6 +115,7 @@ export function ManualImportPage() {
       <label className="min-w-64 flex-1">{kind === "folder" ? "Folder under the mount" : "Download hash"}<Input required disabled={busy} value={source} onChange={(e) => setSource(e.target.value)} /></label>
       <Button disabled={busy || !version || !source.trim() || !options.data} type="submit">List files</Button>
     </form>
+    {kind === "downloadId" && <p className="mb-4 text-xs text-[var(--ink-3)]" data-testid="manual-import-hash-help">A download Theatarr already started. {NEW_HASH_HELP}</p>}
     {options.data && rows.length > 0 && <>
       <ManualImportFiles rows={rows} options={options.data} disabled={busy} change={(i, row) => { setRows((old) => old.map((r, n) => n === i ? row : r)); setDirty(true); }} />
       <div className="mt-4 flex gap-3"><Button variant="secondary" disabled={busy} onClick={review}>Review choices</Button><Button disabled={busy || dirty || !rows.some((r) => r.selected)} onClick={execute}>Import selected files</Button></div>

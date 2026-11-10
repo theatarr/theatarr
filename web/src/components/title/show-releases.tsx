@@ -3,6 +3,7 @@
 // search the indexers now; for a shadow version it shows the last stored decision (the journal's, or the shadow
 // runner's search for an arr grab) and sends no indexer traffic. A live answer's releases can be grabbed by managers
 // (release-grab.tsx); so can a stored answer's while the version may search, the grab running that search first. Mounted by the title page as <ShowReleases titleId />.
+// Admins also get "Add by magnet or hash" under the list, for the shown library (release-grab.tsx, AddByHash).
 // Table look adapted from Scryer (github.com/scryer-media/scryer) apps/scryer-web interactive search results @
 // 2ef7757c, GPL-3.0 (ranked rows, score column, rejection chips).
 import { CheckCircle2, ChevronDown, Loader2, RefreshCw, Search, XCircle } from "lucide-react";
@@ -13,7 +14,7 @@ import { usePerms } from "@/api/library";
 import { qk } from "@/api/query-keys";
 import { VersionStatus } from "@/components/version-status";
 import { Empty, ErrorState, VersionTag } from "@/components/page";
-import { GrabButton, GrabDialog, type GrabTarget } from "@/components/title/release-grab";
+import { AddByHash, GrabButton, GrabDialog, type GrabTarget } from "@/components/title/release-grab";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -293,6 +294,7 @@ function Panel({ titleId, initialVersion, focus }: { titleId: number; initialVer
           {items.length === 0 ? <Empty>No releases to show for {r.version}.</Empty> : <ReleaseTable items={items} grab={grab} outcomes={r.outcomes} focus={shownFocus} />}
         </>
       ) : null}
+      {r && perms.admin ? <AddByHash key={r.version} titleId={titleId} version={r.version} /> : null}
       {picked ? (
         <GrabDialog
           c={picked.c}

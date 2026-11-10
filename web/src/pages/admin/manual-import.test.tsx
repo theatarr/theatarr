@@ -2,7 +2,7 @@ import { createElement as h } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
 import type { Schemas } from "@/api/client";
-import { importRow, ManualImportFiles } from "./manual-import";
+import { importRow, listedWords, ManualImportFiles } from "./manual-import";
 
 const candidate: Schemas["ManualImportCandidate"] = {
   id: 1, path: "/mount/Show/file.mkv", size: 123,
@@ -30,5 +30,10 @@ describe("manual import", () => {
     expect(html).toContain('<fieldset disabled=""');
     expect(html).toContain('value="102" selected=""');
     expect(html).toContain('value="CHOSEN"');
+  });
+  it("points an unknown download hash at Add by magnet or hash", () => {
+    expect(listedWords(0, "downloadId")).toBe("No download of Theatarr's has this hash. To add a new magnet or hash, open the title and use Add by magnet or hash.");
+    expect(listedWords(0, "folder")).toBe("0 candidate file(s)");
+    expect(listedWords(2, "downloadId")).toBe("2 candidate file(s)");
   });
 });

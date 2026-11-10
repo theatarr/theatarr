@@ -608,6 +608,9 @@ func TestIndexerProviders(t *testing.T) {
 	if got := p.ReleaseProviders(v, ik); !slices.Equal(got, []string{v.Providers[1]}) {
 		t.Errorf("allowlist: %v", got)
 	}
+	if got := p.ReleaseProviders(v, ManualIndexer); !slices.Equal(got, v.Providers) {
+		t.Errorf("a manual add: %v, want %v", got, v.Providers)
+	}
 	for _, tc := range []struct{ list, err string }{
 		{"[nope]", "unknown provider"},
 		{"[" + v.Providers[0] + ", " + v.Providers[0] + "]", "listed twice"},

@@ -524,10 +524,11 @@ func indexerMulti(pol *policy.Policy, key string) []string {
 }
 
 // ourRules are the checks the arrs do not have: the version's own indexer list. Which indexers feed a version is
-// the user's choice; an indexer's privacy is a label only.
+// the user's choice; an indexer's privacy is a label only. A release a person added by hand (policy.ManualIndexer)
+// came from no indexer and is not held to the list.
 func (e *Engine) ourRules(rel Release, v Version) []Rejection {
 	var out []Rejection
-	if rel.Indexer != "" && len(v.Policy.Indexers) > 0 && !slices.Contains(v.Policy.Indexers, rel.Indexer) {
+	if rel.Indexer != "" && rel.Indexer != policy.ManualIndexer && len(v.Policy.Indexers) > 0 && !slices.Contains(v.Policy.Indexers, rel.Indexer) {
 		out = append(out, Rejection{Reason: "IndexerNotInVersion", Ours: true, Message: fmt.Sprintf(
 			"Indexer %s is not one of version %s's indexers (%s)", rel.Indexer, v.Key, strings.Join(v.Policy.Indexers, ", "))})
 	}

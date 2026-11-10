@@ -397,14 +397,19 @@ type Indexer struct {
 	Providers []string `yaml:"providers"`
 }
 
-// ReleaseProviders is v's provider order limited to those indexer ix allows (indexers[ix].providers; all when empty
-// or when ix is not in the policy).
+// ManualIndexer is what a release a person added by magnet or hash carries as its indexer (arrview.AddRelease): no
+// search found it, so it has none. It is not an indexer of the policy and is never looked up as one: such a release
+// is not held to a version's indexer list and no indexer narrows its providers.
+const ManualIndexer = "manual"
+
+// ReleaseProviders is v's provider order limited to those indexer ix allows (indexers[ix].providers; all when empty,
+// when ix is not in the policy, or for a manual add).
 func (p *Policy) ReleaseProviders(v *VersionPolicy, ix string) []string {
 	if v == nil {
 		return nil
 	}
 	in := p.Indexers[ix]
-	if in == nil || len(in.Providers) == 0 {
+	if ix == ManualIndexer || in == nil || len(in.Providers) == 0 {
 		return v.Providers
 	}
 	var out []string

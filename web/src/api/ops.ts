@@ -10,6 +10,7 @@ import { operationOutcomeToast } from "@/lib/ops";
 
 export type GrabRequest = Schemas["GrabRequest"];
 export type GrabResult = Schemas["GrabResult"];
+export type AddReleaseRequest = Schemas["AddReleaseRequest"];
 export type RemovalScope = Schemas["RemovalScope"];
 export type RemovalCopy = Schemas["RemovalCopy"];
 export type RemoveRequest = Schemas["RemoveRequest"];
@@ -37,6 +38,15 @@ export function useGrab(titleId: number) {
   const refresh = useRefresh();
   return useMutation({
     mutationFn: (body: GrabRequest) => api<GrabResult>(`/titles/${titleId}/releases/grab`, { method: "POST", body }),
+    onSuccess: () => refresh(titleId),
+  });
+}
+
+/** Add a release by magnet or hash (admins): one no search found. Routed like a grab; the answer is a grab's. */
+export function useAddRelease(titleId: number) {
+  const refresh = useRefresh();
+  return useMutation({
+    mutationFn: (body: AddReleaseRequest) => api<GrabResult>(`/titles/${titleId}/releases/add`, { method: "POST", body }),
     onSuccess: () => refresh(titleId),
   });
 }

@@ -228,3 +228,65 @@ it("a live search is not retried on its own", async () => {
   await new Promise((r) => setTimeout(r, 20));
   expect(api.calls("GET", "/titles/7/releases").map((g) => g.search)).toEqual(["?version=movie-web", "?version=movie-web&live=1"]);
 });
+
+const ADMIN_PERMS = { permissions: ["browse", "see_files", "manage", "admin"] };
+const added = { version: "movie-web", release: "Alpha.2020.2160p.WEB-DL-GRP", info_hash: "a".repeat(40), accepted: true, overridden: false, message: "Sent to the router" };
+
+it("an admin adds a release by magnet: the name comes from the magnet and a rejection needs Add anyway", async () => {
+  const api = mockFetch([
+    { method: "GET", path: "/auth/me", reply: ADMIN_PERMS },
+    { method: "GET", path: "/titles/7/releases", reply: stored([cand(1, "aaa")]) },
+    { method: "POST", path: "/titles/7/releases/add", reply: { status: 409, body: { error: "rejected for movie-web: WEBDL-1080p is not wanted", detail: ["WEBDL-1080p is not wanted"] } } },
+    { method: "POST", path: "/titles/7/releases/add", reply: { ...added, accepted: false, overridden: true, message: "Added although rejected; sent to the router" } },
+  ]);
+  renderPage(<ShowReleases titleId={7} defaultOpen initialVersion="movie-web" />);
+  const form = await screen.findByTestId("add-by-hash");
+  const link = within(form).getByTestId("add-by-hash-link") as HTMLInputElement;
+  const name = within(form).getByTestId("add-by-hash-name") as HTMLInputElement;
+  const button = within(form).getByTestId("add-by-hash-add") as HTMLButtonElement;
+  expect(button.disabled).toBe(true);
+  const magnet = `magnet:?xt=urn:btih:${"a".repeat(40)}&dn=Alpha.2020.1080p.WEB-DL+GRP&tr=udp%3A%2F%2Ftracker.example`;
+  fireEvent.change(link, { target: { value: magnet } });
+  expect(name.value).toBe("Alpha.2020.1080p.WEB-DL GRP");
+  fireEvent.click(button);
+  const rejected = await screen.findByTestId("add-by-hash-rejected");
+  expect(rejected.textContent).toContain("WEBDL-1080p is not wanted");
+  fireEvent.click(within(rejected).getByTestId("add-by-hash-anyway"));
+  expect((await screen.findByTestId("add-by-hash-done")).textContent).toContain("Added although rejected");
+  expect(api.calls("POST", "/titles/7/releases/add").map((c) => c.body)).toEqual([
+    { version: "movie-web", name: "Alpha.2020.1080p.WEB-DL GRP", override: false, magnet },
+    { version: "movie-web", name: "Alpha.2020.1080p.WEB-DL GRP", override: true, magnet },
+  ]);
+  expect(link.value).toBe("");
+});
+
+it("a bare hash needs a release name before Add", async () => {
+  const api = mockFetch([
+    { method: "GET", path: "/auth/me", reply: ADMIN_PERMS },
+    { method: "GET", path: "/titles/7/releases", reply: stored([]) },
+    { method: "POST", path: "/titles/7/releases/add", reply: added },
+  ]);
+  renderPage(<ShowReleases titleId={7} defaultOpen initialVersion="movie-web" />);
+  const form = await screen.findByTestId("add-by-hash");
+  const button = within(form).getByTestId("add-by-hash-add") as HTMLButtonElement;
+  fireEvent.change(within(form).getByTestId("add-by-hash-link"), { target: { value: ` ${"A".repeat(40)} ` } });
+  expect((within(form).getByTestId("add-by-hash-name") as HTMLInputElement).required).toBe(true);
+  expect(button.disabled).toBe(true);
+  fireEvent.change(within(form).getByTestId("add-by-hash-name"), { target: { value: "Alpha.2020.2160p.WEB-DL-GRP" } });
+  expect(button.disabled).toBe(false);
+  fireEvent.click(button);
+  expect((await screen.findByTestId("add-by-hash-done")).textContent).toContain("Sent to the router");
+  expect(api.calls("POST", "/titles/7/releases/add").map((c) => c.body)).toEqual([
+    { version: "movie-web", name: "Alpha.2020.2160p.WEB-DL-GRP", override: false, info_hash: "A".repeat(40) },
+  ]);
+});
+
+it("a manager has no Add by magnet or hash", async () => {
+  mockFetch([
+    { method: "GET", path: "/auth/me", reply: { permissions: ["browse", "see_files", "manage"] } },
+    { method: "GET", path: "/titles/7/releases", reply: stored([cand(1, "aaa")]) },
+  ]);
+  renderPage(<ShowReleases titleId={7} defaultOpen initialVersion="movie-web" />);
+  await screen.findByTestId("releases-grabbed");
+  expect(screen.queryByTestId("add-by-hash")).toBeNull();
+});
