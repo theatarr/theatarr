@@ -64,3 +64,13 @@ func localTrashCommit(root string) (string, bool, error) {
 	}
 	return "", true, errors.New("settings: cannot resolve TRaSH git commit")
 }
+
+// LocalTrashCommit is the commit a TRaSH-Guides checkout at root is at, empty when root is not a git checkout or its
+// HEAD cannot be read.
+func LocalTrashCommit(root string) string {
+	commit, found, err := localTrashCommit(root)
+	if !found || err != nil {
+		return ""
+	}
+	return commit
+}

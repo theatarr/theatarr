@@ -2,14 +2,15 @@ import { SettingsAuthority } from "@/components/settings/authority";
 // Settings › Profiles (docs/design/settings.md, "Profiles, presets and formats"): every profile
 // with its allowed qualities (best first, cutoff marked), how many formats it scores, the TRaSH preset it started
 // from and how ours differs, and the versions that use it (unused ones are shown, never deleted by themselves). The
-// default profile per kind of version is what Add version preselects. New profiles start from a TRaSH preset.
+// default profile per kind of version is what Add version preselects. New profiles start from a TRaSH preset; the
+// TRaSH defaults (every preset, built in) are listed below the profiles.
 import { useEffect, useRef, useState } from "react";
 import { Link, useSearchParams } from "react-router";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { api } from "@/api/client";
 import { qk } from "@/api/query-keys";
 import { useSettings } from "@/api/settings";
-import { CATEGORY_LABEL, originLabel, overviewKey, saveDefaults, useQualityOverview, type Category, type ProfileSummary } from "@/api/settings-profiles";
+import { CATEGORY_LABEL, freeKey, keyFromName, originLabel, overviewKey, saveDefaults, useQualityOverview, type Category, type ProfileSummary } from "@/api/settings-profiles";
 import { ErrorState, Loading, Mono, Section } from "@/components/page";
 import { Announcer, ExplainBox, SELECT_CLASS, useAnnouncement } from "@/components/settings/parts";
 import { Badge } from "@/components/ui/badge";
@@ -19,6 +20,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { useEditParam } from "@/components/ui/sheet";
 import { explainError } from "@/lib/settings";
 import { QualityPanel, type QualityRecord } from "../quality";
+import { TrashDefaults } from "./defaults";
 import { QualityChips } from "./parts";
 import { ProfileSheet, type ProfileSession } from "./sheet";
 
@@ -103,7 +105,8 @@ export function ProfilesPage({ compact = false }: { compact?: boolean }) {
     {settings.data ? <SettingsAuthority compact={compact} overview={settings.data} /> : null}
     <Announcer announcement={announcement} testid="profiles-announcer" />
     {!db ? <p className="text-sm font-medium" data-testid="read-only-note">Settings service unavailable.</p> : null}
-    {!o.trash.length ? <p className="text-sm text-muted-foreground" data-testid="trash-note">{o.trash_note ?? "No local TRaSH guides tree (THEATARR_TRASH)"}: presets, TRaSH scores and comparisons are unavailable. A profile can still be made by hand in the <Link className="underline" to="/admin/settings/profiles?raw=1">raw profile editor</Link>.</p> : null}
+    {!o.trash.length ? <p className="text-sm text-muted-foreground" data-testid="trash-note">{o.trash_note ?? "No TRaSH guides tree"}: presets, TRaSH scores and comparisons are unavailable. A profile can still be made by hand in the <Link className="underline" to="/admin/settings/profiles?raw=1">raw profile editor</Link>.</p>
+      : o.trash_note ? <p className="text-sm text-[var(--warn-ink)]" data-testid="trash-note">{o.trash_note}.</p> : null}
     <div className="flex flex-wrap items-center gap-2">
       <Button ref={newButton} disabled={readOnly || !o.trash.length} onClick={() => { deleted.current = false; setSession({ mode: "create", generation: o.generation, flavour: "radarr", key: "" }); setEdit("new"); }}>New profile from TRaSH preset</Button>
       <span className="text-[13px] text-muted-foreground">{o.profiles.length} {o.profiles.length === 1 ? "profile" : "profiles"}{unused ? ` · ${unused} unused` : ""}</span>
@@ -136,6 +139,13 @@ export function ProfilesPage({ compact = false }: { compact?: boolean }) {
       </Table>
     </Card>
     <Defaults profiles={o.profiles.map((p) => p.key)} defaults={o.defaults} readOnly={readOnly} onSaved={(t) => { announce(t); void refresh(); }} />
+    <TrashDefaults overview={o} readOnly={readOnly} onUse={(flavour, preset, built) => {
+      // The editor opens on a copy of the default, under a free key the user can change before creating it.
+      const taken = [...o.profiles.map((p) => p.key), ...o.profiles.map((p) => p.format_set)];
+      deleted.current = false;
+      setSession({ mode: "create", generation: o.generation, flavour, key: freeKey(keyFromName(preset.name), taken), config: built.profile, preset: { trash_id: preset.trash_id, modifiers: [], built } });
+      setEdit("new");
+    }} />
     <Section title="Format sets"><p className="text-[13px] text-muted-foreground">Each profile scores the formats of its own format set; editing a profile's scores edits its set. Format sets are not a page of their own any more; the raw <Link className="underline" to="/admin/settings/profiles/format_sets">format set editor</Link> and the <Link className="underline" to="/admin/settings/profiles?raw=1">raw profile editor</Link> stay for exceptions.</p></Section>
     {session ? <ProfileSheet key={session.mode === "edit" ? session.key : "new"} session={session} readOnly={readOnly} onClose={close}
       onReload={async () => { const [r, ov] = await Promise.all([records.refetch(), overview.refetch()]); return session.mode === "edit" ? sessionFor(session.key, r.data, ov.data) : undefined; }}

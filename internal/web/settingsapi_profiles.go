@@ -8,6 +8,7 @@ import (
 	"encoding/json"
 	"errors"
 	"net/http"
+	"slices"
 	"sync"
 	"time"
 
@@ -15,22 +16,60 @@ import (
 	"github.com/theatarr/theatarr/internal/decide/format"
 	"github.com/theatarr/theatarr/internal/policy"
 	"github.com/theatarr/theatarr/internal/settings"
+	"github.com/theatarr/theatarr/internal/trashbundle"
 )
 
-// trashCache keeps each flavour's local TRaSH tree for a few minutes: the pages read it on every load, and a sync
-// run that updates the tree is picked up when the entry expires.
-type trashCache struct {
-	mu      sync.Mutex
-	entries map[string]trashEntry
+// The TRaSH trees the profile pages read: the local checkout (THEATARR_TRASH) when it loads, otherwise the snapshot
+// bundled with the binary (internal/trashbundle). Only these pages fall back to the bundle: quality sync, the
+// recyclarr import and the policy build read the configured checkout alone.
+const (
+	trashFromCheckout = "checkout"
+	trashFromBundle   = "bundled"
+)
+
+// trashState is what the pages read: the tree of each flavour that loads, where they come from, and the commit when
+// it is known.
+type trashState struct {
+	trees  map[string]*format.Trash
+	source string // trashFromCheckout or trashFromBundle; empty when there is no tree at all
+	commit string
+	date   string // the bundled commit's date
+	// note says what is wrong with the configured checkout, or why there is no tree at all; empty otherwise.
+	note string
 }
 
-type trashEntry struct {
-	root string
-	tree *format.Trash
-	at   time.Time
+// trashCache keeps the local checkout's trees for a few minutes: the pages read them on every load, and a sync run
+// that updates the checkout is picked up when the entry expires.
+type trashCache struct {
+	mu    sync.Mutex
+	root  string
+	trees map[string]*format.Trash
+	// commit is the checkout's git commit, empty for an exported tree.
+	commit string
+	at     time.Time
+	loaded bool
 }
 
 const trashCacheTTL = 5 * time.Minute
+
+var trashFlavours = []string{string(format.Radarr), string(format.Sonarr)}
+
+// bundledTrash is the bundled snapshot's trees, parsed once per process.
+var bundledTrash = sync.OnceValues(func() (map[string]*format.Trash, error) {
+	fsys, err := trashbundle.FS()
+	if err != nil {
+		return nil, err
+	}
+	out := map[string]*format.Trash{}
+	for _, fl := range trashFlavours {
+		t, err := format.LoadTrashFS(fsys, format.Flavour(fl))
+		if err != nil {
+			return nil, err
+		}
+		out[fl] = t
+	}
+	return out, nil
+})
 
 func (w *Web) trashTreeRoot() string {
 	if w.trashRoot != "" {
@@ -42,46 +81,66 @@ func (w *Web) trashTreeRoot() string {
 	return ""
 }
 
-// trashTree is flavour's local TRaSH tree, nil when none is configured or it does not load.
-func (w *Web) trashTree(flavour string) *format.Trash {
-	root := w.trashTreeRoot()
-	if root == "" || !format.Flavour(flavour).Valid() {
-		return nil
-	}
+// checkoutTrash is the trees that load from the checkout at root, and its commit.
+func (w *Web) checkoutTrash(root string) (map[string]*format.Trash, string) {
 	c := &w.trashCache
 	c.mu.Lock()
 	defer c.mu.Unlock()
-	if e, ok := c.entries[flavour]; ok && e.root == root && time.Since(e.at) < trashCacheTTL {
-		return e.tree
+	if c.loaded && c.root == root && time.Since(c.at) < trashCacheTTL {
+		return c.trees, c.commit
 	}
-	tree, err := format.LoadTrash(root, format.Flavour(flavour))
-	if err != nil || len(tree.Profiles) == 0 && len(tree.Formats) == 0 {
-		tree = nil
-	}
-	if c.entries == nil {
-		c.entries = map[string]trashEntry{}
-	}
-	c.entries[flavour] = trashEntry{root: root, tree: tree, at: time.Now()}
-	return tree
-}
-
-// noTrashNote says why there is no local TRaSH tree: THEATARR_TRASH is unset, or it names a directory without a
-// TRaSH-Guides checkout (the example compose file mounts an empty directory until the guides are cloned into it).
-func (w *Web) noTrashNote() string {
-	if w.trashTreeRoot() == "" {
-		return "No local TRaSH guides tree (THEATARR_TRASH is not set)"
-	}
-	return "THEATARR_TRASH is set but holds no TRaSH-Guides checkout"
-}
-
-func (w *Web) trashTrees() map[string]*format.Trash {
-	out := map[string]*format.Trash{}
-	for _, fl := range []string{string(format.Radarr), string(format.Sonarr)} {
-		if t := w.trashTree(fl); t != nil {
-			out[fl] = t
+	trees := map[string]*format.Trash{}
+	for _, fl := range trashFlavours {
+		if tree, err := format.LoadTrash(root, format.Flavour(fl)); err == nil && (len(tree.Profiles) > 0 || len(tree.Formats) > 0) {
+			trees[fl] = tree
 		}
 	}
-	return out
+	c.root, c.trees, c.commit, c.at, c.loaded = root, trees, "", time.Now(), true
+	if len(trees) > 0 {
+		c.commit = settings.LocalTrashCommit(root)
+	}
+	return c.trees, c.commit
+}
+
+// trash is the trees the pages read. A checkout that loads for at least one flavour is used alone, as before there
+// was a bundle: a flavour it lacks stays unavailable, so two commits are never mixed. Without one, the bundle.
+func (w *Web) trash() trashState {
+	root := w.trashTreeRoot()
+	note := ""
+	if root != "" {
+		if trees, commit := w.checkoutTrash(root); len(trees) > 0 {
+			return trashState{trees: trees, source: trashFromCheckout, commit: commit}
+		}
+		note = "THEATARR_TRASH is set but holds no TRaSH-Guides checkout"
+	}
+	trees, err := bundledTrash()
+	if err != nil {
+		// Cannot happen with the archive the tests check; the pages then say presets are unavailable.
+		if note == "" {
+			note = "No local TRaSH guides tree (THEATARR_TRASH is not set)"
+		}
+		return trashState{trees: map[string]*format.Trash{}, note: note + ", and the bundled TRaSH defaults could not be read"}
+	}
+	if note != "" {
+		note += ": the TRaSH defaults bundled with this version are used instead"
+	}
+	return trashState{trees: trees, source: trashFromBundle, commit: trashbundle.Commit(), date: trashbundle.Date(), note: note}
+}
+
+// trashTree is flavour's TRaSH tree, nil when none loads.
+func (w *Web) trashTree(flavour string) *format.Trash {
+	if !format.Flavour(flavour).Valid() {
+		return nil
+	}
+	return w.trash().trees[flavour]
+}
+
+// noTrashNote says why a flavour has no tree: the checkout in THEATARR_TRASH lacks it, or nothing could be read.
+func noTrashNote(st trashState) string {
+	if st.source == trashFromCheckout {
+		return "THEATARR_TRASH is set but holds no TRaSH-Guides checkout"
+	}
+	return st.note
 }
 
 func (w *Web) mountProfileSettingsAPI(mux *http.ServeMux) {
@@ -102,12 +161,19 @@ type qualityOverviewAnswer struct {
 	settings.QualityOverview
 	Defaults   settings.ProfileDefaults `json:"defaults"`
 	Categories []string                 `json:"categories"`
-	// TrashNote says why there is no local TRaSH tree; empty when there is one.
+	// TrashNote says what is wrong with the TRaSH tree: THEATARR_TRASH is set but holds no checkout (the bundled
+	// defaults are then used), or no tree could be read at all. Empty otherwise.
 	TrashNote string `json:"trash_note,omitempty"`
+	// TrashSource is where the trees in trash come from: "checkout" (THEATARR_TRASH) or "bundled" (the snapshot in
+	// the binary). TrashCommit is their TRaSH-Guides commit when known, TrashCommitDate the bundled commit's date.
+	TrashSource     string `json:"trash_source,omitempty"`
+	TrashCommit     string `json:"trash_commit,omitempty"`
+	TrashCommitDate string `json:"trash_commit_date,omitempty"`
 }
 
 func (w *Web) apiQualityOverview(rw http.ResponseWriter, r *http.Request) {
-	in := settings.OverviewInput{Policy: w.pol, Trash: w.trashTrees()}
+	trash := w.trash()
+	in := settings.OverviewInput{Policy: w.pol, Trash: trash.trees}
 	answer := qualityOverviewAnswer{Source: "db", Defaults: settings.ProfileDefaults{}, Categories: settings.ProfileCategories}
 	{
 		snap, ok := w.settingsHead(rw, r)
@@ -135,13 +201,12 @@ func (w *Web) apiQualityOverview(rw http.ResponseWriter, r *http.Request) {
 		answer.Defaults = defaults
 	}
 	answer.QualityOverview = settings.QualityOverviewOf(in)
-	if len(in.Trash) == 0 {
-		answer.TrashNote = w.noTrashNote()
-	}
+	answer.TrashNote, answer.TrashSource, answer.TrashCommit, answer.TrashCommitDate = trash.note, trash.source, trash.commit, trash.date
 	writeJSON(rw, http.StatusOK, answer)
 }
 
-// presetTree answers 400 for an unknown flavour and 503 without a local TRaSH tree.
+// presetTree answers 400 for an unknown flavour and 503 when no TRaSH tree loads for it: the checkout in
+// THEATARR_TRASH lacks the flavour, or (never, in a tested build) the bundled defaults cannot be read.
 func (w *Web) presetTree(rw http.ResponseWriter, flavour string) *format.Trash {
 	if !format.Flavour(flavour).Valid() {
 		badRequest(rw, "flavour must be radarr or sonarr")
@@ -149,31 +214,70 @@ func (w *Web) presetTree(rw http.ResponseWriter, flavour string) *format.Trash {
 	}
 	t := w.trashTree(flavour)
 	if t == nil {
-		writeJSON(rw, http.StatusServiceUnavailable, apiError{Error: "no local TRaSH guides tree for " + flavour + " (THEATARR_TRASH): presets need it"})
+		writeJSON(rw, http.StatusServiceUnavailable, apiError{Error: "no TRaSH guides tree for " + flavour + " (THEATARR_TRASH): presets need it"})
 	}
 	return t
 }
 
-// apiPresets lists flavour's presets. Without a local TRaSH tree it answers an empty list and the reason: a state of
-// the install, not a server error, so the pages that read it on every visit neither retry it nor log errors.
+// presetsAnswer is the presets of one flavour and where they come from.
+type presetsAnswer struct {
+	Flavour string            `json:"flavour"`
+	Presets []settings.Preset `json:"presets"`
+	// Unavailable is set, with an empty list, when no TRaSH tree loads for the flavour.
+	Unavailable string `json:"unavailable,omitempty"`
+	// Source is "checkout" (THEATARR_TRASH) or "bundled" (the snapshot in the binary); Commit is the TRaSH-Guides
+	// commit when known and CommitDate the bundled commit's date.
+	Source     string `json:"source,omitempty"`
+	Commit     string `json:"commit,omitempty"`
+	CommitDate string `json:"commit_date,omitempty"`
+}
+
+// apiPresets lists flavour's presets, from the checkout in THEATARR_TRASH or else the bundled TRaSH defaults. When
+// no tree loads for the flavour it answers an empty list and the reason: a state of the install, not a server error,
+// so the pages that read it on every visit neither retry it nor log errors.
 func (w *Web) apiPresets(rw http.ResponseWriter, r *http.Request) {
 	flavour := r.URL.Query().Get("flavour")
 	if !format.Flavour(flavour).Valid() {
 		badRequest(rw, "flavour must be radarr or sonarr")
 		return
 	}
-	t := w.trashTree(flavour)
+	st := w.trash()
+	answer := presetsAnswer{Flavour: flavour, Presets: []settings.Preset{}, Source: st.source, Commit: st.commit, CommitDate: st.date}
+	t := st.trees[flavour]
 	if t == nil {
-		writeJSON(rw, http.StatusOK, map[string]any{"flavour": flavour, "presets": []settings.Preset{},
-			"unavailable": w.noTrashNote() + ": TRaSH presets need it"})
+		answer.Unavailable = noTrashNote(st) + ": TRaSH presets need it"
+		writeJSON(rw, http.StatusOK, answer)
 		return
 	}
-	presets, err := settings.Presets(t)
+	presets, err := w.presets(st, flavour)
 	if err != nil {
 		w.internal(rw, err)
 		return
 	}
-	writeJSON(rw, http.StatusOK, map[string]any{"flavour": flavour, "presets": presets})
+	answer.Presets = presets
+	writeJSON(rw, http.StatusOK, answer)
+}
+
+// bundledPresets is the preset list of each bundled flavour, built once: the snapshot never changes.
+var bundledPresets sync.Map // flavour -> func() ([]settings.Preset, error)
+
+func (w *Web) presets(st trashState, flavour string) ([]settings.Preset, error) {
+	t := st.trees[flavour]
+	if st.source != trashFromBundle {
+		return settings.Presets(t)
+	}
+	once, _ := bundledPresets.LoadOrStore(flavour, sync.OnceValues(func() ([]settings.Preset, error) { return settings.Presets(t) }))
+	presets, err := once.(func() ([]settings.Preset, error))()
+	if err != nil {
+		return nil, err
+	}
+	// Copies: the handler's answer must not share the cached slices.
+	out := make([]settings.Preset, len(presets))
+	for i, p := range presets {
+		p.Qualities, p.Modifiers = slices.Clone(p.Qualities), slices.Clone(p.Modifiers)
+		out[i] = p
+	}
+	return out, nil
 }
 
 type presetBody struct {

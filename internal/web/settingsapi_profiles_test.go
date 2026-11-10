@@ -4,12 +4,14 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"os"
 	"reflect"
 	"strings"
 	"testing"
 
 	"github.com/theatarr/theatarr/internal/policy"
 	"github.com/theatarr/theatarr/internal/settings"
+	"github.com/theatarr/theatarr/internal/trashbundle"
 )
 
 const presetsTrash = "../settings/testdata/trashpresets"
@@ -19,6 +21,13 @@ type impactCall struct{ before, after *policy.Policy }
 
 // newProfileEnv is newQualityEnv with the TRaSH presets tree and an impact function that records its policies.
 func newProfileEnv(t *testing.T, calls *[]impactCall) *settingsEnv {
+	t.Helper()
+	return newProfileEnvAt(t, calls, presetsTrash, "../settings/testdata/trash")
+}
+
+// newProfileEnvAt is newProfileEnv with the pages' TRaSH root and the quality sync's (THEATARR_TRASH sets both).
+// The example policy's own formats are imported from the small test tree whatever the roots are.
+func newProfileEnvAt(t *testing.T, calls *[]impactCall, webRoot, syncRoot string) *settingsEnv {
 	t.Helper()
 	var coord *settings.RuntimeCoordinator
 	se := newSettingsEnvBase(t, nil, nil, func(c *Config) {
@@ -35,8 +44,9 @@ func newProfileEnv(t *testing.T, calls *[]impactCall) *settingsEnv {
 		if err != nil {
 			t.Fatal(err)
 		}
-		c.Settings, c.TrashRoot = coord, presetsTrash
-		c.QualitySync = &settings.QualitySync{Store: st, Coordinator: coord, TrashRoot: "../settings/testdata/trash", Impact: func(_ context.Context, before, after *policy.Policy) (settings.DecisionImpact, error) {
+		st.SetTrashRoot(syncRoot)
+		c.Settings, c.TrashRoot = coord, webRoot
+		c.QualitySync = &settings.QualitySync{Store: st, Coordinator: coord, TrashRoot: syncRoot, Impact: func(_ context.Context, before, after *policy.Policy) (settings.DecisionImpact, error) {
 			*calls = append(*calls, impactCall{before, after})
 			return settings.DecisionImpact{Files: 3, ScoreChanged: 2, Examples: []settings.ImpactExample{{Title: "Dune", Version: "movie-remux", BeforeScore: 1900, AfterScore: 2400}}}, nil
 		}}
@@ -60,10 +70,9 @@ func TestProfilePresetsAndOverviewAPI(t *testing.T) {
 	se := newProfileEnv(t, &calls)
 	res := se.call("GET", "/presets?flavour=radarr", nil)
 	se.want(res, 200, "presets")
-	presets := decodeAs[struct {
-		Presets []settings.Preset `json:"presets"`
-	}](t, res.Body.Bytes())
-	if len(presets.Presets) != 2 || presets.Presets[1].TrashID != webPreset || len(presets.Presets[1].Modifiers) != 3 {
+	presets := decodeAs[presetsAnswer](t, res.Body.Bytes())
+	// A checkout that loads is used alone: its two presets, not the bundle's.
+	if len(presets.Presets) != 2 || presets.Presets[1].TrashID != webPreset || len(presets.Presets[1].Modifiers) != 3 || presets.Source != "checkout" || presets.Commit != "" || presets.CommitDate != "" {
 		t.Fatalf("presets %+v", presets)
 	}
 	se.want(se.call("GET", "/presets?flavour=lidarr", nil), 400, "unknown flavour")
@@ -99,7 +108,7 @@ func TestProfilePresetsAndOverviewAPI(t *testing.T) {
 	res = se.call("GET", "/quality/overview", nil)
 	se.want(res, 200, "overview")
 	ov := decodeAs[qualityOverviewAnswer](t, res.Body.Bytes())
-	if ov.Source != "db" || ov.Generation != se.generation() || !reflect.DeepEqual(ov.Trash, []string{"radarr"}) || len(ov.Formats) == 0 ||
+	if ov.Source != "db" || ov.Generation != se.generation() || !reflect.DeepEqual(ov.Trash, []string{"radarr"}) || len(ov.Formats) == 0 || ov.TrashSource != "checkout" || ov.TrashNote != "" ||
 		!reflect.DeepEqual(ov.Categories, []string{"movie", "series", "anime_movie", "anime_series"}) {
 		t.Fatalf("overview %+v", ov)
 	}
@@ -196,29 +205,126 @@ func TestProfileDefaultsAPI(t *testing.T) {
 
 }
 
-// Without a TRaSH checkout the presets answer is an empty list with the reason (THEATARR_TRASH unset, or set to a
-// directory without the guides), not a server error, and the profiles overview carries the same reason.
-func TestPresetsWithoutTrashCheckout(t *testing.T) {
+// Without a TRaSH checkout (THEATARR_TRASH unset, or set to a directory without the guides) the pages read the
+// TRaSH defaults bundled with the binary: every preset is listed and a profile can be created from one. A directory
+// without the guides is still reported. Reading writes nothing.
+func TestPresetsFromTheBundleWithoutACheckout(t *testing.T) {
 	t.Parallel()
-	for name, tc := range map[string]struct{ root, want string }{
-		"unset": {"", "THEATARR_TRASH is not set"},
-		"empty": {t.TempDir(), "THEATARR_TRASH is set but holds no TRaSH-Guides checkout"},
+	for name, tc := range map[string]struct{ root, note string }{
+		"unset": {"", ""},
+		"empty": {t.TempDir(), "THEATARR_TRASH is set but holds no TRaSH-Guides checkout: the TRaSH defaults bundled with this version are used instead"},
 	} {
 		t.Run(name, func(t *testing.T) {
-			se := newSettingsEnv(t, nil, func(c *Config) { c.TrashRoot = tc.root })
-			for range 3 {
-				out := se.want(se.call("GET", "/presets?flavour=radarr", nil), 200, "presets")
-				if note, _ := out["unavailable"].(string); !strings.Contains(note, tc.want) || len(out["presets"].([]any)) != 0 {
-					t.Fatalf("presets: %v", out)
+			var calls []impactCall
+			se := newProfileEnvAt(t, &calls, tc.root, tc.root)
+			gen := se.generation()
+			var web string
+			for _, fl := range []string{"radarr", "sonarr"} {
+				for range 2 {
+					res := se.call("GET", "/presets?flavour="+fl, nil)
+					se.want(res, 200, "presets")
+					out := decodeAs[presetsAnswer](t, res.Body.Bytes())
+					if out.Unavailable != "" || out.Source != "bundled" || out.Commit != trashbundle.Commit() || out.CommitDate != trashbundle.Date() || len(out.Presets) < 20 {
+						t.Fatalf("%s presets: %d, %+v", fl, len(out.Presets), out)
+					}
+					for _, p := range out.Presets {
+						if p.TrashID == webPreset {
+							web = p.Name
+						}
+						if p.Flavour != fl || p.Name == "" || len(p.Qualities) == 0 || p.Formats == 0 {
+							t.Fatalf("preset %+v", p)
+						}
+					}
 				}
 			}
-			overview := se.want(se.call("GET", "/quality/overview", nil), 200, "overview")
-			if note, _ := overview["trash_note"].(string); !strings.Contains(note, tc.want) {
-				t.Fatalf("overview trash_note: %v", overview["trash_note"])
+			if web != "WEB 2160p" {
+				t.Fatalf("the bundle lacks TRaSH's WEB 2160p: %q", web)
+			}
+			res := se.call("GET", "/quality/overview", nil)
+			se.want(res, 200, "overview")
+			ov := decodeAs[qualityOverviewAnswer](t, res.Body.Bytes())
+			if !reflect.DeepEqual(ov.Trash, []string{"radarr", "sonarr"}) || ov.TrashNote != tc.note || ov.TrashSource != "bundled" || ov.TrashCommit != trashbundle.Commit() || ov.TrashCommitDate != trashbundle.Date() {
+				t.Fatalf("overview: %v %q %q %q", ov.Trash, ov.TrashNote, ov.TrashSource, ov.TrashCommit)
+			}
+			if se.generation() != gen {
+				t.Fatalf("reading the presets moved the generation from %d to %d", gen, se.generation())
+			}
+			// Build and create from the bundle: no 503, one generation, unbound (there is no TRaSH sync source).
+			se.want(se.call("POST", "/presets/build", map[string]any{"flavour": "radarr", "preset": webPreset}), 200, "build")
+			out := se.want(se.call("POST", "/presets/create", map[string]any{"generation": gen, "key": "web-bundled", "flavour": "radarr", "preset": webPreset}), 200, "create")
+			if out["binding"] != "" || int64(out["generation"].(float64)) != gen+1 {
+				t.Fatalf("create %v", out)
+			}
+			res = se.call("GET", "/quality/overview", nil)
+			ov = decodeAs[qualityOverviewAnswer](t, res.Body.Bytes())
+			var made settings.ProfileSummary
+			for _, p := range ov.Profiles {
+				if p.Key == "web-bundled" {
+					made = p
+				}
+			}
+			if made.Origin == nil || made.Origin.Preset != webPreset || made.Guessed || made.Diff == nil || !made.Diff.Same || made.Binding != "" {
+				t.Fatalf("web-bundled %+v %+v", made, made.Diff)
 			}
 			if logs := se.logs.String(); strings.Contains(logs, "level=ERROR") {
 				t.Fatalf("logged an error:\n%s", logs)
 			}
 		})
+	}
+}
+
+// A profile created from the bundle is the profile the same preset gives from a checkout of the bundled commit:
+// the stored profile, its format set with every specification, and its origin.
+func TestPresetFromBundleEqualsCheckout(t *testing.T) {
+	t.Parallel()
+	fsys, err := trashbundle.FS()
+	if err != nil {
+		t.Fatal(err)
+	}
+	checkout := t.TempDir()
+	if err := os.CopyFS(checkout, fsys); err != nil {
+		t.Fatal(err)
+	}
+	stored := func(root string) (source string, profile, set any) {
+		var calls []impactCall
+		se := newProfileEnvAt(t, &calls, root, root)
+		res := se.call("GET", "/presets?flavour=radarr", nil)
+		source = decodeAs[presetsAnswer](t, res.Body.Bytes()).Source
+		se.want(se.call("POST", "/presets/create", map[string]any{"generation": se.generation(), "key": "web", "flavour": "radarr", "preset": webPreset}), 200, "create")
+		snap, err := se.coord.Snapshot(context.Background())
+		if err != nil {
+			t.Fatal(err)
+		}
+		for _, p := range snap.Records.Profiles {
+			if p.Key == "web" {
+				profile = map[string]any{"config": p.Config, "origin": p.Origin}
+			}
+		}
+		for _, f := range snap.Records.FormatSets {
+			if f.Key == "web" {
+				// Each format carries its specification, or names a stored standalone format with the same trash_id.
+				for name, ref := range f.Config.Formats {
+					if ref.Ref == "" && len(f.Specifications[name]) == 0 {
+						t.Fatalf("format %q stored without its specification", name)
+					}
+				}
+				if len(f.Specifications) == 0 {
+					t.Fatal("no specification stored")
+				}
+				set = map[string]any{"config": f.Config, "specifications": f.Specifications}
+			}
+		}
+		if snap.Policy.Profiles["web"] == nil || snap.Policy.FormatSets["web"] == nil {
+			t.Fatal("the profile is not in the running policy")
+		}
+		return source, profile, set
+	}
+	bs, bp, bf := stored("")
+	cs, cp, cf := stored(checkout)
+	if bs != "bundled" || cs != "checkout" {
+		t.Fatalf("sources %q %q", bs, cs)
+	}
+	if bp == nil || bf == nil || !reflect.DeepEqual(bp, cp) || !reflect.DeepEqual(bf, cf) {
+		t.Fatal("the profile stored from the bundle differs from the one stored from a checkout of the same commit")
 	}
 }

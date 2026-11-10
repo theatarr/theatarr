@@ -35,14 +35,19 @@ const qualityOverview = (o: Partial<QualityOverview> = {}): QualityOverview => (
   ...o,
 });
 const records = { generation: 4, records: [{ id: 7, key: "radarr-4k-web", config: webConfig }, { id: 8, key: "web-2160p", config: { qualities: ["WEBDL-2160p"], cutoff: "WEBDL-2160p", formats: {} } }] };
+// The page lists the TRaSH defaults of every flavour that has a tree, so it reads the presets on load.
 const routes = (ov = qualityOverview(), settings = overview()) => [
   { method: "GET", path: "/settings", reply: settings },
   { method: "GET", path: "/settings/quality/overview", reply: ov },
   { method: "GET", path: "/settings/profiles", reply: records },
+  { method: "GET", path: "/settings/presets", reply: (request: { search: string }) => request.search.includes("sonarr") ? sonarrPresets : presets },
 ];
 const presets = { flavour: "radarr", presets: [
   { trash_id: "fd16", name: "Remux + WEB 2160p", flavour: "radarr", description: "Remux and WEB", group: 1, qualities: ["Remux-2160p", "WEB 2160p"], cutoff: "Remux-2160p", formats: 56, modifiers: ["fallbacks_1080p", "bluray_2160p", "block_dv_no_hdr"] },
   { trash_id: "0537", name: "WEB 2160p", flavour: "radarr", description: "WEBDL 2160p", group: 2, qualities: ["WEB 2160p"], cutoff: "WEB 2160p", formats: 39, modifiers: ["fallbacks_1080p", "block_dv_no_hdr"] },
+] };
+const sonarrPresets = { flavour: "sonarr", source: "bundled", commit: "ed6d7226232c6194730c945938985dfa68c75e6b", commit_date: "2026-10-26", presets: [
+  { trash_id: "72dae", name: "WEB-1080p", flavour: "sonarr", description: "", group: 1, qualities: ["WEB 1080p"], cutoff: "WEB 1080p", formats: 30, modifiers: [] },
 ] };
 const built = {
   profile: { qualities: [{ group: "WEB 2160p", qualities: ["WEBRip-2160p", "WEBDL-2160p"] }, "Remux-1080p"], quality_order: [{ group: "WEB 2160p", qualities: ["WEBRip-2160p", "WEBDL-2160p"] }, "Remux-1080p", "Bluray-1080p"], cutoff: "WEB 2160p", formats: { "WEB Tier 01": 1700, AMZN: 0 }, min_score: 0, cutoff_score: 10000, min_upgrade_step: 1, upgrades: true },
@@ -68,13 +73,60 @@ describe("Quality profiles page", () => {
     expect(screen.getByRole("link", { name: "format set editor" }).getAttribute("href")).toBe("/admin/settings/profiles/format_sets");
   });
 
-  it("says why presets are off and links the raw profile editor when there is no TRaSH checkout", async () => {
-    mockFetch(routes(qualityOverview({ trash: [], trash_note: "THEATARR_TRASH is set but holds no TRaSH-Guides checkout" })));
+  it("says why presets are off and links the raw profile editor when no TRaSH tree could be read", async () => {
+    mockFetch(routes(qualityOverview({ trash: [], trash_note: "THEATARR_TRASH is set but holds no TRaSH-Guides checkout, and the bundled TRaSH defaults could not be read" })));
     renderPage(<ProfilesPage />, "/admin/settings/profiles");
     const note = await screen.findByTestId("trash-note");
     expect(note.textContent).toContain("THEATARR_TRASH is set but holds no TRaSH-Guides checkout");
     expect(within(note).getByRole("link", { name: "raw profile editor" }).getAttribute("href")).toBe("/admin/settings/profiles?raw=1");
     expect((screen.getByRole("button", { name: "New profile from TRaSH preset" }) as HTMLButtonElement).disabled).toBe(true);
+    expect(screen.queryByTestId("trash-defaults")).toBeNull();
+  });
+
+  it("lists every TRaSH default of both flavours from the bundle, with our copies, and reports a broken checkout", async () => {
+    const copy = { ...qualityOverview().profiles[1], key: "my-web", origin: { preset: "0537", name: "WEB 2160p", flavour: "radarr" }, guessed: false };
+    mockFetch(routes(qualityOverview({
+      trash: ["radarr", "sonarr"], trash_source: "bundled", trash_commit: "ed6d7226232c6194730c945938985dfa68c75e6b", trash_commit_date: "2026-10-26",
+      trash_note: "THEATARR_TRASH is set but holds no TRaSH-Guides checkout: the TRaSH defaults bundled with this version are used instead",
+      profiles: [...qualityOverview().profiles, copy],
+    })));
+    renderPage(<ProfilesPage />, "/admin/settings/profiles");
+    const section = await screen.findByTestId("trash-defaults");
+    expect(within(section).getByTestId("trash-source").textContent).toBe("TRaSH defaults bundled with this version (commit ed6d722, 2026-10-26). A TRaSH-Guides checkout (THEATARR_TRASH) or a tracked source under Quality sync keeps them current.");
+    expect(within(section).getByRole("link", { name: "Quality sync" }).getAttribute("href")).toBe("/admin/settings/quality-sync");
+    const radarr = await within(section).findByTestId("trash-defaults-radarr");
+    await within(radarr).findByText("Remux + WEB 2160p");
+    expect(within(radarr).getAllByRole("row").slice(1).map((r) => r.getAttribute("data-preset"))).toEqual(["fd16", "0537"]);
+    // A stored copy is a hint on the default, which stays listed; a guessed origin is not a copy.
+    const used = within(radarr).getByText("WEB 2160p").closest("tr")!;
+    expect(within(used).getAllByText("my-web").length).toBeGreaterThan(0);
+    expect(within(used).getByRole("button", { name: "Create a copy: WEB 2160p (Movies (Radarr))" })).toBeTruthy();
+    expect(within(radarr).getByRole("button", { name: "Use: Remux + WEB 2160p (Movies (Radarr))" })).toBeTruthy();
+    const sonarr = within(section).getByTestId("trash-defaults-sonarr");
+    expect(await within(sonarr).findByRole("button", { name: "Use: WEB-1080p (Series (Sonarr))" })).toBeTruthy();
+    // The bundle is in use, so presets are on; the misconfigured checkout is still reported.
+    expect(screen.getByTestId("trash-note").textContent).toContain("THEATARR_TRASH is set but holds no TRaSH-Guides checkout");
+    expect((screen.getByRole("button", { name: "New profile from TRaSH preset" }) as HTMLButtonElement).disabled).toBe(false);
+  });
+
+  it("uses a TRaSH default: the editor opens on a copy under a free key and creates it", async () => {
+    const fetch = mockFetch([
+      ...routes(),
+      { method: "POST", path: "/settings/presets/build", reply: { ...built, origin: { preset: "0537", name: "WEB 2160p", flavour: "radarr" } } },
+      { method: "POST", path: "/settings/presets/create", reply: json({ generation: 5, key: "web-2160p-2", binding: "" }) },
+    ]);
+    const user = userEvent.setup();
+    renderPage(<ProfilesPage />);
+    await user.click(await screen.findByRole("button", { name: "Use: WEB 2160p (Movies (Radarr))" }));
+    await waitFor(() => expect(fetch.calls("POST", "/settings/presets/build")).toHaveLength(1));
+    expect(fetch.calls("POST", "/settings/presets/build")[0].body).toEqual({ flavour: "radarr", preset: "0537", modifiers: [] });
+    const sheet = await screen.findByTestId("profile-sheet");
+    expect(within(sheet).getByText("TRaSH WEB 2160p")).toBeTruthy();
+    // "web-2160p" is a profile already: the suggested key is the next free one.
+    expect((within(sheet).getByRole("textbox", { name: "Key" }) as HTMLInputElement).value).toBe("web-2160p-2");
+    await user.click(within(sheet).getByRole("button", { name: "Create profile" }));
+    await waitFor(() => expect(fetch.calls("POST", "/settings/presets/create")).toHaveLength(1));
+    expect(fetch.calls("POST", "/settings/presets/create")[0].body).toEqual({ generation: 4, key: "web-2160p-2", flavour: "radarr", preset: "0537", modifiers: [], config: built.profile });
   });
 
   it("saves the defaults Add version preselects", async () => {
@@ -92,7 +144,6 @@ describe("Quality profiles page", () => {
   it("builds a profile from a TRaSH preset with modifiers, edits it and creates it", async () => {
     const fetch = mockFetch([
       ...routes(),
-      { method: "GET", path: "/settings/presets", reply: presets },
       { method: "POST", path: "/settings/presets/build", reply: built },
       { method: "POST", path: "/settings/presets/create", reply: json({ generation: 5, key: "movies-web", binding: "trash-radarr" }) },
     ]);

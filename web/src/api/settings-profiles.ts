@@ -34,8 +34,23 @@ export const originLabel = (o: ProfileOrigin) => [o.name, ...(o.modifiers ?? [])
 
 export const overviewKey = ["settings", "quality-overview"] as const;
 export const useQualityOverview = () => useQuery({ queryKey: overviewKey, queryFn: () => api<QualityOverview>("/settings/quality/overview") });
+export type Presets = { flavour: string; presets: Preset[]; unavailable?: string; source?: "bundled" | "checkout"; commit?: string; commit_date?: string };
 export const usePresets = (flavour: string, enabled = true) =>
-  useQuery({ queryKey: ["settings", "presets", flavour], queryFn: () => api<{ flavour: string; presets: Preset[]; unavailable?: string }>("/settings/presets" + qs({ flavour })), enabled });
+  useQuery({ queryKey: ["settings", "presets", flavour], queryFn: () => api<Presets>("/settings/presets" + qs({ flavour })), enabled });
+
+/** The stored profiles made from a TRaSH preset (a stored origin, not a guessed one), by key. */
+export const presetCopies = (profiles: ProfileSummary[], flavour: string, trashID: string) =>
+  profiles.filter((p) => !p.guessed && p.origin?.preset === trashID && (p.origin.flavour || flavour) === flavour).map((p) => p.key).sort();
+
+/** A record key from a name ("WEB-2160p (Alternative)" gives "web-2160p-alternative"). */
+export const keyFromName = (name: string) => name.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "") || "profile";
+
+/** base when no record uses it, else base-2, base-3, …: a profile from a preset needs a key no profile or format set has. */
+export function freeKey(base: string, taken: Iterable<string>): string {
+  const used = new Set(taken);
+  if (!used.has(base)) return base;
+  for (let n = 2; ; n++) if (!used.has(`${base}-${n}`)) return `${base}-${n}`;
+}
 export const buildPreset = (flavour: string, preset: string, modifiers: string[]) =>
   api<Built>("/settings/presets/build", { method: "POST", body: { flavour, preset, modifiers } });
 export const createFromPreset = (body: { generation: number; key: string; flavour: string; preset: string; modifiers: string[]; config?: Record<string, unknown> }, token?: string) =>
