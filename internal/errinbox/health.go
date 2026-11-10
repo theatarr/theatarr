@@ -1,6 +1,7 @@
 package errinbox
 
 import (
+	"context"
 	"encoding/json"
 	"time"
 )
@@ -26,6 +27,10 @@ func (in *Inbox) ObserveHealth(results []HealthCheck) {
 	now := in.opts.Now()
 	in.mu.Lock()
 	defer in.mu.Unlock()
+	if !in.healthRead {
+		in.healthRead = true
+		in.loadOpenHealth()
+	}
 	for _, r := range results {
 		fp, failing := in.health[r.Source]
 		switch {
@@ -48,6 +53,25 @@ func (in *Inbox) ObserveHealth(results []HealthCheck) {
 	if changed := healthDigest(results) != in.healthState; changed || now.Sub(in.healthAt) >= healthSnapshotEvery {
 		in.healthState, in.healthAt = healthDigest(results), now
 		in.enqueue(item{stateKey: "health", stateValue: snap})
+	}
+}
+
+// loadOpenHealth fills in.health with the health rows still open from earlier runs, so a check that failed before a
+// restart and is fine now resolves its row. Later rows win for a check with several.
+func (in *Inbox) loadOpenHealth() {
+	ctx := Quiet(context.Background())
+	rows, err := in.st.Reader().QueryContext(ctx, `SELECT component, fingerprint FROM error_event
+		WHERE source = ? AND status IN ('new', 'seen') ORDER BY last_seen, id`, SourceHealth)
+	if err != nil {
+		in.log.WarnContext(ctx, "error inbox: open health rows not read", "err", err)
+		return
+	}
+	defer rows.Close()
+	for rows.Next() {
+		var check, fp string
+		if rows.Scan(&check, &fp) == nil {
+			in.health[check] = fp
+		}
 	}
 }
 

@@ -48,6 +48,7 @@ type Inbox struct {
 	lastWarn    time.Time
 	savedDrops  int64
 	health      map[string]string // check source -> fingerprint of its open failure
+	healthRead  bool              // the open health rows of earlier runs are in health
 	healthState string            // the last snapshot written, for change detection
 	healthAt    time.Time
 }

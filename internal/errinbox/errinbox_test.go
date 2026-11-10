@@ -364,6 +364,26 @@ func TestHealthTransitions(t *testing.T) {
 	}
 }
 
+// TestHealthRecoveryAfterRestart: a check failing when the process stopped resolves its row once a new process sees
+// it fine.
+func TestHealthRecoveryAfterRestart(t *testing.T) {
+	st := openStore(t)
+	ctx := context.Background()
+	before := newInbox(t, st, Options{})
+	before.ObserveHealth([]HealthCheck{{Source: "MountCheck", Type: "error", Message: "mount /mnt/zurg not answering"}})
+	flush(t, before)
+	rows := all(t, st)
+	if len(rows) != 1 {
+		t.Fatalf("rows = %+v", rows)
+	}
+	after := newInbox(t, st, Options{})
+	after.ObserveHealth([]HealthCheck{{Source: "MountCheck", Type: "ok", Message: "listed"}})
+	flush(t, after)
+	if r, _ := Get(ctx, st, rows[0].ID); r.Status != StatusResolved || !strings.Contains(r.Note, "recovered") {
+		t.Errorf("after restart and recovery = %+v", r)
+	}
+}
+
 func TestCapRows(t *testing.T) {
 	st := openStore(t)
 	in := newInbox(t, st, Options{MaxRows: 3})
