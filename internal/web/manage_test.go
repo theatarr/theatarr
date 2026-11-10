@@ -304,7 +304,7 @@ func TestManageShadowNoWrites(t *testing.T) {
 	}
 	var r Releases
 	e.call("GET", APIBase+"/titles/10/episodes/101/releases?live=1", nil, 200, &r)
-	if r.LiveAllowed || !strings.Contains(r.Message, "Shadow mode") {
+	if r.LiveAllowed || !strings.Contains(r.Message, "Watch only") {
 		t.Errorf("episode releases: %+v", r)
 	}
 	if s, i := e.acq.counts(); s != 0 || i != 0 {

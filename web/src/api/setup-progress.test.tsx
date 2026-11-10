@@ -80,7 +80,7 @@ it("shows running fallback gates, saved differences and a library display label"
  mockFetch([{ method: "GET", path: "/setup", reply: state }, { method: "GET", path: "/settings/versions", reply: fallback }]);
  renderPage(<SetupPage />);
  await screen.findByText("Mode saved: active, running: shadow");
- expect(screen.getByText("Allow downloads for this library saved: On, running: Off")).toBeTruthy();
+ expect(screen.getByText("Downloads for this library saved: On, running: Off")).toBeTruthy();
  const card = screen.getByRole("heading", { name: "movie-web 4K WEB" }).parentElement!;
  expect(within(card).getByText("movie-web")).toBeTruthy();
  // The state comes from the running gates: shadow and downloads off, so nothing is downloaded.

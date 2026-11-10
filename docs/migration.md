@@ -11,8 +11,8 @@ Go one library at a time: every step is a setting you change and confirm.
 Anyone with a running arr whose libraries should move to Theatarr. A fresh library with no arr behind it does not
 need this guide: it only needs the check and the switches ([quickstart.md](quickstart.md#9-go-live-deliberately)), or
 starts live from Setup: on an install with no `import.arr` instance, **Create library and start downloading**
-creates the library Active with its downloads on and turns on **Allow new downloads** and **Write library links** in
-one confirmed save ([quickstart.md](quickstart.md#6-a-first-library)). An install that has an arr instance is never
+creates the library **Live** with its downloads on and turns **Pause** off (**Allow new downloads** and **Write
+library links** on) in one confirmed save ([quickstart.md](quickstart.md#6-a-first-library)). An install that has an arr instance is never
 offered that button, and the server refuses the request.
 
 | Stage | What you do | Where | How to undo |
@@ -344,13 +344,13 @@ Scan each of K's Plex sections once after its first adopt.
    decisions and the arr's grabs before you go on.
 2. **Create K.** In **Settings › Libraries**, add a library that follows F, with a root of its own (for example
    `/media/library/movies-remux`), the profile and naming you want, its indexers and providers. Keep every other
-   follower's **Allow downloads for this library** off. Check the mount, the trash and the roots.
+   follower Watch only, or Live with **Don't download for this library** (under **Advanced**) ticked. Check the mount, the trash and the roots.
 3. **Give K a Plex library.** Create one Plex library on K's root, shared with no one yet, and set its section for K
    under **Settings › Plex & playback**. Your users keep watching F's sections.
 4. **Review legacy queued work.** `theatarr router reconcile` lists queued work left from before. Review it, then
    `theatarr router reconcile -apply` settles the automatic rows; manual rows need a new selection. Work in flight
    is left alone ([router.md (internals)](design/router.md)).
-5. **Adopt and refresh K**, with K active, downloads off and **Write library links** on, right before the trial:
+5. **Adopt and refresh K**, with K Live, **Don't download for this library** ticked and **Write library links** on, right before the trial:
 
    ```sh
    docker compose exec theatarr theatarr library adopt -library movie-remux-theatarr
@@ -367,16 +367,16 @@ Scan each of K's Plex sections once after its first adopt.
 
 Write down the settings and the success criteria before you turn anything on.
 
-1. **Settings › Libraries:** K is Active and is the only follower whose **Allow downloads for this library** will be
-   on. F stays in shadow. **Write library links** stays on for K's imports.
+1. **Settings › Libraries:** K is Live and is the only follower whose downloads will be on (**Don't download for
+   this library** unticked). F stays Watch only. **Write library links** stays on for K's imports.
 2. **Settings › Download clients › Behaviour:** start conservatively. Keep cached-only adds on, keep the wanted loop's
    missing and cutoff-unmet searches off, and use a low searches-per-hour limit. Set the providers' pacing to what
    their API limits allow. Don't cap Real-Debrid or AllDebrid with an uncached-adds-per-hour limit: on those
    providers the cache check is itself an add. Keep **Send notifications** off, and review the request budgets under
    **Advanced › Request limits**.
-3. Turn K's **Allow downloads for this library** on, then **Allow new downloads**. Review each confirmation's
+3. Untick K's **Don't download for this library**, then turn **Allow new downloads** on (or **Pause** off). Review each confirmation's
    effects. Check `theatarr router status` and run the go-live check again.
-4. **Test the stop switch in the first minutes:** turn K's **Allow downloads for this library** off and check that
+4. **Test the stop switch in the first minutes:** tick K's **Don't download for this library** and check that
    no new provider adds start. A request already sent may finish, and ready downloads can still import. Turn it back
    on once the behaviour is clear.
 5. Run the trial for about a week. Try at least three different cached releases (a new episode, a season pack, an
@@ -458,10 +458,10 @@ The check names settings by their YAML keys. Where each one is in the UI:
 | `library.versions.K.plex_section`, `library.plex` | Settings › Plex & playback (the Plex library for each Theatarr library) |
 | `library.mount.path`, `library.trash.dir` | Settings › Libraries › File management |
 | `metadata.sources.tmdb`, `metadata.sources.tvdb` | Settings › Metadata & artwork |
-| `router.enabled` (**Allow new downloads**) | Settings › Download clients, the switch above the tabs |
+| `router.enabled` (**Allow new downloads**) | Settings › Download clients, under **Advanced** above the tabs; **Pause** in the header sets it with `library.enabled` |
 | `router.cached_only` | Settings › Download clients › Behaviour (What to grab) |
 | `router.wanted.enabled` | Settings › Download clients › Behaviour (Automatic searches) |
-| `library.enabled` (**Write library links**) | Settings › Libraries |
+| `library.enabled` (**Write library links**) | Settings › Libraries, under **Advanced**; **Pause** in the header sets it with `router.enabled` |
 | `import.arr` | Admin › Advanced › Sonarr/Radarr migration (the Sonarr and Radarr instances) |
 | `egress` | Settings › Indexers › VPN |
 | `views` (the views section) | Settings › Connected apps |
@@ -509,15 +509,15 @@ Keep Prowlarr while any library still uses one of its feeds.
 
 ## 6. Stop switches and rollback
 
-**During the trial (the arr never stopped):** turn K's **Allow downloads for this library** off in **Settings ›
-Libraries**, then **Allow new downloads** off if no other library should grab. This stops new adds; a provider request
+**During the trial (the arr never stopped):** tick K's **Don't download for this library** in **Settings ›
+Libraries** (under **Advanced**), then turn **Allow new downloads** off if no other library should grab. This stops new adds; a provider request
 already sent can finish. Ready downloads can still import while **Write library links** is on. Review them in
 **Activity** and remove unwanted queued or ready work there (ending Theatarr's record does not delete the provider
 torrent).
 
 With K still active and following F, turning its downloads off resumes adoption and refresh at later arr imports;
 refresh never replaces K's own imported links. The arr keeps doing its job, so there is no arr catch-up search to
-cause duplicates. To stop all work for K, set it to shadow as well: that stops new links and adoption too. Existing
+cause duplicates. To stop all work for K, set it to Watch only as well: that stops new links and adoption too. Existing
 links stay available in Plex.
 
 **After the handover:** stop K's downloads first, account for every download in flight, and restore the client
@@ -526,8 +526,8 @@ and files with what K acquired. Add new requests deliberately and reconcile miss
 searches; the arr does not adopt K's roots. Never turn both sides back on at once as a catch-up. Keep the original
 roots; don't move K's links into F's root.
 
-**Emergency stop:** turn **Allow new downloads**, **Write library links** and **Send notifications** off on their
-Settings pages; they affect every library. `THEATARR_FORCE_OFF=router,library,notify` forces them off at startup
+**Emergency stop:** turn **Pause** on at the top of any admin page (it turns **Allow new downloads** and **Write
+library links** off), and **Send notifications** off on its Settings page; they affect every library. `THEATARR_FORCE_OFF=router,library,notify` forces them off at startup
 whatever the saved settings say; it needs a restart and can never turn anything on. A database or image rollback
 uses a backup set ([restore.md](restore.md)); it cannot undo provider adds or filesystem changes.
 

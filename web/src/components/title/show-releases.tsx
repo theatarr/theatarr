@@ -275,7 +275,7 @@ function Panel({ titleId, initialVersion, focus }: { titleId: number; initialVer
             Search indexers now
           </Button>
         ) : r ? (
-          <span className="text-xs text-[var(--ink-3)]" data-testid="releases-no-live">Shadow mode: no live indexer search</span>
+          <span className="text-xs text-[var(--ink-3)]" data-testid="releases-no-live">Watch only: no live indexer search</span>
         ) : null}
       </div>
       {q.isPending ? (

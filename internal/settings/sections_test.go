@@ -581,7 +581,7 @@ func TestArrImportIntoGrabbingVersionNeedsConfirmation(t *testing.T) {
 			effects := sectionEffects(before, after)
 			found := false
 			for _, e := range effects {
-				found = found || strings.Contains(e.Effect, "(Allow downloads for this library is on) from import.arr.")
+				found = found || strings.Contains(e.Effect, ", with its downloads on, from import.arr.")
 			}
 			if !found {
 				t.Fatalf("import remap effects: %+v", effects)
@@ -590,14 +590,14 @@ func TestArrImportIntoGrabbingVersionNeedsConfirmation(t *testing.T) {
 			after.Router.Enabled = false
 			found = false
 			for _, e := range sectionEffects(before, after) {
-				found = found || strings.Contains(e.Effect, "(Allow downloads for this library is on) from import.arr.")
+				found = found || strings.Contains(e.Effect, ", with its downloads on, from import.arr.")
 			}
 			if !found {
 				t.Fatal("router off: import remap onto a grabbing version needs no confirmation")
 			}
 			after.Versions[src.Version].Grab = false
 			for _, e := range sectionEffects(before, after) {
-				if strings.Contains(e.Effect, "(Allow downloads for this library is on) from import.arr.") {
+				if strings.Contains(e.Effect, ", with its downloads on, from import.arr.") {
 					t.Fatalf("grab-off effect: %+v", e)
 				}
 			}

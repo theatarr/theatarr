@@ -3,7 +3,7 @@
 Use the menu paths below on desktop or in phone **More**. Settings search accepts these page names and keeps each named alias under its own label.
 Theatarr libraries replace separate arr instances; you choose each library's feeds and providers and when it may
 download. Title pages call them **Libraries**. **Allow new downloads** is in **Settings › Download clients**; each
-library's mode and **Allow downloads for this library** are in **Settings › Libraries**. Download notices link to the closed gate's page.
+library's **Watch only** / **Live** control is in **Settings › Libraries** (with **Don't download for this library** under the library's **Advanced**); **Pause** in the admin header turns new downloads and library links off together. Download notices link to the closed gate's page.
 “Not needed” means no equivalent page in Theatarr's current workflow, not that the upstream feature is worthless.
 
 The arr navigation comes from the Sonarr v5 (develop branch), Radarr v6.4.4 and Prowlarr sources: each

@@ -80,7 +80,7 @@ const PURPOSE: Record<string, { label: string; detail: string }> = {
   wanted: { label: "Missing", detail: "Searches for something missing: wanted runs, search commands, add-time and follow-up searches" },
   upgrade: { label: "Upgrade", detail: "Searches for a better copy: cutoff unmet, or a search of a movie that has a file" },
   rss: { label: "RSS", detail: "The RSS sync reading recent releases" },
-  shadow: { label: "Shadow", detail: "The shadow comparison searching for an arr grab" },
+  shadow: { label: "Watch only", detail: "A Watch only library comparing an arr grab with its own pick" },
   test: { label: "Tests", detail: "Source tests from this page" },
   other: { label: "Other", detail: "Requests no search path named" },
 };

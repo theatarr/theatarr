@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 // The setup screen of a fresh install: what is missing, the admin password, a first version from a TRaSH preset that
-// starts in Shadow mode with its downloads off, and the preflight report. Invented keys and paths.
+// starts as Watch only with its downloads off, and the preflight report. Invented keys and paths.
 import { screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it } from "vitest";
@@ -28,7 +28,7 @@ describe("setup", () => {
     expect(screen.getByText(/^1 library, 1 with a library root/)).toBeTruthy();
   });
 
-  it("lists what is missing and creates a first version from a preset in Shadow mode with its downloads off", async () => {
+  it("lists what is missing and creates a first version from a preset as Watch only with its downloads off", async () => {
     const user = userEvent.setup();
     const fetch = mockFetch([
       { method: "GET", path: "/setup", reply: fresh },
@@ -52,7 +52,7 @@ describe("setup", () => {
     await screen.findByRole("option", { name: "TRaSH preset: HD Bluray + WEB" });
     await user.selectOptions(screen.getByLabelText("Quality profile"), `preset:${preset.trash_id}`);
     await user.click(screen.getByRole("button", { name: "Review" }));
-    expect(screen.getByTestId("version-review").textContent).toContain("Shadow mode with its downloads off");
+    expect(screen.getByTestId("version-review").textContent).toContain("as Watch only with its downloads off");
     expect(screen.getByTestId("version-review").textContent).toContain('This creates a new profile "movies" from the TRaSH preset HD Bluray + WEB and the library movies');
     expect(fetch.calls("POST", "/settings/versions")).toHaveLength(0);
     await user.click(screen.getByRole("button", { name: "Create library" }));
@@ -112,7 +112,7 @@ describe("setup", () => {
     await user.selectOptions(screen.getByLabelText("Quality profile"), "hd-1080p");
     await user.click(screen.getByRole("button", { name: "Review" }));
     const review = screen.getByTestId("version-review").textContent ?? "";
-    expect(review).toContain("This creates the library movies (movie) with the existing profile hd-1080p in Shadow mode");
+    expect(review).toContain("This creates the library movies (movie) with the existing profile hd-1080p as Watch only");
     expect(review).not.toContain("creates the profile");
   });
 
@@ -329,7 +329,7 @@ describe("setup", () => {
   };
   const startEffects = [
     { version: "movies", effect: "Library movies becomes active and starts searching." },
-    { version: "movies", effect: "Allow downloads for this library (grab) is on for active library movies: torrent adds go to providers rd." },
+    { version: "movies", effect: "Downloads are on for Live library movies: torrent adds go to providers rd." },
     { version: "", effect: "Turn on Allow new downloads (router.enabled): new torrent adds to debrid are allowed." },
     { version: "", effect: "Turn on Write library links (library.enabled): links may be written." },
   ];
@@ -345,12 +345,12 @@ describe("setup", () => {
     renderPage(<SetupPage />);
     await user.type(await screen.findByLabelText(/Library root/), "/media/movies");
     await user.selectOptions(screen.getByLabelText("Quality profile"), "hd");
-    // An install that migrates from an arr sees the form as it was: no start button, the Shadow wording, Review.
+    // An install that migrates from an arr sees the form as it was: no start button, the Watch only wording, Review.
     expect(!!screen.queryByTestId("one-step-start")).toBe(arrInstances === 0);
-    expect(!!screen.queryByText(/It starts in/)).toBe(arrInstances !== 0);
+    expect(!!screen.queryByText(/It starts as/)).toBe(arrInstances !== 0);
     expect(!!screen.queryByText(/Theatarr doesn't turn these on for you/)).toBe(arrInstances !== 0);
     await user.click(screen.getByRole("button", { name: button }));
-    expect(screen.getByTestId("version-review").textContent).toContain("in Shadow mode with its downloads off");
+    expect(screen.getByTestId("version-review").textContent).toContain("as Watch only with its downloads off");
     await user.click(screen.getByRole("button", { name: "Create library" }));
     await waitFor(() => expect(fetch.calls("POST", "/settings/versions")).toHaveLength(1));
     expect(fetch.calls("POST", "/settings/versions")[0].body).toEqual(shadowBody);

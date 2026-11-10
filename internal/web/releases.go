@@ -115,7 +115,7 @@ func (w *Web) apiReleases(rw http.ResponseWriter, r *http.Request) {
 	if live {
 		switch {
 		case vp.Mode != policy.ModeActive:
-			out.Message = "Shadow mode: no live search for " + key + "; showing the last stored decision"
+			out.Message = "Watch only: no live search for " + key + "; showing the last stored decision"
 		case w.add.Acquirer == nil:
 			out.Message = "The acquirer is not running; showing the last stored decision"
 		default:

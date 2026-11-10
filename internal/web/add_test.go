@@ -689,7 +689,7 @@ func TestReleasesShadowNoLive(t *testing.T) {
 		   "rejections":[{"reason":"quality","message":"CAM is not wanted"}]}]', 1000, 2000)`)
 	e.call("GET", APIBase+"/titles/1/releases?version=movie-remux&live=1", nil, 200, &r)
 	if r.Source != "shadow" || len(r.Candidates) != 2 || r.Candidates[1].Rank != 2 || r.Rejections["quality"] != 1 ||
-		!strings.Contains(r.Message, "Shadow mode: no live search") {
+		!strings.Contains(r.Message, "Watch only: no live search") {
 		t.Fatalf("shadow grab: %+v", r)
 	}
 	e.exec(`INSERT INTO journal_decision (source, title_id, version_key, target, results, accepted, candidates,

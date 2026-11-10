@@ -359,7 +359,7 @@ func versionConfirmationEffects(ctx context.Context, q rootQueryer, previous, ne
 			// The per-version grab switch: turning it on for an active version, or activating a version
 			// with it on, lets the router add torrents for it. Turning it off needs no confirmation.
 			effects = append(effects, ConfirmationEffect{Version: key, Effect: fmt.Sprintf(
-				"Allow downloads for this library (grab) is on for active library %s: torrent adds go to providers %s when Allow new downloads (router.enabled) is on (currently %t).",
+				"Downloads are on for Live library %s: torrent adds go to providers %s when Allow new downloads (router.enabled) is on (currently %t).",
 				key, providerList(after.Providers), routerEnabled)})
 		}
 		if before == nil {

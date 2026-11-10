@@ -1065,7 +1065,7 @@ func (w *Web) apiEpisodeReleases(rw http.ResponseWriter, r *http.Request) {
 	if live, _ := strconv.ParseBool(r.URL.Query().Get("live")); live {
 		switch {
 		case !out.LiveAllowed && (vp == nil || vp.Mode != policy.ModeActive):
-			out.Message = "Shadow mode: no live search for " + key + "; showing the last stored decision"
+			out.Message = "Watch only: no live search for " + key + "; showing the last stored decision"
 		case !out.LiveAllowed:
 			out.Message = "The acquirer is not running; showing the last stored decision"
 		default:

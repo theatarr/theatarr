@@ -64,7 +64,7 @@ function Waiting({ row, enabled, missing, state, off }: { row: WantedRow; enable
     case "due": return <>Next in line (#{row.position})</>;
     case "searched_recently": return <>Searched {fmtAgo(row.last_run?.at)}; again {fmtAgo(row.next_at)}</>;
     case "in_flight": return <>Downloading</>;
-    case "grab_off": return library ?? <>Downloads off: Allow downloads for this library is off · <Link className="text-primary hover:underline" to={`/admin/settings/libraries?edit=${encodeURIComponent(row.version)}`}>Edit library</Link></>;
+    case "grab_off": return library ?? <>Downloads off: Don't download for this library is ticked · <Link className="text-primary hover:underline" to={`/admin/settings/libraries?edit=${encodeURIComponent(row.version)}`}>Edit library</Link></>;
     case "loop_off": return <>{enabled && row.reason === "cutoff" ? "Cutoff-unmet searches are off" : enabled && !missing ? "Missing searches are off" : "Automatic searches are off"}{state && !willGrab(state) ? <div className="mt-1">{library}</div> : null}</>;
     case "downloads_off": return library ?? <>{OFF_WORD[off ?? "unknown"]}</>;
   }

@@ -119,7 +119,7 @@ and the first library; Setup links to each editor.
 
 Save validates and applies settings without a restart; new work and background loops use the saved generation.
 Use **Show advanced** for less common fields, or **Edit as YAML** for a section's raw editor. Nothing downloads
-until you say so: the first-library flow turns on **Allow downloads for this library** and the global switches only
+until you say so: the first-library flow sets the library to **Live** and turns **Pause** off only
 when you choose **Create library and start downloading** and confirm the list it shows (step 6).
 
 **TMDb.** Setup's **Add metadata (TMDb)** step has one field: your TMDb API key (the short v3 "API Key" from your
@@ -241,20 +241,20 @@ the indexers it searches and the providers it adds to. **Setup** builds the firs
    TRaSH quality profile is offered, here and in the library editor under **Settings › Libraries**;
 3. the indexers and providers;
 4. one of two buttons on a fresh install:
-   - **Create library and start downloading** creates the library **Active** with **Allow downloads for this
-     library** on, and turns on the global switches **Allow new downloads** and **Write library links**, in one
+   - **Create library and start downloading** creates the library **Live** with its downloads on, and turns
+     **Pause** off (the global switches **Allow new downloads** and **Write library links** on), in one
      save. A dialog lists each of these first; nothing is saved until you confirm. The button is disabled, with the
      reason, until the library picks at least one enabled indexer and one enabled debrid provider with its key, and
      the debrid mount and the trash folder (**Settings › Libraries › File management**) are set. If
      `THEATARR_FORCE_OFF` names a switch, the library is still created and Setup says which switch stays forced off.
-   - **Create in shadow (decide later)**, then **Create library**: the library starts in **Shadow** mode with
-     **Allow downloads for this library** off, and no global switch changes.
+   - **Create in shadow (decide later)**, then **Create library**: the library starts as **Watch only**
+     with its downloads off, and no global switch changes.
 
    An install that migrates from Sonarr/Radarr (its settings hold an arr instance, `import.arr`) has no start
    button: there it is **Review**, then **Create library**, always in shadow, and the library goes live as
    [migration.md](migration.md#3-a-follower-library-beside-the-arr) describes.
 
-A library in **Shadow** mode with **Allow downloads for this library** off reads **Preview only**. It decides what
+A **Watch only** library reads **Preview only**. It decides what
 it would grab and records that in the database for comparison. It adds nothing to debrid and writes nothing to the
 library. A debrid library needs no download client: Theatarr adds to the providers itself. Edit libraries later
 under **Settings › Libraries**.
@@ -266,12 +266,24 @@ The editor there has two things Setup does not ask for:
   the root folder and the profile names of the arr-compatible views stay as they are, so renaming a library breaks
   nothing in Seerr or an arr client. A release from before this field cannot load settings that hold a name; clear
   the names before you go back to one.
-- **Advanced**, at the end of **Where**: **Write roots**, **Send grabs to**, **Client** and
-  **Follows**. A debrid library that links into its own root needs none of them. The section starts open when the
-  library already uses one of them.
+- **Advanced**, at the end of **Where**: **Don't download for this library** (Live libraries only), **Write
+  roots**, **Send grabs to**, **Client** and **Follows**. A debrid library that links into its own root needs none of
+  them. The section starts open when the library already uses one of them.
+
+Each library is **Watch only** or **Live**, chosen in its row on **Settings › Libraries** or at the top of its
+editor; the change saves at once, after the usual confirmation. Watch only records what it would do and downloads
+and links nothing. Live searches, downloads and links. A Live library with **Don't download for this library**
+ticked reads **Live, downloads off**: it searches and records its choices but adds no torrents. Beside the control,
+the row says when a global switch holds a Live library back, for example **Live, paused**. A library another library
+follows stays Watch only.
+
+**Pause**, at the top of every admin page, turns **Allow new downloads** and **Write library links** off or on
+together, with the same confirmation as the two switches. When only one of them is off it reads **Custom** and links
+to it. The two switches themselves are under **Advanced** on **Settings › Download clients** and **Settings ›
+Libraries**.
 
 **Where a shadow library's decisions come from.** The scheduled search for wanted titles runs only for a library
-that grabs (Active, with **Allow downloads for this library** and **Allow new downloads** on), so a shadow library
+that grabs (Live with its downloads on, and **Allow new downloads** on), so a shadow library
 is not searched on a schedule. It gets decisions two ways:
 
 - **RSS.** Every 15 minutes Theatarr reads the RSS feeds of the library's indexers that have one: Torznab feeds
@@ -376,15 +388,15 @@ read INFO ("no arr feeds movies: nothing to compare, skipped"): there are no arr
 not fail the check. Read the decision journal instead, and go live deliberately once the decisions look right.
 [migration.md](migration.md#4-the-go-live-check) says which settings page each key the check names is on.
 
-1. **Settings › Libraries:** set the library to **Active** and turn **Allow downloads for this library** on,
+1. **Settings › Libraries:** set the library to **Live** (with **Don't download for this library** unticked),
    reviewing each confirmation.
-2. Turn **Write library links** on there, then **Allow new downloads** under **Settings › Download clients**.
-   Review the affected libraries, roots and providers. A save applies without a restart.
+2. Turn **Pause** off at the top of the page (or the two switches under **Advanced** on **Settings › Libraries** and
+   **Settings › Download clients**). Review the affected libraries, roots and providers. A save applies without a restart.
 3. Watch **Activity**, **System › Status** and **System › Errors**, and Plex; check that a cached release imports and
    plays. Run the check again.
 
-Downloads need Active mode, **Allow downloads for this library** and **Allow new downloads**. Library writes need
-Active mode and **Write library links**, and stay inside the library's roots and trash. Turning downloads off stops
+Downloads need a **Live** library with its downloads on, and **Allow new downloads**. Library writes need a
+**Live** library and **Write library links**, and stay inside the library's roots and trash. Turning downloads off stops
 new adds; ready downloads can still import. Turn library writes off too if imports must stop. Settings changes do
 not cancel work already in flight. `THEATARR_FORCE_OFF=router,library,notify` forces the switches off at startup
 whatever the saved settings say; it needs a restart and can never turn anything on.
@@ -394,8 +406,7 @@ running while Theatarr builds its own copy beside it.
 
 ## 10. A first download
 
-With a live library (Active, **Allow downloads for this library**, **Allow new downloads** and **Write library
-links** all on), add a title and watch it arrive:
+With a live library (**Live** with its downloads on, and **Pause** off), add a title and watch it arrive:
 
 1. Type a film or series into the search in the top bar (or open **Search**) and choose **Add** on the result.
    Tick the library and turn **Search now** on: it is off by default, and without it the title waits for the
@@ -449,7 +460,7 @@ resolves (stored in settings, or in the environment variable it names), and at l
 mount. Readiness is complete when the latest full preflight for the current settings has no failures
 (warnings stay visible). The server remembers the latest run until it restarts, so a page reload keeps the step;
 after a restart, or once the settings change, run the preflight again. Activation is complete only when a
-library runs as Active with **Allow downloads for this library** and **Allow new downloads** on; otherwise it says
+library runs as **Live** with its downloads on and **Allow new downloads** on; otherwise it says
 **Not yet**.
 
 Theatarr turns these on for you only through **Create library and start downloading** in step 4, on an install no

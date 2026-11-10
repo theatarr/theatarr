@@ -64,7 +64,7 @@ function Releases({ titleId, eid, d }: { titleId: number; eid: number; d: Episod
             {q.isFetching && live ? <Loader2 className="animate-spin" /> : <RefreshCw />} Search indexers now
           </Button>
         ) : (
-          <span className="text-[11.5px] text-[var(--ink-3)]">{d.control?.mode === "active" ? "The acquirer is not running" : "Shadow mode: no live indexer search; the last stored decision"}</span>
+          <span className="text-[11.5px] text-[var(--ink-3)]">{d.control?.mode === "active" ? "The acquirer is not running" : "Watch only: no live indexer search; the last stored decision"}</span>
         )}
       </div>
       {q.isPending ? (

@@ -66,7 +66,7 @@ the raw profile editor (`/admin/settings/profiles?raw=1`, **Add profiles**).
 **Symptom:** you created a library and added titles, but nothing is downloaded and nothing appears in the library
 folder.
 
-**Cause:** a new library starts in **Shadow** mode with **Allow downloads for this library** off. It decides what it
+**Cause:** a new library starts as **Watch only**, with its downloads off. It decides what it
 would grab and records that, but adds nothing to debrid and writes no links. A shadow library is also not searched
 on a schedule: it only sees releases from the RSS feeds of its indexers, so with indexers that have no feed
 (Torrentio, Zilean) it records nothing at all.
@@ -80,12 +80,12 @@ on a schedule: it only sees releases from the RSS feeds of its indexers, so with
 - Give the library at least one indexer with an RSS feed (a Torznab feed, DMM, SeaDex or a catalog indexer) if you
   want it to keep recording decisions while in shadow.
 - To start downloading, follow [quickstart.md](quickstart.md#9-go-live-deliberately): set the library to
-  **Active**, turn on **Allow downloads for this library** and **Write library links** under **Settings › Libraries**,
-  and **Allow new downloads** under **Settings › Download clients**. **Wanted** says why each title is still waiting.
+  **Live** on **Settings › Libraries** (with **Don't download for this library** under **Advanced** unticked) and
+  turn **Pause** off at the top of the page. **Wanted** says why each title is still waiting.
 
 ## A live library downloads nothing
 
-**Symptom:** the library is **Active** with **Allow downloads for this library** on, both global switches are on,
+**Symptom:** the library is **Live** with its downloads on, **Pause** is off (both global switches on),
 you added a title, and nothing is downloaded or nothing reaches Plex.
 
 Start with **Wanted** (it says what each title is waiting for), the title's **Releases** page (what the indexers
