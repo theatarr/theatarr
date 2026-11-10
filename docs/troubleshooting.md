@@ -5,10 +5,17 @@ The places new installs most often get stuck, and what to do about each. For any
 (**Setup › Run preflight**, or `docker compose exec theatarr theatarr preflight`): each line says why it failed and
 what to do next.
 
+<a id="data-directory"></a>
+
 ## The container keeps restarting
 
-**Symptom:** `docker compose ps` shows Theatarr restarting, and `docker compose logs theatarr` shows an error about
-opening or writing a file under `/data`.
+**Symptom:** `docker compose ps` shows Theatarr restarting, and `docker compose logs theatarr` repeats one line:
+
+```text
+theatarr serve: data directory /data is not writable by uid 65532:65532 (owner 0:0, mode 0755): open /data/.write-test-123: permission denied. Fix on the host: chown -R 65532:65532 the directory mounted at /data, or run the container as a user that owns it. See docs/troubleshooting.md#data-directory
+```
+
+`serve` checks the data directory (the database's directory) before it writes anything and exits with status 1.
 
 **Cause:** the image runs as uid:gid `65532:65532`. If `./data` did not exist before the first `docker compose up`,
 Docker created it owned by root, and Theatarr cannot write its database there.

@@ -209,6 +209,11 @@ func runServe(args []string) error {
 	if *logDir == "" {
 		*logDir = filepath.Join(filepath.Dir(*dbPath), "logs")
 	}
+	// Before the log writer, the first thing to write there: a data directory the service cannot write is reported
+	// as one line with its fix (docs/troubleshooting.md).
+	if err := checkDataDir(filepath.Dir(*dbPath)); err != nil {
+		return err
+	}
 	rotated, err := server.NewRotatingWriter(*logDir, "theatarr.log", int64(*logMaxSize), *logMaxFiles)
 	if err != nil {
 		return err

@@ -42,8 +42,9 @@ instead of exiting. Each missing piece turns one feature off, and the Setup scre
 
 The image runs as uid:gid `65532:65532`. `./data`, the library roots and the trash directory must exist and be
 writable by it; the debrid mount only readable. Docker creates a missing bind-mount directory owned by root, and
-the service then cannot write `/data` and restarts in a loop, so create them before the first `up`. With the host
-paths above, from the checkout:
+the service then cannot write `/data`: it exits with one line that names the directory, the uid and the `chown` to
+run ([troubleshooting.md](troubleshooting.md#data-directory)), and restarts in a loop. Create them before the first
+`up`. With the host paths above, from the checkout:
 
 ```sh
 mkdir -p data
