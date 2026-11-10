@@ -323,7 +323,7 @@ function EpisodeRows({ episodes, copies, merged, anime, manage, seeFiles, select
 
 /** One copy's line in a season's Details: counts, size, the upgrade status with Why?, monitor switch and search season. */
 function SeasonVersion({ titleId, season, v, manage, seeFiles }: { titleId: number; season: SeasonT; v: VersionT; manage: boolean; seeFiles: boolean }) {
-  const c = season.versions[v.key] ?? { have: 0, missing: 0, below_cutoff: 0, upgrade_seen: 0, monitored: 0 };
+  const c = season.versions[v.key] ?? { have: 0, missing: 0, total: 0, below_cutoff: 0, upgrade_seen: 0, monitored: 0 };
   const monitor = useMonitor(titleId);
   const search = useScopedSearch(titleId);
   const [msg, setMsg] = useState<string>("");
@@ -331,7 +331,7 @@ function SeasonVersion({ titleId, season, v, manage, seeFiles }: { titleId: numb
   const all = c.monitored >= season.episodes && season.episodes > 0;
   const some = c.monitored > 0 && !all;
   const facts = [
-    heldOf(c.have, season),
+    heldOf(c, season),
     c.missing ? `${fmtNumber(c.missing)} missing` : "",
     seeFiles && c.below_cutoff ? `${fmtNumber(c.below_cutoff)} under preferred quality` : "",
     seeFiles && c.upgrade_seen ? `${fmtNumber(c.upgrade_seen)} upgrade${c.upgrade_seen === 1 ? "" : "s"} found` : "",

@@ -46,11 +46,11 @@ describe("episode status", () => {
     expect(matchesFilter(overnight, "missing", [k4.key], true)).toBe(true);
     expect(seasonSummary([tonight, overnight], [k4], true).text).toBe("0 of 1 available · 1 missing · 1 not aired");
   });
-  it("never counts more held than the total it is of", () => {
-    expect(heldOf(4, { episodes: 10, aired: 5 })).toBe("4/5 held");
-    // An episode held before its air instant passes (or with no instant) still counts in the total.
-    expect(heldOf(5, { episodes: 10, aired: 4 })).toBe("5/5 held");
-    expect(heldOf(0, { episodes: 10, aired: 0 })).toBe("0/10 held");
+  it("counts held of the copy's aired or held episodes", () => {
+    expect(heldOf({ have: 4, total: 5 }, { episodes: 10 })).toBe("4/5 held");
+    // Four aired with one missing, and two held before they air: six aired or held, five of them held.
+    expect(heldOf({ have: 5, total: 6 }, { episodes: 10 })).toBe("5/6 held");
+    expect(heldOf({ have: 0, total: 0 }, { episodes: 10 })).toBe("0/10 held");
   });
   it("merges copies by watchability", () => {
     const keys = [k4.key, k1.key];

@@ -419,6 +419,18 @@ func TestAiredWithoutInstantOrDate(t *testing.T) {
 	if got := strings.Join(seasons, " "); got != "1:3/1 2:1/1 0:1/1" {
 		t.Errorf("seasons (aired/missing): %s", got)
 	}
+	// S02E01 held before it airs: season 2 has two episodes aired or held in the copy, one of them held.
+	e.exec(`UPDATE episode_version_state SET state = 'filled' WHERE episode_id = 44`)
+	e.exec(`INSERT INTO version_file_episode (version_file_id, episode_id) VALUES (91, 44)`)
+	var held EpisodeList
+	e.getKey(APIBase+"/titles/4/episodes", key, &held)
+	for _, s := range held.Seasons {
+		if c := s.Versions["anime-tv"]; s.Season == 2 && (s.Aired != 1 || c.Have != 1 || c.Total != 2 || c.Missing != 1) {
+			t.Errorf("season 2 with an unaired episode held: aired %d, %+v", s.Aired, c)
+		}
+	}
+	e.exec(`UPDATE episode_version_state SET state = 'wanted' WHERE episode_id = 44`)
+	e.exec(`DELETE FROM version_file_episode WHERE episode_id = 44`)
 	var d TitleDetail
 	if e.getKey(APIBase+"/titles/4", key, &d); d.Versions[0].Episodes == nil ||
 		*d.Versions[0].Episodes != (EpisodeCounts{Total: 4, Have: 2, Missing: 2}) {

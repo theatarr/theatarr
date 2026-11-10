@@ -41,9 +41,12 @@ export function aired(e: Pick<Episode, "aired">): boolean {
   return !!e.aired;
 }
 
-/** "4/5 held" for a copy in a season: of the episodes aired (of all, before any airs), never fewer than it holds. */
-export function heldOf(have: number, season: { episodes: number; aired: number }): string {
-  return `${fmtNumber(have)}/${fmtNumber(Math.max(season.aired || season.episodes, have))} held`;
+/**
+ * "4/5 held" for a copy in a season: of the episodes aired or held in that copy (total, the hero's "of N"), so an
+ * episode held before it airs counts on both sides. Of all the season's episodes while none has aired or is held.
+ */
+export function heldOf(c: { have: number; total?: number }, season: { episodes: number }): string {
+  return `${fmtNumber(c.have)}/${fmtNumber(c.total || season.episodes)} held`;
 }
 
 /** One copy's state for an episode. */

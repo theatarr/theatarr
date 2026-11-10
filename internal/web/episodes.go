@@ -27,6 +27,8 @@ type SeasonCounts struct {
 	Upgrade *UpgradeInfo `json:"upgrade,omitempty"`
 	Have    int          `json:"have"`    // episodes with a file
 	Missing int          `json:"missing"` // aired, monitored, no file
+	// Total: episodes aired or held in the version, what Have is of (as EpisodeCounts.Total on the title page).
+	Total int `json:"total"`
 	// BelowCutoff: episodes whose file is below the cutoff; UpgradeSeen: of them, with a better release seen;
 	// Monitored: episodes monitored in the version. Quality is what most files below cutoff have (manage.go).
 	BelowCutoff int    `json:"below_cutoff"`
@@ -252,6 +254,9 @@ func (w *Web) titleEpisodes(ctx context.Context, id int64, season int, seeFiles 
 		}
 		for k, c := range e.Versions {
 			sc := s.Versions[k]
+			if aired || c.HasFile {
+				sc.Total++
+			}
 			if c.HasFile {
 				sc.Have++
 			} else if aired && c.Monitored && c.State == "wanted" {
