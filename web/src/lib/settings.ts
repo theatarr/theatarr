@@ -792,7 +792,7 @@ export function hasAdvancedValues(entity: Entity, ent: SchemaEntity, record: Set
   return set(editorFields(entity, ent, kind), (record.config ?? {}) as Record<string, unknown>);
 }
 
-/** newKind: the kind a new record starts as (the add-indexer sheet's Built-in sources), else the schema's first. */
+/** newKind: the kind a new record starts as (the add-indexer sheet's Torznab & built-in sources), else the schema's first. */
 export function editorFrom(entity: Entity, ent: SchemaEntity, record?: SettingsRecord, newKind?: string): EditorState {
   const kind = record?.kind ?? (typeof record?.config?.kind === "string" ? (record.config.kind as string) : (newKind ?? ent.kinds?.[0] ?? ""));
   return {

@@ -144,7 +144,7 @@ it.each([
  ["an install that went live long ago, after a restart forgot its preflight", "active", undefined, "5", false],
 ] as const)("the Home setup card and its link for %s", async (_name, mode, last, done, shown) => {
  const row = versions.switches.versions[0];
- const list: VersionList = { ...versions, switches: { ...versions.switches, versions: [{ ...row, mode, grab_state: { ...row.grab_state!, mode, grab: mode === "active" } }] } };
+ const list: VersionList = { ...versions, versions: [{ ...versions.versions[0], config: { ...versions.versions[0].config, mode, grab: mode === "active" } }], switches: { ...versions.switches, versions: [{ ...row, mode, grab_state: { ...row.grab_state!, mode, grab: mode === "active" } }] } };
  mockFetch([{ method: "GET", path: "/auth/me", reply: { permissions: ["admin"] } }, { method: "GET", path: "/setup", reply: { ...state, missing: [], last_preflight: last } }, { method: "GET", path: "/settings/versions", reply: list }]);
  renderPage(<><Progress id="p" /><SetupReminder /></>);
  await waitFor(() => expect(screen.getByTestId("p").textContent).toBe(done));

@@ -418,7 +418,7 @@ reasons a live library stays quiet.
 
 Home and Settings show admins **Finish setting up Theatarr: N of 6** and **Continue setup** while the install has no
 libraries, Setup reports missing pieces, or no library is Active yet and the readiness check (step 5) has not passed
-since the server started. Once a library is Active and nothing is missing, the card and the sidebar entry go away;
+for the current settings (a restart or a settings change opens it again; run preflight to close it). Once a library is Active and nothing is missing, the card and the sidebar entry go away;
 the **Setup checklist** link stays on Settings and System › Status. Other users see no setup card. The
 [arr-to-Theatarr map](arr-map.md) has the page names and menu paths for familiar arr tasks.
 

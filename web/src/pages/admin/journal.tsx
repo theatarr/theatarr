@@ -104,7 +104,7 @@ export function JournalList() {
         </form>
       </div>
       {q.isPending ? <Loading /> : q.error ? <ErrorState error={q.error} /> : items.length === 0 && !q.data?.next_cursor ? (
-        <Card><Empty>{suspect ? "Nothing suspect." : filtered ? "No entries." : "No entries yet. One appears each time a library judges a release: an Active library when it searches or grabs, a Shadow library when its indexers' RSS feeds (read every 15 minutes) or an arr grab it compares bring one in. A title added a moment ago may show nothing yet."}</Empty></Card>
+        <Card><Empty>{suspect ? "Nothing suspect." : filtered ? "No entries." : "No entries yet. One appears each time a library judges a release: an Active library when it searches or grabs, a Shadow library when its indexers' RSS feeds or an arr grab it compares bring one in. A title added a moment ago may show nothing yet."}</Empty></Card>
       ) : (
         <Card className="p-0">
           <Table>

@@ -17,8 +17,9 @@ export function setupSteps(s?: SetupState, versions?: VersionList, readiness = f
   !!versions?.switches.router_enabled && versions.switches.sources?.router !== "forced off by environment" && versions.switches.versions.some(v => v.grab_state?.mode === "active" && v.grab_state.grab === true),
  ];
 }
-/** A library is Active: the install went live at some point, whatever the global switches say now. */
-export const anyActive = (versions: VersionList) => versions.switches.versions.some(v => v.grab_state?.mode === "active");
+/** A library is Active, as saved or as running: the install went live at some point, whatever the global switches
+ * say now and whether or not a startup fallback runs older settings. */
+export const anyActive = (versions: VersionList) => versions.versions.some(v => v.config.mode === "active") || versions.switches.versions.some(v => v.grab_state?.mode === "active");
 export function useSetupProgress(enabled = true) {
  const setup = useSetup(enabled);
  const versions = useVersions(enabled);

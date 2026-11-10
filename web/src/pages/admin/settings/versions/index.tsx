@@ -329,6 +329,9 @@ function VersionForm({ session, data, defaults, profiles, error, onChange }: { s
   const update = <K extends keyof VersionConfig,>(key: K, value: VersionConfig[K]) => onChange({ ...record, config: { ...config, [key]: value } });
   // A new version takes the default profile of its kind while its profile is still the previous kind's default.
   const pickedByHand = useRef(false);
+  // The kind the library had when its current profile was chosen, once the kind moved between movies and series
+  // and the profile stayed: the picker then says so, instead of keeping it without a word.
+  const [profileFrom, setProfileFrom] = useState<VersionConfig["kind"]>();
   const recategorize = (next: VersionConfig) => {
     // A picked TRaSH default belongs to one flavour: a change of kind drops it (the new kind's default, if any, is taken below).
     if (presetPick(next.profile) && flavourOf(next.kind) !== flavourOf(config.kind)) next = { ...next, profile: "" };
@@ -347,6 +350,7 @@ function VersionForm({ session, data, defaults, profiles, error, onChange }: { s
       // picked by hand stays.
       else if (!pickedByHand.current && flavourOf(next.kind) !== flavourOf(config.kind)) next = { ...next, profile: fits };
     }
+    if (flavourOf(next.kind) !== flavourOf(config.kind)) setProfileFrom(next.profile && next.profile === config.profile && !profileFrom ? config.kind : undefined);
     onChange({ ...record, config: next });
   };
   useEffect(() => {
@@ -401,7 +405,7 @@ function VersionForm({ session, data, defaults, profiles, error, onChange }: { s
   const picked = presetPick(config.profile);
   const pickedPreset = picked ? presets.find((p) => p.trash_id === picked) : undefined;
   const copiesOf = (id: string) => presetCopies([...profiles.values()], flavour, id);
-  const select = (value: string) => { pickedByHand.current = true; update("profile", value); };
+  const select = (value: string) => { pickedByHand.current = true; setProfileFrom(undefined); update("profile", value); };
   return <div className="space-y-6">
     <div className="flex flex-wrap items-center gap-2 text-sm"><span>Draft after saving:</span><VersionStatus showMode state={{ mode: config.mode, grab: config.grab ?? false, library_enabled: data.switches.library_enabled, router_enabled: data.switches.router_enabled, router_forced_off: data.switches.sources?.router === "forced off by environment" }} /></div>
     <Part title="Where" help="What the library holds, where its folder lives and how files get there.">
@@ -426,7 +430,7 @@ function VersionForm({ session, data, defaults, profiles, error, onChange }: { s
       </details>
     </Part>
     <Part title="Which releases" help="The quality profile decides which releases it takes and when it upgrades.">
-      <div className="flex flex-col gap-1"><Field label="Profile" {...mark("profile")}><select className={SELECT_CLASS} value={config.profile} onChange={(event) => select(event.target.value)}>
+      <div className="flex flex-col gap-1"><Field label="Profile" {...mark("profile")} error={fieldError("profile")}><select className={SELECT_CLASS} value={config.profile} onChange={(event) => select(event.target.value)}>
           {/* One select element whether or not the TRaSH defaults have loaded, so a load never drops focus. */}
           {presets.length || picked ? <>
             {config.profile === "" || (!picked && !stored.includes(config.profile)) ? <option value={config.profile}>{config.profile || "Choose a profile"}</option> : null}
@@ -439,6 +443,7 @@ function VersionForm({ session, data, defaults, profiles, error, onChange }: { s
         </select></Field>
         {picked
           ? <span className="text-xs text-muted-foreground [overflow-wrap:anywhere]" data-testid="preset-pick-note">TRaSH default{pickedPreset ? ` ${pickedPreset.name}` : ""}: saving first creates a profile of your own from it, named after this library{record.key.trim() ? <> (<span className="font-mono">{record.key.trim()}</span>, or the next free key)</> : null}, with its format set. You can edit it afterwards under <Link className="underline" to="/admin/settings/profiles">Profiles</Link>.{copiesOf(picked).length ? ` To reuse the copy you already have, pick ${copiesOf(picked).join(" or ")} under Your profiles.` : ""}</span>
+          : profileFrom && config.profile ? <span className="text-xs text-[var(--warn-ink)] [overflow-wrap:anywhere]" data-testid="profile-other-kind">This profile was chosen while the library was a {profileFrom} library. Check that it suits a {config.kind} library, or pick another; picking it again here confirms it.</span>
           : config.profile === "" ? <span className="text-xs text-muted-foreground [overflow-wrap:anywhere]" data-testid="profile-needed">Choose a profile for this {config.kind} library: one of yours, or a TRaSH default for {config.kind === "series" ? "series" : "movies"}. The profile preselected for the other kind is not kept when the kind changes.</span>
           : <span className="text-xs text-muted-foreground [overflow-wrap:anywhere]">{summary ? `${profileOrigin(summary)} · ` : ""}its format set comes with it{data.profiles[config.profile] ? `: ${data.profiles[config.profile]}` : ""}. {config.profile ? <Link className="underline" to={`/admin/settings/profiles?edit=${encodeURIComponent(config.profile)}`}>Open the profile</Link> : null}</span>}
       </div>

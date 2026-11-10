@@ -452,3 +452,64 @@ func TestSettingsRouterSaveAddsNoRetryNewKey(t *testing.T) {
 	se.want(se.call("PUT", "/sections/router", map[string]any{"generation": se.generation(), "yaml": text}), 200, "retry_new off as yaml")
 	off("yaml")
 }
+
+// A library created through the libraries editor is not named in the stored library section (its roots live with
+// the library), so Plex & playback sends versions.<key>.plex_section for a key the section never held. The save
+// is accepted and the running policy scans that Plex section, with the library's roots untouched.
+func TestSettingsLibrarySectionTakesPlexSectionForAnUnlistedLibrary(t *testing.T) {
+	t.Parallel()
+	se := seededSectionsEnv(t)
+	ctx := context.Background()
+	put := func(config map[string]any, gen int64, what string) int64 {
+		t.Helper()
+		body := map[string]any{"generation": gen, "config": config}
+		rec := se.call("PUT", "/sections/library", body)
+		if rec.Code == 422 {
+			var refused map[string]any
+			if err := json.Unmarshal(rec.Body.Bytes(), &refused); err != nil {
+				t.Fatal(err)
+			}
+			if _, ok := refused["confirmation"]; ok {
+				body["confirmation_token"] = confirmRefusal(t, refused, "")
+				rec = se.call("PUT", "/sections/library", body)
+			}
+		}
+		return int64(se.want(rec, 200, what)["generation"].(float64))
+	}
+	read := se.want(se.call("GET", "/sections", nil), 200, "read")
+	config := findSection(t, read, "library")["config"].(map[string]any)
+	// The stored section of a fresh install: no versions at all.
+	delete(config, "versions")
+	gen := put(config, int64(read["generation"].(float64)), "drop the versions")
+	snap, err := se.coord.Snapshot(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var key string
+	for _, k := range sortedKeys(snap.Policy.Versions) {
+		if lv := snap.Policy.Library.Versions[k]; lv != nil && len(lv.Roots) > 0 {
+			key = k
+			break
+		}
+	}
+	if key == "" {
+		t.Fatal("the fixture has no library with roots")
+	}
+	roots := slices.Clone(snap.Policy.Library.Versions[key].Roots)
+	if snap.Policy.Library.Versions[key].PlexSection != 0 {
+		t.Fatalf("%s still has a Plex section after the section dropped it", key)
+	}
+	if stored := findSection(t, se.want(se.call("GET", "/sections", nil), 200, "reread"), "library")["config"].(map[string]any); stored["versions"] != nil {
+		t.Fatalf("the stored section still lists versions: %v", stored["versions"])
+	}
+
+	config["versions"] = map[string]any{key: map[string]any{"plex_section": 7}}
+	put(config, gen, "set the Plex section")
+	if snap, err = se.coord.Snapshot(ctx); err != nil {
+		t.Fatal(err)
+	}
+	lv := snap.Policy.Library.Versions[key]
+	if lv == nil || lv.PlexSection != 7 || !slices.Equal(lv.Roots, roots) {
+		t.Fatalf("%s after the save: %+v, want Plex section 7 and roots %v", key, lv, roots)
+	}
+}

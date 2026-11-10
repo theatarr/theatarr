@@ -768,9 +768,14 @@ describe("Versions grouped by kind", () => {
     await user.selectOptions(profile, "web");
     expect(profile.value).toBe("web");
     expect(within(form).queryByTestId("profile-needed")).toBeNull();
+    expect(within(form).queryByTestId("profile-other-kind")).toBeNull();
+    // Kept across a kind change, but not without a word: the picker says which kind it was chosen for.
     await user.selectOptions(kind, "movie");
+    expect(profile.value).toBe("web");
+    expect(within(form).getByTestId("profile-other-kind").textContent).toContain("chosen while the library was a series library");
     await user.selectOptions(kind, "series");
     expect(profile.value).toBe("web");
+    expect(within(form).queryByTestId("profile-other-kind")).toBeNull();
   });
 
   it("splits the editor into Where, Which releases and Sources and preselects the default profile per kind", async () => {
