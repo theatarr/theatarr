@@ -90,7 +90,9 @@ describe("Versions page", () => {
     const user = userEvent.setup();
     renderPage(<VersionsPage />);
     const words = (await screen.findAllByTestId("state-words")).filter((badge) => badge.closest("tr"));
-    expect(words.map((badge) => [badge.closest("tr")?.getAttribute("data-record"), badge.textContent])).toEqual([["movie-web", "Live, downloads off"], ["movie-remux", "Live"]]);
+    expect(words.map((badge) => [badge.closest("tr")?.getAttribute("data-record"), badge.textContent])).toEqual([["movie-web", "Live, downloads off"]]);
+    // movie-remux is plainly Live: its row shows the control alone.
+    expect(within(document.querySelector<HTMLElement>('tr[data-record="movie-remux"]')!).queryByTestId("state-words")).toBeNull();
     const row = document.querySelector<HTMLElement>('tr[data-record="movie-web"]')!;
     await user.click(within(row).getByRole("button", { name: "Edit" }));
     // Live with downloads off opens Advanced, where the tick is.
@@ -896,8 +898,8 @@ describe("Watch only / Live control", () => {
   const row = async () => (await screen.findByRole("button", { name: "Edit" })).closest("tr")!;
 
   it.each([
-    [{ mode: "shadow" }, {}, "watch", "Watch only"],
-    [{ mode: "active", grab: true }, {}, "live", "Live"],
+    [{ mode: "shadow" }, {}, "watch", null],
+    [{ mode: "active", grab: true }, {}, "live", null],
     [{ mode: "active", grab: false }, {}, "live", "Live, downloads off"],
     [{ mode: "active" }, {}, "live", "Live, downloads off"],
     [{ mode: "active", grab: true }, { router_enabled: false, library_enabled: false }, "live", "Live, paused"],
@@ -907,7 +909,8 @@ describe("Watch only / Live control", () => {
     renderPage(<VersionsPage />);
     const r = await row();
     expect((within(r).getByRole("combobox", { name: "State of movie-web" }) as HTMLSelectElement).value).toBe(choice);
-    expect(within(r).getByTestId("state-words").textContent).toBe(words);
+    // Words that only repeat the control are left out.
+    expect(within(r).queryByTestId("state-words")?.textContent ?? null).toBe(words);
   });
 
   it("Live from a row sends the stored library with mode active and grab on, through the confirmation", async () => {

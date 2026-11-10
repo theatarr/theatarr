@@ -84,6 +84,12 @@ export function stateWords(state: VersionGrabState): { text: string; tone: Verdi
   return { text: "Live", tone: "ok" };
 }
 
+/** The running state's words only repeat the Watch only / Live control beside them, which shows the stored mode. */
+export const repeatsChoice = (state: VersionGrabState, mode: string | undefined) => {
+  const choice = choiceOf(mode);
+  return choice !== undefined && stateWords(state).text === CHOICE_LABEL[choice];
+};
+
 export type Gate = { text: string; label: string; to: string };
 
 /** Every closed gate, each with where it is changed, so fixing one never hides another. key opens the library's

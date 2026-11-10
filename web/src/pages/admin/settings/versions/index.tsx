@@ -19,7 +19,7 @@ import { Sheet, SheetLayout, useEditParam } from "@/components/ui/sheet";
 import { Switch } from "@/components/ui/switch";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { explainError } from "@/lib/settings";
-import { CHOICE_HELP, CHOICE_LABEL, choiceOf, withChoice, withGrab, type LibraryChoice } from "@/lib/version-grab";
+import { CHOICE_HELP, CHOICE_LABEL, choiceOf, repeatsChoice, withChoice, withGrab, type LibraryChoice } from "@/lib/version-grab";
 
 /** saved: the record as stored (a new library: its first draft), for the changed marks, the count and Discard. */
 type Session = { record: VersionRecord; saved: VersionRecord; generation: number; create: boolean; draftID: number };
@@ -138,7 +138,7 @@ function VersionGroup({ title, versions, all, switches, selected, readOnly, busy
           return <TableRow key={record.key} data-record={record.key} data-selected={selected === record.key ? "true" : undefined}>
             <TableCell className="align-top">
               <div className="flex flex-wrap items-center gap-1.5"><span className="font-mono text-[13px] [overflow-wrap:anywhere]">{record.key}</span></div>
-              <div className="mt-1 flex flex-wrap items-center gap-1.5" data-testid="library-state-row"><ChoicePick mode={c.mode} label={`State of ${record.key}`} disabled={readOnly || busy} followedBy={followersOf(all, record.key)} onChange={(choice) => onChoose(record, choice)} /><VersionStatus words settingsKey={record.key} canManage state={switches.versions.find((v) => v.key === record.key)?.grab_state ?? { mode: "off", grab: false, library_enabled: switches.library_enabled, router_enabled: switches.router_enabled, router_forced_off: switches.sources?.router === "forced off by environment" }} /></div>
+              <div className="mt-1 flex flex-wrap items-center gap-1.5" data-testid="library-state-row"><ChoicePick mode={c.mode} label={`State of ${record.key}`} disabled={readOnly || busy} followedBy={followersOf(all, record.key)} onChange={(choice) => onChoose(record, choice)} /><VersionStatus words beside={c.mode} settingsKey={record.key} canManage state={switches.versions.find((v) => v.key === record.key)?.grab_state ?? { mode: "off", grab: false, library_enabled: switches.library_enabled, router_enabled: switches.router_enabled, router_forced_off: switches.sources?.router === "forced off by environment" }} /></div>
               <FollowedNote followedBy={c.mode === "shadow" ? followersOf(all, record.key) : []} />
               <div className="text-xs text-muted-foreground">{c.anime === null ? "anime and regular" : ""}{c.follows ? `${c.anime === null ? " · " : ""}follows ${c.follows}` : ""}</div>
               <div className="mt-1.5 space-y-1.5 md:hidden">{where}{profile}</div>
@@ -448,9 +448,10 @@ function VersionForm({ session, data, defaults, profiles, error, onChange }: { s
   const picked = presetPick(config.profile);
   const pickedPreset = picked ? presets.find((p) => p.trash_id === picked) : undefined;
   const copiesOf = (id: string) => presetCopies([...profiles.values()], flavour, id);
+  const draftState = { mode: config.mode, grab: config.grab ?? false, library_enabled: data.switches.library_enabled, router_enabled: data.switches.router_enabled, router_forced_off: data.switches.sources?.router === "forced off by environment" };
   const select = (value: string) => { pickedByHand.current = true; setProfileFrom(undefined); update("profile", value); };
   return <div className="space-y-6">
-    <div className="flex flex-wrap items-center gap-2 text-sm"><span>Draft after saving:</span><VersionStatus words state={{ mode: config.mode, grab: config.grab ?? false, library_enabled: data.switches.library_enabled, router_enabled: data.switches.router_enabled, router_forced_off: data.switches.sources?.router === "forced off by environment" }} /></div>
+    {repeatsChoice(draftState, config.mode) ? null : <div className="flex flex-wrap items-center gap-2 text-sm"><span>Draft after saving:</span><VersionStatus words state={draftState} /></div>}
     <Part title="Where" help="What the library holds, where its folder lives and how files get there.">
       <Field label="Name" help="Optional. Shown in place of the guessed label, such as 4K WEB. Connected apps never see it." changed={(config.name ?? "") !== (saved.config.name ?? "")} onUndo={() => setName(saved.config.name ?? "")} error={fieldError("name")}><Input value={config.name ?? ""} maxLength={40} onChange={(event) => setName(event.target.value)} /></Field>
       <Field label="Key" help="Used by connected apps and in settings; fixed once the library exists." changed={record.key !== saved.key} onUndo={() => onChange({ ...record, key: saved.key })}><Input value={record.key} disabled={!session.create} onChange={(event) => onChange({ ...record, key: event.target.value })} /></Field>

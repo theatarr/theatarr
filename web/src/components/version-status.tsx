@@ -5,14 +5,16 @@ import { useId, useState } from "react";
 import { Popover } from "radix-ui";
 import { Link } from "react-router";
 import { Badge, Tag } from "@/components/ui/badge";
-import { closedGates, linksOff, MODE_WORDS, stateWords, verdict, type VersionGrabState } from "@/lib/version-grab";
+import { closedGates, linksOff, MODE_WORDS, repeatsChoice, stateWords, verdict, type VersionGrabState } from "@/lib/version-grab";
 
-export function VersionStatus({ state, showMode = false, words = false, settingsKey, canManage = false, why = true }: {
+export function VersionStatus({ state, showMode = false, words = false, beside, settingsKey, canManage = false, why = true }: {
   state?: VersionGrabState;
   showMode?: boolean;
   /** Settings › Libraries: one plain phrase ("Live, paused") in place of the mode tag and the verdict, beside the
    * library's Watch only / Live control. Why? stays. */
   words?: boolean;
+  /** With words: the stored mode the Watch only / Live control beside them shows; words that only repeat it are left out. */
+  beside?: string;
   settingsKey?: string;
   canManage?: boolean;
   /** false: dense rows (library tables, request chips). Why? is a small "?" button and the list opens in a popover
@@ -31,11 +33,12 @@ export function VersionStatus({ state, showMode = false, words = false, settings
       {canManage ? <> · <Link className="text-[var(--accent-ink)] underline" to={g.to}>{g.label}</Link></> : null}
     </li>
   ));
-  const phrase = words ? stateWords(state) : undefined;
-  const badges = phrase ? <>
+  // words: shown beside the Watch only / Live control, so only when they add to it (such as Live, paused).
+  const phrase = words && !repeatsChoice(state, beside) ? stateWords(state) : undefined;
+  const badges = words ? phrase ? <>
     <Badge tone={phrase.tone} data-testid="state-words" title={!why && gates.length ? gates.map((g) => g.text).join(". ") + "." : undefined}>{phrase.text}</Badge>
     {linksOff(state) && phrase.text !== "Live, paused" && phrase.text !== "Live, but new files won't be linked" ? <Badge tone="ghost" data-testid="links-off">New files won't be linked</Badge> : null}
-  </> : <>
+  </> : null : <>
     {showMode ? <Tag title={mode.help} data-mode={state.mode}>{mode.label}</Tag> : null}
     <Badge tone={v.tone} title={!why && gates.length ? gates.map((g) => g.text).join(". ") + "." : undefined}>{v.word}</Badge>
     {linksOff(state) ? <Badge tone="ghost" data-testid="links-off">New files won't be linked</Badge> : null}
