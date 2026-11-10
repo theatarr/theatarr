@@ -114,7 +114,7 @@ func (a *Acquirer) CancelRetryNew(ctx context.Context) (int, error) {
 		for _, q := range []struct {
 			kind, where string
 		}{
-			{router.JobResearch, `CASE WHEN json_valid(payload) THEN json_extract(payload, '$.retry_new') END = 1`},
+			{router.JobResearch, retryNewJobs},
 			{JobSearch, `dedupe_key IN (SELECT '` + JobSearch + `/' || id FROM acquire_run WHERE state = 'queued'
 				AND ` + retryNewRuns + `)`},
 		} {

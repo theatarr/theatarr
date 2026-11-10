@@ -13,8 +13,19 @@ import (
 // The rule router.wanted.retry_new is built to: nothing its chains write is read by an ordinary path, and turning
 // the switch off removes their queued work. One test per reader of the run history, then the cancellation.
 
-// chainRun records a search of a retry_new chain as it stands in the run history: research retry_new, created ago.
+// chainRun records a search of a retry_new chain as it stands in the run history: research retry_new, created ago,
+// and the finished request of the chain that started it (the job table keeps it 14 days).
 func (e *env) chainRun(title, version int64, key, name, state string, infra int, ago time.Duration) {
+	e.t.Helper()
+	at := store.Millis(e.clock().Add(-ago))
+	e.prunedChainRun(title, version, key, name, state, infra, ago)
+	e.exec(`INSERT INTO job (kind, payload, state, run_at, created_at, updated_at, finished_at)
+		VALUES (?, json_object('title_id', ?, 'version_id', ?, 'version', ?, 'reason', ?, 'retry_new', json('true')),
+		'done', ?, ?, ?, ?)`, router.JobResearch, title, version, key, router.ReasonFresh, at, at, at, at)
+}
+
+// prunedChainRun is chainRun without the request: what is left once the job table has pruned it.
+func (e *env) prunedChainRun(title, version int64, key, name, state string, infra int, ago time.Duration) {
 	e.t.Helper()
 	at := store.Millis(e.clock().Add(-ago))
 	e.exec(`INSERT INTO acquire_run (source, title_id, version_id, version_key, target, reason, state, research, infra,
@@ -420,5 +431,134 @@ func TestRetryNewLateEnqueueSearchesNothing(t *testing.T) {
 	if n := e.count(`SELECT COUNT(*) FROM acquire_run WHERE research = ? AND state = 'skipped' AND infra = ?`,
 		researchRetryNew, runGated); n != 1 {
 		t.Fatalf("%d gated runs, want the late search", n)
+	}
+}
+
+// plan is the query plan of q, one step a line.
+func (e *env) plan(q string, args ...any) string {
+	e.t.Helper()
+	rows, err := e.st.Reader().QueryContext(e.ctx, `EXPLAIN QUERY PLAN `+q, args...)
+	if err != nil {
+		e.t.Fatal(err)
+	}
+	defer rows.Close()
+	var out []string
+	for rows.Next() {
+		var id, parent, unused int
+		var detail string
+		if err := rows.Scan(&id, &parent, &unused, &detail); err != nil {
+			e.t.Fatal(err)
+		}
+		out = append(out, detail)
+	}
+	return strings.Join(out, "\n")
+}
+
+// An install that never had the switch on reads the run history with the queries, and the query plans, it had
+// without the switch: the loop's "last searched" is one scan the index answers alone, and an add-time intent's retry
+// budget reads the index alone. The queries written out here are the ones before the switch existed.
+func TestRetryNewNeverOnKeepsTheQueryPlans(t *testing.T) {
+	t.Parallel()
+	e := newEnv(t, true, &policy.Wanted{PerHour: 100})
+	e.accept = false
+	e.round() // ordinary runs, re-searches and their jobs
+	e.research(router.ResearchRequest{TitleID: 1, VersionID: 101, Version: "movie", Reason: router.ReasonStalled})
+	e.drain()
+
+	const last = `SELECT version_id, target,
+		COALESCE(MAX(CASE WHEN infra = 0 THEN created_at END), 0), COALESCE(MAX(CASE WHEN infra = 2 THEN created_at END), 0),
+		MAX(created_at) FROM acquire_run GROUP BY version_id, target`
+	reads, chained, err := e.a.lastSearchedReads(e.ctx)
+	if err != nil || len(reads) != 1 || len(chained) != 0 {
+		t.Fatalf("never on: %d reads, chained %v: %v", len(reads), chained, err)
+	}
+	want := e.plan(last)
+	if !strings.Contains(want, "SCAN acquire_run USING COVERING INDEX acquire_run_target") {
+		t.Fatalf("the plan without the switch is not the covering scan:\n%s", want)
+	}
+	if got := e.plan(reads[0]); got != want {
+		t.Fatalf("never on: last searched plan\n%s\nwant\n%s", got, want)
+	}
+	if got := e.plan(lastSearchedSQL(ordinaryRuns)); got == want {
+		t.Fatalf("the filtered query has the same plan: this test tells nothing\n%s", got)
+	}
+
+	const infra = `SELECT COUNT(*), COALESCE(MAX(created_at), 0) FROM acquire_run WHERE version_id = ? AND target = ?
+		AND infra = 1 AND created_at > MAX(?, COALESCE((SELECT MAX(created_at) FROM acquire_run WHERE version_id = ?
+		AND target = ? AND infra NOT IN (1, 3) AND state NOT IN ('queued', 'searching')), 0))`
+	own, err := e.a.ordinaryOf(e.ctx, 101)
+	if err != nil || own != "" {
+		t.Fatalf("never on: an intent's retry budget reads %q: %v", own, err)
+	}
+	args := []any{101, "movie", 0, 101, "movie"}
+	want = e.plan(infra, args...)
+	if !strings.Contains(want, "SEARCH acquire_run USING COVERING INDEX acquire_run_target") {
+		t.Fatalf("the plan without the switch does not read the index alone:\n%s", want)
+	}
+	if got := e.plan(infraRunsSQL(own), args...); got != want {
+		t.Fatalf("never on: retry budget plan\n%s\nwant\n%s", got, want)
+	}
+	if got := e.plan(infraRunsSQL(ordinaryRuns), args...); got == want {
+		t.Fatalf("the filtered query has the same plan: this test tells nothing\n%s", got)
+	}
+
+	// A chain's request in the job table: its version alone is read again without the chain's runs.
+	e.chainRun(1, 101, "movie", "movie", "nothing", runComplete, time.Minute)
+	reads, chained, err = e.a.lastSearchedReads(e.ctx)
+	if err != nil || len(reads) != 2 || len(chained) != 1 || !chained[101] || e.plan(reads[0]) != e.plan(last) {
+		t.Fatalf("after a chain: %d reads, chained %v: %v", len(reads), chained, err)
+	}
+	if own, err := e.a.ordinaryOf(e.ctx, 101); err != nil || own != ordinaryRuns {
+		t.Fatalf("after a chain: its version reads %q: %v", own, err)
+	}
+	if own, err := e.a.ordinaryOf(e.ctx, 102); err != nil || own != "" {
+		t.Fatalf("after a chain: another version reads %q: %v", own, err)
+	}
+}
+
+// With the switch off, lastSearched leaves a chain's runs out for the versions a chain has a request for: a target
+// only a chain searched is not in it, one with an ordinary run too keeps the ordinary run's times, and other versions
+// read as without the switch. A chain's run whose requests the job table has pruned (after 14 days) reads as an
+// ordinary run.
+func TestRetryNewLastSearchedWithTheSwitchOff(t *testing.T) {
+	t.Parallel()
+	e := newEnv(t, true, &policy.Wanted{PerHour: 100})
+	ordinary := func(title, version int64, ago time.Duration) int64 {
+		at := store.Millis(e.clock().Add(-ago))
+		e.exec(`INSERT INTO acquire_run (source, title_id, version_id, version_key, target, reason, state, created_at,
+			updated_at) VALUES ('wanted', ?, ?, 'movie', 'movie', 'missing', 'nothing', ?, ?)`, title, version, at, at)
+		return at
+	}
+	e.chainRuns() // movie 1: chain runs only
+	two := ordinary(2, 102, 3*time.Hour)
+	e.chainRun(2, 102, "movie", "movie", "nothing", runComplete, time.Hour)
+	three := ordinary(3, 103, 2*time.Hour)
+	e.prunedChainRun(1, 111, "movie-shadow", "movie", "nothing", runComplete, 30*24*time.Hour)
+	got, err := e.a.lastSearched(e.ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, ok := got[runKey(101, "movie")]; ok {
+		t.Fatalf("a target only a chain searched is in last searched: %+v", got)
+	}
+	if l := got[runKey(102, "movie")]; l != (lastRuns{complete: two, any: two}) {
+		t.Fatalf("version 102: %+v, want its ordinary run at %d", l, two)
+	}
+	if l := got[runKey(103, "movie")]; l != (lastRuns{complete: three, any: three}) {
+		t.Fatalf("version 103: %+v, want its run at %d", l, three)
+	}
+	if l := got[runKey(111, "movie")]; l.complete == 0 {
+		t.Fatalf("a chain's run without a request left is not read as a run: %+v", got)
+	}
+	// The same with the switch on, except that it needs no request to tell a chain's run.
+	e.a.set.RetryNew = true
+	on, err := e.a.lastSearched(e.ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	delete(got, runKey(111, "movie"))
+	if len(on) != len(got) || on[runKey(102, "movie")] != got[runKey(102, "movie")] ||
+		on[runKey(103, "movie")] != got[runKey(103, "movie")] {
+		t.Fatalf("switch on: %+v, want %+v", on, got)
 	}
 }

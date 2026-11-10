@@ -761,6 +761,14 @@ and paced exactly as without it.
   Search now request's "a search of it is queued or running" (so a request is never dropped for a chain's search;
   the two may then both search the target), and the number of unanswered searches that sets when a re-search is
   asked for again. The chain's own searches asked for again count the chain's unanswered runs only.
+- An install that never had the switch on runs the same queries, with the same query plans, as a build without it.
+  The chain's mark is in no index, so with the switch off the two readers an index answers alone (the loop's "last
+  searched" and an add-time intent's count of unanswered searches) run their query without the switch and leave the
+  chain's runs out only for the versions a chain has a request for in the job table (one more small read of the
+  re-search jobs). Finished jobs are kept 14 days. Limit: with the switch off, a chain's search older than that
+  counts for these two readers as an ordinary search of its target (it can move the target back in the loop's
+  order, and holds it back when `again_after` is longer than 14 days). With the switch on they leave every chain
+  run out, whatever its age.
 - `per_hour` is one budget while the switch is on: the chain's searches take slots like any wanted search. With the
   switch off the hourly count leaves out what the chain searched before, so it delays nothing.
 - The chain after an `exhausted` route reads nothing of this one: it starts by its own key alone and never looks at

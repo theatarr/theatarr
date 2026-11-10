@@ -809,26 +809,111 @@ func (l lastRuns) searchedSince(since, partialSince int64) bool {
 	return l.complete > since || l.partial > max(since, partialSince)
 }
 
-// lastSearched maps "versionID/target" to its latest runs.
+// lastSearched maps "versionID/target" to its latest runs, the runs of router.wanted.retry_new's chains left out.
 func (a *Acquirer) lastSearched(ctx context.Context) (map[string]lastRuns, error) {
-	rows, err := a.st.Reader().QueryContext(ctx, `SELECT version_id, target,
+	reads, chained, err := a.lastSearchedReads(ctx)
+	if err != nil {
+		return nil, err
+	}
+	out := map[string]lastRuns{}
+	for i, q := range reads {
+		rows, err := a.st.Reader().QueryContext(ctx, q)
+		if err != nil {
+			return nil, err
+		}
+		for rows.Next() {
+			var v int64
+			var l lastRuns
+			var t string
+			if err := rows.Scan(&v, &t, &l.complete, &l.partial, &l.any); err != nil {
+				rows.Close()
+				return nil, err
+			}
+			if i == 0 && chained[v] {
+				continue // read again below, without the chain's runs
+			}
+			out[runKey(v, t)] = l
+		}
+		rows.Close()
+		if err := rows.Err(); err != nil {
+			return nil, err
+		}
+	}
+	return out, nil
+}
+
+// lastSearchedSQL is lastSearched's query over the runs where selects ("" for all of them).
+func lastSearchedSQL(where string) string {
+	q := `SELECT version_id, target,
 		COALESCE(MAX(CASE WHEN infra = 0 THEN created_at END), 0), COALESCE(MAX(CASE WHEN infra = 2 THEN created_at END), 0),
-		MAX(created_at) FROM acquire_run WHERE `+ordinaryRuns+` GROUP BY version_id, target`)
+		MAX(created_at) FROM acquire_run`
+	if where != "" {
+		q += ` WHERE ` + where
+	}
+	return q + ` GROUP BY version_id, target`
+}
+
+// lastSearchedReads are the queries lastSearched runs. With the switch off it is the query without the switch, which
+// the index answers alone (the chain's mark is not in an index), and then the versions a chain has a request for
+// (chainVersions: chained) are read again without the chain's runs. An install that never had the switch on has no
+// such version and runs the first query only. With the switch on it is one query that leaves the chain's runs out.
+func (a *Acquirer) lastSearchedReads(ctx context.Context) (reads []string, chained map[int64]bool, err error) {
+	if a.set.RetryNew {
+		return []string{lastSearchedSQL(ordinaryRuns)}, nil, nil
+	}
+	if chained, err = a.chainVersions(ctx); err != nil {
+		return nil, nil, err
+	}
+	reads = []string{lastSearchedSQL("")}
+	if len(chained) > 0 {
+		ids := make([]string, 0, len(chained))
+		for v := range chained {
+			ids = append(ids, strconv.FormatInt(v, 10))
+		}
+		reads = append(reads, lastSearchedSQL(`version_id IN (`+strings.Join(ids, ", ")+`) AND `+ordinaryRuns))
+	}
+	return reads, chained, nil
+}
+
+// retryNewJobs is the job condition of a retry_new chain's requests (its steps and its searches asked for again).
+const retryNewJobs = `CASE WHEN json_valid(payload) THEN json_extract(payload, '$.retry_new') END = 1`
+
+// chainVersions are the versions a retry_new chain has a request for in the job table, queued or finished (finished
+// jobs are kept 14 days). It tells the readers that would lose their index to ordinaryRuns which versions hold a
+// chain's runs at all: none on an install that never had the switch on. A chain's run whose requests were all pruned
+// is not found this way and reads as an ordinary run from then on.
+func (a *Acquirer) chainVersions(ctx context.Context) (map[int64]bool, error) {
+	rows, err := a.st.Reader().QueryContext(ctx, `SELECT DISTINCT json_extract(payload, '$.version_id') FROM job
+		WHERE kind = ? AND `+retryNewJobs, router.JobResearch)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
-	out := map[string]lastRuns{}
+	var out map[int64]bool
 	for rows.Next() {
-		var v int64
-		var l lastRuns
-		var t string
-		if err := rows.Scan(&v, &t, &l.complete, &l.partial, &l.any); err != nil {
+		var v sql.NullInt64
+		if err := rows.Scan(&v); err != nil {
 			return nil, err
 		}
-		out[runKey(v, t)] = l
+		if out == nil {
+			out = map[int64]bool{}
+		}
+		out[v.Int64] = true
 	}
 	return out, rows.Err()
+}
+
+// ordinaryOf is the condition that leaves the chain's runs out of a read of one version's runs: ordinaryRuns, or ""
+// (every run, the query without the switch) when the switch is off and no chain has a request for the version.
+func (a *Acquirer) ordinaryOf(ctx context.Context, versionID int64) (string, error) {
+	if a.set.RetryNew {
+		return ordinaryRuns, nil
+	}
+	chained, err := a.chainVersions(ctx)
+	if err != nil || !chained[versionID] {
+		return "", err
+	}
+	return ordinaryRuns, nil
 }
 
 func runKey(versionID int64, t string) string { return strconv.FormatInt(versionID, 10) + "/" + t }
@@ -1489,17 +1574,10 @@ func noAnswerMessage(found *router.Searched) string {
 }
 
 // infraRuns counts a target's runs without an answer since its last run that had one, after since, and the latest.
-// It reads the ordinary runs only; retryNew: the runs of router.wanted.retry_new's chains only (their own budget).
-func (a *Acquirer) infraRuns(ctx context.Context, versionID int64, name string, since int64, research,
-	retryNew bool) (int, int64, error) {
-	own := ordinaryRuns
-	if retryNew {
-		own = retryNewRuns
-	}
-	q := `SELECT COUNT(*), COALESCE(MAX(created_at), 0) FROM acquire_run WHERE version_id = ? AND target = ?
-		AND infra = 1 AND ` + own + ` AND created_at > MAX(?, COALESCE((SELECT MAX(created_at) FROM acquire_run
-		WHERE version_id = ? AND target = ? AND infra NOT IN (1, 3) AND state NOT IN ('queued', 'searching')
-		AND ` + own + `), 0))`
+// runs says which: ordinaryRuns, retryNewRuns (the chain's own budget), or "" for all of them (ordinaryOf).
+func (a *Acquirer) infraRuns(ctx context.Context, versionID int64, name string, since int64, research bool,
+	runs string) (int, int64, error) {
+	q := infraRunsSQL(runs)
 	if research {
 		q += ` AND research IS NOT NULL`
 	}
@@ -1507,6 +1585,16 @@ func (a *Acquirer) infraRuns(ctx context.Context, versionID int64, name string, 
 	var last int64
 	err := a.st.Reader().QueryRowContext(ctx, q, versionID, name, since, versionID, name).Scan(&n, &last)
 	return n, last, err
+}
+
+// infraRunsSQL is infraRuns's query over the runs that the condition runs selects.
+func infraRunsSQL(runs string) string {
+	if runs != "" {
+		runs = ` AND ` + runs
+	}
+	return `SELECT COUNT(*), COALESCE(MAX(created_at), 0) FROM acquire_run WHERE version_id = ? AND target = ?
+		AND infra = 1` + runs + ` AND created_at > MAX(?, COALESCE((SELECT MAX(created_at) FROM acquire_run
+		WHERE version_id = ? AND target = ? AND infra NOT IN (1, 3) AND state NOT IN ('queued', 'searching')` + runs + `), 0))`
 }
 
 // retryInfraFailed asks again for the re-searches among runs (no answer: runInfra) after infraBackoff, until it is
@@ -1528,7 +1616,11 @@ func (a *Acquirer) retryInfraFailed(ctx context.Context, runs []int64) error {
 			continue
 		}
 		chained := research.String == researchRetryNew
-		n, last, err := a.infraRuns(ctx, p.VersionID, name, store.Millis(a.now().Add(-a.set.AgainAfter)), true, chained)
+		own := ordinaryRuns // research is read from the row here either way
+		if chained {
+			own = retryNewRuns
+		}
+		n, last, err := a.infraRuns(ctx, p.VersionID, name, store.Millis(a.now().Add(-a.set.AgainAfter)), true, own)
 		if err != nil {
 			return err
 		}

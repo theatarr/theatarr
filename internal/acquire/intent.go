@@ -169,6 +169,8 @@ func (a *Acquirer) drainIntent(ctx context.Context, c importarr.FollowSearchTarg
 		ts = bySeason(got)
 	}
 	n, done := 0, true
+	var own string // which of the version's runs the retry budget reads (ordinaryOf)
+	ownRead := false
 	since := min(store.Millis(a.now().Add(-a.set.AgainAfter)), created-1)
 	for _, t := range ts {
 		var recent, pending int
@@ -184,7 +186,14 @@ func (a *Acquirer) drainIntent(ctx context.Context, c importarr.FollowSearchTarg
 			continue
 		}
 		// Runs without an answer: started again after infraBackoff; given up once it is spent.
-		fails, last, err := a.infraRuns(ctx, t.versionID, t.name, since, false, false)
+		if !ownRead { // once an intent, when a target needs it
+			o, err := a.ordinaryOf(ctx, vid)
+			if err != nil {
+				return n, false, err
+			}
+			own, ownRead = o, true
+		}
+		fails, last, err := a.infraRuns(ctx, t.versionID, t.name, since, false, own)
 		if err != nil {
 			return n, false, err
 		}
