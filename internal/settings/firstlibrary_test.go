@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"testing"
 
@@ -179,5 +180,71 @@ func TestLibraryAreaNotWidenedWithNewRoot(t *testing.T) {
 	editVersion(&req.Records, "movie-web", func(v *Version) { v.Config.Library = root; v.Roots = []string{root} })
 	if _, err := saveConfirmed(t, m, req); err == nil || !strings.Contains(err.Error(), "outside the configured library area") {
 		t.Fatalf("widened the area and added a root in it at once: %v", err)
+	}
+}
+
+// A root directly under / is its own library area (its parent, /, never is one), so a first library at /movies has an
+// area and saves; deeper roots keep their parent as the area.
+func TestLibraryAreasTopLevelRoot(t *testing.T) {
+	t.Parallel()
+	p := &policy.Policy{
+		Versions: map[string]*policy.VersionPolicy{"movies": {Library: "/movies"}, "tv": {Library: "/media/tv/hd"}},
+		Library:  &policy.Library{Versions: map[string]*policy.LibraryVersion{"movies": {Roots: []string{"/movies"}}}},
+	}
+	if got, want := libraryAreas(p), []string{"/media/tv", "/movies"}; !slices.Equal(got, want) {
+		t.Fatalf("areas %v, want %v", got, want)
+	}
+	p.Library.Dangling.Roots = []string{"/"}
+	if got := libraryAreas(p); len(got) != 0 {
+		t.Fatalf("/ as a dangling root made an area: %v", got)
+	}
+}
+
+// Review 3.5: a first library whose root sits directly under / passes Check root and saves.
+func TestFirstLibraryTopLevelRoot(t *testing.T) {
+	t.Parallel()
+	m, st, base, snap, movie := firstLibraryEnv(t)
+	root := ""
+	for _, dir := range []string{"/srv", "/opt", "/mnt", "/home"} {
+		if info, err := os.Lstat(dir); err == nil && info.IsDir() {
+			root = dir
+			break
+		}
+	}
+	if root == "" {
+		t.Skip("no top-level directory to use")
+	}
+	if _, err := st.ValidateRoot(context.Background(), base, "movies", root); err != nil {
+		t.Fatalf("check root: %v", err)
+	}
+	req := saveRequest(base, snap)
+	movie.ID, movie.Key = 0, "movies"
+	movie.Config.Library, movie.Config.Client, movie.Roots = root, "", []string{root}
+	req.Records.Versions = []Version{movie}
+	if _, err := saveConfirmed(t, m, req); err != nil {
+		t.Fatalf("first library at %s: %v", root, err)
+	}
+}
+
+// The refusal of a root outside the area says what to do first.
+func TestLibraryAreaErrorNamesTheWayOut(t *testing.T) {
+	t.Parallel()
+	m, st, base, snap, movie := firstLibraryEnv(t)
+	dir := t.TempDir()
+	first, second := filepath.Join(dir, "media", "movies", "hd"), filepath.Join(dir, "media", "tv", "hd")
+	for _, d := range []string{first, second} {
+		if err := os.MkdirAll(d, 0o700); err != nil {
+			t.Fatal(err)
+		}
+	}
+	saved := createFirstLibrary(t, m, st, base, snap, movie, first)
+	req := saveRequest(base, saved)
+	v := movie
+	v.ID, v.Key = 0, "tv"
+	v.Config.Library, v.Config.Client, v.Roots = second, "", []string{second}
+	req.Records.Versions = append(req.Records.Versions, v)
+	_, err := saveConfirmed(t, m, req)
+	if err == nil || !strings.Contains(err.Error(), "outside the configured library area") || !strings.Contains(err.Error(), "library.dangling.roots") {
+		t.Fatalf("refusal: %v", err)
 	}
 }

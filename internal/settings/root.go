@@ -300,7 +300,8 @@ func validateOneRoot(ctx context.Context, rr *policy.RootResolver, p, allowed *p
 			return RootCheck{}, err
 		}
 		if !inside {
-			return RootCheck{}, errors.New("directory is outside the configured library area")
+			return RootCheck{}, errors.New("directory is outside the configured library area: first save this folder or " +
+				"one above it under library.dangling.roots (Settings, \"Library and Plex\"), then add the library")
 		}
 	}
 	if err := physicalPathSeparation(p, rr, key, root); err != nil {
@@ -309,8 +310,8 @@ func validateOneRoot(ctx context.Context, rr *policy.RootResolver, p, allowed *p
 	return RootCheck{Root: path, Resolved: root.Resolved, Writable: writable}, nil
 }
 
-// libraryAreas is the library area of p: library.dangling.roots, else the parents of the configured roots. The
-// filesystem root is never an area.
+// libraryAreas is the library area of p: library.dangling.roots, else the parents of the configured roots (a root
+// directly under / is its own area). The filesystem root is never an area.
 func libraryAreas(p *policy.Policy) []string {
 	if p == nil || p.Library == nil {
 		return nil
@@ -321,13 +322,13 @@ func libraryAreas(p *policy.Policy) []string {
 		for _, version := range p.Library.Versions {
 			for _, allowed := range version.Roots {
 				if filepath.IsAbs(allowed) {
-					areas = append(areas, filepath.Dir(filepath.Clean(allowed)))
+					areas = append(areas, rootArea(allowed))
 				}
 			}
 		}
 		for _, version := range p.Versions {
 			if filepath.IsAbs(version.Library) {
-				areas = append(areas, filepath.Dir(filepath.Clean(version.Library)))
+				areas = append(areas, rootArea(version.Library))
 			}
 		}
 	}
@@ -336,6 +337,16 @@ func libraryAreas(p *policy.Policy) []string {
 	})
 	sort.Strings(areas)
 	return slices.Compact(areas)
+}
+
+// rootArea is the area a configured root implies: its parent, or the root itself when its parent is the filesystem
+// root (a library at /movies, as Docker mounts often are), since / is never an area.
+func rootArea(root string) string {
+	root = filepath.Clean(root)
+	if parent := filepath.Dir(root); filepath.Dir(parent) != parent {
+		return parent
+	}
+	return root
 }
 
 // hasLibraryArea reports whether p has a library area for roots to lie in.
