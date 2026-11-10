@@ -2,7 +2,6 @@ package acquire
 
 import (
 	"context"
-	"database/sql"
 	"fmt"
 	"slices"
 	"strconv"
@@ -102,9 +101,8 @@ func (a *Acquirer) Research(ctx context.Context, p router.ResearchRequest) (*Res
 		ts = bySeason(got)
 	}
 	now := a.now()
-	var searched int
-	if err := a.st.Reader().QueryRowContext(ctx, `SELECT COUNT(*) FROM acquire_run WHERE source = ?
-		AND search_run IS NULL AND infra <> 3 AND created_at > ?`, SourceWanted, store.Millis(now.Add(-time.Hour))).Scan(&searched); err != nil {
+	searched, err := a.wantedUsed(ctx, now)
+	if err != nil {
 		return nil, err
 	}
 	var later []int64
@@ -186,14 +184,13 @@ const errPerHour = "per_hour"
 // when the oldest wanted search of the hour leaves the window.
 func (a *Acquirer) researchLater(ctx context.Context, p router.ResearchRequest, episodes []int64, now time.Time) (
 	time.Time, error) {
-	var oldest sql.NullInt64
-	if err := a.st.Reader().QueryRowContext(ctx, `SELECT MIN(created_at) FROM acquire_run WHERE source = ?
-		AND search_run IS NULL AND infra <> 3 AND created_at > ?`, SourceWanted, store.Millis(now.Add(-time.Hour))).Scan(&oldest); err != nil {
+	at := now.Add(time.Hour)
+	free, ok, err := a.budgetFreeAt(ctx, now)
+	if err != nil {
 		return time.Time{}, err
 	}
-	at := now.Add(time.Hour)
-	if oldest.Valid {
-		at = store.FromMillis(oldest.Int64).Add(time.Hour + time.Second)
+	if ok {
+		at = free
 	}
 	p.Episodes = episodes
 	// The episodes are part of the key: two deferrals of one title for the same window (two dead links of a series)

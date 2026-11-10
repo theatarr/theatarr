@@ -122,7 +122,8 @@ type Acquirer struct {
 	set               policy.WantedSettings
 	log               *slog.Logger
 	now               func() time.Time
-	// drainMu serialises DrainFollowSearches (after an import and in a wanted round), so no target starts twice.
+	// drainMu serialises DrainFollowSearches (after an import and in a wanted round) and DrainSearchNow, so no target
+	// starts twice.
 	drainMu sync.Mutex
 }
 
@@ -195,6 +196,7 @@ func (a *Acquirer) RegisterJobs(w *jobs.Worker) {
 		return err
 	})
 	w.Handle(router.JobResearch, a.handleResearch)
+	w.Handle(JobSearchNow, func(ctx context.Context, _ *jobs.Job) error { return a.HandleSearchNow(ctx) })
 }
 
 // Selection is what a search asks for, in the arrs' terms.

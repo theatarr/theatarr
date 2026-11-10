@@ -71,6 +71,20 @@ func (l serveLoops) workers() []serveWorker {
 			rt.Acquirer.Run(ctx, 5*time.Minute)
 			return nil
 		}},
+		// The Wanted page's queued searches (acquire.JobSearchNow): a queue found at start gets its drain scheduled, so
+		// it survives a restart with the wanted loop off. After that each request and each drain schedules the next.
+		{name: "search-now", key: func(rt *serveRuntime) string {
+			if rt.Acquirer == nil {
+				return ""
+			}
+			return "on"
+		}, run: func(ctx context.Context, rt *serveRuntime, _ string) error {
+			if err := rt.Acquirer.ScheduleSearchNow(ctx); err != nil {
+				return err
+			}
+			<-ctx.Done()
+			return nil
+		}},
 		// arr.import and shadow.rss scheduling (shadow.import_interval, import.arr). The first start also buckets the
 		// stored grabs again (shadow.Runner.Run).
 		{name: "shadow", key: func(rt *serveRuntime) string {

@@ -1,4 +1,4 @@
-import { keepPreviousData, useQuery } from "@tanstack/react-query";
+import { keepPreviousData, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { api, qs, type Schemas } from "./client";
 
 export type WantedRow = Schemas["WantedRow"];
@@ -9,3 +9,24 @@ export const useWanted = (q: WantedQuery) => useQuery({
   placeholderData: keepPreviousData,
   refetchInterval: 60_000,
 });
+
+export type WantedSearchBody = Schemas["WantedSearchBody"];
+export type WantedSearchResult = Schemas["WantedSearchResult"];
+
+/** POST /wanted/search: queue a search of the named rows, or of every row of a filter, under the hourly limit. */
+export function useWantedSearch() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (body: WantedSearchBody) => api<WantedSearchResult>("/wanted/search", { method: "POST", body }),
+    onSettled: () => qc.invalidateQueries({ queryKey: ["wanted"] }),
+  });
+}
+
+/** DELETE /wanted/search: cancel the searches Search now has queued. */
+export function useClearWantedSearch() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: () => api<{ cleared: number }>("/wanted/search", { method: "DELETE" }),
+    onSettled: () => qc.invalidateQueries({ queryKey: ["wanted"] }),
+  });
+}

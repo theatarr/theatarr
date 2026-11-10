@@ -104,9 +104,28 @@ func (s *serveAcquirer) RegisterJobs(w *jobs.Worker) {
 		_, err := ac.Research(ctx, p)
 		return err
 	})
+	w.Handle(acquire.JobSearchNow, func(ctx context.Context, _ *jobs.Job) error {
+		ctx, ac := s.forOperation(ctx)
+		return ac.HandleSearchNow(ctx)
+	})
 }
 
 func (s *serveAcquirer) WantedList(ctx context.Context, q acquire.WantedQuery) (*acquire.WantedList, error) {
 	ctx, ac := s.forOperation(ctx)
 	return ac.WantedList(ctx, q)
+}
+
+func (s *serveAcquirer) RequestSearchNow(ctx context.Context, only string, items []acquire.SearchNowItem) (*acquire.SearchNowResult, error) {
+	ctx, ac := s.forOperation(ctx)
+	return ac.RequestSearchNow(ctx, only, items)
+}
+
+func (s *serveAcquirer) RequestSearchNowAll(ctx context.Context, q acquire.WantedQuery) (*acquire.SearchNowResult, error) {
+	ctx, ac := s.forOperation(ctx)
+	return ac.RequestSearchNowAll(ctx, q)
+}
+
+func (s *serveAcquirer) ClearSearchNow(ctx context.Context) (int, error) {
+	ctx, ac := s.forOperation(ctx)
+	return ac.ClearSearchNow(ctx)
 }

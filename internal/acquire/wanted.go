@@ -23,7 +23,9 @@ type WantedSummary struct {
 	Due    int `json:"due"`
 	Queued int `json:"queued"`
 	// AddTime are the add-time searches the round started first (DrainFollowSearches).
-	AddTime          int `json:"add_time,omitempty"`
+	AddTime int `json:"add_time,omitempty"`
+	// SearchNow are the Wanted page's queued searches the round started next (DrainSearchNow).
+	SearchNow        int `json:"search_now,omitempty"`
 	InFlight         int `json:"in_flight"`
 	SearchedLastHour int `json:"searched_last_hour"`
 }
@@ -43,6 +45,9 @@ func (a *Acquirer) Wanted(ctx context.Context) (*WantedSummary, error) {
 	sum := &WantedSummary{}
 	var err error
 	if sum.AddTime, err = a.DrainFollowSearches(ctx); err != nil {
+		return nil, err
+	}
+	if sum.SearchNow, err = a.DrainSearchNow(ctx); err != nil {
 		return nil, err
 	}
 	active := a.pol.SearchVersions()
@@ -68,8 +73,7 @@ func (a *Acquirer) Wanted(ctx context.Context) (*WantedSummary, error) {
 		return nil, err
 	}
 	now := a.now()
-	if err := a.st.Reader().QueryRowContext(ctx, `SELECT COUNT(*) FROM acquire_run WHERE source = ? AND search_run IS NULL AND infra <> 3 AND created_at > ?`,
-		SourceWanted, store.Millis(now.Add(-time.Hour))).Scan(&sum.SearchedLastHour); err != nil {
+	if sum.SearchedLastHour, err = a.wantedUsed(ctx, now); err != nil {
 		return nil, err
 	}
 	for _, key := range active {
@@ -167,7 +171,7 @@ func (a *Acquirer) Run(ctx context.Context, delay time.Duration) {
 	}
 }
 
-// WantedQuery selects a read-only view of the automatic search backlog.
+// WantedQuery selects a view of the automatic search backlog.
 type WantedQuery struct {
 	Only          string
 	Version       string
@@ -186,15 +190,19 @@ type WantedRun struct {
 }
 
 type WantedRow struct {
-	TitleID    int64      `json:"title_id"`
-	Version    string     `json:"version"`
-	Targets    []string   `json:"targets"`
-	Reason     string     `json:"reason"`
-	Waiting    string     `json:"waiting"`
-	NextAt     *time.Time `json:"next_at"`
-	Position   int        `json:"position,omitempty"`
-	LastRun    *WantedRun `json:"last_run"`
-	DecisionID *int64     `json:"decision_id"`
+	TitleID  int64      `json:"title_id"`
+	Version  string     `json:"version"`
+	Targets  []string   `json:"targets"`
+	Reason   string     `json:"reason"`
+	Waiting  string     `json:"waiting"`
+	NextAt   *time.Time `json:"next_at"`
+	Position int        `json:"position,omitempty"`
+	// Season is the row's season (absent for a movie); SearchQueued its 1-based place among the Search now requests
+	// (0: not queued).
+	Season       *int       `json:"season,omitempty"`
+	SearchQueued int        `json:"search_queued,omitempty"`
+	LastRun      *WantedRun `json:"last_run"`
+	DecisionID   *int64     `json:"decision_id"`
 }
 
 type WantedList struct {
@@ -212,6 +220,9 @@ type WantedList struct {
 	DownloadsEnabled bool              `json:"downloads_enabled"`
 	AddTimePending   int               `json:"add_time_pending"`
 	SearchedLastHour int               `json:"searched_last_hour"`
+	// SearchNowPending counts the queued Search now requests; SearchNowNextAt is when the next of them can start.
+	SearchNowPending int        `json:"search_now_pending"`
+	SearchNowNextAt  *time.Time `json:"search_now_next_at"`
 }
 
 // WantedList uses the loop's selectors and recency rules without starting work or updating version state.
@@ -229,13 +240,49 @@ func (a *Acquirer) WantedList(ctx context.Context, q WantedQuery) (*WantedList, 
 	out := &WantedList{Items: []WantedRow{}, Counts: map[string]int{}, Limit: q.Limit, Offset: q.Offset,
 		Enabled: a.set.Enabled, Interval: a.set.Interval.String(), PerHour: a.set.PerHour, AgainAfter: a.set.AgainAfter.String(),
 		Missing: a.set.Missing, CutoffUnmet: a.set.CutoffUnmet, DownloadsEnabled: a.pol.RouterSettings().Enabled}
-	now := a.now()
-	if err := a.st.Reader().QueryRowContext(ctx, `SELECT COUNT(*) FROM acquire_run WHERE source = ? AND search_run IS NULL AND infra <> 3 AND created_at > ?`, SourceWanted, store.Millis(now.Add(-time.Hour))).Scan(&out.SearchedLastHour); err != nil {
+	var err error
+	if out.SearchedLastHour, err = a.wantedUsed(ctx, a.now()); err != nil {
 		return nil, err
 	}
 	if err := a.st.Reader().QueryRowContext(ctx, `SELECT COUNT(*) FROM follow_search_intent`).Scan(&out.AddTimePending); err != nil {
 		return nil, err
 	}
+	rows, err := a.wantedRows(ctx, q, out)
+	if err != nil {
+		return nil, err
+	}
+	out.Total = len(rows)
+	if q.Offset < len(rows) {
+		out.Items = rows[q.Offset:min(q.Offset+q.Limit, len(rows))]
+	}
+	// The Search now queue: read once, for the page's rows only.
+	reqs, err := a.searchRequests(ctx)
+	if err != nil {
+		return nil, err
+	}
+	if len(reqs) > 0 {
+		place := map[string]int{}
+		for i, r := range reqs {
+			place[requestKey(r.titleID, r.key, r.reason, r.season)] = i + 1
+		}
+		for i := range out.Items {
+			row := &out.Items[i]
+			row.SearchQueued = place[requestKey(row.TitleID, row.Version, row.Reason, seasonOf(row.Season))]
+		}
+		if out.SearchNowPending, out.SearchNowNextAt, err = a.searchNowPending(ctx); err != nil {
+			return nil, err
+		}
+	}
+	if err := a.wantedRuns(ctx, out.Items); err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+// wantedRows are the rows the Wanted list shows for q's tab, library and waiting filter, in the list's order and
+// without paging; out.Counts receives the waiting counts before the waiting filter. "Search all" queues exactly these.
+func (a *Acquirer) wantedRows(ctx context.Context, q WantedQuery, out *WantedList) ([]WantedRow, error) {
+	now := a.now()
 	last, err := a.lastSearched(ctx)
 	if err != nil {
 		return nil, err
@@ -283,7 +330,7 @@ func (a *Acquirer) WantedList(ctx context.Context, q WantedQuery) (*WantedList, 
 		if slices.Contains(versions, q.Version) {
 			versions = []string{q.Version}
 		} else {
-			return out, nil
+			return nil, nil
 		}
 	}
 	ts, err := a.targets(ctx, Selection{Versions: versions, Only: q.Only, QualityCutoff: a.set.CutoffUnmet == policy.CutoffQuality})
@@ -291,6 +338,7 @@ func (a *Acquirer) WantedList(ctx context.Context, q WantedQuery) (*WantedList, 
 		return nil, err
 	}
 	ts = orderTargets(ts, last)
+	var list []WantedRow
 	for _, shared := range groupTargets(ts) {
 		// Preserve the shared query's order, and its target order within each library.
 		keys := []string{}
@@ -303,7 +351,7 @@ func (a *Acquirer) WantedList(ctx context.Context, q WantedQuery) (*WantedList, 
 		}
 		for _, key := range keys {
 			group := byVersion[key]
-			row := WantedRow{TitleID: group[0].titleID, Version: key, Reason: q.Only, Targets: []string{}}
+			row := WantedRow{TitleID: group[0].titleID, Version: key, Reason: q.Only, Targets: []string{}, Season: group[0].season}
 			recent, busy := true, false
 			var next int64
 			for _, t := range group {
@@ -344,17 +392,10 @@ func (a *Acquirer) WantedList(ctx context.Context, q WantedQuery) (*WantedList, 
 			if q.Waiting != "" && row.Waiting != q.Waiting {
 				continue
 			}
-			out.Total++
-			if out.Total <= q.Offset || len(out.Items) >= q.Limit {
-				continue
-			}
-			out.Items = append(out.Items, row)
+			list = append(list, row)
 		}
 	}
-	if err := a.wantedRuns(ctx, out.Items); err != nil {
-		return nil, err
-	}
-	return out, nil
+	return list, nil
 }
 
 // wantedFlights is a single snapshot of the router's queued-to-importing downloads.

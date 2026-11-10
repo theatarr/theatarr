@@ -394,3 +394,64 @@ func TestWantedListTwoThousandTargetsOneFlightRead(t *testing.T) {
 		t.Fatalf("in-flight lookup column reads %d, want 2 (one download read)", reads.Load())
 	}
 }
+
+// The list names each row's season and its place in the Search now queue, and "Search all" queues exactly the rows
+// the list shows for the same filter, in the list's order.
+func TestWantedListSearchNowQueue(t *testing.T) {
+	t.Parallel()
+	e := newEnv(t, true, &policy.Wanted{Enabled: new(bool), PerHour: 1})
+	e.accept = false
+	before, err := e.a.WantedList(e.ctx, WantedQuery{Only: OnlyMissing, Version: "series"})
+	if err != nil || before.Total != 3 || before.SearchNowPending != 0 || before.SearchNowNextAt != nil {
+		t.Fatalf("before %+v %v", before, err)
+	}
+	for _, row := range before.Items {
+		if row.Season == nil || row.SearchQueued != 0 || row.Targets[0][:3] != fmt.Sprintf("s%02d", *row.Season) {
+			t.Errorf("row %+v", row)
+		}
+	}
+	res, err := e.a.RequestSearchNowAll(e.ctx, WantedQuery{Only: OnlyMissing, Version: "series", Limit: 1})
+	if err != nil || res.Queued != 3 || res.Started != 1 || res.Pending != 2 {
+		t.Fatalf("all %+v %v", res, err)
+	}
+	var queued []int
+	for _, r := range mustRequests(t, e) {
+		if r.key != "series" || r.reason != OnlyMissing {
+			t.Errorf("request %+v", r)
+		}
+		queued = append(queued, r.season)
+	}
+	// The first row's search started; the other two wait in the list's order.
+	if want := []int{*before.Items[1].Season, *before.Items[2].Season}; !reflect.DeepEqual(queued, want) {
+		t.Fatalf("queued seasons %v, want %v", queued, want)
+	}
+	after, err := e.a.WantedList(e.ctx, WantedQuery{Only: OnlyMissing})
+	if err != nil || after.SearchNowPending != 2 || after.SearchNowNextAt == nil {
+		t.Fatalf("after %+v %v", after, err)
+	}
+	places := map[int]int{}
+	for _, row := range after.Items {
+		switch {
+		case row.Version == "movie" && (row.Season != nil || row.SearchQueued != 0):
+			t.Errorf("movie row %+v", row)
+		case row.Version == "series":
+			places[*row.Season] = row.SearchQueued
+		}
+	}
+	if places[queued[0]] != 1 || places[queued[1]] != 2 || places[*before.Items[0].Season] != 0 {
+		t.Fatalf("places %v for queue %v", places, queued)
+	}
+	raw, _ := json.Marshal(after.Items[0])
+	if after.Items[0].Version == "movie" && (strings.Contains(string(raw), `"season"`) || strings.Contains(string(raw), `"search_queued"`)) {
+		t.Errorf("movie row JSON %s", raw)
+	}
+}
+
+func mustRequests(t *testing.T, e *env) []searchRequest {
+	t.Helper()
+	reqs, err := e.a.searchRequests(e.ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return reqs
+}

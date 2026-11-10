@@ -319,6 +319,7 @@ func (w *Web) Mount(mux *http.ServeMux) {
 	w.mountSetupAPI(mux)
 	w.mountMCP(mux)
 	w.mountCollectionsAPI(mux)
+	w.mountWantedAPI(mux)
 }
 
 // handle registers a route with who may call it: acc (public, signed in, session only) and, unless public, the

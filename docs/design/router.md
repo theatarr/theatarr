@@ -1320,6 +1320,38 @@ pacing only; there is no separate per-season bulk pacing.
 - At most `per_hour` shared searches start in any hour, counted from root `acquire_run` rows; child version rows do
   not spend another search.
 - A follower title added by arr import, or a monitored follower episode/season, is searched immediately when it is missing and aired. These searches use the same `per_hour` wanted budget, so an import cannot burst past the indexer pace. The import records each change as an add-time intent (`follow_search_intent`, 00060) in its own transaction; the acquirer drains the intents oldest first after every import and at the start of every wanted round, whether or not the loop selects missing or cutoff-unmet items itself. An intent over the budget waits for the next hour instead of being lost. It is deleted once each of its targets was searched (a run started since the intent or within `again_after` has finished), or when it asks for nothing any more (version gone, not active or unmonitored, nothing wanted). A failed search is not repeated, except one that got no answer (above): the intent is kept and a drain starts it again after 15 minutes, 1 hour and 4 hours, then gives the target up (`TestInfraFailedAddTimeSearchIsKept`, `TestNoAnswerAddTimeSearchGivesUp`); a partial answer counts as searched; a drain that keeps failing on an intent drops it after three attempts. While `router.enabled` is false the intents are dropped and nothing is searched. Tests: `TestAddTimeSearchesSurviveTheHourlyCap`, `TestAddTimeSearchBounded`, `importarr.TestFollowerAddSearchIntentRecorded`.
+- **Search now (`search_request`, 00111; `internal/acquire/searchnow.go`).** The Wanted page's buttons (one row, the
+  selected rows, or every row of the tab with its library and waiting filter) go through `POST /wanted/search`. A
+  request is one row of the list: one library's missing or cutoff-unmet targets of a movie, or of one series season
+  (`season`; -1 for a movie). `RequestSearchNow` skips, with the reason, an item whose library is not active or has
+  grab off or that has nothing wanted now, and refuses everything while `router.enabled` is false (409);
+  `RequestSearchNowAll` takes the rows `WantedList` builds for the same filter (one helper, `wantedRows`), without
+  paging and without a cap. Asking again for a queued row keeps its place. There is no path around the budget, for
+  one row or for many: `DrainSearchNow` starts the requests oldest first while the hour has searches left, each as
+  one shared search with source `wanted`, so it is counted in `per_hour` with the loop's searches, the add-time
+  searches and the re-searches. It resolves each request with the list's selector (`targets` with the title, library,
+  reason and season), does not consult `again_after` (the user asked), and deletes the request when its search
+  starts and when it asks for nothing any more (imported meanwhile, a download in flight, unmonitored, the library
+  not active or not grabbing). A search that fails is recorded on its run and not repeated from the request. While
+  `router.enabled` is false a drain drops the queue, as it does for add-time intents. `DELETE /wanted/search` drops
+  it on request ("Cancel queued searches"); searches already started are not touched.
+- **Order under the one budget:** add-time intents, then Search now, then the loop's own selection. A wanted round
+  runs the two drains first, with the loop on or off. While Search now requests wait they take the whole hour ahead
+  of the loop, and re-searches after a failure are deferred with the same budget.
+- **The Search now job (`acquire.searchnow`).** What the hour does not allow is drained by a job that runs when the
+  oldest counted search of the hour leaves the window (`budgetFreeAt`, shared with the deferred re-search), never
+  sooner than a minute from now, and queues the next run while requests remain. Its dedupe key carries the run time
+  (`acquire.searchnow/<run at ms>`): an enqueue is a no-op while a job with the same key is queued or running, so a
+  constant key queued from inside the handler would end the chain. A request, a drain that left some, and the start
+  of `theatarr serve` (worker `search-now`, also with the wanted loop off) schedule it, so a large selection drains
+  without the loop and a queue survives a restart. `GET /wanted` reports the queue (`search_now_pending`,
+  `search_now_next_at`) and each row's place in it (`search_queued`). Title-page searches, the search after an add
+  made in Theatarr and arr-view commands keep their own path (`Submit`, source `command`), outside `per_hour`.
+  Tests: `TestSearchNowAllPacedByTheHourlyBudget`, `TestSearchNowSearchesARecentlySearchedRow`,
+  `TestSearchNowCutoffAndSeasons`, `TestSearchNowDropsRequestsThatAskForNothing`, `TestSearchNowSkipsWithReasons`,
+  `TestSearchNowRefusedWhileDownloadsAreOff`, `TestSearchNowDuplicateAndClear`,
+  `TestSearchNowDrainsAfterAddTimeSearches`, `TestSearchNowScheduledAtStart`, `TestWantedListSearchNowQueue`,
+  `web.TestWantedSearchAPI`.
 - It does nothing while `router.enabled` is false, and searches only active versions with grab on
   (`Policy.SearchVersions`): no search traffic for routes that could only be dry runs. An add-time intent for an
   active version with grab off is kept, without counting an attempt, until grab is on. RSS keeps routing such a

@@ -5,7 +5,6 @@ import (
 	"database/sql"
 	"encoding/json"
 	"errors"
-	"time"
 
 	"github.com/theatarr/theatarr/internal/availability"
 	"github.com/theatarr/theatarr/internal/importarr"
@@ -81,9 +80,8 @@ func (a *Acquirer) DrainFollowSearches(ctx context.Context) (int, error) {
 	if len(intents) == 0 {
 		return 0, nil
 	}
-	used := 0
-	if err := a.st.Reader().QueryRowContext(ctx, `SELECT COUNT(*) FROM acquire_run WHERE source = ? AND search_run IS NULL AND infra <> 3
-		AND created_at > ?`, SourceWanted, store.Millis(a.now().Add(-time.Hour))).Scan(&used); err != nil {
+	used, err := a.wantedUsed(ctx, a.now())
+	if err != nil {
 		return 0, err
 	}
 	started := 0
