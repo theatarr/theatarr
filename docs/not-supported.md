@@ -59,6 +59,17 @@ Either way, add a target under **Settings › Notifications › Destinations** w
 address as its URL and the format left empty (JSON). A target needs something to send: list the arr views whose
 events it gets, or turn on the `native` option for Theatarr's own events. Then turn **Send notifications** on.
 
+## Arr-compatible API
+
+The Radarr- and Sonarr-compatible views do not answer every call of the arr APIs. Known gaps:
+
+- **Sonarr's "add import list exclusion" on a series delete** (`addImportListExclusion`). LunaSea and Ruddarr can
+  send it. The series is still removed, but the switch does nothing: Theatarr has no series lists and no series
+  exclusion list for it to act on. Radarr's `addImportExclusion` on a movie delete is supported.
+- **`PUT episode/{id}`**, **`DELETE queue/bulk`**, **`DELETE blocklist/bulk`** and the **iCal calendar feed**. No
+  client we checked calls them: they set episode monitoring with `PUT episode/monitor`, remove queue and blocklist
+  entries one at a time, and read the calendar as JSON, all of which work.
+
 ## Other gaps
 
 - **No update notice.** Theatarr does not check for new versions; `theatarr version` prints the build you run.

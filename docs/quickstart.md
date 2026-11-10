@@ -332,6 +332,18 @@ go to **Settings → Services → Add Radarr server** (Sonarr is the same):
 Seerr adds and removes titles through the view. Its requests become wanted titles for that view's libraries.
 Homepage widgets, LunaSea and Ruddarr use the same URL and key ([arrview.md (internals)](design/arrview.md)).
 
+Two details for clients and monitors:
+
+- **`<view>/ping`** (for example `/v/movies/radarr/ping`) answers `{"status":"OK"}` without an API key, as
+  Sonarr and Radarr do. Ruddarr uses it to find a reachable address, and an uptime monitor can too. It only says
+  that Theatarr answers at that path; everything under `<view>/api/v3` still needs the key.
+- **Deleting a movie with "add import exclusion"** (a switch in LunaSea and Ruddarr, off by default) also puts
+  the movie on Theatarr's exclusion list, so TMDb lists and collections do not add it again. There is one
+  exclusion list for the whole install, not one per library or view, and it does not stop you or a request from
+  adding the movie by hand. Theatarr has no page for the list yet: a Radarr client reads and edits it through the
+  view (`/api/v3/exclusions`). The same switch on a series delete does nothing
+  ([not-supported.md](not-supported.md#arr-compatible-api)).
+
 ## 9. Go live deliberately
 
 A library created with **Create library and start downloading** (step 6) is already live: it is Active, its

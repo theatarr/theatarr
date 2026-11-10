@@ -249,7 +249,12 @@ marker, makes existing movies due for refresh and clears the RSS seen cache.
   `monitorNewItems` goes to the versions' intent (`series_monitor`), from
   PUT `series` and PUT `series/editor` alike, and the series resource reports that intent. Files are never moved
   (`moveFiles` is ignored).
-- **`DELETE movie|series/{id}`**: unlinks only the view's versions. With `deleteFiles=true`, Theatarr links in
+- **`GET|HEAD <view>/ping`**: 200 `{"status":"OK"}` without a key, on every view, as the arrs' PingController
+  (outside `api/v3`, so no `X-Application-Version`); any other method answers 405. It says nothing about the view.
+- **`DELETE movie|series/{id}`**: unlinks only the view's versions. On a Radarr view `addImportExclusion=true` also
+  puts the movie on the exclusion list (`movie_exclusion`, by TMDb id, one list for every view, the row the
+  `exclusions` POST writes) in the transaction of the remove, so list and collection intake skip it afterwards;
+  `false` or absent writes none. Sonarr's `addImportListExclusion` is ignored: there is no series exclusion list. With `deleteFiles=true`, Theatarr links in
   the versions' own library roots go through the library trash gate; every link is checked before anything changes,
   and a closed gate or refused path answers 409 with the title and links intact.
   Each is unmonitored and listed in
