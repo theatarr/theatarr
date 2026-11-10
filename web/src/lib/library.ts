@@ -158,12 +158,18 @@ export function fmtDay(d: string | undefined | null, now: Date = new Date()): st
   return y === now.getFullYear() ? s : `${s}, ${y}`;
 }
 
-/** "today", "tomorrow", "in 4 days" or "3 days ago" for a YYYY-MM-DD, against the local day. */
+/**
+ * "today", "tomorrow", "in 4 days" or "3 days ago", against the local day. A YYYY-MM-DD is a calendar day as written;
+ * a full timestamp (2026-11-10T06:03:00Z) is a moment, so its day is the one it falls on in this browser's time zone.
+ */
 export function relDay(d: string | undefined | null, now: Date = new Date()): string {
   if (!d) return "";
   const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(d);
   if (!m) return "";
-  const day = Date.UTC(Number(m[1]), Number(m[2]) - 1, Number(m[3]));
+  const at = d.length > 10 ? new Date(d) : null;
+  const day = at && !Number.isNaN(at.getTime())
+    ? Date.UTC(at.getFullYear(), at.getMonth(), at.getDate())
+    : Date.UTC(Number(m[1]), Number(m[2]) - 1, Number(m[3]));
   const today = Date.UTC(now.getFullYear(), now.getMonth(), now.getDate());
   const n = Math.round((day - today) / 86_400_000);
   if (n === 0) return "today";

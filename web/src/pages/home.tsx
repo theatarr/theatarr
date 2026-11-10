@@ -170,7 +170,7 @@ export function Home() {
             title={family ? "Recently available" : "Recently added"}
             row={d.data.recent}
             empty={family ? "Nothing is available yet." : "Nothing has been added yet."}
-            caption={(t) => (t.date ? `${family ? "Available" : "Added"} ${relDay(t.date)}` : null)}
+            caption={(t) => (t.date ? `${family ? "Available" : "Added"} ${relDay(t.at ?? t.date)}` : null)}
           />
           <Row
             id="upcoming"

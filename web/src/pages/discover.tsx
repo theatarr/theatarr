@@ -16,7 +16,7 @@ const DISCOVER_ROWS: Record<string, { title: string; description: string; empty:
     title: "Recently added",
     description: "Movies and series by their newest file.",
     empty: "Nothing has been added yet.",
-    caption: (t) => (t.date ? `Added ${relDay(t.date)}` : undefined),
+    caption: (t) => (t.date ? `Added ${relDay(t.at ?? t.date)}` : undefined),
   },
   upcoming: {
     title: "Upcoming",
@@ -46,7 +46,7 @@ export function DiscoverPage() {
   const base = shortfall && !perms.seeFiles ? undefined : DISCOVER_ROWS[row];
   const def =
     base && row === "recent" && isFamily(perms)
-      ? { ...base, title: "Recently available", description: "Movies and series by the day they became available.", empty: "Nothing is available yet.", caption: (t: DiscoverItem) => (t.date ? `Available ${relDay(t.date)}` : undefined) }
+      ? { ...base, title: "Recently available", description: "Movies and series by the day they became available.", empty: "Nothing is available yet.", caption: (t: DiscoverItem) => (t.date ? `Available ${relDay(t.at ?? t.date)}` : undefined) }
       : base;
   const q = useDiscoverRow(row);
   const items = useMemo(() => q.data?.pages.flatMap((p) => p.items) ?? [], [q.data]);

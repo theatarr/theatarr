@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { availabilityFilters, isFamily, POSTER_STATUS_LABEL, posterStatus, titleWatchWords, upcomingRelease, utcToday, watchWords } from "./library";
+import { availabilityFilters, isFamily, POSTER_STATUS_LABEL, posterStatus, relDay, titleWatchWords, upcomingRelease, utcToday, watchWords } from "./library";
 
 const label = (...a: Parameters<typeof posterStatus>) => {
   const s = posterStatus(...a);
@@ -172,5 +172,21 @@ describe("a title's watchability line", () => {
     expect(titleWatchWords({ kind: "movie", availability: "available", versions: [{ quality: "2160p" }, { quality: "1080p" }] } as Parameters<typeof titleWatchWords>[0])?.label).toBe("Available in 4K");
     expect(titleWatchWords({ kind: "movie", availability: "missing", acquiring: true, home_release: "2999-01-01" })?.label).toBe("Getting ready");
     expect(titleWatchWords({ kind: "movie", availability: "missing", release_date: "2001-01-01" })?.label).toBe("Not available");
+  });
+});
+
+describe("relDay", () => {
+  const now = new Date(2026, 10, 9, 23, 0); // 23:00 on Nov 9, local time
+
+  it("reads a YYYY-MM-DD as the calendar day written", () => {
+    expect(relDay("2026-11-09", now)).toBe("today");
+    expect(relDay("2026-11-10", now)).toBe("tomorrow");
+    expect(relDay("2026-11-06", now)).toBe("3 days ago");
+  });
+
+  it("puts a timestamp on the day it falls on in this time zone", () => {
+    // An hour ago is today here, whatever day it already is in UTC.
+    expect(relDay(new Date(2026, 10, 9, 22, 0).toISOString(), now)).toBe("today");
+    expect(relDay(new Date(2026, 10, 8, 23, 30).toISOString(), now)).toBe("yesterday");
   });
 });

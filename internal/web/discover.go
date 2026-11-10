@@ -56,6 +56,8 @@ type DiscoverItem struct {
 	Note string `json:"note,omitempty"`
 	// Date is the day the note is about (YYYY-MM-DD), if any.
 	Date string `json:"date,omitempty"`
+	// At is the moment behind Date when the row has one (Recently added): clients show the day in their own zone.
+	At *time.Time `json:"at,omitempty"`
 }
 
 // DiscoverRow is one Home row.
@@ -76,6 +78,7 @@ type Discover struct {
 type pick struct {
 	id         int64
 	note, date string
+	at         *time.Time
 }
 
 func (w *Web) apiDiscover(rw http.ResponseWriter, r *http.Request) {
@@ -191,7 +194,8 @@ func (w *Web) recentPicks(ctx context.Context, db *sql.DB) ([]pick, error) {
 		if err := r.Scan(&p.id, &added); err != nil {
 			return err
 		}
-		p.date = ts(added).Local().Format(time.DateOnly)
+		at := ts(added).UTC()
+		p.date, p.at = at.Local().Format(time.DateOnly), &at
 		recent = append(recent, p)
 		return nil
 	})
@@ -403,7 +407,7 @@ func (w *Web) discoverRow(ctx context.Context, db *sql.DB, picks []pick, offset,
 			if r.UpgradeSeen && strings.HasSuffix(note, upgradesNote) {
 				note = strings.TrimSuffix(note, upgradesNote) + ": upgrade found"
 			}
-			row.Items = append(row.Items, DiscoverItem{TitleRow: r, Note: note, Date: p.date})
+			row.Items = append(row.Items, DiscoverItem{TitleRow: r, Note: note, Date: p.date, At: p.at})
 		}
 	}
 	return row, nil

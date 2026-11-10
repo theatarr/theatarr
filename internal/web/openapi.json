@@ -1081,7 +1081,7 @@
         "type": "object",
         "required": ["items", "total", "more"],
         "properties": {
-          "items": { "type": "array", "items": { "allOf": [{ "$ref": "#/components/schemas/TitleRow" }, { "type": "object", "properties": { "note": { "type": "string", "description": "The row's line about the title" }, "date": { "type": "string", "description": "The day the note is about, YYYY-MM-DD" } } }] } },
+          "items": { "type": "array", "items": { "allOf": [{ "$ref": "#/components/schemas/TitleRow" }, { "type": "object", "properties": { "note": { "type": "string", "description": "The row's line about the title" }, "date": { "type": "string", "description": "The day the note is about, YYYY-MM-DD (for recent: the server's local day)" }, "at": { "type": "string", "format": "date-time", "description": "recent only: the moment behind date, so a client can show the day in its own time zone" } } }] } },
           "total": { "type": "integer" }, "more": { "type": "string", "description": "An app path that lists the whole row, every kind (/discover/{row})" }
         }
       },
