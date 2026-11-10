@@ -22,6 +22,7 @@ import (
 
 	"github.com/theatarr/theatarr/internal/golive"
 	"github.com/theatarr/theatarr/internal/health"
+	"github.com/theatarr/theatarr/internal/library"
 	"github.com/theatarr/theatarr/internal/policy"
 	"github.com/theatarr/theatarr/internal/secrets"
 	"github.com/theatarr/theatarr/internal/settings"
@@ -278,8 +279,12 @@ func (c *checker) library(ctx context.Context) {
 	}
 
 	switch {
-	case lib.TrashDir == "" && len(c.p.Versions) > 0:
+	case lib.TrashDir == "" && c.libraryWrites():
 		c.add(AreaLibrary, "trash", Fail, "set the trash folder in "+uipages.FileManagement+" to a writable directory outside "+
+			"every root and the mount", "library.trash.dir is not set: upgrades and removals keep no copy of the "+
+			"replaced link")
+	case lib.TrashDir == "" && len(c.p.Versions) > 0:
+		c.add(AreaLibrary, "trash", Warn, "set the trash folder in "+uipages.FileManagement+" to a writable directory outside "+
 			"every root and the mount", "library.trash.dir is not set: upgrades and removals keep no copy of the "+
 			"replaced link")
 	case lib.TrashDir == "":
@@ -288,6 +293,17 @@ func (c *checker) library(ctx context.Context) {
 	default:
 		c.dir(AreaLibrary, "trash", lib.TrashDir, true, "create "+lib.TrashDir+" and bind it read-write into the container")
 	}
+}
+
+// libraryWrites reports whether any library may write now, by the library gate's own rule.
+func (c *checker) libraryWrites() bool {
+	gate := library.NewGate(c.p)
+	for k := range c.p.Versions {
+		if gate.Active(k) {
+			return true
+		}
+	}
+	return false
 }
 
 // under reports whether path is dir or inside it.

@@ -393,5 +393,28 @@ func TestFollowedRootMustBeReadable(t *testing.T) {
 func TestRunTrashUnsetWithLibraryFails(t *testing.T) {
 	o, _ := good(t)
 	o.Policy.Library.Trash.Dir = ""
+	o.Policy.Library.Enabled = true
 	want(t, Run(context.Background(), o), "library/trash", Fail, "library.trash.dir is not set")
+}
+
+// No library can write (shadow only, or library.enabled off): no trash stays a warning, so the CLI exit code and
+// Setup's readiness are unchanged.
+func TestRunTrashUnsetWithoutWritesWarns(t *testing.T) {
+	for name, edit := range map[string]func(*policy.Policy){
+		"shadow":           func(p *policy.Policy) { p.Library.Enabled = true; p.Versions["movies"].Mode = policy.ModeShadow },
+		"library disabled": func(p *policy.Policy) { p.Library.Enabled = false },
+	} {
+		t.Run(name, func(t *testing.T) {
+			o, _ := good(t)
+			o.Policy.Library.Trash.Dir = ""
+			edit(o.Policy)
+			r := Run(context.Background(), o)
+			want(t, r, "library/trash", Warn, "library.trash.dir is not set")
+			if r.Fail != 0 {
+				var b bytes.Buffer
+				Print(&b, r)
+				t.Fatalf("%d fail:\n%s", r.Fail, b.String())
+			}
+		})
+	}
 }
