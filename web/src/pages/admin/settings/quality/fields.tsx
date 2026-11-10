@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type ReactNode } from "react";
+import { useEffect, useRef, useState, type ComponentProps, type ReactNode } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Field, SELECT_CLASS } from "@/components/settings/parts";
@@ -14,7 +14,19 @@ export const qualityName = (q: Quality) => typeof q === "string" ? q : q.group;
 export const pretty = (v: unknown) => JSON.stringify(v, null, 2);
 
 export function TextField({ label, value, onChange, type = "text" }: { label: string; value: unknown; onChange: (v: string) => void; type?: string }) {
-  return <Field label={label}><Input type={type} value={value === undefined || value === null ? "" : String(value)} onChange={(e) => onChange(e.target.value)} /></Field>;
+  const shown = value === undefined || value === null ? "" : String(value);
+  return <Field label={label}>{type === "number" ? <NumberInput value={shown} onChange={onChange} /> : <Input type={type} value={shown} onChange={(e) => onChange(e.target.value)} />}</Field>;
+}
+
+/** A number input that keeps what is typed while it is not a number yet ("" or a lone "-"), so a negative value can be
+ * typed; onChange hears every value that is a number, and leaving the field shows the stored value again. */
+export function NumberInput({ value, onChange, ...props }: Omit<ComponentProps<typeof Input>, "value" | "onChange" | "type"> & { value: string; onChange: (v: string) => void }) {
+  const [draft, setDraft] = useState(value);
+  const last = useRef(value);
+  useEffect(() => { if (value !== last.current) { last.current = value; setDraft(value); } }, [value]);
+  return <Input {...props} type="number" value={draft}
+    onChange={(e) => { const v = e.target.value; setDraft(v); if (v.trim() !== "" && Number.isFinite(Number(v))) { last.current = String(Number(v)); onChange(v); } }}
+    onBlur={(e) => { setDraft(last.current); props.onBlur?.(e); }} />;
 }
 export function Toggle({ label, checked, onChange }: { label: string; checked: boolean; onChange: (v: boolean) => void }) {
   return <label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={checked} onChange={(e) => onChange(e.target.checked)} />{label}</label>;

@@ -16,7 +16,7 @@ import { Input } from "@/components/ui/input";
 import { Sheet, SheetLayout } from "@/components/ui/sheet";
 import { explainError } from "@/lib/settings";
 import { cn } from "@/lib/utils";
-import { FormGrid, PROPERS, PROPERS_LABELS, Select, TextField, Toggle, object, type Config } from "../quality/fields";
+import { FormGrid, NumberInput, PROPERS, PROPERS_LABELS, Select, TextField, Toggle, object, type Config } from "../quality/fields";
 import { DiffLists, QualityLadder, StateTag } from "./parts";
 import { profileFlavours, SizeLimits } from "./sizes";
 
@@ -64,7 +64,7 @@ function ScoreGroups({ rows, readOnly, onScore }: { rows: Row[]; readOnly: boole
               {r.saved !== undefined && r.saved !== r.score ? <Badge tone="warning">edited</Badge> : null}
               {r.trash !== null ? <span className="text-xs tabular-nums text-muted-foreground">TRaSH {r.trash}</span> : null}
             </span>
-            <Input type="number" className="h-8 w-24" value={String(r.score)} disabled={readOnly} aria-label={`Score for ${r.format}`} onChange={(e) => onScore(r.format, Number(e.target.value))} />
+            <NumberInput className="h-8 w-24" value={String(r.score)} disabled={readOnly} aria-label={`Score for ${r.format}`} onChange={(v) => onScore(r.format, Number(v))} />
           </li>)}
         </ul>
       </details>;
