@@ -96,7 +96,11 @@ returned and why each release was accepted or rejected) and **System › Status*
   waits for the automatic search: a round every 15 minutes, at most 10 searches an hour, and the same item again
   only after 24 hours (**Settings › Download clients › Behaviour**, **Automatic searches**). **Search now** on
   the title page searches it at once. **Search now** on the **Wanted** page queues the search under the same hourly
-  limit, so a long list takes hours.
+  limit, so a long list takes hours. To search many titles of one library, an admin can also choose **Select**
+  on **Library › Movies** or **Series**, tick the titles, pick the library in the bar (not **Every library**) and
+  choose **Search now**: the titles join the same queue under the same limit, a series season by season, and a
+  title with nothing missing in that library is skipped. The bar then says how many searches were queued and
+  links to **Wanted**.
 - **No release is cached.** **Only add cached releases** (**Settings › Download clients › Behaviour**, **What to grab**) is on by
   default: a release that no provider has cached is not taken, and the title stays wanted. An uncached add is
   removed again on Real-Debrid (when it is Theatarr's own) and never made on TorBox. AllDebrid is the exception: with the default settings

@@ -15,7 +15,7 @@ claim of Sonarr v5 API parity. Recyclarr has no web pages; its table maps the CL
 
 | Arr page or tab | Theatarr page (route and menu path) | Difference |
 |---|---|---|
-| Series | Library › Series — `/series` | One title can have multiple libraries. |
+| Series | Library › Series — `/series` | One title can have multiple libraries. The arrs' "Search Selected": **Select**, tick the titles, pick one library in the bar and choose **Search now** (admins). It searches what is missing in that library, through the Wanted queue and its hourly limit. |
 | Series › Add New | Search — `/search` | Choose libraries when adding. A series new to the library gets **Monitor** (the seasons you pick, or All, Future or Missing episodes, First or Latest season, Pilot only, None) and **Monitor seasons that appear later**. **Search now** is off until you turn it on; the browser then remembers it. |
 | Series › Library Import | Admin › Advanced › Sonarr/Radarr migration › Migrate — `/admin/advanced/arr/migrate` | Import the arr inventory into shadow mode; Wanted › Manual import (`/wanted/manual-import`) handles existing files. |
 | Calendar | Calendar — `/calendar` | Movies and episodes together. |
@@ -51,7 +51,7 @@ claim of Sonarr v5 API parity. Recyclarr has no web pages; its table maps the CL
 
 | Arr page or tab | Theatarr page (route and menu path) | Difference |
 |---|---|---|
-| Movies | Library › Movies — `/movies` | Multiple libraries per movie. |
+| Movies | Library › Movies — `/movies` | Multiple libraries per movie. The arrs' "Search Selected": **Select**, tick the titles, pick one library in the bar and choose **Search now** (admins). It searches what is missing in that library, through the Wanted queue and its hourly limit. |
 | Movies › Add New | Search — `/search` | Choose libraries when adding. **Search now** is off until you turn it on; the browser then remembers it. |
 | Movies › Import Library | Admin › Advanced › Sonarr/Radarr migration › Migrate — `/admin/advanced/arr/migrate` | Migrate arr inventory into shadow mode; Wanted › Manual import (`/wanted/manual-import`) handles files. |
 | Movies › Collections | Library › Collections — `/collections` | Managers and admins. **Add collection** searches TMDb; targets are libraries; the arrs' monitored collections are carried over at each Radarr import. |
