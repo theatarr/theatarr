@@ -2,8 +2,11 @@
 
 How a library starts grabbing, and how an existing arr library is handed over to Theatarr without a gap and without
 double downloads. A fresh library with no arr behind it only needs the check and the switches
-([quickstart.md](quickstart.md#9-go-live-deliberately)); the rest of this page is about libraries that come from an
-arr.
+([quickstart.md](quickstart.md#9-go-live-deliberately)), or starts live from Setup: on an install with no
+`import.arr` instance, **Create library and start downloading** creates the library Active with its downloads on
+and turns on **Allow new downloads** and **Write library links** in one confirmed save
+([quickstart.md](quickstart.md#6-a-first-library)). An install that has an arr instance is never offered that
+button, and the server refuses the request. The rest of this page is about libraries that come from an arr.
 
 Go live one library at a time. Nothing here changes on its own: every step is a setting you change and confirm.
 

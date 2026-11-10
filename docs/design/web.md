@@ -136,7 +136,18 @@ Code: `internal/web/setup.go`, `internal/preflight`, `cmd/theatarr/preflight.go`
   `admin` and still has the first-start password), one `missing` line per feature that is off (no versions, indexers,
   providers, TMDb source or debrid mount), counts of versions, versions with a root, providers, indexers,
   profiles and active API keys, and `tmdb`: the `tmdb` source has its address and a key that resolves, stored in
-  settings or in the environment variable it names (the predicate search and add use).
+  settings or in the environment variable it names (the predicate search and add use). `arr_instances` counts the
+  `import.arr` instances: 0 is an install no arr feeds.
+- `POST /setup/start` (admin, CSRF; `internal/web/settingsapi_start.go`): the one-step start. Body: `generation`,
+  `key`, `roots` and `config` as `POST /settings/versions` takes them, an optional `preset` (`flavour`, `preset`,
+  `modifiers`) and `confirmation_token`. One settings save creates the version with `mode: active` and `grab: true`
+  whatever the body says, creates the preset's profile and format set under the library's key (from the checkout
+  or the bundled TRaSH defaults) and sets the global switches `router` and `library` on; `notify` and every other
+  record are untouched. It is one generation and one confirmation: the 422 lists the activation, the grab switch and
+  each global switch with one token. It answers 409 while `import.arr` holds an instance (also when the settings
+  are not in the database), and the usual stale-generation 409 and validation 422 (an unwritable root is named).
+  The answer is `generation`, `revision` and `forced_off`: the switches among `router` and `library` that
+  `THEATARR_FORCE_OFF` keeps off although they are now saved as on.
 - `POST /preflight {sources?}` (admin, CSRF): `preflight.Run` over the current generation's policy. Each item is
   `ok`, `warn` or `fail` with `why` and `next`. The mount check is the library's guarded mount check; roots and trash
   are stat and access(2), plus one filesystem when a version imports with hardlinks; providers and indexers are the
@@ -160,6 +171,12 @@ Code: `internal/web/setup.go`, `internal/preflight`, `cmd/theatarr/preflight.go`
   or an existing profile, indexers, providers; Review, then `POST /settings/versions` with `mode: shadow`, `grab: false`,
   answering a 422 confirmation with the token; a retry after a failed version save reuses the profile it already made
   only for the same key and preset, and asks for another key when the preset changed), and the preflight table.
+  With `arr_instances` 0 the form has two buttons: **Create library and start downloading** sends `POST /setup/start`
+  (the preset in the same request, no separate profile save) and shows the 422's effects in the settings
+  confirmation dialog before sending the token; it is disabled, with the reason, without an enabled provider, an
+  enabled indexer or the mount. **Create in shadow (decide later)** is the flow above with the same request. A
+  non-empty `forced_off` is shown after the library is created. With `arr_instances` above 0 the form is the shadow
+  flow only.
   `GET /setup` also carries `last_preflight`, the summary of the latest `POST /preflight` (time, settings generation,
   whether the source tests ran, counts), kept in memory until a restart. Readiness counts the latest run in the
   browser session, else that summary when it is a full run without failures on the current generation.

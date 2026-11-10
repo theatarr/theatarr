@@ -1,6 +1,6 @@
 # Quickstart
 
-From nothing to a first library that decides in shadow mode, then live. Theatarr replaces Sonarr, Radarr, Prowlarr,
+From nothing to a first library: live at once, or deciding in shadow mode first. Theatarr replaces Sonarr, Radarr, Prowlarr,
 Recyclarr and a debrid bridge (decypharr or similar) with one service. Seerr, Overseerr, Homepage and the arr phone
 apps keep working: they talk to Theatarr's arr-compatible views.
 
@@ -106,8 +106,9 @@ and the first library; Setup links to each editor.
 | **Libraries** | Library roots, profiles, indexers and provider order |
 
 Save validates and applies settings without a restart; new work and background loops use the saved generation.
-Use **Show advanced** for less common fields, or **Edit as YAML** for a section's raw editor. The first-library flow
-leaves **Allow downloads for this library** and the global switches off until you turn them on and confirm.
+Use **Show advanced** for less common fields, or **Edit as YAML** for a section's raw editor. Nothing downloads
+until you say so: the first-library flow turns on **Allow downloads for this library** and the global switches only
+when you choose **Create library and start downloading** and confirm the list it shows (step 6).
 
 **TMDb.** Setup's **Add metadata (TMDb)** step has one field: your TMDb API key (the short v3 "API Key" from your
 TMDb account's API settings, not the long "API Read Access Token"). Saving it creates the two sources below with
@@ -204,12 +205,23 @@ the indexers it searches and the providers it adds to. **Setup** builds the firs
 2. a quality profile: a TRaSH default builds a new profile with its formats, or pick an existing profile. Every
    TRaSH quality profile is offered, here and in the library editor under **Settings › Libraries**;
 3. the indexers and providers;
-4. **Review**, then **Create library**.
+4. one of two buttons on a fresh install:
+   - **Create library and start downloading** creates the library **Active** with **Allow downloads for this
+     library** on, and turns on the global switches **Allow new downloads** and **Write library links**, in one
+     save. A dialog lists each of these first; nothing is saved until you confirm. The button is disabled, with the
+     reason, until a debrid provider and an indexer are enabled and the debrid mount is set. If
+     `THEATARR_FORCE_OFF` names a switch, the library is still created and Setup says which switch stays forced off.
+   - **Create in shadow (decide later)**, then **Create library**: the library starts in **Shadow** mode with
+     **Allow downloads for this library** off, and no global switch changes.
 
-The library starts in **Shadow** mode with **Allow downloads for this library** off: its state reads **Preview
-only**. It decides what it would grab and records that in the database for comparison. It adds nothing to debrid
-and writes nothing to the library. A debrid library needs no download client: Theatarr adds to the providers itself.
-Edit libraries later under **Settings › Libraries**.
+   An install that migrates from Sonarr/Radarr (its settings hold an arr instance, `import.arr`) has no start
+   button: there it is **Review**, then **Create library**, always in shadow, and the library goes live as
+   [golive.md](golive.md) describes.
+
+A library in **Shadow** mode with **Allow downloads for this library** off reads **Preview only**. It decides what
+it would grab and records that in the database for comparison. It adds nothing to debrid and writes nothing to the
+library. A debrid library needs no download client: Theatarr adds to the providers itself. Edit libraries later
+under **Settings › Libraries**.
 
 **Where a shadow library's decisions come from.** The scheduled search for wanted titles runs only for a library
 that grabs (Active, with **Allow downloads for this library** and **Allow new downloads** on), so a shadow library
@@ -289,6 +301,10 @@ Homepage widgets, LunaSea and Ruddarr use the same URL and key ([arrview.md](des
 
 ## 9. Go live deliberately
 
+A library created with **Create library and start downloading** (step 6) is already live: it is Active, its
+downloads are on and so are the two global switches. Watch it as in item 3 below. The rest of this step is for a
+library created in shadow.
+
 For a fresh library, read its decisions first: **Advanced › Decision journal** (**See example decisions** in Setup)
 shows what it would have grabbed and why ([journal.md](journal.md)). Then run preflight and the go-live check:
 
@@ -329,7 +345,8 @@ Setup (`/admin/setup`) has six steps:
 2. **Connect downloads:** configure a debrid provider and an indexer; each has its own completion badge.
 3. **Add metadata (TMDb):** enter your TMDb API key; Setup creates the `tmdb` and `tmdb-images` sources.
 4. **Connect your library:** configure the mount under **Settings › Libraries › File management** and Plex under
-   **Settings › Plex & playback**, then create your first library.
+   **Settings › Plex & playback**, then create your first library: started at once, or in shadow
+   ([above](#6-a-first-library)).
 5. **Check readiness:** run preflight and look at **See example decisions** in **Advanced › Decision journal**.
 6. **Review activation:** one card per library (its key, label, root, state, indexers and providers, and **Why?**
    listing every closed gate), then the three global switches. This review is read-only; each item links to its
@@ -343,7 +360,8 @@ after a restart, or once the settings change, run the preflight again. Activatio
 library runs as Active with **Allow downloads for this library** and **Allow new downloads** on; otherwise it says
 **Not yet**.
 
-Theatarr doesn't turn these on for you. Setup stays available from Settings after the reminder disappears.
+Theatarr turns these on for you only through **Create library and start downloading** in step 4, on an install no
+arr feeds, after you confirm the list. Setup stays available from Settings after the reminder disappears.
 
 ## More
 

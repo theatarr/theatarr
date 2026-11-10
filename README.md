@@ -32,6 +32,8 @@ It is built so that nothing happens until you say so:
   nothing to debrid and writes nothing to the library.
 - The global switches `router.enabled` (**Allow new downloads**) and `library.enabled` (**Write library links**) are
   off on a fresh install. An admin turns them on, and each risky change asks for a confirmation.
+- On a fresh install with no arr to migrate from, Setup can do all of that in one step, **Create library and start
+  downloading**, after one confirmation that lists every switch it turns on.
 - `THEATARR_FORCE_OFF=router,library,notify` forces the switches off at startup, whatever the saved settings say.
 
 ## Features
@@ -143,13 +145,14 @@ Open `http://<host>:7700` and sign in as `admin` with that password. The file is
 lose the password, run `docker compose exec theatarr theatarr admin reset-password`.
 
 A fresh install lands on Home with a **Finish setting up** card that leads to **Setup** (`/admin/setup`): change the admin password, add a debrid provider and an indexer,
-set the debrid mount and Plex, create a first library, and run the preflight. The full walkthrough, with what each
+set the debrid mount and Plex, create a first library (downloading at once, or in shadow to look first), and run the
+preflight. The full walkthrough, with what each
 compose volume is for, is [docs/quickstart.md](docs/quickstart.md).
 
 ## Using Theatarr
 
-**A first library in shadow.** Setup creates the first library in shadow mode with downloads off. It records what it
-would have grabbed from the RSS feeds of its indexers, from the grabs of an arr it follows, and when you run
+**A first library in shadow.** Setup can create the first library in shadow mode with downloads off (always, when
+the install migrates from an arr). It records what it would have grabbed from the RSS feeds of its indexers, from the grabs of an arr it follows, and when you run
 `theatarr decide`. Add titles from **Search**, or let requests come in.
 See [docs/quickstart.md](docs/quickstart.md#6-a-first-library).
 

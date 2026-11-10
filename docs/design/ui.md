@@ -209,9 +209,10 @@ as headings with vertical lists, plus Setup (when needed), Reviews and Torrents.
 sources. Below 640 px route tabs become a **Section** select. Settings authority banners collapse to a single-line
 summary with **Details** on phones; source and fallback information remain available.
 
-Setup is a six-step readiness checklist with a read-only activation review. The shared `useSetupProgress` hook
+Setup is a six-step readiness checklist with a read-only activation review. On an install no arr feeds
+(`arr_instances` 0) the first-library form also offers the one-step start (`POST /setup/start`). The shared `useSetupProgress` hook
 powers Setup, admin-only Home and Settings reminders and sidebar Setup visibility (`first_run || missing.length > 0`).
-See [quickstart](../quickstart.md#readiness-led-setup) for the completion rules; no step enables a global switch.
+See [quickstart](../quickstart.md#readiness-led-setup) for the completion rules; only the one-step start enables a global switch, behind its confirmation.
 
 ### Library app (everyone)
 
