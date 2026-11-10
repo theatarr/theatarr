@@ -15,16 +15,19 @@ export function PageHeader({
   title,
   description,
   actions,
+  docTitle: named,
 }: {
   crumb?: { label: string; to?: string }[];
   title: ReactNode;
+  /** The browser-tab title when the title is not plain text and the nav entry is not the page's name. */
+  docTitle?: string;
   description?: ReactNode;
   actions?: ReactNode;
 }) {
   // The document title falls back to the nav entry for this page.
   const { pathname } = useLocation();
   const item = itemFor(pathname);
-  const docTitle = typeof title === "string" ? title : item?.label;
+  const docTitle = typeof title === "string" ? title : named ?? item?.label;
   useEffect(() => {
     document.title = docTitle ? `${docTitle} · ${PRODUCT_NAME}` : PRODUCT_NAME;
   }, [docTitle]);

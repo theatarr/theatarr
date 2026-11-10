@@ -14,6 +14,7 @@ it("explains a run verdict and links its download", async () => {
   expect(await screen.findByText("Records your verdict only. To block the release, use its download in Activity.")).toBeTruthy();
   expect(screen.queryByText(/Wrong on an active version/)).toBeNull();
   expect(screen.getByRole("link", { name: "View download" }).getAttribute("href")).toBe("/activity/journal/dl%3A8");
+  expect(document.title).toMatch(/^Decision journal · /);
   const crumb = within(screen.getByRole("navigation", { name: "Breadcrumb" }));
   expect(crumb.getByRole("link", { name: "Activity" }).getAttribute("href")).toBe("/activity");
   expect(crumb.getByRole("link", { name: "Decision journal" }).getAttribute("href")).toBe("/activity/journal");

@@ -15,6 +15,13 @@ it("keeps the library filter on Missing and Cutoff unmet, not on Manual import",
   expect(screen.getByRole("tab", { name: "Cutoff unmet" }).getAttribute("aria-selected")).toBe("true");
 });
 
+it("leaves Manual import out in View as a user and keeps that view on the other tabs", () => {
+  renderPage(<WantedTabs active="missing" query="?version=movie-web" />, "/wanted?version=movie-web&as=user");
+  expect(screen.queryByRole("tab", { name: "Manual import" })).toBeNull();
+  expect(href("Missing")).toBe("/wanted?version=movie-web&as=user");
+  expect(href("Cutoff unmet")).toBe("/wanted/cutoff?version=movie-web&as=user");
+});
+
 it("shows Manual import as the selected tab of Wanted", async () => {
   mockFetch([{ method: "GET", path: "/policy", reply: { versions: [] } }]);
   renderPage(<ManualImportPage />, "/wanted/manual-import");

@@ -1,6 +1,6 @@
 import { SETTINGS_PAGES } from "./lib/settings-map";
-import { lazy, Suspense, type ComponentType } from "react";
-import { createBrowserRouter, Navigate, Outlet, useLocation } from "react-router";
+import { lazy, Suspense, type ComponentType, type ReactNode } from "react";
+import { createBrowserRouter, Navigate, Outlet, useLocation, useSearchParams, type RouteObject } from "react-router";
 import { LEGACY_ROUTES, legacyTarget } from "./lib/legacy-routes";
 import { useAuth } from "./api/auth";
 import { ApiError } from "./api/client";
@@ -105,6 +105,16 @@ function RequireAdmin({ need = "admin" }: { need?: "admin" | "users" }) {
 }
 
 /**
+ * An admin page under Activity or Wanted: in "View as a user" (?as=user) it is not opened, as Activity's own
+ * admin tabs are not; the admin goes to the parent page, still in that view.
+ */
+function NotAsUser({ to, children }: { to: string; children: ReactNode }) {
+  const [sp] = useSearchParams();
+  if (sp.get("as") === "user") return <Navigate to={`${to}?as=user`} replace />;
+  return children;
+}
+
+/**
  * /admin: Status for admins; an account that only manages users lands on Users & access. A fresh install (no
  * version yet, settings in the database) leads to Setup once per browser session.
  */
@@ -131,7 +141,8 @@ function LegacyRedirect() {
   return <Navigate to={legacyTarget(loc.pathname, loc.search, loc.hash) ?? "/admin"} replace />;
 }
 
-export const router = createBrowserRouter([
+/** The route table (exported for router.test.tsx). */
+export const routes: RouteObject[] = [
   { path: "/login", element: <Login /> },
   { path: "/login/plex/loading", element: <PlexPopup /> },
   { path: "/login/plex/done", element: <PlexPopup done /> },
@@ -165,8 +176,8 @@ export const router = createBrowserRouter([
         children: [
           { path: "/wanted", element: <WantedPage /> },
           { path: "/wanted/cutoff", element: <WantedPage /> },
-          { path: "/wanted/manual-import", element: <ManualImport /> },
-          { path: "/activity/journal/:id", element: <JournalEntryPage /> },
+          { path: "/wanted/manual-import", element: <NotAsUser to="/wanted"><ManualImport /></NotAsUser> },
+          { path: "/activity/journal/:id", element: <NotAsUser to="/activity"><JournalEntryPage /></NotAsUser> },
           { path: "/admin/setup", element: <SetupPage /> },
           { path: "/admin/advanced/arr/migrate", element: <MigratePage /> },
           { path: "/admin/system/tasks", element: <JobsPage /> },
@@ -192,4 +203,6 @@ export const router = createBrowserRouter([
       { path: "*", element: <NotFound /> },
     ],
   },
-]);
+];
+
+export const router = createBrowserRouter(routes);

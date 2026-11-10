@@ -147,7 +147,7 @@ export function JournalEntryPage() {
   const [reason, setReason] = useState("");
   const crumb = [{ label: "Activity", to: "/activity" }, { label: "Decision journal", to: journalHome() }];
   if (q.isPending) return <Loading />;
-  if (q.error) return (<div><PageHeader crumb={crumb} title={id} /><ErrorState error={q.error} /></div>);
+  if (q.error) return (<div><PageHeader crumb={crumb} title={id} docTitle="Decision journal" /><ErrorState error={q.error} /></div>);
   const e = q.data;
   const r = e.reasoning;
   const judge = (v: "ok" | "wrong") => verdict.mutate({ id: e.id ?? id, verdict: v, reason: reason.trim() || undefined });
@@ -155,6 +155,7 @@ export function JournalEntryPage() {
     <div>
       <PageHeader
         crumb={crumb}
+        docTitle="Decision journal"
         title={<span className="flex items-center gap-4"><TitleThumb id={e.title?.id} className="w-12" /><span>{e.title?.name ?? id}{e.title?.year ? <span className="text-muted-foreground"> ({e.title.year})</span> : null}</span></span>}
         description={<span className="flex flex-wrap items-center gap-2"><Badge tone="outline">{e.kind}</Badge>{e.version ? <VersionTag k={e.version} /> : null}<Mono>{e.source}</Mono><span>{fmtTime(e.at)}</span><PolicyRev e={e} current={status.data?.policy_revision} /></span>}
         actions={e.title?.id ? <Button asChild variant="outline" size="sm"><a href={`/title/${e.title.id}`}>Title page</a></Button> : undefined}
