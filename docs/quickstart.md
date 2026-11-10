@@ -90,11 +90,12 @@ docker compose up -d                      # built from source: docker compose up
 ```
 
 If you lose the password, run `docker compose exec theatarr theatarr admin reset-password --username <yours>` (the
-default is `admin`). An install created by an
-older version whose generated password was never used keeps it in `data/initial-admin-password`; the sign-in page
-says so.
+default is `admin`). On 0.1.5 and older there is no create page: the first admin password is in
+`data/initial-admin-password`. An install from such a version whose password was never used keeps it there; the
+sign-in page says so.
 
-After the first login an admin lands on **Home**, with a **Finish setting up Theatarr: 0 of 6** card. **Continue
+After the first login an admin lands on **Home**, with a **Finish setting up Theatarr** card (the account step is
+already done when you created the account on that page). **Continue
 setup** opens **Setup** (`/admin/setup`), which walks through the steps below and ends with the preflight.
 
 ## 3. Follow Setup, then edit Settings forms

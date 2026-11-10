@@ -9,6 +9,7 @@
 #   mkdir -p data && sudo chown 65532:65532 data
 #   docker compose up -d
 #   # open http://<host>:7700 and create your admin account
+#   # (on 0.1.5 and older: sudo cat data/initial-admin-password, then sign in as admin)
 #
 # Every host path below is a placeholder. docs/quickstart.md explains each one.
 services:
