@@ -41,7 +41,8 @@ func TestSectionSchemaCoverage(t *testing.T) {
 						continue
 					}
 					full := path + "." + name
-					owned := full == "library.enabled" || full == "notify.enabled" || full == "router.enabled" || full == "library.versions.example.roots"
+					owned := full == "library.enabled" || full == "notify.enabled" || full == "router.enabled" || full == "library.versions.example.roots" ||
+						full == "library.mount.decypharr" // no control yet
 					n := slices.IndexFunc(fields, func(sf SchemaField) bool { return sf.Name == name })
 					if owned {
 						if n >= 0 {
@@ -115,5 +116,20 @@ func TestTorrentSchemaLimits(t *testing.T) {
 	}
 	if *fields[1].Min != 1 || *fields[1].Max != policy.MaxTorrentBackupKeep || fields[1].Default != "30" {
 		t.Fatal(fields[1])
+	}
+}
+
+// library.mount.decypharr has no control yet: the schema the form is built from does not name it, so the form never
+// sends the key.
+func TestSectionSchemaLeavesOutDecypharr(t *testing.T) {
+	if _, ok := reflect.TypeOf(policy.LibraryMount{}).FieldByName("Decypharr"); !ok {
+		t.Fatal("policy.LibraryMount has no Decypharr field")
+	}
+	b, err := json.Marshal(settingsSchema())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if strings.Contains(strings.ToLower(string(b)), "library.mount.decypharr") || strings.Contains(string(b), `"name":"decypharr"`) {
+		t.Fatal("the settings schema names library.mount.decypharr")
 	}
 }

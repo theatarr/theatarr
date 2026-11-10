@@ -7,8 +7,10 @@ import (
 	"net/http"
 	"reflect"
 	"slices"
+	"strconv"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/theatarr/theatarr/internal/policy"
 	"github.com/theatarr/theatarr/internal/settings"
@@ -511,5 +513,207 @@ func TestSettingsLibrarySectionTakesPlexSectionForAnUnlistedLibrary(t *testing.T
 	lv := snap.Policy.Library.Versions[key]
 	if lv == nil || lv.PlexSection != 7 || !slices.Equal(lv.Roots, roots) {
 		t.Fatalf("%s after the save: %+v, want Plex section 7 and roots %v", key, lv, roots)
+	}
+}
+
+// librarySectionRow is the stored library section, as the database holds it.
+func librarySectionRow(t *testing.T, se *settingsEnv) string {
+	t.Helper()
+	var raw string
+	if err := se.st.Reader().QueryRow(`SELECT config FROM setting_section WHERE key = 'library'`).Scan(&raw); err != nil {
+		t.Fatal(err)
+	}
+	return raw
+}
+
+// newestSnapshotLibrary is the library section in the newest generation snapshot. It fails the test when the snapshot
+// holds a Go-named Decypharr key anywhere (a policy struct encoded as JSON).
+func newestSnapshotLibrary(t *testing.T, se *settingsEnv) string {
+	t.Helper()
+	var raw string
+	if err := se.st.Reader().QueryRow(`SELECT snapshot FROM settings_generation
+		WHERE generation = (SELECT MAX(generation) FROM settings_generation)`).Scan(&raw); err != nil {
+		t.Fatal(err)
+	}
+	if strings.Contains(raw, `"Decypharr"`) {
+		t.Fatalf("the generation snapshot holds a Decypharr key: %s", raw)
+	}
+	var snap struct {
+		Records struct {
+			Sections []struct {
+				Key    string          `json:"key"`
+				Config json.RawMessage `json:"config"`
+			} `json:"sections"`
+		} `json:"records"`
+	}
+	if err := json.Unmarshal([]byte(raw), &snap); err != nil {
+		t.Fatal(err)
+	}
+	for _, s := range snap.Records.Sections {
+		if s.Key == "library" {
+			return string(s.Config)
+		}
+	}
+	t.Fatalf("no library section in the generation snapshot: %s", raw)
+	return ""
+}
+
+// olderMountLoads decodes the stored mount strictly into the mount type of a build from before
+// library.mount.decypharr existed.
+func olderMountLoads(t *testing.T, stored string) error {
+	t.Helper()
+	fields := reflect.VisibleFields(reflect.TypeOf(policy.LibraryMount{}))
+	fields = slices.DeleteFunc(fields, func(f reflect.StructField) bool { return f.Name == "Decypharr" })
+	if len(fields) != reflect.TypeOf(policy.LibraryMount{}).NumField()-1 {
+		t.Fatal("policy.LibraryMount has no Decypharr field")
+	}
+	section := map[string]any{}
+	if err := json.Unmarshal([]byte(stored), &section); err != nil {
+		t.Fatal(err)
+	}
+	b, err := json.Marshal(section["mount"])
+	if err != nil {
+		t.Fatal(err)
+	}
+	dec := yaml.NewDecoder(bytes.NewReader(b))
+	dec.KnownFields(true)
+	return dec.Decode(reflect.New(reflect.StructOf(fields)).Interface())
+}
+
+// A library section saved without library.mount.decypharr is stored exactly as it was sent, key order included, as
+// before the block existed: no decypharr key in the row, the read or the generation snapshot, and a build from before
+// the block (it decodes sections strictly) still loads it.
+func TestSettingsLibrarySaveWithoutDecypharrKeepsBytes(t *testing.T) {
+	t.Parallel()
+	se := seededSectionsEnv(t)
+	// The seeded section with its keys in reverse order and one value changed (trash.keep_days 30 to 31). The
+	// expected row was taken from a build without the block: the row is the config as sent.
+	const sent = `{"versions":{"tv-2160p":{"plex_section":0},"movie-web":{"plex_section":2},"movie-remux":{"plex_section":1},"anime-tv":{"plex_section":0}},"trash":{"keep_days":31,"dir":"/media/.trash"},"sample":{"resolution":null,"mislabel":null,"min_runtime_ratio":0.5},"relink_interval":"0s","probe":{"max_bytes":16777216},"plex":{"url":"http://plex:32400","token_env":"THEATARR_PLEX_TOKEN","prewarm_rate":0,"prewarm_max_size":0,"prewarm":null,"now_playing":null,"debounce":"0s","budget":"plex"},"mount":{"zurg_log_interval":"1m0s","zurg_log_budget":"zurg-log","zurg_log":"http://zurg:9999/logs","zurg_api_repair_grace":"2h0m0s","zurg_api_interval":"1m0s","zurg_api_budget":"zurg-api","zurg_api":"http://zurg:9999","wait_timeout":"6m0s","stat_timeout":"0s","rclone_rc":null,"poll_interval":"0s","path":"/mnt/debrid","link_path":"/mnt/debrid","all_dir":"__all__"},"dangling":{"roots":["/media","/downloads"],"interval":"6h0m0s"}}`
+	if seeded := librarySectionRow(t, se); strings.Contains(seeded, "decypharr") || !strings.Contains(seeded, `"keep_days":30`) {
+		t.Fatalf("seeded: %s", seeded)
+	}
+	se.want(se.call("PUT", "/sections/library", `{"generation":`+strconv.FormatInt(se.generation(), 10)+`,"config":`+sent+`}`), 200, "save")
+	if got := librarySectionRow(t, se); got != sent {
+		t.Fatalf("stored row differs from what was sent:\n got %s\nwant %s", got, sent)
+	}
+	if got := newestSnapshotLibrary(t, se); got != sent {
+		t.Fatalf("the generation snapshot's library section differs from what was sent:\n got %s\nwant %s", got, sent)
+	}
+	library := findSection(t, se.want(se.call("GET", "/sections", nil), 200, "read"), "library")
+	if shown, _ := json.Marshal(library); strings.Contains(string(shown), "decypharr") {
+		t.Fatalf("read shows a decypharr key: %s", shown)
+	}
+	if err := olderMountLoads(t, librarySectionRow(t, se)); err != nil {
+		t.Fatalf("an older build does not load the section: %v", err)
+	}
+	snap, err := se.coord.Snapshot(context.Background())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if snap.Policy.Library.Mount.Decypharr != nil || snap.Policy.Library.Trash.KeepDays != 31 {
+		t.Fatalf("applied: %+v", snap.Policy.Library)
+	}
+}
+
+// A library section with library.mount.decypharr set round-trips: it is stored, applied and read back with the block,
+// a save of what was read stores the same bytes, and with the key removed again the row has no decypharr key and a
+// build from before the block loads it.
+func TestSettingsLibraryDecypharrRoundTrip(t *testing.T) {
+	t.Parallel()
+	se := seededSectionsEnv(t)
+	save := func(label string, config map[string]any) {
+		t.Helper()
+		body := map[string]any{"generation": se.generation(), "config": config}
+		rec := se.call("PUT", "/sections/library", body)
+		if rec.Code == 422 {
+			// A new outbound host or credential name is confirmed, as for any other section.
+			body["confirmation_token"] = confirmRefusal(t, se.want(rec, 422, label), "")
+			rec = se.call("PUT", "/sections/library", body)
+		}
+		se.want(rec, 200, label)
+	}
+	read := func() map[string]any {
+		t.Helper()
+		return findSection(t, se.want(se.call("GET", "/sections", nil), 200, "read"), "library")
+	}
+	config := read()["config"].(map[string]any)
+	mount := config["mount"].(map[string]any)
+	// The block is refused beside zurg's log and API, which the seeded section sets.
+	mount["decypharr"] = map[string]any{"url": "http://decypharr:8282"}
+	if rec := se.call("PUT", "/sections/library", map[string]any{"generation": se.generation(), "config": config}); rec.Code != 422 ||
+		!strings.Contains(rec.Body.String(), "not together with zurg_api or zurg_log") {
+		t.Fatalf("decypharr beside zurg: %d %s", rec.Code, rec.Body.String())
+	}
+	for _, key := range []string{"zurg_api", "zurg_api_budget", "zurg_api_interval", "zurg_api_repair_grace", "zurg_log", "zurg_log_budget", "zurg_log_interval"} {
+		delete(mount, key)
+	}
+	mount["decypharr"] = map[string]any{"url": "http://decypharr:8282/base", "api_token_env": "THEATARR_DECYPHARR_TOKEN",
+		"username_env": "THEATARR_DECYPHARR_USER", "password_env": "THEATARR_DECYPHARR_PASS", "interval": "2m", "budget": "plex"}
+	save("decypharr set", config)
+
+	const block = `"decypharr":{"api_token_env":"THEATARR_DECYPHARR_TOKEN","budget":"plex","interval":"2m","password_env":"THEATARR_DECYPHARR_PASS","url":"http://decypharr:8282/base","username_env":"THEATARR_DECYPHARR_USER"}`
+	stored := librarySectionRow(t, se)
+	if !strings.Contains(stored, block) {
+		t.Fatalf("stored without the block: %s", stored)
+	}
+	if err := olderMountLoads(t, stored); err == nil {
+		t.Fatal("the older mount type accepts a decypharr key, so it proves nothing")
+	}
+	if got := newestSnapshotLibrary(t, se); got != stored {
+		t.Fatalf("the generation snapshot's library section differs from the row:\n got %s\nwant %s", got, stored)
+	}
+	snap, err := se.coord.Snapshot(context.Background())
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := policy.LibraryDecypharr{URL: "http://decypharr:8282/base", APITokenEnv: "THEATARR_DECYPHARR_TOKEN",
+		UsernameEnv: "THEATARR_DECYPHARR_USER", PasswordEnv: "THEATARR_DECYPHARR_PASS", Interval: policy.Duration(2 * time.Minute), Budget: "plex"}
+	if d := snap.Policy.Library.Mount.Decypharr; d == nil || *d != want {
+		t.Fatalf("applied: %+v", d)
+	}
+	hosted := false
+	for _, h := range snap.Policy.OutboundHosts() {
+		hosted = hosted || h.Host == "decypharr:8282"
+	}
+	if _, named := snap.Policy.SecretEnvs()["THEATARR_DECYPHARR_TOKEN"]; !hosted || !named {
+		t.Fatalf("outbound host %v, secret name %v", hosted, named)
+	}
+
+	// Read back: the block and its three credentials are shown, and saving what was read changes nothing.
+	library := read()
+	shown := library["config"].(map[string]any)["mount"].(map[string]any)["decypharr"].(map[string]any)
+	if shown["url"] != "http://decypharr:8282/base" || shown["api_token_env"] != "THEATARR_DECYPHARR_TOKEN" || shown["interval"] != "2m" {
+		t.Fatalf("read: %v", shown)
+	}
+	if !strings.Contains(library["yaml"].(string), "decypharr:\n") {
+		t.Fatalf("yaml without the block: %s", library["yaml"])
+	}
+	paths := map[string]bool{}
+	for _, s := range library["secrets"].([]any) {
+		paths[s.(map[string]any)["path"].(string)] = true
+	}
+	for _, path := range []string{"mount.decypharr.api_token", "mount.decypharr.username", "mount.decypharr.password"} {
+		if !paths[path] {
+			t.Errorf("no credential %s in %v", path, library["secrets"])
+		}
+	}
+	save("as read", library["config"].(map[string]any))
+	if again := librarySectionRow(t, se); again != stored {
+		t.Fatalf("stored after a save of what was read:\n got %s\nwant %s", again, stored)
+	}
+
+	// Removed again: no key in the row, and the older build loads it.
+	config = read()["config"].(map[string]any)
+	delete(config["mount"].(map[string]any), "decypharr")
+	save("decypharr removed", config)
+	stored = librarySectionRow(t, se)
+	if strings.Contains(stored, "decypharr") {
+		t.Fatalf("stored after the block was removed: %s", stored)
+	}
+	if err := olderMountLoads(t, stored); err != nil {
+		t.Fatalf("an older build does not load the section after the block was removed: %v", err)
+	}
+	if snap, err = se.coord.Snapshot(context.Background()); err != nil || snap.Policy.Library.Mount.Decypharr != nil {
+		t.Fatalf("still applied: %v", err)
 	}
 }

@@ -50,6 +50,11 @@ func sectionFields(t reflect.Type, path string, docs map[string]map[string]strin
 		if full == "library.enabled" || full == "notify.enabled" || full == "router.enabled" || full == "library.versions.*.roots" {
 			continue
 		}
+		// library.mount.decypharr has no control yet: the form never names the key, so a section saved from it keeps
+		// the block as stored, set or absent.
+		if full == "library.mount.decypharr" {
+			continue
+		}
 		sf := sectionType(f.Type, full, name, docs)
 		sf.Help = docs[t.Name()][name]
 		if strings.HasSuffix(name, "_env") && f.Type.Kind() == reflect.String {

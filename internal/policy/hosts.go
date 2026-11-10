@@ -66,6 +66,9 @@ func (p *Policy) OutboundHosts() []OutboundHost {
 	if p.Library != nil && p.Library.Mount.RcloneRC != nil {
 		add("library.mount.rclone_rc", p.Library.Mount.RcloneRC.URL)
 	}
+	if p.Library != nil && p.Library.Mount.Decypharr != nil {
+		add("library.mount.decypharr.url", p.Library.Mount.Decypharr.URL)
+	}
 	if p.Notify != nil {
 		for _, k := range sortedKeys(p.Notify.Targets) {
 			if t := p.Notify.Targets[k]; t != nil {
@@ -123,6 +126,12 @@ func (p *Policy) SecretEnvs() map[string][]string {
 	if p.Library != nil && p.Library.Mount.RcloneRC != nil {
 		add("library.mount.rclone_rc.username_env", p.Library.Mount.RcloneRC.UsernameEnv)
 		add("library.mount.rclone_rc.password_env", p.Library.Mount.RcloneRC.PasswordEnv)
+	}
+	if p.Library != nil && p.Library.Mount.Decypharr != nil {
+		d := p.Library.Mount.Decypharr
+		add("library.mount.decypharr.api_token_env", d.APITokenEnv)
+		add("library.mount.decypharr.username_env", d.UsernameEnv)
+		add("library.mount.decypharr.password_env", d.PasswordEnv)
 	}
 	if p.Notify != nil {
 		for _, k := range sortedKeys(p.Notify.Targets) {

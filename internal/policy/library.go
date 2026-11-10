@@ -89,6 +89,35 @@ type LibraryMount struct {
 	// RcloneRC is the mount's rclone remote control (rclone rc): the now playing page reads core/stats and vfs/stats
 	// (docs/design/now-playing.md); forget_release_root lets an import clear one cached listing. Optional.
 	RcloneRC *RcloneRC `yaml:"rclone_rc"`
+	// Decypharr sets decypharr as the debrid mount in place of zurg. Reading a file through decypharr, playback
+	// included, can make it replace a Real-Debrid torrent with a new copy. Theatarr itself only reads from
+	// decypharr. Off when unset.
+	Decypharr *LibraryDecypharr `yaml:"decypharr,omitempty" json:",omitempty"`
+}
+
+// LibraryDecypharr is decypharr as the debrid mount (library.mount.decypharr): its browse API and WebDAV, read-only.
+// Theatarr sends it PROPFIND, GET and HEAD only, which is not the same as no side effects: when a file is read,
+// decypharr may re-add a Real-Debrid torrent and delete the old one.
+type LibraryDecypharr struct {
+	// URL is decypharr's address, e.g. http://decypharr:8282, with its base path when decypharr has one.
+	URL string `yaml:"url"`
+	// APITokenEnv names the environment variable holding decypharr's API token. Needed when decypharr asks for a
+	// login.
+	APITokenEnv string `yaml:"api_token_env"`
+	// UsernameEnv names the environment variable holding the WebDAV user name. Needed only when decypharr asks for
+	// a login on WebDAV.
+	UsernameEnv string `yaml:"username_env"`
+	// PasswordEnv names the environment variable holding the WebDAV password.
+	PasswordEnv string `yaml:"password_env"`
+	// Interval is the longest decypharr's list of torrents is reused before it is read again. Default 1m, 10s to
+	// 1h.
+	Interval Duration `yaml:"interval"`
+	// Budget names a budget for requests to decypharr. Optional.
+	Budget string `yaml:"budget"`
+	// Direct reads files from decypharr over the network, without a mount folder in Theatarr. The library link
+	// destination must then be where the media server sees decypharr's files. Each read can make decypharr
+	// replace a Real-Debrid torrent. Default false.
+	Direct bool `yaml:"direct"`
 }
 
 // RcloneRC is an rclone remote control endpoint.
@@ -201,6 +230,9 @@ const (
 	DefaultZurgRepairGrace       = 2 * time.Hour
 	MinZurgRepairGrace           = 10 * time.Minute
 	MaxZurgRepairGrace           = 24 * time.Hour
+	DefaultDecypharrInterval     = time.Minute
+	MinDecypharrInterval         = 10 * time.Second
+	MaxDecypharrInterval         = time.Hour
 )
 
 // LibrarySettings is the library section with every default applied.
@@ -471,6 +503,35 @@ func (p *Policy) validateLibrary(e *Errors) {
 		checkEnv(e, "library.mount.rclone_rc.username_env", rc.UsernameEnv, false)
 		checkEnv(e, "library.mount.rclone_rc.password_env", rc.PasswordEnv, false)
 		checkRef(e, "library.mount.rclone_rc.budget", "budget", rc.Budget, p.Budgets, false)
+	}
+	if d := l.Mount.Decypharr; d != nil {
+		const dp = "library.mount.decypharr"
+		checkURL(e, dp+".url", d.URL)
+		if u, err := url.Parse(d.URL); err == nil && (u.RawQuery != "" || u.Fragment != "") {
+			e.add(dp+".url", "the base URL only, without a query")
+		}
+		checkEnv(e, dp+".api_token_env", d.APITokenEnv, false)
+		checkEnv(e, dp+".username_env", d.UsernameEnv, false)
+		checkEnv(e, dp+".password_env", d.PasswordEnv, false)
+		if iv := d.Interval; iv != 0 && (iv.D() < MinDecypharrInterval || iv.D() > MaxDecypharrInterval) {
+			e.add(dp+".interval", "must be %v to %v, got %v", MinDecypharrInterval, MaxDecypharrInterval, iv.D())
+		}
+		checkRef(e, dp+".budget", "budget", d.Budget, p.Budgets, false)
+		if l.Mount.ZurgAPI != "" || l.Mount.ZurgLog != "" {
+			e.add(dp, "not together with zurg_api or zurg_log: the mount is zurg's or decypharr's")
+		}
+		// decypharr's folder of every torrent is __all__ or torrents, or a provider's folder; __bad__ and nzbs
+		// hold no importable torrents. Which folders a decypharr has is only known when it is asked.
+		if l.Mount.AllDir == "__bad__" || l.Mount.AllDir == "nzbs" {
+			e.add("library.mount.all_dir", "%q is not a decypharr folder of torrents: use __all__, torrents or a provider's folder", l.Mount.AllDir)
+		}
+		if d.Direct {
+			if l.Mount.LinkPath == "" {
+				e.add("library.mount.link_path", "required by decypharr.direct: where Plex sees decypharr's mount")
+			} else if l.Mount.Path != "" && cleanAbs(l.Mount.Path) != cleanAbs(l.Mount.LinkPath) {
+				e.add("library.mount.path", "with decypharr.direct, leave it unset or the same as link_path")
+			}
+		}
 	}
 	for i, r := range l.Dangling.Roots {
 		rp := fmt.Sprintf("library.dangling.roots[%d]", i)

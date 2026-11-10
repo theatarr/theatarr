@@ -11,6 +11,7 @@ import (
 	"slices"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/theatarr/theatarr/internal/policy"
 )
@@ -743,6 +744,48 @@ func TestSectionConfigOmitsUnsetRetryNew(t *testing.T) {
 		`{"wanted":null}`:                               `{"wanted":null}`,
 	} {
 		if got := string(DropUnsetOptional("router", json.RawMessage(sent))); got != want {
+			t.Errorf("DropUnsetOptional(%s) = %s, want %s", sent, got, want)
+		}
+	}
+}
+
+// library.mount.decypharr is optional as a whole: the stored library section has the key only when the block is set.
+// A submitted section without the key comes back as the bytes sent; one that names it as null loses the key but is
+// encoded again, with its keys reordered, which is why a form leaves the key out rather than sending null.
+func TestSectionConfigOmitsUnsetDecypharr(t *testing.T) {
+	t.Parallel()
+	p := &policy.Policy{Library: &policy.Library{Mount: policy.LibraryMount{Path: "/mnt/debrid"}}}
+	raw, err := SectionConfig(p, "library")
+	if err != nil || strings.Contains(string(raw), "decypharr") || !strings.Contains(string(raw), `"path":"/mnt/debrid"`) {
+		t.Fatalf("unset: %s %v", raw, err)
+	}
+	p.Library.Mount.Decypharr = &policy.LibraryDecypharr{URL: "http://decypharr:8282", APITokenEnv: "THEATARR_DECYPHARR_TOKEN",
+		Interval: policy.Duration(2 * time.Minute)}
+	const block = `"decypharr":{"api_token_env":"THEATARR_DECYPHARR_TOKEN","budget":"","direct":false,"interval":"2m0s","password_env":"","url":"http://decypharr:8282","username_env":""}`
+	if raw, err = SectionConfig(p, "library"); err != nil || !strings.Contains(string(raw), block) {
+		t.Fatalf("set: %s %v", raw, err)
+	}
+	back := &policy.Policy{}
+	if err := applySection(back, Section{Record: Record{Key: "library"}, Config: raw}); err != nil {
+		t.Fatal(err)
+	}
+	if d := back.Library.Mount.Decypharr; d == nil || *d != *p.Library.Mount.Decypharr {
+		t.Fatalf("read back: %+v", d)
+	}
+	again, err := SectionConfig(back, "library")
+	if err != nil || string(again) != string(raw) {
+		t.Fatalf("stored again: %s %v, want %s", again, err, raw)
+	}
+	paths, err := SectionSecretPaths("library", raw)
+	if want := []string{"mount.decypharr.api_token", "mount.decypharr.password", "mount.decypharr.username"}; err != nil || !slices.Equal(paths, want) {
+		t.Fatalf("credential paths %v %v, want %v", paths, err, want)
+	}
+	for sent, want := range map[string]string{
+		`{"trash":{"keep_days":30},"mount":{"path":"/mnt/debrid","all_dir":"__all__"}}`:                                     `{"trash":{"keep_days":30},"mount":{"path":"/mnt/debrid","all_dir":"__all__"}}`,
+		`{"trash":{"keep_days":30},"mount":{"path":"/mnt/debrid","decypharr":null,"all_dir":"__all__"}}`:                    `{"mount":{"all_dir":"__all__","path":"/mnt/debrid"},"trash":{"keep_days":30}}`,
+		`{"trash":{"keep_days":30},"mount":{"path":"/mnt/debrid","decypharr":{"url":"http://d:8282"},"all_dir":"__all__"}}`: `{"trash":{"keep_days":30},"mount":{"path":"/mnt/debrid","decypharr":{"url":"http://d:8282"},"all_dir":"__all__"}}`,
+	} {
+		if got := string(DropUnsetOptional("library", json.RawMessage(sent))); got != want {
 			t.Errorf("DropUnsetOptional(%s) = %s, want %s", sent, got, want)
 		}
 	}

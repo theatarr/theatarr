@@ -75,8 +75,18 @@
     "interval": "This is the time between reports in theatarr serve (one at start). Default 6h, minimum 10m.",
     "roots": "This lists folders walked besides the version roots, read-only: the libraries the arrs still own and decypharr's downloads (for example /media and /downloads)."
   },
+  "LibraryDecypharr": {
+    "api_token_env": "This names the environment variable holding decypharr's API token. Needed when decypharr asks for a login.",
+    "budget": "This names a budget for requests to decypharr. Optional.",
+    "direct": "This reads files from decypharr over the network, without a mount folder in Theatarr. The library link destination must then be where the media server sees decypharr's files. Each read can make decypharr replace a Real-Debrid torrent.",
+    "interval": "This is the longest decypharr's list of torrents is reused before it is read again. Default 1m, 10s to 1h.",
+    "password_env": "This names the environment variable holding the WebDAV password.",
+    "url": "This is decypharr's address, e.g. http://decypharr:8282, with its base path when decypharr has one.",
+    "username_env": "This names the environment variable holding the WebDAV user name. Needed only when decypharr asks for a login on WebDAV."
+  },
   "LibraryMount": {
     "all_dir": "This is the name of the folder directly under the mount that holds every release: a folder name, not a path (zurg and mounts laid out like it call it __all__). Default __all__.",
+    "decypharr": "This sets decypharr as the debrid mount in place of zurg. Reading a file through decypharr, playback included, can make it replace a Real-Debrid torrent with a new copy. Theatarr itself only reads from decypharr. Off when unset.",
     "link_path": "This is the mount as written into symlinks: the absolute path at which plex (or another player) sees the mount. Leave it empty when that is the mount folder itself: an empty value uses the mount folder.",
     "path": "This is where this service sees the mount, e.g. /mnt/debrid. Required once Write library links is on.",
     "poll_interval": "This is how often a waiting import looks again. Default 20s, minimum 5s.",

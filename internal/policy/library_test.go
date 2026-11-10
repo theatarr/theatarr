@@ -4,6 +4,7 @@ import (
 	"errors"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -155,6 +156,29 @@ func TestLibraryValidation(t *testing.T) {
 		{"library:\n  mount: {zurg_api: \"http://zurg:9999\", zurg_api_repair_grace: 1m}\n", "library.mount.zurg_api_repair_grace"},
 		{"library:\n  mount: {zurg_api: \"http://zurg:9999\", zurg_api_repair_grace: 48h}\n", "library.mount.zurg_api_repair_grace"},
 		{"library:\n  mount: {zurg_api_interval: 30s}\n", "required by zurg_api_budget"},
+		{"library:\n  mount: {decypharr: {url: \"http://decypharr:8282\"}}\n", ""},
+		{"library:\n  mount: {decypharr: {url: \"http://decypharr:8282/base\", api_token_env: THEATARR_DECYPHARR_TOKEN, username_env: THEATARR_DECYPHARR_USER, password_env: THEATARR_DECYPHARR_PASS, interval: 2m, budget: tmdb}}\n", ""},
+		{"library:\n  mount: {decypharr: {}}\n", "library.mount.decypharr.url"},
+		{"library:\n  mount: {decypharr: {url: decypharr}}\n", "library.mount.decypharr.url"},
+		{"library:\n  mount: {decypharr: {url: \"http://user:pw@decypharr:8282\"}}\n", "credentials in the URL"},
+		{"library:\n  mount: {decypharr: {url: \"http://decypharr:8282/?x=1\"}}\n", "the base URL only"},
+		{"library:\n  mount: {decypharr: {url: \"http://decypharr:8282\", api_token_env: not-a-name}}\n", "library.mount.decypharr.api_token_env"},
+		{"library:\n  mount: {decypharr: {url: \"http://decypharr:8282\", username_env: not-a-name}}\n", "library.mount.decypharr.username_env"},
+		{"library:\n  mount: {decypharr: {url: \"http://decypharr:8282\", password_env: not-a-name}}\n", "library.mount.decypharr.password_env"},
+		{"library:\n  mount: {decypharr: {url: \"http://decypharr:8282\", interval: 5s}}\n", "library.mount.decypharr.interval"},
+		{"library:\n  mount: {decypharr: {url: \"http://decypharr:8282\", interval: 2h}}\n", "library.mount.decypharr.interval"},
+		{"library:\n  mount: {decypharr: {url: \"http://decypharr:8282\", budget: nope}}\n", "library.mount.decypharr.budget"},
+		{"library:\n  mount: {zurg_api: \"http://zurg:9999\", decypharr: {url: \"http://decypharr:8282\"}}\n", "not together with zurg_api or zurg_log"},
+		{"library:\n  mount: {zurg_log: /logs/zurg.log, decypharr: {url: \"http://decypharr:8282\"}}\n", "not together with zurg_api or zurg_log"},
+		{"library:\n  mount: {all_dir: torrents, decypharr: {url: \"http://decypharr:8282\"}}\n", ""},
+		{"library:\n  mount: {all_dir: realdebrid, decypharr: {url: \"http://decypharr:8282\"}}\n", ""},
+		{"library:\n  mount: {all_dir: __bad__, decypharr: {url: \"http://decypharr:8282\"}}\n", "library.mount.all_dir"},
+		{"library:\n  mount: {all_dir: nzbs, decypharr: {url: \"http://decypharr:8282\"}}\n", "library.mount.all_dir"},
+		{"library:\n  mount: {all_dir: nzbs}\n", ""},
+		{"library:\n  mount: {decypharr: {url: \"http://decypharr:8282\", direct: true}}\n", "library.mount.link_path"},
+		{"library:\n  mount: {link_path: /mnt/decypharr, decypharr: {url: \"http://decypharr:8282\", direct: true}}\n", ""},
+		{"library:\n  mount: {path: /mnt/decypharr/., link_path: /mnt/decypharr, decypharr: {url: \"http://decypharr:8282\", direct: true}}\n", ""},
+		{"library:\n  mount: {path: /mnt/other, link_path: /mnt/decypharr, decypharr: {url: \"http://decypharr:8282\", direct: true}}\n", "library.mount.path"},
 	} {
 		dir := copyExample(t)
 		os.Remove(filepath.Join(dir, "library.yaml"))
@@ -216,5 +240,50 @@ func TestNamingValidation(t *testing.T) {
 		case tc.err != "" && (err == nil || !strings.Contains(err.Error(), tc.err)):
 			t.Errorf("%q: want an error about %s, got %v", tc.yaml, tc.err, err)
 		}
+	}
+}
+
+// library.mount.decypharr: unset by default and in the example; when set, its host is an outbound host and its three
+// environment variable names are secret names.
+func TestLibraryDecypharrHostAndSecrets(t *testing.T) {
+	t.Parallel()
+	p, err := Load(exampleDir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	named := func(p *Policy) (host bool, envs int) {
+		for _, h := range p.OutboundHosts() {
+			for _, u := range h.Users {
+				host = host || (h.Host == "decypharr:8282" && u == "library.mount.decypharr.url")
+			}
+		}
+		for _, users := range p.SecretEnvs() {
+			for _, u := range users {
+				if strings.HasPrefix(u, "library.mount.decypharr.") {
+					envs++
+				}
+			}
+		}
+		return host, envs
+	}
+	if host, envs := named(p); p.Library.Mount.Decypharr != nil || host || envs != 0 {
+		t.Fatalf("the example sets decypharr: host %v, %d secret names", host, envs)
+	}
+	p.Library.Mount.Decypharr = &LibraryDecypharr{URL: "http://decypharr:8282/base", APITokenEnv: "THEATARR_DECYPHARR_TOKEN",
+		UsernameEnv: "THEATARR_DECYPHARR_USER", PasswordEnv: "THEATARR_DECYPHARR_PASS"}
+	if host, envs := named(p); !host || envs != 3 {
+		t.Fatalf("decypharr set: host %v, %d secret names", host, envs)
+	}
+	secrets := p.SecretEnvs()
+	for env, user := range map[string]string{"THEATARR_DECYPHARR_TOKEN": "library.mount.decypharr.api_token_env",
+		"THEATARR_DECYPHARR_USER": "library.mount.decypharr.username_env", "THEATARR_DECYPHARR_PASS": "library.mount.decypharr.password_env"} {
+		if !slices.Contains(secrets[env], user) {
+			t.Errorf("%s: %v, want %s", env, secrets[env], user)
+		}
+	}
+	// A block without credentials names its host and no secret.
+	p.Library.Mount.Decypharr = &LibraryDecypharr{URL: "http://decypharr:8282"}
+	if host, envs := named(p); !host || envs != 0 {
+		t.Fatalf("decypharr without credentials: host %v, %d secret names", host, envs)
 	}
 }
