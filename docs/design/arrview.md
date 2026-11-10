@@ -218,11 +218,18 @@ What a Radarr view answers:
 - `isAvailable` is true when any shown library is available under its own minimum and delay
   (`availability.Available`, `TestViewIsAvailableWithDelays`); `releaseDate` ports `GetReleaseDate` for the shown
   minimum, without the delay, as Radarr.
+- Both follow the shown minimum, so a view whose shown value changed with this rule (it used to be the view's own
+  row, else an arr record) can answer another `isAvailable` and `releaseDate` for the same stored state. Clients
+  act on it: Seerr starts a named `MoviesSearch` for a movie the view reports available, and a named search skips
+  the availability gate for the view's libraries. Acquisition's own rule being unchanged does not mean a client
+  searches the same movies.
 
 The write convention (`TestMinimumAvailabilityEchoChangesNothing`, `TestMinimumAvailabilityPutWritesShownLibraries`):
 
 - **`PUT movie`**: a value equal to what this view shows for the movie is the view's answer sent back and stores
-  nothing: every library keeps its value and where it comes from, and the PUT answers what the GET did. One scalar
+  nothing: every library keeps its value and where it comes from, and the PUT answers what the GET did (except in
+  the anime-check recovery under "Left as before" below, where the libraries shown before keep their rules but
+  the answer can change). One scalar
   cannot tell an echo from "set every library to the value shown", so that edit needs the editor (or Theatarr's own
   page). A different value is stored as the choice of each library the view shows for the movie, and no other: not a
   copy removed from the views, not a library outside the view. The libraries written are the ones the
@@ -237,12 +244,17 @@ The write convention (`TestMinimumAvailabilityEchoChangesNothing`, `TestMinimumA
 - **`POST movie`** is decided per library the add turns on (new, restored or unmonitored before): a library with
   `minimum_availability` set uses it, and the client's value is not stored for it; a library without stores the
   client's value as its choice. Copies already on keep their rule, so an add that turns nothing on stores nothing
-  (`TestMinimumAvailabilityClientAdd`). Seerr sends its Radarr server's setting with every add and the phone apps a
+  (`TestMinimumAvailabilityClientAdd`); a library turned on by the anime check asked again in the same add
+  counts as turned on by it (`TestMinimumAvailabilityClientAddAnimeRetry`). One exception to the library default:
+  a choice a combined view stored before (below) still applies to a library added to the movie later, and beats
+  that library's default. Seerr sends its Radarr server's setting with every add and the phone apps a
   per-add choice; the server cannot tell them apart, so a library default, once set, wins over both at add time. A
   PUT afterwards is still an edit.
 - **Storage**: new choices go to the libraries' own `v/<key>` rows only (`availability.Choose`; a row made for it
-  carries no profile, root folder or added time). Rows that combined views stored before stay readable with the
-  precedence above; none is rewritten or cleaned up. `arrview_title.updated_at` orders the choices and moves only
+  carries no profile, root folder or added time; the first save through the library's own view gives it its added
+  time, `TestChoiceRowTakesAddedTimeOnSave`). Rows that combined views stored before stay readable with the
+  precedence above, which matches a row against the libraries its view holds today, so such a row also reaches a
+  copy turned on after it was written; none is rewritten or cleaned up. `arrview_title.updated_at` orders the choices and moves only
   when a minimum availability is written: saving a profile, root folder or tags no longer promotes an old choice
   over a newer one.
 - **`DELETE movie/{id}`** clears the choice on the `v/<key>` row of each library it removes the copy from (the row
@@ -260,7 +272,8 @@ Left as before, on purpose:
 
 - A PUT that succeeds in an anime check that failed earlier (above) can turn on the view's anime library for the
   title; the view then shows the earliest value including that library's, so this one unchanged PUT can answer
-  another value than the GET did.
+  another value (and `isAvailable`) than the GET did. The echo guarantee and its acceptance test exclude this
+  recovery: the libraries shown before the PUT keep their values and sources, the answer does not.
 - `isAvailable` uses the canonical dates, while acquisition uses the owning arr's dates for a library an arr still
   feeds, until its cutover: the two can disagree for such a library when the arr's dates differ.
 
