@@ -114,8 +114,9 @@ Required:
 - A **media server that follows symlinks**, such as Plex. Plex is the only one Theatarr talks to (scans, sign-in, now
   playing); others work from the folders alone.
 - A **TMDb API key**. Adding titles, search, artwork and release dates need it.
-- **Docker** (linux/amd64) to run the released image, or to build it from source; Go 1.27 and Node 20 to build
-  without Docker.
+- **Docker** to run the released image (linux/amd64 only), or to build it from source; Go 1.27 and Node 20 to
+  build without Docker. An arm64 host has to build from source for now
+  ([docs/not-supported.md](docs/not-supported.md#other-gaps)).
 
 Optional:
 

@@ -15,7 +15,8 @@ you, disabled or in shadow. The steps below still apply for checking and going l
 Pull the released image with [`examples/compose.image.yaml`](../examples/compose.image.yaml), copied as
 `compose.yaml` into any directory; no checkout of the repository is needed. Each release publishes an image for
 linux/amd64 to `ghcr.io/theatarr/theatarr`, and the
-[Releases page](https://github.com/theatarr/theatarr/releases) lists the versions. The image tag is the version
+[Releases page](https://github.com/theatarr/theatarr/releases) lists the versions. There is no published arm64
+image yet: on an arm64 host, build from source (below). That build is checked in CI but untested on real hardware. The image tag is the version
 without the leading `v`: release `v0.1.3` is the image `0.1.3`. Put the version in a `.env` file beside
 `compose.yaml`, where every `docker compose` command reads it:
 

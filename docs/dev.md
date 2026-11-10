@@ -27,10 +27,11 @@ How to build and test Theatarr, how the code is laid out, and the rules for chan
 
 Before a pull request, run `make check`, `make lint` and `make ui-check`; run `make e2e` and `make race` too when you
 touch acquisition, import or concurrency code. `.github/workflows/ci.yml` runs the same checks, the example policy's
-validation and an image build, on every push to `main`, on pull requests, and by hand from the Actions tab.
+validation and an image build for linux/amd64 and linux/arm64 (not pushed; the arm64 binary is started once under
+emulation), on every push to `main`, on pull requests, and by hand from the Actions tab.
 
 **Releases.** Pushing a tag `vX.Y.Z` (three numbers, no suffix) runs `.github/workflows/release.yml`: the checks of
-`ci.yml`, then an amd64 image build pushed to the GitHub Container Registry as `ghcr.io/theatarr/theatarr:X.Y.Z`,
+`ci.yml`, then an amd64 image build (arm64 is built in CI but not published yet) pushed to the GitHub Container Registry as `ghcr.io/theatarr/theatarr:X.Y.Z`,
 `:X.Y` and `:latest`, with the tag as the version the binary reports. Tags with a suffix (`v1.2.3-rc1`) and other
 tags publish nothing. The registry package is public; its visibility and the repository's Actions permission
 to write packages were set once on GitHub, by hand. Before tagging, refresh the bundled TRaSH defaults with

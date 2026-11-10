@@ -72,6 +72,10 @@ The Radarr- and Sonarr-compatible views do not answer every call of the arr APIs
 
 ## Other gaps
 
+- **ARM images.** Released images are for linux/amd64 only. The image builds for linux/arm64, and every CI run
+  builds it and starts the arm64 binary once under emulation, but no arm64 image is published yet and it has not
+  been tested on real hardware (Raspberry Pi, ARM NAS). On an arm64 host, build it from source
+  ([quickstart.md](quickstart.md#1-run-the-container)); reports are welcome. 32-bit ARM is not built.
 - **No update notice.** Theatarr does not check for new versions; `theatarr version` prints the build you run.
 - **Import lists.** Only TMDb movie lists (**Collections › Lists**, or the Radarr-compatible API). There are no
   series lists and no other list providers yet.
