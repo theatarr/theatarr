@@ -416,3 +416,99 @@ func TestRetryNewNotForUpgradeSearches(t *testing.T) {
 	}
 	e.wantChains("upgrade search", nil)
 }
+
+// queuedChains counts title 10's queued follow-up steps by the way their chain started.
+func (e *env) queuedChains() (retryNew, exhausted int) {
+	e.t.Helper()
+	retryNew = e.count(`SELECT COUNT(*) FROM job WHERE kind = ? AND state = 'queued'
+		AND json_extract(payload, '$.reason') = ? AND json_extract(payload, '$.step') > 0
+		AND json_extract(payload, '$.retry_new')`, router.JobResearch, router.ReasonFresh)
+	exhausted = e.count(`SELECT COUNT(*) FROM job WHERE kind = ? AND state = 'queued'
+		AND json_extract(payload, '$.reason') = ? AND json_extract(payload, '$.step') > 0
+		AND json_extract(payload, '$.retry_new') IS NULL`, router.JobResearch, router.ReasonFresh)
+	return retryNew, exhausted
+}
+
+// runDue moves the clock to the earliest queued follow-up and runs every ready job.
+func (e *env) runDue() {
+	e.t.Helper()
+	var at int64
+	if err := e.st.Reader().QueryRow(`SELECT MIN(run_at) FROM job WHERE kind = ? AND state = 'queued'
+		AND json_extract(payload, '$.reason') = ?`, router.JobResearch, router.ReasonFresh).Scan(&at); err != nil {
+		e.t.Fatal(err)
+	}
+	if d := store.FromMillis(at).Sub(e.clock()); d > 0 {
+		e.advance(d)
+	}
+	e.drain()
+}
+
+// An exhausted route's chain starts as it would without the switch whatever a retry_new chain of the title did: one
+// still queued (the switch turned off, or left on), or one that ended (its episode filled, then wanted again). The
+// retry_new chain then ends at its next step without a search, and starts no more while the exhausted chain's
+// window lasts.
+func TestRetryNewChainNeverBlocksAnExhaustedChain(t *testing.T) {
+	t.Parallel()
+	miss := router.ResearchRequest{TitleID: 10, VersionID: 201, Version: "series", Episodes: []int64{1004},
+		Reason: router.ReasonExhausted}
+	for _, q := range []struct {
+		name   string
+		before func(e *env)
+		on     bool
+	}{
+		{"switch turned off", func(e *env) { e.a.set.RetryNew = false }, false},
+		{"switch on, chain pending", func(e *env) {}, true},
+		{"switch on, chain ended", func(e *env) {
+			e.exec(`UPDATE episode_version_state SET state = 'filled' WHERE version_id = 201 AND episode_id = 1004`)
+			e.runDue()
+			if r, x := e.queuedChains(); r != 0 || x != 0 {
+				e.t.Fatalf("the filled episode's chain: %d retry_new, %d exhausted steps queued", r, x)
+			}
+			e.exec(`UPDATE episode_version_state SET state = 'wanted' WHERE version_id = 201 AND episode_id = 1004`)
+		}, true},
+	} {
+		t.Run(q.name, func(t *testing.T) {
+			e := retryNewEnv(t, &policy.Wanted{PerHour: 100, RetryNew: true})
+			e.round()
+			e.wantChains("started", map[string]bool{"series/10": true})
+			q.before(e)
+			pending, _ := e.queuedChains()
+			missed := e.clock()
+			e.research(miss)
+			if r, x := e.queuedChains(); r != pending || x != 1 {
+				t.Fatalf("after the route exhausted: %d retry_new and %d exhausted steps queued, want %d and 1", r, x,
+					pending)
+			}
+			var key string
+			var at int64
+			if err := e.st.Reader().QueryRow(`SELECT dedupe_key, run_at FROM job WHERE kind = ? AND state = 'queued'
+				AND json_extract(payload, '$.step') = 1 AND json_extract(payload, '$.retry_new') IS NULL`,
+				router.JobResearch).Scan(&key, &at); err != nil {
+				t.Fatal(err)
+			}
+			if key != "acquire.research/fresh/series/10/1" || !store.FromMillis(at).Equal(missed.Add(time.Hour)) {
+				t.Fatalf("exhausted chain step 1: key %s at %v", key, store.FromMillis(at))
+			}
+			e.drain() // the re-search at once
+			// Both chains' first steps are due together: the exhausted chain's searches, the retry_new chain's ends.
+			before := len(e.searches())
+			e.runDue()
+			if n := len(e.searches()) - before; n != 1 {
+				t.Fatalf("%d searches at the first steps, want the exhausted chain's one", n)
+			}
+			if r, x := e.queuedChains(); r != 0 || x != 1 {
+				t.Fatalf("after the steps: %d retry_new and %d exhausted steps queued, want 0 and 1", r, x)
+			}
+			// While the exhausted chain's window lasts, an empty search starts no retry_new chain.
+			e.a.set.RetryNew = true
+			e.request(10, "series", OnlyMissing, 2)
+			if _, err := e.a.DrainSearchNow(e.ctx); err != nil {
+				t.Fatal(err)
+			}
+			e.drain()
+			if r, x := e.queuedChains(); r != 0 || x != 1 {
+				t.Fatalf("after another empty search: %d retry_new and %d exhausted steps queued, want 0 and 1", r, x)
+			}
+		})
+	}
+}

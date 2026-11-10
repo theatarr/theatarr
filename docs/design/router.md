@@ -736,19 +736,28 @@ feed's page again once the hour's miss expires. Tests: `TestFresh`, `TestFreshCo
 `TestFreshEpisodes`, `TestFollowUpsAfterMissOnNewContent`, `TestFollowUpStops`, `TestFollowUpAddsOnceCached`,
 `TestFollowUpOneChainPerTitle`, `TestFollowUpPersistentMiss`, `TestFollowUpRetrySearchesItsEpisodes`.
 
-**An empty search of new content can start the same chain** (`router.wanted.retry_new`, default off). The wanted
-loop takes a missing episode as soon as it has aired, usually before any release exists; that search accepts
+**An empty search of new content can start a chain of the same kind** (`router.wanted.retry_new`, default off).
+The wanted loop takes a missing episode as soon as it has aired, usually before any release exists; that search accepts
 nothing, no route runs, so nothing above applies and the loop takes the item again only after `again_after` (a day).
 With the switch on, a search that ends with nothing accepted starts the follow-up chain for its target's new content
 when it is a missing search (not an upgrade search) started by the wanted loop's own selection or by the Search now
 queue. A manual search, a search on add, an add-time search of a follower, and a re-search's or a follow-up's own
 search start none. The run row cannot tell a loop search from an add-time one, so the search job's payload carries the
 mark (`retry_new`, left out when unset; set only while the switch is on) and the switch is read again when the search
-ends. It is the same chain: the same key (so a title has one chain per fresh window whichever way it started), steps,
-stops and `per_hour` charge, at most about 8 searches in the week. Its requests carry `retry_new`, and each step
-checks the switch before it queues the next: turned off, the chain ends at its next step. A chain an `exhausted`
-route started never looks at the switch. With the switch off no payload, job or search differs from before it
-existed. Tests: `internal/acquire/retrynew_test.go`.
+ends. It runs like the chain above: the same steps (1, 2, 4, 8 ... hours after the empty search, while the content
+is new), stops and `per_hour` charge. Its requests carry `retry_new`, and each step checks the switch before it
+queues the next: turned off, the chain ends at its next step. With the switch off no payload, job or search differs
+from before it existed.
+
+It is a chain of its own, under its own job key (`acquire.research/retry_new/<version>/<title>/<step>`; the chain
+above keeps `acquire.research/fresh/...`), and the chain after an `exhausted` route reads nothing of it: that one
+starts by its own key alone and never looks at the switch, so it starts exactly as it would on an install without
+the switch, also while a `retry_new` chain of the title is queued or after one ended for any reason. The `retry_new`
+chain gives way instead: it does not start, and ends at its next step without a search, once an `exhausted` chain
+of the title and version is queued or ran in the fresh window. So a title can get both kinds of chain in one week,
+one after the other (for example when a `retry_new` follow-up finds a release that then misses everywhere), and no
+total number of searches per title is promised: each chain alone is bounded by its steps within the week, and every
+search by `per_hour`. Tests: `internal/acquire/retrynew_test.go`.
 
 **A dead link is searched once** (reason `dead_link`). When relink marks an active version's
 link dead (`docs/design/library.md` "Relink and verify": two misses at least 30 min apart, the mount healthy, not within

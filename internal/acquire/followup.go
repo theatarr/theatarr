@@ -44,9 +44,14 @@ import (
 // With router.wanted.retry_new on (default off) a chain also starts without a route: when a missing search by the
 // wanted loop or by Search now ends with nothing accepted and its target holds new content (retryNew). The first
 // search of a just-aired episode is usually that one, and the loop would take the item again only after again_after.
-// It is the same chain under the same key, steps, stops and per_hour charge; its requests carry RetryNew, and a step
-// of it that runs with the switch off stops the chain. A manual search, a search on add, an add-time search and a
-// re-search or follow-up's own search start none.
+// It has the same steps, stops and per_hour charge, but is a chain of its own, under its own key (followUpKey): its
+// requests carry RetryNew, and a step of it that runs with the switch off stops it. A manual search, a search on
+// add, an add-time search and a re-search or follow-up's own search start none.
+//
+// The chain after a route that missed everywhere reads nothing of it: it starts by its own key alone, as if the
+// switch did not exist, also while a retry_new chain of the title is queued or after one ended. The retry_new chain
+// gives way: it does not start, and ends at its next step without a search, once the exhausted chain's key was seen
+// in the fresh window (exhaustedChain). So a title can get both kinds in one week, one after the other.
 
 // retryNew starts the follow-ups of a marked search's target that ended with nothing accepted (run, finishFanout).
 // The run is recorded already, so a failure here is logged, not returned.
@@ -64,9 +69,23 @@ func (a *Acquirer) retryNew(ctx context.Context, t target) {
 // followUpAfter is the wait from the miss to the nth follow-up: 1 h doubled each time.
 func followUpAfter(n int) time.Duration { return time.Hour << (n - 1) }
 
-// followUpKey is the dedupe key prefix of a title's follow-ups for a version; each step appends its number.
+// followUpKey is the dedupe key prefix of a title's follow-ups for a version; each step appends its number. A chain
+// an empty search started (retry_new) has its own prefix, so that the exhausted route's never matches it.
 func followUpKey(p router.ResearchRequest) string {
+	if p.RetryNew {
+		return fmt.Sprintf("%s/%s/%s/%d/", router.JobResearch, retryNewKey, p.Version, p.TitleID)
+	}
 	return fmt.Sprintf("%s/%s/%s/%d/", router.JobResearch, router.ReasonFresh, p.Version, p.TitleID)
+}
+
+// retryNewKey is ReasonFresh's place in the key of a retry_new chain.
+const retryNewKey = "retry_new"
+
+// exhaustedChain says whether the title has a chain after a route that missed everywhere: one queued, or one that
+// ran in the fresh window ending at until. A retry_new chain gives way to it.
+func (a *Acquirer) exhaustedChain(ctx context.Context, p router.ResearchRequest, until time.Time) (bool, error) {
+	p.RetryNew = false
+	return a.q.Seen(ctx, router.JobResearch, followUpKey(p), until.Add(-availability.FreshWindow))
 }
 
 // startFollowUps queues the first follow-up of a title whose route missed everywhere, when the route held new content
@@ -79,6 +98,11 @@ func (a *Acquirer) startFollowUps(ctx context.Context, vp *policy.VersionPolicy,
 	}
 	next := router.ResearchRequest{TitleID: p.TitleID, VersionID: p.VersionID, Version: p.Version,
 		Reason: router.ReasonFresh, MissedAt: now, RetryNew: p.RetryNew}
+	if p.RetryNew {
+		if seen, err := a.exhaustedChain(ctx, next, until); err != nil || seen {
+			return err
+		}
+	}
 	if seen, err := a.q.Seen(ctx, router.JobResearch, followUpKey(next), until.Add(-availability.FreshWindow)); err != nil ||
 		seen {
 		return err
@@ -186,6 +210,13 @@ func (a *Acquirer) followUp(ctx context.Context, vp *policy.VersionPolicy, p rou
 	}
 	if len(todo) == 0 {
 		return skip("nothing wanted: filled, unmonitored or a download in flight")
+	}
+	if p.RetryNew {
+		if seen, err := a.exhaustedChain(ctx, p, until); err != nil {
+			return err
+		} else if seen {
+			return skip("the title has a chain after a route that missed everywhere")
+		}
 	}
 	if !p.MissedAt.IsZero() {
 		if err := a.queueFollowUp(ctx, p, p.Step+1, until); err != nil {
