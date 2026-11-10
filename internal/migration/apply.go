@@ -200,7 +200,7 @@ func applyStep(ctx context.Context, st *store.Store, set Settings, s *Step, o Ap
 		if s.Confirmation == nil {
 			s.Confirmation = &settings.Confirmation{Effects: ce.Effects}
 		}
-		s.Error = "the change needs confirmation: review the effects, then apply with -confirm " + s.ID
+		s.Error = "the change needs confirmation: review its effects and confirm step " + s.ID + " in the UI (" + uipages.Migration + ")"
 		if ce.ConfirmInUI {
 			s.Error = "the change needs confirmation this caller cannot give: apply step " + s.ID + " in the UI (" + uipages.Migration + ") or with a user's API key"
 		}

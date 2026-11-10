@@ -19,6 +19,7 @@ import (
 	"github.com/theatarr/theatarr/internal/settings"
 	"github.com/theatarr/theatarr/internal/store"
 	"github.com/theatarr/theatarr/internal/store/storetest"
+	"github.com/theatarr/theatarr/internal/uipages"
 )
 
 func TestInspectReadsTheStackWithGetOnlyAndKeepsNoKey(t *testing.T) {
@@ -624,6 +625,10 @@ func TestApplySendsAConfirmationOnlyWhenTold(t *testing.T) {
 	s := got.Step("provider/tb-migrated")
 	if s.Status != StatusConfirmation || s.Confirmation == nil || s.Confirmation.Token != "tok-1" {
 		t.Fatalf("provider step %+v", s)
+	}
+	// migrate apply has no -confirm flag: the message names the page that confirms.
+	if strings.Contains(s.Error, "-confirm") || !strings.Contains(s.Error, uipages.Migration) {
+		t.Errorf("confirmation message = %q", s.Error)
 	}
 	if v := got.Step("version/movie-uhd"); v.Status != StatusBlocked {
 		t.Errorf("version step went ahead without its provider: %+v", v)
