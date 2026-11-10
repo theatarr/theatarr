@@ -21,6 +21,7 @@ export function healthLink(source?: string): string {
     case "IndexerStatusCheck":
       return "/admin/settings/indexers";
     case "ProviderSyncCheck":
+    case "ProviderAccountCheck":
       return "/admin/settings/downloads";
     case "VpnEgressCheck":
       return "/admin/settings/indexers/vpn";
@@ -55,6 +56,8 @@ export function healthEffect(source?: string): { effect: string; next: string } 
       return { effect: "Searches skip the indexers that are unavailable.", next: "See which indexers are backed off or out of budget." };
     case "ProviderSyncCheck":
       return { effect: "What the debrid providers hold may be out of date.", next: "Check the provider's last sync." };
+    case "ProviderAccountCheck":
+      return { effect: "Downloads through that debrid account may fail.", next: "Check the account and its API key under Settings › Download clients." };
     case "VpnEgressCheck":
       return { effect: "See the configured VPN requirements and egress observations under Settings › Indexers › VPN.", next: "Check the VPN egress paths." };
     case "SetupCheck":

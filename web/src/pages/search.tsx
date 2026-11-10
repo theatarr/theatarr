@@ -150,7 +150,7 @@ export function SearchPage() {
             {query.length < 2 ? (
               <SectionNote>Type at least two characters to search TMDb.</SectionNote>
             ) : tmProblem ? (
-              <SectionError problem={tmProblem} onRetry={() => void tm.refetch()} retrying={tm.isFetching} testid="search-tmdb-error" />
+              <SectionError problem={tmProblem} onRetry={() => void tm.refetch()} retrying={tm.isFetching} testid="search-tmdb-error" admin={perms.admin} />
             ) : tm.isPending ? (
               <SectionLoading label="Searching TMDb" />
             ) : note ? (

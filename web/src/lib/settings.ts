@@ -506,7 +506,16 @@ export function orderConflicts(order: string[], versions: { key: string; provide
 
 export type Tone = "positive" | "negative" | "warning" | "neutral" | "info";
 
-export function testSummary(r: SettingsTestResult, now = Date.now()): { tone: Tone; label: string; line: string } {
+/** What to do about a failed test, by its category: the checks the admin can make on this form. */
+const TEST_NEXT: Record<string, string> = {
+  connectivity: "Check the address (host, port, http or https), and that the Theatarr container can reach it: DNS, the Docker network, and the VPN if this source goes through one.",
+  timeout: "Check the address and that the service is running, then test again.",
+  auth: "Check the API key and enter it again.",
+  credential: "Enter the API key, then test again.",
+  http: "Check the address and its path; the service answered, but not with a result.",
+};
+
+export function testSummary(r: SettingsTestResult, now = Date.now()): { tone: Tone; label: string; line: string; next?: string } {
   const parts: string[] = [];
   if (r.http_status) parts.push(`HTTP ${r.http_status}`);
   if (r.latency_ms) parts.push(`${r.latency_ms} ms`);
@@ -522,13 +531,13 @@ export function testSummary(r: SettingsTestResult, now = Date.now()): { tone: To
     case "refused":
       return { tone: "warning", label: "refused", line: (r.message || r.category || "refused") + extra };
     case "timeout":
-      return { tone: "negative", label: "timeout", line: r.message || "no answer within the test timeout" };
+      return { tone: "negative", label: "timeout", line: r.message || "no answer within the test timeout", next: TEST_NEXT.timeout };
     case "cooldown":
       return { tone: "neutral", label: "cooldown", line: `tested recently; ${retryText(secondsUntil(r.retry_at, now))}` };
     case "busy":
       return { tone: "warning", label: "busy", line: `no test slot free; ${retryText(secondsUntil(r.retry_at, now))}` };
   }
-  return { tone: "negative", label: r.status ?? "failed", line: (r.message || r.category || "failed") + extra };
+  return { tone: "negative", label: r.status ?? "failed", line: (r.message || r.category || "failed") + extra, next: TEST_NEXT[r.category ?? ""] };
 }
 
 export type TestState = {

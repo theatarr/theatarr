@@ -444,3 +444,15 @@ describe("test announcements", () => {
     expect(testAnnouncement({ type: "all-error", error: e }, "indexer", now)).toBe("Test all refused. No test slot free: Other tests are running; try again in 12 s.");
   });
 });
+
+describe("a failed test's next step", () => {
+  const failed = (category: string, status = "failed") => ({ key: "feed", entity: "indexers", status, category, message: "could not reach the source", latency_ms: 0, tested_at: "2026-11-10T10:00:00Z" }) as Parameters<typeof testSummary>[0];
+  it("names what to check for the failures an admin can fix on the form", () => {
+    expect(testSummary(failed("connectivity")).next).toContain("that the Theatarr container can reach it");
+    expect(testSummary(failed("auth")).next).toContain("API key");
+    expect(testSummary(failed("timeout", "timeout")).next).toContain("service is running");
+    // The message itself is the server's, unchanged.
+    expect(testSummary(failed("connectivity")).line).toBe("could not reach the source");
+    expect(testSummary({ ...failed("ok"), status: "ok" }).next).toBeUndefined();
+  });
+});

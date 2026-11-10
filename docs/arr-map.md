@@ -25,7 +25,7 @@ claim of Sonarr v5 API parity. Recyclarr has no web pages; its table maps the CL
 | Settings › Profiles | Admin › Settings › Profiles — `/admin/settings/profiles` | Quality, language preferences and scores are configured per profile. |
 | Settings › Quality | Admin › Settings › Profiles — `/admin/settings/profiles` | Quality sizes are set per profile in the profile editor's Size limits form (the raw profile editor still works); Quality sync can manage TRaSH size definitions. |
 | Settings › Custom Formats | Admin › Settings › Custom formats — `/admin/settings/formats` | Shared definitions; scores are edited on profiles. |
-| Settings › Indexers | Admin › Settings › Indexers — `/admin/settings/indexers` | Built-in sources, native catalog and Torznab feeds coexist; each library chooses its feeds. |
+| Settings › Indexers | Admin › Settings › Indexers — `/admin/settings/indexers` | Torznab feeds (Prowlarr, Jackett: **Add indexer › Torznab & built-in sources**), built-in sources and the native catalog coexist; each library chooses its feeds. |
 | Settings › Download Clients | Admin › Settings › Download clients — `/admin/settings/downloads` | Debrid providers are direct; a decypharr-style debrid client goes under Other clients (seedbox clients are not supported yet). Allow new downloads remains explicit. |
 | Settings › Import Lists | **no equivalent for series** | Series import lists are not supported. TMDb movie lists live under Library › Collections › Lists (`/collections/lists`). |
 | Settings › Connect | Admin › Settings › Notifications — `/admin/settings/notifications` | Webhook, Discord and ntfy targets and Send notifications; Plex lives under Plex & playback. |
@@ -62,7 +62,7 @@ claim of Sonarr v5 API parity. Recyclarr has no web pages; its table maps the CL
 | Settings › Profiles | Admin › Settings › Profiles — `/admin/settings/profiles` | Quality, language preferences and scores are configured per profile. |
 | Settings › Quality | Admin › Settings › Profiles — `/admin/settings/profiles` | Quality sizes are set per profile in the profile editor's Size limits form (the raw profile editor still works); Quality sync can manage TRaSH size definitions. |
 | Settings › Custom Formats | Admin › Settings › Custom formats — `/admin/settings/formats` | Shared definitions; scores are edited on profiles. |
-| Settings › Indexers | Admin › Settings › Indexers — `/admin/settings/indexers` | Built-in sources, native catalog and Torznab feeds coexist; each library chooses its feeds. |
+| Settings › Indexers | Admin › Settings › Indexers — `/admin/settings/indexers` | Torznab feeds (Prowlarr, Jackett: **Add indexer › Torznab & built-in sources**), built-in sources and the native catalog coexist; each library chooses its feeds. |
 | Settings › Download Clients | Admin › Settings › Download clients — `/admin/settings/downloads` | Debrid providers are direct; a decypharr-style debrid client goes under Other clients (seedbox clients are not supported yet). Allow new downloads remains explicit. |
 | Settings › Import Lists | Library › Collections › Lists — `/collections/lists` | Managers and admins. TMDb movie lists only: add, edit, sync now and delete; lists made through the Radarr-compatible API show here too. Settings › Metadata & artwork › Refresh schedules (`/admin/settings/metadata#refresh`) controls timing. |
 | Settings › Connect | Admin › Settings › Notifications — `/admin/settings/notifications` | Webhook, Discord and ntfy targets and Send notifications; Plex lives under Plex & playback. |

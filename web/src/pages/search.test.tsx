@@ -125,3 +125,30 @@ describe("Search library results by account", () => {
     expect([...document.querySelectorAll("[data-search-result] [data-vkey]")].map((e) => e.getAttribute("data-vkey"))).toEqual(["movie-remux", "movie-web", "movie-web"]);
   });
 });
+
+describe("Search page when TMDb does not answer", () => {
+  const failed = (r: { search: string }) =>
+    r.search.includes("scope=library") ? { library: [], library_total: 0 } : { tmdb_state: "error", tmdb_error: "TMDb search failed; try again in a moment" };
+  function showFailed(permissions: string[]) {
+    mockFetch([
+      { method: "GET", path: "/auth/me", reply: { id: 9, username: "someone", permissions, csrf_token: "t" } },
+      { method: "GET", path: "/search", reply: failed },
+      { method: "GET", path: "/requests", reply: { items: [], total: 0 } },
+    ]);
+    renderPage(<SearchProvider><SearchPage /></SearchProvider>, "/search?q=Signal");
+  }
+
+  it("says what to check and links admins to the TMDb key", async () => {
+    showFailed(["browse", "add", "admin"]);
+    const next = await screen.findByTestId("tmdb-next");
+    expect(next.textContent).toContain("the TMDb key may be wrong or Theatarr cannot reach TMDb");
+    expect(screen.getByRole("link", { name: "Check the TMDb key and address" }).getAttribute("href")).toBe("/admin/settings/metadata#sources");
+    expect(screen.getByText("TMDb did not answer")).toBeTruthy();
+  });
+
+  it("gives everyone else the next step without a settings link", async () => {
+    showFailed(["browse", "add"]);
+    expect((await screen.findByTestId("tmdb-next")).textContent).toContain("An administrator can check the key.");
+    expect(screen.queryByRole("link", { name: "Check the TMDb key and address" })).toBeNull();
+  });
+});

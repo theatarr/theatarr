@@ -76,8 +76,8 @@
     "roots": "This lists folders walked besides the version roots, read-only: the libraries the arrs still own and decypharr's downloads (for example /media and /downloads)."
   },
   "LibraryMount": {
-    "all_dir": "This is zurg's directory holding every release. Default __all__.",
-    "link_path": "This is the mount path written into symlinks: where plex sees it. Default path.",
+    "all_dir": "This is the name of the folder directly under the mount that holds every release: a folder name, not a path (zurg and mounts laid out like it call it __all__). Default __all__.",
+    "link_path": "This is the mount as written into symlinks: the absolute path at which plex (or another player) sees the mount. Leave it empty when that is the mount folder itself: an empty value uses the mount folder.",
     "path": "This is where this service sees the mount, e.g. /mnt/debrid. Required once Write library links is on.",
     "poll_interval": "This is how often a waiting import looks again. Default 20s, minimum 5s.",
     "rclone_rc": "This is the mount's rclone remote control (rclone rc): the now playing page reads core/stats and vfs/stats (docs/design/now-playing.md); forget_release_root lets an import clear one cached listing. Optional.",

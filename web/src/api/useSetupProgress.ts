@@ -1,5 +1,5 @@
 import { useMutationState } from "@tanstack/react-query";
-import { useSetup, setupUnfinished, type SetupState, type PreflightReport } from "./setup";
+import { useSetup, setupLinkShown, type SetupState, type PreflightReport } from "./setup";
 import { useVersions, type VersionList } from "./settings-versions";
 
 /** The six steps of Admin › Setup, in order: admin password, downloads, TMDb, library, readiness, activation.
@@ -17,6 +17,8 @@ export function setupSteps(s?: SetupState, versions?: VersionList, readiness = f
   !!versions?.switches.router_enabled && versions.switches.sources?.router !== "forced off by environment" && versions.switches.versions.some(v => v.grab_state?.mode === "active" && v.grab_state.grab === true),
  ];
 }
+/** A library is Active: the install went live at some point, whatever the global switches say now. */
+export const anyActive = (versions: VersionList) => versions.switches.versions.some(v => v.grab_state?.mode === "active");
 export function useSetupProgress(enabled = true) {
  const setup = useSetup(enabled);
  const versions = useVersions(enabled);
@@ -27,5 +29,5 @@ export function useSetupProgress(enabled = true) {
   ? latest.status === "success" && latest.sources === true && latest.report?.fail === 0
   : !!server && server.sources && server.fail === 0 && versions.data !== undefined && server.generation === versions.data.generation;
  const steps = setupSteps(setup.data, versions.data, readiness);
- return { setup, versions, steps, done: steps.filter(Boolean).length, total: steps.length, unfinished: enabled && setupUnfinished(setup.data), report: latest?.report, last: !latest && server && server.generation === versions.data?.generation ? server : undefined };
+ return { setup, versions, steps, done: steps.filter(Boolean).length, total: steps.length, unfinished: enabled && setupLinkShown(setup.data, versions.data && anyActive(versions.data), readiness), report: latest?.report, last: !latest && server && server.generation === versions.data?.generation ? server : undefined };
 }

@@ -18,7 +18,8 @@ import { DownloadsOffNotice, VersionStatus } from "@/components/version-status";
 import { globalDownloadsOff } from "@/lib/version-grab";
 import { ErrorState, Loading, PageHeader } from "@/components/page";
 import { EffectsConfirmDialog } from "@/components/settings/confirm-write";
-import { SELECT_CLASS } from "@/components/settings/parts";
+import { SELECT_CLASS, TestResult } from "@/components/settings/parts";
+import { useSettings } from "@/api/settings";
 import { TMDbKey } from "@/components/settings/tmdb-key";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -71,18 +72,20 @@ export function SetupPage() {
       <Step n={2} title="Connect downloads" done={progress.steps[1]}>
         <p>Add a download provider and an indexer. Each form can test before it saves, and a passed test offers enabling in the same save.</p>
         <h3>Debrid providers <Badge tone={s.providers > 0 ? "positive" : "neutral"}>{s.providers > 0 ? "Done" : "Not yet"}</Badge></h3>
-        <p>{s.providers ? `${s.providers} enabled ${s.providers === 1 ? "provider" : "providers"} with an API key.` : "No enabled debrid provider with an API key yet: nothing can be added to debrid."} Add Real-Debrid, AllDebrid or TorBox with its API key under <Link className="underline" to="/admin/settings/downloads">Settings › Download clients</Link>; the key is tested with a read-only account call.</p>
+        <p>{s.providers ? `${s.providers} enabled ${s.providers === 1 ? "provider" : "providers"} with an API key: configured; the connection is not verified here.` : "No enabled debrid provider with an API key yet: nothing can be added to debrid."} Add Real-Debrid, AllDebrid or TorBox with its API key under <Link className="underline" to="/admin/settings/downloads">Settings › Download clients</Link>; the key is tested with a read-only account call.</p>
+        <SourceStates entity="providers" ready={s.ready_providers ?? []} />
         <h3>Indexers <Badge tone={s.indexers > 0 ? "positive" : "neutral"}>{s.indexers > 0 ? "Done" : "Not yet"}</Badge></h3>
-        <p>{s.indexers ? `${s.indexers} enabled ${s.indexers === 1 ? "indexer" : "indexers"} ready to search.` : "No enabled indexer yet (Torznab and DMM also need their key): nothing can be searched."} Both ways work, and they mix:</p>
+        <p>{s.indexers ? `${s.indexers} enabled ${s.indexers === 1 ? "indexer" : "indexers"} configured; the connection is not verified here.` : "No enabled indexer yet (Torznab and DMM also need their key): nothing can be searched."} Both ways work, and they mix:</p>
+        <SourceStates entity="indexers" ready={s.ready_indexers ?? []} />
         <ul className="list-disc pl-5">
-          <li><strong>Keep Prowlarr:</strong> add each Prowlarr feed as a Torznab indexer (Built-in sources), or use Migrate from Prowlarr once, under <Link className="underline" to="/admin/settings/indexers">Settings › Indexers › Add indexer</Link>.</li>
+          <li><strong>Keep Prowlarr:</strong> add each Prowlarr feed as a Torznab indexer (the Torznab &amp; built-in sources tab), or use Migrate from Prowlarr once, under <Link className="underline" to="/admin/settings/indexers">Settings › Indexers › Add indexer</Link>.</li>
           <li><strong>Native catalog:</strong> pick indexers from the catalog (Cardigann definitions) or the built-in sources (DMM, Torrentio, Zilean, SeaDex) in the same sheet.</li>
         </ul>
         <p>The VPN check is optional and off by default. Once set up under <Link className="underline" to="/admin/settings/indexers/vpn">Settings › Indexers › VPN</Link>, requests of the traffic it requires (indexers unless you change it) are refused while the VPN exit is not confirmed.</p>
       </Step>
       <Step n={3} title="Add metadata (TMDb)" done={progress.steps[2]}>
         {s.tmdb
-          ? <p>TMDb is set. Its sources and key, TVDB and the artwork cache are under <Link className="underline" to="/admin/settings/metadata">Settings › Metadata &amp; artwork</Link>.</p>
+          ? <p>A TMDb key is set: configured; the connection is not verified here (a search for a title shows whether TMDb answers). Its sources and key, TVDB and the artwork cache are under <Link className="underline" to="/admin/settings/metadata">Settings › Metadata &amp; artwork</Link>.</p>
           : <><p>Without a TMDb key, search and adding titles only see what the library already has, and there is no artwork or release date. TVDB (optional, for series numbering and anime) is under <Link className="underline" to="/admin/settings/metadata">Settings › Metadata &amp; artwork</Link>.</p><TMDbKey onSaved={refresh} /></>}
       </Step>
       <Step n={4} title="Connect your library" done={progress.steps[3]}>
@@ -99,7 +102,7 @@ export function SetupPage() {
       </Step>
       <Step n={5} title="Check readiness" done={progress.steps[4]}>
         <Preflight generation={progress.versions.data?.generation} report={progress.report} last={progress.last} />
-        <Link className="underline" to={journalHome()}>See example decisions</Link>
+        <Link className="underline" to={journalHome()}>Open the decision journal</Link>
       </Step>
       <Step n={6} title="Review activation" done={progress.steps[5]}>
         {oneStep
@@ -109,6 +112,22 @@ export function SetupPage() {
       </Step>
     </ol>
   </div>;
+}
+
+/** What the server already knows about the sources a step counts: each one's latest test since Theatarr started and
+ * an active back-off, from the settings list (GET /settings). Nothing is tested and no request leaves the server. */
+function SourceStates({ entity, ready }: { entity: "indexers" | "providers"; ready: string[] }) {
+  const settings = useSettings();
+  const page = entity === "indexers" ? "/admin/settings/indexers" : "/admin/settings/downloads";
+  const rows = (settings.data?.[entity] ?? []).filter((r) => ready.includes(r.key));
+  if (!rows.length) return null;
+  return <ul className="space-y-1" data-testid={`source-states-${entity}`}>{rows.map((r) => {
+    const backoff = r.backoff as { active?: boolean; until?: string } | undefined;
+    return <li key={r.key} className="flex flex-wrap items-center gap-2"><Link className="font-mono text-[13px] underline" to={`${page}?edit=${encodeURIComponent(r.key)}`}>{r.key}</Link>
+      {r.last_test ? <><span>last test:</span><TestResult result={r.last_test} /></> : <span className="text-muted-foreground">not tested since Theatarr started; Test it on its settings page.</span>}
+      {backoff?.active ? <Badge tone="warning">backing off{backoff.until ? ` until ${new Date(backoff.until).toLocaleTimeString()}` : ""}</Badge> : null}
+    </li>;
+  })}</ul>;
 }
 
 function Activation({ data }: { data: VersionList }) {
@@ -178,6 +197,9 @@ function VersionForm({ data, state, oneStep, onDone, reload }: { data: VersionLi
   // The one-step start waiting for its confirmation: the request and what the server says it turns on.
   const [starting, setStarting] = useState<{ body: SetupStartBody; confirmation: WriteConfirmation }>();
   const set = <K extends keyof Draft>(k: K, v: Draft[K]) => { setDraft({ ...draft, [k]: v }); setReview(false); setEffects(undefined); setPending(undefined); };
+  // A profile is picked for one kind: another kind starts without one, so a movie profile is never kept for a series
+  // library unnoticed. Picking it again afterwards is a deliberate choice.
+  const setKind = (kind: Draft["kind"]) => { if (kind === draft.kind) return; setDraft({ ...draft, kind, profile: "" }); setReview(false); setEffects(undefined); setPending(undefined); };
   const preset = draft.profile.startsWith("preset:") ? presets.data?.presets.find((p) => `preset:${p.trash_id}` === draft.profile) : undefined;
   const reuse = !!preset && made?.key === draft.key && made.preset === preset.trash_id;
   // Review names a profile as created only when Create makes it; an existing one is the profile the library uses.
@@ -291,7 +313,7 @@ function VersionForm({ data, state, oneStep, onDone, reload }: { data: VersionLi
       : <p>Each library has its own settings: a kind, a profile, a root it links into, the indexers it searches and the providers it adds to. It starts in <strong>Shadow</strong> mode (Preview only): it decides and records what it would download, but downloads nothing and writes nothing until you make it Active.</p>}
     {oneStep ? null : <VersionStatus showMode state={{ mode: "shadow", grab: false, library_enabled: data.switches.library_enabled, router_enabled: data.switches.router_enabled, router_forced_off: data.switches.sources?.router === "forced off by environment" }} />}
     <Field label="Key"><Input value={draft.key} onChange={(e) => set("key", e.target.value)} /></Field>
-    <Field label="Kind"><select className={SELECT_CLASS} value={draft.kind} onChange={(e) => set("kind", e.target.value as Draft["kind"])}><option value="movie">Movies</option><option value="series">Series</option></select></Field>
+    <Field label="Kind"><select className={SELECT_CLASS} value={draft.kind} onChange={(e) => setKind(e.target.value as Draft["kind"])}><option value="movie">Movies</option><option value="series">Series</option></select></Field>
     <Field label="Library root (absolute path the library links into; not inside the debrid mount)">
       <div className="flex gap-2"><Input value={draft.library} placeholder="/media/movies" onChange={(e) => { set("library", e.target.value); setRoot(undefined); }} /><Button type="button" variant="outline" disabled={!draft.library.startsWith("/")} onClick={() => void check()}>Check root</Button></div>
     </Field>

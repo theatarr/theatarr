@@ -124,6 +124,7 @@ export function TestResult({ result, now, compact }: { result: SettingsTestResul
     <div className="flex min-w-0 flex-wrap items-center gap-1.5 text-[13px]" data-testid="test-result" data-status={result.status} data-key={result.key}>
       <Badge tone={s.tone}>{s.label}</Badge>
       {compact ? null : <span className="min-w-0 text-muted-foreground [overflow-wrap:anywhere]">{s.line}</span>}
+      {compact || !s.next ? null : <span className="min-w-0 basis-full text-muted-foreground [overflow-wrap:anywhere]" data-testid="test-next">{s.next}</span>}
     </div>
   );
 }

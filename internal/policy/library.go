@@ -51,9 +51,11 @@ type LibraryDangling struct {
 type LibraryMount struct {
 	// Path is where this service sees the mount, e.g. /mnt/debrid. Required once Write library links is on.
 	Path string `yaml:"path"`
-	// LinkPath is the mount path written into symlinks: where Plex sees it. Default Path.
+	// LinkPath is the mount as written into symlinks: the absolute path at which Plex (or another player) sees the
+	// mount. Leave it empty when that is the mount folder itself: an empty value uses the mount folder.
 	LinkPath string `yaml:"link_path"`
-	// AllDir is zurg's directory holding every release. Default __all__.
+	// AllDir is the name of the folder directly under the mount that holds every release: a folder name, not a
+	// path (zurg and mounts laid out like it call it __all__). Default __all__.
 	AllDir string `yaml:"all_dir"`
 	// WaitTimeout is how long an import waits for the release to appear before it alerts (it keeps waiting; no
 	// re-grab). Default 6m.

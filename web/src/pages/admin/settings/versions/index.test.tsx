@@ -749,6 +749,30 @@ describe("Versions grouped by kind", () => {
     expect(fetch.calls("POST", "/settings/versions")[0].body).toMatchObject({ generation: 5, key: "movies", config: { profile: "movies", mode: "shadow" } });
   });
 
+  it("does not keep the preselected movie profile when a new library becomes a series library without a series default", async () => {
+    // No defaults for new libraries: the form opens with the first profile, a movie one.
+    mockFetch([...routes().slice(0, 2), { method: "GET", path: "/settings/quality/overview", reply: { ...quality, defaults: {} } }]);
+    const user = userEvent.setup();
+    renderPage(<VersionsPage />);
+    await screen.findByRole("region", { name: "Movies" });
+    await user.click(screen.getByRole("button", { name: "Add library" }));
+    const form = await screen.findByTestId("version-form");
+    const profile = within(form).getByRole("combobox", { name: "Profile" }) as HTMLSelectElement;
+    const kind = within(form).getByRole("combobox", { name: "Kind" });
+    expect(profile.value).toBe("web");
+    await user.selectOptions(kind, "series");
+    expect(profile.value).toBe("");
+    expect(profile.selectedOptions[0].text).toBe("Choose a profile");
+    expect(within(form).getByTestId("profile-needed").textContent).toContain("Choose a profile for this series library");
+    // A deliberate pick is allowed, the movie profile included, and stays through later kind changes.
+    await user.selectOptions(profile, "web");
+    expect(profile.value).toBe("web");
+    expect(within(form).queryByTestId("profile-needed")).toBeNull();
+    await user.selectOptions(kind, "movie");
+    await user.selectOptions(kind, "series");
+    expect(profile.value).toBe("web");
+  });
+
   it("splits the editor into Where, Which releases and Sources and preselects the default profile per kind", async () => {
     mockFetch(routes());
     const user = userEvent.setup();

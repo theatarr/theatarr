@@ -288,13 +288,13 @@
             "name": "link_path",
             "label": "Library link destination",
             "type": "string",
-            "help": "This is the mount path written into symlinks: where plex sees it. Default path."
+            "help": "This is the mount as written into symlinks: the absolute path at which plex (or another player) sees the mount. Leave it empty when that is the mount folder itself: an empty value uses the mount folder."
           },
           {
             "name": "all_dir",
             "label": "All torrents folder",
             "type": "string",
-            "help": "This is zurg's directory holding every release. Default __all__."
+            "help": "This is the name of the folder directly under the mount that holds every release: a folder name, not a path (zurg and mounts laid out like it call it __all__). Default __all__."
           },
           {
             "name": "wait_timeout",

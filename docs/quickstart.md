@@ -108,7 +108,7 @@ and the first library; Setup links to each editor.
 
 | Where | What to enter |
 |---|---|
-| **Libraries › File management** | **Mount folder** (`/mnt/debrid`), **Library link destination** (the mount as Plex sees it), **All torrents folder** (`__all__` for zurg) and **Trash › Folder** (`/media/.trash`) |
+| **Libraries › File management** | **Mount folder** (`/mnt/debrid`), **Library link destination** (the mount as Plex sees it; empty uses the Mount folder), **All torrents folder** (a folder name under the mount, `__all__` on zurg and mounts laid out like it; not a path) and **Trash › Folder** (`/media/.trash`) |
 | **Plex & playback** | Plex URL and token, and the Plex section for each library |
 | **Metadata & artwork** | TMDb (required: adding titles, search, art and release dates need it) and its image host; TVDB for Sonarr-style series numbering and for anime. See below |
 | **Indexers › VPN** | Optional VPN exit check and the traffic classes that require it |
@@ -169,22 +169,22 @@ and let the library add through it ([external-clients.md (internals)](design/ext
 
 ## 5. Indexers: keep Prowlarr, or go native
 
-Both are first-class, and they mix. **Settings › Indexers › Add indexer** has three tabs: Catalog, Built-in sources
-and Migrate from Prowlarr.
+Both are first-class, and they mix. **Settings › Indexers › Add indexer** has three tabs: Catalog, Torznab & built-in
+sources, and Migrate from Prowlarr. It opens on Catalog, or on Torznab & built-in sources while the catalog is off.
 
 - **Keep Prowlarr.** Add each Prowlarr indexer's Torznab feed (`http://prowlarr:9696/<id>/api` with Prowlarr's API
-  key) as a Torznab indexer (Built-in sources). Or use **Migrate from Prowlarr** once: it proposes one native
+  key) as a Torznab indexer (**Torznab & built-in sources**, then **Torznab / Newznab**). Or use **Migrate from Prowlarr** once: it proposes one native
   indexer per Prowlarr indexer, using the catalog definition where one exists and the Torznab feed where none does.
   Jackett feeds work the same way.
 - **Native catalog.** Pick indexers from the Cardigann definitions (the catalog Prowlarr uses). Turn the catalog on
   under **Settings › Indexers › Catalog** ([cardigann.md (internals)](design/cardigann.md)). Sites behind a Cloudflare check
   need a FlareSolverr-compatible service, set in the same catalog settings. The built-in sources (DMM, Torrentio, Zilean,
-  SeaDex) need no catalog.
+  SeaDex) need no catalog, and none of them is required: use the ones you want.
 
 A new indexer is off until you turn it on. Each form tests the values before it saves them (a probe query through
 the configured VPN check), and a passed test offers to enable the indexer in the same save:
 
-- **Built-in sources** (and a disabled indexer you edit later): **Test these values**, then **Enable and save**
+- **Torznab & built-in sources** (and a disabled indexer you edit later): **Test these values**, then **Enable and save**
   beside the result. **Save** alone stores the current **Enabled** value.
 - **Catalog**: **Test search**, then **Add and enable**. **Add (disabled)** is always there, and is the only
   button until a test has passed.
@@ -213,7 +213,12 @@ save, and the server has no default of its own. The public services are at:
 Privacy is a label for badges, filters and sorting, nothing else. An indexer without one counts as private,
 except the built-in public sources (Torrentio, DMM, Zilean, SeaDex), which count as public. Releases from every
 indexer a debrid library lists, whatever its label, go to that library's providers (optionally limited per
-indexer) and are asked about in DMM's availability check.
+indexer). When a DMM indexer is configured, and only then, they are also asked about in DMM's availability check,
+which adds "cached on" marks before the grab.
+
+DMM is optional. Cached-only grabbing (**Only add cached releases**) works without it: the debrid provider's
+own answer at the add decides whether a release is cached, and an uncached one counts as a miss there. Without DMM fewer releases
+carry a cached mark before the grab, so the provider order and the release list have less to go on.
 
 ## 6. A first library
 
@@ -351,7 +356,7 @@ A library created with **Create library and start downloading** (step 6) is alre
 downloads are on and so are the two global switches. Watch it as in item 3 below. The rest of this step is for a
 library created in shadow.
 
-For a fresh library, read its decisions first: **Activity › Decision journal** (**See example decisions** in Setup)
+For a fresh library, read its decisions first: **Activity › Decision journal** (**Open the decision journal** in Setup)
 shows what it would have grabbed and why ([journal.md](journal.md)). Then run preflight and the go-live check:
 
 ```sh
@@ -412,7 +417,9 @@ reasons a live library stays quiet.
 ## Readiness-led setup
 
 Home and Settings show admins **Finish setting up Theatarr: N of 6** and **Continue setup** while the install has no
-libraries or Setup reports missing pieces. Other users see no setup card. The
+libraries, Setup reports missing pieces, or no library is Active yet and the readiness check (step 5) has not passed
+since the server started. Once a library is Active and nothing is missing, the card and the sidebar entry go away;
+the **Setup checklist** link stays on Settings and System › Status. Other users see no setup card. The
 [arr-to-Theatarr map](arr-map.md) has the page names and menu paths for familiar arr tasks.
 
 Setup (`/admin/setup`) has six steps:
@@ -423,7 +430,7 @@ Setup (`/admin/setup`) has six steps:
 4. **Connect your library:** configure the mount under **Settings › Libraries › File management** and Plex under
    **Settings › Plex & playback**, then create your first library: started at once, or in shadow
    ([above](#6-a-first-library)).
-5. **Check readiness:** run preflight and look at **See example decisions** in **Activity › Decision journal**.
+5. **Check readiness:** run preflight and look at **Activity › Decision journal** (**Open the decision journal**).
 6. **Review activation:** one card per library (its key, label, root, state, indexers and providers, and **Why?**
    listing every closed gate), then the three global switches. This review is read-only; each item links to its
    editor.

@@ -165,8 +165,13 @@ describe("add-indexer sheet", () => {
     const user = userEvent.setup();
     renderPage(indexers(), "/admin/settings/indexers");
     await user.click(screen.getByRole("button", { name: "Add indexer" }));
-    expect((await screen.findByTestId("catalog-off")).textContent).toContain("Indexers › Catalog");
-    await user.click(screen.getByRole("tab", { name: "Built-in sources" }));
+    // With the catalog off the sheet opens on the tab a Prowlarr or Jackett feed is added from.
+    await waitFor(() => expect(screen.getByRole("tab", { name: "Torznab & built-in sources" }).getAttribute("aria-selected")).toBe("true"));
+    await user.click(screen.getByRole("tab", { name: "Catalog" }));
+    const off = (await screen.findByTestId("catalog-off")).textContent;
+    expect(off).toContain("Indexers › Catalog");
+    expect(off).toContain("Torznab & built-in sources tab");
+    await user.click(screen.getByRole("tab", { name: "Torznab & built-in sources" }));
     expect(Array.from(screen.getByTestId("builtin-list").querySelectorAll("button")).map((b) => b.getAttribute("data-testid"))).toEqual(
       ["builtin-torznab", "builtin-dmm", "builtin-torrentio", "builtin-zilean", "builtin-seadex"],
     );
@@ -177,7 +182,7 @@ describe("add-indexer sheet", () => {
     await waitFor(() => expect(document.activeElement).toBe(within(form).getByTestId("record-form-heading")));
   });
 
-  it("adds a Torznab source from the Built-in sources tab, confirms its effects and saves again with the token", async () => {
+  it("adds a Torznab source from the Torznab & built-in sources tab, confirms its effects and saves again with the token", async () => {
     const effects = [{ version: "movie-web", effect: "Indexer new-indexer becomes searchable: active version movie-web may query it." }];
     const fetch = mockFetch([
       { method: "GET", path: "/cardigann/definitions", reply: json(catalogOff) },
@@ -188,8 +193,7 @@ describe("add-indexer sheet", () => {
     const user = userEvent.setup();
     renderPage(indexers(), "/admin/settings/indexers");
     await user.click(screen.getByRole("button", { name: "Add indexer" }));
-    await user.click(screen.getByRole("tab", { name: "Built-in sources" }));
-    await user.click(screen.getByRole("button", { name: /Torznab/ }));
+    await user.click(await screen.findByRole("button", { name: /Torznab \/ Newznab/ }));
     const form = within(await screen.findByTestId("record-form"));
     expectNamedControls();
     // Paste whole values: typing per character re-renders the whole editor each time.

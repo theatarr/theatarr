@@ -3,7 +3,7 @@ import { createElement } from "react";
 import { screen, waitFor } from "@testing-library/react";
 import { mockFetch, renderPage } from "@/test/page";
 import { SystemBadge } from "./app-shell";
-import { setupUnfinished, type SetupState } from "@/api/setup";
+import { setupLinkShown, setupUnfinished, type SetupState } from "@/api/setup";
 import { describe, expect, it, vi } from "vitest";
 import { flatItems, itemFor, itemActive, moreFor, navFor, tabFor, TABS, type NavGroup } from "./nav";
 import { permsOf } from "@/api/library";
@@ -107,6 +107,20 @@ it("uses first_run or missing setup steps", () => {
  for (const [first_run, missing, expected] of [[false, [], false], [true, [], true], [false, ["provider"], true]] as const) {
   expect(setupUnfinished({ first_run, missing: [...missing] } as SetupState)).toBe(expected);
  }
+});
+it("keeps the Setup link until an install goes live or passes readiness, and never brings it back for a live one", () => {
+ const nothingMissing = { first_run: false, missing: [] } as unknown as SetupState;
+ // A fresh install at 4 of 6: libraries in Shadow, the preflight failed or never ran.
+ expect(setupLinkShown(nothingMissing, false, false)).toBe(true);
+ // Shadow by choice: a full preflight without failures ends the reminder; activation is not required.
+ expect(setupLinkShown(nothingMissing, false, true)).toBe(false);
+ // Set up long ago: a library is Active. Its readiness step is open after every restart, and that alone shows nothing.
+ expect(setupLinkShown(nothingMissing, true, false)).toBe(false);
+ // The libraries have not loaded (or failed to): nothing new shows.
+ expect(setupLinkShown(nothingMissing, undefined, false)).toBe(false);
+ expect(setupLinkShown(undefined, false, false)).toBe(false);
+ // Something the install needs is missing: shown as before, live or not.
+ expect(setupLinkShown({ first_run: false, missing: ["no debrid mount"] } as unknown as SetupState, true, true)).toBe(true);
 });
 
 it("phone sections keep all children visible as vertical lists and preserve badges", () => {

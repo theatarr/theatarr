@@ -19,6 +19,9 @@ describe("health", () => {
     expect(healthLink("JobBacklogCheck")).toBe("/admin/system/tasks");
     expect(healthLink("VpnEgressCheck")).toBe("/admin/settings/indexers/vpn");
     expect(healthLink("ProviderSyncCheck")).toBe("/admin/settings/downloads");
+    // The debrid account check is fixed where the key is, not on Status (the page that lists it).
+    expect(healthLink("ProviderAccountCheck")).toBe("/admin/settings/downloads");
+    expect(healthEffect("ProviderAccountCheck").next).toContain("Settings › Download clients");
     expect(healthLink("BackupCheck")).toBe("/admin/system/backup#backup-check");
     expect(healthLink("DiskSpaceCheck")).toBe("/admin/system/backup");
     expect(healthLink("SetupCheck")).toBe("/admin/setup");

@@ -52,7 +52,7 @@ it("renders activation and reminders from the same count without writes", async 
  expect(screen.getByText("Getting started: 5 of 6 steps complete")).toBeTruthy();
  expect(screen.getByRole("progressbar").getAttribute("value")).toBe("5");
  expect(screen.getByRole("progressbar").getAttribute("max")).toBe("6");
- expect(screen.getByText(/TMDb is set\./)).toBeTruthy();
+ expect(screen.getByText(/A TMDb key is set: configured; the connection is not verified here/)).toBeTruthy();
  expect(screen.queryByTestId("tmdb-key")).toBeNull();
  expect(screen.getByText(/Indexers: feed · Providers: rd/)).toBeTruthy();
  expect(screen.getByText(/Root: \/media\/movies/)).toBeTruthy();
@@ -135,4 +135,23 @@ it("shows the server's last preflight on the setup page, and a run in this sessi
  expect(screen.queryByTestId("preflight-last")).toBeNull();
  // The run refetches GET /setup, so the server's summary stays the one a reload would read.
  await waitFor(() => expect(fetch.calls("GET", "/setup").length).toBeGreaterThan(setupReads));
+});
+
+it.each([
+ ["a fresh install with Shadow libraries and readiness open (4 of 6)", "shadow", undefined, "4", true],
+ ["a Shadow install whose full preflight passed", "shadow", { at: "2026-11-09T10:00:00Z", generation: 1, sources: true, ok: 3, warn: 1, fail: 0 }, "5", false],
+ ["a Shadow install whose preflight found a failure", "shadow", { at: "2026-11-09T10:00:00Z", generation: 1, sources: true, ok: 3, warn: 0, fail: 1 }, "4", true],
+ ["an install that went live long ago, after a restart forgot its preflight", "active", undefined, "5", false],
+] as const)("the Home setup card and its link for %s", async (_name, mode, last, done, shown) => {
+ const row = versions.switches.versions[0];
+ const list: VersionList = { ...versions, switches: { ...versions.switches, versions: [{ ...row, mode, grab_state: { ...row.grab_state!, mode, grab: mode === "active" } }] } };
+ mockFetch([{ method: "GET", path: "/auth/me", reply: { permissions: ["admin"] } }, { method: "GET", path: "/setup", reply: { ...state, missing: [], last_preflight: last } }, { method: "GET", path: "/settings/versions", reply: list }]);
+ renderPage(<><Progress id="p" /><SetupReminder /></>);
+ await waitFor(() => expect(screen.getByTestId("p").textContent).toBe(done));
+ if (shown) expect((await screen.findByRole("link", { name: "Continue setup" })).getAttribute("href")).toBe("/admin/setup");
+ else {
+  // Give the reminder's own render a turn: it reads the same two answers.
+  await new Promise(r => setTimeout(r, 20));
+  expect(screen.queryByText(/Finish setting up/)).toBeNull();
+ }
 });

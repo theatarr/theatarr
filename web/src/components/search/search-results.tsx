@@ -370,7 +370,8 @@ export function searchProblem(error: unknown, data?: Pick<SearchAnswer, "tmdb_st
   return null;
 }
 
-export function SectionError({ problem, onRetry, retrying, testid }: { problem: SearchProblem; onRetry: () => void; retrying?: boolean; testid?: string }) {
+/** admin and onOpen: a TMDb failure tells an admin where the key and address are set (onOpen closes the overlay). */
+export function SectionError({ problem, onRetry, retrying, testid, admin, onOpen }: { problem: SearchProblem; onRetry: () => void; retrying?: boolean; testid?: string; admin?: boolean; onOpen?: () => void }) {
   return (
     <div
       role="alert"
@@ -382,6 +383,16 @@ export function SectionError({ problem, onRetry, retrying, testid }: { problem: 
       <div className="min-w-0 flex-1">
         <div className="font-semibold text-[var(--bad-ink)]">{problem.title}</div>
         <div className="text-xs text-[var(--ink-3)] [overflow-wrap:anywhere]">{problem.detail}</div>
+        {problem.kind === "tmdb" ? (
+          <div className="text-xs text-[var(--ink-3)] [overflow-wrap:anywhere]" data-testid="tmdb-next">
+            If it keeps failing, the TMDb key may be wrong or Theatarr cannot reach TMDb (network, DNS).{" "}
+            {admin ? (
+              <Link to={settingHref("metadata", "sources.tmdb") ?? "/admin/settings/metadata"} onClick={onOpen} className="font-medium text-[var(--accent-ink)] underline-offset-2 hover:underline">
+                Check the TMDb key and address
+              </Link>
+            ) : "An administrator can check the key."}
+          </div>
+        ) : null}
       </div>
       <Button variant="outline" size="sm" onClick={onRetry} disabled={retrying}>
         {retrying ? <Loader2 className="animate-spin" /> : <RotateCcw />}

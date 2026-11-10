@@ -2,7 +2,7 @@ import { Empty, Loading, ErrorState } from "@/components/page";
 import { Link } from "react-router";
 import { settingHref } from "@/lib/settings-map";
 // The add-indexer sheet (docs/design/settings.md, "Adding an indexer"): three tabs. Catalog lists the cardigann
-// definitions Theatarr runs itself, with a set-up form built from the chosen definition's settings; Built-in sources
+// definitions Theatarr runs itself, with a set-up form built from the chosen definition's settings; Torznab & built-in sources
 // opens the record editor for torznab/newznab, dmm, torrentio, zilean or seadex; Migrate from Prowlarr (once) turns
 // Prowlarr's indexers into native ones. Whatever is added here is saved disabled, with a budget of its own, and joins
 // no version: enabling it and listing it in a version stay separate steps. The one exception: a catalog set-up whose
@@ -57,7 +57,7 @@ const STATUS: Record<string, { label: string; tone: "positive" | "info" | "warni
   unsupported: { label: "unsupported", tone: "negative" },
 };
 
-/** What each built-in adapter is, for the Built-in sources tab. */
+/** What each built-in adapter is, for the Torznab & built-in sources tab. */
 const BUILT_IN: Record<string, [string, string]> = {
   torznab: ["Torznab / Newznab", "Any Torznab or Newznab feed URL: Jackett, Prowlarr, a usenet indexer."],
   dmm: ["DMM", "Debrid Media Manager's cached feeds."],
@@ -89,7 +89,11 @@ export function AddIndexer({
   onDone: (added?: string) => void;
   headingRef?: RefObject<HTMLHeadingElement | null>;
 }) {
-  const [tab, setTab] = useState<Tab>("catalog");
+  // The tab the admin picked. Until then the sheet opens on the catalog, or on the Torznab and built-in sources when
+  // the catalog is off: a Prowlarr or Jackett feed needs no catalog, and an empty first tab hid that.
+  const [picked, setTab] = useState<Tab>();
+  const catalog = useCardigannCatalog();
+  const tab = picked ?? (catalog.data?.unavailable || catalogOff(catalog.error) ? "builtin" : "catalog");
   const [setup, setSetup] = useState<CardigannDefinition>();
   // The set-up view and the list replace each other in the sheet: the new heading takes focus, as on open.
   const swapped = useRef(false);
@@ -114,7 +118,7 @@ export function AddIndexer({
       <Tabs value={tab} onValueChange={(v) => setTab(v as Tab)}>
         <TabsList className="flex w-full flex-wrap justify-start" aria-label="How to add an indexer">
           <TabsTrigger value="catalog" data-testid="tab-catalog">Catalog</TabsTrigger>
-          <TabsTrigger value="builtin" data-testid="tab-builtin">Built-in sources</TabsTrigger>
+          <TabsTrigger value="builtin" data-testid="tab-builtin">Torznab &amp; built-in sources</TabsTrigger>
           <TabsTrigger value="prowlarr" data-testid="tab-prowlarr">Migrate from Prowlarr (once)</TabsTrigger>
         </TabsList>
         <TabsContent value="catalog">
@@ -154,7 +158,7 @@ function CatalogTab({ onSetUp }: { onSetUp: (d: CardigannDefinition) => void }) 
   if (catalog.error || catalog.data.unavailable) {
     return !catalog.error || catalogOff(catalog.error) ? (
       <p className="text-sm text-muted-foreground" data-testid="catalog-off">
-        The indexer catalog is off. Turn it on in <a href={settingHref("cardigann", "definitions")}>Indexers › Catalog</a>: Turn the catalog on, then Save.
+        The indexer catalog is off. Turn it on in <a href={settingHref("cardigann", "definitions")}>Indexers › Catalog</a>: Turn the catalog on, then Save. A Prowlarr, Jackett or other Torznab feed needs no catalog: add it on the Torznab &amp; built-in sources tab.
       </p>
     ) : (
       <ExplainBox error={explainError(catalog.error)} />

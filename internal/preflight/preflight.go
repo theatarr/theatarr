@@ -518,7 +518,8 @@ func (c *checker) metadata() {
 		c.add(AreaMetadata, "tmdb", Fail, c.missingCredential(src["tmdb"].APIKeyEnv, uipages.Metadata),
 			"TMDb is configured but its key %s is not set", credentialName(src["tmdb"].APIKeyEnv))
 	default:
-		c.add(AreaMetadata, "tmdb", OK, "", "TMDb key set")
+		// Presence only: no request goes to TMDb here, so a wrong key or an unreachable host still passes.
+		c.add(AreaMetadata, "tmdb", OK, "", "TMDb key set (configured; the connection is not tested here: a search shows whether TMDb answers)")
 	}
 	series := false
 	for _, v := range c.p.Versions {

@@ -86,7 +86,7 @@ describe("setup", () => {
     await screen.findByRole("dialog", { name: "Confirm what this change enables" });
     expect(screen.getByRole("dialog").textContent).toContain("metadata.sources.tmdb-images.url");
     await user.click(screen.getByRole("button", { name: "Confirm and save" }));
-    await screen.findByText(/TMDb is set\./);
+    await screen.findByText(/A TMDb key is set: configured; the connection is not verified here/);
     expect(screen.getByText("Getting started: 2 of 6 steps complete")).toBeTruthy();
     expect(screen.queryByTestId("tmdb-key")).toBeNull();
     const [first, second] = fetch.calls("PUT", "/settings/sections/metadata");
@@ -132,6 +132,49 @@ describe("setup", () => {
     expect(check).not.toContain("writable");
   });
 
+  it("asks for a profile again when the first library's kind changes, so a movie pick is not kept for series", async () => {
+    const user = userEvent.setup();
+    mockFetch([
+      { method: "GET", path: "/setup", reply: fresh },
+      { method: "GET", path: "/settings/versions", reply: { ...versions, profiles: { hd: "hd-set" } } },
+      { method: "GET", path: "/settings/presets", reply: { flavour: "radarr", presets: [preset] } },
+    ]);
+    renderPage(<SetupPage />);
+    const profile = await screen.findByLabelText("Quality profile") as HTMLSelectElement;
+    expect(profile.value).toBe("hd");
+    await user.selectOptions(screen.getByLabelText("Kind"), "series");
+    expect(profile.value).toBe("");
+    expect(screen.getByText(/Still needed:/).textContent).toContain("a profile");
+    // Picking the same profile for the series library is a deliberate choice.
+    await user.selectOptions(profile, "hd");
+    expect(profile.value).toBe("hd");
+  });
+
+  it("shows what the server knows about a counted source: its last test and a back-off, without testing anything", async () => {
+    const fetch = mockFetch([
+      { method: "GET", path: "/setup", reply: { ...fresh, first_run: false, admin_password_generated: false, versions: 1, versions_with_roots: 1, missing: [] } },
+      { method: "GET", path: "/settings", reply: {
+        indexers: [
+          { id: 1, key: "feed", kind: "torznab", enabled: true, config: {}, backoff: { active: true, until: "2026-11-10T12:00:00Z" },
+            last_test: { key: "feed", entity: "indexers", status: "failed", category: "connectivity", message: "could not reach the source", latency_ms: 0, tested_at: "2026-11-10T10:00:00Z" } },
+          { id: 2, key: "other", kind: "torznab", enabled: false, config: {} },
+        ],
+        providers: [{ id: 3, key: "rd", kind: "realdebrid", enabled: true, config: {} }],
+      } },
+    ]);
+    renderPage(<SetupPage />);
+    const indexers = await screen.findByTestId("source-states-indexers");
+    // Still counted as configured (the step rule is unchanged), and the failed test is in view beside it.
+    expect(screen.getByText(/1 enabled indexer configured; the connection is not verified here\./)).toBeTruthy();
+    expect(indexers.textContent).toContain("could not reach the source");
+    expect(indexers.textContent).toContain("Check the address");
+    expect(indexers.textContent).toContain("backing off");
+    expect(indexers.textContent).not.toContain("other");
+    expect(indexers.querySelector("a")?.getAttribute("href")).toBe("/admin/settings/indexers?edit=feed");
+    expect(screen.getByTestId("source-states-providers").textContent).toContain("not tested since Theatarr started");
+    expect(fetch.requests.every((r) => r.method === "GET")).toBe(true);
+  });
+
   it("renders a complete install whose missing list is null, and links sources to their editors", async () => {
     mockFetch([{ method: "GET", path: "/setup", reply: { ...fresh, first_run: false, admin_password_generated: false, versions: 1, versions_with_roots: 1, missing: null as unknown as string[] } }]);
     renderPage(<SetupPage />);
@@ -140,8 +183,9 @@ describe("setup", () => {
     expect(screen.getByRole("link", { name: "Libraries" }).getAttribute("href")).toBe("/admin/settings/libraries");
     expect(screen.queryByTestId("setup-missing")).toBeNull();
     // The counts are the sources that would run, in words that agree with the server's "Off until set up" list.
-    expect(screen.getByText(/1 enabled provider with an API key\./)).toBeTruthy();
-    expect(screen.getByText(/1 enabled indexer ready to search\./)).toBeTruthy();
+    expect(screen.getByText(/1 enabled provider with an API key: configured; the connection is not verified here\./)).toBeTruthy();
+    expect(screen.getByText(/1 enabled indexer configured; the connection is not verified here\./)).toBeTruthy();
+    expect(screen.queryByText(/ready to search/)).toBeNull();
     expect(screen.getByText(/Each form can test before it saves, and a passed test offers enabling in the same save\./)).toBeTruthy();
     expect(screen.queryAllByRole("link").map((l) => l.getAttribute("href"))).not.toContain("/admin/connections");
   });

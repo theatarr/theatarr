@@ -23,6 +23,14 @@ export const usePreflight = (generation?: number) => {
 
 export const setupUnfinished = (state?: SetupState) => !!state && (state.first_run || (state.missing ?? []).length > 0);
 
+/** Whether Home and the sidebar lead to Setup. Something the install needs is missing (setupUnfinished), or it has
+ * not gone live and its readiness is open: no library is Active and no full preflight passed without failures for
+ * the current settings. An install with an Active library never gets the link back for readiness alone: the
+ * preflight summary is kept in memory, so its readiness step reopens with every restart. live is undefined until
+ * the libraries have loaded, which shows nothing new. */
+export const setupLinkShown = (state: SetupState | undefined, live: boolean | undefined, readiness: boolean) =>
+  setupUnfinished(state) || (!!state && live === false && !readiness);
+
 /** The one-step start of an install no arr feeds: the library active with its downloads on, the optional preset as
  * its profile, and the global switches router and library on, in one save. A 422 lists the effects with a token. */
 export const startSetup = (body: SetupStartBody) => api<SetupStarted>("/setup/start", { method: "POST", body });

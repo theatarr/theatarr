@@ -1,8 +1,9 @@
 import { useEffect, useRef, useState } from "react";
-import { useLocation } from "react-router";
+import { Link, useLocation } from "react-router";
 import { useQueryClient } from "@tanstack/react-query";
 import { sectionsQuery, useSettingsSections, useSettingsSchema } from "@/api/settings";
 import { ErrorState, Loading } from "@/components/page";
+import { useVersions } from "@/api/settings-versions";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { useShowAdvanced } from "@/lib/settings-map";
@@ -51,6 +52,8 @@ function PanelEditor({ id, title, help, section: key, keys, onSaved }: Props) {
   const timer = setTimeout(() => setHighlight(false), 1800);
   return () => clearTimeout(timer);
  }, [hash, id, ready]);
+ const perLibrary = key === "library" && keys.includes("versions");
+ const libraries = useVersions(perLibrary);
  const editor = useSectionPatch(key, () => {
   setSaved(true); setDraft(undefined); setSecrets(emptySecrets());
   onSaved?.();
@@ -61,7 +64,16 @@ function PanelEditor({ id, title, help, section: key, keys, onSaved }: Props) {
  const section = sections.data.sections.find(s => s.key === key);
  const config = objectValue(section?.config);
  const select = (value: Config) => keys.includes("") ? structuredClone(value) : Object.fromEntries(keys.filter(k => k in value).map(k => [k, structuredClone(value[k])]));
- const loaded = select(config);
+ // Plex library for each Theatarr library: the stored section names a library only once something was set for it,
+ // so a new library had no row. Every library gets one; a row left empty is not written.
+ const libraryKeys = (libraries.data?.versions ?? []).map(v => v.key);
+ const storedRows = objectValue(config.versions);
+ const withRows = (value: Config): Config => perLibrary && libraryKeys.length ? { ...value, versions: { ...Object.fromEntries(libraryKeys.map(k => [k, {}])), ...objectValue(value.versions) } } : value;
+ const withoutEmptyRows = (versions: unknown) => {
+  const rows = Object.entries(objectValue(versions)).filter(([k, row]) => k in storedRows || Object.keys(objectValue(row)).length > 0);
+  return rows.length || config.versions !== undefined ? Object.fromEntries(rows) : undefined;
+ };
+ const loaded = withRows(select(config));
  const value = draft ?? loaded;
  const changes = changedPaths(value, loaded).length + Object.values(secrets.actions).filter(a => a !== "keep").length;
  const dirty = changes > 0;
@@ -73,7 +85,10 @@ function PanelEditor({ id, title, help, section: key, keys, onSaved }: Props) {
   const credentials = sectionSecrets(key, scoped);
   void editor.save(latest => {
    if (keys.includes("")) { for (const k of Object.keys(latest)) delete latest[k]; Object.assign(latest, value); }
-   else for (const k of keys) { if (k in value) latest[k] = value[k]; else delete latest[k]; }
+   else for (const k of keys) {
+    const next = perLibrary && k === "versions" ? withoutEmptyRows(value[k]) : value[k];
+    if (k in value && next !== undefined) latest[k] = next; else delete latest[k];
+   }
    Object.assign(latest, withSecretParents(latest, key, scoped));
   }, credentials.secrets, credentials.clear_secrets);
  };
@@ -83,6 +98,7 @@ function PanelEditor({ id, title, help, section: key, keys, onSaved }: Props) {
   {readOnly ? <p>Read-only: these settings cannot be edited here.</p> : null}
   {key === "cardigann" && keys.includes("definitions") ? <CatalogState saved={loaded.definitions} draft={value.definitions} disabled={readOnly || editor.busy} onTurnOn={() => { setDraft({ ...value, definitions: { repo: CATALOG_REPO } }); setSaved(false); }} /> : null}
   <SectionFields fields={plainFields((schema.data.sections?.[key] ?? []).filter(f => keys.includes(f.name)), key)} config={value} saved={loaded} path={key} advanced={advanced} disabled={readOnly || editor.busy} onChange={v => { setDraft(v); setSaved(false); }} secrets={(section?.secrets ?? []).map(s => ({ ...s, path: `${key}.${s.path}` }))} secretDraft={secrets} onSecrets={v => { setSecrets(v); setSaved(false); }} errors={sectionErrors(editor.failure)} />
+  {perLibrary && libraries.data && !Object.keys(objectValue(value.versions)).length ? <p className="text-sm" data-testid="plex-libraries-empty">No libraries yet. Create one under <Link className="underline" to="/admin/settings/libraries">Settings › Libraries</Link>; each library then gets a row here for the ID of the Plex library that shows its folder.</p> : null}
   <UnsavedBar changes={changes} label={title}>
    <Button variant="outline" disabled={readOnly || editor.busy || !dirty} onClick={reset}>Discard</Button>
    <Button disabled={readOnly || editor.busy || !dirty || missingSecret} onClick={save}>Save</Button>

@@ -51,3 +51,15 @@ it("numbers a runner-up from its place when the entry records no rank", async ()
   expect(await screen.findByText(/^#2 Bees\.2024\.PROPER/)).toBeTruthy();
   expect(screen.queryByText(/^#0 /)).toBeNull();
 });
+
+it("says how entries appear when the journal is empty, and keeps the short text under a filter", async () => {
+  mockFetch([
+    { method: "GET", path: "/journal", reply: { items: [] } },
+    { method: "GET", path: "/status", reply: {} },
+  ]);
+  const first = renderPage(<JournalList />, "/activity/journal");
+  expect(await screen.findByText(/No entries yet\. One appears each time a library judges a release/)).toBeTruthy();
+  first.unmount();
+  renderPage(<JournalList />, "/activity/journal?kind=grab");
+  expect(await screen.findByText("No entries.")).toBeTruthy();
+});
