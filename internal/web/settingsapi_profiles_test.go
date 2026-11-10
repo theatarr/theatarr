@@ -9,6 +9,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/theatarr/theatarr/internal/decide/format"
 	"github.com/theatarr/theatarr/internal/policy"
 	"github.com/theatarr/theatarr/internal/settings"
 	"github.com/theatarr/theatarr/internal/trashbundle"
@@ -265,6 +266,28 @@ func TestPresetsFromTheBundleWithoutACheckout(t *testing.T) {
 			}
 			if made.Origin == nil || made.Origin.Preset != webPreset || made.Guessed || made.Diff == nil || !made.Diff.Same || made.Binding != "" {
 				t.Fatalf("web-bundled %+v %+v", made, made.Diff)
+			}
+			// The bundle changes the profiles only: the format summaries are those of an install without a tree.
+			snap, err := se.coord.Snapshot(context.Background())
+			if err != nil {
+				t.Fatal(err)
+			}
+			in := settings.OverviewInput{Policy: snap.Policy, Profiles: snap.Records.Profiles, Formats: snap.Records.Formats, Sources: snap.Records.SyncSources}
+			if want := settings.QualityOverviewOf(in).Formats; len(want) == 0 || !reflect.DeepEqual(ov.Formats, want) {
+				t.Fatalf("format summaries changed without a checkout:\n%+v\nwant\n%+v", ov.Formats, want)
+			}
+			bundled, err := trashbundle.FS()
+			if err != nil {
+				t.Fatal(err)
+			}
+			in.Trash = map[string]*format.Trash{}
+			for _, fl := range []format.Flavour{format.Radarr, format.Sonarr} {
+				if in.Trash[string(fl)], err = format.LoadTrashFS(bundled, fl); err != nil {
+					t.Fatal(err)
+				}
+			}
+			if reflect.DeepEqual(settings.QualityOverviewOf(in).Formats, ov.Formats) {
+				t.Fatal("the fixture has no format the bundled tree would describe differently")
 			}
 			if logs := se.logs.String(); strings.Contains(logs, "level=ERROR") {
 				t.Fatalf("logged an error:\n%s", logs)

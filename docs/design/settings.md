@@ -1032,7 +1032,11 @@ says which (`source`: `checkout` or `bundled`, with `commit`), and the quality o
   engine and "Check a release" never read a tree for it, and it decides releases exactly as the same preset made
   from a checkout of the bundled commit. With no TRaSH sync source it is unbound; with one it is bound as before.
 - The fallback is for these pages only. Quality sync from a local tree, the recyclarr import, the settings import
-  of `trash_id` formats and the policy build read the configured checkout and behave as before without one.
+  of `trash_id` formats and the policy build read the configured checkout and behave as before without one. So do
+  the format summaries of the Custom Formats page: without a checkout a format is grouped and labelled as before,
+  whatever the bundled tree knows about its name.
+- The listed defaults stay at the bundled commit until the next version, or follow the checkout when one is
+  mounted. Quality sync updates the stored profiles bound to a source, not the list.
 - `scripts/update-trash-bundle.sh` refreshes the snapshot before a release. New presets then appear in the lists;
   existing copies change only through quality sync.
 

@@ -201,6 +201,12 @@ func (w *Web) apiQualityOverview(rw http.ResponseWriter, r *http.Request) {
 		answer.Defaults = defaults
 	}
 	answer.QualityOverview = settings.QualityOverviewOf(in)
+	if trash.source != trashFromCheckout {
+		// The bundled defaults serve the presets and the profile comparisons only: the format summaries (the
+		// Custom Formats page) stay what they are without a checkout.
+		in.Trash = nil
+		answer.Formats = settings.QualityOverviewOf(in).Formats
+	}
 	answer.TrashNote, answer.TrashSource, answer.TrashCommit, answer.TrashCommitDate = trash.note, trash.source, trash.commit, trash.date
 	writeJSON(rw, http.StatusOK, answer)
 }
