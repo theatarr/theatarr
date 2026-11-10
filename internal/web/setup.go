@@ -58,9 +58,9 @@ type SetupState struct {
 	ReadyProviders []string `json:"ready_providers"`
 	ReadyIndexers  []string `json:"ready_indexers"`
 	// Trash: the trash folder (library.trash.dir) is set, which turning on library writes requires.
-	Trash bool `json:"trash"`
-	Profiles  int `json:"profiles"`
-	APIKeys   int `json:"api_keys"`
+	Trash    bool `json:"trash"`
+	Profiles int  `json:"profiles"`
+	APIKeys  int  `json:"api_keys"`
 	// TMDb: the metadata source tmdb has its address and a key that resolves, stored in settings or in the
 	// environment variable the source names: what search and adding titles need.
 	TMDb bool `json:"tmdb"`
