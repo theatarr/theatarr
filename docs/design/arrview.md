@@ -225,11 +225,14 @@ The write convention (`TestMinimumAvailabilityEchoChangesNothing`, `TestMinimumA
   nothing: every library keeps its value and where it comes from, and the PUT answers what the GET did. One scalar
   cannot tell an echo from "set every library to the value shown", so that edit needs the editor (or Theatarr's own
   page). A different value is stored as the choice of each library the view shows for the movie, and no other: not a
-  copy removed from the views, not a library outside the view. A copy the same PUT turns on by a profile change
-  takes its library's own rule, not the body's value.
+  copy removed from the views, not a library outside the view. The libraries written are the ones the
+  view showed before the write: a copy the same PUT turns on by a profile change takes its library's own rule, not
+  the body's value, so when that rule is earlier the PUT answers it and not the body's value.
 - **`PUT movie/editor`** is outside the echo guarantee. A supplied `minimumAvailability` is a deliberate edit, as
   Radarr applies it only when the field is present (`MovieEditorController.cs:64`): it becomes the choice of every
-  library the view shows for each movie, even when it equals the value shown. Without the field nothing is stored
+  library the view shows for each movie, even when it equals the value shown (on a combined view whose libraries differ, all of them take it). As
+  in a PUT, a copy the same call turns on by its profile takes its library's own rule. Without the field nothing is
+  stored
   (`TestMinimumAvailabilityEditor`).
 - **`POST movie`** is decided per library the add turns on (new, restored or unmonitored before): a library with
   `minimum_availability` set uses it, and the client's value is not stored for it; a library without stores the
@@ -247,7 +250,8 @@ The write convention (`TestMinimumAvailabilityEchoChangesNothing`, `TestMinimumA
   (`TestMinimumAvailabilityDeleteClearsChoice`). A combined view's older row is only deleted by a delete through
   that view, as before.
 - List and collection intake still stores the list's or collection's own minimum for the movies it adds, as a choice
-  (a library default does not apply to them), and searches on add only the libraries that are ready under it with
+  (a library default does not apply to them: `movie_import_list` and `movie_collection` store `released` for a
+  list or collection saved without a value, so "not set" cannot be told from an explicit `released`), and searches on add only the libraries that are ready under it with
   their own delay.
 
 Left as before, on purpose:
