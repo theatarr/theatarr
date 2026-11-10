@@ -101,12 +101,23 @@ const retryNewOff = "router.wanted.retry_new is off"
 // is queued, or still searching when a shutdown interrupted the search and handed the job back. A search that is
 // running is left to end by itself. It runs with every published settings generation (serve's AfterPublish) and at
 // start once the acquirer is built, so the save that turns the switch off cancels them, and a restart with the
-// switch off cancels what a handler queued after that; it finds nothing on an install that never had the switch on.
+// switch off cancels what a handler queued after that.
+//
+// It first looks for such a queued job (retryNewQueued: the queued re-search requests and the queued search jobs
+// with their runs by id, no scan of the run table) and without one writes nothing and opens no transaction: that is
+// all an install that never had the switch on does here. Not found that way, and so left as it is until a later
+// call finds a queued job of a chain: a chain's run still queued or searching whose search job is neither queued
+// nor running (the job ended without ending its run). No job is left to search it.
 // A handler already running keeps the settings it started with: what it still queues does nothing when it runs
 // (Research, run).
 func (a *Acquirer) CancelRetryNew(ctx context.Context) (int, error) {
 	if a.set.RetryNew || a.st == nil { // no store: an acquirer built only to judge releases
 		return 0, nil
+	}
+	var queued bool
+	if err := a.st.Reader().QueryRowContext(ctx, retryNewQueued, router.JobResearch, JobSearch).Scan(&queued); err != nil ||
+		!queued {
+		return 0, err
 	}
 	var n int64
 	err := a.st.WriteTx(ctx, func(tx *sql.Tx) error {
@@ -141,6 +152,15 @@ func (a *Acquirer) CancelRetryNew(ctx context.Context) (int, error) {
 	}
 	return int(n), err
 }
+
+// retryNewQueued says whether a queued job of a retry_new chain exists: a request (its kind is the first argument),
+// or a search job (the second) of a chain's run that is queued or searching. These are the jobs CancelRetryNew
+// ends. Both halves read the queued jobs of one kind by the job index, and a search job's run by its id.
+const retryNewQueued = `SELECT EXISTS (SELECT 1 FROM job WHERE kind = ? AND state = 'queued' AND ` + retryNewJobs + `)
+	OR EXISTS (SELECT 1 FROM job j WHERE j.kind = ? AND j.state = 'queued' AND EXISTS (SELECT 1 FROM acquire_run r
+	WHERE r.id = CAST(substr(j.dedupe_key, length('` + JobSearch + `/') + 1) AS INTEGER)
+	AND j.dedupe_key = '` + JobSearch + `/' || r.id AND r.state IN ('queued', 'searching')
+	AND COALESCE(r.research, '') = '` + researchRetryNew + `'))`
 
 // exhaustedChain says whether the title has a chain after a route that missed everywhere: one queued, or one that
 // ran in the fresh window ending at until. A retry_new chain gives way to it.

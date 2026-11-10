@@ -614,3 +614,50 @@ func TestRetryNewOffCancelsAnInterruptedSearch(t *testing.T) {
 		t.Fatal("the cancelled run did not stay skipped")
 	}
 }
+
+// An install that never had the switch on, with an ordinary re-search and its search queued: the cancellation looks
+// for a chain's queued job through the job index and the runs of the queued search jobs by id, never the run table
+// as a whole, and writes nothing. A chain's run without a job is what that leaves: it is ended only by a call that
+// finds a queued job of a chain.
+func TestRetryNewCancelNeverOnReadsNoRunTable(t *testing.T) {
+	t.Parallel()
+	e := retryNewEnv(t, &policy.Wanted{PerHour: 100, Missing: new(bool), CutoffUnmet: policy.CutoffOff})
+	e.research(router.ResearchRequest{TitleID: 10, VersionID: 201, Version: "series", Episodes: []int64{1004},
+		Reason: router.ReasonExhausted})
+	if n := e.count(`SELECT COUNT(*) FROM job WHERE kind = ? AND state = 'queued'`, JobSearch); n != 1 {
+		t.Fatalf("%d ordinary searches queued, want 1", n)
+	}
+	plan := e.plan(retryNewQueued, router.JobResearch, JobSearch)
+	if strings.Contains(strings.ReplaceAll(plan, "SCAN CONSTANT ROW", ""), "SCAN") ||
+		strings.Count(plan, "USING INDEX job_resolve (kind=? AND state=?)") != 2 ||
+		!strings.Contains(plan, "SEARCH r EXISTS USING INTEGER PRIMARY KEY (rowid=?)") {
+		t.Fatalf("the look for a chain's queued job scans a table, or not by the job index and the run's id:\n%s", plan)
+	}
+	// A chain's run with no job: the statement that ends such runs reads the whole run table, so it is not run.
+	e.exec(`INSERT INTO acquire_run (source, title_id, version_id, version_key, target, reason, state, research,
+		claim, created_at, updated_at) VALUES ('wanted', 10, 201, 'series', 's02e01', 'missing', 'searching', ?, 'job:1/1',
+		0, 0)`, researchRetryNew)
+	stamp := e.count(`SELECT MAX(updated_at) FROM job`)
+	if n, err := e.a.CancelRetryNew(e.ctx); err != nil || n != 0 || e.queuedJobs() != 2 {
+		t.Fatalf("%d cancelled, %d queued: %v", n, e.queuedJobs(), err)
+	}
+	if n := e.count(`SELECT COUNT(*) FROM acquire_run WHERE research = ? AND state = 'searching'`,
+		researchRetryNew); n != 1 {
+		t.Fatal("the run table was written without a chain's job queued")
+	}
+	if e.count(`SELECT MAX(updated_at) FROM job`) != stamp || e.count(`SELECT COUNT(*) FROM job WHERE state = 'done'`) != 0 {
+		t.Fatal("a job was written")
+	}
+	// A queued request of a chain: the cancellation runs whole and ends that run with it.
+	if err := e.a.queueFollowUp(e.ctx, router.ResearchRequest{TitleID: 10, VersionID: 201, Version: "series",
+		Reason: router.ReasonFresh, MissedAt: e.clock(), RetryNew: true}, 1, e.clock().Add(24*time.Hour)); err != nil {
+		t.Fatal(err)
+	}
+	if n, err := e.a.CancelRetryNew(e.ctx); err != nil || n != 1 || e.queuedJobs() != 2 {
+		t.Fatalf("with a chain's request: %d cancelled, %d queued: %v", n, e.queuedJobs(), err)
+	}
+	if n := e.count(`SELECT COUNT(*) FROM acquire_run WHERE research = ? AND state = 'skipped' AND infra = ?`,
+		researchRetryNew, runGated); n != 1 {
+		t.Fatal("the chain's run was not ended with the chain's request")
+	}
+}
