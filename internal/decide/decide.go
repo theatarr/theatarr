@@ -50,7 +50,11 @@ type Title struct {
 	Runtime int
 	// OriginalLanguage by arr name ("English") or ISO 639-1 code ("en"); empty is Unknown.
 	OriginalLanguage string
-	Anime            bool
+	// OriginalLanguageResolved is set when a series had no stored original language and OriginalLanguage was
+	// resolved at load (metadata, else English): its held files with no known language then take it, as an untagged
+	// release does.
+	OriginalLanguageResolved bool
+	Anime                    bool
 
 	// Series (Sonarr's Series): the TVDB id, the series type (standard, daily, anime; "" is standard), whether the
 	// series has scene numbering, whether it is monitored, its scene mappings, and its episodes with the version's

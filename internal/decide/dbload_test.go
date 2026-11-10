@@ -303,9 +303,11 @@ func TestLoadSeriesVersion(t *testing.T) {
 	}
 }
 
-// A natively added series (title.original_language NULL, title_meta.original_language set by the art
-// refresh) must decide an untagged release with the series' original language, not Unknown.
-func TestSeriesOriginalLanguageFromMetadata(t *testing.T) {
+// languageFixture is the series policy with "Language: Not English" and "Not Original" at -10000, and four series:
+// 1 native with title_meta en, 2 native with title_meta ja, 3 imported (title.original_language English), 4 native
+// with no metadata language. Each has version 10+id and episode 100+id (S01E01).
+func languageFixture(t *testing.T) (*Engine, func(id int64) Title) {
+	t.Helper()
 	ctx := context.Background()
 	dir := t.TempDir()
 	if err := os.CopyFS(dir, os.DirFS("testdata/series")); err != nil {
@@ -345,7 +347,7 @@ func TestSeriesOriginalLanguageFromMetadata(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer st.Close()
+	t.Cleanup(func() { st.Close() })
 	if _, err := st.Migrate(ctx); err != nil {
 		t.Fatal(err)
 	}
@@ -369,6 +371,25 @@ func TestSeriesOriginalLanguageFromMetadata(t *testing.T) {
 		VALUES (1, 'en', 1, 2, 3, ''), (2, 'ja', 1, 2, 3, '')`)
 	// Control: what importarr stores for a Sonarr-imported series.
 	exec(`UPDATE title SET original_language = 'English' WHERE id = 3`)
+	load := func(id int64) Title {
+		t.Helper()
+		title, err := LoadTitle(ctx, st.Reader(), id)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if err := LoadSeriesVersion(ctx, st.Reader(), &title, 10+id); err != nil {
+			t.Fatal(err)
+		}
+		return title
+	}
+	return e, load
+}
+
+// A natively added series (title.original_language NULL, title_meta.original_language set by the art
+// refresh) must decide an untagged release with the series' original language, not Unknown.
+func TestSeriesOriginalLanguageFromMetadata(t *testing.T) {
+	e, load := languageFixture(t)
+	ctx := context.Background()
 
 	for _, c := range []struct {
 		id        int64
@@ -381,13 +402,7 @@ func TestSeriesOriginalLanguageFromMetadata(t *testing.T) {
 		{4, "native, no metadata language (Sonarr: English)", "Bare.Show.S01E01.2160p.WEB-DL-GRP", "English"},
 	} {
 		t.Run(c.name, func(t *testing.T) {
-			title, err := LoadTitle(ctx, st.Reader(), c.id)
-			if err != nil {
-				t.Fatal(err)
-			}
-			if err := LoadSeriesVersion(ctx, st.Reader(), &title, 10+c.id); err != nil {
-				t.Fatal(err)
-			}
+			title := load(c.id)
 			d, err := e.Decide(ctx, rel(c.rel, "public", 8*gb), title, Version{ID: 10 + c.id, Key: "tv", Policy: e.Policy.Versions["tv"]}, nil)
 			if err != nil {
 				t.Fatal(err)
@@ -404,6 +419,47 @@ func TestSeriesOriginalLanguageFromMetadata(t *testing.T) {
 				if f == "Language: Not Original" || (f == "Language: Not English" && c.wantLang == "English") {
 					t.Errorf("negated language format matched: %s (score %d)", f, d.Score)
 				}
+			}
+		})
+	}
+}
+
+// A held file stored with no known language, against an untagged release of the same quality: on a series added
+// without the arr's language it takes the series' language, as the release does, so the release is no upgrade. An
+// imported series (title.original_language set) and files with a known language score as before.
+func TestHeldUnknownLanguageFile(t *testing.T) {
+	e, load := languageFixture(t)
+	ctx := context.Background()
+	for _, c := range []struct {
+		id        int64
+		name      string
+		languages []string
+		existing  int
+		upgrade   bool
+	}{
+		{1, "native en, Unknown", []string{"Unknown"}, 0, false},
+		{1, "native en, none", nil, 0, false},
+		{2, "native ja, Unknown", []string{"Unknown"}, -10000, false},
+		{4, "native bare, Unknown", []string{"Unknown"}, 0, false},
+		{1, "native en, French", []string{"French"}, -20000, true},
+		{1, "native en, English", []string{"English"}, 0, false},
+		// Unchanged: imported series keep scoring an Unknown file as no language.
+		{3, "imported, Unknown", []string{"Unknown"}, -20000, true},
+		{3, "imported, French", []string{"French"}, -20000, true},
+	} {
+		t.Run(c.name, func(t *testing.T) {
+			title := load(c.id)
+			ep := &title.Episodes[0]
+			ep.File, ep.FileID = &ExistingFile{Quality: "WEBDL-2160p", Revision: 1, SceneName: "Show.S01E01.2160p.WEB-DL-OLD",
+				ReleaseGroup: "OLD", Size: 8 * gb, ReleaseType: "singleEpisode", Languages: c.languages, EpisodeIDs: []int64{ep.ID}}, 1
+			d, err := e.Decide(ctx, rel(strings.ReplaceAll(title.Name, " ", ".")+".S01E01.2160p.WEB-DL-GRP", "public", 8*gb), title,
+				Version{ID: 10 + c.id, Key: "tv", Policy: e.Policy.Versions["tv"]}, nil)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if d.Existing == nil || d.Existing.Score != c.existing || d.Upgrade != c.upgrade {
+				t.Errorf("existing %+v upgrade %v (%s), want score %d upgrade %v", d.Existing, d.Upgrade, d.UpgradeReason,
+					c.existing, c.upgrade)
 			}
 		})
 	}

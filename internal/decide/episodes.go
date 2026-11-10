@@ -369,6 +369,11 @@ func seriesFile(x *ExistingFile, t *Title, original int, p *Profile) (*profile.F
 	in := &format.Input{Flavour: fl, ReleaseTitle: format.Str(title), Source: q.Source, Resolution: q.Resolution,
 		Languages: languageIDs(fl, x.Languages), Size: x.Size, IndexerFlags: x.IndexerFlags,
 		Media: &format.Media{Year: t.Year, OriginalLanguage: original}, SeaDex: x.SeaDex}
+	if t.OriginalLanguageResolved {
+		// A series added without the arr's language: a held file with no known language takes the series' own,
+		// as an untagged release does.
+		in.Languages, _ = adapt.FallbackLanguage(in.Languages, original)
+	}
 	if in.Languages == nil {
 		in.Languages = []int{}
 	}

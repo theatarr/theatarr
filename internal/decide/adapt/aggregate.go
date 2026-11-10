@@ -87,9 +87,7 @@ func aggregateLanguages(ops langOps, parsed []int, releaseTokens string, mapped 
 	}
 
 	// Use the movie's or series' language as fallback if we couldn't parse a language
-	if len(languages) == 0 || (len(languages) == 1 && languages[0] == langUnknown) {
-		languages, assumed = []int{original}, true
-	}
+	languages, assumed = FallbackLanguage(languages, original)
 
 	if contains(languages, langOriginal) {
 		languages = removeFirst(languages, langOriginal)
@@ -100,6 +98,15 @@ func aggregateLanguages(ops langOps, parsed []int, releaseTokens string, mapped 
 		}
 	}
 	return languages, assumed, nil
+}
+
+// FallbackLanguage is AggregateLanguages' fallback: no language, or Unknown alone, becomes the original language.
+// assumed is whether it did.
+func FallbackLanguage(languages []int, original int) ([]int, bool) {
+	if len(languages) == 0 || (len(languages) == 1 && languages[0] == langUnknown) {
+		return []int{original}, true
+	}
+	return languages, false
 }
 
 func contains(s []int, v int) bool {

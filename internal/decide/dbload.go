@@ -402,7 +402,7 @@ func scanTitle(rows *sql.Rows) (Title, error) {
 	if t.Kind == policy.KindSeries {
 		t.Runtime, t.OriginalLanguage = runtime, lang
 		if lang == "" {
-			t.OriginalLanguage = seriesOriginalLanguage(metaLang)
+			t.OriginalLanguage, t.OriginalLanguageResolved = seriesOriginalLanguage(metaLang), true
 		}
 		return t, nil
 	}
