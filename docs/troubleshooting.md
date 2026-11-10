@@ -123,6 +123,30 @@ returned and why each release was accepted or rejected) and **System › Status*
 - **The library root is not writable.** The root and the trash folder must be writable by uid `65532`
   ([quickstart.md](quickstart.md#1-run-the-container)); the preflight names a root it cannot write.
 
+## Status says links are dangling
+
+**Symptom:** **System › Status** shows a notice such as "3 of 1200 links into the mount are dangling", or a title
+that was in Plex no longer plays.
+
+**Cause:** a link in a library folder points at a file that is no longer on the debrid mount: the provider dropped
+or renamed the torrent, or the torrent lost its video file.
+
+**What to look at:** admins get **Show the N broken links** in that check's row on **System › Status**. It opens
+the links of the latest report, oldest first (at most 500; `theatarr library dangling` prints all of them). Each
+line has the title (or the release folder, for a link Theatarr has no title for), the library, how long the link
+has been broken, "torrent has no video upstream" where that is the cause, the link's path, and what happens next:
+
+| Line | Meaning |
+|---|---|
+| Waiting for the next repair sweep | Theatarr made this link and will try to point it at the torrent's new folder. A renamed torrent is fixed this way without a new download. |
+| Link marked missing | The sweep found nothing to point the link at and recorded the file as gone. The title page and **Wanted** show whether that copy is searched again. |
+| A link Theatarr let go of | Theatarr made the link and has since dropped it from its records (the copy was replaced or removed). |
+| Not a link Theatarr made | A link from another tool, such as an arr, under one of the checked folders. Theatarr does not repair it. |
+
+The list only shows the report: opening it scans nothing and repairs nothing. The repair sweep needs **Write
+library links** on and an Active library. To run it by hand, see
+[restore.md](restore.md#restore-from-the-command-line) (`library dangling -scan`, then `library relink -dry-run`).
+
 ## `golive check` skips or fails the agreement line
 
 **Symptom:** `theatarr golive check -library <library>` shows the shadow **window** and **agreement** lines as INFO,

@@ -34,7 +34,7 @@ claim of Sonarr v5 API parity. Recyclarr has no web pages; its table maps the CL
 | Settings › General | No General page: provider account sync is on Download clients (`/admin/settings/downloads#provider-sync`), the artwork cache on Metadata & artwork (`/admin/settings/metadata#artwork-cache`), other libraries' folders on Torrents (`/admin/torrents#scan-roots`) | Accounts/API keys are under Users & access, deployment flags remain outside the UI. `/admin/settings/general` redirects. |
 | Settings › UI | **not needed** | No separate UI settings page; theme is in the account menu, display choices are beside their views. |
 | Settings › Metadata Source | Admin › Settings › Metadata & artwork — `/admin/settings/metadata` | TMDb/TVDB and anime metadata services. |
-| System › Status | Admin › System › Status — `/admin` | Health and readiness across the single service. |
+| System › Status | Admin › System › Status — `/admin` | Health and readiness across the single service. Admins open the broken library links from the dangling-links check (**Show the N broken links**). |
 | System › Tasks | Admin › System › Tasks — `/admin/system/tasks` | Jobs and failures, rather than one scheduler per arr instance. |
 | System › Backups | Admin › System › Backup — `/admin/system/backup` | Full Theatarr backups and restore plus separate torrent-list backups. |
 | System › Updates | **not needed** | Deploy a new Theatarr binary/container; there is no in-app updater. |
@@ -70,7 +70,7 @@ claim of Sonarr v5 API parity. Recyclarr has no web pages; its table maps the CL
 | Settings › Tags | **not needed** | No tag-based routing page; library indexer lists and per-indexer provider allowlists make routing explicit. |
 | Settings › General | No General page: provider account sync is on Download clients (`/admin/settings/downloads#provider-sync`), the artwork cache on Metadata & artwork (`/admin/settings/metadata#artwork-cache`), other libraries' folders on Torrents (`/admin/torrents#scan-roots`) | Accounts/API keys are under Users & access, deployment flags remain outside the UI. `/admin/settings/general` redirects. |
 | Settings › UI | **not needed** | No separate UI settings page; theme is in the account menu, display choices are beside their views. |
-| System › Status | Admin › System › Status — `/admin` | Health and readiness across the single service. |
+| System › Status | Admin › System › Status — `/admin` | Health and readiness across the single service. Admins open the broken library links from the dangling-links check (**Show the N broken links**). |
 | System › Tasks | Admin › System › Tasks — `/admin/system/tasks` | Jobs and failures, rather than one scheduler per arr instance. |
 | System › Backup | Admin › System › Backup — `/admin/system/backup` | Full Theatarr backups and restore plus separate torrent-list backups. |
 | System › Updates | **not needed** | Deploy a new Theatarr binary/container; there is no in-app updater. |
@@ -99,7 +99,7 @@ claim of Sonarr v5 API parity. Recyclarr has no web pages; its table maps the CL
 | Settings › General | No General page: provider account sync is on Download clients (`/admin/settings/downloads#provider-sync`), the artwork cache on Metadata & artwork (`/admin/settings/metadata#artwork-cache`), other libraries' folders on Torrents (`/admin/torrents#scan-roots`) | Accounts/API keys are under Users & access, deployment flags remain outside the UI. `/admin/settings/general` redirects. |
 | Settings › UI | **not needed** | No separate UI settings page; theme is in the account menu, display choices are beside their views. |
 | Settings › Development | **not needed** | No developer-settings page; diagnostics use System and deployment configuration. |
-| System › Status | Admin › System › Status — `/admin` | Health and readiness across the single service. |
+| System › Status | Admin › System › Status — `/admin` | Health and readiness across the single service. Admins open the broken library links from the dangling-links check (**Show the N broken links**). |
 | System › Tasks | Admin › System › Tasks — `/admin/system/tasks` | Jobs and failures, rather than one scheduler per arr instance. |
 | System › Backup | Admin › System › Backup — `/admin/system/backup` | Full Theatarr backups and restore plus separate torrent-list backups. |
 | System › Updates | **not needed** | Deploy a new Theatarr binary/container; there is no in-app updater. |

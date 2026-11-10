@@ -145,7 +145,8 @@ migrations.
 6. **Reconcile the library links.** The database's links are as of the backup; the symlinks and mount are as of now.
    Run these in the running container (`docker compose exec theatarr theatarr ...`):
    - `library verify` scans the library roots: counts, dangling links and naming differences.
-   - `library dangling -scan` writes the dangling-link report.
+   - `library dangling -scan` writes the dangling-link report. **System › Status** lists the same links under
+     **Show the N broken links**.
    - `library relink -dry-run`, then `library relink`: repoints dangling links by info hash, through the library
      gate (**Write library links**, an Active library, the library's roots).
    - `providers sync` refreshes the content registry from the debrid accounts.
