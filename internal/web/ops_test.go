@@ -359,6 +359,12 @@ func TestAddReleaseByMagnetOrHash(t *testing.T) {
 		"bad hash":            {Version: "movie-web", InfoHash: "nothex", Name: "Alpha.2020.2160p.WEB-DL-GRP"},
 		"magnet, no btih":     {Version: "movie-web", Magnet: "magnet:?dn=Alpha.2020.2160p.WEB-DL-GRP"},
 		"magnet, two hashes":  {Version: "movie-web", Magnet: magnet + "&xt=urn:btih:" + strings.Repeat("1", 40)},
+		// The whole btih value is the hash, and there is exactly one btih.
+		"magnet, hash then more":                {Version: "movie-web", Magnet: "magnet:?xt=urn:btih:" + hash + "-bad&dn=Alpha.2020.2160p.WEB-DL-GRP"},
+		"magnet, short hash":                    {Version: "movie-web", Magnet: "magnet:?xt=urn:btih:" + hash[:39] + "&dn=Alpha.2020.2160p.WEB-DL-GRP"},
+		"magnet, a second btih that is no hash": {Version: "movie-web", Magnet: magnet + "&xt=urn:btih:nothex"},
+		"magnet, the same btih twice":           {Version: "movie-web", Magnet: magnet + "&xt=urn:btih:" + hash},
+		"hash then more":                        {Version: "movie-web", InfoHash: hash + "-bad", Name: "Alpha.2020.2160p.WEB-DL-GRP"},
 	} {
 		if code := o.jsonCall("POST", u, body, ac, csrf, nil); code != http.StatusBadRequest {
 			t.Errorf("%s: %d", name, code)

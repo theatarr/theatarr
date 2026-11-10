@@ -341,6 +341,41 @@ func magnetName(m string) string {
 	return ""
 }
 
+// magnetHash is the v1 info hash of a magnet a person pasted, "" unless the magnet has exactly one urn:btih exact
+// topic and all of its value is a hash (40 hex or 32 base32 characters). The shared indexer.HashFromMagnet is lenient
+// for what indexers send (it reads the hash up to the first other character and skips an xt it cannot read); a
+// person's typo is refused here instead. The parameters are split as it splits them.
+func magnetHash(m string) string {
+	m = strings.TrimSpace(m)
+	if len(m) < 8 || !strings.EqualFold(m[:8], "magnet:?") {
+		return ""
+	}
+	unescape := func(s string) string {
+		if u, err := url.QueryUnescape(s); err == nil {
+			return u
+		}
+		return s
+	}
+	hash, n := "", 0
+	for _, part := range strings.FieldsFunc(m[8:], func(r rune) bool { return r == '&' || r == '#' }) {
+		k, v, _ := strings.Cut(part, "=")
+		k = strings.ToLower(strings.TrimSpace(unescape(k)))
+		if k != "xt" && !strings.HasPrefix(k, "xt.") {
+			continue
+		}
+		v = strings.TrimSpace(unescape(v))
+		if len(v) < 9 || !strings.EqualFold(v[:9], "urn:btih:") {
+			continue
+		}
+		n++
+		hash = indexer.NormalizeHash(v[9:])
+	}
+	if n != 1 || hash == "" || hash != indexer.HashFromMagnet(m) {
+		return ""
+	}
+	return hash
+}
+
 // POST /titles/{id}/releases/add {version, magnet | info_hash, name, override}: route a release the person names by
 // magnet or hash for the version, one no search of ours found (admins). It takes the grab's route from the decision
 // on: decided now under the given name, a rejected one needs override (409 with the rejections otherwise), then the
@@ -371,7 +406,7 @@ func (w *Web) apiAddRelease(rw http.ResponseWriter, r *http.Request) {
 		badRequest(rw, "Give a magnet link or an info hash, not both")
 		return
 	case req.Magnet != "":
-		hash = indexer.HashFromMagnet(req.Magnet)
+		hash = magnetHash(req.Magnet)
 	case req.InfoHash != "":
 		hash = indexer.NormalizeHash(req.InfoHash)
 	default:
