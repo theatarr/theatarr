@@ -248,7 +248,12 @@ func (c *checker) shadow(ctx context.Context) {
 	_ = db.QueryRowContext(ctx, `SELECT MIN(started_at) FROM shadow_run`).Scan(&first)
 	window := fmt.Sprintf("last %d days", c.o.Days)
 	owners := c.owners()
+	// A library no arr feeds, with no arr grabs recorded, has nothing to compare: neither a shadow window nor an
+	// agreement can be judged, and neither blocks going live. With an arr, or with grabs, both lines are judged.
+	unfed := len(owners) == 0 && grabs == 0
 	switch {
+	case unfed:
+		c.add(SecShadow, "window", Info, "", "no arr feeds %s: no shadow window needed", k)
 	case !first.Valid:
 		c.add(SecShadow, "window", Fail, "let the shadow runner run for the window first", "the shadow runner has not run")
 	default:
@@ -264,9 +269,8 @@ func (c *checker) shadow(ctx context.Context) {
 		}
 	}
 	switch {
-	case len(owners) == 0 && grabs == 0:
-		c.add(SecShadow, "agreement", Fail, "add the arr that serves this library to import.arr and shadow it, or "+
-			"accept going live without evidence", "no import.arr instance feeds %s, so no arr grabs were compared", k)
+	case unfed:
+		c.add(SecShadow, "agreement", Info, "", "no arr feeds %s: nothing to compare, skipped", k)
 	case grabs == 0:
 		c.add(SecShadow, "agreement", Fail, "wait for arr grabs to compare", "no arr grabs of %s in the %s", k, window)
 	default:

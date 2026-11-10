@@ -287,9 +287,9 @@ shows what it would have grabbed and why ([journal.md](journal.md)). Then run pr
 docker compose exec theatarr theatarr golive check -version movies
 ```
 
-The check exits 1 when a line fails. On a library that no arr feeds, the shadow **agreement** line always fails:
-there are no arr grabs to compare with, and its fix reads "accept going live without evidence". That is by design.
-Read the decision journal instead, and go live deliberately once the decisions look right.
+The check exits 1 when a line fails. On a library that no arr feeds, the shadow **window** and **agreement** lines
+read INFO ("no arr feeds movies: nothing to compare, skipped"): there are no arr grabs to compare with, so they do
+not fail the check. Read the decision journal instead, and go live deliberately once the decisions look right.
 [golive.md](golive.md) says which settings page each key the check names is on.
 
 1. **Settings › Libraries:** set the library to **Active** and turn **Allow downloads for this library** on,

@@ -100,14 +100,14 @@ the agreement with the arr. The arr still grabbing is INFO: expected during the 
 the arr's grabs: same-hash matches, different-hash matches and arr-only rows. A PASS does not replace the playback
 and stop-switch evidence.
 
-A library with no arr to compare with (a fresh install, no Sonarr/Radarr migration) always gets a FAIL on
-`agreement`: "no import.arr instance feeds K". That is by design: there is no evidence that its decisions match
-anything. Read its decisions in the journal instead, and accept going live without that evidence; the exit code stays
-1 while the FAIL is there.
+A library with no arr to compare with (a fresh install, no Sonarr/Radarr migration: no `import.arr` instance feeds
+it and no arr grabs are recorded for it) gets INFO on `window` and `agreement`: "no arr feeds K: no shadow window
+needed" and "no arr feeds K: nothing to compare, skipped". Neither line counts against the exit code. There is no
+evidence that its decisions match anything, so read its decisions in the journal before going live.
 
-A new library can also get a FAIL on `window`: "the shadow runner has not run". The shadow runner records a run each
-time it reads the RSS feeds (every 15 minutes, starting a few minutes after `serve` starts) or imports an arr's grabs,
-and no run is recorded yet. The RSS job runs only while a shadow library has an indexer with a feed (see
+A new library that an arr feeds can get a FAIL on `window`: "the shadow runner has not run". The shadow runner records
+a run each time it reads the RSS feeds (every 15 minutes, starting a few minutes after `serve` starts) or imports an
+arr's grabs, and no run is recorded yet. The RSS job runs only while a shadow library has an indexer with a feed (see
 [quickstart.md](quickstart.md#6-a-first-library)), so check that first. Leave `serve` running and run the check again
 later: the FAIL turns into a WARN that counts the days the runner has run, until the window (`-days`) is covered.
 

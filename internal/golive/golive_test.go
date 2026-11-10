@@ -363,8 +363,41 @@ func TestSeriesMetadataAndNoOwner(t *testing.T) {
 	// anime-movie: no import.arr instance, no library.versions entry.
 	r = run(t, Options{Policy: pol, Version: "anime-movie", DB: st.Reader(), Env: allEnv})
 	want(t, r, SecPolicy, "library root", Fail, "library.versions.anime-movie is missing")
-	want(t, r, SecShadow, "agreement", Fail, "no import.arr instance feeds anime-movie")
+	want(t, r, SecShadow, "agreement", Info, "no arr feeds anime-movie: nothing to compare, skipped")
+	want(t, r, SecShadow, "window", Info, "no arr feeds anime-movie: no shadow window needed")
 	want(t, r, SecHandover, "owner", Warn, "no import.arr instance")
+}
+
+// A library no arr feeds needs neither a shadow window nor an agreement; one an arr feeds is judged as before.
+func TestShadowWithoutArr(t *testing.T) {
+	t.Parallel()
+	pol := examplePolicy(t)
+	// No shadow run at all: the unfed library reads INFO on both lines, the fed one still fails both.
+	empty := testStore(t)
+	r := run(t, Options{Policy: pol, Version: "anime-movie", DB: empty.Reader(), Env: allEnv})
+	want(t, r, SecShadow, "window", Info, "no arr feeds anime-movie")
+	want(t, r, SecShadow, "agreement", Info, "no arr feeds anime-movie")
+	for _, x := range r.Results {
+		if x.Section == SecShadow && x.Status != Info {
+			t.Errorf("unfed library: shadow line is not INFO: %+v", x)
+		}
+	}
+	r = run(t, Options{Policy: pol, Version: "tv-2160p", DB: empty.Reader(), Env: allEnv})
+	want(t, r, SecShadow, "window", Fail, "the shadow runner has not run")
+	want(t, r, SecShadow, "agreement", Fail, "no arr grabs of tv-2160p")
+
+	// The runner ran, the fed library has no grabs: the window is judged and the agreement still fails.
+	st := testStore(t)
+	seed(t, st, "tv-2160p", "series", "sonarr_4k_debrid", 1, 0, 0, 20)
+	r = run(t, Options{Policy: pol, Version: "tv-2160p", DB: st.Reader(), Env: allEnv})
+	want(t, r, SecShadow, "window", Pass, "the shadow runner has run")
+	want(t, r, SecShadow, "agreement", Fail, "no arr grabs of tv-2160p")
+
+	// Grabs recorded for a library without an import.arr entry are still judged.
+	seed(t, st, "anime-movie", "movie", "", 1, 40, 10, 20)
+	r = run(t, Options{Policy: pol, Version: "anime-movie", DB: st.Reader(), Env: allEnv})
+	want(t, r, SecShadow, "window", Pass, "the shadow runner has run")
+	want(t, r, SecShadow, "agreement", Fail, "10 of 40 arr grabs agree")
 }
 
 func TestActiveVersionArrStillGrabbing(t *testing.T) {
