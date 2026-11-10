@@ -42,6 +42,10 @@ func sectionEffects(previous, next *policy.Policy) []ConfirmationEffect {
 				continue
 			}
 			what := sectionChangeKind(spec.Key, path, leaf, old, now)
+			// A metadata source pointed at its own public address (what Setup's TMDb step stores) is no other host.
+			if spec.Key == "metadata" && now != "" && metadataDefaultURLs[path] == strings.TrimSuffix(now, "/") {
+				continue
+			}
 			// Removing a host or path narrows access, except scan roots: removing those widens deletion eligibility.
 			if what == "" || now == "" && spec.Key != "egress" && !(spec.Key == "torrents" && path == "scan_roots") {
 				continue
@@ -52,6 +56,13 @@ func sectionEffects(previous, next *policy.Policy) []ConfirmationEffect {
 		}
 	}
 	return effects
+}
+
+// metadataDefaultURLs are the public addresses of the known metadata sources, by leaf path: saving a source with its
+// own address needs no confirmation; any other address still does.
+var metadataDefaultURLs = map[string]string{
+	"sources.tmdb.url":        "https://api.themoviedb.org/3",
+	"sources.tmdb-images.url": "https://image.tmdb.org/t/p",
 }
 
 // sectionCredentialEffects names each *_env field of a database-owned section that is pointed at another credential

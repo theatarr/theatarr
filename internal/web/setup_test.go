@@ -275,13 +275,8 @@ func TestSetupTMDb(t *testing.T) {
 			"tmdb-images": map[string]any{"url": "https://image.tmdb.org/t/p"},
 		}},
 		"secrets": map[string]string{"sources.tmdb.api_key": "invented-setup-tmdb"}}
-	refused := se.want(se.call("PUT", "/sections/metadata", body), 422, "new hosts need proof")
-	confirmRefusal(t, refused, "metadata.sources.tmdb.url")
-	body["confirmation_token"] = confirmRefusal(t, refused, "metadata.sources.tmdb-images.url")
-	if state(se).TMDb || se.generation() != gen {
-		t.Fatal("the refused save changed something")
-	}
-	se.want(se.call("PUT", "/sections/metadata", body), 200, "confirmed")
+	// TMDb's own public addresses are no other host: the save needs no confirmation.
+	se.want(se.call("PUT", "/sections/metadata", body), 200, "default addresses")
 	if se.generation() != gen+1 {
 		t.Fatalf("the save took %d generations, want 1", se.generation()-gen)
 	}

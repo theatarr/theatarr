@@ -790,3 +790,28 @@ func TestSectionConfigOmitsUnsetDecypharr(t *testing.T) {
 		}
 	}
 }
+
+// A metadata source saved with its own public address (TMDb's, as Setup stores it) needs no confirmation; any other
+// address, even another source's default, still asks.
+func TestMetadataDefaultAddressNeedsNoConfirmation(t *testing.T) {
+	t.Parallel()
+	for _, tc := range []struct {
+		url string
+		ask bool
+	}{{"https://image.tmdb.org/t/p", false}, {"https://api.themoviedb.org/3", true}, {"https://images.elsewhere/t/p", true}} {
+		t.Run(tc.url, func(t *testing.T) {
+			ctx := context.Background()
+			s, base, snap := sectionsFixture(t, func(p *policy.Policy) { p.Metadata.Sources["tmdb-images"].URL = "https://images.before/t/p" })
+			m := versionCoordinator(t, s, base, snap)
+			req := saveRequest(base, snap)
+			req.Records.Sections = []Section{editSection(t, snap, "metadata", func(c map[string]any) {
+				c["sources"].(map[string]any)["tmdb-images"].(map[string]any)["url"] = tc.url
+			})}
+			_, err := m.SaveAndApply(ctx, req)
+			var refused *ConfirmationError
+			if asked := errors.As(err, &refused); asked != tc.ask || (!tc.ask && err != nil) {
+				t.Fatalf("asked %v, want %v: %v", asked, tc.ask, err)
+			}
+		})
+	}
+}
