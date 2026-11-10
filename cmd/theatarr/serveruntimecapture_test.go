@@ -785,3 +785,75 @@ func TestProviderRepointKeptKeyIsNotProbed(t *testing.T) {
 		t.Fatalf("download after commit: %q %v", state, err)
 	}
 }
+
+// The serve search handler hands the job's retry_new mark to the acquirer: a Search now search of a movie released
+// yesterday that accepts nothing queues the first follow-up when router.wanted.retry_new is on, and nothing when off.
+func TestServeSearchJobKeepsRetryNewMark(t *testing.T) {
+	t.Parallel()
+	for _, on := range []bool{true, false} {
+		ctx := context.Background()
+		db, err := store.Open(ctx, storetest.Seed(t, filepath.Join(t.TempDir(), "theatarr.db")), store.Options{})
+		if err != nil {
+			t.Fatal(err)
+		}
+		t.Cleanup(func() { db.Close() })
+		if _, err := db.Migrate(ctx); err != nil {
+			t.Fatal(err)
+		}
+		pol := &policy.Policy{
+			Indexers: map[string]*policy.Indexer{"pub": {Kind: "torznab", URL: "http://pub.test/api", Privacy: policy.PrivacyPublic}},
+			Providers: map[string]*policy.Provider{"rd": {Kind: provider.KindRealDebrid, Order: 1, URL: "http://rd.test/rest/1.0",
+				APIKeyEnv: "THEATARR_RD_KEY"}},
+			Versions: map[string]*policy.VersionPolicy{"movie": {Mode: policy.ModeActive, Grab: true, Kind: policy.KindMovie,
+				Storage: policy.StorageDebrid, Indexers: []string{"pub"}, Providers: []string{"rd"}}},
+			Router: &policy.Router{Enabled: true, Wanted: &policy.Wanted{RetryNew: on}},
+		}
+		now := time.Now()
+		for _, q := range []string{
+			`INSERT INTO title (id, kind, name, year, created_at, updated_at) VALUES (1, 'movie', 'One', 2026, 0, 0)`,
+			`INSERT INTO title_release_date (title_id, source, type, date) VALUES (1, 'fixture', 'digital', '` +
+				now.Add(-24*time.Hour).UTC().Format("2006-01-02") + `')`,
+			`INSERT INTO version (id, title_id, policy_key, state, created_at, updated_at) VALUES (101, 1, 'movie', 'wanted', 0, 0)`,
+			`INSERT INTO search_request (title_id, version_key, reason, season, created_at) VALUES (1, 'movie', 'missing', -1, 0)`,
+		} {
+			if _, err := db.Writer().ExecContext(ctx, q); err != nil {
+				t.Fatal(err)
+			}
+		}
+		q := jobs.NewQueue(db)
+		ac, err := acquire.New(acquire.Config{Store: db, Policy: pol, Queue: q, Router: &serveRouter{},
+			Logger: slog.New(slog.NewTextHandler(io.Discard, nil)),
+			Search: func(_ context.Context, title decide.Title, v decide.Version, _ *decide.ExistingFile, _ *decide.SeriesSearch) (*router.Searched, error) {
+				return &router.Searched{Ranked: []*decide.Decision{{}}, Request: router.Request{TitleID: title.ID,
+					VersionID: v.ID, Version: v.Key}}, nil
+			}})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if n, err := ac.DrainSearchNow(ctx); err != nil || n != 1 {
+			t.Fatalf("search now started %d searches: %v", n, err)
+		}
+		w := jobs.NewWorker(q, jobs.WorkerOptions{Logger: slog.New(slog.NewTextHandler(io.Discard, nil))})
+		(&serveAcquirer{fallback: ac}).RegisterJobs(w)
+		if ran, err := w.RunOne(ctx); err != nil || !ran {
+			t.Fatalf("search job: ran=%v err=%v", ran, err)
+		}
+		var state string
+		if err := db.Reader().QueryRowContext(ctx, `SELECT state FROM acquire_run`).Scan(&state); err != nil || state != "nothing" {
+			t.Fatalf("run state %q: %v", state, err)
+		}
+		var followUps int
+		if err := db.Reader().QueryRowContext(ctx, `SELECT COUNT(*) FROM job WHERE kind = ? AND state = 'queued'
+			AND json_extract(payload, '$.reason') = ? AND json_extract(payload, '$.retry_new') = 1
+			AND json_extract(payload, '$.step') = 1`, router.JobResearch, router.ReasonFresh).Scan(&followUps); err != nil {
+			t.Fatal(err)
+		}
+		var jobsAfter int
+		if err := db.Reader().QueryRowContext(ctx, `SELECT COUNT(*) FROM job WHERE kind = ?`, router.JobResearch).Scan(&jobsAfter); err != nil {
+			t.Fatal(err)
+		}
+		if want := map[bool]int{true: 1, false: 0}[on]; followUps != want || jobsAfter != want {
+			t.Fatalf("retry_new %v: %d follow-ups (%d re-search jobs), want %d", on, followUps, jobsAfter, want)
+		}
+	}
+}

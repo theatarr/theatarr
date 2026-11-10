@@ -105,7 +105,7 @@ type Wanted struct {
 	// RetryNew searches again after 1, 2, 4, 8 and more hours, instead of a day later, when an automatic search for
 	// a missing item that aired or was released in the last week finds nothing. Each try counts against the hourly
 	// limit. Default false.
-	RetryNew bool `yaml:"retry_new,omitempty"`
+	RetryNew bool `yaml:"retry_new,omitempty" json:",omitempty"`
 }
 
 // CutoffMode is router.wanted.cutoff_unmet: which files the wanted loop searches an upgrade for. It changes only the

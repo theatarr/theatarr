@@ -370,6 +370,20 @@ func TestSettingsRouterSaveAddsNoRetryNewKey(t *testing.T) {
 	if raw := stored(); strings.Contains(raw, "retry_new") || !strings.Contains(raw, `"per_hour":30`) {
 		t.Fatalf("stored after untouched saves: %s", raw)
 	}
+	// The generation snapshots gain no key either; the newest one is checked after each save below.
+	snapshots := func(where string) int {
+		t.Helper()
+		var n int
+		if err := se.st.Reader().QueryRow(`SELECT COUNT(*) FROM settings_generation WHERE (snapshot LIKE '%retry_new%'
+			OR snapshot LIKE '%RetryNew%')` + where).Scan(&n); err != nil {
+			t.Fatal(err)
+		}
+		return n
+	}
+	const newest = ` AND generation = (SELECT MAX(generation) FROM settings_generation)`
+	if n := snapshots(""); n != 0 {
+		t.Fatalf("%d generation snapshots name retry_new after untouched saves", n)
+	}
 	if retryNew() {
 		t.Fatal("retry_new is on by default")
 	}
@@ -406,6 +420,9 @@ func TestSettingsRouterSaveAddsNoRetryNewKey(t *testing.T) {
 	if err := olderLoads(); err == nil {
 		t.Fatal("the older type accepts a retry_new key, so it proves nothing")
 	}
+	if n := snapshots(newest); n != 1 {
+		t.Fatal("the generation snapshot with retry_new on does not name it, so the snapshot checks prove nothing")
+	}
 	off := func(what string) {
 		t.Helper()
 		raw := stored()
@@ -417,6 +434,9 @@ func TestSettingsRouterSaveAddsNoRetryNewKey(t *testing.T) {
 		}
 		if retryNew() {
 			t.Fatalf("retry_new still on (%s)", what)
+		}
+		if n := snapshots(newest); n != 0 {
+			t.Fatalf("the newest generation snapshot names retry_new after it was turned off (%s)", what)
 		}
 	}
 	wanted["retry_new"] = false
