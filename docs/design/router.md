@@ -138,10 +138,28 @@ The writes live in their own package. `internal/provider` stays GET-only: its `T
   `IndexerNotInVersion` and the retry's check skip it) and gets the version's whole provider order
   (`ReleaseProviders`). Everything else is a grab by hand: the same decision (rejected needs `override`), the source
   `ui:grab:<who>`, the same gate, blocklist, pacing, cached-only settle and ledger of our own adds. Its size and
-  seeders are unknown (0 and -1). Only the name the person gave and the hash are used; the magnet's trackers are
-  not sent. An offer to another library declines it (`unknown_indexer`). A manual add that fails is a failed grab:
-  it is blocklisted for the version and searched again as "Re-search after a failure" says. `TestManualAddByHash` (e2e) runs it from
-  the add to the filled title.
+  seeders are unknown (0 and -1); a size limit set for its quality could not be checked, which decide reports as the
+  rejection `UnknownSize` (a searched release with no size is decided as before). Only the name the person gave and
+  the hash are used; the magnet's trackers are not sent. An offer to another library declines it
+  (`unknown_indexer`).
+  - *One marker, one writer.* Only `AddRelease` writes the placeholder (`policy.IsManualAdd` reads it). A release
+    push that names it as its indexer is refused (400), and so does the decide API; search results carry a policy
+    key and stored downloads keep what they were queued with (an Activity retry stays a manual add).
+  - *The hash may be another tool's.* The account is shared, and a hash another tool already holds is this
+    feature's ordinary input. When the add's answer is lost and the hash is then found on the account ("Crash
+    between add and record"), the entry is adopted as **reused**, whoever added it: no files are selected on it and
+    nothing deletes it. (An add of our own whose answer was lost is then left without a selection too:
+    it stalls and fails, the torrent kept; accepted.) `TestReconciledManualAddIsReused`.
+  - *A failed manual add starts no search.* The person named one release, not "any release of the title". It fails
+    as a grab by hand fails: a miss on every provider records the miss (cache-miss evidence for `miss_ttl`, no
+    blocklist entry), and a download that fails later (stalled, provider failure, ready deadline, dangerous files,
+    a library guard) is blocklisted for the version. But neither queues the re-search of "Re-search after a
+    failure", so there are no follow-ups either (`manualAdd` in `research.go`; the blocklist row is marked
+    researched). A release grabbed by hand from a search is searched again as before. The wanted loop, when on,
+    still searches a title that stays missing on its own schedule. `TestFailedManualAddStartsNoSearch` (e2e),
+    `TestMissedManualAddStartsNoSearch`, `TestStalledManualAddStartsNoSearch`.
+
+  `TestManualAddByHash` (e2e) runs it from the add to the filled title.
 - **One delete, no restart, unrestrict or link request.** The only deletes in Theatarr are in `adder/delete.go`, outside the
   `Adder` interface: `Deleter.DeleteOwnUncachedAdd` (Real-Debrid and AllDebrid) and `StalledDeleter.DeleteOwnStalledAdd`
   (Real-Debrid only) for the router, and `UserDeleter.DeleteUserChosen` for the torrent manager only (torrents a person
