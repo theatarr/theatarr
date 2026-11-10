@@ -296,6 +296,39 @@ func TestEpisodeReleasesScopedToEpisode(t *testing.T) {
 	}
 }
 
+// An episode's releases from a season search count only the candidates that cover the episode; an episode search
+// keeps its stored counts.
+func TestEpisodeReleasesCountsFromKeptCandidates(t *testing.T) {
+	t.Parallel()
+	e := newManageEnv(t, nil)
+	now := store.Millis(addNow)
+	e.exec(`INSERT INTO journal_decision (id, source, title_id, version_key, target, results, accepted, candidates,
+		rejections, created_at) VALUES (97, 'acquire:60', 10, 'tv-2160p', 's01', 40, 5, ?, '{"size":20,"quality":15}', ?)`,
+		`[{"rank":1,"release":"The.Show.S01.2160p.WEB-PACK","accepted":true,"episodes":["S01E01","S01E02"]},
+		  {"rank":2,"release":"The.Show.S01E02.2160p.WEB-GRP","accepted":true,"episodes":["S01E02"]},
+		  {"rank":3,"release":"The.Show.S01E01.720p.WEB-GRP","accepted":false,"episodes":["S01E01"],
+		   "rejections":[{"reason":"quality","message":"720p"},{"reason":"quality","message":"again"}]}]`, now-9000)
+	var r Releases
+	e.call("GET", APIBase+"/titles/10/episodes/101/releases", nil, 200, &r)
+	if r.Results != 2 || r.Accepted != 1 || len(r.Rejections) != 1 || r.Rejections["quality"] != 1 || len(r.Candidates) != 2 {
+		t.Errorf("E01: results %d accepted %d rejections %v candidates %d", r.Results, r.Accepted, r.Rejections, len(r.Candidates))
+	}
+	r = Releases{}
+	e.call("GET", APIBase+"/titles/10/episodes/102/releases", nil, 200, &r)
+	if r.Results != 2 || r.Accepted != 2 || len(r.Rejections) != 0 {
+		t.Errorf("E02: results %d accepted %d rejections %v", r.Results, r.Accepted, r.Rejections)
+	}
+	// An episode search's candidates all cover the episode: the stored counts stand.
+	e.exec(`INSERT INTO journal_decision (id, source, title_id, version_key, target, results, accepted, candidates,
+		rejections, created_at) VALUES (98, 'acquire:61', 10, 'tv-2160p', 's01e02', 30, 3, ?, '{"size":27}', ?)`,
+		`[{"rank":1,"release":"The.Show.S01E02.2160p.WEB-GRP","accepted":true,"episodes":["S01E02"]}]`, now-5000)
+	r = Releases{}
+	e.call("GET", APIBase+"/titles/10/episodes/102/releases", nil, 200, &r)
+	if r.Results != 30 || r.Accepted != 3 || r.Rejections["size"] != 27 {
+		t.Errorf("E02 episode search: results %d accepted %d rejections %v", r.Results, r.Accepted, r.Rejections)
+	}
+}
+
 // latest marks the search the releases page shows: not a journal decision the shadow runner searched after.
 func TestLatestSearchFollowsShadow(t *testing.T) {
 	t.Parallel()
