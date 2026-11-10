@@ -331,6 +331,10 @@ type AddRequest struct {
 	Monitored *bool            `json:"monitored"`
 	// MonitorNew is a series' monitoring of seasons that appear later: "all" (default for a new version) or "none".
 	MonitorNew string `json:"monitor_new"`
+	// Monitor is a series' add-time monitoring preset (Sonarr's addOptions.monitor: all, future, missing, existing,
+	// firstSeason, lastSeason, pilot, recent, none), applied after Seasons; empty keeps Seasons as given. For a
+	// new title only: a title already in the library answers 400.
+	Monitor string `json:"monitor"`
 	// Search asks for a search after the add, for the versions catalog.Searchable lets through.
 	Search bool `json:"search"`
 
@@ -548,13 +552,16 @@ func (w *Web) addTitle(ctx context.Context, req AddRequest, source string) (*Add
 	if req.MonitorNew != "" && req.MonitorNew != catalog.MonitorAll && req.MonitorNew != catalog.MonitorNone {
 		return nil, &addError{http.StatusBadRequest, "monitor_new must be all or none"}
 	}
+	if req.Monitor != "" && (kind != policy.KindSeries || !slices.Contains(addMonitors, req.Monitor)) {
+		return nil, &addError{http.StatusBadRequest, "monitor is for a series: one of " + strings.Join(addMonitors, ", ")}
+	}
 	if req.TitleID <= 0 {
 		w.fillFromTMDb(ctx, &req, kind)
 	}
 	monitored := req.Monitored == nil || *req.Monitored
 	in := catalog.Input{Kind: kind, TitleID: req.TitleID, TmdbID: req.TMDbID, TvdbID: req.TVDbID, ImdbID: strings.TrimSpace(req.IMDbID),
 		Title: req.Title, Year: req.Year, Anime: req.Anime, Monitored: monitored, Seasons: req.Seasons, Source: source,
-		MonitorNew: req.MonitorNew, SeasonVersions: req.seasonVersions,
+		MonitorNew: req.MonitorNew, Monitor: req.Monitor, SeasonVersions: req.seasonVersions,
 		Versions: func(anime bool) ([]string, error) {
 			if req.Versions != nil {
 				return req.Versions, nil
@@ -567,8 +574,15 @@ func (w *Web) addTitle(ctx context.Context, req AddRequest, source string) (*Add
 	var res *catalog.Result
 	err := w.st.WriteTx(ctx, func(tx *sql.Tx) error {
 		var err error
-		if res, err = catalog.Add(ctx, tx, in, w.now(), w.log); err != nil || len(req.moreVersions) == 0 {
+		if res, err = catalog.Add(ctx, tx, in, w.now(), w.log); err != nil {
 			return err
+		}
+		if !res.Created && req.Monitor != "" {
+			// It would rewrite the monitoring of the copies the title has.
+			return &addError{http.StatusBadRequest, fmt.Sprintf("monitor is for a new title: this one is already in the library (title %d)", res.TitleID)}
+		}
+		if len(req.moreVersions) == 0 {
+			return nil
 		}
 		for _, n := range req.moreSeasons {
 			if err := catalog.SetSeasonMonitored(ctx, tx, res.TitleID, req.moreVersions, n, true, w.now()); err != nil {
@@ -617,6 +631,11 @@ func (w *Web) addTitle(ctx context.Context, req AddRequest, source string) (*Add
 }
 
 var errNoFit = errors.New("no library fits")
+
+// What POST /titles takes for monitor.
+var addMonitors = []string{catalog.MonitorTypeAll, catalog.MonitorTypeFuture, catalog.MonitorTypeMissing,
+	catalog.MonitorTypeExisting, catalog.MonitorTypeFirstSeason, catalog.MonitorTypeLastSeason,
+	catalog.MonitorTypePilot, catalog.MonitorTypeRecent, catalog.MonitorTypeNone}
 
 // searchNow searches the title for the versions catalog.Searchable lets through; the rest are skipped with the reason.
 func (w *Web) searchNow(ctx context.Context, titleID int64, keys []string) (*SearchOutcome, error) {

@@ -717,3 +717,131 @@ func TestReleasesShadowNoLive(t *testing.T) {
 func (f *fakeAcquirer) WantedList(context.Context, acquire.WantedQuery) (*acquire.WantedList, error) {
 	return &acquire.WantedList{Items: []acquire.WantedRow{}, Counts: map[string]int{}}, nil
 }
+
+func (e *addEnv) count(q string, args ...any) int {
+	e.t.Helper()
+	var n int
+	if err := e.st.Reader().QueryRow(q, args...).Scan(&n); err != nil {
+		e.t.Fatalf("%s: %v", q, err)
+	}
+	return n
+}
+
+// TestAddMonitorPreset: POST /titles' monitor is kept as pending_monitor for a new series, which has no episodes
+// until its first refresh; it is refused for a movie, with a value outside the list and for a title already in the
+// library.
+func TestAddMonitorPreset(t *testing.T) {
+	t.Parallel()
+	e := newAddEnv(t, nil)
+	for _, body := range []map[string]any{
+		{"kind": "series", "tvdb_id": 301, "monitor": "sometimes"},
+		{"kind": "series", "tvdb_id": 301, "monitor": "skip"},
+		{"kind": "movie", "tmdb_id": 105, "monitor": "all"},
+		{"title_id": 1, "monitor": "all"},
+	} {
+		e.call("POST", APIBase+"/titles", body, 400, nil)
+	}
+	if n := e.count(`SELECT COUNT(*) FROM title`); n != 2 {
+		t.Fatalf("a refused add wrote a title: %d titles", n)
+	}
+	// A title already in the library, by its id or found by its TVDB id (the drawer looks a title up by TMDb id, so
+	// it can take such a series for a new one and send what it sends for one): the preset is refused, since it would
+	// rewrite the monitoring of the copies the title has. Nothing is written, not even the new copy of the request,
+	// and the answer names the title.
+	held := func() string {
+		var intent string
+		if err := e.st.Reader().QueryRow(`SELECT COALESCE((SELECT monitor_new || ' ' || seasons || ' ' || pending_monitor
+			FROM series_monitor WHERE version_id = 10), 'no row')`).Scan(&intent); err != nil {
+			t.Fatal(err)
+		}
+		return fmt.Sprintf("%s, %d monitored", intent,
+			e.count(`SELECT COUNT(*) FROM episode_version_state WHERE version_id = 10 AND monitored = 1`))
+	}
+	before := held()
+	for _, body := range []map[string]any{
+		{"title_id": 10, "versions": []string{"tv-2160p"}, "monitor": "pilot"},
+		{"title_id": 10, "versions": []string{"tv-2160p", "anime-tv"}, "monitor": "pilot"},
+		{"kind": "series", "tvdb_id": 201, "versions": []string{"tv-2160p"}, "monitor": "none"},
+		{"kind": "series", "tmdb_id": 987654, "tvdb_id": 201, "title": "The Show", "versions": []string{"tv-2160p", "anime-tv"},
+			"monitor": "all", "monitor_new": "none"},
+	} {
+		var refused struct {
+			Error string `json:"error"`
+		}
+		e.call("POST", APIBase+"/titles", body, 400, &refused)
+		if !strings.Contains(refused.Error, "already in the library (title 10)") {
+			t.Errorf("%v: answer %q does not name the library title", body, refused.Error)
+		}
+	}
+	if after := held(); after != before || !strings.HasSuffix(after, ", 3 monitored") {
+		t.Errorf("a refused preset changed the held copy: %q, was %q", after, before)
+	}
+	if n := e.count(`SELECT COUNT(*) FROM version WHERE title_id = 10`); n != 1 {
+		t.Errorf("a refused add wrote a version: %d versions", n)
+	}
+	// The same request without the preset is today's add.
+	e.call("POST", APIBase+"/titles", map[string]any{"kind": "series", "tvdb_id": 201, "versions": []string{"tv-2160p", "anime-tv"}}, 201, nil)
+	// A series without episodes keeps each preset until its first refresh.
+	for i, m := range addMonitors {
+		var res AddResult
+		e.call("POST", APIBase+"/titles", map[string]any{"kind": "series", "tvdb_id": 400 + i, "title": "New " + m,
+			"versions": []string{"tv-2160p"}, "monitor": m}, 201, &res)
+		var pending string
+		if err := e.st.Reader().QueryRow(`SELECT m.pending_monitor FROM series_monitor m JOIN version v ON v.id = m.version_id
+			WHERE v.title_id = ?`, res.Title.ID).Scan(&pending); err != nil {
+			t.Fatal(err)
+		}
+		if pending != m {
+			t.Errorf("monitor %s: pending_monitor %q", m, pending)
+		}
+	}
+	// No preset: nothing pending, as before.
+	var res AddResult
+	e.call("POST", APIBase+"/titles", map[string]any{"kind": "series", "tvdb_id": 301, "title": "Kappa",
+		"versions": []string{"tv-2160p"}}, 201, &res)
+	if n := e.count(`SELECT COUNT(*) FROM series_monitor m JOIN version v ON v.id = m.version_id WHERE v.title_id = ?
+		AND m.pending_monitor <> ''`, res.Title.ID); n != 0 {
+		t.Error("an add without monitor left a pending preset")
+	}
+	// monitor_new none alone stores what it always did: nothing is held for the first refresh. The drawer's "Monitor
+	// seasons that appear later" off therefore sends monitor all with it, so the seasons the first refresh finds
+	// are monitored and none governs only the ones after (tvrefresh TestLaterSeasonsOffKeepsFirstSeasons runs the
+	// refreshes from that stored state).
+	intent := func(id int64) string {
+		var mn, seasons, pending string
+		if err := e.st.Reader().QueryRow(`SELECT m.monitor_new, m.seasons, m.pending_monitor FROM series_monitor m
+			JOIN version v ON v.id = m.version_id WHERE v.title_id = ? ORDER BY v.id LIMIT 1`, id).Scan(&mn, &seasons, &pending); err != nil {
+			t.Fatal(err)
+		}
+		return mn + " " + seasons + " " + pending
+	}
+	if got := intent(res.Title.ID); got != "all {} " {
+		t.Errorf("a default add stores %q", got)
+	}
+	e.call("POST", APIBase+"/titles", map[string]any{"kind": "series", "tvdb_id": 310, "title": "Later off",
+		"versions": []string{"tv-2160p"}, "monitor_new": "none"}, 201, &res)
+	if got := intent(res.Title.ID); got != "none {} " {
+		t.Errorf("monitor_new none alone: %q", got)
+	}
+	e.call("POST", APIBase+"/titles", map[string]any{"kind": "series", "tvdb_id": 313, "title": "Later off, as the drawer sends it",
+		"versions": []string{"tv-2160p"}, "monitor_new": "none", "monitor": "all"}, 201, &res)
+	if got := intent(res.Title.ID); got != "none {} all" {
+		t.Errorf("later seasons off as the drawer sends it: %q", got)
+	}
+	e.call("POST", APIBase+"/titles", map[string]any{"kind": "series", "tvdb_id": 311, "title": "Later off, pilot",
+		"versions": []string{"tv-2160p"}, "monitor_new": "none", "monitor": "pilot"}, 201, &res)
+	if got := intent(res.Title.ID); got != "none {} pilot" {
+		t.Errorf("later seasons off with a preset: %q", got)
+	}
+	e.call("POST", APIBase+"/titles", map[string]any{"kind": "series", "tvdb_id": 312, "title": "Later off, picks",
+		"versions": []string{"tv-2160p"}, "monitor_new": "none",
+		"seasons": []map[string]any{{"season": 1, "monitored": true}, {"season": 2, "monitored": false}}}, 201, &res)
+	if got := intent(res.Title.ID); got != `none {"1":true,"2":false} ` {
+		t.Errorf("later seasons off with season picks: %q", got)
+	}
+	// A title already in the library: its episodes are not rewritten.
+	e.call("POST", APIBase+"/titles", map[string]any{"title_id": 10, "versions": []string{"tv-2160p"}, "monitor_new": "none"}, 201, nil)
+	if got := intent(10); !strings.HasPrefix(got, "none ") || !strings.HasSuffix(got, " ") {
+		t.Errorf("later seasons off on a held series: %q", got)
+	}
+}

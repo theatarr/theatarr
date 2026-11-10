@@ -217,6 +217,44 @@ func TestFirstRefreshMonitor(t *testing.T) {
 	}
 }
 
+// TestLaterSeasonsOffKeepsFirstSeasons: the add drawer's "monitor seasons that appear later" off sends monitor all
+// with monitor_new none, so "all" is held for the first refresh and the seasons it finds are monitored; monitor new
+// none then governs a season that appears afterwards.
+func TestLaterSeasonsOffKeepsFirstSeasons(t *testing.T) {
+	t.Parallel()
+	e := setup(t)
+	id := e.add(t, catalog.Input{TvdbID: 371980, MonitorNew: catalog.MonitorNone, Monitor: catalog.MonitorTypeAll})
+	monitored := func() int {
+		return e.count(t, `SELECT COUNT(*) FROM episode_version_state s JOIN episode e ON e.id=s.episode_id WHERE e.title_id=? AND s.monitored=1`, id)
+	}
+	e.refresh(t, id)
+	// 19 episodes in seasons 1 and 2; the specials stay off, as for any add.
+	if n := monitored(); n != 19 {
+		t.Fatalf("first refresh: %d monitored, want 19", n)
+	}
+	e.tvdb.edit("/series/371980/episodes/default?page=0", func(eps []map[string]any) []map[string]any {
+		return append(eps, map[string]any{"id": 99000001, "seriesId": 371980, "name": "Later", "aired": "2027-01-10",
+			"runtime": 50, "seasonNumber": 3, "number": 1})
+	})
+	e.refresh(t, id)
+	e3 := e.ep(t, id, 3, 1)
+	if e3 == nil {
+		t.Fatal("season 3 did not arrive")
+	}
+	if e.state(t, id, "tv-2160p", e3.id) != 0 || monitored() != 19 {
+		t.Fatalf("a season that appeared later is monitored: state %d, %d monitored", e.state(t, id, "tv-2160p", e3.id), monitored())
+	}
+	// A new episode of a season the first refresh found still follows that season.
+	e.tvdb.edit("/series/371980/episodes/default?page=0", func(eps []map[string]any) []map[string]any {
+		return append(eps, map[string]any{"id": 99000002, "seriesId": 371980, "name": "More", "aired": "2027-01-17",
+			"runtime": 50, "seasonNumber": 2, "number": 11})
+	})
+	e.refresh(t, id)
+	if n := monitored(); n != 20 {
+		t.Fatalf("a new episode of a first season: %d monitored, want 20", n)
+	}
+}
+
 func TestRefreshedSeriesIdentity(t *testing.T) {
 	t.Parallel()
 	e := setup(t)
