@@ -764,16 +764,17 @@ never been on: the known limits are listed below.
   the two may then both search the target), and the number of unanswered searches that sets when a re-search is
   asked for again. The chain's own searches asked for again count the chain's unanswered runs only.
 - An install that never had the switch on reads the run history with the query plans of a build without the
-  switch, for every query that build runs, and adds two small reads (below). The chain's mark is in no index, so
+  switch, for every query that build runs, and adds three small reads (below). The chain's mark is in no index, so
   with the switch off the two readers an index answers alone (the loop's "last searched" and an add-time intent's
   count of unanswered searches) run their query without the switch, and leave the chain's runs out only for the
   versions a chain has a request for in the job table. Finding those versions is the first added read: every kept
-  re-search job (`acquire.research`), once for each "last searched" and once for an intent that counts unanswered
-  searches. The nightly prune deletes finished jobs 14 days after they finished (nothing else deletes jobs).
-  Limit: with the switch off, once every request of a version's chains finished or was cancelled more than 14 days
-  ago, the searches those chains made count for these two readers as ordinary searches of their targets (they can
-  move a target back in the loop's order, and hold it back when `again_after` is longer than 14 days). With the
-  switch on they leave every chain run out, whatever its age.
+  re-search job (`acquire.research`), once for each "last searched" and once for a drain pass of the add-time
+  intents in which an intent counts unanswered searches (the first such intent reads it for the pass). The nightly
+  prune deletes finished jobs once they finished more than 14 days ago (nothing else deletes jobs).
+  Limit: with the switch off, once that prune has removed the last request of a version's chains (the first night
+  after it finished or was cancelled 14 days before), the searches those chains made count for these two readers
+  as ordinary searches of their targets (they can move a target back in the loop's order, and hold it back when
+  `again_after` is longer than 14 days). With the switch on they leave every chain run out, whatever its age.
 - Retention keeps a target's latest ordinary run (and the parent of a shared search that holds it) also when a
   chain's run of the target is newer, so pruning never makes the loop forget its own last search. Without chain
   runs it prunes by the condition it had before; to know, it looks for a chain run once a night, which reads the
@@ -793,7 +794,12 @@ never been on: the known limits are listed below.
   again, its run still says searching). A search that is running is not cancelled. The cancellation is not part of
   the save's own transaction: it is one transaction of its own, run right after the saved settings are published,
   again for every later published generation, and at start once the acquirer is built, before any job runs (so a
-  stop between the save and it loses nothing); it finds nothing on an install that never had the switch on.
+  stop between the save and it loses nothing). It first looks for a queued job of a chain, and without one opens
+  no transaction and writes nothing: that look is the third added read, at start and with every published
+  generation, of the queued re-search requests and the queued search jobs with their runs by id (the job index,
+  no read of the run table). Limit: a chain's run still queued or searching whose search job is neither queued nor
+  running (the job ended without ending its run) is not found by that look; no job is left to search it, and it
+  ends skipped only when a later cancellation finds a queued job of a chain.
 - A search or request already running when the switch is turned off keeps the settings it started with: it
   finishes as if the switch were on, and may still queue a step or a search after the cancellation. On this build
   that one does nothing when it runs; it stays queued until then, or until the next start cancels it.
@@ -809,7 +815,8 @@ Known limits of the switch:
 
 - A re-search or a Search now request that was put off to the next hour because a chain's search had taken the
   hour's last slot stays put off until the time it was given (at most the rest of that hour) after the switch is
-  turned off. Nothing wakes it earlier.
+  turned off. Turning the switch off does not wake it. A Search now request can run sooner all the same: an
+  ordinary wanted round that comes before that time runs the waiting requests too.
 - Turning the switch off and on again within an hour can let more than `per_hour` searches run in that hour:
   while it is off the chain's earlier searches are not counted, and searches started then come on top of them.
 - A retry step runs at the moment a slot frees and can take it ahead of a Search now request that has waited
@@ -817,8 +824,15 @@ Known limits of the switch:
 - A search already running when the switch is turned off finishes under the old setting (it may ask the indexers
   and queue a step, which then does nothing on this build).
 - With the switch off, a chain's searches count as ordinary searches of their targets for the loop's "last
-  searched" and an add-time intent's retry count once the version's last chain request finished or was cancelled
-  more than 14 days ago (above).
+  searched" and an add-time intent's retry count once the nightly job prune has removed the version's last chain
+  request, which it does the first night after that request finished or was cancelled 14 days before, not at the
+  14-day mark itself (above).
+- An install that never had the switch on still does three reads a build without it does not: every kept
+  re-search job for each "last searched" and once for a drain pass of add-time intents that counts unanswered
+  searches; the run table once a night when it holds no chain run; and the queued re-search requests and queued
+  search jobs at start and with every published settings generation (above). None of them writes.
+- A chain's run left queued or searching without a queued or running search job is not ended by turning the
+  switch off unless a queued job of a chain is found with it (above). It is never searched.
 - A chain ended by turning the switch off does not start again for the same content within the week.
 
 Rolling back to a build without the switch: turn the switch off and save, restart this build once, then roll
