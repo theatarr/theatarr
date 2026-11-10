@@ -1,5 +1,5 @@
-// Upgrade approval (docs/design/manage.md "Upgrades waiting"): a held upgrade with Approve / Decline, used by the title
-// page's copy card and the Requests page's "Upgrades waiting" tab. Approving routes the held release through the
+// Upgrade approval (docs/design/manage.md "Upgrades awaiting approval"): a held upgrade with Approve / Decline, used by the title
+// page's copy card and the Requests page's "Upgrades awaiting approval" tab. Approving routes the held release through the
 // router like any grab (the server refuses while the copy is in shadow or downloads are off, and says why);
 // declining keeps that release from being offered again. Managers only: the API answers 403 to anyone else, and the
 // callers render nothing without the manage permission.

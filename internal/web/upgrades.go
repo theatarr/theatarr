@@ -16,7 +16,7 @@ import (
 	"github.com/theatarr/theatarr/internal/store"
 )
 
-// Upgrade approval (docs/design/router.md "Upgrade approval", docs/design/manage.md "Upgrades waiting"): a version with
+// Upgrade approval (docs/design/router.md "Upgrade approval", docs/design/manage.md "Upgrades awaiting approval"): a version with
 // versions[*].upgrades: approve holds a release that would replace one of its files until a manager approves it.
 // These routes list the holds, approve one (its release is routed through the normal router path) and decline one
 // (never held again). Every route needs manage: family accounts never see holds, their releases or their scores.

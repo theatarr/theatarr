@@ -59,7 +59,7 @@ decisions first and skips candidate decoding for older or non-covering decisions
 The cutoff a file is measured against is the owning arr instance's profile while an arr imports the version (that
 profile decided the state), else the policy profile.
 
-## Upgrades waiting
+## Upgrades awaiting approval
 
 A copy with `versions[*].upgrades: approve` keeps its file until a manager approves a better release
 (docs/design/router.md "Upgrade approval"; `off` never replaces it, `auto` is the default). The upgrade-evidence rule above
@@ -73,7 +73,7 @@ says what Theatarr has *seen*; a hold is what Theatarr *would take now* and is w
   forced off by the environment, the library's switch, shadow) from the grab state, never a config key; any other
   server reason (e.g. the acquirer is not running) is shown as sent. Only admins get the link to the settings page
   that changes it. Title library cards carry the same collision-qualified label as everywhere else.
-- **Requests → Upgrades waiting** (`/requests/upgrades`, tab label with the count): every hold, waiting first, and the
+- **Requests → Upgrades awaiting approval** (`/requests/upgrades`, tab label with the count): every hold, waiting first, and the
   decided ones (Approved by Sam (session) · added; Declined by Sam (key phone): too big; Expired: a newer file
   arrived; Replaced by a better release).
 - Words live in `web/src/lib/upgrade-holds.ts` (`HOLD_HEADLINE`, `HOLD_STATE`, `holdLines`, `approveState`,

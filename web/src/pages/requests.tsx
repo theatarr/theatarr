@@ -147,7 +147,7 @@ function RequestQueue() {
           tabs={[
             ...(manager ? [{ id: "queue", label: "To decide", to: "/requests" }, { id: "all", label: "All", to: "/requests/all" }] : []),
             { id: "mine", label: "Mine", to: "/requests/mine" },
-            ...(perms.manage ? [{ id: "upgrades", label: waiting > 0 ? `Upgrades waiting (${waiting})` : "Upgrades waiting", to: "/requests/upgrades" }] : []),
+            ...(perms.manage ? [{ id: "upgrades", label: waiting > 0 ? `Upgrades awaiting approval (${waiting})` : "Upgrades awaiting approval", to: "/requests/upgrades" }] : []),
           ]}
         />
       ) : null}

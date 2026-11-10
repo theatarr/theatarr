@@ -16,7 +16,7 @@ versions:
     anime: false
     profile: remux-2160p
     # What happens when a release would replace a file the copy already has: auto (the default) takes it, approve
-    # holds it until a manager approves it (Requests > Upgrades waiting, or the title's copy card), off never
+    # holds it until a manager approves it (Requests > Upgrades awaiting approval, or the title's copy card), off never
     # replaces a file. Releases for missing files are never held (docs/design/router.md "Upgrade approval").
     upgrades: approve
     library: /media/movies

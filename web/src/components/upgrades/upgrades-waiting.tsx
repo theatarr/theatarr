@@ -1,4 +1,4 @@
-// The Requests page's "Upgrades waiting" tab (docs/design/ui.md, docs/design/manage.md "Upgrades waiting"): every held
+// The Requests page's "Upgrades awaiting approval" tab (docs/design/ui.md, docs/design/manage.md "Upgrades awaiting approval"): every held
 // upgrade for managers, waiting ones first, with the decided ones (who, how, when) one filter away.
 import { CheckCircle2 } from "lucide-react";
 import { useState } from "react";

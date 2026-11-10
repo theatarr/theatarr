@@ -1,4 +1,4 @@
-// Upgrade approval (docs/design/router.md "Upgrade approval", docs/design/manage.md "Upgrades waiting"): GET upgrades,
+// Upgrade approval (docs/design/router.md "Upgrade approval", docs/design/manage.md "Upgrades awaiting approval"): GET upgrades,
 // POST upgrades/{id}/approve|decline. Managers and admins only (the server answers 403 to anyone else), so callers
 // pass enabled = perms.manage and family accounts never ask.
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";

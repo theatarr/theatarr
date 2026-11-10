@@ -1,4 +1,4 @@
-// Upgrade approval words (docs/design/manage.md "Upgrades waiting"): what a held upgrade would replace, whether it can be
+// Upgrade approval words (docs/design/manage.md "Upgrades awaiting approval"): what a held upgrade would replace, whether it can be
 // approved now, and how it was decided. Pure, so the copy card and the Requests tab say the same and vitest pins it.
 import type { UpgradeHold } from "@/api/upgrades";
 import { fmtNumber } from "./format";
