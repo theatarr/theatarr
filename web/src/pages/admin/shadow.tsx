@@ -25,6 +25,16 @@ function BucketBadge({ b, reason }: { b?: string; reason?: string }) {
   return <Badge tone={x?.tone ?? "neutral"}>{x?.name ?? b ?? "—"}</Badge>;
 }
 
+/** The fewest comparisons `theatarr golive check` judges (its -min-grabs default). */
+export const MIN_COMPARISONS = 20;
+
+/** The agreement figure's tone: none without a figure or below MIN_COMPARISONS (too few to judge), else green at the
+ * bar and amber under it. */
+export function agreementTone(agreement: number | null | undefined, bar: number | null | undefined, grabs: number | null | undefined): "ok" | "warn" | undefined {
+  if (agreement === null || agreement === undefined || (grabs ?? 0) < MIN_COMPARISONS) return undefined;
+  return agreement >= (bar ?? 0.95) ? "ok" : "warn";
+}
+
 export function Shadow() {
   const [params, setParams] = useSearchParams();
   const f = {
@@ -46,7 +56,6 @@ export function Shadow() {
   if (sum.isPending) return <Loading />;
   if (sum.error) return <ErrorState error={sum.error} />;
   const s = sum.data;
-  const met = s.agreement !== null && s.agreement !== undefined && s.agreement >= (s.bar ?? 0.95);
   const filtered = !!(f.bucket || f.reason || f.version || f.search_found_better);
   return (
     <div>
@@ -57,7 +66,7 @@ export function Shadow() {
       />
       <ArrTabs />
       <StatGrid>
-        <Stat testid="shadow-agreement" value={fmtPercent(s.agreement)} tone={s.agreement === null || s.agreement === undefined ? undefined : met ? "ok" : "warn"} label={`agreement (bar ${fmtPercent(s.bar, 0)})`} />
+        <Stat testid="shadow-agreement" value={fmtPercent(s.agreement)} tone={agreementTone(s.agreement, s.bar, s.grabs)} label={`agreement (bar ${fmtPercent(s.bar, 0)})`} />
         <Stat value={fmtNumber(s.grabs)} label={`comparisons since ${fmtTime(s.since)}`} />
         <Stat value={`${fmtNumber(s.searched)} / ${fmtNumber(s.grabs)}`} label={`searched · ${fmtNumber(s.search_found_better)} found better`} />
         <Stat value={fmtNumber(s.open_picks)} label="open RSS picks" />
