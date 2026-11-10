@@ -51,7 +51,7 @@ export function Logs() {
       </div>
       {(q.data?.restartTotal ?? 0) > 0 ? <p role="status" className="mb-4 text-sm text-muted-foreground">Theatarr restarted. The viewer is showing logs from the new process.</p> : null}
       {(q.data?.skippedTotal ?? 0) > 0 ? <p role="status" className="mb-4 text-sm text-muted-foreground">
-        {q.data!.skippedTotal} log lines skipped: the in-memory log buffer filled before they could be read. <a className="text-primary underline" href={API_BASE + "/logs/files"}>Find older lines in log files</a> or use the downloads above.
+        {q.data!.skippedTotal} log lines skipped: the in-memory log buffer filled before they could be read. Older lines are in the log files above.
       </p> : null}
       {files.error ? <ErrorState error={files.error} /> : null}
       <div className="mb-4 flex flex-wrap items-center gap-3">
