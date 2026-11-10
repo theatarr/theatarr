@@ -31,7 +31,7 @@ export function TMDbKey({ onSaved }: { onSaved: () => void }) {
     <label className="flex flex-col gap-1 text-sm"><span>TMDb API key (v3)</span>
       <Input type="password" autoComplete="off" value={key} disabled={patch.busy} onChange={(e) => setKey(e.target.value)} />
     </label>
-    <p className="text-[12.5px] text-muted-foreground">The short “API Key” from your TMDb account’s API settings (<a className="underline" href="https://www.themoviedb.org/settings/api" target="_blank" rel="noreferrer">themoviedb.org › Settings › API</a>), not the long “API Read Access Token”. Saving adds the sources <code>tmdb</code> and <code>tmdb-images</code> with TMDb’s public addresses and asks you to confirm the two hosts.</p>
+    <p className="text-[12.5px] text-muted-foreground">The short “API Key” from your TMDb account’s API settings (<a className="underline" href="https://www.themoviedb.org/settings/api" target="_blank" rel="noreferrer">themoviedb.org › Settings › API</a>), not the long “API Read Access Token”. Saving adds the sources <code>tmdb</code> and <code>tmdb-images</code> with TMDb’s public addresses.</p>
     <Button type="submit" className="w-fit" disabled={patch.busy || !key.trim()}>Save TMDb key</Button>
     {patch.feedback}
   </form>;
