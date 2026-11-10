@@ -219,7 +219,8 @@ func TestMP4MoovAtEnd(t *testing.T) {
 		box("minf", box("stbl", stsd(vEntry)))))
 	audio := make([]byte, 28)
 	binary.BigEndian.PutUint16(audio[16:], 6)
-	dec3 := []byte{0, 0, 0, 0, 0, 0x01} // one substream, no dependents, then flag_ec3_extension_type_a
+	// One substream (acmod 7, lfeon: 5.1), no dependents, then flag_ec3_extension_type_a.
+	dec3 := []byte{0, 0, 0, 0x0F, 0, 0x01}
 	aEntry := box("ec-3", audio, box("dec3", dec3))
 	trakA := box("trak", box("mdia", box("mdhd", mdhd), box("hdlr", hdlr("soun")),
 		box("minf", box("stbl", stsd(aEntry)))))
@@ -366,5 +367,68 @@ func TestMatroskaChainedSeekHead(t *testing.T) {
 	if _, err := Reader(bytes.NewReader(data), int64(len(data)), 0); err == nil ||
 		err.Error() != "probe: no Matroska Tracks element" {
 		t.Fatalf("loop: %v", err)
+	}
+}
+
+// mp4Sound is a one-track MP4 whose audio sample entry is format with body (from the reserved bytes on) and children.
+func mp4Sound(format string, body []byte, children ...[]byte) []byte {
+	mvhd := make([]byte, 100)
+	binary.BigEndian.PutUint32(mvhd[12:], 1000)
+	binary.BigEndian.PutUint32(mvhd[16:], 5_400_000)
+	hdlr := make([]byte, 24)
+	copy(hdlr[8:], "soun")
+	stsd := box("stsd", []byte{0, 0, 0, 0, 0, 0, 0, 1}, box(format, append([][]byte{body}, children...)...))
+	trak := box("trak", box("mdia", box("mdhd", make([]byte, 24)), box("hdlr", hdlr), box("minf", box("stbl", stsd))))
+	return append(box("ftyp", []byte("isom\x00\x00\x02\x00")), box("moov", box("mvhd", mvhd), trak)...)
+}
+
+// soundEntry is a sound sample entry body of the given QuickTime version (0: 28 bytes, 1: 44, 2: 64) whose
+// 16-bit channel count says channels; version 2 holds v2Channels in its 32-bit field.
+func soundEntry(version, channels uint16, v2Channels uint32) []byte {
+	b := make([]byte, map[uint16]int{0: 28, 1: 44, 2: 64}[version])
+	binary.BigEndian.PutUint16(b[8:], version)
+	binary.BigEndian.PutUint16(b[16:], channels)
+	if version == 2 {
+		binary.BigEndian.PutUint32(b[40:], v2Channels)
+	}
+	return b
+}
+
+// AC-3 and E-AC-3 in MP4 take their channel count from dac3/dec3 (acmod, lfeon), not the sample entry's channel
+// field, which muxers often leave at 2; QuickTime version 1 and 2 sound entries have their child boxes further on,
+// version 1 (as ffmpeg's mov muxer writes it) inside a wave box.
+func TestMP4AC3Channels(t *testing.T) {
+	dac3 := box("dac3", []byte{0x50, 0x3d, 0xc0})                   // ffmpeg's 5.1 AC-3: acmod 7, lfeon 1
+	dec3 := box("dec3", []byte{0x0c, 0x00, 0x60, 0x0f, 0x00, 0x00}) // ffmpeg's 5.1 E-AC-3
+	dec3Atmos := box("dec3", []byte{0x0c, 0x00, 0x60, 0x0f, 0x00, 0x01})
+	dec3Stereo := box("dec3", []byte{0x0c, 0x00, 0x60, 0x04, 0x00, 0x00})          // acmod 2, no LFE
+	dec3Dependent := box("dec3", []byte{0x0c, 0x00, 0x60, 0x0f, 0x02, 0x00, 0x00}) // 5.1 plus a dependent substream
+	wave := func(format string, b []byte) []byte {
+		return box("wave", box("frma", []byte(format)), b, make([]byte, 8))
+	}
+	for _, c := range []struct {
+		name     string
+		data     []byte
+		channels int
+		tag      string
+	}{
+		{"v0 ac-3", mp4Sound("ac-3", soundEntry(0, 2, 0), dac3), 6, ""},
+		{"v0 ec-3", mp4Sound("ec-3", soundEntry(0, 2, 0), dec3), 6, ""},
+		{"v0 ec-3 atmos", mp4Sound("ec-3", soundEntry(0, 2, 0), dec3Atmos), 6, "ec+3"},
+		{"v0 ec-3 stereo", mp4Sound("ec-3", soundEntry(0, 6, 0), dec3Stereo), 2, ""},
+		{"v0 ec-3 dependent keeps 8", mp4Sound("ec-3", soundEntry(0, 8, 0), dec3Dependent), 8, ""},
+		{"v1 ac-3 in wave", mp4Sound("ac-3", soundEntry(1, 2, 0), wave("ac-3", dac3)), 6, ""},
+		{"v1 ec-3 in wave", mp4Sound("ec-3", soundEntry(1, 2, 0), wave("ec-3", dec3Atmos)), 6, "ec+3"},
+		{"v1 ec-3 bare", mp4Sound("ec-3", soundEntry(1, 2, 0), dec3Atmos), 6, "ec+3"},
+		{"v2 ec-3", mp4Sound("ec-3", soundEntry(2, 3, 2), dec3Atmos), 6, "ec+3"},
+		{"v2 lpcm", mp4Sound("lpcm", soundEntry(2, 3, 6)), 6, ""},
+	} {
+		r, err := Reader(bytes.NewReader(c.data), int64(len(c.data)), 0)
+		if err != nil {
+			t.Fatalf("%s: %v", c.name, err)
+		}
+		if len(r.Audio) != 1 || r.Audio[0].Channels != c.channels || r.Audio[0].Tag != c.tag {
+			t.Errorf("%s: audio %+v, want %d channels tag %q", c.name, r.Audio, c.channels, c.tag)
+		}
 	}
 }

@@ -206,7 +206,23 @@ func mp4Trak(res *Result, trak []byte) {
 		a := Audio{CodecID: format, Language: lang}
 		if len(body) >= 28 {
 			a.Channels = int(binary.BigEndian.Uint16(body[16:]))
-			mp4AudioEntry(&a, format, body[28:])
+			ext := body[28:]
+			// A QuickTime sound description (stsd version 0, entry version 1 or 2, as ffmpeg's mov reader takes it)
+			// has more fields before its child boxes; version 2 holds the channel count in them.
+			if stsd[0] == 0 {
+				switch binary.BigEndian.Uint16(body[8:]) {
+				case 1:
+					if len(body) >= 44 {
+						ext = body[44:]
+					}
+				case 2:
+					if len(body) >= 64 {
+						a.Channels = int(binary.BigEndian.Uint32(body[40:]))
+						ext = body[64:]
+					}
+				}
+			}
+			mp4AudioEntry(&a, format, ext)
 		}
 		res.Audio = append(res.Audio, a)
 	case "subt", "sbtl", "text":
@@ -292,8 +308,21 @@ func mp4AudioEntry(a *Audio, format string, ext []byte) {
 	default:
 		a.Codec = strings.ToLower(strings.TrimSpace(format))
 	}
-	memBoxes(ext, func(typ string, d []byte) {
+	var child func(typ string, d []byte)
+	child = func(typ string, d []byte) {
 		switch typ {
+		case "wave":
+			// QuickTime puts the codec's boxes in a wave box; it is read one level deep.
+			memBoxes(d, func(typ string, d []byte) {
+				if typ != "wave" {
+					child(typ, d)
+				}
+			})
+		case "dac3":
+			// fscod(2) bsid(5) bsmod(3) acmod(3) lfeon(1) bit_rate_code(5) reserved(5).
+			if len(d) >= 2 {
+				a.Channels = ac3Channels(d[1]>>3, d[1]>>2)
+			}
 		case "dec3":
 			// data_rate(13) num_ind_sub(3), then per substream 3 bytes (+1 with dependents); a following byte holds
 			// flag_ec3_extension_type_a in its least significant bit.
@@ -304,6 +333,14 @@ func mp4AudioEntry(a *Audio, format string, ext []byte) {
 			p := 2
 			for i := 0; i < n && p+3 <= len(d); i++ {
 				deps := int(d[p+2]>>1) & 0xF
+				if i == 0 {
+					// The first independent substream: fscod(2) bsid(5) reserved(1) asvc(1) bsmod(3) acmod(3)
+					// lfeon(1). Channels a dependent substream adds (7.1) are not counted, so a larger count from
+					// the sample entry is kept then.
+					if c := ac3Channels(d[p+1]>>1, d[p+1]); deps == 0 || c > a.Channels {
+						a.Channels = c
+					}
+				}
 				p += 3
 				if deps > 0 {
 					p++
@@ -320,7 +357,13 @@ func mp4AudioEntry(a *Audio, format string, ext []byte) {
 				}
 			}
 		}
-	})
+	}
+	memBoxes(ext, child)
+}
+
+// ac3Channels is the channel count of an AC-3 acmod (low 3 bits) plus the LFE channel (lfeon, low bit).
+func ac3Channels(acmod, lfeon byte) int {
+	return [8]int{2, 1, 2, 3, 3, 4, 4, 5}[acmod&7] + int(lfeon&1)
 }
 
 // audioSpecificConfig finds the DecoderSpecificInfo (tag 5) payload in an esds box.
