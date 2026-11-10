@@ -499,3 +499,36 @@ func TestMinimumAvailabilityClientAddAnimeRetry(t *testing.T) {
 		})
 	}
 }
+
+// A library's own row made only to hold a choice has no added time; the first save through the library's view gives
+// it one, as when the row is new.
+func TestChoiceRowTakesAddedTimeOnSave(t *testing.T) {
+	t.Parallel()
+	e := minAvailEnv(t, func(e *env) {})
+	var movie map[string]any
+	e.call("GET", fmt.Sprintf("/radarr/api/v3/movie/%d", IDBase+1), nil, 200, &movie)
+	movie["minimumAvailability"] = "announced"
+	e.tick()
+	e.call("PUT", fmt.Sprintf("/radarr/api/v3/movie/%d", IDBase+1), movie, 202, nil)
+	if n := e.one(`SELECT added_at FROM arrview_title WHERE view = 'v/movie-web' AND title_id = 1`); n != 0 {
+		t.Fatalf("fixture: the choice row has an added time %d", n)
+	}
+	e.tick()
+	var out map[string]any
+	e.call("POST", "/v/movie-web/radarr/api/v3/movie", map[string]any{"title": "Alpha", "tmdbId": 101,
+		"qualityProfileId": e.profileID("v/movie-web", "movie-web"), "monitored": true}, 201, &out)
+	if n := e.one(`SELECT added_at FROM arrview_title WHERE view = 'v/movie-web' AND title_id = 1`); n != ms(e.now) {
+		t.Errorf("added_at %d, want %d", n, ms(e.now))
+	}
+	if want := e.now.Format("2006-01-02T15:04:05Z"); out["added"] != want {
+		t.Errorf("added %v, want %s", out["added"], want)
+	}
+	// A later save keeps it, and the choice with its time.
+	rows := e.choiceRows(1)
+	e.tick()
+	e.call("PUT", fmt.Sprintf("/v/movie-web/radarr/api/v3/movie/%d", IDBase+1), out, 202, nil)
+	if n := e.one(`SELECT added_at FROM arrview_title WHERE view = 'v/movie-web' AND title_id = 1`); n == ms(e.now) ||
+		!maps.Equal(e.choiceRows(1), rows) {
+		t.Errorf("a later save moved the added time or the choice")
+	}
+}

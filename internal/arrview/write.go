@@ -504,6 +504,7 @@ func (s *Service) saveRecord(ctx context.Context, tx *sqlTx, v *View, titleID in
 		minimum_availability, season_folder, series_type, monitor_new_items, added_at, updated_at)
 		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 		ON CONFLICT (view, title_id) DO UPDATE SET
+		added_at = CASE WHEN added_at = 0 THEN excluded.added_at ELSE added_at END,
 		quality_profile_id = CASE WHEN excluded.quality_profile_id > 0 THEN excluded.quality_profile_id ELSE quality_profile_id END,
 		root_folder_path = CASE WHEN excluded.root_folder_path <> '' THEN excluded.root_folder_path ELSE root_folder_path END,
 		minimum_availability = CASE WHEN excluded.minimum_availability <> '' THEN excluded.minimum_availability ELSE minimum_availability END,
