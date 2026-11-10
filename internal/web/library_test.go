@@ -435,6 +435,16 @@ func TestDiscover(t *testing.T) {
 		if row(full) != row(r) || full.Total != r.Total {
 			t.Errorf("discover/%s: %q, want %q", name, row(full), row(r))
 		}
+		// Recently added carries the moment on Home and on its "See all" page; the browser picks the day.
+		for i, it := range full.Items {
+			if name != "recent" {
+				if it.At != nil || r.Items[i].At != nil {
+					t.Errorf("discover/%s: %s has a moment", name, it.Name)
+				}
+			} else if it.At == nil || r.Items[i].At == nil || !it.At.Equal(*r.Items[i].At) {
+				t.Errorf("discover/recent: %s at %v, Home %v", it.Name, it.At, r.Items[i].At)
+			}
+		}
 	}
 	var page DiscoverRow
 	if code := e.getKey(APIBase+"/discover/missing?limit=1&offset=1", key, &page); code != 200 || page.Total != 2 ||
@@ -525,6 +535,12 @@ func TestNoFilesWithoutSeeFiles(t *testing.T) {
 			if strings.Contains(body, s) {
 				t.Errorf("%s shows %s to a caller without see_files", p, s)
 			}
+		}
+	}
+	// "Recently available" (an account without see_files) carries the moment too, on Home and on "See all".
+	for _, p := range []string{"/discover", "/discover/recent"} {
+		if _, body := get(APIBase + p); strings.Count(body, `"at":"2026-10-`) != 3 {
+			t.Errorf("%s: want the moment of each of the 3 recent titles: %s", p, body)
 		}
 	}
 	// Availability stays, as a resolution; the source and the history go.
