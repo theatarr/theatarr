@@ -485,7 +485,12 @@ func (s *Service) editor(w http.ResponseWriter, r *request) {
 			if in.QualityProfileID != nil {
 				ti.QualityProfileID = *in.QualityProfileID
 				if p := v.profileByID(ti.QualityProfileID); p != nil {
-					keys, err := s.chooseVersions(v, &ti, e.anime)
+					// Anime as acquisition will see the title after this edit: its flag, or its type.
+					after := e.seriesType
+					if typ := in.SeriesType.value(seriesTypes...); v.Flavour == Sonarr && typ != "" {
+						after = typ
+					}
+					keys, err := s.chooseVersions(v, &ti, e.anime || after == "anime")
 					if err != nil && err != errNoVersion {
 						return err
 					}

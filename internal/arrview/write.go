@@ -396,6 +396,23 @@ func (s *Service) holds(ctx context.Context, v *View, in *titleIn, ext int64) (b
 	return ok, err
 }
 
+// heldSeriesType is the series type a held series has once this add is stored (docs/design/series.md "Series type"):
+// its own, or the request's when it has none stored (catalog.AddSeriesType then stores it). "" for a series
+// Theatarr does not hold.
+func (s *Service) heldSeriesType(ctx context.Context, in *titleIn, ext int64) (string, error) {
+	var stored, effective string
+	err := s.st.Reader().QueryRowContext(ctx, `SELECT COALESCE(t.series_type, ''), `+store.SeriesTypeSQL("t")+`
+		FROM title t WHERE t.kind = 'series' AND (t.tvdb_id = ? OR t.tmdb_id = ?) ORDER BY t.tvdb_id = ? DESC LIMIT 1`,
+		ext, in.TmdbID, ext).Scan(&stored, &effective)
+	if errors.Is(err, sql.ErrNoRows) {
+		return "", nil
+	}
+	if typ := in.SeriesType.value(seriesTypes...); stored == "" && typ != "" {
+		return typ, err
+	}
+	return effective, err
+}
+
 // turnOn makes sure the title has each version, monitored as asked: a new version starts wanted; a removed one is
 // restored (catalog.TurnOn). It returns the keys of the versions it created.
 func (s *Service) turnOn(ctx context.Context, tx *sqlTx, v *View, titleID int64, keys []string,
@@ -609,7 +626,20 @@ func (s *Service) addTitle(w http.ResponseWriter, r *request) {
 	}
 	// Anime: what the request says (Sonarr's anime series type, an anime root folder or profile) wins; else Theatarr
 	// decides for a title it does not hold yet (decideAnime), outside the write transaction.
-	anime, source := s.animeHint(v, &in), ""
+	// A series Theatarr holds is anime to acquisition by its flag or its type, and an add never changes a stored
+	// type: its libraries are chosen by the type it has after this add, not by the request's.
+	hint := in
+	if v.Flavour == Sonarr {
+		typ, err := s.heldSeriesType(ctx, &in, ext)
+		if err != nil {
+			s.internal(w, r, err)
+			return
+		}
+		if typ != "" {
+			hint.SeriesType = enumText(typ)
+		}
+	}
+	anime, source := s.animeHint(v, &hint), ""
 	held := false
 	if anime != nil && *anime {
 		source = animeFromRequest
@@ -754,20 +784,23 @@ func (s *Service) updateTitle(w http.ResponseWriter, r *request) {
 		// only what differs from that answer changes. The view reports monitored when any copy is and one profile
 		// for all copies, so echoing either back must not turn on, or restore, a copy the user left off.
 		mon := in.monitored(e.monitored())
+		after := e.seriesType // the type once this PUT is stored
 		if v.Flavour == Sonarr {
 			// The series type is one value per title, shown on every view. The value the view showed, sent back,
-			// says nothing: it is not stored and is no anime hint for a profile change below. Another value is an
-			// edit of the title's type.
+			// says nothing: it is not stored. Another value is an edit of the title's type.
 			typ := in.SeriesType.value(seriesTypes...)
 			if typ == e.seriesType {
 				in.SeriesType = ""
 			} else if err := catalog.SetSeriesType(ctx, tx, e.id, typ); err != nil {
 				return err
+			} else if typ != "" {
+				after = typ
 			}
 		}
 		var fresh, picked []string
 		if p := v.profileByID(in.profile()); p != nil && p.ID != qualityProfileID(v, e) {
-			anime := e.anime
+			// Anime as acquisition will see the title after this PUT: its flag, or its type.
+			anime := e.anime || after == "anime"
 			if h := s.animeHint(v, &in); h != nil && *h {
 				anime = true
 			}

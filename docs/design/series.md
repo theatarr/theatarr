@@ -59,7 +59,7 @@ A series has one type (standard, daily or anime), the same for every library and
   choice) and anime indexer queries (flag or type). A `standard` series can be flagged anime and the reverse.
 
 Tests: `TestSeriesTypeEchoChangesNothing`, `TestSeriesTypeEdit`, `TestSeriesTypeAddKeepsStored`,
-`TestSeriesTypeEchoIsNoAnimeHint`, `TestSeriesTypeEditor` (arrview), `TestNextEpisodeUsesTitleSeriesType`
+`TestSeriesTypeChoosesSearchableLibraries`, `TestSeriesTypeLookupOutsideView`, `TestSeriesTypeEditor` (arrview), `TestNextEpisodeUsesTitleSeriesType`
 (nowplaying), `TestLoadSeriesVersion`, `TestFollowerNamingSeriesType`.
 
 ### Series decisions (`internal/decide`)

@@ -149,3 +149,33 @@ func TestRemovedEpisodesNotSearched(t *testing.T) {
 		t.Fatalf("named %+v %v", ts, err)
 	}
 }
+
+// A library's anime setting takes a series by its anime flag or its series type (the title's): the arr views
+// choose a series' libraries by the same rule (arrview TestSeriesTypeChoosesSearchableLibraries).
+func TestTargetsAnimeLibraryBySeriesType(t *testing.T) {
+	e := newEnv(t, true, nil)
+	yes, no := true, false
+	sel := Selection{Versions: []string{"series"}, TitleIDs: []int64{10}, Only: OnlyMissing}
+	for _, tc := range []struct {
+		stored  any
+		flag    int
+		library *bool
+		want    bool
+	}{
+		{"anime", 0, &yes, true}, {"anime", 0, &no, false},
+		{"standard", 0, &yes, false}, {"standard", 0, &no, true},
+		{"standard", 1, &yes, true}, {nil, 1, &yes, true}, {nil, 0, &yes, false},
+	} {
+		if _, err := e.st.Writer().Exec(`UPDATE title SET series_type = ?, anime = ? WHERE id = 10`, tc.stored, tc.flag); err != nil {
+			t.Fatal(err)
+		}
+		e.pol.Versions["series"].Anime = tc.library
+		ts, err := e.a.targets(e.ctx, sel)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if got := len(ts) > 0; got != tc.want {
+			t.Errorf("type %v, flag %d, anime library %v: searched=%v, want %v", tc.stored, tc.flag, *tc.library, got, tc.want)
+		}
+	}
+}

@@ -146,45 +146,119 @@ func TestSeriesTypeAddKeepsStored(t *testing.T) {
 	}
 }
 
-// A profile change in a PUT that sends back the anime type the view showed does not read it as an anime hint: the
-// title's flag chooses the profile's libraries, as for any other type.
-func TestSeriesTypeEchoIsNoAnimeHint(t *testing.T) {
+// searchable fails the test when a library the title has on is one acquisition skips for it: acquisition takes a
+// library whose anime setting matches the title's flag or anime type (internal/acquire targets).
+func (e *env) searchable(titleID int64) {
+	e.t.Helper()
+	anime := e.one(`SELECT anime FROM title WHERE id = ?`, titleID) == 1 || e.effectiveSeriesType(titleID) == "anime"
+	for k, vp := range e.pol.Versions {
+		on := e.one(`SELECT COUNT(*) FROM version v WHERE v.title_id = ? AND v.policy_key = ? AND v.monitored
+			AND NOT EXISTS (SELECT 1 FROM arrview_removed_version r WHERE r.version_id = v.id)`, titleID, k) == 1
+		if on && vp.Anime != nil && *vp.Anime != anime {
+			e.t.Errorf("library %s is on, and acquisition skips it for a title that is anime=%v", k, anime)
+		}
+	}
+}
+
+// seriesTypeLibraries is the seeded series with its copy in a library that takes any title, and a profile of the
+// anime library and the non-anime one, so a profile change or an add has to choose between the two by the title's
+// classification.
+func seriesTypeLibraries(t *testing.T, stored string) (*env, string) {
 	e := newEnv(t)
+	cp := *e.pol.Versions["tv-2160p"]
+	cp.Anime = nil
+	e.pol.Versions["tv-any"] = &cp
 	v := e.pol.Views["sonarr"]
-	v.Profiles = map[string][]string{"Rules default": {"tv-2160p"}, "Both": {"tv-2160p", "anime-tv"}}
+	v.Versions = []string{"tv-any", "tv-2160p", "anime-tv"}
+	v.Profiles = map[string][]string{"Rules default": {"tv-any"}, "Both": {"tv-2160p", "anime-tv"}}
 	e.start()
-	e.exec(`UPDATE title SET series_type = 'anime', anime = 0 WHERE id = 10`)
-	e.exec(`UPDATE version SET monitored = 0 WHERE id = 10`)
-	path := fmt.Sprintf("/sonarr/api/v3/series/%d", IDBase+10)
-	var s map[string]any
-	e.call("GET", path, nil, 200, &s)
-	if s["seriesType"] != "anime" {
-		t.Fatal("fixture", s["seriesType"])
+	e.exec(`UPDATE title SET series_type = ?, anime = 0 WHERE id = 10`, stored)
+	e.exec(`UPDATE version SET policy_key = 'tv-any' WHERE id = 10`)
+	return e, fmt.Sprintf("/sonarr/api/v3/series/%d", IDBase+10)
+}
+
+func (e *env) libraryOn(key string) bool {
+	e.t.Helper()
+	return e.one(`SELECT COUNT(*) FROM version WHERE title_id = 10 AND policy_key = ? AND monitored`, key) == 1
+}
+
+// The libraries a view turns on are chosen by what acquisition will take the title for once the request is
+// stored: its anime flag, or its type then. A type sent back unchanged counts through the stored type; a changed
+// one counts because it becomes the stored type.
+func TestSeriesTypeChoosesSearchableLibraries(t *testing.T) {
+	for _, tc := range []struct {
+		name         string
+		stored, send string // send: the type the PUT sends; "" sends the view's answer back
+		want         string // the library turned on
+	}{
+		{"echoed anime", "anime", "", "anime-tv"},
+		{"echoed standard", "standard", "", "tv-2160p"},
+		{"changed to anime", "standard", "anime", "anime-tv"},
+		{"changed to standard", "anime", "standard", "tv-2160p"},
+	} {
+		t.Run("PUT "+tc.name, func(t *testing.T) {
+			e, path := seriesTypeLibraries(t, tc.stored)
+			var s map[string]any
+			e.call("GET", path, nil, 200, &s)
+			want := tc.stored
+			if tc.send != "" {
+				s["seriesType"], want = tc.send, tc.send
+			}
+			s["qualityProfileId"] = e.profileID("sonarr", "Both")
+			e.call("PUT", path, s, 202, &s)
+			if s["seriesType"] != want || e.str(`SELECT series_type FROM title WHERE id = 10`) != want {
+				t.Errorf("type after the PUT: answered %v", s["seriesType"])
+			}
+			for _, k := range []string{"tv-2160p", "anime-tv"} {
+				if on := e.libraryOn(k); on != (k == tc.want) {
+					t.Errorf("library %s on=%v, want %s only", k, on, tc.want)
+				}
+			}
+			e.searchable(10)
+		})
 	}
-	s["qualityProfileId"] = e.profileID("sonarr", "Both")
-	s["monitored"] = true
-	e.call("PUT", path, s, 202, &s)
-	if n := e.one(`SELECT COUNT(*) FROM version WHERE title_id = 10 AND policy_key = 'anime-tv'`); n != 0 {
-		t.Error("the echoed anime type turned on the anime library")
+	// An add never changes a stored type, so the stored type chooses, not the request's.
+	for _, tc := range []struct{ stored, send, want string }{
+		{"standard", "anime", "tv-2160p"}, {"anime", "standard", "anime-tv"},
+	} {
+		t.Run("POST "+tc.send+" on stored "+tc.stored, func(t *testing.T) {
+			e, _ := seriesTypeLibraries(t, tc.stored)
+			var s map[string]any
+			e.call("POST", "/sonarr/api/v3/series", map[string]any{"title": "The Show", "tvdbId": 201, "monitored": true,
+				"seriesType": tc.send, "qualityProfileId": e.profileID("sonarr", "Both")}, 201, &s)
+			if s["seriesType"] != tc.stored {
+				t.Errorf("the add answered %v", s["seriesType"])
+			}
+			for _, k := range []string{"tv-2160p", "anime-tv"} {
+				if on := e.libraryOn(k); on != (k == tc.want) {
+					t.Errorf("library %s on=%v, want %s only", k, on, tc.want)
+				}
+			}
+			e.searchable(10)
+		})
 	}
-	if n := e.one(`SELECT monitored FROM version WHERE id = 10`); n != 1 {
-		t.Error("the profile's library for a title without the anime flag was not turned on")
-	}
-	if s["seriesType"] != "anime" {
-		t.Errorf("PUT answered %v", s["seriesType"])
-	}
-	// A type the user changes to anime in the same PUT is a hint, as before.
-	e.exec(`UPDATE title SET series_type = 'standard' WHERE id = 10`)
-	e.exec(`UPDATE version SET monitored = 0 WHERE id = 10`)
-	e.call("GET", path, nil, 200, &s)
-	s["qualityProfileId"] = e.profileID("sonarr", "Rules default")
-	e.call("PUT", path, s, 202, &s)
-	s["qualityProfileId"] = e.profileID("sonarr", "Both")
-	s["seriesType"] = "anime"
-	e.call("PUT", path, s, 202, &s)
-	if n := e.one(`SELECT COUNT(*) FROM version WHERE title_id = 10 AND policy_key = 'anime-tv'`); n != 1 {
-		t.Error("an edit to anime with a profile change did not choose the anime library")
-	}
+	// A held series with no type takes the add's, which then chooses.
+	t.Run("POST anime on no stored type", func(t *testing.T) {
+		e, _ := seriesTypeLibraries(t, "")
+		e.exec(`UPDATE title SET series_type = NULL WHERE id = 10`)
+		e.call("POST", "/sonarr/api/v3/series", map[string]any{"title": "The Show", "tvdbId": 201, "monitored": true,
+			"seriesType": "anime", "qualityProfileId": e.profileID("sonarr", "Both")}, 201, nil)
+		if !e.libraryOn("anime-tv") || e.libraryOn("tv-2160p") || e.effectiveSeriesType(10) != "anime" {
+			t.Errorf("anime-tv on=%v, tv-2160p on=%v, type %q", e.libraryOn("anime-tv"), e.libraryOn("tv-2160p"),
+				e.effectiveSeriesType(10))
+		}
+		e.searchable(10)
+	})
+	// The editor chooses the same way.
+	t.Run("editor", func(t *testing.T) {
+		e, _ := seriesTypeLibraries(t, "anime")
+		e.call("PUT", "/sonarr/api/v3/series/editor", map[string]any{"seriesIds": []int64{IDBase + 10},
+			"qualityProfileId": e.profileID("sonarr", "Both")}, 202, nil)
+		if !e.libraryOn("anime-tv") {
+			t.Error("the editor did not turn on the anime library for a series of type anime")
+		}
+		e.searchable(10)
+	})
 }
 
 // The editor is outside the echo rule: a series type it is given is stored, also when it is the one shown; without

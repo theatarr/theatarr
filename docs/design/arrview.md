@@ -227,7 +227,10 @@ marker, makes existing movies due for refresh and clears the RSS seen cache.
   - Root folder, profile, minimum availability, season folder and monitor-new-items go to
     `arrview_title` (per view and title); tags to `arrview_title_tag`, on the view's versions of the title.
   - Sonarr's `seriesType` is the title's one type (`docs/design/series.md` "Series type"), shown the same on every
-    view. An add stores it only for a series that has none (`TestSeriesTypeAddKeepsStored`).
+    view. An add stores it only for a series that has none (`TestSeriesTypeAddKeepsStored`); the request's
+    `anime` type is the anime hint below only for a series Theatarr does not hold or one with no stored type.
+    `series/lookup` answers the title's type for a held series also in a view that does not show it
+    (`TestSeriesTypeLookupOutsideView`).
   - `addOptions.searchForMovie` / `searchForMissingEpisodes` record a `MoviesSearch` / `MissingEpisodeSearch`
     command (below).
   - Sonarr's `addOptions.monitor` (Ruddarr, LunaSea; a name or MonitorTypes index) is applied after the body's seasons
@@ -251,10 +254,14 @@ marker, makes existing movies due for refresh and clears the RSS seen cache.
   `monitorNewItems` goes to the versions' intent (`series_monitor`), from
   PUT `series` and PUT `series/editor` alike, and the series resource reports that intent. Files are never moved
   (`moveFiles` is ignored).
-  - **Series type.** A `seriesType` equal to the one the view showed stores nothing and is no anime hint for a
-    profile change in the same PUT (`TestSeriesTypeEchoChangesNothing`, `TestSeriesTypeEchoIsNoAnimeHint`); another
-    value is an edit of the title's type, seen on every view and by every library (`TestSeriesTypeEdit`), and
-    `anime` then is a hint for a profile change. Outside this guarantee: a title whose anime check is still
+  - **Series type.** A `seriesType` equal to the one the view showed stores nothing
+    (`TestSeriesTypeEchoChangesNothing`); another value is an edit of the title's type, seen on every view and by
+    every library (`TestSeriesTypeEdit`). The libraries a profile change, an editor profile change or an add turns
+    on are chosen by what acquisition takes the series for once the request is stored: its anime flag, or its type
+    then being `anime` (`acquire` `TestTargetsAnimeLibraryBySeriesType`). So a type sent back unchanged counts
+    through the stored type, a changed one because it becomes the stored type, and an add on a held series, which
+    never changes a stored type, by the stored one (`TestSeriesTypeChoosesSearchableLibraries`). An anime root
+    folder or a profile of anime libraries only remains a request hint. Outside this guarantee: a title whose anime check is still
     `unknown` is asked about again after the PUT (above), and an anime answer sets the flag, so a series with no
     stored type then shows `anime`. `PUT series/editor` is outside it too: a `seriesType` it is given is an edit,
     also when it is the value shown; without the field nothing changes (`TestSeriesTypeEditor`).
