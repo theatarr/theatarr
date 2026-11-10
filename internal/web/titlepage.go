@@ -95,7 +95,7 @@ func downloadEvents(out []HistoryEvent, h HistoryEvent, state string, created, d
 	return out
 }
 
-// EpisodeCounts is a series version's episodes outside the specials.
+// EpisodeCounts is a series version's episodes outside the specials. Aired is by the air instant, as the engine's.
 type EpisodeCounts struct {
 	Total int `json:"total"`
 	// Have: episodes with a file (filled or cutoff_met). Missing: aired, monitored and wanted.
@@ -395,13 +395,13 @@ func episodeCode(season, number int64) string {
 
 // episodeCounts sets each series version's episode counts, specials left out.
 func (w *Web) episodeCounts(ctx context.Context, db *sql.DB, ids []any, byID map[int64]*Version) error {
-	today := w.now().UTC().Format(time.DateOnly)
+	now := store.Millis(w.now())
 	return scanAll(ctx, db, `SELECT s.version_id, COUNT(*),
 		SUM(s.state IN ('filled', 'cutoff_met')),
-		SUM(s.state = 'wanted' AND s.monitored = 1 AND e.air_date IS NOT NULL AND e.air_date <= ?)
+		SUM(s.state = 'wanted' AND s.monitored = 1 AND e.air_date_utc_at IS NOT NULL AND e.air_date_utc_at <= ?)
 		FROM episode_version_state s JOIN episode e ON e.id = s.episode_id
 		WHERE s.version_id IN (`+store.Placeholders(len(ids))+`) AND e.season > 0 GROUP BY s.version_id`,
-		append([]any{today}, ids...), func(r *sql.Rows) error {
+		append([]any{now}, ids...), func(r *sql.Rows) error {
 			var vid int64
 			var c EpisodeCounts
 			if err := r.Scan(&vid, &c.Total, &c.Have, &c.Missing); err != nil {

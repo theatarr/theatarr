@@ -24,6 +24,7 @@ func seedCopies(e *manageEnv) {
 	e.exec(`INSERT INTO version (id, title_id, policy_key, monitored, state, created_at, updated_at) VALUES
 		(2, 1, 'movie-web', 1, 'wanted', ?, ?)`, now, now)
 	e.exec(`UPDATE episode SET air_date = '2026-11-02' WHERE id = 103`)
+	airAtMidnight(e.exec)
 	e.exec(`INSERT INTO download (id, title_id, version_id, version_key, info_hash, release_title, indexer, quality,
 		episodes, progress, state, created_at, updated_at) VALUES
 		(1, 10, 10, 'tv-2160p', 'aa', 'The.Show.S01E02.2160p', 'dmm', 'WEBDL-2160p', '[102]', 37, 'downloading', ?, ?),
@@ -180,6 +181,7 @@ func TestCopySorts(t *testing.T) {
 		return strings.Join(names, ",")
 	}
 	e.exec(`UPDATE episode SET air_date = '2020-01-01' WHERE id = 103`)
+	airAtMidnight(e.exec)
 	// Alpha's movie-remux has its file (1.0); The Show holds two of three aired episodes.
 	if got := order("sort=completion"); got != "Alpha,The Show" {
 		t.Errorf("completion: %s", got)
@@ -209,6 +211,7 @@ func TestCopySorts(t *testing.T) {
 		t.Errorf("activity of movie-remux: %s", got)
 	}
 	e.exec(`UPDATE episode SET air_date = '2026-11-02' WHERE id = 103`)
+	airAtMidnight(e.exec)
 	e.exec(`INSERT INTO title_release_date (title_id, source, type, date) VALUES (1, 'tmdb', 'digital', '2026-12-01')`)
 	if got := order("sort=next"); got != "The Show,Alpha" {
 		t.Errorf("next: %s", got)

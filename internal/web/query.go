@@ -148,7 +148,7 @@ func (w *Web) listTitles(ctx context.Context, f TitleFilter) (TitlePage, error) 
 	if err := db.QueryRowContext(ctx, "SELECT COUNT(*)"+titleFrom+where, args...).Scan(&page.Total); err != nil {
 		return page, err
 	}
-	f.today = w.now().UTC().Format(time.DateOnly)
+	f.today, f.nowMs = w.now().UTC().Format(time.DateOnly), store.Millis(w.now())
 	order, orderArgs := f.orderBy()
 	items, err := w.titleRows(ctx, db, `SELECT `+titleCols+titleFrom+where+order+` LIMIT ? OFFSET ?`,
 		append(append(args, orderArgs...), f.Limit, f.Offset))

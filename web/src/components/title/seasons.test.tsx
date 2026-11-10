@@ -26,9 +26,9 @@ const episodes = {
     },
   ],
   episodes: [
-    { id: 101, season: 1, number: 12, absolute: 12, name: "Paper Lantern", air_date: "2026-10-01", monitored: true, versions: { "anime-tv": cell(true), "anime-web": cell(true) } },
-    { id: 102, season: 1, number: 13, absolute: 13, name: "Copper Harbour", air_date: "2026-10-08", monitored: true, versions: { "anime-tv": cell(false, { acquisition: downloading }), "anime-web": cell(true) } },
-    { id: 103, season: 1, number: 14, absolute: 14, name: "Iron Harbour", air_date: "2026-10-15", monitored: true, versions: { "anime-tv": cell(false), "anime-web": cell(true) } },
+    { id: 101, season: 1, number: 12, absolute: 12, name: "Paper Lantern", air_date: "2026-10-01", aired: true, monitored: true, versions: { "anime-tv": cell(true), "anime-web": cell(true) } },
+    { id: 102, season: 1, number: 13, absolute: 13, name: "Copper Harbour", air_date: "2026-10-08", aired: true, monitored: true, versions: { "anime-tv": cell(false, { acquisition: downloading }), "anime-web": cell(true) } },
+    { id: 103, season: 1, number: 14, absolute: 14, name: "Iron Harbour", air_date: "2026-10-15", aired: true, monitored: true, versions: { "anime-tv": cell(false), "anime-web": cell(true) } },
   ],
 };
 const detail = {

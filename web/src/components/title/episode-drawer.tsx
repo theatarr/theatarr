@@ -244,8 +244,7 @@ function VersionPart({ titleId, eid, d, aired, manage, admin, single, acquisitio
 /** For accounts without "see files": one availability line across copies (copies are a household detail). */
 function PlainAvailability({ e }: { e: EpisodeDetail["episode"] }) {
   const keys = Object.keys(e.versions);
-  const now = new Date().toISOString().slice(0, 10);
-  const s = mergedStatus(e, keys, now, false);
+  const s = mergedStatus(e, keys, false);
   const w = statusWords(s, false);
   const label = s === "available" ? plainAvailable(e, keys) : w.label;
   return (
@@ -273,7 +272,7 @@ export function EpisodeOverview({
   const perms = usePerms();
   const d = q.data;
   const e = d?.episode;
-  const aired = !!e?.air_date && e.air_date <= new Date().toISOString().slice(0, 10);
+  const aired = !!e?.aired;
   const runtime = fmtRuntime(e?.runtime_minutes);
   // Modal portals to <body>: the title page is its own stacking context (isolate), which would put the phone tab bar
   // above us.

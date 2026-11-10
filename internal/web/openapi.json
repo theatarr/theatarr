@@ -1070,10 +1070,10 @@
       },
       "Episode": {
         "type": "object",
-        "required": ["id", "season", "number", "name", "monitored", "versions"],
+        "required": ["id", "season", "number", "name", "aired", "monitored", "versions"],
         "properties": {
           "id": { "type": "integer" }, "season": { "type": "integer" }, "number": { "type": "integer" }, "absolute": { "type": "integer" },
-          "name": { "type": "string" }, "air_date": { "type": "string" }, "runtime_minutes": { "type": "integer" }, "monitored": { "type": "boolean" },
+          "name": { "type": "string" }, "air_date": { "type": "string" }, "aired": { "type": "boolean", "description": "The air instant is known and has passed (the rule searches go by), not the day of air_date" }, "runtime_minutes": { "type": "integer" }, "monitored": { "type": "boolean" },
           "versions": { "type": "object", "description": "By version key", "additionalProperties": { "type": "object", "required": ["state", "monitored", "has_file"], "properties": { "upgrade": { "$ref": "#/components/schemas/UpgradeInfo" }, "state": { "$ref": "#/components/schemas/VersionState" }, "monitored": { "type": "boolean" }, "has_file": { "type": "boolean" }, "quality": { "type": "string" }, "size_bytes": { "type": "integer", "description": "see_files only" }, "score": { "type": "integer", "description": "see_files only" }, "release_group": { "type": "string", "description": "see_files only" }, "path": { "type": "string", "description": "see_files only" }, "upgrade_seen": { "type": "boolean", "description": "Below cutoff, and a better release than its file has been seen" }, "acquisition": { "$ref": "#/components/schemas/Acquisition" } } } }
         }
       },

@@ -59,8 +59,6 @@ import { cn } from "@/lib/utils";
 type SeasonT = EpisodeList["seasons"][number];
 type VersionT = EpisodeList["versions"][number];
 
-const today = () => new Date().toISOString().slice(0, 10);
-
 /** Desktop from the md breakpoint: the copy matrix; below it, rows with a copy selector. */
 const WIDE = "(min-width: 768px)";
 
@@ -88,13 +86,13 @@ const TONE: Record<Status, { text: string; dot: string }> = {
 };
 
 /** What one place (a copy's cell, or the merged column) says about an episode: the word, and the quality for managers. */
-function statusOf(e: Episode, keys: string[], merged: boolean, seeFiles: boolean, now: string): { s: Status; label: string; quality?: string; cell?: Cell } {
+function statusOf(e: Episode, keys: string[], merged: boolean, seeFiles: boolean): { s: Status; label: string; quality?: string; cell?: Cell } {
   if (merged) {
-    const s = mergedStatus(e, keys, now, seeFiles);
+    const s = mergedStatus(e, keys, seeFiles);
     return { s, label: s === "available" && !seeFiles ? plainAvailable(e, keys) : statusWords(s, seeFiles).label };
   }
   const c = e.versions[keys[0]];
-  const s = cellStatus(c, aired(e, now), seeFiles);
+  const s = cellStatus(c, aired(e), seeFiles);
   return { s, label: statusWords(s, seeFiles).label, quality: seeFiles && c?.has_file ? c.quality : undefined, cell: c };
 }
 
@@ -194,7 +192,6 @@ function openOnKey(e: KeyboardEvent, id: number, onOpen: (id: number) => void) {
 
 /** Desktop: a table with a column per library (or one availability column). */
 function EpisodeTable({ episodes, copies, merged, anime, manage, seeFiles, selected, onSelect, onOpen }: ListProps) {
-  const now = today();
   const ids = episodes.map((e) => e.id);
   const nSel = ids.filter((i) => selected.has(i)).length;
   const keys = copies.map((v) => v.key);
@@ -252,11 +249,11 @@ function EpisodeTable({ episodes, copies, merged, anime, manage, seeFiles, selec
             <TableCell className="whitespace-nowrap text-muted-foreground">{e.air_date ? fmtDay(e.air_date) : "—"}</TableCell>
             {merged ? (
               <TableCell>
-                <StatusText st={statusOf(e, keys, true, seeFiles, now)} manage={false} />
+                <StatusText st={statusOf(e, keys, true, seeFiles)} manage={false} />
               </TableCell>
             ) : (
               copies.map((v) => {
-                const st = statusOf(e, [v.key], false, seeFiles, now);
+                const st = statusOf(e, [v.key], false, seeFiles);
                 return (
                   <TableCell key={v.key} title={cellTitle(st.cell)} data-state={st.s}>
                     <StatusText st={st} manage={manage} />
@@ -274,7 +271,6 @@ function EpisodeTable({ episodes, copies, merged, anime, manage, seeFiles, selec
 
 /** Phones: one row per episode for the copy in view (or across copies), with its state in words. */
 function EpisodeRows({ episodes, copies, merged, anime, manage, seeFiles, selected, onSelect, onOpen }: ListProps) {
-  const now = today();
   const keys = copies.map((v) => v.key);
   const ids = episodes.map((e) => e.id);
   const nSel = ids.filter((i) => selected.has(i)).length;
@@ -288,7 +284,7 @@ function EpisodeRows({ episodes, copies, merged, anime, manage, seeFiles, select
       ) : null}
       <ul className="divide-y divide-[var(--line)]">
         {episodes.map((e) => {
-          const st = statusOf(e, keys, merged, seeFiles, now);
+          const st = statusOf(e, keys, merged, seeFiles);
           return (
             <li
               key={e.id}
@@ -441,18 +437,17 @@ function SeasonBlock({
 }) {
   const [filter, setFilter] = useState<EpisodeFilter>("all");
   const [details, setDetails] = useState(false);
-  const now = today();
   const keys = copies.map((v) => v.key);
   const all = list.episodes.filter((e) => e.season === season.season);
   const merged = layout.columns === "merged";
-  const sum = seasonSummary(all, copies, now, seeFiles, merged);
+  const sum = seasonSummary(all, copies, seeFiles, merged);
   const counts: Record<EpisodeFilter, number> = {
     all: all.length,
-    active: all.filter((e) => matchesFilter(e, "active", keys, now, seeFiles, merged)).length,
-    missing: all.filter((e) => matchesFilter(e, "missing", keys, now, seeFiles, merged)).length,
-    upgrade: all.filter((e) => matchesFilter(e, "upgrade", keys, now, seeFiles, merged)).length,
+    active: all.filter((e) => matchesFilter(e, "active", keys, seeFiles, merged)).length,
+    missing: all.filter((e) => matchesFilter(e, "missing", keys, seeFiles, merged)).length,
+    upgrade: all.filter((e) => matchesFilter(e, "upgrade", keys, seeFiles, merged)).length,
   };
-  const shown = all.filter((e) => matchesFilter(e, filter, keys, now, seeFiles, merged));
+  const shown = all.filter((e) => matchesFilter(e, filter, keys, seeFiles, merged));
   const Chevron = open ? ChevronDown : ChevronRight;
   const props: ListProps = { episodes: shown, copies, merged, anime, manage, seeFiles, selected, onSelect, onOpen };
   return (

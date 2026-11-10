@@ -6,7 +6,8 @@ import (
 	"errors"
 	"net/http"
 	"sort"
-	"time"
+
+	"github.com/theatarr/theatarr/internal/store"
 )
 
 // GET titles/{id}/episodes?season=: a series' seasons with counts per version, and its episodes (all, or one
@@ -72,12 +73,14 @@ type EpisodeCell struct {
 
 // Episode is one episode with its cells by version key.
 type Episode struct {
-	ID             int64                  `json:"id"`
-	Season         int64                  `json:"season"`
-	Number         int64                  `json:"number"`
-	Absolute       *int64                 `json:"absolute,omitempty"`
-	Name           string                 `json:"name"`
-	AirDate        string                 `json:"air_date,omitempty"`
+	ID       int64  `json:"id"`
+	Season   int64  `json:"season"`
+	Number   int64  `json:"number"`
+	Absolute *int64 `json:"absolute,omitempty"`
+	Name     string `json:"name"`
+	AirDate  string `json:"air_date,omitempty"`
+	// Aired: the air instant is known and has passed, the rule the engine and Wanted search by.
+	Aired          bool                   `json:"aired"`
 	RuntimeMinutes *int64                 `json:"runtime_minutes,omitempty"`
 	Monitored      bool                   `json:"monitored"`
 	Versions       map[string]EpisodeCell `json:"versions"`
@@ -151,14 +154,17 @@ func (w *Web) titleEpisodes(ctx context.Context, id int64, season int, seeFiles 
 	}
 	var all []Episode
 	idx := map[int64]int{}
+	now := store.Millis(w.now())
 	if err := scanAll(ctx, db, `SELECT e.id, e.season, e.number, e.name, COALESCE(e.air_date, ''), e.runtime_minutes,
-		e.monitored, (SELECT MIN(n.number) FROM episode_number n WHERE n.episode_id = e.id AND n.scheme = 'absolute')
+		e.monitored, (SELECT MIN(n.number) FROM episode_number n WHERE n.episode_id = e.id AND n.scheme = 'absolute'),
+		e.air_date_utc_at
 		FROM episode e WHERE e.title_id = ? ORDER BY e.season, e.number`, []any{id}, func(r *sql.Rows) error {
 		var e Episode
-		var rt, abs sql.NullInt64
-		if err := r.Scan(&e.ID, &e.Season, &e.Number, &e.Name, &e.AirDate, &rt, &e.Monitored, &abs); err != nil {
+		var rt, abs, airAt sql.NullInt64
+		if err := r.Scan(&e.ID, &e.Season, &e.Number, &e.Name, &e.AirDate, &rt, &e.Monitored, &abs, &airAt); err != nil {
 			return err
 		}
+		e.Aired = airAt.Valid && airAt.Int64 <= now
 		e.RuntimeMinutes, e.Absolute = nullInt(rt), nullInt(abs)
 		e.Versions = map[string]EpisodeCell{}
 		idx[e.ID] = len(all)
@@ -230,7 +236,6 @@ func (w *Web) titleEpisodes(ctx context.Context, id int64, season int, seeFiles 
 		return nil, err
 	}
 
-	today := w.now().UTC().Format(time.DateOnly)
 	seasons := map[int64]*Season{}
 	for _, e := range all {
 		s := seasons[e.Season]
@@ -242,7 +247,7 @@ func (w *Web) titleEpisodes(ctx context.Context, id int64, season int, seeFiles 
 			seasons[e.Season] = s
 		}
 		s.Episodes++
-		aired := e.AirDate != "" && e.AirDate <= today
+		aired := e.Aired
 		if aired {
 			s.Aired++
 		}

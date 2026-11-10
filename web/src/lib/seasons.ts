@@ -36,9 +36,9 @@ export function statusWords(s: Status, seeFiles: boolean): { label: string; tone
   }
 }
 
-/** Whether an episode has aired by today (YYYY-MM-DD). */
-export function aired(e: Pick<Episode, "air_date">, today: string): boolean {
-  return !!e.air_date && e.air_date <= today;
+/** Whether an episode has aired: the server's flag (its air instant has passed, the rule searches go by), never the day of air_date. */
+export function aired(e: Pick<Episode, "aired">): boolean {
+  return !!e.aired;
 }
 
 /** One copy's state for an episode. */
@@ -53,8 +53,8 @@ export function cellStatus(c: Cell | undefined, isAired: boolean, seeFiles: bool
  * An episode across the given copies: watchability first (a file in any copy is Available, Upgrade found when one of
  * those files has a better release seen), then Not aired, Missing (some copy wants it) and Not monitored.
  */
-export function mergedStatus(e: Episode, keys: string[], today: string, seeFiles: boolean): Status {
-  const isAired = aired(e, today);
+export function mergedStatus(e: Episode, keys: string[], seeFiles: boolean): Status {
+  const isAired = aired(e);
   const all = keys.map((k) => cellStatus(e.versions[k], isAired, seeFiles));
   for (const s of ["upgrade", "available", "not_aired", "missing", "unmonitored"] as const) {
     if (all.includes(s)) return s;
@@ -81,12 +81,12 @@ export function plainAvailable(e: Episode, keys: string[]): string {
  * Whether an episode belongs under a filter: Missing and Upgrade found match when any of the copies in view is. With
  * merged (one availability column) they match the episode across copies: Missing only when no copy holds it.
  */
-export function matchesFilter(e: Episode, f: EpisodeFilter, keys: string[], today: string, seeFiles: boolean, merged = false): boolean {
+export function matchesFilter(e: Episode, f: EpisodeFilter, keys: string[], seeFiles: boolean, merged = false): boolean {
   if (f === "all") return true;
   if (f === "active") return keys.some((k) => !!e.versions[k]?.acquisition);
   const want: Status = f === "missing" ? "missing" : "upgrade";
-  if (merged) return mergedStatus(e, keys, today, seeFiles) === want;
-  const isAired = aired(e, today);
+  if (merged) return mergedStatus(e, keys, seeFiles) === want;
+  const isAired = aired(e);
   return keys.some((k) => cellStatus(e.versions[k], isAired, seeFiles) === want);
 }
 
@@ -108,16 +108,16 @@ export type SeasonSummary = {
  * copies a missing count names its copy: "2 missing in 4K". merged (accounts without "see files") counts across
  * copies as one, naming none: an episode is missing only when no copy holds it.
  */
-export function seasonSummary(episodes: Episode[], copies: { key: string; label: string }[], today: string, seeFiles: boolean, merged = false): SeasonSummary {
+export function seasonSummary(episodes: Episode[], copies: { key: string; label: string }[], seeFiles: boolean, merged = false): SeasonSummary {
   if (merged && copies.length > 1) {
     const one = { key: "*", label: "" };
     const flat = episodes.map((e) => {
-      const s = mergedStatus(e, copies.map((c) => c.key), today, seeFiles);
+      const s = mergedStatus(e, copies.map((c) => c.key), seeFiles);
       const cell = { state: "wanted", monitored: s !== "unmonitored", has_file: s === "available" || s === "upgrade", upgrade_seen: s === "upgrade" } as Cell;
       const versions: Record<string, Cell> = s === "none" ? {} : { "*": cell };
       return { ...e, versions };
     });
-    return seasonSummary(flat, [one], today, seeFiles);
+    return seasonSummary(flat, [one], seeFiles);
   }
   const keys = copies.map((c) => c.key);
   let total = 0;
@@ -127,7 +127,7 @@ export function seasonSummary(episodes: Episode[], copies: { key: string; label:
   let missing = 0;
   const by = new Map<string, number>();
   for (const e of episodes) {
-    const isAired = aired(e, today);
+    const isAired = aired(e);
     const states = keys.map((k) => cellStatus(e.versions[k], isAired, seeFiles));
     const held = states.some((s) => s === "available" || s === "upgrade");
     if (held) available++;

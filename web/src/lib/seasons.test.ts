@@ -5,7 +5,7 @@ import { cellStatus, copiesInView, episodeLayout, episodeNumber, matchesFilter, 
 const today = "2026-10-26";
 const cell = (o: Partial<Cell>): Cell => ({ state: "wanted", monitored: true, has_file: false, ...o }) as Cell;
 const ep = (n: number, air: string | undefined, versions: Record<string, Cell>, absolute?: number): Episode =>
-  ({ id: n, season: 1, number: n, absolute, name: `Ep ${n}`, air_date: air, monitored: true, versions }) as Episode;
+  ({ id: n, season: 1, number: n, absolute, name: `Ep ${n}`, air_date: air, aired: !!air && air <= today, monitored: true, versions }) as Episode;
 
 const k4 = { key: "tv-2160p", label: "4K" };
 const k1 = { key: "tv-1080p", label: "1080p" };
@@ -36,14 +36,24 @@ describe("episode status", () => {
     expect(statusWords("unmonitored", false).label).toBe("Not available");
     expect(["available", "upgrade", "missing", "not_aired"].map((s) => statusWords(s as "available", true).label)).toEqual(["Available", "Upgrade found", "Missing", "Not aired"]);
   });
+  it("takes aired from the server's flag, not from the day of the air date", () => {
+    // Dated today, airs tonight: not aired. Dated tomorrow in the network's zone, already aired: missing.
+    const tonight = { ...ep(8, today, { "tv-2160p": cell({}) }), aired: false };
+    const overnight = { ...ep(9, "2026-10-27", { "tv-2160p": cell({}) }), aired: true };
+    expect(mergedStatus(tonight, [k4.key], true)).toBe("not_aired");
+    expect(mergedStatus(overnight, [k4.key], true)).toBe("missing");
+    expect(matchesFilter(tonight, "missing", [k4.key], true)).toBe(false);
+    expect(matchesFilter(overnight, "missing", [k4.key], true)).toBe(true);
+    expect(seasonSummary([tonight, overnight], [k4], true).text).toBe("0 of 1 available · 1 missing · 1 not aired");
+  });
   it("merges copies by watchability", () => {
     const keys = [k4.key, k1.key];
-    expect(mergedStatus(season[3], keys, today, true)).toBe("available");
-    expect(mergedStatus(season[1], keys, today, true)).toBe("upgrade");
-    expect(mergedStatus(season[1], keys, today, false)).toBe("available");
-    expect(mergedStatus(season[4], keys, today, true)).toBe("missing");
-    expect(mergedStatus(season[6], keys, today, true)).toBe("not_aired");
-    expect(mergedStatus(season[5], keys, today, false)).toBe("unmonitored");
+    expect(mergedStatus(season[3], keys, true)).toBe("available");
+    expect(mergedStatus(season[1], keys, true)).toBe("upgrade");
+    expect(mergedStatus(season[1], keys, false)).toBe("available");
+    expect(mergedStatus(season[4], keys, true)).toBe("missing");
+    expect(mergedStatus(season[6], keys, true)).toBe("not_aired");
+    expect(mergedStatus(season[5], keys, false)).toBe("unmonitored");
   });
   it("names the best resolution for accounts without see files", () => {
     const e = ep(1, "2026-09-01", { a: cell({ has_file: true, quality: "1080p" }), b: cell({ has_file: true, quality: "2160p" }) });
@@ -54,25 +64,25 @@ describe("episode status", () => {
 
 describe("season summary", () => {
   it("counts one copy", () => {
-    const s = seasonSummary(season, [k4], today, true);
+    const s = seasonSummary(season, [k4], true);
     expect(s.text).toBe("3 of 6 available · 2 missing · 1 upgrade found · 1 not aired");
     expect([s.available, s.total, s.missing, s.upgrades, s.notAired]).toEqual([3, 6, 2, 1, 1]);
   });
   it("names the copy a missing count belongs to when several are in view", () => {
-    expect(seasonSummary(season, [k4, k1], today, true).text).toBe("4 of 6 available · 2 missing in 4K · 1 missing in 1080p · 1 upgrade found · 1 not aired");
+    expect(seasonSummary(season, [k4, k1], true).text).toBe("4 of 6 available · 2 missing in 4K · 1 missing in 1080p · 1 upgrade found · 1 not aired");
   });
   it("counts across copies as one for accounts without see files, naming no copy and no upgrade", () => {
-    expect(seasonSummary(season, [k4, k1], today, false, true).text).toBe("4 of 6 available · 1 missing · 1 not aired");
-    expect(seasonSummary(season, [k4, k1], today, false).text).toBe("4 of 6 available · 2 missing in 4K · 1 missing in 1080p · 1 not aired");
+    expect(seasonSummary(season, [k4, k1], false, true).text).toBe("4 of 6 available · 1 missing · 1 not aired");
+    expect(seasonSummary(season, [k4, k1], false).text).toBe("4 of 6 available · 2 missing in 4K · 1 missing in 1080p · 1 not aired");
   });
   it("says when nothing has aired", () => {
-    expect(seasonSummary([season[6]], [k4], today, true).text).toBe("1 episode, none aired yet");
-    expect(seasonSummary([], [k4], today, true).text).toBe("No episodes");
+    expect(seasonSummary([season[6]], [k4], true).text).toBe("1 episode, none aired yet");
+    expect(seasonSummary([], [k4], true).text).toBe("No episodes");
   });
 });
 
 describe("season filters", () => {
-  const ids = (f: "all" | "missing" | "upgrade", keys: string[], seeFiles = true) => season.filter((e) => matchesFilter(e, f, keys, today, seeFiles)).map((e) => e.number);
+  const ids = (f: "all" | "missing" | "upgrade", keys: string[], seeFiles = true) => season.filter((e) => matchesFilter(e, f, keys, seeFiles)).map((e) => e.number);
   it("filters by the copies in view", () => {
     expect(ids("all", [k4.key])).toEqual([1, 2, 3, 4, 5, 6, 7]);
     expect(ids("missing", [k4.key])).toEqual([4, 5]);
@@ -83,7 +93,7 @@ describe("season filters", () => {
     expect(ids("upgrade", [k4.key], false)).toEqual([]);
   });
   it("matches across copies when merged", () => {
-    const merged = (f: "missing" | "upgrade", seeFiles: boolean) => season.filter((e) => matchesFilter(e, f, [k4.key, k1.key], today, seeFiles, true)).map((e) => e.number);
+    const merged = (f: "missing" | "upgrade", seeFiles: boolean) => season.filter((e) => matchesFilter(e, f, [k4.key, k1.key], seeFiles, true)).map((e) => e.number);
     expect(merged("missing", false)).toEqual([5]);
     expect(merged("upgrade", false)).toEqual([]);
     expect(merged("upgrade", true)).toEqual([2]);

@@ -842,3 +842,9 @@ func TestAPILogoutCSRF(t *testing.T) {
 		t.Errorf("session still valid: %d", rec.Code)
 	}
 }
+
+// airAtMidnight gives every dated episode an air instant, midnight UTC of its air date, as a metadata refresh without
+// an air time does; "aired" reads the instant.
+func airAtMidnight(exec func(string, ...any)) {
+	exec(`UPDATE episode SET air_date_utc_at = CAST(strftime('%s', air_date) AS INTEGER) * 1000 WHERE air_date IS NOT NULL`)
+}

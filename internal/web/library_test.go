@@ -56,6 +56,7 @@ func (e *env) seedLibrary() {
 		(91, 4, 4, 'sonarr_anime_debrid', 602, '/anime/Delta/S01E02.mkv', 1000000000, 'Bluray-1080p', ?, 'SubsPlease')`,
 		now-5*day, now-6*day)
 	e.exec(`INSERT INTO version_file_episode (version_file_id, episode_id) VALUES (90, 41), (91, 42)`)
+	airAtMidnight(e.exec)
 }
 
 func names(p TitlePage) string {
@@ -313,6 +314,76 @@ func TestTitleEpisodes(t *testing.T) {
 	}
 	if code := e.getKey(APIBase+"/titles/4/episodes?season=x", key, nil); code != 400 {
 		t.Errorf("bad season: %d", code)
+	}
+}
+
+// An episode has aired once its air instant has passed, as the engine and Wanted have it; the UTC day of its air
+// date does not decide. S01E03 airs "today" by date but hours from now (a US evening); S02E01 is dated tomorrow and
+// aired an hour ago (a New Zealand night). S01E03 is unmonitored, so only S02E01 can be missing.
+func TestAiredByInstant(t *testing.T) {
+	t.Parallel()
+	e := newEnv(t)
+	e.seedLibrary()
+	key := e.apiKey()
+	e.exec(`UPDATE episode_version_state SET monitored = 0 WHERE episode_id = 43`)
+	e.exec(`UPDATE episode SET air_date = '2026-10-26', air_date_utc_at = ? WHERE id = 43`,
+		store.Millis(time.Date(2026, 10, 27, 1, 0, 0, 0, time.UTC)))
+	e.exec(`UPDATE episode SET air_date = '2026-10-27', air_date_utc_at = ? WHERE id = 44`,
+		store.Millis(time.Date(2026, 10, 26, 11, 30, 0, 0, time.UTC)))
+	// An instant without a date (not something a refresh writes) is not a next episode: there is no day to show.
+	e.exec(`INSERT INTO episode (id, title_id, season, number, name, air_date_utc_at, created_at, updated_at) VALUES
+		(45, 4, 2, 2, 'Undated', ?, 0, 0)`, store.Millis(time.Date(2026, 10, 27, 1, 0, 0, 0, time.UTC)))
+	var l EpisodeList
+	if code := e.getKey(APIBase+"/titles/4/episodes", key, &l); code != 200 {
+		t.Fatalf("episodes: %d", code)
+	}
+	aired := map[string]bool{}
+	for _, ep := range l.Episodes {
+		aired[episodeCode(ep.Season, ep.Number)] = ep.Aired
+	}
+	if !aired["S01E01"] || aired["S01E03"] || !aired["S02E01"] {
+		t.Errorf("aired: %v", aired)
+	}
+	var seasons []string
+	for _, s := range l.Seasons {
+		c := s.Versions["anime-tv"]
+		seasons = append(seasons, itoa(s.Season)+":"+itoa(int64(s.Aired))+"/"+itoa(int64(c.Missing)))
+	}
+	if got := strings.Join(seasons, " "); got != "1:2/0 2:1/1 0:1/1" {
+		t.Errorf("seasons (aired/missing): %s", got)
+	}
+	var d TitleDetail
+	if e.getKey(APIBase+"/titles/4", key, &d); d.Versions[0].Episodes == nil || d.Versions[0].Episodes.Missing != 1 {
+		t.Errorf("title page counts: %+v", d.Versions[0].Episodes)
+	}
+	var page TitlePage
+	if code := e.getKey(APIBase+"/titles?anime=true", key, &page); code != 200 {
+		t.Fatalf("titles: %d", code)
+	}
+	row := rowOf(t, page, 4)
+	if c := copyOf(t, row, "anime-tv").Coverage; c == nil || c.Aired != 3 || c.Upcoming != 2 || c.Missing != 1 {
+		t.Errorf("list coverage: %+v", c)
+	}
+	if n := row.Next; n == nil || n.Date != "2026-10-26" || *n.Season != 1 || *n.Number != 3 {
+		t.Errorf("next episode: %+v", n)
+	}
+	var dv Discover
+	if code := e.getKey(APIBase+"/discover", key, &dv); code != 200 {
+		t.Fatalf("discover: %d", code)
+	}
+	note := func(r DiscoverRow) string {
+		for _, it := range r.Items {
+			if it.ID == 4 {
+				return it.Note + "|" + it.Date
+			}
+		}
+		return ""
+	}
+	if got := note(dv.Missing); got != "1 episode missing|2026-10-27" {
+		t.Errorf("Home missing: %q", got)
+	}
+	if got := note(dv.Upcoming); got != "S01E03 · Three|2026-10-26" {
+		t.Errorf("Home upcoming: %q", got)
 	}
 }
 

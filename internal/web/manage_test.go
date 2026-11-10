@@ -120,6 +120,7 @@ func (e *manageEnv) seedManage() {
 	e.exec(`INSERT INTO arr_quality_profile (instance, arr_id, name, cutoff, upgrade_allowed, min_format_score,
 		cutoff_format_score) VALUES ('sonarr_4k_debrid', 7, '4k Preferred', 'Bluray-2160p Remux', 1, 0, 10000)`)
 	e.exec(`UPDATE episode SET air_date = '2020-01-01'`)
+	airAtMidnight(e.exec)
 	e.exec(`UPDATE episode_version_state SET state = 'filled' WHERE episode_id IN (101, 102)`)
 	e.exec(`INSERT INTO version_file (id, version_id, title_id, instance, arr_file_id, path, size_bytes, quality,
 		custom_format_score, added_at, release_title, release_group, media_info) VALUES
