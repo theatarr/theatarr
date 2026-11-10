@@ -183,37 +183,39 @@ func TestLibraryAreaNotWidenedWithNewRoot(t *testing.T) {
 	}
 }
 
-// A root directly under / is its own library area (its parent, /, never is one), so a first library at /movies has an
-// area and saves; deeper roots keep their parent as the area.
-func TestLibraryAreasTopLevelRoot(t *testing.T) {
+// The way out a refusal names lists the areas in force and the new root's folder, never /.
+func TestWiderAreaNamesBothAreas(t *testing.T) {
 	t.Parallel()
-	p := &policy.Policy{
-		Versions: map[string]*policy.VersionPolicy{"movies": {Library: "/movies"}, "tv": {Library: "/media/tv/hd"}},
-		Library:  &policy.Library{Versions: map[string]*policy.LibraryVersion{"movies": {Roots: []string{"/movies"}}}},
+	top := &policy.Policy{Versions: map[string]*policy.VersionPolicy{"movies": {Library: "/movies"}, "tv": {Library: "/tv"}}}
+	if got, want := widerArea(top, "/tv"), []string{"/movies", "/tv"}; !slices.Equal(got, want) {
+		t.Fatalf("top-level: %v, want %v", got, want)
 	}
-	if got, want := libraryAreas(p), []string{"/media/tv", "/movies"}; !slices.Equal(got, want) {
-		t.Fatalf("areas %v, want %v", got, want)
+	deep := &policy.Policy{Versions: map[string]*policy.VersionPolicy{"movies": {Library: "/media/movies/hd"}}}
+	if got, want := widerArea(deep, "/data/tv/hd"), []string{"/data/tv", "/media/movies"}; !slices.Equal(got, want) {
+		t.Fatalf("deep: %v, want %v", got, want)
 	}
-	p.Library.Dangling.Roots = []string{"/"}
-	if got := libraryAreas(p); len(got) != 0 {
-		t.Fatalf("/ as a dangling root made an area: %v", got)
+}
+
+// topLevelDirs is up to n existing directories directly under /, for roots that must sit there (only stat'ed).
+func topLevelDirs(n int) []string {
+	var out []string
+	for _, dir := range []string{"/srv", "/opt", "/mnt", "/home", "/usr", "/var"} {
+		if info, err := os.Lstat(dir); err == nil && info.IsDir() && len(out) < n {
+			out = append(out, dir)
+		}
 	}
+	return out
 }
 
 // Review 3.5: a first library whose root sits directly under / passes Check root and saves.
 func TestFirstLibraryTopLevelRoot(t *testing.T) {
 	t.Parallel()
 	m, st, base, snap, movie := firstLibraryEnv(t)
-	root := ""
-	for _, dir := range []string{"/srv", "/opt", "/mnt", "/home"} {
-		if info, err := os.Lstat(dir); err == nil && info.IsDir() {
-			root = dir
-			break
-		}
-	}
-	if root == "" {
+	dirs := topLevelDirs(1)
+	if len(dirs) == 0 {
 		t.Skip("no top-level directory to use")
 	}
+	root := dirs[0]
 	if _, err := st.ValidateRoot(context.Background(), base, "movies", root); err != nil {
 		t.Fatalf("check root: %v", err)
 	}
@@ -226,25 +228,114 @@ func TestFirstLibraryTopLevelRoot(t *testing.T) {
 	}
 }
 
-// The refusal of a root outside the area says what to do first.
+// addLibrary saves v as a new library key at root over saved.
+func addLibrary(t *testing.T, m *RuntimeCoordinator, base *policy.Policy, saved *Snapshot, v Version, key, root string) (*Snapshot, error) {
+	t.Helper()
+	req := saveRequest(base, saved)
+	v.ID, v.Key = 0, key
+	v.Config.Library, v.Config.Client, v.Roots = root, "", []string{root}
+	req.Records.Versions = append(req.Records.Versions, v)
+	return saveConfirmed(t, m, req)
+}
+
+// An install whose library sits directly under / and has no explicit area takes a deeper root elsewhere, as before
+// the top-level rule: the candidate's own area holds it.
+func TestTopLevelLibraryThenDeeperRoot(t *testing.T) {
+	t.Parallel()
+	m, _, base, snap, movie := firstLibraryEnv(t)
+	dirs := topLevelDirs(1)
+	if len(dirs) == 0 {
+		t.Skip("no top-level directory to use")
+	}
+	saved, err := addLibrary(t, m, base, snap, movie, "movies", dirs[0])
+	if err != nil {
+		t.Fatal(err)
+	}
+	tv := filepath.Join(t.TempDir(), "tv")
+	if err := os.Mkdir(tv, 0o700); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := addLibrary(t, m, base, saved, movie, "tv", tv); err != nil {
+		t.Fatalf("deeper root after a top-level library: %v", err)
+	}
+}
+
+// A second top-level library is refused, naming both folders and never /.
+func TestSecondTopLevelLibraryNamesBothAreas(t *testing.T) {
+	t.Parallel()
+	m, _, base, snap, movie := firstLibraryEnv(t)
+	dirs := topLevelDirs(2)
+	if len(dirs) < 2 {
+		t.Skip("fewer than two top-level directories")
+	}
+	saved, err := addLibrary(t, m, base, snap, movie, "movies", dirs[0])
+	if err != nil {
+		t.Fatal(err)
+	}
+	_, err = addLibrary(t, m, base, saved, movie, "tv", dirs[1])
+	want := "as " + strings.Join([]string{min(dirs[0], dirs[1]), max(dirs[0], dirs[1])}, ", ") + ", then"
+	if err == nil || !strings.Contains(err.Error(), want) || strings.Contains(err.Error(), "as /,") || strings.Contains(err.Error(), ", /,") {
+		t.Fatalf("refusal: %v (want %q)", err, want)
+	}
+}
+
+// Doing what the refusal says works: save library.dangling.roots as named, add the library, make both active.
 func TestLibraryAreaErrorNamesTheWayOut(t *testing.T) {
 	t.Parallel()
-	m, st, base, snap, movie := firstLibraryEnv(t)
+	m, _, base, snap, movie := firstLibraryEnv(t)
 	dir := t.TempDir()
-	first, second := filepath.Join(dir, "media", "movies", "hd"), filepath.Join(dir, "media", "tv", "hd")
-	for _, d := range []string{first, second} {
+	trash := filepath.Join(dir, ".trash")
+	first, second := filepath.Join(dir, "m", "movies"), filepath.Join(dir, "t", "tv")
+	for _, d := range []string{first, second, trash} {
 		if err := os.MkdirAll(d, 0o700); err != nil {
 			t.Fatal(err)
 		}
 	}
-	saved := createFirstLibrary(t, m, st, base, snap, movie, first)
-	req := saveRequest(base, saved)
-	v := movie
-	v.ID, v.Key = 0, "tv"
-	v.Config.Library, v.Config.Client, v.Roots = second, "", []string{second}
-	req.Records.Versions = append(req.Records.Versions, v)
-	_, err := saveConfirmed(t, m, req)
-	if err == nil || !strings.Contains(err.Error(), "outside the configured library area") || !strings.Contains(err.Error(), "library.dangling.roots") {
+	req := saveRequest(base, snap)
+	req.Records.Sections = []Section{{Record: Record{Key: "library"}, Config: json.RawMessage(`{"trash":{"dir":"` + trash + `"}}`)}}
+	snap, err := saveConfirmed(t, m, req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	saved, err := addLibrary(t, m, base, snap, movie, "movies", first)
+	if err != nil {
+		t.Fatal(err)
+	}
+	_, err = addLibrary(t, m, base, saved, movie, "tv", second)
+	named := []string{filepath.Join(dir, "m"), filepath.Join(dir, "t")}
+	if err == nil || !strings.Contains(err.Error(), "outside the configured library area") || !strings.Contains(err.Error(), "library.dangling.roots") ||
+		!strings.Contains(err.Error(), "as "+strings.Join(named, ", ")+", then") {
 		t.Fatalf("refusal: %v", err)
+	}
+	// What the message says, literally.
+	req = saveRequest(base, saved)
+	for i, section := range req.Records.Sections {
+		if section.Key == "library" {
+			var config map[string]any
+			if err := json.Unmarshal(section.Config, &config); err != nil {
+				t.Fatal(err)
+			}
+			config["dangling"] = map[string]any{"roots": named}
+			req.Records.Sections[i].Config, _ = json.Marshal(config)
+		}
+	}
+	if saved, err = saveConfirmed(t, m, req); err != nil {
+		t.Fatalf("dangling roots as named: %v", err)
+	}
+	if saved, err = addLibrary(t, m, base, saved, movie, "tv", second); err != nil {
+		t.Fatalf("second library after the named area: %v", err)
+	}
+	req = saveRequest(base, saved)
+	for i := range req.Records.Versions {
+		req.Records.Versions[i].Config.Mode = policy.ModeActive
+	}
+	saved, err = saveConfirmed(t, m, req)
+	if err != nil {
+		t.Fatalf("activate both: %v", err)
+	}
+	for _, key := range []string{"movies", "tv"} {
+		if saved.Policy.Versions[key].Mode != policy.ModeActive {
+			t.Fatalf("%s not active", key)
+		}
 	}
 }

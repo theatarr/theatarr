@@ -151,6 +151,10 @@ func validateVersionRoots(ctx context.Context, previous, next *policy.Policy, bo
 	area := previous
 	if !hasLibraryArea(area) {
 		area = next
+		// The very first roots, all directly under / (/movies, /tv): their parent is no area, so each is its own.
+		if !hasLibraryArea(next) && len(allVersionRoots(previous)) == 0 {
+			area = topLevelRootsArea(next)
+		}
 	}
 	for _, key := range keys {
 		field := "versions[" + key + "].library"
@@ -300,8 +304,8 @@ func validateOneRoot(ctx context.Context, rr *policy.RootResolver, p, allowed *p
 			return RootCheck{}, err
 		}
 		if !inside {
-			return RootCheck{}, errors.New("directory is outside the configured library area: first save this folder or " +
-				"one above it under library.dangling.roots (Settings, \"Library and Plex\"), then add the library")
+			return RootCheck{}, fmt.Errorf("directory is outside the configured library area: first save "+
+				"library.dangling.roots (Settings, \"Library and Plex\") as %s, then add the library", strings.Join(widerArea(allowed, path), ", "))
 		}
 	}
 	if err := physicalPathSeparation(p, rr, key, root); err != nil {
@@ -310,8 +314,8 @@ func validateOneRoot(ctx context.Context, rr *policy.RootResolver, p, allowed *p
 	return RootCheck{Root: path, Resolved: root.Resolved, Writable: writable}, nil
 }
 
-// libraryAreas is the library area of p: library.dangling.roots, else the parents of the configured roots (a root
-// directly under / is its own area). The filesystem root is never an area.
+// libraryAreas is the library area of p: library.dangling.roots, else the parents of the configured roots. The
+// filesystem root is never an area.
 func libraryAreas(p *policy.Policy) []string {
 	if p == nil || p.Library == nil {
 		return nil
@@ -322,13 +326,13 @@ func libraryAreas(p *policy.Policy) []string {
 		for _, version := range p.Library.Versions {
 			for _, allowed := range version.Roots {
 				if filepath.IsAbs(allowed) {
-					areas = append(areas, rootArea(allowed))
+					areas = append(areas, filepath.Dir(filepath.Clean(allowed)))
 				}
 			}
 		}
 		for _, version := range p.Versions {
 			if filepath.IsAbs(version.Library) {
-				areas = append(areas, rootArea(version.Library))
+				areas = append(areas, filepath.Dir(filepath.Clean(version.Library)))
 			}
 		}
 	}
@@ -339,14 +343,64 @@ func libraryAreas(p *policy.Policy) []string {
 	return slices.Compact(areas)
 }
 
-// rootArea is the area a configured root implies: its parent, or the root itself when its parent is the filesystem
-// root (a library at /movies, as Docker mounts often are), since / is never an area.
+// rootArea is the folder to name in library.dangling.roots for a root: its parent, or the root itself when its parent
+// is the filesystem root (a library at /movies, as Docker mounts often are), since / is never an area.
 func rootArea(root string) string {
 	root = filepath.Clean(root)
 	if parent := filepath.Dir(root); filepath.Dir(parent) != parent {
 		return parent
 	}
 	return root
+}
+
+// allVersionRoots is every configured root of p's versions.
+func allVersionRoots(p *policy.Policy) []string {
+	if p == nil {
+		return nil
+	}
+	var out []string
+	for _, key := range sortedPolicyKeys(p.Versions) {
+		out = append(out, configuredVersionRoots(p, key)...)
+	}
+	return out
+}
+
+// topLevelRootsArea is p with its roots directly under / as the library area, for checking the first roots of an
+// install that has no area yet. p itself when it cannot be copied.
+func topLevelRootsArea(p *policy.Policy) *policy.Policy {
+	c, err := p.Clone()
+	if err != nil {
+		return p
+	}
+	var roots []string
+	for _, root := range allVersionRoots(c) {
+		if filepath.IsAbs(root) && rootArea(root) == root {
+			roots = append(roots, root)
+		}
+	}
+	if c.Library == nil {
+		c.Library = &policy.Library{}
+	}
+	c.Library.Dangling.Roots = roots
+	return c
+}
+
+// widerArea is what library.dangling.roots must list for root to fit: the areas in force (or, without one, the
+// folders of the configured roots) and the folder of root. Never /.
+func widerArea(p *policy.Policy, root string) []string {
+	areas := libraryAreas(p)
+	if len(areas) == 0 {
+		for _, r := range allVersionRoots(p) {
+			if filepath.IsAbs(r) && r != "/" {
+				areas = append(areas, rootArea(r))
+			}
+		}
+	}
+	if root != "/" {
+		areas = append(areas, rootArea(root))
+	}
+	sort.Strings(areas)
+	return slices.Compact(areas)
 }
 
 // hasLibraryArea reports whether p has a library area for roots to lie in.
