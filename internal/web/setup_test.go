@@ -43,6 +43,8 @@ func TestSetupAndPreflight(t *testing.T) {
 			Caps: func(key string) []string { return []string{"rss", "text"} },
 		}
 	})
+	// The admin of an install from an older version, still on the password its first start generated.
+	se.exec(`UPDATE web_user SET password_changed_at = created_at WHERE username = 'admin'`)
 	rec := se.setupCall("GET", "/setup", "", "")
 	if rec.Code != http.StatusOK {
 		t.Fatalf("GET setup: %d %s", rec.Code, rec.Body.String())

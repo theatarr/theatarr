@@ -602,8 +602,10 @@ func ResetPassword(ctx context.Context, st *store.Store, username, password stri
 			return err
 		}
 		if n, _ := res.RowsAffected(); n == 0 {
+			// password_changed_at differs from created_at: Setup reads equal times on admin as "still the generated
+			// password", and this one was set by the person running the reset.
 			if _, err := tx.ExecContext(ctx, `INSERT INTO web_user (username, password_hash, created_at, updated_at,
-				password_changed_at) VALUES (?, ?, ?, ?, ?)`, username, hash, now, now, now); err != nil {
+				password_changed_at) VALUES (?, ?, ?, ?, ?)`, username, hash, now, now, now+1); err != nil {
 				return err
 			}
 		}

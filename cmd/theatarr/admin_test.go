@@ -136,8 +136,13 @@ func TestResetPasswordOnEmptyDatabase(t *testing.T) {
 		t.Fatal(err)
 	}
 	var role string
-	if err := st.Reader().QueryRow(`SELECT role FROM web_user WHERE username = 'admin'`).Scan(&role); err != nil ||
-		role != auth.RoleAdmin {
+	var generated bool
+	if err := st.Reader().QueryRow(`SELECT role, password_changed_at = created_at FROM web_user
+		WHERE username = 'admin'`).Scan(&role, &generated); err != nil || role != auth.RoleAdmin {
 		t.Fatalf("role %q %v", role, err)
+	}
+	// Setup's account step is done: the password was set by the reset, not generated.
+	if generated {
+		t.Error("an account made by reset-password reads as a generated password")
 	}
 }
