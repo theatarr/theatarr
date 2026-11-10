@@ -363,6 +363,34 @@ func TestLeaseRenewal(t *testing.T) {
 	}
 }
 
+// A running job's updated_at is the time its run was claimed: the Tasks page reads it as "started". Extending the
+// lease moves lease_until only.
+func TestLeaseExtensionKeepsStartTime(t *testing.T) {
+	q, c := setup(t)
+	ctx := context.Background()
+	id, _, _ := q.Enqueue(ctx, "k", nil, EnqueueOptions{})
+	c.add(time.Hour)
+	start := c.now()
+	w := worker(q, "a")
+	w.Handle("k", func(ctx context.Context, j *Job) error {
+		c.add(30 * time.Second)
+		if err := Fence(ctx); err != nil {
+			t.Errorf("fence: %v", err)
+		}
+		st, err := q.Status(ctx, id)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if st.State != StateRunning || !st.UpdatedAt.Equal(start) {
+			t.Errorf("running since %v (state %s), want the claim time %v", st.UpdatedAt, st.State, start)
+		}
+		return nil
+	})
+	if ran, err := w.RunOne(ctx); !ran || err != nil {
+		t.Fatal(ran, err)
+	}
+}
+
 func TestPrune(t *testing.T) {
 	q, c := setup(t)
 	ctx := context.Background()
