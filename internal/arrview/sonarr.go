@@ -492,7 +492,8 @@ func (s *Service) seriesLookup(w http.ResponseWriter, r *request) {
 		s.internal(w, r, err)
 		return
 	}
-	if prefix == "" && len(bs) == 0 {
+	if prefix == "" && len(bs) < lookupLimit {
+		// Series the catalog lacks: TVDB's name search after the catalog's matches, as movie lookups add TMDb's.
 		if search, ok := s.tvmeta.(interface {
 			SearchSeries(context.Context, string) ([]tvdb.SearchResult, error)
 		}); ok {
@@ -501,6 +502,11 @@ func (s *Service) seriesLookup(w http.ResponseWriter, r *request) {
 				s.log.Warn("series search failed", "view", r.v.Key, "err", err)
 			} else {
 				seen := map[int]bool{}
+				for _, b := range bs {
+					if b.tvdb > 0 {
+						seen[b.tvdb] = true
+					}
+				}
 				for _, result := range results {
 					id, err := strconv.Atoi(result.TVDBID)
 					if err != nil || id <= 0 || seen[id] || result.Type != "series" {
@@ -509,7 +515,7 @@ func (s *Service) seriesLookup(w http.ResponseWriter, r *request) {
 					seen[id] = true
 					year, _ := strconv.Atoi(result.Year)
 					bs = append(bs, titleBrief{tvdb: id, name: result.Name, year: year})
-					if len(bs) == 20 {
+					if len(bs) == lookupLimit {
 						break
 					}
 				}

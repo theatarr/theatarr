@@ -204,8 +204,14 @@ func TestSeriesLookupName(t *testing.T) {
 			f := &seerrTVDB{t: t, fail: mode == "search failure", detailFail: mode == "details failure", missing: mode == "not found"}
 			seerrMetadata(t, e, f)
 			var out []seriesResource
+			// The catalog's match comes first; TVDB's search adds what the catalog lacks, or nothing when it fails.
 			e.call("GET", "/sonarr/api/v3/series/lookup?term=The%20Show", nil, 200, &out)
-			if len(out) != 1 || out[0].ID != IDBase+10 || f.calls != 0 {
+			want := 2
+			if mode == "search failure" || mode == "not found" {
+				want = 1
+			}
+			if len(out) != want || out[0].ID != IDBase+10 || f.calls == 0 ||
+				want == 2 && (out[1].ID != 0 || out[1].TvdbID != 900001 || f.query != "The Show") {
 				t.Fatalf("local lookup: %+v, calls %d", out, f.calls)
 			}
 			out = nil
