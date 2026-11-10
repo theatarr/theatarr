@@ -100,6 +100,12 @@ confirm it (the form takes the id or a pasted themoviedb.org list address); `POS
 `DELETE /lists/{id}` manage them, and `POST /lists/{id}/sync` imports one list now, enabled or not, through
 `MovieIntake.SyncList`, the one-list form of the scheduled sync (one TMDb request per new movie, in the request).
 
+A list is read in full: TMDb pages its lists, and both the scheduled sync and Sync now fetch every page (one paced
+request per page, by `total_pages`, or `item_count` where TMDb sends none) before adding anything. A page that fails
+fails the read, so the lookup answers an error and the sync reports it, adds nothing and leaves `last_sync_at`
+where it was; part of a list is never taken for all of it. TMDb answers the list id as a string, which the client
+accepts.
+
 - A list made on the page is a **native row**: `view = ''`, no profile, no root, and `enable_auto` equal to
   `enabled`. Its `versions` are chosen explicitly from the movie libraries (any movie version, as an add offers them;
   at least one), and intake picks the ones that fit each movie. No arr view lists it (`readImportLists` filters by

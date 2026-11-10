@@ -560,3 +560,32 @@ func TestSyncOneList(t *testing.T) {
 		t.Fatalf("last_sync_at after a failed pass %v: %v", synced, err)
 	}
 }
+
+type failingListSource struct{ intakeSource }
+
+func (failingListSource) List(context.Context, int) (*tmdb.List, error) {
+	return nil, errors.New("tmdb: GET /list/9?page=2: HTTP 502")
+}
+
+// A list TMDb did not give in full (a later page failed, so the client returns no list) is not a sync: the manual
+// and the scheduled pass report it, add nothing and leave last_sync_at alone.
+func TestListReadFailureIsNotASync(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+	s, st := newIntake(t, intakeSource{})
+	s.TMDb = failingListSource{}
+	if _, err := st.Writer().Exec(`INSERT INTO movie_import_list(id,name,list_type,tmdb_id,enabled,enable_auto,monitor,versions,last_sync_at,updated_at,created_at)
+		VALUES(1,'long','tmdb',9,1,1,'movieOnly','["movie-web"]',5,0,0)`); err != nil {
+		t.Fatal(err)
+	}
+	if got, err := s.SyncList(ctx, 1); err == nil || got.Added != 0 {
+		t.Fatalf("manual sync of an unreadable list: %+v %v", got, err)
+	}
+	if got, err := s.SyncLists(ctx); err == nil || got.Added != 0 {
+		t.Fatalf("scheduled sync of an unreadable list: %+v %v", got, err)
+	}
+	var synced int64
+	if err := st.Reader().QueryRow(`SELECT last_sync_at FROM movie_import_list WHERE id=1`).Scan(&synced); err != nil || synced != 5 {
+		t.Fatalf("last_sync_at %d: %v", synced, err)
+	}
+}

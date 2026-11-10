@@ -153,9 +153,10 @@ type Collection struct {
 	Parts []MovieSummary `json:"parts"`
 }
 
-// List is a TMDb user's or public list. TMDb returns the list's movies in items.
+// List is a TMDb user's or public list, with the items of all its pages. ID is the id asked for: TMDb answers it as
+// a string ("id":"1"), so it is not decoded.
 type List struct {
-	ID          int            `json:"id"`
+	ID          int            `json:"-"`
 	Name        string         `json:"name"`
 	Description string         `json:"description"`
 	Items       []MovieSummary `json:"items"`
@@ -273,16 +274,43 @@ func (c *Client) Collection(ctx context.Context, id int) (*Collection, error) {
 	return &out, nil
 }
 
-// List fetches a TMDb list by id.
+// maxListPages bounds a list read; TMDb pages lists by 20 items.
+const maxListPages = 500
+
+// List fetches a TMDb list by id, every page of it (one paced request per page). TMDb says how far the list goes
+// with total_pages, or, where that is absent, with item_count; an empty page ends it either way. A page that fails
+// fails the whole read, so a caller never takes part of a list for all of it.
 func (c *Client) List(ctx context.Context, id int) (*List, error) {
 	if id <= 0 {
 		return nil, fmt.Errorf("tmdb: bad list id %d", id)
 	}
-	var out List
-	if err := c.fresh(ctx, "/list/"+strconv.Itoa(id), url.Values{}, &out); err != nil {
-		return nil, err
+	out := List{ID: id}
+	for page := 1; ; page++ {
+		var r struct {
+			List
+			TotalPages int `json:"total_pages"`
+			ItemCount  int `json:"item_count"`
+		}
+		q := url.Values{}
+		q.Set("page", strconv.Itoa(page))
+		if err := c.fresh(ctx, "/list/"+strconv.Itoa(id), q, &r); err != nil {
+			return nil, err
+		}
+		if page == 1 {
+			out.Name, out.Description = r.Name, r.Description
+		}
+		out.Items = append(out.Items, r.Items...)
+		more := len(out.Items) < r.ItemCount
+		if r.TotalPages > 0 {
+			more = page < r.TotalPages
+		}
+		if !more || len(r.Items) == 0 {
+			return &out, nil
+		}
+		if page == maxListPages {
+			return nil, fmt.Errorf("tmdb: list %d has more than %d pages", id, maxListPages)
+		}
 	}
-	return &out, nil
 }
 
 // ExternalIDs fetches a movie's external ids (served from the same cached request as Movie).
