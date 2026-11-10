@@ -745,29 +745,48 @@ queue. A manual search, a search on add, an add-time search of a follower, and a
 search start none. The run row cannot tell a loop search from an add-time one, so the search job's payload carries the
 mark (`retry_new`, left out when unset; set only while the switch is on) and the switch is read again when the search
 ends. It runs like the chain above: the same steps (1, 2, 4, 8 ... hours after the empty search, while the content
-is new), stops and `per_hour` charge. Its requests carry `retry_new`, and each step checks the switch before it
-queues the next: turned off, the chain ends at its next step. Every search of the chain looks at the switch too,
-before it asks any indexer: the search job a step queues carries `retry_new_chain` (not `retry_new`: it starts no
-chain), and with the switch off its run ends skipped without a search (it does not count against `per_hour`). When
-no indexer answers such a search, the request that asks for it again carries the chain's `retry_new`, so that one
-and the search it starts check the switch as well: after the switch is turned off the chain searches nothing and
-queues nothing. The follow-ups of an `exhausted` route, their searches and their requests asked for again keep the
-payloads they always had. With the switch off no payload, job or search differs from before it existed.
+is new), stops and `per_hour` charge.
 
-It is a chain of its own, under its own job key (`acquire.research/retry_new/<version>/<title>/<step>`; the chain
-above keeps `acquire.research/fresh/...`), and the chain after an `exhausted` route reads nothing of it: that one
-starts by its own key alone and never looks at the switch, so it starts exactly as it would on an install without
-the switch, also while a `retry_new` chain of the title is queued or after one ended for any reason. The `retry_new`
-chain gives way instead: it does not start, and ends at its next step without a search, once an `exhausted` chain
-of the title and version is queued or ran in the fresh window. So a title can get both kinds of chain in one week,
-one after the other (for example when a `retry_new` follow-up finds a release that then misses everywhere), and no
-total number of searches per title is promised: each chain alone is bounded by its steps within the week, and every
-search by `per_hour`. Tests: `internal/acquire/retrynew_test.go`.
+It is built to one rule: nothing the chain writes is read by an ordinary path, and turning the switch off removes
+its queued work. So with the switch never on, or on and then off, every other search is started, held back, ordered
+and paced exactly as without it.
 
-Known limit: a search reads the settings it started with. One by the loop or Search now that is already running
-when the switch is turned off may still queue the first follow-up when it ends empty. That follow-up searches
-nothing: its step sees the switch off and ends the chain. Having its own key, it does not hold back a chain after an
-`exhausted` route either.
+- Its jobs are its own: the steps have their own key (`acquire.research/retry_new/<version>/<title>/<step>`; the
+  chain above keeps `acquire.research/fresh/...`) and its requests carry `retry_new`. Its searches are marked in the
+  run history: `acquire_run.research` is `retry_new` (their search job holds the run's id and nothing else, like
+  any other).
+- Every reader of the run history that decides for an ordinary search leaves those runs out, whatever their
+  outcome (searched, partial, no answer, skipped, still queued): `again_after` for the wanted loop and for a
+  re-search after a failure, the loop's oldest-attempt-first order, an add-time intent's "searched already", a
+  Search now request's "a search of it is queued or running" (so a request is never dropped for a chain's search;
+  the two may then both search the target), and the number of unanswered searches that sets when a re-search is
+  asked for again. The chain's own searches asked for again count the chain's unanswered runs only.
+- `per_hour` is one budget while the switch is on: the chain's searches take slots like any wanted search. With the
+  switch off the hourly count leaves out what the chain searched before, so it delays nothing.
+- The chain after an `exhausted` route reads nothing of this one: it starts by its own key alone and never looks at
+  the switch, also while a `retry_new` chain of the title is queued or after one ended for any reason. A route
+  started by a chain's search that then misses everywhere is an ordinary miss: it gets its re-search at once and
+  its own chain.
+- Each request of the chain (a step, a search asked for again) and each of its searches looks at the switch before
+  any other check: with the switch off the request does nothing and the run ends skipped without a search, also
+  when the library was turned off with it.
+- Turning the switch off cancels what is queued: the chain's requests and the search jobs of its queued runs end as
+  done ("cancelled"), those runs as skipped. It is not part of the save's own transaction: it is one transaction of
+  its own, run right after the saved settings are published, and again for every later published generation and at
+  start (so a stop between the save and it loses nothing); it finds nothing on an install that never had the switch
+  on. A handler already running when the switch is turned off keeps the settings it started with and may still
+  queue a step or a search after the cancellation: that one does nothing when it runs.
+
+The `retry_new` chain gives way to the other: it does not start, and ends at its next step without a search, once
+an `exhausted` chain of the title and version is queued or ran in the fresh window. So a title can get both kinds
+of chain in one week, one after the other (for example when a `retry_new` follow-up finds a release that then
+misses everywhere), and no total number of searches per title is promised: each chain alone is bounded by its steps
+within the week, and every search by `per_hour`. A chain ended by turning the switch off does not start again for
+the same content when the switch is turned on again within the week.
+
+Rolling back to a build without the switch: turn the switch off first (and save), so that nothing of a chain is
+queued. An older build does not know the mark and would run a queued step or search of a chain as an ordinary
+follow-up. Tests: `internal/acquire/retrynew_test.go`, `internal/acquire/retrynew_readers_test.go`.
 
 **A dead link is searched once** (reason `dead_link`). When relink marks an active version's
 link dead (`docs/design/library.md` "Relink and verify": two misses at least 30 min apart, the mount healthy, not within
