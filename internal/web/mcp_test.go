@@ -171,6 +171,15 @@ func TestMCPAuthAndOrigin(t *testing.T) {
 	if rec := call(key, "http://example.com", ping); rec.Code != 200 {
 		t.Fatalf("same origin: %d", rec.Code)
 	}
+	// Behind a proxy that ends TLS and says so, the browser's origin is https.
+	r := httptest.NewRequest("POST", APIBase+"/mcp", strings.NewReader(ping))
+	r.Header.Set("Content-Type", "application/json")
+	r.Header.Set("X-Api-Key", key)
+	r.Header.Set("Origin", "https://example.com")
+	r.Header.Set("X-Forwarded-Proto", "https")
+	if rec := e.do(r); rec.Code != 200 {
+		t.Fatalf("https origin behind a proxy: %d", rec.Code)
+	}
 	list := call(viewer, "", `{"jsonrpc":"2.0","id":1,"method":"tools/list"}`)
 	if strings.Contains(list.Body.String(), `"name":"settings_section_update"`) || !strings.Contains(list.Body.String(), `"name":"library_search"`) {
 		t.Fatalf("viewer tools: %s", list.Body.String())
@@ -182,7 +191,7 @@ func TestMCPAuthAndOrigin(t *testing.T) {
 		}
 	}
 	cookie, _ := e.session(1)
-	r := httptest.NewRequest("POST", APIBase+"/mcp", strings.NewReader(ping))
+	r = httptest.NewRequest("POST", APIBase+"/mcp", strings.NewReader(ping))
 	r.Header.Set("Content-Type", "application/json")
 	r.AddCookie(cookie)
 	if rec := e.do(r); rec.Code != 403 {

@@ -184,10 +184,8 @@ func mcpOrigin(r *http.Request) bool {
 		return true
 	}
 	u, err := url.Parse(o)
-	scheme := "http"
-	if r.TLS != nil {
-		scheme = "https"
-	}
+	// As the browser sees it: https behind a proxy that says X-Forwarded-Proto: https (requestOrigin).
+	scheme, _, _ := strings.Cut(requestOrigin(r), "://")
 	return err == nil && u.Scheme == scheme && strings.EqualFold(u.Host, r.Host) && u.User == nil &&
 		u.Path == "" && u.RawQuery == "" && u.Fragment == ""
 }
