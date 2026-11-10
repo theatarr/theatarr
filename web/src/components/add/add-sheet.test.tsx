@@ -4,9 +4,13 @@
 // Invented keys and names.
 import { screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { expect, it } from "vitest";
+import { afterEach, beforeEach, expect, it, vi } from "vitest";
 import { json, mockFetch, renderPage } from "@/test/page";
 import { AddSheet } from "./add-sheet";
+
+// Search now is remembered per browser: each test starts as a browser with nothing stored.
+beforeEach(() => localStorage.clear());
+afterEach(() => vi.restoreAllMocks());
 
 const gates = { grab: true, router_enabled: true, router_forced_off: false, library_enabled: true, library_writes: true };
 const long = "A library name that is long enough to wrap at four hundred p";
@@ -87,4 +91,125 @@ it("says new downloads are off once, not on every row", async () => {
   expect(screen.getByTestId("add-count").textContent).toBe("6 libraries · 0 will download");
   // Not an admin: no settings link.
   expect(within(screen.getByTestId("downloads-off-notice")).queryByRole("link")).toBeNull();
+});
+
+const tv = { key: "tv-web", label: "TV", kind: "series", mode: "active", enable: "", fits: true, default: true, on: false, searchable: true, grab_state: { ...gates, mode: "active", will_grab: true } };
+const seriesOptions = { kind: "series", anime: false, router_enabled: true, episodes_known: false, can_search: true, seasons: [{ season: 1, episodes: 8 }], versions: [tv] };
+const posted = { created: true, new: ["tv-web"], title: { id: 9, name: "Kappa", versions: [] } };
+const routes = (opts: unknown) => [
+  { method: "GET", path: "/auth/me", reply: { id: 1, permissions: ["admin", "add"] } },
+  { method: "GET", path: "/add/options", reply: opts },
+  { method: "POST", path: "/titles", reply: json(posted) },
+];
+const bodyOf = async (fetch: ReturnType<typeof mockFetch>) => {
+  await waitFor(() => expect(fetch.calls("POST", "/titles")).toHaveLength(1));
+  return fetch.calls("POST", "/titles")[0].body;
+};
+
+it("sends today's request for a new series when every new choice is left alone", async () => {
+  const fetch = mockFetch(routes(seriesOptions));
+  const user = userEvent.setup();
+  renderPage(<AddSheet target={{ kind: "series", name: "Kappa", year: 2025, tmdb_id: 8 }} onClose={() => {}} />);
+  expect(((await screen.findByTestId("add-monitor")) as HTMLSelectElement).value).toBe("");
+  expect(screen.getByTestId("add-monitor-new").getAttribute("aria-checked")).toBe("true");
+  expect(screen.getByRole("switch", { name: "Search now" }).getAttribute("aria-checked")).toBe("false");
+  await user.click(screen.getByTestId("add-submit"));
+  const body = await bodyOf(fetch);
+  expect(body).toEqual({ kind: "series", tmdb_id: 8, title: "Kappa", year: 2025, anime: false, versions: ["tv-web"], search: false });
+  expect(Object.keys(body as object).sort()).toEqual(["anime", "kind", "search", "title", "tmdb_id", "versions", "year"]);
+});
+
+it("sends the monitor preset and the new-seasons choice of a new series", async () => {
+  const fetch = mockFetch(routes(seriesOptions));
+  const user = userEvent.setup();
+  renderPage(<AddSheet target={{ kind: "series", name: "Kappa", year: 2025, tmdb_id: 8 }} onClose={() => {}} />);
+  await user.selectOptions(await screen.findByTestId("add-monitor"), "pilot");
+  await user.click(screen.getByTestId("add-monitor-new"));
+  await user.click(screen.getByTestId("add-submit"));
+  expect(await bodyOf(fetch)).toEqual({ kind: "series", tmdb_id: 8, title: "Kappa", year: 2025, anime: false, versions: ["tv-web"], search: false, monitor: "pilot", monitor_new: "none" });
+});
+
+it("sends monitor all with later seasons off, so the seasons the first refresh finds stay monitored", async () => {
+  const fetch = mockFetch(routes(seriesOptions));
+  const user = userEvent.setup();
+  renderPage(<AddSheet target={{ kind: "series", name: "Kappa", year: 2025, tmdb_id: 8 }} onClose={() => {}} />);
+  await user.click(await screen.findByTestId("add-monitor-new"));
+  await user.click(screen.getByTestId("add-submit"));
+  expect(await bodyOf(fetch)).toEqual({ kind: "series", tmdb_id: 8, title: "Kappa", year: 2025, anime: false, versions: ["tv-web"], search: false, monitor: "all", monitor_new: "none" });
+});
+
+it("hides the season ticks when a preset is chosen and sends no seasons", async () => {
+  const known = { ...seriesOptions, episodes_known: true, seasons: [{ season: 1, episodes: 8, monitored: true }, { season: 2, episodes: 8, monitored: true }] };
+  const fetch = mockFetch(routes(known));
+  const user = userEvent.setup();
+  renderPage(<AddSheet target={{ kind: "series", name: "Kappa", year: 2025, tmdb_id: 8 }} onClose={() => {}} />);
+  const select = await screen.findByTestId("add-monitor");
+  expect(within(select).getByRole<HTMLOptionElement>("option", { name: "Seasons I pick below" }).selected).toBe(true);
+  expect(screen.getByTestId("add-seasons")).toBeTruthy();
+  await user.selectOptions(select, "firstSeason");
+  expect(screen.queryByTestId("add-seasons")).toBeNull();
+  expect(screen.getByText(/This choice decides which episodes are monitored/)).toBeTruthy();
+  await user.click(screen.getByTestId("add-submit"));
+  const body = await bodyOf(fetch);
+  expect(body).toEqual({ kind: "series", tmdb_id: 8, title: "Kappa", year: 2025, anime: false, versions: ["tv-web"], search: false, monitor: "firstSeason" });
+  expect("seasons" in (body as object)).toBe(false);
+});
+
+it("offers neither series choice for a series already in the library", async () => {
+  const inLibrary = { ...seriesOptions, title_id: 10, episodes_known: true, seasons: [{ season: 1, episodes: 8, monitored: true }], versions: [{ ...tv, key: "tv-old", on: true, default: false }, tv] };
+  const fetch = mockFetch(routes(inLibrary));
+  const user = userEvent.setup();
+  renderPage(<AddSheet target={{ kind: "series", name: "Kappa", title_id: 10 }} onClose={() => {}} />);
+  expect(await screen.findByTestId("add-seasons")).toBeTruthy();
+  for (const id of ["add-monitor", "add-monitor-new", "add-anime"]) expect(screen.queryByTestId(id)).toBeNull();
+  await user.click(screen.getByTestId("add-submit"));
+  expect(await bodyOf(fetch)).toEqual({ title_id: 10, kind: "series", versions: ["tv-web", "tv-old"], seasons: [{ season: 1, monitored: true }], search: false });
+});
+
+it("remembers Search now in this browser and starts off without a stored value", async () => {
+  mockFetch(routes(options));
+  const user = userEvent.setup();
+  const first = renderPage(<AddSheet target={{ kind: "movie", name: "Alpha", tmdb_id: 7 }} onClose={() => {}} />);
+  const sw = await screen.findByRole("switch", { name: "Search now" });
+  expect(sw.getAttribute("aria-checked")).toBe("false");
+  await user.click(sw);
+  expect(localStorage.getItem("theatarr.add.search")).toBe("true");
+  first.unmount();
+  const second = renderPage(<AddSheet target={{ kind: "movie", name: "Alpha", tmdb_id: 7 }} onClose={() => {}} />);
+  const again = await screen.findByRole("switch", { name: "Search now" });
+  expect(again.getAttribute("aria-checked")).toBe("true");
+  await user.click(again);
+  expect(localStorage.getItem("theatarr.add.search")).toBeNull();
+  second.unmount();
+  renderPage(<AddSheet target={{ kind: "movie", name: "Alpha", tmdb_id: 7 }} onClose={() => {}} />);
+  expect((await screen.findByRole("switch", { name: "Search now" })).getAttribute("aria-checked")).toBe("false");
+});
+
+it("does not turn Search now back on when storing the choice fails", async () => {
+  localStorage.setItem("theatarr.add.search", "true");
+  // A full storage: writes fail, removals work.
+  vi.spyOn(Storage.prototype, "setItem").mockImplementation(() => { throw new Error("quota"); });
+  mockFetch(routes(options));
+  const user = userEvent.setup();
+  const first = renderPage(<AddSheet target={{ kind: "movie", name: "Alpha", tmdb_id: 7 }} onClose={() => {}} />);
+  const sw = await screen.findByRole("switch", { name: "Search now" });
+  expect(sw.getAttribute("aria-checked")).toBe("true");
+  await user.click(sw);
+  first.unmount();
+  renderPage(<AddSheet target={{ kind: "movie", name: "Alpha", tmdb_id: 7 }} onClose={() => {}} />);
+  expect((await screen.findByRole("switch", { name: "Search now" })).getAttribute("aria-checked")).toBe("false");
+});
+
+it("works with Search now off when the browser's storage throws", async () => {
+  vi.spyOn(Storage.prototype, "getItem").mockImplementation(() => { throw new Error("denied"); });
+  vi.spyOn(Storage.prototype, "setItem").mockImplementation(() => { throw new Error("denied"); });
+  const fetch = mockFetch(routes(options));
+  const user = userEvent.setup();
+  renderPage(<AddSheet target={{ kind: "movie", name: "Alpha", tmdb_id: 7 }} onClose={() => {}} />);
+  const sw = await screen.findByRole("switch", { name: "Search now" });
+  expect(sw.getAttribute("aria-checked")).toBe("false");
+  await user.click(sw);
+  expect(sw.getAttribute("aria-checked")).toBe("true");
+  await user.click(screen.getByTestId("add-submit"));
+  expect(((await bodyOf(fetch)) as { search: boolean }).search).toBe(true);
 });

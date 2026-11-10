@@ -18,7 +18,8 @@ import { Switch } from "@/components/ui/switch";
 import { globalDownloadsOff, willGrab } from "@/lib/version-grab";
 import { FacetPill, facetOf, Poster } from "@/components/search/search-results";
 import { Modal } from "@/components/ui/modal";
-import { addRequest, libraryTitleId } from "./add-request";
+import { Select } from "@/components/ui/select";
+import { addRequest, libraryTitleId, type AddChoice } from "./add-request";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
@@ -99,6 +100,40 @@ function seasonLabel(n: number) {
   return n === 0 ? "Specials" : `Season ${n}`;
 }
 
+/** A labelled select in the drawer's row shape. */
+function SelectRow({ label, detail, value, onChange, options, testid }: { label: string; detail?: string; value: string; onChange: (v: string) => void; options: readonly (readonly [string, string])[]; testid?: string }) {
+  const id = useId();
+  return (
+    <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5 rounded-[5px] border border-[var(--line)] bg-[var(--surface)] px-3 py-2.5">
+      <span className="min-w-0 flex-1">
+        <label htmlFor={id} className="block text-sm font-medium text-[var(--ink)]">{label}</label>
+        {detail ? <span id={`${id}-d`} className="block text-xs text-[var(--ink-3)]">{detail}</span> : null}
+      </span>
+      <Select id={id} className="w-auto" value={value} onChange={(e) => onChange(e.target.value)} aria-describedby={detail ? `${id}-d` : undefined} data-testid={testid}>
+        {options.map(([v, l]) => <option key={v} value={v}>{l}</option>)}
+      </Select>
+    </div>
+  );
+}
+
+type MonitorPreset = NonNullable<AddChoice["monitor"]>;
+/** The presets offered for a new series (Sonarr's add options; existing and recent are left out to keep it short). */
+const MONITOR_PRESETS: readonly (readonly [MonitorPreset, string])[] = [
+  ["all", "All episodes"], ["future", "Future episodes"], ["missing", "Missing episodes"], ["firstSeason", "First season"],
+  ["lastSeason", "Latest season"], ["pilot", "Pilot only"], ["none", "None"],
+];
+
+// Search now is off unless this browser last left it on. Only "on" is stored; off removes the key, so a write that
+// fails (storage full) cannot leave an old "on" behind.
+const searchKey = "theatarr.add.search";
+function readSearch() { try { return localStorage.getItem(searchKey) === "true"; } catch { return false; } }
+function storeSearch(on: boolean) {
+  try {
+    if (on) localStorage.setItem(searchKey, "true");
+    else localStorage.removeItem(searchKey);
+  } catch { /* Storage can be unavailable. */ }
+}
+
 export function AddSheet({ target, onClose }: { target: AddTarget; onClose: () => void }) {
   const perms = usePerms();
   const [anime, setAnime] = useState(Boolean(target.anime));
@@ -107,7 +142,10 @@ export function AddSheet({ target, onClose }: { target: AddTarget; onClose: () =
   const add = useAddTitle();
   const [picked, setPicked] = useState<Record<string, boolean>>({});
   const [seasons, setSeasons] = useState<Record<number, boolean>>({});
-  const [search, setSearch] = useState(false);
+  const [search, setSearchState] = useState(readSearch);
+  const setSearch = (on: boolean) => { setSearchState(on); storeSearch(on); };
+  const [monitor, setMonitor] = useState<MonitorPreset | "">("");
+  const [monitorNew, setMonitorNew] = useState(true);
   const [showOther, setShowOther] = useState(false);
   const [done, setDone] = useState<AddResult | null>(null);
 
@@ -137,6 +175,8 @@ export function AddSheet({ target, onClose }: { target: AddTarget; onClose: () =
         seasons: seasonList,
         search: canSearch && search,
         anime,
+        monitor: monitor || undefined,
+        monitorNew,
       }),
       { onSuccess: setDone },
     );
@@ -217,7 +257,19 @@ export function AddSheet({ target, onClose }: { target: AddTarget; onClose: () =
                   {o.kind === "series" ? (
                     <section>
                       <h3 className="mb-2 text-[13px] font-semibold uppercase tracking-[0.08em] text-[var(--ink-3)]">Seasons</h3>
-                      {epKnown ? (
+                      {!inLibrary ? (
+                        <div className="mb-2">
+                          <SelectRow
+                            label="Monitor"
+                            detail={monitor ? `This choice decides which episodes are monitored${epKnown ? "" : ", once the library knows the episodes"}.` : undefined}
+                            value={monitor}
+                            onChange={(v) => setMonitor(v as MonitorPreset | "")}
+                            options={[["", epKnown ? "Seasons I pick below" : "Every season"], ...MONITOR_PRESETS]}
+                            testid="add-monitor"
+                          />
+                        </div>
+                      ) : null}
+                      {monitor && !inLibrary ? null : epKnown ? (
                         <div className="grid grid-cols-1 gap-2 sm:grid-cols-2" data-testid="add-seasons">
                           {(o.seasons ?? []).map((s) => (
                             <CheckRow key={s.season} checked={seasonOn(s.season, s.monitored ?? true)} onChange={(c) => setSeasons((p) => ({ ...p, [s.season]: c }))}>
@@ -234,6 +286,17 @@ export function AddSheet({ target, onClose }: { target: AddTarget; onClose: () =
                           Every season is monitored. Season choices apply once the library knows the episodes; change them on the title page then.
                         </p>
                       )}
+                      {!inLibrary ? (
+                        <div className="mt-2">
+                          <SwitchRow
+                            on={monitorNew}
+                            onChange={setMonitorNew}
+                            title="Monitor seasons that appear later"
+                            detail="Off: a season announced after the add stays unmonitored."
+                            testid="add-monitor-new"
+                          />
+                        </div>
+                      ) : null}
                     </section>
                   ) : null}
                   <section>

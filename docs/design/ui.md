@@ -115,6 +115,18 @@ drawer, **Add to these libraries**. The add drawer shows one row per library: a 
 kind on one wrapping row and its state on the next, with a footer "n libraries · m will download" (ticked
 libraries whose `will_grab` is true).
 
+The add drawer's other choices each start at the value that sends the request of a plain add, so leaving them
+alone changes nothing. A series not yet in the library gets **Monitor** (a select: the season ticks as picked, or a
+preset: all, future or missing episodes, first or latest season, pilot only, none; a preset hides the ticks and
+sends `monitor` without `seasons`, and a series without episodes yet takes it at its first refresh) and **Monitor
+seasons that appear later** (on; off sends `monitor_new: none`). A new series has no episodes until its first
+refresh, so `monitor_new: none` alone would leave the seasons that refresh finds unmonitored too; with no preset
+and no season ticks the drawer therefore sends `monitor: all` with it, and only seasons that appear after the first
+refresh stay unmonitored. The API itself stores `monitor_new: none` as given. Neither choice is offered for a series
+already in the library, because the request names the libraries it already has and would rewrite their monitoring;
+the API answers 400 to `monitor` there, naming the library title, and writes nothing. **Search now** is off unless
+this browser last left it on (`localStorage` `theatarr.add.search`, kept only while on).
+
 ### Library and activity pages
 
 - **Library lists** keep the poster and table views. The table has dense rows, a **Columns** chooser (one checkbox
