@@ -1,5 +1,5 @@
 # Example Docker Compose file for Theatarr. This one builds the image from source; compose.image.yaml beside it
-# pulls a released image instead, once a release has been published.
+# pulls a released image instead, which is the usual way to install.
 #
 #   cp examples/compose.yaml compose.yaml    # in the root of a checkout of this repository
 #   mkdir -p data && sudo chown 65532:65532 data

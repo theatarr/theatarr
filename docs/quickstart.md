@@ -12,19 +12,22 @@ you, disabled or in shadow. The steps below still apply for checking and going l
 
 ## 1. Run the container
 
-Build the image from a checkout of this repository with [`examples/compose.yaml`](../examples/compose.yaml), copied
-to the repository root (`compose.yaml`, `data/` and `trash-guides/` there are ignored by git and left out of the
-image build). Tagged releases publish an image to `ghcr.io/theatarr/theatarr`, and
-[`examples/compose.image.yaml`](../examples/compose.image.yaml) pulls it: the same service with
-`image: ghcr.io/theatarr/theatarr:${THEATARR_VERSION}` in place of `build: .`. Use it once the repository's Releases
-page lists a version; until then, build from source:
+Pull the released image with [`examples/compose.image.yaml`](../examples/compose.image.yaml), copied as
+`compose.yaml` into any directory; no checkout of the repository is needed. Each release publishes an image for
+linux/amd64 to `ghcr.io/theatarr/theatarr`, and the
+[Releases page](https://github.com/theatarr/theatarr/releases) lists the versions. The image tag is the version
+without the leading `v`: release `v0.1.0` is the image `0.1.0`. Put the version in a `.env` file beside
+`compose.yaml`, where every `docker compose` command reads it:
+
+```sh
+echo THEATARR_VERSION=0.1.0 > .env
+```
 
 ```yaml
 # compose.yaml
 services:
   theatarr:
-    build: .
-    image: theatarr:local
+    image: ghcr.io/theatarr/theatarr:${THEATARR_VERSION:?set THEATARR_VERSION to a released version, for example 0.1.0}
     container_name: theatarr
     restart: unless-stopped
     ports:
@@ -40,6 +43,12 @@ services:
       # THEATARR_TRASH: /config/trash  # the optional TRaSH-Guides checkout above
 ```
 
+**Building from source instead.** In a checkout of the repository, copy
+[`examples/compose.yaml`](../examples/compose.yaml) to the repository root (`compose.yaml`, `data/` and
+`trash-guides/` there are ignored by git and left out of the image build). It is the same service with `build: .`
+and `image: theatarr:local` in place of the released image, needs no `THEATARR_VERSION`, and starts with
+`docker compose up -d --build`.
+
 Theatarr starts with an empty data directory and no configuration. It serves the UI and shows what is missing
 instead of exiting. Each missing piece turns one feature off, and the Setup screen and `theatarr preflight` say which.
 
@@ -47,7 +56,7 @@ The image runs as uid:gid `65532:65532`. `./data`, the library roots and the tra
 writable by it; the debrid mount only readable. Docker creates a missing bind-mount directory owned by root, and
 the service then cannot write `/data`: it exits with one line that names the directory, the uid and the `chown` to
 run ([troubleshooting.md](troubleshooting.md#data-directory)), and restarts in a loop. Create them before the first
-`up`. With the host paths above, from the checkout:
+`up`. With the host paths above, in the directory that holds `compose.yaml`:
 
 ```sh
 mkdir -p data
@@ -75,7 +84,7 @@ The first start creates the `admin` account and writes its password to `data/ini
 is never logged.
 
 ```sh
-docker compose up -d --build
+docker compose up -d                      # built from source: docker compose up -d --build
 sudo cat data/initial-admin-password      # mode 0600, owned by 65532
 ```
 

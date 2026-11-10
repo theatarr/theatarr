@@ -112,7 +112,8 @@ Required:
 - A **media server that follows symlinks**, such as Plex. Plex is the only one Theatarr talks to (scans, sign-in, now
   playing); others work from the folders alone.
 - A **TMDb API key**. Adding titles, search, artwork and release dates need it.
-- **Docker** to build and run the image, or Go 1.27 and Node 20 to build from source.
+- **Docker** (linux/amd64) to run the released image, or to build it from source; Go 1.27 and Node 20 to build
+  without Docker.
 
 Optional:
 
@@ -125,21 +126,23 @@ Optional:
 
 ## Quick start
 
-Build the image from this repository. Tagged releases publish an image to `ghcr.io/theatarr/theatarr`; the
-repository's Releases page lists the versions that exist. Until a release is listed there, building from source is
-the only way.
+Pull the released image with [`examples/compose.image.yaml`](examples/compose.image.yaml). Each release publishes
+an image for linux/amd64 to `ghcr.io/theatarr/theatarr`; the
+[Releases page](https://github.com/theatarr/theatarr/releases) lists the versions. The image tag is the version
+without the leading `v` (release `v0.1.0` is the image `0.1.0`).
 
 ```sh
-git clone https://github.com/theatarr/theatarr.git theatarr && cd theatarr
-cp examples/compose.yaml compose.yaml      # then edit the host paths
+mkdir theatarr && cd theatarr
+curl -fsSL -o compose.yaml https://raw.githubusercontent.com/theatarr/theatarr/main/examples/compose.image.yaml
+echo THEATARR_VERSION=0.1.0 > .env             # a version from the Releases page; then edit the host paths in compose.yaml
 mkdir -p data && sudo chown 65532:65532 data   # the image runs as uid 65532; so must the library roots and trash
-docker compose up -d --build
+docker compose up -d
 sudo cat data/initial-admin-password
 ```
 
-With a released version, [`examples/compose.image.yaml`](examples/compose.image.yaml) pulls the image instead of
-building it: copy it to `compose.yaml`, set `THEATARR_VERSION` to the release (for example `1.0.0`) and run
-`docker compose up -d`.
+To build the image from source instead, clone the repository, copy
+[`examples/compose.yaml`](examples/compose.yaml) to `compose.yaml` in the checkout and start it with
+`docker compose up -d --build`; the other steps are the same.
 
 Open `http://<host>:7700` and sign in as `admin` with that password. The file is deleted at the first login; if you
 lose the password, run `docker compose exec theatarr theatarr admin reset-password`.
@@ -222,19 +225,21 @@ manifest with hashes. **Admin › System › Backup** lists the sets, writes one
 database holds your credentials in plaintext, so keep backups as private as the data directory. Copy `data/backups`
 off the host with whatever backs up the host.
 
-To upgrade, write a backup set while the old image still runs, keep the old image under another tag, then rebuild
-from the new source (with a released image, change `THEATARR_VERSION` instead; the old version's tag is the image
-to go back to):
+To upgrade, write a backup set while the old image still runs, then set `THEATARR_VERSION` in `.env` to the new
+release; the old version's tag is the image to go back to:
 
 ```sh
 docker compose exec theatarr theatarr backup now    # note the set name it prints
-docker tag theatarr:local theatarr:previous         # keep the old image
-git pull
-docker compose up -d --build
+echo THEATARR_VERSION=X.Y.Z > .env                  # the new release
+docker compose up -d
 ```
 
+Built from source: keep the old image under another tag (`docker tag theatarr:local theatarr:previous`), then
+`git pull` and `docker compose up -d --build`.
+
 Theatarr migrates the database at startup and refuses to start an older image on a newer database, so going back
-means restoring that pre-upgrade set with the old image. Set `image: theatarr:previous` in `compose.yaml`, then:
+means restoring that pre-upgrade set with the old image. Set `THEATARR_VERSION` back to the old release (built from
+source: `image: theatarr:previous` in `compose.yaml`), then:
 
 ```sh
 docker compose stop theatarr
