@@ -2,6 +2,7 @@ package acquire
 
 import (
 	"encoding/json"
+	"strings"
 	"testing"
 	"time"
 
@@ -510,5 +511,171 @@ func TestRetryNewChainNeverBlocksAnExhaustedChain(t *testing.T) {
 				t.Fatalf("after another empty search: %d retry_new and %d exhausted steps queued, want 0 and 1", r, x)
 			}
 		})
+	}
+}
+
+// lastSearchJob is the payload of the newest search job.
+func (e *env) lastSearchJob() string {
+	e.t.Helper()
+	var payload string
+	if err := e.st.Reader().QueryRow(`SELECT payload FROM job WHERE kind = ? ORDER BY id DESC LIMIT 1`, JobSearch).
+		Scan(&payload); err != nil {
+		e.t.Fatal(err)
+	}
+	return payload
+}
+
+// hours runs the ready jobs every quarter of an hour for n hours.
+func (e *env) hours(n int) {
+	e.t.Helper()
+	for range 4 * n {
+		e.advance(15*time.Minute + time.Second)
+		e.drain()
+	}
+}
+
+// A retry_new chain's search no indexer answered is asked for again with the chain's mark, and the search asked for
+// again is marked too. With the switch turned off after such a search, nothing more is searched or queued: not the
+// searches asked for again, not the next step.
+func TestRetryNewOffStopsUnansweredFollowUps(t *testing.T) {
+	t.Parallel()
+	for _, off := range []bool{false, true} {
+		e := retryNewEnv(t, &policy.Wanted{PerHour: 100, RetryNew: true})
+		e.round()
+		e.wantChains("started", map[string]bool{"series/10": true})
+		e.noAnswer = true
+		if step := e.runFollowUp(); step != 1 {
+			t.Fatalf("ran step %d", step)
+		}
+		if got := e.lastSearchJob(); !strings.Contains(got, `"retry_new_chain":true`) || strings.Contains(got, `"retry_new":`) {
+			t.Fatalf("the follow-up's search job %s", got)
+		}
+		var again string
+		if err := e.st.Reader().QueryRow(`SELECT payload FROM job WHERE kind = ? AND state = 'queued'
+			AND dedupe_key LIKE 'acquire.research/infra/%'`, router.JobResearch).Scan(&again); err != nil {
+			t.Fatal(err)
+		}
+		if again != `{"title_id":10,"version_id":201,"version":"series","episodes":[1004],"reason":"fresh","retry_new":true}` {
+			t.Fatalf("asked for again with %s", again)
+		}
+		e.a.set.RetryNew = !off
+		before := len(e.searches())
+		if !off {
+			e.advance(infraRetry + time.Second)
+			e.drain()
+			if n := len(e.searches()) - before; n != 1 {
+				t.Fatalf("switch on: %d searches asked for again", n)
+			}
+			if got := e.lastSearchJob(); !strings.Contains(got, `"retry_new_chain":true`) {
+				t.Fatalf("the search asked for again: job %s", got)
+			}
+			continue
+		}
+		e.hours(12)
+		if n := len(e.searches()) - before; n != 0 {
+			t.Fatalf("%d searches with the switch off", n)
+		}
+		if n := e.count(`SELECT COUNT(*) FROM job WHERE kind IN (?, ?) AND state = 'queued'`, router.JobResearch,
+			JobSearch); n != 0 {
+			t.Fatalf("%d jobs still queued with the switch off", n)
+		}
+	}
+}
+
+// The switch turned off between a retry_new chain's step and the search it queued: the search asks no indexer, its
+// run ends skipped and does not count as a search.
+func TestRetryNewOffBeforeAFollowUpsSearch(t *testing.T) {
+	t.Parallel()
+	e := retryNewEnv(t, &policy.Wanted{PerHour: 100, RetryNew: true})
+	e.round()
+	var payload string
+	if err := e.st.Reader().QueryRow(`SELECT payload FROM job WHERE kind = ? AND state = 'queued'`,
+		router.JobResearch).Scan(&payload); err != nil {
+		t.Fatal(err)
+	}
+	var p router.ResearchRequest
+	if err := json.Unmarshal([]byte(payload), &p); err != nil || !p.RetryNew || p.Step != 1 {
+		t.Fatalf("queued follow-up %s: %v", payload, err)
+	}
+	e.exec(`DELETE FROM job WHERE kind = ?`, router.JobResearch)
+	e.advance(time.Hour)
+	e.research(p) // the step: it queues its search and step 2
+	if n := e.count(`SELECT COUNT(*) FROM acquire_run WHERE research = ? AND state = 'queued'`, router.ReasonFresh); n != 1 {
+		t.Fatalf("%d follow-up runs queued", n)
+	}
+	e.a.set.RetryNew = false
+	before := len(e.searches())
+	e.drain()
+	if n := e.count(`SELECT COUNT(*) FROM acquire_run WHERE research = ? AND state = 'skipped' AND infra = ?`,
+		router.ReasonFresh, runGated); n != 1 || len(e.searches()) != before {
+		t.Fatalf("%d gated runs, %d searches with the switch off", n, len(e.searches())-before)
+	}
+	e.hours(3)
+	if n := len(e.searches()) - before; n != 0 {
+		t.Fatalf("%d searches with the switch off", n)
+	}
+	if n := e.count(`SELECT COUNT(*) FROM job WHERE kind IN (?, ?) AND state = 'queued'`, router.JobResearch,
+		JobSearch); n != 0 {
+		t.Fatalf("%d jobs still queued with the switch off", n)
+	}
+}
+
+// The chain after an exhausted route, its searches and the searches asked for again after no indexer answered have
+// the payloads they had before the switch existed, whatever the switch says.
+func TestRetryNewLeavesExhaustedChainPayloads(t *testing.T) {
+	t.Parallel()
+	for _, on := range []bool{false, true} {
+		e := retryNewEnv(t, &policy.Wanted{PerHour: 100, Missing: new(bool), CutoffUnmet: policy.CutoffOff, RetryNew: on})
+		e.noAnswer = true
+		e.research(router.ResearchRequest{TitleID: 10, VersionID: 201, Version: "series", Episodes: []int64{1004},
+			Reason: router.ReasonExhausted})
+		e.drain()
+		missed := e.clock()
+		if step := e.runFollowUp(); step != 1 {
+			t.Fatalf("ran step %d", step)
+		}
+		e.advance(infraRetry + time.Second)
+		e.drain() // the follow-up's search asked for again
+		want := map[string]int{
+			`{"title_id":10,"version_id":201,"version":"series","episodes":[1004],"reason":"fresh"}`: 0,
+			`{"title_id":10,"version_id":201,"version":"series","reason":"fresh","step":2,"missed_at":"` +
+				missed.Format(time.RFC3339Nano) + `"}`: 0,
+		}
+		rows, err := e.st.Reader().Query(`SELECT kind, dedupe_key, payload FROM job WHERE kind IN (?, ?)`,
+			router.JobResearch, JobSearch)
+		if err != nil {
+			t.Fatal(err)
+		}
+		searches := 0
+		for rows.Next() {
+			var kind, key, payload string
+			if err := rows.Scan(&kind, &key, &payload); err != nil {
+				t.Fatal(err)
+			}
+			if strings.Contains(payload, "retry_new") {
+				t.Errorf("switch %v: job %s has payload %s", on, key, payload)
+			}
+			if _, ok := want[payload]; ok {
+				want[payload]++
+			}
+			if kind == JobSearch {
+				searches++
+				if payload != `{"run_id":`+strings.TrimPrefix(key, JobSearch+"/")+`}` {
+					t.Errorf("switch %v: search job %s has payload %s", on, key, payload)
+				}
+			}
+		}
+		rows.Close()
+		if err := rows.Err(); err != nil {
+			t.Fatal(err)
+		}
+		if searches < 3 {
+			t.Errorf("switch %v: %d search jobs, want the re-search, the follow-up's and the one asked for again", on, searches)
+		}
+		for payload, n := range want {
+			if n == 0 {
+				t.Errorf("switch %v: no job with payload %s", on, payload)
+			}
+		}
 	}
 }

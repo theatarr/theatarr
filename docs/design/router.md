@@ -746,8 +746,13 @@ search start none. The run row cannot tell a loop search from an add-time one, s
 mark (`retry_new`, left out when unset; set only while the switch is on) and the switch is read again when the search
 ends. It runs like the chain above: the same steps (1, 2, 4, 8 ... hours after the empty search, while the content
 is new), stops and `per_hour` charge. Its requests carry `retry_new`, and each step checks the switch before it
-queues the next: turned off, the chain ends at its next step. With the switch off no payload, job or search differs
-from before it existed.
+queues the next: turned off, the chain ends at its next step. Every search of the chain looks at the switch too,
+before it asks any indexer: the search job a step queues carries `retry_new_chain` (not `retry_new`: it starts no
+chain), and with the switch off its run ends skipped without a search (it does not count against `per_hour`). When
+no indexer answers such a search, the request that asks for it again carries the chain's `retry_new`, so that one
+and the search it starts check the switch as well: after the switch is turned off the chain searches nothing and
+queues nothing. The follow-ups of an `exhausted` route, their searches and their requests asked for again keep the
+payloads they always had. With the switch off no payload, job or search differs from before it existed.
 
 It is a chain of its own, under its own job key (`acquire.research/retry_new/<version>/<title>/<step>`; the chain
 above keeps `acquire.research/fresh/...`), and the chain after an `exhausted` route reads nothing of it: that one

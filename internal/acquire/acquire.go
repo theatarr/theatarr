@@ -356,7 +356,14 @@ func (a *Acquirer) Submit(ctx context.Context, commandID int64, sel Selection) (
 // start records a run and enqueues its search. research is the failure a re-search follows ("" for none).
 // It is the path of the add-time searches, the re-searches and the follow-ups: its job is never marked retry_new.
 func (a *Acquirer) start(ctx context.Context, source string, commandID int64, t target, research string) error {
-	return a.startRuns(ctx, source, commandID, []target{t}, research, false)
+	return a.startRuns(ctx, source, commandID, []target{t}, research, SearchJob{})
+}
+
+// startChained is start for a search of a follow-up chain router.wanted.retry_new started (or one asked for again
+// after no indexer answered): its job says so, and the search runs only while the switch is on (run). The mark is
+// not RetryNew: such a search starts no chain. Any other follow-up's job is start's, byte for byte.
+func (a *Acquirer) startChained(ctx context.Context, t target, research string, chained bool) error {
+	return a.startRuns(ctx, SourceWanted, 0, []target{t}, research, SearchJob{RetryNewChain: chained})
 }
 
 // startGroup records one search and its served version-target rows in the same transaction as its job. It is the
@@ -364,11 +371,12 @@ func (a *Acquirer) start(ctx context.Context, source string, commandID int64, t 
 // The first two are the searches router.wanted.retry_new follows up: while the switch is on their job is marked.
 func (a *Acquirer) startGroup(ctx context.Context, source string, commandID int64, ts []target, research string) error {
 	return a.startRuns(ctx, source, commandID, ts, research,
-		a.set.RetryNew && source == SourceWanted && research == "")
+		SearchJob{RetryNew: a.set.RetryNew && source == SourceWanted && research == ""})
 }
 
+// startRuns is their body; mark holds the job's marks (its RunID is set here).
 func (a *Acquirer) startRuns(ctx context.Context, source string, commandID int64, ts []target, research string,
-	retryNew bool) error {
+	mark SearchJob) error {
 	if len(ts) == 0 {
 		return nil
 	}
@@ -406,7 +414,8 @@ func (a *Acquirer) startRuns(ctx context.Context, source string, commandID int64
 				rootID = id
 			}
 		}
-		_, _, err := a.q.EnqueueTx(ctx, tx, JobSearch, SearchJob{RunID: rootID, RetryNew: retryNew}, jobs.EnqueueOptions{
+		mark.RunID = rootID
+		_, _, err := a.q.EnqueueTx(ctx, tx, JobSearch, mark, jobs.EnqueueOptions{
 			DedupeKey: JobSearch + "/" + strconv.FormatInt(rootID, 10), MaxAttempts: searchAttempts})
 		return err
 	})
@@ -423,6 +432,10 @@ type SearchJob struct {
 	// when it accepts nothing, its new content is followed up (followup.go). The run row cannot tell these from an
 	// add-time search, so the mark travels with the job. Left out when unset.
 	RetryNew bool `json:"retry_new,omitempty"`
+	// RetryNewChain marks the search of a follow-up whose chain such a search started: it searches only while the
+	// switch is on, and when no indexer answers it is asked for again with the chain's mark
+	// (router.ResearchRequest.RetryNew). It starts no chain. Left out when unset.
+	RetryNewChain bool `json:"retry_new_chain,omitempty"`
 }
 
 type wantedPayload struct{}
@@ -1003,6 +1016,11 @@ func (a *Acquirer) run(ctx context.Context, sj SearchJob, claim string) error {
 			return err
 		}
 	}
+	// A retry_new chain's search runs only while the switch is on (its step checked it too, when it queued this).
+	if sj.RetryNewChain && !a.set.RetryNew {
+		infra = runGated
+		return finish("skipped", "router.wanted.retry_new is off: nothing searched", 0, 0)
+	}
 	db := a.st.Reader()
 	if busy, err := a.inFlight(ctx, t); err != nil {
 		return err
@@ -1046,7 +1064,7 @@ func (a *Acquirer) run(ctx context.Context, sj SearchJob, claim string) error {
 			if err := finish("failed", "search failed: "+err.Error()+infraNote, 0, 0); err != nil {
 				return err
 			}
-			return a.retryInfraFailed(ctx, []int64{runID})
+			return a.retryInfraFailed(ctx, []int64{runID}, sj.RetryNewChain)
 		}
 		return finish("failed", "search failed: "+err.Error(), 0, 0)
 	}
@@ -1056,7 +1074,7 @@ func (a *Acquirer) run(ctx context.Context, sj SearchJob, claim string) error {
 		if err := finish("failed", noAnswerMessage(found)+infraNote, 0, 0); err != nil {
 			return err
 		}
-		return a.retryInfraFailed(ctx, []int64{runID})
+		return a.retryInfraFailed(ctx, []int64{runID}, sj.RetryNewChain)
 	}
 	req := found.Request
 	req.Source = Source(runID)
@@ -1393,7 +1411,8 @@ func (a *Acquirer) finishFanout(ctx context.Context, claim string, outcomes []fa
 			infra = append(infra, o.run.id)
 		}
 	}
-	return a.retryInfraFailed(ctx, infra)
+	// A follow-up's search is one target (start), never a shared search: none of these is a retry_new chain's.
+	return a.retryInfraFailed(ctx, infra, false)
 }
 
 // What a run's search established, recorded in acquire_run.infra:
@@ -1480,8 +1499,9 @@ func (a *Acquirer) infraRuns(ctx context.Context, versionID int64, name string, 
 }
 
 // retryInfraFailed asks again for the re-searches among runs (no answer: runInfra) after infraBackoff, until it is
-// spent. Wanted and add-time searches need nothing: the next round or drain finds them due.
-func (a *Acquirer) retryInfraFailed(ctx context.Context, runs []int64) error {
+// spent. Wanted and add-time searches need nothing: the next round or drain finds them due. chained: the runs are
+// searches of a retry_new chain, and the request asked for again carries its mark, so it looks at the switch too.
+func (a *Acquirer) retryInfraFailed(ctx context.Context, runs []int64, chained bool) error {
 	for _, id := range runs {
 		var p router.ResearchRequest
 		var research sql.NullString
@@ -1507,6 +1527,7 @@ func (a *Acquirer) retryInfraFailed(ctx context.Context, runs []int64) error {
 		}
 		_ = json.Unmarshal([]byte(eps), &p.Episodes)
 		p.Reason = research.String
+		p.RetryNew = chained
 		at := store.FromMillis(max(next, store.Millis(a.now())))
 		key := fmt.Sprintf("%s/infra/%d", router.JobResearch, id)
 		if _, _, err := a.q.Enqueue(ctx, router.JobResearch, p, jobs.EnqueueOptions{RunAt: at, DedupeKey: key,

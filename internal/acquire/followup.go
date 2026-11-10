@@ -50,6 +50,8 @@ import (
 //
 // The chain after a route that missed everywhere reads nothing of it: it starts by its own key alone, as if the
 // switch did not exist, also while a retry_new chain of the title is queued or after one ended. The retry_new chain
+// looks at the switch before every search: at each step, in the search job the step queued (SearchJob.RetryNewChain)
+// and in a search asked for again after no indexer answered, which carries the chain's mark. It also
 // gives way: it does not start, and ends at its next step without a search, once the exhausted chain's key was seen
 // in the fresh window (exhaustedChain). So a title can get both kinds in one week, one after the other.
 
@@ -138,6 +140,7 @@ func (a *Acquirer) followUp(ctx context.Context, vp *policy.VersionPolicy, p rou
 		return nil
 	}
 	// A chain an empty search started (retry_new) runs only while the switch is on: nothing searched, no next step.
+	// So does a search of it asked for again after no indexer answered.
 	if p.RetryNew && !a.set.RetryNew {
 		return skip("router.wanted.retry_new is off")
 	}
@@ -247,7 +250,7 @@ func (a *Acquirer) followUp(ctx context.Context, vp *policy.VersionPolicy, p rou
 				"version", p.Version, "target", t.name, "step", p.Step)
 			continue
 		}
-		if err := a.start(ctx, SourceWanted, 0, t, p.Reason); err != nil {
+		if err := a.startChained(ctx, t, p.Reason, p.RetryNew); err != nil {
 			return err
 		}
 		sum.Queued++
