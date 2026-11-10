@@ -25,6 +25,8 @@ export function MinimumAvailabilityControl({ v, label }: { v: Version; label: st
         {MINIMUM_AVAILABILITY.map(([o, l]) => <option key={o} value={o}>{l}</option>)}
       </Select>
       {save.error ? <p className="mt-1 text-xs text-[var(--bad-ink)]" role="alert">{(save.error as Error).message}</p> : null}
+      {/* A copy taken out of the library still has its card; it takes no choice. */}
+      {save.data?.changed === 0 ? <p className="mt-1 text-xs text-[var(--ink-3)]" role="status">Not changed: the movie is not in this library now.</p> : null}
     </>
   );
 }

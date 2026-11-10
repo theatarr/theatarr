@@ -567,6 +567,10 @@ func TestSeriesTypeEndpoint(t *testing.T) {
 		return s
 	}
 	before := typ()
+	many := make([]int64, maxBulkTitles+1)
+	for i := range many {
+		many[i] = int64(i + 1)
+	}
 	for _, c := range []struct {
 		body map[string]any
 		want int
@@ -577,6 +581,7 @@ func TestSeriesTypeEndpoint(t *testing.T) {
 		{map[string]any{"title_ids": []int64{10}, "series_type": "weekly"}, 400},
 		{map[string]any{"title_ids": []int64{10}}, 400},
 		{map[string]any{"title_ids": []int64{}, "series_type": "daily"}, 400},
+		{map[string]any{"title_ids": many, "series_type": "daily"}, 400},
 	} {
 		e.call("POST", path, c.body, c.want, nil)
 	}

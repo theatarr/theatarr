@@ -156,6 +156,17 @@ describe("minimum availability on a library card", () => {
     expect(fetch.calls("POST", "/titles/minimum-availability")[0].body).toEqual({ title_ids: [7], versions: ["movie-web"], minimum_availability: "announced" });
   });
 
+  it("says so when the library no longer holds the movie", async () => {
+    mockFetch([
+      { method: "GET", path: "/auth/me", reply: { permissions: ["browse", "see_files", "manage"] } },
+      { method: "POST", path: "/titles/minimum-availability", reply: { changed: 0 } },
+    ]);
+    const user = userEvent.setup();
+    renderPage(<CopyCards versions={[movie] as never} />);
+    await user.selectOptions(await screen.findByTestId("version-minimum-availability-movie-web"), "released");
+    expect(await screen.findByText(/the movie is not in this library now/)).toBeTruthy();
+  });
+
   it("shows it as text without manage, and not at all on a series' card", async () => {
     mockFetch([{ method: "GET", path: "/auth/me", reply: { permissions: ["browse", "see_files"] } }]);
     renderPage(<CopyCards versions={[movie, { ...copy, id: 2, key: "tv-web", label: "TV" }] as never} />);
