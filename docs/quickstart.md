@@ -214,15 +214,15 @@ Privacy is a label for badges, filters and sorting, nothing else. An indexer wit
 except the built-in public sources (Torrentio, DMM, Zilean, SeaDex), which count as public. Releases from every
 indexer a debrid library lists, whatever its label, go to that library's providers (optionally limited per
 indexer). When a DMM indexer is configured, and only then, DMM's availability check also runs before the grab. It
-covers Real-Debrid and AllDebrid, the two providers DMM answers for: only releases a library may send to one of
-them are asked about, and they get that provider's "cached on" mark. A library whose providers are neither (TorBox
-only, for example) asks DMM nothing.
+covers Real-Debrid and AllDebrid only: releases a library may send to one of them are asked about, and those DMM
+lists as cached there get that provider's "cached on" mark. A library whose providers are neither (TorBox only,
+for example) asks DMM nothing.
 
 DMM is optional. Cached-only grabbing (**Only add cached releases**) works without it: the debrid provider's
 own answer decides whether a release is cached. What happens to an uncached one depends on the provider and on
 the account. TorBox is asked before the add and an uncached release is not added. Real-Debrid and AllDebrid are
 read back after the add: an uncached add of Theatarr's own is removed again and the next provider is tried (on
-AllDebrid it is removed only when `router.alldebrid_delete_uncached` is on), while a torrent that was on the
+AllDebrid it is removed only when that is turned on, off by default), while a torrent that was on the
 account before the add stays, and the download waits for it. Without DMM fewer releases carry a cached mark before
 the grab, so the provider order and the release list have less to go on.
 
