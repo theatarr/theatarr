@@ -101,6 +101,18 @@ returned and why each release was accepted or rejected) and **System › Status*
   choose **Search now**: the titles join the same queue under the same limit, a series season by season, and a
   title with nothing missing in that library is skipped. The bar then says how many searches were queued and
   links to **Wanted**.
+- **The movie is not available yet.** A movie is searched automatically only once it has reached its **Minimum
+  availability**: Released (the default: a digital or physical release date has passed, or 90 days since the
+  cinema date), In cinemas, or Announced. The movie's library card on the title page shows the value in force
+  for that library and lets a manager change it; a movie library can set its own default and an **Availability
+  delay** in days (**Settings › Libraries**, **Which releases**). **Search now** on the title page searches
+  regardless.
+- **An episode aired a few hours ago.** The automatic search usually runs before any release exists and then
+  waits a day before it tries the episode again. Turn on **Retry new episodes sooner** (**Settings › Download
+  clients › Behaviour**, **Automatic searches**) to have an empty search of a new episode repeated after 1, 2,
+  4, 8 ... hours, within the same hourly limit. It is off by default.
+- **An anime series sits in a library that does not take anime (or the reverse).** The title page says so next
+  to **Series type**. Add the series to a fitting library or change its type.
 - **No release is cached.** **Only add cached releases** (**Settings › Download clients › Behaviour**, **What to grab**) is on by
   default: a release that no provider has cached is not taken, and the title stays wanted. An uncached add is
   removed again on Real-Debrid (when it is Theatarr's own) and never made on TorBox. AllDebrid is the exception: with the default settings

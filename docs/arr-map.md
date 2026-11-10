@@ -16,7 +16,7 @@ claim of Sonarr v5 API parity. Recyclarr has no web pages; its table maps the CL
 | Arr page or tab | Theatarr page (route and menu path) | Difference |
 |---|---|---|
 | Series | Library › Series — `/series` | One title can have multiple libraries. The arrs' "Search Selected": **Select**, tick the titles, pick one library in the bar and choose **Search now** (admins). It searches what is missing in that library, through the Wanted queue and its hourly limit. |
-| Series › Add New | Search — `/search` | Choose libraries when adding. A series new to the library gets **Monitor** (the seasons you pick, or All, Future or Missing episodes, First or Latest season, Pilot only, None) and **Monitor seasons that appear later**. **Search now** is off until you turn it on; the browser then remembers it. |
+| Series › Add New | Search — `/search` | Choose libraries when adding. A series new to the library gets **Monitor** (the seasons you pick, or All, Future or Missing episodes, First or Latest season, Pilot only, None) and **Monitor seasons that appear later**. **Search now** is off until you turn it on; the browser then remembers it. A new series also gets **Series type** (Standard, Daily or Anime); it is one value per series, shown on every Sonarr view, and is changed later on the title page. |
 | Series › Library Import | Admin › Advanced › Sonarr/Radarr migration › Migrate — `/admin/advanced/arr/migrate` | Import the arr inventory into shadow mode; Wanted › Manual import (`/wanted/manual-import`) handles existing files. |
 | Calendar | Calendar — `/calendar` | Movies and episodes together. |
 | Statistics | **not needed** | No separate library-statistics dashboard; counts and filters are in the library and System Status. |
@@ -52,7 +52,8 @@ claim of Sonarr v5 API parity. Recyclarr has no web pages; its table maps the CL
 | Arr page or tab | Theatarr page (route and menu path) | Difference |
 |---|---|---|
 | Movies | Library › Movies — `/movies` | Multiple libraries per movie. The arrs' "Search Selected": **Select**, tick the titles, pick one library in the bar and choose **Search now** (admins). It searches what is missing in that library, through the Wanted queue and its hourly limit. |
-| Movies › Add New | Search — `/search` | Choose libraries when adding. **Search now** is off until you turn it on; the browser then remembers it. |
+| Movies › Add New | Search — `/search` | Choose libraries when adding. **Search now** is off until you turn it on; the browser then remembers it. **Minimum availability** is **Library default** unless you pick Announced, In cinemas or Released; a pick is kept per library and is changed later on the movie's library card. |
+| Settings › Indexers › Availability Delay | Admin › Settings › Libraries — `/admin/settings/libraries` | Per movie library, not per instance: **Minimum availability** (the library's default) and **Availability delay** in days (negative searches earlier), both under **Which releases**. A library default wins over the value an arr client sends with an add. |
 | Movies › Import Library | Admin › Advanced › Sonarr/Radarr migration › Migrate — `/admin/advanced/arr/migrate` | Migrate arr inventory into shadow mode; Wanted › Manual import (`/wanted/manual-import`) handles files. |
 | Movies › Collections | Library › Collections — `/collections` | Managers and admins. **Add collection** searches TMDb; targets are libraries; the arrs' monitored collections are carried over at each Radarr import. |
 | Movies › Discover | Home — `/` | Discovery rows and search share one library for every user. |

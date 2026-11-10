@@ -232,8 +232,9 @@ Below, `movie-remux` is F and `movie-remux-theatarr` is K. Use your own keys.
   monitored flag, each episode's monitored flag, the series' season monitoring and `monitorNewItems`
   (`series_monitor`). A title the arr drops is unmonitored in K, never deleted. Monitoring is mirrored on every
   import, so an edit made in Theatarr's UI for K is reset at the next import: change it in the arr.
-- **Source settings and blocklists from the arr.** Decisions and naming use F's owning arr's series type, and
-  movies inherit its minimum availability (an explicit choice for K's view still wins). Every import reads the
+- **Source settings and blocklists from the arr.** A series takes its type from the first import and keeps one
+  type for all its libraries afterwards (change it on the title page), and movies inherit the owning arr's
+  minimum availability (a choice made in Theatarr for K still wins, then K's own default if it has one). Every import reads the
   complete paged arr blocklist with GET only and mirrors its hashes and hashless source titles into K's router
   blocklist, with reason `arr blocklist (<instance>)`; removed entries clear only that instance's contribution,
   and local blocks remain. The arr's recorded list is mirrored regardless of why it blocked a release.
