@@ -224,8 +224,10 @@ marker, makes existing movies due for refresh and clears the RSS seen cache.
     `mapping`, `tmdb`, `none`, `unknown`; migrations 00072, 00103) and logged ("anime decided"), so a wrong guess is
     visible; editing the title's versions fixes it (`TestAddDecidesAnime`).
   - A title the view already has gets the extra versions and a 201, not Radarr's "already added" 400.
-  - Root folder, profile, minimum availability, season folder, series type and monitor-new-items go to
+  - Root folder, profile, minimum availability, season folder and monitor-new-items go to
     `arrview_title` (per view and title); tags to `arrview_title_tag`, on the view's versions of the title.
+  - Sonarr's `seriesType` is the title's one type (`docs/design/series.md` "Series type"), shown the same on every
+    view. An add stores it only for a series that has none (`TestSeriesTypeAddKeepsStored`).
   - `addOptions.searchForMovie` / `searchForMissingEpisodes` record a `MoviesSearch` / `MissingEpisodeSearch`
     command (below).
   - Sonarr's `addOptions.monitor` (Ruddarr, LunaSea; a name or MonitorTypes index) is applied after the body's seasons
@@ -249,6 +251,13 @@ marker, makes existing movies due for refresh and clears the RSS seen cache.
   `monitorNewItems` goes to the versions' intent (`series_monitor`), from
   PUT `series` and PUT `series/editor` alike, and the series resource reports that intent. Files are never moved
   (`moveFiles` is ignored).
+  - **Series type.** A `seriesType` equal to the one the view showed stores nothing and is no anime hint for a
+    profile change in the same PUT (`TestSeriesTypeEchoChangesNothing`, `TestSeriesTypeEchoIsNoAnimeHint`); another
+    value is an edit of the title's type, seen on every view and by every library (`TestSeriesTypeEdit`), and
+    `anime` then is a hint for a profile change. Outside this guarantee: a title whose anime check is still
+    `unknown` is asked about again after the PUT (above), and an anime answer sets the flag, so a series with no
+    stored type then shows `anime`. `PUT series/editor` is outside it too: a `seriesType` it is given is an edit,
+    also when it is the value shown; without the field nothing changes (`TestSeriesTypeEditor`).
 - **`GET|HEAD <view>/ping`**: 200 `{"status":"OK"}` without a key, on every view, as the arrs' PingController
   (outside `api/v3`, so no `X-Application-Version`); any other method answers 405. It says nothing about the view.
 - **`DELETE movie|series/{id}`**: unlinks only the view's versions. On a Radarr view `addImportExclusion=true` also
@@ -379,7 +388,7 @@ removes a view tag (`TestImportCopiesTagsToVersions`, `TestImportTagsNotToFollow
 | `arrview_tag` | Tags: id, label (unique, case-insensitive) |
 | `arrview_title_tag` | Tags on titles, per version (00105) |
 | `arrview_profile` | Profile ids per view and name |
-| `arrview_title` | Per view and title: profile, root folder, minimum availability, season folder, series type, monitor new items, added; where the add's anime decision came from (`anime_source`, 00072, `unknown` 00103) |
+| `arrview_title` | Per view and title: profile, root folder, minimum availability, season folder, monitor new items, added (`series_type` is no longer read: the type is the title's); where the add's anime decision came from (`anime_source`, 00072, `unknown` 00103) |
 | `arrview_removed_version` | Versions a view's DELETE removed |
 | `arrview_command` | Commands: name, body as sent, status, result, message, user agent, times |
 

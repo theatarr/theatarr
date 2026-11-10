@@ -103,8 +103,8 @@ is past half, which puts the next episode in rclone's VFS cache so it plays from
 
 **Head check.** About a minute into the episode (`viewOffset` ≥ 60 s), one at a time, bounded to 2 minutes:
 
-1. The next episode in the **version's order**: by absolute number when the version's series type is anime (its arr
-   instance's, else the title's) and all regular episodes have one, skipping specials (a special numbered between
+1. The next episode in the **version's order**: by absolute number when the series type is anime (the title's,
+   `docs/design/series.md` "Series type") and all regular episodes have one, skipping specials (a special numbered between
    two regular episodes is not the next one), otherwise by season and number so unnumbered episodes are not dropped.
    While a special plays, specials stay among themselves. Episodes removed from the metadata source are skipped.
    It must have aired and be monitored for the

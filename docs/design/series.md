@@ -15,7 +15,7 @@ releases as Sonarr does, and the shadow (history replay and the live runner) cov
   | Table | Holds |
   |---|---|
   | `title` | One per TVDB id. New columns: `series_type`, `use_scene_numbering`, `runtime_minutes`, `original_language` |
-  | `arr_title.series_type` | The type as each instance has it: one series can be anime in one Sonarr and standard in another. A version decides with its owner's type |
+  | `arr_title.series_type` | The type as each instance had it, kept as a record. It does not decide anything: the title's type does (Series type, below) |
   | `title_scene_mapping` | Sonarr's scene mappings as its API exposes them (`alternateTitles`): name, season, scene season, origin, comment; source = the instance |
   | `episode` | One per (title, season, number) in TVDB numbering, shared by the title's versions; name, air date (and UTC), runtime |
   | `episode_number` | `absolute_tvdb`, `scene` (season and number) and `scene_absolute`, source = the instance |
@@ -36,9 +36,35 @@ releases as Sonarr does, and the shadow (history replay and the live runner) cov
 - **`import_run` pruning**: `importarr.PruneRuns` keeps the last 7 days plus each instance's latest run.
   It runs in `theatarr serve`'s nightly job (`db.nightly`), before the backup.
 
+### Series type
+
+A series has one type (standard, daily or anime), the same for every library and every view: `title.series_type`.
+
+- **Resolver.** `store.SeriesTypeSQL` (and `store.SeriesType` for one title) is the only place the rule lives:
+  the title's value; when it is empty, `anime` if the title's anime flag is set, else `standard`. Between the two,
+  a title with no value takes the first non-empty `arr_title.series_type` by instance: the import copies an arr's
+  type onto a title that has none on every run, so no code path leaves a title in that state; the fallback only
+  covers a database that somehow has one.
+- **Readers.** All of them read the resolver: decisions and search style (`decide.LoadTitle`, `LoadSeries`),
+  import naming (`library` `completeDownload`), `checkNames`, follower adoption, rename preview, reassign,
+  now-playing's next episode, the anime-library filter of acquisition (the flag or the type), the TV metadata
+  refresh (anime series take TVDB only) and the Sonarr views (resource and webhooks). The per-instance imported
+  type no longer overrides the title's value for a version: an install whose imported types differ per instance,
+  or from the title's value, gets the title's value everywhere.
+- **Writers.** An arr import fills an empty value. An add (`catalog.AddSeriesType`: a Sonarr view's POST, the native
+  add) stores its type only for a series that has none; a later add never changes a stored one. An edit
+  (`catalog.SetSeriesType`: a view's PUT with a type other than the one shown, the editor) replaces it. No writer
+  touches the anime flag.
+- **The anime flag** keeps its own role: which libraries take the title (`versions.<k>.anime`, a view's version
+  choice) and anime indexer queries (flag or type). A `standard` series can be flagged anime and the reverse.
+
+Tests: `TestSeriesTypeEchoChangesNothing`, `TestSeriesTypeEdit`, `TestSeriesTypeAddKeepsStored`,
+`TestSeriesTypeEchoIsNoAnimeHint`, `TestSeriesTypeEditor` (arrview), `TestNextEpisodeUsesTitleSeriesType`
+(nowplaying), `TestLoadSeriesVersion`, `TestFollowerNamingSeriesType`.
+
 ### Series decisions (`internal/decide`)
 
-Parallel followers resolve the owning arr's series type through the followed version, for decisions and naming;
+Every version of a series, parallel followers included, decides and names with the title's series type (below);
 removed episodes are excluded from ordinary matching loads. Each arr import also unmonitors follower episodes
 absent from its snapshot, retaining their links and file states.
 

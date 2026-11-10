@@ -506,6 +506,12 @@ func (s *Service) editor(w http.ResponseWriter, r *request) {
 					}
 				}
 			}
+			if v.Flavour == Sonarr {
+				// A series type the editor is given is an edit of the title's type, also when it is the one shown.
+				if err := catalog.SetSeriesType(ctx, tx, e.id, in.SeriesType.value(seriesTypes...)); err != nil {
+					return err
+				}
+			}
 			if err := s.saveRecord(ctx, tx, v, e.id, &ti); err != nil {
 				return err
 			}

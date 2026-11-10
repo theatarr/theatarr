@@ -26,7 +26,8 @@ absolute order) and store it in one transaction:
 - **Series row:** status, air time, zone, episode count and errors in `series_meta`; name, sort name, year,
   runtime and IMDb id refresh on each successful fetch. A fed arr remains authoritative until cutover, checked in
   the write transaction (`TestFillTitleRechecksOwnership`). User settings, including explicit standard/daily/anime
-  series type, stay. Arr API adds and updates persist that type on the catalog row used by decide.
+  series type, stay. Arr API adds (for a series with no type) and edits persist that type on the catalog row every
+  reader uses (`docs/design/series.md` "Series type").
 - **Scene names:** TVDB names and translations become all-season aliases (`tvrefresh:tvdb`). A separate
   `meta.scene` job refreshes Sonarr scene aliases, XEM season-specific aliases and XEM episode/absolute numbers
   every three hours; numbers go into the existing `episode_number` scene schemes read by decide/search. See below.

@@ -217,8 +217,18 @@ func episodesWithFile(ctx context.Context, tx *sql.Tx, versionID int64) (map[int
 	return out, rows.Err()
 }
 
-// SetSeriesType keeps the arr API's user choice on the catalog row used by decide.
+// SetSeriesType is an edit of a series' type (standard, daily or anime): title.series_type, the one value every
+// reader resolves (store.SeriesTypeSQL). Empty changes nothing. The anime flag is not touched.
 func SetSeriesType(ctx context.Context, tx *sql.Tx, titleID int64, seriesType string) error {
+	return setSeriesType(ctx, tx, titleID, seriesType, "")
+}
+
+// AddSeriesType is an add's series type: stored only for a series that has none, so a later add never changes it.
+func AddSeriesType(ctx context.Context, tx *sql.Tx, titleID int64, seriesType string) error {
+	return setSeriesType(ctx, tx, titleID, seriesType, ` AND COALESCE(series_type, '') = ''`)
+}
+
+func setSeriesType(ctx context.Context, tx *sql.Tx, titleID int64, seriesType, cond string) error {
 	if seriesType == "" {
 		return nil
 	}
@@ -227,7 +237,8 @@ func SetSeriesType(ctx context.Context, tx *sql.Tx, titleID int64, seriesType st
 	default:
 		return fmt.Errorf("catalog: invalid series type %q", seriesType)
 	}
-	_, err := tx.ExecContext(ctx, `UPDATE title SET series_type = ? WHERE id = ? AND kind = 'series'`, seriesType, titleID)
+	_, err := tx.ExecContext(ctx, `UPDATE title SET series_type = ? WHERE id = ? AND kind = 'series'`+cond, seriesType,
+		titleID)
 	return err
 }
 

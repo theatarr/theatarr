@@ -108,6 +108,9 @@ func (in *titleIn) monitored(def bool) bool {
 	return def
 }
 
+// seriesTypes are Sonarr's SeriesTypes.
+var seriesTypes = []string{"standard", "daily", "anime"}
+
 var errNoVersion = errors.New("no version of this view takes this title")
 
 // animeHint reads what a request says about anime: Sonarr's series type, a root folder that is an anime version's
@@ -115,7 +118,7 @@ var errNoVersion = errors.New("no version of this view takes this title")
 func (s *Service) animeHint(v *View, in *titleIn) *bool {
 	t, f := true, false
 	if v.Flavour == Sonarr {
-		switch in.SeriesType.value("standard", "daily", "anime") {
+		switch in.SeriesType.value(seriesTypes...) {
 		case "anime":
 			return &t
 		}
@@ -443,12 +446,9 @@ func viewVersionIDs(ctx context.Context, tx *sqlTx, v *View, titleID int64) ([]i
 }
 
 // saveRecord upserts the view's record of the title from a request. Fields the request leaves empty keep their value.
+// The series type is the title's, not the view's: the callers write it (catalog.SetSeriesType, AddSeriesType), and
+// the record's series_type column is no longer read.
 func (s *Service) saveRecord(ctx context.Context, tx *sqlTx, v *View, titleID int64, in *titleIn) error {
-	if v.Flavour == Sonarr {
-		if err := catalog.SetSeriesType(ctx, tx, titleID, in.SeriesType.value("standard", "daily", "anime")); err != nil {
-			return err
-		}
-	}
 	now := store.Millis(s.now())
 	qp := in.profile()
 	if v.profileByID(qp) == nil {
@@ -470,7 +470,7 @@ func (s *Service) saveRecord(ctx context.Context, tx *sqlTx, v *View, titleID in
 		monitor_new_items = CASE WHEN excluded.monitor_new_items <> '' THEN excluded.monitor_new_items ELSE monitor_new_items END,
 		updated_at = excluded.updated_at`,
 		v.Key, titleID, qp, strings.TrimSuffix(in.RootFolderPath, "/"), in.MinimumAvailability.minAvail(), sf,
-		in.SeriesType.value("standard", "daily", "anime"), in.MonitorNewItems.value("all", "none"), now, now,
+		in.SeriesType.value(seriesTypes...), in.MonitorNewItems.value("all", "none"), now, now,
 		in.SeasonFolder != nil)
 	return err
 }
@@ -647,6 +647,12 @@ func (s *Service) addTitle(w http.ResponseWriter, r *request) {
 			return err
 		}
 		titleID = res.TitleID
+		if v.Flavour == Sonarr {
+			// An add gives a series its type only when it has none: a later add never changes a stored one.
+			if err := catalog.AddSeriesType(ctx, tx, titleID, in.SeriesType.value(seriesTypes...)); err != nil {
+				return err
+			}
+		}
 		if err := s.saveRecord(ctx, tx, v, titleID, &in); err != nil {
 			return err
 		}
@@ -748,6 +754,17 @@ func (s *Service) updateTitle(w http.ResponseWriter, r *request) {
 		// only what differs from that answer changes. The view reports monitored when any copy is and one profile
 		// for all copies, so echoing either back must not turn on, or restore, a copy the user left off.
 		mon := in.monitored(e.monitored())
+		if v.Flavour == Sonarr {
+			// The series type is one value per title, shown on every view. The value the view showed, sent back,
+			// says nothing: it is not stored and is no anime hint for a profile change below. Another value is an
+			// edit of the title's type.
+			typ := in.SeriesType.value(seriesTypes...)
+			if typ == e.seriesType {
+				in.SeriesType = ""
+			} else if err := catalog.SetSeriesType(ctx, tx, e.id, typ); err != nil {
+				return err
+			}
+		}
 		var fresh, picked []string
 		if p := v.profileByID(in.profile()); p != nil && p.ID != qualityProfileID(v, e) {
 			anime := e.anime

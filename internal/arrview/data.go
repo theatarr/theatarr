@@ -25,6 +25,7 @@ type entry struct {
 	tmdb, tvdb     int
 	imdb           string
 	anime          bool
+	seriesType     string // the title's effective type (store.SeriesTypeSQL); '' for a movie
 	created        int64
 	versions       []*ver // in view rank order
 	rec            *viewRec
@@ -187,7 +188,8 @@ func (s *Service) load(ctx context.Context, v *View, titleIDs []int64) ([]*entry
 
 	rows, err := db.QueryContext(ctx, `SELECT DISTINCT t.id, t.kind, t.name, t.sort_name, COALESCE(t.year, 0),
 		COALESCE(t.secondary_year, 0), COALESCE(t.tmdb_id, 0), COALESCE(t.tvdb_id, 0), COALESCE(t.imdb_id, ''), t.anime,
-		t.created_at, EXISTS (SELECT 1 FROM title_meta m WHERE m.title_id = t.id AND m.movie_dates_at IS NOT NULL)
+		t.created_at, EXISTS (SELECT 1 FROM title_meta m WHERE m.title_id = t.id AND m.movie_dates_at IS NOT NULL),
+		`+store.SeriesTypeSQL("t")+`
 		FROM title t JOIN version v ON v.title_id = t.id WHERE `+where+` ORDER BY t.id`, args...)
 	if err != nil {
 		return nil, err
@@ -195,7 +197,7 @@ func (s *Service) load(ctx context.Context, v *View, titleIDs []int64) ([]*entry
 	for rows.Next() {
 		e := &entry{dates: map[string]time.Time{}}
 		if err := rows.Scan(&e.id, &e.kind, &e.name, &e.sortName, &e.year, &e.secondaryYear, &e.tmdb, &e.tvdb, &e.imdb,
-			&e.anime, &e.created, &e.datesRefreshed); err != nil {
+			&e.anime, &e.created, &e.datesRefreshed, &e.seriesType); err != nil {
 			rows.Close()
 			return nil, err
 		}

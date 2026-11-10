@@ -258,17 +258,11 @@ func (s *Service) seriesResource(v *View, e *entry, eps []*ep) seriesResource {
 	sr := seriesResource{ID: e.viewID(), Title: e.name, AlternateTitles: []any{}, SortTitle: sortTitle(e),
 		Status: status, Ended: status == "ended", Images: []any{}, Seasons: []seasonResource{}, Year: e.year, Path: p,
 		QualityProfileID: qualityProfileID(v, e), SeasonFolder: true, Monitored: e.monitored(), MonitorNewItems: "all",
-		TvdbID: e.tvdb, TmdbID: 0, SeriesType: "standard", ImdbID: e.imdb, TitleSlug: slug(e.name),
+		TvdbID: e.tvdb, TmdbID: 0, SeriesType: e.seriesType, ImdbID: e.imdb, TitleSlug: slug(e.name),
 		RootFolderPath: root, Genres: []string{}, Tags: tagsOrEmpty(e.tags), Added: at(s.added(e)),
 		Ratings: map[string]any{}, LanguageProfileID: 1}
-	if e.anime {
-		sr.SeriesType = "anime"
-	}
 	if r := e.rec; r != nil {
 		sr.SeasonFolder = r.seasonFolder
-		if r.seriesType != "" {
-			sr.SeriesType = r.seriesType
-		}
 		if r.monitorNew != "" {
 			sr.MonitorNewItems = r.monitorNew
 		}

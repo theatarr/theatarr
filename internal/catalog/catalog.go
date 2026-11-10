@@ -65,7 +65,8 @@ type Input struct {
 	// same versions (ApplyMonitor); "" keeps Seasons as given. Status is the series status the request gives
 	// (continuing, ended, upcoming), which the future option reads.
 	Monitor, Status string
-	// SeriesType is Sonarr's user-selected standard, daily or anime type; empty keeps the stored choice.
+	// SeriesType is Sonarr's user-selected standard, daily or anime type, for a series that has none stored: an add
+	// never changes a stored type. Empty stores nothing.
 	SeriesType string
 	// Source names the caller in the log: an arr view key, "ui".
 	Source string
@@ -146,7 +147,7 @@ func Add(ctx context.Context, tx *sql.Tx, in Input, now time.Time, log *slog.Log
 	}
 	res.Versions = keys
 	if in.Kind == policy.KindSeries {
-		if err := SetSeriesType(ctx, tx, titleID, in.SeriesType); err != nil {
+		if err := AddSeriesType(ctx, tx, titleID, in.SeriesType); err != nil {
 			return nil, err
 		}
 		if err := SetMonitorNew(ctx, tx, titleID, keys, in.MonitorNew, now); err != nil {
