@@ -276,6 +276,9 @@ See [quickstart](../quickstart.md#readiness-led-setup) for the completion rules;
   links, deduplicated by path. Old `?tab=seasons|versions|details` links open Episodes, Libraries, About.
 - **Family accounts** (no "see files"): hero with readiness and languages, their request card, Episodes for a
   series, About; no copy cards, states or history (the API sends none).
+- **Add by magnet or hash** (admins, under the releases list, for the shown library): a magnet link or info hash
+  with a release name goes through the same decision as a found release (`POST /titles/{id}/releases/add`); a
+  rejection offers "Add anyway"; a failed add starts no search (docs/design/router.md).
 - **Releases page** (`/title/{id}/releases`): managers and admins only, matching the release API; other accounts see
   the standard permission screen with a link back to title availability. Malformed or non-positive title ids show
   the not-found state and a Library link. Each row carries, next to accepted or its rejections, what came of that

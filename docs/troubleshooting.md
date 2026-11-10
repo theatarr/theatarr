@@ -128,6 +128,16 @@ returned and why each release was accepted or rejected) and **System › Status*
 - **The library root is not writable.** The root and the trash folder must be writable by uid `65532`
   ([quickstart.md](quickstart.md#1-run-the-container)); the preflight names a root it cannot write.
 
+## Search does not find a release you know exists
+
+An admin can add it by hand. Open the title, choose **Show releases** for the library, and use **Add by magnet or
+hash** under the list: paste the magnet link or the 40-character info hash and give the release name (a magnet's
+own name is filled in). For a series the name must carry the season or episode, for example `S02` for a season
+pack or `S02E05` for one episode. The release is checked against the library's profile like any other; a rejection
+lists its reasons and offers **Add anyway**. A release with no known size is accepted. If the add fails, for
+example because no provider has it cached on a cached-only library, Theatarr does not start a search for
+something else.
+
 ## Status says links are dangling
 
 **Symptom:** **System › Status** shows a notice such as "3 of 1200 links into the mount are dangling", or a title
