@@ -41,7 +41,7 @@ func (o viewOps) UnlinkLink(context.Context, int64, string) (*web.UnlinkedLink, 
 }
 
 // TestManualAddByHash: a release handed over by its hash (POST /titles/{id}/releases/add), which no search found
-// and which has no indexer (it carries "manual"), goes the whole way: decided and accepted without override, added once at the provider,
+// and which has no indexer (it carries "manual add"), goes the whole way: decided and accepted without override, added once at the provider,
 // found ready, linked into the library, the title filled, and the arr history and the activity show the grab and
 // the import. No indexer is searched and no torrent is deleted.
 func TestManualAddByHash(t *testing.T) {
@@ -58,7 +58,7 @@ func TestManualAddByHash(t *testing.T) {
 	}
 	e.drain()
 	if row := e.text(`SELECT state || '|' || indexer || '|' || provider || '|' || source FROM download WHERE info_hash = ?`,
-		rel.hash); row != "added|manual|rd|ui:grab:key:e2e" && row != "ready|manual|rd|ui:grab:key:e2e" {
+		rel.hash); row != "added|manual add|rd|ui:grab:key:e2e" && row != "ready|manual add|rd|ui:grab:key:e2e" {
 		t.Fatalf("download %q\n%s", row, e.logs.String())
 	}
 	e.mountRelease(rel)

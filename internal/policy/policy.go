@@ -398,9 +398,9 @@ type Indexer struct {
 }
 
 // ManualIndexer is what a release a person added by magnet or hash carries as its indexer (arrview.AddRelease): no
-// search found it, so it has none. It is not an indexer of the policy and is never looked up as one: such a release
-// is not held to a version's indexer list and no indexer narrows its providers.
-const ManualIndexer = "manual"
+// search found it, so it has none. It is not an indexer of the policy and cannot be the key of one (a key has no
+// space: checkKey): such a release is not held to a version's indexer list and no indexer narrows its providers.
+const ManualIndexer = "manual add"
 
 // ReleaseProviders is v's provider order limited to those indexer ix allows (indexers[ix].providers; all when empty,
 // when ix is not in the policy, or for a manual add).

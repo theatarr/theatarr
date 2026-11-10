@@ -281,6 +281,24 @@ it("a bare hash needs a release name before Add", async () => {
   ]);
 });
 
+it("a refusal of Add anyway shows the server's reason and does not offer it again", async () => {
+  const no = (error: string) => ({ status: 409, body: { error, detail: ["WEBDL-1080p is not wanted"] } });
+  mockFetch([
+    { method: "GET", path: "/auth/me", reply: ADMIN_PERMS },
+    { method: "GET", path: "/titles/7/releases", reply: stored([]) },
+    { method: "POST", path: "/titles/7/releases/add", reply: no("rejected for movie-web: WEBDL-1080p is not wanted") },
+    { method: "POST", path: "/titles/7/releases/add", reply: no("the release matches no episode of the title") },
+  ]);
+  renderPage(<ShowReleases titleId={7} defaultOpen initialVersion="movie-web" />);
+  const form = await screen.findByTestId("add-by-hash");
+  fireEvent.change(within(form).getByTestId("add-by-hash-link"), { target: { value: "b".repeat(40) } });
+  fireEvent.change(within(form).getByTestId("add-by-hash-name"), { target: { value: "Alpha 1080p" } });
+  fireEvent.click(within(form).getByTestId("add-by-hash-add"));
+  fireEvent.click(await screen.findByTestId("add-by-hash-anyway"));
+  expect((await screen.findByTestId("add-by-hash-error")).textContent).toBe("the release matches no episode of the title");
+  expect(screen.queryByTestId("add-by-hash-anyway")).toBeNull();
+});
+
 it("a manager has no Add by magnet or hash", async () => {
   mockFetch([
     { method: "GET", path: "/auth/me", reply: { permissions: ["browse", "see_files", "manage"] } },

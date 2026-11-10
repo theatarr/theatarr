@@ -321,6 +321,12 @@ func TestDecide(t *testing.T) {
 		{name: "a release added by hand is not held to the version's indexers", version: "movie-seedbox",
 			rel:     rel("Dune.Part.Two.2024.2160p.MA.WEB-DL.DDP5.1-FLUX", policy.ManualIndexer, 25*gb),
 			quality: "WEBDL-2160p"},
+		{name: "a release added by hand: no size, seeders unknown", version: "movie-remux",
+			rel: rel("Dune.Part.Two.2024.2160p.UHD.BluRay.REMUX.HDR.HEVC-FraMeSToR", policy.ManualIndexer, 0),
+			mutateFn: func(r *Release) {
+				r.Kind, r.Privacy, r.Seeders, r.Peers = "", "", -1, -1
+			},
+			quality: "Remux-2160p"},
 		{name: "MULTi from an indexer with multi languages", version: "movie-remux",
 			rel:   rel("Dune.Part.Two.2024.MULTi.2160p.WEB-DL.DDP5.1-FLUX", "multi", 25*gb),
 			langs: "French,English", formats: "French audio,WEB Tier 01", score: 1710},

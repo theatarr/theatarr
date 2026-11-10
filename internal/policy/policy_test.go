@@ -611,6 +611,9 @@ func TestIndexerProviders(t *testing.T) {
 	if got := p.ReleaseProviders(v, ManualIndexer); !slices.Equal(got, v.Providers) {
 		t.Errorf("a manual add: %v, want %v", got, v.Providers)
 	}
+	if keyRE.MatchString(ManualIndexer) {
+		t.Errorf("%q could be an indexer's key", ManualIndexer)
+	}
 	for _, tc := range []struct{ list, err string }{
 		{"[nope]", "unknown provider"},
 		{"[" + v.Providers[0] + ", " + v.Providers[0] + "]", "listed twice"},

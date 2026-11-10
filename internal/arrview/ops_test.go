@@ -85,7 +85,7 @@ func TestGrabReleaseByHand(t *testing.T) {
 	}
 }
 
-// TestAddReleaseByHand: a release added by its hash has no indexer (it carries "manual") and takes the grab's route: decided now, refused
+// TestAddReleaseByHand: a release added by its hash has no indexer (it carries policy.ManualIndexer) and takes the grab's route: decided now, refused
 // when rejected unless override, added through the router with its download row written; GrabRelease still refuses
 // a release without a configured indexer; a failed manual add can be retried.
 func TestAddReleaseByHand(t *testing.T) {
@@ -110,7 +110,7 @@ func TestAddReleaseByHand(t *testing.T) {
 		t.Fatalf("adds %v", e.adds())
 	}
 	if got := e.str(`SELECT source || '|' || indexer || '|' || release_title FROM download WHERE info_hash = ?`,
-		good.InfoHash); got != "ui:grab:test|manual|"+good.Title {
+		good.InfoHash); got != "ui:grab:test|"+policy.ManualIndexer+"|"+good.Title {
 		t.Errorf("download row %q", got)
 	}
 	bad := good
@@ -135,7 +135,7 @@ func TestAddReleaseByHand(t *testing.T) {
 	now, failed := ms(testNow), strings.Repeat("2", 40)
 	e.exec(`INSERT INTO download (id, title_id, version_id, version_key, info_hash, release_title, indexer, quality,
 		score, episodes, state, error, created_at, updated_at) VALUES (60, 1, 2, 'movie-web', ?,
-		'Alpha.2020.2160p.WEB-DL-MANUAL', 'manual', 'WEBDL-2160p', 50, '[]', 'failed', 'stalled', ?, ?)`, failed, now, now)
+		'Alpha.2020.2160p.WEB-DL-MANUAL', 'manual add', 'WEBDL-2160p', 50, '[]', 'failed', 'stalled', ?, ?)`, failed, now, now)
 	if r, err := e.svc.RetryDownload(ctx, 60, "ui:retry:60"); err != nil || r.What != "routed again" {
 		t.Fatalf("retry of a manual add: %+v %v", r, err)
 	}
