@@ -371,6 +371,7 @@ var sectionLabels = map[string]string{
 	"notify.targets.*.views":                      "Sonarr/Radarr views",
 	"notify.targets.*.native":                     "Send Theatarr events",
 	"notify.targets.*.format":                     "Message format",
+	"notify.targets.*.warnings":                   "Also send warnings",
 	"notify.digest_at":                            "Daily digest time",
 	"notify.targets.*.auth_header":                "Authorization header",
 	"playlists.orders":                            "Watch orders",

@@ -139,7 +139,8 @@
     "native": "This sends Theatarr's own per-version events (JSON, eventType theatarr.*).",
     "url": "This is where payloads are POSTed. Its host joins the gateway's allowlist.",
     "versions": "This limits native events to these versions. Empty: all.",
-    "views": "This lists the arr views (keys of views, or v/\u003cversion\u003e) whose arr-shaped payloads it gets."
+    "views": "This lists the arr views (keys of views, or v/\u003cversion\u003e) whose arr-shaped payloads it gets.",
+    "warnings": "This also sends health warnings, such as a mount that stopped answering, to this message target (format discord or ntfy). Errors are always sent; notices never are. Default false."
   },
   "Playlists": {
     "enabled": "This allows playlist writes in plex, together with library.enabled. Default false.",

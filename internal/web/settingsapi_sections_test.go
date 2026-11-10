@@ -212,3 +212,58 @@ func TestSettingsSectionsMaskWebhookURLs(t *testing.T) {
 		t.Fatalf("audit keeps the webhook URL: %s", trail)
 	}
 }
+
+// Saving the notify section as it was read, as config and as YAML, stores no warnings key: only a target that turns
+// the option on has it, so a build from before the option still loads the settings.
+func TestSettingsNotifySaveAddsNoWarningsKey(t *testing.T) {
+	t.Parallel()
+	se := seededSectionsEnvBase(t, func(p *policy.Policy) {
+		if p.Notify == nil {
+			p.Notify = &policy.Notify{}
+		}
+		p.Notify.Targets = map[string]*policy.NotifyTarget{
+			"chan": {URL: "https://discord.example/api/webhooks/1/token-0123456789", Format: policy.NotifyFormatDiscord},
+			"hook": {URL: "http://192.168.1.50:8080/hook", Native: true},
+		}
+	})
+	stored := func() string {
+		t.Helper()
+		var raw string
+		if err := se.st.Reader().QueryRow(`SELECT config FROM setting_section WHERE key = 'notify'`).Scan(&raw); err != nil {
+			t.Fatal(err)
+		}
+		return raw
+	}
+	if raw := stored(); strings.Contains(raw, "warnings") {
+		t.Fatalf("seeded with a warnings key: %s", raw)
+	}
+	notify := findSection(t, se.want(se.call("GET", "/sections", nil), 200, "read"), "notify")
+	if shown, _ := json.Marshal(notify); strings.Contains(string(shown), "warnings") {
+		t.Fatalf("read shows a warnings key: %s", shown)
+	}
+	config := notify["config"].(map[string]any)
+	se.want(se.call("PUT", "/sections/notify", map[string]any{"generation": se.generation(), "config": config}), 200, "config as read")
+	config["retries"] = 7
+	se.want(se.call("PUT", "/sections/notify", map[string]any{"generation": se.generation(), "config": config}), 200, "another field")
+	notify = findSection(t, se.want(se.call("GET", "/sections", nil), 200, "reread"), "notify")
+	se.want(se.call("PUT", "/sections/notify", map[string]any{"generation": se.generation(), "yaml": notify["yaml"]}), 200, "yaml as read")
+	if raw := stored(); strings.Contains(raw, "warnings") || !strings.Contains(raw, `"retries":7`) {
+		t.Fatalf("stored after untouched saves: %s", raw)
+	}
+
+	// On for the Discord target; refused on the webhook target.
+	config = findSection(t, se.want(se.call("GET", "/sections", nil), 200, "read"), "notify")["config"].(map[string]any)
+	targets := config["targets"].(map[string]any)
+	targets["hook"].(map[string]any)["warnings"] = true
+	se.want(se.call("PUT", "/sections/notify", map[string]any{"generation": se.generation(), "config": config}), 422, "warnings on a webhook target")
+	delete(targets["hook"].(map[string]any), "warnings")
+	targets["chan"].(map[string]any)["warnings"] = true
+	se.want(se.call("PUT", "/sections/notify", map[string]any{"generation": se.generation(), "config": config}), 200, "warnings on")
+	snap, err := se.coord.Snapshot(context.Background())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !snap.Policy.Notify.Targets["chan"].Warnings || snap.Policy.Notify.Targets["hook"].Warnings {
+		t.Fatalf("warnings not applied: %+v", snap.Policy.Notify.Targets)
+	}
+}

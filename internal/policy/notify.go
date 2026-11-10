@@ -52,6 +52,9 @@ type NotifyTarget struct {
 	Versions []string `yaml:"versions"`
 	// AuthHeaderEnv names an environment variable holding the Authorization header value, when the target needs one.
 	AuthHeaderEnv string `yaml:"auth_header_env"`
+	// Warnings also sends health warnings, such as a mount that stopped answering, to this message target (format
+	// discord or ntfy). Errors are always sent; notices never are. Default false.
+	Warnings bool `yaml:"warnings,omitempty"`
 }
 
 // NotifyEvents are the event names a target may list.
@@ -226,6 +229,9 @@ func (p *Policy) validateNotify(e *Errors) {
 		case "":
 			if len(t.Views) == 0 && !t.Native {
 				e.add(path, "sends nothing: set views or native")
+			}
+			if t.Warnings {
+				e.add(path+".warnings", "only a message target (format discord or ntfy) takes warnings; a webhook target is filtered by events")
 			}
 		case NotifyFormatDiscord:
 			if len(t.Views) > 0 {

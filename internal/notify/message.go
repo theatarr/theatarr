@@ -6,10 +6,12 @@ import (
 	"fmt"
 	"strconv"
 	"strings"
+
+	"github.com/theatarr/theatarr/internal/policy"
 )
 
 // Message targets (notify.targets.*.format: discord or ntfy) get Theatarr's own human-readable messages instead of
-// JSON events: instant health alerts (a check failing, and leaving error), error alerts, the daily digest, request
+// JSON events: instant health alerts (a check failing, and leaving error; warnings too for a target that asks for them), error alerts, the daily digest, request
 // ready and the test. The wording here is shared; discord.go and ntfy.go lay it out for their service.
 
 // messageLevel is how a message is marked: the embed colour on Discord, the priority and tag on ntfy.
@@ -26,30 +28,47 @@ const (
 var messageKinds = map[Kind]bool{Health: true, HealthRestored: true, Error: true, Digest: true,
 	RequestAvailable: true, RequestPartial: true, Test: true}
 
-// messageWants reports whether a message target gets ev: its kinds, and health only for checks in error (an alert
-// when one fails, and one when it leaves error: no longer failing but still a warning, or OK again). A warning
-// clearing after that is not announced.
-func messageWants(ev Event) bool {
+// messageWants reports whether message target t gets ev: its kinds, and health only for checks in error (an alert
+// when one fails, and one when it leaves error: no longer failing but still a warning, or OK again). A target with
+// warnings set gets the same for warnings: a check starting to warn, and a warning easing or clearing. Notices are
+// never sent.
+func messageWants(ev Event, t *policy.NotifyTarget) bool {
 	if !messageKinds[ev.Kind] {
 		return false
 	}
 	if ev.Kind == Health || ev.Kind == HealthRestored {
-		return len(ev.Health) > 0 && (ev.Health[0].Type == "error" || ev.HealthWas != nil && ev.HealthWas.Type == "error")
+		if len(ev.Health) == 0 {
+			return false
+		}
+		is := func(level string) bool {
+			return ev.Health[0].Type == level || ev.HealthWas != nil && ev.HealthWas.Type == level
+		}
+		return is("error") || t.Warnings && is("warning")
 	}
 	return true
 }
 
+// healthRank orders the health levels a message can name, most severe last.
+var healthRank = map[string]int{"notice": 1, "warning": 2, "error": 3}
+
 // messageText is the title, lines and level of a health, error or digest message. markdown writes Discord's
-// markdown (bold labels, the error sample in a code block); without it the text is plain.
+// markdown (bold labels, the error sample in a code block); without it the text is plain. The text depends on the
+// event alone: every message target that gets the event gets the same message.
 func messageText(ev Event, markdown bool) (string, []string, messageLevel) {
 	switch ev.Kind {
 	case Health:
 		h := ev.Health[0]
-		if h.Type != "error" {
+		switch was := ev.HealthWas; {
+		case h.Type == "error":
+			return "Health check failing: " + h.Source, []string{h.Message}, levelBad
+		case was != nil && was.Type == "error":
 			return "Health check no longer failing, now " + h.Type + ": " + h.Source,
-				[]string{"Now: " + h.Message, "Was: " + ev.HealthWas.Message}, levelWarn
+				[]string{"Now: " + h.Message, "Was: " + was.Message}, levelWarn
+		case was != nil && healthRank[was.Type] > healthRank[h.Type]:
+			return "Health " + was.Type + " eased, now " + h.Type + ": " + h.Source,
+				[]string{"Now: " + h.Message, "Was: " + was.Message}, levelWarn
 		}
-		return "Health check failing: " + h.Source, []string{h.Message}, levelBad
+		return "Health " + h.Type + ": " + h.Source, []string{h.Message}, levelWarn
 	case HealthRestored:
 		h := ev.Health[0]
 		return "Health check OK again: " + h.Source, []string{"Was: " + h.Message}, levelGood

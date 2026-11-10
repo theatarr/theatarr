@@ -897,6 +897,12 @@
             "advanced": true,
             "type": "string",
             "help": "This names an environment variable holding the Authorization header value, when the target needs one. Environment variable fallback."
+          },
+          {
+            "name": "warnings",
+            "label": "Also send warnings",
+            "type": "boolean",
+            "help": "This also sends health warnings, such as a mount that stopped answering, to this message target (format discord or ntfy). Errors are always sent; notices never are. Default false."
           }
         ]
       },

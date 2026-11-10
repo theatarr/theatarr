@@ -4,6 +4,8 @@ import (
 	"net/url"
 	"strings"
 	"testing"
+
+	"go.yaml.in/yaml/v3"
 )
 
 func TestNotifyValidation(t *testing.T) {
@@ -111,5 +113,31 @@ func TestNotifyFormats(t *testing.T) {
 	if server, topic, ok := NtfyEndpoint("http://ntfy.example:8080/push/alerts/?x=1"); !ok ||
 		server != "http://ntfy.example:8080/push/?x=1" || topic != "alerts" {
 		t.Errorf("endpoint %q %q %v", server, topic, ok)
+	}
+}
+
+// warnings is an option of a message target; a config without it marshals as it did before the field existed.
+func TestNotifyTargetWarnings(t *testing.T) {
+	t.Parallel()
+	targets := map[string]*NotifyTarget{
+		"chan":  {URL: "https://discord.example/api/webhooks/1/x", Format: NotifyFormatDiscord, Warnings: true},
+		"phone": {URL: "https://ntfy.example/alerts", Format: NotifyFormatNtfy, Warnings: true},
+		"hook":  {URL: "http://192.168.1.50:8080/hook", Native: true, Warnings: true},
+		"plain": {URL: "http://192.168.1.50:8080/hook", Native: true},
+	}
+	e := &Errors{}
+	(&Policy{Notify: &Notify{Targets: targets}}).validateNotify(e)
+	if len(e.List) != 1 || e.List[0].Path != "notify.targets[hook].warnings" {
+		t.Errorf("want only the webhook target's warnings refused: %v", e.List)
+	}
+	b, err := yaml.Marshal(targets["plain"])
+	if err != nil {
+		t.Fatal(err)
+	}
+	if strings.Contains(string(b), "warnings") {
+		t.Errorf("unset warnings written: %s", b)
+	}
+	if b, _ = yaml.Marshal(targets["chan"]); !strings.Contains(string(b), "warnings: true") {
+		t.Errorf("set warnings not written: %s", b)
 	}
 }

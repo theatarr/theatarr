@@ -660,3 +660,43 @@ func TestSectionSaveDropsRemovedSectionRow(t *testing.T) {
 		t.Fatalf("removed section row kept: %d", n)
 	}
 }
+
+// A section is stored without an optional field that is unset, so a build from before the field existed (it decodes
+// sections strictly) still loads it: notify.targets.*.warnings appears only where it is on.
+func TestSectionConfigOmitsUnsetOptionalField(t *testing.T) {
+	t.Parallel()
+	p := &policy.Policy{Notify: &policy.Notify{Targets: map[string]*policy.NotifyTarget{
+		"chan": {URL: "https://discord.example/api/webhooks/1/x", Format: policy.NotifyFormatDiscord},
+		"hook": {URL: "http://192.168.1.50:8080/hook", Native: true},
+	}}}
+	raw, err := SectionConfig(p, "notify")
+	if err != nil {
+		t.Fatal(err)
+	}
+	var got struct {
+		Targets map[string]map[string]any `json:"targets"`
+	}
+	if err := json.Unmarshal(raw, &got); err != nil {
+		t.Fatal(err)
+	}
+	want := []string{"auth_header_env", "events", "format", "native", "url", "versions", "views"}
+	for name, target := range got.Targets {
+		if keys := sortedPolicyKeys(target); !slices.Equal(keys, want) {
+			t.Errorf("target %s stored with keys %v, want %v", name, keys, want)
+		}
+	}
+	if len(got.Targets) != 2 {
+		t.Fatalf("targets: %s", raw)
+	}
+	p.Notify.Targets["chan"].Warnings = true
+	if raw, err = SectionConfig(p, "notify"); err != nil || !strings.Contains(string(raw), `"warnings":true`) {
+		t.Fatalf("warnings on is not stored: %s %v", raw, err)
+	}
+	back := &policy.Policy{}
+	if err := applySection(back, Section{Record: Record{Key: "notify"}, Config: raw}); err != nil {
+		t.Fatal(err)
+	}
+	if !back.Notify.Targets["chan"].Warnings || back.Notify.Targets["hook"].Warnings {
+		t.Fatalf("warnings read back wrong: %+v", back.Notify.Targets)
+	}
+}
