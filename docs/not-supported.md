@@ -12,8 +12,9 @@ workaround, it is here too.
 - **Real torrent clients.** Grabs go to Real-Debrid, AllDebrid or TorBox directly, or to a qBittorrent-API debrid
   bridge such as decypharr, which adds them to its own debrid account. A qBittorrent on a seedbox or at home that
   downloads real files is not supported, and neither are hardlink or copy imports of those files. The library
-  editor still shows the `seedbox` storage and the `hardlink` and `copy` import modes when a saved library already
-  uses them, labelled "not supported yet"; nothing sends grabs to such a library.
+  editor shows **Storage** and **Import mode** (under **Advanced**) only when a saved library already uses the
+  `seedbox` storage or the `hardlink` or `copy` import mode, labelled "not supported yet"; nothing sends grabs to
+  such a library.
 - **Delay profiles and release profiles.** There is no delay before a grab and no release profile. Migration from
   an arr reads them only to warn that they are not carried over. Quality profiles and custom formats cover most of
   what release profiles are used for.

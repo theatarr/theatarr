@@ -233,6 +233,17 @@ it would grab and records that in the database for comparison. It adds nothing t
 library. A debrid library needs no download client: Theatarr adds to the providers itself. Edit libraries later
 under **Settings › Libraries**.
 
+The editor there has two things Setup does not ask for:
+
+- **Name** (optional, at most 40 characters). Theatarr's own pages and the request-ready notifications show it
+  in place of the label guessed from the key and profile, such as "4K WEB". Connected apps never see it: the key,
+  the root folder and the profile names of the arr-compatible views stay as they are, so renaming a library breaks
+  nothing in Seerr or an arr client. A release from before this field cannot load settings that hold a name; clear
+  the names before you go back to one.
+- **Advanced**, at the end of **Where**: **Write roots**, **Send grabs to**, **Client** and
+  **Follows**. A debrid library that links into its own root needs none of them. The section starts open when the
+  library already uses one of them.
+
 **Where a shadow library's decisions come from.** The scheduled search for wanted titles runs only for a library
 that grabs (Active, with **Allow downloads for this library** and **Allow new downloads** on), so a shadow library
 is not searched on a schedule. It gets decisions two ways:
@@ -294,7 +305,7 @@ Theatarr serves Radarr- and Sonarr-compatible APIs (`<view>/api/v3/...`) on port
 
 | View | Serves |
 |---|---|
-| `/v/<library>/radarr` or `/v/<library>/sonarr` | One library, by its kind. Exists for every library, no setup needed. Its one quality profile is named after the library |
+| `/v/<library>/radarr` or `/v/<library>/sonarr` | One library, by its kind. Exists for every library, no setup needed. Its one quality profile is named after the library's key |
 | `/radarr`, `/sonarr` (or your own) | Several libraries behind one server. Created and edited under **Settings › Connected apps** (path, flavour, libraries, profiles, aliases and the view's own API key); applies without a restart |
 
 Clients sign in with an API key. Create one per client under **Users & access** (API keys). In Seerr or Overseerr,
@@ -303,7 +314,7 @@ go to **Settings → Services → Add Radarr server** (Sonarr is the same):
 - **Hostname or IP**: the Theatarr host. **Port**: `7700`. **Use SSL**: off, unless a proxy terminates TLS in front.
 - **URL Base**: the view path, for example `/v/movies/radarr`.
 - **API Key**: the key you created.
-- **Test**, then pick the **quality profile** (the library's name on a `/v/` view) and the **root folder** (the
+- **Test**, then pick the **quality profile** (the library's key on a `/v/` view) and the **root folder** (the
   library's root). Mark it the default server.
 
 Seerr adds and removes titles through the view. Its requests become wanted titles for that view's libraries.

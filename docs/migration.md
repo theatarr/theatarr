@@ -453,7 +453,7 @@ The check names settings by their YAML keys. Where each one is in the UI:
 | Key | Settings page |
 |---|---|
 | `versions.K.*` (`grab`, `library`, `providers`, ...) | Settings › Libraries, the library K |
-| `library.versions.K` roots | Settings › Libraries, the library's write roots |
+| `library.versions.K` roots | Settings › Libraries, the library's **Write roots** (under **Advanced**) |
 | `library.versions.K.plex_section`, `library.plex` | Settings › Plex & playback (the Plex library for each Theatarr library) |
 | `library.mount.path`, `library.trash.dir` | Settings › Libraries › File management |
 | `metadata.sources.tmdb`, `metadata.sources.tvdb` | Settings › Metadata & artwork |
