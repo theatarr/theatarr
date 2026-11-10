@@ -83,6 +83,40 @@ on a schedule: it only sees releases from the RSS feeds of its indexers, so with
   **Active**, turn on **Allow downloads for this library** and **Write library links** under **Settings › Libraries**,
   and **Allow new downloads** under **Settings › Download clients**. **Wanted** says why each title is still waiting.
 
+## A live library downloads nothing
+
+**Symptom:** the library is **Active** with **Allow downloads for this library** on, both global switches are on,
+you added a title, and nothing is downloaded or nothing reaches Plex.
+
+Start with **Wanted** (it says what each title is waiting for), the title's **Releases** page (what the indexers
+returned and why each release was accepted or rejected) and **System › Status**. The usual causes:
+
+- **The title has not been searched yet.** **Search now** in the add dialog is off by default. Without it a new title
+  waits for the automatic search: a round every 15 minutes, at most 10 searches an hour, and the same item again
+  only after 24 hours (**Settings › Download clients › Behaviour**, **Automatic searches**). **Search now** on
+  the title page searches it at once. **Search now** on the **Wanted** page queues the search under the same hourly
+  limit, so a long list takes hours.
+- **No release is cached.** **Only add cached releases** (**Settings › Download clients › Behaviour**, **What to grab**) is on by
+  default: a release that no provider has cached is not kept, and the title stays wanted. Turn it off to let the
+  providers download uncached releases.
+- **A source is disabled.** Every new indexer and provider starts disabled: **Test** it, tick **Enabled** and save
+  (**Settings › Indexers**, **Settings › Download clients**). The library must also list the indexer and the
+  provider (**Settings › Libraries**).
+- **The provider refuses the key.** A wrong key, or a plan that has ended, fails every add. **Test** on the provider
+  shows whether the plan is premium and when it ends; **System › Status** reports an account that is not premium.
+- **The debrid mount is empty inside the container.** **System › Status** then says "The mount at /mnt/debrid is
+  empty: is it mounted?", and finished downloads cannot be linked. This happens when the mount (zurg, rclone) came
+  up or was remounted on the host after the container started: the container keeps the directory it bound at start.
+  Restart the container (`docker compose restart theatarr`). To have the container follow a remount, bind the
+  mount's parent directory with `rslave` propagation instead of the mount itself, for example
+  `/mnt:/mnt:ro,rslave` (see Docker's notes on bind propagation), and keep the same path inside the container.
+- **Plex cannot follow the links.** The links in the library root point at the mount path as Theatarr sees it
+  unless **Library link destination** (**Settings › Libraries › File management**) names the path Plex sees. Plex
+  must have the debrid mount too, at the path the links point at; a title that is linked but missing in Plex
+  usually means the two paths differ.
+- **The library root is not writable.** The root and the trash folder must be writable by uid `65532`
+  ([quickstart.md](quickstart.md#1-run-the-container)); the preflight names a root it cannot write.
+
 ## `golive check` skips or fails the agreement line
 
 **Symptom:** `theatarr golive check -library <library>` shows the shadow **window** and **agreement** lines as INFO,

@@ -97,8 +97,8 @@ own admin password there first.
 
 ## 3. Follow Setup, then edit Settings forms
 
-Open **Setup** (`/admin/setup`): secure the admin account, connect downloads, connect the library, check readiness,
-then review activation. A fresh install needs a writable data directory, nothing else. Add the debrid mount,
+Open **Setup** (`/admin/setup`). Its six steps: secure the admin account, connect downloads, add metadata (TMDb),
+connect the library, check readiness, then review activation. A fresh install needs a writable data directory, nothing else. Add the debrid mount,
 writable library roots and trash before checking readiness or importing. Saving the mount and the trash each asks
 you to confirm what the change enables. Steps 4–7 below fill in the connections
 and the first library; Setup links to each editor.
@@ -342,6 +342,26 @@ whatever the saved settings say; it needs a restart and can never turn anything 
 
 Moving an existing arr library? Use a follower library instead, as [migration.md](migration.md#3-a-follower-library-beside-the-arr) describes: the arr keeps
 running while Theatarr builds its own copy beside it.
+
+## 10. A first download
+
+With a live library (Active, **Allow downloads for this library**, **Allow new downloads** and **Write library
+links** all on), add a title and watch it arrive:
+
+1. Type a film or series into the search in the top bar (or open **Search**) and choose **Add** on the result.
+   Tick the library and turn **Search now** on: it is off by default, and without it the title waits for the
+   automatic search, which runs every 15 minutes and starts at most 10 searches an hour.
+2. Open **Activity › Queue**. A release that a provider has cached shows there as a download and is then linked
+   into the library root; with Plex connected, Theatarr asks Plex to scan that folder.
+3. If nothing shows up, open **Wanted**: each row says what the title is waiting for, and **Search now** on the
+   title page searches it again at once. The title's **Releases** page lists what the indexers returned and why
+   each release was accepted or rejected.
+
+By default only releases a provider already has cached are added (**Settings › Download clients › Behaviour**,
+**What to grab › Only add cached releases**), so a title with no cached release stays wanted and is searched again
+later.
+[troubleshooting.md](troubleshooting.md#a-live-library-downloads-nothing) lists the other reasons a live library
+stays quiet.
 
 ## Readiness-led setup
 
