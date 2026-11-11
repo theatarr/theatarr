@@ -62,7 +62,7 @@ export function Shadow() {
       <PageHeader
         crumb={[{ label: "Admin", to: "/admin" }, { label: "Advanced", to: "/admin/advanced" }, { label: "Sonarr/Radarr migration", to: "/admin/advanced/arr" }]}
         title="Comparison"
-        description={`Shadow libraries compare dry-run decisions; active libraries with a comparison arr compare real grabs. Bar: ${fmtPercent(s.bar, 0)} agreement over ${s.window ?? "14d"}. Live comparisons include grabs made by either side; dry-run hand grabs are excluded.`}
+        description={`Watch only libraries compare dry-run decisions; Live libraries with a comparison arr compare real grabs. Bar: ${fmtPercent(s.bar, 0)} agreement over ${s.window ?? "14d"}. Live comparisons include grabs made by either side; dry-run hand grabs are excluded.`}
       />
       <ArrTabs />
       <StatGrid>

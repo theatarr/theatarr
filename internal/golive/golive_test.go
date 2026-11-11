@@ -406,7 +406,7 @@ func TestActiveVersionArrStillGrabbing(t *testing.T) {
 	arrc := movieArr(0, 0, true)
 	r := run(t, Options{Policy: pol, Version: "movie-web", Env: allEnv,
 		Arr: func(string) (ArrGetter, error) { return arrc, nil }})
-	want(t, r, SecPolicy, "mode", Info, "already mode: active")
+	want(t, r, SecPolicy, "mode", Info, "already Live")
 	want(t, r, SecHandover, "arr grabbing", Fail, "still grabs")
 	want(t, r, SecHandover, "arr client", Warn, "still has download clients enabled")
 }

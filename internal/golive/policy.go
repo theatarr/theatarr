@@ -17,16 +17,16 @@ func (c *checker) policy(ctx context.Context) {
 	v, k := c.v, c.o.Version
 	switch v.Mode {
 	case policy.ModeActive:
-		c.add(SecPolicy, "mode", Info, "", "%s is already mode: active; the checks below describe it as it runs", k)
+		c.add(SecPolicy, "mode", Info, "", "%s is already Live; the checks below describe it as it runs", k)
 	default:
 		c.add(SecPolicy, "mode", Pass, "", "%s is Watch only; nothing grabs or links for it yet", k)
 	}
 	if v.Grab {
-		c.add(SecPolicy, "grab", Info, "", "versions.%s.grab is on: with mode active and router.enabled (currently %t) "+
+		c.add(SecPolicy, "grab", Info, "", "versions.%s.grab is on: while Live and with router.enabled (currently %t) "+
 			"the router adds torrents for it", k, c.o.Policy.RouterSettings().Enabled)
 	} else if v.Mode == policy.ModeActive && c.o.Policy.RouterSettings().Enabled {
-		c.add(SecPolicy, "grab", Warn, "turn versions."+k+".grab on (versions editor, confirmed), or set mode back to "+
-			"shadow", "versions.%s.grab is off while it is active and router.enabled is true: it links but adds "+
+		c.add(SecPolicy, "grab", Warn, "turn versions."+k+".grab on (versions editor, confirmed), or set it back to "+
+			"Watch only", "versions.%s.grab is off while it is Live and router.enabled is true: it links but adds "+
 			"nothing, and no automatic search (wanted, add-time, RSS) runs for it", k)
 	} else {
 		c.add(SecPolicy, "grab", Info, "turn versions."+k+".grab on (versions editor, confirmed) when it should grab",

@@ -54,7 +54,7 @@ func validateVersionRules(ctx context.Context, q rootQueryer, previous, next *po
 		before := previous.Versions[key]
 		after := next.Versions[key]
 		if len(next.Followers(key)) > 0 && after.Mode != policy.ModeShadow {
-			return rootFieldError("versions["+key+"].mode", "arr roots of a followed library stay read-only; the followed library must stay shadow")
+			return rootFieldError("versions["+key+"].mode", "arr roots of a followed library stay read-only; the followed library must stay Watch only")
 		}
 		if bootstrap || !rootsToCheck(previous, next, key, false) {
 			continue

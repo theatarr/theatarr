@@ -38,7 +38,7 @@ function OriginCell({ p }: { p: ProfileSummary }) {
 
 function UsedBy({ p }: { p: ProfileSummary }) {
   if (!p.used_by.length) return <Badge tone="warning" title="No library uses this profile. It is kept; delete it from its editor if you no longer need it.">unused</Badge>;
-  return <ul className="flex flex-wrap gap-1">{p.used_by.map((u) => <li key={u.key}><Badge tone={u.active ? "positive" : "outline"}>{u.key}{u.active ? " · active" : ""}</Badge></li>)}</ul>;
+  return <ul className="flex flex-wrap gap-1">{p.used_by.map((u) => <li key={u.key}><Badge tone={u.active ? "positive" : "outline"}>{u.key}{u.active ? " · Live" : ""}</Badge></li>)}</ul>;
 }
 
 function Defaults({ profiles, defaults, readOnly, onSaved }: { profiles: string[]; defaults: Record<string, string>; readOnly: boolean; onSaved: (text: string) => void }) {

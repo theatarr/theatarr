@@ -134,7 +134,7 @@ func (g *Gate) checkVersion(version string, rr *policy.RootResolver) error {
 		return &Refused{Reason: "shadow", Detail: fmt.Sprintf("version %q is followed: its roots are its arr's and stay read-only", version)}
 	}
 	if !v.active {
-		return &Refused{Reason: "shadow", Detail: fmt.Sprintf("version %q is not mode: active", version)}
+		return &Refused{Reason: "shadow", Detail: fmt.Sprintf("version %q is not Live", version)}
 	}
 	// Every root is resolved through the root prober: a root on a share that stops answering refuses the write
 	// ("not answering") after one bounded wait, and at once while that call is stuck, instead of holding the

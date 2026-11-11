@@ -164,7 +164,7 @@ function Wizard({ initial, onSaved, onRestart }: { initial?: PlanView; onSaved: 
   }
 
   return <div className="min-w-0 space-y-4 [overflow-wrap:anywhere]">
-    <PageHeader crumb={[{ label: "Admin", to: "/admin" }, { label: "Advanced", to: "/admin/advanced" }, { label: "Sonarr/Radarr migration", to: "/admin/advanced/arr" }]} title="Migrate" description={<>Coming from the arrs? <Link className="underline" to="/admin/settings">Find a setting</Link> knows the Sonarr, Radarr and Prowlarr page names and shows where each moved. Inspect, review and apply a migration into shadow mode, then verify it before planning a handover.</>} />
+    <PageHeader crumb={[{ label: "Admin", to: "/admin" }, { label: "Advanced", to: "/admin/advanced" }, { label: "Sonarr/Radarr migration", to: "/admin/advanced/arr" }]} title="Migrate" description={<>Coming from the arrs? <Link className="underline" to="/admin/settings">Find a setting</Link> knows the Sonarr, Radarr and Prowlarr page names and shows where each moved. Inspect, review and apply a migration with its libraries Watch only, then verify it before planning a handover.</>} />
     <ArrTabs />
     <Card className="space-y-2 text-sm"><h2 className="font-semibold">Saved plans</h2>
       {plans.isPending ? <Loading /> : plans.error ? <><StepError error={plans.error} /><Button variant="outline" onClick={() => void plans.refetch()}>Reload plans</Button></> : !plans.data?.length ? <p>No saved plans yet.</p> : <ul className="space-y-1">{plans.data.map((p) => <li key={p.id}><Link className="underline" to={`${route}?plan=${p.id}`}>Resume {p.name} (#{p.id})</Link> · {Object.entries(p.steps).map(([status, count]) => `${count} ${status.replaceAll("_", " ")}`).join(" · ")}</li>)}</ul>}
@@ -200,16 +200,16 @@ function Wizard({ initial, onSaved, onRestart }: { initial?: PlanView; onSaved: 
         {saved ? <Button onClick={() => move(3)}>Continue to apply</Button> : null}
       </> : null}
       {step === 3 && plan ? <>
-        <p>Apply takes a backup before changing settings. New libraries start in Shadow (Preview only) with their downloads off; indexers and providers start disabled.</p>
+        <p>Apply takes a backup before changing settings. New libraries start Watch only with their downloads off; indexers and providers start disabled.</p>
         <PlanSteps plan={plan} selected={selected} onSelect={select} /><Checkpoints plan={plan} />
         <div className="flex flex-wrap gap-2"><Button disabled={busy || !selected.some((id) => plan.steps?.some((s) => s.id === id && selectable(s)))} onClick={() => void runApply()}>Apply selected steps</Button><Button variant="outline" disabled={busy} onClick={() => move(4)}>Continue to verify</Button></div>
       </> : null}
       {step === 4 ? <><Button disabled={busy} onClick={() => void runVerify()}>{busy ? "Verifying…" : "Run verify"}</Button>{report ? <Verification report={report} /> : null}
-        <Card className="space-y-2"><h3 className="font-semibold">Shadow first, go live later</h3><p>Review the pending work and compare shadow decisions before handing over one library at a time. Follow <a className="underline" href="https://github.com/theatarr/theatarr/blob/main/docs/migration.md#2-shadow-compare-with-the-arr" target="_blank" rel="noreferrer">docs/migration.md</a> from stage 2 for the follower library, the go-live check, the handover and rollback.</p><p><Link className="underline" to="/admin/settings/libraries">Settings › Libraries</Link> · <Link className="underline" to="/admin/advanced/arr/comparison">Migration comparison (shadow)</Link></p></Card>
+        <Card className="space-y-2"><h3 className="font-semibold">Watch only first, Live later</h3><p>Review the pending work and compare Watch only decisions before handing over one library at a time. Follow <a className="underline" href="https://github.com/theatarr/theatarr/blob/main/docs/migration.md#2-shadow-compare-with-the-arr" target="_blank" rel="noreferrer">docs/migration.md</a> from stage 2 for the follower library, the go-live check, the handover and rollback.</p><p><Link className="underline" to="/admin/settings/libraries">Settings › Libraries</Link> · <Link className="underline" to="/admin/advanced/arr/comparison">Migration comparison</Link></p></Card>
       </> : null}
       {errors[step] ? <StepError error={errors[step]} /> : null}
     </Card>
-    {confirmation ? <ConfirmDialog danger={false} subject={plan?.name} scope={{ title: "Confirm migration effects", does: confirmation.effects.map((e) => (e.version ? `${e.version}: ${e.effect}` : e.effect)), keeps: ["Old Sonarr, Radarr, Prowlarr and Seerr settings.", "Router and library switches; new libraries stay in Shadow with their downloads off."], confirm: "Confirm and apply" }} busy={busy} onClose={() => setConfirmation(undefined)} onConfirm={() => void runApply(confirmation)} /> : null}
+    {confirmation ? <ConfirmDialog danger={false} subject={plan?.name} scope={{ title: "Confirm migration effects", does: confirmation.effects.map((e) => (e.version ? `${e.version}: ${e.effect}` : e.effect)), keeps: ["Old Sonarr, Radarr, Prowlarr and Seerr settings.", "Router and library switches; new libraries stay Watch only with their downloads off."], confirm: "Confirm and apply" }} busy={busy} onClose={() => setConfirmation(undefined)} onConfirm={() => void runApply(confirmation)} /> : null}
   </div>;
 }
 

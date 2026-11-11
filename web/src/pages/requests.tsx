@@ -137,7 +137,7 @@ function RequestQueue() {
         title="Requests"
         description={
           manager
-            ? "What the household asked for. Approving adds the title with the requested libraries; nothing is searched while a library is in shadow."
+            ? "What the household asked for. Approving adds the title with the requested libraries; nothing is searched while a library is Watch only."
             : "What you asked for, and where it is. Find something new with the search box and press Request."
         }
       />
