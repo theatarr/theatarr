@@ -127,8 +127,14 @@ export function PauseSwitch({ fallback = null }: { fallback?: ReactNode }) {
 /** Allow new downloads or Write library links under an Advanced fold on its settings page: the header's Pause sets
  * both. The fold starts open when the switch is off or a link points at it (#switches). */
 export function AdvancedSwitch({ overview, field }: { overview: SettingsOverview; field: "router_enabled" | "library_enabled" }) {
-  const { hash } = useLocation();
+  const { hash, key } = useLocation();
   const [open, setOpen] = useState(() => !overview.switches[field] || hash === "#switches");
+  // A #switches link followed while already on this page (Pause: Custom) opens it too.
+  const [seen, setSeen] = useState(key);
+  if (key !== seen) {
+    setSeen(key);
+    if (hash === "#switches") setOpen(true);
+  }
   return (
     <details id="switches" className="mb-4" open={open} data-testid="switches-advanced">
       <summary className="cursor-pointer text-sm font-medium" onClick={(e) => { e.preventDefault(); setOpen(!open); }}>Advanced</summary>

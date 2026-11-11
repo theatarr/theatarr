@@ -2,6 +2,7 @@
 import { cleanup, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it } from "vitest";
+import { Link } from "react-router";
 import { AdvancedSwitch, GlobalSwitchesCard, PauseSwitch } from "./global-switches";
 import { useSettings, type SettingsOverview } from "@/api/settings";
 function GeneralSettingsPage() { const q = useSettings(); return q.data ? <GlobalSwitchesCard overview={q.data} /> : null; }
@@ -170,5 +171,18 @@ describe("Pause in the admin header", () => {
     cleanup();
     renderPage(<AdvancedSwitch overview={o} field="router_enabled" />, "/admin/settings/downloads#switches");
     expect(screen.getByRole("switch", { name: "Allow new downloads" })).toBeTruthy();
+  });
+
+  it("opens the fold when a #switches link is followed on its own page, again after it was closed", async () => {
+    const user = userEvent.setup();
+    const o = both(true, true);
+    renderPage(<><Link to="/admin/settings/downloads#switches">Pause: Custom</Link><AdvancedSwitch overview={o} field="router_enabled" /></>, "/admin/settings/downloads");
+    expect(screen.queryByRole("switch", { name: "Allow new downloads" })).toBeNull();
+    await user.click(screen.getByText("Pause: Custom"));
+    expect(await screen.findByRole("switch", { name: "Allow new downloads" })).toBeTruthy();
+    await user.click(screen.getByText("Advanced"));
+    expect(screen.queryByRole("switch", { name: "Allow new downloads" })).toBeNull();
+    await user.click(screen.getByText("Pause: Custom"));
+    expect(await screen.findByRole("switch", { name: "Allow new downloads" })).toBeTruthy();
   });
 });
