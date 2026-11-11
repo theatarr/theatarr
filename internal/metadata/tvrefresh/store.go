@@ -229,11 +229,13 @@ func (s *Service) store(ctx context.Context, tx *sql.Tx, t *titleRow, sh *show, 
 	}
 	var status any = sh.status
 	_, err = tx.ExecContext(ctx, `INSERT INTO series_meta (title_id, source, source_id, status, air_time, time_zone,
-		episodes, refreshed_at, attempted_at, error) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, '')
+		episodes, refreshed_at, attempted_at, error, original_language) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, '', ?)
 		ON CONFLICT (title_id) DO UPDATE SET source = excluded.source, source_id = excluded.source_id,
 		status = excluded.status, air_time = excluded.air_time, time_zone = excluded.time_zone,
 		episodes = excluded.episodes, refreshed_at = excluded.refreshed_at, attempted_at = excluded.attempted_at,
-		error = '', added_at = NULL`, t.id, sh.source, sh.id, status, sh.airTime, sh.zone, len(sh.episodes), ms, ms)
+		error = '', added_at = NULL,
+		original_language = COALESCE(NULLIF(excluded.original_language, ''), series_meta.original_language)`,
+		t.id, sh.source, sh.id, status, sh.airTime, sh.zone, len(sh.episodes), ms, ms, strings.TrimSpace(sh.language))
 	return err
 }
 

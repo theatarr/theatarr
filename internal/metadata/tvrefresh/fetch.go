@@ -39,6 +39,7 @@ type show struct {
 	firstAired string
 	imdbID     string
 	tmdbID     int
+	language   string // original language code, as the source gives it
 	episodes   []remoteEp
 }
 
@@ -66,7 +67,7 @@ var errNotFound = errors.New("not found")
 // fromTVDB builds the show from TVDB's extended record and default-order episodes.
 func fromTVDB(s *tvdb.Series, eps []tvdb.Episode) *show {
 	sh := &show{source: SourceTVDB, id: s.ID, name: s.TranslatedName("eng"), status: s.Status.Name,
-		airTime: strings.TrimSpace(s.AirsTime), firstAired: s.FirstAired}
+		airTime: strings.TrimSpace(s.AirsTime), firstAired: s.FirstAired, language: s.OriginalLanguage}
 	// Only English and the original language: release names use those (romaji aliases are tagged with the original
 	// language), and every other translation only adds chances to collide with another series' name.
 	named := func(lang string) bool { return lang == "eng" || lang == "" || lang == s.OriginalLanguage }
@@ -147,7 +148,7 @@ func fromTMDb(ctx context.Context, c TMDb, id int) (*show, error) {
 	}
 	loc, zone := zoneFor(s.OriginCountry...)
 	sh := &show{source: SourceTMDb, id: s.ID, name: s.Name, status: tmdbStatus(s.Status), zone: zone,
-		firstAired: s.FirstAirDate, tmdbID: s.ID}
+		firstAired: s.FirstAirDate, tmdbID: s.ID, language: s.OriginalLanguage}
 	if len(s.FirstAirDate) >= 4 {
 		sh.year, _ = strconv.Atoi(s.FirstAirDate[:4])
 	}

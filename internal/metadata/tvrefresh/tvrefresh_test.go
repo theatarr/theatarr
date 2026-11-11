@@ -16,6 +16,7 @@ import (
 	"time"
 
 	"github.com/theatarr/theatarr/internal/catalog"
+	"github.com/theatarr/theatarr/internal/decide"
 	"github.com/theatarr/theatarr/internal/gateway"
 	"github.com/theatarr/theatarr/internal/metadata/tmdb"
 	"github.com/theatarr/theatarr/internal/metadata/tvdb"
@@ -116,6 +117,7 @@ func (f *fakeTVDB) Do(_ context.Context, _ gateway.Target, r *http.Request) (*ht
 // fakeTMDb serves one hand-written series (id 5000, two seasons).
 type fakeTMDb struct {
 	calls int
+	lang  string // the series' original_language
 }
 
 func (f *fakeTMDb) TVShow(_ context.Context, id int) (*tmdb.TVSeries, error) {
@@ -127,6 +129,7 @@ func (f *fakeTMDb) TVShow(_ context.Context, id int) (*tmdb.TVSeries, error) {
 	err := json.Unmarshal([]byte(`{"id": 5000, "name": "Only On TMDb", "status": "Ended", "first_air_date": "2019-03-01",
 		"episode_run_time": [30], "origin_country": ["GB"], "seasons": [{"season_number": 0, "episode_count": 0},
 		{"season_number": 1, "episode_count": 2}]}`), &s)
+	s.OriginalLanguage = f.lang
 	return &s, err
 }
 
@@ -147,11 +150,17 @@ func (f *fakeTMDb) FindTVByTVDB(_ context.Context, tvdbID int) (int, error) {
 	return 0, tmdb.ErrNotFound
 }
 
-// releases records ReleaseWaiting calls.
-type releases struct{ ids []int64 }
+// releases records ReleaseWaiting calls; at, when set, runs on each (what the released search would read).
+type releases struct {
+	ids []int64
+	at  func(id int64)
+}
 
 func (r *releases) ReleaseWaiting(_ context.Context, id int64) error {
 	r.ids = append(r.ids, id)
+	if r.at != nil {
+		r.at(id)
+	}
 	return nil
 }
 
@@ -887,4 +896,62 @@ func TestSweep(t *testing.T) {
 		t.Fatalf("second sweep %+v %v", sum, err)
 	}
 	_, _ = a, b
+}
+
+// TestSeriesOriginalLanguageAtRelease: the searches an add held are scored with the series' original language from
+// the refresh that releases them (TVDB's 3-letter code, else TMDb's), before meta.art has written title_meta. TMDb's
+// title_meta language still wins once there, an arr's stored name wins over both, and an empty answer keeps the
+// language stored earlier.
+func TestSeriesOriginalLanguageAtRelease(t *testing.T) {
+	t.Parallel()
+	e := setup(t)
+	ctx := context.Background()
+	load := func(id int64) decide.Title {
+		t.Helper()
+		ti, err := decide.LoadTitle(ctx, e.st.Reader(), id)
+		if err != nil {
+			t.Fatal(err)
+		}
+		return ti
+	}
+	var atRelease decide.Title
+	e.rel.at = func(id int64) { atRelease = load(id) }
+	anime := true
+	id := e.add(t, catalog.Input{TvdbID: 424536, Title: "Frieren", Anime: &anime,
+		Versions: func(bool) ([]string, error) { return []string{"anime-tv"}, nil }})
+	e.refresh(t, id)
+	if atRelease.OriginalLanguage != "Japanese" || !atRelease.OriginalLanguageResolved {
+		t.Errorf("TVDB jpn at release: %q resolved %v", atRelease.OriginalLanguage, atRelease.OriginalLanguageResolved)
+	}
+	// TMDb's code in title_meta (meta.art) wins.
+	if _, err := e.st.Writer().Exec(`INSERT INTO title_meta (title_id, original_language, attempted_at, refresh_after)
+		VALUES (?, 'ko', 0, 0)`, id); err != nil {
+		t.Fatal(err)
+	}
+	if ti := load(id); ti.OriginalLanguage != "Korean" || !ti.OriginalLanguageResolved {
+		t.Errorf("title_meta ko: %q resolved %v", ti.OriginalLanguage, ti.OriginalLanguageResolved)
+	}
+	// An arr's stored name wins over both, as before.
+	if _, err := e.st.Writer().Exec(`UPDATE title SET original_language = 'French' WHERE id = ?`, id); err != nil {
+		t.Fatal(err)
+	}
+	if ti := load(id); ti.OriginalLanguage != "French" || ti.OriginalLanguageResolved {
+		t.Errorf("arr name: %q resolved %v", ti.OriginalLanguage, ti.OriginalLanguageResolved)
+	}
+
+	// TMDb fallback: its 2-letter code.
+	e.tmdb.lang = "ko"
+	tid := e.add(t, catalog.Input{TvdbID: 800800, Title: "Only On TMDb"})
+	e.refresh(t, tid)
+	if atRelease.OriginalLanguage != "Korean" {
+		t.Errorf("TMDb ko at release: %q", atRelease.OriginalLanguage)
+	}
+	// A later answer without a language keeps the stored one.
+	e.tmdb.lang = ""
+	if _, err := e.svc.RefreshTitle(ctx, tid, true); err != nil {
+		t.Fatal(err)
+	}
+	if ti := load(tid); ti.OriginalLanguage != "Korean" {
+		t.Errorf("empty answer: %q", ti.OriginalLanguage)
+	}
 }

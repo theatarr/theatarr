@@ -30,17 +30,18 @@ type tmdbDetails struct {
 	Runtime          int    `json:"runtime"`
 }
 
-// titleSelect reads normalized metadata, with historical TMDb responses as a fallback for imported movies.
+// titleSelect reads normalized metadata, with historical TMDb responses as a fallback for imported movies. A series'
+// metadata language is title_meta's (meta.art, TMDb), else the code the series refresh read (series_meta).
 var titleSelect = `SELECT t.id, t.kind, t.name, COALESCE(t.year, 0), COALESCE(t.secondary_year, 0),
 	COALESCE(t.imdb_id, ''), COALESCE(t.tmdb_id, 0), t.anime, COALESCE(t.tvdb_id, 0), ` + store.SeriesTypeSQL("t") + `,
 	t.use_scene_numbering, COALESCE(t.runtime_minutes, 0), COALESCE(t.original_language, ''), t.monitored,
-	COALESCE(tm.runtime_minutes, 0), COALESCE(tm.original_language, ''),
+	COALESCE(tm.runtime_minutes, 0), COALESCE(NULLIF(tm.original_language, ''), sm.original_language, ''),
 	COALESCE((SELECT a.name FROM title_alias a WHERE a.title_id = t.id AND a.source = 'tmdb-original' LIMIT 1), ''),
 	(SELECT m.body FROM metadata_cache m WHERE m.source = 'tmdb' AND m.key IN (
 		'/movie/' || t.tmdb_id || '?append_to_response=external_ids%2Crelease_dates%2Calternative_titles%2Ctranslations',
 		'/movie/' || t.tmdb_id || '?append_to_response=external_ids%2Crelease_dates')
 		ORDER BY length(m.key) DESC LIMIT 1)
-	FROM title t LEFT JOIN title_meta tm ON tm.title_id = t.id`
+	FROM title t LEFT JOIN title_meta tm ON tm.title_id = t.id LEFT JOIN series_meta sm ON sm.title_id = t.id`
 
 // LoadMovies reads every movie, by title id. Runtime and original language prefer title_meta; original title and
 // aliases come from title_alias. Historical TMDb cache rows remain a fallback for imported titles.
