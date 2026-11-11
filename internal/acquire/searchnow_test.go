@@ -380,6 +380,51 @@ func TestResumeStartsSearchNowWithBudgetLeft(t *testing.T) {
 	}
 }
 
+// With the wanted loop off, an import's add-time searches over the hourly budget are started by the drain job once
+// the hour frees, not left for the next import.
+func TestImportAddTimeOverTheBudgetGetsTheDrainJob(t *testing.T) {
+	t.Parallel()
+	e := newEnv(t, true, loopOff(1))
+	e.accept = false
+	if err := e.a.EnqueueFollowSearch(e.ctx, []importarr.FollowSearchTarget{{TitleID: 1, VersionKey: "movie", All: true},
+		{TitleID: 2, VersionKey: "movie", All: true}}); err != nil {
+		t.Fatal(err)
+	}
+	if n := e.searchNowJobs(); n != 1 {
+		t.Fatalf("%d drain jobs", n)
+	}
+	if at := e.count(`SELECT run_at FROM job WHERE kind = ? AND state = 'queued'`, JobSearchNow); at != int(store.Millis(t0.Add(time.Hour+time.Second))) {
+		t.Fatalf("run at %d", at)
+	}
+	e.drain()
+	e.advance(61 * time.Minute)
+	e.drain()
+	if got := e.searches(); len(got) != 2 || got[0].Title != "One" || got[1].Title != "Two" {
+		t.Fatalf("searches %+v", got)
+	}
+}
+
+// With more searches in the hour than a lowered per_hour, the drain job waits for the expiry that brings the hour
+// below the limit, not for the oldest one.
+func TestAddTimeDrainWaitsForTheExpiryThatFreesASlot(t *testing.T) {
+	t.Parallel()
+	e := newEnv(t, true, loopOff(2))
+	e.accept = false
+	for i := range 4 { // four searches in the hour, ten minutes apart, against a limit of two
+		at := store.Millis(t0.Add(time.Duration(i-4) * 10 * time.Minute))
+		e.exec(`INSERT INTO acquire_run (source, title_id, version_id, version_key, target, reason, state, created_at,
+			updated_at) VALUES ('wanted', 3, 103, 'movie', 'movie', 'missing', 'nothing', ?, ?)`, at, at)
+	}
+	if err := e.a.EnqueueFollowSearch(e.ctx, []importarr.FollowSearchTarget{{TitleID: 1, VersionKey: "movie", All: true}}); err != nil {
+		t.Fatal(err)
+	}
+	// The third oldest (t0-20m) leaving the window leaves one search in it.
+	want := store.Millis(t0.Add(-20*time.Minute + time.Hour + time.Second))
+	if n, at := e.searchNowJobs(), e.count(`SELECT run_at FROM job WHERE kind = ? AND state = 'queued'`, JobSearchNow); n != 1 || at != int(want) {
+		t.Fatalf("%d jobs at %d, want %d", n, at, want)
+	}
+}
+
 // Asking again for a queued row keeps one request in its place; Cancel drops the queue and leaves started runs.
 func TestSearchNowDuplicateAndClear(t *testing.T) {
 	t.Parallel()

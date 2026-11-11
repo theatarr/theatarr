@@ -398,7 +398,7 @@ func (a *Acquirer) ScheduleSearchNow(ctx context.Context) error {
 }
 
 // addTimeNextAt is when add-time intents of a grabbing library that wait for the hourly budget can start: when the
-// oldest counted search of the hour leaves the window, never sooner than a minute from now; nil when none waits or
+// counted search whose leaving the window brings the hour below per_hour leaves it, never sooner than a minute from now; nil when none waits or
 // the hour has budget left (what is left waits on something else).
 func (a *Acquirer) addTimeNextAt(ctx context.Context) (*time.Time, error) {
 	keys := a.pol.SearchVersions()
@@ -419,12 +419,19 @@ func (a *Acquirer) addTimeNextAt(ctx context.Context) (*time.Time, error) {
 	if err != nil || used < a.set.PerHour {
 		return nil, err
 	}
-	at, ok, err := a.budgetFreeAt(ctx, now)
-	if err != nil {
+	// The run whose leaving the window brings the hour below per_hour: the (used-per_hour+1)-th oldest, so a lowered
+	// per_hour does not wake a drain at each expiry that frees nothing.
+	var freeing sql.NullInt64
+	if err := a.st.Reader().QueryRowContext(ctx, `SELECT created_at FROM acquire_run WHERE `+a.hourRuns()+`
+		AND created_at > ? ORDER BY created_at LIMIT 1 OFFSET ?`, SourceWanted, store.Millis(now.Add(-time.Hour)),
+		used-a.set.PerHour).Scan(&freeing); err != nil && !errors.Is(err, sql.ErrNoRows) {
 		return nil, err
 	}
-	if floor := now.Add(time.Minute); !ok || at.Before(floor) {
-		at = floor
+	at := now.Add(time.Minute)
+	if freeing.Valid {
+		if free := store.FromMillis(freeing.Int64).Add(time.Hour + time.Second); free.After(at) {
+			at = free
+		}
 	}
 	at = at.UTC()
 	return &at, nil

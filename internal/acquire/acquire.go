@@ -260,8 +260,8 @@ func namedEpisode(source, reason, name string, episodes []int64) bool {
 }
 
 // EnqueueFollowSearch records follower changes as add-time search intents (the arr import has already written its own
-// in its transaction; recording them again merges into the same rows) and starts what the hourly budget allows
-// (DrainFollowSearches).
+// in its transaction; recording them again merges into the same rows), starts what the hourly budget allows
+// (DrainFollowSearches) and schedules the drain job for what the spent hour left (ScheduleSearchNow).
 func (a *Acquirer) EnqueueFollowSearch(ctx context.Context, changes []importarr.FollowSearchTarget) error {
 	if len(changes) > 0 {
 		if err := a.st.WriteTx(ctx, func(tx *sql.Tx) error {
@@ -270,8 +270,11 @@ func (a *Acquirer) EnqueueFollowSearch(ctx context.Context, changes []importarr.
 			return err
 		}
 	}
-	_, err := a.DrainFollowSearches(ctx)
-	return err
+	if _, err := a.DrainFollowSearches(ctx); err != nil {
+		return err
+	}
+	// What the spent hour left waits for the Search now job, also with the wanted loop off.
+	return a.ScheduleSearchNow(ctx)
 }
 
 func (a *Acquirer) followJoinedAt(ctx context.Context, c importarr.FollowSearchTarget, t target) (int64, error) {
