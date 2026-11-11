@@ -3,6 +3,7 @@ package arrview
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"io"
 	"net/http"
 	"reflect"
@@ -28,6 +29,8 @@ type seerrTVDB struct {
 	extra      bool
 	slow       bool // the search waits out its deadline
 	remote     bool // the search result carries New Show's TMDb id (5000)
+	many       bool // the search returns eight series, with overview and image
+	extended   int  // /extended requests
 }
 
 func (f *seerrTVDB) Do(ctx context.Context, target gateway.Target, r *http.Request) (*http.Response, error) {
@@ -50,6 +53,15 @@ func (f *seerrTVDB) Do(ctx context.Context, target gateway.Target, r *http.Reque
 	case f.slow && strings.HasSuffix(r.URL.Path, "/search"):
 		<-ctx.Done()
 		return nil, ctx.Err()
+	case f.many && strings.HasSuffix(r.URL.Path, "/search"):
+		var hits []map[string]any
+		for i := 1; i <= 8; i++ {
+			hits = append(hits, map[string]any{"tvdb_id": strconv.Itoa(900100 + i), "type": "series",
+				"name": fmt.Sprintf("原題 %d", i), "translations": map[string]string{"eng": fmt.Sprintf("Many %d", i)}, "year": "2024", "overview": "原文", "overviews": map[string]string{"eng": fmt.Sprintf("About %d", i)},
+				"image_url": fmt.Sprintf("https://artworks.thetvdb.com/banners/%d.jpg", i)})
+		}
+		b, _ := json.Marshal(map[string]any{"status": "success", "data": hits})
+		body = string(b)
 	case f.remote && strings.HasSuffix(r.URL.Path, "/search"):
 		body = `{"status":"success","data":[{"tvdb_id":"900001","type":"series","name":"New Show","year":"2024",
 			"remote_ids":[{"id":"5000","type":12,"sourceName":"TheMovieDB.com"}]}]}`
@@ -62,6 +74,7 @@ func (f *seerrTVDB) Do(ctx context.Context, target gateway.Target, r *http.Reque
 			{"tvdb_id":"900001","type":"series","name":"Duplicate"},
 			{"tvdb_id":"bad","type":"series"},{"tvdb_id":"900002","type":"movie"}]}`
 	case strings.HasSuffix(r.URL.Path, "/extended"):
+		f.extended++
 		body = `{"status":"success","data":{"id":900001,"name":"New Show","year":"2024",
 			"originalLanguage":"eng","status":{"name":"Continuing"},"averageRuntime":45,"defaultSeasonType":1,
 			"seasons":[{"number":0,"type":{"id":1}},{"number":1,"type":{"id":1}},
@@ -281,5 +294,32 @@ func TestSeriesLookupNameOutsideHeld(t *testing.T) {
 				t.Fatalf("lookup: %+v, calls %d", out, f.calls)
 			}
 		})
+	}
+}
+
+// A name lookup asks TVDB for the details (seasons) of only the first few series the catalog lacks, in TVDB's order;
+// every hit carries the search result's overview and poster.
+func TestSeriesLookupNameHydratesFirstHits(t *testing.T) {
+	t.Parallel()
+	e := newEnv(t)
+	f := &seerrTVDB{t: t, many: true}
+	seerrMetadata(t, e, f)
+	var out []seriesResource
+	e.call("GET", "/sonarr/api/v3/series/lookup?term=Many", nil, 200, &out)
+	if len(out) != 8 || f.extended != outsideHydrate {
+		t.Fatalf("lookup: %d results, %d detail requests", len(out), f.extended)
+	}
+	for i, sr := range out {
+		want := fmt.Sprintf("https://artworks.thetvdb.com/banners/%d.jpg", i+1)
+		if sr.TvdbID != 900101+i || sr.Overview != fmt.Sprintf("About %d", i+1) || sr.RemotePoster != want ||
+			len(sr.Images) != 1 {
+			t.Errorf("hit %d: %+v", i, sr)
+		}
+		if i >= outsideHydrate && sr.Title != fmt.Sprintf("Many %d", i+1) {
+			t.Errorf("hit %d: title %q", i, sr.Title)
+		}
+		if hydrated := len(sr.Seasons) > 0; hydrated != (i < outsideHydrate) {
+			t.Errorf("hit %d: seasons %v", i, sr.Seasons)
+		}
 	}
 }

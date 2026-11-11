@@ -496,6 +496,8 @@ type titleBrief struct {
 	year, secondaryYear int
 	tmdb, tvdb          int
 	imdb                string
+	// overview and poster: a TVDB search hit's, for a series the catalog lacks.
+	overview, poster string
 }
 
 func (s *Service) briefs(ctx context.Context, where string, args ...any) ([]titleBrief, error) {

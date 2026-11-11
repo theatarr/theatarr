@@ -202,6 +202,9 @@ type SearchResult struct {
 	Network         string            `json:"network"`
 	Country         string            `json:"country"`
 	PrimaryLanguage string            `json:"primary_language"`
+	Overview        string            `json:"overview"`  // in the original language
+	Overviews       map[string]string `json:"overviews"` // by language ("eng")
+	ImageURL        string            `json:"image_url"`
 	Aliases         []string          `json:"aliases"`
 	Translations    map[string]string `json:"translations"`
 	RemoteIDs       []RemoteID        `json:"remote_ids"`

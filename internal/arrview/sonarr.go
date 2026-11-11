@@ -26,7 +26,9 @@ type seriesResource struct {
 	SortTitle         string            `json:"sortTitle,omitempty"`
 	Status            string            `json:"status"`
 	Ended             bool              `json:"ended"`
+	Overview          string            `json:"overview,omitempty"`
 	Images            []any             `json:"images"`
+	RemotePoster      string            `json:"remotePoster,omitempty"`
 	Seasons           []seasonResource  `json:"seasons"`
 	Year              int               `json:"year"`
 	Path              string            `json:"path,omitempty"`
@@ -492,7 +494,8 @@ func (s *Service) seriesLookup(w http.ResponseWriter, r *request) {
 		s.internal(w, r, err)
 		return
 	}
-	hydrate := func(ctx context.Context, b titleBrief) (seriesResource, error) {
+	// details: ask the metadata source for a series the catalog lacks (its seasons).
+	hydrate := func(ctx context.Context, b titleBrief, details bool) (seriesResource, error) {
 		var err error
 		var e *entry
 		if b.id > 0 {
@@ -511,13 +514,18 @@ func (s *Service) seriesLookup(w http.ResponseWriter, r *request) {
 			Seasons: []seasonResource{}, Year: b.year, SeasonFolder: true, Monitored: true, MonitorNewItems: "all",
 			TvdbID: b.tvdb, SeriesType: "standard", ImdbID: b.imdb, Genres: []string{}, Tags: []int64{},
 			Added: at(minTime), Ratings: map[string]any{}, LanguageProfileID: 1}
+		if b.poster != "" {
+			sr.RemotePoster = b.poster
+			sr.Images = append(sr.Images, map[string]any{"coverType": "poster", "url": b.poster, "remoteUrl": b.poster})
+		}
+		sr.Overview = b.overview
 		if b.id > 0 {
 			// A series Theatarr holds, in no library of this view: its type is the title's, as every view shows it.
 			if sr.SeriesType, err = store.SeriesType(ctx, s.st.Reader(), b.id); err != nil {
 				return seriesResource{}, err
 			}
 		}
-		if b.id == 0 && b.tvdb > 0 && s.tvmeta != nil {
+		if details && b.id == 0 && b.tvdb > 0 && s.tvmeta != nil {
 			meta, err := s.tvmeta.LookupSeries(ctx, b.tvdb)
 			switch {
 			case err == nil:
@@ -558,7 +566,7 @@ func (s *Service) seriesLookup(w http.ResponseWriter, r *request) {
 	out := make([]seriesResource, 0, len(bs))
 	seen := map[int64]bool{}
 	for _, b := range bs {
-		sr, err := hydrate(ctx, b)
+		sr, err := hydrate(ctx, b, true)
 		if err != nil {
 			s.internal(w, r, err)
 			return
@@ -571,8 +579,8 @@ func (s *Service) seriesLookup(w http.ResponseWriter, r *request) {
 		// has its own time budget, and when it fails the catalog's matches are the answer.
 		octx, ocancel := context.WithTimeout(r.Context(), 5*time.Second)
 		defer ocancel()
-		for _, b := range s.outsideSeries(octx, r.v, val, seen, lookupLimit-len(out)) {
-			sr, err := hydrate(octx, b)
+		for i, b := range s.outsideSeries(octx, r.v, val, seen, lookupLimit-len(out)) {
+			sr, err := hydrate(octx, b, i < outsideHydrate)
 			if err != nil {
 				s.log.Warn("series search failed", "view", r.v.Key, "err", err)
 				break
@@ -582,6 +590,11 @@ func (s *Service) seriesLookup(w http.ResponseWriter, r *request) {
 	}
 	writeJSON(w, http.StatusOK, out)
 }
+
+// outsideHydrate is how many of TVDB's name-search hits a series lookup asks TVDB the details (seasons) of, in
+// TVDB's order: one request each, one after another, in the search's shared time budget. The rest are the search
+// result alone.
+const outsideHydrate = 5
 
 // outsideSeries is TVDB's name search for a series lookup: up to limit series not already listed (seen holds the
 // listed title ids). A result the catalog holds, by its TVDB id or its TMDb id, comes back as that title. nil when
@@ -618,7 +631,14 @@ func (s *Service) outsideSeries(ctx context.Context, v *View, term string, seen 
 			s.log.Warn("series search failed", "view", v.Key, "err", err)
 			return out
 		}
-		b := titleBrief{tvdb: id, name: result.Name}
+		// English name and overview where TVDB has them, as a hit looked up for its details shows.
+		b := titleBrief{tvdb: id, name: result.Translations["eng"], overview: result.Overviews["eng"], poster: result.ImageURL}
+		if b.name == "" {
+			b.name = result.Name
+		}
+		if b.overview == "" {
+			b.overview = result.Overview
+		}
 		b.year, _ = strconv.Atoi(result.Year)
 		if len(held) == 1 {
 			if seen[held[0].id] {
