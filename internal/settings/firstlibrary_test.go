@@ -7,6 +7,7 @@ import (
 	"path/filepath"
 	"slices"
 	"strings"
+	"syscall"
 	"testing"
 
 	"github.com/theatarr/theatarr/internal/policy"
@@ -216,6 +217,17 @@ func topLevelDirs(n int) []string {
 	return out
 }
 
+// needWritable skips a test that makes a library Live at existing top-level directories when the test user cannot
+// write there (a Live library's root must be writable); CI runners are not root.
+func needWritable(t *testing.T, dirs ...string) {
+	t.Helper()
+	for _, dir := range dirs {
+		if syscall.Access(dir, 2) != nil {
+			t.Skipf("%s is not writable by this user", dir)
+		}
+	}
+}
+
 // Review 3.5: a first library whose root sits directly under / passes Check root and saves.
 func TestFirstLibraryTopLevelRoot(t *testing.T) {
 	t.Parallel()
@@ -277,6 +289,7 @@ func TestSecondTopLevelLibraryNamesBothAreas(t *testing.T) {
 	if len(dirs) < 2 {
 		t.Skip("fewer than two top-level directories")
 	}
+	needWritable(t, dirs...)
 	snap = withTrash(t, m, base, snap)
 	saved, err := addLibrary(t, m, base, snap, movie, "movies", dirs[0])
 	if err != nil {
@@ -383,6 +396,7 @@ func TestLibraryAreaErrorCoversEveryLibrary(t *testing.T) {
 	if len(dirs) == 0 {
 		t.Skip("no top-level directory to use")
 	}
+	needWritable(t, dirs...)
 	dir := t.TempDir()
 	tv, anime := filepath.Join(dir, "data", "tv"), filepath.Join(dir, "other", "anime")
 	for _, d := range []string{tv, anime} {
@@ -416,6 +430,7 @@ func TestTopLevelWatchOnlyThenLive(t *testing.T) {
 	if len(dirs) == 0 {
 		t.Skip("no top-level directory to use")
 	}
+	needWritable(t, dirs...)
 	snap = withTrash(t, m, base, snap)
 	saved, err := addLibrary(t, m, base, snap, movie, "movies", dirs[0])
 	if err != nil {
