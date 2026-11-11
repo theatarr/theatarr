@@ -13,6 +13,7 @@ import (
 	"testing"
 
 	"github.com/theatarr/theatarr/internal/auth"
+	"github.com/theatarr/theatarr/internal/library"
 	"github.com/theatarr/theatarr/internal/policy"
 	"github.com/theatarr/theatarr/internal/settings"
 	"go.yaml.in/yaml/v3"
@@ -368,5 +369,48 @@ func TestSettingsVersionEditKeepsStoredNilRoots(t *testing.T) {
 	}
 	if lv := se.coord.Current().Policy.Library.Versions["movie-remux"]; lv != nil {
 		t.Fatalf("the edit gave the library roots: %+v", lv)
+	}
+}
+
+// A library stored without roots that is switched to Live gets its library folder as its root, as a create does:
+// without one every import it grabs would be refused (not listed under library.versions).
+func TestSettingsVersionLiveFillsStoredNilRoots(t *testing.T) {
+	t.Parallel()
+	area := t.TempDir()
+	se := newSettingsEnvBase(t, nil, func(p *policy.Policy) { p.Library.Dangling.Roots = []string{area} }, nil)
+	folder := filepath.Join(area, "remux")
+	if err := os.Mkdir(folder, 0o700); err != nil {
+		t.Fatal(err)
+	}
+	snap, err := se.coord.Snapshot(context.Background())
+	if err != nil {
+		t.Fatal(err)
+	}
+	req := settings.SaveRequest{ExpectedGeneration: snap.Generation, Actor: "test", Records: cloneRecords(snap.Records)}
+	for i := range req.Records.Versions {
+		if req.Records.Versions[i].Key == "movie-remux" {
+			req.Records.Versions[i].Roots = nil
+			req.Records.Versions[i].Config.Mode = policy.ModeShadow
+		}
+	}
+	if _, err := se.coord.SaveAndApply(context.Background(), req); err != nil {
+		t.Fatal(err)
+	}
+	record := se.want(se.call("GET", "/versions/movie-remux", nil), 200, "get")["record"].(map[string]any)
+	if record["roots"] != nil {
+		t.Fatalf("fixture roots: %v", record["roots"])
+	}
+	config := record["config"].(map[string]any)
+	config["mode"] = string(policy.ModeActive)
+	config["library"] = folder
+	body := map[string]any{"generation": se.generation(), "key": "movie-remux", "config": config, "roots": []string{}}
+	body["confirmation_token"] = se.want(se.call("POST", "/versions/confirm", body), 200, "confirm")["token"]
+	se.want(se.call("PUT", "/versions/movie-remux", body), 200, "switch to Live")
+	after := se.want(se.call("GET", "/versions/movie-remux", nil), 200, "get")["record"].(map[string]any)
+	if roots, _ := after["roots"].([]any); len(roots) != 1 || roots[0] != config["library"] {
+		t.Fatalf("roots after the switch to Live: %v (library %v)", after["roots"], config["library"])
+	}
+	if roots := library.NewGate(se.coord.Current().Policy).Roots("movie-remux"); len(roots) != 1 || roots[0] != folder {
+		t.Fatalf("gate roots: %v", roots)
 	}
 }

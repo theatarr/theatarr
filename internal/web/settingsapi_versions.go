@@ -152,9 +152,11 @@ func versionSettingsRequest(snap *settings.Snapshot, body versionSettingsBody, c
 	if body.Roots != nil && (len(*body.Roots) > 0 || len(stored) > 0) {
 		record.Roots = append([]string(nil), (*body.Roots)...)
 	}
-	// A new library, or an edit that empties stored roots, writes under its library folder, as the editor shows it.
-	// A library stored without roots keeps none when an edit sends none (the editor sends [] for it).
-	if (create || len(stored) > 0) && len(record.Roots) == 0 && record.Config.Library != "" {
+	// A new library, an edit that empties stored roots, or a Live library writes under its library folder, as the
+	// editor shows it. A Watch only library stored without roots keeps none when an edit sends none (the editor
+	// sends [] for it); switched to Live it gets the folder, or every import it grabs would be refused.
+	live := record.Config.Mode == policy.ModeActive
+	if (create || len(stored) > 0 || live) && len(record.Roots) == 0 && record.Config.Library != "" {
 		record.Roots = []string{record.Config.Library}
 	}
 	if index < 0 {
