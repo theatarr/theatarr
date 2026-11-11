@@ -255,6 +255,26 @@ func TestPausedSearchesWaitAndStartOnResume(t *testing.T) {
 	}
 }
 
+// While paused a drain still deletes the add-time intents of a library that is gone or not active (Watch only), as
+// it would with downloads on, and starts nothing; an active library's intent waits.
+func TestPausedDrainDropsIntentsOfInactiveLibraries(t *testing.T) {
+	t.Parallel()
+	e := newEnv(t, false, loopOff(10))
+	e.accept = false
+	if err := e.a.EnqueueFollowSearch(e.ctx, []importarr.FollowSearchTarget{{TitleID: 1, VersionKey: "movie", All: true},
+		{TitleID: 1, VersionKey: "movie-shadow", All: true}, {TitleID: 2, VersionKey: "gone", All: true}}); err != nil {
+		t.Fatal(err)
+	}
+	if runs, keys := e.count(`SELECT COUNT(*) FROM acquire_run`), e.count(`SELECT COUNT(*) FROM follow_search_intent
+		WHERE version_key = 'movie'`); runs != 0 || keys != 1 || e.count(`SELECT COUNT(*) FROM follow_search_intent`) != 1 {
+		t.Fatalf("%d runs, intents %d", runs, e.count(`SELECT COUNT(*) FROM follow_search_intent`))
+	}
+	list, err := e.a.WantedList(e.ctx, WantedQuery{Only: OnlyMissing})
+	if err != nil || list.AddTimePending != 1 {
+		t.Fatalf("list %+v %v", list, err)
+	}
+}
+
 // Asking again for a queued row keeps one request in its place; Cancel drops the queue and leaves started runs.
 func TestSearchNowDuplicateAndClear(t *testing.T) {
 	t.Parallel()

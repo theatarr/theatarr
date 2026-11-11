@@ -26,8 +26,8 @@ import (
 // not counted, and a drain starts the search again after infraBackoff (15 m, 1 h, 4 h), then gives the target up. A
 // partial answer (runPartial) counts as searched. A drain that fails on an intent counts an
 // attempt; after intentAttempts the intent is dropped with a warning. While router.enabled is false (Pause) a drain
-// does nothing: the intents wait, uncounted, and the first drain after it is true again starts them, oldest first,
-// under the budget. An intent for an active version with grab off is kept the same way until grab is on: its
+// starts nothing and only deletes the intents whose library is gone or not active, as it would with the switch on;
+// the rest wait, uncounted, and the first drain after it is true again starts them, oldest first, under the budget. An intent for an active version with grab off is kept the same way until grab is on: its
 // searches could only be dry runs. Either wait is bounded: one intent per title and version (merged on record).
 
 // intentAttempts caps the drains that may fail on one intent.
@@ -47,7 +47,7 @@ func (a *Acquirer) DrainFollowSearches(ctx context.Context) (int, error) {
 	a.drainMu.Lock()
 	defer a.drainMu.Unlock()
 	if !a.pol.RouterSettings().Enabled {
-		return 0, nil // paused: the intents wait and are drained once downloads are on again
+		return 0, a.dropIdleIntents(ctx) // paused: the rest wait and are drained once downloads are on again
 	}
 	rows, err := a.st.Reader().QueryContext(ctx, `SELECT id, title_id, version_key, all_items, episodes, attempts,
 		created_at FROM follow_search_intent ORDER BY created_at, id`)
@@ -114,13 +114,48 @@ func (a *Acquirer) DrainFollowSearches(ctx context.Context) (int, error) {
 	return started, nil
 }
 
+// intentLibraryActive says whether an intent's library still exists and is active; an intent for any other asks for
+// nothing and is deleted.
+func (a *Acquirer) intentLibraryActive(key string) bool {
+	vp := a.pol.Versions[key]
+	return vp != nil && vp.Mode == policy.ModeActive
+}
+
+// dropIdleIntents deletes, while router.enabled is false, the intents whose library is gone or not active, as a drain
+// with the switch on would; it starts nothing.
+func (a *Acquirer) dropIdleIntents(ctx context.Context) error {
+	rows, err := a.st.Reader().QueryContext(ctx, `SELECT DISTINCT version_key FROM follow_search_intent`)
+	if err != nil {
+		return err
+	}
+	var idle []string
+	for rows.Next() {
+		var key string
+		if err := rows.Scan(&key); err != nil {
+			rows.Close()
+			return err
+		}
+		if !a.intentLibraryActive(key) {
+			idle = append(idle, key)
+		}
+	}
+	if err := rows.Close(); err != nil {
+		return err
+	}
+	for _, key := range idle {
+		if _, err := a.st.Writer().ExecContext(ctx, `DELETE FROM follow_search_intent WHERE version_key = ?`, key); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
 // drainIntent starts at most left of an intent's searches; done when nothing of it is left to start or wait for.
 // chained is the pass's read of the versions a retry_new chain has a request for (ordinaryOf).
 // A target counts as searched by a run within again_after, or since the intent was recorded (created).
 func (a *Acquirer) drainIntent(ctx context.Context, c importarr.FollowSearchTarget, created int64, left int,
 	chained *chainSeen) (int, bool, error) {
-	vp := a.pol.Versions[c.VersionKey]
-	if vp == nil || vp.Mode != policy.ModeActive {
+	if !a.intentLibraryActive(c.VersionKey) {
 		return 0, true, nil
 	}
 	if !a.pol.Grabs(c.VersionKey) {

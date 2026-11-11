@@ -331,10 +331,10 @@ changed, and catches up over every title at the first import after a start and t
 
 Adopt is manual and runs once; refresh follows the arr's upgrades only while K does not grab. So once grabbing is on
 for K (`router.enabled`, `mode: active` and `grab: true`), K loses refresh, and a file the arr imports for F after K's last adopt is
-never adopted. Add-time search intents made while the router is off wait for it (`acquire/intent.go`): once it is on, the first drain searches those still wanted in a library that is then active and grabbing, under `per_hour`. With
+never adopted. Add-time search intents for K are dropped at the next drain while K is Watch only, with the router on or off (`acquire/intent.go`); only those made while K is already active and the router is off wait for the router and are searched, under `per_hour`, once it is on. With
 `router.wanted.missing: false` nothing searches K's missing items by itself. Right before the flip, per follower:
-`theatarr library adopt -library K`, then `theatarr library adopt -library K -refresh`. Anything still missing after that, beyond those
-add-time searches, is left to RSS or a manual search; Theatarr runs no catch-up search for it. `theatarr golive check -library K` shows whether it is due ("adopt and refresh", [stage 4](#4-the-go-live-check)).
+`theatarr library adopt -library K`, then `theatarr library adopt -library K -refresh`. Anything still missing after that is left
+to RSS or a manual search; Theatarr runs no catch-up search for it. `theatarr golive check -library K` shows whether it is due ("adopt and refresh", [stage 4](#4-the-go-live-check)).
 
 Scan each of K's Plex sections once after its first adopt.
 
