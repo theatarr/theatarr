@@ -92,6 +92,7 @@ describe("Pause in the admin header", () => {
     renderPage(<PauseSwitch />);
     const pause = await screen.findByRole("switch", { name: "Pause" });
     expect((pause as HTMLInputElement).checked).toBe(false);
+    expect(screen.getByTestId("pause").getAttribute("title")).toMatch(/Queued searches wait and start when you resume/);
     await userEvent.setup().click(pause);
     await waitFor(() => expect(fetch.calls("PUT", "/settings/switches")).toHaveLength(1));
     expect(fetch.calls("PUT", "/settings/switches")[0].body).toEqual({ generation: 7, router_enabled: false, library_enabled: false });

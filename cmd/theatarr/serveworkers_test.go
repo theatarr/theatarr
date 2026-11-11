@@ -12,8 +12,10 @@ import (
 	"testing"
 	"time"
 
+	"github.com/theatarr/theatarr/internal/acquire"
 	"github.com/theatarr/theatarr/internal/errinbox"
 	"github.com/theatarr/theatarr/internal/health"
+	"github.com/theatarr/theatarr/internal/policy"
 	"github.com/theatarr/theatarr/internal/store"
 	"github.com/theatarr/theatarr/internal/store/storetest"
 )
@@ -281,5 +283,27 @@ func TestServeWorkerPanicRecorded(t *testing.T) {
 	if err != nil || row.Component != "live-settings" || !strings.Contains(row.Sample, "watch exploded") ||
 		!strings.Contains(row.Stack, "TestServeWorkerPanicRecorded") || !strings.Contains(string(row.Context), `"worker":"watch"`) {
 		t.Fatalf("panic row: %v %+v", err, row)
+	}
+}
+
+// The Search now drain worker is off while router.enabled is false (Pause), so the queue waits; turning the switch
+// back on changes its key, which starts it again and schedules the drain.
+func TestSearchNowWorkerFollowsTheRouterSwitch(t *testing.T) {
+	var key func(*serveRuntime) string
+	for _, w := range (serveLoops{}).workers() {
+		if w.name == "search-now" {
+			key = w.key
+		}
+	}
+	if key == nil {
+		t.Fatal("no search-now worker")
+	}
+	rt := &serveRuntime{Acquirer: &acquire.Acquirer{}, Policy: &policy.Policy{Router: &policy.Router{}}}
+	if k := key(rt); k != "" {
+		t.Fatalf("paused key %q", k)
+	}
+	rt.Policy.Router.Enabled = true
+	if k := key(rt); k == "" {
+		t.Fatal("no key with downloads on")
 	}
 }

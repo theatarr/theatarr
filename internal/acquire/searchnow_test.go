@@ -6,6 +6,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/theatarr/theatarr/internal/importarr"
 	"github.com/theatarr/theatarr/internal/policy"
 	"github.com/theatarr/theatarr/internal/store"
 )
@@ -181,7 +182,7 @@ func TestSearchNowSkipsWithReasons(t *testing.T) {
 	}
 }
 
-// With new downloads off a request is refused as a whole, and a drain drops what was queued before.
+// With new downloads off a request is refused as a whole, and what was queued before waits.
 func TestSearchNowRefusedWhileDownloadsAreOff(t *testing.T) {
 	t.Parallel()
 	e := newEnv(t, false, loopOff(10))
@@ -195,8 +196,62 @@ func TestSearchNowRefusedWhileDownloadsAreOff(t *testing.T) {
 	if _, err := e.a.Wanted(e.ctx); err != nil {
 		t.Fatal(err)
 	}
-	if runs, left := e.count(`SELECT COUNT(*) FROM acquire_run`), e.count(`SELECT COUNT(*) FROM search_request`); runs != 0 || left != 0 {
+	if runs, left := e.count(`SELECT COUNT(*) FROM acquire_run`), e.count(`SELECT COUNT(*) FROM search_request`); runs != 0 || left != 1 {
 		t.Fatalf("%d runs, %d requests left", runs, left)
+	}
+}
+
+// Pause (router.enabled false) keeps the queued Search now requests and add-time searches: drains start nothing and
+// schedule nothing, and once downloads are on again they start, oldest first, under the hourly budget.
+func TestPausedSearchesWaitAndStartOnResume(t *testing.T) {
+	t.Parallel()
+	e := newEnv(t, false, loopOff(10))
+	e.accept = false
+	e.request(2, "movie", OnlyMissing, -1)
+	if err := e.a.EnqueueFollowSearch(e.ctx, []importarr.FollowSearchTarget{{TitleID: 1, VersionKey: "movie", All: true}}); err != nil {
+		t.Fatal(err)
+	}
+	e.advance(48 * time.Hour) // a long pause
+	if _, err := e.a.Wanted(e.ctx); err != nil {
+		t.Fatal(err)
+	}
+	if err := e.a.HandleSearchNow(e.ctx); err != nil {
+		t.Fatal(err)
+	}
+	if runs, reqs, intents := e.count(`SELECT COUNT(*) FROM acquire_run`), e.count(`SELECT COUNT(*) FROM search_request`),
+		e.count(`SELECT COUNT(*) FROM follow_search_intent`); runs != 0 || reqs != 1 || intents != 1 {
+		t.Fatalf("paused: %d runs, %d requests, %d intents", runs, reqs, intents)
+	}
+	if n := e.searchNowJobs(); n != 0 {
+		t.Fatalf("%d drain jobs while paused", n)
+	}
+	list, err := e.a.WantedList(e.ctx, WantedQuery{Only: OnlyMissing})
+	if err != nil || list.SearchNowPending != 1 || list.SearchNowNextAt != nil || list.AddTimePending != 1 {
+		t.Fatalf("paused list %+v %v", list, err)
+	}
+	e.pol.Router.Enabled = true
+	if err := e.a.ScheduleSearchNow(e.ctx); err != nil || e.searchNowJobs() != 1 {
+		t.Fatalf("resume: %v, %d jobs", err, e.searchNowJobs())
+	}
+	sum, err := e.a.Wanted(e.ctx)
+	if err != nil || sum.AddTime != 1 || sum.SearchNow != 1 {
+		t.Fatalf("resumed round %+v %v", sum, err)
+	}
+	e.drain()
+	if got := e.searches(); len(got) != 2 || got[0].Title != "One" || got[1].Title != "Two" {
+		t.Fatalf("searches %+v", got)
+	}
+	if reqs := e.count(`SELECT COUNT(*) FROM search_request`); reqs != 0 {
+		t.Fatalf("%d requests left", reqs)
+	}
+	// Each ran once: the scheduled drain and a later round start nothing again.
+	e.advance(61 * time.Minute)
+	if _, err := e.a.Wanted(e.ctx); err != nil {
+		t.Fatal(err)
+	}
+	e.drain()
+	if got := e.searches(); len(got) != 2 {
+		t.Fatalf("searched again %+v", got)
 	}
 }
 

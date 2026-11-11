@@ -232,7 +232,8 @@ type WantedList struct {
 	// Searchable counts the rows of the filtered list Search now can search (no SearchBlocked): what "Search all"
 	// queues.
 	Searchable int `json:"searchable"`
-	// SearchNowPending counts the queued Search now requests; SearchNowNextAt is when the next of them can start.
+	// SearchNowPending counts the queued Search now requests; SearchNowNextAt is when the next of them can start (nil
+	// while router.enabled is false: the queue waits).
 	SearchNowPending int        `json:"search_now_pending"`
 	SearchNowNextAt  *time.Time `json:"search_now_next_at"`
 }

@@ -200,6 +200,14 @@ it("shows the queue, a queued row's place, and cancels the queue", async () => {
   await waitFor(() => expect(screen.queryByTestId("search-now-queue")).toBeNull());
 });
 
+it("says the queued searches wait while paused", async () => {
+  mockFetch([{ method: "GET", path: "/wanted", reply: { ...page, downloads_enabled: false, search_now_pending: 3, search_now_next_at: null } }, status]);
+  renderPage(<WantedPage />, "/wanted");
+  const line = await screen.findByTestId("search-now-queue");
+  expect(line.textContent).toMatch(/^3 searches queued by Search now · waiting until new downloads are on again/);
+  expect(screen.getByText(/2 searches for newly added titles wait until new downloads are on again/)).toBeTruthy();
+});
+
 it("says why a search was refused", async () => {
   mockFetch([{ method: "GET", path: "/wanted", reply: page }, status, { method: "POST", path: "/wanted/search", reply: { status: 409, body: { error: "New downloads are off, so nothing can be searched." } } }]);
   renderPage(<WantedPage />, "/wanted");

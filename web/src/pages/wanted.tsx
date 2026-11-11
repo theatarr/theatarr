@@ -136,7 +136,7 @@ export function WantedPage() {
     <PageHeader title="Wanted" description="What automatic searches are waiting for. Viewing this page never starts a search; Search now queues one under the hourly limit." />
     <WantedTabs active={only} query={tabQuery} />
     {q.isLoading ? <Loading /> : q.error ? <ErrorState error={q.error} /> : d ? <div className="space-y-4">
-      <p className="text-sm text-muted-foreground">Searches every {fmtGoDuration(d.interval)}, up to {d.per_hour} an hour, again after {fmtGoDuration(d.again_after)}. {plural(d.searched_last_hour, "search")} in the last hour. {d.add_time_pending > 0 ? `${plural(d.add_time_pending, "search")} for newly added titles ${d.add_time_pending === 1 ? "goes" : "go"} first.` : ""}</p>
+      <p className="text-sm text-muted-foreground">Searches every {fmtGoDuration(d.interval)}, up to {d.per_hour} an hour, again after {fmtGoDuration(d.again_after)}. {plural(d.searched_last_hour, "search")} in the last hour. {d.add_time_pending > 0 ? `${plural(d.add_time_pending, "search")} for newly added titles ${d.add_time_pending === 1 ? (d.downloads_enabled ? "goes first" : "waits until new downloads are on again") : (d.downloads_enabled ? "go first" : "wait until new downloads are on again")}.` : ""}</p>
       {!d.enabled || (only === "missing" ? !d.missing : d.cutoff_unmet === "off") ? <p role="status" className="rounded-[5px] border border-[var(--line)] bg-[var(--sunken)] px-3 py-2 text-[13px] text-[var(--ink-2)]">{!d.enabled ? "Automatic searches are off." : only === "cutoff" ? "Cutoff-unmet searches are off." : "Missing searches are off."} <Link className="text-primary hover:underline" to={settingHref("router", "wanted.enabled") ?? "/admin/settings/downloads"}>Automatic search settings</Link></p> : null}
       <DownloadsOffNotice off={off} canManage />
       <label className="flex items-center gap-2 text-sm text-[var(--ink-3)]">Library
@@ -151,7 +151,7 @@ export function WantedPage() {
         return key && !count ? null : <Button key={key} variant={waiting === key || !waiting && !key ? "default" : "outline"} size="sm" aria-pressed={(waiting ?? "") === key} onClick={() => change("waiting", key)}>{word} ({count})</Button>;
       })}</div>
       {d.search_now_pending > 0 ? <p role="status" data-testid="search-now-queue" className="flex flex-wrap items-center gap-x-2 gap-y-1 rounded-[5px] border border-[var(--line)] bg-[var(--sunken)] px-3 py-2 text-[13px] text-[var(--ink-2)]">
-        <span>{plural(d.search_now_pending, "search")} queued by Search now{d.search_now_next_at ? ` · next at ${clock(d.search_now_next_at)}` : ""}</span>
+        <span>{plural(d.search_now_pending, "search")} queued by Search now{!d.downloads_enabled ? " · waiting until new downloads are on again" : d.search_now_next_at ? ` · next at ${clock(d.search_now_next_at)}` : ""}</span>
         <Button variant="outline" size="sm" disabled={clear.isPending} onClick={() => clear.mutate()}>Cancel queued searches</Button>
       </p> : null}
       <div className="flex flex-wrap items-center gap-2" aria-label="Search now">

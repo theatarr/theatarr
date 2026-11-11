@@ -25,9 +25,10 @@ import (
 // that got no answer (the VPN guard refused it, or no indexer answered: acquire_run.infra = runInfra): that one is
 // not counted, and a drain starts the search again after infraBackoff (15 m, 1 h, 4 h), then gives the target up. A
 // partial answer (runPartial) counts as searched. A drain that fails on an intent counts an
-// attempt; after intentAttempts the intent is dropped with a warning. While router.enabled is false the intents
-// are dropped, as before: nothing is searched with grabbing off, and RSS covers those titles once it is on. An intent
-// for an active version with grab off is kept, uncounted, until grab is on: its searches could only be dry runs.
+// attempt; after intentAttempts the intent is dropped with a warning. While router.enabled is false (Pause) a drain
+// does nothing: the intents wait, uncounted, and the first drain after it is true again starts them, oldest first,
+// under the budget. An intent for an active version with grab off is kept the same way until grab is on: its
+// searches could only be dry runs. Either wait is bounded: one intent per title and version (merged on record).
 
 // intentAttempts caps the drains that may fail on one intent.
 const intentAttempts = 3
@@ -46,14 +47,7 @@ func (a *Acquirer) DrainFollowSearches(ctx context.Context) (int, error) {
 	a.drainMu.Lock()
 	defer a.drainMu.Unlock()
 	if !a.pol.RouterSettings().Enabled {
-		res, err := a.st.Writer().ExecContext(ctx, `DELETE FROM follow_search_intent`)
-		if err != nil {
-			return 0, err
-		}
-		if n, _ := res.RowsAffected(); n > 0 {
-			a.log.Info("add-time searches dropped: router.enabled is false", "intents", n)
-		}
-		return 0, nil
+		return 0, nil // paused: the intents wait and are drained once downloads are on again
 	}
 	rows, err := a.st.Reader().QueryContext(ctx, `SELECT id, title_id, version_key, all_items, episodes, attempts,
 		created_at FROM follow_search_intent ORDER BY created_at, id`)

@@ -113,7 +113,7 @@ export function PauseSwitch({ fallback = null }: { fallback?: ReactNode }) {
   return (
     <>
       <label className={pill} data-testid="pause" data-paused={paused || undefined}
-        title={paused ? "Paused: no new downloads and no new library links anywhere. Turn off to resume both." : "Pause stops new downloads and new library links for every library."}>
+        title={paused ? "Paused: no new downloads and no new library links anywhere. Queued searches wait and start when you turn this off." : "Pause stops new downloads and new library links for every library. Queued searches wait and start when you resume."}>
         <input type="checkbox" role="switch" aria-label="Pause" checked={paused} disabled={busy}
           onChange={(e) => void save({ router_enabled: !e.target.checked, library_enabled: !e.target.checked }, o.generation)} />
         <span className={paused ? "whitespace-nowrap font-medium text-[var(--warn-ink)]" : "whitespace-nowrap"}>{paused ? "Paused" : "Pause"}</span>

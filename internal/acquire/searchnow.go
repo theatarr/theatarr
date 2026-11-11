@@ -25,8 +25,9 @@ import (
 // it asks for nothing any more (imported meanwhile, a download in flight, a search of it already queued or running,
 // unmonitored, the library not active or not grabbing). A search of router.wanted.retry_new's chain is not such a
 // search: a request is never dropped for one. A search that fails is recorded on its run and not repeated
-// from the request. While router.enabled is false nothing is accepted and a drain drops what is queued, as it does
-// for add-time searches.
+// from the request. While router.enabled is false (Pause) nothing new is accepted and what is queued waits: a drain
+// starts nothing and no drain is scheduled; once it is true again the drains pick the queue up, oldest first, as they
+// do for add-time searches.
 //
 // The order above holds inside a wanted round, which runs the two drains before its own selection. A request and
 // JobSearchNow drain Search now only, and a re-search after a failure may take a slot of the hour that frees while
@@ -236,14 +237,7 @@ func (a *Acquirer) DrainSearchNow(ctx context.Context) (int, error) {
 	a.drainMu.Lock()
 	defer a.drainMu.Unlock()
 	if !a.pol.RouterSettings().Enabled {
-		res, err := a.st.Writer().ExecContext(ctx, `DELETE FROM search_request`)
-		if err != nil {
-			return 0, err
-		}
-		if n, _ := res.RowsAffected(); n > 0 {
-			a.log.Info("search now requests dropped: router.enabled is false", "requests", n)
-		}
-		return 0, nil
+		return 0, nil // paused: the requests wait and start once downloads are on again
 	}
 	reqs, err := a.searchRequests(ctx)
 	if err != nil || len(reqs) == 0 {
@@ -354,11 +348,15 @@ func (a *Acquirer) budgetFreeAt(ctx context.Context, now time.Time) (at time.Tim
 }
 
 // searchNowPending counts the queued requests and says when the next drain is due: when the oldest counted search
-// of the hour leaves the window, and never sooner than a minute from now.
+// of the hour leaves the window, and never sooner than a minute from now. While router.enabled is false none is due
+// (nil): the requests wait for downloads to be on again.
 func (a *Acquirer) searchNowPending(ctx context.Context) (int, *time.Time, error) {
 	var n int
 	if err := a.st.Reader().QueryRowContext(ctx, `SELECT COUNT(*) FROM search_request`).Scan(&n); err != nil || n == 0 {
 		return 0, nil, err
+	}
+	if !a.pol.RouterSettings().Enabled {
+		return n, nil, nil
 	}
 	now := a.now()
 	at, ok, err := a.budgetFreeAt(ctx, now)
@@ -375,9 +373,11 @@ func (a *Acquirer) searchNowPending(ctx context.Context) (int, *time.Time, error
 // ScheduleSearchNow queues the next drain while requests exist (after a request, after a drain that left some, and at
 // start, so a queue survives a restart). The job's key carries its run time: an enqueue is a no-op while a job with
 // the same key is queued or running, so a handler queueing a constant key from inside its own run would end the chain.
+// While router.enabled is false it queues nothing: the chain ends, and the serve worker that schedules at start runs
+// again when the switch is turned back on.
 func (a *Acquirer) ScheduleSearchNow(ctx context.Context) error {
 	n, at, err := a.searchNowPending(ctx)
-	if err != nil || n == 0 {
+	if err != nil || n == 0 || at == nil {
 		return err
 	}
 	_, _, err = a.q.Enqueue(ctx, JobSearchNow, struct{}{}, jobs.EnqueueOptions{RunAt: *at,

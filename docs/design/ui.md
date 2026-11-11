@@ -533,7 +533,8 @@ sets both.
 (listing both effects when turning on). When the two differ it reads **Pause: Custom** and links to the one that is
 off, keeping the **New downloads off** signal beside it when that is new downloads; it toggles nothing then. When
 settings are read-only or a switch is forced off by the environment, Pause is hidden and the top-bar signal shows as
-before.
+before. Queued searches (Search now, add-time) wait while paused and start on resume; downloads already sent keep
+going. The Wanted page's queue bar says the queue waits instead of giving a next time.
 
 **Library control.** Each row on Settings › Libraries has a **Watch only** / **Live** select beside the library's
 state in words, from the running `grab_state` ("Watch only", "Live", "Live, downloads off", "Live, paused", "Live,
