@@ -152,7 +152,7 @@ password. If you lose the password, run `docker compose exec theatarr theatarr a
 `data/initial-admin-password`, and an install from such a version whose password was never used keeps it there.
 
 On a fresh install, creating the account opens **Setup** (`/admin/setup`): add a debrid provider and an indexer,
-set the debrid mount and Plex, create a first library (downloading at once, or in shadow to look first), and run the
+set the debrid mount and Plex, create a first library (downloading at once, or Watch only to look first), and run the
 preflight. The full walkthrough, with what each
 compose volume is for, is [docs/quickstart.md](docs/quickstart.md).
 
