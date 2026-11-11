@@ -5,6 +5,8 @@ import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { ChangedMark, Field, SecretField, SELECT_CLASS } from "./parts";
 import { NotifyTestButton } from "./notify-test";
+// A number weight keeps a typed lone "-" (a plain number input set it to 0 at once), so a negative can be typed.
+import { NumberInput } from "@/pages/admin/settings/quality/fields";
 const recordLabel = (f: SchemaField) => f.label || ({ url: "Service URL", budget: "Request budget", pacing: "Add limits", cooldown: "Pause after a refusal", min_gap: "Minimum request gap", stalled_after: "Stalled add timeout", backoff_max: "Maximum retry delay" }[f.name] ?? f.name.replaceAll("_", " ").replace(/^./, c => c.toUpperCase()));
 const recordHelp = (f: SchemaField) => f.name === "stalled_after" ? "Wait before a stalled add is given up." : f.help || `Set ${recordLabel(f).toLowerCase()} for this service.`;
 const PLACEHOLDER: Record<string, string> = { list: "a, b, c", map: "name=10, other=-5", string_map: "name=value, other=value", duration: "5m", integer: "0" };
@@ -164,7 +166,7 @@ export function FieldInput(p: FieldInputProps) {
     }
     case "map": case "string_map": {
       const entries = objectValue(value);
-      control = <div className="grid gap-2">{Object.entries(entries).map(([key, v]) => <div key={key} className="flex gap-2"><Input aria-label={`${label} key ${key}`} defaultValue={key} disabled={disabled} onBlur={(e) => { const name = e.target.value; if (name !== key && !Object.hasOwn(entries, name)) onChange({ ...changeField(entries, key, undefined), [name]: v }); }} /><Input aria-label={`${label} value ${key}`} type={f.type === "map" ? "number" : "text"} value={String(v)} disabled={disabled} onChange={(e) => onChange({ ...entries, [key]: f.type === "map" ? Number(e.target.value) : e.target.value })} /><Button type="button" variant="ghost" disabled={disabled} onClick={() => onChange(changeField(entries, key, undefined))}>Remove {key}</Button></div>)}<Button type="button" variant="outline" disabled={disabled || Object.hasOwn(entries, "")} onClick={() => onChange({ ...entries, "": f.type === "map" ? 0 : "" })}>Add {label}</Button></div>; break;
+      control = <div className="grid gap-2">{Object.entries(entries).map(([key, v]) => <div key={key} className="flex gap-2"><Input aria-label={`${label} key ${key}`} defaultValue={key} disabled={disabled} onBlur={(e) => { const name = e.target.value; if (name !== key && !Object.hasOwn(entries, name)) onChange({ ...changeField(entries, key, undefined), [name]: v }); }} />{f.type === "map" ? <NumberInput aria-label={`${label} value ${key}`} value={String(v)} disabled={disabled} onChange={(n) => onChange({ ...entries, [key]: Number(n) })} /> : <Input aria-label={`${label} value ${key}`} value={String(v)} disabled={disabled} onChange={(e) => onChange({ ...entries, [key]: e.target.value })} />}<Button type="button" variant="ghost" disabled={disabled} onClick={() => onChange(changeField(entries, key, undefined))}>Remove {key}</Button></div>)}<Button type="button" variant="outline" disabled={disabled || Object.hasOwn(entries, "")} onClick={() => onChange({ ...entries, "": f.type === "map" ? 0 : "" })}>Add {label}</Button></div>; break;
     }
     default: control = input();
   }

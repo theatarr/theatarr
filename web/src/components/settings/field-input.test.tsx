@@ -60,6 +60,22 @@ describe("section field inputs", () => {
   if (type === "keyed") fireEvent.click(screen.getByText("main", { selector: "summary" }));
   fireEvent.click(screen.getByRole("button", { name: /^Remove/ })); expect(Object.keys(value().value)).toHaveLength(0);
  });
+ it("keeps a typed lone minus in a number map value, so a negative weight can be typed", () => {
+  render(<Harness field={field("map")} initial={{ best: 5 }} />);
+  const input = screen.getByLabelText("Option value best") as HTMLInputElement;
+  // A browser reports "" while a number input holds only "-": the input is not rewritten and nothing is saved yet.
+  fireEvent.change(input, { target: { value: "" } });
+  expect(input.value).toBe("");
+  expect(value().value).toEqual({ best: 5 });
+  fireEvent.change(input, { target: { value: "-100" } });
+  expect(value().value).toEqual({ best: -100 });
+  fireEvent.change(input, { target: { value: "2.5" } });
+  expect(value().value).toEqual({ best: 2.5 });
+  // Left blank, it is 0, as before.
+  fireEvent.change(input, { target: { value: "" } });
+  fireEvent.blur(input);
+  expect(value().value).toEqual({ best: 0 });
+ });
  it("edits nested objects preserving unknown children", () => {
   render(<Harness field={field("object", { fields: [{ name: "name", type: "string", help: "Name" }] })} initial={{ unknown: 7 }} />);
   fireEvent.change(screen.getByLabelText("name"), { target: { value: "new" } }); expect(value().value).toEqual({ unknown: 7, name: "new" });
