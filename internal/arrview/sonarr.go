@@ -579,8 +579,13 @@ func (s *Service) seriesLookup(w http.ResponseWriter, r *request) {
 		// has its own time budget, and when it fails the catalog's matches are the answer.
 		octx, ocancel := context.WithTimeout(r.Context(), 5*time.Second)
 		defer ocancel()
-		for i, b := range s.outsideSeries(octx, r.v, val, seen, lookupLimit-len(out)) {
-			sr, err := hydrate(octx, b, i < outsideHydrate)
+		asked := 0 // uncatalogued hits looked up for their details
+		for _, b := range s.outsideSeries(octx, r.v, val, seen, lookupLimit-len(out)) {
+			details := b.id == 0 && asked < outsideHydrate
+			if details {
+				asked++
+			}
+			sr, err := hydrate(octx, b, details)
 			if err != nil {
 				s.log.Warn("series search failed", "view", r.v.Key, "err", err)
 				break
@@ -591,9 +596,9 @@ func (s *Service) seriesLookup(w http.ResponseWriter, r *request) {
 	writeJSON(w, http.StatusOK, out)
 }
 
-// outsideHydrate is how many of TVDB's name-search hits a series lookup asks TVDB the details (seasons) of, in
-// TVDB's order: one request each, one after another, in the search's shared time budget. The rest are the search
-// result alone.
+// outsideHydrate is how many of TVDB's name-search hits the catalog lacks a series lookup asks TVDB the details
+// (seasons) of, in TVDB's order: one request each, one after another, in the search's shared time budget. The rest
+// are the search result alone.
 const outsideHydrate = 5
 
 // outsideSeries is TVDB's name search for a series lookup: up to limit series not already listed (seen holds the

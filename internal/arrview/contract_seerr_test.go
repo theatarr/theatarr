@@ -323,3 +323,23 @@ func TestSeriesLookupNameHydratesFirstHits(t *testing.T) {
 		}
 	}
 }
+
+// A hit the catalog holds (here under another name) does not use up the details lookups: the five uncatalogued hits
+// after it are all looked up.
+func TestSeriesLookupNameHydrateSkipsHeld(t *testing.T) {
+	t.Parallel()
+	e := newEnv(t)
+	f := &seerrTVDB{t: t, many: true}
+	seerrMetadata(t, e, f)
+	e.exec(`UPDATE title SET tvdb_id = 900101 WHERE id = 10`)
+	var out []seriesResource
+	e.call("GET", "/sonarr/api/v3/series/lookup?term=Many", nil, 200, &out)
+	if len(out) != 8 || out[0].ID != IDBase+10 || f.extended != outsideHydrate {
+		t.Fatalf("lookup: %d results, first %d, %d detail requests", len(out), out[0].ID, f.extended)
+	}
+	for i, sr := range out[1:] {
+		if hydrated := len(sr.Seasons) > 0; hydrated != (i < outsideHydrate) {
+			t.Errorf("hit %d (%d): seasons %v", i+1, sr.TvdbID, sr.Seasons)
+		}
+	}
+}
