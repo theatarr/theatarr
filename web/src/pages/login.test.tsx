@@ -71,6 +71,28 @@ it("keeps the message readable when the install was claimed meanwhile and the si
   expect(screen.getByRole("alert").textContent).toBe("This install already has an account. Sign in instead.");
 });
 
+it("signs in to the page asked for, not /admin, after the install was claimed meanwhile", async () => {
+  const user = userEvent.setup();
+  let claimed = false;
+  let signedIn = false;
+  mockFetch([
+    { method: "GET", path: "/auth/me", reply: () => signedIn ? { username: "member", kind: "session", permissions: ["browse"], csrf_token: "c" } : json({ error: "authentication required" }, 401) },
+    { method: "GET", path: "/auth/first-account", reply: () => ({ needs_account: !claimed, password_pending: false }) }, noPlex,
+    { method: "POST", path: "/auth/first-account", reply: () => { claimed = true; return json({ error: "this install already has an account; sign in instead" }, 409); } },
+    { method: "POST", path: "/auth/login", reply: () => { signedIn = true; return { username: "member", csrf_token: "c" }; } },
+  ]);
+  renderLogin();
+  await user.type(await screen.findByLabelText("Password"), "a long enough password");
+  await user.type(screen.getByLabelText("Confirm password"), "a long enough password");
+  await user.click(screen.getByRole("button", { name: "Create account" }));
+  expect(await screen.findByRole("heading", { name: "Sign in" })).toBeTruthy();
+  await user.type(screen.getByLabelText("Username"), "member");
+  await user.type(screen.getByLabelText("Password"), "a long enough password");
+  await user.click(screen.getByRole("button", { name: "Sign in" }));
+  expect(await screen.findByText("Home page")).toBeTruthy();
+  expect(screen.queryByText("Admin page")).toBeNull();
+});
+
 it("shows the normal sign-in page once an account exists, without the password hint", async () => {
   mockFetch([signedOut, status(false), noPlex]);
   renderLogin();

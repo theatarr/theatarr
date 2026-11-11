@@ -45,9 +45,10 @@ export function Login() {
   const showLocal = !plex || localOpen;
 
   // The first account, just created here, goes to /admin unless a page was asked for: AdminHome leads a fresh install
-  // to Setup instead of the empty Home.
+  // to Setup instead of the empty Home. After a 409 (the install was claimed meanwhile) it is a normal sign-in again.
   const [creating, setCreating] = useState(false);
-  if (first.data?.needs_account && !creating) setCreating(true);
+  const [taken, setTaken] = useState(false);
+  if (first.data?.needs_account && !creating && !taken) setCreating(true);
   const to = creating && next === "/" ? "/admin" : next;
   const go = () => {
     if (SERVER_PAGES.some((p) => to.startsWith(p))) window.location.assign(to);
@@ -94,7 +95,7 @@ export function Login() {
   // A new install with no account: create the admin first. Until the status is in, nothing (an older server, or an
   // error, gets the sign-in form).
   if (first.isPending) return null;
-  if (first.data?.needs_account) return <CreateAdmin onDone={go} onTaken={setError} />;
+  if (first.data?.needs_account) return <CreateAdmin onDone={go} onTaken={(message) => { setError(message); setTaken(true); setCreating(false); }} />;
 
   return (
     <div className="grid min-h-dvh place-items-center px-4 py-10">
