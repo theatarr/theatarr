@@ -5,6 +5,7 @@ import (
 	"context"
 	"database/sql"
 	"errors"
+	"fmt"
 	"io"
 	"io/fs"
 	"log/slog"
@@ -520,6 +521,54 @@ func TestProviderContinuityProtectsActiveDownloads(t *testing.T) {
 				t.Fatalf("empty probe hash was treated as not found: %v", err)
 			}
 		})
+	}
+	// With orphan_active_downloads the owner already accepted failing them: a download the new account could not be
+	// checked for, and more than the probe limit, no longer refuse the save; they are failed as the unseen ones are.
+	orphanCtx := settings.WithOrphanActiveDownloads(ctx, true)
+	rollback := errors.New("rollback")
+	failedOnCommit := func(c *providerContinuity) int {
+		t.Helper()
+		var n int
+		err := db.WriteTx(ctx, func(tx *sql.Tx) error {
+			if err := (&serveRuntime{Continuity: c}).CommitSettings(ctx, tx); err != nil {
+				return err
+			}
+			if err := tx.QueryRowContext(ctx, `SELECT COUNT(*) FROM download WHERE provider = 'rd' AND state = 'failed'`).Scan(&n); err != nil {
+				return err
+			}
+			return rollback
+		})
+		if !errors.Is(err, rollback) {
+			t.Fatalf("commit: %v", err)
+		}
+		return n
+	}
+	transient := continuityProbe{probe: func(context.Context, string) (*provider.Torrent, error) { return nil, errors.New("HTTP 403") }}
+	orphaned, err := validateProviderContinuity(orphanCtx, db, candidate, previous, keys, map[string]provider.Provider{"rd": transient})
+	if err != nil || len(orphaned.missing["rd"]) != 1 {
+		t.Fatalf("uncertain with orphan: %+v %v", orphaned, err)
+	}
+	if n := failedOnCommit(orphaned); n != 1 {
+		t.Fatalf("uncertain with orphan: %d failed on commit", n)
+	}
+	for i := 3; i <= 102; i++ {
+		if _, err := db.Writer().Exec(`INSERT INTO download (id,title_id,version_id,version_key,info_hash,release_title,indexer,provider,provider_torrent_id,state,created_at,updated_at)
+			VALUES (?,1,1,'movie-web',?,'Movie','dmm','rd',?,'downloading',0,0)`, i, fmt.Sprintf("%040x", i), fmt.Sprintf("rd-%d", i)); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if _, err := validateProviderContinuity(ctx, db, candidate, previous, keys, clients); err == nil || !strings.Contains(err.Error(), "probe limit") {
+		t.Fatalf("over the probe limit without orphan: %v", err)
+	}
+	over, err := validateProviderContinuity(orphanCtx, db, candidate, previous, keys, clients)
+	if err != nil || len(over.probed["rd"]) != 1 || len(over.missing["rd"]) != 100 {
+		t.Fatalf("over the probe limit with orphan: probed %d missing %d %v", len(over.probed["rd"]), len(over.missing["rd"]), err)
+	}
+	if n := failedOnCommit(over); n != 100 {
+		t.Fatalf("over the probe limit with orphan: %d failed on commit", n)
+	}
+	if _, err := db.Writer().Exec("DELETE FROM download WHERE id > 2"); err != nil {
+		t.Fatal(err)
 	}
 	continuity, err := validateProviderContinuity(ctx, db, candidate, previous, keys, clients)
 	if err != nil || len(continuity.probed["rd"]) != 1 {
