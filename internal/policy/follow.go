@@ -98,7 +98,7 @@ func (p *Policy) validateFollow(e *Errors) {
 			// The followed version's roots are its arr's: Theatarr only reads them (settings/root.go holds the same rule
 			// for DB settings).
 			e.add(fmt.Sprintf("versions[%s].mode", v.Follows), "%q is followed by %s: its roots are its arr's and stay "+
-				"read-only; the followed library must stay shadow", v.Follows, k)
+				"read-only; the followed library must stay Watch only", v.Follows, k)
 		}
 		if v.Kind != f.Kind {
 			e.add(path, "%q is a %s library and this one a %s library", v.Follows, f.Kind, v.Kind)

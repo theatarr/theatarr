@@ -88,7 +88,7 @@ func TestFollowedShadowCutover(t *testing.T) {
 		t.Fatal(err)
 	}
 	after.Versions[o.Version].Mode = policy.ModeActive
-	if err := after.Validate(); err == nil || !strings.Contains(err.Error(), "must stay shadow") {
+	if err := after.Validate(); err == nil || !strings.Contains(err.Error(), "must stay Watch only") {
 		t.Fatalf("activation guard lost: %v", err)
 	}
 	want(t, r, SecPolicy, "library root", Info, "read-only by design: followed by movie-remux-theatarr")
