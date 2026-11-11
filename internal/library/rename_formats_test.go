@@ -124,3 +124,61 @@ func TestRenamePreviewAfterImportWithoutStoredFormats(t *testing.T) {
 		t.Fatalf("rename right after import proposes %+v, want none", p.Files)
 	}
 }
+
+// adoptForRename adopts the arr's movie file at name into movie-theatarr and returns the adopted link's path.
+func adoptForRename(t *testing.T, e *parallelEnv, name string) string {
+	t.Helper()
+	e.release(movieRelease, map[string]float64{"movie.mkv": 7000})
+	e.arrFile(1, "radarr", 10, 1, filepath.Join(e.movies, "Amelie The Movie (2001)", name), movieRelease+"/movie.mkv",
+		"Remux-2160p")
+	if rep, err := e.lib.Adopt(e.ctx, AdoptOptions{Version: "movie-theatarr"}); err != nil || rep.Linked != 1 {
+		t.Fatalf("adopt %+v %v", rep, err)
+	}
+	return e.one(`SELECT l.path FROM link l JOIN link_version lv ON lv.link_id = l.id WHERE lv.version_id = 11`)
+}
+
+// An adopted link is named with the custom formats the arr's file name carries; its stored metadata keeps none, so
+// the rename preview takes them from the arr's file name again and proposes nothing.
+func TestRenamePreviewKeepsAdoptedFormatsFromName(t *testing.T) {
+	t.Parallel()
+	e := newParallelEnv(t, true)
+	e.pol.Versions["movie-remux"].Naming.File = "{Movie CleanTitle} {(Release Year)} {[Custom Formats]}{[Quality Full]}"
+	e.lib.matched = onlyHDRWhenRenaming
+	p := adoptForRename(t, e, "Amelie The Movie (2001) [IMAX HDR][Remux-2160p].mkv")
+	if !strings.Contains(filepath.Base(p), "[IMAX HDR][Remux-2160p]") {
+		t.Fatalf("adopt named it %s", p)
+	}
+	rp, err := e.lib.PreviewRename(e.ctx, 1, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(rp.Files) != 0 {
+		t.Fatalf("rename of an adopted link proposes %+v, want none", rp.Files)
+	}
+}
+
+// An adopted link named with the formats decided from the arr's release title: the rename preview decides them the
+// same way (from the followed version), so it proposes nothing.
+func TestRenamePreviewKeepsAdoptedFormatsDecided(t *testing.T) {
+	t.Parallel()
+	e := newParallelEnv(t, true)
+	e.pol.Versions["movie-remux"].Naming.File = "{Movie CleanTitle} {(Release Year)} {[Custom Formats]}"
+	e.lib.matched = onlyHDRWhenRenaming
+	e.lib.formats = func(_ context.Context, version string, _ int64, title string) []string {
+		if version == "movie-remux" && title == "movie" {
+			return []string{"IMAX"}
+		}
+		return nil
+	}
+	p := adoptForRename(t, e, "Amelie.mkv")
+	if !strings.Contains(filepath.Base(p), "[IMAX]") {
+		t.Fatalf("adopt named it %s", p)
+	}
+	rp, err := e.lib.PreviewRename(e.ctx, 1, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(rp.Files) != 0 {
+		t.Fatalf("rename of an adopted link proposes %+v, want none", rp.Files)
+	}
+}

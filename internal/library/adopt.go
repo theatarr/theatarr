@@ -498,24 +498,12 @@ func (l *Library) adoptPath(ctx context.Context, vp *policy.VersionPolicy, vn *V
 		folder = filepath.Base(filepath.Clean(f.arrFolder))
 	}
 	q := naming.Quality{Title: vn.QualityTitle(f.quality), Version: max(f.rev, 1)}
-	proper := ""
-	if f.rev > 1 {
-		proper = " Proper"
-		if f.stype == "anime" {
-			proper = " v" + strconv.Itoa(f.rev)
-		}
+	ext := path.Ext(f.path)
+	title := f.scene
+	if title == "" {
+		title = f.release
 	}
-	base, ext := path.Base(f.path), path.Ext(f.path)
-	cfs := cfFromName(base, q.Title+proper)
-	if cfs == nil && l.formats != nil {
-		title := f.scene
-		if title == "" {
-			title = f.release
-		}
-		if title != "" {
-			cfs = l.formats(ctx, vp.Follows, f.titleID, title)
-		}
-	}
+	cfs := l.adoptFormats(ctx, vp.Follows, f.titleID, path.Base(f.path), q.Title+properSuffix(f.rev, f.stype), title)
 	media := mediaInfoFromAPI(f.mi, f.scene, f.orig, f.rel)
 	if vp.Kind == policy.KindMovie {
 		m := &naming.Movie{Title: f.titleName, Year: f.year, ImdbID: f.imdb, TmdbID: f.tmdb}
@@ -556,6 +544,27 @@ func (l *Library) adoptPath(ctx context.Context, vp *policy.VersionPolicy, vn *V
 		return "", fmt.Errorf("file name %q holds a path separator", name)
 	}
 	return filepath.Join(seasonPath, name), nil
+}
+
+// adoptFormats gives an adopted file's {Custom Formats} names: the arr's own, from its file name, else those decided
+// from its release title for the followed version. A rename of the adopted link takes them the same way.
+func (l *Library) adoptFormats(ctx context.Context, follows string, titleID int64, base, qualityFull, title string) []string {
+	cfs := cfFromName(base, qualityFull)
+	if cfs == nil && l.formats != nil && title != "" {
+		cfs = l.formats(ctx, follows, titleID, title)
+	}
+	return cfs
+}
+
+// properSuffix is what the arr appends to {Quality Full} for a revision: " Proper", or " v<n>" for anime.
+func properSuffix(rev int, stype string) string {
+	if rev <= 1 {
+		return ""
+	}
+	if stype == "anime" {
+		return " v" + strconv.Itoa(rev)
+	}
+	return " Proper"
 }
 
 // importedRowAt is the id of the link row at path an import made (download_id set), 0 for none.

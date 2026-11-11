@@ -4,7 +4,9 @@ import (
 	"context"
 	"database/sql"
 	"errors"
+	"path"
 	"path/filepath"
+	"strings"
 
 	"github.com/theatarr/theatarr/internal/decide"
 	"github.com/theatarr/theatarr/internal/library/probe"
@@ -124,6 +126,11 @@ func (l *Library) previewRename(ctx context.Context, titleID int64, season *int,
 		}
 		var path string
 		formats := l.storedRenameFormats(ctx, key, facts)
+		if len(facts.Formats) == 0 {
+			if cfs, ok := l.adoptedRenameFormats(ctx, linkID, &v, vn, facts); ok {
+				formats = cfs
+			}
+		}
 		if kind == "movie" {
 			path, err = l.nameMovie(ctx, &v, vn, root, facts.RelativePath, factsToFileFacts(facts), p, formats)
 		} else {
@@ -232,4 +239,28 @@ func (l *Library) storedRenameFormats(ctx context.Context, version string, facts
 		return l.matched(ctx, version, names)
 	}
 	return names
+}
+
+// adoptedRenameFormats gives the {Custom Formats} names of a link adopt made (adopted_from set, no download), whose
+// stored metadata keeps no formats: as adopt named it (adoptFormats), from the arr's file name or the release title.
+// ok is false for any other link.
+func (l *Library) adoptedRenameFormats(ctx context.Context, linkID int64, v *importVersion, vn *VersionNaming,
+	facts decide.ExistingFile) ([]string, bool) {
+	var from string
+	err := l.st.Reader().QueryRowContext(ctx, `SELECT adopted_from FROM link WHERE id = ? AND download_id IS NULL
+		AND adopted_from IS NOT NULL`, linkID).Scan(&from)
+	if err != nil {
+		return nil, false
+	}
+	// "<instance> <arr path>"
+	f := strings.SplitN(from, " ", 2)
+	if len(f) != 2 {
+		return nil, false
+	}
+	follows := ""
+	if vp := l.pol.Versions[v.Key]; vp != nil {
+		follows = vp.Follows
+	}
+	q := vn.QualityTitle(facts.Quality) + properSuffix(facts.Revision, v.Title.SeriesType)
+	return l.adoptFormats(ctx, follows, v.Title.ID, path.Base(f[1]), q, facts.SceneName), true
 }
