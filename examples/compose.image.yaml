@@ -2,10 +2,10 @@
 #
 # Each release publishes an image (linux/amd64 and linux/arm64) to ghcr.io/theatarr/theatarr; the repository's Releases page,
 # https://github.com/theatarr/theatarr/releases, lists the versions. The image tag is the version without the
-# leading v: release v0.1.5 is the image 0.1.5. compose.yaml beside this file builds the image from source instead.
+# leading v: release v0.1.6 is the image 0.1.6. compose.yaml beside this file builds the image from source instead.
 #
 #   cp examples/compose.image.yaml compose.yaml    # any directory; no checkout of the repository is needed
-#   echo THEATARR_VERSION=0.1.5 > .env             # a released version; every docker compose command reads it
+#   echo THEATARR_VERSION=0.1.6 > .env             # a released version; every docker compose command reads it
 #   mkdir -p data && sudo chown 65532:65532 data
 #   docker compose up -d
 #   # open http://<host>:7700 and create your admin account

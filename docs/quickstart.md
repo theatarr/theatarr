@@ -17,11 +17,11 @@ Pull the released image with [`examples/compose.image.yaml`](../examples/compose
 linux/amd64 and linux/arm64 to `ghcr.io/theatarr/theatarr`, and the
 [Releases page](https://github.com/theatarr/theatarr/releases) lists the versions. The arm64 image is
 cross-built and started once under emulation in CI; it is untested on real hardware. The image tag is the version
-without the leading `v`: release `v0.1.5` is the image `0.1.5`. Put the version in a `.env` file beside
+without the leading `v`: release `v0.1.6` is the image `0.1.6`. Put the version in a `.env` file beside
 `compose.yaml`, where every `docker compose` command reads it:
 
 ```sh
-echo THEATARR_VERSION=0.1.5 > .env
+echo THEATARR_VERSION=0.1.6 > .env
 ```
 
 ```yaml
