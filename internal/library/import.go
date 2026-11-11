@@ -44,6 +44,7 @@ type Plan struct {
 	Refused    string            `json:"refused,omitempty"` // why the gate made it a dry run
 	Naming     string            `json:"naming,omitempty"`
 	Probes     map[string]any    `json:"-"`
+	seaDexVeto map[string]string // files markVeto marked (upgrade.go)
 }
 
 // PlannedFile is a video file of the release.
@@ -603,6 +604,10 @@ func (l *Library) importDownload(ctx context.Context, d *importDownload, dryRun 
 			return l.reject(ctx, d, plan, dryRun, reason)
 		}
 		return l.holdForReview(ctx, d, plan, dryRun, reason)
+	}
+	if why := holdSeaDexVeto(plan); why != "" {
+		plan.Links = nil // nothing is linked or moved aside
+		return l.holdForReview(ctx, d, plan, dryRun, why)
 	}
 	if dryRun {
 		return plan, nil
@@ -1318,6 +1323,9 @@ func (l *Library) planSeries(ctx context.Context, d *importDownload, vn *Version
 		plan.Links = append(plan.Links, lk)
 	}
 	planSeriesReplacements(plan, existing)
+	if up != nil {
+		plan.seaDexVeto = up.vetoed
+	}
 	dead, err := deadFiles(ctx, l.st.Reader(), v.VersionID, v.Title.ID)
 	if err != nil {
 		return err

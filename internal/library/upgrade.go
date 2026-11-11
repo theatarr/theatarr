@@ -130,6 +130,10 @@ type upgradeCheck struct {
 	byEp    map[int64]heldFile // series: each episode's current file
 	movie   *heldFile
 	targets map[int64]string // active link id -> target
+	// partly says whether a series file's own SeaDex entry covers some but not all of its two or more episodes
+	// (prefer on): the release's standing is then not this file's.
+	partly func(entry int, episodes []int64) bool
+	vetoed map[string]string // file -> why it is not an upgrade without the partly covering entry's standing
 }
 
 type heldFile struct {
@@ -181,6 +185,11 @@ func (l *Library) newUpgradeCheck(ctx context.Context, d *importDownload, existi
 	if err != nil {
 		return nil, err
 	}
+	if v.Policy.PreferSeaDex {
+		u.partly = func(entry int, episodes []int64) bool {
+			return decide.SeaDexEntryPartlyCovers(ctx, title, entry, episodes)
+		}
+	}
 	u.byEp = map[int64]heldFile{}
 	for _, e := range eps {
 		if e.File != nil {
@@ -230,5 +239,45 @@ func (u *upgradeCheck) check(episodes []int64, target, rel string, size int64, f
 			return why, nil
 		}
 	}
-	return "", nil
+	return "", u.markVeto(held, episodes, target, rel, &nf)
+}
+
+// markVeto records rel in u.vetoed when the file, accepted above, holds two or more episodes of which its release's
+// SeaDex entry covers only some, and without that standing it does not upgrade a held file of another torrent. The
+// check's answer is unchanged; the import holds a plan that would link a marked file (holdSeaDexVeto).
+func (u *upgradeCheck) markVeto(held []heldFile, episodes []int64, target, rel string, nf *decide.ExistingFile) error {
+	if u.partly == nil || !u.partly(nf.SeaDexEntry, episodes) {
+		return nil
+	}
+	scoped := *nf
+	scoped.SeaDexPreference, scoped.SeaDex = 0, format.SeaDexNone
+	for _, h := range held {
+		if h.id < 0 && u.targets[-h.id] == target || decide.SameTorrent(h.file, nf) {
+			continue
+		}
+		ok, why, err := u.engine.ImportUpgrade(u.title, u.version, &scoped, h.file)
+		if err != nil {
+			return err
+		}
+		if !ok {
+			if u.vetoed == nil {
+				u.vetoed = map[string]string{}
+			}
+			u.vetoed[rel] = why
+			return nil
+		}
+	}
+	return nil
+}
+
+// holdSeaDexVeto is why the final plan must not be applied: a file it would link was marked by markVeto. The whole
+// download is then held for review, so it ends as before or with nothing imported.
+func holdSeaDexVeto(plan *Plan) string {
+	for _, lk := range plan.Links {
+		if why, ok := plan.seaDexVeto[lk.File]; ok {
+			return fmt.Sprintf("%s: its SeaDex entry covers only part of its episodes, and it is not an upgrade without that standing (%s)",
+				lk.File, why)
+		}
+	}
+	return ""
 }

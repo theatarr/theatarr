@@ -640,6 +640,19 @@ func ResolveSeaDexFileEpisodes(ctx context.Context, title *Title, f *ExistingFil
 	*f = resolveSeaDex(ctx, f)
 }
 
+// SeaDexEntryPartlyCovers says whether entry, mapped to the operation's title, covers some but not all of the
+// title's episodes ids, for a file of two or more episodes in a prefer-on view. Without coverage data it is false.
+func SeaDexEntryPartlyCovers(ctx context.Context, title *Title, entry int, ids []int64) bool {
+	state := seaDexView(ctx)
+	if !state.configured || entry <= 0 || len(ids) < 2 {
+		return false
+	}
+	titleID, _ := ctx.Value(seaDexTitleContext{}).(int64)
+	m := state.cover[titleID][entry]
+	eps := seaDexEpisodesOf(title, ids)
+	return m != nil && len(eps) >= 2 && m.Covers(eps) && !m.CoversAll(eps)
+}
+
 // ResolveIncomingSeaDexFile resolves fresh incoming evidence for one verified file, never held rank: a series file takes standing only from entries covering all its verified episodes, where an explicit
 // release entry only breaks ties. A file without a usable identity (no hash, or no single identity) takes no standing but still the
 // alternatives of the entries covering it. Its episode scope and alternatives also drive the import-time cutoff
