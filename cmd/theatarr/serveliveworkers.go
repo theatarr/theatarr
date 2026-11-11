@@ -74,7 +74,8 @@ func (l serveLoops) workers() []serveWorker {
 		// The Wanted page's queued searches (acquire.JobSearchNow): a queue found at start gets its drain scheduled, so
 		// it survives a restart with the wanted loop off. After that each request and each drain schedules the next.
 		// While router.enabled is false (Pause) it is off and the queue waits; turning the switch back on starts it,
-		// which drains the add-time searches that waited and schedules the Search now drain (acquire.StartQueued).
+		// which drains the add-time searches and Search now requests that waited and schedules the job for what is left
+		// (acquire.StartQueued).
 		{name: "search-now", key: func(rt *serveRuntime) string {
 			if rt.Acquirer == nil || rt.Policy == nil || !rt.Policy.RouterSettings().Enabled {
 				return ""
