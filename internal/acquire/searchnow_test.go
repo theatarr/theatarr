@@ -275,6 +275,41 @@ func TestPausedDrainDropsIntentsOfInactiveLibraries(t *testing.T) {
 	}
 }
 
+// On resume with the wanted loop off, StartQueued (the serve worker's start) starts the add-time searches that waited
+// at once, then schedules the Search now drain: add-time first, under the one budget.
+func TestResumeStartsWaitingAddTimeSearchesWithTheLoopOff(t *testing.T) {
+	t.Parallel()
+	e := newEnv(t, false, loopOff(1))
+	e.accept = false
+	e.request(2, "movie", OnlyMissing, -1)
+	if err := e.a.EnqueueFollowSearch(e.ctx, []importarr.FollowSearchTarget{{TitleID: 1, VersionKey: "movie", All: true}}); err != nil {
+		t.Fatal(err)
+	}
+	if err := e.a.StartQueued(e.ctx); err != nil || e.count(`SELECT COUNT(*) FROM acquire_run`) != 0 || e.searchNowJobs() != 0 {
+		t.Fatalf("paused: %v, %d jobs", err, e.searchNowJobs())
+	}
+	e.pol.Router.Enabled = true
+	if err := e.a.StartQueued(e.ctx); err != nil {
+		t.Fatal(err)
+	}
+	if runs := e.count(`SELECT COUNT(*) FROM acquire_run WHERE title_id = 1 AND source = 'wanted'`); runs != 1 {
+		t.Fatalf("%d add-time runs", runs)
+	}
+	if n := e.searchNowJobs(); n != 1 {
+		t.Fatalf("%d drain jobs", n)
+	}
+	// The budget (1 an hour) went to the add-time search: the request waits for the next hour.
+	e.drain()
+	if got, left := e.searches(), e.count(`SELECT COUNT(*) FROM search_request`); len(got) != 1 || got[0].Title != "One" || left != 1 {
+		t.Fatalf("searches %+v, %d requests left", got, left)
+	}
+	e.advance(61 * time.Minute)
+	e.drain()
+	if got := e.searches(); len(got) != 2 || got[1].Title != "Two" {
+		t.Fatalf("next hour %+v", got)
+	}
+}
+
 // Asking again for a queued row keeps one request in its place; Cancel drops the queue and leaves started runs.
 func TestSearchNowDuplicateAndClear(t *testing.T) {
 	t.Parallel()

@@ -385,6 +385,16 @@ func (a *Acquirer) ScheduleSearchNow(ctx context.Context) error {
 	return err
 }
 
+// StartQueued drains what waited while router.enabled was false, in a wanted round's order: the add-time searches
+// first (DrainFollowSearches), then the Search now drain is scheduled. The serve worker calls it at start and when
+// the switch is turned back on, so a resume starts them with the wanted loop off too.
+func (a *Acquirer) StartQueued(ctx context.Context) error {
+	if _, err := a.DrainFollowSearches(ctx); err != nil {
+		return err
+	}
+	return a.ScheduleSearchNow(ctx)
+}
+
 // HandleSearchNow is JobSearchNow's body: drain, then schedule the next drain while requests remain.
 func (a *Acquirer) HandleSearchNow(ctx context.Context) error {
 	_, err := a.DrainSearchNow(ctx)
