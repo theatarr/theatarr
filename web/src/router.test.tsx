@@ -65,3 +65,26 @@ it.each(["/activity/journal/dl%3A4", "/wanted/manual-import", "/activity/journal
   expect(at()).toBe(path);
   expect(fetch.requests.every((r) => r.path === "/auth/me")).toBe(true);
 });
+
+// A new install: the root URL leads to Create your admin account, and creating it leads to Setup, not an empty Home.
+it("leads a new install from / through Create your admin account to Setup", async () => {
+  sessionStorage.clear();
+  let created = false;
+  const user = (await import("@testing-library/user-event")).default.setup();
+  mockFetch([
+    { method: "GET", path: "/auth/me", reply: () => created ? { kind: "session", id: 1, username: "admin", permissions: ADMIN, csrf_token: "t" } : { status: 401, body: { error: "authentication required" } } },
+    { method: "GET", path: "/auth/first-account", reply: () => ({ needs_account: !created, password_pending: false }) },
+    { method: "GET", path: "/auth/plex", reply: { enabled: false } },
+    { method: "POST", path: "/auth/first-account", reply: () => { created = true; return { username: "admin", csrf_token: "c" }; } },
+    { method: "GET", path: "/setup", reply: { first_run: true, settings_source: "db" } },
+  ]);
+  const router = createMemoryRouter(routes, { initialEntries: ["/"] });
+  const client = new QueryClient({ defaultOptions: { queries: { retry: false, gcTime: 0 } } });
+  render(<QueryClientProvider client={client}><RouterProvider router={router} /></QueryClientProvider>);
+  await user.type(await screen.findByLabelText("Password"), "a long enough password");
+  await user.type(screen.getByLabelText("Confirm password"), "a long enough password");
+  await user.click(screen.getByRole("button", { name: "Create account" }));
+  await waitFor(() => expect(router.state.location.pathname).toBe("/admin/setup"));
+  await new Promise((r) => setTimeout(r, 50));
+  expect(router.state.location.pathname).toBe("/admin/setup");
+});

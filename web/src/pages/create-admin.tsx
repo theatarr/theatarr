@@ -14,7 +14,7 @@ import { Label } from "@/components/ui/label";
 /** The server's minimum (auth.MinPasswordLen). */
 export const MIN_PASSWORD_LEN = 12;
 
-export function CreateAdmin({ onDone }: { onDone: () => void }) {
+export function CreateAdmin({ onDone, onTaken }: { onDone: () => void; onTaken: (message: string) => void }) {
   const create = useCreateFirstAdmin();
   const qc = useQueryClient();
   const [username, setUsername] = useState("admin");
@@ -37,8 +37,10 @@ export function CreateAdmin({ onDone }: { onDone: () => void }) {
     } catch (err) {
       setBusy(false);
       if (err instanceof ApiError && err.status === 409) {
-        setError("This install already has an account. Sign in instead.");
-        // The sign-in page takes over once the status says so.
+        // The sign-in page takes over once the status says so, and shows the message there.
+        const message = "This install already has an account. Sign in instead.";
+        setError(message);
+        onTaken(message);
         void qc.invalidateQueries({ queryKey: ["auth", "first-account"] });
       } else setError(err instanceof Error ? err.message : "Could not create the account.");
     }

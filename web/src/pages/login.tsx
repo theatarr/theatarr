@@ -44,9 +44,14 @@ export function Login() {
   const [localOpen, setLocalOpen] = useState(false);
   const showLocal = !plex || localOpen;
 
+  // The first account, just created here, goes to /admin unless a page was asked for: AdminHome leads a fresh install
+  // to Setup instead of the empty Home.
+  const [creating, setCreating] = useState(false);
+  if (first.data?.needs_account && !creating) setCreating(true);
+  const to = creating && next === "/" ? "/admin" : next;
   const go = () => {
-    if (SERVER_PAGES.some((p) => next.startsWith(p))) window.location.assign(next);
-    else navigate(next, { replace: true });
+    if (SERVER_PAGES.some((p) => to.startsWith(p))) window.location.assign(to);
+    else navigate(to, { replace: true });
   };
   const signedIn = me.data?.kind === "session";
   useEffect(() => {
@@ -89,7 +94,7 @@ export function Login() {
   // A new install with no account: create the admin first. Until the status is in, nothing (an older server, or an
   // error, gets the sign-in form).
   if (first.isPending) return null;
-  if (first.data?.needs_account) return <CreateAdmin onDone={go} />;
+  if (first.data?.needs_account) return <CreateAdmin onDone={go} onTaken={setError} />;
 
   return (
     <div className="grid min-h-dvh place-items-center px-4 py-10">

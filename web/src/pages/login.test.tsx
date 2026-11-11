@@ -11,7 +11,7 @@ const noPlex = { method: "GET", path: "/auth/plex", reply: { enabled: false } };
 const status = (needs: boolean, pending = false) => ({ method: "GET", path: "/auth/first-account", reply: { needs_account: needs, password_pending: pending } });
 
 function renderLogin() {
-  return renderPage(<Routes><Route path="/login" element={<Login />} /><Route path="/" element={<p>Home page</p>} /></Routes>, "/login");
+  return renderPage(<Routes><Route path="/login" element={<Login />} /><Route path="/" element={<p>Home page</p>} /><Route path="/admin" element={<p>Admin page</p>} /></Routes>, "/login");
 }
 
 it("shows Create your admin account on a new install, checks the form and lands signed in", async () => {
@@ -43,7 +43,8 @@ it("shows Create your admin account on a new install, checks the form and lands 
   await user.clear(screen.getByLabelText("Confirm password"));
   await user.type(screen.getByLabelText("Confirm password"), "a long enough password");
   await user.click(screen.getByRole("button", { name: "Create account" }));
-  expect(await screen.findByText("Home page")).toBeTruthy();
+  // On to /admin, where a fresh install is led to Setup (router.test.tsx), not the empty Home.
+  expect(await screen.findByText("Admin page")).toBeTruthy();
   expect(fetch.calls("POST", "/auth/first-account")[0].body).toEqual({ username: "admin", password: "a long enough password" });
 });
 
@@ -55,6 +56,19 @@ it("says so when the install was claimed meanwhile", async () => {
   await user.type(screen.getByLabelText("Confirm password"), "a long enough password");
   await user.click(screen.getByRole("button", { name: "Create account" }));
   expect((await screen.findByRole("alert")).textContent).toContain("already has an account");
+});
+
+it("keeps the message readable when the install was claimed meanwhile and the sign-in form takes over", async () => {
+  const user = userEvent.setup();
+  let claimed = false;
+  mockFetch([signedOut, { method: "GET", path: "/auth/first-account", reply: () => ({ needs_account: !claimed, password_pending: false }) }, noPlex,
+    { method: "POST", path: "/auth/first-account", reply: () => { claimed = true; return json({ error: "this install already has an account; sign in instead" }, 409); } }]);
+  renderLogin();
+  await user.type(await screen.findByLabelText("Password"), "a long enough password");
+  await user.type(screen.getByLabelText("Confirm password"), "a long enough password");
+  await user.click(screen.getByRole("button", { name: "Create account" }));
+  expect(await screen.findByRole("heading", { name: "Sign in" })).toBeTruthy();
+  expect(screen.getByRole("alert").textContent).toBe("This install already has an account. Sign in instead.");
 });
 
 it("shows the normal sign-in page once an account exists, without the password hint", async () => {
