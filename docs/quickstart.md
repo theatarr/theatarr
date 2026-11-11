@@ -94,9 +94,9 @@ default is `admin`). On 0.1.5 and older there is no create page: the first admin
 `data/initial-admin-password`. An install from such a version whose password was never used keeps it there; the
 sign-in page says so.
 
-After the first login an admin lands on **Home**, with a **Finish setting up Theatarr** card (the account step is
-already done when you created the account on that page). **Continue
-setup** opens **Setup** (`/admin/setup`), which walks through the steps below and ends with the preflight.
+Creating the account opens **Setup** (`/admin/setup`), which walks through the steps below and ends with the
+preflight. Until setup is finished, **Home** also shows a **Finish setting up Theatarr** card whose **Continue setup**
+leads back to it.
 
 ## 3. Follow Setup, then edit Settings forms
 
