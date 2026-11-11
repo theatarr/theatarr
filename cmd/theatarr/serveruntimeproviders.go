@@ -197,8 +197,8 @@ func validateProviderContinuity(ctx context.Context, st *store.Store, snap *sett
 		if adding > 0 {
 			return nil, continuityRefusal(key, fmt.Sprintf("%d add(s) in progress for provider %s; retry shortly", adding, key))
 		}
-		// With orphan_active_downloads the owner accepted failing them: no limit, and a download that could not be
-		// checked is failed with the ones the new account cannot see.
+		// With orphan_active_downloads the owner accepted failing the ones the new account cannot see: no limit. A
+		// download that could not be checked still refuses the save.
 		if len(active) > 100 && !c.orphan {
 			return nil, continuityRefusal(key, "account change: probe limit is 100 active download(s)")
 		}
@@ -215,20 +215,13 @@ func validateProviderContinuity(ctx context.Context, st *store.Store, snap *sett
 						torrent, probeErr = clients[key].Torrent(ctx, d.torrent)
 					}
 					mu.Lock()
-					unsure := func() {
-						if c.orphan {
-							missing[d.id] = d
-						} else {
-							uncertain++
-						}
-					}
 					switch {
 					case d.torrent == "" || clients[key] == nil || ctx.Err() != nil:
-						unsure()
+						uncertain++
 					case errors.Is(probeErr, provider.ErrNotFound):
 						missing[d.id] = d
 					case probeErr != nil || torrent == nil || indexer.NormalizeHash(torrent.Hash) == "":
-						unsure()
+						uncertain++
 					case indexer.NormalizeHash(torrent.Hash) != indexer.NormalizeHash(d.hash):
 						missing[d.id] = d
 					default:
