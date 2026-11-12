@@ -16,7 +16,7 @@ import { cn } from "@/lib/utils";
 
 export const AVAILABILITY = [["announced", "Announced"], ["inCinemas", "In cinemas"], ["released", "Released"]] as const;
 
-export const NO_LIBRARY = "None: only an active movie library that no other library follows can take a collection's movies";
+export const NO_LIBRARY = "None: only a Live movie library can take a collection's movies";
 
 export function AddCollectionDialog({ libraries, onClose, onAdded, onExisting }: {
   libraries: Record<string, string>;

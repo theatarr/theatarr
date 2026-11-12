@@ -236,7 +236,7 @@ function VersionForm({ data, state, oneStep, onDone, reload }: { data: VersionLi
 
   const config = (mode: "shadow" | "active", grab: boolean): VersionConfig => ({
     mode, grab, kind: draft.kind, anime: false, profile: preset ? draft.key : draft.profile, library: draft.library,
-    storage: "debrid", indexers: draft.indexers, providers: draft.providers, client: "", import: "symlink", upgrades: "auto", follows: "",
+    storage: "debrid", indexers: draft.indexers, providers: draft.providers, client: "", import: "symlink", upgrades: "auto",
   });
 
   // The one-step start: one request creates the preset's profile, the active library and turns the switches on. The

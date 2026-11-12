@@ -1,5 +1,5 @@
 // The write-enabling confirmation every settings editor shares (docs/design/settings.md): a save the server refuses with
-// a 422 listing its effects (a provider an active version can now use, a widened profile, a new follows, a reload
+// a 422 listing its effects (a provider an active version can now use, a widened profile, a library going Live, a reload
 // after a startup fallback) opens this dialog; confirming sends the same request again with the token the 422
 // carried. Cancelling leaves the draft unsaved. EffectsConfirmDialog is the risky-change confirmation: the
 // effects exactly as the server returns them, grouped by library, the libraries affected (other libraries named

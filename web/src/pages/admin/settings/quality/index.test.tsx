@@ -185,56 +185,14 @@ describe("quality editors", () => {
     vi.useRealTimers();
   });
 
-  it("copies the followed library's naming into a follower's draft, or explains when it cannot", async () => {
-    const followed: QualityRecord = { id: 1, key: "movie-remux", config: { folder: "{Movie Title} ({Release Year})", file: "{Movie Title} {[Quality Full]}", colon: "dash" } };
-    const follower: QualityRecord = { id: 2, key: "movie-remux-mm", config: { from_version: "movie-remux" } };
-    const arrNamed: QualityRecord = { id: 3, key: "tv", config: { from_arr: "sonarr" } };
-    const tvFollower: QualityRecord = { id: 4, key: "tv-mm", config: { from_version: "tv" } };
-    const fetch = mockFetch([
-      ...baseRoutes("naming", [followed, follower, arrNamed, tvFollower]),
-      { method: "POST", path: "/settings/naming/preview", reply: json({ folder: "f", file: "f.mkv" }) },
-      { method: "PUT", path: "/settings/naming/2", reply: json({ generation: 5 }) },
-    ]);
+  it("offers no copy notice and no naming-from-library field", async () => {
+    mockFetch([...baseRoutes("naming", [{ id: 2, key: "movie-remux-mm", config: { colon: "dash" } }]), { method: "POST", path: "/settings/naming/preview", reply: json({ folder: "f", file: "f.mkv" }) }]);
     const user = userEvent.setup();
     renderPage(<QualityPanel entity="naming" />);
-    await user.click(await screen.findByRole("button", { name: "Edit tv-mm" }));
-    expect(screen.getByTestId("copy-naming").textContent).toContain("tv takes its naming from the sonarr instance, so it cannot be copied here. Type the templates in by hand.");
-    expect(screen.queryByRole("button", { name: "Copy tv's naming" })).toBeNull();
-    await user.click(screen.getByRole("button", { name: "Cancel" }));
-
     await user.click(await screen.findByRole("button", { name: "Edit movie-remux-mm" }));
-    await user.click(screen.getByRole("button", { name: "Copy movie-remux's naming" }));
-    expect(screen.getByTestId("quality-announcer").textContent).toContain("Copied movie-remux's naming. Save to keep it.");
+    expect(screen.getByRole("textbox", { name: "Naming from arr" })).toBeTruthy();
+    expect(screen.queryByRole("textbox", { name: "Naming from library" })).toBeNull();
     expect(screen.queryByTestId("copy-naming")).toBeNull();
-    expect((screen.getByRole("textbox", { name: "File name" }) as HTMLInputElement).value).toBe("{Movie Title} {[Quality Full]}");
-    await user.click(screen.getByRole("button", { name: "Save" }));
-    await waitFor(() => expect(fetch.calls("PUT", "/settings/naming/2")).toHaveLength(1));
-    expect(fetch.calls("PUT", "/settings/naming/2")[0].body).toEqual({
-      generation: 4, key: "movie-remux-mm",
-      config: { from_version: "", from_arr: "", folder: "{Movie Title} ({Release Year})", file: "{Movie Title} {[Quality Full]}", colon: "dash" },
-    });
-  });
-
-  it("copies the built-in templates the followed library uses where its naming leaves them empty", async () => {
-    const followed: QualityRecord = { id: 1, key: "tv", config: { colon: "dash" } };
-    const follower: QualityRecord = { id: 2, key: "tv-mm", config: { from_version: "tv" } };
-    const tvDefaults = { folder: "{Series Title}", file: "{Series Title} - S{season:00}E{episode:00} - {Episode Title} {Quality Full}", season: "Season {season}", specials: "Specials", daily: "{Series Title} - {Air-Date} - {Episode Title} {Quality Full}", anime: "{Series Title} - S{season:00}E{episode:00} - {Episode Title} {Quality Full}" };
-    const fetch = mockFetch([
-      { method: "GET", path: "/settings", reply: overview() },
-      { method: "GET", path: "/settings/naming", reply: { ...list([followed, follower]), defaults: { tv: tvDefaults, "tv-mm": tvDefaults } } },
-      { method: "GET", path: "/settings/formats/schema", reply: implementations },
-      { method: "POST", path: "/settings/naming/preview", reply: json({ folder: "f", file: "f.mkv" }) },
-      { method: "PUT", path: "/settings/naming/2", reply: json({ generation: 5 }) },
-    ]);
-    const user = userEvent.setup();
-    renderPage(<QualityPanel entity="naming" />);
-    await user.click(await screen.findByRole("button", { name: "Edit tv-mm" }));
-    await user.click(screen.getByRole("button", { name: "Copy tv's naming" }));
-    await user.click(screen.getByRole("button", { name: "Save" }));
-    await waitFor(() => expect(fetch.calls("PUT", "/settings/naming/2")).toHaveLength(1));
-    expect(fetch.calls("PUT", "/settings/naming/2")[0].body).toEqual({
-      generation: 4, key: "tv-mm", config: { from_version: "", from_arr: "", colon: "dash", ...tvDefaults },
-    });
   });
 
   it("shows a naming preview refusal in the editor", async () => {

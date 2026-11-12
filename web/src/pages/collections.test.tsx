@@ -123,7 +123,7 @@ it("adds a collection unmonitored when no library can take its movies, and offer
   const dialog = within(screen.getByTestId("add-collection"));
   await user.type(dialog.getByLabelText("Search TMDb collections"), "predator");
   await user.click(await dialog.findByTestId("collection-hit-399"));
-  expect(dialog.getByText("only an active movie library", { exact: false })).toBeTruthy();
+  expect(dialog.getByText("only a Live movie library can take", { exact: false })).toBeTruthy();
   await user.click(dialog.getByRole("button", { name: "Add" }));
   await waitFor(() => expect(fetch.calls("POST", "/collections")[0]?.body).toMatchObject({ tmdb_id: 399, versions: [], monitored: false }));
   first.unmount();

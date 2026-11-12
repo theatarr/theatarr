@@ -312,7 +312,7 @@ describe("setup", () => {
       { method: "GET", path: "/setup", reply: { ...fresh, admin_password_generated: false, versions: 1, versions_with_roots: 1, missing: [] } },
       { method: "POST", path: "/preflight", reply: { at: "2026-10-29T10:00:00Z", ok: 1, warn: 0, fail: 1, items: [
         { area: "library", check: "mount", status: "ok", why: "/mnt/debrid answers" },
-        { area: "library", check: "root movies", status: "info", why: "read-only by design: followed by movies-theatarr" },
+        { area: "library", check: "root movies", status: "info", why: "read-only by design" },
         { area: "metadata", check: "tmdb", status: "fail", why: "metadata.sources.tmdb is not set", next: "Set metadata.sources.tmdb.api_key_env and the key" },
       ] } },
     ]);
@@ -329,7 +329,7 @@ describe("setup", () => {
   const shadowBody = {
     generation: 3, key: "movies", roots: ["/media/movies"],
     config: { mode: "shadow", grab: false, kind: "movie", anime: false, profile: "hd", library: "/media/movies", storage: "debrid",
-      indexers: ["feed"], providers: ["rd"], client: "", import: "symlink", upgrades: "auto", follows: "" },
+      indexers: ["feed"], providers: ["rd"], client: "", import: "symlink", upgrades: "auto" },
   };
   const startEffects = [
     { version: "movies", effect: "Library movies becomes Live and starts searching." },

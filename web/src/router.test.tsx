@@ -18,7 +18,7 @@ function open(path: string, permissions: string[]) {
   const fetch = mockFetch([
     { method: "GET", path: "/auth/me", reply: { kind: "session", id: 1, username: "someone", permissions, csrf_token: "t" } },
     { method: "GET", path: "/activity", reply: { state: "now", admin: true, total: 0, now: [] } },
-    { method: "GET", path: "/wanted", reply: { items: [], titles: {}, libraries: {}, total: 0, counts: {}, limit: 50, offset: 0, enabled: true, downloads_enabled: true, interval: "15m0s", per_hour: 20, again_after: "24h0m0s", missing: true, cutoff_unmet: "quality", searched_last_hour: 0, add_time_pending: 0 } },
+    { method: "GET", path: "/wanted", reply: { items: [], titles: {}, libraries: {}, total: 0, counts: {}, limit: 50, offset: 0, enabled: true, downloads_enabled: true, interval: "15m0s", per_hour: 20, again_after: "24h0m0s", missing: true, cutoff_unmet: "quality", searched_last_hour: 0 } },
     { method: "GET", path: "/status", reply: { versions: [] } },
     { method: "GET", path: "/policy", reply: { versions: [] } },
     { method: "GET", path: "/journal/dl%3A4", reply: { id: "dl:4", kind: "grab", summary: "Grabbed" } },

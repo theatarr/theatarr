@@ -86,7 +86,7 @@ function Multi({ label, choices, values, onChange }: { label: string; choices: s
 // versions"), else the first profile.
 function blank(data: VersionList, defaults: Record<string, string> = {}): VersionRecord {
   const profile = defaults.movie && Object.hasOwn(data.profiles, defaults.movie) ? defaults.movie : Object.keys(data.profiles)[0] ?? "";
-  return { id: 0, key: "", created_at: "", updated_at: "", roots: [], config: { mode: "shadow", kind: "movie", anime: false, profile, library: "", storage: "debrid", indexers: [], providers: [], client: data.clients[0] ?? "", import: "symlink", upgrades: "auto", follows: "" } };
+  return { id: 0, key: "", created_at: "", updated_at: "", roots: [], config: { mode: "shadow", kind: "movie", anime: false, profile, library: "", storage: "debrid", indexers: [], providers: [], client: data.clients[0] ?? "", import: "symlink", upgrades: "auto" } };
 }
 
 const GROUPS: Category[] = ["movie", "series", "anime_movie", "anime_series"];
@@ -99,26 +99,17 @@ function profileOrigin(p: ProfileSummary | undefined): string {
   return "our own profile";
 }
 
-/** The libraries that follow key (parallel libraries): a followed library stays Watch only, the server refuses Live. */
-const followersOf = (versions: readonly VersionRecord[], key: string) => versions.filter((v) => key && v.config.follows === key).map((v) => v.key);
-
-/** A library's Watch only / Live control. A mode it cannot express shows as text; a followed library offers Live
- * disabled, with the reason. */
-function ChoicePick({ mode, onChange, disabled, followedBy, label }: { mode: string; onChange: (choice: LibraryChoice) => void; disabled?: boolean; followedBy: string[]; label: string }) {
+/** A library's Watch only / Live control. A mode it cannot express shows as text. */
+function ChoicePick({ mode, onChange, disabled, label }: { mode: string; onChange: (choice: LibraryChoice) => void; disabled?: boolean; label: string }) {
   const choice = choiceOf(mode);
   if (!choice) return <span className="text-sm" data-testid="choice-readonly">{mode}</span>;
   return <select aria-label={label} className={SELECT_CLASS} value={choice} disabled={disabled} data-testid="library-choice" onChange={(event) => onChange(event.target.value as LibraryChoice)}>
     <option value="watch">{CHOICE_LABEL.watch}</option>
-    <option value="live" disabled={!!followedBy.length && choice !== "live"}>{CHOICE_LABEL.live}{followedBy.length && choice !== "live" ? " (not while followed)" : ""}</option>
+    <option value="live">{CHOICE_LABEL.live}</option>
   </select>;
 }
 
-/** Why a followed library stays Watch only, beside its control. */
-function FollowedNote({ followedBy }: { followedBy: string[] }) {
-  return followedBy.length ? <p className="text-xs text-muted-foreground [overflow-wrap:anywhere]" data-testid="followed-note">Stays Watch only: <span className="font-mono">{followedBy.join(", ")}</span> follows it, and a followed library's folders belong to its arr app.</p> : null;
-}
-
-function VersionGroup({ title, versions, all, switches, selected, readOnly, busy, onOpen, onChoose }: { title: string; versions: VersionRecord[]; all: VersionRecord[]; switches: VersionList["switches"]; selected?: string; readOnly: boolean; busy: boolean; onOpen: (record: VersionRecord) => void; onChoose: (record: VersionRecord, choice: LibraryChoice) => void }) {
+function VersionGroup({ title, versions, switches, selected, readOnly, busy, onOpen, onChoose }: { title: string; versions: VersionRecord[]; switches: VersionList["switches"]; selected?: string; readOnly: boolean; busy: boolean; onOpen: (record: VersionRecord) => void; onChoose: (record: VersionRecord, choice: LibraryChoice) => void }) {
   return <section className="space-y-2" aria-label={title}>
     <h2 className="text-base font-semibold">{title}</h2>
     <Card className="p-0">
@@ -138,9 +129,8 @@ function VersionGroup({ title, versions, all, switches, selected, readOnly, busy
           return <TableRow key={record.key} data-record={record.key} data-selected={selected === record.key ? "true" : undefined}>
             <TableCell className="align-top">
               <div className="flex flex-wrap items-center gap-1.5"><span className="font-mono text-[13px] [overflow-wrap:anywhere]">{record.key}</span></div>
-              <div className="mt-1 flex flex-wrap items-center gap-1.5" data-testid="library-state-row"><ChoicePick mode={c.mode} label={`State of ${record.key}`} disabled={readOnly || busy} followedBy={followersOf(all, record.key)} onChange={(choice) => onChoose(record, choice)} /><VersionStatus words beside={c.mode} settingsKey={record.key} canManage state={switches.versions.find((v) => v.key === record.key)?.grab_state ?? { mode: "off", grab: false, library_enabled: switches.library_enabled, router_enabled: switches.router_enabled, router_forced_off: switches.sources?.router === "forced off by environment" }} /></div>
-              <FollowedNote followedBy={c.mode === "shadow" ? followersOf(all, record.key) : []} />
-              <div className="text-xs text-muted-foreground">{c.anime === null ? "anime and regular" : ""}{c.follows ? `${c.anime === null ? " · " : ""}follows ${c.follows}` : ""}</div>
+              <div className="mt-1 flex flex-wrap items-center gap-1.5" data-testid="library-state-row"><ChoicePick mode={c.mode} label={`State of ${record.key}`} disabled={readOnly || busy} onChange={(choice) => onChoose(record, choice)} /><VersionStatus words beside={c.mode} settingsKey={record.key} canManage state={switches.versions.find((v) => v.key === record.key)?.grab_state ?? { mode: "off", grab: false, library_enabled: switches.library_enabled, router_enabled: switches.router_enabled, router_forced_off: switches.sources?.router === "forced off by environment" }} /></div>
+              <div className="text-xs text-muted-foreground">{c.anime === null ? "anime and regular" : ""}</div>
               <div className="mt-1.5 space-y-1.5 md:hidden">{where}{profile}</div>
               <div className="mt-1.5 lg:hidden">{sources}</div>
             </TableCell>
@@ -326,7 +316,7 @@ export function VersionsPage({ embedded = false }: { embedded?: boolean }) {
       <Button ref={addButton} onClick={() => open(undefined)} disabled={readOnly}>Add library</Button>
       {GROUPS.map((group) => {
         const list = data.versions.filter((record) => categoryOf(record.config.kind, record.config.anime) === group);
-        return list.length ? <VersionGroup key={group} title={CATEGORY_LABEL[group]} versions={list} all={data.versions} busy={busy} onChoose={choose} switches={data.switches} selected={session && !session.create ? session.record.key : undefined} readOnly={readOnly} onOpen={open} /> : null;
+        return list.length ? <VersionGroup key={group} title={CATEGORY_LABEL[group]} versions={list} busy={busy} onChoose={choose} switches={data.switches} selected={session && !session.create ? session.record.key : undefined} readOnly={readOnly} onOpen={open} /> : null;
       })}
       {session ? <Sheet label={session.create ? "New library" : `Edit library ${session.record.key}`} onClose={close} initialFocus={heading} returnFocus={() => (stopped.current ? addButton.current : undefined)}>
         <SheetLayout key={session.draftID} testid="version-form" headingRef={heading} onClose={close}
@@ -432,14 +422,13 @@ function VersionForm({ session, data, defaults, profiles, error, onChange }: { s
   const storage = withSaved(["debrid"], saved.config.storage, config.storage);
   const importMode = withSaved(["symlink"], saved.config.import, config.import);
   const rootsError = fieldMessage(error, (path) => path.startsWith(`library.versions[${record.key}].roots`));
-  const advancedError = rootsError ?? fieldError("storage") ?? fieldError("add_via") ?? fieldError("client") ?? fieldError("import") ?? fieldError("follows");
+  const advancedError = rootsError ?? fieldError("storage") ?? fieldError("add_via") ?? fieldError("client") ?? fieldError("import");
   // Advanced starts open when the library uses something in it: write roots other than the root, a download client
-  // for its grabs, a followed library, or a storage or import mode that is not the supported one. A refused field
+  // for its grabs, or a storage or import mode that is not the supported one. A refused field
   // inside keeps it open.
-  const [opened, setAdvanced] = useState(() => (!!record.roots?.length && !same(record.roots, [config.library])) || viaClient || !!config.follows || storage.options.length > 1 || importMode.options.length > 1 || (config.mode === "active" && !config.grab));
+  const [opened, setAdvanced] = useState(() => (!!record.roots?.length && !same(record.roots, [config.library])) || viaClient || storage.options.length > 1 || importMode.options.length > 1 || (config.mode === "active" && !config.grab));
   // The Watch only / Live control: changed when the mode changed. Live with downloads off is the tick under Advanced.
   const choiceChanged = config.mode !== saved.config.mode;
-  const followedBy = followersOf(data.versions, record.key);
   const advanced = opened || !!advancedError;
   // The TRaSH defaults of the library's kind (movies: Radarr's, series: Sonarr's), offered beside the stored profiles.
   const flavour = flavourOf(config.kind);
@@ -459,10 +448,9 @@ function VersionForm({ session, data, defaults, profiles, error, onChange }: { s
       <Field label="Key" help="Used by connected apps and in settings; fixed once the library exists." changed={record.key !== saved.key} onUndo={() => onChange({ ...record, key: saved.key })}><Input value={record.key} disabled={!session.create} onChange={(event) => onChange({ ...record, key: event.target.value })} /></Field>
       <div className="flex flex-col gap-1 text-sm" data-changed={choiceChanged || undefined}>
         <span>State</span>
-        <ChoicePick mode={config.mode} label="State" followedBy={followedBy} onChange={(choice) => onChange({ ...record, config: withChoice(config, choice, saved.config) })} />
+        <ChoicePick mode={config.mode} label="State" onChange={(choice) => onChange({ ...record, config: withChoice(config, choice, saved.config) })} />
         <p className="text-xs text-muted-foreground">{config.mode === "active" && !config.grab ? "Live, downloads off: see Don't download for this library under Advanced. " : ""}{CHOICE_HELP}</p>
         {fieldError("mode") ? <p role="alert" className="text-xs text-destructive">{fieldError("mode")}</p> : null}
-        <FollowedNote followedBy={followedBy} />
         {choiceChanged ? <ChangedMark name="State" onUndo={() => onChange({ ...record, config: { ...withGrab(config, saved.config.grab ?? false, saved.config), mode: saved.config.mode } })} /> : null}
       </div>
       <Field label="Kind" {...mark("kind")}><Pick value={config.kind} options={["movie", "series"]} onChange={(value) => recategorize({ ...config, kind: value as VersionConfig["kind"] })} /></Field>
@@ -478,7 +466,6 @@ function VersionForm({ session, data, defaults, profiles, error, onChange }: { s
           <Field label="Send grabs to" {...mark("add_via")} error={fieldError("add_via")}><Pick value={viaClient ? "client" : "providers"} options={["providers", "client"]} labels={{ providers: "Debrid providers", client: "Download client" }} onChange={(value) => update("add_via", value as VersionConfig["add_via"])} /></Field>
           <Field label={viaClient ? "Client (a decypharr client: it adds to its own debrid account)" : "Client (only when grabs go to a download client; debrid libraries need none)"} name="Client" {...mark("client")} error={fieldError("client")}><Pick value={config.client} options={["", ...data.clients]} onChange={(value) => update("client", value)} /></Field>
           {importMode.options.length > 1 ? <Field label="Import mode" {...mark("import")} error={fieldError("import")}><Pick value={config.import} {...importMode} onChange={(value) => update("import", value as VersionConfig["import"])} /></Field> : null}
-          <Field label="Follows" {...mark("follows")} error={fieldError("follows")}><Pick value={config.follows} options={["", ...data.versions.filter((version) => version.key !== record.key).map((version) => version.key)]} onChange={(value) => update("follows", value)} /></Field>
         </div> : null}
       </details>
     </Part>

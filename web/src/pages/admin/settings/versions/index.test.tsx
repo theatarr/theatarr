@@ -148,7 +148,7 @@ describe("Versions page", () => {
     expect(advanced.open).toBe(true);
     expect(screen.getByRole("textbox", { name: "Write roots" })).toBeTruthy();
     expect(screen.getByRole("combobox", { name: "Send grabs to" })).toBeTruthy();
-    expect(screen.getByRole("combobox", { name: "Follows" })).toBeTruthy();
+    expect(screen.queryByRole("combobox", { name: "Follows" })).toBeNull();
     expect(screen.queryByRole("combobox", { name: "Storage" })).toBeNull();
     expect(screen.queryByRole("combobox", { name: "Import mode" })).toBeNull();
     expectNamedControls();
@@ -156,9 +156,9 @@ describe("Versions page", () => {
     expect(advanced.open).toBe(false);
   });
 
-  it("opens Advanced for a library that follows another, sends its grabs to a client or has an extra write root", async () => {
+  it("opens Advanced for a library that sends its grabs to a client or has an extra write root", async () => {
     const user = userEvent.setup();
-    for (const [config, roots] of [[{ follows: "movie-remux" }, undefined], [{ add_via: "client" }, undefined], [{}, ["/library/movies", "/library/extra"]]] as const) {
+    for (const [config, roots] of [[{ add_via: "client" }, undefined], [{}, ["/library/movies", "/library/extra"]]] as const) {
       mockFetch(getRoutes({ ...versions(), versions: [{ ...version(), roots: roots ? [...roots] : version().roots, config: { ...version().config, ...config } }] }));
       const page = renderPage(<VersionsPage />);
       await user.click(await screen.findByRole("button", { name: "Edit" }));
@@ -1021,19 +1021,6 @@ describe("Watch only / Live control", () => {
     await user.selectOptions(screen.getByRole("combobox", { name: "State" }), "watch");
     if (!(screen.getByTestId("library-advanced") as HTMLDetailsElement).open) await user.click(screen.getByText("Advanced"));
     expect(screen.queryByRole("checkbox", { name: "Don't download for this library" })).toBeNull();
-  });
-
-  it("keeps a followed library Watch only and says why", async () => {
-    const follower = { ...version("/library/parallel"), id: 2, key: "movie-par", config: { ...version("/library/parallel").config, follows: "movie-web" } };
-    mockFetch(getRoutes({ ...versions(), versions: [version(), follower] } as ReturnType<typeof versions>));
-    renderPage(<VersionsPage />);
-    const r = (await screen.findAllByRole("button", { name: "Edit" }))[0].closest("tr")!;
-    expect(r.getAttribute("data-record")).toBe("movie-web");
-    const live = within(within(r).getByRole("combobox", { name: "State of movie-web" })).getByRole("option", { name: /^Live/ }) as HTMLOptionElement;
-    expect(live.disabled).toBe(true);
-    expect(within(r).getByTestId("followed-note").textContent).toContain("movie-par");
-    const other = document.querySelector<HTMLElement>('tr[data-record="movie-par"]')!;
-    expect((within(within(other).getByRole("combobox", { name: "State of movie-par" })).getByRole("option", { name: "Live" }) as HTMLOptionElement).disabled).toBe(false);
   });
 
   it("disables the row control when settings are read-only", async () => {

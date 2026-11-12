@@ -10,7 +10,7 @@ const page: Schemas["WantedPage"] = {
   items: [{ title_id: 1, version: "movie-web", targets: ["movie"], reason: "missing", waiting: "due", position: 1,
     last_run: { id: 3, at: "2026-11-01T00:00:00Z", state: "nothing", results: 3, accepted: 0, message: "", downloaded: false }, decision_id: 9, next_at: null }],
   titles: { "1": "Alpha" }, libraries: { "movie-web": "4K WEB" }, total: 51, counts: { due: 51, grab_off: 2 }, limit: 50, offset: 0,
-  enabled: true, downloads_enabled: true, interval: "15m0s", per_hour: 20, again_after: "24h0m0s", missing: true, cutoff_unmet: "quality", searched_last_hour: 4, add_time_pending: 2, searchable: 51, search_now_pending: 0, search_now_next_at: null,
+  enabled: true, downloads_enabled: true, interval: "15m0s", per_hour: 20, again_after: "24h0m0s", missing: true, cutoff_unmet: "quality", searched_last_hour: 4, searchable: 51, search_now_pending: 0, search_now_next_at: null,
 };
 
 const admin = { method: "GET", path: "/auth/me", reply: { id: 1, permissions: ["manage", "admin"] } };
@@ -20,7 +20,7 @@ it("shows read-only waits and handoffs, filters and pages on the server", async 
   const fetch = mockFetch([admin, { method: "GET", path: "/wanted", reply: page }, { method: "GET", path: "/status", reply: { versions: [] } }]);
   renderPage(<WantedPage />, "/wanted");
   expect(await screen.findByText("Alpha")).toBeTruthy();
-  expect(screen.getByText(/2 searches for newly added titles go first/)).toBeTruthy();
+  expect(screen.queryByText(/newly added titles/)).toBeNull();
   expect(screen.getByText("Next in line (#1)")).toBeTruthy();
   expect(screen.getByText(/3 results, none accepted/)).toBeTruthy();
   expect(await screen.findByRole("link", { name: "Decision" })).toBeTruthy();
@@ -211,7 +211,6 @@ it("says the queued searches wait while paused", async () => {
   renderPage(<WantedPage />, "/wanted");
   const line = await screen.findByTestId("search-now-queue");
   expect(line.textContent).toMatch(/^3 searches queued by Search now · waiting until new downloads are on again/);
-  expect(screen.getByText(/2 searches for newly added titles wait until new downloads are on again/)).toBeTruthy();
 });
 
 it("says why a search was refused", async () => {
