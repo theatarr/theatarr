@@ -182,3 +182,38 @@ func TestRenamePreviewKeepsAdoptedFormatsDecided(t *testing.T) {
 		t.Fatalf("rename of an adopted link proposes %+v, want none", rp.Files)
 	}
 }
+
+// Once a library stops following (with its own copy of the followed library's naming), the rename preview of an
+// adopted link decides the {Custom Formats} fallback with the library's own profile and still proposes nothing.
+func TestRenamePreviewAdoptedFormatsAfterFollowing(t *testing.T) {
+	t.Parallel()
+	e := newParallelEnv(t, true)
+	e.pol.Versions["movie-remux"].Naming.File = "{Movie CleanTitle} {(Release Year)} {[Custom Formats]}"
+	e.lib.matched = onlyHDRWhenRenaming
+	var asked []string
+	e.lib.formats = func(_ context.Context, version string, _ int64, title string) []string {
+		asked = append(asked, version)
+		if (version == "movie-remux" || version == "movie-theatarr") && title == "movie" {
+			return []string{"IMAX"}
+		}
+		return nil
+	}
+	p := adoptForRename(t, e, "Amelie.mkv")
+	if !strings.Contains(filepath.Base(p), "[IMAX]") {
+		t.Fatalf("adopt named it %s", p)
+	}
+	follower := e.pol.Versions["movie-theatarr"]
+	follower.Follows = ""
+	follower.Naming = e.pol.Versions["movie-remux"].Naming
+	asked = nil
+	rp, err := e.lib.PreviewRename(e.ctx, 1, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(rp.Files) != 0 {
+		t.Fatalf("rename of an adopted link after following proposes %+v, want none", rp.Files)
+	}
+	if len(asked) == 0 || asked[len(asked)-1] != "movie-theatarr" {
+		t.Fatalf("formats asked for %v, want the library's own key movie-theatarr", asked)
+	}
+}

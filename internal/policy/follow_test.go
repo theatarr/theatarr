@@ -81,6 +81,9 @@ func TestFollowerValidation(t *testing.T) {
 			"    library: /media/movies-new2\n    storage: debrid\n    indexers: [prowlarr-public]\n" +
 			"    providers: [rd]\n    client: decypharr\n    naming: {from_version: movie-remux-theatarr}\n",
 			followerLib + "    movie-remux-mm2: {roots: [/media/movies-new2]}\n", "never another parallel library"},
+		{"stopped following with from_version", strings.Replace(followerYAML, "    follows: movie-remux\n", "", 1) +
+			"    naming: {from_version: movie-remux}\n", followerLib, `uses the naming of "movie-remux"; give this library ` +
+			"its own copy first (Settings › Libraries › Naming › movie-remux-theatarr › Copy movie-remux's naming)"},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			_, err := Load(parallelPolicy(t, tc.version, tc.lib))

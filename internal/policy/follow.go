@@ -470,7 +470,8 @@ func (p *Policy) validateNamingFromVersion(e *Errors, path, k string, v *Version
 	}
 	switch {
 	case v.Follows == "":
-		e.add(path+".from_version", "only for a parallel library (versions[%s].follows)", k)
+		e.add(path+".from_version", "uses the naming of %q; give this library its own copy first (Settings › Libraries › Naming › %s › Copy %s's naming), then stop following",
+			n.FromVersion, k, n.FromVersion)
 	case n.FromVersion != v.Follows:
 		e.add(path+".from_version", "must be the followed library %q, got %q", v.Follows, n.FromVersion)
 	}

@@ -895,6 +895,11 @@ normal import). The link row records the arr's file as the existing file (upgrad
 episodes, and the version and episode states; every link is journaled in `library_action` ("adopted from ...") and
 Plex gets a partial scan per folder.
 
+`{Custom Formats}` of an adopted file are the ones the arr's file name carries, else those decided from the arr's
+release title with the followed library's profile. The rename preview of an adopted link decides them the same way.
+Once K stops following (after it has its own copy of F's naming, see settings.md), that fallback uses K's own
+profile, as an import into K would (`TestRenamePreviewAdoptedFormatsAfterFollowing`).
+
 Skipped, with the reason in the report: `arr_file_missing`, `not_a_symlink`, `target_off_mount`,
 `dangling`, `path_taken` (K's path holds something else, including a link K imported itself, whatever became of
 its symlink: a row with a download is never taken over, `TestAdoptLeavesOwnImportRow`), `no_episodes`, `naming`.

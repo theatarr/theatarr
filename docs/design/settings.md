@@ -849,7 +849,12 @@ flavour, aliases) and the view's stored API key ("Sections and views"). The exis
 A version created in the editor gets its naming record at once: a follower names its files after the followed
 version (`from_version`), any other version starts with the arr default names, edited in the naming editor
 (Settings › Libraries › Naming). A version's naming record cannot be deleted on its own; deleting the version removes it.
-The existing parallel-policy naming validation still applies.
+The existing parallel-policy naming validation still applies. For a record with `from_version` F the naming editor shows
+"Copy F's naming": it copies F's `folder`, `file`, `season`, `specials`, `daily`, `anime`, `colon` and
+`multi_episode` into the draft and clears `from_version` and `from_arr`; Save gives the library its own copy, so it
+keeps its naming when it stops following. Clearing `follows` while `from_version` is still set is refused with a
+message pointing at that button. When F takes its naming from an arr instance (`from_arr`), or F has no record, the
+editor says the templates must be typed in by hand (no conversion of arr naming here).
 
 A version has an optional `name`, a display name for people (at most 40 characters, no control characters; two
 versions may share one). When set it replaces the label guessed from the key and profile wherever Theatarr names a
