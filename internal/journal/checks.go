@@ -31,7 +31,6 @@ const (
 	CheckLowerScore  = "upgrade_lower_score"
 	CheckLowerQual   = "upgrade_lower_quality"
 	CheckFailures    = "repeated_failures"
-	CheckShadow      = "shadow_disagreement"
 	CheckStuck       = "download_stuck"
 	CheckDeadLink    = "dead_link"
 	CheckGuard       = "library_guard"
@@ -40,7 +39,7 @@ const (
 
 // Checks lists every check code.
 var Checks = []string{CheckSize, CheckLanguage, CheckFileAudio, CheckEpisodes, CheckTitle, CheckYear, CheckSample,
-	CheckFileRuntime, CheckFileRes, CheckLowerScore, CheckLowerQual, CheckFailures, CheckShadow, CheckStuck,
+	CheckFileRuntime, CheckFileRes, CheckLowerScore, CheckLowerQual, CheckFailures, CheckStuck,
 	CheckDeadLink, CheckGuard, CheckUnparsed}
 
 func (e *Entry) flag(code, sev, format string, args ...any) {
@@ -48,7 +47,7 @@ func (e *Entry) flag(code, sev, format string, args ...any) {
 }
 
 // releaseKinds are the kinds whose release is a decision to check.
-var releaseKinds = []string{KindGrab, KindUpgrade, KindShadow, KindPlan}
+var releaseKinds = []string{KindGrab, KindUpgrade, KindPlan}
 
 // check runs the suspect checks that apply to the entry.
 func (b *builder) check(e *Entry) error {
@@ -76,19 +75,6 @@ func (b *builder) check(e *Entry) error {
 			e.flag(CheckFailures, SevError, "%d failures for this title and version in 30 days", n)
 		case n >= 3:
 			e.flag(CheckFailures, SevWarn, "%d failures for this title and version in 30 days", n)
-		}
-	case KindShadow:
-		switch e.f.shadowBucket {
-		case "arr_grabbed_we_wouldnt":
-			sev := SevWarn
-			if e.f.shadowWhy == "manual_grab_rejected" {
-				sev = SevInfo
-			}
-			e.flag(CheckShadow, sev, "theatarr would not grab the arr's release (%s)", e.f.shadowWhy)
-		case "we_grab_another":
-			e.flag(CheckShadow, SevInfo, "theatarr would grab another release (%s)", e.f.shadowWhy)
-		case "we_grab_arr_didnt":
-			e.flag(CheckShadow, SevInfo, "theatarr would grab from RSS; the arr did not")
 		}
 	case KindImport:
 		b.checkGuardRejects(e)
@@ -422,7 +408,7 @@ func qualityRank(q string) int {
 }
 
 func (b *builder) checkUpgrade(e *Entry) {
-	if e.Kind != KindUpgrade && e.Kind != KindShadow {
+	if e.Kind != KindUpgrade {
 		return
 	}
 	if e.f.prevScore == nil && e.f.prevQuality == "" {
@@ -430,11 +416,7 @@ func (b *builder) checkUpgrade(e *Entry) {
 	}
 	cur, quality := e.Release.Score, e.Release.Quality
 	if r := e.Reasoning; r != nil {
-		switch {
-		case e.Kind == KindShadow && r.Arr != nil:
-			s := r.Arr.Score
-			cur, quality = &s, r.Arr.Quality
-		case e.Kind != KindShadow && r.Chosen != nil:
+		if r.Chosen != nil {
 			s := r.Chosen.Score
 			cur = &s
 		}

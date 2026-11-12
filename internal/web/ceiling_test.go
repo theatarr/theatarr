@@ -18,7 +18,7 @@ func TestCeilingAPI(t *testing.T) {
 	e := newManageEnv(t, nil)
 	ctx := context.Background()
 	// A held 2160p WEB is below the remux cutoff, but no higher release has been found.
-	e.exec(`DELETE FROM shadow_grab WHERE title_id=1`)
+	e.exec(`DELETE FROM journal_decision WHERE title_id=1`)
 	at := addNow.AddDate(0, 0, -100)
 	if err := ceiling.Sight(ctx, e.st.Writer(), 1, -1, ceiling.Evidence{Tier: "web_2160", Source: "arr_history", Kind: "arr_history", PositiveOnly: true, Example: "Alpha.2160p.WEB-DL", FirstSeen: at, LastSeen: at}); err != nil {
 		t.Fatal(err)
@@ -88,7 +88,7 @@ func TestSeasonCeilingAndRedaction(t *testing.T) {
 	e.exec(`UPDATE arr_quality_profile SET quality_items='[
  {"id":0,"quality":{"id":3,"name":"WEBDL-1080p"},"allowed":true,"items":[]},
  {"id":0,"quality":{"id":21,"name":"Bluray-2160p Remux"},"allowed":true,"items":[]} ]' WHERE instance='sonarr_4k_debrid'`)
-	e.exec(`DELETE FROM shadow_rss_pick WHERE title_id=10`)
+	e.exec(`DELETE FROM journal_decision WHERE title_id=10 AND target='rss'`)
 	e.call("PUT", APIBase+"/titles/10/ceiling", map[string]any{"tier": "web_1080", "season": 1, "note": "season one only"}, 200, nil)
 	var list EpisodeList
 	e.call("GET", APIBase+"/titles/10/episodes", nil, 200, &list)
@@ -214,7 +214,7 @@ func TestRowUpgradeState(t *testing.T) {
 	t.Parallel()
 	e := newManageEnv(t, nil)
 	ctx := context.Background()
-	e.exec(`DELETE FROM shadow_grab WHERE title_id=1`)
+	e.exec(`DELETE FROM journal_decision WHERE title_id=1`)
 	at := addNow.AddDate(0, 0, -100)
 	if err := ceiling.Sight(ctx, e.st.Writer(), 1, -1, ceiling.Evidence{Tier: "web_2160", Source: "arr_history", Kind: "arr_history", PositiveOnly: true, Example: "Alpha.2160p.WEB-DL", FirstSeen: at, LastSeen: at}); err != nil {
 		t.Fatal(err)

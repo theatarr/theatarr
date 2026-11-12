@@ -308,10 +308,8 @@ func (w *Web) versionHistory(ctx context.Context, db *sql.DB, titleID int64, kin
 		}
 		v.History = h
 	}
-	// The releases view shows each version's newest decision, unless the shadow runner searched since
-	// (storedReleases).
+	// The releases view shows each version's newest decision (storedReleases).
 	newest := map[string]int64{}
-	newestAt := map[string]int64{}
 	err = scanAll(ctx, db, `SELECT version_key, id, created_at FROM journal_decision WHERE title_id = ?
 		ORDER BY created_at, id`, []any{titleID}, func(rows *sql.Rows) error {
 		var key string
@@ -319,25 +317,9 @@ func (w *Web) versionHistory(ctx context.Context, db *sql.DB, titleID int64, kin
 		if err := rows.Scan(&key, &id, &at); err != nil {
 			return err
 		}
-		newest[key], newestAt[key] = id, at
+		newest[key] = id
 		return nil
 	})
-	if err != nil {
-		return err
-	}
-	err = scanAll(ctx, db, `SELECT version_key, MAX(COALESCE(searched_at, updated_at)) FROM shadow_grab
-		WHERE title_id = ? AND state = 'done' AND searched = 1 GROUP BY version_key`, []any{titleID},
-		func(rows *sql.Rows) error {
-			var key string
-			var at int64
-			if err := rows.Scan(&key, &at); err != nil {
-				return err
-			}
-			if at > newestAt[key] {
-				delete(newest, key)
-			}
-			return nil
-		})
 	if err != nil {
 		return err
 	}

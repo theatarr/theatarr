@@ -31,7 +31,7 @@ import (
 // (policy import.arr) has its monitoring and files rewritten from the arr every 15 minutes (arr.import), so Theatarr's
 // controls show the arr's state read-only: every monitor write here refuses such a version ("Managed by <instance>
 // until cutover"). Searches follow the existing rule (catalog.Searchable: mode active and router.enabled), and
-// releases answer from what is stored unless the version is active, so a shadow version gets no writes and no
+// releases answer from what is stored unless the version is active, so a Watch-only version gets no writes and no
 // indexer traffic from these controls.
 
 func (w *Web) mountManageAPI(mux *http.ServeMux) {
@@ -1078,8 +1078,7 @@ func (w *Web) episodeHistory(ctx context.Context, db *sql.DB, titleID, versionID
 // GET titles/{id}/episodes/{eid}/releases?version=&live=: the releases panel for one episode. live=1 searches the
 // indexers for that episode now, for a version in mode active only; otherwise (and for any shadow version) the answer
 // is the newest stored decision that covered the episode: a journal search of it or its season, a journal RSS read
-// with a release for it, or the shadow runner's search for an arr grab of it. Candidates for other episodes are left
-// out.
+// with a release for it. Candidates for other episodes are left out.
 func (w *Web) apiEpisodeReleases(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	if !canManage(w.permsOf(r)) {
@@ -1168,11 +1167,10 @@ func (w *Web) storedEpisodeReleases(ctx context.Context, out *Releases, it evIte
 		notes             string
 		cands             []snapshot.Candidate
 		rejections        map[string]int
-		episodeIDs        []int64
 	}
 	var best *stored
 	consider := func(s stored) {
-		rec := evRecord{target: s.target, episodeIDs: s.episodeIDs}
+		rec := evRecord{target: s.target}
 		if !rec.covers(it) {
 			return
 		}
@@ -1186,7 +1184,7 @@ func (w *Web) storedEpisodeReleases(ctx context.Context, out *Releases, it evIte
 			return
 		}
 		target := strings.ToLower(s.target)
-		oneEpisode := len(s.episodeIDs) == 1 || len(s.episodeIDs) == 0 && strings.HasPrefix(target, "s") && strings.Contains(target, "e")
+		oneEpisode := strings.HasPrefix(target, "s") && strings.Contains(target, "e")
 		if !oneEpisode {
 			// A season, series or RSS search: its stored counts are the whole search's, so count the episode's own.
 			s.results, s.accepted, s.rejections = len(keep), 0, map[string]int{}
@@ -1229,43 +1227,6 @@ func (w *Web) storedEpisodeReleases(ctx context.Context, out *Releases, it evIte
 	if err != nil && !strings.Contains(err.Error(), "no such table") {
 		return err
 	}
-	err = scanAll(ctx, db, `SELECT COALESCE(searched_at, updated_at), result_count, accepted_count, search_note,
-		episodes, results FROM shadow_grab WHERE title_id = ? AND version_key = ? AND state = 'done' AND searched = 1
-		ORDER BY COALESCE(searched_at, updated_at) DESC, grabbed_at, id`,
-		[]any{out.TitleID, out.Version}, func(r *sql.Rows) error {
-			var s stored
-			var ej, rj string
-			if err := r.Scan(&s.at, &s.results, &s.accepted, &s.notes, &ej, &rj); err != nil {
-				return err
-			}
-			s.source = "shadow"
-			if best != nil && s.at <= best.at {
-				return nil
-			}
-			_ = json.Unmarshal([]byte(ej), &s.episodeIDs)
-			if !(evRecord{episodeIDs: s.episodeIDs}).covers(it) {
-				return nil
-			}
-			_ = json.Unmarshal([]byte(rj), &s.cands)
-			s.rejections = map[string]int{}
-			for i := range s.cands {
-				s.cands[i].Rank = i + 1
-				if !s.cands[i].Accepted {
-					seen := map[string]bool{}
-					for _, rj := range s.cands[i].Rejections {
-						if !seen[rj.Reason] {
-							seen[rj.Reason] = true
-							s.rejections[rj.Reason]++
-						}
-					}
-				}
-			}
-			consider(s)
-			return nil
-		})
-	if err != nil {
-		return err
-	}
 	if best == nil {
 		if out.Message == "" {
 			out.Message = "No stored decision covers " + it.code() + " in this library yet"
@@ -1284,15 +1245,7 @@ func (w *Web) storedEpisodeReleases(ctx context.Context, out *Releases, it evIte
 		out.Rejections = best.rejections
 	}
 	if out.Message == "" {
-		switch best.source {
-		case "shadow":
-			out.Message = "The shadow runner's search for the arr's grab of " + it.code()
-		default:
-			out.Message = "The last search Theatarr decided that covered " + it.code() + " (" + sourceWord(best.target) + ")"
-		}
+		out.Message = "The last search Theatarr decided that covered " + it.code() + " (" + sourceWord(best.target) + ")"
 	}
-	if best.source == "journal" {
-		return w.storedGrabbed(ctx, out, best.run, best.decided, best.at, it.episodeID)
-	}
-	return nil
+	return w.storedGrabbed(ctx, out, best.run, best.decided, best.at, it.episodeID)
 }

@@ -15,8 +15,7 @@ import (
 const (
 	KindGrab      = "grab"      // a release was chosen and handed to a provider (Theatarr) or a download client (arr)
 	KindUpgrade   = "upgrade"   // the same, for a version that already had a file
-	KindShadow    = "shadow"    // an arr grab re-decided by Theatarr in shadow mode, or an RSS pick no arr grab followed
-	KindPlan      = "plan"      // a router dry run that belongs to no shadow entry (router off)
+	KindPlan      = "plan"      // a router dry run (a Watch-only library, or the router off)
 	KindSearch    = "search"    // an theatarr search that routed nothing (no accepted release, or it failed)
 	KindResearch  = "research"  // an theatarr search started by a failure (re-search)
 	KindFailure   = "failure"   // a download failed
@@ -29,7 +28,7 @@ const (
 )
 
 // Kinds lists every kind, for filters.
-var Kinds = []string{KindGrab, KindUpgrade, KindShadow, KindPlan, KindSearch, KindResearch, KindFailure, KindStall,
+var Kinds = []string{KindGrab, KindUpgrade, KindPlan, KindSearch, KindResearch, KindFailure, KindStall,
 	KindBlocklist, KindImport, KindLink, KindVerdict, KindAction}
 
 // Severities, lowest first.
@@ -137,8 +136,7 @@ type Plan struct {
 }
 
 // Reasoning is why the release was chosen: the chosen candidate with its score and formats, the runners-up with
-// theirs and their rejections, and the counts of every rejection reason. For a shadow entry, Arr is the arr's
-// release as Theatarr decided it, Chosen Theatarr's own pick, and Bucket the shadow classification.
+// theirs and their rejections, and the counts of every rejection reason.
 type Reasoning struct {
 	Basis      string               `json:"basis"`
 	Results    int                  `json:"results,omitempty"`
@@ -147,9 +145,6 @@ type Reasoning struct {
 	RunnersUp  []snapshot.Candidate `json:"runners_up,omitempty"`
 	Rejections map[string]int       `json:"rejection_counts,omitempty"`
 	Existing   *decide.Existing     `json:"existing,omitempty"`
-	Arr        *snapshot.Candidate  `json:"arr,omitempty"`
-	Bucket     string               `json:"bucket,omitempty"`
-	Why        string               `json:"bucket_reason,omitempty"`
 	Detail     string               `json:"detail,omitempty"`
 	Notes      string               `json:"notes,omitempty"`
 	Plan       *Plan                `json:"router_plan,omitempty"`
@@ -219,7 +214,7 @@ type Entry struct {
 	ID   string    `json:"id"`
 	At   time.Time `json:"at"`
 	Kind string    `json:"kind"`
-	// Source is who decided or acted: Theatarr, shadow, router, library, arr:<instance>, journal.
+	// Source is who decided or acted: Theatarr, router, library, arr:<instance>, journal.
 	Source  string   `json:"source"`
 	Title   TitleRef `json:"title"`
 	Version string   `json:"version,omitempty"`
@@ -269,8 +264,6 @@ type facts struct {
 	failuresAfter int
 	sizeEpisodes  int
 	matchType     string
-	shadowBucket  string
-	shadowWhy     string
 	importRejects []string // the guard's refusals (reason and episodes), not-upgrade skips left out
 	importLinked  bool     // the import made links (link rows), not only planned them
 	// importBlocklisted: the failed import blocklisted the release (its router_blocklist row, source library).
@@ -367,17 +360,11 @@ func (e *Entry) Text() string {
 	line("release", e.Release.line())
 	if r := e.Reasoning; r != nil {
 		var why []string
-		if r.Bucket != "" {
-			why = append(why, r.Bucket+"/"+r.Why)
-		}
 		if r.Results > 0 {
 			why = append(why, fmt.Sprintf("%d accepted of %d results", r.Accepted, r.Results))
 		}
 		if r.Chosen != nil {
 			why = append(why, "chosen "+candLine(r.Chosen))
-		}
-		if r.Arr != nil {
-			why = append(why, "arr's "+candLine(r.Arr))
 		}
 		for i, c := range r.RunnersUp {
 			if i == 2 {
@@ -396,7 +383,7 @@ func (e *Entry) Text() string {
 			}
 			why = append(why, "rejected: "+strings.Join(rs, ", "))
 		}
-		if r.Detail != "" && r.Bucket == "" {
+		if r.Detail != "" {
 			why = append(why, r.Detail)
 		}
 		if r.Missing != "" {

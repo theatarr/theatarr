@@ -667,8 +667,8 @@ func TestAddOptions(t *testing.T) {
 	e.call("GET", APIBase+"/add/options?title_id=99", nil, 404, nil)
 }
 
-// TestReleasesShadowNoLive: the releases panel searches indexers only for an active version; a shadow version's
-// answer comes from the journal or the shadow runner's last grab.
+// TestReleasesShadowNoLive: the releases panel searches indexers only for an active version; a Watch-only version's
+// answer comes from the journal.
 func TestReleasesShadowNoLive(t *testing.T) {
 	t.Parallel()
 	e := newAddEnv(t, func(p *policy.Policy) {
@@ -680,23 +680,13 @@ func TestReleasesShadowNoLive(t *testing.T) {
 	if r.Source != "none" || r.LiveAllowed || len(r.Candidates) != 0 {
 		t.Fatalf("nothing stored: %+v", r)
 	}
-	// A shadow grab's search, then a newer journal decision: the newer one answers. live=1 changes nothing.
-	e.exec(`INSERT INTO shadow_grab (instance, history_id, title_id, version_key, grabbed_at, release_title, state,
-		searched, searched_at, result_count, accepted_count, results, created_at, updated_at) VALUES
-		('radarr_4k_debrid', 1, 1, 'movie-remux', 1000, 'Alpha.2020.REMUX-A', 'done', 1, 2000, 2, 1,
-		'[{"release":"Alpha.2020.REMUX-B","accepted":true,"quality":"Remux-2160p","score":3000,"seeders":5},
-		  {"release":"Alpha.2020.CAM","accepted":false,"quality":"CAM","score":0,"seeders":1,
-		   "rejections":[{"reason":"quality","message":"CAM is not wanted"}]}]', 1000, 2000)`)
-	e.call("GET", APIBase+"/titles/1/releases?version=movie-remux&live=1", nil, 200, &r)
-	if r.Source != "shadow" || len(r.Candidates) != 2 || r.Candidates[1].Rank != 2 || r.Rejections["quality"] != 1 ||
-		!strings.Contains(r.Message, "Watch only: no live search") {
-		t.Fatalf("shadow grab: %+v", r)
-	}
+	// A journal decision answers. live=1 changes nothing.
 	e.exec(`INSERT INTO journal_decision (source, title_id, version_key, target, results, accepted, candidates,
 		rejections, created_at) VALUES ('rss', 1, 'movie-remux', 'rss', 7, 1,
 		'[{"rank":1,"release":"Alpha.2020.REMUX-C","accepted":true,"score":3100}]', '{"size":6}', 3000)`)
 	e.call("GET", APIBase+"/titles/1/releases?version=movie-remux&live=true", nil, 200, &r)
-	if r.Source != "journal" || r.Results != 7 || r.Rejections["size"] != 6 || r.Candidates[0].Release != "Alpha.2020.REMUX-C" {
+	if r.Source != "journal" || r.Results != 7 || r.Rejections["size"] != 6 || r.Candidates[0].Release != "Alpha.2020.REMUX-C" ||
+		!strings.Contains(r.Message, "Watch only: no live search") {
 		t.Fatalf("journal: %+v", r)
 	}
 	if _, i := e.acq.counts(); i != 0 {

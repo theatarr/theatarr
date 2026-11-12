@@ -44,8 +44,7 @@ const JOB_KINDS: Record<string, { name: string; effect: string }> = {
   "ceiling.compute": { name: "Work out the best available quality", effect: "Upgrade status may be out of date." },
   "plex.scan": { name: "Ask Plex to scan", effect: "New files may not show in Plex yet." },
   "arr.import": { name: "Import from Sonarr/Radarr", effect: "The migration comparison may be out of date." },
-  "shadow.grab": { name: "Compare a Sonarr/Radarr grab", effect: "One grab is missing from the migration comparison." },
-  "shadow.rss": { name: "Check RSS feeds", effect: "The indexers' RSS feeds were not read: new releases for active libraries may be missed, and the migration comparison missed a pass." },
+  "shadow.rss": { name: "Check RSS feeds", effect: "The indexers' RSS feeds were not read: new releases for Live libraries may be missed." },
   "arrview.maintenance": { name: "Arr view housekeeping", effect: "Old arr-view records were not tidied." },
   "db.nightly": { name: "Nightly database backup", effect: "Last night's backup may be missing." },
 };

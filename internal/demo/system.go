@@ -37,9 +37,6 @@ func (s *seeder) system() {
 		job("meta.art", "{}", "done", s.ago(time.Duration(k)*6*time.Hour+time.Hour), 1, "")
 		job("db.nightly", "{}", "done", s.ago(days(float64(k)+0.4)), 1, "")
 	}
-	for _, g := range s.grabs[max(0, len(s.grabs)-6):] {
-		job("shadow.grab", jsonOf(map[string]any{"instance": g.instance, "history_id": g.grabID}), "done", g.rel.at.Add(time.Minute), 1, "")
-	}
 	for i := int64(1); i <= min(s.runID, 6); i++ {
 		job("acquire.search", jsonOf(map[string]any{"run": i}), "done", s.ago(time.Duration(i)*17*time.Minute), 1, "")
 	}
@@ -55,8 +52,7 @@ func (s *seeder) system() {
 	r := job("plex.scan", `{"section":19,"path":"/media/movies"}`, "done", s.ago(days(1.1)), 1, "")
 	s.exec(`UPDATE job SET retry_of = ? WHERE id = ?`, f, r)
 	// Failed, needing attention.
-	job("shadow.grab", `{"instance":"sonarr_4k_debrid","history_id":99999}`, "failed", s.ago(5*time.Hour), 5,
-		"search: every indexer of the version is backing off")
+	job("shadow.rss", "{}", "failed", s.ago(5*time.Hour), 5, "rss: every indexer is backing off")
 	job("acquire.research", `{"run":2}`, "failed", s.ago(9*time.Hour), 5, "indexer dmm: 503 Service Unavailable")
 	// Queued: the next runs (theatarr serve schedules its own db.nightly).
 	job("meta.art", `{"title_id":3}`, "queued", s.now.Add(-5*time.Hour), 0, "")

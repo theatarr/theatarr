@@ -20,16 +20,15 @@ import (
 // Upgrade explanations (docs/design/manage.md). A version whose file is below its profile's cutoff is "below cutoff";
 // it is "upgrade available" only when Theatarr has seen a release that would replace that file. The evidence is what Theatarr
 // already stores: the journal's decided searches and RSS reads (journal_decision, with every kept candidate's
-// accepted and upgrade flags), the shadow runner's searches for an arr grab (shadow_grab.results) and its RSS picks
-// (shadow_rss_pick). Nothing here searches.
+// accepted and upgrade flags). Nothing here searches.
 //
 // The rule, per item (a movie version's file, or one episode's file in a series version), for an item below cutoff:
 //   - only evidence newer than the item's current file counts (an older decision judged an older file);
 //   - the newest search after the file that covers the item stands for every earlier search: its accepted
 //     upgrades count, and when it found none, older finds no longer count;
-//   - RSS sightings (journal RSS reads and shadow RSS picks) newer than both the file and that search add to it;
+//   - RSS sightings (journal RSS reads) newer than both the file and that search add to it;
 //   - a release counts when it was accepted and marked an upgrade over the file, and it maps to the item (a
-//     candidate's episodes, a shadow grab's or pick's episodes, or a search target's season and episode);
+//     candidate's episodes, or a search target's season and episode);
 //   - the best counted release (highest score, then newest) is what Theatarr would take next, with the engine's reason.
 
 // Cutoff is what a version's file is measured against: the profile that decides its state.
@@ -53,8 +52,7 @@ type UpgradeNext struct {
 	Score   int    `json:"score"`
 	// Reason is the decision engine's upgrade reason ("better format score: 5000 over 1400").
 	Reason string `json:"reason,omitempty"`
-	// Source is search (Theatarr's search), rss (Theatarr's RSS read), shadow_search (the shadow runner's search for an arr
-	// grab) or shadow_rss (a shadow RSS pick).
+	// Source is search (Theatarr's search) or rss (Theatarr's RSS read).
 	Source   string    `json:"source"`
 	SeenAt   time.Time `json:"seen_at"`
 	Episodes []string  `json:"episodes,omitempty"`
@@ -94,7 +92,7 @@ func redactUpgrade(u *UpgradeInfo) {
 	}
 }
 
-// evCand is a candidate as the stored decisions keep it (snapshot.Candidate and shadow.Decided share these keys).
+// evCand is a candidate as the stored decisions keep it (snapshot.Candidate's keys).
 type evCand struct {
 	Release    string   `json:"release"`
 	Indexer    string   `json:"indexer"`
@@ -114,9 +112,7 @@ type evRecord struct {
 	source string
 	// target is the journal's search target: "" or movie (the whole title), sNN, sNNeMM, or rss.
 	target string
-	// episodeIDs are the episodes a shadow grab or RSS pick was about; empty when not recorded.
-	episodeIDs []int64
-	cands      []evCand
+	cands  []evCand
 }
 
 // evItem is one file below its cutoff: a movie version's (episodeID 0) or one episode's.
@@ -133,9 +129,6 @@ func (it evItem) code() string { return episodeCode(it.season, it.number) }
 func (r evRecord) covers(it evItem) bool {
 	if it.episodeID == 0 {
 		return true
-	}
-	if len(r.episodeIDs) > 0 {
-		return slices.Contains(r.episodeIDs, it.episodeID)
 	}
 	t := strings.ToLower(r.target)
 	switch {
@@ -250,104 +243,29 @@ func loadEvidence(ctx context.Context, db *sql.DB, titleIDs []int64, items map[t
 	if err != nil && !strings.Contains(err.Error(), "no such table") {
 		return nil, err
 	}
-	err = scanAll(ctx, db, `SELECT id, title_id, version_key, COALESCE(searched_at, updated_at), episodes
-		FROM shadow_grab WHERE title_id IN (`+in+`) AND state = 'done' AND searched = 1`, ids, func(r *sql.Rows) error {
-		var k titleKey
-		rec := evRecord{search: true, source: "shadow_search"}
-		var ej string
-		if err := r.Scan(&rec.id, &k.titleID, &k.key, &rec.at, &ej); err != nil {
-			return err
-		}
-		if len(items[k]) == 0 {
-			return nil
-		}
-		_ = json.Unmarshal([]byte(ej), &rec.episodeIDs)
-		out[k] = append(out[k], rec)
-		return nil
-	})
-	if err != nil {
-		return nil, err
-	}
-	err = scanAll(ctx, db, `SELECT id, title_id, version_key, seen_at, episodes
-		FROM shadow_rss_pick WHERE title_id IN (`+in+`)`, ids, func(r *sql.Rows) error {
-		var k titleKey
-		rec := evRecord{source: "shadow_rss", target: "rss"}
-		var ej string
-		if err := r.Scan(&rec.id, &k.titleID, &k.key, &rec.at, &ej); err != nil {
-			return err
-		}
-		if len(items[k]) == 0 {
-			return nil
-		}
-		_ = json.Unmarshal([]byte(ej), &rec.episodeIDs)
-		out[k] = append(out[k], rec)
-		return nil
-	})
-	if err != nil {
-		return nil, err
-	}
-	journal, shadow, rss := map[int64]*evRecord{}, map[int64]*evRecord{}, map[int64]*evRecord{}
+	journal := map[int64]*evRecord{}
 	for k, recs := range out {
 		for _, it := range items[k] {
 			pool, _ := upgradeEvidencePool(it, recs)
 			for _, r := range pool {
-				switch r.source {
-				case "search", "rss":
-					journal[r.id] = r
-				case "shadow_search":
-					shadow[r.id] = r
-				case "shadow_rss":
-					rss[r.id] = r
-				}
+				journal[r.id] = r
 			}
 		}
 	}
-	idsJSON := func(records map[int64]*evRecord) string {
-		ids := make([]int64, 0, len(records))
-		for id := range records {
-			ids = append(ids, id)
+	if len(journal) > 0 {
+		want := make([]int64, 0, len(journal))
+		for id := range journal {
+			want = append(want, id)
 		}
-		b, _ := json.Marshal(ids)
-		return string(b)
-	}
-	for _, batch := range []struct {
-		table, column string
-		records       map[int64]*evRecord
-	}{{"journal_decision", "candidates", journal}, {"shadow_grab", "results", shadow}} {
-		if len(batch.records) == 0 {
-			continue
-		}
-		err := scanAll(ctx, db, `SELECT id, `+batch.column+` FROM `+batch.table+`
-			WHERE id IN (SELECT value FROM json_each(?))`, []any{idsJSON(batch.records)}, func(rows *sql.Rows) error {
+		b, _ := json.Marshal(want)
+		err := scanAll(ctx, db, `SELECT id, candidates FROM journal_decision
+			WHERE id IN (SELECT value FROM json_each(?))`, []any{string(b)}, func(rows *sql.Rows) error {
 			var id int64
 			var candidates string
 			if err := rows.Scan(&id, &candidates); err != nil {
 				return err
 			}
-			_ = json.Unmarshal([]byte(candidates), &batch.records[id].cands)
-			return nil
-		})
-		if err != nil {
-			return nil, err
-		}
-	}
-	if len(rss) > 0 {
-		err := scanAll(ctx, db, `SELECT id, decision, release_title, indexer FROM shadow_rss_pick
-			WHERE id IN (SELECT value FROM json_each(?))`, []any{idsJSON(rss)}, func(rows *sql.Rows) error {
-			var id int64
-			var decision, release, indexer string
-			if err := rows.Scan(&id, &decision, &release, &indexer); err != nil {
-				return err
-			}
-			var c evCand
-			_ = json.Unmarshal([]byte(decision), &c)
-			if c.Release == "" {
-				c.Release = release
-			}
-			if c.Indexer == "" {
-				c.Indexer = indexer
-			}
-			rss[id].cands = []evCand{c}
+			_ = json.Unmarshal([]byte(candidates), &journal[id].cands)
 			return nil
 		})
 		if err != nil {

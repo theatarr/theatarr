@@ -65,8 +65,6 @@ export function cutoffLine(quality: string | undefined, score: number | undefine
 const SOURCE: Record<string, string> = {
   search: "Theatarr's search",
   rss: "Theatarr's RSS",
-  shadow_search: "the shadow runner's search",
-  shadow_rss: "the shadow runner's RSS",
 };
 
 /** Why the item misses its preferred quality, in words: which part falls short. */

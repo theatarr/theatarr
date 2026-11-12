@@ -1,4 +1,4 @@
-// Package journal is Theatarr's grab journal: one entry per decision (grab, upgrade, shadow decision, search, re-search,
+// Package journal is Theatarr's grab journal: one entry per decision (grab, upgrade, search, re-search,
 // router dry run) and per thing that happened to one afterwards (failure, stall, blocklist, import, link), each with
 // its reasoning (the chosen release, its score and formats, the runners-up and their rejections), provider attempts
 // and cache evidence, import results, suspect flags and verdicts. docs/journal.md is the reader's guide.
@@ -8,7 +8,6 @@
 // The journal is a reader over the tables that already record all of this; nothing is copied:
 //
 //   - download, download_attempt, provider_cache, router_blocklist (router), acquire_run (acquirer), router_plan;
-//   - shadow_grab, shadow_diff, shadow_rss_pick (the shadow runner);
 //   - library_import, library_action, link, content_file (the library);
 //   - arr_history and version_file (the arr import): the arrs' grabs, imports and failures, as arr:<instance>.
 //
@@ -18,8 +17,8 @@
 // # Ids
 //
 // An entry id names its source row: dl:<download> (grab or upgrade), dl:<download>:fail (failure or stall),
-// dl:<download>:import, lib:<library_action>, bl:<router_blocklist rowid>, run:<acquire_run>, sg:<shadow_grab>,
-// sd:<shadow_diff> (an RSS pick no arr grab followed), plan:<router_plan>, arr:<instance>:<history id> (the first
+// dl:<download>:import, lib:<library_action>, bl:<router_blocklist rowid>, run:<acquire_run>,
+// plan:<router_plan>, arr:<instance>:<history id> (the first
 // history row of one grab, import or failure: Sonarr writes one row per episode), v:<journal_verdict>,
 // act:<journal_action> (an operator action through the web UI, migration 00039: action.go).
 //
@@ -259,10 +258,7 @@ FROM library_import li JOIN download d ON d.id = li.download_id`},
 FROM library_action la WHERE la.kind IN ('link', 'replace', 'relink', 'dead')`},
 	{"bl", `SELECT 'bl:' || b.rowid, b.created_at, COALESCE(b.title_id, 0), b.version_key, 'blocklist' FROM router_blocklist b`},
 	{"run", runHeadSQL + ` WHERE (r.research IS NOT NULL AND r.research <> '') OR r.state IN ('nothing', 'failed')`},
-	{"sg", `SELECT 'sg:' || g.id, g.grabbed_at, g.title_id, g.version_key, 'shadow' FROM shadow_grab g`},
-	{"sd", `SELECT 'sd:' || s.id, s.at, s.title_id, s.version_key, 'shadow' FROM shadow_diff s WHERE s.grab_id IS NULL`},
-	{"plan", `SELECT 'plan:' || p.id, p.created_at, p.title_id, p.version_key, 'plan' FROM router_plan p
-	WHERE p.source NOT LIKE 'shadow.%'`},
+	{"plan", `SELECT 'plan:' || p.id, p.created_at, p.title_id, p.version_key, 'plan' FROM router_plan p`},
 	{"arr", `SELECT 'arr:' || h.instance || ':' || MIN(h.arr_id), MIN(h.date_at), h.title_id, v.policy_key,
 	CASE h.event_type WHEN 'grabbed' THEN
 		CASE WHEN (SELECT p.event_type FROM arr_history p WHERE p.instance = h.instance

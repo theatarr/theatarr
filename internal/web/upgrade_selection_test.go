@@ -65,9 +65,8 @@ func TestUpgradeEvidenceSelectsEachEpisodesCoveringHistory(t *testing.T) {
 	e.exec(`WITH RECURSIVE n(x) AS (VALUES(1) UNION ALL SELECT x+1 FROM n WHERE x < 1200)
 		INSERT INTO journal_decision (source,title_id,version_key,target,created_at,candidates)
 		SELECT 'other-season',10,'tv-2160p','s02',8000+x,'[{"release":"Other season","accepted":true,"upgrade":true}]' FROM n`)
-	e.exec(`INSERT INTO shadow_rss_pick (indexer,release_title,title_id,version_key,seen_at,episodes,decision)
-		VALUES ('fixture','Episode 2 fallback',10,'tv-2160p',6600,'[102]',
-		'{"accepted":true,"upgrade":true,"score":60,"episodes":["S01E02"]}')`)
+	e.exec(`INSERT INTO journal_decision (source,title_id,version_key,target,created_at,candidates) VALUES
+		('rss',10,'tv-2160p','rss',6600,'[{"release":"Episode 2 fallback","accepted":true,"upgrade":true,"score":60,"episodes":["S01E02"]}]')`)
 	v := upgradeVersion{id: 10, titleID: 10, key: "tv-2160p", kind: "series", state: "filled"}
 	s, err := e.web.loadUpgrades(context.Background(), e.st.Reader(), []upgradeVersion{v}, false)
 	if err != nil {

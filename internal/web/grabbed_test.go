@@ -339,11 +339,11 @@ func TestEpisodeReleasesCountsFromKeptCandidates(t *testing.T) {
 	}
 }
 
-// latest marks the search the releases page shows: not a journal decision the shadow runner searched after.
+// latest marks the search the releases page shows: the newest journal decision.
 func TestLatestSearchFollowsShadow(t *testing.T) {
 	t.Parallel()
 	e := newManageEnv(t, nil)
-	// The seed's shadow search for movie-remux is at 2000.
+	e.exec(`DELETE FROM journal_decision WHERE title_id = 1`)
 	e.exec(`INSERT INTO acquire_run (id, source, title_id, version_id, version_key, target, state, results, accepted,
 		message, created_at, updated_at) VALUES (60, 'command', 1, 1, 'movie-remux', 'movie', 'nothing', 1, 0,
 		'no accepted release among 1 results', 1000, 1000)`)
@@ -364,10 +364,10 @@ func TestLatestSearchFollowsShadow(t *testing.T) {
 	}
 	var r Releases
 	e.call("GET", APIBase+"/titles/1/releases?version=movie-remux", nil, 200, &r)
-	if r.Source != "shadow" {
+	if r.Source != "journal" {
 		t.Fatalf("releases page shows %q", r.Source)
 	}
-	if l := latest(); len(l) != 1 || l[60] {
+	if l := latest(); len(l) != 1 || !l[60] {
 		t.Errorf("before a newer journal search: %v", l)
 	}
 	e.exec(`INSERT INTO acquire_run (id, source, title_id, version_id, version_key, target, state, results, accepted,

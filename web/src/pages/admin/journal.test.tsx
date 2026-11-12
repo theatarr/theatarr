@@ -42,12 +42,12 @@ it("wraps a long release name in the summary so a phone page doesn't widen", asy
 
 it("numbers a runner-up from its place when the entry records no rank", async () => {
   mockFetch([
-    { method: "GET", path: "/journal/sg%3A11", reply: { id: "sg:11", kind: "shadow", reasoning: { basis: "shadow", results: 2, accepted: 2,
+    { method: "GET", path: "/journal/dl%3A11", reply: { id: "dl:11", kind: "grab", reasoning: { basis: "search", results: 2, accepted: 2,
       chosen: { rank: 0, release: "Bees.2024.1080p-ONE", quality: "WEBDL-1080p", score: 900, accepted: true },
       runners_up: [{ rank: 0, release: "Bees.2024.PROPER.1080p-ONE", quality: "WEBDL-1080p", score: 700, accepted: true }] } } },
     { method: "GET", path: "/status", reply: {} },
   ]);
-  renderPage(<Routes><Route path="/activity/journal/:id" element={<JournalEntryPage />} /></Routes>, "/activity/journal/sg:11");
+  renderPage(<Routes><Route path="/activity/journal/:id" element={<JournalEntryPage />} /></Routes>, "/activity/journal/dl:11");
   expect(await screen.findByText(/^#2 Bees\.2024\.PROPER/)).toBeTruthy();
   expect(screen.queryByText(/^#0 /)).toBeNull();
 });

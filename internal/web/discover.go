@@ -404,12 +404,10 @@ func (w *Web) upgradePicks(ctx context.Context, db *sql.DB) ([]pick, error) {
 	for _, c := range cands {
 		all = append(all, c.vs...)
 	}
-	// Only a version with a stored decision that accepted a release (or shadow evidence) can have an upgrade found:
+	// Only a version with a stored decision that accepted a release can have an upgrade found:
 	// the others are left out before the evidence is read, so the common copy with nothing better costs nothing.
 	maybe := map[titleKey]bool{}
-	err = scanAll(ctx, db, `SELECT title_id, version_key FROM journal_decision WHERE accepted > 0
-		UNION SELECT title_id, version_key FROM shadow_grab WHERE state = 'done' AND searched = 1
-		UNION SELECT title_id, version_key FROM shadow_rss_pick`, nil, func(r *sql.Rows) error {
+	err = scanAll(ctx, db, `SELECT DISTINCT title_id, version_key FROM journal_decision WHERE accepted > 0`, nil, func(r *sql.Rows) error {
 		var k titleKey
 		if err := r.Scan(&k.titleID, &k.key); err != nil {
 			return err

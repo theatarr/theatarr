@@ -31,9 +31,9 @@ describe("jobs", () => {
     expect(jobName(undefined)).toBe("Job");
     expect(jobEffect("plex.scan")).not.toBe("");
     expect(jobEffect("new.kind")).toBe("");
-    // The RSS job feeds new releases to active libraries as well as the migration comparison.
+    // The RSS job feeds new releases to Live libraries.
     expect(jobName("shadow.rss")).toBe("Check RSS feeds");
-    expect(jobEffect("shadow.rss")).toMatch(/new releases for active libraries may be missed/);
+    expect(jobEffect("shadow.rss")).toMatch(/new releases for Live libraries may be missed\.$/);
   });
   it("groups attention first, active next, settled and done apart, each job once", () => {
     const failed = [job({ id: 1, attention: true }), job({ id: 2, resolved_by: 9, attention: false }), job({ id: 3, retried_as: 10 })];

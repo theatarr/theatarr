@@ -71,10 +71,6 @@ func (b *builder) build(h head) (*Entry, error) {
 		err = b.blocklist(e, rest)
 	case "run":
 		err = b.run(e, rest)
-	case "sg":
-		err = b.shadowGrab(e, rest)
-	case "sd":
-		err = b.shadowPick(e, rest)
 	case "plan":
 		err = b.plan(e, rest)
 	case "arr":

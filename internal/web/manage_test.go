@@ -34,7 +34,7 @@ func TestJudgeUpgrade(t *testing.T) {
 	}{
 		{name: "nothing stored", it: movie},
 		{name: "a search before the file judged an older file", it: movie,
-			recs: []evRecord{{at: 900, search: true, source: "shadow_search", cands: []evCand{up("Old.Find", 9000)}}}, last: 900},
+			recs: []evRecord{{at: 900, search: true, source: "search", cands: []evCand{up("Old.Find", 9000)}}}, last: 900},
 		{name: "a search after the file found an upgrade", it: movie,
 			recs: []evRecord{{at: 2000, search: true, source: "search", cands: []evCand{up("New.Find", 5000)}}},
 			want: "New.Find", last: 2000},
@@ -47,7 +47,7 @@ func TestJudgeUpgrade(t *testing.T) {
 		{name: "RSS after the newest search adds; RSS before it does not", it: movie,
 			recs: []evRecord{{at: 2000, search: true, cands: []evCand{up("Searched", 5000)}}, {at: 3000, search: true},
 				{at: 2500, source: "rss", target: "rss", cands: []evCand{up("Early.RSS", 9000)}},
-				{at: 3500, source: "shadow_rss", target: "rss", cands: []evCand{up("Late.RSS", 6000)}}},
+				{at: 3500, source: "rss", target: "rss", cands: []evCand{up("Late.RSS", 6000)}}},
 			want: "Late.RSS", last: 3000},
 		{name: "the best score wins", it: movie,
 			recs: []evRecord{{at: 2000, search: true, cands: []evCand{up("A", 5000), up("B", 7000)}},
@@ -60,10 +60,6 @@ func TestJudgeUpgrade(t *testing.T) {
 		{name: "a candidate for other episodes does not count", it: evItem{episodeID: 7, season: 1, number: 2, fileAt: 1000},
 			recs: []evRecord{{at: 2000, search: true, target: "s01", cands: []evCand{up("S01E03", 5000, "S01E03"),
 				up("S01E02", 4000, "S01E02")}}}, want: "S01E02", last: 2000},
-		{name: "a shadow grab covers its own episodes only", it: evItem{episodeID: 7, season: 1, number: 2, fileAt: 1000},
-			recs: []evRecord{{at: 2000, search: true, episodeIDs: []int64{8}, cands: []evCand{up("Other", 5000)}},
-				{at: 2100, target: "rss", episodeIDs: []int64{7}, cands: []evCand{up("Mine", 4000)}}},
-			want: "Mine"},
 		{name: "first search wins a timestamp tie even when empty", it: movie,
 			recs: []evRecord{{at: 2000, search: true}, {at: 2000, search: true, cands: []evCand{up("Tied", 5000)}}},
 			last: 2000},
@@ -109,8 +105,8 @@ func newManageEnv(t *testing.T, mutate func(*policy.Policy)) *manageEnv {
 }
 
 // seedManage: The Show's tv-2160p is owned by sonarr_4k_debrid (an import.arr instance in the example policy) with
-// its "4k Preferred" profile; S01E01 and S01E02 have files below the cutoff; a shadow RSS pick upgrades S01E01.
-// Alpha's movie-remux has a file below the cutoff, and a shadow search after it found an upgrade.
+// its "4k Preferred" profile; S01E01 and S01E02 have files below the cutoff; an RSS read upgrades S01E01.
+// Alpha's movie-remux has a file below the cutoff, and a search after it found an upgrade.
 func (e *manageEnv) seedManage() {
 	e.exec(`INSERT INTO arr_instance (name, flavour, policy_key, created_at, updated_at) VALUES
 		('sonarr_4k_debrid', 'sonarr', 'tv-2160p', 0, 0)`)
@@ -134,20 +130,20 @@ func (e *manageEnv) seedManage() {
 		source_title, quality, custom_format_score) VALUES
 		('sonarr_4k_debrid', 1, 'grabbed', 900, 5001, 10, 10, 'The.Show.S01E01.1080p.WEB-DL-GRP', 'WEBDL-1080p', 1700),
 		('sonarr_4k_debrid', 2, 'downloadFolderImported', 1000, 5001, 10, 10, 'The.Show.S01E01.1080p.WEB-DL-GRP', 'WEBDL-1080p', 1700)`)
-	e.exec(`INSERT INTO shadow_rss_pick (indexer, release_title, title_id, version_key, seen_at, quality, score, decision,
-		episodes) VALUES ('dmm', 'The.Show.S01E01.2160p.WEB-DL-BETTER', 10, 'tv-2160p', 5000, 'WEBDL-2160p', 3400,
-		'{"release":"The.Show.S01E01.2160p.WEB-DL-BETTER","accepted":true,"upgrade":true,
-		  "upgrade_reason":"better quality: WEBDL-2160p over WEBDL-1080p","quality":"WEBDL-2160p","score":3400}', '[101]')`)
+	e.exec(`INSERT INTO journal_decision (source, title_id, version_key, target, results, accepted, candidates,
+		created_at) VALUES ('rss', 10, 'tv-2160p', 'rss', 1, 1,
+		'[{"release":"The.Show.S01E01.2160p.WEB-DL-BETTER","indexer":"dmm","accepted":true,"upgrade":true,
+		  "upgrade_reason":"better quality: WEBDL-2160p over WEBDL-1080p","quality":"WEBDL-2160p","score":3400,
+		  "episodes":["S01E01"]}]', 5000)`)
 
 	e.exec(`UPDATE version SET state = 'filled' WHERE id = 1`)
 	e.exec(`INSERT INTO version_file (id, version_id, title_id, instance, arr_file_id, path, size_bytes, quality,
 		custom_format_score, added_at, release_title) VALUES (902, 1, 1, 'radarr_4k_debrid', 3, '/movies/Alpha.mkv',
 		9000000000, 'WEBDL-2160p', 1500, 1000, 'Alpha.2020.2160p.WEB-DL-GRP')`)
-	e.exec(`INSERT INTO shadow_grab (instance, history_id, title_id, version_key, grabbed_at, release_title, state,
-		searched, searched_at, result_count, accepted_count, results, created_at, updated_at) VALUES
-		('radarr_4k_debrid', 9, 1, 'movie-remux', 1500, 'Alpha.Other', 'done', 1, 2000, 1, 1,
+	e.exec(`INSERT INTO journal_decision (source, title_id, version_key, target, results, accepted, candidates,
+		created_at) VALUES ('acquire:9', 1, 'movie-remux', 'movie', 1, 1,
 		'[{"release":"Alpha.2020.2160p.BluRay.REMUX-BEST","accepted":true,"upgrade":true,"quality":"Remux-2160p",
-		   "score":3500,"upgrade_reason":"better quality: Remux-2160p over WEBDL-2160p"}]', 1500, 2000)`)
+		   "score":3500,"upgrade_reason":"better quality: Remux-2160p over WEBDL-2160p"}]', 2000)`)
 }
 
 // userMux is the API as a caller without see_files gets it.
@@ -193,7 +189,7 @@ func TestUpgradeEvidence(t *testing.T) {
 	u := d.Versions[0].Upgrade
 	if u == nil || u.State != "upgrade_available" || u.Below != 2 || u.Seen != 1 || u.Quality != "WEBDL-1080p" ||
 		u.Score == nil || *u.Score != 1700 || u.Next == nil || u.Next.Release != "The.Show.S01E01.2160p.WEB-DL-BETTER" ||
-		u.Next.Source != "shadow_rss" || !strings.Contains(u.Next.Reason, "better quality") {
+		u.Next.Source != "rss" || !strings.Contains(u.Next.Reason, "better quality") {
 		t.Fatalf("series upgrade: %+v next %+v", u, u.Next)
 	}
 	if c := u.Cutoff; c == nil || c.Quality != "Bluray-2160p Remux" || c.Score == nil || *c.Score != 10000 ||
@@ -204,7 +200,7 @@ func TestUpgradeEvidence(t *testing.T) {
 	e.call("GET", APIBase+"/titles/1", nil, 200, &m)
 	mu := m.Versions[0].Upgrade
 	if mu == nil || mu.State != "upgrade_available" || mu.Next.Release != "Alpha.2020.2160p.BluRay.REMUX-BEST" ||
-		mu.Next.Source != "shadow_search" || mu.Cutoff.Quality != "Remux-2160p" || *mu.Cutoff.Score != 10000 ||
+		mu.Next.Source != "search" || mu.Cutoff.Quality != "Remux-2160p" || *mu.Cutoff.Score != 10000 ||
 		mu.Cutoff.From != "policy" {
 		t.Fatalf("movie upgrade: %+v %+v", mu, mu.Cutoff)
 	}

@@ -21,7 +21,6 @@ import { cn } from "@/lib/utils";
 const SOURCE: Record<string, string> = {
   live: "Live search",
   journal: "Last decided search",
-  shadow: "Shadow runner's search",
   none: "Nothing stored",
 };
 

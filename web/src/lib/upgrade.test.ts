@@ -124,9 +124,9 @@ describe("upgrade words", () => {
     expect(nextLine({ state: "below_cutoff" }, now)).toBe("No better release seen yet.");
     const line = nextLine({
       state: "upgrade_available",
-      next: { release: "X.S01.Remux", quality: "Bluray-1080p Remux", score: 5000, reason: "better format score: 5000 over 1400", source: "shadow_rss", seen_at: "2026-10-26T10:00:00Z" },
+      next: { release: "X.S01.Remux", quality: "Bluray-1080p Remux", score: 5000, reason: "better format score: 5000 over 1400", source: "rss", seen_at: "2026-10-26T10:00:00Z" },
     }, now);
-    expect(line).toBe("Would take X.S01.Remux (Bluray-1080p Remux · 5,000): better format score: 5000 over 1400. Seen 2 h ago by the shadow runner's RSS.");
+    expect(line).toBe("Would take X.S01.Remux (Bluray-1080p Remux · 5,000): better format score: 5000 over 1400. Seen 2 h ago by Theatarr's RSS.");
     expect(nextLine({ state: "cutoff_met" }, now)).toBe("");
   });
   it("keeps users to plain words", () => {

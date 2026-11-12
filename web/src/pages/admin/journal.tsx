@@ -12,7 +12,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { fmtBytes, fmtTime } from "@/lib/format";
 import { journalHome, journalLink } from "@/lib/admin-links";
 
-const KINDS = ["grab", "upgrade", "shadow", "plan", "search", "research", "failure", "stall", "blocklist", "import", "link", "verdict"];
+const KINDS = ["grab", "upgrade", "plan", "search", "research", "failure", "stall", "blocklist", "import", "link", "verdict"];
 
 type Tone = "neutral" | "positive" | "warning" | "negative" | "info";
 const sevTone = (s?: string): Tone => (s === "error" ? "negative" : s === "warn" ? "warning" : s === "info" ? "info" : "neutral");

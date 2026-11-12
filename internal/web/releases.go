@@ -19,8 +19,8 @@ import (
 
 // GET /titles/{id}/releases: the title page's "Show releases" panel (admin), the decision engine's results for one
 // version with scores and rejections. A live indexer search runs only for a version in mode active (live=1);
-// otherwise the answer is the last stored decision: the journal's decided search (acquirer or RSS) or the shadow
-// runner's last grab for the version, whichever is newer. A shadow version's panel sends no indexer traffic.
+// otherwise the answer is the last stored decision: the journal's decided search (acquirer or RSS). A Watch-only
+// version's panel sends no indexer traffic.
 
 // Releases is the answer of GET /titles/{id}/releases.
 type Releases struct {
@@ -32,7 +32,7 @@ type Releases struct {
 	Mode     string   `json:"mode"`
 	// LiveAllowed: live=1 would search the indexers (the version is active).
 	LiveAllowed bool `json:"live_allowed"`
-	// Source is live, journal, shadow or none.
+	// Source is live, journal or none.
 	Source     string               `json:"source"`
 	At         *time.Time           `json:"at,omitempty"`
 	Target     string               `json:"target,omitempty"`
@@ -231,19 +231,7 @@ func (w *Web) storedReleases(ctx context.Context, out *Releases) error {
 	if err != nil && !errors.Is(err, sql.ErrNoRows) && !strings.Contains(err.Error(), "no such table") {
 		return err
 	}
-	var sAt int64
-	var sj, note, arrRelease string
-	var sres, sacc int
-	serr := db.QueryRowContext(ctx, `SELECT COALESCE(searched_at, updated_at), results, search_note, result_count,
-		accepted_count, release_title FROM shadow_grab WHERE title_id = ? AND version_key = ? AND state = 'done'
-		AND searched = 1 ORDER BY COALESCE(searched_at, updated_at) DESC, id DESC LIMIT 1`, out.TitleID,
-		out.Version).Scan(&sAt, &sj, &note, &sres, &sacc, &arrRelease)
-	if serr != nil && !errors.Is(serr, sql.ErrNoRows) {
-		return serr
-	}
-	haveJ, haveS := err == nil, serr == nil
-	switch {
-	case haveJ && (!haveS || jAt >= sAt):
+	if err == nil {
 		out.Source, out.Target, out.Results, out.Accepted, out.Notes = "journal", target, results, accepted, notes
 		at := store.FromMillis(jAt)
 		out.At = &at
@@ -255,30 +243,8 @@ func (w *Web) storedReleases(ctx context.Context, out *Releases) error {
 		if err := w.storedGrabbed(ctx, out, run, jSource, jAt, 0); err != nil {
 			return err
 		}
-	case haveS:
-		out.Source, out.Results, out.Accepted, out.Notes = "shadow", sres, sacc, note
-		at := store.FromMillis(sAt)
-		out.At = &at
-		_ = json.Unmarshal([]byte(sj), &out.Candidates)
-		for i := range out.Candidates {
-			out.Candidates[i].Rank = i + 1
-			if !out.Candidates[i].Accepted {
-				seen := map[string]bool{}
-				for _, rj := range out.Candidates[i].Rejections {
-					if !seen[rj.Reason] {
-						seen[rj.Reason] = true
-						out.Rejections[rj.Reason]++
-					}
-				}
-			}
-		}
-		if out.Message == "" {
-			out.Message = "The shadow runner's search for the arr's grab of " + arrRelease
-		}
-	default:
-		if out.Message == "" {
-			out.Message = "No stored decision for this library yet"
-		}
+	} else if out.Message == "" {
+		out.Message = "No stored decision for this library yet"
 	}
 	if out.Candidates == nil {
 		out.Candidates = []snapshot.Candidate{}
