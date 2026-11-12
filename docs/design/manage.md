@@ -96,14 +96,16 @@ routes answer 403. The permission check is `canManage` in
 
 - **Version card:** the upgrade block (badge, "Bluray-1080p · 6,302 / 10,000 · cutoff Bluray-2160p Remux", what
   falls short, what Theatarr would take next or "No better release seen yet", "Show releases"), media, the monitor switch
-  and search now (off with the reason), history, and the version's journal.
+  and search now (off with the reason), Interactive search for that copy (managers, a copy that searches live),
+  history, and the version's journal.
 - **Seasons** (laid out phone first, docs/design/ui.md Title page / Episodes): a completion summary
   per season; behind its Details per version a line (have, missing, below cutoff, upgrades seen, size, upgrade
   status with Why?), a season monitor switch and "Search season"; All / Missing / Upgrade found filters; episode
   rows open the episode overview (`?episode=<id>`); checkboxes select episodes for bulk monitor, unmonitor and
-  search.
-- **Episode overview** (a shared-Modal dialog): per version the state, monitor switch, search now, upgrade block,
-  then File, History (with the journal) and Releases (scoped to the episode) as closed disclosures.
+  search. Managers get Interactive search on each season header and an icon button per episode row.
+- **Episode overview** (a shared-Modal dialog): per version the state, monitor switch, search now, Interactive search
+  (managers, a version that searches live), upgrade block, then File, History (with the journal) and Last search (the
+  stored decision scoped to the episode, read-only) as closed disclosures.
 
 ## Checked
 

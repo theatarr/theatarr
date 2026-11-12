@@ -267,7 +267,8 @@ See [quickstart](../quickstart.md#readiness-led-setup) for the completion rules;
   **Library** (the display label, with “mirrors <arr name>” shown separately), **Current file** (resolution and source in words, "4K WEB"),
   **Preferred quality** (the profile's cutoff in words, "4K Remux"), **Upgrade status** (the vocabulary in
   docs/design/manage.md, with Why?), monitoring (switch, "auto upgrades on/off", read-only
-  while an arr manages it) and Search now. Availability names what is held ("Available in 4K WEB"), never the copy's label. **Details**
+  while an arr manages it), Search now and, for managers when the library searches live (`control.live_releases`, not
+  Watch only), **Interactive search** for that library. Availability names what is held ("Available in 4K WEB"), never the copy's label. **Details**
   discloses the raw version key, file, score, size, media, path, hash, release history and (admins) the journal.
   **Release history** (`History` in `components/title/versions.tsx`, also on the History tab and in the episode
   overview): every event says what started it in plain words (`trigger`: automatic search, automatic upgrade search,
@@ -279,7 +280,10 @@ See [quickstart](../quickstart.md#readiness-led-setup) for the completion rules;
   release of a grab or failure links to its row in the releases page (`?version=&hash=`), and the newest search
   (`latest`, the one the releases page shows: none when the shadow runner searched since) links to "See this search's results"; older searches have no results
   link, the releases page keeping only the newest. Admins get a quiet "Journal entry" link on a search.
-  This is the one place copies are managed: the section header has Search now for all copies (the releases page uses the same header).
+  This is the one place copies are managed: the section header has Search now for all copies and, for managers when
+  any library of the title searches live, Interactive search (the releases page uses the same header). There is no
+  Releases box under the library cards: releases are searched in Interactive search, and the last stored search is
+  the read-only "Last search" page.
 - **Tabs:** Episodes (series and anime, the default) / Libraries (series, "see files") / Watch order (anime with a
   franchise) / About (overview when long, the fact table, outside links, Refresh metadata for managers; admins also
   identifiers, release dates, files, arr records and registry) / History ("see files": each copy's release
@@ -304,7 +308,8 @@ See [quickstart](../quickstart.md#readiness-led-setup) for the completion rules;
 - **Add by magnet or hash** (admins, under the releases list, for the shown library): a magnet link or info hash
   with a release name goes through the same decision as a found release (`POST /titles/{id}/releases/add`); a
   rejection offers "Add anyway"; a failed add starts no search (docs/design/router.md).
-- **Releases page** (`/title/{id}/releases`): managers and admins only, matching the release API; other accounts see
+- **Releases page, "Last search"** (`/title/{id}/releases`, reached from a library's Details and from history
+  links; read-only, it has no Grab: Interactive search grabs): managers and admins only, matching the release API; other accounts see
   the standard permission screen with a link back to title availability. Malformed or non-positive title ids show
   the not-found state and a Library link. Each row carries, next to accepted or its rejections, what came of that
   release for the library, matched by info hash against all the library's downloads (`Releases.outcomes`):
@@ -322,16 +327,33 @@ See [quickstart](../quickstart.md#readiness-led-setup) for the completion rules;
   grabbed: <reason>" ("Nothing grabbed for this episode" when a season search routed only others); it describes
   the downloads that search opened. A live search no indexer answered is a failed search ("Live search failed",
   the stored list shown), and a live search is never retried on its own. `?hash=` picks out the followed release's row, or says it is not in the list.
-  Managers can grab from the stored list too: Grab there runs a search first (one indexer query, as Search then Grab
-  by hand) and grabs the row's hash from that answer; a release the fresh answer lacks is "No longer offered by the
-  indexer" and nothing is grabbed, and one it now rejects is shown again with those reasons and grabbed only on
-  "Grab anyway". A grab's dialog stays open until its request settles.
+- **Interactive search** (`components/title/interactive-search.tsx`, the grid `release-grid.tsx`, columns
+  `lib/release-columns.ts`): a wide window (a full-height sheet on phones) that searches the indexers the moment it
+  opens, as Radarr's does. Managers open it from the Libraries header (the whole title), each library card (that
+  library), each season header (season packs and that season's episodes), each episode row (an icon button at the
+  row's end; it does not open the episode overview), the episode overview (per library) and each Wanted row (that
+  library, and the row's season for a series). It is offered only when a library of the title searches live
+  (`control.live_releases`); Watch-only libraries get none. While the indexers answer, the window says "Searching the
+  indexers for <library>…" with a seconds counter; closing it stops the search. One row per release, with the
+  columns Source (indexer kind, private trackers marked), Age, Title, Indexer, History (what came of the release
+  before), Size, Peers, Cached on (provider pills), Episodes (series), Language, Quality, Score, Formats, Flags and
+  Status, then Grab. Columns sort, can be hidden and reordered (Columns); the choice and the sort are kept per user
+  in this browser (`localStorage` `theatarr.library.release-columns.<user>`). Filters (text, Accepted only, Cached
+  only, Packs only for a series) are not kept. A title in several libraries that search live gets a tab per library:
+  each tab searches once per opening, Search again searches the shown library again, and every opening searches
+  afresh. Grab sends an accepted release to the router at once (journalled; removable in Activity); a rejected
+  release, one that would replace a better-scored file, or one the server rejects at grab time asks first ("Grab
+  anyway"). A live answer keeps the best 300 releases ("Showing the best 300 of N" beyond that). The indexers reuse an
+  answer for 15 minutes, so opening again within that time re-decides the same results. A search the server refused
+  or that failed shows the last stored results with the reason, and those cannot be grabbed.
 - **Episodes** (`components/title/seasons.tsx`, `episode-drawer.tsx`, logic in
   `lib/seasons.ts`), phone first:
   - **Season header:** one completion summary for the copies in view, "8 of 10 available · 2 missing · 1 upgrade
     found · 1 not aired" (with several copies a missing count names its copy, "2 missing in 4K"). "Of N" counts the
     episodes aired or already held. Per-copy counts, size, the upgrade status with Why?, the season monitor switch and
-    Search season sit behind the header's **Details** ("see files" only).
+    Search season sit behind the header's **Details** ("see files" only). Managers get **Interactive search** on the
+    header, before Details (its words hidden on phones, as Details' are), when a library of the series searches live;
+    each episode row then ends in an icon button for that episode.
   - **Restrictions once:** read-only monitoring (an arr still imports the copy) and disabled search are one note
     above the seasons, a line per distinct reason, naming the copies only when not all share it. The controls stay
     disabled with a lock and the reason as their title.
@@ -347,27 +369,28 @@ See [quickstart](../quickstart.md#readiness-led-setup) for the completion rules;
     overview. Anime with a franchise get a **Watch order** link above the seasons (the tab stays).
   - **Episode overview:** the shared Modal, a centred dialog on desktop and a bottom sheet on phones
     (`?episode=<id>`): number, name, air date, runtime; per copy its state in the upgrade vocabulary, monitor switch
-    and Search now (managers), the upgrade block with Why?; then **File**, **History** (with the episode's journal
-    entries) and **Releases** as separate disclosures, all closed at first.
+    and Search now (managers), Interactive search for that episode in that library (managers, a library that
+    searches live), the upgrade block with Why?; then **File**, **History** (with the episode's journal entries) and
+    **Last search** (the stored decision for the episode, read-only) as separate disclosures, all closed at first.
   - **Family accounts** (no "see files"): one availability column across copies at every width (an episode is
     Available in its best resolution when any copy holds it, Missing only when none does, Not aired, Not available
     when nobody wants it), no copy names, selector, Details, upgrade filter or checkboxes; the overview is one
     availability line. The API already sends them nothing more (`redactEpisodes`).
 
 **Title actions** (by permission): Search now (per version), Turn a version on or off, Monitor, Request a version (a
-user without add rights), Show releases (the "Search" panel: results × versions with reasons; managers), Grab a
-release from a live search, Remove a copy, Unlink a library file, Remove the title (managers; see **Recovery
+user without add rights), Interactive search (managers), Last search (the stored search, read-only; managers), Grab a
+release from Interactive search, Remove a copy, Unlink a library file, Remove the title (managers; see **Recovery
 actions**; never deletes provider torrents or files on the mount).
 
 **Recovery actions** (`internal/web/ops.go`, `internal/arrview/ops.go`, SPA
 `components/{title/release-grab,title/copy-actions,activity/download-actions}.tsx`, scope words in `lib/ops.ts`).
 Managers and admins only (`manage`; 403 otherwise). Every action opens a confirmation that names its scope ("This
-will" / "Stays as it is") and is recorded in the journal as an `action` entry (`act:<id>`, table `journal_action`,
+will" / "Stays as it is"), except grabbing an accepted release from Interactive search, which is one click, and is recorded in the journal as an `action` entry (`act:<id>`, table `journal_action`,
 00039) with who did it (user name, or `key:<name>` for an API key). They reuse the existing paths, never a second one:
 
 | Action | Where | Route | What runs |
 |---|---|---|---|
-| Grab a release | Releases panel and the episode overview's Releases: live answers (`Releases.grab`); a stored list's row in the Releases panel runs the live search first and grabs the row's hash from it | `POST titles/{id}/releases/grab {version, info_hash, override}` | The release must come from this server's own live search for that title and copy in the last 30 min (never release data from the browser). It is decided again; a rejected release (then or now) answers 409 with the reasons and needs "Grab anyway" (`override`). The action is refused with the router-disabled or shadow-mode reason before enqueueing when provider writes cannot run; otherwise `router.Enqueue` applies the indexer's provider allowlist, blocklist, pacing and budgets |
+| Grab a release | Interactive search: live answers only (`Releases.grab`); an accepted release is sent at once, a rejected one or one that would replace a better-scored file asks first; the stored "Last search" has no Grab | `POST titles/{id}/releases/grab {version, info_hash, override}` | The release must come from this server's own live search for that title and copy in the last 30 min (never release data from the browser). It is decided again; a rejected release (then or now) answers 409 with the reasons and needs "Grab anyway" (`override`). The action is refused with the router-disabled or shadow-mode reason before enqueueing when provider writes cannot run; otherwise `router.Enqueue` applies the indexer's provider allowlist, blocklist, pacing and budgets |
 | Remove download | Activity › Queue, a download's Inspect/Details | `POST activity/downloads/{id}/remove {blocklist, search}` | `router.Dismiss` (as the arr views' `DELETE queue`): Theatarr's record ends as failed; the torrent at the provider stays (shared by every library), linked files stay. "Remove, blocklist and search" also blocklists the release for the copy (source `ui`, "Removed in Activity with blocklist") and searches the copy; `search` without `blocklist` is refused. A toast keeps the server's outcome visible when the row disappears |
 | Retry | the same panel, and History rows about a failed download | `POST activity/downloads/{id}/retry` | failed: the same release, as the download stored it (its release data with cache evidence, as the router rebuilds a download it resumes), goes to the router again as a new download only when `router.enabled` is true and its version is active; disabled or shadow routes are refused with the reason (409), as are blocklisted releases. Ready or importing: import now (`library.Import`), answered with its `outcome`: `imported`, `partial`, `rejected` (failed and blocklisted), `held` (left for review), `waiting` (mount) or `dry_run` (gate); anything but `imported` is shown as a warning and journalled as such. Anything else is refused (409) |
 | Unblock | Activity › Blocklist | `POST activity/blocked/unblock {version, info_hash, search}` | deletes the blocklist row (`router.Unblock`) in the same transaction as the journal record; optionally searches the copy. A toast keeps the server's search outcome visible when the blocked row disappears |
@@ -800,7 +823,7 @@ All under `/api/theatarr/v1` unless noted. Every list pages with `limit` (≤ 20
 | `PUT titles/{id}/versions/{key}` | turn a version on/off, monitor |
 | `POST titles/{id}/search` | search now for versions (records a command like the arr views' `MoviesSearch`) |
 | `GET activity?state=now|history&title_id=&user=` | download rows with plain-words state, progress, provider, attempts (admin), library import results; from `download`, `download_attempt`, `library_import`, `router_plan`, `acquire_run` (moved out of `arrview/queue.go` into a shared reader) |
-| `GET releases?title_id=&version=` | the title page "Show releases" panel (decision engine results with reasons; admin) |
+| `GET titles/{id}/releases?version=&live=&season=` | Interactive search (`live=1`) and the stored "Last search" (decision engine results with reasons; manager) |
 | `GET requests?status=&mine=1`, `POST requests`, `POST requests/{id}/approve` (body may change versions/seasons), `POST requests/{id}/decline`, `DELETE requests/{id}` (cancel own) | requests (§3) |
 | `GET users`, `POST users`, `PATCH users/{id}` (role, permissions, disable), `POST users/{id}/reset-password`, `DELETE users/{id}/sessions` | users |
 | `GET auth/me` | includes `role`, `permissions`, `display_name` |

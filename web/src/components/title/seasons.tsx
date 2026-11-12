@@ -11,7 +11,10 @@
 //   copy selector; every state in words (Available, Missing, Not aired, Upgrade found), never a bare icon;
 // - accounts without "see files" get one availability column across copies and nothing about files or quality
 //   beyond the resolution (the API sends nothing more);
-// - episode rows open the episode overview (?episode=<id>, episode-drawer.tsx).
+// - episode rows open the episode overview (?episode=<id>, episode-drawer.tsx);
+// - for managers, when a library of the series searches live: Interactive search (interactive-search.tsx) on each
+//   season header (season packs and that season's episodes) and an icon button at the end of each episode row, in the
+//   default library; the window's tabs switch library.
 //
 // The section header and episode table follow Scryer (github.com/scryer-media/scryer)
 // apps/scryer-web/components/views/series-overview/season-section.tsx @ 2ef7757c, GPL-3.0: the bordered season
@@ -25,6 +28,7 @@ import { usePerms, useEpisodes, type Episode, type EpisodeList } from "@/api/lib
 import { useMonitor, useScopedSearch, type ManageOutcome } from "@/api/manage";
 import { ErrorState, Loading } from "@/components/page";
 import { EpisodeOverview } from "@/components/title/episode-drawer";
+import { InteractiveSearchButton } from "@/components/title/interactive-search";
 import { CopyDot, CopyTrack, OwnerLine } from "@/components/library/copy-bits";
 import { MonitorSwitch } from "@/components/title/manage-bits";
 import { DownloadsOffNotice } from "@/components/version-status";
@@ -181,7 +185,11 @@ type ListProps = {
   selected: Set<number>;
   onSelect: (ids: number[], on: boolean) => void;
   onOpen: (id: number) => void;
+  /** Interactive search per episode row (a manager, and a library of the series searches live). */
+  live?: { titleId: number };
 };
+
+const epCode = (e: Episode) => `S${String(e.season).padStart(2, "0")}E${String(e.number).padStart(2, "0")}`;
 
 function openOnKey(e: KeyboardEvent, id: number, onOpen: (id: number) => void) {
   if (e.target !== e.currentTarget) return;
@@ -192,7 +200,7 @@ function openOnKey(e: KeyboardEvent, id: number, onOpen: (id: number) => void) {
 }
 
 /** Desktop: a table with a column per library (or one availability column). */
-function EpisodeTable({ episodes, copies, merged, anime, manage, seeFiles, selected, onSelect, onOpen }: ListProps) {
+function EpisodeTable({ episodes, copies, merged, anime, manage, seeFiles, selected, onSelect, onOpen, live }: ListProps) {
   const ids = episodes.map((e) => e.id);
   const nSel = ids.filter((i) => selected.has(i)).length;
   const keys = copies.map((v) => v.key);
@@ -221,6 +229,7 @@ function EpisodeTable({ episodes, copies, merged, anime, manage, seeFiles, selec
               </TableHead>
             ))
           )}
+          {live ? <TableHead className="w-10"><span className="sr-only">Interactive search</span></TableHead> : null}
         </TableRow>
       </TableHeader>
       <TableBody>
@@ -263,6 +272,11 @@ function EpisodeTable({ episodes, copies, merged, anime, manage, seeFiles, selec
                 );
               })
             )}
+            {live ? (
+              <TableCell className="pl-0 text-right">
+                <InteractiveSearchButton titleId={live.titleId} episode={{ id: e.id, code: epCode(e) }} iconOnly size="xs" variant="ghost" />
+              </TableCell>
+            ) : null}
           </TableRow>
         ))}
       </TableBody>
@@ -271,7 +285,7 @@ function EpisodeTable({ episodes, copies, merged, anime, manage, seeFiles, selec
 }
 
 /** Phones: one row per episode for the copy in view (or across copies), with its state in words. */
-function EpisodeRows({ episodes, copies, merged, anime, manage, seeFiles, selected, onSelect, onOpen }: ListProps) {
+function EpisodeRows({ episodes, copies, merged, anime, manage, seeFiles, selected, onSelect, onOpen, live }: ListProps) {
   const keys = copies.map((v) => v.key);
   const ids = episodes.map((e) => e.id);
   const nSel = ids.filter((i) => selected.has(i)).length;
@@ -313,6 +327,7 @@ function EpisodeRows({ episodes, copies, merged, anime, manage, seeFiles, select
                 {st.quality ? <span className="max-w-[9rem] truncate text-[11px] text-muted-foreground">{st.quality}</span> : null}
                 <CellStage cell={st.cell} className="max-w-[9rem] text-right" />
               </div>
+              {live ? <InteractiveSearchButton titleId={live.titleId} episode={{ id: e.id, code: epCode(e) }} iconOnly size="xs" variant="ghost" /> : null}
             </li>
           );
         })}
@@ -450,7 +465,8 @@ function SeasonBlock({
   };
   const shown = all.filter((e) => matchesFilter(e, filter, keys, seeFiles, merged));
   const Chevron = open ? ChevronDown : ChevronRight;
-  const props: ListProps = { episodes: shown, copies, merged, anime, manage, seeFiles, selected, onSelect, onOpen };
+  const live = manage && list.versions.some((v) => v.control?.live_releases);
+  const props: ListProps = { episodes: shown, copies, merged, anime, manage, seeFiles, selected, onSelect, onOpen, live: live ? { titleId } : undefined };
   return (
     <div className="overflow-hidden rounded-lg border border-border bg-background/40" data-season={season.season}>
       <div className="flex items-stretch bg-card/60">
@@ -463,6 +479,12 @@ function SeasonBlock({
             </span>
           </span>
         </button>
+        {live ? (
+          // The label is hidden on phones, as Details' is (the button keeps its name for screen readers).
+          <span className="flex shrink-0 items-center px-1 max-sm:[&_button]:gap-0 max-sm:[&_button]:text-[0px]" data-testid="season-interactive">
+            <InteractiveSearchButton titleId={titleId} season={season.season} size="xs" variant="ghost" />
+          </span>
+        ) : null}
         {seeFiles && list.versions.length > 0 ? (
           <button
             type="button"

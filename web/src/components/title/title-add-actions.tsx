@@ -1,5 +1,5 @@
-// The copies section's header (docs/design/ui.md, title actions): "Add to another library" (the add sheet) and search now
-// for every copy. Turning a copy on or off lives on its card (versions.tsx), the one place a copy is managed. Search
+// The copies section's header (docs/design/ui.md, title actions): "Add to another library" (the add sheet), Interactive
+// search (managers, when a library of the title searches live) and search now for every copy. Turning a copy on or off lives on its card (versions.tsx), the one place a copy is managed. Search
 // now is offered only when it would run: a monitored version in mode active while router.enabled is true; otherwise
 // the header says why nothing would be searched, except on the title page, where each library's card says it (as the
 // Episodes tab names the reason per library). A failed search now says so, with Retry; a new try clears the last
@@ -9,9 +9,10 @@
 import { AlertTriangle, Loader2, Plus, RotateCcw, Search } from "lucide-react";
 import { useAddOptions, useSearchNow, type AddTarget } from "@/api/add";
 import { ApiError } from "@/api/client";
-import { usePerms } from "@/api/library";
+import { usePerms, useTitle } from "@/api/library";
 import { useSearchUI } from "@/components/search/search-context";
 import { Button } from "@/components/ui/button";
+import { InteractiveSearchButton } from "@/components/title/interactive-search";
 import { DownloadsOffNotice } from "@/components/version-status";
 import { cn } from "@/lib/utils";
 import { globalDownloadsOff, verdict } from "@/lib/version-grab";
@@ -33,6 +34,9 @@ export function TitleAddActions({ titleId, name, year, kind, poster, anime, add 
   const searchNow = useSearchNow(titleId);
   const { openAdd } = useSearchUI();
   const perms = usePerms();
+  // Interactive search for managers when a library of the title searches the indexers live (not Watch only).
+  const title = useTitle(String(titleId), perms.manage);
+  const live = perms.manage && (title.data?.versions ?? []).some((v) => v.control?.live_releases);
   // The mutation holds the last try: its answer, its error, or nothing while a new one runs (mutate resets both).
   const outcome = searchNow.data ?? null;
   const runSearch = () => searchNow.mutate(undefined);
@@ -53,6 +57,7 @@ export function TitleAddActions({ titleId, name, year, kind, poster, anime, add 
       <div className="flex flex-wrap items-center justify-between gap-2">
         <h2 className="text-lg font-semibold text-[var(--ink)]">Libraries</h2>
         <div className="flex flex-wrap gap-2">
+          {live ? <InteractiveSearchButton titleId={titleId} /> : null}
           {searchable.length > 0 ? (
             <Button size="sm" variant="outline" onClick={runSearch} disabled={searchNow.isPending} data-testid="title-search-now">
               {searchNow.isPending ? <Loader2 className="animate-spin" /> : <Search />} Search now

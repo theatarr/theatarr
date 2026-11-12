@@ -1,8 +1,10 @@
 import { useState } from "react";
 import { Link, useLocation, useSearchParams } from "react-router";
 import { useStatus } from "@/api/hooks";
+import { usePerms } from "@/api/library";
 import { useClearWantedSearch, useWanted, useWantedSearch, type WantedRow, type WantedSearchBody, type WantedSearchResult } from "@/api/wanted";
 import { Empty, ErrorState, Loading, PageHeader, VersionTag } from "@/components/page";
+import { InteractiveSearchButton } from "@/components/title/interactive-search";
 import { WantedTabs } from "@/components/wanted-tabs";
 import { journalLink } from "@/lib/admin-links";
 import { Card } from "@/components/ui/card";
@@ -105,6 +107,7 @@ export function WantedPage() {
   const offset = Math.max(0, Number(sp.get("offset")) || 0);
   const q = useWanted({ only, version, waiting, limit: 50, offset });
   const status = useStatus();
+  const perms = usePerms();
   const states = new Map((status.data?.versions ?? []).map((v) => [v.key, v.grab_state]));
   const off: GlobalOff = states.size ? globalDownloadsOff([...states.values()]) : q.data && !q.data.downloads_enabled ? "unknown" : undefined;
   const change = (key: string, value: string) => {
@@ -173,7 +176,7 @@ export function WantedPage() {
           <div>{targetWords(row.targets)}</div>
           <div><Waiting row={row} enabled={d.enabled} missing={d.missing} state={states.get(row.version)} off={off} /></div>
           <div>{row.last_run ? <span title={fmtTime(row.last_run.at)}>{fmtAgo(row.last_run.at)} · </span> : null}{searchResult(row.last_run)}</div>
-          <div className="flex flex-wrap gap-2"><Link className="text-primary hover:underline" to={`/title/${row.title_id}/releases?version=${encodeURIComponent(row.version)}`}>Releases</Link>{row.decision_id ? <Link className="text-primary hover:underline" to={journalLink(String(row.decision_id))}>Decision</Link> : null}<button type="button" className="text-primary hover:underline disabled:cursor-not-allowed disabled:text-[var(--ink-3)] disabled:no-underline" disabled={!!why || !!row.search_queued || search.isPending} title={why || (row.search_queued ? "Already queued" : undefined)} onClick={() => request({ body: { only, items: [rowItem(row)] }, count: 1, title: "Search now" }, false)}>Search now</button></div>
+          <div className="flex flex-wrap items-baseline gap-2">{perms.manage ? <InteractiveSearchButton titleId={row.title_id} version={row.version} season={row.season} size="xs" variant="ghost" /> : <Link className="text-primary hover:underline" to={`/title/${row.title_id}/releases?version=${encodeURIComponent(row.version)}`}>Releases</Link>}{row.decision_id ? <Link className="text-primary hover:underline" to={journalLink(String(row.decision_id))}>Decision</Link> : null}<button type="button" className="text-primary hover:underline disabled:cursor-not-allowed disabled:text-[var(--ink-3)] disabled:no-underline" disabled={!!why || !!row.search_queued || search.isPending} title={why || (row.search_queued ? "Already queued" : undefined)} onClick={() => request({ body: { only, items: [rowItem(row)] }, count: 1, title: "Search now" }, false)}>Search now</button></div>
           </div>
         </li>; })}</ul>
       </Card>}

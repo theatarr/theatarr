@@ -142,3 +142,38 @@ it("leaves season settings destinations as text for non-admin managers", async (
   expect(note.textContent).toBe("Anime WEB: Downloads off — Settings › Libraries");
   expect(within(note).queryByRole("link")).toBeNull();
 });
+
+describe("Interactive search from the episodes", () => {
+  const title = { method: "GET", path: "/titles/1", reply: { id: 1, name: "Tsukikage Signal", kind: "series", versions: [{ id: 2, key: "anime-web", label: "Anime WEB", control: managed }] } };
+  const answer = { title_id: 1, version: "anime-web", versions: ["anime-web"], mode: "active", live_allowed: true, source: "live", results: 0, accepted: 0, candidates: [], grab: true };
+
+  it("searches a season from its header", async () => {
+    const api = mockFetch([...routes, title, { method: "GET", path: "/titles/1/releases", reply: answer }]);
+    renderPage(<Seasons id="1" anime />, "/title/1");
+    const header = await screen.findByTestId("season-interactive");
+    await userEvent.setup().click(within(header).getByRole("button", { name: "Interactive search" }));
+    expect(await screen.findByTestId("interactive-search")).toBeTruthy();
+    expect(await screen.findByText("No releases found.")).toBeTruthy();
+    expect(api.calls("GET", "/titles/1/releases").map((r) => r.search)).toEqual(["?version=anime-web&live=1&season=1"]);
+  });
+
+  it("searches one episode from its row without opening the episode overview", async () => {
+    const api = mockFetch([...routes, title, { method: "GET", path: "/titles/1/episodes/102/releases", reply: answer }]);
+    renderPage(<Seasons id="1" anime />, "/title/1");
+    await screen.findByTestId("season-summary");
+    const row = document.querySelector('[data-episode="1x13"]') as HTMLElement;
+    await userEvent.setup().click(within(row).getByRole("button", { name: "Interactive search for S01E13" }));
+    expect((await screen.findByTestId("interactive-subject")).textContent).toContain("S01E13");
+    expect(await screen.findByText("No releases found.")).toBeTruthy();
+    expect(api.calls("GET", "/titles/1/episodes/102/releases").map((r) => r.search)).toEqual(["?version=anime-web&live=1"]);
+    expect(api.calls("GET", "/titles/1/episodes/102")).toHaveLength(0);
+    expect(screen.getAllByRole("dialog")).toHaveLength(1);
+  });
+
+  it("offers no Interactive search to an account that does not manage", async () => {
+    mockFetch([{ ...routes[0], reply: { id: 9, username: "family", permissions: ["see_files"], csrf_token: "t" } }, routes[1]]);
+    renderPage(<Seasons id="1" anime />, "/title/1");
+    await screen.findByTestId("season-summary");
+    expect(screen.queryByTestId("interactive-search-open")).toBeNull();
+  });
+});

@@ -21,7 +21,7 @@ it("shows read-only waits and handoffs, filters and pages on the server", async 
   expect(screen.getByText(/2 searches for newly added titles go first/)).toBeTruthy();
   expect(screen.getByText("Next in line (#1)")).toBeTruthy();
   expect(screen.getByText(/3 results, none accepted/)).toBeTruthy();
-  expect(screen.getByRole("link", { name: "Releases" }).getAttribute("href")).toBe("/title/1/releases?version=movie-web");
+  expect(screen.getByRole("link", { name: "Releases" }).getAttribute("href")).toBe("/title/1/releases?version=movie-web"); // not a manager
   expect(screen.getByRole("link", { name: "Decision" }).getAttribute("href")).toBe("/activity/journal/9");
   expect(screen.queryByRole("button", { name: /Downloading/ })).toBeNull();
   await user.click(screen.getByRole("button", { name: "Next" }));
@@ -214,4 +214,21 @@ it("says why a search was refused", async () => {
   await userEvent.setup().click(await screen.findByRole("button", { name: "Search now" }));
   expect((await screen.findByRole("alert")).textContent).toBe("New downloads are off, so nothing can be searched.");
   expect(searchNowWords({ queued: 0, started: 0, pending: 0, skipped: [], next_at: null })).toBe("Started 0, queued 0.");
+});
+
+it("opens Interactive search for a series row's season from the row", async () => {
+  const user = userEvent.setup();
+  const fetch = mockFetch([
+    { method: "GET", path: "/auth/me", reply: { id: 1, permissions: ["manage"] } },
+    { method: "GET", path: "/wanted", reply: { ...page, items: [{ ...row, version: "tv-web", targets: ["s02e03"], season: 2 }] } },
+    { method: "GET", path: "/status", reply: { versions: [] } },
+    { method: "GET", path: "/titles/1", reply: { id: 1, name: "Alpha", kind: "series", versions: [{ id: 1, key: "tv-web", label: "TV WEB", control: { mode: "active", can_edit: true, can_search: true, live_releases: true } }] } },
+    { method: "GET", path: "/titles/1/releases", reply: { title_id: 1, version: "tv-web", versions: ["tv-web"], mode: "active", live_allowed: true, source: "live", results: 0, accepted: 0, candidates: [], grab: true } },
+  ]);
+  renderPage(<WantedPage />, "/wanted");
+  const r = await screen.findByTestId("wanted-row");
+  expect(within(r).queryByRole("link", { name: "Releases" })).toBeNull();
+  await user.click(await within(r).findByRole("button", { name: "Interactive search" }));
+  expect(await screen.findByText("No releases found.")).toBeTruthy();
+  expect(fetch.calls("GET", "/titles/1/releases").map((c) => c.search)).toEqual(["?version=tv-web&live=1&season=2"]);
 });

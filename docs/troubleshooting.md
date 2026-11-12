@@ -142,8 +142,8 @@ returned and why each release was accepted or rejected) and **System › Status*
 
 ## Search does not find a release you know exists
 
-An admin can add it by hand. Open the title, choose **Show releases** for the library, and use **Add by magnet or
-hash** under the list: paste the magnet link or the 40-character info hash and give the release name (a magnet's
+An admin can add it by hand. Open the title, open a library's Details and choose **Show releases**; **Add by magnet
+or hash** is under the list: paste the magnet link or the 40-character info hash and give the release name (a magnet's
 own name is filled in). For a series the name must carry the season or episode, for example `S02` for a season
 pack or `S02E05` for one episode. The release is checked against the library's profile like any other; a rejection
 lists its reasons and offers **Add anyway**. A release with no known size is accepted. If the add fails, for
