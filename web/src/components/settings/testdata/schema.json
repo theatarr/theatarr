@@ -1195,20 +1195,12 @@
     ],
     "shadow": [
       {
-        "name": "import_interval",
-        "min": 300,
-        "default": "15m",
-        "label": "Sonarr/Radarr import interval",
-        "type": "duration",
-        "help": "This is how often the arr.import job reads the import.arr instances (incremental). Default 15m, minimum 5m."
-      },
-      {
         "name": "rss_interval",
         "min": 600,
         "default": "15m",
         "label": "RSS feed check interval",
         "type": "duration",
-        "help": "This is how often the shadow.rss job reads the rss feeds of the shadow and active versions' indexers (it is also production rss for active versions). Default 15m, the arrs' default rss sync interval; minimum 10m."
+        "help": "This is how often the shadow.rss job reads the rss feeds of the Live libraries' indexers. Default 15m, the arrs' default rss sync interval; minimum 10m."
       },
       {
         "name": "rss",
@@ -1217,50 +1209,6 @@
         "type": "boolean",
         "help": "This turns the shadow.rss job on or off. Default on.",
         "nullable": true
-      },
-      {
-        "name": "search",
-        "default": "true",
-        "label": "Search after Sonarr/Radarr grabs",
-        "type": "boolean",
-        "help": "This turns our own search per arr grab on or off. Off, each grab is only decided. Default on.",
-        "nullable": true
-      },
-      {
-        "name": "searches_per_hour",
-        "min": 1,
-        "max": 200,
-        "default": "20",
-        "label": "Searches per hour",
-        "type": "integer",
-        "help": "This caps our shadow searches (one per title, every indexer of its versions) per clock hour. A grab over the cap waits for the next hour. Default 20, 1 to 200."
-      },
-      {
-        "name": "search_reuse",
-        "min": 60,
-        "max": 86400,
-        "default": "6h",
-        "label": "Reuse search results for",
-        "type": "duration",
-        "help": "This is how long one title's search results serve later grabs of the same title (the other version's arr grabs the same movie). Default 6h, at most 24h."
-      },
-      {
-        "name": "keep_results",
-        "min": 1,
-        "max": 50,
-        "default": "10",
-        "label": "Results to keep per grab",
-        "type": "integer",
-        "help": "This is how many decided search results are stored per grab (best first), besides the arr's release. Default 10, 1 to 50."
-      },
-      {
-        "name": "link_window",
-        "min": 3600,
-        "max": 604800,
-        "default": "24h",
-        "label": "Wait for matching Sonarr/Radarr grabs",
-        "type": "duration",
-        "help": "This is how long an rss pick waits for an arr grab of the same version before it counts as \"we'd grab, arr didn't\". Default 24h, 1h to 7 days."
       }
     ],
     "torrents": [

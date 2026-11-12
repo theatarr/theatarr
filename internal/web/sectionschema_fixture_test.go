@@ -57,7 +57,6 @@ func TestSectionDefaultTrue(t *testing.T) {
 		"library.plex.now_playing":                   p.LibrarySettings().NowPlaying,
 		"library.plex.prewarm":                       p.LibrarySettings().Prewarm,
 		"shadow.rss":                                 p.ShadowSettings().RSS,
-		"shadow.search":                              p.ShadowSettings().Search,
 		"playlists.routes":                           p.PlaylistSettings().Routes,
 		"router.cached_only":                         p.RouterSettings().CachedOnly,
 		"router.wanted.missing":                      p.WantedSettings().Missing,

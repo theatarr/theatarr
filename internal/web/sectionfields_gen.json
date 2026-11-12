@@ -202,14 +202,8 @@
     "per_run": "This caps the series one sweep refreshes. Default 50."
   },
   "Shadow": {
-    "import_interval": "This is how often the arr.import job reads the import.arr instances (incremental). Default 15m, minimum 5m.",
-    "keep_results": "This is how many decided search results are stored per grab (best first), besides the arr's release. Default 10, 1 to 50.",
-    "link_window": "This is how long an rss pick waits for an arr grab of the same version before it counts as \"we'd grab, arr didn't\". Default 24h, 1h to 7 days.",
     "rss": "This turns the shadow.rss job on or off. Default on.",
-    "rss_interval": "This is how often the shadow.rss job reads the rss feeds of the shadow and active versions' indexers (it is also production rss for active versions). Default 15m, the arrs' default rss sync interval; minimum 10m.",
-    "search": "This turns our own search per arr grab on or off. Off, each grab is only decided. Default on.",
-    "search_reuse": "This is how long one title's search results serve later grabs of the same title (the other version's arr grabs the same movie). Default 6h, at most 24h.",
-    "searches_per_hour": "This caps our shadow searches (one per title, every indexer of its versions) per clock hour. A grab over the cap waits for the next hour. Default 20, 1 to 200."
+    "rss_interval": "This is how often the shadow.rss job reads the rss feeds of the Live libraries' indexers. Default 15m, the arrs' default rss sync interval; minimum 10m."
   },
   "TorBoxCheck": {
     "enabled": "This turns it on. Default true; it does nothing without a TorBox provider whose key is set.",

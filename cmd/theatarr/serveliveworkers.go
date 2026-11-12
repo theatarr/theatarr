@@ -90,9 +90,9 @@ func (l serveLoops) workers() []serveWorker {
 			<-ctx.Done()
 			return nil
 		}},
-		// arr.import scheduling (shadow.import_interval, import.arr).
+		// arr.import scheduling (import.arr; every 15 minutes).
 		{name: "shadow", key: func(rt *serveRuntime) string {
-			return keyOf(rt.Policy.ShadowSettings().ImportInterval, rt.Policy.Import != nil && len(rt.Policy.Import.Arr) > 0)
+			return keyOf(rt.Policy.Import != nil && len(rt.Policy.Import.Arr) > 0)
 		}, run: func(ctx context.Context, _ *serveRuntime, _ string) error {
 			l.shadow.Schedule(ctx, time.Minute)
 			return nil

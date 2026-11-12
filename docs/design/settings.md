@@ -118,7 +118,6 @@ once. `section-panel.test.tsx` exercises partial writes, credentials, 422, 409, 
 | System › Backup | Torrent-list backups (`#torrent-backups`) | `torrents` | `backup` |  |
 | Torrents (Admin › Torrents) | Other libraries’ folders (`#scan-roots`) | `torrents` | `scan_roots` |  |
 | Advanced › Sonarr/Radarr instances | Sonarr and Radarr instances (`#arr`) | `import` | `arr` |  |
-| Advanced › Sonarr/Radarr instances | Comparison with Sonarr/Radarr (`#comparison`) | `shadow` | `import_interval`, `search`, `searches_per_hour`, `search_reuse`, `keep_results`, `link_window` |  |
 
 ### Form details
 
@@ -215,7 +214,7 @@ paths (for example `mount.rclone_rc.password` in the library section).
 | `egress` (VPN guard: check URL, VPN IPs/CIDRs, require_vpn_for) | live: the gateway is rebuilt per generation |
 | `torrents` (scan roots, scheduled backups) | live: each scan, backup and the 10-minute backup check read the generation in force |
 | `cardigann` (catalog, flaresolverr_url, Prowlarr reader) | live: the catalog is on exactly when `definitions` is set (Indexers › Catalog says which; **Turn the catalog on** fills in `prowlarr/indexers` for the panel's Save, and the add-indexer sheet's **Turn on the catalog** saves it directly); a new install's first settings save turns it on (Prowlarr/Indexers); the catalog is made when a save first sets `definitions`; source, FlareSolverr and the Prowlarr reader are read at use; the refresh loop restarts (and reads a changed source at once) when `definitions` changes; indexers already built keep their engine and sessions |
-| `shadow`, `import` (arr instances) | live: the arr clients and RSS follow each generation (RSS needs no restart); the arr import schedule restarts when `import_interval` or the presence of `import.arr` changes |
+| `shadow`, `import` (arr instances) | live: the arr clients and RSS follow each generation (RSS needs no restart); the arr import schedule (every 15 minutes) restarts when the presence of `import.arr` changes |
 | `playlists`, `ui`, `provider_sync`, `router` (options) | live: rebuilt per generation; the playlist, provider sync, download poll and wanted loops restart when their interval changes |
 | views (path, flavour, versions, profiles, alias_from, API key) | live: the HTTP routes are rebuilt per generation |
 

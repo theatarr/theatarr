@@ -431,20 +431,6 @@ export const SETTINGS_PANELS: SettingsPanel[] = [
     "keys": [
       "arr"
     ]
-  },
-  {
-    "id": "comparison",
-    "page": "arr",
-    "title": "Comparison with Sonarr/Radarr",
-    "section": "shadow",
-    "keys": [
-      "import_interval",
-      "search",
-      "searches_per_hour",
-      "search_reuse",
-      "keep_results",
-      "link_window"
-    ]
   }
 ];
 export function panelHref(panel: SettingsPanel) {

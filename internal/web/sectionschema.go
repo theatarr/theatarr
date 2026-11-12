@@ -222,12 +222,7 @@ var sectionAnnotations = map[string]SchemaField{
 	"library.mount.zurg_log_interval":             durationBounds(policy.MinZurgLogInterval, policy.MaxZurgLogInterval, "15s"),
 	"library.mount.zurg_api_interval":             durationBounds(policy.MinZurgAPIInterval, policy.MaxZurgAPIInterval, "1m"),
 	"library.mount.zurg_api_repair_grace":         durationBounds(policy.MinZurgRepairGrace, policy.MaxZurgRepairGrace, "2h"),
-	"shadow.import_interval":                      durationBounds(policy.MinShadowImportInterval, 0, "15m"),
 	"shadow.rss_interval":                         durationBounds(policy.MinShadowRSSInterval, 0, "15m"),
-	"shadow.search_reuse":                         durationBounds(time.Minute, policy.MaxShadowSearchReuse, "6h"),
-	"shadow.link_window":                          durationBounds(policy.MinShadowLinkWindow, policy.MaxShadowLinkWindow, "24h"),
-	"shadow.searches_per_hour":                    bounds(1, policy.MaxShadowSearchesHour, "20"),
-	"shadow.keep_results":                         bounds(1, policy.MaxShadowKeepResults, "10"),
 	"router.miss_ttl":                             durationBounds(policy.MinRouterMissTTL, policy.MaxRouterMissTTL, "6h"),
 	"router.poll_interval":                        durationBounds(policy.MinRouterPollInterval, policy.MaxRouterPollInterval, "1m"),
 	"router.cached_grace":                         durationBounds(policy.MinRouterCachedGrace, policy.MaxRouterCachedGrace, "2s"),
@@ -243,7 +238,7 @@ var sectionAnnotations = map[string]SchemaField{
 
 func floatPtr(v float64) *float64 { return &v }
 func init() {
-	for _, path := range []string{"metadata.series.enabled", "metadata.anime.auto_build", "library.sample.resolution", "library.sample.mislabel", "library.plex.now_playing", "library.plex.prewarm", "shadow.rss", "shadow.search", "playlists.routes", "router.cached_only", "router.wanted.missing", "router.wanted.retry_new", "router.cache_evidence.torbox_check.enabled"} {
+	for _, path := range []string{"metadata.series.enabled", "metadata.anime.auto_build", "library.sample.resolution", "library.sample.mislabel", "library.plex.now_playing", "library.plex.prewarm", "shadow.rss", "playlists.routes", "router.cached_only", "router.wanted.missing", "router.wanted.retry_new", "router.cache_evidence.torbox_check.enabled"} {
 		a := sectionAnnotations[path]
 		a.Default = "true"
 		sectionAnnotations[path] = a
@@ -405,13 +400,8 @@ var sectionLabels = map[string]string{
 	"router.cache_evidence.torbox_check":          "Check TorBox cache",
 	"router.cache_evidence.torbox_check.top":      "Maximum releases checked per search",
 	"router.cache_evidence.torbox_check.per_hour": "Cache checks per hour",
-	"shadow.import_interval":                      "Sonarr/Radarr import interval",
 	"shadow.rss_interval":                         "RSS feed check interval",
 	"shadow.rss":                                  "Check RSS feeds",
-	"shadow.search":                               "Search after Sonarr/Radarr grabs",
-	"shadow.search_reuse":                         "Reuse search results for",
-	"shadow.keep_results":                         "Results to keep per grab",
-	"shadow.link_window":                          "Wait for matching Sonarr/Radarr grabs",
 	"torrents.scan_roots":                         "Folders to scan",
 	"torrents.backup.every":                       "Backup interval",
 	"torrents.backup.keep":                        "Backups to keep",

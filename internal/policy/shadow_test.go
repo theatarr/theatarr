@@ -18,20 +18,15 @@ func TestShadowSettings(t *testing.T) {
 	if got := p.ShadowSettings(); got != def {
 		t.Errorf("example %+v, defaults %+v", got, def)
 	}
-	if def.ImportInterval != 15*time.Minute || def.RSSInterval != 15*time.Minute || !def.RSS || !def.Search ||
-		def.SearchesPerHour != 20 || def.KeepResults != 10 || def.LinkWindow != 24*time.Hour || def.SearchReuse != 6*time.Hour {
+	if def.RSSInterval != 15*time.Minute || !def.RSS {
 		t.Errorf("defaults %+v", def)
 	}
 	for _, tc := range []struct {
 		yaml, err string
 	}{
-		{"shadow:\n  import_interval: 5m\n  rss: false\n  search: false\n  searches_per_hour: 200\n", ""},
-		{"shadow:\n  import_interval: 4m\n", "shadow.import_interval"},
+		{"shadow:\n  rss_interval: 20m\n  rss: false\n", ""},
 		{"shadow:\n  rss_interval: 5m\n", "shadow.rss_interval"},
-		{"shadow:\n  searches_per_hour: 201\n", "shadow.searches_per_hour"},
-		{"shadow:\n  keep_results: -1\n", "shadow.keep_results"},
-		{"shadow:\n  link_window: 30m\n", "shadow.link_window"},
-		{"shadow:\n  search_reuse: 48h\n", "shadow.search_reuse"},
+		{"shadow:\n  search: false\n", "search"},
 		{"shadow:\n  bogus: 1\n", "bogus"},
 	} {
 		dir := copyExample(t)
@@ -46,7 +41,7 @@ func TestShadowSettings(t *testing.T) {
 			t.Errorf("%q: want an error about %s, got %v", tc.yaml, tc.err, err)
 		case tc.err == "":
 			s := p.ShadowSettings()
-			if s.ImportInterval != 5*time.Minute || s.RSS || s.Search || s.SearchesPerHour != 200 || s.KeepResults != 10 {
+			if s.RSSInterval != 20*time.Minute || s.RSS {
 				t.Errorf("settings %+v", s)
 			}
 		}

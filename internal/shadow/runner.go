@@ -19,6 +19,9 @@ import (
 // KindImport is the arr import's job kind.
 const KindImport = "arr.import"
 
+// importInterval is how often arr.import reads the import.arr instances (incremental).
+const importInterval = 15 * time.Minute
+
 // ArrSourceFunc gives the arr client for an import.arr instance (nil and an error when its key is not set).
 type ArrSourceFunc func(instance string) (importarr.Getter, error)
 
@@ -113,7 +116,7 @@ func (r *Runner) pin(ctx context.Context) context.Context {
 }
 
 // Schedule schedules arr.import until ctx ends, the first import after importDelay. With a settings runtime, the
-// schedule (import.arr and shadow.import_interval) is the one current when it starts; theatarr serve starts it again
+// schedule (import.arr) is the one current when it starts; theatarr serve starts it again
 // when either changes.
 func (r *Runner) Schedule(ctx context.Context, importDelay time.Duration) {
 	if r.q == nil {
@@ -128,7 +131,7 @@ func (r *Runner) Schedule(ctx context.Context, importDelay time.Duration) {
 	if start.arr == nil || start.pol.Import == nil || len(start.pol.Import.Arr) == 0 {
 		return
 	}
-	next, every := r.now().Add(importDelay), start.set.ImportInterval
+	next, every := r.now().Add(importDelay), importInterval
 	r.log.Info("shadow job scheduled", "kind", KindImport, "every", every.String(), "first", next.UTC())
 	t := time.NewTimer(time.Second)
 	defer t.Stop()
