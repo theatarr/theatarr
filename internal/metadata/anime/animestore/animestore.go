@@ -186,9 +186,17 @@ func (s *Store) holds(ctx context.Context, tx *sql.Tx, prev map[string]*mappingR
 	if len(prev) == 0 {
 		return nil, nil
 	}
+	// compare what the build would apply: saved review decisions first, as apply does
+	decided, err := s.decided(ctx, tx, res.Slug)
+	if err != nil {
+		return nil, err
+	}
 	next := map[string]*mappingRow{}
 	for _, e := range res.Entries {
 		if m := mappingOf(e); m != nil {
+			if m.status == anime.StatusConflict || m.status == anime.StatusHeuristic {
+				applyDecision(m, e.Key, decided)
+			}
 			next[e.Key] = m
 		}
 	}

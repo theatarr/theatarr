@@ -61,8 +61,9 @@ not raise again are `superseded`.
 
 **Refresh hold**: `Save` holds a build, keeping the applied one, when it would map more than 10% fewer of
 a TVDB series' episodes, or would move a mapping whose episodes have files (an active `link_episode`, or an imported
-`version_file_episode`). The held build is the franchise's `pending_result`; accepting its item applies it, rejecting
-drops it.
+`version_file_episode`). Both checks compare the build with saved review decisions applied, so a refresh that proposes
+what review already decided does not ask again. The held build is the franchise's `pending_result`; accepting its
+item applies it, rejecting drops it.
 
 ### Overrides
 

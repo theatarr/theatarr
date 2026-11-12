@@ -189,19 +189,131 @@ func TestHeldMappingsApplyChoices(t *testing.T) {
 	if err := s.ResolveMapping(ctx, it.ID, c, ""); err != nil {
 		t.Fatal(err)
 	}
-	// a file on the chosen range holds the next build, which proposes the raw conflict mapping again
-	w := st.Writer()
-	mustExec(t, w, `INSERT INTO title (id, kind, name, tvdb_id, created_at, updated_at) VALUES (1, 'series', 'M', ?, 0, 0)`, d.TVDB)
-	mustExec(t, w, `INSERT INTO episode (id, title_id, season, number, created_at, updated_at) VALUES (1, 1, 2, 2, 0, 0)`)
-	mustExec(t, w, `INSERT INTO link (id, path, target, title_id, created_at, updated_at) VALUES (1, '/l/a.mkv', '/m/a.mkv', 1, 0, 0)`)
-	mustExec(t, w, `INSERT INTO link_episode (link_id, episode_id) VALUES (1, 1)`)
-	if saved, err := s.Save(ctx, build(t, "mushoku-tensei"), "live", false); err != nil || saved.Applied {
+	// the next build proposes the raw conflict mapping again and is held because it unmaps another entry
+	next := build(t, "mushoku-tensei")
+	var drop *anime.Entry
+	for _, e := range next.Entries {
+		if e.Key != "al:146065" && e.TVDB != nil && (drop == nil || len(e.TVDB.Episodes) > len(drop.TVDB.Episodes)) {
+			drop = e
+		}
+	}
+	drop.TVDB, drop.Mapping = nil, nil
+	if saved, err := s.Save(ctx, next, "live", false); err != nil || saved.Applied {
 		t.Fatalf("not held: %+v %v", saved, err)
 	}
 	held, err := s.HeldMappings(ctx, "mushoku-tensei")
 	if m := held["al:146065"]; err != nil || m.TVDB != d.TVDB || !reflect.DeepEqual(m.Episodes, c.Episodes) {
 		t.Errorf("held mapping of al:146065 = %+v (%v), want the saved choice %v", m, err, c.Episodes)
 	}
+}
+
+// A refresh proposing what review already decided is not held again; a new proposal for the entry is.
+func TestDecidedProposalNotHeldAgain(t *testing.T) {
+	ctx := context.Background()
+	// open saves mushoku-tensei, finds the al:146065 conflict and links a file to the episode at picks of its series.
+	open := func(t *testing.T, pick func(animestore.ItemDetail) anime.SE) (*animestore.Store, *store.Store, *animestore.Item, animestore.ItemDetail) {
+		st := openStore(t)
+		s := &animestore.Store{DB: st}
+		if _, err := s.Save(ctx, build(t, "mushoku-tensei"), "cache", false); err != nil {
+			t.Fatal(err)
+		}
+		items, _ := s.Items(ctx, "open", "mushoku-tensei")
+		var it *animestore.Item
+		for i := range items {
+			if items[i].EntryKey == "al:146065" && items[i].Kind == "conflict" {
+				it = &items[i]
+			}
+		}
+		if it == nil {
+			t.Fatal("no conflict")
+		}
+		d, _ := it.MappingDetail()
+		w := st.Writer()
+		mustExec(t, w, `INSERT INTO title (id, kind, name, tvdb_id, created_at, updated_at) VALUES (1, 'series', 'M', ?, 0, 0)`, d.TVDB)
+		mustExec(t, w, `INSERT INTO episode (id, title_id, season, number, created_at, updated_at) VALUES (1, 1, ?, ?, 0, 0)`, pick(d)[0], pick(d)[1])
+		mustExec(t, w, `INSERT INTO link (id, path, target, title_id, created_at, updated_at) VALUES (1, '/l/a.mkv', '/m/a.mkv', 1, 0, 0)`)
+		mustExec(t, w, `INSERT INTO link_episode (link_id, episode_id) VALUES (1, 1)`)
+		return s, st, it, d
+	}
+	mapping := func(t *testing.T, st *store.Store) (status string, eps []anime.SE) {
+		var e string
+		if err := st.Reader().QueryRow(`SELECT status, episodes FROM anime_mapping
+			WHERE franchise = 'mushoku-tensei' AND entry_key = 'al:146065'`).Scan(&status, &e); err != nil {
+			t.Fatal(err)
+		}
+		_ = json.Unmarshal([]byte(e), &eps)
+		return status, eps
+	}
+	reopened := func(t *testing.T, st *store.Store) int {
+		return count(t, st, `SELECT count(*) FROM anime_review WHERE franchise = 'mushoku-tensei' AND state = 'open'
+			AND (entry_key = 'al:146065' OR kind LIKE 'refresh_%')`)
+	}
+	chosen := []anime.SE{{2, 2}, {2, 3}}
+	onChosen := func(animestore.ItemDetail) anime.SE { return chosen[0] }
+	onProposed := func(d animestore.ItemDetail) anime.SE { return d.Episodes[0] }
+
+	t.Run("chosen mapping", func(t *testing.T) {
+		s, st, it, d := open(t, onChosen)
+		c := anime.MappingCandidate{Source: animestore.ManualSource, SeriesID: d.TVDB, Episodes: chosen}
+		if err := s.ResolveMapping(ctx, it.ID, c, ""); err != nil {
+			t.Fatal(err)
+		}
+		saved, err := s.Save(ctx, build(t, "mushoku-tensei"), "live", false)
+		if err != nil || !saved.Applied || saved.NewReview != 0 {
+			t.Fatalf("same proposal again: %+v %v", saved, err)
+		}
+		if n := reopened(t, st); n != 0 {
+			t.Errorf("open items for the decided entry: %d", n)
+		}
+		if status, eps := mapping(t, st); status != anime.StatusOverride || !reflect.DeepEqual(eps, chosen) {
+			t.Errorf("mapping %s %v, want override %v", status, eps, chosen)
+		}
+
+		// a genuinely different proposal for the entry moves the linked episode: held
+		next := build(t, "mushoku-tensei")
+		for _, e := range next.Entries {
+			if e.Key == "al:146065" {
+				e.TVDB.Episodes = []anime.SE{{2, 20}, {2, 21}}
+			}
+		}
+		saved, err = s.Save(ctx, next, "live", false)
+		if err != nil || saved.Applied || saved.NewReview == 0 {
+			t.Fatalf("new proposal: %+v %v", saved, err)
+		}
+		if n := count(t, st, `SELECT count(*) FROM anime_review WHERE entry_key = 'al:146065' AND kind = 'refresh_moves_linked'
+			AND state = 'open'`); n != 1 {
+			t.Errorf("refresh_moves_linked items: %d", n)
+		}
+		if status, eps := mapping(t, st); status != anime.StatusOverride || !reflect.DeepEqual(eps, chosen) {
+			t.Errorf("held: mapping %s %v, want override %v", status, eps, chosen)
+		}
+	})
+	t.Run("accepted", func(t *testing.T) {
+		s, st, it, _ := open(t, onProposed)
+		if err := s.Resolve(ctx, it.ID, true, ""); err != nil {
+			t.Fatal(err)
+		}
+		saved, err := s.Save(ctx, build(t, "mushoku-tensei"), "live", false)
+		if err != nil || !saved.Applied || saved.NewReview != 0 || reopened(t, st) != 0 {
+			t.Fatalf("same proposal again: %+v %v", saved, err)
+		}
+		if status, _ := mapping(t, st); status != anime.StatusOverride {
+			t.Errorf("status %s, want override", status)
+		}
+	})
+	t.Run("rejected", func(t *testing.T) {
+		s, st, it, _ := open(t, onChosen)
+		if err := s.Resolve(ctx, it.ID, false, ""); err != nil {
+			t.Fatal(err)
+		}
+		saved, err := s.Save(ctx, build(t, "mushoku-tensei"), "live", false)
+		if err != nil || !saved.Applied || saved.NewReview != 0 || reopened(t, st) != 0 {
+			t.Fatalf("same proposal again: %+v %v", saved, err)
+		}
+		if status, _ := mapping(t, st); status != anime.StatusRejected {
+			t.Errorf("status %s, want rejected", status)
+		}
+	})
 }
 
 func TestAltCutsSaved(t *testing.T) {
