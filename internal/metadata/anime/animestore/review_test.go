@@ -248,6 +248,16 @@ func TestDecidedProposalNotHeldAgain(t *testing.T) {
 		return count(t, st, `SELECT count(*) FROM anime_review WHERE franchise = 'mushoku-tensei' AND state = 'open'
 			AND (entry_key = 'al:146065' OR kind LIKE 'refresh_%')`)
 	}
+	openID := func(t *testing.T, s *animestore.Store, kind string) int64 {
+		items, _ := s.Items(ctx, "open", "mushoku-tensei")
+		for _, it := range items {
+			if it.Kind == kind {
+				return it.ID
+			}
+		}
+		t.Fatalf("no open %s item: %+v", kind, items)
+		return 0
+	}
 	chosen := []anime.SE{{2, 2}, {2, 3}}
 	onChosen := func(animestore.ItemDetail) anime.SE { return chosen[0] }
 	onProposed := func(d animestore.ItemDetail) anime.SE { return d.Episodes[0] }
@@ -267,6 +277,21 @@ func TestDecidedProposalNotHeldAgain(t *testing.T) {
 		}
 		if status, eps := mapping(t, st); status != anime.StatusOverride || !reflect.DeepEqual(eps, chosen) {
 			t.Errorf("mapping %s %v, want override %v", status, eps, chosen)
+		}
+
+		// the same episodes proposed on another TVDB series are a new proposal: held
+		other := build(t, "mushoku-tensei")
+		for _, e := range other.Entries {
+			if e.Key == "al:146065" {
+				e.TVDB.SeriesID = d.TVDB + 1
+			}
+		}
+		saved, err = s.Save(ctx, other, "live", false)
+		if err != nil || saved.Applied || saved.NewReview == 0 {
+			t.Fatalf("proposal on another series: %+v %v", saved, err)
+		}
+		if err := s.Resolve(ctx, openID(t, s, "refresh_moves_linked"), false, ""); err != nil {
+			t.Fatal(err)
 		}
 
 		// a genuinely different proposal for the entry moves the linked episode: held

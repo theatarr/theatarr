@@ -56,7 +56,7 @@ coverage), so a person confirms each once.
 
 **Review queue** (`anime_review`, `theatarr anime review`): `conflict` and `heuristic` items per entry; `refresh_shrink`
 and `refresh_moves_linked` items when a refresh is held. A decision sticks: a later build proposing the same mapping
-takes the accepted one as `override` (or keeps a rejected one out) instead of asking again. Items a new build does
+(same entry, TVDB series and episodes) takes the accepted one as `override` (or keeps a rejected one out) instead of asking again. Items a new build does
 not raise again are `superseded`.
 
 **Refresh hold**: `Save` holds a build, keeping the applied one, when it would map more than 10% fewer of

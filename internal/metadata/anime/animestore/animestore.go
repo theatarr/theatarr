@@ -497,11 +497,16 @@ func (s *Store) apply(ctx context.Context, tx *sql.Tx, res *anime.Result, body [
 	return opened, nil
 }
 
-type decisionKey struct{ key, kind, eps string }
+// decisionKey is a review decision's proposal: entry, kind, TVDB series and episodes.
+type decisionKey struct {
+	key, kind string
+	tvdb      int
+	eps       string
+}
 
 // applyDecision applies the saved review decision on a conflict or heuristic mapping, if there is one, and says why.
 func applyDecision(m *mappingRow, key string, decided map[decisionKey]decision) (reason string, ok bool) {
-	d, ok := decided[decisionKey{key, m.status, jsonText(sortedEps(m.eps))}]
+	d, ok := decided[decisionKey{key, m.status, m.series, jsonText(sortedEps(m.eps))}]
 	if !ok {
 		return "", false
 	}
@@ -523,7 +528,7 @@ type decision struct {
 	choice   *anime.MappingCandidate // the candidate accepted instead of the proposed winner
 }
 
-// decided lists the latest review decision per entry, kind and mapping.
+// decided lists the latest review decision per entry, kind and proposed mapping (TVDB series and episodes).
 func (s *Store) decided(ctx context.Context, tx *sql.Tx, slug string) (map[decisionKey]decision, error) {
 	rows, err := tx.QueryContext(ctx, `SELECT id, entry_key, kind, detail, state, choice FROM anime_review
 		WHERE franchise = ? AND state IN ('accepted', 'rejected') AND kind IN ('conflict', 'heuristic') ORDER BY id`, slug)
@@ -539,6 +544,7 @@ func (s *Store) decided(ctx context.Context, tx *sql.Tx, slug string) (map[decis
 			return nil, err
 		}
 		var d struct {
+			TVDB     int        `json:"tvdb"`
 			Episodes []anime.SE `json:"episodes"`
 		}
 		_ = json.Unmarshal([]byte(detail), &d)
@@ -549,7 +555,7 @@ func (s *Store) decided(ctx context.Context, tx *sql.Tx, slug string) (map[decis
 				dec.choice = &c
 			}
 		}
-		out[decisionKey{key, kind, jsonText(sortedEps(d.Episodes))}] = dec
+		out[decisionKey{key, kind, d.TVDB, jsonText(sortedEps(d.Episodes))}] = dec
 	}
 	return out, rows.Err()
 }
