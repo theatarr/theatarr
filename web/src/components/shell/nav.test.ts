@@ -26,12 +26,14 @@ const MAIN_MANAGE = MAIN.flatMap(p => p === "/anime" ? [p, "/collections"] : [p]
 const MORE = ["/activity", "/now-playing", "/calendar"];
 
 describe("navigation by role", () => {
-  it("users and managers see the main entries and no Admin", () => {
-    for (const [p, main] of [[ROLES.user, MAIN], [ROLES.manager, MAIN_MANAGE]] as const) {
+  it("users and managers see the main entries and no Admin; managers also Wanted", () => {
+    // Managers also have Wanted, after Activity.
+    const withWanted = (l: string[]) => l.flatMap(p => p === "/activity" ? [p, "/wanted"] : [p]);
+    for (const [p, main, more] of [[ROLES.user, MAIN, MORE], [ROLES.manager, withWanted(MAIN_MANAGE), withWanted(MORE)]] as const) {
       const g = navFor(p);
       expect(g.map((x) => x.id)).toEqual(["main"]);
       expect(paths(g)).toEqual(main);
-      expect(paths(moreFor(p))).toEqual(MORE);
+      expect(paths(moreFor(p))).toEqual(more);
     }
   });
   it("admins see the main entries, then Admin with every page", () => {

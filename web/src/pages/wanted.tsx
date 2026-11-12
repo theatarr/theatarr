@@ -55,18 +55,18 @@ export function targetWords(targets: string[]) {
   return words.join(", ");
 }
 
-/** Why a row waits. The library's own state comes from the server's grab state (GET /status), worded by the shared
+/** Why a row waits (settings links for admins only). The library's own state comes from the server's grab state (GET /status), worded by the shared
  * verdict: "Locked off" under the environment lock, and a library whose download gate is closed says so even while
  * the search loop is off. Without that state (loading or failed) the row falls back to the wanted reason, worded
  * without a cause. */
-function Waiting({ row, enabled, missing, state, off }: { row: WantedRow; enabled: boolean; missing: boolean; state?: VersionGrabState; off: GlobalOff }) {
-  const library = state ? <VersionStatus state={state} canManage settingsKey={row.version} /> : null;
+function Waiting({ row, enabled, missing, state, off, admin }: { row: WantedRow; enabled: boolean; missing: boolean; state?: VersionGrabState; off: GlobalOff; admin: boolean }) {
+  const library = state ? <VersionStatus state={state} canManage={admin} settingsKey={row.version} /> : null;
   if (row.search_queued) return <>Queued for search (#{row.search_queued})</>;
   switch (row.waiting) {
     case "due": return <>Next in line (#{row.position})</>;
     case "searched_recently": return <>Searched {fmtAgo(row.last_run?.at)}; again {fmtAgo(row.next_at)}</>;
     case "in_flight": return <>Downloading</>;
-    case "grab_off": return library ?? <>Downloads are off for this library · <Link className="text-primary hover:underline" to={`/admin/settings/libraries?edit=${encodeURIComponent(row.version)}`}>Edit library</Link></>;
+    case "grab_off": return library ?? <>Downloads are off for this library{admin ? <> · <Link className="text-primary hover:underline" to={`/admin/settings/libraries?edit=${encodeURIComponent(row.version)}`}>Edit library</Link></> : null}</>;
     case "loop_off": return <>{enabled && row.reason === "cutoff" ? "Cutoff-unmet searches are off" : enabled && !missing ? "Missing searches are off" : "Automatic searches are off"}{state && !willGrab(state) ? <div className="mt-1">{library}</div> : null}</>;
     case "downloads_off": return library ?? <>{OFF_WORD[off ?? "unknown"]}</>;
   }
@@ -137,11 +137,11 @@ export function WantedPage() {
   const tabQuery = version ? `?version=${encodeURIComponent(version)}` : "";
   return <div>
     <PageHeader title="Wanted" description="What automatic searches are waiting for. Viewing this page never starts a search; Search now queues one under the hourly limit." />
-    <WantedTabs active={only} query={tabQuery} />
+    <WantedTabs active={only} query={tabQuery} admin={perms.admin} />
     {q.isLoading ? <Loading /> : q.error ? <ErrorState error={q.error} /> : d ? <div className="space-y-4">
       <p className="text-sm text-muted-foreground">Searches every {fmtGoDuration(d.interval)}, up to {d.per_hour} an hour, again after {fmtGoDuration(d.again_after)}. {plural(d.searched_last_hour, "search")} in the last hour. {d.add_time_pending > 0 ? `${plural(d.add_time_pending, "search")} for newly added titles ${d.add_time_pending === 1 ? (d.downloads_enabled ? "goes first" : "waits until new downloads are on again") : (d.downloads_enabled ? "go first" : "wait until new downloads are on again")}.` : ""}</p>
-      {!d.enabled || (only === "missing" ? !d.missing : d.cutoff_unmet === "off") ? <p role="status" className="rounded-[5px] border border-[var(--line)] bg-[var(--sunken)] px-3 py-2 text-[13px] text-[var(--ink-2)]">{!d.enabled ? "Automatic searches are off." : only === "cutoff" ? "Cutoff-unmet searches are off." : "Missing searches are off."} <Link className="text-primary hover:underline" to={settingHref("router", "wanted.enabled") ?? "/admin/settings/downloads"}>Automatic search settings</Link></p> : null}
-      <DownloadsOffNotice off={off} canManage />
+      {!d.enabled || (only === "missing" ? !d.missing : d.cutoff_unmet === "off") ? <p role="status" className="rounded-[5px] border border-[var(--line)] bg-[var(--sunken)] px-3 py-2 text-[13px] text-[var(--ink-2)]">{!d.enabled ? "Automatic searches are off." : only === "cutoff" ? "Cutoff-unmet searches are off." : "Missing searches are off."}{perms.admin ? <> <Link className="text-primary hover:underline" to={settingHref("router", "wanted.enabled") ?? "/admin/settings/downloads"}>Automatic search settings</Link></> : null}</p> : null}
+      <DownloadsOffNotice off={off} canManage={perms.admin} />
       <label className="flex items-center gap-2 text-sm text-[var(--ink-3)]">Library
         <Select aria-label="Library" className="w-auto max-w-full" value={version ?? ""} onChange={e => change("version", e.target.value)}>
           <option value="">All libraries</option>
@@ -159,7 +159,7 @@ export function WantedPage() {
       </p> : null}
       <div className="flex flex-wrap items-center gap-2" aria-label="Search now">
         <Button variant="outline" size="sm" disabled={!chosen.length || search.isPending} onClick={() => request({ body: { only, items: chosen.map(rowItem) }, count: chosen.length, title: `Search ${chosen.length} selected` }, chosen.length > left)}>Search selected ({chosen.length})</Button>
-        <Button variant="outline" size="sm" disabled={!d.searchable || !d.downloads_enabled || search.isPending} title={d.downloads_enabled ? undefined : "New downloads are off"} onClick={() => request({ body: { only, all: { ...(version ? { version } : {}), ...(waiting ? { waiting: waiting as NonNullable<WantedSearchBody["all"]>["waiting"] } : {}) } }, count: d.searchable, title: `Search all ${d.searchable} ${what}${version ? ` in ${label(version)}` : ""}` }, true)}>Search all {d.searchable} {what}{version ? ` in ${label(version)}` : ""}</Button>
+        <Button variant="outline" size="sm" disabled={!d.searchable || !d.downloads_enabled || search.isPending} title={!d.downloads_enabled ? "New downloads are off" : !d.searchable ? "Nothing in this list can be searched now" : undefined} onClick={() => request({ body: { only, all: { ...(version ? { version } : {}), ...(waiting ? { waiting: waiting as NonNullable<WantedSearchBody["all"]>["waiting"] } : {}) } }, count: d.searchable, title: `Search all ${d.searchable} ${what}${version ? ` in ${label(version)}` : ""}` }, true)}>Search all {d.searchable > 0 ? `${d.searchable} ` : ""}{what}{version ? ` in ${label(version)}` : ""}</Button>
         {search.data && !ask ? <span role="status" className="text-[13px] text-[var(--ink-2)]" data-testid="search-now-result">{searchNowWords(search.data)}</span> : null}
         {(search.error && !ask) || clear.error ? <span role="alert" className="text-[13px] text-[var(--bad-ink)]">{errText(search.error ?? clear.error)}</span> : null}
       </div>
@@ -174,9 +174,9 @@ export function WantedPage() {
           <Link className="font-semibold text-[var(--ink)] hover:text-[var(--accent-ink)] [overflow-wrap:anywhere]" to={`/title/${row.title_id}`}>{name}</Link>
           <div className="min-w-0">{label(row.version)}<div className="mt-0.5"><VersionTag k={row.version} /></div></div>
           <div>{targetWords(row.targets)}</div>
-          <div><Waiting row={row} enabled={d.enabled} missing={d.missing} state={states.get(row.version)} off={off} /></div>
+          <div><Waiting row={row} enabled={d.enabled} missing={d.missing} state={states.get(row.version)} off={off} admin={perms.admin} /></div>
           <div>{row.last_run ? <span title={fmtTime(row.last_run.at)}>{fmtAgo(row.last_run.at)} · </span> : null}{searchResult(row.last_run)}</div>
-          <div className="flex flex-wrap items-baseline gap-2">{perms.manage ? <InteractiveSearchButton titleId={row.title_id} version={row.version} season={row.season} size="xs" variant="ghost" /> : <Link className="text-primary hover:underline" to={`/title/${row.title_id}/releases?version=${encodeURIComponent(row.version)}`}>Releases</Link>}{row.decision_id ? <Link className="text-primary hover:underline" to={journalLink(String(row.decision_id))}>Decision</Link> : null}<button type="button" className="text-primary hover:underline disabled:cursor-not-allowed disabled:text-[var(--ink-3)] disabled:no-underline" disabled={!!why || !!row.search_queued || search.isPending} title={why || (row.search_queued ? "Already queued" : undefined)} onClick={() => request({ body: { only, items: [rowItem(row)] }, count: 1, title: "Search now" }, false)}>Search now</button></div>
+          <div className="flex flex-wrap items-baseline gap-2"><InteractiveSearchButton titleId={row.title_id} version={row.version} season={row.season} size="xs" variant="ghost" />{row.decision_id && perms.admin ? <Link className="text-primary hover:underline" to={journalLink(String(row.decision_id))}>Decision</Link> : null}<button type="button" className="text-primary hover:underline disabled:cursor-not-allowed disabled:text-[var(--ink-3)] disabled:no-underline" disabled={!!why || !!row.search_queued || search.isPending} title={why || (row.search_queued ? "Already queued" : undefined)} onClick={() => request({ body: { only, items: [rowItem(row)] }, count: 1, title: "Search now" }, false)}>Search now</button></div>
           </div>
         </li>; })}</ul>
       </Card>}
@@ -184,7 +184,7 @@ export function WantedPage() {
     </div> : null}
     {ask && d ? <ConfirmDialog danger={false} testid="search-now-confirm" busy={search.isPending} error={search.error} onClose={() => setAsk(undefined)} onConfirm={() => send(ask.body)}
       scope={{ title: ask.title, confirm: `Queue ${plural(ask.count, "search")}`, does: [`Queue ${plural(ask.count, "search")}; they start oldest first as the hourly limit allows`], keeps: ["The hourly limit: no search goes around it", "Searches that already started"] }}>
-      <p data-testid="search-now-estimate">{plural(ask.count, "search")}. Up to {d.per_hour} start each hour ({d.searched_last_hour} used this hour){waitingHours > 0 ? `, so this takes about ${waitingHours} hour${waitingHours === 1 ? "" : "s"}` : ", so they start now"}. While they wait, each automatic search round starts them before its own searches. Raise <em>Searches per hour</em> in <Link className="text-primary hover:underline" to={settingHref("router", "wanted.per_hour") ?? "/admin/settings/downloads"}>Settings › Download clients</Link> to go faster.</p>
+      <p data-testid="search-now-estimate">{plural(ask.count, "search")}. Up to {d.per_hour} start each hour ({d.searched_last_hour} used this hour){waitingHours > 0 ? `, so this takes about ${waitingHours} hour${waitingHours === 1 ? "" : "s"}` : ", so they start now"}. While they wait, each automatic search round starts them before its own searches. Raise <em>Searches per hour</em> in {perms.admin ? <Link className="text-primary hover:underline" to={settingHref("router", "wanted.per_hour") ?? "/admin/settings/downloads"}>Settings › Download clients</Link> : "Settings › Download clients"} to go faster.</p>
     </ConfirmDialog> : null}
   </div>;
 }

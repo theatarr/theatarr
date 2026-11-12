@@ -93,3 +93,32 @@ func TestStage(t *testing.T) {
 		}
 	}
 }
+
+func TestNotStartedWords(t *testing.T) {
+	for _, prefix := range []string{"route ended: ", "route stopped: "} {
+		for text, want := range map[string][2]string{
+			"router: router.enabled is false; nothing is written to any provider": {"off", "Downloads were off when it was due to start"},
+			"router: the library is Watch only; nothing is written for it":        {"watch_only", "Its library is Watch only, so it was not started"},
+			"router: the version's grab switch is off; nothing is written for it": {"grab_off", "Downloads are off for its library, so it was not started"},
+		} {
+			d := Download{State: "failed", Error: prefix + text}
+			if got := d.NotStarted(); got != want[0] {
+				t.Errorf("%s%s: reason %q, want %q", prefix, text, got, want[0])
+			}
+			if got := d.Words(""); got != want[1] {
+				t.Errorf("%s%s: words %q", prefix, text, got)
+			}
+			if got := (&Download{State: "queued", Error: prefix + text}).NotStarted(); got != "" {
+				t.Errorf("queued row read as not started: %q", got)
+			}
+		}
+	}
+	for text, words := range map[string]string{"download failed: x": "Download failed",
+		"stalled: not ready": "Stalled, so it was dropped",
+		"route ended: its release was not placed by the route that queued it": "Download failed"} {
+		d := Download{State: "failed", Error: text}
+		if d.NotStarted() != "" || d.Words("") != words {
+			t.Errorf("%q: reason %q, words %q", text, d.NotStarted(), d.Words(""))
+		}
+	}
+}

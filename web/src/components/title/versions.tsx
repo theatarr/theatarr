@@ -238,7 +238,7 @@ function CopyCard({ v }: { v: Version }) {
         </Button>
       )}
       <ControlNote c={c} kind="both" globalSaid verdictSaid={!!c?.grab_state} />
-      {perms.admin && v.control?.mode === "active" ? <>
+      {perms.manage && v.control?.mode === "active" ? <>
         {v.state === "wanted" || !!v.episodes?.missing ? <Link className="text-xs text-primary hover:underline" to={`/wanted?version=${encodeURIComponent(v.key ?? "")}`}>See in Wanted</Link> : null}
         {v.state === "filled" || !!v.upgrade?.below ? <Link className="text-xs text-primary hover:underline" to={`/wanted/cutoff?version=${encodeURIComponent(v.key ?? "")}`}>See in Cutoff unmet</Link> : null}
       </> : null}

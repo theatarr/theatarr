@@ -156,4 +156,18 @@ describe("Activity for an account without See files", () => {
     expect(document.querySelector('[data-vkey="movie-remux"]')).toBeTruthy();
     expect(screen.queryByTestId("failed-words")).toBeNull();
   });
+  it("shows a download ended because downloads were off as Not started, not as a failure", async () => {
+    const notStarted = { ...failed, not_started: true, words: "Downloads were off when it was due to start" };
+    mockFetch([
+      { method: "GET", path: "/auth/me", reply: { ...user, permissions: ["browse", "request"] } },
+      { method: "GET", path: "/activity", reply: { state: "now", admin: false, total: 1, now: [notStarted] } },
+      { method: "GET", path: "/titles/facets", reply: {} },
+    ]);
+    renderPage(<ActivityPageView />, "/activity");
+    const stages = await screen.findAllByTestId("stage");
+    expect(stages.map((s) => s.textContent)).toEqual(stages.map(() => "Not started"));
+    expect(screen.getAllByTestId("words")[0].textContent).toBe("Downloads were off when it was due to start");
+    await userEvent.click(screen.getAllByTestId("download-details")[0]);
+    expect(screen.queryByTestId("failed-words")).toBeNull();
+  });
 });

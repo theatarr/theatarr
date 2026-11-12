@@ -71,7 +71,7 @@ type TMDbClient interface {
 
 func (w *Web) mountAddAPI(mux *http.ServeMux) {
 	b := APIBase
-	w.handle(mux, "GET "+b+"/wanted", SignedIn, auth.PermAdmin, w.apiWanted)
+	w.handle(mux, "GET "+b+"/wanted", SignedIn, auth.PermManage, w.apiWanted)
 	w.handle(mux, "GET "+b+"/search", SignedIn, auth.PermBrowse, w.apiSearch)
 	w.handle(mux, "GET "+b+"/add/options", SignedIn, auth.PermBrowse, w.apiAddOptions)
 	w.handle(mux, "POST "+b+"/titles", SignedIn, auth.PermAdd, w.apiAddTitle)

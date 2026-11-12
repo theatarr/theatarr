@@ -11,6 +11,7 @@ import (
 
 	"github.com/theatarr/theatarr/internal/activity"
 	"github.com/theatarr/theatarr/internal/auth"
+	"github.com/theatarr/theatarr/internal/router"
 	"github.com/theatarr/theatarr/internal/store"
 )
 
@@ -139,6 +140,14 @@ func TestRequestFlow(t *testing.T) {
 	if s := e.requestStatus(r.ID); s != ReqProcessing {
 		t.Errorf("with a download: %s", s)
 	}
+	// Ended before any provider add because downloads were off: not a failure, the request stays approved.
+	e.exec(`UPDATE download SET state = 'failed', error = ?, updated_at = ?`,
+		"route ended: "+router.ErrDisabled.Error(), now+1)
+	e.web.syncRequests(context.Background())
+	if s := e.requestStatus(r.ID); s != ReqApproved {
+		t.Errorf("download not started: %s", s)
+	}
+	e.exec(`UPDATE download SET error = NULL`)
 	e.exec(`UPDATE download SET state = 'failed', updated_at = ?`, now+1)
 	e.web.syncRequests(context.Background())
 	if s := e.requestStatus(r.ID); s != ReqFailed {

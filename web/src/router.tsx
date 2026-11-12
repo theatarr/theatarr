@@ -98,10 +98,10 @@ function RequireAuth() {
 }
 
 /** The admin screens: the API refuses them to other accounts; the UI says so instead of showing errors. */
-function RequireAdmin({ need = "admin" }: { need?: "admin" | "users" }) {
+function RequireAdmin({ need = "admin" }: { need?: "admin" | "users" | "manage" }) {
   const me = useAuth();
   const p = permsOf(me.data?.permissions);
-  if (!(need === "users" ? p.users : p.admin)) return <Forbidden />;
+  if (!p[need]) return <Forbidden />;
   return <Outlet />;
 }
 
@@ -174,10 +174,15 @@ export const routes: RouteObject[] = [
         children: [{ path: "/admin/users", element: <UsersPage /> }],
       },
       {
-        element: <RequireAdmin />,
+        element: <RequireAdmin need="manage" />,
         children: [
           { path: "/wanted", element: <WantedPage /> },
           { path: "/wanted/cutoff", element: <WantedPage /> },
+        ],
+      },
+      {
+        element: <RequireAdmin />,
+        children: [
           { path: "/wanted/manual-import", element: <NotAsUser to="/wanted"><ManualImport /></NotAsUser> },
           { path: "/activity/journal/:id", element: <NotAsUser to="/activity"><JournalEntryPage /></NotAsUser> },
           { path: "/admin/setup", element: <SetupPage /> },

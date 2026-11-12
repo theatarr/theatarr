@@ -141,6 +141,8 @@ type ActivityDownload struct {
 	Created  time.Time      `json:"created_at"`
 	Updated  time.Time      `json:"updated_at"`
 	Import   string         `json:"import_state,omitempty"` // the library's progress state, visible to all viewers
+	// NotStarted: a failed download that ended before any provider add because downloads were off; not a failure.
+	NotStarted bool `json:"not_started,omitempty"`
 	// WaitingSince is when a waiting download (queued, added, complete but not linked) began its wait; NextRetry is
 	// the next try Theatarr has scheduled (a deferred provider add, a partial import's retry). Unset when not known.
 	WaitingSince *time.Time `json:"waiting_since,omitempty"`
@@ -469,17 +471,21 @@ func (w *Web) downloadViews(ctx context.Context, ds []activity.Download, admin b
 	for i := range ds {
 		d := &ds[i]
 		step, stopped := d.Step()
+		notStarted := d.NotStarted()
 		x := ActivityDownload{ID: d.ID, Version: d.Version, State: d.State, Step: activity.Steps[step],
 			Words: d.Words(""), Progress: d.Progress, Quality: Resolution(d.Quality), Created: d.Created, Updated: d.Updated,
-			Title: activityTitle(d.TitleID, d.TitleName, d.TitleYear, d.TitleKind, d.Anime, posters), Import: d.ImportState}
+			Title: activityTitle(d.TitleID, d.TitleName, d.TitleYear, d.TitleKind, d.Anime, posters), Import: d.ImportState,
+			NotStarted: notStarted != ""}
 		x.WaitingSince, x.NextRetry = waitTimes(d, w.now())
 		for j, k := range activity.Steps {
 			s := ActivityStep{Key: k, Label: stepLabels[k], State: "todo"}
 			switch {
 			case j < step:
 				s.State = "done"
-			case j == step && stopped:
+			case j == step && stopped && notStarted == "":
 				s.State = "failed"
+			case j == step && stopped:
+				s.State = "todo" // not started: nothing failed, the step was never begun
 			case j == step && d.State == "imported":
 				s.State = "done"
 			case j == step:
@@ -504,6 +510,9 @@ func (w *Web) downloadViews(ctx context.Context, ds []activity.Download, admin b
 			x.Detail, x.Cached, x.Reused, x.Source = d.Words(by), d.Cached, d.Reused, d.Source
 			x.Journal = "dl:" + strconv.FormatInt(d.ID, 10)
 			x.Error = activityMessage(d.Error)
+			if notStarted != "" {
+				x.Error = activity.NotStartedMessage(notStarted)
+			}
 			if x.Error == "" {
 				x.Error = activityMessage(d.ImportErr)
 			}
@@ -689,6 +698,11 @@ func historyWords(e *journal.Entry) (words, tone string) {
 		}
 		return "Linked into the library", "ok"
 	case journal.KindFailure:
+		if e.Download != nil {
+			if w := activity.NotStartedHistory(e.Download.Error); w != "" {
+				return w, "info"
+			}
+		}
 		if arr {
 			return "Download failed (old manager)", "bad"
 		}

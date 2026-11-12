@@ -20,7 +20,14 @@ export function widthClass(pct: number): string {
 
 export type DownloadTone = "active" | "ok" | "warn" | "bad" | "idle";
 
-export function toneOf(d: { state: string; step: string; steps?: { state: string }[]; import_state?: string }): DownloadTone {
+export function toneOf(d: {
+  state: string;
+  step: string;
+  steps?: { state: string }[];
+  import_state?: string;
+  not_started?: boolean;
+}): DownloadTone {
+  if (d.not_started) return "idle"; // ended before any provider add because downloads were off: not a failure
   if (d.state === "failed" || d.steps?.some((s) => s.state === "failed")) return "bad";
   if (d.import_state === "partial") return "warn";
   if (d.state === "imported") return "ok";

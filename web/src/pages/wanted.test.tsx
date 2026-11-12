@@ -13,16 +13,19 @@ const page: Schemas["WantedPage"] = {
   enabled: true, downloads_enabled: true, interval: "15m0s", per_hour: 20, again_after: "24h0m0s", missing: true, cutoff_unmet: "quality", searched_last_hour: 4, add_time_pending: 2, searchable: 51, search_now_pending: 0, search_now_next_at: null,
 };
 
+const admin = { method: "GET", path: "/auth/me", reply: { id: 1, permissions: ["manage", "admin"] } };
+
 it("shows read-only waits and handoffs, filters and pages on the server", async () => {
   const user = userEvent.setup();
-  const fetch = mockFetch([{ method: "GET", path: "/wanted", reply: page }, { method: "GET", path: "/status", reply: { versions: [] } }]);
+  const fetch = mockFetch([admin, { method: "GET", path: "/wanted", reply: page }, { method: "GET", path: "/status", reply: { versions: [] } }]);
   renderPage(<WantedPage />, "/wanted");
   expect(await screen.findByText("Alpha")).toBeTruthy();
   expect(screen.getByText(/2 searches for newly added titles go first/)).toBeTruthy();
   expect(screen.getByText("Next in line (#1)")).toBeTruthy();
   expect(screen.getByText(/3 results, none accepted/)).toBeTruthy();
-  expect(screen.getByRole("link", { name: "Releases" }).getAttribute("href")).toBe("/title/1/releases?version=movie-web"); // not a manager
+  expect(await screen.findByRole("link", { name: "Decision" })).toBeTruthy();
   expect(screen.getByRole("link", { name: "Decision" }).getAttribute("href")).toBe("/activity/journal/9");
+  expect(screen.queryByRole("link", { name: "Releases" })).toBeNull();
   expect(screen.queryByRole("button", { name: /Downloading/ })).toBeNull();
   await user.click(screen.getByRole("button", { name: "Next" }));
   await waitFor(() => expect(new URLSearchParams(fetch.calls("GET", "/wanted").at(-1)?.search).get("offset")).toBe("50"));
@@ -35,11 +38,11 @@ it("shows read-only waits and handoffs, filters and pages on the server", async 
 });
 
 it("links closed gates to their settings without switches", async () => {
-  mockFetch([{ method: "GET", path: "/wanted", reply: { ...page, enabled: false, downloads_enabled: false, items: [] } }, { method: "GET", path: "/status", reply: { versions: [{ key: "movie-web", grab_state: { mode: "active", grab: true, router_enabled: false, router_forced_off: false, will_grab: false } }] } }]);
+  mockFetch([admin, { method: "GET", path: "/wanted", reply: { ...page, enabled: false, downloads_enabled: false, items: [] } }, { method: "GET", path: "/status", reply: { versions: [{ key: "movie-web", grab_state: { mode: "active", grab: true, router_enabled: false, router_forced_off: false, will_grab: false } }] } }]);
   renderPage(<WantedPage />, "/wanted/cutoff?version=movie-web");
   expect(await screen.findByText("Automatic searches are off.")).toBeTruthy();
   await waitFor(() => expect(screen.getByTestId("downloads-off-notice").textContent).toContain("New downloads are paused for every library"));
-  expect(screen.getByRole("link", { name: "Automatic search settings" }).getAttribute("href")).toBe("/admin/settings/downloads/behaviour#searches");
+  expect((await screen.findByRole("link", { name: "Automatic search settings" })).getAttribute("href")).toBe("/admin/settings/downloads/behaviour#searches");
   expect(screen.queryByRole("switch")).toBeNull();
   expect(screen.getByRole("tab", { name: "Missing" }).getAttribute("href")).toBe("/wanted?version=movie-web");
 });
@@ -75,6 +78,7 @@ it("words rows and the notice from the server's grab state: locked off, not paus
 
 it("keeps a library's closed download gate visible while the search loop is off", async () => {
   mockFetch([
+    admin,
     { method: "GET", path: "/wanted", reply: { ...page, enabled: false, items: [{ ...row, waiting: "loop_off" }] } },
     { method: "GET", path: "/status", reply: { versions: [{ key: "movie-web", grab_state: { ...gates, grab: false, will_grab: false } }] } },
   ]);
@@ -84,7 +88,7 @@ it("keeps a library's closed download gate visible while the search loop is off"
   expect(within(r).getByText("Automatic searches are off")).toBeTruthy();
   expect(await within(r).findByText("Downloads off")).toBeTruthy();
   await user.click(within(r).getByRole("button", { name: "Why?" }));
-  expect(within(r).getByRole("link", { name: "Settings › Libraries" }).getAttribute("href")).toBe("/admin/settings/libraries?edit=movie-web");
+  expect((await within(r).findByRole("link", { name: "Settings › Libraries" })).getAttribute("href")).toBe("/admin/settings/libraries?edit=movie-web");
 });
 
 it("names no cause until the lock state is known (status failed)", async () => {
@@ -131,6 +135,7 @@ it("searches one row, and the selected rows of the page, through the queue", asy
 it("confirms Search all with the count, the library and the time the hourly limit takes", async () => {
   const user = userEvent.setup();
   const fetch = mockFetch([
+    admin,
     { method: "GET", path: "/wanted", reply: { ...page, total: 320, searchable: 312, per_hour: 10, counts: { due: 320 } } }, status,
     { method: "POST", path: "/wanted/search", reply: { queued: 312, started: 6, pending: 306, skipped: [{ title_id: 5, version: "movie-web", reason: "downloads are off for this library" }], next_at: "2026-11-01T14:05:00Z" } },
   ]);
@@ -232,4 +237,24 @@ it("opens Interactive search for a series row's season from the row", async () =
   await user.click(await within(r).findByRole("button", { name: "Interactive search" }));
   expect(await screen.findByText("No releases found.")).toBeTruthy();
   expect(fetch.calls("GET", "/titles/1/releases").map((c) => c.search)).toEqual(["?version=tv-web&live=1&season=2"]);
+});
+
+it("opens for a manager without the admin links, and says Search all missing when nothing can be searched", async () => {
+  const items = [{ ...row, waiting: "downloads_off" as const, search_blocked: "downloads_off" as const }];
+  mockFetch([
+    { method: "GET", path: "/auth/me", reply: { id: 1, permissions: ["manage"] } },
+    { method: "GET", path: "/wanted", reply: { ...page, enabled: false, downloads_enabled: false, searchable: 0, total: 1, items } },
+    { method: "GET", path: "/status", reply: { versions: [{ key: "movie-web", grab_state: { mode: "active", grab: true, router_enabled: false, router_forced_off: false, will_grab: false } }] } },
+  ]);
+  renderPage(<WantedPage />, "/wanted");
+  const r = await screen.findByTestId("wanted-row");
+  expect(within(r).getByRole("button", { name: "Interactive search" })).toBeTruthy();
+  await waitFor(() => expect(screen.getByTestId("downloads-off-notice").textContent).toContain("New downloads are paused for every library"));
+  expect(within(r).queryByRole("link", { name: "Decision" })).toBeNull();
+  expect(screen.queryByRole("tab", { name: "Manual import" })).toBeNull();
+  expect(screen.getByRole("tab", { name: "Missing" })).toBeTruthy();
+  expect(screen.queryByRole("link", { name: "Automatic search settings" })).toBeNull();
+  expect(document.querySelector('a[href^="/admin"]')).toBeNull();
+  const all = screen.getByRole("button", { name: "Search all missing" }) as HTMLButtonElement;
+  expect(all.disabled).toBe(true);
 });

@@ -66,6 +66,14 @@ it.each(["/activity/journal/dl%3A4", "/wanted/manual-import", "/activity/journal
   expect(fetch.requests.every((r) => r.path === "/auth/me")).toBe(true);
 });
 
+it("opens Wanted for a manager, without the Manual import tab", async () => {
+  const { fetch } = open("/wanted", MANAGER);
+  expect((await screen.findByRole("tab", { name: "Missing" })).getAttribute("aria-selected")).toBe("true");
+  await waitFor(() => expect(fetch.calls("GET", "/wanted")).toHaveLength(1));
+  expect(screen.queryByRole("tab", { name: "Manual import" })).toBeNull();
+  expect(screen.queryByText(/not for your account/i)).toBeNull();
+});
+
 // A new install: the root URL leads to Create your admin account, and creating it leads to Setup, not an empty Home.
 it("leads a new install from / through Create your admin account to Setup", async () => {
   sessionStorage.clear();

@@ -44,7 +44,7 @@ claim of Sonarr v5 API parity. Recyclarr has no web pages; its table maps the CL
 | Activity › Queue | Activity › Queue — `/activity` | Downloads and imports; each action follows the account's permissions. |
 | Activity › History | Activity › History — `/activity/history` | Grabs, imports, failures and search decisions; admin decision links explain outcomes. |
 | Activity › Blocklist | Activity › Blocklist — `/activity/blocklist` | Requires See files; provider deletes remain separate. |
-| Wanted › Missing | Wanted › Missing — `/wanted` | Admin-only automatic queue with waiting reasons. **Search now** for a row, the selection or the whole tab queues searches under the hourly limit. |
+| Wanted › Missing | Wanted › Missing — `/wanted` | Managers and admins: automatic queue with waiting reasons. **Search now** for a row, the selection or the whole tab queues searches under the hourly limit. |
 | Wanted › Cutoff Unmet | Wanted › Cutoff unmet — `/wanted/cutoff` | Upgrade queue with the same **Search now** actions; library and global gates remain visible. |
 
 ## Radarr
@@ -79,7 +79,7 @@ claim of Sonarr v5 API parity. Recyclarr has no web pages; its table maps the CL
 | Activity › Queue | Activity › Queue — `/activity` | Downloads and imports; each action follows the account's permissions. |
 | Activity › History | Activity › History — `/activity/history` | Grabs, imports, failures and search decisions; admin decision links explain outcomes. |
 | Activity › Blocklist | Activity › Blocklist — `/activity/blocklist` | Requires See files; provider deletes remain separate. |
-| Wanted › Missing | Wanted › Missing — `/wanted` | Admin-only automatic queue with waiting reasons. **Search now** for a row, the selection or the whole tab queues searches under the hourly limit. |
+| Wanted › Missing | Wanted › Missing — `/wanted` | Managers and admins: automatic queue with waiting reasons. **Search now** for a row, the selection or the whole tab queues searches under the hourly limit. |
 | Wanted › Cutoff Unmet | Wanted › Cutoff unmet — `/wanted/cutoff` | Upgrade queue with the same **Search now** actions; library and global gates remain visible. |
 
 ## Prowlarr

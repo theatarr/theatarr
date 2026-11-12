@@ -25,8 +25,8 @@ describe("copy cards", () => {
   });
 });
 
-it("hands missing and cutoff copies to Wanted for admins", async () => {
-  mockFetch([{ method: "GET", path: "/auth/me", reply: { permissions: ["admin", "browse", "see_files"] } }]);
+it("hands missing and cutoff copies to Wanted for managers and admins", async () => {
+  mockFetch([{ method: "GET", path: "/auth/me", reply: { permissions: ["browse", "see_files", "manage"] } }]);
   renderPage(<CopyCards versions={[{ ...copy, state: "wanted" }, { ...copy, id: 2, key: "movie-remux", state: "filled", has_file: true }] as never} />);
   const links = await screen.findAllByRole("link", { name: "See in Wanted" });
   expect(links.map(l => l.getAttribute("href"))).toEqual(["/wanted?version=movie-web"]);
@@ -99,7 +99,7 @@ describe("release history", () => {
 });
 
 it("shows both series queues and no handoffs for shadow copies", async () => {
-  mockFetch([{ method: "GET", path: "/auth/me", reply: { permissions: ["admin", "browse", "see_files"] } }]);
+  mockFetch([{ method: "GET", path: "/auth/me", reply: { permissions: ["admin", "manage", "browse", "see_files"] } }]);
   renderPage(<CopyCards versions={[
     { ...copy, state: "wanted", episodes: { missing: 1 }, upgrade: { below: 2 } },
     { ...copy, id: 2, key: "shadow", state: "wanted", episodes: { missing: 1 }, upgrade: { below: 2 }, control: { ...copy.control, mode: "shadow" } },

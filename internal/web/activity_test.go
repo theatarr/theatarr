@@ -16,6 +16,7 @@ import (
 	"github.com/theatarr/theatarr/internal/activity"
 	"github.com/theatarr/theatarr/internal/auth"
 	"github.com/theatarr/theatarr/internal/journal"
+	"github.com/theatarr/theatarr/internal/router"
 	"github.com/theatarr/theatarr/internal/store"
 	"github.com/theatarr/theatarr/internal/store/storetest"
 )
@@ -428,5 +429,64 @@ func TestActivityHistoryPagesOverOwnTitles(t *testing.T) {
 	sizes, names = walk(e.apiKey(), "&kind=series")
 	if sizes[0] != 2 || strings.Join(names, ",") != "Gamma,Gamma" {
 		t.Errorf("series pages %v, titles %v", sizes, names)
+	}
+}
+
+// activity.NotStarted mirrors the router's gate errors (activity does not import router); this pins the texts.
+func TestNotStartedMirrorsRouterGate(t *testing.T) {
+	t.Parallel()
+	for _, prefix := range []string{"route ended: ", "route stopped: "} {
+		for err, want := range map[error]string{router.ErrDisabled: "off", router.ErrShadow: "watch_only",
+			router.ErrNoGrab: "grab_off"} {
+			if got := activity.NotStarted(prefix + err.Error()); got != want {
+				t.Errorf("%s%v: %q, want %q", prefix, err, got, want)
+			}
+		}
+	}
+}
+
+// A queued download ended because downloads were off reads as not started, not as a failure: in Activity (words, no
+// failed step, the admin's plain message) and in History.
+func TestActivityNotStartedDownload(t *testing.T) {
+	t.Parallel()
+	e := newEnv(t)
+	now := store.Millis(testNow)
+	e.exec(`INSERT INTO download (id, title_id, version_id, version_key, info_hash, release_title, indexer, state, error,
+		created_at, updated_at) VALUES (1, 1, 2, 'movie-web', ?, 'Alpha.Release', 'dmm', 'failed', ?, ?, ?)`,
+		hashA, "route ended: "+router.ErrDisabled.Error(), now, now)
+	var p ActivityPage
+	if code := e.getKey(APIBase+"/activity", e.apiKey(), &p); code != 200 || len(p.Now) != 1 {
+		t.Fatalf("activity: %d %+v", code, p)
+	}
+	d := p.Now[0]
+	if !d.NotStarted || d.Words != "Downloads were off when it was due to start" ||
+		d.Error != "Nothing was added to a provider. Use Retry once downloads are on again." {
+		t.Errorf("not started: %+v", d)
+	}
+	for _, s := range d.Steps {
+		if s.State == "failed" {
+			t.Errorf("failed step %+v", d.Steps)
+		}
+	}
+	words, tone := historyWords(&journal.Entry{Kind: journal.KindFailure,
+		Download: &journal.Download{State: "failed", Error: "route ended: " + router.ErrDisabled.Error()}})
+	if words != "Not started: downloads were off" || tone != "info" {
+		t.Errorf("history: %q, %q", words, tone)
+	}
+	// The requests' SQL selects exactly the texts NotStarted reads as not started.
+	for _, text := range []string{"route ended: " + router.ErrShadow.Error(), "route stopped: " + router.ErrNoGrab.Error(),
+		"route ended: router: unknown version", "Route ended: router: x", "route ended: its release was not placed",
+		"download failed: route ended: router: x", "stalled: not ready", ""} {
+		var sql bool
+		if err := e.st.Reader().QueryRow(`SELECT `+activity.NotStartedSQL+` FROM (SELECT ? AS error)`, text).Scan(&sql); err != nil {
+			t.Fatal(err)
+		}
+		if sql != (activity.NotStarted(text) != "") {
+			t.Errorf("%q: SQL %v, Go %q", text, sql, activity.NotStarted(text))
+		}
+	}
+	if words, tone = historyWords(&journal.Entry{Kind: journal.KindFailure,
+		Download: &journal.Download{State: "failed", Error: "download failed: x"}}); words != "Download failed" || tone != "bad" {
+		t.Errorf("real failure history: %q, %q", words, tone)
 	}
 }

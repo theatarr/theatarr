@@ -34,7 +34,7 @@ A role is a preset of bits (`internal/auth/perms.go`); an admin can add `auto_ap
 | `add` | `POST /titles`, `PUT /titles/{id}/versions/{key}` | yes | yes | no |
 | `manage_requests` | every request, approve, decline | yes | yes | no |
 | `see_files` | paths, hashes, release names, scores, providers in activity and title pages | yes | yes | no |
-| `manage` | search now, show releases, refresh art | yes | yes | no |
+| `manage` | search now, show releases, Wanted, refresh art | yes | yes | no |
 | `own_keys` | own API keys | yes | yes | optional |
 | `admin` | admin panel APIs (status, jobs, gateway, shadow, registry, policy, logs, journal, imports, metadata review, decide, sources) | yes | no | no |
 | `users` | users, their settings, everyone's keys | yes | no | no |

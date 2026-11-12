@@ -17,7 +17,10 @@ export function parseShow(v: string | null | undefined): ActivityShow {
   return SHOWS.some((s) => s.id === v) ? (v as ActivityShow) : "all";
 }
 
-type D = Pick<ActivityDownload, "state" | "steps" | "import_state" | "updated_at" | "waiting_since" | "next_retry">;
+type D = Pick<
+  ActivityDownload,
+  "state" | "steps" | "import_state" | "updated_at" | "waiting_since" | "next_retry" | "not_started"
+>;
 
 const MIN = 60_000;
 const HOUR = 60 * MIN;
@@ -49,8 +52,10 @@ export function isTransfer(d: D): boolean {
   return d.import_state !== "rejected" && d.import_state !== "failed";
 }
 
-/** Needs attention: a failed step, a refused or partial link, a wait past its limit, or no progress for hours. */
+/** Needs attention: a failed step, a refused or partial link, a wait past its limit, or no progress for hours. A
+ * download not started because downloads were off (not_started) does not: it never failed. */
 export function needsAttention(d: D, now: number = Date.now()): boolean {
+  if (d.not_started) return false;
   if (d.state === "failed" || d.steps?.some((s) => s.state === "failed")) return true;
   if (d.import_state === "rejected" || d.import_state === "failed" || d.import_state === "partial") return true;
   if (waitsForTurn(d)) {
@@ -120,7 +125,7 @@ export function stageLabel(d: D): string {
     case "imported":
       return "Linked";
     case "failed":
-      return "Failed";
+      return d.not_started ? "Not started" : "Failed";
   }
   return d.state;
 }

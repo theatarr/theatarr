@@ -1436,10 +1436,11 @@ func (w *Web) requestStatus(ctx context.Context, r *Request) (string, error) {
 	if inHand > 0 {
 		return ReqProcessing, nil
 	}
-	// Failed: since the approval, a download of a missing version failed.
+	// Failed: since the approval, a download of a missing version failed (one not started because downloads were off
+	// does not count: activity.NotStarted).
 	var failed int
 	if err := db.QueryRowContext(ctx, `SELECT COUNT(*) FROM download WHERE version_id IN (`+ph+`)
-		AND state = 'failed' AND updated_at >= ?`, append(args, r.decidedAt)...).Scan(&failed); err != nil {
+		AND state = 'failed' AND NOT `+activity.NotStartedSQL+` AND updated_at >= ?`, append(args, r.decidedAt)...).Scan(&failed); err != nil {
 		return "", err
 	}
 	if failed > 0 {

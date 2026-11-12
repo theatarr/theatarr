@@ -35,6 +35,7 @@ describe("activity filters", () => {
   it("needs attention: long waits, refused or partial links, failures, no progress for hours", () => {
     expect(filterDownloads(items, "attention", NOW).map((x) => x.id)).toEqual([3, 4, 6, 7]);
     expect(needsAttention(d({ state: "failed" }), NOW)).toBe(true);
+    expect(needsAttention(d({ state: "failed", not_started: true }), NOW)).toBe(false);
     expect(needsAttention(d({ steps: [{ key: "ready", label: "Download complete", state: "failed" }] }), NOW)).toBe(true);
     expect(needsAttention(d({ state: "ready", import_state: "rejected", waiting_since: ago(60_000) }), NOW)).toBe(true);
     // A wait without a known start is not flagged.
@@ -71,6 +72,8 @@ describe("stage words", () => {
     expect(stageLabel(d({ state: "importing" }))).toBe("Linking");
     expect(stageLabel(d({ state: "queued", next_retry: ago(-60_000) }))).toBe("Waiting for a provider");
     expect(stageLabel(d({ state: "queued" }))).toBe("Queued");
+    expect(stageLabel(d({ state: "failed" }))).toBe("Failed");
+    expect(stageLabel(d({ state: "failed", not_started: true }))).toBe("Not started");
     for (const s of ["queued", "adding", "added", "downloading", "ready", "importing", "imported", "failed"]) {
       expect(stageLabel(d({ state: s as D["state"] })).toLowerCase()).not.toContain("ready");
     }

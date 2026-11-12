@@ -54,17 +54,18 @@ func TestWantedAPI(t *testing.T) {
 	if rec := e.do(httptest.NewRequest("GET", APIBase+"/wanted?only=missing", nil)); rec.Code != 401 {
 		t.Errorf("anonymous %d", rec.Code)
 	}
-	for _, role := range []string{auth.RoleUser, auth.RoleManager} {
+	// Managers and admins; users are refused.
+	for role, want := range map[string]int{auth.RoleUser: 403, auth.RoleManager: 200} {
 		uid := e.account(role, role, auth.StatusActive, true)
 		cookie, _ := e.session(uid)
 		req := httptest.NewRequest("GET", APIBase+"/wanted?only=missing", nil)
 		req.AddCookie(cookie)
-		if rec := e.do(req); rec.Code != 403 {
-			t.Errorf("%s %d", role, rec.Code)
+		if rec := e.do(req); rec.Code != want {
+			t.Errorf("%s %d, want %d", role, rec.Code, want)
 		}
 	}
-	if len(acq.queries) != 1 {
-		t.Fatal("unauthorized request reached acquirer")
+	if len(acq.queries) != 2 {
+		t.Fatalf("queries %d: only the manager's request reaches the acquirer", len(acq.queries))
 	}
 }
 
@@ -150,19 +151,24 @@ func TestWantedSearchAPI(t *testing.T) {
 	if rec := del(nil, ""); rec.Code != 200 || !strings.Contains(rec.Body.String(), `"cleared":4`) || acq.cleared != 1 {
 		t.Fatalf("clear %d %s", rec.Code, rec.Body.String())
 	}
-	// Admin only.
+	// Managers and admins; users are refused.
+	acq.off = false
 	for _, role := range []string{auth.RoleUser, auth.RoleManager} {
+		want := 403
+		if role == auth.RoleManager {
+			want = 200
+		}
 		uid := e.account(role, role, auth.StatusActive, true)
 		cookie, csrf := e.session(uid)
-		if code := e.jsonCall("POST", APIBase+"/wanted/search", map[string]any{"only": "missing", "all": map[string]any{}}, cookie, csrf, nil); code != 403 {
-			t.Errorf("%s search %d", role, code)
+		if code := e.jsonCall("POST", APIBase+"/wanted/search", map[string]any{"only": "missing", "all": map[string]any{}}, cookie, csrf, nil); code != want {
+			t.Errorf("%s search %d, want %d", role, code, want)
 		}
-		if rec := del(cookie, csrf); rec.Code != 403 {
-			t.Errorf("%s clear %d", role, rec.Code)
+		if rec := del(cookie, csrf); rec.Code != want {
+			t.Errorf("%s clear %d, want %d", role, rec.Code, want)
 		}
 	}
-	if len(acq.all) != 1 || acq.cleared != 1 {
-		t.Fatal("unauthorized request reached acquirer")
+	if len(acq.all) != 2 || acq.cleared != 2 {
+		t.Fatalf("all %d cleared %d: only the manager's requests reach the acquirer", len(acq.all), acq.cleared)
 	}
 	// Without an acquirer that can queue searches: 503.
 	bare := newEnv(t)

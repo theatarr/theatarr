@@ -157,6 +157,9 @@ func (d *Download) Words(provider string) string {
 	case "imported":
 		return "Linked into the library"
 	case "failed":
+		if r := d.NotStarted(); r != "" {
+			return notStartedWords[r]
+		}
 		if strings.HasPrefix(d.Error, "stalled") {
 			return "Stalled, so it was dropped"
 		}
@@ -167,3 +170,67 @@ func (d *Download) Words(provider string) string {
 	}
 	return d.State
 }
+
+// NotStartedSQL selects the downloads NotStarted reads as not started (with state = 'failed'): the same two prefixes.
+// GLOB, not LIKE: it is case-sensitive, as strings.CutPrefix is.
+const NotStartedSQL = "(COALESCE(error, '') GLOB 'route ended: router: *' OR COALESCE(error, '') GLOB 'route stopped: router: *')"
+
+// The router's gate errors (router.ErrShadow, router.ErrNoGrab; every other gate refusal is router.ErrDisabled). The
+// texts are mirrored here because activity does not import router; a test in internal/web pins them.
+const (
+	gateWatchOnly = "router: the library is Watch only; nothing is written for it"
+	gateNoGrab    = "router: the version's grab switch is off; nothing is written for it"
+)
+
+// NotStarted says why a download ended before anything was sent to a provider because downloads were off when its
+// turn came: "off" (Pause, the environment lock, new downloads off), "watch_only" (its library is Watch only) or
+// "grab_off" (the library's downloads switch is off). "" for any other error text. The router writes these texts
+// ("route ended: " / "route stopped: " + the gate's error) only when its gate refused before a provider add.
+func NotStarted(errText string) string {
+	rest, ok := strings.CutPrefix(errText, "route ended: ")
+	if !ok {
+		rest, ok = strings.CutPrefix(errText, "route stopped: ")
+	}
+	if !ok || !strings.HasPrefix(rest, "router: ") {
+		return ""
+	}
+	switch rest {
+	case gateWatchOnly:
+		return "watch_only"
+	case gateNoGrab:
+		return "grab_off"
+	}
+	return "off"
+}
+
+// NotStarted is NotStarted of a failed download's error; "" for any other state.
+func (d *Download) NotStarted() string {
+	if d.State != "failed" {
+		return ""
+	}
+	return NotStarted(d.Error)
+}
+
+var notStartedWords = map[string]string{
+	"off":        "Downloads were off when it was due to start",
+	"watch_only": "Its library is Watch only, so it was not started",
+	"grab_off":   "Downloads are off for its library, so it was not started",
+}
+
+var notStartedMessages = map[string]string{
+	"off":        "Nothing was added to a provider. Use Retry once downloads are on again.",
+	"watch_only": "Nothing was added to a provider. Use Retry once the library is Live.",
+	"grab_off":   "Nothing was added to a provider. Use Retry once downloads are on for the library.",
+}
+
+var notStartedHistory = map[string]string{
+	"off":        "Not started: downloads were off",
+	"watch_only": "Not started: its library is Watch only",
+	"grab_off":   "Not started: downloads are off for its library",
+}
+
+// NotStartedMessage is the admin's message for a not-started download (by NotStarted's reason), "" for none.
+func NotStartedMessage(reason string) string { return notStartedMessages[reason] }
+
+// NotStartedHistory is the History line for a failure whose error text NotStarted reads as not started, "" otherwise.
+func NotStartedHistory(errText string) string { return notStartedHistory[NotStarted(errText)] }

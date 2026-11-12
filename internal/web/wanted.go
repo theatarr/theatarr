@@ -24,8 +24,8 @@ type searchNower interface {
 
 func (w *Web) mountWantedAPI(mux *http.ServeMux) {
 	b := APIBase
-	w.handle(mux, "POST "+b+"/wanted/search", SignedIn, auth.PermAdmin, w.apiWantedSearch)
-	w.handle(mux, "DELETE "+b+"/wanted/search", SignedIn, auth.PermAdmin, w.apiWantedSearchClear)
+	w.handle(mux, "POST "+b+"/wanted/search", SignedIn, auth.PermManage, w.apiWantedSearch)
+	w.handle(mux, "DELETE "+b+"/wanted/search", SignedIn, auth.PermManage, w.apiWantedSearchClear)
 }
 
 func wantedWaiting(v string) bool {

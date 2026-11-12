@@ -229,7 +229,7 @@ function DownloadRow({ d, admin, now }: { d: ActivityDownload; admin: boolean; n
           <div className="max-w-xl">
             <StepTrack steps={d.steps} />
           </div>
-          {!admin && d.state === "failed" ? <p className="mt-2 text-sm" data-testid="failed-words">{FAILED_WORDS}</p> : null}
+          {!admin && d.state === "failed" && !d.not_started ? <p className="mt-2 text-sm" data-testid="failed-words">{FAILED_WORDS}</p> : null}
           <p className="mt-2 text-xs text-muted-foreground">
             Added {fmtAgo(d.created_at)}
             {admin && d.provider_name ? <> · <Badge tone="info">{d.provider_name}</Badge></> : null}

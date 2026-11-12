@@ -96,7 +96,7 @@ const ADMIN: NavGroup = {
   ],
 };
 
-const WANTED: NavItem = { to: "/wanted", label: "Wanted", icon: Search, need: "admin" };
+const WANTED: NavItem = { to: "/wanted", label: "Wanted", icon: Search, need: "manage" };
 
 export const NAV: NavGroup[] = [
   {
