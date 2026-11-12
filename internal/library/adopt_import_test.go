@@ -62,13 +62,12 @@ func TestAdoptImportedMovie(t *testing.T) {
 		}
 	}
 
-	score := 50
 	const mediaTags = `{"videoCodec":"x265","videoDynamicRangeType":"HDR10"}`
 	file := func(p string) ImportFile {
 		return ImportFile{TitleID: 1, Source: "radarr@radarr:7878 /movies/" + filepath.Base(filepath.Dir(p)) + "/" + filepath.Base(p),
 			Path: p, RelativePath: filepath.Base(p), Quality: "Remux-2160p", ReleaseGroup: "GRP",
 			SceneName: "Amelie.2001.2160p.REMUX-GRP", Languages: []string{"French"}, Revision: 1, Size: 1000,
-			Score: &score, MediaInfo: mediaTags}
+			MediaInfo: mediaTags}
 	}
 	rep, err := e.lib.AdoptImported(e.ctx, "movie-remux", []ImportFile{file(good), file(plain), file(off)})
 	if err != nil {
