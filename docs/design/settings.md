@@ -1029,7 +1029,8 @@ Contrast, editors and the indexer pages. Profiles and presets are in the next se
     GitHub sponsors.
   - *Link Prowlarr*: Prowlarr's address and API key are entered once (`cardigann.prowlarr`, the key stored write-only
     like other section credentials). A new address needs the key typed again: a `cardigann` section save that changes
-    `prowlarr.url` while a key is stored and sends no new one answers 422 "Enter the API key again for the new
+    `prowlarr.url` while a key is in use (stored, or the environment fallback) and sends no new one (clearing the
+    stored key does not count) answers 422 "Enter the API key again for the new
     address", as Radarr and Sonarr lists do; the form says so before sending.
     `GET /settings/prowlarr/feeds` reads Prowlarr's indexer list (no catalog needed) and marks each `linkable` (with
     the key it gets, `prowlarr-<name>`), `linked` (an indexer already has its feed URL), `disabled` (off in Prowlarr)

@@ -50,14 +50,12 @@ func prowlarrAt(snap *settings.Snapshot) (url, key string, ok bool) {
 	return pr.URL, key, pr.URL != "" && key != ""
 }
 
-// prowlarrKeyLeft reports whether a cardigann section save moves Prowlarr to another address while the stored key
-// stays: the key is never sent to a new address, so it must be entered again (as for Radarr and Sonarr lists).
-func prowlarrKeyLeft(snap *settings.Snapshot, config json.RawMessage, writes map[string]settings.Secret) bool {
+// prowlarrKeyLeft reports whether a cardigann section save moves Prowlarr to another address without a new key
+// while one is in use (stored, or the environment fallback): the key is never sent to a new address, so it must be
+// entered again, as for Radarr and Sonarr lists. Clearing the stored key is no re-entry: a fallback would still go.
+func prowlarrKeyLeft(snap *settings.Snapshot, config json.RawMessage, newKey string) bool {
 	before, key, ok := prowlarrAt(snap)
-	if !ok || key == "" {
-		return false
-	}
-	if _, sent := writes["prowlarr.api_key"]; sent {
+	if !ok || key == "" || newKey != "" {
 		return false
 	}
 	var next struct {

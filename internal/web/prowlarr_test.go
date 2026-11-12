@@ -137,7 +137,9 @@ func TestProwlarrAddressNeedsKeyAgain(t *testing.T) {
 	se := prowlarrEnv(t, srv, testSecret)
 	gen := se.generation()
 	moved := map[string]any{"prowlarr": map[string]any{"url": "http://10.0.0.99:9696"}}
-	se.want(se.call("PUT", "/sections/cardigann", map[string]any{"generation": gen, "config": moved}), 422, "key again")
+	if got := se.want(se.call("PUT", "/sections/cardigann", map[string]any{"generation": gen, "config": moved}), 422, "key again"); got["error"] != "Enter the API key again for the new address" {
+		t.Fatalf("refusal: %v", got)
+	}
 	if se.generation() != gen || len(seen()) != 0 {
 		t.Fatal("refused address change saved or reached Prowlarr")
 	}
@@ -146,4 +148,30 @@ func TestProwlarrAddressNeedsKeyAgain(t *testing.T) {
 		"config": map[string]any{"prowlarr": map[string]any{"url": srv.URL + "/"}}}), 200, "same address")
 	se.want(se.call("PUT", "/sections/cardigann", map[string]any{"generation": se.generation(), "config": moved,
 		"secrets": map[string]string{"prowlarr.api_key": "another-prowlarr-key"}}), 200, "new key")
+}
+
+// Clearing the stored key is no re-entry: with an environment fallback the fallback would go to the new address.
+func TestProwlarrAddressClearedKeyWithFallback(t *testing.T) {
+	t.Setenv("THEATARR_TEST_PROWLARR_FALLBACK", "fallback-prowlarr-key")
+	srv, seen := fakeProwlarr(t)
+	se := seededSectionsEnvBase(t, func(p *policy.Policy) {
+		p.Cardigann = &policy.Cardigann{Prowlarr: &policy.CardigannProwlarr{URL: srv.URL, APIKeyEnv: "THEATARR_TEST_PROWLARR_FALLBACK"}}
+	})
+	moved := map[string]any{"prowlarr": map[string]any{"url": "http://10.0.0.99:9696", "api_key_env": "THEATARR_TEST_PROWLARR_FALLBACK"}}
+	// The fallback alone, and the fallback behind a stored key that the save clears.
+	again := func(got map[string]any) {
+		t.Helper()
+		if got["error"] != "Enter the API key again for the new address" {
+			t.Fatalf("refusal: %v", got)
+		}
+	}
+	again(se.want(se.call("PUT", "/sections/cardigann", map[string]any{"generation": se.generation(), "config": moved}), 422, "fallback only"))
+	se.want(se.call("PUT", "/sections/cardigann", map[string]any{"generation": se.generation(),
+		"secrets": map[string]string{"prowlarr.api_key": testSecret}}), 200, "store a key")
+	gen := se.generation()
+	again(se.want(se.call("PUT", "/sections/cardigann", map[string]any{"generation": gen, "config": moved,
+		"clear_secrets": []string{"prowlarr.api_key"}}), 422, "cleared key, fallback present"))
+	if se.generation() != gen || len(seen()) != 0 {
+		t.Fatal("refused address change saved or reached Prowlarr")
+	}
 }

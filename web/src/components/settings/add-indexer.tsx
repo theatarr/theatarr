@@ -674,7 +674,7 @@ function MigrateTab({ overview, libraries }: { overview: SettingsOverview; libra
       {proposals?.some(addable) ? (
         <>
           {libraries.versions ? (
-            <p className="text-[12.5px] text-muted-foreground">Each tracker is added to the libraries its categories fit; change a library's indexers later under Settings › Libraries.</p>
+            <p className="text-[12.5px] text-muted-foreground">Each tracker is added to the libraries shown on its row, the ones its categories fit. There is no choice here: change which libraries search it afterwards, under Settings › Libraries.</p>
           ) : (
             <IndexerLibraries libraries={libraries} value={[]} onChange={() => {}} />
           )}

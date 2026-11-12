@@ -212,7 +212,7 @@ func (w *Web) apiSettingsSectionWrite(rw http.ResponseWriter, r *http.Request) {
 		}
 		writes[path] = settings.NewSecret("")
 	}
-	if key == "cardigann" && prowlarrKeyLeft(snap, section.Config, writes) {
+	if key == "cardigann" && prowlarrKeyLeft(snap, section.Config, body.Secrets["prowlarr.api_key"]) {
 		writeJSON(rw, http.StatusUnprocessableEntity, apiError{Error: "Enter the API key again for the new address"})
 		return
 	}
