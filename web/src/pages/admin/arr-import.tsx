@@ -185,9 +185,9 @@ function notLinkedItems(r: ArrImportReport): string[] {
   return items.filter(([count]) => count > 0).map(([count, one, many]) => `${plural(count, one, many)}${tail[one] ?? ""}`);
 }
 
-/** Files not linked for any reason (the library's own files are not counted: they are not missing). */
+/** Files not linked for any reason (has_file here is a pack whose other episodes are still missing). */
 function anyNotLinked(r: ArrImportReport) {
-  return Object.entries(r.not_linked).some(([reason, count]) => reason !== "has_file" && count > 0);
+  return Object.values(r.not_linked).some((count) => count > 0);
 }
 
 function Skipped({ r }: { r: ArrImportReport }) {
@@ -203,7 +203,7 @@ function Skipped({ r }: { r: ArrImportReport }) {
   return shown.length ? <p>Skipped: {shown.map(([count, words]) => `${n(count)} ${words}`).join(" · ")}.</p> : null;
 }
 
-const ADDED_AS_MISSING = "Their titles are added as missing: if they are monitored, Theatarr looks for them like any other missing title.";
+const ADDED_AS_MISSING = "Files that are not linked can leave their titles or episodes missing: if they are monitored, Theatarr looks for them like any other missing title.";
 
 function PreviewReport({ r, library }: { r: ArrImportReport; library: string }) {
   const items = notLinkedItems(r);
@@ -234,7 +234,7 @@ function ImportReport({ r, library, app }: { r: ArrImportReport; library: string
     {items.length || more.length ? <div><p>Not linked:{items.length ? ` ${items.join(" · ")}.` : null}</p>{more.length ? <ul className="list-disc pl-5">{more.map((m, i) => <li key={i}>{m}</li>)}</ul> : null}</div> : null}
     {anyNotLinked(r) ? <p>{ADDED_AS_MISSING}</p> : null}
     <Skipped r={r} />
-    {r.missing_monitored ? <p>{plural(r.missing_monitored, "monitored title has", "monitored titles have")} no linked file. Theatarr looks for them over time; see <Link className="underline" to="/wanted">Wanted</Link>.</p> : null}
+    {r.missing_monitored ? <p>{plural(r.missing_monitored, "monitored title still has", "monitored titles still have")} something missing; {r.missing_monitored === 1 ? "it is" : "they are"} in <Link className="underline" to="/wanted">Wanted</Link>.</p> : null}
     {r.error ? <p role="alert">The import stopped early: {r.error}</p> : null}
     <p className="text-muted-foreground">Nothing was changed in {app}. Running the import again adds only new titles and links files that are still missing; it never changes monitoring you set in Theatarr. To keep adding titles that are added to {app} later, add it as a list under <Link className="underline" to="/collections/lists">Collections › Lists</Link>.</p>
     <Problems r={r} />
@@ -251,7 +251,7 @@ const WHY: Record<string, string> = {
   no_episodes: "Episodes not matched",
   numbering: "Episode list from TMDb",
   no_episode_list: "No episode list yet",
-  has_file: "The library has its own file",
+  has_file: "Part of a pack: the library has its own file for some episodes; the others are still missing",
   failed: "Failed",
 };
 
@@ -263,7 +263,7 @@ function Problems({ r }: { r: ArrImportReport }) {
       <TableBody>{r.problems.map((p, i) => <TableRow key={i}>
         <TableCell className="min-w-[8rem] [overflow-wrap:normal]">{p.title}</TableCell>
         <TableCell className="min-w-[14rem] font-mono text-[12.5px] [overflow-wrap:anywhere]">{p.path ?? ""}</TableCell>
-        <TableCell className="min-w-[11rem] [overflow-wrap:break-word]">{WHY[p.reason] ?? p.reason}{p.detail && (p.reason === "failed" || p.reason === "no_episode_list") ? `: ${p.detail}` : ""}</TableCell>
+        <TableCell className="min-w-[11rem] [overflow-wrap:break-word]">{WHY[p.reason] ?? p.reason}{p.detail && (p.reason === "failed" || p.reason === "no_episode_list" || p.reason === "has_file") ? `: ${p.detail}` : ""}</TableCell>
       </TableRow>)}</TableBody>
     </Table>
   </Fold>;

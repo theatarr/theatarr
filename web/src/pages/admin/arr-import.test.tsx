@@ -87,7 +87,7 @@ describe("arr import", () => {
     const text = screen.getByTestId("arr-report").textContent;
     expect(text).toContain("Up to 2 files can be linked.");
     expect(text).toContain("Not linkable: 2 ordinary files (for example from Usenet or a local disk).");
-    expect(text).toContain("Their titles are added as missing");
+    expect(text).toContain("Files that are not linked can leave their titles or episodes missing: if they are monitored, Theatarr looks for them like any other missing title.");
     expect(text).toContain("Skipped: 2 use a quality profile you did not tick.");
     await waitFor(() => expect(importButton.hasAttribute("disabled")).toBe(false));
 
@@ -106,7 +106,8 @@ describe("arr import", () => {
     const report: ArrImportReport = {
       ...base, linked: 5, existing: 1, files_has_file: 2, missing_monitored: 3, failed: 1,
       not_linked: { not_a_symlink: 2, dangling: 1, no_episodes: 1 },
-      problems: [...base.problems, { title: "Hollow Bay", reason: "failed", detail: "TMDb has no such movie" }],
+      problems: [...base.problems, { title: "Hollow Bay", reason: "failed", detail: "TMDb has no such movie" },
+        { title: "Tidewater", path: "/tv/Tidewater/S01E01-E02.mkv", reason: "has_file", detail: "kept own files; 1 uncovered episodes (ids, at most 200): [42]" }],
     };
     server(report);
     renderPage(<ArrImportPage />, "/admin/arr-import");
@@ -121,10 +122,11 @@ describe("arr import", () => {
     expect(text).toContain("Not linked: 2 ordinary files (for example from Usenet or a local disk) · 1 link whose file is gone from the debrid mount.");
     expect(text).toContain("1 file whose episodes Theatarr could not match.");
     expect(text).toContain("1 title failed (see the list).");
-    expect(text).toContain("3 monitored titles have no linked file.");
+    expect(text).toContain("3 monitored titles still have something missing; they are in Wanted.");
     expect(text).toContain("Nothing was changed in Radarr.");
     expect(screen.getByText("Ordinary file (Usenet or local disk)")).toBeTruthy();
     expect(screen.getByText("Failed: TMDb has no such movie")).toBeTruthy();
+    expect(screen.getByText("Part of a pack: the library has its own file for some episodes; the others are still missing: kept own files; 1 uncovered episodes (ids, at most 200): [42]")).toBeTruthy();
   });
 
   it("says first that a Sonarr import without a TVDB key brings no files", async () => {
