@@ -14,12 +14,14 @@ import (
 
 // nameMovie and nameSeries are the single naming path used by imports and rename previews.
 func (l *Library) nameMovie(ctx context.Context, v *importVersion, vn *VersionNaming, root, rel string,
-	facts decide.FileFacts, p *probe.Result, formats []string) (string, error) {
+	facts decide.FileFacts, p *probe.Result, formats []string, mi *naming.MediaInfo) (string, error) {
 	q := naming.Quality{Title: vn.QualityTitle(facts.Quality), Version: max(facts.Revision, 1), Real: facts.Real}
 	mf := &naming.MovieFile{Quality: q, ReleaseGroup: facts.ReleaseGroup, Edition: facts.Edition,
 		SceneName: facts.SceneName, RelativePath: filepath.Base(rel), CustomFormats: formats}
 	if p != nil {
 		mf.MediaInfo = p.Model().Format(mf.SceneOrFileName(), false)
+	} else {
+		mf.MediaInfo = mi
 	}
 	m := &naming.Movie{Title: v.Title.Name, Year: v.Title.Year, ImdbID: v.Title.ImdbID, TmdbID: v.Title.TmdbID}
 	folder, err := titleFolder(ctx, l.st.Reader(), v.VersionID, v.Title.ID, "movie", root)
@@ -39,7 +41,7 @@ func (l *Library) nameMovie(ctx context.Context, v *importVersion, vn *VersionNa
 }
 
 func (l *Library) nameSeries(ctx context.Context, v *importVersion, vn *VersionNaming, root, rel string,
-	facts decide.FileFacts, p *probe.Result, formats []string, eps []episodeInfo) (string, error) {
+	facts decide.FileFacts, p *probe.Result, formats []string, eps []episodeInfo, mi *naming.MediaInfo) (string, error) {
 	stype := naming.SeriesType(v.Title.SeriesType)
 	if stype == "" {
 		stype = naming.SeriesStandard
@@ -55,6 +57,8 @@ func (l *Library) nameSeries(ctx context.Context, v *importVersion, vn *VersionN
 		SceneName: facts.SceneName, RelativePath: filepath.Base(rel), CustomFormats: formats}
 	if p != nil {
 		ef.MediaInfo = p.Model().Format(ef.SceneOrFileName(), true)
+	} else {
+		ef.MediaInfo = mi
 	}
 	folder, err := titleFolder(ctx, l.st.Reader(), v.VersionID, v.Title.ID, "series", root)
 	if err != nil {

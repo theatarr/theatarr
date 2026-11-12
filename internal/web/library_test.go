@@ -822,3 +822,28 @@ func TestVersionLabelName(t *testing.T) {
 		t.Errorf("labels %v, want %v", got, want)
 	}
 }
+
+// TestAdoptedLinkSize: a link with no content file (adopted or imported from Sonarr/Radarr) counts the size its
+// stored file metadata keeps, in the title's size and its version's.
+func TestAdoptedLinkSize(t *testing.T) {
+	t.Parallel()
+	e := newEnv(t)
+	now := store.Millis(testNow)
+	e.exec(`INSERT INTO link (id, path, target, title_id, quality, file_metadata, adopted_from, state, created_at, updated_at)
+		VALUES (7, '/web/Alpha (2020)/Alpha.mkv', '/zurg/__all__/Alpha/a.mkv', 1, 'WEBDL-2160p', '{"Size":4000000000}',
+		'radarr@r:7878 /movies/Alpha.mkv', 'active', ?, ?)`, now, now)
+	e.exec(`INSERT INTO link_version (link_id, version_id) VALUES (7, 2)`)
+	var p TitlePage
+	if code := e.getKey(APIBase+"/titles?q=Alpha", e.apiKey(), &p); code != 200 || len(p.Items) != 1 {
+		t.Fatalf("titles: %d %+v", code, p)
+	}
+	a := p.Items[0]
+	if a.SizeBytes == nil || *a.SizeBytes != 54000000000 {
+		t.Errorf("title size %v", a.SizeBytes)
+	}
+	for _, v := range a.Versions {
+		if v.Label == "4K WEB" && (v.SizeBytes == nil || *v.SizeBytes != 4000000000) {
+			t.Errorf("version size %+v", v)
+		}
+	}
+}

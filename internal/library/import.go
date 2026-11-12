@@ -1162,7 +1162,7 @@ func (l *Library) planMovie(ctx context.Context, d *importDownload, vn *VersionN
 	if err != nil {
 		return err
 	}
-	path, err := l.nameMovie(ctx, v, vn, root, pick.Path, facts, pick.Probe, formats)
+	path, err := l.nameMovie(ctx, v, vn, root, pick.Path, facts, pick.Probe, formats, nil)
 	if err != nil {
 		return err
 	}
@@ -1406,7 +1406,7 @@ func (l *Library) planSeries(ctx context.Context, d *importDownload, vn *Version
 		if err != nil {
 			return err
 		}
-		path, err := l.nameSeries(ctx, v, vn, root, f.Path, facts, f.Probe, formats, eps)
+		path, err := l.nameSeries(ctx, v, vn, root, f.Path, facts, f.Probe, formats, eps, nil)
 		if err != nil {
 			return err
 		}

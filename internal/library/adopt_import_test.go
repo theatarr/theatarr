@@ -63,11 +63,12 @@ func TestAdoptImportedMovie(t *testing.T) {
 	}
 
 	score := 50
+	const mediaTags = `{"videoCodec":"x265","videoDynamicRangeType":"HDR10"}`
 	file := func(p string) ImportFile {
 		return ImportFile{TitleID: 1, Source: "radarr@radarr:7878 /movies/" + filepath.Base(filepath.Dir(p)) + "/" + filepath.Base(p),
 			Path: p, RelativePath: filepath.Base(p), Quality: "Remux-2160p", ReleaseGroup: "GRP",
 			SceneName: "Amelie.2001.2160p.REMUX-GRP", Languages: []string{"French"}, Revision: 1, Size: 1000,
-			Score: &score, MediaInfo: `{"resolution":"3840x2160"}`}
+			Score: &score, MediaInfo: mediaTags}
 	}
 	rep, err := e.lib.AdoptImported(e.ctx, "movie-remux", []ImportFile{file(good), file(plain), file(off)})
 	if err != nil {
@@ -83,11 +84,20 @@ func TestAdoptImportedMovie(t *testing.T) {
 	if tg, err := os.Readlink(p); err != nil || tg != filepath.Join(e.mount, "__all__", movieRelease, "movie.mkv") {
 		t.Fatalf("link -> %q %v", tg, err)
 	}
-	if got := e.one(`SELECT l.adopted_from || '|' || l.quality || '|' || l.score || '|' || l.adopted_media || '|' ||
-		json_extract(l.file_metadata, '$.SceneName') || '|' || json_extract(l.file_metadata, '$.Languages[0]')
+	// The score is the library's own profile's (no custom formats here: 0), not the instance's 50.
+	if got := e.one(`SELECT l.adopted_from || '|' || l.quality || '|' || l.score || '|' || json_extract(l.file_metadata, '$.Score')
+		|| '|' || l.adopted_media || '|' || json_extract(l.file_metadata, '$.SceneName') || '|' ||
+		json_extract(l.file_metadata, '$.Languages[0]')
 		FROM link l JOIN link_version lv ON lv.link_id = l.id WHERE lv.version_id = 10`); got !=
-		`radarr@radarr:7878 /movies/Amelie (2001)/Amelie.mkv|Remux-2160p|50|{"resolution":"3840x2160"}|Amelie.2001.2160p.REMUX-GRP|French` {
+		`radarr@radarr:7878 /movies/Amelie (2001)/Amelie.mkv|Remux-2160p|0|0|`+mediaTags+`|Amelie.2001.2160p.REMUX-GRP|French` {
 		t.Errorf("link row %s", got)
+	}
+	// The name carries the instance's media info, and a rename right after keeps it.
+	if !strings.Contains(p, "[HDR10][x265]") {
+		t.Errorf("name without media info: %s", p)
+	}
+	if pr, err := e.lib.PreviewRename(e.ctx, 1, nil); err != nil || len(pr.Files) != 0 || pr.Skipped != 0 {
+		t.Errorf("rename after import: %+v %v", pr, err)
 	}
 	if got := e.one(`SELECT COUNT(*) FROM library_action WHERE kind = 'link' AND mode = 'applied'
 		AND detail = 'adopted from radarr@radarr:7878 /movies/Amelie (2001)/Amelie.mkv'`); got != "1" {
@@ -167,5 +177,22 @@ func TestAdoptImportedNeedsLiveLibrary(t *testing.T) {
 	}
 	if got := e.one(`SELECT COUNT(*) FROM link`); got != "0" {
 		t.Errorf("links %s", got)
+	}
+}
+
+// TestAdoptedRenameKeepsMediaInfo: a link adopted from a followed library is named with the arr's media info; a rename
+// right after keeps it (the link has no probe, only adopted_media).
+func TestAdoptedRenameKeepsMediaInfo(t *testing.T) {
+	t.Parallel()
+	e := newParallelEnv(t, true)
+	e.release(movieRelease, map[string]float64{"movie.mkv": 7000})
+	e.arrFile(1, "radarr", 10, 1, filepath.Join(e.movies, "Amelie The Movie (2001)", "Amelie.mkv"), movieRelease+"/movie.mkv", "Remux-2160p")
+	e.exec(`UPDATE version_file SET media_info = '{"videoCodec":"x265","videoDynamicRangeType":"HDR10"}' WHERE id = 1`)
+	rep, err := e.lib.Adopt(e.ctx, AdoptOptions{Version: "movie-theatarr"})
+	if err != nil || rep.Linked != 1 || !strings.Contains(rep.Links[0].Path, "[HDR10][x265]") {
+		t.Fatalf("%+v %v", rep, err)
+	}
+	if pr, err := e.lib.PreviewRename(e.ctx, 1, nil); err != nil || len(pr.Files) != 0 || pr.Skipped != 0 {
+		t.Errorf("rename after adopt: %+v %v", pr, err)
 	}
 }

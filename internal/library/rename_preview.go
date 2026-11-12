@@ -9,6 +9,7 @@ import (
 	"strings"
 
 	"github.com/theatarr/theatarr/internal/decide"
+	"github.com/theatarr/theatarr/internal/library/naming"
 	"github.com/theatarr/theatarr/internal/library/probe"
 	"github.com/theatarr/theatarr/internal/store"
 )
@@ -51,7 +52,8 @@ func (l *Library) previewRename(ctx context.Context, titleID int64, season *int,
 	out := &RenamePreview{Files: []RenameFile{}}
 	rows, err := l.st.Reader().QueryContext(ctx, `
 		SELECT l.id, l.path, v.id, v.policy_key, t.kind, t.name, COALESCE(t.year, 0), COALESCE(t.imdb_id, ''),
-			COALESCE(t.tmdb_id, 0), COALESCE(t.tvdb_id, 0), `+store.SeriesTypeSQL("t")+`, l.file_metadata
+			COALESCE(t.tmdb_id, 0), COALESCE(t.tvdb_id, 0), `+store.SeriesTypeSQL("t")+`, l.file_metadata,
+			COALESCE(l.adopted_media, '')
 		FROM link l JOIN link_version lv ON lv.link_id = l.id JOIN version v ON v.id = lv.version_id
 		JOIN title t ON t.id = l.title_id WHERE l.title_id = ? AND l.state = 'active' ORDER BY l.id`, titleID)
 	if err != nil {
@@ -62,6 +64,7 @@ func (l *Library) previewRename(ctx context.Context, titleID int64, season *int,
 	type previewLink struct {
 		linkID       int64
 		oldPath, raw string
+		media        string // adopted_media: the arr's media info of an adopted link
 		v            importVersion
 	}
 	var links []previewLink
@@ -69,7 +72,7 @@ func (l *Library) previewRename(ctx context.Context, titleID int64, season *int,
 		pl := previewLink{v: importVersion{Title: titleInfo{ID: titleID}}}
 		t := &pl.v.Title
 		if err := rows.Scan(&pl.linkID, &pl.oldPath, &pl.v.VersionID, &pl.v.Key, &t.Kind, &t.Name, &t.Year, &t.ImdbID,
-			&t.TmdbID, &t.TvdbID, &t.SeriesType, &pl.raw); err != nil {
+			&t.TmdbID, &t.TvdbID, &t.SeriesType, &pl.raw, &pl.media); err != nil {
 			rows.Close()
 			return nil, err
 		}
@@ -125,6 +128,11 @@ func (l *Library) previewRename(ctx context.Context, titleID int64, season *int,
 			}
 		}
 		var path string
+		// A link with no probe (an adopted one) is named with the media info adopt named it with.
+		var mi *naming.MediaInfo
+		if p == nil {
+			mi = mediaInfoFromAPI(pl.media, facts.SceneName, facts.OriginalFilePath, facts.RelativePath)
+		}
 		formats := l.storedRenameFormats(ctx, key, facts)
 		if len(facts.Formats) == 0 {
 			if cfs, ok := l.adoptedRenameFormats(ctx, linkID, &v, vn, facts); ok {
@@ -132,9 +140,9 @@ func (l *Library) previewRename(ctx context.Context, titleID int64, season *int,
 			}
 		}
 		if kind == "movie" {
-			path, err = l.nameMovie(ctx, &v, vn, root, facts.RelativePath, factsToFileFacts(facts), p, formats)
+			path, err = l.nameMovie(ctx, &v, vn, root, facts.RelativePath, factsToFileFacts(facts), p, formats, mi)
 		} else {
-			path, err = l.nameSeries(ctx, &v, vn, root, facts.RelativePath, factsToFileFacts(facts), p, formats, episodes)
+			path, err = l.nameSeries(ctx, &v, vn, root, facts.RelativePath, factsToFileFacts(facts), p, formats, episodes, mi)
 		}
 		if err != nil {
 			out.Skipped++

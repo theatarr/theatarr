@@ -73,8 +73,8 @@ const (
 	sizeExpr = `NULLIF(
 		COALESCE((SELECT SUM(vf.size_bytes) FROM version v JOIN version_file vf ON vf.version_id = v.id
 			LEFT JOIN version_source vs ON vs.version_id = v.id WHERE v.title_id = t.id AND ` + curFile + `), 0) +
-		COALESCE((SELECT SUM(cf.size_bytes) FROM link l JOIN content_file cf ON cf.id = l.content_file_id
-			WHERE l.title_id = t.id AND l.state = 'active'), 0), 0)`
+		COALESCE((SELECT SUM(COALESCE(cf.size_bytes, json_extract(l.file_metadata, '$.Size'), 0)) FROM link l
+			LEFT JOIN content_file cf ON cf.id = l.content_file_id WHERE l.title_id = t.id AND l.state = 'active'), 0), 0)`
 	nVersions = `(SELECT COUNT(*) FROM version v WHERE v.title_id = t.id)`
 	// nMissing: wanted versions with no file; nWantedFile: wanted versions that have some (a series part-way).
 	nMissing    = `(SELECT COUNT(*) FROM version v WHERE v.title_id = t.id AND v.state = 'wanted' AND NOT ` + hasFileSQL + `)`
@@ -557,7 +557,8 @@ func (w *Web) currentFiles(ctx context.Context, db *sql.DB, ids []any) (map[int6
 		ids, scan); err != nil {
 		return nil, nil, err
 	}
-	if err := scanAll(ctx, db, `SELECT lv.version_id, COALESCE(l.quality, ''), COUNT(*), COALESCE(SUM(cf.size_bytes), 0),
+	if err := scanAll(ctx, db, `SELECT lv.version_id, COALESCE(l.quality, ''), COUNT(*),
+		COALESCE(SUM(COALESCE(cf.size_bytes, json_extract(l.file_metadata, '$.Size'), 0)), 0),
 		COALESCE(MAX(l.created_at), 0) FROM link_version lv JOIN link l ON l.id = lv.link_id
 		LEFT JOIN content_file cf ON cf.id = l.content_file_id WHERE lv.version_id IN (`+in+`) AND l.state = 'active'
 		GROUP BY lv.version_id, l.quality ORDER BY lv.version_id`, ids, scan); err != nil {

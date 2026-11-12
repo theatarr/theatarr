@@ -607,7 +607,10 @@ func (l *Library) recordAdopted(ctx context.Context, version string, vp *policy.
 		meta.SceneName = f.release
 	}
 	_ = json.Unmarshal([]byte(f.langs), &meta.Languages)
-	if f.score.Valid {
+	// An imported file (formatsKey set) is scored by the library's own profile below; the instance's score belongs to
+	// the instance's profile and is not kept.
+	imported := f.formatsKey != ""
+	if f.score.Valid && !imported {
 		s := int(f.score.Int64)
 		meta.Score = &s
 	}
@@ -632,6 +635,13 @@ func (l *Library) recordAdopted(ctx context.Context, version string, vp *policy.
 				decide.ResolveSeaDexFileEpisodes(ctx, t, &meta, episodes)
 			}
 		}
+		if err == nil && imported {
+			if serr := l.engine.ScoreFile(t, decide.Version{ID: f.followerID, Key: version, Policy: vp}, &meta); serr != nil {
+				meta.Score = nil
+				l.log.Warn("library: adopt: score unknown", "file", f.path, "err", serr)
+			}
+			meta.Formats = nil // as adopt names it: a rename takes the formats from adoptFormats
+		}
 		if err == nil {
 			state, err = l.importedState(v, t, &meta)
 		}
@@ -651,7 +661,11 @@ func (l *Library) recordAdopted(ctx context.Context, version string, vp *policy.
 		release = f.scene
 	}
 	var score any
-	if f.score.Valid {
+	if imported {
+		if meta.Score != nil {
+			score = *meta.Score
+		}
+	} else if f.score.Valid {
 		score = f.score.Int64
 	}
 	source := f.source
