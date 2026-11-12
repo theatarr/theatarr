@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"io/fs"
+	"math"
 	"os"
 	"path/filepath"
 	"sort"
@@ -47,6 +48,8 @@ type RefreshOptions struct {
 	// Titles limits the refresh to these title ids (nil: every title). The arr import passes the titles whose arr
 	// files changed.
 	Titles []int64
+	// Uncapped lists every problem and swap in a dry run (the coverage check), not at most 200.
+	Uncapped bool
 }
 
 // RefreshReport is what a refresh did, or would do.
@@ -68,6 +71,16 @@ type RefreshReport struct {
 	Swaps    []RefreshSwap  `json:"swaps,omitempty"`
 	// made are the link paths this run made or planned: two adopted links never move onto one.
 	made map[string]bool
+	// uncapped: RefreshOptions.Uncapped in a dry run.
+	uncapped bool
+}
+
+// listMax is how many problems and swaps the report lists.
+func (r *RefreshReport) listMax() int {
+	if r.uncapped {
+		return math.MaxInt
+	}
+	return adoptListMax
 }
 
 // RefreshSwap is one adopted link moved (or to be moved) to the arr's current file.
@@ -83,7 +96,7 @@ type RefreshSwap struct {
 // fail records a link whose swap failed; the refresh goes on with the next link.
 func (r *RefreshReport) fail(p, reason, detail string) {
 	r.Failed++
-	if len(r.Problems) < adoptListMax {
+	if len(r.Problems) < r.listMax() {
 		r.Problems = append(r.Problems, AdoptProblem{Path: p, Reason: reason, Detail: detail})
 	}
 }
@@ -106,7 +119,7 @@ func failed(err error) error {
 
 func (r *RefreshReport) skip(p, reason, detail string) {
 	r.Skipped[reason]++
-	if len(r.Problems) < adoptListMax {
+	if len(r.Problems) < r.listMax() {
 		r.Problems = append(r.Problems, AdoptProblem{Path: p, Reason: reason, Detail: detail})
 	}
 }
@@ -155,7 +168,7 @@ func (l *Library) Refresh(ctx context.Context, o RefreshOptions) (*RefreshReport
 		return nil, fmt.Errorf("library: refresh %s: %w", o.Version, ErrGrabbing)
 	}
 	rep := &RefreshReport{Version: o.Version, Follows: vp.Follows, DryRun: o.DryRun, Skipped: map[string]int{},
-		made: map[string]bool{}}
+		made: map[string]bool{}, uncapped: o.DryRun && o.Uncapped}
 	if o.Titles != nil && len(o.Titles) == 0 {
 		return rep, nil
 	}
@@ -342,7 +355,7 @@ func (l *Library) refreshOne(ctx context.Context, o RefreshOptions, vp *policy.V
 		return nil, fmt.Errorf("library: refresh: %w", err)
 	}
 	if ar.lerr != nil {
-		rep.skip(lk.path, AdoptMissing, f.path)
+		rep.skip(lk.path, AdoptMissing, ar.lerr.Error())
 		return nil, nil
 	}
 	if ar.fi.Mode()&os.ModeSymlink == 0 {
@@ -423,7 +436,7 @@ func (l *Library) refreshOne(ctx context.Context, o RefreshOptions, vp *policy.V
 	rep.made[p] = true
 	if o.DryRun {
 		rep.Swapped++
-		if len(rep.Swaps) < adoptListMax {
+		if len(rep.Swaps) < rep.listMax() {
 			rep.Swaps = append(rep.Swaps, swap)
 		}
 		return nil, nil
@@ -567,7 +580,7 @@ func (l *Library) refreshOne(ctx context.Context, o RefreshOptions, vp *policy.V
 		return nil, err
 	}
 	rep.Swapped++
-	if len(rep.Swaps) < adoptListMax {
+	if len(rep.Swaps) < rep.listMax() {
 		rep.Swaps = append(rep.Swaps, swap)
 	}
 	return uniqueDirs(filepath.Dir(lk.path), filepath.Dir(p)), nil

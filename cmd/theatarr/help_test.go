@@ -1,8 +1,10 @@
 package main
 
 import (
+	"bytes"
 	"errors"
 	"flag"
+	"path/filepath"
 	"strings"
 	"testing"
 )
@@ -30,5 +32,23 @@ func TestLibraryUsageListsCoverageAndRenamePreview(t *testing.T) {
 		if !strings.Contains(libraryUsage, sub) {
 			t.Errorf("library usage lacks %q", sub)
 		}
+	}
+}
+
+// theatarr library rename-preview fails, printing nothing, when the library's profile cannot be built (movie-shadow
+// reads its profile from an arr snapshot, and there is none; its names would lack {Custom Formats}); with the
+// snapshot it runs.
+func TestLibraryRenamePreviewNeedsProfile(t *testing.T) {
+	pol := filepath.Join("..", "..", "internal", "decide", "testdata", "policy")
+	db := filepath.Join(t.TempDir(), "settings.db")
+	args := commandSettingsArgs(t, []string{"rename-preview", "-policy", pol, "-db", db, "-library", "movie-shadow"})
+	var out bytes.Buffer
+	if err := runLibrary(append(args, "-arr-snapshot", t.TempDir()), &out); err == nil ||
+		!strings.Contains(err.Error(), "names cannot be rebuilt") || out.Len() != 0 {
+		t.Fatalf("without the profile: %v, printed %q", err, out.String())
+	}
+	snap := filepath.Join("..", "..", "internal", "decide", "testdata", "arr")
+	if err := runLibrary(append(args, "-arr-snapshot", snap), &out); err != nil {
+		t.Fatalf("with the profile: %v", err)
 	}
 }

@@ -53,8 +53,8 @@ const libraryUsage = `usage:
                                                  whose arr files changed
   theatarr library coverage -library KEY [flags]  read-only: does a parallel library hold every title and file its followed
                                                  library has (titles without it, links adopt would make, adopted links
-                                                 refresh would move). Prints complete, complete except the listed expected
-                                                 exceptions, or NOT complete (exit 1). Writes nothing
+                                                 refresh would move). Complete only with nothing missing, to do or
+                                                 skipped; otherwise lists every item and exits 1. Writes nothing
   theatarr library rename-preview -library KEY [flags]
                                                  read-only: every link of the library whose name would change under its
                                                  naming, link_id<TAB>existing<TAB>new. Writes nothing
@@ -110,7 +110,22 @@ func runLibrary(args []string, out io.Writer) error {
 		return err
 	}
 	defer st.Close()
-	if _, err := st.Migrate(ctx); err != nil {
+	// coverage and rename-preview change nothing: no migration, and the single writer connection is set query_only, so
+	// any write fails instead of landing.
+	readOnly := args[0] == "coverage" || args[0] == "rename-preview"
+	if readOnly {
+		cur, target, err := st.SchemaVersion(ctx)
+		if err != nil {
+			return err
+		}
+		if cur != target {
+			return fmt.Errorf("the database is at schema %d and this binary expects %d: run it with the binary theatarr "+
+				"serve runs (docker compose exec theatarr theatarr library %s)", cur, target, args[0])
+		}
+		if _, err := st.Writer().ExecContext(ctx, "PRAGMA query_only = 1"); err != nil {
+			return err
+		}
+	} else if _, err := st.Migrate(ctx); err != nil {
 		return err
 	}
 	log := slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelWarn}))
@@ -119,7 +134,11 @@ func runLibrary(args []string, out io.Writer) error {
 	if set := pol.LibrarySettings(); set.ZurgAPI != "" || set.Decypharr != nil {
 		// zurg's read-only API or decypharr's, through a gateway of this command's own (budgets are counted in the
 		// database). The command has no provider clients: on decypharr's mount it imports and relinks by name.
-		gw, err := gateway.New(ctx, pol, gateway.Options{Store: st, Logger: log, Version: buildinfo.Version})
+		gops := gateway.Options{Store: st, Logger: log, Version: buildinfo.Version}
+		if readOnly {
+			gops.Store = nil // budgets in memory only
+		}
+		gw, err := gateway.New(ctx, pol, gops)
 		if err != nil {
 			return err
 		}
@@ -172,8 +191,11 @@ func runLibrary(args []string, out io.Writer) error {
 			if args[0] == "rename-preview" {
 				opts.Matched = matchedRenameFormats(pol, func() *decide.Engine { return eng })
 			}
+		} else if args[0] == "rename-preview" {
+			// Without the engine the names lack {Custom Formats}: no preview rather than a wrong one.
+			return fmt.Errorf("names cannot be rebuilt: %w", err)
 		} else {
-			fmt.Fprintf(os.Stderr, "warning: no decision engine (%v); {Custom Formats} only from stored names\n", err)
+			fmt.Fprintf(os.Stderr, "warning: no decision engine (%v); {Custom Formats} only from the arr's names\n", err)
 		}
 	}
 	lib := library.New(opts)
@@ -236,7 +258,7 @@ func runLibrary(args []string, out io.Writer) error {
 		if err := printCoverage(out, rep, f.asJSON); err != nil {
 			return err
 		}
-		if rep.Outcome == library.CoverageFailed {
+		if !rep.Complete {
 			return errors.New("coverage NOT complete")
 		}
 		return nil
@@ -477,64 +499,45 @@ func printCoverage(out io.Writer, r *library.CoverageReport, asJSON bool) error 
 		enc.SetIndent("", "  ")
 		return enc.Encode(r)
 	}
+	a := r.Adopt
 	fmt.Fprintf(out, "library %s follows %s\n", r.Version, r.Follows)
 	fmt.Fprintf(out, "titles in %s without %s: %d\n", r.Follows, r.Version, r.MissingTitles)
-	for _, t := range r.Missing {
-		fmt.Fprintf(out, "  %s (%d) [title %d]\n", t.Name, t.Year, t.ID)
-	}
-	if r.MissingTitles > len(r.Missing) {
-		fmt.Fprintf(out, "  and %d more\n", r.MissingTitles-len(r.Missing))
-	}
-	a := r.Adopt
-	var cannot []string
+	var skipped []string
 	for _, k := range sortedReasons(a.Skipped) {
-		cannot = append(cannot, fmt.Sprintf("%s %d", k, a.Skipped[k]))
+		skipped = append(skipped, fmt.Sprintf("%s %d", k, a.Skipped[k]))
 	}
-	if len(cannot) == 0 {
-		cannot = []string{"none"}
+	if len(skipped) == 0 {
+		skipped = []string{"none"}
 	}
-	fmt.Fprintf(out, "links adopt would make: %d (already linked %d; own files kept %d; cannot adopt: %s)\n", a.Linked,
-		a.Existing, a.HasFile, strings.Join(cannot, ", "))
+	fmt.Fprintf(out, "links adopt would make: %d (already linked %d; own files kept %d; uncovered episodes %d; skipped: %s)\n",
+		a.Linked, a.Existing, a.HasFile, a.MissingEpisodes, strings.Join(skipped, ", "))
 	if r.Refresh != nil {
 		fmt.Fprintf(out, "adopted links refresh would move: %d (current %d)\n", r.Refresh.Swapped, r.Refresh.Current)
 	} else {
 		fmt.Fprintf(out, "adopted links not checked: %s\n", r.RefreshSkipped)
 	}
-	issues := func(head string, list []library.CoverageIssue) {
-		if len(list) == 0 {
-			return
-		}
-		fmt.Fprintln(out, head)
-		for _, i := range list {
-			if i.Count > 0 {
-				fmt.Fprintf(out, "  %s %s: %d, %s\n", i.Step, i.Reason, i.Count, i.Note)
-			} else {
-				fmt.Fprintf(out, "  %s %s: %s\n", i.Step, i.Reason, i.Note)
-			}
-			var problems []library.AdoptProblem
-			switch {
-			case i.Step == "adopt":
-				problems = a.Problems
-			case i.Step == "refresh" && r.Refresh != nil:
-				problems = r.Refresh.Problems
-			}
-			for _, p := range problems {
-				if p.Reason == i.Reason {
-					fmt.Fprintf(out, "    %s %s\n", p.Path, p.Detail)
-				}
-			}
-		}
-	}
-	issues("expected exceptions:", r.Exceptions)
-	issues("not complete:", r.Failures)
-	switch r.Outcome {
-	case library.CoverageComplete:
+	if r.Complete {
 		fmt.Fprintln(out, "coverage complete")
-	case library.CoverageExceptions:
-		fmt.Fprintln(out, "coverage complete except the expected exceptions listed")
-	default:
-		fmt.Fprintln(out, "coverage NOT complete")
+		return nil
 	}
+	for _, i := range r.Items {
+		what := i.Path
+		if what == "" {
+			what = i.Title
+		}
+		line := fmt.Sprintf("%s\t%s\t%s", i.Step, i.Reason, what)
+		if i.Detail != "" {
+			line += "\t" + i.Detail
+		}
+		if len(i.Episodes) > 0 {
+			line += fmt.Sprintf("\tepisodes %v", i.Episodes)
+		}
+		fmt.Fprintln(out, line)
+	}
+	for _, k := range sortedReasons(r.Counts) {
+		fmt.Fprintf(out, "%s: %d\n", k, r.Counts[k])
+	}
+	fmt.Fprintln(out, "coverage NOT complete")
 	return nil
 }
 

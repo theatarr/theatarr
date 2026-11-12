@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"io/fs"
+	"math"
 	"os"
 	"path"
 	"path/filepath"
@@ -54,6 +55,8 @@ type AdoptOptions struct {
 	DryRun bool
 	// Limit stops after this many new links (0: no limit).
 	Limit int
+	// Uncapped lists every problem and link in a dry run (the coverage check), not at most 200.
+	Uncapped bool
 }
 
 // AdoptReport is what an adopt did, or would do.
@@ -77,6 +80,8 @@ type AdoptReport struct {
 	// Links are the links made (or planned), at most 200.
 	Links   []AdoptLink `json:"links,omitempty"`
 	Limited bool        `json:"limited,omitempty"` // stopped at the limit
+	// uncapped: AdoptOptions.Uncapped in a dry run.
+	uncapped bool
 }
 
 // AdoptProblem is one arr file not adopted.
@@ -109,9 +114,17 @@ const (
 
 const adoptListMax = 200
 
+// listMax is how many problems and links the report lists.
+func (r *AdoptReport) listMax() int {
+	if r.uncapped {
+		return math.MaxInt
+	}
+	return adoptListMax
+}
+
 func (r *AdoptReport) skip(p, reason, detail string) {
 	r.Skipped[reason]++
-	if len(r.Problems) < adoptListMax {
+	if len(r.Problems) < r.listMax() {
 		r.Problems = append(r.Problems, AdoptProblem{Path: p, Reason: reason, Detail: detail})
 	}
 }
@@ -146,7 +159,8 @@ func (l *Library) Adopt(ctx context.Context, o AdoptOptions) (*AdoptReport, erro
 	if vp.Follows == "" {
 		return nil, fmt.Errorf("library: adopt: %s is not a parallel version (versions.%s.follows)", o.Version, o.Version)
 	}
-	rep := &AdoptReport{Version: o.Version, Follows: vp.Follows, DryRun: o.DryRun, Skipped: map[string]int{}}
+	rep := &AdoptReport{Version: o.Version, Follows: vp.Follows, DryRun: o.DryRun, Skipped: map[string]int{},
+		uncapped: o.DryRun && o.Uncapped}
 	if err := l.followGate(ctx, o.Version, o.DryRun); err != nil {
 		return nil, fmt.Errorf("library: adopt %s: %w", o.Version, err)
 	}
@@ -397,7 +411,7 @@ func (l *Library) adoptOne(ctx context.Context, o AdoptOptions, vp *policy.Versi
 		}
 	}
 	rep.Linked++
-	if len(rep.Links) < adoptListMax {
+	if len(rep.Links) < rep.listMax() {
 		rep.Links = append(rep.Links, AdoptLink{From: f.path, Path: p, Target: target})
 	}
 	if o.DryRun {
@@ -441,11 +455,15 @@ func (l *Library) adoptUncovered(ctx context.Context, path string, existing []ex
 	if len(missing) < len(episodes) {
 		rep.PartialPacks++
 	}
-	sample := missing[:min(len(missing), adoptListMax)]
+	sample := missing[:min(len(missing), rep.listMax())]
 	rep.Skipped[AdoptHasFile]++
-	if len(rep.Problems) < adoptListMax {
+	detail := fmt.Sprintf("kept own files; %d uncovered episodes (ids, at most %d): %v", len(missing), adoptListMax, sample)
+	if rep.uncapped {
+		detail = fmt.Sprintf("kept own files; %d uncovered episodes (ids): %v", len(missing), sample)
+	}
+	if len(rep.Problems) < rep.listMax() {
 		rep.Problems = append(rep.Problems, AdoptProblem{Path: path, Reason: AdoptHasFile,
-			Detail:          fmt.Sprintf("kept own files; %d uncovered episodes (ids, at most %d): %v", len(missing), adoptListMax, sample),
+			Detail:          detail,
 			MissingEpisodes: sample})
 	}
 	return nil
