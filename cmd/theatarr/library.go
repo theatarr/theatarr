@@ -51,11 +51,6 @@ const libraryUsage = `usage:
                                                  links of Theatarr's own imports, nor a library that grabs (router.enabled and
                                                  mode: active). theatarr serve runs it after every arr.import for the titles
                                                  whose arr files changed
-  theatarr library coverage -library KEY [flags]  read-only: does a parallel library hold every title and file its followed
-                                                 library has: covered is an active link of the library whose target
-                                                 exists. Otherwise lists every title or file not covered, with what
-                                                 adopt or refresh would do about it, and exits 1. Opens the database
-                                                 read-only
   theatarr library rename-preview -library KEY [flags]
                                                  read-only: every link of the library whose name would change under its
                                                  naming, link_id<TAB>existing<TAB>new. Opens the database read-only
@@ -77,7 +72,7 @@ func runLibrary(args []string, out io.Writer) error {
 		if helpArg(args) {
 			return flag.ErrHelp
 		}
-		return errors.New("give dry-run, verify, relink, adopt, coverage, rename-preview, dangling or naming-sync")
+		return errors.New("give dry-run, verify, relink, adopt, rename-preview, dangling or naming-sync")
 	}
 	fs := flag.NewFlagSet("library "+args[0], flag.ContinueOnError)
 	fs.Usage = func() { fmt.Fprint(fs.Output(), libraryUsage+"\nflags:\n"); fs.PrintDefaults() }
@@ -85,7 +80,7 @@ func runLibrary(args []string, out io.Writer) error {
 	f.register(fs)
 	fs.BoolVar(&f.asJSON, "json", false, "print JSON")
 	download := fs.Int64("download", 0, "dry-run: the download id")
-	version := libraryFlag(fs, "verify, relink, adopt, coverage, rename-preview: one library (default every library under library.versions)")
+	version := libraryFlag(fs, "verify, relink, adopt, rename-preview: one library (default every library under library.versions)")
 	dryRun := fs.Bool("dry-run", false, "relink, adopt: report only")
 	limit := fs.Int("limit", 0, "adopt: stop after this many new links (0: all; not with -refresh)")
 	queue := fs.Bool("queue", false, "adopt: queue a library.adopt job for theatarr serve instead of running here")
@@ -102,9 +97,9 @@ func runLibrary(args []string, out io.Writer) error {
 			return err
 		}
 	}
-	// coverage and rename-preview change nothing: every open of the database is read-only (no WAL switch, no chmod, no
-	// migration), and any write fails instead of landing.
-	readOnly := args[0] == "coverage" || args[0] == "rename-preview"
+	// rename-preview changes nothing: every open of the database is read-only (no WAL switch, no chmod, no migration),
+	// and any write fails instead of landing.
+	readOnly := args[0] == "rename-preview"
 	f.readOnly = readOnly
 	pol, _, err := loadSettingsSnapshotOpts(ctx, f.settingsSource, f.policyDir, f.db, readOnly)
 	if err != nil {
@@ -154,7 +149,7 @@ func runLibrary(args []string, out io.Writer) error {
 			fmt.Fprintf(os.Stderr, "warning: no decision engine (%v); {Custom Formats} stays empty\n", err)
 		}
 	}
-	if args[0] == "adopt" || args[0] == "coverage" || args[0] == "rename-preview" {
+	if args[0] == "adopt" || args[0] == "rename-preview" {
 		if *version == "" {
 			return errors.New("-library is required")
 		}
@@ -182,26 +177,21 @@ func runLibrary(args []string, out io.Writer) error {
 				"only from the arr's names\n", err)
 		}
 	}
-	if args[0] == "coverage" || args[0] == "rename-preview" {
+	if args[0] == "rename-preview" {
 		// As serve builds it, so the names match what serve proposes.
 		var built strings.Builder
 		_, eng, err := f.engine(*version, &built)
-		if err == nil && args[0] == "rename-preview" {
+		if err == nil {
 			// Adopted links are named with the followed library's profile while the library follows one.
 			err = renameProfiles(pol, eng, *version, built.String())
 		}
-		if err == nil {
-			opts.Engine = eng
-			opts.Formats = decideRenameFormats(st, pol, eng)
-			if args[0] == "rename-preview" {
-				opts.Matched = matchedRenameFormats(pol, func() *decide.Engine { return eng })
-			}
-		} else if args[0] == "rename-preview" {
+		if err != nil {
 			// Without the engine the names lack {Custom Formats}: no preview rather than a wrong one.
 			return fmt.Errorf("names cannot be rebuilt: %w", err)
-		} else {
-			fmt.Fprintf(os.Stderr, "warning: no decision engine (%v); {Custom Formats} only from the arr's names\n", err)
 		}
+		opts.Engine = eng
+		opts.Formats = decideRenameFormats(st, pol, eng)
+		opts.Matched = matchedRenameFormats(pol, func() *decide.Engine { return eng })
 	}
 	lib := library.New(opts)
 	fmt.Fprintln(os.Stderr, lib.Gate().Summary())
@@ -255,21 +245,6 @@ func runLibrary(args []string, out io.Writer) error {
 			}
 		}
 		return err
-	case "coverage":
-		rep, err := lib.Coverage(ctx, *version)
-		if rep == nil {
-			return err
-		}
-		if perr := printCoverage(out, rep, f.asJSON); perr != nil {
-			return perr
-		}
-		if err != nil {
-			return fmt.Errorf("coverage NOT complete: %w", err)
-		}
-		if !rep.Complete {
-			return errors.New("coverage NOT complete")
-		}
-		return nil
 	case "rename-preview":
 		p, err := lib.PreviewRenameLibrary(ctx, *version)
 		if err != nil {
@@ -522,65 +497,6 @@ func printAdopt(out io.Writer, r *library.AdoptReport, asJSON bool) error {
 		fmt.Fprintf(out, "%s %s\n    -> %s\n", what, l.Path, l.Target)
 	}
 	return nil
-}
-
-func printCoverage(out io.Writer, r *library.CoverageReport, asJSON bool) error {
-	if asJSON {
-		enc := json.NewEncoder(out)
-		enc.SetIndent("", "  ")
-		return enc.Encode(r)
-	}
-	fmt.Fprintf(out, "library %s follows %s\n", r.Version, r.Follows)
-	fmt.Fprintf(out, "titles in %s without %s: %d\n", r.Follows, r.Version, r.MissingTitles)
-	if a := r.Adopt; a != nil {
-		var skipped []string
-		for _, k := range sortedReasons(a.Skipped) {
-			skipped = append(skipped, fmt.Sprintf("%s %d", k, a.Skipped[k]))
-		}
-		if len(skipped) == 0 {
-			skipped = []string{"none"}
-		}
-		fmt.Fprintf(out, "links adopt would make: %d (already linked %d; uncovered episodes %d; skipped: %s)\n",
-			a.Linked, a.Existing, a.MissingEpisodes, strings.Join(skipped, ", "))
-		fmt.Fprintf(out, "own files kept: %d\n", r.OwnFilesKept)
-	}
-	if r.Refresh != nil {
-		fmt.Fprintf(out, "adopted links refresh would move: %d (current %d)\n", r.Refresh.Swapped, r.Refresh.Current)
-	} else if r.RefreshSkipped != "" {
-		fmt.Fprintf(out, "adopted links not checked: %s\n", r.RefreshSkipped)
-	}
-	if r.Complete {
-		fmt.Fprintln(out, "coverage complete")
-		return nil
-	}
-	for _, i := range r.Items {
-		what := i.Path
-		if what == "" {
-			what = i.Title
-		}
-		line := fmt.Sprintf("%s\t%s\t%s", i.Step, i.Reason, what)
-		if i.Detail != "" {
-			line += "\t" + i.Detail
-		}
-		if len(i.Episodes) > 0 {
-			line += fmt.Sprintf("\tepisodes %v", i.Episodes)
-		}
-		fmt.Fprintln(out, line)
-	}
-	for _, k := range sortedReasons(r.Counts) {
-		fmt.Fprintf(out, "%s: %d\n", k, r.Counts[k])
-	}
-	fmt.Fprintln(out, "coverage NOT complete")
-	return nil
-}
-
-func sortedReasons(m map[string]int) []string {
-	out := make([]string, 0, len(m))
-	for k := range m {
-		out = append(out, k)
-	}
-	sort.Strings(out)
-	return out
 }
 
 func printRefresh(out io.Writer, r *library.RefreshReport, asJSON bool) error {

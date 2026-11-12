@@ -28,9 +28,9 @@ func TestParentCommandsHelp(t *testing.T) {
 	}
 }
 
-// theatarr library's usage lists the read-only cutover checks.
-func TestLibraryUsageListsCoverageAndRenamePreview(t *testing.T) {
-	for _, sub := range []string{"theatarr library coverage -library KEY", "theatarr library rename-preview -library KEY"} {
+// theatarr library's usage lists the read-only rename preview.
+func TestLibraryUsageListsRenamePreview(t *testing.T) {
+	for _, sub := range []string{"theatarr library rename-preview -library KEY"} {
 		if !strings.Contains(libraryUsage, sub) {
 			t.Errorf("library usage lacks %q", sub)
 		}
