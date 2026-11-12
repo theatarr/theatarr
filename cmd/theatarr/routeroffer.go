@@ -23,33 +23,20 @@ import (
 // offerSweepEvery is how often the offer sweep runs.
 const offerSweepEvery = 6 * time.Hour
 
-// newServeOfferer builds the offerer of theatarr serve; without a decision engine it decides nothing (every offer stays
-// pending and is retried).
+// newServeOfferer builds the offerer of theatarr serve: it decides with the engine of the settings generation an
+// operation runs under.
 func newServeOfferer(st *store.Store, pol *policy.Policy, eng *decide.Engine, rt interface {
 	Enqueue(context.Context, router.Request, time.Time) (int64, error)
 }, q *jobs.Queue, log *slog.Logger, manager *settings.RuntimeCoordinator) *router.Offerer {
-	dec := router.DecideFunc(func(context.Context, decide.Release, decide.Title, decide.Version, *decide.ExistingFile) (*decide.Decision, error) {
-		return nil, errors.New("no decision engine")
-	})
-	decSeries := router.DecideSeriesFunc(func(context.Context, decide.Release, decide.Title, decide.Version,
-		*decide.SeriesSearch) (*decide.Decision, error) {
-		return nil, errors.New("no decision engine")
-	})
-	if eng != nil {
-		dec = eng.Decide
-		decSeries = eng.DecideSearch
-	}
-	o := &router.Offerer{Store: st, Policy: pol, Decide: dec, DecideSeries: decSeries, Router: rt, Queue: q,
+	o := &router.Offerer{Store: st, Policy: pol, Decide: eng.Decide, DecideSeries: eng.DecideSearch, Router: rt, Queue: q,
 		Logger: log.With("component", "offer")}
-	if manager != nil {
-		o.CaptureRuntime = manager.Capture
-		o.Runtime = func(ctx context.Context) (*policy.Policy, router.DecideFunc, router.DecideSeriesFunc, error) {
-			active, err := runtimeForSearch(ctx, manager)
-			if err != nil {
-				return nil, nil, nil, err
-			}
-			return active.Policy, active.Engine.Decide, active.Engine.DecideSearch, nil
+	o.CaptureRuntime = manager.Capture
+	o.Runtime = func(ctx context.Context) (*policy.Policy, router.DecideFunc, router.DecideSeriesFunc, error) {
+		active, err := runtimeForSearch(ctx, manager)
+		if err != nil {
+			return nil, nil, nil, err
 		}
+		return active.Policy, active.Engine.Decide, active.Engine.DecideSearch, nil
 	}
 	return o
 }

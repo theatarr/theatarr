@@ -93,21 +93,7 @@ func arrGetters(pol *policy.Policy) shadow.ArrSourceFunc {
 // which the acquirer shares.
 func newShadowRunner(pol *policy.Policy, st *store.Store, q *jobs.Queue, gw *gateway.Gateway, reg prometheus.Registerer,
 	log *slog.Logger, rt shadow.Router, prepared *serveRuntime, runtime shadow.RuntimeSource) (*shadow.Runner, *decide.Engine, *indexer.Service, error) {
-	var svc *indexer.Service
-	var eng *decide.Engine
-	if prepared != nil {
-		svc, eng = prepared.Indexers, prepared.Engine
-	} else {
-		var err error
-		svc, err = indexer.New(pol, gw, indexer.Options{Logger: log, Cardigann: cardigannManager()})
-		if err != nil {
-			return nil, nil, nil, err
-		}
-		eng, err = newShadowEngine(pol, log, nil)
-		if err != nil {
-			return nil, nil, nil, err
-		}
-	}
+	svc, eng := prepared.Indexers, prepared.Engine
 	cfg := shadow.Config{Store: st, Policy: pol, Engine: eng, Queue: q, Indexers: svc, Budgets: gw, Router: rt,
 		Logger: log, Registerer: reg, Runtime: runtime}
 	if pol.Import != nil && len(pol.Import.Arr) > 0 {

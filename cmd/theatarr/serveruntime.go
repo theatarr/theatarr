@@ -324,9 +324,10 @@ func prepareStartupRuntime(ctx context.Context, settingsStore *settings.Store, b
 	if loadErr != nil {
 		return nil, nil, false, errors.Join(prepareErr, loadErr)
 	}
-	// LoadGeneration clamps the switches and versions to the head; anything else the fallback would loosen (a
-	// safety section, a credential, a view, an indexer the head took away) refuses it, and the start fails with
-	// both reasons instead of running looser settings than the ones saved.
+	// LoadGeneration clamps the switches and versions to the head; any write effect still left between the head and
+	// the fallback (snapshotWriteEffects: a library going Live or downloading, Pause off, following or an arr import
+	// into a grabbing library, a library the fallback lacks) refuses it, and the start fails with both reasons
+	// instead of running settings the owner did not save.
 	effects, effectsErr := settingsStore.FallbackEffects(ctx, initial, fallback)
 	if effectsErr != nil {
 		return nil, nil, false, errors.Join(prepareErr, effectsErr)

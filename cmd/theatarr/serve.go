@@ -43,7 +43,6 @@ import (
 	"github.com/theatarr/theatarr/internal/router"
 	"github.com/theatarr/theatarr/internal/server"
 	"github.com/theatarr/theatarr/internal/settings"
-	"github.com/theatarr/theatarr/internal/shadow"
 	"github.com/theatarr/theatarr/internal/store"
 	"github.com/theatarr/theatarr/internal/torrents"
 	"github.com/theatarr/theatarr/internal/web"
@@ -273,11 +272,7 @@ func runServe(args []string) error {
 	}
 	settingsStore, settingsSnapshot, pol := loaded.store, loaded.snapshot, loaded.policy
 	logPolicy(log, pol, settingsSnapshot)
-	generation := int64(0)
-	if settingsSnapshot != nil {
-		generation = settingsSnapshot.Generation
-	}
-	log.Info("settings source", "source", *settingsSource, "generation", generation)
+	log.Info("settings source", "source", *settingsSource, "generation", settingsSnapshot.Generation)
 	cur, _, err := st.SchemaVersion(ctx)
 	if err != nil {
 		return err
@@ -354,142 +349,103 @@ func runServe(args []string) error {
 		default:
 		}
 	}
-	if settingsSnapshot != nil {
-		settingsSnapshot, prepared, usedFallback, prepareErr := loaded.prepareStartup(ctx, settingsSnapshot, log,
-			func(ctx context.Context, snap *settings.Snapshot) (any, error) {
-				return prepareServeRuntime(ctx, snap, nil, st, q, reg, log)
-			})
-		if prepareErr != nil {
-			return prepareErr
-		}
-		serveSnapshot, _ = prepared.(*serveRuntime)
-		serveSnapshot.EgressChecks = egressChecks
-		pol = settingsSnapshot.Policy
-		runtimeManager, err = loaded.coordinator(settingsSnapshot, serveSnapshot,
-			func(ctx context.Context, snap *settings.Snapshot, previous *settings.Runtime) (any, error) {
-				var old *serveRuntime
-				if previous != nil {
-					old, _ = previous.Components.(*serveRuntime)
+	settingsSnapshot, prepared, usedFallback, prepareErr := loaded.prepareStartup(ctx, settingsSnapshot, log,
+		func(ctx context.Context, snap *settings.Snapshot) (any, error) {
+			return prepareServeRuntime(ctx, snap, nil, st, q, reg, log)
+		})
+	if prepareErr != nil {
+		return prepareErr
+	}
+	serveSnapshot, _ = prepared.(*serveRuntime)
+	serveSnapshot.EgressChecks = egressChecks
+	pol = settingsSnapshot.Policy
+	runtimeManager, err = loaded.coordinator(settingsSnapshot, serveSnapshot,
+		func(ctx context.Context, snap *settings.Snapshot, previous *settings.Runtime) (any, error) {
+			var old *serveRuntime
+			if previous != nil {
+				old, _ = previous.Components.(*serveRuntime)
+			}
+			if err := cardigannEnsure(snap.Policy, filepath.Dir(*dbPath), st, cardigannCurrent, log); err != nil {
+				return nil, err
+			}
+			next, err := prepareServeRuntime(ctx, snap, old, st, q, nil, log)
+			if err == nil {
+				next.Workers = liveWorkers
+				next.Router.SetCurrentRuntime(func() *router.Router {
+					return currentServeRouter(runtimeManager)
+				})
+				next.EgressChecks = egressChecks
+				if runtimeMountCheck != nil {
+					next.Router.SetMountCheck(runtimeMountCheck)
 				}
-				if err := cardigannEnsure(snap.Policy, filepath.Dir(*dbPath), st, cardigannCurrent, log); err != nil {
-					return nil, err
-				}
-				next, err := prepareServeRuntime(ctx, snap, old, st, q, nil, log)
-				if err == nil {
-					next.Workers = liveWorkers
-					next.Router.SetCurrentRuntime(func() *router.Router {
-						return currentServeRouter(runtimeManager)
-					})
-					next.EgressChecks = egressChecks
-					if runtimeMountCheck != nil {
-						next.Router.SetMountCheck(runtimeMountCheck)
-					}
-					next.Router.SetReadyNotify(notifyReady)
-					if wireRuntimeExtras != nil {
-						if err := wireRuntimeExtras(ctx, next, old); err != nil {
-							return nil, err
-						}
+				next.Router.SetReadyNotify(notifyReady)
+				if wireRuntimeExtras != nil {
+					if err := wireRuntimeExtras(ctx, next, old); err != nil {
+						return nil, err
 					}
 				}
-				return next, err
-			})
-		if err != nil {
+			}
+			return next, err
+		})
+	if err != nil {
+		return err
+	}
+	if !usedFallback {
+		if err := runtimeManager.Reload(ctx, settingsSnapshot.Generation); err != nil {
 			return err
 		}
-		if !usedFallback {
-			if err := runtimeManager.Reload(ctx, settingsSnapshot.Generation); err != nil {
-				return err
-			}
-		}
-		serveSnapshot = runtimeManager.Current().Components.(*serveRuntime)
 	}
+	serveSnapshot = runtimeManager.Current().Components.(*serveRuntime)
 	captureRuntime := func(ctx context.Context) context.Context {
-		if runtimeManager == nil {
-			return ctx
-		}
 		return runtimeManager.Capture(ctx)
 	}
 	// Every outbound call goes through the gateway, including any configured VPN requirements.
-	var ps *providerSync
-	if serveSnapshot != nil {
-		gw, ps = serveSnapshot.Gateway, serveSnapshot.Providers
-	} else {
-		gw, err = gateway.New(ctx, pol, gateway.Options{Store: st, Registerer: reg, Logger: log, Version: buildinfo.Version})
-		if err != nil {
-			return err
-		}
-		ps, err = newProviderSync(pol, st, q, gw, log)
-		if err != nil {
-			return err
-		}
-	}
+	gw = serveSnapshot.Gateway
+	ps := serveSnapshot.Providers
 	// The inbox masks the known credentials of the active settings generation (the gateway follows publications).
 	inbox.SetKnownSecrets(gw.Redact)
 	// The provider registry sync runs as a job on the policy's interval, for providers whose key is set.
 	ps.syncer.Queue = q
-	if runtimeManager == nil {
-		ps.syncer.RegisterJobs(w)
-	} else {
-		ps.runtimeSyncer = func() *providerSync {
-			active, ok := runtimeManager.Current().Components.(*serveRuntime)
-			if !ok || active == nil {
-				return ps
-			}
-			return active.Providers
+	ps.runtimeSyncer = func() *providerSync {
+		active, ok := runtimeManager.Current().Components.(*serveRuntime)
+		if !ok || active == nil {
+			return ps
 		}
-		w.Handle(provider.JobKind, func(ctx context.Context, j *jobs.Job) error {
-			var payload provider.SyncPayload
-			if len(j.Payload) > 0 {
-				if err := j.Decode(&payload); err != nil {
-					return jobs.Permanent(err)
-				}
-			}
-			ctx = runtimeManager.Capture(ctx)
-			runtime := settings.ContextRuntime(ctx)
-			if runtime == nil {
-				runtime = runtimeManager.Current()
-			}
-			active, ok := runtime.Components.(*serveRuntime)
-			if !ok || active == nil || active.Providers == nil {
-				return errors.New("provider sync: active settings runtime is unavailable")
-			}
-			return active.Providers.syncer.Handle(ctx, j)
-		})
+		return active.Providers
 	}
+	w.Handle(provider.JobKind, func(ctx context.Context, j *jobs.Job) error {
+		var payload provider.SyncPayload
+		if len(j.Payload) > 0 {
+			if err := j.Decode(&payload); err != nil {
+				return jobs.Permanent(err)
+			}
+		}
+		ctx = runtimeManager.Capture(ctx)
+		runtime := settings.ContextRuntime(ctx)
+		if runtime == nil {
+			runtime = runtimeManager.Current()
+		}
+		active, ok := runtime.Components.(*serveRuntime)
+		if !ok || active == nil || active.Providers == nil {
+			return errors.New("provider sync: active settings runtime is unavailable")
+		}
+		return active.Providers.syncer.Handle(ctx, j)
+	})
 
 	// The download router: provider writes only for active versions while router.enabled is true (docs/design/router.md).
-	var rt *router.Router
-	var routeService *serveRouter
-	if serveSnapshot != nil {
-		rt = serveSnapshot.Router
-	} else {
-		rt, err = newServeRouter(pol, st, gw, ps.syncer.Providers, log)
-		if err != nil {
-			return err
-		}
-	}
+	rt := serveSnapshot.Router
 	rt.SetReadyNotify(notifyReady)
-	routeService = &serveRouter{manager: runtimeManager, fallback: rt}
-	if runtimeManager != nil {
-		rt.SetCurrentRuntime(func() *router.Router {
-			return currentServeRouter(runtimeManager)
-		})
-	}
-	if runtimeManager == nil {
-		rt.RegisterJobs(w, q)
-	} else {
-		router.RegisterRuntimeJobs(w, q, routeService.forOperation)
-		rt.SetRuntimeResolver(routeService.forOperation)
-	}
+	routeService := &serveRouter{manager: runtimeManager, fallback: rt}
+	rt.SetCurrentRuntime(func() *router.Router {
+		return currentServeRouter(runtimeManager)
+	})
+	router.RegisterRuntimeJobs(w, q, routeService.forOperation)
+	rt.SetRuntimeResolver(routeService.forOperation)
 	rt.LogState()
 
 	// The shadow runner: arr import, re-decided arr grabs with our own search, RSS (docs/design/shadow.md); a router
 	// dry-run plan for every shadow grab and pick, and the RSS picks of active versions to the router.
-	var shadowRuntime shadow.RuntimeSource
-	if runtimeManager != nil {
-		shadowRuntime = shadowRuntimeSource{manager: runtimeManager}
-	}
-	sh, eng, idx, err := newShadowRunner(pol, st, q, gw, reg, log, routeService, serveSnapshot, shadowRuntime)
+	sh, eng, idx, err := newShadowRunner(pol, st, q, gw, reg, log, routeService, serveSnapshot, shadowRuntimeSource{manager: runtimeManager})
 	if err != nil {
 		return err
 	}
@@ -508,10 +464,6 @@ func runServe(args []string) error {
 	// (docs/design/library.md).
 	// Offers: an imported movie is offered to the title's other movie versions; their own
 	// rules decide, and an accepted offer reuses the provider's torrent.
-	if serveSnapshot == nil && eng != nil {
-		rt.SetDecider(eng.Decide, eng.DecideSearch) // a route queued under another policy is decided again
-		rt.SetProfiles(eng.Profile)                 // freshness and queue checks judge with the decision's profile
-	}
 	off := newServeOfferer(st, pol, eng, routeService, q, log, runtimeManager)
 	off.RegisterJobs(w)
 	lb, err := newServeLibrary(pol, st, q, gw, log, eng, helper, ps.syncer.Providers, func(ctx context.Context, id int64) {
@@ -527,22 +479,18 @@ func runServe(args []string) error {
 	torrentSvc.lib = lb
 	// The mount metrics read the active generation's library: a save that moves the mount starts a fresh guard there.
 	library.RegisterMountMetrics(reg, lb.current)
-	if serveSnapshot != nil {
-		serveSnapshot.Library = lb
-	}
+	serveSnapshot.Library = lb
 	lb.RegisterJobs(w)
-	if runtimeManager != nil {
-		// Imports and renames pin the library of the runtime they start on (its roots, naming and engine). The
-		// fallback copy has no resolver, so an operation without a runtime library cannot resolve back to lb.lib.
-		fallback := lb.lib.WithPolicy(pol, eng, lb.formats, matchedRenameFormats(pol, lb.decider))
-		lb.lib.SetRuntimeResolver(func(ctx context.Context) (context.Context, *library.Library) {
-			ctx, current := lb.forOperation(ctx)
-			if current == lb {
-				return ctx, fallback
-			}
-			return ctx, current.lib
-		})
-	}
+	// Imports and renames pin the library of the runtime they start on (its roots, naming and engine). The
+	// fallback copy has no resolver, so an operation without a runtime library cannot resolve back to lb.lib.
+	fallback := lb.lib.WithPolicy(pol, eng, lb.formats, matchedRenameFormats(pol, lb.decider))
+	lb.lib.SetRuntimeResolver(func(ctx context.Context) (context.Context, *library.Library) {
+		ctx, current := lb.forOperation(ctx)
+		if current == lb {
+			return ctx, fallback
+		}
+		return ctx, current.lib
+	})
 	lb.LogState()
 	rt.SetMountCheck(lb.lib.MountListed)
 	runtimeMountCheck = lb.lib.MountListed
@@ -565,9 +513,7 @@ func runServe(args []string) error {
 	if err != nil {
 		return err
 	}
-	if serveSnapshot != nil {
-		serveSnapshot.Playlists = pls
-	}
+	serveSnapshot.Playlists = pls
 
 	// TVDB v4 (docs/design/tvdb.md): nil without the tvdb source or its key. An hourly /updates read marks changed
 	// series stale in the metadata cache.
@@ -575,40 +521,38 @@ func runServe(args []string) error {
 	if err != nil {
 		return err
 	}
-	if runtimeManager != nil {
-		wireRuntimeExtras = func(ctx context.Context, runtime, previous *serveRuntime) error {
-			var prevMeta *serveMetadata
-			if previous != nil {
-				prevMeta = previous.Metadata
-			}
-			var err error
-			if runtime.Metadata, err = prepareServeMetadata(prevMeta, runtime.Policy, runtime.Gateway, metaDeps); err != nil {
-				return err
-			}
-			wireIndexerLookups(runtime.Policy, st, runtime.Gateway, runtime.Indexers, runtime.Metadata.tvc, log)
-			wireCacheEvidence(runtime.Policy, st, runtime.Indexers, runtime.Providers.syncer.Providers, log)
-			runtime.Library, err = newServeLibrary(runtime.Policy, st, q, runtime.Gateway, log, runtime.Engine, helper,
-				runtime.Providers.syncer.Providers, func(ctx context.Context, id int64) { _ = router.EnqueueOffer(ctx, q, id, time.Now()) })
-			if err != nil {
-				return err
-			}
-			// Its loops (serveliveworkers.go) resolve each pass's library like the startup one.
-			runtime.Library.manager, runtime.Library.readyWake = runtimeManager, readyWake
-			// The mount guard, helpers and listing floor carry over from the generation being replaced (the startup
-			// library before the first save), so a save neither resets an open breaker nor keeps old mount settings.
-			prevLib := lb.lib
-			if previous != nil && previous.Library != nil && previous.Library.lib != nil {
-				prevLib = previous.Library.lib
-			}
-			runtime.Library.lib.InheritMount(prevLib)
-			runtime.Router.SetMountCheck(runtime.Library.lib.MountListed)
-			runtime.Playlists, err = newPlaylistSyncer(ctx, runtime.Policy, st, runtime.Gateway, log)
-			if err != nil {
-				return err
-			}
-			runtime.Anime = newServeAnime(runtime.Policy, st, q, runtime.Gateway, runtime.Metadata.tvc, log)
-			return nil
+	wireRuntimeExtras = func(ctx context.Context, runtime, previous *serveRuntime) error {
+		var prevMeta *serveMetadata
+		if previous != nil {
+			prevMeta = previous.Metadata
 		}
+		var err error
+		if runtime.Metadata, err = prepareServeMetadata(prevMeta, runtime.Policy, runtime.Gateway, metaDeps); err != nil {
+			return err
+		}
+		wireIndexerLookups(runtime.Policy, st, runtime.Gateway, runtime.Indexers, runtime.Metadata.tvc, log)
+		wireCacheEvidence(runtime.Policy, st, runtime.Indexers, runtime.Providers.syncer.Providers, log)
+		runtime.Library, err = newServeLibrary(runtime.Policy, st, q, runtime.Gateway, log, runtime.Engine, helper,
+			runtime.Providers.syncer.Providers, func(ctx context.Context, id int64) { _ = router.EnqueueOffer(ctx, q, id, time.Now()) })
+		if err != nil {
+			return err
+		}
+		// Its loops (serveliveworkers.go) resolve each pass's library like the startup one.
+		runtime.Library.manager, runtime.Library.readyWake = runtimeManager, readyWake
+		// The mount guard, helpers and listing floor carry over from the generation being replaced (the startup
+		// library before the first save), so a save neither resets an open breaker nor keeps old mount settings.
+		prevLib := lb.lib
+		if previous != nil && previous.Library != nil && previous.Library.lib != nil {
+			prevLib = previous.Library.lib
+		}
+		runtime.Library.lib.InheritMount(prevLib)
+		runtime.Router.SetMountCheck(runtime.Library.lib.MountListed)
+		runtime.Playlists, err = newPlaylistSyncer(ctx, runtime.Policy, st, runtime.Gateway, log)
+		if err != nil {
+			return err
+		}
+		runtime.Anime = newServeAnime(runtime.Policy, st, q, runtime.Gateway, runtime.Metadata.tvc, log)
+		return nil
 	}
 	// Series metadata (docs/design/tv-metadata.md): Theatarr's own episode list from TVDB (TMDb for series TVDB lacks), refreshed on
 	// add, on demand and on Sonarr's cadence; a new series' searches wait for its first refresh.
@@ -619,29 +563,21 @@ func runServe(args []string) error {
 	// currentMetadata resolves the services of the captured generation, falling back during construction.
 	var startMeta *serveMetadata
 	currentMetadata := func(ctx context.Context) (context.Context, *serveMetadata) {
-		if runtimeManager != nil {
-			ctx = runtimeManager.Capture(ctx)
-			if runtime, err := runtimeForSearch(ctx, runtimeManager); err == nil && runtime.Metadata != nil {
-				return ctx, runtime.Metadata
-			}
+		ctx = runtimeManager.Capture(ctx)
+		if runtime, err := runtimeForSearch(ctx, runtimeManager); err == nil && runtime.Metadata != nil {
+			return ctx, runtime.Metadata
 		}
 		return ctx, startMeta
 	}
-	if runtimeManager == nil {
-		tv.RegisterJobs(w)
-	} else {
-		tvrefresh.RegisterRuntimeJobs(w, func(ctx context.Context) (context.Context, *tvrefresh.Service) {
-			ctx, m := currentMetadata(ctx)
-			return ctx, m.tv
-		})
-	}
+	tvrefresh.RegisterRuntimeJobs(w, func(ctx context.Context) (context.Context, *tvrefresh.Service) {
+		ctx, m := currentMetadata(ctx)
+		return ctx, m.tv
+	})
 	// The acquirer: the arr views' search commands and the wanted loop, for active versions only, routed
 	// (docs/design/router.md "Triggers").
 	acConfig := acquire.Config{Store: st, Policy: pol, Queue: q, Router: routeService, Engine: eng, Indexers: idx, Logger: log}
-	if runtimeManager != nil {
-		acConfig.CaptureRuntime = runtimeManager.Capture
-		acConfig.Search, acConfig.SearchBatch, acConfig.RuntimeEngine = runtimeSearchers(runtimeManager)
-	}
+	acConfig.CaptureRuntime = runtimeManager.Capture
+	acConfig.Search, acConfig.SearchBatch, acConfig.RuntimeEngine = runtimeSearchers(runtimeManager)
 	ac, err := pipeline.NewAcquirer(acConfig, tv)
 	if err != nil {
 		return err
@@ -649,19 +585,13 @@ func runServe(args []string) error {
 	acService := &serveAcquirer{manager: runtimeManager, fallback: ac}
 	metaDeps.acquirer = acService
 	importarr.RegisterFollowSearcher(st, acService)
-	if serveSnapshot != nil {
-		serveSnapshot.Acquirer = ac
-	}
+	serveSnapshot.Acquirer = ac
 	// The runtime was published before the acquirer existed: with router.wanted.retry_new off, what its chains left
 	// queued is cancelled here, before any worker runs a job.
 	cancelRetryNew(ac)
-	if runtimeManager == nil {
-		ac.RegisterJobs(w)
-	} else {
-		acService.RegisterJobs(w)
-		if tv.Enabled() {
-			tv.SetSearches(acService)
-		}
+	acService.RegisterJobs(w)
+	if tv.Enabled() {
+		tv.SetSearches(acService)
 	}
 	// The lookups the indexer helpers did themselves: AniList ids for SeaDex, episode counts for Torrentio.
 	wireIndexerLookups(pol, st, gw, idx, tvc, log)
@@ -715,25 +645,17 @@ func runServe(args []string) error {
 	// queues its episodes' refresh.
 	refresher := &titleRefresher{Service: ar, tv: tv, st: st}
 	av.SetMaintenance(q, refresher)
-	if runtimeManager == nil {
-		av.RegisterJobs(w)
-	} else {
-		av.RegisterRuntimeJobs(w, func(ctx context.Context) (context.Context, *arrview.Service) {
-			ctx = runtimeManager.Capture(ctx)
-			if runtime, err := runtimeForSearch(ctx, runtimeManager); err == nil && runtime.HTTP != nil && runtime.HTTP.av != nil {
-				return ctx, runtime.HTTP.av
-			}
-			return ctx, av
-		})
-	}
-	if runtimeManager == nil {
-		ar.RegisterJobs(w)
-	} else {
-		art.RegisterRuntimeJobs(w, func(ctx context.Context) (context.Context, *art.Service) {
-			ctx, m := currentMetadata(ctx)
-			return ctx, m.art
-		})
-	}
+	av.RegisterRuntimeJobs(w, func(ctx context.Context) (context.Context, *arrview.Service) {
+		ctx = runtimeManager.Capture(ctx)
+		if runtime, err := runtimeForSearch(ctx, runtimeManager); err == nil && runtime.HTTP != nil && runtime.HTTP.av != nil {
+			return ctx, runtime.HTTP.av
+		}
+		return ctx, av
+	})
+	art.RegisterRuntimeJobs(w, func(ctx context.Context) (context.Context, *art.Service) {
+		ctx, m := currentMetadata(ctx)
+		return ctx, m.art
+	})
 	// The grab journal: readers and verdicts; a "wrong" verdict on an active version queues acquire.research.
 	// It follows the current settings generation, so a version activated later is journaled and judged as active.
 	jr := journal.New(journal.Config{Store: st, Policy: pol, Queue: q, Logger: log, PolicyFor: runtimePolicy(runtimeManager)})
@@ -750,21 +672,15 @@ func runServe(args []string) error {
 	}
 	startMeta = startupServeMetadata(pol, *dbPath, serveMetadata{tvc: tvc, tv: tv, art: ar, refresher: refresher, intake: mi,
 		add: add, plex: pl, viewTMDb: avConfig.TMDb})
-	if serveSnapshot != nil {
-		serveSnapshot.Metadata = startMeta
-	}
+	serveSnapshot.Metadata = startMeta
 	// Anime franchises (docs/design/anime.md "Automatic builds"): anime_build jobs on the builder of the captured
 	// generation; the discovery and refresh loop is a live worker (serveliveworkers.go).
 	startAnime := newServeAnime(pol, st, q, gw, tvc, log)
-	if serveSnapshot != nil {
-		serveSnapshot.Anime = startAnime
-	}
+	serveSnapshot.Anime = startAnime
 	currentAnime := func(ctx context.Context) (context.Context, *autobuild.Service) {
-		if runtimeManager != nil {
-			ctx = runtimeManager.Capture(ctx)
-			if runtime, err := runtimeForSearch(ctx, runtimeManager); err == nil && runtime.Anime != nil {
-				return ctx, runtime.Anime
-			}
+		ctx = runtimeManager.Capture(ctx)
+		if runtime, err := runtimeForSearch(ctx, runtimeManager); err == nil && runtime.Anime != nil {
+			return ctx, runtime.Anime
 		}
 		return ctx, startAnime
 	}
@@ -778,27 +694,20 @@ func runServe(args []string) error {
 		_, s := currentAnime(ctx)
 		return s
 	}))
-	var qualitySync *settings.QualitySync
-	if runtimeManager != nil {
-		qualitySync = newQualitySync(settingsStore, st, runtimeManager, os.Getenv("THEATARR_TRASH"))
-		hc.Add("QualitySyncReviewCheck", "Quality sync", func(ctx context.Context) health.Result {
-			return qualitySyncHealth(ctx, qualitySync)
-		})
-	}
+	qualitySync := newQualitySync(settingsStore, st, runtimeManager, os.Getenv("THEATARR_TRASH"))
+	hc.Add("QualitySyncReviewCheck", "Quality sync", func(ctx context.Context) health.Result {
+		return qualitySyncHealth(ctx, qualitySync)
+	})
 	requestNotify := func(ev web.RequestEvent) {
 		if ev.Notification != nil {
 			nt.Emit(context.WithoutCancel(ctx), *ev.Notification)
 		}
 	}
-	var reloadSettings func(context.Context, int64) error
-	if runtimeManager != nil {
-		reloadSettings = runtimeManager.Reload
-	}
 	backupSvc := &serveBackups{st: st, dir: *backupDir, dbPath: *dbPath, source: *settingsSource,
 		keep: *backupKeep, hour: *backupHour, policyNow: backupPolicy, now: time.Now}
 	uiConfig := web.Config{Backups: backupSvc, Restart: stop, Store: st, Auth: au, Policy: pol, PolicyDir: *policyDir, Egress: serveEgressSource{manager: runtimeManager, fallback: gw}, Logger: log,
 		Version: version, Devices: av, Art: refresher, Journal: jr, Logs: logs, Add: add, Jobs: q, Plex: pl, Health: hc,
-		Ops: serveOps{av}, OnRequest: requestNotify, LogLevel: logLevel, LogDir: *logDir, ReloadSettings: reloadSettings,
+		Ops: serveOps{av}, OnRequest: requestNotify, LogLevel: logLevel, LogDir: *logDir, ReloadSettings: runtimeManager.Reload,
 		CaptureRuntime: captureRuntime, SettingsTests: newSettingsTestLimits(), SettingsLookup: os.LookupEnv, TrashRoot: os.Getenv("THEATARR_TRASH"),
 		Torrents: torrentSvc, NowPlaying: nowPlayingSnapshot,
 		RcloneTestGateway: rcloneTestGateway(runtimeManager, gw, log), NotifyTest: nt.SendTest,
@@ -816,15 +725,13 @@ func runServe(args []string) error {
 		}
 		return gw, pol
 	}, lb.current, func() http.Handler { return rootHandler }, log)
-	if runtimeManager != nil {
-		// The admin settings API uses the active database coordinator.
-		uiConfig.Settings = runtimeManager
-		uiConfig.QualitySync = qualitySync
-		uiConfig.SettingsTester = serveSettingsTester{manager: runtimeManager, st: st, log: log, lookup: os.LookupEnv}
-		// theatarr migrate (docs/migration.md): plans apply through runtimeManager after a backup-set checkpoint.
-		uiConfig.Migration = serveMigration(serveMigrationConfig{st: st, base: pol, policyNow: backupPolicy, manager: runtimeManager,
-			backupDir: *backupDir, lib: lb.lib, health: hc, trash: os.Getenv("THEATARR_TRASH"), log: log})
-	}
+	// The admin settings API uses the active database coordinator.
+	uiConfig.Settings = runtimeManager
+	uiConfig.QualitySync = qualitySync
+	uiConfig.SettingsTester = serveSettingsTester{manager: runtimeManager, st: st, log: log, lookup: os.LookupEnv}
+	// theatarr migrate (docs/migration.md): plans apply through runtimeManager after a backup-set checkpoint.
+	uiConfig.Migration = serveMigration(serveMigrationConfig{st: st, base: pol, policyNow: backupPolicy, manager: runtimeManager,
+		backupDir: *backupDir, lib: lb.lib, health: hc, trash: os.Getenv("THEATARR_TRASH"), log: log})
 	if c := serveCardigann.Load(); c != nil {
 		uiConfig.Cardigann = c
 	}
@@ -838,36 +745,32 @@ func runServe(args []string) error {
 	ui.Mount(initialMux)
 	av.Mount(initialMux)
 	initialHTTP := &serveHTTPRuntime{mux: initialMux, ui: ui, av: av, services: httpServices}
-	if serveSnapshot != nil {
-		serveSnapshot.HTTP = initialHTTP
-	}
-	if runtimeManager != nil {
-		wireIndexers := wireRuntimeExtras
-		avConfig.Notifier, avConfig.Jobs, avConfig.Metadata = nt, q, refresher
-		wireRuntimeExtras = func(ctx context.Context, runtime, previous *serveRuntime) error {
-			if err := wireIndexers(ctx, runtime, previous); err != nil {
-				return err
-			}
-			meta := runtime.Metadata
-			cfg := acConfig
-			if meta.tv.Enabled() {
-				cfg.Metadata = meta.tv
-			}
-			if err := acService.prepare(cfg, runtime); err != nil {
-				return err
-			}
-			avCfg, uiCfg := avConfig, uiConfig
-			avCfg.Policy, avCfg.Engine, uiCfg.Policy = runtime.Policy, runtime.Engine, runtime.Policy
-			avCfg.Library = runtime.Library.lib
-			avCfg.TMDb, avCfg.Metadata, avCfg.SeriesLookup = meta.viewTMDb, meta.refresher, meta.tv
-			uiCfg.Art, uiCfg.Add, uiCfg.Plex = meta.refresher, meta.add, meta.plex
-			if c := serveCardigann.Load(); c != nil {
-				uiCfg.Cardigann = c
-			}
-			var err error
-			runtime.HTTP, err = newServeHTTPRuntime(ctx, avCfg, uiCfg, httpServices)
+	serveSnapshot.HTTP = initialHTTP
+	wireIndexers := wireRuntimeExtras
+	avConfig.Notifier, avConfig.Jobs, avConfig.Metadata = nt, q, refresher
+	wireRuntimeExtras = func(ctx context.Context, runtime, previous *serveRuntime) error {
+		if err := wireIndexers(ctx, runtime, previous); err != nil {
 			return err
 		}
+		meta := runtime.Metadata
+		cfg := acConfig
+		if meta.tv.Enabled() {
+			cfg.Metadata = meta.tv
+		}
+		if err := acService.prepare(cfg, runtime); err != nil {
+			return err
+		}
+		avCfg, uiCfg := avConfig, uiConfig
+		avCfg.Policy, avCfg.Engine, uiCfg.Policy = runtime.Policy, runtime.Engine, runtime.Policy
+		avCfg.Library = runtime.Library.lib
+		avCfg.TMDb, avCfg.Metadata, avCfg.SeriesLookup = meta.viewTMDb, meta.refresher, meta.tv
+		uiCfg.Art, uiCfg.Add, uiCfg.Plex = meta.refresher, meta.add, meta.plex
+		if c := serveCardigann.Load(); c != nil {
+			uiCfg.Cardigann = c
+		}
+		var err error
+		runtime.HTTP, err = newServeHTTPRuntime(ctx, avCfg, uiCfg, httpServices)
+		return err
 	}
 
 	if err := enqueueRestoredProviderSync(ctx, q, restoreResult); err != nil {
@@ -877,10 +780,8 @@ func runServe(args []string) error {
 	// The serve loops below run under errinbox.Go: a panic is written to the error inbox before it crashes the
 	// process as before (the container restarts it).
 	var wg sync.WaitGroup
-	if qualitySync != nil {
-		wg.Add(1)
-		go errinbox.Go("quality-sync", func() { defer wg.Done(); qualitySync.Run(ctx) })()
-	}
+	wg.Add(1)
+	go errinbox.Go("quality-sync", func() { defer wg.Done(); qualitySync.Run(ctx) })()
 	// Scheduled torrent backups: off unless torrents.backup.every is set. Each check reads the settings in force.
 	wg.Add(1)
 	go errinbox.Go("torrents", func() { defer wg.Done(); torrents.RunSchedule(ctx, q, torrentManager, 10*time.Minute) })()
@@ -890,26 +791,18 @@ func runServe(args []string) error {
 	// The loops whose schedule or source is a settings section run as workers: a published generation that changes
 	// their settings stops and restarts them (serveliveworkers.go).
 	startRuntime := serveSnapshot
-	if startRuntime == nil {
-		startRuntime = &serveRuntime{Policy: pol, Gateway: gw, Providers: ps, Router: rt, Acquirer: ac, Library: lb,
-			Playlists: pls, Metadata: startMeta, Anime: startAnime}
-	}
 	loops := serveLoops{router: rt, sync: ps, shadow: sh, log: log, current: func(ctx context.Context) (context.Context, *serveRuntime) {
-		if runtimeManager != nil {
-			ctx = runtimeManager.Capture(ctx)
-			if runtime, err := runtimeForSearch(ctx, runtimeManager); err == nil {
-				return ctx, runtime
-			}
+		ctx = runtimeManager.Capture(ctx)
+		if runtime, err := runtimeForSearch(ctx, runtimeManager); err == nil {
+			return ctx, runtime
 		}
 		return ctx, startRuntime
 	}}
 	liveWorkers = newServeWorkers(ctx, log, loops.workers()...)
 	startRuntime.Workers = liveWorkers
-	if runtimeManager != nil {
-		hc.Add("LiveSettingsCheck", "Settings", liveWorkers.Health)
-		if current, ok := runtimeManager.Current().Components.(*serveRuntime); ok && current != nil {
-			startRuntime = current
-		}
+	hc.Add("LiveSettingsCheck", "Settings", liveWorkers.Health)
+	if current, ok := runtimeManager.Current().Components.(*serveRuntime); ok && current != nil {
+		startRuntime = current
 	}
 	warnVPNGuardOff(startRuntime.Policy, log)
 	liveWorkers.Start(startRuntime)

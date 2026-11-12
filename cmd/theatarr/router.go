@@ -21,7 +21,6 @@ import (
 	"github.com/theatarr/theatarr/internal/indexer"
 	"github.com/theatarr/theatarr/internal/jobs"
 	"github.com/theatarr/theatarr/internal/policy"
-	"github.com/theatarr/theatarr/internal/provider"
 	"github.com/theatarr/theatarr/internal/router"
 	"github.com/theatarr/theatarr/internal/store"
 )
@@ -340,18 +339,6 @@ func timeOrDash(t time.Time) string {
 		return "-"
 	}
 	return t.UTC().Format(time.RFC3339)
-}
-
-// newServeRouter builds theatarr serve's router: write clients for providers whose key is set, the sync's read-only
-// clients for status. The router itself enforces the gate (router.enabled and mode active).
-func newServeRouter(pol *policy.Policy, st *store.Store, d provider.Doer, provs map[string]provider.Provider,
-	log *slog.Logger) (*router.Router, error) {
-	adders, skipped := router.BuildAdders(pol, d, os.Getenv, log)
-	if len(skipped) > 0 {
-		log.Info("router: providers with no key set are skipped", "providers", skipped)
-	}
-	return router.New(router.Config{Store: st, Policy: pol, Adders: adders, Providers: provs,
-		Clients: router.BuildClients(pol, d, pol.Getenv, log), Logger: log})
 }
 
 func runRouterReconcile(args []string, out io.Writer) error {
