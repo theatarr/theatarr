@@ -6,6 +6,7 @@ package arrimport
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"log/slog"
@@ -47,7 +48,6 @@ type Progress struct {
 // Titles is the catalogue side of the import (catalog.MovieIntake).
 type Titles interface {
 	ImportArrTitle(ctx context.Context, key string, t catalog.ArrImportTitle, dryRun bool) (string, int64, error)
-	ImportNeedsEpisodes(ctx context.Context, titleID int64, tvdbConfigured bool) (bool, error)
 	ImportEpisodeMonitoring(ctx context.Context, titleID int64, key string, t catalog.ArrImportTitle,
 		eps []catalog.EpisodeMonitor) (bool, error)
 	SetImportedMonitored(ctx context.Context, titleID int64, key string, monitored bool) error
@@ -208,31 +208,38 @@ func under(p, dir string) bool {
 	return p == dir || dir == "/" || strings.HasPrefix(p, dir+"/")
 }
 
-// mapPath rewrites p by the longest root folder that holds it and has a mapping in paths.
-func mapPath(p string, roots []string, paths map[string]string) string {
-	best := ""
+// folderMap rewrites an instance path to where Theatarr reads it: by the longest instance root folder that holds
+// the path, when that folder is mapped.
+type folderMap struct {
+	roots []string          // cleaned
+	to    map[string]string // cleaned root folder -> where Theatarr reads it
+}
+
+func newFolderMap(roots []string, paths map[string]string) folderMap {
+	m := folderMap{to: map[string]string{}}
 	for _, r := range roots {
-		if under(p, r) && len(path.Clean(r)) > len(best) {
-			best = path.Clean(r)
+		m.roots = append(m.roots, path.Clean(r))
+	}
+	for from, to := range paths {
+		if to != "" {
+			m.to[path.Clean(from)] = to
 		}
 	}
-	if best == "" {
-		return p
+	return m
+}
+
+func (m folderMap) apply(p string) string {
+	best := ""
+	for _, r := range m.roots {
+		if under(p, r) && len(r) > len(best) {
+			best = r
+		}
 	}
-	to, ok := lookupPath(paths, best)
-	if !ok || to == "" {
+	to, ok := m.to[best]
+	if best == "" || !ok {
 		return p
 	}
 	return path.Join(to, strings.TrimPrefix(path.Clean(p), best))
-}
-
-func lookupPath(paths map[string]string, root string) (string, bool) {
-	for from, to := range paths {
-		if path.Clean(from) == root {
-			return to, true
-		}
-	}
-	return "", false
 }
 
 // Run reads the instance and imports (or, DryRun, previews) its titles into req.Library, one title at a time: add
@@ -278,17 +285,22 @@ func Run(ctx context.Context, d Deps, req Request, progress func(Progress)) (*Re
 	key = ""
 	rep.AppVersion = snap.AppVersion
 	rep.Titles = len(snap.Titles)
+	folderMap := newFolderMap(snap.RootFolders, req.Paths)
 	var folders []string
 	for _, r := range snap.RootFolders {
-		folders = append(folders, mapPath(r, snap.RootFolders, req.Paths))
+		folders = append(folders, folderMap.apply(r))
 	}
 	if err := checkFolders(d, req.Library, folders); err != nil {
 		return fail(err)
 	}
 
-	r := &runner{d: d, req: req, snap: snap, rep: rep, profiles: map[int]bool{}, source: sourceLabel(req)}
+	r := &runner{d: d, req: req, snap: snap, rep: rep, profiles: map[int]bool{}, source: sourceLabel(req),
+		folders: folderMap}
 	for _, id := range req.Profiles {
 		r.profiles[id] = true
+	}
+	if r.removed, err = removedTitles(ctx, d, req.Library); err != nil {
+		return fail(err)
 	}
 	var added []int64
 	for i := range snap.Titles {
@@ -303,7 +315,7 @@ func Run(ctx context.Context, d Deps, req Request, progress func(Progress)) (*Re
 	}
 	progress(Progress{Phase: "importing", Done: len(snap.Titles), Total: len(snap.Titles)})
 	if !req.DryRun {
-		if rep.MissingMonitored, err = missingMonitored(ctx, d, req.Library, added); err != nil {
+		if rep.MissingMonitored, err = missingMonitored(ctx, d, req.Library, req.Flavour == "sonarr", added); err != nil {
 			return fail(err)
 		}
 	}
@@ -335,6 +347,9 @@ type runner struct {
 	rep      *Report
 	profiles map[int]bool
 	source   string
+	folders  folderMap
+	// removed are the titles whose copy in the library was removed in Theatarr.
+	removed map[int64]bool
 }
 
 // title imports one title. It returns the title id when this run added the library's copy, and an error only when
@@ -364,11 +379,7 @@ func (r *runner) title(ctx context.Context, t *importarr.Title) (int64, error) {
 		rep.Skipped.DoesNotFit++
 		return 0, nil
 	case "present":
-		removed, err := r.removed(ctx, titleID)
-		if err != nil {
-			return 0, err
-		}
-		if removed {
+		if r.removed[titleID] {
 			rep.Removed++
 			return 0, nil
 		}
@@ -389,10 +400,16 @@ func (r *runner) title(ctx context.Context, t *importarr.Title) (int64, error) {
 		return 0, r.preview(ctx, t, files)
 	}
 	added := change == "add_title" || change == "add_library"
-	if !added {
-		return 0, r.link(ctx, t, titleID, at, false, files)
+	ok := true
+	if series {
+		ok, err = r.episodes(ctx, t, titleID, at, added, len(files))
 	}
-	err = r.link(ctx, t, titleID, at, true, files)
+	if err == nil && ok {
+		err = r.link(ctx, t, titleID, files)
+	}
+	if !added {
+		return 0, err
+	}
 	// The copy was added unmonitored; it takes the instance's flag now that its monitoring and files are in, also
 	// when linking failed, so it is never left unmonitored.
 	if rerr := r.d.Titles.SetImportedMonitored(context.WithoutCancel(ctx), titleID, r.req.Library, at.Monitored); rerr != nil && err == nil {
@@ -412,11 +429,23 @@ func (r *runner) failed(ctx context.Context, t *importarr.Title, err error) erro
 	return nil
 }
 
-func (r *runner) removed(ctx context.Context, titleID int64) (bool, error) {
-	var removed bool
-	err := r.d.Store.Reader().QueryRowContext(ctx, `SELECT EXISTS(SELECT 1 FROM arrview_removed_version rv JOIN
-		version v ON v.id = rv.version_id WHERE v.title_id = ? AND v.policy_key = ?)`, titleID, r.req.Library).Scan(&removed)
-	return removed, err
+// removedTitles are the titles whose copy in library key was removed in Theatarr.
+func removedTitles(ctx context.Context, d Deps, key string) (map[int64]bool, error) {
+	removed := map[int64]bool{}
+	rows, err := d.Store.Reader().QueryContext(ctx, `SELECT DISTINCT v.title_id FROM arrview_removed_version rv JOIN
+		version v ON v.id = rv.version_id WHERE v.policy_key = ?`, key)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	for rows.Next() {
+		var id int64
+		if err := rows.Scan(&id); err != nil {
+			return nil, err
+		}
+		removed[id] = true
+	}
+	return removed, rows.Err()
 }
 
 // importTitle is the catalogue's view of an instance title.
@@ -445,7 +474,7 @@ func (r *runner) preview(ctx context.Context, t *importarr.Title, files []*impor
 		return nil // no library service: the Preview already says the library cannot write links
 	}
 	for _, f := range files {
-		p := mapPath(f.Path, r.snap.RootFolders, r.req.Paths)
+		p := r.folders.apply(f.Path)
 		reason, detail, err := r.d.Library.CheckImportFile(ctx, p)
 		if err != nil {
 			return err
@@ -460,21 +489,17 @@ func (r *runner) preview(ctx context.Context, t *importarr.Title, files []*impor
 	return nil
 }
 
-// link brings a series' episode list and monitoring over, then links the title's files.
-func (r *runner) link(ctx context.Context, t *importarr.Title, titleID int64, at catalog.ArrImportTitle, added bool,
-	files []*importarr.File) error {
+// link links the title's files; a series' episode list and monitoring are in place (episodes).
+func (r *runner) link(ctx context.Context, t *importarr.Title, titleID int64, files []*importarr.File) error {
 	rep := r.rep
 	var in []library.ImportFile
 	if r.req.Flavour == "sonarr" {
-		ok, err := r.episodes(ctx, t, titleID, at, added, len(files))
-		if err != nil || !ok {
+		eps, err := r.seriesEpisodes(ctx, t, titleID)
+		if err != nil {
 			return err
 		}
 		for _, f := range files {
-			ids, err := r.episodeIDs(ctx, t, titleID, f)
-			if err != nil {
-				return err
-			}
+			ids := eps.ids(f)
 			if ids == nil {
 				rep.notLinked(library.AdoptNoEpisodes, 1)
 				rep.problem(t.Name, f.Path, library.AdoptNoEpisodes, "")
@@ -514,14 +539,15 @@ func (r *runner) link(ctx context.Context, t *importarr.Title, titleID int64, at
 func (r *runner) episodes(ctx context.Context, t *importarr.Title, titleID int64, at catalog.ArrImportTitle,
 	added bool, files int) (ok bool, err error) {
 	rep := r.rep
-	before, err := r.seriesSource(ctx, titleID)
-	if err != nil {
+	var before string
+	var count int
+	if err := r.d.Store.Reader().QueryRowContext(ctx, `SELECT COALESCE((SELECT source FROM series_meta WHERE
+		title_id = ?), ''), (SELECT COUNT(*) FROM episode WHERE title_id = ? AND removed_at IS NULL)`, titleID,
+		titleID).Scan(&before, &count); err != nil {
 		return false, err
 	}
-	needs, err := r.d.Titles.ImportNeedsEpisodes(ctx, titleID, r.d.TVDB)
-	if err != nil {
-		return false, err
-	}
+	after := before
+	needs := count == 0 || r.d.TVDB && before != "tvdb"
 	if needs {
 		if r.d.Series == nil {
 			rep.notLinked(ReasonNoEpisodeList, files)
@@ -538,69 +564,83 @@ func (r *runner) episodes(ctx context.Context, t *importarr.Title, titleID int64
 			rep.notLinked(ReasonNoEpisodeList, files)
 			rep.problem(t.Name, "", ReasonNoEpisodeList, res.Error)
 			return false, nil
+		case res != nil:
+			after = res.Source
 		}
 	}
-	after, err := r.seriesSource(ctx, titleID)
-	if err != nil {
-		return false, err
+	if after != "tvdb" {
+		rep.notLinked(ReasonNumbering, files)
+		return false, nil
 	}
-	applied := after == "tvdb"
-	if added || needs && before != "tvdb" && after == "tvdb" {
+	if added || before != "tvdb" {
 		eps := make([]catalog.EpisodeMonitor, 0, len(t.Episodes))
 		for _, e := range t.Episodes {
 			eps = append(eps, catalog.EpisodeMonitor{Season: e.Season, Number: e.Number, Monitored: e.Monitored})
 		}
-		if applied, err = r.d.Titles.ImportEpisodeMonitoring(ctx, titleID, r.req.Library, at, eps); err != nil {
+		applied, err := r.d.Titles.ImportEpisodeMonitoring(ctx, titleID, r.req.Library, at, eps)
+		if err != nil {
 			return false, err
 		}
-	}
-	if !applied {
-		rep.notLinked(ReasonNumbering, files)
-		return false, nil
+		if !applied {
+			rep.notLinked(ReasonNumbering, files)
+			return false, nil
+		}
 	}
 	return true, nil
 }
 
-func (r *runner) seriesSource(ctx context.Context, titleID int64) (string, error) {
-	var source string
-	err := r.d.Store.Reader().QueryRowContext(ctx, `SELECT COALESCE((SELECT source FROM series_meta WHERE title_id = ?),
-		'')`, titleID).Scan(&source)
-	return source, err
+// episodeIndex maps a Sonarr series' files to Theatarr's episodes by season and number.
+type episodeIndex struct {
+	byArr map[int]importarr.Episode
+	bySE  map[[2]int]int64 // season, number -> episode id
 }
 
-// episodeIDs maps a Sonarr file's episodes to Theatarr's by season and number; nil when any has no match.
-func (r *runner) episodeIDs(ctx context.Context, t *importarr.Title, titleID int64, f *importarr.File) ([]int64, error) {
-	if len(f.EpisodeArrIDs) == 0 {
-		return nil, nil
-	}
-	byArr := make(map[int]importarr.Episode, len(t.Episodes))
+// seriesEpisodes loads the series' episodes once for all its files.
+func (r *runner) seriesEpisodes(ctx context.Context, t *importarr.Title, titleID int64) (*episodeIndex, error) {
+	x := &episodeIndex{byArr: make(map[int]importarr.Episode, len(t.Episodes)), bySE: map[[2]int]int64{}}
 	for _, e := range t.Episodes {
-		byArr[e.ArrID] = e
+		x.byArr[e.ArrID] = e
 	}
-	var ids []int64
-	for _, arrID := range f.EpisodeArrIDs {
-		e, ok := byArr[arrID]
-		if !ok {
-			return nil, nil
-		}
+	rows, err := r.d.Store.Reader().QueryContext(ctx, `SELECT id, season, number FROM episode WHERE title_id = ? AND
+		removed_at IS NULL ORDER BY id`, titleID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	for rows.Next() {
 		var id int64
-		err := r.d.Store.Reader().QueryRowContext(ctx, `SELECT COALESCE((SELECT id FROM episode WHERE title_id = ? AND
-			season = ? AND number = ? AND removed_at IS NULL ORDER BY id LIMIT 1), 0)`, titleID, e.Season, e.Number).Scan(&id)
-		if err != nil {
+		var season, number int
+		if err := rows.Scan(&id, &season, &number); err != nil {
 			return nil, err
 		}
-		if id == 0 {
-			return nil, nil
+		if _, ok := x.bySE[[2]int{season, number}]; !ok {
+			x.bySE[[2]int{season, number}] = id
+		}
+	}
+	return x, rows.Err()
+}
+
+// ids are the Theatarr episodes of a Sonarr file; nil when any has no match.
+func (x *episodeIndex) ids(f *importarr.File) []int64 {
+	var ids []int64
+	for _, arrID := range f.EpisodeArrIDs {
+		e, ok := x.byArr[arrID]
+		if !ok {
+			return nil
+		}
+		id, ok := x.bySE[[2]int{e.Season, e.Number}]
+		if !ok {
+			return nil
 		}
 		ids = append(ids, id)
 	}
-	return ids, nil
+	return ids
 }
 
 // importFile is the library's record of one instance file.
 func (r *runner) importFile(titleID int64, f *importarr.File, episodes []int64) library.ImportFile {
 	in := library.ImportFile{TitleID: titleID, Source: r.source + " " + f.Path,
-		Path: mapPath(f.Path, r.snap.RootFolders, r.req.Paths), RelativePath: f.RelativePath, Quality: f.Quality,
+		Path: r.folders.apply(f.Path), RelativePath: f.RelativePath, Quality: f.Quality,
 		ReleaseGroup: f.ReleaseGroup, SceneName: f.SceneName, Edition: f.Edition, OriginalFilePath: f.OriginalFilePath,
 		ReleaseType: f.ReleaseType, Languages: f.Languages, Revision: f.Revision, IndexerFlags: f.IndexerFlags,
 		Size: f.Size, CutoffNotMet: f.CutoffNotMet, Episodes: episodes}
@@ -613,22 +653,19 @@ func (r *runner) importFile(titleID int64, f *importarr.File, episodes []int64) 
 // missingMonitored counts the copies added in this run that are monitored and still wanted: a movie in state
 // wanted, a series with an aired, monitored episode still wanted (a series with only future episodes monitored is
 // wanted too but not missing).
-func missingMonitored(ctx context.Context, d Deps, key string, titles []int64) (int, error) {
-	n := 0
-	now := store.Millis(d.Now())
-	for _, id := range titles {
-		var missing bool
-		err := d.Store.Reader().QueryRowContext(ctx, `SELECT EXISTS(SELECT 1 FROM version v WHERE v.title_id = ? AND
-			v.policy_key = ? AND v.monitored = 1 AND v.state = 'wanted' AND ((SELECT kind FROM title WHERE id = v.title_id) <> 'series' OR EXISTS(SELECT 1
-			FROM episode_version_state es JOIN episode e ON e.id = es.episode_id WHERE es.version_id = v.id AND
-			es.monitored = 1 AND es.state = 'wanted' AND e.removed_at IS NULL AND e.air_date_utc_at IS NOT NULL
-			AND e.air_date_utc_at <= ?)))`, id, key, now).Scan(&missing)
-		if err != nil {
-			return 0, err
-		}
-		if missing {
-			n++
-		}
+func missingMonitored(ctx context.Context, d Deps, key string, series bool, titles []int64) (int, error) {
+	if len(titles) == 0 {
+		return 0, nil
 	}
-	return n, nil
+	ids, err := json.Marshal(titles)
+	if err != nil {
+		return 0, err
+	}
+	var n int
+	err = d.Store.Reader().QueryRowContext(ctx, `SELECT COUNT(DISTINCT v.title_id) FROM version v WHERE v.title_id IN
+		(SELECT value FROM json_each(?)) AND v.policy_key = ? AND v.monitored = 1 AND v.state = 'wanted' AND (? = 0 OR
+		EXISTS(SELECT 1 FROM episode_version_state es JOIN episode e ON e.id = es.episode_id WHERE es.version_id = v.id
+		AND es.monitored = 1 AND es.state = 'wanted' AND e.removed_at IS NULL AND e.air_date_utc_at IS NOT NULL AND
+		e.air_date_utc_at <= ?))`, string(ids), key, series, store.Millis(d.Now())).Scan(&n)
+	return n, err
 }
