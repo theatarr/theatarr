@@ -52,8 +52,6 @@ func TestCommandsTakeLibraryAndVersion(t *testing.T) {
 	}{
 		"decide": {func(a []string) error { return runDecide(a, io.Discard, nil) },
 			[]string{"-policy", pol, "-db", db, "-title", "7", "-search"}, `no library "nope"`},
-		"decide shadow": {func(a []string) error { return runDecideShadow(a, io.Discard) },
-			[]string{"-policy", pol, "-db", db, "-instance", "radarr"}, `no library "nope"`},
 		"journal": {func(a []string) error { return runJournal(a, io.Discard) },
 			[]string{"-policy", pol, "-db", db, "-since", "not-a-time"}, ""},
 		"router dry-run": {func(a []string) error { return runRouterDryRun(a, io.Discard, nil) },

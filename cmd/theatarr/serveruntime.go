@@ -96,8 +96,7 @@ func (s shadowRuntimeSource) Resolve(ctx context.Context, _ int64) (shadow.Runti
 	if !ok || components == nil {
 		return shadow.Runtime{}, false
 	}
-	out := shadow.Runtime{Generation: current.Generation, Settings: current, Policy: current.Policy, Engine: components.Engine,
-		Indexers: components.Indexers, Budgets: components.Gateway, Router: components.Router}
+	out := shadow.Runtime{Generation: current.Generation, Settings: current, Policy: current.Policy}
 	// The arr import reads the instances of the import section in force.
 	if current.Policy != nil && current.Policy.Import != nil && len(current.Policy.Import.Arr) > 0 {
 		out.Arr = arrGetters(current.Policy)
@@ -252,6 +251,22 @@ func runtimePolicy(manager *settings.RuntimeCoordinator) func(context.Context) *
 		}
 		return active.Policy
 	}
+}
+
+// newDecisionEngine builds the decision engine: TRaSH formats from THEATARR_TRASH, from_arr profiles with GETs to the
+// import.arr instances.
+func newDecisionEngine(pol *policy.Policy, log *slog.Logger, previous *decide.Engine) (*decide.Engine, error) {
+	e, err := decide.New(pol, decide.Options{TrashRoot: os.Getenv("THEATARR_TRASH"), Arr: liveArr(pol), Previous: previous})
+	if err != nil {
+		if previous != nil || e == nil {
+			return nil, err
+		}
+		log.Warn("shadow: some profiles failed to build", "err", err)
+	}
+	for _, w := range e.Warnings {
+		log.Info("shadow: format left out", "warning", w)
+	}
+	return e, nil
 }
 
 func inheritDecisionLibrary(next, previous *decide.Engine) {
@@ -429,7 +444,7 @@ func prepareServeRuntime(ctx context.Context, snap *settings.Snapshot, previous 
 	if previous != nil {
 		previousEngine = previous.Engine
 	}
-	eng, err := newShadowEngine(pol, log, previousEngine)
+	eng, err := newDecisionEngine(pol, log, previousEngine)
 	if err != nil {
 		return nil, err
 	}

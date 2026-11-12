@@ -28,8 +28,6 @@ func TestOldPathsRedirect(t *testing.T) {
 		"/titles/7":                         "/title/7",
 		"/registry?q=abc":                   "/admin/torrents/inventory?q=abc",
 		"/registry/" + hashA:                "/admin/torrents/inventory/" + hashA,
-		"/shadow?bucket=agree":              "/admin/advanced/arr/comparison?bucket=agree",
-		"/shadow/3":                         "/admin/advanced/arr/comparison/3",
 		"/settings":                         "/admin/settings",
 		"/anime/re-zero":                    "/admin/reviews/anime/re-zero",
 	} {

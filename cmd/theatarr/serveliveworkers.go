@@ -7,6 +7,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/theatarr/theatarr/internal/acquire/rss"
 	"github.com/theatarr/theatarr/internal/catalog"
 	"github.com/theatarr/theatarr/internal/metadata/anime/playlists"
 	"github.com/theatarr/theatarr/internal/metadata/tvrefresh"
@@ -21,6 +22,7 @@ type serveLoops struct {
 	router  *router.Router
 	sync    *providerSync
 	shadow  *shadow.Runner
+	rss     *rss.Runner
 	current func(context.Context) (context.Context, *serveRuntime)
 	log     *slog.Logger
 }
@@ -88,16 +90,17 @@ func (l serveLoops) workers() []serveWorker {
 			<-ctx.Done()
 			return nil
 		}},
-		// arr.import and shadow.rss scheduling (shadow.import_interval, import.arr). The first start also buckets the
-		// stored grabs again (shadow.Runner.Run).
+		// arr.import scheduling (shadow.import_interval, import.arr).
 		{name: "shadow", key: func(rt *serveRuntime) string {
 			return keyOf(rt.Policy.ShadowSettings().ImportInterval, rt.Policy.Import != nil && len(rt.Policy.Import.Arr) > 0)
-		}, run: func(ctx context.Context, _ *serveRuntime, prev string) error {
-			if prev == "" {
-				l.shadow.Run(ctx, time.Minute, 3*time.Minute)
-			} else {
-				l.shadow.Schedule(ctx, time.Minute, 3*time.Minute)
-			}
+		}, run: func(ctx context.Context, _ *serveRuntime, _ string) error {
+			l.shadow.Schedule(ctx, time.Minute)
+			return nil
+		}},
+		// shadow.rss scheduling: always on; the schedule follows each generation's shadow.rss, rss_interval and
+		// libraries by itself.
+		{name: "rss", key: func(*serveRuntime) string { return "on" }, run: func(ctx context.Context, _ *serveRuntime, _ string) error {
+			l.rss.Schedule(ctx, 3*time.Minute)
 			return nil
 		}},
 		// Watch-order playlist syncs (anime.playlists.interval), each with the syncer in force.

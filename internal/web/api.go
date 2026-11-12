@@ -39,7 +39,6 @@ func (w *Web) mountAPI(mux *http.ServeMux) {
 	w.handle(mux, "GET "+b+"/policy", SignedIn, auth.PermAdmin, w.apiPolicy)
 	w.handle(mux, "GET "+b+"/policy/validate", SignedIn, auth.PermAdmin, w.apiPolicyValidate)
 	w.handle(mux, "GET "+b+"/events", SignedIn, auth.PermBrowse, w.apiEvents)
-	w.mountShadowAPI(mux)
 	w.mountAnimeAPI(mux)
 	w.mountDevicesAPI(mux)
 	w.mountAdminAPI(mux)

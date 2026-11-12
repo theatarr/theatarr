@@ -443,12 +443,13 @@ func runServe(args []string) error {
 	rt.SetRuntimeResolver(routeService.forOperation)
 	rt.LogState()
 
-	// The shadow runner: arr import, re-decided arr grabs with our own search, RSS (docs/design/shadow.md); a router
-	// dry-run plan for every shadow grab and pick, and the RSS picks of active versions to the router.
-	sh, eng, idx, err := newShadowRunner(pol, st, q, gw, reg, log, routeService, serveSnapshot, shadowRuntimeSource{manager: runtimeManager})
-	if err != nil {
-		return err
-	}
+	// The RSS sync (docs/design/rss.md): the Live libraries' feeds, their accepted items to the router. It is the
+	// decision engine's film index.
+	eng, idx := serveSnapshot.Engine, serveSnapshot.Indexers
+	rssRunner := newRSSRunner(pol, st, q, gw, reg, log, routeService, serveSnapshot, rssRuntimeSource{manager: runtimeManager})
+	rssRunner.RegisterJobs(w)
+	// The periodic arr import (import.arr).
+	sh := newShadowRunner(pol, st, q, log, shadowRuntimeSource{manager: runtimeManager})
 	sh.RegisterJobs(w)
 
 	ceiling.RegisterJobs(w, st, pol)
@@ -595,7 +596,7 @@ func runServe(args []string) error {
 	// The arr views (/radarr, /sonarr, /v/<version>/...): arr-shaped APIs over our data. They write to our database,
 	// and through the router (grabs, active versions only) and the library (imports and unlinks, behind its gate).
 	avConfig := arrview.Config{ReleaseCache: arrview.NewReleaseCache(nil), Store: st, Auth: au, Policy: pol, Engine: eng, Logger: log, Searcher: acService, Started: time.Now(),
-		RSSSync: sh.QueueRSS,
+		RSSSync: rssRunner.QueueRSS,
 		Decider: acService, Cutoff: acService, Router: routeService, Library: lb.lib, SeriesLookup: tv, CaptureRuntime: captureRuntime}
 	if avConfig.TMDb, err = newServeViewTMDb(pol, st, gw); err != nil {
 		return err
@@ -775,7 +776,7 @@ func runServe(args []string) error {
 	// The loops whose schedule or source is a settings section run as workers: a published generation that changes
 	// their settings stops and restarts them (serveliveworkers.go).
 	startRuntime := serveSnapshot
-	loops := serveLoops{router: rt, sync: ps, shadow: sh, log: log, current: func(ctx context.Context) (context.Context, *serveRuntime) {
+	loops := serveLoops{router: rt, sync: ps, shadow: sh, rss: rssRunner, log: log, current: func(ctx context.Context) (context.Context, *serveRuntime) {
 		ctx = runtimeManager.Capture(ctx)
 		if runtime, err := runtimeForSearch(ctx, runtimeManager); err == nil {
 			return ctx, runtime

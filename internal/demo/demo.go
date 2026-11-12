@@ -132,7 +132,6 @@ func Seed(ctx context.Context, st *store.Store, o Options) (*Result, error) {
 		s.arrHistory()
 		s.downloads()
 		s.upgradesFound()
-		s.shadow()
 		s.system()
 		if s.err != nil {
 			return s.err
@@ -152,7 +151,7 @@ func Seed(ctx context.Context, st *store.Store, o Options) (*Result, error) {
 		return nil, err
 	}
 	for _, t := range []string{"title", "episode", "version", "version_file", "link", "content", "download", "request",
-		"request_user", "journal_decision", "shadow_diff", "job", "anime_entry", "title_meta", "settings_audit"} {
+		"request_user", "journal_decision", "job", "anime_entry", "title_meta", "settings_audit"} {
 		var c int
 		if err := st.Reader().QueryRowContext(ctx, `SELECT COUNT(*) FROM `+t).Scan(&c); err != nil {
 			return nil, err

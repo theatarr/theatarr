@@ -24,8 +24,6 @@ const (
 	PurposeUpgrade Purpose = "upgrade"
 	// PurposeRSS: the RSS sync.
 	PurposeRSS Purpose = "rss"
-	// PurposeShadow: the shadow comparison's own search for an arr grab.
-	PurposeShadow Purpose = "shadow"
 	// PurposeTest: a source test from the settings pages.
 	PurposeTest Purpose = "test"
 	// PurposeOther: an untagged request.
@@ -33,8 +31,7 @@ const (
 )
 
 // Purposes lists every purpose in display order.
-var Purposes = []Purpose{PurposeInteractive, PurposeWanted, PurposeUpgrade, PurposeRSS, PurposeShadow, PurposeTest,
-	PurposeOther}
+var Purposes = []Purpose{PurposeInteractive, PurposeWanted, PurposeUpgrade, PurposeRSS, PurposeTest, PurposeOther}
 
 type purposeKey struct{}
 

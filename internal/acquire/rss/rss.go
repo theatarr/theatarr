@@ -156,7 +156,11 @@ func (r *Runner) rssJob(ctx context.Context) (*RSSSummary, error) {
 	start := r.now()
 	sum := &RSSSummary{}
 	if r.paused() {
-		// Nothing is read, so no cursor or seen mark moves: the next run after the pause reads the same items.
+		// Nothing is read, so no cursor or seen mark moves: the next run after the pause reads the same items. The
+		// film index is reloaded all the same (searches use it).
+		if _, err := r.refresh(ctx); err != nil {
+			r.log.Warn("shadow rss: film index not reloaded", "err", err)
+		}
 		sum.Skipped = skippedPaused
 		r.record(ctx, KindRSS, start, true, sum)
 		r.log.Info("shadow rss skipped: downloads are paused")

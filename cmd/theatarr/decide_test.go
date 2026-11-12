@@ -131,7 +131,7 @@ func TestDecideSearchRefusesOffVPN(t *testing.T) {
 }
 
 func TestSearchToolsOptionalVPN(t *testing.T) {
-	for _, tool := range []string{"decide", "router", "shadow"} {
+	for _, tool := range []string{"decide", "router"} {
 		for _, mode := range []string{"off", "monitor-only"} {
 			t.Run(tool+"/"+mode, func(t *testing.T) {
 				dir, db := decideFixture(t, "192.0.2.1")
@@ -148,17 +148,6 @@ func TestSearchToolsOptionalVPN(t *testing.T) {
 				}
 				if err := os.WriteFile(path, []byte(s), 0o644); err != nil {
 					t.Fatal(err)
-				}
-				if tool == "shadow" {
-					path := filepath.Join(dir, "profiles.yaml")
-					b, err := os.ReadFile(path)
-					if err != nil {
-						t.Fatal(err)
-					}
-					local := strings.Replace(string(b), "from_arr: radarr_4k_debrid/Remux + WEB 2160p", "qualities: [Remux-2160p]\n    cutoff: Remux-2160p", 1)
-					if err := os.WriteFile(path, []byte(local), 0o644); err != nil {
-						t.Fatal(err)
-					}
 				}
 				var hits atomic.Int32
 				srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -188,8 +177,6 @@ func TestSearchToolsOptionalVPN(t *testing.T) {
 					err = runDecide(commandSettingsArgs(t, append(args, "-search")), &out, dial)
 				case "router":
 					err = runRouter(commandSettingsArgs(t, append([]string{"dry-run"}, args...)), &out, dial)
-				case "shadow":
-					err = runShadowOnce(commandSettingsArgs(t, []string{"-policy", dir, "-db", db, "-rss"}), &out, dial)
 				}
 				if err != nil {
 					t.Fatalf("%v\n%s", err, out.String())

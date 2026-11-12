@@ -258,8 +258,6 @@ func TestDemoScreens(t *testing.T) {
 			journalID, _ = items[0].(map[string]any)["id"].(string)
 		}
 	}
-	var diffID int64
-	_ = st.Reader().QueryRow(`SELECT MIN(id) FROM shadow_diff WHERE grab_id IS NOT NULL`).Scan(&diffID)
 	// Each API with the fields that must not be empty: arrays with items, objects with keys, numbers above 0. The
 	// reads run at once, as a browser's do.
 	var wg sync.WaitGroup
@@ -291,9 +289,6 @@ func TestDemoScreens(t *testing.T) {
 		"/journal/" + journalID:                      {"flags"},
 		"/jobs":                                      {"items", "counts"},
 		"/jobs?attention=1":                          {"items"},
-		"/shadow/summary":                            {"buckets", "reasons", "grabs"},
-		"/shadow/diffs":                              {"items"},
-		fmt.Sprintf("/shadow/diffs/%d", diffID):      {"grab"},
 		"/registry":                                  {"items"},
 		"/registry/" + hash:                          {"versions"},
 		"/anime/franchises":                          {"items"},
@@ -406,8 +401,6 @@ func TestDemoCoverage(t *testing.T) {
 	want("episode states", distinct(`SELECT DISTINCT state FROM episode_version_state`), "wanted", "filled", "cutoff_met")
 	want("link states", distinct(`SELECT DISTINCT state FROM link`), "active", "dead")
 	want("library imports", distinct(`SELECT DISTINCT state FROM library_import`), "waiting_mount", "linked", "rejected", "dry_run")
-	want("shadow buckets", distinct(`SELECT DISTINCT bucket FROM shadow_diff`), "agree", "we_grab_another",
-		"arr_grabbed_we_wouldnt", "we_grab_arr_didnt")
 	want("job states", distinct(`SELECT DISTINCT state FROM job`), "queued", "done", "failed")
 	want("job marks", distinct(`SELECT CASE WHEN dismissed_at IS NOT NULL THEN 'dismissed' WHEN retry_of IS NOT NULL
 		THEN 'retry' ELSE 'plain' END FROM job`), "dismissed", "retry", "plain")

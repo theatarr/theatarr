@@ -173,7 +173,7 @@ func TestLiveSectionSaveRestartsOnlyItsWorkers(t *testing.T) {
 	}
 	settled(f.initial.Generation)
 	before := rec.snapshot()
-	for _, name := range []string{"library", "provider-sync", "router-poll", "shadow", "playlists", "art", "series-metadata"} {
+	for _, name := range []string{"library", "provider-sync", "router-poll", "shadow", "rss", "playlists", "art", "series-metadata"} {
 		if before[name] != 1 {
 			t.Fatalf("fixture: %s started %d times: %v", name, before[name], before)
 		}
@@ -208,6 +208,8 @@ func TestLiveSectionSaveRestartsOnlyItsWorkers(t *testing.T) {
 		{"router", func(c map[string]any) { c["poll_interval"] = "2m" }, []string{"router-poll"}},
 		{"provider_sync", func(c map[string]any) { c["interval"] = "7h" }, []string{"provider-sync"}},
 		{"shadow", func(c map[string]any) { c["import_interval"] = "20m" }, []string{"shadow"}},
+		// The RSS schedule follows each generation by itself: an RSS change restarts no worker.
+		{"shadow", func(c map[string]any) { c["rss_interval"] = "20m" }, nil},
 		{"playlists", func(c map[string]any) { c["interval"] = "7h" }, []string{"playlists"}},
 		{"metadata", func(c map[string]any) { child(c, "art")["interval"] = "7h" }, []string{"art"}},
 		{"metadata", func(c map[string]any) { child(c, "series")["interval"] = "2h" }, []string{"series-metadata"}},

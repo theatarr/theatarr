@@ -21,7 +21,6 @@ import (
 	"github.com/theatarr/theatarr/internal/decide"
 	"github.com/theatarr/theatarr/internal/decide/format"
 	"github.com/theatarr/theatarr/internal/decide/profile"
-	"github.com/theatarr/theatarr/internal/decide/shadow"
 	"github.com/theatarr/theatarr/internal/gateway"
 	"github.com/theatarr/theatarr/internal/indexer"
 	"github.com/theatarr/theatarr/internal/policy"
@@ -32,7 +31,7 @@ import (
 func init() {
 	register(command{
 		name:    "decide",
-		summary: "decide a release for a title's library and print the decision with its score breakdown (-search: search first, where the VPN routes indexer traffic); decide shadow: replay arr grab history",
+		summary: "decide a release for a title's library and print the decision with its score breakdown (-search: search first, where the VPN routes indexer traffic)",
 		run:     func(args []string) error { return runDecide(args, os.Stdout, nil) },
 	})
 }
@@ -41,12 +40,10 @@ const decideUsage = `usage:
   theatarr decide [flags] -title ID|-tmdb N -library KEY 'Release.Title.2024.2160p.WEB-DL-GRP'
   theatarr decide [flags] -title ID|-tmdb N -library KEY -search
   theatarr decide [flags] -tvdb N -library KEY [-season N [-episode N]] 'Release.Title'   (a series library)
-  theatarr decide shadow [flags] -instance NAME -library KEY
 
 The first decides one release title, with optional indexer attributes (-size, -flags, -languages, -seeders,
 -indexer, -imdb). The second searches the library's indexers through the gateway first and ranks what
-comes back; like theatarr search it applies the configured VPN requirements. The third replays an
-arr instance's grab history from the database (or -corpus) through the engine and prints the agreement.
+comes back; like theatarr search it applies the configured VPN requirements.
 
 Profiles with from_arr read the arr's profile from -arr-snapshot (a corpus directory) or, without it, with GET
 requests to the instance under import.arr (key from the environment or -env-file).
@@ -148,9 +145,6 @@ func liveArr(pol *policy.Policy) decide.ArrSource {
 }
 
 func runDecide(args []string, out io.Writer, dial func(context.Context, string, string) (net.Conn, error)) error {
-	if len(args) > 0 && args[0] == "shadow" {
-		return runDecideShadow(args[1:], out)
-	}
 	fs := flag.NewFlagSet("decide", flag.ContinueOnError)
 	fs.Usage = func() { fmt.Fprint(fs.Output(), decideUsage); fs.PrintDefaults() }
 	var df decideFlags
@@ -518,108 +512,6 @@ func applyFlags(r *decide.Release, s string) error {
 		case "":
 		default:
 			return fmt.Errorf("unknown indexer flag %q", t)
-		}
-	}
-	return nil
-}
-
-func runDecideShadow(args []string, out io.Writer) error {
-	fs := flag.NewFlagSet("decide shadow", flag.ContinueOnError)
-	fs.Usage = func() { fmt.Fprint(fs.Output(), decideUsage); fs.PrintDefaults() }
-	var df decideFlags
-	df.register(fs)
-	instance := fs.String("instance", "", "arr instance whose grabs to replay")
-	version := libraryFlag(fs, "library (with a from_arr profile of that instance) to decide them for")
-	corpus := fs.String("corpus", "", "read the grabs from this corpus instead of the database (no existing files)")
-	aliases := fs.String("aliases", "", "corpus directory to take alternative titles from (database mode)")
-	seriesAliases := fs.String("series-aliases", "", "series: a saved GET series answer (JSON) to take scene mappings from")
-	dump := fs.String("dump", "", "write every disagreement as a TSV line to this file")
-	if err := fs.Parse(args); err != nil {
-		return err
-	}
-	if *instance == "" || *version == "" {
-		fs.Usage()
-		return errors.New("-instance and -library are required")
-	}
-	ctx := context.Background()
-	_, e, err := df.engine(*version, os.Stderr)
-	if err != nil {
-		return err
-	}
-	var grabs []shadow.Grab
-	series := false
-	if v := e.Policy.Versions[*version]; v != nil && v.Kind == policy.KindSeries {
-		series = true
-	}
-	var sm map[int][]decide.SceneMapping
-	if *seriesAliases != "" {
-		if sm, err = shadow.SeriesAliases(*seriesAliases); err != nil {
-			return err
-		}
-	}
-	if *corpus != "" {
-		if series {
-			grabs, err = shadow.LoadCorpusSeries(*corpus, *instance, sm)
-		} else {
-			grabs, err = shadow.LoadCorpus(*corpus, *instance)
-		}
-		if err != nil {
-			return err
-		}
-	} else if series {
-		st, err := store.Open(ctx, df.db, store.Options{})
-		if err != nil {
-			return err
-		}
-		defer st.Close()
-		if grabs, err = shadow.LoadSeriesDB(ctx, st.Reader(), *instance, sm); err != nil {
-			return err
-		}
-	} else {
-		st, err := store.Open(ctx, df.db, store.Options{})
-		if err != nil {
-			return err
-		}
-		defer st.Close()
-		var al map[int][]string
-		if *aliases != "" {
-			if al, err = shadow.CorpusAliases(*aliases, *instance); err != nil {
-				return err
-			}
-		}
-		if grabs, err = shadow.LoadDB(ctx, st.Reader(), *instance, al); err != nil {
-			return err
-		}
-		lib, err := shadow.LoadLibrary(ctx, st.Reader())
-		if err != nil {
-			return err
-		}
-		e.SetLibrary(lib)
-	}
-	rep, results := shadow.Run(ctx, e, *version, grabs)
-	fmt.Fprint(out, rep.Format())
-	if *dump != "" {
-		f, err := os.Create(*dump)
-		if err != nil {
-			return err
-		}
-		defer f.Close()
-		for _, r := range results {
-			if r.Cause == "" {
-				continue
-			}
-			ours := ""
-			if r.Decision != nil {
-				ours = fmt.Sprintf("%s %d", r.Decision.Quality, r.Decision.Score)
-				if len(r.Decision.Rejections) > 0 {
-					ours += " " + r.Decision.Rejections[0].String()
-				}
-			}
-			if len(r.Grab.Episodes) > 0 && r.Decision != nil {
-				ours += fmt.Sprintf(" episodes %s (arr %d)", strings.Join(r.Decision.Episodes, ","), len(r.Grab.Episodes))
-			}
-			fmt.Fprintf(f, "%d\t%s\t%s\t%s\t%s\t%s\n", r.Grab.HistoryID, r.Grab.Date.Format(time.DateOnly),
-				r.Grab.ReleaseSource, r.Cause, r.Grab.Release.Title, ours)
 		}
 	}
 	return nil

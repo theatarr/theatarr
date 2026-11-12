@@ -13,8 +13,6 @@ var pageRedirects = []struct{ from, to string }{
 	{"/titles/{id}", "/title/{id}"},
 	{"/registry", "/admin/torrents/inventory"},
 	{"/registry/{hash}", "/admin/torrents/inventory/{hash}"},
-	{"/shadow", "/admin/advanced/arr/comparison"},
-	{"/shadow/{id}", "/admin/advanced/arr/comparison/{id}"},
 	{"/settings", "/admin/settings"},
 	{"/anime/{slug}", "/admin/reviews/anime/{slug}"},
 }

@@ -186,11 +186,11 @@ func TestStartupProfilesTolerantReloadStrict(t *testing.T) {
 	log := slog.New(slog.NewTextHandler(io.Discard, nil))
 	for _, source := range []string{"yaml", "first-db"} {
 		t.Run(source, func(t *testing.T) {
-			eng, err := newShadowEngine(p, log, nil)
+			eng, err := newDecisionEngine(p, log, nil)
 			if err != nil || eng == nil || eng.Profile("good", format.Radarr) == nil || eng.Profile("bad", format.Radarr) != nil {
 				t.Fatalf("startup engine=%v err=%v", eng, err)
 			}
-			if _, err := newShadowEngine(p, log, eng); err == nil {
+			if _, err := newDecisionEngine(p, log, eng); err == nil {
 				t.Fatal("reload accepted a failed profile")
 			}
 		})

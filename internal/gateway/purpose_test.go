@@ -182,8 +182,7 @@ var purposeSites = map[string][]string{
 	"internal/acquire/devices.go":       {"PurposeInteractive"},
 	// run and runFanout: searchPurpose (wanted or upgrade).
 	"internal/acquire/acquire.go": {"searchPurpose", "purpose"},
-	"internal/shadow/rss.go":      {"PurposeRSS"},
-	"internal/shadow/grab.go":     {"PurposeShadow"},
+	"internal/acquire/rss/rss.go": {"PurposeRSS"},
 }
 
 var withPurposeRE = regexp.MustCompile(`gateway\.WithPurpose\([^,]+,\s*(?:gateway\.)?(\w+)`)
@@ -248,7 +247,7 @@ func TestPurposeCallSites(t *testing.T) {
 		}
 	}
 	consts := map[Purpose]string{PurposeInteractive: "PurposeInteractive", PurposeWanted: "PurposeWanted",
-		PurposeUpgrade: "PurposeUpgrade", PurposeRSS: "PurposeRSS", PurposeShadow: "PurposeShadow", PurposeTest: "PurposeTest"}
+		PurposeUpgrade: "PurposeUpgrade", PurposeRSS: "PurposeRSS", PurposeTest: "PurposeTest"}
 	for _, p := range Purposes {
 		if p != PurposeOther && !named[consts[p]] {
 			t.Errorf("no call site sets %s", p)
