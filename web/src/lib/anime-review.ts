@@ -44,7 +44,7 @@ export const KIND_WORDS: Record<string, string> = {
   conflict: "Lists disagree",
   heuristic: "Matched by date and title",
   refresh_shrink: "Refresh would unmap episodes",
-  refresh_moves_linked: "Refresh would move files",
+  refresh_moves_linked: "Refresh changes linked episodes",
 };
 
 export const isHeldRefresh = (it: ReviewItem) => it.kind === "refresh_shrink" || it.kind === "refresh_moves_linked";
@@ -68,11 +68,15 @@ export function reviewQuestion(it: ReviewItem): string {
   const p = proposedOption(it);
   const series = p ? seriesName(p.series) : seriesName({ tvdb: it.mapping?.tvdb });
   const r = it.refresh;
+  const open = it.state === "open";
+  const range = rangeWords(p?.episodes ?? it.mapping?.episodes);
   switch (it.kind) {
     case "conflict":
+      if (!open) return `Which ${series} episodes are “${entry}”? The mapping lists disagreed.`;
       return `Which ${series} episodes are “${entry}”? The mapping lists disagree, so until you choose its episodes keep Sonarr's numbering.`;
     case "heuristic":
-      return `Is “${entry}” ${series} ${rangeWords(p?.episodes ?? it.mapping?.episodes)}? No mapping list covers it; Theatarr matched it by air date and title and uses this match now.`;
+      if (!open) return `Is “${entry}” ${series} ${range}? No mapping list covered it; Theatarr matched it by air date and title.`;
+      return `Is “${entry}” ${series} ${range}? No mapping list covers it; Theatarr matched it by air date and title and uses this match now.`;
     case "refresh_shrink":
       if (!r) return `Apply the refresh of ${franchise}?`;
       return `Apply the refresh of ${franchise}? It would map ${r.after ?? 0} of the ${r.before ?? 0} ${seriesName(r.series)} episodes mapped now. Nothing changes until you choose.`;
@@ -80,18 +84,33 @@ export function reviewQuestion(it: ReviewItem): string {
       if (!r) return `Apply the refresh of ${franchise}?`;
       const from = r.from ? optionWords(r.from) : "Sonarr's numbering";
       const n = r.with_files ?? 0;
-      if (!r.to) return `Apply the refresh of ${franchise}? It would stop mapping “${entry}” (${from}); its ${n} files would keep their place and new ones take Sonarr's numbering.`;
-      return `Apply the refresh of ${franchise}? It would move “${entry}” from ${from} to ${optionWords(r.to)}; ${n} of these episodes have files, which would move with it.`;
+      const files = `${n} of these episodes have files; files already linked for them may be moved to match.`;
+      if (!r.to) return `Apply the refresh of ${franchise}? The refresh stops mapping “${entry}” (${from}), so new files take Sonarr's numbering. ${files}`;
+      return `Apply the refresh of ${franchise}? The refresh maps “${entry}” to ${optionWords(r.to)} instead of ${from}. ${files}`;
     }
     default:
       return it.summary ?? "";
   }
 }
 
-const OUTCOME: Record<string, string> = { accepted: "Accepted", rejected: "Rejected", superseded: "Replaced by a later build" };
+const OUTCOME: Record<string, Record<string, string>> = {
+  accepted: {
+    conflict: "Accepted: the chosen mapping is used.",
+    heuristic: "Accepted: the match or the mapping chosen is used.",
+    refresh_shrink: "Accepted: the refresh was applied.",
+    refresh_moves_linked: "Accepted: the refresh was applied.",
+  },
+  rejected: {
+    conflict: "Rejected: its episodes keep Sonarr's numbering.",
+    heuristic: "Rejected: the match is not used; new files follow Sonarr's numbering.",
+    refresh_shrink: "Rejected: the current mapping was kept.",
+    refresh_moves_linked: "Rejected: the current mapping was kept.",
+  },
+};
+const STATE_OUTCOME: Record<string, string> = { accepted: "Accepted.", rejected: "Rejected.", superseded: "Replaced by a later build." };
 
 /** What became of a resolved item, with its note. */
 export function outcomeWords(it: ReviewItem): string {
-  const s = OUTCOME[it.state ?? ""] ?? "";
-  return it.note ? `${s}. Note: ${it.note}` : s;
+  const s = OUTCOME[it.state ?? ""]?.[it.kind ?? ""] ?? STATE_OUTCOME[it.state ?? ""] ?? "";
+  return it.note ? `${s} Note: ${it.note}` : s;
 }

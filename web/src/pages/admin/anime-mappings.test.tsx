@@ -231,7 +231,7 @@ it("asks to apply a held refresh, says it answers all its changes, and applies i
       with_files: 12, items: 2 } };
   const api = mockFetch([...lists([held]), { method: "POST", path: "/anime/review/7/accept", reply: {} }]);
   renderPage(<AnimeMappings />);
-  expect(await screen.findByText(/^Apply the refresh of Mushoku Tensei\? It would move/)).toBeTruthy();
+  expect(await screen.findByText(/^Apply the refresh of Mushoku Tensei\? The refresh maps .*files already linked for them may be moved to match\.$/)).toBeTruthy();
   expect(screen.getByText("This answers all 2 changes of this refresh.")).toBeTruthy();
   expect(screen.queryByRole("button", { name: "Edit season/offset…" })).toBeNull();
   fireEvent.click(screen.getByRole("button", { name: "Apply the refresh" }));

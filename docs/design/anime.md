@@ -236,7 +236,7 @@ next sync.
   | `conflict` ("Lists disagree") | "Which {series} episodes are “{entry}”? The mapping lists disagree, so until you choose its episodes keep Sonarr's numbering." | not used: Sonarr's numbering | the mapping is used (override), relink of the series queued | stays out (rejected); nothing moves |
   | `heuristic` ("Matched by date and title") | "Is “{entry}” {series} {range}? No mapping list covers it; Theatarr matched it by air date and title and uses this match now." | used | kept as override; stops asking | not used from now on; new files take Sonarr's numbering; linked files stay (no relink) |
   | `refresh_shrink` ("Refresh would unmap episodes") | "Apply the refresh of {franchise}? It would map {after} of the {before} {series} episodes mapped now. Nothing changes until you choose." | current mapping kept, rebuild held | applies the whole held rebuild | drops it; the next rebuild may ask again |
-  | `refresh_moves_linked` ("Refresh would move files") | "…It would move “{entry}” from {from} to {to}; {n} of these episodes have files, which would move with it." When the held build maps the entry to nothing importable (a conflict counts as nothing): "…would stop mapping “{entry}” ({from}); its {n} files would keep their place and new ones take Sonarr's numbering." | as above | as above; moved files are relinked | as above |
+  | `refresh_moves_linked` ("Refresh changes linked episodes") | "…The refresh maps “{entry}” to {to} instead of {from}. {n} of these episodes have files; files already linked for them may be moved to match." When the held build maps the entry to nothing importable (a conflict counts as nothing): "…The refresh stops mapping “{entry}” ({from}), so new files take Sonarr's numbering." plus the same files sentence. The card never promises that files move: the server cannot preview which links a relink changes. | as above | as above; linked files may be relinked to match | as above |
 
   Beside the question: the AniList entry (title, English title, format, episode count, dates, AniList and AniDB links)
   and, for conflict and heuristic, one TVDB box per option: the proposed mapping ("Theatarr's pick") and each other
@@ -249,7 +249,8 @@ next sync.
   Buttons, no browser confirm: conflict **Edit season/offset…** and **Keep Sonarr's numbering** (reject); heuristic
   **Edit season/offset…** and **Don't use this match** (reject); held refresh **Apply the refresh** (accept) and
   **Keep current mapping** (reject), with "This answers all {n} changes of this refresh." when one answer settles
-  several items. **Edit season/offset…** sets one contiguous run of one season of one of the options' series by hand
+  several items. A resolved item asks its question in the past tense and says what was decided ("Rejected: the match
+  is not used; new files follow Sonarr's numbering."). **Edit season/offset…** sets one contiguous run of one season of one of the options' series by hand
   (accepted like a candidate: status `override`, winner `manual`; the choice sticks across rebuilds while the same
   mapping is proposed: `anime_review.choice`); a split or multi-season mapping still goes through the overrides
   file. **Show the raw rule** opens the summary, kind, entry key, the candidate table with score parts (exists, date

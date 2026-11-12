@@ -208,10 +208,11 @@ export function ReviewCard({ it }: { it: ReviewItem }) {
 
   const act = ({ chose, ...a }: Action) => {
     setErr("");
-    resolve.mutate({ id: it.id ?? 0, ...a, note: note || undefined }, {
-      onSuccess: () => { setEditing(false); toast({ tone: "ok", title: "Saved", body: `${label}: ${chose}` }); },
-      onError: (e) => setErr(e instanceof ApiError ? e.message : String(e)),
-    });
+    // the promise outlives the card: the refetch after a save can drop it before mutate's callbacks would run
+    resolve.mutateAsync({ id: it.id ?? 0, ...a, note: note || undefined }).then(
+      () => { toast({ tone: "ok", title: "Saved", body: `${label}: ${chose}` }); setEditing(false); },
+      (e) => setErr(e instanceof ApiError ? e.message : String(e)),
+    );
   };
 
   const p = proposedOption(it);
