@@ -1636,7 +1636,7 @@ candidate is tried (`upgrades.go` `currentFiles`: active links, then the arr's `
 instance). Releases for items without a file are never refused: in a series route a pack that would replace episode
 1's file is skipped under `off` while a release that only fills episode 2 is tried as usual (`TestUpgradesOff`).
 
-`approve` (hold an upgrade until a manager approved it) was removed in 2026-11: migration 00117 drops `upgrade_hold`,
+`approve` (hold an upgrade until a manager approved it) was removed in 2026-11: migration 00118 drops `upgrade_hold`,
 and a stored or submitted `approve` reads as `auto` (policy defaults and the stored library rows). A route job an older
 build queued for an approved upgrade (source `upgrade:N`) still runs as an ordinary route and counts as a person's
 grab (`TestQueuedApprovedRouteRunsAfterUpgrade`).

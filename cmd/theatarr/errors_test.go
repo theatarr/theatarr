@@ -186,7 +186,7 @@ func TestDebugBundle(t *testing.T) {
 	if !strings.Contains(got["errors.json"], "internal/jobs.run()") || !strings.Contains(got["errors.json"], "disk full") {
 		t.Errorf("errors: %s", got["errors.json"])
 	}
-	if !strings.Contains(got["build.json"], `"schema_version": 117`) {
+	if !strings.Contains(got["build.json"], `"schema_version": 118`) {
 		t.Errorf("build: %s", got["build.json"])
 	}
 }
