@@ -186,9 +186,9 @@ func (r *Runner) Schedule(ctx context.Context, rssDelay time.Duration) {
 	if r.q == nil {
 		return
 	}
-	if r.runtime == nil && !r.eligible(ctx) {
-		return
-	}
+	// The film index the decision engine searches with is loaded now and on every tick no read is queued for (RSS
+	// off, no Live feed), so it never depends on RSS running; a queued read reloads it itself.
+	r.reloadIndex(ctx)
 	var generation int64
 	if r.runtime != nil {
 		if active, err := r.forOperation(ctx); err == nil {
@@ -202,7 +202,7 @@ func (r *Runner) Schedule(ctx context.Context, rssDelay time.Duration) {
 	defer t.Stop()
 	for {
 		now := r.now()
-		eligible := r.runtime == nil
+		eligible := r.runtime == nil && r.eligible(ctx)
 		if r.runtime != nil {
 			if active, err := r.forOperation(ctx); err == nil {
 				eligible = active.eligible(ctx)
@@ -216,11 +216,13 @@ func (r *Runner) Schedule(ctx context.Context, rssDelay time.Duration) {
 		if !now.Before(next) {
 			if eligible {
 				r.enqueue(ctx, KindRSS, nil, jobs.EnqueueOptions{DedupeKey: KindRSS, Priority: priorityRSS, MaxAttempts: 2})
+			} else {
+				r.reloadIndex(ctx)
 			}
 			next = now.Add(every)
 		}
 		wait := next.Sub(now)
-		if r.runtime != nil && wait > time.Second {
+		if wait > time.Second {
 			wait = time.Second
 		}
 		t.Reset(max(wait, time.Second))
@@ -278,6 +280,13 @@ func (l *library) ByTMDb(id int) *decide.Title {
 		return nil
 	}
 	return l.inner.ByTMDb(id)
+}
+
+// reloadIndex reloads the film index outside a run, logging a failure.
+func (r *Runner) reloadIndex(ctx context.Context) {
+	if _, err := r.refresh(ctx); err != nil && ctx.Err() == nil {
+		r.log.Warn("shadow rss: film index not reloaded", "err", err)
+	}
 }
 
 // refresh reloads our movies.

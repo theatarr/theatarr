@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/theatarr/theatarr/internal/jobs"
+	"github.com/theatarr/theatarr/internal/policy"
 )
 
 const (
@@ -142,13 +143,57 @@ func TestRSSSkipsWatchOnlySchedule(t *testing.T) {
 		v.Mode = ""
 	}
 	e.build(nil)
-	ctx, cancel := context.WithTimeout(e.ctx, 2*time.Second)
+	ctx, cancel := context.WithTimeout(e.ctx, 1500*time.Millisecond)
 	defer cancel()
-	e.r.Schedule(ctx, 0) // returns at once: no Live version reads a feed
-	if ctx.Err() != nil {
-		t.Fatal("Schedule ran with only Watch-only libraries")
-	}
+	e.r.Schedule(ctx, 0) // runs until ctx ends, queuing nothing: no Live library reads a feed
 	if n := one[int](t, e.st, `SELECT COUNT(*) FROM job WHERE kind = ?`, KindRSS); n != 0 {
 		t.Fatalf("%d RSS jobs", n)
 	}
+}
+
+// The decision engine's film index does not depend on RSS running: it is loaded when the schedule starts and
+// reloaded on each tick no read is queued for, with RSS off and with no Live library listing a feed.
+func TestFilmIndexWithoutRSS(t *testing.T) {
+	t.Parallel()
+	for name, off := range map[string]func(e *env){
+		"rss off": func(e *env) {
+			no := false
+			e.pol.Shadow = &policy.Shadow{RSS: &no}
+		},
+		"no feed": func(e *env) {
+			for _, v := range e.pol.Versions {
+				v.Indexers = nil
+			}
+		},
+	} {
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+			e := newEnv(t, true)
+			off(e)
+			e.build(nil)
+			e.seed(t, dune)
+			ctx, cancel := context.WithCancel(e.ctx)
+			done := make(chan struct{})
+			go func() { e.r.Schedule(ctx, 0); close(done) }()
+			defer func() { cancel(); <-done }()
+			known := func(m movieDef) bool { return e.eng.Library().ByIMDb(m.imdb) != nil }
+			waitUntil(t, "index loaded at start", func() bool { return known(dune) })
+			e.seed(t, alien)
+			e.advance(e.r.set.RSSInterval)
+			waitUntil(t, "film added after start known after the tick", func() bool { return known(alien) })
+			if n := one[int](t, e.st, `SELECT COUNT(*) FROM job WHERE kind = ?`, KindRSS); n != 0 {
+				t.Errorf("%d RSS jobs", n)
+			}
+		})
+	}
+}
+
+func waitUntil(t *testing.T, what string, ok func() bool) {
+	t.Helper()
+	for deadline := time.Now().Add(5 * time.Second); time.Now().Before(deadline); time.Sleep(10 * time.Millisecond) {
+		if ok() {
+			return
+		}
+	}
+	t.Fatal(what)
 }
