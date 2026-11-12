@@ -491,6 +491,9 @@ func (r *runner) preview(ctx context.Context, t *importarr.Title, files []*impor
 
 // link links the title's files; a series' episode list and monitoring are in place (episodes).
 func (r *runner) link(ctx context.Context, t *importarr.Title, titleID int64, files []*importarr.File) error {
+	if len(files) == 0 {
+		return nil
+	}
 	rep := r.rep
 	var in []library.ImportFile
 	if r.req.Flavour == "sonarr" {

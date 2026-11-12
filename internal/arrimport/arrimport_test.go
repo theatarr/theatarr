@@ -405,6 +405,14 @@ func TestRunSonarrNumbering(t *testing.T) {
 		t.Fatalf("series not released: %s", got)
 	}
 
+	// Still no TVDB key: a series with a TMDb episode list is not refreshed again.
+	if rep, err = Run(e.ctx, d, req, nil); err != nil {
+		t.Fatal(err)
+	}
+	if rep.Present != 1 || rep.Linked != 0 || len(e.series.refresh) != 1 {
+		t.Fatalf("re-run without TVDB %+v (refreshes %v)", rep, e.series.refresh)
+	}
+
 	// A TVDB key added later: the re-run refreshes onto TVDB, brings the monitoring over and links the file.
 	e.series.source = "tvdb"
 	d.TVDB = true

@@ -123,19 +123,6 @@ func (s *MovieIntake) ImportArrTitle(ctx context.Context, key string, t ArrImpor
 	return change, titleID, nil
 }
 
-// ImportNeedsEpisodes reports whether the import should refresh a series' episode list before bringing its
-// monitoring and files over: it has no episode rows, or its list is not from TVDB while TVDB is configured.
-func (s *MovieIntake) ImportNeedsEpisodes(ctx context.Context, titleID int64, tvdbConfigured bool) (bool, error) {
-	var episodes int
-	var source string
-	if err := s.Store.Reader().QueryRowContext(ctx, `SELECT (SELECT COUNT(*) FROM episode WHERE title_id = ? AND
-		removed_at IS NULL), COALESCE((SELECT source FROM series_meta WHERE title_id = ?), '')`, titleID, titleID).
-		Scan(&episodes, &source); err != nil {
-		return false, err
-	}
-	return episodes == 0 || tvdbConfigured && source != "tvdb", nil
-}
-
 // ImportEpisodeMonitoring brings Sonarr's monitoring over to library key's copy of the series, in one transaction,
 // only when the series' episode list comes from TVDB (Sonarr's numbering); applied is false, and nothing is written,
 // otherwise. It sets monitor new seasons (t.MonitorNew, when all or none), each of t.Seasons, then each episode

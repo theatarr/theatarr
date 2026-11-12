@@ -148,8 +148,7 @@ func TestImportArrTitleDryRun(t *testing.T) {
 }
 
 // Episode monitoring goes to the copy's episode states and the episodes' own flag, and the copy's state is
-// recomputed; a series whose episode list is from TMDb gets nothing. ImportNeedsEpisodes asks for a refresh with no
-// episodes, or a list not from TVDB once TVDB is configured.
+// recomputed; a series whose episode list is from TMDb gets nothing.
 func TestImportEpisodeMonitoring(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
@@ -158,9 +157,6 @@ func TestImportEpisodeMonitoring(t *testing.T) {
 	execAll(t, st,
 		`INSERT INTO title(id,kind,name,tvdb_id,created_at,updated_at) VALUES(90,'series','Show',901,0,0),(91,'series','Other',902,0,0)`,
 		`INSERT INTO version(id,title_id,policy_key,monitored,state,created_at,updated_at) VALUES(95,90,'tv',0,'wanted',0,0),(96,91,'tv',0,'wanted',0,0)`)
-	if got, err := s.ImportNeedsEpisodes(ctx, 90, false); err != nil || !got {
-		t.Errorf("needs episodes, none yet: %v %v", got, err)
-	}
 	execAll(t, st,
 		`INSERT INTO series_meta(title_id,source) VALUES(90,'tvdb'),(91,'tmdb')`,
 		`INSERT INTO episode(id,title_id,season,number,air_date_utc_at,created_at,updated_at) VALUES
@@ -168,15 +164,6 @@ func TestImportEpisodeMonitoring(t *testing.T) {
 		// E01 already has its file in the copy, both start monitored as a refresh leaves them.
 		`INSERT INTO episode_version_state(version_id,episode_id,monitored,state,updated_at) VALUES
 			(95,1,1,'filled',0),(95,2,1,'wanted',0),(96,3,1,'wanted',0)`)
-	for _, c := range []struct {
-		id         int64
-		configured bool
-		want       bool
-	}{{90, true, false}, {91, false, false}, {91, true, true}} {
-		if got, err := s.ImportNeedsEpisodes(ctx, c.id, c.configured); err != nil || got != c.want {
-			t.Errorf("needs episodes %d (TVDB %v): %v %v", c.id, c.configured, got, err)
-		}
-	}
 	eps := []EpisodeMonitor{{Season: 1, Number: 1, Monitored: false}, {Season: 1, Number: 2, Monitored: true}}
 	for id, want := range map[int64]bool{90: true, 91: false} {
 		got, err := s.ImportEpisodeMonitoring(ctx, id, "tv", ArrImportTitle{Kind: policy.KindSeries}, eps)
