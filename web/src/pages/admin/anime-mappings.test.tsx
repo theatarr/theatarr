@@ -136,3 +136,105 @@ it("refetches an idle franchise detail every 30 s, so a build the loop starts sh
     vi.useRealTimers();
   }
 });
+
+// Review cards: Mushoku Tensei II Part 2 against TVDB 371310 (title 9 in Theatarr).
+const mt = { tvdb: 371310, title_id: 9, name: "Mushoku Tensei" };
+const range = (s: number, from: number, n: number) => Array.from({ length: n }, (_, i) => [s, from + i]);
+const sample = (s: number, n: number, name: string, air: string) => ({ season: s, number: n, name, air_date: air });
+const entry = { key: "al:166873", title: "Mushoku Tensei II Part 2", title_en: "Jobless Reincarnation Season 2 Part 2", format: "TV",
+  start: "2024-04-08", end: "2024-06-24", episodes: 12, anilist_id: 166873, anidb_id: 18085 };
+const conflict = {
+  id: 1, franchise: "mushoku-tensei", franchise_name: "Mushoku Tensei", entry_key: "al:166873", kind: "conflict", state: "open",
+  summary: "lists disagree for al:166873", title: "Mushoku Tensei II Part 2", entry,
+  snippet: "mappings:\n  al:166873: {tvdb: 371310, episodes: S02E13-S02E24}",
+  mapping: { winner: "anibridge", tvdb: 371310, episodes: range(2, 13, 12), candidates: [
+    { source: "anibridge", series_id: 371310, range: "S02E13-S02E24", score: 0.8 },
+    { source: "scudlee", series_id: 371310, range: "S03E01-S03E12", score: 0.7 },
+  ] },
+  options: [
+    { proposed: true, source: "anibridge", series: mt, episodes: range(2, 13, 12), count: 12,
+      samples: [sample(2, 13, "Pride", "2024-04-08"), sample(2, 14, "Respite", "2024-04-15"), sample(2, 24, "Ending", "2024-06-24")] },
+    { candidate: 1, proposed: false, source: "scudlee", series: mt, episodes: range(3, 1, 12), count: 12,
+      samples: [sample(3, 1, "New Start", "2024-04-08"), sample(3, 2, "Second", "2024-04-15"), sample(3, 12, "Last", "2024-06-24")] },
+  ],
+};
+const lists = (items: unknown[]) => [
+  { method: "GET", path: "/anime/review", reply: { items } },
+  { method: "GET", path: "/anime/franchises", reply: { items: [] } },
+  { method: "GET", path: "/anime/uncovered", reply: { builds: on, items: [] } },
+];
+
+it("shows a conflict as a plain question with links and sample episodes, and the raw rule only on request", async () => {
+  mockFetch(lists([conflict]));
+  renderPage(<AnimeMappings />);
+  expect(await screen.findByText(/^Which Mushoku Tensei episodes are “Mushoku Tensei II Part 2”\?/)).toBeTruthy();
+  const hrefs = screen.getAllByRole("link").map((a) => a.getAttribute("href"));
+  expect(hrefs).toContain("/title/9");
+  expect(hrefs).toContain("https://anilist.co/anime/166873");
+  expect(hrefs).toContain("https://anidb.net/anime/18085");
+  expect(hrefs).toContain("https://www.thetvdb.com/dereferrer/series/371310");
+  expect(screen.getByText("Lists disagree")).toBeTruthy();
+  expect(screen.getByText("Jobless Reincarnation Season 2 Part 2")).toBeTruthy(); // the AniList side
+  expect(screen.getByText(/“Pride”/)).toBeTruthy(); // TVDB names of both options
+  expect(screen.getByText(/“New Start”/)).toBeTruthy();
+  expect(screen.getByText("Theatarr's pick")).toBeTruthy();
+  expect(screen.queryByText(/mappings:/)).toBeNull();
+  fireEvent.click(screen.getByRole("button", { name: "Show the raw rule" }));
+  expect(screen.getByText(/mappings:/)).toBeTruthy();
+  expect(screen.getByText("lists disagree for al:166873")).toBeTruthy();
+});
+
+it("uses another candidate and keeps Sonarr's numbering without a browser confirm", async () => {
+  const confirm = vi.spyOn(window, "confirm");
+  const api = mockFetch([
+    ...lists([conflict]),
+    { method: "POST", path: "/anime/review/1/accept", reply: {} },
+    { method: "POST", path: "/anime/review/1/reject", reply: {} },
+  ]);
+  renderPage(<AnimeMappings />);
+  const other = (await screen.findByText(/“New Start”/)).closest("div.rounded-lg") as HTMLElement;
+  fireEvent.click(within(other).getByRole("button", { name: "Use this mapping" }));
+  await waitFor(() => expect(api.calls("POST", "/anime/review/1/accept")).toHaveLength(1));
+  expect(api.calls("POST", "/anime/review/1/accept")[0].body).toEqual({ candidate: 1 });
+  fireEvent.click(screen.getByRole("button", { name: "Keep Sonarr's numbering" }));
+  await waitFor(() => expect(api.calls("POST", "/anime/review/1/reject")).toHaveLength(1));
+  expect(api.calls("POST", "/anime/review/1/reject")[0].body).toEqual({});
+  expect(confirm).not.toHaveBeenCalled();
+  confirm.mockRestore();
+});
+
+it("sets a heuristic match by hand with Edit season/offset… and shows a refusal's sentence", async () => {
+  const heuristic = { ...conflict, id: 4, kind: "heuristic", snippet: undefined,
+    mapping: { ...conflict.mapping, winner: "heuristic", candidates: [] }, options: [{ ...conflict.options[0], source: "heuristic" }] };
+  const api = mockFetch([
+    ...lists([heuristic]),
+    { method: "POST", path: "/anime/review/4/accept", reply: json({ error: "Season 2 has no episode 24 in Theatarr's episode list for Mushoku Tensei" }, 400) },
+  ]);
+  renderPage(<AnimeMappings />);
+  expect(await screen.findByText(/^Is “Mushoku Tensei II Part 2” Mushoku Tensei Season 2, episodes 13–24\?/)).toBeTruthy();
+  expect(screen.getByText("Don't use this match")).toBeTruthy();
+  fireEvent.click(screen.getByRole("button", { name: "Edit season/offset…" }));
+  fireEvent.change(screen.getByLabelText("Season"), { target: { value: "2" } });
+  fireEvent.change(screen.getByLabelText("First episode"), { target: { value: "13" } });
+  fireEvent.change(screen.getByLabelText("Episodes"), { target: { value: "12" } });
+  const form = screen.getByLabelText("Series").closest("div.rounded-lg") as HTMLElement;
+  fireEvent.click(within(form).getByRole("button", { name: "Use this mapping" }));
+  await waitFor(() => expect(api.calls("POST", "/anime/review/4/accept")).toHaveLength(1));
+  expect(api.calls("POST", "/anime/review/4/accept")[0].body).toEqual({ mapping: { tvdb: 371310, season: 2, first: 13, count: 12 } });
+  expect(await screen.findByText("Season 2 has no episode 24 in Theatarr's episode list for Mushoku Tensei")).toBeTruthy();
+});
+
+it("asks to apply a held refresh, says it answers all its changes, and applies it", async () => {
+  const held = { id: 7, franchise: "mushoku-tensei", franchise_name: "Mushoku Tensei", entry_key: "al:166873", kind: "refresh_moves_linked",
+    state: "open", summary: "move al:166873", entry,
+    refresh: { from: { ...conflict.options[0], proposed: false }, to: { series: mt, episodes: [[0, 40]], count: 1, samples: [sample(0, 40, "OVA", "2024-07-01")] },
+      with_files: 12, items: 2 } };
+  const api = mockFetch([...lists([held]), { method: "POST", path: "/anime/review/7/accept", reply: {} }]);
+  renderPage(<AnimeMappings />);
+  expect(await screen.findByText(/^Apply the refresh of Mushoku Tensei\? It would move/)).toBeTruthy();
+  expect(screen.getByText("This answers all 2 changes of this refresh.")).toBeTruthy();
+  expect(screen.queryByRole("button", { name: "Edit season/offset…" })).toBeNull();
+  fireEvent.click(screen.getByRole("button", { name: "Apply the refresh" }));
+  await waitFor(() => expect(api.calls("POST", "/anime/review/7/accept")).toHaveLength(1));
+  expect(api.calls("POST", "/anime/review/7/accept")[0].body).toEqual({});
+});

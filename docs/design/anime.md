@@ -226,12 +226,37 @@ next sync.
 
 ### Review screen and API (`internal/web/anime.go`)
 
-- **`/admin/reviews/anime` (Anime mappings):** open items (filter by state and franchise) with the proposed mapping and every
-  candidate: source, TVDB range, exists, date fit, cover, title similarity, score, anchor and why it was dropped.
-  Buttons: accept the proposed mapping, **accept another candidate** (the entry takes that range, status
-  `override`; the choice sticks across rebuilds while the same mapping is proposed: `anime_review.choice`), or reject.
-  Each item shows the **override snippet** (a `mappings:` entry per candidate) to paste into `overrides/<slug>.yaml`.
-  Below, the franchises with mapping counts by status.
+- **`/admin/reviews/anime` (Anime mappings):** items filtered by state (Waiting, Accepted, Rejected, Replaced, All) and
+  franchise, one card each (`web/src/components/anime/review-card.tsx`, words in `web/src/lib/anime-review.ts`). A card
+  shows the series (linked to its title page when it is a Theatarr title), the kind in words, a link to the franchise,
+  and one plain question per kind:
+
+  | Kind | Question | Import today | Accept does | Reject does |
+  |---|---|---|---|---|
+  | `conflict` ("Lists disagree") | "Which {series} episodes are “{entry}”? The mapping lists disagree, so until you choose its episodes keep Sonarr's numbering." | not used: Sonarr's numbering | the mapping is used (override), relink of the series queued | stays out (rejected); nothing moves |
+  | `heuristic` ("Matched by date and title") | "Is “{entry}” {series} {range}? No mapping list covers it; Theatarr matched it by air date and title and uses this match now." | used | kept as override; stops asking | not used from now on; new files take Sonarr's numbering; linked files stay (no relink) |
+  | `refresh_shrink` ("Refresh would unmap episodes") | "Apply the refresh of {franchise}? It would map {after} of the {before} {series} episodes mapped now. Nothing changes until you choose." | current mapping kept, rebuild held | applies the whole held rebuild | drops it; the next rebuild may ask again |
+  | `refresh_moves_linked` ("Refresh would move files") | "…It would move “{entry}” from {from} to {to}; {n} of these episodes have files, which would move with it." When the held build maps the entry to nothing importable (a conflict counts as nothing): "…would stop mapping “{entry}” ({from}); its {n} files would keep their place and new ones take Sonarr's numbering." | as above | as above; moved files are relinked | as above |
+
+  Beside the question: the AniList entry (title, English title, format, episode count, dates, AniList and AniDB links)
+  and, for conflict and heuristic, one TVDB box per option: the proposed mapping ("Theatarr's pick") and each other
+  candidate, with the range in words, the source ("AniBridge list", "ScudLee's anime-lists", "Air date and title
+  match", "Set by hand"), sample episodes (first two and last, with names and air dates from Theatarr's episode list
+  when the series is a Theatarr title), a TVDB link and **Use this mapping** (a dropped candidate says why it can't be
+  used). A held refresh shows "Now" (the entry's importable mapping in use) and "After the refresh" (the held
+  build's, or the episode counts and up to five episodes no longer mapped); these are filled only while the item is
+  open, so a resolved one shows its summary and what was chosen.
+  Buttons, no browser confirm: conflict **Edit season/offset…** and **Keep Sonarr's numbering** (reject); heuristic
+  **Edit season/offset…** and **Don't use this match** (reject); held refresh **Apply the refresh** (accept) and
+  **Keep current mapping** (reject), with "This answers all {n} changes of this refresh." when one answer settles
+  several items. **Edit season/offset…** sets one contiguous run of one season of one of the options' series by hand
+  (accepted like a candidate: status `override`, winner `manual`; the choice sticks across rebuilds while the same
+  mapping is proposed: `anime_review.choice`); a split or multi-season mapping still goes through the overrides
+  file. **Show the raw rule** opens the summary, kind, entry key, the candidate table with score parts (exists, date
+  fit, cover, title similarity, score, anchor, why dropped), the **override snippet** (a `mappings:` entry per
+  candidate, to paste into `overrides/<slug>.yaml`) and an optional note sent with the next choice.
+  Below, the franchises with mapping counts by status. Items raised from this version store `detail.after` of a
+  `refresh_moves_linked` item properly (`{"tvdb", "episodes"}`); older ones have it empty.
 - **`/admin/reviews/anime/{slug}`:** open items, the **order panel** (release, watch, story; each item with its source: release
   date, TVDB airs, the AniList chain, or `override` for moves, routes, alternate cuts and mappings decided in
   review; a series split by an interleaved special shows the part to stop at and to resume from, and each item
@@ -241,7 +266,8 @@ next sync.
   remains on Settings › Plex & playback, with playlist settings and the Playlists Theatarr keeps list.
 - **Title page:** the watch-order panel links admins to franchise details for orders, mappings and episode numbering.
 - **API** (`openapi.json`): `GET /anime/franchises`, `GET /anime/franchises/{slug}`, `GET /anime/review`,
-  `GET /anime/review/{id}/snippet`, `POST /anime/review/{id}/accept` (`{"candidate": n, "note": ...}`),
+  `GET /anime/review/{id}/snippet`, `POST /anime/review/{id}/accept` (no body: the proposed mapping; `{"candidate": n}`; or `{"mapping": {"tvdb", "season",
+  "first", "count"}}`, a hand-set run checked against Theatarr's episode list; each with an optional `"note"`),
   `POST /anime/review/{id}/reject`, `GET /anime/playlists`, and the build endpoints under "Automatic builds".
   Session auth with CSRF for session POSTs; API keys as for the rest. Accept, reject and the build requests are the
   only writes. `theatarr anime review` takes `-candidate N` (with

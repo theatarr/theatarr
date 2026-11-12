@@ -155,10 +155,12 @@ export const useReview = (state: string, franchise?: string) =>
 export function useResolveReview() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: ({ id, accept, candidate, note }: { id: number; accept: boolean; candidate?: number; note?: string }) =>
+    mutationFn: ({ id, accept, candidate, mapping, note }: {
+      id: number; accept: boolean; candidate?: number; mapping?: { tvdb: number; season: number; first: number; count: number }; note?: string;
+    }) =>
       api<unknown>(`/anime/review/${id}/${accept ? "accept" : "reject"}`, {
         method: "POST",
-        body: { candidate, note },
+        body: { candidate, mapping, note },
       }),
     onSuccess: () => qc.invalidateQueries({ queryKey: qk.anime.all }),
   });

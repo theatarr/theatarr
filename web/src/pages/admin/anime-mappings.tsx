@@ -1,21 +1,20 @@
-// Admin › Metadata review: the anime review queue, franchises and Plex playlists (GET /anime/*), and a franchise
+// Admin › Metadata review: the anime review queue (one plain-language card per item, components/anime/review-card.tsx), franchises and Plex playlists (GET /anime/*), and a franchise
 // with its orders and mappings. Accept and reject go through POST /anime/review/{id}/accept|reject. Rebuild and Build
 // queue anime_build jobs (POST /anime/franchises/{slug}/build, POST /anime/build); "Anime series without a franchise"
 // is GET /anime/uncovered.
 import { useState } from "react";
 import { Link, useParams, useSearchParams } from "react-router";
 import { ApiError } from "@/api/client";
-import { useAnimeBuild, useFranchise, useFranchises, usePlaylists, useResolveReview, useReview, useUncovered, type Review, type Uncovered } from "@/api/hooks";
+import { useAnimeBuild, useFranchise, useFranchises, usePlaylists, useReview, useUncovered, type Uncovered } from "@/api/hooks";
+import { ReviewCard } from "@/components/anime/review-card";
 import { Empty, ErrorState, Loading, Mono, PageHeader, Section } from "@/components/page";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
-import { Input } from "@/components/ui/input";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { fmtAgo, fmtGoDuration, fmtNumber, fmtTime } from "@/lib/format";
 
-type Item = NonNullable<Review["items"]>[number];
 type BuildJob = { id?: number; state?: string; error?: string } | null | undefined;
 type UncoveredItem = Uncovered["items"][number];
 
@@ -63,7 +62,7 @@ function nextRefresh(f: { built_at?: string | null; next_refresh?: string | null
   return new Date(f.next_refresh).getTime() <= Date.now() ? "refresh due" : `next refresh ${fmtAgo(f.next_refresh)}`;
 }
 
-const STATES = ["open", "accepted", "rejected", "superseded", "all"];
+const STATES: [string, string][] = [["open", "Waiting"], ["accepted", "Accepted"], ["rejected", "Rejected"], ["superseded", "Replaced"], ["all", "All"]];
 
 export function AnimeMappings() {
   const [params, setParams] = useSearchParams();
@@ -77,9 +76,9 @@ export function AnimeMappings() {
         className="mt-0"
         aside={
           <span className="flex flex-wrap gap-1">
-            {STATES.map((s) => (
+            {STATES.map(([s, label]) => (
               <Button key={s} size="xs" variant={s === state ? "secondary" : "ghost"} onClick={() => setParams(s === "open" ? {} : { state: s })}>
-                {s}
+                {label}
               </Button>
             ))}
           </span>
@@ -180,67 +179,6 @@ function UncoveredRow({ u }: { u: UncoveredItem }) {
       </TableCell>
       <TableCell className="text-right"><span className="inline-flex flex-wrap items-center justify-end gap-2"><BuildState job={u.job} /><BuildButton to={{ tvdb_id: u.tvdb_id }} job={u.job} label="Build" /></span></TableCell>
     </TableRow>
-  );
-}
-
-function ReviewCard({ it }: { it: Item }) {
-  const resolve = useResolveReview();
-  const [note, setNote] = useState("");
-  const [err, setErr] = useState("");
-  const open = it.state === "open";
-  const act = (accept: boolean, candidate?: number) => {
-    if (!accept && !window.confirm("Reject: this mapping is not used; its episodes import through Sonarr's numbering.")) return;
-    setErr("");
-    resolve.mutate({ id: it.id ?? 0, accept, candidate, note: note || undefined }, {
-      onError: (e) => setErr(e instanceof ApiError ? e.message : String(e)),
-    });
-  };
-  return (
-    <Card>
-      <div className="flex flex-wrap items-start justify-between gap-2">
-        <div className="min-w-0">
-          <div className="font-medium">
-            <Link className="hover:text-primary" to={`/admin/reviews/anime/${it.franchise}`}>{it.franchise}</Link> <Mono className="text-muted-foreground">{it.entry_key}</Mono> {it.title}
-          </div>
-          <div className="mt-1 text-sm text-muted-foreground">{it.summary}</div>
-        </div>
-        <div className="flex items-center gap-2">
-          <Badge tone="info">{it.kind}</Badge>
-          <Badge tone={it.state === "open" ? "warning" : it.state === "accepted" ? "positive" : "neutral"}>{it.state}</Badge>
-        </div>
-      </div>
-      {(it.mapping?.candidates ?? []).length > 0 ? (
-        <Table density="dense" wrapperClassName="mt-3">
-          <TableHeader>
-            <TableRow>
-              <TableHead>Candidate</TableHead>
-              <TableHead className="text-right">Score</TableHead>
-              <TableHead className="hidden sm:table-cell">Fit</TableHead>
-              <TableHead />
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {(it.mapping?.candidates ?? []).map((c, i) => (
-              <TableRow key={i}>
-                <TableCell><Mono>{c.source}:{c.series_id}</Mono> {c.range}{c.anchor ? <span className="text-muted-foreground"> · {c.anchor}</span> : null}</TableCell>
-                <TableCell className="text-right tabular-nums">{c.score?.toFixed(2)}</TableCell>
-                <TableCell className="hidden text-xs text-muted-foreground sm:table-cell">exists {c.exists} · date {c.date_fit} · cover {c.cover} · title {c.title_sim}</TableCell>
-                <TableCell className="text-right">{open ? <Button size="xs" variant="outline" onClick={() => act(true, i)} disabled={resolve.isPending}>Accept this</Button> : null}</TableCell>
-              </TableRow>
-            ))}
-          </TableBody>
-        </Table>
-      ) : null}
-      {it.snippet ? <pre className="mt-3 overflow-x-auto rounded-lg bg-[var(--sunken)] p-3 font-mono text-xs">{it.snippet}</pre> : null}
-      {open ? (
-        <div className="mt-3 flex flex-wrap items-center gap-2">
-          <Input className="h-8 max-w-xs" placeholder="Note (optional)" value={note} onChange={(e) => setNote(e.target.value)} />
-          <Button size="sm" onClick={() => act(true)} disabled={resolve.isPending}>Accept proposed</Button>
-          <Button size="sm" variant="destructive" onClick={() => act(false)} disabled={resolve.isPending}>Reject</Button>
-          {err ? <span className="text-sm text-[var(--bad-ink)]">{err}</span> : null}
-        </div>
-      ) : it.note ? <p className="mt-2 text-sm text-muted-foreground">Note: {it.note}</p> : null}
-    </Card>
   );
 }
 
