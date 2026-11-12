@@ -187,9 +187,13 @@ func (t *torznab) Search(ctx context.Context, q Query) (*Result, error) {
 	var firstErr error
 	for _, tier := range tiers {
 		for _, params := range tier {
+			from := len(res.Releases)
 			err := t.searchPaged(ctx, key, q, c, params, seen, res)
 			if err == nil {
 				answered = true
+				if params.Has("imdbid") || params.Has("tmdbid") || params.Has("tvdbid") {
+					dropUnrelated(q, res, from)
+				}
 				continue
 			}
 			if errors.Is(err, gateway.ErrVPNRequired) || ctx.Err() != nil {

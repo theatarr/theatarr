@@ -64,6 +64,11 @@ type Query struct {
 	SceneTitles  []string
 	SeasonTitles []string
 	Mode         SearchMode
+	// Related, when set, keeps a row of an id request (IMDb, TMDb or TVDB) only when it returns true: some indexers
+	// pad an id search with unrelated releases. A tier whose rows are all dropped counts as empty, so the next tier
+	// (the title search) is asked. Keyword and RSS rows are never asked. The router sets it from the decision engine
+	// (decide.Related). Not part of Key.
+	Related func(Release) bool
 }
 
 // Criteria is Sonarr's SearchCriteriaBase subclass of a series query.

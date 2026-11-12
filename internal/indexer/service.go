@@ -333,7 +333,7 @@ func (s *Service) run(ctx context.Context, ck, key string, sr Searcher, q Query,
 		return
 	}
 	s.log.Info("search", "indexer", key, "kind", sr.Kind(), "type", q.Type, "results", len(res.Releases),
-		"requests", res.Requests, "truncated", res.Truncated, "took_ms", took.Milliseconds())
+		"requests", res.Requests, "unrelated", res.unrelated, "truncated", res.Truncated, "took_ms", took.Milliseconds())
 }
 
 // seadexStandingWriteTimeout bounds storing one SeaDex answer's standing, apart from the search's own deadline.

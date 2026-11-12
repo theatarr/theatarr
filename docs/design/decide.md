@@ -73,6 +73,11 @@ and models three versions with two criteria each.
   7. **Upgrade:** yes or no, with the reason.
      - Yes says "better quality / revision / format score: A over B".
      - No gives the upgrade specification's message, or "not an upgrade: …".
+- **`Related(ctx, release, title, sonarr)`:** whether a release an id search returned is about the title, for the
+  indexer adapters' padding check (indexers.md, "Id searches and padding"). It keeps a release that carries one of
+  the title's ids, else runs the same parse and mapping as `Decide` (`findMovie`; the series parse, `FindSeries` with
+  scene mappings, or a franchise name). A release it refuses is one `Decide` rejects as `UnableToParse`,
+  `UnknownMovie` or `UnknownSeries`.
 - **`Rank(decisions)`:** per version, accepted decisions first, ordered by `profile.Engine.Prioritize` (the arr's
   comparer, with Theatarr's cache tie-break after the format score: docs/design/router.md "Deviations"); then the
   rejected ones. The decision fills the tie-break's cache standing from the release's cache evidence (`Subject.Cached`).

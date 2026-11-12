@@ -24,18 +24,8 @@ func (e *Engine) decideSeries(ctx context.Context, d *Decision, p *Profile, rel 
 	if err != nil {
 		return fmt.Errorf("decide: version %s: %w", v.Key, err)
 	}
-	s := newSeries(t, ver)
-	s.parseTitle = func(title string) *sonarr.ParsedEpisodeInfo { return ParseSeriesRelease(ctx, ver, title) }
-	parsed := s.parseTitle(rel.Title)
-	if parsed == nil || parsed.IsPossibleSpecialEpisode() {
-		if sp := s.parseSpecialEpisodeTitle(parsed, rel.Title, rel.TVDB, rel.IMDb, search); sp != nil {
-			parsed = sp
-		}
-	}
-	if parsed == nil {
-		// v5: a release named by a season's own title (an anime season pack), ParseSeasonTitle (nil in v4).
-		parsed = parseSeriesRelease(ctx, ver, rel.Title, true)
-	}
+	s := seriesFor(ctx, t, ver)
+	parsed := s.parseRelease(ctx, rel.Release, search)
 	if rel.Manual != nil {
 		if parsed == nil {
 			parsed = s.parseTitle(t.Name + ".S01E01")

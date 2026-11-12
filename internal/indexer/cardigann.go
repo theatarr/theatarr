@@ -99,8 +99,12 @@ func (c *cardigannSearcher) Search(ctx context.Context, q Query) (*Result, error
 				continue
 			}
 			answered = true
+			from := len(res.Releases)
 			for _, f := range results {
 				c.addRelease(ctx, res, seen, f, defPrivacy)
+			}
+			if cq.ByID {
+				dropUnrelated(q, res, from)
 			}
 		}
 		if len(res.Releases) > 0 {

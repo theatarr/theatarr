@@ -50,6 +50,25 @@ type Result struct {
 	Shared bool
 	// Notes say what the adapter did that a reader of the output should know (merged, dropped, truncated why).
 	Notes []string
+	// unrelated is how many rows of id requests Query.Related dropped.
+	unrelated int
+}
+
+// dropUnrelated removes the rows from index from on that q.Related refuses, counting them.
+func dropUnrelated(q Query, res *Result, from int) {
+	if q.Related == nil {
+		return
+	}
+	kept := res.Releases[:from]
+	for _, r := range res.Releases[from:] {
+		if q.Related(r) {
+			kept = append(kept, r)
+		} else {
+			res.unrelated++
+		}
+	}
+	clear(res.Releases[len(kept):])
+	res.Releases = kept
 }
 
 // rssCursorFields keeps only the fields an RSS cursor reads (Result.RSSPage).

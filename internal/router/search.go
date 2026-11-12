@@ -74,6 +74,34 @@ type searchQuery struct {
 // searchNow is the clock of anime season searches (which episodes have aired).
 var searchNow = time.Now
 
+// relatedRows is the Query.Related of a title's searches: a row of an id request is kept when it is about the title
+// for any target's version (decide.Related).
+func relatedRows(ctx context.Context, t decide.Title, targets []SearchTarget) func(indexer.Release) bool {
+	type check struct {
+		title  decide.Title
+		sonarr string
+	}
+	checks := make([]check, 0, len(targets))
+	for _, target := range targets {
+		c := check{title: t}
+		if target.Title != nil {
+			c.title = *target.Title
+		}
+		if target.Version.Policy != nil {
+			c.sonarr = target.Version.Policy.Sonarr
+		}
+		checks = append(checks, c)
+	}
+	return func(rel indexer.Release) bool {
+		for i := range checks {
+			if decide.Related(ctx, rel, &checks[i].title, checks[i].sonarr) {
+				return true
+			}
+		}
+		return false
+	}
+}
+
 type queryResult struct {
 	result   *indexer.Result
 	releases []indexer.Release
@@ -89,6 +117,8 @@ type queryResult struct {
 // several of a target's queries keeps its best decision (Sonarr's DeDupeDecisions: fewest rejections).
 func SearchRequests(ctx context.Context, eng *decide.Engine, svc *indexer.Service, t decide.Title,
 	targets []SearchTarget) (map[string]*Searched, error) {
+	ctx = decide.WithParseMemo(ctx)
+	related := relatedRows(ctx, t, targets)
 	out := make(map[string]*Searched, len(targets))
 	refs := make(map[string][]searchQuery, len(targets))
 	queries := make([]searchQuery, 0)
@@ -123,6 +153,7 @@ func SearchRequests(ctx context.Context, eng *decide.Engine, svc *indexer.Servic
 			}
 			for _, sq := range plan.forKind(sr.Kind()) {
 				qq := sq.query
+				qq.Related = related
 				if qq.Validate() != nil || !sr.Supports(qq) {
 					continue
 				}
