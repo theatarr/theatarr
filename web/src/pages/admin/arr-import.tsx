@@ -234,7 +234,7 @@ function ImportReport({ r, library, app }: { r: ArrImportReport; library: string
     {items.length || more.length ? <div><p>Not linked:{items.length ? ` ${items.join(" · ")}.` : null}</p>{more.length ? <ul className="list-disc pl-5">{more.map((m, i) => <li key={i}>{m}</li>)}</ul> : null}</div> : null}
     {anyNotLinked(r) ? <p>{ADDED_AS_MISSING}</p> : null}
     <Skipped r={r} />
-    {r.missing_monitored ? <p>{plural(r.missing_monitored, "monitored title still has", "monitored titles still have")} something missing; {r.missing_monitored === 1 ? "it is" : "they are"} in <Link className="underline" to="/wanted">Wanted</Link>.</p> : null}
+    {r.missing_monitored ? <p>{plural(r.missing_monitored, "monitored title still has", "monitored titles still have")} something missing. <Link className="underline" to="/wanted">Wanted</Link> lists what can be searched now.</p> : null}
     {r.error ? <p role="alert">The import stopped early: {r.error}</p> : null}
     <p className="text-muted-foreground">Nothing was changed in {app}. Running the import again adds only new titles and links files that are still missing; it never changes monitoring you set in Theatarr. To keep adding titles that are added to {app} later, add it as a list under <Link className="underline" to="/collections/lists">Collections › Lists</Link>.</p>
     <Problems r={r} />

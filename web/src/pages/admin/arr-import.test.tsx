@@ -122,7 +122,7 @@ describe("arr import", () => {
     expect(text).toContain("Not linked: 2 ordinary files (for example from Usenet or a local disk) · 1 link whose file is gone from the debrid mount.");
     expect(text).toContain("1 file whose episodes Theatarr could not match.");
     expect(text).toContain("1 title failed (see the list).");
-    expect(text).toContain("3 monitored titles still have something missing; they are in Wanted.");
+    expect(text).toContain("3 monitored titles still have something missing. Wanted lists what can be searched now.");
     expect(text).toContain("Nothing was changed in Radarr.");
     expect(screen.getByText("Ordinary file (Usenet or local disk)")).toBeTruthy();
     expect(screen.getByText("Failed: TMDb has no such movie")).toBeTruthy();
