@@ -126,6 +126,13 @@ type adoptFile struct {
 	size                                                     int64
 	score                                                    sql.NullInt64
 	cutoffNotMet                                             bool
+	// episodes are the series episodes the file holds (our ids) and eps naming's view of them.
+	episodes []int64
+	eps      []naming.Episode
+	// formatsKey is the library {Custom Formats} are decided for; "" is the followed version.
+	formatsKey string
+	// source is the link's provenance (link.adopted_from); "" is the arr instance and path.
+	source string
 }
 
 // Adopt starts a parallel version from links of its own to its followed version's arr files.
@@ -173,6 +180,9 @@ func (l *Library) Adopt(ctx context.Context, o AdoptOptions) (*AdoptReport, erro
 		}
 		f := &files[i]
 		rep.Files++
+		if f.episodes, f.eps, err = adoptEpisodes(ctx, l.st.Reader(), f.id); err != nil {
+			return rep, err
+		}
 		dir, err := l.adoptOne(ctx, o, vp, vn, root, f, rep)
 		if err != nil {
 			return rep, err
@@ -245,60 +255,21 @@ func (l *Library) adoptOne(ctx context.Context, o AdoptOptions, vp *policy.Versi
 		rep.skip(f.path, AdoptNoVersion, "the arr import has not given this title the parallel version yet")
 		return "", nil
 	}
-	// The arr's file: a symlink in the arr's own root (a local directory, read with lstat and readlink only,
-	// bounded: readLinkBounded).
-	ar, err := readLinkBounded(ctx, f.path)
-	if err != nil {
-		return "", fmt.Errorf("library: adopt: %w", err)
-	}
-	if errors.Is(ar.lerr, fs.ErrNotExist) {
-		rep.skip(f.path, AdoptMissing, "")
-		return "", nil
-	}
-	if ar.lerr != nil {
-		rep.skip(f.path, AdoptMissing, ar.lerr.Error())
-		return "", nil
-	}
-	if ar.fi.Mode()&os.ModeSymlink == 0 {
-		rep.skip(f.path, AdoptNotLink, "a regular file: Theatarr links mount content only")
-		return "", nil
-	}
-	if ar.rerr != nil {
-		rep.skip(f.path, AdoptNotLink, ar.rerr.Error())
-		return "", nil
-	}
-	target := ar.target
-	if !filepath.IsAbs(target) {
-		target = filepath.Join(filepath.Dir(f.path), target)
-	}
-	target = filepath.Clean(target)
-	read, ok := l.adoptTarget(target)
-	if !ok {
-		rep.skip(f.path, AdoptOffMount, target)
-		return "", nil
-	}
-	st, err := l.mount.Stat(ctx, read)
-	if errors.Is(err, ErrMountDown) {
-		return "", fmt.Errorf("library: adopt: %w", err)
-	}
-	if err != nil || !st.Mode().IsRegular() {
-		detail := target
-		if err != nil {
-			detail = err.Error()
-		}
-		rep.skip(f.path, AdoptDangling, detail)
-		return "", nil
-	}
-
-	episodes, neps, err := adoptEpisodes(ctx, l.st.Reader(), f.id)
+	target, reason, detail, err := l.adoptSource(ctx, f.path)
 	if err != nil {
 		return "", err
 	}
+	if reason != "" {
+		rep.skip(f.path, reason, detail)
+		return "", nil
+	}
+
+	episodes := f.episodes
 	if vp.Kind == policy.KindSeries && len(episodes) == 0 {
 		rep.skip(f.path, AdoptNoEpisodes, "")
 		return "", nil
 	}
-	p, err := l.adoptPath(ctx, vp, vn, root, f, neps)
+	p, err := l.adoptPath(ctx, vp, vn, root, f, f.eps)
 	if err != nil {
 		rep.skip(f.path, AdoptNaming, err.Error())
 		return "", nil
@@ -409,6 +380,49 @@ func (l *Library) adoptOne(ctx context.Context, o AdoptOptions, vp *policy.Versi
 	return filepath.Dir(p), nil
 }
 
+// adoptSource reads the file to adopt at p: a symlink (a local directory, read with lstat and readlink only, bounded:
+// readLinkBounded) whose target is a file on the mount. It returns the target, or the reason (and detail) the file is
+// skipped; an error when a root or the mount does not answer.
+func (l *Library) adoptSource(ctx context.Context, p string) (target, reason, detail string, err error) {
+	ar, err := readLinkBounded(ctx, p)
+	if err != nil {
+		return "", "", "", fmt.Errorf("library: adopt: %w", err)
+	}
+	if errors.Is(ar.lerr, fs.ErrNotExist) {
+		return "", AdoptMissing, "", nil
+	}
+	if ar.lerr != nil {
+		return "", AdoptMissing, ar.lerr.Error(), nil
+	}
+	if ar.fi.Mode()&os.ModeSymlink == 0 {
+		return "", AdoptNotLink, "a regular file: Theatarr links mount content only", nil
+	}
+	if ar.rerr != nil {
+		return "", AdoptNotLink, ar.rerr.Error(), nil
+	}
+	target = ar.target
+	if !filepath.IsAbs(target) {
+		target = filepath.Join(filepath.Dir(p), target)
+	}
+	target = filepath.Clean(target)
+	read, ok := l.adoptTarget(target)
+	if !ok {
+		return "", AdoptOffMount, target, nil
+	}
+	st, err := l.mount.Stat(ctx, read)
+	if errors.Is(err, ErrMountDown) {
+		return "", "", "", fmt.Errorf("library: adopt: %w", err)
+	}
+	if err != nil || !st.Mode().IsRegular() {
+		detail := target
+		if err != nil {
+			detail = err.Error()
+		}
+		return "", AdoptDangling, detail, nil
+	}
+	return target, "", "", nil
+}
+
 // adoptUncovered reports the holes left when any overlap protects a parallel version's own files.
 func (l *Library) adoptUncovered(ctx context.Context, path string, existing []existingFile, episodes []int64, rep *AdoptReport) error {
 	covered := map[int64]bool{}
@@ -503,7 +517,11 @@ func (l *Library) adoptPath(ctx context.Context, vp *policy.VersionPolicy, vn *V
 	if title == "" {
 		title = f.release
 	}
-	cfs := l.adoptFormats(ctx, vp.Follows, f.titleID, path.Base(f.path), q.Title+properSuffix(f.rev, f.stype), title)
+	formatsKey := f.formatsKey
+	if formatsKey == "" {
+		formatsKey = vp.Follows
+	}
+	cfs := l.adoptFormats(ctx, formatsKey, f.titleID, path.Base(f.path), q.Title+properSuffix(f.rev, f.stype), title)
 	media := mediaInfoFromAPI(f.mi, f.scene, f.orig, f.rel)
 	if vp.Kind == policy.KindMovie {
 		m := &naming.Movie{Title: f.titleName, Year: f.year, ImdbID: f.imdb, TmdbID: f.tmdb}
@@ -636,6 +654,10 @@ func (l *Library) recordAdopted(ctx context.Context, version string, vp *policy.
 	if f.score.Valid {
 		score = f.score.Int64
 	}
+	source := f.source
+	if source == "" {
+		source = f.instance + " " + f.path
+	}
 	now := store.Millis(l.now())
 	return l.refWriteTx(ctx, func(tx *sql.Tx) error {
 		if err := l.linksHeldTx(ctx, tx); err != nil {
@@ -664,7 +686,7 @@ func (l *Library) recordAdopted(ctx context.Context, version string, vp *policy.
 				adopted_from = excluded.adopted_from, adopted_source = NULL, adopted_media = excluded.adopted_media,
 				missing_since = NULL, last_checked_at = excluded.last_checked_at, updated_at = excluded.updated_at
 			WHERE link.title_id = excluded.title_id AND link.download_id IS NULL
-			RETURNING id`, p, target, f.titleID, release, f.quality, score, string(metaJSON), f.instance+" "+f.path,
+			RETURNING id`, p, target, f.titleID, release, f.quality, score, string(metaJSON), source,
 			f.mi, now, now, now).Scan(&linkID)
 		if errors.Is(err, sql.ErrNoRows) {
 			return linkChanged(0, p, target, "the path holds another title's link or one the version imported")
@@ -689,7 +711,7 @@ func (l *Library) recordAdopted(ctx context.Context, version string, vp *policy.
 			return err
 		}
 		if err := l.record(ctx, tx, action{Kind: "link", Mode: "applied", Version: version, LinkID: linkID, Path: p,
-			Target: target, Detail: "adopted from " + f.instance + " " + f.path + note}); err != nil {
+			Target: target, Detail: "adopted from " + source + note}); err != nil {
 			return err
 		}
 		if then != nil {
@@ -766,4 +788,185 @@ func (l *Library) followGate(ctx context.Context, version string, dryRun bool) e
 		}
 	}
 	return nil
+}
+
+// ImportFile is one file of a one-time Radarr/Sonarr import to link into a library.
+type ImportFile struct {
+	TitleID int64
+	// Source is the provenance on the link (link.adopted_from): "<instance label> <the instance's path>".
+	Source string
+	// Path is where Theatarr reads the instance's file (after the import's folder mapping).
+	Path string
+	// The instance's file record. MediaInfo is the instance's mediaInfo object as JSON.
+	RelativePath, Quality, ReleaseGroup, SceneName, Edition string
+	OriginalFilePath, ReleaseType, MediaInfo                string
+	Languages                                               []string
+	Revision, IndexerFlags                                  int
+	Size                                                    int64
+	Score                                                   *int
+	CutoffNotMet                                            bool
+	// Episodes are, for a series, Theatarr's episode ids the file holds.
+	Episodes []int64
+}
+
+// AdoptImported links one title's files into library version: the same rules as adopt (never over a path that is
+// taken, never over the library's own file, mount-backed symlinks only), named by the library's naming.
+func (l *Library) AdoptImported(ctx context.Context, version string, files []ImportFile) (*AdoptReport, error) {
+	if l.runtime != nil {
+		pinned, target := l.runtime(ctx)
+		return target.AdoptImported(pinned, version, files)
+	}
+	ctx = withCutoffTitles(ctx)
+	ctx, err := decide.WithStoredSeaDex(ctx, l.st.Reader())
+	if err != nil {
+		return nil, err
+	}
+	vp := l.pol.Versions[version]
+	if vp == nil {
+		return nil, fmt.Errorf("library: adopt: unknown library %q", version)
+	}
+	if err := l.gate.CheckVersion(version); err != nil {
+		return nil, fmt.Errorf("library: adopt %s: %w", version, err)
+	}
+	rep := &AdoptReport{Version: version, Skipped: map[string]int{}}
+	vn, err := NamingFor(ctx, l.st.Reader(), l.pol, version)
+	if err != nil {
+		return nil, err
+	}
+	rep.Naming = vn.Source
+	root := filepath.Clean(vp.Library)
+	if l.set.MountPath != "" {
+		if err := l.mountHealthy(ctx); err != nil {
+			return nil, fmt.Errorf("library: adopt: %w", err)
+		}
+	}
+	o := AdoptOptions{Version: version}
+	dirs := map[string]bool{}
+	for _, in := range files {
+		f, err := l.importFile(ctx, version, in)
+		if err != nil {
+			return rep, err
+		}
+		rep.Files++
+		dir, err := l.adoptOne(ctx, o, vp, vn, root, f, rep)
+		if err != nil {
+			return rep, err
+		}
+		if dir != "" {
+			dirs[dir] = true
+		}
+	}
+	for _, d := range sortedKeys(dirs) {
+		if err := l.EnqueueScan(ctx, version, d); err != nil {
+			l.log.Warn("library: plex scan not queued", "dir", d, "err", err)
+		}
+	}
+	l.log.Info("library: adopted imported files", "version", version, "files", rep.Files, "linked", rep.Linked,
+		"existing", rep.Existing, "skipped", rep.Skipped)
+	return rep, nil
+}
+
+// importFile builds the adoptFile for one imported file: the title row (as adoptFiles reads it), the library's version
+// id, and the file's episodes by id.
+func (l *Library) importFile(ctx context.Context, version string, in ImportFile) (*adoptFile, error) {
+	langs, err := json.Marshal(in.Languages)
+	if err != nil {
+		return nil, err
+	}
+	if in.Languages == nil {
+		langs = []byte("[]")
+	}
+	f := &adoptFile{titleID: in.TitleID, path: in.Path, rel: in.RelativePath, quality: in.Quality,
+		group: in.ReleaseGroup, scene: in.SceneName, edition: in.Edition, mi: in.MediaInfo, orig: in.OriginalFilePath,
+		langs: string(langs), releaseType: in.ReleaseType, rev: in.Revision, flags: in.IndexerFlags, size: in.Size,
+		cutoffNotMet: in.CutoffNotMet, formatsKey: version, source: in.Source}
+	if in.Score != nil {
+		f.score = sql.NullInt64{Int64: int64(*in.Score), Valid: true}
+	}
+	db := l.st.Reader()
+	err = db.QueryRowContext(ctx, `
+		SELECT COALESCE((SELECT id FROM version WHERE title_id = t.id AND policy_key = ?), 0), t.name, COALESCE(t.year, 0),
+		       COALESCE(t.imdb_id, ''), COALESCE(t.tmdb_id, 0), COALESCE(t.tvdb_id, 0), `+store.SeriesTypeSQL("t")+`
+		FROM title t WHERE t.id = ?`, version, in.TitleID).Scan(&f.followerID, &f.titleName, &f.year, &f.imdb, &f.tmdb,
+		&f.tvdb, &f.stype)
+	if errors.Is(err, sql.ErrNoRows) {
+		return nil, fmt.Errorf("library: adopt: no title %d", in.TitleID)
+	}
+	if err != nil {
+		return nil, err
+	}
+	if f.followerID == 0 {
+		return nil, fmt.Errorf("library: adopt: title %d is not in library %s", in.TitleID, version)
+	}
+	if len(in.Episodes) > 0 {
+		f.episodes, f.eps, err = episodesByID(ctx, db, in.TitleID, in.Episodes)
+		if err != nil {
+			return nil, err
+		}
+	}
+	return f, nil
+}
+
+// episodesByID reads the title's episodes with the given ids: our ids and naming's view of them (as loadFileEpisodes
+// does for an arr file), by season and number.
+func episodesByID(ctx context.Context, db *sql.DB, titleID int64, ids []int64) ([]int64, []naming.Episode, error) {
+	args := []any{titleID}
+	for _, id := range ids {
+		args = append(args, id)
+	}
+	rows, err := db.QueryContext(ctx, `
+		SELECT e.id, e.season, e.number, e.name, COALESCE(e.air_date, ''),
+		       (SELECT n.number FROM episode_number n WHERE n.episode_id = e.id AND n.scheme = 'absolute_tvdb' ORDER BY n.id LIMIT 1)
+		FROM episode e WHERE e.title_id = ? AND e.id IN (`+store.Placeholders(len(ids))+`)
+		ORDER BY e.season, e.number`, args...)
+	if err != nil {
+		return nil, nil, err
+	}
+	defer rows.Close()
+	var out []int64
+	var eps []naming.Episode
+	for rows.Next() {
+		var id int64
+		var e naming.Episode
+		var abs sql.NullInt64
+		if err := rows.Scan(&id, &e.Season, &e.Number, &e.Title, &e.AirDate, &abs); err != nil {
+			return nil, nil, err
+		}
+		if abs.Valid {
+			v := int(abs.Int64)
+			e.Absolute = &v
+		}
+		out = append(out, id)
+		eps = append(eps, e)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, nil, err
+	}
+	sort.Slice(out, func(i, j int) bool { return out[i] < out[j] })
+	return out, eps, nil
+}
+
+// CheckImportFile is adopt's look at one file without writing: "" when it can be linked, else the skip reason.
+func (l *Library) CheckImportFile(ctx context.Context, p string) (reason, detail string, err error) {
+	if l.runtime != nil {
+		pinned, target := l.runtime(ctx)
+		return target.CheckImportFile(pinned, p)
+	}
+	_, reason, detail, err = l.adoptSource(ctx, p)
+	return reason, detail, err
+}
+
+// DirExists reports whether p is a directory, with the bounded read the root checks use (rootread.go).
+func (l *Library) DirExists(ctx context.Context, p string) (bool, error) {
+	if l.runtime != nil {
+		pinned, target := l.runtime(ctx)
+		return target.DirExists(pinned, p)
+	}
+	var ok bool
+	err := rootRead(ctx, p, func() error {
+		fi, err := os.Stat(p)
+		ok = err == nil && fi.IsDir()
+		return nil
+	})
+	return ok, err
 }
