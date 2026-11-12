@@ -32,5 +32,6 @@ export const useProwlarrFeeds = (enabled = true) =>
     enabled,
     retry: false,
     retryOnMount: false,
-    refetchOnWindowFocus: false,
+    // A good list refreshes when the user comes back (they may have added an indexer in Prowlarr); a failed read does not.
+    refetchOnWindowFocus: (q) => q.state.status !== "error",
   });

@@ -407,6 +407,9 @@ func (s *Store) ValidateRoot(ctx context.Context, base *policy.Policy, key, root
 	}
 	section.Roots = []string{root}
 	// The root is refused by its path alone before anything stats it; the rest is bounded.
+	if root == "/" {
+		return RootCheck{}, rootFieldError("root", "directory cannot be the filesystem root")
+	}
 	if err := lexicalMountSeparation(p, root); err != nil {
 		return RootCheck{}, rootFieldError("root", err.Error())
 	}
