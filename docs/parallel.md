@@ -12,7 +12,7 @@ Theatarr. A parallel library is the follower library of its stage 3.
 | Refresh (`theatarr library adopt -refresh`, and after every arr.import) | [migration.md, Adopt and refresh](migration.md#adopt-and-refresh), and [design/library.md (internals)](design/library.md#refresh-theatarr-library-adopt--refresh-and-after-every-arrimport) |
 | Before grabbing: adopt and refresh each follower | [migration.md, Adopt and refresh](migration.md#adopt-and-refresh) and step 5 of [Before the trial](migration.md#before-the-trial) |
 | Plex | Step 3 of [migration.md, Before the trial](migration.md#before-the-trial) |
-| Going live check | [migration.md, stage 4: the go-live check](migration.md#4-the-go-live-check); `theatarr parallel compare` is in [stage 2](migration.md#2-shadow-compare-with-the-arr) |
+| Going live check | `theatarr preflight`; `theatarr parallel compare` is in [migration.md, stage 2](migration.md#2-shadow-compare-with-the-arr) |
 | Cutover for followed libraries | [migration.md, stage 5: hand over clients and Plex, retire the arr](migration.md#5-hand-over-clients-and-plex-retire-the-arr) |
 | How to stop | [migration.md, Stopping or removing a follower](migration.md#stopping-or-removing-a-follower) |
 | Changing a root with links | [migration.md, Changing a root with links](migration.md#changing-a-root-with-links) |

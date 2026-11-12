@@ -619,7 +619,7 @@ Seerr's settings.
   - Edit the existing default server entries in place (that keeps their Seerr ids, which media items store), turn
     **Enable Scan** on, and remove the old anime override rules and any second (anime or 4K) server.
   - Then fix Seerr's stored ids (below): run **Radarr Scan** and **Sonarr Scan** (Settings › Jobs & Cache › Run now)
-    right after repointing, and check with `theatarr migrate seerr-ids`.
+    right after repointing.
   Alias resolution uses only the requesting view's `alias_from`, in order, so overlapping ids from different arr
   instances can name different titles in different views without a migration.
 - **Homepage**: one radarr widget at `http://theatarr:7700/radarr` and one sonarr widget at
@@ -645,17 +645,8 @@ Sonarr's series 35 may be another Sonarr's series 35, a different show, in `/son
 
 So Seerr uses no wrong-title id for anything that changes state, and its own scan replaces the ids. The fix is the
 cutover step above, not a change to `resolve`: run both scans right after repointing (by default they run at 04:00
-and 04:30, before the 05:00 availability sync), then `theatarr migrate seerr-ids` to confirm. Titles the views do not
+and 04:30, before the 05:00 availability sync). Titles the views do not
 hold keep their old ids and stay unresolved (404), which is harmless.
-
-`theatarr migrate seerr-ids -seerr URL,KEYNAME` ([migration.md](../migration.md#seerr-ids)) reads Seerr's servers and
-media with GET only and asks the view of each id's flavour (`-radarr-view`, default `/radarr`; `-sonarr-view`,
-default `/sonarr`) through the running service, exactly as the availability sync asks it: `GET movie/{id}` or
-`series/{id}`. Both the plain and the 4K id are checked: availability sync sends an id to every server of its class
-whatever `serviceId` says. Each id is **ok** (the view's title has the item's TMDb id, or TVDB id for a series),
-**wrong title**, **unresolved** (404) or **unverifiable** (a series Seerr has no TVDB id for, answered without a TMDb
-id); ids whose server entry is gone are counted. It exits 1 on a wrong title. Before the switch it lists what the
-scans will fix; after them it should list no wrong title.
 
 ## Manual import and queue holds
 

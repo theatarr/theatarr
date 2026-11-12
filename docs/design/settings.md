@@ -328,7 +328,7 @@ profiles, formats and format sets, indexers, providers, clients, views, budgets,
 sync, shadow, library, router, playlists, notify and UI (`examples/policy/*.yaml`; the section fields are in
 `internal/policy/policy.go`). Per-title overrides are a separate format under `metadata.overrides_dir`, not root
 policy. These files are import input, not live settings: serve and the CLI commands that need settings (`theatarr
-search`, `router`, `shadow`, `golive` and the others using `loadCommandPolicy`) read the stored generation from the
+search`, `router`, `shadow` and the others using `loadCommandPolicy`) read the stored generation from the
 database, over the policy directory for relative data paths, and refuse with "no settings yet" before the first
 generation. Only data files such as the overrides are read from the directory at run time.
 

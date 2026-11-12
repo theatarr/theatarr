@@ -91,7 +91,7 @@ Around the pipeline:
 | `internal/importarr`, `internal/migration` | Read existing arr instances (GET only) into the database; the guided migration ([import-arr.md](import-arr.md)) |
 | `internal/torrents` | The provider torrent manager: usage, backups, restores, deletes a person picks ([torrents.md](torrents.md)) |
 | `internal/jobs` | The persistent job queue: leases, retries, schedules ([jobs.md](jobs.md)) |
-| `internal/health`, `internal/golive`, `internal/preflight` | Health checks, readiness and the go-live checks ([readiness.md](readiness.md)) |
+| `internal/health`, `internal/preflight` | Health checks and readiness ([readiness.md](readiness.md)) |
 | `internal/auth` | Users, sessions, API keys and permissions ([users.md](users.md)) |
 | `internal/store` | SQLite: one writer connection, a reader pool, goose migrations, backups |
 
@@ -116,15 +116,13 @@ Nothing writes to a provider or the library until it is turned on, step by step:
   ([torrents.md](torrents.md)).
 - **Read-only sources.** The arr importers use GET only, and the debrid mount is only read.
 
-The go-live checks (`theatarr golive check`) walk one version from shadow to grabbing ([../golive.md](../golive.md)).
-
 ## Running it
 
 `theatarr serve` runs everything in one process: the HTTP server (native API, views, UI, `/healthz`, `/readyz`,
 `/metrics`), the job workers, the acquirer, the router's poller, the library import, the shadow runner and the
 egress check. The default port is 7700. The data directory (`/data` in the container) holds the database, the
 first-start admin password file, the Cardigann definitions and the torrent-list backups. One-shot commands
-(`theatarr search`, `decide`, `import-arr`, `providers`, `torrents`, `preflight`, `golive`) work on the same
+(`theatarr search`, `decide`, `import-arr`, `providers`, `torrents`, `preflight`) work on the same
 database.
 
 ## Settings

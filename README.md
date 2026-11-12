@@ -168,10 +168,9 @@ See [docs/quickstart.md](docs/quickstart.md#6-a-first-library).
 title link and shows the chosen release, runners-up, rejections and suspect flags. **Admin › Reviews** collects what waits for you: quality updates, anime
 mappings, indexer definitions and flagged decisions. See [docs/journal.md](docs/journal.md).
 
-**Going live.** When the decisions look right, run `theatarr golive check -library KEY`, set the library to
+**Going live.** When the decisions look right, run `theatarr preflight`, set the library to
 **Active**, turn on **Allow downloads for this library**, **Write library links** and **Allow new downloads**, and
-watch the first imports. See [docs/quickstart.md](docs/quickstart.md#9-go-live-deliberately) and
-[the go-live check](docs/migration.md#4-the-go-live-check).
+watch the first imports. See [docs/quickstart.md](docs/quickstart.md#9-go-live-deliberately).
 
 **Requests.** Add Theatarr to Seerr or Overseerr as a Radarr or Sonarr server: the view path as URL base (for
 example `/v/movies/radarr`) and an API key from **Users & access**. See
@@ -181,10 +180,8 @@ example `/v/movies/radarr`) and an API key from **Users & access**. See
 sit behind one view under **Settings › Connected apps**. The [arr-to-Theatarr map](docs/arr-map.md) shows where each
 familiar arr page lives.
 
-**Migrating an arr stack.** **Admin › Advanced › Sonarr/Radarr migration**, or `theatarr migrate inspect | plan |
-apply | verify`, reads your existing Sonarr, Radarr, Prowlarr, Seerr and Recyclarr setup and adds it disabled or in
-shadow. A follower library then runs beside each arr until you hand over clients and Plex. See
-[docs/migration.md](docs/migration.md), the one guide from inspecting the stack to retiring the arr.
+**Migrating an arr stack.** **Admin › Import from Sonarr/Radarr** brings one instance's titles, monitoring and files
+into a library, once. See [docs/migration.md](docs/migration.md).
 
 ## Configuration
 
@@ -198,7 +195,7 @@ and exports YAML under **Admin › Advanced › YAML settings › Import & expor
 a directory of YAML files.
 
 The environment sets what the service needs before it can read its database. Most variables have a matching
-`theatarr serve` flag (`theatarr serve -h`); `THEATARR_TRASH`, `THEATARR_FORCE_OFF`, `THEATARR_PUBLIC_URL`,
+`theatarr serve` flag (`theatarr serve -h`); `THEATARR_TRASH`, `THEATARR_FORCE_OFF`,
 `THEATARR_TVDB_PIN` and `TZ` have no `serve` flag and are read from the environment:
 
 | Variable | Default (image) | What |
@@ -217,7 +214,6 @@ The environment sets what the service needs before it can read its database. Mos
 | `THEATARR_WORKERS`, `THEATARR_WORKERS_RESERVED` | `2`, `1` | Job worker slots, and extra slots only searches and imports may use |
 | `THEATARR_RETENTION_DAYS`, `THEATARR_RETENTION_RUN_DAYS` | `180`, `30` | Days of history and of sync runs kept; `0` keeps them |
 | `THEATARR_MOUNT_HELPER` | `true` | Run calls on the debrid mount in helper processes that are killed when a call hangs |
-| `THEATARR_PUBLIC_URL` | unset | Theatarr's address as clients reach it, used in the client steps of `golive check` and `migrate verify` |
 | `THEATARR_TVDB_PIN` | unset | The subscriber PIN for a TVDB key that needs one (a user-supported key); other TVDB keys need none |
 | `TZ` | UTC | Time zone; the nightly backup runs at 03:00 local time (`-backup-hour`) |
 

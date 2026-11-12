@@ -17,7 +17,7 @@ import (
 //
 // It is one settings save: one generation and one confirmation, which lists the activation, the grab switch and
 // each global switch it turns on. An install that migrates from an arr (import.arr holds an instance) is refused:
-// there the library starts in shadow and goes live through the go-live checks.
+// there the library starts in shadow and goes live deliberately.
 
 type setupStartBody struct {
 	Generation        *int64          `json:"generation"`

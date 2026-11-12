@@ -173,17 +173,3 @@ has been broken, "torrent has no video upstream" where that is the cause, the li
 The list only shows the report: opening it scans nothing and repairs nothing. The repair sweep needs **Write
 library links** on and an Active library. To run it by hand, see
 [restore.md](restore.md#restore-from-the-command-line) (`library dangling -scan`, then `library relink -dry-run`).
-
-## `golive check` skips or fails the agreement line
-
-**Symptom:** `theatarr golive check -library <library>` shows the shadow **window** and **agreement** lines as INFO,
-"no arr feeds <library>", or fails them with "the shadow runner has not run" or "no arr grabs".
-
-**Cause:** the agreement line compares the library's decisions with the grabs of a Sonarr or Radarr that feeds it.
-A library with no arr behind it has nothing to compare with, so both lines are skipped (INFO) and do not fail the
-check: there is no evidence either way. A library that an arr feeds fails them until the shadow runner has run and
-has arr grabs to compare.
-
-**Fix:** with no arr, nothing is broken. Read the library's decisions in the decision journal instead, make sure
-every other line passes, and go live once the decisions look right. If you are moving from an arr, add it under
-migration so the check has grabs to compare, and let it run for the window ([migration.md](migration.md#2-shadow-compare-with-the-arr)).

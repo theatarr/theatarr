@@ -115,7 +115,7 @@ versions:
 
 Kept for client-routed versions: the router and Grab gates, blocklist and re-search, the import's mount, root and probe checks.
 
-Owned by the client, stated in help and the go-live check (a WARN for a client-routed version): cached-only and
+Owned by the client, stated in help: cached-only and
 uncached downloads, provider order and fallback, pacing and budgets, Real-Debrid file selection, stall handling.
 Theatarr's `cached_only`, provider pacing, 451 holds, own-add proof and stall delete do not apply to these adds.
 

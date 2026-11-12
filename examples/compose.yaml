@@ -30,6 +30,5 @@ services:
       TZ: Etc/UTC                      # the nightly backup runs at 03:00 in this zone
       # THEATARR_TRASH: /config/trash  # the optional TRaSH-Guides checkout above
       # Optional:
-      # THEATARR_PUBLIC_URL: http://theatarr.example.com:7700   # Theatarr's address as clients reach it
       # THEATARR_COOKIE_SECURE: always                          # behind an HTTPS reverse proxy
       # THEATARR_FORCE_OFF: router,library,notify               # keep downloads, library writes and notifications off

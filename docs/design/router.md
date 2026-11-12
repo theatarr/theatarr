@@ -27,8 +27,7 @@ The router writes to a provider (adds a magnet, selects Real-Debrid files) only 
    decides them again (one page per feed, at most 1,000 items). User-invoked searches (interactive, arr commands) still run and
    their routes are dry runs. With DB settings it is edited in the versions editor; turning it on for an active
    version is a confirmed change, turning it off never needs confirmation. Going live sets it together with
-   `mode: active` (docs/golive.md; there is no switch command). `theatarr router status` shows it (GRAB), and
-   `theatarr golive check` warns about an active version with grab off while `router.enabled` is true.
+   `mode: active` (there is no switch command). `theatarr router status` shows it (GRAB).
 
 `Router.Gate` is that rule (`Policy.Grabs`), and every write passes it last: the add in `Route`, and the file
 selection in `Poll`. A router of an older settings generation also asks the published runtime's gate
@@ -1572,9 +1571,8 @@ An accepted offer to a target the router gate refuses (`router.enabled` off, or 
 next offer or six-hour sweep once the gate is open for the target; while it stays shut nothing is decided or queued
 again. After the flip the planned offers are paced: one offer pass routes at most
 `OfferPlannedPerPass` (20) planned offers, the rest wait for the next pass, and a planned offer not offered again for
-`OfferPlannedExpiry` (7 days) is declined `planned_expired` instead of routed. `theatarr golive check` reports how
-many planned offers wait for the version and how many the first sweep would route (`TestPlannedOffersPacedPerSweep`,
-`TestPlannedOffersExpire`, `golive.TestGrabAndPlannedOffers`). Migration 00069 turns `routed` rows that made no download of the target for that hash (accepted while the
+`OfferPlannedExpiry` (7 days) is declined `planned_expired` instead of routed (`TestPlannedOffersPacedPerSweep`,
+`TestPlannedOffersExpire`). Migration 00069 turns `routed` rows that made no download of the target for that hash (accepted while the
 router was off) into `planned`. Tests: `TestOfferArrIndexerMatchedByName`, `policy.TestIndexerByName`,
 `TestOfferWhileGateShutIsRetried`, `TestOfferGateRetryMigration`.
 
@@ -1652,8 +1650,7 @@ grab (`TestQueuedApprovedRouteRunsAfterUpgrade`).
 Spec: `docs/design/external-clients.md`. A version with `add_via: client` sends its grabs to its
 `client` (a `kind: decypharr` client; qBittorrent Web API, `internal/qbit`) instead of adding to the providers.
 The default, `add_via: providers`, is unchanged. A client-routed version lists no providers; the client picks its
-own debrid account, so `router.cached_only`, the providers' pacing and `stalled_after` do not apply to it
-(`theatarr golive check` warns about this).
+own debrid account, so `router.cached_only`, the providers' pacing and `stalled_after` do not apply to it.
 
 - **Rows.** The download row sets `download.client` (migration 00108) and keeps `provider` NULL, so every provider
   path (`pollSweeps`, `checkStuck`, provider deletes, the unsettled-adds check, cap accounting) passes it over.
@@ -1691,8 +1688,7 @@ own debrid account, so `router.cached_only`, the providers' pacing and `stalled_
   answers again.
 - **Safety.** Nothing deletes from a client: Dismiss, failure, expiry and replacement only end Theatarr's row.
   `router.ready_timeout` still applies. The gateway counts the client as a `client` target, and its password is
-  redacted from logs. The router switch's confirmation names the client of a client-routed version, and
-  `theatarr golive check` runs no provider `cached_only` check for it. Changing `add_via` on an active version needs confirmation in the settings.
+  redacted from logs. The router switch's confirmation names the client of a client-routed version. Changing `add_via` on an active version needs confirmation in the settings.
 - **Tests.** `internal/router/client_test.go` (fake API: `internal/qbit/qbittest`), `internal/qbit/qbit_test.go`,
   and `internal/e2e` `TestClientRoutedMovie`: one grab through the fake API to an imported link on the fake mount.
 
@@ -1772,5 +1768,5 @@ finds grabbing off by then waits the same way (`TestGatedResearchRunNotASearch`)
 (`router.wanted.per_hour` defers them like any re-search). Other re-searches are
 dropped while off. Nothing is deleted: rows keep their history, `content_provider`
 ownership is untouched, and nothing is sent to any provider. Manual rows need a fresh selection by a person. Rows
-past `queued` (adding, added, downloading) are not touched. Runbook: [golive.md](../golive.md#before-the-trial), step 5
+past `queued` (adding, added, downloading) are not touched. Runbook: [migration.md](../migration.md#before-the-trial), step 5
 (before `router.enabled: true`).

@@ -521,7 +521,7 @@ stat, lstat, readlink and listings only, as plain calls (they read where Theatar
 header probes, head and range reads and symlink resolution there are refused (`ErrNotOnMount`), and so is a relative path. This is
 simpler than a list of allowed local roots and keeps Theatarr's own goroutines off every path the guard sees
 (`TestMountHelperRunsPathsOutsideRoot`). `theatarr serve --mount-helper=false` (env `THEATARR_MOUNT_HELPER=false`) runs every
-call in Theatarr under that guard, for debugging. The CLI commands (`theatarr library ...`, `theatarr golive`, `theatarr health`) run
+call in Theatarr under that guard, for debugging. The CLI commands (`theatarr library ...`, `theatarr health`) run
 their calls in-process too: they end when they are done.
 
 **The guard** (both ways):

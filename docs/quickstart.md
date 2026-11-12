@@ -199,7 +199,7 @@ source for all libraries). Each form can test the values before saving (a probe 
 check); a test is not required. Catalog and moved indexers get a request budget of their own, linked Prowlarr feeds
 share one (`prowlarr`, 60 a minute); built-in sources get none automatically (assign one if you want it). Setup
 counts an indexer as done once it is enabled; a Torznab or DMM indexer also needs its API key, while Torrentio,
-Zilean, SeaDex and catalog sites need none. Setup's steps, its **Off until set up** list and `golive check`'s
+Zilean, SeaDex and catalog sites need none. Setup's steps, its **Off until set up** list and the
 SetupCheck all apply this rule.
 
 A built-in source needs its **Service URL**. The form for a new Torrentio or SeaDex indexer starts with the public
@@ -380,16 +380,14 @@ downloads are on and so are the two global switches. Watch it as in item 3 below
 library created as Watch only.
 
 For a fresh library, read its decisions first: **Activity › Decision journal** (**Open the decision journal** in Setup)
-shows what it would have grabbed and why ([journal.md](journal.md)). Then run preflight and the go-live check:
+shows what it would have grabbed and why ([journal.md](journal.md)). Then run preflight:
 
 ```sh
-docker compose exec theatarr theatarr golive check -library movies
+docker compose exec theatarr theatarr preflight
 ```
 
-The check exits 1 when a line fails. On a library that no arr feeds, the shadow **window** and **agreement** lines
-read INFO ("no arr feeds movies: nothing to compare, skipped"): there are no arr grabs to compare with, so they do
-not fail the check. Read the decision journal instead, and go live deliberately once the decisions look right.
-[migration.md](migration.md#4-the-go-live-check) says which settings page each key the check names is on.
+It exits 1 when a line fails; each line names the settings page to fix it on. Go live deliberately once the
+decisions look right.
 
 1. **Settings › Libraries:** set the library to **Live** (with **Don't download for this library** unticked),
    reviewing each confirmation.
@@ -473,7 +471,7 @@ arr feeds, after you confirm the list. Setup stays available from Settings after
 ## More
 
 - [migration.md](migration.md): moving an existing Sonarr/Radarr, Prowlarr, Seerr and Recyclarr setup into Theatarr:
-  the plan, shadow, follower libraries, the go-live check, client and Plex handover, rollback
+  the one-time import, shadow, follower libraries, client and Plex handover, rollback
 - [restore.md](restore.md): backups, restore and upgrades
 - [mcp.md](mcp.md): set up and run Theatarr from an MCP client
 - [design/settings.md (internals)](design/settings.md): the settings database and API, presets and profiles

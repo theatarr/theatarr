@@ -168,7 +168,7 @@ docker tag theatarr:local theatarr:previous    # built from source only; a relea
 Note the set name and keep it out of nightly pruning for the rollback window (copy it elsewhere). Keep the old
 policy directory too, if you bind one. Then set `THEATARR_VERSION` to the new release and restart (`docker compose up -d`; built from source: rebuild
 with `docker compose up -d --build`), wait for
-`/readyz`, and run `migrate status` and `errors list -status open` as in step 5, then `theatarr golive check`. Read
+`/readyz`, and run `migrate status` and `errors list -status open` as in step 5, then `theatarr preflight`. Read
 the startup logs and **System › Status** before you go on. A ready image is no reason to turn grabbing on.
 
 To roll back: stop the service, restore the **pre-upgrade set with the old image** (step 3, with

@@ -503,7 +503,7 @@ list projection of media facts).
 | Settings | `/admin/settings` | Search and task pages below. |
 | Users & access | `/admin/users` | Users, roles, permissions, sessions and API/view keys. |
 | Advanced | `/admin/advanced` | Exactly Sonarr/Radarr migration, YAML settings, Settings history and Request limits. |
-| Sonarr/Radarr migration | `/admin/advanced/arr` | Instances; Migrate (`/migrate`), Comparison (`/comparison`, detail `/:id`) and Import runs (`/imports`). Comparison detail shows candidate formats, scores, rejection reasons and arr/search/RSS decisions in React. |
+| Sonarr/Radarr migration | `/admin/advanced/arr` | Instances; Comparison (`/comparison`, detail `/:id`) and Import runs (`/imports`). Comparison detail shows candidate formats, scores, rejection reasons and arr/search/RSS decisions in React. |
 
 Two admin-only screens live outside `/admin`, beside the pages they belong with:
 
@@ -874,13 +874,6 @@ from them carries a header comment naming the source repo, path, commit and lice
 [`web/THIRD_PARTY.md`](../../web/THIRD_PARTY.md) (Scryer GPL-3.0, Seerr MIT, shadcn/ui MIT).
 
 ## 10. Admin workflows
-
-### Migration wizard
-
-**Admin › Advanced › Sonarr/Radarr migration › Migrate** (Setup links to the one-time import instead) is a keyboard-accessible, phone-width wizard for
-source inspection, grouped migration gaps, saved plans, selected steps, confirmed apply with backup checkpoints,
-and verification. It reuses Setup's fields and the shared confirmation dialog; source keys stay in memory and only
-go to inspect. See [migration.md](../migration.md#in-the-ui) for resume, rollback and the later shadow-first handover.
 
 ### Manual import
 
