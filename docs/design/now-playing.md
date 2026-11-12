@@ -65,7 +65,7 @@ targets resolved. The target's path under the release root (`<all_dir>/<folder>/
 `link.target`, written as Theatarr writes it (`link_path/<all_dir>/...`), not to the link path. That way a Plex
 library that still points at the arr roots finds the same link. If that fails, the link whose path is Plex's file is
 used. When several versions link the same target, the one whose root (`versions[k].library`,
-`library.versions[k].roots`), or the root of the version it follows, holds Plex's file is the one playing; when that
+`library.versions[k].roots`) holds Plex's file is the one playing; when that
 does not decide it, the source lists every version sharing the target. The link gives the title, its versions, release
 and quality, its episodes and, through `content_file`, the content with its hash and the providers in
 `content_provider` whose state is `present` (an `absent` provider is neither listed nor counted for single copy). Without a link the release folder is looked up as

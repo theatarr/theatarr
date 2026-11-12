@@ -67,7 +67,7 @@ Accounting only: a purpose changes no limit, budget or share.
 | Purpose | Set by |
 |---|---|
 | `interactive` | `Acquirer.InteractiveMany`: the releases list and the arr views' interactive search |
-| `wanted` | An acquire run (`run`, `runFanout`) for something missing: wanted runs, search commands, add-time, follow-up and re-searches |
+| `wanted` | An acquire run (`run`, `runFanout`) for something missing: wanted runs, search commands, follow-up and re-searches |
 | `upgrade` | An acquire run with reason `cutoff`, or a run for a movie that has a file or for episodes that each have one (`searchPurpose`, `held`); a shared search is `upgrade` only when every target it serves is one |
 | `rss` | The RSS sync (`shadow` `rssPages`) |
 | `shadow` | The shadow comparison's own search for an arr grab (`shadow` `searchTitle`) |

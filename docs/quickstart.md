@@ -255,7 +255,7 @@ the indexers it searches and the providers it adds to. **Setup** builds the firs
 
    An install that migrates from Sonarr/Radarr (its settings hold an arr instance, `import.arr`) has no start
    button: there it is **Review**, then **Create library**, always as Watch only, and the library goes live as
-   [migration.md](migration.md#3-a-follower-library-beside-the-arr) describes.
+   [migration.md](migration.md#3-a-live-library-beside-the-arr) describes.
 
 A **Watch only** library reads **Preview only**. It decides what
 it would grab and records that in the database for comparison. It adds nothing to debrid and writes nothing to the
@@ -270,7 +270,7 @@ The editor there has two things Setup does not ask for:
   nothing in Seerr or an arr client. A release from before this field cannot load settings that hold a name; clear
   the names before you go back to one.
 - **Advanced**, at the end of **Where**: **Don't download for this library** (Live libraries only), **Write
-  roots**, **Send grabs to**, **Client** and **Follows**. A debrid library that links into its own root needs none of
+  roots**, **Send grabs to** and **Client**. A debrid library that links into its own root needs none of
   them. The section starts open when the library already uses one of them.
 
 Each library is **Watch only** or **Live**, chosen in its row on **Settings › Libraries** or at the top of its
@@ -278,7 +278,7 @@ editor. Going **Live** asks for a confirmation first; going back to Watch only s
 and links nothing. Live searches, downloads and links. A Live library with **Don't download for this library**
 ticked reads **Live, downloads off**: nothing is downloaded for it; RSS checks and manual searches may still record
 decisions. Beside the control, the row says when a global switch holds a Live library back, for example **Live,
-paused**. A library another library follows stays Watch only.
+paused**.
 
 **Pause**, at the top of every admin page, turns **Allow new downloads** and **Write library links** off or on
 together. Turning it off (resuming) asks for the same confirmation as turning the two switches on. When only one of them is off it reads **Custom** and links
@@ -471,7 +471,7 @@ arr feeds, after you confirm the list. Setup stays available from Settings after
 ## More
 
 - [migration.md](migration.md): moving an existing Sonarr/Radarr, Prowlarr, Seerr and Recyclarr setup into Theatarr:
-  the one-time import, shadow, follower libraries, client and Plex handover, rollback
+  the one-time import, shadow, a Live library beside the arr, client and Plex handover, rollback
 - [restore.md](restore.md): backups, restore and upgrades
 - [mcp.md](mcp.md): set up and run Theatarr from an MCP client
 - [design/settings.md (internals)](design/settings.md): the settings database and API, presets and profiles

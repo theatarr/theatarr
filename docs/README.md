@@ -11,7 +11,7 @@ Start with the task you have. A **library** is what settings keys and API fields
 | [Not supported yet](not-supported.md) | What Theatarr does not do yet (usenet, real torrent clients, Jellyfin and Emby, ...) and the workarounds |
 | [Troubleshooting](troubleshooting.md) | A restarting container, TMDb off, no profile, a Watch only library that does nothing, a Live library that downloads nothing |
 | [Arr-to-Theatarr map](arr-map.md) | Where each familiar Sonarr, Radarr, Prowlarr and Recyclarr page lives |
-| [Moving from Sonarr and Radarr](migration.md) | The one-time import from an arr, and the staged path: shadow, a follower library beside the arr, client and Plex handover, stop switches and rollback |
+| [Moving from Sonarr and Radarr](migration.md) | The one-time import from an arr, and the staged path: shadow, a Live library beside the arr, client and Plex handover, stop switches and rollback |
 | [Decision journal](journal.md) | Reading what Theatarr decided and why, and correcting it |
 | [Backup and restore](restore.md) | Backup sets, restore, upgrades and image rollback |
 | [MCP](mcp.md) | Connect an MCP client to set up and check an install |

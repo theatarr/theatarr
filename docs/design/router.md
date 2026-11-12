@@ -18,10 +18,9 @@ The router writes to a provider (adds a magnet, selects Real-Debrid files) only 
    are a settings section that applies on save (the poll and wanted loops restart on a changed interval).
 2. The version's `mode` is `active`.
 3. The version's `grab` is `true`. It defaults to false, so a policy without the key grabs nothing.
-   It is read by this gate only: an active version with grab off still imports, refreshes from its arr
-   (`library.FollowerGrabs` is `Policy.Grabs`) and links; its routes are recorded as `disabled` dry runs
-   (`ErrNoGrab`). The automatic searches (wanted loop, add-time searches, re-searches) run only for the versions this
-   gate lets grab (`Policy.SearchVersions`); add-time intents for such a version wait until grab is on. RSS still
+   It is read by this gate only: an active version with grab off still imports and links; its routes are recorded
+   as `disabled` dry runs (`ErrNoGrab`). The automatic searches (wanted loop, re-searches) run only for the versions
+   this gate lets grab (`Policy.SearchVersions`). RSS still
    routes an active version's picks with grab off: the feeds are read for the shadowed versions anyway, and the
    "would add" dry-run plans are the evidence for turning grab on. Those items are not marked seen, so each sync
    decides them again (one page per feed, at most 1,000 items). User-invoked searches (interactive, arr commands) still run and
@@ -746,8 +745,8 @@ The wanted loop takes a missing episode as soon as it has aired, usually before 
 nothing, no route runs, so nothing above applies and the loop takes the item again only after `again_after` (a day).
 With the switch on, a search that ends with nothing accepted starts the follow-up chain for its target's new content
 when it is a missing search (not an upgrade search) started by the wanted loop's own selection or by the Search now
-queue. A manual search, a search on add, an add-time search of a follower, and a re-search's or a follow-up's own
-search start none. The run row cannot tell a loop search from an add-time one, so the search job's payload carries the
+queue. A manual search, a search on add, and a re-search's or a follow-up's own search start none. The run row
+cannot tell a loop search from a search on add, so the search job's payload carries the
 mark (`retry_new`, left out when unset; set only while the switch is on) and the switch is read again when the search
 ends. It runs like the chain above: the same steps (1, 2, 4, 8 ... hours after the empty search, while the content
 is new), stops and `per_hour` charge.
@@ -765,17 +764,15 @@ default has it on; one that had turned it off must turn it off again (an off swi
   any other).
 - Every reader of the run history that decides for an ordinary search leaves those runs out, whatever their
   outcome (searched, partial, no answer, skipped, still queued): `again_after` for the wanted loop and for a
-  re-search after a failure, the loop's oldest-attempt-first order, an add-time intent's "searched already", a
-  Search now request's "a search of it is queued or running" (so a request is never dropped for a chain's search;
+  re-search after a failure, the loop's oldest-attempt-first order, a Search now request's "a search of it is queued or running" (so a request is never dropped for a chain's search;
   the two may then both search the target), and the number of unanswered searches that sets when a re-search is
   asked for again. The chain's own searches asked for again count the chain's unanswered runs only.
 - An install with the switch off reads the run history with the query plans of a build without the
   switch, for every query that build runs, and adds three small reads (below). The chain's mark is in no index, so
-  with the switch off the two readers an index answers alone (the loop's "last searched" and an add-time intent's
-  count of unanswered searches) run their query without the switch, and leave the chain's runs out only for the
+  with the switch off the reader an index answers alone (the loop's "last searched") runs its query without the
+  switch, and leave the chain's runs out only for the
   versions a chain has a request for in the job table. Finding those versions is the first added read: every kept
-  re-search job (`acquire.research`), once for each "last searched" and once for a drain pass of the add-time
-  intents in which an intent counts unanswered searches (the first such intent reads it for the pass). The nightly
+  re-search job (`acquire.research`), once for each "last searched". The nightly
   prune deletes finished jobs once they finished more than 14 days ago (nothing else deletes jobs).
   Limit: with the switch off, once that prune has removed the last request of a version's chains (the first night
   after it finished or was cancelled 14 days before), the searches those chains made count for these two readers
@@ -830,12 +827,11 @@ Known limits of the switch:
 - A search already running when the switch is turned off finishes under the old setting (it may ask the indexers
   and queue a step, which then does nothing on this build).
 - With the switch off, a chain's searches count as ordinary searches of their targets for the loop's "last
-  searched" and an add-time intent's retry count once the nightly job prune has removed the version's last chain
+  searched" once the nightly job prune has removed the version's last chain
   request, which it does the first night after that request finished or was cancelled 14 days before, not at the
   14-day mark itself (above).
 - An install with the switch off still does three reads a build without it does not: every kept
-  re-search job for each "last searched" and once for a drain pass of add-time intents that counts unanswered
-  searches; the run table once a night when it holds no chain run; and the queued re-search requests and queued
+  re-search job for each "last searched"; the run table once a night when it holds no chain run; and the queued re-search requests and queued
   search jobs at start and with every published settings generation (above). None of them writes.
 - A chain's run left queued or searching without a queued or running search job is not ended by turning the
   switch off unless a queued job of a chain is found with it (above). It is never searched.
@@ -851,7 +847,7 @@ still marked running) is run by the older build when its lease expires. Tests: `
 link dead (`docs/design/library.md` "Relink and verify": two misses at least 30 min apart, the mount healthy, not within
 zurg's repair grace, and no provider folder holds the hash, since relink repoints by hash to any provider first), the
 library queues one `acquire.research` job in the dead mark's transaction for each of the link's versions the library
-gate lets write (a version the link shares that is shadow, followed or not listed gets none): the movie, or the dead
+gate lets write (a version the link shares that is shadow or not listed gets none): the movie, or the dead
 link's own episodes, keyed per version, title and episodes so a pending one is not queued twice. It runs through the
 follow-up path with the same stops as `fresh`, without the freshness rule:
 - nothing while `router.enabled` or grab is off, the version is not active, or the library no longer writes for it
@@ -859,7 +855,7 @@ follow-up path with the same stops as `fresh`, without the freshness rule:
   before it asks any indexer or provider, and ends skipped when one turned off in between (this recheck holds for
   every re-search's search, `fresh` included; a `reconcile` one waits for grabbing again, as its job does). Such a
   run is recorded with `acquire_run.infra` 3 (gated): nothing was searched, so `again_after`, the wanted loop, the
-  add-time drains and every `router.wanted.per_hour` count (and a deferral's time) leave it out
+  Search now drain and every `router.wanted.per_hour` count (and a deferral's time) leave it out
   (`TestGatedRunNotInHourlyBudget`);
 - nothing when the version or episode is unmonitored, the item is filled again (revived or replaced) or a download
   is in flight;
@@ -875,7 +871,7 @@ runs, the route is cancelled (`not_wanted`), even for a release that would upgra
 misses everywhere queues no `exhausted` re-search, so no fresh follow-ups. A search no indexer answered is not asked
 for again (one attempt, unlike other re-searches). If it finds nothing or gets no answer, the item stays wanted for
 RSS and hand searches. The dead release is not blocklisted: found cached again, re-adding it is the repair; uncached,
-the cached-only check rejects it. Gated versions (followed, shadow, library disabled) only record the dead mark as a
+the cached-only check rejects it. Gated versions (shadow, library disabled) only record the dead mark as a
 dry run and queue nothing. The dead mark waits only through zurg's existing repair grace; a repair zurg still
 reports after the grace does not hold the search back. Tests: `TestDeadLinkSearchesOnce`, `TestDeadLinkStops`,
 `TestDeadLinkDeferredPastPerHour`, `TestDeadLinkTwoDeferralsKeepTheirEpisodes`, `TestResearchSearchRechecksSwitches`,
@@ -1368,7 +1364,7 @@ default; `-apply` writes only to the database (no provider call).
 What hands work to the router in `theatarr serve`. Code: `internal/acquire`, `internal/shadow/route.go`,
 `internal/arrview/command.go`, `internal/router/hooks.go`.
 
-Movie searches (including add-time, wanted, re-search and version fanout), RSS and release grabs enforce minimum
+Movie searches (including search on add, wanted, re-search and version fanout), RSS and release grabs enforce minimum
 availability before acquisition. `announced`/`tba` is immediate, `inCinemas` uses the cinema date when known, and
 `released` uses the earlier digital/physical date, falling back to cinema plus 90 days only when both home dates
 are absent; unknown dates wait, with Radarr's default availability delay of zero. Wanted skips unavailable movies
@@ -1422,7 +1418,7 @@ serving the version wins over its imported arr setting; without one, the default
 **The wanted loop (`acquire.wanted`, every `router.wanted.interval`).** It defaults to on whenever a version is
 active (`router.wanted.enabled` unset: on, `missing: true`, `cutoff_unmet: quality`). A policy without those keys
 searches the whole backlog at `per_hour` from the first active start; `missing: false` and `cutoff_unmet: off` leave
-the backlog to RSS, add-time searches and searches by hand. The loop paces by `per_hour` and the router by provider
+the backlog to RSS, searches on add and searches by hand. The loop paces by `per_hour` and the router by provider
 pacing only; there is no separate per-season bulk pacing.
 - It takes the active versions' missing (`wanted`) and cutoff-unmet (`filled`) movies and episodes; cutoff-unmet
   ones only of versions whose `upgrades` is not `off` ("Upgrades").
@@ -1451,8 +1447,7 @@ pacing only; there is no separate per-season bulk pacing.
 - **No answer is not a search; a partial answer is a shorter one** (`acquire_run.infra`, migrations
   00084 and 00100). A VPN refusal (`ErrVPNRequired`) or a search no indexer answered (`Searched.NoAnswer`) records
   `infra = 1`: it does not count as searched, so the next round can take the item again (after the items attempted
-  less recently), and add-time intents and re-searches start it again after 15 minutes, 1 hour and 4 hours, then
-  give it up. A search where some indexer answered and some request failed (an error, a back-off or a spent budget, a
+  less recently), and re-searches start it again after 15 minutes, 1 hour and 4 hours, then give it up. A search where some indexer answered and some request failed (an error, a back-off or a spent budget, a
   page that failed, a failed Cardigann keyword query, a plain Cardigann series query without episode criteria:
   `Searched.Incomplete`) records `infra = 2`: it counts as searched, routes what it accepted as usual, and is due
   again after 6 hours (`again_after` when shorter) instead of `again_after`. Theatarr's own `page_cap` stopping the paging
@@ -1464,7 +1459,6 @@ pacing only; there is no separate per-season bulk pacing.
   `router.TestPlainKeywordAnswerDoesNotCountAsSeasonSearch`.
 - At most `per_hour` shared searches start in any hour, counted from root `acquire_run` rows; child version rows do
   not spend another search.
-- A follower title added by arr import, or a monitored follower episode/season, is searched immediately when it is missing and aired. These searches use the same `per_hour` wanted budget, so an import cannot burst past the indexer pace. The import records each change as an add-time intent (`follow_search_intent`, 00060) in its own transaction; the acquirer drains the intents oldest first after every import, at the start of every wanted round, when the serve worker `search-now` starts (at start-up and when `router.enabled` turns on: `StartQueued`), and in the Search now job, which is also scheduled while intents of a grabbing library wait for a spent hour (`TestResumeContinuesAddTimeAfterTheBudgetFrees`), whether or not the loop selects missing or cutoff-unmet items itself. An intent over the budget waits for the next hour instead of being lost. It is deleted once each of its targets was searched (a run started since the intent or within `again_after` has finished), or when it asks for nothing any more (version gone, not active or unmonitored, nothing wanted). A failed search is not repeated, except one that got no answer (above): the intent is kept and a drain starts it again after 15 minutes, 1 hour and 4 hours, then gives the target up (`TestInfraFailedAddTimeSearchIsKept`, `TestNoAnswerAddTimeSearchGivesUp`); a partial answer counts as searched; a drain that keeps failing on an intent drops it after three attempts. While `router.enabled` is false (Pause) nothing is searched; a drain still deletes the intents whose library is gone or not active (Watch only), and the rest wait; when it is true again the worker's drain starts them at once, oldest first, under the budget, with the wanted loop on or off (`TestPausedSearchesWaitAndStartOnResume`, `TestPausedDrainDropsIntentsOfInactiveLibraries`, `TestResumeStartsWaitingAddTimeSearchesWithTheLoopOff`). One intent per title and version (merged on record) bounds the wait. Tests: `TestAddTimeSearchesSurviveTheHourlyCap`, `TestAddTimeSearchBounded`, `importarr.TestFollowerAddSearchIntentRecorded`.
 - **Search now (`search_request`, 00111; `internal/acquire/searchnow.go`).** The Wanted page's buttons (one row, the
   selected rows, or every row of the tab with its library and waiting filter) go through `POST /wanted/search`. A
   request is one row of the list: one library's missing or cutoff-unmet targets of a movie, or of one series season
@@ -1473,32 +1467,29 @@ pacing only; there is no separate per-season bulk pacing.
   `RequestSearchNowAll` takes the rows `WantedList` builds for the same filter (one helper, `wantedRows`), without
   paging and without a cap. Asking again for a queued row keeps its place. There is no path around the budget, for
   one row or for many: `DrainSearchNow` starts the requests oldest first while the hour has searches left, each as
-  one shared search with source `wanted`, so it is counted in `per_hour` with the loop's searches, the add-time
-  searches and the re-searches. It resolves each request with the list's selector (`targets` with the title, library,
+  one shared search with source `wanted`, so it is counted in `per_hour` with the loop's searches and the
+  re-searches. It resolves each request with the list's selector (`targets` with the title, library,
   reason and season), does not consult `again_after` (the user asked), and deletes the request when its search
   starts and when it asks for nothing any more (imported meanwhile, a download in flight, a search of it already
-  queued or running, such as an add-time search of the same row started earlier in the round, unmonitored, the
+  queued or running, unmonitored, the
   library not active or not grabbing). A search that fails is recorded on its run and not repeated from the request. While
-  `router.enabled` is false (Pause) nothing new is accepted and the queue waits, as add-time intents do: a drain
+  `router.enabled` is false (Pause) nothing new is accepted and the queue waits: a drain
   starts nothing, no drain job is scheduled (the serve worker that schedules one is off while the switch is), and once
-  it is true again the restarted worker (`StartQueued`: the add-time intents first, then Search now, then the job is
-  scheduled for what is left; `TestResumeStartsSearchNowWithBudgetLeft`) or the next round drains it, oldest first, under the budget, with the wanted loop on or off. `DELETE /wanted/search` drops
+  it is true again the restarted worker (`StartQueued`: Search now, then the job is scheduled for what is left; `TestResumeStartsSearchNowWithBudgetLeft`) or the next round drains it, oldest first, under the budget, with the wanted loop on or off. `DELETE /wanted/search` drops
   it on request ("Cancel queued searches"), also during a drain: the drain claims each request by deleting it just
   before it starts that row's search, so a cancelled request does not start. A search that has started stays
   started. The list reports what stops a search by hand apart from the loop's waiting reason
   (`WantedRow.search_blocked`: `downloads_off`, `grab_off`, `in_flight`; `waiting` says `loop_off` first), the page's
   controls follow it, and "all" queues only the rows without it (`searchable`).
-- **One budget, one lock.** A wanted round's own searches, the two drains and a re-search after a failure check and
+- **One budget, one lock.** A wanted round's own searches, the Search now drain and a re-search after a failure check and
   spend the hour under the acquirer's `drainMu`, so two of them never spend the same slot and `per_hour` holds when
   a request arrives during a round.
-- **Order inside a wanted round:** add-time intents, then Search now, then the loop's own selection; the round runs
-  the two drains first, with the loop on or off. The Search now job (`StartQueued`) keeps the same order. The order is
+- **Order inside a wanted round:** Search now, then the loop's own selection; the round runs the drain first, with
+  the loop on or off. The Search now job (`StartQueued`) keeps the same order. The order is
   not enforced across paths: a request drains Search now only, and a re-search after a failure may take a slot that frees while requests wait.
 - **The Search now job (`acquire.searchnow`).** What the hour does not allow is drained by a job that runs when the
   oldest counted search of the hour leaves the window (`budgetFreeAt`, shared with the deferred re-search), never
-  sooner than a minute from now. Each run drains the add-time intents, then Search now, and queues the next run while
-  requests remain or while add-time intents of a grabbing library wait for the spent hour (intents waiting on a
-  running search or a no-answer backoff schedule nothing; the next drain takes them). Its dedupe key carries the run time
+  sooner than a minute from now. Each run drains Search now and queues the next run while requests remain. Its dedupe key carries the run time
   (`acquire.searchnow/<run at ms>`): an enqueue is a no-op while a job with the same key is queued or running, so a
   constant key queued from inside the handler would end the chain. A request, a drain that left some, and the start
   of `theatarr serve` or a resume (worker `search-now`, also with the wanted loop off, which drains at once first) schedule it, so a large selection drains
@@ -1515,8 +1506,7 @@ pacing only; there is no separate per-season bulk pacing.
   `TestSearchNowDrainsAfterAddTimeSearches`, `TestSearchNowScheduledAtStart`, `TestWantedListSearchNowQueue`,
   `web.TestWantedSearchAPI`.
 - It does nothing while `router.enabled` is false, and searches only active versions with grab on
-  (`Policy.SearchVersions`): no search traffic for routes that could only be dry runs. An add-time intent for an
-  active version with grab off is kept, without counting an attempt, until grab is on. RSS keeps routing such a
+  (`Policy.SearchVersions`): no search traffic for routes that could only be dry runs. RSS keeps routing such a
   version's picks as dry-run plans (no add, no re-search). Tests: `TestWantedSkipsGrabOff`,
   `TestAddTimeSearchWaitsForGrab`, `TestResearchSkipsGrabOff`, `shadow.TestActiveRSSGrabOff`.
 
@@ -1542,9 +1532,9 @@ router did with the run's source:
 **Imported-release offers.** `router.offer` offers an imported movie or series release to the title's other versions
 of the same kind. Series decisions use the imported download's episode ids as Sonarr search criteria; accepted offers
 route one release, so the router reuses the provider torrent and the library links the season pack or episodes.
-The six-hour sweep also covers adopted/followed links and imported arr files, using recorded hashes (including
+The six-hour sweep also covers adopted links and imported arr files, using recorded hashes (including
 unambiguous mount-folder identities); `-sweep -dry-run` lists decisions, unknown hashes are remembered as `no_hash`,
-and neither the source version nor versions following the same arr receive its files. Pending offers retry every
+and neither the source version nor the arr's own library receive its files. Pending offers retry every
 15 minutes for six hours, then daily for at most seven further attempts; readiness changes can retry early within
 that cap, and the final `gave_up` carries `retry_limit`. Recorded replacements retire sources and cancel their
 pending offers as `declined` with reason `superseded`; every accepted offer still passes the existing router,
@@ -1553,9 +1543,9 @@ mode, version-indexer, blocklist and library gates.
 For an adopted link, what the arr history gives (hash, release and the arr's indexer names, with the library the arr filled) is read once and kept on
 the link (`link.adopted_source`, with the `adopted_from` it was read for); a real sweep stores it, a dry run does not.
 From then on the sweep uses the stored value instead of the mount folder and the history, resolving the names with
-`IndexerByName` as before and keeping the arr's library and its followers out of the offer once the arr instance is gone, so an adopted file keeps qualifying for offers after the arr history tables are gone. A
-refresh to another arr file (a different `adopted_from`) reads the history again, and adoption clears the stored
-value when it records a changed file at the same path. A history row that arrives after a link's source was stored
+`IndexerByName` as before and keeping the arr's library out of the offer once the arr instance is gone, so an adopted file keeps qualifying for offers after the arr history tables are gone. A
+different `adopted_from` reads the history again, and adoption clears the stored value when it records a changed
+file at the same path (`TestAdoptedLinkOffersWithoutFollowing`). A history row that arrives after a link's source was stored
 is not read again.
 
 Arr history names an indexer by the arr's own name ("TheRARBG (Prowlarr)", "DMM RD (Prowlarr)"), never a policy key.
@@ -1607,7 +1597,7 @@ shadow picks:
 
 ## Decision formats and the blocklist (00016)
 
-Arr imports mirror the followed instance's blocklist into parallel followers. Hashless entries match source titles
+Blocklist entries an older arr import mirrored stay until the arr tables go. Hashless entries match source titles
 (ignoring case and surrounding whitespace); either a hash or title match prevents routing. Title-only entries use a
 `title:` key in the blocklist's `info_hash` field; an unblock is reset by the next import while the arr still lists
 the entry.

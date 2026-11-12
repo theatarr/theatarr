@@ -46,7 +46,7 @@ A series has one type (standard, daily or anime), the same for every library and
   type onto a title that has none on every run, so no code path leaves a title in that state; the fallback only
   covers a database that somehow has one.
 - **Readers.** All of them read the resolver: decisions and search style (`decide.LoadTitle`, `LoadSeries`),
-  import naming (`library` `completeDownload`), `checkNames`, follower adoption, rename preview, reassign,
+  import naming (`library` `completeDownload`), `checkNames`, the one-time import's adoption, rename preview, reassign,
   now-playing's next episode, the anime-library filter of acquisition (the flag or the type), the TV metadata
   refresh (anime series take TVDB only) and the Sonarr views (resource and webhooks). The per-instance imported
   type no longer overrides the title's value for a version: an install whose imported types differ per instance,
@@ -60,13 +60,12 @@ A series has one type (standard, daily or anime), the same for every library and
 
 Tests: `TestSeriesTypeEchoChangesNothing`, `TestSeriesTypeEdit`, `TestSeriesTypeAddKeepsStored`,
 `TestSeriesTypeChoosesSearchableLibraries`, `TestSeriesTypeLookupOutsideView`, `TestSeriesTypeEditor` (arrview), `TestNextEpisodeUsesTitleSeriesType`
-(nowplaying), `TestLoadSeriesVersion`, `TestFollowerNamingSeriesType`.
+(nowplaying), `TestLoadSeriesVersion`.
 
 ### Series decisions (`internal/decide`)
 
-Every version of a series, parallel followers included, decides and names with the title's series type (above);
-removed episodes are excluded from ordinary matching loads. Each arr import also unmonitors follower episodes
-absent from its snapshot, retaining their links and file states.
+Every version of a series decides and names with the title's series type (above); removed episodes are excluded
+from ordinary matching loads.
 
 - `Engine.Decide` for a series version runs Sonarr's `DownloadDecisionMaker`; `Engine.DecideSearch` passes the search
   criteria (`SeriesSearch`: kind, season, episode, requested episodes). Movies keep the movie path.

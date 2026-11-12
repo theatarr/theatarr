@@ -44,7 +44,7 @@ It is built so that nothing happens until you say so:
 - **Libraries per title.** Each library has a kind, a quality profile, a root, indexers and debrid providers. A title
   can belong to several libraries.
 - **Shadow mode.** A library records its decisions without acting on them, so you can compare before it goes live.
-  Migrated libraries can follow an arr side by side until you hand over.
+  A migrated library can watch an arr side by side until you hand over.
 - **Indexers.** Prowlarr and other Torznab feeds, the Cardigann definition catalog run natively, and built-in
   sources: DMM, Torrentio, Zilean and SeaDex. Each library lists the indexers it searches.
 - **Debrid providers.** Real-Debrid, AllDebrid and TorBox, in a fallback order per library, with cache checks,
@@ -160,7 +160,7 @@ compose volume is for, is [docs/quickstart.md](docs/quickstart.md).
 ## Using Theatarr
 
 **A first library in shadow.** Setup can create the first library in shadow mode with downloads off (always, when
-the install migrates from an arr). It records what it would have grabbed from the RSS feeds of its indexers, from the grabs of an arr it follows, and when you run
+the install migrates from an arr). It records what it would have grabbed from the RSS feeds of its indexers, from the grabs of the arr that feeds it, and when you run
 `theatarr decide`. Add titles from **Search**, or let requests come in.
 See [docs/quickstart.md](docs/quickstart.md#6-a-first-library).
 

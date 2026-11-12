@@ -57,7 +57,7 @@ inspection/import tools retain directory inputs.
 
 `THEATARR_FORCE_OFF` forces the router, library and notification switches off. Saves cannot override it. Turning
 Allow new downloads or Write library links on (Pause off), making a library Live, turning a Live library's downloads
-on, removing a library, an address change that keeps a stored key, and following or an arr import into a grabbing
+on, removing a library, an address change that keeps a stored key, and an arr import into a grabbing
 library require confirmation; other changes save at once ("Confirmations" below).
 
 
@@ -285,9 +285,8 @@ parameters in configured URLs by the same name rule (`secrets.CredentialQueryNam
 
 **Confirmations.** A save answers 422 with effects and a token (the shared dialog) only when it makes a library Live
 (or creates one Live), turns a Live library's downloads on, turns Allow new downloads or Write library links on
-(Pause off), removes a library that has links or follows another, changes a provider's or indexer's address while it
-keeps its stored key, makes a Live library follow an arr library, or maps an arr import into a library with
-downloads on. Every other change, other addresses, folders, the VPN guard, `router.cached_only`, profiles, formats,
+(Pause off), removes a library that has links, changes a provider's or indexer's address while it
+keeps its stored key, or maps an arr import into a library with downloads on. Every other change, other addresses, folders, the VPN guard, `router.cached_only`, profiles, formats,
 naming, indexers, providers, views, notifications and credential names included, saves at once after validation.
 Validation itself is unchanged (`TestEverydayLiveEditsSaveDirectly`, `TestKeptConfirmations`).
 
@@ -305,8 +304,7 @@ same way: the 422 carries the effects and a token, the confirm endpoints issue o
 token (`confirmation_token` or `X-Confirmation-Token`) applies it. A session's tokens are bound to its user
 (`settings.WithConfirmer`, "user:<id>"); a key's to that key (`settings.WithKeyConfirmer`, "key:<id>"), so a key's
 token is refused for another key, for a session and after the key is revoked, and a session's for a key. This covers
-every flow: records (an address with a kept key), sections (an arr import), versions (activation, grab, following
-and removal), global switches, `orphan_active_downloads`, migration apply steps and torrent delete and restore. Torrent delete and restore store no
+every flow: records (an address with a kept key), sections (an arr import), versions (activation, grab and removal), global switches, `orphan_active_downloads`, migration apply steps and torrent delete and restore. Torrent delete and restore store no
 token: theirs is an HMAC, under a random per-process key, of the confirmer (`settings.Confirmer`) and the plan digest,
 so only a preview gives it and only the same caller can use it; a restart means preview again
 ([torrents.md](torrents.md)). Permissions still decide what a key
@@ -618,8 +616,7 @@ node without a DOM: they check reducers and the markup of each state, not simula
 Migration **00067** adds quality profiles, custom formats, format sets, naming keyed by the version key,
 and quality sync sources. The common settings transaction, audit and generation path owns these records.
 Formats retain their complete arr/TRaSH JSON (including `trash_id` and every specification), rather than a `file:`
-path or a dependency on the TRaSH checkout. The one policy loader overlays naming onto the versions (version records);
-`naming.from_version` still resolves normally. Each generation has a persisted revision for decision attribution;
+path or a dependency on the TRaSH checkout. The one policy loader overlays naming onto the versions (version records). Each generation has a persisted revision for decision attribution;
 `Policy.Revision` is that generation revision (identical for serve and the CLI).
 
 Settings has Profiles, Custom formats, Libraries › Naming and Quality sync editors. The raw format-set editor is linked from Profiles. Profile quality
@@ -844,18 +841,10 @@ all version policy except naming, plus the `library.versions` write-root lists. 
 existing keys (a format set is selected through the profile); naming has its own records (above), assembled by key.
 View records hold ordered version sets and named profile bindings, and also the identity (path,
 flavour, aliases) and the view's stored API key ("Sections and views"). The existing settings loader assembles and validates the one runtime policy.
-A version created in the editor gets its naming record at once: a follower names its files after the followed
-version (`from_version`), any other version starts with the arr default names, edited in the naming editor
-(Settings › Libraries › Naming). A version's naming record cannot be deleted on its own; deleting the version removes it.
-The existing parallel-policy naming validation still applies. For a record with `from_version` F the naming editor shows
-"Copy F's naming": it copies F's `folder`, `file`, `season`, `specials`, `daily`, `anime`, `colon` and
-`multi_episode` into the draft and clears `from_version` and `from_arr`. A template F leaves empty is copied as the
-built-in one F uses (`GET /settings/naming` returns them per library as `defaults`, from `library.DefaultTemplates`),
-so the copy names files exactly as F does and passes the follower rule that a follower without `from_version` names
-its files explicitly. Save gives the library its own copy, so it
-keeps its naming when it stops following. Clearing `follows` while `from_version` is still set is refused with a
-message pointing at that button. When F takes its naming from an arr instance (`from_arr`), or F has no record, the
-editor says the templates must be typed in by hand (no conversion of arr naming here).
+A version created in the editor gets its naming record at once, empty: it starts with the arr default names, edited
+in the naming editor (Settings › Libraries › Naming). A version's naming record cannot be deleted on its own; deleting
+the version removes it. Naming records stored with `FromVersion` (following, removed in 00121) were given the
+followed library's naming by that migration.
 
 A version has an optional `name`, a display name for people (at most 40 characters, no control characters; two
 versions may share one). When set it replaces the label guessed from the key and profile wherever Theatarr names a
@@ -875,8 +864,8 @@ refuse a settings save. A refused save shows each field's message beside Root an
 reported as that alone, not also as a library folder "under none of the roots". The view editor
 (Connected apps) picks libraries and profile members as checkboxes, so there is no typed list to normalize.
 
-Creating a library Live, Watch only to Live, turning downloads on for a Live library, a Live library starting to
-follow an arr library and removing a library with links or a follows relationship require review of effects naming
+Creating a library Live, Watch only to Live, turning downloads on for a Live library and removing a library with
+links require review of effects naming
 roots, providers and current global gates (the full list is under "Confirmation on every path"). Every other version
 change, a Live library's root, providers, profile, indexers, upgrades, naming and storage included, saves at once
 after validation; so do view-binding changes. Removing a library only stops management. Tokens expire after ten
@@ -896,13 +885,10 @@ the stored head, on record, quality and version saves, secret saves, import appl
 - downloads (`grab`) turned on for a Live library, or a library made Live with `grab` on ("Downloads are on for Live
   library …"); turning them off never asks;
 - turning `router.enabled` or `library.enabled` on (Pause off; "Global switches" above);
-- a Live library starting to follow an arr library, or a follower made Live ("Live library … starts following …":
-  it inherits every arr title and monitoring choice at once);
 - an `import.arr` source newly importing titles into a grabbing version (active with `grab` on, whatever
   `router.enabled` is: turning the router on later names no import source), or changing its version mapping to one:
   monitored missing titles enter wanted searches;
-- removing a library that follows another ("also removes its follows relationship") or has managed links ("stops
-  being managed … nothing is removed");
+- removing a library that has managed links ("stops being managed … nothing is removed");
 - a provider or indexer, enabled or not and whatever versions use it, whose address (`settings.SourceAddress`:
   kind, url scheme, host and port, proxy scheme/host/port, a cardigann `definition` or `hosts`) changes while it
   keeps its credential
@@ -935,10 +921,10 @@ New or changed roots must be clean absolute existing directories. A root may be 
 the trash and the other libraries' roots: there is no library area, and `library.dangling.roots` only adds folders
 for the broken link check. The filesystem root is never a library root, directly or through a symlink. Checks
 resolve symlinks and device/inode aliases, reject a root at, in or above the mount and overlap with other versions or
-the trash, and require active roots to be writable without creating probe files (`TestLibraryFolderAnywhere`). Arr roots of
-followed versions remain shadow/read-only. A root edit with active links is refused with the parallel-version
-adopt procedure, and so is a deleted version key created again while active links of the key sit outside its new
-roots; see the procedure in [parallel.md](../parallel.md#changing-a-root-with-links). Removal does not delete any operational
+the trash, and require active roots to be writable without creating probe files (`TestLibraryFolderAnywhere`); a Watch-only
+root need only be readable. A root edit with active links is refused, and so is a deleted version key created again
+while active links of the key sit outside its new roots; see the procedure in
+[migration.md](../migration.md#changing-a-root-with-links). Removal does not delete any operational
 link row, link, mount file or trash entry.
 
 ### Settings UX
@@ -1064,8 +1050,8 @@ says which (`source`: `checkout` or `bundled`, with `commit`), and the quality o
 
 The router-enable confirmation warns when the candidate's effective `library.enabled` is off. Runtime
 `grab_state.library_enabled` reports the effective library switch, including force-off overrides, and
-`grab_state.library_writes` the library's own write gate (`library.Gate.Active`: the switch on, mode active, not
-followed, listed under `library.versions` with roots), so a shadow library never says its files will link. `will_grab`
+`grab_state.library_writes` the library's own write gate (`library.Gate.Active`: the switch on, mode active,
+listed under `library.versions` with roots), so a shadow library never says its files will link. `will_grab`
 continues to describe debrid adds: the library switch does not prevent them. The library state
 ([UI](ui.md), "Library state") keeps the download verdict (for example **Downloads on**) and adds the
 separate mark **New files won't be linked** on an active library whose links are off; existing files stay

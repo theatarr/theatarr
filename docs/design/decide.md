@@ -220,7 +220,7 @@ bin/theatarr decide shadow -db <copy> -arr-snapshot <corpus> \
 - **Already imported:** the latest grab and an import with its download ID block the same hash or release name
   only when their qualities differ and the item still has a file. This prevents the arr's quality-mismatch loop;
   equal-quality repeats remain subject to the usual upgrade rules. Theatarr and imported arr history are scoped to the
-  version, including followers. Legacy links use their saved quality/title when parsed metadata is absent.
+  version. Legacy links use their saved quality/title when parsed metadata is absent.
   Imported arr history stores no revisions, so revision-only differences cannot be reconstructed. Optional
   `config-downloadclient.json` snapshots honor disabled completed-download handling; otherwise it defaults on.
 - **Movie availability:** interactive searches, explicit search commands and manual grabs bypass minimum

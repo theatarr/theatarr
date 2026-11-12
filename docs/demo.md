@@ -114,17 +114,17 @@ Many installs keep two or more copies of a title. Movies have two in the example
 `movie-web`, both fed by an arr). For series the example has one version per anime flag, so the demo adds a second
 through an overlay, `examples/demo`, which is not a policy on its own:
 
-- `versions-theatarr.yaml`: `tv-2160p-theatarr` follows `tv-2160p` and `anime-tv-theatarr` follows `anime-tv`, pairing each
-  arr-fed version with a parallel version of Theatarr's own ([migration.md](migration.md#3-a-follower-library-beside-the-arr)): `mode: active`, the followed
-  version's profile and naming (`from_version`), roots under `/media/library`.
-- `library.yaml`: the example's `library.yaml` with those two roots added to `library.versions` (a parallel version
+- `versions-theatarr.yaml`: `tv-2160p-theatarr` beside `tv-2160p` and `anime-tv-theatarr` beside `anime-tv`, pairing
+  each arr-fed version with a Live library of Theatarr's own ([migration.md](migration.md#3-a-live-library-beside-the-arr)):
+  `mode: active`, the same profile and the built-in naming, roots under `/media/library`.
+- `library.yaml`: the example's `library.yaml` with those two roots added to `library.versions` (a Live library
   needs roots of its own, and `library` is one section, so the file replaces the example's). A test keeps it equal to
   the example's otherwise.
 
 The example policy itself is left as it is: its version set is pinned by tests across the code base.
 
-The seed treats a version that follows another as Theatarr's copy (`internal/demo/copies.go`): no arr records, the
-followed version's titles and monitoring, links adopted from the arr's files (`adopted from <instance> <path>`, to
+The seed treats a version `<key>-theatarr` beside an arr-fed `<key>` as Theatarr's copy (`internal/demo/copies.go`): no
+arr records, the arr-fed version's titles and monitoring, links adopted from the arr's files (`adopted from <instance> <path>`, to
 the same mount targets) and its own downloads for the rest. `copyPlans` makes the copies differ:
 
 | Series | Arr copy | Theatarr copy |
@@ -179,7 +179,7 @@ Info hashes, provider torrent ids and release groups are generated. Internal row
   requests, and checks that a user sees no file details on a title page.
 - **TestDemoSettings** checks the settings generation, records, cleared credential and that no audit row holds a credential.
 - **TestDemoDeterministic** seeds twice with one seed and once with another, and compares every table.
-- **TestDemoTwoCopies** checks that every series has an arr-fed copy and a copy following it with no arr records,
+- **TestDemoTwoCopies** checks that every series has an arr-fed copy and Theatarr's copy with no arr records,
   adopted links under the copy's root, links that match the copy's episode states, seasons on one copy only, series
   complete on one copy and part-way on the other (both ways), the copy's downloads in every state (an import waiting
   for the mount among them), an upgrade in flight on an episode the copy has a file for, one series whose copies'

@@ -70,7 +70,7 @@ The arr instances in `import.arr` are **fed**. Rule:
    id to another episode. That episode then goes without an id (inserted, or left as it is) until cutover; its row
    is matched by slot meanwhile (`TestShadowPrecedence`).
 2. Versions fed by an instance keep the import's monitoring: the refresh writes no states for them. Series identity,
-   scene names and scene numbering also remain the owning arr's; followed versions share those catalog mappings.
+   scene names and scene numbering also remain the owning arr's.
 3. The import does not delete rows that carry a TVDB or TMDb episode id when Sonarr drops them.
 4. At cutover, removing the instance from `import.arr` hands the series to the refresh. Successful scene-name reads
    retire imported aliases; XEM replaces imported scene numbers. Failed reads preserve the previous mappings.
@@ -109,15 +109,15 @@ Movie metadata follows Radarr `Movies/ShouldRefreshMovie.cs:30–57` @ a96bf7c: 
 announced/in cinemas or physically released within 30 days, otherwise every 180 days. Physical release falls back
 to cinema + 90 days, then an unknown future date (`MovieMetadata.cs:77–80`); digital dates do not set this cadence.
 TMDb refreshes and arr imports update nonempty title, sort name and year so decision year checks and text searches
-read current identity; user monitoring stays. A followed movie version takes canonical release dates from its
-owning arr while that feed is active, including later corrections; after cutover it uses Theatarr's successful TMDb dates.
+read current identity; user monitoring stays. A movie version an arr feeds takes canonical release dates from its
+owning arr while that feed is active, including later corrections; other versions use Theatarr's successful TMDb dates.
 
 ## Tests
 
 Recorded TVDB answers for Severance, Slow Horses and Frieren (`testdata/`, trimmed, no keys or URLs), edited in memory
 to simulate new seasons, recreated ids, removals and fed rows. Local HTTP scene fixtures cover source paths,
 three-hour caching, failures, aliases, extrapolation and cutover. Monitor tests cover each add mode after episodes
-arrive and one-shot consumption. Movie tests cover cadence boundaries, identity and followed date ownership. No live calls.
+arrive and one-shot consumption. Movie tests cover cadence boundaries, identity and arr date ownership. No live calls.
 
 ## Limits
 

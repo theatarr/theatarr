@@ -246,8 +246,7 @@ through. Cautions:
 
 ## Comparison after go-live
 
-Active versions are not compared against an arr kept beside them; followers cover that case
-([parallel.md](../parallel.md)). An `import.arr` entry is always imported; a stored entry with `role: compare` or a
+Active versions are not compared against an arr kept beside them. An `import.arr` entry is always imported; a stored entry with `role: compare` or a
 `sink_path` is refused. The report still reads `basis: live` rows already stored.
 
 ## Metrics

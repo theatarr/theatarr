@@ -211,7 +211,7 @@ or an admin's API key, which confirms like a session, as with settings; the toke
    second process's delete skips its torrents. No SQLite transaction stays open across a provider call
    (`TestDeleteFencesReferenceWriters`, `TestDeleteFenceLeaseAcrossProcesses`).
    A library link is a reference on disk before its row records it, so the writers that make or repoint a symlink
-   (an import, adopt, the follower refresh, a relink) take the fence before the filesystem change and hold it
+   (an import, adopt, a relink) take the fence before the filesystem change and hold it
    through their commit (`reffence.Begin`). Across processes such a writer also writes a lease of its
    own (`torrents:write:<owner>/<n>`, 5 minutes, refused while another process's delete holds its lease, checked
    again at its commit); a delete waits up to 15 s for the link writes in progress, this process's (the in-process

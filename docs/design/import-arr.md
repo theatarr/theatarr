@@ -1,6 +1,6 @@
 # `theatarr import-arr`: arr import with registry seeding
 
-The 15-minute `import-arr` is the follower path of the [guided migration](../migration.md#who-this-is-for); the
+The 15-minute `import-arr` feeds the Watch-only libraries of the [staged path](../migration.md#who-this-is-for); the
 one-time import from Sonarr/Radarr is `internal/arrimport` ([migration.md](../migration.md#import-from-sonarrradarr)).
 
 The importer reads Radarr and Sonarr instances, read-only, into Theatarr's database and seeds the content registry.
@@ -18,11 +18,7 @@ This page covers movies; series follow the same shape ([Sonarr](#sonarr)). Where
     delays torrents or turns them off) is a warning in the summary.
   - Requests are sequential, at most 2.5 per second.
   - On a re-run, history stops at the first page whose records are all stored.
-  - Blocklists (`GET blocklist`, 250 per page) are read in full on every run. Parallel followers recover a missing
-    torrent hash from the matching grabbed history row (title id and source title), falling back to a source-title key
-    when no hash is known; deletions reconcile per instance and preserve local blocks.
-    Movie followers also inherit the followed version's imported minimum availability, unless their own view has
-    an explicit choice.
+  - Blocklists (`GET blocklist`, 250 per page) are read in full on every run.
 - **Writes Theatarr's database** (migration `00003_import.sql`), in one transaction per instance:
 
 | Table | Holds |
@@ -32,7 +28,7 @@ This page covers movies; series follow the same shape ([Sonarr](#sonarr)). Where
 | `version_source` | The instance that owns a version's state |
 | `arr_instance`, `arr_tag`, `arr_quality_profile` | Reference data per instance |
 | `arr_title` | The arr's record of each movie: monitored, profile, path, root, tag labels, the labels already copied to the views (`tags_copied`, 00105), file id, added |
-| `arrview_tag`, `arrview_title_tag` | The arr's tag labels (requester tags as `1-alice`, every other label as it is), copied to the views' tags of the source version and the followers it gives the title; edge-triggered on `arr_title.tags_copied` (a label is copied once, when it appears; a version that newly gets the title takes all current labels), never removed (`TestImportCopiesTagsToVersions`). See docs/design/arrview.md "Tags from the arrs" |
+| `arrview_tag`, `arrview_title_tag` | The arr's tag labels (requester tags as `1-alice`, every other label as it is), copied to the views' tags of the source version; edge-triggered on `arr_title.tags_copied` (a label is copied once, when it appears; a version that newly gets the title takes all current labels), never removed (`TestImportCopiesTagsToVersions`). See docs/design/arrview.md "Tags from the arrs" |
 | `arr_alias` | Seerr ids: the arr's movie id maps to Theatarr's title, its moviefile id to the version_file |
 | `version_file` | The arr's current file per version: path, size, quality, revision, release group, scene name, edition, languages, mediaInfo, custom format score, date added, original path, cutoff flag; tied to its download id, the grab's release title and the registry content |
 | `arr_history` | Every history event, sanitised. `data` keeps an allowlist of keys (indexer, size, protocol, hash, release group, fileId, paths, message, ...). Values that look like a URL or a credential are dropped, so there are no download URLs, GUIDs or passkeys |

@@ -32,7 +32,7 @@ The same `movie_collection` rows back the native **Collections** page (Library â
 and admins; `GET /collections`, `PUT /collections/{id}`): name and poster after the first refresh, movies in the
 library out of the collection's total, the monitored switch, target libraries, search on add and minimum
 availability. Monitoring a collection adds its missing movies at the next refresh. Search on add starts the usual
-add-time search through the acquirer and router, so nothing grabs while `router.enabled` is off.
+search through the acquirer and router, so nothing grabs while `router.enabled` is off.
 
 **Add collection** on the page adds a collection that has no movie in the library yet: `GET /collections/search?q=`
 searches TMDb (`/search/collection`, first page, cached a week; each result says whether it is already known), and
@@ -47,13 +47,13 @@ validation is `PUT`'s: collection targets only, and a monitored collection needs
 (`metadata.sources.tmdb` and its key) the three endpoints answer 503 and `GET /collections` says `can_add: false`, so
 the page disables the buttons. The dialog turns search on add on by default; discovered rows keep it off.
 
-A collection's targets are always explicit, and only **collection targets** qualify (`policy.CollectionTarget`): movie
-versions in `mode: active` that no version follows, the versions the library gate lets write. The page lists only
+A collection's targets are always explicit, and only **collection targets** qualify (`policy.CollectionTarget`): Live
+movie libraries, the versions the library gate lets write. The page lists only
 those; `PUT` refuses any other key, and refuses monitoring with no target (an empty list, or stored targets none of
 which qualify). `GET` leaves stored targets that no longer qualify out. Intake revalidates the stored targets at every
 refresh: it adds only to the ones that qualify, skips the rest with one log line per collection and target set, and
 adds nothing for a monitored collection left with none. So a discovered collection's preselected versions (its
-members' versions, shadow ones among them) or an old empty list never add to a shadow or followed library. The Radarr
+members' versions, shadow ones among them) or an old empty list never add to a shadow library. The Radarr
 view's `PUT collection` follows the same rule: when it leaves a collection monitored, the targets (from its profile
 or root, else the stored ones) are cut to collection targets and stored explicitly; with none left, a per-version
 view `/v/K` whose K qualifies uses K, and otherwise the request is a 400 validation error (`TestCollectionPutTargets`). A `movieAndCollection` list monitors the collection only in the
@@ -68,22 +68,18 @@ up as collections without a separate backfill.
 
 Each Radarr `arr.import` (and `theatarr import-arr`) also reads `GET collection` and carries every collection the arr
 monitors over (`internal/importarr/collections.go`): monitored, with the arr's search on add and minimum availability,
-targeting the instance's version and its followers (`versions.K.follows`) that are collection targets, in practice
-the active followers, or the version itself when it is active and nothing follows it. A collection Theatarr already
+targeting the instance's version when it is a collection target (Live). A collection Theatarr already
 monitors keeps its settings; the import drops its stored targets that no longer qualify (an empty list among them),
 adds the missing ones and turns search on add on when the arr has it. The import never unmonitors or deletes a
 collection, so turning one off in Theatarr lasts only until the next import while the arr still monitors it: unmonitor
-it in the arr too. An instance whose version and followers include no
+it in the arr too. An instance whose version is not a
 collection target has nowhere to add, and its monitored collections are skipped with a warning in the import summary.
-A Radarr without the endpoint imports without collections. Movies a collection adds to a follower are not the arr's titles: the
-next import does not unmonitor them (`TestCollectionIntakeTitleSurvivesArrImport`).
+A Radarr without the endpoint imports without collections.
 
 Known limits, kept as they are:
 
 - Search on add is OR-merged: with two Radarrs monitoring the same collection, either one's search on add turns it on.
 - A collection has one minimum availability, whichever arr (or the page) set it first; later imports keep it.
-- A follower target newly added to an already monitored collection takes that collection's minimum availability,
-  not the old Radarr view's for the follower.
 - A collection-fetch failure is a warning in the import summary (`theatarr import-arr` and the job log); the
   import-runs page does not surface it.
 - A `movieAndCollection` list does not turn on a collection that discovery already created (unmonitored).
@@ -236,7 +232,7 @@ Theatarr owns a movie's minimum availability, one rule per library (`availabilit
 
 1. **Choice**: the newest `arrview_title` row with a value (by `updated_at`, then view key) whose view is the
    library's own (`v/<key>`) or a configured view that holds the library today.
-2. **Imported**: the owning arr's value (`arr_title`, through `follows` for a parallel library); without an owner,
+2. **Imported**: the owning arr's value (`arr_title`); without an owner,
    the first other arr record's, by instance name.
 3. **Default**: the library's `minimum_availability` setting (`announced`, `inCinemas` or `released`; movie libraries
    only, left out of the stored settings when unset), else `released`.
@@ -503,18 +499,17 @@ deleting a label removes it from every version. Rows from before 00105 were copi
 
 ## Tags from the arrs
 
-Every `arr.import` copies the arr's tag labels of each title to the views' tags of the import's source version and,
-when the instance owns the title, the followers the import gives it (`Source.Followers`), so each Radarr's behaviour
-tags carry over to the versions that follow it. Seerr requester tags (`<user id>-<name>` or the older
+Every `arr.import` copies the arr's tag labels of each title to the views' tags of the import's source version, so
+each Radarr's behaviour tags carry over. Seerr requester tags (`<user id>-<name>` or the older
 `<user id> - <name>`) are stored in Seerr's current form, lower-case (`1 - alice` becomes `1-alice`); every other
 label (behaviour tags such as `debrid-upgrade` or `skip-upgrade-check`, and hand-made labels) is copied as it is. An existing view tag with that label in any case keeps its id;
 a tag id the arr does not list (`#<id>` in `arr_title.tags`) is skipped. The copy is edge-triggered and only adds:
 `arr_title.tags_copied` holds the labels already copied, and a run copies only the arr's labels not in it, then sets
-it to the arr's current labels. A version that gets the title in this run (a title new to the version, a follower
-newly added to the policy) takes every current label once (`TestImportTagsToNewlyFollowingVersions`). So a tag a view took off (a client clearing `debrid-upgrade` after it upgraded)
+it to the arr's current labels. A version that gets the title in this run (a title new to the version) takes every
+current label once (`TestImportTagsToNewVersions`). So a tag a view took off (a client clearing `debrid-upgrade` after it upgraded)
 is not put back while the arr keeps it, a label the arr adds later is copied once, and a run with the arr's tags
 unchanged writes nothing. The first run after 00105 copies every label (`tags_copied` starts `[]`). The import never
-removes a view tag (`TestImportCopiesTagsToVersions`, `TestImportTagsNotToFollowersOfOthersTitles`).
+removes a view tag (`TestImportCopiesTagsToVersions`).
 
 ## Schema (00012)
 
