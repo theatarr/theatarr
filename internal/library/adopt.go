@@ -265,10 +265,6 @@ func (l *Library) adoptOne(ctx context.Context, o AdoptOptions, vp *policy.Versi
 	if err != nil {
 		return "", fmt.Errorf("library: adopt: %w", err)
 	}
-	if errors.Is(ar.lerr, fs.ErrNotExist) {
-		rep.skip(f.path, AdoptMissing, "")
-		return "", nil
-	}
 	if ar.lerr != nil {
 		rep.skip(f.path, AdoptMissing, ar.lerr.Error())
 		return "", nil

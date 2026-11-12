@@ -2,6 +2,7 @@ package library
 
 import (
 	"context"
+	"errors"
 	"fmt"
 )
 
@@ -13,7 +14,7 @@ import (
 
 // CoverageItem is one thing that keeps a coverage check from being complete. Step is "titles", "adopt" or "refresh";
 // Reason is the skip reason (as in AdoptReport.Skipped and RefreshReport.Skipped) or one of missing_title, to_link,
-// to_move, not_checked; Detail carries the underlying error text where there was one.
+// to_move, not_checked (the step could not run: Detail says why); Detail carries the underlying error text where there was one.
 type CoverageItem struct {
 	Step     string  `json:"step"`
 	Reason   string  `json:"reason"`
@@ -28,8 +29,11 @@ type CoverageReport struct {
 	Version string `json:"version"`
 	Follows string `json:"follows"`
 	// MissingTitles counts the titles of Follows (from an arr: version_source) with no row for Version.
-	MissingTitles int          `json:"missing_titles"`
-	Adopt         *AdoptReport `json:"adopt"`
+	MissingTitles int `json:"missing_titles"`
+	// OwnFilesKept counts the arr files the library has its own file for (Adopt.HasFile): covered, listed for
+	// information only.
+	OwnFilesKept int          `json:"own_files_kept"`
+	Adopt        *AdoptReport `json:"adopt"`
 	// Refresh is nil when the library grabs; RefreshSkipped says why.
 	Refresh        *RefreshReport `json:"refresh,omitempty"`
 	RefreshSkipped string         `json:"refresh_skipped,omitempty"`
@@ -40,7 +44,8 @@ type CoverageReport struct {
 	Counts map[string]int `json:"counts,omitempty"`
 }
 
-// Coverage checks a parallel library against its followed library. It writes nothing.
+// Coverage checks a parallel library against its followed library. It writes nothing. A step that cannot run (the
+// mount down) is listed as not_checked and returned as the error, with the report of what was collected.
 func (l *Library) Coverage(ctx context.Context, version string) (*CoverageReport, error) {
 	if l.runtime != nil {
 		pinned, target := l.runtime(ctx)
@@ -87,36 +92,48 @@ func (l *Library) Coverage(ctx context.Context, version string) (*CoverageReport
 		add(it)
 	}
 
-	if rep.Adopt, err = l.Adopt(ctx, AdoptOptions{Version: version, DryRun: true, Uncapped: true}); err != nil {
-		return nil, err
+	var errs []error
+	notChecked := func(step string, err error) {
+		errs = append(errs, err)
+		add(CoverageItem{Step: step, Reason: "not_checked", Detail: err.Error()})
 	}
-	for _, k := range rep.Adopt.Links {
-		add(CoverageItem{Step: "adopt", Reason: "to_link", Path: k.From, Detail: "would link " + k.Path})
+	rep.Adopt, err = l.Adopt(ctx, AdoptOptions{Version: version, DryRun: true, Uncapped: true})
+	if a := rep.Adopt; a != nil {
+		rep.OwnFilesKept = a.HasFile
+		for _, k := range a.Links {
+			add(CoverageItem{Step: "adopt", Reason: "to_link", Path: k.From, Detail: "would link " + k.Path})
+		}
+		for _, p := range a.Problems {
+			add(CoverageItem{Step: "adopt", Reason: p.Reason, Path: p.Path, Detail: p.Detail, Episodes: p.MissingEpisodes})
+		}
 	}
-	for _, p := range rep.Adopt.Problems {
-		add(CoverageItem{Step: "adopt", Reason: p.Reason, Path: p.Path, Detail: p.Detail, Episodes: p.MissingEpisodes})
+	if err != nil {
+		notChecked("adopt", err)
 	}
 
 	if FollowerGrabs(l.pol, version) {
 		rep.RefreshSkipped = "the library grabs: turn Allow new downloads off to check adopted links"
 		add(CoverageItem{Step: "refresh", Reason: "not_checked", Detail: rep.RefreshSkipped})
 	} else {
-		if rep.Refresh, err = l.Refresh(ctx, RefreshOptions{Version: version, DryRun: true, Uncapped: true}); err != nil {
-			return nil, err
+		rep.Refresh, err = l.Refresh(ctx, RefreshOptions{Version: version, DryRun: true, Uncapped: true})
+		if r := rep.Refresh; r != nil {
+			for _, s := range r.Swaps {
+				add(CoverageItem{Step: "refresh", Reason: "to_move", Path: s.Old, Detail: "would move to " + s.Path})
+			}
+			for _, p := range r.Problems {
+				add(CoverageItem{Step: "refresh", Reason: p.Reason, Path: p.Path, Detail: p.Detail})
+			}
 		}
-		for _, s := range rep.Refresh.Swaps {
-			add(CoverageItem{Step: "refresh", Reason: "to_move", Path: s.Old, Detail: "would move to " + s.Path})
-		}
-		for _, p := range rep.Refresh.Problems {
-			add(CoverageItem{Step: "refresh", Reason: p.Reason, Path: p.Path, Detail: p.Detail})
+		if err != nil {
+			notChecked("refresh", err)
 		}
 	}
 
 	a, r := rep.Adopt, rep.Refresh
-	rep.Complete = len(rep.Items) == 0 && a.Linked == 0 && len(a.Skipped) == 0 && a.MissingEpisodes == 0 &&
+	rep.Complete = len(rep.Items) == 0 && a != nil && a.Linked == 0 && len(a.Skipped) == 0 && a.MissingEpisodes == 0 &&
 		r != nil && r.Swapped == 0 && len(r.Skipped) == 0 && r.Failed == 0
 	if len(rep.Counts) == 0 {
 		rep.Counts = nil
 	}
-	return rep, nil
+	return rep, errors.Join(errs...)
 }

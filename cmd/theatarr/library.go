@@ -54,10 +54,11 @@ const libraryUsage = `usage:
   theatarr library coverage -library KEY [flags]  read-only: does a parallel library hold every title and file its followed
                                                  library has (titles without it, links adopt would make, adopted links
                                                  refresh would move). Complete only with nothing missing, to do or
-                                                 skipped; otherwise lists every item and exits 1. Writes nothing
+                                                 skipped; otherwise lists every item and exits 1. Opens the
+                                                 database read-only
   theatarr library rename-preview -library KEY [flags]
                                                  read-only: every link of the library whose name would change under its
-                                                 naming, link_id<TAB>existing<TAB>new. Writes nothing
+                                                 naming, link_id<TAB>existing<TAB>new. Opens the database read-only
   theatarr library naming-sync [flags]            read config/naming and qualitydefinition (GET) from the import.arr
                                                  instances into the database
   theatarr library dangling [-scan] [-tsv] [flags]
@@ -101,18 +102,19 @@ func runLibrary(args []string, out io.Writer) error {
 			return err
 		}
 	}
-	pol, err := loadSettingsPolicy(ctx, f.settingsSource, f.policyDir, f.db)
+	// coverage and rename-preview change nothing: every open of the database is read-only (no WAL switch, no chmod, no
+	// migration), and any write fails instead of landing.
+	readOnly := args[0] == "coverage" || args[0] == "rename-preview"
+	f.readOnly = readOnly
+	pol, _, err := loadSettingsSnapshotOpts(ctx, f.settingsSource, f.policyDir, f.db, readOnly)
 	if err != nil {
 		return err
 	}
-	st, err := store.Open(ctx, f.db, store.Options{})
+	st, err := store.Open(ctx, f.db, store.Options{ReadOnly: readOnly})
 	if err != nil {
 		return err
 	}
 	defer st.Close()
-	// coverage and rename-preview change nothing: no migration, and the single writer connection is set query_only, so
-	// any write fails instead of landing.
-	readOnly := args[0] == "coverage" || args[0] == "rename-preview"
 	if readOnly {
 		cur, target, err := st.SchemaVersion(ctx)
 		if err != nil {
@@ -121,9 +123,6 @@ func runLibrary(args []string, out io.Writer) error {
 		if cur != target {
 			return fmt.Errorf("the database is at schema %d and this binary expects %d: run it with the binary theatarr "+
 				"serve runs (docker compose exec theatarr theatarr library %s)", cur, target, args[0])
-		}
-		if _, err := st.Writer().ExecContext(ctx, "PRAGMA query_only = 1"); err != nil {
-			return err
 		}
 	} else if _, err := st.Migrate(ctx); err != nil {
 		return err
@@ -185,7 +184,13 @@ func runLibrary(args []string, out io.Writer) error {
 	}
 	if args[0] == "coverage" || args[0] == "rename-preview" {
 		// As serve builds it, so the names match what serve proposes.
-		if _, eng, err := f.engine(*version, io.Discard); err == nil {
+		var built strings.Builder
+		_, eng, err := f.engine(*version, &built)
+		if err == nil && args[0] == "rename-preview" {
+			// Adopted links are named with the followed library's profile while the library follows one.
+			err = renameProfiles(pol, eng, *version, built.String())
+		}
+		if err == nil {
 			opts.Engine = eng
 			opts.Formats = decideRenameFormats(st, pol, eng)
 			if args[0] == "rename-preview" {
@@ -252,11 +257,14 @@ func runLibrary(args []string, out io.Writer) error {
 		return err
 	case "coverage":
 		rep, err := lib.Coverage(ctx, *version)
-		if err != nil {
+		if rep == nil {
 			return err
 		}
-		if err := printCoverage(out, rep, f.asJSON); err != nil {
-			return err
+		if perr := printCoverage(out, rep, f.asJSON); perr != nil {
+			return perr
+		}
+		if err != nil {
+			return fmt.Errorf("coverage NOT complete: %w", err)
 		}
 		if !rep.Complete {
 			return errors.New("coverage NOT complete")
@@ -335,6 +343,29 @@ func decideRenameFormats(st *store.Store, pol *policy.Policy, eng *decide.Engine
 		}
 		return renameNames(pol, eng, version, names)
 	}
+}
+
+// renameProfiles checks that eng built every profile the version's names can need: its own, and its followed
+// library's while it follows one. built is what the engine reported on the profiles that failed.
+func renameProfiles(pol *policy.Policy, eng *decide.Engine, version, built string) error {
+	keys := []string{version}
+	if vp := pol.Versions[version]; vp != nil && vp.Follows != "" {
+		keys = append(keys, vp.Follows)
+	}
+	for _, k := range keys {
+		vp := pol.Versions[k]
+		if vp == nil {
+			return fmt.Errorf("the policy has no library %q", k)
+		}
+		fl := format.Radarr
+		if vp.Kind == policy.KindSeries {
+			fl = format.Sonarr
+		}
+		if eng.Profile(vp.Profile, fl) == nil {
+			return fmt.Errorf("profile %q of library %s is not built\n%s", vp.Profile, k, strings.TrimSpace(built))
+		}
+	}
+	return nil
 }
 
 // matchedRenameFormats gives the import the {Custom Formats} names from the formats the router's decision matched
@@ -499,21 +530,23 @@ func printCoverage(out io.Writer, r *library.CoverageReport, asJSON bool) error 
 		enc.SetIndent("", "  ")
 		return enc.Encode(r)
 	}
-	a := r.Adopt
 	fmt.Fprintf(out, "library %s follows %s\n", r.Version, r.Follows)
 	fmt.Fprintf(out, "titles in %s without %s: %d\n", r.Follows, r.Version, r.MissingTitles)
-	var skipped []string
-	for _, k := range sortedReasons(a.Skipped) {
-		skipped = append(skipped, fmt.Sprintf("%s %d", k, a.Skipped[k]))
+	if a := r.Adopt; a != nil {
+		var skipped []string
+		for _, k := range sortedReasons(a.Skipped) {
+			skipped = append(skipped, fmt.Sprintf("%s %d", k, a.Skipped[k]))
+		}
+		if len(skipped) == 0 {
+			skipped = []string{"none"}
+		}
+		fmt.Fprintf(out, "links adopt would make: %d (already linked %d; uncovered episodes %d; skipped: %s)\n",
+			a.Linked, a.Existing, a.MissingEpisodes, strings.Join(skipped, ", "))
+		fmt.Fprintf(out, "own files kept: %d\n", r.OwnFilesKept)
 	}
-	if len(skipped) == 0 {
-		skipped = []string{"none"}
-	}
-	fmt.Fprintf(out, "links adopt would make: %d (already linked %d; own files kept %d; uncovered episodes %d; skipped: %s)\n",
-		a.Linked, a.Existing, a.HasFile, a.MissingEpisodes, strings.Join(skipped, ", "))
 	if r.Refresh != nil {
 		fmt.Fprintf(out, "adopted links refresh would move: %d (current %d)\n", r.Refresh.Swapped, r.Refresh.Current)
-	} else {
+	} else if r.RefreshSkipped != "" {
 		fmt.Fprintf(out, "adopted links not checked: %s\n", r.RefreshSkipped)
 	}
 	if r.Complete {

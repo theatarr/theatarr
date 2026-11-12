@@ -77,6 +77,9 @@ func New(db *store.Store) (*Store, error) {
 }
 
 func restrictDB(db *store.Store) error {
+	if db.ReadOnly() {
+		return nil // opened read-only: the file is left as it is
+	}
 	for _, suffix := range []string{"", "-wal", "-shm"} {
 		if err := os.Chmod(db.Path()+suffix, 0o600); err != nil && !(suffix != "" && errors.Is(err, os.ErrNotExist)) {
 			return errors.New("settings: cannot restrict database permissions")

@@ -55,6 +55,9 @@ type Options struct {
 	RetryBackoff time.Duration
 	// OnBusyRetry, if set, is called each time WriteTx retries (for metrics and tests).
 	OnBusyRetry func()
+	// ReadOnly opens an existing file through the read-only pool only (mode=ro, query_only): no file is created,
+	// chmodded or switched to WAL, and the writer is that pool too, so any write fails.
+	ReadOnly bool
 }
 
 func (o *Options) defaults() {
@@ -90,6 +93,9 @@ func Open(ctx context.Context, path string, opts Options) (*Store, error) {
 	abs, err := filepath.Abs(path)
 	if err != nil {
 		return nil, fmt.Errorf("store: %w", err)
+	}
+	if opts.ReadOnly {
+		return openReadOnly(ctx, abs, opts)
 	}
 	if err := os.MkdirAll(filepath.Dir(abs), 0o700); err != nil {
 		return nil, fmt.Errorf("store: %w", err)
@@ -129,23 +135,52 @@ func Open(ctx context.Context, path string, opts Options) (*Store, error) {
 		}
 	}
 
+	r, err := openReaders(ctx, abs, opts)
+	if err != nil {
+		w.Close()
+		return nil, err
+	}
+	return &Store{path: abs, opts: opts, writer: w, reader: r}, nil
+}
+
+// openReaders opens the read-only pool.
+func openReaders(ctx context.Context, abs string, opts Options) (*sql.DB, error) {
+	busy := fmt.Sprintf("busy_timeout(%d)", opts.BusyTimeout.Milliseconds())
 	r, err := sql.Open("sqlite", dsn(abs, url.Values{
 		"mode":    {"ro"},
 		"_pragma": {busy, "foreign_keys(1)", "synchronous(NORMAL)", "query_only(1)"},
 	}))
 	if err != nil {
-		w.Close()
 		return nil, fmt.Errorf("store: open readers: %w", err)
 	}
 	r.SetMaxOpenConns(opts.Readers)
 	r.SetMaxIdleConns(opts.Readers)
 	if err := r.PingContext(ctx); err != nil {
-		w.Close()
 		r.Close()
 		return nil, fmt.Errorf("store: open readers: %w", err)
 	}
-	return &Store{path: abs, opts: opts, writer: w, reader: r}, nil
+	return r, nil
 }
+
+// openReadOnly is Open with Options.ReadOnly: the existing file through the read-only pool, which serves as the
+// writer too.
+func openReadOnly(ctx context.Context, abs string, opts Options) (*Store, error) {
+	if _, err := os.Stat(abs); err != nil {
+		return nil, fmt.Errorf("store: %w", err)
+	}
+	r, err := openReaders(ctx, abs, opts)
+	if err != nil {
+		return nil, err
+	}
+	if err := checkSchema(ctx, r); err != nil {
+		r.Close()
+		return nil, fmt.Errorf("store: open %s: %w", abs, err)
+	}
+	return &Store{path: abs, opts: opts, writer: r, reader: r}, nil
+}
+
+// ReadOnly reports whether the store was opened with Options.ReadOnly.
+func (s *Store) ReadOnly() bool { return s.opts.ReadOnly }
 
 // ownerOnly makes path mode 0600, creating it empty first when create is set; a missing path is left alone otherwise.
 func ownerOnly(path string, create bool) error {
@@ -182,6 +217,9 @@ func (s *Store) Writer() *sql.DB { return s.writer }
 
 // Close closes both pools.
 func (s *Store) Close() error {
+	if s.writer == s.reader {
+		return s.reader.Close()
+	}
 	return errors.Join(s.reader.Close(), s.writer.Close())
 }
 

@@ -58,6 +58,8 @@ type decideFlags struct {
 	policyDir, db, envFile, trash, arrSnapshot string
 	settingsSource                             string
 	snap                                       *settings.Snapshot // the stored settings engine loaded
+	// readOnly opens the database read-only (store.Options.ReadOnly) to load the settings.
+	readOnly bool
 }
 
 func (f *decideFlags) register(fs *flag.FlagSet) {
@@ -77,7 +79,7 @@ func (f *decideFlags) engine(version string, warn io.Writer) (*policy.Policy, *d
 			return nil, nil, err
 		}
 	}
-	pol, snap, err := loadSettingsSnapshot(context.Background(), f.settingsSource, f.policyDir, f.db)
+	pol, snap, err := loadSettingsSnapshotOpts(context.Background(), f.settingsSource, f.policyDir, f.db, f.readOnly)
 	if err != nil {
 		return nil, nil, err
 	}

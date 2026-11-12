@@ -46,6 +46,12 @@ func loadSettingsPolicy(ctx context.Context, source, dir, path string) (*policy.
 }
 
 func loadSettingsSnapshot(ctx context.Context, source, dir, path string) (*policy.Policy, *settings.Snapshot, error) {
+	return loadSettingsSnapshotOpts(ctx, source, dir, path, false)
+}
+
+// loadSettingsSnapshotOpts is loadSettingsSnapshot; readOnly opens the database read-only (store.Options.ReadOnly).
+func loadSettingsSnapshotOpts(ctx context.Context, source, dir, path string, readOnly bool) (*policy.Policy,
+	*settings.Snapshot, error) {
 	if err := checkSettingsSource(source); err != nil {
 		return nil, nil, err
 	}
@@ -54,7 +60,7 @@ func loadSettingsSnapshot(ctx context.Context, source, dir, path string) (*polic
 	} else if err != nil {
 		return nil, nil, err
 	}
-	db, err := store.Open(ctx, path, store.Options{})
+	db, err := store.Open(ctx, path, store.Options{ReadOnly: readOnly})
 	if err != nil {
 		return nil, nil, err
 	}

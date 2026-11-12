@@ -85,6 +85,15 @@ func TestCoverageReport(t *testing.T) {
 	e.lib.mount.fs = nil
 	e.exec(`DELETE FROM version_file WHERE id = 5`)
 
+	// An arr file that is gone from the arr's root: listed with the lstat error.
+	movie(7, "Absent", true)
+	e.arrFile(7, "radarr", 70, 7, filepath.Join(e.movies, "Absent (2010)", "Absent.mkv"), "", "WEBDL-1080p")
+	if rep, err = e.lib.Coverage(e.ctx, "movie-theatarr"); err != nil || rep.Complete || len(rep.Items) != 1 ||
+		rep.Items[0].Reason != AdoptMissing || !strings.Contains(rep.Items[0].Detail, "no such file or directory") {
+		t.Fatalf("absent arr file %+v %v", rep, err)
+	}
+	e.exec(`DELETE FROM version_file WHERE id = 7`)
+
 	// Something else at the path the link would take: listed.
 	movie(6, "Sixth", true)
 	e.release("Sixth.2010.1080p.WEB-DL-GRP", map[string]float64{"s.mkv": 7000})
@@ -173,7 +182,25 @@ func TestCoverageUncoveredEpisodes(t *testing.T) {
 	e.exec(`INSERT INTO link_episode (link_id, episode_id) VALUES (1, 201)`)
 	rep, err := e.lib.Coverage(e.ctx, "tv-theatarr")
 	if err != nil || rep.Complete || rep.Adopt.MissingEpisodes != 1 || len(rep.Items) != 1 ||
-		rep.Items[0].Reason != AdoptHasFile || len(rep.Items[0].Episodes) != 1 || rep.Items[0].Episodes[0] != 202 {
+		rep.Items[0].Reason != AdoptHasFile || len(rep.Items[0].Episodes) != 1 || rep.Items[0].Episodes[0] != 202 ||
+		rep.OwnFilesKept != 1 {
 		t.Fatalf("uncovered episodes %+v %v", rep, err)
+	}
+}
+
+// TestCoverageMountDownKeepsReport: when adopt and refresh cannot run (the mount does not answer), the titles found
+// so far are still reported, each step that could not run is listed as not_checked with why, and the error is
+// returned.
+func TestCoverageMountDownKeepsReport(t *testing.T) {
+	t.Parallel()
+	e := newParallelEnv(t, true)
+	e.exec(`INSERT INTO title (id, kind, name, year, tmdb_id, created_at, updated_at) VALUES (4, 'movie', 'Fourth', 2010, 4, 0, 0)`)
+	e.exec(`INSERT INTO version (id, title_id, policy_key, created_at, updated_at) VALUES (40, 4, 'movie-remux', 0, 0)`)
+	e.exec(`INSERT INTO version_source (version_id, instance, arr_id) VALUES (40, 'radarr', 4)`)
+	e.lib.mount.fs = permFS{path: e.lib.mount.AllPath()}
+	rep, err := e.lib.Coverage(e.ctx, "movie-theatarr")
+	if err == nil || rep == nil || rep.Complete || rep.Counts["titles missing_title"] != 1 ||
+		rep.Counts["adopt not_checked"] != 1 || rep.Counts["refresh not_checked"] != 1 {
+		t.Fatalf("mount down %+v %v", rep, err)
 	}
 }

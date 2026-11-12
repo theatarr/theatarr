@@ -343,10 +343,12 @@ still move (not checked while K grabs: turn **Allow new downloads** off first). 
 none of these is left and adopt and refresh skip nothing, for any reason. Otherwise it lists every item, one per line
 (`step<TAB>reason<TAB>path or title<TAB>detail`): the step (`titles`, `adopt` or `refresh`), the reason code, and the
 underlying error where there was one, so a file that is absent can be told from one that could not be read; uncovered
-episodes of a pack K's own files cover only in part are listed by id. A count per reason follows, then
-`coverage NOT complete`, and the command exits 1. Read the list and decide what each item needs; adopt and refresh
-fix what they can, and never replace a file K imported itself. `-json` gives the same report. The command does not
-migrate the database: run it with the binary `theatarr serve` runs.
+episodes of a pack K's own files cover only in part are listed by id. A step that cannot run (the mount does not
+answer) is listed as `not_checked` with the reason, after what was found before it. A count per reason follows, then
+`coverage NOT complete`, and the command exits 1. Titles where K keeps a file of its own are covered: they are counted
+on the `own files kept: N` line and are not items. Read the list and decide what each item needs; adopt and refresh
+fix what they can, and never replace a file K imported itself. `-json` gives the same report. The command opens the
+database read-only (no migration, no change to the file or its mode): run it with the binary `theatarr serve` runs.
 
 Scan each of K's Plex sections once after its first adopt.
 
@@ -518,7 +520,7 @@ Keep Prowlarr while any library still uses one of its feeds.
    go through every item it lists. Save the names K has now with
    `theatarr library rename-preview -library K > before.tsv` (one `link_id<TAB>existing<TAB>new` line per link whose
    name would change; the count goes to stderr; nothing is renamed; it fails rather than print a preview when K's
-   profile cannot be built). Set K's naming explicitly before you remove the
+   profile, or F's while K follows F, cannot be built). Set K's naming explicitly before you remove the
    inherited naming: **Copy *F*'s naming** in K's naming editor copies F's templates into K. Run the rename preview
    again and compare it with `before.tsv`: there should be no new differences. Then review the confirmed removal of
    `follows` in **Settings › Libraries**, and remove the arr import entry under **Advanced › Sonarr/Radarr
