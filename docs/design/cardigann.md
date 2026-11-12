@@ -90,9 +90,10 @@ expected rows says so with its size only, since a body can hold a passkey.
    not supported.
    Movie and series searches go by id first when the definition's `caps.modes` lists one and the title has it (one
    id: IMDb then TMDb for movies; TVDB, IMDb, TMDb for series), with `.Query.Season`, `.Query.Ep`, `.Query.Episode`;
-   the keyword searches follow only when the id search found nothing, as for Torznab feeds. An id search sets no
+   the keyword searches follow only when the id search found nothing, as for Torznab feeds. A series search without
+   criteria (no episode metadata) is one request, as on a Torznab feed: by id when there is one, else by keywords. An id search sets no
    `.Query.Q` and skips the definition's `andmatch` filter, as in Prowlarr. A scene mapping's search mode picks id,
-   title or both; an id-only mapping with no id the definition lists is not searched (it does not become a title
+   title or both for criteria; an id-only mapping with no id the definition lists is not searched (it does not become a title
    search), as on a Torznab feed. The keyword searches carry the same season and episode variables. `.Query.Year`
    is set for a movie when the definition lists `year`. Anime and daily-season searches stay keywords only.
 2. The definition is loaded from the catalog.

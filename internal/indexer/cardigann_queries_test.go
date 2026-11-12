@@ -180,4 +180,20 @@ func TestCardigannSeriesIDCarriesSeasonEpisode(t *testing.T) {
 	if _, err := h.svc.Search(context.Background(), "site", idOnly); !errors.Is(err, ErrUnsupported) || len(asked()) != 0 {
 		t.Errorf("id-only mapping without an id: %v, requests %v", err, asked())
 	}
+	// A plain series query (no criteria) is one request on a Torznab feed, whatever the mode: the id when the
+	// definition lists one, with no keyword search after it; the keywords only without an id.
+	for _, mode := range []SearchMode{SearchDefault, SearchID, SearchTitle, SearchID | SearchTitle} {
+		plain := Query{Type: QuerySeries, Title: "Show", TVDB: 12345, Season: 1, Episode: 2, Mode: mode}
+		h, asked = idSite(t, func(url.Values) bool { return false })
+		search(t, h, "site", plain)
+		if got := asked(); len(got) != 1 || got[0].Get("tvdb") != "12345" || got[0].Get("season") != "1" || got[0].Get("ep") != "2" {
+			t.Errorf("plain series, mode %d: %v", mode, got)
+		}
+		plain.TVDB = 0
+		h, asked = idSite(t, func(url.Values) bool { return false })
+		search(t, h, "site", plain)
+		if got := asked(); len(got) != 1 || got[0].Get("tvdb") != "" || got[0].Get("q") != "Show S01E02" {
+			t.Errorf("plain series without an id, mode %d: %v", mode, got)
+		}
+	}
 }

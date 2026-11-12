@@ -216,7 +216,8 @@ func (c *cardigannSearcher) credentials() (map[string]string, error) {
 
 // cardigannRequests are the tiers of engine searches for q, as a Torznab feed is asked (criteria.go, torznab.go): an
 // id search first when the definition's caps.modes lists an id the title has, then the keyword searches only when
-// the id search found nothing. A scene mapping's search mode picks id, title or both. ok is false for an id-only
+// the id search found nothing (a plain series query without criteria is asked by id alone when it has one). A scene
+// mapping's search mode picks id, title or both for criteria. ok is false for an id-only
 // search of criteria the Torznab path also asks by id only, when there is no id to send: it does not become a title
 // search.
 func cardigannRequests(q Query, def *cardigann.Definition) (tiers [][]cardigann.Query, ok bool) {
@@ -258,8 +259,11 @@ func cardigannRequests(q Query, def *cardigann.Definition) (tiers [][]cardigann.
 		keywords = append(keywords, kq)
 	}
 
+	// The search mode applies to Sonarr's criteria only; movies and plain series queries ignore it, as on a Torznab
+	// feed (torznab.go requests and params).
+	criteria := q.Type == QuerySeries && q.Criteria != ""
 	var id *cardigann.Query
-	if q.Mode != SearchTitle {
+	if !criteria || q.Mode != SearchTitle {
 		iq := vars
 		iq.ByID, iq.Keywords = true, vars.Episode
 		switch {
@@ -283,6 +287,12 @@ func cardigannRequests(q Query, def *cardigann.Definition) (tiers [][]cardigann.
 		return nil, false
 	case id == nil:
 		return [][]cardigann.Query{keywords}, true
+	case q.Type == QuerySeries && !criteria:
+		// A plain series query is one request on a Torznab feed: the id when there is one, with no title after it.
+		return [][]cardigann.Query{{*id}}, true
+	case !criteria:
+		// A movie: the id, then the title when the id found nothing.
+		return [][]cardigann.Query{{*id}, keywords}, true
 	case q.Mode == SearchID:
 		return [][]cardigann.Query{{*id}}, true
 	case q.Mode == SearchID|SearchTitle:
