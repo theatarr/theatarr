@@ -147,7 +147,18 @@ func (w *Web) apiQualityRead(entity string, one bool) http.HandlerFunc {
 			writeJSON(rw, 404, apiError{Error: "settings record not found"})
 			return
 		}
-		writeJSON(rw, 200, map[string]any{"generation": snap.Generation, "records": recs})
+		out := map[string]any{"generation": snap.Generation, "records": recs}
+		if entity == "naming" && snap.Policy != nil {
+			// The built-in templates each library falls back to, so the editor can copy a naming exactly.
+			defaults := map[string]map[string]string{}
+			for k, v := range snap.Policy.Versions {
+				if v != nil {
+					defaults[k] = library.DefaultTemplates(v.Kind)
+				}
+			}
+			out["defaults"] = defaults
+		}
+		writeJSON(rw, 200, out)
 	}
 }
 

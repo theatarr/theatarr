@@ -851,7 +851,10 @@ version (`from_version`), any other version starts with the arr default names, e
 (Settings › Libraries › Naming). A version's naming record cannot be deleted on its own; deleting the version removes it.
 The existing parallel-policy naming validation still applies. For a record with `from_version` F the naming editor shows
 "Copy F's naming": it copies F's `folder`, `file`, `season`, `specials`, `daily`, `anime`, `colon` and
-`multi_episode` into the draft and clears `from_version` and `from_arr`; Save gives the library its own copy, so it
+`multi_episode` into the draft and clears `from_version` and `from_arr`. A template F leaves empty is copied as the
+built-in one F uses (`GET /settings/naming` returns them per library as `defaults`, from `library.DefaultTemplates`),
+so the copy names files exactly as F does and passes the follower rule that a follower without `from_version` names
+its files explicitly. Save gives the library its own copy, so it
 keeps its naming when it stops following. Clearing `follows` while `from_version` is still set is refused with a
 message pointing at that button. When F takes its naming from an arr instance (`from_arr`), or F has no record, the
 editor says the templates must be typed in by hand (no conversion of arr naming here).

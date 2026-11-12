@@ -8,6 +8,7 @@ import (
 	"testing"
 
 	"github.com/theatarr/theatarr/internal/decide"
+	"github.com/theatarr/theatarr/internal/library/naming"
 	"github.com/theatarr/theatarr/internal/policy"
 )
 
@@ -215,5 +216,73 @@ func TestRenamePreviewAdoptedFormatsAfterFollowing(t *testing.T) {
 	}
 	if len(asked) == 0 || asked[len(asked)-1] != "movie-theatarr" {
 		t.Fatalf("formats asked for %v, want the library's own key movie-theatarr", asked)
+	}
+}
+
+// The editor's "Copy F's naming" on a followed library with the built-in names (no templates of its own) copies
+// DefaultTemplates: the follower's copy passes validation while it still follows, and names a film and an episode
+// exactly as the followed library does.
+func TestCopiedDefaultNamingValidatesAndNamesAlike(t *testing.T) {
+	t.Parallel()
+	e := newParallelEnv(t, true)
+	copyOf := func(followed, follower string) {
+		f := e.pol.Versions[followed]
+		f.Naming = policy.Naming{Colon: "dash"}
+		d := DefaultTemplates(f.Kind)
+		e.pol.Versions[follower].Naming = policy.Naming{Folder: d["folder"], File: d["file"], Season: d["season"],
+			Specials: d["specials"], Daily: d["daily"], Anime: d["anime"], Colon: "dash"}
+	}
+	copyOf("movie-remux", "movie-theatarr")
+	copyOf("tv", "tv-theatarr")
+	// The test policy is not complete (storage and the like), so only the naming findings are looked at.
+	if err := e.pol.Validate(); err != nil && strings.Contains(err.Error(), ".naming") {
+		t.Fatalf("copied naming refused: %v", err)
+	}
+	kept := e.pol.Versions["movie-theatarr"].Naming
+	e.pol.Versions["movie-theatarr"].Naming = policy.Naming{Colon: "dash"}
+	if err := e.pol.Validate(); err == nil || !strings.Contains(err.Error(), "names its files explicitly") {
+		t.Fatalf("a copy without the built-in templates: %v, want refused", err)
+	}
+	e.pol.Versions["movie-theatarr"].Naming = kept
+	name := func(version string) (string, string) {
+		vn, err := NamingFor(e.ctx, e.st.Reader(), e.pol, version)
+		if err != nil {
+			t.Fatal(err)
+		}
+		q := naming.Quality{Title: "WEBDL-1080p", Version: 1}
+		if e.pol.Versions[version].Kind == policy.KindMovie {
+			m := &naming.Movie{Title: "Amélie: The Movie", Year: 2001}
+			folder, err := naming.MovieFolder(&vn.Config, m)
+			if err != nil {
+				t.Fatal(err)
+			}
+			file, err := naming.MovieFileName(&vn.Config, m, &naming.MovieFile{Quality: q})
+			if err != nil {
+				t.Fatal(err)
+			}
+			return folder, file
+		}
+		s := &naming.Series{Title: "Show: Two", Year: 2020, Type: naming.SeriesStandard}
+		folder, err := naming.SeriesFolder(&vn.Config, s)
+		if err != nil {
+			t.Fatal(err)
+		}
+		season, err := naming.SeasonFolder(&vn.Config, s, 1)
+		if err != nil {
+			t.Fatal(err)
+		}
+		file, err := naming.SeriesFileName(&vn.Config, s, []naming.Episode{{Season: 1, Number: 2, Title: "Pilot"}},
+			&naming.EpisodeFile{Quality: q}, ".mkv", "/x")
+		if err != nil {
+			t.Fatal(err)
+		}
+		return filepath.Join(folder, season), file
+	}
+	for followed, follower := range map[string]string{"movie-remux": "movie-theatarr", "tv": "tv-theatarr"} {
+		ff, fn := name(followed)
+		mf, mn := name(follower)
+		if fn == "" || ff != mf || fn != mn {
+			t.Errorf("%s names %s/%s, its copy in %s %s/%s", followed, ff, fn, follower, mf, mn)
+		}
 	}
 }

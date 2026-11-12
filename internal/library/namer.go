@@ -109,6 +109,19 @@ func NamingFor(ctx context.Context, db *sql.DB, pol *policy.Policy, version stri
 	return &VersionNaming{Config: cfg, Source: "policy"}, nil
 }
 
+// DefaultTemplates gives the built-in template NamingFor uses for each naming field a version of kind leaves empty:
+// folder and file, and for series also season, specials, daily and anime.
+func DefaultTemplates(kind policy.Kind) map[string]string {
+	if kind == policy.KindMovie {
+		c := naming.DefaultMovieConfig()
+		return map[string]string{"folder": c.MovieFolderFormat, "file": c.StandardMovieFormat}
+	}
+	c := naming.DefaultSeriesConfig()
+	return map[string]string{"folder": c.SeriesFolderFormat, "file": c.StandardEpisodeFormat,
+		"season": c.SeasonFolderFormat, "specials": c.SpecialsFolderFormat, "daily": c.DailyEpisodeFormat,
+		"anime": c.AnimeEpisodeFormat}
+}
+
 // ArrGetter is the read-only arr client (internal/arr.Client).
 type ArrGetter interface {
 	GetJSON(ctx context.Context, endpoint string, query url.Values, v any) error

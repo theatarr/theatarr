@@ -215,6 +215,28 @@ describe("quality editors", () => {
     });
   });
 
+  it("copies the built-in templates the followed library uses where its naming leaves them empty", async () => {
+    const followed: QualityRecord = { id: 1, key: "tv", config: { colon: "dash" } };
+    const follower: QualityRecord = { id: 2, key: "tv-mm", config: { from_version: "tv" } };
+    const tvDefaults = { folder: "{Series Title}", file: "{Series Title} - S{season:00}E{episode:00} - {Episode Title} {Quality Full}", season: "Season {season}", specials: "Specials", daily: "{Series Title} - {Air-Date} - {Episode Title} {Quality Full}", anime: "{Series Title} - S{season:00}E{episode:00} - {Episode Title} {Quality Full}" };
+    const fetch = mockFetch([
+      { method: "GET", path: "/settings", reply: overview() },
+      { method: "GET", path: "/settings/naming", reply: { ...list([followed, follower]), defaults: { tv: tvDefaults, "tv-mm": tvDefaults } } },
+      { method: "GET", path: "/settings/formats/schema", reply: implementations },
+      { method: "POST", path: "/settings/naming/preview", reply: json({ folder: "f", file: "f.mkv" }) },
+      { method: "PUT", path: "/settings/naming/2", reply: json({ generation: 5 }) },
+    ]);
+    const user = userEvent.setup();
+    renderPage(<QualityPanel entity="naming" />);
+    await user.click(await screen.findByRole("button", { name: "Edit tv-mm" }));
+    await user.click(screen.getByRole("button", { name: "Copy tv's naming" }));
+    await user.click(screen.getByRole("button", { name: "Save" }));
+    await waitFor(() => expect(fetch.calls("PUT", "/settings/naming/2")).toHaveLength(1));
+    expect(fetch.calls("PUT", "/settings/naming/2")[0].body).toEqual({
+      generation: 4, key: "tv-mm", config: { from_version: "", from_arr: "", colon: "dash", ...tvDefaults },
+    });
+  });
+
   it("shows a naming preview refusal in the editor", async () => {
     const fetch = mockFetch([
       ...baseRoutes("naming", []),
