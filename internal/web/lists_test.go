@@ -230,8 +230,8 @@ func TestListsNeedTMDbToSync(t *testing.T) {
 	}
 }
 
-// webFakeArr is a Radarr or Sonarr instance for the list routes; a wrong key answers an error that names it.
-type webFakeArr struct{ app, key, titles string }
+// webFakeArr is a Radarr or Sonarr instance for the list routes.
+type webFakeArr struct{ app, titles string }
 
 func (f webFakeArr) GetJSON(_ context.Context, endpoint string, _ url.Values, v any) error {
 	switch endpoint {
