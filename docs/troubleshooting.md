@@ -119,10 +119,10 @@ returned and why each release was accepted or rejected) and **System › Status*
   the uncached add stays on the account and finishes downloading there while Theatarr tries the next provider
   (**Delete uncached AllDebrid adds** is off, because Theatarr cannot always prove the add is its own). Turn
   **Only add cached releases** off to let the providers download uncached releases.
-- **A source is disabled.** A new indexer or provider is off until you turn it on: open it, press **Test these
-  values**, and choose **Enable and save** when the test passes (**Settings › Indexers**, **Settings › Download
-  clients**). The library must also list the indexer and the
-  provider (**Settings › Libraries**).
+- **A source is disabled.** A new provider is off until you turn it on: open it, press **Test these values**, and
+  choose **Enable and save** when the test passes (**Settings › Download clients**). A new indexer starts on; one you
+  turned off, or a tracker moved from Prowlarr that needs a login, is turned on the same way (**Settings ›
+  Indexers**). The library must also list the indexer and the provider (**Settings › Libraries**).
 - **The provider refuses the key.** A wrong key, or a plan that has ended, fails every add. **Test** on the provider
   shows whether the plan is premium and when it ends; **System › Status** reports an account that is not premium.
 - **The debrid mount is empty inside the container.** **System › Status** then says "The mount at /mnt/debrid is

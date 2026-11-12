@@ -186,6 +186,10 @@ TheRARBG's case loads it from the catalog's custom folder. All three run nativel
 
 ## The definition catalog (sync source)
 
+A new install's first settings save turns it on (Prowlarr/Indexers); turn it off by clearing `definitions`. The add
+sheet's Catalog tab turns it on too (**Turn on the catalog**), and shows "Fetching the catalog…" until the first fetch
+fills it, or the fetch's error with **Try again** (`POST /cardigann/refresh`).
+
 Built like the quality sync's tracked sources. The branch's newest commit is read from GitHub's commits API, and the
 archive of that commit from codeload, through the gateway on the `cardigann-definitions` budget (shared by every
 settings generation; it does not drain the quality sync's). The archive's newest `definitions/vN` with N ≤ 11 is
@@ -272,9 +276,14 @@ to Prowlarr or to the settings.
 - Statuses: `proposed`, `no_definition` (a Prowlarr-native or custom indexer: keep it behind Prowlarr), `unsupported`,
   `usenet`.
 
-The indexers page's add sheet (tab "Migrate from Prowlarr (once)") shows the proposals and writes only the ticked
-`proposed` ones, each with its budget and disabled, in no version. Existing Torznab feeds stay as they are; switching versions to native indexers is a separate step
-(shadow comparison first).
+The indexers page's add sheet (tab "Move from Prowlarr (once)") shows the proposals and writes only the ticked
+`proposed` ones, each with its budget, on and in the ticked libraries; a proposal that names secret settings (a
+login) is added off, to be turned on once its login is entered. Prowlarr's feeds stay as they are: take a feed out of
+a library once its tracker runs natively, or the tracker is searched twice.
+
+The read itself (`cardigann.ReadProwlarr`) is shared with **Link Prowlarr** (`GET`/`POST /settings/prowlarr/feeds`),
+which keeps the trackers in Prowlarr and adds the chosen Prowlarr indexers as Torznab feeds instead
+([settings](settings.md), "Adding an indexer"). Link needs no catalog; Move does.
 
 ## trawl (Cloudflare)
 

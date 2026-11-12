@@ -171,33 +171,34 @@ and let the library add through it ([external-clients.md (internals)](design/ext
 
 ## 5. Indexers: keep Prowlarr, or go native
 
-Both are first-class, and they mix. **Settings › Indexers › Add indexer** has three tabs: Catalog, Torznab & built-in
-sources, and Migrate from Prowlarr. It opens on Catalog, or on Torznab & built-in sources while the catalog is off.
+Both are first-class, and they mix. **Settings › Indexers › Add indexer** has four tabs and opens on Catalog:
 
-- **Keep Prowlarr.** Add each Prowlarr indexer's Torznab feed (`http://prowlarr:9696/<id>/api` with Prowlarr's API
-  key) as a Torznab indexer (**Torznab & built-in sources**, then **Torznab / Newznab**). Or use **Migrate from Prowlarr** once: it proposes one native
-  indexer per Prowlarr indexer, using the catalog definition where one exists and the Torznab feed where none does.
-  Jackett feeds work the same way.
-- **Native catalog.** Pick indexers from the Cardigann definitions (the catalog Prowlarr uses). Turn the catalog on
-  under **Settings › Indexers › Catalog** ([cardigann.md (internals)](design/cardigann.md)). Sites behind a Cloudflare check
-  need a FlareSolverr-compatible service, set in the same catalog settings. The built-in sources (DMM, Torrentio, Zilean,
-  SeaDex) need no catalog, and none of them is required: use the ones you want.
+- **Catalog.** The tracker sites Theatarr searches itself (the Cardigann definitions Prowlarr uses,
+  [cardigann.md (internals)](design/cardigann.md)). A new install starts with the catalog on; when it is off, the tab
+  has **Turn on the catalog**, which downloads the list from GitHub at once and checks it for updates once a day. No
+  tracker is contacted until you add one. Sites behind a Cloudflare check need a FlareSolverr-compatible service, set
+  under **Settings › Indexers › Catalog**.
+- **Torznab & built-in sources.** Any Torznab or Newznab feed (Jackett, a usenet indexer), and the built-in sources:
+  DMM, Torrentio, Zilean and SeaDex. None of them is required: use the ones you want. DMM's API key comes only with a
+  paid GitHub sponsorship of DMM.
+- **Link Prowlarr.** Enter Prowlarr's address and API key once; Theatarr lists Prowlarr's indexers and adds the
+  ticked ones as Torznab feeds. The trackers, their logins and their VPN stay in Prowlarr: run Prowlarr behind your
+  VPN, as Theatarr's VPN check does not cover the requests Prowlarr sends. Prowlarr must be on your local network.
+  Indexers added to Prowlarr later are linked by opening the tab again. Keep DMM and SeaDex added directly: through
+  Prowlarr they lose which debrid service has a release cached.
+- **Move from Prowlarr (once).** Each Prowlarr indexer that has a catalog definition becomes an indexer Theatarr runs
+  itself, with its own request budget; the others are left out (link them instead). Logins are not copied, so a
+  tracker that needs one is added off: enter its login, then turn it on. Prowlarr's feeds stay as they are: take a
+  feed out of a library once its tracker runs here, or the tracker is searched twice.
 
-A new indexer is off until you turn it on. Each form tests the values before it saves them (a probe query through
-the configured VPN check), and a passed test offers to enable the indexer in the same save:
-
-- **Torznab & built-in sources** (and a disabled indexer you edit later): **Test these values**, then **Enable and save**
-  beside the result. **Save** alone stores the current **Enabled** value.
-- **Catalog**: **Test search**, then **Add and enable**. **Add (disabled)** is always there, and is the only
-  button until a test has passed.
-- **Migrate from Prowlarr** adds its indexers disabled; open each one under **Settings › Indexers**, test it and
-  enable it there.
-
-A new indexer is in no library yet: tick it in the libraries that should search it (**Settings ›
-Libraries**, or Setup's library step). Catalog and Prowlarr-migration additions get a request budget of their own;
-built-in sources get none automatically (assign one if you want it). Setup counts an indexer as done once it is enabled; a Torznab
-or DMM indexer also needs its API key, while Torrentio, Zilean, SeaDex and catalog sites need none. Setup's steps,
-its **Off until set up** list and `golive check`'s SetupCheck all apply this rule.
+A new indexer is on, and the same form has a **Libraries** list: the ticked libraries search it from that save. Every
+library that suits it starts ticked (a catalog site by its categories, SeaDex for anime libraries, every other
+source for all libraries). Each form can test the values before saving (a probe query through the configured VPN
+check); a test is not required. Catalog and moved indexers get a request budget of their own, linked Prowlarr feeds
+share one (`prowlarr`, 60 a minute); built-in sources get none automatically (assign one if you want it). Setup
+counts an indexer as done once it is enabled; a Torznab or DMM indexer also needs its API key, while Torrentio,
+Zilean, SeaDex and catalog sites need none. Setup's steps, its **Off until set up** list and `golive check`'s
+SetupCheck all apply this rule.
 
 A built-in source needs its **Service URL**. The form for a new Torrentio or SeaDex indexer starts with the public
 address filled in (change it if you use another instance); DMM and Zilean start empty. Nothing is stored until you
@@ -206,7 +207,7 @@ save, and the server has no default of its own. The public services are at:
 | Source | Service URL |
 |---|---|
 | Torrentio | `https://torrentio.strem.fun` (prefilled) |
-| DMM | `https://debridmediamanager.com/api/torznab/rd/cached` (DMM's Torznab feed: `/api/torznab/cached`, or `rd`, `ad` or `tb` in the path for one provider's cache), with your DMM API key |
+| DMM | `https://debridmediamanager.com/api/torznab/rd/cached` (DMM's Torznab feed: `/api/torznab/cached`, or `rd`, `ad` or `tb` in the path for one provider's cache), with your DMM API key (paid: DMM gives keys only to its GitHub sponsors) |
 | Zilean | your own Zilean instance, for example `http://zilean:8181` |
 | SeaDex | `https://seadex.moe` (prefilled; `releases.moe` redirects there) |
 

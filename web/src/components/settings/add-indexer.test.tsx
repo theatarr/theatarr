@@ -1,11 +1,13 @@
 import { DefinitionHolds } from "./add-indexer";
 // @vitest-environment jsdom
-// The add-indexer sheet: the catalog with its filters and a set-up form from a definition, the Prowlarr migration,
-// and the held definition updates. Everything it adds is disabled (unless a passed test's Add and enable is used), has a budget of its own and joins no version.
+// The add-indexer sheet: the catalog with its filters, turning it on, and a set-up form from a definition, the move
+// from Prowlarr, and the held definition updates. Everything it adds is on (a moved tracker that needs a login is the
+// exception), has a budget of its own and joins the ticked libraries.
 import { screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it } from "vitest";
 import type { CardigannDefinition, CardigannList, ProwlarrProposal } from "@/api/cardigann";
+import type { VersionRecord } from "@/api/settings-versions";
 import { SettingsTabView } from "@/pages/admin/settings";
 import { dmm, overview, schema } from "./fixtures";
 import { expectNamedControls, json, mockFetch, renderPage, type RequestRecord } from "@/test/page";
@@ -32,10 +34,14 @@ const catalog: CardigannList = {
 };
 const indexers = (extra = {}) => <SettingsTabView tab="indexers" overview={overview({ indexers: [dmm], ...extra })} schema={schema} versions={[]} />;
 const writes = (requests: RequestRecord[]) => requests.filter((r) => r.method !== "GET");
+const lib = (key: string, kind: string, anime: boolean | null) => ({ id: 1, key, created_at: "", updated_at: "", roots: [], config: { kind, anime, mode: "active" } }) as unknown as VersionRecord;
+// A movie library, a series library marked non-anime, and an anime series library.
+const versionsRoute = { method: "GET", path: "/settings/versions", reply: json({ source: "db", generation: 4, versions: [lib("movies", "movie", null), lib("tv", "series", false), lib("anime", "series", true)] }) };
 
 describe("add-indexer sheet", () => {
-  it("lists what runs here, filters, and adds a private definition disabled with its own budget and the account in the credential", async () => {
+  it("lists what runs here, filters, and adds a private definition on, in the libraries that suit it, with its own budget and the account in the credential", async () => {
     const fetch = mockFetch([
+      versionsRoute,
       { method: "GET", path: "/cardigann/definitions", reply: json(catalog) },
       { method: "POST", path: "/settings/budgets", reply: json({ generation: 5 }) },
       { method: "POST", path: "/settings/indexers/test", reply: json({ key: "privatesite", entity: "indexers", status: "ok", results: 12, latency_ms: 300, tested_at: "2026-10-29T10:00:00Z" }) },
@@ -69,6 +75,9 @@ describe("add-indexer sheet", () => {
     expect((within(setup).getByTestId("setup-privacy") as HTMLInputElement).readOnly).toBe(true);
     expect(within(setup).getByTestId("setup-note").textContent).toContain("Sign in with a browser.");
     expect(within(setup).getAllByRole("option").map((o) => o.textContent)).toEqual(["https://private.example/", "https://mirror.private.example/"]);
+    // A movie site: only the movie library is ticked.
+    await within(setup).findByRole("group", { name: "Libraries" });
+    expect(within(setup).getAllByRole("checkbox").filter((c) => (c as HTMLInputElement).checked).map((c) => c.closest("label")?.textContent)).toEqual(["Enabled", "movies Movies"]);
 
     // Required account fields are checked before anything is sent.
     await user.click(within(setup).getByTestId("setup-add"));
@@ -86,21 +95,18 @@ describe("add-indexer sheet", () => {
 
     const config = { kind: "cardigann", definition: "privatesite", url: "https://mirror.private.example/", privacy: "private", budget: "privatesite" };
     const secret = JSON.stringify({ username: "invented-user", password: "invented-pass" });
-    // The test wrote the budget once; Add reused it. Nothing else was written: no enable, no version, no order.
+    // The test wrote the budget once; Add reused it and saved the indexer on, in its library, in one write.
     expect(writes(fetch.requests).map((r) => `${r.method} ${r.path}`)).toEqual(["POST /settings/budgets", "POST /settings/indexers/test", "POST /settings/indexers"]);
     expect(fetch.calls("POST", "/settings/budgets")[0].body).toEqual({ generation: 4, key: "privatesite", config: { requests: 10, per: "1m" } });
-    expect(fetch.calls("POST", "/settings/indexers/test")[0].body).toEqual({ key: "privatesite", config, enabled: false, priority: 10, secret });
-    expect(fetch.calls("POST", "/settings/indexers")[0].body).toEqual({ generation: 4, key: "privatesite", config, enabled: false, priority: 10, secret });
+    expect(fetch.calls("POST", "/settings/indexers/test")[0].body).toEqual({ key: "privatesite", config, enabled: true, priority: 10, secret });
+    expect(fetch.calls("POST", "/settings/indexers")[0].body).toEqual({ generation: 4, key: "privatesite", config, enabled: true, priority: 10, secret, versions: ["movies"] });
   });
 
-  it("offers Add and enable only after a passed test, and then posts the indexer enabled", async () => {
-    const result = (status: string) => ({ key: "thepiratebay", entity: "indexers", status, tested_at: "2026-11-09T10:00:00Z" });
+  it("sends what is left ticked: unticking a library and Enabled", async () => {
     const fetch = mockFetch([
+      versionsRoute,
       { method: "GET", path: "/cardigann/definitions", reply: json(catalog) },
       { method: "POST", path: "/settings/budgets", reply: json({ generation: 5 }) },
-      { method: "POST", path: "/settings/indexers/test", reply: json({ ...result("failed"), message: "connection refused" }) },
-      { method: "POST", path: "/settings/indexers/test", reply: json({ ...result("cooldown"), retry_at: "2026-11-09T10:01:00Z" }, 429) },
-      { method: "POST", path: "/settings/indexers/test", reply: json({ ...result("ok"), results: 12 }) },
       { method: "POST", path: "/settings/indexers", reply: json({ generation: 6 }) },
     ]);
     const user = userEvent.setup();
@@ -108,83 +114,43 @@ describe("add-indexer sheet", () => {
     await user.click(screen.getByRole("button", { name: "Add indexer" }));
     await user.click(await screen.findByRole("button", { name: "Set up The Pirate Bay" }));
     const setup = await screen.findByTestId("setup");
-    const status = async (want: string) => waitFor(() => expect(within(setup).getByTestId("test-result").getAttribute("data-status")).toBe(want));
-
-    // Before a test, and after a failed or rate-limited one, only the disabled add.
-    expect(within(setup).getByTestId("setup-add").textContent).toContain("Add (disabled)");
-    expect(within(setup).queryByTestId("setup-add-enable")).toBeNull();
-    await user.click(within(setup).getByTestId("setup-test"));
-    await status("failed");
-    expect(within(setup).queryByTestId("setup-add-enable")).toBeNull();
-    await user.click(within(setup).getByTestId("setup-test"));
-    await status("cooldown");
-    expect(within(setup).queryByTestId("setup-add-enable")).toBeNull();
-
-    await user.click(within(setup).getByTestId("setup-test"));
-    await status("ok");
-    expect(within(setup).getByTestId("setup-add").textContent).toContain("Add (disabled)");
-    await user.click(within(setup).getByRole("button", { name: "Add and enable" }));
+    // Movies and TV: every library suits it. No test is needed before Add.
+    const libraries = await within(setup).findByRole("group", { name: "Libraries" });
+    expect(within(libraries).getAllByRole("checkbox").map((c) => (c as HTMLInputElement).checked)).toEqual([true, true, true]);
+    await user.click(within(libraries).getByRole("checkbox", { name: /^tv/ }));
+    await user.click(within(setup).getByRole("checkbox", { name: "Enabled" }));
+    await user.click(within(setup).getByTestId("setup-add"));
     await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
-    // The budget went first, once; the tests ran on the disabled candidate; the one indexer write carries enabled.
-    expect(fetch.calls("POST", "/settings/budgets")).toHaveLength(1);
-    expect(fetch.calls("POST", "/settings/indexers/test").map((r) => (r.body as { enabled: boolean }).enabled)).toEqual([false, false, false]);
-    expect(fetch.calls("POST", "/settings/indexers")).toHaveLength(1);
-    expect(fetch.calls("POST", "/settings/indexers")[0].body).toMatchObject({ generation: 4, key: "thepiratebay", enabled: true });
-  });
-
-  it("withdraws Add and enable while a retest runs and after it fails with an HTTP error", async () => {
-    const ok = { key: "thepiratebay", entity: "indexers", status: "ok", results: 12, tested_at: "2026-11-09T10:00:00Z" };
-    let finish = (_: unknown) => {};
-    const fetch = mockFetch([
-      { method: "GET", path: "/cardigann/definitions", reply: json(catalog) },
-      { method: "POST", path: "/settings/budgets", reply: json({ generation: 5 }) },
-      { method: "POST", path: "/settings/indexers/test", reply: json(ok) },
-      { method: "POST", path: "/settings/indexers/test", reply: () => new Promise((resolve) => { finish = resolve; }) },
-    ]);
-    const user = userEvent.setup();
-    renderPage(indexers(), "/admin/settings/indexers");
-    await user.click(screen.getByRole("button", { name: "Add indexer" }));
-    await user.click(await screen.findByRole("button", { name: "Set up The Pirate Bay" }));
-    const setup = await screen.findByTestId("setup");
-    await user.click(within(setup).getByTestId("setup-test"));
-    await within(setup).findByTestId("setup-add-enable");
-    await user.click(within(setup).getByTestId("setup-test"));
-    await waitFor(() => expect(fetch.calls("POST", "/settings/indexers/test")).toHaveLength(2));
-    expect(within(setup).queryByTestId("setup-add-enable")).toBeNull();
-    finish(json({ error: "internal error" }, 500));
-    await waitFor(() => expect(within(setup).getByTestId("setup-test")).toHaveProperty("disabled", false));
-    expect(within(setup).queryByTestId("setup-add-enable")).toBeNull();
-    expect(within(setup).queryByTestId("test-result")).toBeNull();
+    expect(fetch.calls("POST", "/settings/indexers")[0].body).toMatchObject({ generation: 5, key: "thepiratebay", enabled: false, versions: ["movies", "anime"] });
   });
 
   // The catalog off answers an empty list with the reason (not an error), so nothing retries or logs it.
   const catalogOff = { status: {}, total: 0, definitions: [], unavailable: "the definition catalog is off: turn it on under Settings › Indexers › Catalog (cardigann.definitions)" };
 
-  it("says when the catalog is off and still offers the built-in sources", async () => {
-    mockFetch([{ method: "GET", path: "/cardigann/definitions", reply: json(catalogOff) }]);
+  it("turns the catalog on from the sheet", async () => {
+    let on = false;
+    const fetch = mockFetch([
+      { method: "GET", path: "/cardigann/definitions", reply: () => json(on ? catalog : catalogOff) },
+      { method: "GET", path: "/settings/sections", reply: json({ source: "db", generation: 4, sections: [{ key: "cardigann", live: true, config: null, yaml: "", secrets: [] }] }) },
+      { method: "PUT", path: "/settings/sections/cardigann", reply: () => { on = true; return json({ generation: 5 }); } },
+    ]);
     const user = userEvent.setup();
     renderPage(indexers(), "/admin/settings/indexers");
     await user.click(screen.getByRole("button", { name: "Add indexer" }));
-    // With the catalog off the sheet opens on the tab a Prowlarr or Jackett feed is added from.
-    await waitFor(() => expect(screen.getByRole("tab", { name: "Torznab & built-in sources" }).getAttribute("aria-selected")).toBe("true"));
-    await user.click(screen.getByRole("tab", { name: "Catalog" }));
-    const off = (await screen.findByTestId("catalog-off")).textContent;
-    expect(off).toContain("Indexers › Catalog");
-    expect(off).toContain("Torznab & built-in sources tab");
-    await user.click(screen.getByRole("tab", { name: "Torznab & built-in sources" }));
-    expect(Array.from(screen.getByTestId("builtin-list").querySelectorAll("button")).map((b) => b.getAttribute("data-testid"))).toEqual(
-      ["builtin-torznab", "builtin-dmm", "builtin-torrentio", "builtin-zilean", "builtin-seadex"],
-    );
-    await user.click(screen.getByTestId("builtin-zilean"));
-    const form = await screen.findByTestId("record-form");
-    expect(screen.getByRole("dialog", { name: "Add indexer" })).toBeTruthy();
-    expect((within(form).getByRole("combobox", { name: "Service" }) as HTMLSelectElement).value).toBe("zilean");
-    await waitFor(() => expect(document.activeElement).toBe(within(form).getByTestId("record-form-heading")));
+    // The sheet opens on the catalog, which says what turning it on does.
+    expect(screen.getByRole("tab", { name: "Catalog" }).getAttribute("aria-selected")).toBe("true");
+    const off = await screen.findByTestId("catalog-off");
+    expect(off.textContent).toContain("no tracker is contacted until you add one");
+    await user.click(within(off).getByRole("button", { name: "Turn on the catalog" }));
+    await screen.findByTestId("catalog");
+    expect(fetch.calls("PUT", "/settings/sections/cardigann")).toHaveLength(1);
+    expect(fetch.calls("PUT", "/settings/sections/cardigann")[0].body).toEqual({ generation: 4, config: { definitions: { repo: "Prowlarr/Indexers" } } });
   });
 
   it("adds a Torznab source from the Torznab & built-in sources tab, confirms its effects and saves again with the token", async () => {
     const effects = [{ version: "movie-web", effect: "Indexer new-indexer becomes searchable: active version movie-web may query it." }];
     const fetch = mockFetch([
+      versionsRoute,
       { method: "GET", path: "/cardigann/definitions", reply: json(catalogOff) },
       { method: "POST", path: "/settings/indexers", reply: (r: RequestRecord) => r.headers["x-confirmation-token"]
         ? json({ generation: 5 })
@@ -193,6 +159,14 @@ describe("add-indexer sheet", () => {
     const user = userEvent.setup();
     renderPage(indexers(), "/admin/settings/indexers");
     await user.click(screen.getByRole("button", { name: "Add indexer" }));
+    await user.click(screen.getByRole("tab", { name: "Torznab & built-in sources" }));
+    expect(Array.from(screen.getByTestId("builtin-list").querySelectorAll("button")).map((b) => b.getAttribute("data-testid"))).toEqual(
+      ["builtin-torznab", "builtin-dmm", "builtin-torrentio", "builtin-zilean", "builtin-seadex"],
+    );
+    // DMM's key comes only with a paid sponsorship.
+    expect(within(screen.getByTestId("builtin-dmm")).getByText("Paid key")).toBeTruthy();
+    expect(screen.getByTestId("builtin-dmm").textContent).toContain("paying GitHub sponsors");
+    expect(screen.queryAllByText("Paid key")).toHaveLength(1);
     await user.click(await screen.findByRole("button", { name: /Torznab \/ Newznab/ }));
     const form = within(await screen.findByTestId("record-form"));
     expectNamedControls();
@@ -225,7 +199,7 @@ describe("add-indexer sheet", () => {
     await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
 
     const [first, again, confirmed] = posts();
-    const body = { generation: 4, key: "new-indexer", enabled: false, priority: 2, config: { kind: "torznab", url: "https://indexer.example/api" } };
+    const body = { generation: 4, key: "new-indexer", enabled: true, priority: 2, config: { kind: "torznab", url: "https://indexer.example/api" }, versions: ["movies", "tv", "anime"] };
     // The token travels in a header on the retry only; every body is the same draft.
     expect(first.body).toEqual(body);
     expect(first.headers["x-confirmation-token"]).toBeUndefined();
@@ -259,7 +233,7 @@ describe("add-indexer sheet", () => {
     expect((await screen.findByTestId("setup-no-rss")).textContent).toContain("the site maps no movie or TV category");
   });
 
-  it("migrates only the ticked proposals from Prowlarr, each disabled with its own budget and in no version", async () => {
+  it("moves only the ticked proposals from Prowlarr, each on with its own budget and in the ticked libraries, a login one off", async () => {
     const proposals: ProwlarrProposal[] = [
       { prowlarr: { id: 9, name: "The Pirate Bay", definition_name: "thepiratebay", privacy: "public", enabled: true }, status: "proposed", key: "thepiratebay",
         indexer: { kind: "cardigann", definition: "thepiratebay", url: "https://thepiratebay.org/", privacy: "public", budget: "thepiratebay", hosts: ["apibay.org"] }, budget: { requests: "10", per: "1m" } },
@@ -272,7 +246,9 @@ describe("add-indexer sheet", () => {
         indexer: { kind: "cardigann", definition: "dmm", url: "https://dmm.example/", privacy: "public", budget: "dmm" }, budget: { requests: "10", per: "1m" } },
     ];
     const fetch = mockFetch([
+      versionsRoute,
       { method: "GET", path: "/cardigann/definitions", reply: json(catalog) },
+      { method: "GET", path: "/settings/prowlarr/feeds", reply: json({ configured: true, url: "http://10.0.0.5:9696", feeds: [] }) },
       { method: "GET", path: "/cardigann/prowlarr", reply: proposals },
       { method: "POST", path: "/settings/budgets", reply: (r: RequestRecord) => json({ generation: (r.body as { generation: number }).generation + 1 }) },
       { method: "POST", path: "/settings/indexers", reply: (r: RequestRecord) => json({ generation: (r.body as { generation: number }).generation + 1 }) },
@@ -280,7 +256,7 @@ describe("add-indexer sheet", () => {
     const user = userEvent.setup();
     renderPage(indexers(), "/admin/settings/indexers");
     await user.click(screen.getByRole("button", { name: "Add indexer" }));
-    await user.click(screen.getByRole("tab", { name: "Migrate from Prowlarr (once)" }));
+    await user.click(screen.getByRole("tab", { name: "Move from Prowlarr (once)" }));
     // Prowlarr is read only when asked.
     expect(fetch.calls("GET", "/cardigann/prowlarr")).toHaveLength(0);
     await user.click(screen.getByTestId("read-prowlarr"));
@@ -288,19 +264,25 @@ describe("add-indexer sheet", () => {
     await within(tab).findByRole("table");
     expectNamedControls();
     // Three can be added (ticked); the custom feed has no definition and dmm exists already.
-    expect(within(tab).getAllByRole("checkbox").map((c) => (c as HTMLInputElement).checked)).toEqual([true, true, true]);
-    expect(within(tab).getByText("Needs its credential afterwards: password")).toBeTruthy();
+    expect(within(tab).getAllByRole("checkbox", { name: /^Add / }).map((c) => (c as HTMLInputElement).checked)).toEqual([true, true, true]);
+    expect(within(tab).getByText("Needs its login afterwards: password")).toBeTruthy();
+    expect(within(tab).getByText("no catalog definition: link it on Link Prowlarr instead")).toBeTruthy();
     await user.click(within(tab).getByRole("checkbox", { name: "Add Nyaa as nyaasi" }));
+    // The Pirate Bay has movies and TV: every library is ticked; untick one.
+    const libraries = within(tab).getByRole("group", { name: "Libraries" });
+    expect(within(libraries).getAllByRole("checkbox").map((c) => (c as HTMLInputElement).checked)).toEqual([true, true, true]);
+    await user.click(within(libraries).getByRole("checkbox", { name: /^anime/ }));
     await user.click(within(tab).getByTestId("migrate"));
-    await waitFor(() => expect(within(tab).getAllByText("added, disabled")).toHaveLength(2));
+    await waitFor(() => expect(within(tab).getByText("added off: enter its login, then turn it on")).toBeTruthy());
+    expect(within(tab).getAllByText("added")).toHaveLength(1);
 
     expect(writes(fetch.requests).map((r) => `${r.method} ${r.path} ${(r.body as { key: string }).key}`)).toEqual([
       "POST /settings/budgets thepiratebay", "POST /settings/indexers thepiratebay", "POST /settings/budgets privateone", "POST /settings/indexers privateone",
     ]);
     const [tpb, priv] = fetch.calls("POST", "/settings/indexers").map((r) => r.body as Record<string, unknown>);
     expect(fetch.calls("POST", "/settings/budgets")[0].body).toEqual({ generation: 4, key: "thepiratebay", config: { requests: 10, per: "1m" } });
-    expect(tpb).toEqual({ generation: 5, key: "thepiratebay", enabled: false, priority: 1, config: { kind: "cardigann", definition: "thepiratebay", url: "https://thepiratebay.org/", privacy: "public", budget: "thepiratebay", hosts: ["apibay.org"] } });
-    expect(priv).toMatchObject({ generation: 7, key: "privateone", enabled: false, priority: 2, config: { privacy: "private" } });
+    expect(tpb).toEqual({ generation: 5, key: "thepiratebay", enabled: true, priority: 1, versions: ["movies", "tv"], config: { kind: "cardigann", definition: "thepiratebay", url: "https://thepiratebay.org/", privacy: "public", budget: "thepiratebay", hosts: ["apibay.org"] } });
+    expect(priv).toMatchObject({ generation: 7, key: "privateone", enabled: false, priority: 2, versions: ["movies", "tv"], config: { privacy: "private" } });
     expect(priv.secret).toBeUndefined();
   });
 

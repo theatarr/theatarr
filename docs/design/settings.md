@@ -210,7 +210,7 @@ paths (for example `mount.rclone_rc.password` in the library section).
 | `clients` (seedbox download clients) | live: the gateway is rebuilt per generation |
 | `egress` (VPN guard: check URL, VPN IPs/CIDRs, require_vpn_for) | live: the gateway is rebuilt per generation |
 | `torrents` (scan roots, scheduled backups) | live: each scan, backup and the 10-minute backup check read the generation in force |
-| `cardigann` (catalog, flaresolverr_url, Prowlarr reader) | live: the catalog is on exactly when `definitions` is set (Indexers › Catalog says which; **Turn the catalog on** fills in `prowlarr/indexers` for the panel's Save, and the add-indexer drawer's catalog-off message points there); the catalog is made when a save first sets `definitions`; source, FlareSolverr and the Prowlarr reader are read at use; the refresh loop restarts (and reads a changed source at once) when `definitions` changes; indexers already built keep their engine and sessions |
+| `cardigann` (catalog, flaresolverr_url, Prowlarr reader) | live: the catalog is on exactly when `definitions` is set (Indexers › Catalog says which; **Turn the catalog on** fills in `prowlarr/indexers` for the panel's Save, and the add-indexer sheet's **Turn on the catalog** saves it directly); a new install's first settings save turns it on (Prowlarr/Indexers); the catalog is made when a save first sets `definitions`; source, FlareSolverr and the Prowlarr reader are read at use; the refresh loop restarts (and reads a changed source at once) when `definitions` changes; indexers already built keep their engine and sessions |
 | `shadow`, `import` (arr instances) | live: the arr clients and RSS follow each generation; the import schedule restarts when `import_interval` or the presence of `import.arr` changes |
 | `playlists`, `ui`, `provider_sync`, `router` (options) | live: rebuilt per generation; the playlist, provider sync, download poll and wanted loops restart when their interval changes |
 | views (path, flavour, versions, profiles, alias_from, API key) | live: the HTTP routes are rebuilt per generation |
@@ -996,39 +996,62 @@ Contrast, editors and the indexer pages. Profiles and presets are in the next se
   cards, under a fallback line such as "1 RD › 2 AD › 3 TB". Definition updates held for review
   ([cardigann](cardigann.md#the-definition-catalog-sync-source)) are listed above the table with Approve, which asks first.
 - **Adding providers and built-in indexers.** Choose the service, review Enabled and set its write-only API key
-  when the service uses one. Enabled starts off. Test these values tests the unsaved form; while the form still
+  when the service uses one. Enabled starts off for a provider and on for an indexer; a new indexer also has the
+  **Libraries** list (below). Test these values tests the unsaved form; while the form still
   holds exactly the values of a passed test and Enabled is off, the result line offers **Enable and save**, which
   turns Enabled on and saves in one write. A retest clears the last result. Save alone stores the record as the
   form has it. **Show advanced** exposes the record key, endpoint and tuning fields. Providers get
   editable service defaults; self-hosted indexers need their address entered.
-- **Adding an indexer.** Add indexer opens a sheet with three tabs:
+- **Adding an indexer.** Add indexer opens a sheet with four tabs, on Catalog. Every way of adding saves the indexer
+  **on** (the API's own default stays `enabled: false` when the field is omitted; the UI always sends it), with a
+  **Libraries** checklist in the same form: the ticked libraries search it, sent as `versions` on the create
+  (`POST /settings/indexers`), which appends the indexer to each named library's indexer list in the same save
+  (unknown library: 400; `versions` on an update: 400). Every library that suits it starts ticked: a catalog site by
+  its Newznab categories (2000s: movie libraries; 5000s but 5070: series libraries; 5070 anime: series libraries not
+  marked non-anime and movie libraries marked anime), SeaDex for libraries not marked non-anime, every other source
+  for all libraries; Watch-only libraries are ticked like the rest. Tests are offered, never required.
   - *Catalog*: the cardigann definitions (`GET /cardigann/definitions`), searchable, filtered by privacy, content
     (Movies, TV, Anime from the Newznab categories), language and "runs here" (runs or needs an account; Cloudflare
-    and unsupported ones only under All). Set up opens a form built from the definition's settings: the site address
-    is one of its links, privacy is shown read-only as a label,
+    and unsupported ones only under All). With the catalog off the tab says what it is and offers **Turn on the
+    catalog**, which saves `cardigann.definitions = {repo: Prowlarr/Indexers}` (the section PUT) and lists the
+    definitions once the first fetch is done ("Fetching the catalog…" meanwhile, polled every 3 s; a failed first
+    fetch shows its error and **Try again**, `POST /cardigann/refresh`). Set up opens a form built from the
+    definition's settings: the site address is one of its links, privacy is shown read-only as a label,
     secret settings and the account name go in the credential as a JSON object, other settings are sent only when
     they differ from the default, info notes are shown as text, extra hosts are listed. The indexer gets a budget of
     its own under its key (10 per 1m by default). Test search runs the candidate test (`POST /settings/indexers/test`)
-    and, because a candidate needs its budget to exist, writes that budget first; Add reuses it. **Add (disabled)** writes the
-    budget (if new) and then the indexer with `enabled: false`; after a passed Test search of exactly the form's
-    values, **Add and enable** writes it with `enabled: true` instead. A failed or missing test offers only the
-    disabled add. Credentials appear first; **Show advanced** exposes the other settings.
-  - *Built-in sources*: torznab/newznab, dmm, torrentio, zilean and seadex open the record editor in the same sheet
-    with that kind chosen.
-  - *Migrate from Prowlarr (once)*: Read Prowlarr's indexers asks `GET /cardigann/prowlarr`; each `proposed` one
-    that is not already an indexer can be ticked (all are by default), and only the ticked ones are written, each as
-    its own budget plus a disabled indexer at the end of the priority list. Secret settings are named for adding
-    afterwards; no-definition, unsupported and usenet proposals are shown and skipped.
+    and, because a candidate needs its budget to exist, writes that budget first; Add reuses it. **Add** writes the
+    budget (if new) and then the indexer with the form's **Enabled** (on) and Libraries. Credentials, Enabled and
+    Libraries appear first; **Show advanced** exposes the other settings.
+  - *Torznab & built-in sources*: torznab/newznab, dmm, torrentio, zilean and seadex open the record editor in the
+    same sheet with that kind chosen. The DMM card carries a **Paid key** badge: DMM gives its API key only to paying
+    GitHub sponsors.
+  - *Link Prowlarr*: Prowlarr's address and API key are entered once (`cardigann.prowlarr`, the key stored write-only
+    like other section credentials; changing the address while keeping the stored key asks for confirmation).
+    `GET /settings/prowlarr/feeds` reads Prowlarr's indexer list (no catalog needed) and marks each `linkable` (with
+    the key it gets, `prowlarr-<name>`), `linked` (an indexer already has its feed URL), `disabled` (off in Prowlarr)
+    or `usenet`; only `linkable` ones can be ticked, all are by default. **Link {n} feeds** posts the ids and the
+    ticked libraries to `POST /settings/prowlarr/feeds`, which reads Prowlarr again and adds each as an enabled
+    Torznab feed (Prowlarr's key copied into its credential, the shared `prowlarr` budget of 60 a minute made when
+    absent) in one generation. The trackers stay in Prowlarr; the tab says to keep DMM and SeaDex added directly and
+    to run Prowlarr behind the VPN, since Theatarr's VPN check does not cover Prowlarr's requests.
+  - *Move from Prowlarr (once)*: needs the catalog (the tab offers **Turn on the catalog** when it is off) and a
+    connected Prowlarr (the Link tab's form otherwise). Read Prowlarr's indexers asks `GET /cardigann/prowlarr`; each
+    `proposed` one that is not already an indexer can be ticked (all are by default), and only the ticked ones are
+    written, each as its own budget plus an indexer at the end of the priority list, on and in the ticked libraries
+    (by default those that suit the ticked proposals' definitions). A proposal that names secret settings (a login)
+    is added off: "added off: enter its login, then turn it on". No-definition ("link it on Link Prowlarr instead"),
+    unsupported and usenet proposals are shown and skipped.
 
-  Prowlarr migration adds stay disabled, and so does a catalog add without a passed test. The built-in source editor exposes Enabled with the usual
-  confirmation. Adding an indexer does not change a library's indexer list or the global switches.
+  Adding an indexer changes no global switch and no library besides appending it to the ticked ones.
 - **Schema.** `GET /settings/schema` offers the `cardigann` kind with `definition` (string), `settings` (the new
   `string_map` field type: `name=value` pairs, comma or newline separated) and `hosts` (list), all for that kind
   only (`internal/web/settingsschema_test.go` checks every indexer field is a policy field).
 
 Tests: `web/src/components/settings/sheet.test.tsx` (heading focus, Escape and focus return, row marking,
 `?edit=`, the delete dialog stacked over the sheet, the provider orphan choice), `add-indexer.test.tsx` (catalog
-filters, set-up writes, the catalog-off message and Built-in sources, migration, holds), `web/src/lib/cardigann.test.ts`.
+filters, set-up writes with libraries, turning the catalog on, Built-in sources, the move from Prowlarr, holds),
+`prowlarr-link.test.tsx` (connect, list, link), `web/src/lib/cardigann.test.ts` (including `matchingLibraries`).
 
 ### Profiles, presets and formats
 

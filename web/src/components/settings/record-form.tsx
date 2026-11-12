@@ -47,6 +47,9 @@ import {
   type Explained,
   type TestAction,
 } from "@/lib/settings";
+import type { VersionRecord } from "@/api/settings-versions";
+import { matchingLibraries } from "@/lib/cardigann";
+import { IndexerLibraries } from "./indexer-libraries";
 import { changedPaths } from "./section-draft";
 import { changeCount } from "./unsaved-bar";
 import { Announcer, ChangedMark, ExplainBox, Field, NamedChoices, SecretField, SELECT_CLASS, TestResult, useAnnouncement, type Announcement } from "./parts";
@@ -72,6 +75,8 @@ export type RecordFormProps = {
   records?: SettingsRecord[];
   /** The provider keys an indexer's allowlist chooses from. */
   providerKeys?: string[];
+  /** A new indexer: the libraries it can join (its Libraries checklist). */
+  libraries?: VersionRecord[];
   record?: SettingsRecord;
   state: EditorState;
   onState: (s: EditorState) => void;
@@ -207,7 +212,7 @@ export function RecordFormView(p: RecordFormProps) {
       headingId={headingId}
       headingRef={p.headingRef}
       title={record ? <>Edit {NOUN[entity]} <span className="font-mono text-[15px]">{record.key}</span></> : `Add ${NOUN[entity]}`}
-      subtitle={record ? [record.kind, record.updated_at ? `changed ${record.updated_at.slice(0, 16).replace("T", " ")} UTC` : ""].filter(Boolean).join(" · ") : entity === "budgets" ? undefined : "Fill in, press Test, then Enable and save."}
+      subtitle={record ? [record.kind, record.updated_at ? `changed ${record.updated_at.slice(0, 16).replace("T", " ")} UTC` : ""].filter(Boolean).join(" · ") : entity === "budgets" ? undefined : entity === "indexers" ? "Fill in and save. Test checks the values without saving." : "Fill in, press Test, then Enable and save."}
       onClose={p.onCancel}
       footer={
         <>
@@ -248,7 +253,8 @@ export function RecordFormView(p: RecordFormProps) {
           <Field label="Service" changed={!!saved && st.kind !== saved.kind} disabled={disabled} error={errors.kind} help={ent.config.find((f) => f.name === "kind")?.help}>
             <select className={SELECT_CLASS} value={st.kind} disabled={disabled} onChange={(e) => {
               const kind = e.target.value;
-              set({ kind, ...(!record ? { key: keyEdited.current ? st.key : nextRecordKey(kind, p.records), config: { ...st.config, url: urlEdited.current ? st.config.url : serviceURL(entity, kind) } } : {}) });
+              set({ kind, ...(!record ? { key: keyEdited.current ? st.key : nextRecordKey(kind, p.records), config: { ...st.config, url: urlEdited.current ? st.config.url : serviceURL(entity, kind) },
+                ...(entity === "indexers" && p.libraries ? { libraries: matchingLibraries({ kind }, p.libraries) } : {}) } : {}) });
             }} data-field="kind">
               {(ent.kinds ?? []).map((k) => <option key={k} value={k}>{PROVIDER_SERVICES[k]?.label ?? k}</option>)}
             </select>
@@ -257,7 +263,7 @@ export function RecordFormView(p: RecordFormProps) {
         {entity !== "budgets" ? (
           <div className="flex flex-col justify-end gap-1 text-sm">
             <Choice checked={st.enabled} onChange={(v) => set({ enabled: v })} disabled={disabled} testid="record-enabled">
-              Enabled <span className="text-muted-foreground">{record ? "" : "(off until you turn it on)"}</span>
+              Enabled <span className="text-muted-foreground">{record || entity === "indexers" ? "" : "(off until you turn it on)"}</span>
             </Choice>
             {saved && st.enabled !== saved.enabled ? <ChangedMark name="Enabled" disabled={disabled} onUndo={() => set({ enabled: saved.enabled })} /> : null}
           </div>
@@ -279,8 +285,11 @@ export function RecordFormView(p: RecordFormProps) {
         {required.length ? <ConfigFields fields={required} values={st.config} saved={saved?.config} errors={errors} onChange={configChange} disabled={disabled} /> : null}
         {!record && entity === "indexers" && st.kind === "dmm" ? (
           <p className="text-[12.5px] text-muted-foreground sm:col-span-2" data-testid="dmm-url-hint">
-            DMM has no prefilled address: its Service URL is DMM’s Torznab feed, <code>https://debridmediamanager.com/api/torznab/cached</code>, or with <code>rd</code>, <code>ad</code> or <code>tb</code> before <code>/cached</code> for one provider’s cache. It also needs your DMM API key.
+            DMM has no prefilled address: its Service URL is DMM’s Torznab feed, <code>https://debridmediamanager.com/api/torznab/cached</code>, or with <code>rd</code>, <code>ad</code> or <code>tb</code> before <code>/cached</code> for one provider’s cache. It needs your DMM API key; DMM gives keys only to paying GitHub sponsors.
           </p>
+        ) : null}
+        {!record && entity === "indexers" && p.libraries ? (
+          <IndexerLibraries libraries={p.libraries} value={st.libraries} onChange={(libraries) => set({ libraries })} disabled={disabled} />
         ) : null}
         <details className="sm:col-span-2" open={entity === "budgets" || (!!record && hasAdvancedValues(entity, ent, record)) || Object.keys(errors).some(k => k !== "secret" && k !== "kind") || !!allowlistError || undefined}>
           <summary className="cursor-pointer text-sm font-medium">Show advanced</summary>
@@ -370,6 +379,7 @@ export function RecordEditor({
   nextOrder,
   records,
   providerKeys,
+  libraries,
   readOnly,
   onDone,
   headingRef,
@@ -380,6 +390,8 @@ export function RecordEditor({
   nextOrder: number;
   records?: SettingsRecord[];
   providerKeys?: string[];
+  /** A new indexer: the libraries it can join; the ones that suit its Service start ticked. */
+  libraries?: VersionRecord[];
   readOnly?: string;
   /** The editor closed; deleted when its record was just deleted (focus then goes to a neighbour). */
   onDone: (deleted?: boolean) => void;
@@ -397,7 +409,7 @@ export function RecordEditor({
     onReload: (next, keep) => {
       setConfirmingDelete(false);
       if (keep) return;
-      setSt(editorFrom(next.entity, ent, next.record, next.kind));
+      setSt(ticked(editorFrom(next.entity, ent, next.record, next.kind)));
       setErrors({});
       setTest(undefined);
     },
@@ -408,7 +420,16 @@ export function RecordEditor({
     const state = editorFrom(session.entity, ent, session.record, session.kind);
     return session.record ? state : { ...state, key: nextRecordKey(state.key, records) };
   });
-  const [st, setSt] = useState<EditorState>(first);
+  // A new indexer starts with the libraries that suit its Service ticked, once they have loaded.
+  const ticked = (state: EditorState): EditorState =>
+    !session.record && session.entity === "indexers" && libraries ? { ...state, libraries: matchingLibraries({ kind: state.kind }, libraries) } : state;
+  const [st, setSt] = useState<EditorState>(() => ticked(first));
+  const tickedOnce = useRef(!!libraries);
+  useEffect(() => {
+    if (tickedOnce.current || !libraries || session.record || session.entity !== "indexers") return;
+    tickedOnce.current = true;
+    setSt((state) => ({ ...state, libraries: matchingLibraries({ kind: state.kind }, libraries) }));
+  }, [libraries, session.record, session.entity]);
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [test, setTest] = useState<SettingsTestResult>();
   // The draft the shown test ran on: Enable and save is offered only while the form still holds exactly it.
@@ -426,7 +447,7 @@ export function RecordEditor({
   const record = sess.record;
   const savedState = useMemo(() => record ? editorFrom(sess.entity, ent, record, sess.kind) : first, [record, sess.entity, sess.kind, ent, first]);
   const discard = () => {
-    setSt({ ...savedState });
+    setSt(ticked({ ...savedState }));
     setErrors({});
     // A refusal of the discarded values goes with them; conflicts and server state stay explained.
     if (error?.kind === "validation" || error?.kind === "bad_request") setError(undefined);
@@ -525,6 +546,7 @@ export function RecordEditor({
       record={record}
       records={records}
       providerKeys={providerKeys}
+      libraries={sess.entity === "indexers" && !record ? libraries : undefined}
       state={st}
       onState={setSt}
       errors={errors}

@@ -1,8 +1,9 @@
 // The add-indexer dialog's logic, kept out of the components so it is testable: catalog filters, the set-up form
-// built from a definition's settings, and the writes a set-up or a Prowlarr proposal turns into. Every indexer made
-// here is saved disabled with a budget of its own and joins no version; enabling it and listing it in a version stay
-// separate, later steps (docs/design/cardigann.md).
+// built from a definition's settings, the writes a set-up or a Prowlarr proposal turns into, and the libraries that
+// suit a new indexer. Every indexer made here is saved on, with a budget of its own, and joins the libraries the form
+// ticks in the same save (docs/design/settings.md, "Adding an indexer").
 import type { CardigannDefinition, CardigannSetting, ProwlarrProposal } from "@/api/cardigann";
+import type { VersionRecord } from "@/api/settings-versions";
 
 export type CatalogCategory = "movies" | "tv" | "anime";
 export type CatalogFilter = { q: string; privacy: string; category: "" | CatalogCategory; language: string; runsHere: boolean };
@@ -132,7 +133,7 @@ export function setupWrite(d: CardigannDefinition, f: SetupForm, taken: { indexe
   };
 }
 
-/** The writes for a ticked Prowlarr proposal: its indexer (disabled) and its own budget. */
+/** The writes for a ticked Prowlarr proposal: its indexer and its own budget. */
 export function proposalWrite(p: ProwlarrProposal, priority: number): IndexerWrite | undefined {
   if (p.status !== "proposed" || !p.key || !p.indexer) return undefined;
   const { kind, definition, url, privacy, budget, settings, hosts } = p.indexer;
@@ -144,15 +145,36 @@ export function proposalWrite(p: ProwlarrProposal, priority: number): IndexerWri
 }
 
 /** The settings API bodies, in the order they are sent: the budget first (the indexer refers to it), then the indexer,
- * always disabled. A budget that already exists under the key (left by an earlier test) is reused. */
-export function writeBodies(w: IndexerWrite, generation: number, budgetExists: boolean) {
+ * on unless asked otherwise, with the libraries it joins. A budget that already exists under the key (left by an
+ * earlier test) is reused. */
+export function writeBodies(w: IndexerWrite, generation: number, budgetExists: boolean, enabled = true, versions: string[] = []) {
   const budget = budgetExists ? undefined : { generation, key: w.key, config: w.budget };
   const indexer = (gen: number): Record<string, unknown> => {
-    const body: Record<string, unknown> = { generation: gen, key: w.key, config: w.config, enabled: false, priority: w.priority };
+    const body: Record<string, unknown> = { generation: gen, key: w.key, config: w.config, enabled, priority: w.priority };
     if (w.secret !== undefined) body.secret = w.secret;
+    if (versions.length > 0) body.versions = versions;
     return body;
   };
   return { budget, indexer };
+}
+
+/** The libraries that suit a new indexer, ticked by default. A catalog site goes by its categories: movies (2000s) suit
+ * movie libraries, TV (5000s but 5070) series libraries, and anime (5070) series libraries that are not marked
+ * non-anime and movie libraries marked anime. SeaDex suits the libraries not marked non-anime; every other source
+ * (Torznab, Newznab, DMM, Torrentio, Zilean, a Prowlarr feed) suits every library. */
+export function matchingLibraries(source: { kind: string; categories?: number[] }, libraries: VersionRecord[]): string[] {
+  const suits = (v: VersionRecord): boolean => {
+    const { kind, anime } = v.config;
+    if (source.kind === "seadex") return anime !== false;
+    if (source.kind !== "cardigann") return true;
+    const cats = source.categories ?? [];
+    const movies = cats.some((c) => c >= 2000 && c < 3000);
+    const tv = cats.some((c) => c >= 5000 && c < 6000 && c !== 5070);
+    const animeCat = cats.includes(5070);
+    if (kind === "movie") return movies || (animeCat && anime === true);
+    return tv || (animeCat && anime !== false);
+  };
+  return libraries.filter(suits).map((v) => v.key);
 }
 
 /** The Newznab category list as words. */

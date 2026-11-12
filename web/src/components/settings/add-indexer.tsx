@@ -1,18 +1,23 @@
 import { Empty, Loading, ErrorState } from "@/components/page";
 import { Link } from "react-router";
-import { settingHref } from "@/lib/settings-map";
-// The add-indexer sheet (docs/design/settings.md, "Adding an indexer"): three tabs. Catalog lists the cardigann
-// definitions Theatarr runs itself, with a set-up form built from the chosen definition's settings; Torznab & built-in sources
-// opens the record editor for torznab/newznab, dmm, torrentio, zilean or seadex; Migrate from Prowlarr (once) turns
-// Prowlarr's indexers into native ones. Whatever is added here is saved disabled, with a budget of its own, and joins
-// no version: enabling it and listing it in a version stay separate steps. The one exception: a catalog set-up whose
-// test passed offers Add and enable, which saves it enabled. The held definition updates are listed by
-// HoldsCard, on the indexers page.
+// The add-indexer sheet (docs/design/settings.md, "Adding an indexer"): four tabs. Catalog lists the cardigann
+// definitions Theatarr runs itself, with a set-up form built from the chosen definition's settings, and turns the
+// catalog on when it is off; Torznab & built-in sources opens the record editor for torznab/newznab, dmm, torrentio,
+// zilean or seadex; Link Prowlarr adds Prowlarr's indexers as Torznab feeds (the trackers stay in Prowlarr); Move
+// from Prowlarr (once) turns Prowlarr's indexers into native ones. Whatever is added here is saved on, and joins the
+// libraries its form ticks (every library that suits it, by default) in the same save. The one exception: a moved
+// tracker that needs a login is added off. The held definition updates are listed by HoldsCard, on the indexers page.
 import { ArrowLeft, Loader2, Plus, Zap } from "lucide-react";
 import { useEffect, useMemo, useRef, useState, type RefObject } from "react";
+import { useQueryClient } from "@tanstack/react-query";
 import { ApiError } from "@/api/client";
+import { qk } from "@/api/query-keys";
+import { useProwlarrFeeds } from "@/api/prowlarr";
+import type { VersionRecord } from "@/api/settings-versions";
 import {
+  fetching,
   prowlarrProposals,
+  refreshCatalog,
   useApproveHold,
   useCardigannCatalog,
   useCardigannHolds,
@@ -36,6 +41,7 @@ import {
   filterCatalog,
   inCredential,
   isInfo,
+  matchingLibraries,
   NO_FILTER,
   proposalWrite,
   setupForm,
@@ -48,7 +54,11 @@ import {
 import { fmtAgo } from "@/lib/format";
 import { cn } from "@/lib/utils";
 import { explainError, type Explained } from "@/lib/settings";
+import { Choice } from "@/components/ui/confirm-dialog";
+import { IndexerLibraries } from "./indexer-libraries";
 import { Announcer, ExplainBox, Field, SELECT_CLASS, TestResult, useAnnouncement } from "./parts";
+import { LinkTab, ProwlarrConnection } from "./prowlarr-link";
+import { useSectionPatch } from "./use-section-patch";
 
 const STATUS: Record<string, { label: string; tone: "positive" | "info" | "warning" | "negative" }> = {
   runs: { label: "runs", tone: "positive" },
@@ -59,12 +69,14 @@ const STATUS: Record<string, { label: string; tone: "positive" | "info" | "warni
 
 /** What each built-in adapter is, for the Torznab & built-in sources tab. */
 const BUILT_IN: Record<string, [string, string]> = {
-  torznab: ["Torznab / Newznab", "Any Torznab or Newznab feed URL: Jackett, Prowlarr, a usenet indexer."],
-  dmm: ["DMM", "Debrid Media Manager's cached feeds."],
-  torrentio: ["Torrentio", "The Stremio addon's search; public."],
-  zilean: ["Zilean", "The DMM hash database; public."],
-  seadex: ["SeaDex", "The best anime releases, with its scoring table."],
+  torznab: ["Torznab / Newznab", "Any Torznab or Newznab feed URL, such as Jackett. For Prowlarr, use Link Prowlarr."],
+  dmm: ["DMM", "Shows which releases Real-Debrid, AllDebrid and TorBox already have cached. Needs a DMM API key, which DMM gives only to paying GitHub sponsors."],
+  torrentio: ["Torrentio", "The Stremio addon's search; public and free."],
+  zilean: ["Zilean", "The DMM hash database; public and free."],
+  seadex: ["SeaDex", "The best anime releases, with its scoring table; free."],
 };
+/** The built-in sources whose key costs money, badged on their card. */
+const PAID_KEY = new Set(["dmm"]);
 
 function catalogOff(e: unknown): boolean {
   return e instanceof ApiError && e.status === 503;
@@ -72,12 +84,13 @@ function catalogOff(e: unknown): boolean {
 
 const PrivacyBadge = ({ privacy }: { privacy: string }) => <Badge tone={privacy === "public" ? "positive" : "warning"}>{privacy}</Badge>;
 
-type Tab = "catalog" | "builtin" | "prowlarr";
+type Tab = "catalog" | "builtin" | "link" | "prowlarr";
 
 /** The sheet's content. onBuiltIn swaps it for the record editor with that kind; onDone closes it (added: the key). */
 export function AddIndexer({
   overview,
   kinds,
+  libraries,
   onBuiltIn,
   onDone,
   headingRef,
@@ -85,15 +98,14 @@ export function AddIndexer({
   overview: SettingsOverview;
   /** The indexer kinds the settings schema offers. */
   kinds: string[];
+  /** The libraries a new indexer can join; undefined while they load. */
+  libraries?: VersionRecord[];
   onBuiltIn: (kind: string) => void;
   onDone: (added?: string) => void;
   headingRef?: RefObject<HTMLHeadingElement | null>;
 }) {
-  // The tab the admin picked. Until then the sheet opens on the catalog, or on the Torznab and built-in sources when
-  // the catalog is off: a Prowlarr or Jackett feed needs no catalog, and an empty first tab hid that.
-  const [picked, setTab] = useState<Tab>();
-  const catalog = useCardigannCatalog();
-  const tab = picked ?? (catalog.data?.unavailable || catalogOff(catalog.error) ? "builtin" : "catalog");
+  // The sheet opens on the catalog; when it is off, that tab turns it on.
+  const [tab, setTab] = useState<Tab>("catalog");
   const [setup, setSetup] = useState<CardigannDefinition>();
   // The set-up view and the list replace each other in the sheet: the new heading takes focus, as on open.
   const swapped = useRef(false);
@@ -105,13 +117,13 @@ export function AddIndexer({
     swapped.current = true;
     setSetup(d);
   };
-  if (setup) return <SetupView def={setup} overview={overview} onBack={() => show(undefined)} onDone={onDone} headingRef={headingRef} />;
+  if (setup) return <SetupView def={setup} overview={overview} libraries={libraries} onBack={() => show(undefined)} onDone={onDone} headingRef={headingRef} />;
   return (
     <SheetLayout
       testid="add-indexer"
       headingRef={headingRef}
       title="Add indexer"
-      subtitle="Added in no library: add it to libraries afterwards. A catalog indexer whose test passes can be added enabled; the rest start disabled."
+      subtitle="A new indexer is on, and the libraries you tick search it."
       onClose={() => onDone()}
       footer={<Button type="button" size="sm" variant="outline" onClick={() => onDone()} data-testid="add-close">Close</Button>}
     >
@@ -119,7 +131,8 @@ export function AddIndexer({
         <TabsList className="flex w-full flex-wrap justify-start" aria-label="How to add an indexer">
           <TabsTrigger value="catalog" data-testid="tab-catalog">Catalog</TabsTrigger>
           <TabsTrigger value="builtin" data-testid="tab-builtin">Torznab &amp; built-in sources</TabsTrigger>
-          <TabsTrigger value="prowlarr" data-testid="tab-prowlarr">Migrate from Prowlarr (once)</TabsTrigger>
+          <TabsTrigger value="link" data-testid="tab-link">Link Prowlarr</TabsTrigger>
+          <TabsTrigger value="prowlarr" data-testid="tab-prowlarr">Move from Prowlarr (once)</TabsTrigger>
         </TabsList>
         <TabsContent value="catalog">
           <CatalogTab onSetUp={show} />
@@ -134,36 +147,90 @@ export function AddIndexer({
                 data-testid={`builtin-${k}`}
                 className="rounded-xl border border-[var(--control)] bg-[var(--surface)] p-3 text-left outline-none transition hover:border-[var(--line-focus)] focus-visible:ring-2 focus-visible:ring-[var(--line-focus)]"
               >
-                <div className="text-sm font-semibold text-[var(--ink)]">{BUILT_IN[k]?.[0] ?? k}</div>
+                <div className="flex flex-wrap items-center gap-2 text-sm font-semibold text-[var(--ink)]">
+                  {BUILT_IN[k]?.[0] ?? k}
+                  {PAID_KEY.has(k) ? <Badge tone="warning" data-testid="paid-key">Paid key</Badge> : null}
+                </div>
                 <div className="mt-0.5 text-[12.5px] text-muted-foreground">{BUILT_IN[k]?.[1] ?? `A ${k} source.`}</div>
               </button>
             ))}
           </div>
         </TabsContent>
+        <TabsContent value="link">
+          <LinkTab overview={overview} libraries={libraries} />
+        </TabsContent>
         <TabsContent value="prowlarr">
-          <MigrateTab overview={overview} />
+          <MigrateTab overview={overview} libraries={libraries} />
         </TabsContent>
       </Tabs>
     </SheetLayout>
   );
 }
 
+/** The catalog is off: what it is, and the button that turns it on (cardigann.definitions, Prowlarr/Indexers). */
+function CatalogOff() {
+  const qc = useQueryClient();
+  const patch = useSectionPatch("cardigann", () => void qc.invalidateQueries({ queryKey: qk.settings.cardigann.all }));
+  return (
+    <div className="space-y-2 text-sm" data-testid="catalog-off">
+      <p>
+        <b>The catalog is off.</b> It lists the tracker sites Theatarr can search itself (Prowlarr's Cardigann definitions).
+        Turning it on downloads the list from GitHub now and checks for updates once a day; no tracker is contacted until
+        you add one.
+      </p>
+      <Button type="button" size="sm" disabled={patch.busy} onClick={() => void patch.save((config) => { config.definitions = { repo: "Prowlarr/Indexers" }; })} data-testid="catalog-turn-on">
+        {patch.busy ? <Loader2 className="animate-spin" /> : null} Turn on the catalog
+      </Button>
+      {patch.feedback}
+      <p className="text-[12.5px] text-muted-foreground">
+        A Prowlarr, Jackett or other Torznab feed needs no catalog: see <b>Torznab &amp; built-in sources</b> or <b>Link Prowlarr</b>.
+      </p>
+    </div>
+  );
+}
+
+/** The catalog's first fetch failed: why, and Try again (a check of the branch now). */
+function CatalogFailed({ error }: { error: string }) {
+  const qc = useQueryClient();
+  const [busy, setBusy] = useState(false);
+  const [failed, setFailed] = useState<Explained>();
+  const retry = async () => {
+    setBusy(true);
+    setFailed(undefined);
+    try {
+      await refreshCatalog();
+    } catch (e) {
+      setFailed(explainError(e));
+    } finally {
+      setBusy(false);
+      void qc.invalidateQueries({ queryKey: qk.settings.cardigann.all });
+    }
+  };
+  return (
+    <div className="space-y-2 text-sm" data-testid="catalog-failed">
+      <p>The catalog could not be fetched: {error}.</p>
+      <Button type="button" size="sm" variant="outline" disabled={busy} onClick={() => void retry()} data-testid="catalog-retry">
+        {busy ? <Loader2 className="animate-spin" /> : null} Try again
+      </Button>
+      {failed ? <ExplainBox error={failed} /> : null}
+    </div>
+  );
+}
+
 function CatalogTab({ onSetUp }: { onSetUp: (d: CardigannDefinition) => void }) {
-  const catalog = useCardigannCatalog();
+  const catalog = useCardigannCatalog(true, true);
   const [f, setF] = useState<CatalogFilter>(NO_FILTER);
   const defs = useMemo(() => catalog.data?.definitions ?? [], [catalog.data]);
   const shown = useMemo(() => filterCatalog(defs, f), [defs, f]);
   const languages = useMemo(() => catalogLanguages(defs), [defs]);
   if (catalog.isPending) return <p className="text-sm text-muted-foreground"><Loader2 className="mr-1 inline size-4 animate-spin" aria-hidden />Loading the catalog…</p>;
   if (catalog.error || catalog.data.unavailable) {
-    return !catalog.error || catalogOff(catalog.error) ? (
-      <p className="text-sm text-muted-foreground" data-testid="catalog-off">
-        The indexer catalog is off. Turn it on in <a href={settingHref("cardigann", "definitions")}>Indexers › Catalog</a>: Turn the catalog on, then Save. A Prowlarr, Jackett or other Torznab feed needs no catalog: add it on the Torznab &amp; built-in sources tab.
-      </p>
-    ) : (
-      <ExplainBox error={explainError(catalog.error)} />
-    );
+    return !catalog.error || catalogOff(catalog.error) ? <CatalogOff /> : <ExplainBox error={explainError(catalog.error)} />;
   }
+  if (fetching(catalog.data)) {
+    return <p className="text-sm text-muted-foreground" role="status" data-testid="catalog-fetching"><Loader2 className="mr-1 inline size-4 animate-spin" aria-hidden />Fetching the catalog…</p>;
+  }
+  if (catalog.data.total === 0 && catalog.data.status.last_error) return <CatalogFailed error={catalog.data.status.last_error} />;
   const st = catalog.data.status;
   const set = (p: Partial<CatalogFilter>) => setF((x) => ({ ...x, ...p }));
   return (
@@ -245,26 +312,28 @@ function budgetState(overview: SettingsOverview, key: string): { exists: boolean
   return { exists, usedBy };
 }
 
-/** Writes the indexer's budget (unless it exists) and then the indexer, disabled unless enabled is asked for (the
- * set-up view, after its test passed). Returns the new generation. */
-async function addIndexer(write: ReturnType<typeof useSettingsWrite>, overview: SettingsOverview, w: IndexerWrite, generation: number, budgetMade = false, enabled = false): Promise<number> {
+/** Writes the indexer's budget (unless it exists) and then the indexer, on unless asked otherwise, in the given
+ * libraries. Returns the new generation. */
+async function addIndexer(write: ReturnType<typeof useSettingsWrite>, overview: SettingsOverview, w: IndexerWrite, generation: number, budgetMade = false, enabled = true, versions: string[] = []): Promise<number> {
   const b = budgetState(overview, w.key);
   if (b.usedBy) throw new Error(`The budget ${w.key} is already used by indexer ${b.usedBy}; a catalog indexer needs one of its own. Pick another key.`);
-  const bodies = writeBodies(w, generation, b.exists || budgetMade);
+  const bodies = writeBodies(w, generation, b.exists || budgetMade, enabled, versions);
   let gen = generation;
   if (bodies.budget) gen = ((await write.mutateAsync({ method: "POST", path: "/budgets", body: bodies.budget })) as SettingsWrite).generation ?? gen;
-  return ((await write.mutateAsync({ method: "POST", path: "/indexers", body: { ...bodies.indexer(gen), enabled } })) as SettingsWrite).generation ?? gen;
+  return ((await write.mutateAsync({ method: "POST", path: "/indexers", body: bodies.indexer(gen) })) as SettingsWrite).generation ?? gen;
 }
 
 function SetupView({
   def,
   overview,
+  libraries,
   onBack,
   onDone,
   headingRef,
 }: {
   def: CardigannDefinition;
   overview: SettingsOverview;
+  libraries?: VersionRecord[];
   onBack: () => void;
   onDone: (added?: string) => void;
   headingRef?: RefObject<HTMLHeadingElement | null>;
@@ -274,9 +343,11 @@ function SetupView({
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [error, setError] = useState<Explained>();
   const [test, setTest] = useState<SettingsTestResult>();
-  // The form the shown test ran on: Add and enable is offered only while the form still holds exactly it.
-  const [tested, setTested] = useState<SetupForm>();
-  const [busy, setBusy] = useState<"" | "test" | "add" | "enable">("");
+  const [busy, setBusy] = useState<"" | "test" | "add">("");
+  const [enabled, setEnabled] = useState(true);
+  // The ticked libraries; until the admin changes them, every library that suits the definition's content.
+  const [chosen, setChosen] = useState<string[]>();
+  const versions = chosen ?? matchingLibraries({ kind: "cardigann", categories: def.categories }, libraries ?? []);
   // The budget keys this view wrote (by Test search), so Add doesn't write them again before the overview reloads.
   const [made, setMade] = useState<string[]>([]);
   const [announcement, announce] = useAnnouncement();
@@ -310,7 +381,6 @@ function SetupView({
       delete body.generation;
       const res = await testCandidate("indexers", body);
       setTest(res);
-      setTested(form);
       announce(`Test finished: ${res.status}.`);
     } catch (e) {
       if (e instanceof ApiError && e.status === 429 && e.body) setTest(e.body as SettingsTestResult);
@@ -320,13 +390,12 @@ function SetupView({
       setBusy("");
     }
   };
-  const passed = test?.status === "ok" && tested === form;
-  const onAdd = async (enabled = false) => {
+  const onAdd = async () => {
     const w = build();
     if (!w) return;
-    setBusy(enabled ? "enable" : "add");
+    setBusy("add");
     try {
-      await addIndexer(write, overview, w, overview.generation, made.includes(w.key), enabled);
+      await addIndexer(write, overview, w, overview.generation, made.includes(w.key), enabled, versions);
       onDone(w.key);
     } catch (e) {
       setError(explainError(e));
@@ -344,7 +413,7 @@ function SetupView({
       data-definition={def.id}
       headingRef={headingRef}
       title={`Set up ${def.name}`}
-      subtitle={`definition ${def.id} · in no library`}
+      subtitle={`definition ${def.id}`}
       onClose={() => onDone()}
       footer={
         <>
@@ -352,14 +421,9 @@ function SetupView({
           <Button type="button" size="sm" variant="outline" onClick={() => void onTest()} disabled={!!busy} data-testid="setup-test">
             {busy === "test" ? <Loader2 className="animate-spin" /> : <Zap />} Test search
           </Button>
-          <Button type="button" size="sm" variant={passed ? "outline" : "default"} onClick={() => void onAdd()} disabled={!!busy} className="ml-auto" data-testid="setup-add">
-            {busy === "add" ? <Loader2 className="animate-spin" /> : <Plus />} Add (disabled)
+          <Button type="button" size="sm" onClick={() => void onAdd()} disabled={!!busy} className="ml-auto" data-testid="setup-add">
+            {busy === "add" ? <Loader2 className="animate-spin" /> : <Plus />} Add
           </Button>
-          {passed ? (
-            <Button type="button" size="sm" onClick={() => void onAdd(true)} disabled={!!busy} data-testid="setup-add-enable">
-              {busy === "enable" ? <Loader2 className="animate-spin" /> : <Plus />} Add and enable
-            </Button>
-          ) : null}
         </>
       }
     >
@@ -371,10 +435,13 @@ function SetupView({
           <span className="text-muted-foreground">{def.language} · {contentLabel(def.categories)}</span>
           <Badge tone={STATUS[def.status]?.tone ?? "info"}>{STATUS[def.status]?.label ?? def.status}</Badge>
         </div>
-        {error ? <><ExplainBox error={error} />{overview.source === "db" && error.title === "The indexer catalog is off" ? <a href={settingHref("cardigann", "definitions")}>Indexers › Catalog</a> : null}</> : null}
+        {error ? <ExplainBox error={error} /> : null}
         <div className="grid gap-3 sm:grid-cols-2">
           {settings.filter(inCredential).map((s) => <SettingField key={s.name} s={s} value={form.values[s.name]} error={errors[`setting.${s.name}`]} onChange={(v) => setValue(s.name, v)} />)}
-          <p className="text-sm">Enabled: Off. After a passed Test search, Add and enable turns it on as it is added.</p>
+          <div className="text-sm sm:col-span-2">
+            <Choice checked={enabled} onChange={setEnabled} disabled={!!busy} testid="setup-enabled">Enabled</Choice>
+          </div>
+          <IndexerLibraries libraries={libraries} value={versions} onChange={setChosen} disabled={!!busy} />
         </div>
         <details open={Object.keys(errors).length > 0 || undefined}>
           <summary className="cursor-pointer text-sm font-medium">Show advanced</summary>
@@ -463,7 +530,9 @@ function SettingField({ s, value, error, onChange }: { s: CardigannSetting; valu
 
 type RowResult = { ok: boolean; text: string };
 
-function MigrateTab({ overview }: { overview: SettingsOverview }) {
+function MigrateTab({ overview, libraries }: { overview: SettingsOverview; libraries?: VersionRecord[] }) {
+  const catalog = useCardigannCatalog();
+  const connection = useProwlarrFeeds();
   const [proposals, setProposals] = useState<ProwlarrProposal[]>();
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<Explained>();
@@ -472,6 +541,9 @@ function MigrateTab({ overview }: { overview: SettingsOverview }) {
   const [busy, setBusy] = useState(false);
   const [announcement, announce] = useAnnouncement();
   const write = useSettingsWrite();
+  // The ticked libraries; until the admin changes them, every library that suits the proposals' definitions (their
+  // categories from the catalog), or every library when none is found there.
+  const [chosen, setChosen] = useState<string[]>();
   const existing = overview.indexers.map((i) => i.key);
   const addable = (p: ProwlarrProposal) => p.status === "proposed" && !!p.key && !existing.includes(p.key) && !results[p.key]?.ok;
 
@@ -483,23 +555,30 @@ function MigrateTab({ overview }: { overview: SettingsOverview }) {
       setProposals(ps);
       setPicked(Object.fromEntries(ps.filter(addable).map((p) => [p.key!, true])));
     } catch (e) {
-      setError(catalogOff(e) ? { kind: "other", title: "The indexer catalog is off", message: "The indexer catalog is off. Turn it on in Indexers › Catalog: Turn the catalog on, then Save." } : explainError(e));
+      setError(explainError(e));
     } finally {
       setLoading(false);
     }
   };
-  const chosen = (proposals ?? []).filter((p) => addable(p) && picked[p.key!]);
+  const ticked = (proposals ?? []).filter((p) => addable(p) && picked[p.key!]);
+  const defs = catalog.data?.definitions ?? [];
+  const versions = chosen ?? (() => {
+    const cats = ticked.flatMap((p) => defs.find((d) => d.id === p.indexer?.definition)?.categories ?? []);
+    return cats.length ? matchingLibraries({ kind: "cardigann", categories: cats }, libraries ?? []) : (libraries ?? []).map((v) => v.key);
+  })();
   const migrate = async () => {
     setBusy(true);
     let gen = overview.generation;
     let priority = Math.max(0, ...overview.indexers.map((i) => i.priority ?? 0)) + 1;
     let added = 0;
-    for (const p of chosen) {
+    for (const p of ticked) {
       const w = proposalWrite(p, priority);
       if (!w) continue;
+      // A tracker that needs a login is added off: Prowlarr does not hand logins out.
+      const login = !!p.secrets?.length;
       try {
-        gen = await addIndexer(write, overview, w, gen);
-        setResults((r) => ({ ...r, [p.key!]: { ok: true, text: "added, disabled" } }));
+        gen = await addIndexer(write, overview, w, gen, false, !login, versions);
+        setResults((r) => ({ ...r, [p.key!]: { ok: true, text: login ? "added off: enter its login, then turn it on" : "added" } }));
         priority++;
         added++;
       } catch (e) {
@@ -507,19 +586,26 @@ function MigrateTab({ overview }: { overview: SettingsOverview }) {
       }
     }
     setBusy(false);
-    announce(`${added} of ${chosen.length} added, disabled.`);
+    announce(`${added} of ${ticked.length} added.`);
   };
+  const off = catalog.data?.unavailable || catalogOff(catalog.error);
   return (
     <div className="space-y-3" data-testid="migrate-tab">
       <Announcer announcement={announcement} testid="migrate-announce" />
       <div className="rounded-xl border border-[var(--th-info-border)] bg-[var(--accent-soft)] p-3 text-[13px] text-[var(--accent-ink)]">
-        <b>One-off migration.</b> Reads Prowlarr's indexer list once (through the gateway) and proposes a native indexer from the
-        catalog for each one with a Cardigann definition. Only the ticked proposals are added, each disabled with a budget of its
-        own and in no library; the Prowlarr feeds and the libraries stay as they are. Privacy is the stricter of Prowlarr's and the
-        definition's.
+        <b>Move trackers from Prowlarr into Theatarr, once.</b> Each Prowlarr indexer that has a catalog definition becomes an
+        indexer Theatarr runs itself, with its own request budget. Logins are not copied (Prowlarr does not hand them out).
+        Prowlarr's feeds stay as they are: take a feed out of a library once its tracker runs here, or the tracker is searched
+        twice.
       </div>
-      {error ? <><ExplainBox error={error} />{overview.source === "db" && error.title === "The indexer catalog is off" ? <a href={settingHref("cardigann", "definitions")}>Indexers › Catalog</a> : null}</> : null}
-      {!proposals ? (
+      {off ? <CatalogOff /> : connection.data && !connection.data.configured ? (
+        <>
+          <p className="text-sm">Connect Prowlarr on the Link Prowlarr tab first.</p>
+          <ProwlarrConnection configured={false} />
+        </>
+      ) : null}
+      {error ? <ExplainBox error={error} /> : null}
+      {off || (connection.data && !connection.data.configured) ? null : !proposals ? (
         <Button type="button" size="sm" variant="outline" onClick={() => void read()} disabled={loading} data-testid="read-prowlarr">
           {loading ? <Loader2 className="animate-spin" /> : null} Read Prowlarr's indexers
         </Button>
@@ -551,7 +637,7 @@ function MigrateTab({ overview }: { overview: SettingsOverview }) {
                   <TableCell className="min-w-[10rem] whitespace-normal">
                     <div className="font-medium [overflow-wrap:anywhere]">{p.prowlarr.name} <span className="text-[12px] text-muted-foreground">#{p.prowlarr.id}</span></div>
                     {p.key ? <div className="font-mono text-[12px] text-muted-foreground">{p.key}</div> : null}
-                    {p.secrets?.length ? <div className="text-[12px] text-[var(--warn-ink)]">Needs its credential afterwards: {p.secrets.join(", ")}</div> : null}
+                    {p.secrets?.length ? <div className="text-[12px] text-[var(--warn-ink)]">Needs its login afterwards: {p.secrets.join(", ")}</div> : null}
                     {p.notes?.map((n) => <div key={n} className="text-[12px] text-muted-foreground">{n}</div>)}
                   </TableCell>
                   <TableCell className="hidden font-mono text-[12px] sm:table-cell">{p.indexer?.definition ?? p.prowlarr.definition_name}</TableCell>
@@ -560,7 +646,7 @@ function MigrateTab({ overview }: { overview: SettingsOverview }) {
                     {res ? (
                       <span className={res.ok ? "text-[var(--ok-ink)]" : "text-[var(--bad-ink)]"}>{res.text}</span>
                     ) : p.status !== "proposed" ? (
-                      <span className="text-muted-foreground">{p.status === "no_definition" ? "no definition: stays behind Prowlarr" : p.status}</span>
+                      <span className="text-muted-foreground">{p.status === "no_definition" ? "no catalog definition: link it on Link Prowlarr instead" : p.status}</span>
                     ) : p.key && existing.includes(p.key) ? (
                       <span className="text-muted-foreground">{p.key} exists</span>
                     ) : (
@@ -574,9 +660,12 @@ function MigrateTab({ overview }: { overview: SettingsOverview }) {
         </Table>
       )}
       {proposals?.some(addable) ? (
-        <Button type="button" size="sm" disabled={busy || chosen.length === 0} onClick={() => void migrate()} data-testid="migrate">
-          {busy ? <Loader2 className="animate-spin" /> : null} Add {chosen.length} disabled
-        </Button>
+        <>
+          <IndexerLibraries libraries={libraries} value={versions} onChange={setChosen} disabled={busy} />
+          <Button type="button" size="sm" disabled={busy || ticked.length === 0} onClick={() => void migrate()} data-testid="migrate">
+            {busy ? <Loader2 className="animate-spin" /> : null} Add {ticked.length}
+          </Button>
+        </>
       ) : null}
     </div>
   );

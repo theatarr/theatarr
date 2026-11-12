@@ -430,10 +430,13 @@ export type WriteInput = {
   secret?: { action: SecretAction; value: string };
   /** Providers: the explicit confirmation that disabling or removing it fails its active downloads. */
   orphan?: boolean;
+  /** A new indexer: the libraries that search it (the server adds it to their indexer lists in the same save). */
+  versions?: string[];
 };
 
 /** A create or update body. Every write carries the generation; a provider update always states the orphan choice
- * (false unless the operator confirmed); a secret appears only when it is being replaced. */
+ * (false unless the operator confirmed); a secret appears only when it is being replaced; a new indexer names the
+ * libraries it joins, when any. */
 export function writeBody(w: WriteInput): { body: Record<string, unknown>; error?: string } {
   const body: Record<string, unknown> = { generation: w.generation, config: w.config };
   if (!w.record) body.key = w.key;
@@ -445,6 +448,7 @@ export function writeBody(w: WriteInput): { body: Record<string, unknown>; error
     if (s.clear_secret) body.clear_secret = true;
   }
   if (w.entity === "indexers" && w.priority !== undefined) body.priority = w.priority;
+  if (w.entity === "indexers" && !w.record && w.versions?.length) body.versions = w.versions;
   if (w.entity === "providers" && w.record) body.orphan_active_downloads = w.orphan === true;
   return { body };
 }
@@ -750,6 +754,8 @@ export type EditorState = {
   secretValue: string;
   /** Providers: fail active downloads if this save disables the provider. Off unless ticked. */
   orphan: boolean;
+  /** A new indexer: the libraries that search it. */
+  libraries: string[];
 };
 
 /** The fields the editor shows for a kind: kind has its own selector, and a provider's order is set by the order
@@ -770,8 +776,7 @@ export const METADATA_SERVICES: Record<string, string> = {
   "tmdb-images": "https://image.tmdb.org/t/p",
 };
 
-/** The public address of the built-in indexers that have one, prefilled in a new indexer's form (the record still
- * starts disabled). Zilean is self-hosted and DMM's feed path depends on the providers, so neither has an entry. */
+/** The public address of the built-in indexers that have one, prefilled in a new indexer's form. Zilean is self-hosted and DMM's feed path depends on the providers, so neither has an entry. */
 export const INDEXER_SERVICES: Record<string, { url: string }> = {
   torrentio: { url: "https://torrentio.strem.fun" },
   seadex: { url: "https://seadex.moe" },
@@ -809,13 +814,14 @@ export function editorFrom(entity: Entity, ent: SchemaEntity, record?: SettingsR
   return {
     key: record?.key ?? (entity === "budgets" ? "" : kind),
     kind: entity === "budgets" ? "" : kind,
-    // New sources default to disabled: test first, then enable.
-    enabled: record?.enabled ?? false,
+    // A new indexer starts on; a new provider starts off (test first, then enable).
+    enabled: record?.enabled ?? entity === "indexers",
     priority: String(record?.priority ?? 0),
     config: formFromConfig(editorFields(entity, ent, kind), (record?.config ?? (entity === "providers" || serviceURL(entity, kind) ? { url: serviceURL(entity, kind) } : {})) as Record<string, unknown>),
     secretAction: "keep",
     secretValue: "",
     orphan: false,
+    libraries: [],
   };
 }
 
@@ -857,6 +863,7 @@ export function editorInput(
       config,
       secret: { action: st.secretAction, value: st.secretValue },
       orphan: st.orphan,
+      versions: entity === "indexers" && !record ? st.libraries : undefined,
     },
   };
 }

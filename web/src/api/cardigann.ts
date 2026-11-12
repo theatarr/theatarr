@@ -1,5 +1,6 @@
 // The cardigann definition catalog (docs/design/cardigann.md): the definitions Theatarr runs itself, the updates held for
-// review, and the one-off Prowlarr migration proposals. Every route answers 503 while cardigann.definitions is unset.
+// review, and the one-off Move from Prowlarr proposals. While cardigann.definitions is unset the list answers
+// unavailable and the other routes 503.
 // The catalog never carries a configured value; the proposals write nothing.
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { api, ApiError } from "./client";
@@ -72,9 +73,22 @@ export type ProwlarrProposal = {
   notes?: string[];
 };
 
-/** The whole catalog; filtering is done in the page so typing never waits on a request. */
-export const useCardigannCatalog = (enabled = true) =>
-  useQuery({ queryKey: qk.settings.cardigann.catalog, queryFn: () => api<CardigannList>("/cardigann/definitions"), enabled, retry: false });
+/** The whole catalog; filtering is done in the page so typing never waits on a request. With poll, it is read again
+ * every 3 s while it is on but still empty without an error (the first fetch after turning it on). */
+export const useCardigannCatalog = (enabled = true, poll = false) =>
+  useQuery({
+    queryKey: qk.settings.cardigann.catalog,
+    queryFn: () => api<CardigannList>("/cardigann/definitions"),
+    enabled,
+    retry: false,
+    refetchInterval: poll ? (q) => (fetching(q.state.data) ? 3000 : false) : undefined,
+  });
+
+/** On, but the first fetch has not filled it yet. */
+export const fetching = (l?: CardigannList) => !!l && l.total === 0 && !l.unavailable && !l.status.last_error;
+
+/** Checks the definitions branch now (Try again after a failed fetch). */
+export const refreshCatalog = () => api<unknown>("/cardigann/refresh", { method: "POST" });
 
 export const useCardigannHolds = (enabled = true) =>
   useQuery({ queryKey: qk.settings.cardigann.holds, queryFn: async () => {
@@ -82,7 +96,7 @@ export const useCardigannHolds = (enabled = true) =>
     catch (error) { if (error instanceof ApiError && error.status === 503) return []; throw error; }
   }, enabled, retry: false, refetchInterval: 60_000 });
 
-/** Reads the configured Prowlarr through the gateway; only when asked. */
+/** Reads the configured Prowlarr (on the LAN) and proposes native indexers; only when asked. */
 export const prowlarrProposals = () => api<ProwlarrProposal[]>("/cardigann/prowlarr");
 
 /** Applies a held definition update (or a held removal). */

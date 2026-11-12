@@ -81,8 +81,8 @@ export function SetupPage() {
         <p>{s.indexers ? `${s.indexers} enabled ${s.indexers === 1 ? "indexer" : "indexers"} configured; the connection is not verified here.` : "No enabled indexer yet (Torznab and DMM also need their key): nothing can be searched."} Both ways work, and they mix:</p>
         <SourceStates entity="indexers" ready={s.ready_indexers ?? []} />
         <ul className="list-disc pl-5">
-          <li><strong>Keep Prowlarr:</strong> add each Prowlarr feed as a Torznab indexer (the Torznab &amp; built-in sources tab), or use Migrate from Prowlarr once, under <Link className="underline" to="/admin/settings/indexers">Settings › Indexers › Add indexer</Link>.</li>
-          <li><strong>Native catalog:</strong> pick indexers from the catalog (Cardigann definitions) or the built-in sources (DMM, Torrentio, Zilean, SeaDex) in the same sheet.</li>
+          <li><strong>Built in:</strong> the catalog of tracker sites Theatarr runs itself, DMM (needs a paid DMM key), Torrentio, Zilean and SeaDex, under <Link className="underline" to="/admin/settings/indexers">Settings › Indexers › Add indexer</Link>.</li>
+          <li><strong>Already use Prowlarr?</strong> Link Prowlarr there adds its indexers as feeds; the trackers stay in Prowlarr.</li>
         </ul>
         <p>The VPN check is optional and off by default. Once set up under <Link className="underline" to="/admin/settings/indexers/vpn">Settings › Indexers › VPN</Link>, requests of the traffic it requires (indexers unless you change it) are refused while the VPN exit is not confirmed.</p>
       </Step>

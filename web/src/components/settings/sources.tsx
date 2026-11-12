@@ -50,6 +50,7 @@ import { Announcer, ExplainBox, TestResult, useAnnouncement, type Announcement }
 import { NOUN, RecordEditor } from "./record-form";
 import { AddIndexer, HoldsCard } from "./add-indexer";
 import { useCardigannCatalog, type CardigannDefinition } from "@/api/cardigann";
+import { useVersions } from "@/api/settings-versions";
 
 const KIND: Record<string, string> = { realdebrid: "Real-Debrid", alldebrid: "AllDebrid", torbox: "TorBox" };
 
@@ -478,6 +479,8 @@ export function SourcesPanel({
   readOnly?: string;
 }) {
   const records = overview[entity];
+  // The libraries a new indexer can join (the add sheet and the editor tick the ones that suit it).
+  const libraries = useVersions(entity === "indexers").data?.versions;
   const catalog = useCardigannCatalog(entity === "indexers" && records.some((r) => (r.config?.kind ?? r.kind) === "cardigann"));
   const [tests, dispatchTest] = useReducer(testReducer, initialTests);
   const [announcement, announce] = useAnnouncement();
@@ -559,7 +562,7 @@ export function SourcesPanel({
       {entity === "indexers" ? <HoldsCard /> : null}
       {adding && !ed.editing ? (
         <Sheet label="Add indexer" onClose={() => setAdding(false)} initialFocus={ed.heading}>
-          <AddIndexer overview={overview} kinds={ent.kinds ?? []} onBuiltIn={builtIn} onDone={() => setAdding(false)} headingRef={ed.heading} />
+          <AddIndexer overview={overview} kinds={ent.kinds ?? []} libraries={libraries} onBuiltIn={builtIn} onDone={() => setAdding(false)} headingRef={ed.heading} />
         </Sheet>
       ) : ed.editing ? (
         <Sheet label={ed.label} onClose={() => ed.close()} initialFocus={ed.heading} returnFocus={ed.returnFocus}>
@@ -571,6 +574,7 @@ export function SourcesPanel({
             nextOrder={nextOrder}
             records={records}
             providerKeys={overview.providers.map((r) => r.key)}
+            libraries={entity === "indexers" ? libraries : undefined}
             readOnly={readOnly}
             onDone={ed.close}
             headingRef={ed.heading}

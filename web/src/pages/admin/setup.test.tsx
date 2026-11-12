@@ -45,8 +45,8 @@ describe("setup", () => {
     renderPage(<SetupPage />);
     expect((await screen.findByTestId("setup-missing")).textContent).toContain("No TMDb key");
     expect(screen.getByText(/still the generated one/)).toBeTruthy();
-    expect(screen.getByText(/Keep Prowlarr:/)).toBeTruthy();
-    expect(screen.getByText(/Native catalog:/)).toBeTruthy();
+    expect(screen.getByText(/Built in:/)).toBeTruthy();
+    expect(screen.getByText(/Already use Prowlarr\?/)).toBeTruthy();
     expect(screen.getByRole("link", { name: "Admin › Settings" }).getAttribute("href")).toBe("/admin/settings");
     expect(screen.getByText(/Connect the debrid mount/).textContent).toContain("Plex URL and token");
 

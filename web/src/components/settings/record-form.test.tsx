@@ -4,6 +4,7 @@ import userEvent from "@testing-library/user-event";
 import { expect, it, vi } from "vitest";
 import { mockFetch, renderPage } from "@/test/page";
 import { providerSchema, indexerSchema, dmm, rd, zilean } from "./fixtures";
+import type { VersionRecord } from "@/api/settings-versions";
 import { RecordEditor } from "./record-form";
 
 it("starts with service, write-only API key and Enabled; advanced values preserve the settings payload", async () => {
@@ -52,22 +53,41 @@ it("prefills the public address of a built-in indexer, follows the service, and 
   await user.selectOptions(screen.getByRole("combobox", { name: "Service" }), "dmm");
   expect(url.value).toBe("");
   expect(screen.getByTestId("dmm-url-hint").textContent).toContain("/api/torznab/cached");
+  expect(screen.getByTestId("dmm-url-hint").textContent).toContain("DMM gives keys only to paying GitHub sponsors");
   await user.selectOptions(screen.getByRole("combobox", { name: "Service" }), "zilean");
   expect(url.value).toBe("");
   await user.selectOptions(screen.getByRole("combobox", { name: "Service" }), "seadex");
   expect(url.value).toBe("https://seadex.moe");
   await user.click(screen.getByRole("button", { name: "Save" }));
   await waitFor(() => expect(fetch.calls("POST", "/settings/indexers")).toHaveLength(1));
-  expect(fetch.calls("POST", "/settings/indexers")[0].body).toMatchObject({ key: "seadex", enabled: false, config: { kind: "seadex", url: "https://seadex.moe" } });
+  expect(fetch.calls("POST", "/settings/indexers")[0].body).toMatchObject({ key: "seadex", enabled: true, config: { kind: "seadex", url: "https://seadex.moe" } });
 });
 
-it("saves an untouched prefilled built-in indexer, disabled", async () => {
+it("saves an untouched prefilled built-in indexer, on", async () => {
   const fetch = mockFetch([{ method: "POST", path: "/settings/indexers", reply: { generation: 5 } }]);
   const user = userEvent.setup();
   renderPage(<RecordEditor entity="indexers" ent={indexerSchema} session={{ entity: "indexers", generation: 4, kind: "torrentio" }} nextOrder={1} onDone={vi.fn()} />);
   await user.click(screen.getByRole("button", { name: "Save" }));
   await waitFor(() => expect(fetch.calls("POST", "/settings/indexers")).toHaveLength(1));
-  expect(fetch.calls("POST", "/settings/indexers")[0].body).toEqual({ generation: 4, key: "torrentio", enabled: false, priority: 0, config: { kind: "torrentio", url: "https://torrentio.strem.fun" } });
+  expect(fetch.calls("POST", "/settings/indexers")[0].body).toEqual({ generation: 4, key: "torrentio", enabled: true, priority: 0, config: { kind: "torrentio", url: "https://torrentio.strem.fun" } });
+});
+
+it("ticks the libraries that suit a new indexer's service and sends the ticked ones", async () => {
+  const fetch = mockFetch([{ method: "POST", path: "/settings/indexers", reply: { generation: 5 } }]);
+  const user = userEvent.setup();
+  const lib = (key: string, kind: string, anime: boolean | null) => ({ id: 1, key, created_at: "", updated_at: "", roots: [], config: { kind, anime, mode: "active" } }) as unknown as VersionRecord;
+  const libraries = [lib("movies", "movie", null), lib("tv", "series", false), lib("anime", "series", true)];
+  renderPage(<RecordEditor entity="indexers" ent={indexerSchema} session={{ entity: "indexers", generation: 4, kind: "torrentio" }} libraries={libraries} nextOrder={1} onDone={vi.fn()} />);
+  expect(screen.getByTestId("record-form").textContent).toContain("Fill in and save. Test checks the values without saving.");
+  const ticked = () => ["movies", "tv", "anime"].filter((k) => (screen.getByRole("checkbox", { name: new RegExp(`^${k}`) }) as HTMLInputElement).checked);
+  expect(ticked()).toEqual(["movies", "tv", "anime"]);
+  // SeaDex suits the libraries not marked non-anime.
+  await user.selectOptions(screen.getByRole("combobox", { name: "Service" }), "seadex");
+  expect(ticked()).toEqual(["movies", "anime"]);
+  await user.click(screen.getByRole("checkbox", { name: /^movies/ }));
+  await user.click(screen.getByRole("button", { name: "Save" }));
+  await waitFor(() => expect(fetch.calls("POST", "/settings/indexers")).toHaveLength(1));
+  expect(fetch.calls("POST", "/settings/indexers")[0].body).toMatchObject({ key: "seadex", enabled: true, versions: ["anime"] });
 });
 
 it("suggests the next free key for a new indexer and service changes", async () => {
@@ -104,6 +124,7 @@ it("adds a provider from the three first fields: service, API key and Enable", a
   await user.selectOptions(screen.getByRole("combobox", { name: "Service" }), "alldebrid");
   await user.click(screen.getByRole("button", { name: "Set" }));
   await user.type(screen.getByLabelText("New credential"), "fixture-token");
+  expect(screen.getByTestId("record-form").textContent).toContain("Fill in, press Test, then Enable and save.");
   await user.click(screen.getByRole("checkbox", { name: /Enabled/ }));
   await user.click(screen.getByRole("button", { name: "Save" }));
   await waitFor(() => expect(fetch.calls("POST", "/settings/providers")).toHaveLength(1));
@@ -177,34 +198,35 @@ it("refuses to save Only these providers with none ticked, with an inline error"
 });
 
 const passedTest = { key: "torrentio", entity: "indexers", candidate: true, status: "ok", results: 12, latency_ms: 300, tested_at: "2026-11-09T10:00:00Z" };
+// A saved indexer that is off: Enable and save is offered on it after a passed test.
+const offTorrentio = { id: 11, key: "torrentio", kind: "torrentio", enabled: false, priority: 0, secret_set: false, config: { kind: "torrentio", url: "https://torrentio.strem.fun" } };
 
-it("offers Enable and save only after a passed test of these values, and saves the new source enabled in one write", async () => {
+it("offers Enable and save only after a passed test of these values, and saves the disabled source enabled in one write", async () => {
   const fetch = mockFetch([
     { method: "POST", path: "/settings/indexers/test", reply: { body: passedTest } },
-    { method: "POST", path: "/settings/indexers", reply: { generation: 5 } },
+    { method: "PUT", path: "/settings/indexers/11", reply: { generation: 5 } },
   ]);
   const user = userEvent.setup();
   const onDone = vi.fn();
-  renderPage(<RecordEditor entity="indexers" ent={indexerSchema} session={{ entity: "indexers", generation: 4, kind: "torrentio" }} nextOrder={1} onDone={onDone} />);
-  expect(screen.getByTestId("record-form").textContent).toContain("Fill in, press Test, then Enable and save.");
+  renderPage(<RecordEditor entity="indexers" ent={indexerSchema} session={{ entity: "indexers", generation: 4, record: offTorrentio }} nextOrder={1} onDone={onDone} />);
   expect(screen.queryByTestId("record-enable-save")).toBeNull();
   await user.click(screen.getByRole("button", { name: "Test these values" }));
   await user.click(await screen.findByRole("button", { name: "Enable and save" }));
   await waitFor(() => expect(onDone).toHaveBeenCalled());
   // The test ran on the disabled draft; the one save carries enabled.
-  expect(fetch.calls("POST", "/settings/indexers/test")[0].body).toMatchObject({ key: "torrentio", enabled: false });
-  expect(fetch.calls("POST", "/settings/indexers")).toHaveLength(1);
-  expect(fetch.calls("POST", "/settings/indexers")[0].body).toEqual({ generation: 4, key: "torrentio", enabled: true, priority: 0, config: { kind: "torrentio", url: "https://torrentio.strem.fun" } });
+  expect(fetch.calls("POST", "/settings/indexers/test")[0].body).toMatchObject({ id: 11, enabled: false });
+  expect(fetch.calls("PUT", "/settings/indexers/11")).toHaveLength(1);
+  expect(fetch.calls("PUT", "/settings/indexers/11")[0].body).toEqual({ generation: 4, enabled: true, priority: 0, config: { kind: "torrentio", url: "https://torrentio.strem.fun" } });
 });
 
 it("offers no Enable and save after a failed test, nor once the tested values are edited; plain Save stays disabled", async () => {
   const fetch = mockFetch([
     { method: "POST", path: "/settings/indexers/test", reply: { body: { ...passedTest, status: "failed", message: "connection refused" } } },
     { method: "POST", path: "/settings/indexers/test", reply: { body: passedTest } },
-    { method: "POST", path: "/settings/indexers", reply: { generation: 5 } },
+    { method: "PUT", path: "/settings/indexers/11", reply: { generation: 5 } },
   ]);
   const user = userEvent.setup();
-  renderPage(<RecordEditor entity="indexers" ent={indexerSchema} session={{ entity: "indexers", generation: 4, kind: "torrentio" }} nextOrder={1} onDone={vi.fn()} />);
+  renderPage(<RecordEditor entity="indexers" ent={indexerSchema} session={{ entity: "indexers", generation: 4, record: offTorrentio }} nextOrder={1} onDone={vi.fn()} />);
   await user.click(screen.getByRole("button", { name: "Test these values" }));
   expect((await screen.findByTestId("test-result")).getAttribute("data-status")).toBe("failed");
   expect(screen.queryByTestId("record-enable-save")).toBeNull();
@@ -215,8 +237,8 @@ it("offers no Enable and save after a failed test, nor once the tested values ar
   await user.paste("/alt");
   expect(screen.queryByTestId("record-enable-save")).toBeNull();
   await user.click(screen.getByRole("button", { name: "Save" }));
-  await waitFor(() => expect(fetch.calls("POST", "/settings/indexers")).toHaveLength(1));
-  expect(fetch.calls("POST", "/settings/indexers")[0].body).toMatchObject({ enabled: false });
+  await waitFor(() => expect(fetch.calls("PUT", "/settings/indexers/11")).toHaveLength(1));
+  expect(fetch.calls("PUT", "/settings/indexers/11")[0].body).toMatchObject({ enabled: false });
 });
 
 it("withdraws Enable and save while a retest is running", async () => {
@@ -226,7 +248,7 @@ it("withdraws Enable and save while a retest is running", async () => {
     { method: "POST", path: "/settings/indexers/test", reply: () => new Promise((resolve) => { finish = resolve; }) },
   ]);
   const user = userEvent.setup();
-  renderPage(<RecordEditor entity="indexers" ent={indexerSchema} session={{ entity: "indexers", generation: 4, kind: "torrentio" }} nextOrder={1} onDone={vi.fn()} />);
+  renderPage(<RecordEditor entity="indexers" ent={indexerSchema} session={{ entity: "indexers", generation: 4, record: offTorrentio }} nextOrder={1} onDone={vi.fn()} />);
   await user.click(screen.getByRole("button", { name: "Test these values" }));
   await screen.findByTestId("record-enable-save");
   await user.click(screen.getByRole("button", { name: "Test these values" }));
@@ -243,7 +265,7 @@ it("withdraws Enable and save when a retest fails with an HTTP error", async () 
     { method: "POST", path: "/settings/indexers/test", reply: { status: 500, body: { error: "internal error" } } },
   ]);
   const user = userEvent.setup();
-  renderPage(<RecordEditor entity="indexers" ent={indexerSchema} session={{ entity: "indexers", generation: 4, kind: "torrentio" }} nextOrder={1} onDone={vi.fn()} />);
+  renderPage(<RecordEditor entity="indexers" ent={indexerSchema} session={{ entity: "indexers", generation: 4, record: offTorrentio }} nextOrder={1} onDone={vi.fn()} />);
   await user.click(screen.getByRole("button", { name: "Test these values" }));
   await screen.findByTestId("record-enable-save");
   await user.click(screen.getByRole("button", { name: "Test these values" }));

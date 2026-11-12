@@ -287,18 +287,22 @@ describe("forms from the schema", () => {
 });
 
 describe("service addresses of a new record", () => {
-  it("prefills Torrentio and SeaDex, leaves the others empty, and keeps the record disabled", () => {
+  it("prefills Torrentio and SeaDex, leaves the others empty, and starts a new indexer on", () => {
     expect(serviceURL("indexers", "torrentio")).toBe("https://torrentio.strem.fun");
     expect(serviceURL("indexers", "realdebrid")).toBe("");
     expect(serviceURL("budgets", "torrentio")).toBe("");
     for (const [kind, url] of [["torrentio", "https://torrentio.strem.fun"], ["seadex", "https://seadex.moe"], ["dmm", ""], ["zilean", ""], ["torznab", ""], ["cardigann", ""]]) {
       const st = editorFrom("indexers", indexerSchema, undefined, kind);
       expect(st.config.url, kind).toBe(url);
-      expect(st.enabled).toBe(false);
+      expect(st.enabled).toBe(true);
       expect(st.key).toBe(kind);
     }
     expect(editorFrom("indexers", indexerSchema).config.url).toBe("");
-    expect(editorInput("indexers", indexerSchema, editorFrom("indexers", indexerSchema, undefined, "seadex"), 4, undefined, 1).input).toMatchObject({ enabled: false, config: { kind: "seadex", url: "https://seadex.moe" } });
+    expect(editorInput("indexers", indexerSchema, editorFrom("indexers", indexerSchema, undefined, "seadex"), 4, undefined, 1).input).toMatchObject({ enabled: true, config: { kind: "seadex", url: "https://seadex.moe" } });
+    // The ticked libraries go with a new indexer only.
+    const input = editorInput("indexers", indexerSchema, { ...editorFrom("indexers", indexerSchema, undefined, "seadex"), libraries: ["anime"] }, 4, undefined, 1).input!;
+    expect(writeBody(input).body.versions).toEqual(["anime"]);
+    expect(writeBody({ ...input, versions: [] }).body).not.toHaveProperty("versions");
   });
   it("never fills a saved record's address and does not count the prefill as an advanced value", () => {
     const saved: SettingsRecord = { id: 9, key: "torrentio", kind: "torrentio", enabled: true, priority: 0, config: { kind: "torrentio", url: "" } };

@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import type { CardigannDefinition, ProwlarrProposal } from "@/api/cardigann";
-import { catalogLanguages, contentOf, filterCatalog, NO_FILTER, proposalWrite, setupForm, setupWrite, suggestedKey, writeBodies } from "./cardigann";
+import type { VersionRecord } from "@/api/settings-versions";
+import { catalogLanguages, contentOf, filterCatalog, matchingLibraries, NO_FILTER, proposalWrite, setupForm, setupWrite, suggestedKey, writeBodies } from "./cardigann";
 
 const def = (o: Partial<CardigannDefinition>): CardigannDefinition => ({
   id: "site",
@@ -82,12 +83,15 @@ describe("set-up form", () => {
 });
 
 describe("writes", () => {
-  it("writes the budget first and the indexer disabled, reusing a budget that exists", () => {
+  it("writes the budget first and the indexer on with its libraries, reusing a budget that exists", () => {
     const { write } = setupWrite(tpb, setupForm(tpb, []), { indexers: [], budgets: [] });
-    const fresh = writeBodies(write!, 4, false);
+    const fresh = writeBodies(write!, 4, false, true, ["movies", "tv"]);
     expect(fresh.budget).toEqual({ generation: 4, key: "thepiratebay", config: { requests: 10, per: "1m" } });
-    expect(fresh.indexer(5)).toMatchObject({ generation: 5, key: "thepiratebay", enabled: false, priority: 10 });
+    expect(fresh.indexer(5)).toMatchObject({ generation: 5, key: "thepiratebay", enabled: true, priority: 10, versions: ["movies", "tv"] });
     expect(writeBodies(write!, 4, true).budget).toBeUndefined();
+    // No library ticked: no versions field; off when asked.
+    expect(writeBodies(write!, 4, true, false).indexer(5)).not.toHaveProperty("versions");
+    expect(writeBodies(write!, 4, true, false).indexer(5).enabled).toBe(false);
   });
 
   it("turns only a proposed Prowlarr indexer into writes, with its own budget as a number", () => {
@@ -101,8 +105,28 @@ describe("writes", () => {
     const w = proposalWrite(proposed, 12)!;
     expect(w.budget).toEqual({ requests: 10, per: "1m" });
     expect(w.config).toEqual({ kind: "cardigann", definition: "thepiratebay", url: "https://thepiratebay.org/", privacy: "public", budget: "thepiratebay", settings: { sort: "seeders" }, hosts: ["apibay.org"] });
-    expect(writeBodies(w, 4, false).indexer(5)).toMatchObject({ enabled: false, priority: 12 });
+    expect(writeBodies(w, 4, false).indexer(5)).toMatchObject({ enabled: true, priority: 12 });
     expect(proposalWrite({ ...proposed, status: "no_definition" }, 12)).toBeUndefined();
     expect(proposalWrite({ ...proposed, status: "usenet" }, 12)).toBeUndefined();
+  });
+});
+
+describe("matchingLibraries", () => {
+  const lib = (key: string, kind: "movie" | "series", anime: boolean | null = null): VersionRecord =>
+    ({ id: 1, key, created_at: "", updated_at: "", roots: [], config: { kind, anime, mode: "active" } }) as unknown as VersionRecord;
+  const libs = [lib("movies", "movie"), lib("anime-movies", "movie", true), lib("tv", "series", false), lib("series", "series"), lib("anime", "series", true)];
+
+  it("goes by a catalog site's categories", () => {
+    expect(matchingLibraries({ kind: "cardigann", categories: [2000, 2040] }, libs)).toEqual(["movies", "anime-movies"]);
+    expect(matchingLibraries({ kind: "cardigann", categories: [5000, 5040] }, libs)).toEqual(["tv", "series", "anime"]);
+    // A Nyaa-like site (anime only): the series libraries not marked non-anime, and the anime movie library.
+    expect(matchingLibraries({ kind: "cardigann", categories: [5070] }, libs)).toEqual(["anime-movies", "series", "anime"]);
+    expect(matchingLibraries({ kind: "cardigann", categories: [3000] }, libs)).toEqual([]);
+  });
+
+  it("ticks SeaDex for anime libraries and every library for the other sources", () => {
+    expect(matchingLibraries({ kind: "seadex" }, libs)).toEqual(["movies", "anime-movies", "series", "anime"]);
+    expect(matchingLibraries({ kind: "dmm" }, libs)).toEqual(libs.map((v) => v.key));
+    expect(matchingLibraries({ kind: "torznab" }, libs)).toEqual(libs.map((v) => v.key));
   });
 });
