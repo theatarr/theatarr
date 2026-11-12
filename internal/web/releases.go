@@ -53,7 +53,7 @@ type Releases struct {
 }
 
 // maxLiveCandidates caps a live answer's list.
-const maxLiveCandidates = 100
+const maxLiveCandidates = 300
 
 func (w *Web) apiReleases(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()

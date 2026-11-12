@@ -12,7 +12,9 @@ import (
 	"database/sql"
 	"encoding/json"
 	"errors"
+	"slices"
 	"sort"
+	"strconv"
 	"strings"
 	"time"
 
@@ -53,6 +55,16 @@ type Candidate struct {
 	Existing   *decide.Existing     `json:"existing,omitempty"`
 	Upgrade    bool                 `json:"upgrade,omitempty"`
 	UpgradeWhy string               `json:"upgrade_reason,omitempty"`
+	// Source is the indexer kind (torznab, cardigann, dmm, ...); Privacy the release's privacy label.
+	Source  string `json:"source,omitempty"`
+	Privacy string `json:"privacy,omitempty"`
+	// Leechers is peers minus seeders; nil when the source gave no peer count.
+	Leechers *int `json:"leechers,omitempty"`
+	// Flags are the indexer flags (Release.Flags) plus those the volume factors give, as the decision engine reads
+	// them: freeleech, halfleech, freeleech25, freeleech75, doubleupload.
+	Flags []string `json:"flags,omitempty"`
+	// QualityRank is Decision.ProfileRank: 1 is the profile's best quality, 0 not allowed by the profile.
+	QualityRank int `json:"quality_rank,omitempty"`
 }
 
 // Search is one decided search.
@@ -115,7 +127,12 @@ func summarize(rank int, d *decide.Decision, rel indexer.Release) Candidate {
 	c := Candidate{Rank: rank, Release: d.Release, Indexer: rel.Indexer, InfoHash: strings.ToLower(rel.InfoHash),
 		Size: rel.Size, Seeders: rel.Seeders, Accepted: d.Accepted, Quality: d.Quality, Revision: d.Revision.Version,
 		Formats: d.Formats, Score: d.Score, Languages: d.Languages, CachedOn: rel.CachedList(), Episodes: d.Episodes,
-		Existing: d.Existing, Upgrade: d.Upgrade, UpgradeWhy: d.UpgradeReason}
+		Existing: d.Existing, Upgrade: d.Upgrade, UpgradeWhy: d.UpgradeReason, Source: rel.Kind,
+		Privacy: string(rel.Privacy), Flags: releaseFlags(rel), QualityRank: d.ProfileRank}
+	if rel.Seeders >= 0 && rel.Peers >= rel.Seeders {
+		n := rel.Peers - rel.Seeders
+		c.Leechers = &n
+	}
 	if c.Release == "" {
 		c.Release = rel.Title
 	}
@@ -133,6 +150,39 @@ func summarize(rank int, d *decide.Decision, rel indexer.Release) Candidate {
 		c.Rejections = append(c.Rejections, r)
 	}
 	return c
+}
+
+// releaseFlags is a copy of the release's flags plus the ones its volume factors give, read as the decision engine
+// reads them (decide's indexerFlags: the Extras downloadvolumefactor and uploadvolumefactor, as float32).
+func releaseFlags(rel indexer.Release) []string {
+	out := slices.Clone(rel.Flags)
+	add := func(f string) {
+		if !slices.ContainsFunc(out, func(s string) bool { return strings.EqualFold(s, f) }) {
+			out = append(out, f)
+		}
+	}
+	factor := func(k string) float64 {
+		if s, ok := rel.Extras[k]; ok {
+			if f, err := strconv.ParseFloat(strings.TrimSpace(s), 32); err == nil {
+				return float64(float32(f))
+			}
+		}
+		return 1
+	}
+	switch factor("downloadvolumefactor") {
+	case 0:
+		add("freeleech")
+	case 0.5:
+		add("halfleech")
+	case 0.75:
+		add("freeleech25")
+	case 0.25:
+		add("freeleech75")
+	}
+	if factor("uploadvolumefactor") == 2 {
+		add("doubleupload")
+	}
+	return out
 }
 
 // Record writes one search. Empty searches still record ceiling coverage, but have no journal candidate sample.
