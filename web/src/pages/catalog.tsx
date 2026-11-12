@@ -23,6 +23,7 @@ import {
   defaultDesc,
   distinctLabels,
   relabel,
+  TABLE_COLUMNS,
   normalizeColumns,
   normalizePosters,
   readPref,
@@ -299,7 +300,7 @@ export function Catalog({ id }: { id: CatalogId }) {
         )}
         {grid.isFetchingNextPage ? <Loading label="Loading more" /> : null}
         {selecting ? <BulkBar titles={chosenTitles} columns={columns} onClear={() => setChosen(new Set())} /> : null}
-        {dialog === "columns" ? <ColumnPicker prefs={columnsPref} seeFiles={perms.seeFiles} onChange={saveColumns} onClose={() => setDialog(null)} /> : null}
+        {dialog === "columns" ? <ColumnPicker label="Library columns" note="Title and the library columns always stay. On a phone the extra columns show under each title." columns={TABLE_COLUMNS.filter((c) => perms.seeFiles || !c.seeFiles)} prefs={columnsPref} onChange={saveColumns} onClose={() => setDialog(null)} /> : null}
         {dialog === "posters" ? <PosterOptions prefs={postersPref} seeFiles={perms.seeFiles} onChange={savePosters} onClose={() => setDialog(null)} /> : null}
       </div>
       <div className="hidden lg:block">

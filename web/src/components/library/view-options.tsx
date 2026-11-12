@@ -1,20 +1,12 @@
-// The library views' options (docs/design/ui.md "Library views"): the table's column picker (show and reorder the
-// extra columns; title and the copy columns always stay) and the posters' options (size and the details under each
+// The library views' options (docs/design/ui.md "Library views"): a table's column picker (show and reorder the
+// extra columns; the library table's and the release grid's) and the posters' options (size and the details under each
 // poster). Both are kept per user in this browser (lib/copies.ts prefs).
 import { ArrowDown, ArrowUp, X } from "lucide-react";
 import { useRef, type ReactNode } from "react";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Modal } from "@/components/ui/modal";
-import {
-  POSTER_DETAILS,
-  TABLE_COLUMNS,
-  moveColumn,
-  type ColumnId,
-  type ColumnPrefs,
-  type PosterPrefs,
-  type PosterSize,
-} from "@/lib/copies";
+import { POSTER_DETAILS, moveColumn, type PosterPrefs, type PosterSize } from "@/lib/copies";
 import { cn } from "@/lib/utils";
 
 function OptionsDialog({ label, note, onClose, children }: { label: string; note: string; onClose: () => void; children: ReactNode }) {
@@ -44,14 +36,16 @@ function OptionsDialog({ label, note, onClose, children }: { label: string; note
   );
 }
 
-export function ColumnPicker({ prefs, seeFiles, onChange, onClose }: { prefs: ColumnPrefs; seeFiles: boolean; onChange: (p: ColumnPrefs) => void; onClose: () => void }) {
-  const ids = prefs.order.filter((id) => seeFiles || !TABLE_COLUMNS.find((c) => c.id === id)?.seeFiles);
-  const toggle = (id: ColumnId, on: boolean) => onChange({ ...prefs, shown: on ? [...prefs.shown, id] : prefs.shown.filter((x) => x !== id) });
+/** Show and reorder a table's optional columns: label names the dialog, note says what always stays; columns are
+ *  the ones this account may choose (prefs.order may hold more, which stay where they are). */
+export function ColumnPicker<T extends string, P extends { order: T[]; shown: T[] }>({ label, note, columns, prefs, onChange, onClose }: { label: string; note: string; columns: { id: T; label: string; hint: string }[]; prefs: P; onChange: (p: P) => void; onClose: () => void }) {
+  const ids = prefs.order.filter((id) => columns.some((c) => c.id === id));
+  const toggle = (id: T, on: boolean) => onChange({ ...prefs, shown: on ? [...prefs.shown, id] : prefs.shown.filter((x) => x !== id) });
   return (
-    <OptionsDialog label="Library columns" note="Title and the library columns always stay. On a phone the extra columns show under each title." onClose={onClose}>
+    <OptionsDialog label={label} note={note} onClose={onClose}>
       <ul className="divide-y divide-[var(--line)] border-y border-[var(--line)]" data-testid="column-list">
         {ids.map((id, i) => {
-          const c = TABLE_COLUMNS.find((x) => x.id === id)!;
+          const c = columns.find((x) => x.id === id)!;
           return (
             <li key={id} className="flex items-center gap-2 px-1 py-1.5">
               <label className="flex min-w-0 flex-1 cursor-pointer items-start gap-2">

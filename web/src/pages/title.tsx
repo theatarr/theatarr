@@ -25,7 +25,6 @@ import { AnimeOrder } from "@/components/title/anime-order";
 import { Details, TitleJournal, outsideLinks } from "@/components/title/details";
 import { Seasons } from "@/components/title/seasons";
 import { TitleRemove } from "@/components/title/copy-actions";
-import { ShowReleases } from "@/components/title/show-releases";
 import { TitleAddActions } from "@/components/title/title-add-actions";
 import { RequestMoreSeasons, TitleRequest, TitleRequestButton } from "@/components/title/title-request";
 import { SeriesTypeControl } from "@/components/title/title-choices";
@@ -202,14 +201,12 @@ function TitleHistory({ d, versions }: { d: TitleDetail; versions: Version[] }) 
   );
 }
 
-/** The copies block: header (search now, add), the cards, and the releases panel for managers. */
+/** The copies block: header (search now, add) and the cards. */
 function Copies({ d, id, versions, target }: { d: TitleDetail; id: string; versions: Version[]; target: Target }) {
-  const perms = usePerms();
   return (
     <section className="space-y-3" data-testid="title-copies">
       <TitleAddActions titleId={Number(id)} name={target.name} year={target.year} kind={target.kind} poster={target.poster} anime={!!d.anime} add={false} cardNotes />
       <CopyCards versions={versions} />
-      {perms.manage ? <ShowReleases titleId={Number(id)} /> : null}
     </section>
   );
 }

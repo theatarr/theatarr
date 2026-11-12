@@ -256,7 +256,7 @@ export function normalizeColumns(p: unknown): ColumnPrefs {
 }
 
 /** Move a column one place up (-1) or down (+1) in the order. */
-export function moveColumn(p: ColumnPrefs, id: ColumnId, by: -1 | 1): ColumnPrefs {
+export function moveColumn<P extends { order: string[] }>(p: P, id: P["order"][number], by: -1 | 1): P {
   const order = [...p.order];
   const i = order.indexOf(id);
   const j = i + by;

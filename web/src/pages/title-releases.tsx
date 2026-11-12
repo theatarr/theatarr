@@ -1,5 +1,5 @@
-// /title/:id/releases: a title's versions (on/off, add, search now) and its "Show releases" panel on one page, for
-// managers and admins. The title page mounts the same two components.
+// /title/:id/releases: a title's versions (on/off, add, search now) and its "Last search" panel (the stored decision,
+// read-only) on one page, for managers and admins.
 import { Link, useParams, useSearchParams } from "react-router";
 import { usePerms, useTitle } from "@/api/library";
 import { Empty, ErrorState, Loading, PageHeader } from "@/components/page";
@@ -35,20 +35,20 @@ export function TitleReleasesPage() {
     <div>
       <PageHeader
         crumb={[{ label: "Library" }, { label: name, to: `/title/${id}` }]}
-        title="Releases"
+        title="Last search"
         description={
           <span className="flex items-center gap-3">
             <TitleThumb id={id} className="w-10" />
             <span>
               {name}
-              {t.year ? ` (${t.year})` : ""}: libraries, search now, and what the decision engine sees for each library.
+              {t.year ? ` (${t.year})` : ""}: the last search Theatarr decided for each library. Interactive search searches the indexers now.
             </span>
           </span>
         }
       />
       <div className="space-y-5">
         <TitleAddActions titleId={id} name={name} year={t.year} kind={t.kind === "series" ? "series" : "movie"} poster={t.poster} anime={t.anime} />
-        <ShowReleases titleId={id} defaultOpen initialVersion={params.get("version") ?? undefined} focus={params.get("hash") ?? undefined} />
+        <ShowReleases titleId={id} kind={t.kind === "series" ? "series" : "movie"} defaultOpen initialVersion={params.get("version") ?? undefined} focus={params.get("hash") ?? undefined} />
       </div>
     </div>
   );

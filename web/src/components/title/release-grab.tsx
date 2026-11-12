@@ -1,100 +1,56 @@
-// Grab for the releases panel and the episode overview's releases (docs/design/ui.md "Recovery actions"): a chosen
-// release of a live search goes to the router for the copy. The confirmation names the release and the copy; the
-// server decides the release again, and a release it rejects (then or now) is grabbed only after "Grab anyway".
-// Managers only: callers pass grab only for a live answer the server marked grabbable (Releases.grab). A row of a
-// stored answer has no live search behind it: its Grab hands the row to the panel (pick), whose GrabDialog runs the
-// search first and grabs the row's hash from that answer, asking again when that answer rejects it. The dialog
-// cannot close while its grab is on its way.
+// Grab for interactive search (docs/design/ui.md "Interactive search" and "Recovery actions"): the confirmation for a
+// release of a live search that asks first (release-grid.tsx: a rejected release, one that would replace a
+// better-scored file, or one the server rejected at grab time). It names the release and the library; the server
+// decides the release again, and a release it rejects (then or now) is grabbed only after "Grab anyway". A grab the
+// server refused late opens this with those reasons (late), so one confirmation sends it with the override. The
+// dialog cannot close while its grab is on its way.
 //
-// AddByHash is the panel's other way in, for admins: a magnet link or info hash no search of ours found, with the
-// release name the rules judge it by. The server decides it and routes it as a grab; a release it rejects is added
-// only after "Add anyway". Nothing is sent before Add is pressed.
-import { Download, Loader2, Plus } from "lucide-react";
-import { useEffect, useState, type FormEvent } from "react";
-import type { Candidate, Releases } from "@/api/add";
+// AddByHash is the "Last search" page's other way in, for admins: a magnet link or info hash no search of ours found,
+// with the release name the rules judge it by. The server decides it and routes it as a grab; a release it rejects is
+// added only after "Add anyway". Nothing is sent before Add is pressed.
+import { Loader2, Plus } from "lucide-react";
+import { useState, type FormEvent } from "react";
+import type { Candidate } from "@/api/add";
 import { ApiError } from "@/api/client";
 import { useAddRelease, useGrab } from "@/api/ops";
 import { VersionTag } from "@/components/page";
 import { Button } from "@/components/ui/button";
 import { ConfirmDialog, errText } from "@/components/ui/confirm-dialog";
 import { Input } from "@/components/ui/input";
-import { grabScope } from "@/lib/ops";
+import { grabConfirmScope, needsConfirm } from "@/lib/release-columns";
 
-export type GrabTarget = { titleId: number; version: string; label?: string; pick?: (c: Candidate) => void };
+/** Where a grab goes: the title, the library (its key) and the library's name for the words. */
+export type GrabTarget = { titleId: number; version: string; label?: string };
 
-export function GrabButton({ c, target }: { c: Candidate; target: GrabTarget }) {
-  const [open, setOpen] = useState(false);
-  return (
-    <>
-      <Button size="xs" variant={c.accepted ? "outline" : "ghost"} onClick={() => (target.pick ? target.pick(c) : setOpen(true))} disabled={!c.info_hash} title={c.info_hash ? "Send this release to the router" : "No info hash"} data-testid="release-grab">
-        <Download /> Grab
-      </Button>
-      {open ? <GrabDialog c={c} target={target} onClose={() => setOpen(false)} /> : null}
-    </>
-  );
+/** The 409 rejections of a grab the server now rejects, if that is how it failed. */
+export function lateRejections(e: unknown): string[] | undefined {
+  return e instanceof ApiError && e.status === 409 && e.detail?.length ? e.detail : undefined;
 }
 
-/** A search to run before the grab, for a release from a stored answer: search starts it, answer is its result once
- *  in, failed says it was blocked or failed (the panel shows why), at when the latest result came in (only one newer
- *  than the confirm counts). A release the answer lacks goes to gone, ungrabbed. */
-export type FreshSearch = { search: () => void; answer?: Releases; failed: boolean; at: number; gone: (c: Candidate) => void };
-
-export function GrabDialog({ c, target, onClose, fresh }: { c: Candidate; target: GrabTarget; onClose: () => void; fresh?: FreshSearch }) {
+export function GrabDialog({ c, target, onClose, late: given, onSent }: { c: Candidate; target: GrabTarget; onClose: () => void; late?: string[]; onSent?: () => void }) {
   const grab = useGrab(target.titleId);
-  // A search running for the grab, and the result time it waits to pass.
-  const [armed, setArmed] = useState<{ after: number }>();
-  // The release as the fresh search decided it, when that rejects it: it is confirmed again with those reasons.
-  const [now, setNow] = useState<Candidate>();
-  const shown = now ?? c;
-  // A 409 with rejections: the server's second look rejects it; the next confirm overrides.
-  const late = grab.error instanceof ApiError && grab.error.status === 409 && grab.error.detail?.length ? grab.error.detail : undefined;
-  const scope = grabScope(shown, target.label ?? target.version, late);
-  const override = !shown.accepted || !!late;
-  const send = (o: boolean) => grab.mutate({ version: target.version, info_hash: c.info_hash ?? "", override: o });
+  // A 409 with rejections: the server's second look rejects it; the next confirm overrides. One refused before the
+  // dialog opened (given) counts the same.
+  const late = lateRejections(grab.error) ?? given;
+  const scope = grabConfirmScope(c, target.label ?? target.version, late);
+  const override = !c.accepted || !!late;
+  const send = () => grab.mutate({ version: target.version, info_hash: c.info_hash ?? "", override }, { onSuccess: () => onSent?.() });
   const close = () => {
     // A grab on its way is not left behind: the dialog stays until it settles.
     if (grab.isPending) return;
     grab.reset();
     onClose();
   };
-  // Once the search is in: grab the hash if the answer still offers it.
-  const answer = fresh?.answer;
-  const failed = !!fresh?.failed;
-  const at = fresh?.at ?? 0;
-  useEffect(() => {
-    if (!armed || !fresh || fresh.at <= armed.after) return;
-    if (fresh.failed) {
-      setArmed(undefined);
-      onClose();
-    } else if (fresh.answer) {
-      setArmed(undefined);
-      const hash = c.info_hash?.toLowerCase();
-      const fc = fresh.answer.candidates?.find((x) => x.info_hash?.toLowerCase() === hash);
-      if (!fc) {
-        fresh.gone(c);
-        onClose();
-      } else if (fc.accepted) send(false);
-      // Rejected now: shown with the fresh reasons, grabbed only on "Grab anyway".
-      else setNow(fc);
-    }
-    // Only the search's result moves this on; the callbacks are fresh each render.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [armed, answer, failed, at]);
   return (
     <ConfirmDialog
       scope={scope}
-      subject={<span className="font-mono">{shown.release}</span>}
-      danger={override}
-      busy={grab.isPending || !!armed}
-      error={late ? undefined : grab.error}
+      subject={<span className="font-mono">{c.release}</span>}
+      danger={override || needsConfirm(c)}
+      busy={grab.isPending}
+      error={lateRejections(grab.error) ? undefined : grab.error}
       done={grab.data?.message}
       onClose={close}
-      onConfirm={() => {
-        if (fresh && !fresh.answer) {
-          setArmed({ after: fresh.at });
-          fresh.search();
-        } else send(override);
-      }}
+      onConfirm={send}
       testid="grab-dialog"
     />
   );

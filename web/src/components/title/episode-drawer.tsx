@@ -2,13 +2,14 @@
 // centred on desktop and a bottom sheet on phones, opened from an episode row (?episode=<id>). The episode's number
 // (labelled "E01 · absolute 1" for anime), air date and runtime; then, for callers who see files, per copy its state
 // against the cutoff with Why? and what Theatarr would take next, the monitor switch and search now (managers; read-only
-// with the reason while an arr manages the copy), and File, History and Releases as separate disclosures, all
+// with the reason while an arr manages the copy), Interactive search for a library that may search, and File, History
+// and Last search (the stored decision, read-only) as separate disclosures, all
 // closed at first so the phone shows the overview before any release names or paths. Accounts without "see files"
 // get one availability line across copies and nothing else (the API sends no file, history or states for them).
 // What it holds follows Scryer (github.com/scryer-media/scryer)
 // apps/scryer-web/components/views/series-overview/episode-details-panel.tsx and episode-panel-content.tsx
 // @ 2ef7757c, GPL-3.0 (episode header, the files on disk with their media facts, the history list); the look is ours.
-import { Activity, ChevronDown, Loader2, RefreshCw, Search, X } from "lucide-react";
+import { Activity, ChevronDown, Loader2, Search, X } from "lucide-react";
 import { useRef, useState } from "react";
 import { Link } from "react-router";
 import type { SearchOutcome } from "@/api/add";
@@ -19,7 +20,9 @@ import { VersionStatus } from "@/components/version-status";
 import { Empty, ErrorState, KV, Mono, VersionTag } from "@/components/page";
 import { JournalList } from "@/components/title/journal-list";
 import { ControlNote, MonitorSwitch, UpgradeBlock } from "@/components/title/manage-bits";
-import { ReleaseTable, Summary, useGrabTarget } from "@/components/title/show-releases";
+import { InteractiveSearchButton } from "@/components/title/interactive-search";
+import { ReleaseGrid } from "@/components/title/release-grid";
+import { Summary } from "@/components/title/show-releases";
 import { ChangeEpisodes } from "@/components/title/change-episodes";
 import { ProgressBar } from "@/components/activity-bits";
 import { History } from "@/components/title/versions";
@@ -51,22 +54,15 @@ function stateBadge(d: EpisodeVersionDetail, aired: boolean): { label: string; t
   return { label: "Missing", tone: "negative" };
 }
 
+/** The last search Theatarr decided for this episode in one library, read-only (Interactive search searches now). */
 function Releases({ titleId, eid, d }: { titleId: number; eid: number; d: EpisodeVersionDetail }) {
-  const [live, setLive] = useState(false);
-  const q = useEpisodeReleases(titleId, eid, d.key, live, true);
+  const q = useEpisodeReleases(titleId, eid, d.key, false, true);
   const r = q.data;
-  const grab = useGrabTarget(r, titleId);
   return (
     <div className="space-y-3" data-testid="episode-releases">
-      <div className="flex flex-wrap items-center gap-2">
-        {d.control?.live_releases ? (
-          <Button size="xs" variant="outline" onClick={() => (live ? void q.refetch() : setLive(true))} disabled={q.isFetching}>
-            {q.isFetching && live ? <Loader2 className="animate-spin" /> : <RefreshCw />} Search indexers now
-          </Button>
-        ) : (
-          <span className="text-[11.5px] text-[var(--ink-3)]">{d.control?.mode === "active" ? "The acquirer is not running" : "Watch only: no live indexer search; the last stored decision"}</span>
-        )}
-      </div>
+      {d.control?.live_releases ? null : (
+        <p className="text-[11.5px] text-[var(--ink-3)]">{d.control?.mode === "active" ? "The acquirer is not running" : "Watch only: no live indexer search; the last stored decision"}</p>
+      )}
       {q.isPending ? (
         <p className="flex items-center gap-2 text-sm text-muted-foreground"><Loader2 className="size-4 animate-spin" /> Loading…</p>
       ) : q.error ? (
@@ -74,7 +70,7 @@ function Releases({ titleId, eid, d }: { titleId: number; eid: number; d: Episod
       ) : r ? (
         <>
           <Summary r={r} />
-          {(r.candidates ?? []).length === 0 ? <Empty>No releases stored for this episode.</Empty> : <ReleaseTable items={r.candidates ?? []} grab={grab} outcomes={r.outcomes} />}
+          {(r.candidates ?? []).length === 0 ? <Empty>No releases stored for this episode.</Empty> : <ReleaseGrid items={r.candidates ?? []} kind="series" outcomes={r.outcomes} />}
         </>
       ) : null}
     </div>
@@ -155,7 +151,7 @@ function AcquisitionPart({ a }: { a: Acquisition }) {
 }
 
 /** One copy of the episode, for callers who see files. */
-function VersionPart({ titleId, eid, d, aired, manage, admin, single, acquisition }: { titleId: number; eid: number; d: EpisodeVersionDetail; aired: boolean; manage: boolean; admin: boolean; single: boolean; acquisition?: Acquisition }) {
+function VersionPart({ titleId, eid, epCode, d, aired, manage, admin, single, acquisition }: { titleId: number; eid: number; epCode: string; d: EpisodeVersionDetail; aired: boolean; manage: boolean; admin: boolean; single: boolean; acquisition?: Acquisition }) {
   const monitor = useMonitor(titleId);
   const search = useScopedSearch(titleId);
   const [msg, setMsg] = useState("");
@@ -204,6 +200,7 @@ function VersionPart({ titleId, eid, d, aired, manage, admin, single, acquisitio
           >
             {search.isPending ? <Loader2 className="animate-spin" /> : <Search />} Search now
           </Button>
+          {c.live_releases ? <InteractiveSearchButton titleId={titleId} version={d.key} episode={{ id: eid, code: epCode }} /> : null}
         </div>
       ) : null}
       {manage ? <ControlNote c={c} kind="both" /> : null}
@@ -232,7 +229,7 @@ function VersionPart({ titleId, eid, d, aired, manage, admin, single, acquisitio
           </div>
         </Disclosure>
         <div ref={releasesRef}>
-          <Disclosure title="Releases" open={open.releases} onToggle={() => flip("releases")} testid={`episode-releases-${d.key}`}>
+          <Disclosure title="Last search" open={open.releases} onToggle={() => flip("releases")} testid={`episode-releases-${d.key}`}>
             <Releases titleId={titleId} eid={eid} d={d} />
           </Disclosure>
         </div>
@@ -319,7 +316,7 @@ export function EpisodeOverview({
             <PlainAvailability e={d.episode} />
           ) : (
             d.versions.map((v) => (
-              <VersionPart key={v.key} titleId={titleId} eid={eid} d={v} aired={aired} manage={perms.manage} admin={perms.admin} single={d.versions.length === 1} acquisition={acquisitions?.[v.key]} />
+              <VersionPart key={v.key} titleId={titleId} eid={eid} epCode={code(d.episode.season, d.episode.number)} d={v} aired={aired} manage={perms.manage} admin={perms.admin} single={d.versions.length === 1} acquisition={acquisitions?.[v.key]} />
             ))
           )
         ) : null}

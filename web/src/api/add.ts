@@ -1,5 +1,5 @@
 // Search and add (docs/design/ui.md): GET /search, GET /add/options, POST /titles, PUT /titles/{id}/versions/
-// {key}, POST /titles/{id}/search and GET /titles/{id}/releases.
+// {key}, POST /titles/{id}/search and GET /titles/{id}/releases (stored, and live for interactive search).
 import { keepPreviousData, useInfiniteQuery, useMutation, useQuery, useQueryClient, type QueryClient } from "@tanstack/react-query";
 import { useEffect, useState } from "react";
 import { api, qs, type Schemas } from "./client";
@@ -129,5 +129,29 @@ export function useReleases(titleId: number, version: string | undefined, live: 
     staleTime: live ? Infinity : 30_000,
     refetchOnWindowFocus: !live,
     ...(live ? { retry: false } : {}),
+  });
+}
+
+/** An interactive search: a live search of the indexers for one library, of the whole title, one season or one
+ *  episode. session is new each time the window opens, so every opening searches afresh while a library already
+ *  answered in this opening is not searched again. The request is cancelled when nothing shows it any more (the
+ *  window closed or another library chosen), which ends the search on the server. */
+export function useLiveSearch({ titleId, version, season, episode, session, enabled = true }: { titleId: number; version: string; season?: number; episode?: number; session: number; enabled?: boolean }) {
+  const scope = episode !== undefined ? `episode:${episode}` : season !== undefined ? `season:${season}` : "";
+  return useQuery({
+    queryKey: qk.liveSearch(titleId, version, session, scope),
+    queryFn: ({ signal }) =>
+      api<Releases>(
+        episode !== undefined
+          ? `/titles/${titleId}/episodes/${episode}/releases` + qs({ version, live: 1 })
+          : `/titles/${titleId}/releases` + qs({ version, live: 1, season }),
+        { signal },
+      ),
+    enabled: enabled && !!version,
+    staleTime: Infinity,
+    // Kept while the window is open (it drops them on closing), so a library answered earlier is not searched again.
+    gcTime: 30 * 60_000,
+    retry: false,
+    refetchOnWindowFocus: false,
   });
 }

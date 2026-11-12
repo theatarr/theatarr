@@ -91,6 +91,10 @@ export const qk = {
   episodes: (t: Id, season?: number) => ["title", id(t), "episodes", season ?? "all"] as const,
   // Not under title(): a live answer is an indexer search, which an invalidation of the title must never re-run.
   releases: (t: Id, version: string, live: boolean) => ["releases", id(t), version, live] as const,
+  /** One interactive search (one opening of the window, one library and scope): never refetched by an invalidation.
+   *  interactive(t, session) is every library's answer of one opening. */
+  liveSearch: (t: Id, version: string, session: number, scope: string) => ["releases", id(t), "interactive", session, version, scope] as const,
+  interactive: (t: Id, session: number) => ["releases", id(t), "interactive", session] as const,
   discover: {
     all: ["discover"] as const,
     home: ["discover", "home"] as const,
