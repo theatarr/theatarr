@@ -311,6 +311,7 @@ theatarr library adopt -library K [-dry-run] [-limit N] [-json]   link F's arr f
 theatarr library adopt -library K -queue                          run it as the library.adopt job in theatarr serve
 theatarr library adopt -library K -refresh [-dry-run] [-json]     move adopted links to the arr's current files
 theatarr library adopt -library K -refresh -queue                 the same as a library.adopt job in theatarr serve
+theatarr library coverage -library K [-json]                      read-only: what adopt and refresh would still do
 ```
 
 **Adopt** links the arr's current files of F into K's root under K's naming, pointing at the same mount targets, so
@@ -335,6 +336,15 @@ never adopted. Add-time search intents for K are dropped at the next drain while
 `router.wanted.missing: false` nothing searches K's missing items by itself. Right before the flip, per follower:
 `theatarr library adopt -library K`, then `theatarr library adopt -library K -refresh`. Anything still missing after that is left
 to RSS or a manual search; Theatarr runs no catch-up search for it. `theatarr golive check -library K` shows whether it is due ("adopt and refresh", [stage 4](#4-the-go-live-check)).
+
+**Coverage** (`theatarr library coverage -library K`) checks, writing nothing, whether K holds every title and file
+F's arr has: the titles of F with no row for K, the links adopt would still make and the adopted links refresh would
+still move (not checked while K grabs: turn **Allow new downloads** off first). It ends with one of three results:
+`coverage complete`; `coverage complete except the expected exceptions listed`, where each file left out is named with
+its reason (the arr's own file is missing, dangling, a regular file or off the mount, K's own files kept over part of
+a pack, or a refresh left alone); or `coverage NOT complete` (exit 1) for anything else, such as missing titles, links
+still to make or move, `path_taken` or `naming`. An error also exits non-zero. The fix is adopt and refresh, which
+never replace a file K imported itself.
 
 Scan each of K's Plex sections once after its first adopt.
 
@@ -502,10 +512,15 @@ Keep Prowlarr while any library still uses one of its feeds.
    roots available for a rollback; don't point K at F's folders.
 5. When every client has moved, stop new arr searches, drain its queue, disable its download clients and stop the
    arr. Keep its database, configuration and roots through the rollback window.
-6. End K's mirroring deliberately: set K's naming explicitly before you remove the inherited naming, review the
-   confirmed removal of `follows` in **Settings › Libraries**, and remove the arr import entry under **Advanced ›
-   Sonarr/Radarr migration**. Check that K's monitoring and requests now stand on their own. Run the go-live check
-   and a request and playback test again.
+6. End K's mirroring deliberately. First, with K's downloads off, run `theatarr library coverage -library K` and
+   resolve anything it reports as not complete. Save the names K has now with
+   `theatarr library rename-preview -library K > before.tsv` (one `link_id<TAB>existing<TAB>new` line per link whose
+   name would change; the count goes to stderr; nothing is renamed). Set K's naming explicitly before you remove the
+   inherited naming: **Copy *F*'s naming** in K's naming editor copies F's templates into K. Run the rename preview
+   again and compare it with `before.tsv`: there should be no new differences. Then review the confirmed removal of
+   `follows` in **Settings › Libraries**, and remove the arr import entry under **Advanced › Sonarr/Radarr
+   migration**. Check that K's monitoring and requests now stand on their own. Run the go-live check and a request
+   and playback test again.
 
 ## 6. Stop switches and rollback
 

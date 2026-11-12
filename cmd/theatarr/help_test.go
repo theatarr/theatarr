@@ -3,6 +3,7 @@ package main
 import (
 	"errors"
 	"flag"
+	"strings"
 	"testing"
 )
 
@@ -19,6 +20,15 @@ func TestParentCommandsHelp(t *testing.T) {
 			if err := c.run([]string{arg}); !errors.Is(err, flag.ErrHelp) {
 				t.Errorf("theatarr %s %s: %v, want the usage", name, arg, err)
 			}
+		}
+	}
+}
+
+// theatarr library's usage lists the read-only cutover checks.
+func TestLibraryUsageListsCoverageAndRenamePreview(t *testing.T) {
+	for _, sub := range []string{"theatarr library coverage -library KEY", "theatarr library rename-preview -library KEY"} {
+		if !strings.Contains(libraryUsage, sub) {
+			t.Errorf("library usage lacks %q", sub)
 		}
 	}
 }
