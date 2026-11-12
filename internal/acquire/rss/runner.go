@@ -186,46 +186,36 @@ func (r *Runner) Schedule(ctx context.Context, rssDelay time.Duration) {
 	if r.q == nil {
 		return
 	}
-	// The film index the decision engine searches with is loaded now and on every tick no read is queued for (RSS
+	// The film index the decision engine searches with is loaded now and on every due tick no read is queued for (RSS
 	// off, no Live feed), so it never depends on RSS running; a queued read reloads it itself.
 	r.reloadIndex(ctx)
+	fresh := true
 	var generation int64
-	if r.runtime != nil {
-		if active, err := r.forOperation(ctx); err == nil {
-			generation = active.generation
-		}
+	if active, err := r.forOperation(ctx); err == nil {
+		generation = active.generation
 	}
-	now := r.now()
-	next, every := now.Add(rssDelay), r.set.RSSInterval
+	next, every := r.now().Add(rssDelay), r.set.RSSInterval
 	r.log.Info("shadow job scheduled", "kind", KindRSS, "every", every.String(), "first", next.UTC())
-	t := time.NewTimer(time.Second)
+	t := time.NewTicker(time.Second)
 	defer t.Stop()
 	for {
 		now := r.now()
-		eligible := r.runtime == nil && r.eligible(ctx)
-		if r.runtime != nil {
-			if active, err := r.forOperation(ctx); err == nil {
-				eligible = active.eligible(ctx)
-				if active.generation != generation {
-					generation = active.generation
-					every = active.set.RSSInterval
-					next = now
-				}
-			}
+		// A new generation (another interval, say) is noticed within a second and runs at once.
+		active, err := r.forOperation(ctx)
+		if err == nil && active.generation != generation {
+			generation = active.generation
+			every = active.set.RSSInterval
+			next = now
 		}
 		if !now.Before(next) {
-			if eligible {
+			if err == nil && active.eligible(ctx) {
 				r.enqueue(ctx, KindRSS, nil, jobs.EnqueueOptions{DedupeKey: KindRSS, Priority: priorityRSS, MaxAttempts: 2})
-			} else {
+			} else if !fresh {
 				r.reloadIndex(ctx)
 			}
 			next = now.Add(every)
 		}
-		wait := next.Sub(now)
-		if wait > time.Second {
-			wait = time.Second
-		}
-		t.Reset(max(wait, time.Second))
+		fresh = false
 		select {
 		case <-ctx.Done():
 			return
