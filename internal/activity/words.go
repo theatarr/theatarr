@@ -175,8 +175,10 @@ func (d *Download) Words(provider string) string {
 // client add was tried (client_deferred).
 const triedSQL = "(a.outcome IN ('accepted', 'refused', 'error') OR (a.outcome = 'deferred' AND a.code = 'client_deferred'))"
 
-// TriedSQL is Download.Tried for the download row d (the column expression Downloads reads).
-const TriedSQL = "EXISTS (SELECT 1 FROM download_attempt a WHERE a.download_id = d.id AND " + triedSQL + ")"
+// triedColumnSQL is Download.tried for the download row d (the column Downloads reads), evaluated only for a failed
+// row: NotStarted reads it for no other state.
+const triedColumnSQL = "CASE WHEN d.state = 'failed' THEN EXISTS (SELECT 1 FROM download_attempt a WHERE a.download_id = d.id AND " +
+	triedSQL + ") ELSE 0 END"
 
 // NotStartedSQL selects, on the table download (unaliased), the downloads Download.NotStarted reads as not started
 // (with state = 'failed'): the same two prefixes and no attempt Tried counts. GLOB, not LIKE: it is case-sensitive,
@@ -226,7 +228,7 @@ func NotStarted(errText string) string {
 
 // NotStarted is NotStarted of a failed download's error when it was never Tried; "" otherwise.
 func (d *Download) NotStarted() string {
-	if d.State != "failed" || d.Tried {
+	if d.State != "failed" || d.tried {
 		return ""
 	}
 	return NotStarted(d.Error)

@@ -112,7 +112,7 @@ func TestNotStartedWords(t *testing.T) {
 				t.Errorf("queued row read as not started: %q", got)
 			}
 			// Tried at a provider or client before the gate closed: a failure, not "not started".
-			if tried := (Download{State: "failed", Error: prefix + text, Tried: true}); tried.NotStarted() != "" ||
+			if tried := (Download{State: "failed", Error: prefix + text, tried: true}); tried.NotStarted() != "" ||
 				tried.Words("") != "Download failed" {
 				t.Errorf("tried row: reason %q, words %q", tried.NotStarted(), tried.Words(""))
 			}
