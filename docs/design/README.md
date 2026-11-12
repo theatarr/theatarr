@@ -12,9 +12,9 @@ How Theatarr works inside, one part per page. Start with the overview.
 - [decide.md](decide.md): the decision engine, history parity, SeaDex standing.
 - [profiles.md](profiles.md): profiles, the quality half of a decision.
 - [formats.md](formats.md): the custom-format engine and TRaSH formats.
-- [series.md](series.md): Sonarr import, series decisions and the series shadow.
+- [series.md](series.md): Sonarr import, series decisions and series RSS.
 - [sonarr-v5.md](sonarr-v5.md): the Sonarr v5 parser and mapping mode.
-- [shadow.md](shadow.md): the shadow runner and its comparison with the arrs.
+- [rss.md](rss.md): the RSS sync for Live libraries.
 
 ## Acquisition
 

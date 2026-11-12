@@ -100,8 +100,7 @@ instance. The seeder stores it the way `theatarr admin reset-password` does (arg
 | Downloads | The router in every state: queued (one waiting for a free slot), adding, added, downloading (one stuck for over a day), ready (waiting for the mount, and dry run), linking, imported, failed (no provider took it; stalled three times; removed from the queue; rejected by the library's sample guard). Each with its search (acquire run and journal snapshot: chosen release, runners-up, rejections), provider attempts (accepted, refused, skipped, error, deferred) and cache evidence |
 | Library | Library imports in each state, links for Theatarr's own imports, three dead links with the dangling report, a relink, a replaced link in the trash, a Plex scan and a mount alert |
 | Blocklist | Stalled, provider, library guard and verdict entries, each followed by a re-search |
-| Journal | Suspect flags of several kinds (dead link, download stuck, repeated failures, sample or extras, shadow disagreement, year mismatch), a `wrong` verdict that blocklisted a release and queued a re-search, and an `ok` verdict on a dead link |
-| Shadow | Re-decided arr grabs in all four buckets with their reasons (about 72% agreement against the 95% bar), RSS picks (open and expired), router dry runs, cursors and runs |
+| Journal | Suspect flags of several kinds (dead link, download stuck, repeated failures, sample or extras, year mismatch), a `wrong` verdict that blocklisted a release and queued a re-search, and an `ok` verdict on a dead link |
 | Jobs | Done (a day of syncs, imports, RSS reads, art runs, searches), queued, failed and needing attention, failed and resolved by a later success, failed and retried with the retry done, and dismissed |
 | System | Budget windows (hour and day), back-offs (active and expired), provider pacing, provider sync runs (one failed with `AUTH_BLOCKED`), arr import runs, the TVDB sync, three API keys (hashes of random values nobody holds; one revoked), the views' profiles and tags, view commands and offers |
 | Anime | The franchise `aokaze-requiem`, stored through `animestore.Save`: two seasons, two films (one upcoming), an OVA mapped by a heuristic and a short with conflicting mappings (both in the review queue), an arbitrated mapping, release, watch and story orders, and a planned watch-order playlist |
@@ -168,7 +167,7 @@ Info hashes, provider torrent ids and release groups are generated. Internal row
 
 - **TestDemoScreens** seeds a database and calls every API the SPA's screens use (titles and facets for each grid,
   discover, a movie, a series and an anime title page with episodes, activity now, history and blocked, Continue,
-  calendar, journal and an entry, jobs, shadow summary, diffs and one diff, registry and one content, anime
+  calendar, journal and an entry, jobs, registry and one content, anime
   franchises, review and playlists, gateway, imports, sources, policy, keys, versions, search). Each must answer
   200 with its lists filled, the activity must hold every state in hand, and posters and backdrops must come from
   the seeded cache as PNG. The image fetcher and `http.DefaultTransport` are replaced by a recorder that fails every

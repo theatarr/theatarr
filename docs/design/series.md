@@ -1,7 +1,7 @@
-# Series (Sonarr import, series decisions, series shadow)
+# Series (Sonarr import, series decisions, series RSS)
 
 Series follow the movie path end to end: `theatarr import-arr` reads Sonarr, `internal/decide` decides series
-releases as Sonarr does, and the shadow (history replay and the live runner) covers Sonarr grabs. Where this sits:
+releases as Sonarr does, and RSS reads series feeds for Live libraries. Where this sits:
 [overview.md](overview.md); TV metadata: [tv-metadata.md](tv-metadata.md). Migration `00011_series.sql`.
 
 ## Parts
@@ -94,105 +94,13 @@ from ordinary matching loads.
   TVDB record) and aliases with a year. `v4` parses as Sonarr v4. Items, fixtures (v5 ParserTests 1,688/1,688) and the v4
   against v5 measurement: `docs/design/sonarr-v5.md`.
 
-### Shadow for series
+### RSS for series
 
-- **History replay** (`internal/decide/shadow`): `LoadCorpusSeries` (corpus: series and episodes from the parse
-  answers, scene mappings from a saved `GET series` with `-series-aliases`) and `LoadSeriesDB` (database: files
-  rebuilt per episode from import and delete events, with their episode sets). Sonarr writes one grabbed event per
-  episode; the rows of one release (same series, download id and title, within two minutes) are one grab. The search
-  criteria are the grab's episodes (season search for several or a pack), none for an RSS grab. The report adds
-  "same episodes", and full agreement for series needs them too.
-- **Live runner** (`internal/shadow`): series versions in shadow mode are shadowed. A Sonarr grab becomes one
-  `shadow.grab` (first history row; `history_ids` and `episodes` stored). The arr's release is decided with the
-  arr's criteria against each episode's file at grab time (rebuilt from history, else the `version_file` the import
-  stored when the arr added it before the grab). Theatarr's search asks the grab's seasons through the planner (torznab
-  `tvsearch` by TVDB id), and every result is decided for the grab's episodes. RSS reads category 5000 for feeds
-  series versions list; TV items map by TVDB id or by the parsed series title against titles and scene mappings,
-  and are decided per series version (RSS path). `shadow_diff.kind` holds movie or series.
-- RSS considers monitored series versions in `wanted`, `filled` and `cutoff_met`; existing per-episode upgrade
-  specifications still reject non-upgrades. Each enabled wanted round marks a series wanted when a monitored missing
-  non-removed episode reaches its stored UTC air time, without fetching metadata.
-- **Agreement per kind:** `Summary.Kinds` gives grabs, agreement and `meets_bar` (95%) for movies and series
-  separately; the overall line stays.
-
-## History replay
-
-`theatarr decide shadow` replays an instance's recorded Sonarr grabs: each grab is decided with the instance's own
-profiles (`from_arr`, from the corpus snapshots; policy `internal/decide/shadow/testdata/policy`) and compared with
-what the arr grabbed. It reports same quality, same episodes, the score against the arr's score now and at grab time
-(`data.customFormatScore`, database mode only), accepted, and full agreement.
-
-- **Corpus mode** reads grabs and today's scores from the corpus; scene mappings come from a saved `GET series`
-  (`-series-aliases`). Without them, grabs named by an alias are `UnknownSeries`.
-- **Database mode** reads an imported database, with files rebuilt per episode from history.
-- The usual disagreements are not engine defects: the profile's scores changed since the grab (Theatarr's score
-  equals the arr's score today), `Disk*` against a file rebuilt from history (a mass re-grab of equal releases, or an
-  upgrade from a file history no longer shows), hand grabs of releases the profile rejects (below the minimum size,
-  a repack of another group, a title the arr's own parse does not map), and `RepackReleaseGroupDoesNotMatch` against
-  the file at the time. Quality, episodes and today's score agree on every grab the arr's own parse maps.
-- Under `sonarr: v5` ([sonarr-v5.md](sonarr-v5.md)) the agreement is the same apart from language-only changes
-  (`ITA ENG SUBS`: v5 drops Italian with the subtitles) and packs v5 maps that v4 does not.
-
-`tvrefresh` stores TVDB's original name, aliases, translated names and translation aliases in `title_scene_mapping`
-with source `tvrefresh:tvdb` and origin `tvdb`, on every successful series refresh (including due-series sweeps). These
-are all-season names: Sonarr's existing `CleanSeriesTitle` deduplicates them against the primary title, each other and
-imported mappings, whose season limits and other fields stay authoritative. Only refresh-owned rows are replaced; a
-failed fetch keeps the last successful names.
-
-### Season pack rule (`versions.<k>.packs`)
-
-`any_upgradable` ports the actuallyevan Sonarr fork's rule (`ACCEPT_RELEASE_ANY_UPGRADABLE=true`). The fork's only
-change is in `UpgradeDiskSpecification` (fork `v4.0.20.3014-1`, `9a75b78`): every episode of the release is looked at, an episode
-with no file (or a file record that is gone) counts as upgradable, and the release is accepted when **any** episode is
-upgradable; otherwise the first episode's rejection stands. `UpgradeAllowed`, the queue and history specifications are
-not changed by the fork, so a pack whose file the profile does not allow upgrading is still refused.
-
-- **Policy:** `versions.<k>.packs`: `all` (the default: Sonarr's rule, every episode's file must be upgraded),
-  `any_upgradable` (the fork's) or `threshold` with `packs_threshold: <percent>` (Sonarr v5, below). Series versions
-  only; validated (`packs_threshold` 1 to 100, required with `threshold` and refused otherwise). `examples/policy` sets `any_upgradable` on `tv-2160p`
-  and `anime-tv`, and so does the replay policy (`internal/decide/shadow/testdata/policy`).
-- **Import:** the pack is taken whole, but each file is linked only when it upgrades every current file it would
-  replace (the arrs' import `UpgradeSpecification`, `docs/design/library.md` "Import of a ready download" step 6): the
-  episodes the pack fills and the files it betters are linked, the better files stay.
-- **Engine:** `profile.Config.AcceptReleaseAnyUpgradable`; a profile is built once and shared by versions, so a version
-  with the fork's rule decides with a copy of the engine (`withPackRule`). The decision's upgrade reason names the first
-  upgraded file, the episodes the pack fills, and how many keep their file.
-- **`threshold`** ports Sonarr v5's `SeasonPackUpgrade = Threshold` (PR #7975, `cf6b21aef`;
-  `UpgradeDiskSpecification` on `develop` `a6171f0ca`), `profile.Config.SeasonPackUpgradeThreshold`:
-  - Scope as in v5: **full-season packs only**. A multi-episode or other release keeps the all-files rule and its
-    reasons.
-  - Episodes with no file count as upgradable, and so does each file the pack upgrades (cutoff not met and an
-    upgrade). With no files at all the pack is accepted; otherwise it is accepted when the upgradable share is at least
-    the threshold.
-  - Rejected with v5's reason `DiskNotUpgrade` and message `Season pack does not meet the upgrade criteria.
-    Upgradable: 2/3 (66.67%), Mode: Threshold, Threshold: 70%`.
-  - `packs_threshold: 100` accepts the same packs as `all`, but with v5's reason.
-  - v5's own `All` and `Any` are not used: `all` stays v4's rule and `any_upgradable` the fork's (they differ at the
-    edges: v5's `Any` is for full seasons only and has its own reason; [sonarr-v5.md](sonarr-v5.md)).
-- **Tests:** v5's three `SeasonPackUpgrade` fixture cases (`arr_sonarr_v5_UpgradeDiskSpecificationFixture.json`;
-  v5's `All` case runs as `all`, its `Any` case as `any_upgradable`), the threshold cases in `TestSeasonPackRule`
-  (60% and 70% on a 3-episode season, every file at its best, nothing on disk, a multi-episode release, the message),
-  and the policy checks. Also: the fork's fixture cases (`arr_sonarr_fork_UpgradeDiskSpecificationFixture.json`), the S01 pack cases
-  under both rules (`TestSeasonPackRule`), and five recorded pack grabs (`internal/decide/testdata/packs`: Lioness S03,
-  Vikings S04 Volume 2, Only Murders S04, SPY x FAMILY S01, Re:Zero S04, with the profiles trimmed to their
-  scored formats and the files at grab time): rejected `DiskCustomFormatScore` under `all`, accepted under
-  `any_upgradable` (`TestPackRuleReplayGrabs`).
-
-Reproduce. `decide shadow` reads its settings from the `-db` database, so the replay policy is imported into a
-scratch database first (into the run.db copy for the second command, unless that copy already has settings, which the
-replay then uses). The import needs all five record groups and version roots that exist, so the
-copy of the test policy gets a `budgets` section (`public: {requests: 1, per: 1s}`) and version `library` paths that
-exist. The `*_env` credentials must be set; any value works offline.
-```
-cp -r internal/decide/shadow/testdata/policy <scratch>/replay-policy   # then add budgets and library paths as above
-THEATARR_RD_KEY=x THEATARR_VIEW_RADARR_KEY=x THEATARR_VIEW_SONARR_KEY=x \
-  bin/theatarr settings import -policy <scratch>/replay-policy -db <scratch>/replay.db -confirm
-bin/theatarr decide shadow -db <scratch>/replay.db -arr-snapshot <corpus> -corpus <corpus> \
-  -instance <tv instance> -version tv-2160p -series-aliases <saved GET series JSON> -dump 4k.tsv
-bin/theatarr decide shadow -db <copy of run.db> -arr-snapshot <corpus> \
-  -instance <anime instance> -version anime-tv -dump anime.tsv
-THEATARR_CORPUS=<corpus> THEATARR_SERIES_ALIASES=<dir with <instance>.series.json> go test -run CorpusParity -v ./internal/decide/shadow/
-```
+RSS ([rss.md](rss.md)) reads category 5000 for the feeds Live series libraries list; TV items map by TVDB id or by
+the parsed series title against titles and scene mappings, and are decided per series library (RSS path). RSS
+considers monitored series libraries in `wanted`, `filled` and `cutoff_met`; existing per-episode upgrade
+specifications still reject non-upgrades. Each enabled wanted round marks a series wanted when a monitored missing
+non-removed episode reaches its stored UTC air time, without fetching metadata.
 
 ## Tests
 
@@ -203,13 +111,10 @@ THEATARR_CORPUS=<corpus> THEATARR_SERIES_ALIASES=<dir with <instance>.series.jso
   TVDB id, file with more episodes, search mismatch, special by title, unmonitored), anime (absolute, batch, scene
   mapping with a scene season, alias, pack ranking), daily, the database loading, Levenshtein.
 - `internal/decide/profile`: the Sonarr fixtures above.
-- `internal/decide/shadow`: the series database loader (grouping, rebuilt files). Corpus parity is opt-in. So is
-  `TestSonarrV5Diff` (v4 against v5 over the corpus and the replays).
 - `internal/decide`: `TestSeriesDecisionsV5` and `TestSeriesV5Languages` (each case under v4 and v5), the original
   title in `TestLoadSeriesVersion`; `internal/decide/profile`: v5 season matching.
-- `internal/shadow`: the runner on a fake Sonarr: a pack grab of two history rows becomes one grab, the season
-  search, the diff of kind series, the per-kind summary, the grab by its second row, an RSS TV pick by scene mapping
-  name.
+- `internal/acquire/rss`: an RSS TV item routed by scene mapping name (`TestRSSSeriesBySceneName`), series batch
+  coverage and partly in-flight series.
 
 `internal/metadata/tvrefresh` also tests alias/translation persistence, cleaned-name deduplication, stale-name
 removal, repeated refreshes, import preservation, failed-fetch retention and transaction rollback. Its decide integration test
@@ -235,10 +140,7 @@ TVDB ids match `Alias` and S01E01; removing those mappings produces `UnknownSeri
 - **The arr's SingleOrDefault exceptions** (two episodes with one absolute number or air date) become its
   "Unexpected error processing release" (reason `Error`).
 - **Episode files** have no `originalFilePath` in Sonarr's API; formats use the scene name, else the relative path.
-- **Search criteria in replay** are reconstructed from the grab's episodes (`ArrSearchFor`, scene numbering where the
-  series uses it); history does not keep the arr's.
-  `MonitoredEpisode` runs only for RSS grabs, against today's monitored flags.
-- **RSS picks** link to a later arr grab of the same title and version whatever its episodes.
+- `MonitoredEpisode` runs only for RSS items, against today's monitored flags.
 - **Deferred specifications** as for movies (queue, blocklist, history, delay, release profiles); for series also
   `DeletedEpisodeFile`, `Search/SeriesSpecification` (one series by construction) and the indexer's
   `SeasonSearchMaximumSingleEpisodeAge` (0, off: the policy has no such setting).
@@ -290,8 +192,7 @@ a tie (`DeDupeDecisions`). Offers judge the offered release the same way. The qu
 sharing across versions stay as they are: criteria are per target, so two versions sharing a request each judge its
 answer with their own.
 
-History replays and the live shadow judge the arr's grab with `shadow.ArrSearchFor`: the first episode's scene season
-and episode. Both `SearchFor` kinds give a daily season search `daily-season` criteria (Sonarr's
+Both `SearchFor` kinds give a daily season search `daily-season` criteria (Sonarr's
 `DailySeasonSearchCriteria`, no season check): a daily release parses as season 0, so `SeasonMatch` would reject it as
 the wrong season.
 

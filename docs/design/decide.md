@@ -366,5 +366,5 @@ the default, keeps the quality-first order. How the indexer layer stores and loc
 - **Prefer off.** Versions without `prefer_seadex` decide without curator preference: Radarr's 110-minute runtime
   assumption, Unknown rejected or allowed by the profile, and held files keep the standing they were stored with.
 - **Where it is used:** decisions and ranking, router freshness, the queue, approval and import checks
-  ([router.md](router.md), [library.md](library.md#seadex-standing-at-import)) and the shadow comparison
-  ([shadow.md](shadow.md#seadex-standing)).
+  ([router.md](router.md), [library.md](library.md#seadex-standing-at-import)) and RSS
+  ([rss.md](rss.md#seadex-standing)).

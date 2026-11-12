@@ -215,7 +215,7 @@ paths (for example `mount.rclone_rc.password` in the library section).
 | `egress` (VPN guard: check URL, VPN IPs/CIDRs, require_vpn_for) | live: the gateway is rebuilt per generation |
 | `torrents` (scan roots, scheduled backups) | live: each scan, backup and the 10-minute backup check read the generation in force |
 | `cardigann` (catalog, flaresolverr_url, Prowlarr reader) | live: the catalog is on exactly when `definitions` is set (Indexers › Catalog says which; **Turn the catalog on** fills in `prowlarr/indexers` for the panel's Save, and the add-indexer sheet's **Turn on the catalog** saves it directly); a new install's first settings save turns it on (Prowlarr/Indexers); the catalog is made when a save first sets `definitions`; source, FlareSolverr and the Prowlarr reader are read at use; the refresh loop restarts (and reads a changed source at once) when `definitions` changes; indexers already built keep their engine and sessions |
-| `shadow`, `import` (arr instances) | live: the arr clients and RSS follow each generation; the import schedule restarts when `import_interval` or the presence of `import.arr` changes |
+| `shadow`, `import` (arr instances) | live: the arr clients and RSS follow each generation (RSS needs no restart); the arr import schedule restarts when `import_interval` or the presence of `import.arr` changes |
 | `playlists`, `ui`, `provider_sync`, `router` (options) | live: rebuilt per generation; the playlist, provider sync, download poll and wanted loops restart when their interval changes |
 | views (path, flavour, versions, profiles, alias_from, API key) | live: the HTTP routes are rebuilt per generation |
 
@@ -334,7 +334,7 @@ generation. Only data files such as the overrides are read from the directory at
 |---|---|
 | `indexers`, `budgets`, `egress` | Gateway allowlist, budget buckets, proxy and egress guard, indexer clients and the search planner; the gateway is the shared outbound path (`cmd/theatarr/serve.go`, `cmd/theatarr/serveindexer.go`, `internal/gateway/doc.go`) |
 | `providers`, `provider_sync`, `router`, `clients` | Provider sync registry and clients, router provider adapters, pacing, fallback and adders, as one generation (`cmd/theatarr/serve.go`, `cmd/theatarr/router.go`) |
-| `versions`, `profiles`, `formats`, `format_sets`, `shadow` | Decide engines, shadow runner, acquisition and search, offers, all from the same snapshot (`cmd/theatarr/serve.go`, `cmd/theatarr/decide.go`) |
+| `versions`, `profiles`, `formats`, `format_sets`, `shadow` | Decide engines, the RSS sync, acquisition and search, offers, all from the same snapshot (`cmd/theatarr/serve.go`, `cmd/theatarr/decide.go`) |
 | `library`, version roots and naming, `playlists` | Library import, relink and Plex gates, root mapping, naming and playlist sync (`cmd/theatarr/servelibrary.go`) |
 | `metadata`, `import` | TMDb, TVDB and other metadata sources, arr imports, series refresh, indexer helper lookups and Plex sign-in, with their schedules |
 | `views` | Arr-view routes, version exposure and release push; a route identity or path change replaces the route registration (`internal/policy/policy.go` `View`) |

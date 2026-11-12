@@ -64,7 +64,7 @@ subcommands; each one takes `-h`.
 | `internal/decide/parser/radarr` | Port of Radarr's parser: movie titles, quality, language, release group |
 | `internal/decide/parser/sonarr` | Port of Sonarr's parser: episode titles, quality, language, release group |
 | `internal/decide/format` | Custom formats: specifications, arr matching rules, scores, TRaSH and arr JSON import |
-| `internal/decide`, `internal/decide/{adapt,profile,shadow}` | Decision engine, adapters, profiles and specs, history replay ([design/decide.md](design/decide.md)) |
+| `internal/decide`, `internal/decide/{adapt,profile}` | Decision engine, adapters, profiles and specs ([design/decide.md](design/decide.md)) |
 | `internal/availability` | Movie acquisition gated on the stored release dates |
 | `internal/ceiling` | Local source evidence and display-only quality ceilings; never searches or grabs |
 | `internal/arr` | Read-only client for the arr v3 API |
@@ -80,7 +80,8 @@ subcommands; each one takes `-h`.
 | `internal/pipeline` | Shared acquisition and series-refresh wiring for the service and the end-to-end tests |
 | `internal/e2e` | Active pipeline tests over local HTTP fixtures and temporary mount and library roots |
 | `internal/router/routertest` | Test helper: a real router over logging fake adders |
-| `internal/shadow` | Live shadow runner and diff report ([design/shadow.md](design/shadow.md)) |
+| `internal/acquire/rss` | The RSS sync for Live libraries ([design/rss.md](design/rss.md)) |
+| `internal/shadow` | The periodic arr import (`arr.import`) |
 | `internal/catalog` | The one add path for titles and libraries: find or create the title, turn the chosen libraries on, season monitoring |
 | `internal/importarr`, `internal/metadata/tmdb` | Read-only arr import, TMDb client |
 | `internal/metadata/art` | `meta.art` job (TMDb details into `title_meta`) and the `/img` proxy with its disk cache ([design/artwork.md](design/artwork.md)) |

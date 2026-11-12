@@ -75,10 +75,10 @@ cover it.
 
 ## Measurement: v4 against v5
 
-`TestSonarrV5Diff` (`internal/decide/shadow`, needs `THEATARR_CORPUS` and `THEATARR_V5DIFF_OUT`; `THEATARR_DECIDE_DB` adds the database
-replay, `THEATARR_SERIES_ALIASES` the scene mappings) parses every Sonarr corpus title with both parsers, decides it under
+The measurement tool (`TestSonarrV5Diff` and `theatarr decide shadow` in `internal/decide/shadow`) was removed with
+the arr comparison; the results below stand as recorded. It parsed every Sonarr corpus title with both parsers, decided it under
 both for the series the arr's own parse mapped it to (`tv-2160p` for standard series, `anime-tv` for anime
-ones, no search, no files), and replays the series grabs of `docs/design/series.md` under both.
+ones, no search, no files), and replayed the series grabs of `docs/design/series.md` under both.
 
 On a corpus of real release titles of standard and anime series, v5 parses about 2% of titles differently from
 v4 and decides about 1% differently; anime titles differ most (about 9% parse, 4% decide). The replayed series
@@ -132,20 +132,11 @@ v4 on real-world titles.
 - **`anime-tv`:** stay on v4. v5 fixes multi-episode ranges (7, 8) and maps season-title packs and some mangled
   titles (9), but on the anime corpus it loses more than it gains: `ka` as Georgian (19, 20) removes the original
   language from DanMachi releases, and the `E9 ... S01` / `E13.<title>.2024` layouts (22, 23) stop mapping. Revisit
-  when v5 fixes the pattern order (`7b0db46c2`) and the Georgian `ka`, with `TestSonarrV5Diff` as the check.
+  when v5 fixes the pattern order (`7b0db46c2`) and the Georgian `ka`.
 - **Original titles** (#8990) are the one v5 behaviour the replay cannot show. It needs TVDB data in the cache (the
-  TVDB client fills it on first use); with a database that has it, rerun `TestSonarrV5Diff` against a copy.
+  TVDB client fills it on first use).
 
 Of the two, v4plus (below) is the mode the example policy uses.
-
-Reproduce:
-```
-THEATARR_CORPUS=<corpus> THEATARR_SERIES_ALIASES=<dir with <instance>.series.json> THEATARR_DECIDE_DB=<migrated copy of run.db> \
-  THEATARR_V5DIFF_OUT=<out.tsv> go test -run TestSonarrV5Diff -v -timeout 30m ./internal/decide/shadow/
-bin/theatarr settings import -policy <replay policy with sonarr: v5> -db <scratch>/v5.db -confirm   # prepared as in docs/design/series.md
-bin/theatarr decide shadow -db <scratch>/v5.db ...                                                      # as in docs/design/series.md
-```
-`THEATARR_SONARR_A` and `THEATARR_SONARR_B` pick the two modes (default `v4` and `v5`); the TSV columns `v4` and `v5` hold A and B.
 
 ## v4plus (`versions.<k>.sonarr: v4plus`)
 
@@ -192,8 +183,7 @@ so a later upstream fix can be weighed against it.
 
 ### Measurement
 
-`TestSonarrV5Diff` with `THEATARR_SONARR_A`/`THEATARR_SONARR_B`, same corpus, scene mappings and replay database as above
-(`THEATARR_DECIDE_DB` the same replay database). "Decided" is under the arr's series; decisions are without search
+The same measurement of v4 against v4plus and v5, same corpus, scene mappings and replay database as above. "Decided" is under the arr's series; decisions are without search
 and files.
 
 Against v4, v4plus parses about 1.6% of the corpus titles differently and decides 0.9% differently; v5 differs
@@ -239,37 +229,8 @@ else v4plus has and v5 lacks (`EN`/`JA`, `[Multiple Subtitle]`, lists before SUB
 improvement) **is met**: no replayed grab decides differently from v4, and every difference above is better or
 neutral.
 
-### Shadow: differences from the parser mode
-
-Shadowed arrs run Sonarr v4, so a v4plus version sometimes picks differently. Those rows must not count as
-disagreements in the shadow comparison. `internal/shadow/parsermode.go`:
-
-- For a series version whose mode is not v4 (`v4plus`, also `v5`), the runner decides each grab a second time with
-  the version's policy copied to `sonarr: v4`, as the arr parses: the arr's release (with the arr's search), every
-  search result (with Theatarr's search, ranked as the grab ranks them, giving the v4 pick), and each RSS pick when it is
-  recorded. Decisions are local CPU, no extra requests.
-- The v4 decisions are kept as `parser` (`ParserCheck`: mode, the release's v4 decision, on the arr's decision also
-  the v4 pick) inside the stored decision JSON (`shadow_grab.arr_decision`, `shadow_rss_pick.decision`). No
-  migration; `Reclassify` sees them.
-- `ClassifyGrab`: when a row is a disagreement (`we_grab_another`, `arr_grabbed_we_wouldnt`) and the same grab
-  classified with the v4 decisions (RSS picks rejected under v4 dropped) is `agree`, the row becomes
-  **`agree` / `parser_mode`**, detail `parser: v4plus; <the v4plus classification>; with Sonarr v4's parser, as the
-  arr parses, <the v4 one>`. When v4 disagrees too, the row keeps its bucket and the detail says it is not the
-  parser mode. Hand grabs are left as they are (outside the ratio anyway). `parser_mode` is listed in the agree
-  categories (`docs/design/shadow.md`).
-- **Limit:** an RSS item v4plus rejects but v4 would accept is not stored as a pick, so the v4 side of an RSS grab
-  only re-decides the picks v4plus made.
-- Tests: `TestParserModeClassify` (search, reject, still different, hand grab, RSS), `TestArrParserVersion`,
-  `TestRunnerSeriesParserMode` (stored check on a grab and an RSS pick).
-
 ### Recommendation
 
 **`sonarr: v4plus` on `tv-2160p` and `anime-tv`**, set in `examples/policy/versions.yaml`. It keeps every v5 gain
 the corpus shows except the season-pack mapping ones, has none of v5's regressions, and moves no replayed grab.
-`v4` (exactly the arrs) and `v5` (upstream, with its mapping) stay available. Rerun the measurement when upstream fixes `7b0db46c2` or `ka`, or when the arrs move to v5.
-
-Reproduce:
-```
-THEATARR_CORPUS=<corpus> THEATARR_SERIES_ALIASES=<aliases> THEATARR_DECIDE_DB=<copy of run.db> THEATARR_SONARR_A=v4 THEATARR_SONARR_B=v4plus \
-  THEATARR_V5DIFF_OUT=<out.tsv> go test -run TestSonarrV5Diff -v -timeout 30m ./internal/decide/shadow/
-```
+`v4` (exactly the arrs) and `v5` (upstream, with its mapping) stay available. Measure again when upstream fixes `7b0db46c2` or `ka`, or when the arrs move to v5.

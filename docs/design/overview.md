@@ -87,7 +87,8 @@ Around the pipeline:
 | Package | Does |
 |---|---|
 | `internal/gateway` | The single outbound HTTP path: host allowlist, VPN egress guard, budgets, back-off ([gateway.md](gateway.md)) |
-| `internal/shadow` | The shadow runner: re-decides arr grabs, runs Theatarr's own search beside them, keeps the comparison ([shadow.md](shadow.md)) |
+| `internal/acquire/rss` | The RSS sync: reads the Live libraries' feeds and routes what they accept ([rss.md](rss.md)) |
+| `internal/shadow` | The periodic arr import (`arr.import`) of the `import.arr` instances ([import-arr.md](import-arr.md)) |
 | `internal/importarr`, `internal/migration` | Read existing arr instances (GET only) into the database; the guided migration ([import-arr.md](import-arr.md)) |
 | `internal/torrents` | The provider torrent manager: usage, backups, restores, deletes a person picks ([torrents.md](torrents.md)) |
 | `internal/jobs` | The persistent job queue: leases, retries, schedules ([jobs.md](jobs.md)) |
@@ -99,9 +100,8 @@ Around the pipeline:
 
 Nothing writes to a provider or the library until it is turned on, step by step:
 
-- **Shadow mode.** Every version starts in `mode: shadow`: it searches and decides, and records what it would
-  do, but grabs and links nothing. The shadow comparison shows how its decisions agree with the arrs'
-  ([shadow.md](shadow.md)).
+- **Shadow mode.** Every version starts in `mode: shadow` (Watch only): Theatarr grabs and links nothing for
+  it, and RSS reads nothing for it.
 - **`router.enabled`.** The global switch for provider writes (add a magnet, select files). It defaults to false,
   and then every route is a dry-run plan. The router writes for a version only when `router.enabled` is true, the
   version is `mode: active`, and the version's `grab` is true.
@@ -119,7 +119,7 @@ Nothing writes to a provider or the library until it is turned on, step by step:
 ## Running it
 
 `theatarr serve` runs everything in one process: the HTTP server (native API, views, UI, `/healthz`, `/readyz`,
-`/metrics`), the job workers, the acquirer, the router's poller, the library import, the shadow runner and the
+`/metrics`), the job workers, the acquirer, the router's poller, the library import, the RSS sync, the arr import and the
 egress check. The default port is 7700. The data directory (`/data` in the container) holds the database, the
 first-start admin password file, the Cardigann definitions and the torrent-list backups. One-shot commands
 (`theatarr search`, `decide`, `import-arr`, `providers`, `torrents`, `preflight`) work on the same

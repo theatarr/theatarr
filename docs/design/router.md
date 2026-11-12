@@ -1,7 +1,7 @@
 # The download router (`internal/router`, `internal/provider/adder`)
 
 The router takes the decisions for a version and adds the chosen release to a debrid provider or a download client.
-Where it sits in the pipeline: [overview.md](overview.md). Shadow and active mode per version: [shadow.md](shadow.md).
+Where it sits in the pipeline: [overview.md](overview.md). Live and Watch-only libraries: [overview.md](overview.md).
 Code: `internal/router`, `internal/provider/adder`, migration
 `00014_router.sql`, the policy's `router` section, `internal/arrview/queue.go`, `cmd/theatarr/router.go`, a few lines in
 `cmd/theatarr/serve.go`, acquisition fanout in migration `00033_acquire_fanout.sql`, and the upgrade rule
