@@ -73,14 +73,6 @@ func PlanSummary(outcome, release, provider string, steps []Step) string {
 		return fmt.Sprintf("%s is in flight already", release)
 	case string(OutcomeCancelled):
 		return "route cancelled: no release is still wanted"
-	case string(OutcomeHeld):
-		return fmt.Sprintf("held %s for upgrade approval", release)
-	}
-	// A recorded plan stores a would_hold as none (router_plan's outcomes): the steps say it.
-	for _, s := range steps {
-		if s.Code == codeUpgradeHeld {
-			return fmt.Sprintf("would hold %s for upgrade approval", s.Release)
-		}
 	}
 	if len(steps) == 0 {
 		return "would add nothing: no accepted release"

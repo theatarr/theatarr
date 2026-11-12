@@ -855,3 +855,33 @@ func TestVersionAvailabilityOptional(t *testing.T) {
 		t.Errorf("DropUnsetOptional = %s, want %s", got, want)
 	}
 }
+
+// approve was removed: a library row stored with upgrades: approve loads as automatic, in the records and the policy.
+func TestStoredApproveLoadsAsAuto(t *testing.T) {
+	t.Parallel()
+	s, db, p, _ := versionFixture(t)
+	ctx := context.Background()
+	if _, err := db.Writer().Exec(`UPDATE setting_version SET config = json_set(config, '$.config.upgrades', 'approve')
+		WHERE key = 'movie-web'`); err != nil {
+		t.Fatal(err)
+	}
+	snap, err := s.Load(ctx, p)
+	if err != nil {
+		t.Fatal(err)
+	}
+	found := false
+	for _, v := range snap.Records.Versions {
+		if v.Key == "movie-web" {
+			found = true
+			if v.Config.Upgrades != policy.UpgradesAuto {
+				t.Errorf("record upgrades %q, want auto", v.Config.Upgrades)
+			}
+		}
+	}
+	if !found {
+		t.Fatal("movie-web not loaded")
+	}
+	if rule := snap.Policy.Versions["movie-web"].UpgradeRule(); rule != policy.UpgradesAuto {
+		t.Errorf("policy rule %q, want auto", rule)
+	}
+}

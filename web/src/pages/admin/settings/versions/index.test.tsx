@@ -321,8 +321,8 @@ describe("Versions page", () => {
     await user.click(await screen.findByRole("button", { name: "Edit" }));
     const options = (name: string) => within(screen.getByRole("combobox", { name })).getAllByRole("option").map((option) => option.textContent);
     expect(options("State")).toEqual(["Watch only", "Live"]);
-    expect(options("Upgrades")).toEqual(["Automatic", "Ask first", "Never"]);
-    expect(screen.getByText("What happens when a better release would replace a file this library already has.")).toBeTruthy();
+    expect(options("Upgrades")).toEqual(["Automatic", "Never"]);
+    expect(screen.getByText("When a better release turns up for a file this library already has. Automatic replaces it, within the quality profile's upgrade setting and cutoff. Never keeps the file.")).toBeTruthy();
   });
 
   it("keeps a saved seedbox storage and hardlink import, labelled not supported yet, and saves them unchanged", async () => {

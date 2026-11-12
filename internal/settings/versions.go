@@ -49,6 +49,10 @@ func versionConfigFromJSON(raw []byte) (policy.VersionPolicy, []string, error) {
 	if err := yaml.Unmarshal(stored.Config, &config); err != nil {
 		return policy.VersionPolicy{}, nil, err
 	}
+	// approve was removed (2026-11): a stored approve reads as automatic. The row is rewritten on its next save.
+	if config.Upgrades == "approve" {
+		config.Upgrades = policy.UpgradesAuto
+	}
 	return config, stored.Roots, nil
 }
 

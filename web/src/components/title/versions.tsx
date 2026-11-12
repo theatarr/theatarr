@@ -1,7 +1,7 @@
 // The title page's copies (docs/design/ui.md, Title page): one compact card per version, the one place a copy is
 // managed. Each card keeps apart the copy (the version's label: the lane), its current file in words ("4K WEB"), the
 // preferred quality (the profile's cutoff, "4K Remux") and the upgrade status in the one vocabulary
-// (lib/upgrade.ts, with Why?) and, for managers, an upgrade found and held for approval (Approve / Decline), then monitoring
+// (lib/upgrade.ts, with Why?), then monitoring
 // and search now. Details discloses the file, score, path, release history, journal and the raw version key. Only
 // for callers with "see files": the title page shows no copy cards to anyone else (docs/design/users.md). A version an arr still imports shows the arr's monitoring read-only
 // (docs/design/manage.md).
@@ -21,7 +21,6 @@ import { CopyActions } from "@/components/title/copy-actions";
 import { ControlNote, MonitorSwitch } from "@/components/title/manage-bits";
 import { MinimumAvailabilityControl } from "@/components/title/title-choices";
 import { UpgradeStatus } from "@/components/title/upgrade-why";
-import { CopyUpgradeHolds } from "@/components/upgrades/upgrade-hold";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { fmtAgo, fmtBytes, fmtNumber, fmtTime } from "@/lib/format";
@@ -197,7 +196,6 @@ function CopyCard({ v }: { v: Version }) {
             ) : (
               <span className="text-muted-foreground">{v.has_file ? "—" : "Waiting for a file"}</span>
             )}
-            <CopyUpgradeHolds titleId={titleId} version={v.key} />
           </Field>
         </div>
         {v.minimum_availability ? (

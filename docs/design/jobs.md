@@ -85,7 +85,7 @@ writer. Code: `internal/retention`. The windows:
 0 keeps that kind for good. Kept whatever their age: the latest successful and the latest failed sync run of each
 provider; the latest quality sync run of each TRaSH source and outcome (the sync reads the latest run and the latest
 that read TRaSH), and runs still running; pending deliveries; every download that is not failed, and a failed one that a link, a live library claim,
-an import still waiting for the mount or partial, an upgrade hold, a router blocklist entry, a router offer or a
+an import still waiting for the mount or partial, a router blocklist entry, a router offer or a
 queued or running job refers to (a finished import or an expired claim does not keep it); applied
 `link`/`replace` library actions whose download is kept or whose path is still an active or dead link (the offer
 sources and the superseded check read them; adoption provenance lives on `link.adopted_from`); acquire

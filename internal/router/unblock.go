@@ -19,7 +19,7 @@ type Blocked struct {
 
 // Unblock takes hash off version's blocklist inside the caller's transaction (an operator's Unblock in the web UI),
 // so routes may place it again; the row as it was is returned. It writes only our database, and changes nothing
-// else: a download that failed stays failed, and a declined or expired upgrade hold stays as it is.
+// else: a download that failed stays failed.
 // sql.ErrNoRows when the version has no such entry.
 func Unblock(ctx context.Context, tx *sql.Tx, version, hash string) (*Blocked, error) {
 	b := &Blocked{Version: version, Hash: strings.ToLower(strings.TrimSpace(hash))}

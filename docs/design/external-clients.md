@@ -11,7 +11,7 @@ to it.
 
 ## Flow
 
-1. **Decide as for a provider add.** Search, decide, blocklist, upgrade holds and the in-flight checks
+1. **Decide as for a provider add.** Search, decide, blocklist, the upgrade rule and the in-flight checks
    run unchanged (`router.candidate` up to `openDownload`). Three provider-only steps branch for a client-routed
    version:
    - `route()`'s `not_debrid` stop (no providers) does not apply when `add_via: client`;

@@ -24,11 +24,11 @@ export type RetryResult = Schemas["RetryResult"];
 export type UnblockRequest = Schemas["UnblockRequest"];
 export type UnblockResult = Schemas["UnblockResult"];
 
-/** After an action: the title's views, the activity, the journal and held upgrades. */
+/** After an action: the title's views, the activity and the journal. */
 function useRefresh() {
   const qc = useQueryClient();
   return (titleId?: number) => {
-    for (const queryKey of [...titleChanged(titleId || undefined), qk.activity.all, qk.journal.all, qk.upgrades.all]) {
+    for (const queryKey of [...titleChanged(titleId || undefined), qk.activity.all, qk.journal.all]) {
       void qc.invalidateQueries({ queryKey });
     }
   };

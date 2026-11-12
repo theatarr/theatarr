@@ -310,17 +310,11 @@ func (r *Router) routeStored(ctx context.Context, req Request) (*Result, error) 
 		if err := r.recordPlan(ctx, req, res); err != nil {
 			return res, err
 		}
-		if req.Hold != 0 {
-			r.noteHoldRoute(ctx, req.Hold, res)
-		}
 		return res, nil
 	}
 	res, err := r.run(ctx, req, false)
 	if res != nil {
 		res.Mode = ModeActive
-		if req.Hold != 0 && err == nil {
-			r.noteHoldRoute(ctx, req.Hold, res)
-		}
 		if err == nil && res.Outcome == OutcomeExhausted && missedEverywhere(res.Steps) {
 			if manualAdd(req.Candidates) {
 				// The person named this one release: when it fails, nothing else is searched for in its place.
@@ -548,7 +542,7 @@ func (r *Router) route(ctx context.Context, s *routeState, req Request, dry bool
 	// At most max_candidates releases are tried. A release skipped without a request to any provider (a live miss
 	// or known uncached everywhere, blocklisted, no hash) does not count, so a search made again after a
 	// failure reaches the releases the first route never tried.
-	// versions[*].upgrades: an upgrade is held for approval, or never taken (hold.go).
+	// versions[*].upgrades: off never replaces a file (upgrades.go).
 	cands, err := r.screenUpgrades(ctx, s, req.Candidates)
 	if err != nil {
 		return s.res, err
@@ -591,7 +585,7 @@ func (r *Router) route(ctx context.Context, s *routeState, req Request, dry bool
 				continue
 			}
 		}
-		// Each candidate gets its own download and provider result; the steps and upgrade holds span the batch.
+		// Each candidate gets its own download and provider result; the steps span the batch.
 		s.res.DownloadID, s.res.TorrentID, s.res.Reused, s.res.Provider, s.res.Client = 0, "", false, "", ""
 		n0 := len(s.res.Steps)
 		out, retryAt, err := r.candidate(ctx, s, c)
@@ -637,19 +631,12 @@ func (r *Router) route(ctx context.Context, s *routeState, req Request, dry bool
 	// The existing job retry resumes at the first deferred release, keeping every later alternative and disjoint
 	// candidate. Later queued downloads are resumed by the stranded-row check; successful ones stay in flight.
 	if deferred != nil {
-		deferred.Steps, deferred.Hold = s.res.Steps, s.res.Hold
+		deferred.Steps = s.res.Steps
 		return deferred, nil
 	}
 	if chosen != nil {
-		chosen.Steps, chosen.Hold = s.res.Steps, s.res.Hold
+		chosen.Steps = s.res.Steps
 		return chosen, nil
-	}
-	if s.res.Outcome == OutcomeExhausted && heldAny(s.res.Steps) {
-		// Nothing placed, but an upgrade waits for approval: the route ends there, without searching again.
-		s.res.Outcome = OutcomeHeld
-		if dry {
-			s.res.Outcome = OutcomeWouldHold
-		}
 	}
 	return s.res, nil
 }
@@ -682,13 +669,6 @@ func (r *Router) episodesInFlight(ctx context.Context, req Request, c *Candidate
 		}
 	}
 	return 0, rows.Err()
-}
-
-// heldAny reports whether a route held (or would hold) an upgrade, or found one held for the same items.
-func heldAny(steps []Step) bool {
-	return slices.ContainsFunc(steps, func(s Step) bool {
-		return s.Code == codeUpgradeHeld || s.Code == codeUpgradeWaiting
-	})
 }
 
 // maxUnlanded caps the adds of one download to one provider whose answer did not say and that never landed: after

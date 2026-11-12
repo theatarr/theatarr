@@ -11,29 +11,24 @@ import (
 	"time"
 
 	"github.com/theatarr/theatarr/internal/activity"
-	"github.com/theatarr/theatarr/internal/router"
 	"github.com/theatarr/theatarr/internal/store"
 )
 
-const queueCompletedSQL = `i.import_state IN ('rejected','dry_run','approval') OR i.import_error LIKE 'episode title hold: %' OR i.state IN ('ready','importing')`
+const queueCompletedSQL = `i.import_state IN ('rejected','dry_run') OR i.import_error LIKE 'episode title hold: %' OR i.state IN ('ready','importing')`
 const queueProgressSQL = `CASE WHEN i.size<=0 THEN 0 WHEN ` + queueCompletedSQL + ` THEN 100 ELSE MIN(MAX(i.progress,0),100) END`
 
 type queueIdentity struct{ source, episode int64 }
 
 // Sonarr hashes the download and episode identity. Keep ours within JSON's exact integer range and apart
-// from download ids; include the sign so an approval hold and a download cannot share an episode id.
+// from download ids. Clients have stored these ids: the hash does not change.
 func queueEpisodeID(source, episode int64) int64 {
 	h := fnv.New64a()
 	_, _ = h.Write([]byte(strconv.FormatInt(source, 10) + ":" + strconv.FormatInt(episode, 10)))
 	return int64(h.Sum64()&((1<<52)-1)) + (1 << 52)
 }
 
-// queueItemID is the id a queue item without an episode carries: the download id, or for an approval hold (a
-// negative source) a positive id in the hashed range, since clients and DELETE queue/{id} accept only positive ids.
+// queueItemID is the id a queue item without an episode carries: the download id.
 func queueItemID(source int64) int64 {
-	if source < 0 {
-		return queueEpisodeID(source, 0)
-	}
 	return source
 }
 
@@ -46,8 +41,6 @@ func queueSQL(v *View, titleIDs []int64, now time.Time) (string, []any) {
  WHERE d.version_key IN (` + store.Placeholders(len(v.Versions)) + `) AND
  (d.state IN ('queued','adding','added','downloading','ready','importing') OR
  (` + activity.QueueFailureSQL + `))
- UNION ALL SELECT -h.id,h.title_id,'['||h.episodes||']',h.release_title,h.indexer,h.quality,0,0,'','ready','','approval',h.reason,h.created_at
- FROM upgrade_hold h WHERE h.state='pending' AND h.version_key IN (` + store.Placeholders(len(v.Versions)) + `)
  ), items AS (SELECT d.*, `
 	if v.Flavour == Sonarr {
 		q += `CAST(j.value AS INTEGER)`
@@ -60,7 +53,6 @@ func queueSQL(v *View, titleIDs []int64, now time.Time) (string, []any) {
 	}
 	q += ` WHERE 1=1`
 	args := append(toAny(v.Versions), store.Millis(now.Add(-7*24*time.Hour)))
-	args = append(args, toAny(v.Versions)...)
 	if titleIDs != nil {
 		q += ` AND d.tid IN (SELECT value FROM json_each(?))`
 		args = append(args, jsonIDs(titleIDs))
@@ -221,7 +213,7 @@ func (s *Service) queueEstimates(ctx context.Context, q string, args []any) (str
 
 func (s *Service) queueSource(ctx context.Context, v *View, id int64) (int64, error) {
 	q, args := queueSQL(v, nil, s.now())
-	expr := `CASE WHEN source<0 THEN theatarr_queue_id(source,0) ELSE source END`
+	expr := `source`
 	if v.Flavour == Sonarr {
 		expr = `CASE WHEN eid IS NULL THEN ` + expr + ` ELSE theatarr_queue_id(source,eid) END`
 	}
@@ -231,26 +223,4 @@ func (s *Service) queueSource(ctx context.Context, v *View, id int64) (int64, er
 		return 0, nil
 	}
 	return source, err
-}
-
-// Pending packs leave the queue together, as Sonarr's RemovePendingQueueItems removes the pending release.
-func (s *Service) removePendingQueue(r *request, id int64, block bool) error {
-	return s.st.WriteTx(r.Context(), func(tx *sqlTx) error {
-		var version, hash, release string
-		var tid int64
-		err := tx.QueryRowContext(r.Context(), `SELECT version_key,info_hash,release_title,title_id FROM upgrade_hold WHERE id=? AND state='pending'`, id).Scan(&version, &hash, &release, &tid)
-		if errors.Is(err, sql.ErrNoRows) {
-			return nil
-		}
-		if err != nil {
-			return err
-		}
-		if block {
-			if err := router.Blocklist(r.Context(), tx, version, hash, tid, 0, release, "removed pending release by "+clientName(r), router.BlocklistQueue, store.Millis(s.now())); err != nil {
-				return err
-			}
-		}
-		_, err = tx.ExecContext(r.Context(), `UPDATE upgrade_hold SET state='declined',decided_at=?,decided_via=?,note=? WHERE id=? AND state='pending'`, store.Millis(s.now()), "key:"+r.client, "removed from the queue by "+clientName(r), id)
-		return err
-	})
 }

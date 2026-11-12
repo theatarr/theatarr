@@ -4,7 +4,6 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
-	"maps"
 	"net/http"
 	"slices"
 	"sort"
@@ -30,7 +29,7 @@ import (
 //     first digital or physical date, or 90 days after the TMDb release date when there is none, or after its year;
 //     a series has aired episodes (specials left out) that are monitored and wanted. Newest first.
 //   - upgrades: monitored titles with a version whose file is below its cutoff and that has an upgrade found (a
-//     better release seen, or one held for approval), newest file first.
+//     better release seen), newest file first.
 //
 // Missing and upgrades are copy shortfalls: a caller without "see files" (a family account) gets them empty.
 
@@ -367,7 +366,7 @@ const upgradesNote = ": upgrade found"
 
 // upgradePicks: monitored titles with a monitored version whose file is below its cutoff (a series version with
 // episodes still missing counts by the files it has) and for which a better release was found (upgrade_available,
-// as on the posters: markUpgradeSeen), or that holds one for a manager's approval; newest file first. A file below
+// as on the posters: markUpgradeSeen); newest file first. A file below
 // its cutoff with nothing better found is not in the row.
 func (w *Web) upgradePicks(ctx context.Context, db *sql.DB) ([]pick, error) {
 	type cand struct {
@@ -399,7 +398,7 @@ func (w *Web) upgradePicks(ctx context.Context, db *sql.DB) ([]pick, error) {
 	if err != nil {
 		return nil, err
 	}
-	// The versions with an upgrade found, and those with one held for approval.
+	// The versions with an upgrade found.
 	found := map[int64]bool{}
 	var all []upgradeVersion
 	for _, c := range cands {
@@ -434,11 +433,6 @@ func (w *Web) upgradePicks(ctx context.Context, db *sql.DB) ([]pick, error) {
 			}
 		}
 	}
-	held, err := pendingHoldVersions(ctx, db)
-	if err != nil {
-		return nil, err
-	}
-	maps.Copy(found, held)
 	var upgrades []pick
 	for _, c := range cands {
 		var keys []string

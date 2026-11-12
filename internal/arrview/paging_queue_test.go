@@ -68,51 +68,36 @@ func TestSeasonPackQueueIDs(t *testing.T) {
 
 func TestDeleteAnySeasonPackMember(t *testing.T) {
 	t.Parallel()
-	for _, pending := range []bool{false, true} {
-		for _, bulk := range []bool{false, true} {
-			for _, episode := range []int64{101, 102} {
-				name := strconv.FormatBool(pending) + "/" + strconv.FormatBool(bulk) + "/" + strconv.FormatInt(episode, 10)
-				t.Run(name, func(t *testing.T) {
-					e := newEnv(t)
-					source := int64(3)
-					if pending {
-						source = -1
-						e.exec(`INSERT INTO upgrade_hold(id,title_id,version_id,version_key,episodes,info_hash,release_title,reason,candidate,created_at,seen_at)
-      VALUES(1,10,10,'tv-2160p','101,102','pending','Pack','upgrade','{}',?,?)`, ms(testNow), ms(testNow))
-					} else {
-						e.seedDownloads()
-					}
-					id := queueEpisodeID(source, episode)
-					path := "/sonarr/api/v3/queue/" + strconv.FormatInt(id, 10)
-					var body any
-					if bulk {
-						path = "/sonarr/api/v3/queue/bulk"
-						body = map[string]any{"ids": []int64{id, queueEpisodeID(source, 203-episode)}}
-					}
-					e.call("DELETE", path+"?blocklist=true&skipRedownload=true", body, 200, nil)
-					var p struct {
-						TotalRecords int
-						Records      []queueResource
-					}
-					e.call("GET", "/sonarr/api/v3/queue", nil, 200, &p)
-					if p.TotalRecords != 0 || len(p.Records) != 0 {
-						t.Fatalf("pack remains: %+v", p)
-					}
-					if pending {
-						if e.str(`SELECT state FROM upgrade_hold WHERE id=1`) != "declined" {
-							t.Fatal("pending pack remains")
-						}
-						if e.one(`SELECT COUNT(*) FROM download`) != 0 {
-							t.Fatal("pending deletion created download")
-						}
-					} else if e.str(`SELECT state FROM download WHERE id=3`) != "failed" {
-						t.Fatal("download not removed")
-					}
-					if e.one(`SELECT COUNT(*) FROM router_blocklist WHERE version_key='tv-2160p'`) != 1 || e.one(`SELECT COUNT(*) FROM arrview_command`) != 0 {
-						t.Fatal("blocklist or skipRedownload differs")
-					}
-				})
-			}
+	for _, bulk := range []bool{false, true} {
+		for _, episode := range []int64{101, 102} {
+			name := strconv.FormatBool(bulk) + "/" + strconv.FormatInt(episode, 10)
+			t.Run(name, func(t *testing.T) {
+				e := newEnv(t)
+				source := int64(3)
+				e.seedDownloads()
+				id := queueEpisodeID(source, episode)
+				path := "/sonarr/api/v3/queue/" + strconv.FormatInt(id, 10)
+				var body any
+				if bulk {
+					path = "/sonarr/api/v3/queue/bulk"
+					body = map[string]any{"ids": []int64{id, queueEpisodeID(source, 203-episode)}}
+				}
+				e.call("DELETE", path+"?blocklist=true&skipRedownload=true", body, 200, nil)
+				var p struct {
+					TotalRecords int
+					Records      []queueResource
+				}
+				e.call("GET", "/sonarr/api/v3/queue", nil, 200, &p)
+				if p.TotalRecords != 0 || len(p.Records) != 0 {
+					t.Fatalf("pack remains: %+v", p)
+				}
+				if e.str(`SELECT state FROM download WHERE id=3`) != "failed" {
+					t.Fatal("download not removed")
+				}
+				if e.one(`SELECT COUNT(*) FROM router_blocklist WHERE version_key='tv-2160p'`) != 1 || e.one(`SELECT COUNT(*) FROM arrview_command`) != 0 {
+					t.Fatal("blocklist or skipRedownload differs")
+				}
+			})
 		}
 	}
 }

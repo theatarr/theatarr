@@ -28,7 +28,7 @@ import (
 // (episodesInFlight).
 
 // manualSource reports whether a route is a person's explicit grab: the release panel or an arr client's release
-// grab, a retry by hand, or an upgrade a manager approved.
+// grab, a retry by hand, or an upgrade approved on a build before 2026-11.
 func manualSource(source string) bool {
 	for _, p := range []string{"ui:grab:", "ui:retry:", "arrview:release:", "upgrade:"} {
 		if strings.HasPrefix(source, p) {

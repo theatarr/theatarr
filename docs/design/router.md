@@ -4,8 +4,8 @@ The router takes the decisions for a version and adds the chosen release to a de
 Where it sits in the pipeline: [overview.md](overview.md). Shadow and active mode per version: [shadow.md](shadow.md).
 Code: `internal/router`, `internal/provider/adder`, migration
 `00014_router.sql`, the policy's `router` section, `internal/arrview/queue.go`, `cmd/theatarr/router.go`, a few lines in
-`cmd/theatarr/serve.go`, acquisition fanout in migration `00033_acquire_fanout.sql`, and upgrade approval
-(`internal/router/hold.go`, migration `00037_upgradeapproval.sql`).
+`cmd/theatarr/serve.go`, acquisition fanout in migration `00033_acquire_fanout.sql`, and the upgrade rule
+(`internal/router/upgrades.go`).
 
 The provider tests run on fixtures written from the providers' API docs and decypharr's source.
 
@@ -101,8 +101,7 @@ minimum upgrade step; a router without an engine builds the same thresholds from
 current file's custom format score is recalculated under it from the file's stored inputs (`decide.ScoreFileWith`,
 as the decision compares an existing file), not taken from `link.score` or `version_file.custom_format_score`, which
 are the import-time profile's: after a profile or TRaSH score change the router no longer cancels as
-`no_longer_upgrade` an upgrade the decision accepted. The upgrade hold's "current file" uses the same score
-(`TestFreshnessRescoresCurrentFile`). Without the engine's profiles the stored score stands.
+`no_longer_upgrade` an upgrade the decision accepted (`TestFreshnessRescoresCurrentFile`). Without the engine's profiles the stored score stands.
 
 Form and JSON adder responses share bounded reading and body closure (1 MiB). A 429's numeric `Retry-After` is
 returned directly to the provider decoder as a duration. Confirmed user-delete JSON requests keep their existing target and refusal classification.
@@ -238,7 +237,7 @@ single-episode releases fills in one route); each placement still counts against
 gateway budgets. For series, walk the ranked candidates and place every release whose episode
 set is disjoint from releases placed or deferred in this batch or already in flight for the version; a pack covers
 all its mapped episodes. A release that misses everywhere reserves nothing, so its overlapping alternatives remain
-eligible. Movies still stop after one placement, and upgrade approval applies separately to each release.
+eligible. Movies still stop after one placement.
 
 Season targets still make one search, including when only some wanted episodes are in flight. Dry-run plans record
 every placement in their steps and simulate pacing between adds without writing it. A deferred batch retries from
@@ -247,7 +246,7 @@ placements. For each release:
 
 Automatic wanted, RSS, research, offer and resumed routes recheck current monitoring, movie availability, episode
 removal and files before placement; stale candidates are skipped and a queued download is cancelled when none remain.
-Explicit grabs, including approved upgrades, keep their override behavior.
+Explicit grabs keep their override behavior.
 
 1. **Skip it if it can't go to debrid:** its indexer allows none of the version's providers (`indexers.<key>.providers`), or no v1 info hash. A `.torrent` is never fetched; a
    hash-less release is skipped (`no_hash`): `.torrent` files are not fetched.
@@ -268,7 +267,7 @@ Explicit grabs, including approved upgrades, keep their override behavior.
    against the current files when it was pushed; one deferred behind a paced provider gets the freshness check when
    it resumes (still wanted, still an upgrade of the current file, decided again under a new policy revision), as an
    RSS route does (`TestDeferredPushRechecksFreshness`). A person's grab is not (`ui:grab:`, `ui:retry:`,
-   `arrview:release:` and approved upgrades `upgrade:`), as Radarr lets an interactive grab through. Tests:
+   `arrview:release:` and upgrades approved on an older build `upgrade:`), as Radarr lets an interactive grab through. Tests:
    `TestMovieSecondReleaseWhileFirstInFlight`, `TestMovieQueuedReleaseUpgradeAndManual`,
    `TestMovieInFlightIsPerVersion`.
 3. **Open a download row** (`queued`), or resume the queued row of a deferred or stranded route. A route that
@@ -1421,7 +1420,7 @@ searches the whole backlog at `per_hour` from the first active start; `missing: 
 the backlog to RSS, add-time searches and searches by hand. The loop paces by `per_hour` and the router by provider
 pacing only; there is no separate per-season bulk pacing.
 - It takes the active versions' missing (`wanted`) and cutoff-unmet (`filled`) movies and episodes; cutoff-unmet
-  ones only of versions whose `upgrades` is not `off` ("Upgrade approval").
+  ones only of versions whose `upgrades` is not `off` ("Upgrades").
 - `router.wanted.cutoff_unmet` says which cutoff-unmet files it searches:
   - `quality` (the default) searches only files whose quality is below the profile's quality cutoff. With
     upgrades off, the cutoff is the first allowed quality. This is the arrs' Wanted > Cutoff Unmet list and its
@@ -1605,9 +1604,9 @@ shadow picks:
 ## Decision formats and the blocklist (00016)
 
 Arr imports mirror the followed instance's blocklist into parallel followers. Hashless entries match source titles
-(ignoring case and surrounding whitespace); either a hash or title match prevents routing and expires pending
-upgrade holds. Title-only entries use a `title:` key in the blocklist's `info_hash` field; an unblock is reset by
-the next import while the arr still lists the entry.
+(ignoring case and surrounding whitespace); either a hash or title match prevents routing. Title-only entries use a
+`title:` key in the blocklist's `info_hash` field; an unblock is reset by the next import while the arr still lists
+the entry.
 
 - **Formats.** `router.Candidate.Formats` carries the decision's matched custom formats with their scores
   (`router.Candidates` fills it). The download stores them in `download.formats` (JSON `[{name, score}]`) beside
@@ -1622,84 +1621,25 @@ the next import while the arr still lists the entry.
   - `theatarr router status` lists the blocklist.
   - Nothing is deleted on any provider.
 
-## Upgrade approval (migration 00037)
+## Upgrades
 
-A household may want to look before a big remux replaces a file it already watches. `versions[*].upgrades` says what
-a route does with a release that would **replace a file the version already has**:
-
-```yaml
-versions:
-  movie-remux:
-    upgrades: approve   # auto (default) | approve | off
-```
+`versions[*].upgrades` says what a route does with a release that would **replace a file the version already has**:
 
 | Rule | What a route does with an upgrade | Arr equivalent |
 |---|---|---|
 | `auto` (default) | routes it like any other release | profile `upgradeAllowed` on |
-| `approve` | holds it in `upgrade_hold` until a manager approves it; nothing is added | `upgradeAllowed` on plus a manual gate (the arrs have none; an interactive grab is the nearest) |
 | `off` | skips it (`upgrades_off`); the file stays whatever is found. Cutoff-unmet searches (wanted loop and commands) skip the version | `upgradeAllowed` off (`UpgradeAllowedSpecification`), for the version rather than the profile |
 
 The profile's own `upgrades: false` (arr `upgradeAllowed`) still applies inside the decision engine; the version rule
-sits on top of it in the router, so one profile can serve a version that upgrades freely and one that asks first.
+sits on top of it in the router. `Router.Route` reads the version's current files for the release's items before any
+candidate is tried (`upgrades.go` `currentFiles`: active links, then the arr's `version_file` rows of the owning
+instance). Releases for items without a file are never refused: in a series route a pack that would replace episode
+1's file is skipped under `off` while a release that only fills episode 2 is tried as usual (`TestUpgradesOff`).
 
-**What counts as an upgrade.** `Router.Route` reads the version's current files for the release's items before any
-candidate is tried (`hold.go` `currentFiles`): active links, then the arr's `version_file` rows of the owning
-instance (as the title page reads them). A movie release replaces a file when the version has one for the title; a
-series release when any of its episodes has one (a release without episode ids: any file of the title). The router
-reads the files itself rather than trusting the decision's `upgrade` flag, because the movie decision only sees arr
-files (`decide.LoadExisting`), and RSS, offers and resumed routes reach `Route` too. **Releases for items without a
-file are never held or refused:** in a series route a pack that would replace episode 1's file is held while a
-release that only fills episode 2 is tried as usual.
-
-**Holding (`approve`).**
-- Only a release the router could place is held: a provider its indexer allows, a v1 hash and the version's
-  blocklist are checked first (`preflight`, the same checks as a route).
-- A hash a manager declined for the version and title is skipped (`upgrade_declined`) and never held again.
-- One pending hold per version, title and episode set (`episodes`: sorted ids; a unique partial index). The best
-  upgrade of a route is held (`upgrade_held`, outcome `held`); later ones of the same set wait (`upgrade_waiting`).
-  A later route with the same release refreshes `seen_at`; a better one (quality rank in the version's profile,
-  `decide.Decision.QualityRank`, then score) replaces it (`replaced`); a worse one waits behind it.
-- The hold keeps the release, its quality, score and quality rank, the decision's upgrade reason, the file it would
-  replace (quality, score, time, episodes), the candidate as JSON (no links), the route's source and the policy
-  revision. Holding asks no provider anything and opens no download.
-- A route whose only result is a hold ends `held`, without searching again; the acquirer's command status reads
-  "held X for upgrade approval".
-
-**Approving and declining** (`router.Holds`, native API `POST upgrades/{id}/approve|decline`, managers only).
-- Approve checks the rule (`off` refuses), `router.enabled`, the version's mode and the preflight, then in one transaction marks
-  the hold `approved` (who: `decided_by`, `decided_via` = `session` or `key <name>`; when: `decided_at`) and enqueues
-  a `router.route` job with the held candidate and `Request.Hold`. That route does not hold it again; every other
-  rule applies: the gate again (a route that finds the switch off records a dry run), the preflight, the blocklist,
-  in-flight checks, cache evidence, pacing and the gateway's budgets. The hold records the route's outcome and
-  download. The library then imports it as any upgrade (link replacement, trash, Plex scan; docs/design/library.md).
-- An approval the router could not act on now answers 409 with the reason and the hold stays pending.
-- Approve also applies the expiry rules below to that hold before the next poll gets to it: a hold past
-  `HoldTTL`, blocklisted, under a rule that is no longer `approve`, or whose file was replaced by a newer one since it
-  was held expires there and the approval answers 409 with the reason. The approved route skips the freshness check,
-  so a stale approval must not replace a better file. A file that is gone does not end it at approval (the release
-  fills the item) (`TestApproveStaleHoldRefused`).
-- The approval stays with the download: a download of an approved upgrade routed again from its row (a reused
-  torrent that left the account, the stray sweep, a retry by hand) gets `Request.Hold` back from its source
-  `upgrade:N`, but only while hold N is `approved` for that same hash, version and title, so it is not held a second
-  time (`TestApprovedUpgradeKeepsApprovalAfterRequeue`).
-- Decline records who, how, when and an optional note.
-
-**Expiry** (`ExpireHolds`, every `Poll`). A pending hold expires, with the reason in `note`, when the version's rule is
-no longer `approve`, the release was blocklisted for the version, no search or RSS read offered it again for 14 days
-(`HoldTTL`: the release is gone), or the file it would replace changed: a newer file arrived (an approved pack, an
-arr import) or the file is gone (the next search decides again). A route that finds its pending hold's file changed
-expires it before holding again.
-
-**Shadow and the kill switch.** A dry run holds nothing: its plan has a `would_hold` step and the route outcome
-`would_hold` (stored as `none` in `router_plan`); `PlanSummary` reads "would hold X for upgrade approval".
-
-**Proof (tests).** `internal/router/hold_test.go`: held with zero writes and no download, missing files never held,
-series packs held while fills are added, dedupe and replacement (score and quality rank), approve routes the release
-(and records who and how), approve refused by the kill switch, shadow mode and `off`,
-declined releases not offered again, every expiry reason, `off`, and the shadow dry run. `internal/e2e`
-`TestUpgradeApproval`: an approve version holds the remux (one provider add so far), the native API approves it, and
-the add, import and link replacement follow. `internal/web/upgrades_test.go`: the routes per role, 409s and the audit
-fields; `TestEveryRoutePerRole` covers the three routes.
+`approve` (hold an upgrade until a manager approved it) was removed in 2026-11: migration 00117 drops `upgrade_hold`,
+and a stored or submitted `approve` reads as `auto` (policy defaults and the stored library rows). A route job an older
+build queued for an approved upgrade (source `upgrade:N`) still runs as an ordinary route and counts as a person's
+grab (`TestQueuedApprovedRouteRunsAfterUpgrade`).
 
 ## Client-routed versions (`add_via: client`, migration 00108)
 
@@ -1793,7 +1733,7 @@ it. How SeaDex standing is kept and used: [decide.md](decide.md#seadex-standing)
 
 ### Candidate identity version and origin
 
-A producer's new request (`Route`, `Enqueue`, `EnqueueTx`, with no resumed download and no approved hold) stamps
+A producer's new request (`Route`, `Enqueue`, `EnqueueTx`, with no resumed download) stamps
 each candidate with `identity` = `RouteIdentityVersion` (1: the identity checks above ran on it while its links were in
 memory) and `origin`: `rss` (feeds, release pushes, movie offers, grabs by hand) or `search` (wanted, re-search,
 `acquire:` runs, series offers, or a series search candidate with its `criteria`). The marks travel through
@@ -1816,7 +1756,6 @@ waiting, whatever the version, and ends the automatic ones up front:
 | route job (running), and the queued downloads of its title version (an initial route's download is not linked to its job) | same | left alone, listed (run reconcile again later) | left alone |
 | route job continuing a download whose add is in flight (`adding` and later) | same | left alone, listed | left alone |
 | download (`queued`, no add sent) | `release_data` lacks `route_identity`/`route_origin` | failed (`error` names reconcile) | listed only |
-| upgrade hold (`pending`) | its candidate lacks them | expired (note names reconcile) | listed only |
 
 With `-apply`, each title version with an ended automatic row gets one re-search (`acquire.research`, reason
 `reconcile`, the union of the rows' episodes; dedupe key `acquire.research/reconcile/<version>/<title>`, so a second

@@ -1,7 +1,6 @@
 package router
 
 import (
-	"encoding/json"
 	"fmt"
 	"github.com/theatarr/theatarr/internal/decide"
 	"github.com/theatarr/theatarr/internal/indexer"
@@ -9,7 +8,7 @@ import (
 	"testing"
 )
 
-func TestCuratedQueueAndApproval(t *testing.T) {
+func TestCuratedQueue(t *testing.T) {
 	t.Parallel()
 	e := newEnv(t, true, policy.ModeActive)
 	freshMovie(e)
@@ -34,19 +33,6 @@ func TestCuratedQueueAndApproval(t *testing.T) {
 	}
 	if why := queueRefusal(s, &low, high.Quality, high.Score, high.Release); why != "" {
 		t.Fatal("curated upgrade blocked by queue:", why)
-	}
-	ctx, err := decide.WithStoredSeaDex(e.ctx, e.st.Reader())
-	if err != nil {
-		t.Fatal(err)
-	}
-	e.ctx = decide.WithSeaDexTitle(decide.WithSeaDexPolicy(ctx, e.pol, vp), 1)
-	saved, _ := json.Marshal(low)
-	if betterHeld(e.ctx, vp, high, string(saved), low.QualityRank, low.Score) {
-		t.Fatal("ordinary release displaced curated approval hold")
-	}
-	saved, _ = json.Marshal(high)
-	if !betterHeld(e.ctx, vp, low, string(saved), high.QualityRank, high.Score) {
-		t.Fatal("curated release failed to replace ordinary approval hold")
 	}
 }
 

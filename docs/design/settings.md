@@ -880,7 +880,7 @@ reported as that alone, not also as a library folder "under none of the roots". 
 Active creation, shadow-to-active, active root changes, adding active providers and removing follows require
 review of effects naming roots, providers and current global gates (the full list is under "Write-enabling
 confirmation on every path"). So do these changes to a version that is and
-stays active: `storage`, `client` or `import`, `upgrades` widened (off → approve → auto; unset is auto), and
+stays active: `storage`, `client` or `import`, `upgrades` widened (off → auto; unset is auto), and
 `enable` from `request` to `default`. Narrowing changes and changes to shadow versions need none. A view-binding
 update that newly serves an active version is confirmed (below). Deleting a version with managed links also
 requires confirmation and only stops management. Tokens expire after ten minutes, are one-use and bind the next

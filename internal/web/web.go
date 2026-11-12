@@ -14,7 +14,7 @@
 // # Read model
 //
 // Everything is read-only for now apart from login, logout, API keys, the anime metadata review (accept or reject
-// an item, anime.go), journal verdicts (journal.go), upgrade hold decisions (upgrades.go), the recovery actions
+// an item, anime.go), journal verdicts (journal.go), the recovery actions
 // (ops.go: grab, remove or retry a download, unblock, remove a copy or title, unlink a file), and adds, version toggles and search now (add.go, through
 // internal/catalog; searches only for active versions with the router on), and the admin settings API (settingsapi.go:
 // indexers, providers and budgets through the settings coordinator, and bounded source tests). Queries run on the store's reader pool.
@@ -309,7 +309,6 @@ func (w *Web) Mount(mux *http.ServeMux) {
 	w.mountArt(mux)
 	w.mountAddAPI(mux)
 	w.mountManageAPI(mux)
-	w.mountUpgradeAPI(mux)
 	w.mountOpsAPI(mux)
 	w.mountSettingsAPI(mux)
 	w.mountCardigannAPI(mux)

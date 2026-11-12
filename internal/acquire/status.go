@@ -149,15 +149,6 @@ func routeStatus(ctx context.Context, db *sql.DB, runID int64, jobState, jobErr,
 	case err != sql.ErrNoRows:
 		return "", "", err
 	}
-	// An upgrade held for approval (versions[*].upgrades: approve) opens no download.
-	err = db.QueryRowContext(ctx, `SELECT release_title FROM upgrade_hold WHERE source = ? ORDER BY id DESC LIMIT 1`,
-		src).Scan(&release)
-	switch {
-	case err == nil:
-		return "completed", "held " + release + " for upgrade approval", nil
-	case err != sql.ErrNoRows:
-		return "", "", err
-	}
 	var mode, outcome, steps string
 	err = db.QueryRowContext(ctx, `SELECT mode, outcome, release_title, provider, steps FROM router_plan
 		WHERE source = ? ORDER BY id DESC LIMIT 1`, src).Scan(&mode, &outcome, &release, &prov, &steps)

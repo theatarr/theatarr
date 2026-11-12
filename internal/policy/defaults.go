@@ -41,7 +41,8 @@ func (v *VersionPolicy) applyDefaults() {
 	if v.Packs == "" {
 		v.Packs = PacksAll
 	}
-	if v.Upgrades == "" {
+	// approve was removed (2026-11): a stored or imported approve is automatic.
+	if v.Upgrades == legacyUpgradesApprove || v.Upgrades == "" {
 		v.Upgrades = UpgradesAuto
 	}
 	if v.ProviderPreference == "" {

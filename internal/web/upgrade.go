@@ -710,22 +710,8 @@ func (w *Web) loadCutoffs(ctx context.Context, db *sql.DB, vs []upgradeVersion) 
 var rowUpgradeRank = map[string]int{"cutoff_met": 1, "best_available": 2, "best_source_seen": 3, "below_cutoff": 4,
 	"higher_source_exists": 5, "upgrade_available": 6}
 
-// pendingHoldVersions are the versions with an upgrade held for a manager's approval (upgrade_hold, pending).
-func pendingHoldVersions(ctx context.Context, db *sql.DB) (map[int64]bool, error) {
-	held := map[int64]bool{}
-	err := scanAll(ctx, db, `SELECT DISTINCT version_id FROM upgrade_hold WHERE state = 'pending'`, nil, func(r *sql.Rows) error {
-		var vid int64
-		if err := r.Scan(&vid); err != nil {
-			return err
-		}
-		held[vid] = true
-		return nil
-	})
-	return held, err
-}
-
-// markUpgradeSeen sets upgrade_seen on list rows: on each version below cutoff with a better release seen or held
-// for approval (a hold is a found upgrade even after a later search found none), and on the row when any version has one. A row whose availability is upgrade also gets upgrade_state, with its source
+// markUpgradeSeen sets upgrade_seen on list rows: on each version below cutoff with a better release seen, and on
+// the row when any version has one. A row whose availability is upgrade also gets upgrade_state, with its source
 // ceilings applied as on the title page.
 func (w *Web) markUpgradeSeen(ctx context.Context, db *sql.DB, items []TitleRow) error {
 	var vs []upgradeVersion
@@ -748,17 +734,10 @@ func (w *Web) markUpgradeSeen(ctx context.Context, db *sql.DB, items []TitleRow)
 	if err := w.loadCeilings(ctx, db, vs, s); err != nil {
 		return fmt.Errorf("source ceilings: %w", err)
 	}
-	held, err := pendingHoldVersions(ctx, db)
-	if err != nil {
-		return fmt.Errorf("upgrade holds: %w", err)
-	}
 	for _, v := range vs {
 		u := s.explain(v, 0)
 		p := where[v.id]
 		row := &items[p[0]]
-		if held[v.id] && u.State != "none" && u.State != "cutoff_met" {
-			u.State = "upgrade_available"
-		}
 		if u.State == "upgrade_available" {
 			row.Versions[p[1]].UpgradeSeen = true
 			row.UpgradeSeen = true

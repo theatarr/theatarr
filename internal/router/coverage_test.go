@@ -188,37 +188,6 @@ func TestSeriesCoverageCandidateBudget(t *testing.T) {
 	}
 }
 
-func TestSeriesCoverageHoldsEachReplacingRelease(t *testing.T) {
-	t.Parallel()
-	for _, dry := range []bool{false, true} {
-		e := holdEnv(t, true, policy.ModeActive, policy.UpgradesApprove)
-		candidates := []Candidate{episodeCandidate("a", 101, 102, 103), episodeCandidate("b", 101),
-			episodeCandidate("c", 102), episodeCandidate("d", 103)}
-		var res *Result
-		var err error
-		if dry {
-			res, err = e.r.Plan(e.ctx, seriesReq(candidates...))
-		} else {
-			res, err = e.r.Route(e.ctx, seriesReq(candidates...))
-		}
-		if err != nil {
-			t.Fatal(err)
-		}
-		var held, placed int
-		for _, st := range res.Steps {
-			if st.Code == codeUpgradeHeld {
-				held++
-			}
-			if st.Outcome == "accepted" || st.Outcome == "would_add" {
-				placed++
-			}
-		}
-		if held != 2 || placed != 2 || (dry && e.writes() != 0) || (!dry && e.holds(HoldPending) != 2) {
-			t.Fatalf("dry=%v held=%d placed=%d holds=%d: %s", dry, held, placed, e.holds(HoldPending), steps(res))
-		}
-	}
-}
-
 func TestSeriesCoverageUnsettledAddReservesEpisodes(t *testing.T) {
 	t.Parallel()
 	e := newEnv(t, true, policy.ModeActive)

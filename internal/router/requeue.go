@@ -6,8 +6,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"strconv"
-	"strings"
 
 	"github.com/theatarr/theatarr/internal/decide"
 	"github.com/theatarr/theatarr/internal/indexer"
@@ -135,25 +133,5 @@ func DownloadRequest(ctx context.Context, db *sql.DB, pol *policy.Policy, dl int
 		}
 	}
 	req.Candidates, req.Source, req.DownloadID = []Candidate{c}, source.String, dl
-	// An approved upgrade keeps its approval when it is routed again from its row (requeueReused, resumeStrays, a
-	// retry by hand): Hold is set again from upgrade:N, but only while hold N is approved for this very release,
-	// version and title, so a source string alone never skips upgrade approval.
-	if n, ok := strings.CutPrefix(req.Source, "upgrade:"); ok {
-		id, err := strconv.ParseInt(n, 10, 64)
-		if err == nil && id > 0 {
-			var hash string
-			err := db.QueryRowContext(ctx, `SELECT info_hash FROM upgrade_hold WHERE id = ? AND state = ?
-				AND title_id = ? AND version_id = ? AND version_key = ?`, id, HoldApproved, req.TitleID, req.VersionID,
-				req.Version).Scan(&hash)
-			switch {
-			case err == nil:
-				if indexer.NormalizeHash(hash) == c.Release.InfoHash {
-					req.Hold = id
-				}
-			case !errors.Is(err, sql.ErrNoRows):
-				return nil, fmt.Errorf("router: download %d hold: %w", dl, err)
-			}
-		}
-	}
 	return &req, nil
 }

@@ -99,7 +99,7 @@ func TestExampleIsValid(t *testing.T) {
 			t.Errorf("version %s sonarr %q, want %q", k, got, want)
 		}
 	}
-	for k, want := range map[string]string{"movie-remux": UpgradesApprove, "movie-web": UpgradesAuto, "tv-2160p": UpgradesAuto} {
+	for k, want := range map[string]string{"movie-remux": UpgradesAuto, "movie-web": UpgradesAuto, "tv-2160p": UpgradesAuto} {
 		if got := p.Versions[k].Upgrades; got != want {
 			t.Errorf("version %s upgrades %q, want %q", k, got, want)
 		}
@@ -128,6 +128,18 @@ func TestExampleIsValid(t *testing.T) {
 }
 
 // Each case edits one file of a copy of the example and expects these error lines (path-prefixed).
+// approve was removed: a policy that still says it validates and routes upgrades automatically.
+func TestUpgradesApproveReadsAsAuto(t *testing.T) {
+	t.Parallel()
+	p, err := Load(editExample(t, [3]string{"versions.yaml", "upgrades: auto", "upgrades: approve"}))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if v := p.Versions["movie-remux"]; v.Upgrades != UpgradesAuto || v.UpgradeRule() != UpgradesAuto {
+		t.Errorf("upgrades %q, rule %q, want auto", v.Upgrades, v.UpgradeRule())
+	}
+}
+
 func TestBadPolicies(t *testing.T) {
 	t.Parallel()
 	cases := []struct {
@@ -144,8 +156,8 @@ func TestBadPolicies(t *testing.T) {
 		},
 		{
 			name: "unknown upgrade rule",
-			file: "versions.yaml", old: "upgrades: approve", new: "upgrades: ask",
-			want: []string{`versions[movie-remux].upgrades: must be auto, approve or off, got "ask"`},
+			file: "versions.yaml", old: "upgrades: auto", new: "upgrades: ask",
+			want: []string{`versions[movie-remux].upgrades: must be auto or off, got "ask"`},
 		},
 		{
 			name: "unknown provider preference",

@@ -5,7 +5,6 @@ import (
 	"errors"
 	"io"
 	"log/slog"
-	"strconv"
 	"strings"
 	"sync/atomic"
 	"testing"
@@ -324,74 +323,6 @@ func TestDeferredPushRechecksFreshness(t *testing.T) {
 				t.Fatalf("resumed %s route: outcome %s, writes %d: %s", source, res.Outcome, e.writes(), steps(res))
 			}
 		})
-	}
-}
-
-// LM2: an approved upgrade routed again from its row (a reused torrent that left the account) keeps its approval:
-// it is not held again, and the release is added again.
-func TestApprovedUpgradeKeepsApprovalAfterRequeue(t *testing.T) {
-	t.Parallel()
-	e := holdEnv(t, true, policy.ModeActive, policy.UpgradesApprove)
-	res, err := e.r.Route(e.ctx, movieReq(remux(h("a"), "A", 3000)))
-	if err != nil {
-		t.Fatal(err)
-	}
-	hs, w := e.approver()
-	if err := hs.Approve(e.ctx, res.Hold, Decider{Via: "session"}); err != nil {
-		t.Fatal(err)
-	}
-	if ran, err := w.RunOne(e.ctx); err != nil || !ran {
-		t.Fatalf("route job: ran %v err %v", ran, err)
-	}
-	var dl int64
-	var tid string
-	if err := e.st.Reader().QueryRow(`SELECT id, provider_torrent_id FROM download WHERE source = ?`,
-		"upgrade:"+strconv.FormatInt(res.Hold, 10)).Scan(&dl, &tid); err != nil {
-		t.Fatal(err)
-	}
-	req, err := DownloadRequest(e.ctx, e.st.Writer(), e.pol, dl)
-	if err != nil || req.Hold != res.Hold {
-		t.Fatalf("rebuilt request hold %d (%v), want %d", req.Hold, err, res.Hold)
-	}
-	e.exec(`UPDATE download SET reused = 1 WHERE id = ?`, dl)
-	if err := e.r.requeueReused(e.ctx, pollRow{id: dl, pk: "rd", tid: tid}); err != nil {
-		t.Fatal(err)
-	}
-	if ran, err := w.RunOne(e.ctx); err != nil || !ran {
-		t.Fatalf("requeued route job: ran %v err %v", ran, err)
-	}
-	if n := e.holds(HoldPending); n != 0 {
-		t.Errorf("the approved upgrade was held again: %d pending holds", n)
-	}
-	if adds := e.ad["rd"].adds; len(adds) != 2 {
-		t.Errorf("adds %v, want the approved release added again", adds)
-	}
-	// A source naming a hold that is not approved for this release grants nothing.
-	e.exec(`UPDATE upgrade_hold SET info_hash = ? WHERE id = ?`, h("b"), res.Hold)
-	if req, err := DownloadRequest(e.ctx, e.st.Writer(), e.pol, dl); err != nil || req.Hold != 0 {
-		t.Errorf("hold of another hash: request hold %d (%v), want 0", req.Hold, err)
-	}
-}
-
-// Approving a hold whose file changed since it was held (a newer file arrived) before the poller expired it is
-// refused, and the hold expires: the approved route skips the freshness check and must not replace the newer file.
-func TestApproveStaleHoldRefused(t *testing.T) {
-	t.Parallel()
-	e := holdEnv(t, true, policy.ModeActive, policy.UpgradesApprove)
-	res, err := e.r.Route(e.ctx, movieReq(remux(h("a"), "A", 3000)))
-	if err != nil || res.Hold == 0 {
-		t.Fatalf("%+v %v", res, err)
-	}
-	e.link(1, 10, 0, "Remux-2160p", 3200, 2000)
-	hs, _ := e.approver()
-	var refused *HoldRefused
-	if err := hs.Approve(e.ctx, res.Hold, Decider{Via: "session"}); !errors.As(err, &refused) ||
-		!strings.Contains(refused.Reason, "newer file") {
-		t.Fatalf("approve: %v, want refused for a newer file", err)
-	}
-	if e.holds(HoldExpired) != 1 || e.count(`SELECT COUNT(*) FROM job WHERE kind = ?`, JobRoute) != 0 {
-		t.Errorf("expired %d, route jobs %d", e.holds(HoldExpired),
-			e.count(`SELECT COUNT(*) FROM job WHERE kind = ?`, JobRoute))
 	}
 }
 

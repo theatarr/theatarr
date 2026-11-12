@@ -32,7 +32,7 @@ const DISCOVER_ROWS: Record<string, { title: string; description: string; empty:
   },
   upgrades: {
     title: "Upgrade found",
-    description: "Monitored titles with a library whose file is below its preferred quality and for which a better release was found, or is held for approval.",
+    description: "Monitored titles with a library whose file is below its preferred quality and for which a better release was found.",
     empty: "No upgrades found.",
     caption: () => undefined,
   },

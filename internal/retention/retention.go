@@ -10,7 +10,7 @@
 //     search responses drain in batches;
 //   - pending notify_delivery rows (only sent, failed and dropped ones go);
 //   - every download that is not failed, and failed ones that a link, a live library claim, an import still in
-//     progress (waiting for the mount or partial), an upgrade hold, a router blocklist entry, a router offer or a
+//     progress (waiting for the mount or partial), a router blocklist entry, a router offer or a
 //     queued or running job refers to (download_attempt, download_file, download_progress and a finished
 //     library_import go with their download);
 //   - acquire runs that are not finished, the latest run of each version and target (the wanted loop's "last
@@ -108,7 +108,6 @@ var rules = []rule{
 		AND NOT EXISTS (SELECT 1 FROM library_claim c WHERE c.download_id = download.id AND c.until > ?2)
 		AND NOT EXISTS (SELECT 1 FROM library_import i WHERE i.download_id = download.id
 			AND i.state IN ('waiting_mount', 'partial'))
-		AND NOT EXISTS (SELECT 1 FROM upgrade_hold h WHERE h.download_id = download.id)
 		AND NOT EXISTS (SELECT 1 FROM router_blocklist b WHERE b.download_id = download.id)
 		AND NOT EXISTS (SELECT 1 FROM router_offer o WHERE o.source_kind = 'download' AND o.source_id = download.id)
 		AND id NOT IN (SELECT json_extract(payload, '$.download_id') FROM (` + active + `)

@@ -20,13 +20,11 @@ import {
   type Request,
   type RequestDetail,
 } from "@/api/requests";
-import { useUpgradeHolds } from "@/api/upgrades";
 import { Empty, ErrorState, Loading, PageHeader, RouteTabs } from "@/components/page";
 import { facetOf, Poster } from "@/components/search/search-results";
 import { DownloadsOffNotice, VersionStatus } from "@/components/version-status";
 import { globalDownloadsOff } from "@/lib/version-grab";
 import { versionFetching } from "@/lib/request-state";
-import { UpgradesWaiting } from "@/components/upgrades/upgrades-waiting";
 import { Badge, Tag } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -123,12 +121,10 @@ function RequestQueue() {
   const perms = usePerms();
   const { tab: rawTab } = useParams();
   const manager = perms.manageRequests;
-  const upgrades = perms.manage && rawTab === "upgrades";
-  const waiting = useUpgradeHolds({ state: "pending", limit: 1 }, perms.manage).data?.counts?.pending ?? 0;
-  const tab = upgrades ? "upgrades" : manager ? (rawTab === "all" || rawTab === "mine" ? rawTab : "queue") : "mine";
+  const tab = manager ? (rawTab === "all" || rawTab === "mine" ? rawTab : "queue") : "mine";
   const [filter, setFilter] = useState(manager && tab === "queue" ? "pending" : "open");
   const status = tab === "queue" ? "pending" : filter;
-  const list = useRequests({ status, mine: tab === "mine", limit: 100 }, !upgrades);
+  const list = useRequests({ status, mine: tab === "mine", limit: 100 });
   const counts = list.data?.counts ?? {};
   const items = list.data?.items ?? [];
   return (
@@ -141,18 +137,17 @@ function RequestQueue() {
             : "What you asked for, and where it is. Find something new with the search box and press Request."
         }
       />
-      {manager || perms.manage ? (
+      {manager ? (
         <RouteTabs
           active={tab}
           tabs={[
-            ...(manager ? [{ id: "queue", label: "To decide", to: "/requests" }, { id: "all", label: "All", to: "/requests/all" }] : []),
+            { id: "queue", label: "To decide", to: "/requests" },
+            { id: "all", label: "All", to: "/requests/all" },
             { id: "mine", label: "Mine", to: "/requests/mine" },
-            ...(perms.manage ? [{ id: "upgrades", label: waiting > 0 ? `Upgrades awaiting approval (${waiting})` : "Upgrades awaiting approval", to: "/requests/upgrades" }] : []),
           ]}
         />
       ) : null}
-      {upgrades ? <UpgradesWaiting /> : null}
-      {upgrades ? null : tab !== "queue" ? (
+      {tab !== "queue" ? (
         <div className="mb-4 flex flex-wrap gap-1.5" role="group" aria-label="Status">
           {FILTERS.map((f) => {
             const n = f.id === "all" ? Object.values(counts).reduce((a, b) => a + b, 0) : f.id === "open" ? (counts.pending ?? 0) + (counts.approved ?? 0) + (counts.processing ?? 0) : f.id.split(",").reduce((a, s) => a + (counts[s] ?? 0), 0);
@@ -174,7 +169,7 @@ function RequestQueue() {
           })}
         </div>
       ) : null}
-      {upgrades ? null : list.isPending ? (
+      {list.isPending ? (
         <Loading />
       ) : list.error ? (
         <ErrorState error={list.error} />

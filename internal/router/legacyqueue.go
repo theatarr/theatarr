@@ -7,7 +7,6 @@ import (
 	"fmt"
 	"sort"
 	"strconv"
-	"strings"
 	"time"
 
 	"github.com/theatarr/theatarr/internal/jobs"
@@ -18,9 +17,9 @@ import (
 // candidate queued by a build before RouteIdentityVersion carries no identity validation and no explicit origin, so
 // what it was decided as cannot be proved from what was stored: its links are gone, and its origin is unknown (a
 // prefer-on version's route ends such a row, fresh.go). ReconcileLegacyQueue lists every such row still waiting:
-// queued route jobs, queued downloads (no add sent) and pending upgrade holds. With apply, an automatic row is ended
+// queued route jobs and queued downloads (no add sent). With apply, an automatic row is ended
 // and its title's version gets one deduplicated re-search, so the release is found and decided again under the
-// current build; a manual row (a grab, retry or release pick by hand, an approved upgrade) is only listed, since it
+// current build; a manual row (a grab, retry or release pick by hand) is only listed, since it
 // needs a fresh selection by a person.
 // Running jobs, the queued downloads of a title version a running job works on, a job continuing a download whose
 // add is in flight, and rows past queued are left alone (listed). Nothing is deleted: rows keep their history,
@@ -33,7 +32,6 @@ const ReasonReconcile = "reconcile"
 const (
 	LegacyJob      = "job"
 	LegacyDownload = "download"
-	LegacyHold     = "hold"
 )
 
 // LegacyRow is one queued row whose candidates cannot be proved under RouteIdentityVersion.
@@ -229,29 +227,6 @@ func legacyRows(ctx context.Context, tx *sql.Tx) ([]LegacyRow, error) {
 	if err != nil {
 		return nil, fmt.Errorf("router: reconcile: downloads: %w", err)
 	}
-	err = scan(`SELECT id, title_id, version_id, version_key, source, release_title, episodes, candidate
-		FROM upgrade_hold WHERE state = ? ORDER BY id`, []any{HoldPending}, func(rows *sql.Rows) error {
-		x := LegacyRow{Kind: LegacyHold, State: HoldPending}
-		var eps, cj string
-		if err := rows.Scan(&x.ID, &x.TitleID, &x.VersionID, &x.Version, &x.Source, &x.Release, &eps, &cj); err != nil {
-			return err
-		}
-		var c Candidate
-		if json.Unmarshal([]byte(cj), &c) == nil && proved([]Candidate{c}) {
-			return nil
-		}
-		for _, s := range strings.Split(eps, ",") {
-			if id, err := strconv.ParseInt(strings.TrimSpace(s), 10, 64); err == nil {
-				x.Episodes = append(x.Episodes, id)
-			}
-		}
-		x.Manual = manualSource(x.Source)
-		out = append(out, x)
-		return nil
-	})
-	if err != nil {
-		return nil, fmt.Errorf("router: reconcile: holds: %w", err)
-	}
 	return out, nil
 }
 
@@ -268,9 +243,6 @@ func endLegacyRow(ctx context.Context, tx *sql.Tx, x LegacyRow, at int64) error 
 	case LegacyDownload:
 		_, err = tx.ExecContext(ctx, `UPDATE download SET state = 'failed', error = ?, updated_at = ?
 			WHERE id = ? AND state = ?`, why, at, x.ID, StateQueued)
-	case LegacyHold:
-		_, err = tx.ExecContext(ctx, `UPDATE upgrade_hold SET state = 'expired', decided_at = ?, note = ?
-			WHERE id = ? AND state = ?`, at, why, x.ID, HoldPending)
 	}
 	if err != nil {
 		return fmt.Errorf("router: reconcile: %s %d: %w", x.Kind, x.ID, err)

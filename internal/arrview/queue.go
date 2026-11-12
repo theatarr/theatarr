@@ -102,47 +102,7 @@ func (s *Service) queueRows(ctx context.Context, v *View, titleIDs []int64, sele
 			importState: d.ImportState, importErr: d.ImportErr,
 			created: d.Created, added: d.Added, waiting: d.WaitingSince})
 	}
-	// Approval holds have no download yet: exposing them must not create work for the router or library.
-	q := `SELECT id, title_id, version_key, info_hash, release_title, indexer, quality, score, episodes, reason,
-		created_at FROM upgrade_hold WHERE state = 'pending' AND version_key IN (` + store.Placeholders(len(v.Versions)) + `)`
-	args := toAny(v.Versions)
-	if len(titleIDs) > 0 {
-		q += ` AND title_id IN (` + store.Placeholders(len(titleIDs)) + `)`
-		args = append(args, toAny(titleIDs)...)
-	}
-	if len(selected) > 0 {
-		var holds []int64
-		for _, it := range selected[0] {
-			if it.source < 0 {
-				holds = append(holds, -it.source)
-			}
-		}
-		q += ` AND id IN (SELECT value FROM json_each(?))`
-		args = append(args, jsonIDs(holds))
-	}
-	rows, err := s.st.Reader().QueryContext(ctx, q, args...)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	for rows.Next() {
-		var x queueRow
-		var episodes string
-		var created int64
-		if err := rows.Scan(&x.id, &x.titleID, &x.version, &x.hash, &x.title, &x.indexer, &x.quality, &x.score,
-			&episodes, &x.importErr, &created); err != nil {
-			return nil, err
-		}
-		x.id = -x.id
-		x.state, x.importState, x.created = "ready", "approval", store.FromMillis(created)
-		for _, id := range strings.Split(episodes, ",") {
-			if n, err := strconv.ParseInt(id, 10, 64); err == nil {
-				x.episodes = append(x.episodes, n)
-			}
-		}
-		out = append(out, x)
-	}
-	return out, rows.Err()
+	return out, nil
 }
 
 // queueTracking uses the closest arr tracked-download state for each router/library wait or hold.
@@ -153,14 +113,11 @@ func (s *Service) queueTracking(x queueRow) (status, tracked, severity, message 
 	if x.state == "failed" {
 		status, tracked, severity = "failed", "failedPending", "error"
 	}
-	if x.importState == "rejected" || x.importState == "dry_run" || x.importState == "approval" ||
+	if x.importState == "rejected" || x.importState == "dry_run" ||
 		strings.HasPrefix(x.importErr, library.TitleHoldPrefix) {
 		status, tracked, severity, message = "completed", "importBlocked", "warning", x.importErr
 		if message == "" {
 			message = "Import held for review or disabled by the library gate"
-		}
-		if x.importState == "approval" {
-			message = "Upgrade awaiting approval: " + x.importErr
 		}
 	} else if x.importState == "waiting_mount" {
 		message = x.importErr
@@ -508,14 +465,6 @@ func (s *Service) deleteQueue(w http.ResponseWriter, r *request) {
 			continue
 		}
 		seen[source] = true
-		if source < 0 {
-			err := s.removePendingQueue(r, -source, block)
-			if err != nil {
-				s.internal(w, r, err)
-				return
-			}
-			continue
-		}
 		ok, err := s.removeDownload(r.Context(), r, source, "removed from the queue by "+clientName(r), block,
 			router.BlocklistQueue, block && !skip)
 		if err != nil {

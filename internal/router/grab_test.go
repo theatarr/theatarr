@@ -10,7 +10,7 @@ import (
 )
 
 // An active version grabs only with its grab switch on. With router.enabled true and grab off, a
-// route is a recorded dry-run plan (no provider write), the hold gate refuses, the status says no writes and an
+// route is a recorded dry-run plan (no provider write), the status says no writes and an
 // offer is planned, not routed.
 func TestActiveVersionWithoutGrabNeverWrites(t *testing.T) {
 	t.Parallel()
@@ -30,9 +30,6 @@ func TestActiveVersionWithoutGrabNeverWrites(t *testing.T) {
 	}
 	if n := e.count(`SELECT COUNT(*) FROM download`); n != 0 {
 		t.Errorf("%d download rows without grab", n)
-	}
-	if err := holdGate(e.pol, "movie", &Candidate{}); err == nil || !strings.Contains(err.Error(), "grab is off") {
-		t.Errorf("hold gate: %v", err)
 	}
 	s, err := ReadStatus(e.ctx, e.st, e.pol, nil, e.clock, 0)
 	if err != nil {

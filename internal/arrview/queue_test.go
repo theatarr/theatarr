@@ -2,7 +2,6 @@ package arrview
 
 import (
 	"encoding/json"
-	"fmt"
 	"strconv"
 	"strings"
 	"testing"
@@ -283,53 +282,5 @@ func TestQueueHoldsAndWaitingStates(t *testing.T) {
 				}
 			})
 		}
-	}
-}
-
-func TestQueueUpgradeApproval(t *testing.T) {
-	t.Parallel()
-	for _, view := range []string{"radarr", "sonarr"} {
-		t.Run(view, func(t *testing.T) {
-			e := newEnv(t)
-			tid, vid, key, eps := 1, 2, "movie-web", ""
-			if view == "sonarr" {
-				tid, vid, key, eps = 10, 10, "tv-2160p", "101,102"
-			}
-			e.exec(`INSERT INTO upgrade_hold(id,title_id,version_id,version_key,episodes,info_hash,release_title,reason,candidate,created_at,seen_at) VALUES(1,?,?,?,?,'hash','Upgrade','better quality','{}',?,?)`, tid, vid, key, eps, ms(e.now), ms(e.now))
-			var queue struct{ Records []queueResource }
-			e.call("GET", "/"+view+"/api/v3/queue", nil, 200, &queue)
-			want := 1
-			if view == "sonarr" {
-				want = 2
-			}
-			if len(queue.Records) != want {
-				t.Fatalf("queue %+v", queue)
-			}
-			for _, item := range queue.Records {
-				b, _ := json.Marshal(item.StatusMessages)
-				wantID := queueEpisodeID(-1, 0)
-				if view == "sonarr" {
-					wantID = queueEpisodeID(-1, *item.EpisodeID)
-				}
-				if item.ID != wantID || item.TrackedDownloadStatus != "warning" || item.TrackedDownloadState != "importBlocked" || !strings.Contains(string(b), "Upgrade awaiting approval") {
-					t.Fatalf("item %+v", item)
-				}
-			}
-			if n := e.one(`SELECT COUNT(*) FROM download`); n != 0 {
-				t.Fatal("approval listing created a download")
-			}
-			if view == "radarr" {
-				// The hold's positive id removes it, as Radarr's DELETE queue/{id} removes a pending release.
-				e.call("DELETE", fmt.Sprintf("/radarr/api/v3/queue/%d", queue.Records[0].ID), nil, 200, nil)
-				if st := e.str(`SELECT state FROM upgrade_hold WHERE id=1`); st == "pending" {
-					t.Fatal("hold not removed")
-				}
-			}
-			e.exec(`UPDATE upgrade_hold SET state='declined'`)
-			e.call("GET", "/"+view+"/api/v3/queue", nil, 200, &queue)
-			if len(queue.Records) != 0 {
-				t.Fatalf("declined hold in queue %+v", queue)
-			}
-		})
 	}
 }

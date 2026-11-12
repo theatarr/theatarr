@@ -77,11 +77,9 @@ func TestStampFreshOrigin(t *testing.T) {
 			t.Fatalf("%s/%s: identity=%d origin=%q, want %q", tc.version, tc.source, c.Identity, c.Origin, tc.want)
 		}
 	}
-	for _, req := range []Request{{Version: "movie", Source: "job", DownloadID: 3, Candidates: []Candidate{{}}},
-		{Version: "movie", Source: "upgrade:4", Hold: 4, Candidates: []Candidate{{}}}} {
-		e.r.stampFresh(&req)
-		if c := req.Candidates[0]; c.Identity != 0 || c.Origin != "" {
-			t.Fatalf("resumed request stamped: %+v", c)
-		}
+	req := Request{Version: "movie", Source: "job", DownloadID: 3, Candidates: []Candidate{{}}}
+	e.r.stampFresh(&req)
+	if c := req.Candidates[0]; c.Identity != 0 || c.Origin != "" {
+		t.Fatalf("resumed request stamped: %+v", c)
 	}
 }

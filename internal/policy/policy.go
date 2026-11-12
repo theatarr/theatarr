@@ -201,8 +201,8 @@ type VersionPolicy struct {
 	// packs named by season title, original-title matching, the new languages; docs/design/sonarr-v5.md). Series only.
 	Sonarr string `yaml:"sonarr"`
 	// Upgrades is what happens when a release would replace a file the version already has: auto (the default:
-	// routed like any other release), approve (held until a manager approves it) or off (never; the file stays).
-	// A release for items with no file is never held or refused by it (docs/design/router.md "Upgrade approval").
+	// routed like any other release) or off (never; the file stays). A release for items with no file is never
+	// refused by it (docs/design/router.md "Upgrades").
 	Upgrades string `yaml:"upgrades"`
 	// Follows makes this a parallel version (docs/parallel.md): it takes the catalog and monitoring of the named
 	// version, whose arr instance keeps running, but never its files. It has its own roots and acquires on its own.

@@ -47,13 +47,6 @@
 //  5. No acceptance but some provider was only paced: the route is deferred to the earliest free time (job
 //     router.route re-enqueues itself, resuming the queued download).
 //
-// # Upgrade approval
-//
-// Before any candidate is tried, versions[*].upgrades is applied to releases that would replace a file the version
-// already has (hold.go): auto routes them, off skips them, approve holds the best one per episode set in
-// upgrade_hold instead of adding it. A manager's approval (Holds.Approve) enqueues a route of the held release that
-// is not held again and passes every rule above. Releases for items without a file are never held.
-//
 // # Downloads
 //
 // One download row per release tried (migration 00014): queued, adding, added, downloading, ready, then the library

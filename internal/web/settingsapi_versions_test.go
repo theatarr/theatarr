@@ -129,7 +129,7 @@ func TestSettingsImportPreviewIncludesE3(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	data = bytes.ReplaceAll(data, []byte("upgrades: approve"), []byte("upgrades: off"))
+	data = bytes.ReplaceAll(data, []byte("upgrades: auto"), []byte("upgrades: off"))
 	if err = os.WriteFile(file, data, 0600); err != nil {
 		t.Fatal(err)
 	}

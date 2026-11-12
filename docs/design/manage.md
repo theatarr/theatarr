@@ -1,8 +1,7 @@
 # Season and episode management, and upgrade explanations
 
 Code: `internal/web/{manage,upgrade}.go`, `web/src/api/manage.ts`,
-`web/src/lib/{upgrade,media}.ts`, `web/src/components/title/{seasons,episode-drawer,manage-bits,journal-list,versions}.tsx`;
-upgrade approval: `internal/web/upgrades.go`, `web/src/{api/upgrades.ts,lib/upgrade-holds.ts,components/upgrades/}`.
+`web/src/lib/{upgrade,media}.ts`, `web/src/components/title/{seasons,episode-drawer,manage-bits,journal-list,versions}.tsx`.
 
 **Why.** A file below its profile's cutoff (for example Bluray-1080p, score 6,302, against a cutoff of Bluray-2160p
 Remux and 10,000) is an upgrade candidate even when nothing better has been seen, so a library can show "Upgrade" on
@@ -34,9 +33,8 @@ One vocabulary for managers on the grid, the title page, season headers and epis
   cutoff Remux-2160p"), what falls short, what Theatarr would take next, and the source-ceiling evidence.
 - Poster badges word the row's `upgrade_state`; the grid filter is "Preferred quality not met"; the Home row
   **Upgrade found** (`discover` `upgrades`, and its "See all" page) lists only titles with an upgrade found: a
-  monitored copy below its preferred quality for which a better release was seen, or that holds one for approval
-  (a held upgrade also sets the row's `upgrade_seen`, so its poster says Upgrade found; a series copy that still
-  misses episodes counts by the files it has);
+  monitored copy below its preferred quality for which a better release was seen (a series copy that still misses
+  episodes counts by the files it has);
   season headers count "N under preferred quality · M upgrades found".
 - Users without "see files" get availability and resolution only.
 
@@ -61,28 +59,6 @@ decisions first and skips candidate decoding for older or non-covering decisions
 The cutoff a file is measured against is the owning arr instance's profile while an arr imports the version (that
 profile decided the state), else the policy profile.
 
-## Upgrades awaiting approval
-
-A copy with `versions[*].upgrades: approve` keeps its file until a manager approves a better release
-(docs/design/router.md "Upgrade approval"; `off` never replaces it, `auto` is the default). The upgrade-evidence rule above
-says what Theatarr has *seen*; a hold is what Theatarr *would take now* and is waiting on a person.
-
-- **Title page, copy card:** under Upgrade status (its Why? stays beside it) a block **"Upgrade found, waiting for
-  approval"**: the release, "Would bring Remux-2160p · score 3,000", "Replaces WEBDL-2160p · score 1,400" (or "8
-  episode files (…)" and the episode run for a series), the decision's reason, when it was found and last offered,
-  and **Approve** / **Decline** (an optional note). Approve is off, with the server's reason beside it, while the copy
-  is in shadow or automatic downloads are off. Title notes say plainly why downloads are off (off,
-  forced off by the environment, the library's switch, shadow) from the grab state, never a config key; any other
-  server reason (e.g. the acquirer is not running) is shown as sent. Only admins get the link to the settings page
-  that changes it. Title library cards carry the same collision-qualified label as everywhere else.
-- **Requests → Upgrades awaiting approval** (`/requests/upgrades`, tab label with the count): every hold, waiting first, and the
-  decided ones (Approved by Sam (session) · added; Declined by Sam (key phone): too big; Expired: a newer file
-  arrived; Replaced by a better release).
-- Words live in `web/src/lib/upgrade-holds.ts` (`HOLD_HEADLINE`, `HOLD_STATE`, `holdLines`, `approveState`,
-  `decisionLine`), pinned by vitest.
-- **Family accounts never see any of it:** the routes need `manage` (403 otherwise), the SPA asks only with that
-  permission, and the title detail carries no hold.
-
 ## Shadow ownership
 
 `arr.import` rewrites a version's monitored flags and files from its owning instance every 15 minutes
@@ -103,15 +79,13 @@ Discord and ntfy targets (`format: discord` or `format: ntfy`, docs/design/devic
 | Route | What |
 |---|---|
 | `GET titles/{id}` | per version `upgrade` (state, quality, score, cutoff, below/seen counts, next, last search) and `control` (mode, managed_by, can_edit, can_search with reasons, live_releases); a movie file's `current.media`: for the version's newest active link, Theatarr's own probe stored at import (`content_file.probe`, formatted as the arrs format theirs), else for an adopted link the media info its arr had recorded (`link.adopted_media`, 00117); the arr file's `media_info` only when the version has no active link |
-| `GET titles`, `discover` | `upgrade_seen` per row and version; the Home row `upgrades` lists only titles with an upgrade found (seen, or held for approval), its notes say "upgrade found" |
+| `GET titles`, `discover` | `upgrade_seen` per row and version; the Home row `upgrades` lists only titles with an upgrade found (seen), its notes say "upgrade found" |
 | `GET titles/{id}/episodes` | per version `control` and `cutoff`; per season and version `below_cutoff`, `upgrade_seen`, `monitored`, `quality`, `size_bytes`, `score`; per cell `upgrade_seen` |
 | `GET titles/{id}/episodes/{eid}` | the episode drawer: per version state, upgrade, control, file (release, quality, score, size, media, path; `media` of a link as for `current.media`), history, journal entries |
 | `GET titles/{id}/episodes/{eid}/releases?version=&live=` | the releases panel for one episode |
 | `PUT titles/{id}/seasons/{season}/monitor`, `PUT titles/{id}/episodes/monitor` | monitor a season or episodes, per version; arr-managed versions refused with the reason |
 | `POST titles/{id}/seasons/{season}/search`, `POST titles/{id}/episodes/search` | search a season or episodes through the acquirer's selection |
 | `POST titles/monitor` | the library's copy-targeted bulk monitor (docs/design/ui.md "Library views"): sets `monitored` on existing copies of up to 500 titles, `dry_run` previews, `expect` skips copies changed since the preview (stale); arr-managed copies come back `read_only`, a title without the copy `missing`; never adds a copy or searches. Manage only |
-| `GET upgrades?state=&title=&limit=` | upgrade holds (default pending; `all`, or a comma list of pending, approved, declined, expired, replaced): release, quality and score against the file it replaces, reason, source, decision (who, via, when, note), route outcome, `can_approve` with the reason; counts per state. Manage only |
-| `POST upgrades/{id}/approve`, `POST upgrades/{id}/decline` (`{note}`) | decide a pending hold (409 when not pending, or when the router could not act now: router off, shadow, `upgrades: off`); approve queues the route of the held release. Manage only, audited |
 
 Callers without "see files" get availability only (`docs/design/users.md`): whether there is a file and its resolution,
 no upgrade explanation, cutoff, history, scores, releases, next, paths, sizes or journal, and the write and releases

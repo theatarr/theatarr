@@ -111,7 +111,6 @@ export const qk = {
       ["add-options", kind ?? "", tmdb ?? "", title === undefined ? "" : id(title), anime ?? false] as const,
   },
   activity: { all: ["activity"] as const },
-  upgrades: { all: ["upgrades"] as const, list: (f: unknown) => ["upgrades", "list", f] as const },
   calendar: { all: ["calendar"] as const },
 };
 

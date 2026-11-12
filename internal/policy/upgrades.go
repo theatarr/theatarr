@@ -1,22 +1,24 @@
 package policy
 
 // Upgrade rules (versions[*].upgrades): what the router does with a release that would replace a file the version
-// already has (docs/design/router.md "Upgrade approval").
+// already has (docs/design/router.md "Upgrades").
 const (
 	// UpgradesAuto routes upgrades like any other release (the default, as the arrs do with upgradeAllowed on).
 	UpgradesAuto = "auto"
-	// UpgradesApprove holds an upgrade until a manager approves it; nothing is added before then.
-	UpgradesApprove = "approve"
 	// UpgradesOff never replaces a file (the arrs' upgradeAllowed off, for the version rather than the profile).
 	UpgradesOff = "off"
 )
 
+// legacyUpgradesApprove is the removed approve rule (held an upgrade for a manager's approval). A stored or imported
+// approve reads as auto (applyDefaults).
+const legacyUpgradesApprove = "approve"
+
 // validateUpgrades checks a version's upgrade rule; "" is auto.
 func validateUpgrades(e *Errors, path string, v *VersionPolicy) {
 	switch v.Upgrades {
-	case UpgradesAuto, UpgradesApprove, UpgradesOff:
+	case UpgradesAuto, UpgradesOff:
 	default:
-		e.add(path+".upgrades", "must be %s, %s or %s, got %q", UpgradesAuto, UpgradesApprove, UpgradesOff, v.Upgrades)
+		e.add(path+".upgrades", "must be %s or %s, got %q", UpgradesAuto, UpgradesOff, v.Upgrades)
 	}
 }
 

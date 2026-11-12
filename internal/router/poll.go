@@ -66,8 +66,6 @@ type PollSummary struct {
 	Researched int `json:"researched"`
 	// Reconciled counts downloads left in adding by an interrupted add, settled from the provider's account.
 	Reconciled int `json:"reconciled"`
-	// HoldsExpired counts pending upgrade holds that no longer stand (hold.go ExpireHolds).
-	HoldsExpired int `json:"holds_expired"`
 	// Resumed counts queued downloads with no route job that the poller queued a route for (resumeStrays).
 	Resumed int `json:"resumed"`
 	// Postponed counts the downloads not read because the pass reached pollPassLimit; the next pass reads them first.
@@ -264,11 +262,6 @@ func (r *Router) Poll(ctx context.Context) (PollSummary, error) {
 	// Failures behind new blocklist rows: search again now.
 	n, err := r.researchBlocklisted(ctx)
 	sum.Researched += n
-	if err != nil {
-		return sum, err
-	}
-	// Upgrade holds that no longer stand (hold.go).
-	sum.HoldsExpired, err = ExpireHolds(ctx, r.st, r.pol, now)
 	return sum, err
 }
 

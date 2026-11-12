@@ -11,8 +11,8 @@ import (
 )
 
 // `router reconcile` lists every queued row an older build queued (no identity validation version): route jobs,
-// queued downloads and pending holds. A dry run writes nothing. Apply ends the automatic rows (job failed and
-// dismissed, download failed, hold expired) and queues one re-search per title version with the union of their
+// and queued downloads. A dry run writes nothing. Apply ends the automatic rows (job failed and
+// dismissed, download failed) and queues one re-search per title version with the union of their
 // episodes; manual rows and running jobs are only listed; rows carrying the current identity are not listed; nothing
 // is deleted and no provider is called. A second apply finds nothing more and queues nothing.
 func TestReconcileLegacyQueue(t *testing.T) {
@@ -47,10 +47,6 @@ func TestReconcileLegacyQueue(t *testing.T) {
 		(8, 2, 20, 'series', ?, 'Show.S01E10', 'pub', 'queued', '[10]', 'wanted',
 			'{"route_identity":1,"route_origin":"search"}', 0, 0),
 		(9, 2, 20, 'series', ?, 'Show.S01E11', 'pub', 'added', '[11]', 'wanted', '{}', 0, 0)`, h("e"), h("f"), h("g"))
-	e.exec(`INSERT INTO upgrade_hold (id, title_id, version_id, version_key, episodes, info_hash, release_title,
-		candidate, source, created_at, seen_at) VALUES
-		(3, 2, 20, 'series', '8,9', ?, 'Show.S01E08E09', '{}', 'rss', 0, 0),
-		(4, 1, 10, 'movie', '', ?, 'Movie.2024.REMUX', '{}', 'ui:grab:x', 0, 0)`, h("h"), h("i"))
 
 	rep, err := ReconcileLegacyQueue(e.ctx, e.st, q, false, e.clock)
 	if err != nil {
@@ -58,7 +54,7 @@ func TestReconcileLegacyQueue(t *testing.T) {
 	}
 	job := func(id int64) string { return "job/" + strconv.FormatInt(id, 10) }
 	want := map[string]string{job(autoJob): "cancel", job(manualJob): "list", job(running): "leave",
-		"download/7": "cancel", "hold/3": "cancel", "hold/4": "list"}
+		"download/7": "cancel"}
 	got := map[string]string{}
 	for _, x := range rep.Rows {
 		got[x.Kind+"/"+strconv.FormatInt(x.ID, 10)] = x.Action
@@ -71,13 +67,12 @@ func TestReconcileLegacyQueue(t *testing.T) {
 			t.Fatalf("row %s action %q, want %q (all %v)", k, got[k], v, got)
 		}
 	}
-	if rep.Ended != 3 || len(rep.Researches) != 2 || rep.Queued != 0 {
+	if rep.Ended != 2 || len(rep.Researches) != 2 || rep.Queued != 0 {
 		t.Fatalf("dry run: ended %d researches %+v queued %d", rep.Ended, rep.Researches, rep.Queued)
 	}
 	if n := e.count(`SELECT COUNT(*) FROM job WHERE kind = ?`, JobResearch); n != 0 ||
 		e.count(`SELECT COUNT(*) FROM job WHERE state = 'queued' AND kind = ?`, JobRoute) != 3 ||
-		e.count(`SELECT COUNT(*) FROM download WHERE state = 'queued'`) != 2 ||
-		e.count(`SELECT COUNT(*) FROM upgrade_hold WHERE state = 'pending'`) != 2 {
+		e.count(`SELECT COUNT(*) FROM download WHERE state = 'queued'`) != 2 {
 		t.Fatal("dry run wrote")
 	}
 
@@ -85,7 +80,7 @@ func TestReconcileLegacyQueue(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if rep.Ended != 3 || rep.Queued != 2 {
+	if rep.Ended != 2 || rep.Queued != 2 {
 		t.Fatalf("apply: ended %d queued %d", rep.Ended, rep.Queued)
 	}
 	state := func(q string, id int64) string {
@@ -108,8 +103,6 @@ func TestReconcileLegacyQueue(t *testing.T) {
 		{`SELECT state FROM download WHERE id = ?`, 7, "failed"},
 		{`SELECT state FROM download WHERE id = ?`, 8, "queued"},
 		{`SELECT state FROM download WHERE id = ?`, 9, "added"},
-		{`SELECT state FROM upgrade_hold WHERE id = ?`, 3, "expired"},
-		{`SELECT state FROM upgrade_hold WHERE id = ?`, 4, "pending"},
 	} {
 		if s := state(c.q, c.id); s != c.want {
 			t.Fatalf("%s [%d] = %q, want %q", c.q, c.id, s, c.want)
@@ -123,8 +116,8 @@ func TestReconcileLegacyQueue(t *testing.T) {
 		if r.Reason != ReasonReconcile {
 			t.Fatalf("reason %q", r.Reason)
 		}
-		if r.Version == "series" && (r.TitleID != 2 || !slices.Equal(r.Episodes, []int64{7, 8, 9})) {
-			t.Fatalf("series re-search %+v, want title 2 episodes 7 8 9", r)
+		if r.Version == "series" && (r.TitleID != 2 || !slices.Equal(r.Episodes, []int64{7, 8})) {
+			t.Fatalf("series re-search %+v, want title 2 episodes 7 8", r)
 		}
 		if r.Version == "movie" && (r.TitleID != 1 || r.VersionID != 10) {
 			t.Fatalf("movie re-search %+v", r)

@@ -48,9 +48,9 @@ router may write for, provider pacing, downloads by state, and recent downloads 
 imported download to the title's other libraries (-sweep also offers adopted links and imported arr
 files): each library's own profile decides, an accepted offer queues a route that reuses the provider's torrent
 (a dry-run plan for a shadow library), and outcomes are remembered in router_offer. -dry-run decides only.
-reconcile lists queued route jobs, queued downloads and pending upgrade holds queued by an older build, whose
+reconcile lists queued route jobs and queued downloads queued by an older build, whose
 identity and origin cannot be proved (no identity validation version); -apply ends the automatic ones (job failed and
-dismissed, download failed, hold expired) and queues one re-search per title and library; manual rows are only listed.
+dismissed, download failed) and queues one re-search per title and library; manual rows are only listed.
 Nothing is deleted and nothing is sent to any provider.
 `
 

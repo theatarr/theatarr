@@ -669,9 +669,6 @@ Queue and queue/details use these closest Sonarr/Radarr tracked-download states;
 warning/error flags. Calendar windows select title/episode identities in SQL before loading their resources; queue
 ETA samples are read once per batch rather than per download. Each waiting or held item has a status message with its reason. Finished ordinary failures
 and imported downloads leave the queue; library failures and stalled providers follow the expiry rules below.
-Pending upgrade approvals create no download and are resolved through the existing upgrade approval API. Their
-queue IDs are positive hashed IDs (as Sonarr's per-episode IDs are), kept apart from download IDs, so
-`DELETE queue/{id}` removes them (declining the hold) in both views.
 
 Failed stalled downloads and failed library imports leave the queue when a later download of the same title
 and version imports, or seven days after the failure. Dismissing a failure in Activity removes it from both views
@@ -691,7 +688,6 @@ downloads, including ones no longer in the arr queue.
 | Held for review/no video/selected files absent | `warning` | `importBlocked` | Library's review reason |
 | zurg unconfirmed file | `warning` | `importBlocked` | Reason starting `zurg` |
 | Library gate dry run | `warning` | `importBlocked` | Gate refusal |
-| Upgrade awaiting approval | `warning` | `importBlocked` | Upgrade awaiting approval and its reason |
 | Not an upgrade | `warning` | `importBlocked` | Not an upgrade for the existing files |
 | Sample or unmatched episode rejection | `warning` | `importBlocked` | Sample guard or episode matching reason |
 | Import in progress | `ok` | `importing` | Importing library links |

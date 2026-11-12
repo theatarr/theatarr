@@ -17,7 +17,7 @@ type Candidate struct {
 	// Identity is the identity validation the candidate passed when a producer handed it to the router
 	// (RouteIdentityVersion), and Origin the decision path it was decided on (OriginRSS or OriginSearch, with
 	// Criteria for a series search). Both are set once, at the producer boundary (stampFresh), and travel with the
-	// candidate through route jobs, download rows and upgrade holds; 0 and "" mean an older build queued it.
+	// candidate through route jobs and download rows; 0 and "" mean an older build queued it.
 	Identity int             `json:"identity,omitempty"`
 	Origin   string          `json:"origin,omitempty"`
 	Release  indexer.Release `json:"release"`
@@ -32,7 +32,7 @@ type Candidate struct {
 	// on the download so the import maps its files the same way; nil for Sonarr's mapping.
 	EpisodeMap *decide.EpisodeMap `json:"episode_map,omitempty"`
 	// QualityRank is the quality's place in the version's profile (decide.Decision.QualityRank; 0 unknown) and
-	// UpgradeReason the decision's reason why the release upgrades the file: what an upgrade hold compares and shows.
+	// UpgradeReason the decision's reason why the release upgrades the file.
 	QualityRank   int    `json:"quality_rank,omitempty"`
 	UpgradeReason string `json:"upgrade_reason,omitempty"`
 }
@@ -50,12 +50,11 @@ const (
 	OriginSearch = "search"
 )
 
-// stampFresh marks candidates a producer just handed to the router (a new request: no download resumed, no approved
-// hold) with the identity validation they passed (identityCandidates runs on them while their links are in memory)
+// stampFresh marks candidates a producer just handed to the router (a new request: no download resumed) with the identity validation they passed (identityCandidates runs on them while their links are in memory)
 // and the decision path they came from. A request rebuilt from a stored row or payload keeps what was stored. The
 // caller passes a copy of the candidates it may change.
 func (r *Router) stampFresh(req *Request) {
-	if req.DownloadID != 0 || req.Hold != 0 {
+	if req.DownloadID != 0 {
 		return
 	}
 	var kind policy.Kind
@@ -92,9 +91,6 @@ type Request struct {
 	Source string `json:"source,omitempty"`
 	// DownloadID resumes a queued download (a deferred route).
 	DownloadID int64 `json:"download_id,omitempty"`
-	// Hold is the approved upgrade hold this route places (hold.go): its candidate is routed without being held
-	// again. Every other rule applies.
-	Hold int64 `json:"hold,omitempty"`
 	// DecisionRev is the policy revision the candidates were decided under, set when the route is queued. An
 	// automatic route that runs under another revision decides its candidates again.
 	DecisionRev string `json:"decision_rev,omitempty"`
@@ -148,11 +144,6 @@ const (
 	OutcomeCancelled Outcome = "cancelled"
 	// OutcomeInFlight: the version already has a download of this release in flight; nothing was added.
 	OutcomeInFlight Outcome = "in_flight"
-	// OutcomeHeld: the best release would replace a file of a version with upgrades: approve, and was held for a
-	// manager's approval instead (hold.go); nothing was added for it.
-	OutcomeHeld Outcome = "held"
-	// OutcomeWouldHold: the dry run of OutcomeHeld (a shadow version, or the kill switch off): nothing was held.
-	OutcomeWouldHold Outcome = "would_hold"
 )
 
 // Mode says whether the router acted or only planned.
@@ -191,12 +182,10 @@ type Result struct {
 	// Client is the download client of a client-routed version (versions[*].add_via: client).
 	Client string `json:"client,omitempty"`
 	// TorrentID is the provider's id (active only); Reused is true when the provider already held the hash.
-	TorrentID  string `json:"torrent_id,omitempty"`
-	Reused     bool   `json:"reused,omitempty"`
-	DownloadID int64  `json:"download_id,omitempty"`
-	PlanID     int64  `json:"plan_id,omitempty"`
-	// Hold is the pending upgrade hold the route made or found for its best upgrade (hold.go); 0 when none.
-	Hold    int64     `json:"hold,omitempty"`
-	RetryAt time.Time `json:"retry_at,omitzero"`
-	Steps   []Step    `json:"steps"`
+	TorrentID  string    `json:"torrent_id,omitempty"`
+	Reused     bool      `json:"reused,omitempty"`
+	DownloadID int64     `json:"download_id,omitempty"`
+	PlanID     int64     `json:"plan_id,omitempty"`
+	RetryAt    time.Time `json:"retry_at,omitzero"`
+	Steps      []Step    `json:"steps"`
 }
