@@ -177,12 +177,11 @@ func TestVersionRootChecksAndNoLinkDeletion(t *testing.T) {
 	s, db, p, initial := versionFixture(t)
 	ctx := context.Background()
 	root := p.Versions["movie-web"].Library
-	outside := t.TempDir()
 	alias := filepath.Join(p.Library.Dangling.Roots[0], "alias")
 	if err := os.Symlink(p.Versions["movie-remux"].Library, alias); err != nil {
 		t.Fatal(err)
 	}
-	for name, path := range map[string]string{"relative": "relative", "missing": filepath.Join(root, "missing"), "outside": outside, "other-root": p.Versions["movie-remux"].Library, "alias": alias, "mount": p.Library.Mount.Path, "trash": p.Library.Trash.Dir} {
+	for name, path := range map[string]string{"relative": "relative", "missing": filepath.Join(root, "missing"), "other-root": p.Versions["movie-remux"].Library, "alias": alias, "mount": p.Library.Mount.Path, "trash": p.Library.Trash.Dir} {
 		t.Run(name, func(t *testing.T) {
 			if _, err := s.ValidateRoot(ctx, p, "movie-web", path); err == nil {
 				t.Fatal("accepted unsafe root")
@@ -484,10 +483,10 @@ func TestVersionRootWritableMountTrashAndFollowed(t *testing.T) {
 	if err := os.Mkdir(root, 0500); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := validateOneRoot(context.Background(), policy.NewRootResolver(context.Background()), p, p, "new", root, true); err == nil || !strings.Contains(err.Error(), "not writable") {
+	if _, err := validateOneRoot(context.Background(), policy.NewRootResolver(context.Background()), p, "new", root, true); err == nil || !strings.Contains(err.Error(), "not writable") {
 		t.Fatalf("active readonly root: %v", err)
 	}
-	if _, err := validateOneRoot(context.Background(), policy.NewRootResolver(context.Background()), p, p, "new", root, false); err != nil {
+	if _, err := validateOneRoot(context.Background(), policy.NewRootResolver(context.Background()), p, "new", root, false); err != nil {
 		t.Fatal("shadow root requires write permission:", err)
 	}
 	for _, kind := range []string{"mount", "trash"} {
@@ -504,7 +503,7 @@ func TestVersionRootWritableMountTrashAndFollowed(t *testing.T) {
 		if err := os.Symlink(target, alias); err != nil {
 			t.Fatal(err)
 		}
-		if _, err := validateOneRoot(context.Background(), policy.NewRootResolver(context.Background()), p, p, "new", alias, false); err == nil || !strings.Contains(err.Error(), kind) {
+		if _, err := validateOneRoot(context.Background(), policy.NewRootResolver(context.Background()), p, "new", alias, false); err == nil || !strings.Contains(err.Error(), kind) {
 			t.Fatalf("%s alias accepted: %v", kind, err)
 		}
 	}

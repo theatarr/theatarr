@@ -302,7 +302,8 @@ func TestBuildMapsTheStack(t *testing.T) {
 	}
 }
 
-func TestBuildFlagsALibraryOutsideTheArea(t *testing.T) {
+// A library outside library.dangling.roots is no gap: library folders may be anywhere.
+func TestBuildLibraryOutsideDanglingRoots(t *testing.T) {
 	t.Parallel()
 	fs := newFakeStack(t)
 	se := newSettingsEnv(t)
@@ -311,10 +312,8 @@ func TestBuildFlagsALibraryOutsideTheArea(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if !slices.ContainsFunc(p.Gaps, func(g Gap) bool {
-		return g.Subject == "version:movie-uhd" && strings.Contains(g.What, "outside the library area")
-	}) {
-		t.Errorf("no library area gap: %+v", p.Gaps)
+	if slices.ContainsFunc(p.Gaps, func(g Gap) bool { return strings.Contains(g.What, "outside the library area") }) {
+		t.Errorf("library area gap: %+v", p.Gaps)
 	}
 	if !hasGap(p, GapPrereq, "providers") == (len(se.head(t).Policy.Providers) == 0) {
 		t.Errorf("provider gap with %d providers", len(se.head(t).Policy.Providers))

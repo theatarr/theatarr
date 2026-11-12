@@ -26,7 +26,7 @@ func TestRootInMountRefusedByPath(t *testing.T) {
 	}
 	p.Library.Mount.Path = filepath.Join(file, "zurg") // any stat in it fails: not a directory
 	for _, root := range []string{p.Library.Mount.Path, filepath.Join(p.Library.Mount.Path, "__all__", "lib")} {
-		if _, err := validateOneRoot(context.Background(), policy.NewRootResolver(context.Background()), p, p, "new", root, false); err == nil || !strings.Contains(err.Error(), "overlaps the library mount") {
+		if _, err := validateOneRoot(context.Background(), policy.NewRootResolver(context.Background()), p, "new", root, false); err == nil || !strings.Contains(err.Error(), "overlaps the library mount") {
 			t.Errorf("%s: %v", root, err)
 		}
 		if _, err := s.ValidateRoot(context.Background(), p, "movie-web", root); err == nil || !strings.Contains(err.Error(), "mount") {
@@ -240,7 +240,7 @@ func TestHungActiveRootLeavesOffSavesOpen(t *testing.T) {
 	}
 }
 
-// Validating a root for a new version consults every other root, the trash and the allowed area.
+// Validating a root for a new version consults every other root and the trash.
 // When an existing root hangs, each is resolved through its own probe slot: the check names the hung root, the
 // healthy proposed roots are not marked stuck, and trying other proposed paths adds no blocked call on the hung share.
 func TestNewVersionRootBesideHungRoot(t *testing.T) {

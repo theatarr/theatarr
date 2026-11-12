@@ -162,7 +162,7 @@ stale by another settings change is refused and the step can be reviewed again.
 | `indexer/<key>` | an indexer, **disabled** | a Prowlarr indexer as a Torznab feed through Prowlarr (`prowlarr-<slug>`), or native with `-native`; an existing feed with the same address is reused. A private tracker (Prowlarr's verdict) is added and listed in the libraries like any other: privacy is a label. Arr history names indexers by the arr's name; Theatarr matches it to a configured indexer by name (`Policy.IndexerByName`); a name that does not normalize to the key (an arr-side name such as "DMM RD (proxy)") goes in the indexer's `arr_names` alias list |
 | `provider/<key>` | a debrid provider, **disabled** | an existing provider of the kind is reused; a new one needs `-provider kind=KEYNAME` |
 | `quality/<profile>` | a quality profile and its format set | from the arr's profile, custom formats and naming; Recyclarr's origin is recorded. Needs Theatarr's settings to manage quality (start `theatarr serve` once) |
-| `version/<key>` | a library in **shadow, grab off** | library under the mapped arr root, which must exist and sit inside `library.dangling.roots`. No download client is needed: a debrid library adds to its providers directly (an existing `decypharr` client is named when there is one) |
+| `version/<key>` | a library in **shadow, grab off** | library under the mapped arr root, which must exist. No download client is needed: a debrid library adds to its providers directly (an existing `decypharr` client is named when there is one) |
 | `view/<view>/<key>` | the library added to an arr view | so Seerr can be pointed at Theatarr at cutover |
 | `import/<arr>`, `follow/<key>`, `seerr/<flavour>/<id>` | **manual** | the `import.arr` entry, the optional parallel follower ([stage 3](#3-a-follower-library-beside-the-arr)), and each Seerr server's switch. Apply never runs them; Seerr is never written |
 
@@ -184,7 +184,7 @@ refuses a step whose payload would (a hand-edited plan).
 
 Each gap has a topic: `secret` (a key the plan cannot name), `usenet` (Theatarr has no usenet path yet),
 `local_library` (an arr that imports to local disk), `profile` (a profile Theatarr cannot build),
-`paths` (no mapping, or the library is outside the library area), `prerequisite`, `unsupported` (delay and release
+`paths` (no mapping), `prerequisite`, `unsupported` (delay and release
 profiles, a Seerr server pointing at an arr that was not inspected, and the like), `unread` (a service inspect could
 not read).
 
@@ -544,7 +544,7 @@ can be deleted). Nothing to undo on the arr side.
 ### Changing a root with links
 
 The library editor refuses to change a root with active links. Keep the old root and library, create a parallel
-library with a separate existing root inside the allowed library area, configure its naming in the naming editor,
+library with a separate existing root, configure its naming in the naming editor,
 then use the adopt and coverage checks of stages 3 and 4 before switching Plex and clients. Retire the old library only after
 reviewing its removal confirmation; Theatarr never migrates or deletes the old links as part of a settings edit.
 

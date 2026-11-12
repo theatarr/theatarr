@@ -585,14 +585,6 @@ func (b *builder) mapPath(p string) (string, bool) {
 	return p, false
 }
 
-// libraryArea is where version libraries may live (library.dangling.roots), if the policy says.
-func (b *builder) libraryArea() []string {
-	if b.pol.Library == nil {
-		return nil
-	}
-	return b.pol.Library.Dangling.Roots
-}
-
 func isAnime(a ArrInstance) bool {
 	if strings.Contains(strings.ToLower(a.Name), "anime") {
 		return true
@@ -730,14 +722,6 @@ func (b *builder) version(a ArrInstance, kind policy.Kind, anime *bool, provider
 				b.gap(GapPaths, "version:"+key, fmt.Sprintf("%s also has %d titles under %s; the version takes %s", a.Name,
 					r.Titles, r.Path, roots[0].Path), "a version has one library root: add a second version or move them")
 			}
-		}
-		if area := b.libraryArea(); vp.Library != "" && len(area) > 0 && !slices.ContainsFunc(area, func(r string) bool {
-			r = strings.TrimRight(r, "/")
-			return vp.Library == r || strings.HasPrefix(vp.Library, r+"/")
-		}) {
-			b.gap(GapPaths, "version:"+key, fmt.Sprintf("%s is outside the library area (%s)", vp.Library,
-				strings.Join(area, ", ")), "a version's library must be inside library.dangling.roots in the policy "+
-				"files; map the path (-path-map) or add the area, then plan again")
 		}
 	} else {
 		b.gap(GapPaths, "version:"+key, a.Name+" has no root folder", "a version needs a library root")

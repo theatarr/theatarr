@@ -181,11 +181,11 @@ not changed by the fork, so a pack whose file the profile does not allow upgradi
 
 Reproduce. `decide shadow` reads its settings from the `-db` database, so the replay policy is imported into a
 scratch database first (into the run.db copy for the second command, unless that copy already has settings, which the
-replay then uses). The import needs all five record groups and version roots that exist inside a library area, so the
-copy of the test policy gets a `budgets` section (`public: {requests: 1, per: 1s}`), a `library.dangling.roots` area
-and version `library` paths under it that exist. The `*_env` credentials must be set; any value works offline.
+replay then uses). The import needs all five record groups and version roots that exist, so the
+copy of the test policy gets a `budgets` section (`public: {requests: 1, per: 1s}`) and version `library` paths that
+exist. The `*_env` credentials must be set; any value works offline.
 ```
-cp -r internal/decide/shadow/testdata/policy <scratch>/replay-policy   # then add budgets, library and roots as above
+cp -r internal/decide/shadow/testdata/policy <scratch>/replay-policy   # then add budgets and library paths as above
 THEATARR_RD_KEY=x THEATARR_VIEW_RADARR_KEY=x THEATARR_VIEW_SONARR_KEY=x \
   bin/theatarr settings import -policy <scratch>/replay-policy -db <scratch>/replay.db -confirm
 bin/theatarr decide shadow -db <scratch>/replay.db -arr-snapshot <corpus> -corpus <corpus> \
