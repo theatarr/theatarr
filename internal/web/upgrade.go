@@ -359,6 +359,8 @@ func loadEvidence(ctx context.Context, db *sql.DB, titleIDs []int64, items map[t
 
 // itemFile is one current file of a version: the movie's (episode 0) or one episode's.
 type itemFile struct {
+	// key identifies the file: a link's id, or minus an arr file's id. A multi-episode file appears once per episode.
+	key     int64
 	quality string
 	score   *int64
 	size    int64
@@ -384,14 +386,14 @@ func loadItemFiles(ctx context.Context, db *sql.DB, versionIDs []any) (map[int64
 		}
 		m[eid] = f
 	}
-	err := scanAll(ctx, db, `SELECT vf.version_id, COALESCE(fe.episode_id, 0), vf.quality, vf.custom_format_score,
+	err := scanAll(ctx, db, `SELECT -vf.id, vf.version_id, COALESCE(fe.episode_id, 0), vf.quality, vf.custom_format_score,
 		vf.size_bytes, COALESCE(vf.added_at, 0) FROM version_file vf LEFT JOIN version_file_episode fe ON fe.version_file_id = vf.id
 		LEFT JOIN version_source vs ON vs.version_id = vf.version_id WHERE vf.version_id IN (`+in+`) AND `+curFile,
 		versionIDs, func(r *sql.Rows) error {
 			var vid, eid int64
 			var f itemFile
 			var score sql.NullInt64
-			if err := r.Scan(&vid, &eid, &f.quality, &score, &f.size, &f.added); err != nil {
+			if err := r.Scan(&f.key, &vid, &eid, &f.quality, &score, &f.size, &f.added); err != nil {
 				return err
 			}
 			f.score = nullInt(score)
@@ -401,14 +403,14 @@ func loadItemFiles(ctx context.Context, db *sql.DB, versionIDs []any) (map[int64
 	if err != nil {
 		return nil, err
 	}
-	err = scanAll(ctx, db, `SELECT lv.version_id, COALESCE(le.episode_id, 0), COALESCE(l.quality, ''), l.score,
+	err = scanAll(ctx, db, `SELECT l.id, lv.version_id, COALESCE(le.episode_id, 0), COALESCE(l.quality, ''), l.score,
 		COALESCE(`+linkSizeSQL+`, 0), l.created_at FROM link l JOIN link_version lv ON lv.link_id = l.id
 		LEFT JOIN link_episode le ON le.link_id = l.id LEFT JOIN content_file cf ON cf.id = l.content_file_id
 		WHERE lv.version_id IN (`+in+`) AND l.state = 'active'`, versionIDs, func(r *sql.Rows) error {
 		var vid, eid int64
 		var f itemFile
 		var score sql.NullInt64
-		if err := r.Scan(&vid, &eid, &f.quality, &score, &f.size, &f.added); err != nil {
+		if err := r.Scan(&f.key, &vid, &eid, &f.quality, &score, &f.size, &f.added); err != nil {
 			return err
 		}
 		f.score = nullInt(score)

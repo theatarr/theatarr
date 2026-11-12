@@ -346,6 +346,7 @@ func (w *Web) enrichEpisodes(ctx context.Context, db *sql.DB, out *EpisodeList, 
 	counts := map[int64]map[string]map[qs]int{}
 	for _, v := range out.Versions {
 		files := s.files[v.ID]
+		sized := map[[2]int64]bool{} // (season, file): a multi-episode file counts once
 		for _, ue := range s.episodes[v.ID] {
 			se := bySeason[ue.season]
 			if se == nil {
@@ -354,7 +355,8 @@ func (w *Web) enrichEpisodes(ctx context.Context, db *sql.DB, out *EpisodeList, 
 			sc := se.Versions[v.Key]
 			f, ok := files[ue.id]
 			if ok {
-				if seeFiles && f.size > 0 {
+				if seeFiles && f.size > 0 && !sized[[2]int64{ue.season, f.key}] {
+					sized[[2]int64{ue.season, f.key}] = true
 					n := f.size
 					if sc.SizeBytes != nil {
 						n += *sc.SizeBytes

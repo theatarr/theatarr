@@ -859,7 +859,8 @@ func TestAdoptedLinkFileSizes(t *testing.T) {
 		VALUES (8, '/anime/Delta/S01E03.mkv', '/zurg/__all__/Delta/e3.mkv', 4, 'Bluray-1080p', '{"Size":3000000000}',
 		'sonarr@s:8989 /anime/Delta/S01E03.mkv', 'active', ?, ?)`, now, now)
 	e.exec(`INSERT INTO link_version (link_id, version_id) VALUES (8, 4)`)
-	e.exec(`INSERT INTO link_episode (link_id, episode_id) VALUES (8, 43)`)
+	// The link holds S01E02-E03 (it wins over the arr's file for E02).
+	e.exec(`INSERT INTO link_episode (link_id, episode_id) VALUES (8, 42), (8, 43)`)
 	const want = 3000000000
 	list, err := e.web.titleEpisodes(context.Background(), 4, 1, true)
 	if err != nil {
@@ -876,6 +877,12 @@ func TestAdoptedLinkFileSizes(t *testing.T) {
 	}
 	if !found {
 		t.Fatalf("episode 43 not listed: %+v", list.Episodes)
+	}
+	// The season counts the two-episode link once: E01's arr file (1 GB) and the link (3 GB).
+	for _, se := range list.Seasons {
+		if c := se.Versions["anime-tv"]; se.Season == 1 && (c.SizeBytes == nil || *c.SizeBytes != 4000000000) {
+			t.Errorf("season 1 size %+v", c.SizeBytes)
+		}
 	}
 	if f, err := e.web.episodeFile(context.Background(), e.st.Reader(), 4, 43); err != nil || f == nil || f.SizeBytes == nil || *f.SizeBytes != want {
 		t.Errorf("episode file %+v %v", f, err)
