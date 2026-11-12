@@ -1,7 +1,9 @@
 package cardigann
 
 import (
+	"context"
 	"fmt"
+	"net/url"
 	"regexp"
 	"sort"
 	"strconv"
@@ -9,7 +11,87 @@ import (
 
 	"golang.org/x/text/collate"
 	"golang.org/x/text/language"
+
+	"github.com/theatarr/theatarr/internal/arr"
 )
+
+// ReadProwlarr reads Prowlarr's indexer list (GET /api/v1/indexer) with the LAN-only client, which can call nothing
+// else. Link Prowlarr and Move from Prowlarr both read it.
+func ReadProwlarr(ctx context.Context, baseURL, key string) ([]ProwlarrIndexer, error) {
+	cl, err := arr.New(baseURL, key, arr.Options{Prowlarr: true, Retries: 1})
+	if err != nil {
+		return nil, err
+	}
+	var list []ProwlarrIndexer
+	if err := cl.GetJSON(ctx, "indexer", nil, &list); err != nil {
+		return nil, err
+	}
+	return list, nil
+}
+
+// ProwlarrFeed is one Prowlarr indexer as Link Prowlarr offers it: a Torznab feed at Prowlarr's per-indexer URL.
+type ProwlarrFeed struct {
+	ID       int    `json:"id"`
+	Name     string `json:"name"`
+	Privacy  string `json:"privacy"`
+	Protocol string `json:"protocol"`
+	Enabled  bool   `json:"enabled"`
+	URL      string `json:"url"`
+	// Key is the indexer key a link would use (linkable feeds only); Linked the existing indexer with this URL.
+	Key    string `json:"key,omitempty"`
+	Linked string `json:"linked,omitempty"`
+	// Status is linkable, linked (an indexer already has this URL), disabled (off in Prowlarr) or usenet.
+	Status string `json:"status"`
+}
+
+// Link Prowlarr statuses.
+const (
+	FeedLinkable = "linkable"
+	FeedLinked   = "linked"
+	FeedDisabled = "disabled"
+	FeedUsenet   = "usenet"
+)
+
+// ProwlarrFeeds lists Prowlarr's indexers as feeds, sorted by id. existing maps each indexer's normalised URL
+// (NormalizeFeedURL) to its key; taken are the indexer keys in use, which new keys (prowlarr-<name>) avoid.
+func ProwlarrFeeds(list []ProwlarrIndexer, baseURL string, existing map[string]string, taken []string) []ProwlarrFeed {
+	sorted := append([]ProwlarrIndexer(nil), list...)
+	sort.SliceStable(sorted, func(i, j int) bool { return sorted[i].ID < sorted[j].ID })
+	used := map[string]bool{}
+	for _, k := range taken {
+		used[k] = true
+	}
+	base := strings.TrimRight(baseURL, "/")
+	out := make([]ProwlarrFeed, 0, len(sorted))
+	for _, pi := range sorted {
+		f := ProwlarrFeed{ID: pi.ID, Name: pi.Name, Privacy: prowlarrPrivacy(pi.Privacy), Protocol: pi.Protocol,
+			Enabled: pi.Enable, URL: base + "/" + strconv.Itoa(pi.ID) + "/api"}
+		switch linked, ok := existing[NormalizeFeedURL(f.URL)]; {
+		case ok:
+			f.Status, f.Linked = FeedLinked, linked
+		case strings.EqualFold(pi.Protocol, "usenet"):
+			f.Status = FeedUsenet
+		case !pi.Enable:
+			f.Status = FeedDisabled
+		default:
+			f.Status = FeedLinkable
+			f.Key = uniqueKey("prowlarr-"+pi.Name, used)
+		}
+		out = append(out, f)
+	}
+	return out
+}
+
+// NormalizeFeedURL is a feed URL as Link Prowlarr compares it: no trailing slash, scheme and host lower-cased.
+func NormalizeFeedURL(raw string) string {
+	raw = strings.TrimRight(strings.TrimSpace(raw), "/")
+	u, err := url.Parse(raw)
+	if err != nil {
+		return raw
+	}
+	u.Scheme, u.Host = strings.ToLower(u.Scheme), strings.ToLower(u.Host)
+	return u.String()
+}
 
 // ProwlarrIndexer is the part of one entry of Prowlarr's GET /api/v1/indexer that the migration reader uses.
 type ProwlarrIndexer struct {

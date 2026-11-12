@@ -472,7 +472,9 @@ func mergeSections(stored, req []Section) []Section {
 // directory alone, so that is the section's default (what an empty policy has). SaveRequest.seedsSections says which
 // writes use it: the write that creates generation 1 (a first save of any kind, or the first import, which fills them
 // from its files) seeds those it does not set, and serve's next write over an older head that lacks some completes it.
-func withDefaultSections(sections []Section, base *policy.Policy) ([]Section, error) {
+// fresh marks the write that creates generation 1: it seeds the catalog on (definitions at the default repository)
+// when the base leaves it unset, so a new install starts with the catalog while older heads keep what they have.
+func withDefaultSections(sections []Section, base *policy.Policy, fresh bool) ([]Section, error) {
 	if base == nil {
 		base = &policy.Policy{}
 	}
@@ -484,6 +486,9 @@ func withDefaultSections(sections []Section, base *policy.Policy) ([]Section, er
 		config, err := sectionJSON(base, spec.Key)
 		if err != nil {
 			return nil, err
+		}
+		if fresh && spec.Key == "cardigann" && string(config) == "null" {
+			config, _ = json.Marshal(map[string]any{"definitions": map[string]string{"repo": policy.DefaultCardigannRepo}})
 		}
 		missing = append(missing, Section{Record: Record{Key: spec.Key}, Config: config})
 	}

@@ -21,7 +21,7 @@
   "Cardigann": {
     "definitions": "This is the repository branch the catalog follows. Unset: the catalog is not fetched.",
     "flaresolverr_url": "This is a FlareSolverr-compatible service (trawl) that passes Cloudflare checks, e.g. http://trawl:8191. Its traffic must leave through the VPN; requests to it go through the gateway as the indexer's own.",
-    "prowlarr": "This is a prowlarr instance on the LAN whose indexers the migration reader proposes as native ones. It is only read (GET /api/v1/indexer); nothing is written to it or to the settings."
+    "prowlarr": "This is a prowlarr instance on the LAN. Add indexer links its indexers as Torznab feeds, or moves them to native ones; it is only read (GET /api/v1/indexer)."
   },
   "CardigannDefinitions": {
     "branch": "This selects the repository branch. Default master.",

@@ -3,13 +3,12 @@ package main
 import (
 	"context"
 	"errors"
-	"fmt"
 	"log/slog"
 	"path/filepath"
+	"strings"
 	"sync/atomic"
 	"time"
 
-	"github.com/theatarr/theatarr/internal/arr"
 	"github.com/theatarr/theatarr/internal/gateway"
 	"github.com/theatarr/theatarr/internal/indexer/cardigann"
 	"github.com/theatarr/theatarr/internal/policy"
@@ -180,14 +179,14 @@ func (c *cardigannCatalog) ProwlarrProposals(ctx context.Context) ([]cardigann.P
 	}
 	key := pol.Getenv(prowlarr.APIKeyEnv)
 	if key == "" {
-		return nil, fmt.Errorf("cardigann.prowlarr: env %s is not set", prowlarr.APIKeyEnv)
+		msg := "no Prowlarr API key is stored: enter it under Settings › Indexers › Add indexer › Link Prowlarr"
+		if !strings.HasPrefix(prowlarr.APIKeyEnv, policy.SettingsSecretPrefix) {
+			msg += " (or set " + prowlarr.APIKeyEnv + ")"
+		}
+		return nil, errors.New(msg)
 	}
-	cl, err := arr.New(prowlarr.URL, key, arr.Options{Prowlarr: true, Retries: 1})
+	list, err := cardigann.ReadProwlarr(ctx, prowlarr.URL, key)
 	if err != nil {
-		return nil, err
-	}
-	var list []cardigann.ProwlarrIndexer
-	if err := cl.GetJSON(ctx, "indexer", nil, &list); err != nil {
 		return nil, err
 	}
 	return cardigann.ProposeFromProwlarr(list, c.store.Summary), nil

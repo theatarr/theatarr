@@ -10,6 +10,7 @@ import (
 	"io"
 	"net/http"
 	"reflect"
+	"slices"
 	"strings"
 
 	"go.yaml.in/yaml/v3"
@@ -142,6 +143,9 @@ func applyBody(snap *settings.Snapshot, entity string, id int64, body settingsBo
 	if entity == entityBudgets && (body.Enabled != nil || body.Secret != nil || body.ClearSecret) {
 		return req, nil, bodyError("budgets have no enabled flag or credential")
 	}
+	if len(body.Versions) > 0 && (entity != entityIndexers || !create) {
+		return req, nil, bodyError("versions applies to a new indexer only")
+	}
 	if entity != entityIndexers && body.Priority != nil {
 		return req, nil, bodyError("priority applies to indexers only; providers use config.order")
 	}
@@ -196,6 +200,9 @@ func applyBody(snap *settings.Snapshot, entity string, id int64, body settingsBo
 			req.Records.Indexers = append(req.Records.Indexers, rec)
 		} else {
 			req.Records.Indexers[idx] = rec
+		}
+		if err := addToVersions(&req, body.Versions, key); err != nil {
+			return req, scrub, err
 		}
 	case entityProviders:
 		var rec settings.Provider
@@ -256,6 +263,27 @@ func applyBody(snap *settings.Snapshot, entity string, id int64, body settingsBo
 }
 
 var errNoRecord = bodyError("no such record")
+
+// addToVersions lists the indexer keys in each named library (version) of the request, keeping its order and
+// skipping keys it already lists. An unknown library is refused; a library named twice is added to once.
+func addToVersions(req *settings.SaveRequest, versions []string, keys ...string) error {
+	for _, name := range versions {
+		i := slices.IndexFunc(req.Records.Versions, func(v settings.Version) bool { return v.Key == name })
+		if i < 0 {
+			return bodyError("versions: no library " + name)
+		}
+		v := &req.Records.Versions[i]
+		// cloneRecords copies the version structs but shares their Indexers arrays with the snapshot.
+		list := slices.Clone(v.Config.Indexers)
+		for _, key := range keys {
+			if !slices.Contains(list, key) {
+				list = append(list, key)
+			}
+		}
+		v.Config.Indexers = list
+	}
+	return nil
+}
 
 func keyExists(snap *settings.Snapshot, entity, key string) bool {
 	switch entity {

@@ -128,6 +128,7 @@ func (b *debugBundle) collect(ctx context.Context, fs *flag.FlagSet, dbPath, pol
 		}
 	}
 	if snap != nil {
+		// A record still on its environment fallback has no stored value: resolve it as the runtime does.
 		for _, r := range snap.Records.Indexers {
 			_ = snap.WithSecret("indexers", r.Key, os.LookupEnv, func(v string) error { known = append(known, v); return nil })
 		}
@@ -135,6 +136,11 @@ func (b *debugBundle) collect(ctx context.Context, fs *flag.FlagSet, dbPath, pol
 			_ = snap.WithSecret("providers", r.Key, os.LookupEnv, func(v string) error { known = append(known, v); return nil })
 		}
 	}
+	stored, err := storedSecretValues(ctx, st)
+	if err != nil {
+		return nil, fmt.Errorf("stored credentials: %w", err)
+	}
+	known = append(known, stored...)
 	for _, kv := range os.Environ() {
 		k, v, _ := strings.Cut(kv, "=")
 		if !strings.HasPrefix(k, "THEATARR_") {
@@ -186,6 +192,31 @@ func (b *debugBundle) collect(ctx context.Context, fs *flag.FlagSet, dbPath, pol
 		files[i].data = []byte(b.scrub(string(files[i].data)))
 	}
 	return files, nil
+}
+
+// storedSecretValues is every non-empty credential stored in the settings database (setting_secret), whatever owns
+// it. A section's credential is a JSON object of values by path; each value is returned.
+func storedSecretValues(ctx context.Context, st *store.Store) ([]string, error) {
+	rows, err := st.Reader().QueryContext(ctx, "SELECT value FROM setting_secret WHERE value <> ''")
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var out []string
+	for rows.Next() {
+		var v string
+		if err := rows.Scan(&v); err != nil {
+			return nil, err
+		}
+		out = append(out, v)
+		var byPath map[string]string
+		if json.Unmarshal([]byte(v), &byPath) == nil {
+			for _, value := range byPath {
+				out = append(out, value)
+			}
+		}
+	}
+	return out, rows.Err()
 }
 
 // setKnown keeps the credible secret values (6 characters or more, as the gateway's redactor), with their JSON

@@ -629,7 +629,7 @@ func (s *Store) saveWithHook(ctx context.Context, req SaveRequest, operation str
 			return ErrConflict
 		}
 		if req.seedsSections(gen) {
-			if req.Records.Sections, err = withDefaultSections(req.Records.Sections, req.Base); err != nil {
+			if req.Records.Sections, err = withDefaultSections(req.Records.Sections, req.Base, gen == 0); err != nil {
 				return err
 			}
 		}
@@ -920,7 +920,7 @@ func (s *Store) Candidate(ctx context.Context, req SaveRequest) (*Snapshot, erro
 	}
 	req.Records.Sections = mergeSections(current.Records.Sections, req.Records.Sections)
 	if req.seedsSections(current.Generation) {
-		if req.Records.Sections, err = withDefaultSections(req.Records.Sections, req.Base); err != nil {
+		if req.Records.Sections, err = withDefaultSections(req.Records.Sections, req.Base, current.Generation == 0); err != nil {
 			return nil, err
 		}
 	}

@@ -98,10 +98,12 @@ func itoaCLI(n int64) string { b, _ := json.Marshal(n); return string(b) }
 
 // TestDebugBundle plants a secret in the environment (a credential variable and one the policy names), in log
 // lines (as text, under a credential-named key, in a URL) and raw in an inbox row, and checks it appears nowhere
-// in the bundle while the rest does.
+// in the bundle while the rest does. Stored credentials (a record's, and a section's by path) are masked too.
 func TestDebugBundle(t *testing.T) {
 	const secret = "s3cr3tPlanted42x"
 	const policySecret = "tmdbPlantedKey77"
+	const storedSecret = "storedPlantedKeyNoDigits"
+	const sectionSecret = "prowlarrPlantedKeyNoDigits"
 	t.Setenv("THEATARR_TEST_BUNDLE_TOKEN", secret)
 	t.Setenv("THEATARR_TMDB_KEY", policySecret)
 	t.Setenv("THEATARR_SETTINGS_SOURCE", "yaml")
@@ -114,6 +116,10 @@ func TestDebugBundle(t *testing.T) {
 		WHERE id = 1`, secret, `{"token":"`+secret+`","url":"https://x.test/api?apikey=`+policySecret+`"}`, secret); err != nil {
 		t.Fatal(err)
 	}
+	if _, err := st.Writer().Exec(`INSERT INTO setting_secret (value, created_at, updated_at) VALUES (?, 0, 0), (?, 0, 0)`,
+		storedSecret, `{"prowlarr.api_key":"`+sectionSecret+`"}`); err != nil {
+		t.Fatal(err)
+	}
 	st.Close()
 	logs := filepath.Join(filepath.Dir(db), "logs")
 	if err := os.MkdirAll(logs, 0o700); err != nil {
@@ -123,6 +129,7 @@ func TestDebugBundle(t *testing.T) {
 		`{"time":"2026-10-30T10:00:00Z","level":"ERROR","msg":"auth failed for ` + secret + `","component":"router"}`,
 		`{"time":"2026-10-30T10:00:01Z","level":"INFO","msg":"fetch","api_key":"` + secret + `","url":"https://idx.test/api?t=search&apikey=` + policySecret + `"}`,
 		`plain text line with ` + policySecret,
+		`stored credentials ` + storedSecret + ` and ` + sectionSecret,
 	}
 	if err := os.WriteFile(filepath.Join(logs, "theatarr.log.1"), []byte(`{"msg":"older line"}`+"\n"), 0o600); err != nil {
 		t.Fatal(err)
@@ -167,11 +174,13 @@ func TestDebugBundle(t *testing.T) {
 		}
 	}
 	for name, body := range got {
-		if strings.Contains(body, secret) || strings.Contains(body, policySecret) {
+		if strings.Contains(body, secret) || strings.Contains(body, policySecret) || strings.Contains(body, storedSecret) ||
+			strings.Contains(body, sectionSecret) {
 			t.Errorf("%s carries a planted secret:\n%s", name, body)
 		}
 	}
-	if !strings.Contains(got["logs.jsonl"], "older line") || !strings.Contains(got["logs.jsonl"], "auth failed for") {
+	if !strings.Contains(got["logs.jsonl"], "older line") || !strings.Contains(got["logs.jsonl"], "auth failed for") ||
+		!strings.Contains(got["logs.jsonl"], "stored credentials") {
 		t.Errorf("logs: %s", got["logs.jsonl"])
 	}
 	if !strings.Contains(got["errors.json"], "internal/jobs.run()") || !strings.Contains(got["errors.json"], "disk full") {

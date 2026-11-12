@@ -21,12 +21,12 @@ type Cardigann struct {
 	// http://trawl:8191. Its traffic must leave through the VPN; requests to it go through the gateway as the
 	// indexer's own. Empty: sites behind a Cloudflare check fail with a message saying so.
 	FlareSolverrURL string `yaml:"flaresolverr_url"`
-	// Prowlarr is a Prowlarr instance on the LAN whose indexers the migration reader proposes as native ones. It is
-	// only read (GET /api/v1/indexer); nothing is written to it or to the settings.
+	// Prowlarr is a Prowlarr instance on the LAN. Add indexer links its indexers as Torznab feeds, or moves them to
+	// native ones; it is only read (GET /api/v1/indexer).
 	Prowlarr *CardigannProwlarr `yaml:"prowlarr"`
 }
 
-// CardigannProwlarr is the Prowlarr the migration reader reads.
+// CardigannProwlarr is the Prowlarr that Link Prowlarr and Move from Prowlarr read.
 type CardigannProwlarr struct {
 	// URL is the Prowlarr server endpoint.
 	URL string `yaml:"url"`

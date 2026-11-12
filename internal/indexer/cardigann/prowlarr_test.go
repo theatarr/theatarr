@@ -3,6 +3,7 @@ package cardigann
 import (
 	"encoding/json"
 	"slices"
+	"strconv"
 	"strings"
 	"testing"
 )
@@ -81,5 +82,35 @@ func TestProwlarrSelectUsesSortedOptionKeys(t *testing.T) {
 	// Importing must not reorder the definition's native option list.
 	if sum.Settings[0].Options[0].Value != "zebra" {
 		t.Fatal("definition mutated")
+	}
+}
+
+// TestProwlarrFeeds: Link Prowlarr's feed URLs, keys and statuses.
+func TestProwlarrFeeds(t *testing.T) {
+	t.Parallel()
+	list := []ProwlarrIndexer{
+		{ID: 5, Name: "Fixture Public", Protocol: "torrent", Privacy: "public", Enable: true},
+		{ID: 2, Name: "Fixture Public", Protocol: "torrent", Privacy: "semiPrivate", Enable: true},
+		{ID: 7, Name: "Already Here", Protocol: "torrent", Privacy: "private", Enable: true},
+		{ID: 8, Name: "Off Site", Protocol: "torrent", Privacy: "public", Enable: false},
+		{ID: 9, Name: "News", Protocol: "usenet", Privacy: "private", Enable: true},
+	}
+	existing := map[string]string{NormalizeFeedURL("HTTP://Prowlarr.LAN:9696/prowlarr/7/api/"): "prowlarr-here"}
+	for _, base := range []string{"http://prowlarr.lan:9696/prowlarr", "http://prowlarr.lan:9696/prowlarr/"} {
+		feeds := ProwlarrFeeds(list, base, existing, []string{"prowlarr-fixture-public"})
+		var got []string
+		for _, f := range feeds {
+			got = append(got, strings.Join([]string{strconv.Itoa(f.ID), f.URL, f.Key, f.Linked, f.Status, f.Privacy}, " "))
+		}
+		want := []string{
+			"2 http://prowlarr.lan:9696/prowlarr/2/api prowlarr-fixture-public-2  linkable semi-private",
+			"5 http://prowlarr.lan:9696/prowlarr/5/api prowlarr-fixture-public-3  linkable public",
+			"7 http://prowlarr.lan:9696/prowlarr/7/api  prowlarr-here linked private",
+			"8 http://prowlarr.lan:9696/prowlarr/8/api   disabled public",
+			"9 http://prowlarr.lan:9696/prowlarr/9/api   usenet private",
+		}
+		if !slices.Equal(got, want) {
+			t.Fatalf("base %s:\n%s", base, strings.Join(got, "\n"))
+		}
 	}
 }

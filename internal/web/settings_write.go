@@ -39,6 +39,9 @@ type settingsBody struct {
 	OrphanActiveDownloads *bool `json:"orphan_active_downloads"`
 	// ConfirmationToken confirms the write-enabling effects a previous 422 listed for this same request.
 	ConfirmationToken string `json:"confirmation_token"`
+	// Versions, new indexers only: the libraries that search it. Each must exist; the indexer is appended to their
+	// indexer lists in the same save.
+	Versions []string `json:"versions"`
 }
 
 // ---- writes ----

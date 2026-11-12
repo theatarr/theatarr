@@ -120,6 +120,9 @@ func (p *Policy) SecretEnvs() map[string][]string {
 			add(fmt.Sprintf("import.arr[%s].api_key_env", k), p.Import.Arr[k].APIKeyEnv)
 		}
 	}
+	if p.Cardigann != nil && p.Cardigann.Prowlarr != nil {
+		add("cardigann.prowlarr.api_key_env", p.Cardigann.Prowlarr.APIKeyEnv)
+	}
 	if p.Library != nil && p.Library.Plex != nil {
 		add("library.plex.token_env", p.Library.Plex.TokenEnv)
 	}

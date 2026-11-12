@@ -650,7 +650,7 @@ func TestSettingsAPIKillSwitchesUntouchable(t *testing.T) {
 		{"PUT", fmt.Sprintf("/providers/%d", pid), map[string]any{"generation": gen, "orphan_active_downloads": false, "config": map[string]any{
 			"kind": "realdebrid", "order": 1, "url": "https://api.real-debrid.com/rest/1.0", "router_enabled": true}}},
 		{"PUT", fmt.Sprintf("/providers/%d", pid), map[string]any{"generation": gen, "orphan_active_downloads": false, "notify": map[string]any{"enabled": true}}},
-		{"POST", "/budgets", map[string]any{"generation": gen, "key": "b", "versions": map[string]any{"movie-web": map[string]any{"mode": "active"}},
+		{"POST", "/budgets", map[string]any{"generation": gen, "key": "b", "library_versions": map[string]any{"movie-web": map[string]any{"mode": "active"}},
 			"config": map[string]any{"requests": 1, "per": "1m"}}},
 		{"POST", "/import", map[string]any{"generation": gen, "orphan_active_downloads": false, "router": map[string]any{"enabled": true}}},
 		{"PUT", "/indexers/priority", map[string]any{"generation": gen, "priorities": []any{}, "mode": "active"}},
