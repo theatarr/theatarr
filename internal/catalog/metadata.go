@@ -533,14 +533,7 @@ func (s *MovieIntake) addMovie(ctx context.Context, summary tmdb.MovieSummary, c
 	if err := json.Unmarshal([]byte(cfg.versions), &keys); err != nil {
 		return false, err
 	}
-	anime := m.OriginalLanguage == "ja"
-	animated := false
-	for _, g := range m.Genres {
-		if g.ID == 16 {
-			animated = true
-		}
-	}
-	fit, anime, err := s.fitVersions(cfg, keys, anime && animated, policy.KindMovie)
+	fit, anime, err := s.fitVersions(cfg, keys, tmdbAnime(m), policy.KindMovie)
 	if err != nil || len(fit) == 0 {
 		return false, err
 	}
@@ -634,4 +627,17 @@ func (s *MovieIntake) addMovie(ctx context.Context, summary tmdb.MovieSummary, c
 		return true, s.searchReady(ctx, result.TitleID, result.Versions, now)
 	}
 	return true, nil
+}
+
+// tmdbAnime is the anime rule for a movie new to Theatarr: Japanese original language and TMDb's Animation genre.
+func tmdbAnime(m *tmdb.Movie) bool {
+	if m.OriginalLanguage != "ja" {
+		return false
+	}
+	for _, g := range m.Genres {
+		if g.ID == 16 {
+			return true
+		}
+	}
+	return false
 }

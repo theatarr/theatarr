@@ -126,22 +126,56 @@ const movieFileBatch = 50
 func FetchRadarr(ctx context.Context, g Getter, instance string, known func(int) bool) (*Snapshot, error) {
 	s := &Snapshot{Instance: instance, Flavour: "radarr", Tags: map[int]string{}}
 
-	var st radarrStatus
-	if err := g.GetJSON(ctx, "system/status", nil, &st); err != nil {
+	if err := readStatus(ctx, g, s, "Radarr"); err != nil {
 		return nil, err
 	}
-	if st.AppName != "" && st.AppName != "Radarr" {
-		return nil, fmt.Errorf("%s: system/status says %q, not Radarr", instance, st.AppName)
-	}
-	s.AppVersion = st.Version
-
 	if err := fetchReference(ctx, g, s); err != nil {
 		return nil, err
 	}
+	if err := readRadarrMovies(ctx, g, s); err != nil {
+		return nil, err
+	}
 
+	if err := fetchCollections(ctx, g, s); err != nil {
+		return nil, err
+	}
+
+	recs, total, err := fetchHistory(ctx, g, known)
+	if err != nil {
+		return nil, err
+	}
+	s.HistoryTotal = total
+	for _, r := range recs {
+		s.History = append(s.History, toEvent(r))
+	}
+	if err := fetchBlocklist(ctx, g, s); err != nil {
+		return nil, err
+	}
+	return s, nil
+}
+
+// readStatus reads system/status into s.AppVersion and checks that the instance is app (Radarr or Sonarr).
+func readStatus(ctx context.Context, g Getter, s *Snapshot, app string) error {
+	var st radarrStatus
+	if err := g.GetJSON(ctx, "system/status", nil, &st); err != nil {
+		return err
+	}
+	if st.AppName != "" && st.AppName != app {
+		name := s.Instance
+		if name == "" {
+			name = "the instance"
+		}
+		return fmt.Errorf("%s: system/status says %q, not %s", name, st.AppName, app)
+	}
+	s.AppVersion = st.Version
+	return nil
+}
+
+// readRadarrMovies reads the movies (GET movie) and their files (GET moviefile in batches) into s.Titles.
+func readRadarrMovies(ctx context.Context, g Getter, s *Snapshot) error {
 	var movies []radarrMovie
 	if err := g.GetJSON(ctx, "movie", nil, &movies); err != nil {
-		return nil, err
+		return err
 	}
 	sort.Slice(movies, func(i, j int) bool { return movies[i].ID < movies[j].ID })
 
@@ -160,7 +194,7 @@ func FetchRadarr(ctx context.Context, g Getter, instance string, known func(int)
 		}
 		var batch []radarrMovieFile
 		if err := g.GetJSON(ctx, "moviefile", q, &batch); err != nil {
-			return nil, err
+			return err
 		}
 		for k := range batch {
 			files[batch[k].MovieID] = &batch[k]
@@ -213,23 +247,7 @@ func FetchRadarr(ctx context.Context, g Getter, instance string, known func(int)
 		}
 		s.Titles = append(s.Titles, t)
 	}
-
-	if err := fetchCollections(ctx, g, s); err != nil {
-		return nil, err
-	}
-
-	recs, total, err := fetchHistory(ctx, g, known)
-	if err != nil {
-		return nil, err
-	}
-	s.HistoryTotal = total
-	for _, r := range recs {
-		s.History = append(s.History, toEvent(r))
-	}
-	if err := fetchBlocklist(ctx, g, s); err != nil {
-		return nil, err
-	}
-	return s, nil
+	return nil
 }
 
 func radarrFile(mf *radarrMovieFile, moviePath string) *File {

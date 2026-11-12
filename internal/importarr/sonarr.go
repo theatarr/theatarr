@@ -3,7 +3,6 @@ package importarr
 import (
 	"context"
 	"encoding/json"
-	"fmt"
 	"net/url"
 	"sort"
 	"strconv"
@@ -90,24 +89,39 @@ type sonarrEpisodeFile struct {
 func FetchSonarr(ctx context.Context, g Getter, instance string, known func(int) bool) (*Snapshot, error) {
 	s := &Snapshot{Instance: instance, Flavour: "sonarr", Tags: map[int]string{}}
 
-	var st radarrStatus
-	if err := g.GetJSON(ctx, "system/status", nil, &st); err != nil {
+	if err := readStatus(ctx, g, s, "Sonarr"); err != nil {
 		return nil, err
 	}
-	if st.AppName != "" && st.AppName != "Sonarr" {
-		return nil, fmt.Errorf("%s: system/status says %q, not Sonarr", instance, st.AppName)
-	}
-	s.AppVersion = st.Version
 	if err := fetchReference(ctx, g, s); err != nil {
 		return nil, err
 	}
-
-	var series []sonarrSeries
-	if err := g.GetJSON(ctx, "series", nil, &series); err != nil {
+	if err := readSonarrSeries(ctx, g, s, nil); err != nil {
 		return nil, err
 	}
+
+	recs, total, err := fetchHistory(ctx, g, known)
+	if err != nil {
+		return nil, err
+	}
+	s.HistoryTotal = total
+	for _, r := range recs {
+		s.History = append(s.History, toEvent(r))
+	}
+	if err := fetchBlocklist(ctx, g, s); err != nil {
+		return nil, err
+	}
+	return s, nil
+}
+
+// readSonarrSeries reads the series (GET series) and, per series with a TVDB id, its episodes and episode files into
+// s.Titles. progress, when not nil, is called after each series.
+func readSonarrSeries(ctx context.Context, g Getter, s *Snapshot, progress func(done, total int)) error {
+	var series []sonarrSeries
+	if err := g.GetJSON(ctx, "series", nil, &series); err != nil {
+		return err
+	}
 	sort.Slice(series, func(i, j int) bool { return series[i].ID < series[j].ID })
-	for _, sr := range series {
+	for i, sr := range series {
 		t := Title{
 			ArrID: sr.ID, Kind: "series", Name: sr.Title, SortName: sr.SortTitle, Year: sr.Year, TvdbID: sr.TvdbID,
 			TmdbID: sr.TmdbID, ImdbID: sr.ImdbID, Monitored: sr.Monitored, QualityProfileID: sr.QualityProfileID,
@@ -136,29 +150,43 @@ func FetchSonarr(ctx context.Context, g Getter, instance string, known func(int)
 		}
 		if t.TvdbID != 0 {
 			if err := fetchEpisodes(ctx, g, &t); err != nil {
-				return nil, err
+				return err
 			}
 		}
 		s.Titles = append(s.Titles, t)
+		if progress != nil {
+			progress(i+1, len(series))
+		}
 	}
-
-	recs, total, err := fetchHistory(ctx, g, known)
-	if err != nil {
-		return nil, err
-	}
-	s.HistoryTotal = total
-	for _, r := range recs {
-		s.History = append(s.History, toEvent(r))
-	}
-	if err := fetchBlocklist(ctx, g, s); err != nil {
-		return nil, err
-	}
-	return s, nil
+	return nil
 }
 
 // fetchReference reads root folders, tags, quality profiles, and delay and release profiles (the same shape in both
 // arrs).
 func fetchReference(ctx context.Context, g Getter, s *Snapshot) error {
+	if err := readRootFolders(ctx, g, s); err != nil {
+		return err
+	}
+	var tags []radarrTag
+	if err := g.GetJSON(ctx, "tag", nil, &tags); err != nil {
+		return err
+	}
+	for _, t := range tags {
+		s.Tags[t.ID] = t.Label
+	}
+	body, err := readProfiles(ctx, g, s)
+	if err != nil {
+		return err
+	}
+	s.PolicySnapshot = map[string]json.RawMessage{"qualityprofile": body}
+	if err := fetchPolicySnapshot(ctx, g, s); err != nil {
+		return err
+	}
+	return fetchSelection(ctx, g, s)
+}
+
+// readRootFolders reads the instance's root folders into s.RootFolders, sorted.
+func readRootFolders(ctx context.Context, g Getter, s *Snapshot) error {
 	var roots []radarrRootFolder
 	if err := g.GetJSON(ctx, "rootfolder", nil, &roots); err != nil {
 		return err
@@ -167,24 +195,19 @@ func fetchReference(ctx context.Context, g Getter, s *Snapshot) error {
 		s.RootFolders = append(s.RootFolders, r.Path)
 	}
 	sort.Strings(s.RootFolders)
-	var tags []radarrTag
-	if err := g.GetJSON(ctx, "tag", nil, &tags); err != nil {
-		return err
-	}
-	for _, t := range tags {
-		s.Tags[t.ID] = t.Label
-	}
-	var profiles []radarrProfile
+	return nil
+}
+
+// readProfiles reads the quality profiles into s.Profiles and returns the response body (kept for the policy
+// snapshot).
+func readProfiles(ctx context.Context, g Getter, s *Snapshot) (json.RawMessage, error) {
 	var body json.RawMessage
 	if err := g.GetJSON(ctx, "qualityprofile", nil, &body); err != nil {
-		return err
+		return nil, err
 	}
-	s.PolicySnapshot = map[string]json.RawMessage{"qualityprofile": body}
+	var profiles []radarrProfile
 	if err := json.Unmarshal(body, &profiles); err != nil {
-		return err
-	}
-	if err := fetchPolicySnapshot(ctx, g, s); err != nil {
-		return err
+		return nil, err
 	}
 	for _, p := range profiles {
 		items, _ := json.Marshal(p.Items)
@@ -193,7 +216,7 @@ func fetchReference(ctx context.Context, g Getter, s *Snapshot) error {
 			MinFormatScore: p.MinFormatScore, CutoffFormatScore: p.CutoffFormatScore,
 		})
 	}
-	return fetchSelection(ctx, g, s)
+	return body, nil
 }
 
 // fetchEpisodes reads one series' episodes and episode files.
