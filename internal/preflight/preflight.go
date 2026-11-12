@@ -143,6 +143,7 @@ func Run(ctx context.Context, o Options) *Report {
 	c.versions()
 	c.library(ctx)
 	c.providers(ctx)
+	c.clients()
 	c.indexers(ctx)
 	c.metadata()
 	c.views(ctx)
@@ -274,6 +275,10 @@ func (c *checker) library(ctx context.Context) {
 				c.sameFS("root "+k, root, lib.MountPath, "hardlinks need the root and the downloads on one filesystem")
 			}
 		}
+		if v.Mode == policy.ModeActive && lib.Plex != nil && lv.PlexSection == 0 {
+			c.add(AreaLibrary, "plex library "+k, Warn, "choose "+k+"'s Plex library in "+uipages.Plex,
+				"library %s has no Plex library: new files appear only after Plex's own scan", k)
+		}
 	}
 
 	switch {
@@ -399,6 +404,38 @@ func (c *checker) providers(ctx context.Context) {
 			c.add(AreaProviders, check, OK, "", "%s", msg)
 		default:
 			c.add(AreaProviders, check, sourceStatus(s), sourceNext(s, uipages.Providers), "%s", sourceWhy(s))
+		}
+	}
+}
+
+// clients checks the login of each qBittorrent client a library sends downloads to.
+func (c *checker) clients() {
+	for _, ck := range sortedKeys(c.p.Clients) {
+		cl := c.p.Clients[ck]
+		if cl.Kind != "qbittorrent" {
+			continue
+		}
+		var libs []string
+		st := Warn
+		for _, k := range sortedKeys(c.p.Versions) {
+			v := c.p.Versions[k]
+			if v.Client != ck || (!v.ViaClient() && v.Storage != policy.StorageSeedbox) {
+				continue
+			}
+			libs = append(libs, k)
+			if v.Storage == policy.StorageSeedbox {
+				st = Fail
+			}
+		}
+		if len(libs) == 0 {
+			continue
+		}
+		for _, env := range []string{cl.UsernameEnv, cl.PasswordEnv} {
+			if env != "" && !c.credential("", "", env) {
+				c.add(AreaProviders, "client "+ck, st, "set the login in "+uipages.Providers,
+					"download client %s has no login set: %s cannot send downloads to it", ck, strings.Join(libs, ", "))
+				break
+			}
 		}
 	}
 }

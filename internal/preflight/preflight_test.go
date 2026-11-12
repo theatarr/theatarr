@@ -66,7 +66,7 @@ func good(t *testing.T) (Options, string) {
 		Egress:    &policy.Egress{},
 		Library: &policy.Library{Mount: policy.LibraryMount{Path: mount}, Trash: policy.LibraryTrash{Dir: trash},
 			Plex:     &policy.Plex{URL: "http://plex.invalid:32400", TokenEnv: "PLEX_TOKEN"},
-			Versions: map[string]*policy.LibraryVersion{"movies": {Roots: []string{root}}}},
+			Versions: map[string]*policy.LibraryVersion{"movies": {Roots: []string{root}, PlexSection: 1}}},
 	}
 	if err := os.WriteFile(filepath.Join(mount, policy.DefaultLibraryAllDir, "Movie.2024.1080p"), nil, 0o644); err != nil {
 		t.Fatal(err)
@@ -415,5 +415,48 @@ func TestRunTrashUnsetWithoutWritesWarns(t *testing.T) {
 				t.Fatalf("%d fail:\n%s", r.Fail, b.String())
 			}
 		})
+	}
+}
+
+// A qBittorrent client a library sends downloads to needs its login; a client no library uses, and a decypharr
+// client, get no line.
+func TestClientLoginMissing(t *testing.T) {
+	o, _ := good(t)
+	o.Policy.Versions["movies"].Storage = policy.StorageSeedbox
+	o.Policy.Versions["movies"].Client = "qb"
+	o.Policy.Clients = map[string]*policy.Client{
+		"qb":     {Kind: "qbittorrent", UsernameEnv: "QB_USER", PasswordEnv: "QB_PASS"},
+		"unused": {Kind: "qbittorrent", UsernameEnv: "QB_USER", PasswordEnv: "QB_PASS"},
+		"dp":     {Kind: "decypharr", UsernameEnv: "QB_USER", PasswordEnv: "QB_PASS"},
+	}
+	o.Credentials.Lookup = func(name string) (string, bool) {
+		if name == "" || name == "QB_USER" || name == "QB_PASS" {
+			return "", false
+		}
+		return "invented", true
+	}
+	r := Run(context.Background(), o)
+	want(t, r, "providers/client qb", Fail, "download client qb has no login set: movies cannot send downloads to it")
+	for _, k := range []string{"providers/client unused", "providers/client dp"} {
+		if it, ok := items(r)[k]; ok {
+			t.Fatalf("%s: %+v", k, it)
+		}
+	}
+	o.Policy.Versions["movies"].Client = "dp"
+	o.Policy.Versions["movies"].Storage = policy.StorageDebrid
+	o.Policy.Versions["movies"].AddVia = policy.AddViaClient
+	if it, ok := items(Run(context.Background(), o))["providers/client dp"]; ok {
+		t.Fatalf("decypharr client: %+v", it)
+	}
+}
+
+// A Live library with Plex set up but no Plex library warns; a Watch only one does not.
+func TestLiveLibraryWithoutPlexLibrary(t *testing.T) {
+	o, _ := good(t)
+	o.Policy.Library.Versions["movies"].PlexSection = 0
+	want(t, Run(context.Background(), o), "library/plex library movies", Warn, "library movies has no Plex library")
+	o.Policy.Versions["movies"].Mode = policy.ModeShadow
+	if it, ok := items(Run(context.Background(), o))["library/plex library movies"]; ok {
+		t.Fatalf("watch only: %+v", it)
 	}
 }
