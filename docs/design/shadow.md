@@ -81,6 +81,7 @@ backup) run at priority 0 and go first.
 - **Mapping:** the item's IMDb or TMDb id when the feed gives one, else the parsed title's clean title against the
   catalog titles' names, original titles and aliases, filtered by primary or secondary year. Without a parsed year the
   name must identify one movie across the library; same-named films need an id or year. The engine confirms it.
+  The film index (shared with the engine) is reloaded at the start of every run, so a film added since is matched.
 - **Decided** for every monitored shadowed version of the title, including `cutoff_met`,
   with the version's current file. Accepted decisions are ranked together per title/version for the whole sync;
   only the releases selected by episode coverage become **RSS picks** (one for movies).

@@ -9,6 +9,8 @@ import (
 	"time"
 
 	"github.com/prometheus/client_golang/prometheus/testutil"
+
+	"github.com/theatarr/theatarr/internal/importarr"
 )
 
 const (
@@ -305,5 +307,53 @@ func TestMetricsNaNWithoutGrabs(t *testing.T) {
 	}
 	if v := testutil.ToFloat64(e.r.m.agreement.WithLabelValues("14d")); !math.IsNaN(v) {
 		t.Errorf("agreement %v", v)
+	}
+}
+
+// A film added after the first RSS run, by anything but the arr import's own refresh, is matched by the next run:
+// RSS reloads the film index each time.
+func TestRSSSeesFilmAddedAfterFirstRun(t *testing.T) {
+	t.Parallel()
+	e := newEnv(t, false)
+	without := func(f *fakeArr) []map[string]any {
+		all := f.movies
+		f.movies = nil
+		for _, m := range all {
+			if m["id"] != alien.id {
+				f.movies = append(f.movies, m)
+			}
+		}
+		return all
+	}
+	zurgAll, webAll := without(e.zurg), without(e.web)
+	if _, err := e.r.Import(e.ctx); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := e.r.RSS(e.ctx); err != nil {
+		t.Fatal(err)
+	}
+
+	// Alien is added to the catalogue without the shadow import (which reloads the index itself).
+	e.zurg.movies, e.web.movies = zurgAll, webAll
+	im := &importarr.Importer{Store: e.st, Now: e.clock}
+	for _, inst := range []string{"radarr_zurg", "radarr_web"} {
+		a := e.pol.Import.Arr[inst]
+		g, _ := e.r.arr(inst)
+		if _, err := im.Run(e.ctx, importarr.Source{Instance: inst, Flavour: a.Flavour, Version: a.Version,
+			Library: e.pol.Versions[a.Version].Library}, g); err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	e.prow.setRSS(item{title: alienWebRel, hash: hAlienWeb, size: 20e9, pub: t0})
+	rs, err := e.r.RSS(e.ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if rs.Matched != 1 || rs.Picks != 2 {
+		t.Fatalf("rss %+v", rs)
+	}
+	if e.eng.Library().ByIMDb(alien.imdb) == nil {
+		t.Error("the engine's film index has no Alien")
 	}
 }

@@ -187,7 +187,8 @@ func (r *Runner) rss(ctx context.Context, sum *RSSSummary) error {
 	if r.idx == nil {
 		return errors.New("no indexer service")
 	}
-	titles, err := r.titles(ctx)
+	// Reload the film index: films added since the last run (by hand, a request or a list) are matched now.
+	titles, err := r.refresh(ctx)
 	if err != nil {
 		return err
 	}
