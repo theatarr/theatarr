@@ -183,3 +183,18 @@ it("searches a season or an episode, each library once per opening, and again on
   expect(screen.getByTestId("interactive-subject").textContent).toContain("S02E05");
   expect(api.calls("GET", "/titles/7/episodes/55/releases").map((g) => g.search)).toEqual(["?version=movie-web&live=1"]);
 });
+
+it("a release sent for one library is not shown as sent for another", async () => {
+  mockFetch([
+    ME, TITLE,
+    { method: "GET", path: "/titles/7/releases", reply: (r: { search: string }) => answer(new URLSearchParams(r.search).get("version") ?? "") },
+    { method: "POST", path: "/titles/7/releases/grab", reply: sent },
+  ]);
+  renderPage(<InteractiveSearchButton titleId={7} version="movie-web" />);
+  open();
+  fireEvent.click(await grabIn(0));
+  await within(await table()).findByTestId("release-sent");
+  fireEvent.click(screen.getByRole("tab", { name: /movie-remux/i }));
+  await waitFor(async () => expect(within(await table()).getAllByTestId("release-grab")).toHaveLength(2));
+  expect(screen.queryByTestId("release-sent")).toBeNull();
+});

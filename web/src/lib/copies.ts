@@ -265,6 +265,17 @@ export function moveColumn<P extends { order: string[] }>(p: P, id: P["order"][n
   return { ...p, order };
 }
 
+/** Swap two columns' places in the order (the picker moves a column past the next one it lists, skipping columns it
+ *  does not list). */
+export function swapColumns<P extends { order: string[] }>(p: P, a: P["order"][number], b: P["order"][number]): P {
+  const order = [...p.order];
+  const i = order.indexOf(a);
+  const j = order.indexOf(b);
+  if (i < 0 || j < 0) return p;
+  [order[i], order[j]] = [order[j], order[i]];
+  return { ...p, order };
+}
+
 /** The extra columns shown, in order, for this account. */
 export function visibleColumns(p: ColumnPrefs, seeFiles: boolean): ColumnId[] {
   return p.order.filter((id) => p.shown.includes(id) && (seeFiles || !TABLE_COLUMNS.find((c) => c.id === id)?.seeFiles));

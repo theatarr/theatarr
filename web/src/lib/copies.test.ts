@@ -12,6 +12,7 @@ import {
   distinctLabels,
   headerSort,
   moveColumn,
+  swapColumns,
   nextWords,
   normalizeColumns,
   normalizePosters,
@@ -166,6 +167,8 @@ describe("columns and prefs", () => {
     expect(normalizeColumns("junk")).toEqual(DEFAULT_COLUMNS);
     expect(moveColumn(p, "next", -1).order.slice(0, 2)).toEqual(["next", "size"]);
     expect(moveColumn(p, "size", -1)).toBe(p);
+    // The picker moves past the next column it lists, over one it hides.
+    expect(swapColumns({ order: ["size", "quality", "next"] }, "next", "size").order).toEqual(["next", "quality", "size"]);
   });
 
   it("leaves file columns out for accounts that do not see files", () => {

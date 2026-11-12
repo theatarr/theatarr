@@ -94,3 +94,13 @@ describe("needsConfirm", () => {
     expect(scope.does.at(-1)).toBe("It replaces the current file (Bluray-1080p, score 50), which scores higher");
   });
 });
+
+describe("a pack", () => {
+  it("gets no score-based question: its existing is only the first episode's file", () => {
+    const pack = c(1, { score: 10, episodes: ["S01E01", "S01E02"], existing: { quality: "WEBDL-1080p", score: 50 } });
+    expect(needsConfirm(pack)).toBe(false);
+    expect(grabConfirmScope(pack, "WEB").title).toBe("Grab this release");
+    expect(needsConfirm({ ...pack, accepted: false })).toBe(true);
+    expect(needsConfirm({ ...pack, episodes: ["S01E01"] })).toBe(true);
+  });
+});

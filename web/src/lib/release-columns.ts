@@ -205,16 +205,23 @@ export const FLAG_LABEL: Record<string, string> = {
   "seadex-best": "SeaDex best",
 };
 
-/** Whether a grab asks first: a rejected release, or one that would replace a better-scored file. */
+/** Whether an accepted release would replace a better-scored file. Only for a release of one file (a film or one
+ *  episode): a candidate's existing is the first held episode's file only (decide), so for a pack it says nothing
+ *  about the other episodes' files, and a pack gets no score-based question. */
+function replacesBetter(c: Candidate): boolean {
+  return (c.episodes?.length ?? 0) <= 1 && !!c.existing && (c.existing.score ?? 0) > (c.score ?? 0);
+}
+
+/** Whether a grab asks first: a rejected release, or a single-file one that would replace a better-scored file. */
 export function needsConfirm(c: Candidate): boolean {
-  return !c.accepted || (!!c.existing && (c.existing.score ?? 0) > (c.score ?? 0));
+  return !c.accepted || replacesBetter(c);
 }
 
 /** The grab confirmation: grabScope, and for an accepted release that replaces a better-scored file, a warning that
  *  it does. late: the server's reasons when it rejected the release at grab time. */
 export function grabConfirmScope(c: Candidate, library: string, late?: string[]): Scope {
   const base = grabScope(c, library, late);
-  const replaces = c.accepted && !late?.length && !!c.existing && (c.existing.score ?? 0) > (c.score ?? 0);
+  const replaces = c.accepted && !late?.length && replacesBetter(c);
   if (!replaces) return base;
   return {
     ...base,

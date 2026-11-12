@@ -6,7 +6,7 @@ import { useRef, type ReactNode } from "react";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Modal } from "@/components/ui/modal";
-import { POSTER_DETAILS, moveColumn, type PosterPrefs, type PosterSize } from "@/lib/copies";
+import { POSTER_DETAILS, swapColumns, type PosterPrefs, type PosterSize } from "@/lib/copies";
 import { cn } from "@/lib/utils";
 
 function OptionsDialog({ label, note, onClose, children }: { label: string; note: string; onClose: () => void; children: ReactNode }) {
@@ -55,10 +55,10 @@ export function ColumnPicker<T extends string, P extends { order: T[]; shown: T[
                   <span className="block text-xs text-[var(--ink-3)]">{c.hint}</span>
                 </span>
               </label>
-              <Button variant="ghost" size="icon-sm" aria-label={`Move ${c.label} up`} disabled={i === 0} onClick={() => onChange(moveColumn(prefs, id, -1))}>
+              <Button variant="ghost" size="icon-sm" aria-label={`Move ${c.label} up`} disabled={i === 0} onClick={() => onChange(swapColumns(prefs, id, ids[i - 1]))}>
                 <ArrowUp />
               </Button>
-              <Button variant="ghost" size="icon-sm" aria-label={`Move ${c.label} down`} disabled={i === ids.length - 1} onClick={() => onChange(moveColumn(prefs, id, 1))}>
+              <Button variant="ghost" size="icon-sm" aria-label={`Move ${c.label} down`} disabled={i === ids.length - 1} onClick={() => onChange(swapColumns(prefs, id, ids[i + 1]))}>
                 <ArrowDown />
               </Button>
             </li>

@@ -299,8 +299,10 @@ export function ReleaseGrid({
   }, [focus, items]);
   const sortBy = (key: ReleaseSortKey) =>
     save({ ...prefs, sort: prefs.sort.key === key ? { key, dir: prefs.sort.dir === "asc" ? "desc" : "asc" } : { key, dir: naturalDir(key) } });
-  const markSent = (c: Candidate) => () => setSent((s) => new Set(s).add((c.info_hash ?? "").toLowerCase()));
-  const isSent = (c: Candidate) => !!c.info_hash && sent.has(c.info_hash.toLowerCase());
+  // Sent is per title, library and hash: the grid stays mounted while the window switches library.
+  const sentKey = (c: Candidate) => `${grab?.titleId}:${grab?.version}:${(c.info_hash ?? "").toLowerCase()}`;
+  const markSent = (c: Candidate) => () => setSent((s) => new Set(s).add(sentKey(c)));
+  const isSent = (c: Candidate) => !!c.info_hash && sent.has(sentKey(c));
   const label = (id: ReleaseColumnId | "title") => (id === "title" ? "Title" : columns.find((c) => c.id === id)?.label ?? id);
   const head = (id: ReleaseColumnId | "title") => {
     const key = columnSortKey(id);
@@ -316,7 +318,8 @@ export function ReleaseGrid({
       </TableHead>
     );
   };
-  const key = (c: Candidate, i: number) => `${c.info_hash ?? ""}-${c.rank}-${i}`;
+  // A row's key follows the release, not its place, so sorting keeps a grab on its way in its cell.
+  const key = (c: Candidate) => `${c.info_hash ?? ""}-${c.indexer ?? ""}-${c.rank ?? ""}-${c.release ?? ""}`;
   return (
     <div className="space-y-3" data-testid="release-grid">
       <div className="flex flex-wrap items-center gap-2">
@@ -355,8 +358,8 @@ export function ReleaseGrid({
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {rows.map((c, i) => (
-                  <TableRow key={key(c, i)} data-release-hash={c.info_hash?.toLowerCase()} data-focus={picked(c) || undefined} className={cn(!c.accepted && "opacity-80", picked(c) && "bg-[var(--accent-soft)] opacity-100")}>
+                {rows.map((c) => (
+                  <TableRow key={key(c)} data-release-hash={c.info_hash?.toLowerCase()} data-focus={picked(c) || undefined} className={cn(!c.accepted && "opacity-80", picked(c) && "bg-[var(--accent-soft)] opacity-100")}>
                     {before.map((id) => (
                       <TableCell key={id} className="align-top" data-column={id}>
                         <Cell id={id} c={c} outcomes={outcomes} />
@@ -381,8 +384,8 @@ export function ReleaseGrid({
             </Table>
           </div>
           <ul className="space-y-2 md:hidden" data-testid="releases-list">
-            {rows.map((c, i) => (
-              <li key={key(c, i)} data-release-hash={c.info_hash?.toLowerCase()} data-focus={picked(c) || undefined} className={cn("rounded-[5px] border border-[var(--line)] bg-[var(--surface)] p-3", picked(c) && "border-[var(--accent)] bg-[var(--accent-soft)]")}>
+            {rows.map((c) => (
+              <li key={key(c)} data-release-hash={c.info_hash?.toLowerCase()} data-focus={picked(c) || undefined} className={cn("rounded-[5px] border border-[var(--line)] bg-[var(--surface)] p-3", picked(c) && "border-[var(--accent)] bg-[var(--accent-soft)]")}>
                 <div className="flex items-start justify-between gap-3">
                   <span className="font-mono text-[12px] text-[var(--ink)] [overflow-wrap:anywhere]">{c.release}</span>
                   <Score c={c} />
