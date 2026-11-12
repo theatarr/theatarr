@@ -123,8 +123,9 @@ it("adds a Radarr instance as a list after a check, previews it, and never shows
     { method: "GET", path: "/lists", reply: () => ({ lists, libraries, series_libraries: { "tv-2160p": "TV 4K" }, can_sync: true }) },
     { method: "POST", path: "/lists/check", reply: { app: "Radarr", version: "5.2.0", titles: 1234 } },
     { method: "POST", path: "/lists", reply: () => { lists = [radarr]; return { status: 201, body: radarr }; } },
-    { method: "POST", path: "/lists/3/preview", reply: { add_title: 2, add_library: 1, present: 5, excluded: 1, skipped: 0,
-      titles: [{ name: "Alpha", year: 2020, tmdb_id: 11, change: "add_title" }, { name: "Beta", tmdb_id: 12, change: "add_library" }] } },
+    { method: "POST", path: "/lists/3/preview", reply: { add_title: 12, add_library: 0, present: 5, excluded: 1, skipped: 1,
+      titles: [...Array.from({ length: 12 }, (_, i) => ({ name: `Movie ${i}`, tmdb_id: 100 + i, change: "add_title" })),
+        { name: "Gamma", year: 2021, tmdb_id: 13, change: "skipped" }] } },
   ]);
   renderPage(<ListsPage />, "/collections/lists");
   await user.click(await screen.findByRole("button", { name: "Add list" }));
@@ -148,8 +149,11 @@ it("adds a Radarr instance as a list after a check, previews it, and never shows
   expect(row.getByText("Radarr at http://10.0.0.5:7878")).toBeTruthy();
   await user.click(row.getByRole("button", { name: "Preview" }));
   expect((await row.findByTestId("list-preview-3")).textContent).toContain(
-    "Sync now would add 3 titles (2 new, 1 to libraries they are not in yet); 5 are already there, 1 excluded.");
-  expect(row.getByText("Alpha (2020)")).toBeTruthy();
+    "Sync now would add 12 titles (12 new, 0 to libraries they are not in yet); 5 are already there, 1 excluded, 1 skipped (they fit none of the list's libraries).");
+  expect(row.getByText("Movie 0")).toBeTruthy();
+  expect(row.queryByText("Movie 11")).toBeNull();
+  // A skipped title is named even when it comes after the first titles to add.
+  expect(within(row.getByTestId("list-skipped-3")).getByText("Gamma (2021)")).toBeTruthy();
 
   // On edit the key field is empty; the saved key is kept unless a new one is typed.
   await user.click(row.getByRole("button", { name: "Edit" }));
@@ -158,4 +162,29 @@ it("adds a Radarr instance as a list after a check, previews it, and never shows
   expect(key.value).toBe("");
   expect(key.placeholder).toBe("Saved. Type a new key to replace it.");
   expect((dialog.getByLabelText("Address") as HTMLInputElement).value).toBe("http://10.0.0.5:7878");
+  // The same address spelled differently is no new address: Save and Check need no key.
+  await user.type(dialog.getByLabelText("Address"), "/");
+  expect(dialog.getByRole("button", { name: "Save" }).hasAttribute("disabled")).toBe(false);
+  expect(dialog.getByRole("button", { name: "Check" }).hasAttribute("disabled")).toBe(false);
+  await user.clear(dialog.getByLabelText("Address"));
+  await user.type(dialog.getByLabelText("Address"), "http://10.0.0.9:7878");
+  expect(dialog.getByRole("button", { name: "Save" }).hasAttribute("disabled")).toBe(true);
+});
+
+it("labels a Sonarr list's series libraries by their names", async () => {
+  const user = userEvent.setup();
+  const sonarr: Schemas["MovieList"] = { ...mine, id: 4, name: "Sonarr", list_type: "sonarr", kind: "series", tmdb_id: 0, monitor: "all",
+    url: "http://10.0.0.7:8989", api_key_set: true, versions: ["tv-2160p"], libraries: ["tv-2160p", "anime-tv"] };
+  mockFetch([
+    { method: "GET", path: "/auth/me", reply: manager },
+    { method: "GET", path: "/lists", reply: { lists: [sonarr], libraries, series_libraries: { "tv-2160p": "TV 4K", "anime-tv": "Anime TV" }, can_sync: true } },
+  ]);
+  renderPage(<ListsPage />, "/collections/lists");
+  const row = within(await screen.findByTestId("list-4"));
+  expect(row.getByText("TV 4K")).toBeTruthy();
+  expect(row.getByText("Sonarr at http://10.0.0.7:8989")).toBeTruthy();
+  await user.click(row.getByRole("button", { name: "Edit" }));
+  const dialog = within(screen.getByTestId("list-dialog"));
+  expect(dialog.getByRole("button", { name: "TV 4K" }).getAttribute("aria-pressed")).toBe("true");
+  expect(dialog.getByRole("button", { name: "Anime TV" }).getAttribute("aria-pressed")).toBe("false");
 });

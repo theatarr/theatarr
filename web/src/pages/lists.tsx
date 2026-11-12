@@ -8,7 +8,7 @@ import { ListVideo, Loader2, Plus, X } from "lucide-react";
 import { useAuth } from "@/api/auth";
 import { useDebounced } from "@/api/add";
 import { permsOf } from "@/api/library";
-import { listIDFrom, useListCheck, useListLookup, useListMutations, useLists, type ListAdd, type ListPreview, type MovieList } from "@/api/lists";
+import { listIDFrom, normalListURL, useListCheck, useListLookup, useListMutations, useLists, type ListAdd, type ListPreview, type MovieList } from "@/api/lists";
 import { AVAILABILITY } from "@/components/collections/add-collection";
 import { CollectionsTabs } from "@/components/collections/collections-tabs";
 import { Empty, ErrorState, Loading, PageHeader } from "@/components/page";
@@ -57,7 +57,7 @@ function ListDialog({ list, libraries, seriesLibraries, canSync, m, onClose }: {
   const found = lookup.data;
   const title = name.trim() || (arr ? APP[listType] : found?.name) || "";
   const mutation = list ? m.set : m.add;
-  const newAddress = list ? address.trim() !== (list.url ?? "") : true;
+  const newAddress = list ? normalListURL(address) !== normalListURL(list.url ?? "") : true;
   const ready = title !== "" && versions.length > 0 && (arr ? address.trim() !== "" && (!newAddress || apiKey.trim() !== "")
     : list ? true : listIDFrom(source) > 0 && !found?.added);
   const pickType = (t: ListType) => {
@@ -125,7 +125,7 @@ function ListDialog({ list, libraries, seriesLibraries, canSync, m, onClose }: {
         {keys.map(key => {
           const on = versions.includes(key);
           return <button key={key} type="button" aria-pressed={on} title={key} onClick={() => setVersions(on ? versions.filter(k => k !== key) : [...versions, key])}
-            className={cn("rounded-[3px] border px-2 py-0.5 text-xs", on ? "border-[var(--accent)] bg-[var(--accent-soft)] text-[var(--accent-ink)]" : "border-[var(--line-2)] text-[var(--ink-3)]")}>{libraries[key] ?? key}</button>;
+            className={cn("rounded-[3px] border px-2 py-0.5 text-xs", on ? "border-[var(--accent)] bg-[var(--accent-soft)] text-[var(--accent-ink)]" : "border-[var(--line-2)] text-[var(--ink-3)]")}>{shown[key] ?? key}</button>;
         })}
         {keys.length === 0 ? <span className="text-xs text-muted-foreground">There is no {listType === "sonarr" ? "series" : "movie"} library to add to.</span>
           : arr ? <span className="block w-full text-xs text-muted-foreground">Each title goes to the chosen libraries that take it (anime to anime libraries).</span>
@@ -155,17 +155,22 @@ function ListDialog({ list, libraries, seriesLibraries, canSync, m, onClose }: {
   </Modal>;
 }
 
+const titleName = (t: ListPreview["titles"][number]) => `${t.name}${t.year ? ` (${t.year})` : ""}`;
+
 /** What Preview found: the counts in one sentence, then the first titles. */
 function previewWords(p: ListPreview): string {
   const n = p.add_title + p.add_library;
   return `Sync now would add ${n} ${n === 1 ? "title" : "titles"} (${p.add_title} new, ${p.add_library} to libraries they are not in yet); ${p.present} ${p.present === 1 ? "is" : "are"} already there${p.excluded ? `, ${p.excluded} excluded` : ""}${p.skipped ? `, ${p.skipped} skipped (they fit none of the list's libraries)` : ""}.`;
 }
 
-function ListRow({ l, libraries, canSync, m, edit, remove, synced }: { l: MovieList; libraries: Record<string, string>; canSync: boolean; m: Mutations; edit: () => void; remove: () => void; synced: (words: string) => void }) {
+function ListRow({ l, libraries, seriesLibraries, canSync, m, edit, remove, synced }: { l: MovieList; libraries: Record<string, string>; seriesLibraries: Record<string, string>; canSync: boolean; m: Mutations; edit: () => void; remove: () => void; synced: (words: string) => void }) {
   const syncing = m.sync.isPending && m.sync.variables === l.id;
   const previewing = m.preview.isPending && m.preview.variables === l.id;
   const preview = m.preview.variables === l.id ? m.preview.data : undefined;
+  const adds = preview?.titles.filter(t => t.change !== "skipped") ?? [];
+  const skipped = preview?.titles.filter(t => t.change === "skipped") ?? [];
   const busy = syncing || (m.set.isPending && m.set.variables?.id === l.id);
+  const labels = l.list_type === "sonarr" ? seriesLibraries : libraries;
   const monitorLabel = MONITOR[l.list_type]?.find(([v]) => v === l.monitor)?.[1] ?? l.monitor;
   const sync = () => m.sync.mutate(l.id, { onSuccess: r => synced(`${r.list.name}: ${r.added} ${r.added === 1 ? "title" : "titles"} added, ${r.skipped} skipped (already in the library or excluded).${r.sync_error ? ` ${r.sync_error}` : ""}`) });
   return <li className="flex min-w-0 flex-wrap items-start gap-3 px-3 py-3" data-testid={`list-${l.id}`}>
@@ -179,16 +184,22 @@ function ListRow({ l, libraries, canSync, m, edit, remove, synced }: { l: MovieL
       </div>
       <div className="flex flex-wrap items-center gap-1.5 text-xs text-muted-foreground">
         <span>Adds to</span>
-        {l.versions.map(k => <Chip key={k} tone="ghost">{libraries[k] ?? k}</Chip>)}
+        {l.versions.map(k => <Chip key={k} tone="ghost">{labels[k] ?? k}</Chip>)}
         <span>· Monitor: {monitorLabel}</span>
         <span>· Search on add: {l.search_on_add ? "on" : "off"}</span>
         <span>· Last sync: {l.last_sync_at ? fmtAgo(l.last_sync_at) : "never"}</span>
       </div>
       {preview ? <div className="space-y-1 text-xs" data-testid={`list-preview-${l.id}`}>
         <p className="text-[var(--ink)]">{previewWords(preview)}</p>
-        {preview.titles.length > 0 ? <ul className="list-inside list-disc text-muted-foreground">
-          {preview.titles.slice(0, 10).map(t => <li key={`${t.tmdb_id ?? 0}-${t.tvdb_id ?? 0}-${t.name}`}>{t.name}{t.year ? ` (${t.year})` : ""}{t.change === "add_title" ? "" : t.change === "add_library" ? ": to another library" : ": skipped"}</li>)}
+        {adds.length > 0 ? <ul className="list-inside list-disc text-muted-foreground">
+          {adds.slice(0, 10).map(t => <li key={`${t.tmdb_id ?? 0}-${t.tvdb_id ?? 0}-${t.name}`}>{titleName(t)}{t.change === "add_library" ? ": to another library" : ""}</li>)}
         </ul> : null}
+        {skipped.length > 0 ? <div data-testid={`list-skipped-${l.id}`}>
+          <p className="text-[var(--ink)]">Skipped, because they fit none of the list's libraries:</p>
+          <ul className="list-inside list-disc text-muted-foreground">
+            {skipped.map(t => <li key={`${t.tmdb_id ?? 0}-${t.tvdb_id ?? 0}-${t.name}`}>{titleName(t)}</li>)}
+          </ul>
+        </div> : null}
         {preview.note && l.list_type !== "sonarr" ? <p className="text-muted-foreground">{preview.note}</p> : null}
       </div> : null}
       {m.preview.error && m.preview.variables === l.id ? <ErrorState error={m.preview.error} /> : null}
@@ -230,7 +241,7 @@ export function ListsPage() {
       {m.sync.error ? <ErrorState error={m.sync.error} /> : null}
       {m.set.error && !dialog ? <ErrorState error={m.set.error} /> : null}
       {d.lists.length === 0 ? <Card><Empty icon={ListVideo}>No lists yet. Add a TMDb list by its id or address.</Empty></Card> :
-        <Card className="p-0"><ul className="divide-y divide-[var(--line)]">{d.lists.map(l => <ListRow key={l.id} l={l} libraries={d.libraries} canSync={d.can_sync} m={m}
+        <Card className="p-0"><ul className="divide-y divide-[var(--line)]">{d.lists.map(l => <ListRow key={l.id} l={l} libraries={d.libraries} seriesLibraries={d.series_libraries ?? {}} canSync={d.can_sync} m={m}
           edit={() => open(l)} remove={() => { m.remove.reset(); setRemoving(l); }} synced={setDone} />)}</ul></Card>}
     </div> : null}
   </div>;

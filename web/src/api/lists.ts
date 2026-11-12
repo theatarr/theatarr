@@ -51,3 +51,14 @@ export function listIDFrom(text: string): number {
 /** POST /lists/check: read a Radarr or Sonarr instance (by address and key, or a stored list's by id). */
 export const useListCheck = () =>
   useMutation({ mutationFn: (body: ListCheck) => api<ListCheckResult>("/lists/check", { method: "POST", body }) });
+
+/** A Radarr or Sonarr address written as the server stores it: trimmed, no trailing slash, lower-case scheme and host. */
+export function normalListURL(text: string): string {
+  const t = text.trim();
+  try {
+    const u = new URL(t);
+    return `${u.protocol}//${u.host}${u.pathname.replace(/\/+$/, "")}`;
+  } catch {
+    return t.replace(/\/+$/, "");
+  }
+}

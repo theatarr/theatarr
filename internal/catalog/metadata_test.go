@@ -760,8 +760,9 @@ func TestSonarrListAddsSeries(t *testing.T) {
 		{"tvdbId":401,"tmdbId":501,"imdbId":"tt401","title":"Standard","year":2020,"seriesType":"standard",
 			"seasons":[{"seasonNumber":1,"monitored":false},{"seasonNumber":2,"monitored":true}]},
 		{"tvdbId":402,"title":"Anime","seriesType":"anime"},
-		{"tvdbId":403,"title":"Kept"},
-		{"tvdbId":404,"title":"Elsewhere"}]`}})
+		{"tvdbId":403,"title":"Kept","seriesType":"anime"},
+		{"tvdbId":404,"title":"Elsewhere"},
+		{"tvdbId":405,"tmdbId":505,"title":"By TMDb id","seriesType":"anime"}]`}})
 	var searched []string
 	s.OnAdd = func(_ context.Context, id int64, keys []string) error {
 		searched = append(searched, strconv.FormatInt(id, 10)+":"+strings.Join(keys, ","))
@@ -771,17 +772,25 @@ func TestSonarrListAddsSeries(t *testing.T) {
 		`INSERT INTO import_list(id,name,list_type,url,api_key,versions,monitor,search_on_add,created_at,updated_at) VALUES
 			(1,'Sonarr','sonarr','http://10.0.0.7:8989','secret','["anime-tv","tv"]','all',1,0,0)`,
 		`INSERT INTO title(id,kind,name,tvdb_id,created_at,updated_at) VALUES(73,'series','Kept',403,0,0),(74,'series','Elsewhere',404,0,0)`,
+		// Stored without a TVDB id and not anime, though the instance calls it anime.
+		`INSERT INTO title(id,kind,name,tmdb_id,anime,created_at,updated_at) VALUES(75,'series','By TMDb id',505,0,0,0)`,
 		`INSERT INTO version(id,title_id,policy_key,monitored,state,created_at,updated_at) VALUES(83,73,'tv',0,'wanted',0,0),(84,74,'tv-4k',1,'wanted',0,0)`,
 	} {
 		if _, err := st.Writer().Exec(q); err != nil {
 			t.Fatal(err)
 		}
 	}
+	// A stored title's own anime flag wins over the instance's series type, in Preview as in Sync: Kept (stored not
+	// anime, its tv row there) is present, not missing the anime library.
+	p, err := s.PreviewList(context.Background(), 1)
+	if err != nil || p.Present != 1 || p.AddTitle != 2 || p.AddLibrary != 2 || p.Skipped != 0 {
+		t.Fatalf("preview %+v %v", p, err)
+	}
 	got, err := s.SyncArrLists(context.Background())
 	if err != nil {
 		t.Fatal(err)
 	}
-	if got.Added != 3 || got.Skipped != 1 {
+	if got.Added != 4 || got.Skipped != 1 {
 		t.Fatalf("sync %+v", got)
 	}
 	versions := func(tvdb int64) string {
@@ -793,7 +802,8 @@ func TestSonarrListAddsSeries(t *testing.T) {
 		}
 		return keys
 	}
-	for tvdb, want := range map[int64]string{401: "tv:1:list", 402: "anime-tv:1:list", 403: "tv:0:manual", 404: "tv:1:list,tv-4k:1:manual"} {
+	for tvdb, want := range map[int64]string{401: "tv:1:list", 402: "anime-tv:1:list", 403: "tv:0:manual", 404: "tv:1:list,tv-4k:1:manual",
+		405: "tv:1:list"} {
 		if got := versions(tvdb); got != want {
 			t.Errorf("tvdb %d: versions %q, want %q", tvdb, got, want)
 		}
@@ -810,7 +820,11 @@ func TestSonarrListAddsSeries(t *testing.T) {
 	if countRows(t, st, `SELECT count(*) FROM arrview_title a JOIN title t ON t.id=a.title_id WHERE t.tvdb_id=401 AND a.view='v/tv'`) != 1 {
 		t.Error("new series not in its library's view")
 	}
-	if len(searched) != 3 || !slices.Contains(searched, "74:tv") {
+	// The stored series found by TMDb id got the instance's TVDB id, which its episode refresh needs; still not anime.
+	if countRows(t, st, `SELECT count(*) FROM title WHERE id=75 AND tvdb_id=405 AND tmdb_id=505 AND anime=0`) != 1 {
+		t.Error("stored series did not get the instance's TVDB id, or changed its anime flag")
+	}
+	if len(searched) != 4 || !slices.Contains(searched, "74:tv") {
 		t.Errorf("searched %v", searched)
 	}
 	if got, err = s.SyncArrLists(context.Background()); err != nil || got.Added != 0 {

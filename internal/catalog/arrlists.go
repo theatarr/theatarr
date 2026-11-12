@@ -132,7 +132,11 @@ func (s *MovieIntake) addSeries(ctx context.Context, it arrSeries, cfg movieInta
 		if err != nil {
 			return err
 		}
-		anime := stored || it.SeriesType == "anime"
+		// A stored title keeps its own anime flag; the instance's series type decides only for a new one.
+		anime := stored
+		if !found {
+			anime = it.SeriesType == "anime"
+		}
 		fit, _, err := s.fitVersions(cfg, keys, anime, policy.KindSeries)
 		if err != nil {
 			return err
@@ -141,13 +145,15 @@ func (s *MovieIntake) addSeries(ctx context.Context, it arrSeries, cfg movieInta
 		if err != nil || len(missing) == 0 {
 			return err
 		}
-		in := Input{Kind: policy.KindSeries, Title: it.Title, Year: it.Year, Anime: &anime,
-			Versions: func(bool) ([]string, error) { return missing, nil }, Monitored: cfg.monitored,
+		// The instance's ids go along for a stored title too: Add fills the ones it lacks (a series found by TMDb id
+		// gets its TVDB id for the episode refresh) and never replaces stored ones.
+		in := Input{Kind: policy.KindSeries, TvdbID: it.TvdbID, TmdbID: it.TmdbID, ImdbID: it.ImdbID, Title: it.Title,
+			Year: it.Year, Versions: func(bool) ([]string, error) { return missing, nil }, Monitored: cfg.monitored,
 			Source: "series-list", AddMethod: "list"}
 		if found {
 			in.TitleID = id
 		} else {
-			in.TvdbID, in.TmdbID, in.ImdbID, in.SeriesType = it.TvdbID, it.TmdbID, it.ImdbID, it.SeriesType
+			in.Anime, in.SeriesType = &anime, it.SeriesType
 		}
 		res, err := Add(ctx, tx, in, now, s.Log)
 		if err != nil {
@@ -246,9 +252,10 @@ type ListPreview struct {
 	Present  int `json:"present"`
 	Excluded int `json:"excluded"`
 	// Skipped are titles of a Radarr or Sonarr list that fit none of the list's libraries.
-	Skipped int            `json:"skipped"`
-	Titles  []PreviewTitle `json:"titles"`
-	Note    string         `json:"note,omitempty"`
+	Skipped int `json:"skipped"`
+	// Titles are the first 200 titles to add and, apart from them, the first 200 skipped ones.
+	Titles []PreviewTitle `json:"titles"`
+	Note   string         `json:"note,omitempty"`
 }
 
 // PreviewTitle is one title a sync would change, or skip.
@@ -261,7 +268,7 @@ type PreviewTitle struct {
 	Change string `json:"change"`
 }
 
-// previewTitles caps ListPreview.Titles.
+// previewTitles caps the titles to add, and apart from them the skipped ones, in ListPreview.Titles.
 const previewTitles = 200
 
 // PreviewList reads the list's titles as a sync does and classifies each without writing and without TMDb detail
@@ -289,7 +296,9 @@ func (s *MovieIntake) PreviewList(ctx context.Context, id int64) (ListPreview, e
 		case "skipped":
 			out.Skipped++
 		}
-		if t.Change != "present" && t.Change != "excluded" && len(out.Titles) < previewTitles {
+		// The titles to add and the skipped ones are capped apart, so a long list still names what it skips.
+		if n := map[string]int{"add_title": out.AddTitle + out.AddLibrary, "add_library": out.AddTitle + out.AddLibrary,
+			"skipped": out.Skipped}[t.Change]; n > 0 && n <= previewTitles {
 			out.Titles = append(out.Titles, t)
 		}
 	}
@@ -387,7 +396,10 @@ func (s *MovieIntake) previewSeries(ctx context.Context, cfg movieIntakeConfig, 
 			return "", err
 		}
 	}
-	return s.previewChange(ctx, cfg, keys, id, found, anime || it.SeriesType == "anime", policy.KindSeries)
+	if !found {
+		anime = it.SeriesType == "anime"
+	}
+	return s.previewChange(ctx, cfg, keys, id, found, anime, policy.KindSeries)
 }
 
 func (s *MovieIntake) previewChange(ctx context.Context, cfg movieIntakeConfig, keys []string, titleID int64, found,
