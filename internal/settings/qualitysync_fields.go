@@ -207,6 +207,17 @@ func setProfileField(p *policy.Profile, f string, raw json.RawMessage) error {
 	return err
 }
 
+// allowedCutoff reports whether a cutoff (JSON) names one of p's qualities.
+func allowedCutoff(p *policy.Profile) func(json.RawMessage) bool {
+	return func(raw json.RawMessage) bool {
+		var name string
+		if json.Unmarshal(raw, &name) != nil {
+			return false
+		}
+		return slices.ContainsFunc(p.Qualities, func(q policy.QualityItem) bool { return q.Name == name })
+	}
+}
+
 // orderFits reports whether a quality_order still ranks qualities: its allowed items are qualities, in order and
 // with the same group members (what validation asks).
 func orderFits(order, qualities []policy.QualityItem) bool {
@@ -315,6 +326,15 @@ func reconcileProfile(cur *policy.Profile, in RecyclarrProfile, last map[string]
 		}
 		prev, known := last[f]
 		mem, take, kept := followField(ours, up[f], prev, known)
+		if f == "cutoff" && (kept || take) {
+			// A cutoff must be one of the qualities as they now are: yours is kept only while it is one, and the
+			// source's is taken only when it is one (else the current cutoff stays), never a fallback that is neither.
+			if valid := allowedCutoff(cur); kept && !valid(ours) && valid(up[f]) {
+				kept, take = false, true
+			} else if take && !valid(up[f]) && valid(ours) {
+				take = false
+			}
+		}
 		switch {
 		case kept:
 			// Ours stays; the source's new value is remembered, so the next run leaves it alone.

@@ -128,3 +128,31 @@ func TestReconcileCutoffComparedBeforeQualities(t *testing.T) {
 		t.Fatalf("cutoff %q kept %+v %v", cur.Cutoff, kept, err)
 	}
 }
+
+// Your cutoff is kept only while it is one of the profile's qualities: when the source drops it from the qualities
+// and changes its own cutoff, the source's cutoff is taken (a change, not "kept yours"), never a fallback.
+func TestReconcileInvalidOwnCutoffTakesSource(t *testing.T) {
+	t.Parallel()
+	src := policy.Profile{Qualities: qualityItems("WEBDL-2160p", "WEBDL-1080p", "Bluray-1080p"), Cutoff: "WEBDL-2160p"}
+	cur := src
+	cur.Cutoff = "WEBDL-1080p" // yours
+	last := map[string]FieldMemory{"qualities": {Upstream: profileField(&src, "qualities")}, "cutoff": {Upstream: profileField(&src, "cutoff")}}
+	in := RecyclarrProfile{Key: "p", Fields: []string{"qualities", "cutoff"}, Config: policy.Profile{Qualities: qualityItems("WEBDL-2160p", "Bluray-1080p"), Cutoff: "Bluray-1080p"}}
+	next, kept, err := reconcileProfile(&cur, in, last, false, func(string) bool { return false })
+	if err != nil || cur.Cutoff != "Bluray-1080p" || len(kept) != 0 || !sameFieldJSON(next["cutoff"].Upstream, profileField(&in.Config, "cutoff")) {
+		t.Fatalf("cutoff %q kept %+v memory %s %v", cur.Cutoff, kept, next["cutoff"].Upstream, err)
+	}
+}
+
+// The source's new cutoff is not taken when it is not one of the qualities you kept: the current cutoff stays.
+func TestReconcileSourceCutoffOutsideYourQualities(t *testing.T) {
+	t.Parallel()
+	src := policy.Profile{Qualities: qualityItems("WEBDL-2160p", "WEBDL-1080p"), Cutoff: "WEBDL-2160p"}
+	cur := src
+	cur.Qualities = qualityItems("WEBDL-1080p", "WEBDL-2160p") // yours
+	last := map[string]FieldMemory{"qualities": {Upstream: profileField(&src, "qualities")}, "cutoff": {Upstream: profileField(&src, "cutoff")}}
+	in := RecyclarrProfile{Key: "p", Fields: []string{"qualities", "cutoff"}, Config: policy.Profile{Qualities: qualityItems("WEBDL-2160p", "WEBDL-1080p", "Bluray-1080p"), Cutoff: "Bluray-1080p"}}
+	if _, _, err := reconcileProfile(&cur, in, last, false, func(string) bool { return false }); err != nil || cur.Cutoff != "WEBDL-2160p" || len(cur.Qualities) != 2 {
+		t.Fatalf("cutoff %q qualities %v %v", cur.Cutoff, cur.Qualities, err)
+	}
+}
