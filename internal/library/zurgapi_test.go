@@ -12,11 +12,13 @@ import (
 	"path/filepath"
 	"strings"
 	"sync"
+	"syscall"
 	"testing"
 	"time"
 
 	"github.com/theatarr/theatarr/internal/gateway"
 	"github.com/theatarr/theatarr/internal/health"
+	"github.com/theatarr/theatarr/internal/library/probe"
 	"github.com/theatarr/theatarr/internal/policy"
 	"github.com/theatarr/theatarr/internal/store"
 )
@@ -426,7 +428,8 @@ func TestRelinkZurgConfirmsCandidate(t *testing.T) {
 
 // TestImportZurgConfirmsRelease: zurg names the torrent behind a release folder. A bare name held by another torrent
 // of the same name is passed over for this download's " {hash6}" folder, preferred even without the API. A
-// file zurg does not confirm is not linked and holds the import for review, never fails or blocklists it.
+// file zurg does not confirm is not linked: the import waits (failed without blocklist at the ready deadline), and is
+// never failed or blocklisted by the import itself.
 func TestImportZurgConfirmsRelease(t *testing.T) {
 	t.Parallel()
 	setup := func(t *testing.T) *env {
@@ -566,19 +569,174 @@ func TestImportZurgConfirmsRelease(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		if len(plan.Links) != 0 || len(plan.Rejected) != 1 || !strings.Contains(plan.Rejected[0].Reason, "zurg") {
+		if len(plan.Links) != 0 || len(plan.Rejected) != 1 || !strings.Contains(plan.Rejected[0].Reason, "zurg") ||
+			!plan.Waiting {
 			t.Fatalf("plan %+v", plan)
 		}
 		if s := e.one(`SELECT state FROM download WHERE id = 1`); s != "ready" {
-			t.Errorf("download %s: held for review, not failed", s)
+			t.Errorf("download %s: waiting, not failed", s)
 		}
 		if n := e.one(`SELECT COUNT(*) FROM router_blocklist`); n != "0" {
 			t.Errorf("blocklisted %s", n)
 		}
-		if s := e.one(`SELECT state FROM library_import WHERE download_id = 1`); s != "rejected" {
+		if s := e.one(`SELECT state FROM library_import WHERE download_id = 1`); s != "waiting_mount" {
 			t.Errorf("library import %s", s)
 		}
+		if s := e.one(`SELECT last_error FROM library_import WHERE download_id = 1`); !strings.HasPrefix(s,
+			"mount mismatch: zurg does not confirm") {
+			t.Errorf("waiting with %q", s)
+		}
 	})
+}
+
+// mismatchEnv is a movie download whose one file zurg reports at another size than the mount: a mismatch wait.
+func mismatchEnv(t *testing.T) (*env, *zurgServer) {
+	t.Helper()
+	e := newEnv(t, true, policy.ModeActive)
+	e.release(movieRelease, map[string]float64{"movie.mkv": 7000})
+	e.download(1, "movie-remux", 1, 10, movieRelease, movieRelease, "[]")
+	srv := newZurgServer(t)
+	srv.entries[davPath(movieRelease, "")] = ZurgEntry{Hash: hashA}
+	srv.entries[davPath(movieRelease, "movie.mkv")] = ZurgEntry{Hash: hashA, Size: 6}
+	e.withZurg(srv)
+	return e, srv
+}
+
+func (e *env) importState() string {
+	e.t.Helper()
+	return e.one(`SELECT state || ' ' || attempts || ' ' || COALESCE(last_error, '') FROM library_import WHERE download_id = 1`)
+}
+
+func (e *env) run() {
+	e.t.Helper()
+	if _, err := e.lib.Run(e.ctx); err != nil {
+		e.t.Fatal(err)
+	}
+}
+
+// TestZurgMismatchWaitClears: an import waiting because zurg reports another size than the mount is left alone
+// within the partial-import back-off (10 min) and imports on the first pass after it once zurg agrees.
+func TestZurgMismatchWaitClears(t *testing.T) {
+	t.Parallel()
+	e, srv := mismatchEnv(t)
+	e.run()
+	if s := e.importState(); !strings.HasPrefix(s, "waiting_mount 1 mount mismatch: zurg does not confirm") {
+		t.Fatalf("library import %s", s)
+	}
+	srv.entries[davPath(movieRelease, "movie.mkv")] = ZurgEntry{Hash: hashA, Size: 5}
+	e.now = e.now.Add(5 * time.Minute)
+	e.run()
+	if s := e.one(`SELECT state FROM download WHERE id = 1`); s != "ready" {
+		t.Fatalf("re-checked within the back-off: download %s", s)
+	}
+	e.now = e.now.Add(6 * time.Minute)
+	e.run()
+	if s := e.one(`SELECT state FROM download WHERE id = 1`); s != "imported" {
+		t.Errorf("download %s after zurg agreed", s)
+	}
+}
+
+// TestZurgMismatchRetryAtOnce: Retry (arrview RetryDownload calls Import) plans and imports at once during the
+// back-off; the ready time, which the deadline counts from, is not touched.
+func TestZurgMismatchRetryAtOnce(t *testing.T) {
+	t.Parallel()
+	e, srv := mismatchEnv(t)
+	readyAt := e.one(`SELECT COALESCE(ready_at, 'null') FROM download WHERE id = 1`)
+	e.run()
+	srv.entries[davPath(movieRelease, "movie.mkv")] = ZurgEntry{Hash: hashA, Size: 5}
+	e.now = e.now.Add(time.Minute)
+	if _, err := e.lib.Import(e.ctx, 1, false); err != nil {
+		t.Fatal(err)
+	}
+	if s := e.one(`SELECT state || ' ' || COALESCE(ready_at, 'null') FROM download WHERE id = 1`); s != "imported "+readyAt {
+		t.Errorf("after Retry: %s", s)
+	}
+}
+
+// TestZurgMismatchMixedPack: zurg first confirms neither the film nor an extra; once it confirms the film, the next
+// due pass imports the film while the extra stays unconfirmed.
+func TestZurgMismatchMixedPack(t *testing.T) {
+	t.Parallel()
+	e, srv := mismatchEnv(t)
+	e.release(movieRelease, map[string]float64{"extra.mkv": 7000})
+	srv.entries[davPath(movieRelease, "extra.mkv")] = ZurgEntry{Hash: hashB, Size: 5}
+	e.run()
+	if s := e.importState(); !strings.HasPrefix(s, "waiting_mount 1 mount mismatch: ") {
+		t.Fatalf("library import %s", s)
+	}
+	srv.entries[davPath(movieRelease, "movie.mkv")] = ZurgEntry{Hash: hashA, Size: 5}
+	e.now = e.now.Add(11 * time.Minute)
+	e.run()
+	if s := e.one(`SELECT state FROM download WHERE id = 1`); s != "imported" {
+		t.Fatalf("download %s (import %s)", s, e.importState())
+	}
+	if n := e.one(`SELECT COUNT(*) FROM link WHERE state = 'active' AND target LIKE '%/movie.mkv'`); n != "1" {
+		t.Errorf("film links %s", n)
+	}
+}
+
+// TestZurgMismatchBackoffStartsAfresh: an import that waited 8 times for its release to show enters a mismatch wait
+// with its count at 1, so it is looked at again after 10 minutes, not 6 hours.
+func TestZurgMismatchBackoffStartsAfresh(t *testing.T) {
+	t.Parallel()
+	e, srv := mismatchEnv(t)
+	e.exec(`INSERT INTO library_import (download_id, state, waiting_since, last_error, attempts, created_at, updated_at)
+		VALUES (1, 'waiting_mount', ?, 'release not on the mount yet', 8, ?, ?)`, e.now.UnixMilli(), e.now.UnixMilli(), e.now.UnixMilli())
+	e.run()
+	if s := e.importState(); !strings.HasPrefix(s, "waiting_mount 1 mount mismatch: ") {
+		t.Fatalf("library import %s", s)
+	}
+	e.now = e.now.Add(11 * time.Minute)
+	e.run()
+	if s := e.importState(); !strings.HasPrefix(s, "waiting_mount 2 mount mismatch: ") {
+		t.Errorf("after 11 min: %s", s)
+	}
+	srv.entries[davPath(movieRelease, "movie.mkv")] = ZurgEntry{Hash: hashA, Size: 5}
+	e.now = e.now.Add(11 * time.Minute) // the second wait's back-off is 20 min
+	e.run()
+	if s := e.one(`SELECT state FROM download WHERE id = 1`); s != "ready" {
+		t.Errorf("re-checked within the doubled back-off: %s", s)
+	}
+}
+
+// TestZurgMismatchInconclusiveKeepsReason: a due pass that cannot see the folder, finds no video file in it, or
+// cannot read a file keeps the mismatch wait and its reason (the deadline then fails it without blocklist).
+func TestZurgMismatchInconclusiveKeepsReason(t *testing.T) {
+	t.Parallel()
+	folder := func(e *env) string { return filepath.Join(e.mount, "__all__", movieRelease) }
+	for name, change := range map[string]func(*env, *zurgServer){
+		"folder gone": func(e *env, _ *zurgServer) {
+			if err := os.RemoveAll(folder(e)); err != nil {
+				t.Fatal(err)
+			}
+		},
+		"empty listing": func(e *env, _ *zurgServer) {
+			if err := os.Remove(filepath.Join(folder(e), "movie.mkv")); err != nil {
+				t.Fatal(err)
+			}
+		},
+		"read failure": func(e *env, srv *zurgServer) {
+			srv.entries[davPath(movieRelease, "movie.mkv")] = ZurgEntry{Hash: hashA, Size: 5}
+			e.lib.probe = func(p string, _ int64) (*probe.Result, error) {
+				return nil, &os.PathError{Op: "read", Path: p, Err: syscall.EIO}
+			}
+		},
+	} {
+		t.Run(name, func(t *testing.T) {
+			e, srv := mismatchEnv(t)
+			e.run()
+			waiting := e.one(`SELECT last_error FROM library_import WHERE download_id = 1`)
+			change(e, srv)
+			e.now = e.now.Add(11 * time.Minute)
+			e.run()
+			if s := e.importState(); s != "waiting_mount 2 "+waiting {
+				t.Errorf("after the pass: %s, want the reason %q", s, waiting)
+			}
+			if s := e.one(`SELECT state FROM download WHERE id = 1`) + " " + e.one(`SELECT COUNT(*) FROM link`); s != "ready 0" {
+				t.Errorf("download and links: %s", s)
+			}
+		})
+	}
 }
 
 // TestImportZurgNameForHash: the providers may name a torrent otherwise than zurg's folder (a lower-cased video file

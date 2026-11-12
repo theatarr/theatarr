@@ -19,6 +19,7 @@ import (
 	"github.com/theatarr/theatarr/internal/journal"
 	"github.com/theatarr/theatarr/internal/library"
 	"github.com/theatarr/theatarr/internal/metadata/art"
+	"github.com/theatarr/theatarr/internal/router"
 	"github.com/theatarr/theatarr/internal/store"
 )
 
@@ -541,7 +542,8 @@ func waitTimes(d *activity.Download, now time.Time) (since, retry *time.Time) {
 			}
 		}
 	}
-	if d.ImportState == "partial" && !d.ImportUpdated.IsZero() {
+	mismatch := d.ImportState == "waiting_mount" && strings.HasPrefix(d.ImportErr, router.ImportMismatchPrefix)
+	if (d.ImportState == "partial" || mismatch) && !d.ImportUpdated.IsZero() {
 		if t := library.PartialRetryAt(d.ImportUpdated, d.ImportAttempts); t.After(now) {
 			retry = &t
 		}

@@ -199,6 +199,55 @@ func TestHeldReadyImportDoesNotExpire(t *testing.T) {
 	}
 }
 
+// TestReadyDeadlineMismatchNotBlocklisted: a ready download past its deadline whose import waits because the mount
+// and zurg disagree (ImportMismatchPrefix) fails without blocklist and without a re-search; one waiting for the
+// release to show on the mount fails, blocklisted and re-searched, in the same pass.
+func TestReadyDeadlineMismatchNotBlocklisted(t *testing.T) {
+	t.Parallel()
+	e := newEnv(t, true, policy.ModeActive)
+	withQueue(e)
+	start := e.clock
+	for _, w := range []struct {
+		id   int64
+		hash string
+		err  string
+	}{
+		{5, h("a"), ImportMismatchPrefix + "zurg does not confirm the files are this download's (zurg: the file is 6 bytes, the mount shows 5)"},
+		{6, h("b"), "release not on the mount yet"},
+	} {
+		e.exec(`INSERT INTO download (id, title_id, version_id, version_key, info_hash, release_title, indexer,
+			state, ready_at, created_at, updated_at) VALUES (?, 1, 10, 'movie', ?, 'Movie', 'pub', 'ready', ?, ?, ?)`,
+			w.id, w.hash, store.Millis(start), store.Millis(start), store.Millis(start))
+		e.exec(`INSERT INTO library_import (download_id, state, waiting_since, last_error, created_at, updated_at)
+			VALUES (?, 'waiting_mount', ?, ?, ?, ?)`, w.id, store.Millis(start), w.err, store.Millis(start), store.Millis(start))
+	}
+	e.clock = start.Add(e.r.set.ReadyTimeout)
+	sum, err := e.r.Poll(e.ctx)
+	if err != nil || sum.Failed != 2 || sum.Researched != 1 {
+		t.Fatalf("deadline: %+v, %v", sum, err)
+	}
+	var got string
+	if err := e.st.Reader().QueryRow(`SELECT state || ' ' || error FROM download WHERE id = 5`).Scan(&got); err != nil {
+		t.Fatal(err)
+	}
+	if !strings.HasPrefix(got, "failed ready timeout:") ||
+		!strings.Contains(got, ImportMismatchPrefix) || !strings.HasSuffix(got, "; not blocklisted") {
+		t.Errorf("mismatch download: %s", got)
+	}
+	if n := e.count(`SELECT COUNT(*) FROM library_import WHERE download_id = 5 AND state = 'failed'`); n != 1 {
+		t.Error("mismatch wait not ended")
+	}
+	if n := e.count(`SELECT COUNT(*) FROM router_blocklist WHERE download_id = 5`); n != 0 {
+		t.Errorf("mismatch blocklisted (%d rows)", n)
+	}
+	if n := e.count(`SELECT COUNT(*) FROM router_blocklist WHERE download_id = 6 AND source = ?`, BlocklistReadyTimeout); n != 1 {
+		t.Errorf("mount wait blocklisted %d times", n)
+	}
+	if got := researchJobs(e); len(got) != 1 || got[0].DownloadID != 6 {
+		t.Errorf("re-search: %+v", got)
+	}
+}
+
 func TestReadyDeadlineKeepsOtherStates(t *testing.T) {
 	t.Parallel()
 	e := newEnv(t, true, policy.ModeActive)

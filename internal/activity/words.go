@@ -90,6 +90,10 @@ func ProviderName(kindOrKey string) string {
 // while it answered otherwise.
 const unreadablePrefix = "file unreadable on the mount: "
 
+// mismatchPrefix is router.ImportMismatchPrefix: an import waiting while the mount and zurg or decypharr disagree
+// about its files.
+const mismatchPrefix = "mount mismatch: "
+
 // Words is the download's state in plain words. With provider (a name, e.g. "Real-Debrid"), the words name it
 // (admins); without, they name none (users never see providers, docs/design/ui.md §8.4).
 func (d *Download) Words(provider string) string {
@@ -124,6 +128,9 @@ func (d *Download) Words(provider string) string {
 		case "waiting_mount":
 			if strings.HasPrefix(d.ImportErr, unreadablePrefix) {
 				return "File unreadable on the mount, retrying"
+			}
+			if strings.HasPrefix(d.ImportErr, mismatchPrefix) {
+				return "Waiting for the mount to show this download's files"
 			}
 			return "Waiting for the mount"
 		case "partial":

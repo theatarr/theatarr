@@ -70,8 +70,8 @@ type PlannedFile struct {
 }
 
 // ZurgFileCheck is what zurg's API said about a release file. Confirmed: the download's hash, and the size the
-// mount shows. A file that is not confirmed is not linked, and an import left with only such files is held for
-// review, never failed or blocklisted: the mount and zurg disagree, which is no verdict on the release.
+// mount shows. A file that is not confirmed is not linked, and an import left with only such files waits and, at the
+// ready deadline, fails without blocklist: the mount and zurg disagree, which is no verdict on the release.
 type ZurgFileCheck struct {
 	Hash      string `json:"hash"`
 	Size      int64  `json:"size"`
@@ -150,8 +150,12 @@ func (l *Library) Run(ctx context.Context) (int, error) {
 		var updated int64
 		_ = l.st.Reader().QueryRowContext(ctx, `SELECT state, attempts, updated_at, COALESCE(last_error, '')
 			FROM library_import WHERE download_id = ?`, id).Scan(&st, &attempts, &updated, &lastErr)
-		if st == "rejected" {
+		if st == "rejected" && !legacyMismatch(lastErr) {
 			continue // held for manual review; a manual import calls Import directly
+		}
+		if st == "waiting_mount" && strings.HasPrefix(lastErr, router.ImportMismatchPrefix) &&
+			l.now().Before(store.FromMillis(updated).Add(partialBackoff(attempts))) {
+			continue // the mount and zurg or decypharr disagree; looked at again after a back-off (Retry at once)
 		}
 		if st == "dry_run" && !l.gate.Active(l.versionOf(ctx, id)) {
 			continue // planned already; nothing changed that would allow it
@@ -486,6 +490,11 @@ func (l *Library) importDownload(ctx context.Context, d *importDownload, dryRun 
 		if len(d.Manual) > 0 || at.Rel != "" {
 			return l.holdForReview(ctx, d, plan, dryRun, "none of the selected files is a video file in "+folder)
 		}
+		if !dryRun && l.waitingMismatch(ctx, id) {
+			// An empty listing says nothing about the disagreement: the mismatch wait stays (markWaitingWithError).
+			plan.Waiting = true
+			return plan, l.markWaiting(ctx, d)
+		}
 		return l.holdForReview(ctx, d, plan, dryRun, "no video files in "+folder)
 	}
 
@@ -551,8 +560,8 @@ func (l *Library) importDownload(ctx context.Context, d *importDownload, dryRun 
 
 	if len(unlisted) > 0 && len(plan.Files) == 0 {
 		// The list exists, the folder is there and no file in it is the download's: as when zurg does not confirm
-		// the files, held for review and never failed or blocklisted.
-		return l.holdForReview(ctx, d, plan, dryRun, "decypharr's folder "+filepath.Base(folder)+
+		// the files, the import waits and, at the ready deadline, fails without blocklist.
+		return l.waitMismatch(ctx, d, plan, dryRun, "decypharr's folder "+filepath.Base(folder)+
 			" holds none of the download's files ("+unlistedReason(unlisted[0])+")")
 	}
 
@@ -591,7 +600,7 @@ func (l *Library) importDownload(ctx context.Context, d *importDownload, dryRun 
 		}
 		if anyZurgUnconfirmed(plan.Rejected) {
 			// The mount and zurg disagree about the files: no verdict on the release.
-			return l.holdForReview(ctx, d, plan, dryRun, "zurg does not confirm the files are this download's ("+
+			return l.waitMismatch(ctx, d, plan, dryRun, "zurg does not confirm the files are this download's ("+
 				firstZurgReason(plan.Rejected)+")")
 		}
 		if reason == "no file passed the sample guard" {
@@ -797,6 +806,31 @@ func (l *Library) markWaiting(ctx context.Context, d *importDownload) error {
 	return l.markWaitingWithError(ctx, d, notOnMount)
 }
 
+// waitMismatch leaves an import waiting while the mount and zurg or decypharr disagree about its files
+// (router.ImportMismatchPrefix): looked at again after the partial-import back-off, failed without blocklist at the
+// ready deadline.
+func (l *Library) waitMismatch(ctx context.Context, d *importDownload, plan *Plan, dryRun bool, reason string) (*Plan, error) {
+	plan.Waiting = true
+	if dryRun {
+		return plan, nil
+	}
+	return plan, l.markWaitingWithError(ctx, d, router.ImportMismatchPrefix+reason)
+}
+
+// waitingMismatch reports whether the import waits because the mount and zurg or decypharr disagree.
+func (l *Library) waitingMismatch(ctx context.Context, id int64) bool {
+	var st, lastErr string
+	_ = l.st.Reader().QueryRowContext(ctx, `SELECT state, COALESCE(last_error, '') FROM library_import
+		WHERE download_id = ?`, id).Scan(&st, &lastErr)
+	return st == "waiting_mount" && strings.HasPrefix(lastErr, router.ImportMismatchPrefix)
+}
+
+// legacyMismatch reports a hold an earlier build wrote where the import now waits (waitMismatch): the periodic pass
+// plans it again, so it becomes a mismatch wait (or imports) with its original ready deadline.
+func legacyMismatch(lastErr string) bool {
+	return strings.HasPrefix(lastErr, "zurg does not confirm") || strings.HasPrefix(lastErr, "decypharr's folder ")
+}
+
 // forgetFloor is the least time between two clears of the release root's cached listing.
 const forgetFloor = 3 * time.Second
 
@@ -885,11 +919,24 @@ func (l *Library) markWaitingWithError(ctx context.Context, d *importDownload, r
 		if err := holdsClaim(ctx, tx, d); err != nil {
 			return err
 		}
+		var st, lastErr string
+		if err := tx.QueryRowContext(ctx, `SELECT state, COALESCE(last_error, '') FROM library_import WHERE download_id = ?`,
+			d.ID).Scan(&st, &lastErr); err != nil && !errors.Is(err, sql.ErrNoRows) {
+			return err
+		}
+		mismatch := st == "waiting_mount" && strings.HasPrefix(lastErr, router.ImportMismatchPrefix)
+		if mismatch && (reason == notOnMount || strings.HasPrefix(reason, UnreadablePrefix)) {
+			// A pass that cannot see the folder or its files, or read them, says nothing about the disagreement.
+			reason = lastErr
+		}
+		// Entering a mismatch wait counts its back-off afresh; earlier waits of another kind do not lengthen it.
+		fresh := strings.HasPrefix(reason, router.ImportMismatchPrefix) && !mismatch
 		_, err := tx.ExecContext(ctx, `INSERT INTO library_import (download_id, state, waiting_since, last_error, attempts, created_at, updated_at)
 			VALUES (?, 'waiting_mount', ?, ?, 1, ?, ?)
-			ON CONFLICT (download_id) DO UPDATE SET state = 'waiting_mount', last_error = excluded.last_error, attempts = attempts + 1,
+			ON CONFLICT (download_id) DO UPDATE SET state = 'waiting_mount', last_error = excluded.last_error,
+			attempts = CASE WHEN ? THEN 1 ELSE attempts + 1 END,
 			waiting_since = COALESCE(library_import.waiting_since, excluded.waiting_since), updated_at = excluded.updated_at`,
-			d.ID, store.Millis(now), reason, store.Millis(now), store.Millis(now))
+			d.ID, store.Millis(now), reason, store.Millis(now), store.Millis(now), fresh)
 		if err != nil {
 			return err
 		}
@@ -900,7 +947,7 @@ func (l *Library) markWaitingWithError(ctx context.Context, d *importDownload, r
 			return err
 		}
 		if !alerted.Valid && now.Sub(store.FromMillis(since)) >= l.set.WaitTimeout {
-			l.log.Warn("library: release not on the mount yet; still waiting (no re-grab)", "download", d.ID,
+			l.log.Warn("library: import still waiting; no re-grab", "download", d.ID, "reason", reason,
 				"release", d.ReleaseTitle, "waited", now.Sub(store.FromMillis(since)).Round(1e9).String())
 			if _, err := tx.ExecContext(ctx, `UPDATE library_import SET alerted_at = ? WHERE download_id = ?`, store.Millis(now), d.ID); err != nil {
 				return err

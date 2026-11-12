@@ -231,6 +231,17 @@ mount never lengthen that back-off (`TestPartialAfterWaitsStartsBackoffAgain`).
    `library_import` `waiting_mount`; after `wait_timeout` one `alert` action and a WARN log. It waits until the
    router's ready deadline (`router.ready_timeout`, default 6h from `ready_at`); a held import is excluded from that
    expiry: one held for review, for its episode title, or recorded as a dry run (the gate refuses the version).
+   **Mount mismatch.** When the mount shows files that zurg or decypharr does not confirm as the download's (below),
+   the import waits with `mount mismatch: …` (Activity: "Waiting for the mount to show this download's files"). It is
+   planned again after the partial-import back-off (10 min, doubling to 6 h; the count starts at 1 on entering the
+   wait), or at once by Retry; each re-check plans afresh, so a confirmed file imports even while another stays
+   unconfirmed. A pass that cannot see the folder, finds no video file in it, or cannot read a file keeps the wait and
+   its reason. At the ready deadline it fails **without** blocklist or re-search: the disagreement is no verdict on the
+   release. Holds an earlier build wrote for the same two causes (`zurg does not confirm …`, `decypharr's folder …`)
+   become such waits on the first pass after the upgrade, keeping their original ready deadline, so an old unresolved
+   one may fail (unblocklisted) soon after (`TestZurgMismatchWaitClears`, `TestZurgMismatchMixedPack`,
+   `TestZurgMismatchBackoffStartsAfresh`, `TestZurgMismatchRetryAtOnce`, `TestZurgMismatchInconclusiveKeepsReason`,
+   `TestLegacyMismatchHoldBecomesWait`).
    Other overdue downloads fail and are blocklisted and re-searched, ending the mount wait without deleting a provider torrent. A live import claim defers
    expiry; retries do not extend the deadline (`docs/design/router.md`, "Ready deadline").
 3. **No video file** with a dangerous or executable extension fails the download and blocklists it. Other empty or
@@ -851,8 +862,9 @@ what the dangling path already did.
 - **Per-file confirmation.** An import that finds its release folder by name asks zurg whose the folder is: a bare
   name held by another torrent of the same name is passed over for the next name (this download's ` {hash6}` folder),
   and the import waits when none is its own. Each video file's entry must then carry the download's hash and the size
-  the mount shows (`PlannedFile.zurg`); a file that does not is not linked, and an import left with such files is held
-  for review (`importBlocked`), never failed or blocklisted. Path and manual imports are the client's choice and are
+  the mount shows (`PlannedFile.zurg`); a file that does not is not linked, and an import left with such files waits
+  (mount mismatch, above); at the ready deadline it fails without blocklist. decypharr's file list works the same way:
+  a folder that holds none of the download's files makes the import wait. Path and manual imports are the client's choice and are
   not checked. The relink sweep skips a candidate folder whose file zurg says is another torrent's (only when the
   link's full hash is known). The probe and every mount check still run (`TestImportZurgConfirmsRelease`,
   `TestRelinkZurgConfirmsCandidate`).

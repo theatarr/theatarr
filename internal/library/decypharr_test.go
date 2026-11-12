@@ -228,36 +228,38 @@ func TestImportDecypharrFileList(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		if len(plan.Links) != 0 || len(plan.Rejected) != 0 {
+		if len(plan.Links) != 0 || len(plan.Rejected) != 0 || !plan.Waiting {
 			t.Fatalf("plan %+v", plan)
 		}
-		if s := e.one(`SELECT last_error FROM library_import WHERE download_id = 1`); !strings.Contains(s, "holds none of the download's files") {
-			t.Errorf("held with %q", s)
+		if s := e.one(`SELECT last_error FROM library_import WHERE download_id = 1`); !strings.HasPrefix(s, "mount mismatch: decypharr's folder") ||
+			!strings.Contains(s, "holds none of the download's files") {
+			t.Errorf("waiting with %q", s)
 		}
-		// As a file zurg does not confirm: held for review, the download neither failed nor blocklisted.
+		// As a file zurg does not confirm: the import waits, the download neither failed nor blocklisted.
 		if s := e.one(`SELECT state FROM download WHERE id = 1`); s != "ready" {
-			t.Errorf("download %s: held for review, not failed", s)
+			t.Errorf("download %s: waiting, not failed", s)
 		}
 		if n := e.one(`SELECT COUNT(*) FROM router_blocklist`); n != "0" {
 			t.Errorf("blocklisted %s", n)
 		}
-		if s := e.one(`SELECT state FROM library_import WHERE download_id = 1`); s != "rejected" {
+		if s := e.one(`SELECT state FROM library_import WHERE download_id = 1`); s != "waiting_mount" {
 			t.Errorf("library import %s", s)
 		}
 	})
 
-	t.Run("not listed: another torrent's folder of the same name is held", func(t *testing.T) {
+	t.Run("not listed: another torrent's folder of the same name waits", func(t *testing.T) {
 		e := newEnv(t, true, policy.ModeActive)
 		e.release(movieRelease, map[string]float64{"movie.mkv": 7000})
 		e.download(1, "movie-remux", 1, 10, movieRelease, movieRelease, "[]")
 		e.withDecypharr()
 		e.listFiles(TorrentFile{Name: "movie.mkv", Size: 6})
 		plan, err := e.lib.Import(e.ctx, 1, false)
-		if err != nil || plan.Waiting || len(plan.Links) != 0 {
+		if err != nil || !plan.Waiting || len(plan.Links) != 0 {
 			t.Fatalf("plan %+v, err %v", plan, err)
 		}
-		// The one stop: a list, a folder, no file of the list in it. Held as a zurg mismatch is, with no timer.
-		if s := e.one(`SELECT li.state || ' ' || d.state FROM library_import li JOIN download d ON d.id = li.download_id`); s != "rejected ready" {
+		// The one stop: a list, a folder, no file of the list in it. Waits as a zurg mismatch does, until the ready
+		// deadline fails it without blocklist.
+		if s := e.one(`SELECT li.state || ' ' || d.state FROM library_import li JOIN download d ON d.id = li.download_id`); s != "waiting_mount ready" {
 			t.Errorf("import and download: %s", s)
 		}
 		if n := e.one(`SELECT COUNT(*) FROM router_blocklist`); n != "0" {

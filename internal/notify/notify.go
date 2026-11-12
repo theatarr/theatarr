@@ -175,7 +175,7 @@ func (n *Notifier) deliveries(ctx context.Context, ev Event) ([]delivery, error)
 	set := n.settings(ctx)
 	if ev.Kind == ManualInteractionRequired {
 		switch ev.Reason {
-		case "zurg has not confirmed the download's files", "Episode mapping requires review":
+		case "Episode mapping requires review":
 		default:
 			ev.Reason = "Import held for review"
 		}

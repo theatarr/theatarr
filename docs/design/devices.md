@@ -151,7 +151,7 @@ SignalR, Sonarr v5, `downloadclient`.
   | Health / HealthRestored | One changed check, with `level`, `message`, `type`, `wikiUrl`; recovery carries the previous issue, even while other checks fail |
   | SeriesAdd / MovieAdded | New title/version from arr POST, native add, list/collection intake or follower import; `series` or `movie` (`addMethod`: manual/list/collection for movies), once per title/version |
   | Rename | The common library writer applies a move (preview alone sends nothing); `series`/`movie` and `renamedEpisodeFiles`/`renamedMovieFiles` |
-  | ManualInteractionRequired | Import held for review (`importBlocked`), unconfirmed zurg files or unreviewed episode mapping; title/episodes, `downloadInfo` (quality, release title, indexer, size), `release` (releaseTitle, indexer, size), `downloadStatus` and safe `downloadStatusMessages`, once per download/reason |
+  | ManualInteractionRequired | Import held for review (`importBlocked`) or unreviewed episode mapping; title/episodes, `downloadInfo` (quality, release title, indexer, size), `release` (releaseTitle, indexer, size), `downloadStatus` and safe `downloadStatusMessages`, once per download/reason |
   | Test | The `test` endpoint |
 
   - Pipeline events are found by polling the database every `notify.poll` (15 s); applied renames have a durable

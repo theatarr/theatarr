@@ -674,7 +674,9 @@ it ends instead of failing the moment it does (`TestReadyDeadlineSkipsMountOutag
 without reading or deleting any provider torrent. A ready download whose provider has no client is left unpolled
 with that provider (`TestPollLeavesUnavailableProvidersUnpolled`). A held import never expires: one held for review
 (`library_import` `rejected`), for its episode title, or recorded as a `dry_run` (the library gate refuses the
-version); a later pass imports it once that changes (`TestDryRunImportNeverExpires`).
+version); a later pass imports it once that changes (`TestDryRunImportNeverExpires`). A download waiting because the
+mount and zurg or decypharr disagree about its files (`mount mismatch: …`) fails at the deadline without blocklist and
+without a re-search: the disagreement is no verdict on the release (`TestReadyDeadlineMismatchNotBlocklisted`).
 
 Expiry checks the state and library claim in one transaction: live import claims defer it, and `importing` or
 `imported` downloads are left alone. Expired claims are invalidated, and an existing `waiting_mount` import records
@@ -691,7 +693,7 @@ for a search at once instead of waiting for the wanted loop. Code: `internal/rou
 |---|---|
 | Every candidate of a route missed on every provider (`exhausted`) | `Route`, active versions only |
 | Stalled, dangerous files (`torrent_files`), the library's sample, runtime or mislabel guard (`library`: a sample, or a mislabelled remux or 2160p) | the poller: `router_blocklist` rows of those sources with `researched_at` NULL (00022; older rows count as done), so the library needs no hook |
-| Provider error status, torrent no longer on the provider, no video to select (`provider`); ready deadline (`ready_timeout`) | the poller: failure and blocklist are recorded together, then the same blocklist scan queues the re-search |
+| Provider error status, torrent no longer on the provider, no video to select (`provider`); ready deadline (`ready_timeout`; not a `mount mismatch` wait, which is not blocklisted) | the poller: failure and blocklist are recorded together, then the same blocklist scan queues the re-search |
 
 This follows Radarr and Sonarr v4's `FailedDownloadService`: their `DownloadFailedEvent` feeds both
 `BlocklistService` and `RedownloadFailedDownloadService`. Theatarr blocklists per version and keeps the shared torrent;

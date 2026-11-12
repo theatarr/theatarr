@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"fmt"
 	"slices"
+	"strings"
 	"time"
 
 	"github.com/theatarr/theatarr/internal/store"
@@ -15,6 +16,11 @@ const (
 	BlocklistProvider     = "provider"
 	BlocklistReadyTimeout = "ready_timeout"
 )
+
+// ImportMismatchPrefix starts the import error of a download whose files the mount shows but zurg or decypharr does
+// not confirm as the download's (library). Its ready deadline fails it without blocklist: it is no verdict on the
+// release.
+const ImportMismatchPrefix = "mount mismatch: "
 
 // mountOutages records when the poller found the debrid mount down, so a ready download's deadline counts only time
 // the mount was healthy: after a long outage, downloads that became ready during it are not failed the
@@ -77,7 +83,8 @@ func earlier(a, b time.Time) time.Time {
 // healthy since they became ready. The library's live claims are checked in the same transaction: an import already
 // holding the download gets to finish. A held import never expires: one held for review (rejected), for its episode
 // title, or planned as a dry run (the gate refused the version), which a later pass imports once that changes. No
-// provider is touched. Called under r.mu.
+// provider is touched. A download waiting because the mount and zurg or decypharr disagree about its files
+// (ImportMismatchPrefix) fails without blocklist and without a re-search. Called under r.mu.
 func (r *Router) expireReady(ctx context.Context, now time.Time) (int, error) {
 	mount := &r.shared.mount
 	if healthy := r.mountCheck(); healthy != nil {
@@ -101,8 +108,13 @@ func (r *Router) expireReady(ctx context.Context, now time.Time) (int, error) {
 	n := 0
 	at := store.Millis(now)
 	why := "ready timeout: not imported after " + r.set.ReadyTimeout.String()
+	type expiring struct {
+		id      int64
+		lastErr string
+	}
 	err := r.st.WriteTx(ctx, func(tx *sql.Tx) error {
-		rows, err := tx.QueryContext(ctx, `SELECT id, COALESCE(provider, ''), COALESCE(ready_at, added_at, created_at)
+		rows, err := tx.QueryContext(ctx, `SELECT id, COALESCE(provider, ''), COALESCE(ready_at, added_at, created_at),
+			COALESCE((SELECT li.last_error FROM library_import li WHERE li.download_id = download.id AND li.state = 'waiting_mount'), '')
 			FROM download WHERE state = 'ready' AND COALESCE(ready_at, added_at, created_at) <= ?
 			AND NOT EXISTS (SELECT 1 FROM library_import li WHERE li.download_id = download.id AND li.state IN ('rejected', 'dry_run'))
 			AND NOT EXISTS (SELECT 1 FROM library_import li WHERE li.download_id = download.id AND li.state = 'waiting_mount' AND li.last_error LIKE 'episode title hold: %')
@@ -111,11 +123,11 @@ func (r *Router) expireReady(ctx context.Context, now time.Time) (int, error) {
 		if err != nil {
 			return err
 		}
-		var ids []int64
+		var ids []expiring
 		for rows.Next() {
 			var id, since int64
-			var key string
-			if err := rows.Scan(&id, &key, &since); err != nil {
+			var key, lastErr string
+			if err := rows.Scan(&id, &key, &since, &lastErr); err != nil {
 				rows.Close()
 				return err
 			}
@@ -123,14 +135,19 @@ func (r *Router) expireReady(ctx context.Context, now time.Time) (int, error) {
 				continue // left unpolled with its provider (TestPollLeavesUnavailableProvidersUnpolled)
 			}
 			if at := store.FromMillis(since); now.Sub(at)-mount.downBetween(at, now) >= r.set.ReadyTimeout {
-				ids = append(ids, id)
+				ids = append(ids, expiring{id, lastErr})
 			}
 		}
 		rows.Close()
 		if err := rows.Err(); err != nil {
 			return err
 		}
-		for _, id := range ids {
+		for _, e := range ids {
+			id, why := e.id, why
+			mismatch := strings.HasPrefix(e.lastErr, ImportMismatchPrefix)
+			if mismatch {
+				why += " (" + e.lastErr + "); not blocklisted"
+			}
 			if _, err := tx.ExecContext(ctx, `UPDATE download SET state = 'failed', error = ?, updated_at = ?
 				WHERE id = ?`, why, at, id); err != nil {
 				return err
@@ -142,6 +159,9 @@ func (r *Router) expireReady(ctx context.Context, now time.Time) (int, error) {
 			// An expired importer must also lose its claim, so it cannot record a later outcome over the failure.
 			if _, err := tx.ExecContext(ctx, `DELETE FROM library_claim WHERE download_id = ?`, id); err != nil {
 				return err
+			}
+			if mismatch {
+				continue
 			}
 			if err := blocklistDownload(ctx, tx, id, why, BlocklistReadyTimeout, at); err != nil {
 				return err

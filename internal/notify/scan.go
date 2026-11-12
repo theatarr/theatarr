@@ -7,7 +7,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"path/filepath"
-	"strings"
 
 	"github.com/theatarr/theatarr/internal/store"
 )
@@ -113,9 +112,6 @@ func (n *Notifier) scanHolds(ctx context.Context, since int64) error {
 			return err
 		}
 		h.ev.Reason = "Import held for review"
-		if strings.HasPrefix(h.reason, "zurg") {
-			h.ev.Reason = "zurg has not confirmed the download's files"
-		}
 		events = append(events, h)
 	}
 	err = rows.Err()
