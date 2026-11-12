@@ -709,7 +709,7 @@ func runServe(args []string) error {
 		Version: version, Devices: av, Art: refresher, Journal: jr, Logs: logs, Add: add, Jobs: q, Plex: pl, Health: hc,
 		Ops: serveOps{av}, OnRequest: requestNotify, LogLevel: logLevel, LogDir: *logDir, ReloadSettings: runtimeManager.Reload,
 		CaptureRuntime: captureRuntime, SettingsTests: newSettingsTestLimits(), SettingsLookup: os.LookupEnv, TrashRoot: os.Getenv("THEATARR_TRASH"),
-		Torrents: torrentSvc, NowPlaying: nowPlayingSnapshot,
+		Torrents: torrentSvc, NowPlaying: nowPlayingSnapshot, ArrImport: serveArrImport{manager: runtimeManager, st: st, log: log},
 		RcloneTestGateway: rcloneTestGateway(runtimeManager, gw, log), NotifyTest: nt.SendTest,
 		AnimeBuilds: func(ctx context.Context) web.AnimeBuilder {
 			if _, s := currentAnime(ctx); s != nil {

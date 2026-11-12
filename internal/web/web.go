@@ -145,6 +145,8 @@ type Config struct {
 	// AnimeBuilds is the request's anime franchise builder (animebuild.go); nil, or a nil answer, answers the build
 	// endpoints 503.
 	AnimeBuilds func(context.Context) AnimeBuilder
+	// ArrImport runs the one-time import from Sonarr/Radarr (arrimport.go); nil answers 503.
+	ArrImport ArrImporter
 }
 
 // HealthChecker is the service's health checks (internal/health.Checker).
@@ -202,6 +204,8 @@ type Web struct {
 	rcloneTestGateway RcloneTestGateway
 	animeBuilds       func(context.Context) AnimeBuilder
 	notifyTest        func(ctx context.Context, target string) error
+	arrImport         ArrImporter
+	arrImportRuns     arrImportRuns
 
 	// polls counts the event poller's completed polls with a listener, the baseline included (tests wait on it).
 	polls atomic.Int64
@@ -253,7 +257,7 @@ func New(cfg Config) (*Web, error) {
 		captureRuntime: cfg.CaptureRuntime, settings: cfg.Settings, settingsTester: cfg.SettingsTester, qualitySync: cfg.QualitySync, trashRoot: cfg.TrashRoot,
 		settingsTests: cfg.SettingsTests, settingsLookup: cfg.SettingsLookup, cardigann: cfg.Cardigann, preflight: cfg.Preflight,
 		backups: cfg.Backups, restart: cfg.Restart, migration: cfg.Migration, torrents: cfg.Torrents, nowPlaying: cfg.NowPlaying, rcloneTestGateway: cfg.RcloneTestGateway, animeBuilds: cfg.AnimeBuilds,
-		notifyTest: cfg.NotifyTest}, nil
+		notifyTest: cfg.NotifyTest, arrImport: cfg.ArrImport}, nil
 }
 
 // LogLevelControl changes the process threshold for every slog handler.
@@ -313,6 +317,7 @@ func (w *Web) Mount(mux *http.ServeMux) {
 	w.mountSettingsAPI(mux)
 	w.mountCardigannAPI(mux)
 	w.mountMigrateAPI(mux)
+	w.mountArrImportAPI(mux)
 	w.mountTorrentsAPI(mux)
 	w.mountBackupsAPI(mux)
 	w.mountNowPlayingAPI(mux)
