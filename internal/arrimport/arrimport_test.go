@@ -458,3 +458,33 @@ func TestRunRefusals(t *testing.T) {
 		t.Fatalf("watch-only preview %+v %v", rep, err)
 	}
 }
+
+// TestRunFolderMapping: the overlap check uses where Theatarr reads an instance folder. An instance folder with the
+// same name as the library's own folder is fine when it is mapped elsewhere; a library folder equal to or inside the
+// mapped folder, or equal to an unmapped instance folder, is refused.
+func TestRunFolderMapping(t *testing.T) {
+	t.Parallel()
+	e := newEnv(t)
+	radarr := e.radarr()
+	// The instance's root folder has the library's own path (both containers call it the same).
+	radarr.answers["rootfolder"] = []map[string]any{{"id": 1, "path": e.movies}}
+	base := Request{Flavour: "radarr", URL: "http://radarr:7878", APIKey: "secret", Library: "movies",
+		Profiles: []int{7}, DryRun: true}
+	var ref *Refusal
+
+	mapped := base
+	mapped.Paths = map[string]string{e.movies: e.radarrDir}
+	if _, err := Run(e.ctx, e.deps(radarr), mapped, nil); err != nil {
+		t.Fatalf("mapped elsewhere: %v", err)
+	}
+	for _, to := range []string{e.movies, filepath.Dir(e.movies)} {
+		bad := base
+		bad.Paths = map[string]string{"/old-movies": to}
+		if _, err := Run(e.ctx, e.deps(radarr), bad, nil); !errors.As(err, &ref) {
+			t.Fatalf("library inside the mapped folder %s: %v", to, err)
+		}
+	}
+	if _, err := Run(e.ctx, e.deps(radarr), base, nil); !errors.As(err, &ref) {
+		t.Fatalf("unmapped instance folder equal to the library's: %v", err)
+	}
+}

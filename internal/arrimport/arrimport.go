@@ -115,8 +115,8 @@ func appName(flavour string) string {
 }
 
 // Validate makes the checks that need no read of the instance: the request, the library, TMDb, the library's write
-// gate (a real run) and its folders against the folders the request maps. It returns the gate's plain refusal (""
-// when the library can write links) for a Preview to report.
+// gate (a real run) and its folders against the folders the request maps instance folders to. It returns the gate's
+// plain refusal ("" when the library can write links) for a Preview to report.
 func Validate(d Deps, req Request) (writeBlock string, err error) {
 	if req.Flavour != "radarr" && req.Flavour != "sonarr" {
 		return "", &InputError{Msg: "Choose Radarr or Sonarr."}
@@ -143,9 +143,13 @@ func Validate(d Deps, req Request) (writeBlock string, err error) {
 		return writeBlock, &Refusal{Msg: "Import needs the library to write links: " + writeBlock + ". Set it to Live " +
 			"and turn Write library links on; Allow new downloads can stay off."}
 	}
+	// Where Theatarr reads each mapped instance folder; an unmapped folder is checked at its own path after the read.
 	var folders []string
 	for from, to := range req.Paths {
-		folders = append(folders, from, to)
+		if to == "" {
+			to = from
+		}
+		folders = append(folders, to)
 	}
 	if err := checkFolders(d, req.Library, folders); err != nil {
 		return writeBlock, err
