@@ -7,13 +7,17 @@ import (
 	"encoding/json"
 	"errors"
 	"log/slog"
+	"os"
 	"reflect"
 	"slices"
 	"strings"
 	"testing"
 	"time"
 
+	"github.com/pressly/goose/v3"
+	"github.com/pressly/goose/v3/database"
 	"github.com/theatarr/theatarr/internal/policy"
+	"github.com/theatarr/theatarr/internal/store"
 )
 
 const inventedPlexToken = "invented-plex-token-for-section-tests"
@@ -612,5 +616,46 @@ func TestSectionConfigOmitsUnsetDecypharr(t *testing.T) {
 		if got := string(DropUnsetOptional("library", json.RawMessage(sent))); got != want {
 			t.Errorf("DropUnsetOptional(%s) = %s, want %s", sent, got, want)
 		}
+	}
+}
+
+// A stored shadow section with the six comparison fields stops the load (sections decode strictly); after migration
+// 00122 the same row loads and keeps its RSS values.
+func TestSectionShadowLoadsAfterComparisonDrop(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+	s, db, base, _ := versionFixture(t)
+	s.SetLookup(fixtureLookup)
+	if _, err := s.BootstrapSwitches(ctx, base, "test", nil); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := s.BootstrapSections(ctx, base, "test", nil); err != nil {
+		t.Fatal(err)
+	}
+	p, err := goose.NewProvider(database.DialectSQLite3, db.Writer(), os.DirFS("../store/migrations"),
+		goose.WithTableName(store.MigrationTable), goose.WithDisableGlobalRegistry(true))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := p.DownTo(ctx, 121); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := db.Writer().ExecContext(ctx, `UPDATE setting_section SET config = '{"import_interval":"10m",
+		"rss_interval":"20m","rss":false,"search":true,"searches_per_hour":5,"search_reuse":"1h","keep_results":3,
+		"link_window":"2h"}' WHERE key = 'shadow'`); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := s.Load(ctx, base); err == nil {
+		t.Fatal("a stored comparison field loaded")
+	}
+	if _, err := p.UpTo(ctx, 122); err != nil {
+		t.Fatal(err)
+	}
+	snap, err := s.Load(ctx, base)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := snap.Policy.ShadowSettings(); got.RSSInterval != 20*time.Minute || got.RSS {
+		t.Fatalf("shadow section %+v", got)
 	}
 }

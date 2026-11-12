@@ -165,3 +165,66 @@ func TestMigrateDetach(t *testing.T) {
 		}
 	}
 }
+
+// 00122: the comparison goes. The stored shadow section keeps only rss and rss_interval, queued shadow.grab jobs and
+// the Watch-only dry-run plans (source shadow.*) go with the six comparison tables; RSS's seen marks, cursors, runs,
+// queued shadow.rss jobs and every other plan stay.
+func TestMigrationDropsComparison(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+	st := openAt(t, 121)
+	p, err := st.provider(false)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, q := range []string{
+		`INSERT INTO title (id, kind, name, created_at, updated_at) VALUES (1, 'movie', 'Film', 0, 0)`,
+		`INSERT INTO setting_section (key, config, created_at, updated_at) VALUES ('shadow', '{"import_interval":"10m",
+			"rss_interval":"20m","rss":false,"search":true,"searches_per_hour":5,"search_reuse":"1h","keep_results":3,
+			"link_window":"2h"}', 1, 1), ('router', '{"enabled":true}', 1, 1)`,
+		`INSERT INTO job (kind, state, run_at, created_at, updated_at) VALUES ('shadow.grab', 'queued', 0, 0, 0),
+			('shadow.rss', 'queued', 0, 0, 0), ('arr.import', 'queued', 0, 0, 0)`,
+		`INSERT INTO router_plan (title_id, version_key, mode, outcome, source, created_at) VALUES
+			(1, 'movie-web', 'shadow', 'would_add', 'shadow.rss', 0), (1, 'movie-web', 'shadow', 'none', 'shadow.grab', 0),
+			(1, 'movie-web', 'disabled', 'would_add', 'rss', 0), (1, 'movie-web', 'shadow', 'would_add', 'acquire:1', 0)`,
+		`INSERT INTO shadow_grab (id, instance, history_id, title_id, version_key, grabbed_at, release_title, state,
+			created_at, updated_at) VALUES (1, 'radarr', 1, 1, 'movie-web', 0, 'Film.2020', 'done', 0, 0)`,
+		`INSERT INTO shadow_rss_pick (id, indexer, release_title, title_id, version_key, seen_at, grab_id) VALUES
+			(1, 'ix', 'Film.2020', 1, 'movie-web', 0, 1)`,
+		`INSERT INTO shadow_diff (at, title_id, version_key, bucket, reason, grab_id, rss_pick_id, created_at) VALUES
+			(0, 1, 'movie-web', 'agree', 'same', 1, 1, 0)`,
+		`INSERT INTO shadow_cursor (instance, history_id, updated_at) VALUES ('radarr', 1, 0)`,
+		`INSERT INTO shadow_compare_source (instance, started_at) VALUES ('radarr', 0)`,
+		`INSERT INTO shadow_compare_grab (instance, history_id, arr_title_id, title_id, at, event) VALUES
+			('radarr', 1, 1, 1, 0, 'grabbed')`,
+		`INSERT INTO shadow_rss_seen (indexer, item_key, seen_at) VALUES ('ix', 'a', 0)`,
+		`INSERT INTO shadow_rss_cursor (indexer, item_key, updated_at) VALUES ('ix', 'a', 0)`,
+		`INSERT INTO shadow_run (kind, started_at, finished_at) VALUES ('rss', 0, 0)`,
+	} {
+		if _, err := st.Writer().ExecContext(ctx, q); err != nil {
+			t.Fatalf("%s: %v", q, err)
+		}
+	}
+	if _, err := p.UpTo(ctx, 122); err != nil {
+		t.Fatal(err)
+	}
+	for q, want := range map[string]string{
+		`SELECT config FROM setting_section WHERE key = 'shadow'`:                            `{"rss_interval":"20m","rss":false}`,
+		`SELECT config FROM setting_section WHERE key = 'router'`:                            `{"enabled":true}`,
+		`SELECT group_concat(kind, ' ') FROM (SELECT kind FROM job ORDER BY id)`:             "shadow.rss arr.import",
+		`SELECT group_concat(source, ' ') FROM (SELECT source FROM router_plan ORDER BY id)`: "rss acquire:1",
+		`SELECT COUNT(*) FROM shadow_rss_seen`:                                               "1",
+		`SELECT COUNT(*) FROM shadow_rss_cursor`:                                             "1",
+		`SELECT COUNT(*) FROM shadow_run`:                                                    "1",
+		`SELECT COUNT(*) FROM sqlite_master WHERE type = 'table' AND name IN ('shadow_diff', 'shadow_rss_pick',
+			'shadow_grab', 'shadow_cursor', 'shadow_compare_grab', 'shadow_compare_source')`: "0",
+	} {
+		var got string
+		if err := st.Reader().QueryRowContext(ctx, q).Scan(&got); err != nil {
+			t.Fatalf("%s: %v", q, err)
+		}
+		if got != want {
+			t.Errorf("%s\n got %s, want %s", q, got, want)
+		}
+	}
+}

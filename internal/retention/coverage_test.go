@@ -18,13 +18,13 @@ import (
 var keptByDesign = map[string]string{}
 
 func init() {
-	for _, tb := range strings.Fields(`api_key arr_instance arr_policy_snapshot arr_quality_profile arr_tag arrview_notification arrview_profile arrview_tag library_naming import_list plex_playlist shadow_compare_source web_setting web_user setting_budget setting_custom_format setting_format_set setting_global_switches setting_indexer setting_profile_default setting_provider setting_quality_profile setting_quality_sync setting_secret setting_section setting_version setting_version_naming setting_view_binding settings_e3_bootstrap settings_generation settings_quality_state settings_runtime_state settings_sections_bootstrap settings_switches_bootstrap`) {
+	for _, tb := range strings.Fields(`api_key arr_instance arr_policy_snapshot arr_quality_profile arr_tag arrview_notification arrview_profile arrview_tag library_naming import_list plex_playlist web_setting web_user setting_budget setting_custom_format setting_format_set setting_global_switches setting_indexer setting_profile_default setting_provider setting_quality_profile setting_quality_sync setting_secret setting_section setting_version setting_version_naming setting_view_binding settings_e3_bootstrap settings_generation settings_quality_state settings_runtime_state settings_sections_bootstrap settings_switches_bootstrap`) {
 		keptByDesign[tb] = "configuration and settings, changed by hand"
 	}
 	for _, tb := range strings.Fields(`anime_alt_cut anime_discovery anime_entry anime_franchise anime_mapping anime_node anime_order anime_review anime_stage arr_alias arr_title arrview_removed_version arrview_title arrview_title_tag content content_file content_provider content_version episode episode_number episode_version_state link link_episode link_trash link_version movie_collection movie_exclusion series_meta series_monitor source_ceiling title title_alias title_external_id title_meta title_release_date title_scene_mapping version version_ceiling version_file version_file_episode version_source request request_user arr_blocklist`) {
 		keptByDesign[tb] = "catalog and library state: grows with the library, not with runs"
 	}
-	for _, tb := range strings.Fields(`router_pacing gateway_backoff gateway_budget_window shadow_cursor shadow_rss_cursor notify_state tvdb_sync scene_refresh library_lease library_dangling_scan cardigann_session search_request series_search_wait error_inbox_state`) {
+	for _, tb := range strings.Fields(`router_pacing gateway_backoff gateway_budget_window shadow_rss_cursor notify_state tvdb_sync scene_refresh library_lease library_dangling_scan cardigann_session search_request series_search_wait error_inbox_state`) {
 		keptByDesign[tb] = "state per key, overwritten in place"
 	}
 	for _, tb := range strings.Fields(`job journal_decision import_run shadow_run ceiling_search ceiling_search_indexer web_session source_sighting library_dangling router_refusal_451 arrview_command shadow_rss_seen notify_rename torrent_restore_pending gateway_indexer_request`) {

@@ -15,13 +15,11 @@
 //     library_import go with their download);
 //   - acquire runs that are not finished, the latest run of each version and target (the wanted loop's "last
 //     searched") and the latest that no retry_new chain started, and runs a queued or running job refers to;
-//   - router plans a kept shadow grab or RSS pick refers to;
 //   - the applied link and replace library actions of a kept download or at a live link's path (the router's offer
 //     sources read them: which download a replacement superseded, which arr file Theatarr replaced); adoption provenance
 //     is on the link row itself (link.adopted_from);
 //   - the current settings generation's audit rows;
 //   - pending quality reviews, the newest 100 closed reviews per source, and reviews referenced by kept sync runs;
-//   - pending shadow grabs and open RSS picks;
 //   - new and seen error inbox rows (error_event), and resolved or ignored ones seen within the runs window.
 //
 // Not pruned, by design: router_offer (one row per version, title and release: deleting one re-offers that release
@@ -52,7 +50,7 @@ const Priority = -10
 
 // Config is how long each kind of row is kept.
 type Config struct {
-	// History covers failed downloads, acquire runs, router plans, library actions, settings audit and shadow rows.
+	// History covers failed downloads, acquire runs, router plans, library actions and settings audit.
 	History time.Duration
 	// Runs covers provider and quality sync runs, finished notification deliveries and expired provider cache rows.
 	Runs time.Duration
@@ -79,7 +77,7 @@ type rule struct {
 	when, more string
 }
 
-// rules run in order: shadow rows before the router plans they refer to.
+// rules run in order.
 var rules = []rule{
 	{table: "provider_sync_run", runs: true, where: `started_at < ?1
 		AND id NOT IN (SELECT MAX(id) FROM provider_sync_run GROUP BY provider, ok)`},
@@ -130,13 +128,7 @@ var rules = []rule{
 		EXISTS (SELECT 1 FROM download d WHERE d.id = library_action.download_id)
 		OR EXISTS (SELECT 1 FROM link l WHERE l.path = library_action.path AND l.state IN ('active', 'dead'))))`},
 	{table: "settings_audit", where: `created_at < ?1 AND generation < (SELECT MAX(generation) FROM settings_generation)`},
-	{table: "shadow_grab", where: `created_at < ?1 AND state IN ('done', 'error')`},
-	{table: "shadow_diff", where: `at < ?1 AND grab_id IS NULL`},
-	{table: "shadow_rss_pick", where: `seen_at < ?1 AND status IN ('linked', 'expired')`},
-	{table: "shadow_compare_grab", where: `at < ?1`},
-	{table: "router_plan", where: `created_at < ?1
-		AND NOT EXISTS (SELECT 1 FROM shadow_grab g WHERE g.router_plan_id = router_plan.id)
-		AND NOT EXISTS (SELECT 1 FROM shadow_rss_pick p WHERE p.router_plan_id = router_plan.id)`},
+	{table: "router_plan", where: `created_at < ?1`},
 }
 
 // latestOrdinaryRun selects the latest run of each version and target that no retry_new chain started.
