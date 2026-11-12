@@ -1,6 +1,7 @@
 package router
 
 import (
+	"slices"
 	"strings"
 	"time"
 
@@ -83,7 +84,7 @@ func criteriaQueries(t *decide.Title, ss *decide.SeriesSearch, now time.Time) []
 
 // plainCriteria are what the answers of a plain query (TVDB numbering: DMM, Torrentio, Zilean, SeaDex, or a feed
 // without criteria) are judged with: the target's search, then each of its Sonarr criteria that names another season
-// or episode (scene numbering), so a release named in either numbering is judged against its own. The best decision
+// or episode (scene numbering) or episodes the target does not request (a season search naming none), so a release named in either numbering is judged against its own. The best decision
 // is kept (searchDecide). Anime, daily and special criteria are not added: no specification reads their numbers.
 func plainCriteria(ss *decide.SeriesSearch, qs []seriesQuery) []*decide.SeriesSearch {
 	out := []*decide.SeriesSearch{ss}
@@ -94,7 +95,9 @@ func plainCriteria(ss *decide.SeriesSearch, qs []seriesQuery) []*decide.SeriesSe
 		}
 		dup := false
 		for _, o := range out {
-			if o.Kind == c.Kind && o.Season == c.Season && o.Episode == c.Episode {
+			// A criteria that requests episodes the kept one does not (a season search naming none) stays: the
+			// requested-episode check reads them.
+			if o.Kind == c.Kind && o.Season == c.Season && o.Episode == c.Episode && containsAll(o.Episodes, c.Episodes) {
 				dup = true
 				break
 			}
@@ -104,6 +107,16 @@ func plainCriteria(ss *decide.SeriesSearch, qs []seriesQuery) []*decide.SeriesSe
 		}
 	}
 	return out
+}
+
+// containsAll reports whether every id of sub is in ids.
+func containsAll(ids, sub []int64) bool {
+	for _, id := range sub {
+		if !slices.Contains(ids, id) {
+			return false
+		}
+	}
+	return true
 }
 
 // searchEpisodes are the episodes a search is for: its episode ids, else its one episode, else its season (TVDB

@@ -272,3 +272,16 @@ func TestCriteriaNoSceneMappingUnchanged(t *testing.T) {
 		t.Errorf("plain criteria %v, want the target's only", got)
 	}
 }
+
+// A season search that names no episodes (interactive search of a season): plain answers are also judged with the
+// season criteria that carry the season's episodes, so a single episode of that season counts as requested.
+func TestPlainCriteriaKeepRequestedEpisodes(t *testing.T) {
+	t.Parallel()
+	tt := &decide.Title{Name: "Severance", TVDB: 371980, SeriesType: "standard", Episodes: []decide.Episode{
+		{ID: 1, Season: 1, Number: 1}, {ID: 2, Season: 1, Number: 2}}}
+	season := &decide.SeriesSearch{Kind: profile.SearchSeason, Season: 1, Interactive: true}
+	got := plainCriteria(season, criteriaQueries(tt, season, searchClock))
+	if len(got) != 2 || got[0] != season || !slices.Equal(got[1].Episodes, []int64{1, 2}) {
+		t.Errorf("plain criteria %+v, want the target's, then season 1 with episodes 1, 2", got)
+	}
+}
