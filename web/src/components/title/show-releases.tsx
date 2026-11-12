@@ -100,7 +100,8 @@ function Panel({ titleId, kind, initialVersion, focus }: { titleId: number; kind
           {r ? <VersionStatus state={r.grab_state} showMode settingsKey={r.version} canManage={perms.admin} /> : null}
         </div>
         {r?.live_allowed && perms.manage ? (
-          <InteractiveSearchButton titleId={titleId} version={r.version} variant="outline" />
+          // A series is searched per season or per episode, never as a whole.
+          kind === "movie" ? <InteractiveSearchButton titleId={titleId} version={r.version} variant="outline" /> : null
         ) : r ? (
           <span className="text-xs text-[var(--ink-3)]" data-testid="releases-no-live">Watch only: no live indexer search</span>
         ) : null}
