@@ -877,7 +877,7 @@ from them carries a header comment naming the source repo, path, commit and lice
 
 ### Migration wizard
 
-**Admin › Setup › Migrate from arrs** (also linked from Advanced) is a keyboard-accessible, phone-width wizard for
+**Admin › Advanced › Sonarr/Radarr migration › Migrate** (Setup links to the one-time import instead) is a keyboard-accessible, phone-width wizard for
 source inspection, grouped migration gaps, saved plans, selected steps, confirmed apply with backup checkpoints,
 and verification. It reuses Setup's fields and the shared confirmation dialog; source keys stay in memory and only
 go to inspect. See [migration.md](../migration.md#in-the-ui) for resume, rollback and the later shadow-first handover.

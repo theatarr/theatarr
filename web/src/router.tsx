@@ -35,6 +35,7 @@ const AdvancedSettingsPage = lazyPage(() => import("./pages/admin/settings/pages
 const SettingsHome = lazyPage(() => import("./pages/admin/settings/home").then(m => m.SettingsHome));
 const SetupPage = lazyPage(() => import("./pages/admin/setup").then((m) => m.SetupPage));
 const MigratePage = lazyPage(() => import("./pages/admin/migrate").then((m) => m.MigratePage));
+const ArrImportPage = lazyPage(() => import("./pages/admin/arr-import").then((m) => m.ArrImportPage));
 const Overview = lazyPage(() => import("./pages/admin/overview").then((m) => m.Overview));
 const JobsPage = lazyPage(() => import("./pages/admin/jobs").then((m) => m.JobsPage));
 const ErrorsPage = lazyPage(() => import("./pages/admin/errors").then((m) => m.ErrorsPage));
@@ -187,6 +188,7 @@ export const routes: RouteObject[] = [
           { path: "/activity/journal/:id", element: <NotAsUser to="/activity"><JournalEntryPage /></NotAsUser> },
           { path: "/admin/setup", element: <SetupPage /> },
           { path: "/admin/advanced/arr/migrate", element: <MigratePage /> },
+          { path: "/admin/arr-import", element: <ArrImportPage /> },
           { path: "/admin/system/tasks", element: <JobsPage /> },
           { path: "/admin/system/errors", element: <ErrorsPage /> },
           { path: "/admin/settings", element: <SettingsHome /> },

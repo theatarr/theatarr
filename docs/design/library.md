@@ -884,6 +884,18 @@ what the dangling path already did.
   from the debrid service (the helper's only plain byte reads are the now playing pre-warm's), so the health check
   stays the stat, the listing and `/ready`.
 
+## Adopt for a one-time import
+
+The one-time import from Sonarr/Radarr (`internal/arrimport`, [migration.md](../migration.md#import-from-sonarrradarr))
+links an instance's files into a library that follows nothing. `Library.AdoptImported(ctx, version, files)` takes the
+files as plain records (`ImportFile`: the title, the path where Theatarr reads the file after the import's folder
+mapping, the file's quality and media details, and for a series Theatarr's episode ids) and runs the same core as
+adopt below: mount-backed symlinks only, never over a path that is taken or over the library's own file, named by the
+library's naming and scored with the library's own profile. It needs a Live library with **Write library links** on.
+The link's provenance (`adopted_from`) is `<flavour>@<host:port> <the instance's path>`. `CheckImportFile` is the
+same look at one file without writing (the Preview); `DirExists` is the Check's folder test. There is no refresh:
+when the instance later upgrades a file, Theatarr's link to the old one dangles and is handled as any dead link.
+
 ## Adopt and refresh for parallel libraries
 
 A parallel library K (`versions.K.follows: F`) starts from links of its own to the files F's arr has now, and follows

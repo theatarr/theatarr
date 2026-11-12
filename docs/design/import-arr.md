@@ -1,5 +1,8 @@
 # `theatarr import-arr`: arr import with registry seeding
 
+The 15-minute `import-arr` is the follower path of the [guided migration](../migration.md#who-this-is-for); the
+one-time import from Sonarr/Radarr is `internal/arrimport` ([migration.md](../migration.md#import-from-sonarrradarr)).
+
 The importer reads Radarr and Sonarr instances, read-only, into Theatarr's database and seeds the content registry.
 This page covers movies; series follow the same shape ([Sonarr](#sonarr)). Where this sits: [overview.md](overview.md).
 

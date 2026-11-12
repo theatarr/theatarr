@@ -200,6 +200,21 @@ Code: `internal/web/setup.go`, `internal/preflight`, `cmd/theatarr/preflight.go`
   `GET /setup` also carries `last_preflight`, the summary of the latest `POST /preflight` (time, settings generation,
   whether the source tests ran, counts), kept in memory until a restart. Readiness counts the latest run in the
   browser session, else that summary when it is a full run without failures on the current generation.
+- One-time import (`internal/web/arrimport.go`, `internal/arrimport`, `web/src/pages/admin/arr-import.tsx`; user
+  guide [migration.md](../migration.md#import-from-sonarrradarr)). Setup's card **Coming from Sonarr/Radarr?** and
+  the Settings › Libraries header link to **Admin › Import from Sonarr/Radarr** (`/admin/arr-import`, not in the nav).
+  Admin only:
+  - `POST /arr-import/check {flavour, url, api_key}`: the instance's app and version, title count and titles with a
+    file, quality profiles with their title counts, root folders with their title counts and whether Theatarr can read
+    each at that path. 400 bad input, 502 the instance did not answer (the message never carries the key).
+  - `POST /arr-import {flavour, url, api_key, library, profiles, paths, dry_run}` starts a Preview (`dry_run`) or an
+    Import in the background: 202 `{run}`; 400 bad input (no profile ticked, a library of the other kind); 409 while a
+    run is going, or a refusal with a plain `error` (no TMDb, a library that cannot write links for an Import, the
+    library's folder overlapping an instance folder).
+  - `GET /arr-import`: `{run}`, the current or last run (in memory until the next run or a restart), or `{run: null}`.
+    The run has its choices, `progress {phase, done, total}`, `report` and `error`, never the key.
+  The page sends the key with each request and keeps it only in memory; Import is enabled once a finished Preview has
+  the same choices (instance, library, profiles, folders), and the page reads the run every 2 s while it runs.
 
 ## Logs
 

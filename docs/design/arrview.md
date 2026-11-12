@@ -151,6 +151,8 @@ key or by a stored list's id.
   in Theatarr, and never reports back, so apps that ask the instance (Seerr) do not see what Theatarr has. Arr views
   never list a Radarr or Sonarr row (`readImportLists` and their duplicate check read `list_type = 'tmdb'` only). Lists
   need TMDb set up, as before. No Radarr/Sonarr list filters (profile, tag, root folder).
+- To bring an instance's monitoring and existing debrid-mount files in once, use the one-time import
+  ([migration.md](../migration.md#import-from-sonarrradarr)); a list then keeps adding what is added there later.
 
 ## Views
 

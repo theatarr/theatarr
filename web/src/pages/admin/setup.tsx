@@ -64,7 +64,7 @@ export function SetupPage() {
   const missing = s.missing ?? [];
   return <div className="space-y-4">
     <PageHeader crumb={[{ label: "Admin", to: "/admin" }]} title="Setup" description="What this install still needs, step by step, then a preflight of everything it relies on." />
-    <Card className="space-y-2 text-sm"><h2 className="text-base font-semibold">Coming from Sonarr/Radarr?</h2><p>Inspect your existing stack and bring its settings into Theatarr, disabled or as Watch only.</p><Link className="underline" to="/admin/advanced/arr/migrate">Migrate from arrs</Link></Card>
+    <Card className="space-y-2 text-sm"><h2 className="text-base font-semibold">Coming from Sonarr/Radarr?</h2><p>Once your library exists (step 4), bring in your titles, what is monitored, and the files already on your debrid mount. Theatarr only reads Sonarr/Radarr.</p><Link className="underline" to="/admin/arr-import">Import from Sonarr/Radarr</Link></Card>
     {missing.length ? <Card><p className="text-sm font-medium">Off until set up:</p><ul className="mt-1 list-disc pl-5 text-sm" data-testid="setup-missing">{missing.map((m) => <li key={m}>{m}</li>)}</ul></Card> : null}
     <p>Getting started: {progress.done} of {progress.total} steps complete</p>
     <progress className="h-2 w-full" aria-label="Setup progress" value={progress.done} max={progress.total} />

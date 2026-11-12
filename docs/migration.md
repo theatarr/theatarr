@@ -2,11 +2,64 @@
 
 Coming from the arrs? See the [arr-to-Theatarr page map](arr-map.md) for routes and menu paths.
 
-This is the one path from an existing Sonarr/Radarr setup (with Prowlarr, Seerr and Recyclarr) to Theatarr, in
-stages. The old services are never changed, nothing here turns grabbing on by itself, and every stage can be undone.
-Go one library at a time: every step is a setting you change and confirm.
+Two ways in: the one-time [import](#import-from-sonarrradarr) brings a Sonarr or Radarr instance's titles, their
+monitoring and the files already on the debrid mount into a library you made in Setup. The
+[guided migration](#who-this-is-for) below is the older path: it builds Watch-only libraries at the arrs' own folders
+and follower libraries beside them, and hands over in stages.
+
+## Import from Sonarr/Radarr
+
+**Admin › Import from Sonarr/Radarr** (`/admin/arr-import`, linked from **Setup** and **Settings › Libraries**)
+brings one instance into one library, once. Code: `internal/arrimport`; API under
+`/api/theatarr/v1/arr-import` ([web.md](design/web.md#setup-and-preflight)).
+
+1. **Instance**: Radarr or Sonarr, its address and API key, then **Check**: it reads the version, the quality
+   profiles, the root folders and the title count. The key is sent with each request only; Theatarr never stores it
+   and the page keeps it in memory only.
+2. **Library**: one library of the matching kind (a movie library for Radarr, a series library for Sonarr). It keeps
+   its own quality profile and naming; the instance's are not copied. If you want the same names, paste the
+   instance's naming formats into the library's naming editor. The library's folder must be separate from the
+   instance's folders (an overlap is refused).
+3. **Quality profiles**: the titles that use the ticked profiles come in (at least one). To send titles to different
+   libraries, import once per library with its profiles ticked.
+4. **Folders**: Theatarr reads the instance's files to see where their links point. When it cannot read a root folder
+   at the instance's path, give the path where Theatarr sees it (mount it into Theatarr's container if needed;
+   read-only is enough).
+5. **Preview** writes nothing and says what Import would add and how many files it can link. **Import** opens once a
+   Preview of the same choices has finished.
+
+What is read: `system/status`, `rootfolder`, `qualityprofile`, then `movie` and `moviefile` (Radarr) or `series` and,
+per series, its episodes and episode files (Sonarr). Nothing else (no tags, custom formats, naming, history,
+blocklist or lists), and nothing is ever written to the instance.
+
+What comes in:
+
+- Each title not in the library is added with the instance's monitoring: a movie's monitored flag and minimum
+  availability; a series' monitored flag, seasons, each episode's flag and "monitor new seasons". The import never
+  starts a search.
+- Files are linked into the library under its own naming only when they are symlinks into the debrid mount. Ordinary
+  files (Usenet, local disk) are not linked, nor are links whose file is gone from the mount: their titles come in as
+  missing and, if monitored, Theatarr looks for them like any other missing title. The Preview says so before
+  anything is written.
+- A Sonarr series has its monitoring and files brought over only when its episode list comes from TVDB, so episodes
+  match Sonarr's numbering. Without a TVDB key (**Settings › Metadata & artwork**) series are added, but their
+  monitoring and files are not; the Preview says so first.
+- A library that is Watch only, or without **Write library links**, can be previewed but not imported into.
+
+Running it again adds only titles that are new and links files that are still missing; it never changes a title
+already in the library or monitoring you set in Theatarr. After adding a TVDB key, running it again brings series'
+monitoring and files over. To keep adding titles that are added to the instance later, add it as a list under
+**Collections › Lists** ([arrview.md](design/arrview.md#lists)).
+
+If the instance keeps running and upgrades a file after the import, Theatarr's link to the old file stops working
+and Theatarr looks for that title again.
 
 ## Who this is for
+
+The guided migration below is the older path, with Watch-only libraries and followers; most installs only need the
+import above. It goes from an existing Sonarr/Radarr setup (with Prowlarr, Seerr and Recyclarr) to Theatarr in
+stages. The old services are never changed, nothing here turns grabbing on by itself, and every stage can be undone.
+Go one library at a time: every step is a setting you change and confirm.
 
 Anyone with a running arr whose libraries should move to Theatarr. A fresh library with no arr behind it does not
 need this guide: it only needs the check and the switches ([quickstart.md](quickstart.md#9-go-live-deliberately)), or
@@ -129,7 +182,8 @@ with each id).
 
 ### In the UI
 
-Open **Admin › Setup › Coming from Sonarr/Radarr? › Migrate from arrs**, or **Admin › Advanced › Sonarr/Radarr migration › Migrate**.
+Open **Admin › Advanced › Sonarr/Radarr migration › Migrate**. Setup's **Coming from Sonarr/Radarr?** card leads to the
+[import](#import-from-sonarrradarr) instead.
 Add named Sonarr/Radarr instances, optional Prowlarr and Seerr/Overseerr, and the path to a Recyclarr config on the
 Theatarr server. Source API keys are write-only, kept only in page memory and sent only to inspect; saving a plan or
 leaving the page clears them. Inspect shows counts, libraries and grouped gaps with their reasons. Pick a plan name

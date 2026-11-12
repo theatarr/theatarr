@@ -6,9 +6,9 @@ apps keep working: they talk to Theatarr's arr-compatible views.
 
 Every path, address and key below is a placeholder. Replace them with yours.
 
-Coming from a running arr stack? **Admin › Advanced › Sonarr/Radarr migration** (also linked from **Setup**) walks
-through [migration.md](migration.md): it reads the stack and adds its indexers, providers, profiles and libraries for
-you, disabled or as Watch only. The steps below still apply for checking and going live.
+Coming from a running Sonarr or Radarr? Set up Theatarr with the steps below, then **Admin › Import from
+Sonarr/Radarr** (linked from **Setup** and **Settings › Libraries**) brings an instance's titles, what is monitored and
+the files already on your debrid mount into your library, once ([migration.md](migration.md#import-from-sonarrradarr)).
 
 ## 1. Run the container
 
@@ -404,8 +404,9 @@ new adds; ready downloads can still import. Turn library writes off too if impor
 not cancel work already in flight. `THEATARR_FORCE_OFF=router,library,notify` forces the switches off at startup
 whatever the saved settings say; it needs a restart and can never turn anything on.
 
-Moving an existing arr library? Use a follower library instead, as [migration.md](migration.md#3-a-follower-library-beside-the-arr) describes: the arr keeps
-running while Theatarr builds its own copy beside it.
+Moving an existing arr library? Once the library is Live with **Write library links** on, **Admin › Import from
+Sonarr/Radarr** brings in its titles, their monitoring and the files on the debrid mount
+([migration.md](migration.md#import-from-sonarrradarr)); Theatarr only reads the instance.
 
 ## 10. A first download
 

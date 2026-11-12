@@ -493,7 +493,7 @@ export const SETTINGS_ALIASES: { terms: string[]; href: string; title?: string }
  // Page names from docs/arr-map.md, including routes with no separate settings editor.
  {"terms": ["series", "sonarr series"], "href": "/series", "title": "Library › Series"},
  {"terms": ["add new", "movies › add new", "prowlarr search", "radarr add new", "search", "series › add new", "sonarr add new"], "href": "/search", "title": "Search"},
- {"terms": ["import library", "library import", "movies › import library", "radarr import library", "series › library import", "sonarr library import"], "href": "/admin/advanced/arr/migrate", "title": "Admin › Advanced › Sonarr/Radarr migration › Migrate"},
+ {"terms": ["import library", "library import", "movies › import library", "radarr import library", "series › library import", "sonarr library import", "import from sonarr", "import from radarr"], "href": "/admin/arr-import", "title": "Admin › Import from Sonarr/Radarr"},
  {"terms": ["calendar", "radarr calendar", "sonarr calendar"], "href": "/calendar", "title": "Calendar"},
  {"terms": ["sonarr statistics", "statistics"], "href": "/admin/settings", "title": "Statistics — no separate page"},
  {"terms": ["prowlarr settings", "radarr settings", "settings", "sonarr settings"], "href": "/admin/settings", "title": "Admin › Settings"},

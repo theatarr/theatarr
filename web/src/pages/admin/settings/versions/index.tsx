@@ -315,7 +315,7 @@ export function VersionsPage({ embedded = false }: { embedded?: boolean }) {
   }
 
   return <div className="space-y-4">
-    {!embedded ? <PageHeader title="Libraries" crumb={[{ label: "Admin", to: "/admin" }, { label: "Settings", to: "/admin/settings" }]} description="Manage your libraries and the libraries exposed to apps." /> : null}
+    {!embedded ? <PageHeader title="Libraries" crumb={[{ label: "Admin", to: "/admin" }, { label: "Settings", to: "/admin/settings" }]} description={<>Manage your libraries and the libraries exposed to apps. Coming from Sonarr/Radarr? <Link className="underline" to="/admin/arr-import">Import from Sonarr/Radarr</Link></>} /> : null}
     <Announcer announcement={notice} testid="version-announce" />
     {query.isPending ? <p>Loading libraries…</p> : query.error ? <p role="alert">{message(query.error)}</p> : null}
     {data ? <>

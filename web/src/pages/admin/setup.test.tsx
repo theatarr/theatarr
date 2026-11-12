@@ -25,10 +25,10 @@ const versions: VersionList = {
 const preset = { trash_id: "a".repeat(32), name: "HD Bluray + WEB", flavour: "radarr", description: "", group: 1, qualities: [], cutoff: "Bluray-1080p", formats: 12, modifiers: [] };
 
 describe("setup", () => {
-  it("links to the migration wizard for an existing arr stack", async () => {
+  it("links to the one-time import for an existing arr stack", async () => {
     mockFetch([{ method: "GET", path: "/setup", reply: { ...fresh, first_run: false, versions: 1, versions_with_roots: 1 } }]);
     renderPage(<SetupPage />);
-    expect((await screen.findByRole("link", { name: "Migrate from arrs" })).getAttribute("href")).toBe("/admin/advanced/arr/migrate");
+    expect((await screen.findByRole("link", { name: "Import from Sonarr/Radarr" })).getAttribute("href")).toBe("/admin/arr-import");
     expect(screen.getByText(/^1 library, 1 with a library root/)).toBeTruthy();
   });
 
