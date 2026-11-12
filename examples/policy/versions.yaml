@@ -2,7 +2,7 @@
 # Versions: one per library. Each starts in shadow mode (docs/design/shadow.md) and is switched to active when it goes
 # live. Library roots are the arr roots the version replaces, so links keep the arr naming and paths.
 # grab (default false) lets an active version add torrents while router.enabled is true. An active version with grab
-# off imports and links but adds nothing and gets no automatic searches (wanted, add-time, re-search); its RSS picks
+# off imports and links but adds nothing and gets no automatic searches (wanted, re-search); its RSS picks
 # get dry-run plans only. In the DB settings, turning it on for an active version needs confirmation. Going live sets mode: active and grab: true
 # together.
 # add_via: providers (the default) adds to the version's providers. add_via: client sends its grabs to its client

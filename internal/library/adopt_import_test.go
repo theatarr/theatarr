@@ -102,7 +102,7 @@ func TestAdoptImportedMovie(t *testing.T) {
 		AND detail = 'adopted from radarr@radarr:7878 /movies/Amelie (2001)/Amelie.mkv'`); got != "1" {
 		t.Errorf("journal %s", got)
 	}
-	// {Custom Formats} are decided for the library itself, not for a followed one.
+	// {Custom Formats} are decided for the library itself.
 	if len(formatsFor) == 0 || formatsFor[0] != "movie-remux" {
 		t.Errorf("formats decided for %q", formatsFor)
 	}
@@ -176,22 +176,5 @@ func TestAdoptImportedNeedsLiveLibrary(t *testing.T) {
 	}
 	if got := e.one(`SELECT COUNT(*) FROM link`); got != "0" {
 		t.Errorf("links %s", got)
-	}
-}
-
-// TestAdoptedRenameKeepsMediaInfo: a link adopted from a followed library is named with the arr's media info; a rename
-// right after keeps it (the link has no probe, only adopted_media).
-func TestAdoptedRenameKeepsMediaInfo(t *testing.T) {
-	t.Parallel()
-	e := newParallelEnv(t, true)
-	e.release(movieRelease, map[string]float64{"movie.mkv": 7000})
-	e.arrFile(1, "radarr", 10, 1, filepath.Join(e.movies, "Amelie The Movie (2001)", "Amelie.mkv"), movieRelease+"/movie.mkv", "Remux-2160p")
-	e.exec(`UPDATE version_file SET media_info = '{"videoCodec":"x265","videoDynamicRangeType":"HDR10"}' WHERE id = 1`)
-	rep, err := e.lib.Adopt(e.ctx, AdoptOptions{Version: "movie-theatarr"})
-	if err != nil || rep.Linked != 1 || !strings.Contains(rep.Links[0].Path, "[HDR10][x265]") {
-		t.Fatalf("%+v %v", rep, err)
-	}
-	if pr, err := e.lib.PreviewRename(e.ctx, 1, nil); err != nil || len(pr.Files) != 0 || pr.Skipped != 0 {
-		t.Errorf("rename after adopt: %+v %v", pr, err)
 	}
 }

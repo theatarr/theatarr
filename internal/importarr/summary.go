@@ -21,9 +21,6 @@ type Summary struct {
 	Episodes EpisodeCounts  `json:"episodes,omitzero"`
 	History  HistoryCounts  `json:"history"`
 	Registry RegistryCounts `json:"registry"`
-	// Followed counts what the parallel versions following this instance's version got (follow.go).
-	Followed       FollowCounts   `json:"followed,omitzero"`
-	FollowSearches FollowSearches `json:"-"`
 	// Collections counts the arr's monitored collections carried over to movie intake (collections.go).
 	Collections CollectionCounts `json:"collections,omitzero"`
 	Tags        int              `json:"tags"`

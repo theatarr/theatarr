@@ -40,7 +40,7 @@ func TestGatePhysicalRoots(t *testing.T) {
 				}
 			}
 			p := &policy.Policy{Versions: map[string]*policy.VersionPolicy{
-				"F": {Library: arr}, "K": {Mode: policy.ModeActive, Follows: "F", Library: mine},
+				"F": {Library: arr}, "K": {Mode: policy.ModeActive, Library: mine},
 			}, Library: &policy.Library{Enabled: true, Trash: policy.LibraryTrash{Dir: trash}, Mount: policy.LibraryMount{Path: mount},
 				Versions: map[string]*policy.LibraryVersion{"K": {Roots: []string{mine}}}}}
 			if tc.alias == "extra" {
@@ -124,7 +124,7 @@ func TestGateHungRootRefusesWithoutHanging(t *testing.T) {
 		policy.RootStat, policy.RootResolveTimeout = os.Stat, oldTimeout
 	})
 	p := &policy.Policy{Versions: map[string]*policy.VersionPolicy{
-		"F": {Library: arr}, "K": {Mode: policy.ModeActive, Follows: "F", Library: mine},
+		"F": {Library: arr}, "K": {Mode: policy.ModeActive, Library: mine},
 	}, Library: &policy.Library{Enabled: true, Trash: policy.LibraryTrash{Dir: trash},
 		Versions: map[string]*policy.LibraryVersion{"K": {Roots: []string{mine}}}}}
 	g := NewGate(p)

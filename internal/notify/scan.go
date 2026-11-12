@@ -11,8 +11,8 @@ import (
 	"github.com/theatarr/theatarr/internal/store"
 )
 
-// scanAdds observes the common version insert, including native, arr, list and follower intake. Updates during a
-// follower's later passes do not insert another version; the title/key claim also survives a version being removed.
+// scanAdds observes the common version insert, including native, arr and list intake. Updates during later passes
+// do not insert another version; the title/key claim also survives a version being removed.
 func (n *Notifier) scanAdds(ctx context.Context, since int64) error {
 	rows, err := n.st.Reader().QueryContext(ctx, `SELECT v.title_id, v.policy_key, t.kind FROM version v
 		JOIN title t ON t.id = v.title_id WHERE v.created_at >= ? AND NOT EXISTS

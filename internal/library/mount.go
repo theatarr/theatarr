@@ -86,7 +86,7 @@ func (m *Mount) Healthy(ctx context.Context) error {
 
 // checkListing refuses a release-root listing that is implausibly small, as if the mount were down. A zurg that
 // restarted, or lost its account for a while, can serve a present but empty (or half-loaded) __all__: Healthy
-// passes, yet every link would read as missing. So for relink, the dangling report, verify and the follower refresh
+// passes, yet every link would read as missing. So for relink, the dangling report and verify
 // the listing of n entries counts as ErrMountDown when
 //   - it is empty;
 //   - it has fewer than half the entries of the largest listing accepted in this process (a restart forgets it);

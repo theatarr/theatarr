@@ -357,7 +357,7 @@ func TestVersionWriteEffects(t *testing.T) {
 	active, _ := initial.Policy.Clone()
 	active.Versions["movie-web"].Mode = policy.ModeActive
 	active.Versions["movie-web"].Providers = []string{"rd"}
-	// Only the kept list asks: a library going Live (or created Live), downloads on, starting to follow. Everyday edits
+	// Only the kept list asks: a library going Live (or created Live), downloads on. Everyday edits
 	// of a Live library (contains "") ask nothing.
 	for _, tc := range []struct {
 		name, contains string
@@ -366,18 +366,14 @@ func TestVersionWriteEffects(t *testing.T) {
 		{"new-active", "becomes Live", func(next *policy.Policy) { v := *next.Versions["movie-web"]; next.Versions["new"] = &v }},
 		{"go-live", "becomes Live", func(next *policy.Policy) { next.Versions["movie-web"].Mode = policy.ModeActive }},
 		{"grab-on", "Downloads are on for Live library movie-web", func(next *policy.Policy) { next.Versions["movie-web"].Grab = true }},
-		{"start-following", "starts following movie-remux", func(next *policy.Policy) { next.Versions["movie-web"].Follows = "movie-remux" }},
 		{"active-root", "", func(next *policy.Policy) { next.Versions["movie-web"].Library += "-new" }},
 		{"active-provider", "", func(next *policy.Policy) {
 			next.Versions["movie-web"].Providers = append(next.Versions["movie-web"].Providers, "ad")
 		}},
-		{"remove-follows", "", func(next *policy.Policy) { next.Versions["movie-web"].Follows = "" }},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			before, _ := active.Clone()
 			switch tc.name {
-			case "remove-follows":
-				before.Versions["movie-web"].Follows = "movie-remux"
 			case "go-live":
 				before.Versions["movie-web"].Mode = policy.ModeShadow
 			}
@@ -475,9 +471,9 @@ func TestVersionDeletionRechecksLinksAtCommit(t *testing.T) {
 	}
 }
 
-func TestVersionRootWritableMountTrashAndFollowed(t *testing.T) {
+func TestVersionRootWritableMountTrash(t *testing.T) {
 	t.Parallel()
-	s, db, p, initial := versionFixture(t)
+	s, _, p, initial := versionFixture(t)
 	area := p.Library.Dangling.Roots[0]
 	root := filepath.Join(area, "readonly")
 	if err := os.Mkdir(root, 0500); err != nil {
@@ -506,20 +502,6 @@ func TestVersionRootWritableMountTrashAndFollowed(t *testing.T) {
 		if _, err := validateOneRoot(context.Background(), policy.NewRootResolver(context.Background()), p, "new", alias, false); err == nil || !strings.Contains(err.Error(), kind) {
 			t.Fatalf("%s alias accepted: %v", kind, err)
 		}
-	}
-	previous, _ := initial.Policy.Clone()
-	next, _ := previous.Clone()
-	follower := *next.Versions["movie-web"]
-	follower.Follows = "movie-web"
-	follower.Library = filepath.Join(area, "follower")
-	if err := os.Mkdir(follower.Library, 0700); err != nil {
-		t.Fatal(err)
-	}
-	follower.Naming = policy.Naming{FromVersion: "movie-web"}
-	next.Versions["follower"] = &follower
-	next.Versions["movie-web"].Mode = policy.ModeActive
-	if err := validateVersionChanges(context.Background(), db.Reader(), previous, next, false); err == nil || !strings.Contains(err.Error(), "stay read-only") {
-		t.Fatalf("followed source writable: %v", err)
 	}
 	if snap, err := s.Load(context.Background(), initial.Policy); err != nil || snap.Generation != initial.Generation {
 		t.Fatal("validation wrote settings")
@@ -636,7 +618,7 @@ func TestVersionsSaveIgnoresUnreachableMount(t *testing.T) {
 	}
 }
 
-// Beyond the root, providers, mode and follows: changes to how an active version writes or what it may replace
+// Beyond the root, providers and mode: changes to how an active version writes or what it may replace
 // also need the confirmation; the same changes on a shadow version do not.
 // Storage, client, import, upgrades and enable of a Live library are everyday edits: they save at once.
 func TestVersionConfirmationSkipsActiveWriteSettings(t *testing.T) {

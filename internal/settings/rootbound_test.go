@@ -213,7 +213,7 @@ func TestHungActiveRootLeavesOffSavesOpen(t *testing.T) {
 	// Another version's new root: the hung root of movie-web is named, the new root is not marked stuck.
 	var key string
 	for _, k := range sortedPolicyKeys(p.Versions) {
-		if k != "movie-web" && p.Library.Versions[k] != nil && len(p.Followers(k)) == 0 {
+		if k != "movie-web" && p.Library.Versions[k] != nil {
 			key = k
 			break
 		}

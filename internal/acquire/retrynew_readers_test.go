@@ -50,7 +50,7 @@ func (e *env) chainRuns() {
 // after a failure back; the re-search's own run then does.
 func TestRetryNewRunsDoNotHoldBackAReSearch(t *testing.T) {
 	t.Parallel()
-	e := newEnv(t, true, addTimeOnly(100))
+	e := newEnv(t, true, selectsNothing(100))
 	e.accept = false
 	e.chainRuns()
 	p := router.ResearchRequest{TitleID: 1, VersionID: 101, Version: "movie", Reason: router.ReasonStalled}
@@ -81,7 +81,7 @@ func (e *env) infraAgain() time.Time {
 // budget (its first is asked for again after infraBackoff[0]), nor an ordinary one's in the chain's.
 func TestRetryNewRunsHaveTheirOwnRetryBudget(t *testing.T) {
 	t.Parallel()
-	e := newEnv(t, true, addTimeOnly(100))
+	e := newEnv(t, true, selectsNothing(100))
 	e.noAnswer = true
 	e.chainRuns()
 	e.research(router.ResearchRequest{TitleID: 1, VersionID: 101, Version: "movie", Reason: router.ReasonStalled})
@@ -104,25 +104,6 @@ func TestRetryNewRunsHaveTheirOwnRetryBudget(t *testing.T) {
 	}
 	if at := e.infraAgain(); !at.Equal(e.clock().Add(infraBackoff[0])) {
 		t.Fatalf("the chain's search asked for again at %v, want %v", at, e.clock().Add(infraBackoff[0]))
-	}
-}
-
-// Reader: an add-time intent's "searched within again_after, or a search of it queued" (drainIntent). A chain's
-// searches do not settle the intent: its own search starts.
-func TestRetryNewRunsDoNotSettleAnAddTimeIntent(t *testing.T) {
-	t.Parallel()
-	e := newEnv(t, true, addTimeOnly(100))
-	e.accept = false
-	at := store.Millis(e.clock().Add(-2 * time.Hour))
-	e.exec(`INSERT INTO follow_search_intent (title_id, version_key, all_items, created_at, updated_at)
-		VALUES (1, 'movie', 1, ?, ?)`, at, at)
-	e.chainRuns()
-	if n, err := e.a.DrainFollowSearches(e.ctx); err != nil || n != 1 {
-		t.Fatalf("add-time searches started %d: %v", n, err)
-	}
-	e.drain()
-	if got := e.searches(); len(got) != 1 || got[0].Title != "One" {
-		t.Fatalf("searches %+v, want the add-time search of One", got)
 	}
 }
 
@@ -456,8 +437,8 @@ func (e *env) plan(q string, args ...any) string {
 }
 
 // An install that never had the switch on reads the run history with the queries, and the query plans, it had
-// without the switch: the loop's "last searched" is one scan the index answers alone, and an add-time intent's retry
-// budget reads the index alone. The queries written out here are the ones before the switch existed.
+// without the switch: the loop's "last searched" is one scan the index answers alone, and the retry budget
+// query (infraRunsSQL) reads the index alone. The queries written out here are the ones before the switch existed.
 func TestRetryNewNeverOnKeepsTheQueryPlans(t *testing.T) {
 	t.Parallel()
 	e := newEnv(t, true, &policy.Wanted{PerHour: 100})
@@ -487,10 +468,7 @@ func TestRetryNewNeverOnKeepsTheQueryPlans(t *testing.T) {
 	const infra = `SELECT COUNT(*), COALESCE(MAX(created_at), 0) FROM acquire_run WHERE version_id = ? AND target = ?
 		AND infra = 1 AND created_at > MAX(?, COALESCE((SELECT MAX(created_at) FROM acquire_run WHERE version_id = ?
 		AND target = ? AND infra NOT IN (1, 3) AND state NOT IN ('queued', 'searching')), 0))`
-	own, err := e.a.ordinaryOf(e.ctx, 101, nil)
-	if err != nil || own != "" {
-		t.Fatalf("never on: an intent's retry budget reads %q: %v", own, err)
-	}
+	own := ""
 	args := []any{101, "movie", 0, 101, "movie"}
 	want = e.plan(infra, args...)
 	if !strings.Contains(want, "SEARCH acquire_run USING COVERING INDEX acquire_run_target") {
@@ -508,21 +486,6 @@ func TestRetryNewNeverOnKeepsTheQueryPlans(t *testing.T) {
 	reads, chained, err = e.a.lastSearchedReads(e.ctx)
 	if err != nil || len(reads) != 2 || len(chained) != 1 || !chained[101] || e.plan(reads[0]) != e.plan(last) {
 		t.Fatalf("after a chain: %d reads, chained %v: %v", len(reads), chained, err)
-	}
-	if own, err := e.a.ordinaryOf(e.ctx, 101, nil); err != nil || own != ordinaryRuns {
-		t.Fatalf("after a chain: its version reads %q: %v", own, err)
-	}
-	if own, err := e.a.ordinaryOf(e.ctx, 102, nil); err != nil || own != "" {
-		t.Fatalf("after a chain: another version reads %q: %v", own, err)
-	}
-	// One drain pass reads the job table once: what its first intent found serves the others.
-	var pass chainSeen
-	if own, err := e.a.ordinaryOf(e.ctx, 102, &pass); err != nil || own != "" || !pass.read {
-		t.Fatalf("a pass: version 102 reads %q, read %v: %v", own, pass.read, err)
-	}
-	e.exec(`DELETE FROM job`)
-	if own, err := e.a.ordinaryOf(e.ctx, 101, &pass); err != nil || own != ordinaryRuns {
-		t.Fatalf("a pass: its second intent read the job table again (%q): %v", own, err)
 	}
 }
 

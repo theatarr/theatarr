@@ -14,28 +14,12 @@ import (
 	"github.com/theatarr/theatarr/internal/rootprobe"
 )
 
-// Parallel versions (docs/parallel.md). A version with follows: K runs beside K's arr instance on roots of its own:
-// the arr import gives it K's titles and monitoring, never K's files (internal/importarr follow.go), `theatarr library
-// adopt` starts it from links of its own to the same mount targets, and it searches, grabs and upgrades on its own
-// once mode: active. K itself stays as it is (usually shadow, fed by its arr).
-
-// Followers returns the versions that follow key, sorted.
-func (p *Policy) Followers(key string) []string {
-	var out []string
-	for _, k := range sortedKeys(p.Versions) {
-		if v := p.Versions[k]; v != nil && v.Follows == key && key != "" {
-			out = append(out, k)
-		}
-	}
-	return out
-}
-
 // CollectionTarget reports whether a version may be a movie collection's target (docs/design/arrview.md, Collections):
-// a movie version in mode: active that no version follows, the versions the library gate lets write
-// (internal/library NewGate). A shadow version only dry-runs, and a followed one's roots are its arr's.
+// a Live movie library, the versions the library gate lets write (internal/library NewGate). A Watch-only one only
+// dry-runs.
 func (p *Policy) CollectionTarget(key string) bool {
 	v := p.Versions[key]
-	return v != nil && v.Kind == KindMovie && v.Mode == ModeActive && len(p.Followers(key)) == 0
+	return v != nil && v.Kind == KindMovie && v.Mode == ModeActive
 }
 
 // CollectionTargets returns every version CollectionTarget allows, sorted.
@@ -47,14 +31,6 @@ func (p *Policy) CollectionTargets() []string {
 		}
 	}
 	return out
-}
-
-// Followed returns the version key follows, "" when it is not a parallel version.
-func (p *Policy) Followed(key string) string {
-	if v := p.Versions[key]; v != nil {
-		return v.Follows
-	}
-	return ""
 }
 
 // versionRoots are every directory a version links into: versions[k].library and library.versions[k].roots.
@@ -75,61 +51,14 @@ func (p *Policy) versionRoots(k string) []string {
 	return out
 }
 
-func (p *Policy) validateFollow(e *Errors) {
-	for _, k := range sortedKeys(p.Versions) {
-		v := p.Versions[k]
-		if v == nil || v.Follows == "" {
-			continue
-		}
-		path := fmt.Sprintf("versions[%s].follows", k)
-		f := p.Versions[v.Follows]
-		switch {
-		case v.Follows == k:
-			e.add(path, "a library cannot follow itself")
-			continue
-		case f == nil:
-			e.add(path, "unknown library %q", v.Follows)
-			continue
-		case f.Follows != "":
-			e.add(path, "%q follows %q itself; a parallel library follows a library fed by its arr, never another "+
-				"parallel library", v.Follows, f.Follows)
-		}
-		if f.Mode == ModeActive {
-			// The followed version's roots are its arr's: Theatarr only reads them (settings/root.go holds the same rule
-			// for DB settings).
-			e.add(fmt.Sprintf("versions[%s].mode", v.Follows), "%q is followed by %s: its roots are its arr's and stay "+
-				"read-only; the followed library must stay Watch only", v.Follows, k)
-		}
-		if v.Kind != f.Kind {
-			e.add(path, "%q is a %s library and this one a %s library", v.Follows, f.Kind, v.Kind)
-		}
-		if (v.Anime == nil) != (f.Anime == nil) || (v.Anime != nil && *v.Anime != *f.Anime) {
-			e.add(path, "anime must be the same as %q's: it takes every title %q has", v.Follows, v.Follows)
-		}
-		if p.Import != nil {
-			for _, inst := range sortedKeys(p.Import.Arr) {
-				if a := p.Import.Arr[inst]; a != nil && a.Version == k {
-					e.add(path, "import.arr[%s] feeds this library; a parallel library takes its titles from %q "+
-						"and its files from nothing but Theatarr", inst, v.Follows)
-				}
-			}
-		}
-		n := v.Naming
-		if n.FromVersion == "" && n.FromArr == "" && n.Folder == "" && n.File == "" {
-			e.add(fmt.Sprintf("versions[%s].naming", k), "a parallel library names its files explicitly: set "+
-				"from_version: %s (the followed library's naming) or its own templates", v.Follows)
-		}
-		if p.Library == nil || p.Library.Versions[k] == nil {
-			e.add(fmt.Sprintf("library.versions[%s]", k), "required: a parallel library writes only under roots "+
-				"of its own")
-			continue
-		}
-	}
+// validateRootSeparation checks that every Live library's roots overlap no other library's roots, the trash or the
+// debrid mount.
+func (p *Policy) validateRootSeparation(e *Errors) {
 	// Every version's check consults the same roots: they are resolved once for the whole validation.
 	rr := newLenientResolver()
 	for _, k := range sortedKeys(p.Versions) {
 		v := p.Versions[k]
-		if v == nil || (v.Follows == "" && (v.Mode != ModeActive || p.Library == nil || p.Library.Versions[k] == nil)) {
+		if v == nil || v.Mode != ModeActive || p.Library == nil || p.Library.Versions[k] == nil {
 			continue
 		}
 		if _, err := p.CheckRootSeparationWith(k, rr); err != nil {
@@ -461,22 +390,6 @@ func (p *Policy) checkRootSeparation(key string, debrid []string, resolve func(s
 	return roots[key], nil
 }
 
-// validateNamingFromVersion checks naming.from_version: only a parallel version, naming like the version it follows.
-func (p *Policy) validateNamingFromVersion(e *Errors, path, k string, v *VersionPolicy) {
-	n := v.Naming
-	if n.FromArr != "" || n.Folder != "" || n.File != "" || n.Season != "" || n.Specials != "" || n.Daily != "" ||
-		n.Anime != "" || n.Colon != "" || n.MultiEpisode != "" {
-		e.add(path, "from_version takes the whole naming from that library; set nothing else")
-	}
-	switch {
-	case v.Follows == "":
-		e.add(path+".from_version", "uses the naming of %q; give this library its own copy first (Settings › Libraries › Naming › %s › Copy %s's naming), then stop following",
-			n.FromVersion, k, n.FromVersion)
-	case n.FromVersion != v.Follows:
-		e.add(path+".from_version", "must be the followed library %q, got %q", v.Follows, n.FromVersion)
-	}
-}
-
 // dirOverlap names the library directory dir overlaps (a version's root, the trash or the mount), or "": compared
 // as written and resolved (symlinks, bind mounts).
 func (p *Policy) dirOverlap(dir string) string {
@@ -523,16 +436,6 @@ func (p *Policy) dirOverlap(dir string) string {
 		}
 		if r, err := rr.Resolve(o.path, debrid); err == nil && mine.Overlaps(r.withMounts(mounts)) {
 			return o.name
-		}
-	}
-	return ""
-}
-
-// FollowedBy returns the active library following version, or an empty string.
-func (p *Policy) FollowedBy(version string) string {
-	for k, v := range p.Versions {
-		if v.Mode == ModeActive && v.Follows == version {
-			return k
 		}
 	}
 	return ""

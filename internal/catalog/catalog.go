@@ -482,12 +482,11 @@ func Fits(vp *policy.VersionPolicy, kind policy.Kind, anime bool) bool {
 
 // DefaultVersions is what an add or request asks for when the caller names none (docs/design/ui.md §8.3): every
 // version of the policy that fits the title (movie: movie-remux and movie-web; series: tv-2160p;
-// anime: the anime versions), sorted. Parallel versions (follows) are left out: they take their titles from the
-// version they follow (docs/parallel.md), so an add names them explicitly or not at all.
+// anime: the anime versions), sorted.
 func DefaultVersions(pol *policy.Policy, kind policy.Kind, anime bool) []string {
 	var out []string
 	for k, vp := range pol.Versions {
-		if Fits(vp, kind, anime) && vp.Follows == "" {
+		if Fits(vp, kind, anime) {
 			out = append(out, k)
 		}
 	}

@@ -359,8 +359,8 @@ func TestMovieAndCollectionListMonitoring(t *testing.T) {
 	}
 }
 
-// A monitored collection adds only to its stored targets that are collection targets (active movie versions nothing
-// follows): a shadow or followed target is skipped and logged once, and with none left (or an empty list) nothing is
+// A monitored collection adds only to its stored targets that are collection targets (Live movie libraries): a
+// Watch-only target is skipped and logged once, and with none left (or an empty list) nothing is
 // added. A movieAndCollection list monitors the collection only in such targets.
 func TestCollectionTargetsRevalidated(t *testing.T) {
 	t.Parallel()
@@ -369,8 +369,8 @@ func TestCollectionTargetsRevalidated(t *testing.T) {
 	var logs bytes.Buffer
 	s.Log = slog.New(slog.NewTextHandler(&logs, nil))
 	s.Policy.Versions["movie-remux"] = &policy.VersionPolicy{Kind: policy.KindMovie, Mode: policy.ModeShadow}
-	s.Policy.Versions["movie-4k"] = &policy.VersionPolicy{Kind: policy.KindMovie, Mode: policy.ModeActive}
-	s.Policy.Versions["movie-4k-theatarr"] = &policy.VersionPolicy{Kind: policy.KindMovie, Mode: policy.ModeActive, Follows: "movie-4k"}
+	s.Policy.Versions["movie-4k"] = &policy.VersionPolicy{Kind: policy.KindMovie, Mode: policy.ModeShadow}
+	s.Policy.Versions["movie-4k-theatarr"] = &policy.VersionPolicy{Kind: policy.KindMovie, Mode: policy.ModeActive}
 	ctx := context.Background()
 	for _, versions := range []string{`[]`, `["movie-remux"]`, `["movie-4k"]`} {
 		if _, err := st.Writer().Exec(`DELETE FROM movie_collection`); err != nil {

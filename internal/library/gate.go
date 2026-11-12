@@ -52,9 +52,8 @@ type Gate struct {
 }
 
 type gateVersion struct {
-	active   bool
-	followed bool // other versions follow it: its roots are its arr's
-	roots    []string
+	active bool
+	roots  []string
 }
 
 // NewGate builds the gate from the policy.
@@ -63,10 +62,8 @@ func NewGate(p *policy.Policy) *Gate {
 	g := &Gate{policy: p, enabled: s.Enabled, trash: s.TrashDir, versions: map[string]gateVersion{}}
 	for k, lv := range s.Versions {
 		vp := p.Versions[k]
-		// A followed version's roots are its arr's: never written, whatever its mode says (policy.validateFollow
-		// refuses that mode too).
-		active := vp != nil && vp.Mode == policy.ModeActive && len(p.Followers(k)) == 0
-		g.versions[k] = gateVersion{active: active, followed: len(p.Followers(k)) > 0, roots: lv.Roots}
+		active := vp != nil && vp.Mode == policy.ModeActive
+		g.versions[k] = gateVersion{active: active, roots: lv.Roots}
 	}
 	return g
 }
@@ -129,9 +126,6 @@ func (g *Gate) checkVersion(version string, rr *policy.RootResolver) error {
 	v, ok := g.versions[version]
 	if !ok {
 		return &Refused{Reason: "unlisted", Detail: fmt.Sprintf("version %q is not listed under library.versions", version)}
-	}
-	if v.followed {
-		return &Refused{Reason: "shadow", Detail: fmt.Sprintf("version %q is followed: its roots are its arr's and stay read-only", version)}
 	}
 	if !v.active {
 		return &Refused{Reason: "shadow", Detail: fmt.Sprintf("version %q is not Live", version)}

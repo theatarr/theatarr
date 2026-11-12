@@ -202,9 +202,6 @@ type VersionPolicy struct {
 	// routed like any other release) or off (never; the file stays). A release for items with no file is never
 	// refused by it (docs/design/router.md "Upgrades").
 	Upgrades string `yaml:"upgrades"`
-	// Follows makes this a parallel version (docs/parallel.md): it takes the catalog and monitoring of the named
-	// version, whose arr instance keeps running, but never its files. It has its own roots and acquires on its own.
-	Follows string `yaml:"follows"`
 }
 
 // Naming holds arr-style naming templates. Empty means the flavour's default.
@@ -224,9 +221,6 @@ type Naming struct {
 	// FromArr takes the whole naming config (and quality titles) from an import.arr instance's
 	// GET /api/v3/config/naming, so links get exactly the names that instance gives. Nothing else may be set with it.
 	FromArr string `yaml:"from_arr"`
-	// FromVersion takes the whole naming of another version: a parallel version naming its files like the version
-	// it follows (versions[k].follows). Nothing else may be set with it.
-	FromVersion string `yaml:"from_version"`
 }
 
 // Profile is a quality profile with format scores, shared by versions.

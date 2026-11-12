@@ -11,45 +11,7 @@ import (
 
 	"github.com/theatarr/theatarr/internal/library/probe"
 	"github.com/theatarr/theatarr/internal/policy"
-	"github.com/theatarr/theatarr/internal/retention"
 )
-
-// A link adopted more than the retention window ago, and never refreshed since, is still refreshed when
-// the arr finally upgrades its file. Its provenance was only the "adopted from ..." library_action, which the
-// nightly retention deletes.
-func TestRetentionKeepsAdoptedLinksRefreshable(t *testing.T) {
-	t.Parallel()
-	e := newParallelEnv(t, true)
-	e.withScans()
-	old := "Amelie.2001.1080p.WEB-DL-POKE"
-	e.release(old, map[string]float64{"movie.mkv": 7000})
-	arrDir := filepath.Join(e.movies, "Amelie The Movie (2001)")
-	e.arrFile(1, "radarr", 10, 1, filepath.Join(arrDir, "Amelie.WEB.mkv"), old+"/movie.mkv", "WEBDL-1080p")
-	if rep, err := e.lib.Adopt(e.ctx, AdoptOptions{Version: "movie-theatarr"}); err != nil || rep.Linked != 1 {
-		t.Fatalf("adopt %+v %v", rep, err)
-	}
-	e.exec(`DELETE FROM job`)
-
-	// 200 days later the nightly retention job runs with its defaults.
-	if sum, err := retention.Prune(e.ctx, e.st, e.now.Add(200*24*time.Hour), retention.Defaults); err != nil {
-		t.Fatal(err)
-	} else {
-		t.Logf("retention pruned %v", sum)
-	}
-
-	upgraded := "Amelie.2001.2160p.Remux-BYNDR"
-	e.release(upgraded, map[string]float64{"movie.mkv": 7000})
-	e.arrUpgrade(1, old, 2, "radarr", 10, 1, filepath.Join(arrDir, "Amelie.Remux.mkv"), upgraded+"/movie.mkv", "Remux-2160p")
-
-	rep, err := e.lib.Refresh(e.ctx, RefreshOptions{Version: "movie-theatarr"})
-	if err != nil {
-		t.Fatal(err)
-	}
-	if rep.Links != 1 || rep.Swapped != 1 {
-		t.Fatalf("after retention the adopted link is no longer refreshed: links %d swapped %d (%+v)", rep.Links,
-			rep.Swapped, rep)
-	}
-}
 
 // One ready download whose file read fails with EIO (rclone's answer for a debrid link that cannot be
 // unrestricted) while the mount answers is backed off on its own, visibly; the pass imports the downloads behind it.

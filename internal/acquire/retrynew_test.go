@@ -7,7 +7,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/theatarr/theatarr/internal/importarr"
 	"github.com/theatarr/theatarr/internal/policy"
 	"github.com/theatarr/theatarr/internal/router"
 	"github.com/theatarr/theatarr/internal/store"
@@ -167,12 +166,12 @@ func TestRetryNewSearchNowStartsAChain(t *testing.T) {
 	e.wantChains("search now", map[string]bool{"series/10": true})
 }
 
-// Only the wanted loop and the Search now queue start a chain. A manual search (an arr command), an add-time search
-// and a re-search's own search start none with the switch on; the chain an exhausted route starts is not a
+// Only the wanted loop and the Search now queue start a chain. A manual search (an arr command) and a re-search's
+// own search start none with the switch on; the chain an exhausted route starts is not a
 // retry_new one.
 func TestRetryNewOtherSourcesStartNothing(t *testing.T) {
 	t.Parallel()
-	w := addTimeOnly(100) // the loop selects nothing itself
+	w := selectsNothing(100) // the loop selects nothing itself
 	w.RetryNew = new(true)
 	e := retryNewEnv(t, w)
 	empty := func(what string, want int) {
@@ -189,17 +188,6 @@ func TestRetryNewOtherSourcesStartNothing(t *testing.T) {
 	empty("manual search", 1)
 	e.wantChains("manual search", nil)
 
-	e.advance(25 * time.Hour) // past again_after; 1004 is still new
-	if err := e.a.EnqueueFollowSearch(e.ctx, []importarr.FollowSearchTarget{{TitleID: 10, VersionKey: "series",
-		EpisodeIDs: []int64{1004}}}); err != nil {
-		t.Fatal(err)
-	}
-	empty("add-time search", 2)
-	if n := e.count(`SELECT COUNT(*) FROM acquire_run WHERE source = ? AND reason = ? AND research IS NULL
-		AND target = 's02e01'`, SourceWanted, OnlyMissing); n != 1 {
-		t.Fatalf("%d add-time runs that look like a wanted round's", n)
-	}
-	e.wantChains("add-time search", nil)
 	if n := e.count(`SELECT COUNT(*) FROM job WHERE kind = ? AND payload LIKE '%retry_new%'`, JobSearch); n != 0 {
 		t.Fatalf("%d search jobs carry retry_new", n)
 	}
@@ -207,7 +195,7 @@ func TestRetryNewOtherSourcesStartNothing(t *testing.T) {
 	e.advance(25 * time.Hour)
 	e.research(router.ResearchRequest{TitleID: 10, VersionID: 201, Version: "series", Episodes: []int64{1004},
 		Reason: router.ReasonExhausted})
-	empty("re-search", 3)
+	empty("re-search", 2)
 	e.wantChains("exhausted route", map[string]bool{"series/10": false})
 }
 

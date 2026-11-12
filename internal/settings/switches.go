@@ -177,7 +177,7 @@ func globalSwitchEffects(previous, next *Snapshot) []ConfirmationEffect {
 		var versions []string
 		for _, key := range sortedPolicyKeys(next.Policy.Versions) {
 			v := next.Policy.Versions[key]
-			if v.Mode == policy.ModeActive && len(next.Policy.Followers(key)) == 0 {
+			if v.Mode == policy.ModeActive {
 				versions = append(versions, key+": roots "+switchList(configuredVersionRoots(next.Policy, key)))
 			}
 		}

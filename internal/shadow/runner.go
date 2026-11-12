@@ -114,11 +114,6 @@ type Runner struct {
 	versions map[string]bool // shadow versions whose profile built
 	active   map[string]bool // active versions whose profile built, read by RSS for the router (Router set)
 	rt       Router
-	// followerRefresh, when set, runs after each instance's import (SetFollowerRefresh).
-	followerRefresh func(ctx context.Context, followed string, titles []int64) error
-	// followerCatchUp, when set, refreshes the followers over every title on a schedule (SetFollowerCatchUp).
-	// A pointer: the per-operation views share it.
-	followerCatchUp *catchUp
 
 	searchMu        *sync.Mutex // one shadow search at a time
 	cacheMu         *sync.Mutex

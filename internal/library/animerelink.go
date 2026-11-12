@@ -25,7 +25,7 @@ import (
 //
 // Left alone: links an arr owns or that were adopted from one (no download), links shared by several versions, files
 // whose episodes a client or an admin chose, and files the resolver does not place through the franchise (an explicit
-// S01E02 or special keeps Sonarr's meaning). A version the gate refuses (library off, a followed or shadow version)
+// S01E02 or special keeps Sonarr's meaning). A version the gate refuses (library off, a shadow version)
 // gets a dry-run plan only. A target episode that already has another file (after every move that frees one: a
 // shifted range moves from its free end), or a new name another file already has on disk, is skipped, both files
 // stay, and the error inbox names the two paths.

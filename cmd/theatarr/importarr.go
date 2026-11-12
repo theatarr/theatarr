@@ -132,7 +132,7 @@ func runImportArr(args []string) error {
 		t0 := time.Now()
 		sum, err := im.Run(ctx, importarr.Source{
 			Instance: n, Flavour: a.Flavour, Version: a.Version, Anime: v.Anime, Library: v.Library,
-			Followers: pol.Followers(a.Version), CollectionTargets: pol.CollectionTargets(),
+			CollectionTargets: pol.CollectionTargets(),
 		}, g)
 		if err != nil {
 			return err

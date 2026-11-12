@@ -45,15 +45,15 @@ import (
 // With router.wanted.retry_new on (on by default) a chain also starts without a route: when a missing search by the
 // wanted loop or by Search now ends with nothing accepted and its target holds new content (retryNew). The first
 // search of a just-aired episode is usually that one, and the loop would take the item again only after again_after.
-// It has the same steps, stops and per_hour charge, but is a chain of its own. A manual search, a search on add, an
-// add-time search and a re-search or follow-up's own search start none.
+// It has the same steps, stops and per_hour charge, but is a chain of its own. A manual search, a search on add and a
+// re-search or follow-up's own search start none.
 //
 // The rule it is built to: nothing this chain writes is read by an ordinary path, and turning the switch off removes
 // its queued work. An install that never had the switch on behaves, and reads the run history, as a build without
 // it; the limits after the switch was on are in docs/design/router.md.
 //   - Its jobs have their own key (followUpKey) and carry RetryNew; its searches' runs have research
 //     researchRetryNew. Every reader of the run history that decides for an ordinary search leaves those runs out
-//     (ordinaryRuns: again_after for the loop and for re-searches, the loop's order, an add-time intent's and a
+//     (ordinaryRuns: again_after for the loop and for re-searches, the loop's order, a
 //     Search now request's "already searched or queued", the retry budget after no answer), and the hourly count
 //     holds them only while the switch is on (hourRuns). The chain after a route that missed everywhere starts by
 //     its own key alone.

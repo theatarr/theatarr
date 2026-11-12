@@ -1,10 +1,9 @@
 # Demo overlay (docs/demo.md "Two copies"): not a policy on its own. Copied into examples/policy beside its files
-# (this file added, library.yaml replaced), it gives each arr-fed series version a parallel version as
-# docs/parallel.md describes: Theatarr's own copy, with the followed version's titles and monitoring and links of
-# its own under /media/library. The demo seed then gives every series and anime series a second copy.
+# (this file added, library.yaml replaced), it gives each arr-fed series version a second Live library of the same
+# kind, <key>-theatarr: Theatarr's own copy, with links of its own under /media/library. The demo seed then gives
+# every series and anime series a second copy.
 versions:
   tv-2160p-theatarr:
-    follows: tv-2160p
     mode: active
     kind: series
     anime: false
@@ -16,10 +15,8 @@ versions:
     indexers: [prowlarr-public, dmm, torrentio, zilean]
     providers: [rd, ad, tb]
     client: decypharr
-    naming: {from_version: tv-2160p}
 
   anime-tv-theatarr:
-    follows: anime-tv
     mode: active
     kind: series
     anime: true
@@ -31,4 +28,3 @@ versions:
     indexers: [prowlarr-public, seadex, dmm]
     providers: [rd, ad, tb]
     client: decypharr
-    naming: {from_version: anime-tv}

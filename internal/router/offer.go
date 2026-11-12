@@ -33,8 +33,8 @@ import (
 //   - rejections remembered so the same file is not probed again: router_offer (version, title, hash);
 //   - partner lacks the title yet, or the file is unreadable: pending every 15 min for 6 h, then gave_up;
 //     gave_up retries daily at most seven more times; a readiness change can bring a retry forward;
-//   - the 6-hourly sweep both ways: imported downloads, adopted/followed links and imported arr files;
-//     never back to their source or followers of the same arr, never without a known hash (no_hash);
+//   - the 6-hourly sweep both ways: imported downloads, adopted links and imported arr files;
+//     never back to their source or the arr's own library, never without a known hash (no_hash);
 //   - replaced sources are not offered; their pending offers are declined with reason superseded;
 //   - offer/backfill commands: theatarr router offer -download ID | -sweep [-dry-run] [-limit N].
 //
@@ -250,7 +250,7 @@ func (o *Offerer) offerSource(ctx context.Context, s *offerSource, dryRun bool) 
 	}
 	var out []OfferResult
 	for _, key := range sortedVersionKeys(o.Policy) {
-		if key == s.version || key == s.arrVersion || (s.arrVersion != "" && o.Policy.Versions[key].Follows == s.arrVersion) {
+		if key == s.version || key == s.arrVersion {
 			continue
 		}
 		vp := o.Policy.Versions[key]
@@ -553,7 +553,7 @@ type SweepResult struct {
 	Offers    []OfferResult  `json:"offers,omitempty"`
 }
 
-// Sweep offers imported downloads, adopted/followed links and arr files (the 6-hourly backfill).
+// Sweep offers imported downloads, adopted links and arr files (the 6-hourly backfill).
 // limit caps the sources offered (0: all); a sweep stops after 5 errors.
 func (o *Offerer) Sweep(ctx context.Context, dryRun bool, limit int) (*SweepResult, error) {
 	if o.CaptureRuntime != nil {

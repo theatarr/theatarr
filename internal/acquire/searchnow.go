@@ -16,27 +16,24 @@ import (
 // Search now (the Wanted page's buttons). A request is one row of the page: one library's missing or cutoff-unmet
 // targets of a movie, or of one series season. Requests are kept in search_request and started oldest first under
 // the wanted loop's hourly budget (router.wanted.per_hour): their runs have source wanted, so they are counted with
-// the loop's searches, the add-time searches and the re-searches after a failure. There is no path around the
+// the loop's searches and the re-searches after a failure. There is no path around the
 // budget, for one row or for many; what the hour does not allow waits, and JobSearchNow drains it as searches leave
 // the hour window, with the loop on or off.
 //
-// Order under the one budget: add-time searches (DrainFollowSearches), then Search now, then the loop's own
-// selection. A request does not consult again_after: the user asked. It is deleted when its search starts, and when
+// Order under the one budget: Search now, then the loop's own selection. A request does not consult again_after: the user asked. It is deleted when its search starts, and when
 // it asks for nothing any more (imported meanwhile, a download in flight, a search of it already queued or running,
 // unmonitored, the library not active or not grabbing). A search of router.wanted.retry_new's chain is not such a
 // search: a request is never dropped for one. A search that fails is recorded on its run and not repeated
 // from the request. While router.enabled is false (Pause) nothing new is accepted and what is queued waits: a drain
-// starts nothing and no drain is scheduled; once it is true again the drains pick the queue up, oldest first, as they
-// do for add-time searches.
+// starts nothing and no drain is scheduled; once it is true again the drains pick the queue up, oldest first.
 //
-// The order above holds inside a wanted round, which runs the two drains before its own selection, and in
-// JobSearchNow (StartQueued: add-time, then Search now). A request drains Search now only, and a re-search after a failure may take a slot of the hour that frees while
+// The order above holds inside a wanted round, which runs the drain before its own selection, and in JobSearchNow
+// (StartQueued). A re-search after a failure may take a slot of the hour that frees while
 // requests wait: every consumer checks and spends the hour under one lock (drainMu), but nothing arbitrates between
 // them. Cancel (ClearSearchNow) stops every request whose search has not started; a drain claims each request by
 // deleting it just before it starts that search, and a search that has started stays started.
 
-// JobSearchNow drains the add-time searches, then the Search now requests, and schedules itself again while some
-// remain (StartQueued).
+// JobSearchNow drains the Search now requests and schedules itself again while some remain (StartQueued).
 const JobSearchNow = "acquire.searchnow"
 
 // ErrDownloadsOff is RequestSearchNow's refusal while router.enabled is false.
@@ -286,7 +283,7 @@ func (a *Acquirer) DrainSearchNow(ctx context.Context) (int, error) {
 
 // searchNowReady are the targets a request still asks for: none when its library is not active or not grabbing, when
 // nothing of it is wanted any more, or when a download for it is in flight or a search of it is already queued or
-// running (an add-time search of the same row started earlier in the round).
+// running.
 func (a *Acquirer) searchNowReady(ctx context.Context, r searchRequest) ([]target, error) {
 	if vp := a.pol.Versions[r.key]; vp == nil || vp.Mode != policy.ModeActive || !a.pol.Grabs(r.key) {
 		return nil, nil
@@ -371,23 +368,16 @@ func (a *Acquirer) searchNowPending(ctx context.Context) (int, *time.Time, error
 	return n, &at, nil
 }
 
-// ScheduleSearchNow queues the next drain of the two queues JobSearchNow drains: while Search now requests exist
-// (after a request, after a drain that left some, and at start, so a queue survives a restart), and while add-time
-// intents of a grabbing library wait for the hourly budget (the hour is spent), so they do not wait for the next
-// import or wanted round with the loop off. Intents waiting on something else (a running search, a no-answer backoff)
-// schedule nothing, as before. The job's key carries its run time: an enqueue is a no-op while a job with the same key
+// ScheduleSearchNow queues the next drain of the queue JobSearchNow drains while Search now requests exist (after a
+// request, after a drain that left some, and at start, so a queue survives a restart). The job's key carries its run
+// time: an enqueue is a no-op while a job with the same key
 // is queued or running, so a handler queueing a constant key from inside its own run would end the chain. While
 // router.enabled is false it queues nothing: the chain ends, and the serve worker that drains at start runs again
 // when the switch is turned back on.
 func (a *Acquirer) ScheduleSearchNow(ctx context.Context) error {
-	n, at, err := a.searchNowPending(ctx)
+	_, at, err := a.searchNowPending(ctx)
 	if err != nil {
 		return err
-	}
-	if n == 0 && a.pol.RouterSettings().Enabled {
-		if at, err = a.addTimeNextAt(ctx); err != nil {
-			return err
-		}
 	}
 	if at == nil {
 		return nil
@@ -397,54 +387,12 @@ func (a *Acquirer) ScheduleSearchNow(ctx context.Context) error {
 	return err
 }
 
-// addTimeNextAt is when add-time intents of a grabbing library that wait for the hourly budget can start: when the
-// counted search whose leaving the window brings the hour below per_hour leaves it, never sooner than a minute from now; nil when none waits or
-// the hour has budget left (what is left waits on something else).
-func (a *Acquirer) addTimeNextAt(ctx context.Context) (*time.Time, error) {
-	keys := a.pol.SearchVersions()
-	if len(keys) == 0 {
-		return nil, nil
-	}
-	args := make([]any, len(keys))
-	for i, k := range keys {
-		args[i] = k
-	}
-	var n int
-	if err := a.st.Reader().QueryRowContext(ctx, `SELECT COUNT(*) FROM follow_search_intent WHERE version_key IN (`+
-		store.Placeholders(len(args))+`)`, args...).Scan(&n); err != nil || n == 0 {
-		return nil, err
-	}
-	now := a.now()
-	used, err := a.wantedUsed(ctx, now)
-	if err != nil || used < a.set.PerHour {
-		return nil, err
-	}
-	// The run whose leaving the window brings the hour below per_hour: the (used-per_hour+1)-th oldest, so a lowered
-	// per_hour does not wake a drain at each expiry that frees nothing.
-	var freeing sql.NullInt64
-	if err := a.st.Reader().QueryRowContext(ctx, `SELECT created_at FROM acquire_run WHERE `+a.hourRuns()+`
-		AND created_at > ? ORDER BY created_at LIMIT 1 OFFSET ?`, SourceWanted, store.Millis(now.Add(-time.Hour)),
-		used-a.set.PerHour).Scan(&freeing); err != nil && !errors.Is(err, sql.ErrNoRows) {
-		return nil, err
-	}
-	at := now.Add(time.Minute)
-	if freeing.Valid {
-		if free := store.FromMillis(freeing.Int64).Add(time.Hour + time.Second); free.After(at) {
-			at = free
-		}
-	}
-	at = at.UTC()
-	return &at, nil
-}
-
-// StartQueued drains both queues in a wanted round's order, under the one budget: the add-time searches first
-// (DrainFollowSearches), then Search now (DrainSearchNow), and schedules the next drain for what is left. It is
+// StartQueued drains the Search now queue (DrainSearchNow) and schedules the next drain for what is left. It is
 // JobSearchNow's body, and the serve worker runs it at start and when router.enabled is turned back on, so what
 // waited while paused starts with the wanted loop off too.
 func (a *Acquirer) StartQueued(ctx context.Context) error {
-	_, ferr := a.DrainFollowSearches(ctx)
 	_, serr := a.DrainSearchNow(ctx)
-	return errors.Join(ferr, serr, a.ScheduleSearchNow(ctx))
+	return errors.Join(serr, a.ScheduleSearchNow(ctx))
 }
 
 // HandleSearchNow is JobSearchNow's body (StartQueued).

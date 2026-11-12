@@ -2,7 +2,6 @@ package library
 
 import (
 	"encoding/json"
-	"errors"
 	"os"
 	"path/filepath"
 	"strings"
@@ -13,8 +12,8 @@ import (
 	"github.com/theatarr/theatarr/internal/policy"
 )
 
-// parallelEnv is newEnv with the arr versions in shadow (their roots hold the arr's links), parallel versions
-// movie-theatarr and tv-theatarr following them on roots of their own.
+// parallelEnv is newEnv with the arr versions in shadow (their roots hold the arr's links) and Live libraries
+// movie-theatarr and tv-theatarr beside them on roots of their own, with the same naming.
 type parallelEnv struct {
 	*env
 	theatarrMovies, theatarrShows string
@@ -31,11 +30,9 @@ func newParallelEnv(t *testing.T, enabled bool) *parallelEnv {
 		}
 	}
 	movie := *e.pol.Versions["movie-remux"]
-	movie.Mode, movie.Follows, movie.Library = policy.ModeActive, "movie-remux", e.theatarrMovies
-	movie.Naming = policy.Naming{FromVersion: "movie-remux"}
+	movie.Mode, movie.Library = policy.ModeActive, e.theatarrMovies
 	tv := *e.pol.Versions["tv"]
-	tv.Mode, tv.Follows, tv.Library = policy.ModeActive, "tv", e.theatarrShows
-	tv.Naming = policy.Naming{FromVersion: "tv"}
+	tv.Mode, tv.Library = policy.ModeActive, e.theatarrShows
 	e.pol.Versions["movie-theatarr"], e.pol.Versions["tv-theatarr"] = &movie, &tv
 	e.pol.Library.Versions["movie-theatarr"] = &policy.LibraryVersion{Roots: []string{e.theatarrMovies}}
 	e.pol.Library.Versions["tv-theatarr"] = &policy.LibraryVersion{Roots: []string{e.theatarrShows}}
@@ -79,175 +76,50 @@ func (e *parallelEnv) arrFile(id int64, instance string, versionID, titleID int6
 	}
 }
 
-func TestAdoptMovies(t *testing.T) {
-	t.Parallel()
-	e := newParallelEnv(t, true)
-	e.release(movieRelease, map[string]float64{"movie.mkv": 7000})
-	arrLink := filepath.Join(e.movies, "Amelie The Movie (2001)", "Amelie.mkv")
-	e.arrFile(1, "radarr", 10, 1, arrLink, movieRelease+"/movie.mkv", "Remux-2160p")
-	e.exec(`UPDATE version_file SET media_info = '{"resolution":"3840x2160","subtitles":"English"}' WHERE id = 1`)
-	// Other titles of the arr: a dangling link, a regular file, a link off the mount, a WEB file.
-	for id, name := range map[int64]string{3: "Gone", 4: "Plain", 5: "Off", 6: "Alt"} {
-		e.exec(`INSERT INTO title (id, kind, name, year, tmdb_id, created_at, updated_at) VALUES (?, 'movie', ?, 2010, ?, 0, 0)`,
-			id, name, id)
-		e.exec(`INSERT INTO version (id, title_id, policy_key, created_at, updated_at) VALUES (?, ?, 'movie-remux', 0, 0)`, id*10, id)
-		e.exec(`INSERT INTO version (id, title_id, policy_key, state, created_at, updated_at) VALUES (?, ?, 'movie-theatarr', 'wanted', 0, 0)`, id*10+1, id)
-		e.exec(`INSERT INTO version_source (version_id, instance, arr_id) VALUES (?, 'radarr', ?)`, id*10, id)
-	}
-	e.arrFile(3, "radarr", 30, 3, filepath.Join(e.movies, "Gone (2010)", "Gone.mkv"), "Missing.Release/m.mkv", "Remux-2160p")
-	plain := filepath.Join(e.movies, "Plain (2010)", "Plain.mkv")
-	os.MkdirAll(filepath.Dir(plain), 0o755)
-	os.WriteFile(plain, []byte("x"), 0o644)
-	e.arrFile(4, "radarr", 40, 4, plain, "", "Remux-2160p")
-	e.arrFile(5, "radarr", 50, 5, filepath.Join(e.movies, "Off (2010)", "Off.mkv"), filepath.Join(e.outside, "o.mkv"), "Remux-2160p")
-	e.release("Alt.2010.1080p.WEB-DL-GRP", map[string]float64{"alt.mkv": 7000})
-	alt := filepath.Join(e.mount, "__all__", "Alt.2010.1080p.WEB-DL-GRP", "alt.mkv")
-	e.arrFile(6, "radarr", 60, 6, filepath.Join(e.movies, "Alt (2010)", "Alt.mkv"), alt, "WEBDL-1080p")
-
-	// A dry run plans and writes nothing.
-	before := tree(t, e.dir)
-	rep, err := e.lib.Adopt(e.ctx, AdoptOptions{Version: "movie-theatarr", DryRun: true})
+// adopt links the arr's files (arrFile) of the library beside version (movie-remux for movie-theatarr, tv for
+// tv-theatarr) into version, as the one-time import does.
+func (e *parallelEnv) adopt(version string) (*AdoptReport, error) {
+	e.t.Helper()
+	from := map[string]string{"movie-theatarr": "movie-remux", "tv-theatarr": "tv"}[version]
+	rows, err := e.st.Reader().QueryContext(e.ctx, `SELECT vf.id, vf.instance, vf.title_id, vf.path, vf.relative_path,
+		vf.quality, vf.quality_revision, vf.release_group, vf.scene_name, vf.languages, vf.media_info, vf.size_bytes
+		FROM version_file vf JOIN version v ON v.id = vf.version_id WHERE v.policy_key = ? ORDER BY vf.id`, from)
 	if err != nil {
-		t.Fatal(err)
+		e.t.Fatal(err)
 	}
-	if rep.Linked != 2 || rep.Files != 5 {
-		t.Fatalf("dry run %+v", rep)
+	var files []ImportFile
+	var ids []int64
+	for rows.Next() {
+		var f ImportFile
+		var id int64
+		var instance, langs string
+		if err := rows.Scan(&id, &instance, &f.TitleID, &f.Path, &f.RelativePath, &f.Quality, &f.Revision,
+			&f.ReleaseGroup, &f.SceneName, &langs, &f.MediaInfo, &f.Size); err != nil {
+			e.t.Fatal(err)
+		}
+		f.Source = instance + " " + f.Path
+		_ = json.Unmarshal([]byte(langs), &f.Languages)
+		files, ids = append(files, f), append(ids, id)
 	}
-	if after := tree(t, e.dir); strings.Join(before, "|") != strings.Join(after, "|") {
-		t.Fatal("dry run wrote to disk")
+	if err := rows.Close(); err != nil {
+		e.t.Fatal(err)
 	}
-	if n := e.one(`SELECT COUNT(*) FROM link`); n != "0" {
-		t.Fatalf("dry run recorded %s links", n)
+	for i, id := range ids {
+		eps, err := e.st.Reader().QueryContext(e.ctx, `SELECT episode_id FROM version_file_episode
+			WHERE version_file_id = ? ORDER BY episode_id`, id)
+		if err != nil {
+			e.t.Fatal(err)
+		}
+		for eps.Next() {
+			var ep int64
+			if err := eps.Scan(&ep); err != nil {
+				e.t.Fatal(err)
+			}
+			files[i].Episodes = append(files[i].Episodes, ep)
+		}
+		eps.Close()
 	}
-
-	rep, err = e.lib.Adopt(e.ctx, AdoptOptions{Version: "movie-theatarr"})
-	if err != nil {
-		t.Fatal(err)
-	}
-	if rep.Linked != 2 || rep.Skipped[AdoptDangling] != 1 || rep.Skipped[AdoptNotLink] != 1 ||
-		rep.Skipped[AdoptOffMount] != 1 {
-		t.Fatalf("report %+v", rep)
-	}
-	want := filepath.Join(e.theatarrMovies, "Amelie The Movie (2001)",
-		"Amelie The Movie (2001) {imdb-tt0211915} - [Remux-2160p]-GRP.mkv")
-	if tg, err := os.Readlink(want); err != nil || tg != filepath.Join(e.mount, "__all__", movieRelease, "movie.mkv") {
-		t.Fatalf("link %s -> %q %v", want, tg, err)
-	}
-	if tg, err := os.Readlink(filepath.Join(e.theatarrMovies, "Alt (2010)", "Alt (2010) - [WEBDL-1080p]-GRP.mkv")); err != nil || tg != alt {
-		t.Fatalf("WEB link -> %q %v", tg, err)
-	}
-	if tg, _ := os.Readlink(arrLink); tg != filepath.Join(e.mount, "__all__", movieRelease, "movie.mkv") {
-		t.Fatal("the arr's link changed")
-	}
-	if got := e.one(`SELECT l.quality || ' ' || l.score || ' ' || l.adopted || ' ' || COALESCE(l.download_id, 0)
-		FROM link l JOIN link_version lv ON lv.link_id = l.id WHERE lv.version_id = 11`); got != "Remux-2160p 50 0 0" {
-		t.Errorf("link row %s", got)
-	}
-	if got := e.one(`SELECT json_extract(file_metadata, '$.SceneName') || ' ' || json_extract(file_metadata, '$.Revision')
-		FROM link WHERE path = ?`, want); got != "movie 1" {
-		t.Errorf("file metadata %s", got)
-	}
-	// The arr's media info is kept on the link for the title page.
-	if got := e.one(`SELECT adopted_media FROM link WHERE path = ?`, want); got != `{"resolution":"3840x2160","subtitles":"English"}` {
-		t.Errorf("adopted media %s", got)
-	}
-	// decide sees the link as the parallel version's file; the followed version still has only the arr's.
-	if f, err := decide.LoadExisting(e.ctx, e.st.Reader(), 11); err != nil || f == nil || f.Quality != "Remux-2160p" ||
-		f.ReleaseGroup != "GRP" {
-		t.Fatalf("existing %+v %v", f, err)
-	}
-	if got := e.one(`SELECT state FROM version WHERE id = 11`) + " " + e.one(`SELECT state FROM version WHERE id = 61`); got != "cutoff_met filled" {
-		t.Errorf("states %s", got)
-	}
-	if got := e.one(`SELECT COUNT(*) FROM library_action WHERE kind = 'link' AND mode = 'applied' AND version_key = 'movie-theatarr'
-		AND detail LIKE 'adopted from radarr %'`); got != "2" {
-		t.Errorf("journal %s", got)
-	}
-	if got := e.one(`SELECT COUNT(*) FROM link l JOIN link_version lv ON lv.link_id = l.id WHERE lv.version_id = 10`); got != "0" {
-		t.Errorf("the followed version got links: %s", got)
-	}
-
-	// Idempotent.
-	before = tree(t, e.dir)
-	rep, err = e.lib.Adopt(e.ctx, AdoptOptions{Version: "movie-theatarr"})
-	if err != nil || rep.Linked != 0 || rep.Existing != 2 {
-		t.Fatalf("second run %+v %v", rep, err)
-	}
-	if after := tree(t, e.dir); strings.Join(before, "|") != strings.Join(after, "|") {
-		t.Fatal("second run changed the tree")
-	}
-}
-
-func TestAdoptRefusals(t *testing.T) {
-	t.Parallel()
-	e := newParallelEnv(t, false)
-	e.release(movieRelease, map[string]float64{"movie.mkv": 7000})
-	e.arrFile(1, "radarr", 10, 1, filepath.Join(e.movies, "Amelie The Movie (2001)", "Amelie.mkv"),
-		movieRelease+"/movie.mkv", "Remux-2160p")
-	if _, err := e.lib.Adopt(e.ctx, AdoptOptions{Version: "movie-theatarr"}); !errors.Is(err, ErrRefused) {
-		t.Fatalf("closed gate: %v", err)
-	}
-	if _, err := e.lib.Adopt(e.ctx, AdoptOptions{Version: "movie-remux", DryRun: true}); err == nil {
-		t.Fatal("adopt into a version that follows nothing")
-	}
-	// The path is taken by something else: nothing is overwritten.
-	e2 := newParallelEnv(t, true)
-	e2.release(movieRelease, map[string]float64{"movie.mkv": 7000, "other.mkv": 7000})
-	e2.arrFile(1, "radarr", 10, 1, filepath.Join(e2.movies, "Amelie The Movie (2001)", "Amelie.mkv"),
-		movieRelease+"/movie.mkv", "Remux-2160p")
-	taken := filepath.Join(e2.theatarrMovies, "Amelie The Movie (2001)", "Amelie The Movie (2001) {imdb-tt0211915} - [Remux-2160p]-GRP.mkv")
-	os.MkdirAll(filepath.Dir(taken), 0o755)
-	os.Symlink(filepath.Join(e2.mount, "__all__", movieRelease, "other.mkv"), taken)
-	rep, err := e2.lib.Adopt(e2.ctx, AdoptOptions{Version: "movie-theatarr"})
-	if err != nil || rep.Linked != 0 || rep.Skipped[AdoptConflict] != 1 {
-		t.Fatalf("taken path %+v %v", rep, err)
-	}
-	if tg, _ := os.Readlink(taken); !strings.HasSuffix(tg, "other.mkv") {
-		t.Fatal("overwritten")
-	}
-	// The limit stops after N new links.
-	e3 := newParallelEnv(t, true)
-	e3.release(movieRelease, map[string]float64{"movie.mkv": 7000})
-	e3.arrFile(1, "radarr", 10, 1, filepath.Join(e3.movies, "Amelie The Movie (2001)", "Amelie.mkv"),
-		movieRelease+"/movie.mkv", "Remux-2160p")
-	if rep, err := e3.lib.Adopt(e3.ctx, AdoptOptions{Version: "movie-theatarr", Limit: 1}); err != nil || rep.Linked != 1 {
-		t.Fatalf("limit %+v %v", rep, err)
-	}
-}
-
-func TestAdoptSeries(t *testing.T) {
-	t.Parallel()
-	e := newParallelEnv(t, true)
-	e.exec(`UPDATE episode SET air_date_utc_at = 0`)
-	e.exec(`INSERT INTO episode (id, title_id, season, number, name, created_at, updated_at) VALUES (200, 2, 0, 1, 'Special', 0, 0)`)
-	for _, id := range []int64{200, 201, 202} {
-		e.exec(`INSERT INTO episode_version_state (version_id, episode_id, monitored, state, updated_at) VALUES (21, ?, 1, 'wanted', 0)`, id)
-	}
-	rel := "Show.S01.1080p.WEB-DL-GRP"
-	e.release(rel, map[string]float64{"Show.S01E01E02.mkv": 5400, "Show.S00E01.mkv": 2700})
-	e.arrFile(1, "sonarr", 20, 2, filepath.Join(e.shows, "Show (2020)", "Season 01", "Show - S01E01-E02.mkv"),
-		rel+"/Show.S01E01E02.mkv", "WEBDL-1080p", 201, 202)
-	e.arrFile(2, "sonarr", 20, 2, filepath.Join(e.shows, "Show (2020)", "Specials", "Show - S00E01.mkv"),
-		rel+"/Show.S00E01.mkv", "Bluray-2160p Remux", 200)
-	rep, err := e.lib.Adopt(e.ctx, AdoptOptions{Version: "tv-theatarr"})
-	if err != nil || rep.Linked != 2 {
-		t.Fatalf("%+v %v", rep, err)
-	}
-	multi := filepath.Join(e.theatarrShows, "Show (2020)", "Season 01",
-		"Show (2020) - S01E01-E02 - Pilot and Second Part [WEBDL-1080p]-GRP.mkv")
-	if _, err := os.Readlink(multi); err != nil {
-		t.Fatalf("multi-episode link: %v (%+v)", err, rep.Links)
-	}
-	if got := e.one(`SELECT GROUP_CONCAT(episode_id || '=' || state, ' ') FROM (SELECT * FROM episode_version_state
-		WHERE version_id = 21 ORDER BY episode_id)`); got != "200=cutoff_met 201=filled 202=filled" {
-		t.Errorf("episode states %s", got)
-	}
-	if got := e.one(`SELECT state FROM version WHERE id = 21`); got != "filled" {
-		t.Errorf("series state %s", got)
-	}
-	if got := e.one(`SELECT COUNT(*) FROM link_episode le JOIN link_version lv ON lv.link_id = le.link_id WHERE lv.version_id = 21`); got != "3" {
-		t.Errorf("link episodes %s", got)
-	}
+	return e.lib.AdoptImported(e.ctx, version, files)
 }
 
 func TestAdoptPreservesOwnFilesAndReportsCoverage(t *testing.T) {
@@ -290,8 +162,8 @@ func TestAdoptPreservesOwnFilesAndReportsCoverage(t *testing.T) {
 				e.exec(`INSERT INTO link_episode (link_id, episode_id) VALUES (?, ?)`, i, 200+i)
 			}
 			before := strings.Join(tree(t, e.dir), "|")
-			for _, dryRun := range []bool{true, false} {
-				rep, err := e.lib.Adopt(e.ctx, AdoptOptions{Version: "tv-theatarr", DryRun: dryRun})
+			{
+				rep, err := e.adopt("tv-theatarr")
 				if err != nil {
 					t.Fatal(err)
 				}
@@ -324,115 +196,5 @@ func TestAdoptPreservesOwnFilesAndReportsCoverage(t *testing.T) {
 				t.Fatalf("own links changed: %s", got)
 			}
 		})
-	}
-}
-
-func TestAdoptAnimeAbsolute(t *testing.T) {
-	t.Parallel()
-	e := newParallelEnv(t, true)
-	tv := e.pol.Versions["tv"]
-	tv.Naming.Anime = "{Series CleanTitleWithoutYear} - S{season:00}E{episode:00} - {absolute:000} - {Episode CleanTitle} {[Quality Full]}"
-	e.exec(`UPDATE title SET series_type = 'anime' WHERE id = 2`)
-	e.exec(`INSERT INTO episode_number (episode_id, title_id, scheme, number, source) VALUES (202, 2, 'absolute_tvdb', 14, 'sonarr')`)
-	rel := "[Group] Show - 14 [1080p]"
-	e.release(rel, map[string]float64{"Show - 14.mkv": 1400})
-	e.arrFile(1, "sonarr", 20, 2, filepath.Join(e.shows, "Show (2020)", "Season 01", "Show - 14.mkv"),
-		rel+"/Show - 14.mkv", "WEBDL-1080p", 202)
-	rep, err := e.lib.Adopt(e.ctx, AdoptOptions{Version: "tv-theatarr"})
-	if err != nil || rep.Linked != 1 {
-		t.Fatalf("%+v %v", rep, err)
-	}
-	want := filepath.Join(e.theatarrShows, "Show (2020)", "Season 01", "Show - S01E02 - 014 - Second Part [WEBDL-1080p].mkv")
-	if rep.Links[0].Path != want {
-		t.Fatalf("path %s, want %s", rep.Links[0].Path, want)
-	}
-}
-
-// TestFollowerUpgradeMovesOnlyItsLink: an import for the parallel version replaces its own adopted link (moved to
-// the trash) and never touches the arr's link or the followed version's file.
-func TestFollowerUpgradeMovesOnlyItsLink(t *testing.T) {
-	t.Parallel()
-	e := newParallelEnv(t, true)
-	old := "Amelie.2001.1080p.WEB-DL-GRP"
-	e.release(old, map[string]float64{"movie.mkv": 7000})
-	arrLink := filepath.Join(e.movies, "Amelie The Movie (2001)", "Amelie.mkv")
-	e.arrFile(1, "radarr", 10, 1, arrLink, old+"/movie.mkv", "WEBDL-1080p")
-	if rep, err := e.lib.Adopt(e.ctx, AdoptOptions{Version: "movie-theatarr"}); err != nil || rep.Linked != 1 {
-		t.Fatalf("%+v %v", rep, err)
-	}
-	adopted := filepath.Join(e.theatarrMovies, "Amelie The Movie (2001)", "Amelie The Movie (2001) {imdb-tt0211915} - [WEBDL-1080p]-GRP.mkv")
-	e.release(movieRelease, map[string]float64{"movie.mkv": 7000})
-	e.download(1, "movie-theatarr", 1, 11, movieRelease, movieRelease, "[]")
-	plan, err := e.lib.Import(e.ctx, 1, false)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if len(plan.Links) != 1 || len(plan.Links[0].Replaces) != 1 || plan.Links[0].Replaces[0] != adopted {
-		t.Fatalf("plan %+v", plan.Links)
-	}
-	if _, err := os.Lstat(adopted); !os.IsNotExist(err) {
-		t.Fatal("the adopted link is still there")
-	}
-	if tg, err := os.Readlink(arrLink); err != nil || !strings.Contains(tg, old) {
-		t.Fatal("the arr's link was touched")
-	}
-	if got := e.one(`SELECT COUNT(*) FROM link_trash WHERE version_key = 'movie-theatarr' AND path = ?`, adopted); got != "1" {
-		t.Errorf("trash rows %s", got)
-	}
-	if got := e.one(`SELECT COUNT(*) FROM version_file WHERE version_id = 10`); got != "1" {
-		t.Errorf("the arr's file row went: %s", got)
-	}
-	if got := e.one(`SELECT state FROM version WHERE id = 11`); got != "cutoff_met" {
-		t.Errorf("state %s", got)
-	}
-}
-
-// TestShadowFollowedNeverWritten: the followed version is shadow, so an import for it stays a dry run even while its
-// parallel version may write.
-func TestShadowFollowedNeverWritten(t *testing.T) {
-	t.Parallel()
-	e := newParallelEnv(t, true)
-	e.release(movieRelease, map[string]float64{"movie.mkv": 7000})
-	e.download(1, "movie-remux", 1, 10, movieRelease, movieRelease, "[]")
-	before := tree(t, e.dir)
-	plan, err := e.lib.Import(e.ctx, 1, false)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if !plan.DryRun {
-		t.Fatalf("plan %+v", plan)
-	}
-	if after := tree(t, e.dir); strings.Join(before, "|") != strings.Join(after, "|") {
-		t.Fatal("the shadow followed version wrote")
-	}
-	if !e.lib.Gate().Active("movie-theatarr") || e.lib.Gate().Active("movie-remux") {
-		t.Fatal("gate")
-	}
-}
-
-// TestAdoptedSourceClearedWhenFileChanges: the arr replaced its file at the same path (same adopted_from), and the
-// refresh records the new file at the same link path: the offer sweep's stored source described the old file and is
-// cleared, so the sweep reads the new file's again.
-func TestAdoptedSourceClearedWhenFileChanges(t *testing.T) {
-	t.Parallel()
-	e := newParallelEnv(t, true)
-	old := "Amelie.2001.1080p.WEB-DL-GRP"
-	e.release(old, map[string]float64{"movie.mkv": 7000})
-	arrPath := filepath.Join(e.movies, "Amelie The Movie (2001)", "Amelie.mkv")
-	e.arrFile(1, "radarr", 10, 1, arrPath, old+"/movie.mkv", "WEBDL-1080p")
-	if rep, err := e.lib.Adopt(e.ctx, AdoptOptions{Version: "movie-theatarr"}); err != nil || rep.Linked != 1 {
-		t.Fatalf("%+v %v", rep, err)
-	}
-	e.exec(`UPDATE link SET adopted_source = '{"from":"radarr ` + arrPath + `","hash":"aa","indexers":["dmm"]}'`)
-	other := "Amelie.2001.1080p.AMZN.WEB-DL-GRP"
-	e.release(other, map[string]float64{"movie.mkv": 7000})
-	e.arrUpgrade(1, old, 2, "radarr", 10, 1, arrPath, other+"/movie.mkv", "WEBDL-1080p")
-	rep, err := e.lib.Refresh(e.ctx, RefreshOptions{Version: "movie-theatarr"})
-	if err != nil || rep.Swapped != 1 || rep.Swaps[0].Path != rep.Swaps[0].Old {
-		t.Fatalf("refresh %+v %v", rep, err)
-	}
-	if got := e.one(`SELECT id || ' ' || adopted_from || ' ' || COALESCE(adopted_source, 'NULL') || ' ' || target FROM link`); got !=
-		"1 radarr "+arrPath+" NULL "+filepath.Join(e.mount, "__all__", other, "movie.mkv") {
-		t.Fatalf("link row %s", got)
 	}
 }

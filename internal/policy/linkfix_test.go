@@ -7,27 +7,6 @@ import (
 	"testing"
 )
 
-// The followed version's roots are its arr's; YAML may not make it active either.
-func TestFollowedActiveRefused(t *testing.T) {
-	t.Parallel()
-	dir := parallelPolicy(t, followerYAML+"    naming: {from_version: movie-remux}\n", followerLib)
-	vf := filepath.Join(dir, "versions.yaml")
-	b, err := os.ReadFile(vf)
-	if err != nil {
-		t.Fatal(err)
-	}
-	s := strings.Replace(string(b), "  movie-remux:\n    mode: shadow", "  movie-remux:\n    mode: active", 1)
-	if s == string(b) {
-		t.Fatal("versions.yaml: movie-remux is not mode: shadow")
-	}
-	if err := os.WriteFile(vf, []byte(s), 0o644); err != nil {
-		t.Fatal(err)
-	}
-	if _, err := Load(dir); err == nil || !strings.Contains(err.Error(), "versions[movie-remux].mode") {
-		t.Fatalf("want the followed active version refused, got %v", err)
-	}
-}
-
 // The image cache (whose files the proxy removes) may not overlap a library root, the trash or the mount.
 func TestImagesDirOverlap(t *testing.T) {
 	t.Parallel()
@@ -81,7 +60,7 @@ func TestNestedBindAlias(t *testing.T) {
 	defer func() { mountInfoPath = old }()
 	p := &Policy{Versions: map[string]*VersionPolicy{
 		"F": {Kind: KindMovie, Library: arr},
-		"K": {Kind: KindMovie, Mode: ModeActive, Follows: "F", Library: mine, Naming: Naming{FromVersion: "F"}},
+		"K": {Kind: KindMovie, Mode: ModeActive, Library: mine},
 	}, Library: &Library{Versions: map[string]*LibraryVersion{"K": {Roots: []string{mine}}}}}
 	if _, err := p.CheckRootSeparation("K"); err == nil || !strings.Contains(err.Error(), "overlaps") {
 		t.Fatalf("nested bind alias: %v", err)

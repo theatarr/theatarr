@@ -227,7 +227,7 @@ func (s *MovieIntake) refreshCollection(ctx context.Context, cfg movieIntakeConf
 }
 
 // collectionTargets revalidates a monitored collection's stored targets: only collection targets (policy
-// CollectionTarget: active movie versions nothing follows, the ones the library gate lets write) take its movies.
+// CollectionTarget: Live movie libraries, the ones the library gate lets write) take its movies.
 // Others are skipped, logged once; with none left (an empty list among them) it adds nothing, and returns "".
 func (s *MovieIntake) collectionTargets(cfg movieIntakeConfig) (string, error) {
 	var keys, ok, skipped []string

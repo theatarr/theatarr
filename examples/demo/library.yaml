@@ -1,5 +1,5 @@
-# Demo overlay: examples/policy/library.yaml with the roots of the parallel versions in versions-theatarr.yaml added at the
-# end of library.versions (a parallel version needs roots of its own). Replaces library.yaml in the demo's policy
+# Demo overlay: examples/policy/library.yaml with the roots of the Live libraries in versions-theatarr.yaml added at the
+# end of library.versions (a Live library needs roots of its own). Replaces library.yaml in the demo's policy
 # directory (docs/demo.md "Two copies"); internal/demo's tests keep it equal to the example's otherwise.
 #
 # Library: imports of ready downloads into the version roots, relinks and Plex scans (docs/design/library.md).
@@ -52,7 +52,7 @@ library:
       roots: [/media/tv]
     anime-tv:
       roots: [/media/anime]
-    # The parallel versions (versions-theatarr.yaml): Theatarr's own tree, apart from every arr root.
+    # Theatarr's own copies (versions-theatarr.yaml): Theatarr's own tree, apart from every arr root.
     tv-2160p-theatarr:
       roots: [/media/library/tv]
     anime-tv-theatarr:

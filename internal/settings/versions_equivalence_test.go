@@ -44,9 +44,7 @@ func TestVersionsPolicyRuntimeEquivalence(t *testing.T) {
 				for _, key := range keys {
 					v := *p.Versions[key]
 					v.Mode = policy.ModeActive
-					v.Follows = key
 					v.Library += "-theatarr"
-					v.Naming = policy.Naming{FromVersion: key}
 					p.Versions[key+"-theatarr"] = &v
 					p.Library.Versions[key+"-theatarr"] = &policy.LibraryVersion{Roots: []string{v.Library}}
 				}

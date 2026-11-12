@@ -3,31 +3,7 @@ package library
 import (
 	"path/filepath"
 	"testing"
-
-	"github.com/theatarr/theatarr/internal/importarr"
 )
-
-func TestFollowerNamingSeriesType(t *testing.T) {
-	t.Parallel()
-	e := newParallelEnv(t, true)
-	im := &importarr.Importer{Store: e.st}
-	snap := &importarr.Snapshot{Instance: "sonarr", Flavour: "sonarr", Titles: []importarr.Title{
-		{ArrID: 2, Kind: "series", Name: "Show", TvdbID: 1001, SeriesType: "anime", Monitored: true},
-	}}
-	// The shared title was imported as standard first; the owning arr's type is anime. One type per series: the
-	// title's, for every version.
-	e.exec(`UPDATE title SET tvdb_id = 1001, series_type = 'standard' WHERE id = 2`)
-	if _, err := im.Write(e.ctx, importarr.Source{Instance: "sonarr", Version: "tv", Followers: []string{"tv-theatarr"}}, snap); err != nil {
-		t.Fatal(err)
-	}
-	d, err := (&NewImport{TitleID: 2, VersionID: 21, Version: "tv-theatarr"}).download(e.ctx, e.st.Reader(), e.pol)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if d.Version.Title.SeriesType != "standard" {
-		t.Errorf("naming series type %q, want the title's standard", d.Version.Title.SeriesType)
-	}
-}
 
 func TestCheckNamesUsesSourceSeriesType(t *testing.T) {
 	t.Parallel()

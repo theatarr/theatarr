@@ -7,13 +7,12 @@ import (
 	"fmt"
 )
 
-// Link mutations (rename, relink, the follower refresh, the dead mark) are compare-and-swaps on the link: each one
+// Link mutations (rename, relink, the dead mark) are compare-and-swaps on the link: each one
 // checks, right before it replaces or removes anything, that the symlink still points at the target it read and
 // that the link's row still has that path and target, and its row update requires the same. A mutation that loses
 // the race leaves the link to the one that won: it removes only what it made itself. Unlink is one too (by id, path,
 // state and the target it moved aside). Every link mutation also holds its paths' link leases
-// (linklock.go) through its commit, so these checks are the last guard, not the only one. The follower refresh of a
-// version also holds a lease (lease.go), since two refreshes of one version would race on every link they share.
+// (linklock.go) through its commit, so these checks are the last guard, not the only one.
 
 // ErrLinkChanged: the link changed under a mutation (a concurrent rename, relink or refresh), which left it alone.
 var ErrLinkChanged = errors.New("library: link changed concurrently")

@@ -5,7 +5,6 @@ import (
 
 	"github.com/theatarr/theatarr/internal/acquire"
 	"github.com/theatarr/theatarr/internal/decide"
-	"github.com/theatarr/theatarr/internal/importarr"
 	"github.com/theatarr/theatarr/internal/jobs"
 	"github.com/theatarr/theatarr/internal/router"
 	"github.com/theatarr/theatarr/internal/settings"
@@ -19,7 +18,6 @@ type serveAcquirer struct {
 
 func (s *serveAcquirer) prepare(cfg acquire.Config, runtime *serveRuntime) error {
 	cfg.Policy, cfg.Engine, cfg.Indexers = runtime.Policy, runtime.Engine, runtime.Indexers
-	cfg.FollowSearcher = s
 	next, err := acquire.New(cfg)
 	if err != nil {
 		return err
@@ -67,11 +65,6 @@ func (s *serveAcquirer) EpisodesBelowQualityCutoff(ctx context.Context, key stri
 func (s *serveAcquirer) ReleaseWaiting(ctx context.Context, titleID int64) error {
 	ctx, ac := s.forOperation(ctx)
 	return ac.ReleaseWaiting(ctx, titleID)
-}
-
-func (s *serveAcquirer) EnqueueFollowSearch(ctx context.Context, targets []importarr.FollowSearchTarget) error {
-	ctx, ac := s.forOperation(ctx)
-	return ac.EnqueueFollowSearch(ctx, targets)
 }
 
 func (s *serveAcquirer) RegisterJobs(w *jobs.Worker) {

@@ -8,7 +8,6 @@ import (
 	"testing"
 
 	"github.com/theatarr/theatarr/internal/decide"
-	"github.com/theatarr/theatarr/internal/library/naming"
 	"github.com/theatarr/theatarr/internal/policy"
 )
 
@@ -132,7 +131,7 @@ func adoptForRename(t *testing.T, e *parallelEnv, name string) string {
 	e.release(movieRelease, map[string]float64{"movie.mkv": 7000})
 	e.arrFile(1, "radarr", 10, 1, filepath.Join(e.movies, "Amelie The Movie (2001)", name), movieRelease+"/movie.mkv",
 		"Remux-2160p")
-	if rep, err := e.lib.Adopt(e.ctx, AdoptOptions{Version: "movie-theatarr"}); err != nil || rep.Linked != 1 {
+	if rep, err := e.adopt("movie-theatarr"); err != nil || rep.Linked != 1 {
 		t.Fatalf("adopt %+v %v", rep, err)
 	}
 	return e.one(`SELECT l.path FROM link l JOIN link_version lv ON lv.link_id = l.id WHERE lv.version_id = 11`)
@@ -143,7 +142,7 @@ func adoptForRename(t *testing.T, e *parallelEnv, name string) string {
 func TestRenamePreviewKeepsAdoptedFormatsFromName(t *testing.T) {
 	t.Parallel()
 	e := newParallelEnv(t, true)
-	e.pol.Versions["movie-remux"].Naming.File = "{Movie CleanTitle} {(Release Year)} {[Custom Formats]}{[Quality Full]}"
+	e.pol.Versions["movie-theatarr"].Naming.File = "{Movie CleanTitle} {(Release Year)} {[Custom Formats]}{[Quality Full]}"
 	e.lib.matched = onlyHDRWhenRenaming
 	p := adoptForRename(t, e, "Amelie The Movie (2001) [IMAX HDR][Remux-2160p].mkv")
 	if !strings.Contains(filepath.Base(p), "[IMAX HDR][Remux-2160p]") {
@@ -158,15 +157,15 @@ func TestRenamePreviewKeepsAdoptedFormatsFromName(t *testing.T) {
 	}
 }
 
-// An adopted link named with the formats decided from the arr's release title: the rename preview decides them the
-// same way (from the followed version), so it proposes nothing.
+// An adopted link named with the formats decided from the instance's release title: the rename preview decides them
+// the same way (for the library), so it proposes nothing.
 func TestRenamePreviewKeepsAdoptedFormatsDecided(t *testing.T) {
 	t.Parallel()
 	e := newParallelEnv(t, true)
-	e.pol.Versions["movie-remux"].Naming.File = "{Movie CleanTitle} {(Release Year)} {[Custom Formats]}"
+	e.pol.Versions["movie-theatarr"].Naming.File = "{Movie CleanTitle} {(Release Year)} {[Custom Formats]}"
 	e.lib.matched = onlyHDRWhenRenaming
 	e.lib.formats = func(_ context.Context, version string, _ int64, title string) []string {
-		if version == "movie-remux" && title == "movie" {
+		if version == "movie-theatarr" && title == "movie" {
 			return []string{"IMAX"}
 		}
 		return nil
@@ -181,108 +180,5 @@ func TestRenamePreviewKeepsAdoptedFormatsDecided(t *testing.T) {
 	}
 	if len(rp.Files) != 0 {
 		t.Fatalf("rename of an adopted link proposes %+v, want none", rp.Files)
-	}
-}
-
-// Once a library stops following (with its own copy of the followed library's naming), the rename preview of an
-// adopted link decides the {Custom Formats} fallback with the library's own profile and still proposes nothing.
-func TestRenamePreviewAdoptedFormatsAfterFollowing(t *testing.T) {
-	t.Parallel()
-	e := newParallelEnv(t, true)
-	e.pol.Versions["movie-remux"].Naming.File = "{Movie CleanTitle} {(Release Year)} {[Custom Formats]}"
-	e.lib.matched = onlyHDRWhenRenaming
-	var asked []string
-	e.lib.formats = func(_ context.Context, version string, _ int64, title string) []string {
-		asked = append(asked, version)
-		if (version == "movie-remux" || version == "movie-theatarr") && title == "movie" {
-			return []string{"IMAX"}
-		}
-		return nil
-	}
-	p := adoptForRename(t, e, "Amelie.mkv")
-	if !strings.Contains(filepath.Base(p), "[IMAX]") {
-		t.Fatalf("adopt named it %s", p)
-	}
-	follower := e.pol.Versions["movie-theatarr"]
-	follower.Follows = ""
-	follower.Naming = e.pol.Versions["movie-remux"].Naming
-	asked = nil
-	rp, err := e.lib.PreviewRename(e.ctx, 1, nil)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if len(rp.Files) != 0 {
-		t.Fatalf("rename of an adopted link after following proposes %+v, want none", rp.Files)
-	}
-	if len(asked) == 0 || asked[len(asked)-1] != "movie-theatarr" {
-		t.Fatalf("formats asked for %v, want the library's own key movie-theatarr", asked)
-	}
-}
-
-// The editor's "Copy F's naming" on a followed library with the built-in names (no templates of its own) copies
-// DefaultTemplates: the follower's copy passes validation while it still follows, and names a film and an episode
-// exactly as the followed library does.
-func TestCopiedDefaultNamingValidatesAndNamesAlike(t *testing.T) {
-	t.Parallel()
-	e := newParallelEnv(t, true)
-	copyOf := func(followed, follower string) {
-		f := e.pol.Versions[followed]
-		f.Naming = policy.Naming{Colon: "dash"}
-		d := DefaultTemplates(f.Kind)
-		e.pol.Versions[follower].Naming = policy.Naming{Folder: d["folder"], File: d["file"], Season: d["season"],
-			Specials: d["specials"], Daily: d["daily"], Anime: d["anime"], Colon: "dash"}
-	}
-	copyOf("movie-remux", "movie-theatarr")
-	copyOf("tv", "tv-theatarr")
-	// The test policy is not complete (storage and the like), so only the naming findings are looked at.
-	if err := e.pol.Validate(); err != nil && strings.Contains(err.Error(), ".naming") {
-		t.Fatalf("copied naming refused: %v", err)
-	}
-	kept := e.pol.Versions["movie-theatarr"].Naming
-	e.pol.Versions["movie-theatarr"].Naming = policy.Naming{Colon: "dash"}
-	if err := e.pol.Validate(); err == nil || !strings.Contains(err.Error(), "names its files explicitly") {
-		t.Fatalf("a copy without the built-in templates: %v, want refused", err)
-	}
-	e.pol.Versions["movie-theatarr"].Naming = kept
-	name := func(version string) (string, string) {
-		vn, err := NamingFor(e.ctx, e.st.Reader(), e.pol, version)
-		if err != nil {
-			t.Fatal(err)
-		}
-		q := naming.Quality{Title: "WEBDL-1080p", Version: 1}
-		if e.pol.Versions[version].Kind == policy.KindMovie {
-			m := &naming.Movie{Title: "Amélie: The Movie", Year: 2001}
-			folder, err := naming.MovieFolder(&vn.Config, m)
-			if err != nil {
-				t.Fatal(err)
-			}
-			file, err := naming.MovieFileName(&vn.Config, m, &naming.MovieFile{Quality: q})
-			if err != nil {
-				t.Fatal(err)
-			}
-			return folder, file
-		}
-		s := &naming.Series{Title: "Show: Two", Year: 2020, Type: naming.SeriesStandard}
-		folder, err := naming.SeriesFolder(&vn.Config, s)
-		if err != nil {
-			t.Fatal(err)
-		}
-		season, err := naming.SeasonFolder(&vn.Config, s, 1)
-		if err != nil {
-			t.Fatal(err)
-		}
-		file, err := naming.SeriesFileName(&vn.Config, s, []naming.Episode{{Season: 1, Number: 2, Title: "Pilot"}},
-			&naming.EpisodeFile{Quality: q}, ".mkv", "/x")
-		if err != nil {
-			t.Fatal(err)
-		}
-		return filepath.Join(folder, season), file
-	}
-	for followed, follower := range map[string]string{"movie-remux": "movie-theatarr", "tv": "tv-theatarr"} {
-		ff, fn := name(followed)
-		mf, mn := name(follower)
-		if fn == "" || ff != mf || fn != mn {
-			t.Errorf("%s names %s/%s, its copy in %s %s/%s", followed, ff, fn, follower, mf, mn)
-		}
 	}
 }

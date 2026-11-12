@@ -1,7 +1,6 @@
 package library
 
 import (
-	"io/fs"
 	"os"
 	"path/filepath"
 	"strings"
@@ -145,38 +144,6 @@ func TestSlowPlanNeverImports(t *testing.T) {
 	}
 }
 
-// An adopted link that a sweep marked dead (the arr upgraded and the old release left the mount before a
-// refresh moved the link) is never refreshed: Refresh reads active links only, and adopt skips it too. The follower
-// stays without the file the arr has.
-func TestDeadAdoptedLinkNeverRefreshed(t *testing.T) {
-	t.Parallel()
-	e := newParallelEnv(t, true)
-	old := "Amelie.2001.1080p.WEB-DL-POKE"
-	e.release(old, map[string]float64{"movie.mkv": 7000})
-	arrDir := filepath.Join(e.movies, "Amelie The Movie (2001)")
-	e.arrFile(1, "radarr", 10, 1, filepath.Join(arrDir, "Amelie.WEB.mkv"), old+"/movie.mkv", "WEBDL-1080p")
-	if rep, err := e.lib.Adopt(e.ctx, AdoptOptions{Version: "movie-theatarr"}); err != nil || rep.Linked != 1 {
-		t.Fatalf("adopt %+v %v", rep, err)
-	}
-	upgraded := "Amelie.2001.2160p.Remux-BYNDR"
-	e.release(upgraded, map[string]float64{"movie.mkv": 7000})
-	e.arrUpgrade(1, old, 2, "radarr", 10, 1, filepath.Join(arrDir, "Amelie.Remux.mkv"), upgraded+"/movie.mkv", "Remux-2160p")
-	// The hourly sweep runs twice before any refresh (arr.import late, or the refresh failed meanwhile).
-	e.lib.Relink(e.ctx, "", false)
-	e.now = e.now.Add(time.Hour)
-	e.lib.Relink(e.ctx, "", false)
-	t.Logf("adopted link state %s, version state %s", e.one(`SELECT state FROM link WHERE path LIKE ?`, e.theatarrMovies+"%"),
-		e.one(`SELECT state FROM version WHERE id = 11`))
-	rep, err := e.lib.Refresh(e.ctx, RefreshOptions{Version: "movie-theatarr"})
-	if err != nil {
-		t.Fatal(err)
-	}
-	t.Logf("refresh links %d swapped %d", rep.Links, rep.Swapped)
-	if n := e.one(`SELECT COUNT(*) FROM link l JOIN link_version lv ON lv.link_id = l.id WHERE lv.version_id = 11 AND l.state = 'active'`); n != "1" {
-		t.Errorf("the follower has %s active links for the movie the arr holds", n)
-	}
-}
-
 // A link an operator restored from the trash (mv back, which keeps the copy's mtime) after an unlink is
 // moved aside again by the next sweep as a "leftover": its row is unlinked with the same target and was updated after
 // the symlink's mtime.
@@ -206,47 +173,6 @@ func TestRestoredFromTrashMovedAsideAgain(t *testing.T) {
 	e.sweep()
 	if !linkPointsAt(p, tgt) {
 		t.Errorf("the restored link was moved aside again (row %s)", e.one(`SELECT state FROM link WHERE id = 1`))
-	}
-}
-
-// A sweep's ReconcileLinks running between a refresh's removal of the old link and its commit sees the old
-// row's symlink gone and unlinks the row; the refresh's commit then loses the compare-and-swap and its undo removes
-// the new link too: the follower is left with neither link and the title wanted.
-func TestReconcileDuringRefreshLosesBothLinks(t *testing.T) {
-	t.Parallel()
-	e := newParallelEnv(t, true)
-	old := "Amelie.2001.1080p.WEB-DL-POKE"
-	e.release(old, map[string]float64{"movie.mkv": 7000})
-	arrDir := filepath.Join(e.movies, "Amelie The Movie (2001)")
-	e.arrFile(1, "radarr", 10, 1, filepath.Join(arrDir, "Amelie.WEB.mkv"), old+"/movie.mkv", "WEBDL-1080p")
-	if rep, err := e.lib.Adopt(e.ctx, AdoptOptions{Version: "movie-theatarr"}); err != nil || rep.Linked != 1 {
-		t.Fatalf("adopt %+v %v", rep, err)
-	}
-	upgraded := "Amelie.2001.2160p.Remux-BYNDR"
-	e.release(upgraded, map[string]float64{"movie.mkv": 7000})
-	e.arrUpgrade(1, "", 2, "radarr", 10, 1, filepath.Join(arrDir, "Amelie.Remux.mkv"), upgraded+"/movie.mkv", "Remux-2160p")
-	e.lib.w.after = func(op, path string) {
-		if op == "remove" && strings.HasPrefix(path, e.theatarrMovies) {
-			if _, err := e.lib.ReconcileLinks(e.ctx, "movie-theatarr", nil); err != nil {
-				t.Error(err)
-			}
-		}
-	}
-	rep, err := e.lib.Refresh(e.ctx, RefreshOptions{Version: "movie-theatarr"})
-	e.lib.w.after = nil
-	t.Logf("refresh %+v %v", rep, err)
-	var links []string
-	filepath.WalkDir(e.theatarrMovies, func(p string, d fs.DirEntry, err error) error {
-		if err == nil && d.Type()&fs.ModeSymlink != 0 {
-			links = append(links, p)
-		}
-		return nil
-	})
-	t.Logf("symlinks in the follower root: %v; active rows %s; version %s", links,
-		e.one(`SELECT COUNT(*) FROM link l JOIN link_version lv ON lv.link_id = l.id WHERE lv.version_id = 11 AND l.state = 'active'`),
-		e.one(`SELECT state FROM version WHERE id = 11`))
-	if len(links) == 0 {
-		t.Error("the follower lost both the old and the new link")
 	}
 }
 

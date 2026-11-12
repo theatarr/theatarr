@@ -56,10 +56,6 @@ func TestCommandsTakeLibraryAndVersion(t *testing.T) {
 			[]string{"-policy", pol, "-db", db, "-instance", "radarr"}, `no library "nope"`},
 		"journal": {func(a []string) error { return runJournal(a, io.Discard) },
 			[]string{"-policy", pol, "-db", db, "-since", "not-a-time"}, ""},
-		"library adopt": {func(a []string) error { return runLibrary(a, io.Discard) },
-			[]string{"adopt", "-policy", pol, "-db", db, "-dry-run"}, `unknown library "nope"`},
-		"parallel compare": {func(a []string) error { return runParallel(a, io.Discard) },
-			[]string{"compare", "-policy", pol, "-db", db, "-since", "nonsense"}, ""},
 		"router dry-run": {func(a []string) error { return runRouterDryRun(a, io.Discard, nil) },
 			[]string{"-policy", pol, "-db", db, "-title", "7"}, `no library "nope"`},
 	} {

@@ -246,7 +246,7 @@ func TestAdoptHungArrLink(t *testing.T) {
 	}
 	for i := range 2 {
 		r := within(t, 3*time.Second, func() res {
-			rep, err := e.lib.Adopt(e.ctx, AdoptOptions{Version: "movie-theatarr"})
+			rep, err := e.adopt("movie-theatarr")
 			return res{rep, err}
 		})
 		if !errors.Is(r.err, ErrRootDown) {

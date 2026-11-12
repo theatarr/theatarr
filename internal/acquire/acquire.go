@@ -27,7 +27,6 @@ import (
 	"github.com/theatarr/theatarr/internal/decide"
 	"github.com/theatarr/theatarr/internal/decide/format"
 	"github.com/theatarr/theatarr/internal/gateway"
-	"github.com/theatarr/theatarr/internal/importarr"
 	"github.com/theatarr/theatarr/internal/indexer"
 	"github.com/theatarr/theatarr/internal/jobs"
 	"github.com/theatarr/theatarr/internal/journal/snapshot"
@@ -88,8 +87,6 @@ type Config struct {
 	RuntimeGeneration func() int64
 	// CaptureRuntime pins a job or request to the current immutable runtime.
 	CaptureRuntime func(context.Context) context.Context
-	// FollowSearcher keeps imports on the published dispatcher while a replacement acquirer is prepared.
-	FollowSearcher importarr.FollowSearcher
 	// RuntimeEngine selects the decision engine pinned to the request's settings generation.
 	RuntimeEngine func(context.Context) *decide.Engine
 	// Metadata, when set, holds the searches of a series added in Theatarr until its first metadata refresh finishes
@@ -121,8 +118,8 @@ type Acquirer struct {
 	set               policy.WantedSettings
 	log               *slog.Logger
 	now               func() time.Time
-	// drainMu serialises everything that checks and spends router.wanted.per_hour: DrainFollowSearches,
-	// DrainSearchNow, a wanted round's own searches and Research. So no target starts twice and two of them never
+	// drainMu serialises everything that checks and spends router.wanted.per_hour: DrainSearchNow, a wanted round's
+	// own searches and Research. So no target starts twice and two of them never
 	// spend the same slot of the hour.
 	drainMu sync.Mutex
 	// testHook, when set, is called at named points of a round and a drain (tests).
@@ -145,11 +142,6 @@ func New(cfg Config) (*Acquirer, error) {
 		runtimeEngine: cfg.RuntimeEngine,
 		set:           cfg.Policy.WantedSettings(),
 		log:           cfg.Logger.With("component", "acquire"), now: cfg.Now}
-	searcher := cfg.FollowSearcher
-	if searcher == nil {
-		searcher = a
-	}
-	importarr.RegisterFollowSearcher(cfg.Store, searcher)
 	if a.search == nil && a.searchBatch == nil {
 		if cfg.Engine == nil || cfg.Indexers == nil {
 			return nil, errors.New("acquire: an engine and an indexer service are required to search")
@@ -258,35 +250,6 @@ func namedEpisode(source, reason, name string, episodes []int64) bool {
 	return source == SourceCommand && reason == "" && len(episodes) == 1 && strings.Contains(name, "e")
 }
 
-// EnqueueFollowSearch records follower changes as add-time search intents (the arr import has already written its own
-// in its transaction; recording them again merges into the same rows), starts what the hourly budget allows
-// (DrainFollowSearches) and schedules the drain job for what the spent hour left (ScheduleSearchNow).
-func (a *Acquirer) EnqueueFollowSearch(ctx context.Context, changes []importarr.FollowSearchTarget) error {
-	if len(changes) > 0 {
-		if err := a.st.WriteTx(ctx, func(tx *sql.Tx) error {
-			return importarr.SaveFollowSearches(ctx, tx, changes, store.Millis(a.now()))
-		}); err != nil {
-			return err
-		}
-	}
-	if _, err := a.DrainFollowSearches(ctx); err != nil {
-		return err
-	}
-	// What the spent hour left waits for the Search now job, also with the wanted loop off.
-	return a.ScheduleSearchNow(ctx)
-}
-
-func (a *Acquirer) followJoinedAt(ctx context.Context, c importarr.FollowSearchTarget, t target) (int64, error) {
-	if c.All {
-		var at int64
-		err := a.st.Reader().QueryRowContext(ctx, `SELECT created_at FROM version WHERE id = ?`, t.versionID).Scan(&at)
-		return at, err
-	}
-	var at int64
-	err := a.st.Reader().QueryRowContext(ctx, `SELECT updated_at FROM episode_version_state WHERE version_id = ? AND episode_id = ?`, t.versionID, t.episodes[0]).Scan(&at)
-	return at, err
-}
-
 // Active filters keys to the versions in mode active, sorted.
 func (a *Acquirer) Active(keys []string) []string {
 	var out []string
@@ -356,8 +319,8 @@ func (a *Acquirer) Submit(ctx context.Context, commandID int64, sel Selection) (
 }
 
 // start records a run and enqueues its search. research is the failure a re-search follows ("" for none), or
-// researchRetryNew for a search of a chain router.wanted.retry_new started. It is the path of the add-time searches,
-// the re-searches and the follow-ups: its job holds the run's id and nothing else.
+// researchRetryNew for a search of a chain router.wanted.retry_new started. It is the path of the re-searches and the
+// follow-ups: its job holds the run's id and nothing else.
 func (a *Acquirer) start(ctx context.Context, source string, commandID int64, t target, research string) error {
 	return a.startRuns(ctx, source, commandID, []target{t}, research, SearchJob{})
 }
@@ -425,8 +388,8 @@ const searchAttempts = 3
 type SearchJob struct {
 	RunID int64 `json:"run_id"`
 	// RetryNew marks a search the wanted loop or the Search now queue started while router.wanted.retry_new was on:
-	// when it accepts nothing, its new content is followed up (followup.go). The run row cannot tell these from an
-	// add-time search, so the mark travels with the job. Left out when unset. The searches of the chain itself are
+	// when it accepts nothing, its new content is followed up (followup.go). The run row cannot tell these from a
+	// search on add, so the mark travels with the job. Left out when unset. The searches of the chain itself are
 	// told by their run row instead (researchRetryNew).
 	RetryNew bool `json:"retry_new,omitempty"`
 }
@@ -903,35 +866,6 @@ func (a *Acquirer) chainVersions(ctx context.Context) (map[int64]bool, error) {
 		out[v.Int64] = true
 	}
 	return out, rows.Err()
-}
-
-// ordinaryOf is the condition that leaves the chain's runs out of a read of one version's runs: ordinaryRuns, or ""
-// (every run, the query without the switch) when the switch is off and no chain has a request for the version.
-// seen keeps chainVersions for the versions asked after the first (one drain pass); nil reads it each time.
-func (a *Acquirer) ordinaryOf(ctx context.Context, versionID int64, seen *chainSeen) (string, error) {
-	if a.set.RetryNew {
-		return ordinaryRuns, nil
-	}
-	if seen == nil {
-		seen = &chainSeen{}
-	}
-	if !seen.read {
-		chained, err := a.chainVersions(ctx)
-		if err != nil {
-			return "", err
-		}
-		seen.versions, seen.read = chained, true
-	}
-	if !seen.versions[versionID] {
-		return "", nil
-	}
-	return ordinaryRuns, nil
-}
-
-// chainSeen is chainVersions as one drain pass of the add-time intents read it: once, when its first intent needs it.
-type chainSeen struct {
-	read     bool
-	versions map[int64]bool
 }
 
 func runKey(versionID int64, t string) string { return strconv.FormatInt(versionID, 10) + "/" + t }
@@ -1514,7 +1448,7 @@ func (a *Acquirer) finishFanout(ctx context.Context, claim string, outcomes []fa
 //   - runComplete (0): searched.
 //   - runInfra (1): no answer at all (the VPN guard refused it, or no indexer answered: Searched.NoAnswer). It says
 //     nothing about the title and does not count as searched: the wanted loop takes the item again (after the items
-//     not attempted as recently: oldestFirst), and add-time intents and re-searches ask again after infraBackoff,
+//     not attempted as recently: oldestFirst), and re-searches ask again after infraBackoff,
 //     at most len(infraBackoff) times.
 //   - runPartial (2): some indexer answered and some request failed (an error, a back-off or a spent budget, a paging
 //     failure; our own page_cap is not one: indexer.Result.Capped). It counts as searched, its releases route as
@@ -1553,9 +1487,9 @@ const (
 // partialAgain is how long a partial search counts as searched (router.wanted.again_after when shorter).
 const partialAgain = 6 * time.Hour
 
-// infraBackoff are the waits before an add-time search or a re-search that got no answer is started again: after the
-// first such run, the second, the third; after the last the target is not asked for again from that intent or
-// re-search (the wanted loop still takes it when it selects the item).
+// infraBackoff are the waits before a re-search that got no answer is started again: after the
+// first such run, the second, the third; after the last the target is not asked for again from that re-search (the
+// wanted loop still takes it when it selects the item).
 var infraBackoff = []time.Duration{15 * time.Minute, time.Hour, 4 * time.Hour}
 
 // infraRetry is the first of infraBackoff.
@@ -1617,7 +1551,7 @@ func infraRunsSQL(runs string) string {
 }
 
 // retryInfraFailed asks again for the re-searches among runs (no answer: runInfra) after infraBackoff, until it is
-// spent. Wanted and add-time searches need nothing: the next round or drain finds them due. A search of a retry_new
+// spent. Wanted searches need nothing: the next round or drain finds them due. A search of a retry_new
 // chain (researchRetryNew) is asked for again as a follow-up with the chain's mark, so it looks at the switch too,
 // and its budget counts the chain's runs only, as an ordinary re-search's counts none of them.
 func (a *Acquirer) retryInfraFailed(ctx context.Context, runs []int64) error {

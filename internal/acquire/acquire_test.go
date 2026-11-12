@@ -13,7 +13,6 @@ import (
 	"time"
 
 	"github.com/theatarr/theatarr/internal/decide"
-	"github.com/theatarr/theatarr/internal/importarr"
 	"github.com/theatarr/theatarr/internal/indexer"
 	"github.com/theatarr/theatarr/internal/jobs"
 	"github.com/theatarr/theatarr/internal/policy"
@@ -245,17 +244,6 @@ func TestWantedNeverSearchedNewestFirst(t *testing.T) {
 	}
 	if title != 1 {
 		t.Fatalf("newest title %d, want 1", title)
-	}
-}
-
-func TestFollowerSearchRouterDisabled(t *testing.T) {
-	t.Parallel()
-	e := newEnv(t, false, &policy.Wanted{PerHour: 10})
-	if err := e.a.EnqueueFollowSearch(e.ctx, []importarr.FollowSearchTarget{{TitleID: 1, VersionKey: "movie", All: true}}); err != nil {
-		t.Fatal(err)
-	}
-	if n := e.count(`SELECT COUNT(*) FROM acquire_run`); n != 0 || len(e.searches()) != 0 {
-		t.Fatalf("disabled router recorded %d runs and %d searches", n, len(e.searches()))
 	}
 }
 

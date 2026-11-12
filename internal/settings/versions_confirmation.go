@@ -203,13 +203,6 @@ func versionConfirmationEffects(ctx context.Context, q rootQueryer, previous, ne
 				"Library %s becomes Live and starts searching. Links may be written under %s when Write library links (library.enabled) is on (currently %t). Torrent adds may go to providers %s when Allow new downloads (router.enabled) is on (currently %t).",
 				key, root, libraryEnabled, providerList(after.Providers), routerEnabled)})
 		}
-		if after.Mode == policy.ModeActive && after.Follows != "" && (before == nil || before.Follows != after.Follows || before.Mode != policy.ModeActive) {
-			// Starting to follow (or activating a follower) inherits every title and monitoring choice of the followed
-			// version at once: a mass-search trigger.
-			effects = append(effects, ConfirmationEffect{Version: key, Effect: fmt.Sprintf(
-				"Live library %s starts following %s: it inherits every arr title and monitoring choice of %s at once and searches for all of them; adds may go to providers %s when Allow new downloads (router.enabled) is on (currently %t) and links under %s when Write library links (library.enabled) is on (currently %t).",
-				key, after.Follows, after.Follows, providerList(after.Providers), routerEnabled, root, libraryEnabled)})
-		}
 		if after.Mode == policy.ModeActive && after.Grab && (before == nil || before.Mode != policy.ModeActive || !before.Grab) {
 			// The per-version grab switch: turning it on for an active version, or activating a version
 			// with it on, lets the router add torrents for it. Turning it off needs no confirmation.
@@ -229,11 +222,6 @@ func versionConfirmationEffects(ctx context.Context, q rootQueryer, previous, ne
 	for _, key := range sortedPolicyKeys(previous.Versions) {
 		if next.Versions[key] != nil {
 			continue
-		}
-		before := previous.Versions[key]
-		if before.Follows != "" {
-			effects = append(effects, ConfirmationEffect{Version: key, Effect: fmt.Sprintf(
-				"Removing library %s also removes its follows relationship to %s; no arr records or files are deleted.", key, before.Follows)})
 		}
 		links, err := versionLinks(ctx, q, key)
 		if err != nil {

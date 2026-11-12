@@ -39,7 +39,7 @@ func validateVersionChanges(ctx context.Context, q rootQueryer, previous, next *
 
 // rootsToCheck is the versions whose roots are checked: all at bootstrap, else those whose roots changed or that
 // become active. Unchanged versions are not stat'ed again; policy.Validate already checks the separation of
-// followers and active versions.
+// active versions.
 func rootsToCheck(previous, next *policy.Policy, key string, bootstrap bool) bool {
 	before, after := previous.Versions[key], next.Versions[key]
 	return bootstrap || before == nil || versionRootsChanged(previous, next, key) ||
@@ -51,17 +51,10 @@ func rootsToCheck(previous, next *policy.Policy, key string, bootstrap bool) boo
 func validateVersionRules(ctx context.Context, q rootQueryer, previous, next *policy.Policy, bootstrap bool) error {
 	for _, key := range sortedPolicyKeys(next.Versions) {
 		before := previous.Versions[key]
-		after := next.Versions[key]
-		if len(next.Followers(key)) > 0 && after.Mode != policy.ModeShadow {
-			return rootFieldError("versions["+key+"].mode", "arr roots of a followed library stay read-only; the followed library must stay Watch only")
-		}
 		if bootstrap || !rootsToCheck(previous, next, key, false) {
 			continue
 		}
 		if before != nil && versionRootsChanged(previous, next, key) {
-			if len(previous.Followers(key)) > 0 {
-				return rootFieldError("versions["+key+"].library", "arr roots of a followed library stay read-only; create a parallel library with its own root")
-			}
 			links, err := activeVersionLinks(ctx, q, key)
 			if err != nil {
 				return err
@@ -418,15 +411,12 @@ func (s *Store) ValidateRoot(ctx context.Context, base *policy.Policy, key, root
 	if err := p.Validate(); err != nil {
 		return RootCheck{}, err
 	}
-	if v := p.Versions[key]; v.Mode == policy.ModeActive || v.Follows != "" {
+	if v := p.Versions[key]; v.Mode == policy.ModeActive {
 		if _, err := p.CheckRootSeparationWith(key, rr); err != nil {
 			return RootCheck{}, rootFieldError("root", err.Error())
 		}
 	}
 	if root != version.Library {
-		if len(snap.Policy.Followers(key)) > 0 {
-			return RootCheck{}, rootFieldError("root", "arr roots of a followed library stay read-only")
-		}
 		links, err := s.ActiveVersionLinks(ctx, key)
 		if err != nil {
 			return RootCheck{}, err

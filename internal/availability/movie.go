@@ -68,10 +68,9 @@ func Movie(ctx context.Context, db *sql.DB, pol *policy.Policy, titleID, version
 		return false, err
 	}
 	rule := rules[versionID]
-	// Parallel versions inherit the owning arr's dates until cutover, including corrections after our TMDb fetch.
+	// A version an arr feeds takes the owning arr's dates, including corrections after our TMDb fetch.
 	var instance string
-	err := db.QueryRowContext(ctx, `SELECT vs.instance FROM version v LEFT JOIN version_follow f ON f.version_id = v.id
-		JOIN version_source vs ON vs.version_id = COALESCE(f.follows_id, v.id) WHERE v.id = ?`, versionID).Scan(&instance)
+	err := db.QueryRowContext(ctx, `SELECT instance FROM version_source WHERE version_id = ?`, versionID).Scan(&instance)
 	if err != nil && err != sql.ErrNoRows {
 		return false, err
 	}

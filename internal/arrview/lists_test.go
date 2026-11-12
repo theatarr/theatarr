@@ -233,7 +233,7 @@ func TestImportListsAreViewScoped(t *testing.T) {
 }
 
 // The Radarr view's PUT collection follows the native rule: a collection it leaves monitored targets only collection
-// targets (active movie versions nothing follows), stored explicitly; a per-version view of one falls back to its own
+// targets (Live movie libraries), stored explicitly; a per-version view of one falls back to its own
 // version; otherwise 400.
 func TestCollectionPutTargets(t *testing.T) {
 	t.Parallel()

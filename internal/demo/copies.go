@@ -8,10 +8,9 @@ import (
 	"github.com/theatarr/theatarr/internal/decide"
 )
 
-// Two copies of a series (docs/demo.md "Two copies"). With the demo overlay (examples/demo) the policy has a parallel
-// version for each arr-fed series version, as live does (docs/parallel.md): Theatarr's own copy, which takes the arr's
-// titles and monitoring, starts from links to the arr's files (library adopt) and fills its gaps with its own
-// downloads. Each series then has the arr's copy (its scenario) and Theatarr's (the scenario changed by its plan).
+// Two copies of a series (docs/demo.md "Two copies"). With the demo overlay (examples/demo) the policy has a second
+// Live library <k>-theatarr for each arr-fed series version k, as live does: Theatarr's own copy, with the arr's titles
+// and monitoring, links to the arr's files (as the one-time import adopts them) and its own downloads for the gaps. Each series then has the arr's copy (its scenario) and Theatarr's (the scenario changed by its plan).
 
 // copyPlan is how Theatarr's copy of a series differs from the arr's. The zero plan mirrors it: every file the arr
 // has, adopted.
@@ -84,8 +83,7 @@ func (s *seeder) copyState(t *title, cp, followed *version) string {
 	return "wanted"
 }
 
-// adopt links the arr's files into Theatarr's copy of t, as `theatarr library adopt` does when a parallel version
-// starts: a link per file under the copy's root, to the arr file's mount target, with the arr's file record as its
+// adopt links the arr's files into Theatarr's copy of t, as the one-time import does: a link per file under the copy's root, to the arr file's mount target, with the arr's file record as its
 // metadata. What the copy lacks (its plan) and what Theatarr imported itself (theatarrLatest, filled gaps) is left out.
 func (s *seeder) adopt(t *title) {
 	cp, followed := t.theatarrCopy()

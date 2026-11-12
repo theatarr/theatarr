@@ -56,7 +56,8 @@ func TestSettingsQualityDecisionAndNamingEquivalence(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			// Exercise a stored from_version chain alongside each fixture's explicit movie and episode templates.
+			// Exercise a second library with a copy of the first one's naming alongside each fixture's explicit movie
+			// and episode templates.
 			keys := []string{}
 			for key := range before.Versions {
 				keys = append(keys, key)
@@ -64,8 +65,6 @@ func TestSettingsQualityDecisionAndNamingEquivalence(t *testing.T) {
 			sort.Strings(keys)
 			followed := keys[0]
 			parallel := *before.Versions[followed]
-			parallel.Follows = followed
-			parallel.Naming = policy.Naming{FromVersion: followed}
 			before.Versions["quality-naming-copy"] = &parallel
 			parallel.Library = "/quality-naming-copy"
 			if before.Library == nil {

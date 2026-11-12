@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"sort"
 	"strings"
 
 	"github.com/theatarr/theatarr/internal/store"
@@ -166,4 +167,16 @@ func (l *Library) scanAfterRename(ctx context.Context, version, oldPath, newPath
 			l.log.Warn("library: plex scan not queued", "dir", d, "err", err)
 		}
 	}
+}
+
+// uniqueDirs returns dirs sorted, without repeats.
+func uniqueDirs(dirs ...string) []string {
+	sort.Strings(dirs)
+	out := dirs[:0]
+	for i, d := range dirs {
+		if i == 0 || d != dirs[i-1] {
+			out = append(out, d)
+		}
+	}
+	return out
 }

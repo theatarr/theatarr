@@ -89,7 +89,7 @@ func TestStatus(t *testing.T) {
 	}
 }
 
-func TestFollowedMovieDatesRespectOwnership(t *testing.T) {
+func TestMovieDatesRespectOwnership(t *testing.T) {
 	ctx := context.Background()
 	st, err := store.Open(ctx, storetest.Seed(t, filepath.Join(t.TempDir(), "theatarr.db")), store.Options{})
 	if err != nil {
@@ -112,7 +112,6 @@ func TestFollowedMovieDatesRespectOwnership(t *testing.T) {
 	exec(`INSERT INTO title(id,kind,name,tmdb_id,created_at,updated_at) VALUES(1,'movie','Movie',100,0,0)`)
 	exec(`INSERT INTO version(id,title_id,policy_key,created_at,updated_at) VALUES(1,1,'movie-remux',0,0),(2,1,'parallel',0,0)`)
 	exec(`INSERT INTO version_source(version_id,instance,arr_id) VALUES(1,'radarr_4k_debrid',1)`)
-	exec(`INSERT INTO version_follow(version_id,follows_id) VALUES(2,1)`)
 	exec(`INSERT INTO title_meta(title_id,movie_dates_at,attempted_at,refresh_after) VALUES(1,1,1,1)`)
 	exec(`INSERT INTO title_release_date(title_id,source,country,type,date,fetched_at) VALUES
   (1,'tmdb-art','','digital','2026-12-01',1),(1,'radarr_4k_debrid','','digital','2026-10-01',2)`)
@@ -125,7 +124,8 @@ func TestFollowedMovieDatesRespectOwnership(t *testing.T) {
 		}
 	}
 	check(1, true)
-	check(2, true)
+	// A copy no arr feeds (a former follower) takes the title's canonical dates.
+	check(2, false)
 	// DatesFor reads what Dates reads: the TMDb refresh over the import.
 	one, err := Dates(ctx, st.Reader(), 1)
 	if err != nil {
@@ -145,11 +145,12 @@ func TestFollowedMovieDatesRespectOwnership(t *testing.T) {
 	if many, err := DatesFor(ctx, st.Reader(), ids); err != nil || len(many) != 2 || many[40000]["physical"].IsZero() {
 		t.Fatalf("batched dates for: %v %v", many, err)
 	}
-	// Corrections can move a date in either direction; the owning arr remains authoritative.
+	// Corrections can move a date in either direction; the owning arr remains authoritative for the copy it feeds.
 	exec(`UPDATE title_release_date SET date='2027-01-01',fetched_at=3 WHERE source='radarr_4k_debrid'`)
-	check(2, false)
+	check(1, false)
 	exec(`UPDATE title_release_date SET date='2026-10-01' WHERE source='tmdb-art'`)
-	check(2, false)
+	check(1, false)
+	check(2, true)
 	delete(pol.Import.Arr, "radarr_4k_debrid")
 	check(1, true)
 	check(2, true)

@@ -27,6 +27,13 @@ func (e *offerEnv) arrHistory(hash, download, indexer string) {
 		'Movie.2001.2160p.WEB-DL-GRP', ?)`, download, hash, string(data))
 }
 
+// withoutWeb takes movie-web out of the policy, for a source that is the arr's own file: movie-web follows nothing and
+// would be offered it like any other library.
+func (e *offerEnv) withoutWeb() {
+	e.t.Helper()
+	delete(e.off.Policy.Versions, "movie-web")
+}
+
 func (e *offerEnv) sourceFile(kind, hash string) {
 	e.t.Helper()
 	if kind == "arr_file" {
@@ -54,17 +61,17 @@ func (e *offerEnv) sourceFile(kind, hash string) {
 
 func TestOfferFileSources(t *testing.T) {
 	t.Parallel()
-	for _, kind := range []string{"adopted", "followed", "arr_file"} {
+	for _, kind := range []string{"adopted", "arr_file"} {
 		t.Run(kind, func(t *testing.T) {
 			e := newOfferEnv(t)
 			hash := strings.Repeat("a", 40)
 			e.off.Policy.Import = &policy.Import{Arr: map[string]*policy.ArrSource{"radarr": {Version: "movie-remux"}}}
-			e.off.Policy.Versions["movie-web"].Follows = "movie-remux"
-			e.off.Policy.Versions["movie-follow"] = &policy.VersionPolicy{Kind: policy.KindMovie, Follows: "movie-remux"}
-			e.exec(`INSERT INTO version (id, title_id, policy_key, created_at, updated_at) VALUES (14, 1, 'movie-follow', 0, 0)`)
 			e.arrHistory(hash, "torrent-1", "dmm")
 			e.sourceFile(kind, strings.ToUpper(hash))
-			// A second version that does not follow the arr may accept an active route too.
+			if kind == "arr_file" {
+				e.withoutWeb()
+			}
+			// A second version may accept an active route too.
 			e.off.Policy.Versions["movie-active"] = &policy.VersionPolicy{Kind: policy.KindMovie, Mode: policy.ModeActive, Grab: true}
 			e.exec(`INSERT INTO version (id, title_id, policy_key, created_at, updated_at) VALUES (15, 1, 'movie-active', 0, 0)`)
 			sr, err := e.off.Sweep(e.ctx, true, 0)
@@ -80,7 +87,7 @@ func TestOfferFileSources(t *testing.T) {
 			}
 			for _, req := range e.enq.reqs {
 				if req.Version != "movie-extra" && req.Version != "movie-active" {
-					t.Errorf("offered to source or follower: %+v", req)
+					t.Errorf("offered to the source or the arr's library: %+v", req)
 				}
 				if req.Candidates[0].Release.InfoHash != hash || req.Candidates[0].Release.Size != 1000 {
 					t.Errorf("lost file identity: %+v", req)
@@ -99,10 +106,13 @@ func TestOfferFileHashDiscovery(t *testing.T) {
 		t.Run(method, func(t *testing.T) {
 			e := newOfferEnv(t)
 			hash := strings.Repeat("b", 40)
-			e.off.Policy.Versions["movie-web"].Follows = "movie-remux"
 			e.sourceFile("adopted", "")
 			if method != "no_hash" {
 				e.arrHistory(hash, "torrent-1", "dmm")
+			} else {
+				// The arr instance is known (its library is never offered the file); its history is not.
+				e.exec(`INSERT INTO arr_instance (name, flavour, policy_key, created_at, updated_at)
+					VALUES ('radarr', 'radarr', 'movie-remux', 0, 0)`)
 			}
 			switch method {
 			case "content":
@@ -132,6 +142,7 @@ func TestOfferFileHashDiscovery(t *testing.T) {
 				// Only the arr file supplies the identity; the hashless adopted link has no matching history.
 				e.exec(`DELETE FROM link_version`)
 				e.exec(`DELETE FROM link`)
+				e.withoutWeb()
 			}
 			sr, err := e.off.Sweep(e.ctx, false, 0)
 			if err != nil {
@@ -161,7 +172,7 @@ func TestOfferFileConflictingHistory(t *testing.T) {
 		t.Run(conflict, func(t *testing.T) {
 			e := newOfferEnv(t)
 			hash := strings.Repeat("7", 40)
-			e.off.Policy.Versions["movie-web"].Follows = "movie-remux"
+			e.withoutWeb()
 			e.sourceFile("arr_file", "")
 			e.arrHistory(hash, "torrent-1", "dmm")
 			otherHash, otherIndexer := hash, "unknown"
@@ -348,7 +359,6 @@ func TestOfferGaveUpEarlyWhenReadable(t *testing.T) {
 	t.Parallel()
 	e := newOfferEnv(t)
 	hash := strings.Repeat("1", 40)
-	e.off.Policy.Versions["movie-web"].Follows = "movie-remux"
 	e.arrHistory(hash, "torrent-1", "dmm")
 	e.sourceFile("adopted", hash)
 	e.exec(`INSERT INTO library_dangling (path, target, root, first_seen_at, last_seen_at)
@@ -372,7 +382,6 @@ func TestOfferFileRetryJob(t *testing.T) {
 	e := newOfferEnv(t)
 	hash := strings.Repeat("b", 40)
 	e.off.Queue = jobs.NewQueue(e.st)
-	e.off.Policy.Versions["movie-web"].Follows = "movie-remux"
 	e.arrHistory(hash, "torrent-1", "dmm")
 	e.sourceFile("adopted", hash)
 	e.exec(`DELETE FROM version WHERE id = 12`)
@@ -477,7 +486,6 @@ func TestOfferSupersededFileSources(t *testing.T) {
 		t.Run(kind, func(t *testing.T) {
 			e := newOfferEnv(t)
 			hash := strings.Repeat("4", 40)
-			e.off.Policy.Versions["movie-web"].Follows = "movie-remux"
 			e.arrHistory(hash, "torrent-1", "dmm")
 			if kind == "arr_in_place" {
 				e.sourceFile("arr_file", hash)
@@ -485,9 +493,13 @@ func TestOfferSupersededFileSources(t *testing.T) {
 				e.sourceFile(kind, hash)
 			}
 			e.exec(`DELETE FROM version WHERE id = 12`)
+			if kind == "arr_file" {
+				e.withoutWeb()
+			}
 			if _, err := e.off.Sweep(e.ctx, false, 0); err != nil {
 				t.Fatal(err)
 			}
+			e.enq.reqs = nil // what the arr's file was offered before it was replaced (movie-web, arr_in_place)
 			if kind == "arr_file" {
 				e.exec(`DELETE FROM version_file WHERE id = 1`)
 			} else if kind == "arr_in_place" {
@@ -526,6 +538,7 @@ func TestOfferSupersededFileSources(t *testing.T) {
 func TestOfferArrMountFolder(t *testing.T) {
 	t.Parallel()
 	e := newOfferEnv(t)
+	e.withoutWeb()
 	hash := strings.Repeat("6", 40)
 	dir := t.TempDir()
 	path := filepath.Join(dir, "movie.mkv")
@@ -533,7 +546,6 @@ func TestOfferArrMountFolder(t *testing.T) {
 		t.Fatal(err)
 	}
 	e.off.Policy.Library = &policy.Library{Mount: policy.LibraryMount{Path: "/mount"}}
-	e.off.Policy.Versions["movie-web"].Follows = "movie-remux"
 	e.arrHistory(hash, "different-download", "dmm")
 	e.sourceFile("arr_file", "")
 	e.exec(`UPDATE version_file SET path = ?, download_id = NULL, arr_file_id = 2`, path)
@@ -548,7 +560,6 @@ func TestOfferArrMountFolder(t *testing.T) {
 // release and indexer; indexers records the indexer each decision was given.
 func adoptedHistoryEnv(t *testing.T, hash string) (*offerEnv, *[]string) {
 	e := newOfferEnv(t)
-	e.off.Policy.Versions["movie-web"].Follows = "movie-remux"
 	e.sourceFile("adopted", "")
 	e.arrHistory(hash, "torrent-1", "dmm")
 	e.exec(`UPDATE arr_history SET data = '{"indexer":"dmm","importedPath":"/arr/Movie.mkv"}'`)
@@ -626,18 +637,14 @@ func TestOfferAdoptedSourceDryRunWritesNothing(t *testing.T) {
 	}
 }
 
-// TestOfferAdoptedSourceAfterFollowingEnds: after the cutover the adopted library stops following and the arr instance
-// is gone; the stored source still names the arr's library, so neither it nor another library following it is offered
-// the file.
-func TestOfferAdoptedSourceAfterFollowingEnds(t *testing.T) {
+// TestAdoptedLinkOffersWithoutFollowing: an adopted link in a library that follows nothing, with its source stored
+// and the arr instance gone, is offered to the title's other libraries and never to the arr's library.
+func TestAdoptedLinkOffersWithoutFollowing(t *testing.T) {
 	t.Parallel()
 	e, _ := adoptedHistoryEnv(t, strings.Repeat("e", 40))
-	e.off.Policy.Versions["movie-follow"] = &policy.VersionPolicy{Kind: policy.KindMovie, Follows: "movie-remux"}
-	e.exec(`INSERT INTO version (id, title_id, policy_key, created_at, updated_at) VALUES (14, 1, 'movie-follow', 0, 0)`)
 	if _, err := e.off.Sweep(e.ctx, false, 0); err != nil {
 		t.Fatal(err)
 	}
-	e.off.Policy.Versions["movie-web"].Follows = ""
 	e.exec(`DELETE FROM arr_history`)
 	e.exec(`DELETE FROM arr_instance`)
 	e.exec(`DELETE FROM router_offer`)
@@ -649,7 +656,7 @@ func TestOfferAdoptedSourceAfterFollowingEnds(t *testing.T) {
 	for _, r := range sr.Offers {
 		offered[r.Version] = true
 	}
-	if offered["movie-follow"] || offered["movie-remux"] || !offered["movie-extra"] {
+	if offered["movie-remux"] || offered["movie-web"] || !offered["movie-extra"] {
 		t.Fatalf("offers %+v", sr.Offers)
 	}
 }

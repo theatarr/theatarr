@@ -92,11 +92,6 @@ func TestRequiresEpisodeTitle(t *testing.T) {
 			}
 		})
 	}
-	e.Policy.Versions["tv"].Naming = policy.Naming{FromVersion: "anime-tv"}
-	e.Policy.Versions["anime-tv"].Naming = policy.Naming{File: "{Episode CleanTitle}"}
-	if !e.requiresEpisodeTitle(&Title{SeriesType: "standard"}, tvVersion(e, "tv"), nil) {
-		t.Fatal("from_version lost naming")
-	}
 }
 
 func TestLoadArrNamingAndConfig(t *testing.T) {

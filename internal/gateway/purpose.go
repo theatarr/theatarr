@@ -17,7 +17,7 @@ type Purpose string
 const (
 	// PurposeInteractive: a person's release search (the releases list, the arrs' interactive search).
 	PurposeInteractive Purpose = "interactive"
-	// PurposeWanted: a search for something missing (wanted runs, search commands, add-time and follow-up searches).
+	// PurposeWanted: a search for something missing (wanted runs, search commands and follow-up searches).
 	PurposeWanted Purpose = "wanted"
 	// PurposeUpgrade: a search for a better copy of something held (cutoff unmet, a search of a movie or of episodes
 	// that all have a file).

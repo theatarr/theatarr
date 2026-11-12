@@ -351,7 +351,7 @@ func TestStoredRelativeOverridesResolveUnderPolicyDirectory(t *testing.T) {
 		}
 	}
 	out.Reset()
-	if err := runParallel([]string{"compare", "-db", path, "-json"}, &out); err != nil {
+	if err := runLibrary([]string{"dangling", "-db", path, "-json"}, &out); err != nil {
 		t.Fatalf("command under THEATARR_POLICY: %v", err)
 	}
 }

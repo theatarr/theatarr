@@ -64,7 +64,7 @@
 //   - The existing file's formats follow ParseCustomFormat(MovieFile): release title from the scene name, else the
 //     original file name, else the relative path's file name; an empty group or edition counts as none.
 //   - AlreadyImported uses the version's latest grab and matching import from Theatarr and imported arr history;
-//     followers use only their own version's history. Arr history retains quality names, not revisions, so
+//     each version uses only its own history. Arr history retains quality names, not revisions, so
 //     revision-only grab/import differences cannot be reconstructed there.
 //   - Movie search callers use WithSearch to skip RSS-only Proper; series use DecideSearch. Minimum availability
 //     is enforced by acquisition and release routing, except for interactive/user-invoked searches and grabs.

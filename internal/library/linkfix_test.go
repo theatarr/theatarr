@@ -441,30 +441,6 @@ func TestUpgradeRacingRename(t *testing.T) {
 	}
 }
 
-// Two follower refreshes of one version never run at once, across processes too: the lease row.
-func TestRefreshLease(t *testing.T) {
-	t.Parallel()
-	e := newParallelEnv(t, true)
-	e.release("Other", map[string]float64{"a.mkv": 7000})
-	e.exec(`INSERT INTO library_lease (name, owner, until) VALUES ('refresh:movie-theatarr', 'other-process', ?)`,
-		e.now.Add(time.Minute).UnixMilli())
-	if _, err := e.lib.Refresh(e.ctx, RefreshOptions{Version: "movie-theatarr"}); !errors.Is(err, ErrBusy) {
-		t.Fatalf("refresh under another's lease: %v, want ErrBusy", err)
-	}
-	// A dry run writes nothing and needs no lease.
-	if _, err := e.lib.Refresh(e.ctx, RefreshOptions{Version: "movie-theatarr", DryRun: true}); err != nil {
-		t.Fatalf("dry run: %v", err)
-	}
-	// Expired: taken over, and released after the run.
-	e.now = e.now.Add(2 * time.Minute)
-	if _, err := e.lib.Refresh(e.ctx, RefreshOptions{Version: "movie-theatarr"}); err != nil {
-		t.Fatalf("refresh after the lease expired: %v", err)
-	}
-	if got := e.one(`SELECT COUNT(*) FROM library_lease`); got != "0" {
-		t.Errorf("%s leases left after the run", got)
-	}
-}
-
 // Trash copies an interrupted run left without a link_trash row are purged after keep_days too (symlinks only).
 func TestPurgeTrashOrphans(t *testing.T) {
 	t.Parallel()
@@ -517,20 +493,6 @@ func TestPurgeTrashOrphans(t *testing.T) {
 	}
 	if !strings.HasPrefix(orphan, e.trash) {
 		t.Fatal("test setup")
-	}
-}
-
-// A followed version's roots are its arr's: the gate never lets it write, whatever its mode says.
-func TestGateFollowedNotActive(t *testing.T) {
-	t.Parallel()
-	e := newParallelEnv(t, true)
-	e.pol.Versions["movie-remux"].Mode = policy.ModeActive
-	g := NewGate(e.pol)
-	if g.Active("movie-remux") || !errors.Is(g.CheckVersion("movie-remux"), ErrRefused) {
-		t.Fatal("the gate lets a followed version write")
-	}
-	if !g.Active("movie-theatarr") {
-		t.Fatal("the follower itself is refused")
 	}
 }
 

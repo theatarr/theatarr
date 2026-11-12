@@ -47,18 +47,6 @@ func NamingFor(ctx context.Context, db *sql.DB, pol *policy.Policy, version stri
 		return nil, fmt.Errorf("library: unknown version %q", version)
 	}
 	n := vp.Naming
-	if n.FromVersion != "" {
-		// A parallel version naming like the version it follows (validation keeps this one level deep).
-		if n.FromVersion == version || pol.Versions[n.FromVersion] == nil || pol.Versions[n.FromVersion].Naming.FromVersion != "" {
-			return nil, fmt.Errorf("library: version %s names from version %q, which has no naming of its own", version, n.FromVersion)
-		}
-		vn, err := NamingFor(ctx, db, pol, n.FromVersion)
-		if err != nil {
-			return nil, err
-		}
-		vn.Source = "from_version " + n.FromVersion + " (" + vn.Source + ")"
-		return vn, nil
-	}
 	if n.FromArr != "" {
 		var body, quals string
 		err := db.QueryRowContext(ctx, `SELECT naming, qualities FROM library_naming WHERE instance = ?`, n.FromArr).Scan(&body, &quals)
@@ -107,19 +95,6 @@ func NamingFor(ctx context.Context, db *sql.DB, pol *policy.Policy, version stri
 		cfg.ColonReplacement = colonByName[n.Colon]
 	}
 	return &VersionNaming{Config: cfg, Source: "policy"}, nil
-}
-
-// DefaultTemplates gives the built-in template NamingFor uses for each naming field a version of kind leaves empty:
-// folder and file, and for series also season, specials, daily and anime.
-func DefaultTemplates(kind policy.Kind) map[string]string {
-	if kind == policy.KindMovie {
-		c := naming.DefaultMovieConfig()
-		return map[string]string{"folder": c.MovieFolderFormat, "file": c.StandardMovieFormat}
-	}
-	c := naming.DefaultSeriesConfig()
-	return map[string]string{"folder": c.SeriesFolderFormat, "file": c.StandardEpisodeFormat,
-		"season": c.SeasonFolderFormat, "specials": c.SpecialsFolderFormat, "daily": c.DailyEpisodeFormat,
-		"anime": c.AnimeEpisodeFormat}
 }
 
 // ArrGetter is the read-only arr client (internal/arr.Client).

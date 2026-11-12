@@ -357,7 +357,7 @@ func (p *Policy) GrabbingVersions() []string {
 	return out
 }
 
-// SearchVersions lists the versions automatic searches (the wanted loop, add-time and re-searches) run for: the ones
+// SearchVersions lists the versions automatic searches (the wanted loop and re-searches) run for: the ones
 // Grabs lets the router write for, sorted. None while router.enabled is false. A version that is active with grab off
 // would only get dry runs, so it spends no search traffic. RSS is not limited by it: the feeds are read for the
 // shadowed versions anyway, and an active version's picks get dry-run plans (shadow.Runner.ActiveVersions).

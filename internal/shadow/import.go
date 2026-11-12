@@ -6,8 +6,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"sort"
-	"sync"
 	"time"
 
 	"github.com/theatarr/theatarr/internal/decide"
@@ -114,141 +112,14 @@ func (r *Runner) importOne(ctx context.Context, im *importarr.Importer, inst str
 	if err != nil {
 		return err
 	}
-	followers := r.pol.Followers(a.Version)
-	refresh := r.followerRefresh != nil && len(followers) > 0
-	var keysBefore map[int64]string
-	if refresh {
-		if keysBefore, err = fileKeys(ctx, r.st.Reader(), inst); err != nil {
-			return err
-		}
-	}
 	v := r.pol.Versions[a.Version]
 	s, err := im.Run(ctx, importarr.Source{Instance: inst, Flavour: a.Flavour, Version: a.Version, Anime: v.Anime,
-		Library: v.Library, Followers: followers, CollectionTargets: r.pol.CollectionTargets()}, g)
+		Library: v.Library, CollectionTargets: r.pol.CollectionTargets()}, g)
 	if err != nil {
 		return err
 	}
 	ii.Changes, ii.History = s.Changes.Total(), s.History.New
-	if len(followers) > 0 && r.followerCatchUp.due(a.Version, r.now()) {
-		// The catch-up covers every title, the changed ones too.
-		r.catchUpFollowers(ctx, inst, a.Version)
-	} else if refresh {
-		r.refreshFollowers(ctx, inst, a.Version, keysBefore)
-	}
 	return r.newGrabs(ctx, inst, before, ii, sum)
-}
-
-// SetFollowerRefresh connects the library's follower refresh (library.RefreshFollowers): after each instance's
-// import, the parallel versions following its version refresh adopted links and adopt new files, for the titles
-// whose arr files the import changed only.
-func (r *Runner) SetFollowerRefresh(fn func(ctx context.Context, followed string, titles []int64) error) {
-	r.followerRefresh = fn
-}
-
-// catchUp runs follower refresh and adoption over every title (library.RefreshFollowersAll), picking up new files
-// and upgrades whose per-import pass failed or was skipped (a mount outage, a closed gate, a failed link): the per-import
-// trigger fires only on the import that sees the arr's file change. It runs on the first import pass of each
-// followed version, then every interval; a failed refresh, per-import or catch-up, makes it due at the next pass.
-type catchUp struct {
-	fn    func(ctx context.Context, followed string) error
-	every time.Duration
-	mu    sync.Mutex
-	next  map[string]time.Time // by followed version; absent: due
-}
-
-// SetFollowerCatchUp connects the follower catch-up (library.RefreshFollowersAll), run every interval and after a
-// failed follower refresh (docs/parallel.md "Refresh").
-func (r *Runner) SetFollowerCatchUp(fn func(ctx context.Context, followed string) error, every time.Duration) {
-	r.followerCatchUp = &catchUp{fn: fn, every: every, next: map[string]time.Time{}}
-}
-
-func (c *catchUp) due(version string, now time.Time) bool {
-	if c == nil {
-		return false
-	}
-	c.mu.Lock()
-	defer c.mu.Unlock()
-	next, ok := c.next[version]
-	return !ok || !now.Before(next)
-}
-
-// done schedules the next catch-up after a success, or leaves it due after a failure.
-func (c *catchUp) done(version string, now time.Time, ok bool) {
-	if c == nil {
-		return
-	}
-	c.mu.Lock()
-	defer c.mu.Unlock()
-	if ok {
-		c.next[version] = now.Add(c.every)
-	} else {
-		delete(c.next, version)
-	}
-}
-
-func (r *Runner) catchUpFollowers(ctx context.Context, inst, version string) {
-	r.log.Info("follower refresh: catch-up over every title", "instance", inst, "version", version)
-	err := r.followerCatchUp.fn(ctx, version)
-	if err != nil {
-		r.log.Warn("follower refresh: catch-up failed; due again at the next import", "instance", inst,
-			"version", version, "err", err)
-	}
-	r.followerCatchUp.done(version, r.now(), err == nil)
-}
-
-// refreshFollowers hands the titles whose arr files changed in this import to the follower refresh. A failure is
-// logged and does not fail the import: it makes the catch-up (SetFollowerCatchUp) due at the next import, and
-// theatarr library adopt -refresh does the same by hand.
-func (r *Runner) refreshFollowers(ctx context.Context, inst, version string, before map[int64]string) {
-	after, err := fileKeys(ctx, r.st.Reader(), inst)
-	if err != nil {
-		r.log.Warn("follower refresh: arr files not read", "instance", inst, "err", err)
-		return
-	}
-	var titles []int64
-	for id, k := range after {
-		if before[id] != k {
-			titles = append(titles, id)
-		}
-	}
-	for id := range before {
-		if _, ok := after[id]; !ok {
-			titles = append(titles, id)
-		}
-	}
-	if len(titles) == 0 {
-		return
-	}
-	sort.Slice(titles, func(i, j int) bool { return titles[i] < titles[j] })
-	r.log.Info("follower refresh", "instance", inst, "version", version, "titles_changed", len(titles))
-	if err := r.followerRefresh(ctx, version, titles); err != nil {
-		r.log.Warn("follower refresh", "instance", inst, "version", version, "err", err)
-		r.followerCatchUp.done(version, r.now(), false)
-	}
-}
-
-// fileKeys gives each title of an instance a key of its arr files: their ids, paths and episodes. A title whose key
-// changes across an import had a file added, replaced, moved or removed.
-func fileKeys(ctx context.Context, db *sql.DB, instance string) (map[int64]string, error) {
-	rows, err := db.QueryContext(ctx, `SELECT vf.title_id, vf.arr_file_id, vf.path,
-		COALESCE((SELECT GROUP_CONCAT(episode_id) FROM (SELECT episode_id FROM version_file_episode
-			WHERE version_file_id = vf.id ORDER BY episode_id)), '')
-		FROM version_file vf WHERE vf.instance = ? ORDER BY vf.title_id, vf.arr_file_id`, instance)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	out := map[int64]string{}
-	for rows.Next() {
-		var title int64
-		var arrID int
-		var p, eps string
-		if err := rows.Scan(&title, &arrID, &p, &eps); err != nil {
-			return nil, err
-		}
-		out[title] += fmt.Sprintf("%d\x00%s\x00%s\n", arrID, p, eps)
-	}
-	return out, rows.Err()
 }
 
 // files reads an instance's version_file rows by version id.

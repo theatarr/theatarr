@@ -38,7 +38,7 @@ type activeRow struct {
 }
 
 // findLeftovers splits a root's links into the leftovers of version and the rest. Only a version Theatarr may write to is
-// checked: a gated or followed one (an arr's root) keeps every symlink as it is.
+// checked: a gated one keeps every symlink as it is.
 func (l *Library) findLeftovers(ctx context.Context, db *sql.DB, version string, links []mountLink) ([]leftover, []mountLink, error) {
 	if l.gate.CheckVersion(version) != nil || len(links) == 0 {
 		return nil, links, nil

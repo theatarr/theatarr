@@ -123,7 +123,7 @@ func versionSettingsRequest(snap *settings.Snapshot, body versionSettingsBody, c
 	}
 	if body.Delete {
 		req.Records.Versions = append(req.Records.Versions[:index:index], req.Records.Versions[index+1:]...)
-		// Its naming record (a quality record) goes with it; a version naming it in from_version still refuses the delete.
+		// Its naming record (a quality record) goes with it.
 		if req.Records.Naming != nil {
 			req.Records.Naming = slices.DeleteFunc(req.Records.Naming, func(n settings.VersionNaming) bool { return n.Key == body.Key })
 		}
@@ -161,13 +161,10 @@ func versionSettingsRequest(snap *settings.Snapshot, body versionSettingsBody, c
 	}
 	if index < 0 {
 		req.Records.Versions = append(req.Records.Versions, record)
-		// With the quality records owning naming, a new version gets its naming record: a follower names its files
-		// after the followed version (from_version), any other version starts with the arr defaults, editable in the
-		// naming editor.
+		// With the quality records owning naming, a new version gets its naming record: empty, the arr defaults,
+		// editable in the naming editor.
 		if req.Records.Naming != nil && !slices.ContainsFunc(req.Records.Naming, func(n settings.VersionNaming) bool { return n.Key == body.Key }) {
-			naming := settings.VersionNaming{Record: settings.Record{Key: body.Key}}
-			naming.Config.FromVersion = record.Config.Follows
-			req.Records.Naming = append(req.Records.Naming, naming)
+			req.Records.Naming = append(req.Records.Naming, settings.VersionNaming{Record: settings.Record{Key: body.Key}})
 		}
 	} else {
 		req.Records.Versions[index] = record

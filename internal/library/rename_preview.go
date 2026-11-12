@@ -265,11 +265,6 @@ func (l *Library) adoptedRenameFormats(ctx context.Context, linkID int64, v *imp
 	if len(f) != 2 {
 		return nil, false
 	}
-	// The followed library's profile while following, the link's own library once following has ended.
-	key := v.Key
-	if vp := l.pol.Versions[v.Key]; vp != nil && vp.Follows != "" {
-		key = vp.Follows
-	}
 	q := vn.QualityTitle(facts.Quality) + properSuffix(facts.Revision, v.Title.SeriesType)
-	return l.adoptFormats(ctx, key, v.Title.ID, path.Base(f[1]), q, facts.SceneName), true
+	return l.adoptFormats(ctx, v.Key, v.Title.ID, path.Base(f[1]), q, facts.SceneName), true
 }

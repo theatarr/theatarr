@@ -494,18 +494,6 @@ func runServe(args []string) error {
 	lb.LogState()
 	rt.SetMountCheck(lb.lib.MountListed)
 	runtimeMountCheck = lb.lib.MountListed
-	// After each arr.import, followers that do not grab refresh adopted links and adopt newly imported files
-	// (docs/parallel.md "Refresh").
-	sh.SetFollowerRefresh(func(ctx context.Context, followed string, titles []int64) error {
-		ctx, current := lb.forOperation(ctx)
-		return current.lib.RefreshFollowers(ctx, followed, titles)
-	})
-	// Once an hour, and at the next import after a failure, catch up every title, including files whose mount
-	// targets were not readable when their import first arrived.
-	sh.SetFollowerCatchUp(func(ctx context.Context, followed string) error {
-		ctx, current := lb.forOperation(ctx)
-		return current.lib.RefreshFollowersAll(ctx, followed)
-	}, time.Hour)
 
 	// Watch-order playlists in Plex, behind the library and playlists gates; closed, a sync only records dry runs
 	// (docs/design/anime.md).
@@ -584,7 +572,6 @@ func runServe(args []string) error {
 	}
 	acService := &serveAcquirer{manager: runtimeManager, fallback: ac}
 	metaDeps.acquirer = acService
-	importarr.RegisterFollowSearcher(st, acService)
 	serveSnapshot.Acquirer = ac
 	// The runtime was published before the acquirer existed: with router.wanted.retry_new off, what its chains left
 	// queued is cancelled here, before any worker runs a job.

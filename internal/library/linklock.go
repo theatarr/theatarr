@@ -8,6 +8,7 @@ import (
 	"path/filepath"
 	"sort"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/theatarr/theatarr/internal/store"
@@ -16,12 +17,17 @@ import (
 
 // Link locks. Every mutation of a link holds a lease on its path (library_lease 'link:<path>', 00070)
 // from before it reads what it replaces until its database commit: an import, an unlink, a relink or revive, the
-// sweep's dead mark and leftover cleanup, reconcile, the follower refresh, adopt and rename. Two of them never
+// sweep's dead mark and leftover cleanup, reconcile, adopt and rename. Two of them never
 // interleave on one path, and the lease lives in the database, so it holds across processes (the CLI) and across
 // the runtime generations a settings reload creates. A mutation that finds a path held does not wait: it leaves that
-// link (ErrLinkChanged: an import retries, a sweep or refresh comes back, a client gets a 409). Each commit checks,
+// link (ErrLinkChanged: an import retries, a sweep comes back, a client gets a 409). Each commit checks,
 // in its transaction, that its leases are still its own (linksHeldTx), and the compare-and-swaps on the expected
 // target and state (cas.go) stay as the last guard.
+
+// leaseFor is how long a link lease lasts unless renewed; one left by a crash is taken over once it has passed.
+const leaseFor = 10 * time.Minute
+
+var leaseSeq atomic.Int64
 
 type linkLock struct {
 	owner string

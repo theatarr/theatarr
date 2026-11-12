@@ -17,7 +17,7 @@ type VersionGrabState struct {
 	RouterEnabled   bool   `json:"router_enabled"`
 	RouterForcedOff bool   `json:"router_forced_off"`
 	// LibraryWrites is the library's own write gate (library.Gate.Active): the switch on, and the version mode:
-	// active, not followed and listed under library.versions with roots.
+	// active and listed under library.versions with roots.
 	LibraryWrites bool `json:"library_writes"`
 }
 

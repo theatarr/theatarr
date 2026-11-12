@@ -17,7 +17,6 @@ import (
 	"github.com/theatarr/theatarr/internal/auth"
 	"github.com/theatarr/theatarr/internal/catalog"
 	"github.com/theatarr/theatarr/internal/gateway"
-	"github.com/theatarr/theatarr/internal/importarr"
 	"github.com/theatarr/theatarr/internal/notify"
 	"github.com/theatarr/theatarr/internal/policy"
 	"github.com/theatarr/theatarr/internal/store"
@@ -375,39 +374,5 @@ func TestReviewHoldAndMovieManualPayload(t *testing.T) {
 	e.scan()
 	if got := e.bodies(fmt.Sprintf("notification:%d", id), "ManualInteractionRequired"); len(got) != 1 {
 		t.Fatal(got)
-	}
-}
-
-func TestFollowerMirroringAnnouncesOnlyNewTitleVersions(t *testing.T) {
-	t.Parallel()
-	for _, tc := range []struct{ flavour, version, event, flag string }{{"radarr", "movie", "MovieAdded", "onMovieAdded"}, {"sonarr", "series", "SeriesAdd", "onSeriesAdd"}} {
-		t.Run(tc.event, func(t *testing.T) {
-			e := newParityEnv(t)
-			id := e.install(tc.flavour, map[string]bool{tc.flag: true})
-			kind := "movie"
-			if tc.version == "series" {
-				kind = "series"
-			}
-			snapshot := &importarr.Snapshot{Instance: "source", Flavour: tc.flavour, Titles: []importarr.Title{{ArrID: 1, Kind: kind, Name: "Mirrored title", TmdbID: 404, TvdbID: 505, Monitored: true,
-				File: &importarr.File{ArrID: 1, Path: "/SECRET-ADOPTED.mkv", Quality: "WEBDL-1080p"}}}}
-			im := &importarr.Importer{Store: e.st, Now: func() time.Time { return e.now }}
-			source := importarr.Source{Instance: "source", Version: "upstream", Followers: []string{tc.version}}
-			for i := 0; i < 3; i++ {
-				if _, err := im.Write(e.ctx, source, snapshot); err != nil {
-					t.Fatal(err)
-				}
-				e.scan()
-				e.now = e.now.Add(time.Minute)
-				snapshot.Titles[0].Monitored = false
-			}
-			b := e.bodies(fmt.Sprintf("notification:%d", id), tc.event)
-			if len(b) != 1 {
-				t.Fatalf("follower emits once per title/version: %v", b)
-			}
-			// Each version has one native event, including the upstream version that has no installed view.
-			if native := e.bodies("policy:native", "theatarr."+map[string]string{"movie": "movie_added", "series": "series_add"}[tc.version]); len(native) != 2 {
-				t.Fatalf("one event per version: %v", native)
-			}
-		})
 	}
 }

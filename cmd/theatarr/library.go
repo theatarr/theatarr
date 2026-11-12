@@ -9,7 +9,6 @@ import (
 	"io"
 	"log/slog"
 	"os"
-	"sort"
 	"strings"
 	"text/tabwriter"
 	"time"
@@ -41,16 +40,6 @@ const libraryUsage = `usage:
   theatarr library relink [-library KEY] [-dry-run] [flags]
                                                  repoint dangling links by info hash; through the gate (library.enabled,
                                                  mode: active, the library's roots), otherwise it reports what it would do
-  theatarr library adopt -library KEY [-dry-run] [-limit N] [-queue] [flags]
-                                                 start a parallel library (versions.KEY.follows) from links of its own to
-                                                 the files its followed library's arr has now (docs/migration.md#adopt-and-refresh); through
-                                                 the gate. -dry-run writes nothing; -queue runs it as a job in theatarr serve
-  theatarr library adopt -library KEY -refresh [-dry-run] [-queue] [flags]
-                                                 move the links adopt made to the arr's current files after arr upgrades:
-                                                 the old link goes to the trash, Plex scans the folders. Never touches
-                                                 links of Theatarr's own imports, nor a library that grabs (router.enabled and
-                                                 mode: active). theatarr serve runs it after every arr.import for the titles
-                                                 whose arr files changed
   theatarr library rename-preview -library KEY [flags]
                                                  read-only: every link of the library whose name would change under its
                                                  naming, link_id<TAB>existing<TAB>new. Opens the database read-only
@@ -72,7 +61,7 @@ func runLibrary(args []string, out io.Writer) error {
 		if helpArg(args) {
 			return flag.ErrHelp
 		}
-		return errors.New("give dry-run, verify, relink, adopt, rename-preview, dangling or naming-sync")
+		return errors.New("give dry-run, verify, relink, rename-preview, dangling or naming-sync")
 	}
 	fs := flag.NewFlagSet("library "+args[0], flag.ContinueOnError)
 	fs.Usage = func() { fmt.Fprint(fs.Output(), libraryUsage+"\nflags:\n"); fs.PrintDefaults() }
@@ -80,12 +69,8 @@ func runLibrary(args []string, out io.Writer) error {
 	f.register(fs)
 	fs.BoolVar(&f.asJSON, "json", false, "print JSON")
 	download := fs.Int64("download", 0, "dry-run: the download id")
-	version := libraryFlag(fs, "verify, relink, adopt, rename-preview: one library (default every library under library.versions)")
-	dryRun := fs.Bool("dry-run", false, "relink, adopt: report only")
-	limit := fs.Int("limit", 0, "adopt: stop after this many new links (0: all; not with -refresh)")
-	queue := fs.Bool("queue", false, "adopt: queue a library.adopt job for theatarr serve instead of running here")
-	refresh := fs.Bool("refresh", false, "adopt: move adopted links to the arr's current files (after arr upgrades) "+
-		"instead of linking new ones")
+	version := libraryFlag(fs, "verify, relink, rename-preview: one library (default every library under library.versions)")
+	dryRun := fs.Bool("dry-run", false, "relink: report only")
 	scan := fs.Bool("scan", false, "dangling: walk the roots now (read-only) instead of reading the last report")
 	tsv := fs.Bool("tsv", false, "dangling: print path<TAB>target lines")
 	if err := fs.Parse(args[1:]); err != nil {
@@ -123,7 +108,7 @@ func runLibrary(args []string, out io.Writer) error {
 		return err
 	}
 	log := slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelWarn}))
-	// Writes (adopt, refresh, relink) queue plex.scan jobs for theatarr serve to run, as its own library jobs do.
+	// Writes (relink) queue plex.scan jobs for theatarr serve to run, as its own library jobs do.
 	opts := library.Options{Store: st, Policy: pol, Logger: log, Queue: jobs.NewQueue(st)}
 	if set := pol.LibrarySettings(); set.ZurgAPI != "" || set.Decypharr != nil {
 		// zurg's read-only API or decypharr's, through a gateway of this command's own (budgets are counted in the
@@ -149,40 +134,14 @@ func runLibrary(args []string, out io.Writer) error {
 			fmt.Fprintf(os.Stderr, "warning: no decision engine (%v); {Custom Formats} stays empty\n", err)
 		}
 	}
-	if args[0] == "adopt" || args[0] == "rename-preview" {
-		if *version == "" {
-			return errors.New("-library is required")
-		}
-	}
-	if args[0] == "adopt" {
-		if *queue {
-			key := library.AdoptJobKind + "/" + *version
-			what := ""
-			if *refresh {
-				key, what = key+"/refresh", " -refresh"
-			}
-			id, _, err := jobs.NewQueue(st).Enqueue(ctx, library.AdoptJobKind, library.AdoptJob{Version: *version,
-				Limit: *limit, Refresh: *refresh}, jobs.EnqueueOptions{DedupeKey: key, MaxAttempts: 3})
-			if err != nil {
-				return err
-			}
-			fmt.Fprintf(out, "queued job %d (%s %s%s); theatarr serve runs it\n", id, library.AdoptJobKind, *version, what)
-			return nil
-		}
-		if _, eng, err := f.engine(*version, io.Discard); err == nil {
-			opts.Engine = eng
-			opts.Formats = decideRenameFormats(st, pol, eng)
-		} else {
-			fmt.Fprintf(os.Stderr, "warning: no decision engine (%v); states from the arr's cutoff flag, {Custom Formats} "+
-				"only from the arr's names\n", err)
-		}
+	if args[0] == "rename-preview" && *version == "" {
+		return errors.New("-library is required")
 	}
 	if args[0] == "rename-preview" {
 		// As serve builds it, so the names match what serve proposes.
 		var built strings.Builder
 		_, eng, err := f.engine(*version, &built)
 		if err == nil {
-			// Adopted links are named with the followed library's profile while the library follows one.
 			err = renameProfiles(pol, eng, *version, built.String())
 		}
 		if err != nil {
@@ -228,23 +187,6 @@ func runLibrary(args []string, out io.Writer) error {
 			return err
 		}
 		return printDangling(out, rows, sum, *tsv, f.asJSON)
-	case "adopt":
-		if *refresh {
-			rep, err := lib.Refresh(ctx, library.RefreshOptions{Version: *version, DryRun: *dryRun})
-			if rep != nil {
-				if perr := printRefresh(out, rep, f.asJSON); perr != nil {
-					return perr
-				}
-			}
-			return err
-		}
-		rep, err := lib.Adopt(ctx, library.AdoptOptions{Version: *version, DryRun: *dryRun, Limit: *limit})
-		if rep != nil {
-			if perr := printAdopt(out, rep, f.asJSON); perr != nil {
-				return perr
-			}
-		}
-		return err
 	case "rename-preview":
 		p, err := lib.PreviewRenameLibrary(ctx, *version)
 		if err != nil {
@@ -320,14 +262,10 @@ func decideRenameFormats(st *store.Store, pol *policy.Policy, eng *decide.Engine
 	}
 }
 
-// renameProfiles checks that eng built every profile the version's names can need: its own, and its followed
-// library's while it follows one. built is what the engine reported on the profiles that failed.
+// renameProfiles checks that eng built the profile the version's names need. built is what the engine reported on the
+// profiles that failed.
 func renameProfiles(pol *policy.Policy, eng *decide.Engine, version, built string) error {
-	keys := []string{version}
-	if vp := pol.Versions[version]; vp != nil && vp.Follows != "" {
-		keys = append(keys, vp.Follows)
-	}
-	for _, k := range keys {
+	for _, k := range []string{version} {
 		vp := pol.Versions[k]
 		if vp == nil {
 			return fmt.Errorf("the policy has no library %q", k)
@@ -462,73 +400,6 @@ func printScans(out io.Writer, scans []*library.LinkScan, asJSON bool) error {
 			for _, d := range n.Differs {
 				fmt.Fprintf(out, "    %s\n      ours %s\n", d.Path, d.Ours)
 			}
-		}
-	}
-	return nil
-}
-
-func printAdopt(out io.Writer, r *library.AdoptReport, asJSON bool) error {
-	if asJSON {
-		enc := json.NewEncoder(out)
-		enc.SetIndent("", "  ")
-		return enc.Encode(r)
-	}
-	what := "linked"
-	if r.DryRun {
-		what = "would link"
-	}
-	fmt.Fprintf(out, "%s follows %s (naming %s): %d arr files, %s %d, in place %d, own file already %d\n", r.Version,
-		r.Follows, r.Naming, r.Files, what, r.Linked, r.Existing, r.HasFile)
-	if r.Limited {
-		fmt.Fprintln(out, "stopped at -limit; run again for the rest")
-	}
-	reasons := make([]string, 0, len(r.Skipped))
-	for k := range r.Skipped {
-		reasons = append(reasons, k)
-	}
-	sort.Strings(reasons)
-	for _, k := range reasons {
-		fmt.Fprintf(out, "skipped %s: %d\n", k, r.Skipped[k])
-	}
-	for _, p := range r.Problems {
-		fmt.Fprintf(out, "  %s  %s %s\n", p.Reason, p.Path, p.Detail)
-	}
-	for _, l := range r.Links {
-		fmt.Fprintf(out, "%s %s\n    -> %s\n", what, l.Path, l.Target)
-	}
-	return nil
-}
-
-func printRefresh(out io.Writer, r *library.RefreshReport, asJSON bool) error {
-	if asJSON {
-		enc := json.NewEncoder(out)
-		enc.SetIndent("", "  ")
-		return enc.Encode(r)
-	}
-	what := "moved"
-	if r.DryRun {
-		what = "would move"
-	}
-	fmt.Fprintf(out, "%s follows %s: %d adopted links, current %d, %s %d\n", r.Version, r.Follows, r.Links, r.Current,
-		what, r.Swapped)
-	reasons := make([]string, 0, len(r.Skipped))
-	for k := range r.Skipped {
-		reasons = append(reasons, k)
-	}
-	sort.Strings(reasons)
-	for _, k := range reasons {
-		fmt.Fprintf(out, "left %s: %d\n", k, r.Skipped[k])
-	}
-	if r.Failed > 0 {
-		fmt.Fprintf(out, "failed: %d (each left as it was; the rest ran)\n", r.Failed)
-	}
-	for _, p := range r.Problems {
-		fmt.Fprintf(out, "  %s  %s %s\n", p.Reason, p.Path, p.Detail)
-	}
-	for _, s := range r.Swaps {
-		fmt.Fprintf(out, "%s %s\n    -> %s\n  to %s\n    -> %s\n", what, s.Old, s.OldTarget, s.Path, s.Target)
-		if s.TrashPath != "" {
-			fmt.Fprintf(out, "  old link in the trash: %s\n", s.TrashPath)
 		}
 	}
 	return nil

@@ -499,7 +499,7 @@ func LoadVersion(ctx context.Context, db *sql.DB, pol *policy.Policy, titleID in
 		err = nil
 	}
 	if err == nil && v.Policy.Kind == policy.KindSeries {
-		n := versionNaming(pol, v.Policy)
+		n := v.Policy.Naming
 		if n.FromArr != "" {
 			var body string
 			err = db.QueryRowContext(ctx, `SELECT naming FROM library_naming WHERE instance = ?`, n.FromArr).Scan(&body)

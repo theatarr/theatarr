@@ -23,9 +23,7 @@ type WantedSummary struct {
 	// SearchedLastHour the loop's searches in the hour before the round.
 	Due    int `json:"due"`
 	Queued int `json:"queued"`
-	// AddTime are the add-time searches the round started first (DrainFollowSearches).
-	AddTime int `json:"add_time,omitempty"`
-	// SearchNow are the Wanted page's queued searches the round started next (DrainSearchNow).
+	// SearchNow are the Wanted page's queued searches the round started first (DrainSearchNow).
 	SearchNow        int `json:"search_now,omitempty"`
 	InFlight         int `json:"in_flight"`
 	SearchedLastHour int `json:"searched_last_hour"`
@@ -39,15 +37,12 @@ func (a *Acquirer) Settings() (enabled bool, interval time.Duration, perHour int
 // Wanted runs one round of the wanted search loop: the grabbing versions' (active, grab on) missing and cutoff-unmet items (below the
 // quality cutoff, or the full cutoff, per router.wanted.cutoff_unmet) not searched within again_after (a partial
 // search: partialAgain), grouped by title and series season, attempted longest ago first, as many as the hourly cap leaves, skipping items with a download in flight. It does
-// nothing while router.enabled is false or the loop is off. Pending add-time searches go first, under the same
-// budget, whether or not the loop selects missing or cutoff-unmet items.
+// nothing while router.enabled is false or the loop is off. Queued Search now requests go first, under the same
+// budget.
 func (a *Acquirer) Wanted(ctx context.Context) (*WantedSummary, error) {
 	ctx = a.captureRuntime(ctx)
 	sum := &WantedSummary{}
 	var err error
-	if sum.AddTime, err = a.DrainFollowSearches(ctx); err != nil {
-		return nil, err
-	}
 	if sum.SearchNow, err = a.DrainSearchNow(ctx); err != nil {
 		return nil, err
 	}
@@ -228,7 +223,6 @@ type WantedList struct {
 	Missing          bool              `json:"missing"`
 	CutoffUnmet      policy.CutoffMode `json:"cutoff_unmet"`
 	DownloadsEnabled bool              `json:"downloads_enabled"`
-	AddTimePending   int               `json:"add_time_pending"`
 	SearchedLastHour int               `json:"searched_last_hour"`
 	// Searchable counts the rows of the filtered list Search now can search (no SearchBlocked): what "Search all"
 	// queues.
@@ -256,9 +250,6 @@ func (a *Acquirer) WantedList(ctx context.Context, q WantedQuery) (*WantedList, 
 		Missing: a.set.Missing, CutoffUnmet: a.set.CutoffUnmet, DownloadsEnabled: a.pol.RouterSettings().Enabled}
 	var err error
 	if out.SearchedLastHour, err = a.wantedUsed(ctx, a.now()); err != nil {
-		return nil, err
-	}
-	if err := a.st.Reader().QueryRowContext(ctx, `SELECT COUNT(*) FROM follow_search_intent`).Scan(&out.AddTimePending); err != nil {
 		return nil, err
 	}
 	rows, err := a.wantedRows(ctx, q, out)

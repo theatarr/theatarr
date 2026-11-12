@@ -23,8 +23,8 @@ type grabEvent struct {
 	imported bool
 }
 
-// loadGrabHistory reconstructs the last grab and matching import for each item in this version. A follower
-// reads its own version_id, never its followed version's history. Theatarr always handles completed downloads;
+// loadGrabHistory reconstructs the last grab and matching import for each item in this version, from its own
+// version_id only. Theatarr always handles completed downloads;
 // imported arr history retains quality names only (revision information was not stored by import-arr).
 func loadGrabHistory(ctx context.Context, db *sql.DB, versionID int64, kind policy.Kind) (map[int64]*profile.ImportedGrab, error) {
 	out := map[int64]*profile.ImportedGrab{}

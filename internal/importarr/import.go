@@ -12,7 +12,6 @@ import (
 	"sort"
 	"strconv"
 	"strings"
-	"sync"
 	"time"
 
 	"github.com/theatarr/theatarr/internal/store"
@@ -29,11 +28,8 @@ type Source struct {
 	Anime *bool
 	// Library is the version's library root; the import warns when the arr's root folders differ.
 	Library string
-	// Followers are the parallel versions that follow Version (policy Followers): they take its titles and
-	// monitoring, never its files (follow.go).
-	Followers []string
-	// CollectionTargets are the policy's collection targets (policy CollectionTargets): of Version and its
-	// followers, only these take the collections the import carries over (collections.go).
+	// CollectionTargets are the policy's collection targets (policy CollectionTargets): Version takes the
+	// collections the import carries over only when it is one (collections.go).
 	CollectionTargets []string
 }
 
@@ -45,32 +41,6 @@ type Importer struct {
 	// ResolveIMDb, if set, finds the TMDb id of a title the arr has with an IMDb id but no TMDb id (theatarr import-arr
 	// --enrich uses TMDb's find). Called before the write transaction.
 	ResolveIMDb func(ctx context.Context, imdbID string) (int, error)
-}
-
-// FollowSearchTarget is a follower version's newly added or newly monitored title/episodes.
-type FollowSearchTarget struct {
-	TitleID    int64
-	VersionKey string
-	All        bool
-	EpisodeIDs []int64
-}
-
-// FollowSearches are follower changes that should be searched immediately after this import.
-type FollowSearches []FollowSearchTarget
-
-// FollowSearcher starts the searches for follower changes after the import commits; the import has already recorded
-// them as intents (SaveFollowSearches), so a failure here loses nothing.
-type FollowSearcher interface {
-	EnqueueFollowSearch(ctx context.Context, targets []FollowSearchTarget) error
-}
-
-var followSearchers sync.Map // *store.Store -> FollowSearcher
-
-// RegisterFollowSearcher connects the acquirer for st to arr imports on the same store.
-func RegisterFollowSearcher(st *store.Store, s FollowSearcher) {
-	if st != nil && s != nil {
-		followSearchers.Store(st, s)
-	}
 }
 
 func (im *Importer) now() time.Time {
@@ -151,12 +121,8 @@ func (im *Importer) Write(ctx context.Context, src Source, snap *Snapshot) (*Sum
 		// WriteTx may retry: start every attempt from a clean summary.
 		s := *sum
 		s.Warnings = append([]string(nil), sum.Warnings...)
-		s.FollowSearches = nil
 		w := &wtx{tx: tx, changes: Changes{}, now: store.Millis(im.now()), nowTime: im.now()}
 		if err := w.write(ctx, src, snap, resolved, &s); err != nil {
-			return err
-		}
-		if err := SaveFollowSearches(ctx, tx, s.FollowSearches, w.now); err != nil {
 			return err
 		}
 		s.Changes = w.changes
@@ -175,11 +141,6 @@ func (im *Importer) Write(ctx context.Context, src Source, snap *Snapshot) (*Sum
 	err := reffence.Write(ctx, func() error { return im.Store.WriteTx(ctx, write) })
 	if err != nil {
 		return nil, fmt.Errorf("%s: write: %w", src.Instance, err)
-	}
-	if searcher, ok := followSearchers.Load(im.Store); ok && len(sum.FollowSearches) > 0 {
-		if err := searcher.(FollowSearcher).EnqueueFollowSearch(ctx, sum.FollowSearches); err != nil {
-			return nil, fmt.Errorf("%s: follow search: %w", src.Instance, err)
-		}
 	}
 	return sum, nil
 }
@@ -241,9 +202,6 @@ func (w *wtx) write(ctx context.Context, src Source, snap *Snapshot, resolved ma
 			}
 		}
 	}
-	if err := w.unfollowStale(ctx, src, arrTitles, sum); err != nil {
-		return err
-	}
 	if err := w.removeStale(ctx, src.Instance, arrTitles, sum); err != nil {
 		return err
 	}
@@ -257,12 +215,6 @@ func (w *wtx) write(ctx context.Context, src Source, snap *Snapshot, resolved ma
 		return err
 	}
 	if err := w.files(ctx, src.Instance, snap, arrTitles, episodes, contents, sum); err != nil {
-		return err
-	}
-	if err := w.follow(ctx, src, snap, arrTitles, episodes, sum); err != nil {
-		return err
-	}
-	if err := w.followerBlocklist(ctx, src, snap, arrTitles); err != nil {
 		return err
 	}
 	if err := w.collections(ctx, src, snap, sum); err != nil {
@@ -568,27 +520,12 @@ func (w *wtx) title(ctx context.Context, src Source, snap *Snapshot, t Title, su
 		[]kv{{"target_id", id}}, []kv{{"created_at", w.now}}, nil); err != nil {
 		return ref, err
 	}
-	// The versions this import gives the title: the source, and the followers when it owns the title (follow). One
-	// that gets the title now (created above, or a follower follow will create) takes every current label.
+	// The version this import gives the title takes every current label when it gets the title now (created above).
 	var versions, fresh []string
 	if newSource {
 		fresh = append(fresh, src.Version)
 	} else {
 		versions = append(versions, src.Version)
-	}
-	if ref.owner {
-		for _, key := range src.Followers {
-			var one int
-			err := w.tx.QueryRowContext(ctx, `SELECT 1 FROM version WHERE title_id = ? AND policy_key = ?`, id, key).Scan(&one)
-			switch {
-			case errors.Is(err, sql.ErrNoRows):
-				fresh = append(fresh, key)
-			case err != nil:
-				return ref, err
-			default:
-				versions = append(versions, key)
-			}
-		}
 	}
 	if err := w.copyTags(ctx, snap.Instance, t.ArrID, id, versions, fresh, tagLabels, string(tagsJSON)); err != nil {
 		return ref, err

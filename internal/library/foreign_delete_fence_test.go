@@ -29,7 +29,7 @@ func TestAdoptNoSymlinkDuringForeignDelete(t *testing.T) {
 	e.release(movieRelease, map[string]float64{"movie.mkv": 7000})
 	e.arrFile(1, "radarr", 10, 1, filepath.Join(e.movies, "Amelie The Movie (2001)", "Amelie.mkv"), movieRelease+"/movie.mkv", "Remux-2160p")
 	foreignDelete(t, e.env)
-	rep, err := e.lib.Adopt(e.ctx, AdoptOptions{Version: "movie-theatarr"})
+	rep, err := e.adopt("movie-theatarr")
 	want := filepath.Join(e.theatarrMovies, "Amelie The Movie (2001)", adoptedAmelie)
 	if tg, rerr := os.Readlink(want); rerr == nil {
 		t.Fatalf("link made during another process's delete: -> %s (report %+v, err %v)", tg, rep, err)
@@ -38,7 +38,7 @@ func TestAdoptNoSymlinkDuringForeignDelete(t *testing.T) {
 		t.Fatalf("adopt %+v %v", rep, err)
 	}
 	e.exec(`DELETE FROM library_lease`)
-	if rep, err := e.lib.Adopt(e.ctx, AdoptOptions{Version: "movie-theatarr"}); err != nil || rep.Linked != 1 {
+	if rep, err := e.adopt("movie-theatarr"); err != nil || rep.Linked != 1 {
 		t.Fatalf("adopt after the delete %+v %v", rep, err)
 	}
 }
@@ -63,7 +63,7 @@ func TestAdoptWaitsForDeleteAndRechecksTarget(t *testing.T) {
 	release := func() { once.Do(hold) }
 	t.Cleanup(release)
 	go func() {
-		rep, err := e.lib.Adopt(e.ctx, AdoptOptions{Version: "movie-theatarr"})
+		rep, err := e.adopt("movie-theatarr")
 		done <- res{rep, err}
 	}()
 	want := filepath.Join(e.theatarrMovies, "Amelie The Movie (2001)", adoptedAmelie)

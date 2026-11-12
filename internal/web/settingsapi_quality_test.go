@@ -133,8 +133,8 @@ func TestQualitySettingsCRUDValidationNamingAndExport(t *testing.T) {
 	}
 	namingID := qualityID(t, se, "naming", version)
 	names := se.want(se.call("GET", "/naming", nil), 200, "naming list")
-	if d, _ := names["defaults"].(map[string]any)[version].(map[string]any); d["file"] != "{Movie Title} ({Release Year}) {Quality Full}" {
-		t.Fatal("naming list lacks the built-in templates", names["defaults"])
+	if _, ok := names["defaults"]; ok {
+		t.Fatal("naming list still carries the built-in templates", names["defaults"])
 	}
 	config := map[string]any{"file": "{Movie Title} ({Release Year})", "folder": "{Movie Title}"}
 	preview := se.want(se.call("POST", "/naming/preview", map[string]any{"generation": se.generation(), "version": version, "naming": config}), 200, "unsaved naming preview")

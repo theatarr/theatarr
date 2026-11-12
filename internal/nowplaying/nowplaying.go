@@ -81,7 +81,7 @@ type Options struct {
 	// release root.
 	LinkPath, MountPath, AllDir string
 	// Roots returns a version's library roots (by policy key): a target several versions link resolves to the
-	// version whose root, or whose followed version's root, holds Plex's path. nil: not decided by roots.
+	// version whose root holds Plex's path. nil: not decided by roots.
 	Roots func(version string) []string
 	// Prewarm turns the next-episode pre-warm on.
 	Prewarm bool

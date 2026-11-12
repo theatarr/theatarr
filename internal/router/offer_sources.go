@@ -22,8 +22,8 @@ type adoptedSource struct {
 	Hash     string   `json:"hash"`
 	Release  string   `json:"release"`
 	Indexers []string `json:"indexers"` // the arr's indexer names as read, "" for a grab without one
-	// Version is the library the owning arr filled when this was read: its followers get no offer of the file, also
-	// after the library stops following and the arr instance is gone.
+	// Version is the library the owning arr filled when this was read: it gets no offer of the file, also after the
+	// arr instance is gone.
 	Version string `json:"version,omitempty"`
 }
 
@@ -102,10 +102,10 @@ func (o *Offerer) fileSources(ctx context.Context) ([]offerSource, []adoptedReco
 		arrPath := f.path
 		adoptedFrom := ""
 		if f.sourceKind == "link" {
-			if f.detail == "" && vp.Follows == "" {
+			if f.detail == "" {
 				continue
 			}
-			f.arrVersion = vp.Follows
+			f.arrVersion = "" // the arr's library, from the instance or the stored source below
 			arrPath = ""
 			if detail, ok := strings.CutPrefix(f.detail, "adopted from "); ok {
 				adoptedFrom = detail

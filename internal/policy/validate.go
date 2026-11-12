@@ -62,7 +62,7 @@ func (p *Policy) Validate() error {
 	p.validateTorrents(e)
 	p.validateShadow(e)
 	p.validateLibrary(e)
-	p.validateFollow(e)
+	p.validateRootSeparation(e)
 	p.validateRouter(e)
 	p.validatePlaylists(e)
 	p.validateNotify(e)

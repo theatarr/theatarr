@@ -763,7 +763,7 @@ func TestDemoSettings(t *testing.T) {
 	}
 }
 
-// The demo overlay's library.yaml is the example's with the parallel versions' roots added, and nothing else.
+// The demo overlay's library.yaml is the example's with Theatarr's copies' roots added, and nothing else.
 func TestDemoOverlayLibrary(t *testing.T) {
 	t.Parallel()
 	read := func(dir string) map[string]any {
@@ -781,22 +781,23 @@ func TestDemoOverlayLibrary(t *testing.T) {
 	example, overlay := read("policy"), read("demo")
 	pol := loadPolicy(t)
 	versions := overlay["library"].(map[string]any)["versions"].(map[string]any)
-	var followers []string
-	for k, v := range pol.Versions {
-		if v.Follows == "" {
+	var copies []string
+	for k := range pol.Versions {
+		base, ok := strings.CutSuffix(k, "-theatarr")
+		if !ok || pol.Versions[base] == nil {
 			continue
 		}
-		followers = append(followers, k)
+		copies = append(copies, k)
 		if versions[k] == nil {
-			t.Errorf("overlay library.yaml: no roots for the parallel version %s", k)
+			t.Errorf("overlay library.yaml: no roots for Theatarr's copy %s", k)
 		}
 		delete(versions, k)
 	}
-	if len(followers) == 0 {
-		t.Fatal("the demo policy has no parallel version")
+	if len(copies) == 0 {
+		t.Fatal("the demo policy has no Theatarr copy")
 	}
 	if !reflect.DeepEqual(example, overlay) {
-		t.Error("examples/demo/library.yaml differs from examples/policy/library.yaml beyond the parallel versions' roots")
+		t.Error("examples/demo/library.yaml differs from examples/policy/library.yaml beyond the copies' roots")
 	}
 }
 
@@ -811,7 +812,7 @@ func TestDemoExamplePolicy(t *testing.T) {
 	}
 }
 
-// TestDemoTwoCopies: every series has an arr-fed copy and Theatarr's own (a parallel version), and the copies differ
+// TestDemoTwoCopies: every series has an arr-fed copy and Theatarr's own (<key>-theatarr), and the copies differ
 // the way they do live: seasons on one copy only, Theatarr's own downloads in every state, an upgrade on a file the copy
 // has, different monitoring, and anime absolute numbers on both.
 func TestDemoTwoCopies(t *testing.T) {
@@ -826,30 +827,30 @@ func TestDemoTwoCopies(t *testing.T) {
 		}
 		return n
 	}
-	// Two copies per series: one fed by its arr, one following it with no arr records of its own.
+	// Two copies per series: one fed by its arr, and Theatarr's (<key>-theatarr) with no arr records of its own.
 	if n := count(`SELECT COUNT(*) FROM title t WHERE kind = 'series' AND NOT (
 		(SELECT COUNT(*) FROM version v WHERE v.title_id = t.id) = 2 AND
 		(SELECT COUNT(*) FROM version v JOIN version_source s ON s.version_id = v.id WHERE v.title_id = t.id) = 1 AND
-		(SELECT COUNT(*) FROM version v JOIN version_follow f ON f.version_id = v.id JOIN version o ON o.id = f.follows_id
+		(SELECT COUNT(*) FROM version v JOIN (SELECT c.id AS version_id, o.id AS follows_id FROM version c JOIN version o ON o.title_id = c.title_id AND c.policy_key = o.policy_key || '-theatarr') f ON f.version_id = v.id JOIN version o ON o.id = f.follows_id
 			AND o.title_id = t.id JOIN version_source s ON s.version_id = o.id WHERE v.title_id = t.id) = 1)`); n != 0 {
-		t.Errorf("%d series without an arr-fed copy and a copy following it", n)
+		t.Errorf("%d series without an arr-fed copy and Theatarr's copy of it", n)
 	}
-	if n := count(`SELECT COUNT(*) FROM version_file vf JOIN version_follow f ON f.version_id = vf.version_id`) +
-		count(`SELECT COUNT(*) FROM arr_title a JOIN version_follow f ON f.version_id = a.version_id`); n != 0 {
+	if n := count(`SELECT COUNT(*) FROM version_file vf JOIN (SELECT c.id AS version_id, o.id AS follows_id FROM version c JOIN version o ON o.title_id = c.title_id AND c.policy_key = o.policy_key || '-theatarr') f ON f.version_id = vf.version_id`) +
+		count(`SELECT COUNT(*) FROM arr_title a JOIN (SELECT c.id AS version_id, o.id AS follows_id FROM version c JOIN version o ON o.title_id = c.title_id AND c.policy_key = o.policy_key || '-theatarr') f ON f.version_id = a.version_id`); n != 0 {
 		t.Errorf("Theatarr's copies hold %d arr records", n)
 	}
 	// Theatarr's copies start from the arr's files (adopted links to the same mount targets).
 	if n := count(`SELECT COUNT(*) FROM library_action a JOIN link_version lv ON lv.link_id = a.link_id
-		JOIN version_follow f ON f.version_id = lv.version_id WHERE a.detail LIKE 'adopted from %'`); n < 100 {
+		JOIN (SELECT c.id AS version_id, o.id AS follows_id FROM version c JOIN version o ON o.title_id = c.title_id AND c.policy_key = o.policy_key || '-theatarr') f ON f.version_id = lv.version_id WHERE a.detail LIKE 'adopted from %'`); n < 100 {
 		t.Errorf("%d adopted links", n)
 	}
 	if n := count(`SELECT COUNT(*) FROM link l JOIN link_version lv ON lv.link_id = l.id
-		JOIN version_follow f ON f.version_id = lv.version_id JOIN version v ON v.id = lv.version_id
+		JOIN (SELECT c.id AS version_id, o.id AS follows_id FROM version c JOIN version o ON o.title_id = c.title_id AND c.policy_key = o.policy_key || '-theatarr') f ON f.version_id = lv.version_id JOIN version v ON v.id = lv.version_id
 		WHERE l.path NOT LIKE '/media/library/%'`); n != 0 {
 		t.Errorf("%d links of Theatarr's copies outside their roots", n)
 	}
 	// Every episode Theatarr's copy has, it has a link for (adopted or imported), and no link for what it lacks.
-	if n := count(`SELECT COUNT(*) FROM version_follow f JOIN episode_version_state es ON es.version_id = f.version_id
+	if n := count(`SELECT COUNT(*) FROM (SELECT c.id AS version_id, o.id AS follows_id FROM version c JOIN version o ON o.title_id = c.title_id AND c.policy_key = o.policy_key || '-theatarr') f JOIN episode_version_state es ON es.version_id = f.version_id
 		JOIN episode e ON e.id = es.episode_id WHERE e.season > 0 AND (es.state <> 'wanted') <> EXISTS (SELECT 1
 		FROM link_episode le JOIN link l ON l.id = le.link_id AND l.state = 'active'
 		JOIN link_version lv ON lv.link_id = l.id AND lv.version_id = es.version_id WHERE le.episode_id = e.id)`); n != 0 {
@@ -857,7 +858,7 @@ func TestDemoTwoCopies(t *testing.T) {
 	}
 	// Per-copy differences: a season on one copy only, both ways, and a series complete on one copy, partial on the
 	// other, both ways.
-	pair := `FROM version_follow f JOIN version theatarr ON theatarr.id = f.version_id JOIN version arr ON arr.id = f.follows_id`
+	pair := `FROM (SELECT c.id AS version_id, o.id AS follows_id FROM version c JOIN version o ON o.title_id = c.title_id AND c.policy_key = o.policy_key || '-theatarr') f JOIN version theatarr ON theatarr.id = f.version_id JOIN version arr ON arr.id = f.follows_id`
 	if n := count(`SELECT COUNT(*) ` + pair + ` WHERE arr.state = 'cutoff_met' AND theatarr.state = 'wanted'`); n < 2 {
 		t.Errorf("%d series complete on the arr's copy and partial on Theatarr's", n)
 	}
@@ -874,7 +875,7 @@ func TestDemoTwoCopies(t *testing.T) {
 	}
 	// Theatarr's own downloads for its copies, in every state.
 	var states []string
-	rows, err := db.Query(`SELECT DISTINCT d.state FROM download d JOIN version_follow f ON f.version_id = d.version_id
+	rows, err := db.Query(`SELECT DISTINCT d.state FROM download d JOIN (SELECT c.id AS version_id, o.id AS follows_id FROM version c JOIN version o ON o.title_id = c.title_id AND c.policy_key = o.policy_key || '-theatarr') f ON f.version_id = d.version_id
 		ORDER BY 1`)
 	if err != nil {
 		t.Fatal(err)
@@ -890,12 +891,12 @@ func TestDemoTwoCopies(t *testing.T) {
 			t.Errorf("Theatarr's copies: no download %s (%v)", s, states)
 		}
 	}
-	if n := count(`SELECT COUNT(*) FROM download d JOIN version_follow f ON f.version_id = d.version_id
+	if n := count(`SELECT COUNT(*) FROM download d JOIN (SELECT c.id AS version_id, o.id AS follows_id FROM version c JOIN version o ON o.title_id = c.title_id AND c.policy_key = o.policy_key || '-theatarr') f ON f.version_id = d.version_id
 		JOIN library_import i ON i.download_id = d.id WHERE d.state = 'importing' AND i.state = 'waiting_mount'`); n == 0 {
 		t.Error("Theatarr's copies: no import waiting for the mount")
 	}
 	// An upgrade in flight for an episode the copy already has a file for.
-	if n := count(`SELECT COUNT(*) FROM download d JOIN version_follow f ON f.version_id = d.version_id
+	if n := count(`SELECT COUNT(*) FROM download d JOIN (SELECT c.id AS version_id, o.id AS follows_id FROM version c JOIN version o ON o.title_id = c.title_id AND c.policy_key = o.policy_key || '-theatarr') f ON f.version_id = d.version_id
 		JOIN json_each(d.episodes) je JOIN link_episode le ON le.episode_id = je.value
 		JOIN link l ON l.id = le.link_id AND l.state = 'active'
 		JOIN link_version lv ON lv.link_id = l.id AND lv.version_id = d.version_id

@@ -261,11 +261,11 @@ func (c *checker) library(ctx context.Context) {
 			continue
 		}
 		for _, root := range lv.Roots {
-			if follower := c.p.FollowedBy(k); follower != "" {
-				c.dir(AreaLibrary, "root "+k, root, false, "make "+root+" readable inside the container")
-				c.add(AreaLibrary, "root "+k, Info, "", "read-only by design: followed by %s", follower)
-			} else {
+			// A Watch-only library writes nothing: its root need only be readable.
+			if v.Mode == policy.ModeActive {
 				c.dir(AreaLibrary, "root "+k, root, true, "create "+root+" on the host and bind it read-write into the container at the same path the media server uses")
+			} else {
+				c.dir(AreaLibrary, "root "+k, root, false, "make "+root+" readable inside the container")
 			}
 			if lib.MountPath != "" && under(root, lib.MountPath) {
 				c.add(AreaLibrary, "root "+k, Fail, "move the root out of the debrid mount",

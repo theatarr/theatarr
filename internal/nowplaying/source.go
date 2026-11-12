@@ -70,7 +70,7 @@ func (t *Tracker) resolve(ctx context.Context, file string) *Source {
 		contentFile          sql.NullInt64
 		versionIDs           []int64
 		versions             []string
-		under                bool // a version's root, or the root of the version it follows, holds file
+		under                bool // a version's root holds file
 	}
 	var cands []*cand
 	q := `SELECT l.id, l.title_id, t.name, COALESCE(l.release_title, ''), COALESCE(l.quality, ''), l.path,
@@ -110,11 +110,8 @@ func (t *Tracker) resolve(ctx context.Context, file string) *Source {
 				if t.o.Roots == nil {
 					return
 				}
-				for _, k := range append([]string{key}, t.strings(ctx, `SELECT f.policy_key FROM version_follow vf
-					JOIN version f ON f.id = vf.follows_id WHERE vf.version_id = ?`, id)...) {
-					for _, r := range t.o.Roots(k) {
-						c.under = c.under || within(file, r)
-					}
+				for _, r := range t.o.Roots(key) {
+					c.under = c.under || within(file, r)
 				}
 			})
 			if c.under {

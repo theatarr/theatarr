@@ -14,8 +14,8 @@ import (
 
 // Radarr collections (docs/design/arrview.md, Collections). The import carries every collection the arr monitors over to
 // movie intake (movie_collection, which internal/catalog's MovieIntake refreshes): monitored, with the arr's search on
-// add and minimum availability, targeting the instance's version and its followers that are collection targets
-// (policy CollectionTargets: active movie versions nothing follows, the ones the library gate lets write). Targets are
+// add and minimum availability, targeting the instance's version when it is a collection target (policy
+// CollectionTargets: Live movie libraries, the ones the library gate lets write). Targets are
 // always explicit. It only ever turns collections on: a collection the arr does not monitor is left as it is, so
 // nothing Theatarr monitors is unmonitored or deleted here. A collection Theatarr already monitors keeps its settings;
 // the import drops stored targets that are no longer eligible (an empty list among them), adds the missing ones and
@@ -59,18 +59,13 @@ func fetchCollections(ctx context.Context, g Getter, s *Snapshot) error {
 	return nil
 }
 
-// collectionTargets are the versions a carried-over collection adds movies to: the instance's version and its
-// followers, as far as they are collection targets (a shadow version grabs nothing and the arr itself still adds
-// there; a followed version's roots are its arr's).
+// collectionTargets are the versions a carried-over collection adds movies to: the instance's version, when it is a
+// collection target (a Watch-only version grabs nothing and the arr itself still adds there).
 func collectionTargets(src Source) []string {
-	var out []string
-	for _, k := range append([]string{src.Version}, src.Followers...) {
-		if slices.Contains(src.CollectionTargets, k) {
-			out = append(out, k)
-		}
+	if slices.Contains(src.CollectionTargets, src.Version) {
+		return []string{src.Version}
 	}
-	slices.Sort(out)
-	return slices.Compact(out)
+	return nil
 }
 
 func minimumAvailability(s string) string {
@@ -94,8 +89,8 @@ func (w *wtx) collections(ctx context.Context, src Source, snap *Snapshot, sum *
 	}
 	targets := collectionTargets(src)
 	if len(targets) == 0 {
-		sum.Warnings = append(sum.Warnings, fmt.Sprintf("%d monitored collections not carried over: neither version %s "+
-			"nor its followers is an active movie version nothing follows", len(monitored), src.Version))
+		sum.Warnings = append(sum.Warnings, fmt.Sprintf("%d monitored collections not carried over: version %s is not a "+
+			"Live movie library", len(monitored), src.Version))
 		return nil
 	}
 	for _, c := range monitored {

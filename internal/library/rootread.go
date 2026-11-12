@@ -309,7 +309,7 @@ type linkRead struct {
 }
 
 // readLinkBounded lstats p and reads its target when it is a symlink, in one bounded call charged to p's
-// directory's filesystem (rootRead): adopt and refresh read the followed arr's links and their own paths this way,
+// directory's filesystem (rootRead): adopt reads the instance's links and its own paths this way,
 // so a share that hangs after the gate's check stops them (ErrRootDown, retried) instead of
 // holding them in the kernel.
 func readLinkBounded(ctx context.Context, p string) (linkRead, error) {

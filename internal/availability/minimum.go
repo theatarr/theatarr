@@ -15,7 +15,7 @@ const (
 	// SourceChoice is an explicit choice: the newest arrview_title row with a value whose view is the library's own
 	// (v/<key>) or a configured view holding the library.
 	SourceChoice = "choice"
-	// SourceImported is the owning arr's value (arr_title), inherited through follows.
+	// SourceImported is the owning arr's value (arr_title).
 	SourceImported = "imported"
 	// SourceDefault is the library's minimum_availability, released when unset.
 	SourceDefault = "default"
@@ -114,12 +114,11 @@ func rulesInto(ctx context.Context, db queryer, pol *policy.Policy, copies []cop
 	if err != nil {
 		return err
 	}
-	// Imported values: per version the first arr record as store.LoadSourceSettings orders them (the owning
-	// instance, then by instance name), even when its value is empty.
+	// Imported values: per version the first arr record (the owning instance, then by instance name), even when its
+	// value is empty.
 	imported := map[int64]string{}
 	rows, err = db.QueryContext(ctx, `SELECT v.id, a.minimum_availability
-		FROM version v LEFT JOIN version_follow f ON f.version_id = v.id
-		JOIN arr_title a ON a.version_id = COALESCE(f.follows_id, v.id)
+		FROM version v JOIN arr_title a ON a.version_id = v.id
 		LEFT JOIN version_source vs ON vs.version_id = a.version_id AND vs.instance = a.instance AND vs.arr_id = a.arr_id
 		WHERE v.id IN (`+store.Placeholders(len(versionArgs))+`)
 		ORDER BY v.id, (vs.instance IS NOT NULL) DESC, a.instance`, versionArgs...)

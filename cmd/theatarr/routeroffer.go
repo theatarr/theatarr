@@ -41,7 +41,7 @@ func newServeOfferer(st *store.Store, pol *policy.Policy, eng *decide.Engine, rt
 	return o
 }
 
-// runOfferSweep is the 6-hourly sweep of downloads, adopted/followed links and imported arr files.
+// runOfferSweep is the 6-hourly sweep of downloads, adopted links and imported arr files.
 func runOfferSweep(ctx context.Context, off *router.Offerer, log *slog.Logger) {
 	t := time.NewTicker(offerSweepEvery)
 	defer t.Stop()

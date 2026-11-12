@@ -265,7 +265,6 @@ func TestWantedListPendingDownloadedAndPositionJSON(t *testing.T) {
 			t.Fatal(err)
 		}
 	}
-	exec(`INSERT INTO follow_search_intent(title_id,version_key,all_items,created_at,updated_at) VALUES(1,'movie',1,0,0),(2,'movie',1,0,0)`)
 	exec(`INSERT INTO acquire_run(id,source,title_id,version_id,version_key,target,state,accepted,created_at,updated_at) VALUES(91,'wanted',1,101,'movie','movie','routed',1,?,0),(92,'wanted',2,102,'movie','movie','routed',1,?,0)`, store.Millis(t0), store.Millis(t0))
 	exec(`INSERT INTO download(title_id,version_id,version_key,info_hash,release_title,indexer,state,source,created_at,updated_at) VALUES(2,102,'movie',?,'release','pub','failed','acquire:92',0,0)`, h("f"))
 	list, err := e.a.WantedList(e.ctx, WantedQuery{Only: OnlyMissing, Version: "movie"})
@@ -277,14 +276,10 @@ func TestWantedListPendingDownloadedAndPositionJSON(t *testing.T) {
 		t.Fatal(err)
 	}
 	var wire struct {
-		AddTimePending int              `json:"add_time_pending"`
-		Items          []map[string]any `json:"items"`
+		Items []map[string]any `json:"items"`
 	}
 	if err := json.Unmarshal(raw, &wire); err != nil {
 		t.Fatal(err)
-	}
-	if wire.AddTimePending != 2 || e.count(`SELECT COUNT(*) FROM follow_search_intent`) != 2 {
-		t.Errorf("pending: %s", raw)
 	}
 	for _, row := range wire.Items {
 		if _, ok := row["position"]; ok {

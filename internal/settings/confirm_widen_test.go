@@ -70,8 +70,8 @@ func editProfile(t *testing.T, records *Records, key string, change func(*policy
 	t.Fatalf("no profile record %s", key)
 }
 
-// At the policy level: follows added on an active version asks; a profile, its cutoff or the indexers changed do not.
-func TestAddFollowsOnActiveVersion(t *testing.T) {
+// At the policy level: a profile, its cutoff or the indexers changed on an active version do not ask.
+func TestEditsOnActiveVersionAskNothing(t *testing.T) {
 	t.Parallel()
 	_, db, _, initial := versionFixture(t)
 	ctx := context.Background()
@@ -83,7 +83,6 @@ func TestAddFollowsOnActiveVersion(t *testing.T) {
 		name, contains string
 		change         func(*policy.Policy)
 	}{
-		{"add-follows", "starts following movie-remux", func(p *policy.Policy) { p.Versions["movie-web"].Follows = "movie-remux" }},
 		{"profile", "", func(p *policy.Policy) { p.Versions["movie-web"].Profile = "web-2160p" }},
 		{"indexers", "", func(p *policy.Policy) {
 			p.Versions["movie-web"].Indexers = append(p.Versions["movie-web"].Indexers, "seadex")

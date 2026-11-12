@@ -178,10 +178,6 @@ func (s *serveLibrary) RegisterJobs(w *jobs.Worker) {
 			ctx, current := s.forOperation(ctx)
 			return current.lib.HandleScan(ctx, j, current.scan)
 		})
-		w.Handle(library.AdoptJobKind, func(ctx context.Context, j *jobs.Job) error {
-			ctx, current := s.forOperation(ctx)
-			return current.lib.HandleAdopt(ctx, j)
-		})
 		w.Handle(library.AnimeRelinkJobKind, func(ctx context.Context, j *jobs.Job) error {
 			ctx, current := s.forOperation(ctx)
 			return current.lib.HandleAnimeRelink(ctx, j)
@@ -189,7 +185,6 @@ func (s *serveLibrary) RegisterJobs(w *jobs.Worker) {
 		return
 	}
 	s.lib.RegisterJobs(w, s.scan)
-	s.lib.RegisterAdoptJob(w)
 	s.lib.RegisterAnimeRelinkJob(w)
 }
 

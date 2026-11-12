@@ -33,7 +33,7 @@ var episodeTitleToken = netregex.MustCompile(`(?<escaped>\{\{|\}\})|\{(?<prefix>
 func (e *Engine) requiresEpisodeTitle(t *Title, v Version, episodes []*Episode) bool {
 	cfg := v.Naming
 	if cfg == nil {
-		n := versionNaming(e.Policy, v.Policy)
+		n := v.Policy.Naming
 		if n.FromArr != "" {
 			return false // the caller has not loaded the arr naming snapshot
 		}
@@ -103,12 +103,4 @@ func (e *Engine) EpisodeTitleHold(t Title, v Version, episodes []Episode) (profi
 	s := &profile.Subject{Media: media, Episodes: selected}
 	d := profile.EpisodeTitleCheck(p.Engine, s)
 	return d.Reason, d.Message
-}
-
-func versionNaming(pol *policy.Policy, v *policy.VersionPolicy) policy.Naming {
-	n := v.Naming
-	if n.FromVersion != "" {
-		return pol.Versions[n.FromVersion].Naming
-	}
-	return n
 }

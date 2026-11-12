@@ -68,8 +68,8 @@ type version struct {
 	instance  string
 	flavour   string
 	native    bool   // filled through Theatarr's own router and library (links), not an arr
-	follows   string // a parallel version (Theatarr's own copy): the arr-fed version it follows
-	// files are the arr's episode files of an arr-fed series version by episode id, for its follower to adopt.
+	copyOf    string // Theatarr's own copy (key <k>-theatarr): the arr-fed version k it copies
+	// files are the arr's episode files of an arr-fed series version by episode id, for its copy to adopt.
 	files map[int64]arrFile
 }
 
@@ -80,15 +80,15 @@ type arrFile struct {
 	path string
 }
 
-// theatarrCopy returns t's Theatarr copy (a version following another) and the arr-fed version it follows; nil, nil when
-// the policy has no parallel version for t.
+// theatarrCopy returns t's Theatarr copy (version <k>-theatarr) and the arr-fed version k it copies; nil, nil when
+// the policy has no such copy for t.
 func (t *title) theatarrCopy() (cp, followed *version) {
 	for _, v := range t.versions {
-		if v.follows == "" {
+		if v.copyOf == "" {
 			continue
 		}
 		for _, f := range t.versions {
-			if f.key == v.follows {
+			if f.key == v.copyOf {
 				return v, f
 			}
 		}
@@ -126,7 +126,10 @@ func (s *seeder) plan() error {
 		t.monitored = t.scenario != scUnmonitored
 		t.arrIDs = map[string]int64{}
 		for _, k := range keys {
-			v := &version{key: k, vp: s.pol.Versions[k], monitored: true, follows: s.pol.Versions[k].Follows}
+			v := &version{key: k, vp: s.pol.Versions[k], monitored: true}
+			if base, ok := strings.CutSuffix(k, "-theatarr"); ok && s.pol.Versions[base] != nil {
+				v.copyOf = base
+			}
 			v.instance, v.flavour = s.instanceFor(k)
 			v.native = v.instance == ""
 			t.versions = append(t.versions, v)
@@ -276,7 +279,7 @@ func (s *seeder) versionState(t *title, i int) string {
 
 // episodeState is the state of e in version v of series t.
 func (s *seeder) episodeState(t *title, v *version, e *episode) string {
-	if v.follows != "" {
+	if v.copyOf != "" {
 		return s.copyEpisodeState(t, e)
 	}
 	return s.arrEpisodeState(t, e)
@@ -391,9 +394,6 @@ func (s *seeder) library() {
 			v.id = s.exec(`INSERT INTO version (title_id, policy_key, monitored, state, created_at, updated_at)
 				VALUES (?, ?, ?, ?, ?, ?)`, t.id, v.key, b01(v.monitored), v.state, ms(t.added), ms(t.added))
 		}
-		if cp, followed := t.theatarrCopy(); cp != nil {
-			s.exec(`INSERT INTO version_follow (version_id, follows_id) VALUES (?, ?)`, cp.id, followed.id)
-		}
 		for _, e := range t.episodes {
 			var air, airAt any
 			if !e.air.IsZero() {
@@ -412,7 +412,7 @@ func (s *seeder) library() {
 				if !v.monitored {
 					st = "wanted"
 				}
-				monitored := e.season > 0 && v.monitored && !(v.follows != "" && copyPlans[t.name].unmonitors(e.season))
+				monitored := e.season > 0 && v.monitored && !(v.copyOf != "" && copyPlans[t.name].unmonitors(e.season))
 				s.exec(`INSERT INTO episode_version_state (version_id, episode_id, monitored, state, cutoff_met, updated_at)
 					VALUES (?, ?, ?, ?, ?, ?)`, v.id, e.id, b01(monitored), st, b01(st == "cutoff_met"), ms(t.added))
 			}

@@ -14,7 +14,7 @@ import (
 // A command with subcommands prints its usage for -h, -help or --help in place of a subcommand, and main exits 0.
 func TestParentCommandsHelp(t *testing.T) {
 	parents := []string{"admin", "anime", "backup", "debug", "demo", "errors", "jobs", "library", "migrate",
-		"parallel", "policy", "providers", "router", "settings", "shadow", "torrents", "tvdb"}
+		"policy", "providers", "router", "settings", "shadow", "torrents", "tvdb"}
 	for _, name := range parents {
 		c, ok := commands[name]
 		if !ok {
@@ -37,38 +37,12 @@ func TestLibraryUsageListsRenamePreview(t *testing.T) {
 	}
 }
 
-// theatarr library rename-preview fails, printing nothing, when a profile its names need cannot be built: the
-// library's own (movie-shadow reads its profile from an arr snapshot, and there is none) or, for a library that
-// follows one, the followed library's (movie-follow follows movie-shadow; its adopted links are named with
-// movie-shadow's profile). With the snapshot both run. The commands open the database read-only: a copy in rollback
+// theatarr library rename-preview fails, printing nothing, when the profile its names need cannot be built (movie-shadow
+// reads its profile from an arr snapshot, and there is none). With the snapshot it runs. The commands open the database read-only: a copy in rollback
 // journal mode stays so, with its permissions.
 func TestLibraryRenamePreviewNeedsProfile(t *testing.T) {
 	dir := t.TempDir()
 	if err := copyPolicyDir(filepath.Join("..", "..", "internal", "decide", "testdata", "policy"), dir); err != nil {
-		t.Fatal(err)
-	}
-	path := filepath.Join(dir, "versions.yaml")
-	data, err := os.ReadFile(path)
-	if err != nil {
-		t.Fatal(err)
-	}
-	data = []byte(strings.Replace(string(data), "versions:\n", `versions:
-  movie-follow:
-    follows: movie-shadow
-    kind: movie
-    profile: remux-2160p
-    library: /media/movies-follow
-    storage: debrid
-    indexers: [public]
-    providers: [rd]
-    client: decypharr
-    naming: {from_version: movie-shadow}
-`, 1))
-	if err := os.WriteFile(path, data, 0o600); err != nil {
-		t.Fatal(err)
-	}
-	if err := os.WriteFile(filepath.Join(dir, "library.yaml"),
-		[]byte("library:\n  versions:\n    movie-follow: {roots: [/media/movies-follow]}\n"), 0o600); err != nil {
 		t.Fatal(err)
 	}
 	db := filepath.Join(t.TempDir(), "settings.db")
@@ -78,7 +52,7 @@ func TestLibraryRenamePreviewNeedsProfile(t *testing.T) {
 		t.Fatal(err)
 	}
 	snap := filepath.Join("..", "..", "internal", "decide", "testdata", "arr")
-	for _, lib := range []string{"movie-shadow", "movie-follow"} {
+	for _, lib := range []string{"movie-shadow"} {
 		args := append(append([]string(nil), base...), "-library", lib)
 		var out bytes.Buffer
 		if err := runLibrary(append(args, "-arr-snapshot", t.TempDir()), &out); err == nil ||

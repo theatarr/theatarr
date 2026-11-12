@@ -8,8 +8,8 @@ import (
 	"github.com/theatarr/theatarr/internal/decide"
 )
 
-// TestPreviewRenameLibraryListsOnlyThatLibrary: a title with links in the followed and the parallel library; the
-// parallel library's preview lists only its own link.
+// TestPreviewRenameLibraryListsOnlyThatLibrary: a title with links in the arr's library and Theatarr's copy; the
+// copy's preview lists only its own link.
 func TestPreviewRenameLibraryListsOnlyThatLibrary(t *testing.T) {
 	t.Parallel()
 	e := newParallelEnv(t, true)

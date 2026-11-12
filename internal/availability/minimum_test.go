@@ -3,6 +3,7 @@ package availability
 import (
 	"context"
 	"database/sql"
+	"errors"
 	"path/filepath"
 	"slices"
 	"testing"
@@ -17,12 +18,15 @@ import (
 // library setting, Rules must give the same value for the same database.
 func mainMinimum(ctx context.Context, db *sql.DB, pol *policy.Policy, titleID, versionID int64, key string) (string, error) {
 	minimum := "released"
-	s, err := store.LoadSourceSettings(ctx, db, versionID)
-	if err != nil {
+	var imported string
+	err := db.QueryRowContext(ctx, `SELECT a.minimum_availability FROM arr_title a
+		LEFT JOIN version_source vs ON vs.version_id = a.version_id AND vs.instance = a.instance AND vs.arr_id = a.arr_id
+		WHERE a.version_id = ? ORDER BY (vs.instance IS NOT NULL) DESC, a.instance LIMIT 1`, versionID).Scan(&imported)
+	if err != nil && !errors.Is(err, sql.ErrNoRows) {
 		return "", err
 	}
-	if s.MinimumAvailability != "" {
-		minimum = s.MinimumAvailability
+	if imported != "" {
+		minimum = imported
 	}
 	rows, err := db.QueryContext(ctx, `SELECT view, minimum_availability FROM arrview_title
 		WHERE title_id = ? AND minimum_availability <> '' ORDER BY updated_at DESC, view`, titleID)
@@ -72,7 +76,7 @@ func minimumEnv(t *testing.T) (*store.Store, *policy.Policy, func(q string, args
 func TestRulesMatchMain(t *testing.T) {
 	ctx := context.Background()
 	st, pol, exec := minimumEnv(t)
-	// Titles 1..9, each with movie-remux (id n*10+1), movie-web (n*10+2) and a follower of the remux (n*10+3).
+	// Titles 1..9, each with movie-remux (id n*10+1), movie-web (n*10+2) and anime-movie (n*10+3).
 	type copyOf struct {
 		title, version int64
 		key            string
@@ -83,7 +87,6 @@ func TestRulesMatchMain(t *testing.T) {
 		exec(`INSERT INTO title(id,kind,name,tmdb_id,created_at,updated_at) VALUES(?,'movie','M',?,0,0)`, n, 100+n)
 		exec(`INSERT INTO version(id,title_id,policy_key,created_at,updated_at) VALUES(?,?,'movie-remux',0,0),
 			(?,?,'movie-web',0,0),(?,?,'anime-movie',0,0)`, n*10+1, n, n*10+2, n, n*10+3, n)
-		exec(`INSERT INTO version_follow(version_id,follows_id) VALUES(?,?)`, n*10+3, n*10+1)
 		copies = append(copies, copyOf{n, n*10 + 1, "movie-remux"}, copyOf{n, n*10 + 2, "movie-web"},
 			copyOf{n, n*10 + 3, "anime-movie"})
 		ids = append(ids, n)
@@ -103,7 +106,7 @@ func TestRulesMatchMain(t *testing.T) {
 		('radarr_4k_debrid','radarr','movie-remux',0,0),('radarr_4k_web','radarr','movie-web',0,0),
 		('aaa_other','radarr','movie-remux',0,0)`)
 	// 1: nothing stored.
-	// 2: imported by the owner; the follower inherits it.
+	// 2: imported by the owner.
 	arr("radarr_4k_debrid", 21, true, "announced")
 	// 3: the owner's record is empty and another instance's, sorting first by name, has a value: the owner's wins.
 	arr("radarr_4k_debrid", 31, true, "")
@@ -162,7 +165,7 @@ func TestRulesMatchMain(t *testing.T) {
 		11: {Minimum: "released", Source: SourceDefault},
 		21: {Minimum: "announced", Source: SourceImported},
 		22: {Minimum: "released", Source: SourceDefault},
-		23: {Minimum: "announced", Source: SourceImported},
+		23: {Minimum: "released", Source: SourceDefault},
 		31: {Minimum: "released", Source: SourceDefault},
 		41: {Minimum: "inCinemas", Source: SourceImported},
 		52: {Minimum: "inCinemas", Source: SourceChoice},
@@ -321,4 +324,42 @@ func TestMovieDelayAndDefault(t *testing.T) {
 	check("9 days early", 2, "movie-web", true)
 	pol.Versions["movie-web"].AvailabilityDelay = -8
 	check("8 days early", 2, "movie-web", false)
+}
+
+// Without following, a former follower's copy reads the choice the detach migration (00121) wrote on its own row
+// (v/<key>, updated_at 0), and a copy an arr feeds still reads its arr_title record.
+func TestRulesWithoutFollow(t *testing.T) {
+	ctx := context.Background()
+	st, pol, exec := minimumEnv(t)
+	exec(`INSERT INTO title(id,kind,name,tmdb_id,created_at,updated_at) VALUES(1,'movie','M',101,0,0)`)
+	exec(`INSERT INTO version(id,title_id,policy_key,created_at,updated_at) VALUES(11,1,'movie-remux',0,0),
+		(13,1,'anime-movie',0,0)`)
+	exec(`INSERT INTO arr_instance(name,flavour,policy_key,created_at,updated_at) VALUES
+		('radarr_4k_debrid','radarr','movie-remux',0,0)`)
+	exec(`INSERT INTO arr_title(instance,arr_id,kind,title_id,version_id,monitored,minimum_availability)
+		VALUES('radarr_4k_debrid',11,'movie',1,11,1,'inCinemas')`)
+	exec(`INSERT INTO version_source(version_id,instance,arr_id) VALUES(11,'radarr_4k_debrid',11)`)
+	exec(`INSERT INTO arrview_title(view,title_id,minimum_availability,added_at,updated_at)
+		VALUES('v/anime-movie',1,'announced',0,0)`)
+	all, err := Rules(ctx, st.Reader(), pol, []int64{1})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := all[13]; got.Minimum != "announced" || got.Source != SourceChoice {
+		t.Errorf("former follower %+v, want announced from its migrated row", got)
+	}
+	if got := all[11]; got.Minimum != "inCinemas" || got.Source != SourceImported {
+		t.Errorf("mirror copy %+v, want inCinemas imported", got)
+	}
+	// A newer explicit choice on a view holding the library still wins over the migrated row.
+	exec(`INSERT INTO title(id,kind,name,tmdb_id,created_at,updated_at) VALUES(2,'movie','N',102,0,0)`)
+	exec(`INSERT INTO version(id,title_id,policy_key,created_at,updated_at) VALUES(21,2,'movie-remux',0,0)`)
+	exec(`INSERT INTO arrview_title(view,title_id,minimum_availability,added_at,updated_at)
+		VALUES('v/movie-remux',2,'announced',0,0),('radarr',2,'inCinemas',1,7)`)
+	if all, err = Rules(ctx, st.Reader(), pol, []int64{2}); err != nil {
+		t.Fatal(err)
+	}
+	if got := all[21]; got.Minimum != "inCinemas" || got.Source != SourceChoice {
+		t.Errorf("view choice over the migrated row: %+v, want inCinemas", got)
+	}
 }

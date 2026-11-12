@@ -30,7 +30,7 @@ type Collection struct {
 	Name      string `json:"name"`
 	Monitored bool   `json:"monitored"`
 	// Versions are the libraries a monitored collection adds movies to: collection targets only (policy
-	// CollectionTarget: active movie versions nothing follows, the ones the library gate lets write). Stored targets
+	// CollectionTarget: Live movie libraries, the ones the library gate lets write). Stored targets
 	// that are no longer eligible are left out; movie intake skips them.
 	Versions            []string `json:"versions"`
 	SearchOnAdd         bool     `json:"search_on_add"`
@@ -245,7 +245,7 @@ func (w *Web) apiSetCollection(rw http.ResponseWriter, r *http.Request) {
 	if in.Versions != nil {
 		for _, k := range *in.Versions {
 			if !slices.Contains(targets, k) {
-				badRequest(rw, strconv.Quote(k)+" is not a library a collection may add to (an active movie library nothing follows)")
+				badRequest(rw, strconv.Quote(k)+" is not a library a collection may add to (a Live movie library)")
 				return
 			}
 		}
@@ -393,7 +393,7 @@ func (w *Web) apiAddCollection(rw http.ResponseWriter, r *http.Request) {
 	targets := w.collectionTargets()
 	for _, k := range in.Versions {
 		if !slices.Contains(targets, k) {
-			badRequest(rw, strconv.Quote(k)+" is not a library a collection may add to (an active movie library nothing follows)")
+			badRequest(rw, strconv.Quote(k)+" is not a library a collection may add to (a Live movie library)")
 			return
 		}
 	}

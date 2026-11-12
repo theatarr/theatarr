@@ -519,7 +519,7 @@ func TestAbsentProviderNotShown(t *testing.T) {
 	}
 }
 
-// A target several versions link: the version whose root (or followed root) holds Plex's path is the one playing;
+// A target several versions link: the version whose root holds Plex's path is the one playing;
 // undecided, every version sharing the target is shown (Happy Feet under the web root, linked by remux and web).
 func TestSharedTargetVersion(t *testing.T) {
 	st := openStore(t)
@@ -527,7 +527,6 @@ func TestSharedTargetVersion(t *testing.T) {
 		`INSERT INTO title (id, kind, name, created_at, updated_at) VALUES (2, 'movie', 'Happy Feet', 0, 0)`,
 		`INSERT INTO version (id, title_id, policy_key, created_at, updated_at) VALUES
 			(2, 2, 'movie-remux-theatarr', 0, 0), (3, 2, 'movie-web-theatarr', 0, 0), (4, 2, 'movie-web', 0, 0)`,
-		`INSERT INTO version_follow (version_id, follows_id) VALUES (3, 4)`,
 		`INSERT INTO link (id, path, target, title_id, release_title, state, created_at, updated_at) VALUES
 			(20, '/media/remux-theatarr/Happy Feet/hf.mkv', '/mnt/zurg/__all__/HF/hf.mkv', 2, 'HF', 'active', 0, 0),
 			(21, '/media/web-theatarr/Happy Feet/hf.mkv', '/mnt/zurg/__all__/HF/hf.mkv', 2, 'HF', 'active', 0, 0)`,
@@ -542,8 +541,8 @@ func TestSharedTargetVersion(t *testing.T) {
 	link := func(string) (string, error) { return "/mnt/zurg/__all__/HF/hf.mkv", nil }
 	tr := New(Options{Store: st, LinkPath: "/mnt/zurg", AllDir: "__all__", Readlink: link,
 		Roots: func(k string) []string { return roots[k] }})
-	// The arr's web root, which movie-web-theatarr follows.
-	src := tr.resolve(context.Background(), "/media/movies-web/Happy Feet/hf.mkv")
+	// The web library's root.
+	src := tr.resolve(context.Background(), "/media/web-theatarr/Happy Feet/hf.mkv")
 	if src.LinkID != 21 || !slices.Equal(src.Versions, []string{"movie-web-theatarr"}) {
 		t.Errorf("web root: link %d versions %v", src.LinkID, src.Versions)
 	}

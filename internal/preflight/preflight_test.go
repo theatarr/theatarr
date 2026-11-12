@@ -344,28 +344,17 @@ func TestPreflightVPNLimits(t *testing.T) {
 	}
 }
 
-func TestFollowedRootReadOnly(t *testing.T) {
+// A Watch-only library writes nothing: a read-only root passes; once the library is Live it must be writable.
+func TestWatchOnlyRootReadOnly(t *testing.T) {
 	o, _ := good(t)
 	o.FS = readOnlyFS{}
 	o.Policy.Versions["movies"].Mode = policy.ModeShadow
-	o.Policy.Versions["follower"] = &policy.VersionPolicy{Mode: policy.ModeActive, Follows: "movies"}
-	r := Run(context.Background(), o)
-	infos := 0
-	for _, it := range r.Items {
-		if it.Check != "root movies" {
-			continue
-		}
-		if it.Status == Fail {
-			t.Fatalf("followed root failed: %+v", it)
-		}
-		if string(it.Status) == "info" && strings.Contains(it.Why, "read-only by design: followed by follower") {
-			infos++
+	for _, it := range Run(context.Background(), o).Items {
+		if it.Check == "root movies" && it.Status == Fail {
+			t.Fatalf("Watch-only root failed: %+v", it)
 		}
 	}
-	if infos != 1 {
-		t.Fatalf("got %d read-only INFO lines", infos)
-	}
-	delete(o.Policy.Versions, "follower")
+	o.Policy.Versions["movies"].Mode = policy.ModeActive
 	want(t, Run(context.Background(), o), "library/root movies", Fail, "not writable")
 }
 
@@ -373,10 +362,9 @@ type unreadableFS struct{ OSFS }
 
 func (unreadableFS) Readable(string) error { return errors.New("permission denied") }
 
-func TestFollowedRootMustBeReadable(t *testing.T) {
+func TestWatchOnlyRootMustBeReadable(t *testing.T) {
 	o, _ := good(t)
 	o.Policy.Versions["movies"].Mode = policy.ModeShadow
-	o.Policy.Versions["follower"] = &policy.VersionPolicy{Mode: policy.ModeActive, Follows: "movies"}
 	o.FS = unreadableFS{}
 	r := Run(context.Background(), o)
 	for _, it := range r.Items {
@@ -384,7 +372,7 @@ func TestFollowedRootMustBeReadable(t *testing.T) {
 			return
 		}
 	}
-	t.Fatal("unreadable followed root did not fail")
+	t.Fatal("unreadable Watch-only root did not fail")
 }
 
 // Once a library exists an unset trash folder is a failure: upgrades and removals would keep no copy of the replaced

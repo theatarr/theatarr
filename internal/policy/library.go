@@ -413,10 +413,6 @@ var multiEpisodeStyles = setOf("extend", "duplicate", "repeat", "scene", "range"
 func (p *Policy) validateNaming(e *Errors, k string, v *VersionPolicy) {
 	path := fmt.Sprintf("versions[%s].naming", k)
 	n := v.Naming
-	if n.FromVersion != "" {
-		p.validateNamingFromVersion(e, path, k, v)
-		return
-	}
 	if n.FromArr != "" {
 		var src *ArrSource
 		if p.Import != nil {

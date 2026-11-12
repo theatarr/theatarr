@@ -184,7 +184,7 @@ func (s *Service) collection(w http.ResponseWriter, r *request) {
 		return nil
 	})
 	if errors.Is(err, errNoCollectionTarget) {
-		badRequest(w, "qualityProfileId", "A monitored collection needs a target library that is an active movie version no other version follows", noTarget)
+		badRequest(w, "qualityProfileId", "A monitored collection needs a target library that is a Live movie library", noTarget)
 		return
 	}
 	if err != nil {

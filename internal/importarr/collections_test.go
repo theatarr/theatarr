@@ -6,9 +6,6 @@ import (
 	"net/http/httptest"
 	"strings"
 	"testing"
-
-	"github.com/theatarr/theatarr/internal/catalog"
-	"github.com/theatarr/theatarr/internal/policy"
 )
 
 type collectionRow struct {
@@ -38,8 +35,8 @@ func collectionSnapshot() *Snapshot {
 	}}
 }
 
-// The arr's monitored collections become monitored intake collections targeting the version and its followers that
-// are collection targets; collections the arr does not monitor, and Theatarr's own, are left alone; a re-run changes
+// The arr's monitored collections become monitored intake collections targeting the version when it
+// is a collection target; collections the arr does not monitor, and Theatarr's own, are left alone; a re-run changes
 // nothing.
 func TestImportCollections(t *testing.T) {
 	t.Parallel()
@@ -62,8 +59,7 @@ func TestImportCollections(t *testing.T) {
 		}
 	}
 	im := &Importer{Store: st, Now: fixedNow}
-	// movie-4k is followed, so not a target itself.
-	src := Source{Instance: "radarr_4k", Flavour: "radarr", Version: "movie-4k", Followers: []string{"movie-4k-theatarr"},
+	src := Source{Instance: "radarr_4k", Flavour: "radarr", Version: "movie-4k-theatarr",
 		CollectionTargets: []string{"movie-4k-theatarr", "movie-web"}}
 	snap := collectionSnapshot()
 	snap.Collections[3].SearchOnAdd = true
@@ -103,8 +99,9 @@ func TestImportCollections(t *testing.T) {
 		t.Errorf("re-run counts %+v, changes %+v", sum.Collections, sum.Changes["movie_collection"])
 	}
 
-	// The version itself once it is a target, added to what is already chosen; the arr unmonitoring changes nothing.
-	src.CollectionTargets = append(src.CollectionTargets, "movie-4k")
+	// Another library of the instance's that is a target, added to what is already chosen; the arr unmonitoring
+	// changes nothing.
+	src.Version, src.CollectionTargets = "movie-4k", append(src.CollectionTargets, "movie-4k")
 	snap = collectionSnapshot()
 	snap.Collections[2].Monitored = false
 	if _, err := im.Write(ctx, src, snap); err != nil {
@@ -121,13 +118,13 @@ func TestImportCollections(t *testing.T) {
 	}
 }
 
-// A version with no follower that is a collection target (a shadow version alone, or one whose followers are shadow
-// too) has nowhere to add a collection's movies: nothing is written, with a warning.
+// A version that is not a collection target (a Watch-only version) has nowhere to add a collection's movies: nothing
+// is written, with a warning.
 func TestImportCollectionsNoTargets(t *testing.T) {
 	t.Parallel()
 	for _, src := range []Source{
 		{Instance: "radarr_anime", Version: "anime-movie"},
-		{Instance: "radarr_a", Version: "movie", Followers: []string{"movie-theatarr"}, CollectionTargets: []string{"movie-web"}},
+		{Instance: "radarr_a", Version: "movie", CollectionTargets: []string{"movie-web"}},
 	} {
 		st := openStore(t)
 		im := &Importer{Store: st, Now: fixedNow}
@@ -157,13 +154,12 @@ func TestFetchRadarrCollections(t *testing.T) {
 	defer srv.Close()
 	st := openStore(t)
 	im := &Importer{Store: st, Now: fixedNow}
-	src := Source{Instance: "radarr_a", Flavour: "radarr", Version: "movie-remux", Followers: []string{"movie-remux-theatarr"},
-		CollectionTargets: []string{"movie-remux-theatarr"}}
+	src := Source{Instance: "radarr_a", Flavour: "radarr", Version: "movie-remux", CollectionTargets: []string{"movie-remux"}}
 	sum := runImport(t, im, src, srv)
 	if sum.Collections != (CollectionCounts{Monitored: 1, Added: 1}) {
 		t.Errorf("counts %+v", sum.Collections)
 	}
-	if got, want := readCollection(t, st.Reader(), 8091), (collectionRow{"Alien Collection", `["movie-remux-theatarr"]`, "inCinemas", true, true}); got != want {
+	if got, want := readCollection(t, st.Reader(), 8091), (collectionRow{"Alien Collection", `["movie-remux"]`, "inCinemas", true, true}); got != want {
 		t.Errorf("collection %+v, want %+v", got, want)
 	}
 
@@ -174,47 +170,5 @@ func TestFetchRadarrCollections(t *testing.T) {
 	sum = runImport(t, &Importer{Store: st2, Now: fixedNow}, src, srv)
 	if len(sum.Warnings) != 0 || sum.Collections != (CollectionCounts{}) {
 		t.Errorf("no collection endpoint: warnings %v, counts %+v", sum.Warnings, sum.Collections)
-	}
-}
-
-// A movie collection intake adds to a follower is not the arr's: the next arr import leaves its follower version
-// monitored, while a title the arr owned and dropped is unmonitored as before (unfollowStale).
-func TestCollectionIntakeTitleSurvivesArrImport(t *testing.T) {
-	t.Parallel()
-	st := openStore(t)
-	ctx := context.Background()
-	im := &Importer{Store: st, Now: fixedNow}
-	src := Source{Instance: "radarr_a", Version: "movie", Followers: []string{"movie-theatarr"}}
-	movies, _ := followSnapshots()
-	if _, err := im.Write(ctx, src, movies); err != nil {
-		t.Fatal(err)
-	}
-	// What MovieIntake.addMovie does for a collection targeting the follower.
-	err := st.WriteTx(ctx, func(tx *sql.Tx) error {
-		_, err := catalog.Add(ctx, tx, catalog.Input{Kind: policy.KindMovie, TmdbID: 700, Title: "Sequel", Year: 2026,
-			Versions: func(bool) ([]string, error) { return []string{"movie-theatarr"}, nil }, Monitored: true,
-			Source: "movie-list", AddMethod: "collection"}, fixedNow(), nil)
-		return err
-	})
-	if err != nil {
-		t.Fatal(err)
-	}
-	// The arr drops Arrival and never had the sequel.
-	movies, _ = followSnapshots()
-	movies.Titles = movies.Titles[1:]
-	sum, err := im.Write(ctx, src, movies)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if sum.Followed.Unmonitored != 1 {
-		t.Errorf("unmonitored %d, want 1 (Arrival)", sum.Followed.Unmonitored)
-	}
-	if !one[bool](t, st, `SELECT v.monitored FROM version v JOIN title t ON t.id = v.title_id
-		WHERE t.tmdb_id = 700 AND v.policy_key = 'movie-theatarr'`) {
-		t.Error("collection intake's follower version was unmonitored by the arr import")
-	}
-	if one[bool](t, st, `SELECT v.monitored FROM version v JOIN title t ON t.id = v.title_id
-		WHERE t.tmdb_id = 329865 AND v.policy_key = 'movie-theatarr'`) {
-		t.Error("the dropped arr title's follower stayed monitored")
 	}
 }

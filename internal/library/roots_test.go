@@ -248,22 +248,14 @@ func TestScansSkipUnreachableRoot(t *testing.T) {
 	}
 }
 
-// An adopt or refresh dry run reads the version's and the followed version's roots, which the gate
-// does not check for it: a root that does not answer stops it (ErrRootDown), and the job retries it rather than
+// An adopt whose gate finds a root that does not answer stops (Unavailable), and the import retries it rather than
 // failing for good.
-func TestAdoptDryRunUnreachableRoot(t *testing.T) {
+func TestAdoptUnreachableRoot(t *testing.T) {
 	e := newParallelEnv(t, true)
 	probetest.Mounts(t, e.movies, e.shows, e.trash, e.theatarrMovies, e.theatarrShows)
 	hangStat(t, e.movies)
 	err := within(t, 3*time.Second, func() error {
-		_, err := e.lib.Adopt(e.ctx, AdoptOptions{Version: "movie-theatarr", DryRun: true})
-		return err
-	})
-	if !errors.Is(err, ErrRootDown) {
-		t.Fatalf("adopt dry run: %v", err)
-	}
-	err = within(t, 3*time.Second, func() error {
-		_, err := e.lib.Adopt(e.ctx, AdoptOptions{Version: "movie-theatarr"})
+		_, err := e.adopt("movie-theatarr")
 		return err
 	})
 	if !Unavailable(err) {
@@ -271,9 +263,8 @@ func TestAdoptDryRunUnreachableRoot(t *testing.T) {
 	}
 }
 
-// The follower imported the release itself and its symlink went missing; adopt names the arr's file
-// of the same release to the same path. The row an import made is never taken over (it would become an adopted
-// link the follower refresh moves).
+// The library imported the release itself and its symlink went missing; adopt names the instance's file
+// of the same release to the same path. The row an import made is never taken over.
 func TestAdoptLeavesOwnImportRow(t *testing.T) {
 	t.Parallel()
 	e := newParallelEnv(t, true)
@@ -289,12 +280,12 @@ func TestAdoptLeavesOwnImportRow(t *testing.T) {
 	if err := os.Remove(own); err != nil {
 		t.Fatal(err)
 	}
-	rep, err := e.lib.Adopt(e.ctx, AdoptOptions{Version: "movie-theatarr"})
+	rep, err := e.adopt("movie-theatarr")
 	if err != nil {
 		t.Fatal(err)
 	}
 	if got := e.one(`SELECT COALESCE(download_id, 0) || ' ' || COALESCE(adopted_from, '-') FROM link WHERE path = ?`, own); got != "1 -" {
-		t.Fatalf("the follower's own link row was taken over by adopt: download_id/adopted_from = %s (report %+v)", got, rep)
+		t.Fatalf("the library's own link row was taken over by adopt: download_id/adopted_from = %s (report %+v)", got, rep)
 	}
 	if rep.Linked != 0 || rep.Skipped[AdoptConflict] != 1 {
 		t.Fatalf("report %+v", rep)
