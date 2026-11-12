@@ -103,6 +103,7 @@ routes answer 403. The permission check is `canManage` in
   status with Why?), a season monitor switch and "Search season"; All / Missing / Upgrade found filters; episode
   rows open the episode overview (`?episode=<id>`); checkboxes select episodes for bulk monitor, unmonitor and
   search. Managers get Interactive search on each season header and an icon button per episode row.
+  A season's Interactive search (also the Wanted row's) requests every episode of that season, Specials included.
 - **Episode overview** (a shared-Modal dialog): per version the state, monitor switch, search now, Interactive search
   (managers, a version that searches live), upgrade block, then File, History (with the journal) and Last search (the
   stored decision scoped to the episode, read-only) as closed disclosures.

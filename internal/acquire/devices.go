@@ -52,7 +52,14 @@ func (a *Acquirer) InteractiveMany(ctx context.Context, titleID int64, versions 
 			ss = seriesSearch(&t, target{season: season, episodes: episodes})
 			ss.Interactive, ss.MonitoredOnly = true, false
 			if season != nil && len(episodes) == 0 {
+				// A season named without episodes requests every episode of that season (Sonarr's season search;
+				// season 0 included, which would otherwise read as no season).
 				ss.Season = *season
+				for _, e := range t.Episodes {
+					if e.Season == *season {
+						ss.Episodes = append(ss.Episodes, e.ID)
+					}
+				}
 			}
 		}
 		ls = append(ls, loaded{key: key, title: t, target: router.SearchTarget{ID: key, Title: &t, Version: v,

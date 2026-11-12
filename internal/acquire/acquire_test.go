@@ -5,6 +5,7 @@ import (
 	"io"
 	"log/slog"
 	"path/filepath"
+	"slices"
 	"strconv"
 	"strings"
 	"sync"
@@ -451,6 +452,30 @@ func TestInteractiveFanoutUsesOneBatch(t *testing.T) {
 	got, err := e.a.InteractiveMany(e.ctx, 1, []string{"movie", "movie-copy"}, nil, nil)
 	if err != nil || calls != 1 || len(got) != 2 {
 		t.Fatalf("interactive batch=%v calls=%d err=%v", got, calls, err)
+	}
+}
+
+// An interactive (or Wanted row) search of a season names no episodes: it requests every episode of that season,
+// Specials (season 0) included, so a release for one of them is not rejected as unrequested.
+func TestInteractiveSeasonRequestsItsEpisodes(t *testing.T) {
+	t.Parallel()
+	e := newEnv(t, true, nil)
+	var got *decide.SeriesSearch
+	e.a.searchBatch = func(_ context.Context, _ decide.Title, targets []router.SearchTarget) (map[string]*router.Searched, error) {
+		got = targets[0].Series
+		return map[string]*router.Searched{targets[0].ID: {}}, nil
+	}
+	for _, c := range []struct {
+		season int
+		want   []int64
+	}{{0, []int64{1000}}, {1, []int64{1001, 1002, 1003}}} {
+		season := c.season
+		if _, err := e.a.InteractiveMany(e.ctx, 10, []string{"series"}, &season, nil); err != nil {
+			t.Fatal(err)
+		}
+		if got == nil || got.Season != c.season || got.Episode != 0 || !slices.Equal(got.Episodes, c.want) {
+			t.Errorf("season %d: search %+v, want season %d with episodes %v", c.season, got, c.season, c.want)
+		}
 	}
 }
 

@@ -285,3 +285,65 @@ func TestPlainCriteriaKeepRequestedEpisodes(t *testing.T) {
 		t.Errorf("plain criteria %+v, want the target's, then season 1 with episodes 1, 2", got)
 	}
 }
+
+// An interactive or Wanted season search as acquire.InteractiveMany sends it (the season's episode ids): for anime and
+// daily series too, a plain source's answer for one episode of that season is requested, not rejected (plain
+// answers are not judged with the anime and daily criteria).
+func TestSeasonSearchAnimeDailyEpisodeRequested(t *testing.T) {
+	daily := decide.Title{ID: 1, Kind: policy.KindSeries, Name: "Daily Show", TVDB: 4243, IMDb: "tt4242425", SeriesType: "daily",
+		Monitored: true, Episodes: []decide.Episode{
+			{ID: 1, Season: 2024, Number: 40, AirDate: "2024-03-05", Monitored: true, AirDateUTC: &sceneAired},
+			{ID: 2, Season: 2024, Number: 41, AirDate: "2024-03-06", Monitored: true, AirDateUTC: &sceneAired}}}
+	anime := decide.Title{ID: 1, Kind: policy.KindSeries, Name: "Anime Show", TVDB: 4244, IMDb: "tt4242426", SeriesType: "anime",
+		Anime: true, Monitored: true, Episodes: []decide.Episode{
+			{ID: 1, Season: 1, Number: 1, Absolute: 1, Monitored: true, AirDateUTC: &sceneAired},
+			{ID: 2, Season: 1, Number: 2, Absolute: 2, Monitored: true, AirDateUTC: &sceneAired}}}
+	for _, c := range []struct {
+		name    string
+		title   decide.Title
+		ss      *decide.SeriesSearch
+		release string
+	}{
+		{"daily", daily, &decide.SeriesSearch{Kind: profile.SearchDailySeason, Season: 2024, Episodes: []int64{1, 2}, Interactive: true},
+			"Daily.Show.2024.03.06.1080p.WEB-DL.DDP5.1.H.264-ZIL"},
+		{"anime", anime, &decide.SeriesSearch{Kind: profile.SearchAnimeSeason, Season: 1, Episodes: []int64{1, 2}, Interactive: true},
+			"Anime.Show.S01E02.1080p.WEB-DL.DDP5.1.H.264-ZIL"},
+	} {
+		t.Run(c.name, func(t *testing.T) {
+			src := &sceneSources{zilean: []string{c.release}}
+			ds := sceneSearch(t, src, c.title, c.ss)
+			checkAccepted(t, ds, "zilean "+c.release)
+		})
+	}
+}
+
+// A Specials search (season 0) as acquire.InteractiveMany sends it, with the season's episodes: an answer for one
+// special is requested, not rejected.
+func TestSeasonSearchSpecialsEpisodeRequested(t *testing.T) {
+	title := decide.Title{ID: 1, Kind: policy.KindSeries, Name: "Plain Show", TVDB: 4245, IMDb: "tt4242427", SeriesType: "standard",
+		Runtime: 45, Monitored: true, Episodes: []decide.Episode{
+			{ID: 1, Season: 0, Number: 1, Title: "Behind the Scenes", Monitored: true, AirDateUTC: &sceneAired},
+			{ID: 2, Season: 1, Number: 1, Monitored: true, AirDateUTC: &sceneAired}}}
+	rel := "Plain.Show.S00E01.1080p.WEB-DL.DDP5.1.H.264-ZIL"
+	src := &sceneSources{zilean: []string{rel}}
+	ds := sceneSearch(t, src, title, &decide.SeriesSearch{Kind: profile.SearchSeason, Season: 0, Episodes: []int64{1},
+		Interactive: true})
+	checkAccepted(t, ds, "zilean "+rel)
+}
+
+// A standard season search as acquire.InteractiveMany sends it (with the season's episode ids) asks the indexers
+// exactly what the same search naming only its season asked before.
+func TestSeasonSearchEpisodeIDsSameRequests(t *testing.T) {
+	title := sceneShow("standard")
+	reqs := func(ss *decide.SeriesSearch) []string {
+		src := &sceneSources{}
+		sceneSearch(t, src, title, ss)
+		slices.Sort(src.reqs)
+		return src.reqs
+	}
+	before := reqs(&decide.SeriesSearch{Kind: profile.SearchSeason, Season: 1, Interactive: true})
+	after := reqs(&decide.SeriesSearch{Kind: profile.SearchSeason, Season: 1, Episodes: []int64{1, 2, 3, 4}, Interactive: true})
+	if len(before) == 0 || !slices.Equal(before, after) {
+		t.Errorf("requests %q, want the same as naming the season only: %q", after, before)
+	}
+}
