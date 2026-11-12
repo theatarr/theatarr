@@ -53,7 +53,7 @@ function ScoreGroups({ rows, readOnly, onScore }: { rows: Row[]; readOnly: boole
   if (!rows.length) return <p className="text-sm text-muted-foreground">No format is scored.</p>;
   return <div className="space-y-2" data-testid="score-groups">
     {groups.map(([group, list]) => {
-      const ours = list.filter((r) => r.state === "pinned" || r.state === "held" || r.state === "differs").length;
+      const ours = list.filter((r) => r.state === "pinned" || r.state === "differs").length;
       return <details key={group} open className="rounded-lg border border-[var(--line)]" data-group={group}>
         <summary className="cursor-pointer select-none px-3 py-2 text-sm font-medium [overflow-wrap:anywhere]">{group} <span className="font-normal text-muted-foreground">· {list.length} {list.length === 1 ? "format" : "formats"}{ours ? ` · ${ours} not following TRaSH` : ""}</span></summary>
         <ul className="divide-y divide-[var(--line)] border-t border-[var(--line)]">

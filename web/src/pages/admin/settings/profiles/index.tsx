@@ -125,12 +125,12 @@ export function ProfilesPage({ compact = false }: { compact?: boolean }) {
           {o.profiles.map((p) => <TableRow key={p.key} data-profile={p.key} data-selected={session?.mode === "edit" && session.key === p.key ? "true" : undefined}>
             <TableCell className="align-top">
               <div className="font-mono text-[13px] [overflow-wrap:anywhere]">{p.key}</div>
-              <div className="text-xs text-muted-foreground">{p.flavour || "no flavour"}{p.held ? ` · ${p.held} held` : ""}</div>
+              <div className="text-xs text-muted-foreground">{p.flavour || "no flavour"}</div>
               <div className="mt-1.5 space-y-1.5 md:hidden"><QualityChips qualities={p.qualities} cutoff={p.cutoff} /></div>
               <div className="mt-1.5 space-y-1.5 sm:hidden"><OriginCell p={p} /><UsedBy p={p} /></div>
             </TableCell>
             <TableCell className="hidden max-w-[22rem] align-top md:table-cell"><QualityChips qualities={p.qualities} cutoff={p.cutoff} /></TableCell>
-            <TableCell className="hidden align-top tabular-nums lg:table-cell">{p.formats}{p.held ? <Badge tone="warning" className="ml-1.5">{p.held} held</Badge> : null}</TableCell>
+            <TableCell className="hidden align-top tabular-nums lg:table-cell">{p.formats}</TableCell>
             <TableCell className="hidden max-w-[20rem] align-top sm:table-cell"><OriginCell p={p} /></TableCell>
             <TableCell className="hidden align-top sm:table-cell"><UsedBy p={p} /></TableCell>
             <TableCell className="align-top text-right"><Button size="sm" variant="outline" aria-label={`${readOnly ? "View" : "Edit"} ${p.key}`} onClick={() => open(p.key)}>{readOnly ? "View" : "Edit"}</Button></TableCell>

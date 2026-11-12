@@ -25,7 +25,7 @@ describe("Link formats to TRaSH", () => {
       { method: "GET", path: "/settings", reply: overview() },
       { method: "GET", path: "/settings/sync_sources", reply: { generation: 4, records: [{ id: 9, key: "trash-radarr", config: { kind: "trash", flavour: "radarr", origin: "github", mode: "auto_definitions" } }] } },
       { method: "GET", path: "/settings/formats/schema", reply: [] },
-      { method: "GET", path: "/settings/sync/reviews", reply: [] },
+      { method: "GET", path: "/settings/sync/changes", reply: [] },
       { method: "GET", path: "/settings/sync/runs", reply: [] },
       { method: "POST", path: "/settings/sync_sources/9/link/preview", reply: preview },
       { method: "POST", path: "/settings/sync_sources/9/link/apply", reply: json({ generation: 5, revision: "r", linked: 3 }) },

@@ -1,8 +1,5 @@
-import { useQueryClient } from "@tanstack/react-query";
 import { Link, useLocation } from "react-router";
 import { useReviewCounts, useFlaggedDecisions } from "@/api/reviews";
-import { useSettings } from "@/api/settings";
-import { qk } from "@/api/query-keys";
 import { Empty, ErrorState, Loading, PageHeader, RouteTabs, VersionTag } from "@/components/page";
 import { Button } from "@/components/ui/button";
 import { EmptyState } from "@/components/ui/empty-state";
@@ -11,10 +8,8 @@ import { DefinitionHolds } from "@/components/settings/add-indexer";
 import { fmtTime } from "@/lib/format";
 import { journalHome, journalLink } from "@/lib/admin-links";
 import { AnimeMappings } from "./anime-mappings";
-import { SyncReviews } from "./settings/quality/sync";
 
 const KINDS = [
-  { id: "quality", label: "Quality updates", help: "TRaSH or Recyclarr changed scores or formats your profiles use. Approve to apply, or keep yours." },
   { id: "anime", label: "Anime mappings", help: "Episode numbering Theatarr could not match on its own. Accept or reject the proposed match." },
   { id: "indexers", label: "Indexer definitions", help: "Updated indexer definitions from the catalog. Approve to use the new version." },
   { id: "decisions", label: "Flagged decisions", help: "Wrong blocks the release and searches again only when new downloads are on, the decision was for an active library and the release is known; otherwise it records the verdict." },
@@ -27,7 +22,7 @@ export function ReviewsPage() {
   return <div>
     <PageHeader crumb={[{ label: "Admin", to: "/admin" }]} title="Reviews" description="Decisions waiting for you." />
     <RouteTabs tabs={TABS} active={tab} />
-    {tab === "waiting" ? <Waiting /> : tab === "quality" ? <QualityReviews /> : tab === "anime" ? <AnimeMappings /> : tab === "indexers" ? <DefinitionHolds showEmpty /> : <FlaggedDecisions />}
+    {tab === "waiting" ? <Waiting /> : tab === "anime" ? <AnimeMappings /> : tab === "indexers" ? <DefinitionHolds showEmpty /> : <FlaggedDecisions />}
   </div>;
 }
 export function Waiting() {
@@ -35,21 +30,13 @@ export function Waiting() {
   if (counts.isPending) return <Loading />;
   return <>
     {counts.error ? <ErrorState error={counts.error} /> : null}
-    {counts.total === 0 && !counts.decisionsMore && !counts.error ? <Card><EmptyState title="Nothing is waiting for you">Quality updates, anime mappings, indexer definitions and flagged decisions.</EmptyState></Card> : null}
+    {counts.total === 0 && !counts.decisionsMore && !counts.error ? <Card><EmptyState title="Nothing is waiting for you">Anime mappings, indexer definitions and flagged decisions.</EmptyState></Card> : null}
     <div className="grid gap-3 sm:grid-cols-2">{KINDS.filter(k => counts[k.id] > 0 || k.id === "decisions" && counts.decisionsMore).map(k => <Card key={k.id}>
       <h2 className="text-[16px] font-semibold text-[var(--ink)]">{k.label} ({k.id === "decisions" && counts.decisionsMore ? counts.decisions ? `${counts.decisions}+` : "?" : counts[k.id]})</h2>
       <p className="my-3 text-[13px] text-[var(--ink-2)]">{k.help}</p>
       <Button asChild size="sm"><Link to={`/admin/reviews/${k.id}`} aria-label={`Review ${k.label.toLowerCase()}`}>Review</Link></Button>
     </Card>)}</div>
   </>;
-}
-function QualityReviews() {
-  const overview = useSettings();
-  const qc = useQueryClient();
-  if (overview.error) return <ErrorState error={overview.error} />;
-  if (!overview.data) return <Loading />;
-  if (overview.data.source !== "db" || !overview.data.writable) return <Card><Empty>Quality sync is not available while settings come from YAML.</Empty></Card>;
-  return <SyncReviews part="reviews" records={[]} generation={overview.data.generation} onChanged={async () => { await qc.invalidateQueries({ queryKey: qk.settings.all }); }} />;
 }
 function FlaggedDecisions() {
   const q = useFlaggedDecisions();

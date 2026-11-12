@@ -19,17 +19,17 @@ const qualityOverview = (o: Partial<QualityOverview> = {}): QualityOverview => (
   profiles: [
     {
       id: 7, key: "radarr-4k-web", flavour: "radarr", qualities: ["WEB 2160p", "Remux-1080p", "WEB 1080p"], cutoff: "WEB 2160p", format_set: "radarr-4k-web", formats: 3,
-      used_by: [{ key: "movie-web", mode: "active", kind: "movie", anime: false, active: true }, { key: "movie-web-shadow", mode: "shadow", kind: "movie", anime: false, active: false }], held: 1,
+      used_by: [{ key: "movie-web", mode: "active", kind: "movie", anime: false, active: true }, { key: "movie-web-shadow", mode: "shadow", kind: "movie", anime: false, active: false }],
       origin: { preset: "0537bd27bcf8da604f30a862343b1742", name: "WEB 2160p", flavour: "radarr", modifiers: ["fallbacks_1080p"] }, guessed: true,
       diff: { preset: "WEB 2160p + 1080p fallbacks", qualities_added: [], qualities_removed: ["Bluray-1080p"], cutoff: null, settings: [], formats_added: [{ format: "DD+", trash_id: "abc", ours: 2500, trash: null }, { format: "Our Group", ours: 150, trash: null }], formats_missing: [], scores_changed: [], summary: ["− Bluray-1080p", "DD+ +2500 (not in the preset)", "Our Group +150 (ours)"], same: false },
       binding: "trash-radarr", score_set: "default",
       scores: [
         { format: "WEB Tier 01", trash_id: "c20f", score: 1700, trash: 1700, state: "follows", definition: "trash", group: "Tiers and repacks (from TRaSH profiles)" },
-        { format: "DD+", trash_id: "abc", score: 2500, trash: 1750, state: "held", definition: "trash", group: "[Audio] Audio Formats" },
+        { format: "DD+", trash_id: "abc", score: 2500, trash: 1750, state: "pinned", definition: "trash", group: "[Audio] Audio Formats" },
         { format: "Our Group", score: 150, trash: null, state: "ours", definition: "ours", group: "Our formats" },
       ],
     },
-    { id: 8, key: "web-2160p", flavour: "", qualities: ["WEBDL-2160p"], cutoff: "WEBDL-2160p", format_set: "", formats: 0, used_by: [], held: 0, origin: null, guessed: false, diff: null, binding: "", score_set: "", scores: [] },
+    { id: 8, key: "web-2160p", flavour: "", qualities: ["WEBDL-2160p"], cutoff: "WEBDL-2160p", format_set: "", formats: 0, used_by: [], origin: null, guessed: false, diff: null, binding: "", score_set: "", scores: [] },
   ],
   formats: [],
   ...o,
@@ -192,7 +192,7 @@ describe("Quality profiles page", () => {
     const score = within(sheet).getByRole("spinbutton", { name: "Score for WEB Tier 01" });
     await user.clear(score);
     await user.type(score, "2000");
-    expect(within(tier).getByText("ours")).toBeTruthy();
+    expect(within(tier).getByText("yours")).toBeTruthy();
     await user.type(within(sheet).getByRole("textbox", { name: "Key" }), "movies-web");
     await user.click(within(sheet).getByRole("button", { name: "Create profile" }));
     await waitFor(() => expect(fetch.calls("POST", "/settings/presets/create")).toHaveLength(1));
@@ -218,9 +218,9 @@ describe("Quality profiles page", () => {
     // Compare with TRaSH lists our edits against the preset.
     await user.click(within(sheet).getByRole("button", { name: "Compare with TRaSH" }));
     expect(within(within(sheet).getByTestId("origin-diff")).getByText("Bluray-1080p")).toBeTruthy();
-    // Grouped as TRaSH groups them, held score marked.
+    // Grouped as TRaSH groups them, a score of yours marked.
     expect(within(sheet).getByText("[Audio] Audio Formats", { exact: false })).toBeTruthy();
-    expect(within(within(sheet).getByText("DD+").closest("li")!).getByText("held")).toBeTruthy();
+    expect(within(within(sheet).getByText("DD+").closest("li")!).getByText("yours")).toBeTruthy();
     // A score links to the format's definition on Custom formats.
     expect(within(sheet).getByRole("link", { name: "DD+" }).getAttribute("href")).toBe("/admin/settings/formats?filter=DD%2B");
     await user.selectOptions(within(sheet).getByRole("combobox", { name: "Allow another quality" }), "Bluray-1080p");

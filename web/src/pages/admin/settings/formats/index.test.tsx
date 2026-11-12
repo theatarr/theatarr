@@ -10,7 +10,7 @@ import { FormatsPage } from ".";
 const qualityOverview = (o: Partial<QualityOverview> = {}): QualityOverview => ({
   source: "db", generation: 4, trash: ["radarr"], categories: [], defaults: {}, profiles: [],
   formats: [
-    { name: "DD+", names: ["DD+"], flavour: "radarr", trash_id: "abc", definition: "trash", group: "[Audio] Audio Formats", scopes: [], scored_by: [{ profile: "radarr-4k-web", score: 2500, state: "held" }, { profile: "radarr-4k-zurg", score: 1750, state: "follows" }] },
+    { name: "DD+", names: ["DD+"], flavour: "radarr", trash_id: "abc", definition: "trash", group: "[Audio] Audio Formats", scopes: [], scored_by: [{ profile: "radarr-4k-web", score: 2500, state: "pinned" }, { profile: "radarr-4k-zurg", score: 1750, state: "follows" }] },
     { name: "x265 (HD)", names: ["x265 (HD)", "x265"], flavour: "radarr", definition: "frozen", group: "[Unwanted] Unwanted Formats", scopes: [], scored_by: [{ profile: "radarr-4k-web", score: -10000, state: "unlinked" }] },
     { name: "Our Group", names: ["Our Group"], flavour: "radarr", definition: "ours", group: "Our formats", scopes: [], id: 12, key: "our-group", scored_by: [] },
   ],
@@ -31,7 +31,7 @@ describe("Custom formats page", () => {
     const dd = audio.querySelector('[data-format="DD+"]') as HTMLElement;
     expect(within(dd).getByText("TRaSH")).toBeTruthy();
     const scoring = within(dd).getByRole("list", { name: "Profiles scoring DD+" });
-    expect(within(scoring).getAllByRole("listitem").map((li) => li.textContent)).toEqual(["radarr-4k-web+2500held", "radarr-4k-zurg+1750follows TRaSH"]);
+    expect(within(scoring).getAllByRole("listitem").map((li) => li.textContent)).toEqual(["radarr-4k-web+2500yours", "radarr-4k-zurg+1750follows TRaSH"]);
     const frozen = screen.getByText("x265 (HD)").closest("li")!;
     expect(within(frozen).getAllByText("frozen copy").map((b) => b.getAttribute("data-state"))).toEqual([null, "unlinked"]);
     expect(within(frozen).getByText("also named x265")).toBeTruthy();

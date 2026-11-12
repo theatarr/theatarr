@@ -9,7 +9,7 @@ import { JobsPage } from "./jobs";
 
 const reviewRoutes = [
  { method: "GET", path: "/auth/me", reply: { permissions: ["admin"] } },
- { method: "GET", path: "/settings/sync/reviews", reply: [] },
+ { method: "GET", path: "/settings/sync/changes", reply: [] },
  { method: "GET", path: "/anime/review", reply: { items: [] } },
  { method: "GET", path: "/cardigann/holds", reply: [] },
  { method: "GET", path: "/journal", reply: { items: [] } },
