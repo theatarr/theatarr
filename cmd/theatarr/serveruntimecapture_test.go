@@ -678,55 +678,6 @@ func (l *syncLog) String() string {
 	return l.b.String()
 }
 
-// A startup fallback never runs looser settings than the stored head: when the head took a host out of a safety
-// section and fails to prepare, the generation before it (which still allows the host) is refused, and the start
-// fails with both reasons.
-func TestStartupFallbackRefusedWhenLooserThanHead(t *testing.T) {
-	t.Parallel()
-	_, s, base, _ := runtimeFixture(t)
-	ctx := context.Background()
-	published, err := s.BootstrapSections(ctx, base, "test", nil)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if err := s.MarkPublished(ctx, published.Generation); err != nil {
-		t.Fatal(err)
-	}
-	records := published.Records
-	records.Sections = slices.Clone(records.Sections)
-	found := false
-	for i, r := range records.Sections {
-		if r.Key == "notify" {
-			var cfg map[string]any
-			if err := json.Unmarshal(r.Config, &cfg); err != nil {
-				t.Fatal(err)
-			}
-			delete(cfg, "allow_hosts")
-			records.Sections[i].Config, _ = json.Marshal(cfg)
-			found = true
-		}
-	}
-	if !found {
-		t.Fatal("no notify section")
-	}
-	head, err := s.Save(ctx, settings.SaveRequest{ExpectedGeneration: published.Generation, Actor: "test", Base: base, Records: records})
-	if err != nil {
-		t.Fatal(err)
-	}
-	attempts := 0
-	_, _, _, err = prepareStartupRuntime(ctx, s, base, head, slog.New(slog.NewTextHandler(io.Discard, nil)),
-		func(_ context.Context, snap *settings.Snapshot) (any, error) {
-			attempts++
-			if snap.Generation == head.Generation {
-				return nil, errors.New("arr unavailable")
-			}
-			return snap.Generation, nil
-		})
-	if err == nil || !strings.Contains(err.Error(), "arr unavailable") || !strings.Contains(err.Error(), "notify.ruddarr.com") || attempts != 1 {
-		t.Fatalf("fallback to a looser generation: attempts %d, %v", attempts, err)
-	}
-}
-
 // A provider repointed with its kept credential is the same account. Preparing the confirmed save does
 // not probe its downloads at the new address, so the stored key never reaches it before the change commits; the
 // downloads stay and the epoch advances.

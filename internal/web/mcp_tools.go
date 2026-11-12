@@ -49,7 +49,7 @@ func mcpInteger(minimum int) map[string]any {
 
 // mcpConfirmTools are the write tools whose changes can need confirmation: they take confirmation_token, the token
 // of the 422 answer they returned.
-var mcpConfirmTools = []string{"migration_apply", "settings_section_update", "settings_view_create", "settings_view_update"}
+var mcpConfirmTools = []string{"migration_apply", "settings_section_update"}
 
 // mcpConfirmNote ends the description of an mcpConfirmTools tool.
 const mcpConfirmNote = " A change that needs confirmation returns its effects and a token: show the effects to the user, then call again with the same arguments and confirmation_token to make it."
@@ -140,7 +140,7 @@ func (w *Web) mcpTools() []mcpTool {
 			"alias_from": mcpStrings(), "versions": mcpStrings(), "profiles": mcpMap(mcpStrings()),
 			"api_key": mcpString(), "clear_api_key": map[string]any{"type": "boolean"}}
 	}
-	add("settings_view_create", "Create a view. Every new view needs confirmation.", "POST", "/settings/view-bindings",
+	add("settings_view_create", "Create a view.", "POST", "/settings/view-bindings",
 		mcpObject(view(), "key", "generation", "flavour", "path", "api_key"), admin, true, w.apiSettingsViewCreate)
 	add("settings_view_update", "Edit a view identity or binding.", "PUT", "/settings/view-bindings/{key}",
 		mcpObject(view(), "key", "generation"), admin, true, w.apiSettingsViewUpdate)

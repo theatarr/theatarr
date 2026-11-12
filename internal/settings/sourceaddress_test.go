@@ -184,3 +184,11 @@ func TestFallbackEffectsIgnoreOwnAddress(t *testing.T) {
 		t.Fatalf("address effects: %+v", got)
 	}
 }
+
+func editIndexer(records *Records, key string, change func(*Indexer)) {
+	for i := range records.Indexers {
+		if records.Indexers[i].Key == key {
+			change(&records.Indexers[i])
+		}
+	}
+}

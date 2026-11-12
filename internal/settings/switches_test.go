@@ -63,7 +63,8 @@ func TestGlobalSwitchesSeedOnceAndWarn(t *testing.T) {
 
 func TestGlobalSwitchesConfirmation(t *testing.T) {
 	t.Parallel()
-	for _, key := range []string{"router", "library", "notify"} {
+	// Send notifications is a plain switch: only the two Pause switches ask.
+	for _, key := range []string{"router", "library"} {
 		t.Run(key, func(t *testing.T) {
 			ctx := context.Background()
 			s, _, base, _ := versionFixture(t)
@@ -79,8 +80,6 @@ func TestGlobalSwitchesConfirmation(t *testing.T) {
 				req.Records.Switches.RouterEnabled = true
 			case "library":
 				req.Records.Switches.LibraryEnabled = true
-			case "notify":
-				req.Records.Switches.NotifyEnabled = true
 			}
 			if _, err := s.Save(ctx, req); err == nil {
 				t.Fatal("direct store save enabled a global switch")
@@ -189,7 +188,7 @@ func TestGlobalSwitchOmittedAndImportPreserveDB(t *testing.T) {
 func TestGlobalSwitchEffectsNameDestinations(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
-	s, db, base, _ := versionFixture(t)
+	s, _, base, _ := versionFixture(t)
 	base.Notify = &policy.Notify{Targets: map[string]*policy.NotifyTarget{"household": {URL: "https://hook.example/private-token", Native: true}}}
 	initial, err := s.BootstrapSwitches(ctx, base, "test", nil)
 	if err != nil {
@@ -207,11 +206,8 @@ func TestGlobalSwitchEffectsNameDestinations(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err := db.Writer().ExecContext(ctx, `INSERT INTO arrview_notification (view,name,implementation,resource,created_at,updated_at) VALUES ('radarr','Phone','Webhook','{}',0,0)`); err != nil {
-		t.Fatal(err)
-	}
 	req = saveRequest(base, active)
-	req.Records.Switches = &GlobalSwitches{RouterEnabled: true, LibraryEnabled: true, NotifyEnabled: true}
+	req.Records.Switches = &GlobalSwitches{RouterEnabled: true, LibraryEnabled: true}
 	proof, err = m.Confirm(ctx, req)
 	if err != nil {
 		t.Fatal(err)
@@ -220,22 +216,10 @@ func TestGlobalSwitchEffectsNameDestinations(t *testing.T) {
 	for _, effect := range proof.Effects {
 		text += effect.Effect
 	}
-	for _, expected := range []string{"Turn on Allow new downloads (router.enabled)", "Turn on Write library links (library.enabled)", "Turn on Send notifications (notify.enabled)", "movie-web (downloads on)", "rd, ad, tb", "movie-web: roots", active.Policy.Versions["movie-web"].Library, "household", "radarr/Phone"} {
+	for _, expected := range []string{"Turn on Allow new downloads (router.enabled)", "Turn on Write library links (library.enabled)", "movie-web (downloads on)", "rd, ad, tb", "movie-web: roots", active.Policy.Versions["movie-web"].Library} {
 		if !strings.Contains(text, expected) {
 			t.Fatalf("effect lacks %s: %s", expected, text)
 		}
-	}
-	if strings.Contains(text, "private-token") {
-		t.Fatal("confirmation leaked webhook URL")
-	}
-	// Changing installed destinations invalidates an outstanding enable token too.
-	if _, err := db.Writer().ExecContext(ctx, "UPDATE arrview_notification SET name = 'Tablet'"); err != nil {
-		t.Fatal(err)
-	}
-	req.ConfirmationToken = proof.Token
-	var refused *ConfirmationError
-	if _, err := m.SaveAndApply(ctx, req); !errors.As(err, &refused) {
-		t.Fatalf("changed targets accepted: %v", err)
 	}
 }
 
@@ -432,9 +416,9 @@ func TestRouterSwitchWarnsWhenLibraryOff(t *testing.T) {
 	t.Parallel()
 	before := &Snapshot{Policy: &policy.Policy{}}
 	next := &Snapshot{Policy: &policy.Policy{}, Records: Records{Switches: &GlobalSwitches{RouterEnabled: true}}}
-	effects, err := globalSwitchEffects(context.Background(), nil, before, next)
-	if err != nil || len(effects) != 1 || !strings.Contains(effects[0].Effect, "Warning: Write library links (library.enabled) is off") {
-		t.Fatalf("missing library warning: %+v %v", effects, err)
+	effects := globalSwitchEffects(before, next)
+	if len(effects) != 1 || !strings.Contains(effects[0].Effect, "Warning: Write library links (library.enabled) is off") {
+		t.Fatalf("missing library warning: %+v", effects)
 	}
 }
 
@@ -446,8 +430,8 @@ func TestRouterSwitchNamesTheClientOfAClientRoutedVersion(t *testing.T) {
 			Client: "decypharr"}}}
 	before := &Snapshot{Policy: &policy.Policy{}}
 	next := &Snapshot{Policy: pol, Records: Records{Switches: &GlobalSwitches{RouterEnabled: true}}}
-	effects, err := globalSwitchEffects(context.Background(), nil, before, next)
-	if err != nil || len(effects) != 1 || !strings.Contains(effects[0].Effect, "movie (downloads on): client decypharr") {
-		t.Fatalf("effects %+v %v", effects, err)
+	effects := globalSwitchEffects(before, next)
+	if len(effects) != 1 || !strings.Contains(effects[0].Effect, "movie (downloads on): client decypharr") {
+		t.Fatalf("effects %+v", effects)
 	}
 }

@@ -191,77 +191,6 @@ func TestSectionsDatabaseWinsAndApplies(t *testing.T) {
 	}
 }
 
-func TestSectionsRiskyChangesNeedConfirmation(t *testing.T) {
-	t.Parallel()
-	cases := []struct {
-		section, effect string
-		change          func(map[string]any)
-	}{
-		{"library", "Change where files are read or written: library.mount.path", func(c map[string]any) {
-			c["mount"].(map[string]any)["path"] = "/mnt/elsewhere"
-		}},
-		{"library", "Send requests to another host: library.plex.url", func(c map[string]any) {
-			c["plex"].(map[string]any)["url"] = "http://plex.elsewhere:32400"
-		}},
-		{"metadata", "Send requests to another host: metadata.sources.tmdb.url", func(c map[string]any) {
-			c["sources"].(map[string]any)["tmdb"].(map[string]any)["url"] = "https://tmdb.elsewhere/3"
-		}},
-		{"notify", "Send requests to another host: notify.targets.new.url (none) → https://hook.example/[redacted]", func(c map[string]any) {
-			targets, _ := c["targets"].(map[string]any)
-			if targets == nil {
-				targets = map[string]any{}
-				c["targets"] = targets
-			}
-			targets["new"] = map[string]any{"url": "https://hook.example/token-in-path", "native": true}
-		}},
-		{"egress", "Change the VPN guard (what it requires or accepts): egress.require_vpn_for", func(c map[string]any) {
-			c["require_vpn_for"] = []string{}
-		}},
-		// Loosening safety settings and repointing a credential name need confirmation too.
-		{"router", "Let the router add releases not known to be cached: router.cached_only true → false", func(c map[string]any) {
-			c["cached_only"] = false
-		}},
-		{"library", "Use another credential: library.plex.token_env THEATARR_PLEX_TOKEN → THEATARR_TVDB_KEY", func(c map[string]any) {
-			c["plex"].(map[string]any)["token_env"] = "THEATARR_TVDB_KEY"
-		}},
-	}
-	for _, tc := range cases {
-		t.Run(tc.effect, func(t *testing.T) {
-			ctx := context.Background()
-			var edits []func(*policy.Policy)
-			if tc.section == "egress" {
-				edits = append(edits, vpnGuardOn)
-			}
-			s, base, snap := sectionsFixture(t, edits...)
-			m := versionCoordinator(t, s, base, snap)
-			req := saveRequest(base, snap)
-			req.Records.Sections = []Section{editSection(t, snap, tc.section, tc.change)}
-			if _, err := s.Save(ctx, req); err == nil {
-				t.Fatal("direct save made a risky change")
-			}
-			_, err := m.SaveAndApply(ctx, req)
-			var refused *ConfirmationError
-			if !errors.As(err, &refused) || refused.Confirmation == nil {
-				t.Fatalf("unconfirmed: %v", err)
-			}
-			found := false
-			for _, e := range refused.Effects {
-				found = found || strings.Contains(e.Effect, tc.effect)
-				if strings.Contains(e.Effect, "token-in-path") {
-					t.Fatalf("effect repeats a URL path: %s", e.Effect)
-				}
-			}
-			if !found {
-				t.Fatalf("effects: %+v", refused.Effects)
-			}
-			req.ConfirmationToken = refused.Confirmation.Token
-			if _, err := m.SaveAndApply(ctx, req); err != nil {
-				t.Fatal(err)
-			}
-		})
-	}
-}
-
 func TestSectionSecretsWriteOnly(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
@@ -331,12 +260,6 @@ func TestViewsInDatabase(t *testing.T) {
 		Identity: &ViewIdentity{Flavour: "radarr", Path: "/radarr2"}}
 	req.Records.Views = append(req.Records.Views, created)
 	req.SecretWrites = map[string]Secret{"views/radarr2": NewSecret("invented-view-key-radarr2")}
-	_, err := m.SaveAndApply(ctx, req)
-	var refused *ConfirmationError
-	if !errors.As(err, &refused) || !strings.Contains(refused.Effects[len(refused.Effects)-1].Effect, "Create view radarr2 at /radarr2") {
-		t.Fatalf("create: %v", err)
-	}
-	req.ConfirmationToken = refused.Confirmation.Token
 	saved, err := m.SaveAndApply(ctx, req)
 	if err != nil {
 		t.Fatal(err)
@@ -345,15 +268,7 @@ func TestViewsInDatabase(t *testing.T) {
 	if view == nil || view.Path != "/radarr2" || saved.Policy.Getenv(view.APIKeyEnv) != "invented-view-key-radarr2" {
 		t.Fatal("view not created with its key")
 	}
-	// A new key is confirmed by name, never by value.
-	req = saveRequest(base, saved)
-	req.SecretWrites = map[string]Secret{"views/radarr2": NewSecret("invented-view-key-rotated")}
-	_, err = m.SaveAndApply(ctx, req)
-	if !errors.As(err, &refused) || !strings.Contains(refused.Effects[0].Effect, "View radarr2 answers a different API key") ||
-		strings.Contains(refused.Effects[0].Effect, "rotated") {
-		t.Fatalf("key change: %v", err)
-	}
-	// Deleting a view narrows what is exposed and needs no confirmation.
+	// Deleting a view needs no confirmation either (the UI asks before it sends the delete).
 	req = saveRequest(base, saved)
 	req.Records.Views = slices.DeleteFunc(req.Records.Views, func(v ViewBinding) bool { return v.Key == "radarr2" })
 	gone, err := m.SaveAndApply(ctx, req)
@@ -362,74 +277,6 @@ func TestViewsInDatabase(t *testing.T) {
 	}
 	if gone.Policy.Views["radarr2"] != nil {
 		t.Fatal("view not deleted")
-	}
-}
-
-// An omitted require_vpn_for guards indexers, an explicit empty list guards nothing; going from one to the
-// other is a confirmed change even though both flatten to no entries. Turning router.cached_only off from its
-// omitted default (on) is confirmed as well.
-func TestSectionEffectsCompareEffectiveValues(t *testing.T) {
-	t.Parallel()
-	p, err := policy.Load(exampleDir)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if p.Router == nil {
-		t.Fatal("example policy has no router section")
-	}
-	vpnGuardOn(p)
-	p.Egress.RequireVPNFor = nil
-	p.Router.CachedOnly = nil
-	monitor, _ := p.Clone()
-	monitor.Egress.RequireVPNFor = []string{}
-	effects := sectionEffects(p, monitor)
-	if len(effects) != 1 || !strings.Contains(effects[0].Effect, "egress.require_vpn_for indexers → (none)") {
-		t.Fatalf("omitted → [] effects: %+v", effects)
-	}
-	if effects := sectionEffects(monitor, p); len(effects) != 1 {
-		t.Fatalf("[] → omitted effects: %+v", effects)
-	}
-	explicit, _ := p.Clone()
-	explicit.Egress.RequireVPNFor = []string{"indexers"}
-	if effects := sectionEffects(p, explicit); len(effects) != 0 {
-		t.Fatalf("same classes asked for confirmation: %+v", effects)
-	}
-	uncached, _ := p.Clone()
-	off := false
-	uncached.Router.CachedOnly = &off
-	if effects := sectionEffects(p, uncached); len(effects) != 1 || !strings.Contains(effects[0].Effect, "router.cached_only true → false") {
-		t.Fatalf("cached_only off effects: %+v", effects)
-	}
-	if effects := sectionEffects(uncached, p); len(effects) != 0 {
-		t.Fatalf("cached_only back on asked for confirmation: %+v", effects)
-	}
-}
-
-// A credential name changed while the section's own value is stored is confirmed when written, so clearing
-// the value later cannot quietly switch to it.
-func TestSectionCredentialRepointConfirmed(t *testing.T) {
-	t.Parallel()
-	ctx := context.Background()
-	s, base, snap := sectionsFixture(t)
-	m := versionCoordinator(t, s, base, snap)
-	req := saveRequest(base, snap)
-	req.SectionSecretWrites = map[string]map[string]Secret{"library": {"plex.token": NewSecret(inventedPlexToken)}}
-	saved, err := m.SaveAndApply(ctx, req)
-	if err != nil {
-		t.Fatal(err)
-	}
-	req = saveRequest(base, saved)
-	req.Records.Sections = []Section{editSection(t, saved, "library", func(c map[string]any) {
-		c["plex"].(map[string]any)["token_env"] = "THEATARR_TVDB_KEY"
-	})}
-	_, err = m.SaveAndApply(ctx, req)
-	var refused *ConfirmationError
-	if !errors.As(err, &refused) || len(refused.Effects) != 1 ||
-		!strings.Contains(refused.Effects[0].Effect, "Use another credential: library.plex.token_env THEATARR_PLEX_TOKEN → THEATARR_TVDB_KEY") {
-		t.Fatalf("repoint behind a stored value: %v", err)
-	}
-	if strings.Contains(refused.Effects[0].Effect, inventedPlexToken) {
-		t.Fatal("effect shows the credential value")
 	}
 }
 
@@ -501,15 +348,8 @@ func TestRouterSectionAllDebridDeleteUncached(t *testing.T) {
 		req.Records.Sections = []Section{editSection(t, snap, "router", func(c map[string]any) {
 			c["alldebrid_delete_uncached"] = enabled
 		})}
+		// The opt-in saves at once: it only deletes Theatarr's own uncached adds.
 		saved, err := m.SaveAndApply(context.Background(), req)
-		if enabled {
-			var refused *ConfirmationError
-			if !errors.As(err, &refused) || refused.Confirmation == nil {
-				t.Fatalf("opt-in did not require confirmation: %v", err)
-			}
-			req.ConfirmationToken = refused.Confirmation.Token
-			saved, err = m.SaveAndApply(context.Background(), req)
-		}
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -521,34 +361,6 @@ func TestRouterSectionAllDebridDeleteUncached(t *testing.T) {
 			t.Fatalf("setting missing from saved section: %s", got)
 		}
 		snap = saved
-	}
-}
-
-func TestAllDebridDeleteOptInConfirmationAndFallback(t *testing.T) {
-	t.Parallel()
-	s, _, head := sectionsFixture(t)
-	p, _ := head.Policy.Clone()
-	p.Router.AllDebridDeleteUncached = false
-	fallbackPolicy, _ := p.Clone()
-	fallbackPolicy.Router.AllDebridDeleteUncached = true
-	effects := sectionEffects(p, fallbackPolicy)
-	if len(effects) != 1 || !strings.Contains(effects[0].Effect, "router.alldebrid_delete_uncached false → true") {
-		t.Fatalf("opt-in effects: %+v", effects)
-	}
-	if got := sectionEffects(fallbackPolicy, p); len(got) != 0 {
-		t.Fatalf("opt-out effects: %+v", got)
-	}
-	// With the router section omitted, the opt-in is still effectively false.
-	omitted, _ := p.Clone()
-	omitted.Router = nil
-	if got := sectionEffects(omitted, fallbackPolicy); len(got) == 0 {
-		t.Fatal("omitted opt-in treated as enabled")
-	}
-	a, b := *head, *head
-	a.Policy, b.Policy = p, fallbackPolicy
-	effects, err := s.FallbackEffects(context.Background(), &a, &b)
-	if err != nil || len(effects) != 1 {
-		t.Fatalf("fallback effects: %+v %v", effects, err)
 	}
 }
 
@@ -578,7 +390,7 @@ func TestArrImportIntoGrabbingVersionNeedsConfirmation(t *testing.T) {
 			case "new":
 				delete(before.Import.Arr, instance)
 			}
-			effects := sectionEffects(before, after)
+			effects := importAcquisitionEffects(before, after)
 			found := false
 			for _, e := range effects {
 				found = found || strings.Contains(e.Effect, ", with its downloads on, from import.arr.")
@@ -589,14 +401,14 @@ func TestArrImportIntoGrabbingVersionNeedsConfirmation(t *testing.T) {
 			// The router switch does not matter: turning it on later names no import source.
 			after.Router.Enabled = false
 			found = false
-			for _, e := range sectionEffects(before, after) {
+			for _, e := range importAcquisitionEffects(before, after) {
 				found = found || strings.Contains(e.Effect, ", with its downloads on, from import.arr.")
 			}
 			if !found {
 				t.Fatal("router off: import remap onto a grabbing version needs no confirmation")
 			}
 			after.Versions[src.Version].Grab = false
-			for _, e := range sectionEffects(before, after) {
+			for _, e := range importAcquisitionEffects(before, after) {
 				if strings.Contains(e.Effect, ", with its downloads on, from import.arr.") {
 					t.Fatalf("grab-off effect: %+v", e)
 				}
@@ -800,30 +612,5 @@ func TestSectionConfigOmitsUnsetDecypharr(t *testing.T) {
 		if got := string(DropUnsetOptional("library", json.RawMessage(sent))); got != want {
 			t.Errorf("DropUnsetOptional(%s) = %s, want %s", sent, got, want)
 		}
-	}
-}
-
-// A metadata source saved with its own public address (TMDb's, as Setup stores it) needs no confirmation; any other
-// address, even another source's default, still asks.
-func TestMetadataDefaultAddressNeedsNoConfirmation(t *testing.T) {
-	t.Parallel()
-	for _, tc := range []struct {
-		url string
-		ask bool
-	}{{"https://image.tmdb.org/t/p", false}, {"https://api.themoviedb.org/3", true}, {"https://images.elsewhere/t/p", true}} {
-		t.Run(tc.url, func(t *testing.T) {
-			ctx := context.Background()
-			s, base, snap := sectionsFixture(t, func(p *policy.Policy) { p.Metadata.Sources["tmdb-images"].URL = "https://images.before/t/p" })
-			m := versionCoordinator(t, s, base, snap)
-			req := saveRequest(base, snap)
-			req.Records.Sections = []Section{editSection(t, snap, "metadata", func(c map[string]any) {
-				c["sources"].(map[string]any)["tmdb-images"].(map[string]any)["url"] = tc.url
-			})}
-			_, err := m.SaveAndApply(ctx, req)
-			var refused *ConfirmationError
-			if asked := errors.As(err, &refused); asked != tc.ask || (!tc.ask && err != nil) {
-				t.Fatalf("asked %v, want %v: %v", asked, tc.ask, err)
-			}
-		})
 	}
 }

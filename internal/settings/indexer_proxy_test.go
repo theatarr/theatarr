@@ -2,7 +2,6 @@ package settings
 
 import (
 	"context"
-	"slices"
 	"strings"
 	"testing"
 
@@ -43,13 +42,12 @@ func TestProxyOrigins(t *testing.T) {
 	if !strings.Contains(base, "proxy http://proxy.example:80") {
 		t.Fatalf("proxy missing: %s", base)
 	}
-	before := *p.Indexers["site"]
 	p.Indexers["site"].Proxy = "http://proxy.example:80/"
-	if SourceAddress(p, "indexers", "site") != base || len(indexerSourceChanges(&before, p.Indexers["site"])) != 0 {
+	if SourceAddress(p, "indexers", "site") != base {
 		t.Fatal("equivalent proxy changed address")
 	}
 	p.Indexers["site"].Proxy = "socks5://proxy.example:1080"
-	if SourceAddress(p, "indexers", "site") == base || !slices.Contains(indexerSourceChanges(&before, p.Indexers["site"]), "proxy") {
+	if SourceAddress(p, "indexers", "site") == base {
 		t.Fatal("proxy transport change ignored")
 	}
 }

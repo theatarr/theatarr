@@ -117,8 +117,6 @@ func (s *QualitySync) Reviews(ctx context.Context) ([]QualityPreview, error) {
 	return out, rows.Err()
 }
 func (s *QualitySync) Apply(ctx context.Context, id, expected int64, actor string) (*Snapshot, error) {
-	// Format definitions from the source apply without confirmation; a hand edit of one does not.
-	ctx = withDefinitionSync(ctx)
 	var raw, state, kind string
 	var generation int64
 	if err := s.Store.db.Reader().QueryRowContext(ctx, "SELECT candidate,base_generation,state,COALESCE(json_extract(preview,'$.kind'),'') FROM settings_quality_review WHERE id=?", id).Scan(&raw, &generation, &state, &kind); err != nil {

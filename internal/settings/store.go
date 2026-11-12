@@ -1086,11 +1086,11 @@ func (s *Store) LoadGeneration(ctx context.Context, base *policy.Policy, gen int
 }
 
 // FallbackEffects lists what running fallback instead of the stored head would allow that the head does not: the
-// confirmation effects of going from head to fallback (versions, switches, credentials, views, indexers and the
-// safety sections: egress, router, notify, paths). A startup fallback with any is refused. A credential
-// the fallback sends to its own earlier address is not one: that generation was published with it.
+// confirmation effects of going from head to fallback (going Live, downloads on, Pause off, following or importing an
+// arr into a grabbing library, and removing a library). A startup fallback with any is refused. A credential the
+// fallback sends to its own earlier address is not one: that generation was published with it.
 func (s *Store) FallbackEffects(ctx context.Context, head, fallback *Snapshot) ([]ConfirmationEffect, error) {
-	return snapshotWriteEffects(ctx, s.db.Reader(), head, fallback, s.lookup)
+	return snapshotWriteEffects(ctx, s.db.Reader(), head, fallback)
 }
 
 // clampVersionsToHead keeps a recovered version no more permissive than the stored head: it stays active only while

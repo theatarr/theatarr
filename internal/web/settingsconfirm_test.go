@@ -45,40 +45,6 @@ func confirmRefusal(t *testing.T, refusal map[string]any, contains string) strin
 	return token
 }
 
-// Through the source API: enabling a provider an active version lists needs the 422/token round trip.
-func TestSettingsE1ProviderEnableNeedsConfirmation(t *testing.T) {
-	t.Parallel()
-	se, _ := activeTestVersion(t)
-	id := se.id(entityProviders, "rd")
-	path := fmt.Sprintf("/providers/%d", id)
-	se.want(se.call("PUT", path, map[string]any{"generation": se.generation(), "enabled": false, "orphan_active_downloads": false}), 200, "disable")
-	body := map[string]any{"generation": se.generation(), "enabled": true, "orphan_active_downloads": false}
-	token := confirmRefusal(t, se.want(se.call("PUT", path, body), 422, "unconfirmed enable"), "Provider rd becomes usable")
-	if se.coord.Current().Generation != se.generation() {
-		t.Fatal("refusal published")
-	}
-	body["confirmation_token"] = token
-	se.want(se.call("PUT", path, body), 200, "confirmed enable")
-}
-
-// Through the quality editor: turning on upgrades in an active version's profile needs the same round trip.
-func TestSettingsProfileWideningNeedsConfirmation(t *testing.T) {
-	t.Parallel()
-	se, _ := activeTestVersion(t)
-	profile := se.coord.Current().Policy.Versions["test-version"].Profile
-	id := qualityID(t, se, "profiles", profile)
-	path := fmt.Sprintf("/profiles/%d", id)
-	record := se.want(se.call("GET", path, nil), 200, "profile")
-	config := record["config"].(map[string]any)
-	config["upgrades"] = false
-	se.want(se.call("PUT", path, map[string]any{"generation": se.generation(), "key": profile, "config": config}), 200, "upgrades off")
-	config["upgrades"] = true
-	body := map[string]any{"generation": se.generation(), "key": profile, "config": config}
-	token := confirmRefusal(t, se.want(se.call("PUT", path, body), 422, "unconfirmed upgrades"), "turns upgrades on")
-	body["confirmation_token"] = token
-	se.want(se.call("PUT", path, body), 200, "confirmed upgrades")
-}
-
 // The version-delete token travels in a header, never the URL; the query form is refused.
 func TestSettingsVersionDeleteTokenNotInURL(t *testing.T) {
 	t.Parallel()
@@ -103,21 +69,18 @@ func TestSettingsVersionDeleteTokenNotInURL(t *testing.T) {
 	se.want(se.do(r), 200, "confirmed delete")
 }
 
-// Review fix: binding an active version to a view (arr clients can add and search through it) needs the round trip.
-func TestSettingsViewBindingExposureNeedsConfirmation(t *testing.T) {
+// Editing a profile a Live library uses saves at once: no 422, no token.
+func TestSettingsLiveProfileEditSavesDirectly(t *testing.T) {
 	t.Parallel()
 	se, _ := activeTestVersion(t)
-	views := se.want(se.call("GET", "/view-bindings", nil), 200, "views")["views"].([]any)
-	var radarr map[string]any
-	for _, v := range views {
-		if v.(map[string]any)["key"] == "radarr" {
-			radarr = v.(map[string]any)
-		}
-	}
-	versions := append(radarr["versions"].([]any), "test-version")
-	body := map[string]any{"generation": se.generation(), "versions": versions, "profiles": radarr["profiles"]}
-	token := confirmRefusal(t, se.want(se.call("PUT", "/view-bindings/radarr", body), 422, "unconfirmed binding"),
-		"exposed through view radarr")
-	body["confirmation_token"] = token
-	se.want(se.call("PUT", "/view-bindings/radarr", body), 200, "confirmed binding")
+	profile := se.coord.Current().Policy.Versions["test-version"].Profile
+	id := qualityID(t, se, "profiles", profile)
+	path := fmt.Sprintf("/profiles/%d", id)
+	record := se.want(se.call("GET", path, nil), 200, "profile")
+	config := record["config"].(map[string]any)
+	config["upgrades"] = false
+	se.want(se.call("PUT", path, map[string]any{"generation": se.generation(), "key": profile, "config": config}), 200, "upgrades off")
+	config["upgrades"] = true
+	config["min_score"] = -10000
+	se.want(se.call("PUT", path, map[string]any{"generation": se.generation(), "key": profile, "config": config}), 200, "upgrades on, min_score lowered")
 }

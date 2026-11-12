@@ -358,27 +358,41 @@ func TestVersionWriteEffects(t *testing.T) {
 	active, _ := initial.Policy.Clone()
 	active.Versions["movie-web"].Mode = policy.ModeActive
 	active.Versions["movie-web"].Providers = []string{"rd"}
+	// Only the kept list asks: a library going Live (or created Live), downloads on, starting to follow. Everyday edits
+	// of a Live library (contains "") ask nothing.
 	for _, tc := range []struct {
 		name, contains string
 		change         func(*policy.Policy)
 	}{
 		{"new-active", "becomes Live", func(next *policy.Policy) { v := *next.Versions["movie-web"]; next.Versions["new"] = &v }},
-		{"active-root", "changes its library root", func(next *policy.Policy) { next.Versions["movie-web"].Library += "-new" }},
-		{"active-provider", "providers ad", func(next *policy.Policy) {
+		{"go-live", "becomes Live", func(next *policy.Policy) { next.Versions["movie-web"].Mode = policy.ModeActive }},
+		{"grab-on", "Downloads are on for Live library movie-web", func(next *policy.Policy) { next.Versions["movie-web"].Grab = true }},
+		{"start-following", "starts following movie-remux", func(next *policy.Policy) { next.Versions["movie-web"].Follows = "movie-remux" }},
+		{"active-root", "", func(next *policy.Policy) { next.Versions["movie-web"].Library += "-new" }},
+		{"active-provider", "", func(next *policy.Policy) {
 			next.Versions["movie-web"].Providers = append(next.Versions["movie-web"].Providers, "ad")
 		}},
-		{"remove-follows", "stops following", func(next *policy.Policy) { next.Versions["movie-web"].Follows = "" }},
+		{"remove-follows", "", func(next *policy.Policy) { next.Versions["movie-web"].Follows = "" }},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			before, _ := active.Clone()
-			if tc.name == "remove-follows" {
+			switch tc.name {
+			case "remove-follows":
 				before.Versions["movie-web"].Follows = "movie-remux"
+			case "go-live":
+				before.Versions["movie-web"].Mode = policy.ModeShadow
 			}
 			next, _ := before.Clone()
 			tc.change(next)
 			effects, err := versionConfirmationEffects(ctx, db.Reader(), before, next)
 			if err != nil {
 				t.Fatal(err)
+			}
+			if tc.contains == "" {
+				if len(effects) != 0 {
+					t.Fatalf("%s asked for confirmation: %+v", tc.name, effects)
+				}
+				return
 			}
 			found := false
 			for _, effect := range effects {
@@ -625,7 +639,8 @@ func TestVersionsSaveIgnoresUnreachableMount(t *testing.T) {
 
 // Beyond the root, providers, mode and follows: changes to how an active version writes or what it may replace
 // also need the confirmation; the same changes on a shadow version do not.
-func TestVersionConfirmationCoversActiveWriteSettings(t *testing.T) {
+// Storage, client, import, upgrades and enable of a Live library are everyday edits: they save at once.
+func TestVersionConfirmationSkipsActiveWriteSettings(t *testing.T) {
 	t.Parallel()
 	p, err := policy.Load(exampleDir)
 	if err != nil {
@@ -638,28 +653,8 @@ func TestVersionConfirmationCoversActiveWriteSettings(t *testing.T) {
 	v.Storage, v.Client, v.Import = policy.StorageSeedbox, "other-client", "copy"
 	v.Upgrades, v.Enable = policy.UpgradesAuto, "default"
 	effects, err := versionConfirmationEffects(context.Background(), nil, p, next)
-	if err != nil {
-		t.Fatal(err)
-	}
-	text := ""
-	for _, e := range effects {
-		text += e.Effect + "\n"
-	}
-	for _, want := range []string{"changes storage", "changes client", "changes import", `upgrades from "off" to "auto"`, "without approval", "every matching title"} {
-		if !strings.Contains(text, want) {
-			t.Fatalf("missing %q in:\n%s", want, text)
-		}
-	}
-	p.Versions["movie-web"].Mode, next.Versions["movie-web"].Mode = policy.ModeShadow, policy.ModeShadow
-	if effects, _ := versionConfirmationEffects(context.Background(), nil, p, next); len(effects) != 0 {
-		t.Fatalf("shadow changes asked for confirmation: %+v", effects)
-	}
-	// A rule that only narrows what Theatarr may replace needs nothing.
-	p.Versions["movie-web"].Mode, next.Versions["movie-web"].Mode = policy.ModeActive, policy.ModeActive
-	*next.Versions["movie-web"] = *p.Versions["movie-web"]
-	p.Versions["movie-web"].Upgrades, next.Versions["movie-web"].Upgrades = "", policy.UpgradesApprove
-	if effects, _ := versionConfirmationEffects(context.Background(), nil, p, next); len(effects) != 0 {
-		t.Fatalf("narrowing asked for confirmation: %+v", effects)
+	if err != nil || len(effects) != 0 {
+		t.Fatalf("everyday edits asked for confirmation: %+v %v", effects, err)
 	}
 }
 

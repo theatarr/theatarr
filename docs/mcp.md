@@ -111,8 +111,8 @@ arguments, unknown methods and unknown tools. Secrets are write-only; reads show
 | `settings_view_create`, `settings_view_update` | View `key`, expected `generation`, identity and version/profile bindings, optional write-only key |
 | `api_request` | Any other API route: `method`, `path` under `/api/theatarr/v1/` (a query is fine), optional JSON `body` and `confirmation_token` |
 
-The write tools that the API may challenge (`migration_apply`, `settings_section_update`, `settings_view_create`,
-`settings_view_update`) and `api_request` take an optional `confirmation_token`; see below.
+The write tools that the API may challenge (`migration_apply`, `settings_section_update`) and `api_request` take an
+optional `confirmation_token`; see below.
 
 `api_request` runs the request through the same routes as a direct API call, as the caller (the same key or session,
 so the same permissions and confirmations). Its result is `{ "status", "data" }` like any tool, with the route's
@@ -134,8 +134,12 @@ instructions to the agent.
 
 ## Confirmation and limits
 
-A user's API key, and MCP on one, confirms a risky change the way a signed-in user does in the UI. A change whose
-effects need confirmation answers 422 with the effects and a `confirmation.token`; over MCP that is the tool result
+A user's API key, and MCP on one, confirms a risky change the way a signed-in user does in the UI. Only these changes
+need confirmation: making a library Live (or creating one Live), turning a Live library's downloads on, turning Allow
+new downloads or Write library links on (Pause off), deletes, an arr import into a library with downloads on (or a Live
+library starting to follow an arr library), and changing a provider's or indexer's address while keeping its stored
+key. Everything else, views, profiles, formats, folders and other addresses included, saves at once after validation.
+A change whose effects need confirmation answers 422 with the effects and a `confirmation.token`; over MCP that is the tool result
 (status 422, `isError: true`). Show the effects to the user and, once they agree, call the same tool again with the
 same arguments and `confirmation_token`. The token is bound to the key that got it: another key's token, a signed-in
 user's token, or a revoked key's token is refused (the change answers 422 again with a token of its own, or 401 for

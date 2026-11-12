@@ -1,7 +1,7 @@
 // The profile editor sheet (docs/design/settings.md, "Profiles, presets and formats"): who the profile affects, the
 // preset it started from with "Compare with TRaSH", the quality ladder with its cutoff, size limits per quality, and the scores grouped as
 // TRaSH groups them, each with its score state. An edit of a saved profile shows its decision impact before it is saved;
-// a change that widens an active version still asks for confirmation. A new profile starts from a TRaSH preset.
+// a change applies to the next searches and upgrades of the Live libraries using it. A new profile starts from a TRaSH preset.
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Link } from "react-router";
 import { ApiError } from "@/api/client";
@@ -218,7 +218,7 @@ export function ProfileSheet({ session: initial, readOnly, onClose, onSaved, onR
         <div ref={errorBox}>{error ? <ExplainBox error={error} onReload={edit ? () => void reload(false) : undefined} onReloadKeep={edit ? () => void reload(true) : undefined} /> : null}{failure instanceof ApiError && object(failure.body).uses ? <p className="text-sm">In use by: {String(object((failure as ApiError).body).uses)}</p> : null}</div>
         {/* Who a save affects. */}
         <div data-testid="profile-affects" className={cn("rounded-lg border px-3 py-2 text-[13px]", active.length ? "border-[var(--th-warning-border)] bg-[var(--warn-soft)] text-[var(--warn-ink)]" : "border-[var(--line)] text-muted-foreground")}>
-          {create ? "A new profile: no library uses it until you pick it for one." : used.length === 0 ? "No library uses this profile: saving changes no decision." : <>Used by {used.map((u) => `${u.key}${u.active ? " (Live)" : " (Watch only)"}`).join(", ")}. {active.length ? "Live libraries grab with it: a change that widens what they grab asks for confirmation." : "Watch only libraries alone: nothing is grabbed with it."}</>}
+          {create ? "A new profile: no library uses it until you pick it for one." : used.length === 0 ? "No library uses this profile: saving changes no decision." : <>Used by {used.map((u) => `${u.key}${u.active ? " (Live)" : " (Watch only)"}`).join(", ")}. {active.length ? "Live libraries grab with it: a change applies to their next searches and upgrades." : "Watch only libraries alone: nothing is grabbed with it."}</>}
         </div>
         {/* Where it started. */}
         <section className="space-y-2" aria-label="Started from">

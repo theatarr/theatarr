@@ -136,9 +136,9 @@ func (s *Store) BootstrapSwitches(ctx context.Context, base *policy.Policy, acto
 	return next, err
 }
 
-func globalSwitchEffects(ctx context.Context, q rootQueryer, previous, next *Snapshot) ([]ConfirmationEffect, error) {
+func globalSwitchEffects(previous, next *Snapshot) []ConfirmationEffect {
 	if next.Records.Switches == nil {
-		return nil, nil
+		return nil
 	}
 	before := switchesFrom(previous.Policy)
 	if previous.Records.Switches != nil {
@@ -183,38 +183,12 @@ func globalSwitchEffects(ctx context.Context, q rootQueryer, previous, next *Sna
 		}
 		effects = append(effects, ConfirmationEffect{Effect: "Turn on Write library links (library.enabled): links may be written by Live libraries " + switchList(versions) + "."})
 	}
-	if !before.NotifyEnabled && after.NotifyEnabled {
-		var targets []string
-		if next.Policy.Notify != nil {
-			targets = sortedPolicyKeys(next.Policy.Notify.Targets)
-		}
-		// Installed arr clients are destinations too. Names and IDs suffice; webhook URLs may contain secrets.
-		if q != nil {
-			rows, err := q.QueryContext(ctx, "SELECT id, view, name FROM arrview_notification ORDER BY id")
-			if err != nil {
-				return nil, err
-			}
-			defer rows.Close()
-			for rows.Next() {
-				var id int64
-				var view, name string
-				if err := rows.Scan(&id, &view, &name); err != nil {
-					return nil, err
-				}
-				targets = append(targets, fmt.Sprintf("%s/%s (notification %d)", view, name, id))
-			}
-			if err := rows.Err(); err != nil {
-				return nil, err
-			}
-		}
-		effects = append(effects, ConfirmationEffect{Effect: "Turn on Send notifications (notify.enabled): messages may be sent to targets " + switchList(targets) + "."})
-	}
 	for i := range effects {
 		if len(next.Policy.ForcedOff) > 0 {
 			effects[i].Effect += " Environment overrides remain in force: " + strings.Join(next.Policy.ForcedOff, ", ") + "."
 		}
 	}
-	return effects, nil
+	return effects
 }
 
 func switchList(values []string) string {

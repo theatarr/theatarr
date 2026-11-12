@@ -208,26 +208,17 @@ func TestMCPSettingsConfirmationsAndLimits(t *testing.T) {
 		"yaml":    strings.Replace(library["yaml"].(string), "link_path: /mnt/debrid", "link_path: /mnt/other", 1),
 		"secrets": map[string]string{"plex.token": testSecret}}
 	gen := se.generation()
-	// A risky change comes back with its effects and a token bound to the caller; the same call with the token makes it.
-	refusal := se.mcpTool("settings_section_update", body, 422).(map[string]any)
-	if se.generation() != gen || refusal["confirm_in_ui"] != nil ||
-		!strings.Contains(fmt.Sprint(refusal["effects"]), "library.mount.link_path") {
-		t.Fatalf("MCP refusal: %v", refusal)
-	}
-	body["confirmation_token"] = confirmRefusal(t, refusal, "library.mount.link_path")
+	// An address or folder change applies at once (only going Live, downloads on, Pause off and deletes ask).
 	se.mcpTool("settings_section_update", body, 200)
 	if se.generation() != gen+1 {
-		t.Fatal("MCP confirmation did not apply")
+		t.Fatal("MCP section update did not apply")
 	}
-	// Writes that need no confirmation apply at once.
 	se.mcpTool("settings_section_update", map[string]any{"key": "library", "generation": se.generation(),
 		"yaml":    findSection(t, se.mcpTool("settings_sections", map[string]any{}, 200).(map[string]any), "library")["yaml"],
 		"secrets": map[string]string{"plex.token": "other-" + testSecret}}, 200)
 
 	create := map[string]any{"generation": se.generation(), "key": "mcp-radarr", "flavour": "radarr", "path": "/mcp-radarr",
 		"versions": []string{"movie-web"}, "api_key": testSecret}
-	refusal = se.mcpTool("settings_view_create", create, 422).(map[string]any)
-	create["confirmation_token"] = confirmRefusal(t, refusal, "Create view")
 	se.mcpTool("settings_view_create", create, 200)
 	gen = se.generation()
 	for _, section := range []string{"router", "library", "notify"} {
@@ -303,7 +294,7 @@ func TestMCPMigrationTools(t *testing.T) {
 	}
 }
 
-func TestMCPMigrationConfirmation(t *testing.T) {
+func TestMCPMigrationApplyByKey(t *testing.T) {
 	t.Parallel()
 	se, _ := activeTestVersion(t)
 	snap, err := se.web.settings.Snapshot(t.Context())
@@ -324,40 +315,22 @@ func TestMCPMigrationConfirmation(t *testing.T) {
 	}}
 	args := map[string]any{"id": p.ID, "steps": []string{sid}}
 	gen := se.generation()
-	// The user applies the step in the UI, which stores the session's token in the plan.
-	ui := se.want(se.migrateCall("POST", fmt.Sprintf("/plans/%v/apply", p.ID), map[string]any{"steps": []string{sid}}), 200, "UI apply")
-	step := ui["steps"].([]any)[0].(map[string]any)
-	sessionToken, _ := step["confirmation"].(map[string]any)["token"].(string)
-	if step["status"] != migration.StatusConfirmation || sessionToken == "" || se.generation() != gen {
-		t.Fatalf("UI apply: %v", step)
-	}
-	// MCP on an API key: the session's token is not the key's. The step stays unapplied with a token for the key.
+	// A view step that binds a Live library is an everyday edit: MCP on an API key applies it at once, no token.
 	key, _, err := se.auth.CreateKey(t.Context(), "migrate-key", 1)
 	if err != nil {
 		t.Fatal(err)
 	}
 	se.mcpKey = key
-	args["confirmation_token"] = sessionToken
-	step = se.mcpTool("migration_apply", args, 200).(map[string]any)["steps"].([]any)[0].(map[string]any)
-	keyToken, _ := step["confirmation"].(map[string]any)["token"].(string)
-	if step["status"] != migration.StatusConfirmation || keyToken == "" || keyToken == sessionToken || se.generation() != gen {
-		t.Fatalf("key redeemed the session's token: %v", step)
-	}
-	// One token confirms one step.
-	if out := se.mcpTool("migration_apply", map[string]any{"id": p.ID, "steps": []string{sid, "other"}, "confirmation_token": keyToken}, 400).(map[string]any); !strings.Contains(out["error"].(string), "exactly one step") {
-		t.Fatalf("two steps: %v", out)
-	}
-	args["confirmation_token"] = keyToken
 	done := se.mcpTool("migration_apply", args, 200).(map[string]any)
 	if done["steps"].([]any)[0].(map[string]any)["status"] != migration.StatusDone || se.generation() == gen {
-		t.Fatalf("key-confirmed migration: %v", done)
+		t.Fatalf("key migration: %v", done)
 	}
 	var actor string
 	if err := se.st.Reader().QueryRow(`SELECT actor FROM settings_audit WHERE entity != 'mcp' ORDER BY id DESC LIMIT 1`).Scan(&actor); err != nil ||
-		actor != "migrate:admin (api key migrate-key) via MCP, confirmed by api key migrate-key" {
+		actor != "migrate:admin (api key migrate-key) via MCP" {
 		t.Fatalf("audit actor %q: %v", actor, err)
 	}
-	if checkpoints != 3 {
+	if checkpoints != 1 {
 		t.Fatalf("checkpoints %d", checkpoints)
 	}
 }

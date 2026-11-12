@@ -3,8 +3,9 @@ package settings
 import (
 	"context"
 	"database/sql"
-	"encoding/json"
 	"errors"
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 
@@ -69,105 +70,38 @@ func editProfile(t *testing.T, records *Records, key string, change func(*policy
 	t.Fatalf("no profile record %s", key)
 }
 
-// Enabling a provider an active version lists, or giving it a credential, makes the adder appear.
-func TestEnableProviderOnActiveVersion(t *testing.T) {
-	t.Parallel()
-	m, p, active := activeWebFixture(t)
-	ctx := context.Background()
-	req := saveRequest(p, active)
-	editProvider(&req.Records, "rd", func(v *Provider) { v.Enabled = false })
-	disabled, err := m.SaveAndApply(ctx, req)
-	if err != nil {
-		t.Fatalf("disabling is narrowing: %v", err)
-	}
-	req = saveRequest(p, disabled)
-	editProvider(&req.Records, "rd", func(v *Provider) { v.Enabled = true })
-	_, err = m.SaveAndApply(ctx, req)
-	requireConfirmation(t, err, "rd")
-
-	req = saveRequest(p, disabled)
-	req.SecretWrites = map[string]Secret{"providers/ad": NewSecret("")}
-	keyless, err := m.SaveAndApply(ctx, req)
-	if err != nil {
-		t.Fatalf("clearing a credential is narrowing: %v", err)
-	}
-	req = saveRequest(p, keyless)
-	req.SecretWrites = map[string]Secret{"providers/ad": NewSecret("invented-new-ad-credential")}
-	_, err = m.SaveAndApply(ctx, req)
-	requireConfirmation(t, err, "ad")
-}
-
-// Widening the profile an active version uses (quality records) needs the same confirmation as the version level.
-func TestProfileUpgradesOnActiveVersion(t *testing.T) {
-	t.Parallel()
-	m, p, active := activeWebFixture(t)
-	ctx := context.Background()
-	profile := active.Policy.Versions["movie-web"].Profile
-	req := saveRequest(p, active)
-	editProfile(t, &req.Records, profile, func(c *policy.Profile) { off := false; c.Upgrades = &off })
-	narrowed, err := m.SaveAndApply(ctx, req)
-	if err != nil {
-		t.Fatalf("turning upgrades off is narrowing: %v", err)
-	}
-	req = saveRequest(p, narrowed)
-	editProfile(t, &req.Records, profile, func(c *policy.Profile) { on := true; c.Upgrades = &on })
-	_, err = m.SaveAndApply(ctx, req)
-	requireConfirmation(t, err, "turns upgrades on")
-	// The refusal carries a token for exactly these effects; the same request with it saves.
-	var refused *ConfirmationError
-	if !errors.As(err, &refused) || refused.Confirmation == nil || refused.Confirmation.Token == "" {
-		t.Fatalf("refusal without token: %v", err)
-	}
-	req.ConfirmationToken = refused.Confirmation.Token
-	widened, err := m.SaveAndApply(ctx, req)
-	if err != nil {
-		t.Fatal(err)
-	}
-	req = saveRequest(p, widened)
-	editProfile(t, &req.Records, profile, func(c *policy.Profile) { c.CutoffScore += 500 })
-	_, err = m.SaveAndApply(ctx, req)
-	requireConfirmation(t, err, "raises cutoff_score")
-}
-
-// At the policy level: follows added, profile and indexers changed on an active version.
+// At the policy level: follows added on an active version asks; a profile, its cutoff or the indexers changed do not.
 func TestAddFollowsOnActiveVersion(t *testing.T) {
 	t.Parallel()
 	_, db, _, initial := versionFixture(t)
 	ctx := context.Background()
 	before, _ := initial.Policy.Clone()
 	before.Versions["movie-web"].Mode = policy.ModeActive
+	before.Versions["movie-web"].Profile = "remux-2160p"
+	before.Profiles["remux-2160p"].Cutoff = "WEB 2160p"
 	for _, tc := range []struct {
 		name, contains string
-		change         func(*policy.VersionPolicy)
+		change         func(*policy.Policy)
 	}{
-		{"add-follows", "starts following movie-remux", func(v *policy.VersionPolicy) { v.Follows = "movie-remux" }},
-		{"profile", "changes profile", func(v *policy.VersionPolicy) { v.Profile = "remux-2160p" }},
-		{"indexers", "indexers", func(v *policy.VersionPolicy) { v.Indexers = append(v.Indexers, "seadex") }},
-		{"cutoff", "raises its cutoff", nil},
+		{"add-follows", "starts following movie-remux", func(p *policy.Policy) { p.Versions["movie-web"].Follows = "movie-remux" }},
+		{"profile", "", func(p *policy.Policy) { p.Versions["movie-web"].Profile = "web-2160p" }},
+		{"indexers", "", func(p *policy.Policy) {
+			p.Versions["movie-web"].Indexers = append(p.Versions["movie-web"].Indexers, "seadex")
+		}},
+		{"cutoff", "", func(p *policy.Policy) { p.Profiles["remux-2160p"].Cutoff = "Remux-2160p" }},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			next, _ := before.Clone()
-			if tc.change != nil {
-				tc.change(next.Versions["movie-web"])
-			} else {
-				before, _ := before.Clone()
-				before.Versions["movie-web"].Profile = "remux-2160p"
-				before.Profiles["remux-2160p"].Cutoff = "WEB 2160p"
-				next, _ = before.Clone()
-				next.Profiles["remux-2160p"].Cutoff = "Remux-2160p"
-				effects, err := versionConfirmationEffects(ctx, db.Reader(), before, next)
-				if err != nil || len(effects) != 1 || !strings.Contains(effects[0].Effect, tc.contains) {
-					t.Fatalf("cutoff: %+v %v", effects, err)
-				}
-				// Lowering it back is narrowing.
-				if effects, _ := versionConfirmationEffects(ctx, db.Reader(), next, before); len(effects) != 0 {
-					t.Fatalf("lowered cutoff confirmed: %+v", effects)
-				}
-				return
-			}
+			tc.change(next)
 			effects, err := versionConfirmationEffects(ctx, db.Reader(), before, next)
 			if err != nil {
 				t.Fatal(err)
+			}
+			if tc.contains == "" {
+				if len(effects) != 0 {
+					t.Fatalf("%s asked for confirmation: %+v", tc.name, effects)
+				}
+				return
 			}
 			for _, effect := range effects {
 				if strings.Contains(effect.Effect, tc.contains) {
@@ -254,57 +188,181 @@ func TestFallbackReloadTakesConfirmationToken(t *testing.T) {
 	}
 }
 
-// The provider gate through the store's own commit check: a direct store save cannot make a listed provider usable.
-func TestDirectStoreSaveCannotEnableProvider(t *testing.T) {
-	t.Parallel()
-	m, p, active := activeWebFixture(t)
+// liveGrabFixture publishes movie-web Live with downloads on (confirmed), with quality records, the database-owned
+// sections and the VPN guard on.
+func liveGrabFixture(t *testing.T) (*RuntimeCoordinator, *policy.Policy, *Snapshot) {
+	t.Helper()
 	ctx := context.Background()
-	req := saveRequest(p, active)
-	editProvider(&req.Records, "tb", func(v *Provider) { v.Enabled = false })
-	disabled, err := m.SaveAndApply(ctx, req)
+	s, base, _ := sectionsFixture(t, vpnGuardOn)
+	initial, err := s.BootstrapQuality(ctx, base, "fixture")
 	if err != nil {
 		t.Fatal(err)
 	}
-	req = saveRequest(p, disabled)
-	editProvider(&req.Records, "tb", func(v *Provider) { v.Enabled = true })
-	_, err = m.store.Save(ctx, req)
-	requireConfirmation(t, err, "Provider tb becomes usable")
+	m := versionCoordinator(t, s, base, initial)
+	req := saveRequest(base, initial)
+	editVersion(&req.Records, "movie-web", func(v *Version) { v.Config.Mode = policy.ModeActive; v.Config.Grab = true })
+	proof, err := m.Confirm(ctx, req)
+	if err != nil || proof.Token == "" {
+		t.Fatalf("confirm going Live: %+v %v", proof, err)
+	}
+	req.ConfirmationToken = proof.Token
+	live, err := m.SaveAndApply(ctx, req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return m, base, live
 }
 
-// On the quality-sync path, approving a review that widens an active version's profile needs the token (carried
-// on the context), and an automatic run leaves such a review pending instead of applying it.
-func TestQualitySyncApplyWideningNeedsConfirmation(t *testing.T) {
+// Everyday edits of a Live library with downloads on, and of what it uses, save at once without a token.
+func TestEverydayLiveEditsSaveDirectly(t *testing.T) {
 	t.Parallel()
-	m, p, active := activeWebFixture(t)
+	m, p, live := liveGrabFixture(t)
+	profile := live.Policy.Versions["movie-web"].Profile
+	newRoot := filepath.Join(filepath.Dir(live.Policy.Versions["movie-web"].Library), "movie-web-moved")
+	if err := os.Mkdir(newRoot, 0o700); err != nil {
+		t.Fatal(err)
+	}
+	for _, tc := range []struct {
+		name   string
+		change func(*SaveRequest, *Snapshot)
+	}{
+		{"profile swap", func(req *SaveRequest, _ *Snapshot) {
+			editVersion(&req.Records, "movie-web", func(v *Version) { v.Config.Profile = "remux-2160p" })
+		}},
+		{"profile swap back", func(req *SaveRequest, _ *Snapshot) {
+			editVersion(&req.Records, "movie-web", func(v *Version) { v.Config.Profile = profile })
+		}},
+		{"profile cutoff, score and qualities", func(req *SaveRequest, _ *Snapshot) {
+			editProfile(t, &req.Records, profile, func(c *policy.Profile) {
+				c.Formats["WEB Tier 01"] = -10000
+				c.Qualities = append([]policy.QualityItem{{Name: "Remux-2160p"}}, c.Qualities...)
+				c.Cutoff = "Remux-2160p"
+			})
+		}},
+		{"format specification", func(req *SaveRequest, _ *Snapshot) {
+			var donor []byte
+			for _, f := range req.Records.Formats {
+				if f.Key == "HDR10+ Boost" {
+					donor = append([]byte(nil), f.Specification...)
+				}
+			}
+			for i := range req.Records.Formats {
+				if req.Records.Formats[i].Key == "LQ" && donor != nil {
+					req.Records.Formats[i].Specification = donor
+					return
+				}
+			}
+			t.Fatal("no LQ/HDR10+ Boost format records")
+		}},
+		{"naming", func(req *SaveRequest, _ *Snapshot) {
+			for i := range req.Records.Naming {
+				if req.Records.Naming[i].Key == "movie-web" {
+					req.Records.Naming[i].Config.Folder = "{Movie Title} [{Release Year}]"
+					return
+				}
+			}
+			req.Records.Naming = append(req.Records.Naming, VersionNaming{Record: Record{Key: "movie-web"}, Config: policy.Naming{Folder: "{Movie Title} [{Release Year}]"}})
+		}},
+		{"indexers list", func(req *SaveRequest, _ *Snapshot) {
+			editVersion(&req.Records, "movie-web", func(v *Version) { v.Config.Indexers = []string{"dmm", "torrentio"} })
+		}},
+		{"providers list", func(req *SaveRequest, _ *Snapshot) {
+			editVersion(&req.Records, "movie-web", func(v *Version) { v.Config.Providers = []string{"rd"} })
+		}},
+		{"providers added", func(req *SaveRequest, _ *Snapshot) {
+			editVersion(&req.Records, "movie-web", func(v *Version) { v.Config.Providers = []string{"rd", "ad", "tb"} })
+		}},
+		{"root without links", func(req *SaveRequest, _ *Snapshot) {
+			editVersion(&req.Records, "movie-web", func(v *Version) { v.Config.Library = newRoot; v.Roots = []string{newRoot} })
+		}},
+		{"egress guard off", func(req *SaveRequest, snap *Snapshot) {
+			req.Records.Sections = []Section{editSection(t, snap, "egress", func(c map[string]any) { c["require_vpn_for"] = []string{} })}
+		}},
+		{"cached_only off", func(req *SaveRequest, snap *Snapshot) {
+			req.Records.Sections = []Section{editSection(t, snap, "router", func(c map[string]any) { c["cached_only"] = false })}
+		}},
+		{"view create", func(req *SaveRequest, _ *Snapshot) {
+			req.Records.Views = append(req.Records.Views, ViewBinding{Record: Record{Key: "radarr2"}, Versions: []string{"movie-web"},
+				Identity: &ViewIdentity{Flavour: "radarr", Path: "/radarr2"}})
+			req.SecretWrites = map[string]Secret{"views/radarr2": NewSecret("invented-view-key-radarr2")}
+		}},
+		{"notify on", func(req *SaveRequest, _ *Snapshot) { req.Records.Switches.NotifyEnabled = true }},
+	} {
+		req := saveRequest(p, live)
+		tc.change(&req, live)
+		saved, err := m.SaveAndApply(context.Background(), req)
+		if err != nil {
+			t.Fatalf("%s: %v", tc.name, err)
+		}
+		live = saved
+	}
+	v := live.Policy.Versions["movie-web"]
+	if v.Library != newRoot || live.Policy.Views["radarr2"] == nil || !live.Policy.Notify.Enabled || live.Policy.RouterSettings().CachedOnly {
+		t.Fatalf("edits not applied: root %s", v.Library)
+	}
+}
+
+// Going Live, a new Live library, downloads on and Pause off still refuse without a token and save with the token the
+// refusal gave.
+func TestKeptConfirmations(t *testing.T) {
+	t.Parallel()
 	ctx := context.Background()
-	profile := active.Policy.Versions["movie-web"].Profile
-	req := saveRequest(p, active)
-	editProfile(t, &req.Records, profile, func(c *policy.Profile) { off := false; c.Upgrades = &off })
-	narrowed, err := m.SaveAndApply(ctx, req)
-	if err != nil {
+	m, p, live := liveGrabFixture(t)
+	newRoot := filepath.Join(filepath.Dir(live.Policy.Versions["movie-web"].Library), "movie-new")
+	if err := os.Mkdir(newRoot, 0o700); err != nil {
 		t.Fatal(err)
 	}
-	candidate := saveRequest(p, narrowed).Records
-	editProfile(t, &candidate, profile, func(c *policy.Profile) { on := true; c.Upgrades = &on })
-	raw, err := json.Marshal(Records{Profiles: candidate.Profiles, Formats: candidate.Formats, FormatSets: candidate.FormatSets, Naming: candidate.Naming})
-	if err != nil {
+	for _, tc := range []struct {
+		name, effect string
+		change       func(*SaveRequest)
+	}{
+		{"watch only to Live", "Library movie-remux becomes Live", func(req *SaveRequest) {
+			editVersion(&req.Records, "movie-remux", func(v *Version) { v.Config.Mode = policy.ModeActive })
+		}},
+		{"new Live library", "Library movie-new becomes Live", func(req *SaveRequest) {
+			for _, v := range req.Records.Versions {
+				if v.Key == "movie-web" {
+					v.Record = Record{Key: "movie-new"}
+					v.Config.Library, v.Roots, v.Config.Grab = newRoot, []string{newRoot}, false
+					req.Records.Versions = append(req.Records.Versions, v)
+					return
+				}
+			}
+		}},
+		{"downloads on", "Downloads are on for Live library movie-new", func(req *SaveRequest) {
+			editVersion(&req.Records, "movie-new", func(v *Version) { v.Config.Grab = true })
+		}},
+		{"router on", "(router.enabled): ", func(req *SaveRequest) { req.Records.Switches.RouterEnabled = true }},
+		{"library on", "(library.enabled): ", func(req *SaveRequest) { req.Records.Switches.LibraryEnabled = true }},
+	} {
+		req := saveRequest(p, live)
+		tc.change(&req)
+		_, err := m.SaveAndApply(ctx, req)
+		var refused *ConfirmationError
+		if !errors.As(err, &refused) || refused.Confirmation == nil {
+			t.Fatalf("%s: saved without confirmation: %v", tc.name, err)
+		}
+		requireConfirmation(t, err, tc.effect)
+		req.ConfirmationToken = refused.Confirmation.Token
+		saved, err := m.SaveAndApply(ctx, req)
+		if err != nil {
+			t.Fatalf("%s: confirmed save: %v", tc.name, err)
+		}
+		live = saved
+	}
+
+	// Removing a library that has links asks too.
+	_, db, _, initial := versionFixture(t)
+	if _, err := db.Writer().Exec(`INSERT INTO title(id,kind,name,created_at,updated_at) VALUES(1,'movie','Linked',0,0);
+		INSERT INTO version(id,title_id,policy_key,created_at,updated_at) VALUES(1,1,'movie-web',0,0);
+		INSERT INTO link(id,path,target,title_id,created_at,updated_at) VALUES(1,'/x/Linked.mkv','fixture-target',1,0,0);
+		INSERT INTO link_version(link_id,version_id) VALUES(1,1)`); err != nil {
 		t.Fatal(err)
 	}
-	var id int64
-	if err := m.store.db.Writer().QueryRow(`INSERT INTO settings_quality_review(source_key,base_generation,commit_id,preview,candidate,created_at) VALUES('guides',?,'content:x','{}',?,0) RETURNING id`,
-		narrowed.Generation, string(raw)).Scan(&id); err != nil {
-		t.Fatal(err)
-	}
-	svc := &QualitySync{Store: m.store, Coordinator: m}
-	_, err = svc.Apply(ctx, id, narrowed.Generation, "admin")
-	requireConfirmation(t, err, "turns upgrades on")
-	var refused *ConfirmationError
-	errors.As(err, &refused)
-	saved, err := svc.Apply(WithConfirmationToken(ctx, refused.Confirmation.Token), id, narrowed.Generation, "admin")
-	if err != nil {
-		t.Fatal(err)
-	}
-	if up := saved.Policy.Profiles[profile].Upgrades; up == nil || !*up {
-		t.Fatal("confirmed review not applied")
+	next, _ := initial.Policy.Clone()
+	delete(next.Versions, "movie-web")
+	effects, err := versionConfirmationEffects(ctx, db.Reader(), initial.Policy, next)
+	if err != nil || len(effects) != 1 || !strings.Contains(effects[0].Effect, "Library movie-web stops being managed. 1 linked item(s)") {
+		t.Fatalf("removal effects: %+v %v", effects, err)
 	}
 }

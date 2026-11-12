@@ -18,7 +18,6 @@ type generationContextKey struct{}
 type runtimeContextKey struct{}
 type orphanContextKey struct{}
 type confirmationContextKey struct{}
-type definitionSyncContextKey struct{}
 type confirmerContextKey struct{}
 
 // WithGeneration pins work to one published settings generation.
@@ -102,17 +101,6 @@ func WithConfirmationToken(ctx context.Context, token string) context.Context {
 		return ctx
 	}
 	return context.WithValue(ctx, confirmationContextKey{}, token)
-}
-
-// withDefinitionSync marks a quality-sync review apply: format definitions from the source apply without confirmation;
-// every other effect still needs it.
-func withDefinitionSync(ctx context.Context) context.Context {
-	return context.WithValue(ctx, definitionSyncContextKey{}, true)
-}
-
-func definitionSync(ctx context.Context) bool {
-	on, _ := ctx.Value(definitionSyncContextKey{}).(bool)
-	return on
 }
 
 // WithConfirmer names the caller a confirmation token is issued to, such as the signed-in user: a token issued to one

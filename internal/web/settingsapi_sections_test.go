@@ -98,13 +98,9 @@ func TestSettingsSectionsAPI(t *testing.T) {
 	se.want(se.call("PUT", "/sections/library", map[string]any{"generation": gen, "secrets": map[string]string{"plex.url": testSecret}}),
 		422, "not a credential path")
 
-	// Moving where links point needs a confirmation naming it.
+	// Moving where links point is a folder edit: it saves at once.
 	yaml := strings.Replace(library["yaml"].(string), "link_path: /mnt/debrid", "link_path: /mnt/other", 1)
-	body := map[string]any{"generation": gen, "yaml": yaml}
-	refused := se.want(se.call("PUT", "/sections/library", body), 422, "link path needs proof")
-	confirmRefusal(t, refused, "where files are read or written: library.mount.link_path /mnt/debrid → /mnt/other")
-	body["confirmation_token"] = confirmRefusal(t, refused, "")
-	se.want(se.call("PUT", "/sections/library", body), 200, "confirmed")
+	se.want(se.call("PUT", "/sections/library", map[string]any{"generation": gen, "yaml": yaml}), 200, "link path")
 	snap, err := se.coord.Snapshot(context.Background())
 	if err != nil {
 		t.Fatal(err)
@@ -128,8 +124,6 @@ func TestSettingsViewsAPI(t *testing.T) {
 	gen := se.generation()
 	create := map[string]any{"generation": gen, "key": "radarr2", "flavour": "radarr", "path": "/radarr2",
 		"versions": []string{"movie-web"}, "api_key": testSecret}
-	create["confirmation_token"] = confirmRefusal(t, se.want(se.call("POST", "/view-bindings", create), 422, "create needs proof"),
-		"Create view radarr2 at /radarr2")
 	saved := se.want(se.call("POST", "/view-bindings", create), 200, "create")
 	gen = int64(saved["generation"].(float64))
 	snap, _ := se.coord.Snapshot(context.Background())
@@ -142,10 +136,8 @@ func TestSettingsViewsAPI(t *testing.T) {
 	}
 	se.want(se.call("POST", "/view-bindings", create), 409, "duplicate")
 
-	// A new key changes who has access: named, never shown.
+	// A new key saves at once and is never shown.
 	update := map[string]any{"generation": gen, "api_key": "another-" + testSecret}
-	update["confirmation_token"] = confirmRefusal(t, se.want(se.call("PUT", "/view-bindings/radarr2", update), 422, "key change needs proof"),
-		"answers a different API key")
 	gen = int64(se.want(se.call("PUT", "/view-bindings/radarr2", update), 200, "key change")["generation"].(float64))
 	se.want(se.call("PUT", "/view-bindings/radarr2", map[string]any{"generation": gen, "key": "other"}), 400, "rename")
 
@@ -176,9 +168,7 @@ func TestSettingsSectionsMaskWebhookURLs(t *testing.T) {
 	}
 	config["targets"] = map[string]any{"hook": map[string]any{"url": hook, "native": true}}
 	body := map[string]any{"generation": se.generation(), "config": config}
-	refused := se.want(se.call("PUT", "/sections/notify", body), 422, "new host needs proof")
-	body["confirmation_token"] = confirmRefusal(t, refused, "notify.targets.hook.url")
-	se.want(se.call("PUT", "/sections/notify", body), 200, "confirmed")
+	se.want(se.call("PUT", "/sections/notify", body), 200, "new target")
 
 	read = se.want(se.call("GET", "/sections", nil), 200, "reread")
 	notify = findSection(t, read, "notify")

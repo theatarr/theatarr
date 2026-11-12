@@ -33,7 +33,8 @@ It is built so that nothing happens until you say so:
 - A new library starts in **shadow mode**: it searches and decides what it would grab, and records that, but adds
   nothing to debrid and writes nothing to the library.
 - The global switches `router.enabled` (**Allow new downloads**) and `library.enabled` (**Write library links**) are
-  off on a fresh install. An admin turns them on, and each risky change asks for a confirmation.
+  off on a fresh install. An admin turns them on. Making a library Live, resuming after Pause, sending a stored key to
+  a new address and deletes ask for a confirmation; other settings save at once.
 - On a fresh install with no arr to migrate from, Setup can do all of that in one step, **Create library and start
   downloading**, after one confirmation that lists every switch it turns on.
 - `THEATARR_FORCE_OFF=router,library,notify` forces the switches off at startup, whatever the saved settings say.

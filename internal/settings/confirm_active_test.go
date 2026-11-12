@@ -2,87 +2,12 @@ package settings
 
 import (
 	"context"
-	"errors"
 	"os"
 	"path/filepath"
 	"slices"
 	"strings"
 	"testing"
-
-	"github.com/theatarr/theatarr/internal/policy"
 )
-
-// Lowering (or removing) a positive format score on an active profile lowers existing files' scores, so
-// they may fall below cutoff_score and be upgraded: confirmed like a raised cutoff_score.
-func TestActiveProfileLowerScoreNeedsConfirmation(t *testing.T) {
-	t.Parallel()
-	m, p, active := activeWebFixture(t)
-	profile := active.Policy.Versions["movie-web"].Profile
-	req := saveRequest(p, active)
-	editProfile(t, &req.Records, profile, func(c *policy.Profile) { c.Formats["WEB Tier 01"] = -10000 })
-	_, err := m.SaveAndApply(context.Background(), req)
-	requireConfirmation(t, err, "lowers or removes format scores (WEB Tier 01)")
-
-	req = saveRequest(p, active)
-	editProfile(t, &req.Records, profile, func(c *policy.Profile) { delete(c.Formats, "HDR10+ Boost") })
-	_, err = m.SaveAndApply(context.Background(), req)
-	requireConfirmation(t, err, "lowers or removes format scores (HDR10+ Boost)")
-}
-
-// With no quality_order, a removed quality ranks below every allowed one, so removing one ranked above
-// a kept quality makes its files upgradable. Removing the lowest stays unconfirmed (TestActiveVersionDenyByDefault).
-func TestActiveProfileRemoveTopQualityNeedsConfirmation(t *testing.T) {
-	t.Parallel()
-	m, p, active := activeWebFixture(t)
-	ctx := context.Background()
-	profile := active.Policy.Versions["movie-web"].Profile
-	req := saveRequest(p, active)
-	editProfile(t, &req.Records, profile, func(c *policy.Profile) {
-		if len(c.QualityOrder) > 0 {
-			t.Fatalf("fixture profile has a quality_order: %v", c.QualityOrder)
-		}
-		c.Qualities = append([]policy.QualityItem{{Name: "Remux-2160p"}}, c.Qualities...)
-	})
-	_, err := m.SaveAndApply(ctx, req)
-	var refused *ConfirmationError
-	if !errors.As(err, &refused) || refused.Confirmation == nil {
-		t.Fatalf("adding a quality: %v", err)
-	}
-	req.ConfirmationToken = refused.Confirmation.Token
-	wider, err := m.SaveAndApply(ctx, req)
-	if err != nil {
-		t.Fatal(err)
-	}
-	req = saveRequest(p, wider)
-	editProfile(t, &req.Records, profile, func(c *policy.Profile) { c.Qualities = c.Qualities[1:] })
-	_, err = m.SaveAndApply(ctx, req)
-	requireConfirmation(t, err, "removes qualities ranked above ones it keeps (Remux-2160p)")
-}
-
-// An enabled indexer an active version searches changing where its releases come from (url, kind,
-// definition) is confirmed like one becoming usable. (Privacy to public is reported too; a debrid version cannot
-// list a private indexer to begin with, so the fixture has no case for it.)
-func TestActiveVersionIndexerSourceChangeNeedsConfirmation(t *testing.T) {
-	t.Parallel()
-	for name, change := range map[string]func(*Indexer){
-		"url": func(v *Indexer) { v.Config.URL = "https://elsewhere.invalid" },
-	} {
-		t.Run(name, func(t *testing.T) {
-			m, p, active := activeWebFixture(t)
-			req := saveRequest(p, active)
-			found := false
-			for _, ix := range req.Records.Indexers {
-				found = found || (ix.Key == "torrentio" && ix.Enabled)
-			}
-			if !found {
-				t.Fatal("fixture torrentio not enabled")
-			}
-			editIndexer(&req.Records, "torrentio", change)
-			_, err := m.SaveAndApply(context.Background(), req)
-			requireConfirmation(t, err, "Indexer torrentio, searched by active library movie-web, changes "+name)
-		})
-	}
-}
 
 // Deleting a version and re-creating its key with another root must not skip the refusal a root change
 // gets while active links of the key stay at the old root.
