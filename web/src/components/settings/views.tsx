@@ -2,6 +2,7 @@
 // the one place their library bindings and keys are edited. Create, edit and delete a view (key, flavour, path,
 // libraries and profiles as named choices, alias_from, API key) in the side sheet. A new view, a moved path or flavour, other aliases or a new key answer 422 with their effects; the shared
 // confirmation dialog sends the same request again with the token. The API key is write-only. Routes apply at once.
+// "Replace a library" swaps one library for another in the libraries and every profile of the draft; Save sends both.
 // The sheet keeps the view and generation it opened with: a save or delete after someone else's change answers 409
 // and offers an explicit reload (discard or keep the draft), never a silent overwrite.
 import { useQueryClient } from "@tanstack/react-query";
@@ -146,6 +147,21 @@ export function ViewSheet({ view: opened, generation: openedAt, readOnly, onClos
   const [action, setAction] = useState<SecretAction>(create ? "replace" : "keep");
   const [apiKey, setApiKey] = useState("");
   const [deleting, setDeleting] = useState(false);
+  const [swapOld, setSwapOld] = useState("");
+  const [swapNew, setSwapNew] = useState("");
+  const [swapped, setSwapped] = useState<string>();
+  // Replace a library: the new one takes the old one's place in the libraries and every profile; saved with Save.
+  const kind = flavour === "sonarr" ? "series" : "movie";
+  const swapTargets = (libraries.data?.versions ?? []).filter((l) => l.config.kind === kind && l.key !== swapOld).map((l) => l.key);
+  const replaceLibrary = () => {
+    const swap = (keys: string[]) => keys.includes(swapOld) ? [...new Set(keys.map((k) => k === swapOld ? swapNew : k))] : keys;
+    const n = Object.values(profiles).filter((keys) => keys.includes(swapOld)).length;
+    setVersions(swap(versions));
+    setProfiles(Object.fromEntries(Object.entries(profiles).map(([name, keys]) => [name, swap(keys)])));
+    setSwapped(`${swapOld} replaced by ${swapNew} in the libraries and ${n} profiles.`);
+    setSwapOld("");
+    setSwapNew("");
+  };
   const save = () => {
     if (action === "replace" && !apiKey) {
       setError({ kind: "other", title: "Enter the API key", message: create ? "A new view needs its API key." : "Enter the new key, or keep the stored one." });
@@ -198,6 +214,24 @@ export function ViewSheet({ view: opened, generation: openedAt, readOnly, onClos
           <Field label="Path" help="Where the view answers, e.g. /radarr."><Input value={path} onChange={(e) => setPath(e.target.value)} disabled={off || !seeded} /></Field>
           <NamedChoices legend="Libraries" help="What the app sees, in the order ticked." testid="view-libraries"
             options={libraryOptions(libraries.data, versions)} value={versions} onChange={setVersions} disabled={off} />
+          {off ? null : (
+            <div className="flex min-w-0 flex-col gap-2 sm:col-span-2" data-testid="view-replace">
+              <p className="text-sm font-medium text-[var(--ink)]">Replace a library</p>
+              <div className="flex flex-wrap items-end gap-2">
+                <select className={SELECT_CLASS} aria-label="Library to replace" value={swapOld} onChange={(e) => { setSwapOld(e.target.value); setSwapNew(""); }}>
+                  <option value="">Old library</option>
+                  {versions.map((k) => <option key={k} value={k}>{k}</option>)}
+                </select>
+                <select className={SELECT_CLASS} aria-label="New library" value={swapNew} onChange={(e) => setSwapNew(e.target.value)}>
+                  <option value="">New library</option>
+                  {swapTargets.map((k) => <option key={k} value={k}>{k}</option>)}
+                </select>
+                <Button type="button" variant="outline" disabled={!swapOld || !swapNew} onClick={replaceLibrary}>Replace</Button>
+              </div>
+              <p className="text-[12.5px] text-muted-foreground">Puts the new library in the old one's place, in this app's libraries and in every profile that lists it. The app keeps its address, API key, profile names and title ids. Save to apply.</p>
+              {swapped ? <p role="status" className="text-[13px]">{swapped}</p> : null}
+            </div>
+          )}
           <div className="flex min-w-0 flex-col gap-3 sm:col-span-2" data-testid="view-profiles">
             <p className="text-sm font-medium text-[var(--ink)]">Profiles <span className="font-normal text-muted-foreground">(clients see them as quality profiles)</span></p>
             {Object.entries(profiles).map(([name, keys]) => (

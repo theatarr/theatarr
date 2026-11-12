@@ -512,7 +512,7 @@ Startup fallback retains the full notice and reload/confirmation behavior.
 | Notifications | `/admin/settings/notifications` | Where and when Theatarr sends messages. |
 | Plex & playback | `/admin/settings/plex` | Plex connections, playback and playlists; read-only Playlists Theatarr keeps below the playlists panel. |
 | Metadata & artwork | `/admin/settings/metadata` | Metadata services, refresh schedules and the artwork cache. |
-| Connected apps | `/admin/settings/apps` | Compatible endpoints for Seerr and other apps: each app's libraries, profiles and API key. |
+| Connected apps | `/admin/settings/apps` | Compatible endpoints for Seerr and other apps: each app's libraries, profiles and API key. Replace a library puts a new library in an old one's place in the app's libraries and every profile, in the draft; Save sends both. |
 
 Other libraries' folders (`#scan-roots`) are on Torrents, above the torrent list; `/admin/settings/general` redirects
 by anchor.

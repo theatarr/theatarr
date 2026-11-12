@@ -159,6 +159,30 @@ describe("View editor", () => {
     expect(fetch.calls("DELETE", "/settings/view-bindings/radarr")[0].search).toBe("?generation=7");
   });
 
+  it("replaces a library in the libraries and every profile, and saves both in one request", async () => {
+    const view = { ...radarr, versions: ["movie-web", "movie-remux"], profiles: { "WEB only": ["movie-web"], Any: ["movie-remux", "movie-web"], Remux: ["movie-remux"] } };
+    const withSeries = { ...versionsReply, versions: versionsReply.versions.map((l) => l.key === "tv-web" ? { ...l, config: { ...l.config, kind: "series" } } : l) };
+    const fetch = mockFetch([...routes([view]).map((route) => route === librariesRoute ? { ...route, reply: withSeries } : route),
+      { method: "PUT", path: "/settings/view-bindings/radarr", reply: { generation: 8, revision: 1 } }]);
+    const user = userEvent.setup();
+    renderPage(<GeneralSettingsPage />);
+    await user.click(await screen.findByRole("button", { name: /Edit/ }));
+    const sheet = await screen.findByTestId("view-editor");
+    const replace = within(sheet).getByTestId("view-replace");
+    await user.selectOptions(within(replace).getByRole("combobox", { name: "Library to replace" }), "movie-web");
+    const target = within(replace).getByRole("combobox", { name: "New library" });
+    // Only libraries of the view's kind other than the old one.
+    expect(within(target).getAllByRole("option").map((o) => o.textContent)).toEqual(["New library", "movie-remux"]);
+    await user.selectOptions(target, "movie-remux");
+    await user.click(within(replace).getByRole("button", { name: "Replace" }));
+    expect(within(replace).getByRole("status").textContent).toBe("movie-web replaced by movie-remux in the libraries and 2 profiles.");
+    expect(fetch.calls("PUT", "/settings/view-bindings/radarr")).toHaveLength(0);
+    await user.click(within(sheet).getByRole("button", { name: "Save" }));
+    await waitFor(() => expect(fetch.calls("PUT", "/settings/view-bindings/radarr")).toHaveLength(1));
+    expect(fetch.calls("PUT", "/settings/view-bindings/radarr")[0].body).toMatchObject({ generation: 7,
+      versions: ["movie-remux"], profiles: { "WEB only": ["movie-remux"], Any: ["movie-remux"], Remux: ["movie-remux"] } });
+  });
+
   it("locks the identity of a view not seeded yet", async () => {
     mockFetch(routes([{ ...radarr, identity: null, secret_set: false }]));
     const user = userEvent.setup();
