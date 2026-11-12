@@ -2,19 +2,30 @@ package library
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
+	"os"
+	"slices"
+	"strings"
+
+	"github.com/theatarr/theatarr/internal/policy"
 )
 
 // Coverage check (docs/migration.md): does a parallel library hold every title and file its followed library has? It
-// reads only: the titles the followed library has from an arr with no row for the library, and dry runs of Adopt and
-// (while the library does not grab) Refresh. It is complete only when nothing is missing, nothing is left for adopt or
-// refresh and nothing was skipped, for any reason; otherwise it lists every item and the operator decides. The fix is
-// the existing adopt and adopt -refresh, which never replace a file the library imported itself.
+// reads only. A title (movie) or episode of the followed library's arr files is covered exactly when the library has an
+// active link for it whose target exists, imported or adopted. The check lists the titles the followed library has
+// from an arr with no row for the library, and each arr file with something not covered, with the answer of a dry run
+// of Adopt or (while the library does not grab) Refresh as the reason. It is complete only when nothing is listed; the
+// operator decides on each item. The fix is the existing adopt and adopt -refresh, which never replace a file the
+// library imported itself.
 
-// CoverageItem is one thing that keeps a coverage check from being complete. Step is "titles", "adopt" or "refresh";
-// Reason is the skip reason (as in AdoptReport.Skipped and RefreshReport.Skipped) or one of missing_title, to_link,
-// to_move, not_checked (the step could not run: Detail says why); Detail carries the underlying error text where there was one.
+// CoverageItem is one thing that keeps a coverage check from being complete: a missing title, an arr file with
+// something not covered, or a step that could not run. Step is "titles", "adopt" or "refresh" (whose answer gives the
+// reason), or "library" (neither had one); Reason is the skip reason (as in AdoptReport.Skipped and
+// RefreshReport.Skipped) or one of missing_title, to_link, to_move, not_covered, not_checked (the step could not run:
+// Detail says why). Detail carries the underlying error text where there was one, and the library's links for it whose
+// target is not there, with the stat error. Episodes are the episodes not covered.
 type CoverageItem struct {
 	Step     string  `json:"step"`
 	Reason   string  `json:"reason"`
@@ -30,8 +41,8 @@ type CoverageReport struct {
 	Follows string `json:"follows"`
 	// MissingTitles counts the titles of Follows (from an arr: version_source) with no row for Version.
 	MissingTitles int `json:"missing_titles"`
-	// OwnFilesKept counts the arr files the library has its own file for (Adopt.HasFile): covered, listed for
-	// information only.
+	// OwnFilesKept counts the library's own links (not adopted) that cover a title or episode of the followed
+	// library's arr files: information only.
 	OwnFilesKept int          `json:"own_files_kept"`
 	Adopt        *AdoptReport `json:"adopt"`
 	// Refresh is nil when the library grabs; RefreshSkipped says why.
@@ -98,15 +109,6 @@ func (l *Library) Coverage(ctx context.Context, version string) (*CoverageReport
 		add(CoverageItem{Step: step, Reason: "not_checked", Detail: err.Error()})
 	}
 	rep.Adopt, err = l.Adopt(ctx, AdoptOptions{Version: version, DryRun: true, Uncapped: true})
-	if a := rep.Adopt; a != nil {
-		rep.OwnFilesKept = a.HasFile
-		for _, k := range a.Links {
-			add(CoverageItem{Step: "adopt", Reason: "to_link", Path: k.From, Detail: "would link " + k.Path})
-		}
-		for _, p := range a.Problems {
-			add(CoverageItem{Step: "adopt", Reason: p.Reason, Path: p.Path, Detail: p.Detail, Episodes: p.MissingEpisodes})
-		}
-	}
 	if err != nil {
 		notChecked("adopt", err)
 	}
@@ -116,24 +118,162 @@ func (l *Library) Coverage(ctx context.Context, version string) (*CoverageReport
 		add(CoverageItem{Step: "refresh", Reason: "not_checked", Detail: rep.RefreshSkipped})
 	} else {
 		rep.Refresh, err = l.Refresh(ctx, RefreshOptions{Version: version, DryRun: true, Uncapped: true})
-		if r := rep.Refresh; r != nil {
-			for _, s := range r.Swaps {
-				add(CoverageItem{Step: "refresh", Reason: "to_move", Path: s.Old, Detail: "would move to " + s.Path})
-			}
-			for _, p := range r.Problems {
-				add(CoverageItem{Step: "refresh", Reason: p.Reason, Path: p.Path, Detail: p.Detail})
-			}
-		}
 		if err != nil {
 			notChecked("refresh", err)
 		}
 	}
 
-	a, r := rep.Adopt, rep.Refresh
-	rep.Complete = len(rep.Items) == 0 && a != nil && a.Linked == 0 && len(a.Skipped) == 0 && a.MissingEpisodes == 0 &&
-		r != nil && r.Swapped == 0 && len(r.Skipped) == 0 && r.Failed == 0
+	if len(errs) == 0 {
+		if err := l.coverUnits(ctx, version, vp, rep, add); err != nil {
+			notChecked("library", err)
+		}
+	}
+	rep.Complete = len(rep.Items) == 0
 	if len(rep.Counts) == 0 {
 		rep.Counts = nil
 	}
 	return rep, errors.Join(errs...)
+}
+
+// coverLink is one active link of the library and whether its target exists.
+type coverLink struct {
+	path, target, statErr string
+	adopted, alive        bool
+	episodes              []int64
+}
+
+// coverUnits decides coverage from the library's own links: a title (movie) or episode of the followed library's arr
+// files is covered exactly when the library has an active link for it whose target exists, imported or adopted.
+// Each arr file with something not covered is an item, with adopt's or refresh's answer for it as the reason.
+func (l *Library) coverUnits(ctx context.Context, version string, vp *policy.VersionPolicy, rep *CoverageReport,
+	add func(CoverageItem)) error {
+	rows, err := l.st.Reader().QueryContext(ctx, `SELECT l.title_id, l.path, l.target, l.adopted_from IS NOT NULL,
+		COALESCE((SELECT json_group_array(le.episode_id) FROM link_episode le WHERE le.link_id = l.id), '[]')
+		FROM link l JOIN link_version lv ON lv.link_id = l.id JOIN version v ON v.id = lv.version_id
+		WHERE v.policy_key = ? AND l.state = 'active' ORDER BY l.id`, version)
+	if err != nil {
+		return err
+	}
+	links := map[int64][]*coverLink{}
+	for rows.Next() {
+		var titleID int64
+		var eps string
+		k := &coverLink{}
+		if err := rows.Scan(&titleID, &k.path, &k.target, &k.adopted, &eps); err != nil {
+			rows.Close()
+			return err
+		}
+		_ = json.Unmarshal([]byte(eps), &k.episodes)
+		links[titleID] = append(links[titleID], k)
+	}
+	rows.Close()
+	if err := rows.Err(); err != nil {
+		return err
+	}
+	for _, ks := range links {
+		for _, k := range ks {
+			var fi os.FileInfo
+			if read, ok := l.adoptTarget(k.target); ok {
+				fi, err = l.mount.Stat(ctx, read)
+				if errors.Is(err, ErrMountDown) {
+					return err
+				}
+			} else {
+				fi, err = os.Stat(k.target)
+			}
+			switch {
+			case err != nil:
+				k.statErr = err.Error()
+			case !fi.Mode().IsRegular():
+				k.statErr = k.target + ": not a regular file"
+			default:
+				k.alive = true
+			}
+		}
+	}
+
+	// What adopt and refresh said, by the arr's file and by the library's link.
+	reasons := map[string]CoverageItem{}
+	if a := rep.Adopt; a != nil {
+		for _, k := range a.Links {
+			reasons[k.From] = CoverageItem{Step: "adopt", Reason: "to_link", Detail: "would link " + k.Path}
+		}
+		for _, p := range a.Problems {
+			reasons[p.Path] = CoverageItem{Step: "adopt", Reason: p.Reason, Detail: p.Detail}
+		}
+	}
+	if r := rep.Refresh; r != nil {
+		for _, s := range r.Swaps {
+			reasons[s.Old] = CoverageItem{Step: "refresh", Reason: "to_move", Detail: "would move to " + s.Path}
+		}
+		for _, p := range r.Problems {
+			reasons[p.Path] = CoverageItem{Step: "refresh", Reason: p.Reason, Detail: p.Detail}
+		}
+	}
+
+	files, err := l.adoptFiles(ctx, vp.Follows, version, nil)
+	if err != nil {
+		return err
+	}
+	kept := map[*coverLink]bool{}
+	for i := range files {
+		f := &files[i]
+		if f.followerID == 0 {
+			continue // a missing title, listed already
+		}
+		ks := links[f.titleID]
+		covers := func(ep int64) *coverLink {
+			for _, k := range ks {
+				if k.alive && (ep == 0 || slices.Contains(k.episodes, ep)) {
+					return k
+				}
+			}
+			return nil
+		}
+		var units []int64 // episodes; a movie is one unit, 0
+		if vp.Kind == policy.KindSeries {
+			if units, _, err = adoptEpisodes(ctx, l.st.Reader(), f.id); err != nil {
+				return err
+			}
+		} else {
+			units = []int64{0}
+		}
+		var uncovered []int64
+		for _, u := range units {
+			if k := covers(u); k != nil {
+				if !k.adopted {
+					kept[k] = true
+				}
+			} else {
+				uncovered = append(uncovered, u)
+			}
+		}
+		if len(units) > 0 && len(uncovered) == 0 {
+			continue
+		}
+		it := CoverageItem{Step: "library", Reason: "not_covered", Path: f.path,
+			Title: fmt.Sprintf("%s (%d)", f.titleName, f.year)}
+		if r, ok := reasons[f.path]; ok {
+			it.Step, it.Reason, it.Detail = r.Step, r.Reason, r.Detail
+		}
+		var dead []string
+		for _, k := range ks {
+			if k.alive || (vp.Kind == policy.KindSeries && !overlaps(k.episodes, uncovered)) {
+				continue
+			}
+			if r, ok := reasons[k.path]; ok && r.Step == "refresh" {
+				it.Step, it.Reason, it.Detail = r.Step, r.Reason, r.Detail
+			}
+			dead = append(dead, fmt.Sprintf("library link %s -> %s: %s", k.path, k.target, k.statErr))
+		}
+		if len(dead) > 0 {
+			it.Detail = strings.TrimPrefix(it.Detail+"; "+strings.Join(dead, "; "), "; ")
+		}
+		if vp.Kind == policy.KindSeries {
+			it.Episodes = uncovered
+		}
+		add(it)
+	}
+	rep.OwnFilesKept = len(kept)
+	return nil
 }

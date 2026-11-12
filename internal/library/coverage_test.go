@@ -204,3 +204,78 @@ func TestCoverageMountDownKeepsReport(t *testing.T) {
 		t.Fatalf("mount down %+v %v", rep, err)
 	}
 }
+
+// ownLink records an active link of the version (not adopted) at p to target, with its symlink.
+func (e *parallelEnv) ownLink(id, titleID, versionID int64, p, target string, episodes ...int64) {
+	e.t.Helper()
+	if err := os.MkdirAll(filepath.Dir(p), 0o755); err != nil {
+		e.t.Fatal(err)
+	}
+	if err := os.Symlink(target, p); err != nil {
+		e.t.Fatal(err)
+	}
+	e.exec(`INSERT INTO link (id, path, target, title_id, state, created_at, updated_at) VALUES (?, ?, ?, ?, 'active', 0, 0)`,
+		id, p, target, titleID)
+	e.exec(`INSERT INTO link_version (link_id, version_id) VALUES (?, ?)`, id, versionID)
+	for _, ep := range episodes {
+		e.exec(`INSERT INTO link_episode (link_id, episode_id) VALUES (?, ?)`, id, ep)
+	}
+}
+
+// TestCoverageFromTheLibrarysLinks: covered means the library has an active link whose target exists. Its own file
+// whose target is gone is not covered (listed with the stat error), though the followed library has a good file;
+// its own healthy file is covered and counted as kept, also where adopt would report the path taken or the arr's
+// file missing.
+func TestCoverageFromTheLibrarysLinks(t *testing.T) {
+	t.Parallel()
+	e := newParallelEnv(t, true)
+	e.release(movieRelease, map[string]float64{"movie.mkv": 7000})
+	e.arrFile(1, "radarr", 10, 1, filepath.Join(e.movies, "Amelie The Movie (2001)", "Amelie.mkv"), movieRelease+"/movie.mkv", "Remux-2160p")
+	gone := filepath.Join(e.mount, "__all__", "Gone.Release", "x.mkv")
+	e.ownLink(1, 1, 11, filepath.Join(e.theatarrMovies, "Amelie The Movie (2001)", "own.mkv"), gone)
+	rep, err := e.lib.Coverage(e.ctx, "movie-theatarr")
+	if err != nil || rep.Complete || len(rep.Items) != 1 || !strings.Contains(rep.Items[0].Detail, "no such file or directory") ||
+		!strings.Contains(rep.Items[0].Detail, gone) {
+		t.Fatalf("own file gone %+v %v", rep, err)
+	}
+
+	// A healthy own file at the path adopt would take, and one for a title whose arr file is missing: covered.
+	e2 := newParallelEnv(t, true)
+	e2.release(movieRelease, map[string]float64{"movie.mkv": 7000})
+	e2.arrFile(1, "radarr", 10, 1, filepath.Join(e2.movies, "Amelie The Movie (2001)", "Amelie.mkv"), movieRelease+"/movie.mkv", "Remux-2160p")
+	plan, err := e2.lib.Adopt(e2.ctx, AdoptOptions{Version: "movie-theatarr", DryRun: true})
+	if err != nil || len(plan.Links) != 1 {
+		t.Fatalf("plan %+v %v", plan, err)
+	}
+	e2.release("Own.Release", map[string]float64{"o.mkv": 7000})
+	own := filepath.Join(e2.mount, "__all__", "Own.Release", "o.mkv")
+	e2.ownLink(1, 1, 11, plan.Links[0].Path, own)
+	e2.exec(`INSERT INTO title (id, kind, name, year, tmdb_id, created_at, updated_at) VALUES (3, 'movie', 'Third', 2010, 3, 0, 0)`)
+	e2.exec(`INSERT INTO version (id, title_id, policy_key, created_at, updated_at) VALUES (30, 3, 'movie-remux', 0, 0)`)
+	e2.exec(`INSERT INTO version (id, title_id, policy_key, state, created_at, updated_at) VALUES (31, 3, 'movie-theatarr', 'wanted', 0, 0)`)
+	e2.exec(`INSERT INTO version_source (version_id, instance, arr_id) VALUES (30, 'radarr', 3)`)
+	e2.arrFile(3, "radarr", 30, 3, filepath.Join(e2.movies, "Third (2010)", "Third.mkv"), "", "WEBDL-1080p")
+	e2.ownLink(2, 3, 31, filepath.Join(e2.theatarrMovies, "Third (2010)", "own.mkv"), own)
+	if rep, err := e2.lib.Coverage(e2.ctx, "movie-theatarr"); err != nil || !rep.Complete || rep.OwnFilesKept != 2 {
+		t.Fatalf("healthy own files %+v %v", rep, err)
+	}
+}
+
+// TestCoverageSeriesTargetError: an own episode file whose target cannot be checked is not covered; the item carries
+// the error and the target.
+func TestCoverageSeriesTargetError(t *testing.T) {
+	t.Parallel()
+	e := newParallelEnv(t, true)
+	rel := "Show.S01.1080p.WEB-DL-GRP"
+	e.release(rel, map[string]float64{"Show.S01E01E02.mkv": 5400, "own.mkv": 2700})
+	e.arrFile(1, "sonarr", 20, 2, filepath.Join(e.shows, "Show (2020)", "Season 01", "Show.S01E01E02.mkv"),
+		rel+"/Show.S01E01E02.mkv", "WEBDL-1080p", 201, 202)
+	target := filepath.Join(e.mount, "__all__", rel, "own.mkv")
+	e.ownLink(1, 2, 21, filepath.Join(e.theatarrShows, "Show (2020)", "Season 01", "own.mkv"), target, 201, 202)
+	e.lib.mount.fs = permFS{path: target}
+	rep, err := e.lib.Coverage(e.ctx, "tv-theatarr")
+	if err != nil || rep.Complete || len(rep.Items) == 0 || !strings.Contains(rep.Items[0].Detail, "permission denied") ||
+		!strings.Contains(rep.Items[0].Detail, target) {
+		t.Fatalf("unreadable own episode file %+v %v", rep, err)
+	}
+}

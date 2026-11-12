@@ -52,10 +52,10 @@ const libraryUsage = `usage:
                                                  mode: active). theatarr serve runs it after every arr.import for the titles
                                                  whose arr files changed
   theatarr library coverage -library KEY [flags]  read-only: does a parallel library hold every title and file its followed
-                                                 library has (titles without it, links adopt would make, adopted links
-                                                 refresh would move). Complete only with nothing missing, to do or
-                                                 skipped; otherwise lists every item and exits 1. Opens the
-                                                 database read-only
+                                                 library has: covered is an active link of the library whose target
+                                                 exists. Otherwise lists every title or file not covered, with what
+                                                 adopt or refresh would do about it, and exits 1. Opens the database
+                                                 read-only
   theatarr library rename-preview -library KEY [flags]
                                                  read-only: every link of the library whose name would change under its
                                                  naming, link_id<TAB>existing<TAB>new. Opens the database read-only

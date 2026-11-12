@@ -338,17 +338,19 @@ never adopted. Add-time search intents for K are dropped at the next drain while
 to RSS or a manual search; Theatarr runs no catch-up search for it. `theatarr golive check -library K` shows whether it is due ("adopt and refresh", [stage 4](#4-the-go-live-check)).
 
 **Coverage** (`theatarr library coverage -library K`) checks, writing nothing, whether K holds every title and file
-F's arr has: the titles of F with no row for K, the links adopt would still make and the adopted links refresh would
-still move (not checked while K grabs: turn **Allow new downloads** off first). It says `coverage complete` only when
-none of these is left and adopt and refresh skip nothing, for any reason. Otherwise it lists every item, one per line
-(`step<TAB>reason<TAB>path or title<TAB>detail`): the step (`titles`, `adopt` or `refresh`), the reason code, and the
-underlying error where there was one, so a file that is absent can be told from one that could not be read; uncovered
-episodes of a pack K's own files cover only in part are listed by id. A step that cannot run (the mount does not
-answer) is listed as `not_checked` with the reason, after what was found before it. A count per reason follows, then
-`coverage NOT complete`, and the command exits 1. Titles where K keeps a file of its own are covered: they are counted
-on the `own files kept: N` line and are not items. Read the list and decide what each item needs; adopt and refresh
-fix what they can, and never replace a file K imported itself. `-json` gives the same report. The command opens the
-database read-only (no migration, no change to the file or its mode): run it with the binary `theatarr serve` runs.
+F's arr has. A movie, or an episode, of F's arr files is covered when K has an active link for it whose target exists,
+whether K imported it or adopted it. The check says `coverage complete` only when every one is covered and no title
+of F lacks K. Otherwise it lists every item, one per line (`step<TAB>reason<TAB>path or title<TAB>detail`): a title
+of F without K, or an arr file of F with something not covered, with the uncovered episodes by id. The reason is what
+adopt or refresh would do about it (`to_link`, `to_move`, or the reason they skip it, from the step named) or
+`not_covered`; the detail carries the underlying error, so a file that is absent can be told from one that could not be
+read, and names K's links for it whose target is not there, with the stat error. Refresh is not checked while K grabs
+(turn **Allow new downloads** off first); that, and a step that cannot run (the mount does not answer), is listed as
+`not_checked` with the reason, after what was found before it. A count per reason follows, then `coverage NOT
+complete`, and the command exits 1. K's own files that cover F's titles are counted on the `own files kept: N` line.
+Read the list and decide what each item needs; adopt and refresh fix what they can, and never replace a file K
+imported itself. `-json` gives the same report. The command opens the database read-only (no migration, no change to
+the file or its mode): run it with the binary `theatarr serve` runs.
 
 Scan each of K's Plex sections once after its first adopt.
 
