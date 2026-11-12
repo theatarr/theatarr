@@ -1546,10 +1546,10 @@ that cap, and the final `gave_up` carries `retry_limit`. Recorded replacements r
 pending offers as `declined` with reason `superseded`; every accepted offer still passes the existing router,
 mode, version-indexer, blocklist and library gates.
 
-For an adopted link, what the arr history gives (hash, release and the arr's indexer names) is read once and kept on
+For an adopted link, what the arr history gives (hash, release and the arr's indexer names, with the library the arr filled) is read once and kept on
 the link (`link.adopted_source`, with the `adopted_from` it was read for); a real sweep stores it, a dry run does not.
 From then on the sweep uses the stored value instead of the mount folder and the history, resolving the names with
-`IndexerByName` as before, so an adopted file keeps qualifying for offers after the arr history tables are gone. A
+`IndexerByName` as before and keeping the arr's library and its followers out of the offer once the arr instance is gone, so an adopted file keeps qualifying for offers after the arr history tables are gone. A
 refresh to another arr file (a different `adopted_from`) reads the history again, and adoption clears the stored
 value when it records a changed file at the same path. A history row that arrives after a link's source was stored
 is not read again.

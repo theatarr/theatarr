@@ -22,6 +22,9 @@ type adoptedSource struct {
 	Hash     string   `json:"hash"`
 	Release  string   `json:"release"`
 	Indexers []string `json:"indexers"` // the arr's indexer names as read, "" for a grab without one
+	// Version is the library the owning arr filled when this was read: its followers get no offer of the file, also
+	// after the library stops following and the arr instance is gone.
+	Version string `json:"version,omitempty"`
 }
 
 // adoptedRecord is an adopted link's source to store (offer sweep, not a dry run).
@@ -127,6 +130,9 @@ func (o *Offerer) fileSources(ctx context.Context) ([]offerSource, []adoptedReco
 				f.release = stored.Release
 			}
 			f.indexer = o.indexerOf(stored.Indexers)
+			if f.arrVersion == "" {
+				f.arrVersion = stored.Version // the arr instance can no longer be looked up
+			}
 			out = append(out, f.offerSource)
 			continue
 		}
@@ -153,7 +159,8 @@ func (o *Offerer) fileSources(ctx context.Context) ([]offerSource, []adoptedReco
 			if names == nil {
 				names = []string{}
 			}
-			raw, err := json.Marshal(adoptedSource{From: adoptedFrom, Hash: f.hash, Release: f.release, Indexers: names})
+			raw, err := json.Marshal(adoptedSource{From: adoptedFrom, Hash: f.hash, Release: f.release, Indexers: names,
+				Version: f.arrVersion})
 			if err != nil {
 				return nil, nil, err
 			}

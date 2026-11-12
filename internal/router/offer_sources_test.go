@@ -572,7 +572,7 @@ func TestOfferAdoptedSourceStored(t *testing.T) {
 	if sr, err := e.off.Sweep(e.ctx, false, 0); err != nil || sr.Outcomes[OfferPlanned] != 1 {
 		t.Fatalf("sweep: %+v, %v", sr, err)
 	}
-	want := `{"from":"radarr /arr/Movie.mkv","hash":"` + hash + `","release":"Movie.2001.2160p.WEB-DL-GRP","indexers":["dmm"]}`
+	want := `{"from":"radarr /arr/Movie.mkv","hash":"` + hash + `","release":"Movie.2001.2160p.WEB-DL-GRP","indexers":["dmm"],"version":"movie-remux"}`
 	var stored string
 	if err := e.st.Reader().QueryRow(`SELECT adopted_source FROM link WHERE id = 1`).Scan(&stored); err != nil || stored != want {
 		t.Fatalf("stored %s, %v", stored, err)
@@ -623,5 +623,33 @@ func TestOfferAdoptedSourceDryRunWritesNothing(t *testing.T) {
 	var n int
 	if err := e.st.Reader().QueryRow(`SELECT COUNT(*) FROM link WHERE adopted_source IS NOT NULL`).Scan(&n); err != nil || n != 0 {
 		t.Fatalf("stored %d, %v", n, err)
+	}
+}
+
+// TestOfferAdoptedSourceAfterFollowingEnds: after the cutover the adopted library stops following and the arr instance
+// is gone; the stored source still names the arr's library, so neither it nor another library following it is offered
+// the file.
+func TestOfferAdoptedSourceAfterFollowingEnds(t *testing.T) {
+	t.Parallel()
+	e, _ := adoptedHistoryEnv(t, strings.Repeat("e", 40))
+	e.off.Policy.Versions["movie-follow"] = &policy.VersionPolicy{Kind: policy.KindMovie, Follows: "movie-remux"}
+	e.exec(`INSERT INTO version (id, title_id, policy_key, created_at, updated_at) VALUES (14, 1, 'movie-follow', 0, 0)`)
+	if _, err := e.off.Sweep(e.ctx, false, 0); err != nil {
+		t.Fatal(err)
+	}
+	e.off.Policy.Versions["movie-web"].Follows = ""
+	e.exec(`DELETE FROM arr_history`)
+	e.exec(`DELETE FROM arr_instance`)
+	e.exec(`DELETE FROM router_offer`)
+	sr, err := e.off.Sweep(e.ctx, true, 0)
+	if err != nil {
+		t.Fatal(err)
+	}
+	offered := map[string]bool{}
+	for _, r := range sr.Offers {
+		offered[r.Version] = true
+	}
+	if offered["movie-follow"] || offered["movie-remux"] || !offered["movie-extra"] {
+		t.Fatalf("offers %+v", sr.Offers)
 	}
 }
