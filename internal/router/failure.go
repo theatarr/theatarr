@@ -91,7 +91,9 @@ func (r *Router) expireReady(ctx context.Context, now time.Time) (int, error) {
 		// The mount check lists the release root (Library.MountListed): only while a download is ready, or an outage
 		// is open (to see it end).
 		var ready int
-		if err := r.st.Reader().QueryRowContext(ctx, `SELECT COUNT(*) FROM download WHERE state = 'ready'`).
+		if err := r.st.Reader().QueryRowContext(ctx, `SELECT COUNT(*) FROM download WHERE state = 'ready' OR (state = 'importing'
+			AND EXISTS (SELECT 1 FROM library_import li WHERE li.download_id = download.id AND li.state = 'waiting_mount'
+			AND li.last_error LIKE 'mount mismatch: %'))`).
 			Scan(&ready); err != nil {
 			return 0, err
 		}
@@ -115,7 +117,9 @@ func (r *Router) expireReady(ctx context.Context, now time.Time) (int, error) {
 	err := r.st.WriteTx(ctx, func(tx *sql.Tx) error {
 		rows, err := tx.QueryContext(ctx, `SELECT id, COALESCE(provider, ''), COALESCE(ready_at, added_at, created_at),
 			COALESCE((SELECT li.last_error FROM library_import li WHERE li.download_id = download.id AND li.state = 'waiting_mount'), '')
-			FROM download WHERE state = 'ready' AND COALESCE(ready_at, added_at, created_at) <= ?
+			FROM download WHERE (state = 'ready' OR (state = 'importing' AND EXISTS (SELECT 1 FROM library_import li
+				WHERE li.download_id = download.id AND li.state = 'waiting_mount' AND li.last_error LIKE 'mount mismatch: %')))
+			AND COALESCE(ready_at, added_at, created_at) <= ?
 			AND NOT EXISTS (SELECT 1 FROM library_import li WHERE li.download_id = download.id AND li.state IN ('rejected', 'dry_run'))
 			AND NOT EXISTS (SELECT 1 FROM library_import li WHERE li.download_id = download.id AND li.state = 'waiting_mount' AND li.last_error LIKE 'episode title hold: %')
 			AND NOT EXISTS (SELECT 1 FROM library_claim c WHERE c.download_id = download.id AND c.until > ?)

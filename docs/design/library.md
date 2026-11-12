@@ -235,10 +235,10 @@ mount never lengthen that back-off (`TestPartialAfterWaitsStartsBackoffAgain`).
    the import waits with `mount mismatch: …` (Activity: "Waiting for the mount to show this download's files"). It is
    planned again after the partial-import back-off (10 min, doubling to 6 h; the count starts at 1 on entering the
    wait), or at once by Retry; each re-check plans afresh, so a confirmed file imports even while another stays
-   unconfirmed. A pass that cannot see the folder, finds no video file in it, or cannot read a file keeps the wait and
-   its reason. At the ready deadline it fails **without** blocklist or re-search: the disagreement is no verdict on the
+   unconfirmed. A pass that cannot see the folder, finds no video file in it, or cannot list or read a file keeps the
+   wait and its reason (an unread file is never linked). At the ready deadline it fails **without** blocklist or re-search: the disagreement is no verdict on the
    release. Holds an earlier build wrote for the same two causes (`zurg does not confirm …`, `decypharr's folder …`)
-   become such waits on the first pass after the upgrade, keeping their original ready deadline, so an old unresolved
+   become such waits at their first re-check after the upgrade, keeping their original ready deadline, so an old unresolved
    one may fail (unblocklisted) soon after (`TestZurgMismatchWaitClears`, `TestZurgMismatchMixedPack`,
    `TestZurgMismatchBackoffStartsAfresh`, `TestZurgMismatchRetryAtOnce`, `TestZurgMismatchInconclusiveKeepsReason`,
    `TestLegacyMismatchHoldBecomesWait`).

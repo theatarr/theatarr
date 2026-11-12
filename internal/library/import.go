@@ -275,6 +275,12 @@ func (l *Library) importDownload(ctx context.Context, d *importDownload, dryRun 
 			}
 		}()
 	}
+	recheck := false // the import waits on a mount mismatch: a pass that cannot see or read the files keeps it
+	if !dryRun {
+		if recheck, err = l.mismatchRecheck(ctx, d); err != nil {
+			return nil, err
+		}
+	}
 	if err := l.gate.CheckVersion(v.Key); err != nil {
 		// A root that does not answer is a pause, like the mount (ErrRootDown): planning reads under the root
 		// (the links already there), unbounded, so nothing is planned or recorded; the import is retried.
@@ -469,6 +475,9 @@ func (l *Library) importDownload(ctx context.Context, d *importDownload, dryRun 
 	}
 	plan.Folder = folder
 	files, err := l.mount.VideoFiles(ctx, folder)
+	if recheck && fsError(err) {
+		return l.waitInconclusive(ctx, d, plan, err)
+	}
 	if err != nil {
 		return nil, err
 	}
@@ -477,6 +486,9 @@ func (l *Library) importDownload(ctx context.Context, d *importDownload, dryRun 
 		// Sonarr v5 (DownloadedEpisodesImportService.CheckEmptyResultForIssue): with nothing to import, a
 		// potentially dangerous or executable file is the reason, and the download fails (FailDownloads default).
 		all, err := l.mount.AllFiles(ctx, folder)
+		if recheck && fsError(err) {
+			return l.waitInconclusive(ctx, d, plan, err)
+		}
 		if err != nil {
 			return nil, err
 		}
@@ -490,7 +502,7 @@ func (l *Library) importDownload(ctx context.Context, d *importDownload, dryRun 
 		if len(d.Manual) > 0 || at.Rel != "" {
 			return l.holdForReview(ctx, d, plan, dryRun, "none of the selected files is a video file in "+folder)
 		}
-		if !dryRun && l.waitingMismatch(ctx, id) {
+		if recheck {
 			// An empty listing says nothing about the disagreement: the mismatch wait stays (markWaitingWithError).
 			plan.Waiting = true
 			return plan, l.markWaiting(ctx, d)
@@ -549,6 +561,9 @@ func (l *Library) importDownload(ctx context.Context, d *importDownload, dryRun 
 		res, perr := l.mount.ProbeFile(ctx, f.Path, l.set.ProbeMaxBytes, l.probe)
 		if errors.Is(perr, ErrMountDown) || (perr != nil && ctx.Err() != nil) {
 			return nil, perr // the mount did not answer: no verdict on the file
+		}
+		if recheck && fsError(perr) {
+			return l.waitInconclusive(ctx, d, plan, perr) // never linked unread
 		}
 		if perr != nil {
 			pf.Reason = "probe: " + perr.Error()
@@ -817,12 +832,42 @@ func (l *Library) waitMismatch(ctx context.Context, d *importDownload, plan *Pla
 	return plan, l.markWaitingWithError(ctx, d, router.ImportMismatchPrefix+reason)
 }
 
-// waitingMismatch reports whether the import waits because the mount and zurg or decypharr disagree.
-func (l *Library) waitingMismatch(ctx context.Context, id int64) bool {
+// mismatchRecheck reports whether the import waits because the mount and zurg or decypharr disagree. A hold an
+// earlier build wrote for that (legacyMismatch) is made such a wait first, under the claim: its reason kept, its
+// count started afresh, its ready deadline unchanged.
+func (l *Library) mismatchRecheck(ctx context.Context, d *importDownload) (bool, error) {
 	var st, lastErr string
 	_ = l.st.Reader().QueryRowContext(ctx, `SELECT state, COALESCE(last_error, '') FROM library_import
-		WHERE download_id = ?`, id).Scan(&st, &lastErr)
-	return st == "waiting_mount" && strings.HasPrefix(lastErr, router.ImportMismatchPrefix)
+		WHERE download_id = ?`, d.ID).Scan(&st, &lastErr)
+	switch {
+	case st == "waiting_mount" && strings.HasPrefix(lastErr, router.ImportMismatchPrefix):
+		return true, nil
+	case st != "rejected" || !legacyMismatch(lastErr):
+		return false, nil
+	}
+	now := store.Millis(l.now())
+	return true, l.st.WriteTx(ctx, func(tx *sql.Tx) error {
+		if err := holdsClaim(ctx, tx, d); err != nil {
+			return err
+		}
+		_, err := tx.ExecContext(ctx, `UPDATE library_import SET state = 'waiting_mount', last_error = ?, attempts = 0,
+			waiting_since = COALESCE(waiting_since, ?), updated_at = ? WHERE download_id = ? AND state = 'rejected'`,
+			router.ImportMismatchPrefix+lastErr, now, now, d.ID)
+		return err
+	})
+}
+
+// fsError reports a filesystem error other than the mount not answering (ErrMountDown, handled for every import).
+func fsError(err error) bool {
+	var pe *fs.PathError
+	return errors.As(err, &pe) && !errors.Is(err, ErrMountDown)
+}
+
+// waitInconclusive keeps a mismatch wait and its reason when a re-check cannot list or read the files; the back-off
+// advances.
+func (l *Library) waitInconclusive(ctx context.Context, d *importDownload, plan *Plan, err error) (*Plan, error) {
+	plan.Waiting = true
+	return plan, l.markWaitingWithError(ctx, d, UnreadablePrefix+err.Error())
 }
 
 // legacyMismatch reports a hold an earlier build wrote where the import now waits (waitMismatch): the periodic pass

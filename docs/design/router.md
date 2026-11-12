@@ -676,7 +676,8 @@ with that provider (`TestPollLeavesUnavailableProvidersUnpolled`). A held import
 (`library_import` `rejected`), for its episode title, or recorded as a `dry_run` (the library gate refuses the
 version); a later pass imports it once that changes (`TestDryRunImportNeverExpires`). A download waiting because the
 mount and zurg or decypharr disagree about its files (`mount mismatch: …`) fails at the deadline without blocklist and
-without a re-search: the disagreement is no verdict on the release (`TestReadyDeadlineMismatchNotBlocklisted`).
+without a re-search: the disagreement is no verdict on the release; this applies too when an earlier partial import
+left the download `importing` (`TestReadyDeadlineMismatchNotBlocklisted`, `TestReadyDeadlineMismatchAfterPartial`).
 
 Expiry checks the state and library claim in one transaction: live import claims defer it, and `importing` or
 `imported` downloads are left alone. Expired claims are invalidated, and an existing `waiting_mount` import records

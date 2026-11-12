@@ -1276,3 +1276,24 @@ func TestZurgAPIInheritsStateAcrossGenerations(t *testing.T) {
 	var none *ZurgAPI
 	none.inherit(prev) // no zurg API configured: a no-op
 }
+
+// TestZurgMismatchUnreadableNotLinked: a re-check whose file cannot be opened (EACCES) keeps the mismatch wait and
+// its reason, advances the back-off, and links nothing.
+func TestZurgMismatchUnreadableNotLinked(t *testing.T) {
+	t.Parallel()
+	e, srv := mismatchEnv(t)
+	e.run()
+	waiting := e.one(`SELECT last_error FROM library_import WHERE download_id = 1`)
+	srv.entries[davPath(movieRelease, "movie.mkv")] = ZurgEntry{Hash: hashA, Size: 5}
+	e.lib.probe = func(p string, _ int64) (*probe.Result, error) {
+		return nil, &os.PathError{Op: "open", Path: p, Err: syscall.EACCES}
+	}
+	e.now = e.now.Add(11 * time.Minute)
+	e.run()
+	if s := e.importState(); s != "waiting_mount 2 "+waiting {
+		t.Errorf("after an unreadable re-check: %s", s)
+	}
+	if s := e.one(`SELECT state FROM download WHERE id = 1`) + " " + e.one(`SELECT COUNT(*) FROM link`); s != "ready 0" {
+		t.Errorf("download and links: %s", s)
+	}
+}

@@ -315,3 +315,25 @@ func TestFailureAndBlocklistAtomic(t *testing.T) {
 		})
 	}
 }
+
+// TestReadyDeadlineMismatchAfterPartial: a download left importing by a partial import whose next pass waits on a
+// mount mismatch still meets its deadline, failed without blocklist.
+func TestReadyDeadlineMismatchAfterPartial(t *testing.T) {
+	t.Parallel()
+	e := newEnv(t, true, policy.ModeActive)
+	withQueue(e)
+	start := e.clock
+	e.exec(`INSERT INTO download (id, title_id, version_id, version_key, info_hash, release_title, indexer,
+		state, ready_at, created_at, updated_at) VALUES (5, 1, 10, 'movie', ?, 'Movie', 'pub', 'importing', ?, ?, ?)`,
+		h("a"), store.Millis(start), store.Millis(start), store.Millis(start))
+	e.exec(`INSERT INTO library_import (download_id, state, waiting_since, last_error, created_at, updated_at)
+		VALUES (5, 'waiting_mount', ?, ?, ?, ?)`, store.Millis(start), ImportMismatchPrefix+"zurg does not confirm (x)",
+		store.Millis(start), store.Millis(start))
+	e.clock = start.Add(e.r.set.ReadyTimeout)
+	if sum, err := e.r.Poll(e.ctx); err != nil || sum.Failed != 1 || sum.Researched != 0 {
+		t.Fatalf("deadline: %+v, %v", sum, err)
+	}
+	if n := e.count(`SELECT COUNT(*) FROM router_blocklist`); n != 0 {
+		t.Errorf("blocklisted (%d rows)", n)
+	}
+}
