@@ -1,0 +1,4 @@
+{"name": "WEB Tier 01", "specifications": [
+  {"name": "FLUX", "implementation": "ReleaseGroupSpecification", "negate": false, "required": false, "fields": {"value": "^(FLUX|NTb)$"}},
+  {"name": "WEBDL", "implementation": "SourceSpecification", "negate": false, "required": false, "fields": {"value": 7}},
+  {"name": "WEBRIP", "implementation": "SourceSpecification", "negate": false, "required": false, "fields": {"value": 8}}]}

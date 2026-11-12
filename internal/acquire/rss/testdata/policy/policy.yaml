@@ -1,0 +1,115 @@
+# Test policy for the RSS sync: two Live movie versions and a Live series version, a Prowlarr feed and DMM (RSS on its
+# rd feed), on .test hosts served by the test network. Downloads are not paused (router.enabled).
+formats:
+  Remux Tier 01: {file: formats/remux-t1.json, flavour: radarr}
+  WEB Tier 01:   {file: formats/web-t1.json, flavour: radarr}
+  LQ:            {file: formats/lq.json, flavour: radarr}
+profiles:
+  remux-2160p:
+    qualities:
+      - Remux-2160p
+      - group: WEB 2160p
+        qualities: [WEBDL-2160p, WEBRip-2160p]
+    cutoff: Remux-2160p
+    min_score: 0
+    cutoff_score: 3000
+    formats:
+      Remux Tier 01: 1950
+      WEB Tier 01: 1700
+      LQ: -10000
+  web-2160p:
+    qualities:
+      - group: WEB 2160p
+        qualities: [WEBDL-2160p, WEBRip-2160p]
+    cutoff: WEB 2160p
+    min_score: 0
+    cutoff_score: 3000
+    formats:
+      WEB Tier 01: 1700
+      LQ: -10000
+  tv-2160p:
+    qualities:
+      - group: WEB 2160p
+        qualities: [WEBDL-2160p, WEBRip-2160p]
+    cutoff: WEB 2160p
+indexers:
+  prowlarr:
+    kind: torznab
+    url: http://prowlarr.test/1/api
+    api_key_env: THEATARR_TEST_PROWLARR_KEY
+    privacy: public
+    budget: prowlarr
+  dmm:
+    kind: dmm
+    url: http://dmm.test/api/torznab/rd/cached
+    api_key_env: THEATARR_TEST_DMM_KEY
+    privacy: public
+    budget: dmm-key
+    page_cap: 20
+  dmm-tb: # listed by no version here; TestRSSReadsDMMNewlyCached adds it to movie-remux
+    kind: dmm
+    url: http://dmm.test/api/torznab/tb/cached
+    api_key_env: THEATARR_TEST_DMM_KEY
+    privacy: public
+    budget: dmm-key
+  dmm-rdad: # listed by no version here; TestRSSReadsDMMListsPerProvider adds it to movie-remux
+    kind: dmm
+    url: http://dmm.test/api/torznab/tb/rd/ad/cached
+    api_key_env: THEATARR_TEST_DMM_KEY
+    privacy: public
+    budget: dmm-key
+  seadex: # listed by no version here; TestRunnerSeaDexRSS adds it to tv
+    kind: seadex
+    url: http://seadex.test
+    privacy: public
+    budget: seadex
+budgets:
+  seadex: {requests: 600, per: 1m, burst: 100}
+  prowlarr: {requests: 600, per: 1m, burst: 100}
+  dmm-key:  {requests: 600, per: 1m, burst: 100}
+providers:
+  rd: {kind: realdebrid, order: 1, url: https://api.real-debrid.com/rest/1.0, api_key_env: THEATARR_RD_KEY}
+clients:
+  decypharr: {kind: decypharr, url: http://decypharr:8282, callback_view: radarr}
+views:
+  radarr: {flavour: radarr, path: /radarr, versions: [movie-remux, movie-web], api_key_env: THEATARR_TEST_VIEW_KEY}
+router:
+  enabled: true
+egress:
+  check_url: http://echo.test/
+  vpn_ips: [45.0.0.1]
+  interval: 1m
+  max_age: 3m
+  timeout: 5s
+  require_vpn_for: [indexers]
+versions:
+  movie-remux:
+    kind: movie
+    mode: active
+    anime: false
+    profile: remux-2160p
+    library: /media/movies
+    storage: debrid
+    indexers: [prowlarr, dmm]
+    providers: [rd]
+    client: decypharr
+  movie-web:
+    kind: movie
+    mode: active
+    anime: false
+    profile: web-2160p
+    library: /media/movies-web
+    storage: debrid
+    indexers: [prowlarr]
+    providers: [rd]
+    client: decypharr
+  tv:
+    kind: series
+    mode: active
+    anime: false
+    profile: tv-2160p
+    library: /media/shows
+    storage: debrid
+    indexers: [prowlarr]
+    providers: [rd]
+    client: decypharr

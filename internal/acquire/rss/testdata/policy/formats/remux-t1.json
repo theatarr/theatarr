@@ -1,0 +1,3 @@
+{"name": "Remux Tier 01", "specifications": [
+  {"name": "FraMeSToR", "implementation": "ReleaseGroupSpecification", "negate": false, "required": false, "fields": {"value": "^(FraMeSToR)$"}},
+  {"name": "Remux", "implementation": "QualityModifierSpecification", "negate": false, "required": true, "fields": {"value": 5}}]}
