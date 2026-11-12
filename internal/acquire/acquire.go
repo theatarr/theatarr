@@ -26,7 +26,6 @@ import (
 	"github.com/theatarr/theatarr/internal/availability"
 	"github.com/theatarr/theatarr/internal/decide"
 	"github.com/theatarr/theatarr/internal/decide/format"
-	dshadow "github.com/theatarr/theatarr/internal/decide/shadow"
 	"github.com/theatarr/theatarr/internal/gateway"
 	"github.com/theatarr/theatarr/internal/importarr"
 	"github.com/theatarr/theatarr/internal/indexer"
@@ -1710,7 +1709,7 @@ func seriesSearch(t *decide.Title, tg target) *decide.SeriesSearch {
 	if season {
 		rt = "SeasonPack"
 	}
-	ss := dshadow.SearchFor(t, tg.episodes, "Search", rt)
+	ss := decide.SearchFor(t, tg.episodes, "Search", rt)
 	if ss == nil {
 		ss = &decide.SeriesSearch{}
 	}

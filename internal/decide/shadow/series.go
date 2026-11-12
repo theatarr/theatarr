@@ -21,46 +21,15 @@ import (
 
 	"github.com/theatarr/theatarr/internal/decide"
 	"github.com/theatarr/theatarr/internal/decide/format"
-	"github.com/theatarr/theatarr/internal/decide/profile"
 	"github.com/theatarr/theatarr/internal/policy"
 )
-
-// SearchFor is the search for these episodes in TVDB numbering, the target's own identity: none for an RSS grab;
-// otherwise a season search when it took several episodes or a pack, else a single-episode search (anime and daily
-// kinds for those series). A search asks each source its own numbering and judges each answer with that query's
-// criteria (router.SearchRequests); ArrSearchFor is the arr's criteria for a replay.
-func SearchFor(t *decide.Title, episodes []int64, releaseSource, releaseType string) *decide.SeriesSearch {
-	if releaseSource == "Rss" || releaseSource == "ReleasePush" {
-		return nil
-	}
-	sc := &decide.SeriesSearch{Episodes: episodes, Interactive: releaseSource == "InteractiveSearch"}
-	if e := firstEpisode(t, episodes); e != nil {
-		sc.Season, sc.Episode = e.Season, e.Number
-	}
-	multi := len(episodes) > 1 || releaseType == "SeasonPack" || releaseType == "seasonPack"
-	switch {
-	case t.SeriesType == "anime" && multi:
-		sc.Kind = profile.SearchAnimeSeason
-	case t.SeriesType == "anime":
-		sc.Kind = profile.SearchAnimeEpisode
-	case t.SeriesType == "daily" && !multi:
-		sc.Kind = profile.SearchDaily
-	case t.SeriesType == "daily":
-		sc.Kind = profile.SearchDailySeason
-	case multi:
-		sc.Kind = profile.SearchSeason
-	default:
-		sc.Kind = profile.SearchSingleEpisode
-	}
-	return sc
-}
 
 // ArrSearchFor is the search criteria the arr had for a grab of these episodes: SearchFor in the arr's numbering, the
 // first episode's scene season and episode for a scene-numbered series (what SearchSingle, SeasonSearch and
 // SearchAnime ask under the series' own title). The arr's own criteria are not in history; these accept what the
 // arr's would.
 func ArrSearchFor(t *decide.Title, episodes []int64, releaseSource, releaseType string) *decide.SeriesSearch {
-	sc := SearchFor(t, episodes, releaseSource, releaseType)
+	sc := decide.SearchFor(t, episodes, releaseSource, releaseType)
 	if sc == nil || !t.UseSceneNumbering {
 		return sc
 	}

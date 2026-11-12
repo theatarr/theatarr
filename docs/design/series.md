@@ -268,7 +268,7 @@ with no episodes loaded, keeps the plain query everywhere. Search ceiling covera
 season search by id whose scene season is the TVDB season can prove absence.
 
 **Judging the answers.** The target's search (`SearchTarget.Series`, built by
-`shadow.SearchFor`) is in TVDB numbering: the episodes wanted by their own season and number. Each query carries its
+`decide.SearchFor`) is in TVDB numbering: the episodes wanted by their own season and number. Each query carries its
 own decision criteria, as each of Sonarr's `SearchCriteriaBase` is dispatched and its reports decided against it
 (`ReleaseSearchService.Dispatch`, `GetSearchDecision`):
 

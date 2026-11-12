@@ -23,12 +23,12 @@ func TestSearchForNumbering(t *testing.T) {
 			t.Errorf("%s: %+v, want %s s%d e%d", name, got, kind, season, episode)
 		}
 	}
-	check("episode", SearchFor(tt, []int64{3}, "Search", ""), profile.SearchSingleEpisode, 1, 3)
+	check("episode", decide.SearchFor(tt, []int64{3}, "Search", ""), profile.SearchSingleEpisode, 1, 3)
 	check("arr episode", ArrSearchFor(tt, []int64{3}, "Search", ""), profile.SearchSingleEpisode, 2, 5)
-	check("season", SearchFor(tt, []int64{3, 4}, "Search", "SeasonPack"), profile.SearchSeason, 1, 3)
+	check("season", decide.SearchFor(tt, []int64{3, 4}, "Search", "SeasonPack"), profile.SearchSeason, 1, 3)
 	check("arr season", ArrSearchFor(tt, []int64{3, 4}, "Search", "SeasonPack"), profile.SearchSeason, 2, 5)
 	check("unmapped episode", ArrSearchFor(tt, []int64{1}, "Search", ""), profile.SearchSingleEpisode, 1, 1)
-	if SearchFor(tt, []int64{3}, "Rss", "") != nil || ArrSearchFor(tt, []int64{3}, "Rss", "") != nil {
+	if decide.SearchFor(tt, []int64{3}, "Rss", "") != nil || ArrSearchFor(tt, []int64{3}, "Rss", "") != nil {
 		t.Error("an RSS grab has no search criteria")
 	}
 	off := *tt
@@ -36,5 +36,5 @@ func TestSearchForNumbering(t *testing.T) {
 	check("scene numbering off", ArrSearchFor(&off, []int64{3}, "Search", ""), profile.SearchSingleEpisode, 1, 3)
 	daily := &decide.Title{SeriesType: "daily", Episodes: []decide.Episode{{ID: 1, Season: 2024, Number: 1},
 		{ID: 2, Season: 2024, Number: 2}}}
-	check("daily season", SearchFor(daily, []int64{1, 2}, "Search", ""), profile.SearchDailySeason, 2024, 1)
+	check("daily season", decide.SearchFor(daily, []int64{1, 2}, "Search", ""), profile.SearchDailySeason, 2024, 1)
 }

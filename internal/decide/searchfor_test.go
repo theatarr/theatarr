@@ -1,0 +1,30 @@
+package decide
+
+import (
+	"testing"
+
+	"github.com/theatarr/theatarr/internal/decide/profile"
+)
+
+// SearchFor keeps the target in TVDB numbering: a single episode, a season, a daily season; an RSS grab has none.
+func TestSearchFor(t *testing.T) {
+	tt := &Title{SeriesType: "standard", UseSceneNumbering: true, Episodes: []Episode{
+		{ID: 1, Season: 1, Number: 1},
+		{ID: 3, Season: 1, Number: 3, SceneSeason: ip(2), SceneNumber: ip(5)},
+		{ID: 4, Season: 1, Number: 4, SceneSeason: ip(2), SceneNumber: ip(6)},
+	}}
+	check := func(name string, got *SeriesSearch, kind profile.SearchKind, season, episode int) {
+		t.Helper()
+		if got == nil || got.Kind != kind || got.Season != season || got.Episode != episode {
+			t.Errorf("%s: %+v, want %s s%d e%d", name, got, kind, season, episode)
+		}
+	}
+	check("episode", SearchFor(tt, []int64{3}, "Search", ""), profile.SearchSingleEpisode, 1, 3)
+	check("season", SearchFor(tt, []int64{3, 4}, "Search", "SeasonPack"), profile.SearchSeason, 1, 3)
+	if SearchFor(tt, []int64{3}, "Rss", "") != nil {
+		t.Error("an RSS grab has no search criteria")
+	}
+	daily := &Title{SeriesType: "daily", Episodes: []Episode{{ID: 1, Season: 2024, Number: 1},
+		{ID: 2, Season: 2024, Number: 2}}}
+	check("daily season", SearchFor(daily, []int64{1, 2}, "Search", ""), profile.SearchDailySeason, 2024, 1)
+}
