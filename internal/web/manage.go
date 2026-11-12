@@ -18,6 +18,7 @@ import (
 	"github.com/theatarr/theatarr/internal/catalog"
 	"github.com/theatarr/theatarr/internal/journal"
 	"github.com/theatarr/theatarr/internal/journal/snapshot"
+	"github.com/theatarr/theatarr/internal/library/probe"
 	"github.com/theatarr/theatarr/internal/policy"
 	"github.com/theatarr/theatarr/internal/store"
 )
@@ -194,6 +195,44 @@ func parseMedia(s string) *MediaInfo {
 	return m
 }
 
+// probeMedia is the media of Theatarr's own probe of a file (content_file.probe, stored at import), formatted as the
+// arrs format theirs (the formatter naming uses), so it reads like parseMedia's. nil when the probe gives nothing.
+func probeMedia(raw, scene string, sonarr bool) *MediaInfo {
+	var r probe.Result
+	if raw == "" || json.Unmarshal([]byte(raw), &r) != nil {
+		return nil
+	}
+	mi := r.Model().Format(scene, sonarr)
+	m := &MediaInfo{VideoCodec: mi.VideoCodec, VideoBitDepth: mi.VideoBitDepth, VideoDynamicRange: mi.VideoDynamicRangeType,
+		AudioCodec: mi.AudioCodec, AudioChannels: mi.AudioChannels, AudioLanguages: strings.Join(mi.AudioLanguages, "/"),
+		Subtitles: strings.Join(mi.Subtitles, "/")}
+	if m.VideoDynamicRange == "" {
+		m.VideoDynamicRange = mi.VideoDynamicRange
+	}
+	if v := r.Video; v != nil && v.Width > 0 && v.Height > 0 {
+		m.Resolution = fmt.Sprintf("%dx%d", v.Width, v.Height)
+	}
+	if secs := int64(r.RunTimeSeconds); secs > 0 {
+		m.RunTime = fmt.Sprintf("%d:%02d:%02d", secs/3600, secs/60%60, secs%60)
+	}
+	if *m == (MediaInfo{}) {
+		return nil
+	}
+	return m
+}
+
+// linkMedia is the media of a link's file: Theatarr's own probe first, else, for an adopted link (no download), the
+// media info its arr had recorded (link.adopted_media).
+func linkMedia(probeRaw, adoptedMedia sql.NullString, adopted bool, scene string, sonarr bool) *MediaInfo {
+	if m := probeMedia(probeRaw.String, scene, sonarr); m != nil {
+		return m
+	}
+	if adopted {
+		return parseMedia(adoptedMedia.String)
+	}
+	return nil
+}
+
 // enrichManage adds the title page's upgrade explanation and controls to each version, and the media of a movie
 // version's single current file. Redaction for callers without "see files" happens in redactVersion.
 func (w *Web) enrichManage(ctx context.Context, db *sql.DB, d *TitleDetail) error {
@@ -213,8 +252,23 @@ func (w *Web) enrichManage(ctx context.Context, db *sql.DB, d *TitleDetail) erro
 		v.Upgrade = s.explain(vs[i], 0)
 		v.Control = w.control(v.Key, v.Source)
 		if c := v.Current; c != nil && c.Files == 1 && d.Kind == "movie" {
+			// The version's newest active link first; the arr's file only when the version has none.
+			var pr, am sql.NullString
+			var adopted bool
+			var scene string
+			err := db.QueryRowContext(ctx, `SELECT cf.probe, l.adopted_media, l.download_id IS NULL,
+				COALESCE(l.release_title, '') FROM link l JOIN link_version lv ON lv.link_id = l.id
+				LEFT JOIN content_file cf ON cf.id = l.content_file_id WHERE lv.version_id = ? AND l.state = 'active'
+				ORDER BY l.created_at DESC, l.id DESC LIMIT 1`, v.ID).Scan(&pr, &am, &adopted, &scene)
+			if err == nil {
+				c.Media = linkMedia(pr, am, adopted, scene, false)
+				continue
+			}
+			if !errors.Is(err, sql.ErrNoRows) {
+				return err
+			}
 			var mi string
-			err := db.QueryRowContext(ctx, `SELECT vf.media_info FROM version_file vf LEFT JOIN version_source vs
+			err = db.QueryRowContext(ctx, `SELECT vf.media_info FROM version_file vf LEFT JOIN version_source vs
 				ON vs.version_id = vf.version_id WHERE vf.version_id = ? AND `+curFile+` ORDER BY vf.added_at DESC LIMIT 1`,
 				v.ID).Scan(&mi)
 			if err != nil && !errors.Is(err, sql.ErrNoRows) {
@@ -889,14 +943,18 @@ func (w *Web) episodeFile(ctx context.Context, db *sql.DB, versionID, eid int64)
 	var f EpisodeFile
 	var linkID int64
 	var size, score sql.NullInt64
+	var pr, am sql.NullString
+	var adopted bool
 	err := db.QueryRowContext(ctx, `SELECT l.id, COALESCE(l.quality, ''), l.score, cf.size_bytes, COALESCE(l.release_title, ''),
-		l.path, l.created_at FROM link l JOIN link_version lv ON lv.link_id = l.id JOIN link_episode le ON le.link_id = l.id
+		l.path, l.created_at, cf.probe, l.adopted_media, l.download_id IS NULL FROM link l
+		JOIN link_version lv ON lv.link_id = l.id JOIN link_episode le ON le.link_id = l.id
 		LEFT JOIN content_file cf ON cf.id = l.content_file_id WHERE lv.version_id = ? AND le.episode_id = ?
 		AND l.state = 'active' ORDER BY l.created_at DESC LIMIT 1`, versionID, eid).Scan(&linkID, &f.Quality, &score, &size,
-		&f.ReleaseTitle, &f.Path, new(int64))
+		&f.ReleaseTitle, &f.Path, new(int64), &pr, &am, &adopted)
 	switch {
 	case err == nil:
 		f.LinkID, f.Score, f.SizeBytes, f.Instance = linkID, nullInt(score), nullInt(size), "theatarr"
+		f.Media = linkMedia(pr, am, adopted, f.ReleaseTitle, true)
 		if err := scanAll(ctx, db, `SELECT e.season, e.number FROM link_episode le JOIN episode e ON e.id = le.episode_id
 			WHERE le.link_id = ? ORDER BY e.season, e.number`, []any{linkID}, func(r *sql.Rows) error {
 			var s, n int64

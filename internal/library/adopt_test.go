@@ -85,6 +85,7 @@ func TestAdoptMovies(t *testing.T) {
 	e.release(movieRelease, map[string]float64{"movie.mkv": 7000})
 	arrLink := filepath.Join(e.movies, "Amelie The Movie (2001)", "Amelie.mkv")
 	e.arrFile(1, "radarr", 10, 1, arrLink, movieRelease+"/movie.mkv", "Remux-2160p")
+	e.exec(`UPDATE version_file SET media_info = '{"resolution":"3840x2160","subtitles":"English"}' WHERE id = 1`)
 	// Other titles of the arr: a dangling link, a regular file, a link off the mount, a WEB file.
 	for id, name := range map[int64]string{3: "Gone", 4: "Plain", 5: "Off", 6: "Alt"} {
 		e.exec(`INSERT INTO title (id, kind, name, year, tmdb_id, created_at, updated_at) VALUES (?, 'movie', ?, 2010, ?, 0, 0)`,
@@ -145,6 +146,10 @@ func TestAdoptMovies(t *testing.T) {
 	if got := e.one(`SELECT json_extract(file_metadata, '$.SceneName') || ' ' || json_extract(file_metadata, '$.Revision')
 		FROM link WHERE path = ?`, want); got != "movie 1" {
 		t.Errorf("file metadata %s", got)
+	}
+	// The arr's media info is kept on the link for the title page.
+	if got := e.one(`SELECT adopted_media FROM link WHERE path = ?`, want); got != `{"resolution":"3840x2160","subtitles":"English"}` {
+		t.Errorf("adopted media %s", got)
 	}
 	// decide sees the link as the parallel version's file; the followed version still has only the arr's.
 	if f, err := decide.LoadExisting(e.ctx, e.st.Reader(), 11); err != nil || f == nil || f.Quality != "Remux-2160p" ||

@@ -46,7 +46,7 @@ func TestDashboardOptionalVPN(t *testing.T) {
 			}
 			var status Status
 			get("/status", &status)
-			if status.Version != "test" || status.Counts["title"] != 3 || status.Schema["current"] != float64(116) {
+			if status.Version != "test" || status.Counts["title"] != 3 || status.Schema["current"] != float64(117) {
 				t.Fatalf("status: %+v", status)
 			}
 			var state GatewayState
