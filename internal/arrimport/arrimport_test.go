@@ -5,6 +5,9 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"net"
+	"net/http"
+	"net/http/httptest"
 	"net/url"
 	"os"
 	"path/filepath"
@@ -12,6 +15,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/theatarr/theatarr/internal/arr"
 	"github.com/theatarr/theatarr/internal/catalog"
 	"github.com/theatarr/theatarr/internal/decide"
 	"github.com/theatarr/theatarr/internal/importarr"
@@ -494,5 +498,39 @@ func TestRunFolderMapping(t *testing.T) {
 	}
 	if _, err := Run(e.ctx, e.deps(radarr), base, nil); !errors.As(err, &ref) {
 		t.Fatalf("unmapped instance folder equal to the library's: %v", err)
+	}
+}
+
+// TestCheckPlainWords: Check says in plain words that the address is not a URL, that the key was refused, and that
+// nothing answered, the last within a few seconds rather than after the client's retries.
+func TestCheckPlainWords(t *testing.T) {
+	d := Deps{Arr: func(u, k string) (importarr.Getter, error) { return arr.New(u, k, arr.Options{}) }}
+	_, err := Check(context.Background(), d, "radarr", "notaurl", "k")
+	var in *InputError
+	if !errors.As(err, &in) || in.Msg != "Enter the address as http://host:port." {
+		t.Fatalf("not a URL: %v", err)
+	}
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(http.StatusUnauthorized)
+	}))
+	defer srv.Close()
+	_, err = Check(context.Background(), d, "radarr", srv.URL, "wrong-key")
+	var ce *CheckError
+	if !errors.As(err, &ce) || !strings.HasPrefix(ce.Msg, "Radarr refused the API key") {
+		t.Fatalf("401: %v", err)
+	}
+	ln, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatal(err)
+	}
+	addr := ln.Addr().String()
+	ln.Close()
+	start := time.Now()
+	_, err = Check(context.Background(), d, "radarr", "http://"+addr, "k")
+	if !errors.As(err, &ce) || !strings.HasPrefix(ce.Msg, "Radarr did not answer at this address; check the address and port.") {
+		t.Fatalf("refused: %v", err)
+	}
+	if took := time.Since(start); took > checkStatusWait+2*time.Second {
+		t.Fatalf("refused took %v", took)
 	}
 }

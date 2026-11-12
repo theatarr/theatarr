@@ -2,11 +2,19 @@ package arrimport
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"path"
 	"sort"
 	"strings"
+	"time"
+
+	"github.com/theatarr/theatarr/internal/arr"
 )
+
+// checkStatusWait bounds Check's first request, so an address where nothing answers fails within seconds instead of
+// after the arr client's retries.
+const checkStatusWait = 5 * time.Second
 
 // CheckResult is what Check read from an instance: enough for the choices before a Preview.
 type CheckResult struct {
@@ -47,17 +55,21 @@ func Check(ctx context.Context, d Deps, flavour, url, key string) (*CheckResult,
 	}
 	g, err := d.Arr(url, key)
 	if err != nil {
+		if strings.Contains(err.Error(), "bad base URL") {
+			return nil, &InputError{Msg: "Enter the address as http://host:port."}
+		}
 		return nil, &InputError{Msg: scrub(err.Error(), key)}
 	}
 	app := appName(flavour)
-	unreachable := func(err error) error {
-		return &CheckError{Msg: fmt.Sprintf("%s did not answer: %s", app, scrub(err.Error(), key))}
-	}
+	unreachable := func(err error) error { return &CheckError{Msg: checkFailed(app, scrub(err.Error(), key), err)} }
 	var status struct {
 		AppName string `json:"appName"`
 		Version string `json:"version"`
 	}
-	if err := g.GetJSON(ctx, "system/status", nil, &status); err != nil {
+	sctx, cancel := context.WithTimeout(ctx, checkStatusWait)
+	err = g.GetJSON(sctx, "system/status", nil, &status)
+	cancel()
+	if err != nil {
 		return nil, unreachable(err)
 	}
 	if status.AppName != "" && status.AppName != app {
@@ -131,4 +143,19 @@ func Check(ctx context.Context, d Deps, flavour, url, key string) (*CheckResult,
 		res.RootFolders = append(res.RootFolders, cr)
 	}
 	return res, nil
+}
+
+// checkFailed is a failed Check request in plain words, with the technical cause after it.
+func checkFailed(app, msg string, err error) string {
+	var se *arr.StatusError
+	if errors.As(err, &se) && se.Status == 401 || strings.Contains(msg, "HTTP 401") {
+		return fmt.Sprintf("%s refused the API key; check the key under Settings › General in %s.", app, app)
+	}
+	detail := msg
+	if errors.Is(err, context.DeadlineExceeded) || strings.Contains(msg, "context deadline exceeded") {
+		detail = "no answer within a few seconds"
+	} else if i := strings.LastIndex(msg, ": "); i >= 0 {
+		detail = msg[i+2:]
+	}
+	return fmt.Sprintf("%s did not answer at this address; check the address and port. (%s)", app, detail)
 }

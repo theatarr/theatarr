@@ -195,7 +195,8 @@ func checkFolders(d Deps, key string, folders []string) error {
 			}
 			if under(r, f) || under(f, r) {
 				return &Refusal{Msg: fmt.Sprintf("The library's folder %s and the instance's folder %s overlap: the "+
-					"library's folder must be separate from the instance's folders.", r, f)}
+					"library's folder must be separate from the instance's folders. If Theatarr sees the instance's folder at "+
+					"another path, enter that path under Folders.", r, f)}
 			}
 		}
 	}

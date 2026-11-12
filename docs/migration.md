@@ -19,12 +19,14 @@ brings one instance into one library, once. Code: `internal/arrimport`; API unde
 2. **Library**: one library of the matching kind (a movie library for Radarr, a series library for Sonarr). It keeps
    its own quality profile and naming; the instance's are not copied. If you want the same names, paste the
    instance's naming formats into the library's naming editor. The library's folder must be separate from the
-   instance's folders (an overlap is refused).
+   instance's folders (an overlap is refused: if Theatarr sees the instance's folder at another path, enter it
+   under Folders).
 3. **Quality profiles**: the titles that use the ticked profiles come in (at least one). To send titles to different
    libraries, import once per library with its profiles ticked.
 4. **Folders**: Theatarr reads the instance's files to see where their links point. When it cannot read a root folder
    at the instance's path, give the path where Theatarr sees it (mount it into Theatarr's container if needed;
-   read-only is enough).
+   read-only is enough). A folder Theatarr can read can be mapped too, under "Theatarr sees the instance's folder
+   somewhere else", for example when Theatarr's own library uses the same path.
 5. **Preview** writes nothing and says what Import would add and how many files it can link. **Import** opens once a
    Preview of the same choices has finished.
 
@@ -47,8 +49,9 @@ What comes in:
 - A library that is Watch only, or without **Write library links**, can be previewed but not imported into.
 
 Running it again adds only titles that are new and links files that are still missing; it never changes a title
-already in the library or monitoring you set in Theatarr. After adding a TVDB key, running it again brings series'
-monitoring and files over. To keep adding titles that are added to the instance later, add it as a list under
+already in the library or monitoring you set in Theatarr, with one exception: a series whose episode list the run
+switches from TMDb to TVDB numbering takes Sonarr's season and episode monitoring. So after adding a TVDB key,
+running it again brings series' monitoring and files over. To keep adding titles that are added to the instance later, add it as a list under
 **Collections › Lists** ([arrview.md](design/arrview.md#lists)).
 
 If the instance keeps running and upgrades a file after the import, Theatarr's link to the old file stops working

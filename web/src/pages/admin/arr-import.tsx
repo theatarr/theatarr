@@ -47,18 +47,21 @@ export function ArrImportPage() {
   const [profiles, setProfiles] = useState<number[]>([]);
   const [paths, setPaths] = useState<Record<string, string>>({});
   const [startError, setStartError] = useState<unknown>();
+  const [urlError, setUrlError] = useState<string>();
   const [starting, setStarting] = useState(false);
 
   const kind = flavour === "sonarr" ? "series" : "movie";
   const app = appOf(flavour);
   const options = (versions.data?.versions ?? []).filter((v) => v.config.kind === kind);
-  const chosen = options.some((v) => v.key === library) ? library : options[0]?.key ?? "";
+  // No default among several libraries: the user picks one (a plain instance must not land in the anime library).
+  const chosen = options.length === 1 ? options[0].key : options.some((v) => v.key === library) ? library : "";
   const run = runQuery.data?.run ?? undefined;
   const running = run?.state === "running";
 
   function reset() { setChecked(undefined); setProfiles([]); setPaths({}); check.reset(); }
   function runCheck() {
     setStartError(undefined);
+    if (!/^https?:\/\/[^\s/:]+/i.test(url.trim())) { setUrlError("Enter the address as http://host:port."); return; }
     check.mutate({ flavour, url: url.trim(), api_key: key }, {
       onSuccess: (res) => { setChecked(res); setProfiles(res.profiles.map((p) => p.id)); setPaths({}); },
       onError: () => setChecked(undefined),
@@ -91,7 +94,7 @@ export function ArrImportPage() {
         <Field label="Type"><select className={SELECT_CLASS} value={flavour} disabled={running} onChange={(e) => { setFlavour(e.target.value as Flavour); reset(); }}>
           <option value="radarr">Radarr</option><option value="sonarr">Sonarr</option>
         </select></Field>
-        <Field label="Address" help="The instance's address on your network."><Input value={url} disabled={running} placeholder={flavour === "sonarr" ? "http://192.168.1.10:8989" : "http://192.168.1.10:7878"} onChange={(e) => { setUrl(e.target.value); reset(); }} /></Field>
+        <Field label="Address" help="The instance's address on your network." error={urlError}><Input value={url} disabled={running} placeholder={flavour === "sonarr" ? "http://192.168.1.10:8989" : "http://192.168.1.10:7878"} onChange={(e) => { setUrl(e.target.value); setUrlError(undefined); reset(); }} /></Field>
         <Field label="API key" help="In the instance under Settings › General."><Input type="password" autoComplete="off" value={key} disabled={running} onChange={(e) => setKey(e.target.value)} /></Field>
       </div>
       <div className="flex flex-wrap items-center gap-3">
@@ -107,6 +110,7 @@ export function ArrImportPage() {
         : options.length === 0 ? <p>There is no {kind} library yet. Create one under <Link className="underline" to="/admin/settings/libraries">Settings › Libraries</Link> first.</p>
           : <Field label="Library" help="The library keeps its own quality profile and naming. Its folder must be separate from the instance's folders.">
             <select className={SELECT_CLASS} value={chosen} disabled={running} onChange={(e) => setLibrary(e.target.value)}>
+              {options.length > 1 ? <option value="" disabled>Choose a library</option> : null}
               {options.map((v) => { const label = libraryLabel(v.key, v.config.profile, v.config.name); return <option key={v.key} value={v.key}>{label === v.key ? v.key : `${label} (${v.key})`}</option>; })}
             </select>
           </Field>}
@@ -129,7 +133,12 @@ export function ArrImportPage() {
       <Card className="space-y-2 text-sm">
         <h2 className="text-base font-semibold">Folders</h2>
         <ul className="space-y-2">{checked.root_folders.map((r) => r.readable
-          ? <li key={r.path}><span className="font-mono text-[13px]">{r.path}</span> ({plural(r.titles, "title", "titles")}): Theatarr can read it.</li>
+          ? <li key={r.path}><span className="font-mono text-[13px]">{r.path}</span> ({plural(r.titles, "title", "titles")}): Theatarr can read it.
+            <details className="mt-1"><summary className="cursor-pointer text-[12.5px] text-muted-foreground">Theatarr sees the instance's folder somewhere else</summary>
+              <Field label={<>Where does Theatarr see <span className="font-mono text-[13px]">{r.path}</span>?</>} name={`Where Theatarr sees ${r.path}`} help="For example when Theatarr's own library is also at this path and the instance's folder is mounted elsewhere.">
+                <Input value={paths[r.path] ?? ""} disabled={running} placeholder={r.path} onChange={(e) => setPaths((cur) => ({ ...cur, [r.path]: e.target.value }))} />
+              </Field>
+            </details></li>
           : <li key={r.path}><Field label={<>Theatarr cannot read <span className="font-mono text-[13px]">{r.path}</span>. Where does Theatarr see this folder?</>} name={`Where Theatarr sees ${r.path}`}>
             <Input value={paths[r.path] ?? ""} disabled={running} placeholder={r.path} onChange={(e) => setPaths((cur) => ({ ...cur, [r.path]: e.target.value }))} />
           </Field></li>)}</ul>
@@ -141,6 +150,7 @@ export function ArrImportPage() {
       <Button variant="outline" disabled={!ready} onClick={() => void start(true)}>Preview</Button>
       <Button disabled={!ready || !previewed} title={ready && !previewed ? "Preview first" : undefined} onClick={() => void start(false)}>Import</Button>
       {ready && !previewed ? <span className="text-[12.5px] text-muted-foreground">Preview first</span> : null}
+      {checked && !chosen && options.length > 1 ? <span role="status" className="text-[12.5px] text-muted-foreground">Choose a library.</span> : null}
     </div>
     {startError ? <p role="alert" className="text-sm text-[var(--bad-ink)]">{message(startError)}</p> : null}
 
@@ -210,7 +220,7 @@ function PreviewReport({ r, library }: { r: ArrImportReport; library: string }) 
   return <>
     {r.tvdb_missing ? <p data-testid="arr-tvdb-missing">Theatarr has no TVDB key, so episodes cannot be matched to Sonarr's numbering: series will be added, but their monitoring and files will not be brought over. Add a TVDB key in <Link className="underline" to="/admin/settings/metadata">Settings › Metadata</Link> and run the import again.</p> : null}
     {!r.writable ? <p role="alert">Import needs the library to write links: {r.write_block}. Set it to Live and turn Write library links on; Allow new downloads can stay off.</p> : null}
-    <p>Import would add {plural(r.added_title + r.added_library, "title", "titles")} to {library}: {n(r.added_title)} new to Theatarr, {n(r.added_library)} already in Theatarr but not in this library. {n(r.present)} are already in this library and stay as they are.</p>
+    <p>Import would add {plural(r.added_title + r.added_library, "title", "titles")} to {library}: {n(r.added_title)} new to Theatarr, {n(r.added_library)} already in Theatarr but not in this library. {n(r.present)} are already in this library and stay as they are{r.app === "Sonarr" ? ", except that a series this import switches to TVDB numbering takes Sonarr's season and episode monitoring" : ""}.</p>
     {!r.tvdb_missing ? <p>Up to {plural(r.linkable, "file", "files")} can be linked.</p> : null}
     {items.length ? <p>Not linkable: {items.join(" · ")}.</p> : null}
     {anyNotLinked(r) ? <p>{ADDED_AS_MISSING}</p> : null}
@@ -236,7 +246,7 @@ function ImportReport({ r, library, app }: { r: ArrImportReport; library: string
     <Skipped r={r} />
     {r.missing_monitored ? <p>{plural(r.missing_monitored, "monitored title still has", "monitored titles still have")} something missing. <Link className="underline" to="/wanted">Wanted</Link> lists what can be searched now.</p> : null}
     {r.error ? <p role="alert">The import stopped early: {r.error}</p> : null}
-    <p className="text-muted-foreground">Nothing was changed in {app}. Running the import again adds only new titles and links files that are still missing; it never changes monitoring you set in Theatarr. To keep adding titles that are added to {app} later, add it as a list under <Link className="underline" to="/collections/lists">Collections › Lists</Link>.</p>
+    <p className="text-muted-foreground">Nothing was changed in {app}. Running the import again adds only new titles and links files that are still missing; it never changes monitoring you set in Theatarr{app === "Sonarr" ? ", except that a series it switches to TVDB numbering takes Sonarr's season and episode monitoring" : ""}. To keep adding titles that are added to {app} later, add it as a list under <Link className="underline" to="/collections/lists">Collections › Lists</Link>.</p>
     <Problems r={r} />
   </>;
 }

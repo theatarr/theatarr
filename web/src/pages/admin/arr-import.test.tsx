@@ -140,5 +140,37 @@ describe("arr import", () => {
     const report = await screen.findByTestId("arr-report");
     expect(report.querySelector("p")?.textContent).toMatch(/^Theatarr has no TVDB key, so episodes cannot be matched to Sonarr's numbering/);
     expect(report.textContent).not.toContain("can be linked");
+    expect(report.textContent).toContain("1 are already in this library and stay as they are, except that a series this import switches to TVDB numbering takes Sonarr's season and episode monitoring.");
+  });
+
+  it("asks for an address it can use, a library to be picked, and lets a readable folder be mapped", async () => {
+    const user = userEvent.setup();
+    const two = { ...versions, versions: [record("anime-films", "movie", "Anime"), record("films", "movie", "Films")] } as unknown as VersionList;
+    const fetch = mockFetch([
+      { method: "GET", path: "/settings/versions", reply: two },
+      { method: "GET", path: "/arr-import", reply: { run: null } },
+      { method: "POST", path: "/arr-import/check", reply: { ...check, root_folders: [{ path: "/movies", titles: 1180, readable: true }] } },
+      { method: "POST", path: "/arr-import", reply: (req: RequestRecord) => ({ status: 202, body: { run: runOf(req.body as Record<string, unknown>, base) } }) },
+    ]);
+    renderPage(<ArrImportPage />, "/admin/arr-import");
+    await user.type(screen.getByLabelText(/Address/), "notaurl");
+    await user.type(screen.getByLabelText(/API key/), "invented-key");
+    await user.click(screen.getByRole("button", { name: "Check" }));
+    expect(await screen.findByText("Enter the address as http://host:port.")).toBeTruthy();
+    expect(fetch.calls("POST", "/arr-import/check")).toHaveLength(0);
+
+    await user.clear(screen.getByLabelText(/Address/));
+    await checked(user);
+    const library = screen.getByRole("combobox", { name: /^Library/ }) as HTMLSelectElement;
+    expect(library.value).toBe("");
+    expect(screen.getByRole("button", { name: "Preview" }).hasAttribute("disabled")).toBe(true);
+    expect(screen.getByText("Choose a library.")).toBeTruthy();
+    await user.selectOptions(library, "films");
+
+    await user.click(screen.getByText("Theatarr sees the instance's folder somewhere else"));
+    await user.type(screen.getByRole("textbox", { name: /Where does Theatarr see/ }), "/old-movies");
+    await user.click(screen.getByRole("button", { name: "Preview" }));
+    await waitFor(() => expect(fetch.calls("POST", "/arr-import")).toHaveLength(1));
+    expect(fetch.calls("POST", "/arr-import")[0].body).toMatchObject({ library: "films", paths: { "/movies": "/old-movies" } });
   });
 });
