@@ -529,13 +529,21 @@ func (s *MovieIntake) addMovie(ctx context.Context, summary tmdb.MovieSummary, c
 	if m.ID != summary.ID {
 		return false, fmt.Errorf("TMDb movie id %d does not match %d", m.ID, summary.ID)
 	}
+	_, added, err := s.addNewMovie(ctx, summary, m, cfg, collectionID)
+	return added, err
+}
+
+// addNewMovie adds a movie new to Theatarr with its TMDb details m to the intake's versions that fit it. titleID is
+// the new title's id when added.
+func (s *MovieIntake) addNewMovie(ctx context.Context, summary tmdb.MovieSummary, m *tmdb.Movie, cfg movieIntakeConfig,
+	collectionID int64) (titleID int64, added bool, err error) {
 	var keys []string
 	if err := json.Unmarshal([]byte(cfg.versions), &keys); err != nil {
-		return false, err
+		return 0, false, err
 	}
 	fit, anime, err := s.fitVersions(cfg, keys, tmdbAnime(m), policy.KindMovie)
 	if err != nil || len(fit) == 0 {
-		return false, err
+		return 0, false, err
 	}
 	if m.Title == "" {
 		m.Title = summary.Title
@@ -618,15 +626,15 @@ func (s *MovieIntake) addMovie(ctx context.Context, summary tmdb.MovieSummary, c
 		return availability.Choose(ctx, tx, result.TitleID, result.Versions, minimum, now)
 	})
 	if err != nil {
-		return false, err
+		return 0, false, err
 	}
 	if result == nil || !result.Created {
-		return false, nil
+		return 0, false, nil
 	}
 	if cfg.search && cfg.monitored {
-		return true, s.searchReady(ctx, result.TitleID, result.Versions, now)
+		return result.TitleID, true, s.searchReady(ctx, result.TitleID, result.Versions, now)
 	}
-	return true, nil
+	return result.TitleID, true, nil
 }
 
 // tmdbAnime is the anime rule for a movie new to Theatarr: Japanese original language and TMDb's Animation genre.

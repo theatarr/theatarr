@@ -78,93 +78,49 @@ func (s *MovieIntake) ImportArrTitle(ctx context.Context, key string, t ArrImpor
 	keys := []string{key}
 	series := arrSeries{TvdbID: t.TvdbID, TmdbID: t.TmdbID, ImdbID: t.ImdbID, Title: t.Name, Year: t.Year,
 		SeriesType: t.SeriesType}
+	summary := tmdb.MovieSummary{ID: int(t.TmdbID), Title: t.Name}
+	var m *tmdb.Movie // a new movie's TMDb details, fetched once for the anime fit and the add
 	if t.Kind == policy.KindSeries {
-		change, err = s.previewSeries(ctx, cfg, keys, series)
-	} else {
-		change, err = s.previewImportMovie(ctx, cfg, keys, t.TmdbID)
+		change, titleID, err = s.previewSeries(ctx, cfg, keys, series)
+	} else if change, titleID, err = s.previewMovie(ctx, cfg, keys, t.TmdbID); err == nil && titleID == 0 {
+		// A new movie for a library with an anime setting fits by TMDb's details, as addMovie decides it.
+		vp := s.Policy.Versions[key]
+		animeRule := vp != nil && vp.Anime != nil
+		if animeRule && (change == "add_title" || change == "skipped") || !dryRun && change == "add_title" {
+			if m, err = s.TMDb.MovieDetails(ctx, summary.ID); err == nil && animeRule {
+				change, err = s.previewChange(ctx, cfg, keys, 0, false, tmdbAnime(m), policy.KindMovie)
+			}
+		}
 	}
 	if err != nil {
 		return "", 0, err
 	}
-	if !dryRun && (change == "add_title" || change == "add_library") {
-		if t.Kind == policy.KindSeries {
-			_, err = s.addSeries(ctx, series, cfg)
-		} else {
-			_, err = s.addMovie(ctx, tmdb.MovieSummary{ID: int(t.TmdbID), Title: t.Name}, cfg, 0)
-		}
-		if err != nil {
-			return "", 0, err
-		}
-	}
-	if titleID, err = s.importTitleID(ctx, t); err != nil {
-		return "", 0, err
-	}
-	if dryRun || (change != "add_title" && change != "add_library") {
+	if dryRun || change != "add_title" && change != "add_library" {
 		return change, titleID, nil
 	}
-	// TMDb's anime decision for a new movie may have made it not fit the library.
-	var has bool
-	if err := s.Store.Reader().QueryRowContext(ctx, `SELECT EXISTS(SELECT 1 FROM version WHERE title_id=? AND
-		policy_key=?)`, titleID, key).Scan(&has); err != nil {
+	var id int64
+	var added bool
+	switch {
+	case t.Kind == policy.KindSeries:
+		id, added, err = s.addSeries(ctx, series, cfg)
+	case change == "add_title":
+		if m.ID != summary.ID {
+			return "", 0, fmt.Errorf("TMDb movie id %d does not match %d", m.ID, summary.ID)
+		}
+		id, added, err = s.addNewMovie(ctx, summary, m, cfg, 0)
+	default:
+		added, err = s.addMovie(ctx, summary, cfg, 0)
+	}
+	if err != nil {
 		return "", 0, err
 	}
-	if !has {
+	if titleID == 0 {
+		titleID = id
+	}
+	if !added {
 		return "skipped", titleID, nil
 	}
 	return change, titleID, nil
-}
-
-// previewImportMovie is previewMovie, except that a movie new to Theatarr is classified for a library with an
-// anime setting by TMDb's details, as addMovie decides it.
-func (s *MovieIntake) previewImportMovie(ctx context.Context, cfg movieIntakeConfig, keys []string, tmdbID int64) (
-	string, error) {
-	change, err := s.previewMovie(ctx, cfg, keys, tmdbID)
-	if err != nil || change == "excluded" || change == "present" || change == "add_library" {
-		return change, err
-	}
-	var found bool
-	if err := s.Store.Reader().QueryRowContext(ctx, `SELECT EXISTS(SELECT 1 FROM title WHERE kind='movie' AND
-		tmdb_id=?)`, tmdbID).Scan(&found); err != nil || found {
-		return change, err
-	}
-	if vp := s.Policy.Versions[keys[0]]; vp == nil || vp.Anime == nil {
-		return change, nil
-	}
-	m, err := s.TMDb.MovieDetails(ctx, int(tmdbID))
-	if err != nil {
-		return "", err
-	}
-	return s.previewChange(ctx, cfg, keys, 0, false, tmdbAnime(m), policy.KindMovie)
-}
-
-// importTitleID is the id of t's title in Theatarr (a movie by TMDb id, a series by TVDB id, then TMDb id), 0 when
-// there is none.
-func (s *MovieIntake) importTitleID(ctx context.Context, t ArrImportTitle) (int64, error) {
-	lookups := []struct {
-		col string
-		v   int64
-	}{{"tmdb_id", t.TmdbID}}
-	if t.Kind == policy.KindSeries {
-		lookups = []struct {
-			col string
-			v   int64
-		}{{"tvdb_id", t.TvdbID}, {"tmdb_id", t.TmdbID}}
-	}
-	for _, q := range lookups {
-		if q.v <= 0 {
-			continue
-		}
-		var id int64
-		err := s.Store.Reader().QueryRowContext(ctx, `SELECT id FROM title WHERE kind=? AND `+q.col+`=?`,
-			string(t.Kind), q.v).Scan(&id)
-		if err == nil {
-			return id, nil
-		}
-		if !errors.Is(err, sql.ErrNoRows) {
-			return 0, err
-		}
-	}
-	return 0, nil
 }
 
 // ImportNeedsEpisodes reports whether the import should refresh a series' episode list before bringing its
@@ -192,7 +148,31 @@ func (s *MovieIntake) ImportEpisodeMonitoring(ctx context.Context, titleID int64
 	}
 	now := s.Now()
 	ms := store.Millis(now)
-	keys := []string{key}
+	// The flags as [season, flag] and [season, number, flag], the last one given winning.
+	seasonOn := map[int]bool{}
+	for _, se := range t.Seasons {
+		seasonOn[se.Number] = se.Monitored
+	}
+	seasons := make([][2]any, 0, len(seasonOn))
+	for n, on := range seasonOn {
+		seasons = append(seasons, [2]any{n, on})
+	}
+	episodeOn := map[[2]int]bool{}
+	for _, e := range eps {
+		episodeOn[[2]int{e.Season, e.Number}] = e.Monitored
+	}
+	episodes := make([][3]any, 0, len(episodeOn))
+	for se, on := range episodeOn {
+		episodes = append(episodes, [3]any{se[0], se[1], on})
+	}
+	seasonsJSON, err := json.Marshal(seasons)
+	if err != nil {
+		return false, err
+	}
+	episodesJSON, err := json.Marshal(episodes)
+	if err != nil {
+		return false, err
+	}
 	err = s.Store.WriteTx(ctx, func(tx *sql.Tx) error {
 		applied = false
 		var source string
@@ -204,26 +184,49 @@ func (s *MovieIntake) ImportEpisodeMonitoring(ctx context.Context, titleID int64
 		if err != nil {
 			return err
 		}
-		if t.MonitorNew == MonitorAll || t.MonitorNew == MonitorNone {
-			if err := SetMonitorNew(ctx, tx, titleID, keys, t.MonitorNew, now); err != nil {
-				return err
-			}
+		var vid int64
+		err = tx.QueryRowContext(ctx, `SELECT v.id FROM version v WHERE v.title_id = ? AND v.policy_key = ? AND NOT
+			EXISTS (SELECT 1 FROM arrview_removed_version r WHERE r.version_id = v.id)`, titleID, key).Scan(&vid)
+		if err != nil && !errors.Is(err, sql.ErrNoRows) {
+			return err
 		}
-		for _, se := range t.Seasons {
-			if err := SetSeasonMonitored(ctx, tx, titleID, keys, se.Number, se.Monitored, now); err != nil {
-				return err
+		if err == nil {
+			setNew := t.MonitorNew == MonitorAll || t.MonitorNew == MonitorNone
+			if setNew || len(seasonOn) > 0 {
+				m, err := LoadMonitor(ctx, tx, vid)
+				if err != nil {
+					return err
+				}
+				if setNew {
+					m.New = t.MonitorNew
+				}
+				for n, on := range seasonOn {
+					m.Seasons[n] = on
+				}
+				if err := SaveMonitor(ctx, tx, vid, m, now); err != nil {
+					return err
+				}
 			}
-		}
-		for _, e := range eps {
-			if err := SetEpisodesMonitored(ctx, tx, titleID, keys, `e.season = ? AND e.number = ? AND
-				e.removed_at IS NULL`, []any{e.Season, e.Number}, e.Monitored, now); err != nil {
-				return err
+			// The seasons' episodes, then each episode Theatarr has by season and number, on the copy's states.
+			for _, q := range []struct{ flag, match, flags string }{
+				{`'$[1]'`, `e.season = json_extract(j.value, '$[0]')`, string(seasonsJSON)},
+				{`'$[2]'`, `e.season = json_extract(j.value, '$[0]') AND e.number = json_extract(j.value, '$[1]')
+					AND e.removed_at IS NULL`, string(episodesJSON)},
+			} {
+				if _, err := tx.ExecContext(ctx, `INSERT INTO episode_version_state (version_id, episode_id, monitored,
+					state, updated_at) SELECT ?, e.id, json_extract(j.value, `+q.flag+`), 'wanted', ? FROM json_each(?) j, episode e
+					WHERE e.title_id = ? AND `+q.match+` ON CONFLICT (version_id, episode_id) DO UPDATE SET
+					monitored = excluded.monitored, updated_at = excluded.updated_at
+					WHERE monitored <> excluded.monitored`, vid, ms, q.flags, titleID); err != nil {
+					return err
+				}
 			}
 		}
 		// An episode is monitored when any version monitors it (as manage and the arr import keep it).
 		if _, err := tx.ExecContext(ctx, `UPDATE episode SET monitored = m, updated_at = ? FROM (SELECT episode_id,
-			MAX(monitored) AS m FROM episode_version_state GROUP BY episode_id) st WHERE st.episode_id = episode.id
-			AND episode.title_id = ? AND episode.monitored <> st.m`, ms, titleID); err != nil {
+			MAX(monitored) AS m FROM episode_version_state WHERE episode_id IN (SELECT id FROM episode
+			WHERE title_id = ?) GROUP BY episode_id) st WHERE st.episode_id = episode.id
+			AND episode.title_id = ? AND episode.monitored <> st.m`, ms, titleID, titleID); err != nil {
 			return err
 		}
 		// The copy's summary from its episode states, as the library keeps it after an import.

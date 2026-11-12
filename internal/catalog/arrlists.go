@@ -101,7 +101,7 @@ func (s *MovieIntake) syncSonarr(ctx context.Context, cfg movieIntakeConfig, out
 		if it.TvdbID <= 0 {
 			continue
 		}
-		n, err := s.addSeries(ctx, it, cfg)
+		_, n, err := s.addSeries(ctx, it, cfg)
 		if err != nil {
 			soft = append(soft, fmt.Errorf("list %d series %d: %w", cfg.id, it.TvdbID, err))
 			continue
@@ -117,11 +117,12 @@ func (s *MovieIntake) syncSonarr(ctx context.Context, cfg movieIntakeConfig, out
 
 // addSeries adds a Sonarr list's series to the list's libraries that fit it and that it has no row in (a row in any
 // state is a choice already made). Monitoring is Theatarr's own for a series added to a library: the list's monitor
-// says only whether it is monitored at all; the seasons monitored in the instance are not copied.
-func (s *MovieIntake) addSeries(ctx context.Context, it arrSeries, cfg movieIntakeConfig) (bool, error) {
+// says only whether it is monitored at all; the seasons monitored in the instance are not copied. titleID is the
+// series' id when added.
+func (s *MovieIntake) addSeries(ctx context.Context, it arrSeries, cfg movieIntakeConfig) (int64, bool, error) {
 	var keys []string
 	if err := json.Unmarshal([]byte(cfg.versions), &keys); err != nil {
-		return false, err
+		return 0, false, err
 	}
 	now := s.Now()
 	var titleID int64
@@ -176,12 +177,12 @@ func (s *MovieIntake) addSeries(ctx context.Context, it arrSeries, cfg movieInta
 		return nil
 	})
 	if err != nil || len(added) == 0 {
-		return false, err
+		return 0, false, err
 	}
 	if cfg.search && cfg.monitored && s.OnAdd != nil {
-		return true, s.OnAdd(ctx, titleID, added)
+		return titleID, true, s.OnAdd(ctx, titleID, added)
 	}
-	return true, nil
+	return titleID, true, nil
 }
 
 // missingVersions are the keys of fit the title (found or not) has no version row for.
@@ -313,7 +314,7 @@ func (s *MovieIntake) PreviewList(ctx context.Context, id int64) (ListPreview, e
 				continue
 			}
 			t := PreviewTitle{Name: it.Title, Year: it.Year, TmdbID: it.TmdbID, TvdbID: it.TvdbID}
-			if t.Change, err = s.previewSeries(ctx, cfg, keys, it); err != nil {
+			if t.Change, _, err = s.previewSeries(ctx, cfg, keys, it); err != nil {
 				return out, err
 			}
 			note(t)
@@ -329,7 +330,7 @@ func (s *MovieIntake) PreviewList(ctx context.Context, id int64) (ListPreview, e
 				continue
 			}
 			t := PreviewTitle{Name: m.Title, Year: m.Year, TmdbID: m.TmdbID}
-			if t.Change, err = s.previewMovie(ctx, cfg, keys, m.TmdbID); err != nil {
+			if t.Change, _, err = s.previewMovie(ctx, cfg, keys, m.TmdbID); err != nil {
 				return out, err
 			}
 			note(t)
@@ -347,7 +348,7 @@ func (s *MovieIntake) PreviewList(ctx context.Context, id int64) (ListPreview, e
 			if d, err := time.Parse(time.DateOnly, m.ReleaseDate); err == nil {
 				t.Year = d.Year()
 			}
-			if t.Change, err = s.previewMovie(ctx, cfg, keys, int64(m.ID)); err != nil {
+			if t.Change, _, err = s.previewMovie(ctx, cfg, keys, int64(m.ID)); err != nil {
 				return out, err
 			}
 			note(t)
@@ -357,25 +358,28 @@ func (s *MovieIntake) PreviewList(ctx context.Context, id int64) (ListPreview, e
 	return out, nil
 }
 
-func (s *MovieIntake) previewMovie(ctx context.Context, cfg movieIntakeConfig, keys []string, tmdbID int64) (string,
-	error) {
+// previewMovie and previewSeries classify a title as a sync would (previewChange); titleID is its id in Theatarr,
+// 0 when it has none (or is excluded).
+func (s *MovieIntake) previewMovie(ctx context.Context, cfg movieIntakeConfig, keys []string, tmdbID int64) (
+	change string, titleID int64, err error) {
 	r := s.Store.Reader()
 	var excluded bool
 	if err := r.QueryRowContext(ctx, `SELECT EXISTS(SELECT 1 FROM movie_exclusion WHERE tmdb_id=?)`, tmdbID).
 		Scan(&excluded); err != nil || excluded {
-		return "excluded", err
+		return "excluded", 0, err
 	}
-	var id int64
 	var anime bool
-	err := r.QueryRowContext(ctx, `SELECT id, anime FROM title WHERE kind='movie' AND tmdb_id=?`, tmdbID).Scan(&id, &anime)
+	err = r.QueryRowContext(ctx, `SELECT id, anime FROM title WHERE kind='movie' AND tmdb_id=?`, tmdbID).Scan(&titleID,
+		&anime)
 	if err != nil && !errors.Is(err, sql.ErrNoRows) {
-		return "", err
+		return "", 0, err
 	}
-	return s.previewChange(ctx, cfg, keys, id, err == nil, anime, policy.KindMovie)
+	change, err = s.previewChange(ctx, cfg, keys, titleID, err == nil, anime, policy.KindMovie)
+	return change, titleID, err
 }
 
-func (s *MovieIntake) previewSeries(ctx context.Context, cfg movieIntakeConfig, keys []string, it arrSeries) (string,
-	error) {
+func (s *MovieIntake) previewSeries(ctx context.Context, cfg movieIntakeConfig, keys []string, it arrSeries) (
+	change string, titleID int64, err error) {
 	r := s.Store.Reader()
 	var id int64
 	var anime bool
@@ -393,13 +397,14 @@ func (s *MovieIntake) previewSeries(ctx context.Context, cfg movieIntakeConfig, 
 			break
 		}
 		if !errors.Is(err, sql.ErrNoRows) {
-			return "", err
+			return "", 0, err
 		}
 	}
 	if !found {
 		anime = it.SeriesType == "anime"
 	}
-	return s.previewChange(ctx, cfg, keys, id, found, anime, policy.KindSeries)
+	change, err = s.previewChange(ctx, cfg, keys, id, found, anime, policy.KindSeries)
+	return change, id, err
 }
 
 func (s *MovieIntake) previewChange(ctx context.Context, cfg movieIntakeConfig, keys []string, titleID int64, found,
