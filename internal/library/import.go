@@ -276,8 +276,8 @@ func (l *Library) importDownload(ctx context.Context, d *importDownload, dryRun 
 			}
 		}()
 	}
-	recheck := false // the import waits on a mount mismatch: a pass that cannot see or read the files keeps it
-	if !dryRun {
+	recheck := false                   // the import waits on a mount mismatch: a pass that cannot see or read the files keeps it
+	if !dryRun && len(d.Manual) == 0 { // a client's chosen files import as they always did
 		if recheck, err = l.mismatchRecheck(ctx, d); err != nil {
 			return nil, err
 		}
@@ -345,6 +345,8 @@ func (l *Library) importDownload(ctx context.Context, d *importDownload, dryRun 
 			// A completed client download with no folder of its own (decypharr's multi-season fan-out makes one
 			// per season and none for the torrent): found on the mount by hash and names, as import_from: mount.
 			sourced = false
+		case recheck && fsError(err):
+			return l.waitInconclusive(ctx, d, plan, err)
 		case err != nil:
 			return nil, errf(id, "%w", err)
 		default:

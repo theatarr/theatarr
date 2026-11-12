@@ -1310,12 +1310,53 @@ func TestZurgMismatchFolderErrorAdvances(t *testing.T) {
 	if err := os.RemoveAll(dir); err != nil {
 		t.Fatal(err)
 	}
-	if err := os.Symlink(dir, dir); err != nil { // stat: too many levels of symbolic links
+	if err := os.Symlink(movieRelease, dir); err != nil { // relative, to itself: stat says too many levels of links
 		t.Fatal(err)
 	}
 	e.now = e.now.Add(11 * time.Minute)
 	e.run()
 	if s := e.importState(); s != "waiting_mount 2 "+waiting {
 		t.Errorf("after a folder lookup error: %s", s)
+	}
+}
+
+// TestZurgMismatchClientFolderErrorAdvances: a client download waiting on a mismatch whose folder lookup fails with a
+// filesystem error keeps the wait and advances its back-off.
+func TestZurgMismatchClientFolderErrorAdvances(t *testing.T) {
+	t.Parallel()
+	e := newEnv(t, true, policy.ModeActive)
+	dir := filepath.Join(e.mount, "__all__", movieRelease)
+	if err := os.Symlink(movieRelease, dir); err != nil {
+		t.Fatal(err)
+	}
+	e.clientDownload(movieRelease, dir)
+	waiting := "mount mismatch: decypharr's folder x holds none of the download's files (y)"
+	old := e.now.Add(-time.Hour).UnixMilli()
+	e.exec(`INSERT INTO library_import (download_id, state, waiting_since, last_error, attempts, created_at, updated_at)
+		VALUES (1, 'waiting_mount', ?, ?, 1, ?, ?)`, old, waiting, old, old)
+	e.run()
+	if s := e.importState(); s != "waiting_mount 2 "+waiting {
+		t.Errorf("after a client folder lookup error: %s", s)
+	}
+}
+
+// TestManualSelectionOnLegacyHoldAsBefore: a manual import of chosen files on an earlier build's mismatch hold is
+// not a mismatch re-check: a file the helper cannot open is planned as before (linked, its probe failing).
+func TestManualSelectionOnLegacyHoldAsBefore(t *testing.T) {
+	t.Parallel()
+	e, _ := mismatchEnv(t)
+	e.exec(`INSERT INTO library_import (download_id, state, last_error, attempts, created_at, updated_at) VALUES
+		(1, 'rejected', 'zurg does not confirm the files are this download''s (x)', 1, 0, 0)`)
+	e.exec(`INSERT INTO download_file (download_id, rel, episodes, source, updated_at) VALUES (1, 'movie.mkv', '[]', 'manual', 0)`)
+	e.lib.probe = func(p string, _ int64) (*probe.Result, error) {
+		return nil, encodeHelperErr(&os.PathError{Op: "open", Path: p, Err: syscall.EACCES}).decode()
+	}
+	plan, err := e.lib.Import(e.ctx, 1, false)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if plan.Waiting || e.one(`SELECT state FROM download WHERE id = 1`) != "imported" {
+		t.Errorf("manual import: plan waiting %v, download %s, import %s", plan.Waiting,
+			e.one(`SELECT state FROM download WHERE id = 1`), e.importState())
 	}
 }
