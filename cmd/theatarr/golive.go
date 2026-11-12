@@ -25,6 +25,7 @@ import (
 	"github.com/theatarr/theatarr/internal/jobs"
 	"github.com/theatarr/theatarr/internal/library"
 	"github.com/theatarr/theatarr/internal/policy"
+	"github.com/theatarr/theatarr/internal/preflight"
 	"github.com/theatarr/theatarr/internal/settings"
 	"github.com/theatarr/theatarr/internal/store"
 )
@@ -106,7 +107,7 @@ func runGolive(args []string, out io.Writer) error {
 	log := slog.New(slog.NewTextHandler(io.Discard, nil))
 	// Credentials resolve as serve resolves them: stored in the settings database, or named env variables.
 	creds := settings.Credentials{Policy: pol, Snap: snap, Lookup: os.LookupEnv}
-	o := golive.Options{Policy: pol, Env: os.Getenv, Credential: creds.Resolves, FS: golive.OSFS{},
+	o := golive.Options{Policy: pol, Env: os.Getenv, Credential: creds.Resolves, FS: preflight.OSFS{},
 		PublicURL: *publicURL, ProviderExpiry: ends, Days: *days, Bar: *bar, MinGrabs: *minGrabs}
 
 	var st *store.Store

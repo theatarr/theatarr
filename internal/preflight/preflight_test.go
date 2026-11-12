@@ -10,7 +10,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/theatarr/theatarr/internal/golive"
 	"github.com/theatarr/theatarr/internal/health"
 	"github.com/theatarr/theatarr/internal/policy"
 	"github.com/theatarr/theatarr/internal/settings"
@@ -19,7 +18,7 @@ import (
 
 // readOnlyFS is the real filesystem with every directory refused for writing (tests run as root, where access(2)
 // says yes to everything).
-type readOnlyFS struct{ golive.OSFS }
+type readOnlyFS struct{ OSFS }
 
 func (readOnlyFS) Writable(string) error { return errors.New("read-only file system") }
 
@@ -73,7 +72,7 @@ func good(t *testing.T) (Options, string) {
 		t.Fatal(err)
 	}
 	results := 7
-	o := Options{Policy: p, FS: golive.OSFS{}, Device: OSDevice, APIKeys: 1,
+	o := Options{Policy: p, FS: OSFS{}, Device: OSDevice, APIKeys: 1,
 		Credentials: settings.Credentials{Lookup: func(name string) (string, bool) { return "invented", name != "" }},
 		Mount:       func(ctx context.Context, d string) health.Result { return health.Mount(d, time.Second)(ctx) },
 		Sources: func(_ context.Context, entity string) []Source {
@@ -370,7 +369,7 @@ func TestFollowedRootReadOnly(t *testing.T) {
 	want(t, Run(context.Background(), o), "library/root movies", Fail, "not writable")
 }
 
-type unreadableFS struct{ golive.OSFS }
+type unreadableFS struct{ OSFS }
 
 func (unreadableFS) Readable(string) error { return errors.New("permission denied") }
 

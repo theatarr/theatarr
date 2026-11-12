@@ -1,12 +1,23 @@
-package golive
+package preflight
 
 import (
 	"fmt"
+	"io/fs"
 
 	"github.com/theatarr/theatarr/internal/policy"
 )
 
-// DirectoryFact is a filesystem observation shared by install preflight and cutover checks.
+// FS is what the checks read from the filesystem. OSFS is the real one.
+type FS interface {
+	Stat(path string) (fs.FileInfo, error)
+	// Writable is nil when this process may create and remove entries in the directory (access(2) W_OK|X_OK, which
+	// also says EROFS for a read-only bind mount).
+	Writable(path string) error
+	// Readable is nil when this process may list and traverse the directory.
+	Readable(path string) error
+}
+
+// DirectoryFact is a filesystem observation shared by install preflight and Setup.
 // Each caller decides whether this path must be writable and what a missing path means for its report.
 type DirectoryFact struct {
 	Checked bool
@@ -45,7 +56,7 @@ type ProviderFact struct {
 	Credential bool
 }
 
-// InspectProviders preserves the requested order; cutover sorts by Order for its fallback check.
+// InspectProviders preserves the requested order.
 func InspectProviders(p *policy.Policy, keys []string, credential func(entity, key, env string) bool) []ProviderFact {
 	out := make([]ProviderFact, 0, len(keys))
 	for _, key := range keys {

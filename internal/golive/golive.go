@@ -16,7 +16,6 @@ import (
 	"database/sql"
 	"fmt"
 	"io"
-	"io/fs"
 	"net/url"
 	"sort"
 	"strings"
@@ -25,6 +24,7 @@ import (
 	"github.com/theatarr/theatarr/internal/health"
 	"github.com/theatarr/theatarr/internal/library"
 	"github.com/theatarr/theatarr/internal/policy"
+	"github.com/theatarr/theatarr/internal/preflight"
 	"github.com/theatarr/theatarr/internal/settings"
 	"github.com/theatarr/theatarr/internal/shadow"
 )
@@ -88,15 +88,8 @@ func (r *Report) add(sec, check string, st Status, fix, format string, args ...a
 		Fix: fix})
 }
 
-// FS is what the checks read from the filesystem. OSFS is the real one.
-type FS interface {
-	Stat(path string) (fs.FileInfo, error)
-	// Writable is nil when this process may create and remove entries in the directory (access(2) W_OK|X_OK, which
-	// also says EROFS for a read-only bind mount).
-	Writable(path string) error
-	// Readable is nil when this process may list and traverse the directory.
-	Readable(path string) error
-}
+// FS is what the checks read from the filesystem (preflight.FS).
+type FS = preflight.FS
 
 // ArrGetter is the GET-only arr client (*arr.Client).
 type ArrGetter interface {

@@ -19,7 +19,6 @@ import (
 	"time"
 
 	"github.com/theatarr/theatarr/internal/auth"
-	"github.com/theatarr/theatarr/internal/golive"
 	"github.com/theatarr/theatarr/internal/health"
 	"github.com/theatarr/theatarr/internal/policy"
 	"github.com/theatarr/theatarr/internal/preflight"
@@ -135,7 +134,7 @@ func (w *Web) apiSetup(rw http.ResponseWriter, r *http.Request) {
 		} else {
 			out.Indexers, out.ReadyIndexers = len(p.Indexers), sortedKeys(p.Indexers)
 			creds := settings.Credentials{Policy: p, Lookup: w.settingsLookup}
-			for _, fact := range golive.InspectProviders(p, sortedKeys(p.Providers), creds.Resolves) {
+			for _, fact := range preflight.InspectProviders(p, sortedKeys(p.Providers), creds.Resolves) {
 				if fact.Credential {
 					out.Providers++
 					out.ReadyProviders = append(out.ReadyProviders, fact.Key)
@@ -216,7 +215,7 @@ func (w *Web) apiPreflight(rw http.ResponseWriter, r *http.Request) {
 	}
 	hooks := w.preflight
 	lib := p.LibrarySettings()
-	o := preflight.Options{Policy: p, FS: golive.OSFS{}, Device: preflight.OSDevice, Mount: hooks.Mount, Plex: hooks.Plex,
+	o := preflight.Options{Policy: p, FS: preflight.OSFS{}, Device: preflight.OSDevice, Mount: hooks.Mount, Plex: hooks.Plex,
 		Views: hooks.Views, APIKeys: -1, Now: w.now()}
 	if o.Mount == nil {
 		o.Mount = func(ctx context.Context, dir string) health.Result {

@@ -17,7 +17,6 @@ import (
 	"github.com/theatarr/theatarr/internal/arrview"
 	"github.com/theatarr/theatarr/internal/buildinfo"
 	"github.com/theatarr/theatarr/internal/gateway"
-	"github.com/theatarr/theatarr/internal/golive"
 	"github.com/theatarr/theatarr/internal/health"
 	"github.com/theatarr/theatarr/internal/indexer"
 	"github.com/theatarr/theatarr/internal/library"
@@ -64,7 +63,7 @@ func runPreflight(args []string, out io.Writer) error {
 	}
 	validationErr := err
 	lib := pol.LibrarySettings()
-	o := preflight.Options{Policy: pol, ValidationError: validationErr, FS: golive.OSFS{}, Device: preflight.OSDevice, APIKeys: -1,
+	o := preflight.Options{Policy: pol, ValidationError: validationErr, FS: preflight.OSFS{}, Device: preflight.OSDevice, APIKeys: -1,
 		Credentials: settings.Credentials{Policy: pol, Snap: snap, Lookup: os.LookupEnv},
 		Mount: func(ctx context.Context, dir string) health.Result {
 			return health.Mount(dir, lib.StatTimeout)(ctx)

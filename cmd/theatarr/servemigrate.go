@@ -15,6 +15,7 @@ import (
 	"github.com/theatarr/theatarr/internal/library"
 	"github.com/theatarr/theatarr/internal/migration"
 	"github.com/theatarr/theatarr/internal/policy"
+	"github.com/theatarr/theatarr/internal/preflight"
 	"github.com/theatarr/theatarr/internal/settings"
 	"github.com/theatarr/theatarr/internal/store"
 	"github.com/theatarr/theatarr/internal/web"
@@ -103,7 +104,7 @@ func migrationCheckpoint(ctx context.Context, c serveMigrationConfig) (migration
 func serveGoliveOptions(ctx context.Context, head *settings.Snapshot, c serveMigrationConfig, version string) golive.Options {
 	pol := head.Policy
 	creds := settings.Credentials{Policy: pol, Snap: head, Lookup: os.LookupEnv}
-	o := golive.Options{Policy: pol, Version: version, Env: os.Getenv, Credential: creds.Resolves, FS: golive.OSFS{}, DB: c.st.Reader(),
+	o := golive.Options{Policy: pol, Version: version, Env: os.Getenv, Credential: creds.Resolves, FS: preflight.OSFS{}, DB: c.st.Reader(),
 		PublicURL: envOr("THEATARR_PUBLIC_URL", ""), Days: 14, MinGrabs: 20}
 	if c.health != nil {
 		o.Health = c.health.Results(ctx)

@@ -1,8 +1,7 @@
 // Package preflight is the install-wide readiness check (`theatarr preflight`, POST /preflight, the first-run screen):
 // what a fresh install still needs before it can be useful, and what is set up but broken. Each item is ok, info, warn or
-// fail, with why and the exact next step. golive (internal/golive) checks one version before it goes active; this
-// checks the install around every version: mount, roots, trash, providers, indexers, metadata keys, the arr views,
-// Plex and the VPN egress.
+// fail, with why and the exact next step. It checks the install around every version: mount, roots, trash, providers,
+// download clients, indexers, metadata keys, the arr views, Plex and the VPN egress.
 //
 // Nothing here writes or calls out on its own: the filesystem is read with stat and access(2), and every outbound
 // check (provider and indexer tests, Plex, the arr views) is a function the caller supplies, so the service runs
@@ -20,7 +19,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/theatarr/theatarr/internal/golive"
 	"github.com/theatarr/theatarr/internal/health"
 	"github.com/theatarr/theatarr/internal/library"
 	"github.com/theatarr/theatarr/internal/policy"
@@ -103,13 +101,13 @@ type Options struct {
 	Policy *policy.Policy
 	// ValidationError is a loaded policy validation failure; static checks still run.
 	ValidationError error
-	// FS reads the filesystem (golive.OSFS in the service and the CLI).
-	FS golive.FS
+	// FS reads the filesystem (OSFS in the service and the CLI).
+	FS FS
 	// Device is the filesystem id of a path (stat's st_dev), for links that need one filesystem. nil skips that check.
 	Device func(path string) (uint64, error)
 	// Mount checks the debrid mount's directory (health.Mount in the CLI, the service's guarded check in serve).
 	Mount func(ctx context.Context, dir string) health.Result
-	// Credentials is the same generation-aware resolver used by golive; it exposes presence only.
+	// Credentials is the same generation-aware resolver used by Setup; it exposes presence only.
 	Credentials settings.Credentials
 	// Sources tests the providers or indexers ("providers"/"indexers"); nil when they are not tested.
 	Sources func(ctx context.Context, entity string) []Source
@@ -313,7 +311,7 @@ func under(path, dir string) bool {
 }
 
 func (c *checker) dir(area, check, path string, write bool, next string) {
-	fact := golive.InspectDirectory(c.o.FS, path, write)
+	fact := InspectDirectory(c.o.FS, path, write)
 	switch {
 	case !fact.Checked:
 		c.add(area, check, Warn, "run theatarr preflight inside the container", "not checked: %s (no filesystem access)", path)
@@ -372,7 +370,7 @@ func (c *checker) providers(ctx context.Context) {
 		return
 	}
 	tested := c.sources(ctx, "providers")
-	for _, fact := range golive.InspectProviders(c.p, sortedKeys(c.p.Providers), c.credential) {
+	for _, fact := range InspectProviders(c.p, sortedKeys(c.p.Providers), c.credential) {
 		k := fact.Key
 		check := k + " (" + fact.Kind + ")"
 		if !fact.Credential {

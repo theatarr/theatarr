@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/theatarr/theatarr/internal/policy"
+	"github.com/theatarr/theatarr/internal/preflight"
 	"github.com/theatarr/theatarr/internal/settings"
 	"github.com/theatarr/theatarr/internal/uipages"
 )
@@ -127,7 +128,7 @@ func (c *checker) libraryPolicy(ctx context.Context) {
 
 // dir checks that a directory exists and, when write is set, that Theatarr may write in it.
 func (c *checker) dir(check, path string, write bool, fix string) {
-	fact := InspectDirectory(c.o.FS, path, write)
+	fact := preflight.InspectDirectory(c.o.FS, path, write)
 	switch {
 	case !fact.Checked:
 		c.add(SecPolicy, check, Warn, "run inside the container", "not checked: %s (no filesystem access)", path)
@@ -179,7 +180,7 @@ func (c *checker) storage() {
 		c.client() // the client adds to its own account: the version's providers are not used
 		return
 	}
-	facts := InspectProviders(p, v.Providers, c.o.Credential)
+	facts := preflight.InspectProviders(p, v.Providers, c.o.Credential)
 	sort.SliceStable(facts, func(i, j int) bool { return facts[i].Order < facts[j].Order })
 	provs := make([]string, 0, len(facts))
 	for _, fact := range facts {
