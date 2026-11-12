@@ -118,7 +118,7 @@ describe("arr import", () => {
     await waitFor(() => expect(screen.getByTestId("arr-report").textContent).toContain("Added 4 titles"));
     const text = screen.getByTestId("arr-report").textContent;
     expect(text).toContain("Added 4 titles to Films (3 new to Theatarr). Linked 5 files; 1 were linked already, and 2 files were left alone because the library has its own file for them.");
-    expect(text).toContain("Not linked: 2 ordinary files (for example from Usenet or a local disk) · 1 links whose file is gone from the debrid mount.");
+    expect(text).toContain("Not linked: 2 ordinary files (for example from Usenet or a local disk) · 1 link whose file is gone from the debrid mount.");
     expect(text).toContain("1 file whose episodes Theatarr could not match.");
     expect(text).toContain("1 title failed (see the list).");
     expect(text).toContain("3 monitored titles have no linked file.");

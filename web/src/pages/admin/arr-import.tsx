@@ -170,15 +170,19 @@ function RunView({ run, libraryName }: { run: ArrImportRun; libraryName: string 
 /** The four reasons a file cannot be linked that the Preview can see, then the rest adopt may report. */
 function notLinkedItems(r: ArrImportReport): string[] {
   const c = (reason: string) => r.not_linked[reason] ?? 0;
-  const items: [number, string][] = [
-    [c("not_a_symlink"), "ordinary files (for example from Usenet or a local disk)"],
-    [c("target_off_mount"), "links that point outside the debrid mount"],
-    [c("dangling"), "links whose file is gone from the debrid mount"],
-    [c("arr_file_missing"), "files Theatarr cannot find (check the folder above)"],
-    [c("path_taken"), "files whose place in the library is taken by another file"],
-    [c("naming"), "files the library's naming could not name"],
+  const items: [number, string, string][] = [
+    [c("not_a_symlink"), "ordinary file", "ordinary files"],
+    [c("target_off_mount"), "link that points", "links that point"],
+    [c("dangling"), "link whose file is", "links whose file is"],
+    [c("arr_file_missing"), "file Theatarr cannot find", "files Theatarr cannot find"],
+    [c("path_taken"), "file whose place in the library is taken by another file", "files whose place in the library is taken by another file"],
+    [c("naming"), "file the library's naming could not name", "files the library's naming could not name"],
   ];
-  return items.filter(([count]) => count > 0).map(([count, words]) => `${n(count)} ${words}`);
+  const tail: Record<string, string> = {
+    "ordinary file": " (for example from Usenet or a local disk)", "link that points": " outside the debrid mount",
+    "link whose file is": " gone from the debrid mount", "file Theatarr cannot find": " (check the folder above)",
+  };
+  return items.filter(([count]) => count > 0).map(([count, one, many]) => `${plural(count, one, many)}${tail[one] ?? ""}`);
 }
 
 /** Files not linked for any reason (the library's own files are not counted: they are not missing). */
@@ -211,6 +215,7 @@ function PreviewReport({ r, library }: { r: ArrImportReport; library: string }) 
     {items.length ? <p>Not linkable: {items.join(" · ")}.</p> : null}
     {anyNotLinked(r) ? <p>{ADDED_AS_MISSING}</p> : null}
     <Skipped r={r} />
+    {r.failed ? <p>{plural(r.failed, "title", "titles")} failed (see the list).</p> : null}
     {r.error ? <p role="alert">The preview stopped early: {r.error}</p> : null}
     <Problems r={r} />
   </>;
@@ -256,9 +261,9 @@ function Problems({ r }: { r: ArrImportReport }) {
     <Table>
       <TableHeader><TableRow><TableHead>Title</TableHead><TableHead>File</TableHead><TableHead>Why</TableHead></TableRow></TableHeader>
       <TableBody>{r.problems.map((p, i) => <TableRow key={i}>
-        <TableCell>{p.title}</TableCell>
-        <TableCell className="font-mono text-[12.5px] [overflow-wrap:anywhere]">{p.path ?? ""}</TableCell>
-        <TableCell>{WHY[p.reason] ?? p.reason}{p.detail && (p.reason === "failed" || p.reason === "no_episode_list") ? `: ${p.detail}` : ""}</TableCell>
+        <TableCell className="min-w-[8rem] [overflow-wrap:normal]">{p.title}</TableCell>
+        <TableCell className="min-w-[14rem] font-mono text-[12.5px] [overflow-wrap:anywhere]">{p.path ?? ""}</TableCell>
+        <TableCell className="min-w-[11rem] [overflow-wrap:break-word]">{WHY[p.reason] ?? p.reason}{p.detail && (p.reason === "failed" || p.reason === "no_episode_list") ? `: ${p.detail}` : ""}</TableCell>
       </TableRow>)}</TableBody>
     </Table>
   </Fold>;

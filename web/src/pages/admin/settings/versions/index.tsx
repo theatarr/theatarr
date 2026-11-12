@@ -315,13 +315,14 @@ export function VersionsPage({ embedded = false }: { embedded?: boolean }) {
   }
 
   return <div className="space-y-4">
-    {!embedded ? <PageHeader title="Libraries" crumb={[{ label: "Admin", to: "/admin" }, { label: "Settings", to: "/admin/settings" }]} description={<>Manage your libraries and the libraries exposed to apps. Coming from Sonarr/Radarr? <Link className="underline" to="/admin/arr-import">Import from Sonarr/Radarr</Link></>} /> : null}
+    {!embedded ? <PageHeader title="Libraries" crumb={[{ label: "Admin", to: "/admin" }, { label: "Settings", to: "/admin/settings" }]} description="Manage your libraries and the libraries exposed to apps." /> : null}
     <Announcer announcement={notice} testid="version-announce" />
     {query.isPending ? <p>Loading libraries…</p> : query.error ? <p role="alert">{message(query.error)}</p> : null}
     {data ? <>
       {readOnly ? <p>Read-only: these settings cannot be edited here. Allow new downloads {data.switches.router_enabled ? "ON" : "OFF"} · Write library links {data.switches.library_enabled ? "ON" : "OFF"} · Send notifications {data.switches.notify_enabled ? "ON" : "OFF"}</p> : null}
       <DownloadsOffNotice off={data.switches.sources?.router === "forced off by environment" ? "locked" : !data.switches.router_enabled ? "off" : undefined} canManage />
       {error && !session ? <div ref={errorBox} tabIndex={-1} data-testid="row-error"><ExplainBox error={explainError(error)} onReload={() => { setError(undefined); void query.refetch(); }} onReloadKeep={() => { setError(undefined); void query.refetch(); }} /></div> : null}
+      <p className="text-sm">Coming from Sonarr/Radarr? <Link className="underline" to="/admin/arr-import">Import from Sonarr/Radarr</Link></p>
       <Button ref={addButton} onClick={() => open(undefined)} disabled={readOnly}>Add library</Button>
       {GROUPS.map((group) => {
         const list = data.versions.filter((record) => categoryOf(record.config.kind, record.config.anime) === group);
