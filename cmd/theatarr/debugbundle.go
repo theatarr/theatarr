@@ -195,7 +195,8 @@ func (b *debugBundle) collect(ctx context.Context, fs *flag.FlagSet, dbPath, pol
 }
 
 // storedSecretValues is every non-empty credential stored in the settings database (setting_secret), whatever owns
-// it. A section's credential is a JSON object of values by path; each value is returned.
+// it, and every Radarr or Sonarr list's API key (import_list.api_key). A section's credential is a JSON object of
+// values by path; each value is returned.
 func storedSecretValues(ctx context.Context, st *store.Store) ([]string, error) {
 	rows, err := st.Reader().QueryContext(ctx, "SELECT value FROM setting_secret WHERE value <> ''")
 	if err != nil {
@@ -216,7 +217,23 @@ func storedSecretValues(ctx context.Context, st *store.Store) ([]string, error) 
 			}
 		}
 	}
-	return out, rows.Err()
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	// A Radarr or Sonarr list keeps its instance's API key on its own row.
+	lists, err := st.Reader().QueryContext(ctx, "SELECT api_key FROM import_list WHERE api_key <> ''")
+	if err != nil {
+		return nil, err
+	}
+	defer lists.Close()
+	for lists.Next() {
+		var v string
+		if err := lists.Scan(&v); err != nil {
+			return nil, err
+		}
+		out = append(out, v)
+	}
+	return out, lists.Err()
 }
 
 // setKnown keeps the credible secret values (6 characters or more, as the gateway's redactor), with their JSON

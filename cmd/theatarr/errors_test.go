@@ -104,6 +104,7 @@ func TestDebugBundle(t *testing.T) {
 	const policySecret = "tmdbPlantedKey77"
 	const storedSecret = "storedPlantedKeyNoDigits"
 	const sectionSecret = "prowlarrPlantedKeyNoDigits"
+	const listSecret = "radarrListPlantedKeyNoDigits"
 	t.Setenv("THEATARR_TEST_BUNDLE_TOKEN", secret)
 	t.Setenv("THEATARR_TMDB_KEY", policySecret)
 	t.Setenv("THEATARR_SETTINGS_SOURCE", "yaml")
@@ -120,6 +121,10 @@ func TestDebugBundle(t *testing.T) {
 		storedSecret, `{"prowlarr.api_key":"`+sectionSecret+`"}`); err != nil {
 		t.Fatal(err)
 	}
+	if _, err := st.Writer().Exec(`INSERT INTO import_list (name, list_type, url, api_key, created_at, updated_at)
+		VALUES ('R', 'radarr', 'http://10.0.0.5:7878', ?, 0, 0)`, listSecret); err != nil {
+		t.Fatal(err)
+	}
 	st.Close()
 	logs := filepath.Join(filepath.Dir(db), "logs")
 	if err := os.MkdirAll(logs, 0o700); err != nil {
@@ -129,7 +134,7 @@ func TestDebugBundle(t *testing.T) {
 		`{"time":"2026-10-30T10:00:00Z","level":"ERROR","msg":"auth failed for ` + secret + `","component":"router"}`,
 		`{"time":"2026-10-30T10:00:01Z","level":"INFO","msg":"fetch","api_key":"` + secret + `","url":"https://idx.test/api?t=search&apikey=` + policySecret + `"}`,
 		`plain text line with ` + policySecret,
-		`stored credentials ` + storedSecret + ` and ` + sectionSecret,
+		`stored credentials ` + storedSecret + ` and ` + sectionSecret + ` and ` + listSecret,
 	}
 	if err := os.WriteFile(filepath.Join(logs, "theatarr.log.1"), []byte(`{"msg":"older line"}`+"\n"), 0o600); err != nil {
 		t.Fatal(err)
@@ -175,7 +180,7 @@ func TestDebugBundle(t *testing.T) {
 	}
 	for name, body := range got {
 		if strings.Contains(body, secret) || strings.Contains(body, policySecret) || strings.Contains(body, storedSecret) ||
-			strings.Contains(body, sectionSecret) {
+			strings.Contains(body, sectionSecret) || strings.Contains(body, listSecret) {
 			t.Errorf("%s carries a planted secret:\n%s", name, body)
 		}
 	}
