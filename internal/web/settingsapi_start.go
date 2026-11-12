@@ -12,12 +12,12 @@ import (
 
 // The one-step start of a fresh install (docs/quickstart.md):
 //
-//	POST setup/start   create a library that downloads at once: the version in mode active with grab on, the
-//	                   optional TRaSH preset as its profile, and the global switches router and library on
+//	POST setup/start   create a library that downloads at once: the version in mode active (Live), the
+//	                   optional TRaSH preset as its profile, and Pause off
 //
-// It is one settings save: one generation and one confirmation, which lists the activation, the grab switch and
-// each global switch it turns on. An install that migrates from an arr (import.arr holds an instance) is refused:
-// there the library starts in shadow and goes live deliberately.
+// It is one settings save: one generation and one confirmation, which lists the activation and Pause off. An install
+// that migrates from an arr (import.arr holds an instance) is refused: there the library starts in shadow and goes
+// live deliberately.
 
 type setupStartBody struct {
 	Generation        *int64          `json:"generation"`
@@ -38,8 +38,8 @@ type setupStartBody struct {
 type SetupStarted struct {
 	Generation int64  `json:"generation"`
 	Revision   string `json:"revision"`
-	// ForcedOff names the global switches (router, library) the environment keeps off although this save turned
-	// them on: nothing downloads, or no link is written, until the override is removed.
+	// ForcedOff is ["pause"] when the environment (THEATARR_FORCE_OFF) keeps Pause on although this save turned it
+	// off: nothing is searched, downloaded or linked until the override is removed.
 	ForcedOff []string `json:"forced_off"`
 }
 
@@ -91,7 +91,7 @@ func (w *Web) apiSetupStart(rw http.ResponseWriter, r *http.Request) {
 		}
 		version.Config.Profile = body.Key
 	}
-	version.Config.Mode, version.Config.Grab = policy.ModeActive, true
+	version.Config.Mode = policy.ModeActive
 	// A library that starts downloading needs something to search and something to add to among its own picks: an
 	// enabled indexer and an enabled provider with their credentials, as GET /setup counts them.
 	indexers, providers := snap.ReadyKeys(w.settingsLookup)
@@ -106,9 +106,7 @@ func (w *Web) apiSetupStart(rw http.ResponseWriter, r *http.Request) {
 		writeJSON(rw, http.StatusUnprocessableEntity, apiError{Error: "none of the library's debrid providers is enabled with an API key: nothing could be added; enable one, or pick one that is"})
 		return
 	}
-	switches := *snap.Records.Switches
-	switches.RouterEnabled, switches.LibraryEnabled = true, true
-	req.Records.Switches = &switches
+	req.Records.Switches = &settings.GlobalSwitches{Paused: false}
 	req.Actor, req.ConfirmationToken = settingsActor(r), confirmationToken(r, body.ConfirmationToken)
 	saved, err := w.settings.SaveAndApply(r.Context(), req)
 	if err != nil {
@@ -117,10 +115,8 @@ func (w *Web) apiSetupStart(rw http.ResponseWriter, r *http.Request) {
 	}
 	out := SetupStarted{Generation: saved.Generation, Revision: saved.Revision, ForcedOff: []string{}}
 	if saved.Policy != nil {
-		for _, key := range []string{"router", "library"} {
-			if slices.Contains(saved.Policy.ForcedOff, key) {
-				out.ForcedOff = append(out.ForcedOff, key)
-			}
+		if slices.Contains(saved.Policy.ForcedOff, "pause") {
+			out.ForcedOff = append(out.ForcedOff, "pause")
 		}
 	}
 	rw.Header().Set("ETag", generationETag(saved.Generation))

@@ -29,8 +29,8 @@ type SectionSpec struct {
 	Live bool `json:"live"`
 }
 
-// Sections lists the database-owned sections in their editor order. Their switches (library.enabled,
-// notify.enabled, router.enabled) belong to the global switches record and the library roots to the version records.
+// Sections lists the database-owned sections in their editor order. Their switches library.enabled and
+// router.enabled are derived from Pause in the global switches record; the library roots belong to the version records.
 var Sections = []SectionSpec{
 	{Key: "metadata", Live: true}, {Key: "library", Live: true}, {Key: "notify", Live: true}, {Key: "clients", Live: true},
 	{Key: "egress", Live: true}, {Key: "torrents", Live: true}, {Key: "cardigann", Live: true}, {Key: "shadow", Live: true},
@@ -262,10 +262,10 @@ func sectionJSON(p *policy.Policy, key string) (json.RawMessage, error) {
 	return b, nil
 }
 
-// stripOwned removes what other settings records own: the global switches and the library write roots.
+// stripOwned removes what other settings records own: the switches derived from Pause and the library write roots.
 func stripOwned(key string, m map[string]any) {
 	switch key {
-	case "library", "notify", "router":
+	case "library", "router":
 		delete(m, "enabled")
 	}
 	if key != "library" {
@@ -288,9 +288,9 @@ func SectionOwnedElsewhere(key string, config json.RawMessage) error {
 	}
 	var list []policy.FieldError
 	switch key {
-	case "library", "notify", "router":
+	case "library", "router":
 		if _, ok := m["enabled"]; ok {
-			list = append(list, policy.FieldError{Path: key + ".enabled", Msg: "set by the global switch (Admin › Settings)"})
+			list = append(list, policy.FieldError{Path: key + ".enabled", Msg: "set by Pause (Admin › Settings)"})
 		}
 	}
 	if versions, ok := m["versions"].(map[string]any); ok && key == "library" {
@@ -329,7 +329,7 @@ func nullSection(raw json.RawMessage) bool {
 	return len(trimmed) == 0 || string(trimmed) == "null"
 }
 
-// applySection replaces p's section with the stored one, keeping the switch the global switches record owns.
+// applySection replaces p's section with the stored one, keeping the switch derived from Pause.
 func applySection(p *policy.Policy, s Section) error {
 	f, ok := policyField(p, s.Key)
 	if !ok {
@@ -339,8 +339,6 @@ func applySection(p *policy.Policy, s Section) error {
 	switch s.Key {
 	case "library":
 		enabled = p.Library != nil && p.Library.Enabled
-	case "notify":
-		enabled = p.Notify != nil && p.Notify.Enabled
 	case "router":
 		enabled = p.Router != nil && p.Router.Enabled
 	}
@@ -354,8 +352,6 @@ func applySection(p *policy.Policy, s Section) error {
 	switch {
 	case s.Key == "library" && p.Library != nil:
 		p.Library.Enabled = enabled
-	case s.Key == "notify" && p.Notify != nil:
-		p.Notify.Enabled = enabled
 	case s.Key == "router" && p.Router != nil:
 		p.Router.Enabled = enabled
 	}

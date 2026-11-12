@@ -204,7 +204,7 @@ func TestMCPSettingsConfirmationsAndLimits(t *testing.T) {
 		"yaml":    strings.Replace(library["yaml"].(string), "link_path: /mnt/debrid", "link_path: /mnt/other", 1),
 		"secrets": map[string]string{"plex.token": testSecret}}
 	gen := se.generation()
-	// An address or folder change applies at once (only going Live, downloads on, Pause off and deletes ask).
+	// An address or folder change applies at once (only going Live, Pause off and deletes ask).
 	se.mcpTool("settings_section_update", body, 200)
 	if se.generation() != gen+1 {
 		t.Fatal("MCP section update did not apply")
@@ -217,7 +217,7 @@ func TestMCPSettingsConfirmationsAndLimits(t *testing.T) {
 		"versions": []string{"movie-web"}, "api_key": testSecret}
 	se.mcpTool("settings_view_create", create, 200)
 	gen = se.generation()
-	for _, section := range []string{"router", "library", "notify"} {
+	for _, section := range []string{"router", "library"} {
 		for _, config := range []map[string]any{{"config": map[string]any{"enabled": true}}, {"yaml": "enabled: true\n"}, {"yaml": "{enabled: true}"}} {
 			config["key"], config["generation"] = section, gen
 			out := se.mcpTool("settings_section_update", config, 403).(map[string]any)

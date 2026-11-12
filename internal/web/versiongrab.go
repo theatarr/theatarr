@@ -10,13 +10,11 @@ import (
 
 // VersionGrabState is the runtime gates for a version, independent of search and monitoring permissions.
 type VersionGrabState struct {
-	WillGrab        bool   `json:"will_grab"`
-	Mode            string `json:"mode"`
-	Grab            bool   `json:"grab"`
-	LibraryEnabled  bool   `json:"library_enabled"`
-	RouterEnabled   bool   `json:"router_enabled"`
-	RouterForcedOff bool   `json:"router_forced_off"`
-	// LibraryWrites is the library's own write gate (library.Gate.Active): the switch on, and the version mode:
+	WillGrab    bool   `json:"will_grab"`
+	Mode        string `json:"mode"`
+	Paused      bool   `json:"paused"`
+	PauseForced bool   `json:"pause_forced"`
+	// LibraryWrites is the library's own write gate (library.Gate.Active): Pause off, and the version mode:
 	// active and listed under library.versions with roots.
 	LibraryWrites bool `json:"library_writes"`
 }
@@ -38,16 +36,15 @@ func versionGrabSummaries(p *policy.Policy) []VersionGrabSummary {
 }
 
 func versionGrabState(p *policy.Policy, key string) VersionGrabState {
-	out := VersionGrabState{Mode: "off"}
+	out := VersionGrabState{Mode: "off", Paused: true}
 	if p == nil {
 		return out
 	}
-	out.LibraryEnabled = p.Library != nil && p.Library.Enabled
 	out.LibraryWrites = library.NewGate(p).Active(key)
-	out.RouterEnabled = p.Router != nil && p.Router.Enabled
-	out.RouterForcedOff = slices.Contains(p.ForcedOff, "router")
+	out.Paused = p.Router == nil || !p.Router.Enabled
+	out.PauseForced = slices.Contains(p.ForcedOff, "pause")
 	if v := p.Versions[key]; v != nil {
-		out.Mode, out.Grab = string(v.Mode), v.Grab
+		out.Mode = string(v.Mode)
 		if out.Mode == "" {
 			out.Mode = string(policy.ModeShadow)
 		}

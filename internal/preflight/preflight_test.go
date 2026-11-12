@@ -109,9 +109,7 @@ func TestRunGoodInstall(t *testing.T) {
 	want(t, r, "views/api keys", OK, "1 active")
 	want(t, r, "plex/plex", OK, "answers")
 	want(t, r, "egress/vpn egress", OK, "VPN egress ok")
-	if !strings.Contains(r.Items[len(r.Items)-1].Why, "off") {
-		t.Fatalf("library.enabled reported as on: %+v", r.Items[len(r.Items)-1])
-	}
+	want(t, r, "switches/pause", OK, "on: nothing is searched, downloaded or linked")
 	if got := Missing(o.Policy, len(o.Policy.Indexers), len(o.Policy.Providers)); len(got) != 0 {
 		t.Fatalf("Missing = %v", got)
 	}
@@ -148,10 +146,11 @@ func TestRunEmptyInstall(t *testing.T) {
 	want(t, r, "views/api keys", Warn, "no API keys")
 	want(t, r, "plex/plex", Warn, "no Plex server")
 	want(t, r, "egress/vpn egress", OK, "no egress section")
-	want(t, r, "switches/router.enabled", OK, "off")
-	forced := Run(context.Background(), Options{Policy: &policy.Policy{Library: &policy.Library{Enabled: false}, ForcedOff: []string{"library"}}, APIKeys: 0})
-	want(t, forced, "switches/library.enabled", OK, "forced off by environment")
-	want(t, forced, "switches/router.enabled", OK, "off: nothing is added")
+	want(t, r, "switches/pause", OK, "on: nothing is searched")
+	forced := Run(context.Background(), Options{Policy: &policy.Policy{Library: &policy.Library{Enabled: false}, ForcedOff: []string{"pause"}}, APIKeys: 0})
+	want(t, forced, "switches/pause", OK, "on, forced by environment")
+	open := Run(context.Background(), Options{Policy: &policy.Policy{Router: &policy.Router{Enabled: true}}, APIKeys: 0})
+	want(t, open, "switches/pause", OK, "off: Live libraries search, download and link")
 	typo := Run(context.Background(), Options{Policy: &policy.Policy{ForceOffUnknown: []string{"THEATARR_FORCE_OFF: routr"}}, APIKeys: 0})
 	want(t, typo, "switches/force off", Warn, "THEATARR_FORCE_OFF: routr is not a switch")
 	if r.Fail != 1 {
@@ -297,7 +296,7 @@ func TestPrint(t *testing.T) {
 	Print(&b, Run(context.Background(), Options{Policy: &policy.Policy{}}))
 	out := b.String()
 	if !strings.Contains(out, "FAIL  metadata") || !strings.Contains(out, "next: add a metadata service named tmdb ") ||
-		!strings.HasSuffix(out, "-- 1 FAIL, 8 WARN, 4 OK\n") {
+		!strings.HasSuffix(out, "-- 1 FAIL, 8 WARN, 3 OK\n") {
 		t.Fatalf("print:\n%s", out)
 	}
 }

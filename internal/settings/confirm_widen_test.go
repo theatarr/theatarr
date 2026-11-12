@@ -187,7 +187,7 @@ func TestFallbackReloadTakesConfirmationToken(t *testing.T) {
 	}
 }
 
-// liveGrabFixture publishes movie-web Live with downloads on (confirmed), with quality records, the database-owned
+// liveGrabFixture publishes movie-web Live (confirmed), with quality records, the database-owned
 // sections and the VPN guard on.
 func liveGrabFixture(t *testing.T) (*RuntimeCoordinator, *policy.Policy, *Snapshot) {
 	t.Helper()
@@ -199,7 +199,7 @@ func liveGrabFixture(t *testing.T) (*RuntimeCoordinator, *policy.Policy, *Snapsh
 	}
 	m := versionCoordinator(t, s, base, initial)
 	req := saveRequest(base, initial)
-	editVersion(&req.Records, "movie-web", func(v *Version) { v.Config.Mode = policy.ModeActive; v.Config.Grab = true })
+	editVersion(&req.Records, "movie-web", func(v *Version) { v.Config.Mode = policy.ModeActive })
 	proof, err := m.Confirm(ctx, req)
 	if err != nil || proof.Token == "" {
 		t.Fatalf("confirm going Live: %+v %v", proof, err)
@@ -212,7 +212,7 @@ func liveGrabFixture(t *testing.T) (*RuntimeCoordinator, *policy.Policy, *Snapsh
 	return m, base, live
 }
 
-// Everyday edits of a Live library with downloads on, and of what it uses, save at once without a token.
+// Everyday edits of a Live library, and of what it uses, save at once without a token.
 func TestEverydayLiveEditsSaveDirectly(t *testing.T) {
 	t.Parallel()
 	m, p, live := liveGrabFixture(t)
@@ -285,7 +285,9 @@ func TestEverydayLiveEditsSaveDirectly(t *testing.T) {
 				Identity: &ViewIdentity{Flavour: "radarr", Path: "/radarr2"}})
 			req.SecretWrites = map[string]Secret{"views/radarr2": NewSecret("invented-view-key-radarr2")}
 		}},
-		{"notify on", func(req *SaveRequest, _ *Snapshot) { req.Records.Switches.NotifyEnabled = true }},
+		{"notify on", func(req *SaveRequest, snap *Snapshot) {
+			req.Records.Sections = []Section{editSection(t, snap, "notify", func(c map[string]any) { c["enabled"] = true })}
+		}},
 	} {
 		req := saveRequest(p, live)
 		tc.change(&req, live)
@@ -301,7 +303,7 @@ func TestEverydayLiveEditsSaveDirectly(t *testing.T) {
 	}
 }
 
-// Going Live, a new Live library, downloads on and Pause off still refuse without a token and save with the token the
+// Going Live, a new Live library and Pause off still refuse without a token and save with the token the
 // refusal gave.
 func TestKeptConfirmations(t *testing.T) {
 	t.Parallel()
@@ -322,17 +324,13 @@ func TestKeptConfirmations(t *testing.T) {
 			for _, v := range req.Records.Versions {
 				if v.Key == "movie-web" {
 					v.Record = Record{Key: "movie-new"}
-					v.Config.Library, v.Roots, v.Config.Grab = newRoot, []string{newRoot}, false
+					v.Config.Library, v.Roots = newRoot, []string{newRoot}
 					req.Records.Versions = append(req.Records.Versions, v)
 					return
 				}
 			}
 		}},
-		{"downloads on", "Downloads are on for Live library movie-new", func(req *SaveRequest) {
-			editVersion(&req.Records, "movie-new", func(v *Version) { v.Config.Grab = true })
-		}},
-		{"router on", "(router.enabled): ", func(req *SaveRequest) { req.Records.Switches.RouterEnabled = true }},
-		{"library on", "(library.enabled): ", func(req *SaveRequest) { req.Records.Switches.LibraryEnabled = true }},
+		{"Pause off", "Turn Pause off: ", func(req *SaveRequest) { req.Records.Switches = &GlobalSwitches{Paused: false} }},
 	} {
 		req := saveRequest(p, live)
 		tc.change(&req)

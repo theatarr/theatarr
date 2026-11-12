@@ -45,7 +45,6 @@ type BlockRow struct {
 type VersionStatus struct {
 	Key       string   `json:"key"`
 	Mode      string   `json:"mode"`
-	Grab      bool     `json:"grab"`
 	Writes    bool     `json:"writes"`
 	Providers []string `json:"providers"`
 }
@@ -103,7 +102,7 @@ func ReadStatus(ctx context.Context, st *store.Store, pol *policy.Policy, keySet
 			continue
 		}
 		s.Versions = append(s.Versions, VersionStatus{Key: k, Mode: string(v.Mode),
-			Grab: v.Grab, Writes: pol.Grabs(k), Providers: v.Providers})
+			Writes: pol.Grabs(k), Providers: v.Providers})
 	}
 	db := st.Reader()
 	for _, k := range sortedKeys(pol.Providers) {

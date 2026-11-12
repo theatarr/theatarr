@@ -559,7 +559,7 @@ func (s *Store) diagnosticSnapshot(base *policy.Policy, rows []row, secrets map[
 		return nil, err
 	}
 	if gen == 0 && records.Switches == nil {
-		records.Switches = &GlobalSwitches{}
+		records.Switches = &GlobalSwitches{Paused: true}
 	}
 	if qualityManaged {
 		if err := requireQualitySpecifications(records); err != nil {
@@ -1047,21 +1047,15 @@ func (s *Store) LoadGeneration(ctx context.Context, base *policy.Policy, gen int
 		stored.Records.Versions == nil || stored.Records.Views == nil {
 		return nil, fmt.Errorf("settings: generation %d has no stored snapshot", gen)
 	}
-	// Pre-switch snapshots must never re-enable writes from later YAML values.
-	if stored.Records.Switches == nil {
-		stored.Records.Switches = &GlobalSwitches{}
-	}
-	// Startup recovery can retain an older enabled state only while the stored head still allows it.
+	// Pause is not part of history: it is taken from the stored head, so a recovered generation never turns it off.
+	// Without a head record the generation is loaded paused.
+	stored.Records.Switches = &GlobalSwitches{Paused: true}
 	var rawSwitches string
 	err = s.db.Reader().QueryRowContext(ctx, "SELECT config FROM setting_global_switches WHERE key = 'global'").Scan(&rawSwitches)
 	if err == nil {
-		var head GlobalSwitches
-		if err := json.Unmarshal([]byte(rawSwitches), &head); err != nil {
+		if err := json.Unmarshal([]byte(rawSwitches), stored.Records.Switches); err != nil {
 			return nil, errors.New("settings: corrupt global switches")
 		}
-		stored.Records.Switches.RouterEnabled = stored.Records.Switches.RouterEnabled && head.RouterEnabled
-		stored.Records.Switches.LibraryEnabled = stored.Records.Switches.LibraryEnabled && head.LibraryEnabled
-		stored.Records.Switches.NotifyEnabled = stored.Records.Switches.NotifyEnabled && head.NotifyEnabled
 	} else if !errors.Is(err, sql.ErrNoRows) {
 		return nil, dbError(err)
 	}
@@ -1089,22 +1083,17 @@ func (s *Store) LoadGeneration(ctx context.Context, base *policy.Policy, gen int
 }
 
 // FallbackEffects lists what running fallback instead of the stored head would allow that the head does not: the
-// confirmation effects of going from head to fallback (going Live, downloads on, Pause off, following or importing an
-// arr into a grabbing library, and removing a library). A startup fallback with any is refused. A credential the
+// confirmation effects of going from head to fallback (going Live, Pause off, importing an arr into a Live
+// library, and removing a library). A startup fallback with any is refused. A credential the
 // fallback sends to its own earlier address is not one: that generation was published with it.
 func (s *Store) FallbackEffects(ctx context.Context, head, fallback *Snapshot) ([]ConfirmationEffect, error) {
 	return snapshotWriteEffects(ctx, s.db.Reader(), head, fallback)
 }
 
 // clampVersionsToHead keeps a recovered version no more permissive than the stored head: it stays active only while
-// the head's version is active and grabs only while the head's version grabs. A version the head no longer has is
-// recovered as shadow without grab.
+// the head's version is active. A version the head no longer has is recovered as shadow.
 func (s *Store) clampVersionsToHead(ctx context.Context, versions []Version) error {
-	type headVersion struct {
-		active bool
-		grab   bool
-	}
-	head := map[string]headVersion{}
+	head := map[string]bool{}
 	rows, err := s.db.Reader().QueryContext(ctx, "SELECT key, config FROM setting_version")
 	if err != nil {
 		return dbError(err)
@@ -1119,17 +1108,15 @@ func (s *Store) clampVersionsToHead(ctx context.Context, versions []Version) err
 		if err != nil {
 			return fmt.Errorf("settings: corrupt library %q", key)
 		}
-		head[key] = headVersion{active: config.Mode == policy.ModeActive, grab: config.Grab}
+		head[key] = config.Mode == policy.ModeActive
 	}
 	if err := rows.Err(); err != nil {
 		return dbError(err)
 	}
 	for i := range versions {
-		now := head[versions[i].Key]
-		if versions[i].Config.Mode == policy.ModeActive && !now.active {
+		if versions[i].Config.Mode == policy.ModeActive && !head[versions[i].Key] {
 			versions[i].Config.Mode = policy.ModeShadow
 		}
-		versions[i].Config.Grab = versions[i].Config.Grab && now.grab
 	}
 	return nil
 }

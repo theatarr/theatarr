@@ -434,8 +434,8 @@ func (o *Offerer) offerTo(ctx context.Context, s *offerSource, key string, dryRu
 	return o.finish(ctx, s, res, memory, now, dryRun)
 }
 
-// gateOpen reports whether the router writes for the target version: router.enabled, the version active and its
-// grab on (as Router.Gate).
+// gateOpen reports whether the router writes for the target version: router.enabled (Pause off) and the version
+// active (as Router.Gate).
 func (o *Offerer) gateOpen(version string) bool {
 	return o.Policy.Grabs(version)
 }

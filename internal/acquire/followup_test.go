@@ -382,7 +382,6 @@ func TestDeadLinkStops(t *testing.T) {
 		change func(e *env)
 	}{
 		{"router off", false, movie, func(*env) {}},
-		{"grab off", true, movie, func(e *env) { e.pol.Versions["movie"].Grab = false }},
 		{"version not active", true, movie, func(e *env) { e.pol.Versions["movie"].Mode = policy.ModeShadow }},
 		{"library disabled", true, movie, func(e *env) { e.pol.Library.Enabled = false }},
 		{"library not listing the version", true, series, func(e *env) { delete(e.pol.Library.Versions, "series") }},
@@ -468,7 +467,6 @@ func TestResearchSearchRechecksSwitches(t *testing.T) {
 			off  func(e *env)
 		}{
 			{"router off", func(e *env) { e.pol.Router.Enabled = false }},
-			{"grab off", func(e *env) { e.pol.Versions["series"].Grab = false }},
 			{"library off", func(e *env) { e.pol.Library.Enabled = false }},
 		} {
 			if reason == router.ReasonFresh && q.name == "library off" {
@@ -626,7 +624,7 @@ func TestGatedResearchRunNotASearch(t *testing.T) {
 		e.accept = false
 		stalled := router.ResearchRequest{TitleID: 1, VersionID: 101, Version: "movie", Reason: router.ReasonStalled}
 		e.research(stalled)
-		e.pol.Versions["movie"].Grab = false
+		e.pol.Router.Enabled = false
 		e.drain()
 		if n := e.count(`SELECT COUNT(*) FROM acquire_run WHERE state = 'skipped' AND infra = ?`, runGated); n != 1 {
 			t.Fatalf("%d gated runs", n)
@@ -638,11 +636,11 @@ func TestGatedResearchRunNotASearch(t *testing.T) {
 		if l := last[runKey(101, "movie")]; l.complete != 0 || l.partial != 0 {
 			t.Errorf("gated run counted as searched: %+v", l)
 		}
-		e.pol.Versions["movie"].Grab = true
+		e.pol.Router.Enabled = true
 		e.research(stalled)
 		e.drain()
 		if n := len(e.searches()); n != 1 {
-			t.Errorf("%d searches after grab came back, want 1 (not held by again_after)", n)
+			t.Errorf("%d searches after Pause went off, want 1 (not held by again_after)", n)
 		}
 	})
 }
@@ -654,12 +652,12 @@ func TestGatedRunNotInHourlyBudget(t *testing.T) {
 	e := newEnv(t, true, &policy.Wanted{PerHour: 1, AgainAfter: policy.Duration(24 * time.Hour)})
 	e.accept = false
 	e.research(router.ResearchRequest{TitleID: 1, VersionID: 101, Version: "movie", Reason: router.ReasonStalled})
-	e.pol.Versions["movie"].Grab = false
+	e.pol.Router.Enabled = false
 	e.drain()
 	if n := e.count(`SELECT COUNT(*) FROM acquire_run WHERE infra = ?`, runGated); n != 1 {
 		t.Fatalf("%d gated runs", n)
 	}
-	e.pol.Versions["movie"].Grab = true
+	e.pol.Router.Enabled = true
 	sum, err := e.a.Research(e.ctx, router.ResearchRequest{TitleID: 2, VersionID: 102, Version: "movie",
 		Reason: router.ReasonStalled})
 	if err != nil {

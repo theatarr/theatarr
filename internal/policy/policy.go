@@ -145,10 +145,6 @@ type VersionPolicy struct {
 	AvailabilityDelay int `yaml:"availability_delay,omitempty" json:",omitempty"`
 	// Mode is shadow (the default) or active.
 	Mode Mode `yaml:"mode"`
-	// Grab lets the router add torrents for the version (docs/design/decide.md). The router writes for a version
-	// only when router.enabled is true, the version is active and Grab is true; false (the default) keeps an active
-	// version searching, deciding and linking but every route is a dry-run plan. The library gate does not read it.
-	Grab bool `yaml:"grab,omitempty"`
 	// Kind is movie or series.
 	Kind Kind `yaml:"kind"`
 	// Anime limits the version to anime (true) or non-anime (false) titles. Unset means both.

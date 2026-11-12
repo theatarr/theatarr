@@ -10,11 +10,10 @@ import (
 )
 
 // Router configures the download router (internal/router, docs/design/router.md). It acts
-// only for versions in mode active, and only while Enabled is true: Enabled is the global kill switch and is off
-// unless the policy turns it on. Every other field is optional.
+// only for versions in mode active, and only while Enabled is true. Every other field is optional.
 type Router struct {
-	// Enabled lets the router write to debrid providers (add a magnet, select files). Default false: every version
-	// is then dry-run only, whatever its mode.
+	// Enabled lets the router write to debrid providers (add a magnet, select files). With database settings it is
+	// derived from Pause (true when Pause is off). False: every version is dry-run only, whatever its mode.
 	Enabled bool `yaml:"enabled"`
 	// CachedOnly skips a provider where a release is known to be uncached (an earlier refusal, a cache check) and asks
 	// TorBox to add only if cached. On Real-Debrid and AllDebrid an add is read back at once: one that is not ready
@@ -338,35 +337,20 @@ func (p *Policy) ActiveVersions() []string {
 	return out
 }
 
-// Grabs reports whether the router may add torrents for a version: router.enabled is true, the version is active
-// and its grab switch is on. Router.Gate, the offer gate, hold approval and the status read use it.
+// Grabs reports whether the router may add torrents for a version: router.enabled is true (Pause is off) and the
+// version is active (Live). Router.Gate, the offer gate, hold approval and the status read use it.
 func (p *Policy) Grabs(version string) bool {
 	v := p.Versions[version]
-	return p.RouterSettings().Enabled && v != nil && v.Mode == ModeActive && v.Grab
+	return p.RouterSettings().Enabled && v != nil && v.Mode == ModeActive
 }
 
-// GrabbingVersions lists the active versions whose grab switch is on, sorted. With router.enabled true the router
-// writes for these only.
-func (p *Policy) GrabbingVersions() []string {
-	var out []string
-	for _, k := range sortedKeys(p.Versions) {
-		if v := p.Versions[k]; v.Mode == ModeActive && v.Grab {
-			out = append(out, k)
-		}
-	}
-	return out
-}
-
-// SearchVersions lists the versions automatic searches (the wanted loop and re-searches) run for: the ones
-// Grabs lets the router write for, sorted. None while router.enabled is false. A version that is active with grab off
-// would only get dry runs, so it spends no search traffic. RSS is not limited by it: the feeds are read for the
-// shadowed versions anyway, and an active version's picks get dry-run plans (shadow.Runner.ActiveVersions).
-// User-invoked searches are not limited by it either.
+// SearchVersions lists the versions automatic searches (the wanted loop and re-searches) run for: the Live ones,
+// sorted. None while router.enabled is false (Pause is on). User-invoked searches are not limited by it.
 func (p *Policy) SearchVersions() []string {
 	if !p.RouterSettings().Enabled {
 		return nil
 	}
-	return p.GrabbingVersions()
+	return p.ActiveVersions()
 }
 
 func (p *Policy) validateRouter(e *Errors) {

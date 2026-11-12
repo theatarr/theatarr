@@ -12,11 +12,11 @@ import (
 // library roots, relinks, verification and Plex scans.
 //
 // Writes are gated three ways, and all three must allow one:
-//   - Enabled must be true. It defaults to false, which blocks every filesystem write and every Plex call;
-//   - the version must be mode: active (a shadow version only records what it would do);
+//   - Enabled must be true (with database settings: Pause off). False blocks every filesystem write and every Plex call;
+//   - the version must be mode: active (Live; a Watch-only version writes nothing);
 //   - the path must be under one of the version's Roots here (or under Trash.Dir for a link moved aside).
 type Library struct {
-	// Enabled turns on filesystem writes and Plex calls. Default false.
+	// Enabled turns on filesystem writes and Plex calls. Default false; with database settings it is derived from Pause.
 	Enabled bool `yaml:"enabled"`
 	// Mount is where zurg is read.
 	Mount LibraryMount `yaml:"mount"`
@@ -24,7 +24,7 @@ type Library struct {
 	Probe LibraryProbe `yaml:"probe"`
 	// Sample tunes the sample and fake guard.
 	Sample LibrarySample `yaml:"sample"`
-	// Trash is where replaced links are moved aside (upgrades, relinks). Required once Write library links is on.
+	// Trash is where replaced links are moved aside (upgrades, relinks). Required once Pause is off.
 	Trash LibraryTrash `yaml:"trash"`
 	// Plex is the Plex server scanned after a change. Optional.
 	Plex *Plex `yaml:"plex"`
@@ -49,7 +49,7 @@ type LibraryDangling struct {
 
 // LibraryMount is the zurg mount.
 type LibraryMount struct {
-	// Path is where this service sees the mount, e.g. /mnt/debrid. Required once Write library links is on.
+	// Path is where this service sees the mount, e.g. /mnt/debrid. Required once Pause is off.
 	Path string `yaml:"path"`
 	// LinkPath is the mount as written into symlinks: the absolute path at which Plex (or another player) sees the
 	// mount. Leave it empty when that is the mount folder itself: an empty value uses the mount folder.

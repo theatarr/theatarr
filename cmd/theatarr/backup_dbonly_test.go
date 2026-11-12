@@ -49,7 +49,7 @@ func dbOnlyInstall(t *testing.T, dbPath, polDir string) (*store.Store, *settings
 		for _, spec := range settings.Sections {
 			sections = append(sections, settings.Section{Record: settings.Record{Key: spec.Key}, Config: json.RawMessage("null")})
 		}
-		snap, err = sst.Save(ctx, settings.SaveRequest{Base: base, Actor: "setup", Records: settings.Records{Sections: sections, Switches: &settings.GlobalSwitches{}, Profiles: []settings.QualityProfile{}, Formats: []settings.CustomFormat{}, FormatSets: []settings.FormatSet{}, Naming: []settings.VersionNaming{}}})
+		snap, err = sst.Save(ctx, settings.SaveRequest{Base: base, Actor: "setup", Records: settings.Records{Sections: sections, Switches: &settings.GlobalSwitches{Paused: true}, Profiles: []settings.QualityProfile{}, Formats: []settings.CustomFormat{}, FormatSets: []settings.FormatSet{}, Naming: []settings.VersionNaming{}}})
 		if err != nil {
 			t.Fatal(err)
 		}

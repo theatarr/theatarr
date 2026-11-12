@@ -50,11 +50,11 @@ func newOfferEnv(t *testing.T) *offerEnv {
 	tr := true
 	pol := &policy.Policy{
 		Versions: map[string]*policy.VersionPolicy{
-			"movie-remux": {Mode: policy.ModeActive, Grab: true, Kind: policy.KindMovie, Anime: &f},
-			"movie-web":   {Mode: policy.ModeActive, Grab: true, Kind: policy.KindMovie, Anime: &f},
+			"movie-remux": {Mode: policy.ModeActive, Kind: policy.KindMovie, Anime: &f},
+			"movie-web":   {Mode: policy.ModeActive, Kind: policy.KindMovie, Anime: &f},
 			"movie-extra": {Mode: policy.ModeShadow, Kind: policy.KindMovie},
-			"anime-movie": {Mode: policy.ModeActive, Grab: true, Kind: policy.KindMovie, Anime: &tr},
-			"tv":          {Mode: policy.ModeActive, Grab: true, Kind: policy.KindSeries},
+			"anime-movie": {Mode: policy.ModeActive, Kind: policy.KindMovie, Anime: &tr},
+			"tv":          {Mode: policy.ModeActive, Kind: policy.KindSeries},
 		},
 		Indexers: map[string]*policy.Indexer{"dmm": {Kind: "dmm", Privacy: policy.PrivacyPublic}},
 		// Grabbing on: an active target's accepted offer is routed (with it off it is planned and retried).
@@ -284,7 +284,7 @@ func TestOfferAndSweepUseRuntimeCapturedAtStart(t *testing.T) {
 func TestOfferSeriesSeasonPack(t *testing.T) {
 	t.Parallel()
 	e := newOfferEnv(t)
-	e.off.Policy.Versions["tv-web"] = &policy.VersionPolicy{Mode: policy.ModeActive, Grab: true, Kind: policy.KindSeries}
+	e.off.Policy.Versions["tv-web"] = &policy.VersionPolicy{Mode: policy.ModeActive, Kind: policy.KindSeries}
 	e.exec(`INSERT INTO title (id, kind, name, year, tvdb_id, series_type, created_at, updated_at)
 		VALUES (3, 'series', 'Show', 2020, 99, 'standard', 0, 0)`)
 	e.exec(`INSERT INTO version (id, title_id, policy_key, created_at, updated_at) VALUES
@@ -335,7 +335,7 @@ func TestOfferSeriesSeasonPack(t *testing.T) {
 func TestOfferSeriesSceneNumbering(t *testing.T) {
 	t.Parallel()
 	e := newOfferEnv(t)
-	e.off.Policy.Versions["tv-web"] = &policy.VersionPolicy{Mode: policy.ModeActive, Grab: true, Kind: policy.KindSeries}
+	e.off.Policy.Versions["tv-web"] = &policy.VersionPolicy{Mode: policy.ModeActive, Kind: policy.KindSeries}
 	e.exec(`INSERT INTO title (id, kind, name, year, tvdb_id, series_type, use_scene_numbering, created_at, updated_at)
 		VALUES (3, 'series', 'Show', 2020, 99, 'standard', 1, 0, 0)`)
 	e.exec(`INSERT INTO version (id, title_id, policy_key, created_at, updated_at) VALUES

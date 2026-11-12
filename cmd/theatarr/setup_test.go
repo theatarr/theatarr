@@ -173,7 +173,7 @@ func TestServeStartsWithNothingConfigured(t *testing.T) {
 	}
 	for check, want := range map[string]preflight.Status{"versions/versions": preflight.Warn, "providers/providers": preflight.Warn,
 		"indexers/indexers": preflight.Warn, "metadata/tmdb": preflight.Fail, "library/mount": preflight.Warn,
-		"switches/router.enabled": preflight.OK} {
+		"switches/pause": preflight.OK} {
 		if statuses[check] != want {
 			t.Errorf("%s = %q, want %q (%+v)", check, statuses[check], want, report.Items)
 		}
@@ -192,9 +192,9 @@ func TestServeStartsWithNothingConfigured(t *testing.T) {
 		!strings.Contains(refused.Error, "no library") {
 		t.Errorf("add = %d %q", code, refused.Error)
 	}
-	// Nothing that could act is on: the global switches are off and there is no version to grab for.
+	// Nothing that could act is on: Pause is on and there is no version to grab for.
 	for _, it := range report.Items {
-		if it.Area == preflight.AreaSwitches && !strings.HasPrefix(it.Why, "off") {
+		if it.Area == preflight.AreaSwitches && !strings.HasPrefix(it.Why, "on: ") {
 			t.Errorf("switch on in a fresh install: %+v", it)
 		}
 	}
@@ -402,7 +402,7 @@ func TestPreflightInvalidInitializedSettings(t *testing.T) {
 		if item.Check == "validation" && item.Status == preflight.Fail && strings.Contains(item.Why, "metadata.overrides_dir") {
 			validation = true
 		}
-		if item.Area == preflight.AreaSwitches && item.Check == "router.enabled" && item.Status == preflight.OK && item.Why == "forced off by environment (THEATARR_FORCE_OFF): nothing is added to debrid (dry runs only)" {
+		if item.Area == preflight.AreaSwitches && item.Check == "pause" && item.Status == preflight.OK && item.Why == "on, forced by environment (THEATARR_FORCE_OFF): nothing is searched, downloaded or linked" {
 			switches = true
 		}
 	}

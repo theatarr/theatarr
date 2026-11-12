@@ -47,7 +47,7 @@ func sectionFields(t reflect.Type, path string, docs map[string]map[string]strin
 			continue
 		}
 		full := path + "." + name
-		if full == "library.enabled" || full == "notify.enabled" || full == "router.enabled" || full == "library.versions.*.roots" {
+		if full == "library.enabled" || full == "router.enabled" || full == "library.versions.*.roots" {
 			continue
 		}
 		// library.mount.decypharr has no control yet: the form never names the key, so a section saved from it keeps

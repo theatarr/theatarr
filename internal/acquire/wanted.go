@@ -34,7 +34,7 @@ func (a *Acquirer) Settings() (enabled bool, interval time.Duration, perHour int
 	return a.set.Enabled, a.set.Interval, a.set.PerHour
 }
 
-// Wanted runs one round of the wanted search loop: the grabbing versions' (active, grab on) missing and cutoff-unmet items (below the
+// Wanted runs one round of the wanted search loop: the Live versions' missing and cutoff-unmet items (below the
 // quality cutoff, or the full cutoff, per router.wanted.cutoff_unmet) not searched within again_after (a partial
 // search: partialAgain), grouped by title and series season, attempted longest ago first, as many as the hourly cap leaves, skipping items with a download in flight. It does
 // nothing while router.enabled is false or the loop is off. Queued Search now requests go first, under the same
@@ -51,11 +51,9 @@ func (a *Acquirer) Wanted(ctx context.Context) (*WantedSummary, error) {
 	case !a.set.Enabled:
 		sum.Off = "router.wanted is off"
 	case !a.pol.RouterSettings().Enabled:
-		sum.Off = "router.enabled is false"
-	case len(a.pol.ActiveVersions()) == 0:
-		sum.Off = "no version is active"
+		sum.Off = "paused"
 	case len(active) == 0:
-		sum.Off = "no active version has grab on"
+		sum.Off = "no version is active"
 	}
 	if sum.Off != "" {
 		return sum, nil
@@ -204,7 +202,7 @@ type WantedRow struct {
 	Season       *int `json:"season,omitempty"`
 	SearchQueued int  `json:"search_queued,omitempty"`
 	// SearchBlocked says why Search now cannot search the row, independent of Waiting (which names the loop's
-	// reason first): downloads_off, grab_off or in_flight; "" when it can.
+	// reason first): downloads_off (Pause is on) or in_flight; "" when it can.
 	SearchBlocked string     `json:"search_blocked,omitempty"`
 	LastRun       *WantedRun `json:"last_run"`
 	DecisionID    *int64     `json:"decision_id"`
@@ -234,7 +232,7 @@ type WantedList struct {
 }
 
 // WantedList uses the loop's selectors and recency rules without starting work or updating version state.
-// A shared title/season search is displayed once per library so grab-off and other library-specific waits remain visible.
+// A shared title/season search is displayed once per library so library-specific waits remain visible.
 func (a *Acquirer) WantedList(ctx context.Context, q WantedQuery) (*WantedList, error) {
 	ctx = a.captureRuntime(ctx)
 	if q.Only != OnlyMissing && q.Only != OnlyCutoff {
@@ -296,7 +294,6 @@ func (a *Acquirer) wantedRows(ctx context.Context, q WantedQuery, out *WantedLis
 	if err != nil {
 		return nil, err
 	}
-	grabbing := a.pol.GrabbingVersions()
 	again, partial := store.Millis(now.Add(-a.set.AgainAfter)), store.Millis(now.Add(-partialAgain))
 	var due []target
 	if a.set.Enabled && out.DownloadsEnabled {
@@ -362,7 +359,7 @@ func (a *Acquirer) wantedRows(ctx context.Context, q WantedQuery, out *WantedLis
 			for _, t := range group {
 				row.Targets = append(row.Targets, t.name)
 				allBusy = allBusy && flight.busy(t)
-				if a.set.Enabled && out.DownloadsEnabled && slices.Contains(grabbing, key) && (q.Only == OnlyMissing && a.set.Missing || q.Only == OnlyCutoff && a.set.CutoffUnmet != policy.CutoffOff) {
+				if a.set.Enabled && out.DownloadsEnabled && (q.Only == OnlyMissing && a.set.Missing || q.Only == OnlyCutoff && a.set.CutoffUnmet != policy.CutoffOff) {
 					busy = busy || flight.busy(t)
 				}
 				l := last[runKey(t.versionID, t.name)]
@@ -377,8 +374,6 @@ func (a *Acquirer) wantedRows(ctx context.Context, q WantedQuery, out *WantedLis
 				row.Waiting = "loop_off"
 			case !out.DownloadsEnabled:
 				row.Waiting = "downloads_off"
-			case !slices.Contains(grabbing, key):
-				row.Waiting = "grab_off"
 			case busy:
 				row.Waiting = "in_flight"
 			case recent:
@@ -398,8 +393,6 @@ func (a *Acquirer) wantedRows(ctx context.Context, q WantedQuery, out *WantedLis
 			switch {
 			case !out.DownloadsEnabled:
 				row.SearchBlocked = "downloads_off"
-			case !slices.Contains(grabbing, key):
-				row.SearchBlocked = "grab_off"
 			case allBusy:
 				row.SearchBlocked = "in_flight"
 			}

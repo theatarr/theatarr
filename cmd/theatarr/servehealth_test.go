@@ -61,13 +61,30 @@ func TestHealthCommand(t *testing.T) {
 func TestMountHealthFollowsRuntimeSwitch(t *testing.T) {
 	db, st, base, _ := runtimeFixture(t)
 	ctx := context.Background()
-	base.Library.Enabled = true
-	initial, err := st.BootstrapSwitches(ctx, base, "test", nil)
+	seed, err := st.BootstrapSwitches(ctx, base, "test", nil)
 	if err != nil {
 		t.Fatal(err)
 	}
 	build := func(snap *settings.Snapshot) *serveRuntime {
 		return &serveRuntime{Policy: snap.Policy, Library: &serveLibrary{lib: library.New(library.Options{Store: db, Policy: snap.Policy})}}
+	}
+	// Pause off first (confirmed), so the library starts on.
+	pre, err := settings.NewRuntimeCoordinator(st, base, seed, build(seed), func(_ context.Context, snap *settings.Snapshot, _ *settings.Runtime) (any, error) {
+		return build(snap), nil
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	open := settings.SaveRequest{ExpectedGeneration: seed.Generation, Actor: "test", Records: seed.Records}
+	open.Records.Switches = &settings.GlobalSwitches{Paused: false}
+	proof, err := pre.Confirm(ctx, open)
+	if err != nil {
+		t.Fatal(err)
+	}
+	open.ConfirmationToken = proof.Token
+	initial, err := pre.SaveAndApply(ctx, open)
+	if err != nil {
+		t.Fatal(err)
 	}
 	first := build(initial)
 	manager, err := settings.NewRuntimeCoordinator(st, base, initial, first, func(_ context.Context, snap *settings.Snapshot, _ *settings.Runtime) (any, error) {
@@ -79,7 +96,7 @@ func TestMountHealthFollowsRuntimeSwitch(t *testing.T) {
 	hc := newServeHealth(serveHealthConfig{pol: initial.Policy, manager: manager, st: db, q: jobs.NewQueue(db), lib: first.Library.lib})
 	oldCtx := manager.Capture(ctx)
 	records := initial.Records
-	records.Switches = &settings.GlobalSwitches{}
+	records.Switches = &settings.GlobalSwitches{Paused: true}
 	if _, err := manager.SaveAndApply(ctx, settings.SaveRequest{ExpectedGeneration: initial.Generation, Actor: "test", Records: records}); err != nil {
 		t.Fatal(err)
 	}
@@ -188,7 +205,7 @@ func TestProviderAccountHealthAcrossSaves(t *testing.T) {
 	save := func() {
 		t.Helper()
 		records := initial.Records
-		records.Switches = &settings.GlobalSwitches{}
+		records.Switches = &settings.GlobalSwitches{Paused: true}
 		snap, err := manager.SaveAndApply(ctx, settings.SaveRequest{ExpectedGeneration: generation, Actor: "test", Records: records})
 		if err != nil {
 			t.Fatal(err)

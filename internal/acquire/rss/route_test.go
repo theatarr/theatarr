@@ -30,7 +30,7 @@ func (e *env) withRouter(t *testing.T, active ...string) (*routertest.Fake, *job
 		}
 	}
 	for _, k := range active {
-		e.pol.Versions[k].Mode, e.pol.Versions[k].Grab = policy.ModeActive, true
+		e.pol.Versions[k].Mode = policy.ModeActive
 	}
 	q := jobs.NewQueue(e.st)
 	q.SetClock(e.clock)

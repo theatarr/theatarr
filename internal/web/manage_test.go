@@ -312,7 +312,7 @@ func TestManageShadowNoWrites(t *testing.T) {
 
 	// Still managed after the version goes active (the arr import still rewrites it): no monitor writes.
 	e = newManageEnv(t, func(p *policy.Policy) {
-		p.Versions["tv-2160p"].Mode, p.Versions["tv-2160p"].Grab = policy.ModeActive, true
+		p.Versions["tv-2160p"].Mode = policy.ModeActive
 		p.Router = &policy.Router{Enabled: true}
 	})
 	before = e.state()
@@ -325,7 +325,7 @@ func TestManageShadowNoWrites(t *testing.T) {
 func TestManageActive(t *testing.T) {
 	t.Parallel()
 	e := newManageEnv(t, func(p *policy.Policy) {
-		p.Versions["tv-2160p"].Mode, p.Versions["tv-2160p"].Grab = policy.ModeActive, true
+		p.Versions["tv-2160p"].Mode = policy.ModeActive
 		p.Router = &policy.Router{Enabled: true}
 		delete(p.Import.Arr, "sonarr_4k_debrid")
 	})

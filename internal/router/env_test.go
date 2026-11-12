@@ -181,11 +181,11 @@ func testPolicy(enabled bool, mode policy.Mode) *policy.Policy {
 				Pacing: policy.Pacing{AddsPerMinute: 10, UncachedPerHr: 2, BackoffMax: policy.Duration(2 * time.Hour)}},
 		},
 		Versions: map[string]*policy.VersionPolicy{
-			"movie": {Mode: mode, Grab: true, Kind: policy.KindMovie, Storage: policy.StorageDebrid, Indexers: []string{"pub"},
+			"movie": {Mode: mode, Kind: policy.KindMovie, Storage: policy.StorageDebrid, Indexers: []string{"pub"},
 				Providers: []string{"rd", "ad", "tb"}},
-			"series": {Mode: mode, Grab: true, Kind: policy.KindSeries, Storage: policy.StorageDebrid, Indexers: []string{"pub"},
+			"series": {Mode: mode, Kind: policy.KindSeries, Storage: policy.StorageDebrid, Indexers: []string{"pub"},
 				Providers: []string{"rd", "ad", "tb"}},
-			"seed": {Mode: mode, Grab: true, Kind: policy.KindMovie, Storage: policy.StorageSeedbox, Indexers: []string{"priv"}},
+			"seed": {Mode: mode, Kind: policy.KindMovie, Storage: policy.StorageSeedbox, Indexers: []string{"priv"}},
 		},
 		Router: &policy.Router{Enabled: enabled},
 	}

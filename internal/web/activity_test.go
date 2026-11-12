@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net/http"
 	"net/http/httptest"
@@ -436,8 +437,9 @@ func TestActivityHistoryPagesOverOwnTitles(t *testing.T) {
 func TestNotStartedMirrorsRouterGate(t *testing.T) {
 	t.Parallel()
 	for _, prefix := range []string{"route ended: ", "route stopped: "} {
+		// The downloads switch's text is kept for rows written before it was removed.
 		for err, want := range map[error]string{router.ErrDisabled: "off", router.ErrShadow: "watch_only",
-			router.ErrNoGrab: "grab_off"} {
+			errors.New("router: the version's grab switch is off; nothing is written for it"): "grab_off"} {
 			if got := activity.NotStarted(prefix + err.Error()); got != want {
 				t.Errorf("%s%v: %q, want %q", prefix, err, got, want)
 			}
@@ -490,7 +492,7 @@ func TestActivityNotStartedDownload(t *testing.T) {
 		}
 	}
 	// The requests' SQL selects exactly the rows the Go check reads as not started.
-	for _, text := range []string{"route ended: " + router.ErrShadow.Error(), "route stopped: " + router.ErrNoGrab.Error(),
+	for _, text := range []string{"route ended: " + router.ErrShadow.Error(), "route stopped: router: the version's grab switch is off; nothing is written for it",
 		"route ended: router: unknown version", "Route ended: router: x", "route ended: its release was not placed",
 		"download failed: route ended: router: x", "stalled: not ready", ""} {
 		e.exec(`UPDATE download SET error = ?`, text)

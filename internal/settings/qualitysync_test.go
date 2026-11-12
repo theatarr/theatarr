@@ -205,13 +205,13 @@ func TestQualitySyncAppliesWithoutReview(t *testing.T) {
 	}
 }
 
-// A run applies to a profile a Live library with downloads on uses, a raised score included, with no confirmation.
+// A run applies to a profile a Live library uses, a raised score included, with no confirmation.
 func TestQualitySyncAppliesToLiveLibrary(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
 	m, base, live := liveGrabFixture(t)
-	if v := live.Policy.Versions["movie-web"]; v.Mode != policy.ModeActive || !v.Grab {
-		t.Fatal("fixture: movie-web is not Live with downloads on")
+	if v := live.Policy.Versions["movie-web"]; v.Mode != policy.ModeActive {
+		t.Fatal("fixture: movie-web is not Live")
 	}
 	profile := live.Policy.Versions["movie-web"].Profile
 	const web01 = "c20f169ef63c5f40c2def54abaf4438e"

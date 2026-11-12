@@ -1,7 +1,6 @@
-# The download router (docs/design/router.md). It adds releases to the debrid providers of versions in
-# mode: active with grab: true, in each version's providers order, and only while enabled is true. enabled is the
-# global kill switch: off (the default), nothing is written to any provider and every version is dry-run only,
-# whatever its mode and grab.
+# The download router (docs/design/router.md). It adds releases to the debrid providers of Live versions
+# (mode: active), in each version's providers order, and only while enabled is true. With database settings enabled
+# follows Pause (true when Pause is off); off, nothing is written to any provider and every version is dry-run only.
 # theatarr serve logs the switch and the active versions at start. Every other field is optional; these are the defaults.
 router:
   enabled: false

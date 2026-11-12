@@ -52,7 +52,7 @@ func TestSettingsVersionsCRUDAndConfirmation(t *testing.T) {
 	refusal := se.want(se.call("PUT", "/versions/test-version", body), 422, "unconfirmed activation")
 	effects := refusal["effects"].([]any)
 	text := fmt.Sprint(effects)
-	if !strings.Contains(text, root) || !strings.Contains(text, "rd, ad, tb") || !strings.Contains(text, "router.enabled") {
+	if !strings.Contains(text, root) || !strings.Contains(text, "rd, ad, tb") || !strings.Contains(text, "Pause is on") {
 		t.Fatalf("effects not specific: %s", text)
 	}
 	proof := se.want(se.call("POST", "/versions/confirm", body), 200, "confirm")
@@ -159,7 +159,7 @@ func TestSettingsVersionImportRequiresExactConfirmation(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	p.Versions["movie-web"].Mode, p.Versions["movie-web"].Grab = policy.ModeActive, true
+	p.Versions["movie-web"].Mode = policy.ModeActive
 	p.Versions["movie-web"].Library = root
 	p.Library.Versions["movie-web"].Roots = []string{root}
 	write := func() {

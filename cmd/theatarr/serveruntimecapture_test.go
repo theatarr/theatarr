@@ -759,7 +759,7 @@ func TestServeSearchJobKeepsRetryNewMark(t *testing.T) {
 			Indexers: map[string]*policy.Indexer{"pub": {Kind: "torznab", URL: "http://pub.test/api", Privacy: policy.PrivacyPublic}},
 			Providers: map[string]*policy.Provider{"rd": {Kind: provider.KindRealDebrid, Order: 1, URL: "http://rd.test/rest/1.0",
 				APIKeyEnv: "THEATARR_RD_KEY"}},
-			Versions: map[string]*policy.VersionPolicy{"movie": {Mode: policy.ModeActive, Grab: true, Kind: policy.KindMovie,
+			Versions: map[string]*policy.VersionPolicy{"movie": {Mode: policy.ModeActive, Kind: policy.KindMovie,
 				Storage: policy.StorageDebrid, Indexers: []string{"pub"}, Providers: []string{"rd"}}},
 			Router: &policy.Router{Enabled: true, Wanted: &policy.Wanted{RetryNew: new(on)}},
 		}
@@ -831,7 +831,7 @@ func TestAfterPublishCancelsRetryNewWhenOff(t *testing.T) {
 			Indexers: map[string]*policy.Indexer{"pub": {Kind: "torznab", URL: "http://pub.test/api", Privacy: policy.PrivacyPublic}},
 			Providers: map[string]*policy.Provider{"rd": {Kind: provider.KindRealDebrid, Order: 1, URL: "http://rd.test/rest/1.0",
 				APIKeyEnv: "THEATARR_RD_KEY"}},
-			Versions: map[string]*policy.VersionPolicy{"movie": {Mode: policy.ModeActive, Grab: true, Kind: policy.KindMovie,
+			Versions: map[string]*policy.VersionPolicy{"movie": {Mode: policy.ModeActive, Kind: policy.KindMovie,
 				Storage: policy.StorageDebrid, Indexers: []string{"pub"}, Providers: []string{"rd"}}},
 			Router: &policy.Router{Enabled: true, Wanted: &policy.Wanted{RetryNew: new(on)}},
 		}

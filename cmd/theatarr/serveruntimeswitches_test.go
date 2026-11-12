@@ -18,7 +18,7 @@ import (
 	"github.com/theatarr/theatarr/internal/web"
 )
 
-// The arr views' RouterDisabledCheck (arrview versionHealth) follows router.enabled saved in the DB settings, without
+// The arr views' RouterDisabledCheck (arrview versionHealth) follows Pause saved in the DB settings, without
 // a restart.
 func TestArrViewHealthFollowsRouterSwitch(t *testing.T) {
 	t.Parallel()
@@ -77,21 +77,23 @@ func TestArrViewHealthFollowsRouterSwitch(t *testing.T) {
 	save(func(r *settings.Records) {
 		for i := range r.Versions {
 			if r.Versions[i].Key == "movie-web" {
-				r.Versions[i].Config.Mode, r.Versions[i].Config.Grab, r.Versions[i].Config.Library = policy.ModeActive, true, root
+				r.Versions[i].Config.Mode, r.Versions[i].Config.Library = policy.ModeActive, root
 				r.Versions[i].Roots = []string{root}
 			}
 		}
 	})
-	disabled := func() bool { return strings.Contains(fmt.Sprint(views.HealthItems(ctx)), "Router disabled") }
-	if !disabled() {
-		t.Fatal("fixture: router is not off for the active version")
+	disabled := func() bool {
+		return strings.Contains(fmt.Sprint(views.HealthItems(ctx)), "Paused: nothing is downloaded")
 	}
-	save(func(r *settings.Records) { r.Switches.RouterEnabled = true })
+	if !disabled() {
+		t.Fatal("fixture: not paused for the active version")
+	}
+	save(func(r *settings.Records) { r.Switches = &settings.GlobalSwitches{Paused: false} })
 	if disabled() {
-		t.Fatal("health kept the router off after it was enabled")
+		t.Fatal("health kept Pause on after it was turned off")
 	}
-	save(func(r *settings.Records) { r.Switches.RouterEnabled = false })
+	save(func(r *settings.Records) { r.Switches = &settings.GlobalSwitches{Paused: true} })
 	if !disabled() {
-		t.Fatal("health kept the router on after it was disabled")
+		t.Fatal("health kept Pause off after it was turned on")
 	}
 }

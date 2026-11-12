@@ -272,7 +272,19 @@ func TestSettingsImportKeepsStoredSectionsAndSwitches(t *testing.T) {
 			t.Fatal(err)
 		}
 		records := snap.Records
-		records.Switches = &settings.GlobalSwitches{RouterEnabled: true}
+		records.Switches = &settings.GlobalSwitches{Paused: false}
+		// Pause off also opens the library switch, which needs a mount and a trash folder.
+		for i, sec := range records.Sections {
+			if sec.Key == "library" {
+				var m map[string]any
+				if err := json.Unmarshal(sec.Config, &m); err != nil || m == nil {
+					t.Fatalf("library section %s: %v", sec.Config, err)
+				}
+				m["mount"] = map[string]any{"path": t.TempDir()}
+				m["trash"] = map[string]any{"dir": t.TempDir()}
+				records.Sections[i].Config, _ = json.Marshal(m)
+			}
+		}
 		req := settings.SaveRequest{ExpectedGeneration: snap.Generation, Actor: "seed", Records: records}
 		approval, err := coord.Confirm(ctx, req)
 		if err != nil {

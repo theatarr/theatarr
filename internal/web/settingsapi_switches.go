@@ -26,12 +26,21 @@ func (w *Web) apiSettingsSwitchesWrite(confirm bool) http.HandlerFunc {
 		}
 		var body struct {
 			Generation        *int64 `json:"generation"`
+			Paused            *bool  `json:"paused"`
 			Router            *bool  `json:"router_enabled"`
 			Library           *bool  `json:"library_enabled"`
 			Notify            *bool  `json:"notify_enabled"`
 			ConfirmationToken string `json:"confirmation_token"`
 		}
 		if !decodeSettingsJSON(rw, r, &body) {
+			return
+		}
+		if body.Router != nil || body.Library != nil || body.Notify != nil {
+			writeJSON(rw, http.StatusBadRequest, apiError{Error: "use paused; notifications are the notify section's enabled field"})
+			return
+		}
+		if body.Paused == nil {
+			writeJSON(rw, http.StatusBadRequest, apiError{Error: "paused is required"})
 			return
 		}
 		snap, ok := w.settingsAt(rw, r, body.Generation)
@@ -42,21 +51,8 @@ func (w *Web) apiSettingsSwitchesWrite(confirm bool) http.HandlerFunc {
 			writeJSON(rw, http.StatusConflict, apiError{Error: "global switches have not been seeded; restart the service"})
 			return
 		}
-		if body.Router == nil && body.Library == nil && body.Notify == nil {
-			writeJSON(rw, http.StatusBadRequest, apiError{Error: "a switch is required"})
-			return
-		}
 		records := cloneRecords(snap.Records)
-		value := *snap.Records.Switches
-		if body.Router != nil {
-			value.RouterEnabled = *body.Router
-		}
-		if body.Library != nil {
-			value.LibraryEnabled = *body.Library
-		}
-		if body.Notify != nil {
-			value.NotifyEnabled = *body.Notify
-		}
+		value := settings.GlobalSwitches{Paused: *body.Paused}
 		records.Switches = &value
 		req := settings.SaveRequest{ExpectedGeneration: snap.Generation, Actor: settingsActor(r), Records: records,
 			ConfirmationToken: confirmationToken(r, body.ConfirmationToken)}

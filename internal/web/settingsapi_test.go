@@ -679,9 +679,9 @@ func TestSettingsAPIKillSwitchesUntouchable(t *testing.T) {
 		}
 	}
 	edit("router.yaml", "\n  enabled: false", "\n  enabled: true")
-	edit("notify.yaml", "enabled: false", "enabled: true")
+	edit("library.yaml", "\n  enabled: false", "\n  enabled: true")
 	edit("versions.yaml", "mode: shadow", "mode: active")
-	if p, err := policy.Read(se.dir); err != nil || !p.Router.Enabled || !p.Notify.Enabled {
+	if p, err := policy.Read(se.dir); err != nil || !p.Router.Enabled || !p.Library.Enabled {
 		t.Fatalf("edited fixture: %v", err)
 	}
 	// The import still changes the records it owns.
@@ -699,8 +699,8 @@ func TestSettingsAPIKillSwitchesUntouchable(t *testing.T) {
 		t.Fatalf("import: %v", out)
 	}
 	cur := se.coord.Current().Policy
-	if cur.Router.Enabled || cur.Library.Enabled || (cur.Notify != nil && cur.Notify.Enabled) || cur.Indexers["dmm"].PageCap != 150 {
-		t.Fatalf("after import: router %v library %v notify %+v page_cap %d", cur.Router.Enabled, cur.Library.Enabled, cur.Notify, cur.Indexers["dmm"].PageCap)
+	if cur.Router.Enabled || cur.Library.Enabled || cur.Indexers["dmm"].PageCap != 150 {
+		t.Fatalf("after import: router %v library %v page_cap %d", cur.Router.Enabled, cur.Library.Enabled, cur.Indexers["dmm"].PageCap)
 	}
 	for k, v := range cur.Versions {
 		if v.Mode == policy.ModeActive {
@@ -832,9 +832,7 @@ func TestSettingsAPIOverviewSwitches(t *testing.T) {
 	t.Parallel()
 	check := func(label string, o SettingsOverview, pol *policy.Policy) {
 		t.Helper()
-		if o.Switches.RouterEnabled != (pol.Router != nil && pol.Router.Enabled) ||
-			o.Switches.LibraryEnabled != (pol.Library != nil && pol.Library.Enabled) ||
-			o.Switches.NotifyEnabled != (pol.Notify != nil && pol.Notify.Enabled) {
+		if o.Switches.Paused != (pol.Router == nil || !pol.Router.Enabled) {
 			t.Errorf("%s: switches %+v", label, o.Switches)
 		}
 		if len(o.Switches.Versions) != len(pol.Versions) {
@@ -866,7 +864,7 @@ func TestSettingsAPIOverviewSwitches(t *testing.T) {
 		t.Fatalf("settings versions = %+v", versions.Switches.Versions)
 	}
 	for _, v := range versions.Switches.Versions {
-		if v.GrabState != (VersionGrabState{Mode: "shadow"}) {
+		if v.GrabState != (VersionGrabState{Mode: "shadow", Paused: true}) {
 			t.Errorf("version %s grab_state = %+v, want shadow and no grab", v.Key, v.GrabState)
 		}
 	}

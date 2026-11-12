@@ -156,8 +156,8 @@ func TestStuckRootCheckHoldsOnlyItsRoot(t *testing.T) {
 	}
 
 	req := saveRequest(p, initial)
-	editVersion(&req.Records, "movie-web", func(v *Version) { v.Config.Grab = false; v.Config.Mode = policy.ModeShadow })
-	req.Records.Switches = &GlobalSwitches{}
+	editVersion(&req.Records, "movie-web", func(v *Version) { v.Config.Mode = policy.ModeShadow })
+	req.Records.Switches = &GlobalSwitches{Paused: true}
 	saved, err := s.Save(ctx, req)
 	if err != nil {
 		t.Fatalf("grab off and router off while a root check is stuck: %v", err)
@@ -205,7 +205,7 @@ func TestHungActiveRootLeavesOffSavesOpen(t *testing.T) {
 	ctx := context.Background()
 	start := time.Now()
 	req := saveRequest(p, initial)
-	req.Records.Switches = &GlobalSwitches{}
+	req.Records.Switches = &GlobalSwitches{Paused: true}
 	saved, err := m.SaveAndApply(ctx, req)
 	if err != nil || time.Since(start) > 5*time.Second {
 		t.Fatalf("router off while an active root hangs: %v after %s", err, time.Since(start))
@@ -234,7 +234,7 @@ func TestHungActiveRootLeavesOffSavesOpen(t *testing.T) {
 		t.Fatalf("the hang was charged to %s (%s)", other, time.Since(start))
 	}
 	req = saveRequest(p, saved)
-	editVersion(&req.Records, "movie-web", func(v *Version) { v.Config.Grab = false; v.Config.Mode = policy.ModeShadow })
+	editVersion(&req.Records, "movie-web", func(v *Version) { v.Config.Mode = policy.ModeShadow })
 	if _, err := m.SaveAndApply(ctx, req); err != nil {
 		t.Fatalf("the hung version back to shadow: %v", err)
 	}

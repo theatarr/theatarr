@@ -74,7 +74,7 @@ func TestGrabReleaseByHand(t *testing.T) {
 	}
 	e.pol.Router.Enabled = false
 	if _, err := e.svc.GrabRelease(ctx, 1, "movie-web", good, true, "ui:grab:test"); !isRefused(err) ||
-		!strings.Contains(err.Error(), "router.enabled is false") {
+		!strings.Contains(err.Error(), "Theatarr is paused") {
 		t.Errorf("disabled grab: %v", err)
 	}
 	e.pol.Router.Enabled = true
@@ -165,7 +165,7 @@ func TestAddReleaseByHand(t *testing.T) {
 	}
 	e.pol.Router.Enabled = false
 	if _, err := e.svc.AddRelease(ctx, 1, "movie-web", good, true, "ui:grab:test"); !isRefused(err) ||
-		!strings.Contains(err.Error(), "router.enabled is false") {
+		!strings.Contains(err.Error(), "Theatarr is paused") {
 		t.Errorf("disabled add: %v", err)
 	}
 	e.pol.Router.Enabled = true
@@ -231,7 +231,7 @@ func TestRetryDownload(t *testing.T) {
 	}
 	e.pol.Router.Enabled = false
 	if _, err := e.svc.RetryDownload(ctx, 50, "ui:retry:50"); !isRefused(err) ||
-		!strings.Contains(err.Error(), "router.enabled is false") {
+		!strings.Contains(err.Error(), "Theatarr is paused") {
 		t.Errorf("disabled retry: %v", err)
 	}
 	e.pol.Router.Enabled = true

@@ -13,9 +13,8 @@ import (
 	"github.com/theatarr/theatarr/internal/policy"
 )
 
-// ConfirmationEffect describes a change that asks for confirmation before it is saved: going Live, downloads on,
-// Pause off (the global switches), following or importing an arr into a grabbing library, removing a library, and an
-// address change that keeps a stored credential.
+// ConfirmationEffect describes a change that asks for confirmation before it is saved: going Live, Pause off,
+// importing an arr into a Live library, removing a library, and an address change that keeps a stored credential.
 type ConfirmationEffect struct {
 	Version string `json:"version"`
 	Effect  string `json:"effect"`
@@ -167,8 +166,7 @@ func snapshotConfirmationEffects(ctx context.Context, q rootQueryer, previous, n
 }
 
 // snapshotWriteEffects are snapshotConfirmationEffects without the credential addresses: a library going Live,
-// downloads on for a Live library, Pause off (the global switches), following or importing an arr into a grabbing
-// library, and removing a library. Every other change saves at once after validation. A startup fallback checks only
+// Pause off, importing an arr into a Live library, and removing a library. Every other change saves at once after validation. A startup fallback checks only
 // these (FallbackEffects): the last published generation already sent its credentials to its own addresses.
 func snapshotWriteEffects(ctx context.Context, q rootQueryer, previous, next *Snapshot) ([]ConfirmationEffect, error) {
 	if previous == nil || next == nil {
@@ -196,28 +194,15 @@ func versionConfirmationEffects(ctx context.Context, q rootQueryer, previous, ne
 		if root == "" {
 			root = "(no library root configured)"
 		}
-		libraryEnabled := next.Library != nil && next.Library.Enabled
-		routerEnabled := next.Router != nil && next.Router.Enabled
-		if before == nil && after.Mode == policy.ModeActive {
-			effects = append(effects, ConfirmationEffect{Version: key, Effect: fmt.Sprintf(
-				"Library %s becomes Live and starts searching. Links may be written under %s when Write library links (library.enabled) is on (currently %t). Torrent adds may go to providers %s when Allow new downloads (router.enabled) is on (currently %t).",
-				key, root, libraryEnabled, providerList(after.Providers), routerEnabled)})
-		}
-		if after.Mode == policy.ModeActive && after.Grab && (before == nil || before.Mode != policy.ModeActive || !before.Grab) {
-			// The per-version grab switch: turning it on for an active version, or activating a version
-			// with it on, lets the router add torrents for it. Turning it off needs no confirmation.
-			effects = append(effects, ConfirmationEffect{Version: key, Effect: fmt.Sprintf(
-				"Downloads are on for Live library %s: torrent adds go to providers %s when Allow new downloads (router.enabled) is on (currently %t).",
-				key, providerList(after.Providers), routerEnabled)})
-		}
-		if before == nil {
+		if after.Mode != policy.ModeActive || before != nil && before.Mode == policy.ModeActive {
 			continue
 		}
-		if before.Mode != policy.ModeActive && after.Mode == policy.ModeActive {
-			effects = append(effects, ConfirmationEffect{Version: key, Effect: fmt.Sprintf(
-				"Library %s becomes Live and starts searching. Links may be written under %s when Write library links (library.enabled) is on (currently %t). Torrent adds may go to providers %s when Allow new downloads (router.enabled) is on (currently %t).",
-				key, root, libraryEnabled, providerList(after.Providers), routerEnabled)})
+		effect := fmt.Sprintf("Library %s becomes Live: it searches, downloads to %s and writes links under %s.",
+			key, providerList(after.Providers), root)
+		if next.Router == nil || !next.Router.Enabled {
+			effect += " Pause is on, so nothing starts until you turn it off."
 		}
+		effects = append(effects, ConfirmationEffect{Version: key, Effect: effect})
 	}
 	for _, key := range sortedPolicyKeys(previous.Versions) {
 		if next.Versions[key] != nil {

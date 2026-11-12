@@ -302,8 +302,8 @@ func importRequest(req ImportRequest) (SaveRequest, error) {
 			}
 			records.Sections = append(records.Sections, Section{Record: Record{Key: spec.Key}, Config: config})
 		}
-		// Explicit imports never enable the global switches.
-		records.Switches = &GlobalSwitches{}
+		// Explicit imports never turn Pause off.
+		records.Switches = &GlobalSwitches{Paused: true}
 	}
 	base := req.Base
 	if base == nil {

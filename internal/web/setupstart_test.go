@@ -3,6 +3,7 @@ package web
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net/http"
 	"net/http/httptest"
@@ -13,7 +14,10 @@ import (
 	"testing"
 
 	"github.com/theatarr/theatarr/internal/auth"
+	"github.com/theatarr/theatarr/internal/catalog"
+	"github.com/theatarr/theatarr/internal/library"
 	"github.com/theatarr/theatarr/internal/policy"
+	"github.com/theatarr/theatarr/internal/router"
 	"github.com/theatarr/theatarr/internal/settings"
 )
 
@@ -62,7 +66,7 @@ func startEnv(t *testing.T, arr bool) (se *settingsEnv, area string) {
 func (se *settingsEnv) startBody(key, root string) map[string]any {
 	se.t.Helper()
 	config := se.want(se.call("GET", "/versions/movie-web", nil), 200, "template")["record"].(map[string]any)["config"].(map[string]any)
-	config["library"], config["mode"], config["grab"] = root, "shadow", false
+	config["library"], config["mode"] = root, "shadow"
 	return map[string]any{"generation": se.generation(), "key": key, "roots": []string{root}, "config": config}
 }
 
@@ -86,15 +90,16 @@ func (se *settingsEnv) setupState() SetupState {
 	return decodeAs[SetupState](se.t, rec.Body.Bytes())
 }
 
-// switchesOn reads the stored global switches router and library.
+// switchesOn reads the stored Pause: both runtime switches (router, library) are on when it is off.
 func (se *settingsEnv) switchesOn() (router, library bool) {
 	se.t.Helper()
 	configured := se.want(se.call("GET", "/switches", nil), 200, "switches")["configured"].(map[string]any)
-	return configured["router_enabled"] == true, configured["library_enabled"] == true
+	on := configured["paused"] == false
+	return on, on
 }
 
-// POST setup/start on an install no arr feeds: one refusal that lists the activation, the grab switch and both global
-// switches with one token, then one generation that holds all of it, whatever mode and grab the body asked for.
+// POST setup/start on an install no arr feeds: one refusal that lists the activation and Pause off with one token,
+// then one generation that holds all of it, whatever mode the body asked for.
 func TestSetupStart(t *testing.T) {
 	t.Parallel()
 	se, area := startEnv(t, false)
@@ -111,14 +116,14 @@ func TestSetupStart(t *testing.T) {
 	body := se.startBody("films", root)
 	gen := body["generation"].(int64)
 	refused := se.start(body)
-	if effects, _ := refused["effects"].([]any); refused["status"] != 422 || len(effects) != 4 {
+	if effects, _ := refused["effects"].([]any); refused["status"] != 422 || len(effects) != 2 {
 		t.Fatalf("unconfirmed start: %v", refused)
 	}
 	// Each thing the save turns on is its own line.
-	for _, want := range []string{"Library films becomes Live", "Downloads are on for Live library films: torrent adds go to providers", "Turn on Allow new downloads (router.enabled)", "Turn on Write library links (library.enabled)"} {
+	for _, want := range []string{"Library films becomes Live: it searches, downloads to", "Turn Pause off: Live libraries search, download and link again: films."} {
 		confirmRefusal(t, refused, want)
 	}
-	if text := fmt.Sprint(refused["effects"]); strings.Contains(text, "notify.enabled") {
+	if text := fmt.Sprint(refused["effects"]); strings.Contains(text, "notif") {
 		t.Fatalf("the start touches notify: %s", text)
 	}
 	if router, library := se.switchesOn(); se.generation() != gen || router || library {
@@ -131,14 +136,14 @@ func TestSetupStart(t *testing.T) {
 		t.Fatalf("confirmed start: %v (generation %d, was %d)", started, se.generation(), gen)
 	}
 	config := se.want(se.call("GET", "/versions/films", nil), 200, "the library")["record"].(map[string]any)["config"].(map[string]any)
-	if config["mode"] != "active" || config["grab"] != true || config["profile"] != "web-2160p" {
+	if config["mode"] != "active" || config["profile"] != "web-2160p" {
 		t.Fatalf("stored library: %v", config)
 	}
 	if router, library := se.switchesOn(); !router || !library {
 		t.Fatalf("switches after the start: router %v library %v", router, library)
 	}
-	if on := se.want(se.call("GET", "/switches", nil), 200, "switches")["configured"].(map[string]any)["notify_enabled"]; on != false {
-		t.Fatalf("notify_enabled %v: the start must leave it alone", on)
+	if n := se.coord.Current().Policy.Notify; n != nil && n.Enabled {
+		t.Fatal("notifications on: the start must leave them alone")
 	}
 	// The other libraries are as they were.
 	if other := se.want(se.call("GET", "/versions/movie-web", nil), 200, "another library")["record"].(map[string]any)["config"].(map[string]any); other["mode"] != "shadow" {
@@ -185,15 +190,15 @@ func TestSetupStartWithPreset(t *testing.T) {
 	body["preset"] = map[string]any{"flavour": "radarr", "preset": webPreset, "modifiers": []string{}}
 	gen := se.generation()
 	refused := se.start(body)
-	if effects, _ := refused["effects"].([]any); refused["status"] != 422 || len(effects) != 4 {
+	if effects, _ := refused["effects"].([]any); refused["status"] != 422 || len(effects) != 2 {
 		t.Fatalf("unconfirmed start: %v", refused)
 	}
-	body["confirmation_token"] = confirmRefusal(t, refused, "router.enabled")
+	body["confirmation_token"] = confirmRefusal(t, refused, "Turn Pause off")
 	if out := se.start(body); out["status"] != 200 || se.generation() != gen+1 {
 		t.Fatalf("confirmed start: %v (generation %d, was %d)", out, se.generation(), gen)
 	}
 	config := se.want(se.call("GET", "/versions/films", nil), 200, "the library")["record"].(map[string]any)["config"].(map[string]any)
-	if config["mode"] != "active" || config["grab"] != true || config["profile"] != "films" {
+	if config["mode"] != "active" || config["profile"] != "films" {
 		t.Fatalf("stored library: %v", config)
 	}
 	snap, err := se.coord.Snapshot(t.Context())
@@ -233,7 +238,7 @@ func TestSetupStartRefusedWithArr(t *testing.T) {
 	}
 }
 
-// THEATARR_FORCE_OFF does not refuse the start: the save happens and the answer names the switches it keeps off.
+// THEATARR_FORCE_OFF does not refuse the start: the save happens and the answer says it keeps Pause on.
 func TestSetupStartForcedOff(t *testing.T) {
 	t.Setenv("THEATARR_FORCE_OFF", "router,notify")
 	se, area := startEnv(t, false)
@@ -242,14 +247,48 @@ func TestSetupStartForcedOff(t *testing.T) {
 	if refused["status"] != 422 {
 		t.Fatalf("unconfirmed start: %v", refused)
 	}
-	body["confirmation_token"] = confirmRefusal(t, refused, "router.enabled")
+	body["confirmation_token"] = confirmRefusal(t, refused, "Turn Pause off")
 	out := se.start(body)
 	forced, _ := out["forced_off"].([]any)
-	if out["status"] != 200 || !slices.Equal(forced, []any{"router"}) {
+	if out["status"] != 200 || !slices.Equal(forced, []any{"pause"}) {
 		t.Fatalf("forced off: %v", out)
 	}
 	if router, library := se.switchesOn(); !router || !library {
 		t.Fatalf("stored switches: router %v library %v", router, library)
+	}
+}
+
+// Pause closes both gates: with it on, the router's write gate, the library's write gate and the search gate all
+// refuse a Live library; with it off all three let it through.
+func TestPauseClosesBothGates(t *testing.T) {
+	t.Parallel()
+	se, area := startEnv(t, false)
+	root := filepath.Join(area, "films")
+	if err := os.Mkdir(root, 0o700); err != nil {
+		t.Fatal(err)
+	}
+	body := se.startBody("films", root)
+	body["confirmation_token"] = confirmRefusal(t, se.start(body), "Turn Pause off")
+	if out := se.start(body); out["status"] != 200 {
+		t.Fatalf("start: %v", out)
+	}
+	gates := func() (routerErr, libraryErr error, searchable []string) {
+		t.Helper()
+		pol := se.coord.Current().Policy
+		r, err := router.New(router.Config{Store: se.st, Policy: pol})
+		if err != nil {
+			t.Fatal(err)
+		}
+		_, routerErr = r.Gate("films")
+		searchable, _ = catalog.Searchable(pol, []string{"films"})
+		return routerErr, library.NewGate(pol).CheckVersion("films"), searchable
+	}
+	if r, l, s := gates(); r != nil || l != nil || len(s) != 1 {
+		t.Fatalf("Pause off: router %v, library %v, searchable %v", r, l, s)
+	}
+	se.want(se.call("PUT", "/switches", map[string]any{"generation": se.generation(), "paused": true}), 200, "Pause on")
+	if r, l, s := gates(); !errors.Is(r, router.ErrDisabled) || l == nil || len(s) != 0 {
+		t.Fatalf("Pause on: router %v, library %v, searchable %v", r, l, s)
 	}
 }
 

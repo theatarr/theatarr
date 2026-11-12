@@ -62,13 +62,13 @@
   },
   "Library": {
     "dangling": "This configures the read-only report of dangling links into the mount.",
-    "enabled": "This turns on filesystem writes and plex calls. Default false.",
+    "enabled": "This turns on filesystem writes and plex calls. Default false; with database settings it is derived from Pause.",
     "mount": "This is where zurg is read.",
     "plex": "This is the plex server scanned after a change. Optional.",
     "probe": "This bounds the header probe.",
     "relink_interval": "This is how often theatarr serve looks for dangling links and repoints them. Default 1h, minimum 10m.",
     "sample": "This tunes the sample and fake guard.",
-    "trash": "This is where replaced links are moved aside (upgrades, relinks). Required once Write library links is on.",
+    "trash": "This is where replaced links are moved aside (upgrades, relinks). Required once Pause is off.",
     "versions": "This lists, per version key, where the library may write and which plex section shows it. A version not listed here never gets a write."
   },
   "LibraryDangling": {
@@ -88,7 +88,7 @@
     "all_dir": "This is the name of the folder directly under the mount that holds every release: a folder name, not a path (zurg and mounts laid out like it call it __all__). Default __all__.",
     "decypharr": "This sets decypharr as the debrid mount in place of zurg. Reading a file through decypharr, playback included, can make it replace a Real-Debrid torrent with a new copy. Over this connection Theatarr only reads. Off when unset.",
     "link_path": "This is the mount as written into symlinks: the absolute path at which plex (or another player) sees the mount. Leave it empty when that is the mount folder itself: an empty value uses the mount folder.",
-    "path": "This is where this service sees the mount, e.g. /mnt/debrid. Required once Write library links is on.",
+    "path": "This is where this service sees the mount, e.g. /mnt/debrid. Required once Pause is off.",
     "poll_interval": "This is how often a waiting import looks again. Default 20s, minimum 5s.",
     "rclone_rc": "This is the mount's rclone remote control (rclone rc): the now playing page reads core/stats and vfs/stats (docs/design/now-playing.md); forget_release_root lets an import clear one cached listing. Optional.",
     "stat_timeout": "This bounds the health sentinel's stat; a hang or ENOTCONN pauses imports and sweeps. Default 5s.",
@@ -137,7 +137,7 @@
     "allow_hosts": "This lists the hosts (host or host:port) an installed notification may target. Each joins the gateway's allowlist. Empty: installed notifications are stored but never sent.",
     "budget": "This names the budget every webhook request takes a token from (optional).",
     "digest_at": "This is the local time (HH:MM, the container's TZ) the daily digest goes to Discord and ntfy targets. Default 09:00.",
-    "enabled": "This allows sending at all. Default false: events are still recorded, nothing leaves the process.",
+    "enabled": "This sends notifications. Off (the default): events are recorded, nothing is sent.",
     "poll": "This is how often the notifier looks for new events and due deliveries. Default 15s, 1s to 10m.",
     "retries": "This is how many times a failed delivery is retried. Default 5, 0 to 20.",
     "targets": "This lists webhook targets defined in the policy, by key."
@@ -187,7 +187,7 @@
     "cached_grace": "This is how long the router waits before reading a fresh Real-Debrid or AllDebrid add again when the first read shows it still converting or downloading (one re-read; on Real-Debrid also after selecting files), before it calls the add…",
     "cached_only": "This skips a provider where a release is known to be uncached (an earlier refusal, a cache check) and asks TorBox to add only if cached.",
     "downloading_timeout": "This fails a download in state downloading whose provider progress has not risen for this long (a dead swarm, a magnet that never leaves the provider's queue): its hash is blocklisted for the version, our own Real-Debrid add is deleted…",
-    "enabled": "This lets the router write to debrid providers (add a magnet, select files). Default false: every version is then dry-run only, whatever its mode.",
+    "enabled": "This lets the router write to debrid providers (add a magnet, select files). With database settings it is derived from Pause (true when Pause is off). False: every version is dry-run only, whatever its mode.",
     "max_candidates": "This caps how many accepted releases of one search are tried, best first. Default 5, 1 to 50.",
     "miss_ttl": "This is how long a release missed on every provider stays a miss. Default 6h, 10m to 7d.",
     "poll_interval": "This is how often added downloads are read back from their provider. Default 1m, 15s to 1h.",

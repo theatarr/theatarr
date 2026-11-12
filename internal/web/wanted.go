@@ -30,7 +30,7 @@ func (w *Web) mountWantedAPI(mux *http.ServeMux) {
 
 func wantedWaiting(v string) bool {
 	switch v {
-	case "", "due", "searched_recently", "in_flight", "grab_off", "loop_off", "downloads_off":
+	case "", "due", "searched_recently", "in_flight", "loop_off", "downloads_off":
 		return true
 	}
 	return false

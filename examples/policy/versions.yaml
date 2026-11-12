@@ -1,10 +1,8 @@
 # Version naming is DB-owned once the database is seeded; the version, roots and mode remain YAML-owned.
-# Versions: one per library. Each starts in shadow mode (docs/design/shadow.md) and is switched to active when it goes
-# live. Library roots are the arr roots the version replaces, so links keep the arr naming and paths.
-# grab (default false) lets an active version add torrents while router.enabled is true. An active version with grab
-# off imports and links but adds nothing and gets no automatic searches (wanted, re-search); its RSS picks
-# get dry-run plans only. In the DB settings, turning it on for an active version needs confirmation. Going live sets mode: active and grab: true
-# together.
+# Versions: one per library. Each is Watch only (mode: shadow, the default) or Live (mode: active). Watch only:
+# Theatarr searches, downloads and links nothing for this library. Live: it searches, downloads and links, while
+# Pause is off. In the DB settings, going Live needs confirmation. Library roots are the arr roots the version
+# replaces, so links keep the arr naming and paths.
 # add_via: providers (the default) adds to the version's providers. add_via: client sends its grabs to its client
 # (a decypharr, which picks its own debrid account) and imports what it finished (docs/design/router.md).
 versions:

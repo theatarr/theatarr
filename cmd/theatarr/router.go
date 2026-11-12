@@ -10,6 +10,7 @@ import (
 	"log/slog"
 	"net"
 	"os"
+	"slices"
 	"sort"
 	"strings"
 	"text/tabwriter"
@@ -280,16 +281,26 @@ func runRouterStatus(args []string, out io.Writer) error {
 		enc.SetIndent("", "  ")
 		return enc.Encode(s)
 	}
-	sw := "OFF (router.enabled is false): nothing is written to any provider"
-	if s.Enabled {
-		sw = "ON"
+	sw := "OFF"
+	if !s.Enabled {
+		sw = "ON: nothing is searched, downloaded or linked"
+		if slices.Contains(pol.ForcedOff, "pause") {
+			sw += " [forced by THEATARR_FORCE_OFF]"
+		}
 	}
-	fmt.Fprintf(out, "router     %s\ncached     cached_only %v; %d unfinished cache check(s)\nactive     %s\n"+
+	fmt.Fprintf(out, "pause      %s\ncached     cached_only %v; %d unfinished cache check(s)\nactive     %s\n"+
 		"misses     %d live\n", sw, s.CachedOnly, s.UnfinishedChecks, orNone(s.ActiveVersions), s.Misses)
 	tw := tabwriter.NewWriter(out, 0, 4, 2, ' ', 0)
-	fmt.Fprintln(tw, "\nVERSION\tMODE\tGRAB\tWRITES\tPROVIDERS")
+	fmt.Fprintln(tw, "\nLIBRARY\tSTATE\tDOWNLOADS\tPROVIDERS")
 	for _, v := range s.Versions {
-		fmt.Fprintf(tw, "%s\t%s\t%v\t%v\t%s\n", v.Key, v.Mode, v.Grab, v.Writes, strings.Join(v.Providers, ", "))
+		state, downloads := "Watch only", "no"
+		if v.Mode == string(policy.ModeActive) {
+			state = "Live"
+		}
+		if v.Writes {
+			downloads = "yes"
+		}
+		fmt.Fprintf(tw, "%s\t%s\t%s\t%s\n", v.Key, state, downloads, strings.Join(v.Providers, ", "))
 	}
 	fmt.Fprintln(tw, "\nPROVIDER\tKEY\tADDS/MIN\tUNCACHED/H\tCOOLDOWN\tBACKOFF\tFAILURES\tREASON")
 	for _, p := range s.Providers {

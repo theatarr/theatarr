@@ -229,11 +229,10 @@ func (r *Router) Settings() policy.RouterSettings { return r.set }
 var (
 	ErrDisabled = errors.New("router: router.enabled is false; nothing is written to any provider")
 	ErrShadow   = errors.New("router: the library is Watch only; nothing is written for it")
-	ErrNoGrab   = errors.New("router: the version's grab switch is off; nothing is written for it")
 )
 
-// Gate says whether the router may write for a version: only when router.enabled is true, the version's mode is
-// active and its grab switch is on (policy.Grabs). Every provider write in this package passes through it (mayWrite), so a shadow version or the kill switch
+// Gate says whether the router may write for a version: only when router.enabled is true (Pause is off) and the
+// version's mode is active (policy.Grabs). Every provider write in this package passes through it (mayWrite), so a shadow version or the kill switch
 // blocks adds and file selections alike.
 func (r *Router) Gate(version string) (Mode, error) {
 	if !r.set.Enabled {
@@ -246,16 +245,12 @@ func (r *Router) Gate(version string) (Mode, error) {
 	if vp.Mode != policy.ModeActive {
 		return ModeShadow, ErrShadow
 	}
-	if !vp.Grab {
-		// An active version without grab is a dry run like the kill switch (router_plan.mode has no third value).
-		return ModeDisabled, ErrNoGrab
-	}
 	return ModeActive, nil
 }
 
 // LogState logs the kill switch and the versions the router may write for, loudly (theatarr serve calls it at start).
 func (r *Router) LogState() {
-	active, grabbing := r.pol.ActiveVersions(), r.pol.GrabbingVersions()
+	active := r.pol.ActiveVersions()
 	var keys []string
 	for k := range r.adders {
 		keys = append(keys, k)
@@ -266,12 +261,9 @@ func (r *Router) LogState() {
 			"is dry-run only", "active_versions", active)
 	case len(active) == 0:
 		r.log.Warn("ROUTER ENABLED but no version is active: nothing is added; shadow versions are dry-run only")
-	case len(grabbing) == 0:
-		r.log.Warn("ROUTER ENABLED but no active version has grab on: nothing is added; every version is dry-run only",
-			"active_versions", active)
 	default:
-		r.log.Warn("ROUTER ENABLED: adds go to debrid providers for the active versions with grab on",
-			"grabbing_versions", grabbing, "active_versions", active, "providers_with_key", keys,
+		r.log.Warn("ROUTER ENABLED: adds go to debrid providers for the active versions",
+			"active_versions", active, "providers_with_key", keys,
 			"cached_only", r.set.CachedOnly)
 	}
 }

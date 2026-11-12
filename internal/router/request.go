@@ -150,9 +150,9 @@ const (
 type Mode string
 
 const (
-	ModeActive   Mode = "active"   // writes allowed: router.enabled is true and the version is active with grab on
+	ModeActive   Mode = "active"   // writes allowed: router.enabled is true (Pause off) and the version is active
 	ModeShadow   Mode = "shadow"   // the version is in shadow mode: dry run
-	ModeDisabled Mode = "disabled" // router.enabled is false, or the active version's grab is off: dry run
+	ModeDisabled Mode = "disabled" // router.enabled is false (Pause on): dry run
 )
 
 // Step is one release considered at one provider (or the release as a whole when Provider is empty).

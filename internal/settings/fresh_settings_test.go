@@ -15,7 +15,7 @@ func TestFreshSettingsFirstSave(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if initial.Generation != 0 || initial.Records.Switches == nil || *initial.Records.Switches != (GlobalSwitches{}) {
+	if initial.Generation != 0 || initial.Records.Switches == nil || *initial.Records.Switches != (GlobalSwitches{Paused: true}) {
 		t.Fatalf("fresh snapshot: %+v", initial)
 	}
 	manager := versionCoordinator(t, st, base, initial)
@@ -25,7 +25,7 @@ func TestFreshSettingsFirstSave(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if saved.Generation != 1 || saved.Records.Switches == nil || *saved.Records.Switches != (GlobalSwitches{}) {
+	if saved.Generation != 1 || saved.Records.Switches == nil || *saved.Records.Switches != (GlobalSwitches{Paused: true}) {
 		t.Fatalf("first save: %+v", saved)
 	}
 }

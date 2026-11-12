@@ -264,7 +264,7 @@ func newEnvironment(t *testing.T, configure func(*policy.Policy)) *environment {
 	root := filepath.Join(dir, "movies")
 	e.pol = &policy.Policy{
 		Revision:  "e2e",
-		Versions:  map[string]*policy.VersionPolicy{"movie": {Mode: policy.ModeActive, Grab: true, Kind: policy.KindMovie, Enable: "request", Profile: "movie", Storage: policy.StorageDebrid, Import: "symlink", Library: root, Indexers: []string{"public"}, Providers: []string{"rd"}, Naming: policy.Naming{Folder: "{Movie CleanTitle} ({Release Year})", File: "{Movie CleanTitle} {(Release Year)} - {[Quality Full]}{-Release Group}"}}},
+		Versions:  map[string]*policy.VersionPolicy{"movie": {Mode: policy.ModeActive, Kind: policy.KindMovie, Enable: "request", Profile: "movie", Storage: policy.StorageDebrid, Import: "symlink", Library: root, Indexers: []string{"public"}, Providers: []string{"rd"}, Naming: policy.Naming{Folder: "{Movie CleanTitle} ({Release Year})", File: "{Movie CleanTitle} {(Release Year)} - {[Quality Full]}{-Release Group}"}}},
 		Profiles:  map[string]*policy.Profile{"movie": {Qualities: []policy.QualityItem{{Name: "Remux-2160p"}, {Name: "WEBDL-2160p"}}, Cutoff: "Remux-2160p"}},
 		Indexers:  map[string]*policy.Indexer{"public": {Kind: "torznab", URL: srv.URL + "/indexer", Privacy: policy.PrivacyPublic}},
 		Providers: map[string]*policy.Provider{"rd": {Kind: provider.KindRealDebrid, URL: srv.URL + "/rd", APIKeyEnv: "FIXTURE_RD", Order: 1, Pacing: policy.Pacing{AddsPerMinute: 100, MinGap: new(policy.Duration)}}}, // back-to-back adds: no min_gap

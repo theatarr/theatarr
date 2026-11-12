@@ -45,7 +45,7 @@ func TestDeleteSharedLinkChecksEveryVersion(t *testing.T) {
 	p := "/media/movies/Alpha (2020)/Alpha (2020) WEBDL-2160p.mkv"
 	e.exec(`UPDATE link SET path = ? WHERE id = 7`, p)
 	e.exec(`INSERT INTO link_version (link_id, version_id) VALUES (7, 1)`)
-	e.pol.Versions["movie-remux"].Mode, e.pol.Versions["movie-remux"].Grab = policy.ModeActive, true
+	e.pol.Versions["movie-remux"].Mode = policy.ModeActive
 	e.pol.Library = &policy.Library{Enabled: true, Versions: map[string]*policy.LibraryVersion{
 		"movie-remux": {Roots: []string{"/media/movies"}},
 		"movie-web":   {Roots: []string{"/media/movies-web"}}}}

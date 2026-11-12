@@ -152,8 +152,8 @@ func (a *Acquirer) Research(ctx context.Context, p router.ResearchRequest) (*Res
 	return sum, nil
 }
 
-// researchOff says why a re-search of a version may not search now, or "": the version not active, router.enabled
-// or grab off, and for a dead link the library not writing for the version (disabled, not Live, no roots). The job
+// researchOff says why a re-search of a version may not search now, or "": the version not active, Pause on,
+// and for a dead link the library not writing for the version (disabled, not Live, no roots). The job
 // checks it when it runs and its search again before it starts (run), so a switch turned off in between ends both.
 func (a *Acquirer) researchOff(version, reason string) string {
 	vp := a.pol.Versions[version]
@@ -161,9 +161,7 @@ func (a *Acquirer) researchOff(version, reason string) string {
 	case vp == nil || vp.Mode != policy.ModeActive:
 		return "version " + version + " is not active"
 	case !a.pol.RouterSettings().Enabled:
-		return "router.enabled is false"
-	case !a.pol.Grabs(version):
-		return "version " + version + " has grab off"
+		return "paused"
 	case reason == router.ReasonDeadLink && !library.NewGate(a.pol).Active(version):
 		return "the library does not write for version " + version
 	}

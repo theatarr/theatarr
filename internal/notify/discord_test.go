@@ -378,12 +378,12 @@ func TestDigest(t *testing.T) {
 	e.now = time.Date(2026, 11, 7, 8, 0, 0, 0, time.UTC)
 	now := store.Millis(e.now)
 	day := time.Date(2026, 11, 7, 0, 0, 0, 0, time.UTC)
-	// A quiet day says so, and that grabbing is off.
+	// A quiet day says so, and that Theatarr is paused.
 	if err := e.n.SendDigest(ctx, day.AddDate(0, 0, -1)); err != nil {
 		t.Fatal(err)
 	}
 	got := e.discordSent()
-	if len(got) != 1 || !strings.Contains(text(got[0]), "Quiet day") || !strings.Contains(text(got[0]), "Grabbing is off") ||
+	if len(got) != 1 || !strings.Contains(text(got[0]), "Quiet day") || !strings.Contains(text(got[0]), "Theatarr is paused") ||
 		got[0].Embeds[0].Title != "Theatarr daily digest · 2026-11-06" {
 		t.Fatalf("quiet %+v", got)
 	}
@@ -431,7 +431,7 @@ func TestDigest(t *testing.T) {
 	for _, want := range []string{"12 grabbed · 2 imported · 1 failed · 1 blocklisted · 2 dead links found, 1 still dead",
 		"Movie 0 (2021), Movie 1 (2021)", " and 2 more", "**Imported:** Movie 1 (2021), Movie 0 (2021)",
 		"**Open error groups:** 1", "router: boom (1×)", "**Debrid accounts:** Debrid accounts: rd: premium ends",
-		"**Health checks not OK:** 1", "error: mount not readable", "Grabbing is off"} {
+		"**Health checks not OK:** 1", "error: mount not readable", "Theatarr is paused"} {
 		if !strings.Contains(body, want) {
 			t.Errorf("missing %q in\n%s", want, body)
 		}
@@ -458,7 +458,7 @@ func TestDigest(t *testing.T) {
 	if err := e.n.SendDigest(ctx, day.AddDate(0, 0, 1)); err != nil {
 		t.Fatal(err)
 	}
-	if got := e.discordSent(); strings.Contains(text(got[2]), "Grabbing is off") {
+	if got := e.discordSent(); strings.Contains(text(got[2]), "Theatarr is paused") {
 		t.Errorf("grabbing on: %s", text(got[2]))
 	}
 }

@@ -172,7 +172,7 @@ func TestGatedSelectionPausesStallClock(t *testing.T) {
 	if err != nil || res.Outcome != OutcomeAdded {
 		t.Fatalf("%+v %v", res, err)
 	}
-	e.pol.Versions["movie"].Grab = false // the user turns grab off
+	e.r.set.Enabled = false // the user turns Pause on
 	e.pr["rd"].set("rd-aaaa", provider.Torrent{Hash: h("a"), State: provider.StateQueued, Status: rdWaitingFiles,
 		Files: []provider.File{{ID: "1", Path: "Movie.mkv", Bytes: 10 << 30}}})
 	stall := e.r.stallAfter("rd")
@@ -192,8 +192,8 @@ func TestGatedSelectionPausesStallClock(t *testing.T) {
 	if len(e.ad["rd"].selects) != 0 {
 		t.Fatal("selected through the gate")
 	}
-	// Grab back on: the selection goes out and the gated time stays off the clock.
-	e.pol.Versions["movie"].Grab = true
+	// Pause off again: the selection goes out and the gated time stays off the clock.
+	e.r.set.Enabled = true
 	if _, err := e.r.Poll(e.ctx); err != nil {
 		t.Fatal(err)
 	}

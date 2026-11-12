@@ -543,7 +543,7 @@ func TestUpgradeScriptContract(t *testing.T) {
 }
 
 // What an upgrade script needs beyond the arr API: a push the router fails before any provider takes it shows in
-// history as downloadFailed with the reason; router.enabled off is a health warning; GET release carries cachedOn.
+// history as downloadFailed with the reason; Pause is a health warning; GET release carries cachedOn.
 func TestUpgradeScriptViewGaps(t *testing.T) {
 	t.Parallel()
 	e := newDevEnvWith(t, false) // no provider has its API key set
@@ -616,7 +616,7 @@ func TestUpgradeScriptViewGaps(t *testing.T) {
 		t.Errorf("history?episodeId %v", page.Records)
 	}
 
-	// Health: router.enabled off while the view's version is active is a warning; shadow versions stay a notice.
+	// Health: Pause while the view's version is active is a warning; shadow versions stay a notice.
 	var health []map[string]any
 	c.must("GET", "/health", nil, nil, 200, &health)
 	if len(health) != 0 {
@@ -625,18 +625,18 @@ func TestUpgradeScriptViewGaps(t *testing.T) {
 	e.pol.Router.Enabled = false
 	c.must("GET", "/health", nil, nil, 200, &health)
 	if len(health) != 1 || health[0]["source"] != "RouterDisabledCheck" || health[0]["type"] != "warning" ||
-		health[0]["message"] != "Router disabled: grabs are dry runs: movie-web" || health[0]["wikiUrl"] != "" {
+		health[0]["message"] != "Paused: nothing is downloaded: movie-web" || health[0]["wikiUrl"] != "" {
 		t.Errorf("router disabled %v", health)
 	}
 	r := devClient(t, e, "/radarr", true)
 	r.must("GET", "/health", nil, nil, 200, &health)
 	if len(health) != 2 || health[0]["source"] != "ShadowModeCheck" ||
 		health[0]["message"] != "Watch only libraries download nothing: movie-remux, anime-movie" ||
-		health[1]["message"] != "Router disabled: grabs are dry runs: movie-web" {
+		health[1]["message"] != "Paused: nothing is downloaded: movie-web" {
 		t.Errorf("radarr view health %v", health)
 	}
 	if items := e.svc.HealthItems(t.Context()); len(items) != 2 || items[1].Source != "RouterDisabledCheck" ||
-		items[1].Message != "Router disabled: grabs are dry runs: movie-web, tv-2160p" {
+		items[1].Message != "Paused: nothing is downloaded: movie-web, tv-2160p" {
 		t.Errorf("webhook health %v", items)
 	}
 	e.pol.Router = nil

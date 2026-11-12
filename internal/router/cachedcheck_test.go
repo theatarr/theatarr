@@ -137,7 +137,7 @@ func TestCachedCheckStopSwitch(t *testing.T) {
 	e, f, _ := newDebridEnv(t, true, policy.ModeActive, true)
 	withQueue(e)
 	e.r.sleep = func(context.Context, time.Duration) error {
-		e.pol.Versions["movie"].Grab = false // K's Grab turned off mid-check
+		e.r.set.Enabled = false // Pause turned on mid-check
 		return nil
 	}
 	res, err := e.r.Route(e.ctx, movieReq(cand(h("a"), "Movie.2024.2160p.WEB.H265-GRP")))
@@ -157,7 +157,7 @@ func TestCachedCheckStopSwitch(t *testing.T) {
 	if f.deletes() != 0 || cachedCheck(e, dl) != checkUncached || len(f.rd) != 1 {
 		t.Fatalf("gated poll: deletes %d, check %q", f.deletes(), cachedCheck(e, dl))
 	}
-	e.pol.Versions["movie"].Grab = true
+	e.r.set.Enabled = true
 	e.clock = e.clock.Add(time.Minute)
 	if _, err := e.r.Poll(e.ctx); err != nil {
 		t.Fatal(err)

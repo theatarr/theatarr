@@ -36,8 +36,8 @@ type searchEnv struct {
 
 func newSearchEnv(t *testing.T) *searchEnv {
 	e := &searchEnv{env: newEnv(t)}
-	e.pol.Versions["movie-web"].Mode, e.pol.Versions["movie-web"].Grab = policy.ModeActive, true
-	e.pol.Versions["tv-2160p"].Mode, e.pol.Versions["tv-2160p"].Grab = policy.ModeActive, true
+	e.pol.Versions["movie-web"].Mode = policy.ModeActive
+	e.pol.Versions["tv-2160p"].Mode = policy.ModeActive
 	e.pol.Router = &policy.Router{Enabled: true}
 	// These tests drain jobs on a frozen clock: RD's 20s min_gap (router gap_test.go) would hold every add after the
 	// first.

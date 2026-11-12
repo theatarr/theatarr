@@ -1,9 +1,7 @@
 package web
 
 import (
-	"encoding/json"
 	"fmt"
-	"strings"
 	"testing"
 
 	"github.com/theatarr/theatarr/internal/policy"
@@ -19,13 +17,13 @@ func (s grabStateSettings) Current() *settings.Runtime { return s.runtime }
 
 func TestVersionGrabStateSettingsRuntime(t *testing.T) {
 	t.Parallel()
-	stored := &policy.Policy{Versions: map[string]*policy.VersionPolicy{"v": {Mode: policy.ModeActive, Grab: true}},
+	stored := &policy.Policy{Versions: map[string]*policy.VersionPolicy{"v": {Mode: policy.ModeActive}},
 		Router: &policy.Router{Enabled: true}}
 	running := &policy.Policy{Versions: map[string]*policy.VersionPolicy{"v": {Mode: policy.ModeShadow}},
-		ForcedOff: []string{"router"}}
+		ForcedOff: []string{"pause"}}
 	w := &Web{pol: stored, settings: grabStateSettings{runtime: &settings.Runtime{Policy: running}}}
 	switches := w.settingsSwitches()
-	want := VersionGrabState{Mode: "shadow", RouterForcedOff: true}
+	want := VersionGrabState{Mode: "shadow", Paused: true, PauseForced: true}
 	if len(switches.Versions) != 1 || switches.Versions[0].GrabState != want {
 		t.Fatalf("settings must report the runtime, not the stored head: %+v", switches)
 	}
@@ -34,47 +32,48 @@ func TestVersionGrabStateSettingsRuntime(t *testing.T) {
 func TestVersionGrabState(t *testing.T) {
 	t.Parallel()
 	for _, mode := range []policy.Mode{"off", policy.ModeShadow, policy.ModeActive} {
-		for _, grab := range []bool{false, true} {
-			for _, router := range []bool{false, true} {
-				for _, forced := range []bool{false, true} {
-					t.Run(fmt.Sprintf("%s/grab=%t/router=%t/forced=%t", mode, grab, router, forced), func(t *testing.T) {
-						p := &policy.Policy{Versions: map[string]*policy.VersionPolicy{"v": {Mode: mode, Grab: grab}},
-							Router: &policy.Router{Enabled: router}}
-						if forced {
-							p.ForcedOff = []string{"router"}
-						}
-						got := versionGrabState(p, "v")
-						want := VersionGrabState{Mode: string(mode), Grab: grab, RouterEnabled: router, RouterForcedOff: forced, WillGrab: mode == policy.ModeActive && grab && router && !forced}
-						if got != want {
-							t.Fatalf("state = %+v, want %+v", got, want)
-						}
-					})
+		for _, paused := range []bool{false, true} {
+			for _, forced := range []bool{false, true} {
+				if forced && !paused {
+					continue // the override always pauses
 				}
+				t.Run(fmt.Sprintf("%s/paused=%t/forced=%t", mode, paused, forced), func(t *testing.T) {
+					p := &policy.Policy{Versions: map[string]*policy.VersionPolicy{"v": {Mode: mode}},
+						Router: &policy.Router{Enabled: !paused}}
+					if forced {
+						p.ForcedOff = []string{"pause"}
+					}
+					got := versionGrabState(p, "v")
+					want := VersionGrabState{Mode: string(mode), Paused: paused, PauseForced: forced, WillGrab: mode == policy.ModeActive && !paused}
+					if got != want {
+						t.Fatalf("state = %+v, want %+v", got, want)
+					}
+				})
 			}
 		}
 	}
-	for _, p := range []*policy.Policy{nil, {}, {Versions: map[string]*policy.VersionPolicy{"other": {Mode: policy.ModeActive, Grab: true}}}} {
-		if got := versionGrabState(p, "missing"); got != (VersionGrabState{Mode: "off"}) {
+	for _, p := range []*policy.Policy{nil, {}, {Versions: map[string]*policy.VersionPolicy{"other": {Mode: policy.ModeActive}}}} {
+		if got := versionGrabState(p, "missing"); got != (VersionGrabState{Mode: "off", Paused: true}) {
 			t.Fatalf("missing policy/version: %+v", got)
 		}
 	}
-	p := &policy.Policy{Versions: map[string]*policy.VersionPolicy{"v": {}}, ForcedOff: []string{"library", "notify"}}
-	if got := versionGrabState(p, "v"); got != (VersionGrabState{Mode: "shadow"}) {
+	p := &policy.Policy{Versions: map[string]*policy.VersionPolicy{"v": {}}, ForcedOff: []string{"notify"}}
+	if got := versionGrabState(p, "v"); got != (VersionGrabState{Mode: "shadow", Paused: true}) {
 		t.Fatalf("default mode, nil router, unrelated overrides: %+v", got)
 	}
-	// library_writes is the library's own write gate: the global switch, listed with roots, mode active, not followed.
+	// library_writes is the library's own write gate: Pause off, listed with roots, mode active.
 	lib := &policy.Policy{Library: &policy.Library{Enabled: true, Versions: map[string]*policy.LibraryVersion{
 		"a": {Roots: []string{"/lib/a"}}, "s": {Roots: []string{"/lib/s"}}}},
 		Versions: map[string]*policy.VersionPolicy{"a": {Mode: policy.ModeActive}, "s": {Mode: policy.ModeShadow},
 			"u": {Mode: policy.ModeActive}}}
 	for key, want := range map[string]bool{"a": true, "s": false, "u": false} {
-		if got := versionGrabState(lib, key); !got.LibraryEnabled || got.LibraryWrites != want {
+		if got := versionGrabState(lib, key); got.LibraryWrites != want {
 			t.Errorf("%s: %+v, want library_writes %t", key, got, want)
 		}
 	}
 	lib.Library.Enabled = false
 	if got := versionGrabState(lib, "a"); got.LibraryWrites {
-		t.Errorf("global switch off still writes: %+v", got)
+		t.Errorf("paused library still writes: %+v", got)
 	}
 	if got := versionGrabSummaries(nil); got == nil || len(got) != 0 {
 		t.Fatalf("empty summaries must marshal as an array: %+v", got)
@@ -88,13 +87,13 @@ func TestVersionGrabStateAPI(t *testing.T) {
 			e := newAddEnv(t, func(p *policy.Policy) {
 				p.Router.Enabled = !forced
 				if forced {
-					p.ForcedOff = []string{"router"}
+					p.ForcedOff = []string{"pause"}
 				}
 				for _, v := range p.Versions {
-					v.Mode, v.Grab = policy.ModeActive, true
+					v.Mode = policy.ModeActive
 				}
 			})
-			want := VersionGrabState{Mode: "active", Grab: true, RouterEnabled: !forced, RouterForcedOff: forced, WillGrab: !forced}
+			want := VersionGrabState{Mode: "active", Paused: forced, PauseForced: forced, WillGrab: !forced}
 			check := func(got VersionGrabState) {
 				t.Helper()
 				if got != want {
@@ -168,7 +167,7 @@ func TestVersionGrabStateAPI(t *testing.T) {
 // only when a copy is actually acquiring (web/src/lib/request-state.ts versionFetching).
 func TestRedactVersionKeepsGrabState(t *testing.T) {
 	t.Parallel()
-	gs := VersionGrabState{Mode: "shadow", Grab: true, RouterEnabled: true}
+	gs := VersionGrabState{Mode: "shadow"}
 	v := Version{Key: "tv-2160p", State: "wanted", Control: &VersionControl{GrabState: gs, Mode: "shadow", ManagedBy: "sonarr_4k", CanSearch: true}}
 	redactVersion(&v)
 	if v.Control == nil || v.Control.GrabState != gs {
@@ -176,15 +175,5 @@ func TestRedactVersionKeepsGrabState(t *testing.T) {
 	}
 	if v.Control.ManagedBy != "" || v.Control.CanSearch {
 		t.Fatalf("redaction kept manager-only fields: %+v", v.Control)
-	}
-}
-
-func TestVersionGrabWarnsWhenLibraryOff(t *testing.T) {
-	t.Parallel()
-	p := &policy.Policy{Versions: map[string]*policy.VersionPolicy{"v": {Mode: policy.ModeActive, Grab: true}}, Router: &policy.Router{Enabled: true}}
-	got := versionGrabState(p, "v")
-	raw, _ := json.Marshal(got)
-	if !got.WillGrab || !strings.Contains(string(raw), `"library_enabled":false`) {
-		t.Fatalf("must report debrid adds and the closed library switch: %s", raw)
 	}
 }

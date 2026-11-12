@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"errors"
 	"net/http"
+	"slices"
 	"sort"
 	"strconv"
 	"time"
@@ -59,13 +60,12 @@ type SettingsOverview struct {
 	Budgets   []SettingsRecord `json:"budgets"`
 }
 
-// SettingsSwitches are the switches as the running policy has them.
+// SettingsSwitches is Pause as the running policy has it: Paused when router.enabled is off (both runtime switches
+// follow Pause), PauseForced when THEATARR_FORCE_OFF forces it.
 type SettingsSwitches struct {
-	Sources        map[string]string     `json:"sources"`
-	RouterEnabled  bool                  `json:"router_enabled"`
-	LibraryEnabled bool                  `json:"library_enabled"`
-	NotifyEnabled  bool                  `json:"notify_enabled"`
-	Versions       []SettingsVersionMode `json:"versions"`
+	Paused      bool                  `json:"paused"`
+	PauseForced bool                  `json:"pause_forced"`
+	Versions    []SettingsVersionMode `json:"versions"`
 }
 
 // SettingsVersionMode is one version's running mode and grab gates.
@@ -83,22 +83,12 @@ func (w *Web) settingsSwitches() SettingsSwitches {
 			pol = rt.Policy
 		}
 	}
-	source := "db"
-	if w.settings != nil {
-		source = "db"
-	}
-	out := SettingsSwitches{Versions: []SettingsVersionMode{}, Sources: map[string]string{
-		"router": source, "library": source, "notify": source,
-	}}
+	out := SettingsSwitches{Paused: true, Versions: []SettingsVersionMode{}}
 	if pol == nil {
 		return out
 	}
-	out.RouterEnabled = pol.Router != nil && pol.Router.Enabled
-	out.LibraryEnabled = pol.Library != nil && pol.Library.Enabled
-	out.NotifyEnabled = pol.Notify != nil && pol.Notify.Enabled
-	for _, key := range pol.ForcedOff {
-		out.Sources[key] = "forced off by environment"
-	}
+	out.Paused = pol.Router == nil || !pol.Router.Enabled
+	out.PauseForced = slices.Contains(pol.ForcedOff, "pause")
 	for _, k := range sortedKeys(pol.Versions) {
 		out.Versions = append(out.Versions, SettingsVersionMode{Key: k, Mode: string(pol.Versions[k].Mode),
 			GrabState: versionGrabState(pol, k)})

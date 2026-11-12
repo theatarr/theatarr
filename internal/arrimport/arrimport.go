@@ -140,8 +140,7 @@ func Validate(d Deps, req Request) (writeBlock string, err error) {
 	}
 	writeBlock = gateBlock(d, req.Library)
 	if writeBlock != "" && !req.DryRun {
-		return writeBlock, &Refusal{Msg: "Import needs the library to write links: " + writeBlock + ". Set it to Live " +
-			"and turn Write library links on; Allow new downloads can stay off."}
+		return writeBlock, &Refusal{Msg: "Import needs a Live library and Pause off: " + writeBlock + "."}
 	}
 	// Where Theatarr reads each mapped instance folder; an unmapped folder is checked at its own path after the read.
 	var folders []string
@@ -160,7 +159,7 @@ func Validate(d Deps, req Request) (writeBlock string, err error) {
 // gateBlock is the gate's refusal of library key in plain words, "" when it may write.
 func gateBlock(d Deps, key string) string {
 	if d.Library == nil || d.Library.Gate() == nil {
-		return "Write library links is off"
+		return "Theatarr is paused"
 	}
 	err := d.Library.Gate().CheckVersion(key)
 	var r *library.Refused
@@ -168,7 +167,7 @@ func gateBlock(d Deps, key string) string {
 	case err == nil:
 		return ""
 	case errors.As(err, &r) && r.Reason == "disabled":
-		return "Write library links is off"
+		return "Theatarr is paused"
 	case errors.As(err, &r) && r.Reason == "shadow":
 		return "it is Watch only"
 	case errors.As(err, &r) && r.Reason == "unlisted":

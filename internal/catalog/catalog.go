@@ -501,10 +501,10 @@ type Skip struct {
 }
 
 // Searchable splits version keys into the ones a search may run for and the ones it skips, with the reason: a
-// version is searched only in mode active with its grab switch and router.enabled on. A shadow version is never
-// searched from an add or a click: that would send indexer traffic for a route that can only be a dry run.
+// version is searched only in mode active (Live) while Pause is off. A shadow version is never searched from an add
+// or a click: that would send indexer traffic for a route that can only be a dry run.
 func Searchable(pol *policy.Policy, keys []string) (active []string, skipped []Skip) {
-	on := pol != nil && pol.RouterSettings().Enabled && !slices.Contains(pol.ForcedOff, "router")
+	on := pol != nil && pol.RouterSettings().Enabled
 	for _, k := range keys {
 		var vp *policy.VersionPolicy
 		if pol != nil {
@@ -514,11 +514,9 @@ func Searchable(pol *policy.Policy, keys []string) (active []string, skipped []S
 		case vp == nil:
 			skipped = append(skipped, Skip{k, "not in the policy"})
 		case vp.Mode != policy.ModeActive:
-			skipped = append(skipped, Skip{k, "Watch only: nothing is searched or grabbed for this library"})
+			skipped = append(skipped, Skip{k, "Watch only: nothing is searched or downloaded for this library"})
 		case !on:
-			skipped = append(skipped, Skip{k, "router.enabled is false: nothing is searched or grabbed"})
-		case !vp.Grab:
-			skipped = append(skipped, Skip{k, "version grab is off: nothing is searched or grabbed"})
+			skipped = append(skipped, Skip{k, "Paused: nothing is searched or downloaded"})
 		case !slices.Contains(active, k):
 			active = append(active, k)
 		}

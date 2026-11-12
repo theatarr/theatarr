@@ -7,19 +7,19 @@ import (
 	"github.com/theatarr/theatarr/internal/policy"
 )
 
-// Importing titles and monitoring into a grabbing version (active with grab on) puts them in wanted searches. An
-// unchanged mapping does not. It counts whatever router.enabled is:
-// turning the router on later names no import source. Check the effective policies so startup fallback uses the same
+// Importing titles and monitoring into a Live version puts them in wanted searches. An
+// unchanged mapping does not. It counts whatever Pause is:
+// turning Pause off later names no import source. Check the effective policies so startup fallback uses the same
 // rule.
 func importAcquisitionEffects(previous, next *policy.Policy) []ConfirmationEffect {
 	if next.Import == nil {
 		return nil
 	}
-	routerEnabled := next.Router != nil && next.Router.Enabled
+	paused := next.Router == nil || !next.Router.Enabled
 	var effects []ConfirmationEffect
 	for _, key := range sortedPolicyKeys(next.Import.Arr) {
 		now := next.Import.Arr[key]
-		if now == nil || !slices.Contains(next.GrabbingVersions(), now.Version) {
+		if now == nil || !slices.Contains(next.ActiveVersions(), now.Version) {
 			continue
 		}
 		var old *policy.ArrSource
@@ -29,7 +29,7 @@ func importAcquisitionEffects(previous, next *policy.Policy) []ConfirmationEffec
 		if old != nil && old.Version == now.Version {
 			continue
 		}
-		effects = append(effects, ConfirmationEffect{Effect: fmt.Sprintf("Import titles into Live library %s, with its downloads on, from import.arr.%s: monitored missing titles can be searched, and downloaded when Allow new downloads (router.enabled) is on (currently %t).", now.Version, key, routerEnabled)})
+		effects = append(effects, ConfirmationEffect{Effect: fmt.Sprintf("Import titles into Live library %s from import.arr.%s: monitored missing titles can be searched, and downloaded when Pause is off (currently paused: %t).", now.Version, key, paused)})
 	}
 	return effects
 }

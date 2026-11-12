@@ -386,10 +386,10 @@ func TestAddNeverSearchesShadow(t *testing.T) {
 
 	// movie-web active, router still off: nothing either.
 	e = newAddEnv(t, func(p *policy.Policy) {
-		p.Versions["movie-web"].Mode, p.Versions["movie-web"].Grab = policy.ModeActive, true
+		p.Versions["movie-web"].Mode = policy.ModeActive
 	})
 	e.call("POST", APIBase+"/titles", map[string]any{"kind": "movie", "tmdb_id": 105, "search": true}, 201, &res)
-	if res.Search.Started || !strings.Contains(res.Search.Message, "router.enabled is false") {
+	if res.Search.Started || !strings.Contains(res.Search.Message, "Paused") {
 		t.Errorf("router off: %+v", res.Search)
 	}
 	if n := len(searchCalls(e)); n != 0 {
@@ -398,7 +398,7 @@ func TestAddNeverSearchesShadow(t *testing.T) {
 
 	// Router on: only movie-web is searched; movie-remux (shadow) is skipped with the reason.
 	e = newAddEnv(t, func(p *policy.Policy) {
-		p.Versions["movie-web"].Mode, p.Versions["movie-web"].Grab = policy.ModeActive, true
+		p.Versions["movie-web"].Mode = policy.ModeActive
 		p.Router = &policy.Router{Enabled: true}
 	})
 	// An add without search: still nothing.
@@ -632,7 +632,7 @@ func TestSearchKindAndPaging(t *testing.T) {
 func TestAddOptions(t *testing.T) {
 	t.Parallel()
 	e := newAddEnv(t, func(p *policy.Policy) {
-		p.Versions["movie-web"].Mode, p.Versions["movie-web"].Grab = policy.ModeActive, true
+		p.Versions["movie-web"].Mode = policy.ModeActive
 		p.Router = &policy.Router{Enabled: true}
 	})
 	var o AddOptions
@@ -672,7 +672,7 @@ func TestAddOptions(t *testing.T) {
 func TestReleasesShadowNoLive(t *testing.T) {
 	t.Parallel()
 	e := newAddEnv(t, func(p *policy.Policy) {
-		p.Versions["movie-web"].Mode, p.Versions["movie-web"].Grab = policy.ModeActive, true
+		p.Versions["movie-web"].Mode = policy.ModeActive
 	})
 	e.exec(`INSERT INTO version (title_id, policy_key, state, created_at, updated_at) VALUES (1, 'movie-web', 'wanted', 0, 0)`)
 	var r Releases
@@ -1152,7 +1152,7 @@ func TestAddMinimumAvailabilityKeepsImportedDate(t *testing.T) {
 func TestAddSeriesTypeLibraries(t *testing.T) {
 	e := newAddEnv(t, func(p *policy.Policy) {
 		for _, k := range []string{"tv-2160p", "anime-tv"} {
-			p.Versions[k].Mode, p.Versions[k].Grab = policy.ModeActive, true
+			p.Versions[k].Mode = policy.ModeActive
 		}
 		p.Router = &policy.Router{Enabled: true}
 	})

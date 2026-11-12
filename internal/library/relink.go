@@ -899,7 +899,7 @@ func (l *Library) markMissing(ctx context.Context, tx *sql.Tx, version string, d
 // queueDeadLinkSearch queues, in the dead mark's transaction, one search per version of a link marked dead: its
 // movie, or its episodes (router.ReasonDeadLink, docs/design/router.md "Re-search after a failure"). Relink repoints a link by hash to
 // any provider's folder first, so a dead link's file is on no provider: a new release is wanted. The acquirer checks
-// everything else when the job runs (router and grab on, the version active and monitored, still wanted, nothing in
+// everything else when the job runs (Pause off, the version active and monitored, still wanted, nothing in
 // flight, the library still writing for it); the key keeps one job per version, title and episodes pending. Only
 // versions the library gate lets write get one (a link can be shared with a shadow version).
 func (l *Library) queueDeadLinkSearch(ctx context.Context, tx *sql.Tx, linkID int64) error {

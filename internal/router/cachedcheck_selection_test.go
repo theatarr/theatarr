@@ -197,7 +197,7 @@ func TestCachedCheckGateClosedPastStall(t *testing.T) {
 	withQueue(e)
 	e.r.adders["rd"] = queuedSelection{Adder: e.r.adders["rd"], f: f}
 	e.r.sleep = func(context.Context, time.Duration) error {
-		e.pol.Versions["movie"].Grab = false
+		e.r.set.Enabled = false
 		return nil
 	}
 	res, err := e.r.Route(e.ctx, movieReq(cand(h("a"), "Movie.2024.2160p.WEB.H265-GRP")))
@@ -216,7 +216,7 @@ func TestCachedCheckGateClosedPastStall(t *testing.T) {
 	if n := e.count(`SELECT COUNT(*) FROM router_blocklist`); n != 0 {
 		t.Fatal("blocklisted while the delete waited for the gate")
 	}
-	e.pol.Versions["movie"].Grab = true
+	e.r.set.Enabled = true
 	if _, err := e.r.Poll(e.ctx); err != nil {
 		t.Fatal(err)
 	}

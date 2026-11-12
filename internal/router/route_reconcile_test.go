@@ -16,9 +16,9 @@ import (
 )
 
 // Preparing the next generation (New with Previous), wiring its mount check and publishing provider changes
-// never wait for a running route. A save turning grab off while a route is mid-send is published at once and the
+// never wait for a running route. A save turning Pause on while a route is mid-send is published at once and the
 // route sends nothing more.
-func TestGrabOffPublishedDuringRunningRoute(t *testing.T) {
+func TestPausePublishedDuringRunningRoute(t *testing.T) {
 	e := newEnv(t, true, policy.ModeActive)
 	var published atomic.Pointer[Router]
 	published.Store(e.r)
@@ -43,8 +43,7 @@ func TestGrabOffPublishedDuringRunningRoute(t *testing.T) {
 	}()
 	<-started
 
-	pol := testPolicy(true, policy.ModeActive)
-	pol.Versions["series"].Grab = false
+	pol := testPolicy(false, policy.ModeActive)
 	prepared := make(chan *Router, 1)
 	go func() {
 		cur, err := New(Config{Store: e.st, Policy: pol, Previous: e.r,
@@ -69,7 +68,7 @@ func TestGrabOffPublishedDuringRunningRoute(t *testing.T) {
 	close(release)
 	res := <-done
 	if n := calls.Load(); n != 1 {
-		t.Errorf("grab turned off mid-route, but the route sent %d adds (steps %s)", n, steps(res))
+		t.Errorf("Pause turned on mid-route, but the route sent %d adds (steps %s)", n, steps(res))
 	}
 }
 

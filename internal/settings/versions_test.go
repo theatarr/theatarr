@@ -357,7 +357,7 @@ func TestVersionWriteEffects(t *testing.T) {
 	active, _ := initial.Policy.Clone()
 	active.Versions["movie-web"].Mode = policy.ModeActive
 	active.Versions["movie-web"].Providers = []string{"rd"}
-	// Only the kept list asks: a library going Live (or created Live), downloads on. Everyday edits
+	// Only the kept list asks: a library going Live (or created Live). Everyday edits
 	// of a Live library (contains "") ask nothing.
 	for _, tc := range []struct {
 		name, contains string
@@ -365,7 +365,6 @@ func TestVersionWriteEffects(t *testing.T) {
 	}{
 		{"new-active", "becomes Live", func(next *policy.Policy) { v := *next.Versions["movie-web"]; next.Versions["new"] = &v }},
 		{"go-live", "becomes Live", func(next *policy.Policy) { next.Versions["movie-web"].Mode = policy.ModeActive }},
-		{"grab-on", "Downloads are on for Live library movie-web", func(next *policy.Policy) { next.Versions["movie-web"].Grab = true }},
 		{"active-root", "", func(next *policy.Policy) { next.Versions["movie-web"].Library += "-new" }},
 		{"active-provider", "", func(next *policy.Policy) {
 			next.Versions["movie-web"].Providers = append(next.Versions["movie-web"].Providers, "ad")

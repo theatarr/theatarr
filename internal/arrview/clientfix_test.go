@@ -80,7 +80,7 @@ func TestDeleteTitleFiles(t *testing.T) {
 			}
 			e.exec(`UPDATE version_file SET path = ? WHERE id = 1`, arrPath)
 			e.pol.Import = nil // after cutover: no arr owns movie-remux
-			e.pol.Versions["movie-remux"].Mode, e.pol.Versions["movie-remux"].Grab = policy.ModeActive, true
+			e.pol.Versions["movie-remux"].Mode = policy.ModeActive
 			e.pol.Versions["movie-remux"].Library = remux
 			e.pol.Versions["movie-web"].Library = web
 			e.pol.Library = &policy.Library{Enabled: mode != "gate closed", Trash: policy.LibraryTrash{Dir: trash},

@@ -97,11 +97,6 @@ func TestClientRouteClosedGatesAddNothing(t *testing.T) {
 	for name, mk := range map[string]func(*testing.T) (*env, *qbittest.Fake){
 		"router off": func(t *testing.T) (*env, *qbittest.Fake) { return clientEnv(t, false, policy.ModeActive) },
 		"shadow":     func(t *testing.T) (*env, *qbittest.Fake) { return clientEnv(t, true, policy.ModeShadow) },
-		"grab off": func(t *testing.T) (*env, *qbittest.Fake) {
-			e, f := clientEnv(t, true, policy.ModeActive)
-			e.pol.Versions["movie"].Grab = false
-			return e, f
-		},
 	} {
 		t.Run(name, func(t *testing.T) {
 			t.Parallel()

@@ -132,7 +132,7 @@ func digestText(d *DigestSummary, markdown bool) (string, []string, messageLevel
 		}
 	}
 	if d.GrabbingOff {
-		lines = append(lines, "Grabbing is off (router.enabled is false): Theatarr adds nothing to the debrid providers.")
+		lines = append(lines, "Theatarr is paused: nothing is downloaded or linked.")
 	}
 	if d.GrabbingOff || d.Accounts != nil || len(d.Health) > 0 || d.OpenErrors > 0 {
 		level = levelWarn

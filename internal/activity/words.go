@@ -198,16 +198,17 @@ func Tried(outcome, code string) bool {
 	return false
 }
 
-// The router's gate errors (router.ErrShadow, router.ErrNoGrab; every other gate refusal is router.ErrDisabled). The
-// texts are mirrored here because activity does not import router; a test in internal/web pins them.
+// The router's gate errors (router.ErrShadow; every other gate refusal is router.ErrDisabled). The texts are mirrored
+// here because activity does not import router; a test in internal/web pins them. gateNoGrab is the text of the
+// per-library downloads switch, removed in 2026-11; it is kept for download rows written before.
 const (
 	gateWatchOnly = "router: the library is Watch only; nothing is written for it"
 	gateNoGrab    = "router: the version's grab switch is off; nothing is written for it"
 )
 
 // NotStarted says why a download's error text says it ended because downloads were off when its turn came (a
-// download is only not started when it was also never Tried: Download.NotStarted): "off" (Pause, the environment lock, new downloads off), "watch_only" (its library is Watch only) or
-// "grab_off" (the library's downloads switch is off). "" for any other error text. The router writes these texts
+// download is only not started when it was also never Tried: Download.NotStarted): "off" (Pause, the environment lock), "watch_only" (its library is Watch only) or
+// "grab_off" (the library's former downloads switch was off; old rows only). "" for any other error text. The router writes these texts
 // ("route ended: " / "route stopped: " + the gate's error) only when its gate refused before a provider add.
 func NotStarted(errText string) string {
 	rest, ok := strings.CutPrefix(errText, "route ended: ")

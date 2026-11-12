@@ -179,7 +179,7 @@ func TestSectionsDatabaseWinsAndApplies(t *testing.T) {
 		t.Fatal("library.enabled accepted from a section")
 	}
 	if err := SectionOwnedElsewhere("library", json.RawMessage(`{"enabled": true, "versions": {"movies": {"roots": ["/x"]}}}`)); err == nil ||
-		!strings.Contains(err.Error(), "global switch") || !strings.Contains(err.Error(), "roots") {
+		!strings.Contains(err.Error(), "set by Pause") || !strings.Contains(err.Error(), "roots") {
 		t.Fatalf("owned fields: %v", err)
 	}
 	// Validation is the policy files' own.
@@ -377,7 +377,6 @@ func TestArrImportIntoGrabbingVersionNeedsConfirmation(t *testing.T) {
 	p.Router.Enabled = true
 	for _, v := range p.Versions {
 		v.Mode = policy.ModeActive
-		v.Grab = true
 	}
 	const instance = "radarr_4k_debrid"
 	src := p.Import.Arr[instance]
@@ -397,24 +396,24 @@ func TestArrImportIntoGrabbingVersionNeedsConfirmation(t *testing.T) {
 			effects := importAcquisitionEffects(before, after)
 			found := false
 			for _, e := range effects {
-				found = found || strings.Contains(e.Effect, ", with its downloads on, from import.arr.")
+				found = found || strings.Contains(e.Effect, " from import.arr.")
 			}
 			if !found {
 				t.Fatalf("import remap effects: %+v", effects)
 			}
-			// The router switch does not matter: turning it on later names no import source.
+			// Pause does not matter: turning it off later names no import source.
 			after.Router.Enabled = false
 			found = false
 			for _, e := range importAcquisitionEffects(before, after) {
-				found = found || strings.Contains(e.Effect, ", with its downloads on, from import.arr.")
+				found = found || strings.Contains(e.Effect, " from import.arr.")
 			}
 			if !found {
-				t.Fatal("router off: import remap onto a grabbing version needs no confirmation")
+				t.Fatal("paused: import remap onto a Live version needs no confirmation")
 			}
-			after.Versions[src.Version].Grab = false
+			after.Versions[src.Version].Mode = policy.ModeShadow
 			for _, e := range importAcquisitionEffects(before, after) {
-				if strings.Contains(e.Effect, ", with its downloads on, from import.arr.") {
-					t.Fatalf("grab-off effect: %+v", e)
+				if strings.Contains(e.Effect, " from import.arr.") {
+					t.Fatalf("Watch-only effect: %+v", e)
 				}
 			}
 		})

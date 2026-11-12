@@ -771,7 +771,7 @@ func TestLoadServePolicyReadsStoredGeneration(t *testing.T) {
 		t.Fatal(err)
 	}
 	if restarted.Generation != loaded.Generation || restarted.Records.Switches == nil ||
-		*restarted.Records.Switches != (settings.GlobalSwitches{}) || restarted.Policy.Router.Enabled || restarted.Policy.Library.Enabled {
+		*restarted.Records.Switches != (settings.GlobalSwitches{Paused: true}) || restarted.Policy.Router.Enabled || restarted.Policy.Library.Enabled {
 		t.Fatalf("restart changed the settings: generation %d, switches %+v", restarted.Generation, restarted.Records.Switches)
 	}
 	loaded.Records.Indexers[0].Enabled = false

@@ -83,14 +83,13 @@ func TestSearchable(t *testing.T) {
 		!strings.Contains(skipped[2].Reason, "not in the policy") {
 		t.Fatalf("all shadow: %v %v", active, skipped)
 	}
-	// Active but the kill switch off: still nothing.
+	// Active but paused: still nothing.
 	pol.Versions["movie-web"].Mode = policy.ModeActive
 	active, skipped = Searchable(pol, keys)
-	if len(active) != 0 || skipped[1].Version != "movie-web" || !strings.Contains(skipped[1].Reason, "router.enabled") {
+	if len(active) != 0 || skipped[1].Version != "movie-web" || !strings.Contains(skipped[1].Reason, "Paused") {
 		t.Fatalf("router off: %v %v", active, skipped)
 	}
-	// Router and version grab on: the active version only.
-	pol.Versions["movie-web"].Grab = true
+	// Pause off: the active version only.
 	pol.Router = &policy.Router{Enabled: true}
 	active, skipped = Searchable(pol, keys)
 	if !slices.Equal(active, []string{"movie-web"}) || len(skipped) != 2 {
@@ -227,23 +226,5 @@ func TestAddMethod(t *testing.T) {
 				t.Fatalf("repeat changed method to %q: %v", got, err)
 			}
 		})
-	}
-}
-
-func TestSearchableHonorsVersionGrab(t *testing.T) {
-	t.Parallel()
-	_, p := setup(t)
-	p.Router = &policy.Router{Enabled: true}
-	p.Versions["movie-web"].Mode = policy.ModeActive
-	p.Versions["movie-web"].Grab = false
-	active, skipped := Searchable(p, []string{"movie-web"})
-	if len(active) != 0 || len(skipped) != 1 {
-		t.Fatalf("grab off: %v %v", active, skipped)
-	}
-	p.Versions["movie-web"].Grab = true
-	p.ForcedOff = []string{"router"}
-	active, _ = Searchable(p, []string{"movie-web"})
-	if len(active) != 0 {
-		t.Fatalf("forced off: %v", active)
 	}
 }

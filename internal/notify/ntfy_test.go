@@ -82,7 +82,7 @@ func TestNtfyText(t *testing.T) {
 			Imported: []string{"A (2020)"}, OpenErrors: 1, Errors: []string{"router: boom (1×)"}, GrabbingOff: true}},
 			ntfyMessage{"Theatarr daily digest · 2026-11-06", "Last 24 h: 3 grabbed · 1 imported · 0 failed · 0 blocklisted · 0 dead links found\n" +
 				"Grabbed: A (2020), B (2021) and 1 more\nImported: A (2020)\nOpen error groups: 1 (Admin › System › Errors)\n• router: boom (1×)\n" +
-				"Grabbing is off (router.enabled is false): Theatarr adds nothing to the debrid providers.", 3, []string{"warning"}}},
+				"Theatarr is paused: nothing is downloaded or linked.", 3, []string{"warning"}}},
 		{"test", Event{Kind: Test}, ntfyMessage{"Theatarr test message", "This topic gets Theatarr's notifications.", 3, nil}},
 	} {
 		got, err := (&Notifier{}).ntfyPayload(context.Background(), c.ev)

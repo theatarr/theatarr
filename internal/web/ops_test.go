@@ -184,7 +184,7 @@ func (o *opsEnv) actions() []journal.Action {
 
 func (o *opsEnv) activate(key string) {
 	o.web.pol.Router.Enabled = true
-	o.web.pol.Versions[key].Mode, o.web.pol.Versions[key].Grab = policy.ModeActive, true
+	o.web.pol.Versions[key].Mode = policy.ModeActive
 	o.t.Cleanup(func() {
 		o.web.pol.Router.Enabled = false
 		o.web.pol.Versions[key].Mode = policy.ModeShadow

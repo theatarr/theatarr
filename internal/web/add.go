@@ -117,7 +117,7 @@ type AddOptions struct {
 	Kind    string `json:"kind"`
 	Anime   bool   `json:"anime"`
 	TitleID *int64 `json:"title_id,omitempty"`
-	// RouterEnabled is router.enabled; with it off nothing is searched or grabbed.
+	// RouterEnabled is router.enabled: false while Pause is on, when nothing is searched or grabbed.
 	RouterEnabled bool            `json:"router_enabled"`
 	Versions      []VersionOption `json:"versions"`
 	// Seasons come from the library's episodes (EpisodesKnown) or else from TMDb. Season choices apply to episodes

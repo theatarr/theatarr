@@ -442,7 +442,7 @@ func (s *Service) healthOf(ctx context.Context, keys []string) []notify.HealthIt
 	return out
 }
 
-// versionHealth is the health of the versions themselves: shadow mode and the router switch.
+// versionHealth is the health of the versions themselves: shadow mode and Pause.
 func (s *Service) versionHealth(keys []string) []notify.HealthItem {
 	out := []notify.HealthItem{}
 	if sh := s.shadowVersions(keys); len(sh) > 0 {
@@ -458,18 +458,7 @@ func (s *Service) versionHealth(keys []string) []notify.HealthItem {
 		}
 		if len(act) > 0 {
 			out = append(out, notify.HealthItem{Source: "RouterDisabledCheck", Type: "warning",
-				Message: "Router disabled: grabs are dry runs: " + strings.Join(act, ", ")})
-		}
-	} else {
-		var off []string
-		for _, k := range keys {
-			if vp := s.pol.Versions[k]; vp != nil && vp.Mode == policy.ModeActive && !vp.Grab {
-				off = append(off, k)
-			}
-		}
-		if len(off) > 0 {
-			out = append(out, notify.HealthItem{Source: "RouterDisabledCheck", Type: "notice",
-				Message: "Grab off: grabs are dry runs: " + strings.Join(off, ", ")})
+				Message: "Paused: nothing is downloaded: " + strings.Join(act, ", ")})
 		}
 	}
 	return out

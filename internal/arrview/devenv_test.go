@@ -189,8 +189,8 @@ func newDevEnvWith(t *testing.T, keys bool) *devEnv { return buildDevEnv(t, keys
 // (after the versions are switched active).
 func buildDevEnv(t *testing.T, keys bool, engine func(*policy.Policy) *decide.Engine) *devEnv {
 	e := &devEnv{env: newEnv(t), events: &recorder{}}
-	e.pol.Versions["movie-web"].Mode, e.pol.Versions["movie-web"].Grab = policy.ModeActive, true
-	e.pol.Versions["tv-2160p"].Mode, e.pol.Versions["tv-2160p"].Grab = policy.ModeActive, true
+	e.pol.Versions["movie-web"].Mode = policy.ModeActive
+	e.pol.Versions["tv-2160p"].Mode = policy.ModeActive
 	e.pol.Router = &policy.Router{Enabled: true}
 	var eng *decide.Engine
 	if engine != nil {

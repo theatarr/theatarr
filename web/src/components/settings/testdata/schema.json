@@ -282,7 +282,7 @@
             "name": "path",
             "label": "Mount folder",
             "type": "string",
-            "help": "This is where this service sees the mount, e.g. /mnt/debrid. Required once Write library links is on."
+            "help": "This is where this service sees the mount, e.g. /mnt/debrid. Required once Pause is off."
           },
           {
             "name": "link_path",
@@ -490,7 +490,7 @@
         "name": "trash",
         "label": "Trash",
         "type": "object",
-        "help": "This is where replaced links are moved aside (upgrades, relinks). Required once Write library links is on.",
+        "help": "This is where replaced links are moved aside (upgrades, relinks). Required once Pause is off.",
         "fields": [
           {
             "name": "dir",
@@ -791,6 +791,12 @@
       }
     ],
     "notify": [
+      {
+        "name": "enabled",
+        "label": "Enabled",
+        "type": "boolean",
+        "help": "This sends notifications. Off (the default): events are recorded, nothing is sent."
+      },
       {
         "name": "allow_hosts",
         "label": "Allowed destination hosts",

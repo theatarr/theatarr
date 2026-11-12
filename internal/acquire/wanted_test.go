@@ -26,9 +26,6 @@ func TestWantedListReadOnlyAndRound(t *testing.T) {
 			t.Fatal(err)
 		}
 	}
-	// The same missing movie in a second active library must remain visible with grab off.
-	e.pol.Versions["movie-shadow"].Mode = policy.ModeActive
-	e.pol.Versions["movie-shadow"].Grab = false
 	// Keep just one missing series episode, and leave the parent filled: the list must not reflag it.
 	exec(`UPDATE episode_version_state SET monitored = 0 WHERE episode_id <> 1001`)
 	exec(`UPDATE version SET state = 'filled' WHERE id = 201`)
@@ -49,7 +46,7 @@ func TestWantedListReadOnlyAndRound(t *testing.T) {
 	if missing.Limit != 50 || missing.Offset != 0 || missing.SearchedLastHour != 0 || !missing.Enabled || !missing.DownloadsEnabled {
 		t.Fatalf("settings: %+v", missing)
 	}
-	expected := map[string]string{"1/movie": "due", "2/movie": "in_flight", "4/movie": "searched_recently", "10/series": "due", "1/movie-shadow": "grab_off", "2/movie-shadow": "grab_off"}
+	expected := map[string]string{"1/movie": "due", "2/movie": "in_flight", "4/movie": "searched_recently", "10/series": "due"}
 	due := []string{}
 	pos := 0
 	for _, row := range missing.Items {
@@ -82,7 +79,7 @@ func TestWantedListReadOnlyAndRound(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if cutoff.Total != 2 {
+	if cutoff.Total != 1 {
 		t.Fatalf("cutoff: %+v", cutoff)
 	}
 	for _, row := range cutoff.Items {
@@ -94,8 +91,6 @@ func TestWantedListReadOnlyAndRound(t *testing.T) {
 				t.Errorf("cutoff due: %+v", row)
 			}
 			due = append(due, "3/movie/movie")
-		} else if row.Waiting != "grab_off" {
-			t.Errorf("cutoff grab off: %+v", row)
 		}
 	}
 	page, err := e.a.WantedList(e.ctx, WantedQuery{Only: OnlyMissing, Waiting: "due", Limit: 1, Offset: 1})
@@ -142,7 +137,6 @@ func TestWantedListReadOnlyAndRound(t *testing.T) {
 func TestWantedListGatesAndPartialRecency(t *testing.T) {
 	t.Parallel()
 	e := newEnv(t, true, &policy.Wanted{AgainAfter: policy.Duration(6 * time.Hour)})
-	e.pol.Versions["movie"].Grab = false
 	list := func(only string) *WantedList {
 		t.Helper()
 		l, err := e.a.WantedList(e.ctx, WantedQuery{Only: only, Version: "movie", Limit: 999})
@@ -163,7 +157,6 @@ func TestWantedListGatesAndPartialRecency(t *testing.T) {
 			}
 		}
 	}
-	assert(OnlyMissing, "grab_off")
 	e.pol.Router.Enabled = false
 	assert(OnlyMissing, "downloads_off")
 	e.a.set.Enabled = false
@@ -174,7 +167,6 @@ func TestWantedListGatesAndPartialRecency(t *testing.T) {
 	e.a.set.CutoffUnmet = policy.CutoffOff
 	assert(OnlyCutoff, "loop_off")
 	e.pol.Router.Enabled = true
-	e.pol.Versions["movie"].Grab = true
 	e.a.set.Missing = true
 	at := t0.Add(-10 * time.Minute)
 	if _, err := e.st.Writer().Exec(`INSERT INTO acquire_run(source,title_id,version_id,version_key,target,state,infra,created_at,updated_at)
@@ -207,10 +199,8 @@ func TestWantedListMergedQueuePositions(t *testing.T) {
 			t.Fatal(err)
 		}
 	}
-	e.pol.Versions["movie-shadow"].Mode = policy.ModeActive
-	e.pol.Versions["movie-shadow"].Grab = false
 	exec(`UPDATE version SET monitored = 0 WHERE policy_key LIKE 'series%'`)
-	// A's grab-off copy was never searched; its grabbing copy was searched after B.
+	// A was searched after B.
 	for _, r := range []struct {
 		id, vid, title int
 		age            time.Duration
@@ -308,7 +298,6 @@ func TestWantedListPendingDownloadedAndPositionJSON(t *testing.T) {
 func TestWantedListSharedPositions(t *testing.T) {
 	e := newEnv(t, true, nil)
 	e.pol.Versions["movie-shadow"].Mode = policy.ModeActive
-	e.pol.Versions["movie-shadow"].Grab = true
 	list, err := e.a.WantedList(e.ctx, WantedQuery{Only: OnlyMissing})
 	if err != nil {
 		t.Fatal(err)

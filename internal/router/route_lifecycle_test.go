@@ -103,7 +103,7 @@ func TestGrabOffQueuedDownloadIsEnded(t *testing.T) {
 		t.Fatalf("continuation %+v", next)
 	}
 	dl := next[0].DownloadID
-	e.pol.Versions["movie"].Grab = false
+	e.r.set.Enabled = false
 	resumed := 0
 	for range 6 {
 		e.exec(`UPDATE job SET state = 'done' WHERE kind = ? AND state = 'queued'`, JobRoute)
@@ -266,13 +266,12 @@ func TestReadyDeadlineSkipsMountOutage(t *testing.T) {
 	}
 }
 
-// Grab turned off in the published runtime stops a route of an older runtime before its add.
-func TestGrabOffStopsRunningRoute(t *testing.T) {
+// Pause turned on in the published runtime stops a route of an older runtime before its add.
+func TestPauseStopsRunningRoute(t *testing.T) {
 	t.Parallel()
 	e := newEnv(t, true, policy.ModeActive)
 	withQueue(e)
-	pol := testPolicy(true, policy.ModeActive)
-	pol.Versions["movie"].Grab = false
+	pol := testPolicy(false, policy.ModeActive)
 	cur, err := New(Config{Store: e.st, Policy: pol, Previous: e.r,
 		Logger: slog.New(slog.NewTextHandler(io.Discard, nil)), Now: func() time.Time { return e.clock }})
 	if err != nil {
@@ -281,7 +280,7 @@ func TestGrabOffStopsRunningRoute(t *testing.T) {
 	e.r.SetCurrentRuntime(func() *Router { return cur })
 	res, err := e.r.Route(e.ctx, movieReq(cand(h("a"), "Movie.2024.2160p.WEB.H265-GRP")))
 	if e.writes() != 0 {
-		t.Fatalf("added after grab was turned off: %+v %v", res, err)
+		t.Fatalf("added after Pause was turned on: %+v %v", res, err)
 	}
 	if err != nil || res.Outcome != OutcomeCancelled {
 		t.Errorf("route %+v, %v", res, err)

@@ -199,7 +199,7 @@ func (c *checker) debridVersions() []string {
 func (c *checker) versions() {
 	if len(c.p.Versions) == 0 {
 		c.add(AreaVersions, "versions", Warn, "create a first library from a preset on the setup screen ("+uipages.Setup+") "+
-			"or in "+uipages.Libraries+"; it starts as Watch only with downloads off, unless Setup's one-step start is used",
+			"or in "+uipages.Libraries+"; it starts as Watch only, unless Setup's one-step start is used",
 			"no libraries: nothing is searched, grabbed or linked")
 		return
 	}
@@ -667,28 +667,21 @@ func (c *checker) egress() {
 		"not checked here%s", egressLimits)
 }
 
-// switches lists the global switches. They are reported, never changed: Admin › Settings changes them (DB settings).
+// switches reports Pause. It is reported, never changed: Admin › Settings changes it (DB settings).
 func (c *checker) switches() {
 	const next = uipages.Switches
-	for _, sw := range []struct {
-		key, check    string
-		on            bool
-		onWhy, offWhy string
-	}{
-		{"router", "router.enabled", c.p.RouterSettings().Enabled, "on: active libraries with grab on add to debrid", "off: nothing is added to debrid (dry runs only)"},
-		{"library", "library.enabled", c.p.LibrarySettings().Enabled, "on: active libraries link into their roots", "off: no library writes and no Plex calls"},
-	} {
-		switch {
-		case slices.Contains(c.p.ForcedOff, sw.key):
-			c.add(AreaSwitches, sw.check, OK, "remove "+sw.key+" from THEATARR_FORCE_OFF and restart", "forced off by environment (THEATARR_FORCE_OFF): %s", strings.TrimPrefix(sw.offWhy, "off: "))
-		case sw.on:
-			c.add(AreaSwitches, sw.check, OK, next, "%s", sw.onWhy)
-		default:
-			c.add(AreaSwitches, sw.check, OK, next, "%s", sw.offWhy)
-		}
+	const why = "nothing is searched, downloaded or linked"
+	switch {
+	case slices.Contains(c.p.ForcedOff, "pause"):
+		c.add(AreaSwitches, "pause", OK, "remove pause, router and library from THEATARR_FORCE_OFF and restart",
+			"on, forced by environment (THEATARR_FORCE_OFF): %s", why)
+	case !c.p.RouterSettings().Enabled:
+		c.add(AreaSwitches, "pause", OK, next, "on: %s", why)
+	default:
+		c.add(AreaSwitches, "pause", OK, next, "off: Live libraries search, download and link")
 	}
 	for _, unknown := range c.p.ForceOffUnknown {
-		c.add(AreaSwitches, "force off", Warn, "use router, library or notify (comma-separated) and restart",
+		c.add(AreaSwitches, "force off", Warn, "use pause or notify (comma-separated) and restart",
 			"%s is not a switch: it forces nothing off", unknown)
 	}
 }

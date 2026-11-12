@@ -147,7 +147,7 @@ func TestSearchNowDropsRequestsThatAskForNothing(t *testing.T) {
 	e.exec(`UPDATE version SET state = 'filled' WHERE id = 101`)
 	e.exec(`INSERT INTO download (title_id, version_id, version_key, info_hash, release_title, indexer, state,
 		created_at, updated_at) VALUES (2, 102, 'movie', ?, 'x', 'pub', 'downloading', 0, 0)`, h("f"))
-	e.pol.Versions["series"].Grab = false
+	e.pol.Versions["series"].Mode = policy.ModeShadow
 	n, err := e.a.DrainSearchNow(e.ctx)
 	if err != nil || n != 0 {
 		t.Fatalf("drain %d %v", n, err)
@@ -157,17 +157,17 @@ func TestSearchNowDropsRequestsThatAskForNothing(t *testing.T) {
 	}
 }
 
-// Items of a library that is not active or has grab off, and items with nothing wanted, are skipped with the reason.
+// Items of a library that is not active, and items with nothing wanted, are skipped with the reason.
 func TestSearchNowSkipsWithReasons(t *testing.T) {
 	t.Parallel()
 	e := newEnv(t, true, loopOff(10))
-	e.pol.Versions["series"].Grab = false
+	e.pol.Versions["series"].Mode = policy.ModeShadow
 	res, err := e.a.RequestSearchNow(e.ctx, OnlyMissing, []SearchNowItem{{TitleID: 1, Version: "movie-shadow"},
 		{TitleID: 10, Version: "series"}, {TitleID: 3, Version: "movie"}, {TitleID: 1, Version: "gone"}})
 	if err != nil || res.Queued != 0 || res.Started != 0 || res.Pending != 0 {
 		t.Fatalf("request %+v %v", res, err)
 	}
-	want := []SearchNowSkip{{1, "movie-shadow", skipNotActive}, {10, "series", skipGrabOff}, {3, "movie", skipNothing},
+	want := []SearchNowSkip{{1, "movie-shadow", skipNotActive}, {10, "series", skipNotActive}, {3, "movie", skipNothing},
 		{1, "gone", skipNotActive}}
 	if len(res.Skipped) != len(want) {
 		t.Fatalf("skipped %+v", res.Skipped)
@@ -177,13 +177,13 @@ func TestSearchNowSkipsWithReasons(t *testing.T) {
 			t.Errorf("skip %d: %+v, want %+v", i, s, want[i])
 		}
 	}
-	// "All" skips the grab-off library's rows the same way and queues the rest.
+	// "All" lists only the Live libraries' rows and queues them.
 	all, err := e.a.RequestSearchNowAll(e.ctx, WantedQuery{Only: OnlyMissing})
-	if err != nil || all.Queued != 2 || all.Started != 2 || len(all.Skipped) != 3 || all.Skipped[0].Reason != skipGrabOff {
+	if err != nil || all.Queued != 2 || all.Started != 2 || len(all.Skipped) != 0 {
 		t.Fatalf("all %+v %v", all, err)
 	}
 	if n := e.count(`SELECT COUNT(*) FROM acquire_run WHERE version_key = 'series'`); n != 0 {
-		t.Fatalf("%d runs for a library with grab off", n)
+		t.Fatalf("%d runs for a Watch-only library", n)
 	}
 }
 
@@ -425,15 +425,13 @@ func TestWantedListSearchBlockedBehindLoopOff(t *testing.T) {
 	t.Parallel()
 	e := newEnv(t, true, loopOff(10))
 	e.accept = false
-	e.pol.Versions["movie-shadow"].Mode = policy.ModeActive
-	e.pol.Versions["movie-shadow"].Grab = false
 	e.exec(`INSERT INTO download (title_id, version_id, version_key, info_hash, release_title, indexer, state,
 		created_at, updated_at) VALUES (2, 102, 'movie', ?, 'x', 'pub', 'downloading', 0, 0)`, h("f"))
 	list, err := e.a.WantedList(e.ctx, WantedQuery{Only: OnlyMissing})
 	if err != nil {
 		t.Fatal(err)
 	}
-	want := map[string]string{"1/movie": "", "2/movie": "in_flight", "1/movie-shadow": "grab_off", "2/movie-shadow": "grab_off"}
+	want := map[string]string{"1/movie": "", "2/movie": "in_flight"}
 	searchable := 0
 	for _, row := range list.Items {
 		if row.Waiting != "loop_off" {
@@ -447,11 +445,11 @@ func TestWantedListSearchBlockedBehindLoopOff(t *testing.T) {
 		}
 	}
 	// Movie 1 and the series' three rows.
-	if list.Searchable != 4 || searchable != 4 || list.Total != 7 {
+	if list.Searchable != 4 || searchable != 4 || list.Total != 5 {
 		t.Fatalf("searchable %d (%d rows), total %d", list.Searchable, searchable, list.Total)
 	}
 	res, err := e.a.RequestSearchNowAll(e.ctx, WantedQuery{Only: OnlyMissing})
-	if err != nil || res.Queued != 4 || res.Started != 4 || len(res.Skipped) != 3 {
+	if err != nil || res.Queued != 4 || res.Started != 4 || len(res.Skipped) != 1 {
 		t.Fatalf("all %+v %v", res, err)
 	}
 	off := newEnv(t, false, loopOff(10))

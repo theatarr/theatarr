@@ -16,7 +16,7 @@ func TestSeaDexPreferencePersistsWithoutEnablingGrabbing(t *testing.T) {
 		t.Fatal(err)
 	}
 	v := saved.Policy.Versions["movie-web"]
-	if !v.PreferSeaDex || v.Grab || v.Mode != initial.Policy.Versions["movie-web"].Mode {
+	if !v.PreferSeaDex || v.Mode != initial.Policy.Versions["movie-web"].Mode {
 		t.Fatalf("preference/gates after save: %+v", v)
 	}
 	b, err := versionConfigJSON(*v, nil)

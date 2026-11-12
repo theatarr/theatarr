@@ -353,7 +353,7 @@ func TestRetryNewFanout(t *testing.T) {
 	t.Parallel()
 	for _, on := range []bool{true, false} {
 		e := retryNewEnv(t, &policy.Wanted{PerHour: 100, RetryNew: new(on)})
-		e.pol.Versions["series-copy"] = &policy.VersionPolicy{Mode: policy.ModeActive, Grab: true, Kind: policy.KindSeries,
+		e.pol.Versions["series-copy"] = &policy.VersionPolicy{Mode: policy.ModeActive, Kind: policy.KindSeries,
 			Storage: policy.StorageDebrid, Indexers: []string{"pub"}, Providers: []string{"rd"}}
 		e.exec(`INSERT INTO version (id, title_id, policy_key, state, created_at, updated_at)
 			VALUES (221, 10, 'series-copy', 'wanted', 0, 0)`)

@@ -222,14 +222,14 @@ func (w *Web) mcpCall(r *http.Request, tool mcpTool, args map[string]any) any {
 	}
 	if tool.Name == "settings_section_update" {
 		key, _ := args["key"].(string)
-		if key == "router" || key == "library" || key == "notify" {
-			// These switches belong to the UI, including attempts hidden in YAML or an otherwise invalid config.
+		if key == "router" || key == "library" {
+			// These switches follow Pause, including attempts hidden in YAML or an otherwise invalid config.
 			var cfg map[string]any
 			if raw, ok := args["config"].(map[string]any); ok {
 				cfg = raw
 			}
 			if _, ok := cfg["enabled"]; ok || mcpYAMLSwitch(args["yaml"]) {
-				return mcpResult(http.StatusForbidden, apiError{Error: "global switches are not section settings: use api_request PUT /api/theatarr/v1/settings/switches"})
+				return mcpResult(http.StatusForbidden, apiError{Error: "Pause is not a section setting: use api_request PUT /api/theatarr/v1/settings/switches with {generation, paused}"})
 			}
 		}
 	}

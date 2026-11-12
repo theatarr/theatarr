@@ -27,7 +27,8 @@ func TestRouterStatusAndArgs(t *testing.T) {
 	if err := runRouter(commandSettingsArgs(t, []string{"status", "-db", db, "-policy", pol}), &out, nil); err != nil {
 		t.Fatal(err)
 	}
-	if s := out.String(); !strings.Contains(s, "router     OFF (router.enabled is false)") ||
+	if s := out.String(); !strings.Contains(s, "pause      ON: nothing is searched, downloaded or linked") ||
+		!strings.Contains(s, "DOWNLOADS  PROVIDERS") || !strings.Contains(s, "Watch only  no") ||
 		!strings.Contains(s, "active     none") ||
 		!strings.Contains(s, "0 unfinished cache check(s)") || !strings.Contains(s, "movie-remux") {
 		t.Errorf("status:\n%s", s)

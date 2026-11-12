@@ -72,7 +72,7 @@ func TestOfferFileSources(t *testing.T) {
 				e.withoutWeb()
 			}
 			// A second version may accept an active route too.
-			e.off.Policy.Versions["movie-active"] = &policy.VersionPolicy{Kind: policy.KindMovie, Mode: policy.ModeActive, Grab: true}
+			e.off.Policy.Versions["movie-active"] = &policy.VersionPolicy{Kind: policy.KindMovie, Mode: policy.ModeActive}
 			e.exec(`INSERT INTO version (id, title_id, policy_key, created_at, updated_at) VALUES (15, 1, 'movie-active', 0, 0)`)
 			sr, err := e.off.Sweep(e.ctx, true, 0)
 			if err != nil || sr.Downloads != 1 || len(sr.Offers) != 2 || sr.Outcomes[OfferPlanned] != 1 || sr.Outcomes[OfferRouted] != 1 {
@@ -212,7 +212,7 @@ func TestOfferFileSeriesPack(t *testing.T) {
 	for _, kind := range []string{"link", "arr_file"} {
 		t.Run(kind, func(t *testing.T) {
 			e := newOfferEnv(t)
-			e.off.Policy.Versions["tv-web"] = &policy.VersionPolicy{Kind: policy.KindSeries, Mode: policy.ModeActive, Grab: true}
+			e.off.Policy.Versions["tv-web"] = &policy.VersionPolicy{Kind: policy.KindSeries, Mode: policy.ModeActive}
 			e.exec(`INSERT INTO title (id, kind, name, series_type, created_at, updated_at) VALUES (3, 'series', 'Show', 'standard', 0, 0)`)
 			e.exec(`INSERT INTO version (id, title_id, policy_key, created_at, updated_at) VALUES (30, 3, 'tv', 0, 0), (31, 3, 'tv-web', 0, 0)`)
 			e.exec(`INSERT INTO episode (id, title_id, season, number, name, created_at, updated_at) VALUES

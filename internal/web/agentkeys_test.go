@@ -42,7 +42,7 @@ func (se *settingsEnv) lastActor(entity string) string {
 
 // An admin's key creates, activates and turns grab on for a version through the same 422/preview and token round
 // trips as the UI; its saves are audited as the key, confirmed by the key.
-func TestAgentKeyActivatesVersionAndGrab(t *testing.T) {
+func TestAgentKeyActivatesVersion(t *testing.T) {
 	t.Parallel()
 	area := t.TempDir()
 	se := newQualityEnvBase(t, func(p *policy.Policy) { p.Library.Dangling.Roots = []string{area} })
@@ -52,7 +52,7 @@ func TestAgentKeyActivatesVersionAndGrab(t *testing.T) {
 	if err := os.Mkdir(root, 0700); err != nil {
 		t.Fatal(err)
 	}
-	config["library"], config["mode"], config["grab"] = root, "shadow", false
+	config["library"], config["mode"] = root, "shadow"
 	body := map[string]any{"generation": se.generation(), "key": "test-version", "config": config, "roots": []string{root}}
 	se.want(se.keyCall(key, "POST", "/versions", body), 200, "shadow create")
 
@@ -69,15 +69,9 @@ func TestAgentKeyActivatesVersionAndGrab(t *testing.T) {
 		t.Fatalf("audit actor %q", got)
 	}
 
-	delete(body, "confirmation_token")
-	config["grab"] = true
-	body["generation"] = se.generation()
-	proof := se.want(se.keyCall(key, "POST", "/versions/confirm", body), 200, "grab preview")
-	body["confirmation_token"] = proof["token"]
-	se.want(se.keyCall(key, "PUT", "/versions/test-version", body), 200, "key-confirmed grab")
 	got := se.want(se.keyCall(key, "GET", "/versions/test-version", nil), 200, "read")["record"].(map[string]any)["config"].(map[string]any)
-	if got["mode"] != "active" || got["grab"] != true {
-		t.Fatalf("version not active with grab: %v", got)
+	if got["mode"] != "active" {
+		t.Fatalf("version not active: %v", got)
 	}
 }
 
@@ -86,11 +80,11 @@ func TestAgentKeyTokensAreBoundToTheKey(t *testing.T) {
 	t.Parallel()
 	se := seededSwitchesEnv(t, nil)
 	gen := se.generation()
-	body := map[string]any{"generation": gen, "router_enabled": true}
+	body := map[string]any{"generation": gen, "paused": false}
 	first, other := se.apiKeyNamed("first"), se.apiKeyNamed("other")
-	token := confirmRefusal(t, se.want(se.keyCall(first, "PUT", "/switches", body), 422, "first key"), "router.enabled")
+	token := confirmRefusal(t, se.want(se.keyCall(first, "PUT", "/switches", body), 422, "first key"), "Turn Pause off")
 	body["confirmation_token"] = token
-	if out := se.want(se.keyCall(other, "PUT", "/switches", body), 422, "other key"); confirmRefusal(t, out, "router.enabled") == token {
+	if out := se.want(se.keyCall(other, "PUT", "/switches", body), 422, "other key"); confirmRefusal(t, out, "Turn Pause off") == token {
 		t.Fatal("same token for another key")
 	}
 	if se.generation() != gen {
@@ -118,8 +112,8 @@ func TestAgentKeyTokensAreBoundToTheKey(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	se.want(se.keyCall(manager, "PUT", "/switches", map[string]any{"generation": gen, "router_enabled": false}), 403, "manager key on an admin route")
-	se.want(se.keyCall(manager, "POST", "/switches/confirm", map[string]any{"generation": gen, "router_enabled": true}), 403, "manager key confirm")
+	se.want(se.keyCall(manager, "PUT", "/switches", map[string]any{"generation": gen, "paused": true}), 403, "manager key on an admin route")
+	se.want(se.keyCall(manager, "POST", "/switches/confirm", map[string]any{"generation": gen, "paused": false}), 403, "manager key confirm")
 }
 
 // api_request runs any API route through the mux as the caller: permissions, confirmations and the audit all apply,
@@ -139,8 +133,8 @@ func TestMCPAPIRequest(t *testing.T) {
 	}
 
 	gen := se.generation()
-	args := map[string]any{"method": "PUT", "path": APIBase + "/settings/switches", "body": map[string]any{"generation": gen, "router_enabled": true}}
-	token := confirmRefusal(t, se.mcpTool("api_request", args, 422).(map[string]any), "router.enabled")
+	args := map[string]any{"method": "PUT", "path": APIBase + "/settings/switches", "body": map[string]any{"generation": gen, "paused": false}}
+	token := confirmRefusal(t, se.mcpTool("api_request", args, 422).(map[string]any), "Turn Pause off")
 	if se.generation() != gen {
 		t.Fatal("unconfirmed save")
 	}
@@ -156,7 +150,7 @@ func TestMCPAPIRequest(t *testing.T) {
 	if err := se.st.Reader().QueryRow(`SELECT after FROM settings_audit WHERE entity = 'mcp' AND key = 'api_request' ORDER BY id DESC LIMIT 1`).Scan(&after); err != nil {
 		t.Fatal(err)
 	}
-	if !strings.Contains(after, `"method":"PUT"`) || !strings.Contains(after, `"path":"`+APIBase+`/settings/switches"`) || strings.Contains(after, "router_enabled") {
+	if !strings.Contains(after, `"method":"PUT"`) || !strings.Contains(after, `"path":"`+APIBase+`/settings/switches"`) || strings.Contains(after, "paused") {
 		t.Fatalf("api_request audit: %s", after)
 	}
 
@@ -173,10 +167,11 @@ func TestMCPAPIRequest(t *testing.T) {
 	if read := se.mcpTool("api_request", map[string]any{"method": "GET", "path": APIBase + "/settings/switches"}, 200).(map[string]any); read["switches"] == nil {
 		t.Fatalf("session read: %v", read)
 	}
-	args = map[string]any{"method": "PUT", "path": APIBase + "/settings/switches", "body": map[string]any{"generation": gen + 1, "library_enabled": true}}
-	args["confirmation_token"] = confirmRefusal(t, se.mcpTool("api_request", args, 422).(map[string]any), "library.enabled")
+	se.mcpTool("api_request", map[string]any{"method": "PUT", "path": APIBase + "/settings/switches", "body": map[string]any{"generation": gen + 1, "paused": true}}, 200)
+	args = map[string]any{"method": "PUT", "path": APIBase + "/settings/switches", "body": map[string]any{"generation": gen + 2, "paused": false}}
+	args["confirmation_token"] = confirmRefusal(t, se.mcpTool("api_request", args, 422).(map[string]any), "Turn Pause off")
 	se.mcpTool("api_request", args, 200)
-	if se.generation() != gen+2 {
+	if se.generation() != gen+3 {
 		t.Fatal("session-confirmed save did not apply")
 	}
 
@@ -186,7 +181,7 @@ func TestMCPAPIRequest(t *testing.T) {
 		t.Fatal(err)
 	}
 	se.mcpKey = manager
-	se.mcpTool("api_request", map[string]any{"method": "PUT", "path": APIBase + "/settings/switches", "body": map[string]any{"generation": gen + 2, "router_enabled": false}}, 403)
+	se.mcpTool("api_request", map[string]any{"method": "PUT", "path": APIBase + "/settings/switches", "body": map[string]any{"generation": gen + 3, "paused": true}}, 403)
 }
 
 // Without database settings (YAML mode), api_request still reads; its writes are refused like the other write tools.

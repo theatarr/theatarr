@@ -2,6 +2,7 @@ package store
 
 import (
 	"context"
+	"strings"
 	"testing"
 )
 
@@ -227,4 +228,99 @@ func TestMigrationDropsComparison(t *testing.T) {
 			t.Errorf("%s\n got %s, want %s", q, got, want)
 		}
 	}
+}
+
+// 00123: one Pause, Watch only or Live, notifications in the notify section (the plan's table, row by row).
+func TestMigrateControls(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+	type result struct{ switches, notify, versions string }
+	run := func(t *testing.T, switches, notify string, versions map[string]string) result {
+		t.Helper()
+		st := openAt(t, 122)
+		p, err := st.provider(false)
+		if err != nil {
+			t.Fatal(err)
+		}
+		qs := []string{`INSERT INTO setting_global_switches (key, config, created_at, updated_at) VALUES ('global', '` + switches + `', 1, 1)`}
+		if notify != "" {
+			qs = append(qs, `INSERT INTO setting_section (key, config, created_at, updated_at) VALUES ('notify', '`+notify+`', 1, 1)`)
+		}
+		for key, config := range versions {
+			qs = append(qs, `INSERT INTO setting_version (key, config, created_at, updated_at) VALUES ('`+key+`', '`+config+`', 1, 1)`)
+		}
+		for _, q := range qs {
+			if _, err := st.Writer().ExecContext(ctx, q); err != nil {
+				t.Fatalf("%s: %v", q, err)
+			}
+		}
+		if _, err := p.UpTo(ctx, 123); err != nil {
+			t.Fatal(err)
+		}
+		var out result
+		for q, into := range map[string]*string{
+			`SELECT config FROM setting_global_switches`:                                                                     &out.switches,
+			`SELECT COALESCE((SELECT config FROM setting_section WHERE key = 'notify'), '(none)')`:                           &out.notify,
+			`SELECT COALESCE(group_concat(key || '=' || config, ' '), '') FROM (SELECT * FROM setting_version ORDER BY key)`: &out.versions,
+		} {
+			if err := st.Reader().QueryRowContext(ctx, q).Scan(into); err != nil {
+				t.Fatalf("%s: %v", q, err)
+			}
+		}
+		return out
+	}
+	for _, c := range []struct {
+		name, switches, notify, wantSwitches, wantNotify string
+	}{
+		{"both on", `{"router_enabled":true,"library_enabled":true,"notify_enabled":false}`, `{"poll":"15s"}`, `{"paused":false}`, `{"poll":"15s"}`},
+		{"router off", `{"router_enabled":false,"library_enabled":true,"notify_enabled":false}`, `null`, `{"paused":true}`, `null`},
+		{"library off", `{"router_enabled":true,"library_enabled":false,"notify_enabled":false}`, `null`, `{"paused":true}`, `null`},
+		{"both off", `{"router_enabled":false,"library_enabled":false,"notify_enabled":false}`, `null`, `{"paused":true}`, `null`},
+		{"keys missing", `{}`, `null`, `{"paused":true}`, `null`},
+		{"notify on", `{"router_enabled":true,"library_enabled":true,"notify_enabled":true}`, `{"poll":"15s"}`, `{"paused":false}`, `{"poll":"15s","enabled":true}`},
+		{"notify on, null section", `{"router_enabled":true,"library_enabled":true,"notify_enabled":true}`, `null`, `{"paused":false}`, `{"enabled":true}`},
+		{"notify on, no section", `{"router_enabled":true,"library_enabled":true,"notify_enabled":true}`, ``, `{"paused":false}`, `{"enabled":true}`},
+		{"notify off removes enabled", `{"router_enabled":true,"library_enabled":true,"notify_enabled":false}`, `{"enabled":true,"poll":"15s"}`, `{"paused":false}`, `{"poll":"15s"}`},
+		{"notify off, no section", `{"router_enabled":true,"library_enabled":true,"notify_enabled":false}`, ``, `{"paused":false}`, `(none)`},
+	} {
+		t.Run(c.name, func(t *testing.T) {
+			t.Parallel()
+			got := run(t, c.switches, c.notify, nil)
+			if got.switches != c.wantSwitches || got.notify != c.wantNotify {
+				t.Errorf("switches %s notify %s, want %s %s", got.switches, got.notify, c.wantSwitches, c.wantNotify)
+			}
+		})
+	}
+	t.Run("libraries", func(t *testing.T) {
+		t.Parallel()
+		got := run(t, `{"router_enabled":true,"library_enabled":true,"notify_enabled":false}`, `null`, map[string]string{
+			"a-watch-grab":   `{"config":{"mode":"shadow","grab":true},"roots":["/a"]}`,
+			"b-watch":        `{"config":{"mode":"shadow"}}`,
+			"c-live-grab":    `{"config":{"mode":"active","grab":true},"roots":["/c"]}`,
+			"d-live-no-grab": `{"config":{"mode":"active","grab":false}}`,
+			// The old field was omitted when false and had no default: a Live row without it had downloads off.
+			"e-live-missing": `{"config":{"mode":"active","kind":"movie"}}`,
+		})
+		want := `a-watch-grab={"config":{"mode":"shadow"},"roots":["/a"]} b-watch={"config":{"mode":"shadow"}} ` +
+			`c-live-grab={"config":{"mode":"active"},"roots":["/c"]} d-live-no-grab={"config":{"mode":"shadow"}} ` +
+			`e-live-missing={"config":{"mode":"shadow","kind":"movie"}}`
+		if got.versions != want {
+			t.Errorf("libraries\n got %s\nwant %s", got.versions, want)
+		}
+	})
+	// The owner's rows: both switches on, notifications off, five Live libraries with grab on, five Watch only.
+	t.Run("owner", func(t *testing.T) {
+		t.Parallel()
+		versions := map[string]string{}
+		for _, k := range []string{"m1", "m2", "m3", "m4", "m5"} {
+			versions[k+"-mm"] = `{"config":{"mode":"active","grab":true,"kind":"movie"},"roots":["/x"]}`
+			versions[k] = `{"config":{"mode":"shadow","kind":"movie"},"roots":["/y"]}`
+		}
+		got := run(t, `{"router_enabled":true,"library_enabled":true,"notify_enabled":false}`, `{"targets":{}}`, versions)
+		if got.switches != `{"paused":false}` || got.notify != `{"targets":{}}` ||
+			strings.Count(got.versions, `"mode":"active"`) != 5 || strings.Count(got.versions, `"mode":"shadow"`) != 5 ||
+			strings.Contains(got.versions, "grab") {
+			t.Errorf("owner: %+v", got)
+		}
+	})
 }

@@ -15,7 +15,7 @@ import (
 // installed notification is sent only when its URL's host is in allow_hosts (or is a target's host). Sending never
 // blocks the pipeline: deliveries queue in the database and a sender retries them with back-off.
 type Notify struct {
-	// Enabled allows sending at all. Default false: events are still recorded, nothing leaves the process.
+	// Enabled sends notifications. Off (the default): events are recorded, nothing is sent.
 	Enabled bool `yaml:"enabled"`
 	// AllowHosts lists the hosts (host or host:port) an installed notification may target. Each joins the gateway's
 	// allowlist. Empty: installed notifications are stored but never sent.

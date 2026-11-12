@@ -40,7 +40,7 @@ func TestSettingsGlobalSwitchesAPI(t *testing.T) {
 	if unauthenticated.Code != http.StatusUnauthorized {
 		t.Fatalf("unauthenticated read: %d", unauthenticated.Code)
 	}
-	noCSRF := httptest.NewRequest(http.MethodPut, APIBase+"/settings/switches", strings.NewReader(`{"generation":0,"router_enabled":true}`))
+	noCSRF := httptest.NewRequest(http.MethodPut, APIBase+"/settings/switches", strings.NewReader(`{"generation":0,"paused":false}`))
 	noCSRF.AddCookie(se.cookie)
 	noCSRF.Header.Set("Content-Type", "application/json")
 	if response := se.do(noCSRF); response.Code != http.StatusForbidden {
@@ -48,10 +48,13 @@ func TestSettingsGlobalSwitchesAPI(t *testing.T) {
 	}
 	read := se.want(se.call("GET", "/switches", nil), 200, "read")
 	gen := int64(read["generation"].(float64))
-	body := map[string]any{"generation": gen, "router_enabled": true}
-	refused := se.want(se.call("PUT", "/switches", body), 422, "enable needs proof")
-	if !strings.Contains(refused["effects"].([]any)[0].(map[string]any)["effect"].(string), "router.enabled") {
-		t.Fatal("effect does not name switch")
+	if read["configured"].(map[string]any)["paused"] != true || read["switches"].(map[string]any)["paused"] != true {
+		t.Fatalf("seed not paused: %+v", read)
+	}
+	body := map[string]any{"generation": gen, "paused": false}
+	refused := se.want(se.call("PUT", "/switches", body), 422, "Pause off needs proof")
+	if !strings.HasPrefix(refused["effects"].([]any)[0].(map[string]any)["effect"].(string), "Turn Pause off") {
+		t.Fatal("effect does not name Pause")
 	}
 	proof := se.want(se.call("POST", "/switches/confirm", body), 200, "confirm")
 	body["confirmation_token"] = proof["token"]
@@ -61,23 +64,28 @@ func TestSettingsGlobalSwitchesAPI(t *testing.T) {
 	}
 	read = se.want(se.call("GET", "/switches", nil), 200, "live")
 	live := read["switches"].(map[string]any)
-	if live["router_enabled"] != true || live["sources"].(map[string]any)["router"] != "db" {
+	if live["paused"] != false || live["pause_forced"] != false || live["sources"] != nil {
 		t.Fatalf("not live: %+v", read)
 	}
-	se.want(se.call("PUT", "/switches", map[string]any{"generation": gen + 1, "router_enabled": false}), 200, "off needs no proof")
+	se.want(se.call("PUT", "/switches", map[string]any{"generation": gen + 1, "paused": true}), 200, "Pause on needs no proof")
 	se.want(se.call("PUT", "/switches", body), 409, "stale generation")
 	se.want(se.call("PUT", "/switches", map[string]any{"generation": gen + 2, "enabled": true}), 400, "unknown field")
+	for _, old := range []string{"router_enabled", "library_enabled", "notify_enabled"} {
+		out := se.want(se.call("PUT", "/switches", map[string]any{"generation": gen + 2, old: true}), 400, old)
+		if !strings.Contains(out["error"].(string), "use paused") {
+			t.Fatalf("%s: %v", old, out)
+		}
+	}
+	se.want(se.call("PUT", "/switches", map[string]any{"generation": gen + 2}), 400, "paused missing")
 }
 
-func TestSettingsGlobalSwitchesForcedSources(t *testing.T) {
-	t.Run("forced", func(t *testing.T) {
-		t.Setenv("THEATARR_FORCE_OFF", "router")
-		se := seededSwitchesEnv(t, nil)
-		read := se.want(se.call("GET", "/switches", nil), 200, "forced")
-		if read["switches"].(map[string]any)["sources"].(map[string]any)["router"] != "forced off by environment" {
-			t.Fatalf("forced source: %+v", read)
-		}
-	})
+func TestSettingsGlobalSwitchesPauseForced(t *testing.T) {
+	t.Setenv("THEATARR_FORCE_OFF", "router")
+	se := seededSwitchesEnv(t, nil)
+	read := se.want(se.call("GET", "/switches", nil), 200, "forced")
+	if sw := read["switches"].(map[string]any); sw["pause_forced"] != true || sw["paused"] != true {
+		t.Fatalf("forced: %+v", read)
+	}
 }
 
 // A user's API key confirms like a session (docs/design/settings.md "Who confirms"), with tokens bound to the key: a
@@ -86,7 +94,7 @@ func TestSettingsAPIKeyConfirms(t *testing.T) {
 	t.Parallel()
 	se := seededSwitchesEnv(t, nil)
 	gen := se.generation()
-	body := map[string]any{"generation": gen, "router_enabled": true}
+	body := map[string]any{"generation": gen, "paused": false}
 	apiKey := se.apiKey()
 	key := func(method, path string, body any, status int) map[string]any {
 		r := httptest.NewRequest(method, APIBase+"/settings"+path, strings.NewReader(mustJSON(t, body)))
@@ -95,13 +103,13 @@ func TestSettingsAPIKeyConfirms(t *testing.T) {
 		return se.want(se.do(r), status, "API key "+method+" "+path)
 	}
 	refused := key("PUT", "/switches", body, 422)
-	if refused["confirm_in_ui"] == true || confirmRefusal(t, refused, "router.enabled") == "" {
+	if refused["confirm_in_ui"] == true || confirmRefusal(t, refused, "Turn Pause off") == "" {
 		t.Fatalf("API key refusal: %v", refused)
 	}
 	keyProof := key("POST", "/switches/confirm", body, 200)
 	sessionProof := se.want(se.call("POST", "/switches/confirm", body), 200, "session confirm")
 	body["confirmation_token"] = sessionProof["token"]
-	if out := key("PUT", "/switches", body, 422); confirmRefusal(t, out, "router.enabled") == "" || se.generation() != gen {
+	if out := key("PUT", "/switches", body, 422); confirmRefusal(t, out, "Turn Pause off") == "" || se.generation() != gen {
 		t.Fatalf("API key redeemed a session token: %v", out)
 	}
 	body["confirmation_token"] = keyProof["token"]
@@ -109,7 +117,7 @@ func TestSettingsAPIKeyConfirms(t *testing.T) {
 	if se.generation() != gen {
 		t.Fatal("session redeemed the key's token")
 	}
-	keyProof = key("POST", "/switches/confirm", map[string]any{"generation": gen, "router_enabled": true}, 200)
+	keyProof = key("POST", "/switches/confirm", map[string]any{"generation": gen, "paused": false}, 200)
 	body["confirmation_token"] = keyProof["token"]
 	key("PUT", "/switches", body, 200)
 	if se.generation() != gen+1 {

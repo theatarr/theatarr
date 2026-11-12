@@ -313,7 +313,7 @@ func (s *Service) refuseDryRunRoute(version string) error {
 		return refused("no policy is loaded; no download will start")
 	}
 	if !s.pol.RouterSettings().Enabled {
-		return refused("router.enabled is false; no download will start")
+		return refused("Theatarr is paused; no download will start")
 	}
 	vp := s.pol.Versions[version]
 	if vp == nil {
@@ -321,9 +321,6 @@ func (s *Service) refuseDryRunRoute(version string) error {
 	}
 	if vp.Mode != policy.ModeActive {
 		return refused("the %s copy is Watch only; no download will start", version)
-	}
-	if !vp.Grab {
-		return refused("the %s copy has grab off; no download will start", version)
 	}
 	return nil
 }

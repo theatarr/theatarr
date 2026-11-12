@@ -22,7 +22,7 @@ import (
 //
 // Order under the one budget: Search now, then the loop's own selection. A request does not consult again_after: the user asked. It is deleted when its search starts, and when
 // it asks for nothing any more (imported meanwhile, a download in flight, a search of it already queued or running,
-// unmonitored, the library not active or not grabbing). A search of router.wanted.retry_new's chain is not such a
+// unmonitored, the library not active). A search of router.wanted.retry_new's chain is not such a
 // search: a request is never dropped for one. A search that fails is recorded on its run and not repeated
 // from the request. While router.enabled is false (Pause) nothing new is accepted and what is queued waits: a drain
 // starts nothing and no drain is scheduled; once it is true again the drains pick the queue up, oldest first.
@@ -36,8 +36,8 @@ import (
 // JobSearchNow drains the Search now requests and schedules itself again while some remain (StartQueued).
 const JobSearchNow = "acquire.searchnow"
 
-// ErrDownloadsOff is RequestSearchNow's refusal while router.enabled is false.
-var ErrDownloadsOff = errors.New("new downloads are off, so nothing can be searched")
+// ErrDownloadsOff is RequestSearchNow's refusal while Pause is on (router.enabled is false).
+var ErrDownloadsOff = errors.New("Theatarr is paused, so nothing can be searched")
 
 // SearchNowItem names one row of the Wanted list. Season is nil for a movie; for a series without one, every season
 // with something wanted is asked for.
@@ -68,7 +68,6 @@ type SearchNowResult struct {
 // Reasons an item is skipped.
 const (
 	skipNotActive = "the library is not active"
-	skipGrabOff   = "downloads are off for this library"
 	skipNothing   = "nothing of it is wanted now"
 	skipInFlight  = "a download for it is in progress"
 )
@@ -110,8 +109,6 @@ func (a *Acquirer) RequestSearchNow(ctx context.Context, only string, items []Se
 		switch {
 		case vp == nil || vp.Mode != policy.ModeActive:
 			skip = skipNotActive
-		case !a.pol.Grabs(it.Version):
-			skip = skipGrabOff
 		default:
 			ts, err := a.targets(ctx, a.searchNowSelection(it.TitleID, it.Version, only, seasonOf(it.Season)))
 			if err != nil {
@@ -150,9 +147,9 @@ func (a *Acquirer) RequestSearchNowAll(ctx context.Context, q WantedQuery) (*Sea
 	var reqs []searchRequest
 	for _, row := range rows {
 		if row.SearchBlocked != "" {
-			why := skipGrabOff
-			if row.SearchBlocked == "in_flight" {
-				why = skipInFlight
+			why := skipInFlight
+			if row.SearchBlocked == "downloads_off" {
+				why = ErrDownloadsOff.Error()
 			}
 			out.Skipped = append(out.Skipped, SearchNowSkip{TitleID: row.TitleID, Version: row.Version, Reason: why})
 			continue
@@ -281,7 +278,7 @@ func (a *Acquirer) DrainSearchNow(ctx context.Context) (int, error) {
 	return started, nil
 }
 
-// searchNowReady are the targets a request still asks for: none when its library is not active or not grabbing, when
+// searchNowReady are the targets a request still asks for: none when its library is not active, when Pause is on, when
 // nothing of it is wanted any more, or when a download for it is in flight or a search of it is already queued or
 // running.
 func (a *Acquirer) searchNowReady(ctx context.Context, r searchRequest) ([]target, error) {
