@@ -1,17 +1,23 @@
 // The top bar's status dot (components/shell/status-dot.tsx), from the live event stream: "VPN up" only on a current
 // positive answer, that is vpn_ok true in a gateway snapshot received on the open connection (the server's vpn_ok is
 // already false when an egress check is stale). A dropped stream says so instead of repeating its last snapshot, and
-// a snapshot from an earlier connection counts as stale until the new one arrives.
+// a snapshot from an earlier connection counts as stale until the new one arrives. For its first 15 seconds a drop
+// reads "Reconnecting" (a settings save drops the stream briefly), then "Disconnected".
 import type { Live } from "@/api/events";
 import { attentionCount } from "./jobs";
 
 export type LiveTone = "ok" | "warn" | "bad" | "idle" | "stale";
 export type LiveSummary = { tone: LiveTone; label: string; detail: string };
 
-export function liveSummary(live: Live): LiveSummary {
+/** How long a dropped stream reads "Reconnecting" before "Disconnected": a settings save drops it for a few seconds. */
+export const RECONNECT_GRACE = 15_000;
+
+export function liveSummary(live: Live, now = Date.now()): LiveSummary {
   const g = live.gateway;
   if (!live.connected) {
     if (!g && !live.lostAt) return { tone: "idle", label: "Connecting", detail: "Opening the live event stream." };
+    if (live.lostAt && now - live.lostAt < RECONNECT_GRACE)
+      return { tone: "idle", label: "Reconnecting", detail: "The live event stream dropped and is reconnecting." };
     return {
       tone: "stale",
       label: "Disconnected",

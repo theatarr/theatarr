@@ -16,7 +16,7 @@ import { Input } from "@/components/ui/input";
 import { Select } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import {
-  KIND_WORDS, entryName, isHeldRefresh, optionWords, outcomeWords, proposedOption, rangeWords, reviewQuestion, seriesName, sourceWords,
+  KIND_WORDS, entryName, episodes, isHeldRefresh, optionWords, outcomeWords, proposedOption, rangeWords, reviewQuestion, seriesName, sourceWords,
   type ReviewItem, type ReviewOption,
 } from "@/lib/anime-review";
 import { fmtDay } from "@/lib/library";
@@ -47,14 +47,14 @@ function SeriesLink({ s }: { s: ReviewOption["series"] }) {
 const tvdbUrl = (tvdb: number | undefined) => `https://www.thetvdb.com/dereferrer/series/${tvdb}`;
 
 /** One TVDB mapping: series, range, count, source, samples, the TVDB link and an optional action button. */
-function OptionBox({ o, heading, action }: { o: ReviewOption; heading?: string; action?: React.ReactNode }) {
+function OptionBox({ o, heading, action, pick = "Theatarr's pick" }: { o: ReviewOption; heading?: string; action?: React.ReactNode; pick?: string }) {
   return (
     <div className="rounded-lg border border-border p-3 text-sm">
       {heading ? <div className="mb-1 text-xs font-medium uppercase tracking-wide text-muted-foreground">{heading}</div> : null}
       <div className="flex flex-wrap items-baseline gap-x-2">
         <SeriesLink s={o.series} />
-        <span>{rangeWords(o.episodes)} ({o.count ?? 0})</span>
-        {o.proposed && !heading ? <Badge tone="accent">Theatarr's pick</Badge> : null}
+        <span>{rangeWords(o.episodes)}</span>
+        {o.proposed && !heading ? <Badge tone="accent">{pick}</Badge> : null}
       </div>
       {o.source ? <div className="text-xs text-muted-foreground">{sourceWords(o.source)}</div> : null}
       {(o.samples ?? []).length > 0 ? <ul className="mt-2 space-y-0.5 text-[13px]">{(o.samples ?? []).map((e, i) => <SampleLine key={i} e={e} />)}</ul> : null}
@@ -75,7 +75,7 @@ function EntryColumn({ it }: { it: ReviewItem }) {
       <div className="font-medium">{e.title || e.title_en || e.key}</div>
       {e.title_en && e.title_en !== e.title ? <div className="text-muted-foreground">{e.title_en}</div> : null}
       <div className="text-[13px] text-muted-foreground">
-        {[e.format, e.episodes ? `${e.episodes} episodes` : "", e.start || e.end ? `${e.start ?? "?"} – ${e.end ?? "?"}` : ""].filter(Boolean).join(" · ")}
+        {[e.format, e.episodes ? episodes(e.episodes) : "", e.start || e.end ? `${e.start ?? "?"} – ${e.end ?? "?"}` : ""].filter(Boolean).join(" · ")}
       </div>
       <div className="flex gap-3">
         {e.anilist_id ? <a className={ext} href={`https://anilist.co/anime/${e.anilist_id}`} target="_blank" rel="noreferrer">AniList</a> : null}
@@ -99,10 +99,10 @@ function RefreshBoxes({ it }: { it: ReviewItem }) {
     const s = r.series;
     return (
       <>
-        {box("Now", <div><SeriesLink s={s} /> {r.before ?? 0} episodes mapped</div>)}
+        {box("Now", <div><SeriesLink s={s} /> {episodes(r.before ?? 0)} mapped</div>)}
         {box("After the refresh", (
           <>
-            <div><SeriesLink s={s} /> {r.after ?? 0} episodes mapped</div>
+            <div><SeriesLink s={s} /> {episodes(r.after ?? 0)} mapped</div>
             {(r.lost ?? []).length > 0 ? (
               <>
                 <div className="mt-2 text-xs text-muted-foreground">No longer mapped</div>
@@ -241,9 +241,9 @@ export function ReviewCard({ it }: { it: ReviewItem }) {
         <div className="mt-3 grid gap-3 md:grid-cols-[minmax(0,1fr)_minmax(0,2fr)]">
           <EntryColumn it={it} />
           <div className={`space-y-2 ${it.entry ? "" : "md:col-span-2"}`}>
-            {!held && (it.options ?? []).length > 0 ? <div className="text-xs font-medium uppercase tracking-wide text-muted-foreground">TVDB</div> : null}
+            {!held && (it.options ?? []).length > 0 ? <div className="text-xs font-medium uppercase tracking-wide text-muted-foreground">{open && it.kind === "conflict" ? "TVDB · in use now: Sonarr's numbering" : "TVDB"}</div> : null}
             {held ? <RefreshBoxes it={it} /> : (it.options ?? []).map((o, i) => (
-              <OptionBox key={i} o={o} action={open ? (
+              <OptionBox key={i} o={o} pick={open && it.kind === "heuristic" ? "In use now" : undefined} action={open ? (
                 <Button size="xs" variant="outline" disabled={busy}
                   onClick={() => act({ accept: true, candidate: o.proposed ? undefined : o.candidate, chose: optionWords(o) })}>
                   Use this mapping
@@ -270,7 +270,7 @@ export function ReviewCard({ it }: { it: ReviewItem }) {
           {err ? <span className="text-sm text-[var(--bad-ink)]">{err}</span> : null}
         </div>
       ) : null}
-      {open && it.kind === "heuristic" ? <p className="mt-1 text-xs text-muted-foreground">New files take Sonarr's numbering; files already in the library stay where they are.</p> : null}
+      {open && it.kind === "heuristic" ? <p className="mt-1 text-xs text-muted-foreground">Don't use this match: new files take Sonarr's numbering; files already in the library stay where they are.</p> : null}
       {open && held && (it.refresh?.items ?? 0) > 1 ? <p className="mt-1 text-xs text-muted-foreground">This answers all {it.refresh?.items} changes of this refresh.</p> : null}
       <Button size="xs" variant="ghost" className="mt-2" aria-expanded={raw} onClick={() => setRaw(!raw)}>{raw ? "Hide the raw rule" : "Show the raw rule"}</Button>
       {raw ? <RawRule it={it} note={note} setNote={setNote} /> : null}

@@ -128,6 +128,39 @@ export function explainReloadError(e: unknown): Explained {
   };
 }
 
+// Library field labels for a refusal's path (versions[K].F).
+const LIBRARY_FIELD_WORDS: Record<string, string> = {
+  library: "folder",
+  profile: "quality profile",
+  mode: "Watch only or Live",
+  minimum_availability: "minimum availability",
+  indexers: "indexers",
+  providers: "providers",
+  naming: "naming",
+  add_via: "download route",
+  client: "download client",
+};
+
+const KEYED_WORDS: Record<string, string> = { indexers: "Indexer", providers: "Provider", profiles: "Profile", clients: "Download client" };
+
+const pathRest = (parts: string[]) => parts.join(" ").replaceAll("_", " ");
+
+/** A settings refusal's field path in words: versions[movie-web].library is "Library movie-web, folder". A path
+ * of another shape is returned unchanged. */
+export function fieldWords(path: string): string {
+  const roots = /^library\.versions\[([^\]]+)\]\.roots(?:[.[]|$)/.exec(path);
+  if (roots) return `Library ${roots[1]}, folders`;
+  const lib = /^versions\[([^\]]+)\](?:\.(.+))?$/.exec(path);
+  if (lib) {
+    if (!lib[2]) return `Library ${lib[1]}`;
+    const [field, ...rest] = lib[2].split(".");
+    return `Library ${lib[1]}, ${pathRest([LIBRARY_FIELD_WORDS[field] ?? field, ...rest])}`;
+  }
+  const keyed = /^(indexers|providers|profiles|clients)\[([^\]]+)\]\.(.+)$/.exec(path);
+  if (keyed) return `${KEYED_WORDS[keyed[1]]} ${keyed[2]}, ${pathRest(keyed[3].split("."))}`;
+  return path;
+}
+
 export function explainError(e: unknown, now = Date.now()): Explained {
   if (!(e instanceof ApiError)) {
     const msg = e instanceof Error ? e.message : String(e);
@@ -136,7 +169,7 @@ export function explainError(e: unknown, now = Date.now()): Explained {
   const server = e.message;
   const detail = e.detail;
   const all = [server, ...(detail ?? [])].join("\n");
-  const body = (e.body ?? {}) as { generation?: unknown; status?: unknown; retry_at?: unknown; message?: unknown; category?: unknown };
+  const body = (e.body ?? {}) as { generation?: unknown; status?: unknown; retry_at?: unknown; message?: unknown; category?: unknown; fields?: unknown };
   switch (e.status) {
     case 409:
       if (/downloads changed during save/.test(server)) {
@@ -226,7 +259,18 @@ export function explainError(e: unknown, now = Date.now()): Explained {
           detail,
         };
       }
-      return { kind: "validation", title: "Refused by validation", message: "Nothing was saved. Fix the fields named below.", server, detail };
+      const fields = Array.isArray(body.fields) ? (body.fields as { path?: unknown; message?: unknown }[]) : [];
+      if (fields.length) {
+        const lines = fields.map((f) => `${fieldWords(String(f.path ?? ""))}: ${String(f.message ?? "")}`);
+        return {
+          kind: "validation",
+          title: "Not saved",
+          message: lines.length === 1 ? `Nothing was saved. ${lines[0]}.` : "Nothing was saved. Fix these:",
+          detail: lines,
+          server: undefined,
+        };
+      }
+      return { kind: "validation", title: "Not saved", message: "Nothing was saved.", server, detail };
     }
     case 429: {
       const busy = body.status === "busy";

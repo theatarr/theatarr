@@ -1,9 +1,10 @@
 // The live status signal in the top bar (admins): VPN egress and failed jobs that need attention (not resolved, retried
 // or dismissed), from the event stream (lib/live-status.ts), as a dot and its words ("VPN down"). A dropped stream
-// shows as Disconnected, never as the last snapshot. Links to System › Status.
+// shows as Reconnecting for its first seconds, then Disconnected, never as the last snapshot. Links to System › Status.
+import { useEffect, useState } from "react";
 import { Link } from "react-router";
 import { useLive } from "@/api/events";
-import { liveSummary, type LiveTone } from "@/lib/live-status";
+import { liveSummary, RECONNECT_GRACE, type LiveTone } from "@/lib/live-status";
 import { cn } from "@/lib/utils";
 
 const DOT: Record<LiveTone, string> = {
@@ -17,6 +18,14 @@ const DOT: Record<LiveTone, string> = {
 export function StatusDot() {
   const live = useLive();
   const s = liveSummary(live);
+  // Re-render when the grace ends, so a stream that stays down turns into Disconnected.
+  const [, tick] = useState(0);
+  const reconnecting = s.label === "Reconnecting";
+  useEffect(() => {
+    if (!reconnecting || !live.lostAt) return;
+    const t = window.setTimeout(() => tick((n) => n + 1), Math.max(0, live.lostAt + RECONNECT_GRACE - Date.now()));
+    return () => window.clearTimeout(t);
+  }, [reconnecting, live.lostAt]);
   return (
     <Link
       to="/admin"

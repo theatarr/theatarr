@@ -42,7 +42,7 @@ describe("readiness", () => {
   it("says a movie is ready in its best resolution, whichever copy has it", () => {
     expect(readiness("movie", [v({ current: { quality: "WEBDL-2160p" } }), v({ id: 2, key: "movie-web", has_file: false, state: "wanted" })]).label).toBe("Ready to watch in 4K");
     expect(readiness("movie", [v({ current: { quality: "1080p" } })]).label).toBe("Ready to watch in 1080p");
-    expect(readiness("movie", [v({ has_file: false, state: "wanted" })])).toEqual({ label: "Not available yet", tone: "neutral" });
+    expect(readiness("movie", [v({ has_file: false, state: "wanted" })])).toEqual({ label: "Not in the library yet", tone: "neutral" });
     // Without See files a missing title with a download in hand is getting ready, as on the posters.
     expect(readiness("movie", [v({ has_file: false, state: "wanted" })], true)).toEqual({ label: "Getting ready", tone: "neutral" });
     expect(readiness("movie", [v({ current: { quality: "1080p" } })], true).label).toBe("Ready to watch in 1080p");
@@ -62,7 +62,7 @@ describe("copy fields", () => {
     expect(f.availability).not.toContain("Remux");
   });
   it("covers missing copies and series", () => {
-    expect(copyFields(v({ has_file: false, state: "wanted", current: undefined }))).toMatchObject({ current: "None yet", availability: "Not available yet", preferred: "" });
+    expect(copyFields(v({ has_file: false, state: "wanted", current: undefined }))).toMatchObject({ current: "None yet", availability: "Not in the library yet", preferred: "" });
     expect(copyFields(v({ label: "Anime", upgrade: { state: "below_cutoff", quality: "Bluray-1080p" }, episodes: { have: 3, total: 12, missing: 9 } })).availability).toBe("3 of 12 episodes");
     expect(copyFields(v({ label: "Anime", upgrade: { state: "below_cutoff", quality: "Bluray-1080p" }, episodes: { have: 12, total: 12, missing: 0 } })).availability).toBe("All 12 episodes · mostly 1080p Blu-ray");
   });

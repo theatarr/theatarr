@@ -39,8 +39,10 @@ export function TitleAddActions({ titleId, name, year, kind, poster, anime, add 
   // Interactive search of the whole movie for managers when a current library of it searches live (not Watch only).
   // Not for a series: an unscoped series search judges every episode unrequested.
   const movie = kind === "movie" && perms.manage;
-  const liveLibs = useLiveLibraries(titleId, movie).libs;
-  const live = movie && liveLibs.length > 0;
+  const lives = useLiveLibraries(titleId, movie);
+  const live = movie && lives.libs.length > 0;
+  // A movie whose libraries are all Watch only has no Interactive search: say why.
+  const watchOnly = movie && !lives.pending && lives.libs.length === 0 && (lives.title.data?.versions ?? []).some((v) => v.control?.mode === "shadow");
   // The mutation holds the last try: its answer, its error, or nothing while a new one runs (mutate resets both).
   const outcome = searchNow.data ?? null;
   const runSearch = () => searchNow.mutate(undefined);
@@ -74,6 +76,9 @@ export function TitleAddActions({ titleId, name, year, kind, poster, anime, add 
           ) : null}
         </div>
       </div>
+      {watchOnly ? (
+        <p className="mt-1 text-xs text-[var(--ink-3)]" data-testid="title-no-interactive">Interactive search needs a Live library. This film's libraries are Watch only.</p>
+      ) : null}
       {searchNow.error ? (
         <div role="alert" className="mt-2 flex flex-wrap items-center gap-2 rounded-[5px] border border-[var(--th-danger-border)] bg-[var(--bad-soft)] px-3 py-2 text-xs" data-testid="title-search-error">
           <AlertTriangle className="size-3.5 shrink-0 text-[var(--bad-ink)]" />

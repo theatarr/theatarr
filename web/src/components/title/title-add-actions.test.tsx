@@ -45,6 +45,13 @@ const headerFor = (permissions: string[], live: boolean, kind: "movie" | "series
 it("offers Interactive search of a movie to a manager when a library of it is Live", async () => {
   headerFor(["manage", "add"], true);
   expect(await screen.findByTestId("interactive-search-open")).toBeTruthy();
+  expect(screen.queryByTestId("title-no-interactive")).toBeNull();
+});
+
+it("says why a movie whose libraries are all Watch only has no Interactive search", async () => {
+  headerFor(["manage", "add"], false);
+  expect((await screen.findByTestId("title-no-interactive")).textContent).toBe("Interactive search needs a Live library. This film's libraries are Watch only.");
+  expect(screen.queryByTestId("interactive-search-open")).toBeNull();
 });
 
 it("offers no whole-title Interactive search for a series, a title only in Watch-only libraries, or a non-manager", async () => {

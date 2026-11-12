@@ -155,7 +155,7 @@ function Cell({ id, c, outcomes }: { id: ReleaseColumnId; c: Candidate; outcomes
     case "age":
       return <span className="whitespace-nowrap" title={c.published}>{fmtAge(c.published)}</span>;
     case "indexer":
-      return <span className="[overflow-wrap:anywhere]">{c.indexer || "—"}</span>;
+      return <span className="whitespace-nowrap">{c.indexer || "—"}</span>;
     case "history":
       return <Outcome o={outcomeOf(c, outcomes)} />;
     case "size":
@@ -311,7 +311,7 @@ export function ReleaseGrid({
     const Arrow = prefs.sort.dir === "asc" ? ArrowUp : ArrowDown;
     return (
       <TableHead key={id} aria-sort={on ? (prefs.sort.dir === "asc" ? "ascending" : "descending") : undefined}>
-        <button type="button" onClick={() => sortBy(key)} className={cn("inline-flex items-center gap-1 hover:text-foreground", on && "text-foreground")}>
+        <button type="button" onClick={() => sortBy(key)} className={cn("inline-flex items-center gap-1 uppercase hover:text-foreground", on && "text-foreground")}>
           {label(id)}
           {on ? <Arrow className="size-3" /> : null}
         </button>

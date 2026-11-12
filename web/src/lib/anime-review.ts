@@ -31,6 +31,9 @@ export function rangeWords(eps: unknown[] | undefined): string {
   return out.join("; ");
 }
 
+/** "1 episode", "12 episodes". */
+export const episodes = (n: number) => `${n} ${n === 1 ? "episode" : "episodes"}`;
+
 export const SOURCE_WORDS: Record<string, string> = {
   anibridge: "AniBridge list",
   scudlee: "ScudLee's anime-lists",

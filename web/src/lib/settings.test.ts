@@ -15,6 +15,7 @@ import {
   editorReturn,
   explainError,
   explainReloadError,
+  fieldWords,
   formFromConfig,
   hasAdvancedValues,
   importCounts,
@@ -112,6 +113,20 @@ describe("refusals explained", () => {
     const e = explainError(new ApiError(422, "settings refused: indexers[x].url: required", ["indexers[x].url: required", "indexers[x].kind: unknown"]));
     expect(e.kind).toBe("validation");
     expect(e.detail).toHaveLength(2);
+    expect(e.message).toBe("Nothing was saved.");
+  });
+  it("names a refused field in words", () => {
+    expect(fieldWords("versions[movie-web].library")).toBe("Library movie-web, folder");
+    expect(fieldWords("library.versions[tv].roots[0]")).toBe("Library tv, folders");
+    expect(fieldWords("indexers[x].url")).toBe("Indexer x, url");
+    expect(fieldWords("policy.something[odd]")).toBe("policy.something[odd]");
+    const e = explainError(
+      new ApiError(422, "settings refused: versions[movie-web].library: directory must exist", ["versions[movie-web].library: directory must exist"], {
+        fields: [{ path: "versions[movie-web].library", message: "directory must exist" }],
+      }),
+    );
+    expect(e).toMatchObject({ kind: "validation", title: "Not saved", message: "Nothing was saved. Library movie-web, folder: directory must exist." });
+    expect(e.server).toBeUndefined();
   });
 });
 

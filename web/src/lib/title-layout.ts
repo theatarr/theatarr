@@ -55,14 +55,14 @@ function bestResolution(qualities: (string | undefined | null)[]): string {
 
 /**
  * Whether the title can be watched, for everyone (the hero): "Ready to watch in 4K" (the best resolution a usable
- * copy has), "Some episodes ready" (a series with no complete copy), or "Not available yet". A movie missing one of
+ * copy has), "Some episodes ready" (a series with no complete copy), or "Not in the library yet". A movie missing one of
  * its copies is still ready: watchability, not the household's copy policy. gettingReady (an account without See
  * files, the title's acquiring: a download in hand) reads "Getting ready" for a title with nothing held, as the
  * posters do; a failed download is not in hand.
  */
 export function readiness(kind: string | undefined, versions: Version[], gettingReady = false): { label: string; tone: "positive" | "partial" | "neutral" } {
   const held = versions.filter((v) => v.has_file);
-  if (held.length === 0) return { label: gettingReady ? "Getting ready" : "Not available yet", tone: "neutral" };
+  if (held.length === 0) return { label: gettingReady ? "Getting ready" : "Not in the library yet", tone: "neutral" };
   const complete = kind === "series" ? held.filter((v) => !v.episodes || (v.episodes.have > 0 && v.episodes.missing === 0)) : held;
   if (complete.length === 0) {
     const best = held.map((v) => v.episodes).filter((e) => !!e).sort((a, b) => b.have - a.have)[0];
@@ -100,12 +100,12 @@ export function copyFields(v: Version): CopyFields {
   if (eps && eps.total > 0) {
     availability =
       eps.have === 0
-        ? "Not available yet"
+        ? "Not in the library yet"
         : eps.missing > 0
           ? `${fmtNumber(eps.have)} of ${fmtNumber(eps.total)} episodes`
           : `All ${fmtNumber(eps.have)} episodes${current !== "On disk" ? ` · mostly ${current}` : ""}`;
   } else {
-    availability = v.has_file ? (current === "On disk" ? "Available" : `Available in ${current}`) : "Not available yet";
+    availability = v.has_file ? (current === "On disk" ? "Available" : `Available in ${current}`) : "Not in the library yet";
   }
   return { copy: v.label ?? v.key ?? "", current, preferred: sourceWords(v.upgrade?.cutoff?.quality), availability };
 }

@@ -175,7 +175,7 @@ describe("quality editors", () => {
     fireEvent.change(screen.getByRole("textbox", { name: "Library key" }), { target: { value: "movie-web" } });
     await act(async () => { await vi.advanceTimersByTimeAsync(400); });
     expect(fetch.calls("POST", "/settings/naming/preview")).toHaveLength(1);
-    fireEvent.change(screen.getByRole("textbox", { name: "file" }), { target: { value: " - {Quality}" } });
+    fireEvent.change(screen.getByRole("textbox", { name: "File name" }), { target: { value: " - {Quality}" } });
     expect(firstSignal?.aborted).toBe(true);
     await act(async () => { await vi.advanceTimersByTimeAsync(400); await Promise.resolve(); });
     expect(fetch.calls("POST", "/settings/naming/preview")).toHaveLength(2);
@@ -206,7 +206,7 @@ describe("quality editors", () => {
     await user.click(screen.getByRole("button", { name: "Copy movie-remux's naming" }));
     expect(screen.getByTestId("quality-announcer").textContent).toContain("Copied movie-remux's naming. Save to keep it.");
     expect(screen.queryByTestId("copy-naming")).toBeNull();
-    expect((screen.getByRole("textbox", { name: "file" }) as HTMLInputElement).value).toBe("{Movie Title} {[Quality Full]}");
+    expect((screen.getByRole("textbox", { name: "File name" }) as HTMLInputElement).value).toBe("{Movie Title} {[Quality Full]}");
     await user.click(screen.getByRole("button", { name: "Save" }));
     await waitFor(() => expect(fetch.calls("PUT", "/settings/naming/2")).toHaveLength(1));
     expect(fetch.calls("PUT", "/settings/naming/2")[0].body).toEqual({

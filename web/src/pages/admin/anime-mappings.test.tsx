@@ -178,6 +178,7 @@ it("shows a conflict as a plain question with links and sample episodes, and the
   expect(screen.getByText(/“Pride”/)).toBeTruthy(); // TVDB names of both options
   expect(screen.getByText(/“New Start”/)).toBeTruthy();
   expect(screen.getByText("Theatarr's pick")).toBeTruthy();
+  expect(screen.getByText("TVDB · in use now: Sonarr's numbering")).toBeTruthy();
   expect(screen.queryByText(/mappings:/)).toBeNull();
   fireEvent.click(screen.getByRole("button", { name: "Show the raw rule" }));
   expect(screen.getByText(/mappings:/)).toBeTruthy();
@@ -213,6 +214,11 @@ it("sets a heuristic match by hand with Edit season/offset… and shows a refusa
   renderPage(<AnimeMappings />);
   expect(await screen.findByText(/^Is “Mushoku Tensei II Part 2” Mushoku Tensei Season 2, episodes 13–24\?/)).toBeTruthy();
   expect(screen.getByText("Don't use this match")).toBeTruthy();
+  expect(screen.getByText("In use now")).toBeTruthy();
+  expect(screen.queryByText("Theatarr's pick")).toBeNull();
+  expect(screen.getByText(/^Don't use this match: new files take Sonarr's numbering/)).toBeTruthy();
+  expect(screen.queryByText(/\(12\)/)).toBeNull();
+  expect(screen.getByText(/12 episodes/)).toBeTruthy();
   fireEvent.click(screen.getByRole("button", { name: "Edit season/offset…" }));
   fireEvent.change(screen.getByLabelText("Season"), { target: { value: "2" } });
   fireEvent.change(screen.getByLabelText("First episode"), { target: { value: "13" } });

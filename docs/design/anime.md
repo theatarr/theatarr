@@ -240,15 +240,17 @@ next sync.
   | `refresh_moves_linked` ("Refresh changes linked episodes") | "…The refresh maps “{entry}” to {to} instead of {from}. {n} of these episodes have files; files already linked for them may be moved to match." When the held build maps the entry to nothing importable (a conflict counts as nothing): "…The refresh stops mapping “{entry}” ({from}), so new files take Sonarr's numbering." plus the same files sentence. The card never promises that files move: the server cannot preview which links a relink changes. | as above | as above; linked files may be relinked to match | as above |
 
   Beside the question: the AniList entry (title, English title, format, episode count, dates, AniList and AniDB links)
-  and, for conflict and heuristic, one TVDB box per option: the proposed mapping ("Theatarr's pick") and each other
-  candidate, with the range in words, the source ("AniBridge list", "ScudLee's anime-lists", "Air date and title
+  and, for conflict and heuristic, one TVDB box per option: the proposed mapping (labelled "In use now" on an open
+  heuristic item, "Theatarr's pick" otherwise) and each other candidate, with the range in words (no separate count), the source ("AniBridge list", "ScudLee's anime-lists", "Air date and title
   match", "Set by hand"), sample episodes (first two and last, with names and air dates from Theatarr's episode list
   when the series is a Theatarr title), a TVDB link and **Use this mapping** (a dropped candidate says why it can't be
   used). A held refresh shows "Now" (the entry's importable mapping in use) and "After the refresh" (the held
   build's, or the episode counts and up to five episodes no longer mapped); these are filled only while the item is
   open, so a resolved one shows its summary and what was chosen.
+  On an open conflict the TVDB column heading reads "TVDB · in use now: Sonarr's numbering".
   Buttons, no browser confirm: conflict **Edit season/offset…** and **Keep Sonarr's numbering** (reject); heuristic
-  **Edit season/offset…** and **Don't use this match** (reject); held refresh **Apply the refresh** (accept) and
+  **Edit season/offset…** and **Don't use this match** (reject), with the note "Don't use this match: new files take
+  Sonarr's numbering; files already in the library stay where they are."; held refresh **Apply the refresh** (accept) and
   **Keep current mapping** (reject), with "This answers all {n} changes of this refresh." when one answer settles
   several items. A resolved item asks its question in the past tense and says what was decided ("Rejected: the match
   is not used; new files follow Sonarr's numbering."). **Edit season/offset…** sets one contiguous run of one season of one of the options' series by hand

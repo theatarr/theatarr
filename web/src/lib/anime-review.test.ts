@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { outcomeWords, rangeWords, reviewQuestion, type ReviewItem } from "./anime-review";
+import { episodes, outcomeWords, rangeWords, reviewQuestion, type ReviewItem } from "./anime-review";
 
 describe("rangeWords", () => {
   it("says a season range, specials, one episode and two seasons", () => {
@@ -7,6 +7,10 @@ describe("rangeWords", () => {
     expect(rangeWords([[0, 5], [0, 6]])).toBe("Specials 5–6");
     expect(rangeWords([[1, 3]])).toBe("Season 1, episode 3");
     expect(rangeWords([[2, 1], [1, 12], [1, 13], [2, 2]])).toBe("Season 1, episodes 12–13; Season 2, episodes 1–2");
+  });
+  it("counts one episode in the singular", () => {
+    expect(episodes(1)).toBe("1 episode");
+    expect(episodes(12)).toBe("12 episodes");
   });
 });
 

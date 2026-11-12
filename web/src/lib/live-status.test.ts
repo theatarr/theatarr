@@ -26,6 +26,12 @@ describe("liveSummary", () => {
     expect(liveSummary(live)).toMatchObject({ tone: "stale", label: "Disconnected" });
     expect(liveSummary({ connected: false, lostAt: 5 }).label).toBe("Disconnected");
   });
+  it("reads Reconnecting for the first 15 seconds of a drop", () => {
+    const now = 1_000_000;
+    const live: Live = { connected: false, connectedAt: 100, gateway: gw(true), gatewayAt: 120 };
+    expect(liveSummary({ ...live, lostAt: now - 5_000 }, now)).toMatchObject({ tone: "idle", label: "Reconnecting" });
+    expect(liveSummary({ ...live, lostAt: now - 20_000 }, now)).toMatchObject({ tone: "stale", label: "Disconnected" });
+  });
   it("treats a snapshot from an earlier connection as stale", () => {
     const live: Live = { connected: true, connectedAt: 300, gateway: gw(true), gatewayAt: 120 };
     expect(liveSummary(live)).toMatchObject({ tone: "idle", label: "Checking" });
