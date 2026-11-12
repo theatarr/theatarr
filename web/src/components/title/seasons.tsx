@@ -12,7 +12,7 @@
 // - accounts without "see files" get one availability column across copies and nothing about files or quality
 //   beyond the resolution (the API sends nothing more);
 // - episode rows open the episode overview (?episode=<id>, episode-drawer.tsx);
-// - for managers, when a library of the series searches live: Interactive search (interactive-search.tsx) on each
+// - for managers, when a current library of the series searches live: Interactive search (interactive-search.tsx) on each
 //   season header (season packs and that season's episodes) and an icon button at the end of each episode row, in the
 //   default library; the window's tabs switch library.
 //
@@ -28,7 +28,7 @@ import { usePerms, useEpisodes, type Episode, type EpisodeList } from "@/api/lib
 import { useMonitor, useScopedSearch, type ManageOutcome } from "@/api/manage";
 import { ErrorState, Loading } from "@/components/page";
 import { EpisodeOverview } from "@/components/title/episode-drawer";
-import { InteractiveSearchButton } from "@/components/title/interactive-search";
+import { InteractiveSearchButton, useLiveLibraries } from "@/components/title/interactive-search";
 import { CopyDot, CopyTrack, OwnerLine } from "@/components/library/copy-bits";
 import { MonitorSwitch } from "@/components/title/manage-bits";
 import { DownloadsOffNotice } from "@/components/version-status";
@@ -185,7 +185,7 @@ type ListProps = {
   selected: Set<number>;
   onSelect: (ids: number[], on: boolean) => void;
   onOpen: (id: number) => void;
-  /** Interactive search per episode row (a manager, and a library of the series searches live). */
+  /** Interactive search per episode row (a manager, and a current library of the series searches live). */
   live?: { titleId: number };
 };
 
@@ -432,6 +432,7 @@ function SeasonBlock({
   open,
   onToggle,
   manage,
+  live,
   seeFiles,
   selected,
   onSelect,
@@ -446,6 +447,8 @@ function SeasonBlock({
   open: boolean;
   onToggle: () => void;
   manage: boolean;
+  /** Interactive search on the header and the episode rows. */
+  live: boolean;
   seeFiles: boolean;
   selected: Set<number>;
   onSelect: (ids: number[], on: boolean) => void;
@@ -465,7 +468,6 @@ function SeasonBlock({
   };
   const shown = all.filter((e) => matchesFilter(e, filter, keys, seeFiles, merged));
   const Chevron = open ? ChevronDown : ChevronRight;
-  const live = manage && list.versions.some((v) => v.control?.live_releases);
   const props: ListProps = { episodes: shown, copies, merged, anime, manage, seeFiles, selected, onSelect, onOpen, live: live ? { titleId } : undefined };
   return (
     <div className="overflow-hidden rounded-lg border border-border bg-background/40" data-season={season.season}>
@@ -577,6 +579,7 @@ export function Seasons({ id, anime, franchises = [] }: { id: string; anime: boo
   const [selected, setSelected] = useState<Set<number>>(new Set());
   const [copy, setCopy] = useState<string | null>(null);
   const titleId = Number(id);
+  const live = useLiveLibraries(titleId, perms.manage).libs.length > 0;
   const episode = Number(params.get("episode")) || null;
   const openEpisode = (eid: number | null) => {
     const p = new URLSearchParams(params);
@@ -668,6 +671,7 @@ export function Seasons({ id, anime, franchises = [] }: { id: string; anime: boo
           open={opened.includes(s.season)}
           onToggle={() => toggle(s.season)}
           manage={manage}
+          live={manage && live}
           seeFiles={seeFiles}
           selected={selected}
           onSelect={select}

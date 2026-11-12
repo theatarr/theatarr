@@ -67,6 +67,7 @@ it("a stored list has no Grab buttons and offers Interactive search", async () =
     { method: "GET", path: "/titles/7/releases", reply: stored([cand(1, "aaa"), cand(2, "bbb", false)]) },
     { method: "GET", path: "/titles/7", reply: { id: 7, name: "Alpha", year: 2020, kind: "movie", versions: [{ id: 1, key: "movie-web", label: "WEB", control: { mode: "active", can_edit: true, can_search: true, live_releases: true } }] } },
     { method: "GET", path: "/titles/7/releases", reply: () => new Promise(() => {}) },
+    { method: "GET", path: "/titles/7/removal", reply: { title_id: 7, name: "x", title: true, leftover: [], copies: [{ key: "movie-web", label: "movie-web", links: 0, downloads: 0 }] } },
   ]);
   renderPage(<ShowReleases titleId={7} defaultOpen initialVersion="movie-web" />);
   await screen.findByTestId("releases-table");

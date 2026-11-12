@@ -1,5 +1,7 @@
 // The copies section's header (docs/design/ui.md, title actions): "Add to another library" (the add sheet), Interactive
-// search (managers, when a library of the title searches live) and search now for every copy. Turning a copy on or off lives on its card (versions.tsx), the one place a copy is managed. Search
+// search (a movie, managers, when a current library of it searches live; a series has it per season and per episode
+// only, as Sonarr does) and search now for every copy. Turning a copy on or off lives on its card (versions.tsx), the
+// one place a copy is managed. Search
 // now is offered only when it would run: a monitored version in mode active while router.enabled is true; otherwise
 // the header says why nothing would be searched, except on the title page, where each library's card says it (as the
 // Episodes tab names the reason per library). A failed search now says so, with Retry; a new try clears the last
@@ -9,10 +11,10 @@
 import { AlertTriangle, Loader2, Plus, RotateCcw, Search } from "lucide-react";
 import { useAddOptions, useSearchNow, type AddTarget } from "@/api/add";
 import { ApiError } from "@/api/client";
-import { usePerms, useTitle } from "@/api/library";
+import { usePerms } from "@/api/library";
 import { useSearchUI } from "@/components/search/search-context";
 import { Button } from "@/components/ui/button";
-import { InteractiveSearchButton } from "@/components/title/interactive-search";
+import { InteractiveSearchButton, useLiveLibraries } from "@/components/title/interactive-search";
 import { DownloadsOffNotice } from "@/components/version-status";
 import { cn } from "@/lib/utils";
 import { globalDownloadsOff, verdict } from "@/lib/version-grab";
@@ -34,9 +36,11 @@ export function TitleAddActions({ titleId, name, year, kind, poster, anime, add 
   const searchNow = useSearchNow(titleId);
   const { openAdd } = useSearchUI();
   const perms = usePerms();
-  // Interactive search for managers when a library of the title searches the indexers live (not Watch only).
-  const title = useTitle(String(titleId), perms.manage);
-  const live = perms.manage && (title.data?.versions ?? []).some((v) => v.control?.live_releases);
+  // Interactive search of the whole movie for managers when a current library of it searches live (not Watch only).
+  // Not for a series: an unscoped series search judges every episode unrequested.
+  const movie = kind === "movie" && perms.manage;
+  const liveLibs = useLiveLibraries(titleId, movie).libs;
+  const live = movie && liveLibs.length > 0;
   // The mutation holds the last try: its answer, its error, or nothing while a new one runs (mutate resets both).
   const outcome = searchNow.data ?? null;
   const runSearch = () => searchNow.mutate(undefined);

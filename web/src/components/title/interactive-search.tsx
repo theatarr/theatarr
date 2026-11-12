@@ -11,6 +11,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import { useLiveSearch } from "@/api/add";
 import { qk } from "@/api/query-keys";
 import { usePerms, useTitle } from "@/api/library";
+import { useRemovalScope } from "@/api/ops";
 import { ErrorState, Loading, VersionTag } from "@/components/page";
 import { ReleaseGrid } from "@/components/title/release-grid";
 import { Summary } from "@/components/title/show-releases";
@@ -19,6 +20,16 @@ import { Modal } from "@/components/ui/modal";
 import { cn } from "@/lib/utils";
 
 export type SearchScope = { titleId: number; version?: string; season?: number; episode?: { id: number; code: string } };
+
+/** The title's libraries interactive search may search: current copies (not removed: the removal scope's copies;
+ *  the title data still lists removed ones) that search the indexers live. */
+export function useLiveLibraries(titleId: number, enabled = true) {
+  const t = useTitle(String(titleId), enabled);
+  const scope = useRemovalScope(titleId, undefined, enabled);
+  const current = new Set((scope.data?.copies ?? []).map((c) => c.key));
+  const libs = (t.data?.versions ?? []).filter((v) => v.control?.live_releases && v.key && current.has(v.key));
+  return { libs, title: t, pending: t.isPending || scope.isPending, error: t.error ?? scope.error };
+}
 
 let sessions = 0;
 const nextSession = () => ++sessions;
@@ -43,9 +54,8 @@ function Waiting({ library }: { library: string }) {
 
 export function InteractiveSearch({ titleId, version, season, episode, onClose }: SearchScope & { onClose: () => void }) {
   const perms = usePerms();
-  const t = useTitle(String(titleId));
+  const { libs, title: t, pending, error } = useLiveLibraries(titleId);
   const d = t.data;
-  const libs = (d?.versions ?? []).filter((v) => v.control?.live_releases && v.key);
   const [chosen, setChosen] = useState(version);
   const lib = libs.find((v) => v.key === chosen) ?? libs[0];
   const [session] = useState(nextSession);
@@ -81,10 +91,10 @@ export function InteractiveSearch({ titleId, version, season, episode, onClose }
         </button>
       </div>
       <div className="min-h-0 flex-1 space-y-4 overflow-y-auto p-4">
-        {t.isPending ? (
+        {pending ? (
           <Loading />
-        ) : t.error ? (
-          <ErrorState error={t.error} />
+        ) : error ? (
+          <ErrorState error={error} />
         ) : !lib ? (
           <p className="text-sm text-muted-foreground" data-testid="interactive-none">None of this title's libraries searches the indexers: they are Watch only.</p>
         ) : (

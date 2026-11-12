@@ -1,8 +1,8 @@
 // The title page's copies (docs/design/ui.md, Title page): one compact card per version, the one place a copy is
 // managed. Each card keeps apart the copy (the version's label: the lane), its current file in words ("4K WEB"), the
 // preferred quality (the profile's cutoff, "4K Remux") and the upgrade status in the one vocabulary
-// (lib/upgrade.ts, with Why?), then monitoring, search now and Interactive search (managers, a library that searches
-// live). Details discloses the file, score, path, release history, journal and the raw version key. Only
+// (lib/upgrade.ts, with Why?), then monitoring, search now and Interactive search (managers, a movie's current copy
+// that searches live). Details discloses the file, score, path, release history, journal and the raw version key. Only
 // for callers with "see files": the title page shows no copy cards to anyone else (docs/design/users.md). A version an arr still imports shows the arr's monitoring read-only
 // (docs/design/manage.md).
 import { ArrowUpCircle, CheckCircle2, ChevronDown, CircleDashed, Download, FileX2, Loader2, PencilLine, Search, XCircle } from "lucide-react";
@@ -18,7 +18,7 @@ import { InfoHash } from "@/components/title/info-hash";
 import { journalLink } from "@/lib/admin-links";
 import { JournalList } from "@/components/title/journal-list";
 import { CopyActions } from "@/components/title/copy-actions";
-import { InteractiveSearchButton } from "@/components/title/interactive-search";
+import { InteractiveSearchButton, useLiveLibraries } from "@/components/title/interactive-search";
 import { ControlNote, MonitorSwitch } from "@/components/title/manage-bits";
 import { MinimumAvailabilityControl } from "@/components/title/title-choices";
 import { UpgradeStatus } from "@/components/title/upgrade-why";
@@ -173,6 +173,9 @@ function CopyCard({ v }: { v: Version }) {
   const [outcome, setOutcome] = useState<SearchOutcome | null>(null);
   const [open, setOpen] = useState(false);
   const c = v.control;
+  // Interactive search of this copy: a movie's current copy that searches live (a series has it per season and episode).
+  const live = useLiveLibraries(titleId, perms.manage && !!c?.live_releases);
+  const searchable = live.title.data?.kind === "movie" && live.libs.some((l) => l.key === v.key);
   const cutoff = v.upgrade?.cutoff;
   const releases = v.title_id ? `/title/${v.title_id}/releases?version=${encodeURIComponent(v.key ?? "")}` : undefined;
   const eps = v.episodes;
@@ -224,7 +227,7 @@ function CopyCard({ v }: { v: Version }) {
               {searchNow.isPending ? <Loader2 className="animate-spin" /> : <Search />} Search now
             </Button>
           ) : null}
-          {perms.manage && c.live_releases ? <InteractiveSearchButton titleId={titleId} version={v.key} size="xs" /> : null}
+          {perms.manage && searchable ? <InteractiveSearchButton titleId={titleId} version={v.key} size="xs" /> : null}
           <Button size="xs" variant="ghost" onClick={() => setOpen(!open)} aria-expanded={open} data-testid={`copy-details-${v.key}`}>
             Details <ChevronDown className={cn("transition-transform", !open && "-rotate-90")} />
           </Button>

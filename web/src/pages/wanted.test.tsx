@@ -223,6 +223,7 @@ it("opens Interactive search for a series row's season from the row", async () =
     { method: "GET", path: "/wanted", reply: { ...page, items: [{ ...row, version: "tv-web", targets: ["s02e03"], season: 2 }] } },
     { method: "GET", path: "/status", reply: { versions: [] } },
     { method: "GET", path: "/titles/1", reply: { id: 1, name: "Alpha", kind: "series", versions: [{ id: 1, key: "tv-web", label: "TV WEB", control: { mode: "active", can_edit: true, can_search: true, live_releases: true } }] } },
+    { method: "GET", path: "/titles/1/removal", reply: { title_id: 1, name: "Alpha", title: true, leftover: [], copies: [{ key: "tv-web", label: "TV WEB", links: 0, downloads: 0 }] } },
     { method: "GET", path: "/titles/1/releases", reply: { title_id: 1, version: "tv-web", versions: ["tv-web"], mode: "active", live_allowed: true, source: "live", results: 0, accepted: 0, candidates: [], grab: true } },
   ]);
   renderPage(<WantedPage />, "/wanted");

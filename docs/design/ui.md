@@ -267,8 +267,8 @@ See [quickstart](../quickstart.md#readiness-led-setup) for the completion rules;
   **Library** (the display label, with “mirrors <arr name>” shown separately), **Current file** (resolution and source in words, "4K WEB"),
   **Preferred quality** (the profile's cutoff in words, "4K Remux"), **Upgrade status** (the vocabulary in
   docs/design/manage.md, with Why?), monitoring (switch, "auto upgrades on/off", read-only
-  while an arr manages it), Search now and, for managers when the library searches live (`control.live_releases`, not
-  Watch only), **Interactive search** for that library. Availability names what is held ("Available in 4K WEB"), never the copy's label. **Details**
+  while an arr manages it), Search now and, on a movie's card for managers when the library searches live
+  (`control.live_releases`, not Watch only), **Interactive search** for that library. Availability names what is held ("Available in 4K WEB"), never the copy's label. **Details**
   discloses the raw version key, file, score, size, media, path, hash, release history and (admins) the journal.
   **Release history** (`History` in `components/title/versions.tsx`, also on the History tab and in the episode
   overview): every event says what started it in plain words (`trigger`: automatic search, automatic upgrade search,
@@ -280,8 +280,8 @@ See [quickstart](../quickstart.md#readiness-led-setup) for the completion rules;
   release of a grab or failure links to its row in the releases page (`?version=&hash=`), and the newest search
   (`latest`, the one the releases page shows: none when the shadow runner searched since) links to "See this search's results"; older searches have no results
   link, the releases page keeping only the newest. Admins get a quiet "Journal entry" link on a search.
-  This is the one place copies are managed: the section header has Search now for all copies and, for managers when
-  any library of the title searches live, Interactive search (the releases page uses the same header). There is no
+  This is the one place copies are managed: the section header has Search now for all copies and, for a movie, for
+  managers when any current library of it searches live, Interactive search (the releases page uses the same header). There is no
   Releases box under the library cards: releases are searched in Interactive search, and the last stored search is
   the read-only "Last search" page.
 - **Tabs:** Episodes (series and anime, the default) / Libraries (series, "see files") / Watch order (anime with a
@@ -329,11 +329,14 @@ See [quickstart](../quickstart.md#readiness-led-setup) for the completion rules;
   the stored list shown), and a live search is never retried on its own. `?hash=` picks out the followed release's row, or says it is not in the list.
 - **Interactive search** (`components/title/interactive-search.tsx`, the grid `release-grid.tsx`, columns
   `lib/release-columns.ts`): a wide window (a full-height sheet on phones) that searches the indexers the moment it
-  opens, as Radarr's does. Managers open it from the Libraries header (the whole title), each library card (that
-  library), each season header (season packs and that season's episodes), each episode row (an icon button at the
-  row's end; it does not open the episode overview), the episode overview (per library) and each Wanted row (that
-  library, and the row's season for a series). It is offered only when a library of the title searches live
-  (`control.live_releases`); Watch-only libraries get none. While the indexers answer, the window says "Searching the
+  opens, as Radarr's does. Managers open it for a movie from the Libraries header (the whole movie) and each library
+  card (that library). A series has it per season and per episode only, as Sonarr does (an unscoped series search
+  would judge every episode unrequested): each season header (season packs and that season's episodes), each episode
+  row (an icon button at the row's end; it does not open the episode overview) and the episode overview (per
+  library). Each Wanted row opens it for that library, and the row's season for a series. It is offered only when a
+  current library of the title searches live (`control.live_releases`); Watch-only libraries get none. The title data
+  still lists removed copies, so the window takes the current ones from the removal scope (`GET
+  titles/{id}/removal`, its `copies`): a removed copy gets no tab, and a search asked for it opens on a current one. While the indexers answer, the window says "Searching the
   indexers for <library>…" with a seconds counter; closing it stops the search. One row per release, with the
   columns Source (indexer kind, private trackers marked), Age, Title, Indexer, History (what came of the release
   before), Size, Peers, Cached on (provider pills), Episodes (series), Language, Quality, Score, Formats, Flags and

@@ -19,6 +19,13 @@ const TITLE: Route = {
   },
 };
 
+// The title's current copies (the removal scope): a removed copy is still in the title data.
+const current = (...keys: string[]): Route => ({
+  method: "GET", path: "/titles/7/removal",
+  reply: { title_id: 7, name: "Alpha", title: true, leftover: [], copies: keys.map((key) => ({ key, label: key, links: 0, downloads: 0 })) },
+});
+const CURRENT = current("movie-web", "movie-remux", "movie-arr");
+
 const accepted = {
   rank: 1, release: "Alpha.2020.2160p.WEB-DL-GRP", info_hash: "aaa", accepted: true, score: 120, quality: "WEBDL-2160p", revision: 2,
   indexer: "Nyaa", seeders: 120, leechers: 8, cached_on: ["rd"], languages: ["English"], published: new Date(Date.now() - 5 * 3_600_000).toISOString(),
@@ -39,7 +46,7 @@ const grabIn = async (n: number) => within(await table()).getAllByTestId("releas
 
 it("searches once on opening, says it is waiting, then shows the columns", async () => {
   let reply: (v: unknown) => void = () => {};
-  const api = mockFetch([ME, TITLE, { method: "GET", path: "/titles/7/releases", reply: () => new Promise((r) => { reply = r; }) }]);
+  const api = mockFetch([ME, TITLE, CURRENT, CURRENT, { method: "GET", path: "/titles/7/releases", reply: () => new Promise((r) => { reply = r; }) }]);
   renderPage(<InteractiveSearchButton titleId={7} version="movie-web" />);
   open();
   expect((await screen.findByTestId("interactive-waiting")).textContent).toContain("Searching the indexers for WEB…");
@@ -61,7 +68,7 @@ it("searches once on opening, says it is waiting, then shows the columns", async
 });
 
 it("grabs an accepted release at once, without asking", async () => {
-  const api = mockFetch([ME, TITLE, { method: "GET", path: "/titles/7/releases", reply: answer() }, { method: "POST", path: "/titles/7/releases/grab", reply: sent }]);
+  const api = mockFetch([ME, TITLE, CURRENT, CURRENT, { method: "GET", path: "/titles/7/releases", reply: answer() }, { method: "POST", path: "/titles/7/releases/grab", reply: sent }]);
   renderPage(<InteractiveSearchButton titleId={7} version="movie-web" />);
   open();
   fireEvent.click(await grabIn(0));
@@ -72,7 +79,7 @@ it("grabs an accepted release at once, without asking", async () => {
 
 it("asks first for a rejected release, and once for one the server rejects at grab time", async () => {
   const api = mockFetch([
-    ME, TITLE,
+    ME, TITLE, CURRENT,
     { method: "GET", path: "/titles/7/releases", reply: answer() },
     { method: "POST", path: "/titles/7/releases/grab", reply: { ...sent, info_hash: "bbb", accepted: false, overridden: true } },
     { method: "POST", path: "/titles/7/releases/grab", reply: { status: 409, body: { error: "rejected for movie-web", detail: ["blocklisted since the search"] } } },
@@ -106,7 +113,7 @@ it("asks first for a rejected release, and once for one the server rejects at gr
 it("the grab dialog stays until its grab settles", async () => {
   let settle: (v: unknown) => void = () => {};
   const api = mockFetch([
-    ME, TITLE,
+    ME, TITLE, CURRENT,
     { method: "GET", path: "/titles/7/releases", reply: answer() },
     { method: "POST", path: "/titles/7/releases/grab", reply: () => new Promise((r) => { settle = r; }) },
   ]);
@@ -125,7 +132,7 @@ it("the grab dialog stays until its grab settles", async () => {
 });
 
 it("a hidden column stays hidden after closing and opening again", async () => {
-  mockFetch([ME, TITLE, { method: "GET", path: "/titles/7/releases", reply: answer() }]);
+  mockFetch([ME, TITLE, CURRENT, CURRENT, { method: "GET", path: "/titles/7/releases", reply: answer() }]);
   renderPage(<InteractiveSearchButton titleId={7} version="movie-web" />);
   open();
   expect(within(await table()).getByRole("columnheader", { name: "Indexer" })).toBeTruthy();
@@ -143,7 +150,7 @@ it("a hidden column stays hidden after closing and opening again", async () => {
 });
 
 it("a refused live search shows why and offers no Grab", async () => {
-  mockFetch([ME, TITLE, { method: "GET", path: "/titles/7/releases", reply: answer("movie-web", { source: "journal", grab: false, message: "Live search failed: no indexer answered; showing the last stored decision" }) }]);
+  mockFetch([ME, TITLE, CURRENT, CURRENT, { method: "GET", path: "/titles/7/releases", reply: answer("movie-web", { source: "journal", grab: false, message: "Live search failed: no indexer answered; showing the last stored decision" }) }]);
   renderPage(<InteractiveSearchButton titleId={7} version="movie-web" />);
   open();
   const box = await screen.findByTestId("interactive-fallback");
@@ -155,7 +162,7 @@ it("a refused live search shows why and offers no Grab", async () => {
 
 it("searches a season or an episode, each library once per opening, and again on reopening", async () => {
   const api = mockFetch([
-    ME, TITLE,
+    ME, TITLE, CURRENT,
     { method: "GET", path: "/titles/7/releases", reply: (r: { search: string }) => answer(new URLSearchParams(r.search).get("version") ?? "") },
     { method: "GET", path: "/titles/7/episodes/55/releases", reply: answer() },
   ]);
@@ -186,7 +193,7 @@ it("searches a season or an episode, each library once per opening, and again on
 
 it("a release sent for one library is not shown as sent for another", async () => {
   mockFetch([
-    ME, TITLE,
+    ME, TITLE, CURRENT,
     { method: "GET", path: "/titles/7/releases", reply: (r: { search: string }) => answer(new URLSearchParams(r.search).get("version") ?? "") },
     { method: "POST", path: "/titles/7/releases/grab", reply: sent },
   ]);
@@ -197,4 +204,13 @@ it("a release sent for one library is not shown as sent for another", async () =
   fireEvent.click(screen.getByRole("tab", { name: /movie-remux/i }));
   await waitFor(async () => expect(within(await table()).getAllByTestId("release-grab")).toHaveLength(2));
   expect(screen.queryByTestId("release-sent")).toBeNull();
+});
+
+it("leaves a removed copy out: no tab, and a search asked for it opens on a current copy", async () => {
+  const api = mockFetch([ME, TITLE, current("movie-remux", "movie-arr"), { method: "GET", path: "/titles/7/releases", reply: answer("movie-remux") }]);
+  renderPage(<InteractiveSearchButton titleId={7} version="movie-web" />);
+  open();
+  await table();
+  expect(screen.queryByRole("tab", { name: /movie-web/i })).toBeNull();
+  expect(api.calls("GET", "/titles/7/releases").map((g) => g.search)).toEqual(["?version=movie-remux&live=1"]);
 });
