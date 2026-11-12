@@ -149,8 +149,6 @@ type VersionPolicy struct {
 	// only when router.enabled is true, the version is active and Grab is true; false (the default) keeps an active
 	// version searching, deciding and linking but every route is a dry-run plan. The library gate does not read it.
 	Grab bool `yaml:"grab,omitempty"`
-	// GoliveDone records cutover steps checked outside Theatarr (docs/golive.md). Only homepage is supported.
-	GoliveDone []string `yaml:"golive_done,omitempty"`
 	// Kind is movie or series.
 	Kind Kind `yaml:"kind"`
 	// Anime limits the version to anime (true) or non-anime (false) titles. Unset means both.

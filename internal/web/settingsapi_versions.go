@@ -51,7 +51,7 @@ func (w *Web) mountVersionSettingsAPI(mux *http.ServeMux, base string) {
 func settingsVersionRecord(record settings.Version) SettingsVersionRecord {
 	config := configMap(record.Config)
 	delete(config, "naming")
-	for _, field := range []string{"indexers", "providers", "golive_done"} {
+	for _, field := range []string{"indexers", "providers"} {
 		if config[field] == nil {
 			config[field] = []string{}
 		}

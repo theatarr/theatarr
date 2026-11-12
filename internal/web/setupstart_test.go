@@ -63,7 +63,6 @@ func (se *settingsEnv) startBody(key, root string) map[string]any {
 	se.t.Helper()
 	config := se.want(se.call("GET", "/versions/movie-web", nil), 200, "template")["record"].(map[string]any)["config"].(map[string]any)
 	config["library"], config["mode"], config["grab"] = root, "shadow", false
-	delete(config, "golive_done")
 	return map[string]any{"generation": se.generation(), "key": key, "roots": []string{root}, "config": config}
 }
 

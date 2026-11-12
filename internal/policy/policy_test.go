@@ -1,7 +1,6 @@
 package policy
 
 import (
-	"bytes"
 	"encoding/json"
 	"errors"
 	"go.yaml.in/yaml/v3"
@@ -717,51 +716,6 @@ func TestCeilingDiscOnly(t *testing.T) {
 	}
 	if p.Versions["normal"].Ceiling.DiscOnly || !p.Versions["disc"].Ceiling.DiscOnly {
 		t.Fatal("disc_only default or explicit value lost")
-	}
-}
-
-func TestGoliveDone(t *testing.T) {
-	t.Parallel()
-	for _, tc := range []struct {
-		value, err string
-	}{
-		{"[]", ""},
-		{"[homepage]", ""},
-		{"[autobrr]", `versions[movie-web].golive_done[0]: must be homepage`},
-		{"['']", `versions[movie-web].golive_done[0]: must be homepage`},
-		{"[' homepage ']", `versions[movie-web].golive_done[0]: must be homepage`},
-		{"[homepage, homepage]", `versions[movie-web].golive_done[1]: "homepage" listed twice`},
-		{"homepage", "cannot unmarshal"},
-	} {
-		t.Run(tc.value, func(t *testing.T) {
-			dir := copyExample(t)
-			path := filepath.Join(dir, "versions.yaml")
-			b, err := os.ReadFile(path)
-			if err != nil {
-				t.Fatal(err)
-			}
-			b = bytes.Replace(b, []byte("  movie-web:\n"), []byte("  movie-web:\n    golive_done: "+tc.value+"\n"), 1)
-			if err := os.WriteFile(path, b, 0o644); err != nil {
-				t.Fatal(err)
-			}
-			p, err := Load(dir)
-			if tc.err != "" {
-				if err == nil || !strings.Contains(err.Error(), tc.err) {
-					t.Fatalf("want error containing %q, got %v", tc.err, err)
-				}
-				return
-			}
-			if err != nil {
-				t.Fatal(err)
-			}
-			got := strings.Join(p.Versions["movie-web"].GoliveDone, ",")
-			if want := strings.Trim(tc.value, "[]"); got != want {
-				t.Errorf("golive_done = %q, want %q", got, want)
-			}
-			if len(p.Versions["movie-remux"].GoliveDone) != 0 {
-				t.Error("acknowledgement applied to another version")
-			}
-		})
 	}
 }
 

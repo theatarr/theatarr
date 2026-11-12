@@ -514,14 +514,6 @@ func (p *Policy) validateVersion(e *Errors, k string, v *VersionPolicy) {
 	default:
 		e.add(path+".mode", "must be shadow or active, got %q", v.Mode)
 	}
-	for i, step := range v.GoliveDone {
-		gp := fmt.Sprintf("%s.golive_done[%d]", path, i)
-		if step != "homepage" {
-			e.add(gp, "must be homepage, got %q", step)
-		} else if slices.Index(v.GoliveDone, step) != i {
-			e.add(gp, "%q listed twice", step)
-		}
-	}
 	kindOK := v.Kind == KindMovie || v.Kind == KindSeries
 	if !kindOK {
 		e.add(path+".kind", "must be movie or series, got %q", v.Kind)
