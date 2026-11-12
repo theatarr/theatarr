@@ -189,8 +189,8 @@ func movieIntakeSearch(ac *serveAcquirer) func(context.Context, int64, []string)
 	}
 }
 
-// runMovieIntake refreshes Radarr collections and TMDb import lists every interval with the intake of the settings in
-// force at each refresh, and once at start when now is true.
+// runMovieIntake refreshes Radarr collections and TMDb import lists every interval, and Radarr and Sonarr lists every
+// catalog.ArrListInterval, with the intake of the settings in force at each refresh, and once at start when now is true.
 func runMovieIntake(ctx context.Context, interval time.Duration, now bool, current func(context.Context) *catalog.MovieIntake,
 	log *slog.Logger) {
 	if interval <= 0 {
@@ -208,17 +208,32 @@ func runMovieIntake(ctx context.Context, interval time.Duration, now bool, curre
 			log.Warn("movie lists: sync failed", "err", err)
 		}
 	}
+	// Radarr and Sonarr lists sync on their own, shorter cadence.
+	arrLists := func() {
+		mi := current(ctx)
+		if mi == nil {
+			return
+		}
+		if _, err := mi.SyncArrLists(ctx); err != nil && ctx.Err() == nil {
+			log.Warn("lists: arr sync failed", "err", err)
+		}
+	}
 	if now {
 		refresh()
+		arrLists()
 	}
 	t := time.NewTicker(interval)
 	defer t.Stop()
+	at := time.NewTicker(catalog.ArrListInterval)
+	defer at.Stop()
 	for {
 		select {
 		case <-ctx.Done():
 			return
 		case <-t.C:
 			refresh()
+		case <-at.C:
+			arrLists()
 		}
 	}
 }

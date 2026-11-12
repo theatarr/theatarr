@@ -64,8 +64,8 @@ events it gets, or turn on the `native` option for Theatarr's own events. Then t
 The Radarr- and Sonarr-compatible views do not answer every call of the arr APIs. Known gaps:
 
 - **Sonarr's "add import list exclusion" on a series delete** (`addImportListExclusion`). LunaSea and Ruddarr can
-  send it. The series is still removed, but the switch does nothing: Theatarr has no series lists and no series
-  exclusion list for it to act on. Radarr's `addImportExclusion` on a movie delete is supported.
+  send it. The series is still removed, but the switch does nothing: Theatarr has no series exclusion list for it to
+  act on. A Sonarr list does not add a removed series back: the removal keeps the series' library row. Radarr's `addImportExclusion` on a movie delete is supported.
 - **`PUT episode/{id}`**, **`DELETE queue/bulk`**, **`DELETE blocklist/bulk`** and the **iCal calendar feed**. No
   client we checked calls them: they set episode monitoring with `PUT episode/monitor`, remove queue and blocklist
   entries one at a time, and read the calendar as JSON, all of which work.

@@ -93,8 +93,9 @@ Known limits, kept as they are:
 
 ### Lists
 
-The same `movie_import_list` rows back the **Lists** tab of the Collections page (`/collections/lists`, managers and
-admins): TMDb movie lists only; other providers and series lists are not supported. `GET /lists` shows every row, of
+The same `import_list` rows (`movie_import_list` until migration 00116) back the **Lists** tab of the Collections page
+(`/collections/lists`, managers and admins). A list is a TMDb movie list, or the titles of a Radarr or Sonarr instance
+(below); other providers are not supported. `GET /lists` shows every row, of
 any view; `GET /lists/lookup?tmdb_id=` reads a list's name, description and movie count from TMDb so the form can
 confirm it (the form takes the id or a pasted themoviedb.org list address); `POST /lists`, `PUT /lists/{id}` and
 `DELETE /lists/{id}` manage them, and `POST /lists/{id}/sync` imports one list now, enabled or not, through
@@ -115,8 +116,41 @@ accepts.
   writes them, so that view keeps listing it with its profile mapping (`TestListsKeepArrView`). It may change the
   name, `enabled`, monitor, search on add, minimum availability and the libraries, which must stay within the view's
   versions; `enable_auto` stays as the client set it. The page labels such a row "Created through the *view* view".
-- Deleting a list keeps the movies it added. Without TMDb the lists are still shown and edited; lookup and sync
-  answer 503 and `GET /lists` says `can_sync: false`.
+- Deleting a list keeps the titles it added. Without TMDb the lists are still shown and edited; lookup, check,
+  preview and sync answer 503 and `GET /lists` says `can_sync: false`.
+- `POST /lists/{id}/preview` reads the list as a sync does and classifies each title without writing and without TMDb
+  detail calls: `add_title` (not in Theatarr), `add_library` (a fitting library of the list lacks it), `present`
+  (every fitting library has a row, in any state), `excluded`, and `skipped` (a Radarr or Sonarr list's title that
+  fits none of its libraries), with the first 200 titles that would change or are skipped. A movie not in Theatarr yet
+  is fitted as not anime there; Sync now decides it from TMDb (`TestListPreviewWritesNothing`).
+
+**Radarr and Sonarr lists.** `list_type` `radarr` or `sonarr`, with the instance's `url` and `api_key` on the row
+(stored like `setting_secret`, plain in the 0600 database; `GET /lists` answers only `api_key_set`, and errors and logs
+never carry it). The address is written one way (trimmed, no trailing slash, lower-case scheme and host), must be
+`http`/`https`, and an IP-literal host must be a LAN address (`arr.CheckLiteral`, as for `import.arr`); one row per
+type and address (409 "this instance is already a list"). Changing the address needs the key again ("enter the API
+key again for a new address"), so a stored key never goes to a new host; an empty key on a change keeps the stored
+one. `POST /lists/check` reads `system/status` and the title count through the read-only arr client, by address and
+key or by a stored list's id.
+
+- Sync: every `catalog.ArrListInterval` (15 minutes, Radarr's own minimum for its Radarr list), beside the TMDb lists'
+  `metadata.lists.interval`, at start-up, and on Sync now. A Radarr list reads `GET movie` and adds each movie with a
+  TMDb id through the movie list path (exclusions, "a library row that exists is left as it is", TMDb details for a
+  new movie, availability; `TestRadarrListAddsMissingMovies`). A Sonarr list reads `GET series` and adds each series
+  with a TVDB id (found by TVDB id, else TMDb id) to the list's libraries it has no row in, through `catalog.Add`
+  (`TestSonarrListAddsSeries`). There is no series exclusion list.
+- Libraries: a title goes only to the list's chosen libraries that fit it (series or movie; anime or not: a Sonarr
+  `seriesType` of `anime`, a movie by TMDb's language and genre, a stored title by its own flag). A title that fits
+  none is skipped and Preview shows it as skipped. TMDb lists keep their rules above (the fallback to the chosen
+  libraries, and all-anime targets making a movie anime).
+- Monitoring: Radarr `movieOnly` or `none`; Sonarr `all` (default) or `none`. `all` adds the series monitored with
+  Theatarr's own monitoring for a new library (every season, and new seasons); the seasons monitored in the instance
+  are not copied, so a later request for another season there is still followed. Search on add asks for the libraries
+  added (a series' first search waits for its metadata, as for every add).
+- Theatarr only reads the instance: it never copies files, monitoring changes or blocklists, never undoes a removal
+  in Theatarr, and never reports back, so apps that ask the instance (Seerr) do not see what Theatarr has. Arr views
+  never list a Radarr or Sonarr row (`readImportLists` and their duplicate check read `list_type = 'tmdb'` only). Lists
+  need TMDb set up, as before. No Radarr/Sonarr list filters (profile, tag, root folder).
 
 ## Views
 
@@ -271,7 +305,7 @@ The write convention (`TestMinimumAvailabilityEchoChangesNothing`, `TestMinimumA
   to a movie, on the library's own row; the view's record it writes holds the profile and root folder only (through
   a per-library view the two are the same row, which then holds the minimum too). A copy
   the movie already had keeps its rule (`TestListIntakeMinimumReachesAddedLibraryOnly`). A library default does not
-  apply to these movies: `movie_import_list` and `movie_collection` store `released` for a list or collection saved
+  apply to these movies: `import_list` and `movie_collection` store `released` for a list or collection saved
   without a value, so "not set" cannot be told from an explicit `released`. Search on add then asks
   `availability.Movie` for each library added and searches only the ready ones.
 

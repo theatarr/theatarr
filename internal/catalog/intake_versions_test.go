@@ -16,7 +16,7 @@ func TestListIntakeAddsMissingVersionsOfHeldMovie(t *testing.T) {
 	s, st := newIntake(t, intakeSource{list: &tmdb.List{Items: []tmdb.MovieSummary{{ID: 201}}}})
 	s.Policy.Versions["movie-remux"] = &policy.VersionPolicy{Kind: policy.KindMovie, Enable: "default"}
 	s.Policy.Versions["movie-hd"] = &policy.VersionPolicy{Kind: policy.KindMovie, Enable: "default"}
-	if _, err := st.Writer().Exec(`INSERT INTO movie_import_list(name,tmdb_id,versions,monitor,enabled,enable_auto,created_at,updated_at)
+	if _, err := st.Writer().Exec(`INSERT INTO import_list(name,tmdb_id,versions,monitor,enabled,enable_auto,created_at,updated_at)
 		VALUES('web',9,'["movie-web"]','movieOnly',1,1,0,0),('remux',10,'["movie-remux","movie-hd"]','movieOnly',1,1,0,0)`); err != nil {
 		t.Fatal(err)
 	}
@@ -88,7 +88,7 @@ func TestListIntakeMinimumReachesAddedLibraryOnly(t *testing.T) {
 					t.Fatal(err)
 				}
 			}
-			exec(`INSERT INTO movie_import_list(name,tmdb_id,versions,minimum_availability,monitor,view,search_on_add,
+			exec(`INSERT INTO import_list(name,tmdb_id,versions,minimum_availability,monitor,view,search_on_add,
 				enabled,enable_auto,created_at,updated_at) VALUES('remux',9,'["movie-remux"]','announced','movieOnly','radarr',1,1,1,0,0)`)
 			exec(`INSERT INTO title(id,kind,name,tmdb_id,created_at,updated_at) VALUES(50,'movie','Held',201,0,0)`)
 			exec(`INSERT INTO version(id,title_id,policy_key,monitored,state,created_at,updated_at) VALUES(1,50,'movie-web',1,'wanted',0,0)`)

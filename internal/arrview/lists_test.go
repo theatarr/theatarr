@@ -126,7 +126,7 @@ func TestIntakeMapsProfilesAndRootsLikeMovies(t *testing.T) {
 			e.call("POST", base+"/movie", map[string]any{"title": "Movie", "tmdbId": 90001, "qualityProfileId": tc.profile, "rootFolderPath": tc.root, "monitored": true}, 201, &movie)
 			e.call("POST", base+"/importlist", map[string]any{"name": tc.name, "qualityProfileId": tc.profile, "rootFolderPath": tc.root, "fields": []any{map[string]any{"name": "listId", "value": "91"}}}, 201, &list)
 			var versions string
-			if err := e.st.Reader().QueryRow(`SELECT versions FROM movie_import_list WHERE id=?`, int64(list["id"].(float64))).Scan(&versions); err != nil {
+			if err := e.st.Reader().QueryRow(`SELECT versions FROM import_list WHERE id=?`, int64(list["id"].(float64))).Scan(&versions); err != nil {
 				t.Fatal(err)
 			}
 			var keys []string
@@ -205,7 +205,9 @@ func TestImportListsAreViewScoped(t *testing.T) {
 	for _, method := range []string{"GET", "PUT", "PUT body", "DELETE"} {
 		t.Run(method, func(t *testing.T) {
 			e := newEnv(t)
-			e.exec(`INSERT INTO movie_import_list(id,name,tmdb_id,versions,view,created_at,updated_at) VALUES(901,'Other view',42,'["movie-web"]','other',0,0)`)
+			e.exec(`INSERT INTO import_list(id,name,tmdb_id,versions,view,created_at,updated_at) VALUES(901,'Other view',42,'["movie-web"]','other',0,0)`)
+			// A Radarr or Sonarr list is never an arr view's list, whatever view it names.
+			e.exec(`INSERT INTO import_list(id,name,list_type,url,api_key,versions,view,created_at,updated_at) VALUES(902,'Instance','radarr','http://10.0.0.5:7878','k','["movie-web"]','radarr',0,0)`)
 			base := "/radarr/api/v3/importlist"
 			var lists []map[string]any
 			e.call("GET", base, nil, 200, &lists)
@@ -220,7 +222,7 @@ func TestImportListsAreViewScoped(t *testing.T) {
 			}
 			e.call(verb, path, body, 404, nil)
 			var name, view string
-			if err := e.st.Reader().QueryRow(`SELECT name,view FROM movie_import_list WHERE id=901`).Scan(&name, &view); err != nil {
+			if err := e.st.Reader().QueryRow(`SELECT name,view FROM import_list WHERE id=901`).Scan(&name, &view); err != nil {
 				t.Fatal(err)
 			}
 			if name != "Other view" || view != "other" {

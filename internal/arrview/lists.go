@@ -363,7 +363,7 @@ func listTemplate() importListResource {
 }
 
 func (s *Service) readImportLists(ctx context.Context, v *View) ([]importListResource, error) {
-	rows, err := s.st.Reader().QueryContext(ctx, `SELECT id,name,enabled,enable_auto,monitor,search_on_add,quality_profile_id,root_folder_path,minimum_availability,tmdb_id,versions FROM movie_import_list WHERE view=? ORDER BY id`, v.Key)
+	rows, err := s.st.Reader().QueryContext(ctx, `SELECT id,name,enabled,enable_auto,monitor,search_on_add,quality_profile_id,root_folder_path,minimum_availability,tmdb_id,versions FROM import_list WHERE view=? AND list_type='tmdb' ORDER BY id`, v.Key)
 	if err != nil {
 		return nil, err
 	}
@@ -421,7 +421,7 @@ func (s *Service) importLists(w http.ResponseWriter, r *request) {
 			notFound(w, "import list not found")
 			return
 		}
-		res, err := s.st.Writer().ExecContext(r.Context(), `DELETE FROM movie_import_list WHERE id=? AND view=?`, id, r.v.Key)
+		res, err := s.st.Writer().ExecContext(r.Context(), `DELETE FROM import_list WHERE id=? AND view=?`, id, r.v.Key)
 		if err != nil {
 			s.internal(w, r, err)
 			return
@@ -520,14 +520,14 @@ func (s *Service) importLists(w http.ResponseWriter, r *request) {
 	err = s.st.WriteTx(r.Context(), func(tx *sqlTx) error {
 		var exists bool
 		if id > 0 {
-			if err := tx.QueryRowContext(r.Context(), `SELECT EXISTS(SELECT 1 FROM movie_import_list WHERE id=? AND view=?)`, id, r.v.Key).Scan(&exists); err != nil {
+			if err := tx.QueryRowContext(r.Context(), `SELECT EXISTS(SELECT 1 FROM import_list WHERE id=? AND view=?)`, id, r.v.Key).Scan(&exists); err != nil {
 				return err
 			}
 			if !exists {
 				return sql.ErrNoRows
 			}
 		}
-		if err := tx.QueryRowContext(r.Context(), `SELECT EXISTS(SELECT 1 FROM movie_import_list WHERE tmdb_id=? AND id<>?)`, tmdbID, id).Scan(&exists); err != nil {
+		if err := tx.QueryRowContext(r.Context(), `SELECT EXISTS(SELECT 1 FROM import_list WHERE list_type='tmdb' AND tmdb_id=? AND id<>?)`, tmdbID, id).Scan(&exists); err != nil {
 			return err
 		}
 		if exists {
@@ -535,7 +535,7 @@ func (s *Service) importLists(w http.ResponseWriter, r *request) {
 		}
 		args := []any{in.Name, tmdbID, enabled, auto, mode, in.SearchOnAdd, string(vb), r.v.Key, in.QualityProfileID, strings.TrimSuffix(in.RootFolderPath, "/"), minimum, now}
 		if id > 0 {
-			res, err := tx.ExecContext(r.Context(), `UPDATE movie_import_list SET name=?,tmdb_id=?,enabled=?,enable_auto=?,monitor=?,search_on_add=?,versions=?,view=?,quality_profile_id=?,root_folder_path=?,minimum_availability=?,updated_at=? WHERE id=? AND view=?`, append(args, id, r.v.Key)...)
+			res, err := tx.ExecContext(r.Context(), `UPDATE import_list SET name=?,tmdb_id=?,enabled=?,enable_auto=?,monitor=?,search_on_add=?,versions=?,view=?,quality_profile_id=?,root_folder_path=?,minimum_availability=?,updated_at=? WHERE id=? AND view=?`, append(args, id, r.v.Key)...)
 			if err != nil {
 				return err
 			}
@@ -545,7 +545,7 @@ func (s *Service) importLists(w http.ResponseWriter, r *request) {
 			}
 			return err
 		}
-		res, err := tx.ExecContext(r.Context(), `INSERT INTO movie_import_list(name,tmdb_id,enabled,enable_auto,monitor,search_on_add,versions,view,quality_profile_id,root_folder_path,minimum_availability,updated_at,created_at) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?)`, append(args, now)...)
+		res, err := tx.ExecContext(r.Context(), `INSERT INTO import_list(name,tmdb_id,enabled,enable_auto,monitor,search_on_add,versions,view,quality_profile_id,root_folder_path,minimum_availability,updated_at,created_at) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?)`, append(args, now)...)
 		if err != nil {
 			return err
 		}

@@ -3,15 +3,20 @@ package web
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"io"
 	"log/slog"
 	"net/http/httptest"
+	"net/url"
+	"slices"
+	"strconv"
 	"strings"
 	"testing"
 	"time"
 
 	"github.com/theatarr/theatarr/internal/arrview"
 	"github.com/theatarr/theatarr/internal/auth"
+	"github.com/theatarr/theatarr/internal/catalog"
 )
 
 // The Lists tab's API: look a TMDb list up, add it to movie libraries, change it, sync it now and delete it.
@@ -73,7 +78,7 @@ func TestListsAPI(t *testing.T) {
 	// A list made here belongs to no arr view.
 	var view, root string
 	var profile int
-	if err := e.st.Reader().QueryRow(`SELECT view, quality_profile_id, root_folder_path FROM movie_import_list WHERE id = ?`, l.ID).
+	if err := e.st.Reader().QueryRow(`SELECT view, quality_profile_id, root_folder_path FROM import_list WHERE id = ?`, l.ID).
 		Scan(&view, &profile, &root); err != nil || view != "" || profile != 0 || root != "" {
 		t.Errorf("native row: %q %d %q %v", view, profile, root, err)
 	}
@@ -122,7 +127,7 @@ func TestListsAPI(t *testing.T) {
 		t.Errorf("DELETE %d %s", rec.Code, rec.Body)
 	}
 	// The movie the list added stays.
-	if err := e.st.Reader().QueryRow(`SELECT (SELECT count(*) FROM movie_import_list) + 10 * (SELECT count(*) FROM title WHERE tmdb_id = 903)`).Scan(&n); err != nil || n != 10 {
+	if err := e.st.Reader().QueryRow(`SELECT (SELECT count(*) FROM import_list) + 10 * (SELECT count(*) FROM title WHERE tmdb_id = 903)`).Scan(&n); err != nil || n != 10 {
 		t.Errorf("after delete: %d %v", n, err)
 	}
 }
@@ -133,7 +138,7 @@ func TestListsKeepArrView(t *testing.T) {
 	t.Parallel()
 	e := newEnvWith(t, withIntake(&fakeIntakeTMDb{}))
 	key := e.apiKey()
-	e.exec(`INSERT INTO movie_import_list (id, name, tmdb_id, enabled, enable_auto, monitor, versions, view, quality_profile_id,
+	e.exec(`INSERT INTO import_list (id, name, tmdb_id, enabled, enable_auto, monitor, versions, view, quality_profile_id,
 		root_folder_path, created_at, updated_at) VALUES (5, 'From Radarr', 9, 1, 0, 'movieOnly', '["movie-remux"]', 'radarr', 3, '/movies', 0, 0),
 		(6, 'Per version', 11, 1, 1, 'movieOnly', '["movie-web"]', 'v/movie-web', 0, '', 0, 0)`)
 	var page ListsPage
@@ -156,7 +161,7 @@ func TestListsKeepArrView(t *testing.T) {
 	var name, root string
 	var profile int
 	var auto bool
-	if err := e.st.Reader().QueryRow(`SELECT name, quality_profile_id, root_folder_path, enable_auto FROM movie_import_list
+	if err := e.st.Reader().QueryRow(`SELECT name, quality_profile_id, root_folder_path, enable_auto FROM import_list
 		WHERE view = 'radarr'`).Scan(&name, &profile, &root, &auto); err != nil || name != "Renamed" || profile != 3 || root != "/movies" || auto {
 		t.Errorf("the radarr view's list: %q %d %q %v %v", name, profile, root, auto, err)
 	}
@@ -209,7 +214,7 @@ func TestListsNeedTMDbToSync(t *testing.T) {
 	t.Parallel()
 	e := newEnv(t)
 	key := e.apiKey()
-	e.exec(`INSERT INTO movie_import_list (id, name, tmdb_id, versions, created_at, updated_at) VALUES (1, 'L', 9, '["movie-web"]', 0, 0)`)
+	e.exec(`INSERT INTO import_list (id, name, tmdb_id, versions, created_at, updated_at) VALUES (1, 'L', 9, '["movie-web"]', 0, 0)`)
 	var page ListsPage
 	if code := e.getKey(APIBase+"/lists", key, &page); code != 200 || page.CanSync || len(page.Lists) != 1 {
 		t.Fatalf("GET %d %+v", code, page)
@@ -222,5 +227,134 @@ func TestListsNeedTMDbToSync(t *testing.T) {
 	}
 	if rec := e.sendCollection("PUT", "/lists/1", `{"enabled":false}`, key, ""); rec.Code != 200 {
 		t.Errorf("PUT %d %s", rec.Code, rec.Body)
+	}
+}
+
+// webFakeArr is a Radarr or Sonarr instance for the list routes; a wrong key answers an error that names it.
+type webFakeArr struct{ app, key, titles string }
+
+func (f webFakeArr) GetJSON(_ context.Context, endpoint string, _ url.Values, v any) error {
+	switch endpoint {
+	case "system/status":
+		return json.Unmarshal([]byte(`{"appName":"`+f.app+`","version":"5.2.0"}`), v)
+	case "movie", "series":
+		return json.Unmarshal([]byte(f.titles), v)
+	}
+	return errors.New("no " + endpoint)
+}
+
+// withArrIntake is withIntake with a Radarr instance at 10.0.0.5 and a Sonarr instance at 10.0.0.7 (key "good-key").
+func withArrIntake(c *Config) {
+	withIntake(&fakeIntakeTMDb{})(c)
+	ti := c.Add.Collections.(testIntake)
+	ti.MovieIntake.Arr = func(u, key string) (catalog.ArrReader, error) {
+		if key != "good-key" {
+			return webFakeArr{}, errors.New("arr: unauthorized with key " + key)
+		}
+		switch u {
+		case "http://10.0.0.5:7878":
+			return webFakeArr{app: "Radarr", titles: `[{"tmdbId":903,"title":"Listed","year":2020}]`}, nil
+		case "http://10.0.0.7:8989":
+			return webFakeArr{app: "Sonarr", titles: `[{"tvdbId":601,"title":"Show"}]`}, nil
+		}
+		return nil, errors.New("no instance at " + u)
+	}
+}
+
+// Radarr and Sonarr lists: the address is normalised and must be on the LAN, the key is required and never answered,
+// a new address needs the key again, a Sonarr list takes series libraries; Check, Preview and Sync now read the
+// instance.
+func TestArrListsAPI(t *testing.T) {
+	t.Parallel()
+	e := newEnvWith(t, withArrIntake)
+	key := e.apiKey()
+	for _, body := range []string{
+		`{"list_type":"radarr","name":"R","url":"http://8.8.8.8:7878","api_key":"good-key","versions":["movie-remux"]}`, // public IP
+		`{"list_type":"radarr","name":"R","url":"http://10.0.0.5:7878","versions":["movie-remux"]}`,                     // no key
+		`{"list_type":"radarr","name":"R","url":"ftp://10.0.0.5","api_key":"good-key","versions":["movie-remux"]}`,      // scheme
+		`{"list_type":"radarr","name":"R","url":"http://10.0.0.5:7878","api_key":"good-key","tmdb_id":9,"versions":["movie-remux"]}`,
+		`{"list_type":"radarr","name":"R","url":"http://10.0.0.5:7878","api_key":"good-key","monitor":"all","versions":["movie-remux"]}`,
+		`{"list_type":"sonarr","name":"S","url":"http://10.0.0.7:8989","api_key":"good-key","versions":["movie-remux"]}`, // movie library
+		`{"list_type":"lidarr","name":"L","url":"http://10.0.0.7:8686","api_key":"good-key","versions":["movie-remux"]}`,
+	} {
+		if rec := e.sendCollection("POST", "/lists", body, key, ""); rec.Code != 400 {
+			t.Errorf("%s: %d %s", body, rec.Code, rec.Body)
+		}
+	}
+	rec := e.sendCollection("POST", "/lists", `{"list_type":"radarr","name":"Radarr","url":" HTTP://10.0.0.5:7878/ ","api_key":"good-key","versions":["movie-remux"]}`, key, "")
+	var l MovieList
+	if rec.Code != 201 || json.Unmarshal(rec.Body.Bytes(), &l) != nil || strings.Contains(rec.Body.String(), "good-key") {
+		t.Fatalf("POST %d %s", rec.Code, rec.Body)
+	}
+	if l.ListType != "radarr" || l.Kind != "movie" || l.URL != "http://10.0.0.5:7878" || !l.APIKeySet || l.TmdbID != 0 ||
+		l.Monitor != "movieOnly" {
+		t.Errorf("radarr list %+v", l)
+	}
+	radarr := l.ID
+	if rec := e.sendCollection("POST", "/lists", `{"list_type":"radarr","name":"Again","url":"http://10.0.0.5:7878","api_key":"good-key","versions":["movie-remux"]}`, key, ""); rec.Code != 409 {
+		t.Errorf("same instance twice %d %s", rec.Code, rec.Body)
+	}
+	rec = e.sendCollection("POST", "/lists", `{"list_type":"sonarr","name":"Sonarr","url":"http://10.0.0.7:8989","api_key":"good-key","versions":["tv-2160p"]}`, key, "")
+	if rec.Code != 201 || json.Unmarshal(rec.Body.Bytes(), &l) != nil || l.Kind != "series" || l.Monitor != "all" ||
+		!slices.Contains(l.Libraries, "tv-2160p") || slices.Contains(l.Libraries, "movie-remux") {
+		t.Fatalf("sonarr POST %d %s", rec.Code, rec.Body)
+	}
+	var page ListsPage
+	if code := e.getKey(APIBase+"/lists", key, &page); code != 200 || len(page.Lists) != 2 || page.SeriesLibraries["tv-2160p"] == "" {
+		t.Errorf("GET %d %+v", code, page)
+	}
+	rec = e.sendCollection("GET", "/lists", ``, key, "")
+	if strings.Contains(rec.Body.String(), "good-key") || strings.Contains(rec.Body.String(), "api_key\"") {
+		t.Errorf("the key is answered: %s", rec.Body)
+	}
+
+	// A new address needs the key again; the same address spelled differently is no change.
+	if rec := e.sendCollection("PUT", "/lists/"+strconv.FormatInt(radarr, 10), `{"url":"http://10.0.0.9:7878"}`, key, ""); rec.Code != 400 ||
+		!strings.Contains(rec.Body.String(), "API key again") {
+		t.Errorf("new address without key %d %s", rec.Code, rec.Body)
+	}
+	if rec := e.sendCollection("PUT", "/lists/"+strconv.FormatInt(radarr, 10), `{"url":"http://10.0.0.5:7878/"}`, key, ""); rec.Code != 200 {
+		t.Errorf("same address %d %s", rec.Code, rec.Body)
+	}
+	if rec := e.sendCollection("PUT", "/lists/"+strconv.FormatInt(radarr, 10), `{"url":"http://10.0.0.7:8989","api_key":"other"}`, key, ""); rec.Code != 200 {
+		// A Radarr list may point at the address a Sonarr list uses: the uniqueness is per type.
+		t.Errorf("PUT another address %d %s", rec.Code, rec.Body)
+	}
+	if rec := e.sendCollection("PUT", "/lists/"+strconv.FormatInt(radarr, 10), `{"url":"http://10.0.0.5:7878","api_key":"good-key"}`, key, ""); rec.Code != 200 {
+		t.Errorf("PUT back %d %s", rec.Code, rec.Body)
+	}
+
+	// Check reads the instance: by address and key, or by a stored list; a refusal never carries the key.
+	var check ListCheckResult
+	rec = e.sendCollection("POST", "/lists/check", `{"list_type":"radarr","url":"http://10.0.0.5:7878/","api_key":"good-key"}`, key, "")
+	if rec.Code != 200 || json.Unmarshal(rec.Body.Bytes(), &check) != nil || check.App != "Radarr" || check.Titles != 1 {
+		t.Errorf("check %d %s", rec.Code, rec.Body)
+	}
+	rec = e.sendCollection("POST", "/lists/check", `{"id":`+strconv.FormatInt(l.ID, 10)+`}`, key, "")
+	if rec.Code != 200 || json.Unmarshal(rec.Body.Bytes(), &check) != nil || check.App != "Sonarr" || check.Titles != 1 {
+		t.Errorf("check by id %d %s", rec.Code, rec.Body)
+	}
+	rec = e.sendCollection("POST", "/lists/check", `{"list_type":"sonarr","url":"http://10.0.0.5:7878","api_key":"good-key"}`, key, "")
+	if rec.Code != 502 {
+		t.Errorf("radarr checked as sonarr %d %s", rec.Code, rec.Body)
+	}
+	rec = e.sendCollection("POST", "/lists/check", `{"list_type":"radarr","url":"http://10.0.0.5:7878","api_key":"wrong-key-123"}`, key, "")
+	if rec.Code != 502 || strings.Contains(rec.Body.String(), "wrong-key-123") {
+		t.Errorf("wrong key %d %s", rec.Code, rec.Body)
+	}
+
+	// Preview, then Sync now.
+	var p ListPreview
+	rec = e.sendCollection("POST", "/lists/"+strconv.FormatInt(radarr, 10)+"/preview", ``, key, "")
+	if rec.Code != 200 || json.Unmarshal(rec.Body.Bytes(), &p) != nil || p.AddTitle != 1 || len(p.Titles) != 1 || p.Titles[0].TmdbID != 903 {
+		t.Errorf("preview %d %s", rec.Code, rec.Body)
+	}
+	var synced ListSynced
+	rec = e.sendCollection("POST", "/lists/"+strconv.FormatInt(radarr, 10)+"/sync", ``, key, "")
+	if rec.Code != 200 || json.Unmarshal(rec.Body.Bytes(), &synced) != nil || synced.Added != 1 || synced.SyncError != "" {
+		t.Errorf("sync %d %s", rec.Code, rec.Body)
+	}
+	if rec := e.sendCollection("POST", "/lists/99/preview", ``, key, ""); rec.Code != 404 {
+		t.Errorf("preview of no list %d", rec.Code)
 	}
 }

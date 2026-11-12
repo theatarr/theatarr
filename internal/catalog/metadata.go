@@ -35,6 +35,8 @@ type MovieIntake struct {
 	Log    *slog.Logger
 	// OnAdd starts the existing add-time search after commit, only for monitored, available movies.
 	OnAdd func(context.Context, int64, []string) error
+	// Arr opens the read-only client of a Radarr or Sonarr list's instance; nil: arr.New with the default options.
+	Arr func(url, key string) (ArrReader, error)
 
 	skipLogged sync.Map // collection targets skipped, logged once: "tmdb id:keys"
 }
@@ -100,13 +102,16 @@ type movieIntakeConfig struct {
 	versions, minimum, monitor, view, root string
 	profile                                int64
 	search, monitored                      bool
+	// listType is an import list's source (tmdb, radarr, sonarr); "" for a collection. url and apiKey are a Radarr
+	// or Sonarr list's instance.
+	listType, url, apiKey string
 }
 
 const (
-	collectionConfigs = `SELECT tmdb_id,tmdb_id,versions,minimum_availability,'movieOnly',view,root_folder_path,quality_profile_id,search_on_add,monitored
+	collectionConfigs = `SELECT tmdb_id,tmdb_id,versions,minimum_availability,'movieOnly',view,root_folder_path,quality_profile_id,search_on_add,monitored,'','',''
   FROM movie_collection`
-	listConfigs = `SELECT id,tmdb_id,versions,minimum_availability,monitor,view,root_folder_path,quality_profile_id,search_on_add,1
-  FROM movie_import_list`
+	listConfigs = `SELECT id,tmdb_id,versions,minimum_availability,monitor,view,root_folder_path,quality_profile_id,search_on_add,1,list_type,url,api_key
+  FROM import_list`
 )
 
 // configs reads the intake rows of q (collectionConfigs or listConfigs plus a filter and order).
@@ -119,7 +124,8 @@ func (s *MovieIntake) configs(ctx context.Context, q string, args ...any) ([]mov
 	var out []movieIntakeConfig
 	for rows.Next() {
 		var c movieIntakeConfig
-		if err := rows.Scan(&c.id, &c.tmdbID, &c.versions, &c.minimum, &c.monitor, &c.view, &c.root, &c.profile, &c.search, &c.monitored); err != nil {
+		if err := rows.Scan(&c.id, &c.tmdbID, &c.versions, &c.minimum, &c.monitor, &c.view, &c.root, &c.profile, &c.search, &c.monitored,
+			&c.listType, &c.url, &c.apiKey); err != nil {
 			return nil, err
 		}
 		out = append(out, c)
@@ -248,12 +254,21 @@ func (s *MovieIntake) collectionTargets(cfg movieIntakeConfig) (string, error) {
 	return string(b), err
 }
 
-// SyncLists imports enabled automatic lists. Existing titles and their monitoring choices are left alone.
+// SyncLists imports enabled automatic TMDb lists. Existing titles and their monitoring choices are left alone.
 func (s *MovieIntake) SyncLists(ctx context.Context) (IntakeResult, error) {
+	return s.syncLists(ctx, listConfigs+` WHERE enabled=1 AND enable_auto=1 AND list_type='tmdb' ORDER BY id`)
+}
+
+// SyncArrLists imports enabled Radarr and Sonarr lists, every ArrListInterval.
+func (s *MovieIntake) SyncArrLists(ctx context.Context) (IntakeResult, error) {
+	return s.syncLists(ctx, listConfigs+` WHERE enabled=1 AND enable_auto=1 AND list_type IN ('radarr','sonarr') ORDER BY id`)
+}
+
+func (s *MovieIntake) syncLists(ctx context.Context, q string) (IntakeResult, error) {
 	if err := s.init(); err != nil {
 		return IntakeResult{}, err
 	}
-	configs, err := s.configs(ctx, listConfigs+` WHERE enabled=1 AND enable_auto=1 ORDER BY id`)
+	configs, err := s.configs(ctx, q)
 	if err != nil {
 		return IntakeResult{}, err
 	}
@@ -285,28 +300,35 @@ func (s *MovieIntake) SyncList(ctx context.Context, id int64) (IntakeResult, err
 }
 
 // syncList is one list's import, counted in out; last_sync_at moves only on a pass without failures. soft and err
-// are as for refreshCollection.
+// are as for refreshCollection. A list that cannot be read adds nothing.
 func (s *MovieIntake) syncList(ctx context.Context, cfg movieIntakeConfig, out *IntakeResult) (soft []error, err error) {
 	out.Lists++
-	l, err := s.TMDb.List(ctx, int(cfg.tmdbID))
-	if err != nil {
-		return []error{fmt.Errorf("list %d: %w", cfg.id, err)}, nil
-	}
 	cfg.monitored = cfg.monitor != "none"
-	for _, m := range l.Items {
-		n, err := s.addMovie(ctx, m, cfg, 0)
+	switch cfg.listType {
+	case "radarr":
+		soft = s.syncRadarr(ctx, cfg, out)
+	case "sonarr":
+		soft = s.syncSonarr(ctx, cfg, out)
+	default:
+		l, err := s.TMDb.List(ctx, int(cfg.tmdbID))
 		if err != nil {
-			soft = append(soft, fmt.Errorf("list %d movie %d: %w", cfg.id, m.ID, err))
-			continue
+			return []error{fmt.Errorf("list %d: %w", cfg.id, err)}, nil
 		}
-		if n {
-			out.Added++
-		} else {
-			out.Skipped++
+		for _, m := range l.Items {
+			n, err := s.addMovie(ctx, m, cfg, 0)
+			if err != nil {
+				soft = append(soft, fmt.Errorf("list %d movie %d: %w", cfg.id, m.ID, err))
+				continue
+			}
+			if n {
+				out.Added++
+			} else {
+				out.Skipped++
+			}
 		}
 	}
 	if len(soft) == 0 {
-		if _, err := s.Store.Writer().ExecContext(ctx, `UPDATE movie_import_list SET last_sync_at=? WHERE id=?`, store.Millis(s.Now()), cfg.id); err != nil {
+		if _, err := s.Store.Writer().ExecContext(ctx, `UPDATE import_list SET last_sync_at=? WHERE id=?`, store.Millis(s.Now()), cfg.id); err != nil {
 			return nil, err
 		}
 	}
@@ -359,6 +381,24 @@ func (s *MovieIntake) intakeVersions(keys []string, anime bool, root string) ([]
 	return fit, anime, nil
 }
 
+// fitVersions are the versions a list's or collection's targets turn on for a title. TMDb lists and collections take
+// intakeVersions, fallbacks included. A Radarr or Sonarr list takes only its chosen libraries that fit the title (its
+// kind, and anime or not); none when none fits, and the title is skipped.
+func (s *MovieIntake) fitVersions(cfg movieIntakeConfig, keys []string, anime bool, kind policy.Kind) ([]string, bool,
+	error) {
+	if cfg.listType != "radarr" && cfg.listType != "sonarr" {
+		return s.intakeVersions(keys, anime, cfg.root)
+	}
+	var fit []string
+	for _, k := range keys {
+		if Fits(s.Policy.Versions[k], kind, anime) {
+			fit = append(fit, k)
+		}
+	}
+	slices.Sort(fit)
+	return fit, anime, nil
+}
+
 // addMissingVersions gives a movie the catalog already holds the intake's target versions it has no row for:
 // another list or collection may target other versions than the one that added it. A version the
 // title has in any state (unmonitored, removed from the views) is a choice already made and stays as it is.
@@ -368,8 +408,8 @@ func (s *MovieIntake) addMissingVersions(ctx context.Context, titleID int64, ani
 	if err := json.Unmarshal([]byte(cfg.versions), &keys); err != nil {
 		return false, err
 	}
-	fit, _, err := s.intakeVersions(keys, anime, cfg.root)
-	if err != nil {
+	fit, _, err := s.fitVersions(cfg, keys, anime, policy.KindMovie)
+	if err != nil || len(fit) == 0 {
 		return false, err
 	}
 	method := "list"
@@ -500,8 +540,8 @@ func (s *MovieIntake) addMovie(ctx context.Context, summary tmdb.MovieSummary, c
 			animated = true
 		}
 	}
-	fit, anime, err := s.intakeVersions(keys, anime && animated, cfg.root)
-	if err != nil {
+	fit, anime, err := s.fitVersions(cfg, keys, anime && animated, policy.KindMovie)
+	if err != nil || len(fit) == 0 {
 		return false, err
 	}
 	if m.Title == "" {

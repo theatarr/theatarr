@@ -1,5 +1,5 @@
-// The Lists tab of Collections (docs/design/arrview.md, Lists): GET/POST /lists, GET /lists/lookup, PUT/DELETE
-// /lists/{id} and POST /lists/{id}/sync.
+// The Lists tab of Collections (docs/design/arrview.md, Lists): GET/POST /lists, GET /lists/lookup, POST /lists/check,
+// PUT/DELETE /lists/{id}, POST /lists/{id}/sync and POST /lists/{id}/preview.
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { api, qs, type Schemas } from "./client";
 
@@ -9,10 +9,13 @@ export type ListAdd = Schemas["ListAdd"];
 export type ListUpdate = Schemas["ListUpdate"];
 export type ListLookup = Schemas["ListLookup"];
 export type ListSynced = Schemas["ListSynced"];
+export type ListCheck = Schemas["ListCheck"];
+export type ListCheckResult = Schemas["ListCheckResult"];
+export type ListPreview = Schemas["ListPreview"];
 
 const KEY = ["lists"] as const;
 
-/** GET /lists: every import list, and the movie libraries a list may add to. */
+/** GET /lists: every import list, and the movie and series libraries a list may add to. */
 export const useLists = (enabled = true) =>
   useQuery({ queryKey: KEY, queryFn: ({ signal }) => api<ListsPage>("/lists", { signal }), enabled });
 
@@ -34,6 +37,7 @@ export function useListMutations() {
     set: useMutation({ mutationFn: ({ id, ...body }: ListUpdate & { id: number }) => api<MovieList>(`/lists/${id}`, { method: "PUT", body }), onSuccess: done }),
     remove: useMutation({ mutationFn: (id: number) => api<void>(`/lists/${id}`, { method: "DELETE" }), onSuccess: done }),
     sync: useMutation({ mutationFn: (id: number) => api<ListSynced>(`/lists/${id}/sync`, { method: "POST" }), onSuccess: done }),
+    preview: useMutation({ mutationFn: (id: number) => api<ListPreview>(`/lists/${id}/preview`, { method: "POST" }) }),
   };
 }
 
@@ -43,3 +47,7 @@ export function listIDFrom(text: string): number {
   const m = /^\d+$/.test(t) ? t : /\/list\/(\d+)/.exec(t)?.[1];
   return m ? Number(m) : 0;
 }
+
+/** POST /lists/check: read a Radarr or Sonarr instance (by address and key, or a stored list's by id). */
+export const useListCheck = () =>
+  useMutation({ mutationFn: (body: ListCheck) => api<ListCheckResult>("/lists/check", { method: "POST", body }) });

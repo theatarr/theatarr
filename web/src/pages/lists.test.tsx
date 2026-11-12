@@ -9,7 +9,7 @@ import type { Schemas } from "@/api/client";
 
 const manager = { id: 2, username: "m", permissions: ["browse", "see_files", "manage"], csrf_token: "t" };
 const libraries = { "movie-remux": "4K Remux", "movie-web": "4K WEB" };
-const mine: Schemas["MovieList"] = { id: 1, name: "Favourites", list_type: "tmdb", tmdb_id: 9, enabled: true, enable_auto: true, monitor: "movieOnly",
+const mine: Schemas["MovieList"] = { id: 1, name: "Favourites", list_type: "tmdb", kind: "movie", api_key_set: false, tmdb_id: 9, enabled: true, enable_auto: true, monitor: "movieOnly",
   search_on_add: true, versions: ["movie-remux"], minimum_availability: "released", libraries: ["movie-remux", "movie-web"] };
 const arr: Schemas["MovieList"] = { ...mine, id: 2, name: "From Radarr", tmdb_id: 12, view: "radarr-4k", enable_auto: false, versions: ["movie-web"], libraries: ["movie-web"] };
 
@@ -32,7 +32,7 @@ it("adds a list from a pasted address after looking it up", async () => {
   ]);
   renderPage(<ListsPage />, "/collections/lists");
   expect(await screen.findByText("No lists yet. Add a TMDb list by its id or address.")).toBeTruthy();
-  expect(screen.getByText("TMDb movie lists only", { exact: false })).toBeTruthy();
+  expect(screen.getByText("A list is a TMDb movie list, or the titles of a Radarr or Sonarr instance.")).toBeTruthy();
   expect(screen.getByRole("tab", { name: "Lists" }).getAttribute("aria-selected")).toBe("true");
   expect(screen.getByRole("tab", { name: "Collections" }).getAttribute("href")).toBe("/collections");
   await user.click(screen.getByRole("button", { name: "Add list" }));
@@ -96,10 +96,10 @@ it("edits, enables, syncs and deletes lists, and labels one an arr client made",
 
   await user.click(row().getByRole("button", { name: "Sync now" }));
   await waitFor(() => expect(fetch.calls("POST", "/lists/1/sync")).toHaveLength(1));
-  expect((await screen.findByTestId("lists-done")).textContent).toBe("Favourites: 3 movies added, 9 skipped (already in the library, excluded or not a movie).");
+  expect((await screen.findByTestId("lists-done")).textContent).toBe("Favourites: 3 titles added, 9 skipped (already in the library or excluded).");
 
   await user.click(row().getByRole("button", { name: "Delete" }));
-  expect(within(screen.getByTestId("list-delete")).getByText("The movies it already added, and their files")).toBeTruthy();
+  expect(within(screen.getByTestId("list-delete")).getByText("The titles it already added, and their files")).toBeTruthy();
   expect(fetch.calls("DELETE", "/lists/1")).toHaveLength(0);
   await user.click(screen.getByTestId("confirm-ok"));
   await waitFor(() => expect(fetch.calls("DELETE", "/lists/1")).toHaveLength(1));
@@ -112,4 +112,50 @@ it("is not for plain users and does not ask for lists", async () => {
   renderPage(<ListsPage />, "/collections/lists");
   expect(await screen.findByTestId("forbidden")).toBeTruthy();
   expect(fetch.calls("GET", "/lists")).toHaveLength(0);
+});
+
+it("adds a Radarr instance as a list after a check, previews it, and never shows its key on edit", async () => {
+  const user = userEvent.setup();
+  const radarr: Schemas["MovieList"] = { ...mine, id: 3, name: "Radarr", list_type: "radarr", tmdb_id: 0, url: "http://10.0.0.5:7878", api_key_set: true };
+  let lists: Schemas["MovieList"][] = [];
+  const fetch = mockFetch([
+    { method: "GET", path: "/auth/me", reply: manager },
+    { method: "GET", path: "/lists", reply: () => ({ lists, libraries, series_libraries: { "tv-2160p": "TV 4K" }, can_sync: true }) },
+    { method: "POST", path: "/lists/check", reply: { app: "Radarr", version: "5.2.0", titles: 1234 } },
+    { method: "POST", path: "/lists", reply: () => { lists = [radarr]; return { status: 201, body: radarr }; } },
+    { method: "POST", path: "/lists/3/preview", reply: { add_title: 2, add_library: 1, present: 5, excluded: 1, skipped: 0,
+      titles: [{ name: "Alpha", year: 2020, tmdb_id: 11, change: "add_title" }, { name: "Beta", tmdb_id: 12, change: "add_library" }] } },
+  ]);
+  renderPage(<ListsPage />, "/collections/lists");
+  await user.click(await screen.findByRole("button", { name: "Add list" }));
+  let dialog = within(screen.getByTestId("list-dialog"));
+  await user.selectOptions(dialog.getByLabelText("Source"), "radarr");
+  expect(dialog.queryByLabelText("TMDb list id or URL")).toBeNull();
+  expect(dialog.getByTestId("list-arr-note").textContent).toContain("Theatarr only reads this instance.");
+  expect(dialog.getByRole("button", { name: "Check" }).hasAttribute("disabled")).toBe(true);
+  await user.type(dialog.getByLabelText("Address"), "http://10.0.0.5:7878");
+  await user.type(dialog.getByLabelText("API key"), "secret");
+  await user.click(dialog.getByRole("button", { name: "Check" }));
+  expect((await dialog.findByTestId("list-checked")).textContent).toBe("Radarr 5.2.0: 1,234 movies.");
+  expect(fetch.calls("POST", "/lists/check")[0].body).toEqual({ list_type: "radarr", url: "http://10.0.0.5:7878", api_key: "secret" });
+  await user.click(dialog.getByRole("button", { name: "4K Remux" }));
+  await user.click(dialog.getByRole("button", { name: "Add" }));
+  await waitFor(() => expect(fetch.calls("POST", "/lists")).toHaveLength(1));
+  expect(fetch.calls("POST", "/lists")[0].body).toEqual({ list_type: "radarr", name: "Radarr", versions: ["movie-remux"], monitor: "movieOnly",
+    search_on_add: true, minimum_availability: "released", enabled: true, url: "http://10.0.0.5:7878", api_key: "secret" });
+
+  const row = within(await screen.findByTestId("list-3"));
+  expect(row.getByText("Radarr at http://10.0.0.5:7878")).toBeTruthy();
+  await user.click(row.getByRole("button", { name: "Preview" }));
+  expect((await row.findByTestId("list-preview-3")).textContent).toContain(
+    "Sync now would add 3 titles (2 new, 1 to libraries they are not in yet); 5 are already there, 1 excluded.");
+  expect(row.getByText("Alpha (2020)")).toBeTruthy();
+
+  // On edit the key field is empty; the saved key is kept unless a new one is typed.
+  await user.click(row.getByRole("button", { name: "Edit" }));
+  dialog = within(screen.getByTestId("list-dialog"));
+  const key = dialog.getByLabelText("API key") as HTMLInputElement;
+  expect(key.value).toBe("");
+  expect(key.placeholder).toBe("Saved. Type a new key to replace it.");
+  expect((dialog.getByLabelText("Address") as HTMLInputElement).value).toBe("http://10.0.0.5:7878");
 });
