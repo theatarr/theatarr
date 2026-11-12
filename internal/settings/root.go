@@ -258,6 +258,9 @@ func validateOneRoot(ctx context.Context, rr *policy.RootResolver, p *policy.Pol
 	if !filepath.IsAbs(path) || filepath.Clean(path) != path {
 		return RootCheck{}, errors.New("must be an absolute, clean path")
 	}
+	if path == "/" {
+		return RootCheck{}, errors.New("directory cannot be the filesystem root")
+	}
 	if err := lexicalMountSeparation(p, path); err != nil {
 		return RootCheck{}, err
 	}
@@ -268,7 +271,7 @@ func validateOneRoot(ctx context.Context, rr *policy.RootResolver, p *policy.Pol
 	if err != nil {
 		return RootCheck{}, resolveError("directory", err)
 	}
-	if path == "/" || root.Resolved == "/" {
+	if root.Resolved == "/" {
 		return RootCheck{}, errors.New("directory cannot be the filesystem root")
 	}
 	var check error

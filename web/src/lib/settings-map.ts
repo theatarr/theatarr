@@ -61,7 +61,7 @@ export const SETTINGS_PAGES: SettingsPage[] = [
     "label": "Quality sync",
     "route": "/admin/settings/quality-sync",
     "arr": "Recyclarr",
-    "description": "Sync quality presets and review updates.",
+    "description": "Sync quality presets: sources, preview, run and the update log.",
     "tabs": []
   },
   {

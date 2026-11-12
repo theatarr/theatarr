@@ -18,7 +18,7 @@ import { Announcer, ExplainBox, Field, useAnnouncement } from "./parts";
 import { useSectionPatch } from "./use-section-patch";
 
 /** Prowlarr's address and key. Not configured: the fields and Connect. Configured: where it is, and Change. */
-export function ProwlarrConnection({ configured, url }: { configured: boolean; url?: string }) {
+export function ProwlarrConnection({ configured, url, onSaved }: { configured: boolean; url?: string; onSaved?: () => void }) {
   const [editing, setEditing] = useState(false);
   const [address, setAddress] = useState(url ?? "");
   const [key, setKey] = useState("");
@@ -27,6 +27,7 @@ export function ProwlarrConnection({ configured, url }: { configured: boolean; u
   const patch = useSectionPatch("cardigann", () => {
     setEditing(false);
     setKey("");
+    onSaved?.();
     void qc.invalidateQueries({ queryKey: prowlarrFeedsKey });
   });
   if (configured && !editing) {
@@ -88,6 +89,8 @@ export function LinkTab({ libraries }: { libraries: LibraryList }) {
   const [picked, setPicked] = useState<Record<number, boolean>>({});
   const [chosen, setChosen] = useState<string[]>();
   const [error, setError] = useState<Explained>();
+  // Connect saved the address and key in this sheet: a feed read that fails afterwards is not a failed save.
+  const [saved, setSaved] = useState(false);
   const [announcement, announce] = useAnnouncement();
   const write = useSettingsWrite();
   const libs = libraries.versions ?? [];
@@ -120,14 +123,26 @@ export function LinkTab({ libraries }: { libraries: LibraryList }) {
         <p className="text-sm text-muted-foreground"><Loader2 className="mr-1 inline size-4 animate-spin" aria-hidden />Reading Prowlarr…</p>
       ) : feeds.error ? (
         <>
-          <ExplainBox error={explainError(feeds.error)} />
-          <ProwlarrConnection configured />
+          <div className="space-y-2" data-testid="prowlarr-unreachable">
+            <ExplainBox error={{
+              kind: "other",
+              title: "Could not reach Prowlarr",
+              message: saved
+                ? "The connection was saved, but Prowlarr could not be reached at that address."
+                : "Prowlarr could not be reached at the saved address.",
+              server: explainError(feeds.error).server,
+            }} />
+            <Button type="button" size="sm" variant="outline" disabled={feeds.isFetching} onClick={() => void feeds.refetch()} data-testid="prowlarr-retry">
+              {feeds.isFetching ? <Loader2 className="animate-spin" /> : null} Try again
+            </Button>
+          </div>
+          <ProwlarrConnection configured onSaved={() => setSaved(true)} />
         </>
       ) : !feeds.data.configured ? (
-        <ProwlarrConnection configured={false} />
+        <ProwlarrConnection configured={false} onSaved={() => setSaved(true)} />
       ) : (
         <>
-          <ProwlarrConnection configured url={feeds.data.url} />
+          <ProwlarrConnection configured url={feeds.data.url} onSaved={() => setSaved(true)} />
           {list.length === 0 ? (
             <p className="text-sm text-muted-foreground">Prowlarr has no indexers.</p>
           ) : (

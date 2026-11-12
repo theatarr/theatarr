@@ -23,6 +23,14 @@ export type ProwlarrFeeds = { configured: boolean; url?: string; feeds?: Prowlar
 
 export const prowlarrFeedsKey = ["settings", "prowlarr", "feeds"] as const;
 
-/** Reads Prowlarr's indexer list through Theatarr; configured is false until an address and key are stored. */
+/** Reads Prowlarr's indexer list through Theatarr; configured is false until an address and key are stored. A failed
+ * read (Prowlarr unreachable) is not retried on its own: only Try again or a new save reads it again. */
 export const useProwlarrFeeds = (enabled = true) =>
-  useQuery({ queryKey: prowlarrFeedsKey, queryFn: () => api<ProwlarrFeeds>("/settings/prowlarr/feeds"), enabled, retry: false });
+  useQuery({
+    queryKey: prowlarrFeedsKey,
+    queryFn: () => api<ProwlarrFeeds>("/settings/prowlarr/feeds"),
+    enabled,
+    retry: false,
+    retryOnMount: false,
+    refetchOnWindowFocus: false,
+  });

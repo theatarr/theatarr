@@ -35,6 +35,7 @@ describe("TRaSH sync", () => {
     renderPage(<QualityPanel entity="sync_sources" />);
     await user.click(await screen.findByRole("button", { name: "Preview" }));
     expect(await screen.findByText("Added: 1")).toBeTruthy();
+    expect(screen.getByText("No runs yet.")).toBeTruthy();
     expect(fetch.calls("POST", "/settings/sync/preview")[0].body).toMatchObject({ generation: 4, key: "trash-main" });
     for (const text of [
       "New Format new guide entry", "Specifications changed: 1", "WEB Tier 01 definition changed",

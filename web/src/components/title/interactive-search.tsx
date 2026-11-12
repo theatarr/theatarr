@@ -128,9 +128,9 @@ export function InteractiveSearch({ titleId, version, season, episode, onClose }
                   <Summary r={r} />
                 ) : (
                   <>
-                    <div className="space-y-1 rounded-[5px] border border-[var(--th-warning-border)] bg-[var(--warn-soft)] p-3 text-sm text-[var(--warn-ink)]" role="alert" data-testid="interactive-fallback">
+                    <div className="space-y-1 rounded-[5px] border border-[var(--th-warning-border)] bg-[var(--warn-soft)] p-3 text-sm text-[var(--warn-ink)] [overflow-wrap:anywhere]" role="alert" data-testid="interactive-fallback">
                       {r.message ? <p>{r.message}</p> : null}
-                      <p>These are the last stored results and cannot be grabbed. Try Search again.</p>
+                      <p>{r.source === "none" ? "" : "These are the last stored results and cannot be grabbed. "}Try Search again.</p>
                     </div>
                     <Summary r={{ ...r, message: undefined }} />
                   </>

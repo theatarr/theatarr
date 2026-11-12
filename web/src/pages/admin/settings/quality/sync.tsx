@@ -96,7 +96,7 @@ export function SyncSources({ records, generation, draft, baseGeneration, onChan
     </Card> : null}
     <h3 className="font-medium">Update log</h3>
     {changes.isPending ? <p>Loading</p> : changes.error || changes.data?.unavailable ? null : !changes.data?.items.length ? <p className="text-sm">No updates applied yet.</p> : <ul className="space-y-1 text-sm">{changes.data.items.map((p) => <li key={p.id}><details><summary>{changeLine(p)}</summary><div className="space-y-2 p-2"><ChangeLists p={p} retiredLabel="No longer in TRaSH (kept as it is)" /></div></details></li>)}</ul>}
-    <h3 className="font-medium">Recent runs</h3><ul className="space-y-1 text-sm">{(runs.data ?? []).map((r) => <li key={r.id}>{new Date(r.started_at).toLocaleString()} · {r.source}: {r.outcome} · {r.commit} {r.error}</li>)}</ul>
+    <h3 className="font-medium">Recent runs</h3>{runs.isPending || runs.error ? null : !runs.data?.length ? <p className="text-sm" data-testid="sync-no-runs">No runs yet.</p> : <ul className="space-y-1 text-sm">{runs.data.map((r) => <li key={r.id}>{new Date(r.started_at).toLocaleString()} · {r.source}: {r.outcome} · {r.commit} {r.error}</li>)}</ul>}
   </section>;
 }
 

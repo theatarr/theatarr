@@ -103,6 +103,7 @@ function ListDialog({ list, libraries, seriesLibraries, canSync, m, onClose }: {
         </label>
         <div className="flex flex-wrap items-center gap-2">
           <Button variant="outline" size="sm" onClick={runCheck} disabled={!canSync || address.trim() === "" || (newAddress && apiKey.trim() === "") || check.isPending}>{check.isPending ? <Loader2 className="animate-spin" aria-hidden /> : null}Check</Button>
+          {!canSync ? <span className="text-xs text-muted-foreground" data-testid="list-check-off">TMDb is not set up, so the instance cannot be checked or synced yet.</span> : null}
           {checked ? <span className="text-xs text-[var(--ink)]" data-testid="list-checked">{checked.app} {checked.version}: {checked.titles.toLocaleString("en-US")} {listType === "sonarr" ? "series" : checked.titles === 1 ? "movie" : "movies"}.</span> : null}
         </div>
         {check.error ? <ErrorState error={check.error} /> : null}
@@ -240,7 +241,7 @@ export function ListsPage() {
       {done ? <p role="status" className="text-sm text-[var(--ink)]" data-testid="lists-done">{done}</p> : null}
       {m.sync.error ? <ErrorState error={m.sync.error} /> : null}
       {m.set.error && !dialog ? <ErrorState error={m.set.error} /> : null}
-      {d.lists.length === 0 ? <Card><Empty icon={ListVideo}>No lists yet. Add a TMDb list by its id or address.</Empty></Card> :
+      {d.lists.length === 0 ? <Card><Empty icon={ListVideo}>No lists yet. Add a TMDb list by its id or address, or a Radarr or Sonarr instance by its address and API key.</Empty></Card> :
         <Card className="p-0"><ul className="divide-y divide-[var(--line)]">{d.lists.map(l => <ListRow key={l.id} l={l} libraries={d.libraries} seriesLibraries={d.series_libraries ?? {}} canSync={d.can_sync} m={m}
           edit={() => open(l)} remove={() => { m.remove.reset(); setRemoving(l); }} synced={setDone} />)}</ul></Card>}
     </div> : null}

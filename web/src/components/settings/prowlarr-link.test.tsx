@@ -93,3 +93,35 @@ it("asks for the key again when the address changes, and sends nothing", async (
   expect(screen.getByText("Enter the API key again for the new address")).toBeTruthy();
   expect(fetch.requests.filter((r) => r.method !== "GET")).toHaveLength(0);
 });
+
+it("reports a saved connection that cannot reach Prowlarr apart from the save, and reads again only on Try again", async () => {
+  let connected = false;
+  const fetch = mockFetch([
+    { method: "GET", path: "/settings", reply: json(overview({ indexers: [dmm] })) },
+    { method: "GET", path: "/settings/versions", reply: json({ source: "db", generation: 4, versions: [] }) },
+    { method: "GET", path: "/cardigann/definitions", reply: json({ status: {}, total: 0, definitions: [], unavailable: "off" }) },
+    { method: "GET", path: "/settings/prowlarr/feeds", reply: () => connected
+      ? json({ error: "could not read Prowlarr's indexers: connection refused" }, 502)
+      : json({ configured: false }) },
+    { method: "GET", path: "/settings/sections", reply: json({ source: "db", generation: 4, sections: [{ key: "cardigann", live: true, config: null, yaml: "", secrets: [] }] }) },
+    { method: "PUT", path: "/settings/sections/cardigann", reply: () => { connected = true; return json({ generation: 5 }); } },
+  ]);
+  const user = userEvent.setup();
+  renderPage(<SettingsTabView tab="indexers" overview={overview({ indexers: [dmm] })} schema={schema} versions={[]} />, "/admin/settings/indexers");
+  await user.click(screen.getByRole("button", { name: "Add indexer" }));
+  await user.click(screen.getByRole("tab", { name: "Link Prowlarr" }));
+  const tab = await screen.findByTestId("link-tab");
+  await user.type(await within(tab).findByRole("textbox", { name: "Prowlarr address" }), "http://127.0.0.1:9");
+  await user.type(within(tab).getByLabelText(/Prowlarr API key/), "invented-prowlarr-key");
+  await user.click(within(tab).getByRole("button", { name: "Connect" }));
+  const box = await within(tab).findByTestId("prowlarr-unreachable");
+  expect(box.textContent).toContain("The connection was saved, but Prowlarr could not be reached at that address.");
+  expect(box.textContent).toContain("connection refused");
+  expect(tab.textContent).not.toContain("Could not save");
+  const reads = () => fetch.calls("GET", "/settings/prowlarr/feeds").length;
+  const failed = reads();
+  await new Promise((r) => setTimeout(r, 50));
+  expect(reads()).toBe(failed);
+  await user.click(within(box).getByRole("button", { name: "Try again" }));
+  await waitFor(() => expect(reads()).toBe(failed + 1));
+});

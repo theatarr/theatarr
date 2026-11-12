@@ -31,7 +31,7 @@ it("adds a list from a pasted address after looking it up", async () => {
     { method: "POST", path: "/lists", reply: () => { lists = [mine]; return { status: 201, body: mine }; } },
   ]);
   renderPage(<ListsPage />, "/collections/lists");
-  expect(await screen.findByText("No lists yet. Add a TMDb list by its id or address.")).toBeTruthy();
+  expect(await screen.findByText("No lists yet. Add a TMDb list by its id or address, or a Radarr or Sonarr instance by its address and API key.")).toBeTruthy();
   expect(screen.getByText("A list is a TMDb movie list, or the titles of a Radarr or Sonarr instance.")).toBeTruthy();
   expect(screen.getByRole("tab", { name: "Lists" }).getAttribute("aria-selected")).toBe("true");
   expect(screen.getByRole("tab", { name: "Collections" }).getAttribute("href")).toBe("/collections");
@@ -187,4 +187,18 @@ it("labels a Sonarr list's series libraries by their names", async () => {
   const dialog = within(screen.getByTestId("list-dialog"));
   expect(dialog.getByRole("button", { name: "TV 4K" }).getAttribute("aria-pressed")).toBe("true");
   expect(dialog.getByRole("button", { name: "Anime TV" }).getAttribute("aria-pressed")).toBe("false");
+});
+
+it("says next to Check why it is off when TMDb is not set up", async () => {
+  const user = userEvent.setup();
+  mockFetch([
+    { method: "GET", path: "/auth/me", reply: manager },
+    { method: "GET", path: "/lists", reply: { lists: [], libraries, can_sync: false } },
+  ]);
+  renderPage(<ListsPage />, "/collections/lists");
+  await user.click(await screen.findByRole("button", { name: "Add list" }));
+  const dialog = within(screen.getByTestId("list-dialog"));
+  await user.selectOptions(dialog.getByRole("combobox", { name: "Source" }), "radarr");
+  expect(dialog.getByRole("button", { name: "Check" }).hasAttribute("disabled")).toBe(true);
+  expect(dialog.getByTestId("list-check-off").textContent).toBe("TMDb is not set up, so the instance cannot be checked or synced yet.");
 });

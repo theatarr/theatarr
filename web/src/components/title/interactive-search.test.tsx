@@ -160,6 +160,16 @@ it("a refused live search shows why and offers no Grab", async () => {
   expect(screen.queryByTestId("release-grab")).toBeNull();
 });
 
+it("a refused live search with nothing stored does not speak of stored results", async () => {
+  mockFetch([ME, TITLE, CURRENT, CURRENT, { method: "GET", path: "/titles/7/releases", reply: answer("movie-web", { source: "none", grab: false, candidates: [], results: 0, accepted: 0, message: "Live search failed: no indexer answered" }) }]);
+  renderPage(<InteractiveSearchButton titleId={7} version="movie-web" />);
+  open();
+  const box = await screen.findByTestId("interactive-fallback");
+  expect(box.textContent).toContain("Live search failed: no indexer answered");
+  expect(box.textContent).not.toContain("cannot be grabbed");
+  expect(box.textContent).toContain("Try Search again.");
+});
+
 it("searches a season or an episode, each library once per opening, and again on reopening", async () => {
   const api = mockFetch([
     ME, TITLE, CURRENT,

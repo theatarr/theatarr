@@ -335,4 +335,12 @@ func TestFilesystemRootRefused(t *testing.T) {
 			t.Errorf("%s: %v", root, err)
 		}
 	}
+	// With a library mount configured, "/" is still refused as the filesystem root, not as overlapping the mount.
+	_, _, withMount, _ := versionFixture(t)
+	if withMount.Library.Mount.Path == "" {
+		withMount.Library.Mount.Path = filepath.Join(t.TempDir(), "mount")
+	}
+	if _, err := validateOneRoot(context.Background(), policy.NewRootResolver(context.Background()), withMount, "new", "/", false); err == nil || err.Error() != "directory cannot be the filesystem root" {
+		t.Errorf("/ with a library mount: %v", err)
+	}
 }
