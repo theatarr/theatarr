@@ -14,6 +14,7 @@ import (
 	"strings"
 	"sync"
 	"sync/atomic"
+	"syscall"
 	"time"
 
 	"github.com/theatarr/theatarr/internal/decide"
@@ -438,6 +439,9 @@ func (l *Library) importDownload(ctx context.Context, d *importDownload, dryRun 
 		})
 	}
 	folder, err := l.mount.FindRelease(ctx, names)
+	if recheck && fsError(err) {
+		return l.waitInconclusive(ctx, d, plan, err)
+	}
 	if err != nil {
 		return nil, err
 	}
@@ -452,7 +456,9 @@ func (l *Library) importDownload(ctx context.Context, d *importDownload, dryRun 
 		l.log.Info("library: release folder holds another torrent; trying its other names", "download", id,
 			"folder", folder, "want", strings.ToLower(d.InfoHash), "zurg_hash", e.Hash)
 		names = slices.DeleteFunc(names, func(n string) bool { return n == filepath.Base(folder) })
-		if folder, err = l.mount.FindRelease(ctx, names); err != nil {
+		if folder, err = l.mount.FindRelease(ctx, names); recheck && fsError(err) {
+			return l.waitInconclusive(ctx, d, plan, err)
+		} else if err != nil {
 			return nil, err
 		}
 	}
@@ -857,10 +863,12 @@ func (l *Library) mismatchRecheck(ctx context.Context, d *importDownload) (bool,
 	})
 }
 
-// fsError reports a filesystem error other than the mount not answering (ErrMountDown, handled for every import).
+// fsError reports a filesystem error, read directly or through the mount helper (which keeps its errno), other than
+// the mount not answering (ErrMountDown, handled for every import).
 func fsError(err error) bool {
 	var pe *fs.PathError
-	return errors.As(err, &pe) && !errors.Is(err, ErrMountDown)
+	var errno syscall.Errno
+	return (errors.As(err, &pe) || errors.As(err, &errno)) && !errors.Is(err, ErrMountDown)
 }
 
 // waitInconclusive keeps a mismatch wait and its reason when a re-check cannot list or read the files; the back-off

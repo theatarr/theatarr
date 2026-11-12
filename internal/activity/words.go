@@ -147,6 +147,9 @@ func (d *Download) Words(provider string) string {
 		}
 		return "Download complete, waiting to be linked"
 	case "importing":
+		if d.ImportState == "waiting_mount" && strings.HasPrefix(d.ImportErr, mismatchPrefix) {
+			return "Waiting for the mount to show this download's files" // after a partial import
+		}
 		if d.ImportState == "partial" {
 			return "Partly imported (retrying)"
 		}

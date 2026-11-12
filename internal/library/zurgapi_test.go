@@ -1286,7 +1286,8 @@ func TestZurgMismatchUnreadableNotLinked(t *testing.T) {
 	waiting := e.one(`SELECT last_error FROM library_import WHERE download_id = 1`)
 	srv.entries[davPath(movieRelease, "movie.mkv")] = ZurgEntry{Hash: hashA, Size: 5}
 	e.lib.probe = func(p string, _ int64) (*probe.Result, error) {
-		return nil, &os.PathError{Op: "open", Path: p, Err: syscall.EACCES}
+		// As the mount helper returns it: decoded from its pipe encoding, errno kept.
+		return nil, encodeHelperErr(&os.PathError{Op: "open", Path: p, Err: syscall.EACCES}).decode()
 	}
 	e.now = e.now.Add(11 * time.Minute)
 	e.run()
@@ -1295,5 +1296,26 @@ func TestZurgMismatchUnreadableNotLinked(t *testing.T) {
 	}
 	if s := e.one(`SELECT state FROM download WHERE id = 1`) + " " + e.one(`SELECT COUNT(*) FROM link`); s != "ready 0" {
 		t.Errorf("download and links: %s", s)
+	}
+}
+
+// TestZurgMismatchFolderErrorAdvances: a re-check whose release folder cannot be looked up (a filesystem error, not
+// a missing folder) keeps the mismatch wait and advances its back-off instead of retrying on every pass.
+func TestZurgMismatchFolderErrorAdvances(t *testing.T) {
+	t.Parallel()
+	e, _ := mismatchEnv(t)
+	e.run()
+	waiting := e.one(`SELECT last_error FROM library_import WHERE download_id = 1`)
+	dir := filepath.Join(e.mount, "__all__", movieRelease)
+	if err := os.RemoveAll(dir); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Symlink(dir, dir); err != nil { // stat: too many levels of symbolic links
+		t.Fatal(err)
+	}
+	e.now = e.now.Add(11 * time.Minute)
+	e.run()
+	if s := e.importState(); s != "waiting_mount 2 "+waiting {
+		t.Errorf("after a folder lookup error: %s", s)
 	}
 }

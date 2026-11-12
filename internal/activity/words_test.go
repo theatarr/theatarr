@@ -33,6 +33,8 @@ func TestStepsAndWords(t *testing.T) {
 		{Download{State: "ready", ImportState: "rejected"}, "ready", true, "Import blocked",
 			"Import blocked"},
 		{Download{State: "importing"}, "ready", false, "Linking into the library", "Linking into the library"},
+		{Download{State: "importing", ImportState: "waiting_mount", ImportErr: "mount mismatch: zurg does not confirm (x)"},
+			"ready", false, "Waiting for the mount to show this download's files", "Waiting for the mount to show this download's files"},
 		{Download{State: "importing", ImportState: "partial"}, "ready", false, "Partly imported (retrying)",
 			"Partly imported (retrying)"},
 		{Download{State: "imported"}, "linked", false, "Linked into the library", "Linked into the library"},
