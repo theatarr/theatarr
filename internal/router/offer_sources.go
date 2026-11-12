@@ -14,9 +14,27 @@ import (
 	"github.com/theatarr/theatarr/internal/store"
 )
 
+// adoptedSource is what the arr history gave for an adopted link (link.adopted_source, 00114), read once and kept so
+// the link keeps qualifying for offers after the arr history is gone. From is the link.adopted_from it was read for:
+// a refresh to another arr file makes it stale, and adoption clears it when it records a changed file.
+type adoptedSource struct {
+	From     string   `json:"from"`
+	Hash     string   `json:"hash"`
+	Release  string   `json:"release"`
+	Indexers []string `json:"indexers"` // the arr's indexer names as read, "" for a grab without one
+}
+
+// adoptedRecord is an adopted link's source to store (offer sweep, not a dry run).
+type adoptedRecord struct {
+	linkID int64
+	from   string
+	source string
+}
+
 // fileSources reads file identities, not release-name guesses. Adoption deliberately has no download or content
-// row: its frozen file metadata and link.adopted_from retain the hash and the owning arr respectively.
-func (o *Offerer) fileSources(ctx context.Context) ([]offerSource, error) {
+// row: its frozen file metadata and link.adopted_from retain the hash and the owning arr respectively. It also
+// returns the adopted links whose source it read from the arr history and that should be stored.
+func (o *Offerer) fileSources(ctx context.Context) ([]offerSource, []adoptedRecord, error) {
 	rows, err := o.Store.Reader().QueryContext(ctx, `SELECT * FROM (
 		SELECT 'link' AS source_kind, l.id, l.title_id, v.policy_key, t.kind,
 			COALESCE(NULLIF(c.info_hash, ''), json_extract(l.file_metadata, '$.InfoHash'), ''),
@@ -24,7 +42,7 @@ func (o *Offerer) fileSources(ctx context.Context) ([]offerSource, error) {
 			COALESCE(l.quality, ''), COALESCE(cf.size_bytes, json_extract(l.file_metadata, '$.Size'), 0),
 			(SELECT json_group_array(episode_id) FROM link_episode WHERE link_id = l.id), l.path, l.target,
 			l.state = 'dead' OR EXISTS (SELECT 1 FROM library_dangling WHERE path = l.path),
-			COALESCE('adopted from ' || l.adopted_from, ''), '', '', 0
+			COALESCE('adopted from ' || l.adopted_from, ''), '', '', 0, l.adopted_source
 		FROM link l JOIN link_version lv ON lv.link_id = l.id JOIN version v ON v.id = lv.version_id
 		JOIN title t ON t.id = l.title_id LEFT JOIN content_file cf ON cf.id = l.content_file_id
 		LEFT JOIN content c ON c.id = cf.content_id
@@ -34,7 +52,7 @@ func (o *Offerer) fileSources(ctx context.Context) ([]offerSource, error) {
 			COALESCE(NULLIF(vf.release_title, ''), vf.scene_name), vf.quality, vf.size_bytes,
 			(SELECT json_group_array(episode_id) FROM version_file_episode WHERE version_file_id = vf.id),
 			vf.path, '', EXISTS (SELECT 1 FROM library_dangling WHERE path = vf.path), '',
-			vf.instance, COALESCE(vf.download_id, ''), vf.arr_file_id
+			vf.instance, COALESCE(vf.download_id, ''), vf.arr_file_id, NULL
 		FROM version_file vf JOIN version v ON v.id = vf.version_id JOIN title t ON t.id = vf.title_id
 		LEFT JOIN content c ON c.id = vf.content_id
 		WHERE NOT EXISTS (SELECT 1 FROM library_action a JOIN link l ON l.path = a.path
@@ -43,12 +61,13 @@ func (o *Offerer) fileSources(ctx context.Context) ([]offerSource, error) {
 			AND l.download_id IS NOT NULL AND l.state IN ('active', 'dead'))
 	) ORDER BY source_kind DESC, id`)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 	type fileSource struct {
 		offerSource
 		detail, instance, download string
 		arrID                      int64
+		stored                     sql.NullString
 	}
 	var files []fileSource
 	for rows.Next() {
@@ -56,9 +75,9 @@ func (o *Offerer) fileSources(ctx context.Context) ([]offerSource, error) {
 		var episodes string
 		if err := rows.Scan(&f.sourceKind, &f.id, &f.titleID, &f.version, &f.kind, &f.hash, &f.release,
 			&f.quality, &f.size, &episodes, &f.path, &f.target, &f.unreadable, &f.detail, &f.instance,
-			&f.download, &f.arrID); err != nil {
+			&f.download, &f.arrID, &f.stored); err != nil {
 			rows.Close()
-			return nil, err
+			return nil, nil, err
 		}
 		_ = json.Unmarshal([]byte(episodes), &f.episodes)
 		files = append(files, f)
@@ -66,9 +85,10 @@ func (o *Offerer) fileSources(ctx context.Context) ([]offerSource, error) {
 	err = rows.Err()
 	rows.Close()
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 	var out []offerSource
+	var record []adoptedRecord
 	for _, f := range files {
 		vp := o.Policy.Versions[f.version]
 		if vp == nil {
@@ -77,6 +97,7 @@ func (o *Offerer) fileSources(ctx context.Context) ([]offerSource, error) {
 		f.hash = indexer.NormalizeHash(f.hash)
 		f.arrVersion = f.version
 		arrPath := f.path
+		adoptedFrom := ""
 		if f.sourceKind == "link" {
 			if f.detail == "" && vp.Follows == "" {
 				continue
@@ -84,15 +105,30 @@ func (o *Offerer) fileSources(ctx context.Context) ([]offerSource, error) {
 			f.arrVersion = vp.Follows
 			arrPath = ""
 			if detail, ok := strings.CutPrefix(f.detail, "adopted from "); ok {
+				adoptedFrom = detail
 				f.instance, arrPath, _ = strings.Cut(detail, " ")
 				arrPath, _, _ = strings.Cut(arrPath, " (refresh: replaces ")
 				if o.Policy.Import != nil && o.Policy.Import.Arr[f.instance] != nil {
 					f.arrVersion = o.Policy.Import.Arr[f.instance].Version
 				} else if err := o.Store.Reader().QueryRowContext(ctx,
 					`SELECT policy_key FROM arr_instance WHERE name = ?`, f.instance).Scan(&f.arrVersion); err != nil && err != sql.ErrNoRows {
-					return nil, err
+					return nil, nil, err
 				}
 			}
+		}
+		var stored adoptedSource
+		if adoptedFrom != "" && f.stored.Valid && json.Unmarshal([]byte(f.stored.String), &stored) == nil &&
+			stored.From == adoptedFrom {
+			// Read before: the stored source stands in for the mount folder and the arr history.
+			if f.hash == "" {
+				f.hash = indexer.NormalizeHash(stored.Hash)
+			}
+			if f.release == "" {
+				f.release = stored.Release
+			}
+			f.indexer = o.indexerOf(stored.Indexers)
+			out = append(out, f.offerSource)
+			continue
 		}
 		if f.hash == "" {
 			target := f.target
@@ -104,17 +140,61 @@ func (o *Offerer) fileSources(ctx context.Context) ([]offerSource, error) {
 			}
 			f.hash, err = o.folderHash(ctx, target)
 			if err != nil {
-				return nil, err
+				return nil, nil, err
 			}
 		}
 		// Only history tied to this file, download or known hash supplies provenance. Unknown indexers still
 		// fail closed in offerTo.
-		if err := o.fileHistory(ctx, &f.offerSource, f.instance, f.download, f.arrID, arrPath); err != nil {
-			return nil, err
+		names, err := o.fileHistory(ctx, &f.offerSource, f.instance, f.download, f.arrID, arrPath)
+		if err != nil {
+			return nil, nil, err
+		}
+		if adoptedFrom != "" {
+			if names == nil {
+				names = []string{}
+			}
+			raw, err := json.Marshal(adoptedSource{From: adoptedFrom, Hash: f.hash, Release: f.release, Indexers: names})
+			if err != nil {
+				return nil, nil, err
+			}
+			record = append(record, adoptedRecord{linkID: f.id, from: adoptedFrom, source: string(raw)})
 		}
 		out = append(out, f.offerSource)
 	}
-	return out, nil
+	return out, record, nil
+}
+
+// indexerOf resolves stored arr indexer names as fileHistory does: any unknown name (or a grab without one) leaves
+// no indexer, else the first.
+func (o *Offerer) indexerOf(names []string) string {
+	first := ""
+	for _, name := range names {
+		key := o.Policy.IndexerByName(name)
+		if key == "" {
+			return ""
+		}
+		if first == "" {
+			first = key
+		}
+	}
+	return first
+}
+
+// recordAdoptedSources stores what fileSources read from the arr history for adopted links, for the link it was
+// read for only.
+func (o *Offerer) recordAdoptedSources(ctx context.Context, record []adoptedRecord) error {
+	if len(record) == 0 {
+		return nil
+	}
+	return o.Store.WriteTx(ctx, func(tx *sql.Tx) error {
+		for _, r := range record {
+			if _, err := tx.ExecContext(ctx, `UPDATE link SET adopted_source = ? WHERE id = ? AND adopted_from = ?`,
+				r.source, r.linkID, r.from); err != nil {
+				return err
+			}
+		}
+		return nil
+	})
 }
 
 // Several episode files can belong to one torrent. Decide once with all its retained episodes, rather than
@@ -171,7 +251,9 @@ func (o *Offerer) folderHash(ctx context.Context, target string) (string, error)
 	return "", nil
 }
 
-func (o *Offerer) fileHistory(ctx context.Context, s *offerSource, instance, download string, arrID int64, arrPath string) error {
+// fileHistory fills the source's hash, release and indexer from the arr history, and returns the arr indexer names it
+// resolved.
+func (o *Offerer) fileHistory(ctx context.Context, s *offerSource, instance, download string, arrID int64, arrPath string) ([]string, error) {
 	rows, err := o.Store.Reader().QueryContext(ctx, `WITH history AS (
 		SELECT h.* FROM arr_history h JOIN version v ON v.id = h.version_id
 		WHERE h.title_id = ? AND (? = '' OR h.instance = ?)
@@ -192,15 +274,16 @@ func (o *Offerer) fileHistory(ctx context.Context, s *offerSource, instance, dow
 		s.titleID, instance, instance, s.version, s.arrVersion, arrID, arrID, arrPath, arrPath,
 		download, download, s.hash, s.hash)
 	if err != nil {
-		return err
+		return nil, err
 	}
 	defer rows.Close()
 	knownHash := s.hash
 	ambiguous, unsafe := false, false
+	var names []string
 	for rows.Next() {
 		var hash, release, data, event string
 		if err := rows.Scan(&hash, &release, &data, &event); err != nil {
-			return err
+			return nil, err
 		}
 		hash = indexer.NormalizeHash(hash)
 		if knownHash != "" && hash != "" && knownHash != hash {
@@ -221,6 +304,7 @@ func (o *Offerer) fileHistory(ctx context.Context, s *offerSource, instance, dow
 		if name := fields["indexer"]; name != "" || event == "grabbed" {
 			// The arr's name for the indexer ("TheRARBG (Prowlarr)"): the policy indexer of that name
 			// (IndexerByName). An unknown one leaves the source without an indexer, and the offer is declined.
+			names = append(names, name)
 			key := o.Policy.IndexerByName(name)
 			if key == "" {
 				unsafe = true
@@ -236,7 +320,7 @@ func (o *Offerer) fileHistory(ctx context.Context, s *offerSource, instance, dow
 	if unsafe {
 		s.indexer = ""
 	}
-	return rows.Err()
+	return names, rows.Err()
 }
 
 // Applied replacement records survive in-place upgrades, which reuse the old link id and path. The replacing
@@ -292,7 +376,7 @@ func (o *Offerer) cancelSource(ctx context.Context, s *offerSource, dryRun bool)
 }
 
 func (o *Offerer) cancelSuperseded(ctx context.Context, dryRun bool) ([]OfferResult, error) {
-	files, err := o.fileSources(ctx)
+	files, _, err := o.fileSources(ctx)
 	if err != nil {
 		return nil, err
 	}

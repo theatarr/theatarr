@@ -543,3 +543,85 @@ func TestOfferArrMountFolder(t *testing.T) {
 		t.Fatalf("arr folder identity: %+v, %v", sr, err)
 	}
 }
+
+// adoptedHistoryEnv is an adopted link without a hash of its own whose arr history (import by path) gives the hash,
+// release and indexer; indexers records the indexer each decision was given.
+func adoptedHistoryEnv(t *testing.T, hash string) (*offerEnv, *[]string) {
+	e := newOfferEnv(t)
+	e.off.Policy.Versions["movie-web"].Follows = "movie-remux"
+	e.sourceFile("adopted", "")
+	e.arrHistory(hash, "torrent-1", "dmm")
+	e.exec(`UPDATE arr_history SET data = '{"indexer":"dmm","importedPath":"/arr/Movie.mkv"}'`)
+	var indexers []string
+	decideFn := e.off.Decide
+	e.off.Decide = func(ctx context.Context, rel decide.Release, t decide.Title, v decide.Version, f *decide.ExistingFile) (*decide.Decision, error) {
+		indexers = append(indexers, rel.Indexer)
+		return decideFn(ctx, rel, t, v, f)
+	}
+	return e, &indexers
+}
+
+func TestOfferAdoptedSourceStored(t *testing.T) {
+	t.Parallel()
+	hash := strings.Repeat("e", 40)
+	e, indexers := adoptedHistoryEnv(t, hash)
+	before, err := e.off.Sweep(e.ctx, true, 0)
+	if err != nil || before.Outcomes[OfferPlanned] != 1 {
+		t.Fatalf("dry run: %+v, %v", before, err)
+	}
+	if sr, err := e.off.Sweep(e.ctx, false, 0); err != nil || sr.Outcomes[OfferPlanned] != 1 {
+		t.Fatalf("sweep: %+v, %v", sr, err)
+	}
+	want := `{"from":"radarr /arr/Movie.mkv","hash":"` + hash + `","release":"Movie.2001.2160p.WEB-DL-GRP","indexers":["dmm"]}`
+	var stored string
+	if err := e.st.Reader().QueryRow(`SELECT adopted_source FROM link WHERE id = 1`).Scan(&stored); err != nil || stored != want {
+		t.Fatalf("stored %s, %v", stored, err)
+	}
+	// The arr history and instance gone, the stored source gives the same outcome and indexer.
+	e.exec(`DELETE FROM arr_history`)
+	e.exec(`DELETE FROM arr_instance`)
+	e.exec(`DELETE FROM router_offer`)
+	*indexers = nil
+	after, err := e.off.Sweep(e.ctx, true, 0)
+	if err != nil || fmt.Sprint(after.Offers) != fmt.Sprint(before.Offers) || fmt.Sprint(after.Outcomes) != fmt.Sprint(before.Outcomes) {
+		t.Fatalf("without history: %+v, before %+v, %v", after, before, err)
+	}
+	if len(*indexers) == 0 || (*indexers)[0] != "dmm" {
+		t.Fatalf("indexers %v", *indexers)
+	}
+}
+
+func TestOfferAdoptedSourceRereadWhenMoved(t *testing.T) {
+	t.Parallel()
+	hash, moved := strings.Repeat("e", 40), strings.Repeat("f", 40)
+	e, _ := adoptedHistoryEnv(t, hash)
+	if _, err := e.off.Sweep(e.ctx, false, 0); err != nil {
+		t.Fatal(err)
+	}
+	// A refresh moved the link to another arr file, whose history names another torrent.
+	e.exec(`UPDATE link SET adopted_from = 'radarr /arr/Movie.2.mkv' WHERE id = 1`)
+	e.exec(`UPDATE arr_history SET info_hash = ?, download_id = 'torrent-2',
+		data = '{"indexer":"dmm","importedPath":"/arr/Movie.2.mkv"}'`, moved)
+	e.enq.reqs = nil
+	if sr, err := e.off.Sweep(e.ctx, false, 0); err != nil || len(e.enq.reqs) != 1 ||
+		e.enq.reqs[0].Candidates[0].Release.InfoHash != moved {
+		t.Fatalf("moved: %+v, routes %+v, %v", sr, e.enq.reqs, err)
+	}
+	var from, stored string
+	if err := e.st.Reader().QueryRow(`SELECT json_extract(adopted_source, '$.from'), json_extract(adopted_source, '$.hash')
+		FROM link WHERE id = 1`).Scan(&from, &stored); err != nil || from != "radarr /arr/Movie.2.mkv" || stored != moved {
+		t.Fatalf("stored %s %s, %v", from, stored, err)
+	}
+}
+
+func TestOfferAdoptedSourceDryRunWritesNothing(t *testing.T) {
+	t.Parallel()
+	e, _ := adoptedHistoryEnv(t, strings.Repeat("e", 40))
+	if sr, err := e.off.Sweep(e.ctx, true, 0); err != nil || sr.Outcomes[OfferPlanned] != 1 {
+		t.Fatalf("dry run: %+v, %v", sr, err)
+	}
+	var n int
+	if err := e.st.Reader().QueryRow(`SELECT COUNT(*) FROM link WHERE adopted_source IS NOT NULL`).Scan(&n); err != nil || n != 0 {
+		t.Fatalf("stored %d, %v", n, err)
+	}
+}

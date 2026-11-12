@@ -404,3 +404,30 @@ func TestShadowFollowedNeverWritten(t *testing.T) {
 		t.Fatal("gate")
 	}
 }
+
+// TestAdoptedSourceClearedWhenFileChanges: the arr replaced its file at the same path (same adopted_from), and the
+// refresh records the new file at the same link path: the offer sweep's stored source described the old file and is
+// cleared, so the sweep reads the new file's again.
+func TestAdoptedSourceClearedWhenFileChanges(t *testing.T) {
+	t.Parallel()
+	e := newParallelEnv(t, true)
+	old := "Amelie.2001.1080p.WEB-DL-GRP"
+	e.release(old, map[string]float64{"movie.mkv": 7000})
+	arrPath := filepath.Join(e.movies, "Amelie The Movie (2001)", "Amelie.mkv")
+	e.arrFile(1, "radarr", 10, 1, arrPath, old+"/movie.mkv", "WEBDL-1080p")
+	if rep, err := e.lib.Adopt(e.ctx, AdoptOptions{Version: "movie-theatarr"}); err != nil || rep.Linked != 1 {
+		t.Fatalf("%+v %v", rep, err)
+	}
+	e.exec(`UPDATE link SET adopted_source = '{"from":"radarr ` + arrPath + `","hash":"aa","indexers":["dmm"]}'`)
+	other := "Amelie.2001.1080p.AMZN.WEB-DL-GRP"
+	e.release(other, map[string]float64{"movie.mkv": 7000})
+	e.arrUpgrade(1, old, 2, "radarr", 10, 1, arrPath, other+"/movie.mkv", "WEBDL-1080p")
+	rep, err := e.lib.Refresh(e.ctx, RefreshOptions{Version: "movie-theatarr"})
+	if err != nil || rep.Swapped != 1 || rep.Swaps[0].Path != rep.Swaps[0].Old {
+		t.Fatalf("refresh %+v %v", rep, err)
+	}
+	if got := e.one(`SELECT id || ' ' || adopted_from || ' ' || COALESCE(adopted_source, 'NULL') || ' ' || target FROM link`); got !=
+		"1 radarr "+arrPath+" NULL "+filepath.Join(e.mount, "__all__", other, "movie.mkv") {
+		t.Fatalf("link row %s", got)
+	}
+}

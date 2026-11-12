@@ -158,7 +158,7 @@ func (o *Offerer) handle(ctx context.Context, j *jobs.Job) error {
 		active = &pass
 		if _, err = active.cancelSuperseded(ctx, false); err == nil {
 			var sources []offerSource
-			sources, err = active.fileSources(ctx)
+			sources, _, err = active.fileSources(ctx)
 			sources = groupOfferFiles(sources)
 			for i := range sources {
 				if err != nil {
@@ -622,9 +622,15 @@ func (o *Offerer) Sweep(ctx context.Context, dryRun bool, limit int) (*SweepResu
 			sr.Offers = append(sr.Offers, res...)
 		}
 	}
-	sources, err := o.fileSources(ctx)
+	sources, record, err := o.fileSources(ctx)
 	if err != nil {
 		return sr, err
+	}
+	if !dryRun {
+		// What the arr history gave for adopted links is kept on the link, so they keep their offers after it goes.
+		if err := o.recordAdoptedSources(ctx, record); err != nil {
+			return sr, err
+		}
 	}
 	sources = groupOfferFiles(sources)
 	for i := range sources {

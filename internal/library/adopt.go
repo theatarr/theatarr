@@ -651,14 +651,16 @@ func (l *Library) recordAdopted(ctx context.Context, version string, vp *policy.
 			return err
 		}
 		var linkID int64
-		// adopted_from is the provenance the follower refresh and the router's offer sources read (00077).
+		// adopted_from is the provenance the follower refresh and the router's offer sources read (00077). The
+		// offer sweep's stored adopted_source (00114) described the file recorded before: a changed file at the same
+		// path (a refresh can keep the arr path while its target or hash changes) clears it, to be read again.
 		err := tx.QueryRowContext(ctx, `INSERT INTO link (path, target, kind, title_id, release_title, quality, score,
 				file_metadata, adopted_from, state, last_checked_at, created_at, updated_at)
 			VALUES (?, ?, 'symlink', ?, ?, ?, ?, ?, ?, 'active', ?, ?, ?)
 			ON CONFLICT (path) DO UPDATE SET target = excluded.target, content_file_id = NULL,
 				download_id = NULL, release_title = excluded.release_title, quality = excluded.quality,
 				score = excluded.score, state = 'active', adopted = 0, file_metadata = excluded.file_metadata,
-				adopted_from = excluded.adopted_from, missing_since = NULL, last_checked_at = excluded.last_checked_at,
+				adopted_from = excluded.adopted_from, adopted_source = NULL, missing_since = NULL, last_checked_at = excluded.last_checked_at,
 				updated_at = excluded.updated_at
 			WHERE link.title_id = excluded.title_id AND link.download_id IS NULL
 			RETURNING id`, p, target, f.titleID, release, f.quality, score, string(metaJSON), f.instance+" "+f.path,
