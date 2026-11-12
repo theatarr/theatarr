@@ -102,8 +102,9 @@ leads back to it.
 
 Open **Setup** (`/admin/setup`). Its six steps: secure the admin account, connect downloads, add metadata (TMDb),
 connect the library, check readiness, then review activation. A fresh install needs a writable data directory, nothing else. Add the debrid mount,
-writable library roots and trash before checking readiness or importing. Saving the mount and the trash each asks
-you to confirm what the change enables. Steps 4–7 below fill in the connections
+writable library roots and trash before checking readiness or importing. Settings save at once; only a few changes
+ask first (making a library Live, turning its downloads on, turning **Pause** off, removing a library, and moving a
+provider or indexer to a new address while keeping its stored key). Steps 4–7 below fill in the connections
 and the first library; Setup links to each editor.
 
 **Settings** (`/admin/settings`) uses forms. Credentials are stored write-only in the database:
@@ -236,9 +237,9 @@ A library groups a set of titles with a kind (movies or series), a quality profi
 the indexers it searches and the providers it adds to. **Setup** builds the first one:
 
 1. a key (`movies`), the kind, and the library root (`/media/movies`). The root must exist and be writable by
-   uid 65532 (step 1). **Check root** shows where it resolves and refuses a root that is missing, inside the mount
-   or outside the library area. The first library's root sets that area (its parent directory) unless
-   **File management › Broken link checks › Folders to check** names it;
+   uid 65532 (step 1). It can be any folder: **Check root** shows where it resolves and refuses only a root that is
+   missing, the filesystem root, inside the debrid mount or a folder holding it, or overlapping the trash or another
+   library's root;
 2. a quality profile: a TRaSH default builds a new profile with its formats, or pick an existing profile. Every
    TRaSH quality profile is offered, here and in the library editor under **Settings › Libraries**;
 3. the indexers and providers;
@@ -273,14 +274,14 @@ The editor there has two things Setup does not ask for:
   them. The section starts open when the library already uses one of them.
 
 Each library is **Watch only** or **Live**, chosen in its row on **Settings › Libraries** or at the top of its
-editor; the change saves at once, after the usual confirmation. Watch only records what it would do and downloads
+editor. Going **Live** asks for a confirmation first; going back to Watch only saves at once. Watch only records what it would do and downloads
 and links nothing. Live searches, downloads and links. A Live library with **Don't download for this library**
 ticked reads **Live, downloads off**: nothing is downloaded for it; RSS checks and manual searches may still record
 decisions. Beside the control, the row says when a global switch holds a Live library back, for example **Live,
 paused**. A library another library follows stays Watch only.
 
 **Pause**, at the top of every admin page, turns **Allow new downloads** and **Write library links** off or on
-together, with the same confirmation as the two switches. When only one of them is off it reads **Custom** and links
+together. Turning it off (resuming) asks for the same confirmation as turning the two switches on. When only one of them is off it reads **Custom** and links
 to it. The two switches themselves are under **Advanced** on **Settings › Download clients** and **Settings ›
 Libraries**.
 

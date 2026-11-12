@@ -498,7 +498,7 @@ list projection of media facts).
 | System › Backup | `/admin/system/backup` | Theatarr backups and confirmed restore; torrent-list schedule, backups, import, download and restore preview; review-only settings export link; database counts, nightly run and `#backup-check`. |
 | System › Errors | `/admin/system/errors` | Existing error inbox and its actions. |
 | System › Logs | `/admin/system/logs` | Existing log viewer and filters. |
-| Reviews | `/admin/reviews` | Waiting cards for Quality updates (`/quality`), Anime mappings (`/anime`, franchise detail `/:slug`, with alternate cuts and episode numbering), Indexer definitions (`/indexers`) and Flagged decisions (`/decisions`). These suffixes are under `/admin/reviews`. Counts poll every 60 seconds for admins; catalog off returns an empty holds list (HTTP 200). Quality sync 409 (YAML) and 503 (not running) are unavailable, with no waiting items. Pending counts show Loading and failed counts show unavailable. Journal has no total: a full page or next_cursor marks a lower bound (`50+`, `1+`, or `?` when no matches were found in the scan). Waiting and Status never give an all-clear for unknown counts; Status names failed review sources. An empty scanned window says “None in the newest entries.” and links to all flagged decisions. Definition reviews show loading, errors, or “No definition updates waiting.”. Flagged rows link to the journal verdict controls. Wrong blocks and searches again only with new downloads on, an active library and a known release; otherwise it records the verdict. |
+| Reviews | `/admin/reviews` | Waiting cards for Anime mappings (`/anime`, franchise detail `/:slug`, with alternate cuts and episode numbering), Indexer definitions (`/indexers`) and Flagged decisions (`/decisions`). These suffixes are under `/admin/reviews`; the old `/admin/reviews/quality` opens the Waiting tab (TRaSH and Recyclarr updates apply by themselves, Settings › Quality sync logs them). Counts poll every 60 seconds for admins; catalog off returns an empty holds list (HTTP 200). Pending counts show Loading and failed counts show unavailable. Journal has no total: a full page or next_cursor marks a lower bound (`50+`, `1+`, or `?` when no matches were found in the scan). Waiting and Status never give an all-clear for unknown counts; Status names failed review sources. An empty scanned window says “None in the newest entries.” and links to all flagged decisions. Definition reviews show loading, errors, or “No definition updates waiting.”. Flagged rows link to the journal verdict controls. Wrong blocks and searches again only with new downloads on, an active library and a known release; otherwise it records the verdict. |
 | Torrents | `/admin/torrents` | Provider torrents: usage, filters, sorting, confirmed deletes and journal. An account that cannot be read gets one line: the provider's name, why in plain words (the provider asked to slow down, paused after failed requests, request limit used up, VPN not confirmed) and the next try in local time, with the raw error under Details. Saved inventory (`/inventory`, detail `/:hash`) shows known hashes and provider holdings. Backups live in System › Backup. |
 | Settings | `/admin/settings` | Search and task pages below. |
 | Users & access | `/admin/users` | Users, roles, permissions, sessions and API/view keys. |
@@ -531,7 +531,7 @@ Startup fallback retains the full notice and reload/confirmation behavior.
 | Libraries | `/admin/settings/libraries` | Libraries · Naming · File management |
 | Profiles | `/admin/settings/profiles` | Profiles · Check a release |
 | Custom formats | `/admin/settings/formats` | Rules that match releases and influence quality scores. |
-| Quality sync | `/admin/settings/quality-sync` | Sources, preview, run, link and recent runs; waiting count links to Reviews › Quality updates. How sync works is folded. |
+| Quality sync | `/admin/settings/quality-sync` | Sources, preview (a dry run), run, link, update log and recent runs. How sync works is folded. |
 | Indexers | `/admin/settings/indexers` | Indexers · VPN · Catalog · RSS |
 | Download clients | `/admin/settings/downloads` | Debrid providers (with Provider account sync above their status) · Other clients · Behaviour |
 | Notifications | `/admin/settings/notifications` | Where and when Theatarr sends messages. |
@@ -565,7 +565,7 @@ going. The Wanted page's queue bar says the queue waits instead of giving a next
 state in words, from the running `grab_state` ("Watch only", "Live", "Live, downloads off", "Live, paused", "Live,
 but new downloads are off", "Live, but new files won't be linked", "Live, but new downloads are locked off"). The
 select shows the stored mode; changing it saves the stored library with only `mode` and `grab` changed through the
-library save and its confirmation: Live sets `mode: active` and `grab: true`, Watch only sets `mode: shadow` and
+library save (going Live asks for confirmation first; Watch only saves at once): Live sets `mode: active` and `grab: true`, Watch only sets `mode: shadow` and
 keeps `grab` as stored (an absent key stays absent). A library another library follows offers Live disabled, with
 the reason.
 
@@ -601,8 +601,9 @@ values have a Changed mark but no Undo (a record's Service, which fills a new re
 Root and Write roots); Discard resets the whole draft. Undo under an object the saved settings
 did not have leaves it absent, so the draft equals the saved value again. The Libraries editor has the same marks (a new
 library's key included), count and Discard (it has no schema defaults, so no Reset); list rows tie their indexed error and the help to their
-control. A risky change keeps the server's 422
-confirmation: the dialog (`EffectsConfirmDialog`) lists the effects word for word as the server returns them,
+control. Most saves apply at once; the few changes the server confirms (going Live, downloads on for a Live library,
+Pause off, removing a library, an address change that keeps a stored key, following or an arr import into a grabbing
+library; [Settings](settings.md#sections-and-views)) keep its 422 confirmation: the dialog (`EffectsConfirmDialog`) lists the effects word for word as the server returns them,
 grouped by library (effects that name none first, under "This change"; nothing is added to what the server sends), says which libraries are affected and, when the change is about one
 library, names the other libraries it also affects; Cancel has the focus.
 The torrent-backups panel is owned by the System Backup page and is searchable without appearing in Settings navigation. The field placement table is in [Settings](settings.md).

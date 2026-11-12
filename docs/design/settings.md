@@ -38,8 +38,9 @@ candidate the same way:
 The preview (CLI and the page's JSON, `sections_note` and `sections_from_files`) says this in one line:
 `Settings sections are kept as stored; filled from the files: provider_sync.` (or `none is filled from the files`).
 An import over an existing generation needs all five record groups (indexers, providers, budgets, versions and
-views; an empty map reads as absent), so an omitted group can never delete stored records. On a new database the
-version roots are checked against the candidate's own library area. Database backup and restore are unchanged;
+views; an empty map reads as absent), so an omitted group can never delete stored records. On a new database every
+version root is checked against the mount, the trash and the other libraries' roots (symlinks resolved); a root may
+sit anywhere else. Database backup and restore are unchanged;
 exports without secrets are review copies, not backups.
 
 The policy directory (serve's `-policy`, `THEATARR_POLICY`, default `/config/policy`) is not a settings
@@ -54,12 +55,15 @@ Unset or `db` settings-source options are accepted for compatibility. `yaml` ref
 Other settings-dependent commands take their settings from `-db`; `preflight -policy` is removed. Directory
 inspection/import tools retain directory inputs.
 
-`THEATARR_FORCE_OFF` forces the router, library and notification switches off. Saves cannot override it. Enabling
-switches or write-enabling library changes requires confirmation.
+`THEATARR_FORCE_OFF` forces the router, library and notification switches off. Saves cannot override it. Turning
+Allow new downloads or Write library links on (Pause off), making a library Live, turning a Live library's downloads
+on, removing a library, an address change that keeps a stored key, and following or an arr import into a grabbing
+library require confirmation; other changes save at once ("Confirmations" below).
 
 
 Agents can read sections and views and save them through [MCP](../mcp.md), with the same validation and confirmation
-tokens. MCP writes are audited as "via MCP" and cannot activate versions, enable grab or turn on global switches.
+tokens. MCP writes are audited as "via MCP"; a change that needs confirmation is confirmed with the key's own token
+("Who confirms" below).
 
 ## Settings pages
 
@@ -154,9 +158,9 @@ once. `section-panel.test.tsx` exercises partial writes, credentials, 422, 409, 
 
 ## Global switches
 
-`PUT /settings/switches` takes a generation and one or more `router_enabled`, `library_enabled`, `notify_enabled` booleans. Off needs no confirmation. Enabling answers with the 422 confirmation flow, or `POST /settings/switches/confirm` previews it: the token binds the entire candidate and next generation to effects naming active versions with grab on and their enabled providers, active versions' library roots, or YAML targets and installed arr notification clients. Confirmations omit webhook URLs and credentials. Enabling a stored request under an environment override still needs confirmation. Whole-policy imports and clients omitting the new record preserve the switches; YAML imports cannot enable them.
+`PUT /settings/switches` takes a generation and one or more `router_enabled`, `library_enabled`, `notify_enabled` booleans. Off needs no confirmation, and neither does turning `notify_enabled` on. Turning `router_enabled` or `library_enabled` on (Pause off) answers with the 422 confirmation flow, or `POST /settings/switches/confirm` previews it: the token binds the entire candidate and next generation to effects naming active versions with grab on and their enabled providers, or active versions' library roots. Confirmations omit credentials. Enabling a stored request under an environment override still needs confirmation. Whole-policy imports and clients omitting the new record preserve the switches; YAML imports cannot enable them.
 
-Each save publishes a runtime generation without a restart. New routes and library operations use the new gates; the router's final-write check also refuses further adds from retired generations. A provider request already sent is not canceled, and existing downloads continue to be polled as with the router off. Library operations already in flight keep their captured generation; subsequent operations do the same dry run as startup with the switch off. Notification recording, tests and delivery sending read the runtime switch; queued deliveries are dropped while off. Health and arr/native views use the active generation. Startup fallback treats pre-switch snapshots as off and intersects older switch values with the stored head, so recovery cannot re-enable a switch the head turned off. Versions get the same treatment: a recovered version stays active only while the head's version is active and grabs only while the head's version grabs, and a version the head no longer has is recovered as shadow without grab. Anything else the fallback would allow that the head does not (the confirmation effects of going from the head to it: a safety section such as egress, `router.cached_only` or notify hosts, a credential, a view, an indexer) refuses the fallback, and the start fails with both reasons instead of running looser settings than the saved ones (`TestStartupFallbackRefusedWhenLooserThanHead`). While a fallback runs, the health check `SettingsFallbackCheck` is an error naming the running and the stored generation (Admin › System › Status lists it under Needs attention, linking to Settings, whose banner offers the reload); it is OK again once the head is loaded (`TestSettingsFallbackHealth`). It compares the running generation with the stored head (one row), so it can also flag, for a moment, a save committed but not yet published.
+Each save publishes a runtime generation without a restart. New routes and library operations use the new gates; the router's final-write check also refuses further adds from retired generations. A provider request already sent is not canceled, and existing downloads continue to be polled as with the router off. Library operations already in flight keep their captured generation; subsequent operations do the same dry run as startup with the switch off. Notification recording, tests and delivery sending read the runtime switch; queued deliveries are dropped while off. Health and arr/native views use the active generation. Startup fallback treats pre-switch snapshots as off and intersects older switch values with the stored head, so recovery cannot re-enable a switch the head turned off. Versions get the same treatment: a recovered version stays active only while the head's version is active and grabs only while the head's version grabs, and a version the head no longer has is recovered as shadow without grab. Anything else the fallback would allow that the head does not (the confirmation effects of going from the head to it: a Live library that follows an arr library where the head's does not, an arr import into a grabbing library the head does not map, or a library the head has, with links or a follows relationship, that the fallback lacks) refuses the fallback, and the start fails with both reasons instead of running looser settings than the saved ones. An address the fallback gives a provider or indexer with its kept key is not checked: that generation was published with it (`TestFallbackEffectsIgnoreOwnAddress`). While a fallback runs, the health check `SettingsFallbackCheck` is an error naming the running and the stored generation (Admin › System › Status lists it under Needs attention, linking to Settings, whose banner offers the reload); it is OK again once the head is loaded (`TestSettingsFallbackHealth`). It compares the running generation with the stored head (one row), so it can also flag, for a moment, a save committed but not yet published.
 
 
 ## Sections and views
@@ -279,20 +283,15 @@ name) or with another scheme or host is refused, so a stored URL never moves to 
 00083 replaced the URLs in older audit rows with `[redacted]`. Policy validation refuses credential query
 parameters in configured URLs by the same name rule (`secrets.CredentialQueryName`): put them in the `*_env` fields.
 
-**Confirmations.** A save answers 422 with effects and a token (the shared dialog) when it sends requests to another
-host (any `url`, `*_url`, `zurg_api`, a URL `zurg_log`, `allow_hosts`; notify URLs are shown redacted), changes
-where files are read or written (`path`, `link_path`, `dir`, `all_dir`, `roots`, `zurg_log`, `*_dir`), changes the
-VPN guard in either direction, changes the cardigann definitions,
-turns `router.cached_only` off, points a section's `*_env` field at another credential name, or creates, moves,
-re-flavours, re-aliases or re-keys a view. The guard and the router compare effective values: an omitted
-`require_vpn_for` (guards indexers) against `[]` (guards nothing) is a change, and so is an omitted `cached_only`
-(on) against `false`. Storing or clearing the section's own credential value, or falling back to the name the stored
-section already had, is not a repoint; a name written while a value is stored is confirmed when written, so clearing
-the value later cannot switch silently. Removing a host or path narrows what is reached and needs no confirmation
-(except in `egress`). Tuning values (intervals, limits, events) save directly.
+**Confirmations.** A save answers 422 with effects and a token (the shared dialog) only when it makes a library Live
+(or creates one Live), turns a Live library's downloads on, turns Allow new downloads or Write library links on
+(Pause off), removes a library that has links or follows another, changes a provider's or indexer's address while it
+keeps its stored key, makes a Live library follow an arr library, or maps an arr import into a library with
+downloads on. Every other change, other addresses, folders, the VPN guard, `router.cached_only`, profiles, formats,
+naming, indexers, providers, views, notifications and credential names included, saves at once after validation.
+Validation itself is unchanged (`TestEverydayLiveEditsSaveDirectly`, `TestKeptConfirmations`).
 
-Settings editors attach the confirmation token centrally on every retry, including view-binding and profile
-deletes. The retry keeps the reviewed request body and generation and sends the token only in
+Settings editors attach the confirmation token centrally on every retry of a refused save. The retry keeps the reviewed request body and generation and sends the token only in
 `X-Confirmation-Token`. Canceling leaves the change unsaved.
 The dialog shows the server's effects unchanged, grouped by the library each names (effects without one first, under
 "This change"), with the libraries affected and, in the Libraries editor, the other libraries a change also
@@ -306,8 +305,8 @@ same way: the 422 carries the effects and a token, the confirm endpoints issue o
 token (`confirmation_token` or `X-Confirmation-Token`) applies it. A session's tokens are bound to its user
 (`settings.WithConfirmer`, "user:<id>"); a key's to that key (`settings.WithKeyConfirmer`, "key:<id>"), so a key's
 token is refused for another key, for a session and after the key is revoked, and a session's for a key. This covers
-every flow: sections and records, versions (activation and grab), global switches, view bindings, deletes,
-`orphan_active_downloads`, migration apply steps and torrent delete and restore. Torrent delete and restore store no
+every flow: records (an address with a kept key), sections (an arr import), versions (activation, grab, following
+and removal), global switches, `orphan_active_downloads`, migration apply steps and torrent delete and restore. Torrent delete and restore store no
 token: theirs is an HMAC, under a random per-process key, of the confirmer (`settings.Confirmer`) and the plan digest,
 so only a preview gives it and only the same caller can use it; a restart means preview again
 ([torrents.md](torrents.md)). Permissions still decide what a key
@@ -380,7 +379,7 @@ For classes listed in `egress.require_vpn_for` (default `[indexers]`), the VPN g
 
 Changes requiring restart: listener address/TLS/cookie security, DB path, worker count/queue topology, backup location/retention/schedule, embedded UI build, and data-directory paths, because these are CLI/process resources established before or outside policy construction (`cmd/theatarr/serve.go`). Changing root paths or mount probes is reloadable only after validating mount accessibility and rebuilding the library gate; the host mount itself is external and cannot be changed by settings. Live imports use the same prepare, commit and publish safety path as saves; provider removals wait for in-progress adds, and retired web event loops are joined before a generation is closed.
 
-`router.enabled`, `library.enabled`, the notify switch and per-version `mode` are explicit. Startup logs `ROUTER DISABLED` and `LIBRARY ENABLED` when those states apply (`internal/router/router.go`, `cmd/theatarr/servelibrary.go`). Saving any transition that enables router writes or library writes requires a separate, explicit confirmation bound to the candidate generation; an ordinary save, import or sync never turns a switch on. Turning notifications on also requires confirmation, because it starts outbound delivery. Adding a provider or version never makes it active. Per-version `grab` (default false) is DB-editable in the versions editor: turning it on for an active version is a confirmed change (the effect names the version's providers and the current `router.enabled`), turning it off never needs one.
+`router.enabled`, `library.enabled`, the notify switch and per-version `mode` are explicit. Startup logs `ROUTER DISABLED` and `LIBRARY ENABLED` when those states apply (`internal/router/router.go`, `cmd/theatarr/servelibrary.go`). Saving any transition that enables router writes or library writes requires a separate, explicit confirmation bound to the candidate generation; an ordinary save, import or sync never turns a switch on. Turning notifications on saves at once: it is a plain switch that downloads, writes and deletes nothing. Adding a provider or version never makes it active. Per-version `grab` (default false) is DB-editable in the versions editor: turning it on for an active version is a confirmed change (the effect names the version's providers and the current `router.enabled`), turning it off never needs one.
 
 ## API and UI
 
@@ -472,9 +471,9 @@ own).
 - An environment variable named by a `*_env` field is the fallback while no DB secret was ever set (an explicit
   clear does not fall back).
 - Provider/indexer test calls are admin-only, audited as outbound actions, and count against the source's budget.
-- Scheduled TRaSH sync: each sync source is set to auto-apply (Recyclarr-like) or review; the default is
-  review, which fetches automatically and waits for approval when scores or specs change. Neither path changes a
-  version's mode.
+- Scheduled TRaSH sync: each enabled sync source applies what changed upstream on its schedule, as Recyclarr does,
+  and writes an update log entry; there is no review step. A value set by hand stays, and nothing is deleted
+  ("Quality and naming records" below). A run never changes a version's mode.
 - Restart-only settings are listed under "Live changes and safety".
 
 ### Settings API
@@ -648,35 +647,46 @@ Recyclarr YAML uses the existing converter; instance credentials and URLs are di
 changes only the profile values its config sets ("Recyclarr sources: managed fields" below). Sources select a
 flavour, optional TRaSH IDs to add, and local profile → TRaSH score-set bindings. Bindings update existing scored
 formats and explicitly selected additions; they do not score every global format implicitly. Previews show
-added/spec-changed/retired formats, per-profile score changes and held-file impact (score, cutoff and upgrade
-eligibility, with examples). Removed or renamed upstream IDs are retained and marked retired. Approval applies
-the exact reviewed candidate in one normal audited generation; a stale review requires a fresh preview. A preview of
-the editor's unsaved config ("Preview draft import") is stored as a review of its own and never replaces or
-supersedes the saved source's pending reviews (otherwise a tracked source's next run would find its commit unchanged
-and never offer the change again; `TestQualitySyncDraftPreviewKeepsPendingReview`). A draft preview applies a bound score set's scores as one whole
-review and remembers nothing; a saved source's preview or run follows the score rules below.
+added/spec-changed/retired formats, per-profile score changes and the effect on existing files (score, cutoff and upgrade
+eligibility, with examples). Removed or renamed upstream IDs are retained and marked retired. A preview
+(`POST /settings/sync/preview`, "Preview" and the editor's "Preview draft import") is a dry run: it stores and applies
+nothing, and the next run applies what it shows. A draft preview (a config that is not the saved source's) applies
+a bound score set's scores as a whole and remembers nothing; a saved source's preview or run follows the score rules
+below.
 
-Each enabled source defaults to a daily (`24h`) schedule and `review` mode. Scheduled changes in review mode
-create a pending review, displayed in the editor and health, and apply nothing. `auto` applies through the same
-coordinator as actor `sync:<source key>`; retirement alone remains a review. Scores of a profile bound to a TRaSH
-score set (`profiles`) follow the rules of "Following TRaSH's scores" below in every mode: local scores are held
-apart and only they wait. Unchanged runs only record their run, without a settings generation. Sources are disabled
-until explicitly enabled. No test fetches upstream.
+**Runs apply by themselves.** There are no sync modes and no pending reviews. Each enabled source runs on its
+schedule (daily, `24h`, by default; weekly for a tracked source) and applies what changed upstream (specification
+changes, formats added through its `trash_ids`, bound scores, a Recyclarr source's profile values and new profiles)
+in one audited generation through the same coordinator save as an administrator, actor `sync:<source key>`,
+operation `quality-import`. The apply goes through no confirmation: a sync run never makes a library Live, turns
+downloads on or touches a switch, even when the change widens what a Live library grabs
+(`TestQualitySyncAppliesToLiveLibrary`). Nothing is ever deleted: a format TRaSH retires or renames, and a profile a
+Recyclarr config no longer lists, stay as they are (`TestQualitySyncNeverDeletes`); a run whose only finding is a
+retirement is `unchanged`. A value set by hand stays when the source changes it, and a source's first run takes the
+source's values ("Following TRaSH's scores" below). Unchanged runs only record their run, without a settings
+generation. Sources are disabled until explicitly enabled. No test fetches upstream.
 
-Review candidates contain complete quality records. Nightly retention removes an applied or superseded review
-only after the history window (180 days by default), outside the newest 100 closed reviews **per source**, and
-when no retained sync run references it. Pending reviews always stay. Applied settings remain in settings
-generations and their normal audit history; retention never changes current settings or score decisions. A zero
-history window disables this pruning.
+Each applied run writes one **update log** entry: a `settings_quality_review` row with `state = 'applied'`, the run's
+preview (formats added, specifications changed, retired, score changes, profile value changes and the values kept as
+yours, `held` / `held_fields`) and no candidate (`candidate = 'null'`). `GET /settings/sync/changes` (admin,
+`?limit=`, default 50, at most 100) lists them newest first with `applied_at`; held-score decisions of the former
+review (`kind: "scores"`) are left out (`TestQualitySyncChangesAPI`). The run row points at its entry
+(`review_id`). A run is applied only at the generation it previewed: a settings save in between makes the run an
+error (`ErrConflict`, the last state is kept) and the schedule tries again (`TestQualitySyncStalePreviewNotApplied`).
+Nightly retention removes an applied or superseded row only after the history window (180 days by default), outside
+the newest 100 such rows **per source**, and when no retained sync run references it. Applied settings remain in
+settings generations and their normal audit history; retention never changes current settings. A zero history
+window disables this pruning.
 
-`TestQualityReviewCandidateStorageGrowth` measures the example-policy fixture (5 profiles, 22 formats, 5 naming
-records): 62,621 bytes per candidate plus a 403-byte preview, 3,277,290 bytes for 52 weekly reviews, or 22,856,665
-candidate bytes for 365 daily reviews. These are JSON payload sizes, excluding SQLite/WAL overhead and settings
-generations. The 52 previews leave 51 superseded rows until retention runs; without the rule growth is unbounded.
+Migration **00119** (`00119_quality_sync_auto.sql`) moves existing installs over: pending reviews of any kind become
+`superseded`, the stored `mode` is removed from every source, and every run's config digest is cleared, so each
+source reads its upstream again on its next run and applies the result (`TestQualitySyncAutoMigration`). Changes a
+former `review` or `auto_definitions` source was holding apply on that run. Old applied reviews appear in the update
+log; old `review` outcomes stay in Recent runs as they were.
 
 The sync implementation stays in package `settings`: `qualitysync.go` holds configuration and shared types,
-`qualitysync_preview.go` computes candidates and loads sources, `qualitysync_reviews.go` persists/reviews/applies,
-and `qualitysync_runs.go` schedules and records runs. Approval and its review-state update remain inside the same
+`qualitysync_preview.go` computes candidates and loads sources, `qualitysync_apply.go` applies a run and reads the
+update log, and `qualitysync_runs.go` schedules and records runs. The apply and its log entry are written in the same
 coordinator transaction.
 
 **Tracked sources** (`origin: github`). A source with `origin: github` tracks `repo` (default
@@ -687,29 +697,18 @@ is the bare 40-hex id, at most 4 KiB read) through the gateway, under the same `
 destination checks as the archives. When that commit and the source's config are those of the source's last run that
 did not fail (migration **00073** records a config digest per run), the run is recorded `unchanged` and nothing is
 fetched; otherwise Theatarr fetches `https://codeload.github.com/<repo>/tar.gz/<commit>` and builds the usual preview. A
-weekly run therefore costs one small request, and two when the branch moved. Defaults for a tracked source: schedule
-`168h` (weekly, counted from the last run, not a weekday) and mode `auto_definitions`:
+weekly run therefore costs one small request, and two when the branch moved. The default schedule for a tracked
+source is `168h` (weekly, counted from the last run, not a weekday).
 
-| Mode | Applies by itself | Held as a pending review |
-|---|---|---|
-| `review` (default for local/pinned sources) | nothing (only the score memory below) | every change, following scores included; local scores as held scores |
-| `auto` | every change but local scores and profile value changes (retirement alone stays a review) | retirement only, any profile value change of a Recyclarr source (qualities, cutoff, upgrade settings, sizes, scores, a new profile), and local scores or values that the source changed (held) |
-| `auto_definitions` (default for tracked sources) | specification changes of formats the settings already hold, and the bound scores that follow TRaSH | any added or retired/renamed format, any other score or profile change (the run's following scores and definitions wait with it); local scores as held scores |
-
-`auto_definitions` matches a common Recyclarr setup: only listed formats are managed (`delete_old_custom_formats:
-false`), and unbound profiles keep their local scores. An unbound profile never gets a
-score change from a TRaSH source, and a new format or a retired one always waits for an administrator. A definition
-change, and a score that follows TRaSH, apply without confirmation by design, even when they change which releases an
-active profile accepts (see "Write-enabling confirmation" below). Each run is
-recorded with its commit and outcome (`unchanged`, `review` when anything waits, held scores included, `applied`,
-`error`). A failed lookup, fetch or apply
-changes nothing but its own run record: the settings and any pending review stay as they were (an automatic apply
-supersedes the source's earlier pending reviews only once it lands; a failed one leaves no review of its own;
-`TestQualitySyncFailedAutoApplyKeepsPendingReview`), health (Quality sync)
-turns to a warning naming the source, its error and its last good commit, and a tracked source tries again after 6h
-instead of waiting for the next weekly slot. A manual "Run sync now" skips the schedule but not the commit check;
-"Preview" always fetches. The editor shows origin, repository, branch and mode; the sync page shows each source's
-origin, mode, last good commit and a failed last run. Tests use a fake GitHub only
+Every source behaves like a common Recyclarr setup: only listed formats are managed (`delete_old_custom_formats:
+false`), and unbound profiles keep their local scores. An unbound profile never gets a score change from a TRaSH
+source. Each run is recorded with its commit and outcome (`unchanged`, `applied`, `error`). A failed lookup, fetch
+or apply changes nothing but its own run record ("the update could not be applied: …; the last state is kept"; the
+settings stay as they were, `TestQualitySyncFailedApplyKeepsState`), health (Quality sync) turns to a warning naming
+the source, its error and its last good commit, and a tracked source tries again after 6h instead of waiting for the
+next weekly slot. Otherwise health says "Quality sync is up to date". A manual "Run sync now" skips the schedule but
+not the commit check; "Preview" always fetches. The editor shows origin, repository, branch and schedule; the sync
+page shows each source's kind, origin, last good commit and a failed last run. Tests use a fake GitHub only
 (`internal/settings/qualitytracked_test.go`, `internal/gateway/quality_test.go`).
 
 **Linking formats to TRaSH.** A sync source compares only formats that carry a TRaSH id.
@@ -738,12 +737,13 @@ near-match:
 The apply (`{generation, commit, links: [{set, key, trash_id}]}`) recomputes the match at the previewed settings
 generation and TRaSH commit (the preview's tree is kept 30 minutes, so a tracked source is not fetched again; a
 different generation or commit is a 409) and refuses any link the preview did not offer (422). It writes one
-audited generation (operation `trash-link`). The link is the format's own `trash_id` (and `flavour`), on a
+audited generation (operation `trash-link`) and clears the source's run digests, so its next run reads upstream
+again even at the same commit. The link is the format's own `trash_id` (and `flavour`), on a
 standalone format or on the set's inline entry: no new structure. The display name is the format's key and never
 changes (`3D - Notifiarr` stays `3D - Notifiarr` in profiles, decisions, naming and the arr views), nor do scores or
 set membership. A format whose specification matches stores TRaSH's JSON from then on (its name inside the JSON
 included, which is how a later upstream rename is recognised); a diverged one keeps its specification, and the
-source's next run shows TRaSH's as a specification change (applied by itself in `auto_definitions`). When TRaSH's
+source's next run applies TRaSH's as a specification change. When TRaSH's
 `includeCustomFormatWhenRenaming` differs from the arr's, the arr's value is pinned on the link
 (`include_when_renaming`), so neither the link nor a later definition update changes file naming. A linked format
 named `<TRaSH name> - Notifiarr` whose JSON still carries that name is not taken for an upstream rename, and its
@@ -757,31 +757,28 @@ format set, so link the set's formats first. Recyclarr sources follow the same r
 manages ("Recyclarr sources: managed fields" below).
 
 **Following TRaSH's scores.**
-A saved source remembers, per bound profile and score, TRaSH's last score and the local choice, in the source's
-`score_state` (inside the sync source record, so every change of it is an audited settings generation; no
-migration). Reads return it; an edit of the source never sets or drops it. Per score, on each run:
+A saved source remembers, per bound profile and score, TRaSH's last score, in the source's `score_state` (inside the
+sync source record, so every change of it is part of an audited settings generation; no migration). Reads return it;
+an edit of the source never sets or drops it. Per score, on each run:
 
-- The local score still equals TRaSH's last score: it follows TRaSH when TRaSH changes it (applied by itself in `auto` and
-  `auto_definitions`, part of the review in `review`).
-- The local score differs from TRaSH's last score (set by hand), or was kept: it is never overwritten silently. It is
-  held only when TRaSH changes that score; otherwise nothing happens.
-- First run after binding (or after rebinding the profile to another score set): every score that differs from
-  TRaSH's current one is asked once; the equal ones are remembered as following.
-- A format the profile does not score yet (added through the source's `trash_ids`) is held when TRaSH scores it
-  non-zero ("ours: not scored"); a zero score just follows. A retired or renamed format keeps its score and its memory
-  and stays a review.
+1. The local score equals TRaSH's current score: it follows (remembered).
+2. TRaSH has not changed its score since the last run: nothing happens.
+3. The local score still equals TRaSH's last score and TRaSH changed it: TRaSH's new score is taken.
+4. Not known yet (the first run after binding, after rebinding the profile to another score set, or for a format
+   just linked or added through the source's `trash_ids`): TRaSH's score is taken, except that a format the profile
+   does not score, which TRaSH scores 0, stays unscored.
+5. Otherwise (the local score differs from TRaSH's last score, so it was set by hand, and TRaSH changed it): the
+   local score is **kept**, TRaSH's new score is remembered, and the run lists it under `held` ("Kept yours (the
+   source changed them)" in the preview and the update log entry: profile, format, ours, TRaSH's last and new
+   score). The next run with the same TRaSH score leaves it alone.
 
-Held scores wait in a review of their own (`kind: "scores"`, "Review held scores" on the sync page), one row per
-score: "Take TRaSH's" sets TRaSH's score, which follows TRaSH from then on; "Keep ours" pins the local score, asked again only
-when TRaSH changes that score again. Each choice is its own audited generation (`POST
-/settings/sync/reviews/{id}/scores` with `{generation, decisions: [{profile, format, choice: take|keep}]}` at the
-current generation, operation `quality-scores`; a choice that widens an active version asks for confirmation like any
-other write). Held scores are never approved as a whole. Only they wait: the rest of the run applies (or waits in its
-own review, per mode), and a pending held-score review does not block later runs; each run that is not `unchanged`
-replaces it with the scores still held then. Remembering scores is itself a change of the source record: a run whose
-only change is that applies by itself in every mode (outcome `applied`). Tests:
-`TestQualitySyncBoundScoresFollowOrHold`, `TestQualitySyncBoundScoreChangeHeldForReview`,
-`TestQualitySyncTrackedHoldsScoresAddsAndRetirements`, `TestQualitySyncHeldScoresAPI`.
+Nothing waits: there is no take/keep choice. To follow TRaSH again, set the score to TRaSH's value; it follows from
+the next run. A retired or renamed format keeps its score and its memory. Remembering scores is itself a change of
+the source record: a run whose only change is that applies too (outcome `applied`). The profile pages show each
+bound score's state: follows, **yours** (differs from TRaSH's last score; TRaSH changes to it are not applied, and
+the update log notes them) or **differs** (bound, never synced: the next run takes TRaSH's score). Tests:
+`TestQualitySyncKeepsYourScore`, `TestQualitySyncFirstRunTakesTrash`, `TestQualitySyncAppliesWithoutReview`,
+`TestQualitySyncTrackedKeepsScoresAppliesAddsSkipsRetirements`.
 
 To bind anime profiles, for example a Sonarr profile `sonarr-anime` and a Radarr profile `radarr-anime` (in
 Settings; nothing does it by itself):
@@ -792,35 +789,36 @@ Settings; nothing does it by itself):
 2. Edit the sync source `trash-sonarr` and set "Local profile key to TRaSH score set" (config `profiles`) to
    `{"sonarr-anime": "anime-sonarr"}`; edit `trash-radarr` and set it to `{"radarr-anime": "anime-radarr"}`.
    Save.
-3. Run sync now on the source (or wait for its weekly run). The anime scores that already equal TRaSH's are
-   remembered as following (the run writes one generation for that, actor `sync:<source>`); each one that differs
-   appears once under "Review held scores". Choose per row: "Take TRaSH's" (follows TRaSH from then on) or "Keep
-   ours" (pinned; asked again only when TRaSH changes that score). A row left undecided is asked again by the next
-   run that fetches a new commit. "Preview" on the saved source shows the same, without applying the run.
+3. Run sync now on the source (or wait for its weekly run). The run takes TRaSH's anime scores for those profiles
+   (rule 4: the first run after binding), in one generation, actor `sync:<source>`, and lists them in the update
+   log. From then on a score you change by hand stays yours. "Preview" on the saved source shows the same first,
+   without applying anything.
 
 **Recyclarr sources: managed fields.** A Recyclarr source (local, pinned or tracked TRaSH tree alike) touches only
-the values its config sets, so an approved run never wipes values the config does not mention (a SeaDex score, a size
+the values its config sets, so a run never wipes values the config does not mention (a SeaDex score, a size
 limit). The managed values, by policy name: `qualities`, `cutoff` (`upgrade.until_quality`), `upgrades` (`upgrade.allowed`), `min_score`,
 `cutoff_score` (`upgrade.until_score`), `min_upgrade_step` (`min_upgrade_format_score`), `formats/<format>` (a
 score `assign_scores_to` sets, or one `reset_unmatched_scores` resets, except its `except`/`except_patterns`) and
 `sizes/<quality>` (from `quality_definition`). Everything else of the profile stays local. A profile the settings do
 not hold yet is created whole from the config (it then needs `qualities`); a profile the config only assigns scores
-to is fine when the settings hold it. Taking new qualities drops a `quality_order` made for the old ones and moves a
-cutoff that is no longer allowed (to the config's, else the first allowed item).
+to is fine when the settings hold it. A profile the config no longer lists stays as it is. Taking new qualities keeps
+a `quality_order` that still ranks them and drops one that does not, and moves a cutoff that is no longer allowed (to
+the config's, else the first allowed item); each field is compared with the profile as it was before the run, so a
+cutoff moved by new qualities is not taken for a hand edit.
 
-The source remembers per profile and managed field the value it last asked for and the local choice (`field_state` in the
-source record, like `score_state`; reads return it, an edit never sets or drops it, no migration). Per field, on each
-run, as for bound scores: a local value equal to the source's last value follows the source; a local edit stays
-while the source does not change that field; when the source changes it, the local value is held. On the first run
-that sees a field (a new source) a local value that differs is asked once; a value the profile does not have at all
-(a score the profile lacks, a size not set) is just taken. Held fields wait next to held scores in the source's
-held review (`held_fields`: profile, field, ours, last, upstream as JSON in the records' spelling, null for "not
-set"): "Take the source's" sets it and it follows from then on, "Keep ours" pins it until the source changes it
-again (`POST /settings/sync/reviews/{id}/scores` with `{profile, field, choice}`). In `review` mode everything else
-waits in the run's review; in `auto` (and `auto_definitions`) a profile value change, a score included, always waits for approval; definitions
-keep their rules above, and following scores apply by themselves only for TRaSH-kind sources. Previews list each changed profile value (`fields`, sizes per quality) and the config keys the
-sync skips (`notes`). A draft preview (the editor's unsaved config) applies every managed value of the config as one
-whole review and remembers nothing, as it does for bound scores; values the config does not manage stay local there too.
+The source remembers per profile and managed field the value it last asked for (`field_state` in the source record,
+like `score_state`; reads return it, an edit never sets or drops it, no migration). Per field, on each run, the
+rules of bound scores apply: a local value equal to the source's last value follows the source; a value the source
+did not change is left alone; the first run that sees a field (a new source, a new profile) takes the source's value;
+a local value that differs from the source's last value is **kept** when the source changes it, the source's new
+value is remembered and the run lists it under `held_fields` (profile, field, ours, last, upstream as JSON in the
+records' spelling, null for "not set"). A score `reset_unmatched_scores` reset earlier stays remembered while the
+reset covers it, so restoring it by hand makes it yours (`TestReconcileResetScoreRestoredStays`). Profile value
+changes, a Recyclarr source's scores and new profiles apply on the run like everything else
+(`TestRecyclarrProfileValuesApply`). Previews and log entries list each changed profile value (`fields`, sizes per
+quality) and the config keys the sync skips (`notes`). A draft preview (the editor's unsaved config) applies every
+managed value of the config as a whole and remembers nothing, as it does for bound scores; values the config does
+not manage stay local there too.
 
 `quality_definition` (instance-wide, and per profile, which wins for that profile; Theatarr keeps sizes per profile,
 so a per-profile definition applies whatever the flavour) maps TRaSH's quality-size file of its `type` (`movie`,
@@ -833,7 +831,7 @@ or out-of-order sizes fail the run. A source's `quality_sizes` switch (editor: "
 quality_definition", default on) turns it off; the definition is then listed as skipped. `media_naming`,
 `media_management` and `quality_sort` are listed as skipped too. TRaSH-kind sources have no sizes: they manage only
 bound scores, which already leave everything else alone. Tests: `TestQualitySyncRecyclarrKeepsUnmanagedValues`,
-`TestQualitySyncRecyclarrFollowsAndHoldsManagedFields`, `TestQualitySyncRecyclarrResetUnmatchedAsks`,
+`TestQualitySyncRecyclarrFollowsAndKeepsManagedFields`, `TestQualitySyncRecyclarrResetUnmatched`,
 `TestQualitySyncRecyclarrQualityDefinition`, `TestConvertQualityDefinitionSizes`.
 
 The secret-free YAML export writes `file:` references; `/settings/export/files` supplies that YAML plus the
@@ -877,43 +875,34 @@ refuse a settings save. A refused save shows each field's message beside Root an
 reported as that alone, not also as a library folder "under none of the roots". The view editor
 (Connected apps) picks libraries and profile members as checkboxes, so there is no typed list to normalize.
 
-Active creation, shadow-to-active, active root changes, adding active providers and removing follows require
-review of effects naming roots, providers and current global gates (the full list is under "Write-enabling
-confirmation on every path"). So do these changes to a version that is and
-stays active: `storage`, `client` or `import`, `upgrades` widened (off → auto; unset is auto), and
-`enable` from `request` to `default`. Narrowing changes and changes to shadow versions need none. A view-binding
-update that newly serves an active version is confirmed (below). Deleting a version with managed links also
-requires confirmation and only stops management. Tokens expire after ten minutes, are one-use and bind the next
-generation, candidate revision and effects, and the signed-in user or API key they were issued to (another user's
-attempt neither uses nor uses up the token; a commit that fails restores it for the same user only); saves recheck managed links in the transaction. Imports use the same
-flow; ordinary save, direct store import and reload cannot silently authorize these effects. A fallback runtime
-is checked alongside the stored head. `router.enabled`, `library.enabled` and `notify.enabled` are managed in Settings → Download clients, Libraries and Notifications;
-version saves never change them, including when confirming an active version while grabbing is off.
+Creating a library Live, Watch only to Live, turning downloads on for a Live library, a Live library starting to
+follow an arr library and removing a library with links or a follows relationship require review of effects naming
+roots, providers and current global gates (the full list is under "Confirmation on every path"). Every other version
+change, a Live library's root, providers, profile, indexers, upgrades, naming and storage included, saves at once
+after validation; so do view-binding changes. Removing a library only stops management. Tokens expire after ten
+minutes, are one-use and bind the next generation, candidate revision and effects, and the signed-in user or API key
+they were issued to (another user's attempt neither uses nor uses up the token; a commit that fails restores it for
+the same user only); saves recheck managed links in the transaction. Imports use the same flow; ordinary save, direct
+store import and reload cannot silently authorize these effects. A fallback runtime is checked alongside the stored
+head. `router.enabled`, `library.enabled` and `notify.enabled` are managed in Settings → Download clients, Libraries
+and Notifications; version saves never change them, including when confirming an active version while grabbing is
+off.
 
-**Write-enabling confirmation on every path.** The effects come from the whole candidate for every version that
-is active or becoming active, computed against the active runtime and the stored head, on record, quality and
-version saves, secret saves, import apply, reload and quality-sync approve/auto:
+**Confirmation on every path.** The effects come from the whole candidate, computed against the active runtime and
+the stored head, on record, quality and version saves, secret saves, import apply and reload. Only these ask:
 
-- a provider the version lists going from disabled or keyless to enabled with a credential ("Provider rd becomes
-  usable (enabled with a credential): active library … may add torrents …");
-- any change to its `follows`, adding one included ("Active library … starts following …");
-- a change to its `profile` or its `indexers` (with the indexers added and removed);
-- a profile it uses turning `upgrades` on or raising `cutoff` / `cutoff_score`, lowering or removing a format score
-  (existing files with that format may fall below `cutoff_score`), or, with no unchanged `quality_order`, removing a
-  quality ranked above one it keeps (files at it rank below every allowed quality) or a member of a group it keeps
-  (files at it rank below the kept members) (all skipped for
-  a version with upgrades off).
-- an indexer it already lists becoming usable: enabled, or given its key while enabled ("Indexer torrentio becomes
-  usable (enabled): active library … searches it …"), or, while enabled, changing its `kind`, `url`, `definition`
-  or the providers its releases may go to (`providers`);
-- a profile it uses widening admission, so releases it rejected before may be grabbed: a lower `min_score`, another
-  allowed quality (groups expanded), a higher format score (a format added with a positive score or a negative one
-  removed counts), another `format_set`, a wider or removed size limit (a new one replaces the quality's default and
-  is confirmed too), another `language` (except from `any` to a specific one) or another `from_arr`;
+- a library created Live, or going from Watch only to Live ("Library … becomes Live and starts searching. Links may
+  be written under … Torrent adds may go to providers …");
+- downloads (`grab`) turned on for a Live library, or a library made Live with `grab` on ("Downloads are on for Live
+  library …"); turning them off never asks;
+- turning `router.enabled` or `library.enabled` on (Pause off; "Global switches" above);
+- a Live library starting to follow an arr library, or a follower made Live ("Live library … starts following …":
+  it inherits every arr title and monitoring choice at once);
 - an `import.arr` source newly importing titles into a grabbing version (active with `grab` on, whatever
-  `router.enabled` is: turning the router on later names no import source), changing its version
-  mapping to one: monitored missing titles enter wanted searches;
-- turning `router.alldebrid_delete_uncached` on (omitted means false), including in a startup fallback;
+  `router.enabled` is: turning the router on later names no import source), or changing its version mapping to one:
+  monitored missing titles enter wanted searches;
+- removing a library that follows another ("also removes its follows relationship") or has managed links ("stops
+  being managed … nothing is removed");
 - a provider or indexer, enabled or not and whatever versions use it, whose address (`settings.SourceAddress`:
   kind, url scheme, host and port, proxy scheme/host/port, a cardigann `definition` or `hosts`) changes while it
   keeps its credential
@@ -924,48 +913,29 @@ version saves, secret saves, import apply, reload and quality-sync approve/auto:
   preparing the save does not probe the provider's active downloads at the new address (the same key is the same
   account: its downloads stay, the provider epoch advances and the registry sync after publication reads the new
   address). The store enforces it for every caller. A startup fallback is not refused for going back to its own
-  earlier address: that generation was published with it;
-- changing `torrents.scan_roots`, including removing the last root or the entire section. Dropping a root can
-  make torrents used by another library appear unused in the torrent report and delete preview;
-- a view newly serving it, through the view's versions or one of its profiles ("Active library … is exposed through
-  view radarr: its arr clients can add titles …"). The view-binding editor on Connected apps goes through the
-  same 422/token dialog as the other editors;
-- deny by default: any other change to an active version, to the profile it keeps or to the
-  definition of a format that profile scores (not 0), named by field ("Active library … changes kind, naming: …",
-  "Profile … changes qualities, propers: …", "Formats LQ, … change their definition: …"). A quality reorder, a lower
-  `min_upgrade_step`, `propers`, `packs`, `kind`, `anime` widened and naming are examples. Only these narrowing
-  changes need no token: `anime` from unset to true or false, `packs` to `all` or a higher `packs_threshold`,
-  `golive_done` (a record of a go-live step), `name` (the display name), qualities only removed with the rest in order (the lowest whole items, or any
-  under an unchanged `quality_order`), a higher
-  `min_upgrade_step`, `propers` to `do_not_upgrade`, and the narrowing side of every field judged above (a higher
-  `min_score`, a lower cutoff, upgrades off, a provider removed, a positive format removed from a profile whose version upgrades nothing, and so on). Fields added to the
-  version and profile structs are covered too (`changedFields` compares every field by its YAML name).
+  earlier address: that generation was published with it.
 
-A quality-sync definition-only change is the exception, by design: `auto_definitions` (and approving a review)
-applies specification changes of formats the settings already hold without confirmation, as Recyclarr does, even though a changed
-specification can change which releases an active profile accepts (a format with a score may start or stop matching
-a release, moving it across `min_score`). So do the bound scores that follow TRaSH. Local scores, added
-formats and retired formats still wait for review, and approving a review or taking a held score that widens an
-active profile as above asks for confirmation.
+Nothing else asks: profile, format and specification edits, indexers and providers becoming usable, a view serving
+a Live library, the VPN guard, `router.cached_only`, `router.alldebrid_delete_uncached`, `torrents.scan_roots`
+(torrent deletes keep their own confirmed preview), folders, naming and credential names save at once. A quality-sync run applies without
+confirmation too ("Runs apply by themselves" above).
 
-`Store` saves recheck the same effects in their transaction, so a direct store save cannot enable a provider
-either. A refused write answers 422 with `effects` and a `confirmation` (`token`, `generation`, `effects`); sending the
-same request again with that token in the body (`confirmation_token`) or the `X-Confirmation-Token` header commits
-it. Reload and quality-sync review apply take the token too, so a startup fallback does not block those paths. A
+`Store` saves recheck the same effects in their transaction, so a direct store save cannot turn on downloads for a
+Live library either. A refused write answers 422 with `effects` and a `confirmation` (`token`, `generation`,
+`effects`); sending the same request again with that token in the body (`confirmation_token`) or the
+`X-Confirmation-Token` header commits it. Reload takes the token too, so a startup fallback does not block it. A
 token is used up only when the commit lands: a refused or failed store commit leaves it valid (a failed prepare still
 uses it). Version delete takes its token only in the header; `?confirmation_token=` is refused with 400 so tokens
-stay out of URLs and access logs (the UI sends the header). A scheduled auto quality sync
-whose apply needs confirmation leaves the review pending with "the change widens an active version and needs
-confirmation: apply the review in Settings". The web editors (records, provider priority/order, quality
-editors, quality-sync approve, reload, view bindings) open one shared dialog listing the effects
-(`web/src/components/settings/confirm-write.tsx`). Tests: `internal/settings/confirm_widen_test.go`,
-`internal/settings/confirm_admission_test.go`, `internal/settings/confirm_deny_test.go`,
-`internal/web/settingsconfirm_test.go`.
+stay out of URLs and access logs (the UI sends the header). The web editors (records, sections, libraries, switches,
+reload) open one shared dialog listing the effects (`web/src/components/settings/confirm-write.tsx`). Tests:
+`internal/settings/confirm_widen_test.go` (`TestEverydayLiveEditsSaveDirectly`, `TestKeptConfirmations`),
+`internal/settings/sourceaddress_test.go`, `internal/web/settingsconfirm_test.go`.
 
-New or changed roots must be clean absolute existing directories. The allowed area is the YAML-owned
-`library.dangling.roots`; when absent, existing configured library roots' parent directories define it (the
-filesystem root is never an allowed area). Checks resolve symlinks and device/inode aliases, reject overlap with
-other versions, mount or trash, and require active roots to be writable without creating probe files. Arr roots of
+New or changed roots must be clean absolute existing directories. A root may be anywhere outside the debrid mount,
+the trash and the other libraries' roots: there is no library area, and `library.dangling.roots` only adds folders
+for the broken link check. The filesystem root is never a library root, directly or through a symlink. Checks
+resolve symlinks and device/inode aliases, reject a root at, in or above the mount and overlap with other versions or
+the trash, and require active roots to be writable without creating probe files (`TestLibraryFolderAnywhere`). Arr roots of
 followed versions remain shadow/read-only. A root edit with active links is refused with the parallel-version
 adopt procedure, and so is a deleted version key created again while active links of the key sit outside its new
 roots; see the procedure in [parallel.md](../parallel.md#changing-a-root-with-links). Removal does not delete any operational
@@ -1061,7 +1031,7 @@ filters, set-up writes with libraries, turning the catalog on, Built-in sources,
 ### Profiles, presets and formats
 
 The Libraries page, the quality profile pages, presets and the impact preview. Nothing here grabs, searches or touches the router, the library or
-notifications; `router.enabled`, `library.enabled` and `notify.enabled` have their own confirmed switch cards on Download clients, Libraries and Notifications.
+notifications; `router.enabled`, `library.enabled` and `notify.enabled` have their own switch cards on Download clients, Libraries and Notifications (turning the first two on asks for confirmation).
 
 #### TRaSH defaults
 
