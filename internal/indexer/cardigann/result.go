@@ -32,6 +32,13 @@ type Result struct {
 	InfoHash     string
 	// IMDb is the release's IMDb id ("tt" and digits) when the definition reads one.
 	IMDb string
+	// TMDb and TVDB are the release's ids when the definition reads them (0 when none).
+	TMDb, TVDB int
+	// Flags are indexer flags: "internal" when the description starts with "Internal" (Prowlarr's CardigannParser).
+	Flags []string
+	// Extras are the tracker fields the definition reads, as numbers in text: downloadvolumefactor,
+	// uploadvolumefactor, minimumratio, minimumseedtime, grabs, files. A field the site did not give is absent.
+	Extras map[string]string
 	// Link is the site's download link, resolved through Manager.Download (it may need the session's cookies and
 	// the definition's download rules); empty when the site gave only a magnet. Magnet is a magnet link.
 	Link   string

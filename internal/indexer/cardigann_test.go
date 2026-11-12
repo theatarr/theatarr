@@ -137,6 +137,9 @@ func TestCardigannSearch(t *testing.T) {
 	if len(r.Categories) != 1 || r.Categories[0] != 5000 {
 		t.Errorf("categories %v", r.Categories)
 	}
+	if r.Extras["downloadvolumefactor"] != "1" {
+		t.Errorf("extras %v", r.Extras)
+	}
 	req := rec.all()[0]
 	if got := req.URL.Query().Get("q"); got != "Show S01E02" {
 		t.Errorf("keywords %q", got)

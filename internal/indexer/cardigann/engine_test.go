@@ -649,3 +649,97 @@ func TestCardigannSessionIsSavedAndRestored(t *testing.T) {
 		t.Fatalf("changed settings should sign in afresh: %d logins", site.logins.Load())
 	}
 }
+
+// --- query variables ---
+
+const queryVarsDef = `---
+id: queryvars
+name: Query Vars
+type: public
+links:
+  - https://queryvars.test/
+caps:
+  categorymappings:
+    - {id: 1, cat: Movies, desc: "Movies"}
+  modes:
+    search: [q]
+    movie-search: [q, imdbid, tmdbid, year]
+    tv-search: [q, season, ep, tvdbid]
+search:
+  paths:
+    - path: api
+      response:
+        type: json
+  inputs:
+    q: "{{ .Query.Q }}"
+    kw: "{{ .Keywords }}"
+    imdb: "{{ .Query.IMDBID }}"
+    imdbshort: "{{ .Query.IMDBIDShort }}"
+    tmdb: "{{ .Query.TMDBID }}"
+    tvdb: "{{ .Query.TVDBID }}"
+    season: "{{ .Query.Season }}"
+    ep: "{{ .Query.Ep }}"
+    episode: "{{ .Query.Episode }}"
+    year: "{{ .Query.Year }}"
+  rows:
+    selector: results
+    filters:
+      - name: andmatch
+  fields:
+    title:
+      selector: name
+    infohash:
+      selector: hash
+`
+
+// The query variables reach the definition's templates as Prowlarr's generator sets them; an id search has no
+// .Query.Q and skips the andmatch filter, a keyword search keeps it.
+func TestSearchQueryVariables(t *testing.T) {
+	var (
+		mu  sync.Mutex
+		got url.Values
+	)
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		mu.Lock()
+		got = r.URL.Query()
+		mu.Unlock()
+		w.Header().Set("Content-Type", "application/json")
+		io.WriteString(w, `{"results":[{"name":"The Matrix 1999 1080p","hash":"1111111111111111111111111111111111111111"},
+			{"name":"Something Else 720p","hash":"2222222222222222222222222222222222222222"}]}`)
+	}))
+	defer srv.Close()
+	m := NewManager(memDefs{"queryvars": []byte(queryVarsDef)}, nil)
+	m.DefaultDelay = 0
+	inst := Instance{Key: "qv", Transport: direct, DefinitionID: "queryvars", BaseURL: srv.URL}
+
+	res, err := m.SearchQuery(context.Background(), inst, Query{ByID: true, Keywords: "S01E02", IMDBID: "tt133093",
+		TMDBID: 603, TVDBID: 12345, Season: "1", Ep: "2", Episode: "S01E02", Year: "1999"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := map[string]string{"q": "", "kw": "S01E02", "imdb": "tt0133093", "imdbshort": "0133093", "tmdb": "603",
+		"tvdb": "12345", "season": "1", "ep": "2", "episode": "S01E02", "year": "1999"}
+	mu.Lock()
+	for k, v := range want {
+		if got.Get(k) != v {
+			t.Errorf("%s = %q, want %q (%s)", k, got.Get(k), v, got.Encode())
+		}
+	}
+	mu.Unlock()
+	if len(res) != 2 {
+		t.Errorf("an id search filtered rows by andmatch: %d results", len(res))
+	}
+
+	res, err = m.SearchQuery(context.Background(), inst, Query{Keywords: "The Matrix", Year: "1999"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	mu.Lock()
+	if got.Get("q") != "The Matrix" || got.Get("year") != "1999" || got.Get("imdb") != "" || got.Get("tvdb") != "" {
+		t.Errorf("keyword search sent %s", got.Encode())
+	}
+	mu.Unlock()
+	if len(res) != 1 || res[0].Title != "The Matrix 1999 1080p" {
+		t.Errorf("andmatch on a keyword search: %+v", res)
+	}
+}

@@ -264,6 +264,22 @@ func (d *Definition) DefinitionProtocol() Protocol {
 	return ProtocolTorrent
 }
 
+// SearchParam reports whether the definition's caps.modes lists param for mode ("movie-search", "tv-search"),
+// case-insensitively. Prowlarr skips an id search the modes do not list (HttpIndexerBase).
+func (d *Definition) SearchParam(mode, param string) bool {
+	for m, params := range d.Caps.Modes {
+		if !strings.EqualFold(m, mode) {
+			continue
+		}
+		for _, p := range params {
+			if strings.EqualFold(strings.TrimSpace(p), param) {
+				return true
+			}
+		}
+	}
+	return false
+}
+
 // jsonSearch reports whether the search results are JSON.
 func (d *Definition) jsonSearch() bool {
 	for _, p := range d.Search.Paths {

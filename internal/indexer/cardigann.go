@@ -6,6 +6,8 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"slices"
+	"strconv"
 	"strings"
 	"sync/atomic"
 	"time"
@@ -33,7 +35,8 @@ func newCardigann(b base, m *cardigann.Manager) (Searcher, error) {
 	return &cardigannSearcher{base: b, m: m}, nil
 }
 
-// Supports: the engine searches by keywords only, so a movie or series search needs a title. RSS is the
+// Supports: the keyword searches need a title (an id search goes first where the definition lists the id, with
+// the keywords as its fallback), so a movie or series search needs one. RSS is the
 // definition's search without keywords (RSSProblem says when a definition has none).
 func (c *cardigannSearcher) Supports(q Query) bool {
 	switch q.Type {
@@ -69,55 +72,74 @@ func (c *cardigannSearcher) Search(ctx context.Context, q Query) (*Result, error
 	var requests atomic.Int64
 	inst.Transport = &gatewayTransport{gw: c.gw, target: c.target(), count: &requests}
 	inst.Solver = &gatewayTransport{gw: c.gw, target: c.solverTarget(), count: &requests}
+	tiers, ok := cardigannRequests(q, def)
+	if !ok {
+		return nil, fmt.Errorf("%w: indexer %s: definition %s lists none of the title's ids for an id-only search",
+			ErrUnsupported, c.key, c.ix.Definition)
+	}
 	ctx, cancel := context.WithTimeout(ctx, c.m.SearchBudget())
 	defer cancel()
 	res := &Result{}
-	var found []cardigann.Result
 	var firstErr error
 	answered := false
-	for _, keywords := range cardigannQueries(q) {
-		results, err := c.m.Search(ctx, inst, keywords, cardigannCategories(q))
-		if errors.Is(err, gateway.ErrVPNRequired) {
-			return nil, err
-		}
-		if err != nil {
-			if firstErr == nil {
-				firstErr = err
+	seen := map[string]bool{}
+	// A later tier is asked only when the earlier ones found nothing, as on a Torznab feed.
+	for _, tier := range tiers {
+		for _, cq := range tier {
+			results, err := c.m.SearchQuery(ctx, inst, cq)
+			if errors.Is(err, gateway.ErrVPNRequired) {
+				return nil, err
 			}
-			res.Truncated, res.failed = true, true
-			res.Notes = append(res.Notes, fmt.Sprintf("indexer %s: %v", c.key, err))
-			continue
+			if err != nil {
+				if firstErr == nil {
+					firstErr = err
+				}
+				res.Truncated, res.failed = true, true
+				res.Notes = append(res.Notes, fmt.Sprintf("indexer %s: %v", c.key, err))
+				continue
+			}
+			answered = true
+			for _, f := range results {
+				c.addRelease(ctx, res, seen, f, defPrivacy)
+			}
 		}
-		answered = true
-		found = append(found, results...)
+		if len(res.Releases) > 0 {
+			break
+		}
 	}
 	res.Requests = int(requests.Load())
 	if !answered {
 		return nil, fmt.Errorf("indexer %s: %w", c.key, firstErr)
 	}
-	seen := map[string]bool{}
-	for _, f := range found {
-		if f.Protocol == cardigann.ProtocolUsenet {
-			continue
-		}
-		r := Release{Title: f.Title, InfoHash: NormalizeHash(f.InfoHash), Size: f.SizeBytes, Seeders: -1, Peers: -1,
-			PublishDate: f.PublishDate, Categories: f.Categories, IMDb: f.IMDb, GUID: f.InfoURL,
-			Link: NewLink(f.Link), Magnet: NewLink(f.Magnet), Privacy: defPrivacy}
-		if f.SeedersKnown {
-			r.Seeders, r.Peers = f.Seeders, f.Peers
-		}
-		c.stamp(ctx, &r)
-		key := r.InfoHash
-		if key == "" {
-			key = r.Title + "\x00" + f.Link + "\x00" + f.Magnet
-		}
-		if seen[key] {
-			continue
-		}
-		seen[key] = true
-		res.Releases = append(res.Releases, r)
-	}
 	return res, nil
+}
+
+// addRelease adds one engine result to res as a torrent release, once per info hash (or title and links).
+func (c *cardigannSearcher) addRelease(ctx context.Context, res *Result, seen map[string]bool, f cardigann.Result,
+	defPrivacy policy.Privacy) {
+	if f.Protocol == cardigann.ProtocolUsenet {
+		return
+	}
+	r := Release{Title: f.Title, InfoHash: NormalizeHash(f.InfoHash), Size: f.SizeBytes, Seeders: -1, Peers: -1,
+		PublishDate: f.PublishDate, Categories: f.Categories, IMDb: f.IMDb, TMDb: f.TMDb, TVDB: f.TVDB,
+		Flags: slices.Clone(f.Flags), GUID: f.InfoURL, Link: NewLink(f.Link), Magnet: NewLink(f.Magnet),
+		Privacy: defPrivacy}
+	if f.SeedersKnown {
+		r.Seeders, r.Peers = f.Seeders, f.Peers
+	}
+	for k, v := range f.Extras {
+		r.setExtra(k, v)
+	}
+	c.stamp(ctx, &r)
+	key := r.InfoHash
+	if key == "" {
+		key = r.Title + "\x00" + f.Link + "\x00" + f.Magnet
+	}
+	if seen[key] {
+		return
+	}
+	seen[key] = true
+	res.Releases = append(res.Releases, r)
 }
 
 // solverTarget is the indexer's target for the FlareSolverr leg: a solve sends no headers until its browser is done,
@@ -190,6 +212,83 @@ func (c *cardigannSearcher) credentials() (map[string]string, error) {
 		return nil, fmt.Errorf("indexer %s: the credential must be a JSON object of the secret settings, e.g. {\"username\":\"...\",\"password\":\"...\"}", c.key)
 	}
 	return out, nil
+}
+
+// cardigannRequests are the tiers of engine searches for q, as a Torznab feed is asked (criteria.go, torznab.go): an
+// id search first when the definition's caps.modes lists an id the title has, then the keyword searches only when
+// the id search found nothing. A scene mapping's search mode picks id, title or both. ok is false for an id-only
+// search of criteria the Torznab path also asks by id only, when there is no id to send: it does not become a title
+// search.
+func cardigannRequests(q Query, def *cardigann.Definition) (tiers [][]cardigann.Query, ok bool) {
+	cats := cardigannCategories(q)
+	vars := cardigann.Query{Categories: cats}
+	if q.Type == QueryMovie && q.Year > 0 && def.SearchParam("movie-search", "year") {
+		vars.Year = strconv.Itoa(q.Year)
+	}
+	tvVars := q.Type == QuerySeries
+	if tvVars {
+		switch q.Criteria {
+		case CriteriaEpisode:
+			vars.Season, vars.Ep = strconv.Itoa(q.Season), strconv.Itoa(q.Episode)
+			vars.Episode = fmt.Sprintf("S%02dE%02d", q.Season, q.Episode)
+		case CriteriaSeason:
+			vars.Season, vars.Episode = strconv.Itoa(q.Season), fmt.Sprintf("S%02d", q.Season)
+		case CriteriaDaily:
+			if len(q.AirDate) == 10 {
+				vars.Season, vars.Ep = q.AirDate[:4], q.AirDate[5:7]+"/"+q.AirDate[8:10]
+				vars.Episode = strings.ReplaceAll(q.AirDate, "-", ".")
+			}
+		case "":
+			switch {
+			case q.Episode > 0:
+				vars.Season, vars.Ep = strconv.Itoa(q.Season), strconv.Itoa(q.Episode)
+				vars.Episode = fmt.Sprintf("S%02dE%02d", q.Season, q.Episode)
+			case q.Season > 0:
+				vars.Season, vars.Episode = strconv.Itoa(q.Season), fmt.Sprintf("S%02d", q.Season)
+			}
+		default:
+			// Anime and daily-season criteria: keywords only.
+			tvVars = false
+		}
+	}
+	var keywords []cardigann.Query
+	for _, kw := range cardigannQueries(q) {
+		kq := vars
+		kq.Keywords = kw
+		keywords = append(keywords, kq)
+	}
+
+	var id *cardigann.Query
+	if q.Mode != SearchTitle {
+		iq := vars
+		iq.ByID, iq.Keywords = true, vars.Episode
+		switch {
+		case q.Type == QueryMovie && q.IMDb != "" && def.SearchParam("movie-search", "imdbid"):
+			iq.IMDBID, id = q.IMDb, &iq
+		case q.Type == QueryMovie && q.TMDb > 0 && def.SearchParam("movie-search", "tmdbid"):
+			iq.TMDBID, id = q.TMDb, &iq
+		case !tvVars:
+		case q.TVDB > 0 && def.SearchParam("tv-search", "tvdbid"):
+			iq.TVDBID, id = q.TVDB, &iq
+		case q.IMDb != "" && def.SearchParam("tv-search", "imdbid"):
+			iq.IMDBID, id = q.IMDb, &iq
+		case q.TMDb > 0 && def.SearchParam("tv-search", "tmdbid"):
+			iq.TMDBID, id = q.TMDb, &iq
+		}
+	}
+	switch {
+	case id == nil && q.Mode == SearchID && q.Type == QuerySeries && q.Criteria != "" &&
+		q.Criteria != CriteriaAnimeEpisode && q.Criteria != CriteriaAnimeSeason:
+		// Sonarr's criteria asked by id only (criteria.go): no id, no search.
+		return nil, false
+	case id == nil:
+		return [][]cardigann.Query{keywords}, true
+	case q.Mode == SearchID:
+		return [][]cardigann.Query{{*id}}, true
+	case q.Mode == SearchID|SearchTitle:
+		return [][]cardigann.Query{append([]cardigann.Query{*id}, keywords...)}, true
+	}
+	return [][]cardigann.Query{{*id}, keywords}, true
 }
 
 // cardigannKeywords turns a query into the keywords a site's search box takes.

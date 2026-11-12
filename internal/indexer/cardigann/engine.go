@@ -134,12 +134,17 @@ func (m *Manager) Forget(key string) {
 
 // Search runs a keyword search on a definition-based indexer.
 func (m *Manager) Search(ctx context.Context, inst Instance, query string, categories []int) ([]Result, error) {
+	return m.SearchQuery(ctx, inst, Query{Keywords: query, Categories: categories})
+}
+
+// SearchQuery runs one search with its query variables (ids, season, episode, year) on a definition-based indexer.
+func (m *Manager) SearchQuery(ctx context.Context, inst Instance, q Query) ([]Result, error) {
 	sess, err := m.session(ctx, inst)
 	if err != nil {
 		return nil, err
 	}
 	defer sess.unlock()
-	res, err := sess.search(ctx, query, categories)
+	res, err := sess.search(ctx, q)
 	return res, sess.clean(err)
 }
 
@@ -162,12 +167,12 @@ func (m *Manager) Test(ctx context.Context, inst Instance) (res TestResult, err 
 	// A signed-in session is checked by the search itself (a lost session signs in again); changed settings always
 	// start a new session.
 	cats := []int{2000, 5000}
-	results, err := sess.search(ctx, "", cats)
+	results, err := sess.search(ctx, Query{Categories: cats})
 	if err != nil {
 		return TestResult{}, err
 	}
 	if len(results) == 0 {
-		results, err = sess.search(ctx, "test", cats)
+		results, err = sess.search(ctx, Query{Keywords: "test", Categories: cats})
 		if err != nil {
 			return TestResult{}, err
 		}

@@ -42,6 +42,9 @@
 //   - Regular expressions: Mediarium refused every pattern Go's regexp can't compile. A pattern RE2 refuses for its
 //     syntax (look-around, back-references) runs on regexp2 (internal/netregex) with a match timeout, as Prowlarr
 //     runs it on .NET; Go's regexp keeps every pattern it accepts.
+//   - Added: query variables beyond the keywords (ids, season, episode, year) and the result fields Mediarium dropped
+//     (volume factors, ratio and seed time, grabs, files, TMDb and TVDB, the Internal flag), as Prowlarr's Cardigann
+//     generator and parser use them.
 //   - Added: a custom folder of the operator's own definitions (Store, custom/), listed with the synced ones and
 //     winning over them on the same id; Mediarium's own custom folder was not ported.
 package cardigann

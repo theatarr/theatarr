@@ -88,6 +88,13 @@ expected rows says so with its size only, since a body can hold a passkey.
    (see [RSS](#rss)).
    Categories: 2000 for a movie, 5000 for a series, unless the query names them. A query by ids alone (no title) is
    not supported.
+   Movie and series searches go by id first when the definition's `caps.modes` lists one and the title has it (one
+   id: IMDb then TMDb for movies; TVDB, IMDb, TMDb for series), with `.Query.Season`, `.Query.Ep`, `.Query.Episode`;
+   the keyword searches follow only when the id search found nothing, as for Torznab feeds. An id search sets no
+   `.Query.Q` and skips the definition's `andmatch` filter, as in Prowlarr. A scene mapping's search mode picks id,
+   title or both; an id-only mapping with no id the definition lists is not searched (it does not become a title
+   search), as on a Torznab feed. The keyword searches carry the same season and episode variables. `.Query.Year`
+   is set for a movie when the definition lists `year`. Anime and daily-season searches stay keywords only.
 2. The definition is loaded from the catalog.
 3. The engine signs in when the definition has a login and the session has not, then fetches the search paths.
    **Every request is one gateway request** of the indexer's target (`Target.NoFollow`): the engine follows each
@@ -95,7 +102,12 @@ expected rows says so with its size only, since a body can hold a passkey.
    `hosts` only), the indexer's own budget and its back-off. The engine's browser User-Agent replaces `theatarr/<version>`.
    A 307/308 that would send a posted form (a login) again to another host is refused. Counts (seeders, leechers,
    grabs) read dots between groups of three as thousands, as Prowlarr does: `1.234` is 1234, `5.0` is 5.
-4. Releases are stamped as for every source: `Privacy` is the stricter of the policy and the definition (public <
+4. Result fields: besides title, links, size, seeders, leechers, date, categories, infohash and IMDb, a release
+   carries the tracker's volume factors (`downloadvolumefactor`, `uploadvolumefactor`), minimum ratio and seed time,
+   grabs and files (in `Extras`, as numbers in text; an unreadable factor is left out rather than read as 0), TMDb and
+   TVDB ids, and the `internal` flag when the description starts with "Internal", as Prowlarr's Cardigann parser
+   reads them. No languages: Prowlarr's Cardigann sets none either.
+5. Releases are stamped as for every source: `Privacy` is the stricter of the policy and the definition (public <
    semi-private < private; a missing or unknown type counts as private), a label only.
    Download links stay in memory (`indexer.Link`).
 

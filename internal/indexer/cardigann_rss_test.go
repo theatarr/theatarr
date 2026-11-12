@@ -8,6 +8,7 @@ import (
 	"os"
 	"path/filepath"
 	"slices"
+	"strconv"
 	"strings"
 	"sync"
 	"testing"
@@ -234,6 +235,21 @@ func rssDiff(f, r Release) []string {
 	}
 	if f.IMDb != r.IMDb {
 		out = append(out, fmt.Sprintf("IMDb %q, native %q", f.IMDb, r.IMDb))
+	}
+	factor := func(r Release, k string) float64 {
+		v, err := strconv.ParseFloat(r.Extras[k], 64)
+		if err != nil {
+			return 1
+		}
+		return v
+	}
+	for _, k := range []string{"downloadvolumefactor", "uploadvolumefactor"} {
+		if factor(f, k) != factor(r, k) {
+			out = append(out, fmt.Sprintf("%s %q, native %q", k, f.Extras[k], r.Extras[k]))
+		}
+	}
+	if f.TMDb != r.TMDb || f.TVDB != r.TVDB {
+		out = append(out, fmt.Sprintf("TMDb/TVDB %d/%d, native %d/%d", f.TMDb, f.TVDB, r.TMDb, r.TVDB))
 	}
 	if f.Seeders != r.Seeders {
 		out = append(out, fmt.Sprintf("seeders %d, native %d", f.Seeders, r.Seeders))

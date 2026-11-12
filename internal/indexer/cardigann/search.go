@@ -17,16 +17,59 @@ import (
 	"golang.org/x/net/html"
 )
 
-// search runs a keyword search ("" lists the newest releases).
-func (s *cgSession) search(ctx context.Context, query string, cats []int) ([]Result, error) {
+// Query is one search: the keywords and the query variables a definition's templates read, as Prowlarr's
+// CardigannRequestGenerator sets them. Empty fields stay unset.
+type Query struct {
+	Keywords   string
+	Categories []int
+	IMDBID     string // "tt" + digits; .Query.IMDBIDShort is the digits, 7 at least
+	TMDBID     int
+	TVDBID     int
+	Season     string
+	Ep         string
+	Episode    string // .Query.Episode: S01E02, S01 or 2024.03.05
+	Year       string
+	// ByID: an id search. .Query.Q is empty and the definition's andmatch filter is not applied (Prowlarr skips
+	// it for id searches).
+	ByID bool
+}
+
+// search runs one search (no keywords and no ids lists the newest releases).
+func (s *cgSession) search(ctx context.Context, q Query) ([]Result, error) {
 	if err := s.ensureLogin(ctx); err != nil {
 		return nil, err
 	}
 
+	query, cats := q.Keywords, q.Categories
 	vars := s.vars()
-	vars.Query["Q"] = query
+	if !q.ByID {
+		vars.Query["Q"] = query
+	}
 	vars.Query["Keywords"] = query
-	kw, err := applyFilters(query, s.def.Search.KeywordsFilters, vars)
+	if imdb := normIMDb(q.IMDBID); imdb != "" {
+		vars.Query["IMDBID"] = imdb
+		vars.Query["IMDBIDShort"] = strings.TrimPrefix(imdb, "tt")
+	}
+	set := func(k, v string) {
+		if v != "" {
+			vars.Query[k] = v
+		}
+	}
+	if q.TMDBID > 0 {
+		set("TMDBID", strconv.Itoa(q.TMDBID))
+	}
+	if q.TVDBID > 0 {
+		set("TVDBID", strconv.Itoa(q.TVDBID))
+	}
+	set("Season", q.Season)
+	set("Ep", q.Ep)
+	set("Episode", q.Episode)
+	set("Year", q.Year)
+	if q.ByID {
+		// The andmatch row filter compares titles with the keywords; an id search has none to compare.
+		query = ""
+	}
+	kw, err := applyFilters(q.Keywords, s.def.Search.KeywordsFilters, vars)
 	if err != nil {
 		return nil, fmt.Errorf("%s: keywords: %w", s.name, err)
 	}
@@ -405,6 +448,17 @@ type releaseBuilder struct {
 	haveSeeders, haveLeechers              bool
 	date                                   time.Time
 	cats                                   []int
+	tmdb, tvdb                             int
+	description                            string
+	extras                                 map[string]string
+}
+
+// setExtra records a tracker field on the release.
+func (rb *releaseBuilder) setExtra(k, v string) {
+	if rb.extras == nil {
+		rb.extras = map[string]string{}
+	}
+	rb.extras[k] = v
 }
 
 func (s *cgSession) parseRow(src rowSource, vars *tmplVars, page *url.URL, query string) (*Result, error) {
@@ -510,8 +564,34 @@ func (s *cgSession) applyField(rb *releaseBuilder, name, val string, mods []stri
 	case "leechers":
 		rb.leechers, rb.haveLeechers = sane(parseCount(val)), true
 		return strconv.FormatInt(rb.leechers, 10), nil
-	case "grabs", "files":
-		return strconv.FormatInt(parseCount(val), 10), nil
+	case "grabs", "files", "minimumseedtime":
+		n := strconv.FormatInt(parseCount(val), 10)
+		rb.setExtra(name, n)
+		return n, nil
+	case "downloadvolumefactor", "uploadvolumefactor", "minimumratio":
+		// Unparseable text leaves the field out (Prowlarr reads it as 0), so junk never reads as freeleech.
+		f, err := strconv.ParseFloat(strings.TrimSpace(val), 64)
+		if err != nil {
+			return val, nil
+		}
+		v := strconv.FormatFloat(f, 'f', -1, 64)
+		rb.setExtra(name, v)
+		return v, nil
+	case "tmdbid", "tvdbid":
+		n, _ := strconv.Atoi(firstDigitsRe.FindString(val))
+		if name == "tmdbid" {
+			rb.tmdb = n
+		} else {
+			rb.tvdb = n
+		}
+		return strconv.Itoa(n), nil
+	case "description":
+		if contains(mods, "append") {
+			rb.description += val
+		} else {
+			rb.description = val
+		}
+		return rb.description, nil
 	case "date":
 		t, err := fromUnknownDate(val, time.Now())
 		if err != nil {
@@ -602,8 +682,14 @@ func (s *cgSession) finish(rb *releaseBuilder) (*Result, error) {
 		Peers:        int(rb.seeders + rb.leechers),
 		InfoHash:     strings.ToLower(rb.infohash),
 		IMDb:         rb.imdb,
+		TMDb:         rb.tmdb,
+		TVDB:         rb.tvdb,
+		Extras:       rb.extras,
 		Link:         link,
 		Magnet:       magnet,
+	}
+	if strings.HasPrefix(rb.description, "Internal") {
+		res.Flags = []string{"internal"}
 	}
 	if res.InfoHash == "" && magnet != "" {
 		if m := btihRe.FindStringSubmatch(magnet); m != nil {
@@ -612,6 +698,8 @@ func (s *cgSession) finish(rb *releaseBuilder) (*Result, error) {
 	}
 	return res, nil
 }
+
+var firstDigitsRe = regexp.MustCompile(`\d+`)
 
 var imdbRe = regexp.MustCompile(`(?i)(?:tt)?(\d{5,10})`)
 
