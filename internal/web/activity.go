@@ -606,6 +606,9 @@ func (w *Web) historyEvents(ctx context.Context, es []*journal.Entry, admin bool
 		}
 		if admin {
 			x.Summary, x.Source, x.Suspect = e.Summary, e.Source, e.Suspect
+			if r := historyNotStarted(e); r != "" {
+				x.Summary = activity.NotStartedMessage(r) // the journal entry keeps its own text
+			}
 			if e.Release != nil {
 				x.Release = e.Release.Title
 			}
@@ -641,6 +644,19 @@ func animeTitles(ctx context.Context, db *sql.DB, ids []int64) (map[int64]bool, 
 		out[id] = true
 	}
 	return out, rows.Err()
+}
+
+// historyNotStarted is the not-started reason of a failure entry (activity.Download.NotStarted from the entry's
+// download and attempts), "" for any other entry.
+func historyNotStarted(e *journal.Entry) string {
+	if e.Kind != journal.KindFailure || e.Download == nil {
+		return ""
+	}
+	d := activity.Download{State: "failed", Error: e.Download.Error}
+	for _, a := range e.Attempts {
+		d.Tried = d.Tried || activity.Tried(a.Outcome, a.Code)
+	}
+	return d.NotStarted()
 }
 
 // historyWords says what a journal entry means, without release names or providers.
@@ -698,10 +714,8 @@ func historyWords(e *journal.Entry) (words, tone string) {
 		}
 		return "Linked into the library", "ok"
 	case journal.KindFailure:
-		if e.Download != nil {
-			if w := activity.NotStartedHistory(e.Download.Error); w != "" {
-				return w, "info"
-			}
+		if r := historyNotStarted(e); r != "" {
+			return activity.NotStartedHistory(r), "info"
 		}
 		if arr {
 			return "Download failed (old manager)", "bad"

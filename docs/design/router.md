@@ -46,7 +46,9 @@ When the gate refuses, `Route` runs the same decisions as a **dry run**:
 - a queued download it resumes ends (`failed`, `route ended: ...`), as a switch to shadow ends it through the
   freshness check. It is not resumed every 10 minutes while grab or the kill switch is off and then
   grabbed whenever they come back on; the next search grabs the title then (`TestGrabOffQueuedDownloadIsEnded`).
-  Activity shows it as Not started (`activity.NotStarted`), and it does not fail a request.
+  When no add was ever sent for it to a provider or client (no such `download_attempt`), Activity shows it as Not
+  started (`activity.NotStarted`) and it does not fail a request; one tried before (a refused add waiting for its
+  retry) stays a failure.
 
 `Plan` is the same dry run for any version, recorded nowhere (`theatarr router dry-run`).
 

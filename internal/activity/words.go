@@ -171,9 +171,30 @@ func (d *Download) Words(provider string) string {
 	return d.State
 }
 
-// NotStartedSQL selects the downloads NotStarted reads as not started (with state = 'failed'): the same two prefixes.
-// GLOB, not LIKE: it is case-sensitive, as strings.CutPrefix is.
-const NotStartedSQL = "(COALESCE(error, '') GLOB 'route ended: router: *' OR COALESCE(error, '') GLOB 'route stopped: router: *')"
+// triedSQL is Tried for a download_attempt row a: an add was sent to a provider (accepted, refused, error) or a
+// client add was tried (client_deferred).
+const triedSQL = "(a.outcome IN ('accepted', 'refused', 'error') OR (a.outcome = 'deferred' AND a.code = 'client_deferred'))"
+
+// TriedSQL is Download.Tried for the download row d (the column expression Downloads reads).
+const TriedSQL = "EXISTS (SELECT 1 FROM download_attempt a WHERE a.download_id = d.id AND " + triedSQL + ")"
+
+// NotStartedSQL selects, on the table download (unaliased), the downloads Download.NotStarted reads as not started
+// (with state = 'failed'): the same two prefixes and no attempt Tried counts. GLOB, not LIKE: it is case-sensitive,
+// as strings.CutPrefix is.
+const NotStartedSQL = "((COALESCE(error, '') GLOB 'route ended: router: *' OR COALESCE(error, '') GLOB 'route stopped: router: *')" +
+	" AND NOT EXISTS (SELECT 1 FROM download_attempt a WHERE a.download_id = download.id AND " + triedSQL + "))"
+
+// Tried says whether a provider attempt (download_attempt's outcome and code) is evidence that the download was tried
+// at a provider or client: an add that was sent, or a client add. Pacing waits and skips are not.
+func Tried(outcome, code string) bool {
+	switch outcome {
+	case "accepted", "refused", "error":
+		return true
+	case "deferred":
+		return code == "client_deferred"
+	}
+	return false
+}
 
 // The router's gate errors (router.ErrShadow, router.ErrNoGrab; every other gate refusal is router.ErrDisabled). The
 // texts are mirrored here because activity does not import router; a test in internal/web pins them.
@@ -182,8 +203,8 @@ const (
 	gateNoGrab    = "router: the version's grab switch is off; nothing is written for it"
 )
 
-// NotStarted says why a download ended before anything was sent to a provider because downloads were off when its
-// turn came: "off" (Pause, the environment lock, new downloads off), "watch_only" (its library is Watch only) or
+// NotStarted says why a download's error text says it ended because downloads were off when its turn came (a
+// download is only not started when it was also never Tried: Download.NotStarted): "off" (Pause, the environment lock, new downloads off), "watch_only" (its library is Watch only) or
 // "grab_off" (the library's downloads switch is off). "" for any other error text. The router writes these texts
 // ("route ended: " / "route stopped: " + the gate's error) only when its gate refused before a provider add.
 func NotStarted(errText string) string {
@@ -203,9 +224,9 @@ func NotStarted(errText string) string {
 	return "off"
 }
 
-// NotStarted is NotStarted of a failed download's error; "" for any other state.
+// NotStarted is NotStarted of a failed download's error when it was never Tried; "" otherwise.
 func (d *Download) NotStarted() string {
-	if d.State != "failed" {
+	if d.State != "failed" || d.Tried {
 		return ""
 	}
 	return NotStarted(d.Error)
@@ -232,5 +253,5 @@ var notStartedHistory = map[string]string{
 // NotStartedMessage is the admin's message for a not-started download (by NotStarted's reason), "" for none.
 func NotStartedMessage(reason string) string { return notStartedMessages[reason] }
 
-// NotStartedHistory is the History line for a failure whose error text NotStarted reads as not started, "" otherwise.
-func NotStartedHistory(errText string) string { return notStartedHistory[NotStarted(errText)] }
+// NotStartedHistory is the History line for a not-started reason, "" for none.
+func NotStartedHistory(reason string) string { return notStartedHistory[reason] }

@@ -51,6 +51,7 @@ type Download struct {
 	ImportAttempts         int
 	ImportUpdated          time.Time // library_import.updated_at; zero without one
 	RetryAt                time.Time // the latest provider attempt's retry_at (deferred or paced); zero when none
+	Tried                  bool      // an attempt shows it was tried at a provider or client (Tried)
 }
 
 // Filter selects downloads. Every field is optional; empty means any.
@@ -79,7 +80,7 @@ func Downloads(ctx context.Context, db *sql.DB, f Filter) ([]Download, error) {
 		COALESCE(t.name, ''), COALESCE(t.kind, ''), COALESCE(t.year, 0), COALESCE(t.anime, 0),
 		COALESCE(li.state, ''), COALESCE(li.last_error, ''), COALESCE(li.waiting_since, 0), COALESCE(li.attempts, 0),
 		COALESCE(li.updated_at, 0), COALESCE((SELECT a.retry_at FROM download_attempt a WHERE a.download_id = d.id
-			ORDER BY a.id DESC LIMIT 1), 0)
+			ORDER BY a.id DESC LIMIT 1), 0), ` + TriedSQL + `
 		FROM download d LEFT JOIN title t ON t.id = d.title_id LEFT JOIN library_import li ON li.download_id = d.id
 		WHERE 1 = 1`
 	var args []any
@@ -137,7 +138,7 @@ func Downloads(ctx context.Context, db *sql.DB, f Filter) ([]Download, error) {
 		if err := rows.Scan(&x.ID, &x.TitleID, &x.VersionID, &x.Version, &x.Hash, &x.Release, &x.Indexer, &x.Quality,
 			&x.Score, &x.Size, &eps, &x.Provider, &x.TorrentID, &x.Client, &x.Name, &x.Progress, &x.State, &x.Error, &x.Source,
 			&cached, &x.Reused, &created, &updated, &added, &ready, &imported, &x.TitleName, &x.TitleKind, &x.TitleYear,
-			&x.Anime, &x.ImportState, &x.ImportErr, &waiting, &x.ImportAttempts, &liUpdated, &retry); err != nil {
+			&x.Anime, &x.ImportState, &x.ImportErr, &waiting, &x.ImportAttempts, &liUpdated, &retry, &x.Tried); err != nil {
 			return nil, err
 		}
 		_ = json.Unmarshal([]byte(eps), &x.Episodes)

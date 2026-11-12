@@ -111,6 +111,11 @@ func TestNotStartedWords(t *testing.T) {
 			if got := (&Download{State: "queued", Error: prefix + text}).NotStarted(); got != "" {
 				t.Errorf("queued row read as not started: %q", got)
 			}
+			// Tried at a provider or client before the gate closed: a failure, not "not started".
+			if tried := (Download{State: "failed", Error: prefix + text, Tried: true}); tried.NotStarted() != "" ||
+				tried.Words("") != "Download failed" {
+				t.Errorf("tried row: reason %q, words %q", tried.NotStarted(), tried.Words(""))
+			}
 		}
 	}
 	for text, words := range map[string]string{"download failed: x": "Download failed",
@@ -119,6 +124,18 @@ func TestNotStartedWords(t *testing.T) {
 		d := Download{State: "failed", Error: text}
 		if d.NotStarted() != "" || d.Words("") != words {
 			t.Errorf("%q: reason %q, words %q", text, d.NotStarted(), d.Words(""))
+		}
+	}
+}
+
+func TestTried(t *testing.T) {
+	for _, c := range []struct {
+		outcome, code string
+		want          bool
+	}{{"accepted", "added", true}, {"refused", "too_many_active", true}, {"error", "unknown", true},
+		{"deferred", "client_deferred", true}, {"deferred", "paced", false}, {"skipped", "known_miss", false}} {
+		if Tried(c.outcome, c.code) != c.want {
+			t.Errorf("%s/%s: want %v", c.outcome, c.code, c.want)
 		}
 	}
 }

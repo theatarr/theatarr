@@ -64,6 +64,7 @@ const row = page.items[0];
 it("words rows and the notice from the server's grab state: locked off, not paused", async () => {
   const locked = { ...gates, router_forced_off: true, will_grab: false };
   mockFetch([
+    admin,
     { method: "GET", path: "/wanted", reply: { ...page, downloads_enabled: false, counts: { downloads_off: 1 }, items: [{ ...row, waiting: "downloads_off" }] } },
     { method: "GET", path: "/status", reply: { versions: [{ key: "movie-web", grab_state: locked }] } },
   ]);
@@ -240,16 +241,20 @@ it("opens Interactive search for a series row's season from the row", async () =
 });
 
 it("opens for a manager without the admin links, and says Search all missing when nothing can be searched", async () => {
-  const items = [{ ...row, waiting: "downloads_off" as const, search_blocked: "downloads_off" as const }];
-  mockFetch([
+  // Automatic searches and the library's downloads both off; /status is admin-only and not asked.
+  const items = [{ ...row, waiting: "loop_off" as const, search_blocked: "grab_off" as const }];
+  const fetch = mockFetch([
     { method: "GET", path: "/auth/me", reply: { id: 1, permissions: ["manage"] } },
     { method: "GET", path: "/wanted", reply: { ...page, enabled: false, downloads_enabled: false, searchable: 0, total: 1, items } },
-    { method: "GET", path: "/status", reply: { versions: [{ key: "movie-web", grab_state: { mode: "active", grab: true, router_enabled: false, router_forced_off: false, will_grab: false } }] } },
+    { method: "GET", path: "/status", reply: { status: 403, body: { error: "admin required" } } },
   ]);
   renderPage(<WantedPage />, "/wanted");
   const r = await screen.findByTestId("wanted-row");
   expect(within(r).getByRole("button", { name: "Interactive search" })).toBeTruthy();
-  await waitFor(() => expect(screen.getByTestId("downloads-off-notice").textContent).toContain("New downloads are paused for every library"));
+  expect(screen.getByTestId("downloads-off-notice")).toBeTruthy();
+  expect((within(r).getByRole("button", { name: "Search now" }) as HTMLButtonElement).disabled).toBe(true);
+  expect(within(r).getByTestId("search-blocked").textContent).toBe("Downloads are off for this library");
+  expect(fetch.calls("GET", "/status")).toHaveLength(0);
   expect(within(r).queryByRole("link", { name: "Decision" })).toBeNull();
   expect(screen.queryByRole("tab", { name: "Manual import" })).toBeNull();
   expect(screen.getByRole("tab", { name: "Missing" })).toBeTruthy();

@@ -147,6 +147,13 @@ func TestRequestFlow(t *testing.T) {
 	if s := e.requestStatus(r.ID); s != ReqApproved {
 		t.Errorf("download not started: %s", s)
 	}
+	// The same text on a download a provider already refused (its retry was due when downloads went off): failed.
+	e.exec(`INSERT INTO download_attempt (download_id, provider, outcome, code, attempted_at)
+		SELECT id, 'rd', 'refused', 'too_many_active', ? FROM download`, now)
+	e.web.syncRequests(context.Background())
+	if s := e.requestStatus(r.ID); s != ReqFailed {
+		t.Errorf("tried download: %s", s)
+	}
 	e.exec(`UPDATE download SET error = NULL`)
 	e.exec(`UPDATE download SET state = 'failed', updated_at = ?`, now+1)
 	e.web.syncRequests(context.Background())

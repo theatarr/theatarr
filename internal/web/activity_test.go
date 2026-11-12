@@ -454,8 +454,9 @@ func TestActivityNotStartedDownload(t *testing.T) {
 	e.exec(`INSERT INTO download (id, title_id, version_id, version_key, info_hash, release_title, indexer, state, error,
 		created_at, updated_at) VALUES (1, 1, 2, 'movie-web', ?, 'Alpha.Release', 'dmm', 'failed', ?, ?, ?)`,
 		hashA, "route ended: "+router.ErrDisabled.Error(), now, now)
+	key := e.apiKey()
 	var p ActivityPage
-	if code := e.getKey(APIBase+"/activity", e.apiKey(), &p); code != 200 || len(p.Now) != 1 {
+	if code := e.getKey(APIBase+"/activity", key, &p); code != 200 || len(p.Now) != 1 {
 		t.Fatalf("activity: %d %+v", code, p)
 	}
 	d := p.Now[0]
@@ -473,17 +474,61 @@ func TestActivityNotStartedDownload(t *testing.T) {
 	if words != "Not started: downloads were off" || tone != "info" {
 		t.Errorf("history: %q, %q", words, tone)
 	}
-	// The requests' SQL selects exactly the texts NotStarted reads as not started.
+	// A download tried at a provider before the gate closed (a refused add, waiting for its retry) is a failure.
+	e.exec(`INSERT INTO download (id, title_id, version_id, version_key, info_hash, release_title, indexer, state, error,
+		created_at, updated_at) VALUES (2, 1, 2, 'movie-web', ?, 'Alpha.Other', 'dmm', 'failed', ?, ?, ?)`,
+		strings.Repeat("b", 40), "route ended: "+router.ErrDisabled.Error(), now, now)
+	e.exec(`INSERT INTO download_attempt (download_id, provider, outcome, code, retry_at, attempted_at)
+		VALUES (2, 'rd', 'refused', 'too_many_active', ?, ?), (1, 'rd', 'deferred', 'paced', ?, ?)`, now, now, now, now)
+	p = ActivityPage{}
+	if code := e.getKey(APIBase+"/activity", key, &p); code != 200 || len(p.Now) != 2 {
+		t.Fatalf("activity: %d %+v", code, p)
+	}
+	for _, d := range p.Now {
+		if want := d.ID == 1; d.NotStarted != want || (d.Words == "Download failed") == want {
+			t.Errorf("download %d: not started %v, words %q", d.ID, d.NotStarted, d.Words)
+		}
+	}
+	// The requests' SQL selects exactly the rows the Go check reads as not started.
 	for _, text := range []string{"route ended: " + router.ErrShadow.Error(), "route stopped: " + router.ErrNoGrab.Error(),
 		"route ended: router: unknown version", "Route ended: router: x", "route ended: its release was not placed",
 		"download failed: route ended: router: x", "stalled: not ready", ""} {
-		var sql bool
-		if err := e.st.Reader().QueryRow(`SELECT `+activity.NotStartedSQL+` FROM (SELECT ? AS error)`, text).Scan(&sql); err != nil {
+		e.exec(`UPDATE download SET error = ?`, text)
+		ds, err := activity.Downloads(context.Background(), e.st.Reader(), activity.Filter{})
+		if err != nil {
 			t.Fatal(err)
 		}
-		if sql != (activity.NotStarted(text) != "") {
-			t.Errorf("%q: SQL %v, Go %q", text, sql, activity.NotStarted(text))
+		var goIDs, sqlIDs []int64
+		for _, d := range ds {
+			if d.NotStarted() != "" {
+				goIDs = append(goIDs, d.ID)
+			}
 		}
+		rows, err := e.st.Reader().Query(`SELECT id FROM download WHERE state = 'failed' AND ` + activity.NotStartedSQL + ` ORDER BY id`)
+		if err != nil {
+			t.Fatal(err)
+		}
+		for rows.Next() {
+			var id int64
+			rows.Scan(&id)
+			sqlIDs = append(sqlIDs, id)
+		}
+		rows.Close()
+		if !slices.Equal(goIDs, sqlIDs) {
+			t.Errorf("%q: Go %v, SQL %v", text, goIDs, sqlIDs)
+		}
+	}
+	tried := []journal.Attempt{{Provider: "rd", Outcome: "refused", Code: "too_many_active"}}
+	if words, _ := historyWords(&journal.Entry{Kind: journal.KindFailure, Attempts: tried,
+		Download: &journal.Download{State: "failed", Error: "route ended: " + router.ErrDisabled.Error()}}); words != "Download failed" {
+		t.Errorf("tried history: %q", words)
+	}
+	// The admin's History summary of a not-started row is the plain message; the journal keeps its own text.
+	h, err := e.web.historyEvents(context.Background(), []*journal.Entry{{Kind: journal.KindFailure,
+		Summary: "download failed: route ended: router: router.enabled is false", Title: journal.TitleRef{ID: 1},
+		Download: &journal.Download{State: "failed", Error: "route ended: " + router.ErrDisabled.Error()}}}, true)
+	if err != nil || len(h) != 1 || h[0].Summary != "Nothing was added to a provider. Use Retry once downloads are on again." {
+		t.Errorf("history summary: %+v, %v", h, err)
 	}
 	if words, tone = historyWords(&journal.Entry{Kind: journal.KindFailure,
 		Download: &journal.Download{State: "failed", Error: "download failed: x"}}); words != "Download failed" || tone != "bad" {
