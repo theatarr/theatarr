@@ -91,14 +91,14 @@ func TestWantedSettings(t *testing.T) {
 		got.AgainAfter != 24*time.Hour || !got.Missing || got.CutoffUnmet != CutoffQuality {
 		t.Errorf("example (no active version): %+v", got)
 	}
-	// retry_new is off unless the section turns it on.
+	// retry_new is on unless the section turns it off.
 	for _, q := range []*Policy{p, {}, {Router: &Router{}}, {Router: &Router{Wanted: &Wanted{}}}} {
-		if q.WantedSettings().RetryNew {
-			t.Errorf("retry_new on by default: %+v", q.Router)
+		if !q.WantedSettings().RetryNew {
+			t.Errorf("retry_new off by default: %+v", q.Router)
 		}
 	}
-	if !(&Policy{Router: &Router{Wanted: &Wanted{RetryNew: true}}}).WantedSettings().RetryNew {
-		t.Error("retry_new: true is not applied")
+	if (&Policy{Router: &Router{Wanted: &Wanted{RetryNew: new(false)}}}).WantedSettings().RetryNew {
+		t.Error("retry_new: false is not applied")
 	}
 	active := &Policy{Versions: map[string]*VersionPolicy{"a": {Mode: ModeActive}}}
 	if !active.WantedSettings().Enabled {
@@ -198,6 +198,32 @@ func TestCacheEvidenceSettings(t *testing.T) {
 				s.CheckTop != 5 || s.CheckPerHour != 20 {
 				t.Errorf("settings %+v", s)
 			}
+		}
+	}
+}
+
+// router.wanted.retry_new is on when the router section has no wanted block or the block leaves the field out, and
+// off only when the file says false. The stored-section side (an explicit false is kept) is in internal/settings.
+func TestRetryNewDefaultOn(t *testing.T) {
+	t.Parallel()
+	for _, tc := range []struct {
+		yaml string
+		want bool
+	}{
+		{"router:\n  enabled: false\n", true},
+		{"router:\n  wanted:\n    per_hour: 20\n", true},
+		{"router:\n  wanted:\n    retry_new: false\n", false},
+	} {
+		dir := copyExample(t)
+		if err := os.WriteFile(filepath.Join(dir, "router.yaml"), []byte(tc.yaml), 0o644); err != nil {
+			t.Fatal(err)
+		}
+		p, err := Load(dir)
+		if err != nil {
+			t.Fatalf("%q: %v", tc.yaml, err)
+		}
+		if got := p.WantedSettings().RetryNew; got != tc.want {
+			t.Errorf("%q: retry_new %v, want %v", tc.yaml, got, tc.want)
 		}
 	}
 }

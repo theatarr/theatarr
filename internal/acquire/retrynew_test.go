@@ -78,7 +78,7 @@ func (e *env) wantChains(what string, want map[string]bool) {
 // starts no second chain; the follow-up searches only the new episode and its own empty search starts nothing.
 func TestRetryNewWantedRoundStartsOneChain(t *testing.T) {
 	t.Parallel()
-	e := retryNewEnv(t, &policy.Wanted{PerHour: 100, RetryNew: true})
+	e := retryNewEnv(t, &policy.Wanted{PerHour: 100, RetryNew: new(true)})
 	missed := e.clock()
 	e.round()
 	if n := e.count(`SELECT COUNT(*) FROM acquire_run WHERE state = 'nothing'`); n < 4 {
@@ -117,12 +117,11 @@ func TestRetryNewWantedRoundStartsOneChain(t *testing.T) {
 	}
 }
 
-// With the switch unset or off nothing is queued from an empty search and the search jobs carry no mark: the
-// behaviour and the stored payloads are the ones from before the switch existed.
+// With the switch off nothing is queued from an empty search and the search jobs carry no mark: the behaviour and
+// the stored payloads are the ones from before the switch existed. (Unset is on: TestRetryNewDefaultOn.)
 func TestRetryNewOffQueuesNothing(t *testing.T) {
 	t.Parallel()
-	for name, w := range map[string]*policy.Wanted{"unset": {PerHour: 100}, "off": {PerHour: 100, RetryNew: false},
-		"no section": nil} {
+	for name, w := range map[string]*policy.Wanted{"off": {PerHour: 100, RetryNew: new(false)}, "no section": nil} {
 		t.Run(name, func(t *testing.T) {
 			e := retryNewEnv(t, w)
 			e.round()
@@ -158,7 +157,7 @@ func TestRetryNewOffQueuesNothing(t *testing.T) {
 func TestRetryNewSearchNowStartsAChain(t *testing.T) {
 	t.Parallel()
 	w := loopOff(100)
-	w.RetryNew = true
+	w.RetryNew = new(true)
 	e := retryNewEnv(t, w)
 	e.request(10, "series", OnlyMissing, 2)
 	if _, err := e.a.DrainSearchNow(e.ctx); err != nil {
@@ -174,7 +173,7 @@ func TestRetryNewSearchNowStartsAChain(t *testing.T) {
 func TestRetryNewOtherSourcesStartNothing(t *testing.T) {
 	t.Parallel()
 	w := addTimeOnly(100) // the loop selects nothing itself
-	w.RetryNew = true
+	w.RetryNew = new(true)
 	e := retryNewEnv(t, w)
 	empty := func(what string, want int) {
 		t.Helper()
@@ -216,7 +215,7 @@ func TestRetryNewOtherSourcesStartNothing(t *testing.T) {
 // serve runs a search job) it does.
 func TestRetryNewMarkTravelsWithTheJob(t *testing.T) {
 	t.Parallel()
-	e := retryNewEnv(t, &policy.Wanted{PerHour: 100, RetryNew: true})
+	e := retryNewEnv(t, &policy.Wanted{PerHour: 100, RetryNew: new(true)})
 	e.request(10, "series", OnlyMissing, 2)
 	if _, err := e.a.DrainSearchNow(e.ctx); err != nil {
 		t.Fatal(err)
@@ -235,7 +234,7 @@ func TestRetryNewMarkTravelsWithTheJob(t *testing.T) {
 	}
 	e.wantChains("RunJob", map[string]bool{"series/10": true})
 
-	e2 := retryNewEnv(t, &policy.Wanted{PerHour: 100, RetryNew: true})
+	e2 := retryNewEnv(t, &policy.Wanted{PerHour: 100, RetryNew: new(true)})
 	e2.request(10, "series", OnlyMissing, 2)
 	if _, err := e2.a.DrainSearchNow(e2.ctx); err != nil {
 		t.Fatal(err)
@@ -255,7 +254,7 @@ func TestRetryNewMarkTravelsWithTheJob(t *testing.T) {
 // started does not look at the switch.
 func TestRetryNewOffStopsARunningChain(t *testing.T) {
 	t.Parallel()
-	e := retryNewEnv(t, &policy.Wanted{PerHour: 100, RetryNew: true})
+	e := retryNewEnv(t, &policy.Wanted{PerHour: 100, RetryNew: new(true)})
 	e.round()
 	e.wantChains("started", map[string]bool{"series/10": true})
 	if step := e.runFollowUp(); step != 1 {
@@ -272,7 +271,7 @@ func TestRetryNewOffStopsARunningChain(t *testing.T) {
 	e.wantChains("switch off", nil)
 
 	// Marked while on, finished while off.
-	e = retryNewEnv(t, &policy.Wanted{PerHour: 100, RetryNew: true})
+	e = retryNewEnv(t, &policy.Wanted{PerHour: 100, RetryNew: new(true)})
 	if _, err := e.a.Wanted(e.ctx); err != nil {
 		t.Fatal(err)
 	}
@@ -285,7 +284,7 @@ func TestRetryNewOffStopsARunningChain(t *testing.T) {
 
 	// An exhausted route's chain, with the switch off all along and turned off under it.
 	for _, on := range []bool{false, true} {
-		e = retryNewEnv(t, &policy.Wanted{PerHour: 100, Missing: new(bool), CutoffUnmet: policy.CutoffOff, RetryNew: on})
+		e = retryNewEnv(t, &policy.Wanted{PerHour: 100, Missing: new(bool), CutoffUnmet: policy.CutoffOff, RetryNew: new(on)})
 		e.research(router.ResearchRequest{TitleID: 10, VersionID: 201, Version: "series", Episodes: []int64{1004},
 			Reason: router.ReasonExhausted})
 		e.drain()
@@ -322,7 +321,7 @@ func TestRetryNewStepWithinPerHourAndStops(t *testing.T) {
 		}, false},
 	} {
 		t.Run(q.name, func(t *testing.T) {
-			e := retryNewEnv(t, &policy.Wanted{PerHour: 20, RetryNew: true})
+			e := retryNewEnv(t, &policy.Wanted{PerHour: 20, RetryNew: new(true)})
 			e.round()
 			e.wantChains("started", map[string]bool{"series/10": true})
 			e.advance(time.Hour - time.Minute)
@@ -347,7 +346,7 @@ func TestRetryNewStepWithinPerHourAndStops(t *testing.T) {
 // A step that does search is a wanted search of the hour like any follow-up's.
 func TestRetryNewStepCountsAgainstPerHour(t *testing.T) {
 	t.Parallel()
-	e := retryNewEnv(t, &policy.Wanted{PerHour: 100, RetryNew: true})
+	e := retryNewEnv(t, &policy.Wanted{PerHour: 100, RetryNew: new(true)})
 	e.round()
 	e.advance(61 * time.Minute) // the round's searches left the hour
 	used, err := e.a.wantedUsed(e.ctx, e.clock())
@@ -365,7 +364,7 @@ func TestRetryNewStepCountsAgainstPerHour(t *testing.T) {
 func TestRetryNewFanout(t *testing.T) {
 	t.Parallel()
 	for _, on := range []bool{true, false} {
-		e := retryNewEnv(t, &policy.Wanted{PerHour: 100, RetryNew: on})
+		e := retryNewEnv(t, &policy.Wanted{PerHour: 100, RetryNew: new(on)})
 		e.pol.Versions["series-copy"] = &policy.VersionPolicy{Mode: policy.ModeActive, Grab: true, Kind: policy.KindSeries,
 			Storage: policy.StorageDebrid, Indexers: []string{"pub"}, Providers: []string{"rd"}}
 		e.exec(`INSERT INTO version (id, title_id, policy_key, state, created_at, updated_at)
@@ -388,7 +387,7 @@ func TestRetryNewFanout(t *testing.T) {
 // A movie whose digital release was yesterday behaves the same; one from 2024 gets nothing.
 func TestRetryNewMovie(t *testing.T) {
 	t.Parallel()
-	e := retryNewEnv(t, &policy.Wanted{PerHour: 100, RetryNew: true})
+	e := retryNewEnv(t, &policy.Wanted{PerHour: 100, RetryNew: new(true)})
 	e.exec(`UPDATE title_release_date SET date = ? WHERE title_id = 1`, e.clock().Add(-24*time.Hour).Format("2006-01-02"))
 	e.exec(`UPDATE episode SET air_date_utc_at = ? WHERE id = 1004`, store.Millis(e.clock().Add(-10*24*time.Hour)))
 	missed := e.clock()
@@ -409,7 +408,7 @@ func TestRetryNewMovie(t *testing.T) {
 // An upgrade (cutoff) search that finds nothing starts no chain: the retry is for missing items.
 func TestRetryNewNotForUpgradeSearches(t *testing.T) {
 	t.Parallel()
-	e := retryNewEnv(t, &policy.Wanted{PerHour: 100, Missing: new(bool), CutoffUnmet: policy.CutoffScore, RetryNew: true})
+	e := retryNewEnv(t, &policy.Wanted{PerHour: 100, Missing: new(bool), CutoffUnmet: policy.CutoffScore, RetryNew: new(true)})
 	e.exec(`UPDATE title_release_date SET date = ? WHERE title_id = 3`, e.clock().Add(-24*time.Hour).Format("2006-01-02"))
 	e.round()
 	if n := e.count(`SELECT COUNT(*) FROM acquire_run WHERE title_id = 3 AND reason = ? AND state = 'nothing'`,
@@ -470,7 +469,7 @@ func TestRetryNewChainNeverBlocksAnExhaustedChain(t *testing.T) {
 		}, true},
 	} {
 		t.Run(q.name, func(t *testing.T) {
-			e := retryNewEnv(t, &policy.Wanted{PerHour: 100, RetryNew: true})
+			e := retryNewEnv(t, &policy.Wanted{PerHour: 100, RetryNew: new(true)})
 			e.round()
 			e.wantChains("started", map[string]bool{"series/10": true})
 			q.before(e)
@@ -556,7 +555,7 @@ func (e *env) hours(n int) {
 func TestRetryNewOffStopsUnansweredFollowUps(t *testing.T) {
 	t.Parallel()
 	for _, off := range []bool{false, true} {
-		e := retryNewEnv(t, &policy.Wanted{PerHour: 100, RetryNew: true})
+		e := retryNewEnv(t, &policy.Wanted{PerHour: 100, RetryNew: new(true)})
 		e.round()
 		e.wantChains("started", map[string]bool{"series/10": true})
 		e.noAnswer = true
@@ -598,7 +597,7 @@ func TestRetryNewOffStopsUnansweredFollowUps(t *testing.T) {
 // run ends skipped and does not count as a search.
 func TestRetryNewOffBeforeAFollowUpsSearch(t *testing.T) {
 	t.Parallel()
-	e := retryNewEnv(t, &policy.Wanted{PerHour: 100, RetryNew: true})
+	e := retryNewEnv(t, &policy.Wanted{PerHour: 100, RetryNew: new(true)})
 	e.round()
 	var payload string
 	if err := e.st.Reader().QueryRow(`SELECT payload FROM job WHERE kind = ? AND state = 'queued'`,
@@ -637,7 +636,7 @@ func TestRetryNewOffBeforeAFollowUpsSearch(t *testing.T) {
 func TestRetryNewLeavesExhaustedChainPayloads(t *testing.T) {
 	t.Parallel()
 	for _, on := range []bool{false, true} {
-		e := retryNewEnv(t, &policy.Wanted{PerHour: 100, Missing: new(bool), CutoffUnmet: policy.CutoffOff, RetryNew: on})
+		e := retryNewEnv(t, &policy.Wanted{PerHour: 100, Missing: new(bool), CutoffUnmet: policy.CutoffOff, RetryNew: new(on)})
 		e.noAnswer = true
 		e.research(router.ResearchRequest{TitleID: 10, VersionID: 201, Version: "series", Episodes: []int64{1004},
 			Reason: router.ReasonExhausted})

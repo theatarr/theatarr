@@ -1131,9 +1131,11 @@
           },
           {
             "name": "retry_new",
-            "label": "Retry new episodes sooner",
+            "default": "true",
+            "label": "Retry new releases sooner",
             "type": "boolean",
-            "help": "This searches again after 1, 2, 4, 8 and more hours, instead of a day later, when an automatic search for a missing item that aired or was released in the last week finds nothing. Each try counts against the hourly limit. Default false."
+            "help": "This searches again 1, 2, 4 and 8 hours (and so on) after an automatic search for a missing episode or film that came out in the last 7 days finds nothing, instead of a day later. Each retry counts against the hourly limit.",
+            "nullable": true
           }
         ]
       },

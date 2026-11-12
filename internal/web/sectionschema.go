@@ -243,7 +243,7 @@ var sectionAnnotations = map[string]SchemaField{
 
 func floatPtr(v float64) *float64 { return &v }
 func init() {
-	for _, path := range []string{"metadata.series.enabled", "metadata.anime.auto_build", "library.sample.resolution", "library.sample.mislabel", "library.plex.now_playing", "library.plex.prewarm", "shadow.rss", "shadow.search", "playlists.routes", "router.cached_only", "router.wanted.missing", "router.cache_evidence.torbox_check.enabled"} {
+	for _, path := range []string{"metadata.series.enabled", "metadata.anime.auto_build", "library.sample.resolution", "library.sample.mislabel", "library.plex.now_playing", "library.plex.prewarm", "shadow.rss", "shadow.search", "playlists.routes", "router.cached_only", "router.wanted.missing", "router.wanted.retry_new", "router.cache_evidence.torbox_check.enabled"} {
 		a := sectionAnnotations[path]
 		a.Default = "true"
 		sectionAnnotations[path] = a
@@ -399,7 +399,7 @@ var sectionLabels = map[string]string{
 	"router.wanted.again_after":                   "Wait before searching again",
 	"router.wanted.missing":                       "Search for missing files",
 	"router.wanted.cutoff_unmet":                  "Upgrade search target",
-	"router.wanted.retry_new":                     "Retry new episodes sooner",
+	"router.wanted.retry_new":                     "Retry new releases sooner",
 	"router.cache_evidence":                       "Provider cache results",
 	"router.cache_evidence.ttl":                   "Remember cached results for",
 	"router.cache_evidence.torbox_check":          "Check TorBox cache",

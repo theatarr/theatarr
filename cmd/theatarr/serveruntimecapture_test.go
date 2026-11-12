@@ -810,7 +810,7 @@ func TestServeSearchJobKeepsRetryNewMark(t *testing.T) {
 				APIKeyEnv: "THEATARR_RD_KEY"}},
 			Versions: map[string]*policy.VersionPolicy{"movie": {Mode: policy.ModeActive, Grab: true, Kind: policy.KindMovie,
 				Storage: policy.StorageDebrid, Indexers: []string{"pub"}, Providers: []string{"rd"}}},
-			Router: &policy.Router{Enabled: true, Wanted: &policy.Wanted{RetryNew: on}},
+			Router: &policy.Router{Enabled: true, Wanted: &policy.Wanted{RetryNew: new(on)}},
 		}
 		now := time.Now()
 		for _, q := range []string{
@@ -882,7 +882,7 @@ func TestAfterPublishCancelsRetryNewWhenOff(t *testing.T) {
 				APIKeyEnv: "THEATARR_RD_KEY"}},
 			Versions: map[string]*policy.VersionPolicy{"movie": {Mode: policy.ModeActive, Grab: true, Kind: policy.KindMovie,
 				Storage: policy.StorageDebrid, Indexers: []string{"pub"}, Providers: []string{"rd"}}},
-			Router: &policy.Router{Enabled: true, Wanted: &policy.Wanted{RetryNew: on}},
+			Router: &policy.Router{Enabled: true, Wanted: &policy.Wanted{RetryNew: new(on)}},
 		}
 		q := jobs.NewQueue(db)
 		ac, err := acquire.New(acquire.Config{Store: db, Policy: pol, Queue: q, Router: &serveRouter{},

@@ -68,7 +68,13 @@ func (e *env) advance(d time.Duration) {
 	e.mu.Unlock()
 }
 
+// testPolicy pins router.wanted.retry_new off unless wanted sets it, so only the retry tests see follow-up chains.
 func testPolicy(enabled bool, wanted *policy.Wanted) *policy.Policy {
+	if wanted == nil {
+		wanted = &policy.Wanted{RetryNew: new(false)}
+	} else if wanted.RetryNew == nil {
+		wanted.RetryNew = new(false)
+	}
 	v := func(mode policy.Mode, kind policy.Kind) *policy.VersionPolicy {
 		return &policy.VersionPolicy{Mode: mode, Grab: true, Kind: kind, Storage: policy.StorageDebrid, Indexers: []string{"pub"},
 			Providers: []string{"rd"}}

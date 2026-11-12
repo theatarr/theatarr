@@ -61,6 +61,7 @@ func TestSectionDefaultTrue(t *testing.T) {
 		"playlists.routes":                           p.PlaylistSettings().Routes,
 		"router.cached_only":                         p.RouterSettings().CachedOnly,
 		"router.wanted.missing":                      p.WantedSettings().Missing,
+		"router.wanted.retry_new":                    p.WantedSettings().RetryNew,
 		"router.cache_evidence.torbox_check.enabled": p.CacheEvidenceSettings().CheckEnabled,
 	}
 	var walk func(string, []SchemaField)

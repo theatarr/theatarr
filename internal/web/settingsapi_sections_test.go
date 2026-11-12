@@ -328,9 +328,9 @@ func TestSettingsNotifySaveAddsNoWarningsKey(t *testing.T) {
 	off("yaml")
 }
 
-// Saving the router section as it was read, as config and as YAML, stores no retry_new key; turned on it is stored,
-// and turned off again the key is gone rather than stored as false, so a build from before the option (it decodes
-// sections strictly) still loads the settings.
+// Saving the router section as it was read, as config and as YAML, stores no retry_new key, so a build from before
+// the option (it decodes sections strictly) still loads the settings, and the switch is on by default; turned on it
+// is stored, and turned off the key is stored as false (an explicit Off is kept).
 func TestSettingsRouterSaveAddsNoRetryNewKey(t *testing.T) {
 	t.Parallel()
 	se := seededSectionsEnvBase(t, func(p *policy.Policy) {
@@ -386,8 +386,8 @@ func TestSettingsRouterSaveAddsNoRetryNewKey(t *testing.T) {
 	if n := snapshots(""); n != 0 {
 		t.Fatalf("%d generation snapshots name retry_new after untouched saves", n)
 	}
-	if retryNew() {
-		t.Fatal("retry_new is on by default")
+	if !retryNew() {
+		t.Fatal("retry_new is off by default")
 	}
 
 	// A build whose Wanted has no retry_new field decodes the stored section strictly.
@@ -428,17 +428,14 @@ func TestSettingsRouterSaveAddsNoRetryNewKey(t *testing.T) {
 	off := func(what string) {
 		t.Helper()
 		raw := stored()
-		if strings.Contains(raw, "retry_new") || !strings.Contains(raw, `"per_hour":30`) {
+		if strings.Count(raw, `"retry_new":false`) != 1 || !strings.Contains(raw, `"per_hour":30`) {
 			t.Fatalf("stored after retry_new off (%s): %s", what, raw)
-		}
-		if err := olderLoads(); err != nil {
-			t.Fatalf("an older build does not load the section after retry_new off (%s): %v", what, err)
 		}
 		if retryNew() {
 			t.Fatalf("retry_new still on (%s)", what)
 		}
-		if n := snapshots(newest); n != 0 {
-			t.Fatalf("the newest generation snapshot names retry_new after it was turned off (%s)", what)
+		if n := snapshots(newest); n != 1 {
+			t.Fatalf("the newest generation snapshot does not name retry_new after it was turned off (%s)", what)
 		}
 	}
 	wanted["retry_new"] = false

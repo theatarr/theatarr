@@ -102,10 +102,10 @@ type Wanted struct {
 	Missing *bool `yaml:"missing"`
 	// CutoffUnmet chooses automatic upgrade searches: quality, score or off.
 	CutoffUnmet CutoffMode `yaml:"cutoff_unmet"`
-	// RetryNew searches again after 1, 2, 4, 8 and more hours, instead of a day later, when an automatic search for
-	// a missing item that aired or was released in the last week finds nothing. Each try counts against the hourly
-	// limit. Default false.
-	RetryNew bool `yaml:"retry_new,omitempty" json:",omitempty"`
+	// RetryNew searches again 1, 2, 4 and 8 hours (and so on) after an automatic search for a missing episode or film
+	// that came out in the last 7 days finds nothing, instead of a day later. Each retry counts against the hourly
+	// limit. On by default; off waits for the next regular search.
+	RetryNew *bool `yaml:"retry_new,omitempty" json:",omitempty"`
 }
 
 // CutoffMode is router.wanted.cutoff_unmet: which files the wanted loop searches an upgrade for. It changes only the
@@ -238,7 +238,8 @@ type WantedSettings struct {
 // it off), but it searches only while router.enabled is true.
 func (p *Policy) WantedSettings() WantedSettings {
 	s := WantedSettings{Enabled: len(p.ActiveVersions()) > 0, Interval: DefaultWantedInterval,
-		PerHour: DefaultWantedPerHour, AgainAfter: DefaultWantedAgainAfter, Missing: true, CutoffUnmet: CutoffQuality}
+		PerHour: DefaultWantedPerHour, AgainAfter: DefaultWantedAgainAfter, Missing: true, CutoffUnmet: CutoffQuality,
+		RetryNew: true}
 	if p.Router == nil || p.Router.Wanted == nil {
 		return s
 	}
@@ -261,7 +262,9 @@ func (p *Policy) WantedSettings() WantedSettings {
 	if w.CutoffUnmet != "" {
 		s.CutoffUnmet = w.CutoffUnmet
 	}
-	s.RetryNew = w.RetryNew
+	if w.RetryNew != nil {
+		s.RetryNew = *w.RetryNew
+	}
 	return s
 }
 

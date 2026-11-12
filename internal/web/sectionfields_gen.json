@@ -234,6 +234,6 @@
     "interval": "This is the time between rounds. Default 15m, 5m to 24h.",
     "missing": "This searches items with no file (default true). Which items with a file are searched for an upgrade is the upgrade search target below.",
     "per_hour": "This caps the loop's searches (one title, season or episode each) in any hour. Default 10, 1 to 200.",
-    "retry_new": "This searches again after 1, 2, 4, 8 and more hours, instead of a day later, when an automatic search for a missing item that aired or was released in the last week finds nothing. Each try counts against the hourly limit. Default false."
+    "retry_new": "This searches again 1, 2, 4 and 8 hours (and so on) after an automatic search for a missing episode or film that came out in the last 7 days finds nothing, instead of a day later. Each retry counts against the hourly limit."
   }
 }

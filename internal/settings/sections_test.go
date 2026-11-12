@@ -717,8 +717,8 @@ func TestSectionConfigOmitsUnsetOptionalField(t *testing.T) {
 	}
 }
 
-// router.wanted.retry_new is optional the same way: the stored router section has the key only when it is on, and a
-// submitted false or null is dropped.
+// router.wanted.retry_new is optional the same way: the stored router section has the key only when it is set (on
+// by default), a submitted null is dropped and a submitted false is kept, so an explicit Off is stored.
 func TestSectionConfigOmitsUnsetRetryNew(t *testing.T) {
 	t.Parallel()
 	p := &policy.Policy{Router: &policy.Router{Wanted: &policy.Wanted{PerHour: 20}}}
@@ -726,7 +726,7 @@ func TestSectionConfigOmitsUnsetRetryNew(t *testing.T) {
 	if err != nil || strings.Contains(string(raw), "retry_new") || !strings.Contains(string(raw), `"per_hour":20`) {
 		t.Fatalf("unset: %s %v", raw, err)
 	}
-	p.Router.Wanted.RetryNew = true
+	p.Router.Wanted.RetryNew = new(true)
 	if raw, err = SectionConfig(p, "router"); err != nil || !strings.Contains(string(raw), `"retry_new":true`) {
 		t.Fatalf("on: %s %v", raw, err)
 	}
@@ -737,8 +737,20 @@ func TestSectionConfigOmitsUnsetRetryNew(t *testing.T) {
 	if !back.WantedSettings().RetryNew {
 		t.Fatalf("retry_new read back off: %+v", back.Router.Wanted)
 	}
+	p.Router.Wanted.RetryNew = new(false)
+	if raw, err = SectionConfig(p, "router"); err != nil || !strings.Contains(string(raw), `"retry_new":false`) {
+		t.Fatalf("off: %s %v", raw, err)
+	}
+	back = &policy.Policy{}
+	if err := applySection(back, Section{Record: Record{Key: "router"},
+		Config: DropUnsetOptional("router", raw)}); err != nil {
+		t.Fatal(err)
+	}
+	if back.WantedSettings().RetryNew {
+		t.Fatalf("retry_new off read back on: %+v", back.Router.Wanted)
+	}
 	for sent, want := range map[string]string{
-		`{"wanted":{"per_hour":20,"retry_new":false}}`:  `{"wanted":{"per_hour":20}}`,
+		`{"wanted":{"per_hour":20,"retry_new":false}}`:  `{"wanted":{"per_hour":20,"retry_new":false}}`,
 		`{"wanted":{"retry_new":null,"missing":false}}`: `{"wanted":{"missing":false}}`,
 		`{"wanted":{"retry_new":true}}`:                 `{"wanted":{"retry_new":true}}`,
 		`{"wanted":null}`:                               `{"wanted":null}`,

@@ -42,7 +42,7 @@ import (
 // the router adds only for a target still missing and starts no exhausted re-search after it (router "deadLinkRoute").
 // The dead release is not excluded: found cached again, re-adding it is the repair.
 //
-// With router.wanted.retry_new on (default off) a chain also starts without a route: when a missing search by the
+// With router.wanted.retry_new on (on by default) a chain also starts without a route: when a missing search by the
 // wanted loop or by Search now ends with nothing accepted and its target holds new content (retryNew). The first
 // search of a just-aired episode is usually that one, and the loop would take the item again only after again_after.
 // It has the same steps, stops and per_hour charge, but is a chain of its own. A manual search, a search on add, an

@@ -737,7 +737,7 @@ feed's page again once the hour's miss expires. Tests: `TestFresh`, `TestFreshCo
 `TestFreshEpisodes`, `TestFollowUpsAfterMissOnNewContent`, `TestFollowUpStops`, `TestFollowUpAddsOnceCached`,
 `TestFollowUpOneChainPerTitle`, `TestFollowUpPersistentMiss`, `TestFollowUpRetrySearchesItsEpisodes`.
 
-**An empty search of new content can start a chain of the same kind** (`router.wanted.retry_new`, default off).
+**An empty search of new content can start a chain of the same kind** (`router.wanted.retry_new`, on by default since this release; `false` turns it off).
 The wanted loop takes a missing episode as soon as it has aired, usually before any release exists; that search accepts
 nothing, no route runs, so nothing above applies and the loop takes the item again only after `again_after` (a day).
 With the switch on, a search that ends with nothing accepted starts the follow-up chain for its target's new content
@@ -749,10 +749,11 @@ ends. It runs like the chain above: the same steps (1, 2, 4, 8 ... hours after t
 is new), stops and `per_hour` charge.
 
 It is built to one rule: nothing the chain writes is read by an ordinary path, and turning the switch off removes
-its queued work. What is promised: with the switch never on, every search is started, held back, ordered and paced
-exactly as on a build without it, and its queries keep their query plans; and with the switch off nothing of a chain starts a search on
+its queued work. What is promised: with the switch off, every search is started, held back, ordered and paced
+exactly as on a build without it, and its queries keep their query plans, and nothing of a chain starts a search on
 this build. After the switch was on and is turned off, other searches are not promised to run exactly as if it had
-never been on: the known limits are listed below.
+never been on: the known limits are listed below. An install upgraded from a build where the switch was off by
+default has it on; one that had turned it off must turn it off again (an off switch was not stored before).
 
 - Its jobs are its own: the steps have their own key (`acquire.research/retry_new/<version>/<title>/<step>`; the
   chain above keeps `acquire.research/fresh/...`) and its requests carry `retry_new`. Its searches are marked in the
@@ -764,7 +765,7 @@ never been on: the known limits are listed below.
   Search now request's "a search of it is queued or running" (so a request is never dropped for a chain's search;
   the two may then both search the target), and the number of unanswered searches that sets when a re-search is
   asked for again. The chain's own searches asked for again count the chain's unanswered runs only.
-- An install that never had the switch on reads the run history with the query plans of a build without the
+- An install with the switch off reads the run history with the query plans of a build without the
   switch, for every query that build runs, and adds three small reads (below). The chain's mark is in no index, so
   with the switch off the two readers an index answers alone (the loop's "last searched" and an add-time intent's
   count of unanswered searches) run their query without the switch, and leave the chain's runs out only for the
@@ -828,7 +829,7 @@ Known limits of the switch:
   searched" and an add-time intent's retry count once the nightly job prune has removed the version's last chain
   request, which it does the first night after that request finished or was cancelled 14 days before, not at the
   14-day mark itself (above).
-- An install that never had the switch on still does three reads a build without it does not: every kept
+- An install with the switch off still does three reads a build without it does not: every kept
   re-search job for each "last searched" and once for a drain pass of add-time intents that counts unanswered
   searches; the run table once a night when it holds no chain run; and the queued re-search requests and queued
   search jobs at start and with every published settings generation (above). None of them writes.

@@ -90,7 +90,7 @@ func TestRetryNewRunsHaveTheirOwnRetryBudget(t *testing.T) {
 		t.Fatalf("re-search asked for again at %v, want %v", at, e.clock().Add(infraBackoff[0]))
 	}
 
-	e = retryNewEnv(t, &policy.Wanted{PerHour: 100, RetryNew: true})
+	e = retryNewEnv(t, &policy.Wanted{PerHour: 100, RetryNew: new(true)})
 	e.round()
 	at := store.Millis(e.clock())
 	for range len(infraBackoff) { // a re-search after a failure, its budget spent
@@ -200,7 +200,7 @@ func TestRetryNewQueuedSearchNeverDropsASearchNowRequest(t *testing.T) {
 	}
 
 	// The same with a real chain: its step queued a search of s02e01, the switch is turned off, the user asks.
-	e = retryNewEnv(t, &policy.Wanted{PerHour: 100, RetryNew: true})
+	e = retryNewEnv(t, &policy.Wanted{PerHour: 100, RetryNew: new(true)})
 	e.round()
 	p := router.ResearchRequest{TitleID: 10, VersionID: 201, Version: "series", Reason: router.ReasonFresh,
 		Step: 1, MissedAt: e.clock(), RetryNew: true}
@@ -287,7 +287,7 @@ func (e *env) chainStep() {
 // is queued, its run ends gated (no search, no slot of the hour), not as an ordinary skipped search.
 func TestRetryNewGateComesBeforeTheInactiveLibrary(t *testing.T) {
 	t.Parallel()
-	e := retryNewEnv(t, &policy.Wanted{PerHour: 100, RetryNew: true})
+	e := retryNewEnv(t, &policy.Wanted{PerHour: 100, RetryNew: new(true)})
 	e.round()
 	e.chainStep()
 	e.a.set.RetryNew = false
@@ -318,7 +318,7 @@ func (e *env) queuedJobs() int {
 func TestRetryNewOffCancelsQueuedWork(t *testing.T) {
 	t.Parallel()
 	for _, what := range []string{"asked for again", "search"} {
-		e := retryNewEnv(t, &policy.Wanted{PerHour: 100, RetryNew: true})
+		e := retryNewEnv(t, &policy.Wanted{PerHour: 100, RetryNew: new(true)})
 		e.round()
 		e.noAnswer = true
 		if step := e.runFollowUp(); step != 1 { // step 2 and the search asked for again are queued
@@ -388,7 +388,7 @@ func TestRetryNewOffCancelsQueuedWork(t *testing.T) {
 // asked for again) ends without searching once it runs with the switch off, and its runs are gated.
 func TestRetryNewLateEnqueueSearchesNothing(t *testing.T) {
 	t.Parallel()
-	e := retryNewEnv(t, &policy.Wanted{PerHour: 100, RetryNew: true})
+	e := retryNewEnv(t, &policy.Wanted{PerHour: 100, RetryNew: new(true)})
 	e.round()
 	e.a.set.RetryNew = false
 	if n, err := e.a.CancelRetryNew(e.ctx); err != nil || n != 1 || e.queuedJobs() != 0 {
@@ -578,7 +578,7 @@ func TestRetryNewLastSearchedWithTheSwitchOff(t *testing.T) {
 // to run. A chain's search that is running (its job running) is left to end by itself.
 func TestRetryNewOffCancelsAnInterruptedSearch(t *testing.T) {
 	t.Parallel()
-	e := retryNewEnv(t, &policy.Wanted{PerHour: 100, RetryNew: true})
+	e := retryNewEnv(t, &policy.Wanted{PerHour: 100, RetryNew: new(true)})
 	job := func(run int64, state string) {
 		e.exec(`INSERT INTO job (kind, payload, dedupe_key, state, run_at, created_at, updated_at)
 			VALUES (?, json_object('run_id', ?), ?, ?, 0, 0, 0)`, JobSearch, run, JobSearch+"/"+strconv.FormatInt(run, 10),
