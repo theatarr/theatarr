@@ -27,11 +27,12 @@ type Report struct {
 	Files int `json:"files"`
 	// Linkable (a Preview) is at most how many files can be linked.
 	Linkable int `json:"linkable"`
-	// Linked are new links; Existing were linked already; HasFile are files whose episodes or movie the library has
+	// Linked are new links; Existing were linked already; FilesHasFile are files whose episodes or movie the library
+	// has
 	// its own file for.
-	Linked   int `json:"linked"`
-	Existing int `json:"existing"`
-	HasFile  int `json:"has_file"`
+	Linked       int `json:"linked"`
+	Existing     int `json:"existing"`
+	FilesHasFile int `json:"files_has_file"`
 	// NotLinked counts the files not linked, by reason: adopt's (arr_file_missing, not_a_symlink, target_off_mount,
 	// dangling, path_taken, no_episodes, naming, has_file) and numbering, no_episode_list.
 	NotLinked map[string]int `json:"not_linked"`

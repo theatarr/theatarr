@@ -490,7 +490,7 @@ func (r *runner) link(ctx context.Context, t *importarr.Title, titleID int64, at
 	if ar != nil {
 		rep.Linked += ar.Linked
 		rep.Existing += ar.Existing
-		rep.HasFile += ar.HasFile
+		rep.FilesHasFile += ar.HasFile
 		for reason, n := range ar.Skipped {
 			rep.notLinked(reason, n)
 		}
