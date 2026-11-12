@@ -11,6 +11,7 @@ package settings
 import (
 	"bytes"
 	"context"
+	"database/sql"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -424,7 +425,11 @@ func (s *QualitySync) LinkApply(ctx context.Context, source QualitySyncSource, e
 	}
 	all := snap.Records
 	all.Profiles, all.Formats, all.FormatSets, all.Naming = records.Profiles, records.Formats, records.FormatSets, records.Naming
-	saved, err := s.Coordinator.saveAndApplyWithHook(ctx, SaveRequest{ExpectedGeneration: expected, Actor: actor, Records: all, Base: s.Coordinator.base}, "trash-link", nil)
+	saved, err := s.Coordinator.saveAndApplyWithHook(ctx, SaveRequest{ExpectedGeneration: expected, Actor: actor, Records: all, Base: s.Coordinator.base}, "trash-link", func(ctx context.Context, tx *sql.Tx) error {
+		// The source's next run reads its upstream again, even at the same commit: the links change what it updates.
+		_, err := tx.ExecContext(ctx, "UPDATE settings_quality_sync_run SET config_digest='' WHERE source_key=?", source.Key)
+		return err
+	})
 	return saved, n, err
 }
 

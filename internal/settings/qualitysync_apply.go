@@ -22,7 +22,7 @@ func (s *QualitySync) applyRun(ctx context.Context, p *QualityPreview, actor str
 	}
 	quality := p.candidate
 	records := current.Records
-	records.Profiles, records.Formats, records.FormatSets, records.Naming = quality.Profiles, quality.Formats, quality.FormatSets, quality.Naming
+	records.Profiles, records.Formats, records.FormatSets, records.Naming = withOrigins(quality.Profiles, current.Records.Profiles), quality.Formats, quality.FormatSets, quality.Naming
 	// The candidate carries the saved source's new score state; the source's config is the one previewed (same generation).
 	for _, q := range quality.SyncSources {
 		records.SyncSources = withScoreState(records.SyncSources, q.Key, q.Config.ScoreState, q.Config.FieldState)
@@ -39,6 +39,22 @@ func (s *QualitySync) applyRun(ctx context.Context, p *QualityPreview, actor str
 		return 0, err
 	}
 	return id, nil
+}
+
+// withOrigins returns profiles with the stored preset origins of current carried by key (the candidate is built from
+// the policy, which has none).
+func withOrigins(profiles, current []QualityProfile) []QualityProfile {
+	origins := map[string]*ProfileOrigin{}
+	for _, p := range current {
+		origins[p.Key] = p.Origin
+	}
+	out := slices.Clone(profiles)
+	for i := range out {
+		if out[i].Origin == nil {
+			out[i].Origin = origins[out[i].Key]
+		}
+	}
+	return out
 }
 
 // Changes is the update log: the updates runs applied, newest first, at most limit. Held-score decisions of the former

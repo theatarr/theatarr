@@ -294,11 +294,18 @@ func TestTrashLinkApplyThenSyncUpdatesSetFormat(t *testing.T) {
 	if _, _, err := svc.LinkApply(ctx, source, p.Generation, "content:other", []TrashLink{{Set: linkSetKey, Key: "3D", TrashID: link3D}}, "admin"); !errors.Is(err, ErrConflict) {
 		t.Fatal("link against another TRaSH commit accepted", err)
 	}
+	// A link makes the source's next run read its upstream again, even at the same commit and config.
+	if _, err := svc.Store.db.Writer().Exec("INSERT INTO settings_quality_sync_run(source_key,started_at,commit_id,outcome,config_digest) VALUES('trash-radarr',1,'c','unchanged',?)", configDigest(source.Config)); err != nil {
+		t.Fatal(err)
+	}
 	// The ambiguous one only as the administrator's explicit choice among the formats of its specification.
 	links := []TrashLink{{Set: linkSetKey, Key: "3D", TrashID: link3D}, {Set: linkSetKey, Key: "HDR10+ Boost - Notifiarr", TrashID: linkHDR}, {Set: linkSetKey, Key: "LQ", TrashID: linkLQ}, {Set: linkSetKey, Key: "Disc releases", TrashID: linkBRCopy}}
 	linked, n, err := svc.LinkApply(ctx, source, p.Generation, p.Commit, links, "admin")
 	if err != nil || n != 4 || linked.Generation != saved.Generation+1 {
 		t.Fatalf("link apply: n=%d err=%v", n, err)
+	}
+	if last, err := svc.lastGood(ctx, "trash-radarr", 1<<62); err != nil || last.digest != "" {
+		t.Fatalf("link kept the run digest: %+v %v", last, err)
 	}
 	found := false
 	for _, a := range audit(t, svc.Store) {

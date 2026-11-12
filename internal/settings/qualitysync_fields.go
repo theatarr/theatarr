@@ -3,7 +3,9 @@ package settings
 import (
 	"bytes"
 	"encoding/json"
+	"maps"
 	"reflect"
+	"slices"
 	"sort"
 	"strings"
 
@@ -180,7 +182,10 @@ func setProfileField(p *policy.Profile, f string, raw json.RawMessage) error {
 				return err
 			}
 		}
-		p.Qualities, p.QualityOrder = q, nil
+		p.Qualities = q
+		if !orderFits(p.QualityOrder, q) {
+			p.QualityOrder = nil
+		}
 		fixCutoff(p, "")
 	case "cutoff":
 		err = json.Unmarshal(raw, &p.Cutoff)
@@ -200,6 +205,24 @@ func setProfileField(p *policy.Profile, f string, raw json.RawMessage) error {
 		}
 	}
 	return err
+}
+
+// orderFits reports whether a quality_order still ranks qualities: its allowed items are qualities, in order and
+// with the same group members (what validation asks).
+func orderFits(order, qualities []policy.QualityItem) bool {
+	names := map[string]bool{}
+	for _, q := range qualities {
+		names[q.Name] = true
+	}
+	var allowed []policy.QualityItem
+	for _, q := range order {
+		if names[q.Name] {
+			allowed = append(allowed, q)
+		}
+	}
+	return len(order) > 0 && slices.EqualFunc(allowed, qualities, func(a, b policy.QualityItem) bool {
+		return a.Name == b.Name && a.Group == b.Group && slices.Equal(a.Qualities, b.Qualities)
+	})
 }
 
 // fixCutoff moves a cutoff that is not one of p's allowed items to want when that is one, else to the first.
@@ -261,19 +284,29 @@ func reconcileProfile(cur *policy.Profile, in RecyclarrProfile, last map[string]
 		up[f] = profileField(&in.Config, f)
 	}
 	if in.Reset != nil {
-		for k := range cur.Formats {
+		// A score reset earlier stays remembered while the reset covers it, so restored by hand it is ours.
+		resettable := slices.Collect(maps.Keys(cur.Formats))
+		for f := range last {
+			if k, ok := strings.CutPrefix(f, "formats/"); ok {
+				resettable = append(resettable, k)
+			}
+		}
+		for _, k := range resettable {
 			if _, managed := up["formats/"+k]; !managed && !keep(k) && in.Reset(k) {
 				up["formats/"+k] = jsonNull
 			}
 		}
 	}
+	// Each field is compared with the profile as it was before the run: taking one (the qualities) may move another
+	// (the cutoff).
+	before := *cur
 	next := map[string]FieldMemory{}
 	var held []HeldField
 	fields := sortedStringKeys(up)
 	// The qualities go first: taking them may move the cutoff, which the cutoff field then sees.
 	sort.SliceStable(fields, func(i, j int) bool { return fields[i] == "qualities" && fields[j] != "qualities" })
 	for _, f := range fields {
-		ours := profileField(cur, f)
+		ours := profileField(&before, f)
 		if draft {
 			if err := setProfileField(cur, f, up[f]); err != nil {
 				return nil, nil, err

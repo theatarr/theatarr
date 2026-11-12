@@ -2,6 +2,7 @@ package settings
 
 import (
 	"encoding/json"
+	"reflect"
 	"testing"
 
 	"github.com/theatarr/theatarr/internal/policy"
@@ -62,5 +63,68 @@ func TestFollowField(t *testing.T) {
 		if !sameFieldJSON(mem.Upstream, c.up) {
 			t.Errorf("%s: remembers %s, want %s", name, mem.Upstream, c.up)
 		}
+	}
+}
+
+func qualityItems(names ...string) []policy.QualityItem {
+	out := make([]policy.QualityItem, len(names))
+	for i, n := range names {
+		out[i] = policy.QualityItem{Name: n}
+	}
+	return out
+}
+
+// A score reset_unmatched_scores removed is remembered while the reset still covers it: restored by hand, it is
+// yours and stays.
+func TestReconcileResetScoreRestoredStays(t *testing.T) {
+	t.Parallel()
+	in := RecyclarrProfile{Key: "p", Reset: func(k string) bool { return k == "Seadex" }}
+	none := func(string) bool { return false }
+	cur := policy.Profile{Formats: map[string]int{"Seadex": 500}}
+	last, _, err := reconcileProfile(&cur, in, nil, false, none)
+	if err != nil || len(cur.Formats) != 0 {
+		t.Fatalf("first run did not reset: %v %v", cur.Formats, err)
+	}
+	if last, _, err = reconcileProfile(&cur, in, last, false, none); err != nil {
+		t.Fatal(err)
+	}
+	cur.Formats = map[string]int{"Seadex": 500}
+	_, kept, err := reconcileProfile(&cur, in, last, false, none)
+	if err != nil || cur.Formats["Seadex"] != 500 || len(kept) != 0 {
+		t.Fatalf("restored score reset again: %v kept %v %v", cur.Formats, kept, err)
+	}
+}
+
+// Taking a changed quality list keeps a quality_order that is still valid for it.
+func TestReconcileQualitiesKeepValidOrder(t *testing.T) {
+	t.Parallel()
+	order := qualityItems("Remux-2160p", "WEBDL-2160p", "Bluray-1080p", "WEBDL-1080p")
+	cur := policy.Profile{Qualities: qualityItems("WEBDL-2160p"), QualityOrder: order, Cutoff: "WEBDL-2160p"}
+	in := RecyclarrProfile{Key: "p", Fields: []string{"qualities"}, Config: policy.Profile{Qualities: qualityItems("WEBDL-2160p", "WEBDL-1080p"), Cutoff: "WEBDL-2160p"}}
+	last := map[string]FieldMemory{"qualities": {Upstream: profileField(&cur, "qualities")}}
+	if _, _, err := reconcileProfile(&cur, in, last, false, func(string) bool { return false }); err != nil {
+		t.Fatal(err)
+	}
+	if len(cur.Qualities) != 2 || !reflect.DeepEqual(cur.QualityOrder, order) {
+		t.Fatalf("qualities %v order %v", cur.Qualities, cur.QualityOrder)
+	}
+	// An order the new list does not fit is dropped.
+	in.Config.Qualities = qualityItems("WEBDL-1080p", "WEBDL-2160p")
+	last = map[string]FieldMemory{"qualities": {Upstream: profileField(&cur, "qualities")}}
+	if _, _, err := reconcileProfile(&cur, in, last, false, func(string) bool { return false }); err != nil || cur.QualityOrder != nil {
+		t.Fatalf("invalid order kept: %v %v", cur.QualityOrder, err)
+	}
+}
+
+// The cutoff is compared as it was before the run: a cutoff the source changes together with the qualities is taken,
+// not mistaken for one of yours because taking the qualities moved it.
+func TestReconcileCutoffComparedBeforeQualities(t *testing.T) {
+	t.Parallel()
+	cur := policy.Profile{Qualities: qualityItems("Bluray-2160p", "WEBDL-1080p"), Cutoff: "WEBDL-1080p"}
+	last := map[string]FieldMemory{"qualities": {Upstream: profileField(&cur, "qualities")}, "cutoff": {Upstream: profileField(&cur, "cutoff")}}
+	in := RecyclarrProfile{Key: "p", Fields: []string{"qualities", "cutoff"}, Config: policy.Profile{Qualities: qualityItems("Bluray-2160p", "WEBDL-2160p"), Cutoff: "WEBDL-2160p"}}
+	_, kept, err := reconcileProfile(&cur, in, last, false, func(string) bool { return false })
+	if err != nil || cur.Cutoff != "WEBDL-2160p" || len(kept) != 0 {
+		t.Fatalf("cutoff %q kept %+v %v", cur.Cutoff, kept, err)
 	}
 }

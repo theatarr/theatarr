@@ -411,3 +411,64 @@ func currentSnap(t *testing.T, c *RuntimeCoordinator) *Snapshot {
 	}
 	return snap
 }
+
+// A run that changes only formats keeps the stored preset origins of the profiles.
+func TestQualitySyncKeepsProfileOrigins(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+	svc, base, initial := syncService(t)
+	req := saveRequest(base, initial)
+	origin := &ProfileOrigin{Preset: presetWeb2160, Name: "WEB 2160p", Flavour: "radarr"}
+	req.Records.Profiles[0].Origin = origin
+	key := req.Records.Profiles[0].Key
+	req.Records.SyncSources = []QualitySyncSource{{Record: Record{Key: "guides"}, Config: QualitySyncConfig{Kind: "trash", Flavour: "radarr"}}}
+	saved, err := svc.Coordinator.SaveAndApply(ctx, req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	editUpstream(t, svc.TrashRoot, syncFormatID, func(f map[string]any) { f["includeCustomFormatWhenRenaming"] = true })
+	if err := svc.RunSource(ctx, saved.Records.SyncSources[0], true); err != nil {
+		t.Fatal(err)
+	}
+	if r := lastRunOf(t, svc); r.Outcome != "applied" {
+		t.Fatalf("run %+v", r)
+	}
+	head, err := svc.Store.Load(ctx, base)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, p := range head.Records.Profiles {
+		if p.Key == key && !reflect.DeepEqual(p.Origin, origin) {
+			t.Fatalf("origin of %s lost: %+v", key, p.Origin)
+		}
+	}
+}
+
+// A run's preview is applied only at the generation it was made at: a settings save in between is a conflict and
+// nothing is applied or logged.
+func TestQualitySyncStalePreviewNotApplied(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+	svc, base, initial := syncService(t)
+	req := saveRequest(base, initial)
+	req.Records.SyncSources = []QualitySyncSource{{Record: Record{Key: "guides"}, Config: QualitySyncConfig{Kind: "trash", Flavour: "radarr"}}}
+	saved, err := svc.Coordinator.SaveAndApply(ctx, req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	editUpstream(t, svc.TrashRoot, syncFormatID, func(f map[string]any) { f["includeCustomFormatWhenRenaming"] = true })
+	p, err := svc.previewResolved(withBundledTrash(ctx), saved.Records.SyncSources[0])
+	if err != nil || !p.HasChanges() {
+		t.Fatalf("preview %+v %v", p, err)
+	}
+	moved, err := svc.Coordinator.SaveAndApply(ctx, saveRequest(base, saved))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := svc.applyRun(ctx, p, "sync:guides"); !errors.Is(err, ErrConflict) {
+		t.Fatal("stale preview applied", err)
+	}
+	if changes, _ := svc.Changes(ctx, 10); len(changes) != 0 || svc.Coordinator.Current().Generation != moved.Generation {
+		t.Fatal("stale preview logged or applied")
+	}
+}
