@@ -182,14 +182,15 @@ Both are first-class, and they mix. **Settings › Indexers › Add indexer** ha
   DMM, Torrentio, Zilean and SeaDex. None of them is required: use the ones you want. DMM's API key comes only with a
   paid GitHub sponsorship of DMM.
 - **Link Prowlarr.** Enter Prowlarr's address and API key once; Theatarr lists Prowlarr's indexers and adds the
-  ticked ones as Torznab feeds. The trackers, their logins and their VPN stay in Prowlarr: run Prowlarr behind your
-  VPN, as Theatarr's VPN check does not cover the requests Prowlarr sends. Prowlarr must be on your local network.
-  Indexers added to Prowlarr later are linked by opening the tab again. Keep DMM and SeaDex added directly: through
-  Prowlarr they lose which debrid service has a release cached.
-- **Move from Prowlarr (once).** Each Prowlarr indexer that has a catalog definition becomes an indexer Theatarr runs
-  itself, with its own request budget; the others are left out (link them instead). Logins are not copied, so a
-  tracker that needs one is added off: enter its login, then turn it on. Prowlarr's feeds stay as they are: take a
-  feed out of a library once its tracker runs here, or the tracker is searched twice.
+  ticked ones as Torznab feeds. A new address needs the key typed again. The trackers, their logins and their VPN
+  stay in Prowlarr: run Prowlarr behind your VPN, as Theatarr's VPN check does not cover the requests Prowlarr
+  sends. Prowlarr must be on your local network. Indexers added to Prowlarr later are linked by opening the tab
+  again. Keep DMM and SeaDex added directly: through Prowlarr they lose which debrid service has a release cached.
+- **Move from Prowlarr (once).** Each Prowlarr indexer that has a catalog definition becomes an indexer Theatarr
+  runs itself, with its own request budget, in the libraries its categories fit; the others are left out (link them
+  instead). Logins are not copied, so a tracker that needs one is added off: enter its login, then turn it on.
+  Prowlarr's feeds stay as they are: take a feed out of a library once its tracker runs here, or the tracker is
+  searched twice.
 
 A new indexer is on, and the same form has a **Libraries** list: the ticked libraries search it from that save. Every
 library that suits it starts ticked (a catalog site by its categories, SeaDex for anime libraries, every other

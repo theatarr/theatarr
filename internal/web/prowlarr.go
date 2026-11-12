@@ -4,6 +4,7 @@ package web
 // reads its indexer list (GET /api/v1/indexer, on the LAN) and adds the chosen ones as feeds. No catalog needed.
 
 import (
+	"encoding/json"
 	"net/http"
 	"slices"
 	"strconv"
@@ -47,6 +48,27 @@ func prowlarrAt(snap *settings.Snapshot) (url, key string, ok bool) {
 	pr := snap.Policy.Cardigann.Prowlarr
 	key = snap.Policy.Getenv(pr.APIKeyEnv)
 	return pr.URL, key, pr.URL != "" && key != ""
+}
+
+// prowlarrKeyLeft reports whether a cardigann section save moves Prowlarr to another address while the stored key
+// stays: the key is never sent to a new address, so it must be entered again (as for Radarr and Sonarr lists).
+func prowlarrKeyLeft(snap *settings.Snapshot, config json.RawMessage, writes map[string]settings.Secret) bool {
+	before, key, ok := prowlarrAt(snap)
+	if !ok || key == "" {
+		return false
+	}
+	if _, sent := writes["prowlarr.api_key"]; sent {
+		return false
+	}
+	var next struct {
+		Prowlarr *struct {
+			URL string `json:"url"`
+		} `json:"prowlarr"`
+	}
+	if json.Unmarshal(config, &next) != nil || next.Prowlarr == nil || next.Prowlarr.URL == "" {
+		return false
+	}
+	return cardigann.NormalizeFeedURL(next.Prowlarr.URL) != cardigann.NormalizeFeedURL(before)
 }
 
 // readProwlarrFeeds reads Prowlarr and marks its indexers against the snapshot's; a read error is answered (502).

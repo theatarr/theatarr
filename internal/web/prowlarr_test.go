@@ -129,3 +129,21 @@ func TestLinkProwlarrFeeds(t *testing.T) {
 	}
 	se.noSecretAnywhere()
 }
+
+// A new Prowlarr address needs the key typed again: the stored key is never sent to another address.
+func TestProwlarrAddressNeedsKeyAgain(t *testing.T) {
+	t.Parallel()
+	srv, seen := fakeProwlarr(t)
+	se := prowlarrEnv(t, srv, testSecret)
+	gen := se.generation()
+	moved := map[string]any{"prowlarr": map[string]any{"url": "http://10.0.0.99:9696"}}
+	se.want(se.call("PUT", "/sections/cardigann", map[string]any{"generation": gen, "config": moved}), 422, "key again")
+	if se.generation() != gen || len(seen()) != 0 {
+		t.Fatal("refused address change saved or reached Prowlarr")
+	}
+	// The same address respelled keeps the key; a new address with a new key saves.
+	se.want(se.call("PUT", "/sections/cardigann", map[string]any{"generation": gen,
+		"config": map[string]any{"prowlarr": map[string]any{"url": srv.URL + "/"}}}), 200, "same address")
+	se.want(se.call("PUT", "/sections/cardigann", map[string]any{"generation": se.generation(), "config": moved,
+		"secrets": map[string]string{"prowlarr.api_key": "another-prowlarr-key"}}), 200, "new key")
+}

@@ -13,7 +13,6 @@ import { useQueryClient } from "@tanstack/react-query";
 import { ApiError } from "@/api/client";
 import { qk } from "@/api/query-keys";
 import { useProwlarrFeeds } from "@/api/prowlarr";
-import type { VersionRecord } from "@/api/settings-versions";
 import {
   fetching,
   prowlarrProposals,
@@ -23,6 +22,7 @@ import {
   useCardigannHolds,
   type CardigannDefinition,
   type CardigannHold,
+  type CardigannList,
   type CardigannSetting,
   type ProwlarrProposal,
 } from "@/api/cardigann";
@@ -55,7 +55,7 @@ import { fmtAgo } from "@/lib/format";
 import { cn } from "@/lib/utils";
 import { explainError, type Explained } from "@/lib/settings";
 import { Choice } from "@/components/ui/confirm-dialog";
-import { IndexerLibraries } from "./indexer-libraries";
+import { IndexerLibraries, librariesReady, type LibraryList } from "./indexer-libraries";
 import { Announcer, ExplainBox, Field, SELECT_CLASS, TestResult, useAnnouncement } from "./parts";
 import { LinkTab, ProwlarrConnection } from "./prowlarr-link";
 import { useSectionPatch } from "./use-section-patch";
@@ -98,8 +98,8 @@ export function AddIndexer({
   overview: SettingsOverview;
   /** The indexer kinds the settings schema offers. */
   kinds: string[];
-  /** The libraries a new indexer can join; undefined while they load. */
-  libraries?: VersionRecord[];
+  /** The libraries a new indexer can join, as read (an add waits until they have loaded). */
+  libraries: LibraryList;
   onBuiltIn: (kind: string) => void;
   onDone: (added?: string) => void;
   headingRef?: RefObject<HTMLHeadingElement | null>;
@@ -157,7 +157,7 @@ export function AddIndexer({
           </div>
         </TabsContent>
         <TabsContent value="link">
-          <LinkTab overview={overview} libraries={libraries} />
+          <LinkTab libraries={libraries} />
         </TabsContent>
         <TabsContent value="prowlarr">
           <MigrateTab overview={overview} libraries={libraries} />
@@ -217,6 +217,15 @@ function CatalogFailed({ error }: { error: string }) {
   );
 }
 
+/** While the catalog is on but empty: the first fetch running, or its failure with Try again. */
+function catalogNotReady(list: CardigannList) {
+  if (fetching(list)) {
+    return <p className="text-sm text-muted-foreground" role="status" data-testid="catalog-fetching"><Loader2 className="mr-1 inline size-4 animate-spin" aria-hidden />Fetching the catalog…</p>;
+  }
+  if (list.total === 0 && list.status.last_error) return <CatalogFailed error={list.status.last_error} />;
+  return null;
+}
+
 function CatalogTab({ onSetUp }: { onSetUp: (d: CardigannDefinition) => void }) {
   const catalog = useCardigannCatalog(true, true);
   const [f, setF] = useState<CatalogFilter>(NO_FILTER);
@@ -227,10 +236,8 @@ function CatalogTab({ onSetUp }: { onSetUp: (d: CardigannDefinition) => void }) 
   if (catalog.error || catalog.data.unavailable) {
     return !catalog.error || catalogOff(catalog.error) ? <CatalogOff /> : <ExplainBox error={explainError(catalog.error)} />;
   }
-  if (fetching(catalog.data)) {
-    return <p className="text-sm text-muted-foreground" role="status" data-testid="catalog-fetching"><Loader2 className="mr-1 inline size-4 animate-spin" aria-hidden />Fetching the catalog…</p>;
-  }
-  if (catalog.data.total === 0 && catalog.data.status.last_error) return <CatalogFailed error={catalog.data.status.last_error} />;
+  const notReady = catalogNotReady(catalog.data);
+  if (notReady) return notReady;
   const st = catalog.data.status;
   const set = (p: Partial<CatalogFilter>) => setF((x) => ({ ...x, ...p }));
   return (
@@ -333,7 +340,7 @@ function SetupView({
 }: {
   def: CardigannDefinition;
   overview: SettingsOverview;
-  libraries?: VersionRecord[];
+  libraries: LibraryList;
   onBack: () => void;
   onDone: (added?: string) => void;
   headingRef?: RefObject<HTMLHeadingElement | null>;
@@ -347,7 +354,7 @@ function SetupView({
   const [enabled, setEnabled] = useState(true);
   // The ticked libraries; until the admin changes them, every library that suits the definition's content.
   const [chosen, setChosen] = useState<string[]>();
-  const versions = chosen ?? matchingLibraries({ kind: "cardigann", categories: def.categories }, libraries ?? []);
+  const versions = chosen ?? matchingLibraries({ kind: "cardigann", categories: def.categories }, libraries.versions ?? []);
   // The budget keys this view wrote (by Test search), so Add doesn't write them again before the overview reloads.
   const [made, setMade] = useState<string[]>([]);
   const [announcement, announce] = useAnnouncement();
@@ -421,7 +428,7 @@ function SetupView({
           <Button type="button" size="sm" variant="outline" onClick={() => void onTest()} disabled={!!busy} data-testid="setup-test">
             {busy === "test" ? <Loader2 className="animate-spin" /> : <Zap />} Test search
           </Button>
-          <Button type="button" size="sm" onClick={() => void onAdd()} disabled={!!busy} className="ml-auto" data-testid="setup-add">
+          <Button type="button" size="sm" onClick={() => void onAdd()} disabled={!!busy || !librariesReady(libraries)} className="ml-auto" data-testid="setup-add">
             {busy === "add" ? <Loader2 className="animate-spin" /> : <Plus />} Add
           </Button>
         </>
@@ -530,8 +537,8 @@ function SettingField({ s, value, error, onChange }: { s: CardigannSetting; valu
 
 type RowResult = { ok: boolean; text: string };
 
-function MigrateTab({ overview, libraries }: { overview: SettingsOverview; libraries?: VersionRecord[] }) {
-  const catalog = useCardigannCatalog();
+function MigrateTab({ overview, libraries }: { overview: SettingsOverview; libraries: LibraryList }) {
+  const catalog = useCardigannCatalog(true, true);
   const connection = useProwlarrFeeds();
   const [proposals, setProposals] = useState<ProwlarrProposal[]>();
   const [loading, setLoading] = useState(false);
@@ -541,9 +548,6 @@ function MigrateTab({ overview, libraries }: { overview: SettingsOverview; libra
   const [busy, setBusy] = useState(false);
   const [announcement, announce] = useAnnouncement();
   const write = useSettingsWrite();
-  // The ticked libraries; until the admin changes them, every library that suits the proposals' definitions (their
-  // categories from the catalog), or every library when none is found there.
-  const [chosen, setChosen] = useState<string[]>();
   const existing = overview.indexers.map((i) => i.key);
   const addable = (p: ProwlarrProposal) => p.status === "proposed" && !!p.key && !existing.includes(p.key) && !results[p.key]?.ok;
 
@@ -562,10 +566,13 @@ function MigrateTab({ overview, libraries }: { overview: SettingsOverview; libra
   };
   const ticked = (proposals ?? []).filter((p) => addable(p) && picked[p.key!]);
   const defs = catalog.data?.definitions ?? [];
-  const versions = chosen ?? (() => {
-    const cats = ticked.flatMap((p) => defs.find((d) => d.id === p.indexer?.definition)?.categories ?? []);
-    return cats.length ? matchingLibraries({ kind: "cardigann", categories: cats }, libraries ?? []) : (libraries ?? []).map((v) => v.key);
-  })();
+  // Each tracker goes to the libraries its definition's categories fit, or to every library when the catalog does
+  // not have its definition.
+  const versionsOf = (p: ProwlarrProposal): string[] => {
+    const all = libraries.versions ?? [];
+    const d = defs.find((x) => x.id === p.indexer?.definition);
+    return d ? matchingLibraries({ kind: "cardigann", categories: d.categories }, all) : all.map((v) => v.key);
+  };
   const migrate = async () => {
     setBusy(true);
     let gen = overview.generation;
@@ -577,7 +584,7 @@ function MigrateTab({ overview, libraries }: { overview: SettingsOverview; libra
       // A tracker that needs a login is added off: Prowlarr does not hand logins out.
       const login = !!p.secrets?.length;
       try {
-        gen = await addIndexer(write, overview, w, gen, false, !login, versions);
+        gen = await addIndexer(write, overview, w, gen, false, !login, versionsOf(p));
         setResults((r) => ({ ...r, [p.key!]: { ok: true, text: login ? "added off: enter its login, then turn it on" : "added" } }));
         priority++;
         added++;
@@ -589,6 +596,8 @@ function MigrateTab({ overview, libraries }: { overview: SettingsOverview; libra
     announce(`${added} of ${ticked.length} added.`);
   };
   const off = catalog.data?.unavailable || catalogOff(catalog.error);
+  // Nothing is read until the catalog has its definitions: their categories pick each tracker's libraries.
+  const notReady = off ? null : catalog.isPending ? <Loading /> : catalog.error ? <ExplainBox error={explainError(catalog.error)} /> : catalogNotReady(catalog.data);
   return (
     <div className="space-y-3" data-testid="migrate-tab">
       <Announcer announcement={announcement} testid="migrate-announce" />
@@ -598,14 +607,14 @@ function MigrateTab({ overview, libraries }: { overview: SettingsOverview; libra
         Prowlarr's feeds stay as they are: take a feed out of a library once its tracker runs here, or the tracker is searched
         twice.
       </div>
-      {off ? <CatalogOff /> : connection.data && !connection.data.configured ? (
+      {off ? <CatalogOff /> : notReady ? notReady : connection.data && !connection.data.configured ? (
         <>
           <p className="text-sm">Connect Prowlarr on the Link Prowlarr tab first.</p>
           <ProwlarrConnection configured={false} />
         </>
       ) : null}
       {error ? <ExplainBox error={error} /> : null}
-      {off || (connection.data && !connection.data.configured) ? null : !proposals ? (
+      {off || notReady || (connection.data && !connection.data.configured) ? null : !proposals ? (
         <Button type="button" size="sm" variant="outline" onClick={() => void read()} disabled={loading} data-testid="read-prowlarr">
           {loading ? <Loader2 className="animate-spin" /> : null} Read Prowlarr's indexers
         </Button>
@@ -639,6 +648,9 @@ function MigrateTab({ overview, libraries }: { overview: SettingsOverview; libra
                     {p.key ? <div className="font-mono text-[12px] text-muted-foreground">{p.key}</div> : null}
                     {p.secrets?.length ? <div className="text-[12px] text-[var(--warn-ink)]">Needs its login afterwards: {p.secrets.join(", ")}</div> : null}
                     {p.notes?.map((n) => <div key={n} className="text-[12px] text-muted-foreground">{n}</div>)}
+                    {can && libraries.versions ? (
+                      <div className="text-[12px] text-muted-foreground" data-testid="proposal-libraries">Libraries: {versionsOf(p).join(", ") || "none fits"}</div>
+                    ) : null}
                   </TableCell>
                   <TableCell className="hidden font-mono text-[12px] sm:table-cell">{p.indexer?.definition ?? p.prowlarr.definition_name}</TableCell>
                   <TableCell><PrivacyBadge privacy={p.indexer?.privacy ?? p.prowlarr.privacy} /></TableCell>
@@ -661,8 +673,12 @@ function MigrateTab({ overview, libraries }: { overview: SettingsOverview; libra
       )}
       {proposals?.some(addable) ? (
         <>
-          <IndexerLibraries libraries={libraries} value={versions} onChange={setChosen} disabled={busy} />
-          <Button type="button" size="sm" disabled={busy || ticked.length === 0} onClick={() => void migrate()} data-testid="migrate">
+          {libraries.versions ? (
+            <p className="text-[12.5px] text-muted-foreground">Each tracker is added to the libraries its categories fit; change a library's indexers later under Settings › Libraries.</p>
+          ) : (
+            <IndexerLibraries libraries={libraries} value={[]} onChange={() => {}} />
+          )}
+          <Button type="button" size="sm" disabled={busy || ticked.length === 0 || !librariesReady(libraries)} onClick={() => void migrate()} data-testid="migrate">
             {busy ? <Loader2 className="animate-spin" /> : null} Add {ticked.length}
           </Button>
         </>

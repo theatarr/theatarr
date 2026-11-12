@@ -6,14 +6,14 @@ import { Loader2 } from "lucide-react";
 import { useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { prowlarrFeedsKey, useProwlarrFeeds, type ProwlarrFeed } from "@/api/prowlarr";
-import { useSettingsWrite, type SettingsOverview } from "@/api/settings";
-import type { VersionRecord } from "@/api/settings-versions";
+import { qk } from "@/api/query-keys";
+import { settingsOverview, useSettingsWrite } from "@/api/settings";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { explainError, type Explained } from "@/lib/settings";
-import { IndexerLibraries } from "./indexer-libraries";
+import { IndexerLibraries, librariesReady, type LibraryList } from "./indexer-libraries";
 import { Announcer, ExplainBox, Field, useAnnouncement } from "./parts";
 import { useSectionPatch } from "./use-section-patch";
 
@@ -22,6 +22,7 @@ export function ProwlarrConnection({ configured, url }: { configured: boolean; u
   const [editing, setEditing] = useState(false);
   const [address, setAddress] = useState(url ?? "");
   const [key, setKey] = useState("");
+  const [keyError, setKeyError] = useState("");
   const qc = useQueryClient();
   const patch = useSectionPatch("cardigann", () => {
     setEditing(false);
@@ -38,6 +39,13 @@ export function ProwlarrConnection({ configured, url }: { configured: boolean; u
   }
   const connect = () => {
     const next = address.trim();
+    // The stored key never goes to a new address (the server refuses it too).
+    const same = (a: string) => a.trim().replace(/\/+$/, "").toLowerCase();
+    if (configured && url && !key && same(next) !== same(url)) {
+      setKeyError("Enter the API key again for the new address");
+      return;
+    }
+    setKeyError("");
     void patch.save(
       (config) => {
         const prowlarr = config.prowlarr && typeof config.prowlarr === "object" ? (config.prowlarr as Record<string, unknown>) : {};
@@ -51,9 +59,9 @@ export function ProwlarrConnection({ configured, url }: { configured: boolean; u
       <Field label="Prowlarr address">
         <Input value={address} placeholder="http://prowlarr:9696" onChange={(e) => setAddress(e.target.value)} disabled={patch.busy} data-testid="prowlarr-url" />
       </Field>
-      <Field label="Prowlarr API key" help="In Prowlarr: Settings › General › API Key. Stored like Theatarr's other keys; Theatarr only reads Prowlarr's indexer list and changes nothing there.">
-        <Input type="password" autoComplete="new-password" ignorePasswordManagers value={key} placeholder={configured ? "stored: leave empty to keep it" : undefined}
-          onChange={(e) => setKey(e.target.value)} disabled={patch.busy} data-testid="prowlarr-key" />
+      <Field label="Prowlarr API key" error={keyError || undefined} help="In Prowlarr: Settings › General › API Key. Stored like Theatarr's other keys; Theatarr only reads Prowlarr's indexer list and changes nothing there.">
+        <Input type="password" autoComplete="new-password" ignorePasswordManagers value={key} placeholder={configured ? "stored: leave empty to keep it for the same address" : undefined}
+          onChange={(e) => { setKey(e.target.value); setKeyError(""); }} disabled={patch.busy} data-testid="prowlarr-key" />
       </Field>
       <p className="text-[12.5px] text-muted-foreground sm:col-span-2">Prowlarr must be on your local network.</p>
       <div className="flex gap-2 sm:col-span-2">
@@ -74,14 +82,15 @@ const HERE: Record<ProwlarrFeed["status"], (f: ProwlarrFeed) => string> = {
   usenet: () => "Usenet: Theatarr searches torrents only",
 };
 
-export function LinkTab({ overview, libraries }: { overview: SettingsOverview; libraries?: VersionRecord[] }) {
+export function LinkTab({ libraries }: { libraries: LibraryList }) {
   const feeds = useProwlarrFeeds();
+  const qc = useQueryClient();
   const [picked, setPicked] = useState<Record<number, boolean>>({});
   const [chosen, setChosen] = useState<string[]>();
   const [error, setError] = useState<Explained>();
   const [announcement, announce] = useAnnouncement();
   const write = useSettingsWrite();
-  const libs = libraries ?? [];
+  const libs = libraries.versions ?? [];
   const versions = chosen ?? libs.map((v) => v.key);
   const list = feeds.data?.feeds ?? [];
   const ticked = list.filter((f) => f.status === "linkable" && (picked[f.id] ?? true));
@@ -89,7 +98,9 @@ export function LinkTab({ overview, libraries }: { overview: SettingsOverview; l
   const link = async () => {
     setError(undefined);
     try {
-      await write.mutateAsync({ method: "POST", path: "/prowlarr/feeds", body: { generation: overview.generation, ids: ticked.map((f) => f.id), versions } });
+      // The current generation: connecting Prowlarr just now saved one past the page's overview.
+      const { generation } = await qc.fetchQuery({ queryKey: qk.settings.overview, queryFn: settingsOverview, staleTime: 0 });
+      await write.mutateAsync({ method: "POST", path: "/prowlarr/feeds", body: { generation, ids: ticked.map((f) => f.id), versions } });
       setPicked({});
       announce(`${ticked.length} feeds linked.`);
     } catch (e) {
@@ -152,7 +163,7 @@ export function LinkTab({ overview, libraries }: { overview: SettingsOverview; l
             <>
               <IndexerLibraries libraries={libraries} value={versions} onChange={setChosen} disabled={write.isPending} />
               {error ? <ExplainBox error={error} /> : null}
-              <Button type="button" size="sm" disabled={write.isPending || ticked.length === 0} onClick={() => void link()} data-testid="link-feeds">
+              <Button type="button" size="sm" disabled={write.isPending || ticked.length === 0 || !librariesReady(libraries)} onClick={() => void link()} data-testid="link-feeds">
                 {write.isPending ? <Loader2 className="animate-spin" /> : null} Link {ticked.length} feeds
               </Button>
             </>

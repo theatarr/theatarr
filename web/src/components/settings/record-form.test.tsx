@@ -72,12 +72,24 @@ it("saves an untouched prefilled built-in indexer, on", async () => {
   expect(fetch.calls("POST", "/settings/indexers")[0].body).toEqual({ generation: 4, key: "torrentio", enabled: true, priority: 0, config: { kind: "torrentio", url: "https://torrentio.strem.fun" } });
 });
 
+it("waits for the library list before a new indexer can be saved, and offers Try again when it failed", async () => {
+  const fetch = mockFetch([]);
+  const user = userEvent.setup();
+  const retry = vi.fn();
+  renderPage(<RecordEditor entity="indexers" ent={indexerSchema} session={{ entity: "indexers", generation: 4, kind: "torrentio" }} libraries={{ error: new Error("network down"), retry }} nextOrder={1} onDone={vi.fn()} />);
+  expect(screen.getByRole("alert").textContent).toContain("The libraries could not be read: network down.");
+  expect(screen.getByRole("button", { name: "Save" })).toHaveProperty("disabled", true);
+  await user.click(screen.getByRole("button", { name: "Try again" }));
+  expect(retry).toHaveBeenCalledOnce();
+  expect(fetch.requests).toHaveLength(0);
+});
+
 it("ticks the libraries that suit a new indexer's service and sends the ticked ones", async () => {
   const fetch = mockFetch([{ method: "POST", path: "/settings/indexers", reply: { generation: 5 } }]);
   const user = userEvent.setup();
   const lib = (key: string, kind: string, anime: boolean | null) => ({ id: 1, key, created_at: "", updated_at: "", roots: [], config: { kind, anime, mode: "active" } }) as unknown as VersionRecord;
   const libraries = [lib("movies", "movie", null), lib("tv", "series", false), lib("anime", "series", true)];
-  renderPage(<RecordEditor entity="indexers" ent={indexerSchema} session={{ entity: "indexers", generation: 4, kind: "torrentio" }} libraries={libraries} nextOrder={1} onDone={vi.fn()} />);
+  renderPage(<RecordEditor entity="indexers" ent={indexerSchema} session={{ entity: "indexers", generation: 4, kind: "torrentio" }} libraries={{ versions: libraries, retry: () => {} }} nextOrder={1} onDone={vi.fn()} />);
   expect(screen.getByTestId("record-form").textContent).toContain("Fill in and save. Test checks the values without saving.");
   const ticked = () => ["movies", "tv", "anime"].filter((k) => (screen.getByRole("checkbox", { name: new RegExp(`^${k}`) }) as HTMLInputElement).checked);
   expect(ticked()).toEqual(["movies", "tv", "anime"]);

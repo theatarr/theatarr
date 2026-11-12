@@ -47,9 +47,8 @@ import {
   type Explained,
   type TestAction,
 } from "@/lib/settings";
-import type { VersionRecord } from "@/api/settings-versions";
 import { matchingLibraries } from "@/lib/cardigann";
-import { IndexerLibraries } from "./indexer-libraries";
+import { IndexerLibraries, librariesReady, type LibraryList } from "./indexer-libraries";
 import { changedPaths } from "./section-draft";
 import { changeCount } from "./unsaved-bar";
 import { Announcer, ChangedMark, ExplainBox, Field, NamedChoices, SecretField, SELECT_CLASS, TestResult, useAnnouncement, type Announcement } from "./parts";
@@ -75,8 +74,8 @@ export type RecordFormProps = {
   records?: SettingsRecord[];
   /** The provider keys an indexer's allowlist chooses from. */
   providerKeys?: string[];
-  /** A new indexer: the libraries it can join (its Libraries checklist). */
-  libraries?: VersionRecord[];
+  /** A new indexer: the libraries it can join (its Libraries checklist); Save waits until they have loaded. */
+  libraries?: LibraryList;
   record?: SettingsRecord;
   state: EditorState;
   onState: (s: EditorState) => void;
@@ -165,6 +164,7 @@ function ProviderAllowlist({ value, saved, providers, only, setOnly, onChange, d
 export function RecordFormView(p: RecordFormProps) {
   const { entity, ent, record, state: st, onState, errors, readOnly } = p;
   const disabled = !!readOnly || p.saving || p.deleting;
+  const waiting = !librariesReady(p.libraries);
   const set = (patch: Partial<EditorState>) => onState({ ...st, ...patch });
   const fields = editorFields(entity, ent, st.kind);
   // An indexer's required fields (its URL) come before Show advanced with the name; the rest is tuning. An indexer's
@@ -197,7 +197,7 @@ export function RecordFormView(p: RecordFormProps) {
   // Save and Enable and save share the form's own check.
   const submit = (save: () => void) => {
     if (allowlist && onlyProviders && !chosenProviders.length) { setAllowlistError("Tick at least one provider, or choose Any."); return; }
-    if (!disabled) save();
+    if (!disabled && !waiting) save();
   };
   const nameField = record ? null : (
     <Field changed={!!saved && st.key !== saved.key} onUndo={() => { if (saved) { keyEdited.current = false; set({ key: saved.key }); } }} disabled={disabled} name="Name" label={<>Name <small className="font-normal text-muted-foreground">key</small> <span className="text-[var(--bad-ink)]">*</span></>} help="Stable name the libraries and budgets refer to; cannot be renamed later." error={errors.key}>
@@ -216,7 +216,7 @@ export function RecordFormView(p: RecordFormProps) {
       onClose={p.onCancel}
       footer={
         <>
-          <Button type="submit" form={formId} size="sm" disabled={disabled} data-testid="record-save">
+          <Button type="submit" form={formId} size="sm" disabled={disabled || waiting} data-testid="record-save">
             {p.saving ? <Loader2 className="animate-spin" /> : <Save />} Save
           </Button>
           {p.onTest ? (
@@ -254,7 +254,7 @@ export function RecordFormView(p: RecordFormProps) {
             <select className={SELECT_CLASS} value={st.kind} disabled={disabled} onChange={(e) => {
               const kind = e.target.value;
               set({ kind, ...(!record ? { key: keyEdited.current ? st.key : nextRecordKey(kind, p.records), config: { ...st.config, url: urlEdited.current ? st.config.url : serviceURL(entity, kind) },
-                ...(entity === "indexers" && p.libraries ? { libraries: matchingLibraries({ kind }, p.libraries) } : {}) } : {}) });
+                ...(entity === "indexers" && p.libraries?.versions ? { libraries: matchingLibraries({ kind }, p.libraries.versions) } : {}) } : {}) });
             }} data-field="kind">
               {(ent.kinds ?? []).map((k) => <option key={k} value={k}>{PROVIDER_SERVICES[k]?.label ?? k}</option>)}
             </select>
@@ -391,7 +391,7 @@ export function RecordEditor({
   records?: SettingsRecord[];
   providerKeys?: string[];
   /** A new indexer: the libraries it can join; the ones that suit its Service start ticked. */
-  libraries?: VersionRecord[];
+  libraries?: LibraryList;
   readOnly?: string;
   /** The editor closed; deleted when its record was just deleted (focus then goes to a neighbour). */
   onDone: (deleted?: boolean) => void;
@@ -421,15 +421,16 @@ export function RecordEditor({
     return session.record ? state : { ...state, key: nextRecordKey(state.key, records) };
   });
   // A new indexer starts with the libraries that suit its Service ticked, once they have loaded.
+  const versions = libraries?.versions;
   const ticked = (state: EditorState): EditorState =>
-    !session.record && session.entity === "indexers" && libraries ? { ...state, libraries: matchingLibraries({ kind: state.kind }, libraries) } : state;
+    !session.record && session.entity === "indexers" && versions ? { ...state, libraries: matchingLibraries({ kind: state.kind }, versions) } : state;
   const [st, setSt] = useState<EditorState>(() => ticked(first));
-  const tickedOnce = useRef(!!libraries);
+  const tickedOnce = useRef(!!versions);
   useEffect(() => {
-    if (tickedOnce.current || !libraries || session.record || session.entity !== "indexers") return;
+    if (tickedOnce.current || !versions || session.record || session.entity !== "indexers") return;
     tickedOnce.current = true;
-    setSt((state) => ({ ...state, libraries: matchingLibraries({ kind: state.kind }, libraries) }));
-  }, [libraries, session.record, session.entity]);
+    setSt((state) => ({ ...state, libraries: matchingLibraries({ kind: state.kind }, versions) }));
+  }, [versions, session.record, session.entity]);
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [test, setTest] = useState<SettingsTestResult>();
   // The draft the shown test ran on: Enable and save is offered only while the form still holds exactly it.

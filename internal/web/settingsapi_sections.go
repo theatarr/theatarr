@@ -212,6 +212,10 @@ func (w *Web) apiSettingsSectionWrite(rw http.ResponseWriter, r *http.Request) {
 		}
 		writes[path] = settings.NewSecret("")
 	}
+	if key == "cardigann" && prowlarrKeyLeft(snap, section.Config, writes) {
+		writeJSON(rw, http.StatusUnprocessableEntity, apiError{Error: "Enter the API key again for the new address"})
+		return
+	}
 	req := settings.SaveRequest{ExpectedGeneration: snap.Generation, Actor: settingsActor(r), Records: cloneRecords(snap.Records),
 		ConfirmationToken: confirmationToken(r, body.ConfirmationToken)}
 	req.Records.Sections = []settings.Section{*section}

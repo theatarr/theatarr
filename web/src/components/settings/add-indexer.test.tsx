@@ -233,14 +233,14 @@ describe("add-indexer sheet", () => {
     expect((await screen.findByTestId("setup-no-rss")).textContent).toContain("the site maps no movie or TV category");
   });
 
-  it("moves only the ticked proposals from Prowlarr, each on with its own budget and in the ticked libraries, a login one off", async () => {
+  it("moves only the ticked proposals from Prowlarr, each on with its own budget and in the libraries its categories fit, a login one off", async () => {
     const proposals: ProwlarrProposal[] = [
       { prowlarr: { id: 9, name: "The Pirate Bay", definition_name: "thepiratebay", privacy: "public", enabled: true }, status: "proposed", key: "thepiratebay",
         indexer: { kind: "cardigann", definition: "thepiratebay", url: "https://thepiratebay.org/", privacy: "public", budget: "thepiratebay", hosts: ["apibay.org"] }, budget: { requests: "10", per: "1m" } },
       { prowlarr: { id: 5, name: "Nyaa", definition_name: "nyaasi", privacy: "public", enabled: true }, status: "proposed", key: "nyaasi",
         indexer: { kind: "cardigann", definition: "nyaasi", url: "https://nyaa.si/", privacy: "public", budget: "nyaasi", settings: { sort: "seeders" } }, budget: { requests: "10", per: "1m" } },
       { prowlarr: { id: 3, name: "Private One", definition_name: "privateone", privacy: "private", enabled: true }, status: "proposed", key: "privateone",
-        indexer: { kind: "cardigann", definition: "privateone", url: "https://private.example/", privacy: "private", budget: "privateone" }, budget: { requests: "10", per: "1m" }, secrets: ["password"] },
+        indexer: { kind: "cardigann", definition: "privatesite", url: "https://private.example/", privacy: "private", budget: "privateone" }, budget: { requests: "10", per: "1m" }, secrets: ["password"] },
       { prowlarr: { id: 2, name: "Custom feed", definition_name: "Torznab", privacy: "public", enabled: true }, status: "no_definition" },
       { prowlarr: { id: 1, name: "DMM again", definition_name: "dmm", privacy: "public", enabled: true }, status: "proposed", key: "dmm",
         indexer: { kind: "cardigann", definition: "dmm", url: "https://dmm.example/", privacy: "public", budget: "dmm" }, budget: { requests: "10", per: "1m" } },
@@ -268,10 +268,10 @@ describe("add-indexer sheet", () => {
     expect(within(tab).getByText("Needs its login afterwards: password")).toBeTruthy();
     expect(within(tab).getByText("no catalog definition: link it on Link Prowlarr instead")).toBeTruthy();
     await user.click(within(tab).getByRole("checkbox", { name: "Add Nyaa as nyaasi" }));
-    // The Pirate Bay has movies and TV: every library is ticked; untick one.
-    const libraries = within(tab).getByRole("group", { name: "Libraries" });
-    expect(within(libraries).getAllByRole("checkbox").map((c) => (c as HTMLInputElement).checked)).toEqual([true, true, true]);
-    await user.click(within(libraries).getByRole("checkbox", { name: /^anime/ }));
+    // Each tracker goes to the libraries its own definition's categories fit: The Pirate Bay (movies and TV) to
+    // all three, the movie-only private site to the movie library.
+    await waitFor(() => expect(within(tab).getAllByTestId("proposal-libraries").map((e) => e.textContent)).toEqual(
+      ["Libraries: movies, tv, anime", "Libraries: movies, tv, anime", "Libraries: movies"]));
     await user.click(within(tab).getByTestId("migrate"));
     await waitFor(() => expect(within(tab).getByText("added off: enter its login, then turn it on")).toBeTruthy());
     expect(within(tab).getAllByText("added")).toHaveLength(1);
@@ -281,9 +281,28 @@ describe("add-indexer sheet", () => {
     ]);
     const [tpb, priv] = fetch.calls("POST", "/settings/indexers").map((r) => r.body as Record<string, unknown>);
     expect(fetch.calls("POST", "/settings/budgets")[0].body).toEqual({ generation: 4, key: "thepiratebay", config: { requests: 10, per: "1m" } });
-    expect(tpb).toEqual({ generation: 5, key: "thepiratebay", enabled: true, priority: 1, versions: ["movies", "tv"], config: { kind: "cardigann", definition: "thepiratebay", url: "https://thepiratebay.org/", privacy: "public", budget: "thepiratebay", hosts: ["apibay.org"] } });
-    expect(priv).toMatchObject({ generation: 7, key: "privateone", enabled: false, priority: 2, versions: ["movies", "tv"], config: { privacy: "private" } });
+    expect(tpb).toEqual({ generation: 5, key: "thepiratebay", enabled: true, priority: 1, versions: ["movies", "tv", "anime"], config: { kind: "cardigann", definition: "thepiratebay", url: "https://thepiratebay.org/", privacy: "public", budget: "thepiratebay", hosts: ["apibay.org"] } });
+    expect(priv).toMatchObject({ generation: 7, key: "privateone", enabled: false, priority: 2, versions: ["movies"], config: { privacy: "private" } });
     expect(priv.secret).toBeUndefined();
+  });
+
+  it("waits for the catalog's first fetch before Move from Prowlarr reads anything", async () => {
+    let filled = false;
+    mockFetch([
+      versionsRoute,
+      { method: "GET", path: "/cardigann/definitions", reply: () => json(filled ? catalog : { status: {}, total: 0, definitions: [] }) },
+      { method: "GET", path: "/settings/prowlarr/feeds", reply: json({ configured: true, url: "http://10.0.0.5:9696", feeds: [] }) },
+    ]);
+    const user = userEvent.setup();
+    renderPage(indexers(), "/admin/settings/indexers");
+    await user.click(screen.getByRole("button", { name: "Add indexer" }));
+    await user.click(screen.getByRole("tab", { name: "Move from Prowlarr (once)" }));
+    const tab = await screen.findByTestId("migrate-tab");
+    await within(tab).findByTestId("catalog-fetching");
+    expect(within(tab).queryByTestId("read-prowlarr")).toBeNull();
+    // The tab polls the catalog: once filled, Read is offered.
+    filled = true;
+    await within(tab).findByTestId("read-prowlarr", {}, { timeout: 5000 });
   });
 
   it("lists held definition updates and approves one only after confirming", async () => {

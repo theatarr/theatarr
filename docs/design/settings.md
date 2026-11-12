@@ -1009,7 +1009,8 @@ Contrast, editors and the indexer pages. Profiles and presets are in the next se
   (unknown library: 400; `versions` on an update: 400). Every library that suits it starts ticked: a catalog site by
   its Newznab categories (2000s: movie libraries; 5000s but 5070: series libraries; 5070 anime: series libraries not
   marked non-anime and movie libraries marked anime), SeaDex for libraries not marked non-anime, every other source
-  for all libraries; Watch-only libraries are ticked like the rest. Tests are offered, never required.
+  for all libraries; Watch-only libraries are ticked like the rest. The add waits until the library list has loaded
+  (its button is disabled; a failed read shows Try again). Tests are offered, never required.
   - *Catalog*: the cardigann definitions (`GET /cardigann/definitions`), searchable, filtered by privacy, content
     (Movies, TV, Anime from the Newznab categories), language and "runs here" (runs or needs an account; Cloudflare
     and unsupported ones only under All). With the catalog off the tab says what it is and offers **Turn on the
@@ -1027,7 +1028,9 @@ Contrast, editors and the indexer pages. Profiles and presets are in the next se
     same sheet with that kind chosen. The DMM card carries a **Paid key** badge: DMM gives its API key only to paying
     GitHub sponsors.
   - *Link Prowlarr*: Prowlarr's address and API key are entered once (`cardigann.prowlarr`, the key stored write-only
-    like other section credentials; changing the address while keeping the stored key asks for confirmation).
+    like other section credentials). A new address needs the key typed again: a `cardigann` section save that changes
+    `prowlarr.url` while a key is stored and sends no new one answers 422 "Enter the API key again for the new
+    address", as Radarr and Sonarr lists do; the form says so before sending.
     `GET /settings/prowlarr/feeds` reads Prowlarr's indexer list (no catalog needed) and marks each `linkable` (with
     the key it gets, `prowlarr-<name>`), `linked` (an indexer already has its feed URL), `disabled` (off in Prowlarr)
     or `usenet`; only `linkable` ones can be ticked, all are by default. **Link {n} feeds** posts the ids and the
@@ -1038,8 +1041,9 @@ Contrast, editors and the indexer pages. Profiles and presets are in the next se
   - *Move from Prowlarr (once)*: needs the catalog (the tab offers **Turn on the catalog** when it is off) and a
     connected Prowlarr (the Link tab's form otherwise). Read Prowlarr's indexers asks `GET /cardigann/prowlarr`; each
     `proposed` one that is not already an indexer can be ticked (all are by default), and only the ticked ones are
-    written, each as its own budget plus an indexer at the end of the priority list, on and in the ticked libraries
-    (by default those that suit the ticked proposals' definitions). A proposal that names secret settings (a login)
+    written, each as its own budget plus an indexer at the end of the priority list, on and in the libraries its own
+    definition's categories fit (every library when the catalog lacks the definition), shown on its row. While the
+    catalog's first fetch runs (or failed) the tab shows that state, as the Catalog tab does, and offers no Read. A proposal that names secret settings (a login)
     is added off: "added off: enter its login, then turn it on". No-definition ("link it on Link Prowlarr instead"),
     unsupported and usenet proposals are shown and skipped.
 

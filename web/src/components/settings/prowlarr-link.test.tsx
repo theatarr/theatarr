@@ -8,7 +8,7 @@ import type { ProwlarrFeed } from "@/api/prowlarr";
 import type { VersionRecord } from "@/api/settings-versions";
 import { SettingsTabView } from "@/pages/admin/settings";
 import { dmm, overview, schema } from "./fixtures";
-import { expectNamedControls, json, mockFetch, renderPage } from "@/test/page";
+import { expectNamedControls, json, mockFetch, renderPage, type RequestRecord } from "@/test/page";
 
 const lib = (key: string, kind: string) => ({ id: 1, key, created_at: "", updated_at: "", roots: [], config: { kind, anime: null, mode: "active" } }) as unknown as VersionRecord;
 const feed = (o: Partial<ProwlarrFeed>): ProwlarrFeed => ({ id: 1, name: "Site", privacy: "public", protocol: "torrent", enabled: true, url: "http://10.0.0.5:9696/1/api", status: "linkable", ...o });
@@ -23,13 +23,22 @@ const feeds: ProwlarrFeed[] = [
 describe("Link Prowlarr", () => {
   it("connects Prowlarr, lists its indexers and links the ticked ones in one write", async () => {
     let connected = false;
+    // The settings generation as the server has it: connecting saves one, and a link at an older one is stale.
+    let generation = 4;
     const fetch = mockFetch([
+      { method: "GET", path: "/settings", reply: () => json(overview({ indexers: [dmm], generation })) },
       { method: "GET", path: "/settings/versions", reply: json({ source: "db", generation: 4, versions: [lib("movies", "movie"), lib("tv", "series")] }) },
       { method: "GET", path: "/cardigann/definitions", reply: json({ status: {}, total: 0, definitions: [], unavailable: "off" }) },
       { method: "GET", path: "/settings/prowlarr/feeds", reply: () => json(connected ? { configured: true, url: "http://10.0.0.5:9696", feeds } : { configured: false }) },
       { method: "GET", path: "/settings/sections", reply: json({ source: "db", generation: 4, sections: [{ key: "cardigann", live: true, config: null, yaml: "", secrets: [] }] }) },
-      { method: "PUT", path: "/settings/sections/cardigann", reply: () => { connected = true; return json({ generation: 5 }); } },
-      { method: "POST", path: "/settings/prowlarr/feeds", reply: json({ generation: 6 }) },
+      { method: "PUT", path: "/settings/sections/cardigann", reply: (r: RequestRecord) => {
+        if ((r.body as { generation: number }).generation !== generation) return json({ error: "stale generation" }, 409);
+        connected = true;
+        return json({ generation: ++generation });
+      } },
+      { method: "POST", path: "/settings/prowlarr/feeds", reply: (r: RequestRecord) => (r.body as { generation: number }).generation !== generation
+        ? json({ error: "stale generation" }, 409)
+        : json({ generation: ++generation }) },
     ]);
     const user = userEvent.setup();
     renderPage(<SettingsTabView tab="indexers" overview={overview({ indexers: [dmm] })} schema={schema} versions={[]} />, "/admin/settings/indexers");
@@ -61,7 +70,26 @@ describe("Link Prowlarr", () => {
     await user.click(within(libraries).getByRole("checkbox", { name: /^tv/ }));
     await user.click(within(tab).getByRole("button", { name: "Link 1 feeds" }));
     await waitFor(() => expect(fetch.calls("POST", "/settings/prowlarr/feeds")).toHaveLength(1));
-    expect(fetch.calls("POST", "/settings/prowlarr/feeds")[0].body).toEqual({ generation: 4, ids: [1], versions: ["movies"] });
+    expect(fetch.calls("POST", "/settings/prowlarr/feeds")[0].body).toEqual({ generation: 5, ids: [1], versions: ["movies"] });
     await waitFor(() => expect(screen.getByTestId("link-announce").textContent).toBe("1 feeds linked."));
   });
+});
+
+it("asks for the key again when the address changes, and sends nothing", async () => {
+  const fetch = mockFetch([
+    { method: "GET", path: "/settings/versions", reply: json({ source: "db", generation: 4, versions: [] }) },
+    { method: "GET", path: "/cardigann/definitions", reply: json({ status: {}, total: 0, definitions: [], unavailable: "off" }) },
+    { method: "GET", path: "/settings/prowlarr/feeds", reply: json({ configured: true, url: "http://10.0.0.5:9696", feeds: [] }) },
+  ]);
+  const user = userEvent.setup();
+  renderPage(<SettingsTabView tab="indexers" overview={overview({ indexers: [dmm] })} schema={schema} versions={[]} />, "/admin/settings/indexers");
+  await user.click(screen.getByRole("button", { name: "Add indexer" }));
+  await user.click(screen.getByRole("tab", { name: "Link Prowlarr" }));
+  await user.click(await screen.findByRole("button", { name: "Change" }));
+  const address = screen.getByRole("textbox", { name: "Prowlarr address" });
+  await user.clear(address);
+  await user.type(address, "http://10.0.0.6:9696");
+  await user.click(screen.getByRole("button", { name: "Connect" }));
+  expect(screen.getByText("Enter the API key again for the new address")).toBeTruthy();
+  expect(fetch.requests.filter((r) => r.method !== "GET")).toHaveLength(0);
 });
