@@ -7,6 +7,7 @@ import (
 	"io/fs"
 	"os"
 	"path/filepath"
+	"reflect"
 	"testing"
 	"time"
 
@@ -175,6 +176,13 @@ func TestRefreshHeld(t *testing.T) {
 	if n := count(t, st, `SELECT count(*) FROM anime_mapping WHERE franchise = 're-zero' AND entry_key = 'al:21355'`); n != 1 {
 		t.Error("held refresh was applied")
 	}
+	heldMaps, err := s.HeldMappings(ctx, "re-zero")
+	if err != nil || heldMaps == nil {
+		t.Fatalf("held mappings: %v %v", heldMaps, err)
+	}
+	if m, ok := heldMaps["al:21355"]; ok {
+		t.Errorf("shrunk entry still in the held mappings: %+v", m)
+	}
 	items, _ := s.Items(ctx, "open", "re-zero")
 	var id int64
 	for _, it := range items {
@@ -217,11 +225,25 @@ func TestRefreshHeld(t *testing.T) {
 	if saved.Applied || len(saved.Held) != 1 {
 		t.Fatalf("moving a linked mapping: %+v", saved)
 	}
+	heldMaps, err = s.HeldMappings(ctx, "re-zero")
+	if m := heldMaps["al:100049#1"]; err != nil || m.TVDB != 305089 || !reflect.DeepEqual(m.Episodes, []anime.SE{{0, 40}}) {
+		t.Errorf("held mapping of al:100049#1: %+v %v", m, err)
+	}
 	items, _ = s.Items(ctx, "open", "re-zero")
 	found := false
 	for _, it := range items {
 		if it.Kind == "refresh_moves_linked" && it.EntryKey == "al:100049#1" {
 			found = true
+			var d struct {
+				After struct {
+					TVDB     int        `json:"tvdb"`
+					Episodes []anime.SE `json:"episodes"`
+				} `json:"after"`
+			}
+			if err := json.Unmarshal(it.Detail, &d); err != nil || d.After.TVDB != 305089 ||
+				!reflect.DeepEqual(d.After.Episodes, []anime.SE{{0, 40}}) {
+				t.Errorf("detail.after = %s (%v)", it.Detail, err)
+			}
 			if err := s.Resolve(ctx, it.ID, false, "keep"); err != nil {
 				t.Fatal(err)
 			}

@@ -66,6 +66,34 @@ func (s *Store) ResolveCandidate(ctx context.Context, id int64, i int, note stri
 	if c.SeriesID == 0 || len(c.Episodes) == 0 || c.Dropped != "" {
 		return fmt.Errorf("%w: candidate %d (%s) maps nothing it can keep", ErrNoCandidate, i, c.Source)
 	}
+	return s.ResolveMapping(ctx, id, c, note)
+}
+
+// ManualSource is the source of a mapping set by hand in review.
+const ManualSource = "manual"
+
+// ResolveMapping accepts an open conflict or heuristic item with mapping c (a candidate, or one set by hand with
+// Source ManualSource): the entry's mapping becomes c's range with status override and winner c.Source, and a later
+// build proposing the same mapping takes c again instead of asking. Its series gets an anime_relink job, as for
+// Resolve. Other kinds answer ErrNoCandidate.
+func (s *Store) ResolveMapping(ctx context.Context, id int64, c anime.MappingCandidate, note string) error {
+	it, err := s.Item(ctx, id)
+	if err != nil {
+		return err
+	}
+	if it.State != "open" {
+		return ErrNotOpen
+	}
+	if _, ok := it.MappingDetail(); !ok {
+		return ErrNoCandidate
+	}
+	if c.SeriesID == 0 || len(c.Episodes) == 0 {
+		return fmt.Errorf("%w: the mapping maps nothing", ErrNoCandidate)
+	}
+	reason := fmt.Sprintf("%s candidate accepted in review #%d", c.Source, id)
+	if c.Source == ManualSource {
+		reason = fmt.Sprintf("set by hand in review #%d", id)
+	}
 	now := store.Millis(s.now())
 	return s.DB.WriteTx(ctx, func(tx *sql.Tx) error {
 		res, err := tx.ExecContext(ctx, `UPDATE anime_review SET state = 'accepted', note = ?, choice = ?, resolved_at = ?
@@ -78,13 +106,49 @@ func (s *Store) ResolveCandidate(ctx context.Context, id int64, i int, note stri
 		}
 		_, err = tx.ExecContext(ctx, `UPDATE anime_mapping SET status = ?, winner = ?, tvdb_series = ?, episodes = ?, reason = ?,
 			updated_at = ? WHERE franchise = ? AND entry_key = ?`, anime.StatusOverride, c.Source, c.SeriesID,
-			jsonText(sortedEps(c.Episodes)), fmt.Sprintf("%s candidate accepted in review #%d", c.Source, id), now,
-			it.Franchise, it.EntryKey)
+			jsonText(sortedEps(c.Episodes)), reason, now, it.Franchise, it.EntryKey)
 		if err != nil {
 			return err
 		}
 		return s.queueRelink(ctx, tx, c.SeriesID)
 	})
+}
+
+// Mapping is where a held build maps one entry.
+type Mapping struct {
+	TVDB     int        `json:"tvdb"`
+	Episodes []anime.SE `json:"episodes"`
+}
+
+// HeldMappings decodes a franchise's held build (anime_franchise.pending_result) and returns each entry's mapping
+// in it, by entry key; nil when nothing is held. An entry the build maps to nothing is absent.
+func (s *Store) HeldMappings(ctx context.Context, slug string) (map[string]Mapping, error) {
+	var pending []byte
+	if err := s.DB.Reader().QueryRowContext(ctx, `SELECT pending_result FROM anime_franchise WHERE slug = ?`, slug).
+		Scan(&pending); err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return nil, nil
+		}
+		return nil, err
+	}
+	if pending == nil {
+		return nil, nil
+	}
+	body, err := gunzip(pending)
+	if err != nil {
+		return nil, err
+	}
+	var res anime.Result
+	if err := json.Unmarshal(body, &res); err != nil {
+		return nil, fmt.Errorf("pending build: %w", err)
+	}
+	out := map[string]Mapping{}
+	for _, e := range res.Entries {
+		if m := mappingOf(e); m != nil && m.series != 0 {
+			out[e.Key] = Mapping{TVDB: m.series, Episodes: m.eps}
+		}
+	}
+	return out, nil
 }
 
 // Snippet is the overrides YAML that pins one of an item's mappings for good (the UI shows the snippet to
@@ -127,6 +191,9 @@ func SnippetFor(franchise, entry string, id int64, d ItemDetail) string {
 	}
 	return b.String()
 }
+
+// RangeLabel is the overrides' label of eps: "S00E05, S01E01-E03".
+func RangeLabel(eps []anime.SE) string { return rangeLabel(eps) }
 
 // rangeLabel is the ranges() label the overrides' episodes field reads: "S00E05, S01E01-E03".
 func rangeLabel(eps []anime.SE) string {

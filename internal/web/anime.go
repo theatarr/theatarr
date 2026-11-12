@@ -131,12 +131,72 @@ type AnimePlaylist struct {
 	UpdatedAt time.Time       `json:"updated_at"`
 }
 
-// AnimeReviewItem is a review item with its decoded mapping detail and the overrides snippet.
+// AnimeReviewItem is a review item with its decoded mapping detail and the overrides snippet, plus what the review
+// card shows: the franchise name, the AniList entry, the options with sample episodes (conflict, heuristic) and,
+// for a held refresh, what it changes.
 type AnimeReviewItem struct {
 	animestore.Item
-	Title   string                 `json:"title,omitempty"`
-	Mapping *animestore.ItemDetail `json:"mapping,omitempty"`
-	Snippet string                 `json:"snippet,omitempty"`
+	Title         string                 `json:"title,omitempty"`
+	Mapping       *animestore.ItemDetail `json:"mapping,omitempty"`
+	Snippet       string                 `json:"snippet,omitempty"`
+	FranchiseName string                 `json:"franchise_name,omitempty"`
+	Entry         *AnimeReviewEntry      `json:"entry,omitempty"`
+	Options       []AnimeReviewOption    `json:"options,omitempty"`
+	Refresh       *AnimeReviewRefresh    `json:"refresh,omitempty"`
+}
+
+// AnimeReviewEntry is the AniList (or AniDB) entry a review item is about.
+type AnimeReviewEntry struct {
+	Key       string `json:"key"`
+	Title     string `json:"title,omitempty"`
+	TitleEn   string `json:"title_en,omitempty"`
+	Format    string `json:"format,omitempty"`
+	Start     string `json:"start,omitempty"`
+	End       string `json:"end,omitempty"`
+	Episodes  int    `json:"episodes,omitempty"`
+	AniListID int    `json:"anilist_id,omitempty"`
+	AniDBID   int    `json:"anidb_id,omitempty"`
+}
+
+// AnimeReviewSeries is a TVDB series, with its Theatarr title when there is one.
+type AnimeReviewSeries struct {
+	TVDB    int    `json:"tvdb"`
+	TitleID int64  `json:"title_id,omitempty"`
+	Name    string `json:"name,omitempty"`
+}
+
+// AnimeReviewEpisode is a sample TVDB episode; name and air date are empty when Theatarr's episode list lacks them.
+type AnimeReviewEpisode struct {
+	Season  int    `json:"season"`
+	Number  int    `json:"number"`
+	Name    string `json:"name"`
+	AirDate string `json:"air_date"`
+}
+
+// AnimeReviewOption is one mapping a review offers: the proposed one, or a candidate (index into
+// mapping.candidates).
+type AnimeReviewOption struct {
+	Candidate *int                 `json:"candidate,omitempty"`
+	Proposed  bool                 `json:"proposed"`
+	Source    string               `json:"source,omitempty"`
+	Series    AnimeReviewSeries    `json:"series"`
+	Episodes  []anime.SE           `json:"episodes"`
+	Count     int                  `json:"count"`
+	Samples   []AnimeReviewEpisode `json:"samples"`
+	Dropped   string               `json:"dropped,omitempty"`
+}
+
+// AnimeReviewRefresh is what a held refresh changes. Shrink: series, before, after and lost. Moves: from, to (absent:
+// maps to nothing) and with_files. Items counts the franchise's open held-refresh items one answer settles.
+type AnimeReviewRefresh struct {
+	Series    *AnimeReviewSeries   `json:"series,omitempty"`
+	Before    *int                 `json:"before,omitempty"`
+	After     *int                 `json:"after,omitempty"`
+	Lost      []AnimeReviewEpisode `json:"lost,omitempty"`
+	From      *AnimeReviewOption   `json:"from,omitempty"`
+	To        *AnimeReviewOption   `json:"to,omitempty"`
+	WithFiles int                  `json:"with_files,omitempty"`
+	Items     int                  `json:"items"`
 }
 
 func (w *Web) animeStore() *animestore.Store { return &animestore.Store{DB: w.st, Now: w.now} }
@@ -488,6 +548,8 @@ func (w *Web) reviewItems(ctx context.Context, state, franchise string) ([]Anime
 		return nil
 	})
 	out := []AnimeReviewItem{}
+	en := &reviewEnricher{w: w, db: w.st.Reader(), names: map[string]string{}, series: map[int]AnimeReviewSeries{},
+		eps: map[int64]map[anime.SE]AnimeReviewEpisode{}, held: map[string]map[string]animestore.Mapping{}, open: map[string]int{}}
 	for _, it := range items {
 		ri := AnimeReviewItem{Item: it, Title: titles[it.Franchise+"\x00"+it.EntryKey]}
 		if d, ok := it.MappingDetail(); ok {
@@ -497,9 +559,255 @@ func (w *Web) reviewItems(ctx context.Context, state, franchise string) ([]Anime
 			ri.Mapping = &d
 			ri.Snippet = animestore.SnippetFor(it.Franchise, it.EntryKey, it.ID, d)
 		}
+		if err := en.enrich(ctx, &ri); err != nil {
+			w.log.Warn("anime review: card details", "item", it.ID, "err", err)
+		}
 		out = append(out, ri)
 	}
 	return out, nil
+}
+
+// reviewEnricher fills the review card's fields, loading each franchise, series, title's episodes and held build once
+// per request.
+type reviewEnricher struct {
+	w      *Web
+	db     *sql.DB
+	names  map[string]string
+	series map[int]AnimeReviewSeries
+	eps    map[int64]map[anime.SE]AnimeReviewEpisode
+	held   map[string]map[string]animestore.Mapping
+	open   map[string]int
+}
+
+// enrich sets ri's card fields; on an error it leaves them all out.
+func (en *reviewEnricher) enrich(ctx context.Context, ri *AnimeReviewItem) error {
+	out := *ri
+	name, ok := en.names[ri.Franchise]
+	if !ok {
+		if err := en.db.QueryRowContext(ctx, `SELECT name FROM anime_franchise WHERE slug = ?`, ri.Franchise).Scan(&name); err != nil &&
+			!errors.Is(err, sql.ErrNoRows) {
+			return err
+		}
+		en.names[ri.Franchise] = name
+	}
+	out.FranchiseName = name
+	var body string
+	err := en.db.QueryRowContext(ctx, `SELECT body FROM anime_entry WHERE franchise = ? AND key = ?`, ri.Franchise, ri.EntryKey).Scan(&body)
+	switch {
+	case err == nil:
+		var e anime.Entry
+		if err := json.Unmarshal([]byte(body), &e); err != nil {
+			return fmt.Errorf("entry %s: %w", ri.EntryKey, err)
+		}
+		out.Entry = &AnimeReviewEntry{Key: ri.EntryKey, Title: derefStr(e.Title), TitleEn: derefStr(e.TitleEn), Format: derefStr(e.Format),
+			Start: derefStr(e.Start), End: derefStr(e.End), Episodes: derefInt(e.Episodes), AniListID: derefInt(e.AniListID), AniDBID: derefInt(e.AniDBID)}
+	case !errors.Is(err, sql.ErrNoRows):
+		return err
+	}
+	if d := ri.Mapping; d != nil {
+		if d.TVDB != 0 && len(d.Episodes) > 0 {
+			o, err := en.option(ctx, d.TVDB, d.Episodes)
+			if err != nil {
+				return err
+			}
+			o.Proposed, o.Source = true, d.Winner
+			out.Options = append(out.Options, o)
+		}
+		proposed := fmt.Sprint(d.TVDB, sortedSE(d.Episodes))
+		for i, c := range d.Candidates {
+			if c.SeriesID == 0 || len(c.Episodes) == 0 || fmt.Sprint(c.SeriesID, sortedSE(c.Episodes)) == proposed {
+				continue
+			}
+			o, err := en.option(ctx, c.SeriesID, c.Episodes)
+			if err != nil {
+				return err
+			}
+			o.Candidate, o.Source, o.Dropped = &i, c.Source, c.Dropped
+			out.Options = append(out.Options, o)
+		}
+	}
+	if ri.Kind == "refresh_shrink" || ri.Kind == "refresh_moves_linked" {
+		r, err := en.refresh(ctx, ri)
+		if err != nil {
+			return err
+		}
+		out.Refresh = r
+	}
+	*ri = out
+	return nil
+}
+
+func (en *reviewEnricher) refresh(ctx context.Context, ri *AnimeReviewItem) (*AnimeReviewRefresh, error) {
+	held, ok := en.held[ri.Franchise]
+	if !ok {
+		var err error
+		if held, err = en.w.animeStore().HeldMappings(ctx, ri.Franchise); err != nil {
+			return nil, err
+		}
+		en.held[ri.Franchise] = held
+	}
+	items, ok := en.open[ri.Franchise]
+	if !ok {
+		if err := en.db.QueryRowContext(ctx, `SELECT count(*) FROM anime_review WHERE franchise = ? AND state = 'open'
+			AND kind IN ('refresh_shrink', 'refresh_moves_linked')`, ri.Franchise).Scan(&items); err != nil {
+			return nil, err
+		}
+		en.open[ri.Franchise] = items
+	}
+	r := &AnimeReviewRefresh{Items: items}
+	if ri.Kind == "refresh_shrink" {
+		var d struct {
+			TVDB   int `json:"tvdb"`
+			Before int `json:"before"`
+			After  int `json:"after"`
+		}
+		if err := json.Unmarshal(ri.Detail, &d); err != nil {
+			return nil, err
+		}
+		s, err := en.seriesOf(ctx, d.TVDB)
+		if err != nil {
+			return nil, err
+		}
+		r.Series, r.Before, r.After = &s, &d.Before, &d.After
+		kept := map[anime.SE]bool{}
+		for _, m := range held {
+			if m.TVDB == d.TVDB {
+				for _, se := range m.Episodes {
+					kept[se] = true
+				}
+			}
+		}
+		var now []anime.SE
+		err = scanAll(ctx, en.db, `SELECT episodes FROM anime_mapping WHERE franchise = ? AND tvdb_series = ?`,
+			[]any{ri.Franchise, d.TVDB}, func(rows *sql.Rows) error {
+				var b string
+				if err := rows.Scan(&b); err != nil {
+					return err
+				}
+				var eps []anime.SE
+				_ = json.Unmarshal([]byte(b), &eps)
+				now = append(now, eps...)
+				return nil
+			})
+		if err != nil {
+			return nil, err
+		}
+		var lost []anime.SE
+		for _, se := range sortedSE(now) {
+			if !kept[se] && len(lost) < 5 && (len(lost) == 0 || lost[len(lost)-1] != se) {
+				lost = append(lost, se)
+			}
+		}
+		if r.Lost, err = en.episodes(ctx, s, lost); err != nil {
+			return nil, err
+		}
+		return r, nil
+	}
+	var d struct {
+		Before    animestore.Mapping `json:"before"`
+		WithFiles []anime.SE         `json:"with_files"`
+	}
+	if err := json.Unmarshal(ri.Detail, &d); err != nil {
+		return nil, err
+	}
+	r.WithFiles = len(d.WithFiles)
+	if d.Before.TVDB != 0 {
+		o, err := en.option(ctx, d.Before.TVDB, d.Before.Episodes)
+		if err != nil {
+			return nil, err
+		}
+		r.From = &o
+	}
+	if m, ok := held[ri.EntryKey]; ok {
+		o, err := en.option(ctx, m.TVDB, m.Episodes)
+		if err != nil {
+			return nil, err
+		}
+		r.To = &o
+	}
+	return r, nil
+}
+
+// option is a mapping with its series and sample episodes: the first two and the last of the range.
+func (en *reviewEnricher) option(ctx context.Context, tvdb int, eps []anime.SE) (AnimeReviewOption, error) {
+	s, err := en.seriesOf(ctx, tvdb)
+	if err != nil {
+		return AnimeReviewOption{}, err
+	}
+	eps = sortedSE(eps)
+	pick := eps
+	if len(eps) > 3 {
+		pick = []anime.SE{eps[0], eps[1], eps[len(eps)-1]}
+	}
+	samples, err := en.episodes(ctx, s, pick)
+	if err != nil {
+		return AnimeReviewOption{}, err
+	}
+	return AnimeReviewOption{Series: s, Episodes: eps, Count: len(eps), Samples: samples}, nil
+}
+
+func (en *reviewEnricher) seriesOf(ctx context.Context, tvdb int) (AnimeReviewSeries, error) {
+	if s, ok := en.series[tvdb]; ok {
+		return s, nil
+	}
+	s := AnimeReviewSeries{TVDB: tvdb}
+	err := en.db.QueryRowContext(ctx, `SELECT id, name FROM title WHERE kind = 'series' AND tvdb_id = ? ORDER BY id LIMIT 1`,
+		tvdb).Scan(&s.TitleID, &s.Name)
+	if err != nil && !errors.Is(err, sql.ErrNoRows) {
+		return s, err
+	}
+	en.series[tvdb] = s
+	return s, nil
+}
+
+// episodes names eps from the series' title's episode list (loaded once per title).
+func (en *reviewEnricher) episodes(ctx context.Context, s AnimeReviewSeries, eps []anime.SE) ([]AnimeReviewEpisode, error) {
+	known := en.eps[s.TitleID]
+	if known == nil && s.TitleID != 0 {
+		known = map[anime.SE]AnimeReviewEpisode{}
+		err := scanAll(ctx, en.db, `SELECT season, number, name, COALESCE(air_date, '') FROM episode WHERE title_id = ?`,
+			[]any{s.TitleID}, func(rows *sql.Rows) error {
+				var e AnimeReviewEpisode
+				if err := rows.Scan(&e.Season, &e.Number, &e.Name, &e.AirDate); err != nil {
+					return err
+				}
+				known[anime.SE{e.Season, e.Number}] = e
+				return nil
+			})
+		if err != nil {
+			return nil, err
+		}
+		en.eps[s.TitleID] = known
+	}
+	out := []AnimeReviewEpisode{}
+	for _, se := range eps {
+		e, ok := known[se]
+		if !ok {
+			e = AnimeReviewEpisode{Season: se[0], Number: se[1]}
+		}
+		out = append(out, e)
+	}
+	return out, nil
+}
+
+func sortedSE(x []anime.SE) []anime.SE {
+	out := append([]anime.SE{}, x...)
+	sort.Slice(out, func(i, j int) bool { return out[i][0] < out[j][0] || out[i][0] == out[j][0] && out[i][1] < out[j][1] })
+	return out
+}
+
+func derefStr(p *string) string {
+	if p == nil {
+		return ""
+	}
+	return *p
+}
+
+func derefInt(p *int) int {
+	if p == nil {
+		return 0
+	}
+	return *p
 }
 
 func reviewState(r *http.Request) (string, error) {
@@ -578,11 +886,81 @@ func (w *Web) apiAnimePlaylists(rw http.ResponseWriter, r *http.Request) {
 	writeJSON(rw, http.StatusOK, map[string]any{"items": ps})
 }
 
-// resolveInput is an accept or reject: an optional candidate (accept only) and a note.
+// resolveInput is an accept or reject: an optional candidate or hand-set mapping (accept only) and a note.
 type resolveInput struct {
-	Candidate *int   `json:"candidate"`
-	Note      string `json:"note"`
+	Candidate *int           `json:"candidate"`
+	Mapping   *manualMapping `json:"mapping"`
+	Note      string         `json:"note"`
 }
+
+// manualMapping is a mapping set by hand: count episodes of one TVDB season from first.
+type manualMapping struct {
+	TVDB   int `json:"tvdb"`
+	Season int `json:"season"`
+	First  int `json:"first"`
+	Count  int `json:"count"`
+}
+
+// check is the shape check; checkEpisodes then needs the store.
+func (m *manualMapping) check() error {
+	switch {
+	case m.TVDB <= 0:
+		return errors.New("mapping.tvdb must be a TVDB series id")
+	case m.Season < 0:
+		return errors.New("mapping.season must be 0 or more")
+	case m.First < 1:
+		return errors.New("mapping.first must be 1 or more")
+	case m.Count < 1 || m.Count > 500:
+		return errors.New("mapping.count must be 1 to 500")
+	}
+	return nil
+}
+
+func (m *manualMapping) episodes() []anime.SE {
+	out := make([]anime.SE, 0, m.Count)
+	for n := m.First; n < m.First+m.Count; n++ {
+		out = append(out, anime.SE{m.Season, n})
+	}
+	return out
+}
+
+// checkEpisodes: when the series is a Theatarr title with episodes in that season, each mapped episode must be one.
+func (w *Web) checkEpisodes(ctx context.Context, m *manualMapping) error {
+	db := w.st.Reader()
+	var id int64
+	var name string
+	err := db.QueryRowContext(ctx, `SELECT id, name FROM title WHERE kind = 'series' AND tvdb_id = ? ORDER BY id LIMIT 1`, m.TVDB).
+		Scan(&id, &name)
+	if errors.Is(err, sql.ErrNoRows) {
+		return nil
+	}
+	if err != nil {
+		return err
+	}
+	have := map[int]bool{}
+	err = scanAll(ctx, db, `SELECT number FROM episode WHERE title_id = ? AND season = ?`, []any{id, m.Season}, func(r *sql.Rows) error {
+		var n int
+		if err := r.Scan(&n); err != nil {
+			return err
+		}
+		have[n] = true
+		return nil
+	})
+	if err != nil || len(have) == 0 {
+		return err
+	}
+	for n := m.First; n < m.First+m.Count; n++ {
+		if !have[n] {
+			return badMapping(fmt.Sprintf("Season %d has no episode %d in Theatarr's episode list for %s", m.Season, n, name))
+		}
+	}
+	return nil
+}
+
+// badMapping is a hand-set mapping the episode list refuses (a 400).
+type badMapping string
+
+func (b badMapping) Error() string { return string(b) }
 
 // resolve applies a decision and maps the store's errors to HTTP codes.
 func (w *Web) resolve(ctx context.Context, id int64, accept bool, in resolveInput) (int, error) {
@@ -596,13 +974,21 @@ func (w *Web) resolve(ctx context.Context, id int64, accept bool, in resolveInpu
 	switch {
 	case accept && in.Candidate != nil:
 		err = s.ResolveCandidate(ctx, id, *in.Candidate, in.Note)
+	case accept && in.Mapping != nil:
+		if err = w.checkEpisodes(ctx, in.Mapping); err == nil {
+			eps := in.Mapping.episodes()
+			err = s.ResolveMapping(ctx, id, anime.MappingCandidate{Source: animestore.ManualSource, SeriesID: in.Mapping.TVDB,
+				Episodes: eps, Range: animestore.RangeLabel(eps)}, in.Note)
+		}
 	default:
 		err = s.Resolve(ctx, id, accept, in.Note)
 	}
 	switch {
 	case err == nil:
-		w.log.Info("anime review", "item", id, "accepted", accept, "candidate", in.Candidate)
+		w.log.Info("anime review", "item", id, "accepted", accept, "candidate", in.Candidate, "mapping", in.Mapping)
 		return http.StatusOK, nil
+	case errors.As(err, new(badMapping)):
+		return http.StatusBadRequest, err
 	case errors.Is(err, animestore.ErrNotOpen):
 		return http.StatusConflict, err
 	case errors.Is(err, animestore.ErrNoCandidate):
@@ -628,6 +1014,20 @@ func (w *Web) apiAnimeResolve(accept bool) http.HandlerFunc {
 		if !accept && in.Candidate != nil {
 			badRequest(rw, "a candidate is only for accept")
 			return
+		}
+		if in.Mapping != nil {
+			if !accept {
+				badRequest(rw, "a mapping is only for accept")
+				return
+			}
+			if in.Candidate != nil {
+				badRequest(rw, "give a candidate or a mapping, not both")
+				return
+			}
+			if err := in.Mapping.check(); err != nil {
+				badRequest(rw, err.Error())
+				return
+			}
 		}
 		code, err := w.resolve(r.Context(), id, accept, in)
 		if code == http.StatusInternalServerError {

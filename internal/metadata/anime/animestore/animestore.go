@@ -239,12 +239,16 @@ func (s *Store) holds(ctx context.Context, tx *sql.Tx, prev map[string]*mappingR
 			continue
 		}
 		to := "nothing"
+		var after any
 		if n != nil && n.series != 0 {
 			to = fmt.Sprintf("TVDB %d %s", n.series, rangeOf(n.eps))
 		}
+		if n != nil {
+			after = map[string]any{"tvdb": n.series, "episodes": n.eps}
+		}
 		out = append(out, held{key: k, kind: "refresh_moves_linked",
 			summary: fmt.Sprintf("%s: TVDB %d %s (%d with files) would map to %s", k, p.series, rangeOf(p.eps), len(files), to),
-			detail:  map[string]any{"before": map[string]any{"tvdb": p.series, "episodes": p.eps}, "with_files": files, "after": n}})
+			detail:  map[string]any{"before": map[string]any{"tvdb": p.series, "episodes": p.eps}, "with_files": files, "after": after}})
 	}
 	return out, nil
 }

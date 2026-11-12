@@ -3,9 +3,11 @@ package animestore_test
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"io/fs"
 	"os"
 	"path/filepath"
+	"reflect"
 	"strings"
 	"testing"
 
@@ -84,6 +86,84 @@ func TestResolveCandidateAndSnippet(t *testing.T) {
 	check("after a rebuild")
 	if err := s.ResolveCandidate(ctx, it.ID, pick, ""); err != animestore.ErrNotOpen {
 		t.Errorf("twice: %v", err)
+	}
+}
+
+func TestResolveMapping(t *testing.T) {
+	ctx := context.Background()
+	st := openStore(t)
+	s := &animestore.Store{DB: st}
+	res := build(t, "mushoku-tensei")
+	if _, err := s.Save(ctx, res, "cache", false); err != nil {
+		t.Fatal(err)
+	}
+	items, _ := s.Items(ctx, "open", "mushoku-tensei")
+	var it *animestore.Item
+	for i := range items {
+		if items[i].EntryKey == "al:146065" && items[i].Kind == "conflict" {
+			it = &items[i]
+		}
+	}
+	if it == nil {
+		t.Fatal("no conflict")
+	}
+	d, _ := it.MappingDetail()
+	want := []anime.SE{{2, 13}, {2, 14}, {2, 15}}
+	c := anime.MappingCandidate{Source: animestore.ManualSource, SeriesID: d.TVDB, Episodes: want, Range: "S02E13-E15"}
+	if err := s.ResolveMapping(ctx, it.ID, c, "by hand"); err != nil {
+		t.Fatal(err)
+	}
+	check := func(when string) {
+		var status, winner, eps, reason string
+		var series int
+		if err := st.Reader().QueryRow(`SELECT status, winner, tvdb_series, episodes, reason FROM anime_mapping
+			WHERE franchise = 'mushoku-tensei' AND entry_key = 'al:146065'`).Scan(&status, &winner, &series, &eps, &reason); err != nil {
+			t.Fatal(err)
+		}
+		var got []anime.SE
+		_ = json.Unmarshal([]byte(eps), &got)
+		if status != anime.StatusOverride || winner != "manual" || series != d.TVDB || !reflect.DeepEqual(got, want) {
+			t.Errorf("%s: %s %s %d %v (%s), want override manual %d %v", when, status, winner, series, got, reason, d.TVDB, want)
+		}
+	}
+	check("after accepting")
+	if n := count(t, st, `SELECT count(*) FROM job WHERE kind = ? AND dedupe_key = ?`, animemap.RelinkJobKind,
+		animemap.RelinkDedupeKey(d.TVDB)); n != 1 {
+		t.Errorf("relink jobs = %d, want 1", n)
+	}
+	if _, err := s.Save(ctx, res, "cache", false); err != nil {
+		t.Fatal(err)
+	}
+	check("after a rebuild")
+	if err := s.ResolveMapping(ctx, it.ID, c, ""); err != animestore.ErrNotOpen {
+		t.Errorf("twice: %v", err)
+	}
+
+	// a held refresh has no mapping to set
+	if _, err := s.Save(ctx, build(t, "re-zero"), "cache", false); err != nil {
+		t.Fatal(err)
+	}
+	shrunk := build(t, "re-zero")
+	for _, e := range shrunk.Entries {
+		if e.Key == "al:21355" {
+			e.TVDB, e.Mapping = nil, nil
+		}
+	}
+	if _, err := s.Save(ctx, shrunk, "live", false); err != nil {
+		t.Fatal(err)
+	}
+	items, _ = s.Items(ctx, "open", "re-zero")
+	var held int64
+	for _, x := range items {
+		if x.Kind == "refresh_shrink" {
+			held = x.ID
+		}
+	}
+	if held == 0 {
+		t.Fatalf("no refresh_shrink item: %+v", items)
+	}
+	if err := s.ResolveMapping(ctx, held, c, ""); !errors.Is(err, animestore.ErrNoCandidate) {
+		t.Errorf("held refresh: %v, want ErrNoCandidate", err)
 	}
 }
 

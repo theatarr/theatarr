@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"fmt"
 	"net/http/httptest"
 	"os"
 	"path/filepath"
@@ -136,3 +137,95 @@ func TestAnimeAPI(t *testing.T) {
 }
 
 func fmtInt(n int64) string { return strconv.FormatInt(n, 10) }
+
+func TestAnimeReviewCard(t *testing.T) {
+	t.Parallel()
+	e := newEnv(t)
+	id, tvdb := e.seedAnime()
+	key := e.apiKey()
+	var proposed []anime.SE
+	var b string
+	e.st.Reader().QueryRow(`SELECT episodes FROM anime_mapping WHERE entry_key = 'al:146065'`).Scan(&b)
+	_ = json.Unmarshal([]byte(b), &proposed)
+	if len(proposed) < 4 {
+		t.Fatalf("proposed mapping %v", proposed)
+	}
+	season, first, last := proposed[len(proposed)-1][0], 0, 0 // a run in the last season mapped
+	for _, se := range proposed {
+		if se[0] == season && (first == 0 || se[1] < first) {
+			first = se[1]
+		}
+		e.exec(`INSERT INTO episode (title_id, season, number, name, air_date, created_at, updated_at) VALUES (9, ?, ?, ?, '2024-04-08', 0, 0)`,
+			se[0], se[1], fmt.Sprintf("Ep %d", se[1]))
+		if se[0] == season && se[1] > last {
+			last = se[1]
+		}
+	}
+
+	var rl struct {
+		Items []AnimeReviewItem `json:"items"`
+	}
+	if code := e.getKey(APIBase+"/anime/review", key, &rl); code != 200 {
+		t.Fatalf("review %d", code)
+	}
+	var it *AnimeReviewItem
+	for i := range rl.Items {
+		if rl.Items[i].ID == id {
+			it = &rl.Items[i]
+		}
+	}
+	if it == nil {
+		t.Fatal("no conflict item")
+	}
+	if it.Entry == nil || it.Entry.AniListID != 146065 || it.Entry.Key != "al:146065" || it.FranchiseName != "Mushoku Tensei" {
+		t.Errorf("entry %+v, franchise %q", it.Entry, it.FranchiseName)
+	}
+	if len(it.Options) < 2 {
+		t.Fatalf("options %+v", it.Options)
+	}
+	p := it.Options[0]
+	if !p.Proposed || p.Candidate != nil || p.Series.TitleID != 9 || p.Series.TVDB != tvdb || p.Count != len(proposed) ||
+		len(p.Samples) != 3 || p.Samples[0].Name != fmt.Sprintf("Ep %d", proposed[0][1]) || p.Samples[0].AirDate != "2024-04-08" {
+		t.Errorf("proposed option %+v", p)
+	}
+	for _, o := range it.Options[1:] {
+		if o.Proposed || o.Candidate == nil || *o.Candidate >= len(it.Mapping.Candidates) ||
+			it.Mapping.Candidates[*o.Candidate].Source != o.Source {
+			t.Errorf("other option %+v", o)
+		}
+	}
+
+	post := func(path string, body any) *httptest.ResponseRecorder {
+		b, _ := json.Marshal(body)
+		r := httptest.NewRequest("POST", path, bytes.NewReader(b))
+		r.Header.Set("Content-Type", "application/json")
+		r.Header.Set(auth.APIKeyHeader, key)
+		return e.do(r)
+	}
+	base := APIBase + "/anime/review/" + fmtInt(id)
+	m := map[string]any{"tvdb": tvdb, "season": season, "first": first, "count": 2}
+	for name, c := range map[string]struct {
+		path string
+		body any
+		want string
+	}{
+		"candidate and mapping": {base + "/accept", map[string]any{"candidate": 0, "mapping": m}, "not both"},
+		"reject with mapping":   {base + "/reject", map[string]any{"mapping": m}, "only for accept"},
+		"no episodes":           {base + "/accept", map[string]any{"mapping": map[string]any{"tvdb": tvdb, "season": season, "first": 1, "count": 0}}, "count"},
+		"missing episode": {base + "/accept", map[string]any{"mapping": map[string]any{"tvdb": tvdb, "season": season, "first": last, "count": 2}},
+			fmt.Sprintf("Season %d has no episode %d in Theatarr's episode list for Mushoku Tensei", season, last+1)},
+	} {
+		if rec := post(c.path, c.body); rec.Code != 400 || !strings.Contains(rec.Body.String(), c.want) {
+			t.Errorf("%s: %d %s", name, rec.Code, rec.Body.String())
+		}
+	}
+	if rec := post(base+"/accept", map[string]any{"mapping": m, "note": "by hand"}); rec.Code != 200 {
+		t.Fatalf("accept a mapping: %d %s", rec.Code, rec.Body.String())
+	}
+	var status, winner, eps string
+	e.st.Reader().QueryRow(`SELECT status, winner, episodes FROM anime_mapping WHERE entry_key = 'al:146065'`).Scan(&status, &winner, &eps)
+	if want := fmt.Sprintf("[[%d,%d],[%d,%d]]", season, first, season, first+1); status != "override" ||
+		winner != "manual" || eps != want {
+		t.Errorf("after accept: %s %s %s, want override manual %s", status, winner, eps, want)
+	}
+}
