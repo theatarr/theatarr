@@ -19,12 +19,12 @@ import { globalDownloadsOff, willGrab, type VersionGrabState } from "@/lib/versi
 
 const waits = [
   ["", "All"], ["due", "Due"], ["searched_recently", "Searched recently"], ["in_flight", "Downloading"],
-  ["grab_off", "Downloads off"], ["loop_off", "Loop off"], ["downloads_off", "Paused globally"],
+  ["loop_off", "Loop off"], ["downloads_off", "Paused"],
 ] as const;
 
-/** "unknown": new downloads are off but /status (the lock state) has not answered, so no cause is named. */
+/** "unknown": Pause is on but /status (the lock state) has not answered, so no cause is named. */
 type GlobalOff = ReturnType<typeof globalDownloadsOff> | "unknown";
-const OFF_WORD = { locked: "Locked off", off: "Paused globally", unknown: "New downloads off" } as const;
+const OFF_WORD = { locked: "Paused (locked)", off: "Paused", unknown: "Paused" } as const;
 
 export function searchResult(run: WantedRow["last_run"]): string {
   if (!run) return "Never searched";
@@ -56,7 +56,7 @@ export function targetWords(targets: string[]) {
 }
 
 /** Why a row waits (settings links for admins only). The library's own state comes from the server's grab state (GET /status), worded by the shared
- * verdict: "Locked off" under the environment lock, and a library whose download gate is closed says so even while
+ * verdict: "Paused" while Pause is on, and a library whose download gate is closed says so even while
  * the search loop is off. Without that state (loading or failed) the row falls back to the wanted reason, worded
  * without a cause. */
 function Waiting({ row, enabled, missing, state, off, admin }: { row: WantedRow; enabled: boolean; missing: boolean; state?: VersionGrabState; off: GlobalOff; admin: boolean }) {
@@ -66,7 +66,6 @@ function Waiting({ row, enabled, missing, state, off, admin }: { row: WantedRow;
     case "due": return <>Next in line (#{row.position})</>;
     case "searched_recently": return <>Searched {fmtAgo(row.last_run?.at)}; again {fmtAgo(row.next_at)}</>;
     case "in_flight": return <>Downloading</>;
-    case "grab_off": return library ?? <>Downloads are off for this library{admin ? <> · <Link className="text-primary hover:underline" to={`/admin/settings/libraries?edit=${encodeURIComponent(row.version)}`}>Edit library</Link></> : null}</>;
     case "loop_off": return <>{enabled && row.reason === "cutoff" ? "Cutoff-unmet searches are off" : enabled && !missing ? "Missing searches are off" : "Automatic searches are off"}{state && !willGrab(state) ? <div className="mt-1">{library}</div> : null}</>;
     case "downloads_off": return library ?? <>{OFF_WORD[off ?? "unknown"]}</>;
   }
@@ -76,8 +75,7 @@ function Waiting({ row, enabled, missing, state, off, admin }: { row: WantedRow;
  * it apart from the loop's waiting reason, which says "loop off" first. */
 function blocked(row: WantedRow): string {
   switch (row.search_blocked) {
-    case "grab_off": return "Downloads are off for this library";
-    case "downloads_off": return "New downloads are off";
+    case "downloads_off": return "Paused";
     case "in_flight": return "A download for it is in progress";
     default: return "";
   }
@@ -154,12 +152,12 @@ export function WantedPage() {
         return key && !count ? null : <Button key={key} variant={waiting === key || !waiting && !key ? "default" : "outline"} size="sm" aria-pressed={(waiting ?? "") === key} onClick={() => change("waiting", key)}>{word} ({count})</Button>;
       })}</div>
       {d.search_now_pending > 0 ? <p role="status" data-testid="search-now-queue" className="flex flex-wrap items-center gap-x-2 gap-y-1 rounded-[5px] border border-[var(--line)] bg-[var(--sunken)] px-3 py-2 text-[13px] text-[var(--ink-2)]">
-        <span>{plural(d.search_now_pending, "search")} queued by Search now{!d.downloads_enabled ? " · waiting until new downloads are on again" : d.search_now_next_at ? ` · next at ${clock(d.search_now_next_at)}` : ""}</span>
+        <span>{plural(d.search_now_pending, "search")} queued by Search now{!d.downloads_enabled ? " · waiting until Pause is off" : d.search_now_next_at ? ` · next at ${clock(d.search_now_next_at)}` : ""}</span>
         <Button variant="outline" size="sm" disabled={clear.isPending} onClick={() => clear.mutate()}>Cancel queued searches</Button>
       </p> : null}
       <div className="flex flex-wrap items-center gap-2" aria-label="Search now">
         <Button variant="outline" size="sm" disabled={!chosen.length || search.isPending} onClick={() => request({ body: { only, items: chosen.map(rowItem) }, count: chosen.length, title: `Search ${chosen.length} selected` }, chosen.length > left)}>Search selected ({chosen.length})</Button>
-        <Button variant="outline" size="sm" disabled={!d.searchable || !d.downloads_enabled || search.isPending} title={!d.downloads_enabled ? "New downloads are off" : !d.searchable ? "Nothing in this list can be searched now" : undefined} onClick={() => request({ body: { only, all: { ...(version ? { version } : {}), ...(waiting ? { waiting: waiting as NonNullable<WantedSearchBody["all"]>["waiting"] } : {}) } }, count: d.searchable, title: `Search all ${d.searchable} ${what}${version ? ` in ${label(version)}` : ""}` }, true)}>Search all {d.searchable > 0 ? `${d.searchable} ` : ""}{what}{version ? ` in ${label(version)}` : ""}</Button>
+        <Button variant="outline" size="sm" disabled={!d.searchable || !d.downloads_enabled || search.isPending} title={!d.downloads_enabled ? "Paused" : !d.searchable ? "Nothing in this list can be searched now" : undefined} onClick={() => request({ body: { only, all: { ...(version ? { version } : {}), ...(waiting ? { waiting: waiting as NonNullable<WantedSearchBody["all"]>["waiting"] } : {}) } }, count: d.searchable, title: `Search all ${d.searchable} ${what}${version ? ` in ${label(version)}` : ""}` }, true)}>Search all {d.searchable > 0 ? `${d.searchable} ` : ""}{what}{version ? ` in ${label(version)}` : ""}</Button>
         {search.data && !ask ? <span role="status" className="text-[13px] text-[var(--ink-2)]" data-testid="search-now-result">{searchNowWords(search.data)}</span> : null}
         {(search.error && !ask) || clear.error ? <span role="alert" className="text-[13px] text-[var(--bad-ink)]">{errText(search.error ?? clear.error)}</span> : null}
       </div>
@@ -176,7 +174,7 @@ export function WantedPage() {
           <div>{targetWords(row.targets)}</div>
           <div><Waiting row={row} enabled={d.enabled} missing={d.missing} state={states.get(row.version)} off={off} admin={perms.admin} /></div>
           <div>{row.last_run ? <span title={fmtTime(row.last_run.at)}>{fmtAgo(row.last_run.at)} · </span> : null}{searchResult(row.last_run)}</div>
-          <div className="flex flex-wrap items-baseline gap-2"><InteractiveSearchButton titleId={row.title_id} version={row.version} season={row.season} size="xs" variant="ghost" />{row.decision_id && perms.admin ? <Link className="text-primary hover:underline" to={journalLink(String(row.decision_id))}>Decision</Link> : null}<button type="button" className="text-primary hover:underline disabled:cursor-not-allowed disabled:text-[var(--ink-3)] disabled:no-underline" disabled={!!why || !!row.search_queued || search.isPending} title={why || (row.search_queued ? "Already queued" : undefined)} onClick={() => request({ body: { only, items: [rowItem(row)] }, count: 1, title: "Search now" }, false)}>Search now</button>{why && row.waiting !== "grab_off" && row.waiting !== "downloads_off" && row.waiting !== "in_flight" ? <span className="text-[var(--ink-3)]" data-testid="search-blocked">{why}</span> : null}</div>
+          <div className="flex flex-wrap items-baseline gap-2"><InteractiveSearchButton titleId={row.title_id} version={row.version} season={row.season} size="xs" variant="ghost" />{row.decision_id && perms.admin ? <Link className="text-primary hover:underline" to={journalLink(String(row.decision_id))}>Decision</Link> : null}<button type="button" className="text-primary hover:underline disabled:cursor-not-allowed disabled:text-[var(--ink-3)] disabled:no-underline" disabled={!!why || !!row.search_queued || search.isPending} title={why || (row.search_queued ? "Already queued" : undefined)} onClick={() => request({ body: { only, items: [rowItem(row)] }, count: 1, title: "Search now" }, false)}>Search now</button>{why && row.waiting !== "downloads_off" && row.waiting !== "in_flight" ? <span className="text-[var(--ink-3)]" data-testid="search-blocked">{why}</span> : null}</div>
           </div>
         </li>; })}</ul>
       </Card>}

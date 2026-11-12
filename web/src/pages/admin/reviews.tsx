@@ -12,7 +12,7 @@ import { AnimeMappings } from "./anime-mappings";
 const KINDS = [
   { id: "anime", label: "Anime mappings", help: "Episode numbering Theatarr could not match on its own. Accept or reject the proposed match." },
   { id: "indexers", label: "Indexer definitions", help: "Updated indexer definitions from the catalog. Approve to use the new version." },
-  { id: "decisions", label: "Flagged decisions", help: "Wrong blocks the release and searches again only when new downloads are on, the decision was for an active library and the release is known; otherwise it records the verdict." },
+  { id: "decisions", label: "Flagged decisions", help: "Wrong blocks the release and searches again only when Pause is off, the decision was for an active library and the release is known; otherwise it records the verdict." },
 ] as const;
 const TABS = [{ id: "waiting", label: "Waiting", to: "/admin/reviews" }, ...KINDS.map(k => ({ ...k, to: `/admin/reviews/${k.id}` }))];
 

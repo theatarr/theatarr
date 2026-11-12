@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { screen, waitFor, within } from "@testing-library/react";
+import { cleanup, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it } from "vitest";
 import { VersionsPage } from ".";
@@ -15,11 +15,11 @@ const version = (library = "/library/movies") => ({
 });
 const versions = (generation = 4, library = "/library/movies", source = "db") => ({
   source, generation, versions: [version(library)], profiles: { web: "web-set" }, format_sets: ["web-set"], clients: ["radarr"], indexers: ["public"], providers: ["rd"],
-  switches: { router_enabled: true, library_enabled: false, notify_enabled: true, versions: [{ key: "movie-web", mode: "shadow" }] },
+  switches: { paused: false, pause_forced: false, versions: [{ key: "movie-web", mode: "shadow" }] },
 });
 const viewBindings = (generation = 4) => ({ source: "db", generation, views: [{ id: 1, key: "radarr", versions: ["movie-web"], profiles: {} }] });
 const getRoutes = (versionReply = versions(), viewsReply = viewBindings()) => [
-  { method: "GET", path: "/settings/versions", reply: { ...versionReply, switches: { ...versionReply.switches, versions: versionReply.versions.map((v) => ({ key: v.key, mode: v.config.mode, grab_state: { mode: v.config.mode, grab: "grab" in v.config && v.config.grab === true, router_enabled: versionReply.switches.router_enabled, router_forced_off: false } })) } } },
+  { method: "GET", path: "/settings/versions", reply: { ...versionReply, switches: { ...versionReply.switches, versions: versionReply.versions.map((v) => ({ key: v.key, mode: v.config.mode, grab_state: { mode: v.config.mode, paused: versionReply.switches.paused, pause_forced: versionReply.switches.pause_forced } })) } } },
   { method: "GET", path: "/settings/view-bindings", reply: viewsReply },
 ];
 const effects = [
@@ -49,11 +49,11 @@ describe("Versions page", () => {
     await waitFor(() => expect(fetch.calls("PUT", "/settings/versions/movie-web")).toHaveLength(1));
     expect(fetch.calls("PUT", "/settings/versions/movie-web")[0].body).toMatchObject({ config: { provider_preference: "none", providers: ["rd"] } });
   });
-  it("uses runtime gates for the list and bindings, and previews the draft against the forced-off router", async () => {
-    const saved = { ...version(), config: { ...version().config, mode: "active", grab: true } };
+  it("uses runtime gates for the list and bindings, and previews the draft against the forced Pause", async () => {
+    const saved = { ...version(), config: { ...version().config, mode: "active" } };
     const data = { ...versions(), versions: [saved], switches: {
-      ...versions().switches, router_enabled: false, sources: { router: "forced off by environment" },
-      versions: [{ key: saved.key, mode: "shadow", grab_state: { mode: "shadow", grab: false, router_enabled: false, router_forced_off: true } }],
+      ...versions().switches, paused: true, pause_forced: true,
+      versions: [{ key: saved.key, mode: "shadow", grab_state: { mode: "shadow", paused: true, pause_forced: true } }],
     } };
     mockFetch([
       { method: "GET", path: "/settings/versions", reply: data },
@@ -68,42 +68,31 @@ describe("Versions page", () => {
     expect(within(row).getByTestId("state-words").textContent).toBe("Watch only");
     await user.click(within(row).getByRole("button", { name: "Why?" }));
     expect([...within(row).getByTestId("state-why").querySelectorAll("li")].map((li) => li.textContent?.split(" · ")[0])).toEqual([
-      "Watch only: it records what it would download, it downloads nothing",
-      "Downloads are off for this library",
-      "New downloads are locked off by the environment (THEATARR_FORCE_OFF)",
+      "Watch only: Theatarr searches, downloads and links nothing for this library",
+      "Paused by the environment (THEATARR_FORCE_OFF)",
     ]);
     // The page says the global state once.
-    expect(screen.getByTestId("downloads-off-notice").textContent).toContain("locked off");
+    expect(screen.getByTestId("downloads-off-notice").textContent).toContain("Paused by the environment (THEATARR_FORCE_OFF)");
     await user.click(edit);
     const form = screen.getByTestId("version-form");
-    expect(within(form).getByTestId("state-words").textContent).toBe("Live, but new downloads are locked off");
-    expect(within(form).getByTestId("links-off").textContent).toBe("New files won't be linked");
+    expect(within(form).getByTestId("state-words").textContent).toBe("Live, paused");
+    expect(within(form).queryByTestId("links-off")).toBeNull();
     expect(screen.queryByText("Downloads on")).toBeNull();
   });
 
-  it("shows whether an active version grabs and edits its grab switch", async () => {
+  it("shows a plainly Live library with the control alone, and Live, paused while Pause is on", async () => {
     const active = versions();
-    const remux = { ...version(), id: 2, key: "movie-remux" };
-    Object.assign(remux.config, { mode: "active", grab: true });
-    active.versions = [{ ...version(), config: { ...version().config, mode: "active" } }, remux];
-    const fetch = mockFetch([...getRoutes(active), { method: "PUT", path: "/settings/versions/movie-web", reply: json({ error: "confirmation required", effects: [{ version: "movie-web", effect: "Active version movie-web grabs" }] }, 422) }, { method: "POST", path: "/settings/versions/confirm", reply: json({ generation: 4, token: "t", effects: [] }) }]);
-    const user = userEvent.setup();
+    active.versions = [{ ...version(), config: { ...version().config, mode: "active" } }];
+    mockFetch(getRoutes(active));
     renderPage(<VersionsPage />);
-    const words = (await screen.findAllByTestId("state-words")).filter((badge) => badge.closest("tr"));
-    expect(words.map((badge) => [badge.closest("tr")?.getAttribute("data-record"), badge.textContent])).toEqual([["movie-web", "Live, downloads off"]]);
-    // movie-remux is plainly Live: its row shows the control alone.
-    expect(within(document.querySelector<HTMLElement>('tr[data-record="movie-remux"]')!).queryByTestId("state-words")).toBeNull();
-    const row = document.querySelector<HTMLElement>('tr[data-record="movie-web"]')!;
-    await user.click(within(row).getByRole("button", { name: "Edit" }));
-    // Live with downloads off opens Advanced, where the tick is.
-    expect((screen.getByTestId("library-advanced") as HTMLDetailsElement).open).toBe(true);
-    const grab = screen.getByRole("checkbox", { name: "Don't download for this library" }) as HTMLInputElement;
-    expect(grab.checked).toBe(true);
-    await user.click(grab);
-    expect(grab.checked).toBe(false);
-    await user.click(screen.getByRole("button", { name: "Save" }));
-    await screen.findByRole("dialog", { name: "Confirm library change" });
-    expect(fetch.calls("PUT", "/settings/versions/movie-web")[0].body).toMatchObject({ config: { grab: true } });
+    const row = (await screen.findByRole("button", { name: "Edit" })).closest("tr")!;
+    expect(within(row).queryByTestId("state-words")).toBeNull();
+    cleanup();
+    mockFetch(getRoutes({ ...active, switches: { ...active.switches, paused: true } }));
+    renderPage(<VersionsPage />);
+    const paused = (await screen.findByRole("button", { name: "Edit" })).closest("tr")!;
+    expect(within(paused).getByTestId("state-words").textContent).toBe("Live, paused");
+    expect(screen.getByTestId("downloads-off-notice").textContent).toContain("Paused: nothing is searched, downloaded or linked for any library.");
   });
 
   it("keeps a multi-character create key focused and links to naming", async () => {
@@ -298,20 +287,20 @@ describe("Versions page", () => {
     expect(again.calls("PUT", "/settings/versions/movie-web")[0].body).toMatchObject({ config: { name: "" } });
   });
 
-  it("sends the two switches as booleans in the usual body, with their Changed marks and Undo", async () => {
+  it("sends State and a switch in the usual body, with their Changed marks and Undo", async () => {
     const fetch = mockFetch([...getRoutes(), { method: "PUT", path: "/settings/versions/movie-web", reply: json({ generation: 5 }) }]);
     const user = userEvent.setup();
     renderPage(<VersionsPage />);
     await user.click(await screen.findByRole("button", { name: "Edit" }));
     await user.selectOptions(screen.getByRole("combobox", { name: "State" }), "live");
     await user.click(screen.getByRole("switch", { name: "Prefer SeaDex" }));
-    expect(screen.getByTestId("unsaved-count").textContent).toBe("3 unsaved changes");
+    expect(screen.getByTestId("unsaved-count").textContent).toBe("2 unsaved changes");
     await user.click(screen.getByRole("button", { name: "Undo change to Prefer SeaDex" }));
     expect(screen.getByRole("switch", { name: "Prefer SeaDex" }).getAttribute("aria-checked")).toBe("false");
     await user.click(screen.getByRole("switch", { name: "Prefer SeaDex" }));
     await user.click(screen.getByRole("button", { name: "Save" }));
     await waitFor(() => expect(fetch.calls("PUT", "/settings/versions/movie-web")).toHaveLength(1));
-    expect(fetch.calls("PUT", "/settings/versions/movie-web")[0].body).toEqual({ generation: 4, key: "movie-web", config: { ...version().config, mode: "active", grab: true, prefer_seadex: true }, roots: version().roots });
+    expect(fetch.calls("PUT", "/settings/versions/movie-web")[0].body).toEqual({ generation: 4, key: "movie-web", config: { ...version().config, mode: "active", prefer_seadex: true }, roots: version().roots });
   });
 
   it("labels the modes and the upgrade rules in plain words", async () => {
@@ -900,13 +889,13 @@ it("shows a new library's relative root refusal beside Root and Write roots", as
 
 
 describe("Watch only / Live control", () => {
-  // The running state as the server sends it: library_enabled and library_writes included.
+  // The running state as the server sends it: library_writes included.
   const withConfig = (over: Record<string, unknown>, switches: Record<string, unknown> = {}) => {
     const v = { ...version(), config: { ...version().config, ...over } };
-    const sw = { ...versions().switches, library_enabled: true, ...switches } as ReturnType<typeof versions>["switches"] & { library_enabled: boolean };
+    const sw = { ...versions().switches, ...switches } as ReturnType<typeof versions>["switches"];
     const [list, bindings] = getRoutes({ ...versions(), versions: [v], switches: sw } as ReturnType<typeof versions>);
     const reply = list.reply as { switches: { versions: { grab_state: Record<string, unknown> }[] } };
-    for (const s of reply.switches.versions) Object.assign(s.grab_state, { library_enabled: sw.library_enabled, library_writes: sw.library_enabled && v.config.mode === "active" });
+    for (const s of reply.switches.versions) Object.assign(s.grab_state, { library_writes: !sw.paused && v.config.mode === "active" });
     return [list, bindings];
   };
   const put = (reply: unknown = json({ generation: 5 })) => ({ method: "PUT", path: "/settings/versions/movie-web", reply });
@@ -914,11 +903,9 @@ describe("Watch only / Live control", () => {
 
   it.each([
     [{ mode: "shadow" }, {}, "watch", null],
-    [{ mode: "active", grab: true }, {}, "live", null],
-    [{ mode: "active", grab: false }, {}, "live", "Live, downloads off"],
-    [{ mode: "active" }, {}, "live", "Live, downloads off"],
-    [{ mode: "active", grab: true }, { router_enabled: false, library_enabled: false }, "live", "Live, paused"],
-    [{ mode: "active", grab: true }, { router_enabled: false }, "live", "Live, but new downloads are off"],
+    [{ mode: "active" }, {}, "live", null],
+    [{ mode: "active" }, { paused: true }, "live", "Live, paused"],
+    [{ mode: "shadow" }, { paused: true }, "watch", null],
   ])("shows %j with switches %j as %s, %s", async (config, switches, choice, words) => {
     mockFetch(withConfig(config, switches));
     renderPage(<VersionsPage />);
@@ -928,15 +915,15 @@ describe("Watch only / Live control", () => {
     expect(within(r).queryByTestId("state-words")?.textContent ?? null).toBe(words);
   });
 
-  it("Live from a row sends the stored library with mode active and grab on, through the confirmation", async () => {
-    const effects = [{ version: "movie-web", effect: "Allow downloads for movie-web" }];
+  it("Live from a row sends the stored library with mode active, through the confirmation", async () => {
+    const effects = [{ version: "movie-web", effect: "Library movie-web becomes Live: it searches, downloads to rd and writes links under /library/movies." }];
     const fetch = mockFetch([...withConfig({}), put(json({ error: "confirmation required", effects }, 422)),
       { method: "POST", path: "/settings/versions/confirm", reply: json({ generation: 4, token: "proof", effects }) }, put()]);
     const user = userEvent.setup();
     renderPage(<VersionsPage />);
     await user.selectOptions(within(await row()).getByRole("combobox", { name: "State of movie-web" }), "live");
     await screen.findByRole("dialog", { name: "Confirm library change" });
-    const expected = { generation: 4, key: "movie-web", config: { ...version().config, mode: "active", grab: true }, roots: version().roots };
+    const expected = { generation: 4, key: "movie-web", config: { ...version().config, mode: "active" }, roots: version().roots };
     expect(fetch.calls("PUT", "/settings/versions/movie-web")[0].body).toEqual(expected);
     await user.click(screen.getByRole("button", { name: "Confirm this change" }));
     await waitFor(() => expect(fetch.calls("PUT", "/settings/versions/movie-web")).toHaveLength(2));
@@ -944,17 +931,17 @@ describe("Watch only / Live control", () => {
     expect(screen.queryByTestId("version-form")).toBeNull();
   });
 
-  it("Watch only from a row sends mode shadow and keeps the stored grab", async () => {
-    const fetch = mockFetch([...withConfig({ mode: "active", grab: true }), put()]);
+  it("Watch only from a row sends mode shadow", async () => {
+    const fetch = mockFetch([...withConfig({ mode: "active" }), put()]);
     const user = userEvent.setup();
     renderPage(<VersionsPage />);
     await user.selectOptions(within(await row()).getByRole("combobox", { name: "State of movie-web" }), "watch");
     await waitFor(() => expect(fetch.calls("PUT", "/settings/versions/movie-web")).toHaveLength(1));
-    expect(fetch.calls("PUT", "/settings/versions/movie-web")[0].body).toEqual({ generation: 4, key: "movie-web", config: { ...version().config, mode: "shadow", grab: true }, roots: version().roots });
+    expect(fetch.calls("PUT", "/settings/versions/movie-web")[0].body).toEqual({ generation: 4, key: "movie-web", config: { ...version().config, mode: "shadow" }, roots: version().roots });
   });
 
   it("a row save reads the settings overview again, so the header Pause saves with the new generation", async () => {
-    const fetch = mockFetch([...withConfig({ mode: "active", grab: true }), put(), { method: "GET", path: "/settings", reply: { source: "db", writable: true, generation: 4, switches: { router_enabled: true, library_enabled: true, notify_enabled: true } } }]);
+    const fetch = mockFetch([...withConfig({ mode: "active" }), put(), { method: "GET", path: "/settings", reply: { source: "db", writable: true, generation: 4, switches: { paused: false, pause_forced: false, versions: [] } } }]);
     const user = userEvent.setup();
     renderPage(<><VersionsPage /><OverviewReader /></>);
     const r = await row();
@@ -968,15 +955,6 @@ describe("Watch only / Live control", () => {
     renderPage(<VersionsPage />);
     const r = await row();
     expect(within(r).getAllByTestId("library-where").map((line) => line.textContent)).toContain("debrid · symlink");
-  });
-
-  it("Watch only from a row on a library stored without grab sends no grab", async () => {
-    const fetch = mockFetch([...withConfig({ mode: "active" }), put()]);
-    const user = userEvent.setup();
-    renderPage(<VersionsPage />);
-    await user.selectOptions(within(await row()).getByRole("combobox", { name: "State of movie-web" }), "watch");
-    await waitFor(() => expect(fetch.calls("PUT", "/settings/versions/movie-web")).toHaveLength(1));
-    expect(fetch.calls("PUT", "/settings/versions/movie-web")[0].body).toEqual({ generation: 4, key: "movie-web", config: version().config, roots: version().roots });
   });
 
   it("shows a row refusal on the page", async () => {
@@ -999,7 +977,7 @@ describe("Watch only / Live control", () => {
     await user.click(await screen.findByRole("button", { name: "Edit" }));
     const state = screen.getByRole("combobox", { name: "State" });
     await user.selectOptions(state, "live");
-    expect(screen.queryByTestId("unsaved-count")?.textContent).toBe("2 unsaved changes");
+    expect(screen.queryByTestId("unsaved-count")?.textContent).toBe("1 unsaved change");
     await user.selectOptions(state, "watch");
     expect(screen.queryByTestId("unsaved-count")).toBeNull();
     await user.click(screen.getByRole("button", { name: "Save" }));
@@ -1007,20 +985,14 @@ describe("Watch only / Live control", () => {
     expect(fetch.calls("PUT", "/settings/versions/movie-web")[1].body).toEqual(untouched);
   });
 
-  it("the Advanced tick sends grab off for a Live library and only shows while Live", async () => {
-    const fetch = mockFetch([...withConfig({ mode: "active", grab: true }), put()]);
+  it("offers no download tick: a library is Watch only or Live", async () => {
+    mockFetch(withConfig({ mode: "active" }));
     const user = userEvent.setup();
     renderPage(<VersionsPage />);
     await user.click(await screen.findByRole("button", { name: "Edit" }));
-    await user.click(screen.getByText("Advanced"));
-    await user.click(screen.getByRole("checkbox", { name: "Don't download for this library" }));
-    await user.click(screen.getByRole("button", { name: "Save" }));
-    await waitFor(() => expect(fetch.calls("PUT", "/settings/versions/movie-web")).toHaveLength(1));
-    expect(fetch.calls("PUT", "/settings/versions/movie-web")[0].body).toEqual({ generation: 4, key: "movie-web", config: { ...version().config, mode: "active", grab: false }, roots: version().roots });
-    await user.click(await screen.findByRole("button", { name: "Edit" }));
-    await user.selectOptions(screen.getByRole("combobox", { name: "State" }), "watch");
     if (!(screen.getByTestId("library-advanced") as HTMLDetailsElement).open) await user.click(screen.getByText("Advanced"));
     expect(screen.queryByRole("checkbox", { name: "Don't download for this library" })).toBeNull();
+    expect(screen.getByText("Watch only: Theatarr searches, downloads and links nothing for this library. Live searches, downloads and links.")).toBeTruthy();
   });
 
   it("disables the row control when settings are read-only", async () => {

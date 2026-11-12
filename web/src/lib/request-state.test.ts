@@ -99,11 +99,10 @@ describe("request state", () => {
     expect(settledWords("positive", true, []).sentence).toBe("Everything you can ask for is in the library.");
   });
   it("says on its way only when a copy is being fetched", () => {
-    const gates = (mode: string, grab = true, router_enabled = true) => ({ control: { grab_state: { mode, grab, router_enabled, router_forced_off: false, will_grab: mode === "active" && grab && router_enabled } } });
+    const gates = (mode: string, paused = false) => ({ control: { grab_state: { mode, paused, pause_forced: false, will_grab: mode === "active" && !paused } } });
     expect(versionFetching([gates("active")])).toBe(true);
     expect(versionFetching([gates("shadow")])).toBe(false);
-    expect(versionFetching([gates("active", false)])).toBe(false);
-    expect(versionFetching([gates("active", true, false)])).toBe(false);
+    expect(versionFetching([gates("active", true)])).toBe(false);
     expect(versionFetching([gates("shadow"), gates("active")])).toBe(true);
     expect(versionFetching([{}])).toBe(true);
     const shadow = settledWords("partial", versionFetching([gates("shadow")]));
@@ -133,7 +132,7 @@ it.each(["approved", "processing"])("does not promise progress for %s while grab
 });
 
  it("uses the server grab decision for title and request copies", () => {
-  const state = {mode:"active",grab:true,router_enabled:true,router_forced_off:false,will_grab:false};
+  const state = {mode:"active",paused:false,pause_forced:false,will_grab:false};
   expect(versionFetching([{grab_state:state}])).toBe(false);
   expect(versionFetching([{control:{grab_state:state}}])).toBe(false);
  });

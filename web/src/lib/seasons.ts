@@ -176,8 +176,8 @@ export function episodeNumber(e: Pick<Episode, "number" | "absolute">, anime: bo
  */
 export function restrictions(versions: { label: string; control?: VersionControl | null }[], opts: { globalSaid?: boolean } = {}): string[] {
   const out: string[] = [];
-  // globalSaid: the page notice already says new downloads are paused or locked off for every library.
-  const global = (c: VersionControl) => !!opts.globalSaid && c.grab_state?.mode === "active" && (c.grab_state.router_forced_off || !c.grab_state.router_enabled);
+  // globalSaid: the page notice already says Pause is on (or forced) for every library.
+  const global = (c: VersionControl) => !!opts.globalSaid && c.grab_state?.mode === "active" && (c.grab_state.pause_forced || c.grab_state.paused);
   const add = (kind: "edit" | "search") => {
     const groups = new Map<string, string[]>();
     for (const v of versions) {

@@ -170,7 +170,7 @@ export function requestDoneWords(result: { approved: boolean; merged: boolean; n
 }
 
 /** The grab gates every account sees on a version (control.grab_state; redaction keeps it). */
-type GrabGates = { mode: string; grab: boolean; router_enabled: boolean; router_forced_off: boolean; will_grab?: boolean };
+type GrabGates = { mode: string; paused: boolean; pause_forced: boolean; will_grab?: boolean };
 
 /**
  * Whether any copy may grab, from the server decision shared with add options and request detail. Older server

@@ -12,11 +12,11 @@ import { AddSheet } from "./add-sheet";
 beforeEach(() => localStorage.clear());
 afterEach(() => vi.restoreAllMocks());
 
-const gates = { grab: true, router_enabled: true, router_forced_off: false, library_enabled: true, library_writes: true };
+const gates = { paused: false, pause_forced: false, library_writes: true };
 const long = "A library name that is long enough to wrap at four hundred p";
 const versions = [
   { key: "movie-web", label: long, mode: "active", grab_state: { ...gates, mode: "active", will_grab: true } },
-  { key: "movie-remux", label: "Remux", mode: "active", grab_state: { ...gates, mode: "active", grab: false, will_grab: false } },
+  { key: "movie-remux", label: "Remux", mode: "active", grab_state: { ...gates, mode: "active", will_grab: false } },
   { key: "movie-1080", label: "1080p", mode: "shadow", grab_state: { ...gates, mode: "shadow", will_grab: false, library_writes: false } },
   { key: "movie-4k", label: "4K", mode: "active", grab_state: { ...gates, mode: "active", will_grab: true } },
   { key: "movie-hdr", label: "HDR", mode: "active", grab_state: { ...gates, mode: "active", will_grab: true, library_writes: false } },
@@ -41,7 +41,7 @@ it("lists every library with its state, counts what will download and sends the 
   expect(within(web).getByText("movie-web")).toBeTruthy();
   expect(within(web).getByText("Downloads on")).toBeTruthy();
   expect(within(screen.getByTestId("add-version-movie-remux")).getByText("Downloads off")).toBeTruthy();
-  expect(within(screen.getByTestId("add-version-movie-1080")).getByText("Preview only")).toBeTruthy();
+  expect(within(screen.getByTestId("add-version-movie-1080")).getByText("Watch only")).toBeTruthy();
   expect(within(screen.getByTestId("add-version-movie-hdr")).getByTestId("links-off")).toBeTruthy();
   // The checkbox is named by the library and described by its state.
   const box = within(web).getByRole("checkbox", { name: new RegExp(long) });
@@ -78,8 +78,8 @@ it("turns Search now on from its switch or the row's words and sends it with the
   expect((fetch.calls("POST", "/titles")[0].body as { search: boolean }).search).toBe(true);
 });
 
-it("says new downloads are off once, not on every row", async () => {
-  const off = versions.map((v) => ({ ...v, searchable: false, grab_state: { ...v.grab_state, router_enabled: false, will_grab: false } }));
+it("says Pause once, not on every row", async () => {
+  const off = versions.map((v) => ({ ...v, searchable: false, grab_state: { ...v.grab_state, paused: true, will_grab: false } }));
   mockFetch([
     { method: "GET", path: "/auth/me", reply: { id: 1, permissions: ["add"] } },
     { method: "GET", path: "/add/options", reply: { ...options, router_enabled: false, versions: off } },
@@ -87,7 +87,7 @@ it("says new downloads are off once, not on every row", async () => {
   renderPage(<AddSheet target={{ kind: "movie", name: "Alpha", tmdb_id: 7 }} onClose={() => {}} />);
   expect((await screen.findAllByTestId("downloads-off-notice"))).toHaveLength(1);
   expect(screen.queryByTestId("add-no-search")).toBeNull();
-  expect(within(screen.getByTestId("add-version-movie-web")).getByText("Paused globally")).toBeTruthy();
+  expect(within(screen.getByTestId("add-version-movie-web")).getByText("Paused")).toBeTruthy();
   expect(screen.getByTestId("add-count").textContent).toBe("6 libraries · 0 will download");
   // Not an admin: no settings link.
   expect(within(screen.getByTestId("downloads-off-notice")).queryByRole("link")).toBeNull();

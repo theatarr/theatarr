@@ -48,26 +48,27 @@ export function MonitorSwitch({
   );
 }
 
-/** The note under read-only or search-less controls. globalSaid: the page's notice already says new downloads are off
- * for every library (Paused globally, Locked off), so the note does not repeat it. */
+/** The note under read-only or search-less controls. globalSaid: the page's notice already says Pause is on for every
+ * library, so the note does not repeat it. */
 export function ControlNote({ c, kind, globalSaid = false, verdictSaid = false }: { c: VersionControl | undefined | null; kind: "edit" | "search" | "both"; globalSaid?: boolean; verdictSaid?: boolean }) {
   const { admin } = usePerms();
   if (!c) return null;
   const lines: { text: string; search?: boolean }[] = [];
   if ((kind === "edit" || kind === "both") && !c.can_edit && c.edit_reason) lines.push({ text: c.edit_reason });
   const g = c.grab_state;
-  const global = globalSaid && !!g && g.mode === "active" && ["Paused globally", "Locked off"].includes(verdict(g).word);
+  const global = globalSaid && !!g && g.mode === "active" && verdict(g).word === "Paused";
   // verdictSaid: the library-state chip beside this note already names the verdict (its popover has the gates), so
   // the note drops a line that would only repeat it; a server's own hold reason and a library gone from the policy stay.
-  const repeat = verdictSaid && !!g && g.will_grab === false && g.mode !== "off" && !(verdict(g).word === "Downloads off" && g.grab);
+  const repeat = verdictSaid && !!g && g.will_grab === false && g.mode !== "off" && verdict(g).word !== "Downloads off";
   if ((kind === "search" || kind === "both") && (!c.can_search || g?.will_grab === false) && !global && !repeat) lines.push({ text: downloadReason(c), search: true });
   if (lines.length === 0) return null;
+  const fix = downloadSettings(c.grab_state);
   return (
     <div className="space-y-0.5 text-[11.5px] text-[var(--ink-3)]" data-testid="control-note">
       {lines.map((l, i) => (
         <p key={i} className="flex items-start gap-1.5">
           {i === 0 && c.managed_by ? <Lock className="mt-0.5 size-3 shrink-0" /> : <Search className="mt-0.5 size-3 shrink-0" />}
-          <span>{l.text}{l.search ? <> — {admin ? <Link className="underline" to={downloadSettings(c.grab_state).to}>{downloadSettings(c.grab_state).label}</Link> : downloadSettings(c.grab_state).label}</> : null}</span>
+          <span>{l.text}{l.search ? <> — {admin && fix.to ? <Link className="underline" to={fix.to}>{fix.label}</Link> : fix.label}</> : null}</span>
         </p>
       ))}
     </div>

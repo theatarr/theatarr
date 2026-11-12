@@ -93,7 +93,7 @@ export function retryScope(state: string | undefined, copy: string): Scope {
     does: [`The same release goes to the router again for the ${copy} library: a new download starts when a provider takes it`],
     keeps: [
       "The failed download stays in the history",
-      "A blocklisted release, or one from an indexer the library no longer lists, is refused, and nothing is added while the library is Watch only or downloads are off",
+      "A blocklisted release, or one from an indexer the library no longer lists, is refused, and nothing is added while the library is Watch only or Pause is on",
     ],
     confirm: "Retry",
     blocked: k === null ? `Nothing to retry: the download is ${state ?? "unknown"} and still on its way` : undefined,

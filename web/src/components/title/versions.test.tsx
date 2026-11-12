@@ -122,15 +122,15 @@ it("keeps collision labels on Theatarr-managed cards and unique labels plain", (
   expect(screen.getByRole("heading", { name: "WEB" })).toBeTruthy();
 });
 
-it("says Preview only once on a Shadow library's card, keeping a server's own hold reason", async () => {
+it("says Watch only once on a Watch-only library's card, keeping a server's own hold reason", async () => {
   mockFetch([{ method: "GET", path: "/auth/me", reply: { permissions: ["browse", "see_files"] } }]);
-  const gs = { grab: true, router_enabled: true, router_forced_off: false, library_enabled: true, will_grab: false };
+  const gs = { paused: false, pause_forced: false, will_grab: false };
   renderPage(<CopyCards versions={[
     { ...copy, control: { mode: "shadow", can_edit: true, can_search: false, live_releases: false, search_reason: "shadow mode", grab_state: { ...gs, mode: "shadow" } } },
     { ...copy, id: 2, key: "movie-remux", label: "Remux", control: { mode: "active", can_edit: true, can_search: false, live_releases: true, search_reason: "indexers cooling down", grab_state: { ...gs, mode: "active" } } },
   ] as never} />);
   await screen.findAllByTestId("copy-card");
-  expect(document.body.textContent?.match(/Preview only/g)).toHaveLength(1);
+  expect(document.body.textContent?.match(/Watch only/g)).toHaveLength(1);
   expect(screen.getByTestId("control-note").textContent).toContain("Downloads off (indexers cooling down)");
 });
 

@@ -53,7 +53,7 @@ describe("source of authority", () => {
     expect(a.mode).toBe("db");
     expect(a.readOnly).toBeUndefined();
     expect(a.fallback).toBeUndefined();
-    expect(a.lines[1]).toBe("These sections in /config/policy are ignored until you import them again (Import & export). Global switches, arr views and the other policy sections (library and Plex, notifications, metadata, egress and the rest) are managed in Settings; an import does not change the switches or those sections once stored.");
+    expect(a.lines[1]).toBe("These sections in /config/policy are ignored until you import them again (Import & export). Pause, arr views and the other policy sections (library and Plex, notifications, metadata, egress and the rest) are managed in Settings; an import does not change the switches or those sections once stored.");
     expect(authority(overview({ generation: 5, active_generation: 4 })).fallback).toEqual({ stored: 5, active: 4 });
   });
 });

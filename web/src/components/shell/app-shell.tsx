@@ -3,7 +3,7 @@
 // (components/shell/nav.ts holds what each account sees). The look: a
 // sidebar on the paper with a hairline, the current page a sheet with a 3 px accent rule, counts as plain mono
 // figures (amber when they ask for you), the current section's pages under it as in Sonarr v5's PageSidebar; the
-// top bar names what is off for everyone ("New downloads off", "VPN down") once, so rows need not repeat it. The
+// top bar names what is off for everyone (Pause, "VPN down") once, so rows need not repeat it. The
 // phone tab bar follows Seerr's MobileMenu (MIT), a bottom bar with a More list. The sheet is our own
 // Modal (components/ui/modal.tsx): Radix Dialog's scroll lock injects a <style> element, which the CSP refuses.
 import { useMinWidth } from "@/components/library/copy-bits";
@@ -16,8 +16,6 @@ import { AccountMenu, ThemeSwitch } from "./account-menu";
 import { allowed, isActive, itemActive, LIBRARY, moreFor, navFor, tabFor, TABS, type NavBadge, type NavGroup, type NavItem } from "./nav";
 import { useReviewCounts } from "@/api/reviews";
 import { useSetupProgress } from "@/api/useSetupProgress";
-import { useVersions } from "@/api/settings-versions";
-import { settingHref } from "@/lib/settings-map";
 import { useLive } from "@/api/events";
 import { attentionCount } from "@/lib/jobs";
 import type { Perms } from "@/api/library";
@@ -260,33 +258,6 @@ function SearchTrigger() {
   );
 }
 
-/** The top bar's "New downloads off" (admins): the global switch (Settings › Download clients), said once here so
- * rows need not repeat it. Nothing shows while new downloads are on. The header shows it only while Pause
- * (components/settings/global-switches.tsx) cannot be used: settings read-only or a switch forced off. */
-export function DownloadsSignal() {
-  const sw = useVersions().data?.switches;
-  if (!sw) return null;
-  const forced = sw.sources?.router === "forced off by environment";
-  if (sw.router_enabled && !forced) return null;
-  const label = forced ? "New downloads locked off" : "New downloads off";
-  const detail = forced
-    ? "New downloads are forced off by the environment (THEATARR_FORCE_OFF) for every library."
-    : "New downloads are off for every library. Settings › Download clients.";
-  return (
-    <Link
-      to={settingHref("switches", "router_enabled") ?? "/admin/settings/downloads"}
-      data-testid="downloads-signal"
-      data-forced={forced || undefined}
-      title={detail}
-      aria-label={`${label}. ${detail}`}
-      className="flex h-8 shrink-0 items-center gap-1.5 rounded-[5px] px-2 text-[12.5px] text-[var(--ink-2)] transition-colors hover:bg-[var(--hover)] hover:text-[var(--ink)]"
-    >
-      <span aria-hidden className={cn("size-2 shrink-0 rounded-full border-[1.5px]", forced ? "border-[var(--bad)]" : "border-[var(--ink-3)]")} />
-      <span className="whitespace-nowrap">{label}</span>
-    </Link>
-  );
-}
-
 function BottomTabs({ sheet, onSheet }: { sheet: "browse" | "more" | null; onSheet: (s: "browse" | "more") => void }) {
   const { pathname } = useLocation();
   const current = sheet ?? tabFor(pathname);
@@ -393,7 +364,7 @@ export function AppShell({ children, perms }: { children: ReactNode; perms: Perm
               <SearchTrigger />
             </div>
             <div className="flex shrink-0 items-center justify-end gap-1 sm:gap-2">
-              {perms.admin ? <PauseSwitch fallback={<DownloadsSignal />} /> : null}
+              {perms.admin ? <PauseSwitch /> : null}
               {perms.admin ? <StatusDot /> : null}
               <AccountMenu />
             </div>

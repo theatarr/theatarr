@@ -10,12 +10,12 @@ import { json, mockFetch, renderPage } from "@/test/page";
 
 const overview = {
   source: "db", writable: true, generation: 7, active_generation: 7, provider_epoch: 0, policy_dir: "/policy", yaml_owned: [], indexers: [], providers: [], budgets: [],
-  switches: { router_enabled: false, library_enabled: false, notify_enabled: false, versions: [], sources: { router: "db", library: "db", notify: "db" } },
+  switches: { paused: true, pause_forced: false, versions: [] },
 };
 const radarr = { id: 1, key: "radarr", versions: ["movie-web"], profiles: { "WEB only": ["movie-web"] }, identity: { flavour: "radarr", path: "/radarr", alias_from: ["radarr_4k"] }, secret_set: true };
 const library = (key: string) => ({ id: 1, key, roots: [], config: { mode: key === "movie-web" ? "active" : "shadow", kind: "movie" } });
 const versionsReply = { source: "db", generation: 7, versions: ["movie-web", "movie-remux", "tv-web"].map(library), profiles: {}, format_sets: [], clients: [], indexers: [], providers: [],
-  switches: { router_enabled: false, library_enabled: false, notify_enabled: false, versions: [{ key: "movie-web", mode: "shadow", grab_state: { mode: "shadow", grab: false, router_enabled: false, router_forced_off: false } }] } };
+  switches: { paused: true, pause_forced: false, versions: [{ key: "movie-web", mode: "shadow", grab_state: { mode: "shadow", paused: true, pause_forced: false } }] } };
 const librariesRoute = { method: "GET", path: "/settings/versions", reply: versionsReply };
 const routes = (list: unknown[] = [radarr]) => [
   librariesRoute,

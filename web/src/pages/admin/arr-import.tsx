@@ -219,7 +219,7 @@ function PreviewReport({ r, library }: { r: ArrImportReport; library: string }) 
   const items = notLinkedItems(r);
   return <>
     {r.tvdb_missing ? <p data-testid="arr-tvdb-missing">Theatarr has no TVDB key, so episodes cannot be matched to Sonarr's numbering: series will be added, but their monitoring and files will not be brought over. Add a TVDB key in <Link className="underline" to="/admin/settings/metadata">Settings › Metadata</Link> and run the import again.</p> : null}
-    {!r.writable ? <p role="alert">Import needs the library to write links: {r.write_block}. Set it to Live and turn Write library links on; Allow new downloads can stay off.</p> : null}
+    {!r.writable ? <p role="alert">Import needs a Live library and Pause off: {r.write_block}.</p> : null}
     <p>Import would add {plural(r.added_title + r.added_library, "title", "titles")} to {library}: {n(r.added_title)} new to Theatarr, {n(r.added_library)} already in Theatarr but not in this library. {n(r.present)} are already in this library and stay as they are{r.app === "Sonarr" ? ", except that a series this import switches to TVDB numbering takes Sonarr's season and episode monitoring" : ""}.</p>
     {!r.tvdb_missing ? <p>Up to {plural(r.linkable, "file", "files")} can be linked.</p> : null}
     {items.length ? <p>Not linkable: {items.join(" · ")}.</p> : null}

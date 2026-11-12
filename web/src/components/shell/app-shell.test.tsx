@@ -2,7 +2,7 @@
 import { act, screen, waitFor } from "@testing-library/react";
 import { expect, it, vi } from "vitest";
 import { mockFetch, renderPage } from "@/test/page";
-import { AppShell, DownloadsSignal } from "./app-shell";
+import { AppShell } from "./app-shell";
 vi.mock("@/components/search/search-context", () => ({ useSearchUI: () => ({ openOverlay: vi.fn() }) }));
 vi.mock("./account-menu", () => ({ AccountMenu: () => null, ThemeSwitch: () => null }));
 vi.mock("@/api/useSetupProgress", () => ({ useSetupProgress: () => ({ unfinished: false }) }));
@@ -22,58 +22,30 @@ it("exposes one navigation at a time and updates it at the desktop breakpoint", 
   expect(document.querySelector('[data-testid="bottom-tabs"]')).toBeNull();
 });
 
-const versions = (router_enabled: boolean, router?: string) => ({ method: "GET", path: "/settings/versions", reply: { versions: [], switches: { router_enabled, sources: router ? { router } : {} } } });
-
-it("says new downloads are off in the top bar, linking to the switch", async () => {
-  mockFetch([versions(false)]);
-  renderPage(<DownloadsSignal />);
-  const signal = await screen.findByTestId("downloads-signal");
-  expect(signal.getAttribute("href")).toBe("/admin/settings/downloads");
-  // One wording at every width: the phone bar says the same as the desktop one.
-  expect(signal.textContent).toBe("New downloads off");
-  expect(signal.dataset.forced).toBeUndefined();
-});
-
-it("says when the environment forces new downloads off", async () => {
-  mockFetch([versions(false, "forced off by environment")]);
-  renderPage(<DownloadsSignal />);
-  const signal = await screen.findByTestId("downloads-signal");
-  expect(signal.textContent).toBe("New downloads locked off");
-  expect(signal.dataset.forced).toBe("true");
-});
-
-it("shows nothing while new downloads are on", async () => {
-  const fetch = mockFetch([versions(true)]);
-  renderPage(<DownloadsSignal />);
-  await waitFor(() => expect(fetch.calls("GET", "/settings/versions")).toHaveLength(1));
-  await act(async () => {});
-  expect(screen.queryByTestId("downloads-signal")).toBeNull();
-});
+const versions = { method: "GET", path: "/settings/versions", reply: { versions: [], switches: { paused: true, pause_forced: false, versions: [] } } };
 
 it("never asks for the switches without admin", async () => {
-  const fetch = mockFetch([versions(false)]);
+  const fetch = mockFetch([versions]);
   vi.stubGlobal("matchMedia", () => ({ matches: true, addEventListener: () => {}, removeEventListener: () => {} }));
   renderPage(<AppShell perms={{ ownKeys: false, admin: false, seeFiles: false, manage: false, add: false, request: false, manageRequests: false, users: false }}><p>Page</p></AppShell>);
   await act(async () => {});
-  expect(screen.queryByTestId("downloads-signal")).toBeNull();
   expect(fetch.calls("GET", "/settings/versions")).toHaveLength(0);
   // Nor Pause: it needs the admin permission that changes settings.
   expect(screen.queryByRole("switch", { name: "Pause" })).toBeNull();
   expect(fetch.calls("GET", "/settings")).toHaveLength(0);
 });
 
-it("shows Pause to an admin in the header, and the downloads signal while settings are read-only", async () => {
-  const o = { source: "db", writable: true, generation: 3, switches: { router_enabled: false, library_enabled: false, notify_enabled: true, sources: {} } };
-  mockFetch([versions(false), { method: "GET", path: "/settings", reply: o }]);
+it("shows Pause to an admin in the header, disabled while settings are read-only and locked when forced", async () => {
+  const o = { source: "db", writable: true, generation: 3, switches: { paused: true, pause_forced: false, versions: [] } };
+  mockFetch([versions, { method: "GET", path: "/settings", reply: o }]);
   vi.stubGlobal("matchMedia", () => ({ matches: true, addEventListener: () => {}, removeEventListener: () => {} }));
   const admin = { ownKeys: false, admin: true, seeFiles: false, manage: false, add: false, request: false, manageRequests: false, users: false };
   const first = renderPage(<AppShell perms={admin}><p>Page</p></AppShell>);
   const header = document.querySelector<HTMLElement>('[data-slot="root-header"]')!;
   await waitFor(() => expect(header.querySelector('[role="switch"][aria-label="Pause"]')).toBeTruthy());
-  expect(screen.queryByTestId("downloads-signal")).toBeNull();
+  expect(header.querySelector<HTMLInputElement>('[role="switch"]')!.disabled).toBe(false);
   first.unmount();
-  mockFetch([versions(false), { method: "GET", path: "/settings", reply: { ...o, writable: false } }]);
+  mockFetch([versions, { method: "GET", path: "/settings", reply: { ...o, writable: false } }]);
   renderPage(<AppShell perms={admin}><p>Page</p></AppShell>);
-  expect(await screen.findByTestId("downloads-signal")).toBeTruthy();
-  expect(screen.queryByRole("switch", { name: "Pause" })).toBeNull();
+  expect((await screen.findByRole("switch", { name: "Pause" }) as HTMLInputElement).disabled).toBe(true);
 });

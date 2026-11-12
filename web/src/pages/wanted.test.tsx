@@ -9,7 +9,7 @@ import type { Schemas } from "@/api/client";
 const page: Schemas["WantedPage"] = {
   items: [{ title_id: 1, version: "movie-web", targets: ["movie"], reason: "missing", waiting: "due", position: 1,
     last_run: { id: 3, at: "2026-11-01T00:00:00Z", state: "nothing", results: 3, accepted: 0, message: "", downloaded: false }, decision_id: 9, next_at: null }],
-  titles: { "1": "Alpha" }, libraries: { "movie-web": "4K WEB" }, total: 51, counts: { due: 51, grab_off: 2 }, limit: 50, offset: 0,
+  titles: { "1": "Alpha" }, libraries: { "movie-web": "4K WEB" }, total: 51, counts: { due: 51, loop_off: 2 }, limit: 50, offset: 0,
   enabled: true, downloads_enabled: true, interval: "15m0s", per_hour: 20, again_after: "24h0m0s", missing: true, cutoff_unmet: "quality", searched_last_hour: 4, searchable: 51, search_now_pending: 0, search_now_next_at: null,
 };
 
@@ -29,8 +29,8 @@ it("shows read-only waits and handoffs, filters and pages on the server", async 
   expect(screen.queryByRole("button", { name: /Downloading/ })).toBeNull();
   await user.click(screen.getByRole("button", { name: "Next" }));
   await waitFor(() => expect(new URLSearchParams(fetch.calls("GET", "/wanted").at(-1)?.search).get("offset")).toBe("50"));
-  await user.click(screen.getByRole("button", { name: "Downloads off (2)" }));
-  await waitFor(() => expect(new URLSearchParams(fetch.calls("GET", "/wanted").at(-1)?.search).get("waiting")).toBe("grab_off"));
+  await user.click(screen.getByRole("button", { name: "Loop off (2)" }));
+  await waitFor(() => expect(new URLSearchParams(fetch.calls("GET", "/wanted").at(-1)?.search).get("waiting")).toBe("loop_off"));
   expect(new URLSearchParams(fetch.calls("GET", "/wanted").at(-1)?.search).get("offset")).toBe("0");
   await user.selectOptions(screen.getByLabelText("Library"), "movie-web");
   await waitFor(() => expect(new URLSearchParams(fetch.calls("GET", "/wanted").at(-1)?.search).get("version")).toBe("movie-web"));
@@ -38,10 +38,10 @@ it("shows read-only waits and handoffs, filters and pages on the server", async 
 });
 
 it("links closed gates to their settings without switches", async () => {
-  mockFetch([admin, { method: "GET", path: "/wanted", reply: { ...page, enabled: false, downloads_enabled: false, items: [] } }, { method: "GET", path: "/status", reply: { versions: [{ key: "movie-web", grab_state: { mode: "active", grab: true, router_enabled: false, router_forced_off: false, will_grab: false } }] } }]);
+  mockFetch([admin, { method: "GET", path: "/wanted", reply: { ...page, enabled: false, downloads_enabled: false, items: [] } }, { method: "GET", path: "/status", reply: { versions: [{ key: "movie-web", grab_state: { mode: "active", paused: true, pause_forced: false, will_grab: false } }] } }]);
   renderPage(<WantedPage />, "/wanted/cutoff?version=movie-web");
   expect(await screen.findByText("Automatic searches are off.")).toBeTruthy();
-  await waitFor(() => expect(screen.getByTestId("downloads-off-notice").textContent).toContain("New downloads are paused for every library"));
+  await waitFor(() => expect(screen.getByTestId("downloads-off-notice").textContent).toContain("Paused: nothing is searched, downloaded or linked for any library."));
   expect((await screen.findByRole("link", { name: "Automatic search settings" })).getAttribute("href")).toBe("/admin/settings/downloads/behaviour#searches");
   expect(screen.queryByRole("switch")).toBeNull();
   expect(screen.getByRole("tab", { name: "Missing" }).getAttribute("href")).toBe("/wanted?version=movie-web");
@@ -58,11 +58,11 @@ it("formats search outcomes and targets", () => {
   expect(targetWords(["s01e04", "s01e02", "s01e03", "s01e06"])).toBe("S01E02-E04, S01E06");
 });
 
-const gates = { mode: "active", grab: true, router_enabled: true, router_forced_off: false, will_grab: true };
+const gates = { mode: "active", paused: false, pause_forced: false, will_grab: true };
 const row = page.items[0];
 
-it("words rows and the notice from the server's grab state: locked off, not paused", async () => {
-  const locked = { ...gates, router_forced_off: true, will_grab: false };
+it("words rows and the notice from the server's grab state: forced Pause", async () => {
+  const locked = { ...gates, paused: true, pause_forced: true, will_grab: false };
   mockFetch([
     admin,
     { method: "GET", path: "/wanted", reply: { ...page, downloads_enabled: false, counts: { downloads_off: 1 }, items: [{ ...row, waiting: "downloads_off" }] } },
@@ -70,18 +70,17 @@ it("words rows and the notice from the server's grab state: locked off, not paus
   ]);
   renderPage(<WantedPage />, "/wanted");
   const r = await screen.findByTestId("wanted-row");
-  expect(await within(r).findByText("Locked off")).toBeTruthy();
-  expect(within(r).queryByText("Paused globally")).toBeNull();
+  expect(await within(r).findByText("Paused")).toBeTruthy();
   expect(screen.getAllByTestId("downloads-off-notice")).toHaveLength(1);
-  expect(screen.getByTestId("downloads-off-notice").textContent).toContain("locked off by the environment");
-  expect(screen.getByRole("button", { name: "Locked off (1)" })).toBeTruthy();
+  expect(screen.getByTestId("downloads-off-notice").textContent).toContain("Paused by the environment (THEATARR_FORCE_OFF)");
+  expect(screen.getByRole("button", { name: "Paused (locked) (1)" })).toBeTruthy();
 });
 
 it("keeps a library's closed download gate visible while the search loop is off", async () => {
   mockFetch([
     admin,
     { method: "GET", path: "/wanted", reply: { ...page, enabled: false, items: [{ ...row, waiting: "loop_off" }] } },
-    { method: "GET", path: "/status", reply: { versions: [{ key: "movie-web", grab_state: { ...gates, grab: false, will_grab: false } }] } },
+    { method: "GET", path: "/status", reply: { versions: [{ key: "movie-web", grab_state: { ...gates, will_grab: false } }] } },
   ]);
   const user = userEvent.setup();
   renderPage(<WantedPage />, "/wanted");
@@ -99,10 +98,10 @@ it("names no cause until the lock state is known (status failed)", async () => {
   ]);
   renderPage(<WantedPage />, "/wanted");
   const r = await screen.findByTestId("wanted-row");
-  expect(within(r).getByText("New downloads off")).toBeTruthy();
-  expect(screen.queryByText(/Paused globally/)).toBeNull();
-  expect(screen.getByTestId("downloads-off-notice").textContent).toContain("New downloads are off for every library.");
-  expect(screen.getByRole("button", { name: "New downloads off (1)" })).toBeTruthy();
+  expect(within(r).getByText("Paused")).toBeTruthy();
+  expect(screen.queryByText(/THEATARR_FORCE_OFF/)).toBeNull();
+  expect(screen.getByTestId("downloads-off-notice").textContent).toBe("Paused: nothing is searched, downloaded or linked for any library.");
+  expect(screen.getByRole("button", { name: "Paused (1)" })).toBeTruthy();
 });
 
 const status = { method: "GET", path: "/status", reply: { versions: [] } };
@@ -174,13 +173,13 @@ it("confirms a selection larger than the budget left; the cutoff tab asks for cu
 
 it("disables Search now with the reason where a search could not start", async () => {
   // The loop's passes are off, so every row waits as loop_off; the search blocker is reported apart from it.
-  const items = (["grab_off", "downloads_off", "in_flight", undefined] as const).map((search_blocked, i) => ({ ...row, title_id: i + 1, waiting: "loop_off" as const, search_blocked }));
-  mockFetch([{ method: "GET", path: "/wanted", reply: { ...page, enabled: false, total: 4, searchable: 1, items, titles: {} } }, status]);
+  const items = (["downloads_off", "in_flight", undefined] as const).map((search_blocked, i) => ({ ...row, title_id: i + 1, waiting: "loop_off" as const, search_blocked }));
+  mockFetch([{ method: "GET", path: "/wanted", reply: { ...page, enabled: false, total: 3, searchable: 1, items, titles: {} } }, status]);
   renderPage(<WantedPage />, "/wanted");
   const rows = await screen.findAllByTestId("wanted-row");
   const button = (i: number) => within(rows[i]).getByRole("button", { name: "Search now" }) as HTMLButtonElement;
-  expect([0, 1, 2, 3].map(i => button(i).disabled)).toEqual([true, true, true, false]);
-  expect([0, 1, 2].map(i => button(i).title)).toEqual(["Downloads are off for this library", "New downloads are off", "A download for it is in progress"]);
+  expect([0, 1, 2].map(i => button(i).disabled)).toEqual([true, true, false]);
+  expect([0, 1].map(i => button(i).title)).toEqual(["Paused", "A download for it is in progress"]);
   expect((within(rows[0]).getByRole("checkbox") as HTMLInputElement).disabled).toBe(true);
   // The header checkbox takes only the rows that can be searched.
   await userEvent.setup().click(screen.getByRole("checkbox", { name: "Select all on this page" }));
@@ -210,7 +209,7 @@ it("says the queued searches wait while paused", async () => {
   mockFetch([{ method: "GET", path: "/wanted", reply: { ...page, downloads_enabled: false, search_now_pending: 3, search_now_next_at: null } }, status]);
   renderPage(<WantedPage />, "/wanted");
   const line = await screen.findByTestId("search-now-queue");
-  expect(line.textContent).toMatch(/^3 searches queued by Search now · waiting until new downloads are on again/);
+  expect(line.textContent).toMatch(/^3 searches queued by Search now · waiting until Pause is off/);
 });
 
 it("says why a search was refused", async () => {
@@ -240,8 +239,8 @@ it("opens Interactive search for a series row's season from the row", async () =
 });
 
 it("opens for a manager without the admin links, and says Search all missing when nothing can be searched", async () => {
-  // Automatic searches and the library's downloads both off; /status is admin-only and not asked.
-  const items = [{ ...row, waiting: "loop_off" as const, search_blocked: "grab_off" as const }];
+  // Automatic searches off and Pause on; /status is admin-only and not asked.
+  const items = [{ ...row, waiting: "loop_off" as const, search_blocked: "downloads_off" as const }];
   const fetch = mockFetch([
     { method: "GET", path: "/auth/me", reply: { id: 1, permissions: ["manage"] } },
     { method: "GET", path: "/wanted", reply: { ...page, enabled: false, downloads_enabled: false, searchable: 0, total: 1, items } },
@@ -252,7 +251,7 @@ it("opens for a manager without the admin links, and says Search all missing whe
   expect(within(r).getByRole("button", { name: "Interactive search" })).toBeTruthy();
   expect(screen.getByTestId("downloads-off-notice")).toBeTruthy();
   expect((within(r).getByRole("button", { name: "Search now" }) as HTMLButtonElement).disabled).toBe(true);
-  expect(within(r).getByTestId("search-blocked").textContent).toBe("Downloads are off for this library");
+  expect(within(r).getByTestId("search-blocked").textContent).toBe("Paused");
   expect(fetch.calls("GET", "/status")).toHaveLength(0);
   expect(within(r).queryByRole("link", { name: "Decision" })).toBeNull();
   expect(screen.queryByRole("tab", { name: "Manual import" })).toBeNull();

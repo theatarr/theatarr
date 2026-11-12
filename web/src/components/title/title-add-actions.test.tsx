@@ -7,7 +7,7 @@ import { SearchProvider } from "@/components/search/search-context";
 import { mockFetch, renderPage } from "@/test/page";
 import { TitleAddActions } from "./title-add-actions";
 
-const gates = { mode: "active", grab: true, router_enabled: true, router_forced_off: false, will_grab: true };
+const gates = { mode: "active", paused: false, pause_forced: false, will_grab: true };
 const lib = (key: string, grab_state: object) => ({ key, label: key.toUpperCase(), kind: "movie", mode: "active", enable: "", fits: true, default: false, on: true, searchable: false, grab_state });
 const show = (versions: object[], router_enabled = true) => {
   mockFetch([
@@ -17,17 +17,17 @@ const show = (versions: object[], router_enabled = true) => {
   renderPage(<SearchProvider><TitleAddActions titleId={7} name="Alpha" kind="movie" /></SearchProvider>);
 };
 
-it("says Downloads off, not Preview only, for an active library with its own switch off", async () => {
-  show([lib("movie-web", { ...gates, grab: false, will_grab: false }), lib("movie-1080", { ...gates, mode: "shadow", will_grab: false })]);
+it("says Downloads off for a Live library the server holds, and Watch only for a Watch-only one", async () => {
+  show([lib("movie-web", { ...gates, will_grab: false }), lib("movie-1080", { ...gates, mode: "shadow", will_grab: false })]);
   const note = await screen.findByTestId("title-no-search");
-  expect(note.textContent).toBe("Nothing is searched now: MOVIE-WEB: Downloads off · MOVIE-1080: Preview only");
+  expect(note.textContent).toBe("Nothing is searched now: MOVIE-WEB: Downloads off · MOVIE-1080: Watch only");
 });
 
-it("says the global state once when new downloads are locked off", async () => {
-  show([lib("movie-web", { ...gates, router_forced_off: true, will_grab: false })]);
+it("says the global state once when Pause is forced", async () => {
+  show([lib("movie-web", { ...gates, paused: true, pause_forced: true, will_grab: false })]);
   const note = await screen.findByTestId("title-no-search");
   expect(screen.getAllByTestId("downloads-off-notice")).toHaveLength(1);
-  expect(note.textContent).toContain("locked off by the environment");
+  expect(note.textContent).toContain("Paused by the environment (THEATARR_FORCE_OFF)");
 });
 
 const control = (live: boolean) => ({ mode: live ? "active" : "shadow", can_edit: true, can_search: live, live_releases: live });

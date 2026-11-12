@@ -1,4 +1,4 @@
-// The library state (docs/design/ui.md "Library state"), the same on every page: the mode marker (Shadow / Active), one
+// The library state (docs/design/ui.md "Library state"), the same on every page: the mode marker (Watch only / Live), one
 // verdict from the server's will_grab (lib/version-grab.ts), the separate "New files won't be linked" mark, and
 // behind "Why?" every closed gate with where it is changed (links for admins).
 import { useId, useState } from "react";
@@ -30,17 +30,18 @@ export function VersionStatus({ state, showMode = false, words = false, beside, 
   const items = gates.map((g) => (
     <li key={g.text} className="[overflow-wrap:anywhere]">
       {g.text}
-      {canManage ? <> · <Link className="text-[var(--accent-ink)] underline" to={g.to}>{g.label}</Link></> : null}
+      {canManage && g.to ? <> · <Link className="text-[var(--accent-ink)] underline" to={g.to}>{g.label}</Link></> : null}
     </li>
   ));
   // words: shown beside the Watch only / Live control, so only when they add to it (such as Live, paused).
   const phrase = words && !repeatsChoice(state, beside) ? stateWords(state) : undefined;
   const badges = words ? phrase ? <>
     <Badge tone={phrase.tone} data-testid="state-words" title={!why && gates.length ? gates.map((g) => g.text).join(". ") + "." : undefined}>{phrase.text}</Badge>
-    {linksOff(state) && phrase.text !== "Live, paused" && phrase.text !== "Live, but new files won't be linked" ? <Badge tone="ghost" data-testid="links-off">New files won't be linked</Badge> : null}
+    {linksOff(state) && phrase.text !== "Live, but new files won't be linked" ? <Badge tone="ghost" data-testid="links-off">New files won't be linked</Badge> : null}
   </> : null : <>
     {showMode ? <Tag title={mode.help} data-mode={state.mode}>{mode.label}</Tag> : null}
-    <Badge tone={v.tone} title={!why && gates.length ? gates.map((g) => g.text).join(". ") + "." : undefined}>{v.word}</Badge>
+    {/* A Watch-only library's verdict is its mode: the tag beside it says it once. */}
+    {showMode && v.word === mode.label ? null : <Badge tone={v.tone} title={!why && gates.length ? gates.map((g) => g.text).join(". ") + "." : undefined}>{v.word}</Badge>}
     {linksOff(state) ? <Badge tone="ghost" data-testid="links-off">New files won't be linked</Badge> : null}
   </>;
   if (!why) {
@@ -82,15 +83,15 @@ export function VersionStatus({ state, showMode = false, words = false, beside, 
   );
 }
 
-/** One notice per page when new downloads are off for every library (or locked off), so rows show only their own
- * verdict. off comes from lib/version-grab.ts globalDownloadsOff; "unknown" when the cause is not known yet. */
+/** One notice per page when Pause is on for every library (or forced by the environment), so rows show only their
+ * own verdict. off comes from lib/version-grab.ts globalDownloadsOff; "unknown" when the cause is not known yet. */
 export function DownloadsOffNotice({ off, canManage = false, className }: { off?: "locked" | "off" | "unknown"; canManage?: boolean; className?: string }) {
   if (!off) return null;
   return (
     <p role="status" data-testid="downloads-off-notice" data-forced={off === "locked" || undefined}
       className={"rounded-[5px] border border-[var(--line)] bg-[var(--sunken)] px-3 py-2 text-[13px] text-[var(--ink-2)] " + (className ?? "")}>
-      {off === "locked" ? "New downloads are locked off by the environment (THEATARR_FORCE_OFF) for every library." : off === "unknown" ? "New downloads are off for every library." : "New downloads are paused for every library: Allow new downloads is off."}
-      {canManage ? <> <Link className="text-[var(--accent-ink)] underline" to="/admin/settings/downloads">Settings › Download clients</Link></> : null}
+      {off === "locked" ? "Paused by the environment (THEATARR_FORCE_OFF): nothing is searched, downloaded or linked for any library." : "Paused: nothing is searched, downloaded or linked for any library."}
+      {canManage && off !== "locked" ? " Turn Pause off at the top of the page to resume." : null}
     </p>
   );
 }

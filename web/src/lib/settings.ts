@@ -43,7 +43,7 @@ export function authority(o: SettingsOverview): Authority {
     title: "Settings come from the database",
     lines: [
       `Indexers, providers, budgets, quality profiles, custom formats, format sets, library naming, libraries and views are stored in the settings database (generation ${o.generation}). Saves apply to new operations without a restart; operations already running keep their settings.`,
-      `These sections in ${o.policy_dir || "the policy files"} are ignored until you import them again (Import & export). Global switches, arr views and the other policy sections (library and Plex, notifications, metadata, egress and the rest) are managed in Settings; an import does not change the switches or those sections once stored.`,
+      `These sections in ${o.policy_dir || "the policy files"} are ignored until you import them again (Import & export). Pause, arr views and the other policy sections (library and Plex, notifications, metadata, egress and the rest) are managed in Settings; an import does not change the switches or those sections once stored.`,
     ],
   };
   if (o.active_generation && o.active_generation !== o.generation) {

@@ -304,6 +304,7 @@ export const SETTINGS_PANELS: SettingsPanel[] = [
     "title": "Destinations",
     "section": "notify",
     "keys": [
+      "enabled",
       "targets",
       "digest_at"
     ]
@@ -438,8 +439,6 @@ export function panelHref(panel: SettingsPanel) {
  return (page.tabs.find(t => t.id === panel.tab)?.route ?? page.route) + "#" + panel.id;
 }
 export function settingHref(section: string, key: string) {
- if (key === "enabled" && ["router", "library", "notify"].includes(section)) return ({ router: "/admin/settings/downloads", library: "/admin/settings/libraries", notify: "/admin/settings/notifications" } as Record<string, string>)[section];
- if (key === "router_enabled") return "/admin/settings/downloads";
  key = key.split(".")[0];
  const panel = SETTINGS_PANELS.find(p => p.section === section && p.keys.includes(key));
  return panel ? panelHref(panel) : undefined;

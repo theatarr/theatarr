@@ -76,12 +76,13 @@ it.each([false, true])("routes back-offs and gateway failures to their settings 
 it("links readiness switches to their owning pages and shows the newest complete backup", async () => {
  const o = overview();
  mockFetch([...reviewRoutes,
-  { method: "GET", path: "/settings", reply: { ...o, switches: { ...o.switches, router_enabled: false, library_enabled: true, notify_enabled: false } } },
+  { method: "GET", path: "/settings", reply: { ...o, switches: { ...o.switches, paused: true, pause_forced: false } } },
+  { method: "GET", path: "/settings/sections", reply: { source: "db", generation: 1, sections: [{ key: "notify", live: true, config: { enabled: false }, yaml: "", secrets: [] }] } },
   { method: "GET", path: "/system/backups", reply: { sets: [{ complete: true, created_at: "2026-11-01T03:00:00Z" }, { complete: true, created_at: "2026-11-02T03:00:00Z" }] } },
  ]);
  renderPage(<Readiness />);
  await screen.findByText("ON");
- for (const [label, state, route] of [["Downloads", "OFF", "downloads"], ["Library links", "ON", "libraries"], ["Notifications", "OFF", "notifications"]]) {
+ for (const [label, state, route] of [["Pause", "ON", "libraries"], ["Notifications", "OFF", "notifications"]]) {
   const link = screen.getByRole("link", { name: `${label} ${state}` });
   expect(link.getAttribute("href")).toBe(`/admin/settings/${route}`);
  }

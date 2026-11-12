@@ -8,7 +8,7 @@ const updated = "2026-10-26T14:00:00Z";
 const base: RequestDetail = {
   id: 1, kind: "movie", anime: false, name: "Alpha", seasons: [], mine: true,
   status: "pending", created_at: created, updated_at: updated,
-  versions: [{ key: "movie-web", label: "WEB", available: false, grab_state: {mode:"active",grab:true,router_enabled:true,router_forced_off:false,will_grab:true} }],
+  versions: [{ key: "movie-web", label: "WEB", available: false, grab_state: {mode:"active",paused:false,pause_forced:false,will_grab:true} }],
   approved_at_creation: false, progress: [],
 };
 

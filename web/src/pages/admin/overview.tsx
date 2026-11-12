@@ -7,7 +7,7 @@ import { AlertTriangle, CheckCircle2 } from "lucide-react";
 import { type ReactNode, useState } from "react";
 import { Link } from "react-router";
 import { useReviewCounts } from "@/api/reviews";
-import { useSettings } from "@/api/settings";
+import { useSettings, useSettingsSections } from "@/api/settings";
 import { useSetup, setupUnfinished } from "@/api/setup";
 import { useAppBackups } from "@/api/backups";
 import { SETTINGS_PAGES } from "@/lib/settings-map";
@@ -309,12 +309,14 @@ export function Readiness() {
   const settings = useSettings();
   const backups = useAppBackups();
   const switches = settings.data?.switches;
+  // Send notifications is the notify section's enabled field (default off).
+  const sections = useSettingsSections().data;
+  const notify = sections ? sections.sections.find(s => s.key === "notify")?.config?.enabled === true : undefined;
   const latest = [...(backups.data?.sets ?? [])].filter(b => b.complete).sort((a, b) => b.created_at.localeCompare(a.created_at))[0];
   return <Section title="Readiness" className="mt-0"><div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
     {([
-      ["Downloads", "downloads", switches?.router_enabled],
-      ["Library links", "libraries", switches?.library_enabled],
-      ["Notifications", "notifications", switches?.notify_enabled],
+      ["Pause", "libraries", switches?.paused],
+      ["Notifications", "notifications", notify],
     ] as const).map(([label, page, on]) => <Link key={page} to={SETTINGS_PAGES.find(p => p.id === page)!.route}><Card><h2>{label}</h2><strong>{on === undefined ? "Unknown" : on ? "ON" : "OFF"}</strong></Card></Link>)}
     <Link to="/admin/system/backup"><Card><h2>Backup</h2><span>{backups.error ? "Could not load backups" : backups.isPending ? "Loading…" : latest ? fmtTime(latest.created_at) : "No backup yet"}</span></Card></Link>
   </div></Section>;

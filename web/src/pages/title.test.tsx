@@ -31,12 +31,12 @@ describe("Title page", () => {
     expect(screen.getByRole("button", { name: /Refresh metadata/ })).toBeTruthy();
   });
 
-  it("says downloads are off once on the library tab, on the library's card", async () => {
-    const grab_state = { mode: "active", grab: true, router_enabled: false, router_forced_off: false, library_enabled: true, will_grab: false };
+  it("says Pause once on the library tab, on the library's card", async () => {
+    const grab_state = { mode: "active", paused: true, pause_forced: false, will_grab: false };
     const fetch = mockFetch([
       { method: "GET", path: "/auth/me", reply: me },
       { method: "GET", path: "/titles/70", reply: { ...title, versions: [{ id: 5, key: "anime-tv-theatarr", label: "Anime", state: "wanted", monitored: true,
-        control: { mode: "active", can_edit: true, can_search: false, live_releases: true, search_reason: "router.enabled is false: nothing is searched or grabbed", grab_state } }] } },
+        control: { mode: "active", can_edit: true, can_search: false, live_releases: true, search_reason: "Paused: nothing is searched or downloaded", grab_state } }] } },
       { method: "GET", path: "/add/options", reply: { kind: "movie", anime: false, title_id: 70, router_enabled: false, episodes_known: false, can_search: false, seasons: [],
         versions: [{ key: "anime-tv-theatarr", kind: "movie", mode: "active", enable: "", fits: true, default: true, on: true, searchable: false, label: "Anime", grab_state }] } },
     ]);
@@ -49,14 +49,14 @@ describe("Title page", () => {
       "/title/70?tab=copies",
     );
     // One notice for the page; the card shows only its own verdict, and no card note repeats the global switch.
-    expect((await screen.findByTestId("downloads-off-notice")).textContent).toContain("Allow new downloads is off");
+    expect((await screen.findByTestId("downloads-off-notice")).textContent).toContain("Paused: nothing is searched, downloaded or linked for any library");
     await waitFor(() => expect(fetch.calls("GET", "/add/options")).toHaveLength(1));
     await act(() => new Promise((resolve) => setTimeout(resolve, 20)));
     expect(screen.queryByTestId("title-no-search")).toBeNull();
     expect(screen.queryByTestId("control-note")).toBeNull();
     expect(screen.getAllByTestId("downloads-off-notice")).toHaveLength(1);
-    expect(within(screen.getByTestId("copy-card")).getByText("Paused globally")).toBeTruthy();
-    expect(screen.getByTestId("title-copies").textContent?.split("Allow new downloads is off")).toHaveLength(2);
+    expect(within(screen.getByTestId("copy-card")).getByText("Paused")).toBeTruthy();
+    expect(screen.getByTestId("title-copies").textContent?.split("for any library")).toHaveLength(2);
   });
 
   it("reads Getting ready to a household account for a missing title with a download in hand", async () => {

@@ -19,7 +19,7 @@ import { Sheet, SheetLayout, useEditParam } from "@/components/ui/sheet";
 import { Switch } from "@/components/ui/switch";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { explainError } from "@/lib/settings";
-import { CHOICE_HELP, CHOICE_LABEL, choiceOf, repeatsChoice, withChoice, withGrab, type LibraryChoice } from "@/lib/version-grab";
+import { CHOICE_HELP, CHOICE_LABEL, choiceOf, repeatsChoice, withChoice, type LibraryChoice } from "@/lib/version-grab";
 
 /** saved: the record as stored (a new library: its first draft), for the changed marks, the count and Discard. */
 type Session = { record: VersionRecord; saved: VersionRecord; generation: number; create: boolean; draftID: number };
@@ -129,7 +129,7 @@ function VersionGroup({ title, versions, switches, selected, readOnly, busy, onO
           return <TableRow key={record.key} data-record={record.key} data-selected={selected === record.key ? "true" : undefined}>
             <TableCell className="align-top">
               <div className="flex flex-wrap items-center gap-1.5"><span className="font-mono text-[13px] [overflow-wrap:anywhere]">{record.key}</span></div>
-              <div className="mt-1 flex flex-wrap items-center gap-1.5" data-testid="library-state-row"><ChoicePick mode={c.mode} label={`State of ${record.key}`} disabled={readOnly || busy} onChange={(choice) => onChoose(record, choice)} /><VersionStatus words beside={c.mode} settingsKey={record.key} canManage state={switches.versions.find((v) => v.key === record.key)?.grab_state ?? { mode: "off", grab: false, library_enabled: switches.library_enabled, router_enabled: switches.router_enabled, router_forced_off: switches.sources?.router === "forced off by environment" }} /></div>
+              <div className="mt-1 flex flex-wrap items-center gap-1.5" data-testid="library-state-row"><ChoicePick mode={c.mode} label={`State of ${record.key}`} disabled={readOnly || busy} onChange={(choice) => onChoose(record, choice)} /><VersionStatus words beside={c.mode} settingsKey={record.key} canManage state={switches.versions.find((v) => v.key === record.key)?.grab_state ?? { mode: "off", paused: switches.paused, pause_forced: switches.pause_forced }} /></div>
               <div className="text-xs text-muted-foreground">{c.anime === null ? "anime and regular" : ""}</div>
               <div className="mt-1.5 space-y-1.5 md:hidden">{where}{profile}</div>
               <div className="mt-1.5 lg:hidden">{sources}</div>
@@ -214,7 +214,7 @@ export function VersionsPage({ embedded = false }: { embedded?: boolean }) {
   }
 
   // inSheet: the save came from the edit sheet, which closes on success; a row's Watch only / Live control saves the
-  // stored library with only mode and grab changed, through the same confirmation.
+  // stored library with only mode changed, through the same confirmation.
   async function apply(body: VersionBody, create: boolean, inSheet: boolean) {
     if (inSheet && !session) return;
     setBusy(true);
@@ -239,10 +239,10 @@ export function VersionsPage({ embedded = false }: { embedded?: boolean }) {
     finally { setBusy(false); }
   }
 
-  /** A row's control: the stored library as it is, with the chosen mode (and grab, see withChoice). */
+  /** A row's control: the stored library as it is, with the chosen mode. */
   function choose(record: VersionRecord, choice: LibraryChoice) {
     if (!data || busy || choiceOf(record.config.mode) === choice) return;
-    const config = withChoice(record.config, choice, record.config);
+    const config = withChoice(record.config, choice);
     setError(undefined);
     void apply({ generation: data.generation, key: record.key, config, roots: record.roots ?? [] }, false, false);
   }
@@ -309,8 +309,8 @@ export function VersionsPage({ embedded = false }: { embedded?: boolean }) {
     <Announcer announcement={notice} testid="version-announce" />
     {query.isPending ? <p>Loading libraries…</p> : query.error ? <p role="alert">{message(query.error)}</p> : null}
     {data ? <>
-      {readOnly ? <p>Read-only: these settings cannot be edited here. Allow new downloads {data.switches.router_enabled ? "ON" : "OFF"} · Write library links {data.switches.library_enabled ? "ON" : "OFF"} · Send notifications {data.switches.notify_enabled ? "ON" : "OFF"}</p> : null}
-      <DownloadsOffNotice off={data.switches.sources?.router === "forced off by environment" ? "locked" : !data.switches.router_enabled ? "off" : undefined} canManage />
+      {readOnly ? <p>Read-only: these settings cannot be edited here. Pause {data.switches.paused ? "ON" : "OFF"}</p> : null}
+      <DownloadsOffNotice off={data.switches.pause_forced ? "locked" : data.switches.paused ? "off" : undefined} canManage />
       {error && !session ? <div ref={errorBox} tabIndex={-1} data-testid="row-error"><ExplainBox error={explainError(error)} onReload={() => { setError(undefined); void query.refetch(); }} onReloadKeep={() => { setError(undefined); void query.refetch(); }} /></div> : null}
       <p className="text-sm">Coming from Sonarr/Radarr? <Link className="underline" to="/admin/arr-import">Import from Sonarr/Radarr</Link></p>
       <Button ref={addButton} onClick={() => open(undefined)} disabled={readOnly}>Add library</Button>
@@ -333,7 +333,7 @@ export function VersionsPage({ embedded = false }: { embedded?: boolean }) {
       <p className="text-sm text-muted-foreground">Which arr apps (Seerr, Radarr- and Sonarr-compatible clients) see each library is set under <Link className="underline" to="/admin/settings/apps">Connected apps</Link>.</p>
     </> : null}
     {profileConfirm.dialog}
-    {pending ? <EffectsConfirmDialog subject={pending.body.key} library={pending.body.key} effects={pending.effects ?? []} scope={{ title: "Confirm library change", does: [], keeps: ["Pause and the global switches keep their current settings; environment force-off overrides stay in force.", "Existing links, mount files and trash entries stay where they are."], confirm: "Confirm this change" }} busy={busy} onClose={() => setPending(undefined)} onConfirm={() => void approvePending()} /> : null}
+    {pending ? <EffectsConfirmDialog subject={pending.body.key} library={pending.body.key} effects={pending.effects ?? []} scope={{ title: "Confirm library change", does: [], keeps: ["Pause keeps its current setting; environment force-off overrides stay in force.", "Existing links, mount files and trash entries stay where they are."], confirm: "Confirm this change" }} busy={busy} onClose={() => setPending(undefined)} onConfirm={() => void approvePending()} /> : null}
   </div>;
 }
 
@@ -426,8 +426,8 @@ function VersionForm({ session, data, defaults, profiles, error, onChange }: { s
   // Advanced starts open when the library uses something in it: write roots other than the root, a download client
   // for its grabs, or a storage or import mode that is not the supported one. A refused field
   // inside keeps it open.
-  const [opened, setAdvanced] = useState(() => (!!record.roots?.length && !same(record.roots, [config.library])) || viaClient || storage.options.length > 1 || importMode.options.length > 1 || (config.mode === "active" && !config.grab));
-  // The Watch only / Live control: changed when the mode changed. Live with downloads off is the tick under Advanced.
+  const [opened, setAdvanced] = useState(() => (!!record.roots?.length && !same(record.roots, [config.library])) || viaClient || storage.options.length > 1 || importMode.options.length > 1);
+  // The Watch only / Live control: changed when the mode changed.
   const choiceChanged = config.mode !== saved.config.mode;
   const advanced = opened || !!advancedError;
   // The TRaSH defaults of the library's kind (movies: Radarr's, series: Sonarr's), offered beside the stored profiles.
@@ -439,7 +439,7 @@ function VersionForm({ session, data, defaults, profiles, error, onChange }: { s
   const picked = presetPick(config.profile);
   const pickedPreset = picked ? presets.find((p) => p.trash_id === picked) : undefined;
   const copiesOf = (id: string) => presetCopies([...profiles.values()], flavour, id);
-  const draftState = { mode: config.mode, grab: config.grab ?? false, library_enabled: data.switches.library_enabled, router_enabled: data.switches.router_enabled, router_forced_off: data.switches.sources?.router === "forced off by environment" };
+  const draftState = { mode: config.mode, paused: data.switches.paused, pause_forced: data.switches.pause_forced };
   const select = (value: string) => { pickedByHand.current = true; setProfileFrom(undefined); update("profile", value); };
   return <div className="space-y-6">
     {repeatsChoice(draftState, config.mode) ? null : <div className="flex flex-wrap items-center gap-2 text-sm"><span>Draft after saving:</span><VersionStatus words state={draftState} /></div>}
@@ -448,10 +448,10 @@ function VersionForm({ session, data, defaults, profiles, error, onChange }: { s
       <Field label="Key" help="Used by connected apps and in settings; fixed once the library exists." changed={record.key !== saved.key} onUndo={() => onChange({ ...record, key: saved.key })}><Input value={record.key} disabled={!session.create} onChange={(event) => onChange({ ...record, key: event.target.value })} /></Field>
       <div className="flex flex-col gap-1 text-sm" data-changed={choiceChanged || undefined}>
         <span>State</span>
-        <ChoicePick mode={config.mode} label="State" onChange={(choice) => onChange({ ...record, config: withChoice(config, choice, saved.config) })} />
-        <p className="text-xs text-muted-foreground">{config.mode === "active" && !config.grab ? "Live, downloads off: see Don't download for this library under Advanced. " : ""}{CHOICE_HELP}</p>
+        <ChoicePick mode={config.mode} label="State" onChange={(choice) => onChange({ ...record, config: withChoice(config, choice) })} />
+        <p className="text-xs text-muted-foreground">{CHOICE_HELP}</p>
         {fieldError("mode") ? <p role="alert" className="text-xs text-destructive">{fieldError("mode")}</p> : null}
-        {choiceChanged ? <ChangedMark name="State" onUndo={() => onChange({ ...record, config: { ...withGrab(config, saved.config.grab ?? false, saved.config), mode: saved.config.mode } })} /> : null}
+        {choiceChanged ? <ChangedMark name="State" onUndo={() => onChange({ ...record, config: { ...config, mode: saved.config.mode } })} /> : null}
       </div>
       <Field label="Kind" {...mark("kind")}><Pick value={config.kind} options={["movie", "series"]} onChange={(value) => recategorize({ ...config, kind: value as VersionConfig["kind"] })} /></Field>
       <Field label="Anime" {...mark("anime")}><Pick value={config.anime === null ? "both" : String(config.anime)} options={["false", "true", "both"]} labels={{ false: "Not anime", true: "Anime only", both: "Anime and not" }} onChange={(value) => recategorize({ ...config, anime: value === "both" ? null : value === "true" })} /></Field>
@@ -460,7 +460,6 @@ function VersionForm({ session, data, defaults, profiles, error, onChange }: { s
         {/* The click is handled here, so the open state has one owner. */}
         <summary className="cursor-pointer text-sm font-medium" onClick={(event) => { event.preventDefault(); setAdvanced(!opened); }}>Advanced</summary>
         {advanced ? <div className="mt-3 grid gap-4 md:grid-cols-2">
-          {config.mode === "active" ? <Field label="Don't download for this library" help="Ticked: nothing is downloaded for this library. RSS checks and manual searches may still record decisions." changed={(config.grab ?? false) !== (saved.config.grab ?? false)} onUndo={() => onChange({ ...record, config: withGrab(config, saved.config.grab ?? false, saved.config) })} error={fieldError("grab")}><input type="checkbox" className="self-start" checked={!config.grab} onChange={(event) => onChange({ ...record, config: withGrab(config, !event.target.checked, saved.config) })} /></Field> : null}
           <Field label="Write roots" help="Extra folders this library may write to, comma separated. Leave as the root." changed={rootsChanged} error={rootsError}><Input value={rootsText} onChange={(event) => { setRootsText(event.target.value); onChange({ ...record, roots: split(event.target.value) }); }} /></Field>
           {storage.options.length > 1 ? <Field label="Storage" {...mark("storage")} error={fieldError("storage")}><Pick value={config.storage} {...storage} onChange={(value) => update("storage", value as VersionConfig["storage"])} /></Field> : null}
           <Field label="Send grabs to" {...mark("add_via")} error={fieldError("add_via")}><Pick value={viaClient ? "client" : "providers"} options={["providers", "client"]} labels={{ providers: "Debrid providers", client: "Download client" }} onChange={(value) => update("add_via", value as VersionConfig["add_via"])} /></Field>

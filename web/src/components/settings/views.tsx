@@ -30,7 +30,7 @@ const list = (text: string) => text.split(",").map((s) => s.trim()).filter(Boole
 const libraryOptions = (data: VersionList | undefined, saved: string[]) => (data ? data.versions.map((v) => v.key) : saved).map((key) => ({ key }));
 
 /** A library's state for the list; the same fallback as the Libraries page when the switches lack it. */
-const stateOf = (data: VersionList, key: string) => data.switches.versions.find((v) => v.key === key)?.grab_state ?? { mode: "off", grab: false, library_enabled: data.switches.library_enabled, router_enabled: data.switches.router_enabled, router_forced_off: data.switches.sources?.router === "forced off by environment" };
+const stateOf = (data: VersionList, key: string) => data.switches.versions.find((v) => v.key === key)?.grab_state ?? { mode: "off", paused: data.switches.paused, pause_forced: data.switches.pause_forced };
 
 export function ViewsCard({ readOnly }: { readOnly: boolean }) {
   const views = useSettingsViews();

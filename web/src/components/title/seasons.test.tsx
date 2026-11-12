@@ -113,18 +113,19 @@ describe("Series page copies", () => {
 });
 
 it.each([
-  [false, true, "Settings › Download clients", "/admin/settings/downloads", "New downloads are paused for every library", "downloads-off-notice"],
-  [true, false, "Settings › Libraries", "/admin/settings/libraries", "Anime WEB: Downloads off", "episode-restrictions"],
-] as const)("links the closed download gate (router %s, library grab %s) without policy keys", async (router_enabled, grab, name, href, words, testid) => {
-  const control = { ...managed, can_search: false, search_reason: router_enabled ? "version grab is off: nothing is searched or grabbed" : "router.enabled is false: nothing is searched or grabbed", grab_state: { mode: "active", grab, router_enabled, router_forced_off: false, will_grab: false, library_enabled: true } };
+  ["active", true, undefined, undefined, "Paused: nothing is searched, downloaded or linked for any library", "downloads-off-notice"],
+  ["shadow", false, "Settings › Libraries", "/admin/settings/libraries", "Anime WEB: Watch only: Theatarr searches, downloads and links nothing for this library", "episode-restrictions"],
+] as const)("words the closed download gate (mode %s, paused %s) without policy keys", async (mode, paused, name, href, words, testid) => {
+  const control = { ...managed, can_search: false, search_reason: paused ? "Paused: nothing is searched or downloaded" : "Watch only: nothing is searched or downloaded for this library", grab_state: { mode, paused, pause_forced: false, will_grab: false } };
   mockFetch([{ ...routes[0], reply: { id: 1, permissions: ["admin", "manage", "see_files"] } }, { method: "GET", path: "/titles/1/episodes", reply: { ...episodes, versions: [{ ...episodes.versions[1], control }] } }]);
   renderPage(<Seasons id="1" anime />, "/title/1");
-  // Paused or locked off for every library is the page notice, like other pages; not a line in the restrictions.
+  // Pause for every library is the page notice, like other pages; not a line in the restrictions.
   const note = await screen.findByTestId(testid);
   if (testid === "downloads-off-notice") expect(screen.queryByTestId("episode-restrictions")).toBeNull();
   expect(note.textContent).toContain(words);
   expect(note.textContent).not.toContain("router.enabled");
-  expect(within(note).getByRole("link", { name }).getAttribute("href")).toBe(href);
+  if (name) expect(within(note).getByRole("link", { name }).getAttribute("href")).toBe(href);
+  else expect(within(note).queryByRole("link")).toBeNull();
 });
 
 it("names phone library radios distinctly", async () => {

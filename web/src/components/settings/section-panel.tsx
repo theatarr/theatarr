@@ -17,6 +17,7 @@ const plainFields = (fields: import("@/api/settings").SchemaField[], prefix: str
  const wording: Record<string, { label?: string; help: string }> = {
   "library.versions": { label: "Libraries", help: "Choose the Plex library that shows each Theatarr library." },
   "library.versions.plex_section": { help: "The Plex library ID that shows this library’s folder. 0: no scans." },
+  "notify.enabled": { label: "Send notifications", help: "Off: events are recorded, nothing is sent." },
   "notify.targets": { help: "Webhook destinations, by name." },
   "notify.targets.versions": { label: "Libraries", help: "Send events only for these libraries, by key. Empty: every library." },
   "cardigann.definitions": { help: "Where the catalog's indexer definitions come from. Empty repository and branch: prowlarr/indexers, master." },

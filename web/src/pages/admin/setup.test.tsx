@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 // The setup screen of a fresh install: what is missing, the admin password, a first version from a TRaSH preset that
-// starts as Watch only with its downloads off, and the preflight report. Invented keys and paths.
+// starts as Watch only, and the preflight report. Invented keys and paths.
 import { screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it } from "vitest";
@@ -20,7 +20,7 @@ const fresh: SetupState = {
 };
 const versions: VersionList = {
   source: "db", generation: 3, versions: [], profiles: {}, format_sets: [], clients: [], indexers: ["feed"], providers: ["rd"],
-  switches: { router_enabled: false, library_enabled: false, notify_enabled: false, versions: [] },
+  switches: { paused: true, pause_forced: false, versions: [] },
 };
 const preset = { trash_id: "a".repeat(32), name: "HD Bluray + WEB", flavour: "radarr", description: "", group: 1, qualities: [], cutoff: "Bluray-1080p", formats: 12, modifiers: [] };
 
@@ -32,7 +32,7 @@ describe("setup", () => {
     expect(screen.getByText(/^1 library, 1 with a library root/)).toBeTruthy();
   });
 
-  it("lists what is missing and creates a first version from a preset as Watch only with its downloads off", async () => {
+  it("lists what is missing and creates a first version from a preset as Watch only", async () => {
     const user = userEvent.setup();
     const fetch = mockFetch([
       { method: "GET", path: "/setup", reply: fresh },
@@ -56,7 +56,7 @@ describe("setup", () => {
     await screen.findByRole("option", { name: "TRaSH preset: HD Bluray + WEB" });
     await user.selectOptions(screen.getByLabelText("Quality profile"), `preset:${preset.trash_id}`);
     await user.click(screen.getByRole("button", { name: "Review" }));
-    expect(screen.getByTestId("version-review").textContent).toContain("as Watch only with its downloads off");
+    expect(screen.getByTestId("version-review").textContent).toContain("as Watch only, linking into");
     expect(screen.getByTestId("version-review").textContent).toContain('This creates a new profile "movies" from the TRaSH preset HD Bluray + WEB and the library movies');
     expect(fetch.calls("POST", "/settings/versions")).toHaveLength(0);
     await user.click(screen.getByRole("button", { name: "Create library" }));
@@ -65,7 +65,7 @@ describe("setup", () => {
     expect(fetch.calls("POST", "/settings/presets/create")[0].body).toMatchObject({ generation: 3, key: "movies", flavour: "radarr", preset: preset.trash_id });
     const body = fetch.calls("POST", "/settings/versions")[0].body as { generation: number; key: string; roots: string[]; config: Record<string, unknown> };
     expect(body).toMatchObject({ generation: 4, key: "movies", roots: ["/media/movies"] });
-    expect(body.config).toMatchObject({ mode: "shadow", grab: false, kind: "movie", profile: "movies", library: "/media/movies", storage: "debrid", indexers: ["feed"], providers: ["rd"], client: "" });
+    expect(body.config).toMatchObject({ mode: "shadow", kind: "movie", profile: "movies", library: "/media/movies", storage: "debrid", indexers: ["feed"], providers: ["rd"], client: "" });
     await waitFor(() => expect(fetch.calls("GET", "/setup").length).toBeGreaterThan(1));
   });
 
@@ -264,7 +264,7 @@ describe("setup", () => {
     await user.click(screen.getByRole("button", { name: "Create library" }));
     await waitFor(() => expect(fetch.calls("POST", "/settings/versions")).toHaveLength(1));
     expect(fetch.calls("POST", "/settings/presets/create")).toHaveLength(0);
-    expect((fetch.calls("POST", "/settings/versions")[0].body as { config: Record<string, unknown> }).config).toMatchObject({ profile: "hd", mode: "shadow", grab: false });
+    expect((fetch.calls("POST", "/settings/versions")[0].body as { config: Record<string, unknown> }).config).toMatchObject({ profile: "hd", mode: "shadow" });
   });
 
   it("asks before a save the settings API wants confirmed and sends the token", async () => {
@@ -286,7 +286,7 @@ describe("setup", () => {
     expect(await screen.findByText("movies: links into /media/movies")).toBeTruthy();
     await user.click(screen.getByRole("button", { name: "Confirm and create" }));
     await waitFor(() => expect(fetch.calls("POST", "/settings/versions")).toHaveLength(2));
-    expect(fetch.calls("POST", "/settings/versions")[1].body).toMatchObject({ confirmation_token: "tok", config: { mode: "shadow", grab: false } });
+    expect(fetch.calls("POST", "/settings/versions")[1].body).toMatchObject({ confirmation_token: "tok", config: { mode: "shadow" } });
   });
 
   it("changes the generated admin password", async () => {
@@ -328,14 +328,12 @@ describe("setup", () => {
   // The request the shadow path has always sent: the same bytes whether or not the one-step start is offered.
   const shadowBody = {
     generation: 3, key: "movies", roots: ["/media/movies"],
-    config: { mode: "shadow", grab: false, kind: "movie", anime: false, profile: "hd", library: "/media/movies", storage: "debrid",
+    config: { mode: "shadow", kind: "movie", anime: false, profile: "hd", library: "/media/movies", storage: "debrid",
       indexers: ["feed"], providers: ["rd"], client: "", import: "symlink", upgrades: "auto" },
   };
   const startEffects = [
-    { version: "movies", effect: "Library movies becomes Live and starts searching." },
-    { version: "movies", effect: "Downloads are on for Live library movies: torrent adds go to providers rd." },
-    { version: "", effect: "Turn on Allow new downloads (router.enabled): new torrent adds to debrid are allowed." },
-    { version: "", effect: "Turn on Write library links (library.enabled): links may be written." },
+    { version: "movies", effect: "Library movies becomes Live: it searches, downloads to rd and writes links under /media/movies." },
+    { version: "", effect: "Turn Pause off: Live libraries search, download and link again: movies. Waiting downloads are imported." },
   ];
 
   it.each([[1, "Review"], [0, "Create as Watch only (decide later)"]])("sends the same shadow request with arr_instances %i", async (arrInstances, button) => {
@@ -352,9 +350,9 @@ describe("setup", () => {
     // An install that migrates from an arr sees the form as it was: no start button, the Watch only wording, Review.
     expect(!!screen.queryByTestId("one-step-start")).toBe(arrInstances === 0);
     expect(!!screen.queryByText(/It starts as/)).toBe(arrInstances !== 0);
-    expect(!!screen.queryByText(/Theatarr doesn't turn these on for you/)).toBe(arrInstances !== 0);
+    expect(!!screen.queryByText(/Theatarr doesn't do this for you/)).toBe(arrInstances !== 0);
     await user.click(screen.getByRole("button", { name: button }));
-    expect(screen.getByTestId("version-review").textContent).toContain("as Watch only with its downloads off");
+    expect(screen.getByTestId("version-review").textContent).toContain("as Watch only, linking into");
     await user.click(screen.getByRole("button", { name: "Create library" }));
     await waitFor(() => expect(fetch.calls("POST", "/settings/versions")).toHaveLength(1));
     expect(fetch.calls("POST", "/settings/versions")[0].body).toEqual(shadowBody);
@@ -369,7 +367,7 @@ describe("setup", () => {
       { method: "GET", path: "/settings/versions", reply: versions },
       { method: "GET", path: "/settings/presets", reply: { flavour: "radarr", presets: [preset] } },
       { method: "POST", path: "/setup/start", reply: { status: 422, body: { error: "explicit confirmation required", effects: startEffects, confirmation: { token: "proof", generation: 3, effects: startEffects } } } },
-      { method: "POST", path: "/setup/start", reply: () => { created = true; return { generation: 4, revision: "r", forced_off: ["router"] }; } },
+      { method: "POST", path: "/setup/start", reply: () => { created = true; return { generation: 4, revision: "r", forced_off: ["pause"] }; } },
     ]);
     renderPage(<SetupPage />);
     const start = await screen.findByRole("button", { name: "Create library and start downloading" }) as HTMLButtonElement;
@@ -380,16 +378,16 @@ describe("setup", () => {
     await user.selectOptions(screen.getByLabelText("Quality profile"), `preset:${preset.trash_id}`);
     await user.click(start);
 
-    // One request, no separate profile save; the dialog lists each switch the server says it turns on.
+    // One request, no separate profile save; the dialog lists each effect as the server gives it.
     const dialog = await screen.findByRole("dialog", { name: "Create the library and start downloading" });
     for (const e of startEffects) expect(dialog.textContent).toContain(e.effect);
-    expect(dialog.textContent).toContain("Allow new downloads and Write library links are turned on");
+    expect(dialog.textContent).toContain("for the whole install, Pause is turned off.");
     expect(fetch.calls("POST", "/settings/presets/create")).toHaveLength(0);
     expect(fetch.calls("POST", "/setup/start")).toHaveLength(1);
     const first = fetch.calls("POST", "/setup/start")[0].body;
     expect(first).toEqual({
       generation: 3, key: "movies", roots: ["/media/movies"],
-      config: { ...shadowBody.config, mode: "active", grab: true, profile: "movies" },
+      config: { ...shadowBody.config, mode: "active", profile: "movies" },
       preset: { flavour: "radarr", preset: preset.trash_id, modifiers: [] },
     });
     await user.click(screen.getByRole("button", { name: "Confirm and start" }));
@@ -400,17 +398,17 @@ describe("setup", () => {
     // The form is gone once the library exists; the forced-off notice stays.
     await screen.findByText(/^1 library, 1 with a library root/);
     expect(screen.queryByTestId("first-version")).toBeNull();
-    expect(screen.getByTestId("start-forced-off").textContent).toContain("Allow new downloads is forced off by environment");
+    expect(screen.getByTestId("start-forced-off").textContent).toBe("The library was created and Pause is saved as off, but THEATARR_FORCE_OFF keeps Pause on: nothing is searched, downloaded or linked until that override is removed and the service restarted.");
   });
 
-  it("reads the settings overview again after the start, so the header Pause shows the switches as they are now", async () => {
+  it("reads the settings overview again after the start, so the header Pause shows it as it is now", async () => {
     const user = userEvent.setup();
     let created = false;
     const fetch = mockFetch([
       { method: "GET", path: "/setup", reply: () => ({ ...fresh, arr_instances: 0, ...(created ? { first_run: false, versions: 1, versions_with_roots: 1 } : {}) }) },
       { method: "GET", path: "/settings/versions", reply: versions },
       { method: "GET", path: "/settings/presets", reply: { flavour: "radarr", presets: [preset] } },
-      { method: "GET", path: "/settings", reply: { source: "db", writable: true, generation: 3, switches: { router_enabled: false, library_enabled: false, notify_enabled: true } } },
+      { method: "GET", path: "/settings", reply: { source: "db", writable: true, generation: 3, switches: { paused: true, pause_forced: false, versions: [] } } },
       { method: "POST", path: "/setup/start", reply: () => { created = true; return { generation: 4, revision: "r", forced_off: [] }; } },
     ]);
     renderPage(<><SetupPage /><OverviewReader /></>);
@@ -437,7 +435,7 @@ describe("setup", () => {
     await user.selectOptions(screen.getByLabelText("Quality profile"), "hd");
     await user.click(screen.getByRole("button", { name: "Create library and start downloading" }));
     await screen.findByRole("dialog");
-    expect(fetch.calls("POST", "/setup/start")[0].body).toEqual({ ...shadowBody, config: { ...shadowBody.config, mode: "active", grab: true } });
+    expect(fetch.calls("POST", "/setup/start")[0].body).toEqual({ ...shadowBody, config: { ...shadowBody.config, mode: "active" } });
     await user.click(screen.getByRole("button", { name: "Cancel" }));
     expect(screen.queryByRole("dialog")).toBeNull();
     expect(fetch.calls("POST", "/setup/start")).toHaveLength(1);

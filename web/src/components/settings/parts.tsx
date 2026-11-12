@@ -60,7 +60,7 @@ export function AuthorityBanner({ overview, onReload, reloading, compact = false
 
 /** Where the switches and the other policy sections are managed, for the source tabs. */
 export function ManagedInSettings() {
-  return <p className="mb-4 text-sm text-muted-foreground">Global switches, arr views and the other policy sections (library and Plex, notifications, metadata, egress and the rest) are managed in <a className="text-primary hover:underline" href="/admin/settings">Settings</a>.</p>;
+  return <p className="mb-4 text-sm text-muted-foreground">Pause, arr views and the other policy sections (library and Plex, notifications, metadata, egress and the rest) are managed in <a className="text-primary hover:underline" href="/admin/settings">Settings</a>.</p>;
 }
 
 /** A refusal in plain words, with the server's own text and a reload when settings changed elsewhere. With

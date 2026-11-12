@@ -24,7 +24,7 @@ export function PolicyFiles() {
       <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
         <p className="max-w-3xl text-sm text-muted-foreground">
           Policy directory: <Mono>{p.dir}</Mono>. Indexers, providers, budgets, quality profiles (with their format
-          sets), custom formats, naming and libraries are managed on their own tabs. Global switches, arr views and the other sections
+          sets), custom formats, naming and libraries are managed on their own tabs. Pause, arr views and the other sections
           (library and Plex, notifications, metadata, egress and the rest) are managed in Settings. The files here are imported only when you run an import (Import & export, or <Mono>theatarr settings import</Mono>).
         </p>
         <Button variant="outline" onClick={() => (check ? val.refetch() : setCheck(true))} disabled={val.isFetching}>Validate now</Button>

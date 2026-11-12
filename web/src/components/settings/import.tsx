@@ -53,7 +53,7 @@ export function ImportView(p: ImportViewProps) {
             credential from Theatarr's environment, and replaces those settings as one new generation. Custom format JSON is stored with its specifications.
           </li>
           <li>The database is always the live settings authority. This uses the same validated import as <Mono>theatarr settings import</Mono>.</li>
-          <li>An import does not change the global switches or the sections already stored (library and Plex, notifications, metadata, egress and the rest); those are edited in Settings. Any import fills the sections the database lacks from the files; the preview names them. Write-enabling library changes require a separate confirmation describing the roots and providers affected.</li>
+          <li>An import does not change Pause or the sections already stored (library and Plex, notifications, metadata, egress and the rest); those are edited in Settings. Any import fills the sections the database lacks from the files; the preview names them. Write-enabling library changes require a separate confirmation describing the roots and providers affected.</li>
           <li>Startup never imports policy files. Use theatarr settings import for an explicit seed, or preview and import here.</li>
         </ul>
       </Card>
@@ -237,6 +237,6 @@ export function ImportPanel({ overview, readOnly }: { overview: SettingsOverview
         dispatch({ type: "reset" });
         void reload();
       }}
-    />{confirmation ? <ConfirmDialog scope={{ title: "Confirm library changes in this import", does: (confirmation.effects ?? []).map((effect) => effect.effect), keeps: ["Global switches retain their DB values; environment force-off overrides stay in force.", "Links, mount files and trash entries stay in place."], confirm: "Confirm and import" }} busy={s.step === "applying"} onClose={() => setConfirmation(undefined)} onConfirm={() => void apply(confirmation.token)} /> : null}</>
+    />{confirmation ? <ConfirmDialog scope={{ title: "Confirm library changes in this import", does: (confirmation.effects ?? []).map((effect) => effect.effect), keeps: ["Pause keeps its stored value; environment force-off overrides stay in force.", "Links, mount files and trash entries stay in place."], confirm: "Confirm and import" }} busy={s.step === "applying"} onClose={() => setConfirmation(undefined)} onConfirm={() => void apply(confirmation.token)} /> : null}</>
   );
 }

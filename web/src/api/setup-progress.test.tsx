@@ -10,7 +10,7 @@ import { mockFetch, renderPage } from "@/test/page";
 import { SetupReminder } from "@/components/setup-reminder";
 import { SetupPage } from "@/pages/admin/setup";
 const state: SetupState = { first_run: false, settings_source: "db", admin_password_generated: false, providers: 1, indexers: 1, versions: 1, versions_with_roots: 1, profiles: 1, api_keys: 1, tmdb: true, arr_instances: 1, ready_providers: ["rd"], ready_indexers: ["feed"], trash: true, missing: ["no libraries"] };
-const versions: VersionList = { source: "db", generation: 1, versions: [{ id: 1, key: "movies", created_at: "", updated_at: "", roots: ["/media/movies"], config: { mode: "active", grab: true, kind: "movie", anime: false, profile: "hd", library: "/media/movies", storage: "debrid", indexers: ["feed"], providers: ["rd"], client: "", import: "symlink", upgrades: "auto" } }], profiles: {}, format_sets: [], clients: [], indexers: ["feed"], providers: ["rd"], switches: { router_enabled: true, library_enabled: false, notify_enabled: false, versions: [{ key: "movies", mode: "active", grab_state: { mode: "active", grab: true, router_enabled: true, router_forced_off: false, will_grab: true } }] } };
+const versions: VersionList = { source: "db", generation: 1, versions: [{ id: 1, key: "movies", created_at: "", updated_at: "", roots: ["/media/movies"], config: { mode: "active", kind: "movie", anime: false, profile: "hd", library: "/media/movies", storage: "debrid", indexers: ["feed"], providers: ["rd"], client: "", import: "symlink", upgrades: "auto" } }], profiles: {}, format_sets: [], clients: [], indexers: ["feed"], providers: ["rd"], switches: { paused: false, pause_forced: false, versions: [{ key: "movies", mode: "active", grab_state: { mode: "active", paused: false, pause_forced: false, will_grab: true } }] } };
 it("counts six independent steps without requiring activation or treating missing data as done", () => {
  expect(setupSteps()).toEqual([false, false, false, false, false, false]);
  expect(setupSteps(state, versions)).toEqual([true, true, true, true, false, true]);
@@ -21,9 +21,9 @@ it("counts six independent steps without requiring activation or treating missin
  expect(setupSteps({ ...state, indexers: 0 }, versions)[1]).toBe(false);
  expect(setupSteps({ ...state, missing: ["no debrid mount: nothing can be imported"] }, versions)[3]).toBe(false);
  expect(setupSteps({ ...state, versions_with_roots: 0 }, versions)[3]).toBe(false);
- for (const config of [{ mode: "shadow" as const, grab: true }, { mode: "active" as const, grab: false }]) expect(setupSteps(state, { ...versions, switches: { ...versions.switches, versions: [{ ...versions.switches.versions[0], grab_state: { ...versions.switches.versions[0].grab_state!, ...config } }] } })[5]).toBe(false);
- expect(setupSteps(state, { ...versions, switches: { ...versions.switches, router_enabled: false } })[5]).toBe(false);
- expect(setupSteps(state, { ...versions, switches: { ...versions.switches, sources: { router: "forced off by environment" } } })[5]).toBe(false);
+ for (const config of [{ mode: "shadow" as const }]) expect(setupSteps(state, { ...versions, switches: { ...versions.switches, versions: [{ ...versions.switches.versions[0], grab_state: { ...versions.switches.versions[0].grab_state!, ...config } }] } })[5]).toBe(false);
+ expect(setupSteps(state, { ...versions, switches: { ...versions.switches, paused: true } })[5]).toBe(false);
+ expect(setupSteps(state, { ...versions, switches: { ...versions.switches, paused: true, pause_forced: true } })[5]).toBe(false);
 });
 function Progress({ id }: { id: string }) {
  const p = useSetupProgress(); const run = usePreflight(p.versions.data?.generation);
@@ -57,7 +57,7 @@ it("renders activation and reminders from the same count without writes", async 
  expect(screen.getByText(/Indexers: feed · Providers: rd/)).toBeTruthy();
  expect(screen.getByText(/Root: \/media\/movies/)).toBeTruthy();
  expect(screen.getByRole("link", { name: "Edit movies" }).getAttribute("href")).toBe("/admin/settings/libraries?edit=movies");
- for (const [name, href] of [["Change allow new downloads", "/admin/settings/downloads"], ["Change write library links", "/admin/settings/libraries"], ["Change send notifications", "/admin/settings/notifications"]]) expect(screen.getByRole("link", { name }).getAttribute("href")).toBe(href);
+ expect(screen.getByText(/^Pause:/).textContent).toBe("Pause: Off · change it at the top of the page");
  for (const link of screen.getAllByRole("link")) {
   const url = new URL(link.getAttribute("href")!, "http://localhost");
   expect(legacyTarget(url.pathname, url.search, url.hash), url.pathname).toBeNull();
@@ -74,21 +74,19 @@ it.each([["browse"], ["users"]])("never requests setup or versions for a non-adm
 });
 
 it("shows running fallback gates, saved differences and a library display label", async () => {
- const fallback: VersionList = { ...versions, versions: [{ ...versions.versions[0], key: "movie-web", config: { ...versions.versions[0].config, profile: "web-2160p" } }], switches: { ...versions.switches, versions: [{ key: "movie-web", mode: "shadow", grab_state: { mode: "shadow", grab: false, router_enabled: true, router_forced_off: false, will_grab: false } }] } };
+ const fallback: VersionList = { ...versions, versions: [{ ...versions.versions[0], key: "movie-web", config: { ...versions.versions[0].config, profile: "web-2160p" } }], switches: { ...versions.switches, versions: [{ key: "movie-web", mode: "shadow", grab_state: { mode: "shadow", paused: false, pause_forced: false, will_grab: false } }] } };
  expect(setupSteps(state, fallback)[5]).toBe(false);
  expect(setupSteps(state, { ...versions, switches: { ...versions.switches, versions: [] } })[5]).toBe(false);
  mockFetch([{ method: "GET", path: "/setup", reply: state }, { method: "GET", path: "/settings/versions", reply: fallback }]);
  renderPage(<SetupPage />);
  await screen.findByText("Mode saved: active, running: shadow");
- expect(screen.getByText("Downloads for this library saved: On, running: Off")).toBeTruthy();
  const card = screen.getByRole("heading", { name: "movie-web 4K WEB" }).parentElement!;
  expect(within(card).getByText("movie-web")).toBeTruthy();
- // The state comes from the running gates: shadow and downloads off, so nothing is downloaded.
- expect(within(card).getByText("Watch only")).toBeTruthy();
- expect(within(card).getByText("Preview only")).toBeTruthy();
+ // The state comes from the running gates: Watch only, so nothing is downloaded.
+ expect(within(card).getAllByText("Watch only")).toHaveLength(1);
  expect(within(card).queryByText("Downloads on")).toBeNull();
  await userEvent.click(within(card).getByRole("button", { name: "Why?" }));
- expect([...within(card).getByTestId("state-why").querySelectorAll("li")].map((li) => li.textContent?.split(" · ")[0])).toEqual(["Watch only: it records what it would download, it downloads nothing", "Downloads are off for this library"]);
+ expect([...within(card).getByTestId("state-why").querySelectorAll("li")].map((li) => li.textContent?.split(" · ")[0])).toEqual(["Watch only: Theatarr searches, downloads and links nothing for this library"]);
  const step = screen.getByRole("heading", { name: "6. Review activation" }).closest("li")!;
  expect(within(step).getByText("Not yet")).toBeTruthy();
 });
@@ -144,7 +142,7 @@ it.each([
  ["an install that went live long ago, after a restart forgot its preflight", "active", undefined, "5", false],
 ] as const)("the Home setup card and its link for %s", async (_name, mode, last, done, shown) => {
  const row = versions.switches.versions[0];
- const list: VersionList = { ...versions, versions: [{ ...versions.versions[0], config: { ...versions.versions[0].config, mode, grab: mode === "active" } }], switches: { ...versions.switches, versions: [{ ...row, mode, grab_state: { ...row.grab_state!, mode, grab: mode === "active" } }] } };
+ const list: VersionList = { ...versions, versions: [{ ...versions.versions[0], config: { ...versions.versions[0].config, mode } }], switches: { ...versions.switches, versions: [{ ...row, mode, grab_state: { ...row.grab_state!, mode } }] } };
  mockFetch([{ method: "GET", path: "/auth/me", reply: { permissions: ["admin"] } }, { method: "GET", path: "/setup", reply: { ...state, missing: [], last_preflight: last } }, { method: "GET", path: "/settings/versions", reply: list }]);
  renderPage(<><Progress id="p" /><SetupReminder /></>);
  await waitFor(() => expect(screen.getByTestId("p").textContent).toBe(done));

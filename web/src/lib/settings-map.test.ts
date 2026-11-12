@@ -20,9 +20,11 @@ describe("settings map", () => {
  it("links Plex to its home", () => expect(settingHref("library", "plex")).toBe("/admin/settings/plex#plex"));
 });
 
-it("links wanted enable and the global download switch to their owners", () => {
+it("links wanted enable and Send notifications to their owners", () => {
  expect(settingHref("router", "wanted.enabled")).toBe("/admin/settings/downloads/behaviour#searches");
- expect(settingHref("switches", "router_enabled")).toBe("/admin/settings/downloads");
+ expect(settingHref("notify", "enabled")).toBe("/admin/settings/notifications#targets");
+ // Send notifications is the first field of the notify Destinations panel.
+ expect(SETTINGS_PANELS.find(p => p.id === "targets")?.keys[0]).toBe("enabled");
 });
 
 it("finds upstream page names from the arr map, including non-settings destinations", () => {
