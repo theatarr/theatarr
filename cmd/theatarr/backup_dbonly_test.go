@@ -244,39 +244,6 @@ func TestRestoreDatabaseOnlyRefusals(t *testing.T) {
 	})
 }
 
-// A migration checkpoint on a database-only install is a complete backup set.
-func TestMigrationCheckpointDatabaseOnly(t *testing.T) {
-	t.Parallel()
-	ctx := context.Background()
-	dir := t.TempDir()
-	polDir := filepath.Join(dir, "policy")
-	st, sst, snap, pol := dbOnlyInstall(t, filepath.Join(dir, "theatarr.db"), polDir)
-	base, err := settings.ReadBase(ctx, st, polDir)
-	if err != nil {
-		t.Fatal(err)
-	}
-	coord, err := settings.NewRuntimeCoordinator(sst, base, snap, struct{}{},
-		func(context.Context, *settings.Snapshot, *settings.Runtime) (any, error) { return struct{}{}, nil })
-	if err != nil {
-		t.Fatal(err)
-	}
-	c := serveMigrationConfig{st: st, base: pol, manager: coord, backupDir: filepath.Join(dir, "backups"),
-		log: slog.New(slog.NewTextHandler(io.Discard, nil)), now: func() time.Time { return time.Date(2026, 10, 30, 5, 0, 0, 0, time.UTC) }}
-	cp, err := migrationCheckpoint(ctx, c)
-	if err != nil {
-		t.Fatal(err)
-	}
-	m, err := readManifest(cp.Backup)
-	if err != nil || m.Policy.State != policyAbsent {
-		t.Fatalf("checkpoint manifest %+v %v", m, err)
-	}
-	var out bytes.Buffer
-	if err := restoreBackup(ctx, &out, cp.Backup, filepath.Join(dir, "restored.db"), "", false,
-		func(string) string { return "" }, time.Now()); err != nil {
-		t.Fatal(err)
-	}
-}
-
 // A failed nightly backup leaves no partial set, still prunes old sets and finished jobs, and schedules
 // retention on its last attempt (earlier attempts leave it for after a backup that works).
 func TestNightlyBackupFailure(t *testing.T) {
@@ -542,28 +509,20 @@ func TestRestorePartialHeadThatLoadsIsADatabaseSet(t *testing.T) {
 	}
 }
 
-// legacyCheckpoint is a migration checkpoint of a generation stored before the settings sections and view identities
+// legacyCheckpoint is a backup set of a generation stored before the settings sections and view identities
 // moved into the database: it loads only over its policy files (examples/policy).
 func legacyCheckpoint(t *testing.T, dir string) string {
 	t.Helper()
 	ctx := context.Background()
 	db, st, base, _ := runtimeFixture(t)
-	initial, err := st.BootstrapQuality(ctx, base, "test")
+	if _, err := st.BootstrapQuality(ctx, base, "test"); err != nil {
+		t.Fatal(err)
+	}
+	set, _, err := writeBackupSet(ctx, db, base, filepath.Join(dir, "backups"), time.Date(2026, 10, 29, 4, 0, 0, 0, time.UTC))
 	if err != nil {
 		t.Fatal(err)
 	}
-	coord, err := settings.NewRuntimeCoordinator(st, base, initial, struct{}{},
-		func(context.Context, *settings.Snapshot, *settings.Runtime) (any, error) { return struct{}{}, nil })
-	if err != nil {
-		t.Fatal(err)
-	}
-	c := serveMigrationConfig{st: db, base: base, manager: coord, backupDir: filepath.Join(dir, "backups"),
-		log: slog.New(slog.NewTextHandler(io.Discard, nil)), now: func() time.Time { return time.Date(2026, 10, 29, 4, 0, 0, 0, time.UTC) }}
-	cp, err := serveMigration(c).Checkpoint(ctx)
-	if err != nil {
-		t.Fatal(err)
-	}
-	return cp.Backup
+	return set
 }
 
 // fixtureEnv is the value setFixtureEnv gives a credential the fixtures name.

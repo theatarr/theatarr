@@ -134,9 +134,6 @@ type Config struct {
 	// SettingsLookup resolves *_env names for an explicit YAML import (os.LookupEnv in serve); nil refuses imports
 	// that need a credential.
 	SettingsLookup settings.LookupSecret
-	// Migration is what /migrate needs besides Settings (migrate.go): the rollback checkpoint and the verify
-	// checks. nil answers 503.
-	Migration *Migration
 	// Torrents is the provider torrent manager (docs/design/torrents.md); nil answers 503.
 	Torrents TorrentsSource
 	// NowPlaying is the now playing tracker's state (docs/design/now-playing.md); nil, or a nil answer, shows it off.
@@ -184,7 +181,6 @@ type Web struct {
 	trashCache        trashCache
 	settingsTester    SettingsTester
 	cardigann         CardigannCatalog
-	migration         *Migration
 	settingsTests     *SettingsTestLimits
 	settingsLookup    settings.LookupSecret
 	preflight         PreflightHooks
@@ -256,7 +252,7 @@ func New(cfg Config) (*Web, error) {
 		logLevel: cfg.LogLevel, logDir: cfg.LogDir, reloadSettings: cfg.ReloadSettings,
 		captureRuntime: cfg.CaptureRuntime, settings: cfg.Settings, settingsTester: cfg.SettingsTester, qualitySync: cfg.QualitySync, trashRoot: cfg.TrashRoot,
 		settingsTests: cfg.SettingsTests, settingsLookup: cfg.SettingsLookup, cardigann: cfg.Cardigann, preflight: cfg.Preflight,
-		backups: cfg.Backups, restart: cfg.Restart, migration: cfg.Migration, torrents: cfg.Torrents, nowPlaying: cfg.NowPlaying, rcloneTestGateway: cfg.RcloneTestGateway, animeBuilds: cfg.AnimeBuilds,
+		backups: cfg.Backups, restart: cfg.Restart, torrents: cfg.Torrents, nowPlaying: cfg.NowPlaying, rcloneTestGateway: cfg.RcloneTestGateway, animeBuilds: cfg.AnimeBuilds,
 		notifyTest: cfg.NotifyTest, arrImport: cfg.ArrImport}, nil
 }
 
@@ -316,7 +312,6 @@ func (w *Web) Mount(mux *http.ServeMux) {
 	w.mountOpsAPI(mux)
 	w.mountSettingsAPI(mux)
 	w.mountCardigannAPI(mux)
-	w.mountMigrateAPI(mux)
 	w.mountArrImportAPI(mux)
 	w.mountTorrentsAPI(mux)
 	w.mountBackupsAPI(mux)

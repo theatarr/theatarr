@@ -729,9 +729,6 @@ func runServe(args []string) error {
 	uiConfig.Settings = runtimeManager
 	uiConfig.QualitySync = qualitySync
 	uiConfig.SettingsTester = serveSettingsTester{manager: runtimeManager, st: st, log: log, lookup: os.LookupEnv}
-	// theatarr migrate (docs/migration.md): plans apply through runtimeManager after a backup-set checkpoint.
-	uiConfig.Migration = serveMigration(serveMigrationConfig{st: st, base: pol, policyNow: backupPolicy, manager: runtimeManager,
-		backupDir: *backupDir, lib: lb.lib, health: hc, trash: os.Getenv("THEATARR_TRASH"), log: log})
 	if c := serveCardigann.Load(); c != nil {
 		uiConfig.Cardigann = c
 	}

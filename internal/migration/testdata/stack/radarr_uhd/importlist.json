@@ -1,5 +1,0 @@
-[{"id": 1, "name": "radarr_4k_web", "implementation": "RadarrImport", "enabled": true, "enableAuto": true,
-  "fields": [{"name": "baseUrl", "value": "http://radarr4kweb:7878/"}, {"name": "apiKey", "value": "list-key-7070707070"},
-             {"name": "profileIds", "value": [7]}]},
- {"id": 2, "name": "Watchlist", "implementation": "PlexRssImport", "enabled": false, "enableAuto": false,
-  "fields": [{"name": "url", "value": "https://rss.plex.tv/plex-rss-secret-5a5a5a5a"}]}]

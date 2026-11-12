@@ -1,3 +1,4 @@
+// Package migration holds the arr profile and naming converter; kept for phase D's from_arr decision.
 package migration
 
 import (

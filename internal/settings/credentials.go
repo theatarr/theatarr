@@ -15,7 +15,7 @@ import (
 // environment.
 const CredentialSentinel = "THEATARR_SETTINGS_CREDENTIAL"
 
-// Credentials answers one question for every credential of a generation, for golive, migrate verify and the startup
+// Credentials answers one question for every credential of a generation, for preflight, Setup and the startup
 // log: does it resolve? It never exposes a value. snap is the generation's settings snapshot, nil under YAML
 // settings; lookup is the process environment (os.LookupEnv).
 type Credentials struct {

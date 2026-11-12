@@ -16,6 +16,9 @@ import (
 
 const mcpRevision = "2025-06-18"
 
+// maxMCPBody bounds an MCP request body.
+const maxMCPBody = 32 << 20
+
 type mcpContextKey struct{}
 
 type mcpRequest struct {
@@ -39,7 +42,7 @@ func (w *Web) apiMCP(rw http.ResponseWriter, r *http.Request) {
 		writeJSON(rw, http.StatusUnsupportedMediaType, apiError{Error: "MCP requires application/json"})
 		return
 	}
-	b, err := io.ReadAll(http.MaxBytesReader(rw, r.Body, maxMigrateBody))
+	b, err := io.ReadAll(http.MaxBytesReader(rw, r.Body, maxMCPBody))
 	if err != nil {
 		badRequest(rw, "MCP request too large or unreadable")
 		return

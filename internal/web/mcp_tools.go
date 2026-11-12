@@ -49,7 +49,7 @@ func mcpInteger(minimum int) map[string]any {
 
 // mcpConfirmTools are the write tools whose changes can need confirmation: they take confirmation_token, the token
 // of the 422 answer they returned.
-var mcpConfirmTools = []string{"migration_apply", "settings_section_update"}
+var mcpConfirmTools = []string{"settings_section_update"}
 
 // mcpConfirmNote ends the description of an mcpConfirmTools tool.
 const mcpConfirmNote = " A change that needs confirmation returns its effects and a token: show the effects to the user, then call again with the same arguments and confirmation_token to make it."
@@ -96,34 +96,7 @@ func (w *Web) mcpTools() []mcpTool {
 		"sources": map[string]any{"type": "boolean"},
 	}), admin, false, w.apiPreflight)
 
-	service := mcpObject(map[string]any{"url": mcpString(), "key": mcpString()}, "url", "key")
-	sources := mcpObject(map[string]any{
-		"arr": map[string]any{"type": "array", "items": mcpObject(map[string]any{
-			"name": mcpString(), "flavour": map[string]any{"type": "string", "enum": []string{"radarr", "sonarr"}},
-			"url": mcpString(), "key": mcpString(),
-		}, "name", "flavour", "url", "key")},
-		"prowlarr": service, "seerr": service, "recyclarr": mcpString(),
-	})
 	keys := mcpMap(mcpString())
-	add("migration_inspect", "Inspect arr sources using named key references.", "POST", "/migrate/inspect",
-		mcpObject(map[string]any{"sources": sources, "keys": keys}, "sources"), admin, false, w.apiMigrateInspect)
-	options := mcpObject(map[string]any{
-		"name": mcpString(), "native": mcpStrings(), "skip": mcpStrings(), "prowlarr_url": mcpString(),
-		"providers": map[string]any{"type": "array", "items": mcpObject(map[string]any{
-			"kind": map[string]any{"type": "string", "enum": []string{"realdebrid", "alldebrid", "torbox"}},
-			"key":  mcpString(), "secret": mcpString(),
-		}, "kind")},
-		"path_map": map[string]any{"type": "array", "items": mcpObject(map[string]any{"from": mcpString(), "to": mcpString()}, "from", "to")},
-	})
-	add("migration_plan_create", "Inspect sources and save a migration plan.", "POST", "/migrate/plans",
-		mcpObject(map[string]any{"sources": sources, "keys": keys, "options": options}, "sources"), admin, true, w.apiMigrateCreatePlan)
-	add("migration_plan_list", "List saved migration plans.", "GET", "/migrate/plans", empty(), admin, false, w.apiMigratePlans)
-	add("migration_plan_show", "Read a saved migration plan.", "GET", "/migrate/plans/{id}", id(), admin, false, w.apiMigrateGetPlan)
-	steps := mcpStrings()
-	steps["minItems"] = 1
-	add("migration_apply", "Apply selected steps. A step that needs confirmation stays needs_confirmation with its effects and token; confirmation_token confirms it when steps names that step alone.", "POST", "/migrate/plans/{id}/apply",
-		mcpObject(map[string]any{"id": mcpInteger(1), "steps": steps, "keys": keys}, "id", "steps"), admin, true, w.apiMigrateApply)
-	add("migration_verify", "Verify migration readiness without changes.", "POST", "/migrate/plans/{id}/verify", id(), admin, false, w.apiMigrateVerify)
 	sectionKeys := []string{}
 	for _, spec := range settings.Sections {
 		sectionKeys = append(sectionKeys, spec.Key)
@@ -144,7 +117,7 @@ func (w *Web) mcpTools() []mcpTool {
 		mcpObject(view(), "key", "generation", "flavour", "path", "api_key"), admin, true, w.apiSettingsViewCreate)
 	add("settings_view_update", "Edit a view identity or binding.", "PUT", "/settings/view-bindings/{key}",
 		mcpObject(view(), "key", "generation"), admin, true, w.apiSettingsViewUpdate)
-	add("api_request", "Call any Theatarr API route as this caller: the same permissions, validation, confirmations and audit as the API (GET /api/theatarr/v1/openapi.json lists them). path starts with /api/theatarr/v1/ and may carry a query; body is the JSON request body; confirmation_token is sent as the X-Confirmation-Token header (routes that take the token in the body, such as migration apply and torrent delete or restore, read it from body).",
+	add("api_request", "Call any Theatarr API route as this caller: the same permissions, validation, confirmations and audit as the API (GET /api/theatarr/v1/openapi.json lists them). path starts with /api/theatarr/v1/ and may carry a query; body is the JSON request body; confirmation_token is sent as the X-Confirmation-Token header (routes that take the token in the body, such as torrent delete or restore, read it from body).",
 		"", "", mcpObject(map[string]any{
 			"method": map[string]any{"type": "string", "enum": []string{"GET", "POST", "PUT", "PATCH", "DELETE"}},
 			"path":   mcpString(), "body": map[string]any{}, "confirmation_token": mcpString(),
@@ -259,15 +232,6 @@ func (w *Web) mcpCall(r *http.Request, tool mcpTool, args map[string]any) any {
 				return mcpResult(http.StatusForbidden, apiError{Error: "global switches are not section settings: use api_request PUT /api/theatarr/v1/settings/switches"})
 			}
 		}
-	}
-	if token, ok := args["confirmation_token"].(string); ok && tool.Name == "migration_apply" {
-		// The token confirms one step: the plan stored it with that step's confirmation.
-		steps := args["steps"].([]any)
-		if len(steps) != 1 {
-			return mcpResult(http.StatusBadRequest, apiError{Error: "confirmation_token confirms exactly one step: give that step alone in steps"})
-		}
-		delete(args, "confirmation_token")
-		args["confirmation_tokens"] = map[string]any{steps[0].(string): token}
 	}
 	path := tool.path
 	query := url.Values{}

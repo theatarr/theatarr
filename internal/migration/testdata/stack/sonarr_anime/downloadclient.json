@@ -1,2 +1,0 @@
-[{"id": 1, "name": "Decypharr", "implementation": "QBittorrent", "protocol": "torrent", "enable": true, "priority": 1,
-  "fields": [{"name": "host", "value": "decypharr"}, {"name": "port", "value": 8282}, {"name": "tvCategory", "value": "sonarr_anime"}, {"name": "password", "value": "********"}]}]

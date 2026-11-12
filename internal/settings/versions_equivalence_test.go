@@ -8,12 +8,10 @@ import (
 	"slices"
 	"sort"
 	"testing"
-	"time"
 
 	"github.com/theatarr/theatarr/internal/acquire"
 	"github.com/theatarr/theatarr/internal/arrview"
 	"github.com/theatarr/theatarr/internal/decide"
-	"github.com/theatarr/theatarr/internal/golive"
 	"github.com/theatarr/theatarr/internal/jobs"
 	"github.com/theatarr/theatarr/internal/library"
 	"github.com/theatarr/theatarr/internal/policy"
@@ -165,21 +163,6 @@ func TestVersionsPolicyRuntimeEquivalence(t *testing.T) {
 				}
 				if ga.Active(key) != gb.Active(key) || !reflect.DeepEqual(ga.Roots(key), gb.Roots(key)) || errString(ga.CheckVersion(key)) != errString(gb.CheckVersion(key)) {
 					t.Fatalf("library gate differs for %s", key)
-				}
-				opts := golive.Options{Policy: p, Version: key, Now: time.Unix(1800000000, 0)}
-				ar, err := golive.Run(ctx, opts)
-				if err != nil {
-					t.Fatal(err)
-				}
-				opts.Policy = got
-				br, err := golive.Run(ctx, opts)
-				if err != nil {
-					t.Fatal(err)
-				}
-				ar.PolicyRevision = ""
-				br.PolicyRevision = ""
-				if !reflect.DeepEqual(ar, br) {
-					t.Fatalf("golive differs for %s", key)
 				}
 			}
 		})

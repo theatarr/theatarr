@@ -41,7 +41,7 @@ func init() {
 type serveHealthConfig struct {
 	pol     *policy.Policy
 	manager *settings.RuntimeCoordinator
-	// snap is the settings snapshot a command without a manager loaded (golive, theatarr health): SetupCheck counts
+	// snap is the settings snapshot a command without a manager loaded (theatarr health): SetupCheck counts
 	// its ready sources.
 	snap             *settings.Snapshot
 	st               *store.Store

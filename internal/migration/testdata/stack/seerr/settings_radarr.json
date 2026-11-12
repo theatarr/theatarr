@@ -1,5 +1,0 @@
-[{"id": 0, "name": "Radarr 4K", "hostname": "{{HOST}}", "port": {{PORT}}, "apiKey": "radarr-key-0123456789abcdef", "useSsl": false, "baseUrl": "/radarr_uhd/",
-  "activeProfileId": 7, "activeProfileName": "Remux + WEB 2160p", "activeDirectory": "/media/movies-uhd", "is4k": true, "isDefault": true,
-  "minimumAvailability": "released", "syncEnabled": false, "preventSearch": false, "externalUrl": "", "tags": []},
- {"id": 1, "name": "Radarr old", "hostname": "radarr-old", "port": 7878, "apiKey": "old-radarr-key-99999999", "useSsl": false, "baseUrl": "",
-  "activeProfileId": 1, "activeProfileName": "HD-1080p", "activeDirectory": "/movies", "is4k": false, "isDefault": true}]

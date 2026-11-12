@@ -15,20 +15,16 @@ import (
 func init() {
 	register(command{
 		name:    "migrate",
-		summary: "database migrations (up, status) and the guided move from an arr stack (inspect, plan, apply, verify)",
+		summary: "database migrations (up, status)",
 		run:     runMigrate,
 	})
 }
 
 func runMigrate(args []string) error {
-	if isMigrationCommand(args) {
-		return runMigration(args, os.Stdout)
-	}
 	fs := flag.NewFlagSet("migrate", flag.ContinueOnError)
 	fs.Usage = func() {
 		fmt.Fprint(fs.Output(), "usage: theatarr migrate [--db path] up|status\n\n")
 		fs.PrintDefaults()
-		fmt.Fprint(fs.Output(), "\n"+migrationUsage)
 	}
 	db := fs.String("db", defaultDBPath(), "database file (env THEATARR_DB)")
 	if err := fs.Parse(args); err != nil {

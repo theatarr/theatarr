@@ -13,7 +13,7 @@ import (
 
 // A command with subcommands prints its usage for -h, -help or --help in place of a subcommand, and main exits 0.
 func TestParentCommandsHelp(t *testing.T) {
-	parents := []string{"admin", "anime", "backup", "debug", "demo", "errors", "golive", "jobs", "library", "migrate",
+	parents := []string{"admin", "anime", "backup", "debug", "demo", "errors", "jobs", "library", "migrate",
 		"parallel", "policy", "providers", "router", "settings", "shadow", "torrents", "tvdb"}
 	for _, name := range parents {
 		c, ok := commands[name]

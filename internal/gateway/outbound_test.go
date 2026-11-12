@@ -16,13 +16,10 @@ var outboundRE = regexp.MustCompile(`http\.(DefaultClient|DefaultTransport|Get\(
 // here talks to the local machine or the LAN only, never to an indexer, provider or metadata source, except the
 // cardigann engine, whose clients send through the gateway.
 var allowedOutbound = map[string]string{
-	"internal/gateway/":      "the gateway itself",
-	"cmd/theatarr/serve.go":  "theatarr healthcheck asks the local service's /readyz on loopback",
-	"cmd/theatarr/golive.go": "theatarr golive check reads the local service's /metrics; it refuses any host but loopback",
+	"internal/gateway/":     "the gateway itself",
+	"cmd/theatarr/serve.go": "theatarr healthcheck asks the local service's /readyz on loopback",
 	"cmd/theatarr/mcp.go": "theatarr mcp forwards to the running Theatarr on loopback or the LAN; each resolved dial " +
 		"address is checked before connecting, with no proxy or redirects",
-	"cmd/theatarr/migrateplan.go": "theatarr migrate plan/apply/verify call the running Theatarr's /migrate API; it refuses any host " +
-		"but loopback or the LAN",
 	"internal/arr/": "read-only client for the LAN arr instances (parity tooling, theatarr import-arr); dials LAN addresses only (lan.go)",
 	"internal/qbit/qbittest/qbittest.go": "test helper only: its Doer sends tests' requests to their httptest servers " +
 		"on loopback",

@@ -1,3 +1,0 @@
-[{"id": 1, "title": "Alpha", "monitored": true, "hasFile": true, "rootFolderPath": "/media/movies-uhd/", "path": "/media/movies-uhd/Alpha (2020)", "qualityProfileId": 7},
- {"id": 2, "title": "Beta", "monitored": true, "hasFile": false, "rootFolderPath": "", "path": "/media/movies-uhd/Beta (2021)", "qualityProfileId": 7},
- {"id": 3, "title": "Gamma", "monitored": false, "hasFile": true, "rootFolderPath": "/media/movies-old", "path": "/media/movies-old/Gamma (1999)", "qualityProfileId": 7}]

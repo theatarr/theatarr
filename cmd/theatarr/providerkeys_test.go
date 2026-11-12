@@ -5,7 +5,6 @@ import (
 	"context"
 	"encoding/json"
 	"io"
-	"log/slog"
 	"net"
 	"net/http"
 	"net/http/httptest"
@@ -111,7 +110,7 @@ func TestCommandsUseStoredProviderKeys(t *testing.T) {
 		t.Errorf("router status key_set: %v", set)
 	}
 
-	// health and golive check's health part.
+	// health.
 	syncCheck := func(name string, msg string) {
 		if msg == "" || strings.Contains(msg, "No debrid provider keys set") {
 			t.Errorf("%s: ProviderSyncCheck %q", name, msg)
@@ -135,13 +134,6 @@ func TestCommandsUseStoredProviderKeys(t *testing.T) {
 		}
 	}
 	syncCheck("health", msg)
-	msg = ""
-	for _, r := range goliveHealth(ctx, pol, snap, st, db, "off", slog.New(slog.NewTextHandler(io.Discard, nil))) {
-		if r.Source == "ProviderSyncCheck" {
-			msg = r.Message
-		}
-	}
-	syncCheck("golive", msg)
 
 	// backup: rd's key is in the database (and so in the backup), not an env variable to set; ad reads its env
 	// variable and is listed as before.

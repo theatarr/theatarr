@@ -54,8 +54,6 @@ func TestCommandsTakeLibraryAndVersion(t *testing.T) {
 			[]string{"-policy", pol, "-db", db, "-title", "7", "-search"}, `no library "nope"`},
 		"decide shadow": {func(a []string) error { return runDecideShadow(a, io.Discard) },
 			[]string{"-policy", pol, "-db", db, "-instance", "radarr"}, `no library "nope"`},
-		"golive check": {func(a []string) error { return runGolive(a, io.Discard) },
-			[]string{"check", "-policy", pol, "-db", "none"}, `no library "nope"`},
 		"journal": {func(a []string) error { return runJournal(a, io.Discard) },
 			[]string{"-policy", pol, "-db", db, "-since", "not-a-time"}, ""},
 		"library adopt": {func(a []string) error { return runLibrary(a, io.Discard) },

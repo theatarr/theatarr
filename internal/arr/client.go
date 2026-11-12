@@ -51,14 +51,12 @@ var allowedEndpoints = map[string]bool{
 	"series":                 true,
 	"episode":                true,
 	"episodefile":            true,
-	// theatarr golive check (internal/golive): the queue that would be orphaned, and whether the instance still grabs
-	// (indexers with RSS or automatic search on, enabled download clients). Reads only; nothing is printed from the
+	// The queue, indexers and download clients, read only. Nothing is printed from the
 	// indexer and client settings but names and switches.
 	"queue":          true,
 	"indexer":        true,
 	"downloadclient": true,
-	// theatarr migrate inspect: the Connect targets and import lists that must survive a cutover. Only names, switches
-	// and hosts are printed from them.
+	// The Connect targets and import lists: read only. Only names, switches and hosts are printed from them.
 	"notification": true,
 	"importlist":   true,
 	// theatarr import-arr reads Radarr's collections to carry the monitored ones over (importarr/collections.go).

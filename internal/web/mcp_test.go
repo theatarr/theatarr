@@ -10,11 +10,8 @@ import (
 	"slices"
 	"strings"
 	"testing"
-	"time"
 
-	"github.com/theatarr/theatarr/internal/arr"
 	"github.com/theatarr/theatarr/internal/auth"
-	"github.com/theatarr/theatarr/internal/migration"
 )
 
 func (se *settingsEnv) mcpRPC(method string, params any) *httptest.ResponseRecorder {
@@ -81,7 +78,7 @@ func TestMCPProtocol(t *testing.T) {
 			Tools []mcpTool `json:"tools"`
 		} `json:"result"`
 	}
-	if json.Unmarshal(list.Body.Bytes(), &rpc) != nil || len(rpc.Result.Tools) != 25 {
+	if json.Unmarshal(list.Body.Bytes(), &rpc) != nil || len(rpc.Result.Tools) != 19 {
 		t.Fatalf("tools/list: %s", list.Body.String())
 	}
 	// MCP confirms like the API (docs/mcp.md): the write tools that can need confirmation, and api_request, take the
@@ -111,9 +108,8 @@ func TestMCPProtocol(t *testing.T) {
 		{"bad call", `{"jsonrpc":"2.0","id":1,"method":"tools/call","params":[]}`, `"code":-32602`},
 		{"bad arguments", `{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"library_search","arguments":{"q":1}}}`, `"code":-32602`},
 		{"unknown argument", `{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"health","arguments":{"secret":"hidden"}}}`, `"code":-32602`},
-		{"missing argument", `{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"migration_apply","arguments":{"id":1}}}`, `"code":-32602`},
-		{"empty steps", `{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"migration_apply","arguments":{"id":1,"steps":[]}}}`, `"code":-32602`},
-		{"imprecise id", `{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"migration_plan_show","arguments":{"id":9007199254740992}}}`, `"code":-32602`},
+		{"missing argument", `{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"errors_get","arguments":{}}}`, `"code":-32602`},
+		{"imprecise id", `{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"errors_get","arguments":{"id":9007199254740992}}}`, `"code":-32602`},
 		{"batch", `[]`, `"code":-32600`},
 		{"bad version", `{"jsonrpc":"1.0","id":1,"method":"ping"}`, `"code":-32600`},
 		{"bad id", `{"jsonrpc":"2.0","id":{},"method":"ping"}`, `"code":-32600`},
@@ -184,7 +180,7 @@ func TestMCPAuthAndOrigin(t *testing.T) {
 	if strings.Contains(list.Body.String(), `"name":"settings_section_update"`) || !strings.Contains(list.Body.String(), `"name":"library_search"`) {
 		t.Fatalf("viewer tools: %s", list.Body.String())
 	}
-	for _, name := range []string{"health", "settings_section_update", "migration_apply", "settings_view_create", "settings_view_update", "migration_plan_create"} {
+	for _, name := range []string{"health", "settings_section_update", "settings_view_create", "settings_view_update"} {
 		rec := call(viewer, "", `{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"`+name+`","arguments":{}}}`)
 		if !strings.Contains(rec.Body.String(), `"status":403`) {
 			t.Errorf("viewer %s: %s", name, rec.Body.String())
@@ -255,86 +251,6 @@ func TestMCPSettingsConfirmationsAndLimits(t *testing.T) {
 	se.noSecretAnywhere()
 }
 
-func TestMCPMigrationTools(t *testing.T) {
-	t.Parallel()
-	se := newQualityEnv(t)
-	radarr := fakeRadarr(t)
-	se.web.migration = &Migration{Checkpoint: func(context.Context) (migration.Checkpoint, error) {
-		return migration.Checkpoint{At: testNow, Backup: "/backups/test", Generation: se.generation()}, nil
-	}, Dial: migration.NewDialer(arr.Options{Timeout: time.Second, MinInterval: time.Millisecond, Retries: 1})}
-	args := map[string]any{"sources": migration.Sources{Arr: []migration.ArrSource{{Name: "radarr_uhd", Flavour: "radarr", URL: radarr.URL, Key: "RADARR_KEY"}}},
-		"keys": map[string]string{"RADARR_KEY": migrateArrKey}}
-	se.mcpTool("migration_inspect", args, 200)
-	gen := se.generation()
-	plan := se.mcpTool("migration_plan_create", args, 201).(map[string]any)["plan"].(map[string]any)
-	if se.generation() != gen {
-		t.Fatal("plan creation changed settings")
-	}
-	id := plan["id"]
-	se.mcpTool("migration_plan_list", map[string]any{}, 200)
-	se.mcpTool("migration_plan_show", map[string]any{"id": id}, 200)
-	se.mcpTool("migration_verify", map[string]any{"id": id}, 200)
-	var quality string
-	for _, raw := range plan["steps"].([]any) {
-		step := raw.(map[string]any)
-		if step["kind"] == migration.KindQuality {
-			quality = step["id"].(string)
-		}
-	}
-	if quality == "" {
-		t.Fatal("no quality step")
-	}
-	se.mcpTool("migration_apply", map[string]any{"id": id, "steps": []string{quality}}, 200)
-	var n int
-	if err := se.st.Reader().QueryRow(`SELECT count(*) FROM settings_audit WHERE entity = 'mcp' AND key IN ('migration_plan_create', 'migration_apply') AND actor LIKE '%via MCP%'`).Scan(&n); err != nil || n != 2 {
-		t.Fatalf("migration audit %d: %v", n, err)
-	}
-	if strings.Contains(strings.Join(se.bodies, "\n")+se.logs.String(), migrateArrKey) {
-		t.Fatal("migration returned a credential")
-	}
-}
-
-func TestMCPMigrationApplyByKey(t *testing.T) {
-	t.Parallel()
-	se, _ := activeTestVersion(t)
-	snap, err := se.web.settings.Snapshot(t.Context())
-	if err != nil || len(snap.Records.Views) == 0 {
-		t.Fatalf("snapshot: %v", err)
-	}
-	const sid = "view/test"
-	p := &migration.Plan{SchemaVersion: migration.SchemaVersion, CreatedAt: testNow, UpdatedAt: testNow,
-		Steps: []migration.Step{{ID: sid, Kind: migration.KindView, Automatic: true, Status: migration.StatusPending,
-			Payload: &migration.Payload{Key: snap.Records.Views[0].Key, Versions: []string{"test-version"}}}}}
-	if err := migration.Save(t.Context(), se.st, p, &migration.Inventory{SchemaVersion: migration.SchemaVersion}); err != nil {
-		t.Fatal(err)
-	}
-	checkpoints := 0
-	se.web.migration = &Migration{Checkpoint: func(context.Context) (migration.Checkpoint, error) {
-		checkpoints++
-		return migration.Checkpoint{At: testNow, Backup: "/backups/test"}, nil
-	}}
-	args := map[string]any{"id": p.ID, "steps": []string{sid}}
-	gen := se.generation()
-	// A view step that binds a Live library is an everyday edit: MCP on an API key applies it at once, no token.
-	key, _, err := se.auth.CreateKey(t.Context(), "migrate-key", 1)
-	if err != nil {
-		t.Fatal(err)
-	}
-	se.mcpKey = key
-	done := se.mcpTool("migration_apply", args, 200).(map[string]any)
-	if done["steps"].([]any)[0].(map[string]any)["status"] != migration.StatusDone || se.generation() == gen {
-		t.Fatalf("key migration: %v", done)
-	}
-	var actor string
-	if err := se.st.Reader().QueryRow(`SELECT actor FROM settings_audit WHERE entity != 'mcp' ORDER BY id DESC LIMIT 1`).Scan(&actor); err != nil ||
-		actor != "migrate:admin (api key migrate-key) via MCP" {
-		t.Fatalf("audit actor %q: %v", actor, err)
-	}
-	if checkpoints != 1 {
-		t.Fatalf("checkpoints %d", checkpoints)
-	}
-}
-
 func TestMCPRedactsSuppliedSecrets(t *testing.T) {
 	t.Parallel()
 	for _, secret := range []string{testSecret, "x", "quoted-\"-\\-\n-secret"} {
@@ -368,29 +284,6 @@ func mcpHasSecret(value any, secret string) bool {
 		}
 	}
 	return false
-}
-
-// A migrated version is created in shadow with grab off: apply refuses the step itself, through MCP as in the UI.
-func TestMCPMigrationActivationLimits(t *testing.T) {
-	t.Parallel()
-	se := newQualityEnv(t)
-	se.web.migration = &Migration{Checkpoint: func(context.Context) (migration.Checkpoint, error) {
-		return migration.Checkpoint{}, nil
-	}}
-	gen := se.generation()
-	for _, config := range []string{`{"mode":"active","grab":false}`, `{"mode":"shadow","grab":true}`} {
-		p := &migration.Plan{SchemaVersion: migration.SchemaVersion, CreatedAt: testNow, UpdatedAt: testNow,
-			Steps: []migration.Step{{ID: "version/unsafe", Kind: migration.KindVersion, Automatic: true, Status: migration.StatusPending,
-				Payload: &migration.Payload{Key: "unsafe", Config: json.RawMessage(config)}}}}
-		if err := migration.Save(t.Context(), se.st, p, &migration.Inventory{SchemaVersion: migration.SchemaVersion}); err != nil {
-			t.Fatal(err)
-		}
-		out := se.mcpTool("migration_apply", map[string]any{"id": p.ID, "steps": []string{"version/unsafe"}}, 200).(map[string]any)
-		step := out["steps"].([]any)[0].(map[string]any)
-		if step["status"] != migration.StatusFailed || !strings.Contains(step["error"].(string), "Watch only") || se.generation() != gen {
-			t.Fatalf("activation step: %v", step)
-		}
-	}
 }
 
 type mcpAuditFailure struct{ SettingsAdmin }

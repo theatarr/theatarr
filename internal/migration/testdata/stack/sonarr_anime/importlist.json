@@ -1,4 +1,0 @@
-[{"id": 1, "name": "Trakt anime", "implementation": "TraktListImport", "enableAutomaticAdd": true,
-  "fields": [{"name": "accessToken", "value": "trakt-token-6161616161"}, {"name": "listname", "value": "anime"}]},
- {"id": 2, "name": "Paused list", "implementation": "SonarrImport", "enableAutomaticAdd": false,
-  "fields": [{"name": "baseUrl", "value": "http://sonarr4k:8989"}, {"name": "apiKey", "value": "list-key-7070707070"}]}]

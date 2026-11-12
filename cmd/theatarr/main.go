@@ -67,7 +67,7 @@ var usageGroups = []struct {
 	commands []string
 }{
 	{"run the service", []string{"serve", "healthcheck", "mcp", "admin", "backup", "version"}},
-	{"check an install", []string{"preflight", "golive", "health", "egress-check", "policy", "errors", "jobs", "journal"}},
+	{"check an install", []string{"preflight", "health", "egress-check", "policy", "errors", "jobs", "journal"}},
 	{"migrate from the arrs", []string{"migrate", "import-arr", "settings", "shadow", "parallel"}},
 	{"debug and maintenance", []string{"debug", "decide", "search", "router", "providers", "library", "torrents", "anime",
 		"tvdb", "sonarr-parse", "demo"}},
