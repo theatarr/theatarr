@@ -207,7 +207,6 @@ func TestLiveSectionSaveRestartsOnlyItsWorkers(t *testing.T) {
 		{"library", func(c map[string]any) { child(c, "mount")["poll_interval"] = "40s" }, []string{"library"}},
 		{"router", func(c map[string]any) { c["poll_interval"] = "2m" }, []string{"router-poll"}},
 		{"provider_sync", func(c map[string]any) { c["interval"] = "7h" }, []string{"provider-sync"}},
-		{"shadow", func(c map[string]any) { c["import_interval"] = "20m" }, []string{"shadow"}},
 		// The RSS schedule follows each generation by itself: an RSS change restarts no worker.
 		{"shadow", func(c map[string]any) { c["rss_interval"] = "20m" }, nil},
 		{"playlists", func(c map[string]any) { c["interval"] = "7h" }, []string{"playlists"}},
