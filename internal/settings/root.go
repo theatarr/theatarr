@@ -268,6 +268,9 @@ func validateOneRoot(ctx context.Context, rr *policy.RootResolver, p *policy.Pol
 	if err != nil {
 		return RootCheck{}, resolveError("directory", err)
 	}
+	if path == "/" || root.Resolved == "/" {
+		return RootCheck{}, errors.New("directory cannot be the filesystem root")
+	}
 	var check error
 	if err := probeRoot(ctx, path, func() error {
 		info, err := rootStat(root.Resolved)

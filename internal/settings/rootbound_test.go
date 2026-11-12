@@ -320,3 +320,19 @@ func TestConcurrentRootChecksDoNotWaitOnEachOther(t *testing.T) {
 		}
 	}
 }
+
+// The filesystem root is never a library folder, given directly or through a symlink, whatever else is configured.
+func TestFilesystemRootRefused(t *testing.T) {
+	t.Parallel()
+	_, _, p, _ := versionFixture(t)
+	p.Library = nil
+	alias := filepath.Join(t.TempDir(), "slash")
+	if err := os.Symlink("/", alias); err != nil {
+		t.Fatal(err)
+	}
+	for _, root := range []string{"/", alias} {
+		if _, err := validateOneRoot(context.Background(), policy.NewRootResolver(context.Background()), p, "new", root, false); err == nil || !strings.Contains(err.Error(), "filesystem root") {
+			t.Errorf("%s: %v", root, err)
+		}
+	}
+}
