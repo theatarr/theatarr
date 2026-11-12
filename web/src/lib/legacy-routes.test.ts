@@ -15,8 +15,6 @@ describe("old admin URLs", () => {
       ["/admin/sources", "/admin/settings/downloads"],
       ["/admin/policy", "/admin/settings"],
       ["/admin/keys", "/admin/users"],
-      ["/admin/shadow", "/admin/advanced/arr/comparison"],
-      ["/admin/shadow/12", "/admin/advanced/arr/comparison/12"],
       ["/admin/registry", "/admin/torrents/inventory"],
       ["/admin/registry/abcdef", "/admin/torrents/inventory/abcdef"],
       ["/admin/journal", "/activity/journal"],
@@ -29,13 +27,11 @@ describe("old admin URLs", () => {
       ["/admin/advanced/journal/a%2Fb", "/activity/journal/a%2Fb"],
       ["/admin/advanced/manual-import", "/wanted/manual-import"],
       ["/admin/registry/a%2Fb%3Ac", "/admin/torrents/inventory/a%2Fb%3Ac"],
-      ["/admin/shadow/a%2Fb/", "/admin/advanced/arr/comparison/a%2Fb"],
       ["/admin/logs", "/admin/system/logs"],
     ];
     for (const [from, to] of cases) expect(legacyTarget(from)).toBe(to);
     expect(legacyTarget("/admin/journal", "?title=4", "#x")).toBe("/activity/journal?title=4#x");
     expect(legacyTarget("/admin/advanced/journal", "?suspect=1", "#x")).toBe("/activity/journal?suspect=1#x");
-    expect(legacyTarget("/admin/shadow", "?bucket=agree")).toBe("/admin/advanced/arr/comparison?bucket=agree");
   });
   it("leaves current URLs alone", () => {
     for (const p of ["/admin", "/admin/system/tasks", "/admin/users", "/admin/reviews/anime/x", "/activity/journal", "/activity/journal/dl:7", "/wanted/manual-import", "/movies"]) {
@@ -76,10 +72,6 @@ it.each([
  ["/admin/registry/abc", "/admin/torrents/inventory/abc"],
  ["/admin/setup/migrate", "/admin/arr-import"],
  ["/admin/advanced/arr/migrate", "/admin/arr-import"],
- ["/admin/advanced/migration", "/admin/advanced/arr/comparison"],
- ["/admin/advanced/migration/3", "/admin/advanced/arr/comparison/3"],
- ["/admin/shadow", "/admin/advanced/arr/comparison"],
- ["/admin/shadow/3", "/admin/advanced/arr/comparison/3"],
  ["/admin/advanced/imports", "/admin/advanced/arr/imports"],
  ["/admin/system/imports", "/admin/advanced/arr/imports"],
 ])("ia2 redirects %s with query and hash intact", (from, to) => {

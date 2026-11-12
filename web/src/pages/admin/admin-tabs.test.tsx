@@ -4,13 +4,14 @@ import { expect, it } from "vitest";
 import { renderPage } from "@/test/page";
 import { ArrTabs } from "./arr-tabs";
 import { TorrentTabs } from "./torrent-tabs";
-it("keeps migration steps reachable and selects Comparison on a detail", () => {
- renderPage(<ArrTabs />, "/admin/advanced/arr/comparison/3");
- for (const [name, suffix] of [["Instances", ""], ["Comparison", "/comparison"], ["Import runs", "/imports"]]) {
+it("keeps migration steps reachable and selects Import runs on its page", () => {
+ renderPage(<ArrTabs />, "/admin/advanced/arr/imports");
+ for (const [name, suffix] of [["Instances", ""], ["Import runs", "/imports"]]) {
   const tab = screen.getByRole("tab", { name });
   expect(tab.getAttribute("href")).toBe(`/admin/advanced/arr${suffix}`);
-  expect(tab.getAttribute("aria-selected")).toBe(String(name === "Comparison"));
+  expect(tab.getAttribute("aria-selected")).toBe(String(name === "Import runs"));
  }
+ expect(screen.queryByRole("tab", { name: "Comparison" })).toBeNull();
 });
 it("keeps both torrent tabs reachable from an inventory detail", () => {
  renderPage(<TorrentTabs />, "/admin/torrents/inventory/abc");

@@ -21,9 +21,6 @@ export type Imports = Get<"/imports">;
 export type Policy = Get<"/policy">;
 export type Validate = Get<"/policy/validate">;
 export type Keys = Get<"/keys">;
-export type ShadowSummary = Get<"/shadow/summary">;
-export type ShadowDiffs = Get<"/shadow/diffs">;
-export type ShadowDiff = Get<"/shadow/diffs/{id}">;
 export type Franchises = Get<"/anime/franchises">;
 export type Franchise = Get<"/anime/franchises/{slug}">;
 export type Review = Get<"/anime/review">;
@@ -87,19 +84,6 @@ export function useRevokeKey() {
     onSuccess: () => qc.invalidateQueries({ queryKey: qk.keys }),
   });
 }
-
-export const useShadowSummary = () =>
-  useQuery({ queryKey: qk.shadow.summary, queryFn: () => api<ShadowSummary>("/shadow/summary") });
-
-export type DiffFilter = { bucket?: string; reason?: string; version?: string; search_found_better?: string; offset?: number };
-export const useShadowDiffs = (f: DiffFilter) =>
-  useQuery({
-    queryKey: qk.shadow.diffs(f),
-    queryFn: () => api<ShadowDiffs>("/shadow/diffs" + qs({ ...f, limit: 50 })),
-  });
-
-export const useShadowDiff = (id: string) =>
-  useQuery({ queryKey: qk.shadow.diff(id), queryFn: () => api<ShadowDiff>(`/shadow/diffs/${encodeURIComponent(id)}`) });
 
 // A build job still to run or running: the anime lists poll until it ends.
 type BuildJob = { id: number; state?: string } | null | undefined;

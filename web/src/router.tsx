@@ -42,8 +42,6 @@ const TorrentsPage = lazyPage(() => import("./pages/admin/torrents").then((m) =>
 const AdvancedPage = lazyPage(() => import("./pages/admin/advanced").then((m) => m.AdvancedPage));
 const ImportsPage = lazyPage(() => import("./pages/admin/advanced").then((m) => m.ImportsPage));
 const BackupPage = lazyPage(() => import("./pages/admin/backup").then((m) => m.BackupPage));
-const Shadow = lazyPage(() => import("./pages/admin/shadow").then((m) => m.Shadow));
-const ShadowDiffPage = lazyPage(() => import("./pages/admin/shadow").then((m) => m.ShadowDiffPage));
 const JournalEntryPage = lazyPage(() => import("./pages/admin/journal").then((m) => m.JournalEntryPage));
 const ReviewsPage = lazyPage(() => import("./pages/admin/reviews").then((m) => m.ReviewsPage));
 const MetadataFranchise = lazyPage(() => import("./pages/admin/anime-mappings").then((m) => m.MetadataFranchise));
@@ -198,8 +196,6 @@ export const routes: RouteObject[] = [
           ...["", "/quality", "/anime", "/indexers", "/decisions"].map(tab => ({ path: `/admin/reviews${tab}`, element: <ReviewsPage /> })),
           { path: "/admin/reviews/anime/:slug", element: <MetadataFranchise /> },
           { path: "/admin/advanced", element: <AdvancedPage /> },
-          { path: "/admin/advanced/arr/comparison", element: <Shadow /> },
-          { path: "/admin/advanced/arr/comparison/:id", element: <ShadowDiffPage /> },
           { path: "/admin/torrents/inventory", element: <Registry /> },
           { path: "/admin/torrents/inventory/:hash", element: <RegistryContent /> },
           { path: "/admin/system/logs", element: <Logs /> },

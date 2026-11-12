@@ -27,11 +27,6 @@ export const qk = {
   imports: { all: ["imports"] as const, list: (limit: number) => ["imports", limit] as const },
   policy: { all: ["policy"] as const, validate: ["policy", "validate"] as const },
   keys: ["keys"] as const,
-  shadow: {
-    summary: ["shadow", "summary"] as const,
-    diffs: (f: unknown) => ["shadow", "diffs", f] as const,
-    diff: (d: string) => ["shadow", "diff", d] as const,
-  },
   anime: {
     all: ["anime"] as const,
     franchises: ["anime", "franchises"] as const,
