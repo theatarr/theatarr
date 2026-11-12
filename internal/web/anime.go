@@ -626,7 +626,8 @@ func (en *reviewEnricher) enrich(ctx context.Context, ri *AnimeReviewItem) error
 			out.Options = append(out.Options, o)
 		}
 	}
-	if ri.Kind == "refresh_shrink" || ri.Kind == "refresh_moves_linked" {
+	// a held refresh's card compares the mappings in use with the held build, so only an open item has one
+	if (ri.Kind == "refresh_shrink" || ri.Kind == "refresh_moves_linked") && ri.State == "open" {
 		r, err := en.refresh(ctx, ri)
 		if err != nil {
 			return err
@@ -678,11 +679,14 @@ func (en *reviewEnricher) refresh(ctx context.Context, ri *AnimeReviewItem) (*An
 			}
 		}
 		var now []anime.SE
-		err = scanAll(ctx, en.db, `SELECT episodes FROM anime_mapping WHERE franchise = ? AND tvdb_series = ?`,
+		err = scanAll(ctx, en.db, `SELECT status, episodes FROM anime_mapping WHERE franchise = ? AND tvdb_series = ?`,
 			[]any{ri.Franchise, d.TVDB}, func(rows *sql.Rows) error {
-				var b string
-				if err := rows.Scan(&b); err != nil {
+				var status, b string
+				if err := rows.Scan(&status, &b); err != nil {
 					return err
+				}
+				if !animemap.Importable(status) {
+					return nil
 				}
 				var eps []anime.SE
 				_ = json.Unmarshal([]byte(b), &eps)
@@ -704,15 +708,24 @@ func (en *reviewEnricher) refresh(ctx context.Context, ri *AnimeReviewItem) (*An
 		return r, nil
 	}
 	var d struct {
-		Before    animestore.Mapping `json:"before"`
-		WithFiles []anime.SE         `json:"with_files"`
+		WithFiles []anime.SE `json:"with_files"`
 	}
 	if err := json.Unmarshal(ri.Detail, &d); err != nil {
 		return nil, err
 	}
 	r.WithFiles = len(d.WithFiles)
-	if d.Before.TVDB != 0 {
-		o, err := en.option(ctx, d.Before.TVDB, d.Before.Episodes)
+	// from: the entry's mapping in use, when imports use it
+	var status, b string
+	var tvdb int
+	err := en.db.QueryRowContext(ctx, `SELECT status, COALESCE(tvdb_series, 0), episodes FROM anime_mapping
+		WHERE franchise = ? AND entry_key = ?`, ri.Franchise, ri.EntryKey).Scan(&status, &tvdb, &b)
+	if err != nil && !errors.Is(err, sql.ErrNoRows) {
+		return nil, err
+	}
+	var eps []anime.SE
+	_ = json.Unmarshal([]byte(b), &eps)
+	if tvdb != 0 && len(eps) > 0 && animemap.Importable(status) {
+		o, err := en.option(ctx, tvdb, eps)
 		if err != nil {
 			return nil, err
 		}

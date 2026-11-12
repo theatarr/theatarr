@@ -420,16 +420,8 @@ func (s *Store) apply(ctx context.Context, tx *sql.Tx, res *anime.Result, body [
 			reason, cands = e.Mapping.Reason, e.Mapping.Candidates
 		}
 		if m.status == anime.StatusConflict || m.status == anime.StatusHeuristic {
-			if d, ok := decided[decisionKey{e.Key, m.status, jsonText(sortedEps(m.eps))}]; ok {
-				if d.accepted {
-					m.status, reason = anime.StatusOverride, fmt.Sprintf("accepted in review #%d", d.id)
-					if c := d.choice; c != nil {
-						m.series, m.eps, m.winner = c.SeriesID, c.Episodes, c.Source
-						reason = fmt.Sprintf("%s candidate accepted in review #%d", c.Source, d.id)
-					}
-				} else {
-					m.status, reason = anime.StatusRejected, fmt.Sprintf("rejected in review #%d", d.id)
-				}
+			if why, ok := applyDecision(m, e.Key, decided); ok {
+				reason = why
 			} else {
 				keep[e.Key+"\x00"+m.status] = true
 				summary := fmt.Sprintf("%s %s: %s -> TVDB %d %s", e.Key, deref(e.Title), reason, m.series, rangeOf(m.eps))
@@ -498,6 +490,24 @@ func (s *Store) apply(ctx context.Context, tx *sql.Tx, res *anime.Result, body [
 }
 
 type decisionKey struct{ key, kind, eps string }
+
+// applyDecision applies the saved review decision on a conflict or heuristic mapping, if there is one, and says why.
+func applyDecision(m *mappingRow, key string, decided map[decisionKey]decision) (reason string, ok bool) {
+	d, ok := decided[decisionKey{key, m.status, jsonText(sortedEps(m.eps))}]
+	if !ok {
+		return "", false
+	}
+	if !d.accepted {
+		m.status = anime.StatusRejected
+		return fmt.Sprintf("rejected in review #%d", d.id), true
+	}
+	m.status, reason = anime.StatusOverride, fmt.Sprintf("accepted in review #%d", d.id)
+	if c := d.choice; c != nil {
+		m.series, m.eps, m.winner = c.SeriesID, c.Episodes, c.Source
+		reason = fmt.Sprintf("%s candidate accepted in review #%d", c.Source, d.id)
+	}
+	return reason, true
+}
 
 type decision struct {
 	id       int64

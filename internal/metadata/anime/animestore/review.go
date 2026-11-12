@@ -9,6 +9,7 @@ import (
 	"strings"
 
 	"github.com/theatarr/theatarr/internal/metadata/anime"
+	"github.com/theatarr/theatarr/internal/metadata/anime/animemap"
 	"github.com/theatarr/theatarr/internal/store"
 )
 
@@ -120,35 +121,55 @@ type Mapping struct {
 	Episodes []anime.SE `json:"episodes"`
 }
 
-// HeldMappings decodes a franchise's held build (anime_franchise.pending_result) and returns each entry's mapping
-// in it, by entry key; nil when nothing is held. An entry the build maps to nothing is absent.
+// HeldMappings decodes a franchise's held build (anime_franchise.pending_result) and returns the importable mapping
+// each entry would get once it is applied, saved review decisions included (as apply does), by entry key; nil when
+// nothing is held. An entry the build maps to nothing, or to a conflict or rejected mapping, is absent.
 func (s *Store) HeldMappings(ctx context.Context, slug string) (map[string]Mapping, error) {
-	var pending []byte
-	if err := s.DB.Reader().QueryRowContext(ctx, `SELECT pending_result FROM anime_franchise WHERE slug = ?`, slug).
-		Scan(&pending); err != nil {
-		if errors.Is(err, sql.ErrNoRows) {
-			return nil, nil
-		}
-		return nil, err
-	}
-	if pending == nil {
-		return nil, nil
-	}
-	body, err := gunzip(pending)
+	tx, err := s.DB.Reader().BeginTx(ctx, &sql.TxOptions{ReadOnly: true})
 	if err != nil {
 		return nil, err
 	}
-	var res anime.Result
-	if err := json.Unmarshal(body, &res); err != nil {
-		return nil, fmt.Errorf("pending build: %w", err)
-	}
-	out := map[string]Mapping{}
-	for _, e := range res.Entries {
-		if m := mappingOf(e); m != nil && m.series != 0 {
-			out[e.Key] = Mapping{TVDB: m.series, Episodes: m.eps}
+	defer tx.Rollback()
+	var out map[string]Mapping
+	err = func() error {
+		var pending []byte
+		if err := tx.QueryRowContext(ctx, `SELECT pending_result FROM anime_franchise WHERE slug = ?`, slug).Scan(&pending); err != nil {
+			if errors.Is(err, sql.ErrNoRows) {
+				return nil
+			}
+			return err
 		}
-	}
-	return out, nil
+		if pending == nil {
+			return nil
+		}
+		body, err := gunzip(pending)
+		if err != nil {
+			return err
+		}
+		var res anime.Result
+		if err := json.Unmarshal(body, &res); err != nil {
+			return fmt.Errorf("pending build: %w", err)
+		}
+		decided, err := s.decided(ctx, tx, slug)
+		if err != nil {
+			return err
+		}
+		out = map[string]Mapping{}
+		for _, e := range res.Entries {
+			m := mappingOf(e)
+			if m == nil {
+				continue
+			}
+			if m.status == anime.StatusConflict || m.status == anime.StatusHeuristic {
+				applyDecision(m, e.Key, decided)
+			}
+			if m.series != 0 && len(m.eps) > 0 && animemap.Importable(m.status) {
+				out[e.Key] = Mapping{TVDB: m.series, Episodes: m.eps}
+			}
+		}
+		return nil
+	}()
+	return out, err
 }
 
 // Snippet is the overrides YAML that pins one of an item's mappings for good (the UI shows the snippet to

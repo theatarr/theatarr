@@ -167,6 +167,43 @@ func TestResolveMapping(t *testing.T) {
 	}
 }
 
+func TestHeldMappingsApplyChoices(t *testing.T) {
+	ctx := context.Background()
+	st := openStore(t)
+	s := &animestore.Store{DB: st}
+	if _, err := s.Save(ctx, build(t, "mushoku-tensei"), "cache", false); err != nil {
+		t.Fatal(err)
+	}
+	items, _ := s.Items(ctx, "open", "mushoku-tensei")
+	var it *animestore.Item
+	for i := range items {
+		if items[i].EntryKey == "al:146065" && items[i].Kind == "conflict" {
+			it = &items[i]
+		}
+	}
+	if it == nil {
+		t.Fatal("no conflict")
+	}
+	d, _ := it.MappingDetail()
+	c := anime.MappingCandidate{Source: animestore.ManualSource, SeriesID: d.TVDB, Episodes: []anime.SE{{2, 2}, {2, 3}}}
+	if err := s.ResolveMapping(ctx, it.ID, c, ""); err != nil {
+		t.Fatal(err)
+	}
+	// a file on the chosen range holds the next build, which proposes the raw conflict mapping again
+	w := st.Writer()
+	mustExec(t, w, `INSERT INTO title (id, kind, name, tvdb_id, created_at, updated_at) VALUES (1, 'series', 'M', ?, 0, 0)`, d.TVDB)
+	mustExec(t, w, `INSERT INTO episode (id, title_id, season, number, created_at, updated_at) VALUES (1, 1, 2, 2, 0, 0)`)
+	mustExec(t, w, `INSERT INTO link (id, path, target, title_id, created_at, updated_at) VALUES (1, '/l/a.mkv', '/m/a.mkv', 1, 0, 0)`)
+	mustExec(t, w, `INSERT INTO link_episode (link_id, episode_id) VALUES (1, 1)`)
+	if saved, err := s.Save(ctx, build(t, "mushoku-tensei"), "live", false); err != nil || saved.Applied {
+		t.Fatalf("not held: %+v %v", saved, err)
+	}
+	held, err := s.HeldMappings(ctx, "mushoku-tensei")
+	if m := held["al:146065"]; err != nil || m.TVDB != d.TVDB || !reflect.DeepEqual(m.Episodes, c.Episodes) {
+		t.Errorf("held mapping of al:146065 = %+v (%v), want the saved choice %v", m, err, c.Episodes)
+	}
+}
+
 func TestAltCutsSaved(t *testing.T) {
 	ctx := context.Background()
 	st := openStore(t)
