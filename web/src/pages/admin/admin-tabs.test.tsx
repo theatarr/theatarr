@@ -6,7 +6,7 @@ import { ArrTabs } from "./arr-tabs";
 import { TorrentTabs } from "./torrent-tabs";
 it("keeps migration steps reachable and selects Comparison on a detail", () => {
  renderPage(<ArrTabs />, "/admin/advanced/arr/comparison/3");
- for (const [name, suffix] of [["Instances", ""], ["Migrate", "/migrate"], ["Comparison", "/comparison"], ["Import runs", "/imports"]]) {
+ for (const [name, suffix] of [["Instances", ""], ["Comparison", "/comparison"], ["Import runs", "/imports"]]) {
   const tab = screen.getByRole("tab", { name });
   expect(tab.getAttribute("href")).toBe(`/admin/advanced/arr${suffix}`);
   expect(tab.getAttribute("aria-selected")).toBe(String(name === "Comparison"));

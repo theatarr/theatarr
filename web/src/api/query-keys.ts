@@ -25,10 +25,6 @@ export const qk = {
     newCount: ["errors", "new-count"] as const,
   },
   imports: { all: ["imports"] as const, list: (limit: number) => ["imports", limit] as const },
-  migrate: {
-    list: ["migrate", "plans"] as const,
-    plan: (plan: Id) => ["migrate", "plan", id(plan)] as const,
-  },
   policy: { all: ["policy"] as const, validate: ["policy", "validate"] as const },
   keys: ["keys"] as const,
   shadow: {
