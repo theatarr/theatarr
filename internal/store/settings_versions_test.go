@@ -78,3 +78,90 @@ func TestDropGuidedMigration(t *testing.T) {
 		t.Fatalf("migration_plan still there: %d %v", n, err)
 	}
 }
+
+// 00121: following goes. Inherited naming and minimum availability are copied to the former follower's own rows, an
+// existing choice still wins, a series without a type takes its arr's, queued adopt jobs and both follow tables go.
+func TestMigrateDetach(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+	st := openAt(t, 120)
+	p, err := st.provider(false)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, q := range []string{
+		`INSERT INTO title (id, kind, name, series_type, created_at, updated_at) VALUES (1, 'movie', 'New', NULL, 0, 0),
+			(2, 'series', 'Untyped', NULL, 0, 0), (3, 'movie', 'Chosen', NULL, 0, 0), (4, 'movie', 'Listed', NULL, 0, 0),
+			(5, 'movie', 'Default', NULL, 0, 0), (6, 'series', 'Typed', 'standard', 0, 0)`,
+		`INSERT INTO version (id, title_id, policy_key, created_at, updated_at) VALUES
+			(10, 1, 'movie-remux', 0, 0), (11, 1, 'movie-copy', 0, 0), (30, 3, 'movie-remux', 0, 0), (31, 3, 'movie-copy', 0, 0),
+			(40, 4, 'movie-remux', 0, 0), (41, 4, 'movie-copy', 0, 0), (50, 5, 'movie-remux', 0, 0), (51, 5, 'movie-copy', 0, 0),
+			(20, 2, 'tv', 0, 0), (60, 6, 'tv', 0, 0)`,
+		`INSERT INTO version_follow (version_id, follows_id) VALUES (11, 10), (31, 30), (41, 40), (51, 50)`,
+		`INSERT INTO arr_instance (name, flavour, policy_key, created_at, updated_at) VALUES
+			('aaa', 'radarr', 'movie-remux', 0, 0), ('radarr', 'radarr', 'movie-remux', 0, 0), ('sonarr', 'sonarr', 'tv', 0, 0)`,
+		// Title 1: the owner's record wins over another instance's that sorts first.
+		`INSERT INTO version_source (version_id, instance, arr_id) VALUES (10, 'radarr', 1), (30, 'radarr', 3),
+			(40, 'radarr', 4), (50, 'radarr', 5)`,
+		`INSERT INTO arr_title (instance, arr_id, kind, title_id, version_id, monitored, minimum_availability, series_type)
+			VALUES ('radarr', 1, 'movie', 1, 10, 1, 'announced', ''), ('aaa', 1, 'movie', 1, 10, 1, 'inCinemas', ''),
+			('radarr', 3, 'movie', 3, 30, 1, 'announced', ''), ('radarr', 4, 'movie', 4, 40, 1, 'announced', ''),
+			('radarr', 5, 'movie', 5, 50, 1, 'released', ''),
+			('sonarr', 2, 'series', 2, 20, 1, '', 'anime'), ('aaa', 2, 'series', 2, 20, 1, '', ''),
+			('sonarr', 6, 'series', 6, 60, 1, '', 'anime')`,
+		// Title 3: an explicit choice on the library's own row and a newer one on a view holding it. Title 4: a list
+		// sync's row without a value.
+		`INSERT INTO arrview_title (view, title_id, minimum_availability, added_at, updated_at) VALUES
+			('v/movie-copy', 3, 'inCinemas', 1, 5), ('radarr', 1, 'inCinemas', 1, 7), ('v/movie-copy', 4, '', 1, 9)`,
+		// As the settings store writes them: library rows hold the YAML fields under config, naming rows policy.Naming
+		// with its Go field names.
+		`INSERT INTO setting_version (key, config, created_at, updated_at) VALUES
+			('movie-remux', '{"config":{"mode":"shadow","kind":"movie","follows":"","minimum_availability":""},"roots":["/m"]}', 1, 1),
+			('movie-copy', '{"config":{"mode":"active","kind":"movie","follows":"movie-remux","minimum_availability":""},"roots":["/c"]}', 1, 1),
+			('tv-copy', '{"config":{"mode":"active","kind":"series","follows":"tv"},"roots":["/t"]}', 1, 1)`,
+		`INSERT INTO setting_version_naming (key, config, created_at, updated_at) VALUES
+			('movie-remux', '{"Folder":"{Movie Title}","File":"","Colon":"","FromArr":"","FromVersion":""}', 1, 1),
+			('movie-copy', '{"Folder":"","File":"","Colon":"","FromArr":"","FromVersion":"movie-remux"}', 1, 1),
+			('tv-copy', '{"Folder":"","File":"","Colon":"","FromArr":"","FromVersion":"tv"}', 1, 1)`,
+		`INSERT INTO job (kind, state, run_at, created_at, updated_at) VALUES ('library.adopt', 'queued', 0, 0, 0),
+			('library.adopt', 'done', 0, 0, 0), ('plex.scan', 'queued', 0, 0, 0)`,
+		`INSERT INTO follow_search_intent (title_id, version_key, all_items, created_at, updated_at) VALUES (1, 'movie-copy', 1, 0, 0)`,
+	} {
+		if _, err := st.Writer().ExecContext(ctx, q); err != nil {
+			t.Fatalf("%s: %v", q, err)
+		}
+	}
+	if _, err := p.UpTo(ctx, 121); err != nil {
+		t.Fatal(err)
+	}
+	str := func(q string) string {
+		t.Helper()
+		var s string
+		if err := st.Reader().QueryRowContext(ctx, q).Scan(&s); err != nil {
+			t.Fatalf("%s: %v", q, err)
+		}
+		return s
+	}
+	for q, want := range map[string]string{
+		`SELECT config FROM setting_version_naming WHERE key = 'movie-remux'`:                         `{"Folder":"{Movie Title}","File":"","Colon":"","FromArr":""}`,
+		`SELECT config FROM setting_version_naming WHERE key = 'movie-copy'`:                          `{"Folder":"{Movie Title}","File":"","Colon":"","FromArr":""}`,
+		`SELECT config FROM setting_version_naming WHERE key = 'tv-copy'`:                             `{}`,
+		`SELECT group_concat(json_type(config, '$.config.follows') IS NULL, '') FROM setting_version`: "111",
+		`SELECT json_extract(config, '$.config.mode') FROM setting_version WHERE key = 'movie-copy'`:  "active",
+		// The inherited value, behind any newer choice.
+		`SELECT minimum_availability || ' ' || updated_at FROM arrview_title WHERE view = 'v/movie-copy' AND title_id = 1`: "announced 0",
+		`SELECT minimum_availability || ' ' || updated_at FROM arrview_title WHERE view = 'radarr' AND title_id = 1`:       "inCinemas 7",
+		// An explicit choice is kept; a blank list-synced row takes the value with updated_at 0.
+		`SELECT minimum_availability || ' ' || updated_at FROM arrview_title WHERE view = 'v/movie-copy' AND title_id = 3`: "inCinemas 5",
+		`SELECT minimum_availability || ' ' || updated_at FROM arrview_title WHERE view = 'v/movie-copy' AND title_id = 4`: "announced 0",
+		// The library's own default needs no row.
+		`SELECT COUNT(*) FROM arrview_title WHERE title_id = 5`:                                                        "0",
+		`SELECT group_concat(series_type, ' ') FROM (SELECT series_type FROM title WHERE kind = 'series' ORDER BY id)`: "anime standard",
+		`SELECT group_concat(kind || ':' || state, ' ') FROM (SELECT kind, state FROM job ORDER BY id)`:                "library.adopt:done plex.scan:queued",
+		`SELECT COUNT(*) FROM sqlite_master WHERE name IN ('version_follow', 'follow_search_intent')`:                  "0",
+	} {
+		if got := str(q); got != want {
+			t.Errorf("%s\n got %s, want %s", q, got, want)
+		}
+	}
+}

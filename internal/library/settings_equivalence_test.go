@@ -11,6 +11,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/pressly/goose/v3"
+	"github.com/pressly/goose/v3/database"
 	"github.com/theatarr/theatarr/internal/decide"
 	"github.com/theatarr/theatarr/internal/indexer"
 	"github.com/theatarr/theatarr/internal/library"
@@ -273,5 +275,113 @@ func TestSettingsQualityDecisionAndNamingEquivalence(t *testing.T) {
 				}
 			}
 		})
+	}
+}
+
+// TestDetachedFollowerKeepsNaming: rows as the settings store writes them (a naming row is policy.Naming as JSON, Go
+// field names at the top level; a library row is its YAML fields under config), given the old follower shape (a
+// naming row with FromVersion, a library row with follows), migrated by 00121 and loaded: each former follower names
+// its files as the library it followed did, for templates, empty templates, from_arr and no naming row at all.
+func TestDetachedFollowerKeepsNaming(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+	dir := copyQualityFixture(t, "../../examples/policy")
+	pol, err := policy.Load(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	db, err := store.Open(ctx, storetest.Seed(t, filepath.Join(t.TempDir(), "theatarr.db")), store.Options{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer db.Close()
+	st, err := settings.New(db)
+	if err != nil {
+		t.Fatal(err)
+	}
+	st.SetTrashRoot("../settings/testdata/trash")
+	if _, err := st.Bootstrap(ctx, pol, settings.ImportRequest{Dir: dir, Actor: "fixture",
+		Lookup: func(string) (string, bool) { return "invented-quality-fixture", true }}); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := st.BootstrapQuality(ctx, pol, "upgrade"); err != nil {
+		t.Fatal(err)
+	}
+	one := func(q string, args ...any) string {
+		t.Helper()
+		var s string
+		if err := db.Reader().QueryRowContext(ctx, q, args...).Scan(&s); err != nil {
+			t.Fatalf("%s: %v", q, err)
+		}
+		return s
+	}
+	exec := func(q string, args ...any) {
+		t.Helper()
+		if _, err := db.Writer().ExecContext(ctx, q, args...); err != nil {
+			t.Fatalf("%s: %v", q, err)
+		}
+	}
+	// The key names the migration reads: FromVersion sat beside FromArr and Folder, follows beside mode.
+	if got := one(`SELECT json_type(config, '$.FromArr') || ' ' || json_extract(config, '$.Folder')
+		FROM setting_version_naming WHERE key = 'movie-remux'`); got != "text "+pol.Versions["movie-remux"].Naming.Folder {
+		t.Fatalf("naming row: %s", got)
+	}
+	if got := one(`SELECT json_extract(config, '$.config.mode') || ' ' || json_type(config, '$.roots')
+		FROM setting_version WHERE key = 'movie-remux'`); got != "shadow array" {
+		t.Fatalf("library row: %s", got)
+	}
+
+	p, err := goose.NewProvider(database.DialectSQLite3, db.Writer(), os.DirFS("../store/migrations"),
+		goose.WithTableName(store.MigrationTable), goose.WithDisableGlobalRegistry(true))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := p.DownTo(ctx, 120); err != nil {
+		t.Fatal(err)
+	}
+	// movie-remux: folder and file templates, the rest empty. movie-web: from_arr. tv-2160p: its own templates.
+	// anime-movie: no naming row.
+	exec(`UPDATE setting_version_naming SET config = json_set(config, '$.FromArr', 'radarr_4k_web') WHERE key = 'movie-web'`)
+	exec(`INSERT INTO library_naming (instance, naming, qualities, fetched_at) VALUES ('radarr_4k_web',
+		'{"renameMovies":true,"movieFolderFormat":"{Movie Title} ({Release Year})","standardMovieFormat":"{Movie Title} {Quality Full}","colonReplacementFormat":"dash"}',
+		'{"WEBDL-2160p":"WEB 2160p"}', 0)`)
+	exec(`DELETE FROM setting_version_naming WHERE key = 'anime-movie'`)
+	followed := []string{"movie-remux", "movie-web", "tv-2160p", "anime-movie"}
+	for _, f := range followed {
+		k := f + "-copy"
+		exec(`INSERT INTO setting_version (key, config, created_at, updated_at) SELECT ?, json_set(config,
+			'$.config.follows', key, '$.config.library', '/copies/' || key, '$.roots', json_array('/copies/' || key)), 1, 1
+			FROM setting_version WHERE key = ?`, k, f)
+		exec(`INSERT INTO setting_version_naming (key, config, created_at, updated_at) VALUES (?, json_object('Folder', '',
+			'File', '', 'Season', '', 'Specials', '', 'Daily', '', 'Anime', '', 'Colon', '', 'MultiEpisode', '', 'FromArr', '',
+			'FromVersion', ?), 1, 1)`, k, f)
+	}
+	if _, err := p.UpTo(ctx, 121); err != nil {
+		t.Fatal(err)
+	}
+	if n := one(`SELECT COUNT(*) FROM setting_version_naming WHERE json_type(config, '$.FromVersion') IS NOT NULL`) +
+		one(`SELECT COUNT(*) FROM setting_version WHERE json_type(config, '$.config.follows') IS NOT NULL`); n != "00" {
+		t.Fatalf("FromVersion and follows left: %s", n)
+	}
+	snap, err := st.Load(ctx, pol)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, f := range followed {
+		want, err := library.NamingFor(ctx, db.Reader(), snap.Policy, f)
+		if err != nil {
+			t.Fatal(err)
+		}
+		got, err := library.NamingFor(ctx, db.Reader(), snap.Policy, f+"-copy")
+		if err != nil {
+			t.Fatal(err)
+		}
+		if !reflect.DeepEqual(got.Config, want.Config) || !reflect.DeepEqual(got.QualityTitles, want.QualityTitles) ||
+			got.Source != want.Source {
+			t.Errorf("%s-copy names as %+v (%s), %s as %+v (%s)", f, got, got.Source, f, want, want.Source)
+		}
+	}
+	if got := snap.Policy.Versions["movie-web-copy"].Naming.FromArr; got != "radarr_4k_web" {
+		t.Errorf("from_arr not copied: %q", got)
 	}
 }
