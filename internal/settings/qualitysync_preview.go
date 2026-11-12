@@ -145,7 +145,7 @@ func (s *QualitySync) previewResolved(ctx context.Context, source QualitySyncSou
 		}
 	}
 	// Explicit score-set bindings update only scores, preserving qualities, cutoffs and safety switches. A saved
-	// source's bound score follows TRaSH while it still equals TRaSH's last score; ours is held when TRaSH changes it.
+	// source's bound score follows TRaSH while it still equals TRaSH's last score; ours is kept when TRaSH changes it.
 	retired := map[string]bool{}
 	for _, change := range out.Retired {
 		retired[change.TrashID] = true
@@ -196,21 +196,19 @@ func (s *QualitySync) previewResolved(ctx context.Context, source QualitySyncSou
 				scores[scoreKey] = score
 				continue
 			}
-			if st, held := followScore(scores, scoreKey, score, last); held {
+			st, kept := followScore(scores, scoreKey, score, last)
+			if kept {
+				// Ours stays; TRaSH's new score is remembered, so the next run leaves it alone.
 				h := HeldScore{Profile: rec.Key, Format: scoreKey, Trash: score}
 				if ours, ok := scores[scoreKey]; ok {
 					h.Ours = &ours
 				}
-				if st, ok := last[scoreKey]; ok {
-					h.Last = &st.Trash
+				if prev, ok := last[scoreKey]; ok {
+					h.Last = &prev.Trash
 				}
 				out.Held = append(out.Held, h)
-				if st, ok := last[scoreKey]; ok {
-					next[scoreKey] = st
-				}
-			} else {
-				next[scoreKey] = st
 			}
+			next[scoreKey] = st
 		}
 		records.Profiles[i].Config.Formats = scores
 		if len(next) > 0 {
@@ -279,25 +277,24 @@ func (s *QualitySync) previewResolved(ctx context.Context, source QualitySyncSou
 }
 
 // followScore decides one bound score whose TRaSH score is now trash. It follows TRaSH (scores updated) while ours
-// still equals TRaSH's last score, and is left alone while TRaSH has not changed it; ours (differing or kept) is held
-// when TRaSH changes it, and so is any differing score on the first run after binding (no last score). It returns
-// the state to remember when nothing is held.
-func followScore(scores map[string]int, key string, trash int, last map[string]TrashScoreState) (TrashScoreState, bool) {
+// still equals TRaSH's last score, is left alone while TRaSH has not changed it, and takes TRaSH's score on the first
+// run that sees it (no last score: a profile just bound, a format just linked or added), except that a format the
+// profile does not score, which TRaSH scores 0, stays unscored. Ours, when it differs from TRaSH's last score and
+// TRaSH changed it, is kept (kept true). The state to remember is always TRaSH's current score.
+func followScore(scores map[string]int, key string, trash int, last map[string]TrashScoreState) (st TrashScoreState, kept bool) {
 	ours, scored := scores[key]
 	prev, known := last[key]
+	st = TrashScoreState{Trash: trash}
 	switch {
-	case scored && ours == trash:
-		return TrashScoreState{Trash: trash, Pinned: known && prev.Pinned}, false
-	case known && prev.Trash == trash:
-		return prev, false
-	case known && !prev.Pinned && ours == prev.Trash:
+	case scored && ours == trash, known && prev.Trash == trash:
+	case known && ours == prev.Trash, !known && (scored || trash != 0):
 		scores[key] = trash
-		return TrashScoreState{Trash: trash}, false
-	case !known && !scored && trash == 0:
-		// A format the profile does not score yet, which TRaSH scores 0: nothing to ask.
-		return TrashScoreState{Trash: trash}, false
+	case !known:
+		// A format the profile does not score yet, which TRaSH scores 0: left unscored.
+	default:
+		kept = true
 	}
-	return TrashScoreState{}, true
+	return st, kept
 }
 
 // normalScoreState drops empty entries, so a state with nothing to remember equals none.

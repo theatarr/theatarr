@@ -1,7 +1,6 @@
 package web
 
 import (
-	"database/sql"
 	"encoding/json"
 	"errors"
 	"net/http"
@@ -43,7 +42,8 @@ func (w *Web) apiQualitySyncPreview(rw http.ResponseWriter, r *http.Request) {
 		badRequest(rw, "source key is required")
 		return
 	}
-	p, err := w.qualitySync.PreviewAndStoreAt(r.Context(), settings.QualitySyncSource{Record: settings.Record{Key: body.Key}, Config: config}, snap.Generation)
+	// A dry run: it stores and applies nothing.
+	p, err := w.qualitySync.Preview(r.Context(), settings.QualitySyncSource{Record: settings.Record{Key: body.Key}, Config: config})
 	if err != nil {
 		w.settingsError(rw, r, err, nil)
 		return
@@ -55,92 +55,6 @@ func (w *Web) apiQualitySyncPreview(rw http.ResponseWriter, r *http.Request) {
 	}
 	rw.Header().Set("ETag", generationETag(p.Generation))
 	writeJSON(rw, 200, p)
-}
-
-func (w *Web) apiQualityReviews(rw http.ResponseWriter, r *http.Request) {
-	if _, ok := w.settingsHead(rw, r); !ok {
-		return
-	}
-	if !w.qualitySyncAvailable(rw) {
-		return
-	}
-	rows, err := w.qualitySync.Reviews(r.Context())
-	if err != nil {
-		w.internal(rw, err)
-		return
-	}
-	writeJSON(rw, 200, rows)
-}
-
-func (w *Web) apiQualityReviewApply(rw http.ResponseWriter, r *http.Request) {
-	var body struct {
-		Generation *int64 `json:"generation"`
-		// ConfirmationToken confirms the effects a previous 422 listed (the review widens an active version).
-		ConfirmationToken string `json:"confirmation_token"`
-	}
-	if !decodeSettingsJSON(rw, r, &body) {
-		return
-	}
-	snap, ok := w.qualityAt(rw, r, body.Generation)
-	if !ok {
-		return
-	}
-	if !w.qualitySyncAvailable(rw) {
-		return
-	}
-	id, err := strconv.ParseInt(r.PathValue("id"), 10, 64)
-	if err != nil {
-		badRequest(rw, "invalid review id")
-		return
-	}
-	ctx := settings.WithConfirmationToken(r.Context(), confirmationToken(r, body.ConfirmationToken))
-	saved, err := w.qualitySync.Apply(ctx, id, snap.Generation, settingsActor(r))
-	if errors.Is(err, sql.ErrNoRows) {
-		notFound(rw)
-		return
-	}
-	if err != nil {
-		w.settingsError(rw, r, err, nil)
-		return
-	}
-	rw.Header().Set("ETag", generationETag(saved.Generation))
-	writeJSON(rw, 200, map[string]any{"generation": saved.Generation, "revision": saved.Revision})
-}
-
-// apiQualityReviewScores takes or keeps held scores of a held-score review at the current generation.
-func (w *Web) apiQualityReviewScores(rw http.ResponseWriter, r *http.Request) {
-	var body struct {
-		Generation        *int64                   `json:"generation"`
-		Decisions         []settings.ScoreDecision `json:"decisions"`
-		ConfirmationToken string                   `json:"confirmation_token"`
-	}
-	if !decodeSettingsJSON(rw, r, &body) {
-		return
-	}
-	snap, ok := w.qualityAt(rw, r, body.Generation)
-	if !ok {
-		return
-	}
-	if !w.qualitySyncAvailable(rw) {
-		return
-	}
-	id, err := strconv.ParseInt(r.PathValue("id"), 10, 64)
-	if err != nil {
-		badRequest(rw, "invalid review id")
-		return
-	}
-	ctx := settings.WithConfirmationToken(r.Context(), confirmationToken(r, body.ConfirmationToken))
-	saved, err := w.qualitySync.ResolveScores(ctx, id, snap.Generation, body.Decisions, settingsActor(r))
-	if errors.Is(err, sql.ErrNoRows) {
-		notFound(rw)
-		return
-	}
-	if err != nil {
-		w.settingsError(rw, r, err, nil)
-		return
-	}
-	rw.Header().Set("ETag", generationETag(saved.Generation))
-	writeJSON(rw, 200, map[string]any{"generation": saved.Generation, "revision": saved.Revision})
 }
 
 func (w *Web) apiQualitySyncRun(rw http.ResponseWriter, r *http.Request) {
@@ -169,6 +83,31 @@ func (w *Web) apiQualitySyncRun(rw http.ResponseWriter, r *http.Request) {
 		}
 	}
 	writeJSON(rw, 404, apiError{Error: "sync source not found"})
+}
+
+// apiQualitySyncChanges is the update log: the updates sync runs applied, newest first (?limit=, default 50, max 100).
+func (w *Web) apiQualitySyncChanges(rw http.ResponseWriter, r *http.Request) {
+	if _, ok := w.settingsHead(rw, r); !ok {
+		return
+	}
+	if !w.qualitySyncAvailable(rw) {
+		return
+	}
+	limit := 50
+	if v := r.URL.Query().Get("limit"); v != "" {
+		n, err := strconv.Atoi(v)
+		if err != nil || n < 1 {
+			badRequest(rw, "limit must be a positive number")
+			return
+		}
+		limit = min(n, 100)
+	}
+	rows, err := w.qualitySync.Changes(r.Context(), limit)
+	if err != nil {
+		w.internal(rw, err)
+		return
+	}
+	writeJSON(rw, 200, rows)
 }
 
 func (w *Web) apiQualitySyncRuns(rw http.ResponseWriter, r *http.Request) {

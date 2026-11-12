@@ -409,15 +409,15 @@ func ApplyPreset(records *Records, key string, build *PresetBuild, config *polic
 	for k, v := range c.ScoreState {
 		state[k] = v
 	}
-	// Every score TRaSH sets is remembered: equal ones follow TRaSH, the editor's changes are ours (pinned), as if a
-	// first sync run had asked and they were kept.
+	// Every score TRaSH sets is remembered: equal ones follow TRaSH, the editor's changes differ from TRaSH's last
+	// score and so stay ours.
 	scores := map[string]TrashScoreState{}
 	for name, score := range build.Profile.Formats {
 		if slices.Contains(build.Unscored, name) {
 			continue
 		}
-		if ours, ok := pr.Formats[name]; ok {
-			scores[name] = TrashScoreState{Trash: score, Pinned: ours != score}
+		if _, ok := pr.Formats[name]; ok {
+			scores[name] = TrashScoreState{Trash: score}
 		}
 	}
 	state[key] = ProfileScoreState{Set: scoreSet, Scores: scores}

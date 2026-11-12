@@ -14,7 +14,7 @@ import (
 // qualities, cutoff, upgrades, min_score, cutoff_score, min_upgrade_step, "formats/<format>" (a score it assigns, or
 // resets with reset_unmatched_scores) and "sizes/<quality>" (from quality_definition). Everything else of an existing
 // profile stays as it is. Like the bound TRaSH scores, the source remembers per managed field the value it last
-// asked for (FieldState) and an administrator's "keep ours", so an edit of ours is never overwritten silently.
+// asked for (FieldState), so a value we changed stays ours when the source changes it.
 
 // RecyclarrImport is a Recyclarr config converted for a sync source (cmd/theatarr's converter).
 type RecyclarrImport struct {
@@ -35,14 +35,13 @@ type RecyclarrProfile struct {
 }
 
 // FieldMemory is one managed field of a source's profile: the source's value when it was last taken into account
-// (null: the source removes it), and whether an administrator kept ours instead.
+// (null: the source removes it).
 type FieldMemory struct {
 	Upstream json.RawMessage `json:"upstream"`
-	Pinned   bool            `json:"pinned,omitempty"`
 }
 
-// HeldField is a managed field waiting for an administrator: ours differs from the source's value and the source
-// changed it (or it is the first run that sees it, Last null). Values are JSON; null is "not set".
+// HeldField is a managed field kept as ours: ours differs from the source's last value (Last) and the source changed
+// it (now Upstream). The run keeps ours and remembers the source's new value. Values are JSON; null is "not set".
 type HeldField struct {
 	Profile  string          `json:"profile"`
 	Field    string          `json:"field"`
@@ -236,26 +235,26 @@ func sameFieldJSON(a, b json.RawMessage) bool {
 }
 
 // followField decides one managed field whose source value is now up, as followScore does for a bound score: it
-// follows the source (take) while ours still equals the source's last value, and is left alone while the source has
-// not changed it; ours (differing or kept) is held when the source changes it, and so is a differing value the
-// source asks for the first time, unless ours is not set at all. It returns the memory to keep when nothing is held.
-func followField(ours, up json.RawMessage, prev FieldMemory, known bool) (mem FieldMemory, take, held bool) {
+// follows the source (take) while ours still equals the source's last value, is left alone while the source has not
+// changed it, and takes the source's value the first time the source sets it (not known). Ours, when it differs from
+// the source's last value and the source changed it, is kept. It returns the memory to keep: always the source's
+// current value.
+func followField(ours, up json.RawMessage, prev FieldMemory, known bool) (mem FieldMemory, take, kept bool) {
 	switch {
 	case sameFieldJSON(ours, up):
-		return FieldMemory{Upstream: up, Pinned: known && prev.Pinned}, false, false
 	case known && sameFieldJSON(prev.Upstream, up):
 		return prev, false, false
-	case known && !prev.Pinned && sameFieldJSON(ours, prev.Upstream):
+	case !known || sameFieldJSON(ours, prev.Upstream):
 		return FieldMemory{Upstream: up}, true, false
-	case !known && sameFieldJSON(ours, jsonNull):
-		return FieldMemory{Upstream: up}, true, false
+	default:
+		return FieldMemory{Upstream: up}, false, true
 	}
-	return FieldMemory{}, false, true
+	return FieldMemory{Upstream: up}, false, false
 }
 
 // reconcileProfile applies the managed fields of in to cur. A draft takes every source value and remembers
 // nothing. keep reports a score the reset must leave alone (a retired format's). It returns the memory to keep
-// and the held fields.
+// and the fields kept as ours.
 func reconcileProfile(cur *policy.Profile, in RecyclarrProfile, last map[string]FieldMemory, draft bool, keep func(string) bool) (map[string]FieldMemory, []HeldField, error) {
 	up := map[string]json.RawMessage{}
 	for _, f := range in.Fields {
@@ -282,16 +281,11 @@ func reconcileProfile(cur *policy.Profile, in RecyclarrProfile, last map[string]
 			continue
 		}
 		prev, known := last[f]
-		mem, take, isHeld := followField(ours, up[f], prev, known)
+		mem, take, kept := followField(ours, up[f], prev, known)
 		switch {
-		case isHeld:
-			h := HeldField{Profile: in.Key, Field: f, Ours: ours, Last: jsonNull, Upstream: up[f]}
-			if known {
-				h.Last = prev.Upstream
-				next[f] = prev
-			}
-			held = append(held, h)
-			continue
+		case kept:
+			// Ours stays; the source's new value is remembered, so the next run leaves it alone.
+			held = append(held, HeldField{Profile: in.Key, Field: f, Ours: ours, Last: prev.Upstream, Upstream: up[f]})
 		case take:
 			if err := setProfileField(cur, f, up[f]); err != nil {
 				return nil, nil, err
@@ -338,7 +332,7 @@ func fieldChanges(key string, before, after *policy.Profile) []ProfileFieldChang
 	return out
 }
 
-// sameFieldState compares two field states, values as JSON; an empty profile entry equals none.
+// sameFieldState compares two field states by their upstream values as JSON; an empty profile entry equals none.
 func sameFieldState(a, b map[string]map[string]FieldMemory) bool {
 	norm := func(s map[string]map[string]FieldMemory) map[string]map[string]any {
 		out := map[string]map[string]any{}
@@ -350,7 +344,7 @@ func sameFieldState(a, b map[string]map[string]FieldMemory) bool {
 			for f, mem := range fields {
 				var v any
 				_ = json.Unmarshal(mem.Upstream, &v)
-				m[f] = []any{v, mem.Pinned}
+				m[f] = v
 			}
 			out[p] = m
 		}

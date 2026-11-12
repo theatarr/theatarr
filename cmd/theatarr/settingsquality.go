@@ -58,12 +58,8 @@ func newQualitySync(st *settings.Store, db *store.Store, manager *settings.Runti
 }
 
 // qualitySyncHealth is the Quality sync health check: a warning while an enabled source's newest run failed (the
-// settings keep their last state), a notice while reviews wait for approval.
+// settings keep their last state).
 func qualitySyncHealth(ctx context.Context, qs *settings.QualitySync) health.Result {
-	reviews, err := qs.Reviews(ctx)
-	if err != nil {
-		return health.Result{Type: health.Warning, Message: "Could not read quality sync reviews"}
-	}
 	states, err := qs.SourceStates(ctx)
 	if err != nil {
 		return health.Result{Type: health.Warning, Message: "Could not read quality sync runs"}
@@ -89,14 +85,11 @@ func qualitySyncHealth(ctx context.Context, qs *settings.QualitySync) health.Res
 			failed = append(failed, fmt.Sprintf("%s (%s; last good commit %s)", st.Source, st.LastRun.Error, last))
 		}
 	}
-	detail := map[string]any{"pending_reviews": len(reviews), "sources": states}
+	detail := map[string]any{"sources": states}
 	if len(failed) > 0 {
 		return health.Result{Type: health.Warning, Detail: detail, Message: "Quality sync failed for " + strings.Join(failed, ", ")}
 	}
-	if len(reviews) > 0 {
-		return health.Result{Type: health.Notice, Detail: detail, Message: fmt.Sprintf("%d quality sync review(s) await approval in Reviews", len(reviews))}
-	}
-	return health.Result{Type: health.OK, Detail: detail, Message: "No quality sync reviews pending"}
+	return health.Result{Type: health.OK, Detail: detail, Message: "Quality sync is up to date"}
 }
 
 // convertQualityRecyclarr converts a sync source's Recyclarr config: formats, and per profile its complete

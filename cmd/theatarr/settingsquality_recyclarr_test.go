@@ -3,10 +3,12 @@ package main
 import (
 	"context"
 	"encoding/json"
+	"maps"
 	"slices"
 	"strings"
 	"testing"
 
+	"github.com/theatarr/theatarr/internal/health"
 	"github.com/theatarr/theatarr/internal/policy"
 	"github.com/theatarr/theatarr/internal/settings"
 )
@@ -89,50 +91,39 @@ func editProfile(t *testing.T, coord *settings.RuntimeCoordinator, base *policy.
 	}
 }
 
+// syncProfile runs the source as saved now (a run updates its remembered state) and returns the run's update log
+// entry (empty when the run changed nothing) and the profile household-web after it.
 func syncProfile(t *testing.T, svc *settings.QualitySync, coord *settings.RuntimeCoordinator, src settings.QualitySyncSource) (*settings.QualityPreview, *policy.Profile) {
 	t.Helper()
 	ctx := context.Background()
-	preview, err := svc.PreviewAndStore(ctx, src)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if preview.ID != 0 {
-		if _, err := svc.Apply(ctx, preview.ID, preview.Generation, "test"); err != nil {
-			t.Fatal(err)
-		}
-	}
 	snap, err := coord.Snapshot(ctx)
 	if err != nil {
 		t.Fatal(err)
 	}
-	return preview, snap.Policy.Profiles["household-web"]
-}
-
-func heldReview(t *testing.T, svc *settings.QualitySync) settings.QualityPreview {
-	t.Helper()
-	reviews, err := svc.Reviews(context.Background())
-	if err != nil {
-		t.Fatal(err)
-	}
-	for _, r := range reviews {
-		if r.Kind == settings.ReviewScores {
-			return r
+	for _, s := range snap.Records.SyncSources {
+		if s.Key == src.Key {
+			src = s
 		}
 	}
-	return settings.QualityPreview{}
-}
-
-func decideField(t *testing.T, svc *settings.QualitySync, coord *settings.RuntimeCoordinator, field, choice string) {
-	t.Helper()
-	ctx := context.Background()
-	snap, err := coord.Snapshot(ctx)
-	if err != nil {
+	if err := svc.RunSource(ctx, src, true); err != nil {
 		t.Fatal(err)
 	}
-	r := heldReview(t, svc)
-	if _, err := svc.ResolveScores(ctx, r.ID, snap.Generation, []settings.ScoreDecision{{Profile: "household-web", Field: field, Choice: choice}}, "test"); err != nil {
+	runs, err := svc.Runs(ctx)
+	if err != nil || len(runs) == 0 {
+		t.Fatal("no run", err)
+	}
+	entry := &settings.QualityPreview{}
+	if runs[0].ReviewID != nil {
+		changes, err := svc.Changes(ctx, 1)
+		if err != nil || len(changes) != 1 || changes[0].ID != *runs[0].ReviewID {
+			t.Fatalf("run %+v log %+v %v", runs[0], changes, err)
+		}
+		entry = &changes[0]
+	}
+	if snap, err = coord.Snapshot(ctx); err != nil {
 		t.Fatal(err)
 	}
+	return entry, snap.Policy.Profiles["household-web"]
 }
 
 func heldFields(r settings.QualityPreview) []string {
@@ -165,33 +156,28 @@ func webConfig(min, score string) string {
 	return strings.NewReplacer("%MIN%", min, "%SCORE%", score).Replace(recyclarrWEB)
 }
 
-// An approved Recyclarr sync changes only the fields the config manages, keeping what it never mentions (the SeaDex
-// score, the size limit), and a differing managed value is asked, not overwritten.
+// A Recyclarr sync changes only the fields the config manages, keeping what it never mentions (the SeaDex score, the
+// size limit); the first run takes the values it manages.
 func TestQualitySyncRecyclarrKeepsUnmanagedValues(t *testing.T) {
 	svc, coord, base := recyclarrSync(t)
 	src := saveSource(t, coord, base, webConfig("5", "123"), nil)
-	preview, got := syncProfile(t, svc, coord, src)
+	entry, got := syncProfile(t, svc, coord, src)
 	if got.Formats["Seadex"] != 500 || got.Sizes["WEBDL-2160p"].Max != 400 {
 		t.Fatalf("unmanaged profile values lost after sync: formats=%v sizes=%v", got.Formats, got.Sizes)
 	}
 	if got.Formats["Fmt A"] != 123 {
 		t.Errorf("a score the profile did not have is taken: formats=%v", got.Formats)
 	}
-	// Qualities and min_score differ from ours on the first run: asked once, not applied.
-	if fields := heldFields(heldReview(t, svc)); !slices.Equal(fields, []string{"min_score", "qualities"}) {
-		t.Fatalf("held %v (preview held %v)", fields, preview.HeldFields)
-	}
-	if got.MinScore == 5 || len(got.Qualities) != 1 {
-		t.Errorf("a held field was applied: %+v", got)
+	if got.MinScore != 5 || len(got.Qualities) != 2 || len(entry.HeldFields) != 0 {
+		t.Errorf("the first run did not take the managed values: %+v kept %v", got, heldFields(*entry))
 	}
 }
 
-func TestQualitySyncRecyclarrFollowsAndHoldsManagedFields(t *testing.T) {
+// A managed value follows the source while it equals the source's last value. A value you changed stays yours: when
+// the source changes it, the run keeps it, remembers the new value and notes it; the next run notes nothing.
+func TestQualitySyncRecyclarrFollowsAndKeepsManagedFields(t *testing.T) {
 	svc, coord, base := recyclarrSync(t)
 	src := saveSource(t, coord, base, webConfig("5", "123"), nil)
-	syncProfile(t, svc, coord, src)
-	decideField(t, svc, coord, "min_score", "take")
-	decideField(t, svc, coord, "qualities", "take")
 	_, got := syncProfile(t, svc, coord, src)
 	if got.MinScore != 5 || len(got.Qualities) != 2 || got.Qualities[1].Name != "WEBDL-1080p" || got.Cutoff != "WEB 2160p" {
 		t.Fatalf("taken fields: min %d qualities %v cutoff %q", got.MinScore, got.Qualities, got.Cutoff)
@@ -199,28 +185,28 @@ func TestQualitySyncRecyclarrFollowsAndHoldsManagedFields(t *testing.T) {
 	// Our own edit stays while the source does not change that field.
 	editProfile(t, coord, base, func(p *policy.Profile) { p.MinScore = 7 })
 	if preview, got := syncProfile(t, svc, coord, src); got.MinScore != 7 || len(preview.HeldFields) != 0 {
-		t.Fatalf("an unchanged source overwrote or asked about our edit: min %d held %v", got.MinScore, preview.HeldFields)
+		t.Fatalf("an unchanged source overwrote or noted our edit: min %d kept %v", got.MinScore, preview.HeldFields)
 	}
-	// The source changes it: held (ours 7, last 5, now 9); a score still equal to the source's follows.
+	// The source changes it: kept (ours 7, last 5, now 9); a score still equal to the source's follows.
 	src = saveSource(t, coord, base, webConfig("9", "150"), nil)
 	preview, got := syncProfile(t, svc, coord, src)
 	if got.MinScore != 7 || got.Formats["Fmt A"] != 150 {
 		t.Fatalf("min %d score %d", got.MinScore, got.Formats["Fmt A"])
 	}
 	if len(preview.HeldFields) != 1 || string(preview.HeldFields[0].Ours) != "7" || string(preview.HeldFields[0].Last) != "5" || string(preview.HeldFields[0].Upstream) != "9" {
-		t.Fatalf("held %+v", preview.HeldFields)
+		t.Fatalf("kept %+v", preview.HeldFields)
 	}
-	decideField(t, svc, coord, "min_score", "keep")
+	// The next complete run: the source's new value is remembered, so ours stays and nothing is noted.
 	if preview, got := syncProfile(t, svc, coord, src); got.MinScore != 7 || len(preview.HeldFields) != 0 {
-		t.Fatalf("a kept value was asked again: min %d held %v", got.MinScore, preview.HeldFields)
+		t.Fatalf("a kept value was noted again: min %d kept %v", got.MinScore, preview.HeldFields)
 	}
 	if got.Formats["Seadex"] != 500 || got.Sizes["WEBDL-2160p"].Max != 400 {
 		t.Fatalf("unmanaged values lost: %v %v", got.Formats, got.Sizes)
 	}
 }
 
-// quality_definition applies TRaSH's sizes through the same rules (a size set by hand is asked), and with the
-// source's option off it is a skipped note.
+// quality_definition applies TRaSH's sizes through the same rules (the first run takes them, a size set by hand
+// included), and with the source's option off it is a skipped note.
 func TestQualitySyncRecyclarrQualityDefinition(t *testing.T) {
 	yml := `radarr:
   household:
@@ -248,19 +234,14 @@ func TestQualitySyncRecyclarrQualityDefinition(t *testing.T) {
 	}
 	src = saveSource(t, coord, base, yml, nil)
 	preview, got = syncProfile(t, svc, coord, src)
-	if got.Sizes["Remux-2160p"] != (policy.SizeLimit{Min: 187.4}) || got.Sizes["WEBDL-2160p"].Max != 400 {
-		t.Fatalf("sizes %v", got.Sizes)
-	}
-	if fields := heldFields(heldReview(t, svc)); !slices.Equal(fields, []string{"sizes/WEBDL-2160p"}) {
-		t.Fatalf("held %v", fields)
+	if got.Sizes["Remux-2160p"] != (policy.SizeLimit{Min: 187.4}) || len(preview.HeldFields) != 0 {
+		t.Fatalf("sizes %v kept %v", got.Sizes, heldFields(*preview))
 	}
 	if !slices.ContainsFunc(preview.Fields, func(c settings.ProfileFieldChange) bool { return c.Field == "sizes/Remux-2160p" }) {
-		t.Errorf("preview fields %+v", preview.Fields)
+		t.Errorf("log fields %+v", preview.Fields)
 	}
-	decideField(t, svc, coord, "sizes/WEBDL-2160p", "take")
-	snap, _ := coord.Snapshot(context.Background())
 	want, _ := json.Marshal(policy.SizeLimit{Min: 34.5, Preferred: 300, Max: 350})
-	if have, _ := json.Marshal(snap.Policy.Profiles["household-web"].Sizes["WEBDL-2160p"]); string(have) != string(want) {
+	if have, _ := json.Marshal(got.Sizes["WEBDL-2160p"]); string(have) != string(want) {
 		t.Fatalf("taken size %s, want %s", have, want)
 	}
 }
@@ -273,9 +254,9 @@ func TestQualityRecyclarrConverterNotesDefinitionsOff(t *testing.T) {
 	}
 }
 
-// reset_unmatched_scores resets scores the config does not assign, through the same rules: our SeaDex score is
-// asked once, kept, and not asked again; an excepted score is not touched.
-func TestQualitySyncRecyclarrResetUnmatchedAsks(t *testing.T) {
+// reset_unmatched_scores resets scores the config does not assign, through the same rules: the first run resets our
+// SeaDex score; set again by hand, it stays ours while the source does not change; an excepted score is not touched.
+func TestQualitySyncRecyclarrResetUnmatched(t *testing.T) {
 	yml := `radarr:
   household:
     quality_profiles:
@@ -293,67 +274,69 @@ func TestQualitySyncRecyclarrResetUnmatchedAsks(t *testing.T) {
 	editProfile(t, coord, base, func(p *policy.Profile) { p.Formats = map[string]int{"Seadex": 500, "WEB Tier 01": 1700} })
 	src := saveSource(t, coord, base, yml, nil)
 	_, got := syncProfile(t, svc, coord, src)
-	if fields := heldFields(heldReview(t, svc)); !slices.Equal(fields, []string{"formats/Seadex"}) || got.Formats["Seadex"] != 500 || got.Formats["WEB Tier 01"] != 1700 {
-		t.Fatalf("held %v formats %v", fields, got.Formats)
+	if _, ok := got.Formats["Seadex"]; ok || got.Formats["WEB Tier 01"] != 1700 {
+		t.Fatalf("formats %v", got.Formats)
 	}
-	decideField(t, svc, coord, "formats/Seadex", "keep")
+	editProfile(t, coord, base, func(p *policy.Profile) {
+		p.Formats = maps.Clone(p.Formats)
+		p.Formats["Seadex"] = 500
+	})
 	if preview, got := syncProfile(t, svc, coord, src); len(preview.HeldFields) != 0 || got.Formats["Seadex"] != 500 {
-		t.Fatalf("held %v formats %v", preview.HeldFields, got.Formats)
+		t.Fatalf("kept %v formats %v", preview.HeldFields, got.Formats)
 	}
 }
 
-// In auto mode an upstream score change of a Recyclarr source waits for approval like its other managed
-// values.
-func TestAutoRecyclarrScoreWaitsForApproval(t *testing.T) {
+const recyclarrTwoProfiles = `radarr:
+  household:
+    quality_profiles:
+      - name: WEB
+        min_format_score: 5
+        reset_unmatched_scores:
+          enabled: false
+        qualities:
+          - name: WEB 2160p
+            qualities: [WEBDL-2160p, WEBRip-2160p]
+%UHD%    custom_formats:
+      - trash_ids: [aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa]
+        assign_scores_to:
+          - name: WEB
+            score: 123
+`
+
+const recyclarrUHD = `      - name: UHD
+        reset_unmatched_scores:
+          enabled: false
+        qualities:
+          - name: Remux-2160p
+`
+
+// The profile values a Recyclarr source manages apply by themselves, a changed quality list and a new profile in one
+// run; a profile the config no longer lists is kept.
+func TestRecyclarrProfileValuesApply(t *testing.T) {
 	svc, coord, base := recyclarrSync(t)
 	src := saveSource(t, coord, base, webConfig("5", "123"), nil)
+	if _, got := syncProfile(t, svc, coord, src); len(got.Qualities) != 2 {
+		t.Fatalf("first run qualities %v", got.Qualities)
+	}
+	src = saveSource(t, coord, base, strings.Replace(recyclarrTwoProfiles, "%UHD%", recyclarrUHD, 1), nil)
+	entry, got := syncProfile(t, svc, coord, src)
+	snap, _ := coord.Snapshot(context.Background())
+	if len(got.Qualities) != 1 || got.Cutoff != "WEB 2160p" || snap.Policy.Profiles["household-uhd"] == nil || !slices.Equal(entry.Profiles, []string{"household-uhd", "household-web"}) {
+		t.Fatalf("qualities %v cutoff %q profiles %v", got.Qualities, got.Cutoff, entry.Profiles)
+	}
+	src = saveSource(t, coord, base, strings.Replace(recyclarrTwoProfiles, "%UHD%", "", 1), nil)
 	syncProfile(t, svc, coord, src)
-	decideField(t, svc, coord, "min_score", "take")
-	decideField(t, svc, coord, "qualities", "take")
-	syncProfile(t, svc, coord, src)
-	src = saveSource(t, coord, base, webConfig("5", "150"), nil)
-	ctx := context.Background()
-	snap, err := coord.Snapshot(ctx)
-	if err != nil {
-		t.Fatal(err)
-	}
-	records := snap.Records
-	for i := range records.SyncSources {
-		if records.SyncSources[i].Key == src.Key {
-			records.SyncSources[i].Config.Mode = "auto"
-		}
-	}
-	if snap, err = coord.SaveAndApply(ctx, settings.SaveRequest{ExpectedGeneration: snap.Generation, Actor: "test", Base: base, Records: records}); err != nil {
-		t.Fatal(err)
-	}
-	for _, s := range snap.Records.SyncSources {
-		if s.Key == src.Key {
-			src = s
-		}
-	}
-	if err = svc.RunSource(ctx, src, true); err != nil {
-		t.Fatal(err)
-	}
-	if snap, err = coord.Snapshot(ctx); err != nil {
-		t.Fatal(err)
-	}
-	if score := snap.Policy.Profiles["household-web"].Formats["Fmt A"]; score != 123 {
-		t.Fatalf("unapproved upstream score applied: %d", score)
+	if snap, _ := coord.Snapshot(context.Background()); snap.Policy.Profiles["household-uhd"] == nil {
+		t.Fatal("a profile the config dropped was deleted")
 	}
 }
 
-func TestQualitySyncHealthPointsToReviews(t *testing.T) {
+func TestQualitySyncHealthUpToDate(t *testing.T) {
 	svc, coord, base := recyclarrSync(t)
 	src := saveSource(t, coord, base, webConfig("20", "123"), nil)
-	preview, err := svc.PreviewAndStore(context.Background(), src)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if preview.ID == 0 {
-		t.Fatal("expected a pending review")
-	}
+	syncProfile(t, svc, coord, src)
 	got := qualitySyncHealth(context.Background(), svc)
-	if !strings.Contains(got.Message, "await approval in Reviews") {
-		t.Fatalf("health message: %s", got.Message)
+	if got.Type != health.OK || got.Message != "Quality sync is up to date" {
+		t.Fatalf("health: %+v", got)
 	}
 }

@@ -94,7 +94,7 @@ func TestProfilePresetsAndOverviewAPI(t *testing.T) {
 
 	// A TRaSH sync source to bind to, then a profile from the preset with one score of ours.
 	se.want(se.call("POST", "/sync_sources", map[string]any{"generation": se.generation(), "key": "trash-radarr",
-		"config": map[string]any{"kind": "trash", "flavour": "radarr", "mode": "review", "schedule": "24h"}}), 200, "sync source")
+		"config": map[string]any{"kind": "trash", "flavour": "radarr", "schedule": "24h"}}), 200, "sync source")
 	config := built.Profile
 	config["formats"].(map[string]any)["HDR"] = 900
 	gen := se.generation()

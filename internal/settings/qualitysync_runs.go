@@ -11,12 +11,11 @@ import (
 	"time"
 
 	"github.com/theatarr/theatarr/internal/store"
-	"github.com/theatarr/theatarr/internal/uipages"
 )
 
-// RunSource records every attempt. Review mode writes only a pending review; auto uses the same coordinator save
-// as an administrator, and auto_definitions does so only for a definitions-only preview. An unchanged run does not
-// create a settings generation. A tracked source first asks for its branch's newest commit and stops there (outcome
+// RunSource records every attempt. A run applies what changed upstream by itself, with the same coordinator save as
+// an administrator, and writes one entry to the update log (Changes). An unchanged run (a retired format alone counts
+// as unchanged) does not create a settings generation. A tracked source first asks for its branch's newest commit and stops there (outcome
 // unchanged, no archive fetched) when that commit and its config are the ones of its last successful run. A failed
 // run changes nothing but its own record; health reports it.
 func (s *QualitySync) RunSource(ctx context.Context, source QualitySyncSource, force bool) error {
@@ -77,51 +76,25 @@ func (s *QualitySync) RunSource(ctx context.Context, source QualitySyncSource, f
 			outcome = "unchanged"
 		}
 	}
-	apply := false
 	if runErr == nil && outcome != "unchanged" {
 		previewCtx := ctx
 		if force { // a run started from the page, not the schedule
 			previewCtx = withBundledTrash(ctx)
 		}
 		p, runErr = s.previewResolved(previewCtx, QualitySyncSource{Record: source.Record, Config: resolved})
-		if runErr == nil {
-			apply = autoApplies(source.Config, p)
-			// Earlier pending reviews stay until the automatic apply lands (or its review replaces them below).
-			runErr = s.storePreviewAt(ctx, p, head.Generation, !apply, true)
+		if runErr == nil && p.Generation != head.Generation {
+			runErr = ErrConflict
 		}
 	}
 	if runErr == nil && p != nil {
-		commit, review = p.Commit, p.ID
+		commit = p.Commit
 		outcome = "unchanged"
-		if p.HasChanges() || len(p.Retired) > 0 || p.scoreState {
-			outcome = "review"
-			if apply {
-				_, runErr = s.Apply(ctx, p.ID, p.Generation, "sync:"+source.Key)
-				if runErr == nil {
-					outcome = "applied"
-					runErr = s.supersedeBefore(ctx, source.Key, p.ID)
-				}
+		if p.HasChanges() || len(p.Held)+len(p.HeldFields) > 0 || p.scoreState {
+			if review, runErr = s.applyRun(ctx, p, "sync:"+source.Key); runErr == nil {
+				outcome = "applied"
+			} else {
+				message = "the update could not be applied: " + runErr.Error() + "; the last state is kept"
 			}
-		}
-	}
-	var confirmation *ConfirmationError
-	if errors.As(runErr, &confirmation) {
-		// An automatic run never confirms widening an active library: the review stays pending for an administrator,
-		// and replaces the source's earlier ones as a stored review does.
-		outcome, runErr = "review", s.supersedeBefore(ctx, source.Key, p.ID)
-		message = "the change widens an active library and needs confirmation: apply the review in " + uipages.QualitySync
-	} else if runErr != nil && apply && p != nil && p.ID != 0 {
-		// The failed apply's own review is not left pending (its base generation may be gone); earlier ones stay.
-		runErr = errors.Join(runErr, s.supersedeOnly(ctx, p.ID))
-	}
-	if runErr == nil && p != nil && len(p.Held)+len(p.HeldFields) > 0 {
-		// Only the held scores wait; whatever else the run had is applied or pending above.
-		var held int64
-		if held, runErr = s.storeHeld(ctx, p); runErr == nil {
-			if outcome != "review" {
-				review = held
-			}
-			outcome = "review"
 		}
 	}
 	if runErr != nil {
@@ -139,25 +112,6 @@ func (s *QualitySync) RunSource(ctx context.Context, source QualitySyncSource, f
 		return err
 	})
 	return errors.Join(runErr, finishErr)
-}
-
-// autoApplies reports whether a run applies p by itself. Held scores are never part of p's candidate. auto applies
-// every change (retirement alone stays a review); auto_definitions applies specification changes of formats already
-// held and the scores that follow TRaSH; a candidate that only updates the source's score state applies in every mode.
-// A Recyclarr source's scores are values it manages: an upstream score change always waits for approval, like its
-// other profile values; following scores apply by themselves for TRaSH-kind sources only.
-func autoApplies(c QualitySyncConfig, p *QualityPreview) bool {
-	if c.Kind == "recyclarr" && len(p.Scores) > 0 {
-		return false
-	}
-	switch c.Mode {
-	case "auto":
-		// A profile change (managed fields, sizes, a new profile) always waits for an administrator.
-		return len(p.Profiles) == 0 && (p.HasChanges() || (p.scoreState && len(p.Retired) == 0))
-	case ModeAutoDefinitions:
-		return p.FollowsOnly(c)
-	}
-	return p.scoreState && !p.HasChanges() && len(p.Retired) == 0
 }
 
 type lastRun struct{ commit, digest string }
@@ -218,7 +172,7 @@ type QualitySyncRun struct {
 }
 
 // QualitySourceState is one source's newest run and the commit of its newest run that did not fail (what the
-// settings hold or a pending review shows), for health and the sync page.
+// settings hold), for health and the sync page.
 type QualitySourceState struct {
 	Source     string         `json:"source"`
 	LastRun    QualitySyncRun `json:"last_run"`

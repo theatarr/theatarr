@@ -44,20 +44,23 @@ func TestFollowField(t *testing.T) {
 		prev     FieldMemory
 		known    bool
 		take     bool
-		held     bool
+		kept     bool
 	}{
-		"equal":                   {ours: n(5), up: n(5)},
-		"source unchanged, ours":  {ours: n(7), up: n(5), prev: FieldMemory{Upstream: n(5)}, known: true},
-		"follows":                 {ours: n(5), up: n(9), prev: FieldMemory{Upstream: n(5)}, known: true, take: true},
-		"ours held":               {ours: n(7), up: n(9), prev: FieldMemory{Upstream: n(5)}, known: true, held: true},
-		"kept held when it moves": {ours: n(5), up: n(9), prev: FieldMemory{Upstream: n(5), Pinned: true}, known: true, held: true},
-		"first run, not set":      {ours: jsonNull, up: n(9), take: true},
-		"first run, differing":    {ours: n(7), up: n(9), held: true},
-		"kept, source unchanged":  {ours: n(7), up: n(9), prev: FieldMemory{Upstream: n(9), Pinned: true}, known: true},
+		"equal":                  {ours: n(5), up: n(5)},
+		"source unchanged, ours": {ours: n(7), up: n(5), prev: FieldMemory{Upstream: n(5)}, known: true},
+		"follows":                {ours: n(5), up: n(9), prev: FieldMemory{Upstream: n(5)}, known: true, take: true},
+		"ours kept":              {ours: n(7), up: n(9), prev: FieldMemory{Upstream: n(5)}, known: true, kept: true},
+		"first run, not set":     {ours: jsonNull, up: n(9), take: true},
+		"first run, differing":   {ours: n(7), up: n(9), take: true},
+		"kept, source unchanged": {ours: n(7), up: n(9), prev: FieldMemory{Upstream: n(9)}, known: true},
 	} {
-		_, take, held := followField(c.ours, c.up, c.prev, c.known)
-		if take != c.take || held != c.held {
-			t.Errorf("%s: take %v held %v", name, take, held)
+		mem, take, kept := followField(c.ours, c.up, c.prev, c.known)
+		if take != c.take || kept != c.kept {
+			t.Errorf("%s: take %v kept %v", name, take, kept)
+		}
+		// The memory is always the source's current value: a kept value is not asked about again.
+		if !sameFieldJSON(mem.Upstream, c.up) {
+			t.Errorf("%s: remembers %s, want %s", name, mem.Upstream, c.up)
 		}
 	}
 }

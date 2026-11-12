@@ -161,7 +161,7 @@ func presetStore(t *testing.T) (*Store, *policy.Policy, *Snapshot) {
 	snap := qualityBootstrap(t, st, p)
 	req := saveRequest(p, snap)
 	req.Records.SyncSources = append(req.Records.SyncSources, QualitySyncSource{Record: Record{Key: "trash-radarr"},
-		Config: QualitySyncConfig{Kind: "trash", Flavour: "radarr", Schedule: "24h", Mode: "review"}})
+		Config: QualitySyncConfig{Kind: "trash", Flavour: "radarr", Schedule: "24h"}})
 	snap, err := st.Save(context.Background(), req)
 	if err != nil {
 		t.Fatal(err)
@@ -320,7 +320,7 @@ func TestOriginDiffAndGuess(t *testing.T) {
 		t.Fatal(err)
 	}
 	in := OverviewInput{Policy: loaded.Policy, Profiles: loaded.Records.Profiles, Formats: loaded.Records.Formats, Sources: loaded.Records.SyncSources,
-		Held: []HeldScore{{Profile: "radarr-4k-web", Format: "HDR", Trash: 600}}, Trash: map[string]*format.Trash{"radarr": tr}}
+		Trash: map[string]*format.Trash{"radarr": tr}}
 	s := profileSummary(t, QualityOverviewOf(in), "radarr-4k-web")
 	d := s.Diff
 	if d == nil || d.Same || d.Preset != "WEB 2160p + 1080p fallbacks" {
@@ -338,14 +338,11 @@ func TestOriginDiffAndGuess(t *testing.T) {
 	if !reflect.DeepEqual(d.Summary, wantSummary) {
 		t.Fatalf("summary %q", d.Summary)
 	}
-	// Score states: the edited score was not equal to TRaSH's when bound, so it is ours (pinned); the held one waits.
-	for name, want := range map[string]string{"WEB Tier 01": StatePinned, "HDR": StateHeld, "Our Group": StateOurs, "WEB Tier 02": StateFollows} {
+	// Score states: the edited score was not equal to TRaSH's when bound, so it is yours (pinned); the others follow.
+	for name, want := range map[string]string{"WEB Tier 01": StatePinned, "HDR": StateFollows, "Our Group": StateOurs, "WEB Tier 02": StateFollows} {
 		if got := scoreRow(t, s, name).State; got != want {
 			t.Errorf("%s state %s, want %s", name, got, want)
 		}
-	}
-	if s.Held != 1 {
-		t.Fatalf("held %d", s.Held)
 	}
 
 	// Without a stored origin the closest preset is found and marked as a guess.
@@ -360,7 +357,6 @@ func TestOriginDiffAndGuess(t *testing.T) {
 	}
 	// Unbound, the same edit has no score state: TRaSH's score is shown only.
 	in.Sources = nil
-	in.Held = nil
 	if got := scoreRow(t, profileSummary(t, QualityOverviewOf(in), "radarr-4k-web"), "WEB Tier 01").State; got != StateUnbound {
 		t.Fatalf("unbound state %s", got)
 	}

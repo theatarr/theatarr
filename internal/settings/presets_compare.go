@@ -1,7 +1,7 @@
 package settings
 
 // What the Quality profiles and Custom formats pages show: each profile against the TRaSH preset it started from
-// (stored, or the closest one when none is stored), each score's state (follows, pinned, held), and each format's definition
+// (stored, or the closest one when none is stored), each score's state (follows, pinned, differs), and each format's definition
 // origin with the profiles that score it. Everything is read from one policy, so the YAML rollback shows it too.
 
 import (
@@ -18,9 +18,8 @@ import (
 // Score states and format definition origins.
 const (
 	StateFollows  = "follows"  // equal to TRaSH's last score; follows TRaSH's changes
-	StatePinned   = "pinned"   // ours: differs from TRaSH's last score, or kept; held only when TRaSH changes it
-	StateHeld     = "held"     // waits in the held-score review
-	StateDiffers  = "differs"  // bound, never asked: differs from TRaSH, asked once at the next sync run
+	StatePinned   = "pinned"   // yours: differs from TRaSH's last score; kept when TRaSH changes it
+	StateDiffers  = "differs"  // bound, never synced: the next run takes TRaSH's score
 	StateOurs     = "ours"     // our own format: TRaSH has nothing like it
 	StateUnbound  = "unbound"  // the profile is not bound to a TRaSH score set: TRaSH's score is shown only
 	StateUnlinked = "unlinked" // a frozen copy of a TRaSH format without its id: no sync touches it
@@ -39,13 +38,12 @@ const groupProfile = "Tiers and repacks (from TRaSH profiles)"
 const groupOther = "Other TRaSH formats"
 
 // OverviewInput is what QualityOverviewOf reads. Profiles and Formats carry record ids and stored origins (DB mode);
-// Held is the held scores of pending score reviews; Trash holds the local TRaSH tree per flavour, if any.
+// Trash holds the local TRaSH tree per flavour, if any.
 type OverviewInput struct {
 	Policy   *policy.Policy
 	Profiles []QualityProfile
 	Formats  []CustomFormat
 	Sources  []QualitySyncSource
-	Held     []HeldScore
 	Trash    map[string]*format.Trash
 }
 
@@ -74,7 +72,6 @@ type ProfileSummary struct {
 	Formats   int            `json:"formats"`
 	FromArr   string         `json:"from_arr,omitempty"`
 	UsedBy    []VersionUse   `json:"used_by"`
-	Held      int            `json:"held"`
 	Origin    *ProfileOrigin `json:"origin"`
 	// Guessed marks an origin that is not stored: the closest preset (with modifiers) Theatarr found.
 	Guessed bool        `json:"guessed"`
@@ -259,10 +256,6 @@ func QualityOverviewOf(in OverviewInput) QualityOverview {
 	for _, r := range in.Profiles {
 		records[r.Key] = r
 	}
-	held := map[string]bool{}
-	for _, h := range in.Held {
-		held[h.Profile+"\x00"+h.Format] = true
-	}
 	formats := map[string]*FormatSummary{}
 	order := []string{}
 	formatKey := func(flavour, id, name string) string {
@@ -344,11 +337,6 @@ func QualityOverviewOf(in OverviewInput) QualityOverview {
 			}
 		}
 		s.UsedBy = VersionsUsing(p, key)
-		for _, h := range in.Held {
-			if h.Profile == key {
-				s.Held++
-			}
-		}
 		s.Binding, s.ScoreSet = ProfileBinding(in.Sources, key)
 		var state ProfileScoreState
 		for _, src := range in.Sources {
@@ -386,7 +374,7 @@ func QualityOverviewOf(in OverviewInput) QualityOverview {
 					}
 				}
 			}
-			row.State = scoreState(row, s.Binding != "", state.Scores, held[key+"\x00"+name])
+			row.State = scoreState(row, s.Binding != "", state.Scores)
 			s.Scores = append(s.Scores, row)
 			fs := addFormat(fl, display, scopeOf(pr, ref), ref, 0)
 			fs.ScoredBy = append(fs.ScoredBy, FormatUse{Profile: key, Score: row.Score, State: row.State})
@@ -431,14 +419,12 @@ func scopeOf(pr *policy.Profile, ref *policy.FormatRef) string {
 	return pr.FormatSet
 }
 
-// scoreState is a score's state: held while it waits in a review; for a bound profile, follows while it equals
-// TRaSH's last score, pinned once it differs or was kept, and "differs" until the first run asks about it.
-func scoreState(row ScoreRow, bound bool, remembered map[string]TrashScoreState, isHeld bool) string {
+// scoreState is a score's state: for a bound profile, follows while it equals TRaSH's last score, pinned (yours)
+// once it differs, and "differs" until the first run takes TRaSH's score.
+func scoreState(row ScoreRow, bound bool, remembered map[string]TrashScoreState) string {
 	switch {
 	case row.Definition == DefinitionOurs:
 		return StateOurs
-	case isHeld:
-		return StateHeld
 	case row.Definition == DefinitionFrozen:
 		return StateUnlinked
 	case !bound:
@@ -447,7 +433,7 @@ func scoreState(row ScoreRow, bound bool, remembered map[string]TrashScoreState,
 		return StateNoScore
 	}
 	if st, ok := remembered[row.Format]; ok {
-		if !st.Pinned && st.Trash == row.Score {
+		if st.Trash == row.Score {
 			return StateFollows
 		}
 		return StatePinned

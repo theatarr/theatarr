@@ -1,6 +1,7 @@
 package settings
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
@@ -73,10 +74,32 @@ func syncService(t *testing.T) (*QualitySync, *policy.Policy, *Snapshot) {
 	return svc, p, initial
 }
 
-func TestQualitySyncReviewAtomicApproval(t *testing.T) {
+// pendingReviews counts the stored reviews still pending (none since sync applies by itself).
+func pendingReviews(t *testing.T, svc *QualitySync) int {
+	t.Helper()
+	var n int
+	if err := svc.Store.db.Reader().QueryRow("SELECT COUNT(*) FROM settings_quality_review WHERE state='pending'").Scan(&n); err != nil {
+		t.Fatal(err)
+	}
+	return n
+}
+
+// A run applies by itself: a specification change, a format added by its TRaSH id and the scores of a bound profile,
+// in one generation with one update log entry; nothing waits. The apply and its log entry commit together. A
+// preview is a dry run.
+func TestQualitySyncAppliesWithoutReview(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
 	svc, base, initial := syncService(t)
+	const newID = "0123456789abcdef0123456789abcdef"
+	raw, err := os.ReadFile(filepath.Join(svc.TrashRoot, "radarr", syncFormatID+".json"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	raw = bytes.ReplaceAll(bytes.ReplaceAll(raw, []byte(syncFormatID), []byte(newID)), []byte("Remux Tier 01"), []byte("Remux Tier 99"))
+	if err := os.WriteFile(filepath.Join(svc.TrashRoot, "radarr", newID+".json"), raw, 0600); err != nil {
+		t.Fatal(err)
+	}
 	editUpstream(t, svc.TrashRoot, syncFormatID, func(f map[string]any) {
 		f["includeCustomFormatWhenRenaming"] = true
 		f["trash_scores"] = map[string]any{"default": 12345}
@@ -91,72 +114,163 @@ func TestQualitySyncReviewAtomicApproval(t *testing.T) {
 	if profileKey == "" {
 		t.Fatal("fixture has no scored format")
 	}
-	source := QualitySyncSource{Record: Record{Key: "guides"}, Config: QualitySyncConfig{Kind: "trash", Flavour: "radarr", Profiles: map[string]string{profileKey: "default"}}}
-	preview, err := svc.PreviewAndStore(ctx, source)
+	req := saveRequest(base, initial)
+	req.Records.SyncSources = []QualitySyncSource{{Record: Record{Key: "guides"}, Config: QualitySyncConfig{Kind: "trash", Flavour: "radarr", TrashIDs: []string{newID}, Profiles: map[string]string{profileKey: "default"}}}}
+	saved, err := svc.Coordinator.SaveAndApply(ctx, req)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(preview.Changed) != 1 || len(preview.Scores) != 1 || preview.Impact.ScoreChanged != 2 || preview.ID == 0 || !strings.HasPrefix(preview.Commit, "content:") {
-		t.Fatalf("incomplete preview: %+v", preview)
-	}
-	if svc.Coordinator.Current().Generation != initial.Generation {
-		t.Fatal("preview applied changes")
-	}
-	// Review state and settings commit together: failure to mark approval must roll back the generation.
-	if _, err := svc.Store.db.Writer().Exec(`CREATE TRIGGER fail_quality_approval BEFORE UPDATE OF state ON settings_quality_review WHEN NEW.state='applied' BEGIN SELECT RAISE(ABORT,'fixture'); END`); err != nil {
+	source := saved.Records.SyncSources[0]
+	preview, err := svc.Preview(ctx, source)
+	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err := svc.Apply(ctx, preview.ID, preview.Generation, "admin"); err == nil {
-		t.Fatal("approval trigger ignored")
+	if len(preview.Changed) != 1 || len(preview.Added) != 1 || len(preview.Scores) == 0 || preview.Impact.ScoreChanged != 2 || !strings.HasPrefix(preview.Commit, "content:") {
+		t.Fatalf("incomplete preview: %+v", preview)
+	}
+	if svc.Coordinator.Current().Generation != saved.Generation || pendingReviews(t, svc) != 0 {
+		t.Fatal("preview applied or stored changes")
+	}
+	// The settings and the log entry commit together: a failing log insert rolls the generation back.
+	if _, err := svc.Store.db.Writer().Exec(`CREATE TRIGGER fail_quality_log BEFORE INSERT ON settings_quality_review BEGIN SELECT RAISE(ABORT,'fixture'); END`); err != nil {
+		t.Fatal(err)
+	}
+	if err := svc.RunSource(ctx, source, true); err == nil {
+		t.Fatal("log insert failure ignored")
+	}
+	if r := lastRunOf(t, svc); r.Outcome != "error" || !strings.HasPrefix(r.Error, "the update could not be applied: ") || !strings.HasSuffix(r.Error, "; the last state is kept") {
+		t.Fatalf("failed apply run: %+v", r)
 	}
 	head, err := svc.Store.Load(ctx, base)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if head.Generation != initial.Generation || svc.Coordinator.Current().Generation != initial.Generation {
-		t.Fatal("partial approval published")
+	if head.Generation != saved.Generation || svc.Coordinator.Current().Generation != saved.Generation {
+		t.Fatal("partial apply published")
 	}
-	if _, err := svc.Store.db.Writer().Exec("DROP TRIGGER fail_quality_approval"); err != nil {
+	if _, err := svc.Store.db.Writer().Exec("DROP TRIGGER fail_quality_log"); err != nil {
 		t.Fatal(err)
 	}
-	saved, err := svc.Apply(ctx, preview.ID, preview.Generation, "admin")
-	if err != nil {
+	if err := svc.RunSource(ctx, source, true); err != nil {
 		t.Fatal(err)
 	}
-	if saved.Generation != initial.Generation+1 || saved.Policy.Profiles[profileKey].Formats["Remux Tier 01"] != 12345 {
-		t.Fatal("review did not save exact candidate")
+	run := lastRunOf(t, svc)
+	applied := currentSnap(t, svc.Coordinator)
+	if run.Outcome != "applied" || run.ReviewID == nil || applied.Generation != saved.Generation+1 || applied.Policy.Profiles[profileKey].Formats["Remux Tier 01"] != 12345 {
+		t.Fatalf("run did not apply: %+v", run)
 	}
-	if saved.ProviderEpoch != initial.ProviderEpoch || !reflect.DeepEqual(saved.Records.Providers, initial.Records.Providers) || !reflect.DeepEqual(saved.Policy.Router, initial.Policy.Router) || !reflect.DeepEqual(saved.Policy.Library, initial.Policy.Library) || !reflect.DeepEqual(saved.Policy.Notify, initial.Policy.Notify) || !sameModes(saved.Policy.Versions, initial.Policy.Versions) {
-		t.Fatal("quality approval touched source records or safety switches")
+	added := false
+	for _, f := range applied.Records.Formats {
+		if f.Key == "Remux Tier 99" && f.Config.TrashID == newID {
+			added = true
+		}
+		if f.Key == "Remux Tier 01" && !strings.Contains(string(f.Specification), `"includeCustomFormatWhenRenaming":true`) {
+			t.Fatalf("specification not updated: %s", f.Specification)
+		}
 	}
-	if _, err := svc.Apply(ctx, preview.ID, preview.Generation, "admin"); !errors.Is(err, ErrConflict) {
-		t.Fatal("approval replay accepted", err)
+	if !added {
+		t.Fatal("format named by its TRaSH id not added")
 	}
-	reviews, err := svc.Reviews(ctx)
-	if err != nil || len(reviews) != 0 {
-		t.Fatal("applied review still pending", err)
+	if applied.ProviderEpoch != saved.ProviderEpoch || !reflect.DeepEqual(applied.Records.Providers, saved.Records.Providers) || !reflect.DeepEqual(applied.Policy.Router, saved.Policy.Router) || !reflect.DeepEqual(applied.Policy.Library, saved.Policy.Library) || !reflect.DeepEqual(applied.Policy.Notify, saved.Policy.Notify) || !sameModes(applied.Policy.Versions, saved.Policy.Versions) {
+		t.Fatal("quality sync touched source records or safety switches")
 	}
-	stale, err := svc.PreviewAndStore(ctx, source)
-	if err != nil {
+	changes, err := svc.Changes(ctx, 50)
+	if err != nil || len(changes) != 1 {
+		t.Fatalf("update log: %+v %v", changes, err)
+	}
+	c := changes[0]
+	if c.ID != *run.ReviewID || c.AppliedAt == 0 || c.State != "applied" || c.Source != "guides" || len(c.Added) != 1 || len(c.Changed) != 1 || len(c.Held) != 0 {
+		t.Fatalf("log entry: %+v", c)
+	}
+	scored := false
+	for _, s := range c.Scores {
+		scored = scored || (s.Profile == profileKey && s.Format == "Remux Tier 01" && s.After == 12345)
+	}
+	if !scored || pendingReviews(t, svc) != 0 {
+		t.Fatalf("log entry scores %+v", c.Scores)
+	}
+	found := false
+	for _, a := range audit(t, svc.Store) {
+		found = found || (a.Operation == "quality-import" && a.Actor == "sync:guides")
+	}
+	if !found {
+		t.Fatal("sync actor absent from audit")
+	}
+	// The next run finds nothing new: unchanged, no generation, no log entry.
+	if err := svc.RunSource(ctx, applied.Records.SyncSources[0], true); err != nil {
 		t.Fatal(err)
 	}
-	if stale.ID != 0 {
-		t.Fatal("unchanged preview created a review")
-	}
-	editUpstream(t, svc.TrashRoot, syncFormatID, func(f map[string]any) { f["includeCustomFormatWhenRenaming"] = false })
-	stale, err = svc.PreviewAndStore(ctx, source)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if _, err := svc.Coordinator.SaveAndApply(ctx, saveRequest(base, saved)); err != nil {
-		t.Fatal(err)
-	}
-	if _, err := svc.Apply(ctx, stale.ID, stale.Generation, "admin"); !errors.Is(err, ErrConflict) {
-		t.Fatal("stale review rebased", err)
+	if changes, _ := svc.Changes(ctx, 50); lastRunOf(t, svc).Outcome != "unchanged" || len(changes) != 1 || svc.Coordinator.Current().Generation != applied.Generation {
+		t.Fatalf("second run: %+v", lastRunOf(t, svc))
 	}
 }
 
-func TestQualitySyncScheduleReviewAutoAndUnchanged(t *testing.T) {
+// A run applies to a profile a Live library with downloads on uses, a raised score included, with no confirmation.
+func TestQualitySyncAppliesToLiveLibrary(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+	m, base, live := liveGrabFixture(t)
+	if v := live.Policy.Versions["movie-web"]; v.Mode != policy.ModeActive || !v.Grab {
+		t.Fatal("fixture: movie-web is not Live with downloads on")
+	}
+	profile := live.Policy.Versions["movie-web"].Profile
+	const web01 = "c20f169ef63c5f40c2def54abaf4438e"
+	ours, ok := live.Policy.Profiles[profile].Formats["WEB Tier 01"]
+	if !ok {
+		t.Fatalf("fixture: %s does not score WEB Tier 01", profile)
+	}
+	svc := &QualitySync{Store: m.store, Coordinator: m, TrashRoot: syncTree(t), Impact: func(context.Context, *policy.Policy, *policy.Policy) (DecisionImpact, error) {
+		return DecisionImpact{Examples: []ImpactExample{}}, nil
+	}}
+	editUpstream(t, svc.TrashRoot, web01, func(f map[string]any) { f["trash_scores"] = map[string]any{"default": ours + 500} })
+	req := saveRequest(base, live)
+	req.Records.SyncSources = []QualitySyncSource{{Record: Record{Key: "guides"}, Config: QualitySyncConfig{Kind: "trash", Flavour: "radarr", Profiles: map[string]string{profile: "default"}}}}
+	saved, err := m.SaveAndApply(ctx, req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := svc.RunSource(ctx, saved.Records.SyncSources[0], true); err != nil {
+		t.Fatal(err)
+	}
+	head := currentSnap(t, m)
+	if r := lastRunOf(t, svc); r.Outcome != "applied" || head.Policy.Profiles[profile].Formats["WEB Tier 01"] != ours+500 || head.Policy.Versions["movie-web"].Mode != policy.ModeActive {
+		t.Fatalf("run on a Live library's profile: %+v", r)
+	}
+}
+
+// Nothing is deleted: a format TRaSH no longer has stays as it is, and a run whose only finding is that retirement is
+// unchanged, with no log entry.
+func TestQualitySyncNeverDeletes(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+	svc, base, initial := syncService(t)
+	req := saveRequest(base, initial)
+	req.Records.SyncSources = []QualitySyncSource{{Record: Record{Key: "guides"}, Config: QualitySyncConfig{Kind: "trash", Flavour: "radarr"}}}
+	saved, err := svc.Coordinator.SaveAndApply(ctx, req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Remove(filepath.Join(svc.TrashRoot, "radarr", syncFormatID+".json")); err != nil {
+		t.Fatal(err)
+	}
+	if err := svc.RunSource(ctx, saved.Records.SyncSources[0], true); err != nil {
+		t.Fatal(err)
+	}
+	head := currentSnap(t, svc.Coordinator)
+	changes, _ := svc.Changes(ctx, 50)
+	if r := lastRunOf(t, svc); r.Outcome != "unchanged" || head.Generation != saved.Generation || len(changes) != 0 {
+		t.Fatalf("retirement alone: %+v %+v", r, changes)
+	}
+	kept := false
+	for _, f := range head.Records.Formats {
+		kept = kept || f.Key == "Remux Tier 01"
+	}
+	if !kept {
+		t.Fatal("retired format deleted")
+	}
+}
+
+func TestQualitySyncScheduleAndUnchanged(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
 	svc, base, initial := syncService(t)
@@ -169,8 +283,8 @@ func TestQualitySyncScheduleReviewAutoAndUnchanged(t *testing.T) {
 		t.Fatal(err)
 	}
 	source := saved.Records.SyncSources[0]
-	if source.Config.Mode != "review" || source.Config.Schedule != "24h" {
-		t.Fatal("unsafe sync defaults")
+	if source.Config.Schedule != "24h" {
+		t.Fatal("sync schedule default changed")
 	}
 	if err := svc.RunDue(ctx); err != nil {
 		t.Fatal(err)
@@ -192,25 +306,16 @@ func TestQualitySyncScheduleReviewAutoAndUnchanged(t *testing.T) {
 		t.Fatal(err)
 	}
 	runs, _ = svc.Runs(ctx)
-	pending, _ := svc.Reviews(ctx)
-	if len(runs) != 2 || runs[0].Outcome != "review" || len(pending) != 1 || svc.Coordinator.Current().Generation != saved.Generation {
-		t.Fatal("review mode applied or omitted pending review")
+	if len(runs) != 2 || runs[0].Outcome != "applied" || svc.Coordinator.Current().Generation != saved.Generation+1 {
+		t.Fatalf("scheduled run did not apply: %+v", runs)
 	}
-	req = saveRequest(base, saved)
-	req.Records.SyncSources[0].Config.Mode = "auto"
-	saved, err = svc.Coordinator.SaveAndApply(ctx, req)
-	if err != nil {
+	req = saveRequest(base, currentSnap(t, svc.Coordinator))
+	req.Records.SyncSources[0].Config.Schedule = "48h"
+	if _, err := svc.Coordinator.SaveAndApply(ctx, req); err != nil {
 		t.Fatal(err)
 	}
 	if err := svc.RunSource(ctx, source, true); !errors.Is(err, ErrConflict) {
 		t.Fatal("stale source config accepted", err)
-	}
-	if err := svc.RunSource(ctx, saved.Records.SyncSources[0], true); err != nil {
-		t.Fatal(err)
-	}
-	runs, _ = svc.Runs(ctx)
-	if runs[0].Outcome != "applied" || svc.Coordinator.Current().Generation != saved.Generation+1 {
-		t.Fatal("auto failed to save")
 	}
 	found := false
 	for _, a := range audit(t, svc.Store) {
@@ -219,7 +324,7 @@ func TestQualitySyncScheduleReviewAutoAndUnchanged(t *testing.T) {
 		}
 	}
 	if !found {
-		t.Fatal("auto actor absent from audit")
+		t.Fatal("sync actor absent from audit")
 	}
 }
 
@@ -270,7 +375,9 @@ func TestQualitySyncConfigRejectsUnpinnedArchivesAndStripsCredentials(t *testing
 	}
 }
 
-func TestQualitySyncReviewsNewZeroScore(t *testing.T) {
+// A draft preview (a source not saved yet) shows TRaSH's scores for a bound profile, a new zero score included; it
+// stores and applies nothing.
+func TestQualitySyncDraftPreviewShowsNewZeroScore(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
 	svc, base, initial := syncService(t)
@@ -284,21 +391,23 @@ func TestQualitySyncReviewsNewZeroScore(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	p, err := svc.PreviewAndStore(ctx, QualitySyncSource{Record: Record{Key: "zero-score"}, Config: QualitySyncConfig{Kind: "trash", Flavour: "radarr", TrashIDs: []string{syncFormatID}, Profiles: map[string]string{"remux-2160p": "french-multi-vf"}}})
+	p, err := svc.Preview(ctx, QualitySyncSource{Record: Record{Key: "zero-score"}, Config: QualitySyncConfig{Kind: "trash", Flavour: "radarr", TrashIDs: []string{syncFormatID}, Profiles: map[string]string{"remux-2160p": "french-multi-vf"}}})
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(p.Scores) != 1 || p.Scores[0].Before != 0 || p.Scores[0].After != 0 || p.ID == 0 || !p.HasChanges() {
-		t.Fatalf("new zero score bypassed review: id=%d scores=%+v", p.ID, p.Scores)
+	if len(p.Scores) != 1 || p.Scores[0].Before != 0 || p.Scores[0].After != 0 || !p.HasChanges() {
+		t.Fatalf("new zero score missing from the preview: scores=%+v", p.Scores)
 	}
-	if svc.Coordinator.Current().Generation != saved.Generation {
-		t.Fatal("preview applied score")
+	if svc.Coordinator.Current().Generation != saved.Generation || pendingReviews(t, svc) != 0 {
+		t.Fatal("preview applied or stored the score")
 	}
-	result, err := svc.Apply(ctx, p.ID, p.Generation, "admin")
+}
+
+func currentSnap(t *testing.T, c *RuntimeCoordinator) *Snapshot {
+	t.Helper()
+	snap, err := c.Snapshot(context.Background())
 	if err != nil {
 		t.Fatal(err)
 	}
-	if score, ok := result.Policy.Profiles["remux-2160p"].Formats["Remux Tier 01"]; !ok || score != 0 {
-		t.Fatal("approved zero score absent")
-	}
+	return snap
 }

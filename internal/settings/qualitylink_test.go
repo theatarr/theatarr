@@ -138,8 +138,8 @@ func specName(t *testing.T, raw json.RawMessage) string {
 	return f.Name
 }
 
-// A set format linked to TRaSH under its Notifiarr name follows a spec change in auto_definitions mode: applied by
-// itself, its display name kept, and not taken for an upstream rename.
+// A set format linked to TRaSH under its Notifiarr name follows a spec change: applied by itself, its display name
+// kept, and not taken for an upstream rename.
 func TestQualitySyncUpdatesLinkedSetFormatSpec(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
@@ -150,7 +150,7 @@ func TestQualitySyncUpdatesLinkedSetFormatSpec(t *testing.T) {
 			req.Records.FormatSets[i].Config.Formats["HDR10+ Boost - Notifiarr"].TrashID = linkHDR
 		}
 	}
-	req.Records.SyncSources = []QualitySyncSource{{Record: Record{Key: "trash-radarr"}, Config: QualitySyncConfig{Kind: "trash", Flavour: "radarr", Mode: ModeAutoDefinitions, Enabled: true}}}
+	req.Records.SyncSources = []QualitySyncSource{{Record: Record{Key: "trash-radarr"}, Config: QualitySyncConfig{Kind: "trash", Flavour: "radarr", Enabled: true}}}
 	saved, err := svc.Coordinator.SaveAndApply(ctx, req)
 	if err != nil {
 		t.Fatal(err)
@@ -172,38 +172,41 @@ func TestQualitySyncUpdatesLinkedSetFormatSpec(t *testing.T) {
 	}
 }
 
-// A profile bound to a TRaSH score set never takes a score change by itself, not even in auto mode: the run is held
-// as a pending review. Set formats count by their link.
-func TestQualitySyncBoundScoreChangeHeldForReview(t *testing.T) {
+// The first run after binding a profile to a TRaSH score set takes TRaSH's scores, a differing one included, and
+// remembers them; nothing waits. Set formats count by their link.
+func TestQualitySyncFirstRunTakesTrash(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
-	for _, mode := range []string{"auto", ModeAutoDefinitions} {
-		svc, base, saved := linkService(t)
-		req := saveRequest(base, saved)
-		for i := range req.Records.FormatSets {
-			if req.Records.FormatSets[i].Key == linkSetKey {
-				req.Records.FormatSets[i].Config.Formats["3D"].TrashID = link3D
-			}
+	svc, base, saved := linkService(t)
+	req := saveRequest(base, saved)
+	for i := range req.Records.FormatSets {
+		if req.Records.FormatSets[i].Key == linkSetKey {
+			req.Records.FormatSets[i].Config.Formats["3D"].TrashID = link3D
 		}
-		req.Records.SyncSources = []QualitySyncSource{{Record: Record{Key: "trash-radarr"}, Config: QualitySyncConfig{Kind: "trash", Flavour: "radarr", Mode: mode, Enabled: true, Profiles: map[string]string{linkProfile: "anime-radarr"}}}}
-		saved, err := svc.Coordinator.SaveAndApply(ctx, req)
-		if err != nil {
-			t.Fatal(err)
-		}
-		editUpstream(t, svc.TrashRoot, link3D, func(f map[string]any) { f["trash_scores"] = map[string]any{"default": -10000, "anime-radarr": -20000} })
-		if err := svc.RunSource(ctx, saved.Records.SyncSources[0], true); err != nil {
-			t.Fatal(err)
-		}
-		run := lastRunOf(t, svc)
-		pending, _ := svc.Reviews(ctx)
-		// Only the held score waits; whatever else the run has applies (here the fixture's other formats).
-		if run.Outcome != "review" || svc.Coordinator.Current().Policy.Profiles[linkProfile].Formats["3D"] != -10000 || len(pending) != 1 {
-			t.Fatalf("%s: bound score change not held: %+v %+v", mode, run, pending)
-		}
-		// The first run after binding asks once about each score that differs from TRaSH's (take or keep).
-		if h := pending[0].Held; pending[0].Kind != ReviewScores || len(h) != 1 || h[0].Profile != linkProfile || h[0].Format != "3D" || h[0].Trash != -20000 || h[0].Ours == nil || *h[0].Ours != -10000 || h[0].Last != nil {
-			t.Fatalf("%s: wrong score review: %+v", mode, pending[0])
-		}
+	}
+	req.Records.SyncSources = []QualitySyncSource{{Record: Record{Key: "trash-radarr"}, Config: QualitySyncConfig{Kind: "trash", Flavour: "radarr", Enabled: true, Profiles: map[string]string{linkProfile: "anime-radarr"}}}}
+	saved, err := svc.Coordinator.SaveAndApply(ctx, req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if saved.Policy.Profiles[linkProfile].Formats["3D"] != -10000 {
+		t.Fatal("fixture: 3D is not scored -10000")
+	}
+	editUpstream(t, svc.TrashRoot, link3D, func(f map[string]any) { f["trash_scores"] = map[string]any{"default": -10000, "anime-radarr": -20000} })
+	if err := svc.RunSource(ctx, saved.Records.SyncSources[0], true); err != nil {
+		t.Fatal(err)
+	}
+	run := lastRunOf(t, svc)
+	head, _ := svc.Coordinator.Snapshot(ctx)
+	if run.Outcome != "applied" || head.Policy.Profiles[linkProfile].Formats["3D"] != -20000 {
+		t.Fatalf("first run did not take TRaSH's score: %+v %v", run, head.Policy.Profiles[linkProfile].Formats)
+	}
+	if st := head.Records.SyncSources[0].Config.ScoreState[linkProfile]; st.Set != "anime-radarr" || st.Scores["3D"] != (TrashScoreState{Trash: -20000}) {
+		t.Fatalf("state %+v", st)
+	}
+	changes, err := svc.Changes(ctx, 10)
+	if err != nil || len(changes) != 1 || len(changes[0].Held) != 0 || changes[0].ID != *run.ReviewID {
+		t.Fatalf("update log %+v %v", changes, err)
 	}
 }
 
@@ -268,7 +271,7 @@ func TestTrashLinkApplyThenSyncUpdatesSetFormat(t *testing.T) {
 	ctx := context.Background()
 	svc, base, saved := linkService(t)
 	req := saveRequest(base, saved)
-	req.Records.SyncSources = []QualitySyncSource{{Record: Record{Key: "trash-radarr"}, Config: QualitySyncConfig{Kind: "trash", Flavour: "radarr", Mode: ModeAutoDefinitions, Enabled: true}}}
+	req.Records.SyncSources = []QualitySyncSource{{Record: Record{Key: "trash-radarr"}, Config: QualitySyncConfig{Kind: "trash", Flavour: "radarr", Enabled: true}}}
 	saved, err := svc.Coordinator.SaveAndApply(ctx, req)
 	if err != nil {
 		t.Fatal(err)
@@ -331,8 +334,7 @@ func TestTrashLinkApplyThenSyncUpdatesSetFormat(t *testing.T) {
 	if err := svc.RunSource(ctx, source, true); err != nil {
 		t.Fatal(err)
 	}
-	pending, _ := svc.Reviews(ctx)
-	if run := lastRunOf(t, svc); run.Outcome != "applied" || len(pending) != 0 {
+	if run := lastRunOf(t, svc); run.Outcome != "applied" {
 		t.Fatalf("first sync after linking: %+v", run)
 	}
 	head, _ := svc.Coordinator.Snapshot(ctx)
@@ -377,7 +379,7 @@ func TestTrashLinkNoStartupOrSyncSideEffects(t *testing.T) {
 	ctx := context.Background()
 	svc, base, saved := linkService(t)
 	req := saveRequest(base, saved)
-	req.Records.SyncSources = []QualitySyncSource{{Record: Record{Key: "trash-radarr"}, Config: QualitySyncConfig{Kind: "trash", Flavour: "radarr", Mode: "auto", Enabled: true}}}
+	req.Records.SyncSources = []QualitySyncSource{{Record: Record{Key: "trash-radarr"}, Config: QualitySyncConfig{Kind: "trash", Flavour: "radarr", Enabled: true}}}
 	saved, err := svc.Coordinator.SaveAndApply(ctx, req)
 	if err != nil {
 		t.Fatal(err)

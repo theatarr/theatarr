@@ -13,7 +13,7 @@ import (
 	"go.yaml.in/yaml/v3"
 )
 
-// QualitySyncConfig describes a reviewed upstream import. Profiles maps local profile keys to TRaSH score sets.
+// QualitySyncConfig describes an upstream source applied on its schedule. Profiles maps local profile keys to TRaSH score sets.
 // A Recyclarr config supplies its own scores and profiles. Retired formats are always retained.
 //
 // Origin says where the TRaSH tree comes from: empty is the local THEATARR_TRASH directory (when unset, a preview or
@@ -32,16 +32,15 @@ type QualitySyncConfig struct {
 	Profiles   map[string]string `json:"profiles,omitempty" yaml:"profiles,omitempty"`
 	Recyclarr  string            `json:"recyclarr,omitempty" yaml:"recyclarr,omitempty"`
 	Schedule   string            `json:"schedule" yaml:"schedule"`
-	Mode       string            `json:"mode" yaml:"mode"`
 	Enabled    bool              `json:"enabled" yaml:"enabled"`
-	// ScoreState is Theatarr's memory of the bound profiles' scores (runs and score decisions write it; the editor
-	// never does): local profile key -> its score set and, per score key, TRaSH's last score and our choice.
+	// ScoreState is Theatarr's memory of the bound profiles' scores (runs write it; the editor never does): local
+	// profile key -> its score set and, per score key, TRaSH's last score.
 	ScoreState map[string]ProfileScoreState `json:"score_state,omitempty" yaml:"-"`
 	// QualitySizes applies a Recyclarr config's quality_definition (TRaSH's quality sizes) to its profiles; unset is
 	// on. Off, the preview notes the definition as skipped. Recyclarr sources only.
 	QualitySizes *bool `json:"quality_sizes,omitempty" yaml:"quality_sizes,omitempty"`
 	// FieldState is Theatarr's memory of a Recyclarr source's managed profile fields (qualitysync_fields.go): local
-	// profile key -> field -> the source's last value and our choice. Runs and decisions write it; the editor never does.
+	// profile key -> field -> the source's last value. Runs write it; the editor never does.
 	FieldState map[string]map[string]FieldMemory `json:"field_state,omitempty" yaml:"-"`
 }
 
@@ -55,11 +54,10 @@ type ProfileScoreState struct {
 	Scores map[string]TrashScoreState `json:"scores"`
 }
 
-// TrashScoreState is one score of a bound profile: TRaSH's score when it was last taken into account, and whether an
-// administrator kept ours instead (asked again only when TRaSH changes that score again).
+// TrashScoreState is one score of a bound profile: TRaSH's score when it was last taken into account. Ours follows
+// TRaSH while it equals that score; a score we changed stays ours.
 type TrashScoreState struct {
-	Trash  int  `json:"trash"`
-	Pinned bool `json:"pinned,omitempty"`
+	Trash int `json:"trash"`
 }
 
 type QualitySyncSource struct {
@@ -69,16 +67,12 @@ type QualitySyncSource struct {
 
 var commitRE = regexp.MustCompile(`^[a-f0-9]{40}$`)
 
-// Tracked sources and the apply modes.
+// Tracked sources.
 const (
-	OriginGitHub = "github"
-	// ModeAutoDefinitions applies a run on its own only when every change is a specification change of a format the
-	// settings already hold (what the household's weekly Recyclarr did) or a bound score that follows TRaSH; added or
-	// retired formats and any other score or profile change wait as a pending review, our own scores as held scores.
-	ModeAutoDefinitions = "auto_definitions"
-	DefaultTrackedRepo  = "TRaSH-Guides/Guides"
-	DefaultTrackedRef   = "master"
-	trackedSchedule     = "168h"
+	OriginGitHub       = "github"
+	DefaultTrackedRepo = "TRaSH-Guides/Guides"
+	DefaultTrackedRef  = "master"
+	trackedSchedule    = "168h"
 	// trackedRetry is how soon a tracked source tries again after a failed run, when its schedule is longer.
 	trackedRetry = 6 * time.Hour
 )
@@ -120,7 +114,7 @@ func (c *QualitySyncConfig) validate() error {
 	if c.Flavour != "radarr" && c.Flavour != "sonarr" {
 		return bad("flavour", "must be radarr or sonarr")
 	}
-	mode, schedule := "review", "24h"
+	schedule := "24h"
 	switch c.Origin {
 	case "":
 		if c.Repo != "" || c.Branch != "" {
@@ -142,15 +136,9 @@ func (c *QualitySyncConfig) validate() error {
 		if !branchRE.MatchString(c.Branch) || strings.Contains(c.Branch, "..") || strings.HasSuffix(c.Branch, "/") || len(c.Branch) > 200 {
 			return bad("branch", "must be a branch name")
 		}
-		mode, schedule = ModeAutoDefinitions, trackedSchedule
+		schedule = trackedSchedule
 	default:
 		return bad("origin", "must be empty (local or pinned archive) or github")
-	}
-	if c.Mode == "" {
-		c.Mode = mode
-	}
-	if c.Mode != "review" && c.Mode != "auto" && c.Mode != ModeAutoDefinitions {
-		return bad("mode", "must be review, auto or auto_definitions")
 	}
 	if c.Schedule == "" {
 		c.Schedule = schedule
@@ -212,9 +200,8 @@ type ScoreChange struct {
 	After   int    `json:"after"`
 }
 
-// HeldScore is a score of a bound profile that waits for an administrator: ours (it differs from TRaSH's last score,
-// or was kept) while TRaSH changed it, or, on the first run after binding (Last nil), any score that differs from
-// TRaSH's. Ours is nil when the profile does not score the format yet (a format added by the source's TRaSH IDs).
+// HeldScore is a score of a bound profile kept as ours: it differs from TRaSH's last score (Last) and TRaSH changed
+// it (now Trash). The run keeps ours and remembers TRaSH's new score.
 type HeldScore struct {
 	Profile string `json:"profile"`
 	Format  string `json:"format"`
@@ -222,10 +209,6 @@ type HeldScore struct {
 	Last    *int   `json:"last"`
 	Trash   int    `json:"trash"`
 }
-
-// ReviewScores is the kind of a review that holds only held scores and held fields, resolved one by one
-// (ResolveScores), never applied as a candidate.
-const ReviewScores = "scores"
 
 type QualityPreview struct {
 	ID         int64                `json:"id"`
@@ -244,9 +227,11 @@ type QualityPreview struct {
 	Notes      []string             `json:"notes"`
 	Impact     DecisionImpact       `json:"impact"`
 	State      string               `json:"state"`
-	candidate  Records
+	// AppliedAt is when a run applied this update (the update log).
+	AppliedAt int64 `json:"applied_at,omitempty"`
+	candidate Records
 	// draft marks a preview of a config that is not the saved source's (the editor's "Preview draft import"): it
-	// applies TRaSH's scores to bound profiles as a whole review, holds nothing and remembers nothing.
+	// applies TRaSH's scores to bound profiles as a whole, keeps nothing as ours and remembers nothing.
 	draft bool
 	// scoreState marks a candidate that changes the source's ScoreState or FieldState.
 	scoreState bool
@@ -254,20 +239,6 @@ type QualityPreview struct {
 
 func (p *QualityPreview) HasChanges() bool {
 	return len(p.Added)+len(p.Changed)+len(p.Scores)+len(p.Profiles) > 0
-}
-
-// FollowsOnly reports a preview whose score changes all belong to profiles bound to a TRaSH score set (scores that
-// follow TRaSH; ours are held apart), with no format added or retired and no other profile change.
-func (p *QualityPreview) FollowsOnly(c QualitySyncConfig) bool {
-	if len(p.Added)+len(p.Retired)+len(p.Profiles) > 0 {
-		return false
-	}
-	for _, s := range p.Scores {
-		if _, bound := c.Profiles[s.Profile]; !bound {
-			return false
-		}
-	}
-	return len(p.Changed)+len(p.Scores) > 0 || p.scoreState
 }
 
 // ArchiveFetcher must fetch through the gateway. Tests inject an httptest client; settings never dials HTTP.

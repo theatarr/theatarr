@@ -179,7 +179,7 @@ func TestQualitySyncTrackedDefaultsAndUnchangedCommit(t *testing.T) {
 	ctx := context.Background()
 	svc, gh, source, now := trackedService(t, QualitySyncConfig{Kind: "trash", Flavour: "radarr"})
 	c := source().Config
-	if c.Mode != ModeAutoDefinitions || c.Schedule != "168h" || c.Repo != "TRaSH-Guides/Guides" || c.Branch != "master" {
+	if c.Schedule != "168h" || c.Repo != "TRaSH-Guides/Guides" || c.Branch != "master" {
 		t.Fatalf("tracked defaults: %+v", c)
 	}
 	gen := svc.Coordinator.Current().Generation
@@ -200,7 +200,7 @@ func TestQualitySyncTrackedDefaultsAndUnchangedCommit(t *testing.T) {
 	if lookups, _ := gh.counts(); lookups != 1 {
 		t.Fatal("ran before the weekly schedule")
 	}
-	// A week later the branch has not moved: one lookup, no archive, no review, no generation.
+	// A week later the branch has not moved: one lookup, no archive, no log entry, no generation.
 	*now = now.Add(7 * 24 * time.Hour)
 	if err := svc.RunDue(ctx); err != nil {
 		t.Fatal(err)
@@ -209,8 +209,8 @@ func TestQualitySyncTrackedDefaultsAndUnchangedCommit(t *testing.T) {
 	if lookups, fetches := gh.counts(); lookups != 2 || fetches != 1 || len(runs) != 2 || runs[0].Outcome != "unchanged" || runs[0].Commit != strings.Repeat("a", 40) {
 		t.Fatalf("unchanged commit fetched or recorded wrongly: %d lookups %d fetches %+v", lookups, fetches, runs)
 	}
-	if reviews, _ := svc.Reviews(ctx); len(reviews) != 0 || svc.Coordinator.Current().Generation != gen {
-		t.Fatal("unchanged commit created a review or generation")
+	if changes, _ := svc.Changes(ctx, 50); len(changes) != 0 || svc.Coordinator.Current().Generation != gen {
+		t.Fatal("unchanged commit created a log entry or generation")
 	}
 	// A manual run (force) skips the schedule, not the commit check.
 	if err := svc.RunSource(ctx, source(), true); err != nil {
@@ -219,10 +219,10 @@ func TestQualitySyncTrackedDefaultsAndUnchangedCommit(t *testing.T) {
 	if _, fetches := gh.counts(); fetches != 1 {
 		t.Fatal("manual run refetched an unchanged commit")
 	}
-	// A config change (here the mode) previews the same commit again.
+	// A config change (here the schedule) previews the same commit again.
 	snap, _ := svc.Coordinator.Snapshot(ctx)
 	req := SaveRequest{ExpectedGeneration: snap.Generation, Actor: "admin", Records: snap.Records, Base: svc.Coordinator.base}
-	req.Records.SyncSources[0].Config.Mode = "review"
+	req.Records.SyncSources[0].Config.Schedule = "336h"
 	if _, err := svc.Coordinator.SaveAndApply(ctx, req); err != nil {
 		t.Fatal(err)
 	}
@@ -276,41 +276,43 @@ func TestQualitySyncTrackedAppliesDefinitionChanges(t *testing.T) {
 	if !actor {
 		t.Fatal("auto-apply not audited as the source")
 	}
-	if reviews, _ := svc.Reviews(ctx); len(reviews) != 0 {
-		t.Fatal("applied run left a pending review")
+	if changes, _ := svc.Changes(ctx, 50); len(changes) != 1 || changes[0].ID != *r.ReviewID || len(changes[0].Changed) != 1 || pendingReviews(t, svc) != 0 {
+		t.Fatalf("update log: %+v", changes)
 	}
 	if states, err := svc.SourceStates(ctx); err != nil || len(states) != 1 || states[0].LastCommit != commit || source().Key != states[0].Source {
 		t.Fatalf("source state: %+v %v", states, err)
 	}
 }
 
-func TestQualitySyncTrackedHoldsScoresAddsAndRetirements(t *testing.T) {
+func TestQualitySyncTrackedKeepsScoresAppliesAddsSkipsRetirements(t *testing.T) {
 	ctx := context.Background()
 	for _, tc := range []struct {
 		name   string
 		config QualitySyncConfig
 		edit   func(t *testing.T, tree string)
-		check  func(p QualityPreview) bool
-		// applied is how many generations the run writes for what it does not hold.
+		check  func(changes []QualityPreview) bool
+		// applied is how many generations the run writes.
 		applied int64
 	}{
-		// Our own score (2000, not TRaSH's 1950) is held when TRaSH changes it; the run's specification change applies.
+		// Our own score (2000, not TRaSH's 1950) is kept when TRaSH changes it, and the log notes it; the run's
+		// specification change applies.
 		{"score", QualitySyncConfig{Profiles: map[string]string{"remux-2160p": "default"}}, func(t *testing.T, tree string) {
 			editUpstream(t, tree, syncFormatID, func(f map[string]any) {
 				f["trash_scores"] = map[string]any{"default": 777}
 				f["specifications"].([]any)[1].(map[string]any)["fields"] = map[string]any{"value": "^(3L|NEW)$"}
 			})
-		}, func(p QualityPreview) bool {
-			return p.Kind == ReviewScores && len(p.Held) == 1 && p.Held[0].Trash == 777 && *p.Held[0].Ours == 2000 && *p.Held[0].Last == 1950
+		}, func(c []QualityPreview) bool {
+			return len(c) >= 1 && len(c[0].Held) == 1 && c[0].Held[0].Trash == 777 && *c[0].Held[0].Ours == 2000 && *c[0].Held[0].Last == 1950 && len(c[0].Changed) == 1
 		}, 1},
+		// A retirement alone is not logged and writes nothing.
 		{"retired", QualitySyncConfig{}, func(t *testing.T, tree string) {
 			if err := os.Remove(filepath.Join(tree, "radarr", syncFormatID+".json")); err != nil {
 				t.Fatal(err)
 			}
-		}, func(p QualityPreview) bool { return len(p.Retired) == 1 }, 0},
+		}, func(c []QualityPreview) bool { return len(c) == 0 }, 0},
 		{"renamed", QualitySyncConfig{}, func(t *testing.T, tree string) {
 			editUpstream(t, tree, syncFormatID, func(f map[string]any) { f["name"] = "Remux Tier One" })
-		}, func(p QualityPreview) bool { return len(p.Retired) == 1 }, 0},
+		}, func(c []QualityPreview) bool { return len(c) == 0 }, 0},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			tc.config.Kind, tc.config.Flavour = "trash", "radarr"
@@ -320,12 +322,7 @@ func TestQualitySyncTrackedHoldsScoresAddsAndRetirements(t *testing.T) {
 			if err := svc.RunDue(ctx); err != nil {
 				t.Fatal(err)
 			}
-			// A first run that already differs (the bound score set) is approved as the starting point.
-			if reviews, _ := svc.Reviews(ctx); len(reviews) == 1 {
-				if _, err := svc.Apply(ctx, reviews[0].ID, reviews[0].Generation, "admin"); err != nil {
-					t.Fatal(err)
-				}
-			}
+			before, _ := svc.Changes(ctx, 50)
 			if tc.name == "score" {
 				setScore(t, svc, "remux-2160p", "Remux Tier 01", 2000)
 			}
@@ -337,13 +334,17 @@ func TestQualitySyncTrackedHoldsScoresAddsAndRetirements(t *testing.T) {
 				t.Fatal(err)
 			}
 			r := lastRunOf(t, svc)
-			reviews, _ := svc.Reviews(ctx)
-			if r.Outcome != "review" || len(reviews) != 1 || !tc.check(reviews[0]) || svc.Coordinator.Current().Generation != gen+tc.applied {
-				t.Fatalf("not held for review: run %+v reviews %+v", r, reviews)
+			changes, _ := svc.Changes(ctx, 50)
+			outcome := "applied"
+			if tc.applied == 0 {
+				outcome = "unchanged"
+			}
+			if r.Outcome != outcome || !tc.check(changes[:len(changes)-len(before)]) || svc.Coordinator.Current().Generation != gen+tc.applied || pendingReviews(t, svc) != 0 {
+				t.Fatalf("run %+v log %+v", r, changes)
 			}
 		})
 	}
-	// A new upstream format named in the source's TRaSH IDs is held as well.
+	// A new upstream format named in the source's TRaSH IDs is added by the run.
 	const newID = "0123456789abcdef0123456789abcdef"
 	svc, gh, _, _ := trackedService(t, QualitySyncConfig{Kind: "trash", Flavour: "radarr", TrashIDs: []string{newID}})
 	tree := t.TempDir()
@@ -361,9 +362,9 @@ func TestQualitySyncTrackedHoldsScoresAddsAndRetirements(t *testing.T) {
 	if err := svc.RunDue(ctx); err != nil {
 		t.Fatal(err)
 	}
-	reviews, _ := svc.Reviews(ctx)
-	if r := lastRunOf(t, svc); svc.Coordinator.Current().Generation != gen || r.Outcome != "review" || len(reviews) != 1 || len(reviews[0].Added) != 1 {
-		t.Fatalf("added format not held: %+v %+v", r, reviews)
+	changes, _ := svc.Changes(ctx, 50)
+	if r := lastRunOf(t, svc); svc.Coordinator.Current().Generation != gen+1 || r.Outcome != "applied" || len(changes) != 1 || len(changes[0].Added) != 1 {
+		t.Fatalf("added format not applied: %+v %+v", r, changes)
 	}
 }
 
@@ -436,18 +437,17 @@ func TestQualitySyncTrackedConfigValidation(t *testing.T) {
 		{Kind: "trash", Flavour: "radarr", Origin: OriginGitHub, Branch: "x?y"},
 		{Kind: "trash", Flavour: "radarr", Origin: OriginGitHub, ArchiveURL: "https://codeload.github.com/a/b/tar.gz/" + strings.Repeat("a", 40), Commit: strings.Repeat("a", 40)},
 		{Kind: "trash", Flavour: "radarr", Repo: "a/b"},
-		{Kind: "trash", Flavour: "radarr", Mode: "sometimes"},
 	} {
 		if err := c.validate(); err == nil {
 			t.Fatalf("accepted %+v", c)
 		}
 	}
 	c := QualitySyncConfig{Kind: "trash", Flavour: "radarr"}
-	if err := c.validate(); err != nil || c.Mode != "review" || c.Schedule != "24h" {
+	if err := c.validate(); err != nil || c.Schedule != "24h" {
 		t.Fatal("untracked defaults changed", c, err)
 	}
-	c = QualitySyncConfig{Kind: "trash", Flavour: "sonarr", Origin: OriginGitHub, Branch: "feature/x", Mode: "review"}
-	if err := c.validate(); err != nil || c.Mode != "review" || TrackedCommitURL(c) != githubAPI+"/repos/TRaSH-Guides/Guides/commits/feature/x" {
+	c = QualitySyncConfig{Kind: "trash", Flavour: "sonarr", Origin: OriginGitHub, Branch: "feature/x"}
+	if err := c.validate(); err != nil || TrackedCommitURL(c) != githubAPI+"/repos/TRaSH-Guides/Guides/commits/feature/x" {
 		t.Fatal("tracked branch", c, err)
 	}
 }
@@ -482,40 +482,18 @@ func copyTree(t *testing.T, dir string) {
 	}
 }
 
-// Review fix: an automatic apply that fails keeps the reviews already pending for the source (it supersedes them only
-// when it lands), and leaves no stale review of its own.
-func TestQualitySyncFailedAutoApplyKeepsPendingReview(t *testing.T) {
+// An apply that fails (here the runtime cannot prepare the new generation) leaves the settings and the log as they
+// were; the next run applies.
+func TestQualitySyncFailedApplyKeepsState(t *testing.T) {
 	ctx := context.Background()
-	svc, gh, _, now := trackedService(t, QualitySyncConfig{Kind: "trash", Flavour: "radarr", Profiles: map[string]string{"remux-2160p": "default"}})
+	svc, gh, _, now := trackedService(t, QualitySyncConfig{Kind: "trash", Flavour: "radarr"})
 	tree := t.TempDir()
 	copyTree(t, tree)
 	if err := svc.RunDue(ctx); err != nil {
 		t.Fatal(err)
 	}
-	if reviews, _ := svc.Reviews(ctx); len(reviews) == 1 {
-		if _, err := svc.Apply(ctx, reviews[0].ID, reviews[0].Generation, "admin"); err != nil {
-			t.Fatal(err)
-		}
-	}
-	// Our own score: TRaSH's change of it is held.
-	setScore(t, svc, "remux-2160p", "Remux Tier 01", 2000)
-	var score any
+	gen := svc.Coordinator.Current().Generation
 	editUpstream(t, tree, syncFormatID, func(f map[string]any) {
-		score = f["trash_scores"]
-		f["trash_scores"] = map[string]any{"default": 777}
-	})
-	gh.publish(t, tree, strings.Repeat("c", 40))
-	*now = now.Add(7 * 24 * time.Hour)
-	if err := svc.RunDue(ctx); err != nil {
-		t.Fatal(err)
-	}
-	held, _ := svc.Reviews(ctx)
-	if r := lastRunOf(t, svc); r.Outcome != "review" || len(held) != 1 {
-		t.Fatalf("score change not held: %+v %+v", r, held)
-	}
-	// Upstream moves on to a definition-only change, and its automatic apply fails.
-	editUpstream(t, tree, syncFormatID, func(f map[string]any) {
-		f["trash_scores"] = score
 		f["specifications"].([]any)[1].(map[string]any)["fields"] = map[string]any{"value": "^(3L|NEW)$"}
 	})
 	gh.publish(t, tree, strings.Repeat("d", 40))
@@ -527,190 +505,110 @@ func TestQualitySyncFailedAutoApplyKeepsPendingReview(t *testing.T) {
 	if err := svc.RunDue(ctx); err == nil {
 		t.Fatal("failed apply reported no error")
 	}
-	reviews, _ := svc.Reviews(ctx)
-	if r := lastRunOf(t, svc); r.Outcome != "error" || len(reviews) != 1 || reviews[0].ID != held[0].ID {
-		t.Fatalf("failed apply: run %+v, pending %+v, want review %d kept", r, reviews, held[0].ID)
+	changes, _ := svc.Changes(ctx, 50)
+	if r := lastRunOf(t, svc); r.Outcome != "error" || !strings.HasPrefix(r.Error, "the update could not be applied: ") || len(changes) != 0 || svc.Coordinator.Current().Generation != gen {
+		t.Fatalf("failed apply: run %+v, log %+v", r, changes)
 	}
-	// Once the apply lands, the earlier review is superseded.
 	svc.Coordinator.prepare = prepare
 	*now = now.Add(7 * time.Hour)
 	if err := svc.RunDue(ctx); err != nil {
 		t.Fatal(err)
 	}
-	if reviews, _ := svc.Reviews(ctx); lastRunOf(t, svc).Outcome != "applied" || len(reviews) != 0 {
-		t.Fatalf("applied run: %+v %+v", lastRunOf(t, svc), reviews)
+	if changes, _ := svc.Changes(ctx, 50); lastRunOf(t, svc).Outcome != "applied" || len(changes) != 1 || svc.Coordinator.Current().Generation != gen+1 {
+		t.Fatalf("applied run: %+v %+v", lastRunOf(t, svc), changes)
 	}
 }
 
-// A draft preview (the editor's unsaved config) never replaces or supersedes the saved source's pending
-// review, so a later run that finds the branch unchanged still leaves it offered and health still counts it.
-func TestQualitySyncDraftPreviewKeepsPendingReview(t *testing.T) {
-	ctx := context.Background()
-	svc, gh, source, now := trackedService(t, QualitySyncConfig{Kind: "trash", Flavour: "radarr", Mode: "review"})
-	tree := t.TempDir()
-	copyTree(t, tree)
-	if err := svc.RunDue(ctx); err != nil {
-		t.Fatal(err)
-	}
-	editUpstream(t, tree, syncFormatID, func(f map[string]any) {
-		f["specifications"].([]any)[1].(map[string]any)["fields"] = map[string]any{"value": "^(3L|NEW)$"}
-	})
-	gh.publish(t, tree, strings.Repeat("c", 40))
-	*now = now.Add(7 * 24 * time.Hour)
-	if err := svc.RunDue(ctx); err != nil {
-		t.Fatal(err)
-	}
-	held, _ := svc.Reviews(ctx)
-	if len(held) != 1 || len(held[0].Changed) != 1 {
-		t.Fatalf("setup: want one pending review, got %+v", held)
-	}
-	// The admin edits the source, clicks "Preview draft import", then cancels the edit.
-	draft := source()
-	draft.Config.Mode = "auto"
-	head, _ := svc.Coordinator.Snapshot(ctx)
-	if _, err := svc.PreviewAndStoreAt(ctx, QualitySyncSource{Record: Record{Key: draft.Key}, Config: draft.Config}, head.Generation); err != nil {
-		t.Fatal(err)
-	}
-	if err := svc.RunSource(ctx, source(), true); err != nil {
-		t.Fatal(err)
-	}
-	reviews, _ := svc.Reviews(ctx)
-	kept := false
-	for _, p := range reviews {
-		kept = kept || p.ID == held[0].ID
-	}
-	if !kept {
-		t.Fatalf("draft preview dropped the pending review: run %+v, pending %+v", lastRunOf(t, svc), reviews)
-	}
-}
-
-// A bound profile's score that still equals TRaSH's last score follows TRaSH; ours is held only when
-// TRaSH changes it, with take (follows from then on) or keep (pinned, asked again on TRaSH's next change). Only the
-// held scores wait, a pending one does not block later definition changes, unbound profiles never change, and review
-// mode still holds everything.
-func TestQualitySyncBoundScoresFollowOrHold(t *testing.T) {
+// A bound profile's score follows TRaSH while it still equals TRaSH's last score. A score you changed stays yours when
+// TRaSH changes it: the run keeps it, remembers TRaSH's new score and the log notes it; the next complete run with the
+// same TRaSH score leaves it alone and notes nothing. Setting the score back to TRaSH's makes it follow again.
+// Following scores and definitions apply in the same run; unbound profiles never change.
+func TestQualitySyncKeepsYourScore(t *testing.T) {
 	ctx := context.Background()
 	const tier01, tier02, web01 = syncFormatID, "9f98181fe5a3fbeb0cc29340da2a468a", "c20f169ef63c5f40c2def54abaf4438e"
 	svc, gh, source, now := trackedService(t, QualitySyncConfig{Kind: "trash", Flavour: "radarr", Profiles: map[string]string{"remux-2160p": "default"}})
 	tree := t.TempDir()
 	copyTree(t, tree)
-	setScore(t, svc, "remux-2160p", "Remux Tier 02", 1800) // ours; TRaSH says 1900
 	scores := func(profile string) map[string]int { return svc.Coordinator.Current().Policy.Profiles[profile].Formats }
-	heldReview := func(want int) QualityPreview {
-		t.Helper()
-		reviews, err := svc.Reviews(ctx)
-		if err != nil || len(reviews) != want {
-			t.Fatalf("want %d pending reviews, got %+v %v", want, reviews, err)
-		}
-		if want == 0 {
-			return QualityPreview{}
-		}
-		return reviews[0]
+	remembered := func(format string) TrashScoreState {
+		return source().Config.ScoreState["remux-2160p"].Scores[format]
 	}
-	week := func(commit string) {
+	week := func(commit string) (QualitySyncRun, []QualityPreview) {
 		t.Helper()
 		gh.publish(t, tree, strings.Repeat(commit, 40))
 		*now = now.Add(7 * 24 * time.Hour)
 		if err := svc.RunDue(ctx); err != nil {
 			t.Fatal(err)
 		}
+		changes, err := svc.Changes(ctx, 50)
+		if err != nil {
+			t.Fatal(err)
+		}
+		return lastRunOf(t, svc), changes
+	}
+	keptOf := func(changes []QualityPreview, r QualitySyncRun) []HeldScore {
+		t.Helper()
+		if r.ReviewID == nil || len(changes) == 0 || changes[0].ID != *r.ReviewID {
+			t.Fatalf("run %+v has no log entry: %+v", r, changes)
+		}
+		return changes[0].Held
 	}
 
-	// First run after binding: the differing score is asked once; the others are remembered as following.
+	// First run after binding takes TRaSH's scores and remembers them.
 	if err := svc.RunDue(ctx); err != nil {
 		t.Fatal(err)
 	}
-	p := heldReview(1)
-	if r := lastRunOf(t, svc); r.Outcome != "review" || p.Kind != ReviewScores || len(p.Held) != 1 || p.Held[0].Format != "Remux Tier 02" || *p.Held[0].Ours != 1800 || p.Held[0].Last != nil || p.Held[0].Trash != 1900 {
-		t.Fatalf("first run: %+v %+v", r, p)
-	}
-	if st := source().Config.ScoreState["remux-2160p"]; st.Set != "default" || st.Scores["Remux Tier 01"] != (TrashScoreState{Trash: 1950}) {
+	if st := source().Config.ScoreState["remux-2160p"]; st.Set != "default" || st.Scores["Remux Tier 01"] != (TrashScoreState{Trash: 1950}) || st.Scores["Remux Tier 02"] != (TrashScoreState{Trash: 1900}) {
 		t.Fatalf("first run state: %+v", st)
 	}
-	if _, err := svc.Apply(ctx, p.ID, p.Generation, "admin"); err == nil {
-		t.Fatal("held scores approved as a whole")
-	}
-	gen := svc.Coordinator.Current().Generation
-	if _, err := svc.ResolveScores(ctx, p.ID, gen, []ScoreDecision{{Profile: "remux-2160p", Format: "LQ", Choice: "take"}}, "admin"); err == nil {
-		t.Fatal("decision for a score that is not held accepted")
-	}
-	if _, err := svc.ResolveScores(ctx, p.ID, gen, []ScoreDecision{{Profile: "remux-2160p", Format: "Remux Tier 02", Choice: "keep"}}, "admin"); err != nil {
-		t.Fatal(err)
-	}
-	heldReview(0)
-	if scores("remux-2160p")["Remux Tier 02"] != 1800 || source().Config.ScoreState["remux-2160p"].Scores["Remux Tier 02"] != (TrashScoreState{Trash: 1900, Pinned: true}) {
-		t.Fatalf("keep: %+v", source().Config.ScoreState)
-	}
+	setScore(t, svc, "remux-2160p", "Remux Tier 02", 1800) // yours; TRaSH says 1900
 
-	// TRaSH changes three scores and a definition: the following scores and the definition apply, ours is held, and
-	// the unbound profile keeps its score.
+	// TRaSH changes three scores and a definition: the following scores and the definition apply, yours is kept and
+	// noted, TRaSH's new score is remembered, and the unbound profile keeps its score.
 	for id, score := range map[string]int{tier01: 1960, tier02: 1910, web01: 1750} {
 		editUpstream(t, tree, id, func(f map[string]any) { f["trash_scores"] = map[string]any{"default": score} })
 	}
 	editUpstream(t, tree, tier01, func(f map[string]any) {
 		f["specifications"].([]any)[1].(map[string]any)["fields"] = map[string]any{"value": "^(3L|NEW)$"}
 	})
-	gen = svc.Coordinator.Current().Generation
-	week("c")
-	p = heldReview(1)
-	if r := lastRunOf(t, svc); r.Outcome != "review" || len(p.Held) != 1 || *p.Held[0].Ours != 1800 || *p.Held[0].Last != 1900 || p.Held[0].Trash != 1910 || svc.Coordinator.Current().Generation != gen+1 {
-		t.Fatalf("pinned score not held alone: %+v %+v", r, p)
+	gen := svc.Coordinator.Current().Generation
+	r, changes := week("c")
+	kept := keptOf(changes, r)
+	if r.Outcome != "applied" || len(kept) != 1 || kept[0].Format != "Remux Tier 02" || *kept[0].Ours != 1800 || *kept[0].Last != 1900 || kept[0].Trash != 1910 || svc.Coordinator.Current().Generation != gen+1 {
+		t.Fatalf("your score not kept: %+v %+v", r, kept)
 	}
 	if s := scores("remux-2160p"); s["Remux Tier 01"] != 1960 || s["WEB Tier 01"] != 1750 || s["Remux Tier 02"] != 1800 || scores("web-2160p")["WEB Tier 01"] != 1700 {
 		t.Fatalf("scores after the run: %v / %v", s, scores("web-2160p"))
 	}
+	if remembered("Remux Tier 02") != (TrashScoreState{Trash: 1910}) {
+		t.Fatalf("TRaSH's new score not remembered: %+v", remembered("Remux Tier 02"))
+	}
 
-	// The pending held score does not block the next definition change.
+	// The next complete run (a definition change, TRaSH's score as before) keeps yours without noting it again.
 	editUpstream(t, tree, tier01, func(f map[string]any) {
 		f["specifications"].([]any)[1].(map[string]any)["fields"] = map[string]any{"value": "^(3L|NEWER)$"}
 	})
 	gen = svc.Coordinator.Current().Generation
-	week("d")
-	p = heldReview(1)
-	if svc.Coordinator.Current().Generation != gen+1 || len(p.Held) != 1 || p.Held[0].Trash != 1910 {
-		t.Fatalf("definition change blocked by the held score: %+v", p)
+	r, changes = week("d")
+	if r.Outcome != "applied" || len(keptOf(changes, r)) != 0 || len(changes[0].Changed) != 1 || svc.Coordinator.Current().Generation != gen+1 || scores("remux-2160p")["Remux Tier 02"] != 1800 || remembered("Remux Tier 02") != (TrashScoreState{Trash: 1910}) {
+		t.Fatalf("second run: %+v %+v", r, changes[0])
 	}
 
-	// Take: TRaSH's score, which follows from then on.
-	if _, err := svc.ResolveScores(ctx, p.ID, svc.Coordinator.Current().Generation, []ScoreDecision{{Profile: "remux-2160p", Format: "Remux Tier 02", Choice: "take"}}, "admin"); err != nil {
-		t.Fatal(err)
-	}
-	if scores("remux-2160p")["Remux Tier 02"] != 1910 {
-		t.Fatal("take did not set TRaSH's score")
-	}
+	// TRaSH changes it again: still yours, noted again, the newest score remembered.
 	editUpstream(t, tree, tier02, func(f map[string]any) { f["trash_scores"] = map[string]any{"default": 1920} })
-	week("e")
-	heldReview(0)
-	if r := lastRunOf(t, svc); r.Outcome != "applied" || scores("remux-2160p")["Remux Tier 02"] != 1920 {
-		t.Fatalf("taken score does not follow: %+v %v", r, scores("remux-2160p"))
-	}
-	audited := false
-	for _, a := range audit(t, svc.Store) {
-		audited = audited || (a.Operation == "quality-scores" && a.Actor == "admin")
-	}
-	if !audited {
-		t.Fatal("score decisions not audited")
+	r, changes = week("e")
+	if kept := keptOf(changes, r); r.Outcome != "applied" || len(kept) != 1 || *kept[0].Last != 1910 || kept[0].Trash != 1920 || scores("remux-2160p")["Remux Tier 02"] != 1800 || remembered("Remux Tier 02") != (TrashScoreState{Trash: 1920}) {
+		t.Fatalf("third run: %+v %+v", r, kept)
 	}
 
-	// Review mode still holds everything, a following score included.
-	snap, _ := svc.Coordinator.Snapshot(ctx)
-	req := SaveRequest{ExpectedGeneration: snap.Generation, Actor: "admin", Records: snap.Records, Base: svc.Coordinator.base}
-	req.Records.SyncSources = slices.Clone(req.Records.SyncSources)
-	req.Records.SyncSources[0].Config.Mode = "review"
-	if _, err := svc.Coordinator.SaveAndApply(ctx, req); err != nil {
-		t.Fatal(err)
-	}
+	// Set back to TRaSH's score, it follows TRaSH again.
+	setScore(t, svc, "remux-2160p", "Remux Tier 02", 1920)
 	editUpstream(t, tree, tier02, func(f map[string]any) { f["trash_scores"] = map[string]any{"default": 1930} })
-	gen = svc.Coordinator.Current().Generation
-	week("f")
-	p = heldReview(1)
-	if svc.Coordinator.Current().Generation != gen || len(p.Scores) != 1 || p.Scores[0].After != 1930 || len(p.Held) != 0 {
-		t.Fatalf("review mode applied a score: %+v", p)
+	r, changes = week("f")
+	if r.Outcome != "applied" || len(keptOf(changes, r)) != 0 || scores("remux-2160p")["Remux Tier 02"] != 1930 || remembered("Remux Tier 02") != (TrashScoreState{Trash: 1930}) {
+		t.Fatalf("score set back to TRaSH's does not follow: %+v %v", r, scores("remux-2160p"))
 	}
-	if _, err := svc.Apply(ctx, p.ID, p.Generation, "admin"); err != nil {
-		t.Fatal(err)
-	}
-	if source().Config.ScoreState["remux-2160p"].Scores["Remux Tier 02"] != (TrashScoreState{Trash: 1930}) {
-		t.Fatal("approved review did not remember TRaSH's score")
+	if pendingReviews(t, svc) != 0 {
+		t.Fatal("a run left a pending review")
 	}
 }

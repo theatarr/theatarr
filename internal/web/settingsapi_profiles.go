@@ -184,16 +184,6 @@ func (w *Web) apiQualityOverview(rw http.ResponseWriter, r *http.Request) {
 		in.Policy, in.Profiles, in.Formats, in.Sources = snap.Policy, snap.Records.Profiles, snap.Records.Formats, snap.Records.SyncSources
 		answer.Source, answer.Generation = "db", snap.Generation
 		rw.Header().Set("ETag", generationETag(snap.Generation))
-		if w.qualitySync != nil {
-			reviews, err := w.qualitySync.Reviews(r.Context())
-			if err != nil {
-				w.internal(rw, err)
-				return
-			}
-			for _, rv := range reviews {
-				in.Held = append(in.Held, rv.Held...)
-			}
-		}
 		defaults, err := w.settings.ProfileDefaults(r.Context())
 		if err != nil {
 			w.settingsError(rw, r, err, nil)

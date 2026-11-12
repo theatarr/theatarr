@@ -110,7 +110,7 @@ claim of Sonarr v5 API parity. Recyclarr has no web pages; its table maps the CL
 
 | Arr page or tab | Theatarr page (route and menu path) | Difference |
 |---|---|---|
-| Sync | Admin › Settings › Quality sync — `/admin/settings/quality-sync` | Preview then run; held changes are approved under Reviews › Quality updates. Local edits survive managed-field sync. |
+| Sync | Admin › Settings › Quality sync — `/admin/settings/quality-sync` | Runs on schedule and applies upstream changes; an update log lists them. Local edits stay yours. |
 | Config create / list templates | Admin › Settings › Profiles — `/admin/settings/profiles` | Create a profile from a TRaSH preset; Recyclarr YAML can also be used as a sync source. |
 | Config list local | Admin › Settings › Quality sync — `/admin/settings/quality-sync` | Configured sync sources replace a directory of target-instance configs. |
 | List custom formats / custom format groups | Admin › Settings › Custom formats — `/admin/settings/formats` | Definitions are shared and profile scores are separate. |

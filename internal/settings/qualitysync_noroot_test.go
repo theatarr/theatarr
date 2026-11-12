@@ -14,7 +14,7 @@ func TestQualitySyncWithoutRootUsesBundle(t *testing.T) {
 	ctx := context.Background()
 	svc, base, initial := syncService(t)
 	req := saveRequest(base, initial)
-	req.Records.SyncSources = []QualitySyncSource{{Record: Record{Key: "guides"}, Config: QualitySyncConfig{Kind: "trash", Flavour: "radarr", Enabled: true, Mode: "review"}}}
+	req.Records.SyncSources = []QualitySyncSource{{Record: Record{Key: "guides"}, Config: QualitySyncConfig{Kind: "trash", Flavour: "radarr", Enabled: true}}}
 	saved, err := svc.Coordinator.SaveAndApply(ctx, req)
 	if err != nil {
 		t.Fatal(err)
@@ -40,13 +40,13 @@ func TestQualitySyncWithoutRootUsesBundle(t *testing.T) {
 	}
 }
 
-// A scheduled run without a TRaSH root fails as before the bundle: no review, an error run, no new generation.
+// A scheduled run without a TRaSH root fails as before the bundle: an error run, no log entry, no new generation.
 func TestQualitySyncScheduledWithoutRootStillFails(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
 	svc, base, initial := syncService(t)
 	req := saveRequest(base, initial)
-	req.Records.SyncSources = []QualitySyncSource{{Record: Record{Key: "guides"}, Config: QualitySyncConfig{Kind: "trash", Flavour: "radarr", Enabled: true, Mode: "auto"}}}
+	req.Records.SyncSources = []QualitySyncSource{{Record: Record{Key: "guides"}, Config: QualitySyncConfig{Kind: "trash", Flavour: "radarr", Enabled: true}}}
 	saved, err := svc.Coordinator.SaveAndApply(ctx, req)
 	if err != nil {
 		t.Fatal(err)
@@ -60,8 +60,8 @@ func TestQualitySyncScheduledWithoutRootStillFails(t *testing.T) {
 	if len(runs) != 1 || runs[0].Outcome != "error" || runs[0].ReviewID != nil {
 		t.Fatalf("scheduled run without a TRaSH root: %+v", runs)
 	}
-	if pending, err := svc.Reviews(ctx); err != nil || len(pending) != 0 {
-		t.Fatalf("reviews: %+v, %v", pending, err)
+	if changes, err := svc.Changes(ctx, 10); err != nil || len(changes) != 0 {
+		t.Fatalf("update log: %+v, %v", changes, err)
 	}
 	if g := svc.Coordinator.Current().Generation; g != saved.Generation {
 		t.Fatalf("generation moved to %d, was %d", g, saved.Generation)

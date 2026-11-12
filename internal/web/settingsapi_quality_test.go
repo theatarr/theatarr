@@ -158,7 +158,7 @@ func TestQualitySettingsAdminCSRFAndIfMatchSync(t *testing.T) {
 	se := newQualityEnv(t)
 	user := se.account("quality-viewer", auth.RoleUser, auth.StatusActive, true)
 	userCookie, userCSRF := se.session(user)
-	for _, path := range []string{"/profiles", "/formats", "/format_sets", "/naming", "/sync_sources", "/sync/reviews"} {
+	for _, path := range []string{"/profiles", "/formats", "/format_sets", "/naming", "/sync_sources", "/sync/changes"} {
 		r := httptest.NewRequest("GET", APIBase+"/settings"+path, nil)
 		if rec := se.do(r); rec.Code != http.StatusUnauthorized {
 			t.Fatalf("unprotected read %s: %d", path, rec.Code)
@@ -169,8 +169,8 @@ func TestQualitySettingsAdminCSRFAndIfMatchSync(t *testing.T) {
 			t.Fatalf("nonadmin read %s: %d", path, rec.Code)
 		}
 		writePath := path
-		if path == "/sync/reviews" {
-			writePath += "/1/apply"
+		if path == "/sync/changes" {
+			writePath = "/sync/preview"
 		}
 		r = httptest.NewRequest("POST", APIBase+"/settings"+writePath, strings.NewReader(`{}`))
 		r.AddCookie(userCookie)
@@ -349,9 +349,10 @@ func TestQualitySettingsTrashLinkPreviewAndApply(t *testing.T) {
 	se.want(se.call("POST", fmt.Sprintf("/sync_sources/%d/link/apply", id), map[string]any{"generation": gen, "commit": p.Commit, "links": []any{}}), 409, "stale link apply")
 }
 
-// A held score of a bound profile is taken or kept through its own endpoint, never approved as a
-// whole, and a sync source edit neither sets nor drops the score state Theatarr keeps.
-func TestQualitySyncHeldScoresAPI(t *testing.T) {
+// The update log lists the updates runs applied, newest first; the review routes are gone. The first run after
+// binding takes TRaSH's score (the client's score_state is ignored), and a sync source edit neither sets nor drops
+// the score state Theatarr keeps.
+func TestQualitySyncChangesAPI(t *testing.T) {
 	t.Parallel()
 	se := newQualityEnv(t)
 	profileID := qualityID(t, se, "profiles", "remux-2160p")
@@ -365,43 +366,59 @@ func TestQualitySyncHeldScoresAPI(t *testing.T) {
 	}
 	profile.Config["formats"].(map[string]any)["Remux Tier 02"] = 1800 // ours; TRaSH's default is 1900
 	se.want(se.call("PUT", fmt.Sprintf("/profiles/%d", profileID), map[string]any{"generation": se.generation(), "config": profile.Config}), 200, "our score")
-	config := map[string]any{"kind": "trash", "flavour": "radarr", "mode": "auto", "profiles": map[string]string{"remux-2160p": "default"}, "score_state": map[string]any{"remux-2160p": map[string]any{"set": "default", "scores": map[string]any{"Remux Tier 02": map[string]any{"trash": 1800}}}},
+	// Were this state taken, ours would differ from TRaSH's last score and stay.
+	config := map[string]any{"kind": "trash", "flavour": "radarr", "profiles": map[string]string{"remux-2160p": "default"}, "score_state": map[string]any{"remux-2160p": map[string]any{"set": "default", "scores": map[string]any{"Remux Tier 02": map[string]any{"trash": 1900}}}},
 		"field_state": map[string]any{"remux-2160p": map[string]any{"min_score": map[string]any{"upstream": 5}}}}
 	se.want(se.call("POST", "/sync_sources", map[string]any{"generation": se.generation(), "key": "guides", "config": config}), 200, "create sync source")
 	id := qualityID(t, se, "sync_sources", "guides")
 	se.want(se.call("POST", fmt.Sprintf("/sync_sources/%d/run", id), map[string]any{"generation": se.generation()}), 200, "run")
-	var reviews []settings.QualityPreview
-	res = se.call("GET", "/sync/reviews", nil)
-	se.want(res, 200, "reviews")
-	if err := json.Unmarshal(res.Body.Bytes(), &reviews); err != nil {
+	se.want(se.call("POST", "/sync_sources", map[string]any{"generation": se.generation(), "key": "web", "config": map[string]any{"kind": "trash", "flavour": "radarr", "profiles": map[string]string{"web-2160p": "default"}}}), 200, "create second source")
+	se.want(se.call("POST", fmt.Sprintf("/sync_sources/%d/run", qualityID(t, se, "sync_sources", "web")), map[string]any{"generation": se.generation()}), 200, "run second")
+	var changes []settings.QualityPreview
+	res = se.call("GET", "/sync/changes", nil)
+	se.want(res, 200, "update log")
+	if err := json.Unmarshal(res.Body.Bytes(), &changes); err != nil {
 		t.Fatal(err)
 	}
-	// The client's score_state was ignored: the first run asks about our differing score.
-	if len(reviews) != 1 || reviews[0].Kind != settings.ReviewScores || len(reviews[0].Held) != 1 || reviews[0].Held[0].Format != "Remux Tier 02" || reviews[0].Held[0].Trash != 1900 {
-		t.Fatalf("held review: %+v", reviews)
+	if len(changes) != 2 || changes[0].Source != "web" || changes[1].Source != "guides" || changes[1].AppliedAt == 0 || changes[1].State != "applied" {
+		t.Fatalf("update log: %+v", changes)
 	}
-	held := reviews[0]
-	se.want(se.call("POST", fmt.Sprintf("/sync/reviews/%d/apply", held.ID), map[string]any{"generation": se.generation()}), 422, "approve held scores as a whole")
-	path := fmt.Sprintf("/sync/reviews/%d/scores", held.ID)
-	se.want(se.call("POST", path, map[string]any{"generation": se.generation(), "decisions": []map[string]string{{"profile": "remux-2160p", "format": "Remux Tier 02", "choice": "maybe"}}}), 422, "unknown choice")
-	se.want(se.call("POST", "/sync/reviews/999999/scores", map[string]any{"generation": se.generation(), "decisions": []map[string]string{}}), 404, "missing review")
-	se.want(se.call("POST", path, map[string]any{"generation": se.generation(), "decisions": []map[string]string{{"profile": "remux-2160p", "format": "Remux Tier 02", "choice": "keep"}}}), 200, "keep ours")
-	pinned := settings.TrashScoreState{Trash: 1900, Pinned: true}
+	took := false
+	for _, s := range changes[1].Scores {
+		took = took || (s.Profile == "remux-2160p" && s.Format == "Remux Tier 02" && s.Before == 1800 && s.After == 1900)
+	}
+	if !took {
+		t.Fatalf("first run did not take TRaSH's score: %+v", changes[1].Scores)
+	}
+	res = se.call("GET", "/sync/changes?limit=1", nil)
+	if err := json.Unmarshal(res.Body.Bytes(), &changes); err != nil || res.Code != 200 || len(changes) != 1 || changes[0].Source != "web" {
+		t.Fatalf("limited log: %d %s", res.Code, res.Body.String())
+	}
+	se.want(se.call("GET", "/sync/changes?limit=x", nil), 400, "bad limit")
+	se.want(se.call("GET", "/sync/reviews", nil), 404, "reviews route removed")
+	se.want(se.call("POST", "/sync/reviews/1/apply", map[string]any{"generation": se.generation()}), 404, "apply route removed")
+	se.want(se.call("POST", "/sync/reviews/1/scores", map[string]any{"generation": se.generation()}), 404, "scores route removed")
 	state := func() settings.TrashScoreState {
 		snap, err := se.coord.Snapshot(context.Background())
 		if err != nil {
 			t.Fatal(err)
 		}
-		return snap.Records.SyncSources[0].Config.ScoreState["remux-2160p"].Scores["Remux Tier 02"]
+		for _, s := range snap.Records.SyncSources {
+			if s.Key == "guides" {
+				return s.Config.ScoreState["remux-2160p"].Scores["Remux Tier 02"]
+			}
+		}
+		return settings.TrashScoreState{}
 	}
-	if st := state(); st != pinned {
-		t.Fatalf("keep not remembered: %+v", st)
+	want := settings.TrashScoreState{Trash: 1900}
+	if st := state(); st != want {
+		t.Fatalf("state not remembered: %+v", st)
 	}
 	// An edit of the source keeps the stored state, whatever the client sends.
 	config["score_state"] = map[string]any{}
-	config["mode"] = "review"
+	config["schedule"] = "48h"
 	se.want(se.call("PUT", fmt.Sprintf("/sync_sources/%d", id), map[string]any{"generation": se.generation(), "config": config}), 200, "edit source")
-	if st := state(); st != pinned {
+	if st := state(); st != want {
 		t.Fatalf("edit dropped the score state: %+v", st)
 	}
 	// The field state is Theatarr's too: the client's never lands.
