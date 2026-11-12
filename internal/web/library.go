@@ -63,6 +63,10 @@ var (
 // version that has no owner. vs is the version's version_source row.
 const curFile = `(vs.instance IS NULL OR vs.instance = vf.instance)`
 
+// linkSizeSQL is the size of link l's file: its content file's, else (an adopted or imported link, with no content
+// file) the size its file metadata keeps. cf is the LEFT JOINed content_file.
+const linkSizeSQL = `COALESCE(cf.size_bytes, json_extract(l.file_metadata, '$.Size'))`
+
 // Per-title expressions over t (the title row).
 const (
 	nameExpr  = `CASE WHEN t.sort_name = '' THEN lower(t.name) ELSE t.sort_name END`
@@ -73,7 +77,7 @@ const (
 	sizeExpr = `NULLIF(
 		COALESCE((SELECT SUM(vf.size_bytes) FROM version v JOIN version_file vf ON vf.version_id = v.id
 			LEFT JOIN version_source vs ON vs.version_id = v.id WHERE v.title_id = t.id AND ` + curFile + `), 0) +
-		COALESCE((SELECT SUM(COALESCE(cf.size_bytes, json_extract(l.file_metadata, '$.Size'), 0)) FROM link l
+		COALESCE((SELECT SUM(COALESCE(` + linkSizeSQL + `, 0)) FROM link l
 			LEFT JOIN content_file cf ON cf.id = l.content_file_id WHERE l.title_id = t.id AND l.state = 'active'), 0), 0)`
 	nVersions = `(SELECT COUNT(*) FROM version v WHERE v.title_id = t.id)`
 	// nMissing: wanted versions with no file; nWantedFile: wanted versions that have some (a series part-way).
@@ -558,7 +562,7 @@ func (w *Web) currentFiles(ctx context.Context, db *sql.DB, ids []any) (map[int6
 		return nil, nil, err
 	}
 	if err := scanAll(ctx, db, `SELECT lv.version_id, COALESCE(l.quality, ''), COUNT(*),
-		COALESCE(SUM(COALESCE(cf.size_bytes, json_extract(l.file_metadata, '$.Size'), 0)), 0),
+		COALESCE(SUM(COALESCE(`+linkSizeSQL+`, 0)), 0),
 		COALESCE(MAX(l.created_at), 0) FROM link_version lv JOIN link l ON l.id = lv.link_id
 		LEFT JOIN content_file cf ON cf.id = l.content_file_id WHERE lv.version_id IN (`+in+`) AND l.state = 'active'
 		GROUP BY lv.version_id, l.quality ORDER BY lv.version_id`, ids, scan); err != nil {

@@ -221,7 +221,7 @@ func (w *Web) titleEpisodes(ctx context.Context, id int64, season int, seeFiles 
 		}); err != nil {
 		return nil, err
 	}
-	if err := scanAll(ctx, db, `SELECT le.episode_id, lv.version_id, COALESCE(l.quality, ''), cf.size_bytes, l.score, l.path
+	if err := scanAll(ctx, db, `SELECT le.episode_id, lv.version_id, COALESCE(l.quality, ''), `+linkSizeSQL+`, l.score, l.path
 		FROM link l JOIN link_episode le ON le.link_id = l.id JOIN link_version lv ON lv.link_id = l.id
 		LEFT JOIN content_file cf ON cf.id = l.content_file_id WHERE l.title_id = ? AND l.state = 'active'`,
 		[]any{id}, func(r *sql.Rows) error {

@@ -402,7 +402,7 @@ func loadItemFiles(ctx context.Context, db *sql.DB, versionIDs []any) (map[int64
 		return nil, err
 	}
 	err = scanAll(ctx, db, `SELECT lv.version_id, COALESCE(le.episode_id, 0), COALESCE(l.quality, ''), l.score,
-		COALESCE(cf.size_bytes, 0), l.created_at FROM link l JOIN link_version lv ON lv.link_id = l.id
+		COALESCE(`+linkSizeSQL+`, 0), l.created_at FROM link l JOIN link_version lv ON lv.link_id = l.id
 		LEFT JOIN link_episode le ON le.link_id = l.id LEFT JOIN content_file cf ON cf.id = l.content_file_id
 		WHERE lv.version_id IN (`+in+`) AND l.state = 'active'`, versionIDs, func(r *sql.Rows) error {
 		var vid, eid int64

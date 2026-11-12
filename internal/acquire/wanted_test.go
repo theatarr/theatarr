@@ -297,6 +297,17 @@ func TestWantedListPendingDownloadedAndPositionJSON(t *testing.T) {
 			t.Errorf("downloaded: %+v", row)
 		}
 	}
+	// A download that ended before anything was sent to a provider (Activity's "Not started") is not a grab.
+	exec(`UPDATE download SET error = 'route stopped: router: paused' WHERE source = 'acquire:92'`)
+	list, err = e.a.WantedList(e.ctx, WantedQuery{Only: OnlyMissing, Version: "movie"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, it := range list.Items {
+		if it.LastRun != nil && it.LastRun.Downloaded {
+			t.Errorf("not started counted as grabbed: %+v", it.LastRun)
+		}
+	}
 }
 
 func TestWantedListSharedPositions(t *testing.T) {

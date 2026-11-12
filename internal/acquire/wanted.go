@@ -8,6 +8,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/theatarr/theatarr/internal/activity"
 	"github.com/theatarr/theatarr/internal/decide"
 	"github.com/theatarr/theatarr/internal/jobs"
 	"github.com/theatarr/theatarr/internal/policy"
@@ -486,7 +487,8 @@ func (a *Acquirer) wantedRuns(ctx context.Context, items []WantedRow) error {
 	}
 	rows, err := a.st.Reader().QueryContext(ctx, `WITH page(idx,title,key,target) AS (VALUES `+strings.Join(values, ",")+`), ranked AS (
  SELECT p.idx, r.id, r.created_at, r.state, r.results, r.accepted, r.message,
- EXISTS(SELECT 1 FROM download d WHERE d.source = 'acquire:' || r.id) AS downloaded,
+ EXISTS(SELECT 1 FROM download WHERE download.source = 'acquire:' || r.id
+   AND NOT (download.state = 'failed' AND `+activity.NotStartedSQL+`)) AS downloaded,
  ROW_NUMBER() OVER (PARTITION BY p.idx ORDER BY r.created_at DESC, r.id DESC) AS rank
  FROM page p JOIN acquire_run r ON r.title_id = p.title AND r.version_key = p.key AND r.target = p.target)
  SELECT idx,id,created_at,state,results,accepted,message,downloaded FROM ranked WHERE rank = 1`, args...)

@@ -945,7 +945,7 @@ func (w *Web) episodeFile(ctx context.Context, db *sql.DB, versionID, eid int64)
 	var size, score sql.NullInt64
 	var pr, am sql.NullString
 	var adopted bool
-	err := db.QueryRowContext(ctx, `SELECT l.id, COALESCE(l.quality, ''), l.score, cf.size_bytes, COALESCE(l.release_title, ''),
+	err := db.QueryRowContext(ctx, `SELECT l.id, COALESCE(l.quality, ''), l.score, `+linkSizeSQL+`, COALESCE(l.release_title, ''),
 		l.path, l.created_at, cf.probe, l.adopted_media, l.download_id IS NULL FROM link l
 		JOIN link_version lv ON lv.link_id = l.id JOIN link_episode le ON le.link_id = l.id
 		LEFT JOIN content_file cf ON cf.id = l.content_file_id WHERE lv.version_id = ? AND le.episode_id = ?

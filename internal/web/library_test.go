@@ -847,3 +847,41 @@ func TestAdoptedLinkSize(t *testing.T) {
 		}
 	}
 }
+
+// TestAdoptedLinkFileSizes: the per-file readers (episode list, episode file panel, upgrade items) give a link with no
+// content file the size its file metadata keeps.
+func TestAdoptedLinkFileSizes(t *testing.T) {
+	t.Parallel()
+	e := newEnv(t)
+	e.seedLibrary()
+	now := store.Millis(testNow)
+	e.exec(`INSERT INTO link (id, path, target, title_id, quality, file_metadata, adopted_from, state, created_at, updated_at)
+		VALUES (8, '/anime/Delta/S01E03.mkv', '/zurg/__all__/Delta/e3.mkv', 4, 'Bluray-1080p', '{"Size":3000000000}',
+		'sonarr@s:8989 /anime/Delta/S01E03.mkv', 'active', ?, ?)`, now, now)
+	e.exec(`INSERT INTO link_version (link_id, version_id) VALUES (8, 4)`)
+	e.exec(`INSERT INTO link_episode (link_id, episode_id) VALUES (8, 43)`)
+	const want = 3000000000
+	list, err := e.web.titleEpisodes(context.Background(), 4, 1, true)
+	if err != nil {
+		t.Fatal(err)
+	}
+	found := false
+	for _, ep := range list.Episodes {
+		if ep.ID == 43 {
+			found = true
+			if c := ep.Versions["anime-tv"]; c.SizeBytes == nil || *c.SizeBytes != want {
+				t.Errorf("episode list size %+v", c)
+			}
+		}
+	}
+	if !found {
+		t.Fatalf("episode 43 not listed: %+v", list.Episodes)
+	}
+	if f, err := e.web.episodeFile(context.Background(), e.st.Reader(), 4, 43); err != nil || f == nil || f.SizeBytes == nil || *f.SizeBytes != want {
+		t.Errorf("episode file %+v %v", f, err)
+	}
+	files, err := loadItemFiles(context.Background(), e.st.Reader(), []any{int64(4)})
+	if err != nil || files[4][43].size != want {
+		t.Errorf("upgrade item files %+v %v", files[4], err)
+	}
+}
