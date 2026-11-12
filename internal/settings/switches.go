@@ -81,8 +81,8 @@ func WarnForceOffUnknown(p *policy.Policy, log *slog.Logger) {
 	}
 }
 
-// BootstrapSwitches copies YAML once, including on an existing DB. The record and marker commit together.
-func (s *Store) BootstrapSwitches(ctx context.Context, base *policy.Policy, actor string, log *slog.Logger) (*Snapshot, error) {
+// BootstrapSwitches seeds the record once, paused, including on an existing DB. The record and marker commit together.
+func (s *Store) BootstrapSwitches(ctx context.Context, base *policy.Policy, actor string) (*Snapshot, error) {
 	current, err := s.Load(ctx, base)
 	if err != nil {
 		return nil, err
@@ -106,7 +106,7 @@ func (s *Store) BootstrapSwitches(ctx context.Context, base *policy.Policy, acto
 		return err
 	})
 	if errors.Is(err, ErrConflict) {
-		return s.BootstrapSwitches(ctx, base, actor, log)
+		return s.BootstrapSwitches(ctx, base, actor)
 	}
 	return next, err
 }

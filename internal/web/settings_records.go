@@ -61,11 +61,12 @@ type SettingsOverview struct {
 }
 
 // SettingsSwitches is Pause as the running policy has it: Paused when router.enabled is off (both runtime switches
-// follow Pause), PauseForced when THEATARR_FORCE_OFF forces it.
+// follow Pause), PauseForced when THEATARR_FORCE_OFF forces it, NotifyForced when it forces notifications off.
 type SettingsSwitches struct {
-	Paused      bool                  `json:"paused"`
-	PauseForced bool                  `json:"pause_forced"`
-	Versions    []SettingsVersionMode `json:"versions"`
+	Paused       bool                  `json:"paused"`
+	PauseForced  bool                  `json:"pause_forced"`
+	NotifyForced bool                  `json:"notify_forced"`
+	Versions     []SettingsVersionMode `json:"versions"`
 }
 
 // SettingsVersionMode is one version's running mode and grab gates.
@@ -89,6 +90,7 @@ func (w *Web) settingsSwitches() SettingsSwitches {
 	}
 	out.Paused = pol.Router == nil || !pol.Router.Enabled
 	out.PauseForced = slices.Contains(pol.ForcedOff, "pause")
+	out.NotifyForced = slices.Contains(pol.ForcedOff, "notify")
 	for _, k := range sortedKeys(pol.Versions) {
 		out.Versions = append(out.Versions, SettingsVersionMode{Key: k, Mode: string(pol.Versions[k].Mode),
 			GrabState: versionGrabState(pol, k)})

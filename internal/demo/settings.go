@@ -88,7 +88,7 @@ func (s *seeder) settings() error {
 	if _, err = st.BootstrapQuality(s.ctx, pol, "demo"); err != nil {
 		return err
 	}
-	if _, err = st.BootstrapSwitches(s.ctx, pol, "demo", nil); err != nil {
+	if _, err = st.BootstrapSwitches(s.ctx, pol, "demo"); err != nil {
 		return err
 	}
 	snap, err := st.BootstrapSections(s.ctx, pol, "demo", nil)

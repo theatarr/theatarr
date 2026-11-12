@@ -61,7 +61,7 @@ func TestHealthCommand(t *testing.T) {
 func TestMountHealthFollowsRuntimeSwitch(t *testing.T) {
 	db, st, base, _ := runtimeFixture(t)
 	ctx := context.Background()
-	seed, err := st.BootstrapSwitches(ctx, base, "test", nil)
+	seed, err := st.BootstrapSwitches(ctx, base, "test")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -171,7 +171,7 @@ func TestProviderAccountHealthAcrossSaves(t *testing.T) {
 	db, st, base, _ := runtimeFixture(t)
 	ctx := context.Background()
 	base.Library.Enabled = true
-	initial, err := st.BootstrapSwitches(ctx, base, "test", nil)
+	initial, err := st.BootstrapSwitches(ctx, base, "test")
 	if err != nil {
 		t.Fatal(err)
 	}

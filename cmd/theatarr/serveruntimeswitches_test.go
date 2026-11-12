@@ -27,7 +27,7 @@ func TestArrViewHealthFollowsRouterSwitch(t *testing.T) {
 	log := slog.New(slog.NewTextHandler(io.Discard, nil))
 	area := t.TempDir()
 	base.Library.Dangling.Roots = []string{area}
-	initial, err := st.BootstrapSwitches(ctx, base, "test", nil)
+	initial, err := st.BootstrapSwitches(ctx, base, "test")
 	if err != nil {
 		t.Fatal(err)
 	}

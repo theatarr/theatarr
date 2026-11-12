@@ -83,7 +83,7 @@ func commandSettingsArgs(t *testing.T, input []string) []string {
 	if _, err = st.BootstrapQuality(ctx, base, "test fixture"); err != nil {
 		t.Fatal(err)
 	}
-	if _, err = st.BootstrapSwitches(ctx, base, "test fixture", nil); err != nil {
+	if _, err = st.BootstrapSwitches(ctx, base, "test fixture"); err != nil {
 		t.Fatal(err)
 	}
 	if _, err = st.BootstrapSections(ctx, base, "test fixture", nil); err != nil {

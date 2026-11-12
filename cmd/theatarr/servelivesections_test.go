@@ -40,7 +40,7 @@ func newLiveFixture(t *testing.T, edits ...func(*policy.Policy)) *liveFixture {
 	}
 	db, st, base, _ := runtimeFixture(t, edits...)
 	ctx := context.Background()
-	if _, err := st.BootstrapSwitches(ctx, base, "test", nil); err != nil {
+	if _, err := st.BootstrapSwitches(ctx, base, "test"); err != nil {
 		t.Fatal(err)
 	}
 	initial, err := st.BootstrapSections(ctx, base, "test", nil)

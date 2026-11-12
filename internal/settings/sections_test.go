@@ -26,7 +26,7 @@ func sectionsFixture(t *testing.T, edits ...func(*policy.Policy)) (*Store, *poli
 	t.Helper()
 	s, _, base, _ := versionFixture(t, edits...)
 	s.SetLookup(fixtureLookup)
-	if _, err := s.BootstrapSwitches(context.Background(), base, "test", nil); err != nil {
+	if _, err := s.BootstrapSwitches(context.Background(), base, "test"); err != nil {
 		t.Fatal(err)
 	}
 	snap, err := s.BootstrapSections(context.Background(), base, "test", nil)

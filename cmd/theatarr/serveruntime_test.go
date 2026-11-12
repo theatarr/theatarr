@@ -732,7 +732,7 @@ func TestLoadServePolicyReadsStoredGeneration(t *testing.T) {
 	if _, err := settingsStore.BootstrapQuality(ctx, base, "test"); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := settingsStore.BootstrapSwitches(ctx, base, "test", nil); err != nil {
+	if _, err := settingsStore.BootstrapSwitches(ctx, base, "test"); err != nil {
 		t.Fatal(err)
 	}
 	initial, err := settingsStore.BootstrapSections(ctx, base, "test", nil)

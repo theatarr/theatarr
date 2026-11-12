@@ -282,7 +282,7 @@ func (a *Acquirer) DrainSearchNow(ctx context.Context) (int, error) {
 // nothing of it is wanted any more, or when a download for it is in flight or a search of it is already queued or
 // running.
 func (a *Acquirer) searchNowReady(ctx context.Context, r searchRequest) ([]target, error) {
-	if vp := a.pol.Versions[r.key]; vp == nil || vp.Mode != policy.ModeActive || !a.pol.Grabs(r.key) {
+	if !a.pol.Grabs(r.key) {
 		return nil, nil
 	}
 	ts, err := a.targets(ctx, a.searchNowSelection(r.titleID, r.key, r.reason, r.season))

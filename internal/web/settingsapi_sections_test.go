@@ -34,7 +34,7 @@ func seededSectionsEnvBase(t *testing.T, base func(*policy.Policy)) *settingsEnv
 			t.Fatal(err)
 		}
 		st.SetLookup(func(name string) (string, bool) { return "fixture-" + name, true })
-		if _, err := st.BootstrapSwitches(ctx, c.Policy, "test", nil); err != nil {
+		if _, err := st.BootstrapSwitches(ctx, c.Policy, "test"); err != nil {
 			t.Fatal(err)
 		}
 		initial, err := st.BootstrapSections(ctx, c.Policy, "test", nil)

@@ -18,7 +18,7 @@ func seededSwitchesEnv(t *testing.T, edit func(*Config)) *settingsEnv {
 		if err != nil {
 			t.Fatal(err)
 		}
-		initial, err := st.BootstrapSwitches(context.Background(), c.Policy, "test", nil)
+		initial, err := st.BootstrapSwitches(context.Background(), c.Policy, "test")
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -84,6 +84,16 @@ func TestSettingsGlobalSwitchesPauseForced(t *testing.T) {
 	se := seededSwitchesEnv(t, nil)
 	read := se.want(se.call("GET", "/switches", nil), 200, "forced")
 	if sw := read["switches"].(map[string]any); sw["pause_forced"] != true || sw["paused"] != true {
+		t.Fatalf("forced: %+v", read)
+	}
+}
+
+// A notification override shows in the switches payload, whatever the notify section says.
+func TestSettingsGlobalSwitchesNotifyForced(t *testing.T) {
+	t.Setenv("THEATARR_FORCE_OFF", "notify")
+	se := seededSwitchesEnv(t, nil)
+	read := se.want(se.call("GET", "/switches", nil), 200, "forced")
+	if sw := read["switches"].(map[string]any); sw["notify_forced"] != true || sw["pause_forced"] != false {
 		t.Fatalf("forced: %+v", read)
 	}
 }

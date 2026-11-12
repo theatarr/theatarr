@@ -26,7 +26,7 @@ func TestGlobalSwitchesSeedOncePaused(t *testing.T) {
 		t.Fatal(err)
 	}
 	base.Router.Enabled, base.Library.Enabled = true, true
-	seeded, err := s.BootstrapSwitches(ctx, base, "test", nil)
+	seeded, err := s.BootstrapSwitches(ctx, base, "test")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -37,7 +37,7 @@ func TestGlobalSwitchesSeedOncePaused(t *testing.T) {
 	if err := db.Reader().QueryRowContext(ctx, "SELECT generation FROM settings_switches_bootstrap WHERE id=1").Scan(&marker); err != nil || marker != seeded.Generation {
 		t.Fatalf("marker %d: %v", marker, err)
 	}
-	again, err := s.BootstrapSwitches(ctx, base, "restart", nil)
+	again, err := s.BootstrapSwitches(ctx, base, "restart")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -59,7 +59,7 @@ func TestGlobalSwitchesConfirmation(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
 	s, _, base, _ := versionFixture(t)
-	initial, err := s.BootstrapSwitches(ctx, base, "test", nil)
+	initial, err := s.BootstrapSwitches(ctx, base, "test")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -127,7 +127,7 @@ func TestForceOffForcesPause(t *testing.T) {
 	for _, names := range []string{"pause", "router", "library", " router, library,pause"} {
 		t.Run(names, func(t *testing.T) {
 			s, _, base, initial := versionFixture(t)
-			if _, err := s.BootstrapSwitches(ctx, base, "test", nil); err != nil {
+			if _, err := s.BootstrapSwitches(ctx, base, "test"); err != nil {
 				t.Fatal(err)
 			}
 			m := versionCoordinator(t, s, base, initial)
@@ -172,7 +172,7 @@ func TestGlobalSwitchOmittedAndImportPreserveDB(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
 	s, _, base, _ := versionFixture(t)
-	initial, err := s.BootstrapSwitches(ctx, base, "test", nil)
+	initial, err := s.BootstrapSwitches(ctx, base, "test")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -194,7 +194,7 @@ func TestGlobalSwitchEffectsNameLiveLibraries(t *testing.T) {
 	ctx := context.Background()
 	s, _, base, _ := versionFixture(t)
 	base.Notify = &policy.Notify{Targets: map[string]*policy.NotifyTarget{"household": {URL: "https://hook.example/private-token", Native: true}}}
-	initial, err := s.BootstrapSwitches(ctx, base, "test", nil)
+	initial, err := s.BootstrapSwitches(ctx, base, "test")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -232,7 +232,7 @@ func TestRestoreKeepsPause(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
 	s, _, base, initial := versionFixture(t)
-	seeded, err := s.BootstrapSwitches(ctx, base, "test", nil)
+	seeded, err := s.BootstrapSwitches(ctx, base, "test")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -272,7 +272,7 @@ func TestGlobalSwitchImportPreservesDB(t *testing.T) {
 	if _, err := s.BootstrapQuality(ctx, base, "test"); err != nil {
 		t.Fatal(err)
 	}
-	initial, err := s.BootstrapSwitches(ctx, base, "test", nil)
+	initial, err := s.BootstrapSwitches(ctx, base, "test")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -315,7 +315,7 @@ func TestVersionConfirmationReportsPause(t *testing.T) {
 	ctx := context.Background()
 	s, _, base, _ := versionFixture(t)
 	base.Router.Enabled, base.Library.Enabled = true, true
-	seeded, err := s.BootstrapSwitches(ctx, base, "test", nil)
+	seeded, err := s.BootstrapSwitches(ctx, base, "test")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -405,7 +405,7 @@ func TestVersionFallbackCannotReactivateHeadShadow(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
 	s, db, base, _ := versionFixture(t)
-	initial, err := s.BootstrapSwitches(ctx, base, "test", nil)
+	initial, err := s.BootstrapSwitches(ctx, base, "test")
 	if err != nil {
 		t.Fatal(err)
 	}

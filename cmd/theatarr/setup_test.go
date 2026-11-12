@@ -362,7 +362,7 @@ func TestPreflightInvalidInitializedSettings(t *testing.T) {
 	if _, err := st.BootstrapSections(ctx, base, "test", nil); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := st.BootstrapSwitches(ctx, base, "test", nil); err != nil {
+	if _, err := st.BootstrapSwitches(ctx, base, "test"); err != nil {
 		t.Fatal(err)
 	}
 	snap, err := st.Load(ctx, base)
