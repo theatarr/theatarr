@@ -55,10 +55,10 @@ Unset or `db` settings-source options are accepted for compatibility. `yaml` ref
 Other settings-dependent commands take their settings from `-db`; `preflight -policy` is removed. Directory
 inspection/import tools retain directory inputs.
 
-`THEATARR_FORCE_OFF` forces the router, library and notification switches off. Saves cannot override it. Turning
-Allow new downloads or Write library links on (Pause off), making a library Live, turning a Live library's downloads
-on, removing a library, an address change that keeps a stored key, and an arr import into a grabbing
-library require confirmation; other changes save at once ("Confirmations" below).
+`THEATARR_FORCE_OFF` forces Pause on (`pause`, `router` and `library` all do) and notifications off (`notify`). Saves
+cannot override it. Turning Pause off, making a library Live, removing a library, an address change that keeps a
+stored key, and an arr import into a Live library require confirmation; other changes save at once ("Confirmations"
+below).
 
 
 Agents can read sections and views and save them through [MCP](../mcp.md), with the same validation and confirmation
@@ -73,9 +73,8 @@ pages below, anchor by anchor). The navigation and routes are listed in
 [UI §2](ui.md#2-information-architecture). YAML settings, settings history, request limits and
 Sonarr/Radarr instances are under Advanced. Older URLs redirect, keeping their query strings and anchors.
 
-The three switch cards are **Allow new downloads** on Download clients, **Write library links** on Libraries and
-**Send notifications** on Notifications. Each is off by default and follows the environment
-force-off. Connected apps is the one editor for the compatible endpoints: each app's libraries and profiles (named
+A library is **Watch only** or **Live**; there is one **Pause** in the admin header; **Send notifications** is an
+ordinary field of the Notifications page (`notify.enabled`). Connected apps is the one editor for the compatible endpoints: each app's libraries and profiles (named
 checkboxes), path, aliases and API key, with each library's state in the list. Libraries links there. The editor uses
 `PUT /settings/view-bindings/{key}`.
 
@@ -157,9 +156,29 @@ once. `section-panel.test.tsx` exercises partial writes, credentials, 422, 409, 
 
 ## Global switches
 
-`PUT /settings/switches` takes a generation and one or more `router_enabled`, `library_enabled`, `notify_enabled` booleans. Off needs no confirmation, and neither does turning `notify_enabled` on. Turning `router_enabled` or `library_enabled` on (Pause off) answers with the 422 confirmation flow, or `POST /settings/switches/confirm` previews it: the token binds the entire candidate and next generation to effects naming active versions with grab on and their enabled providers, or active versions' library roots. Confirmations omit credentials. Enabling a stored request under an environment override still needs confirmation. Whole-policy imports and clients omitting the new record preserve the switches; YAML imports cannot enable them.
+The stored record is one flag, `{"paused": bool}` (`setting_global_switches`). Both runtime switches are derived from it
+when settings load: `router.enabled` and `library.enabled` are each `!paused`, so every gate reader stays as it was.
+Pause stops searches, new downloads and library changes (links, renames, deletes, Plex updates) for every library.
+Downloads already at a provider finish there and are imported when Pause is turned off. A fresh install starts paused.
+Notifications are not part of it: `notify.enabled` is a field of the `notify` section like any other.
 
-Each save publishes a runtime generation without a restart. New routes and library operations use the new gates; the router's final-write check also refuses further adds from retired generations. A provider request already sent is not canceled, and existing downloads continue to be polled as with the router off. Library operations already in flight keep their captured generation; subsequent operations do the same dry run as startup with the switch off. Notification recording, tests and delivery sending read the runtime switch; queued deliveries are dropped while off. Health and arr/native views use the active generation. Startup fallback treats pre-switch snapshots as off and intersects older switch values with the stored head, so recovery cannot re-enable a switch the head turned off. Versions get the same treatment: a recovered version stays active only while the head's version is active and grabs only while the head's version grabs, and a version the head no longer has is recovered as shadow without grab. Anything else the fallback would allow that the head does not (the confirmation effects of going from the head to it: a Live library that follows an arr library where the head's does not, an arr import into a grabbing library the head does not map, or a library the head has, with links or a follows relationship, that the fallback lacks) refuses the fallback, and the start fails with both reasons instead of running looser settings than the saved ones. An address the fallback gives a provider or indexer with its kept key is not checked: that generation was published with it (`TestFallbackEffectsIgnoreOwnAddress`). While a fallback runs, the health check `SettingsFallbackCheck` is an error naming the running and the stored generation (Admin › System › Status lists it under Needs attention, linking to Settings, whose banner offers the reload); it is OK again once the head is loaded (`TestSettingsFallbackHealth`). It compares the running generation with the stored head (one row), so it can also flag, for a moment, a save committed but not yet published.
+`PUT /settings/switches` takes `{generation, paused}`. The removed fields `router_enabled`, `library_enabled` and
+`notify_enabled` are refused with 400 ("use paused"). Pause on needs no confirmation. Pause off answers with the 422
+confirmation flow, or `POST /settings/switches/confirm` previews it: "Turn Pause off: Live libraries search, download
+and link again: A, B. Waiting downloads are imported." The token binds the entire candidate and next generation.
+Turning Pause off under an environment override still needs confirmation. Whole-policy imports and clients omitting
+the record preserve it; YAML imports never turn Pause off.
+
+`THEATARR_FORCE_OFF` takes a comma list: `pause`, `router` and `library` each force Pause (both runtime switches
+closed; reported as `pause` in `forced_off` and `pause_forced`), `notify` forces notifications off. Other names are
+warned about at startup and in preflight and change nothing.
+
+Migration 00122 rewrote existing installs: the record became `{"paused": true}` unless both old switches were on; a
+Live library whose `grab` was not true (a missing `grab` was false: the field was omitted when false and had no
+default) became Watch only, and every library lost `grab`; `notify_enabled` true set `$.enabled` on the `notify`
+section (inserting the row if missing), false removed it.
+
+Each save publishes a runtime generation without a restart. New routes and library operations use the new gates; the router's final-write check also refuses further adds from retired generations. A provider request already sent is not canceled, and existing downloads continue to be polled as with the router off. Library operations already in flight keep their captured generation; subsequent operations do the same dry run as startup with the switch off. Notification recording, tests and delivery sending read the runtime switch; queued deliveries are dropped while off. Health and arr/native views use the active generation. Pause is not part of history: startup fallback takes it from the stored head (paused when there is none), so recovery cannot turn Pause off. Versions get the same treatment: a recovered version stays active only while the head's version is active, and a version the head no longer has is recovered as shadow. Anything else the fallback would allow that the head does not (the confirmation effects of going from the head to it: a Live library that follows an arr library where the head's does not, an arr import into a grabbing library the head does not map, or a library the head has, with links or a follows relationship, that the fallback lacks) refuses the fallback, and the start fails with both reasons instead of running looser settings than the saved ones. An address the fallback gives a provider or indexer with its kept key is not checked: that generation was published with it (`TestFallbackEffectsIgnoreOwnAddress`). While a fallback runs, the health check `SettingsFallbackCheck` is an error naming the running and the stored generation (Admin › System › Status lists it under Needs attention, linking to Settings, whose banner offers the reload); it is OK again once the head is loaded (`TestSettingsFallbackHealth`). It compares the running generation with the stored head (one row), so it can also flag, for a moment, a save committed but not yet published.
 
 
 ## Sections and views
@@ -247,7 +266,8 @@ answers 409, shown in the sheet with "Reload, discard my changes" (the draft bec
 keep my changes" (the draft is saved over the current generation). A view deleted elsewhere stays an edit of that view
 and says so on reload instead of turning into a new view (`sections.test.tsx`, `views.test.tsx`).
 
-Not moved: `library.enabled`, `notify.enabled` and `router.enabled` stay the global switches above, and
+Not moved: `library.enabled` and `router.enabled` follow Pause ("Global switches" above; `notify.enabled` is an
+ordinary field of the notify section), and
 `library.versions.*.roots` stays with the version editor (a section save naming them is refused with a pointer to the
 owner). What stays on the command line or in the environment is what is needed before the database opens or
 outside the policy: the database path, the policy directory (data files and backups), the listen address,
@@ -283,9 +303,8 @@ name) or with another scheme or host is refused, so a stored URL never moves to 
 parameters in configured URLs by the same name rule (`secrets.CredentialQueryName`): put them in the `*_env` fields.
 
 **Confirmations.** A save answers 422 with effects and a token (the shared dialog) only when it makes a library Live
-(or creates one Live), turns a Live library's downloads on, turns Allow new downloads or Write library links on
-(Pause off), removes a library that has links, changes a provider's or indexer's address while it
-keeps its stored key, or maps an arr import into a library with downloads on. Every other change, other addresses, folders, the VPN guard, `router.cached_only`, profiles, formats,
+(or creates one Live), turns Pause off, removes a library that has links, changes a provider's or indexer's address
+while it keeps its stored key, or maps an arr import into a Live library. Every other change, other addresses, folders, the VPN guard, `router.cached_only`, profiles, formats,
 naming, indexers, providers, views, notifications and credential names included, saves at once after validation.
 Validation itself is unchanged (`TestEverydayLiveEditsSaveDirectly`, `TestKeptConfirmations`).
 
@@ -303,7 +322,7 @@ same way: the 422 carries the effects and a token, the confirm endpoints issue o
 token (`confirmation_token` or `X-Confirmation-Token`) applies it. A session's tokens are bound to its user
 (`settings.WithConfirmer`, "user:<id>"); a key's to that key (`settings.WithKeyConfirmer`, "key:<id>"), so a key's
 token is refused for another key, for a session and after the key is revoked, and a session's for a key. This covers
-every flow: records (an address with a kept key), sections (an arr import), versions (activation, grab and removal), global switches, `orphan_active_downloads`, migration apply steps and torrent delete and restore. Torrent delete and restore store no
+every flow: records (an address with a kept key), sections (an arr import), versions (activation and removal), Pause, `orphan_active_downloads`, migration apply steps and torrent delete and restore. Torrent delete and restore store no
 token: theirs is an HMAC, under a random per-process key, of the confirmer (`settings.Confirmer`) and the plan digest,
 so only a preview gives it and only the same caller can use it; a restart means preview again
 ([torrents.md](torrents.md)). Permissions still decide what a key
@@ -376,7 +395,7 @@ For classes listed in `egress.require_vpn_for` (default `[indexers]`), the VPN g
 
 Changes requiring restart: listener address/TLS/cookie security, DB path, worker count/queue topology, backup location/retention/schedule, embedded UI build, and data-directory paths, because these are CLI/process resources established before or outside policy construction (`cmd/theatarr/serve.go`). Changing root paths or mount probes is reloadable only after validating mount accessibility and rebuilding the library gate; the host mount itself is external and cannot be changed by settings. Live imports use the same prepare, commit and publish safety path as saves; provider removals wait for in-progress adds, and retired web event loops are joined before a generation is closed.
 
-`router.enabled`, `library.enabled`, the notify switch and per-version `mode` are explicit. Startup logs `ROUTER DISABLED` and `LIBRARY ENABLED` when those states apply (`internal/router/router.go`, `cmd/theatarr/servelibrary.go`). Saving any transition that enables router writes or library writes requires a separate, explicit confirmation bound to the candidate generation; an ordinary save, import or sync never turns a switch on. Turning notifications on saves at once: it is a plain switch that downloads, writes and deletes nothing. Adding a provider or version never makes it active. Per-version `grab` (default false) is DB-editable in the versions editor: turning it on for an active version is a confirmed change (the effect names the version's providers and the current `router.enabled`), turning it off never needs one.
+Pause and per-version `mode` are explicit. Startup logs `ROUTER DISABLED` and `LIBRARY ENABLED` when those states apply (`internal/router/router.go`, `cmd/theatarr/servelibrary.go`). Turning Pause off requires a separate, explicit confirmation bound to the candidate generation; an ordinary save, import or sync never turns it off. Turning notifications on saves at once: it is an ordinary setting that downloads, writes and deletes nothing. Adding a provider or version never makes it active. There is no per-library downloads switch: a Live library downloads whenever Pause is off.
 
 ## API and UI
 
@@ -477,7 +496,7 @@ own).
 
 | Method and path | Does |
 |---|---|
-| `GET /settings` | Overview: source, stored and active generation, provider epoch, effective global switches and their sources, all records |
+| `GET /settings` | Overview: source, stored and active generation, provider epoch, effective Pause, all records |
 | `GET /settings/schema` | Form schema for the three record types and the write rules |
 | `GET /settings/export` | Review YAML of the stored head (`Snapshot.Export`: credentials and `*_env` stripped, webhook URL paths and URL credentials redacted) |
 | `GET /settings/audit?after=&limit=` | Redacted audit, oldest first, pages of up to 500 with `next`; `order=desc&before=` pages newest first (`next` is then the following `before`). Settings history uses newest first with Older/Newer |
@@ -879,13 +898,11 @@ off.
 **Confirmation on every path.** The effects come from the whole candidate, computed against the active runtime and
 the stored head, on record, quality and version saves, secret saves, import apply and reload. Only these ask:
 
-- a library created Live, or going from Watch only to Live ("Library … becomes Live and starts searching. Links may
-  be written under … Torrent adds may go to providers …");
-- downloads (`grab`) turned on for a Live library, or a library made Live with `grab` on ("Downloads are on for Live
-  library …"); turning them off never asks;
-- turning `router.enabled` or `library.enabled` on (Pause off; "Global switches" above);
-- an `import.arr` source newly importing titles into a grabbing version (active with `grab` on, whatever
-  `router.enabled` is: turning the router on later names no import source), or changing its version mapping to one:
+- a library created Live, or going from Watch only to Live ("Library X becomes Live: it searches, downloads to P and
+  writes links under R.", with "Pause is on, so nothing starts until you turn it off." while paused);
+- turning Pause off ("Global switches" above);
+- an `import.arr` source newly importing titles into a Live version (whatever Pause is: turning Pause off later names
+  no import source), or changing its version mapping to one:
   monitored missing titles enter wanted searches;
 - removing a library that has managed links ("stops being managed … nothing is removed");
 - a provider or indexer, enabled or not and whatever versions use it, whose address (`settings.SourceAddress`:
@@ -1045,23 +1062,18 @@ says which (`source`: `checkout` or `bundled`, with `commit`), and the quality o
 - `scripts/update-trash-bundle.sh` refreshes the snapshot before a release. New presets then appear in the lists;
   existing copies change only through quality sync.
 
-### Library switch warning
+### Library state
 
-The router-enable confirmation warns when the candidate's effective `library.enabled` is off. Runtime
-`grab_state.library_enabled` reports the effective library switch, including force-off overrides, and
-`grab_state.library_writes` the library's own write gate (`library.Gate.Active`: the switch on, mode active,
-listed under `library.versions` with roots), so a shadow library never says its files will link. `will_grab`
-continues to describe debrid adds: the library switch does not prevent them. The library state
-([UI](ui.md), "Library state") keeps the download verdict (for example **Downloads on**) and adds the
-separate mark **New files won't be linked** on an active library whose links are off; existing files stay
-watchable. Why? lists the closed write gate and, for managers, links Settings › Libraries. A shadow library writes no
-links by design and shows no mark.
+Runtime `grab_state` carries `paused` and `pause_forced` (Pause and whether `THEATARR_FORCE_OFF` forces it),
+`library_writes` (the library's own write gate, `library.Gate.Active`: Pause off, mode active, listed under
+`library.versions` with roots) and `will_grab` (Live and Pause off). The library state ([UI](ui.md), "Library
+state") reads Watch only, Live, or Live, paused.
 
 ## Readiness and phone navigation
 
 Setup is a six-step checklist; [quickstart](../quickstart.md#readiness-led-setup) defines its shared progress count.
 Its activation review lists library keys (also their current display labels), roots, the library state (mode and verdict), indexers and
-providers, plus effective Allow new downloads, Write library links and Send notifications states and their sources.
+providers, plus Pause (and whether the environment forces it).
 Each links to its existing editor; reviewing never writes settings. Home and Settings remind admins while setup is
 unfinished. [The arr map](../arr-map.md) maps upstream pages and explains missing equivalents.
 

@@ -158,16 +158,15 @@ Code: `internal/web/setup.go`, `internal/preflight`, `cmd/theatarr/preflight.go`
   two counts count, and `trash` says the trash folder is set.
 - `POST /setup/start` (admin, CSRF; `internal/web/settingsapi_start.go`): the one-step start. Body: `generation`,
   `key`, `roots` and `config` as `POST /settings/versions` takes them, an optional `preset` (`flavour`, `preset`,
-  `modifiers`) and `confirmation_token`. One settings save creates the version with `mode: active` and `grab: true`
+  `modifiers`) and `confirmation_token`. One settings save creates the version with `mode: active`
   whatever the body says, creates the preset's profile and format set under the library's key (from the checkout
-  or the bundled TRaSH defaults) and sets the global switches `router` and `library` on; `notify` and every other
-  record are untouched. It is one generation and one confirmation: the 422 lists the activation, the grab switch and
-  each global switch with one token. It answers 409 while `import.arr` holds an instance (also when the settings
+  or the bundled TRaSH defaults) and turns Pause off; notifications and every other record are untouched. It is one
+  generation and one confirmation: the 422 lists the activation and Pause off with one token. It answers 409 while `import.arr` holds an instance (also when the settings
   are not in the database), and the usual stale-generation 409 and validation 422 (an unwritable root is named; a missing trash folder is
   `library.trash.dir: required`). It also answers 422 when none of the library's indexers, or none of its
   providers, is enabled and ready.
-  The answer is `generation`, `revision` and `forced_off`: the switches among `router` and `library` that
-  `THEATARR_FORCE_OFF` keeps off although they are now saved as on.
+  The answer is `generation`, `revision` and `forced_off`: `["pause"]` when `THEATARR_FORCE_OFF` keeps Pause on
+  although it is now saved off, else `[]`.
 - `POST /preflight {sources?}` (admin, CSRF): `preflight.Run` over the current generation's policy. Each item is
   `ok`, `warn` or `fail` with `why` and `next`. The mount check is the library's guarded mount check; roots and trash
   are stat and access(2), plus one filesystem when a version imports with hardlinks; providers and indexers are the
@@ -188,7 +187,7 @@ Code: `internal/web/setup.go`, `internal/preflight`, `cmd/theatarr/preflight.go`
   addresses where they have none and stores the key, in one `PUT /settings/sections/metadata` with its confirmation;
   `web/src/components/settings/tmdb-key.tsx`), a
   first version (key, kind, root with the validate-root check, a TRaSH preset through `POST /settings/presets/create`
-  or an existing profile, indexers, providers; Review, then `POST /settings/versions` with `mode: shadow`, `grab: false`,
+  or an existing profile, indexers, providers; Review, then `POST /settings/versions` with `mode: shadow`,
   answering a 422 confirmation with the token; a retry after a failed version save reuses the profile it already made
   only for the same key and preset, and asks for another key when the preset changed), and the preflight table.
   With `arr_instances` 0 the form has two buttons: **Create library and start downloading** sends `POST /setup/start`

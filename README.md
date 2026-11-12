@@ -30,14 +30,16 @@ before every upgrade ([docs/restore.md](docs/restore.md)) and report what breaks
 
 It is built so that nothing happens until you say so:
 
-- A new library starts in **shadow mode**: it searches and decides what it would grab, and records that, but adds
-  nothing to debrid and writes nothing to the library.
-- The global switches `router.enabled` (**Allow new downloads**) and `library.enabled` (**Write library links**) are
-  off on a fresh install. An admin turns them on. Making a library Live, resuming after Pause, sending a stored key to
-  a new address and deletes ask for a confirmation; other settings save at once.
+- A library is **Watch only** or **Live**. A new library starts Watch only: Theatarr searches, downloads and links
+  nothing for it.
+- **Pause** is on for a fresh install. It stops searches, new downloads and library changes for every library;
+  downloads already at a provider finish there and are imported when Pause is turned off. Making a library Live,
+  turning Pause off, sending a stored key to a new address and deletes ask for a confirmation; other settings save at
+  once. Notifications are an ordinary setting.
 - On a fresh install with no arr to migrate from, Setup can do all of that in one step, **Create library and start
-  downloading**, after one confirmation that lists every switch it turns on.
-- `THEATARR_FORCE_OFF=router,library,notify` forces the switches off at startup, whatever the saved settings say.
+  downloading**, after one confirmation that lists what it turns on.
+- `THEATARR_FORCE_OFF=pause,notify` forces Pause on and notifications off at startup, whatever the saved settings say
+  (`router` and `library` still work and also force Pause).
 
 ## Features
 
@@ -159,18 +161,16 @@ compose volume is for, is [docs/quickstart.md](docs/quickstart.md).
 
 ## Using Theatarr
 
-**A first library in shadow.** Setup can create the first library in shadow mode with downloads off (always, when
-the install migrates from an arr). It records what it would have grabbed from the RSS feeds of its indexers, from the grabs of the arr that feeds it, and when you run
-`theatarr decide`. Add titles from **Search**, or let requests come in.
+**A first library, Watch only.** Setup can create the first library as Watch only (always, when the install migrates
+from an arr): Theatarr searches, downloads and links nothing for it until you set it Live. Add titles from **Search**, or let requests come in.
 See [docs/quickstart.md](docs/quickstart.md#6-a-first-library).
 
 **Reading its decisions.** **Activity › Decision journal** lists every decision; an entry opens from its
 title link and shows the chosen release, runners-up, rejections and suspect flags. **Admin › Reviews** collects what waits for you: quality updates, anime
 mappings, indexer definitions and flagged decisions. See [docs/journal.md](docs/journal.md).
 
-**Going live.** When the decisions look right, run `theatarr preflight`, set the library to
-**Active**, turn on **Allow downloads for this library**, **Write library links** and **Allow new downloads**, and
-watch the first imports. See [docs/quickstart.md](docs/quickstart.md#9-go-live-deliberately).
+**Going live.** Run `theatarr preflight`, set the library to **Live**, turn **Pause** off, and watch the first
+imports. See [docs/quickstart.md](docs/quickstart.md#9-go-live-deliberately).
 
 **Requests.** Add Theatarr to Seerr or Overseerr as a Radarr or Sonarr server: the view path as URL base (for
 example `/v/movies/radarr`) and an API key from **Users & access**. See
@@ -210,7 +210,7 @@ The environment sets what the service needs before it can read its database. Mos
 | `THEATARR_LOG_DIR` | `logs/` next to the database | Rotated JSON logs (`THEATARR_LOG_MAX_FILES`, `THEATARR_LOG_MAX_SIZE`) |
 | `THEATARR_COOKIE_SECURE` | `auto` | Secure flag on cookies: `auto` (TLS or `X-Forwarded-Proto: https`), `always`, `never` |
 | `THEATARR_METRICS` | `open` | Who may read `/metrics`: `open`, `lan` (private addresses) or `key` |
-| `THEATARR_FORCE_OFF` | unset | Comma list of `router`, `library`, `notify`: forced off at startup, whatever the settings say |
+| `THEATARR_FORCE_OFF` | unset | Comma list of `pause` (also `router`, `library`) and `notify`: forces Pause on and notifications off at startup, whatever the settings say |
 | `THEATARR_WORKERS`, `THEATARR_WORKERS_RESERVED` | `2`, `1` | Job worker slots, and extra slots only searches and imports may use |
 | `THEATARR_RETENTION_DAYS`, `THEATARR_RETENTION_RUN_DAYS` | `180`, `30` | Days of history and of sync runs kept; `0` keeps them |
 | `THEATARR_MOUNT_HELPER` | `true` | Run calls on the debrid mount in helper processes that are killed when a call hangs |

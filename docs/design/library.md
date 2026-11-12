@@ -877,7 +877,7 @@ links an instance's files into a library. `Library.AdoptImported(ctx, version, f
 records (`ImportFile`: the title, the path where Theatarr reads the file after the import's folder mapping, the
 file's quality and media details, and for a series Theatarr's episode ids): mount-backed symlinks only, never over a
 path that is taken or over the library's own file, named by the library's naming and scored with the library's own
-profile. It needs a Live library with **Write library links** on.
+profile. It needs a Live library and Pause off.
 The link's provenance (`adopted_from`) is `<flavour>@<host:port> <the instance's path>`. `CheckImportFile` is the
 same look at one file without writing (the Preview); `DirExists` is the Check's folder test. There is no refresh:
 when the instance later upgrades a file, Theatarr's link to the old one dangles and is handled as any dead link.

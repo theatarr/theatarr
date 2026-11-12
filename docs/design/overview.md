@@ -100,14 +100,14 @@ Around the pipeline:
 
 Nothing writes to a provider or the library until it is turned on, step by step:
 
-- **Shadow mode.** Every version starts in `mode: shadow` (Watch only): Theatarr grabs and links nothing for
-  it, and RSS reads nothing for it.
-- **`router.enabled`.** The global switch for provider writes (add a magnet, select files). It defaults to false,
-  and then every route is a dry-run plan. The router writes for a version only when `router.enabled` is true, the
-  version is `mode: active`, and the version's `grab` is true.
-- **`library.enabled`.** The global switch for filesystem writes and Plex calls. It defaults to false. A link is
-  written only when it is true, the version is active, and the path is under one of the version's roots (or the
-  trash directory) ([library.md](library.md)).
+- **Watch only.** Every version starts as Watch only (`mode: shadow`): Theatarr searches, downloads and links
+  nothing for it. Live (`mode: active`) searches, downloads and links.
+- **Pause.** One switch, on for a fresh install, stops searches, new downloads and library changes for every library.
+  The runtime switches `router.enabled` (provider writes: add a magnet, select files) and `library.enabled`
+  (filesystem writes and Plex calls) are both derived from it. The router writes for a version only when Pause is
+  off and the version is Live; a link is written only when Pause is off, the version is Live, and the path is under
+  one of the version's roots (or the trash directory) ([library.md](library.md)). Downloads already at a provider
+  finish there and are imported when Pause is turned off.
 - **The gateway.** Every outbound request goes through `internal/gateway` and its host allowlist. With an `egress`
   section, indexer traffic (by default) is refused unless a fresh egress check saw a VPN exit address; without
   one the guard is off and the UI warns about it ([gateway.md](gateway.md)).

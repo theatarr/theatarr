@@ -2,8 +2,8 @@
 
 Use the menu paths below on desktop or in phone **More**. Settings search accepts these page names and keeps each named alias under its own label.
 Theatarr libraries replace separate arr instances; you choose each library's feeds and providers and when it may
-download. Title pages call them **Libraries**. **Allow new downloads** is in **Settings › Download clients**; each
-library's **Watch only** / **Live** control is in **Settings › Libraries** (with **Don't download for this library** under the library's **Advanced**); **Pause** in the admin header turns new downloads and library links off together. Download notices link to the closed gate's page.
+download. Title pages call them **Libraries**. Each library's **Watch only** / **Live** control is in **Settings ›
+Libraries**; **Pause** in the admin header stops searches, new downloads and library changes for every library. Download notices link to the closed gate's page.
 “Not needed” means no equivalent page in Theatarr's current workflow, not that the upstream feature is worthless.
 
 The arr navigation comes from the Sonarr v5 (develop branch), Radarr v6.4.4 and Prowlarr sources: each
@@ -26,7 +26,7 @@ claim of Sonarr v5 API parity. Recyclarr has no web pages; its table maps the CL
 | Settings › Quality | Admin › Settings › Profiles — `/admin/settings/profiles` | Quality sizes are set per profile in the profile editor's Size limits form (the raw profile editor still works); Quality sync can manage TRaSH size definitions. |
 | Settings › Custom Formats | Admin › Settings › Custom formats — `/admin/settings/formats` | Shared definitions; scores are edited on profiles. |
 | Settings › Indexers | Admin › Settings › Indexers — `/admin/settings/indexers` | Torznab feeds (Prowlarr, Jackett: **Add indexer › Torznab & built-in sources**), built-in sources and the native catalog coexist; each library chooses its feeds. |
-| Settings › Download Clients | Admin › Settings › Download clients — `/admin/settings/downloads` | Debrid providers are direct; a decypharr-style debrid client goes under Other clients (seedbox clients are not supported yet). Allow new downloads remains explicit. |
+| Settings › Download Clients | Admin › Settings › Download clients — `/admin/settings/downloads` | Debrid providers are direct; a decypharr-style debrid client goes under Other clients (seedbox clients are not supported yet). Pause remains explicit. |
 | Settings › Import Lists | Library › Collections › Lists — `/collections/lists` | A Sonarr instance can be a list (its series are added to the chosen series libraries every 15 minutes, read only); TMDb movie lists and Radarr instances live there too. Other series list providers are not supported. |
 | Settings › Connect | Admin › Settings › Notifications — `/admin/settings/notifications` | Webhook, Discord and ntfy targets and Send notifications; Plex lives under Plex & playback. |
 | Settings › Metadata | **not needed** | No NFO/sidecar consumer editor in this debrid/Plex workflow; metadata services live in Settings › Metadata & artwork. |
@@ -63,7 +63,7 @@ claim of Sonarr v5 API parity. Recyclarr has no web pages; its table maps the CL
 | Settings › Quality | Admin › Settings › Profiles — `/admin/settings/profiles` | Quality sizes are set per profile in the profile editor's Size limits form (the raw profile editor still works); Quality sync can manage TRaSH size definitions. |
 | Settings › Custom Formats | Admin › Settings › Custom formats — `/admin/settings/formats` | Shared definitions; scores are edited on profiles. |
 | Settings › Indexers | Admin › Settings › Indexers — `/admin/settings/indexers` | Torznab feeds (Prowlarr, Jackett: **Add indexer › Torznab & built-in sources**), built-in sources and the native catalog coexist; each library chooses its feeds. |
-| Settings › Download Clients | Admin › Settings › Download clients — `/admin/settings/downloads` | Debrid providers are direct; a decypharr-style debrid client goes under Other clients (seedbox clients are not supported yet). Allow new downloads remains explicit. |
+| Settings › Download Clients | Admin › Settings › Download clients — `/admin/settings/downloads` | Debrid providers are direct; a decypharr-style debrid client goes under Other clients (seedbox clients are not supported yet). Pause remains explicit. |
 | Settings › Import Lists | Library › Collections › Lists — `/collections/lists` | Managers and admins. TMDb movie lists and Radarr or Sonarr instances: add, edit, check, preview, sync now and delete; lists made through the Radarr-compatible API show here too. Settings › Metadata & artwork › Refresh schedules (`/admin/settings/metadata#refresh`) controls timing. |
 | Settings › Connect | Admin › Settings › Notifications — `/admin/settings/notifications` | Webhook, Discord and ntfy targets and Send notifications; Plex lives under Plex & playback. |
 | Settings › Metadata | **not needed** | No NFO/sidecar consumer editor in this debrid/Plex workflow; metadata services live in Settings › Metadata & artwork. |
@@ -93,7 +93,7 @@ claim of Sonarr v5 API parity. Recyclarr has no web pages; its table maps the CL
 | Settings | Admin › Settings — `/admin/settings` | Search by task or an arr page name. |
 | Settings › Indexers | Admin › Settings › Indexers › VPN — `/admin/settings/indexers/vpn` | Optional VPN guard and catalog settings replace proxy management; native definition reviews are under Reviews. |
 | Settings › Apps | Admin › Settings › Connected apps — `/admin/settings/apps` | Theatarr is its own indexer manager, so there is no indexer-to-arr sync; Connected apps exposes Radarr- and Sonarr-compatible APIs to Seerr and other clients. |
-| Settings › Download Clients | Admin › Settings › Download clients — `/admin/settings/downloads` | Debrid providers are direct; a decypharr-style debrid client goes under Other clients (seedbox clients are not supported yet). Allow new downloads remains explicit. |
+| Settings › Download Clients | Admin › Settings › Download clients — `/admin/settings/downloads` | Debrid providers are direct; a decypharr-style debrid client goes under Other clients (seedbox clients are not supported yet). Pause remains explicit. |
 | Settings › Connect | Admin › Settings › Notifications — `/admin/settings/notifications` | Webhook, Discord and ntfy targets and Send notifications; Plex lives under Plex & playback. |
 | Settings › Tags | **not needed** | No tag-based routing page; library indexer lists and per-indexer provider allowlists make routing explicit. |
 | Settings › General | No General page: provider account sync is on Download clients (`/admin/settings/downloads#provider-sync`), the artwork cache on Metadata & artwork (`/admin/settings/metadata#artwork-cache`), other libraries' folders on Torrents (`/admin/torrents#scan-roots`) | Accounts/API keys are under Users & access, deployment flags remain outside the UI. `/admin/settings/general` redirects. |

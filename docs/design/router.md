@@ -11,38 +11,33 @@ The provider tests run on fixtures written from the providers' API docs and decy
 
 ## The gate
 
-The router writes to a provider (adds a magnet, selects Real-Debrid files) only when **all three** hold:
+The router writes to a provider (adds a magnet, selects Real-Debrid files) only when **both** hold:
 
-1. `router.enabled: true` in the policy. This is the global kill switch. It is off by default, and off when the
-   section is missing. In DB settings it is the Router global switch (Admin › Settings); the other `router` options
-   are a settings section that applies on save (the poll and wanted loops restart on a changed interval).
-2. The version's `mode` is `active`.
-3. The version's `grab` is `true`. It defaults to false, so a policy without the key grabs nothing.
-   It is read by this gate only: an active version with grab off still imports and links; its routes are recorded
-   as `disabled` dry runs (`ErrNoGrab`). The automatic searches (wanted loop, re-searches) run only for the versions
-   this gate lets grab (`Policy.SearchVersions`). RSS still
-   routes an active version's picks with grab off: the feeds are read for the shadowed versions anyway, and the
-   "would add" dry-run plans are the evidence for turning grab on. Those items are not marked seen, so each sync
-   decides them again (one page per feed, at most 1,000 items). User-invoked searches (interactive, arr commands) still run and
-   their routes are dry runs. With DB settings it is edited in the versions editor; turning it on for an active
-   version is a confirmed change, turning it off never needs confirmation. Going live sets it together with
-   `mode: active` (there is no switch command). `theatarr router status` shows it (GRAB).
+1. `router.enabled: true`. With DB settings it is derived from **Pause** (true when Pause is off; Admin header,
+   `PUT /settings/switches {paused}`); without the section it is off. The other `router` options are a settings
+   section that applies on save (the poll and wanted loops restart on a changed interval).
+2. The version's `mode` is `active` (Live). A Watch-only version (`mode: shadow`) gets dry runs only. There is no
+   per-library downloads switch (the former `grab` field went in migration 00122: a Live library without it became
+   Watch only). The automatic searches (wanted loop, re-searches) run only for the Live versions while Pause is off
+   (`Policy.SearchVersions`). User-invoked searches (interactive, arr commands) still run and their routes are dry
+   runs while the gate is closed. `theatarr router status` shows Pause and each library's state and whether it
+   downloads.
 
 `Router.Gate` is that rule (`Policy.Grabs`), and every write passes it last: the add in `Route`, and the file
 selection in `Poll`. A router of an older settings generation also asks the published runtime's gate
-(`SetCurrentRuntime`), so turning grab or the kill switch off stops a route already running at its
-next write: the download it holds ends (`route stopped: ...`) and nothing is added (`TestGrabOffStopsRunningRoute`).
+(`SetCurrentRuntime`), so turning Pause on (or a library to Watch only) stops a route already running at its
+next write: the download it holds ends (`route stopped: ...`) and nothing is added (`TestPauseStopsRunningRoute`).
 Preparing and publishing that generation never waits for the running route: `New` copies the previous generation's
 account-change grace, and `SetMountCheck` / `PublishProviderChanges` set theirs, under each router's own small lock,
-never the shared route lock. So a save turning grab or `router.enabled` off while a route is sending is published at
-once, and the route's next add is refused (`TestGrabOffPublishedDuringRunningRoute`).
+never the shared route lock. So a save turning Pause on while a route is sending is published at
+once, and the route's next add is refused (`TestPausePublishedDuringRunningRoute`).
 
 When the gate refuses, `Route` runs the same decisions as a **dry run**:
 - it sends nothing to any provider and makes no cache check;
 - it records what it would have done in `router_plan`: mode `shadow` or `disabled`, the release, the provider, and
   every step with its reason, for the shadow report;
 - a queued download it resumes ends (`failed`, `route ended: ...`), as a switch to shadow ends it through the
-  freshness check. It is not resumed every 10 minutes while grab or the kill switch is off and then
+  freshness check. It is not resumed every 10 minutes while Pause is on and then
   grabbed whenever they come back on; the next search grabs the title then (`TestGrabOffQueuedDownloadIsEnded`).
   When no add was ever sent for it to a provider or client (no such `download_attempt`), Activity shows it as Not
   started (`activity.NotStarted`) and it does not fail a request; one tried before (a refused add waiting for its
@@ -53,8 +48,7 @@ When the gate refuses, `Route` runs the same decisions as a **dry run**:
 `theatarr serve` logs the gate at start, at WARN:
 - `ROUTER DISABLED: router.enabled is false; ...`;
 - `ROUTER ENABLED but no version is active`;
-- `ROUTER ENABLED but no active version has grab on`;
-- `ROUTER ENABLED: adds go to debrid providers for the active versions with grab on` with their names.
+- `ROUTER ENABLED: adds go to debrid providers for the active versions` with their names.
 
 **Proof (tests, `go test ./internal/router`).** The fake adders log every call, and they are the only writer the
 router has.
@@ -65,8 +59,8 @@ router has.
 - `TestDeferredRouteReEnqueues`: a shadow version's `router.route` job records a plan and enqueues nothing.
 - `TestPrivateLabelFollowsIndexerProviders`: privacy is a label: a private-labelled release of an indexer
   the version lists is routed like any other, only to the providers its indexer allows (`indexers.<key>.providers`).
-- `TestActiveVersionWithoutGrabNeverWrites`, `TestOfferWithoutGrabIsPlanned`: switch on, version active, grab off.
-  Zero adds, `disabled` plans; an offer stays `planned`.
+- `web.TestPauseClosesBothGates`: with Pause on, `Router.Gate`, the library gate and `catalog.Searchable` all refuse
+  a Live library; with it off all three let it through.
 
 **Before a route opens a download**: a candidate every usable provider would skip anyway (a recorded
 cache miss, uncached under `cached_only`, or a release Real-Debrid refuses) is skipped with step `known_miss` and
@@ -490,7 +484,7 @@ the note.
 
 **Unfinished checks** (`internal/router/cachedcheck.go`, migration
 00104). When the reads give no verdict, or the verdict is uncached on an add of Theatarr's own but the delete is blocked by the
-stop switch (the version's Grab or `router.enabled` off), the route's lost job lease, or a failed delete, the add
+stop switch (Pause on, or the version Watch only), the route's lost job lease, or a failed delete, the add
 stays and the check stays open on the download: `download.cached_check` `pending` (no verdict) or `uncached` (the
 delete is owed). Kept for ownership reasons (not provably Theatarr's, the adder cannot delete, AllDebrid with
 `alldebrid_delete_uncached` off) sets nothing, as before. The marker counts only while the download is `added` or
@@ -728,7 +722,7 @@ day. There is one chain per title and version (misses on overlapping episode set
 pending at a time. Each follow-up searches what is new when it runs: a series' monitored, wanted episodes that aired
 within the last 7 days, each by its own air date (an old episode that came in a batch with a new one is not
 followed), or the movie; in arr terms a search of new monitored items only, the missing search stays as set. The chain stops when nothing is new any more, the title's version is unmonitored, the new items are filled,
-unmonitored or have a download in flight, or the version is off (not active, `router.enabled` off, grab off). A title
+unmonitored or have a download in flight, or the version is off (not active, or Pause on). A title
 gets one chain per fresh window: a miss starts none while a chain of the title is pending or was queued since its
 newest new date (the `job` rows, finished ones kept 14 days), so neither a follow-up's miss nor the re-search it causes
 restarts it, and a release that stays uncached costs the first add and one per follow-up. A follow-up asked for again
@@ -850,7 +844,7 @@ library queues one `acquire.research` job in the dead mark's transaction for eac
 gate lets write (a version the link shares that is shadow or not listed gets none): the movie, or the dead
 link's own episodes, keyed per version, title and episodes so a pending one is not queued twice. It runs through the
 follow-up path with the same stops as `fresh`, without the freshness rule:
-- nothing while `router.enabled` or grab is off, the version is not active, or the library no longer writes for it
+- nothing while Pause is on, the version is not active, or the library no longer writes for it
   (disabled, not listed): the job ends skipped and never waits to fire later. Its search job checks these again
   before it asks any indexer or provider, and ends skipped when one turned off in between (this recheck holds for
   every re-search's search, `fresh` included; a `reconcile` one waits for grabbing again, as its job does). Such a
@@ -1008,11 +1002,11 @@ come in an error envelope on HTTP 200 and are read as a 5xx (`provider.ErrUnavai
 (`failure.go`).
 
 **Selection behind the write gate**. A non-reused Real-Debrid add that waits for its file selection
-while the router may not write for its version (grab or the router off, the version not grabbing) cannot be
+while the router may not write for its version (Pause on, or the version Watch only) cannot be
 selected; the wait is the gate's, not the torrent's. This is the only pause of the stall clock, since it is Theatarr's own
 switch: the read clears the failed reads in a row and starts `download.poll_outage_since` (migration 00086; the
 column now records only this pause) until a read that is not gated; then the selection goes out and the gated time
-is added to `download.stall_offset`, which `stalled_after` does not count, and to `progress_at`. Turning grab off does not blocklist such adds as stalled
+is added to `download.stall_offset`, which `stalled_after` does not count, and to `progress_at`. Turning Pause on does not blocklist such adds as stalled
 (`TestGatedSelectionPausesStallClock`).
 
 **Dangerous and executable files** (Sonarr v5, PRs #8775 `2b7906724` and #9093 `1c01b720a`;
@@ -1462,8 +1456,8 @@ pacing only; there is no separate per-season bulk pacing.
 - **Search now (`search_request`, 00111; `internal/acquire/searchnow.go`).** The Wanted page's buttons (one row, the
   selected rows, or every row of the tab with its library and waiting filter) go through `POST /wanted/search`. A
   request is one row of the list: one library's missing or cutoff-unmet targets of a movie, or of one series season
-  (`season`; -1 for a movie). `RequestSearchNow` skips, with the reason, an item whose library is not active or has
-  grab off or that has nothing wanted now, and refuses everything while `router.enabled` is false (409);
+  (`season`; -1 for a movie). `RequestSearchNow` skips, with the reason, an item whose library is not active or that
+  has nothing wanted now, and refuses everything while `router.enabled` is false (409);
   `RequestSearchNowAll` takes the rows `WantedList` builds for the same filter (one helper, `wantedRows`), without
   paging and without a cap. Asking again for a queued row keeps its place. There is no path around the budget, for
   one row or for many: `DrainSearchNow` starts the requests oldest first while the hour has searches left, each as
@@ -1472,14 +1466,14 @@ pacing only; there is no separate per-season bulk pacing.
   reason and season), does not consult `again_after` (the user asked), and deletes the request when its search
   starts and when it asks for nothing any more (imported meanwhile, a download in flight, a search of it already
   queued or running, unmonitored, the
-  library not active or not grabbing). A search that fails is recorded on its run and not repeated from the request. While
+  library not active). A search that fails is recorded on its run and not repeated from the request. While
   `router.enabled` is false (Pause) nothing new is accepted and the queue waits: a drain
   starts nothing, no drain job is scheduled (the serve worker that schedules one is off while the switch is), and once
   it is true again the restarted worker (`StartQueued`: Search now, then the job is scheduled for what is left; `TestResumeStartsSearchNowWithBudgetLeft`) or the next round drains it, oldest first, under the budget, with the wanted loop on or off. `DELETE /wanted/search` drops
   it on request ("Cancel queued searches"), also during a drain: the drain claims each request by deleting it just
   before it starts that row's search, so a cancelled request does not start. A search that has started stays
   started. The list reports what stops a search by hand apart from the loop's waiting reason
-  (`WantedRow.search_blocked`: `downloads_off`, `grab_off`, `in_flight`; `waiting` says `loop_off` first), the page's
+  (`WantedRow.search_blocked`: `downloads_off` (Pause), `in_flight`; `waiting` says `loop_off` first), the page's
   controls follow it, and "all" queues only the rows without it (`searchable`).
 - **One budget, one lock.** A wanted round's own searches, the Search now drain and a re-search after a failure check and
   spend the hour under the acquirer's `drainMu`, so two of them never spend the same slot and `per_hour` holds when
@@ -1505,10 +1499,8 @@ pacing only; there is no separate per-season bulk pacing.
   `TestSearchNowRefusedWhileDownloadsAreOff`, `TestSearchNowDuplicateAndClear`,
   `TestSearchNowDrainsAfterAddTimeSearches`, `TestSearchNowScheduledAtStart`, `TestWantedListSearchNowQueue`,
   `web.TestWantedSearchAPI`.
-- It does nothing while `router.enabled` is false, and searches only active versions with grab on
-  (`Policy.SearchVersions`): no search traffic for routes that could only be dry runs. RSS keeps routing such a
-  version's picks as dry-run plans (no add, no re-search). Tests: `TestWantedSkipsGrabOff`,
-  `TestAddTimeSearchWaitsForGrab`, `TestResearchSkipsGrabOff`, `shadow.TestActiveRSSGrabOff`.
+- It does nothing while Pause is on (`router.enabled` false), and searches only Live versions
+  (`Policy.SearchVersions`). Tests: `TestAddTimeSearchWaitsForGrab`, `catalog.TestSearchable`.
 
 **Command status.** A command's status follows its runs (`acquire.LoadCommandStatus`), the route job, and what the
 router did with the run's source:

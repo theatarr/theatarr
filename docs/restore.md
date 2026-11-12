@@ -148,7 +148,7 @@ migrations.
    - `library dangling -scan` writes the dangling-link report. **System › Status** lists the same links under
      **Show the N broken links**.
    - `library relink -dry-run`, then `library relink`: repoints dangling links by info hash, through the library
-     gate (**Write library links**, an Active library, the library's roots).
+     gate (Pause off, a Live library, the library's roots).
    - `providers sync` refreshes the content registry from the debrid accounts.
 
    Links made after the backup belong to downloads the restored database does not know; Theatarr leaves those files

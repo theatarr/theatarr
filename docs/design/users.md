@@ -155,6 +155,5 @@ permissions, request versions, auto-approve, the new-Plex-users setting, each us
 password for local accounts, own keys). API keys are managed in Users and Profile.
 
 Request detail, request lists, add options and title request cards share the server's effective grab decision
-(`grab_state.will_grab`, also exposed as add option `searchable`). It requires active mode, that version's grab
-switch and the global router switch, with no forced-off override. Approval records monitoring intent while these
-gates are closed; it does not enable a version's grab switch.
+(`grab_state.will_grab`, also exposed as add option `searchable`). It requires active mode (Live) and Pause off.
+Approval records monitoring intent while these gates are closed; it does not make a library Live or turn Pause off.

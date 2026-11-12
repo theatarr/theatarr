@@ -112,8 +112,8 @@ optional `confirmation_token`; see below.
 `api_request` runs the request through the same routes as a direct API call, as the caller (the same key or session,
 so the same permissions and confirmations). Its result is `{ "status", "data" }` like any tool, with the route's
 answer as `data`. It refuses absolute URLs, `..`, percent escapes, paths outside `/api/theatarr/v1`, `/auth/*`, `/events` and the MCP
-endpoint itself. Use it for the global switches (`PUT /api/theatarr/v1/settings/switches`; `settings_section_update` refuses
-them), versions (create, activate, grab), providers, indexers, users, API keys,
+endpoint itself. Use it for Pause (`PUT /api/theatarr/v1/settings/switches` with `{generation, paused}`; `settings_section_update`
+refuses `router.enabled` and `library.enabled`, which follow Pause), versions (create, activate), providers, indexers, users, API keys,
 torrent backups and restores, jobs and the rest; [openapi.json](../internal/web/openapi.json) lists the routes.
 `confirmation_token` is sent as the `X-Confirmation-Token` header, which settings routes read; torrent delete and
 restore take their token in the body, so put it in `body` there. A torrent delete or restore
@@ -124,10 +124,9 @@ other methods are writes, audited like the other write tools.
 ## Confirmation and limits
 
 A user's API key, and MCP on one, confirms a risky change the way a signed-in user does in the UI. Only these changes
-need confirmation: making a library Live (or creating one Live), turning a Live library's downloads on, turning Allow
-new downloads or Write library links on (Pause off), deletes, an arr import into a library with downloads on (or a Live
-library starting to follow an arr library), and changing a provider's or indexer's address while keeping its stored
-key. Everything else, views, profiles, formats, folders and other addresses included, saves at once after validation.
+need confirmation: making a library Live (or creating one Live), turning Pause off (`PUT /settings/switches
+{generation, paused: false}`), deletes, an arr import into a Live library, and changing a provider's or indexer's
+address while keeping its stored key. Everything else, views, profiles, formats, folders and other addresses included, saves at once after validation.
 A change whose effects need confirmation answers 422 with the effects and a `confirmation.token`; over MCP that is the tool result
 (status 422, `isError: true`). Show the effects to the user and, once they agree, call the same tool again with the
 same arguments and `confirmation_token`. The token is bound to the key that got it: another key's token, a signed-in
@@ -137,8 +136,7 @@ the revoked key). Over the API directly, send the token as `confirmation_token` 
 need no confirmation. Removing a provider with active downloads takes `orphan_active_downloads: true`, as in the UI.
 
 Permissions still decide: a key carries exactly its owner's permissions, so a manager's or viewer's key gets 403 on
-admin routes whatever token it has. This covers global switches (`router.enabled`, `library.enabled`,
-`notify.enabled`), version activation and grab, view bindings, deletes and torrent delete and restore: an admin's
+admin routes whatever token it has. This covers Pause, version activation, view bindings, deletes and torrent delete and restore: an admin's
 key previews and confirms them like the admin in the UI.
 
 

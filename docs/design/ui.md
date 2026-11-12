@@ -62,10 +62,8 @@ calls them. The UI shares two things with them (§3, §6): the add path (`catalo
 
 - **Desktop:** a left sidebar, a top bar with global search (also `/` or Ctrl-K, as Scryer's command palette does),
   the system signals, and the user menu. The signals are for admins and come from endpoints the shell already reads:
-  **New downloads off** (or **New downloads locked off** when `THEATARR_FORCE_OFF` forces it) from
-  `GET settings/versions` `switches`, linking to Settings › Download clients and hidden while new downloads are on
-  (the same words at every width, phones included);
-  and the live status dot (VPN and failed jobs), whose words always show when it is bad ("VPN down").
+  the **Pause** pill (below; "Paused (locked)" when `THEATARR_FORCE_OFF` forces it, the same words at every width,
+  phones included) and the live status dot (VPN and failed jobs), whose words always show when it is bad ("VPN down").
 - **Look**: tokens in
   `web/src/styles/globals.css` (ink on warm paper, warm charcoal in dark, one Prussian-blue accent, ok/held/broken
   colours, 40/32 px rows), with the shadcn names kept as aliases. Fonts are self-hosted
@@ -91,28 +89,25 @@ calls them. The UI shares two things with them (§3, §6): the add path (`catalo
 Every page that shows a library (title copies, the add drawer, Setup, Libraries settings and its tables, policy,
 Status, Requests, Wanted) shows the same library state (`components/version-status.tsx` over `lib/version-grab.ts`):
 
-- the **mode marker**: **Watch only** (mode shadow: records what it would do, downloads and links nothing) or
-  **Live** (mode active: searches, downloads and links);
-- one **verdict**, decided by the server's `will_grab`: **Downloads on** when it grabs; otherwise **Preview only**
-  (Watch only), **Locked off** (`THEATARR_FORCE_OFF`), **Paused globally** (Allow new downloads off) or **Downloads off**
-  (the library's own switch, a library not in the saved settings, or a server hold);
-- a separate **New files won't be linked** mark for a Live library whose links are off;
+- the **mode marker**: **Watch only** (mode shadow: Theatarr searches, downloads and links nothing for this library)
+  or **Live** (mode active: searches, downloads and links);
+- one **verdict**, decided by the server's `will_grab`: **Downloads on** when it grabs; otherwise **Watch only**,
+  **Paused** (Pause on, or forced by `THEATARR_FORCE_OFF`) or **Downloads off** (a server hold, or a library not set
+  up);
 - **Why?**, a real button (keyboard reachable, `aria-expanded`), listing every closed gate, each with a link to where
-  it is changed for admins (Settings › Libraries `?edit=key`, Settings › Download clients). Dense rows (library
+  it is changed for admins (Settings › Libraries `?edit=key`, the Pause switch at the top of the page). Dense rows (library
   tables, request chips) show a small **?** button ("Why Downloads off?") instead; it opens the same list, with the
   admin links, in a portalled popover (Radix) that stays on screen outside clipping rows, by keyboard or touch;
   Escape closes it and returns focus to the button.
 
 `can_search` and `search_reason` are shown too; their notes use the verdict words, and a server hold with
 every displayed gate open keeps the server's reason beside **Downloads off**. Wanted takes each row's state from
-`GET /status` (`versions[].grab_state`): rows read **Locked off** under the environment lock, and a library's closed
+`GET /status` (`versions[].grab_state`): rows read **Paused** while Pause is on, and a library's closed
 download gate stays visible while the search loop is off. Until `/status` answers (or if it fails) Wanted says only
-**New downloads off**, without naming a cause. The releases header names each monitored library's
-verdict when nothing would be searched. When new downloads are off
-(or locked off) for every library, a page says so once at the top (`DownloadsOffNotice`, from any row's
-`grab_state`) and the rows keep only their own verdict; the top-bar signal stays. Controls are named **Watch only** / **Live**,
-**Don't download for this library**, **Pause**, **Allow new downloads**, **Write library links**, **Send
-notifications** and, in the add drawer, **Add to these libraries**. The add drawer shows one row per library: a checkbox, then the name, key and
+**Paused**, without naming a cause. The releases header names each monitored library's
+verdict when nothing would be searched. While Pause is on, a page says so once at the top (`DownloadsOffNotice`,
+from any row's `grab_state`) and the rows keep only their own verdict; the top-bar pill stays. Controls are named
+**Watch only** / **Live**, **Pause**, **Send notifications** and, in the add drawer, **Add to these libraries**. The add drawer shows one row per library: a checkbox, then the name, key and
 kind on one wrapping row and its state on the next, with a footer "n libraries · m will download" (ticked
 libraries whose `will_grab` is true).
 
@@ -162,7 +157,7 @@ default; a library the movie already had keeps its rule.
   hand, so it stays Not available;
   accounts that see files keep their stage chips.
 - **Title page**: Newsreader title, the readiness chip, small-caps fact rows; library cards sit in one ruled panel. A
-  Shadow library says **Preview only** once (the chip); the note below it does not repeat the verdict. The Episodes
+  Watch-only library says **Watch only** once (the chip); the note below it does not repeat the verdict. The Episodes
   tab shows the page's downloads-off notice when new downloads are paused or locked for every library, and its
   restrictions list does not repeat that per library.
 - **Activity**: queue rows are compact and open into their details in place. **Downloading** counts only
@@ -248,8 +243,8 @@ See [quickstart](../quickstart.md#readiness-led-setup) for the completion rules;
 | Search | overlay, `/search?q=` | two sections: **In your library** (instant, local) and **Add from TMDb** (movies and TV, with "In library" / "Requested" marks). Add opens a sheet: versions to turn on (pre-ticked from the policy defaults), seasons for series, monitor, search now. An account without `add` sees **Request from TMDb** and Request buttons instead; one with neither `add` nor `request` sees **On TMDb** and no add or request control. A library result shows its library keys only to accounts with See files; others get the title's one availability word (`titleWatchWords`: Available in 4K, Some episodes available, Getting ready, Upcoming, Not available), as the table does. With no TMDb key the TMDb section says so; admins get **Set the TMDb key** (Settings › Metadata & artwork, metadata services), others are told an administrator can add one | new |
 | Calendar | `/calendar` | upcoming releases and episodes by week (arr views already serve `calendar`) | new |
 | Collections (managers, admins) | `/collections`, `/collections/lists` | Two tabs. **Collections:** TMDb movie collections, monitored first: poster, movies in the library of the total, monitored switch, target libraries (only Live movie libraries; monitoring needs one), search on add, minimum availability; a name filter and **Monitored only**. **Add collection** searches TMDb for a collection and adds it with its libraries (Search on add is ticked by default). Changes save at once; a monitored collection adds its missing movies when it is added, with **Add missing movies now** and at each list refresh, and its searches go through the router. The arrs' monitored collections arrive with each Radarr import (docs/design/arrview.md, Collections). **Lists:** TMDb movie lists (no other provider, no series lists): **Add list** by id or address, with libraries, what to monitor, minimum availability, Search on add and Enabled; **Sync now**, Edit and Delete per list. Lists made through the Radarr-compatible API show here with their view (docs/design/arrview.md) | `GET collections`, `POST collections`, `GET collections/search`, `PUT collections/{id}`, `POST collections/{id}/refresh`; `GET`/`POST lists`, `GET lists/lookup`, `PUT`/`DELETE lists/{id}`, `POST lists/{id}/sync` |
-| Activity | `/activity` | **Queue:** downloads as compact rows (phone: stacked cards): title, copy, stage, progress or waiting time, last update and next retry when known, one Details action (Inspect when it needs attention) that opens the steps and, for admins, release, attempts and cache evidence. Filters (`?show=`): **Needs attention** (users: Delayed; a failed step, a refused or partial link, a wait past its limit, or no progress for 6 h), **Downloading**, **Waiting** (queued, starting, not started, finished, linking), **All**. A finished provider download is **Download complete** until it is linked; "ready to watch" is kept for library readiness. **History:** grabs, imports, upgrades, failures, each with a one-line reason, filtered by title, copy, event type (Grabs, Upgrades, Imports and links, Failures and blocks) and a since date, all in the URL (`?title=&copy=&event=&since=`; `GET activity?state=history&title=&version=&kinds=&since=`, `web/src/lib/activity-history.ts`). The journal link on a row is for admins only. Accounts without See files get no library key on a row (the resolution stays), and an opened failed download says in plain words that it did not work and that a manager can look at it. A download that never started because downloads were off when its turn came (paused, locked, Watch only, or the library's downloads off) and was never sent to a provider or client shows **Not started** with the reason, outside Needs attention; History says Not started, and for admins its line is the plain message. On Wanted, a row's search-blocked reason shows next to its disabled Search now when its waiting reason does not already say it (managers do not read `/status`). **Blocklist** (`/activity/blocklist`, accounts with See files). Users see the copies (versions and seasons) of the requests they are on, not another copy of the same title (history by version only; it pages over them, so each page is full until the last); admins see all. Bookmarks `/activity/now`, `/activity/blocked` and `/activity/wanted` redirect to `/activity`, `/activity/blocklist` and `/wanted`, preserving query and hash; Blocklist in the user view goes back to Queue. **Decision journal** (`/activity/journal`, entry `/:id`; accounts with the admin permission): every grab decision with its evidence and Ok/Wrong verdicts; in the user view the tab is hidden and both addresses go back to Queue | new (router, library); `waiting_since`, `next_retry` from `internal/web/activity.go` |
-| Wanted (managers and admins; Manual import admins only) | `/wanted`, `/wanted/cutoff`, `/wanted/manual-import` | Three tabs; **Manual import** is described under Manual import below (admins only: managers do not get its tab; with `?as=user` its tab is hidden and its address goes back to Missing). Managers get the same lists, Search now and Interactive search, without the admin links (settings, decision journal); **Search all** reads "Search all missing" (disabled) when nothing in the list can be searched now. **Missing**, **Cutoff unmet** from the automatic loop's selectors, including Live libraries with downloads off (Don't download for this library ticked). Viewing never starts searches or changes version state; **Search now** on a row, **Search selected** and the whole-tab search queue searches under the hourly limit (`router.wanted.per_hour`), a dialog gives the count and the estimate first, the bar shows what is queued and when the next starts, and **Cancel queued searches** drops the rest (docs/design/router.md, Search now). Shows loop settings, hourly searches, target names, last search and decision links. Waiting precedence: loop off, Paused globally, Downloads off (the library's own switch), downloading, searched recently (next due time), due (oldest first position). Waiting chips and library filters precede 50-row paging; counts cover the whole selection. Shared title/season queries display each library separately so its gates remain visible. Due positions come from the merged Missing and Cutoff unmet queue of grabbing libraries, excluding recent targets and wholly in-flight groups; both tabs and copies of one group share numbering. Only due rows have a position. Routed searches say “Sent to download”; “Grabbed” requires a download from that run. Closed gates link to their settings without toggles. Active title copies link to both queues when they have missing and below-cutoff episodes; shadow copies have no Wanted handoff. Search history shows each search's outcome in one line, links the newest to its results and, for admins, to its **Journal entry**. At most ten newest searches are added after the fifty release-history events are selected. Search-entry verdicts only record feedback; their related downloads link to the download entry for release actions. | `GET wanted?only=missing\|cutoff&version=&waiting=&limit=&offset=`, `POST wanted/search`, `DELETE wanted/search` |
+| Activity | `/activity` | **Queue:** downloads as compact rows (phone: stacked cards): title, copy, stage, progress or waiting time, last update and next retry when known, one Details action (Inspect when it needs attention) that opens the steps and, for admins, release, attempts and cache evidence. Filters (`?show=`): **Needs attention** (users: Delayed; a failed step, a refused or partial link, a wait past its limit, or no progress for 6 h), **Downloading**, **Waiting** (queued, starting, not started, finished, linking), **All**. A finished provider download is **Download complete** until it is linked; "ready to watch" is kept for library readiness. **History:** grabs, imports, upgrades, failures, each with a one-line reason, filtered by title, copy, event type (Grabs, Upgrades, Imports and links, Failures and blocks) and a since date, all in the URL (`?title=&copy=&event=&since=`; `GET activity?state=history&title=&version=&kinds=&since=`, `web/src/lib/activity-history.ts`). The journal link on a row is for admins only. Accounts without See files get no library key on a row (the resolution stays), and an opened failed download says in plain words that it did not work and that a manager can look at it. A download that never started because downloads were off when its turn came (paused, locked, or Watch only) and was never sent to a provider or client shows **Not started** with the reason, outside Needs attention; History says Not started, and for admins its line is the plain message. On Wanted, a row's search-blocked reason shows next to its disabled Search now when its waiting reason does not already say it (managers do not read `/status`). **Blocklist** (`/activity/blocklist`, accounts with See files). Users see the copies (versions and seasons) of the requests they are on, not another copy of the same title (history by version only; it pages over them, so each page is full until the last); admins see all. Bookmarks `/activity/now`, `/activity/blocked` and `/activity/wanted` redirect to `/activity`, `/activity/blocklist` and `/wanted`, preserving query and hash; Blocklist in the user view goes back to Queue. **Decision journal** (`/activity/journal`, entry `/:id`; accounts with the admin permission): every grab decision with its evidence and Ok/Wrong verdicts; in the user view the tab is hidden and both addresses go back to Queue | new (router, library); `waiting_since`, `next_retry` from `internal/web/activity.go` |
+| Wanted (managers and admins; Manual import admins only) | `/wanted`, `/wanted/cutoff`, `/wanted/manual-import` | Three tabs; **Manual import** is described under Manual import below (admins only: managers do not get its tab; with `?as=user` its tab is hidden and its address goes back to Missing). Managers get the same lists, Search now and Interactive search, without the admin links (settings, decision journal); **Search all** reads "Search all missing" (disabled) when nothing in the list can be searched now. **Missing**, **Cutoff unmet** from the automatic loop's selectors. Viewing never starts searches or changes version state; **Search now** on a row, **Search selected** and the whole-tab search queue searches under the hourly limit (`router.wanted.per_hour`), a dialog gives the count and the estimate first, the bar shows what is queued and when the next starts, and **Cancel queued searches** drops the rest (docs/design/router.md, Search now). Shows loop settings, hourly searches, target names, last search and decision links. Waiting precedence: loop off, Paused, downloading, searched recently (next due time), due (oldest first position). Waiting chips and library filters precede 50-row paging; counts cover the whole selection. Shared title/season queries display each library separately so its gates remain visible. Due positions come from the merged Missing and Cutoff unmet queue of grabbing libraries, excluding recent targets and wholly in-flight groups; both tabs and copies of one group share numbering. Only due rows have a position. Routed searches say “Sent to download”; “Grabbed” requires a download from that run. Closed gates link to their settings without toggles. Active title copies link to both queues when they have missing and below-cutoff episodes; shadow copies have no Wanted handoff. Search history shows each search's outcome in one line, links the newest to its results and, for admins, to its **Journal entry**. At most ten newest searches are added after the fifty release-history events are selected. Search-entry verdicts only record feedback; their related downloads link to the download entry for release actions. | `GET wanted?only=missing\|cutoff&version=&waiting=&limit=&offset=`, `POST wanted/search`, `DELETE wanted/search` |
 | Requests | `/requests` | users: theirs, by status; admins: a queue with approve / decline / **Edit request** (versions, seasons). `/requests/<id>` opens a focused request detail; old `?request=<id>` links redirect there (the View request links). | new; `GET upgrades` |
 | Profile | `/me` | password, sessions, own API keys (if allowed), theme | new |
 
@@ -410,7 +405,7 @@ rule: **View request** when the caller has an open request (pending, approved, p
 monitored. The title hero keeps title-wide readiness; the request card uses only the versions applicable to this
 account's request set: **Available** only when those copies can be watched, else **Getting ready** (part of it) or
 **Waiting for a copy** (monitored, nothing yet). "On its way" and "being looked for" need a
-copy that is acquiring (`control.grab_state`, kept for every account: mode active, version grab on, router on); with
+copy that is acquiring (`control.grab_state`, kept for every account: mode active and Pause off); with
 none, the card says **Partly available** or **Not available yet** and that the rest is not being fetched yet. The card's sentence names those copies ("What you can ask for (4K Remux) is already monitored but not ready to watch yet…"), so beside a hero that says another copy is ready to watch it reads as about this account's copies, not the title;
 **Request more seasons** when the caller's versions are all there but some series seasons are not monitored (also on
 the Episodes tab); otherwise **Request**. The sheet never ends on a disabled button. The caller's open
@@ -548,34 +543,28 @@ and the hidden `/admin/settings/profiles/format_sets` editor. Its **Check a rele
 read-only ([decide.md](decide.md#release-check)). Its optional size is in GiB, as sizes are shown, or carries a
 unit as in the settings forms (`36 GB` is 36×10⁹ bytes); text that is not a size is refused beside the field and
 nothing is checked. Indexers and debrid providers show status beside
-their editors, with Edit links. VPN status is above its settings. Allow new downloads, Write library links and
-Send notifications live on Download clients, Libraries and Notifications respectively; the first two sit under an
-**Advanced** fold (open while the switch is off, or linked to with `#switches`), with one sentence saying **Pause**
-sets both.
+their editors, with Edit links. VPN status is above its settings. **Send notifications** is the first field of the
+Notifications page's Destinations panel (`notify.enabled`; "Off: events are recorded, nothing is sent.").
 
-**Pause.** Admins see one **Pause** switch in the top bar of every page. On sets `router_enabled` and
-`library_enabled` false, off sets both true, in one `PUT /settings/switches` with the switches' usual confirmation
-(listing both effects when turning on). When the two differ it reads **Pause: Custom** and links to the one that is
-off, keeping the **New downloads off** signal beside it when that is new downloads; it toggles nothing then. When
-settings are read-only or a switch is forced off by the environment, Pause is hidden and the top-bar signal shows as
-before. Queued searches (Search now) wait while paused and start on resume; downloads already sent keep
+**Pause.** Admins see one **Pause** switch in the top bar of every page; it sends `{generation, paused}` in one
+`PUT /settings/switches`. Off, its tooltip says "Pause stops searches, new downloads and changes in your library
+folders, for every library. Downloads already started wait and are imported when you turn Pause off."; on, "Paused:
+nothing is searched, downloaded or linked. Turn off to resume." Turning it off asks for confirmation; turning it on
+does not. When `THEATARR_FORCE_OFF` forces it, the switch is a disabled pill **Paused (locked)** titled "Paused by
+THEATARR_FORCE_OFF. Remove it and restart to resume." Queued searches (Search now) wait while paused and start on resume; downloads already sent keep
 going. The Wanted page's queue bar says the queue waits instead of giving a next time.
 
 **Library control.** Each row on Settings › Libraries has a **Watch only** / **Live** select beside the library's
-state in words, from the running `grab_state` ("Watch only", "Live", "Live, downloads off", "Live, paused", "Live,
-but new downloads are off", "Live, but new files won't be linked", "Live, but new downloads are locked off"). The
-select shows the stored mode; changing it saves the stored library with only `mode` and `grab` changed through the
-library save (going Live asks for confirmation first; Watch only saves at once): Live sets `mode: active` and `grab: true`, Watch only sets `mode: shadow` and
-keeps `grab` as stored (an absent key stays absent).
+state in words, from the running `grab_state` ("Watch only", "Live", "Live, paused", "Not set up"). The select shows
+the stored mode; changing it saves the stored library with only `mode` changed through the library save (going Live
+asks for confirmation first; Watch only saves at once).
 
 **Library editor.** "Where" starts with the optional **Name** (shown in place of the guessed label; the request
 leaves it out while it is empty, and sends it empty only to clear a stored one) and the **Key** (fixed once the
 library exists), then **State** (the same Watch only / Live select as the rows). Prefer SeaDex is a switch; Upgrades
-reads "Automatic" and "Never". **Don't download for this library** (a tick, ticked = `grab: false`,
-shown only while Live), Write roots, Send grabs to and Client sit in an **Advanced** disclosure at the end of "Where", with Storage and Import mode, which are shown only
+reads "Automatic" and "Never". Write roots, Send grabs to and Client sit in an **Advanced** disclosure at the end of "Where", with Storage and Import mode, which are shown only
 when the saved or the draft value is not the one supported value (debrid, symlink). Advanced starts open when the
-library has write roots other than its root, sends its grabs to a download client, is Live
-with downloads off, or shows Storage or Import mode, and a field inside that the server refuses keeps it open. The request body and its field
+library has write roots other than its root, sends its grabs to a download client, or shows Storage or Import mode, and a field inside that the server refuses keeps it open. The request body and its field
 names are the same as before. A movie library's "Which releases" also has **Minimum availability** (Not set,
 Announced, In cinemas, Released; `minimum_availability`, for movies with neither a choice of their own nor an
 imported value) and **Availability delay (days)** (`availability_delay`, whole days, negative for earlier, empty
@@ -600,9 +589,8 @@ values have a Changed mark but no Undo (a record's Service, which fills a new re
 Root and Write roots); Discard resets the whole draft. Undo under an object the saved settings
 did not have leaves it absent, so the draft equals the saved value again. The Libraries editor has the same marks (a new
 library's key included), count and Discard (it has no schema defaults, so no Reset); list rows tie their indexed error and the help to their
-control. Most saves apply at once; the few changes the server confirms (going Live, downloads on for a Live library,
-Pause off, removing a library, an address change that keeps a stored key or an arr import into a grabbing
-library; [Settings](settings.md#sections-and-views)) keep its 422 confirmation: the dialog (`EffectsConfirmDialog`) lists the effects word for word as the server returns them,
+control. Most saves apply at once; the few changes the server confirms (going Live, Pause off, removing a library, an address change that keeps a stored key or an arr import into a
+Live library; [Settings](settings.md#sections-and-views)) keep its 422 confirmation: the dialog (`EffectsConfirmDialog`) lists the effects word for word as the server returns them,
 grouped by library (effects that name none first, under "This change"; nothing is added to what the server sends), says which libraries are affected and, when the change is about one
 library, names the other libraries it also affects; Cancel has the focus.
 The torrent-backups panel is owned by the System Backup page and is searchable without appearing in Settings navigation. The field placement table is in [Settings](settings.md).
@@ -684,9 +672,9 @@ Managers keep inline queue Approve/Decline and see what approval does per reques
 Seerr stays supported as a client of the arr views. Built-in requests are for people who use Theatarr directly.
 
 Approved and processing request text and timelines use the effective grab gates of their applicable versions.
-When all those versions are in shadow mode, have grabbing off, or the global router is off, they say the request
+When all those versions are Watch only, or Pause is on, they say the request
 is not being fetched yet. Available copies remain available. Copy cards and request progress show closed grab
-gates, with links to the version and global switches for admins who can change them.
+gates, with links to the library and Pause for admins who can change them.
 
 
 ### Schema (migration `00026_users.sql`)
