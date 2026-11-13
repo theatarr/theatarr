@@ -5,7 +5,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { Catalog } from "./catalog";
 import { expectNamedControls, mockFetch, renderPage } from "@/test/page";
 
-const followed = { mode: "shadow", managed_by: "sonarr_4k", can_edit: false, edit_reason: "Managed by sonarr_4k until cutover", can_search: false, live_releases: false };
+const shadow = { mode: "shadow", can_edit: true, can_search: false, live_releases: false };
 const managed = { mode: "active", can_edit: true, can_search: true, live_releases: true };
 
 const titles = [
@@ -13,7 +13,7 @@ const titles = [
     id: 1, kind: "series", name: "The Pellbrook Inquiries", year: 2017, monitored: true, network: "Northstar Network",
     next_up: { date: "2099-11-04", season: 3, number: 6 }, size_bytes: 184e9, added_at: "2026-10-28T00:00:00Z",
     versions: [
-      { id: 11, key: "tv-2160p", label: "4K", monitored: true, has_file: true, quality: "WEBDL-2160p", state: "wanted", control: followed,
+      { id: 11, key: "tv-2160p", label: "4K", monitored: true, has_file: true, quality: "WEBDL-2160p", state: "wanted", control: shadow,
         coverage: { have: 13, total: 17, aired: 17, upcoming: 1, in_flight: 2 },
         acquisition: { stage: "downloading", words: "Downloading (37%)", progress: 37, download_id: 5, downloads: 2, episodes: 2, stages: { downloading: 1, queued: 1 }, updated_at: "2026-10-29T00:00:00Z" } },
       { id: 12, key: "tv-web", label: "1080p WEB", monitored: true, has_file: true, quality: "WEBDL-1080p", state: "cutoff_met", control: managed,
@@ -71,23 +71,21 @@ describe("Library table", () => {
     expect(table.parentElement?.className).toContain("overflow-x-clip");
   });
 
-  it("shows a column per copy with its ownership, stage and bar, and sorts by a copy", async () => {
+  it("shows a column per copy with its stage and bar, and sorts by a copy", async () => {
     const fetch = mockFetch(routes());
     const user = userEvent.setup();
     renderPage(<Catalog id="series" />, "/series");
     await screen.findAllByText("The Pellbrook Inquiries");
-    await waitFor(() => expect(screen.getAllByTestId("column-owner")).toHaveLength(2));
-    const owners = screen.getAllByTestId("column-owner").map((e) => e.textContent);
-    expect(owners).toEqual(["Some followed (read-only)", "Theatarr-managed"]);
-    expect(screen.getByText("13 / 17 available")).toBeTruthy();
+    expect(await screen.findByText("13 / 17 available")).toBeTruthy();
+    expect(screen.queryByTestId("column-owner")).toBeNull();
     // In the copy cell and in Next / activity.
     const stage = screen.getAllByRole("link", { name: "Downloading · 37%" });
     expect(stage).toHaveLength(2);
     expect(stage[0].getAttribute("href")).toBe("/activity?show=downloading");
     expect(screen.getAllByTestId("copy-flight").length).toBeGreaterThan(0);
     expect(screen.getByText("Not in this library")).toBeTruthy();
-    // The followed copy's switch is locked; the managed one is not.
-    expect(screen.getByRole("switch", { name: "Monitor The Pellbrook Inquiries 4K" }).getAttribute("aria-disabled")).toBe("true");
+    // Every copy's switch is editable, also one an arr imports.
+    expect(screen.getByRole("switch", { name: "Monitor The Pellbrook Inquiries 4K" }).getAttribute("aria-disabled")).toBeNull();
     expect(screen.getByRole("switch", { name: "Monitor The Pellbrook Inquiries 1080p WEB" }).getAttribute("aria-disabled")).toBeNull();
 
     await user.click(screen.getByRole("button", { name: "Sort by 4K completion" }));
@@ -116,17 +114,15 @@ describe("Library table", () => {
     expect(screen.getByRole("button", { name: "Descending" })).toBeTruthy();
   });
 
-  it("monitors one managed copy through the bulk route, never a search", async () => {
+  it("monitors one copy through the bulk route, never a search", async () => {
     const fetch = mockFetch(routes([
-      { method: "POST", path: "/titles/monitor", reply: { dry_run: false, items: [], changed: 1, unchanged: 0, read_only: 0, missing: 0, stale: 0, message: "Unmonitored 1 library" } },
+      { method: "POST", path: "/titles/monitor", reply: { dry_run: false, items: [], changed: 1, unchanged: 0, missing: 0, stale: 0, message: "Unmonitored 1 library" } },
     ]));
     const user = userEvent.setup();
     renderPage(<Catalog id="series" />, "/series");
     await user.click(await screen.findByRole("switch", { name: "Monitor The Pellbrook Inquiries 1080p WEB" }));
     await waitFor(() => expect(fetch.calls("POST", "/titles/monitor")).toHaveLength(1));
     expect(fetch.calls("POST", "/titles/monitor")[0].body).toEqual({ title_ids: [1], versions: ["tv-web"], monitored: false });
-    await user.click(screen.getByRole("switch", { name: "Monitor The Pellbrook Inquiries 4K" }));
-    expect(fetch.calls("POST", "/titles/monitor")).toHaveLength(1);
     expect(fetch.requests.filter((r) => r.method !== "GET").map((r) => r.path)).toEqual(["/titles/monitor"]);
   });
 
@@ -147,16 +143,16 @@ describe("Library table", () => {
     expect(kept.order.indexOf("network")).toBeLessThan(kept.order.indexOf("added"));
   });
 
-  it("selects titles, previews with followed copies excluded, and applies with expect", async () => {
+  it("selects titles, previews with unchanged copies apart, and applies with expect", async () => {
     const preview = {
-      dry_run: true, changed: 1, unchanged: 0, read_only: 1, missing: 0, stale: 0, message: "Would monitor 1 library · 1 read-only (followed)",
+      dry_run: true, changed: 1, unchanged: 1, missing: 0, stale: 0, message: "Would monitor 1 library · 1 already monitored",
       items: [
-        { title_id: 1, title: "The Pellbrook Inquiries", version: "tv-2160p", label: "4K", outcome: "read_only", from: true, to: true, reason: "Managed by sonarr_4k until cutover" },
+        { title_id: 1, title: "The Pellbrook Inquiries", version: "tv-2160p", label: "4K", outcome: "unchanged", from: true, to: true },
         { title_id: 2, title: "Ferrous Bay", version: "tv-2160p", label: "4K", outcome: "changed", from: false, to: true },
       ],
     };
     const fetch = mockFetch(routes([
-      { method: "POST", path: "/titles/monitor", reply: (r: { body?: { dry_run?: boolean } }) => (r.body?.dry_run ? preview : { ...preview, dry_run: false, message: "Monitored 1 library · 1 read-only (followed)" }) },
+      { method: "POST", path: "/titles/monitor", reply: (r: { body?: { dry_run?: boolean } }) => (r.body?.dry_run ? preview : { ...preview, dry_run: false, message: "Monitored 1 library · 1 already monitored" }) },
     ]));
     const user = userEvent.setup();
     renderPage(<Catalog id="series" />, "/series");
@@ -166,25 +162,25 @@ describe("Library table", () => {
     const bar = screen.getByRole("region", { name: "Bulk edit" });
     expect(within(bar).getByText("2 titles selected")).toBeTruthy();
     await user.selectOptions(within(bar).getByRole("combobox", { name: "Target libraries" }), "tv-2160p");
-    expect(within(bar).getByTestId("bulk-local").textContent).toContain("1 editable library · 1 followed excluded");
+    expect(within(bar).getByTestId("bulk-local").textContent).toContain("2 editable libraries");
     expectNamedControls();
     await user.click(within(bar).getByRole("button", { name: "Review changes" }));
     const dialog = await screen.findByRole("dialog", { name: "Review bulk edit" });
-    await within(dialog).findByText("Would monitor 1 library · 1 read-only (followed)");
-    expect(within(within(dialog).getByTestId("bulk-excluded")).getByText("The Pellbrook Inquiries")).toBeTruthy();
+    await within(dialog).findByText("Would monitor 1 library · 1 already monitored");
+    expect(within(within(dialog).getByTestId("bulk-same")).getByText("The Pellbrook Inquiries")).toBeTruthy();
     expect(fetch.calls("POST", "/titles/monitor")[0].body).toEqual({ title_ids: [1, 2], versions: ["tv-2160p"], monitored: true, dry_run: true });
     await user.click(within(dialog).getByRole("button", { name: "Apply to 1 library" }));
-    await within(dialog).findByText("Monitored 1 library · 1 read-only (followed)");
+    await within(dialog).findByText("Monitored 1 library · 1 already monitored");
     const calls = fetch.calls("POST", "/titles/monitor");
     expect(calls[calls.length - 1].body).toEqual({ title_ids: [1, 2], versions: ["tv-2160p"], monitored: true, expect: [{ title_id: 2, version: "tv-2160p", monitored: false }] });
     expect(fetch.requests.filter((r) => r.method !== "GET").every((r) => r.path === "/titles/monitor")).toBe(true);
   });
 
-  it("opens a title's copies in a dialog with each copy's file, stage and locked monitoring", async () => {
+  it("opens a title's copies in a dialog with each copy's file, stage and monitoring", async () => {
     const movie = {
       id: 9, kind: "movie", name: "Saltglass Meridian", year: 2018, monitored: true,
       versions: [
-        { id: 91, key: "movie-remux", label: "4K Remux", monitored: true, has_file: true, quality: "Remux-2160p", state: "filled", size_bytes: 30e9, control: followed,
+        { id: 91, key: "movie-remux", label: "4K Remux", monitored: true, has_file: true, quality: "Remux-2160p", state: "filled", size_bytes: 30e9, control: shadow,
           acquisition: { stage: "downloading", words: "Downloading (37%)", progress: 37, download_id: 3, downloads: 1, upgrade: true, updated_at: "2026-10-29T00:00:00Z" } },
         { id: 92, key: "movie-web", label: "4K WEB", monitored: true, has_file: true, quality: "WEBDL-2160p", state: "cutoff_met", control: managed },
       ],
@@ -202,7 +198,7 @@ describe("Library table", () => {
     expect(within(remux).getByText("Remux-2160p")).toBeTruthy();
     expect(within(remux).getByRole("link", { name: "Upgrade downloading · 37%" })).toBeTruthy();
     expect(within(remux).getByText("The current file stays available until the new one is linked.")).toBeTruthy();
-    expect(within(remux).getByRole("switch", { name: "Monitor Saltglass Meridian 4K Remux" }).getAttribute("aria-disabled")).toBe("true");
+    expect(within(remux).getByRole("switch", { name: "Monitor Saltglass Meridian 4K Remux" }).getAttribute("aria-disabled")).toBeNull();
     expect(within(dialog).getByRole("link", { name: "Open title page" }).getAttribute("href")).toBe("/title/9");
   });
 
@@ -212,7 +208,7 @@ describe("Library table", () => {
     renderPage(<Catalog id="series" />, "/series");
     await screen.findByTestId("title-list");
     expect(screen.queryByRole("table")).toBeNull();
-    expect(screen.getAllByTestId("copy-owner").map((e) => e.textContent)).toContain("mirrors sonarr_4k");
+    expect(screen.queryByTestId("copy-owner")).toBeNull();
   });
 });
 
@@ -329,7 +325,7 @@ describe("Same-named copies", () => {
     {
       id: 3, kind: "series", name: "Brindlewood Bakers", year: 2023, monitored: true,
       versions: [
-        { id: 31, key: "tv-2160p", label: "4K", monitored: true, has_file: true, quality: "WEBDL-2160p", state: "filled", control: followed,
+        { id: 31, key: "tv-2160p", label: "4K", monitored: true, has_file: true, quality: "WEBDL-2160p", state: "filled", control: shadow,
           coverage: { have: 24, total: 24, aired: 24, upcoming: 0 } },
         { id: 32, key: "tv-2160p-theatarr", label: "4K", monitored: true, has_file: true, quality: "WEBDL-2160p", state: "wanted", control: managed,
           coverage: { have: 12, total: 24, aired: 24, upcoming: 0 } },
@@ -349,28 +345,26 @@ describe("Same-named copies", () => {
     { method: "GET", path: "/titles/facets", reply: facets },
   ];
 
-  it("names them apart in the table headers and the filter panel, keeping the full ownership line", async () => {
+  it("names them apart in the table headers and the filter panel", async () => {
     window.localStorage.setItem("theatarr.catalog.view", "table");
     mockFetch(twinRoutes);
     renderPage(<Catalog id="series" />, "/series");
     await screen.findAllByText("Brindlewood Bakers");
     expect(screen.getByRole("button", { name: "Sort by 4K · tv-2160p completion" })).toBeTruthy();
     expect(screen.getByRole("button", { name: "Sort by 4K · tv-2160p-theatarr completion" })).toBeTruthy();
-    expect(screen.getAllByTestId("column-owner").map((e) => e.textContent)).toEqual(["Followed · sonarr_4k · read-only", "Theatarr-managed"]);
     const panel = (await screen.findAllByTestId("filters-panel"))[0];
     expect(await within(panel).findByText("4K · tv-2160p")).toBeTruthy();
     expect(within(panel).getByText("4K · tv-2160p-theatarr")).toBeTruthy();
     expect(within(panel).queryByText("4K")).toBeNull();
   });
 
-  it("names them apart on posters, with a short ownership line and the instance in its tooltip", async () => {
+  it("names them apart on posters", async () => {
     mockFetch(twinRoutes);
     renderPage(<Catalog id="series" />, "/series");
     await screen.findAllByText("Brindlewood Bakers");
-    const owners = screen.getByTestId("poster-owners");
-    const line = within(owners).getByText("Followed · read-only");
-    expect(line.getAttribute("title")).toBe("mirrors sonarr_4k");
-    expect(within(owners).getByText("Theatarr-managed")).toBeTruthy();
+    const copies = screen.getByTestId("poster-copies");
+    expect(within(copies).getByText("4K · tv-2160p")).toBeTruthy();
+    expect(within(copies).getByText("4K · tv-2160p-theatarr")).toBeTruthy();
     expect(within(screen.getByTestId("poster-grid")).getAllByTestId("copy-bar").map((e) => e.getAttribute("aria-label"))).toEqual([
       "4K · tv-2160p: 24 of 24 episodes linked",
       "4K · tv-2160p-theatarr: 12 of 24 episodes linked",

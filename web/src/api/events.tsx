@@ -46,7 +46,6 @@ export function LiveProvider({ enabled, seeFiles = false, children }: { enabled:
       if (d.changed && d.changed.length > 0) {
         qc.invalidateQueries({ queryKey: qk.jobs.all });
         qc.invalidateQueries({ queryKey: qk.status });
-        qc.invalidateQueries({ queryKey: qk.imports.all });
       }
     });
     es.addEventListener("gateway", (e) => {

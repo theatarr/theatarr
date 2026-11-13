@@ -1,11 +1,10 @@
 // The library's select mode (docs/design/ui.md "Library views"): with titles selected, a bar at the foot of the view
 // picks the target copy and the monitoring, and Review asks the server for a preview (POST /titles/monitor dry_run)
-// listing what changes, what is already set and what is excluded (followed copies are read-only; a title without
-// the copy has nothing to change). Apply sends the preview's values as expect, so a copy changed since is skipped,
+// listing what changes, what is already set and what is excluded (a title without the copy has nothing to change). Apply sends the preview's values as expect, so a copy changed since is skipped,
 // and lists each item's outcome. Monitoring only: nothing is searched or grabbed, no copy is added.
 // Admins also get Search now: the selection goes to POST /wanted/search (the Wanted page's queue, under the hourly
 // limit) for the one library picked, 200 titles a request, and the bar shows what the server answered.
-import { Loader2, Lock, X } from "lucide-react";
+import { Loader2, X } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Link } from "react-router";
 import { useBulkMonitor, type BulkItem, type BulkMonitorResult } from "@/api/copies";
@@ -15,24 +14,20 @@ import { Button } from "@/components/ui/button";
 import { ConfirmDialog, errText } from "@/components/ui/confirm-dialog";
 import { Modal } from "@/components/ui/modal";
 import { SELECT } from "@/components/library/filters";
-import { bulkExpect, isFollowed, outcomeWords, type CopyColumn } from "@/lib/copies";
+import { bulkExpect, outcomeWords, type CopyColumn } from "@/lib/copies";
 import { cn } from "@/lib/utils";
 import { CopyDot } from "./copy-bits";
 
-/** What the bar can say before asking the server: copies to change, followed ones excluded, titles without the copy. */
-export function localPreview(titles: readonly TitleRow[], target: string): { editable: number; followed: number; missing: number } {
+/** What the bar can say before asking the server: copies to change, titles without the copy. */
+export function localPreview(titles: readonly TitleRow[], target: string): { editable: number; missing: number } {
   let editable = 0;
-  let followed = 0;
   let missing = 0;
   for (const t of titles) {
     const vs = (t.versions ?? []).filter((v) => target === "" || v.key === target);
     if (vs.length === 0) missing++;
-    for (const v of vs) {
-      if (isFollowed(v.control)) followed++;
-      else editable++;
-    }
+    editable += vs.length;
   }
-  return { editable, followed, missing };
+  return { editable, missing };
 }
 
 const plural = (n: number, w: string, s = "s") => `${n} ${w}${n === 1 ? "" : s}`;
@@ -131,7 +126,6 @@ export function BulkBar({ titles, columns, onClear }: { titles: TitleRow[]; colu
       </div>
       <p className="mt-2 text-xs text-[var(--ink-3)]" data-testid="bulk-local">
         {p.editable === 1 ? "1 editable library" : `${p.editable} editable libraries`}
-        {p.followed ? ` · ${p.followed} followed excluded` : ""}
         {p.missing ? ` · ${plural(p.missing, "title")} without this library` : ""}
         {" · "}Files stay in place. No search is started.
       </p>
@@ -193,7 +187,7 @@ function SearchConfirm({ count, target, label, busy, onClose, onConfirm }: { cou
 
 const GROUPS: { id: string; outcomes: BulkItem["outcome"][] }[] = [
   { id: "change", outcomes: ["changed"] },
-  { id: "excluded", outcomes: ["read_only", "missing", "stale"] },
+  { id: "excluded", outcomes: ["missing", "stale"] },
   { id: "same", outcomes: ["unchanged"] },
 ];
 
@@ -210,7 +204,7 @@ function ItemList({ items, dryRun, labels }: { items: BulkItem[]; dryRun: boolea
             <ul className="space-y-1">
               {list.map((i) => (
                 <li key={`${i.title_id}/${i.version}`} className="flex min-w-0 items-start gap-2 text-sm" data-outcome={i.outcome}>
-                  {i.outcome === "read_only" ? <Lock className="mt-0.5 size-3.5 shrink-0 text-[var(--ink-3)]" aria-hidden /> : <CopyDot vkey={i.version} className="mt-1.5" />}
+                  <CopyDot vkey={i.version} className="mt-1.5" />
                   <span className="min-w-0 [overflow-wrap:anywhere]">
                     <span className="font-medium">{i.title}</span> · {labels.get(i.version) || i.label || i.version}
                     <span className="block text-xs text-[var(--ink-3)]">{i.reason || outcomeWords(i.outcome, dryRun)}</span>
@@ -296,7 +290,7 @@ function ReviewDialog({
           </>
         ) : null}
         {apply.error ? <p className="text-[var(--bad-ink)]" data-testid="bulk-error">{errText(apply.error)}</p> : null}
-        <p className="text-xs text-[var(--ink-3)]">Only monitoring changes. Files stay in place, no search starts, and followed libraries stay as their arr has them.</p>
+        <p className="text-xs text-[var(--ink-3)]">Only monitoring changes. Files stay in place and no search starts.</p>
       </div>
       <div className="flex justify-end gap-2 border-t border-[var(--line)] p-3">
         <Button ref={cancel} variant="ghost" size="sm" onClick={done ? onDone : onClose}>

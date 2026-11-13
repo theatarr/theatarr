@@ -122,7 +122,7 @@ export function unblockScope(release: string, copy: string, search: boolean): Sc
 
 // ---- Copies, titles and files ----
 
-export type RemovalCopyLike = { key: string; label: string; links: number; downloads: number; managed_by?: string };
+export type RemovalCopyLike = { key: string; label: string; links: number; downloads: number };
 /** leftover: copies removed before whose library links are still active (an earlier removal's failed moves). */
 export type RemovalScopeLike = { name: string; title: boolean; copies: RemovalCopyLike[]; leftover?: RemovalCopyLike[] };
 
@@ -135,16 +135,13 @@ export function removalScope(s: RemovalScopeLike, unlink: boolean): Scope {
   const leftover = (s.leftover ?? []).reduce((n, c) => n + c.links, 0);
   if (s.copies.length === 0 && leftover > 0) {
     // Only the links of copies removed before: removing again with unlink moves them.
-    const managed = (s.leftover ?? []).find((c) => c.managed_by);
     return {
       title: `Unlink the files left by removed copies of ${s.name}`,
       does: [`${plural(leftover, "library link")} of removed copies ${leftover === 1 ? "moves" : "move"} to Theatarr's trash`],
       keeps: ["Debrid torrents and the files on the mount are never deleted", "The copies stay removed"],
       confirm: "Unlink files",
-      blocked: managed ? `${managed.label} is managed by ${managed.managed_by} until cutover: remove it there` : undefined,
     };
   }
-  const managed = s.copies.find((c) => c.managed_by);
   const links = s.copies.reduce((n, c) => n + c.links, 0) + (unlink ? leftover : 0);
   const downloads = s.copies.reduce((n, c) => n + c.downloads, 0);
   const names = s.copies.map((c) => c.label).join(", ");
@@ -165,12 +162,7 @@ export function removalScope(s: RemovalScopeLike, unlink: boolean): Scope {
     keeps,
     confirm: s.title ? "Remove title" : s.copies.length === 1 ? "Remove this copy" : "Remove these copies",
     cleanup: UNUSED_TORRENTS,
-    blocked:
-      s.copies.length === 0
-        ? "Nothing to remove"
-        : managed
-          ? `${managed.label} is managed by ${managed.managed_by} until cutover: remove it there`
-          : undefined,
+    blocked: s.copies.length === 0 ? "Nothing to remove" : undefined,
   };
 }
 

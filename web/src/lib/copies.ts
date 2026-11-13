@@ -1,5 +1,4 @@
 // The library views' copy helpers (docs/design/ui.md "Library views"): a copy is one version of a title. Each copy has
-// an ownership (followed: an arr still imports it, so its monitoring is read-only here; else Theatarr manages it),
 // a coverage bar (episodes held of those aired; a movie is held or not) with the part in progress striped, and an
 // acquisition stage. Plus the table's columns, the poster options and the per-user preferences that keep them.
 import type { Schemas } from "@/api/client";
@@ -7,7 +6,6 @@ import { fmtDay, stateWords } from "@/lib/library";
 
 type VersionBrief = Schemas["VersionBrief"];
 type Acquisition = Schemas["Acquisition"];
-type VersionControl = Schemas["VersionControl"];
 type Row = { versions?: VersionBrief[]; kind?: string };
 
 export type Stage = Acquisition["stage"];
@@ -77,47 +75,23 @@ export function activityHref(stage: Stage | undefined): string {
   return "/activity?show=waiting";
 }
 
-/** A copy is followed when an arr still imports it: its monitoring is read-only here. */
-export function isFollowed(c: VersionControl | undefined | null): boolean {
-  return !!c?.managed_by;
-}
-
-/** "Followed · sonarr_4k · read-only" or "Theatarr-managed"; "" for callers who get no control. */
-export function ownershipWords(c: VersionControl | undefined | null): string {
-  if (!c) return "";
-  return c.managed_by ? `mirrors ${c.managed_by}` : "Theatarr-managed";
-}
-
-/** "Followed · read-only" or "Theatarr-managed": the poster's short ownership line (the instance goes in a tooltip). */
-export function shortOwnershipWords(c: VersionControl | undefined | null): string {
-  if (!c) return "";
-  return c.managed_by ? "Followed · read-only" : "Theatarr-managed";
-}
-
-type Owner = "followed" | "managed" | "mixed" | undefined;
-
-/** A copy's ownership as a label suffix needs it: undefined when the caller gets no control. */
-export function ownerOf(c: VersionControl | undefined | null): Owner {
-  return c ? (c.managed_by ? "followed" : "managed") : undefined;
-}
-
 /** Strip old server disambiguators before applying the labels for the current group. */
 export function libraryLabel(key: string, label?: string): string {
   const plain = (label || key).replace(/ · (?:followed|Theatarr)$/, "");
   return plain.endsWith(` · ${key}`) ? plain.slice(0, -key.length - 3) : plain;
 }
 
-/** Unique labels stay plain; collisions use keys, independent of ownership. */
-export function distinctLabels(copies: readonly { key?: string; label?: string; owner?: Owner }[]): Map<string, string> {
+/** Unique labels stay plain; collisions use keys. */
+export function distinctLabels(copies: readonly { key?: string; label?: string }[]): Map<string, string> {
   const names = new Map(copies.filter(c => c.key).map(c => [c.key!, libraryLabel(c.key!, c.label)]));
   const counts = new Map<string, number>();
   for (const label of names.values()) counts.set(label, (counts.get(label) ?? 0) + 1);
   return new Map([...names].map(([key, label]) => [key, counts.get(label)! > 1 ? `${label} · ${key}` : label]));
 }
 
-/** The copies of one title with their labels made distinct (distinctLabels, ownership from each copy's control). */
-export function withDistinctLabels<T extends { key?: string; label?: string; control?: VersionControl | null }>(vs: readonly T[]): T[] {
-  const names = distinctLabels(vs.map((v) => ({ key: v.key, label: v.label, owner: ownerOf(v.control) })));
+/** The copies of one title with their labels made distinct (distinctLabels). */
+export function withDistinctLabels<T extends { key?: string; label?: string }>(vs: readonly T[]): T[] {
+  const names = distinctLabels(vs.map((v) => ({ key: v.key, label: v.label })));
   return relabel(vs, names);
 }
 
@@ -129,50 +103,17 @@ export function relabel<T extends { key?: string; label?: string }>(vs: readonly
 export type CopyColumn = {
   key: string;
   label: string;
-  /** followed: every copy of this key in view is followed; managed: none is; mixed: some are. undefined: no control (users). */
-  owner?: "followed" | "managed" | "mixed";
-  /** The arr instances that follow copies of this key. */
-  by: string[];
 };
 
-/** The copy columns for the titles in view: every version key, in order of first appearance, with an ownership summary. */
+/** The copy columns for the titles in view: every version key, in order of first appearance. */
 export function copyColumns(titles: readonly Row[]): CopyColumn[] {
-  const cols = new Map<string, { label: string; followed: number; managed: number; by: Set<string> }>();
+  const cols = new Map<string, string>();
   for (const t of titles) {
     for (const v of t.versions ?? []) {
-      if (!v.key) continue;
-      let c = cols.get(v.key);
-      if (!c) {
-        c = { label: v.label || v.key, followed: 0, managed: 0, by: new Set() };
-        cols.set(v.key, c);
-      }
-      if (v.control) {
-        if (v.control.managed_by) {
-          c.followed++;
-          c.by.add(v.control.managed_by);
-        } else c.managed++;
-      }
+      if (v.key && !cols.has(v.key)) cols.set(v.key, v.label || v.key);
     }
   }
-  return [...cols].map(([key, c]) => ({
-    key,
-    label: c.label,
-    owner: c.followed && c.managed ? "mixed" : c.followed ? "followed" : c.managed ? "managed" : undefined,
-    by: [...c.by].sort(),
-  }));
-}
-
-/** A copy column header's ownership line: "Followed · sonarr_4k · read-only", "Theatarr-managed", "Some followed (read-only)". */
-export function columnOwnerWords(c: CopyColumn): string {
-  switch (c.owner) {
-    case "followed":
-      return `Followed${c.by.length === 1 ? ` · ${c.by[0]}` : ""} · read-only`;
-    case "managed":
-      return "Theatarr-managed";
-    case "mixed":
-      return "Some followed (read-only)";
-  }
-  return "";
+  return [...cols].map(([key, label]) => ({ key, label }));
 }
 
 export type CopyBar = {
@@ -366,7 +307,6 @@ type BulkItem = Schemas["BulkMonitorResult"]["items"][number];
 const OUTCOME_WORDS: Record<BulkItem["outcome"], { preview: string; done: string }> = {
   changed: { preview: "Will change", done: "Changed" },
   unchanged: { preview: "Already set", done: "Already set" },
-  read_only: { preview: "Excluded: followed, read-only", done: "Skipped: followed, read-only" },
   missing: { preview: "Excluded: the title has no such library", done: "Skipped: no such library" },
   stale: { preview: "Changed since the preview", done: "Skipped: changed since the preview" },
 };

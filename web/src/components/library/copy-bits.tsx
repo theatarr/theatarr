@@ -1,17 +1,15 @@
 // The library views' copy pieces (docs/design/ui.md "Library views"): a copy's colour dot, its bar (solid linked,
-// striped in progress), its acquisition stage and its ownership line. Shared by the table, the posters and the title
+// striped in progress) and its acquisition stage. Shared by the table, the posters and the title
 // page.
-import { Lock } from "lucide-react";
 import { useEffect, useState } from "react";
 import { Link } from "react-router";
 import type { Schemas } from "@/api/client";
 import { widthClass } from "@/components/activity-bits";
-import { activityHref, ownershipWords, pct, stageTone, stageWords, type CopyBar } from "@/lib/copies";
+import { activityHref, pct, stageTone, stageWords, type CopyBar } from "@/lib/copies";
 import { cn } from "@/lib/utils";
 import "@/styles/library.css";
 
 type Acquisition = Schemas["Acquisition"];
-type VersionControl = Schemas["VersionControl"];
 
 /** A copy's colour (data-vkey sets --vc). */
 export function CopyDot({ vkey, className }: { vkey?: string; className?: string }) {
@@ -56,18 +54,6 @@ export function StageLink({ a, className }: { a: Acquisition | undefined | null;
     >
       <span className="truncate">{stageWords(a)}</span>
     </Link>
-  );
-}
-
-/** "Followed · sonarr_4k · read-only" with a lock, or "Theatarr-managed". */
-export function OwnerLine({ c, className }: { c: VersionControl | undefined | null; className?: string }) {
-  const w = ownershipWords(c);
-  if (!w) return null;
-  return (
-    <span className={cn("inline-flex min-w-0 items-center gap-1 text-[11px] text-[var(--ink-3)]", className)} data-testid="copy-owner">
-      {c?.managed_by ? <Lock className="size-3 shrink-0" aria-hidden /> : null}
-      <span className="truncate">{w}</span>
-    </span>
   );
 }
 

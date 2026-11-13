@@ -4,13 +4,12 @@ import { expect, it } from "vitest";
 import { renderPage } from "@/test/page";
 import { ArrTabs } from "./arr-tabs";
 import { TorrentTabs } from "./torrent-tabs";
-it("keeps migration steps reachable and selects Import runs on its page", () => {
- renderPage(<ArrTabs />, "/admin/advanced/arr/imports");
- for (const [name, suffix] of [["Instances", ""], ["Import runs", "/imports"]]) {
-  const tab = screen.getByRole("tab", { name });
-  expect(tab.getAttribute("href")).toBe(`/admin/advanced/arr${suffix}`);
-  expect(tab.getAttribute("aria-selected")).toBe(String(name === "Import runs"));
- }
+it("keeps the migration's Instances tab, without Import runs or Comparison", () => {
+ renderPage(<ArrTabs />, "/admin/advanced/arr");
+ const tab = screen.getByRole("tab", { name: "Instances" });
+ expect(tab.getAttribute("href")).toBe("/admin/advanced/arr");
+ expect(tab.getAttribute("aria-selected")).toBe("true");
+ expect(screen.queryByRole("tab", { name: "Import runs" })).toBeNull();
  expect(screen.queryByRole("tab", { name: "Comparison" })).toBeNull();
 });
 it("keeps both torrent tabs reachable from an inventory detail", () => {

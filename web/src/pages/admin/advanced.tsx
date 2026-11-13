@@ -1,4 +1,3 @@
-import { ArrTabs } from "./arr-tabs";
 import { ADVANCED_SETTINGS_PAGES } from "@/lib/settings-map";
 // Advanced tools and the existing database diagnostics composed on System › Backup.
 import { useQuery } from "@tanstack/react-query";
@@ -7,17 +6,13 @@ import { useEffect, useRef } from "react";
 import { Link, useLocation } from "react-router";
 import { api } from "@/api/client";
 import { qk } from "@/api/query-keys";
-import { PRODUCT_NAME } from "@/brand";
-import { useHealth, useImports, useStatus, type JobList } from "@/api/hooks";
-import { Empty, ErrorState, KV, Loading, Mono, PageHeader, Section, Stat, StatGrid, VersionTag } from "@/components/page";
+import { useHealth, useStatus, type JobList } from "@/api/hooks";
+import { Empty, ErrorState, KV, Loading, Mono, PageHeader, Section, Stat, StatGrid } from "@/components/page";
 import { ADVANCED } from "@/components/shell/nav";
 import { Badge } from "@/components/ui/badge";
 import { Card } from "@/components/ui/card";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { fmtDuration, fmtNumber, fmtTime } from "@/lib/format";
+import { fmtNumber, fmtTime } from "@/lib/format";
 import { backupCheck, healthBadgeTone } from "@/lib/health";
-
-const CRUMB = [{ label: "Admin", to: "/admin" }, { label: "Advanced", to: "/admin/advanced" }];
 
 const ABOUT: Record<string, string> = {
   ...Object.fromEntries(ADVANCED_SETTINGS_PAGES.map(p => [p.route, p.description])),
@@ -45,68 +40,11 @@ export function AdvancedPage() {
   );
 }
 
-export function ImportsPage() {
-  return (
-    <div>
-      <PageHeader crumb={[...CRUMB, { label: "Sonarr/Radarr migration", to: "/admin/advanced/arr" }]} title="Import runs" description={`The 15-minute read-only import from the arrs ${PRODUCT_NAME} shadows. It ends at cutover.`} />
-      <ArrTabs />
-      <Imports />
-    </div>
-  );
-}
-
-type Summary = { version?: string; titles?: { total?: number }; changes?: Record<string, unknown> };
-
-function Imports() {
-  const im = useImports(20);
-  if (im.isPending) return <Loading />;
-  if (im.error) return <ErrorState error={im.error} />;
-  const items = im.data?.items ?? [];
-  return (
-    <div>
-      {items.length === 0 ? <Card><Empty>No import runs yet.</Empty></Card> : (
-        <Card className="p-0">
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Run</TableHead>
-                <TableHead>Instance</TableHead>
-                <TableHead className="hidden sm:table-cell">Library</TableHead>
-                <TableHead className="text-right">Titles</TableHead>
-                <TableHead className="hidden text-right md:table-cell">Changes</TableHead>
-                <TableHead className="hidden md:table-cell">Started</TableHead>
-                <TableHead className="text-right">Took</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {items.map((r) => {
-                const s = (r.summary ?? {}) as Summary;
-                return (
-                  <TableRow key={r.id}>
-                    <TableCell className="tabular-nums text-muted-foreground">{r.id}</TableCell>
-                    <TableCell><Mono>{r.instance}</Mono></TableCell>
-                    <TableCell className="hidden sm:table-cell">{s.version ? <VersionTag k={s.version} /> : "—"}</TableCell>
-                    <TableCell className="text-right tabular-nums">{fmtNumber(s.titles?.total)}</TableCell>
-                    <TableCell className="hidden text-right tabular-nums md:table-cell">{fmtNumber(Object.keys(s.changes ?? {}).length)}</TableCell>
-                    <TableCell className="hidden whitespace-nowrap md:table-cell">{fmtTime(r.started_at)}</TableCell>
-                    <TableCell className="whitespace-nowrap text-right">{fmtDuration(r.started_at, r.finished_at)}</TableCell>
-                  </TableRow>
-                );
-              })}
-            </TableBody>
-          </Table>
-        </Card>
-      )}
-    </div>
-  );
-}
-
 const COUNT_LABELS: Record<string, string> = {
   title: "titles",
   version: "versions",
   version_file: "library files",
   content: "contents",
-  import_run: "import runs",
   job: "jobs",
   link: "library links",
 };

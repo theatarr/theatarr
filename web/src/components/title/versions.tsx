@@ -3,8 +3,7 @@
 // preferred quality (the profile's cutoff, "4K Remux") and the upgrade status in the one vocabulary
 // (lib/upgrade.ts, with Why?), then monitoring, search now and Interactive search (managers, a movie's current copy
 // that searches live). Details discloses the file, score, path, release history, journal and the raw version key. Only
-// for callers with "see files": the title page shows no copy cards to anyone else (docs/design/users.md). A version an arr still imports shows the arr's monitoring read-only
-// (docs/design/manage.md).
+// for callers with "see files": the title page shows no copy cards to anyone else (docs/design/users.md).
 import { ArrowUpCircle, CheckCircle2, ChevronDown, CircleDashed, Download, FileX2, Loader2, PencilLine, Search, XCircle } from "lucide-react";
 import { useState, type ReactNode } from "react";
 import { Link } from "react-router";
@@ -186,7 +185,6 @@ function CopyCard({ v }: { v: Version }) {
           <span className="size-2.5 shrink-0 rounded-[3px] bg-[var(--vc)]" data-vkey={v.key} aria-hidden />
           {v.label}
         </h3>
-        {v.control?.managed_by ? <p className="text-xs text-muted-foreground">mirrors {v.control.managed_by}</p> : null}
         {v.control?.grab_state ? <VersionStatus state={v.control.grab_state} showMode settingsKey={v.key} canManage={perms.admin} /> : null}
         <span className="text-sm text-muted-foreground" data-testid="copy-availability">{f.availability}</span>
       </div>

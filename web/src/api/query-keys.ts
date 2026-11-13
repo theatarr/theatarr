@@ -24,7 +24,6 @@ export const qk = {
     entry: (e: Id) => ["errors", "entry", id(e)] as const,
     newCount: ["errors", "new-count"] as const,
   },
-  imports: { all: ["imports"] as const, list: (limit: number) => ["imports", limit] as const },
   policy: { all: ["policy"] as const, validate: ["policy", "validate"] as const },
   keys: ["keys"] as const,
   anime: {

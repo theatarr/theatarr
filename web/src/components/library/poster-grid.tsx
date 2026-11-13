@@ -8,7 +8,7 @@ import { Link } from "react-router";
 import { usePerms, type TitleRow } from "@/api/library";
 import { PosterCard } from "@/components/poster-card";
 import { Checkbox } from "@/components/ui/checkbox";
-import { activityHref, chipWords, copyBar, nextWords, ownershipWords, shortOwnershipWords, titleAcquisition, type PosterPrefs } from "@/lib/copies";
+import { activityHref, chipWords, copyBar, nextWords, titleAcquisition, type PosterPrefs } from "@/lib/copies";
 import { fmtAgo, fmtBytes } from "@/lib/format";
 import { kindOf, posterStatus } from "@/lib/library";
 import { resolutionWords } from "@/lib/upgrade";
@@ -53,12 +53,12 @@ function PosterDetails({ t, prefs, seeFiles }: { t: TitleRow; prefs: PosterPrefs
       ) : null}
       {has("added") && t.added_at ? <div className="truncate">Added {fmtAgo(t.added_at)}</div> : null}
       {vs.some((v) => v.control) ? (
-        <div className="space-y-0.5 text-[10px]" data-testid="poster-owners">
+        <div className="space-y-0.5 text-[10px]" data-testid="poster-copies">
           {vs.map((v) => (
             <div key={v.key} className="flex min-w-0 items-center gap-1">
               <CopyDot vkey={v.key} className="size-1.5" />
               <span aria-hidden>{v.monitored ? "●" : "○"}</span>
-              <span className="truncate" title={ownershipWords(v.control)}>{shortOwnershipWords(v.control)}</span>
+              <span className="truncate">{v.label}</span>
               <span className="sr-only">{v.monitored ? ", monitored" : ", not monitored"}</span>
             </div>
           ))}

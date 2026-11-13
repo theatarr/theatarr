@@ -5,7 +5,7 @@ import { describe, expect, it, vi } from "vitest";
 import { Seasons } from "./seasons";
 import { expectNamedControls, mockFetch, renderPage } from "@/test/page";
 
-const followed = { mode: "shadow", managed_by: "sonarr_anime", can_edit: false, edit_reason: "Managed by sonarr_anime until cutover", can_search: false, live_releases: false };
+const readOnly = { mode: "shadow", can_edit: false, edit_reason: "Your account may not change this", can_search: false, live_releases: false };
 const managed = { mode: "active", can_edit: true, can_search: true, live_releases: true };
 const downloading = { stage: "downloading", words: "Downloading (37%)", progress: 37, download_id: 9, downloads: 1, episodes: 1, updated_at: "2026-10-29T00:00:00Z" };
 
@@ -13,7 +13,7 @@ const cell = (has: boolean, extra = {}) => ({ state: has ? "cutoff_met" : "wante
 const episodes = {
   title_id: 1,
   versions: [
-    { id: 1, key: "anime-tv", label: "Anime Blu-ray", monitored: true, control: followed },
+    { id: 1, key: "anime-tv", label: "Anime Blu-ray", monitored: true, control: readOnly },
     { id: 2, key: "anime-web", label: "Anime WEB", monitored: true, control: managed },
   ],
   seasons: [
@@ -36,7 +36,7 @@ const detail = {
   title_name: "Tsukikage Signal",
   episode: episodes.episodes[1],
   versions: [
-    { key: "anime-tv", label: "Anime Blu-ray", state: "wanted", monitored: true, has_file: false, control: followed },
+    { key: "anime-tv", label: "Anime Blu-ray", state: "wanted", monitored: true, has_file: false, control: readOnly },
     { key: "anime-web", label: "Anime WEB", state: "cutoff_met", monitored: true, has_file: true, control: managed },
   ],
 };
@@ -47,7 +47,7 @@ const routes = [
 ];
 
 describe("Series page copies", () => {
-  it("shows each copy's season bar, stages, ownership and the episode stage with anime numbering", async () => {
+  it("shows each copy's season bar, stages and the episode stage with anime numbering", async () => {
     mockFetch(routes);
     renderPage(<Seasons id="1" anime />, "/title/1");
     const bars = await screen.findByTestId("season-copies");
@@ -55,9 +55,7 @@ describe("Series page copies", () => {
     expect(within(tv).getByText("1 / 3")).toBeTruthy();
     expect(within(tv).getByTestId("copy-flight")).toBeTruthy();
     expect(within(tv).getByTestId("season-stages").textContent).toBe("1 queued · 1 downloading");
-    expect(await screen.findByText("mirrors sonarr_anime")).toBeTruthy();
-    expect(screen.getByText("Theatarr-managed")).toBeTruthy();
-    expect(screen.getByText("E13 · absolute 13")).toBeTruthy();
+    expect(await screen.findByText("E13 · absolute 13")).toBeTruthy();
     const row = screen.getByRole("button", { name: /Episode 13/ });
     expect(within(row).getByText("Downloading · 37%")).toBeTruthy();
     expect(within(row).getByRole("progressbar")).toBeTruthy();

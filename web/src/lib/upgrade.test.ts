@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { mediaLine } from "./media";
 import { availabilityFilters, posterStatus, stateWords } from "./library";
-import { UPGRADE_WORDS, availableIn, belowCount, cutoffLine, managedShort, nextLine, plainUpgrade, resolutionWords, shortfall, sourceWords, tierWords, upgradeBadge, whyOf } from "./upgrade";
+import { UPGRADE_WORDS, availableIn, belowCount, cutoffLine, nextLine, plainUpgrade, resolutionWords, shortfall, sourceWords, tierWords, upgradeBadge, whyOf } from "./upgrade";
 
 const cutoff = { quality: "Remux-2160p", score: 10000, upgrades: true };
 
@@ -135,12 +135,9 @@ describe("upgrade words", () => {
     );
     expect(plainUpgrade({ state: "upgrade_available" })).toBe("Upgrade found.");
   });
-  it("counts episodes and names the owner", () => {
+  it("counts episodes", () => {
     expect(belowCount({ state: "below_cutoff", below: 23, seen: 0 })).toBe("23 episodes under preferred quality");
     expect(belowCount({ state: "upgrade_available", below: 12, seen: 1 })).toBe("12 episodes under preferred quality · 1 upgrade found");
-    expect(managedShort({ mode: "shadow", managed_by: "sonarr_anime_debrid", can_edit: false, can_search: false, live_releases: false })).toBe(
-      "Managed by sonarr_anime_debrid until cutover",
-    );
   });
 });
 

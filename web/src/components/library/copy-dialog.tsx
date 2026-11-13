@@ -1,6 +1,5 @@
 // A title's copies in one dialog (docs/design/ui.md "Library views"), opened from the library table: per library its
-// ownership, current file, state, acquisition stage with its bar, and the monitor switch (managers; locked on a
-// followed copy). The movie copy dialog of the design; series get it too. It reads the grid's row only, and its one
+// current file, state, acquisition stage with its bar, and the monitor switch (managers). The movie copy dialog of the design; series get it too. It reads the grid's row only, and its one
 // write is the copy's monitoring through the bulk route: searching and grabbing stay on the title page.
 import { X } from "lucide-react";
 import { useRef } from "react";
@@ -14,27 +13,25 @@ import { MonitorSwitch } from "@/components/title/manage-bits";
 import { Button } from "@/components/ui/button";
 import { errText } from "@/components/ui/confirm-dialog";
 import { Modal } from "@/components/ui/modal";
-import { copyBar, copyStatus, isFollowed, ownershipWords } from "@/lib/copies";
+import { copyBar, copyStatus } from "@/lib/copies";
 import { fmtBytes } from "@/lib/format";
 import { upcomingRelease } from "@/lib/library";
 import { resolutionWords } from "@/lib/upgrade";
 import { cn } from "@/lib/utils";
-import { CopyBarLine, CopyDot, OwnerLine, StageLink } from "./copy-bits";
+import { CopyBarLine, CopyDot, StageLink } from "./copy-bits";
 
 type Version = NonNullable<TitleRow["versions"]>[number];
 
-/** A copy's monitor switch: one item through POST /titles/monitor, locked with the reason on a followed copy. */
+/** A copy's monitor switch: one item through POST /titles/monitor. */
 export function CopyMonitor({ t, v }: { t: TitleRow; v: Version }) {
   const mon = useBulkMonitor();
-  const followed = isFollowed(v.control);
   return (
     <span className="inline-flex items-center gap-1.5 text-xs text-muted-foreground">
       <MonitorSwitch
         size="sm"
         on={!!v.monitored}
         label={`Monitor ${t.name} ${v.label}`}
-        disabled={followed || mon.isPending}
-        reason={followed ? v.control?.edit_reason || ownershipWords(v.control) : undefined}
+        disabled={mon.isPending}
         onChange={(on) =>
           mon.mutate(
             { title_ids: [t.id!], versions: [v.key!], monitored: on },
@@ -60,7 +57,6 @@ const TONE = {
 export function CopyDialog({ t, seeFiles, manage, onClose }: { t: TitleRow; seeFiles: boolean; manage: boolean; onClose: () => void }) {
   const close = useRef<HTMLButtonElement>(null);
   const vs = t.versions ?? [];
-  const followed = vs.filter((v) => isFollowed(v.control));
   return (
     <Modal
       label={`${t.name} libraries`}
@@ -75,7 +71,6 @@ export function CopyDialog({ t, seeFiles, manage, onClose }: { t: TitleRow; seeF
         <h2 className="text-lg font-semibold text-[var(--ink)] [overflow-wrap:anywhere]">{t.name}</h2>
         <p className="text-sm text-muted-foreground">
           {vs.length === 1 ? "1 library" : `${vs.length} libraries`}
-          {followed.length ? ` · ${followed.map((v) => v.label).join(", ")} followed (read-only)` : ""}
         </p>
         <button ref={close} type="button" onClick={onClose} aria-label="Close" className="absolute right-3 top-3 grid size-8 place-items-center rounded-lg text-[var(--ink-3)] hover:bg-[var(--hover)]">
           <X className="size-4" />
@@ -93,7 +88,6 @@ export function CopyDialog({ t, seeFiles, manage, onClose }: { t: TitleRow; seeF
                 <span className="truncate">{v.label}</span>
               </h3>
               {v.control?.grab_state ? <VersionStatus state={v.control.grab_state} showMode /> : null}
-              <OwnerLine c={v.control} className="flex" />
               <div>
                 <div className="text-[11px] font-bold uppercase tracking-[0.05em] text-[var(--ink-3)]">Current file</div>
                 <div>{v.has_file ? q || "Held" : "No current file"}</div>

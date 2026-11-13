@@ -81,12 +81,12 @@ describe("recovery scopes", () => {
     expect(keep.keeps).toContain("Its history stays; adding Dune to the library again restores it");
   });
 
-  it("scopes a title removal and refuses a copy an arr still owns", () => {
+  it("scopes a title removal, a copy an arr imports included", () => {
     const all = {
       name: "Dune",
       title: true,
       copies: [
-        { key: "movie-remux", label: "4K Remux", links: 1, downloads: 0, managed_by: "radarr_4k_debrid" },
+        { key: "movie-remux", label: "4K Remux", links: 1, downloads: 0 },
         { key: "movie-web", label: "4K WEB", links: 0, downloads: 0 },
       ],
     };
@@ -94,7 +94,7 @@ describe("recovery scopes", () => {
     expect(s.title).toBe("Remove Dune");
     expect(s.does[0]).toBe("Dune is removed from every library it is in (4K Remux, 4K WEB): it stops being wanted, searched or upgraded there");
     expect(s.confirm).toBe("Remove title");
-    expect(s.blocked).toBe("4K Remux is managed by radarr_4k_debrid until cutover: remove it there");
+    expect(s.blocked).toBeUndefined();
     expect(removalScope({ name: "X", title: false, copies: [] }, false).blocked).toBe("Nothing to remove");
   });
 

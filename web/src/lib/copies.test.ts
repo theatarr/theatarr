@@ -4,7 +4,6 @@ import {
   activityHref,
   bulkExpect,
   chipWords,
-  columnOwnerWords,
   copyBar,
   copyColumns,
   copyStatus,
@@ -16,10 +15,8 @@ import {
   nextWords,
   normalizeColumns,
   normalizePosters,
-  ownershipWords,
   prefKey,
   relabel,
-  shortOwnershipWords,
   stageCounts,
   stageWords,
   titleAcquisition,
@@ -27,8 +24,7 @@ import {
   withDistinctLabels,
 } from "./copies";
 
-const followed = { mode: "shadow" as const, managed_by: "sonarr_4k", can_edit: false, can_search: false, live_releases: false };
-const managed = { mode: "active" as const, can_edit: true, can_search: true, live_releases: true };
+const control = { mode: "active" as const, can_edit: true, can_search: true, live_releases: true };
 const acq = (stage: "queued" | "downloading" | "waiting_mount" | "blocked", extra = {}) => ({ stage, words: stage, download_id: 1, downloads: 1, updated_at: "2026-10-29T00:00:00Z", ...extra });
 
 describe("stage words", () => {
@@ -60,47 +56,37 @@ describe("stage words", () => {
   });
 });
 
-describe("ownership", () => {
-  it("words a copy's ownership", () => {
-    expect(ownershipWords(followed)).toBe("mirrors sonarr_4k");
-    expect(ownershipWords(managed)).toBe("Theatarr-managed");
-    expect(ownershipWords(undefined)).toBe("");
-  });
-
-  it("summarises each copy column across the titles in view", () => {
+describe("copy columns", () => {
+  it("lists each copy column once, in order of first appearance", () => {
     const cols = copyColumns([
-      { versions: [{ key: "tv-2160p", label: "4K", control: followed }, { key: "tv-web", label: "1080p WEB", control: managed }] },
-      { versions: [{ key: "tv-2160p", label: "4K", control: managed }, { key: "anime-tv", label: "Anime" }] },
+      { versions: [{ key: "tv-2160p", label: "4K", control }, { key: "tv-web", label: "1080p WEB", control }] },
+      { versions: [{ key: "tv-2160p", label: "4K", control }, { key: "anime-tv", label: "Anime" }] },
     ]);
-    expect(cols.map((c) => [c.key, c.owner])).toEqual([["tv-2160p", "mixed"], ["tv-web", "managed"], ["anime-tv", undefined]]);
-    expect(columnOwnerWords(cols[0])).toBe("Some followed (read-only)");
-    expect(columnOwnerWords(cols[1])).toBe("Theatarr-managed");
-    expect(columnOwnerWords(copyColumns([{ versions: [{ key: "x", control: followed }] }])[0])).toBe("Followed · sonarr_4k · read-only");
+    expect(cols).toEqual([{ key: "tv-2160p", label: "4K" }, { key: "tv-web", label: "1080p WEB" }, { key: "anime-tv", label: "Anime" }]);
   });
 });
 
 describe("distinct labels", () => {
   it("keeps labels that do not collide", () => {
-    expect([...distinctLabels([{ key: "tv-2160p", label: "4K", owner: "followed" }, { key: "tv-web", label: "1080p WEB" }])]).toEqual([
+    expect([...distinctLabels([{ key: "tv-2160p", label: "4K" }, { key: "tv-web", label: "1080p WEB" }])]).toEqual([
       ["tv-2160p", "4K"],
       ["tv-web", "1080p WEB"],
     ]);
   });
 
-  it("keeps library names separate from ownership", () => {
-    const n = distinctLabels([{ key: "tv-2160p", label: "4K", owner: "followed" }, { key: "tv-2160p-theatarr", label: "4K", owner: "managed" }, { key: "tv-web", label: "WEB" }]);
+  it("names colliding labels by key", () => {
+    const n = distinctLabels([{ key: "tv-2160p", label: "4K" }, { key: "tv-2160p-theatarr", label: "4K" }, { key: "tv-web", label: "WEB" }]);
     expect([...n.values()]).toEqual(["4K · tv-2160p", "4K · tv-2160p-theatarr", "WEB"]);
   });
 
-  it("keeps display labels with any ownership", () => {
-    expect([...distinctLabels([{ key: "anime-tv", label: "Anime", owner: "managed" }, { key: "anime-tv-theatarr", label: "Anime", owner: "managed" }]).values()]).toEqual([
+  it("names every colliding label by key", () => {
+    expect([...distinctLabels([{ key: "anime-tv", label: "Anime" }, { key: "anime-tv-theatarr", label: "Anime" }]).values()]).toEqual([
       "Anime · anime-tv",
       "Anime · anime-tv-theatarr",
     ]);
-    expect([...distinctLabels([{ key: "a", label: "4K" }, { key: "b", label: "4K", owner: "followed" }]).values()]).toEqual(["4K · a", "4K · b"]);
-    expect([...distinctLabels([{ key: "a", label: "4K", owner: "mixed" }, { key: "b", label: "4K", owner: "managed" }]).values()]).toEqual(["4K · a", "4K · b"]);
-    // Three of a name: the one followed copy keeps its ownership, the two managed ones need their keys.
-    expect([...distinctLabels([{ key: "a", label: "4K", owner: "followed" }, { key: "b", label: "4K", owner: "managed" }, { key: "c", label: "4K", owner: "managed" }]).values()]).toEqual([
+    expect([...distinctLabels([{ key: "a", label: "4K" }, { key: "b", label: "4K" }]).values()]).toEqual(["4K · a", "4K · b"]);
+    // Three of a name: each needs its key.
+    expect([...distinctLabels([{ key: "a", label: "4K" }, { key: "b", label: "4K" }, { key: "c", label: "4K" }]).values()]).toEqual([
       "4K · a",
       "4K · b",
       "4K · c",
@@ -112,24 +98,18 @@ describe("distinct labels", () => {
   });
 
   it("names each key once, an empty label by its key", () => {
-    const n = distinctLabels([{ key: "a", label: "4K", owner: "followed" }, { key: "a", label: "4K", owner: "managed" }, { key: "b", label: "" }, { label: "x" }]);
+    const n = distinctLabels([{ key: "a", label: "4K" }, { key: "a", label: "4K" }, { key: "b", label: "" }, { label: "x" }]);
     expect([...n]).toEqual([["a", "4K"], ["b", "b"]]);
   });
 
-  it("relabels a title's copies from their controls, and anything keyed from a map", () => {
-    const vs = withDistinctLabels([{ key: "anime-tv", label: "Anime", control: followed }, { key: "anime-tv-theatarr", label: "Anime", control: managed }]);
+  it("relabels a title's copies, and anything keyed from a map", () => {
+    const vs = withDistinctLabels([{ key: "anime-tv", label: "Anime", control }, { key: "anime-tv-theatarr", label: "Anime", control }]);
     expect(vs.map((v) => v.label)).toEqual(["Anime · anime-tv", "Anime · anime-tv-theatarr"]);
-    // A caller without control (users) gets the keys.
+    // A caller without control (users) gets the same.
     expect(withDistinctLabels([{ key: "anime-tv", label: "Anime" }, { key: "anime-tv-theatarr", label: "Anime" }]).map((v) => v.label)).toEqual(["Anime · anime-tv", "Anime · anime-tv-theatarr"]);
     const same = [{ key: "x", label: "X" }];
     expect(relabel(same, new Map([["x", "X"]]))[0]).toBe(same[0]);
     expect(relabel([{ key: "x", label: "X", titles: 3 }], new Map([["x", "X · x"]]))).toEqual([{ key: "x", label: "X · x", titles: 3 }]);
-  });
-
-  it("shortens the poster's ownership line", () => {
-    expect(shortOwnershipWords(followed)).toBe("Followed · read-only");
-    expect(shortOwnershipWords(managed)).toBe("Theatarr-managed");
-    expect(shortOwnershipWords(undefined)).toBe("");
   });
 });
 
@@ -210,7 +190,7 @@ describe("bulk expect", () => {
   it("sends the preview's from values of the copies that change", () => {
     const items = [
       { title_id: 1, title: "A", version: "a", label: "A", outcome: "changed" as const, from: false, to: true },
-      { title_id: 2, title: "B", version: "a", label: "A", outcome: "read_only" as const, from: false, to: true },
+      { title_id: 2, title: "B", version: "a", label: "A", outcome: "stale" as const, from: false, to: true },
       { title_id: 3, title: "C", version: "a", label: "A", outcome: "unchanged" as const, from: true, to: true },
     ];
     expect(bulkExpect(items)).toEqual([{ title_id: 1, version: "a", monitored: false }]);

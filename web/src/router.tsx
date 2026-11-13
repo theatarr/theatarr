@@ -40,7 +40,6 @@ const JobsPage = lazyPage(() => import("./pages/admin/jobs").then((m) => m.JobsP
 const ErrorsPage = lazyPage(() => import("./pages/admin/errors").then((m) => m.ErrorsPage));
 const TorrentsPage = lazyPage(() => import("./pages/admin/torrents").then((m) => m.TorrentsPage));
 const AdvancedPage = lazyPage(() => import("./pages/admin/advanced").then((m) => m.AdvancedPage));
-const ImportsPage = lazyPage(() => import("./pages/admin/advanced").then((m) => m.ImportsPage));
 const BackupPage = lazyPage(() => import("./pages/admin/backup").then((m) => m.BackupPage));
 const JournalEntryPage = lazyPage(() => import("./pages/admin/journal").then((m) => m.JournalEntryPage));
 const ReviewsPage = lazyPage(() => import("./pages/admin/reviews").then((m) => m.ReviewsPage));
@@ -199,7 +198,6 @@ export const routes: RouteObject[] = [
           { path: "/admin/torrents/inventory", element: <Registry /> },
           { path: "/admin/torrents/inventory/:hash", element: <RegistryContent /> },
           { path: "/admin/system/logs", element: <Logs /> },
-          { path: "/admin/advanced/arr/imports", element: <ImportsPage /> },
           { path: "/admin/system/backup", element: <BackupPage /> },
         ],
       },

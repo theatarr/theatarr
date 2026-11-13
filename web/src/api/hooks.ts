@@ -17,7 +17,6 @@ export type Status = Get<"/status">;
 export type Health = Get<"/health">;
 export type JobList = Get<"/jobs">;
 export type Gateway = Get<"/gateway">;
-export type Imports = Get<"/imports">;
 export type Policy = Get<"/policy">;
 export type Validate = Get<"/policy/validate">;
 export type Keys = Get<"/keys">;
@@ -53,8 +52,6 @@ export const useJobs = (state?: string, limit = 100) =>
 
 export const useGateway = () => useQuery({ queryKey: qk.gateway, queryFn: () => api<Gateway>("/gateway") });
 
-export const useImports = (limit = 20) =>
-  useQuery({ queryKey: qk.imports.list(limit), queryFn: () => api<Imports>("/imports" + qs({ limit })) });
 
 export const usePolicy = () => useQuery({ queryKey: qk.policy.all, queryFn: () => api<Policy>("/policy") });
 

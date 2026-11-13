@@ -151,13 +151,6 @@ export function RegistryContent() {
           ))}</TableBody></Table></Card>
         )}
       </Section>
-      <Section title="Arr history">
-        {(c.history ?? []).length === 0 ? <Card><Empty>No arr history for this hash.</Empty></Card> : (
-          <Card className="p-0"><Table><TableBody>{(c.history ?? []).map((h, i) => (
-            <TableRow key={i}><TableCell className="whitespace-nowrap">{fmtTime(h.date)}</TableCell><TableCell><Badge>{h.event_type}</Badge></TableCell><TableCell><Mono>{h.instance}</Mono></TableCell><TableCell className="hidden max-w-[28rem] break-words text-[13px] md:table-cell">{h.source_title}</TableCell></TableRow>
-          ))}</TableBody></Table></Card>
-        )}
-      </Section>
     </div>
   );
 }

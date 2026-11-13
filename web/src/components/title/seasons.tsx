@@ -29,7 +29,7 @@ import { useMonitor, useScopedSearch, type ManageOutcome } from "@/api/manage";
 import { ErrorState, Loading } from "@/components/page";
 import { EpisodeOverview } from "@/components/title/episode-drawer";
 import { InteractiveSearchButton, useLiveLibraries } from "@/components/title/interactive-search";
-import { CopyDot, CopyTrack, OwnerLine } from "@/components/library/copy-bits";
+import { CopyDot, CopyTrack } from "@/components/library/copy-bits";
 import { MonitorSwitch } from "@/components/title/manage-bits";
 import { DownloadsOffNotice } from "@/components/version-status";
 import { ProgressBar } from "@/components/activity-bits";
@@ -225,7 +225,6 @@ function EpisodeTable({ episodes, copies, merged, anime, manage, seeFiles, selec
                   <span className="size-2 rounded-[2px] bg-[var(--vc)]" />
                   {v.label}
                 </span>
-                <OwnerLine c={v.control} className="flex font-normal normal-case" />
               </TableHead>
             ))
           )}

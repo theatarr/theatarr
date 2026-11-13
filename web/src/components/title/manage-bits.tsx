@@ -6,7 +6,7 @@ import { Lock, Search } from "lucide-react";
 import { Link } from "react-router";
 import type { UpgradeInfo, VersionControl } from "@/api/manage";
 import { UpgradeStatus } from "@/components/title/upgrade-why";
-import { availableIn, managedShort, nextLine, upgradeBadge } from "@/lib/upgrade";
+import { availableIn, nextLine, upgradeBadge } from "@/lib/upgrade";
 import { Switch } from "@/components/ui/switch";
 import { cn } from "@/lib/utils";
 
@@ -67,23 +67,11 @@ export function ControlNote({ c, kind, globalSaid = false, verdictSaid = false }
     <div className="space-y-0.5 text-[11.5px] text-[var(--ink-3)]" data-testid="control-note">
       {lines.map((l, i) => (
         <p key={i} className="flex items-start gap-1.5">
-          {i === 0 && c.managed_by ? <Lock className="mt-0.5 size-3 shrink-0" /> : <Search className="mt-0.5 size-3 shrink-0" />}
+          <Search className="mt-0.5 size-3 shrink-0" />
           <span>{l.text}{l.search ? <> — {admin && fix.to ? <Link className="underline" to={fix.to}>{fix.label}</Link> : fix.label}</> : null}</span>
         </p>
       ))}
     </div>
-  );
-}
-
-/** "Managed by X until cutover" as a small chip for headers. */
-export function ManagedChip({ c }: { c: VersionControl | undefined | null }) {
-  const s = managedShort(c);
-  if (!s) return null;
-  return (
-    <span className="inline-flex items-center gap-1 rounded-md border border-[var(--line)] bg-[var(--sunken)] px-1.5 py-0.5 text-[11px] text-[var(--ink-3)]" title={c?.edit_reason} data-testid="managed-chip">
-      <Lock className="size-3" />
-      {s}
-    </span>
   );
 }
 

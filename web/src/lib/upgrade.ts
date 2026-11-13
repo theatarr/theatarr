@@ -123,11 +123,6 @@ export function searchNote(c: VersionControl | undefined | null): string {
   return c.can_search ? "" : c.search_reason ?? "";
 }
 
-/** "Managed by sonarr_anime_debrid until cutover", short, for headers. */
-export function managedShort(c: VersionControl | undefined | null): string {
-  return c?.managed_by ? `Managed by ${c.managed_by} until cutover` : "";
-}
-
 /** "4K", "1080p": a resolution in words, from a quality or the bare resolution the API gives accounts without "see files". */
 export function resolutionWords(quality: string | undefined): string {
   const resolution = quality?.match(/(2160|1080|720|576|480)p?/i)?.[1];

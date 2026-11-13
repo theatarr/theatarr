@@ -1,7 +1,6 @@
 // The grid's table view (docs/design/ui.md "Library views"): a row per title and a column per library (version key), each
-// header naming the copy and its ownership (followed: read-only here, or Theatarr-managed). A copy cell has its state,
-// current quality, bar (linked solid, in progress striped), acquisition stage and, for managers, its monitor switch
-// (locked on a followed copy). The extra columns (next / activity, quality, size, added, network) are picked and
+// header naming the copy. A copy cell has its state, current quality, bar (linked solid, in progress striped),
+// acquisition stage and, for managers, its monitor switch. The extra columns (next / activity, quality, size, added, network) are picked and
 // ordered in the column picker; the headers sort the grid. In select mode a checkbox column feeds the bulk bar.
 // Dense rows under a sticky header while the table fits its frame; a table wider than its frame (many libraries or
 // columns) scrolls sideways instead, so every column stays reachable (useFitsFrame). Below the sm
@@ -18,7 +17,6 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { TitleThumb } from "@/components/poster-card";
 import {
   TABLE_COLUMNS,
-  columnOwnerWords,
   copyBar,
   copyStatus,
   headerSort,
@@ -31,7 +29,7 @@ import { fmtAgo, fmtBytes } from "@/lib/format";
 import { titleWatchWords, upcomingRelease } from "@/lib/library";
 import { resolutionWords } from "@/lib/upgrade";
 import { cn } from "@/lib/utils";
-import { CopyBarLine, CopyDot, OwnerLine, StageLink, useMinWidth } from "./copy-bits";
+import { CopyBarLine, CopyDot, StageLink, useMinWidth } from "./copy-bits";
 import { CopyDialog, CopyMonitor } from "./copy-dialog";
 import { useEndReached } from "./poster-grid";
 
@@ -215,7 +213,6 @@ export function TitleTable({ titles, more, onMore, seeFiles, manage, columns, ex
                   {(t.versions ?? []).map((v) => (
                     <div key={v.key} className="min-w-0 rounded-lg border border-[var(--line)] p-2">
                       <div className="flex min-w-0 items-center gap-1.5 text-xs font-medium"><CopyDot vkey={v.key} />{v.label}</div>
-                      <OwnerLine c={v.control} className="mb-1" />
                       <CopyCell t={t} v={v} seeFiles={seeFiles} manage={manage} />
                     </div>
                   ))}
@@ -260,7 +257,6 @@ export function TitleTable({ titles, more, onMore, seeFiles, manage, columns, ex
                   const s = headerSort("copy", c.key);
                   return (
                     <TableHead key={c.key} aria-sort={ariaSort(sort, s)} data-copy-col={c.key} className="align-bottom">
-                      {c.owner ? <span className="block text-[10px] font-normal normal-case text-[var(--ink-3)]" data-testid="column-owner">{columnOwnerWords(c)}</span> : null}
                       <SortButton s={s} sort={sort} onSort={onSort} label={`${c.label} completion`}>
                         <CopyDot vkey={c.key} />
                         {c.label}

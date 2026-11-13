@@ -1,5 +1,5 @@
-// The title page's technical details, for admins (under About): ids, release dates, every file and arr record per
-// version and the registry; the grab journal for the title (GET /journal?title=<id>) is TitleJournal, on the
+// The title page's technical details, for admins (under About): ids, release dates, every file per version and the
+// registry; the grab journal for the title (GET /journal?title=<id>) is TitleJournal, on the
 // History tab.
 import { ExternalLink } from "lucide-react";
 import { Link } from "react-router";
@@ -126,7 +126,6 @@ export function Details({ d }: { d: TitleDetail }) {
   if (links.length) {
     ids.push(["Links", <span key="l" className="flex flex-wrap gap-3">{links.map((l) => <a key={l.label} href={l.url} target="_blank" rel="noreferrer noopener" className="inline-flex items-center gap-1 text-primary hover:underline">{l.label}<ExternalLink className="size-3" /></a>)}</span>]);
   }
-  const arr = versions.flatMap((v) => (v.arr_records ?? []).map((a) => ({ v, a })));
   return (
     <div>
       <Section title="Identifiers">
@@ -151,27 +150,6 @@ export function Details({ d }: { d: TitleDetail }) {
       <Section title="Files">
         <Files versions={versions} />
       </Section>
-      {arr.length > 0 ? (
-        <Section title="Arr records">
-          <Card className="p-0">
-            <Table density="dense">
-              <TableHeader>
-                <TableRow><TableHead>Library</TableHead><TableHead>Instance</TableHead><TableHead className="hidden sm:table-cell">Profile</TableHead><TableHead className="hidden md:table-cell">Path</TableHead></TableRow>
-              </TableHeader>
-              <TableBody>
-                {arr.map(({ v, a }) => (
-                  <TableRow key={`${a.instance}-${a.arr_id}`}>
-                    <TableCell><VersionTag k={v.key ?? ""} /></TableCell>
-                    <TableCell>{a.instance} <span className="text-muted-foreground">#{a.arr_id}</span>{a.monitored ? null : <span className="text-muted-foreground"> · not monitored</span>}</TableCell>
-                    <TableCell className="hidden sm:table-cell">{a.quality_profile || "—"}</TableCell>
-                    <TableCell className="hidden md:table-cell"><Mono className="break-all">{a.path}</Mono></TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-          </Card>
-        </Section>
-      ) : null}
       <Section title="Registry">
         {(d.registry ?? []).length === 0 ? <Card><Empty>No registry entries.</Empty></Card> : (
           <Card className="p-0">

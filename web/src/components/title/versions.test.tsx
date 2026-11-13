@@ -109,7 +109,7 @@ it("shows both series queues and no handoffs for shadow copies", async () => {
 });
 
 
-it("keeps collision labels on Theatarr-managed cards and unique labels plain", () => {
+it("keeps collision labels on copy cards and unique labels plain", () => {
   mockFetch([]);
   renderPage(<CopyCards versions={withDistinctLabels([
     { ...copy, key: "anime-tv", label: "Anime" },
