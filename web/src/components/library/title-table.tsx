@@ -93,8 +93,9 @@ function CompactStage({ a }: { a: Acquisition }) {
 
 /** Status for an account that sees files: the poster badge's word (the day for Upcoming), and a download in hand's
  *  short stage after it ("Partly available · 64%", CompactStage); a title with no file yet shows the download's stage
- *  alone, in words. */
-function StatusCell({ t }: { t: TitleRow }) {
+ *  alone, in words. words: a phone card's head (no hover), which shows the stage in words after the badge word and
+ *  wraps the status under the title when both do not fit. */
+function StatusCell({ t, words = false }: { t: TitleRow; words?: boolean }) {
   const a = titleAcquisition(t);
   const s = posterStatus(t.availability, t.upgrade_seen, false, t.upgrade_state, t);
   if (a && !(s && HELD.has(s))) return <StageLink a={a.acquisition} className="text-[13px]" />;
@@ -111,7 +112,7 @@ function StatusCell({ t }: { t: TitleRow }) {
     <span className="inline-flex min-w-0 items-baseline gap-1 whitespace-nowrap">
       {word}
       <span aria-hidden className="text-[var(--ink-3)]">·</span>
-      <CompactStage a={a.acquisition} />
+      {words ? <StageLink a={a.acquisition} className="text-[13px]" /> : <CompactStage a={a.acquisition} />}
     </span>
   );
 }
@@ -343,9 +344,9 @@ export function TitleTable({ titles, more, onMore, seeFiles, manage, columns, so
         rowProps={() => ({ className: "cv-auto-row-sm" })}
         actions={manage ? (t) => <RowActions t={t} wide={wide} /> : undefined}
         cardHead={(t) => (
-          <div className="flex min-w-0 items-center justify-between gap-2">
+          <div className="flex min-w-0 flex-wrap items-center justify-between gap-x-2 gap-y-0.5">
             <TitleCell t={t} seeFiles={seeFiles} />
-            {showStatus ? <span className="shrink-0">{seeFiles ? <StatusCell t={t} /> : <WatchCell t={t} />}</span> : null}
+            {showStatus ? <span className="shrink-0">{seeFiles ? <StatusCell t={t} words /> : <WatchCell t={t} />}</span> : null}
           </div>
         )}
       />

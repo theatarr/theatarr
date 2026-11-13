@@ -135,6 +135,22 @@ describe("Library table", () => {
     expect(within(cell).getByTestId("status-cell").textContent).toBe("Partly available");
   });
 
+  it("shows the stage in words after the badge word on a phone card", async () => {
+    vi.stubGlobal("matchMedia", (q: string) => ({ matches: !q.includes("min-width"), media: q, addEventListener() {}, removeEventListener() {} }));
+    const movie = { id: 6, kind: "movie", name: "Kestrel Nine", year: 2022, monitored: true, availability: "partial",
+      versions: [
+        { id: 61, key: "movie-4k", label: "4K", monitored: true, has_file: false, state: "wanted", control: managed,
+          acquisition: { stage: "complete", words: "Download complete", download_id: 4, downloads: 1, updated_at: "2026-10-29T00:00:00Z" } },
+        { id: 62, key: "movie-web", label: "WEB", monitored: true, has_file: true, quality: "WEBDL-2160p", state: "cutoff_met", control: managed },
+      ] };
+    mockFetch(routes().map((r) => (r.path === "/titles" ? { ...r, reply: { items: [movie], total: 1, offset: 0 } } : r)));
+    renderPage(<Catalog id="movies" />, "/movies");
+    await screen.findAllByText("Kestrel Nine");
+    const card = screen.getByRole("link", { name: "Kestrel Nine" }).closest("li") as HTMLElement;
+    expect(within(card).getByTestId("status-cell").textContent).toBe("Partly available");
+    expect(within(card).getByRole("link", { name: "Download complete" }).textContent).toBe("Download complete");
+  });
+
   it("uses the badge words for Status and a red pill for the missing library of a partly held movie", async () => {
     const movies = [
       { id: 6, kind: "movie", name: "Copper Sky", year: 2022, monitored: true, release_date: "2022-05-01", availability: "partial",
