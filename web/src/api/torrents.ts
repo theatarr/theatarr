@@ -3,6 +3,7 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { api, qs, type Schemas } from "./client";
 import { qk } from "./query-keys";
+import { COPY_POLL_MS, copiesUnfinished } from "@/lib/provider-copies";
 import type { DeletePlan, DeleteSelection, RestorePlan } from "@/lib/torrents";
 
 export type TorrentBackups = Schemas["TorrentBackupList"];
@@ -10,7 +11,11 @@ export type TorrentJournal = { entries: Schemas["TorrentJournalEntry"][] };
 export type RestoreRequest = Schemas["TorrentRestoreRequest"];
 
 export const useTorrentReport = () =>
-  useQuery({ queryKey: qk.torrents.report, queryFn: () => api<Schemas["TorrentReport"]>("/torrents/report"), staleTime: 60_000 });
+  useQuery({
+    queryKey: qk.torrents.report, queryFn: () => api<Schemas["TorrentReport"]>("/torrents/report"), staleTime: 60_000,
+    // Asked again, slowly (the report reads every account), while a copy to another provider is unfinished.
+    refetchInterval: (q) => ((q.state.data?.providers ?? []).some((p) => p.torrents.some((t) => copiesUnfinished(t.copies))) ? 4 * COPY_POLL_MS : false),
+  });
 
 export const useTorrentBackups = () => useQuery({ queryKey: qk.torrents.backups, queryFn: () => api<TorrentBackups>("/torrents/backups") });
 

@@ -122,6 +122,30 @@ describe("row details", () => {
   });
 });
 
+describe("Add to other providers", () => {
+  it("adds a movie's file from its details, shows the Other providers line, and is disabled with the Pause words while paused", async () => {
+    const fetch = manager([
+      { method: "POST", path: "/titles/7/copies", reply: { copies: [{ provider: "ad", state: "queued", updated_at: "2026-11-13T12:00:00Z" }] } },
+      { method: "GET", path: "/titles/7", reply: {} },
+    ]);
+    const user = userEvent.setup();
+    const copied = { ...web, current: { ...web.current, copies: [{ provider: "tb", state: "added", updated_at: "2026-11-13T12:00:00Z" }, { provider: "ad", state: "not_cached", message: "Not cached on AD", updated_at: "2026-11-13T12:00:00Z" }] } };
+    const paused = { ...remux, has_file: true, control: { ...live, grab_state: { mode: "active", paused: true, pause_forced: false, will_grab: false } } };
+    renderPage(<LibraryRows title={title as never} versions={[copied, paused] as never} />);
+    await user.click(await screen.findByTestId("copy-details-movie-web"));
+    const panel = screen.getByTestId("library-row-details-movie-web");
+    expect(within(panel).getByTestId("other-providers").textContent).toMatch(/^AD not cached, /);
+    await user.click(within(panel).getByTestId("add-to-providers-movie-web"));
+    await waitFor(() => expect(fetch.calls("POST", "/titles/7/copies")).toHaveLength(1));
+    expect(fetch.calls("POST", "/titles/7/copies")[0].body).toEqual({ version: "movie-web" });
+    expect((await within(panel).findByTestId("add-to-providers-result")).textContent).toContain("Adding to AD");
+    await user.click(screen.getByTestId("copy-details-movie-remux"));
+    const off = screen.getByTestId("add-to-providers-movie-remux") as HTMLButtonElement;
+    expect(off.disabled).toBe(true);
+    expect(off.parentElement?.getAttribute("title")).toBe("Paused: nothing is searched, downloaded or linked for any library.");
+  });
+});
+
 describe("fix round 1", () => {
   it("keeps a row removal scoped to its library when it is the title's last, and keeps the result after the row goes", async () => {
     const links = [{ id: 9, kind: "symlink", state: "active", path: "/media/remux/Alpha/a.mkv" }];

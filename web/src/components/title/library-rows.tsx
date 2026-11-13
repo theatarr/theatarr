@@ -16,6 +16,8 @@ import { KV, Mono } from "@/components/page";
 import { ProviderPills } from "@/components/provider-pills";
 import { CopyActions, LeftoverLinks, RemoveDialog } from "@/components/title/copy-actions";
 import { InfoHash, TorrentLink } from "@/components/title/info-hash";
+import { AddToProviders, OtherProviders } from "@/components/title/provider-copies";
+import { useCopyFile } from "@/api/provider-copies";
 import { InteractiveSearch } from "@/components/title/interactive-search";
 import { ControlNote, MonitorSwitch } from "@/components/title/manage-bits";
 import { MinimumAvailabilityControl } from "@/components/title/title-choices";
@@ -33,7 +35,8 @@ import { unlinkable } from "@/lib/ops";
 import { useColumnPrefs } from "@/lib/prefs";
 import { belowCount, nextLine } from "@/lib/upgrade";
 import { cn } from "@/lib/utils";
-import { downloadReason, linksOff, MODE_WORDS, verdict } from "@/lib/version-grab";
+import { downloadReason, globalDownloadsOff, linksOff, MODE_WORDS, verdict } from "@/lib/version-grab";
+import { otherProvidersLine } from "@/lib/provider-copies";
 import { mediaLine } from "@/lib/media";
 
 type Kind = "movie" | "series";
@@ -153,6 +156,8 @@ function RowDetails({ v, kind, minimumShown, statusShown, onRemove }: { v: Versi
   if (c?.path) rows.push(["Path", <Mono key="p" className="break-all text-muted-foreground">{c.path}</Mono>]);
   if (c?.info_hash) rows.push(["Hash", <span key="h" className="flex flex-wrap items-baseline gap-x-2"><InfoHash hash={c.info_hash} admin={perms.admin} /><TorrentLink hash={c.info_hash} /></span>]);
   if (c?.edition) rows.push(["Edition", c.edition]);
+  // A movie's file: how its copies to other providers ended where Cached on does not show them.
+  if (kind === "movie" && v.has_file && otherProvidersLine(c?.copies)) rows.push(["Other providers", <OtherProviders key="o" copies={c?.copies} />]);
   if (kind === "series" && v.episodes) {
     const e = v.episodes;
     rows.push(["Episodes", `${fmtNumber(e.have)} of ${fmtNumber(e.total)}${e.missing ? ` · ${fmtNumber(e.missing)} aired and missing` : ""}`]);
@@ -177,9 +182,16 @@ function RowDetails({ v, kind, minimumShown, statusShown, onRemove }: { v: Versi
         {active && (v.state === "filled" || !!v.upgrade?.below) ? <Link className="text-primary hover:underline" to={`/wanted/cutoff?version=${encodeURIComponent(key)}`}>See in Cutoff unmet</Link> : null}
         {perms.manage && titleId ? <Link className="text-primary hover:underline" to={releasesHref(titleId, key)}>Last search results</Link> : null}
       </div>
+      {perms.manage && kind === "movie" && v.has_file ? <AddToProvidersFor v={v} /> : null}
       {perms.manage ? <CopyActions v={v} label={nameOf(v)} onRemove={onRemove} /> : null}
     </div>
   );
+}
+
+/** "Add to other providers" for a movie library's file; a series adds per episode (the episode window). */
+function AddToProvidersFor({ v }: { v: Version }) {
+  const m = useCopyFile(v.title_id ?? 0);
+  return <AddToProviders m={m} vars={{ version: v.key ?? "" }} paused={globalDownloadsOff([v.control?.grab_state])} testid={`add-to-providers-${v.key}`} />;
 }
 
 export function LibraryRows({ title, versions }: { title: TitleDetail; versions: Version[] }) {

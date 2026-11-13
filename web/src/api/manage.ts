@@ -3,6 +3,7 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { api, qs, type Schemas } from "./client";
 import type { Releases, SearchOutcome } from "./add";
+import { COPY_POLL_MS, copiesUnfinished } from "@/lib/provider-copies";
 
 export type UpgradeInfo = Schemas["UpgradeInfo"];
 export type UpgradeNext = Schemas["UpgradeNext"];
@@ -19,6 +20,8 @@ export const useEpisode = (titleId: number, eid: number | null) =>
     queryKey: ["title", String(titleId), "episode", eid],
     queryFn: () => api<EpisodeDetail>(`/titles/${titleId}/episodes/${eid}`),
     enabled: eid !== null && eid > 0,
+    // Asked again while a copy to another provider is unfinished (Add to other providers).
+    refetchInterval: (q) => ((q.state.data?.versions ?? []).some((v) => copiesUnfinished(v.file?.copies)) ? COPY_POLL_MS : false),
   });
 
 export function useEpisodeReleases(titleId: number, eid: number, version: string | undefined, live: boolean, enabled: boolean) {
