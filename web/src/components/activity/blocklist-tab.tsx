@@ -132,6 +132,7 @@ export function BlocklistTab() {
           })}
           run={unblockRelease}
           words={(n, failed) => bulkWords("Unblocked", "Not unblocked", ["release", "releases"], n, failed)}
+          done="Releases unblocked"
           onDone={select.clear}
           onClose={() => setUnblocking(false)}
           danger={false}

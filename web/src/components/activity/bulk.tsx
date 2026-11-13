@@ -1,8 +1,9 @@
 // Activity's multi-select (Queue's Remove selected, Blocklist's Unblock selected): the selection state, the line above
 // the table ("3 selected", the action, Clear), and the confirmation that runs the single-row route for each chosen
-// row, one after another, and says what happened ("Removed 2 of 3. Not removed: Alpha (reason).").
+// row, one after another, and says in a toast what happened ("Removed 2 of 3. Not removed: Alpha (reason).").
 import { useState, type ReactNode } from "react";
 import { useRunEach } from "@/api/activity";
+import { toast } from "@/components/toaster";
 import { Button } from "@/components/ui/button";
 import { ConfirmDialog, errText } from "@/components/ui/confirm-dialog";
 import type { RowSelection } from "@/components/ui/row-select";
@@ -39,12 +40,15 @@ export function SelectionLine({ count, action, onAct, onClear }: { count: number
   );
 }
 
-/** The confirmation of a bulk action: the rows chosen when it opened, run one after another. */
-export function BulkDialog<T extends { title: { id?: number; name: string } }>({
+/** The confirmation of a bulk action. Its count and what it acts on are the rows chosen and shown at the moment it is
+ * confirmed. The outcome is a toast, so it stays when the action empties the list. */
+export function BulkDialog<T extends { title: { id?: number; name: string } }, R>({
   items,
   scope,
   run,
   words,
+  note,
+  done,
   onDone,
   onClose,
   danger = true,
@@ -53,29 +57,36 @@ export function BulkDialog<T extends { title: { id?: number; name: string } }>({
 }: {
   items: readonly T[];
   scope: (n: number) => Scope;
-  run: (item: T) => Promise<unknown>;
+  run: (item: T) => Promise<R>;
   /** The outcome in words, from the count and the rows that failed with their reasons. */
   words: (n: number, failed: { name: string; reason: string }[]) => string;
+  /** One sentence to add from the server's answers ("" for none). */
+  note?: (answers: R[]) => string;
+  /** The toast's heading. */
+  done: string;
   onDone: () => void;
   onClose: () => void;
   danger?: boolean;
   testid?: string;
   children?: ReactNode;
 }) {
-  const [batch] = useState(items);
   const [busy, setBusy] = useState(false);
-  const [done, setDone] = useState<{ text: string; partial: boolean }>();
   const runEach = useRunEach();
   const go = async () => {
+    const batch = items;
     setBusy(true);
-    const failed = await runEach(batch, run);
+    const { failed, answers } = await runEach(batch, run);
+    const extra = note?.(answers) ?? "";
+    const text = words(batch.length, failed.map((f) => ({ name: f.item.title.name, reason: errText(f.error) })));
+    toast({ title: done, body: extra ? `${text} ${extra}` : text, tone: failed.length || extra ? "warn" : "ok" });
     setBusy(false);
-    setDone({ text: words(batch.length, failed.map((f) => ({ name: f.item.title.name, reason: errText(f.error) }))), partial: failed.length > 0 });
     onDone();
+    onClose();
   };
+  const s = scope(items.length);
   return (
-    <ConfirmDialog scope={scope(batch.length)} busy={busy} done={done?.text} doneWarning={done?.partial} danger={danger} onConfirm={() => void go()} onClose={onClose} testid={testid}>
-      {done ? null : children}
+    <ConfirmDialog scope={items.length ? s : { ...s, blocked: "None of the chosen rows is shown any more." }} busy={busy} danger={danger} onConfirm={() => void go()} onClose={onClose} testid={testid}>
+      {children}
     </ConfirmDialog>
   );
 }

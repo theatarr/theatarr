@@ -3,6 +3,7 @@ import { screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { expect, it } from "vitest";
 import { mockFetch, renderPage } from "@/test/page";
+import { Toaster } from "@/components/toaster";
 import { BlocklistTab } from "./blocklist-tab";
 
 const me = { id: 9, username: "manager", permissions: ["browse", "see_files", "manage"], csrf_token: "t" };
@@ -66,7 +67,13 @@ it("unblocks the selected releases one by one", async () => {
     { method: "GET", path: "/activity", reply: { state: "blocked", admin: true, total: 2, blocked: [blocked(1), blocked(2)] } },
     { method: "POST", path: "/activity/blocked/unblock", reply: { version: "movie-web", info_hash: "h", release: "r", message: "Unblocked" } },
   ]);
-  renderPage(<BlocklistTab />, "/activity/blocklist");
+  renderPage(
+    <>
+      <BlocklistTab />
+      <Toaster />
+    </>,
+    "/activity/blocklist",
+  );
   const user = userEvent.setup();
   await user.click(await screen.findByRole("checkbox", { name: "Select Release.1.1080p" }));
   await user.click(screen.getByRole("checkbox", { name: "Select Release.2.1080p" }));
@@ -74,7 +81,7 @@ it("unblocks the selected releases one by one", async () => {
   expect(screen.getByText("These 2 releases may be picked again for their libraries")).toBeTruthy();
   expect(screen.getByText("Nothing is searched now")).toBeTruthy();
   await user.click(screen.getByRole("button", { name: "Unblock 2 releases" }));
-  expect((await screen.findByTestId("confirm-done")).textContent).toBe("Unblocked 2 releases.");
+  expect(await screen.findByText("Unblocked 2 releases.")).toBeTruthy();
   expect(fetch.calls("POST", "/activity/blocked/unblock").map((r) => r.body)).toEqual([
     { version: "movie-web", info_hash: "h1", search: false },
     { version: "movie-web", info_hash: "h2", search: false },

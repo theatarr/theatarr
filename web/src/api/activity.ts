@@ -84,20 +84,21 @@ export const unblockRelease = (b: { version: string; info_hash: string }) =>
   api<Schemas["UnblockResult"]>("/activity/blocked/unblock", { method: "POST", body: { version: b.version, info_hash: b.info_hash, search: false } });
 
 /** Runs a single-row action for each item, one after another (no bulk route), then refreshes Activity, the journal and
- * the titles touched. Returns the items that failed with their errors. */
+ * the titles touched. Returns the answers and the items that failed with their errors. */
 export function useRunEach() {
   const qc = useQueryClient();
-  return async <T extends { title: { id?: number } }>(items: readonly T[], call: (item: T) => Promise<unknown>) => {
+  return async <T extends { title: { id?: number } }, R>(items: readonly T[], call: (item: T) => Promise<R>) => {
     const failed: { item: T; error: unknown }[] = [];
+    const answers: R[] = [];
     for (const item of items) {
       try {
-        await call(item);
+        answers.push(await call(item));
       } catch (error) {
         failed.push({ item, error });
       }
     }
     const titles = new Set(items.map((i) => i.title.id || 0).filter(Boolean));
     for (const queryKey of [qk.activity.all, qk.journal.all, ...[...titles].flatMap((id) => titleChanged(id))]) void qc.invalidateQueries({ queryKey });
-    return failed;
+    return { failed, answers };
   };
 }

@@ -383,6 +383,8 @@ function QueueTable({ items, now, prefs, sort, onSort }: { items: ActivityDownlo
           scope={(n) => removeManyScope(n, block)}
           run={(d) => removeDownload(d.id, block)}
           words={(n, failed) => bulkWords("Removed", "Not removed", ["download", "downloads"], n, failed)}
+          note={(answers) => answers.find((a) => a.search && !a.search.started)?.search?.message ?? ""}
+          done="Downloads removed"
           onDone={select.clear}
           onClose={() => {
             setRemoving(false);

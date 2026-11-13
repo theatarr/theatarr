@@ -1,7 +1,9 @@
 // @vitest-environment jsdom
 import { cleanup, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
+import { focusManager } from "@tanstack/react-query";
 import { afterEach, expect, it } from "vitest";
+import { Toaster } from "@/components/toaster";
 import { mockFetch, renderPage } from "@/test/page";
 import { QueueTab } from "./queue-tab";
 
@@ -19,7 +21,13 @@ function show(extra: { method: string; path: string; reply: unknown }[] = []) {
     { method: "GET", path: "/activity", reply: { state: "now", admin: true, total: rows.length, now: rows } },
     ...extra,
   ]);
-  renderPage(<QueueTab admin show="all" onShow={() => {}} />, "/activity");
+  renderPage(
+    <>
+      <QueueTab admin show="all" onShow={() => {}} />
+      <Toaster />
+    </>,
+    "/activity",
+  );
   return fetch;
 }
 
@@ -80,7 +88,68 @@ it("removes the selected downloads one by one and names the one that was not rem
   expect(within(dialog).getByText("Removes 3 downloads from Theatarr's queue")).toBeTruthy();
   expect(within(dialog).getByText(/torrent at the debrid provider stays/)).toBeTruthy();
   await user.click(within(dialog).getByRole("button", { name: "Remove 3 downloads" }));
-  expect((await within(dialog).findByTestId("confirm-done")).textContent).toBe("Removed 2 of 3. Not removed: Beta (already ended).");
+  expect(await screen.findByText("Removed 2 of 3. Not removed: Beta (already ended).")).toBeTruthy();
   for (const id of [7, 8, 9]) expect(fetch.calls("POST", `/activity/downloads/${id}/remove`)).toHaveLength(1);
   expect(fetch.calls("POST", "/activity/downloads/7/remove")[0].body).toEqual({ blocklist: false, search: false });
+});
+
+const downloading = (id: number, name: string) => ({ ...base, id, title: { id, name, kind: "movie", poster: "" }, state: "downloading", words: "Downloading", release: `${name}.2160p`, info_hash: `h${id}` });
+
+/** The Queue (filter show) with the toaster; now() is what each GET /activity answers. */
+function showLive(now: () => unknown[], showFilter: "all" | "downloading", extra: { method: string; path: string; reply: unknown }[]) {
+  const fetch = mockFetch([
+    { method: "GET", path: "/auth/me", reply: me },
+    { method: "GET", path: "/activity", reply: () => ({ state: "now", admin: true, total: now().length, now: now() }) },
+    ...extra,
+  ]);
+  renderPage(
+    <>
+      <QueueTab admin show={showFilter} onShow={() => {}} />
+      <Toaster />
+    </>,
+    "/activity",
+  );
+  return fetch;
+}
+
+const refetch = () => {
+  focusManager.setFocused(false);
+  focusManager.setFocused(true);
+};
+
+it("acts only on the chosen rows still shown when Remove selected is confirmed", async () => {
+  let now: unknown[] = [downloading(21, "Delta"), downloading(22, "Echo")];
+  const fetch = showLive(() => now, "downloading", [{ method: "POST", path: "/activity/downloads/21/remove", reply: { id: 21, state: "downloading", ended: true, blocklisted: false, message: "Removed" } }, { method: "POST", path: "/activity/downloads/22/remove", reply: { id: 22, state: "downloading", ended: true, blocklisted: false, message: "Removed" } }]);
+  const user = userEvent.setup();
+  await user.click(await screen.findByRole("checkbox", { name: "Select all 2 shown" }));
+  await user.click(screen.getByRole("button", { name: "Remove selected…" }));
+  expect(screen.getByRole("button", { name: "Remove 2 downloads" })).toBeTruthy();
+  // A refresh moves Echo out of Downloading while the dialog is open.
+  now = [downloading(21, "Delta"), { ...downloading(22, "Echo"), state: "ready", words: "Download complete" }];
+  refetch();
+  const confirm = await screen.findByRole("button", { name: "Remove 1 download" });
+  await user.click(confirm);
+  expect(await screen.findByText("Removed 1 download.")).toBeTruthy();
+  expect(fetch.calls("POST", "/activity/downloads/21/remove")).toHaveLength(1);
+  expect(fetch.calls("POST", "/activity/downloads/22/remove")).toHaveLength(0);
+});
+
+it("keeps the bulk result in a toast when the removal empties the list, with the server's reason once when no search started", async () => {
+  let now: unknown[] = [downloading(31, "Foxtrot"), downloading(32, "Golf")];
+  const answer = (id: number) => () => {
+    now = now.filter((d) => (d as { id: number }).id !== id);
+    return { id, state: "downloading", ended: true, blocklisted: true, message: "Removed", search: { started: false, versions: [], skipped: [], queued: 0, found: 0, message: "Nothing searched: Pause is on (movie-web)" } };
+  };
+  const fetch = showLive(() => now, "all", [
+    { method: "POST", path: "/activity/downloads/31/remove", reply: answer(31) },
+    { method: "POST", path: "/activity/downloads/32/remove", reply: answer(32) },
+  ]);
+  const user = userEvent.setup();
+  await user.click(await screen.findByRole("checkbox", { name: "Select all 2 shown" }));
+  await user.click(screen.getByRole("button", { name: "Remove selected…" }));
+  await user.click(screen.getByRole("checkbox", { name: "Also blocklist these releases and search again" }));
+  await user.click(screen.getByRole("button", { name: "Remove 2 downloads" }));
+  expect(await screen.findByText("Removed 2 downloads. Nothing searched: Pause is on (movie-web)")).toBeTruthy();
+  expect(await screen.findByText("Nothing is downloading right now.")).toBeTruthy();
+  expect(fetch.calls("POST", "/activity/downloads/31/remove")[0].body).toEqual({ blocklist: true, search: true });
 });
