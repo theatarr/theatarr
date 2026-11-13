@@ -51,7 +51,8 @@ export function ColumnPicker<T extends string, P extends { order: T[]; shown: T[
                 <Checkbox className="mt-0.5" checked={prefs.shown.includes(id)} onChange={(e) => toggle(id, e.target.checked)} />
                 <span className="min-w-0">
                   <span className="block">{c.label}</span>
-                  <span className="block text-xs text-[var(--ink-3)]">{c.hint}</span>
+                  {/* A hint that only repeats the name says nothing. */}
+                  {c.hint && c.hint !== c.label ? <span className="block text-xs text-[var(--ink-3)]">{c.hint}</span> : null}
                 </span>
               </label>
               <Button variant="ghost" size="icon-sm" aria-label={`Move ${c.label} up`} disabled={i === 0} onClick={() => onChange(swapColumns(prefs, id, ids[i - 1]))}>

@@ -73,6 +73,9 @@ describe("Libraries table", () => {
     const first = renderPage(<LibraryRows title={title as never} versions={[web] as never} />);
     await waitFor(() => expect(rowOf("movie-web").querySelector('[data-column="size"]')).toBeTruthy());
     await user.click(screen.getByTestId("library-columns"));
+    // A column whose hint would only repeat its name shows the name alone.
+    expect(within(screen.getByTestId("column-list")).getByText("Quality").parentElement?.textContent).toBe("Quality");
+    expect(within(screen.getByTestId("column-list")).getByText("Debrid providers that hold the file now")).toBeTruthy();
     await user.click(within(screen.getByTestId("column-list")).getByRole("checkbox", { name: /^Size/ }));
     await user.click(screen.getByRole("button", { name: "Done" }));
     expect(rowOf("movie-web").querySelector('[data-column="size"]')).toBeNull();
