@@ -324,3 +324,34 @@ func TestMigrateControls(t *testing.T) {
 		}
 	})
 }
+
+// 00124: every series library parses with v4plus and takes packs by any_upgradable, so the stored library settings
+// sonarr, packs and packs_threshold go; other keys and roots stay.
+func TestMigrationStripsParserAndPackFields(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+	st := openAt(t, 122)
+	p, err := st.provider(false)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := st.Writer().ExecContext(ctx, `INSERT INTO setting_version(key,config,created_at,updated_at) VALUES
+		('tv','{"config":{"mode":"active","kind":"series","packs":"threshold","packs_threshold":60,"sonarr":"v5","upgrades":"auto"},"roots":["/media/tv"]}',1,1),
+		('anime','{"config":{"kind":"series","packs":"any_upgradable","sonarr":"v4plus"}}',1,1),
+		('movies','{"config":{"kind":"movie","mode":"shadow"},"roots":["/media/movies"]}',1,1)`); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := p.UpTo(ctx, 124); err != nil {
+		t.Fatal(err)
+	}
+	for key, want := range map[string]string{
+		"tv":     `{"config":{"mode":"active","kind":"series","upgrades":"auto"},"roots":["/media/tv"]}`,
+		"anime":  `{"config":{"kind":"series"}}`,
+		"movies": `{"config":{"kind":"movie","mode":"shadow"},"roots":["/media/movies"]}`,
+	} {
+		var config string
+		if err := st.Reader().QueryRowContext(ctx, `SELECT config FROM setting_version WHERE key=?`, key).Scan(&config); err != nil || config != want {
+			t.Errorf("%s config %s, %v; want %s", key, config, err, want)
+		}
+	}
+}

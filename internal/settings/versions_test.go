@@ -10,6 +10,8 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/pressly/goose/v3"
+	"github.com/pressly/goose/v3/database"
 	"github.com/theatarr/theatarr/internal/policy"
 	"github.com/theatarr/theatarr/internal/store"
 	"go.yaml.in/yaml/v3"
@@ -864,5 +866,40 @@ func TestStoredApproveLoadsAsAuto(t *testing.T) {
 	}
 	if rule := snap.Policy.Versions["movie-web"].UpgradeRule(); rule != policy.UpgradesAuto {
 		t.Errorf("policy rule %q, want auto", rule)
+	}
+}
+
+// A stored library with the removed parser and pack settings (sonarr, packs, packs_threshold) loads after migration
+// 00124, which strips them, and keeps the rest of its settings.
+func TestVersionLoadsAfterParserPackFieldsGo(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+	s, db, base, _ := versionFixture(t)
+	p, err := goose.NewProvider(database.DialectSQLite3, db.Writer(), os.DirFS("../store/migrations"),
+		goose.WithTableName(store.MigrationTable), goose.WithDisableGlobalRegistry(true))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := p.DownTo(ctx, 122); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := db.Writer().ExecContext(ctx, `UPDATE setting_version SET config = json_set(config, '$.config.sonarr', 'v5',
+		'$.config.packs', 'threshold', '$.config.packs_threshold', 60) WHERE key = 'tv-2160p'`); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := p.UpTo(ctx, 124); err != nil {
+		t.Fatal(err)
+	}
+	var left int
+	if err := db.Reader().QueryRowContext(ctx, `SELECT COUNT(*) FROM setting_version WHERE json_type(config, '$.config.sonarr')
+		IS NOT NULL OR json_type(config, '$.config.packs') IS NOT NULL OR json_type(config, '$.config.packs_threshold') IS NOT NULL`).Scan(&left); err != nil || left != 0 {
+		t.Fatalf("%d rows keep a removed field, %v", left, err)
+	}
+	snap, err := s.Load(ctx, base)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if v := snap.Policy.Versions["tv-2160p"]; v == nil || v.Kind != policy.KindSeries || v.Profile != "tv-2160p" {
+		t.Fatalf("tv-2160p loaded as %+v", v)
 	}
 }
