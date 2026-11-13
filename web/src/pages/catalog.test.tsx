@@ -96,6 +96,27 @@ describe("Library table", () => {
     expectNamedControls();
   });
 
+  it("puts a download after the badge word when the title already has a file, and alone when it has none", async () => {
+    const downloading = { stage: "downloading", words: "Downloading (64%)", progress: 64, download_id: 4, downloads: 1, updated_at: "2026-10-29T00:00:00Z" };
+    const movies = [
+      { id: 6, kind: "movie", name: "Corvid Hour", year: 2022, monitored: true, availability: "partial",
+        versions: [
+          { id: 61, key: "movie-4k", label: "4K", monitored: true, has_file: false, state: "wanted", control: managed, acquisition: downloading },
+          { id: 62, key: "movie-web", label: "WEB", monitored: true, has_file: true, quality: "WEBDL-2160p", state: "cutoff_met", control: managed },
+        ] },
+      { id: 7, kind: "movie", name: "Sundial", year: 2021, monitored: true, availability: "missing",
+        versions: [{ id: 71, key: "movie-4k", label: "4K", monitored: true, has_file: false, state: "wanted", control: managed, acquisition: downloading }] },
+    ];
+    mockFetch(routes().map((r) => (r.path === "/titles" ? { ...r, reply: { items: movies, total: 2, offset: 0 } } : r)));
+    renderPage(<Catalog id="movies" />, "/movies");
+    await screen.findAllByText("Corvid Hour");
+    const status = (name: string) => (screen.getByRole("link", { name }).closest("tr") as HTMLElement).querySelector("td[data-column=status]") as HTMLElement;
+    expect(within(status("Corvid Hour")).getByTestId("status-cell").textContent).toBe("Partly available");
+    expect(within(status("Corvid Hour")).getByRole("link", { name: "Downloading · 64%" }).getAttribute("href")).toBe("/activity?show=downloading");
+    expect(within(status("Sundial")).queryByTestId("status-cell")).toBeNull();
+    expect(status("Sundial").textContent).toBe("Downloading · 64%");
+  });
+
   it("uses the badge words for Status and a red pill for the missing library of a partly held movie", async () => {
     const movies = [
       { id: 6, kind: "movie", name: "Copper Sky", year: 2022, monitored: true, release_date: "2022-05-01", availability: "partial",
@@ -720,6 +741,23 @@ describe("Row actions", () => {
     expect(link.getAttribute("title")).toBe("Choose season or episode");
     // The 1080p WEB library is monitored and Live: Search now is on, with the series words.
     expect(within(row).getByRole("button", { name: "Search now, The Pellbrook Inquiries" }).getAttribute("title")).toBe("Search every monitored episode now, in every Live library (missing episodes and upgrades)");
+  });
+
+  it("says on a phone card why Search now is disabled, and not in the desktop row", async () => {
+    mockFetch(movieRoutes());
+    renderPage(<Catalog id="movies" />, "/movies");
+    await screen.findAllByText("Sundial");
+    expect(screen.queryByTestId("row-search-off")).toBeNull();
+  });
+
+  it("says on a phone card, above the buttons, why Search now is disabled", async () => {
+    vi.stubGlobal("matchMedia", (q: string) => ({ matches: !q.includes("min-width"), media: q, addEventListener() {}, removeEventListener() {} }));
+    mockFetch(movieRoutes());
+    renderPage(<Catalog id="movies" />, "/movies");
+    await screen.findAllByText("Sundial");
+    const card = (name: string) => screen.getByRole("link", { name }).closest("li") as HTMLElement;
+    expect(within(card("Sundial")).getByTestId("row-search-off").textContent).toBe("No library of this title is Live.");
+    expect(within(card("Copper Sky")).queryByTestId("row-search-off")).toBeNull();
   });
 
   it("puts the same buttons, with their words, at the end of a phone card", async () => {

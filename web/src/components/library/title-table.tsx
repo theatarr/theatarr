@@ -33,7 +33,7 @@ import {
   type IndexColumnId,
 } from "@/lib/index-columns";
 import { badgeTone, copyTone, copyWords, type CopyTone } from "@/lib/library-status";
-import { fmtDay, fmtRuntime, notAiredYet, POSTER_STATUS_LABEL, posterStatus, titleWatchWords, upcomingRelease } from "@/lib/library";
+import { fmtDay, fmtRuntime, notAiredYet, POSTER_STATUS_LABEL, posterStatus, titleWatchWords, upcomingRelease, type PosterStatus } from "@/lib/library";
 import { cn } from "@/lib/utils";
 import { StageLink, useMinWidth } from "./copy-bits";
 import { CopyDialog } from "./copy-dialog";
@@ -74,18 +74,31 @@ const dash = <span className="text-[var(--ink-3)]">—</span>;
 const or = (s: string | number | undefined | null, cls?: string): ReactNode => (s || s === 0 ? <span className={cls}>{s}</span> : dash);
 const cap = (s: string) => s.charAt(0).toUpperCase() + s.slice(1);
 
-/** Status for an account that sees files: a download's stage (linked to Activity) while one is in hand, else the poster
- *  badge's word, with the day for Upcoming. */
+/** The badge words of a title that already has a file somewhere. */
+const HELD: ReadonlySet<PosterStatus> = new Set(["available", "partly_available", "upgrade", "best_known", "some_episodes"]);
+
+/** Status for an account that sees files: the poster badge's word (the day for Upcoming), and a download in hand's
+ *  stage linked to Activity after it ("Partly available · Downloading 64%"); a title with no file yet shows the
+ *  download's stage alone. */
 function StatusCell({ t }: { t: TitleRow }) {
   const a = titleAcquisition(t);
-  if (a) return <StageLink a={a.acquisition} className="text-[13px]" />;
   const s = posterStatus(t.availability, t.upgrade_seen, false, t.upgrade_state, t);
+  const stage = a ? <StageLink a={a.acquisition} className="text-[13px]" /> : null;
+  if (stage && !(s && HELD.has(s))) return stage;
   if (!s) return dash;
   const day = s === "upcoming" ? (upcomingRelease(t) ?? (notAiredYet(t) ? t.next_up?.date : undefined)) : undefined;
-  return (
+  const word = (
     <span data-testid="status-cell" className={cn("text-[13px] font-medium", TONE_INK[badgeTone(s)])}>
       {POSTER_STATUS_LABEL[s]}
       {day ? ` · ${fmtDay(day)}` : ""}
+    </span>
+  );
+  if (!stage) return word;
+  return (
+    <span className="inline-flex min-w-0 items-baseline gap-1 whitespace-nowrap">
+      {word}
+      <span aria-hidden className="text-[var(--ink-3)]">·</span>
+      {stage}
     </span>
   );
 }
@@ -241,30 +254,34 @@ function RowActions({ t, wide }: { t: TitleRow; wide: boolean }) {
   const size = wide ? "icon-sm" : "sm";
   const tip = cn("disabled:pointer-events-auto disabled:cursor-not-allowed", !wide && "h-9");
   return (
-    <span className="inline-flex items-center gap-0.5" data-testid="row-actions">
-      <Button size={size} variant="ghost" className={tip} disabled={!!off || search.isPending} aria-label={`Search now, ${name}`}
-        title={off || (series ? "Search every monitored episode now, in every Live library (missing episodes and upgrades)" : "Search every monitored Live library now")}
-        onClick={() => search.mutate(undefined, { onSuccess: (o) => searched(o, `/img/t/${id}/poster/w92`), onError: failed("Not searched") })}
-        data-testid="row-search">
-        {search.isPending ? <Loader2 className="animate-spin" /> : <Search />}
-        {wide ? null : "Search now"}
-      </Button>
-      {series ? (
-        <Button asChild size={size} variant="ghost" className={wide ? undefined : "h-9"}>
-          <Link to={`/title/${id}?tab=episodes`} aria-label={`Choose season or episode, ${name}`} title="Choose season or episode" data-testid="row-episodes">
-            <ListVideo />
-            {wide ? null : "Choose season or episode"}
-          </Link>
+    <>
+      {/* A phone has no hover: a disabled Search now says why in a line above the buttons. */}
+      {!wide && off ? <p className="w-full text-xs text-[var(--ink-3)]" data-testid="row-search-off">{off}</p> : null}
+      <span className="inline-flex items-center gap-0.5" data-testid="row-actions">
+        <Button size={size} variant="ghost" className={tip} disabled={!!off || search.isPending} aria-label={`Search now, ${name}`}
+          title={off || (series ? "Search every monitored episode now, in every Live library (missing episodes and upgrades)" : "Search every monitored Live library now")}
+          onClick={() => search.mutate(undefined, { onSuccess: (o) => searched(o, `/img/t/${id}/poster/w92`), onError: failed("Not searched") })}
+          data-testid="row-search">
+          {search.isPending ? <Loader2 className="animate-spin" /> : <Search />}
+          {wide ? null : "Search now"}
         </Button>
-      ) : (
-        <Button size={size} variant="ghost" className={tip} disabled={!live} aria-label={`Interactive search, ${name}`}
-          title={live ? "Search now and choose the release yourself" : NO_LIVE_LIBRARY} onClick={() => setInteractive(true)} data-testid="row-interactive">
-          <UserSearch />
-          {wide ? null : "Interactive search"}
-        </Button>
-      )}
-      {interactive && live ? <InteractiveSearch titleId={id} version={live.key} onClose={() => setInteractive(false)} /> : null}
-    </span>
+        {series ? (
+          <Button asChild size={size} variant="ghost" className={wide ? undefined : "h-9"}>
+            <Link to={`/title/${id}?tab=episodes`} aria-label={`Choose season or episode, ${name}`} title="Choose season or episode" data-testid="row-episodes">
+              <ListVideo />
+              {wide ? null : "Choose season or episode"}
+            </Link>
+          </Button>
+        ) : (
+          <Button size={size} variant="ghost" className={tip} disabled={!live} aria-label={`Interactive search, ${name}`}
+            title={live ? "Search now and choose the release yourself" : NO_LIVE_LIBRARY} onClick={() => setInteractive(true)} data-testid="row-interactive">
+            <UserSearch />
+            {wide ? null : "Interactive search"}
+          </Button>
+        )}
+        {interactive && live ? <InteractiveSearch titleId={id} version={live.key} onClose={() => setInteractive(false)} /> : null}
+      </span>
+    </>
   );
 }
 
