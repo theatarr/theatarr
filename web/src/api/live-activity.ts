@@ -49,6 +49,7 @@ export function onDownloadEvent(qc: QueryClient, raw: string, now: number = Date
     return;
   }
   qc.invalidateQueries({ queryKey: qk.activity.all });
+  qc.invalidateQueries({ queryKey: qk.calendar.all });
   const r = libraryRefresh(ev, now);
   if (r.title) qc.invalidateQueries({ queryKey: qk.title(ev.title.id) });
   if (r.lists) qc.invalidateQueries({ queryKey: qk.titles.all });

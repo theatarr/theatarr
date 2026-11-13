@@ -1,6 +1,8 @@
+import { QueryClient } from "@tanstack/react-query";
 import { describe, expect, it } from "vitest";
 import type { DownloadEvent } from "./activity";
-import { downloadToast, libraryRefresh, PROGRESS_REFRESH_MS } from "./live-activity";
+import { downloadToast, libraryRefresh, onDownloadEvent, PROGRESS_REFRESH_MS } from "./live-activity";
+import { qk } from "./query-keys";
 
 const base: DownloadEvent = {
   id: 1,
@@ -44,5 +46,15 @@ describe("libraryRefresh", () => {
     expect(libraryRefresh(progress, t0 + 1000)).toEqual({ title: false, lists: false });
     expect(libraryRefresh(ev, t0 + 2000)).toEqual({ title: true, lists: true });
     expect(libraryRefresh(progress, t0 + 2000 + PROGRESS_REFRESH_MS)).toEqual({ title: true, lists: true });
+  });
+});
+
+describe("onDownloadEvent", () => {
+  it("refreshes the calendar, whose entries show downloading and downloaded", () => {
+    const qc = new QueryClient();
+    const key = [...qk.calendar.all, "2026-11-01", "2026-11-30"];
+    qc.setQueryData(key, { items: [] });
+    onDownloadEvent(qc, JSON.stringify({ ...base, state: "downloading", previous: "downloading", progress: 40 }));
+    expect(qc.getQueryState(key)?.isInvalidated).toBe(true);
   });
 });
