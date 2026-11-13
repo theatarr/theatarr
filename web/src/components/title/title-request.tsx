@@ -75,13 +75,19 @@ export function TitleRequestButton({ target, className }: { target: Target; clas
   return null;
 }
 
-export function TitleRequest({ target, versions }: { target: Target; versions: Version[] }) {
+/** heroTone: the page's top line (readiness over every library). When the box's answer about the libraries this
+ *  account may ask for differs from it, the box names those libraries, so the two never seem to contradict. */
+export function TitleRequest({ target, versions, heroTone }: { target: Target; versions: Version[]; heroTone?: "positive" | "partial" | "neutral" }) {
   const { openAdd } = useSearchUI();
   const { opts, wanted, items, action, applicable, open } = useTitleRequest(target);
   const applicableSet = new Set(open?.versions.map((v) => v.key) ?? applicable);
   const applicableVersions = versions.filter((v) => applicableSet.has(v.key ?? ""));
   const settled = settledWords(readiness(target.kind, applicableVersions).tone, versionFetching(applicableVersions), applicableVersions.map((v) => v.label || v.key || ""));
   const more = moreSeasonsOnly(wanted);
+  const names = applicableVersions.map((v) => v.label || v.key || "").filter(Boolean);
+  const badge = heroTone && heroTone !== settled.tone && names.length
+    ? `In ${names.join(" and ")}: ${settled.badge.charAt(0).toLowerCase()}${settled.badge.slice(1)}`
+    : settled.badge;
   return (
     <Card data-testid="title-request" data-action={action.kind}>
       <div className="flex flex-wrap items-center justify-between gap-3">
@@ -119,7 +125,7 @@ export function TitleRequest({ target, versions }: { target: Target; versions: V
               settled.tone === "positive" ? "text-[var(--ok-ink)]" : settled.tone === "partial" ? "text-[var(--accent-ink)]" : "text-muted-foreground",
             )}
           >
-            {settled.tone === "positive" ? <CheckCircle2 className="size-4" /> : <Clock className="size-4" />} {settled.badge}
+            {settled.tone === "positive" ? <CheckCircle2 className="size-4" /> : <Clock className="size-4" />} {badge}
           </span>
         ) : null}
       </div>

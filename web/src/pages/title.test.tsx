@@ -81,4 +81,33 @@ describe("Title page", () => {
       unmount();
     }
   });
+
+  it("names the libraries in the Request box when its answer differs from the top line", async () => {
+    const household = { id: 8, username: "demo-limited", permissions: ["browse", "request"], request_versions: ["movie-web"], csrf_token: "t" };
+    const off = { mode: "active", paused: true, pause_forced: false, will_grab: false };
+    const held = { id: 5, key: "movie-remux", label: "4K", state: "filled", monitored: true, has_file: true, current: { quality: "2160p" } };
+    const web = { id: 6, key: "movie-web", label: "4K", state: "wanted", monitored: true, has_file: false, control: { mode: "active", can_edit: false, can_search: false, live_releases: false, grab_state: off } };
+    const opt = (key: string) => ({ key, label: "4K", kind: "movie", mode: "active", enable: "", fits: true, default: false, on: true, searchable: false, grab_state: off });
+    for (const [versions, want] of [[[held, web], "In 4K (2): not available yet"], [[{ ...held, control: web.control }], "Available"]] as const) {
+      mockFetch([
+        { method: "GET", path: "/auth/me", reply: { ...household, request_versions: [versions.at(-1)!.key] } },
+        { method: "GET", path: "/titles/70", reply: { ...title, versions } },
+        { method: "GET", path: "/add/options", reply: { kind: "movie", anime: false, title_id: 70, router_enabled: true, episodes_known: false, can_search: false, seasons: [], versions: versions.map((v) => opt(v.key)) } },
+        { method: "GET", path: "/requests", reply: { items: [], total: 0, counts: {} } },
+      ]);
+      const { unmount } = renderPage(
+        <SearchProvider>
+          <Routes>
+            <Route path="/title/:id" element={<TitlePage />} />
+          </Routes>
+        </SearchProvider>,
+        "/title/70",
+      );
+      expect((await screen.findByTestId("title-readiness")).textContent).toBe("Ready to watch in 4K");
+      await waitFor(() => expect(screen.getByTestId("title-request-settled").textContent?.trim()).toBe(want));
+      // Never a library key for an account without See files.
+      expect(document.body.textContent).not.toContain("movie-web");
+      unmount();
+    }
+  });
 });

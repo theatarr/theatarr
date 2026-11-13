@@ -267,7 +267,7 @@ export function TitlePage() {
       {/* Requests (accounts that request rather than add): their status for this title. */}
       {!perms.add && perms.request ? (
         <div className="mt-5">
-          <TitleRequest target={target} versions={versions} />
+          <TitleRequest target={target} versions={versions} heroTone={ready.tone} />
         </div>
       ) : null}
 
