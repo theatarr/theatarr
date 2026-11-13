@@ -138,6 +138,7 @@ export function HistoryTab({ admin, as }: { admin: boolean; as?: "user" }) {
   return (
     <div>
       <HistoryFilters
+        plain={!admin}
         tools={
           admin ? (
             <Button variant="outline" size="sm" aria-label="Columns" onClick={() => setPicking(true)}>

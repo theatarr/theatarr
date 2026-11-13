@@ -17,7 +17,7 @@ import {
   withHistoryFilter,
   type HistoryFilters as Filters,
 } from "@/lib/activity-history";
-import { distinctLabels, relabel } from "@/lib/copies";
+import { distinctLabels, libraryLabel, relabel } from "@/lib/copies";
 import { today } from "@/lib/library";
 
 const FIELD = "h-8 rounded-[5px] border border-input bg-field px-2 text-[13.5px]";
@@ -28,8 +28,20 @@ export function useHistoryFilters(): Filters {
   return parseHistoryFilters(sp);
 }
 
-/** tools: buttons at the row's end (the table's Columns). */
-export function HistoryFilters({ tools }: { tools?: ReactNode } = {}) {
+/** Library names without their keys, for accounts that do not see files: the plain label, and "(2)", "(3)" after a
+ * name already taken. */
+export function plainLabels<T extends { key?: string; label?: string }>(vs: readonly T[]): T[] {
+  const seen = new Map<string, number>();
+  return vs.map((v) => {
+    const base = v.label ? libraryLabel(v.key ?? "", v.label) : "Library";
+    const n = (seen.get(base) ?? 0) + 1;
+    seen.set(base, n);
+    return { ...v, label: n > 1 ? `${base} (${n})` : base };
+  });
+}
+
+/** tools: buttons at the row's end (the table's Columns); plain: library names without keys (household views). */
+export function HistoryFilters({ tools, plain = false }: { tools?: ReactNode; plain?: boolean } = {}) {
   const [sp, setSp] = useSearchParams();
   const f = parseHistoryFilters(sp);
   const facets = useFacets();
@@ -42,7 +54,7 @@ export function HistoryFilters({ tools }: { tools?: ReactNode } = {}) {
   }, [typed]);
   const set = (key: keyof Filters, value: string) => setSp(withHistoryFilter(sp, key, value), { replace: true });
   const all = facets.data?.versions ?? [];
-  const copies = relabel(all, distinctLabels(all));
+  const copies = plain ? plainLabels(all) : relabel(all, distinctLabels(all));
   const count = historyFilterCount(f);
   return (
     <div className="mb-4 grid grid-cols-1 gap-2 sm:flex sm:flex-wrap sm:items-center" data-testid="history-filters">
@@ -55,7 +67,7 @@ export function HistoryFilters({ tools }: { tools?: ReactNode } = {}) {
         {copies.map((v) => (
           <option key={v.key} value={v.key}>{v.label || v.key}</option>
         ))}
-        {f.copy && !copies.some((v) => v.key === f.copy) ? <option value={f.copy}>{f.copy}</option> : null}
+        {f.copy && !copies.some((v) => v.key === f.copy) ? <option value={f.copy}>{plain ? "Chosen library" : f.copy}</option> : null}
       </Select>
       <Select aria-label="Event" value={f.event} onChange={(e) => set("event", e.target.value)} className="sm:w-auto" data-testid="history-event">
         {HISTORY_EVENTS.map((e) => (

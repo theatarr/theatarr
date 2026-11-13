@@ -21,3 +21,12 @@ it("lets Since reach today in the browser's time zone, not the UTC day", async (
   const since = (await screen.findByTestId("history-since")) as HTMLInputElement;
   expect(since.max).toBe("2026-11-10");
 });
+
+it("names libraries without their keys for a household view, telling equal names apart by number", async () => {
+  mockFetch([{ method: "GET", path: "/titles/facets", reply: { versions: [{ key: "movie-4k", label: "4K" }, { key: "tv-4k", label: "4K" }, { key: "movie-web", label: "WEB" }] } }]);
+  renderPage(<HistoryFilters plain />);
+  const select = (await screen.findByTestId("history-copy")) as HTMLSelectElement;
+  await screen.findByRole("option", { name: "4K (2)" });
+  expect([...select.options].map((o) => [o.textContent, o.value])).toEqual([["All libraries", ""], ["4K", "movie-4k"], ["4K (2)", "tv-4k"], ["WEB", "movie-web"]]);
+  expect(select.textContent).not.toContain("movie-4k");
+});
