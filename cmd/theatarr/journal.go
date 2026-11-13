@@ -24,10 +24,10 @@ func init() {
 const journalUsage = `usage: theatarr journal [flags]          list entries, newest first (JSONL by default)
        theatarr journal -id ID [flags]    one entry
 
-The grab journal (docs/journal.md): one entry per decision Theatarr or an arr made (grab, upgrade, shadow, plan, search,
-research) and per thing that followed (failure, stall, blocklist, import, link, verdict), with the reasoning,
-provider attempts, cache evidence, import results and suspect flags. It reads the database only. Verdicts are given
-through the API (POST /api/theatarr/v1/journal/{id}/verdict).
+The grab journal (docs/journal.md): one entry per decision Theatarr made (grab, upgrade, plan, search, research)
+and per thing that followed (failure, stall, blocklist, import, link, verdict), with the reasoning, provider attempts,
+cache evidence, import results and suspect flags. It reads the database only. Verdicts are given through the API
+(POST /api/theatarr/v1/journal/{id}/verdict).
 
 flags:
 `

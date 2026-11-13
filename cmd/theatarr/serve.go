@@ -169,7 +169,7 @@ func runServe(args []string) error {
 	workers := fs.Int("workers", envInt("THEATARR_WORKERS", 2), "job worker slots for every kind (env THEATARR_WORKERS)")
 	reserved := fs.Int("workers-reserved", envInt("THEATARR_WORKERS_RESERVED", 1), "extra job worker slots only acquisition and import jobs may use (env THEATARR_WORKERS_RESERVED)")
 	backupHour := fs.Int("backup-hour", 3, "local hour (0-23) the nightly job runs")
-	retentionDays := fs.Int("retention-days", envInt("THEATARR_RETENTION_DAYS", 180), "days of history kept: failed downloads, acquire runs, router plans, library actions, settings audit and shadow rows; 0 keeps them for good (docs/design/jobs.md, Retention; env THEATARR_RETENTION_DAYS)")
+	retentionDays := fs.Int("retention-days", envInt("THEATARR_RETENTION_DAYS", 180), "days of history kept: failed downloads, acquire runs, router plans, library actions, settings audit and RSS runs; 0 keeps them for good (docs/design/jobs.md, Retention; env THEATARR_RETENTION_DAYS)")
 	retentionRunDays := fs.Int("retention-run-days", envInt("THEATARR_RETENTION_RUN_DAYS", 30), "days of provider sync runs and finished notification deliveries kept; 0 keeps them for good (env THEATARR_RETENTION_RUN_DAYS)")
 	metricsPolicy := fs.String("metrics", envOr("THEATARR_METRICS", string(web.MetricsOpen)), "who may read /metrics: open, lan (private addresses) or key (env THEATARR_METRICS)")
 	mountHelper := fs.Bool("mount-helper", envOr("THEATARR_MOUNT_HELPER", "true") != "false", "run the calls on the debrid mount in helper processes that are killed when a call hangs; false runs them in Theatarr under the in-process guard, for debugging (env THEATARR_MOUNT_HELPER)")
