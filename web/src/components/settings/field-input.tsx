@@ -74,6 +74,8 @@ type FieldInputProps = {
   secrets?: SecretInfo[]; secretDraft?: SecretDraft; onSecrets?: (draft: SecretDraft) => void;
   /** Mark edits against saved (the stored value at this path; undefined when unset). */
   tracked?: boolean; saved?: unknown;
+  /** The panel's heading: an object field named the same (router.wanted under "Automatic search") is not headed twice. */
+  panelTitle?: string;
 };
 const same = (a: unknown, b: unknown) => JSON.stringify(a ?? null) === JSON.stringify(b ?? null);
 /** The record's key beside its label only when it says something the label does not ("Requests", not "Requests requests"). */
@@ -172,7 +174,7 @@ export function FieldInput(p: FieldInputProps) {
   }
   const leaf = !["object", "keyed"].includes(f.type);
   const changed = p.tracked && leaf && !same(value, p.saved);
-  return <div data-field={path} data-changed={changed || undefined} className="grid min-w-0 gap-1"><div className="flex items-start justify-between gap-x-2"><span className="min-w-0 text-sm font-medium [overflow-wrap:anywhere]">{label}</span>{leaf && value !== undefined && value !== null ? <Button type="button" size="xs" variant="ghost" className="shrink-0" disabled={disabled} onClick={clear} aria-label={`Reset ${label}`} title={f.default ? `Back to the default (${f.default})` : "Back to the default"}>Reset</Button> : null}</div>{control}{f.unit ? <span className="text-xs">{f.unit}</span> : null}{error ? <p id={`${id}-error`} role="alert" className="text-sm text-destructive">{error}</p> : null}{f.help ? <p id={`${id}-help`} className="text-xs text-muted-foreground">{f.help}</p> : null}{changed ? <ChangedMark name={label} disabled={disabled} onUndo={() => onChange(structuredClone(p.saved))} /> : null}</div>;
+  return <div data-field={path} data-changed={changed || undefined} className="grid min-w-0 gap-1"><div className="flex items-start justify-between gap-x-2">{f.type === "object" && p.panelTitle === label ? null : <span className="min-w-0 text-sm font-medium [overflow-wrap:anywhere]">{label}</span>}{leaf && value !== undefined && value !== null ? <Button type="button" size="xs" variant="ghost" className="shrink-0" disabled={disabled} onClick={clear} aria-label={`Reset ${label}`} title={f.default ? `Back to the default (${f.default})` : "Back to the default"}>Reset</Button> : null}</div>{control}{f.unit ? <span className="text-xs">{f.unit}</span> : null}{error ? <p id={`${id}-error`} role="alert" className="text-sm text-destructive">{error}</p> : null}{f.help ? <p id={`${id}-help`} className="text-xs text-muted-foreground">{f.help}</p> : null}{changed ? <ChangedMark name={label} disabled={disabled} onUndo={() => onChange(structuredClone(p.saved))} /> : null}</div>;
 }
 
 export function SectionFields(p: Omit<FieldInputProps, "field" | "value" | "onChange" | "saved" | "tracked"> & { fields: SchemaField[]; config: Config; onChange: (v: Config) => void; saved?: Config }) {

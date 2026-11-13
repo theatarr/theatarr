@@ -199,3 +199,10 @@ it("says Send notifications is locked off by THEATARR_FORCE_OFF, and keeps the t
  expect(tick.disabled).toBe(false);
  expect(tick.getAttribute("aria-checked") ?? String(tick.checked)).toBe("true");
 });
+it("heads the Automatic search panel once, not again over its one object field", async () => {
+ mockFetch([{ method: "GET", path: "/settings/schema", reply: schema }, { method: "GET", path: "/settings/sections", reply: { source: "db", sections: [{ key: "router", config: {}, secrets: [] }] } }]);
+ renderPage(<SectionPanel id="searches" title="Automatic search" section="router" keys={["wanted"]} />);
+ await screen.findByRole("heading", { name: "Automatic search" });
+ expect(screen.getAllByText("Automatic search")).toHaveLength(1);
+ expect(screen.getByText("Searches per hour")).toBeTruthy();
+});
