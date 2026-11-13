@@ -775,7 +775,7 @@ func read(dir string, settingsManaged, qualityManaged bool) (*Policy, error) {
 			err = decodeBytes(b, &part)
 		}
 		for _, d := range dropped {
-			p.Ignored = append(p.Ignored, e.Name()+": "+d+" "+IgnoredNote)
+			p.Ignored = append(p.Ignored, e.Name()+": "+d)
 		}
 		if err != nil {
 			errs.add(e.Name(), "%v", err)

@@ -52,3 +52,27 @@ func TestImportRequiresEveryRecordGroup(t *testing.T) {
 		t.Fatalf("refused import changed the database: generation %d, budgets %+v", after.Generation, after.Records.Budgets)
 	}
 }
+
+// A policy written before the one search schedule imports: router.wanted.enabled false gives both backlog switches
+// off, as migration 00127 does to stored settings.
+func TestImportLegacyWantedKeys(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+	s, _, _ := setup(t)
+	seed := t.TempDir()
+	if err := os.WriteFile(filepath.Join(seed, "policy.yaml"), []byte("indexers: {}\nproviders: {}\nbudgets: {}\nversions: {}\nviews: {}\n"+
+		"router:\n  wanted:\n    enabled: false\n    interval: 15m\n    retry_new: true\n    missing: true\n    per_hour: 7\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	seedBase, err := policy.Load(seed)
+	if err != nil {
+		t.Fatal(err)
+	}
+	snap, err := s.Bootstrap(ctx, seedBase, ImportRequest{Dir: seed, Actor: "admin", Lookup: fixtureLookup})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if w := snap.Policy.WantedSettings(); w.Missing || w.CutoffUnmet != policy.CutoffOff || w.PerHour != 7 {
+		t.Fatalf("switches %+v", w)
+	}
+}

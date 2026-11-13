@@ -96,9 +96,6 @@ func TestWantedSettings(t *testing.T) {
 	}{
 		{"router:\n  wanted:\n    per_hour: 4\n    again_after: 6h\n" +
 			"    missing: true\n    cutoff_unmet: false\n", ""},
-		{"router:\n  wanted:\n    enabled: true\n", "enabled"},
-		{"router:\n  wanted:\n    interval: 30m\n", "interval"},
-		{"router:\n  wanted:\n    retry_new: false\n", "retry_new"},
 		{"router:\n  wanted:\n    per_hour: 500\n", "router.wanted.per_hour"},
 		{"router:\n  wanted:\n    again_after: 10m\n", "router.wanted.again_after"},
 		{"router:\n  wanted:\n    bogus: 1\n", "bogus"},
@@ -187,6 +184,44 @@ func TestCacheEvidenceSettings(t *testing.T) {
 				s.CheckTop != 5 || s.CheckPerHour != 20 {
 				t.Errorf("settings %+v", s)
 			}
+		}
+	}
+}
+
+// A policy written before the one search schedule still loads: router.wanted.enabled, interval and retry_new are
+// dropped and named in Ignored, and enabled: false turns both backlog switches off first (as migration 00127 does to
+// stored settings). enabled: null or true keeps the switches as written.
+func TestLegacyWantedKeys(t *testing.T) {
+	t.Parallel()
+	for _, tc := range []struct {
+		wanted  string
+		missing bool
+		cutoff  CutoffMode
+		ignored int
+	}{
+		{"enabled: null\n    interval: 15m\n    missing: false\n    cutoff_unmet: \"off\"\n    per_hour: 10", false, CutoffOff, 2},
+		{"enabled: false\n    interval: 30m\n    missing: true\n    cutoff_unmet: score", false, CutoffOff, 2},
+		{"enabled: false", false, CutoffOff, 1},
+		{"enabled: true\n    per_hour: 5", true, CutoffQuality, 1},
+		{"retry_new: false\n    missing: true", true, CutoffQuality, 1},
+	} {
+		dir := copyExample(t)
+		if err := os.WriteFile(filepath.Join(dir, "router.yaml"), []byte("router:\n  wanted:\n    "+tc.wanted+"\n"), 0o644); err != nil {
+			t.Fatal(err)
+		}
+		p, err := Load(dir)
+		if err != nil {
+			t.Fatalf("%q: %v", tc.wanted, err)
+		}
+		s := p.WantedSettings()
+		n := 0
+		for _, ig := range p.Ignored {
+			if strings.HasPrefix(ig, "router.yaml: router.wanted.") && strings.HasSuffix(ig, "(one search schedule)") {
+				n++
+			}
+		}
+		if s.Missing != tc.missing || s.CutoffUnmet != tc.cutoff || n != tc.ignored {
+			t.Errorf("%q: %+v, ignored %q", tc.wanted, s, p.Ignored)
 		}
 	}
 }
