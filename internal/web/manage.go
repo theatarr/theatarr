@@ -953,13 +953,9 @@ func (w *Web) apiEpisode(rw http.ResponseWriter, r *http.Request) {
 				w.internal(rw, err)
 				return
 			}
-			if d.File != nil {
-				if hash, _, err := fileTorrent(ctx, db, v.id, eid); err != nil {
-					w.internal(rw, err)
-					return
-				} else if hash != "" {
-					d.File.Copies = w.fileCopies(ctx, []string{hash})[hash]
-				}
+			if d.File != nil && d.File.InfoHash != "" {
+				h := strings.ToLower(d.File.InfoHash)
+				d.File.Copies = w.fileCopies(ctx, []string{h})[h]
 			}
 		}
 		if seeFiles {

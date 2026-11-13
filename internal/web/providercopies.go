@@ -70,21 +70,13 @@ func (w *Web) apiCopyTitle(rw http.ResponseWriter, r *http.Request) {
 		badRequest(rw, "invalid JSON: "+err.Error())
 		return
 	}
-	ctx := r.Context()
-	var versionID int64
-	err := w.st.Reader().QueryRowContext(ctx, `SELECT id FROM version WHERE title_id = ? AND policy_key = ?`, id,
-		req.Version).Scan(&versionID)
-	if errors.Is(err, sql.ErrNoRows) {
+	hash, name, found, err := w.fileTorrent(r.Context(), id, req.Version, req.EpisodeID)
+	if err != nil {
+		w.internal(rw, err)
+		return
+	}
+	if !found {
 		notFound(rw)
-		return
-	}
-	if err != nil {
-		w.internal(rw, err)
-		return
-	}
-	hash, name, err := fileTorrent(ctx, w.st.Reader(), versionID, req.EpisodeID)
-	if err != nil {
-		w.internal(rw, err)
 		return
 	}
 	w.queueCopies(rw, r, router.CopyRequest{Hash: hash, Name: name, TitleID: id})
@@ -134,43 +126,51 @@ func (w *Web) queueCopiesWith(rw http.ResponseWriter, r *http.Request, c Copier,
 	writeJSON(rw, http.StatusOK, CopiesResult{Copies: out})
 }
 
-// fileTorrent is the torrent hash and name on record for a version's file (with episode, the episode's): the newest
-// active link's (its content, download, file metadata or adopted source), else the version's arr file's content.
-func fileTorrent(ctx context.Context, db *sql.DB, versionID, episodeID int64) (hash, name string, err error) {
-	ep := ""
-	args := []any{versionID}
+// fileTorrent is the torrent hash and name of a library's file exactly as the file objects show them (the movie's
+// current file on the title page, the episode window's file: linkHashSQL, fileHashSQL), so "Cached on", the Torrent
+// link and this action always name the same torrent. found is false for an unknown title or version.
+func (w *Web) fileTorrent(ctx context.Context, titleID int64, version string, episodeID int64) (hash, name string,
+	found bool, err error) {
 	if episodeID != 0 {
-		ep = ` AND EXISTS (SELECT 1 FROM link_episode le WHERE le.link_id = l.id AND le.episode_id = ?)`
-		args = append(args, episodeID)
+		var versionID int64
+		err := w.st.Reader().QueryRowContext(ctx, `SELECT v.id FROM version v JOIN episode e ON e.title_id = v.title_id
+			WHERE v.title_id = ? AND v.policy_key = ? AND e.id = ?`, titleID, version, episodeID).Scan(&versionID)
+		if errors.Is(err, sql.ErrNoRows) {
+			return "", "", false, nil
+		}
+		if err != nil {
+			return "", "", false, err
+		}
+		f, err := w.episodeFile(ctx, w.st.Reader(), versionID, episodeID)
+		if err != nil || f == nil {
+			return "", "", true, err
+		}
+		name = f.ReleaseTitle
+		if name == "" {
+			name = f.SceneName
+		}
+		return strings.ToLower(f.InfoHash), name, true, nil
 	}
-	err = db.QueryRowContext(ctx, `SELECT COALESCE(NULLIF(c.info_hash, ''), NULLIF(d.info_hash, ''),
-			CASE WHEN json_valid(l.file_metadata) THEN NULLIF(json_extract(l.file_metadata, '$.InfoHash'), '') END,
-			CASE WHEN json_valid(l.adopted_source) THEN NULLIF(json_extract(l.adopted_source, '$.hash'), '') END, ''),
-		COALESCE(NULLIF(l.release_title, ''),
-			CASE WHEN json_valid(l.file_metadata) THEN NULLIF(json_extract(l.file_metadata, '$.SceneName'), '') END,
-			CASE WHEN json_valid(l.adopted_source) THEN NULLIF(json_extract(l.adopted_source, '$.release'), '') END,
-			d.release_title, '')
-		FROM link l JOIN link_version lv ON lv.link_id = l.id LEFT JOIN content_file cf ON cf.id = l.content_file_id
-		LEFT JOIN content c ON c.id = cf.content_id LEFT JOIN download d ON d.id = l.download_id
-		WHERE lv.version_id = ? AND l.state = 'active'`+ep+` ORDER BY l.created_at DESC, l.id DESC LIMIT 1`,
-		args...).Scan(&hash, &name)
-	if err == nil {
-		return strings.ToLower(hash), name, nil
+	d, err := w.getTitle(ctx, titleID)
+	if errors.Is(err, sql.ErrNoRows) || err == nil && d == nil {
+		return "", "", false, nil
 	}
-	if !errors.Is(err, sql.ErrNoRows) {
-		return "", "", err
+	if err != nil {
+		return "", "", false, err
 	}
-	ep = ""
-	if episodeID != 0 {
-		ep = ` AND EXISTS (SELECT 1 FROM version_file_episode fe WHERE fe.version_file_id = vf.id AND fe.episode_id = ?)`
+	if err := w.enrichTitle(ctx, d); err != nil {
+		return "", "", false, err
 	}
-	err = db.QueryRowContext(ctx, `SELECT COALESCE(c.info_hash, ''), COALESCE(NULLIF(vf.release_title, ''),
-		vf.scene_name, '') FROM version_file vf LEFT JOIN content c ON c.id = vf.content_id
-		WHERE vf.version_id = ?`+ep+` ORDER BY vf.added_at DESC LIMIT 1`, args...).Scan(&hash, &name)
-	if errors.Is(err, sql.ErrNoRows) {
-		return "", "", nil
+	for _, v := range d.Versions {
+		if v.Key != version {
+			continue
+		}
+		if v.Current == nil {
+			return "", "", true, nil
+		}
+		return strings.ToLower(v.Current.InfoHash), v.Current.ReleaseTitle, true, nil
 	}
-	return strings.ToLower(hash), name, err
+	return "", "", false, nil
 }
 
 // fileCopies reads the copies of the torrents behind hashes for the file objects (see files only).
