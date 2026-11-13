@@ -187,3 +187,15 @@ it("says that libraries come first when there is none to map to a Plex library",
  expect(screen.getByRole("link", { name: "Settings › Libraries" }).getAttribute("href")).toBe("/admin/settings/libraries");
  expect(screen.queryByRole("spinbutton")).toBeNull();
 });
+it("says Send notifications is locked off by THEATARR_FORCE_OFF, and keeps the tick editable with its stored value", async () => {
+ mockFetch([
+  { method: "GET", path: "/settings/schema", reply: schema },
+  { method: "GET", path: "/settings/sections", reply: { source: "db", generation: 4, sections: [{ key: "notify", config: { enabled: true }, secrets: [] }] } },
+  { method: "GET", path: "/settings", reply: { source: "db", writable: true, generation: 4, switches: { paused: true, pause_forced: true, notify_forced: true, versions: [] } } },
+ ]);
+ renderPage(<SectionPanel id="targets" title="Destinations" section="notify" keys={["enabled"]} />);
+ expect(await screen.findByText("Off: events are recorded, nothing is sent. Locked off by THEATARR_FORCE_OFF. Remove it and restart to send notifications.")).toBeTruthy();
+ const tick = screen.getByRole("switch") as HTMLInputElement;
+ expect(tick.disabled).toBe(false);
+ expect(tick.getAttribute("aria-checked") ?? String(tick.checked)).toBe("true");
+});

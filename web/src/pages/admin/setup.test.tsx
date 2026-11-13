@@ -20,7 +20,7 @@ const fresh: SetupState = {
 };
 const versions: VersionList = {
   source: "db", generation: 3, versions: [], profiles: {}, format_sets: [], clients: [], indexers: ["feed"], providers: ["rd"],
-  switches: { paused: true, pause_forced: false, versions: [] },
+  switches: { paused: true, pause_forced: false, notify_forced: false, versions: [] },
 };
 const preset = { trash_id: "a".repeat(32), name: "HD Bluray + WEB", flavour: "radarr", description: "", group: 1, qualities: [], cutoff: "Bluray-1080p", formats: 12, modifiers: [] };
 

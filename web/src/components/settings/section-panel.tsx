@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { Link, useLocation } from "react-router";
 import { useQueryClient } from "@tanstack/react-query";
-import { sectionsQuery, useSettingsSections, useSettingsSchema } from "@/api/settings";
+import { sectionsQuery, useSettings, useSettingsSections, useSettingsSchema } from "@/api/settings";
 import { ErrorState, Loading } from "@/components/page";
 import { useVersions } from "@/api/settings-versions";
 import { Card } from "@/components/ui/card";
@@ -12,12 +12,12 @@ import { changedPaths, emptySecrets, sectionSecrets, sectionErrors, withSecretPa
 import { UnsavedBar } from "./unsaved-bar";
 import { useSectionPatch } from "./use-section-patch";
 
-const plainFields = (fields: import("@/api/settings").SchemaField[], prefix: string): import("@/api/settings").SchemaField[] => fields.map(field => {
+const plainFields = (fields: import("@/api/settings").SchemaField[], prefix: string, notifyForced = false): import("@/api/settings").SchemaField[] => fields.map(field => {
  const path = `${prefix}.${field.name}`;
  const wording: Record<string, { label?: string; help: string }> = {
   "library.versions": { label: "Libraries", help: "Choose the Plex library that shows each Theatarr library." },
   "library.versions.plex_section": { help: "The Plex library ID that shows this library’s folder. 0: no scans." },
-  "notify.enabled": { label: "Send notifications", help: "Off: events are recorded, nothing is sent." },
+  "notify.enabled": { label: "Send notifications", help: "Off: events are recorded, nothing is sent." + (notifyForced ? " Locked off by THEATARR_FORCE_OFF. Remove it and restart to send notifications." : "") },
   "notify.targets": { help: "Webhook destinations, by name." },
   "notify.targets.versions": { label: "Libraries", help: "Send events only for these libraries, by key. Empty: every library." },
   "cardigann.definitions": { help: "Where the catalog's indexer definitions come from. Empty repository and branch: prowlarr/indexers, master." },
@@ -55,6 +55,8 @@ function PanelEditor({ id, title, help, section: key, keys, onSaved }: Props) {
  }, [hash, id, ready]);
  const perLibrary = key === "library" && keys.includes("versions");
  const libraries = useVersions(perLibrary);
+ // THEATARR_FORCE_OFF=notify keeps notifications off whatever the stored tick says; the tick stays editable.
+ const notifyForced = useSettings(key === "notify").data?.switches.notify_forced === true;
  const editor = useSectionPatch(key, () => {
   setSaved(true); setDraft(undefined); setSecrets(emptySecrets());
   onSaved?.();
@@ -101,7 +103,7 @@ function PanelEditor({ id, title, help, section: key, keys, onSaved }: Props) {
   {readOnly ? <p>Read-only: these settings cannot be edited here.</p> : null}
   {plexMissing ? <p className="mb-4 text-sm" data-testid="plex-server-first">Set the Plex address and token above first.</p> : null}
   {key === "cardigann" && keys.includes("definitions") ? <CatalogState saved={loaded.definitions} draft={value.definitions} disabled={readOnly || editor.busy} onTurnOn={() => { setDraft({ ...value, definitions: { repo: CATALOG_REPO } }); setSaved(false); }} /> : null}
-  <SectionFields fields={plainFields((schema.data.sections?.[key] ?? []).filter(f => keys.includes(f.name)), key)} config={value} saved={loaded} path={key} advanced={advanced} disabled={readOnly || editor.busy || plexMissing} onChange={v => { setDraft(v); setSaved(false); }} secrets={(section?.secrets ?? []).map(s => ({ ...s, path: `${key}.${s.path}` }))} secretDraft={secrets} onSecrets={v => { setSecrets(v); setSaved(false); }} errors={sectionErrors(editor.failure)} />
+  <SectionFields fields={plainFields((schema.data.sections?.[key] ?? []).filter(f => keys.includes(f.name)), key, notifyForced)} config={value} saved={loaded} path={key} advanced={advanced} disabled={readOnly || editor.busy || plexMissing} onChange={v => { setDraft(v); setSaved(false); }} secrets={(section?.secrets ?? []).map(s => ({ ...s, path: `${key}.${s.path}` }))} secretDraft={secrets} onSecrets={v => { setSecrets(v); setSaved(false); }} errors={sectionErrors(editor.failure)} />
   {perLibrary && libraries.data && !Object.keys(objectValue(value.versions)).length ? <p className="text-sm" data-testid="plex-libraries-empty">No libraries yet. Create one under <Link className="underline" to="/admin/settings/libraries">Settings › Libraries</Link>; each library then gets a row here for the ID of the Plex library that shows its folder.</p> : null}
   <UnsavedBar changes={changes} label={title}>
    <Button variant="outline" disabled={readOnly || editor.busy || !dirty} onClick={reset}>Discard</Button>

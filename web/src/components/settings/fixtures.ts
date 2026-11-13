@@ -11,7 +11,7 @@ export const overview = (o: Partial<SettingsOverview> = {}): SettingsOverview =>
   writable: true,
   policy_dir: "/config/policy",
   yaml_owned: ["the database path, policy directory and listen address (command line or environment)", "credentials supplied as environment variables (a stored credential wins)"],
-  switches: { paused: true, pause_forced: false, versions: [{ key: "movie-web", mode: "shadow" }, { key: "tv-web", mode: "active" }] },
+  switches: { paused: true, pause_forced: false, notify_forced: false, versions: [{ key: "movie-web", mode: "shadow" }, { key: "tv-web", mode: "active" }] },
   indexers: [],
   providers: [],
   budgets: [],

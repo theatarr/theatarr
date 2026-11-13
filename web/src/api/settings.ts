@@ -69,7 +69,7 @@ export type TestAll = { generation: number; results: SettingsTestResult[] };
 
 export const settingsOverview = () => api<SettingsOverview>("/settings");
 
-export const useSettings = () => useQuery({ queryKey: qk.settings.overview, queryFn: settingsOverview });
+export const useSettings = (enabled = true) => useQuery({ queryKey: qk.settings.overview, queryFn: settingsOverview, enabled });
 
 export const useSettingsSchema = () =>
   useQuery({ queryKey: qk.settings.schema, queryFn: () => api<SettingsSchema>("/settings/schema"), staleTime: Infinity });
