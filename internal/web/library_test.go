@@ -114,13 +114,14 @@ func TestTitlesSortAndFilters(t *testing.T) {
 		"year_to=2020":                  "Alpha,Gamma",
 		"year_from=2020&year_to=2021":   "Alpha,Beta",
 		"monitored=false":               "Gamma",
-		"availability=partial":          "Alpha",
-		"availability=upgrade":          "Beta,Delta",
-		"availability=none":             "Gamma",
-		"availability=missing":          "",
-		"availability=available":        "",
-		"sort=added&limit=2&offset=1":   "Delta,Alpha",
-		"without=movie-web&sort=added":  "Delta,Alpha,Gamma",
+		// Delta's copy is stored filled, but its aired S01E03 is missing: partial (availStateSQL).
+		"availability=partial":         "Alpha,Delta",
+		"availability=upgrade":         "Beta",
+		"availability=none":            "Gamma",
+		"availability=missing":         "",
+		"availability=available":       "",
+		"sort=added&limit=2&offset=1":  "Delta,Alpha",
+		"without=movie-web&sort=added": "Delta,Alpha,Gamma",
 	} {
 		var p TitlePage
 		if code := e.getKey(APIBase+"/titles?"+q, key, &p); code != 200 {

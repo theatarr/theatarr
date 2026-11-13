@@ -118,18 +118,21 @@ const (
 		liveLink + `), 0), 0)`
 )
 
-// availStateSQL is version v's state as availability reads it (versionState.state): a series copy that holds files
-// and is wanted only for episodes still to air or not monitored is complete over what has aired, as its episode
-// counts say: filled when some held episode is below cutoff, else cutoff_met. Anything else keeps v.state. The
-// clock's values are written into the SQL (a number and a YYYY-MM-DD day).
+// availStateSQL is version v's state as availability reads it (versionState.state). A series copy is decided by its
+// aired monitored episodes (specials left out), whatever its stored state, which can lag behind an episode that aired:
+// one still wanted makes it wanted; none, with files held, makes it complete as its episode counts say: filled when
+// some held episode is below cutoff, else cutoff_met. A movie, or a series copy with neither, keeps v.state. Display
+// and filters only: searching and grabbing read the stored states. The clock's values are written into the SQL (a
+// number and a YYYY-MM-DD day).
 func availStateSQL(c airClock) string {
 	aired := fmt.Sprintf(`(CASE WHEN e.air_date_utc_at IS NOT NULL THEN e.air_date_utc_at <= %d
 		ELSE e.air_date IS NOT NULL AND e.air_date <= '%s' END)`, c.nowMs, c.today)
-	return `(CASE WHEN v.state = 'wanted' AND (SELECT tk.kind FROM title tk WHERE tk.id = v.title_id) <> 'movie' AND ` +
-		hasFileSQL + ` AND NOT EXISTS (SELECT 1 FROM episode_version_state s JOIN episode e ON e.id = s.episode_id
+	return `(CASE WHEN (SELECT tk.kind FROM title tk WHERE tk.id = v.title_id) = 'movie' THEN v.state
+		WHEN EXISTS (SELECT 1 FROM episode_version_state s JOIN episode e ON e.id = s.episode_id
 			WHERE s.version_id = v.id AND e.season > 0 AND s.state = 'wanted' AND s.monitored = 1 AND ` + aired + `)
-		THEN CASE WHEN EXISTS (SELECT 1 FROM episode_version_state s WHERE s.version_id = v.id AND s.state = 'filled')
-			THEN 'filled' ELSE 'cutoff_met' END
+			THEN 'wanted'
+		WHEN ` + hasFileSQL + ` THEN CASE WHEN EXISTS (SELECT 1 FROM episode_version_state s WHERE s.version_id = v.id
+			AND s.state = 'filled') THEN 'filled' ELSE 'cutoff_met' END
 		ELSE v.state END)`
 }
 

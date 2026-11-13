@@ -482,6 +482,8 @@ func TestManagerSeesFileDetail(t *testing.T) {
 	t.Parallel()
 	e := newEnv(t)
 	e.seedLibrary()
+	// Delta holds every aired monitored episode, below cutoff: availability upgrade, which managers see.
+	e.exec(`UPDATE episode_version_state SET monitored = 0 WHERE episode_id = 43`)
 	now := store.Millis(testNow)
 	e.exec(`INSERT INTO download (id, title_id, version_id, version_key, info_hash, release_title, indexer, provider,
 		quality, progress, state, created_at, updated_at) VALUES (1, 1, 2, 'movie-web', ?, 'Alpha.Release-GRP',

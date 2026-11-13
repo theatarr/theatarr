@@ -458,3 +458,37 @@ func TestCaughtUpSeriesOneAnswerWithoutSeeFiles(t *testing.T) {
 		t.Errorf("row coverage: %+v", c)
 	}
 }
+
+// TestStaleCompleteSeriesIsPartial: a series copy stored as cutoff_met whose next episode has aired and is missing
+// (its state not yet updated, as while paused) is partial in the row, the filters, the facets and the title page.
+func TestStaleCompleteSeriesIsPartial(t *testing.T) {
+	t.Parallel()
+	e := newManageEnv(t, nil)
+	e.exec(`UPDATE version SET state = 'cutoff_met' WHERE id = 10`)
+	e.exec(`UPDATE episode_version_state SET state = 'cutoff_met' WHERE episode_id IN (101, 102)`)
+	var p TitlePage
+	e.call("GET", APIBase+"/titles?kind=series", nil, 200, &p)
+	if len(p.Items) != 1 || p.Items[0].Availability != "partial" {
+		t.Errorf("row: %+v", p.Items)
+	}
+	for q, want := range map[string]int{"availability=available": 0, "availability=partial": 1} {
+		p = TitlePage{}
+		e.call("GET", APIBase+"/titles?kind=series&"+q, nil, 200, &p)
+		if p.Total != want {
+			t.Errorf("%s: %d, want %d", q, p.Total, want)
+		}
+	}
+	var f TitleFacets
+	e.call("GET", APIBase+"/titles/facets?kind=series", nil, 200, &f)
+	if f.Availability["partial"] != 1 || f.Availability["available"] != 0 {
+		t.Errorf("facets: %v", f.Availability)
+	}
+	var d TitleDetail
+	e.call("GET", APIBase+"/titles/10", nil, 200, &d)
+	if d.Availability != "partial" {
+		t.Errorf("title page: %q", d.Availability)
+	}
+	if body := e.userBody(APIBase + "/titles?kind=series&availability=partial"); !strings.Contains(body, `"total":1`) {
+		t.Errorf("user partial filter: %s", body)
+	}
+}
