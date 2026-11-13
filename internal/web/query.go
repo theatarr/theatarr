@@ -271,6 +271,17 @@ requested_targets AS (
 )
 `
 
+// A file's torrent hash, the same on the title page and in the episode window: the registry content Cached on reads
+// (a link's linkContentSQL, an arr file's content), else the unique hash of the symlink target it shares
+// (uniqueLinkedTargetHash). linkHashJoin / fileHashJoin bring in uth for link l / version file vf.
+const (
+	linkHashSQL  = `COALESCE((SELECT c_h.info_hash FROM content c_h WHERE c_h.id = ` + linkContentSQL + `), uth.info_hash, '')`
+	linkHashJoin = ` LEFT JOIN unique_target_hash uth ON uth.target = l.target AND l.state = 'active' AND l.kind = 'symlink' `
+	fileHashSQL  = `COALESCE((SELECT c_h.info_hash FROM content c_h WHERE c_h.id = vf.content_id), uth.info_hash, '')`
+	fileHashJoin = ` LEFT JOIN link vf_link ON vf_link.path = vf.path AND vf_link.state = 'active' AND vf_link.kind = 'symlink'
+		LEFT JOIN unique_target_hash uth ON uth.target = vf_link.target `
+)
+
 // File is a file a version holds, as the arr reported it.
 type File struct {
 	ID                int64      `json:"id"`
@@ -539,10 +550,8 @@ func (w *Web) versions(ctx context.Context, cond string, args []any, limit, offs
 	err = scanAll(ctx, db, uniqueLinkedTargetHash+`SELECT vf.version_id, vf.id, vf.instance, vf.arr_file_id, vf.path, vf.relative_path,
 		vf.size_bytes, vf.quality, vf.quality_revision, vf.release_group, vf.scene_name, vf.edition, vf.languages,
 		vf.custom_format_score, vf.cutoff_not_met, vf.added_at, COALESCE(vf.release_title, ''),
-		COALESCE(c.info_hash, uth.info_hash, ''), COALESCE(vs.instance = vf.instance, 0)
-		FROM version_file vf LEFT JOIN content c ON c.id = vf.content_id
-		LEFT JOIN link vf_link ON vf_link.path = vf.path AND vf_link.state = 'active' AND vf_link.kind = 'symlink'
-		LEFT JOIN unique_target_hash uth ON uth.target = vf_link.target
+		`+fileHashSQL+`, COALESCE(vs.instance = vf.instance, 0)
+		FROM version_file vf`+fileHashJoin+`
 		LEFT JOIN version_source vs ON vs.version_id = vf.version_id
 		WHERE vf.version_id IN (`+in+`) ORDER BY vf.version_id, vf.instance`, targetArgs, func(r *sql.Rows) error {
 		var vid int64
@@ -570,10 +579,8 @@ func (w *Web) versions(ctx context.Context, cond string, args []any, limit, offs
 		}
 	}
 	err = scanAll(ctx, db, uniqueLinkedTargetHash+`SELECT lv.version_id, l.id, l.path, l.target, l.kind, l.state, COALESCE(l.release_title, ''),
-		COALESCE(l.quality, ''), l.score, l.title_id, COALESCE(c.info_hash, uth.info_hash, '')
-		FROM link_version lv JOIN link l ON l.id = lv.link_id
-		LEFT JOIN content_file cf ON cf.id = l.content_file_id LEFT JOIN content c ON c.id = cf.content_id
-		LEFT JOIN unique_target_hash uth ON uth.target = l.target AND l.state = 'active' AND l.kind = 'symlink'
+		COALESCE(l.quality, ''), l.score, l.title_id, `+linkHashSQL+`
+		FROM link_version lv JOIN link l ON l.id = lv.link_id`+linkHashJoin+`
 		WHERE lv.version_id IN (`+in+`) ORDER BY l.path`, targetArgs, func(r *sql.Rows) error {
 		var vid int64
 		var l Link

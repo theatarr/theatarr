@@ -999,12 +999,13 @@ func (w *Web) episodeFile(ctx context.Context, db *sql.DB, versionID, eid int64)
 	var size, score sql.NullInt64
 	var pr, am sql.NullString
 	var adopted bool
-	err := db.QueryRowContext(ctx, `SELECT l.id, COALESCE(l.quality, ''), l.score, `+linkSizeSQL+`, COALESCE(l.release_title, ''),
-		l.path, l.created_at, cf.probe, l.adopted_media, l.download_id IS NULL,
-		COALESCE((SELECT c_h.info_hash FROM content c_h WHERE c_h.id = `+linkContentSQL+`), '') FROM link l
+	// The hash as the title page reads it (linkHashSQL, fileHashSQL), so both screens agree.
+	versions := fmt.Sprintf("[%d]", versionID)
+	err := db.QueryRowContext(ctx, uniqueLinkedTargetHash+`SELECT l.id, COALESCE(l.quality, ''), l.score, `+linkSizeSQL+`, COALESCE(l.release_title, ''),
+		l.path, l.created_at, cf.probe, l.adopted_media, l.download_id IS NULL, `+linkHashSQL+` FROM link l
 		JOIN link_version lv ON lv.link_id = l.id JOIN link_episode le ON le.link_id = l.id
-		LEFT JOIN content_file cf ON cf.id = l.content_file_id WHERE lv.version_id = ? AND le.episode_id = ?
-		AND l.state = 'active' ORDER BY l.created_at DESC LIMIT 1`, versionID, eid).Scan(&linkID, &f.Quality, &score, &size,
+		LEFT JOIN content_file cf ON cf.id = l.content_file_id`+linkHashJoin+`WHERE lv.version_id = ? AND le.episode_id = ?
+		AND l.state = 'active' ORDER BY l.created_at DESC LIMIT 1`, versions, versionID, eid).Scan(&linkID, &f.Quality, &score, &size,
 		&f.ReleaseTitle, &f.Path, new(int64), &pr, &am, &adopted, &f.InfoHash)
 	switch {
 	case err == nil:
@@ -1035,12 +1036,12 @@ func (w *Web) episodeFile(ctx context.Context, db *sql.DB, versionID, eid int64)
 	var langs, media string
 	var added sql.NullInt64
 	var sz int64
-	err = db.QueryRowContext(ctx, `SELECT vf.id, vf.quality, vf.custom_format_score, vf.size_bytes,
+	err = db.QueryRowContext(ctx, uniqueLinkedTargetHash+`SELECT vf.id, vf.quality, vf.custom_format_score, vf.size_bytes,
 		COALESCE(vf.release_title, ''), vf.scene_name, vf.release_group, vf.path, vf.instance, vf.languages, vf.added_at,
-		vf.media_info, COALESCE((SELECT c_h.info_hash FROM content c_h WHERE c_h.id = vf.content_id), '')
-		FROM version_file vf JOIN version_file_episode fe ON fe.version_file_id = vf.id
+		vf.media_info, `+fileHashSQL+`
+		FROM version_file vf JOIN version_file_episode fe ON fe.version_file_id = vf.id`+fileHashJoin+`
 		LEFT JOIN version_source vs ON vs.version_id = vf.version_id WHERE vf.version_id = ? AND fe.episode_id = ? AND `+
-		curFile+` ORDER BY vf.added_at DESC LIMIT 1`, versionID, eid).Scan(&fileID, &f.Quality, &score, &sz,
+		curFile+` ORDER BY vf.added_at DESC LIMIT 1`, versions, versionID, eid).Scan(&fileID, &f.Quality, &score, &sz,
 		&f.ReleaseTitle, &f.SceneName, &f.ReleaseGroup, &f.Path, &f.Instance, &langs, &added, &media, &f.InfoHash)
 	if errors.Is(err, sql.ErrNoRows) {
 		return nil, nil

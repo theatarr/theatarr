@@ -55,6 +55,10 @@ func TestTitleCachedOnAdoptedLink(t *testing.T) {
 	if v := d.Versions[0]; !slices.Equal(v.CachedOn, []string{"rd"}) || !slices.Equal(v.Providers, []string{"rd"}) {
 		t.Errorf("title page: cached_on %v providers %v, want [rd]", v.CachedOn, v.Providers)
 	}
+	// The file's hash comes from the same content as Cached on (the admin's Torrent link needs it).
+	if c := d.Versions[0].Current; c == nil || c.InfoHash != hash {
+		t.Errorf("title page: current %+v, want info_hash %s", c, hash)
+	}
 	var p TitlePage
 	e.call("GET", APIBase+"/titles?kind=movie&q=Alpha", nil, 200, &p)
 	if len(p.Items) != 1 || !slices.Equal(p.Items[0].Versions[0].Providers, []string{"rd"}) {
@@ -73,7 +77,8 @@ func TestTitleCachedOnAdoptedLink(t *testing.T) {
 		t.Errorf("provider facet: %+v", f.Providers)
 	}
 	// Nothing about providers for a caller without "see files".
-	if body := e.userBody(APIBase + "/titles/1"); strings.Contains(body, `"cached_on"`) || strings.Contains(body, `"providers"`) {
+	if body := e.userBody(APIBase + "/titles/1"); strings.Contains(body, `"cached_on"`) || strings.Contains(body, `"providers"`) ||
+		strings.Contains(body, hash) {
 		t.Errorf("user title page: %s", body)
 	}
 }
