@@ -902,7 +902,7 @@ func (r *Router) addCopy(ctx context.Context, c *copyRow, pv *policy.Provider, a
 		if err := r.setCache(rctx, c.hash, c.pk, "miss", "451", now.Add(r.set.MissTTL), now); err != nil {
 			return err
 		}
-		return r.setCopy(rctx, c, CopyFailed, "Real-Debrid refused it (451)", "own_add = 0")
+		return r.setCopy(rctx, c, CopyFailed, "Real-Debrid refuses this file (451)", "own_add = 0")
 	case st.Code == string(adder.CodeNotCached):
 		// TorBox refused the cached-only add: nothing was created there.
 		if err := r.setCache(rctx, c.hash, c.pk, "uncached", "add", now.Add(r.set.MissTTL), now); err != nil {

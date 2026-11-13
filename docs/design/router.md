@@ -1224,7 +1224,10 @@ states from `queued` to `importing`, for the view's versions.
 ## Copies to other providers
 
 "Add to other providers" (the owner's decision of 2026-11-13, phase H part 2) adds a torrent the library holds to every
-configured provider that does not hold it yet, so a provider outage leaves the file streamable from another. It adds
+configured provider that does not hold it yet. It only adds holdings on the accounts: the library's links are not
+changed, and it is not playback failover by itself. A first 451 on a name that passed the refusal rule is treated as
+the route treats it (the release is refused, "Real-Debrid refuses this file (451)"; the account is held only when
+the hold rule says so). It adds
 the torrent; an add that is not cached is deleted on every provider; it is a manual action (managers: a movie's file
 on the title page, an episode's in the episode window; admins: a Torrents row) plus `router.copy_to_providers`
 (off by default), which queues the same work after each import of a download that came from a provider. New imports
