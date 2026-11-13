@@ -203,10 +203,15 @@ func TestActivityReleaseFacts(t *testing.T) {
 		score, size_bytes, formats, episodes, progress, state, created_at, updated_at) VALUES
 		(1, 1, 2, 'movie-web', 'f1', 'Alpha.2020.2160p.WEB', 'dmm', 'WEBDL-2160p', 1500, 18400000000,
 		'[{"name":"DV HDR10","score":1500}]', '[]', 40, 'downloading', ?, ?)`, now, now)
-	e.exec(`INSERT INTO library_action (at, kind, mode, version_key, download_id, path, target, detail) VALUES
-		(?, 'link', 'applied', 'movie-web', 1, '/media/movies-web/Alpha (2020)/Alpha.mkv', '/zurg/a.mkv', ''),
-		(?, 'link', 'applied', 'movie-web', NULL, '/media/movies-web/Alpha (2020)/Alpha.srt', '/zurg/a.srt', '')`,
-		now+1, now+2)
+	// An old link action with no download of its own, on a link an upgrade (download 1) has since taken over, and
+	// that upgrade's replace action (its path names the old file): neither carries the upgrade's release.
+	e.exec(`INSERT INTO link (id, path, target, title_id, download_id, state, created_at, updated_at) VALUES
+		(50, '/media/movies-web/Alpha (2020)/Alpha.srt', '/zurg/a.srt', 1, 1, 'active', ?, ?)`, now, now)
+	e.exec(`INSERT INTO library_action (at, kind, mode, version_key, download_id, link_id, path, target, detail) VALUES
+		(?, 'link', 'applied', 'movie-web', 1, NULL, '/media/movies-web/Alpha (2020)/Alpha.mkv', '/zurg/a.mkv', ''),
+		(?, 'link', 'applied', 'movie-web', NULL, 50, '/media/movies-web/Alpha (2020)/Alpha.srt', '/zurg/a.srt', ''),
+		(?, 'replace', 'applied', 'movie-web', 1, 50, '/media/movies-web/Alpha (2020)/Alpha.old.mkv', '/zurg/o.mkv', '')`,
+		now+1, now+2, now+3)
 
 	var h ActivityPage
 	if code := e.getKey(APIBase+"/activity?state=history", key, &h); code != 200 {
@@ -221,19 +226,25 @@ func TestActivityReleaseFacts(t *testing.T) {
 		g.Size != 18400000000 || len(g.Formats) != 1 || g.Formats[0].Name != "DV HDR10" || g.Formats[0].Score != 1500 {
 		t.Errorf("grab row: %+v", g)
 	}
-	var link, bare ActivityEvent
+	var link, bare, replace ActivityEvent
 	for _, x := range h.History {
-		if x.Kind == "link" && x.Release != "" {
+		switch {
+		case x.Kind == "link" && x.Words == "Replaced by an upgrade":
+			replace = x
+		case x.Kind == "link" && x.Release != "":
 			link = x
-		} else if x.Kind == "link" {
+		case x.Kind == "link":
 			bare = x
 		}
+	}
+	if replace.ID == "" || replace.Release != "" || replace.Quality != "" || replace.Score != nil {
+		t.Errorf("replace row: %+v", replace)
 	}
 	if link.Words != "Linked into the library" || link.Release != "Alpha.2020.2160p.WEB" || link.Quality != "WEBDL-2160p" ||
 		link.Score != nil {
 		t.Errorf("link row: %+v", link)
 	}
-	if bare.Words != "Linked into the library" || bare.Quality != "" || bare.Score != nil {
+	if bare.ID == "" || bare.Words != "Linked into the library" || bare.Release != "" || bare.Quality != "" || bare.Score != nil {
 		t.Errorf("link row without a download: %+v", bare)
 	}
 

@@ -646,11 +646,11 @@ func (b *builder) libAction(e *Entry, rest string) error {
 	var kind, mode, detail string
 	var path, target, release, quality sql.NullString
 	var dl, link sql.NullInt64
-	// The release title and quality are the download's: the action's, else its link's.
+	// A link action's release title and quality are its own download's (a replace names the old file, so it has
+	// none; a link action without a download stays bare).
 	if err := b.db.QueryRowContext(b.ctx, `SELECT a.kind, a.mode, a.path, a.target, a.detail, a.download_id, a.link_id,
-		d.release_title, d.quality FROM library_action a LEFT JOIN link l ON l.id = a.link_id
-		LEFT JOIN download d ON d.id = COALESCE(a.download_id, l.download_id) WHERE a.id = ?`, id).Scan(&kind, &mode,
-		&path, &target, &detail, &dl, &link, &release, &quality); err != nil {
+		d.release_title, d.quality FROM library_action a LEFT JOIN download d ON d.id = a.download_id AND a.kind = 'link'
+		WHERE a.id = ?`, id).Scan(&kind, &mode, &path, &target, &detail, &dl, &link, &release, &quality); err != nil {
 		return err
 	}
 	if release.Valid {
