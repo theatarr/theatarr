@@ -275,7 +275,7 @@ export function TitlePage() {
       {perms.seeFiles ? (
         <div className="mt-6 space-y-4">
           <TitleToolbar titleId={Number(id)} name={target.name} year={target.year} kind={target.kind} poster={target.poster} anime={!!d.anime} versions={versions}
-            onHistory={() => setParams({ tab: "history" }, { replace: true })} />
+            removed={all.filter((v) => v.removed)} onHistory={() => setParams({ tab: "history" }, { replace: true })} />
           <LibraryRows title={d} versions={all} />
         </div>
       ) : null}

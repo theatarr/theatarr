@@ -56,9 +56,9 @@ function RenameDialog({ titleId, labels, onClose }: { titleId: number; labels: R
                   <li key={f.link_id} className="py-2" data-testid="rename-file">
                     <div className="text-xs text-[var(--ink-3)]">{labels[f.version] ?? f.version}</div>
                     <div className="flex flex-col gap-x-2 sm:flex-row sm:items-baseline">
-                      <Mono className="min-w-0 break-all text-muted-foreground"><span title={f.existing_path}>{fileName(f.existing_path)}</span></Mono>
+                      <Mono className="min-w-0 text-muted-foreground [overflow-wrap:anywhere]"><span title={f.existing_path}>{fileName(f.existing_path)}</span></Mono>
                       <span aria-label="becomes" className="text-[var(--ink-3)]">→</span>
-                      <Mono className="min-w-0 break-all"><span title={f.new_path}>{fileName(f.new_path)}</span></Mono>
+                      <Mono className="min-w-0 [overflow-wrap:anywhere]"><span title={f.new_path}>{fileName(f.new_path)}</span></Mono>
                     </div>
                   </li>
                 ))}
@@ -82,7 +82,7 @@ function RenameDialog({ titleId, labels, onClose }: { titleId: number; labels: R
   );
 }
 
-export function TitleToolbar({ titleId, name, year, kind, poster, anime, versions, onHistory, page = "title" }: {
+export function TitleToolbar({ titleId, name, year, kind, poster, anime, versions, removed = [], onHistory, page = "title" }: {
   titleId: number;
   name: string;
   year?: number;
@@ -91,6 +91,8 @@ export function TitleToolbar({ titleId, name, year, kind, poster, anime, version
   anime?: boolean;
   /** The libraries the title is in now (not removed). */
   versions: Version[];
+  /** Libraries it was removed from: their leftover links can still be renamed, under their names. */
+  removed?: Version[];
   /** Opens the History tab (the title page). */
   onHistory?: () => void;
   /** "releases": the Last search page's header (Add to another library; no rename, history, refresh or remove). */
@@ -127,7 +129,7 @@ export function TitleToolbar({ titleId, name, year, kind, poster, anime, version
         : <>Nothing is searched now: {on.map((v) => `${v.label || v.key}: ${v.grab_state ? verdict(v.grab_state).word : "Downloads off"}`).join(" · ")}</>;
   // The title page says Pause once, above its rows (no row repeats it).
   const pageOff = titlePage ? globalDownloadsOff(versions.map((v) => v.control?.grab_state)) : undefined;
-  const labels = Object.fromEntries(versions.flatMap((v) => (v.key ? [[v.key, v.label ?? v.key]] : [])));
+  const labels = Object.fromEntries([...versions, ...removed].flatMap((v) => (v.key ? [[v.key, v.label ?? v.key]] : [])));
   const searchTip = kind === "series" ? "Search every missing monitored episode now, in every Live library" : "Search every monitored Live library now";
 
   const more: { id: string; label: string; icon: typeof Search; run: () => void; disabled?: boolean; tip?: string }[] = [];

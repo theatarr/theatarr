@@ -46,14 +46,14 @@ const nameOf = (v: Version) => v.label || v.key || "";
 
 /** The library cell: colour, name (the key as tooltip), the Live / Watch only tag, and a verdict only when it adds
  *  something ("Downloads off", "New files won't be linked"); Paused is said once by the page. */
-function LibraryName({ v }: { v: Version }) {
+function LibraryName({ v, wrap = false }: { v: Version; wrap?: boolean }) {
   const perms = usePerms();
   const c = v.control;
   const state = c?.grab_state;
   const mode = MODE_WORDS[state?.mode ?? c?.mode ?? ""];
   const off = state && verdict(state).word === "Downloads off";
   return (
-    <span className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1">
+    <span className={cn("flex min-w-0 items-center gap-x-2 gap-y-1", wrap ? "flex-wrap" : "whitespace-nowrap")}>
       <span className="flex min-w-0 items-center gap-1.5 font-medium text-[var(--ink)]" title={v.key} data-testid="library-name">
         <CopyDot vkey={v.key} className="size-2.5 rounded-[3px]" />
         <span className="truncate">{nameOf(v)}</span>
@@ -105,7 +105,7 @@ function cellOf(id: LibraryColumn, v: Version, kind: Kind, upcoming: string | un
     case "cached_on":
       return <ProviderPills codes={held ? v.cached_on : undefined} testid="cached-on" />;
     case "file":
-      return held && c?.path ? <span className="block max-w-[22rem] truncate font-mono text-[12px]" title={c.path} data-testid="library-file">{fileName(c.path)}</span> : blank;
+      return held && c?.path ? <span className="block max-w-[16rem] truncate font-mono text-[12px]" title={c.path} data-testid="library-file">{fileName(c.path)}</span> : blank;
     case "preferred": {
       const cut = v.upgrade?.cutoff;
       return cut?.quality ? <span className="whitespace-nowrap">{cut.quality}{cut.upgrades ? "" : " · upgrades off"}</span> : blank;
@@ -215,7 +215,7 @@ export function LibraryRows({ title, versions }: { title: TitleDetail; versions:
     const iconSize = wide ? "icon-sm" : "sm";
     const phone = wide ? "" : "h-9";
     return (
-      <span className="inline-flex flex-wrap items-center justify-end gap-1">
+      <span className={cn("inline-flex items-center justify-end gap-1", !wide && "flex-wrap")}>
         {perms.manage && c ? (
           // A disabled button shows no tooltip: the wrapper carries the reason.
           <span title={searchable ? `Search ${name} now` : downloadReason(c)} className="inline-flex">
@@ -249,7 +249,8 @@ export function LibraryRows({ title, versions }: { title: TitleDetail; versions:
       id,
       label: offered.find((c) => c.id === id)?.label ?? id,
       cell: (v) => cellOf(id, v, kind, upcoming),
-      cellClassName: id === "file" || id === "release" ? "max-w-[22rem]" : undefined,
+      headClassName: "whitespace-nowrap",
+      cellClassName: id === "file" ? "max-w-[16rem]" : id === "release" ? "max-w-[22rem]" : undefined,
       card: "none",
     })),
   ];
@@ -262,13 +263,15 @@ export function LibraryRows({ title, versions }: { title: TitleDetail; versions:
       <div className="space-y-1.5">
         <div className="flex items-start gap-2">
           {monitor(v)}
-          <div className="min-w-0 flex-1"><LibraryName v={v} /></div>
+          <div className="min-w-0 flex-1"><LibraryName v={v} wrap /></div>
           <div className="shrink-0"><StatusCell v={v} kind={kind} upcoming={upcoming} /></div>
         </div>
-        <div className="flex flex-wrap items-center gap-2 text-xs text-[var(--ink-2)]">
-          {facts ? <span>{facts}</span> : null}
-          <ProviderPills codes={v.has_file ? v.cached_on : undefined} testid="cached-on" />
-        </div>
+        {v.has_file ? (
+          <div className="flex flex-wrap items-center gap-2 text-xs text-[var(--ink-2)]">
+            {facts ? <span>{facts}</span> : null}
+            <ProviderPills codes={v.cached_on} testid="cached-on" />
+          </div>
+        ) : null}
         {v.has_file && c?.path ? <div className="truncate font-mono text-[12px] text-muted-foreground" title={c.path} data-testid="library-file">{fileName(c.path)}</div> : null}
       </div>
     );
