@@ -2,7 +2,7 @@
 // in one wrapping row; at phone width they stack, one per line, the date input full width. Every change goes to the URL, so a filtered history survives a reload
 // and can be shared; the title search waits for typing to pause.
 import { Search, X } from "lucide-react";
-import { useEffect, useState } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 import { useSearchParams } from "react-router";
 import { useDebounced } from "@/api/add";
 import { useFacets } from "@/api/library";
@@ -28,7 +28,8 @@ export function useHistoryFilters(): Filters {
   return parseHistoryFilters(sp);
 }
 
-export function HistoryFilters() {
+/** tools: buttons at the row's end (the table's Columns). */
+export function HistoryFilters({ tools }: { tools?: ReactNode } = {}) {
   const [sp, setSp] = useSearchParams();
   const f = parseHistoryFilters(sp);
   const facets = useFacets();
@@ -79,6 +80,7 @@ export function HistoryFilters() {
           <X /> Clear {count > 1 ? `${count} filters` : "filter"}
         </Button>
       ) : null}
+      {tools ? <div className="flex justify-end sm:ml-auto">{tools}</div> : null}
     </div>
   );
 }

@@ -41,11 +41,17 @@ export const useActivityHistory = (v: View = {}, f: HistoryParams = {}) =>
     getNextPageParam: (last) => last.next_cursor || undefined,
   });
 
-export const useActivityBlocked = (enabled: boolean) =>
+/** Blocklist filters and page: part of a title's name, a library key, and the offset (50 a page). */
+export type BlockedParams = { title?: string; version?: string; offset?: number };
+
+export const BLOCKED_PAGE = 50;
+
+export const useActivityBlocked = (f: BlockedParams = {}) =>
   useQuery({
-    queryKey: [...activityKeys.all, "blocked"],
-    queryFn: () => api<ActivityPage>("/activity" + qs({ state: "blocked", limit: 200 })),
-    enabled,
+    queryKey: [...activityKeys.all, "blocked", f],
+    queryFn: () =>
+      api<ActivityPage>("/activity" + qs({ state: "blocked", limit: BLOCKED_PAGE, title: f.title || undefined, version: f.version || undefined, offset: f.offset || undefined })),
+    placeholderData: keepPreviousData,
   });
 
 export const useContinue = (limit = 20) =>

@@ -1,54 +1,114 @@
-// Activity › Blocklist (pages/activity.tsx): the releases a version never routes again (accounts that see files).
-import { CircleSlash } from "lucide-react";
-import { useActivityBlocked } from "@/api/activity";
+// Activity › Blocklist (pages/activity.tsx): the releases a version never routes again (accounts that see files), as a
+// table (DataTable) newest first, 50 a page (Pager), filtered by part of the title's name and the library (sent as
+// title and version; the total is the filtered count). Each row has Unblock, which can also search the library again.
+import { CircleSlash, Search } from "lucide-react";
+import { useEffect, useState } from "react";
+import { BLOCKED_PAGE, useActivityBlocked, type ActivityBlocked } from "@/api/activity";
+import { useDebounced } from "@/api/add";
+import { useFacets } from "@/api/library";
 import { UnblockAction } from "@/components/activity/download-actions";
-import { Poster } from "@/components/activity/row-bits";
+import { Dash } from "@/components/activity/row-bits";
 import { Empty, ErrorState, Loading, VersionTag } from "@/components/page";
 import { Badge } from "@/components/ui/badge";
 import { Card } from "@/components/ui/card";
+import { DataTable, type DataColumn } from "@/components/ui/data-table";
+import { Input } from "@/components/ui/input";
+import { Pager } from "@/components/ui/pager";
+import { Select } from "@/components/ui/select";
+import { distinctLabels, relabel } from "@/lib/copies";
 import { fmtTime } from "@/lib/format";
 
+const titleName = (b: ActivityBlocked) => `${b.title.name}${b.title.year ? ` (${b.title.year})` : ""}`;
+
+const COLUMNS: DataColumn<ActivityBlocked>[] = [
+  { id: "title", label: "Title", card: "none", cellClassName: "max-w-[16rem]", cell: (b) => <span className="block truncate font-medium text-[var(--ink)]">{titleName(b)}</span> },
+  { id: "library", label: "Library", cell: (b) => <VersionTag k={b.version} className="text-[11px]" /> },
+  {
+    id: "release",
+    label: "Release",
+    card: "full",
+    cellClassName: "max-w-[22rem]",
+    cell: (b) => <span className="block font-mono text-[12px] max-sm:break-all sm:truncate" title={b.release}>{b.release}</span>,
+  },
+  { id: "quality", label: "Quality", card: "none", cellClassName: "whitespace-nowrap", cell: (b) => b.quality || <Dash /> },
+  { id: "indexer", label: "Indexer", card: "none", cellClassName: "whitespace-nowrap", cell: (b) => b.indexer || <Dash /> },
+  {
+    id: "reason",
+    label: "Reason",
+    card: "full",
+    cell: (b) => (
+      <span className="inline-flex flex-wrap items-center gap-1.5" title={b.reason || undefined}>
+        <Badge tone="warning">{b.words}</Badge>
+        {b.researched_at ? <Badge tone="neutral">searched again</Badge> : null}
+      </span>
+    ),
+  },
+  { id: "blocked", label: "Blocked", cellClassName: "whitespace-nowrap tabular-nums", cell: (b) => fmtTime(b.created_at) },
+];
+
 export function BlocklistTab() {
-  const q = useActivityBlocked(true);
-  if (q.isPending) return <Loading />;
-  if (q.error) return <ErrorState error={q.error} />;
-  const items = q.data.blocked ?? [];
-  if (items.length === 0) {
-    return (
-      <Card>
-        <Empty icon={CircleSlash}>
-          <span>No release is blocked.</span>
-          <span className="text-xs">A release lands here when it fails the library check, stalls, holds dangerous files, is removed with blocklist, or is judged wrong in the journal.</span>
-        </Empty>
-      </Card>
-    );
-  }
+  const [text, setText] = useState("");
+  const title = useDebounced(text.trim(), 350);
+  const [version, setVersion] = useState("");
+  const [offset, setOffset] = useState(0);
+  // A new filter starts at the first page.
+  useEffect(() => setOffset(0), [title, version]);
+  const q = useActivityBlocked({ title, version, offset });
+  const facets = useFacets();
+  const all = facets.data?.versions ?? [];
+  const copies = relabel(all, distinctLabels(all));
+  const total = q.data?.total ?? 0;
+  // The last row of the last page unblocked: show the page before it.
+  useEffect(() => {
+    if (q.data && offset > 0 && offset >= total) setOffset(Math.max(0, offset - BLOCKED_PAGE));
+  }, [q.data, offset, total]);
+  const filtered = title !== "" || version !== "";
+  const items = q.data?.blocked ?? [];
   return (
-    <Card className="p-0">
-      <ul className="divide-y divide-border">
-        {items.map((b) => (
-          <li key={b.version + b.info_hash} className="flex gap-3 px-3 py-3 sm:px-4" data-testid="blocked-row">
-            <Poster src={b.title.poster} className="w-9" />
-            <div className="min-w-0 flex-1">
-              <div className="flex flex-wrap items-baseline justify-between gap-x-3">
-                <span className="text-sm font-medium">
-                  {b.title.name}
-                  {b.title.year ? ` (${b.title.year})` : ""}
-                </span>
-                <span className="text-xs text-muted-foreground">{fmtTime(b.created_at)}</span>
-              </div>
-              <div className="mt-1 flex flex-wrap items-center gap-2">
-                <VersionTag k={b.version} className="text-[11px]" />
-                <Badge tone="warning">{b.words}</Badge>
-                {b.researched_at ? <Badge tone="neutral">searched again</Badge> : null}
-              </div>
-              <p className="mt-1 break-all font-mono text-[12px] text-muted-foreground">{b.release}</p>
-              {b.reason ? <p className="mt-0.5 break-words text-xs text-muted-foreground">{b.reason}</p> : null}
-              <UnblockAction b={b} />
-            </div>
-          </li>
-        ))}
-      </ul>
-    </Card>
+    <div>
+      <div className="mb-4 grid grid-cols-1 gap-2 sm:flex sm:flex-wrap sm:items-center" data-testid="blocked-filters">
+        <div className="relative min-w-0 sm:max-w-64 sm:flex-1">
+          <Search className="pointer-events-none absolute left-2.5 top-1/2 size-3.5 -translate-y-1/2 text-muted-foreground" />
+          <Input aria-label="Title" placeholder="Title" value={text} onChange={(e) => setText(e.target.value)} className="h-8 pl-8" data-testid="blocked-title" />
+        </div>
+        <Select aria-label="Library" value={version} onChange={(e) => setVersion(e.target.value)} className="sm:w-auto" data-testid="blocked-copy">
+          <option value="">All libraries</option>
+          {copies.map((v) => (
+            <option key={v.key} value={v.key}>{v.label || v.key}</option>
+          ))}
+        </Select>
+      </div>
+      {q.isPending ? (
+        <Loading />
+      ) : q.error ? (
+        <ErrorState error={q.error} />
+      ) : items.length === 0 ? (
+        <Card>
+          <Empty icon={CircleSlash}>
+            {filtered ? (
+              <span>No blocked release matches.</span>
+            ) : (
+              <>
+                <span>No release is blocked.</span>
+                <span className="text-xs">A release lands here when it fails the library check, stalls, holds dangerous files, is removed with blocklist, or is judged wrong in the journal.</span>
+              </>
+            )}
+          </Empty>
+        </Card>
+      ) : (
+        <div className="space-y-4">
+          <DataTable
+            rows={items}
+            rowKey={(b) => `${b.version}\n${b.info_hash}`}
+            columns={COLUMNS}
+            testid="blocked-table"
+            rowProps={() => ({ "data-testid": "blocked-row" })}
+            cardHead={(b) => <span className="block font-medium text-[var(--ink)]">{titleName(b)}</span>}
+            actions={(b) => <UnblockAction b={b} />}
+          />
+          <Pager offset={offset} limit={BLOCKED_PAGE} total={total} onPage={setOffset} />
+        </div>
+      )}
+    </div>
   );
 }
