@@ -170,7 +170,8 @@ func qualityProfileID(v *View, e *entry) int64 {
 	return best.ID
 }
 
-// rootAndPath give the title's root folder and folder: the client's root, else the primary version's library.
+// rootAndPath give the title's root folder and folder: the client's root, else the primary version's library. The
+// folder is the one a file of the title already has under that root, else computed from its name and year.
 func (s *Service) rootAndPath(v *View, e *entry) (root, p string) {
 	if e.rec != nil {
 		root = e.rec.root
@@ -182,10 +183,18 @@ func (s *Service) rootAndPath(v *View, e *entry) (root, p string) {
 			}
 		}
 	}
-	if p == "" && root != "" {
-		p = path.Join(root, folderName(e.name, e.year))
+	if root == "" {
+		return "", ""
 	}
-	return root, p
+	clean := path.Clean(root)
+	for _, f := range e.paths {
+		for dir := path.Dir(f); dir != "/" && dir != "."; dir = path.Dir(dir) {
+			if path.Dir(dir) == clean {
+				return root, dir
+			}
+		}
+	}
+	return root, path.Join(root, folderName(e.name, e.year))
 }
 
 func folderName(name string, year int) string {
@@ -222,6 +231,9 @@ func (s *Service) movieResource(v *View, e *entry) movieResource {
 	minAvail := s.minAvail(e)
 	root, p := s.rootAndPath(v, e)
 	status := movieStatus(e.dates, now)
+	if e.hasFile() {
+		status = "released" // a file is proof of a release, whatever the dates say
+	}
 	m := movieResource{
 		ID: e.viewID(), Title: e.name, OriginalTitle: e.name, AlternateTitles: []any{}, SortTitle: sortTitle(e),
 		Status: status, Images: []any{}, Year: e.year, Path: p, QualityProfileID: qualityProfileID(v, e),

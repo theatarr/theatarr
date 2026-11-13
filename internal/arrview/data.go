@@ -34,6 +34,7 @@ type entry struct {
 	dates          map[string]time.Time // theatrical, digital, physical
 	datesRefreshed bool
 	seriesStatus   string // series_meta.status in lower case (Sonarr's names), "" when not refreshed
+	paths          []string // a file path of each of the view's versions that has one (link, else imported file)
 }
 
 type ver struct {
@@ -263,6 +264,30 @@ func (s *Service) load(ctx context.Context, v *View, titleIDs []int64) ([]*entry
 		if x := vers[l.versionID]; x != nil && (x.file == nil || !l.adopted) {
 			x.file = l.f
 		}
+	}
+
+	// One file path per version (an active link's, else an imported file's): the folder a title already has.
+	rows, err = db.QueryContext(ctx, `SELECT v.title_id, COALESCE(
+		(SELECT MIN(l.path) FROM link l JOIN link_version lv ON lv.link_id = l.id WHERE lv.version_id = v.id
+			AND l.state = 'active'),
+		(SELECT MIN(vf.path) FROM version_file vf WHERE vf.version_id = v.id), '')
+		FROM version v JOIN title t ON t.id = v.title_id WHERE `+where, args...)
+	if err != nil {
+		return nil, err
+	}
+	for rows.Next() {
+		var tid int64
+		var p string
+		if err := rows.Scan(&tid, &p); err != nil {
+			rows.Close()
+			return nil, err
+		}
+		if e := byID[tid]; e != nil && p != "" {
+			e.paths = append(e.paths, p)
+		}
+	}
+	if err := closeRows(rows); err != nil {
+		return nil, err
 	}
 
 	// The view's own records and tags, restricted to the requested titles.

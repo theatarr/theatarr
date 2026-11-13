@@ -37,3 +37,31 @@ func TestCachedReleaseGrabSkipsAvailability(t *testing.T) {
 		t.Fatalf("manual grab queued %d routes", n)
 	}
 }
+
+// TestViewPathFromFiles: a title's path is the folder a file of it already has under the root (an imported file or
+// an active link), not the computed "Title (Year)"; the computed one is used only when no folder is known.
+func TestViewPathFromFiles(t *testing.T) {
+	t.Parallel()
+	e := newEnv(t)
+	var s map[string]any
+	e.call("GET", fmt.Sprintf("/sonarr/api/v3/series/%d", IDBase+10), nil, 200, &s)
+	if s["path"] != "/media/tv/The Show (2019)" {
+		t.Fatalf("no file: path %v", s["path"])
+	}
+	e.exec(`INSERT INTO version_file (id, version_id, title_id, instance, arr_file_id, path, relative_path, size_bytes,
+		quality) VALUES (3, 10, 10, 'sonarr_4k_debrid', 601, '/media/tv/The Show/Season 01/The Show - S01E01.mkv',
+		'Season 01/The Show - S01E01.mkv', 1, 'WEBDL-2160p')`)
+	e.call("GET", fmt.Sprintf("/sonarr/api/v3/series/%d", IDBase+10), nil, 200, &s)
+	if s["path"] != "/media/tv/The Show" || s["rootFolderPath"] != "/media/tv" {
+		t.Fatalf("imported file: path %v root %v", s["path"], s["rootFolderPath"])
+	}
+	// A movie's active link names its folder too.
+	e.exec(`INSERT INTO link (id, path, target, kind, title_id, state, created_at, updated_at) VALUES
+		(7, '/media/movies-web/Beta Old Name/Beta.mkv', '/mnt/zurg/Beta.mkv', 'symlink', 2, 'active', 0, 0)`)
+	e.exec(`INSERT INTO link_version (link_id, version_id) VALUES (7, 3)`)
+	var m map[string]any
+	e.call("GET", fmt.Sprintf("/v/movie-web/radarr/api/v3/movie/%d", IDBase+2), nil, 200, &m)
+	if m["path"] != "/media/movies-web/Beta Old Name" {
+		t.Fatalf("linked movie: path %v root %v", m["path"], m["rootFolderPath"])
+	}
+}
