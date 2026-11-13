@@ -12,7 +12,8 @@
 // - read-only monitoring and disabled search said once above the seasons, not on every line;
 // - All / In progress / Missing / Upgrade found filters per season, and a selection of episodes for bulk monitor,
 //   unmonitor and search whose bar shows only while something is selected and names the libraries it acts on; it acts
-//   only on ticked episodes the filters show (a tick a filter hides is dropped, as is one from another library view);
+//   only on ticked episodes on screen (a tick hidden by a filter or a collapsed season is dropped, as is one from
+//   another library view);
 // - one library in view on desktop: Sonarr's table (checkbox, monitor switch, number, title, the chosen columns of
 //   lib/episode-columns.ts, Search and Interactive search); All: a column per library (the matrix); phones: rows for
 //   the library in view; every state in words (Available, Missing, Not aired, Upgrade found), never a bare icon;
@@ -870,7 +871,8 @@ export function Seasons({ id, anime, franchises = [] }: { id: string; anime: boo
   // episodes that are ticked and shown.
   const merged = layout.columns === "merged";
   const keys = copies.map((v) => v.key);
-  const shown = (e: Episode) => matchesFilter(e, filters[e.season] ?? "all", keys, seeFiles, merged);
+  // A collapsed season shows none of its episodes, so it counts as hidden too.
+  const shown = (e: Episode) => opened.includes(e.season) && matchesFilter(e, filters[e.season] ?? "all", keys, seeFiles, merged);
   const hidden = new Set(l.episodes.filter((e) => !shown(e)).map((e) => e.id));
   if (ticked.view !== view) setTicked({ view, ids: new Set() });
   else if ([...ticked.ids].some((id) => hidden.has(id))) setTicked({ view, ids: new Set([...ticked.ids].filter((id) => !hidden.has(id))) });

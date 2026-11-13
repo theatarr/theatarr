@@ -362,6 +362,30 @@ describe("Acting on the libraries in view", () => {
     expect((screen.getByRole("checkbox", { name: "Select episode 12" }) as HTMLInputElement).checked).toBe(false);
   });
 
+  it("drops the ticks of a season that is collapsed", async () => {
+    const two = {
+      ...episodes,
+      seasons: [...episodes.seasons, { ...episodes.seasons[0], season: 2 }],
+      episodes: [...episodes.episodes, { ...episodes.episodes[0], id: 201, season: 2, number: 1, name: "Second Season" }],
+    };
+    const api = mockFetch([...acting.filter((r) => r.path !== "/titles/1/episodes"), { method: "GET", path: "/titles/1/episodes", reply: two }]);
+    const user = userEvent.setup();
+    renderPage(<Seasons id="1" anime />, "/title/1");
+    // Season 2 is open first (the latest aired); open season 1 too.
+    await user.click(await screen.findByRole("button", { name: "Season 1" }));
+    await user.click(screen.getByRole("checkbox", { name: "Select episode 12" }));
+    await user.click(screen.getByRole("button", { name: "Season 1" }));
+    expect(screen.queryByTestId("bulk-bar")).toBeNull();
+    await user.click(screen.getByRole("checkbox", { name: "Select episode 1" }));
+    expect(screen.getByTestId("bulk-scope").textContent).toBe("1 selected · every library");
+    await user.click(screen.getByTestId("bulk-search"));
+    await vi.waitFor(() => expect(api.calls("POST", "/titles/1/episodes/search")).toHaveLength(1));
+    expect(api.calls("POST", "/titles/1/episodes/search")[0].body).toEqual({ episode_ids: [201] });
+    // Opened again, season 1's episode stays unticked.
+    await user.click(screen.getByRole("button", { name: "Season 1" }));
+    expect((screen.getByRole("checkbox", { name: "Select episode 12" }) as HTMLInputElement).checked).toBe(false);
+  });
+
   it("names the library in view on the bulk bar and acts only there", async () => {
     const api = mockFetch(acting);
     const user = userEvent.setup();
