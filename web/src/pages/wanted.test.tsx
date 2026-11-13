@@ -213,10 +213,10 @@ it("says the queued searches wait while paused", async () => {
 });
 
 it("says why a search was refused", async () => {
-  mockFetch([{ method: "GET", path: "/wanted", reply: page }, status, { method: "POST", path: "/wanted/search", reply: { status: 409, body: { error: "New downloads are off, so nothing can be searched." } } }]);
+  mockFetch([{ method: "GET", path: "/wanted", reply: page }, status, { method: "POST", path: "/wanted/search", reply: { status: 409, body: { error: "Theatarr is paused, so nothing can be searched." } } }]);
   renderPage(<WantedPage />, "/wanted");
   await userEvent.setup().click(await screen.findByRole("button", { name: "Search now" }));
-  expect((await screen.findByRole("alert")).textContent).toBe("New downloads are off, so nothing can be searched.");
+  expect((await screen.findByRole("alert")).textContent).toBe("Theatarr is paused, so nothing can be searched.");
   expect(searchNowWords({ queued: 0, started: 0, pending: 0, skipped: [], next_at: null })).toBe("Started 0, queued 0.");
 });
 

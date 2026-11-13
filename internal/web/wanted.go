@@ -88,7 +88,7 @@ func (w *Web) apiWantedSearch(rw http.ResponseWriter, r *http.Request) {
 	}
 	switch {
 	case errors.Is(err, acquire.ErrDownloadsOff):
-		writeJSON(rw, http.StatusConflict, apiError{Error: "New downloads are off, so nothing can be searched."})
+		writeJSON(rw, http.StatusConflict, apiError{Error: "Theatarr is paused, so nothing can be searched."})
 		return
 	case err != nil:
 		w.internal(rw, err)

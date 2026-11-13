@@ -291,22 +291,3 @@ func (b *builder) arrSiblings(e *Entry, instance string, r arrRow) error {
 	}
 	return rows.Err()
 }
-
-// arrFollowUps lists the arr's events for a shadowed grab's hash.
-func (b *builder) arrFollowUps(e *Entry, instance, hash string) error {
-	if hash == "" {
-		return nil
-	}
-	var first int64
-	var dl string
-	err := b.db.QueryRowContext(b.ctx, `SELECT arr_id, COALESCE(download_id, '') FROM arr_history WHERE instance = ?
-		AND info_hash = ? AND event_type = 'grabbed' ORDER BY arr_id LIMIT 1`, instance, strings.ToLower(hash)).Scan(
-		&first, &dl)
-	if errors.Is(err, sql.ErrNoRows) || dl == "" {
-		return nil
-	}
-	if err != nil {
-		return err
-	}
-	return b.arrSiblings(e, instance, arrRow{arrID: first, downloadID: dl})
-}

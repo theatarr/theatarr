@@ -37,7 +37,7 @@ import (
 const JobSearchNow = "acquire.searchnow"
 
 // ErrDownloadsOff is RequestSearchNow's refusal while Pause is on (router.enabled is false).
-var ErrDownloadsOff = errors.New("Theatarr is paused, so nothing can be searched")
+var ErrDownloadsOff = errors.New("nothing can be searched while Theatarr is paused")
 
 // SearchNowItem names one row of the Wanted list. Season is nil for a movie; for a series without one, every season
 // with something wanted is asked for.

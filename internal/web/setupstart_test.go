@@ -272,7 +272,7 @@ func TestPauseClosesBothGates(t *testing.T) {
 	if out := se.start(body); out["status"] != 200 {
 		t.Fatalf("start: %v", out)
 	}
-	gates := func() (routerErr, libraryErr error, searchable []string) {
+	gates := func() (searchable []string, routerErr, libraryErr error) {
 		t.Helper()
 		pol := se.coord.Current().Policy
 		r, err := router.New(router.Config{Store: se.st, Policy: pol})
@@ -281,13 +281,13 @@ func TestPauseClosesBothGates(t *testing.T) {
 		}
 		_, routerErr = r.Gate("films")
 		searchable, _ = catalog.Searchable(pol, []string{"films"})
-		return routerErr, library.NewGate(pol).CheckVersion("films"), searchable
+		return searchable, routerErr, library.NewGate(pol).CheckVersion("films")
 	}
-	if r, l, s := gates(); r != nil || l != nil || len(s) != 1 {
+	if s, r, l := gates(); r != nil || l != nil || len(s) != 1 {
 		t.Fatalf("Pause off: router %v, library %v, searchable %v", r, l, s)
 	}
 	se.want(se.call("PUT", "/switches", map[string]any{"generation": se.generation(), "paused": true}), 200, "Pause on")
-	if r, l, s := gates(); !errors.Is(r, router.ErrDisabled) || l == nil || len(s) != 0 {
+	if s, r, l := gates(); !errors.Is(r, router.ErrDisabled) || l == nil || len(s) != 0 {
 		t.Fatalf("Pause on: router %v, library %v, searchable %v", r, l, s)
 	}
 }

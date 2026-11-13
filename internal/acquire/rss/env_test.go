@@ -105,12 +105,6 @@ type feed struct {
 	rssFail map[string]bool
 }
 
-func (f *feed) set(imdb string, items ...item) {
-	f.mu.Lock()
-	f.movies[strings.TrimPrefix(imdb, "tt")] = items
-	f.mu.Unlock()
-}
-
 func (f *feed) setRSS(items ...item) {
 	f.mu.Lock()
 	f.rss = items

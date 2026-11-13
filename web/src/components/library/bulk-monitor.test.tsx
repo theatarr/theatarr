@@ -97,10 +97,10 @@ describe("Bulk Search now", () => {
 
   it("shows the server's message when downloads are off", async () => {
     const api = setup(3, [me(["manage", "admin"]), wanted,
-      { method: "POST", path: "/wanted/search", reply: json({ error: "New downloads are off, so nothing can be searched." }, 409) }]);
+      { method: "POST", path: "/wanted/search", reply: json({ error: "Theatarr is paused, so nothing can be searched." }, 409) }]);
     const bar = await searchNow(3);
     const result = await within(bar).findByTestId("bulk-search-result");
-    expect(within(result).getByRole("alert").textContent?.trim()).toBe("New downloads are off, so nothing can be searched.");
+    expect(within(result).getByRole("alert").textContent?.trim()).toBe("Theatarr is paused, so nothing can be searched.");
     expect(result.textContent).not.toContain("Queued");
     expect(within(result).queryByRole("link")).toBeNull();
     expect(api.calls("POST", "/wanted/search")).toHaveLength(1);
@@ -108,11 +108,11 @@ describe("Bulk Search now", () => {
 
   it("stops at a failed request and says what the earlier ones queued", async () => {
     let n = 0;
-    const reply = () => (++n === 1 ? answer({ queued: 200, started: 4, pending: 196 }) : json({ error: "New downloads are off, so nothing can be searched." }, 409));
+    const reply = () => (++n === 1 ? answer({ queued: 200, started: 4, pending: 196 }) : json({ error: "Theatarr is paused, so nothing can be searched." }, 409));
     const api = setup(450, [me(["manage", "admin"]), wanted, { method: "POST", path: "/wanted/search", reply }]);
     const bar = await searchNow(450);
     const result = await within(bar).findByTestId("bulk-search-result");
     expect(api.calls("POST", "/wanted/search")).toHaveLength(2);
-    expect(result.textContent).toBe("Queued 200 searches. 4 started now, 196 waiting in the queue. Stopped after 200 of 450 titles: New downloads are off, so nothing can be searched. Wanted");
+    expect(result.textContent).toBe("Queued 200 searches. 4 started now, 196 waiting in the queue. Stopped after 200 of 450 titles: Theatarr is paused, so nothing can be searched. Wanted");
   });
 });
