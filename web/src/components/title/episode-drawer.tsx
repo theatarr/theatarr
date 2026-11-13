@@ -93,7 +93,7 @@ function fileRows(f: EpisodeVersionDetail["file"]): [React.ReactNode, React.Reac
   if (f.size_bytes) rows.push(["Size", fmtBytes(f.size_bytes)]);
   if (f.release_group) rows.push(["Group", f.release_group]);
   rows.push(["Cached on", <span key="c" className="flex flex-wrap items-center gap-x-2 gap-y-1"><ProviderPills codes={f.cached_on} /><TorrentLink hash={f.info_hash} /></span>]);
-  if (otherProvidersLine(f.copies)) rows.push(["Other providers", <OtherProviders key="o" copies={f.copies} />]);
+  if (otherProvidersLine(f.copies, f.cached_on)) rows.push(["Other providers", <OtherProviders key="o" copies={f.copies} shown={f.cached_on} />]);
   if (f.languages?.length) rows.push(["Languages", f.languages.join(", ")]);
   const media = mediaLine(f.media);
   if (media) rows.push(["Media", media]);
@@ -216,7 +216,7 @@ function DetailsPart({ titleId, eid, epCode, d, aired, manage, admin, single, ac
 /** "Add to other providers" for the episode's file in one library (managers). */
 function EpisodeAddToProviders({ titleId, eid, d }: { titleId: number; eid: number; d: EpisodeVersionDetail }) {
   const m = useCopyFile(titleId);
-  return <AddToProviders m={m} vars={{ version: d.key, episode_id: eid }} paused={globalDownloadsOff([d.control?.grab_state])} testid={`add-to-providers-${d.key}`} />;
+  return <AddToProviders m={m} vars={{ version: d.key, episode_id: eid }} paused={globalDownloadsOff([d.control?.grab_state])} current={d.file?.copies} testid={`add-to-providers-${d.key}`} />;
 }
 
 /** One copy's history and journal. */

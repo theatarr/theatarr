@@ -9,14 +9,15 @@ import { copyReasons, otherProvidersLine, queuedWords, type ProviderCopy } from 
 import type { CopiesResult } from "@/api/provider-copies";
 
 /** The "Other providers" line, or nothing when Cached on says it all. */
-export function OtherProviders({ copies }: { copies?: readonly ProviderCopy[] | null }) {
-  const line = otherProvidersLine(copies);
+export function OtherProviders({ copies, shown }: { copies?: readonly ProviderCopy[] | null; shown?: readonly string[] | null }) {
+  const line = otherProvidersLine(copies, shown);
   if (!line) return null;
-  return <span className="text-xs text-[var(--ink-2)]" title={copyReasons(copies)} data-testid="other-providers">{line}</span>;
+  return <span className="text-xs text-[var(--ink-2)]" title={copyReasons(copies, shown)} data-testid="other-providers">{line}</span>;
 }
 
-/** The action. paused: Pause's state ("off" or "locked"), which disables it with the Pause words. */
-export function AddToProviders<V>({ m, vars, paused, testid }: { m: UseMutationResult<CopiesResult, Error, V>; vars: V; paused?: "locked" | "off" | "unknown"; testid?: string }) {
+/** The action. paused: Pause's state ("off" or "locked"), which disables it with the Pause words. current: the copies
+ *  as the page shows them now, which the action's words follow. */
+export function AddToProviders<V>({ m, vars, paused, current, testid }: { m: UseMutationResult<CopiesResult, Error, V>; vars: V; paused?: "locked" | "off" | "unknown"; current?: readonly ProviderCopy[] | null; testid?: string }) {
   const why = paused ? pausedWords(paused) : undefined;
   const mine = m.variables === vars || JSON.stringify(m.variables) === JSON.stringify(vars);
   return (
@@ -27,7 +28,7 @@ export function AddToProviders<V>({ m, vars, paused, testid }: { m: UseMutationR
           {m.isPending && mine ? <Loader2 className="animate-spin" /> : <CopyPlus />} Add to other providers
         </Button>
       </span>
-      {mine && m.data ? <span className="text-xs text-[var(--accent-ink)]" data-testid="add-to-providers-result">{queuedWords(m.data.copies)}</span> : null}
+      {mine && m.data && queuedWords(m.data.copies, current) ? <span className="text-xs text-[var(--accent-ink)]" data-testid="add-to-providers-result">{queuedWords(m.data.copies, current)}</span> : null}
       {mine && m.error ? <span className="text-xs text-[var(--bad-ink)]" role="alert">{errText(m.error)}</span> : null}
     </span>
   );

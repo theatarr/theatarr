@@ -125,20 +125,21 @@ describe("row details", () => {
 describe("Add to other providers", () => {
   it("adds a movie's file from its details, shows the Other providers line, and is disabled with the Pause words while paused", async () => {
     const fetch = manager([
-      { method: "POST", path: "/titles/7/copies", reply: { copies: [{ provider: "ad", state: "queued", updated_at: "2026-11-13T12:00:00Z" }] } },
+      { method: "POST", path: "/titles/7/copies", reply: { copies: [{ provider: "ad", state: "added", updated_at: "2026-11-13T12:00:00Z" }, { provider: "rd", state: "queued", updated_at: "2026-11-13T12:00:00Z" }] } },
       { method: "GET", path: "/titles/7", reply: {} },
     ]);
     const user = userEvent.setup();
-    const copied = { ...web, current: { ...web.current, copies: [{ provider: "tb", state: "added", updated_at: "2026-11-13T12:00:00Z" }, { provider: "ad", state: "not_cached", message: "Not cached on AD", updated_at: "2026-11-13T12:00:00Z" }] } };
+    // TB is in Cached on (left out of the line); AD was found still downloading (said).
+    const copied = { ...web, current: { ...web.current, copies: [{ provider: "tb", state: "added", updated_at: "2026-11-13T12:00:00Z" }, { provider: "ad", state: "added", message: "Already on AD, still downloading (12%)", updated_at: "2026-11-13T12:00:00Z" }] } };
     const paused = { ...remux, has_file: true, control: { ...live, grab_state: { mode: "active", paused: true, pause_forced: false, will_grab: false } } };
     renderPage(<LibraryRows title={title as never} versions={[copied, paused] as never} />);
     await user.click(await screen.findByTestId("copy-details-movie-web"));
     const panel = screen.getByTestId("library-row-details-movie-web");
-    expect(within(panel).getByTestId("other-providers").textContent).toMatch(/^AD not cached, /);
+    expect(within(panel).getByTestId("other-providers").textContent).toMatch(/^AD still downloading \(12%\), /);
     await user.click(within(panel).getByTestId("add-to-providers-movie-web"));
     await waitFor(() => expect(fetch.calls("POST", "/titles/7/copies")).toHaveLength(1));
     expect(fetch.calls("POST", "/titles/7/copies")[0].body).toEqual({ version: "movie-web" });
-    expect((await within(panel).findByTestId("add-to-providers-result")).textContent).toContain("Adding to AD");
+    expect((await within(panel).findByTestId("add-to-providers-result")).textContent).toBe("Adding to RD. The result shows here when it ends.");
     await user.click(screen.getByTestId("copy-details-movie-remux"));
     const off = screen.getByTestId("add-to-providers-movie-remux") as HTMLButtonElement;
     expect(off.disabled).toBe(true);

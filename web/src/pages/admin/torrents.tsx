@@ -206,7 +206,7 @@ export function TorrentsPage() {
                 </TableHeader>
                 <TableBody>
                   {rows.map((t) => (
-                    <TorrentRow key={keyOf(t)} t={t} checked={!!selected[keyOf(t)]} onToggle={() => toggle(t)} code={provider ? undefined : codes[t.provider] ?? t.provider} />
+                    <TorrentRow key={keyOf(t)} t={t} at={report.data?.generated_at ?? ""} checked={!!selected[keyOf(t)]} onToggle={() => toggle(t)} code={provider ? undefined : codes[t.provider] ?? t.provider} />
                   ))}
                 </TableBody>
               </Table>
@@ -261,7 +261,7 @@ export function TorrentsPage() {
 }
 
 /** One torrent; code is its account's cache code for the Provider column (All providers only). */
-function TorrentRow({ t, checked, onToggle, code }: { t: Torrent; checked: boolean; onToggle: () => void; code?: string }) {
+function TorrentRow({ t, at, checked, onToggle, code }: { t: Torrent; at: string; checked: boolean; onToggle: () => void; code?: string }) {
   const [open, setOpen] = useState(false);
   return (
     <>
@@ -295,7 +295,7 @@ function TorrentRow({ t, checked, onToggle, code }: { t: Torrent; checked: boole
           <TableCell />
           <TableCell colSpan={code === undefined ? 5 : 6} className="text-xs text-muted-foreground [overflow-wrap:anywhere]" data-testid="torrent-refs">
             {t.usage === "used" ? <RefDetail t={t} /> : <span className="whitespace-pre-wrap">{usageDetail(t)}</span>}
-            <TorrentCopies t={t} />
+            <TorrentCopies t={t} at={at} />
           </TableCell>
         </TableRow>
       ) : null}
@@ -304,15 +304,15 @@ function TorrentRow({ t, checked, onToggle, code }: { t: Torrent; checked: boole
 }
 
 /** "Add to other providers" for one torrent, and how its copies ended where the row does not show them. */
-function TorrentCopies({ t }: { t: Torrent }) {
-  const m = useCopyTorrent(t.hash);
-  const copies = useTorrentCopies(t.hash, t.copies).data?.copies;
+function TorrentCopies({ t, at }: { t: Torrent; at: string }) {
+  const m = useCopyTorrent(t.hash, at);
+  const copies = useTorrentCopies(t.hash, at, t.copies).data?.copies;
   const status = useStatus();
   const paused = globalDownloadsOff((status.data?.versions ?? []).map((v) => v.grab_state));
   return (
     <div className="mt-2 space-y-1" data-testid="torrent-copies">
       {otherProvidersLine(copies) ? <div>Other providers: <OtherProviders copies={copies} /></div> : null}
-      <AddToProviders m={m} vars={{ provider: t.provider, id: t.id }} paused={paused} />
+      <AddToProviders m={m} vars={{ provider: t.provider, id: t.id }} paused={paused} current={copies} />
     </div>
   );
 }

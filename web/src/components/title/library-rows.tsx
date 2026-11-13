@@ -157,7 +157,7 @@ function RowDetails({ v, kind, minimumShown, statusShown, onRemove }: { v: Versi
   if (c?.info_hash) rows.push(["Hash", <span key="h" className="flex flex-wrap items-baseline gap-x-2"><InfoHash hash={c.info_hash} admin={perms.admin} /><TorrentLink hash={c.info_hash} /></span>]);
   if (c?.edition) rows.push(["Edition", c.edition]);
   // A movie's file: how its copies to other providers ended where Cached on does not show them.
-  if (kind === "movie" && v.has_file && otherProvidersLine(c?.copies)) rows.push(["Other providers", <OtherProviders key="o" copies={c?.copies} />]);
+  if (kind === "movie" && v.has_file && otherProvidersLine(c?.copies, v.cached_on)) rows.push(["Other providers", <OtherProviders key="o" copies={c?.copies} shown={v.cached_on} />]);
   if (kind === "series" && v.episodes) {
     const e = v.episodes;
     rows.push(["Episodes", `${fmtNumber(e.have)} of ${fmtNumber(e.total)}${e.missing ? ` · ${fmtNumber(e.missing)} aired and missing` : ""}`]);
@@ -191,7 +191,7 @@ function RowDetails({ v, kind, minimumShown, statusShown, onRemove }: { v: Versi
 /** "Add to other providers" for a movie library's file; a series adds per episode (the episode window). */
 function AddToProvidersFor({ v }: { v: Version }) {
   const m = useCopyFile(v.title_id ?? 0);
-  return <AddToProviders m={m} vars={{ version: v.key ?? "" }} paused={globalDownloadsOff([v.control?.grab_state])} testid={`add-to-providers-${v.key}`} />;
+  return <AddToProviders m={m} vars={{ version: v.key ?? "" }} paused={globalDownloadsOff([v.control?.grab_state])} current={v.current?.copies} testid={`add-to-providers-${v.key}`} />;
 }
 
 export function LibraryRows({ title, versions }: { title: TitleDetail; versions: Version[] }) {

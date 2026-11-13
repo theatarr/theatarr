@@ -30,6 +30,24 @@ const plan = (override: boolean) => ({
 });
 
 describe("torrents page", () => {
+  it("shows every copy result on a row, and a newer report's rows replace the earlier ones", async () => {
+    const at = (t: string, copies: object[]) => ({ ...report, generated_at: t, providers: [{ ...report.providers[0], torrents: [torrent("1", h1, "Unused.Movie", "unused", { copies })] }] });
+    const reports = [at("2026-11-13T12:00:00Z", [{ provider: "tb", state: "added", updated_at: "2026-11-13T12:00:00Z" }]),
+      at("2026-11-13T12:05:00Z", [{ provider: "tb", state: "failed", message: "x", updated_at: "2026-11-13T12:04:00Z" }])];
+    let n = 0;
+    mockFetch([
+      { method: "GET", path: "/torrents/report", reply: () => reports[Math.min(n++, 1)] },
+      { method: "GET", path: "/torrents/journal", reply: { entries: [] } },
+      { method: "GET", path: "/status", reply: { versions: [] } },
+    ]);
+    renderPage(<TorrentsPage />);
+    await screen.findByText("Unused.Movie");
+    fireEvent.click(screen.getAllByRole("button", { expanded: false })[0]);
+    expect((await screen.findByTestId("other-providers")).textContent).toMatch(/^TB added, /);
+    fireEvent.click(screen.getByRole("button", { name: "Refresh" }));
+    await waitFor(() => expect(screen.getByTestId("other-providers").textContent).toMatch(/^TB failed, /));
+  });
+
   it("adds a row's torrent to the other providers and polls only that torrent's copies, not the report", async () => {
     const fetch = mockFetch([
       { method: "GET", path: "/torrents/report", reply: report },
@@ -46,6 +64,8 @@ describe("torrents page", () => {
     expect(fetch.calls("POST", "/torrents/copy")[0].body).toEqual({ provider: "rd", id: "1" });
     await waitFor(() => expect(fetch.calls("GET", "/torrents/copies").length).toBeGreaterThan(0), { timeout: 8000 });
     await waitFor(() => expect(screen.getByTestId("other-providers").textContent).toMatch(/^AD not cached/));
+    // The action's words follow the current result: nothing left being added.
+    expect(screen.queryByTestId("add-to-providers-result")).toBeNull();
     expect(fetch.calls("GET", "/torrents/report")).toHaveLength(1);
   }, 15000);
 

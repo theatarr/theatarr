@@ -19,20 +19,22 @@ export function useCopyFile(titleId: number) {
   });
 }
 
-/** A Torrents row's action. The answer seeds the row's own copies query; the report is not read again. */
-export function useCopyTorrent(hash: string) {
+/** A Torrents row's action. The answer seeds the row's own copies query; the report is not read again. at: the
+ *  report's generated_at (the copies query's key). */
+export function useCopyTorrent(hash: string, at: string) {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: (req: Schemas["CopyTorrentRequest"]) => api<CopiesResult>("/torrents/copy", { method: "POST", body: req }),
-    onSuccess: (r) => qc.setQueryData(["torrents", "copies", hash], r),
+    onSuccess: (r) => qc.setQueryData(["torrents", "copies", hash, at], r),
   });
 }
 
 /** One torrent's copies (GET /torrents/copies), read only while one is unfinished: the whole report reads every
- *  account, so it is not polled. initial: the copies the report gave. */
-export function useTorrentCopies(hash: string, initial?: Schemas["ProviderCopy"][]) {
+ *  account, so it is not polled. initial: the copies the report gave; a newer report (at, its generated_at) starts
+ *  from its own rows. */
+export function useTorrentCopies(hash: string, at: string, initial?: Schemas["ProviderCopy"][]) {
   return useQuery({
-    queryKey: ["torrents", "copies", hash],
+    queryKey: ["torrents", "copies", hash, at],
     queryFn: () => api<CopiesResult>(`/torrents/copies?hash=${encodeURIComponent(hash)}`),
     initialData: { copies: initial ?? [] },
     staleTime: Infinity,
