@@ -77,7 +77,17 @@ can be undone.
 4. **Review legacy queued work.** `theatarr router reconcile` lists queued work left from before. Review it, then
    `theatarr router reconcile -apply` settles the automatic rows; manual rows need a new selection. Work in flight
    is left alone ([router.md (internals)](design/router.md)).
-5. **Set the library Live and import** (**Admin › Import from Sonarr/Radarr**) right before the trial, then:
+5. **Start conservatively.** Write down the settings and the success criteria below before you turn anything on.
+   In **Settings › Download clients › Behaviour**, keep cached-only adds on, keep the wanted loop's missing and
+   cutoff-unmet searches off, and use a low searches-per-hour limit. Set the providers' pacing to what their API
+   limits allow. Don't cap Real-Debrid or AllDebrid with an uncached-adds-per-hour limit: on those providers the
+   cache check is itself an add. Keep **Send notifications** (**Settings › Notifications**) off, and review the
+   request budgets under **Advanced › Request limits**.
+6. **Set the library Live and turn Pause off.** Set it **Live** in **Settings › Libraries**, then turn **Pause** off
+   at the top of any admin page. Pause is one switch for every library: its confirmation names all the Live
+   libraries that start searching and downloading, so review that list. The import needs both: while the library is
+   Watch only or Pause is on, Preview says so and Import is refused.
+7. **Import** (**Admin › Import from Sonarr/Radarr**), then:
 
    ```sh
    docker compose exec theatarr theatarr preflight
@@ -89,18 +99,10 @@ can be undone.
 
 ### The trial
 
-Write down the settings and the success criteria before you turn anything on.
-
-1. **Settings › Download clients › Behaviour:** start conservatively. Keep cached-only adds on, keep the wanted loop's
-   missing and cutoff-unmet searches off, and use a low searches-per-hour limit. Set the providers' pacing to what
-   their API limits allow. Don't cap Real-Debrid or AllDebrid with an uncached-adds-per-hour limit: on those
-   providers the cache check is itself an add. Keep **Send notifications** (**Settings › Notifications**) off, and
-   review the request budgets under **Advanced › Request limits**.
-2. Turn **Pause** off at the top of any admin page. Review the Live libraries its confirmation names. Check
-   `theatarr router status` and run `theatarr preflight` again.
-3. **Test Pause in the first minutes:** turn it on and check that no new provider adds start. A request already sent
-   may finish; downloads already at a provider are imported when Pause is turned off again.
-4. Run the trial for about a week. Try at least three different cached releases (a new episode, a season pack, an
+1. Check `theatarr router status`.
+2. **Test Pause in the first minutes:** turn it on and check that no new provider adds start. A request already sent
+   may finish; downloads already at a provider are imported when Pause is turned off again. Turn it off again.
+3. Run the trial for about a week. Try at least three different cached releases (a new episode, a season pack, an
    upgrade, or their movie equivalents) and play each in the new Plex library.
 
 **Success criteria**

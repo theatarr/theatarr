@@ -1,4 +1,4 @@
-# Versions: one per library. Each starts in shadow mode (docs/design/shadow.md) and is switched to active per area at
+# Versions: one per library. Each starts Watch only (mode: shadow, docs/design/overview.md) and is switched to active per area at
 # cutover. Library roots are the arr roots the version replaces, so links keep the arr naming and paths.
 versions:
   movie-remux:

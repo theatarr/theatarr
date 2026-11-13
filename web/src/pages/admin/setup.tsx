@@ -1,9 +1,8 @@
 // Admin › Setup (docs/quickstart.md, docs/design/web.md "Setup"): the first-run screen. It leads a fresh install
 // through the admin password, the debrid providers, the indexers (Prowlarr feeds as Torznab and the native catalog),
 // the TMDb key, a library root and a first version from a preset, then the preflight. Everything it creates goes through the
-// settings API. On an install no arr feeds, the first library can start downloading at once (POST setup/start: one
-// save, one confirmation that lists what turning Pause off starts); otherwise, and always on an install that migrates
-// from an arr, the version starts Watch only and nothing Setup does can grab.
+// settings API. The first library can start downloading at once (POST setup/start: one save, one confirmation that
+// lists what turning Pause off starts), or start Watch only, and then nothing Setup does can grab.
 import { useQueryClient } from "@tanstack/react-query";
 import { useState, type FormEvent, type ReactNode } from "react";
 import { Link } from "react-router";
