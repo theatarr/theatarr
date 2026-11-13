@@ -302,11 +302,6 @@ func TestCeilingKeepsStoredArrSightings(t *testing.T) {
 		LastSeen: at}); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := st.Writer().Exec(`INSERT INTO arr_instance(name,flavour,policy_key,created_at,updated_at) VALUES('arr','radarr','remux',0,0);
- INSERT INTO arr_history(instance,arr_id,event_type,date_at,title_id,version_id,quality,source_title) VALUES
- ('arr',3,'grabbed',2000,1,1,'Remux-2160p','A.2160p.UHD.BluRay.REMUX')`); err != nil {
-		t.Fatal(err)
-	}
 	for range 2 {
 		if err := Compute(ctx, st.Writer(), testPolicy(), 1, now); err != nil {
 			t.Fatal(err)

@@ -44,11 +44,6 @@ func newParallelEnv(t *testing.T, enabled bool) *parallelEnv {
 	e.exec(`INSERT INTO version_source (version_id, instance, arr_id) VALUES (10, 'radarr', 1), (20, 'sonarr', 2)`)
 	e.exec(`INSERT INTO version (id, title_id, policy_key, state, created_at, updated_at) VALUES
 		(11, 1, 'movie-theatarr', 'wanted', 0, 0), (21, 2, 'tv-theatarr', 'wanted', 0, 0)`)
-	e.exec(`INSERT INTO arr_instance (name, flavour, policy_key, created_at, updated_at) VALUES
-		('radarr', 'radarr', 'movie-remux', 0, 0), ('sonarr', 'sonarr', 'tv', 0, 0)`)
-	e.exec(`INSERT INTO arr_title (instance, arr_id, kind, title_id, version_id, monitored, path) VALUES
-		('radarr', 1, 'movie', 1, 10, 1, ?), ('sonarr', 2, 'series', 2, 20, 1, ?)`,
-		filepath.Join(e.movies, "Amelie The Movie (2001)"), filepath.Join(e.shows, "Show (2020)"))
 	return e
 }
 

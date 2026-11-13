@@ -3,7 +3,6 @@ package availability
 import (
 	"context"
 	"database/sql"
-	"errors"
 	"path/filepath"
 	"slices"
 	"testing"
@@ -15,19 +14,10 @@ import (
 )
 
 // mainMinimum is the minimum availability Movie computed before Rules existed, kept as the reference: with no
-// library setting, Rules must give the same value for the same database.
-func mainMinimum(ctx context.Context, db *sql.DB, pol *policy.Policy, titleID, versionID int64, key string) (string, error) {
+// library setting, Rules must give the same value for the same database. (Main also read the arr's value; migration
+// 00125 copied it to the library's own row, TestMigrationArrConnections.)
+func mainMinimum(ctx context.Context, db *sql.DB, pol *policy.Policy, titleID int64, key string) (string, error) {
 	minimum := "released"
-	var imported string
-	err := db.QueryRowContext(ctx, `SELECT a.minimum_availability FROM arr_title a
-		LEFT JOIN version_source vs ON vs.version_id = a.version_id AND vs.instance = a.instance AND vs.arr_id = a.arr_id
-		WHERE a.version_id = ? ORDER BY (vs.instance IS NOT NULL) DESC, a.instance LIMIT 1`, versionID).Scan(&imported)
-	if err != nil && !errors.Is(err, sql.ErrNoRows) {
-		return "", err
-	}
-	if imported != "" {
-		minimum = imported
-	}
 	rows, err := db.QueryContext(ctx, `SELECT view, minimum_availability FROM arrview_title
 		WHERE title_id = ? AND minimum_availability <> '' ORDER BY updated_at DESC, view`, titleID)
 	if err != nil {
@@ -72,7 +62,7 @@ func minimumEnv(t *testing.T) (*store.Store, *policy.Policy, func(q string, args
 }
 
 // Rules, one title or many, and Movie's single-copy form agree with what Movie computed on main, for every stored
-// state main could hold; then a library default and delay reach only the copies without a choice or imported value.
+// state main could hold; then a library default and delay reach only the copies without a choice.
 func TestRulesMatchMain(t *testing.T) {
 	ctx := context.Background()
 	st, pol, exec := minimumEnv(t)
@@ -91,31 +81,11 @@ func TestRulesMatchMain(t *testing.T) {
 			copyOf{n, n*10 + 3, "anime-movie"})
 		ids = append(ids, n)
 	}
-	arr := func(instance string, version int64, owner bool, minimum string) {
-		exec(`INSERT INTO arr_title(instance,arr_id,kind,title_id,version_id,monitored,minimum_availability)
-			VALUES(?,?,'movie',?,?,1,?)`, instance, version, version/10, version, minimum)
-		if owner {
-			exec(`INSERT INTO version_source(version_id,instance,arr_id) VALUES(?,?,?)`, version, instance, version)
-		}
-	}
 	row := func(view string, title int64, minimum string, updated int64) {
 		exec(`INSERT INTO arrview_title(view,title_id,minimum_availability,added_at,updated_at) VALUES(?,?,?,0,?)`,
 			view, title, minimum, updated)
 	}
-	exec(`INSERT INTO arr_instance(name,flavour,policy_key,created_at,updated_at) VALUES
-		('radarr_4k_debrid','radarr','movie-remux',0,0),('radarr_4k_web','radarr','movie-web',0,0),
-		('aaa_other','radarr','movie-remux',0,0)`)
-	// 1: nothing stored.
-	// 2: imported by the owner.
-	arr("radarr_4k_debrid", 21, true, "announced")
-	// 3: the owner's record is empty and another instance's, sorting first by name, has a value: the owner's wins.
-	arr("radarr_4k_debrid", 31, true, "")
-	arr("aaa_other", 31, false, "inCinemas")
-	// 4: no owner; the first instance by name.
-	arr("radarr_4k_debrid", 41, false, "announced")
-	arr("aaa_other", 41, false, "inCinemas")
-	// 5: a library's own row over the import.
-	arr("radarr_4k_web", 52, true, "announced")
+	// 1-4: nothing stored. 5: a library's own row.
 	row("v/movie-web", 5, "inCinemas", 5)
 	// 6: a combined row older than a library's row, 7: newer, 8: tied (the view name decides).
 	row("radarr", 6, "announced", 1)
@@ -138,7 +108,7 @@ func TestRulesMatchMain(t *testing.T) {
 			t.Fatalf("%d rules for %d copies", len(all), len(copies))
 		}
 		for _, c := range copies {
-			want, err := mainMinimum(ctx, st.Reader(), pol, c.title, c.version, c.key)
+			want, err := mainMinimum(ctx, st.Reader(), pol, c.title, c.key)
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -163,11 +133,9 @@ func TestRulesMatchMain(t *testing.T) {
 	all := compare()
 	for version, want := range map[int64]Rule{
 		11: {Minimum: "released", Source: SourceDefault},
-		21: {Minimum: "announced", Source: SourceImported},
 		22: {Minimum: "released", Source: SourceDefault},
 		23: {Minimum: "released", Source: SourceDefault},
 		31: {Minimum: "released", Source: SourceDefault},
-		41: {Minimum: "inCinemas", Source: SourceImported},
 		52: {Minimum: "inCinemas", Source: SourceChoice},
 		61: {Minimum: "inCinemas", Source: SourceChoice},
 		62: {Minimum: "announced", Source: SourceChoice},
@@ -180,7 +148,7 @@ func TestRulesMatchMain(t *testing.T) {
 		}
 	}
 
-	// A library default and delay: only copies with neither a choice nor an imported value take the default.
+	// A library default and delay: only copies without a choice take the default.
 	pol.Versions["movie-remux"].MinimumAvailability = "inCinemas"
 	pol.Versions["movie-remux"].AvailabilityDelay = 7
 	all, err := Rules(ctx, st.Reader(), pol, ids)
@@ -190,7 +158,7 @@ func TestRulesMatchMain(t *testing.T) {
 	for version, want := range map[int64]Rule{
 		11: {Minimum: "inCinemas", Delay: 7, Source: SourceDefault},
 		12: {Minimum: "released", Source: SourceDefault},
-		21: {Minimum: "announced", Delay: 7, Source: SourceImported},
+		21: {Minimum: "inCinemas", Delay: 7, Source: SourceDefault},
 		31: {Minimum: "inCinemas", Delay: 7, Source: SourceDefault},
 		61: {Minimum: "inCinemas", Delay: 7, Source: SourceChoice},
 		62: {Minimum: "announced", Source: SourceChoice},
@@ -327,18 +295,13 @@ func TestMovieDelayAndDefault(t *testing.T) {
 }
 
 // Without following, a former follower's copy reads the choice the detach migration (00121) wrote on its own row
-// (v/<key>, updated_at 0), and a copy an arr feeds still reads its arr_title record.
+// (v/<key>, updated_at 0).
 func TestRulesWithoutFollow(t *testing.T) {
 	ctx := context.Background()
 	st, pol, exec := minimumEnv(t)
 	exec(`INSERT INTO title(id,kind,name,tmdb_id,created_at,updated_at) VALUES(1,'movie','M',101,0,0)`)
 	exec(`INSERT INTO version(id,title_id,policy_key,created_at,updated_at) VALUES(11,1,'movie-remux',0,0),
 		(13,1,'anime-movie',0,0)`)
-	exec(`INSERT INTO arr_instance(name,flavour,policy_key,created_at,updated_at) VALUES
-		('radarr_4k_debrid','radarr','movie-remux',0,0)`)
-	exec(`INSERT INTO arr_title(instance,arr_id,kind,title_id,version_id,monitored,minimum_availability)
-		VALUES('radarr_4k_debrid',11,'movie',1,11,1,'inCinemas')`)
-	exec(`INSERT INTO version_source(version_id,instance,arr_id) VALUES(11,'radarr_4k_debrid',11)`)
 	exec(`INSERT INTO arrview_title(view,title_id,minimum_availability,added_at,updated_at)
 		VALUES('v/anime-movie',1,'announced',0,0)`)
 	all, err := Rules(ctx, st.Reader(), pol, []int64{1})
@@ -348,8 +311,8 @@ func TestRulesWithoutFollow(t *testing.T) {
 	if got := all[13]; got.Minimum != "announced" || got.Source != SourceChoice {
 		t.Errorf("former follower %+v, want announced from its migrated row", got)
 	}
-	if got := all[11]; got.Minimum != "inCinemas" || got.Source != SourceImported {
-		t.Errorf("mirror copy %+v, want inCinemas imported", got)
+	if got := all[11]; got.Minimum != "released" || got.Source != SourceDefault {
+		t.Errorf("copy without a choice %+v, want the default", got)
 	}
 	// A newer explicit choice on a view holding the library still wins over the migrated row.
 	exec(`INSERT INTO title(id,kind,name,tmdb_id,created_at,updated_at) VALUES(2,'movie','N',102,0,0)`)

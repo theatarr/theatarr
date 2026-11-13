@@ -104,16 +104,13 @@ func TestNextEpisodeSeriesMonitoring(t *testing.T) {
 }
 
 // The next episode follows the title's series type: a standard series flagged anime goes by season and number,
-// and one with no type and the flag goes by absolute number. An imported type does not override the title's.
+// and one with no type and the flag goes by absolute number.
 func TestNextEpisodeUsesTitleSeriesType(t *testing.T) {
 	st := openStore(t)
 	for _, q := range []string{
 		`UPDATE title SET series_type = 'standard', anime = 1 WHERE id = 1`,
 		`INSERT INTO episode_number (episode_id, title_id, scheme, season, number) VALUES
 			(1, 1, 'absolute', NULL, 2), (2, 1, 'absolute', NULL, 1), (3, 1, 'absolute', NULL, 3), (4, 1, 'absolute', NULL, 4)`,
-		`INSERT INTO arr_instance (name, flavour, policy_key, created_at, updated_at) VALUES ('sonarr', 'sonarr', 'tv-hd', 0, 0)`,
-		`INSERT INTO arr_title (instance, arr_id, kind, title_id, version_id, monitored, series_type)
-			VALUES ('sonarr', 1, 'series', 1, 1, 1, 'anime')`,
 		`INSERT INTO version_source (version_id, instance, arr_id) VALUES (1, 'sonarr', 1)`,
 	} {
 		if _, err := st.Writer().Exec(q); err != nil {
@@ -132,7 +129,7 @@ func TestNextEpisodeUsesTitleSeriesType(t *testing.T) {
 	if id := next(); id != 3 {
 		t.Errorf("standard series with the anime flag: next is episode %d, want 3 (season order)", id)
 	}
-	if _, err := st.Writer().Exec(`UPDATE title SET series_type = NULL WHERE id = 1; DELETE FROM arr_title`); err != nil {
+	if _, err := st.Writer().Exec(`UPDATE title SET series_type = NULL WHERE id = 1`); err != nil {
 		t.Fatal(err)
 	}
 	if id := next(); id != 1 {

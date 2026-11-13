@@ -59,7 +59,7 @@ func (e *env) choiceRows(titleID int64) map[string]string {
 func (e *env) tick() { e.now = e.now.Add(time.Minute) }
 
 // minAvailStates are the stored states of Alpha (title 1: movie-remux and movie-web, both on) the views are checked
-// over. Each starts from no imported value.
+// over.
 var minAvailStates = []struct {
 	name  string
 	setup func(e *env)
@@ -69,10 +69,12 @@ var minAvailStates = []struct {
 	{"nothing", func(e *env) {},
 		availability.Rule{Minimum: "released", Source: availability.SourceDefault},
 		availability.Rule{Minimum: "released", Source: availability.SourceDefault}},
+	// A value an arr import set, as migration 00125 copied it: the library's own row with updated_at 0.
 	{"imported announced", func(e *env) {
-		e.exec(`UPDATE arr_title SET minimum_availability = 'announced' WHERE version_id = 1`)
+		e.exec(`INSERT INTO arrview_title (view, title_id, minimum_availability, added_at, updated_at)
+			VALUES ('v/movie-remux', 1, 'announced', 0, 0)`)
 	},
-		availability.Rule{Minimum: "announced", Source: availability.SourceImported},
+		availability.Rule{Minimum: "announced", Source: availability.SourceChoice},
 		availability.Rule{Minimum: "released", Source: availability.SourceDefault}},
 	{"library row", func(e *env) {
 		e.exec(`INSERT INTO arrview_title (view, title_id, minimum_availability, added_at, updated_at)
@@ -99,12 +101,13 @@ var minAvailStates = []struct {
 		availability.Rule{Minimum: "released", Source: availability.SourceDefault},
 		availability.Rule{Minimum: "announced", Delay: 4, Source: availability.SourceDefault}},
 	{"libraries differ", func(e *env) {
-		e.exec(`UPDATE arr_title SET minimum_availability = 'inCinemas' WHERE version_id = 1`)
+		e.exec(`INSERT INTO arrview_title (view, title_id, minimum_availability, added_at, updated_at)
+			VALUES ('v/movie-remux', 1, 'inCinemas', 0, 0)`)
 		e.exec(`INSERT INTO arrview_title (view, title_id, minimum_availability, added_at, updated_at)
 			VALUES ('v/movie-web', 1, 'announced', 0, 5)`)
 		e.pol.Versions["movie-remux"].MinimumAvailability = "announced"
 	},
-		availability.Rule{Minimum: "inCinemas", Source: availability.SourceImported},
+		availability.Rule{Minimum: "inCinemas", Source: availability.SourceChoice},
 		availability.Rule{Minimum: "announced", Source: availability.SourceChoice}},
 }
 
@@ -120,7 +123,6 @@ var minAvailViews = []struct {
 
 func minAvailEnv(t *testing.T, setup func(e *env)) *env {
 	e := newEnv(t)
-	e.exec(`UPDATE arr_title SET minimum_availability = '' WHERE title_id = 1`)
 	setup(e)
 	e.start()
 	return e
@@ -378,15 +380,15 @@ func TestMinimumAvailabilityClientAdd(t *testing.T) {
 	t.Run("a held movie with one copy off", func(t *testing.T) {
 		t.Parallel()
 		e := minAvailEnv(t, func(e *env) {
-			e.exec(`UPDATE arr_title SET minimum_availability = 'inCinemas' WHERE version_id = 1`)
+			e.exec(`INSERT INTO arrview_title (view, title_id, minimum_availability, added_at, updated_at)
+				VALUES ('v/movie-remux', 1, 'inCinemas', 0, 0)`)
 			e.exec(`UPDATE version SET monitored = 0 WHERE id = 2`)
 		})
 		if tid := add(e, 101, "announced"); tid != 1 {
 			t.Fatalf("added title %d", tid)
 		}
 		got := e.libraryRules(1)
-		if got["movie-remux"] != (availability.Rule{Minimum: "inCinemas", Source: availability.SourceImported}) ||
-			got["movie-web"] != choice("announced") {
+		if got["movie-remux"] != choice("inCinemas") || got["movie-web"] != choice("announced") {
 			t.Errorf("rules %+v", got)
 		}
 		noCombined(e, 1)

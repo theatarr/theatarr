@@ -45,7 +45,7 @@ func TestPragmas(t *testing.T) {
 		check(db, "busy_timeout", "5000")
 	}
 	check(s.Reader(), "query_only", "1")
-	if _, err := s.Reader().ExecContext(ctx, "INSERT INTO arr_alias VALUES ('x', 'movie', 1, 1, 0)"); err == nil {
+	if _, err := s.Reader().ExecContext(ctx, "INSERT INTO gateway_backoff VALUES ('x' || 1, 1, 0, '', 0)"); err == nil {
 		t.Error("reader pool accepted a write")
 	}
 }
@@ -165,7 +165,7 @@ func TestWriteTxRollback(t *testing.T) {
 	ctx := context.Background()
 	boom := errors.New("boom")
 	err := s.WriteTx(ctx, func(tx *sql.Tx) error {
-		if _, err := tx.Exec(`INSERT INTO arr_alias VALUES ('i', 'movie', 1, 1, 0)`); err != nil {
+		if _, err := tx.Exec(`INSERT INTO gateway_backoff VALUES ('i' || 1, 1, 0, '', 0)`); err != nil {
 			return err
 		}
 		return boom
@@ -174,7 +174,7 @@ func TestWriteTxRollback(t *testing.T) {
 		t.Fatalf("got %v", err)
 	}
 	var n int
-	if err := s.Reader().QueryRow(`SELECT count(*) FROM arr_alias`).Scan(&n); err != nil {
+	if err := s.Reader().QueryRow(`SELECT count(*) FROM gateway_backoff`).Scan(&n); err != nil {
 		t.Fatal(err)
 	}
 	if n != 0 {
@@ -205,7 +205,7 @@ func TestConcurrentReadersDuringWrites(t *testing.T) {
 				default:
 				}
 				var n int
-				if err := s.Reader().QueryRowContext(ctx, `SELECT count(*) FROM arr_alias`).Scan(&n); err != nil {
+				if err := s.Reader().QueryRowContext(ctx, `SELECT count(*) FROM gateway_backoff`).Scan(&n); err != nil {
 					errs <- err
 					return
 				}
@@ -220,7 +220,7 @@ func TestConcurrentReadersDuringWrites(t *testing.T) {
 	}
 	for i := range writes {
 		err := s.WriteTx(ctx, func(tx *sql.Tx) error {
-			_, err := tx.Exec(`INSERT INTO arr_alias VALUES ('i', 'movie', ?, ?, 0)`, i, i)
+			_, err := tx.Exec(`INSERT INTO gateway_backoff VALUES ('i' || ?, ?, 0, '', 0)`, i, i)
 			return err
 		})
 		if err != nil {
@@ -237,7 +237,7 @@ func TestConcurrentReadersDuringWrites(t *testing.T) {
 		t.Error("no reads happened")
 	}
 	var n int
-	s.Reader().QueryRow(`SELECT count(*) FROM arr_alias`).Scan(&n)
+	s.Reader().QueryRow(`SELECT count(*) FROM gateway_backoff`).Scan(&n)
 	if n != writes {
 		t.Errorf("%d rows, want %d", n, writes)
 	}
@@ -254,7 +254,7 @@ func TestConcurrentWriters(t *testing.T) {
 			defer wg.Done()
 			for i := range 20 {
 				err := s.WriteTx(ctx, func(tx *sql.Tx) error {
-					_, err := tx.Exec(`INSERT INTO arr_alias VALUES ('i', 'movie', ?, 0, 0)`, g*100+i)
+					_, err := tx.Exec(`INSERT INTO gateway_backoff VALUES ('i' || ?, 0, 0, '', 0)`, g*100+i)
 					return err
 				})
 				if err != nil {
@@ -265,7 +265,7 @@ func TestConcurrentWriters(t *testing.T) {
 	}
 	wg.Wait()
 	var n int
-	s.Reader().QueryRow(`SELECT count(*) FROM arr_alias`).Scan(&n)
+	s.Reader().QueryRow(`SELECT count(*) FROM gateway_backoff`).Scan(&n)
 	if n != 200 {
 		t.Errorf("%d rows, want 200", n)
 	}
@@ -296,7 +296,7 @@ func TestWriteTxRetriesBusy(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err := tx.Exec(`INSERT INTO arr_alias VALUES ('other', 'movie', 1, 1, 0)`); err != nil {
+	if _, err := tx.Exec(`INSERT INTO gateway_backoff VALUES ('other' || 1, 1, 0, '', 0)`); err != nil {
 		t.Fatal(err)
 	}
 	released := make(chan struct{})
@@ -307,7 +307,7 @@ func TestWriteTxRetriesBusy(t *testing.T) {
 	}()
 
 	err = s.WriteTx(ctx, func(tx *sql.Tx) error {
-		_, err := tx.Exec(`INSERT INTO arr_alias VALUES ('mine', 'movie', 1, 1, 0)`)
+		_, err := tx.Exec(`INSERT INTO gateway_backoff VALUES ('mine' || 1, 1, 0, '', 0)`)
 		return err
 	})
 	<-released
@@ -318,7 +318,7 @@ func TestWriteTxRetriesBusy(t *testing.T) {
 		t.Error("expected at least one BUSY retry")
 	}
 	var n int
-	s.Reader().QueryRow(`SELECT count(*) FROM arr_alias`).Scan(&n)
+	s.Reader().QueryRow(`SELECT count(*) FROM gateway_backoff`).Scan(&n)
 	if n != 2 {
 		t.Errorf("%d rows, want 2", n)
 	}
@@ -356,7 +356,7 @@ func TestBackup(t *testing.T) {
 	ctx := context.Background()
 	for i := range 50 {
 		if err := s.WriteTx(ctx, func(tx *sql.Tx) error {
-			_, err := tx.Exec(`INSERT INTO arr_alias VALUES ('i', 'movie', ?, ?, 0)`, i, i)
+			_, err := tx.Exec(`INSERT INTO gateway_backoff VALUES ('i' || ?, ?, 0, '', 0)`, i, i)
 			return err
 		}); err != nil {
 			t.Fatal(err)
@@ -370,7 +370,7 @@ func TestBackup(t *testing.T) {
 		defer wg.Done()
 		for i := 50; i < 100; i++ {
 			s.WriteTx(ctx, func(tx *sql.Tx) error {
-				_, err := tx.Exec(`INSERT INTO arr_alias VALUES ('i', 'movie', ?, ?, 0)`, i, i)
+				_, err := tx.Exec(`INSERT INTO gateway_backoff VALUES ('i' || ?, ?, 0, '', 0)`, i, i)
 				return err
 			})
 		}
@@ -397,7 +397,7 @@ func TestBackup(t *testing.T) {
 		t.Fatalf("integrity_check: %q %v", ok, err)
 	}
 	var n int
-	b.Reader().QueryRow(`SELECT count(*) FROM arr_alias`).Scan(&n)
+	b.Reader().QueryRow(`SELECT count(*) FROM gateway_backoff`).Scan(&n)
 	if n != 100 {
 		t.Errorf("backup has %d rows, want 100", n)
 	}

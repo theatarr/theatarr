@@ -34,6 +34,7 @@ import (
 	"github.com/theatarr/theatarr/internal/metadata/anime/autobuild"
 	"github.com/theatarr/theatarr/internal/metadata/art"
 	"github.com/theatarr/theatarr/internal/metadata/tvrefresh"
+	"github.com/theatarr/theatarr/internal/migration"
 	"github.com/theatarr/theatarr/internal/notify"
 	"github.com/theatarr/theatarr/internal/pipeline"
 	"github.com/theatarr/theatarr/internal/policy"
@@ -246,6 +247,11 @@ func runServe(args []string) error {
 	}
 	if err != nil {
 		return err
+	}
+	// A stored profile or naming taken from an arr becomes a native copy before the settings load (migration 00125
+	// kept the arr snapshots it needs in arr_frozen_input). A no-op once nothing stored is taken from an arr.
+	if err := migration.FreezeStored(ctx, st, time.Now()); err != nil {
+		return fmt.Errorf("copy profiles taken from Sonarr/Radarr: %w", err)
 	}
 	// The error inbox (docs/design/errors.md): error-level log records, recovered panics, 5xx answers, jobs that failed
 	// for good and health checks turning error, deduplicated in error_event. Its writer outlives ctx, so what goes

@@ -185,9 +185,6 @@ func TestLoadSeriesVersion(t *testing.T) {
 			original_language, created_at, updated_at) VALUES (5, 'series', 'Isekai Story', 2021, 2002, 'standard', 1, 24,
 			'Japanese', 0, 0)`,
 		`INSERT INTO version (id, title_id, policy_key, created_at, updated_at) VALUES (8, 5, 'anime-tv', 0, 0)`,
-		`INSERT INTO arr_instance (name, flavour, policy_key, created_at, updated_at) VALUES ('sonarr_b', 'sonarr', 'anime-tv', 0, 0)`,
-		`INSERT INTO arr_title (instance, arr_id, kind, title_id, version_id, monitored, series_type)
-			VALUES ('sonarr_b', 1, 'series', 5, 8, 1, 'anime')`,
 		`INSERT INTO version_source (version_id, instance, arr_id) VALUES (8, 'sonarr_b', 1)`,
 		`INSERT INTO title_scene_mapping (title_id, source, name, scene_season_number) VALUES
 			(5, 'sonarr_b', 'Isekai Story S2', 2), (5, 'sonarr_c', 'Isekai Story S2', 2)`,

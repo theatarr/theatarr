@@ -186,12 +186,6 @@ func TestProviderAccountChangeDeletesOnlyItsContentRows(t *testing.T) {
 		(7, 'rd', 'rd-old', 0), (8, 'tb', 'tb-old', 0)`); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := db.Writer().Exec(`INSERT INTO arr_instance (name, flavour, policy_key, created_at, updated_at) VALUES ('radarr', 'radarr', 'movie-web', 0, 0)`); err != nil {
-		t.Fatal(err)
-	}
-	if _, err := db.Writer().Exec(`INSERT INTO arr_history (instance, arr_id, event_type, date_at, info_hash, protocol) VALUES ('radarr', 1, 'grabbed', 0, ?, 'torrent')`, strings.Repeat("c", 40)); err != nil {
-		t.Fatal(err)
-	}
 	if err := db.WriteTx(ctx, func(tx *sql.Tx) error {
 		return (&serveRuntime{Continuity: &providerContinuity{changed: []string{"rd"}}}).CommitSettings(ctx, tx)
 	}); err != nil {
@@ -199,11 +193,9 @@ func TestProviderAccountChangeDeletesOnlyItsContentRows(t *testing.T) {
 	}
 	if n := eCount(db, "SELECT COUNT(*) FROM content_provider WHERE provider = 'rd'"); n != 0 ||
 		eCount(db, "SELECT COUNT(*) FROM content_provider WHERE provider = 'tb'") != 1 ||
-		eCount(db, "SELECT COUNT(*) FROM content") != 2 ||
-		eCount(db, "SELECT COUNT(*) FROM arr_history") != 1 {
-		t.Fatalf("provider change removed unrelated rows: rd=%d tb=%d content=%d history=%d", n,
-			eCount(db, "SELECT COUNT(*) FROM content_provider WHERE provider = 'tb'"), eCount(db, "SELECT COUNT(*) FROM content"),
-			eCount(db, "SELECT COUNT(*) FROM arr_history"))
+		eCount(db, "SELECT COUNT(*) FROM content") != 2 {
+		t.Fatalf("provider change removed unrelated rows: rd=%d tb=%d content=%d", n,
+			eCount(db, "SELECT COUNT(*) FROM content_provider WHERE provider = 'tb'"), eCount(db, "SELECT COUNT(*) FROM content"))
 	}
 	if n := eCount(db, "SELECT provider_epoch FROM settings_runtime_state WHERE id = 1"); n != 1 {
 		t.Fatalf("provider account change epoch=%d, want 1", n)

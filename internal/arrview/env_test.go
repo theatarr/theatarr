@@ -151,18 +151,6 @@ func (e *env) seed() {
 		(3, 2, 'movie-web', 0, 'filled', ?, ?), (4, 3, 'anime-movie', 1, 'wanted', ?, ?),
 		(10, 10, 'tv-2160p', 1, 'wanted', ?, ?)`,
 		created, created, created, created, created, created, created, created, created, created)
-	e.exec(`INSERT INTO arr_instance (name, flavour, policy_key, created_at, updated_at) VALUES
-		('radarr_4k_debrid', 'radarr', 'movie-remux', ?, ?), ('radarr_4k_web', 'radarr', 'movie-web', ?, ?),
-		('sonarr_4k_debrid', 'sonarr', 'tv-2160p', ?, ?)`, now, now, now, now, now, now)
-	added := ms(time.Date(2025, 3, 4, 5, 6, 7, 0, time.UTC))
-	e.exec(`INSERT INTO arr_title (instance, arr_id, kind, title_id, version_id, monitored, quality_profile_id,
-		minimum_availability, status, path, root_folder_path, tags, arr_file_id, added_at) VALUES
-		('radarr_4k_debrid', 7, 'movie', 1, 1, 1, 9, 'released', 'released',
-		 '/media/movies/Alpha (2020)', '/media/movies', '[]', 501, ?),
-		('radarr_4k_web', 7, 'movie', 2, 3, 0, 4, 'released', 'released',
-		 '/media/movies-web/Beta (2021)', '/media/movies-web', '[]', 502, ?),
-		('sonarr_4k_debrid', 3, 'series', 10, 10, 1, 2, '', 'continuing',
-		 '/media/tv/The Show', '/media/tv', '[]', 0, ?)`, added, added, added)
 	e.exec(`INSERT INTO version_source (version_id, instance, arr_id) VALUES (1, 'radarr_4k_debrid', 7),
 		(3, 'radarr_4k_web', 7), (10, 'sonarr_4k_debrid', 3)`)
 	fileAdded := ms(time.Date(2025, 3, 5, 0, 0, 0, 0, time.UTC))

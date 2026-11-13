@@ -11,8 +11,8 @@ import (
 )
 
 // Retention of the journal's own rows. The entries themselves are read from their owners' tables and follow their
-// owners' retention (none of them is pruned except shadow_run, shadow_rss_seen and import_run, which the
-// journal does not read).
+// owners' retention (none of them is pruned except shadow_run and shadow_rss_seen, which the journal does not
+// read).
 //
 //   - journal_decision: in full for DecisionFull (180 days). After that a decision from which nothing was routed
 //     (no download and no plan from it) is deleted, and the others keep the chosen release and one runner-up

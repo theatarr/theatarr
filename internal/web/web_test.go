@@ -148,8 +148,6 @@ func (e *env) seed() {
 	e.exec(`INSERT INTO version (id, title_id, policy_key, state, created_at, updated_at) VALUES
 		(1, 1, 'movie-remux', 'cutoff_met', ?, ?), (2, 1, 'movie-web', 'wanted', ?, ?), (3, 2, 'movie-web', 'filled', ?, ?)`,
 		now, now, now, now, now, now)
-	e.exec(`INSERT INTO arr_instance (name, flavour, policy_key, created_at, updated_at) VALUES
-		('radarr_4k_debrid', 'radarr', 'movie-remux', ?, ?)`, now, now)
 	e.exec(`INSERT INTO version_source (version_id, instance, arr_id) VALUES (1, 'radarr_4k_debrid', 11)`)
 	e.exec(`INSERT INTO content (id, info_hash, name, state, first_seen_at, last_seen_at) VALUES
 		(1, ?, 'Alpha.2020.2160p.REMUX', 'unknown', ?, ?)`, hashA, now, now)

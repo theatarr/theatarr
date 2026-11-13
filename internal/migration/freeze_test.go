@@ -201,8 +201,7 @@ func TestFreezeStored(t *testing.T) {
 			t.Fatalf("%s: %v", q, err)
 		}
 	}
-	// The table part C's migration creates before it drops the arr tables.
-	exec(`CREATE TABLE arr_frozen_input (instance TEXT, flavour TEXT, body TEXT)`)
+	// arr_frozen_input as migration 00125 fills it from arr_policy_snapshot.
 	exec(`INSERT INTO arr_frozen_input (instance, flavour, body) VALUES ('radarr_4k_debrid', 'radarr', ?)`, string(body))
 	exec(`UPDATE setting_quality_profile SET config = '{"FromArr":"radarr_4k_debrid/remux + web 2160p","Propers":"do_not_prefer"}'
 		WHERE key = 'web-2160p'`)

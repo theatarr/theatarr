@@ -15,8 +15,6 @@ const (
 	// SourceChoice is an explicit choice: the newest arrview_title row with a value whose view is the library's own
 	// (v/<key>) or a configured view holding the library.
 	SourceChoice = "choice"
-	// SourceImported is the owning arr's value (arr_title).
-	SourceImported = "imported"
 	// SourceDefault is the library's minimum_availability, released when unset.
 	SourceDefault = "default"
 )
@@ -27,7 +25,7 @@ type Rule struct {
 	Minimum string
 	// Delay is the library's availability_delay in days.
 	Delay int
-	// Source is SourceChoice, SourceImported or SourceDefault.
+	// Source is SourceChoice or SourceDefault.
 	Source string
 }
 
@@ -43,7 +41,8 @@ type copyRef struct {
 }
 
 // Rules gives the availability rule of every version of the titles, by version id: the explicit choice, else the
-// imported value, else the library's default, else released. Movie and every Radarr view read it.
+// library's default, else released. (A value an arr import set was copied to the library's own choice by migrations
+// 00121 and 00125.) Movie and every Radarr view read it.
 func Rules(ctx context.Context, db queryer, pol *policy.Policy, titleIDs []int64) (map[int64]Rule, error) {
 	out := map[int64]Rule{}
 	for ids := range slices.Chunk(titleIDs, datesBatch) {
@@ -82,10 +81,9 @@ func rulesInto(ctx context.Context, db queryer, pol *policy.Policy, copies []cop
 	if len(copies) == 0 {
 		return nil
 	}
-	var titleArgs, versionArgs []any
+	var titleArgs []any
 	seen := map[int64]bool{}
 	for _, c := range copies {
-		versionArgs = append(versionArgs, c.versionID)
 		if !seen[c.titleID] {
 			seen[c.titleID] = true
 			titleArgs = append(titleArgs, c.titleID)
@@ -114,33 +112,6 @@ func rulesInto(ctx context.Context, db queryer, pol *policy.Policy, copies []cop
 	if err != nil {
 		return err
 	}
-	// Imported values: per version the first arr record (the owning instance, then by instance name), even when its
-	// value is empty.
-	imported := map[int64]string{}
-	rows, err = db.QueryContext(ctx, `SELECT v.id, a.minimum_availability
-		FROM version v JOIN arr_title a ON a.version_id = v.id
-		LEFT JOIN version_source vs ON vs.version_id = a.version_id AND vs.instance = a.instance AND vs.arr_id = a.arr_id
-		WHERE v.id IN (`+store.Placeholders(len(versionArgs))+`)
-		ORDER BY v.id, (vs.instance IS NOT NULL) DESC, a.instance`, versionArgs...)
-	if err != nil {
-		return err
-	}
-	for rows.Next() {
-		var id int64
-		var value string
-		if err := rows.Scan(&id, &value); err != nil {
-			rows.Close()
-			return err
-		}
-		if _, ok := imported[id]; !ok {
-			imported[id] = value
-		}
-	}
-	err = rows.Err()
-	rows.Close()
-	if err != nil {
-		return err
-	}
 	for _, c := range copies {
 		r := Rule{Minimum: "released", Source: SourceDefault}
 		if vp := pol.Versions[c.key]; vp != nil {
@@ -148,9 +119,6 @@ func rulesInto(ctx context.Context, db queryer, pol *policy.Policy, copies []cop
 			if vp.MinimumAvailability != "" {
 				r.Minimum = vp.MinimumAvailability
 			}
-		}
-		if v := imported[c.versionID]; v != "" {
-			r.Minimum, r.Source = v, SourceImported
 		}
 		for _, ch := range choices[c.titleID] {
 			v := pol.Views[ch.view]

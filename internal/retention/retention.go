@@ -23,9 +23,8 @@
 //   - new and seen error inbox rows (error_event), and resolved or ignored ones seen within the runs window.
 //
 // Not pruned, by design: router_offer (one row per version, title and release: deleting one re-offers that release
-// to the other libraries at the next sweep), notify_event (the once-only memory of scanned events), arr_history (a mirror
-// of the arrs' own history that decisions read) and imported downloads (offer sources and the journal's routed
-// decisions read them; they grow with imports, not with polls).
+// to the other libraries at the next sweep), notify_event (the once-only memory of scanned events) and imported
+// downloads (offer sources and the journal's routed decisions read them; they grow with imports, not with polls).
 package retention
 
 import (

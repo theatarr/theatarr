@@ -107,9 +107,6 @@ func (e *env) seed() {
 				VALUES (?, 3, ?, ?, 50, ?, ?)`, s*100+i, s, i, now, now)
 		}
 	}
-	e.exec(`INSERT INTO arr_instance (name, flavour, policy_key, created_at, updated_at) VALUES
-		('radarr_4k_debrid', 'radarr', 'movie-remux', ?, ?), ('sonarr_4k_debrid', 'sonarr', 'tv-2160p', ?, ?)`,
-		now, now, now, now)
 }
 
 func (e *env) list(f Filter) *Page {

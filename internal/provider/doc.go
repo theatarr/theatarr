@@ -25,7 +25,7 @@
 //     present (on a provider, referenced by history, an arr file or a link), unreferenced (on a provider, referenced
 //     by nothing), absent (on no provider, and every configured provider listed completely), unknown (not every
 //     provider listed yet), gone (left alone unless a provider has it);
-//   - provider_sync_run: one row per provider and run, with the JSON summary, like import_run.
+//   - provider_sync_run: one row per provider and run, with the JSON summary.
 //
 // A re-run with nothing changed upstream changes no row besides its run rows. A list that fails part way changes
 // nothing for that provider. [JobKind] runs a sync from the job queue.

@@ -11,7 +11,6 @@ func TestCheckNamesUsesSourceSeriesType(t *testing.T) {
 	e.pol.Versions["tv"].Naming.Anime = "{Series Title} - S{season:00}E{episode:00} [{Quality Full}] Anime"
 	// The title's type names the files, not the owning arr's.
 	e.exec(`UPDATE title SET series_type = 'anime' WHERE id = 2`)
-	e.exec(`UPDATE arr_title SET series_type = 'standard' WHERE instance = 'sonarr'`)
 	p := filepath.Join(e.shows, "Show", "Season 01", "Show - S01E01 [WEBDL-1080p] Anime.mkv")
 	e.arrFile(1, "sonarr", 20, 2, p, "", "WEBDL-1080p", 201)
 	nc := e.lib.checkNames(e.ctx, "tv", e.shows)

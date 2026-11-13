@@ -34,25 +34,21 @@ func (e *env) effectiveSeriesType(titleID int64) string {
 // neither the effective type nor what is stored, whatever the stored state.
 func TestSeriesTypeEchoChangesNothing(t *testing.T) {
 	for _, tc := range []struct {
-		name     string
-		stored   any // title.series_type
-		flag     int
-		imported string // arr_title.series_type
-		want     string
+		name   string
+		stored any // title.series_type
+		flag   int
+		want   string
 	}{
-		{"standard with the anime flag", "standard", 1, "", "standard"},
-		{"anime without the flag", "anime", 0, "", "anime"},
-		{"daily", "daily", 0, "", "daily"},
-		{"daily over another imported type", "daily", 0, "anime", "daily"},
-		{"empty with the flag", nil, 1, "", "anime"},
-		{"empty without the flag", nil, 0, "", "standard"},
-		{"empty with an imported type", nil, 0, "daily", "standard"},
+		{"standard with the anime flag", "standard", 1, "standard"},
+		{"anime without the flag", "anime", 0, "anime"},
+		{"daily", "daily", 0, "daily"},
+		{"empty with the flag", nil, 1, "anime"},
+		{"empty without the flag", nil, 0, "standard"},
 	} {
 		for _, base := range seriesTypeViews {
 			t.Run(tc.name+" "+base, func(t *testing.T) {
 				e := seriesTypeEnv(t)
 				e.exec(`UPDATE title SET series_type = ?, anime = ? WHERE id = 10`, tc.stored, tc.flag)
-				e.exec(`UPDATE arr_title SET series_type = ? WHERE title_id = 10`, tc.imported)
 				if got := e.effectiveSeriesType(10); got != tc.want {
 					t.Fatalf("effective type %q, want %q", got, tc.want)
 				}
@@ -86,13 +82,12 @@ func TestSeriesTypeEchoChangesNothing(t *testing.T) {
 }
 
 // A type other than the one shown is an edit of the title's type from any view: every view shows it and decide
-// loads it for an imported copy, whose arr had another type.
+// loads it for an imported copy.
 func TestSeriesTypeEdit(t *testing.T) {
 	for _, base := range seriesTypeViews {
 		t.Run(base, func(t *testing.T) {
 			e := seriesTypeEnv(t)
 			e.exec(`UPDATE title SET series_type = 'standard' WHERE id = 10`)
-			e.exec(`UPDATE arr_title SET series_type = 'standard' WHERE title_id = 10`)
 			path := fmt.Sprintf("%s/api/v3/series/%d", base, IDBase+10)
 			var s, put map[string]any
 			e.call("GET", path, nil, 200, &s)
@@ -118,7 +113,7 @@ func TestSeriesTypeEdit(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			// Version 10 is the imported copy (sonarr_4k_debrid, type standard there).
+			// Version 10 is the imported copy (sonarr_4k_debrid).
 			if err := decide.LoadSeriesVersion(ctx, e.st.Reader(), &title, 10); err != nil {
 				t.Fatal(err)
 			}

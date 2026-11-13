@@ -108,8 +108,6 @@ func newManageEnv(t *testing.T, mutate func(*policy.Policy)) *manageEnv {
 // S01E01 and S01E02 have files below the cutoff; an RSS read upgrades S01E01.
 // Alpha's movie-remux has a file below the cutoff, and a search after it found an upgrade.
 func (e *manageEnv) seedManage() {
-	e.exec(`INSERT INTO arr_instance (name, flavour, policy_key, created_at, updated_at) VALUES
-		('sonarr_4k_debrid', 'sonarr', 'tv-2160p', 0, 0)`)
 	e.exec(`INSERT INTO version_source (version_id, instance, arr_id) VALUES (10, 'sonarr_4k_debrid', 77)`)
 	e.exec(`UPDATE episode SET air_date = '2020-01-01'`)
 	airAtMidnight(e.exec)

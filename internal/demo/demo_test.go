@@ -827,8 +827,7 @@ func TestDemoTwoCopies(t *testing.T) {
 			AND o.title_id = t.id JOIN version_source s ON s.version_id = o.id WHERE v.title_id = t.id) = 1)`); n != 0 {
 		t.Errorf("%d series without an arr-fed copy and Theatarr's copy of it", n)
 	}
-	if n := count(`SELECT COUNT(*) FROM version_file vf JOIN (SELECT c.id AS version_id, o.id AS follows_id FROM version c JOIN version o ON o.title_id = c.title_id AND c.policy_key = o.policy_key || '-theatarr') f ON f.version_id = vf.version_id`) +
-		count(`SELECT COUNT(*) FROM arr_title a JOIN (SELECT c.id AS version_id, o.id AS follows_id FROM version c JOIN version o ON o.title_id = c.title_id AND c.policy_key = o.policy_key || '-theatarr') f ON f.version_id = a.version_id`); n != 0 {
+	if n := count(`SELECT COUNT(*) FROM version_file vf JOIN (SELECT c.id AS version_id, o.id AS follows_id FROM version c JOIN version o ON o.title_id = c.title_id AND c.policy_key = o.policy_key || '-theatarr') f ON f.version_id = vf.version_id`); n != 0 {
 		t.Errorf("Theatarr's copies hold %d arr records", n)
 	}
 	// Theatarr's copies start from the arr's files (adopted links to the same mount targets).

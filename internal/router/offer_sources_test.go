@@ -457,7 +457,7 @@ func TestOfferAdoptedSourceStored(t *testing.T) {
 }
 
 // TestAdoptedLinkWithoutStoredSourceNotOffered: an adopted link with no stored source, or one stored for the arr file
-// it was adopted from before a refresh moved it, has no indexer and is not offered; the arr history is not read.
+// it was adopted from before a refresh moved it, has no indexer and is not offered.
 func TestAdoptedLinkWithoutStoredSourceNotOffered(t *testing.T) {
 	t.Parallel()
 	for _, c := range []string{"none", "moved"} {
@@ -465,11 +465,6 @@ func TestAdoptedLinkWithoutStoredSourceNotOffered(t *testing.T) {
 			hash := strings.Repeat("e", 40)
 			e := newOfferEnv(t)
 			e.sourceFile("adopted", hash)
-			e.exec(`INSERT INTO arr_instance (name, flavour, policy_key, created_at, updated_at)
-				VALUES ('radarr', 'radarr', 'movie-remux', 0, 0)`)
-			e.exec(`INSERT INTO arr_history (instance, arr_id, event_type, date_at, title_id, version_id, download_id,
-				info_hash, source_title, data) VALUES ('radarr', 1, 'grabbed', 0, 1, 10, 'torrent-1', ?,
-				'Movie.2001.2160p.WEB-DL-GRP', '{"indexer":"dmm","importedPath":"/arr/Movie.mkv"}')`, hash)
 			if c == "moved" {
 				e.storeSource(hash, "dmm")
 				e.exec(`UPDATE link SET adopted_from = 'radarr /arr/Movie.2.mkv' WHERE id = 1`)
