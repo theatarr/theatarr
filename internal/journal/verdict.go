@@ -234,7 +234,7 @@ func (j *Journal) wrong(ctx context.Context, tx *sql.Tx, e *Entry, hash, reason 
 	err := tx.QueryRowContext(ctx, `SELECT id FROM version WHERE title_id = ? AND policy_key = ?`, e.Title.ID,
 		e.Version).Scan(&versionID)
 	if errors.Is(err, sql.ErrNoRows) || j.q == nil {
-		v.Note += "; no re-search queued (no version row or no job queue); the wanted loop searches later"
+		v.Note += "; no re-search queued (no version row or no job queue)"
 		return nil
 	}
 	if err != nil {
@@ -249,7 +249,7 @@ func (j *Journal) wrong(ctx context.Context, tx *sql.Tx, e *Entry, hash, reason 
 		return err
 	}
 	v.ResearchJob = job
-	v.Note += fmt.Sprintf("; re-search queued (job %d; the acquirer applies router.wanted pacing)", job)
+	v.Note += fmt.Sprintf("; re-search queued (job %d; it starts under the hourly search limit)", job)
 	return nil
 }
 

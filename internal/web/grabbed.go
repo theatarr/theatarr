@@ -60,6 +60,11 @@ type runOrigin struct {
 // words says what started the run, in plain words.
 func (o runOrigin) words() string {
 	switch {
+	case o.research == "asked":
+		// The search schedule's Search now row (Wanted page).
+		return "Search now"
+	case o.research == "new":
+		return "retry of a new release"
 	case o.research != "":
 		return "search again after a failure"
 	case o.source == "wanted" && o.reason == "cutoff":

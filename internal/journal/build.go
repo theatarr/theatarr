@@ -473,8 +473,8 @@ func (b *builder) downloadAfter(e *Entry, d *dlRow, sub string) error {
 
 func (b *builder) researchAfter(e *Entry, titleID int64, version string, after int64,
 	add func(sql.NullInt64, string, string, string)) error {
-	rows, err := b.db.QueryContext(b.ctx, `SELECT id, created_at, state, research, message FROM acquire_run
-		WHERE title_id = ? AND version_key = ? AND research IS NOT NULL AND research <> '' AND created_at >= ?
+	rows, err := b.db.QueryContext(b.ctx, `SELECT id, created_at, state, research, message FROM acquire_run r
+		WHERE title_id = ? AND version_key = ? AND `+failureRunSQL+` AND created_at >= ?
 		ORDER BY created_at LIMIT 5`, titleID, version, after)
 	if err != nil {
 		return err
@@ -738,7 +738,7 @@ func (b *builder) run(e *Entry, rest string) error {
 	e.QueuedPolicyRev = queuedRev
 	e.Source = "theatarr"
 	e.Summary = fmt.Sprintf("%s search of %s: %s: %s", source, target, state, cleanMessage(message))
-	if research.String != "" {
+	if failureResearch(research.String) {
 		e.Summary = fmt.Sprintf("re-search (%s) of %s: %s: %s", research.String, target, state, cleanMessage(message))
 	}
 	r, err := b.snapshotFor("acquire:"+rest, e.Title.ID, e.Version, created+24*3600*1000)

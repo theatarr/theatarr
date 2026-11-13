@@ -225,8 +225,17 @@ func (j *Journal) hasOwnTables(ctx context.Context) bool {
 	return ok
 }
 
+// failureRunSQL says an acquire run (r) is a re-search after a failure: its research is a failure reason. The
+// search schedule also marks Search now (asked) and the retries of a new release (new); those are ordinary searches.
+const failureRunSQL = `COALESCE(r.research, '') NOT IN ('', 'asked', 'new')`
+
+// failureResearch is failureRunSQL for one run's research.
+func failureResearch(research string) bool {
+	return research != "" && research != "asked" && research != "new"
+}
+
 const runHeadSQL = `SELECT 'run:' || r.id AS id, r.created_at AS at, r.title_id, r.version_key,
-	CASE WHEN r.research IS NOT NULL AND r.research <> '' THEN 'research' ELSE 'search' END AS kind FROM acquire_run r`
+	CASE WHEN ` + failureRunSQL + ` THEN 'research' ELSE 'search' END AS kind FROM acquire_run r`
 
 // headParts are every source's entries as (id, at, title_id, version_key, kind), by id prefix.
 var headParts = []struct{ prefix, sql string }{
@@ -252,7 +261,7 @@ FROM library_import li JOIN download d ON d.id = li.download_id`},
 	COALESCE(la.version_key, ''), 'link'
 FROM library_action la WHERE la.kind IN ('link', 'replace', 'relink', 'dead')`},
 	{"bl", `SELECT 'bl:' || b.rowid, b.created_at, COALESCE(b.title_id, 0), b.version_key, 'blocklist' FROM router_blocklist b`},
-	{"run", runHeadSQL + ` WHERE (r.research IS NOT NULL AND r.research <> '') OR r.state IN ('nothing', 'failed')`},
+	{"run", runHeadSQL + ` WHERE ` + failureRunSQL + ` OR r.state IN ('nothing', 'failed')`},
 	{"plan", `SELECT 'plan:' || p.id, p.created_at, p.title_id, p.version_key, 'plan' FROM router_plan p`},
 }
 

@@ -9,18 +9,17 @@ import (
 	"slices"
 	"strconv"
 	"strings"
-	"time"
 
 	"github.com/theatarr/theatarr/internal/jobs"
 	"github.com/theatarr/theatarr/internal/policy"
 	"github.com/theatarr/theatarr/internal/store"
 )
 
-// Re-search after a failure (docs/design/router.md "Re-search after a failure"). When a download fails for a reason the
+// Re-search after a failure (docs/design/router.md "The search schedule"). When a download fails for a reason the
 // arrs and decypharr answer with "blocklist and search again", the router asks the acquirer to search that title
-// (or those episodes) at once instead of waiting for the wanted loop: job JobResearch, handled by internal/acquire,
-// which skips it when the version is not active or router.enabled is false, and counts it against
-// router.wanted.per_hour. The router only enqueues; it never searches.
+// (or those episodes) again: job JobResearch, handled by internal/acquire, which makes the item due at once in the
+// search schedule (skipped when the version is not active), under router.wanted.per_hour. The router only enqueues;
+// it never searches.
 //
 // The failures:
 //   - ReasonExhausted: every candidate of a route was a miss on every provider (uncached, refused);
@@ -32,7 +31,6 @@ import (
 // A release a person added by magnet or hash (policy.ManualIndexer) is the exception to both: its failure starts no
 // search (manualAdd).
 //
-// ReasonFresh is the acquirer's own: the follow-ups it queues after a ReasonExhausted re-search for new content.
 // ReasonDeadLink is the library's: a relink sweep marked an active version's link dead (no provider holds its file).
 // Its route starts no ReasonExhausted re-search (deadLinkRoute).
 
@@ -47,9 +45,7 @@ const (
 	ReasonLibrary      = BlocklistLibrary
 	ReasonProvider     = BlocklistProvider
 	ReasonReadyTimeout = BlocklistReadyTimeout
-	// ReasonFresh: a follow-up search for new content that missed everywhere (acquire, "Follow-ups").
-	ReasonFresh = "fresh"
-	// ReasonDeadLink: one search for the title or episodes of a link relink marked dead (acquire, "Follow-ups").
+	// ReasonDeadLink: one search for the title or episodes of a link relink marked dead.
 	ReasonDeadLink = "dead_link"
 )
 
@@ -67,18 +63,10 @@ type ResearchRequest struct {
 	Reason   string  `json:"reason"`
 	// DownloadID is the failed download, when one.
 	DownloadID int64 `json:"download_id,omitempty"`
-	// Step and MissedAt place a ReasonFresh follow-up in its schedule: the nth, from the miss at MissedAt.
-	Step     int       `json:"step,omitempty"`
-	MissedAt time.Time `json:"missed_at,omitzero"`
-	// RetryNew marks a request of a follow-up chain started by an empty search under router.wanted.retry_new
-	// (internal/acquire): a step of the chain, or one of its searches asked for again after no indexer answered.
-	// It does nothing unless that switch is on, and turning the switch off cancels it while queued. A chain started
-	// by a route that missed everywhere has it unset. Left out when unset.
-	RetryNew bool `json:"retry_new,omitempty"`
 }
 
 // research enqueues a re-search, unless the router may not write for the version (shadow, or the kill switch off) or
-// has no job queue. Failures are logged: a re-search is an optimisation, the wanted loop searches later anyway.
+// has no job queue. Failures are logged.
 func (r *Router) research(ctx context.Context, titleID, versionID int64, version string, episodes []int64,
 	reason string, dl int64) bool {
 	if _, err := r.Gate(version); err != nil || r.q == nil || titleID == 0 || versionID == 0 {

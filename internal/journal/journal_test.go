@@ -242,6 +242,35 @@ func TestDownloadEntries(t *testing.T) {
 	}
 }
 
+// Runs the search schedule marks asked (Search now) or new (a retry of a new release) are ordinary searches: they are
+// not listed as re-searches after a failed download, and their own entries are searches.
+func TestScheduledRunsAreNotFailureResearches(t *testing.T) {
+	e := newEnv(t)
+	e.seedRoute()
+	at := testNow.Add(-2 * time.Hour)
+	e.exec(`INSERT INTO acquire_run (id, source, title_id, version_id, version_key, target, state, research, message,
+		created_at, updated_at) VALUES (9, 'wanted', 1, 1, 'movie-remux', 'movie', 'nothing', 'asked', 'nothing found', ?, ?),
+		(10, 'wanted', 1, 1, 'movie-remux', 'movie', 'nothing', 'new', 'nothing found', ?, ?)`,
+		msOf(at.Add(20*time.Minute)), msOf(at.Add(21*time.Minute)), msOf(at.Add(30*time.Minute)), msOf(at.Add(31*time.Minute)))
+	var refs []string
+	for _, ev := range e.get("dl:1").After {
+		if ev.Kind == "research" {
+			refs = append(refs, ev.Ref)
+		}
+	}
+	if !slices.Equal(refs, []string{"run:8"}) {
+		t.Errorf("re-searches after the failure: %v", refs)
+	}
+	for _, id := range []string{"run:9", "run:10"} {
+		if g := e.get(id); g.Kind != KindSearch || strings.Contains(g.Summary, "re-search") {
+			t.Errorf("%s: %s %q", id, g.Kind, g.Summary)
+		}
+	}
+	if g := e.get("run:8"); g.Kind != KindResearch {
+		t.Errorf("run:8: %s", g.Kind)
+	}
+}
+
 func TestSnapshotCandidates(t *testing.T) {
 	var ranked []*decide.Decision
 	for i := range 12 {
