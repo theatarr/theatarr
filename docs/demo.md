@@ -25,7 +25,7 @@ Then open `http://127.0.0.1:7700` and sign in with any demo account below.
 | Flag | Default | What |
 |---|---|---|
 | `-db FILE` | required | The database to create. An existing file is refused unless `-force` |
-| `-policy DIR` | `$THEATARR_POLICY`, else `examples/policy` | The policy Theatarr will serve with: its versions, library roots, arr instances and providers shape the data |
+| `-policy DIR` | `$THEATARR_POLICY`, else `examples/policy` | The policy Theatarr will serve with: its versions, library roots and providers shape the data |
 | `-seed N` | 1 | Picks the generated details (dates, sizes, hashes, groups) |
 | `-now T` | the current minute | The anchor, `YYYY-MM-DD` (noon UTC) or RFC 3339. Titles are added before it; release and air dates fall around it; downloads are minutes old |
 | `-art` | true | Write generated posters and backdrops into the policy's image cache |
@@ -38,7 +38,7 @@ look minutes old.
 ### Network off
 
 The demo needs no network, and it should have none: the example policy names real hosts (indexers, debrid APIs,
-TMDb, the arr instances it imports from), and `theatarr serve` tries them on its schedules. Offline, each attempt fails
+TMDb), and `theatarr serve` tries them on its schedules. Offline, each attempt fails
 at once and nothing leaves the machine. Two ways:
 
 - **Linux network namespace** (loopback only; the browser runs in the same namespace):
@@ -64,8 +64,7 @@ at once and nothing leaves the machine. Two ways:
   ```
 
 What an offline `theatarr serve` shows, and why: **VPN guard off** in the top bar (the example policy ships the egress check off),
-`arr.import` and `shadow.rss` jobs failing after a few minutes (the example policy's arr keys are not set, and the
-indexers cannot be reached offline), and a few warnings in the log (the mount, the zurg log, TRaSH formats).
+`shadow.rss` jobs failing after a few minutes (the indexers cannot be reached offline), and a few warnings in the log (the mount, the zurg log, TRaSH formats).
 Everything else is the seeded data. The seeder itself needs no network, so `demo seed` runs with `--network none` too.
 
 ### Artwork

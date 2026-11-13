@@ -57,6 +57,16 @@ running it again brings series' monitoring and files over. To keep adding titles
 If the instance keeps running and upgrades a file after the import, Theatarr's link to the old file stops working
 and Theatarr looks for that title again.
 
+### The periodic import is gone
+
+Theatarr no longer keeps a library in step with a Sonarr/Radarr instance: the `import` settings section,
+`theatarr import-arr` and the Instances page are gone. A library an instance filled keeps its titles, monitoring and
+links, but nothing new arrives from the instance; use a list sync or the one-time import. A quality profile or
+naming taken from an instance (`from_arr`) becomes a stored copy on upgrade, with a message on **System › Errors**
+asking you to check it; one that cannot be copied leaves its library Watch only, with a message saying so. Views no
+longer answer the old instances' ids (`alias_from`): a client that kept them (Seerr) gets 404 until its Radarr or
+Sonarr scan stores Theatarr's ids. Policy files with `import:`, `from_arr` or `alias_from` are refused.
+
 ## Who this is for
 
 The staged path below, with Watch-only libraries beside the arrs, is the older one; most installs only need the
@@ -66,10 +76,9 @@ Go one library at a time: every step is a setting you change and confirm.
 
 Anyone with a running arr whose libraries should move to Theatarr. A fresh library with no arr behind it does not
 need this guide: it only needs the check and the switches ([quickstart.md](quickstart.md#9-go-live-deliberately)), or
-starts live from Setup: on an install with no `import.arr` instance, **Create library and start downloading**
+starts live from Setup: **Create library and start downloading**
 creates the library **Live** with its downloads on and turns **Pause** off (**Allow new downloads** and **Write
-library links** on) in one confirmed save ([quickstart.md](quickstart.md#6-a-first-library)). An install that has an arr instance is never
-offered that button, and the server refuses the request.
+library links** on) in one confirmed save ([quickstart.md](quickstart.md#6-a-first-library)).
 
 | Stage | What you do | Where | How to undo |
 |---|---|---|---|
@@ -209,8 +218,7 @@ Keep Prowlarr while any library still uses one of its feeds.
    roots available for a rollback; don't point K at F's folders.
 5. When every client has moved, stop new arr searches, drain its queue, disable its download clients and stop the
    arr. Keep its database, configuration and roots through the rollback window.
-6. Remove the arr import entry under **Advanced › Sonarr/Radarr migration**. Check that K's monitoring and requests
-   stand on their own. Run `theatarr preflight` and a request and playback test again.
+6. Check that K's monitoring and requests stand on their own. Run `theatarr preflight` and a request and playback test again.
 
 ## 6. Stop switches and rollback
 

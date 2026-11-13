@@ -329,8 +329,8 @@ A client that pushes releases and imports its own downloads (for example a Usene
   - It returns the plan, or a dry run with the reason while the library gate is closed.
 - **Scoring**: `parse` and `release` work as in the arrs. `POST /api/theatarr/v1/decide` gives the full decision
   (rejections with reasons, formats with scores, upgrade verdict) for any name and version.
-- **Ids**: movie ids are `1,000,000 + title id` (replaced instances' ids still answer through `alias_from` on the
-  configured views only, not on `/v/` views). Stored rows with old ids need a one-time mapping (`GET movie?tmdbId=`).
+- **Ids**: movie ids are `1,000,000 + title id`; a replaced instance's id answers 404. Stored rows with old ids need a
+  one-time mapping (`GET movie?tmdbId=`).
 - **Usenet search** stays on Prowlarr (`/api/v1/search`): Theatarr does not serve it.
 - **Health**: `GET health` lists the shadow-mode notice and the router-disabled warning (`RouterDisabledCheck`).
   Indexer back-offs are in `GET /api/theatarr/v1/gateway`, not in "Indexers unavailable due to failures".

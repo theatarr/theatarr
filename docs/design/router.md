@@ -1355,7 +1355,7 @@ default; `-apply` writes only to the database (no provider call).
 
 ## Triggers (migrations 00016 and 00033)
 
-What hands work to the router in `theatarr serve`. Code: `internal/acquire`, `internal/shadow/route.go`,
+What hands work to the router in `theatarr serve`. Code: `internal/acquire`, `internal/acquire/rss`,
 `internal/arrview/command.go`, `internal/router/hooks.go`.
 
 Movie searches (including search on add, wanted, re-search and version fanout), RSS and release grabs enforce minimum

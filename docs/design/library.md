@@ -94,10 +94,8 @@ library:
 - Validation: mount path and trash dir required once enabled; roots and trash absolute, never overlapping the mount,
   the trash never inside a root (Plex would scan it); `versions[k].library` must be under one of its roots; a Plex
   section needs `library.plex`.
-- `versions[k].naming` gained `specials`, `daily`, `anime`, `colon`, `multi_episode` and **`from_arr: <instance>`**,
-  which takes the whole naming config and the quality definition titles from that `import.arr` instance (GET
-  `config/naming` and `qualitydefinition`, stored in `library_naming` by `theatarr library naming-sync` and daily in
-  `theatarr serve`). `from_arr` keeps Theatarr's names equal to the arr's, which a move from an arr needs.
+- `versions[k].naming` gained `specials`, `daily`, `anime`, `colon` and `multi_episode`. A naming taken from an arr
+  (`from_arr`) is gone; on upgrade a stored one becomes a native copy (decide.md, "Frozen arr profiles").
 - `library.plex.url` is an outbound host; the gateway has a new target class `plex` (`plex:server`), with the optional
   budget. The token goes in the `X-Plex-Token` header, never the URL.
 - `library.mount.zurg_log` is zurg's log, read-only: an absolute file path, or an `http(s)://` URL of zurg's `/logs`
@@ -427,10 +425,9 @@ revision, e.g. a raised profile cutoff), recomputes the states of active version
 (`RecomputeLinkStates`): Theatarr's links and imported arr files alike, a movie by its current file, an episode by its file;
 only `filled` and `cutoff_met` move, and only between each other. An arr file imported as `cutoff_met` under the
 arr's profile thus reaches the cutoff sweep once Theatarr's profile asks for more (`TestRecomputeJudgesArrFilesAfterProfileChange`). A series version is judged whatever its own state: one aired
-episode without a file makes it `wanted` while its other episodes' states still follow the profile. A version an arr
-still manages (`import.arr`) keeps the arr's verdict on the arr's files; Theatarr's links in it are judged. After a settings
-change only the versions whose judging settings changed (the version, its profile, the formats and format sets, the
-managing arrs) are recomputed (`TestRecomputeAfterSaveOnlyChangedVersions`). It is idempotent and
+episode without a file makes it `wanted` while its other episodes' states still follow the profile. After a settings
+change only the versions whose judging settings changed (the version, its profile, the formats and format sets) are
+recomputed (`TestRecomputeAfterSaveOnlyChangedVersions`). It is idempotent and
 touches nothing of a shadow version.
 
 **The arr's file on an upgrade.** When an import moves an arr file aside (its `version_file` path), the row and its
@@ -916,7 +913,6 @@ move queues debounced Plex partial scans of the old and the new folder, also whe
 theatarr library dry-run -download ID [-json]   plan one import: files, probes, guard, link paths, what it moves aside
 theatarr library verify [-version KEY] [-json]  read-only scan of a version's roots
 theatarr library relink [-version KEY] [-dry-run] [-json]
-theatarr library naming-sync                    read config/naming and qualitydefinition from the from_arr instances
 ```
 
 All take `-db` and `-env-file` (settings come from the database). `dry-run` and `verify` write nothing at all, to disk
@@ -952,7 +948,7 @@ release title on read (languages and flags absent from both the name and stored 
 | Rename adopted links | Never renamed; an import reuses the title's existing folder | A renamed folder is a new item to Plex |
 
 **Turning the library on.** The container needs `/mnt/debrid` read-only and the library roots plus the trash read-write
-at the same paths Plex uses; then `library.enabled: true`, `trash.dir`, `naming.from_arr` per version, and
+at the same paths Plex uses; then `library.enabled: true`, `trash.dir`, the naming per version, and
 `theatarr library verify` before switching a version to active.
 
 ## SeaDex standing at import

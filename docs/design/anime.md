@@ -532,10 +532,8 @@ What a live build needs:
 
    The lists' URLs are taken from the policy; AniList's endpoint too. manami's database is archived; its last
    release still downloads, and a continuation URL can replace it here.
-2. A recent `theatarr import-arr` of the anime Sonarr: its episodes are the fallback TVDB backend and the
-   "in Sonarr" check.
-3. Optionally the TMDb key (`metadata.sources.tmdb`) for the TMDb checks.
-4. Run, for example, `theatarr anime build -franchise re-zero -env-file ... -db ... -out <dir> -save`.
+2. Optionally the TMDb key (`metadata.sources.tmdb`) for the TMDb checks.
+3. Run, for example, `theatarr anime build -franchise re-zero -env-file ... -db ... -out <dir> -save`.
    The first run downloads about 90 MB of lists (cached a day); each franchise then takes AniList batches 2.1 s
    apart (5–15 requests) and Kitsu at 1/s.
 

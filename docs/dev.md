@@ -57,7 +57,7 @@ subcommands; each one takes `-h`.
 | `internal/policy` | YAML policy loader and validation |
 | `internal/settings` | The settings database: validated sections, credentials, generations, audit, and runtime generation swaps ([design/settings.md](design/settings.md)) |
 | `internal/secrets` | Shared rules for showing and restoring credentials (masking, webhook URLs) |
-| `internal/migration` | The arr profile and naming converter (`freeze.go`); kept for phase D's `from_arr` decision |
+| `internal/migration` | The arr profile and naming converter (`freeze.go`) and `FreezeStored`, which turns a stored profile or naming taken from an arr into a native copy |
 | `internal/trashbundle` | The TRaSH-Guides snapshot the binary embeds for the profile presets (one pinned commit, MIT). `scripts/update-trash-bundle.sh <checkout>` refreshes it before a release; update the commit in `NOTICE` with it |
 | `internal/recyclarr` | Recyclarr configurations and arr custom formats into Theatarr formats and profiles |
 | `internal/server` | HTTP server, health, metrics, logging setup |
@@ -81,9 +81,8 @@ subcommands; each one takes `-h`.
 | `internal/e2e` | Active pipeline tests over local HTTP fixtures and temporary mount and library roots |
 | `internal/router/routertest` | Test helper: a real router over logging fake adders |
 | `internal/acquire/rss` | The RSS sync for Live libraries ([design/rss.md](design/rss.md)) |
-| `internal/shadow` | The periodic arr import (`arr.import`) |
 | `internal/catalog` | The one add path for titles and libraries: find or create the title, turn the chosen libraries on, season monitoring |
-| `internal/importarr`, `internal/metadata/tmdb` | Read-only arr import, TMDb client |
+| `internal/arrimport`, `internal/metadata/tmdb` | The one-time import from Sonarr/Radarr (read-only), TMDb client |
 | `internal/metadata/art` | `meta.art` job (TMDb details into `title_meta`) and the `/img` proxy with its disk cache ([design/artwork.md](design/artwork.md)) |
 | `internal/metadata/tvrefresh` | `meta.series` jobs: TVDB (TMDb fallback) episodes, series metadata, monitoring intent, held searches ([design/tv-metadata.md](design/tv-metadata.md)) |
 | `internal/metadata/anime` | Anime metadata pipeline: crawl, joins, mappings, arbitration, orders, overrides, review queue ([design/anime.md](design/anime.md)) |

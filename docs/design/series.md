@@ -1,40 +1,17 @@
 # Series (Sonarr import, series decisions, series RSS)
 
-Series follow the movie path end to end: `theatarr import-arr` reads Sonarr, `internal/decide` decides series
+Series follow the movie path end to end: the one-time import reads a Sonarr, `internal/decide` decides series
 releases as Sonarr does, and RSS reads series feeds for Live libraries. Where this sits:
 [overview.md](overview.md); TV metadata: [tv-metadata.md](tv-metadata.md). Migration `00011_series.sql`.
 
 ## Parts
 
-### `theatarr import-arr` for Sonarr (`internal/importarr`)
+### Series from Sonarr
 
-- **Reads** (GET only): system/status, rootfolder, tag, qualityprofile, `series`, and per series `episode?seriesId=`
-  and `episodefile?seriesId=`, then history as for Radarr (newest first, stops at the first page all known).
-- **Writes:**
-
-  | Table | Holds |
-  |---|---|
-  | `title` | One per TVDB id. New columns: `series_type`, `use_scene_numbering`, `runtime_minutes`, `original_language` |
-  | `arr_title.series_type` | The type as each instance had it, kept as a record. Nothing reads it: the title's type decides (Series type, below) |
-  | `title_scene_mapping` | Sonarr's scene mappings as its API exposes them (`alternateTitles`): name, season, scene season, origin, comment; source = the instance |
-  | `episode` | One per (title, season, number) in TVDB numbering, shared by the title's versions; name, air date (and UTC), runtime |
-  | `episode_number` | `absolute_tvdb`, `scene` (season and number) and `scene_absolute`, source = the instance |
-  | `episode_version_state` | Per version and episode: monitored, state (`wanted` no file, `filled` below cutoff, `cutoff_met`), the file's score |
-  | `series_monitor` | Per version (owner only): the arr's `monitorNewItems` and its seasons' `monitored`, the intent the metadata refresh follows for seasons that appear later (`docs/design/tv-metadata.md`) |
-  | `version_file` (+ `release_type`) and `version_file_episode` | One row per episode file, with the episodes it holds |
-  | `arr_alias` | `series`, `episode` and `episodefile` ids for the arr views |
-
-- **Version state:** `wanted` while a monitored episode that has aired has no file (or no episode has one), `filled`
-  while a file is below the cutoff, else `cutoff_met`.
-- **Ownership** as for movies: the first instance owns the version and writes its episode states. The owner's
-  `monitored` wins over what arrview wrote (`episode_version_state` rows from `PUT episode/monitor` are upserted, never
-  inserted twice); that is the intended behaviour while the arr owns the version.
-- **Idempotent and incremental:** a second run changes no row; new history adds only its rows. An episode no instance
-  lists any more (and no link holds) is deleted; an episode file the arr no longer has goes with its episode rows.
-- **History:** `seriesMatchType`, `releaseHash` and `tvRageId` join the allowlist. Registry seeding is shared with
-  Radarr (one content per hash, one `content_version` per hash and version).
-- **`import_run` pruning**: `importarr.PruneRuns` keeps the last 7 days plus each instance's latest run.
-  It runs in `theatarr serve`'s nightly job (`db.nightly`), before the backup.
+The one-time import (Admin › Import from Sonarr/Radarr, `internal/arrimport`) reads a Sonarr's series, episodes and
+episode files (GET only) and adds them to a library through the normal add and link paths
+([migration.md](../migration.md)). The periodic import that kept `arr_title`, `version_file` and `arr_alias` rows in
+step with a Sonarr is gone; the `version_file` rows it left stay as the library's files.
 
 ### Series type
 
@@ -105,9 +82,6 @@ non-removed episode reaches its stored UTC air time, without fetching metadata.
 
 ## Tests
 
-- `internal/importarr`: a fake Sonarr (two series, a two-episode pack file, an anime series with scene numbering and
-  mappings, a manual import), the database contents, idempotence, an upstream change (files replaced, an episode gone,
-  a mapping gone), a second instance on another version of the same series, rows arrview wrote, and `PruneRuns`.
 - `internal/decide`: standard (single, pack over a file, pack at cutoff, not aired, unknown series and episode, alias,
   TVDB id, file with more episodes, search mismatch, special by title, unmonitored), anime (absolute, batch, scene
   mapping with a scene season, alias, pack ranking), daily, the database loading, Levenshtein.

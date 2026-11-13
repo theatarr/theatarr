@@ -227,8 +227,8 @@ as headings with vertical lists, plus Setup (when needed), Reviews and Torrents.
 sources. Below 640 px route tabs become a **Section** select. Settings authority banners collapse to a single-line
 summary with **Details** on phones; source and fallback information remain available.
 
-Setup is a six-step readiness checklist with a read-only activation review. On an install no arr feeds
-(`arr_instances` 0) the first-library form also offers the one-step start (`POST /setup/start`). The shared `useSetupProgress` hook
+Setup is a six-step readiness checklist with a read-only activation review. The first-library form also offers the
+one-step start (`POST /setup/start`). The shared `useSetupProgress` hook
 powers Setup, admin-only Home and Settings reminders and sidebar Setup visibility (`first_run || missing.length > 0`).
 See [quickstart](../quickstart.md#readiness-led-setup) for the completion rules; only the one-step start enables a global switch, behind its confirmation.
 
@@ -491,8 +491,7 @@ list projection of media facts).
 | Torrents | `/admin/torrents` | Provider torrents: usage, filters, sorting, confirmed deletes and journal. An account that cannot be read gets one line: the provider's name, why in plain words (the provider asked to slow down, paused after failed requests, request limit used up, VPN not confirmed) and the next try in local time, with the raw error under Details. Saved inventory (`/inventory`, detail `/:hash`) shows known hashes and provider holdings. Backups live in System › Backup. |
 | Settings | `/admin/settings` | Search and task pages below. |
 | Users & access | `/admin/users` | Users, roles, permissions, sessions and API/view keys. |
-| Advanced | `/admin/advanced` | Exactly Sonarr/Radarr migration, YAML settings, Settings history and Request limits. |
-| Sonarr/Radarr migration | `/admin/advanced/arr` | Instances. |
+| Advanced | `/admin/advanced` | Exactly YAML settings, Settings history and Request limits. The old `/admin/advanced/arr` pages redirect to Admin › Import from Sonarr/Radarr (`/admin/arr-import`). |
 
 Two admin-only screens live outside `/admin`, beside the pages they belong with:
 
@@ -565,7 +564,7 @@ imported value) and **Availability delay (days)** (`availability_delay`, whole d
 for none). Like the name, each is left out of the request while unset and sent empty or 0 only to clear a stored
 value, so a save that does not touch them stores the library unchanged; a library changed to series drops both.
 
-Advanced includes **Sonarr/Radarr migration** (`/admin/advanced/arr`), **YAML settings**
+Advanced includes **YAML settings**
 (`/admin/advanced/config`, with Policy files, Sections and Import & export tabs), **Settings history**
 (`/admin/advanced/history`) and **Request limits** (`/admin/advanced/limits`, including back-offs and budgets).
 Previous admin URLs redirect with their query string and hash intact.

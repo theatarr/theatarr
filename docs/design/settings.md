@@ -233,9 +233,9 @@ paths (for example `mount.rclone_rc.password` in the library section).
 | `egress` (VPN guard: check URL, VPN IPs/CIDRs, require_vpn_for) | live: the gateway is rebuilt per generation |
 | `torrents` (scan roots, scheduled backups) | live: each scan, backup and the 10-minute backup check read the generation in force |
 | `cardigann` (catalog, flaresolverr_url, Prowlarr reader) | live: the catalog is on exactly when `definitions` is set (Indexers › Catalog says which; **Turn the catalog on** fills in `prowlarr/indexers` for the panel's Save, and the add-indexer sheet's **Turn on the catalog** saves it directly); a new install's first settings save turns it on (Prowlarr/Indexers); the catalog is made when a save first sets `definitions`; source, FlareSolverr and the Prowlarr reader are read at use; the refresh loop restarts (and reads a changed source at once) when `definitions` changes; indexers already built keep their engine and sessions |
-| `shadow`, `import` (arr instances) | live: the arr clients and RSS follow each generation (RSS needs no restart); the arr import schedule (every 15 minutes) restarts when the presence of `import.arr` changes |
+| `shadow` | live: RSS follows each generation (no restart) |
 | `playlists`, `ui`, `provider_sync`, `router` (options) | live: rebuilt per generation; the playlist, provider sync, download poll and wanted loops restart when their interval changes |
-| views (path, flavour, versions, profiles, alias_from, API key) | live: the HTTP routes are rebuilt per generation |
+| views (path, flavour, versions, profiles, API key) | live: the HTTP routes are rebuilt per generation |
 
 **Removed settings.** `release_push`, `indexers.<key>.private_delivery` and `notify.private_delivery` are not
 settings: privacy is a label only. `indexers.<key>.arr_names` stays as a plain alias list: other
@@ -278,7 +278,7 @@ environment variables, which remain the fallback while no credential is stored.
 path, `set`, and the `*_env` fallback name). `PUT /settings/sections/{key}` takes `generation`, the whole section as
 `yaml` or `config`, `secrets` (path → value) and `clear_secrets`, and answers `restart_required`. Validation is the
 policy files' (strict field names, the same `Validate`). Views: `POST /settings/view-bindings` creates one (key,
-flavour, path, versions, profiles, alias_from, `api_key`), `PUT /settings/view-bindings/{key}` updates the fields it
+flavour, path, versions, profiles, `api_key`), `PUT /settings/view-bindings/{key}` updates the fields it
 names (versions and profiles together; `api_key` or `clear_api_key`), `DELETE /settings/view-bindings/{key}?generation=`
 removes it and its key. Settings › Connected apps is the editor for all of it.
 
@@ -901,9 +901,6 @@ the stored head, on record, quality and version saves, secret saves, import appl
 - a library created Live, or going from Watch only to Live ("Library X becomes Live: it searches, downloads to P and
   writes links under R.", with "Pause is on, so nothing starts until you turn it off." while paused);
 - turning Pause off ("Global switches" above);
-- an `import.arr` source newly importing titles into a Live version (whatever Pause is: turning Pause off later names
-  no import source), or changing its version mapping to one:
-  monitored missing titles enter wanted searches;
 - removing a library that has managed links ("stops being managed … nothing is removed");
 - a provider or indexer, enabled or not and whatever versions use it, whose address (`settings.SourceAddress`:
   kind, url scheme, host and port, proxy scheme/host/port, a cardigann `definition` or `hosts`) changes while it

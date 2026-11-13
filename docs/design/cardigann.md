@@ -29,7 +29,7 @@ cardigann:
     refresh: 24h              # default; at least 1h
   flaresolverr_url: http://trawl:8191   # optional, see "trawl"
   prowlarr:                             # optional, for the migration reader
-    url: http://prowlarr:9696           # LAN only, like import.arr
+    url: http://prowlarr:9696           # LAN only
     api_key_env: THEATARR_PROWLARR_KEY
 
 indexers:

@@ -252,9 +252,6 @@ the indexers it searches and the providers it adds to. **Setup** builds the firs
    - **Create as Watch only (decide later)**, then **Create library**: the library starts as **Watch only**
      and Pause does not change.
 
-   An install that migrates from Sonarr/Radarr (its settings hold an arr instance, `import.arr`) has no start
-   button: there it is **Review**, then **Create library**, always as Watch only, and the library goes live as
-   [migration.md](migration.md#3-a-live-library-beside-the-arr) describes.
 
 A **Watch only** library: Theatarr searches, downloads and links nothing for it. A debrid library needs no download client: Theatarr adds to the providers itself. Edit libraries later
 under **Settings › Libraries**.

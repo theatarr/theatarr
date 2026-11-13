@@ -29,7 +29,6 @@ How Theatarr works inside, one part per page. Start with the overview.
 ## Library
 
 - [library.md](library.md): import, links, naming, probes, Plex scans, the mount guard.
-- [import-arr.md](import-arr.md): importing arr instances and seeding the registry.
 - [manage.md](manage.md): season and episode management, upgrade explanations.
 
 ## APIs and clients

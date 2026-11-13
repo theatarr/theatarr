@@ -30,14 +30,7 @@ and models three versions with two criteria each.
     - TRaSH formats come by trash_id from a TRaSH-Guides checkout (`-trash`, `THEATARR_TRASH`);
     - Theatarr's own formats come from arr-shaped JSON files;
     - a format that fails to build is an error when the profile scores it, otherwise a warning.
-  - **`from_arr: <instance>/<profile>`** takes the whole profile from an arr instance:
-    - the instance's profile, all its formats and its quality definitions;
-    - `config/mediamanagement` and `config/indexer` when they are available (propers, maximum size, preferred
-      flags);
-    - the source is a snapshot directory in the corpus layout, or live GETs through `internal/arr` with the
-      `import.arr` key.
-  - Every problem is a `*policy.Errors` entry with its path, such as `profiles[x].formats[y]` or
-    `profiles[shadow].from_arr`.
+  - Every problem is a `*policy.Errors` entry with its path, such as `profiles[x].formats[y]`.
 - **`Engine.Decide(ctx, release, title, version, existing)`**, pure and deterministic. For a movie version it
   follows Radarr's `DownloadDecisionMaker` with search criteria:
   1. **Parse** with the Radarr port. A title it cannot read is rejected `UnableToParse`.
@@ -81,22 +74,16 @@ and models three versions with two criteria each.
 - **`Rank(decisions)`:** per version, accepted decisions first, ordered by `profile.Engine.Prioritize` (the arr's
   comparer, with Theatarr's cache tie-break after the format score: docs/design/router.md "Deviations"); then the
   rejected ones. The decision fills the tie-break's cache standing from the release's cache evidence (`Subject.Cached`).
-- **Shadow parity** (`internal/decide/shadow`) replays arr grabs:
-  - from Theatarr's database: `arr_history`, with the file before each grab rebuilt from import and delete events, and the
-    grab-time score from `data.customFormatScore`;
-  - or from the corpus: `history.jsonl`, with the movie from `parse.jsonl`.
 - **`theatarr decide`:**
   - `theatarr decide -title ID|-tmdb N -version KEY [-size 25GB] [-flags freeleech,internal|G_Freeleech]
     [-languages French] [-seeders N] [-indexer KEY] [-imdb tt…] [-no-existing] [-json] 'Release.Title'`
     prints the decision and its score breakdown.
   - `-search` searches the version's indexers through the gateway, decides every result and prints them ranked. It
     refuses off the VPN with `theatarr search`'s error.
-  - `theatarr decide shadow -instance NAME -version KEY [-corpus DIR | -db FILE -aliases DIR] [-dump FILE]` prints the
-    parity report.
 
 ```
 release   Argylle.2024.2160p.UHD.BluRay.REMUX.DV.HDR.HEVC.TrueHD.Atmos.7.1-FraMeSToR
-title     #87 Argylle (2024)  version movie-remux (#596), profile remux (from_arr radarr_4k/Remux + WEB 2160p)
+title     #87 Argylle (2024)  version movie-remux (#596), profile remux
 parsed    Argylle 2024, group FraMeSToR, edition -, match Title, languages English
 quality   Remux-2160p v1
 formats   DV Boost +1000, HDR +500, Remux Tier 01 +1950, TrueHD ATMOS +5000 = 8450
@@ -130,8 +117,11 @@ warns that a SeaDex-curated release may be judged differently. It records, searc
 
 ## Frozen arr profiles
 
-The migration wizard's quality step (`internal/migration`, `freezeArr`) freezes a stored arr snapshot into native
-profiles and a format set, so a version decides with the arr's own profile and formats without `from_arr`.
+`internal/migration` (`freezeArr`) freezes an arr snapshot into native profiles and a format set, so a version decides
+with the arr's own profile and formats. On upgrade, `FreezeStored` uses it to replace a stored profile or naming that
+was taken from an arr (the removed `from_arr`) with a native copy under the same key, and leaves one message per
+library on System › Errors asking to check it; what cannot be converted becomes a minimal profile or the default
+naming, and its library Watch only.
 
 Native profiles may select a set with `format_set`. Its keys are the arr's display names, so the same name can
 exist in several sets, and zero-score formats outside the selected set cannot enter names or rejection text:
@@ -167,41 +157,6 @@ nested groups, unknown languages, custom quality naming titles, disabled renamin
 and custom colon replacement. Profiles with upgrades disabled can still change the profile display name in
 messages.
 
-## History parity
-
-`theatarr decide shadow` replays an instance's grab history against the engine, with the instance's own profile
-through `from_arr`. The policy is `internal/decide/shadow/testdata/policy`; the data is a copy of the import-arr
-database, or a corpus of exported arr answers. For each grab it compares acceptance, quality and score with the
-arr's (the grab-time score from `data.customFormatScore`, else today's).
-
-The disagreements such a replay finds come from the data or the profile's history, not the engine:
-
-| Cause | Engine or data? |
-|---|---|
-| **The file rebuilt from history is not the arr's file at the time** (`DiskCustomFormatScore`, `DiskHigherPreference`, `Repack…`): for example a mass re-grab when the arr had no file, though history shows no delete | Data. Deciding those grabs with no file makes them agree |
-| **The profile changed since the grab:** same score as the arr's today, different from the grab-time score | Profile history |
-| Below today's minimum score; the grab-time score was ≥ 0 | Profile history |
-| `QualityNotWanted`: the quality is not in today's profile | Profile history |
-| `UnknownMovie`: the release year is the arr's then-year or secondary year, or a translated or alternative title the database does not hold | Data: names for mapping ([below](#names-for-mapping)) |
-| Grabbed by hand although rejected: below the minimum score, the wrong language, below the minimum size | The arr allows grabbing a rejected release by hand |
-| The movie is on another arr profile than the one compared | Comparison scope |
-| Languages from the indexer (torznab language attributes) not in history | Data |
-
-History has no rejected releases, so specifications the arr enforced (queue, blocklist, delay, availability,
-release profiles: [profiles.md](profiles.md)) show no disagreement here. Releases the arr rejects and Theatarr
-accepts would show in an interactive-search comparison.
-
-Reproduce:
-```
-THEATARR_CORPUS=<corpus> THEATARR_DECIDE_DB=<copy of the import-arr database> \
-  go test -run Parity -v ./internal/decide/shadow/
-bin/theatarr decide shadow -db <copy> -arr-snapshot <corpus> \
-  -aliases <corpus> -instance radarr_4k -version movie-remux -dump replay.tsv
-```
-`decide shadow` reads its settings from `<copy>`: import the replay policy into it first if it has none
-(`bin/theatarr settings import -policy <copy of internal/decide/shadow/testdata/policy> -db <copy> -confirm`, prepared as in
-[series.md](series.md), season pack rule, Reproduce).
-
 ## Arr rules: propers, seeders, episode titles, repeats
 
 - **Proper (RSS only):** revision upgrades reject when propers are disabled, or the held file was added before
@@ -215,8 +170,7 @@ bin/theatarr decide shadow -db <copy> -arr-snapshot <corpus> \
   titles until exactly 48 hours after airing; unknown/future dates remain held. Standard, daily and anime
   patterns follow Sonarr's selection, including the anime absolute-number requirement and rename-off exemption.
   The arr's `episodeTitleRequired` Always/Never/BulkSeasonReleases setting is honored (default Always), including
-  its bulk date/count conditions. Sonarr checks this at import; Theatarr checks before download. A missing `from_arr`
-  naming snapshot skips the hold rather than guessing the naming pattern.
+  its bulk date/count conditions. Sonarr checks this at import; Theatarr checks before download.
 - **Already imported:** the latest grab and an import with its download ID block the same hash or release name
   only when their qualities differ and the item still has a file. This prevents the arr's quality-mismatch loop;
   equal-quality repeats remain subject to the usual upgrade rules. Theatarr and imported arr history are scoped to the
@@ -236,19 +190,15 @@ wanted searches, and `theatarr decide -search`).
 ## Tests
 
 - `internal/decide`: table tests for building, deciding, upgrades, ranking, mapping and flags.
-  - **Build:** the policy profile, the `from_arr` profile from a trimmed fixture snapshot (11 formats, the profile,
-    the definitions), and errors with their paths.
+  - **Build:** the policy profile and errors with their paths.
   - **Decide:** quality not wanted, minimum score, size limits, unknown movie and wrong year, mapping by IMDb id,
     unparseable titles, the version's indexer list, MULTi with and without the indexer's multi languages,
-    indexer languages, freeleech from the volume factor, and the `from_arr` profile with its original-language
-    rule.
+    indexer languages, freeleech from the volume factor, and the original-language rule.
   - **Upgrades:** better quality, a lower quality refused, better score, the same release, and a repack.
   - **Rank;** mapping by alias, roman numeral, secondary year, and an id naming another title (`WrongMovie`); the
     torznab flag mapping.
 - `internal/decide/adapt`: the indexer cases of both arrs' `AggregateLanguagesFixture`, plus release languages and
   unmapped titles.
-- `internal/decide/shadow`: rebuilding history from a small database. The parity runs are opt-in
-  (`THEATARR_CORPUS`, `THEATARR_DECIDE_DB`).
 - `cmd/theatarr`:
   - `theatarr decide` on a temporary database, as text and JSON;
   - `-search` refuses off the VPN without dialling anything but the local echo.
@@ -256,10 +206,9 @@ wanted searches, and `theatarr decide -search`).
 ## Related policy and package pieces
 
 - **`internal/policy`:**
-  - `profiles[x].from_arr` and `profiles[x].propers`;
+  - `profiles[x].propers`;
   - `indexers[x].multi_languages`;
-  - validation with paths: a `from_arr` profile with other fields, an unknown instance, an instance of the wrong
-    flavour for the version, a bad propers value, unknown or repeated languages. `Original` is allowed, as in the
+  - validation with paths: a bad propers value, unknown or repeated languages. `Original` is allowed, as in the
     arrs.
 - **`internal/decide/adapt`:** `Release`, `RadarrRelease` and `SonarrRelease`, and the indexer branch of
   `AggregateLanguages`. `Radarr` and `Sonarr` are wrappers.
@@ -269,14 +218,13 @@ wanted searches, and `theatarr decide -search`).
 
 Migration `00009` adds `title.secondary_year` and `title_alias`:
 
-- `theatarr import-arr` stores Radarr's `alternateTitles` and `secondaryYear` from the movie resource;
-- `--enrich` stores TMDb alternative titles and translated titles ([import-arr.md](import-arr.md));
+- the former arr import stored Radarr's `alternateTitles` and `secondaryYear` from the movie resource, and TMDb
+  alternative and translated titles (`--enrich`); the metadata refresh keeps TMDb's;
 - `LoadMovies` and `LoadTitle` fill `Title.Aliases` (every source, distinct) and `Title.SecondaryYear`. The
   mapping code is Radarr's `TryGetMovieBySearchCriteria` (clean title, original title, alternative titles,
   translations, roman numerals, secondary year).
-- `theatarr decide shadow -aliases` adds the corpus names to the stored ones.
-- Titles known only by a translation (an Italian or German release name) map only once `--enrich` has stored the
-  TMDb translations.
+- Titles known only by a translation (an Italian or German release name) map only once TMDb's
+  translations are stored.
 
 ## Languages and SeaDex flags
 
@@ -302,8 +250,7 @@ Radarr's quality profile has a language (`LanguageSpecification`), and so do pol
 
 - **Policy:** `profiles[x].language`: `any` (the default), `original` or a Radarr language name (`English`,
   `French`, …; any of Radarr's, case-insensitive, as the arr's profile takes every language). A profile used by a
-  series version may not set it (Sonarr v4 profiles have no language), and a `from_arr` profile may not either (the
-  arr's comes with it).
+  series version may not set it (Sonarr v4 profiles have no language).
 - **Engine:** the builder sets the profile's language; `LanguageSpecification` is ported (Radarr
   `DecisionEngine/Specifications/LanguageSpecification.cs`), and its fixture cases are in the arr-fixture harness
   (`internal/decide/profile/testdata/arr_radarr_LanguageSpecificationFixture.json`). Decide cases:
@@ -311,11 +258,10 @@ Radarr's quality profile has a language (`LanguageSpecification`), and so do pol
   (`AggregateLanguages`), a named language wanted and not met, and met.
 - **The movie's original language** is TMDb's `original_language` from the cached TMDb answer, mapped as Radarr's
   `SkyHookProxy` maps it: `IsoLanguages.Find(code)`, else English (`xx` is English). Without a cached answer it is
-  the arr's name, which `theatarr import-arr` stores for movies too (Radarr's `originalLanguage`, in
+  the arr's name, which the former arr import stored for movies too (Radarr's `originalLanguage`, in
   `title.original_language`). With neither, it is Unknown, where Radarr's would be English (the `MovieMetadata`
   default): an `original` profile then rejects every release with a known language rather than take an English
-  one for a film that may not be English. Titles added through the arr view get the TMDb answer only from
-  `theatarr import-arr --enrich`; until then they have neither.
+  one for a film that may not be English. Titles added through the arr view get the TMDb answer on their metadata refresh; until then they have neither.
 ## SeaDex standing
 
 SeaDex (releases.moe) curates anime releases per AniList entry. Theatarr keeps each entry's answer as a standing

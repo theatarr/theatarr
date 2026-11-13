@@ -133,7 +133,7 @@ with its facts on `Subject` or on the `Engine`.
 |---|---|---|
 | Queue | Downloads in flight with their quality and formats | `UpgradableSpecification` against each queued item, from the Download table |
 | Blocklist, BlockedIndexer | Blocklist rows; indexer failure status | lookups on the Engine (store, gateway budgets) |
-| AlreadyImported, RssSync/History, RssSync/DeletedEpisodeFile (Sonarr) | Grab and import history; file deletion events | registry and history tables (import-arr) |
+| AlreadyImported, RssSync/History, RssSync/DeletedEpisodeFile (Sonarr) | Grab and import history; file deletion events | registry and Theatarr's own download history |
 | FreeSpace | Free disk space | storage policy; mostly moot for debrid symlinks |
 | TorrentSeeding, RequiredIndexerFlags (Radarr), Retention, MinimumAge | Indexer settings (seed criteria, required flags); usenet retention and age | indexer config from policy and gateway; the usenet ones apply only to usenet indexers |
 | Protocol, RssSync/Delay, Pending | Delay profiles; the pending-release store | policy delay profiles; a pending table |

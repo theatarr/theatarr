@@ -62,26 +62,12 @@ movie's versions that qualify.
 Held counts the catalog's movies with a visible version (not removed from every view) whose TMDb id is among the
 collection's TMDb parts, whether or not a membership row links them; total is the parts, known after the first
 refresh. Membership (`title_external_id` source `tmdb_collection`, which discovery reads) comes from TMDb's
-`belongs_to_collection`: arr imports get it from `--enrich`, intake adds from the movie they add, and every movie
+`belongs_to_collection`: intake adds from the movie they add, and every movie
 gets it on its metadata refresh (`meta.art`), so natively added movies, and older ones on their next refresh, show
 up as collections without a separate backfill.
 
-Each Radarr `arr.import` (and `theatarr import-arr`) also reads `GET collection` and carries every collection the arr
-monitors over (`internal/importarr/collections.go`): monitored, with the arr's search on add and minimum availability,
-targeting the instance's version when it is a collection target (Live). A collection Theatarr already
-monitors keeps its settings; the import drops its stored targets that no longer qualify (an empty list among them),
-adds the missing ones and turns search on add on when the arr has it. The import never unmonitors or deletes a
-collection, so turning one off in Theatarr lasts only until the next import while the arr still monitors it: unmonitor
-it in the arr too. An instance whose version is not a
-collection target has nowhere to add, and its monitored collections are skipped with a warning in the import summary.
-A Radarr without the endpoint imports without collections.
-
 Known limits, kept as they are:
 
-- Search on add is OR-merged: with two Radarrs monitoring the same collection, either one's search on add turns it on.
-- A collection has one minimum availability, whichever arr (or the page) set it first; later imports keep it.
-- A collection-fetch failure is a warning in the import summary (`theatarr import-arr` and the job log); the
-  import-runs page does not surface it.
 - A `movieAndCollection` list does not turn on a collection that discovery already created (unmonitored).
 - Existing native movies get their membership only on their normal metadata refresh; there is no backfill job.
 - The Radarr view's `GET collection` shows a held part that has no membership row as missing.
@@ -123,7 +109,7 @@ accepts.
 **Radarr and Sonarr lists.** `list_type` `radarr` or `sonarr`, with the instance's `url` and `api_key` on the row
 (stored like `setting_secret`, plain in the 0600 database; `GET /lists` answers only `api_key_set`, and errors and logs
 never carry it). The address is written one way (trimmed, no trailing slash, lower-case scheme and host), must be
-`http`/`https`, and an IP-literal host must be a LAN address (`arr.CheckLiteral`, as for `import.arr`); one row per
+`http`/`https`, and an IP-literal host must be a LAN address (`arr.CheckLiteral`); one row per
 type and address (409 "this instance is already a list"). Changing the address needs the key again ("enter the API
 key again for a new address"), so a stored key never goes to a new host; an empty key on a change keeps the stored
 one. `POST /lists/check` reads `system/status` and the title count through the read-only arr client, by address and
@@ -174,17 +160,16 @@ ports are based on. Seerr parses the major (Sonarr 4: no language profiles); dec
 | Thing | Id |
 |---|---|
 | Movie, series | `1,000,000 + title id`, the same in every view |
-| A replaced instance's movie or series id (< 1,000,000) | looked up in `arr_alias` (written by `theatarr import-arr`) for the view's `alias_from` instances, first match in that order |
+| A replaced instance's movie or series id (< 1,000,000) | answers nothing (404) |
 | Episode | `episode.id` |
 | Movie file | `version_file.id` |
 | Tag, command | Theatarr's (`arrview_tag`, `arrview_command`), global (a tag's assignments to titles are per version, see "Tags per version") |
 | Quality profile | `arrview_profile.id`, given the first time a view sees the profile name, then kept |
 | Root folder | position of the library in the view's version list, from 1 |
 
-The offset keeps Theatarr's ids and the arrs' apart: without it title 7 and an arr's movie 7 would collide. So
-Seerr's stored `externalServiceId` keeps answering after cutover, and its scanner then rewrites them to Theatarr's
-ids from `GET movie`. An id from an arr outside `alias_from` can
-name another title until that scan: see [Seerr's stored ids](#seerrs-stored-ids).
+The offset keeps Theatarr's ids and the arrs' apart: without it title 7 and an arr's movie 7 would collide. An id a
+client kept from a replaced arr answers 404; Seerr's scanner rewrites its stored ids to Theatarr's from `GET movie`:
+see [Seerr's stored ids](#seerrs-stored-ids).
 
 ## Endpoints
 
@@ -478,10 +463,6 @@ Left as before, on purpose:
   monitored), else when the episode and the series are; it has a file when a view version's state is `filled` or
   `cutoff_met`, or an active link of a view version holds it.
 
-Note: while a version is owned by `theatarr import-arr` (shadow mode), the 15-minute import sets its `monitored` from the
-arr again. The removal marker stays, so the views keep hiding a removed version; other monitoring changes made through
-a view last until the next import. At cutover the import stops owning the version.
-
 ## Tags per version
 
 A tag on a title belongs to a version (`arrview_title_tag (version, title_id, tag_id)`, migration 00105), so a tag set
@@ -494,20 +475,6 @@ are not shown and writes leave them alone (they show again when the version is t
 versions on does so before its tags are written (`TestTagsSkipRemovedVersions`). Labels (`arrview_tag`) stay global, like an arr's tag list, and
 deleting a label removes it from every version. Rows from before 00105 were copied to every version the title had
 (`TestTagsPerVersion`, `TestVersionTagsMigration`).
-
-## Tags from the arrs
-
-Every `arr.import` copies the arr's tag labels of each title to the views' tags of the import's source version, so
-each Radarr's behaviour tags carry over. Seerr requester tags (`<user id>-<name>` or the older
-`<user id> - <name>`) are stored in Seerr's current form, lower-case (`1 - alice` becomes `1-alice`); every other
-label (behaviour tags such as `debrid-upgrade` or `skip-upgrade-check`, and hand-made labels) is copied as it is. An existing view tag with that label in any case keeps its id;
-a tag id the arr does not list (`#<id>` in `arr_title.tags`) is skipped. The copy is edge-triggered and only adds:
-`arr_title.tags_copied` holds the labels already copied, and a run copies only the arr's labels not in it, then sets
-it to the arr's current labels. A version that gets the title in this run (a title new to the version) takes every
-current label once (`TestImportTagsToNewVersions`). So a tag a view took off (a client clearing `debrid-upgrade` after it upgraded)
-is not put back while the arr keeps it, a label the arr adds later is copied once, and a run with the arr's tags
-unchanged writes nothing. The first run after 00105 copies every label (`tags_copied` starts `[]`). The import never
-removes a view tag (`TestImportCopiesTagsToVersions`).
 
 ## Schema (00012)
 
@@ -582,10 +549,9 @@ removes a view tag (`TestImportCopiesTagsToVersions`).
 - **Auth**: header, query parameter, bearer, the view's own key (and not another view's), wrong and revoked keys, the
   bare 401, `X-Application-Version`, case-insensitive routes, Sonarr routes absent on Radarr views; and beside the
   web layer on one mux, where the native API still refuses `apikey`.
-- **Alias table**: Theatarr's ids, the first `alias_from` instance's id winning over a later one with the same number, ids
-  with no alias, per-version views without aliases.
+- **Ids**: Theatarr's ids; an old arr id answers 404.
 - **Add and delete per view**: profile choice, a second add turning on the extra version, anime by root folder and
-  profile, no-profile adds, per-version adds; DELETE from `/v/movie-web` leaving `/radarr`'s remux, DELETE by alias,
+  profile, no-profile adds, per-version adds; DELETE from `/v/movie-web` leaving `/radarr`'s remux,
   lookups without an id afterwards, nothing deleted, re-add restoring the file; PUT; commands; Sonarr adds, episode
   monitoring and season PUTs.
 - **Lookup, blocklist, anime**: `TestMovieLookupByNameFromTMDb` (fake TMDb on httptest: catalog first, TMDb's
@@ -593,7 +559,7 @@ removes a view tag (`TestImportCopiesTagsToVersions`).
   `TestAddDecidesAnime` (mapping, TMDb, client wins, root wins, held titles, TMDb down, Sonarr).
 - **Contract tests** replaying the callers' request sequences from their source: Seerr's settings test, user tag,
   `addMovie` (new, has file, exists unmonitored → PUT, exists monitored), download tracker, scanner, availability by
-  stored id and by alias, `removeMovie` then re-request; Seerr's `addSeries` (new anime series with the anime
+  stored id (an old arr id answers 404), `removeMovie` then re-request; Seerr's `addSeries` (new anime series with the anime
   settings; existing series → PUT, episode list, `episode/monitor`, `MissingEpisodeSearch`), scanner and remove;
   Homepage's Radarr and Sonarr widgets; decypharr's status, download client config, commands, movie by TMDb id,
   series by TVDB id and episodes.
@@ -620,8 +586,6 @@ Seerr's settings.
     **Enable Scan** on, and remove the old anime override rules and any second (anime or 4K) server.
   - Then fix Seerr's stored ids (below): run **Radarr Scan** and **Sonarr Scan** (Settings › Jobs & Cache › Run now)
     right after repointing.
-  Alias resolution uses only the requesting view's `alias_from`, in order, so overlapping ids from different arr
-  instances can name different titles in different views without a migration.
 - **Homepage**: one radarr widget at `http://theatarr:7700/radarr` and one sonarr widget at
   `http://theatarr:7700/sonarr`, each with a key, in place of the per-instance widgets.
 - **decypharr** logs in with the callback view's URL and key (`clients.decypharr.callback_view`).
@@ -631,15 +595,14 @@ Seerr's settings.
 
 Seerr keeps, per media item, the server (`serviceId`, `serviceId4k`) and that arr's id of the title
 (`externalServiceId`, `externalServiceId4k`; `server/entity/Media.ts`). After the switch those ids reach the views,
-which answer an id below `IDBase` through `alias_from`. An id from an arr that is not in the list can name an unrelated title: one
-Sonarr's series 35 may be another Sonarr's series 35, a different show, in `/sonarr`. What Seerr does with a stored id (source `seerr-team/seerr` at c167958):
+which answer an id below `IDBase` with 404. What Seerr does with a stored id (source `seerr-team/seerr` at c167958):
 
 | Where | Uses the stored id? | After the switch |
 |---|---|---|
 | Request (`MediaRequestSubscriber` → `addMovie`/`addSeries`) | No: looks the title up by TMDb/TVDB id, then stores the id the view returns | Safe |
 | Delete (`routes/media.ts` DELETE `/:id/file` → `removeMovie`/`removeSeries`) | No: by TMDb/TVDB id; `serviceId` only picks the server | Safe while the server entry exists; one naming a removed entry answers 409 until a scan rewrites it |
 | Radarr/Sonarr scan (`scanners/radarr`, `scanners/sonarr`, `baseScanner.processMovie`/`processShow`) | No: walks `GET movie`/`GET series` and matches by TMDb (movies) or TVDB (series), then **rewrites** `serviceId`, `externalServiceId` and the slug of every title the view lists | Fixes the ids, Theatarr's (`IDBase` + title) from then on. Exception: an unmonitored movie without a file whose request was processing keeps its old id when "decline requests on status reset" is on |
-| Availability sync (`availabilitySync.mediaExistsInRadarr`/`InSonarr`) | Yes: `GET movie/{id}` / `series/{id}` on every server of the item's kind and 4K class | Seerr skips an answer whose TMDb id (movies) or TVDB id (series) differs, and a 404 means "not in the arr", so Plex decides. Only a series with no TVDB id in Seerr takes a wrong title's files as its own, which can only keep it marked available |
+| Availability sync (`availabilitySync.mediaExistsInRadarr`/`InSonarr`) | Yes: `GET movie/{id}` / `series/{id}` on every server of the item's kind and 4K class | An old id answers 404, which means "not in the arr", so Plex decides until the scan rewrites the id |
 | Download tracker (`downloadtracker.ts`) | Filters the fetched queue by `movieId`/`seriesId` locally | An old id never matches Theatarr's: no progress shown until the scan |
 | "Open in Radarr/Sonarr" (`Media.setServiceUrl`) | No: the slug | The view's slug after the scan |
 
