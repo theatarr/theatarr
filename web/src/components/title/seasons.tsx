@@ -46,8 +46,9 @@ import { errText } from "@/components/ui/confirm-dialog";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { stageCounts, stageTone, stageWords } from "@/lib/copies";
 import { DEFAULT_EPISODE_COLUMNS, EPISODE_COLUMNS, EPISODE_COLUMNS_PREF, type EpisodeColumnId } from "@/lib/episode-columns";
-import { fmtAgo, fmtBytes, fmtNumber } from "@/lib/format";
+import { fmtBytes, fmtNumber } from "@/lib/format";
 import { fmtDay, fmtRuntime } from "@/lib/library";
+import { nextSearch } from "@/lib/library-rows";
 import { useColumnPrefs } from "@/lib/prefs";
 import {
   aired,
@@ -572,20 +573,12 @@ const EMPTY: Record<EpisodeFilter, string> = { all: "No episodes.", active: "Not
 // ---- Season header ----
 
 /** Phase E's next search for a season in one library, when the server sends it (a field that may not be there yet). */
-type NextSearch = { next_search_at?: unknown; next_search_why?: unknown };
-
-/** Why the next search is due, in the Libraries table's words (lib/library-rows.ts nextSearch on f-title-rows). */
-function whyWords(why: string): string {
-  return why === "new" ? "new release" : why === "asked" ? "Search now" : "after a failed download";
-}
-
+/** Phase E's next search for a season in one library, in the Libraries table's words (lib/library-rows.ts). */
 function nextSearchText(c: object | undefined): string {
-  const n = (c ?? {}) as NextSearch;
+  const n = (c ?? {}) as { next_search_at?: unknown; next_search_why?: unknown };
   if (typeof n.next_search_at !== "string" || !n.next_search_at) return "";
-  const at = new Date(n.next_search_at).getTime();
-  if (Number.isNaN(at)) return "";
-  const when = at <= Date.now() ? "now" : fmtAgo(n.next_search_at);
-  return `Next search: ${when}${typeof n.next_search_why === "string" && n.next_search_why ? ` (${whyWords(n.next_search_why)})` : ""}`;
+  const s = nextSearch({ at: n.next_search_at, why: typeof n.next_search_why === "string" && n.next_search_why ? n.next_search_why : undefined });
+  return s ? `Next search: ${s}` : "";
 }
 
 /** A library's badge in All: its colour, name and "8 / 10" in the badge's tone. */
