@@ -15,6 +15,11 @@ describe("provider copies", () => {
     // The Torrents row has no Cached on: every result shows.
     expect(otherProvidersLine([c("tb", "added", "2026-11-13T12:00:00Z", "Added to TB")], undefined, now)).toBe("TB added, 2 h ago");
   });
+  it("labels and matches a custom provider key by its code, as Cached on does", () => {
+    const home = (state: ProviderCopy["state"]) => ({ ...c("torbox-home", state), code: "tb" });
+    expect(otherProvidersLine([home("added")], ["tb"], now)).toBe("");
+    expect(otherProvidersLine([home("not_cached")], ["tb"], now)).toBe("TB not cached, 2 h ago");
+  });
   it("polls while a copy is unfinished", () => {
     expect(copiesUnfinished([c("rd", "checking")])).toBe(true);
     expect(copiesUnfinished([c("rd", "failed"), c("tb", "added")])).toBe(false);

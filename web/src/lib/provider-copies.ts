@@ -10,6 +10,9 @@ export type ProviderCopy = Schemas["ProviderCopy"];
 /** How often a page asks again while a copy is unfinished. */
 export const COPY_POLL_MS = 5000;
 
+/** A copy's label as Cached on shows its provider: by its cache code (rd → RD), else its key. */
+const label = (c: ProviderCopy) => providerLabel(c.code || c.provider);
+
 const UNFINISHED = new Set(["queued", "adding", "checking"]);
 
 const WORDS: Record<string, string> = {
@@ -29,7 +32,7 @@ export const copiesUnfinished = (copies?: readonly ProviderCopy[] | null) => !!c
  *  cache codes; none on the Torrents row, which has no Cached on). */
 export const otherCopies = (copies?: readonly ProviderCopy[] | null, shown?: readonly string[] | null) => {
   const held = new Set((shown ?? []).map(providerLabel));
-  return (copies ?? []).filter((c) => c.state !== "added" || !held.has(providerLabel(c.provider)));
+  return (copies ?? []).filter((c) => c.state !== "added" || !held.has(label(c)));
 };
 
 /** An added copy's words: still downloading (with its progress) when the entry found was, else added. */
@@ -42,14 +45,14 @@ function addedWords(c: ProviderCopy): string {
 export function otherProvidersLine(copies?: readonly ProviderCopy[] | null, shown?: readonly string[] | null, now?: Date): string {
   const rest = otherCopies(copies, shown);
   if (!rest.length) return "";
-  const parts = rest.map((c) => `${providerLabel(c.provider)} ${c.state === "added" ? addedWords(c) : WORDS[c.state] ?? c.state}`);
+  const parts = rest.map((c) => `${label(c)} ${c.state === "added" ? addedWords(c) : WORDS[c.state] ?? c.state}`);
   const newest = rest.reduce((a, c) => (c.updated_at > a ? c.updated_at : a), rest[0].updated_at);
   return `${parts.join(" · ")}, ${fmtAgo(newest, now)}`;
 }
 
 /** Each copy's reason, for the line's tooltip. */
 export const copyReasons = (copies?: readonly ProviderCopy[] | null, shown?: readonly string[] | null) =>
-  otherCopies(copies, shown).map((c) => `${providerLabel(c.provider)}: ${c.message || WORDS[c.state] || c.state}${c.until ? ` until ${fmtTime(c.until)}` : ""}`).join("\n");
+  otherCopies(copies, shown).map((c) => `${label(c)}: ${c.message || WORDS[c.state] || c.state}${c.until ? ` until ${fmtTime(c.until)}` : ""}`).join("\n");
 
 /** The action's words for its answer, following the current copies: the providers still being added to (one the
  *  current copies show finished is left out); "" once none is; "Every provider already holds it." for an empty
@@ -57,6 +60,6 @@ export const copyReasons = (copies?: readonly ProviderCopy[] | null, shown?: rea
 export function queuedWords(answer: readonly ProviderCopy[], current?: readonly ProviderCopy[] | null): string {
   if (!answer.length) return "Every provider already holds it.";
   const now = new Map((current ?? []).map((c) => [c.provider, c.state]));
-  const adding = answer.filter((c) => UNFINISHED.has(c.state) && UNFINISHED.has(now.get(c.provider) ?? c.state)).map((c) => providerLabel(c.provider));
+  const adding = answer.filter((c) => UNFINISHED.has(c.state) && UNFINISHED.has(now.get(c.provider) ?? c.state)).map(label);
   return adding.length ? `Adding to ${adding.join(", ")}. The result shows here when it ends.` : "";
 }
