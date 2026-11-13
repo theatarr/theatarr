@@ -3,7 +3,7 @@
 // the right. Filters open in a sheet at every width and show as removable chips under the toolbar. Filters and sort live
 // in the URL, so links such as /movies?availability=missing open a filtered list; the view, the table's columns and the
 // poster options are kept per list and per user in this browser (lib/prefs.ts). Select (managers) feeds the bulk bar.
-import { ArrowDownWideNarrow, ArrowUpNarrowWide, CheckSquare, Columns3, LayoutGrid, Rows3, Settings2, SlidersHorizontal, X } from "lucide-react";
+import { ArrowDownWideNarrow, ArrowUpNarrowWide, CheckSquare, Columns3, LayoutGrid, Plus, Rows3, Settings2, SlidersHorizontal, X } from "lucide-react";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useSearchParams } from "react-router";
 import { useAuth } from "@/api/auth";
@@ -15,6 +15,7 @@ import { TitleTable, type Selection } from "@/components/library/title-table";
 import { ColumnPicker, PosterOptions } from "@/components/library/view-options";
 import { Empty, ErrorState, Loading, PageHeader } from "@/components/page";
 import { providerLabel } from "@/components/provider-pills";
+import { useSearchUI } from "@/components/search/search-context";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Modal } from "@/components/ui/modal";
@@ -31,6 +32,18 @@ import { cn } from "@/lib/utils";
 const OLD_VIEW_KEY = "theatarr.catalog.view";
 
 type View = "grid" | "table";
+
+/** The list's Add button: it opens the top search (which finds every kind), where a result's Add opens the add sheet. */
+const ADD_LABEL: Record<CatalogId, string> = { movies: "Add movie", series: "Add series", anime: "Add anime" };
+function AddButton({ id }: { id: CatalogId }) {
+  const { openOverlay } = useSearchUI();
+  return (
+    <Button onClick={() => openOverlay()} data-testid="catalog-add">
+      <Plus />
+      {ADD_LABEL[id]}
+    </Button>
+  );
+}
 
 function readView(list: CatalogId, uid: number | undefined): View {
   const norm = (v: unknown): View | undefined => (v === "table" || v === "grid" ? v : undefined);
@@ -88,6 +101,7 @@ export function Catalog({ id }: { id: CatalogId }) {
   const cat = CATALOGS[id];
   const [params, setParams] = useSearchParams();
   const perms = usePerms();
+  const { canAdd } = useSearchUI();
   const query = useMemo(() => gridQuery(id, params, perms.seeFiles), [id, params, perms.seeFiles]);
   const grid = useTitleGrid(query);
   const facets = useFacets(cat.kind, cat.anime);
@@ -198,6 +212,7 @@ export function Catalog({ id }: { id: CatalogId }) {
             ? `${fmtNumber(total)} title${total === 1 ? "" : "s"}${n ? " match the filters" : ""}${perms.seeFiles && size && !grid.hasNextPage ? ` · ${fmtBytes(size)}` : ""}`
             : " "
         }
+        actions={canAdd ? <AddButton id={id} /> : undefined}
       />
       <div className="mb-3 flex flex-wrap items-center gap-1.5 sm:gap-2" data-testid="catalog-toolbar">
         <TitleSearch value={values.q} set={set} className="w-full sm:w-64" />
@@ -316,7 +331,12 @@ export function Catalog({ id }: { id: CatalogId }) {
               </span>
             </Empty>
           ) : (
-            <Empty>{`No ${cat.title.toLowerCase()} yet.`}</Empty>
+            <Empty>
+              <span className="flex flex-col items-center gap-3">
+                {`No ${cat.title.toLowerCase()} yet.`}
+                {canAdd ? <AddButton id={id} /> : null}
+              </span>
+            </Empty>
           )}
         </Card>
       ) : view === "table" ? (

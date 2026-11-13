@@ -7,6 +7,10 @@ import { Toaster } from "@/components/toaster";
 import { searchOff } from "@/components/library/title-table";
 import { expectNamedControls, mockFetch, renderPage } from "@/test/page";
 
+// The lists open the shell's search overlay; the provider lives in the shell, so the context is stubbed here.
+const search = vi.hoisted(() => ({ openOverlay: vi.fn(), canAdd: true }));
+vi.mock("@/components/search/search-context", () => ({ useSearchUI: () => search }));
+
 const shadow = { mode: "shadow", can_edit: true, can_search: false, live_releases: false };
 const managed = { mode: "active", can_edit: true, can_search: true, live_releases: true };
 
@@ -726,5 +730,41 @@ describe("Row actions", () => {
     const card = screen.getByRole("link", { name: "Copper Sky" }).closest("li") as HTMLElement;
     expect(within(card).getByRole("button", { name: "Search now, Copper Sky" }).textContent).toBe("Search now");
     expect(within(card).getByRole("button", { name: "Interactive search, Copper Sky" }).textContent).toBe("Interactive search");
+  });
+});
+
+describe("Add button", () => {
+  afterEach(() => {
+    vi.unstubAllGlobals();
+    search.openOverlay.mockClear();
+    search.canAdd = true;
+  });
+
+  it("shows Add movie, Add series or Add anime in the header only to accounts that may add, and opens the search unfiltered", async () => {
+    const user = userEvent.setup();
+    for (const [id, label] of [["movies", "Add movie"], ["series", "Add series"], ["anime", "Add anime"]] as const) {
+      mockFetch(routes());
+      const page = renderPage(<Catalog id={id} />, `/${id}`);
+      await screen.findAllByText("The Pellbrook Inquiries");
+      await user.click(screen.getByRole("button", { name: label }));
+      expect(search.openOverlay).toHaveBeenLastCalledWith();
+      page.unmount();
+    }
+    search.canAdd = false;
+    mockFetch(routes());
+    renderPage(<Catalog id="movies" />, "/movies");
+    await screen.findAllByText("The Pellbrook Inquiries");
+    expect(screen.queryByTestId("catalog-add")).toBeNull();
+  });
+
+  it("offers the same button under the empty list's text", async () => {
+    mockFetch(routes().map((r) => (r.path === "/titles" ? { ...r, reply: { items: [], total: 0, offset: 0 } } : r)));
+    const user = userEvent.setup();
+    renderPage(<Catalog id="movies" />, "/movies");
+    await screen.findByText("No movies yet.");
+    const buttons = screen.getAllByRole("button", { name: "Add movie" });
+    expect(buttons).toHaveLength(2);
+    await user.click(buttons[1]);
+    expect(search.openOverlay).toHaveBeenCalledTimes(1);
   });
 });

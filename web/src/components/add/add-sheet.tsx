@@ -1,7 +1,7 @@
 import { usePerms } from "@/api/library";
 // The add sheet: versions to turn on (every version that fits the title ticked), seasons
-// for a series whose episodes the library knows, and a search-now switch shown only when a search would run (a ticked
-// version in mode active with the router on). It posts to POST /titles, the same add path as the arr views.
+// for a series whose episodes the library knows, and the footer's "Add" and "Add and search", the second offered only
+// when a search would run (a ticked version in mode active with the router on). It posts to POST /titles, the same add path as the arr views.
 // A side sheet on desktop and a bottom sheet on phones, in our Modal (components/ui/modal.tsx: focus trap, inert page,
 // focus restore, shared scroll lock), since Radix Dialog's scroll lock injects a <style> element the CSP refuses. Layout follows Scryer (github.com/scryer-media/scryer) apps/scryer-web/components/root/
 // add-to-catalog-dialog.tsx @ 2ef7757c, GPL-3.0 (poster header, option rows, footer actions) and Seerr's RequestModal
@@ -15,7 +15,7 @@ import { DownloadsOffNotice, VersionStatus } from "@/components/version-status";
 import { VersionTag } from "@/components/page";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Switch } from "@/components/ui/switch";
-import { globalDownloadsOff, willGrab } from "@/lib/version-grab";
+import { globalDownloadsOff } from "@/lib/version-grab";
 import { FacetPill, facetOf, Poster } from "@/components/search/search-results";
 import { Modal } from "@/components/ui/modal";
 import { Select } from "@/components/ui/select";
@@ -56,7 +56,7 @@ function CheckRow({
   );
 }
 
-/** A switch row (the search-now toggle): the shared Switch, with the whole row as its label. */
+/** A switch row: the shared Switch, with the whole row as its label. */
 function SwitchRow({ on, onChange, title, detail, testid }: { on: boolean; onChange: (v: boolean) => void; title: string; detail: string; testid?: string }) {
   const id = useId();
   return (
@@ -124,17 +124,6 @@ const MONITOR_PRESETS: readonly (readonly [MonitorPreset, string])[] = [
   ["lastSeason", "Latest season"], ["pilot", "Pilot only"], ["none", "None"],
 ];
 
-// Search now is off unless this browser last left it on. Only "on" is stored; off removes the key, so a write that
-// fails (storage full) cannot leave an old "on" behind.
-const searchKey = "theatarr.add.search";
-function readSearch() { try { return localStorage.getItem(searchKey) === "true"; } catch { return false; } }
-function storeSearch(on: boolean) {
-  try {
-    if (on) localStorage.setItem(searchKey, "true");
-    else localStorage.removeItem(searchKey);
-  } catch { /* Storage can be unavailable. */ }
-}
-
 export function AddSheet({ target, onClose }: { target: AddTarget; onClose: () => void }) {
   const perms = usePerms();
   const [anime, setAnime] = useState(Boolean(target.anime));
@@ -147,8 +136,6 @@ export function AddSheet({ target, onClose }: { target: AddTarget; onClose: () =
   const add = useAddTitle();
   const [picked, setPicked] = useState<Record<string, boolean>>({});
   const [seasons, setSeasons] = useState<Record<number, boolean>>({});
-  const [search, setSearchState] = useState(readSearch);
-  const setSearch = (on: boolean) => { setSearchState(on); storeSearch(on); };
   const [monitor, setMonitor] = useState<MonitorPreset | "">("");
   const [monitorNew, setMonitorNew] = useState(true);
   const [minimum, setMinimum] = useState<AddChoice["minimumAvailability"]>();
@@ -163,18 +150,22 @@ export function AddSheet({ target, onClose }: { target: AddTarget; onClose: () =
   const fitting = versions.filter((v) => v.fits || v.on);
   const other = versions.filter((v) => !v.fits && !v.on);
   const searchable = versions.filter((v) => isOn(v) && v.searchable).map((v) => v.key);
-  // The footer counts the ticked libraries the server says will download (will_grab).
+  // The footer counts the ticked libraries and the Live ones among them, by mode (Pause does not stop a library being Live).
   const selected = versions.filter(isOn);
-  const willDownload = selected.filter((v) => !!v.grab_state && willGrab(v.grab_state)).length;
+  const live = selected.filter((v) => v.grab_state?.mode === "active").length;
   const globalOff = globalDownloadsOff(versions.map((v) => v.grab_state));
   const canSearch = searchable.length > 0;
   const seasonOn = (n: number, def: boolean) => seasons[n] ?? def;
   const seasonsChanged = (o?.seasons ?? []).some((s) => seasons[s.season] !== undefined && seasons[s.season] !== (s.monitored ?? true));
   const epKnown = Boolean(o?.episodes_known);
+  // Two buttons, "Add" and "Add and search", when something new is ticked and a ticked library can search; a change of
+  // seasons alone keeps its one "Save seasons".
+  const searchOffered = !!o && canSearch && chosen.length > 0;
+  const addLabel = !inLibrary ? "Add" : "Add libraries";
   // The type a new series has without a choice: anime for an anime title, else standard.
   const typeDefault = anime ? "anime" : "standard";
 
-  const submit = () => {
+  const submit = (search: boolean) => {
     if (!o) return;
     const seasonList = o.kind === "series" && epKnown ? (o.seasons ?? []).map((s) => ({ season: s.season, monitored: seasonOn(s.season, s.monitored ?? true) })) : undefined;
     add.mutate(
@@ -327,26 +318,18 @@ export function AddSheet({ target, onClose }: { target: AddTarget; onClose: () =
                       testid="add-minimum-availability"
                     />
                   ) : null}
-                  <section>
-                    {canSearch ? (
-                      <SwitchRow
-                        on={search}
-                        onChange={setSearch}
-                        title="Search now"
-                        detail={`Search the indexers for ${searchable.join(", ")} right after adding.`}
-                        testid="add-search-now"
-                      />
-                    ) : globalOff ? null : (
+                  {canSearch || globalOff ? null : (
+                    <section>
                       <p className="flex items-start gap-2 text-xs leading-5 text-[var(--ink-3)]" data-testid="add-no-search">
                         <Search className="mt-0.5 size-3.5 shrink-0" />
                         No ticked library downloads now (see each library's state), so adding searches nothing; the wanted search picks them up once they download.
                       </p>
-                    )}
-                  </section>
+                    </section>
+                  )}
                 </>
               ) : null}
             </div>
-            <div className="flex items-center justify-between gap-3 border-t border-[var(--line)] p-4 pb-[calc(1rem+env(safe-area-inset-bottom))]">
+            <div className="flex flex-wrap items-center justify-between gap-3 border-t border-[var(--line)] p-4 pb-[calc(1rem+env(safe-area-inset-bottom))]">
               {add.error ? (
                 <span className="flex min-w-0 items-center gap-1.5 text-xs text-[var(--bad-ink)]">
                   <AlertTriangle className="size-3.5 shrink-0" />
@@ -354,15 +337,28 @@ export function AddSheet({ target, onClose }: { target: AddTarget; onClose: () =
                 </span>
               ) : (
                 <span className="min-w-0 text-xs text-[var(--ink-3)]" data-testid="add-count">
-                  {chosen.length > 0 || seasonsChanged ? <>{selected.length} {selected.length === 1 ? "library" : "libraries"} · <strong className="font-semibold text-[var(--ink)]">{willDownload} will download</strong></> : "Nothing new ticked"}
+                  {chosen.length > 0 || seasonsChanged ? `${selected.length} ${selected.length === 1 ? "library" : "libraries"}${live > 0 ? ` · ${live} Live` : ""}` : "Nothing new ticked"}
                 </span>
               )}
-              <div className="flex shrink-0 gap-2">
+              <div className="ml-auto flex shrink-0 gap-2">
                 <Button variant="ghost" onClick={onClose}>Cancel</Button>
-                <Button onClick={submit} disabled={!o || (chosen.length === 0 && !seasonsChanged) || add.isPending} data-testid="add-submit">
-                  {add.isPending ? <Loader2 className="animate-spin" /> : <Plus />}
-                  {!inLibrary ? "Add" : chosen.length > 0 || o?.kind !== "series" ? "Add libraries" : "Save seasons"}
-                </Button>
+                {searchOffered ? (
+                  <>
+                    <Button variant="outline" onClick={() => submit(false)} disabled={add.isPending} data-testid="add-submit">
+                      <Plus />
+                      {addLabel}
+                    </Button>
+                    <Button onClick={() => submit(true)} disabled={add.isPending} data-testid="add-submit-search">
+                      {add.isPending ? <Loader2 className="animate-spin" /> : <Search />}
+                      {addLabel} and search
+                    </Button>
+                  </>
+                ) : (
+                  <Button onClick={() => submit(false)} disabled={!o || (chosen.length === 0 && !seasonsChanged) || add.isPending} data-testid="add-submit">
+                    {add.isPending ? <Loader2 className="animate-spin" /> : <Plus />}
+                    {!inLibrary ? "Add" : chosen.length > 0 || o?.kind !== "series" ? "Add libraries" : "Save seasons"}
+                  </Button>
+                )}
               </div>
             </div>
           </>
