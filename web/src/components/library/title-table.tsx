@@ -17,6 +17,7 @@ import { ProviderPills } from "@/components/provider-pills";
 import { InteractiveSearch } from "@/components/title/interactive-search";
 import { failed, searched } from "@/components/title/seasons";
 import { Button } from "@/components/ui/button";
+import { NO_LIVE_LIBRARY, searchOffWords } from "@/components/version-status";
 import { DataTable, type DataColumn } from "@/components/ui/data-table";
 import type { RowSelection } from "@/components/ui/row-select";
 import { copyBar, nextWords, titleAcquisition } from "@/lib/copies";
@@ -34,7 +35,6 @@ import {
 import { badgeTone, copyTone, copyWords, type CopyTone } from "@/lib/library-status";
 import { fmtDay, fmtRuntime, notAiredYet, POSTER_STATUS_LABEL, posterStatus, titleWatchWords, upcomingRelease } from "@/lib/library";
 import { cn } from "@/lib/utils";
-import { globalDownloadsOff, verdict } from "@/lib/version-grab";
 import { StageLink, useMinWidth } from "./copy-bits";
 import { CopyDialog } from "./copy-dialog";
 import { LibraryPill } from "./library-pill";
@@ -218,16 +218,11 @@ function TitleCell({ t, seeFiles }: { t: TitleRow; seeFiles: boolean }) {
 }
 
 /** Why the title's Search now would search nothing, from the row's libraries (each one's control and monitoring), in
- *  the title page's order: Pause, then no Live library, then no monitored library, else each monitored library's
- *  verdict; "" when a monitored library can search. */
+ *  the title page's words (searchOffWords); "" when a monitored library can search. */
 export function searchOff(vs: readonly Version[]): string {
   if (vs.some((v) => v.monitored && v.control?.can_search)) return "";
-  const paused = globalDownloadsOff(vs.map((v) => v.control?.grab_state));
-  if (paused) return paused === "locked" ? "Paused by the environment (THEATARR_FORCE_OFF): nothing is searched, downloaded or linked for any library." : "Paused: nothing is searched, downloaded or linked for any library.";
-  if (!vs.some((v) => v.control?.mode === "active")) return "No library of this title is Live.";
-  const on = vs.filter((v) => v.monitored);
-  if (!on.length) return "No library is monitored.";
-  return `Nothing is searched now: ${on.map((v) => `${v.label || v.key}: ${v.control?.grab_state ? verdict(v.control.grab_state).word : "Downloads off"}`).join(" · ")}`;
+  const on = vs.filter((v) => v.monitored).map((v) => ({ label: v.label, key: v.key, grab_state: v.control?.grab_state }));
+  return searchOffWords(vs.map((v) => v.control?.grab_state), !vs.some((v) => v.control?.mode === "active"), on);
 }
 
 /** A row's actions for managers: Search now (the title page's: every monitored Live library, missing and upgrades;
@@ -263,7 +258,7 @@ function RowActions({ t, wide }: { t: TitleRow; wide: boolean }) {
         </Button>
       ) : (
         <Button size={size} variant="ghost" className={tip} disabled={!live} aria-label={`Interactive search, ${name}`}
-          title={live ? "Search now and choose the release yourself" : "No library of this title is Live."} onClick={() => setInteractive(true)} data-testid="row-interactive">
+          title={live ? "Search now and choose the release yourself" : NO_LIVE_LIBRARY} onClick={() => setInteractive(true)} data-testid="row-interactive">
           <UserSearch />
           {wide ? null : "Interactive search"}
         </Button>

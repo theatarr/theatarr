@@ -5,7 +5,7 @@ import { useId, useState } from "react";
 import { Popover } from "radix-ui";
 import { Link } from "react-router";
 import { Badge, Tag } from "@/components/ui/badge";
-import { closedGates, linksOff, MODE_WORDS, repeatsChoice, stateWords, verdict, type VersionGrabState } from "@/lib/version-grab";
+import { closedGates, globalDownloadsOff, linksOff, MODE_WORDS, repeatsChoice, stateWords, verdict, type VersionGrabState } from "@/lib/version-grab";
 
 export function VersionStatus({ state, showMode = false, words = false, beside, settingsKey, canManage = false, why = true }: {
   state?: VersionGrabState;
@@ -86,6 +86,22 @@ export function VersionStatus({ state, showMode = false, words = false, beside, 
 /** Pause in words, for a notice or a disabled control's tooltip. */
 export const pausedWords = (off: "locked" | "off" | "unknown") =>
   off === "locked" ? "Paused by the environment (THEATARR_FORCE_OFF): nothing is searched, downloaded or linked for any library." : "Paused: nothing is searched, downloaded or linked for any library.";
+
+export const NO_LIVE_LIBRARY = "No library of this title is Live.";
+
+type SearchLibrary = { label?: string; key?: string; grab_state?: VersionGrabState | null };
+
+/** Each monitored library's verdict, when none of them searches. */
+export const nothingSearchedWords = (on: readonly SearchLibrary[]) =>
+  `Nothing is searched now: ${on.map((v) => `${v.label || v.key}: ${v.grab_state ? verdict(v.grab_state).word : "Downloads off"}`).join(" · ")}`;
+
+/** A disabled Search now's reason in plain text (the title page and the list rows): Pause (global, so any library
+ *  carries it), then no Live library of the title, then no monitored library, else each monitored library's verdict.
+ *  states: every library's grab state; on: the monitored libraries. */
+export function searchOffWords(states: readonly (VersionGrabState | undefined | null)[], noLive: boolean, on: readonly SearchLibrary[]): string {
+  const paused = globalDownloadsOff(states);
+  return paused ? pausedWords(paused) : noLive ? NO_LIVE_LIBRARY : !on.length ? "No library is monitored." : nothingSearchedWords(on);
+}
 
 /** One notice per page when Pause is on for every library (or forced by the environment), so rows show only their
  * own verdict. off comes from lib/version-grab.ts globalDownloadsOff; "unknown" when the cause is not known yet. */

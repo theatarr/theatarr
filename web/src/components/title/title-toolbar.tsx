@@ -19,14 +19,14 @@ import { Mono } from "@/components/page";
 import { useSearchUI } from "@/components/search/search-context";
 import { RemoveDialog } from "@/components/title/copy-actions";
 import { InteractiveSearch } from "@/components/title/interactive-search";
-import { DownloadsOffNotice, pausedWords } from "@/components/version-status";
+import { DownloadsOffNotice, nothingSearchedWords, searchOffWords } from "@/components/version-status";
 import { Button } from "@/components/ui/button";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { Modal } from "@/components/ui/modal";
 import { renameSides } from "@/lib/library-rows";
 import { renameError } from "@/lib/rename";
 import { cn } from "@/lib/utils";
-import { globalDownloadsOff, verdict } from "@/lib/version-grab";
+import { globalDownloadsOff } from "@/lib/version-grab";
 
 const plural = (n: number, one: string, many = `${one}s`) => `${n} ${n === 1 ? one : many}`;
 
@@ -131,19 +131,16 @@ export function TitleToolbar({ titleId, name, year, kind, poster, anime, version
   // verdict. On the title page each library row states its own, so only "No library is monitored" is said here.
   const on = (o?.versions ?? []).filter((v) => v.on);
   const globalOff = globalDownloadsOff(on.map((v) => v.grab_state));
-  const perLibrary = `Nothing is searched now: ${on.map((v) => `${v.label || v.key}: ${v.grab_state ? verdict(v.grab_state).word : "Downloads off"}`).join(" · ")}`;
   const why = !o || !perms.manage || (titlePage && on.length)
     ? ""
     : !on.length
       ? "No library is monitored."
       : globalOff
         ? <DownloadsOffNotice off={globalOff} canManage={perms.admin} />
-        : perLibrary;
-  // The disabled Search now's reason in plain text, from the same verdicts: Pause (global, so any library carries it),
-  // then no Live library of this title, then no monitored library, else each monitored library's verdict.
-  const paused = globalDownloadsOff((o?.versions ?? []).map((v) => v.grab_state));
+        : nothingSearchedWords(on);
+  // The disabled Search now's reason in plain text, from the same verdicts (shared with the list rows).
   const noLive = versions.some((v) => v.control) && !versions.some((v) => v.control?.mode === "active");
-  const searchOff = paused ? pausedWords(paused) : noLive ? "No library of this title is Live." : !on.length ? "No library is monitored." : perLibrary;
+  const searchOff = searchOffWords((o?.versions ?? []).map((v) => v.grab_state), noLive, on);
   // The title page says Pause once, above its rows (no row repeats it).
   const pageOff = titlePage ? globalDownloadsOff(versions.map((v) => v.control?.grab_state)) : undefined;
   const labels = Object.fromEntries([...versions, ...removed].flatMap((v) => (v.key ? [[v.key, v.label ?? v.key]] : [])));
