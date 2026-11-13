@@ -31,7 +31,8 @@ async function openDialog() {
   const user = userEvent.setup();
   renderPage(<Seasons id="1" anime={false} />, "/title/1?episode=201");
   const drawer = await screen.findByRole("dialog");
-  await user.click(await within(drawer).findByRole("button", { name: /File/ }));
+  // The file's facts are open in the Details tab.
+  await within(drawer).findByTestId("episode-file");
   await user.click(within(drawer).getByTestId("change-episodes"));
   const dialog = await screen.findByTestId("change-episodes-dialog");
   return { user, dialog };
@@ -61,10 +62,10 @@ it("changes a file's episodes from the episode overview, asking before it replac
 
 it("offers Change episodes to admins only", async () => {
   mockFetch([me(["manage", "see_files"]), ...routes]);
-  const user = userEvent.setup();
   renderPage(<Seasons id="1" anime={false} />, "/title/1?episode=201");
   const drawer = await screen.findByRole("dialog");
-  await user.click(await within(drawer).findByRole("button", { name: /File/ }));
+  // The file's facts are open in the Details tab.
+  await within(drawer).findByTestId("episode-file");
   expect(within(drawer).getByText(path)).toBeTruthy();
   expect(within(drawer).queryByTestId("change-episodes")).toBeNull();
 });

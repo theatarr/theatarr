@@ -1,16 +1,16 @@
 // The episode overview (docs/design/manage.md, docs/design/ui.md Title page / Episodes), in the shared Modal: a dialog
 // centred on desktop and a bottom sheet on phones, opened from an episode row (?episode=<id>). The episode's number
-// (labelled "E01 · absolute 1" for anime), air date and runtime; then, for callers who see files, per copy its state
-// against the cutoff with Why? and what Theatarr would take next, the monitor switch and search now (managers; read-only
-// with the reason while an arr manages the copy), Interactive search for a library that may search, and File, History
-// and Last search (the stored decision, read-only) as separate disclosures, all
-// closed at first so the phone shows the overview before any release names or paths. Accounts without "see files"
-// get one availability line across copies and nothing else (the API sends no file, history or states for them).
+// (labelled "E01 · absolute 1" for anime), air date and runtime; then, for callers who see files, three tabs:
+// Details (per copy its state against the cutoff with Why? and what Theatarr would take next, the download in hand,
+// the monitor switch and Search now for managers, read-only with the reason while an arr manages the copy,
+// Interactive search for a library that may search, and the file's facts with Cached on, shown openly), History (per
+// copy its history and journal) and Last search (the stored decision, read-only). Accounts without "see files" get
+// one availability line across copies and nothing else (the API sends no file, history or states for them).
 // What it holds follows Scryer (github.com/scryer-media/scryer)
 // apps/scryer-web/components/views/series-overview/episode-details-panel.tsx and episode-panel-content.tsx
 // @ 2ef7757c, GPL-3.0 (episode header, the files on disk with their media facts, the history list); the look is ours.
-import { Activity, ChevronDown, Loader2, Search, X } from "lucide-react";
-import { useRef, useState } from "react";
+import { Activity, Loader2, Search, X } from "lucide-react";
+import { useState, type ReactNode } from "react";
 import { Link } from "react-router";
 import type { SearchOutcome } from "@/api/add";
 import type { Schemas } from "@/api/client";
@@ -26,9 +26,11 @@ import { Summary } from "@/components/title/show-releases";
 import { ChangeEpisodes } from "@/components/title/change-episodes";
 import { ProgressBar } from "@/components/activity-bits";
 import { History } from "@/components/title/versions";
+import { ProviderPills } from "@/components/provider-pills";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Modal } from "@/components/ui/modal";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { fmtAgo, fmtBytes, fmtTime } from "@/lib/format";
 import { fmtDay, fmtRuntime } from "@/lib/library";
 import { mediaLine } from "@/lib/media";
@@ -77,26 +79,6 @@ function Releases({ titleId, eid, d }: { titleId: number; eid: number; d: Episod
   );
 }
 
-/** A disclosure, closed at first: File, History, Releases. */
-function Disclosure({ title, count, open, onToggle, children, testid }: { title: string; count?: number; open: boolean; onToggle: () => void; children: React.ReactNode; testid?: string }) {
-  return (
-    <div className="rounded-[5px] border border-[var(--line)]" data-testid={testid}>
-      <button
-        type="button"
-        onClick={onToggle}
-        aria-expanded={open}
-        className="flex w-full items-center gap-1.5 px-3 py-2 text-left text-xs font-bold uppercase tracking-[0.05em] text-[var(--ink-3)] hover:text-foreground"
-        data-testid={testid ? `${testid}-toggle` : undefined}
-      >
-        <ChevronDown className={cn("size-3.5 transition-transform", !open && "-rotate-90")} />
-        <span className="flex-1">{title}</span>
-        {count !== undefined ? <span className="font-medium normal-case tracking-normal text-[var(--ink-3)]">{count}</span> : null}
-      </button>
-      {open ? <div className="border-t border-[var(--line)] p-3">{children}</div> : null}
-    </div>
-  );
-}
-
 function fileRows(f: EpisodeVersionDetail["file"]): [React.ReactNode, React.ReactNode][] {
   const rows: [React.ReactNode, React.ReactNode][] = [];
   if (!f) return rows;
@@ -105,6 +87,7 @@ function fileRows(f: EpisodeVersionDetail["file"]): [React.ReactNode, React.Reac
   if (f.score !== undefined && f.score !== null) rows.push(["Profile score", String(f.score)]);
   if (f.size_bytes) rows.push(["Size", fmtBytes(f.size_bytes)]);
   if (f.release_group) rows.push(["Group", f.release_group]);
+  rows.push(["Cached on", <ProviderPills key="c" codes={f.cached_on} />]);
   if (f.languages?.length) rows.push(["Languages", f.languages.join(", ")]);
   const media = mediaLine(f.media);
   if (media) rows.push(["Media", media]);
@@ -150,24 +133,27 @@ function AcquisitionPart({ a }: { a: Acquisition }) {
   );
 }
 
-/** One copy of the episode, for callers who see files. */
-function VersionPart({ titleId, eid, epCode, d, aired, manage, admin, single, acquisition }: { titleId: number; eid: number; epCode: string; d: EpisodeVersionDetail; aired: boolean; manage: boolean; admin: boolean; single: boolean; acquisition?: Acquisition }) {
+type Tab = "details" | "history" | "releases";
+
+/** A copy's block inside a tab, headed by its library when the episode is in more than one. */
+function CopyBlock({ d, single, children, testid }: { d: EpisodeVersionDetail; single: boolean; children: ReactNode; testid?: string }) {
+  return (
+    <section className={cn("space-y-3", !single && "rounded-xl border border-[var(--line)] p-3")} data-episode-version={d.key} data-testid={testid}>
+      {single ? null : <VersionTag k={d.key} />}
+      {children}
+    </section>
+  );
+}
+
+/** One copy's Details, for callers who see files: state, controls, the download in hand, the upgrade and the file. */
+function DetailsPart({ titleId, eid, epCode, d, aired, manage, admin, single, acquisition, onReleases }: { titleId: number; eid: number; epCode: string; d: EpisodeVersionDetail; aired: boolean; manage: boolean; admin: boolean; single: boolean; acquisition?: Acquisition; onReleases: () => void }) {
   const monitor = useMonitor(titleId);
   const search = useScopedSearch(titleId);
   const [msg, setMsg] = useState("");
-  const [open, setOpen] = useState<{ file: boolean; history: boolean; releases: boolean }>({ file: false, history: false, releases: false });
-  const releasesRef = useRef<HTMLDivElement>(null);
   const c = d.control;
   const badge = stateBadge(d, aired);
   const rows = fileRows(d.file);
   if (rows.length === 0 && d.has_file && d.upgrade?.quality) rows.push(["Quality", d.upgrade.quality]);
-  const history = d.history ?? [];
-  const journal = d.journal ?? [];
-  const flip = (k: keyof typeof open) => setOpen({ ...open, [k]: !open[k] });
-  const openReleases = () => {
-    setOpen({ ...open, releases: true });
-    window.setTimeout(() => releasesRef.current?.scrollIntoView({ behavior: "smooth", block: "start" }), 50);
-  };
   return (
     <section className={cn("space-y-3", !single && "rounded-xl border border-[var(--line)] p-3")} data-episode-version={d.key}>
       <div className="flex flex-wrap items-center gap-2">
@@ -205,36 +191,73 @@ function VersionPart({ titleId, eid, epCode, d, aired, manage, admin, single, ac
       ) : null}
       {manage ? <ControlNote c={c} kind="both" /> : null}
       {msg ? <p className="text-xs text-[var(--accent-ink)]">{msg}</p> : null}
-      <UpgradeBlock u={d.upgrade} seeFiles releases={openReleases} titleId={titleId} what={`This episode · ${d.label ?? d.key}`} />
-      <div className="space-y-2">
-        {rows.length > 0 ? (
-          <Disclosure title="File" open={open.file} onToggle={() => flip("file")} testid="episode-file">
-            <KV items={rows} />
-            {admin && d.file?.link_id ? (
-              <div className="mt-3">
-                <ChangeEpisodes titleId={titleId} linkId={d.file.link_id} path={d.file.path ?? ""} copy={d.label || d.key} held={d.file.episodes ?? []} />
-              </div>
-            ) : null}
-          </Disclosure>
-        ) : null}
-        <Disclosure title="History" count={history.length + journal.length} open={open.history} onToggle={() => flip("history")} testid="episode-history">
-          <div className="space-y-3">
-            <History events={history} titleId={titleId} version={d.key} />
-            {journal.length > 0 ? (
-              <div data-testid="episode-journal">
-                <div className="mb-1.5 text-[11px] font-bold uppercase tracking-[0.05em] text-[var(--ink-3)]">Journal</div>
-                <JournalList items={journal} empty="No journal entries about this episode." />
-              </div>
-            ) : null}
-          </div>
-        </Disclosure>
-        <div ref={releasesRef}>
-          <Disclosure title="Last search" open={open.releases} onToggle={() => flip("releases")} testid={`episode-releases-${d.key}`}>
-            <Releases titleId={titleId} eid={eid} d={d} />
-          </Disclosure>
+      <UpgradeBlock u={d.upgrade} seeFiles releases={onReleases} titleId={titleId} what={`This episode · ${d.label ?? d.key}`} />
+      {rows.length > 0 ? (
+        <div className="rounded-[5px] border border-[var(--line)] p-3" data-testid="episode-file">
+          <KV items={rows} />
+          {admin && d.file?.link_id ? (
+            <div className="mt-3">
+              <ChangeEpisodes titleId={titleId} linkId={d.file.link_id} path={d.file.path ?? ""} copy={d.label || d.key} held={d.file.episodes ?? []} />
+            </div>
+          ) : null}
         </div>
-      </div>
+      ) : null}
     </section>
+  );
+}
+
+/** One copy's history and journal. */
+function HistoryPart({ titleId, d, single }: { titleId: number; d: EpisodeVersionDetail; single: boolean }) {
+  const journal = d.journal ?? [];
+  return (
+    <CopyBlock d={d} single={single} testid="episode-history">
+      <History events={d.history ?? []} titleId={titleId} version={d.key} />
+      {journal.length > 0 ? (
+        <div data-testid="episode-journal">
+          <div className="mb-1.5 text-[11px] font-bold uppercase tracking-[0.05em] text-[var(--ink-3)]">Journal</div>
+          <JournalList items={journal} empty="No journal entries about this episode." />
+        </div>
+      ) : null}
+    </CopyBlock>
+  );
+}
+
+/** For callers who see files: Details, History and Last search as tabs, each listing the episode's copies. */
+function CopyTabs({ titleId, d, aired, manage, admin, acquisitions }: { titleId: number; d: EpisodeDetail; aired: boolean; manage: boolean; admin: boolean; acquisitions?: Record<string, Acquisition | undefined> }) {
+  const [tab, setTab] = useState<Tab>("details");
+  const single = d.versions.length === 1;
+  const epCode = code(d.episode.season, d.episode.number);
+  const events = d.versions.reduce((n, v) => n + (v.history?.length ?? 0) + (v.journal?.length ?? 0), 0);
+  return (
+    <Tabs value={tab} onValueChange={(v) => setTab(v as Tab)} className="flex min-h-0 flex-1 flex-col">
+      <TabsList className="shrink-0 overflow-x-auto px-4 [scrollbar-width:none]" aria-label="Episode">
+        <TabsTrigger value="details">Details</TabsTrigger>
+        <TabsTrigger value="history">
+          History
+          {events ? <span className="tabular-nums text-[var(--ink-3)]">{events}</span> : null}
+        </TabsTrigger>
+        <TabsTrigger value="releases">Last search</TabsTrigger>
+      </TabsList>
+      <div className="min-h-0 flex-1 overflow-y-auto p-4">
+        <TabsContent value="details" className="mt-0 space-y-4">
+          {d.versions.map((v) => (
+            <DetailsPart key={v.key} titleId={titleId} eid={d.episode.id} epCode={epCode} d={v} aired={aired} manage={manage} admin={admin} single={single} acquisition={acquisitions?.[v.key]} onReleases={() => setTab("releases")} />
+          ))}
+        </TabsContent>
+        <TabsContent value="history" className="mt-0 space-y-4">
+          {d.versions.map((v) => (
+            <HistoryPart key={v.key} titleId={titleId} d={v} single={single} />
+          ))}
+        </TabsContent>
+        <TabsContent value="releases" className="mt-0 space-y-4">
+          {d.versions.map((v) => (
+            <CopyBlock key={v.key} d={v} single={single} testid={`episode-releases-${v.key}`}>
+              <Releases titleId={titleId} eid={d.episode.id} d={v} />
+            </CopyBlock>
+          ))}
+        </TabsContent>
+      </div>
+    </Tabs>
   );
 }
 
@@ -304,23 +327,19 @@ export function EpisodeOverview({
           <X className="size-4" />
         </button>
       </div>
-      <div className="min-h-0 flex-1 space-y-4 overflow-y-auto p-4">
-        {q.isPending ? (
-          <p className="flex items-center gap-2 text-sm text-muted-foreground"><Loader2 className="size-4 animate-spin" /> Loading…</p>
-        ) : q.error ? (
-          <ErrorState error={q.error} />
-        ) : d ? (
-          d.versions.length === 0 ? (
-            <Empty>This series has no libraries.</Empty>
-          ) : !perms.seeFiles ? (
-            <PlainAvailability e={d.episode} />
-          ) : (
-            d.versions.map((v) => (
-              <VersionPart key={v.key} titleId={titleId} eid={eid} epCode={code(d.episode.season, d.episode.number)} d={v} aired={aired} manage={perms.manage} admin={perms.admin} single={d.versions.length === 1} acquisition={acquisitions?.[v.key]} />
-            ))
-          )
-        ) : null}
-      </div>
+      {d && !q.error && d.versions.length > 0 && perms.seeFiles ? (
+        <CopyTabs titleId={titleId} d={d} aired={aired} manage={perms.manage} admin={perms.admin} acquisitions={acquisitions} />
+      ) : (
+        <div className="min-h-0 flex-1 space-y-4 overflow-y-auto p-4">
+          {q.isPending ? (
+            <p className="flex items-center gap-2 text-sm text-muted-foreground"><Loader2 className="size-4 animate-spin" /> Loading…</p>
+          ) : q.error ? (
+            <ErrorState error={q.error} />
+          ) : d ? (
+            d.versions.length === 0 ? <Empty>This series has no libraries.</Empty> : <PlainAvailability e={d.episode} />
+          ) : null}
+        </div>
+      )}
     </Modal>
   );
 }
