@@ -414,6 +414,13 @@ func TestLibraryLabelsWithoutKeys(t *testing.T) {
 	if got := labels(o); got["tv-2160p"] != "4K" || got["tv-2160p-theatarr"] != "4K (2)" {
 		t.Errorf("user labels: %v", got)
 	}
+	// A request for the second library alone names it as the options do.
+	e.exec(`INSERT INTO request (user_id, kind, tmdb_id, title_id, name, versions, status, created_at, updated_at)
+		VALUES (1, 'series', 201, 10, 'The Show', '["tv-2160p-theatarr"]', 'approved', 0, 0)`)
+	body := e.userBody(APIBase + "/requests")
+	if !strings.Contains(body, `"label":"4K (2)"`) || strings.Contains(body, "· tv-2160p") {
+		t.Errorf("user request labels: %s", body)
+	}
 }
 
 // TestCaughtUpSeriesOneAnswerWithoutSeeFiles: for an account without "see files", a series holding every aired

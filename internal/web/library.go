@@ -549,21 +549,47 @@ func (w *Web) keyLabels(keys []string) map[string]string {
 }
 
 // keyLabelsFor is keyLabels for a caller: one without "see files" never sees a library key, so same-named libraries
-// are numbered in key order instead ("4K", "4K (2)"), as the SPA's plainLabels does.
+// are numbered instead ("4K", "4K (2)"), as the SPA's plainLabels does: one numbering over the current libraries of
+// each kind in key order (plainLabels), so a library has the same label in every list. A key no longer in the
+// settings keeps its plain label.
 func (w *Web) keyLabelsFor(keys []string, seeFiles bool) map[string]string {
 	if seeFiles {
 		return w.keyLabels(keys)
 	}
+	all := w.plainLabels()
 	names := map[string]string{}
+	for _, k := range keys {
+		if l, ok := all[k]; ok {
+			names[k] = l
+		} else if k != "" {
+			names[k] = w.versionLabel(k)
+		}
+	}
+	return names
+}
+
+// plainLabels numbers same-named libraries of a kind in key order, over the libraries in the settings.
+func (w *Web) plainLabels() map[string]string {
+	names := map[string]string{}
+	if w.pol == nil {
+		return names
+	}
+	keys := make([]string, 0, len(w.pol.Versions))
+	for k := range w.pol.Versions {
+		keys = append(keys, k)
+	}
+	slices.Sort(keys)
 	n := map[string]int{}
 	for _, k := range keys {
-		if _, ok := names[k]; ok || k == "" {
+		vp := w.pol.Versions[k]
+		if vp == nil {
 			continue
 		}
 		l := w.versionLabel(k)
-		n[l]++
-		if n[l] > 1 {
-			l += " (" + strconv.Itoa(n[l]) + ")"
+		kl := string(vp.Kind) + "\x00" + l
+		n[kl]++
+		if n[kl] > 1 {
+			l += " (" + strconv.Itoa(n[kl]) + ")"
 		}
 		names[k] = l
 	}
