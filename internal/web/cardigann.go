@@ -8,6 +8,7 @@ import (
 
 	"github.com/theatarr/theatarr/internal/auth"
 	"github.com/theatarr/theatarr/internal/indexer/cardigann"
+	"github.com/theatarr/theatarr/internal/textsearch"
 )
 
 // CardigannCatalog is the cardigann definition catalog (docs/design/cardigann.md): the definitions the sync source has
@@ -71,11 +72,11 @@ func (w *Web) apiCardigannDefinitions(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 	qv := r.URL.Query()
-	q := strings.ToLower(strings.TrimSpace(qv.Get("q")))
+	q := qv.Get("q")
 	privacy, status, lang := qv.Get("privacy"), qv.Get("status"), strings.ToLower(qv.Get("language"))
 	out := CardigannList{Status: w.cardigann.Status(), Total: len(all), Definitions: []cardigann.Summary{}}
 	for _, s := range all {
-		if q != "" && !strings.Contains(strings.ToLower(s.ID+"\x00"+s.Name+"\x00"+s.Description), q) {
+		if !textsearch.Match(q, s.ID, s.Name, s.Description) {
 			continue
 		}
 		if (privacy != "" && s.Privacy != privacy) || (status != "" && s.Status != status) ||

@@ -201,7 +201,9 @@ func TestActivityBlockedAndParams(t *testing.T) {
 	for q, want := range map[string]string{"": "Alpha.Remux,Beta.2021.WEB,Alpha.Sample.Release",
 		"title=alp": "Alpha.Remux,Alpha.Sample.Release", "version=movie-web": "Beta.2021.WEB,Alpha.Sample.Release",
 		"title=BET&version=movie-web": "Beta.2021.WEB", "title=beta&version=movie-remux": "",
-		"version=movie-web&limit=1": "Beta.2021.WEB"} {
+		"version=movie-web&limit=1": "Beta.2021.WEB",
+		// Every word, in the title's name or the blocked release's name.
+		"title=remux+alpha": "Alpha.Remux", "title=sample+alp": "Alpha.Sample.Release", "title=2021+web": "Beta.2021.WEB"} {
 		var f ActivityPage
 		if code := e.getKey(APIBase+"/activity?state=blocked&"+q, key, &f); code != 200 {
 			t.Fatalf("blocked %s: %d", q, code)

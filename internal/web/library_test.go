@@ -114,6 +114,8 @@ func TestTitlesSortAndFilters(t *testing.T) {
 		"year_to=2020":                  "Alpha,Gamma",
 		"year_from=2020&year_to=2021":   "Alpha,Beta",
 		"monitored=false":               "Gamma",
+		"q=ha++alp":                     "Alpha", // every word, in any order
+		"q=alp+zzz":                     "",
 		// Delta's copy is stored filled, but its aired S01E03 is missing: partial (availStateSQL).
 		"availability=partial":         "Alpha,Delta",
 		"availability=upgrade":         "Beta",

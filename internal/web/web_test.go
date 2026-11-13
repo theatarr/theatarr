@@ -517,6 +517,12 @@ func TestAPIOther(t *testing.T) {
 	if code := e.getKey(APIBase+"/registry?q=aaaa", key, &rl); code != 200 || rl.Total != 1 || rl.Items[0].Versions != 1 {
 		t.Errorf("registry list: %d %+v", code, rl)
 	}
+	// Every word: in the name, or a hash prefix.
+	for q, want := range map[string]int{"remux+alpha": 1, "AAAA+2160p": 1, "alpha+zzz": 0} {
+		if code := e.getKey(APIBase+"/registry?q="+q, key, &rl); code != 200 || rl.Total != want {
+			t.Errorf("registry q=%s: %d total %d, want %d", q, code, rl.Total, want)
+		}
+	}
 
 	var jl JobList
 	if code := e.getKey(APIBase+"/jobs", key, &jl); code != 200 || jl.Counts["queued"] != 1 || jl.Counts["failed"] != 1 ||

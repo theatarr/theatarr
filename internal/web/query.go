@@ -17,6 +17,7 @@ import (
 	"github.com/theatarr/theatarr/internal/jobs"
 	"github.com/theatarr/theatarr/internal/policy"
 	"github.com/theatarr/theatarr/internal/store"
+	"github.com/theatarr/theatarr/internal/textsearch"
 )
 
 // The read model behind the API and the UI. Every query runs on the reader pool.
@@ -130,9 +131,9 @@ func (f TitleFilter) where() (string, []any) {
 		conds = append(conds, "t.kind = ?")
 		args = append(args, f.Kind)
 	}
-	if f.Q != "" {
-		conds = append(conds, "t.name LIKE ? ESCAPE '\\'")
-		args = append(args, "%"+likeEscape(f.Q)+"%")
+	if cond, a := textsearch.Where(f.Q, "t.name"); cond != "" {
+		conds = append(conds, cond)
+		args = append(args, a...)
 	}
 	if f.With != "" {
 		conds = append(conds, "EXISTS (SELECT 1 FROM version v WHERE v.title_id = t.id AND v.policy_key = ? AND "+
@@ -157,10 +158,6 @@ func (f TitleFilter) where() (string, []any) {
 		return "", nil
 	}
 	return " WHERE " + strings.Join(conds, " AND "), args
-}
-
-func likeEscape(s string) string {
-	return strings.NewReplacer(`\`, `\\`, `%`, `\%`, `_`, `\_`).Replace(s)
 }
 
 func (w *Web) listTitles(ctx context.Context, f TitleFilter) (TitlePage, error) {
@@ -798,16 +795,16 @@ type ContentRow struct {
 	LastSeenAt time.Time `json:"last_seen_at"`
 }
 
-// listContent lists registry contents, newest first; q matches a hash prefix or a name substring.
+// listContent lists registry contents, newest first; each word of q matches a name substring or a hash prefix.
 func (w *Web) listContent(ctx context.Context, q, state string, limit, offset int) ([]ContentRow, int, error) {
 	if limit <= 0 || limit > 500 {
 		limit = 100
 	}
 	conds := []string{"1=1"}
 	var args []any
-	if q != "" {
+	for _, word := range textsearch.Words(q) {
 		conds = append(conds, "(c.info_hash LIKE ? ESCAPE '\\' OR c.name LIKE ? ESCAPE '\\')")
-		args = append(args, likeEscape(normHash(q))+"%", "%"+likeEscape(q)+"%")
+		args = append(args, textsearch.LikeEscape(normHash(word))+"%", "%"+textsearch.LikeEscape(word)+"%")
 	}
 	if state != "" {
 		conds = append(conds, "c.state = ?")

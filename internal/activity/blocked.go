@@ -3,8 +3,9 @@ package activity
 import (
 	"context"
 	"database/sql"
-	"strings"
 	"time"
+
+	"github.com/theatarr/theatarr/internal/textsearch"
 )
 
 // Blocked is a release a version never routes again (router_blocklist, migration 00016).
@@ -28,7 +29,7 @@ type Blocked struct {
 
 // BlockedFilter narrows the blocklist. Empty fields match every row.
 type BlockedFilter struct {
-	Title   string // part of the title's name
+	Title   string // words, each in the title's name or the blocked release's name
 	Version string // a library (version) key
 }
 
@@ -37,9 +38,9 @@ type BlockedFilter struct {
 func BlockedReleases(ctx context.Context, db *sql.DB, f BlockedFilter, limit, offset int) ([]Blocked, int, error) {
 	where := ` WHERE 1 = 1`
 	var args []any
-	if f.Title != "" {
-		where += ` AND t.name LIKE ? ESCAPE '\'`
-		args = append(args, "%"+strings.NewReplacer(`\`, `\\`, `%`, `\%`, `_`, `\_`).Replace(f.Title)+"%")
+	if cond, a := textsearch.Where(f.Title, "t.name", "b.release_title"); cond != "" {
+		where += ` AND ` + cond
+		args = append(args, a...)
 	}
 	if f.Version != "" {
 		where += ` AND b.version_key = ?`

@@ -49,6 +49,7 @@ import (
 	"github.com/theatarr/theatarr/internal/policy"
 	"github.com/theatarr/theatarr/internal/router"
 	"github.com/theatarr/theatarr/internal/store"
+	"github.com/theatarr/theatarr/internal/textsearch"
 )
 
 // ErrNotFound is an id the journal does not know.
@@ -361,7 +362,7 @@ func (j *Journal) heads(ctx context.Context, f Filter, titles []int64, cur *curs
 	return out, rows.Err()
 }
 
-// titleIDs resolves the title filter: a number is an id, anything else a part of the name.
+// titleIDs resolves the title filter: a number is an id, anything else words that must all be in the name.
 func (j *Journal) titleIDs(ctx context.Context, s string) ([]int64, error) {
 	if s == "" {
 		return nil, nil
@@ -369,8 +370,11 @@ func (j *Journal) titleIDs(ctx context.Context, s string) ([]int64, error) {
 	if id, err := strconv.ParseInt(s, 10, 64); err == nil {
 		return []int64{id}, nil
 	}
-	rows, err := j.st.Reader().QueryContext(ctx, `SELECT id FROM title WHERE name LIKE ? ESCAPE '\' COLLATE NOCASE
-		LIMIT 500`, "%"+likeEscape(s)+"%")
+	where, args := textsearch.Where(s, "name")
+	if where == "" {
+		return nil, nil
+	}
+	rows, err := j.st.Reader().QueryContext(ctx, `SELECT id FROM title WHERE `+where+` LIMIT 500`, args...)
 	if err != nil {
 		return nil, err
 	}
@@ -384,10 +388,6 @@ func (j *Journal) titleIDs(ctx context.Context, s string) ([]int64, error) {
 		out = append(out, id)
 	}
 	return out, rows.Err()
-}
-
-func likeEscape(s string) string {
-	return strings.NewReplacer(`\`, `\\`, `%`, `\%`, `_`, `\_`).Replace(s)
 }
 
 // List returns one page of entries, newest first.
