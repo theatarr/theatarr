@@ -34,9 +34,8 @@ import { ErrorState, Loading, Mono } from "@/components/page";
 import { ProviderPills } from "@/components/provider-pills";
 import { toast } from "@/components/toaster";
 import { EpisodeOverview } from "@/components/title/episode-drawer";
-import { InteractiveSearchButton, useLiveLibraries } from "@/components/title/interactive-search";
+import { InteractiveSearchButton } from "@/components/title/interactive-search";
 import { MonitorSwitch } from "@/components/title/manage-bits";
-import { DownloadsOffNotice } from "@/components/version-status";
 import { ProgressBar } from "@/components/activity-bits";
 import { UpgradeStatus } from "@/components/title/upgrade-why";
 import { Badge } from "@/components/ui/badge";
@@ -69,7 +68,6 @@ import {
   type Picked,
   type Status,
 } from "@/lib/seasons";
-import { globalDownloadsOff } from "@/lib/version-grab";
 import { cn } from "@/lib/utils";
 
 type SeasonT = EpisodeList["seasons"][number];
@@ -576,13 +574,18 @@ const EMPTY: Record<EpisodeFilter, string> = { all: "No episodes.", active: "Not
 /** Phase E's next search for a season in one library, when the server sends it (a field that may not be there yet). */
 type NextSearch = { next_search_at?: unknown; next_search_why?: unknown };
 
+/** Why the next search is due, in the Libraries table's words (lib/library-rows.ts nextSearch on f-title-rows). */
+function whyWords(why: string): string {
+  return why === "new" ? "new release" : why === "asked" ? "Search now" : "after a failed download";
+}
+
 function nextSearchText(c: object | undefined): string {
   const n = (c ?? {}) as NextSearch;
   if (typeof n.next_search_at !== "string" || !n.next_search_at) return "";
   const at = new Date(n.next_search_at).getTime();
   if (Number.isNaN(at)) return "";
   const when = at <= Date.now() ? "now" : fmtAgo(n.next_search_at);
-  return `Next search: ${when}${typeof n.next_search_why === "string" && n.next_search_why ? ` (${n.next_search_why})` : ""}`;
+  return `Next search: ${when}${typeof n.next_search_why === "string" && n.next_search_why ? ` (${whyWords(n.next_search_why)})` : ""}`;
 }
 
 /** A library's badge in All: its colour, name and "8 / 10" in the badge's tone. */
@@ -833,12 +836,12 @@ export function Seasons({ id, anime, franchises = [] }: { id: string; anime: boo
   const wide = useWide();
   const [params, setParams] = useSearchParams();
   const [open, setOpen] = useState<number[] | null>(null);
-  const [selected, setSelected] = useState<Set<number>>(new Set());
+  // The ticked episodes belong to the library view they were ticked in: another view starts with none.
+  const [ticked, setTicked] = useState<{ view: string; ids: Set<number> }>({ view: "", ids: new Set() });
   const [picked, setPicked] = useState<Picked>(null);
   const [picker, setPicker] = useState(false);
   const [colPrefs, setColPrefs] = useColumnPrefs(EPISODE_COLUMNS_PREF, EPISODE_COLUMNS, DEFAULT_EPISODE_COLUMNS);
   const titleId = Number(id);
-  const liveLibs = useLiveLibraries(titleId, perms.manage).libs;
   const episode = Number(params.get("episode")) || null;
   const openEpisode = (eid: number | null) => {
     const p = new URLSearchParams(params);
@@ -854,6 +857,17 @@ export function Seasons({ id, anime, franchises = [] }: { id: string; anime: boo
   const latest = [...l.seasons].filter((s) => s.season > 0 && s.aired > 0).pop()?.season ?? l.seasons[0].season;
   const opened = open ?? [latest];
   const toggle = (s: number) => setOpen(opened.includes(s) ? opened.filter((x) => x !== s) : [...opened, s]);
+  const manage = perms.manage;
+  const seeFiles = perms.seeFiles;
+  const layout = episodeLayout({ wide, copies: l.versions.length, seeFiles, picked });
+  const copies = copiesInView(layout, l.versions, picked);
+  const all = layout.columns !== "selected";
+  const scope = scopeOf(copies, all);
+  const one = all ? undefined : copies[0];
+  // The view in sight (a pick, All, or the switch between desktop and phone on resize).
+  const view = one?.key ?? "*";
+  const selected = ticked.view === view ? ticked.ids : new Set<number>();
+  const setSelected = (ids: Set<number>) => setTicked({ view, ids });
   const select = (ids: number[], on: boolean) => {
     const next = new Set(selected);
     for (const i of ids) {
@@ -862,19 +876,12 @@ export function Seasons({ id, anime, franchises = [] }: { id: string; anime: boo
     }
     setSelected(next);
   };
-  const manage = perms.manage;
-  const seeFiles = perms.seeFiles;
-  const layout = episodeLayout({ wide, copies: l.versions.length, seeFiles, picked });
-  const copies = copiesInView(layout, l.versions, picked);
-  const all = layout.columns !== "selected";
-  const scope = scopeOf(copies, all);
-  const one = all ? undefined : copies[0];
   // Interactive search: in one library only when that library searches live (it opens there); in All, the default.
-  const liveOn = manage && (one ? liveLibs.some((v) => v.key === one.key) : liveLibs.length > 0);
+  // The episodes route lists current libraries only, so a removed one is never offered.
+  const liveOn = manage && (one ? !!one.control?.live_releases : l.versions.some((v) => v.control?.live_releases));
   const live = liveOn ? { titleId, version: one?.key } : undefined;
   const columns = colPrefs.order.filter((c) => colPrefs.shown.includes(c));
   const columnsButton = layout.mode === "table" && layout.columns === "selected";
-  const off = globalDownloadsOff(l.versions.map((v) => v.control?.grab_state));
   const limits = manage ? restrictions(l.versions, { globalSaid: true }) : [];
   const watchOrder = anime ? franchises : [];
   return (
@@ -894,7 +901,6 @@ export function Seasons({ id, anime, franchises = [] }: { id: string; anime: boo
         </Link>
       ) : null}
       {l.versions.length === 0 ? <p className="text-sm text-muted-foreground">This series has no libraries.</p> : null}
-      <DownloadsOffNotice off={off} canManage={perms.admin} />
       {limits.length > 0 ? (
         <Note icon={<Lock className="size-3.5" />} testid="episode-restrictions">
           {limits.map((s) => (

@@ -69,6 +69,15 @@ describe("Series page copies", () => {
     expect(within(header).queryByTestId("season-summary")).toBeNull();
   });
 
+  it("says the next search in plain words when the server sends it for the library in view", async () => {
+    const at = new Date(Date.now() + 3 * 3600_000).toISOString();
+    const timed = { ...episodes, seasons: [{ ...episodes.seasons[0], versions: { ...episodes.seasons[0].versions, "anime-web": { ...episodes.seasons[0].versions["anime-web"], next_search_at: at, next_search_why: "new" } } }] };
+    mockFetch([routes[0], { method: "GET", path: "/titles/1/episodes", reply: timed }]);
+    renderPage(<Seasons id="1" anime />, "/title/1");
+    await userEvent.setup().click(await screen.findByRole("radio", { name: "Anime WEB" }));
+    expect(screen.getByTestId("season-facts").textContent).toBe("Next search: in 3 h (new release)");
+  });
+
   it("shows the per-library badges only to accounts that see files; others keep the season summary", async () => {
     mockFetch(routes);
     const first = renderPage(<Seasons id="1" anime />, "/title/1");
@@ -118,20 +127,23 @@ describe("Series page copies", () => {
   });
 });
 
-it.each([
-  ["active", true, undefined, undefined, "Paused: nothing is searched, downloaded or linked for any library", "downloads-off-notice"],
-  ["shadow", false, "Settings › Libraries", "/admin/settings/libraries", "Anime WEB: Watch only: Theatarr searches, downloads and links nothing for this library", "episode-restrictions"],
-] as const)("words the closed download gate (mode %s, paused %s) without policy keys", async (mode, paused, name, href, words, testid) => {
-  const control = { ...managed, can_search: false, search_reason: paused ? "Paused: nothing is searched or downloaded" : "Watch only: nothing is searched or downloaded for this library", grab_state: { mode, paused, pause_forced: false, will_grab: false } };
+it("words a Watch-only library's closed download gate without policy keys", async () => {
+  const control = { ...managed, can_search: false, search_reason: "Watch only: nothing is searched or downloaded for this library", grab_state: { mode: "shadow", paused: false, pause_forced: false, will_grab: false } };
   mockFetch([{ ...routes[0], reply: { id: 1, permissions: ["admin", "manage", "see_files"] } }, { method: "GET", path: "/titles/1/episodes", reply: { ...episodes, versions: [{ ...episodes.versions[1], control }] } }]);
   renderPage(<Seasons id="1" anime />, "/title/1");
-  // Pause for every library is the page notice, like other pages; not a line in the restrictions.
-  const note = await screen.findByTestId(testid);
-  if (testid === "downloads-off-notice") expect(screen.queryByTestId("episode-restrictions")).toBeNull();
-  expect(note.textContent).toContain(words);
+  const note = await screen.findByTestId("episode-restrictions");
+  expect(note.textContent).toContain("Anime WEB: Watch only: Theatarr searches, downloads and links nothing for this library");
   expect(note.textContent).not.toContain("router.enabled");
-  if (name) expect(within(note).getByRole("link", { name }).getAttribute("href")).toBe(href);
-  else expect(within(note).queryByRole("link")).toBeNull();
+  expect(within(note).getByRole("link", { name: "Settings › Libraries" }).getAttribute("href")).toBe("/admin/settings/libraries");
+});
+
+it("leaves Pause for every library to the title page's bar: no notice or restriction line in the tab", async () => {
+  const control = { ...managed, can_search: false, search_reason: "Paused: nothing is searched or downloaded", grab_state: { mode: "active", paused: true, pause_forced: false, will_grab: false } };
+  mockFetch([{ ...routes[0], reply: { id: 1, permissions: ["admin", "manage", "see_files"] } }, { method: "GET", path: "/titles/1/episodes", reply: { ...episodes, versions: [{ ...episodes.versions[1], control }] } }]);
+  renderPage(<Seasons id="1" anime />, "/title/1");
+  await screen.findByTestId("season-header");
+  expect(screen.queryByTestId("downloads-off-notice")).toBeNull();
+  expect(screen.queryByTestId("episode-restrictions")).toBeNull();
 });
 
 it("names phone library radios distinctly", async () => {
@@ -181,13 +193,13 @@ describe("Interactive search from the episodes", () => {
     expect(screen.getAllByRole("dialog")).toHaveLength(1);
   });
 
-  it("offers none when the series' only Live copy was removed", async () => {
-    const api = mockFetch([...routes, title, { ...current, reply: { ...current.reply, copies: current.reply.copies.slice(0, 1) } }]);
+  it("offers none when the series' only Live copy was removed (the episodes route no longer lists it)", async () => {
+    const api = mockFetch([routes[0], { method: "GET", path: "/titles/1/episodes", reply: { ...episodes, versions: episodes.versions.slice(0, 1) } }]);
     renderPage(<Seasons id="1" anime />, "/title/1");
-    await screen.findByTestId("season-summary");
-    await vi.waitFor(() => expect(api.calls("GET", "/titles/1/removal")).toHaveLength(1));
+    await screen.findByTestId("season-header");
     await new Promise((r) => setTimeout(r, 20));
     expect(screen.queryByTestId("interactive-search-open")).toBeNull();
+    expect(api.calls("GET", "/titles/1/removal")).toHaveLength(0);
   });
 
   it("offers no Interactive search to an account that does not manage", async () => {
@@ -265,19 +277,37 @@ describe("Acting on the libraries in view", () => {
     expect(within(screen.getByTestId("episode-table")).getAllByText("NTb")).toHaveLength(3);
   });
 
+  it("drops the ticked episodes when the library in view changes", async () => {
+    const api = mockFetch(acting);
+    const user = userEvent.setup();
+    renderPage(<Seasons id="1" anime />, "/title/1");
+    await user.click(await screen.findByRole("radio", { name: "Anime Blu-ray" }));
+    await user.click(within(document.querySelector('[data-episode="1x12"]') as HTMLElement).getByRole("checkbox", { name: "Select episode 12" }));
+    expect(screen.getByTestId("bulk-scope").textContent).toBe("1 selected · Anime Blu-ray");
+    await user.click(screen.getByRole("radio", { name: "Anime WEB" }));
+    expect(screen.queryByTestId("bulk-bar")).toBeNull();
+    await user.click(within(document.querySelector('[data-episode="1x13"]') as HTMLElement).getByRole("checkbox", { name: "Select episode 13" }));
+    await user.click(screen.getByTestId("bulk-unmonitor"));
+    await vi.waitFor(() => expect(api.calls("PUT", "/titles/1/episodes/monitor")).toHaveLength(1));
+    expect(api.calls("PUT", "/titles/1/episodes/monitor")[0].body).toEqual({ monitored: false, versions: ["anime-web"], episode_ids: [102] });
+  });
+
   it("names the library in view on the bulk bar and acts only there", async () => {
     const api = mockFetch(acting);
     const user = userEvent.setup();
     renderPage(<Seasons id="1" anime />, "/title/1");
-    const row = (await screen.findByRole("button", { name: /Episode 13/ })) as HTMLElement;
-    await user.click(within(row).getByRole("checkbox", { name: "Select episode 13" }));
+    const tick = async () => user.click(within(document.querySelector('[data-episode="1x13"]') as HTMLElement).getByRole("checkbox", { name: "Select episode 13" }));
+    await screen.findByRole("button", { name: /Episode 13/ });
+    await tick();
     expect(screen.getByTestId("bulk-scope").textContent).toBe("1 selected · every library");
     await user.click(screen.getByRole("radio", { name: "Anime Blu-ray" }));
+    await tick();
     expect(screen.getByTestId("bulk-scope").textContent).toBe("1 selected · Anime Blu-ray");
     // Anime Blu-ray is read-only and may not search: nothing reaches Anime WEB from here.
     expect((screen.getByTestId("bulk-monitor") as HTMLButtonElement).disabled).toBe(true);
     expect((screen.getByTestId("bulk-search") as HTMLButtonElement).disabled).toBe(true);
     await user.click(screen.getByRole("radio", { name: "Anime WEB" }));
+    await tick();
     expect(screen.getByTestId("bulk-scope").textContent).toBe("1 selected · Anime WEB");
     await user.click(screen.getByTestId("bulk-search"));
     await vi.waitFor(() => expect(api.calls("POST", "/titles/1/episodes/search")).toHaveLength(1));

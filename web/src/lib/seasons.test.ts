@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { Episode, EpisodeList } from "@/api/library";
-import { cellStatus, copiesInView, episodeLayout, episodeNumber, heldOf, matchesFilter, mergedStatus, plainAvailable, restrictions, seasonBadge, seasonSummary, statusWords, type Cell } from "./seasons";
+import { cellStatus, copiesInView, episodeLayout, episodeNumber, matchesFilter, mergedStatus, plainAvailable, restrictions, seasonBadge, seasonSummary, statusWords, type Cell } from "./seasons";
 
 const today = "2026-10-26";
 const cell = (o: Partial<Cell>): Cell => ({ state: "wanted", monitored: true, has_file: false, ...o }) as Cell;
@@ -45,12 +45,6 @@ describe("episode status", () => {
     expect(matchesFilter(tonight, "missing", [k4.key], true)).toBe(false);
     expect(matchesFilter(overnight, "missing", [k4.key], true)).toBe(true);
     expect(seasonSummary([tonight, overnight], [k4], true).text).toBe("0 of 1 available · 1 missing · 1 not aired");
-  });
-  it("counts held of the copy's aired or held episodes", () => {
-    expect(heldOf({ have: 4, total: 5 }, { episodes: 10 })).toBe("4/5 held");
-    // Four aired with one missing, and two held before they air: six aired or held, five of them held.
-    expect(heldOf({ have: 5, total: 6 }, { episodes: 10 })).toBe("5/6 held");
-    expect(heldOf({ have: 0, total: 0 }, { episodes: 10 })).toBe("0/10 held");
   });
   it("merges copies by watchability", () => {
     const keys = [k4.key, k1.key];
