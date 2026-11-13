@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"math"
 	"strconv"
+	"strings"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -74,26 +75,26 @@ func TestHistorySQLFilters(t *testing.T) {
 	t.Parallel()
 	e := newEnv(t)
 	e.seedDownloads()
-	e.exec(`INSERT INTO arr_history(instance,arr_id,event_type,date_at,arr_title_id,title_id,version_id,download_id,source_title,quality,languages,data)
- VALUES('radarr_4k_web',900,'downloadFailed',?,8,2,3,'Other','Beta.Failed','WEBDL-1080p','[]','{}')`, ms(testNow))
-	e.exec(`INSERT INTO arr_alias(instance,kind,arr_id,target_id,created_at) VALUES('sonarr_4k_debrid','episode',5001,102,?)`, ms(testNow))
-	e.exec(`INSERT INTO arr_history(instance,arr_id,event_type,date_at,arr_title_id,arr_episode_id,title_id,version_id,download_id,source_title,quality,languages,data) VALUES
- ('sonarr_4k_debrid',901,'grabbed',?,10,5001,10,10,'ImportedX','The.Show.Second','WEBDL-1080p','[]','{}'),
- ('sonarr_4k_debrid',902,'downloadFailed',?,10,5001,10,10,'ImportedX','The.Show.Second','WEBDL-1080p','[]','{}')`, ms(testNow.Add(-20*time.Second)), ms(testNow.Add(-10*time.Second)))
+	// A failed download of Beta that never reached a provider, and a grab of S01E02 that failed later.
+	e.exec(`INSERT INTO download(id,title_id,version_id,version_key,info_hash,release_title,indexer,quality,state,episodes,created_at,updated_at,added_at) VALUES
+ (5,2,3,'movie-web',?,'Beta.Failed','dmm','WEBDL-1080p','failed','[]',?,?,NULL),
+ (6,10,10,'tv-2160p',?,'The.Show.Second','dmm','WEBDL-1080p','failed','[102]',?,?,?)`,
+		strings.Repeat("e", 40), ms(testNow), ms(testNow),
+		strings.Repeat("f", 40), ms(testNow.Add(-20*time.Second)), ms(testNow.Add(-10*time.Second)), ms(testNow.Add(-20*time.Second)))
 	for _, tc := range []struct {
 		view, query string
 		count       int
 	}{
-		{"radarr", "", 6}, {"radarr", "eventType=1", 3}, {"radarr", "eventType=1&eventType=4", 4}, {"radarr", "eventType=1,3", 5},
+		{"radarr", "", 4}, {"radarr", "eventType=1", 2}, {"radarr", "eventType=1&eventType=4", 3}, {"radarr", "eventType=1,3", 3},
 		{"radarr", "eventType=downloadFailed", 1}, {"radarr", "eventType=999", 0},
-		{"radarr", "downloadId=abcdef", 2}, {"radarr", "downloadId=AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA", 1},
-		{"radarr", "movieIds=1000001", 5}, {"radarr", "movieIds=1000002", 1}, {"radarr", "movieIds=1000001,1000002", 6},
-		{"radarr", "movieIds=7&movieIds=1000002", 6}, {"radarr", "movieIds=999", 0},
+		{"radarr", "downloadId=bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb", 2}, {"radarr", "downloadId=AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA", 1},
+		{"radarr", "movieIds=1000001", 3}, {"radarr", "movieIds=1000002", 1}, {"radarr", "movieIds=1000001,1000002", 4},
+		{"radarr", "movieIds=7&movieIds=1000002", 4}, {"radarr", "movieIds=999", 0},
 		{"radarr", "movieIds=1000002&eventType=1", 0},
 		// The local pack grab of 101 and 102 is one record per episode.
 		{"sonarr", "", 4}, {"sonarr", "episodeId=101", 1}, {"sonarr", "episodeId=102", 3},
 		{"sonarr", "episodeId=102&eventType=4", 1}, {"sonarr", "eventType=1,4", 4}, {"sonarr", "eventType=999", 0},
-		{"sonarr", "seriesIds=1000010,999", 4}, {"sonarr", "seriesIds=999", 0}, {"sonarr", "downloadId=importedx", 2},
+		{"sonarr", "seriesIds=1000010,999", 4}, {"sonarr", "seriesIds=999", 0}, {"sonarr", "downloadId=ffffffffffffffffffffffffffffffffffffffff", 2},
 	} {
 		t.Run(tc.view+"/"+tc.query, func(t *testing.T) {
 			var p struct {
@@ -147,7 +148,7 @@ func TestHistorySQLFilters(t *testing.T) {
 		t.Fatalf("season filter: %+v", hs)
 	}
 	e.call("GET", "/radarr/api/v3/history/movie?movieId=1000001&eventType=1&includeMovie=true", nil, 200, &hs)
-	if len(hs) != 3 || hs[0].Movie == nil {
+	if len(hs) != 2 || hs[0].Movie == nil {
 		t.Fatalf("movie history: %+v", hs)
 	}
 	for _, view := range []string{"radarr", "sonarr"} {
@@ -171,10 +172,27 @@ func TestHistorySQLFilters(t *testing.T) {
 func TestLargeHistoryReadsOnlyPagePayloads(t *testing.T) {
 	e := newEnv(t)
 	e.exec(`WITH RECURSIVE n(x) AS (VALUES(1) UNION ALL SELECT x+1 FROM n WHERE x<5000)
- INSERT INTO arr_history(instance,arr_id,event_type,date_at,arr_title_id,title_id,version_id,source_title,quality,languages,data)
- SELECT 'radarr_4k_web',1000+x,'grabbed',?+x,7,1,2,'Large release '||x,'WEBDL-1080p','[]','{"message":"payload"}' FROM n`, ms(testNow))
-	e.exec(`ALTER TABLE arr_history RENAME TO arr_history_source`)
-	e.exec(`CREATE VIEW arr_history AS SELECT rowid,instance,arr_id,event_type,date_at,arr_title_id,arr_episode_id,title_id,version_id,download_id,info_hash,protocol,source_title,quality,custom_format_score,languages,theatarr_test_history_payload(data) AS data FROM arr_history_source`)
+ INSERT INTO download(title_id,version_id,version_key,info_hash,release_title,indexer,quality,state,episodes,created_at,updated_at,added_at)
+ SELECT 1,2,'movie-web',printf('%040x',x),'Large release '||x,'dmm','WEBDL-1080p','added','[]',?+x,?+x,?+x FROM n`,
+		ms(testNow), ms(testNow), ms(testNow))
+	e.exec(`ALTER TABLE download RENAME TO download_source`)
+	var cols []string
+	rows, err := e.st.Reader().Query(`SELECT name FROM pragma_table_info('download_source') ORDER BY cid`)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for rows.Next() {
+		var c string
+		if err := rows.Scan(&c); err != nil {
+			t.Fatal(err)
+		}
+		if c == "release_title" {
+			c = "theatarr_test_history_payload(release_title) AS release_title"
+		}
+		cols = append(cols, c)
+	}
+	rows.Close()
+	e.exec(`CREATE VIEW download AS SELECT ` + strings.Join(cols, ",") + ` FROM download_source`)
 	for _, page := range []int{1, 2, 500, 501} {
 		historyPayloadReads.Store(0)
 		var p struct {
@@ -182,12 +200,12 @@ func TestLargeHistoryReadsOnlyPagePayloads(t *testing.T) {
 			Records      []historyResource
 		}
 		e.call("GET", "/radarr/api/v3/history?page="+strconv.Itoa(page)+"&pageSize=10", nil, 200, &p)
-		if p.TotalRecords != 5002 {
+		if p.TotalRecords != 5000 {
 			t.Fatalf("count %d", p.TotalRecords)
 		}
 		want := 10
 		if page == 501 {
-			want = 2
+			want = 0
 		}
 		if len(p.Records) != want || historyPayloadReads.Load() != int64(want) {
 			t.Fatalf("page %d: %d records, %d payload reads", page, len(p.Records), historyPayloadReads.Load())
@@ -201,42 +219,39 @@ func TestLargeHistoryReadsOnlyPagePayloads(t *testing.T) {
 func TestHistoryUnknownEventFilter(t *testing.T) {
 	t.Parallel()
 	e := newEnv(t)
-	e.exec(`UPDATE arr_history SET event_type='unknown' WHERE arr_id=40`)
+	e.seedDownloads()
 	var p struct {
 		TotalRecords int
 		Records      []historyResource
 	}
 	e.call("GET", "/radarr/api/v3/history?eventType=0", nil, 200, &p)
-	if p.TotalRecords != 1 || len(p.Records) != 1 || p.Records[0].EventType != "unknown" {
+	if p.TotalRecords != 0 || len(p.Records) != 0 {
 		t.Fatalf("unknown event: %+v", p)
 	}
 	e.call("GET", "/radarr/api/v3/history?eventType=0,3", nil, 200, &p)
-	if p.TotalRecords != 2 || len(p.Records) != 2 {
+	if p.TotalRecords != 1 || len(p.Records) != 1 || p.Records[0].EventType != "downloadFolderImported" {
 		t.Fatalf("unknown event in list: %+v", p)
 	}
 }
 
-func TestHistorySQLQualityAndLanguageSort(t *testing.T) {
+func TestHistorySQLQualitySort(t *testing.T) {
 	t.Parallel()
 	e := newEnv(t)
-	e.exec(`INSERT INTO arr_history(instance,arr_id,event_type,date_at,title_id,version_id,source_title,quality,languages,data) VALUES
- ('radarr_4k_web',200,'grabbed',?,2,3,'Quality eighteen','WEBDL-2160p','["Spanish"]','{}'),
- ('radarr_4k_web',201,'grabbed',?,1,2,'Quality three','WEBDL-1080p','["German"]','{}')`, ms(testNow), ms(testNow))
+	e.exec(`INSERT INTO download(id,title_id,version_id,version_key,info_hash,release_title,indexer,quality,state,episodes,created_at,updated_at,added_at) VALUES
+ (1,2,3,'movie-web',?,'Quality eighteen','dmm','WEBDL-2160p','added','[]',?,?,?),
+ (2,1,2,'movie-web',?,'Quality three','dmm','WEBDL-1080p','added','[]',?,?,?)`,
+		strings.Repeat("a", 40), ms(testNow), ms(testNow), ms(testNow), strings.Repeat("b", 40), ms(testNow), ms(testNow), ms(testNow))
 	for _, tc := range []struct {
-		key   string
-		page  int
+		dir   string
 		title string
-	}{
-		{"quality", 1, "Quality eighteen"}, {"quality", 2, "Quality three"},
-		{"languages", 3, "Quality eighteen"}, {"languages", 4, "Quality three"},
-	} {
+	}{{"ascending", "Quality eighteen"}, {"descending", "Quality three"}} {
 		var p struct {
 			TotalRecords int
 			Records      []historyResource
 		}
-		e.call("GET", "/radarr/api/v3/history?sortDirection=ascending&pageSize=1&sortKey="+tc.key+"&page="+strconv.Itoa(tc.page), nil, 200, &p)
-		if p.TotalRecords != 4 || len(p.Records) != 1 || p.Records[0].SourceTitle != tc.title {
-			t.Fatalf("%s page %d: %+v", tc.key, tc.page, p)
+		e.call("GET", "/radarr/api/v3/history?pageSize=1&sortKey=quality&sortDirection="+tc.dir, nil, 200, &p)
+		if p.TotalRecords != 2 || len(p.Records) != 1 || p.Records[0].SourceTitle != tc.title {
+			t.Fatalf("quality %s: %+v", tc.dir, p)
 		}
 	}
 }

@@ -136,10 +136,7 @@ func TestDeleteUnlinksOnlyTheView(t *testing.T) {
 	if n := e.one(`SELECT COUNT(*) FROM version WHERE title_id = 1`); n != 2 {
 		t.Errorf("%d version rows", n)
 	}
-	// /radarr's DELETE (Seerr's remove, by the alias it stored) unlinks the rest, once radarr_4k_debrid no longer owns
-	// movie-remux.
-	e.call("DELETE", "/radarr/api/v3/movie/7?deleteFiles=true&addImportExclusion=false", nil, 409, nil)
-	e.cutover()
+	// /radarr's DELETE (Seerr's remove, by the alias it stored) unlinks the rest.
 	e.call("DELETE", "/radarr/api/v3/movie/7?deleteFiles=true&addImportExclusion=false", nil, 200, nil)
 	e.call("GET", "/radarr/api/v3/movie/7", nil, 404, nil)
 	e.call("GET", "/radarr/api/v3/movie/"+alpha, nil, 404, nil)
@@ -315,9 +312,9 @@ func (e *env) cutover() {
 	e.start()
 }
 
-// An arr view's DELETE ends the removed versions' downloads in hand in our records (they are not imported back) and
-// refuses a version an arr instance still owns before anything changes, as the web UI's remove does.
-func TestDeleteEndsDownloadsAndRefusesManaged(t *testing.T) {
+// An arr view's DELETE ends the removed versions' downloads in hand in our records (they are not imported back).
+// A version an arr instance imports is removed like any other.
+func TestDeleteEndsDownloads(t *testing.T) {
 	t.Parallel()
 	e := newEnv(t)
 	now := ms(testNow)
@@ -344,16 +341,10 @@ func TestDeleteEndsDownloadsAndRefusesManaged(t *testing.T) {
 	if n := e.one(`SELECT COUNT(*) FROM download WHERE id = 73 AND state = 'downloading'`); n != 1 {
 		t.Error("another version's download ended")
 	}
-	// movie-remux is still radarr_4k_debrid's: refused, nothing changes.
-	rec := e.call("DELETE", "/radarr/api/v3/movie/"+alpha, nil, 409, nil)
-	if !strings.Contains(rec.Body.String(), "Managed by radarr_4k_debrid") {
-		t.Errorf("refusal %s", rec.Body.String())
-	}
-	if n := e.one(`SELECT COUNT(*) FROM arrview_removed_version WHERE version_id = 1`); n != 0 {
-		t.Error("managed version removed")
-	}
-	if n := e.one(`SELECT COUNT(*) FROM download WHERE id = 73 AND state = 'downloading'`); n != 1 {
-		t.Error("managed version's download ended")
+	// movie-remux, imported from radarr_4k_debrid, is removed too and its download in hand ends.
+	e.call("DELETE", "/radarr/api/v3/movie/"+alpha, nil, 200, nil)
+	if n := e.one(`SELECT COUNT(*) FROM download WHERE id = 73 AND state = 'failed'`); n != 1 {
+		t.Error("movie-remux's download did not end")
 	}
 }
 
@@ -423,15 +414,13 @@ func TestDeleteAddImportExclusion(t *testing.T) {
 			}
 		})
 	}
-	// A refused delete (radarr_4k_debrid still owns movie-remux) excludes nothing.
-	e := newEnv(t)
-	e.call("DELETE", "/radarr/api/v3/movie/7?addImportExclusion=true", nil, 409, nil)
 	// Sonarr has no such list: both spellings of the flag are ignored.
+	e := newEnv(t)
 	e.cutover()
 	show := strconv.Itoa(IDBase + 10)
 	e.call("DELETE", "/sonarr/api/v3/series/"+show+"?addImportListExclusion=true&addImportExclusion=true", nil, 200,
 		nil)
 	if n := e.one(`SELECT COUNT(*) FROM movie_exclusion`); n != 0 {
-		t.Fatalf("%d exclusion rows after a refused delete and a series delete", n)
+		t.Fatalf("%d exclusion rows after a series delete", n)
 	}
 }

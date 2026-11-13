@@ -53,7 +53,7 @@
 //     and failures awaiting resolution carry warnings/errors.
 //   - Quality profiles list every quality as allowed and no formats: they are version sets.
 //   - Movie metadata the database does not hold (overview, images, genres, ratings, runtime) is empty.
-//   - History combines imported row ids and local download event ids (HistoryBase + download id × 10 + event,
+//   - History is Theatarr's downloads; ids are download event ids (HistoryBase + download id × 10 + event,
 //     plus 2^40 × the episode's position for a Sonarr pack's later episodes).
 //     Plain-array routes remain complete lists. Negative page sizes return 400 instead of SQLite's unlimited LIMIT;
 //     paging uses checked 64-bit offsets instead of the reference repository's overflowing Int32 multiplication.

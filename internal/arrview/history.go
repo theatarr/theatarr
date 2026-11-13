@@ -6,7 +6,6 @@ import (
 	"encoding/json"
 	"errors"
 	"net/http"
-	"slices"
 	"strconv"
 	"strings"
 
@@ -152,9 +151,8 @@ func releaseGUID(hash, idx string) string {
 	return "theatarr:" + idx + ":" + strings.ToLower(hash)
 }
 
-// POST history/failed/{id} (HistoryController.MarkAsFailed): the grab failed. For a download of ours the record
-// ends (state failed) and its hash is blocklisted for the version; for an imported arr record the hash is
-// blocklisted for its version. Then, as the arrs' autoRedownloadFailed (on in config/downloadclient), a search
+// POST history/failed/{id} (HistoryController.MarkAsFailed): the grab failed. The download's record ends (state
+// failed) and its hash is blocklisted for the version. Then, as the arrs' autoRedownloadFailed (on in config/downloadclient), a search
 // starts for the title's active versions. Nothing is removed on a provider. 200 with no body; 404 when the view has
 // no such record.
 func (s *Service) historyFailed(w http.ResponseWriter, r *request) {
@@ -192,34 +190,7 @@ func (s *Service) historyFailed(w http.ResponseWriter, r *request) {
 		writeJSON(w, http.StatusOK, struct{}{})
 		return
 	}
-	var tid int64
-	var key, hash, rel string
-	err := s.st.Reader().QueryRowContext(ctx, `SELECT h.title_id, v.policy_key, COALESCE(h.info_hash, h.download_id, ''),
-		h.source_title FROM arr_history h JOIN version v ON v.id = h.version_id WHERE h.rowid = ?`, id).
-		Scan(&tid, &key, &hash, &rel)
-	if errors.Is(err, sql.ErrNoRows) || err == nil && !slices.Contains(r.v.Versions, key) {
-		notFound(w, "History with ID "+strconv.FormatInt(id, 10)+" does not exist")
-		return
-	}
-	if err != nil {
-		s.internal(w, r, err)
-		return
-	}
-	if hash != "" {
-		err = s.st.WriteTx(ctx, func(tx *sqlTx) error {
-			return router.Blocklist(ctx, tx, key, hash, tid, 0, rel, reason, router.BlocklistHistory,
-				store.Millis(s.now()))
-		})
-		if err != nil {
-			s.internal(w, r, err)
-			return
-		}
-	}
-	if err := s.redownload(ctx, r, tid); err != nil {
-		s.internal(w, r, err)
-		return
-	}
-	writeJSON(w, http.StatusOK, struct{}{})
+	notFound(w, "History with ID "+strconv.FormatInt(id, 10)+" does not exist")
 }
 
 // redownload starts a search for a title's active versions in the view (MoviesSearch / SeriesSearch), as the arrs'

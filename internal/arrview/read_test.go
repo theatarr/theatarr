@@ -10,6 +10,7 @@ import (
 	"regexp"
 	"slices"
 	"strconv"
+	"strings"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -454,6 +455,11 @@ func TestQueueAndFriends(t *testing.T) {
 		TotalRecords int
 		Records      []map[string]any
 	}
+	at := ms(testNow.Add(-48 * time.Hour))
+	e.exec(`INSERT INTO download (id, title_id, version_id, version_key, info_hash, release_title, indexer, quality,
+		state, episodes, created_at, updated_at, added_at, imported_at) VALUES (20, 1, 1, 'movie-remux', ?,
+		'Alpha.2020.2160p.BluRay.REMUX-GRP', 'dmm', 'Remux-2160p', 'imported', '[]', ?, ?, ?, ?)`,
+		strings.Repeat("ab", 20), at, at, at, at+3600e3)
 	e.call("GET", "/radarr/api/v3/history?eventType=1", nil, 200, &hist)
 	if hist.TotalRecords != 1 || hist.Records[0]["eventType"] != "grabbed" {
 		t.Errorf("history grabbed %+v", hist)

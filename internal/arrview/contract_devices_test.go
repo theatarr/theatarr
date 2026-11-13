@@ -133,7 +133,6 @@ func TestRuddarrRadarrContract(t *testing.T) {
 	if code := c.do("DELETE", "/moviefile/"+strconv.Itoa(LinkFileBase+7), nil, nil, nil); code != 409 {
 		t.Errorf("moviefile delete with the library gate closed: %d", code)
 	}
-	e.pol.Import = nil // a version an arr still owns is refused (409); after cutover none is
 	c.must("DELETE", "/movie/"+strconv.Itoa(IDBase+2), url.Values{"deleteFiles": {"true"},
 		"addImportExclusion": {"false"}}, nil, 200, nil) // L77-86
 }
@@ -199,7 +198,6 @@ func TestRuddarrSonarrContract(t *testing.T) {
 	if code := c.do("DELETE", "/episodefile/bulk", nil, map[string]any{"episodeFileIds": []int{3}}, nil); code != 409 {
 		t.Errorf("episodefile bulk: %d", code)
 	}
-	e.pol.Import = nil // a version an arr still owns is refused (409); after cutover none is
 	c.must("DELETE", "/series/"+sid, url.Values{"deleteFiles": {"false"}, "addImportListExclusion": {"false"}}, nil,
 		200, nil) // L183-192
 }

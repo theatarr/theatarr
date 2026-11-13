@@ -1,6 +1,7 @@
 package arrview
 
 import (
+	"strings"
 	"testing"
 	"time"
 )
@@ -95,15 +96,15 @@ func TestHistoryAndBlocklistSQLTitleSort(t *testing.T) {
 	e.exec(`UPDATE title SET name='Zulu',sort_name='' WHERE id=2`)
 	e.exec(`INSERT INTO router_blocklist(version_key,info_hash,title_id,release_title,reason,source,created_at)
  VALUES('movie-web','beta',2,'Zulu','failed','queue',?)`, ms(testNow))
-	e.exec(`INSERT INTO arr_history(instance,arr_id,event_type,date_at,title_id,version_id,download_id,source_title,quality,languages,data)
- VALUES('radarr_4k_web',100,'grabbed',?,2,3,'beta','Zulu','WEBDL-1080p','[]','{}')`, ms(testNow))
+	e.exec(`INSERT INTO download(id,title_id,version_id,version_key,info_hash,release_title,indexer,quality,state,episodes,created_at,updated_at,added_at)
+ VALUES(90,2,3,'movie-web',?,'Zulu','dmm','WEBDL-1080p','added','[]',?,?,?)`, strings.Repeat("e", 40), ms(testNow), ms(testNow), ms(testNow))
 	var hs struct {
 		TotalRecords int
 		Records      []historyResource
 	}
-	// seedBlocklist's failed download adds a fourth history event; title sort still puts Zulu first.
+	// seedBlocklist's failed download adds a second history event; title sort still puts Zulu first.
 	e.call("GET", "/radarr/api/v3/history?sortKey=movieMetadata.sortTitle&sortDirection=ascending&pageSize=1", nil, 200, &hs)
-	if hs.TotalRecords != 4 || len(hs.Records) != 1 || *hs.Records[0].MovieID != IDBase+2 {
+	if hs.TotalRecords != 2 || len(hs.Records) != 1 || *hs.Records[0].MovieID != IDBase+2 {
 		t.Fatalf("history title sort: %+v", hs)
 	}
 	var bs struct {

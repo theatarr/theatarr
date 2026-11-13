@@ -1,6 +1,6 @@
 [
   {
-    "added": "2025-03-04T05:06:07Z",
+    "added": "2026-10-01T00:00:00Z",
     "alternateTitles": [],
     "digitalRelease": "2020-08-01T00:00:00Z",
     "folderName": "/media/movies/Alpha (2020)",
@@ -93,7 +93,7 @@
     "year": 2020
   },
   {
-    "added": "2025-03-04T05:06:07Z",
+    "added": "2026-10-01T00:00:00Z",
     "alternateTitles": [],
     "folderName": "/media/movies-web/Beta (2021)",
     "genres": [],
@@ -166,7 +166,7 @@
       ],
       "sizeOnDisk": 9000000000
     },
-    "status": "released",
+    "status": "announced",
     "tags": [],
     "title": "Beta",
     "titleSlug": "102",

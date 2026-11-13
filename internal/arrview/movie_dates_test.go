@@ -8,7 +8,6 @@ import (
 func TestMovieUsesRefreshedDates(t *testing.T) {
 	t.Parallel()
 	e := newEnv(t)
-	e.exec(`UPDATE arr_title SET status = 'announced' WHERE title_id = 3`)
 	e.exec(`INSERT INTO title_meta (title_id, movie_dates_at, attempted_at, refresh_after) VALUES (3,1,1,1)`)
 	e.exec(`INSERT INTO title_release_date (title_id, source, type, date) VALUES
 		(3,'tmdb-art','theatrical','2026-09-01'),(3,'tmdb-art','digital','2026-10-01')`)
@@ -20,7 +19,7 @@ func TestMovieUsesRefreshedDates(t *testing.T) {
 	e.exec(`DELETE FROM title_release_date WHERE title_id = 3 AND source = 'tmdb-art'`)
 	e.call("GET", fmt.Sprintf("/radarr/api/v3/movie/%d", IDBase+3), nil, 200, &movie)
 	if movie["status"] != "announced" || movie["isAvailable"] != false {
-		t.Fatalf("removed dates fell back to stale import: %v", movie)
+		t.Fatalf("removed dates: %v", movie)
 	}
 }
 

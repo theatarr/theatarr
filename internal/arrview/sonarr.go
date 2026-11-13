@@ -254,8 +254,8 @@ func (s *Service) seriesResource(v *View, e *entry, eps []*ep) seriesResource {
 	now := s.now()
 	root, p := s.rootAndPath(v, e)
 	status := "continuing"
-	if a := e.arr(); a != nil && a.status != "" {
-		status = a.status
+	if e.seriesStatus != "" {
+		status = e.seriesStatus
 	}
 	sr := seriesResource{ID: e.viewID(), Title: e.name, AlternateTitles: []any{}, SortTitle: sortTitle(e),
 		Status: status, Ended: status == "ended", Images: []any{}, Seasons: []seasonResource{}, Year: e.year, Path: p,

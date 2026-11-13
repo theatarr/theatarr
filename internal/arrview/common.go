@@ -496,7 +496,7 @@ func (s *Service) downloadClientConfig(w http.ResponseWriter, r *request) {
 }
 
 // historyResource is HistoryResource (src/Radarr.Api.V3/History/HistoryResource.cs; Sonarr's adds episodeId and
-// seriesId). Records come from the imported arr history of the view's versions; the id is the row's own.
+// seriesId). Records come from Theatarr's downloads for the view's versions.
 type historyResource struct {
 	Movie               *movieResource    `json:"movie,omitempty"`
 	Series              *seriesResource   `json:"series,omitempty"`
@@ -515,63 +515,6 @@ type historyResource struct {
 	DownloadID          string            `json:"downloadId,omitempty"`
 	EventType           string            `json:"eventType"`
 	Data                map[string]string `json:"data"`
-}
-
-func (s *Service) arrHistoryRows(r *request, ids []int64) ([]historyResource, error) {
-	where, args := scope(r.v, nil)
-	q := `SELECT h.rowid, h.title_id, COALESCE((SELECT a.target_id FROM arr_alias a WHERE a.instance=h.instance AND a.kind='episode' AND a.arr_id=h.arr_episode_id), h.arr_episode_id), h.event_type, h.date_at, COALESCE(h.download_id, ''),
-		h.source_title, h.quality, COALESCE(h.custom_format_score, 0), h.languages, h.data
-		FROM arr_history h JOIN version v ON v.id = h.version_id JOIN title t ON t.id = v.title_id WHERE ` + where
-	q += ` AND h.rowid IN (SELECT value FROM json_each(?))`
-	args = append(args, jsonIDs(ids))
-	rows, err := s.st.Reader().QueryContext(r.Context(), q, args...)
-	if err != nil {
-		return nil, err
-	}
-	out := []historyResource{}
-	for rows.Next() {
-		var h historyResource
-		var tid, date int64
-		var ep sql.NullInt64
-		var quality, langs, data string
-		if err := rows.Scan(&h.ID, &tid, &ep, &h.EventType, &date, &h.DownloadID, &h.SourceTitle, &quality,
-			&h.CustomFormatScore, &langs, &data); err != nil {
-			rows.Close()
-			return nil, err
-		}
-		id := viewID(tid)
-		if r.v.Flavour == Sonarr {
-			if ep.Valid {
-				eid := ep.Int64
-				h.EpisodeID = &eid
-			}
-			h.SeriesID = &id
-		} else {
-			h.MovieID = &id
-		}
-		var names []string
-		_ = json.Unmarshal([]byte(langs), &names)
-		h.Languages = languagesFrom(r.v.Flavour, names)
-		h.Quality = qualityModelFor(r.v.Flavour, quality, 1)
-		h.CustomFormats = []any{}
-		h.Date = at(millis(date))
-		h.Data = map[string]string{}
-		var raw map[string]any
-		if json.Unmarshal([]byte(data), &raw) == nil {
-			for k, v := range raw {
-				switch x := v.(type) {
-				case string:
-					h.Data[k] = x
-				case nil:
-				default:
-					b, _ := json.Marshal(x)
-					h.Data[k] = string(b)
-				}
-			}
-		}
-		out = append(out, h)
-	}
-	return out, closeRows(rows)
 }
 
 // historyEventName maps the numeric eventType filter to the stored name (Radarr MovieHistoryEventType, Sonarr

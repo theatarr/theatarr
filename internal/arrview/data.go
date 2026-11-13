@@ -15,7 +15,7 @@ import (
 type sqlTx = sql.Tx
 
 // entry is a title as one view sees it: the title, the view's versions it has (removed ones left out), their files
-// and arr records, the view's own record of it, tags and release dates.
+// the view's own record of it, tags and release dates.
 type entry struct {
 	id             int64
 	kind           string
@@ -33,6 +33,7 @@ type entry struct {
 	tags           []int64
 	dates          map[string]time.Time // theatrical, digital, physical
 	datesRefreshed bool
+	seriesStatus   string // series_meta.status in lower case (Sonarr's names), "" when not refreshed
 }
 
 type ver struct {
@@ -42,7 +43,6 @@ type ver struct {
 	state     string
 	created   int64
 	file      *vfile
-	arr       *arrRec
 	// monitorNew is a series version's monitorNewItems intent (series_monitor), "" without a row.
 	monitorNew string
 	// rule is a movie version's availability rule (availability.Rules); Radarr views only.
@@ -70,18 +70,6 @@ type vfile struct {
 	origPath     string
 	cutoffNotMet bool
 	added        sql.NullInt64
-}
-
-// arrRec is an arr_title row: the replaced arr's record of the title.
-type arrRec struct {
-	instance  string
-	arrID     int64
-	monitored bool
-	minAvail  string
-	status    string
-	path      string
-	root      string
-	added     int64
 }
 
 // viewRec is an arrview_title row.
@@ -129,25 +117,13 @@ func (e *entry) hasFile() bool {
 	return false
 }
 
-// primary is the version whose arr record speaks for the title: the one holding the file, else the first.
+// primary is the version that speaks for the title: the one holding the file, else the first.
 func (e *entry) primary() *ver {
 	if v, _ := e.file(); v != nil {
 		return v
 	}
 	if len(e.versions) > 0 {
 		return e.versions[0]
-	}
-	return nil
-}
-
-func (e *entry) arr() *arrRec {
-	if p := e.primary(); p != nil && p.arr != nil {
-		return p.arr
-	}
-	for _, v := range e.versions {
-		if v.arr != nil {
-			return v.arr
-		}
 	}
 	return nil
 }
@@ -192,7 +168,7 @@ func (s *Service) load(ctx context.Context, v *View, titleIDs []int64) ([]*entry
 	rows, err := db.QueryContext(ctx, `SELECT DISTINCT t.id, t.kind, t.name, t.sort_name, COALESCE(t.year, 0),
 		COALESCE(t.secondary_year, 0), COALESCE(t.tmdb_id, 0), COALESCE(t.tvdb_id, 0), COALESCE(t.imdb_id, ''), t.anime,
 		t.created_at, EXISTS (SELECT 1 FROM title_meta m WHERE m.title_id = t.id AND m.movie_dates_at IS NOT NULL),
-		`+store.SeriesTypeSQL("t")+`
+		`+store.SeriesTypeSQL("t")+`, COALESCE((SELECT lower(m.status) FROM series_meta m WHERE m.title_id = t.id), '')
 		FROM title t JOIN version v ON v.title_id = t.id WHERE `+where+` ORDER BY t.id`, args...)
 	if err != nil {
 		return nil, err
@@ -200,7 +176,7 @@ func (s *Service) load(ctx context.Context, v *View, titleIDs []int64) ([]*entry
 	for rows.Next() {
 		e := &entry{dates: map[string]time.Time{}}
 		if err := rows.Scan(&e.id, &e.kind, &e.name, &e.sortName, &e.year, &e.secondaryYear, &e.tmdb, &e.tvdb, &e.imdb,
-			&e.anime, &e.created, &e.datesRefreshed, &e.seriesType); err != nil {
+			&e.anime, &e.created, &e.datesRefreshed, &e.seriesType, &e.seriesStatus); err != nil {
 			rows.Close()
 			return nil, err
 		}
@@ -287,47 +263,6 @@ func (s *Service) load(ctx context.Context, v *View, titleIDs []int64) ([]*entry
 		if x := vers[l.versionID]; x != nil && (x.file == nil || !l.adopted) {
 			x.file = l.f
 		}
-	}
-
-	// arr records: the view's alias instances first, in order, then the version's owner, then any.
-	pref := map[string]int{}
-	for i, in := range v.AliasFrom {
-		pref[in] = i + 1
-	}
-	rows, err = db.QueryContext(ctx, `SELECT a.instance, a.arr_id, a.version_id, a.monitored, a.minimum_availability,
-		a.status, a.path, a.root_folder_path, COALESCE(a.added_at, 0), COALESCE(vs.instance = a.instance, 0)
-		FROM arr_title a JOIN version v ON v.id = a.version_id JOIN title t ON t.id = v.title_id
-		LEFT JOIN version_source vs ON vs.version_id = v.id WHERE `+where, args...)
-	if err != nil {
-		return nil, err
-	}
-	best := map[int64]int{}
-	for rows.Next() {
-		a := &arrRec{}
-		var vid int64
-		var owner bool
-		if err := rows.Scan(&a.instance, &a.arrID, &vid, &a.monitored, &a.minAvail, &a.status, &a.path, &a.root,
-			&a.added, &owner); err != nil {
-			rows.Close()
-			return nil, err
-		}
-		score := 1000
-		if p, ok := pref[a.instance]; ok {
-			score = p
-		} else if owner {
-			score = 500
-		}
-		x := vers[vid]
-		if x == nil {
-			continue
-		}
-		if b, ok := best[vid]; !ok || score < b {
-			best[vid] = score
-			x.arr = a
-		}
-	}
-	if err := closeRows(rows); err != nil {
-		return nil, err
 	}
 
 	// The view's own records and tags, restricted to the requested titles.

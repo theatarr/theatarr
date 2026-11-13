@@ -97,7 +97,7 @@ func TestHistoryFromDownloadsAndFailed(t *testing.T) {
 	}
 	var hs []map[string]any
 	e.call("GET", "/radarr/api/v3/history/movie?movieId="+strconv.Itoa(IDBase+1)+"&eventType=3", nil, 200, &hs)
-	if len(hs) != 2 { // the arr's import and ours
+	if len(hs) != 1 {
 		t.Errorf("imports %v", hs)
 	}
 	e.call("GET", "/sonarr/api/v3/history?episodeId=101", nil, 200, &p)
@@ -136,12 +136,8 @@ func TestHistoryFromDownloadsAndFailed(t *testing.T) {
 		t.Error("history/failed on a download of ours")
 	}
 	e.call("POST", "/radarr/api/v3/history/failed/999999", nil, 404, nil)
-	// An imported arr record: its hash is blocklisted for its version.
-	rowid := e.one(`SELECT rowid FROM arr_history WHERE arr_id = 40`)
-	e.call("POST", "/radarr/api/v3/history/failed/"+strconv.FormatInt(rowid, 10), nil, 200, nil)
-	if e.one(`SELECT COUNT(*) FROM router_blocklist WHERE version_key = 'movie-remux'`) != 1 {
-		t.Error("arr history failed")
-	}
+	// An id below the history base is no record of ours.
+	e.call("POST", "/radarr/api/v3/history/failed/1", nil, 404, nil)
 }
 
 func (e *env) str(q string, args ...any) string {

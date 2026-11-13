@@ -137,7 +137,6 @@ func ms(t time.Time) int64 { return store.Millis(t) }
 //	  next year; S00E01 a special. sonarr_4k_debrid id 3.
 func (e *env) seed() {
 	now := ms(testNow)
-	day := 24 * time.Hour
 	e.exec(`INSERT INTO title (id, kind, name, sort_name, year, tmdb_id, tvdb_id, imdb_id, anime, created_at,
 		updated_at) VALUES
 		(1, 'movie', 'Alpha', 'alpha', 2020, 101, NULL, 'tt0000101', 0, ?, ?),
@@ -182,12 +181,6 @@ func (e *env) seed() {
 	e.exec(`INSERT INTO title_release_date (title_id, source, country, type, date) VALUES
 		(1, 'radarr_4k_debrid', '', 'theatrical', '2020-05-01'), (1, 'radarr_4k_debrid', '', 'digital', '2020-08-01'),
 		(3, 'radarr_anime', '', 'theatrical', '2027-02-01')`)
-	e.exec(`INSERT INTO arr_history (instance, arr_id, event_type, date_at, arr_title_id, title_id, version_id,
-		download_id, source_title, quality, custom_format_score, languages, data) VALUES
-		('radarr_4k_debrid', 40, 'grabbed', ?, 7, 1, 1, 'ABCDEF', 'Alpha.2020.2160p.BluRay.REMUX-GRP', 'Remux-2160p',
-		 3200, '["English"]', '{"indexer":"DMM","size":"60000000000"}'),
-		('radarr_4k_debrid', 41, 'downloadFolderImported', ?, 7, 1, 1, 'ABCDEF', 'Alpha.2020.2160p.BluRay.REMUX-GRP',
-		 'Remux-2160p', 3200, '["English"]', '{}')`, ms(testNow.Add(-2*day)), ms(testNow.Add(-2*day+time.Hour)))
 	e.exec(`INSERT INTO episode (id, title_id, season, number, name, air_date, air_date_utc_at, runtime_minutes,
 		monitored, created_at, updated_at) VALUES
 		(101, 10, 1, 1, 'Pilot', '2019-01-07', ?, 45, 1, ?, ?),

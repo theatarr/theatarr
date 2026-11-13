@@ -121,7 +121,7 @@ func TestActivityMatchesQueue(t *testing.T) {
 		kinds[h.Kind+":"+h.Words] = true
 	}
 	for _, k := range []string{"stall:Download stalled and was dropped", "failure:Download failed",
-		"grab:Found a release", "import:Imported by the old manager"} {
+		"grab:Found a release"} {
 		if !kinds[k] {
 			t.Errorf("history lacks %s: %v", k, kinds)
 		}

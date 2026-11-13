@@ -13,15 +13,12 @@ func jsonIDs(ids []int64) string {
 	return string(b)
 }
 
-// historyPage pages the union of imported and local events before reading release data or embedding titles.
+// historyPage pages Theatarr's download events before reading release data or embedding titles.
 // The plain-list routes intentionally have no limit: their array shape and complete result match the arrs.
 func (s *Service) historyPage(r *request, titleID int64, p *pagingResource) ([]historyResource, error) {
-	where, args := scope(r.v, nil)
-	q := `WITH events AS (
- SELECT h.rowid id, h.title_id tid, COALESCE((SELECT a.target_id FROM arr_alias a WHERE a.instance=h.instance AND a.kind='episode' AND a.arr_id=h.arr_episode_id), h.arr_episode_id) eid, h.event_type event, h.date_at date,
- COALESCE(h.download_id, '') download, h.quality quality, h.languages languages
- FROM arr_history h JOIN version v ON v.id=h.version_id JOIN title t ON t.id=v.title_id WHERE ` + where
-	for _, e := range []struct{ code, name, date, condition string }{
+	var args []any
+	q := `WITH events AS (`
+	for i, e := range []struct{ code, name, date, condition string }{
 		{"1", "grabbed", "added_at", "added_at IS NOT NULL"},
 		{"3", "downloadFolderImported", "imported_at", "imported_at IS NOT NULL"},
 		{"4", "downloadFailed", "updated_at", "state = 'failed'"},
@@ -32,8 +29,12 @@ func (s *Service) historyPage(r *request, titleID int64, p *pagingResource) ([]h
 		if r.v.Flavour == Sonarr {
 			id, eid, join = `COALESCE(j.key, 0)*`+strconv.FormatInt(historyEpisodeStride, 10), `j.value`, ` LEFT JOIN json_each(d.episodes) j ON 1=1`
 		}
-		q += ` UNION ALL SELECT ` + e.code + ` + ` + strconv.Itoa(HistoryBase) + ` + d.id*10 + ` + id + `, d.title_id,
-  ` + eid + `, '` + e.name + `', d.` + e.date + `, upper(d.info_hash), d.quality, '[]'
+		if i > 0 {
+			q += ` UNION ALL`
+		}
+		q += ` SELECT ` + e.code + ` + ` + strconv.Itoa(HistoryBase) + ` + d.id*10 + ` + id + ` id, d.title_id tid,
+  ` + eid + ` eid, '` + e.name + `' event, d.` + e.date + ` date, upper(d.info_hash) download, d.quality quality,
+  '[]' languages
   FROM download d` + join + ` WHERE d.version_key IN (` + store.Placeholders(len(r.v.Versions)) + `) AND (d.added_at IS NOT NULL OR d.state='failed') AND d.` + e.condition
 		args = append(args, toAny(r.v.Versions)...)
 	}
@@ -148,24 +149,16 @@ func (s *Service) historyPage(r *request, titleID int64, p *pagingResource) ([]h
 	out := make([]historyResource, 0, len(ordered))
 	for start := 0; start < len(ordered); start += 256 {
 		batch := ordered[start:min(start+256, len(ordered))]
-		var imported, downloads []int64
+		var downloads []int64
 		for _, id := range batch {
-			if id >= HistoryBase {
-				downloads = append(downloads, historyDownload(id))
-			} else {
-				imported = append(imported, id)
-			}
-		}
-		hs, err := s.arrHistoryRows(r, imported)
-		if err != nil {
-			return nil, err
+			downloads = append(downloads, historyDownload(id))
 		}
 		ds, err := s.downloadHistory(r, downloads)
 		if err != nil {
 			return nil, err
 		}
 		byID := map[int64]historyResource{}
-		for _, h := range append(hs, ds...) {
+		for _, h := range ds {
 			byID[h.ID] = h
 		}
 		for _, id := range batch {

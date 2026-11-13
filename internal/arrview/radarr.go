@@ -170,14 +170,10 @@ func qualityProfileID(v *View, e *entry) int64 {
 	return best.ID
 }
 
-// rootAndPath give the title's root folder and folder: the client's root, else the arr's, else the primary
-// version's library.
+// rootAndPath give the title's root folder and folder: the client's root, else the primary version's library.
 func (s *Service) rootAndPath(v *View, e *entry) (root, p string) {
-	if a := e.arr(); a != nil {
-		root, p = a.root, a.path
-	}
-	if e.rec != nil && e.rec.root != "" && e.rec.root != root {
-		root, p = e.rec.root, ""
+	if e.rec != nil {
+		root = e.rec.root
 	}
 	if root == "" {
 		if pv := e.primary(); pv != nil {
@@ -209,9 +205,6 @@ func (s *Service) added(e *entry) time.Time {
 	if e.rec != nil && e.rec.added > 0 {
 		return millis(e.rec.added)
 	}
-	if a := e.arr(); a != nil && a.added > 0 {
-		return millis(a.added)
-	}
 	var first int64
 	for _, x := range e.versions {
 		if first == 0 || x.created < first {
@@ -228,13 +221,7 @@ func (s *Service) movieResource(v *View, e *entry) movieResource {
 	now := s.now()
 	minAvail := s.minAvail(e)
 	root, p := s.rootAndPath(v, e)
-	status := ""
-	if a := e.arr(); a != nil && !e.datesRefreshed {
-		status = a.status
-	}
-	if status == "" {
-		status = movieStatus(e.dates, now)
-	}
+	status := movieStatus(e.dates, now)
 	m := movieResource{
 		ID: e.viewID(), Title: e.name, OriginalTitle: e.name, AlternateTitles: []any{}, SortTitle: sortTitle(e),
 		Status: status, Images: []any{}, Year: e.year, Path: p, QualityProfileID: qualityProfileID(v, e),

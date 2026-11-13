@@ -16,7 +16,6 @@ import (
 	"github.com/theatarr/theatarr/internal/library"
 	"github.com/theatarr/theatarr/internal/metadata/tmdb"
 	"github.com/theatarr/theatarr/internal/notify"
-	"github.com/theatarr/theatarr/internal/policy"
 	"github.com/theatarr/theatarr/internal/router"
 	"github.com/theatarr/theatarr/internal/store"
 )
@@ -990,8 +989,8 @@ func (s *Service) updateTitle(w http.ResponseWriter, r *request) {
 // its links moved to trash too, and one still running then finds its download ended and takes its links back.
 // Nothing is unlinked before the hide commits: a link moved away while the version was
 // still wanted could be replaced by a search, and a failed hide left it unlinked. A link whose move fails stays: the
-// answer says so, and Theatarr's title page moves the removed copies' leftover links (web RemovalScope.Leftover). A
-// version an arr instance still owns is refused (409), as in the web UI. 200, no body, like the arrs.
+// answer says so, and Theatarr's title page moves the removed copies' leftover links (web RemovalScope.Leftover).
+// 200, no body, like the arrs.
 // addImportExclusion=true on a Radarr view also puts the movie on the exclusion list (movie_exclusion, by TMDb id, for
 // every view, as the exclusions POST does), so lists and collections do not add it again; Sonarr's
 // addImportListExclusion is ignored (there is no series exclusion list).
@@ -1006,21 +1005,6 @@ func (s *Service) deleteTitle(w http.ResponseWriter, r *request) {
 	if e == nil {
 		notFound(w, strings.TrimSuffix(r.raw[0], "s")+" with ID "+strconv.FormatInt(id, 10)+" does not exist")
 		return
-	}
-	// A version an arr instance still owns is refused before anything changes, as the web UI's remove does.
-	for _, x := range e.versions {
-		var inst string
-		err := s.st.Reader().QueryRowContext(ctx, `SELECT instance FROM version_source WHERE version_id = ?`,
-			x.id).Scan(&inst)
-		if err != nil && !errors.Is(err, sql.ErrNoRows) {
-			s.internal(w, r, err)
-			return
-		}
-		if m := s.pol.ManagedBy(inst); m != "" {
-			writeJSON(w, http.StatusConflict, errorBody{Message: "nothing removed",
-				Description: x.key + ": " + policy.ManagedReason(m)})
-			return
-		}
 	}
 	if r.queryBool("deleteFiles", false) {
 		// A row per version: a link shared by two versions of the view is checked for each.
