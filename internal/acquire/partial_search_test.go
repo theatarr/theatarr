@@ -13,7 +13,7 @@ import (
 
 // TestPartialSearchCountsAsSearchedSooner: a partial answer (some indexer
 // failed) records acquire_run.infra = runPartial, still routes what it accepted, and counts as searched for
-// partialAgain: the wanted loop does not take the item at the next round, but does after partialAgain, well before
+// partialAgain: the schedule does not take the item at the next round, but does after partialAgain, well before
 // again_after.
 func TestPartialSearchCountsAsSearchedSooner(t *testing.T) {
 	t.Parallel()
@@ -30,7 +30,7 @@ func TestPartialSearchCountsAsSearchedSooner(t *testing.T) {
 					}
 					return got, err
 				}
-				targets := []target{{titleID: 1, versionID: 101, key: "movie", name: "movie"}}
+				targets := []target{{titleID: 1, versionID: 101, key: "movie", name: "movie", reason: OnlyMissing}}
 				want := 1
 				if fanout {
 					vp := *e.pol.Versions["movie"]
@@ -38,10 +38,10 @@ func TestPartialSearchCountsAsSearchedSooner(t *testing.T) {
 					if _, err := e.st.Writer().Exec(`INSERT INTO version (id,title_id,policy_key,state,created_at,updated_at) VALUES (121,1,'alternate','wanted',0,0)`); err != nil {
 						t.Fatal(err)
 					}
-					targets = append(targets, target{titleID: 1, versionID: 121, key: "alternate", name: "movie"})
+					targets = append(targets, target{titleID: 1, versionID: 121, key: "alternate", name: "movie", reason: OnlyMissing})
 					want = 2
 				}
-				if err := e.a.startGroup(e.ctx, "wanted", 0, targets, ""); err != nil {
+				if err := e.a.startRuns(e.ctx, "wanted", 0, targets); err != nil {
 					t.Fatal(err)
 				}
 				e.drain()
@@ -56,14 +56,14 @@ func TestPartialSearchCountsAsSearchedSooner(t *testing.T) {
 				}
 				before := e.count(`SELECT COUNT(*) FROM acquire_run WHERE title_id=1 AND search_run IS NULL`)
 				e.advance(time.Hour)
-				if _, err := e.a.Wanted(e.ctx); err != nil {
+				if _, err := e.a.Round(e.ctx, nil); err != nil {
 					t.Fatal(err)
 				}
 				if n := e.count(`SELECT COUNT(*) FROM acquire_run WHERE title_id=1 AND search_run IS NULL`); n != before {
 					t.Fatalf("a partial search an hour ago was not counted as searched (%d runs, was %d)", n, before)
 				}
 				e.advance(partialAgain)
-				if _, err := e.a.Wanted(e.ctx); err != nil {
+				if _, err := e.a.Round(e.ctx, nil); err != nil {
 					t.Fatal(err)
 				}
 				if n := e.count(`SELECT COUNT(*) FROM acquire_run WHERE title_id=1 AND search_run IS NULL`); n != before+1 {

@@ -11,23 +11,22 @@ import (
 	"github.com/theatarr/theatarr/internal/jobs"
 	"github.com/theatarr/theatarr/internal/policy"
 	"github.com/theatarr/theatarr/internal/router"
+	"github.com/theatarr/theatarr/internal/store"
 )
 
-func (e *env) research(p router.ResearchRequest) *ResearchSummary {
+func (e *env) research(p router.ResearchRequest) {
 	e.t.Helper()
 	b, _ := json.Marshal(p)
 	if err := e.a.handleResearch(e.ctx, &jobs.Job{Kind: router.JobResearch, Payload: b}); err != nil {
 		e.t.Fatal(err)
 	}
-	sum, err := e.a.Research(context.Background(), router.ResearchRequest{Version: "nope"})
-	if err != nil || sum.Off == "" {
-		e.t.Fatalf("unknown version: %+v %v", sum, err)
+	if err := e.a.Research(context.Background(), router.ResearchRequest{Version: "nope"}); err != nil {
+		e.t.Fatalf("unknown version: %v", err)
 	}
-	return sum
 }
 
-// A re-search after a failure searches the title again at once, as a wanted search: active versions only, with the
-// router on, within per_hour, once per target within again_after, never with a download in flight.
+// A re-search after a failure makes the item due at once and searches it as a loop search: active versions only, with
+// the router on, within per_hour, once per item within again_after.
 func TestResearchAfterFailure(t *testing.T) {
 	t.Parallel()
 	e := newEnv(t, true, &policy.Wanted{PerHour: 3, AgainAfter: policy.Duration(6 * time.Hour)})
@@ -42,8 +41,7 @@ func TestResearchAfterFailure(t *testing.T) {
 	if got := e.searches(); len(got) != 1 || got[0].Title != "One" || got[0].Version != "movie" {
 		t.Errorf("searches %+v", got)
 	}
-	// Its route added a download: in flight, so the same failure asked again is skipped; and once that ends, the
-	// target was searched again within again_after: skipped too.
+	// The same failure asked again within again_after is skipped, with the download in flight or not.
 	e.research(movie)
 	e.exec(`UPDATE download SET state = 'failed'`)
 	e.research(movie)
@@ -98,7 +96,7 @@ func (e *env) exec(q string, args ...any) {
 }
 
 // TestResearchInfraFailureAskedAgain: a re-search the VPN guard refused is not counted against the
-// one-per-again_after limit, and is asked for again after infraRetry; it runs then.
+// one-per-again_after limit, and its row is due again an hour later; it runs then.
 func TestResearchInfraFailureAskedAgain(t *testing.T) {
 	t.Parallel()
 	e := newEnv(t, true, &policy.Wanted{PerHour: 3, AgainAfter: policy.Duration(6 * time.Hour)})
@@ -108,33 +106,41 @@ func TestResearchInfraFailureAskedAgain(t *testing.T) {
 	if n := e.count(`SELECT COUNT(*) FROM acquire_run WHERE research = 'stalled' AND infra = 1`); n != 1 {
 		t.Fatalf("%d infra-failed re-searches", n)
 	}
-	if n := e.count(`SELECT COUNT(*) FROM job WHERE kind = ? AND state = 'queued'`, router.JobResearch); n != 1 {
-		t.Fatalf("%d re-search jobs queued again", n)
+	if n := e.count(`SELECT COUNT(*) FROM search_request WHERE why = 'stalled' AND tries = 1 AND next_at = ?`,
+		store.Millis(t0.Add(time.Hour))); n != 1 {
+		t.Fatalf("row not due again in an hour")
 	}
 	e.onSearch = nil
-	e.advance(infraRetry + time.Second)
+	e.advance(time.Hour)
+	if _, err := e.a.Round(e.ctx, nil); err != nil {
+		t.Fatal(err)
+	}
 	e.drain()
 	if n := e.count(`SELECT COUNT(*) FROM acquire_run WHERE research = 'stalled' AND infra = 0`); n != 1 {
 		t.Fatalf("%d re-searches after the retry", n)
 	}
 }
 
-// TestNoAnswerResearchGivesUp: a re-search that never gets an answer is asked for again after 15 m,
-// 1 h and 4 h, then not again.
+// TestNoAnswerResearchGivesUp: a re-search that never gets an answer is tried again an hour later three times; then
+// the ordinary rule applies (here: the switches are off, so the row goes).
 func TestNoAnswerResearchGivesUp(t *testing.T) {
 	t.Parallel()
-	e := newEnv(t, true, &policy.Wanted{PerHour: 100, AgainAfter: policy.Duration(24 * time.Hour)})
+	e := newEnv(t, true, &policy.Wanted{PerHour: 100, AgainAfter: policy.Duration(24 * time.Hour),
+		Missing: new(false), CutoffUnmet: policy.CutoffOff})
 	e.onSearch = func(context.Context) error { return gateway.ErrVPNRequired }
 	e.research(router.ResearchRequest{TitleID: 1, VersionID: 101, Version: "movie", Reason: router.ReasonStalled})
 	e.drain()
 	for range 48 { // twelve hours
-		e.advance(15*time.Minute + time.Second)
+		e.advance(15 * time.Minute)
+		if _, err := e.a.Round(e.ctx, nil); err != nil {
+			t.Fatal(err)
+		}
 		e.drain()
 	}
-	if n := e.count(`SELECT COUNT(*) FROM acquire_run WHERE research = 'stalled'`); n != 1+len(infraBackoff) {
-		t.Fatalf("%d re-search runs without an answer in 12 h, want %d", n, 1+len(infraBackoff))
+	if n := e.count(`SELECT COUNT(*) FROM acquire_run WHERE research = 'stalled'`); n != 1+noAnswerTries {
+		t.Fatalf("%d re-search runs without an answer in 12 h, want %d", n, 1+noAnswerTries)
 	}
-	if n := e.count(`SELECT COUNT(*) FROM job WHERE kind = ? AND state = 'queued'`, router.JobResearch); n != 0 {
-		t.Fatalf("%d re-search jobs still queued", n)
+	if n := e.count(`SELECT COUNT(*) FROM search_request`); n != 0 {
+		t.Fatalf("%d rows left", n)
 	}
 }

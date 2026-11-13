@@ -60,32 +60,18 @@ func (l serveLoops) workers() []serveWorker {
 			l.router.RunEvery(ctx, rt.Router.Settings().PollInterval)
 			return nil
 		}},
-		// The wanted search loop (router.wanted), on while a version is active.
-		{name: "wanted", key: func(rt *serveRuntime) string {
-			w := rt.Policy.WantedSettings()
-			if !w.Enabled || rt.Acquirer == nil {
-				return ""
+		// The search schedule's rounds (internal/acquire Round), while a library is Live and Pause is off; the first
+		// round 5 minutes after start, or at once when Pause is turned off (the due rows waited for it).
+		{name: "wanted", key: wantedWorkerKey, run: func(ctx context.Context, rt *serveRuntime, prev string) error {
+			if wantedWorkerKey(rt) == "paused" {
+				<-ctx.Done()
+				return nil
 			}
-			return w.Interval.String()
-		}, run: func(ctx context.Context, rt *serveRuntime, _ string) error {
-			rt.Acquirer.Run(ctx, 5*time.Minute)
-			return nil
-		}},
-		// The Wanted page's queued searches (acquire.JobSearchNow): a queue found at start gets its drain scheduled, so
-		// it survives a restart with the wanted loop off. After that each request and each drain schedules the next.
-		// While router.enabled is false (Pause) it is off and the queue waits; turning the switch back on starts it,
-		// which drains the Search now requests that waited and schedules the job for what is left
-		// (acquire.StartQueued).
-		{name: "search-now", key: func(rt *serveRuntime) string {
-			if rt.Acquirer == nil || rt.Policy == nil || !rt.Policy.RouterSettings().Enabled {
-				return ""
+			delay := 5 * time.Minute
+			if prev == "paused" {
+				delay = 0
 			}
-			return "on"
-		}, run: func(ctx context.Context, rt *serveRuntime, _ string) error {
-			if err := rt.Acquirer.StartQueued(ctx); err != nil {
-				return err
-			}
-			<-ctx.Done()
+			rt.Acquirer.Run(ctx, delay)
 			return nil
 		}},
 		// shadow.rss scheduling: always on; the schedule follows each generation's shadow.rss, rss_interval and
@@ -247,4 +233,16 @@ func (l serveLoops) runPlaylists(ctx context.Context, interval time.Duration, fa
 			}
 		}
 	}
+}
+
+// wantedWorkerKey is the search round worker's key: "" with no acquirer or no Live library, "paused" while Pause is
+// on (the worker waits, so turning Pause off is a change from "paused"), "on" otherwise.
+func wantedWorkerKey(rt *serveRuntime) string {
+	switch {
+	case rt.Acquirer == nil || rt.Policy == nil || len(rt.Policy.ActiveVersions()) == 0:
+		return ""
+	case !rt.Policy.RouterSettings().Enabled:
+		return "paused"
+	}
+	return "on"
 }

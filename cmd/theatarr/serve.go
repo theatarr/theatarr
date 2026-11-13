@@ -576,9 +576,6 @@ func runServe(args []string) error {
 	acService := &serveAcquirer{manager: runtimeManager, fallback: ac}
 	metaDeps.acquirer = acService
 	serveSnapshot.Acquirer = ac
-	// The runtime was published before the acquirer existed: with router.wanted.retry_new off, what its chains left
-	// queued is cancelled here, before any worker runs a job.
-	cancelRetryNew(ac)
 	acService.RegisterJobs(w)
 	if tv.Enabled() {
 		tv.SetSearches(acService)

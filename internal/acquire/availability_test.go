@@ -20,10 +20,14 @@ func TestMovieAvailabilityBeforeSearch(t *testing.T) {
 		t.Fatalf("interactive: %v %v, calls %v", got, err, e.calls)
 	}
 	e.calls = nil
-	if got, err := e.a.Research(e.ctx, router.ResearchRequest{TitleID: 1, VersionID: 101, Version: "movie"}); err != nil || got.Queued != 0 || got.Skipped != 1 {
-		t.Fatalf("research: %+v %v", got, err)
+	if err := e.a.Research(e.ctx, router.ResearchRequest{TitleID: 1, VersionID: 101, Version: "movie",
+		Reason: router.ReasonStalled}); err != nil {
+		t.Fatal(err)
 	}
-	sum, err := e.a.Wanted(e.ctx)
+	if n := e.count(`SELECT COUNT(*) FROM acquire_run WHERE title_id = 1`) + e.count(`SELECT COUNT(*) FROM search_request`); n != 0 {
+		t.Fatalf("research of an unavailable movie: %d runs and rows", n)
+	}
+	sum, err := e.a.Round(e.ctx, nil)
 	if err != nil || sum.Queued != 1 {
 		t.Fatalf("wanted: %+v %v", sum, err)
 	}
@@ -70,14 +74,14 @@ func TestWantedUpdatesNewlyAiredSeries(t *testing.T) {
 	e.exec(`UPDATE episode_version_state SET state = 'cutoff_met' WHERE version_id IN (201,211)`)
 	e.exec(`UPDATE episode_version_state SET state = 'wanted' WHERE episode_id = 1005`)
 	e.exec(`UPDATE version SET state = 'cutoff_met' WHERE title_id = 10`)
-	if _, err := e.a.Wanted(e.ctx); err != nil {
+	if _, err := e.a.Round(e.ctx, nil); err != nil {
 		t.Fatal(err)
 	}
 	if n := e.count(`SELECT COUNT(*) FROM version WHERE title_id = 10 AND state = 'cutoff_met'`); n != 2 {
 		t.Fatalf("future episode made series wanted: %d", n)
 	}
 	e.advance(7 * 24 * time.Hour)
-	if _, err := e.a.Wanted(e.ctx); err != nil {
+	if _, err := e.a.Round(e.ctx, nil); err != nil {
 		t.Fatal(err)
 	}
 	if n := e.count(`SELECT COUNT(*) FROM version WHERE title_id = 10 AND state = 'wanted'`); n != 2 {
@@ -85,7 +89,7 @@ func TestWantedUpdatesNewlyAiredSeries(t *testing.T) {
 	}
 	e.exec(`UPDATE episode_version_state SET monitored = 0 WHERE episode_id = 1005`)
 	e.exec(`UPDATE version SET state = 'cutoff_met' WHERE title_id = 10`)
-	if _, err := e.a.Wanted(e.ctx); err != nil {
+	if _, err := e.a.Round(e.ctx, nil); err != nil {
 		t.Fatal(err)
 	}
 	if n := e.count(`SELECT COUNT(*) FROM version WHERE title_id = 10 AND state = 'cutoff_met'`); n != 2 {

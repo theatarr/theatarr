@@ -95,7 +95,7 @@ func TestCuratorWantedEpisodeSeasonCriteria(t *testing.T) {
 	if ss := seriesSearch(&title, ts[0]); ss.Kind != profile.SearchSeason || ss.Season != 1 || ss.Episode != 0 {
 		t.Fatalf("curated pack target %s %v: criteria %+v, want a season search for season 1", ts[0].name, ts[0].episodes, ss)
 	}
-	if err := e.a.start(e.ctx, SourceWanted, 0, ts[0], ""); err != nil {
+	if err := e.a.startRuns(e.ctx, SourceWanted, 0, ts[:1]); err != nil {
 		t.Fatal(err)
 	}
 	e.drain()

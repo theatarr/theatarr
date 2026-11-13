@@ -87,7 +87,7 @@ func TestWantedListReadOnlyAndRound(t *testing.T) {
 			t.Errorf("cutoff row: %+v", row)
 		}
 		if row.Version == "movie" {
-			if row.Waiting != "due" || row.Position != 3 {
+			if row.Waiting != "due" || row.Position != 1 {
 				t.Errorf("cutoff due: %+v", row)
 			}
 			due = append(due, "3/movie/movie")
@@ -103,7 +103,7 @@ func TestWantedListReadOnlyAndRound(t *testing.T) {
 	if runs != e.count(`SELECT COUNT(*) FROM acquire_run`) || jobs != e.count(`SELECT COUNT(*) FROM job`) || states != e.count(`SELECT SUM(updated_at) + SUM(state = 'wanted') FROM version`) {
 		t.Fatal("WantedList wrote state")
 	}
-	sum, err := e.a.Wanted(e.ctx)
+	sum, err := e.a.Round(e.ctx, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -191,7 +191,8 @@ func TestWantedListGatesAndPartialRecency(t *testing.T) {
 	}
 }
 
-func TestWantedListMergedQueuePositions(t *testing.T) {
+// A round starts the backlog never searched first, then the items searched longest ago, across both tabs.
+func TestRoundBacklogOrder(t *testing.T) {
 	e := newEnv(t, true, &policy.Wanted{PerHour: 100, AgainAfter: policy.Duration(time.Hour), CutoffUnmet: policy.CutoffScore})
 	exec := func(q string, args ...any) {
 		t.Helper()
@@ -207,23 +208,7 @@ func TestWantedListMergedQueuePositions(t *testing.T) {
 	}{{1, 101, 1, 2 * time.Hour}, {2, 102, 2, 3 * time.Hour}} {
 		exec(`INSERT INTO acquire_run(id,source,title_id,version_id,version_key,target,state,created_at,updated_at) VALUES(?,'wanted',?,?,'movie','movie','nothing',?,0)`, r.id, r.title, r.vid, store.Millis(t0.Add(-r.age)))
 	}
-	positions := map[int64]int{}
-	for _, only := range []string{OnlyMissing, OnlyCutoff} {
-		list, err := e.a.WantedList(e.ctx, WantedQuery{Only: only})
-		if err != nil {
-			t.Fatal(err)
-		}
-		for _, row := range list.Items {
-			if row.Waiting == "due" {
-				positions[row.TitleID] = row.Position
-			}
-		}
-	}
-	// Never-searched cutoff C comes first, then B, then A across both tabs.
-	if !reflect.DeepEqual(positions, map[int64]int{3: 1, 2: 2, 1: 3}) {
-		t.Fatalf("positions %v", positions)
-	}
-	if _, err := e.a.Wanted(e.ctx); err != nil {
+	if _, err := e.a.Round(e.ctx, nil); err != nil {
 		t.Fatal(err)
 	}
 	rows, err := e.st.Reader().Query(`SELECT title_id FROM acquire_run WHERE id > 2 ORDER BY id`)
@@ -231,19 +216,20 @@ func TestWantedListMergedQueuePositions(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer rows.Close()
-	pos := 0
+	var got []int64
 	for rows.Next() {
 		var title int64
 		if err := rows.Scan(&title); err != nil {
 			t.Fatal(err)
 		}
-		pos++
-		if positions[title] != pos {
-			t.Fatalf("round position %d title %d, list %v", pos, title, positions)
-		}
+		got = append(got, title)
 	}
 	if err := rows.Err(); err != nil {
 		t.Fatal(err)
+	}
+	// Never-searched cutoff C comes first, then B, then A.
+	if !reflect.DeepEqual(got, []int64{3, 2, 1}) {
+		t.Fatalf("round order %v", got)
 	}
 }
 
@@ -390,8 +376,8 @@ func TestWantedListTwoThousandTargetsOneFlightRead(t *testing.T) {
 	}
 }
 
-// The list names each row's season and its place in the Search now queue, and "Search all" queues exactly the rows
-// the list shows for the same filter, in the list's order.
+// The list names each row's season and its place among the due Search now rows, and "Search all" asks for exactly
+// the rows the list shows for the same filter; what the hour does not allow stays due.
 func TestWantedListSearchNowQueue(t *testing.T) {
 	t.Parallel()
 	e := newEnv(t, true, &policy.Wanted{Enabled: new(bool), PerHour: 1})
@@ -401,52 +387,41 @@ func TestWantedListSearchNowQueue(t *testing.T) {
 		t.Fatalf("before %+v %v", before, err)
 	}
 	for _, row := range before.Items {
-		if row.Season == nil || row.SearchQueued != 0 || row.Targets[0][:3] != fmt.Sprintf("s%02d", *row.Season) {
+		if row.Season == nil || row.SearchQueued != 0 || row.Waiting != "loop_off" || row.Targets[0][:3] != fmt.Sprintf("s%02d", *row.Season) {
 			t.Errorf("row %+v", row)
 		}
 	}
 	res, err := e.a.RequestSearchNowAll(e.ctx, WantedQuery{Only: OnlyMissing, Version: "series", Limit: 1})
-	if err != nil || res.Queued != 3 || res.Started != 1 || res.Pending != 2 {
+	if err != nil || res.Queued != 3 || res.Started != 1 || res.Pending != 2 || res.NextAt != nil {
 		t.Fatalf("all %+v %v", res, err)
 	}
-	var queued []int
-	for _, r := range mustRequests(t, e) {
-		if r.key != "series" || r.reason != OnlyMissing {
-			t.Errorf("request %+v", r)
-		}
-		queued = append(queued, r.season)
+	if n := e.count(`SELECT COUNT(*) FROM search_request WHERE version_key = 'series' AND reason = 'missing' AND why = 'asked'`); n != 3 {
+		t.Fatalf("%d asked rows", n)
 	}
-	// The first row's search started; the other two wait in the list's order.
-	if want := []int{*before.Items[1].Season, *before.Items[2].Season}; !reflect.DeepEqual(queued, want) {
-		t.Fatalf("queued seasons %v, want %v", queued, want)
+	// Asking again for rows already due counts nothing new.
+	if again, err := e.a.RequestSearchNowAll(e.ctx, WantedQuery{Only: OnlyMissing, Version: "series"}); err != nil ||
+		again.Queued != 1 || again.Started != 0 {
+		t.Fatalf("again %+v %v", again, err)
 	}
 	after, err := e.a.WantedList(e.ctx, WantedQuery{Only: OnlyMissing})
-	if err != nil || after.SearchNowPending != 2 || after.SearchNowNextAt == nil {
+	if err != nil || after.SearchNowPending != 3 || after.SearchNowNextAt != nil {
 		t.Fatalf("after %+v %v", after, err)
 	}
-	places := map[int]int{}
+	var places []int
 	for _, row := range after.Items {
 		switch {
 		case row.Version == "movie" && (row.Season != nil || row.SearchQueued != 0):
 			t.Errorf("movie row %+v", row)
 		case row.Version == "series":
-			places[*row.Season] = row.SearchQueued
+			places = append(places, row.SearchQueued)
 		}
 	}
-	if places[queued[0]] != 1 || places[queued[1]] != 2 || places[*before.Items[0].Season] != 0 {
-		t.Fatalf("places %v for queue %v", places, queued)
+	sort.Ints(places)
+	if !reflect.DeepEqual(places, []int{1, 2, 3}) {
+		t.Fatalf("places %v", places)
 	}
 	raw, _ := json.Marshal(after.Items[0])
 	if after.Items[0].Version == "movie" && (strings.Contains(string(raw), `"season"`) || strings.Contains(string(raw), `"search_queued"`)) {
 		t.Errorf("movie row JSON %s", raw)
 	}
-}
-
-func mustRequests(t *testing.T, e *env) []searchRequest {
-	t.Helper()
-	reqs, err := e.a.searchRequests(e.ctx)
-	if err != nil {
-		t.Fatal(err)
-	}
-	return reqs
 }

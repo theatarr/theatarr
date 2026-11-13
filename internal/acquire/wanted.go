@@ -5,170 +5,25 @@ import (
 	"encoding/json"
 	"fmt"
 	"slices"
+	"sort"
 	"strings"
 	"time"
 
 	"github.com/theatarr/theatarr/internal/activity"
-	"github.com/theatarr/theatarr/internal/decide"
-	"github.com/theatarr/theatarr/internal/jobs"
 	"github.com/theatarr/theatarr/internal/policy"
 	"github.com/theatarr/theatarr/internal/store"
 )
 
-// WantedSummary is one round of the wanted loop.
+// WantedSummary is one round of the search schedule (Round).
 type WantedSummary struct {
 	// Off says why the round searched nothing at all ("" when it ran).
 	Off string `json:"off,omitempty"`
-	// Due are the items due a search; Queued those this round started (the hourly cap holds back the rest);
+	// Due are the groups due a search; Queued those this round started (the hourly cap holds back the rest);
 	// SearchedLastHour the loop's searches in the hour before the round.
-	Due    int `json:"due"`
-	Queued int `json:"queued"`
-	// SearchNow are the Wanted page's queued searches the round started first (DrainSearchNow).
-	SearchNow        int `json:"search_now,omitempty"`
+	Due              int `json:"due"`
+	Queued           int `json:"queued"`
 	InFlight         int `json:"in_flight"`
 	SearchedLastHour int `json:"searched_last_hour"`
-}
-
-// Settings is the loop's pacing in force.
-func (a *Acquirer) Settings() (enabled bool, interval time.Duration, perHour int) {
-	return a.set.Enabled, a.set.Interval, a.set.PerHour
-}
-
-// Wanted runs one round of the wanted search loop: the Live versions' missing and cutoff-unmet items (below the
-// quality cutoff, or the full cutoff, per router.wanted.cutoff_unmet) not searched within again_after (a partial
-// search: partialAgain), grouped by title and series season, attempted longest ago first, as many as the hourly cap leaves, skipping items with a download in flight. It does
-// nothing while router.enabled is false or the loop is off. Queued Search now requests go first, under the same
-// budget.
-func (a *Acquirer) Wanted(ctx context.Context) (*WantedSummary, error) {
-	ctx = a.captureRuntime(ctx)
-	sum := &WantedSummary{}
-	var err error
-	if sum.SearchNow, err = a.DrainSearchNow(ctx); err != nil {
-		return nil, err
-	}
-	active := a.pol.SearchVersions()
-	switch {
-	case !a.set.Enabled:
-		sum.Off = "router.wanted is off"
-	case !a.pol.RouterSettings().Enabled:
-		sum.Off = "paused"
-	case len(active) == 0:
-		sum.Off = "no version is active"
-	}
-	if sum.Off != "" {
-		return sum, nil
-	}
-	// Episode rows already know their air times; passing one needs no metadata fetch.
-	if _, err := a.st.Writer().ExecContext(ctx, `UPDATE version SET state = 'wanted', updated_at = ?
-		WHERE monitored = 1 AND state <> 'wanted' AND EXISTS (
-			SELECT 1 FROM episode_version_state s JOIN episode e ON e.id = s.episode_id
-			WHERE s.version_id = version.id AND s.monitored = 1 AND s.state = 'wanted'
-			AND e.removed_at IS NULL AND e.air_date_utc_at <= ?)`, store.Millis(a.now()), store.Millis(a.now())); err != nil {
-		return nil, err
-	}
-	// The round's own searches check and spend the hour under the lock the drains and Research take.
-	a.drainMu.Lock()
-	defer a.drainMu.Unlock()
-	now := a.now()
-	if sum.SearchedLastHour, err = a.wantedUsed(ctx, now); err != nil {
-		return nil, err
-	}
-	if a.testHook != nil {
-		a.testHook("round")
-	}
-	for _, key := range active {
-		if a.pol.Versions[key].PreferSeaDex {
-			ctx, err = decide.WithStoredSeaDex(ctx, a.st.Reader())
-			if err != nil {
-				return nil, err
-			}
-			break
-		}
-	}
-	var ts []target
-	for _, only := range []string{OnlyMissing, OnlyCutoff} {
-		if (only == OnlyMissing && !a.set.Missing) || (only == OnlyCutoff && a.set.CutoffUnmet == policy.CutoffOff) {
-			continue
-		}
-		got, err := a.targets(ctx, Selection{Versions: active, Only: only,
-			QualityCutoff: a.set.CutoffUnmet == policy.CutoffQuality})
-		if err != nil {
-			return nil, err
-		}
-		ts = append(ts, got...)
-	}
-	last, err := a.lastSearched(ctx)
-	if err != nil {
-		return nil, err
-	}
-	again, partial := store.Millis(now.Add(-a.set.AgainAfter)), store.Millis(now.Add(-partialAgain))
-	var due []target
-	for _, t := range ts {
-		if last[runKey(t.versionID, t.name)].searchedSince(again, partial) {
-			continue
-		}
-		due = append(due, t)
-	}
-	if due, err = a.oldestFirst(ctx, due); err != nil {
-		return nil, err
-	}
-	groups := groupTargets(due)
-	sum.Due = len(groups)
-	left := a.set.PerHour - sum.SearchedLastHour
-	for _, group := range groups {
-		if left <= 0 {
-			break
-		}
-		var ready []target
-		for _, t := range group {
-			busy, err := a.inFlight(ctx, t)
-			if err != nil {
-				return nil, err
-			}
-			if busy {
-				sum.InFlight++
-				continue
-			}
-			ready = append(ready, t)
-		}
-		if len(ready) == 0 {
-			continue
-		}
-		if err := a.startGroup(ctx, SourceWanted, 0, ready, ""); err != nil {
-			return nil, err
-		}
-		sum.Queued++
-		left--
-	}
-	a.log.Info("wanted round", "due", sum.Due, "queued", sum.Queued, "in_flight", sum.InFlight,
-		"searched_last_hour", sum.SearchedLastHour, "per_hour", a.set.PerHour)
-	return sum, nil
-}
-
-// Run enqueues a wanted round every interval until ctx ends; the first after delay. With the loop off it only logs
-// why.
-func (a *Acquirer) Run(ctx context.Context, delay time.Duration) {
-	if !a.set.Enabled {
-		a.log.Info("wanted search loop off", "active_versions", a.pol.ActiveVersions())
-		return
-	}
-	a.log.Info("wanted search loop", "every", a.set.Interval.String(), "per_hour", a.set.PerHour,
-		"again_after", a.set.AgainAfter.String(), "missing", a.set.Missing, "cutoff_unmet", string(a.set.CutoffUnmet),
-		"router_enabled", a.pol.RouterSettings().Enabled, "active_versions", a.pol.ActiveVersions())
-	t := time.NewTimer(delay)
-	defer t.Stop()
-	for {
-		select {
-		case <-ctx.Done():
-			return
-		case <-t.C:
-			payload := wantedPayload{}
-			if _, _, err := a.q.Enqueue(ctx, JobWanted, payload, jobs.EnqueueOptions{DedupeKey: JobWanted, MaxAttempts: 1}); err != nil {
-				a.log.Warn("enqueue wanted round", "err", err)
-			}
-			t.Reset(a.set.Interval)
-		}
-	}
 }
 
 // WantedQuery selects a view of the automatic search backlog.
@@ -197,8 +52,8 @@ type WantedRow struct {
 	Waiting  string     `json:"waiting"`
 	NextAt   *time.Time `json:"next_at"`
 	Position int        `json:"position,omitempty"`
-	// Season is the row's season (absent for a movie); SearchQueued its 1-based place among the Search now requests
-	// (0: not queued).
+	// Season is the row's season (absent for a movie); SearchQueued its 1-based place among the due Search now rows
+	// (0: not asked for). Position is a due row's place in the order the schedule starts due rows.
 	Season       *int `json:"season,omitempty"`
 	SearchQueued int  `json:"search_queued,omitempty"`
 	// SearchBlocked says why Search now cannot search the row, independent of Waiting (which names the loop's
@@ -225,14 +80,18 @@ type WantedList struct {
 	// Searchable counts the rows of the filtered list Search now can search (no SearchBlocked): what "Search all"
 	// queues.
 	Searchable int `json:"searchable"`
-	// SearchNowPending counts the queued Search now requests; SearchNowNextAt is when the next of them can start (nil
-	// while router.enabled is false: the queue waits).
+	// SearchNowPending counts the due Search now rows. SearchNowNextAt is always nil: they start at the next rounds.
 	SearchNowPending int        `json:"search_now_pending"`
 	SearchNowNextAt  *time.Time `json:"search_now_next_at"`
 }
 
-// WantedList uses the loop's selectors and recency rules without starting work or updating version state.
-// A shared title/season search is displayed once per library so library-specific waits remain visible.
+// WantedList shows the search schedule for one tab without starting work or updating version state. A shared
+// title/season search is displayed once per library so library-specific waits remain visible.
+//
+// Waiting, until the Wanted page reads the schedule's own states: loop_off for an item with no row (or only a regular
+// one) while its backlog switch is off; downloads_off while paused; in_flight with a download in flight;
+// searched_recently (with next_at) for a row due later, or an unscheduled item whose latest run is recent enough; due
+// for a due row, or an unscheduled item the next full round takes.
 func (a *Acquirer) WantedList(ctx context.Context, q WantedQuery) (*WantedList, error) {
 	ctx = a.captureRuntime(ctx)
 	if q.Only != OnlyMissing && q.Only != OnlyCutoff {
@@ -244,7 +103,7 @@ func (a *Acquirer) WantedList(ctx context.Context, q WantedQuery) (*WantedList, 
 	q.Limit = min(q.Limit, 200)
 	q.Offset = max(q.Offset, 0)
 	out := &WantedList{Items: []WantedRow{}, Counts: map[string]int{}, Limit: q.Limit, Offset: q.Offset,
-		Enabled: a.set.Enabled, Interval: a.set.Interval.String(), PerHour: a.set.PerHour, AgainAfter: a.set.AgainAfter.String(),
+		Enabled: a.set.Enabled, Interval: roundEvery.String(), PerHour: a.set.PerHour, AgainAfter: a.set.AgainAfter.String(),
 		Missing: a.set.Missing, CutoffUnmet: a.set.CutoffUnmet, DownloadsEnabled: a.pol.RouterSettings().Enabled}
 	var err error
 	if out.SearchedLastHour, err = a.wantedUsed(ctx, a.now()); err != nil {
@@ -258,23 +117,8 @@ func (a *Acquirer) WantedList(ctx context.Context, q WantedQuery) (*WantedList, 
 	if q.Offset < len(rows) {
 		out.Items = rows[q.Offset:min(q.Offset+q.Limit, len(rows))]
 	}
-	// The Search now queue: read once, for the page's rows only.
-	reqs, err := a.searchRequests(ctx)
-	if err != nil {
+	if out.SearchNowPending, err = a.askedDue(ctx); err != nil {
 		return nil, err
-	}
-	if len(reqs) > 0 {
-		place := map[string]int{}
-		for i, r := range reqs {
-			place[requestKey(r.titleID, r.key, r.reason, r.season)] = i + 1
-		}
-		for i := range out.Items {
-			row := &out.Items[i]
-			row.SearchQueued = place[requestKey(row.TitleID, row.Version, row.Reason, seasonOf(row.Season))]
-		}
-		if out.SearchNowPending, out.SearchNowNextAt, err = a.searchNowPending(ctx); err != nil {
-			return nil, err
-		}
 	}
 	if err := a.wantedRuns(ctx, out.Items); err != nil {
 		return nil, err
@@ -283,9 +127,10 @@ func (a *Acquirer) WantedList(ctx context.Context, q WantedQuery) (*WantedList, 
 }
 
 // wantedRows are the rows the Wanted list shows for q's tab, library and waiting filter, in the list's order and
-// without paging; out.Counts receives the waiting counts before the waiting filter. "Search all" queues exactly these.
+// without paging; out.Counts receives the waiting counts before the waiting filter. "Search all" asks for exactly
+// these.
 func (a *Acquirer) wantedRows(ctx context.Context, q WantedQuery, out *WantedList) ([]WantedRow, error) {
-	now := a.now()
+	now := store.Millis(a.now())
 	last, err := a.lastSearched(ctx)
 	if err != nil {
 		return nil, err
@@ -294,54 +139,31 @@ func (a *Acquirer) wantedRows(ctx context.Context, q WantedQuery, out *WantedLis
 	if err != nil {
 		return nil, err
 	}
-	again, partial := store.Millis(now.Add(-a.set.AgainAfter)), store.Millis(now.Add(-partialAgain))
-	var due []target
-	if a.set.Enabled && out.DownloadsEnabled {
-		for _, only := range []string{OnlyMissing, OnlyCutoff} {
-			if only == OnlyMissing && !a.set.Missing || only == OnlyCutoff && a.set.CutoffUnmet == policy.CutoffOff {
-				continue
-			}
-			got, err := a.targets(ctx, Selection{Versions: a.pol.SearchVersions(), Only: only, QualityCutoff: a.set.CutoffUnmet == policy.CutoffQuality})
-			if err != nil {
-				return nil, err
-			}
-			for _, t := range got {
-				if !last[runKey(t.versionID, t.name)].searchedSince(again, partial) {
-					due = append(due, t)
-				}
-			}
-		}
-	}
-	positions := map[string]int{}
-	position := 0
-	for _, group := range groupTargets(orderTargets(due, last)) {
-		ready := false
-		for _, t := range group {
-			ready = ready || !flight.busy(t)
-		}
-		if !ready {
-			continue
-		}
-		position++
-		for _, t := range group {
-			positions[runKey(t.versionID, t.name)] = position
-		}
-	}
 	versions := a.pol.ActiveVersions()
 	if q.Version != "" {
-		if slices.Contains(versions, q.Version) {
-			versions = []string{q.Version}
-		} else {
+		if !slices.Contains(versions, q.Version) {
 			return nil, nil
 		}
+		versions = []string{q.Version}
+	}
+	sched, err := a.scheduleRows(ctx, versions, nil)
+	if err != nil {
+		return nil, err
 	}
 	ts, err := a.targets(ctx, Selection{Versions: versions, Only: q.Only, QualityCutoff: a.set.CutoffUnmet == policy.CutoffQuality})
 	if err != nil {
 		return nil, err
 	}
 	ts = orderTargets(ts, last)
-	var list []WantedRow
-	for _, shared := range groupTargets(ts) {
+	on := a.switchOn(q.Only)
+	type entry struct {
+		row   WantedRow
+		class int // the order Round starts due rows in: asked, other why, unscheduled, regular
+		at    int64
+		group int // the shared search's index: its rows share a position
+	}
+	var all []entry
+	for g, shared := range groupTargets(ts) {
 		// Preserve the shared query's order, and its target order within each library.
 		keys := []string{}
 		byVersion := map[string][]target{}
@@ -353,58 +175,93 @@ func (a *Acquirer) wantedRows(ctx context.Context, q WantedQuery, out *WantedLis
 		}
 		for _, key := range keys {
 			group := byVersion[key]
-			row := WantedRow{TitleID: group[0].titleID, Version: key, Reason: q.Only, Targets: []string{}, Season: group[0].season}
-			recent, busy, allBusy := true, false, true
-			var next int64
+			e := entry{row: WantedRow{TitleID: group[0].titleID, Version: key, Reason: q.Only, Targets: []string{},
+				Season: group[0].season}, group: g}
+			row := &e.row
+			allBusy := true
 			for _, t := range group {
 				row.Targets = append(row.Targets, t.name)
 				allBusy = allBusy && flight.busy(t)
-				if a.set.Enabled && out.DownloadsEnabled && (q.Only == OnlyMissing && a.set.Missing || q.Only == OnlyCutoff && a.set.CutoffUnmet != policy.CutoffOff) {
-					busy = busy || flight.busy(t)
-				}
-				l := last[runKey(t.versionID, t.name)]
-				recent = recent && l.searchedSince(again, partial)
-				dueAt := max(l.complete+a.set.AgainAfter.Milliseconds(), l.partial+min(a.set.AgainAfter, partialAgain).Milliseconds())
-				if next == 0 || dueAt < next {
-					next = dueAt
-				}
 			}
+			r, has := sched[targetKey(group[0])]
+			scheduled := has && (r.why != "" || on)
 			switch {
-			case !a.set.Enabled || (q.Only == OnlyMissing && !a.set.Missing) || (q.Only == OnlyCutoff && a.set.CutoffUnmet == policy.CutoffOff):
+			case !scheduled && !on:
 				row.Waiting = "loop_off"
 			case !out.DownloadsEnabled:
 				row.Waiting = "downloads_off"
-			case busy:
+			case allBusy:
 				row.Waiting = "in_flight"
-			case recent:
+			case scheduled && r.nextAt > now:
 				row.Waiting = "searched_recently"
-				at := time.UnixMilli(next).UTC()
+				at := time.UnixMilli(r.nextAt).UTC()
 				row.NextAt = &at
+			case scheduled:
+				row.Waiting, e.at, e.class = "due", r.nextAt, 3
+				switch r.why {
+				case whyAsked:
+					e.class = 0
+				case "":
+				default:
+					e.class = 1
+				}
 			default:
-				row.Waiting = "due"
-				for _, t := range group {
-					if p := positions[runKey(t.versionID, t.name)]; p > 0 {
-						row.Position = p
-						break
-					}
+				at, _, _, err := a.fromLastRun(ctx, group[0], last[seasonKey(group[0].versionID, seasonOf(group[0].season))], now)
+				if err != nil {
+					return nil, err
+				}
+				if at > now {
+					row.Waiting = "searched_recently"
+					next := time.UnixMilli(at).UTC()
+					row.NextAt = &next
+				} else {
+					row.Waiting, e.class = "due", 2
 				}
 			}
-			// What stops a search asked for by hand, whatever the loop's own state says.
+			// What stops a search asked for by hand, whatever the schedule says.
 			switch {
 			case !out.DownloadsEnabled:
 				row.SearchBlocked = "downloads_off"
 			case allBusy:
 				row.SearchBlocked = "in_flight"
 			}
-			out.Counts[row.Waiting]++
-			if q.Waiting != "" && row.Waiting != q.Waiting {
-				continue
-			}
-			if row.SearchBlocked == "" {
-				out.Searchable++
-			}
-			list = append(list, row)
+			all = append(all, e)
 		}
+	}
+	// Positions of the due rows, in the order a round starts them.
+	var due []int
+	for i, e := range all {
+		if e.row.Waiting == "due" {
+			due = append(due, i)
+		}
+	}
+	sort.SliceStable(due, func(i, j int) bool {
+		x, y := all[due[i]], all[due[j]]
+		if x.class != y.class {
+			return x.class < y.class
+		}
+		return x.at < y.at
+	})
+	place := map[int]int{}
+	for _, i := range due {
+		if place[all[i].group] == 0 {
+			place[all[i].group] = len(place) + 1
+		}
+		all[i].row.Position = place[all[i].group]
+		if all[i].class == 0 {
+			all[i].row.SearchQueued = all[i].row.Position
+		}
+	}
+	var list []WantedRow
+	for _, e := range all {
+		out.Counts[e.row.Waiting]++
+		if q.Waiting != "" && e.row.Waiting != q.Waiting {
+			continue
+		}
+		if e.row.SearchBlocked == "" {
+			out.Searchable++
+		}
+		list = append(list, e.row)
 	}
 	return list, nil
 }

@@ -31,7 +31,7 @@ func TestWantedCutoffMode(t *testing.T) {
 	} {
 		e := newEnv(t, true, &policy.Wanted{PerHour: 100, CutoffUnmet: tc.mode})
 		cutoffFixture(t, e)
-		sum, err := e.a.Wanted(e.ctx)
+		sum, err := e.a.Round(e.ctx, nil)
 		if err != nil {
 			t.Fatal(err)
 		}

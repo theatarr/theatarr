@@ -180,23 +180,6 @@ func (r *serveRuntime) AfterPublish() {
 	if r != nil {
 		r.Workers.Apply(r)
 	}
-	// Turning router.wanted.retry_new off cancels what its chains still have queued (it does nothing while on).
-	if r != nil {
-		cancelRetryNew(r.Acquirer)
-	}
-}
-
-// cancelRetryNew cancels the queued work of router.wanted.retry_new's chains when ac was built with the switch off.
-// The runtime published at start has no acquirer yet, so serve calls it again once the acquirer is built.
-func cancelRetryNew(ac *acquire.Acquirer) {
-	if ac == nil {
-		return
-	}
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-	defer cancel()
-	if _, err := ac.CancelRetryNew(ctx); err != nil {
-		slog.Warn("retry_new: queued searches not cancelled", "err", err)
-	}
 }
 
 func (r *serveRuntime) EgressGateway() *gateway.Gateway { return r.Gateway }

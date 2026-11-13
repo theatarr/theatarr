@@ -68,12 +68,9 @@ func (e *env) advance(d time.Duration) {
 	e.mu.Unlock()
 }
 
-// testPolicy pins router.wanted.retry_new off unless wanted sets it, so only the retry tests see follow-up chains.
 func testPolicy(enabled bool, wanted *policy.Wanted) *policy.Policy {
 	if wanted == nil {
-		wanted = &policy.Wanted{RetryNew: new(false)}
-	} else if wanted.RetryNew == nil {
-		wanted.RetryNew = new(false)
+		wanted = &policy.Wanted{}
 	}
 	v := func(mode policy.Mode, kind policy.Kind) *policy.VersionPolicy {
 		return &policy.VersionPolicy{Mode: mode, Kind: kind, Storage: policy.StorageDebrid, Indexers: []string{"pub"},
@@ -234,7 +231,7 @@ func TestWantedNeverSearchedNewestFirst(t *testing.T) {
 		store.Millis(t0)); err != nil {
 		t.Fatal(err)
 	}
-	sum, err := e.a.Wanted(e.ctx)
+	sum, err := e.a.Round(e.ctx, nil)
 	if err != nil || sum.Queued != 1 {
 		t.Fatalf("wanted: %+v %v", sum, err)
 	}
@@ -492,7 +489,7 @@ func TestShadowVersionsNeverSearchedOrWritten(t *testing.T) {
 	if n := e.count(`SELECT COUNT(*) FROM acquire_run WHERE id = 50 AND state = 'skipped'`); n != 1 {
 		t.Error("the shadow run was not skipped")
 	}
-	sum, err := e.a.Wanted(e.ctx)
+	sum, err := e.a.Round(e.ctx, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -542,7 +539,7 @@ func TestKillSwitchDryRun(t *testing.T) {
 		t.Fatalf("status %+v %v", st, err)
 	}
 	// The wanted loop does not search at all while the switch is off.
-	sum, err := e.a.Wanted(e.ctx)
+	sum, err := e.a.Round(e.ctx, nil)
 	if err != nil || sum.Off != "paused" || sum.Queued != 0 {
 		t.Fatalf("wanted %+v %v", sum, err)
 	}
@@ -591,12 +588,15 @@ func TestSeriesTargets(t *testing.T) {
 	}
 }
 
-// The wanted loop: missing and cutoff-unmet items of the active versions, at most per_hour in any hour, again only
-// after again_after, never an item with a download in flight.
+// The search schedule: missing and cutoff-unmet items of the active versions, at most per_hour in any hour, again
+// only after again_after, never an item with a download in flight.
 func TestWantedLoopPacing(t *testing.T) {
 	t.Parallel()
 	e := newEnv(t, true, &policy.Wanted{PerHour: 3, AgainAfter: policy.Duration(6 * time.Hour)})
 	e.accept = false
+	// Old episodes: no new-content retries here (TestFailureThenLadder).
+	e.exec(`UPDATE episode SET air_date_utc_at = ? WHERE air_date_utc_at <= ?`, store.Millis(t0.Add(-30*24*time.Hour)),
+		store.Millis(t0))
 	// Movie 2 has a download in flight.
 	if _, err := e.st.Writer().ExecContext(e.ctx, `INSERT INTO download (title_id, version_id, version_key, info_hash,
 		release_title, indexer, state, created_at, updated_at) VALUES (2, 102, 'movie', ?, 'x', 'pub', 'downloading', 0, 0)`,
@@ -604,26 +604,26 @@ func TestWantedLoopPacing(t *testing.T) {
 		t.Fatal(err)
 	}
 	// Due: movie 1 and 2 (missing), movie 3 (cutoff), series specials, s01 and s02 (missing), s01e02 (cutoff).
-	sum, err := e.a.Wanted(e.ctx)
+	sum, err := e.a.Round(e.ctx, nil)
 	if err != nil || sum.Due != 6 || sum.Queued != 3 || sum.InFlight != 1 {
 		t.Fatalf("first round %+v %v", sum, err)
 	}
 	e.drain()
 	e.advance(20 * time.Minute)
-	if sum, _ = e.a.Wanted(e.ctx); sum.Queued != 0 || sum.SearchedLastHour != 3 {
+	if sum, _ = e.a.Round(e.ctx, nil); sum.Queued != 0 || sum.SearchedLastHour != 3 {
 		t.Fatalf("same hour %+v", sum)
 	}
 	e.advance(time.Hour)
-	if sum, _ = e.a.Wanted(e.ctx); sum.Queued != 2 || sum.Due != 3 || sum.InFlight != 1 {
+	if sum, _ = e.a.Round(e.ctx, nil); sum.Queued != 2 || sum.Due != 3 || sum.InFlight != 1 {
 		t.Fatalf("next hour %+v", sum)
 	}
 	e.drain()
 	e.advance(time.Hour)
-	if sum, _ = e.a.Wanted(e.ctx); sum.Queued != 0 || sum.Due != 1 {
+	if sum, _ = e.a.Round(e.ctx, nil); sum.Queued != 0 || sum.Due != 1 {
 		t.Fatalf("all searched within again_after %+v", sum)
 	}
 	e.advance(6 * time.Hour)
-	if sum, _ = e.a.Wanted(e.ctx); sum.Queued != 3 {
+	if sum, _ = e.a.Round(e.ctx, nil); sum.Queued != 3 {
 		t.Fatalf("after again_after %+v", sum)
 	}
 	if n := e.count(`SELECT COUNT(*) FROM acquire_run WHERE version_id = 102`); n != 0 {
@@ -633,7 +633,7 @@ func TestWantedLoopPacing(t *testing.T) {
 		t.Errorf("writes %d with nothing accepted", e.rt.Writes())
 	}
 	off := newEnv(t, true, &policy.Wanted{Enabled: new(bool)})
-	if sum, _ := off.a.Wanted(off.ctx); sum.Off != "router.wanted is off" {
+	if sum, _ := off.a.Round(off.ctx, nil); sum.Due != 0 || sum.Queued != 0 {
 		t.Errorf("off: %+v", sum)
 	}
 }

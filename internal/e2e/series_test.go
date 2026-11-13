@@ -136,7 +136,7 @@ func TestSeriesImportUpdatesEpisodeStateAndWantedSet(t *testing.T) {
 		t.Fatalf("episode state=%s, want cutoff_met", state)
 	}
 	e.now = e.now.Add(48 * time.Hour)
-	sum, err := e.ac.Wanted(e.ctx)
+	sum, err := e.ac.Round(e.ctx, nil)
 	must(t, err)
 	if sum.Queued == 0 {
 		t.Fatalf("wanted loop did not search remaining episodes: %+v", sum)

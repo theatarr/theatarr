@@ -83,7 +83,7 @@ func (s *serveAcquirer) RegisterJobs(w *jobs.Worker) {
 			}
 		}
 		ctx, ac := s.forOperation(ctx)
-		_, err := ac.Wanted(ctx)
+		_, err := ac.Round(ctx, nil)
 		return err
 	})
 	w.Handle(router.JobResearch, func(ctx context.Context, j *jobs.Job) error {
@@ -92,12 +92,7 @@ func (s *serveAcquirer) RegisterJobs(w *jobs.Worker) {
 			return jobs.Permanent(err)
 		}
 		ctx, ac := s.forOperation(ctx)
-		_, err := ac.Research(ctx, p)
-		return err
-	})
-	w.Handle(acquire.JobSearchNow, func(ctx context.Context, _ *jobs.Job) error {
-		ctx, ac := s.forOperation(ctx)
-		return ac.HandleSearchNow(ctx)
+		return ac.Research(ctx, p)
 	})
 }
 

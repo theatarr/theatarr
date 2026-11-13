@@ -470,7 +470,7 @@ func (e *environment) addMovie(native bool, versions ...string) int64 {
 }
 func (e *environment) wanted() {
 	e.t.Helper()
-	res, err := e.ac.Wanted(e.ctx)
+	res, err := e.ac.Round(e.ctx, nil)
 	must(e.t, err)
 	if res.Queued == 0 {
 		e.t.Fatalf("wanted queued nothing: %+v", res)

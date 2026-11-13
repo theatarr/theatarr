@@ -286,24 +286,28 @@ func TestServeWorkerPanicRecorded(t *testing.T) {
 	}
 }
 
-// The Search now drain worker is off while router.enabled is false (Pause), so the queue waits; turning the switch
-// back on changes its key, which starts it again and schedules the drain.
-func TestSearchNowWorkerFollowsTheRouterSwitch(t *testing.T) {
+// The search round worker waits while router.enabled is false (Pause) and is off with no Live library; turning Pause
+// off changes its key from "paused", which starts the first round at once.
+func TestWantedWorkerFollowsTheRouterSwitch(t *testing.T) {
 	var key func(*serveRuntime) string
 	for _, w := range (serveLoops{}).workers() {
-		if w.name == "search-now" {
+		if w.name == "wanted" {
 			key = w.key
 		}
 	}
 	if key == nil {
-		t.Fatal("no search-now worker")
+		t.Fatal("no wanted worker")
 	}
 	rt := &serveRuntime{Acquirer: &acquire.Acquirer{}, Policy: &policy.Policy{Router: &policy.Router{}}}
 	if k := key(rt); k != "" {
+		t.Fatalf("no Live library: key %q", k)
+	}
+	rt.Policy.Versions = map[string]*policy.VersionPolicy{"movie": {Mode: policy.ModeActive}}
+	if k := key(rt); k != "paused" {
 		t.Fatalf("paused key %q", k)
 	}
 	rt.Policy.Router.Enabled = true
-	if k := key(rt); k == "" {
-		t.Fatal("no key with downloads on")
+	if k := key(rt); k != "on" {
+		t.Fatalf("key %q with downloads on", k)
 	}
 }

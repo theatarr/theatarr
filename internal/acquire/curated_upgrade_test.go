@@ -36,7 +36,7 @@ func TestDefaultWantedCuratedUpgradeRequiresEligibleAlternative(t *testing.T) {
 			if _, err := e.st.Writer().Exec(`INSERT INTO metadata_cache(source,key,status,body,fetched_at,expires_at) VALUES('seadex-standing','1535',200,?,0,253402214400000)`, body); err != nil {
 				t.Fatal(err)
 			}
-			if _, err := e.a.Wanted(e.ctx); err != nil {
+			if _, err := e.a.Round(e.ctx, nil); err != nil {
 				t.Fatal(err)
 			}
 			got := strings.Contains(e.runs(), "103:movie")

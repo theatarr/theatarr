@@ -1,5 +1,5 @@
 // Package acquire runs the searches of the versions in mode active and hands what they accept to the router: the
-// arr views' search commands (Submit) and the wanted search loop (Wanted, Run). A shared search has one root
+// arr views' search commands (Submit) and the search schedule (Round, Run; schedule.go). A shared search has one root
 // acquire_run and one child row per served version-target; it searches once, decides each target and enqueues each
 // accepted route.
 //
@@ -118,12 +118,9 @@ type Acquirer struct {
 	set               policy.WantedSettings
 	log               *slog.Logger
 	now               func() time.Time
-	// drainMu serialises everything that checks and spends router.wanted.per_hour: DrainSearchNow, a wanted round's
-	// own searches and Research. So no target starts twice and two of them never
-	// spend the same slot of the hour.
+	// drainMu serialises the rounds, the only searches that check and spend router.wanted.per_hour. So no target
+	// starts twice and two of them never spend the same slot of the hour.
 	drainMu sync.Mutex
-	// testHook, when set, is called at named points of a round and a drain (tests).
-	testHook func(point string)
 }
 
 // New builds the acquirer.
@@ -179,18 +176,11 @@ func (a *Acquirer) SetMetadata(m MetadataWait) { a.meta = m }
 // RegisterJobs adds the handlers to w.
 func (a *Acquirer) RegisterJobs(w *jobs.Worker) {
 	w.Handle(JobSearch, a.handleSearch)
-	w.Handle(JobWanted, func(ctx context.Context, j *jobs.Job) error {
-		var p wantedPayload
-		if len(j.Payload) > 0 {
-			if err := j.Decode(&p); err != nil {
-				return jobs.Permanent(err)
-			}
-		}
-		_, err := a.Wanted(ctx)
+	w.Handle(JobWanted, func(ctx context.Context, _ *jobs.Job) error {
+		_, err := a.Round(ctx, nil)
 		return err
 	})
 	w.Handle(router.JobResearch, a.handleResearch)
-	w.Handle(JobSearchNow, func(ctx context.Context, _ *jobs.Job) error { return a.HandleSearchNow(ctx) })
 }
 
 // Selection is what a search asks for, in the arrs' terms.
@@ -242,6 +232,8 @@ type target struct {
 	// joined: a version the caller did not name, which a title search widened to (Submit). Its route keeps the
 	// router's freshness check (acquire_run.requested = 0).
 	joined bool
+	// why is the schedule row's why a loop search started for (acquire_run.research; "" for none).
+	why string
 }
 
 // namedEpisode tells a stored run of a named episode search: an arr command's run for one episode with no reason
@@ -310,7 +302,7 @@ func (a *Acquirer) Submit(ctx context.Context, commandID int64, sel Selection) (
 		groups = groups[:MaxBulk]
 	}
 	for _, group := range groups {
-		if err := a.startGroup(ctx, SourceCommand, commandID, group, ""); err != nil {
+		if err := a.startRuns(ctx, SourceCommand, commandID, group); err != nil {
 			return queued, found, err
 		}
 		queued++
@@ -318,34 +310,18 @@ func (a *Acquirer) Submit(ctx context.Context, commandID int64, sel Selection) (
 	return queued, found, nil
 }
 
-// start records a run and enqueues its search. research is the failure a re-search follows ("" for none), or
-// researchRetryNew for a search of a chain router.wanted.retry_new started. It is the path of the re-searches and the
-// follow-ups: its job holds the run's id and nothing else.
-func (a *Acquirer) start(ctx context.Context, source string, commandID int64, t target, research string) error {
-	return a.startRuns(ctx, source, commandID, []target{t}, research, SearchJob{})
-}
-
-// startGroup records one search and its served version-target rows in the same transaction as its job. It is the
-// path of the wanted loop's own selection, the Search now queue (both source wanted) and Submit (source command).
-// The first two are the searches router.wanted.retry_new follows up: while the switch is on their job is marked.
-func (a *Acquirer) startGroup(ctx context.Context, source string, commandID int64, ts []target, research string) error {
-	return a.startRuns(ctx, source, commandID, ts, research,
-		SearchJob{RetryNew: a.set.RetryNew && source == SourceWanted && research == ""})
-}
-
-// startRuns is their body; mark holds the job's marks (its RunID is set here).
-func (a *Acquirer) startRuns(ctx context.Context, source string, commandID int64, ts []target, research string,
-	mark SearchJob) error {
+// startRuns records one search and its served version-target rows in the same transaction as its job: the wanted
+// loop's searches (source wanted, Round) and Submit's (source command). Each run stores its target's why
+// (acquire_run.research). A loop search also moves its row's next_at to again_after from now until the search ends
+// (reschedule), so it is not started twice.
+func (a *Acquirer) startRuns(ctx context.Context, source string, commandID int64, ts []target) error {
 	if len(ts) == 0 {
 		return nil
 	}
 	now := store.Millis(a.now())
-	var cmd, rs any
+	var cmd any
 	if commandID > 0 {
 		cmd = commandID
-	}
-	if research != "" {
-		rs = research
 	}
 	// The run and its search job commit together: a run never exists without the job that runs it.
 	return a.st.WriteTx(ctx, func(tx *sql.Tx) error {
@@ -363,18 +339,24 @@ func (a *Acquirer) startRuns(ctx context.Context, source string, commandID int64
 			res, err := tx.ExecContext(ctx, `INSERT INTO acquire_run (source, command_id, title_id, version_id,
 				version_key, target, reason, season, episodes, research, policy_rev, state, created_at, updated_at,
 				search_run, requested) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'queued', ?, ?, ?, ?)`, source, cmd,
-				t.titleID, t.versionID, t.key, t.name, t.reason, season, string(eps), rs, a.pol.Revision, now, now, shared,
-				!t.joined)
+				t.titleID, t.versionID, t.key, t.name, t.reason, season, string(eps), nullString(t.why), a.pol.Revision, now,
+				now, shared, !t.joined)
 			if err != nil {
 				return fmt.Errorf("acquire: recording a run: %w", err)
+			}
+			if source == SourceWanted {
+				if _, err := tx.ExecContext(ctx, `INSERT INTO search_request (title_id, version_key, reason, season,
+					created_at, next_at) VALUES (?, ?, ?, ?, ?, ?) ON CONFLICT DO UPDATE SET next_at = excluded.next_at`,
+					t.titleID, t.key, t.reason, seasonOf(t.season), now, now+a.set.AgainAfter.Milliseconds()); err != nil {
+					return err
+				}
 			}
 			id, _ := res.LastInsertId()
 			if i == 0 {
 				rootID = id
 			}
 		}
-		mark.RunID = rootID
-		_, _, err := a.q.EnqueueTx(ctx, tx, JobSearch, mark, jobs.EnqueueOptions{
+		_, _, err := a.q.EnqueueTx(ctx, tx, JobSearch, SearchJob{RunID: rootID}, jobs.EnqueueOptions{
 			DedupeKey: JobSearch + "/" + strconv.FormatInt(rootID, 10), MaxAttempts: searchAttempts})
 		return err
 	})
@@ -387,14 +369,7 @@ const searchAttempts = 3
 // SearchJob is the payload of a JobSearch job.
 type SearchJob struct {
 	RunID int64 `json:"run_id"`
-	// RetryNew marks a search the wanted loop or the Search now queue started while router.wanted.retry_new was on:
-	// when it accepts nothing, its new content is followed up (followup.go). The run row cannot tell these from a
-	// search on add, so the mark travels with the job. Left out when unset. The searches of the chain itself are
-	// told by their run row instead (researchRetryNew).
-	RetryNew bool `json:"retry_new,omitempty"`
 }
-
-type wantedPayload struct{}
 
 func (a *Acquirer) captureRuntime(ctx context.Context) context.Context {
 	if settings.ContextRuntime(ctx) != nil || settings.ContextGeneration(ctx) != 0 {
@@ -768,107 +743,27 @@ func (a *Acquirer) cutoffEpisodes(ctx context.Context, key string, versionID, ti
 // attempts of any kind (infrastructure failures too).
 type lastRuns struct{ complete, partial, any int64 }
 
-// searchedSince says whether the target counts as searched after since: a complete search after it, or a partial
-// one within partialAgain of now (both when again_after is shorter).
-func (l lastRuns) searchedSince(since, partialSince int64) bool {
-	return l.complete > since || l.partial > max(since, partialSince)
-}
-
-// lastSearched maps "versionID/target" to its latest runs, the runs of router.wanted.retry_new's chains left out.
+// lastSearched maps each version's seasons (seasonKey; -1 for a film) to their latest runs of any source.
 func (a *Acquirer) lastSearched(ctx context.Context) (map[string]lastRuns, error) {
-	reads, chained, err := a.lastSearchedReads(ctx)
-	if err != nil {
-		return nil, err
-	}
-	out := map[string]lastRuns{}
-	for i, q := range reads {
-		rows, err := a.st.Reader().QueryContext(ctx, q)
-		if err != nil {
-			return nil, err
-		}
-		for rows.Next() {
-			var v int64
-			var l lastRuns
-			var t string
-			if err := rows.Scan(&v, &t, &l.complete, &l.partial, &l.any); err != nil {
-				rows.Close()
-				return nil, err
-			}
-			if i == 0 && chained[v] {
-				continue // read again below, without the chain's runs
-			}
-			out[runKey(v, t)] = l
-		}
-		rows.Close()
-		if err := rows.Err(); err != nil {
-			return nil, err
-		}
-	}
-	return out, nil
-}
-
-// lastSearchedSQL is lastSearched's query over the runs where selects ("" for all of them).
-func lastSearchedSQL(where string) string {
-	q := `SELECT version_id, target,
+	rows, err := a.st.Reader().QueryContext(ctx, `SELECT version_id, COALESCE(season, -1),
 		COALESCE(MAX(CASE WHEN infra = 0 THEN created_at END), 0), COALESCE(MAX(CASE WHEN infra = 2 THEN created_at END), 0),
-		MAX(created_at) FROM acquire_run`
-	if where != "" {
-		q += ` WHERE ` + where
-	}
-	return q + ` GROUP BY version_id, target`
-}
-
-// lastSearchedReads are the queries lastSearched runs. With the switch off it is the query without the switch, which
-// the index answers alone (the chain's mark is not in an index), and then the versions a chain has a request for
-// (chainVersions: chained) are read again without the chain's runs. An install that never had the switch on has no
-// such version and runs the first query only. With the switch on it is one query that leaves the chain's runs out.
-func (a *Acquirer) lastSearchedReads(ctx context.Context) (reads []string, chained map[int64]bool, err error) {
-	if a.set.RetryNew {
-		return []string{lastSearchedSQL(ordinaryRuns)}, nil, nil
-	}
-	if chained, err = a.chainVersions(ctx); err != nil {
-		return nil, nil, err
-	}
-	reads = []string{lastSearchedSQL("")}
-	if len(chained) > 0 {
-		ids := make([]string, 0, len(chained))
-		for v := range chained {
-			ids = append(ids, strconv.FormatInt(v, 10))
-		}
-		reads = append(reads, lastSearchedSQL(`version_id IN (`+strings.Join(ids, ", ")+`) AND `+ordinaryRuns))
-	}
-	return reads, chained, nil
-}
-
-// retryNewJobs is the job condition of a retry_new chain's requests (its steps and its searches asked for again).
-const retryNewJobs = `CASE WHEN json_valid(payload) THEN json_extract(payload, '$.retry_new') END = 1`
-
-// chainVersions are the versions a retry_new chain has a request for in the job table, queued or finished (finished
-// jobs are kept 14 days). It tells the readers that would lose their index to ordinaryRuns which versions hold a
-// chain's runs at all: none on an install that never had the switch on. A chain's run whose requests were all pruned
-// is not found this way and reads as an ordinary run from then on.
-func (a *Acquirer) chainVersions(ctx context.Context) (map[int64]bool, error) {
-	rows, err := a.st.Reader().QueryContext(ctx, `SELECT DISTINCT json_extract(payload, '$.version_id') FROM job
-		WHERE kind = ? AND `+retryNewJobs, router.JobResearch)
+		MAX(created_at) FROM acquire_run GROUP BY version_id, COALESCE(season, -1)`)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
-	var out map[int64]bool
+	out := map[string]lastRuns{}
 	for rows.Next() {
-		var v sql.NullInt64
-		if err := rows.Scan(&v); err != nil {
+		var v int64
+		var season int
+		var l lastRuns
+		if err := rows.Scan(&v, &season, &l.complete, &l.partial, &l.any); err != nil {
 			return nil, err
 		}
-		if out == nil {
-			out = map[int64]bool{}
-		}
-		out[v.Int64] = true
+		out[seasonKey(v, season)] = l
 	}
 	return out, rows.Err()
 }
-
-func runKey(versionID int64, t string) string { return strconv.FormatInt(versionID, 10) + "/" + t }
 
 // groupTargets shares one title query across its matching movie or series-season targets.
 func groupTargets(ts []target) [][]target {
@@ -904,7 +799,8 @@ func (a *Acquirer) oldestFirst(ctx context.Context, ts []target) ([]target, erro
 
 func orderTargets(ts []target, last map[string]lastRuns) []target {
 	sort.SliceStable(ts, func(i, j int) bool {
-		li, lj := last[runKey(ts[i].versionID, ts[i].name)].any, last[runKey(ts[j].versionID, ts[j].name)].any
+		li := last[seasonKey(ts[i].versionID, seasonOf(ts[i].season))].any
+		lj := last[seasonKey(ts[j].versionID, seasonOf(ts[j].season))].any
 		if li == 0 && lj == 0 && ts[i].joinedAt != ts[j].joinedAt {
 			return ts[i].joinedAt > ts[j].joinedAt
 		}
@@ -931,7 +827,7 @@ func (a *Acquirer) Run1(ctx context.Context, runID int64) error {
 	return a.RunJob(ctx, SearchJob{RunID: runID})
 }
 
-// RunJob is Run1 for a search job's payload: it keeps the job's retry_new mark.
+// RunJob is Run1 for a search job's payload.
 func (a *Acquirer) RunJob(ctx context.Context, p SearchJob) error {
 	ctx = a.captureRuntime(ctx)
 	return a.run(ctx, p, fmt.Sprintf("run1:%d/%d", a.now().UnixNano(), claims.Add(1)))
@@ -945,11 +841,11 @@ var errLostClaim = errors.New("acquire: the run was claimed by another lease")
 func (a *Acquirer) run(ctx context.Context, sj SearchJob, claim string) error {
 	runID := sj.RunID
 	var t target
-	var eps, state, source, research string
+	var eps, state, source string
 	var season sql.NullInt64
 	err := a.st.Reader().QueryRowContext(ctx, `SELECT title_id, version_id, version_key, target, reason, season,
-		episodes, state, source, COALESCE(research, '') FROM acquire_run WHERE id = ?`, runID).Scan(&t.titleID,
-		&t.versionID, &t.key, &t.name, &t.reason, &season, &eps, &state, &source, &research)
+		episodes, state, source FROM acquire_run WHERE id = ?`, runID).Scan(&t.titleID,
+		&t.versionID, &t.key, &t.name, &t.reason, &season, &eps, &state, &source)
 	if errors.Is(err, sql.ErrNoRows) {
 		return jobs.Permanent(fmt.Errorf("acquire: no run %d", runID))
 	}
@@ -965,7 +861,7 @@ func (a *Acquirer) run(ctx context.Context, sj SearchJob, claim string) error {
 		return err
 	}
 	if children > 0 {
-		return a.runFanout(ctx, runID, claim, state, sj.RetryNew)
+		return a.runFanout(ctx, runID, claim, state)
 	}
 	_ = json.Unmarshal([]byte(eps), &t.episodes)
 	t.anyMonitored = namedEpisode(source, t.reason, t.name, t.episodes)
@@ -986,9 +882,10 @@ func (a *Acquirer) run(ctx context.Context, sj SearchJob, claim string) error {
 	if state == "searching" {
 		a.log.Info("resuming an interrupted search", "run", runID, "version", t.key, "target", t.name)
 	}
-	// infra is the outcome's acquire_run.infra (runComplete, runInfra, runPartial).
+	// infra is the outcome's acquire_run.infra (runComplete, runInfra, runPartial, runGated).
 	infra := runComplete
-	// finishTx records the outcome, with route (when set) enqueued in the same transaction, if the claim still holds.
+	// finishTx records the outcome, with route (when set) enqueued in the same transaction, if the claim still holds,
+	// and reschedules the item's rows (reschedule).
 	finishTx := func(state, msg string, results, accepted int, route *router.Request) (int64, error) {
 		var job int64
 		err := a.st.WriteTx(ctx, func(tx *sql.Tx) error {
@@ -1011,7 +908,7 @@ func (a *Acquirer) run(ctx context.Context, sj SearchJob, claim string) error {
 			} else if n == 0 {
 				return errLostClaim
 			}
-			return nil
+			return a.reschedule(ctx, tx, source, t, infra)
 		})
 		if errors.Is(err, errLostClaim) {
 			a.log.Warn("search outcome dropped: the run was taken over", "run", runID, "claim", claim)
@@ -1023,32 +920,13 @@ func (a *Acquirer) run(ctx context.Context, sj SearchJob, claim string) error {
 		_, err := finishTx(state, msg, results, accepted, nil)
 		return err
 	}
-	// A retry_new chain's search runs only while the switch is on. This comes before every other check, so that with
-	// the switch off such a run always ends gated, whatever else was turned off with it.
-	if research == researchRetryNew && !a.set.RetryNew {
-		infra = runGated
-		return finish("skipped", "router.wanted.retry_new is off: nothing searched", 0, 0)
-	}
 	if vp := a.pol.Versions[t.key]; vp == nil || vp.Mode != policy.ModeActive {
 		return finish("skipped", "version "+t.key+" is not active: nothing searched", 0, 0)
 	}
-	// A re-search is checked again before its search asks any indexer or provider: router.enabled or grab may have
-	// been turned off since its job queued it.
-	// Such a run is runGated: no search, so it does not count as one (again_after, the wanted loop). A reconcile
-	// re-search waits for grabbing again, as its job does.
-	if research != "" {
-		if off := a.researchOff(t.key, research); off != "" {
-			infra = runGated
-			if err := finish("skipped", off+": nothing searched", 0, 0); err != nil {
-				return err
-			}
-			if research != router.ReasonReconcile {
-				return nil
-			}
-			_, err := a.waitForGrabbing(ctx, router.ResearchRequest{TitleID: t.titleID, VersionID: t.versionID,
-				Version: t.key, Episodes: t.episodes, Reason: research}, off)
-			return err
-		}
+	// A loop search is checked for Pause again before it asks any indexer: its row stays due (runGated).
+	if source == SourceWanted && !a.pol.RouterSettings().Enabled {
+		infra = runGated
+		return finish("skipped", "paused: nothing searched", 0, 0)
 	}
 	db := a.st.Reader()
 	if busy, err := a.inFlight(ctx, t); err != nil {
@@ -1090,20 +968,14 @@ func (a *Acquirer) run(ctx context.Context, sj SearchJob, claim string) error {
 		}
 		a.log.Warn("search failed", "run", runID, "title", title.Name, "version", t.key, "target", t.name, "err", err)
 		if infra = runKind(err, nil); infra == runInfra {
-			if err := finish("failed", "search failed: "+err.Error()+infraNote, 0, 0); err != nil {
-				return err
-			}
-			return a.retryInfraFailed(ctx, []int64{runID})
+			return finish("failed", "search failed: "+err.Error()+infraNote, 0, 0)
 		}
 		return finish("failed", "search failed: "+err.Error(), 0, 0)
 	}
 	if infra = runKind(nil, found); infra == runInfra {
 		a.log.Warn("search unanswered", "run", runID, "title", title.Name, "version", t.key,
 			"target", t.name, "notes", found.Notes)
-		if err := finish("failed", noAnswerMessage(found)+infraNote, 0, 0); err != nil {
-			return err
-		}
-		return a.retryInfraFailed(ctx, []int64{runID})
+		return finish("failed", noAnswerMessage(found)+infraNote, 0, 0)
 	}
 	req := found.Request
 	req.Source = Source(runID)
@@ -1123,14 +995,8 @@ func (a *Acquirer) run(ctx context.Context, sj SearchJob, claim string) error {
 	if len(req.Candidates) == 0 {
 		a.log.Info("searched: nothing accepted", "run", runID, "title", title.Name, "version", t.key, "target", t.name,
 			"results", len(found.Ranked))
-		if err := finish("nothing", fmt.Sprintf("no accepted release among %d results%s", len(found.Ranked), notes),
-			len(found.Ranked), 0); err != nil {
-			return err
-		}
-		if sj.RetryNew && source == SourceWanted && research == "" {
-			a.retryNew(ctx, t)
-		}
-		return nil
+		return finish("nothing", fmt.Sprintf("no accepted release among %d results%s", len(found.Ranked), notes),
+			len(found.Ranked), 0)
 	}
 	// The route and the routed state commit together: a crash can't route twice or leave a run without its route.
 	job, err := finishTx("routed", fmt.Sprintf("%d of %d results accepted; best %s%s", len(req.Candidates),
@@ -1166,7 +1032,7 @@ type fanoutOutcome struct {
 
 // runFanout claims every target row, performs the union search once, and commits each target's route with its
 // outcome. A retry therefore resumes the whole shared search without routing any target twice.
-func (a *Acquirer) runFanout(ctx context.Context, rootID int64, claim, rootState string, retryNew bool) error {
+func (a *Acquirer) runFanout(ctx context.Context, rootID int64, claim, rootState string) error {
 	rows, err := a.st.Reader().QueryContext(ctx, `SELECT id, title_id, version_id, version_key, target, reason,
 		season, episodes, state, source FROM acquire_run WHERE id = ? OR search_run = ? ORDER BY id`, rootID, rootID)
 	if err != nil {
@@ -1231,11 +1097,18 @@ func (a *Acquirer) runFanout(ctx context.Context, rootID int64, claim, rootState
 	var outcomes []fanoutOutcome
 	// The shared search is an upgrade search when every target it serves is one.
 	purpose := gateway.PurposeUpgrade
+	// A loop search is checked for Pause again before it asks any indexer: its rows stay due (runGated).
+	paused := runs[0].source == SourceWanted && !a.pol.RouterSettings().Enabled
 	for _, r := range runs {
 		outcome := fanoutOutcome{run: r}
 		vp := a.pol.Versions[r.key]
 		if vp == nil || vp.Mode != policy.ModeActive {
 			outcome.state, outcome.message = "skipped", "version "+r.key+" is not active: nothing searched"
+			outcomes = append(outcomes, outcome)
+			continue
+		}
+		if paused {
+			outcome.state, outcome.message, outcome.infra = "skipped", "paused: nothing searched", runGated
 			outcomes = append(outcomes, outcome)
 			continue
 		}
@@ -1379,18 +1252,7 @@ func (a *Acquirer) runFanout(ctx context.Context, rootID int64, claim, rootState
 		outcomes = append(outcomes, fanoutOutcome{run: item, state: "routed", message: message, infra: kind,
 			results: len(searched.Ranked), accepted: len(req.Candidates), route: &req})
 	}
-	if err := a.finishFanout(ctx, claim, outcomes); err != nil {
-		return err
-	}
-	// A shared search is one startGroup call, so the job's mark holds for each of its targets.
-	if retryNew {
-		for _, o := range outcomes {
-			if o.state == "nothing" && o.run.source == SourceWanted {
-				a.retryNew(ctx, o.run.target)
-			}
-		}
-	}
-	return nil
+	return a.finishFanout(ctx, claim, outcomes)
 }
 
 func fanoutFailures(runs []fanoutRun, message string) []fanoutOutcome {
@@ -1424,6 +1286,9 @@ func (a *Acquirer) finishFanout(ctx context.Context, claim string, outcomes []fa
 			} else if n == 0 {
 				return errLostClaim
 			}
+			if err := a.reschedule(ctx, tx, o.run.source, o.run.target, o.infra); err != nil {
+				return err
+			}
 		}
 		return nil
 	})
@@ -1431,53 +1296,28 @@ func (a *Acquirer) finishFanout(ctx context.Context, claim string, outcomes []fa
 		a.log.Warn("shared search outcome dropped: one target was taken over", "claim", claim)
 		return nil
 	}
-	if err != nil {
-		return err
-	}
-	var infra []int64
-	for _, o := range outcomes {
-		if o.infra == runInfra {
-			infra = append(infra, o.run.id)
-		}
-	}
-	return a.retryInfraFailed(ctx, infra)
+	return err
 }
 
 // What a run's search established, recorded in acquire_run.infra:
 //
 //   - runComplete (0): searched.
 //   - runInfra (1): no answer at all (the VPN guard refused it, or no indexer answered: Searched.NoAnswer). It says
-//     nothing about the title and does not count as searched: the wanted loop takes the item again (after the items
-//     not attempted as recently: oldestFirst), and re-searches ask again after infraBackoff,
-//     at most len(infraBackoff) times.
+//     nothing about the title and does not count as searched: its row is tried again an hour later, a few times
+//     (nextSearch).
 //   - runPartial (2): some indexer answered and some request failed (an error, a back-off or a spent budget, a paging
 //     failure; our own page_cap is not one: indexer.Result.Capped). It counts as searched, its releases route as
-//     usual, but the wanted loop and the re-search limit take it as searched for partialAgain only (again_after when
+//     usual, but the schedule and the re-search limit take it as searched for partialAgain only (again_after when
 //     shorter), so the indexers that failed get another chance sooner without the item crowding out the rest.
 const (
 	runComplete = 0
 	runInfra    = 1
 	runPartial  = 2
-	// runGated: a re-search's run that ended before its search because grabbing (or, for a dead link, the library)
-	// was off by then. Nothing was searched: it counts as no search and no attempt, and not against
-	// router.wanted.per_hour (every hourly count and the deferral time leave it out: infra <> 3). Also a retry_new
-	// chain's run that ended because that switch was off, or was cancelled when it was turned off.
+	// runGated: a loop search that ended before its search because Pause was turned on meanwhile. Nothing was
+	// searched: it counts as no search and no attempt, and not against router.wanted.per_hour (infra <> 3); its row
+	// stays due.
 	runGated = 3
 )
-
-// researchRetryNew is acquire_run.research of a search that a follow-up chain of router.wanted.retry_new started (a
-// step's search, or one asked for again after no indexer answered). It is the feature's mark in the run history:
-// every reader of that history that decides something for an ordinary search leaves these runs out (ordinaryRuns;
-// with the switch off, lastSearched and an intent's retry budget only while chainVersions finds the version). Only
-// the chain's own retry budget (infraRuns) and, while the switch is on, the hourly count (hourRuns) read them. The
-// limits are in docs/design/router.md.
-const researchRetryNew = "retry_new"
-
-// ordinaryRuns is the acquire_run condition that leaves out the runs router.wanted.retry_new started.
-const ordinaryRuns = `COALESCE(research, '') <> '` + researchRetryNew + `'`
-
-// retryNewRuns is its opposite.
-const retryNewRuns = `COALESCE(research, '') = '` + researchRetryNew + `'`
 
 const (
 	infraNote   = "; not counted as searched: asked again later"
@@ -1486,26 +1326,6 @@ const (
 
 // partialAgain is how long a partial search counts as searched (router.wanted.again_after when shorter).
 const partialAgain = 6 * time.Hour
-
-// infraBackoff are the waits before a re-search that got no answer is started again: after the
-// first such run, the second, the third; after the last the target is not asked for again from that re-search (the
-// wanted loop still takes it when it selects the item).
-var infraBackoff = []time.Duration{15 * time.Minute, time.Hour, 4 * time.Hour}
-
-// infraRetry is the first of infraBackoff.
-var infraRetry = infraBackoff[0]
-
-// infraWait is when a target with n consecutive runs without an answer, the last at last (milliseconds), may be
-// started again; ok is false once infraBackoff is spent.
-func infraWait(n int, last int64) (at int64, ok bool) {
-	if n <= 0 {
-		return 0, true
-	}
-	if n > len(infraBackoff) {
-		return 0, false
-	}
-	return last + infraBackoff[n-1].Milliseconds(), true
-}
 
 // runKind classifies a search's outcome: err from the search, or its answer.
 func runKind(err error, found *router.Searched) int {
@@ -1524,80 +1344,6 @@ func runKind(err error, found *router.Searched) int {
 
 func noAnswerMessage(found *router.Searched) string {
 	return "search failed: no indexer answered (" + strings.Join(found.Notes, "; ") + ")"
-}
-
-// infraRuns counts a target's runs without an answer since its last run that had one, after since, and the latest.
-// runs says which: ordinaryRuns, retryNewRuns (the chain's own budget), or "" for all of them (ordinaryOf).
-func (a *Acquirer) infraRuns(ctx context.Context, versionID int64, name string, since int64, research bool,
-	runs string) (int, int64, error) {
-	q := infraRunsSQL(runs)
-	if research {
-		q += ` AND research IS NOT NULL`
-	}
-	var n int
-	var last int64
-	err := a.st.Reader().QueryRowContext(ctx, q, versionID, name, since, versionID, name).Scan(&n, &last)
-	return n, last, err
-}
-
-// infraRunsSQL is infraRuns's query over the runs that the condition runs selects.
-func infraRunsSQL(runs string) string {
-	if runs != "" {
-		runs = ` AND ` + runs
-	}
-	return `SELECT COUNT(*), COALESCE(MAX(created_at), 0) FROM acquire_run WHERE version_id = ? AND target = ?
-		AND infra = 1` + runs + ` AND created_at > MAX(?, COALESCE((SELECT MAX(created_at) FROM acquire_run
-		WHERE version_id = ? AND target = ? AND infra NOT IN (1, 3) AND state NOT IN ('queued', 'searching')` + runs + `), 0))`
-}
-
-// retryInfraFailed asks again for the re-searches among runs (no answer: runInfra) after infraBackoff, until it is
-// spent. Wanted searches need nothing: the next round or drain finds them due. A search of a retry_new
-// chain (researchRetryNew) is asked for again as a follow-up with the chain's mark, so it looks at the switch too,
-// and its budget counts the chain's runs only, as an ordinary re-search's counts none of them.
-func (a *Acquirer) retryInfraFailed(ctx context.Context, runs []int64) error {
-	for _, id := range runs {
-		var p router.ResearchRequest
-		var research sql.NullString
-		var eps, name string
-		if err := a.st.Reader().QueryRowContext(ctx, `SELECT title_id, version_id, version_key, target, episodes, research
-			FROM acquire_run WHERE id = ?`, id).Scan(&p.TitleID, &p.VersionID, &p.Version, &name, &eps,
-			&research); err != nil {
-			return err
-		}
-		// A dead link's search is one attempt: with no answer the item stays wanted for RSS and hand searches.
-		if !research.Valid || research.String == "" || research.String == router.ReasonDeadLink {
-			continue
-		}
-		chained := research.String == researchRetryNew
-		own := ordinaryRuns // research is read from the row here either way
-		if chained {
-			own = retryNewRuns
-		}
-		n, last, err := a.infraRuns(ctx, p.VersionID, name, store.Millis(a.now().Add(-a.set.AgainAfter)), true, own)
-		if err != nil {
-			return err
-		}
-		next, ok := infraWait(n, last)
-		if !ok {
-			a.log.Warn("re-search got no answer repeatedly; not asked for again", "run", id, "title", p.TitleID,
-				"version", p.Version, "target", name, "attempts", n)
-			continue
-		}
-		_ = json.Unmarshal([]byte(eps), &p.Episodes)
-		p.Reason = research.String
-		if chained {
-			p.Reason, p.RetryNew = router.ReasonFresh, true
-		}
-		at := store.FromMillis(max(next, store.Millis(a.now())))
-		key := fmt.Sprintf("%s/infra/%d", router.JobResearch, id)
-		if _, _, err := a.q.Enqueue(ctx, router.JobResearch, p, jobs.EnqueueOptions{RunAt: at, DedupeKey: key,
-			MaxAttempts: 1}); err != nil {
-			return err
-		}
-		a.log.Info("re-search got no answer; asked for again", "run", id, "title", p.TitleID,
-			"version", p.Version, "at", at, "attempts", n)
-	}
-	return nil
 }
 
 // searchPurpose is what a run's indexer requests count as (docs/design/gateway.md): a cutoff run, or a run for something

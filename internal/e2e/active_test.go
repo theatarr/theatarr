@@ -268,7 +268,7 @@ func TestUpgrade(t *testing.T) {
 		t.Fatalf("old link state=%s, want unlinked", got)
 	}
 	before := e.count(`SELECT count(*) FROM acquire_run WHERE source='wanted'`)
-	sum, err := e.ac.Wanted(e.ctx)
+	sum, err := e.ac.Round(e.ctx, nil)
 	must(t, err)
 	if sum.Due != 0 || sum.Queued != 0 || e.count(`SELECT count(*) FROM acquire_run WHERE source='wanted'`) != before {
 		t.Fatalf("cutoff-met version was searched again: %+v", sum)
