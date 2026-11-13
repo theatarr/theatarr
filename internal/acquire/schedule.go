@@ -6,6 +6,7 @@ import (
 	"slices"
 	"sort"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/theatarr/theatarr/internal/availability"
@@ -131,7 +132,8 @@ func (a *Acquirer) fresh(ctx context.Context, t target) (bool, error) {
 
 // reschedule applies nextSearch to the rows a finished run of t searched, in the run's transaction: for a loop run
 // (source wanted) its own row while it still has the why the run started for (a failure event or Search now that
-// marked it again meanwhile keeps it due), for any other its item's regular, new and added rows. kind runGated (Pause
+// marked it again meanwhile keeps it due), for any other its item's regular and new rows, and its added row unless it
+// searched single episodes. kind runGated (Pause
 // overtook a loop run) leaves the row due.
 func (a *Acquirer) reschedule(ctx context.Context, tx *sql.Tx, source string, t target, kind int) error {
 	now := store.Millis(a.now())
@@ -148,8 +150,14 @@ func (a *Acquirer) reschedule(ctx context.Context, tx *sql.Tx, source string, t 
 		AND season = ? AND reason = ? AND COALESCE(why, '') = ?`
 	args := []any{t.titleID, t.key, season, t.reason, t.why}
 	if source != SourceWanted {
+		// An added row is taken only by a search of the whole film or season, not of single episodes (sNNeNN): the
+		// season's other episodes still need their first search.
+		whys := `('new', 'added')`
+		if t.season != nil && strings.Contains(t.name, "e") {
+			whys = `('new')`
+		}
 		q = `SELECT id, reason, tries, COALESCE(why, '') FROM search_request WHERE title_id = ? AND version_key = ?
-			AND season = ? AND (reason = ? OR ? = '') AND COALESCE(why, 'new') IN ('new', 'added')`
+			AND season = ? AND (reason = ? OR ? = '') AND COALESCE(why, 'new') IN ` + whys
 		args = []any{t.titleID, t.key, season, t.reason, t.reason}
 	}
 	rows, err := tx.QueryContext(ctx, q, args...)

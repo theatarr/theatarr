@@ -439,11 +439,14 @@ func TestAddedSeriesWaitsForMetadata(t *testing.T) {
 	}
 }
 
-// The first failed download of an added title is still searched again: a run marked added is not a failure.
+// The first failed grab of an added title is still searched again: the router reports it (no provider took the
+// release) and a run marked added is not a failure, so the re-search is not skipped.
 func TestAddedRunDoesNotBlockFailure(t *testing.T) {
 	t.Parallel()
 	e := newEnv(t, true, &policy.Wanted{Missing: new(false), CutoffUnmet: policy.CutoffOff})
-	e.accept = false
+	for _, a := range e.rt.Adders {
+		a.SetUncached(true)
+	}
 	if err := e.a.RequestSearchLater(e.ctx, 1, []string{"movie"}); err != nil {
 		t.Fatal(err)
 	}
@@ -452,8 +455,7 @@ func TestAddedRunDoesNotBlockFailure(t *testing.T) {
 	if n := e.count(`SELECT COUNT(*) FROM acquire_run WHERE version_id = 101 AND research = 'added'`); n != 1 {
 		t.Fatalf("added row not searched: %s", e.runs())
 	}
-	e.research(router.ResearchRequest{TitleID: 1, VersionID: 101, Version: "movie", Reason: router.ReasonStalled})
-	if n := e.count(`SELECT COUNT(*) FROM acquire_run WHERE version_id = 101 AND research = 'stalled'`); n != 1 {
+	if n := e.count(`SELECT COUNT(*) FROM acquire_run WHERE version_id = 101 AND research = 'exhausted'`); n != 1 {
 		t.Fatalf("the added run blocked the failure re-search: %s", e.runs())
 	}
 }
@@ -478,5 +480,38 @@ func TestManualSearchTakesAddedRow(t *testing.T) {
 	e.round()
 	if n := e.count(`SELECT COUNT(*) FROM acquire_run WHERE version_id = 101`); n != 1 {
 		t.Fatalf("searched again: %s", e.runs())
+	}
+}
+
+// A list added the series (an added row per season). Before the round, a search by name of one episode of season 1
+// leaves that season's added row due, and the round then searches the season; a search of the whole of season 2
+// takes its row, and the round does not search it again.
+func TestEpisodeSearchKeepsAddedSeasonRow(t *testing.T) {
+	t.Parallel()
+	e := newEnv(t, true, &policy.Wanted{Missing: new(false), CutoffUnmet: policy.CutoffOff})
+	e.accept = false
+	if err := e.a.RequestSearchLater(e.ctx, 10, []string{"series"}); err != nil {
+		t.Fatal(err)
+	}
+	two := 2
+	for _, sel := range []Selection{{Versions: []string{"series"}, EpisodeIDs: []int64{1001}},
+		{Versions: []string{"series"}, TitleIDs: []int64{10}, Season: &two}} {
+		if _, _, err := e.a.Submit(e.ctx, 0, sel); err != nil {
+			t.Fatal(err)
+		}
+	}
+	e.drain()
+	if at, _, why := e.rowOf(10, "series", OnlyMissing, 1); !at.Equal(t0) || why != whyAdded {
+		t.Fatalf("season 1 row after an episode search: %v %q", at, why)
+	}
+	if _, _, why := e.rowOf(10, "series", OnlyMissing, 2); why == whyAdded {
+		t.Fatal("a season search left the added row")
+	}
+	e.round()
+	if n := e.count(`SELECT COUNT(*) FROM acquire_run WHERE version_id = 201 AND season = 1 AND research = 'added'`); n != 1 {
+		t.Fatalf("season 1 not searched by the round: %s", e.runs())
+	}
+	if n := e.count(`SELECT COUNT(*) FROM acquire_run WHERE version_id = 201 AND season = 2`); n != 1 {
+		t.Fatalf("season 2 searched again: %s", e.runs())
 	}
 }
