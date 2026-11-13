@@ -107,7 +107,8 @@ const (
 	KindSeries Kind = "series"
 )
 
-// Mode is a version's cutover switch (docs/design/shadow.md): shadow decides and reports but grabs nothing.
+// Mode is a version's state (docs/design/overview.md): shadow is Watch only (nothing is searched, downloaded or
+// linked), active is Live.
 type Mode string
 
 const (

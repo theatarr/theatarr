@@ -30,7 +30,6 @@ func (s *seeder) system() {
 	for k := range 6 {
 		at := s.ago(time.Duration(k)*4*time.Hour + 20*time.Minute)
 		job("provider.sync", "{}", "done", at, 1, "")
-		job("arr.import", "{}", "done", at.Add(3*time.Minute), 1, "")
 		job("shadow.rss", "{}", "done", at.Add(7*time.Minute), 1, "")
 	}
 	for k := range 3 {

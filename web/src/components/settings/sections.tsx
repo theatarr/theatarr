@@ -26,7 +26,6 @@ export const SECTION_LABELS: Record<string, { label: string; help: string }> = {
   torrents: { label: "Torrents", help: "Scan roots and scheduled backups." },
   cardigann: { label: "Indexer catalog and Prowlarr", help: "Catalog on/off, FlareSolverr and the Prowlarr reader." },
   shadow: { label: "RSS", help: "How often Theatarr reads the indexers' RSS feeds." },
-  import: { label: "Sonarr/Radarr instances", help: "The Sonarr and Radarr instances imports and aliases read." },
   playlists: { label: "Playlists", help: "Plex playlists Theatarr keeps." },
   ui: { label: "Artwork cache", help: "Artwork cache size, folder and image quality." },
   provider_sync: { label: "Provider account sync", help: "How often provider state is read." },

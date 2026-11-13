@@ -64,7 +64,7 @@ at once and nothing leaves the machine. Two ways:
   ```
 
 What an offline `theatarr serve` shows, and why: **VPN guard off** in the top bar (the example policy ships the egress check off),
-`shadow.rss` jobs failing after a few minutes (the indexers cannot be reached offline), and a few warnings in the log (the mount, the zurg log, TRaSH formats).
+the RSS job (**Check RSS feeds**, `shadow.rss`) failing after a few minutes (the indexers cannot be reached offline), and a few warnings in the log (the mount, the zurg log, TRaSH formats).
 Everything else is the seeded data. The seeder itself needs no network, so `demo seed` runs with `--network none` too.
 
 ### Artwork
@@ -95,37 +95,39 @@ instance. The seeder stores it the way `theatarr admin reset-password` does (arg
 | Versions | Every version in the policy that fits each title (`movie-remux` and `movie-web`, `anime-movie`, `tv-2160p` and `tv-2160p-theatarr`, `anime-tv` and `anime-tv-theatarr` with the demo overlay), in every state: wanted, filled (below the cutoff), cutoff met; titles complete, waiting for an upgrade, part-way (a version missing, or seasons part-way), missing, upcoming, and not monitored. Every series has two copies (below) |
 | Episodes | 531: weekly air dates, a special for longer shows, absolute numbers for anime; airing shows have the rest of their season in the coming weeks |
 | Upcoming | Movie releases in the next weeks and months, and new episodes, so Home's Upcoming row and the calendar fill |
-| Files | Arr files with plausible release names, qualities, sizes, languages, the arr's media info, paths in the version's library root; season packs; the registry behind them (content, files with probe results, provider presence on RD, AD or TB) and the arrs' history (grabs, imports, a couple of failures) |
+| Files | On the Watch-only libraries, files kept from a former Sonarr/Radarr instance with plausible release names, qualities, sizes, languages, media info and paths in the library's root; season packs; on the Live libraries, Theatarr's own links; the registry behind them (content, files with probe results, provider presence on RD, AD or TB) |
 | Downloads | The router in every state: queued (one waiting for a free slot), adding, added, downloading (one stuck for over a day), ready (waiting for the mount, and dry run), linking, imported, failed (no provider took it; stalled three times; removed from the queue; rejected by the library's sample guard). Each with its search (acquire run and journal snapshot: chosen release, runners-up, rejections), provider attempts (accepted, refused, skipped, error, deferred) and cache evidence |
 | Library | Library imports in each state, links for Theatarr's own imports, three dead links with the dangling report, a relink, a replaced link in the trash, a Plex scan and a mount alert |
 | Blocklist | Stalled, provider, library guard and verdict entries, each followed by a re-search |
 | Journal | Suspect flags of several kinds (dead link, download stuck, repeated failures, sample or extras, year mismatch), a `wrong` verdict that blocklisted a release and queued a re-search, and an `ok` verdict on a dead link |
 | Jobs | Done (a day of syncs, imports, RSS reads, art runs, searches), queued, failed and needing attention, failed and resolved by a later success, failed and retried with the retry done, and dismissed |
-| System | Budget windows (hour and day), back-offs (active and expired), provider pacing, provider sync runs (one failed with `AUTH_BLOCKED`), arr import runs, the TVDB sync, three API keys (hashes of random values nobody holds; one revoked), the views' profiles and tags, view commands and offers |
+| System | Budget windows (hour and day), back-offs (active and expired), provider pacing, provider sync runs (one failed with `AUTH_BLOCKED`), the TVDB sync, three API keys (hashes of random values nobody holds; one revoked), the views' profiles and tags, view commands and offers |
 | Anime | The franchise `aokaze-requiem`, stored through `animestore.Save`: two seasons, two films (one upcoming), an OVA mapped by a heuristic and a short with conflicting mappings (both in the review queue), an arbitrated mapping, release, watch and story orders, and a planned watch-order playlist |
 | Users | The admin, a manager and two users with local passwords; role presets, auto-approval and request-version restrictions; requests in every status, including merged requests and TMDb movie and series titles outside the library |
 | Settings | The DB settings store bootstrapped from the demo policy with invented `demo-only-*` credentials (never real keys), then two edits (one indexer disabled with its credential cleared, a priority change, a budget change) and two audited test results; generation 3, so Settings › Indexers/Download clients and Advanced › Request limits/Settings history have data. Import preview needs the policy's `*_env` variables set, which the demo leaves unset |
 
 ## Two copies
 
-Many installs keep two or more copies of a title. Movies have two in the example policy (`movie-remux` and
-`movie-web`, both fed by an arr). For series the example has one version per anime flag, so the demo adds a second
+Many installs keep a title in two or more libraries. Movies have two in the example policy (`movie-remux` and
+`movie-web`, both Watch only). For series the example has one library per anime flag, so the demo adds a second
 through an overlay, `examples/demo`, which is not a policy on its own:
 
-- `versions-theatarr.yaml`: `tv-2160p-theatarr` beside `tv-2160p` and `anime-tv-theatarr` beside `anime-tv`, pairing
-  each arr-fed version with a Live library of Theatarr's own ([migration.md](migration.md#3-a-live-library-beside-the-arr)):
-  `mode: active`, the same profile and the built-in naming, roots under `/media/library`.
+- `versions-theatarr.yaml`: `tv-2160p-theatarr` beside `tv-2160p` and `anime-tv-theatarr` beside `anime-tv`: a
+  **Live** library of the same kind (`mode: active`) with the same profile, the built-in naming and roots under
+  `/media/library`.
 - `library.yaml`: the example's `library.yaml` with those two roots added to `library.versions` (a Live library
   needs roots of its own, and `library` is one section, so the file replaces the example's). A test keeps it equal to
   the example's otherwise.
 
 The example policy itself is left as it is: its version set is pinned by tests across the code base.
 
-The seed treats a version `<key>-theatarr` beside an arr-fed `<key>` as Theatarr's copy (`internal/demo/copies.go`): no
-arr records, the arr-fed version's titles and monitoring, links adopted from the arr's files (`adopted from <instance> <path>`, to
-the same mount targets) and its own downloads for the rest. `copyPlans` makes the copies differ:
+The example's libraries are Watch only and hold the files of a former Sonarr/Radarr instance, as an install that
+used the removed periodic import keeps them. The seed treats a library `<key>-theatarr` beside such a `<key>` as
+Theatarr's own (`internal/demo/copies.go`): the same titles and monitoring, links brought in by the
+[one-time import](migration.md#import-from-sonarrradarr) (`adopted from <instance> <path>`, to the same mount
+targets), and its own downloads for the rest. `copyPlans` makes the two differ:
 
-| Series | Arr copy | Theatarr copy |
+| Series | Watch-only library | Live library (`-theatarr`) |
 |---|---|---|
 | The Harrowgate Files | complete | season 3 not adopted; its pack queued |
 | Brindlewood Bakers | complete | season 2 missing; its pack failed (stalled, blocklisted, re-searched) |
@@ -142,8 +144,13 @@ the same mount targets) and its own downloads for the rest. `copyPlans` makes th
 | Kagerou Postal Service (anime) | airing | the same; the newest episode is Theatarr's own import |
 | The others | as their scenario | the same files, adopted |
 
-The series downloads in flight are Theatarr's own, so they belong to Theatarr's copy; seeded with `examples/policy` alone
+The series downloads in flight are Theatarr's own, so they belong to the Live library; seeded with `examples/policy` alone
 they go to the series' only version, as before. Anime keep their absolute numbers on both copies.
+
+For browser checks (seeded with the overlay and the default `-seed 1`): **Kindling Hall** (title 72) is in both
+`tv-2160p` (Watch only, files from the former instance) and `tv-2160p-theatarr` (Live); on the Live library, the
+episodes the Watch-only library lacks are Theatarr's own imports (links with no `adopted from`). **Saltmarsh Rangers** (69) and
+**Orbitfall** (71) have the same pair, with only the newest episode imported by Theatarr.
 
 ## Ids
 
@@ -177,13 +184,14 @@ Info hashes, provider torrent ids and release groups are generated. Internal row
   requests, and checks that a user sees no file details on a title page.
 - **TestDemoSettings** checks the settings generation, records, cleared credential and that no audit row holds a credential.
 - **TestDemoDeterministic** seeds twice with one seed and once with another, and compares every table.
-- **TestDemoTwoCopies** checks that every series has an arr-fed copy and Theatarr's copy with no arr records,
+- **TestDemoTwoCopies** checks that every series has a Watch-only copy with the former instance's files and a Live
+  copy with no such records,
   adopted links under the copy's root, links that match the copy's episode states, seasons on one copy only, series
   complete on one copy and part-way on the other (both ways), the copy's downloads in every state (an import waiting
   for the mount among them), an upgrade in flight on an episode the copy has a file for, one series whose copies'
   monitoring differs, and absolute-numbered anime files on both copies. **TestDemoTwoCopiesScreens** reads the
   episode grid of a series and an anime series: two copies, each with files, absolute numbers for the anime.
-- **TestDemoOverlayLibrary** keeps `examples/demo/library.yaml` equal to the example's but for the parallel
-  versions' roots; **TestDemoExamplePolicy** seeds with `examples/policy` alone (one copy per series).
+- **TestDemoOverlayLibrary** keeps `examples/demo/library.yaml` equal to the example's but for the Live
+  libraries' roots; **TestDemoExamplePolicy** seeds with `examples/policy` alone (one copy per series).
 
 All tests but the last seed with the overlay, as the dev server does.
