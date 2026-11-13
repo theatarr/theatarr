@@ -255,7 +255,21 @@ export function Catalog({ id }: { id: CatalogId }) {
               size="icon-sm"
               aria-label={desc ? "Descending" : "Ascending"}
               title={desc ? "Descending" : "Ascending"}
-              onClick={() => set("order", desc ? "asc" : "desc")}
+              onClick={() =>
+                setParams(
+                  (p) => {
+                    const n = new URLSearchParams(p);
+                    // A sort the account is not offered was replaced by Title: drop it, or the new order is ignored too.
+                    if ((n.get("sort") ?? "name") !== query.sort) {
+                      n.delete("sort");
+                      n.delete("sort_version");
+                    }
+                    n.set("order", desc ? "asc" : "desc");
+                    return n;
+                  },
+                  { replace: true },
+                )
+              }
             >
               {desc ? <ArrowDownWideNarrow /> : <ArrowUpNarrowWide />}
             </Button>
