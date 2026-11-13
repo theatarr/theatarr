@@ -149,8 +149,8 @@ it("shows Search now disabled with the reason when nothing would search, and non
   expect(screen.queryByTestId("title-search-now")).toBeNull();
 });
 
-it("says In every library, disabled, when the add options offer no library the title is not in", async () => {
-  show([lib("movie-web", gates)]);
+it("says In every library, disabled, when every library that fits is on the title; one that does not fit does not count", async () => {
+  show([lib("movie-web", gates), lib("movie-remux", gates), { ...lib("anime-movie", gates), fits: false, on: false }]);
   const add = await screen.findByTestId("title-add-versions");
   await waitFor(() => expect(add.textContent).toBe("In every library"));
   expect(add.hasAttribute("disabled")).toBe(true);

@@ -30,8 +30,13 @@ import { globalDownloadsOff } from "@/lib/version-grab";
 
 const plural = (n: number, one: string, many = `${one}s`) => `${n} ${n === 1 ? one : many}`;
 
-/** The add options offer no library the title is not already in (monitored): Add to another library has nothing to add. */
-export const inEveryLibrary = (o?: AddOptions) => !!o && o.versions.length > 0 && o.versions.every((v) => v.on);
+/** The title is already in (monitored) every library that fits it, the add sheet's main list: Add to another library
+ * has nothing to tick there. Libraries that do not fit (the sheet's "Show other libraries") do not count; the Libraries
+ * button on a search result still opens the sheet with them. */
+export const inEveryLibrary = (o?: AddOptions) => {
+  const fitting = (o?.versions ?? []).filter((v) => v.fits || v.on);
+  return fitting.length > 0 && fitting.every((v) => v.on);
+};
 
 /** The rename preview: each file's library, old and new name; Rename only on confirm. */
 function RenameDialog({ titleId, labels, onClose }: { titleId: number; labels: Record<string, string>; onClose: () => void }) {
