@@ -150,3 +150,34 @@ export function timing(d: D, now: number = Date.now()): { waited?: string; updat
   if (!Number.isNaN(retry) && retry > now) out.retry = `in ${fmtSpan(retry - now)}`;
   return out;
 }
+
+/** What each Queue status means (the Status cell's tooltip and the Queue's "What do these mean?" list), in the
+ * order a download meets them. Every word stageLabel returns has a line. */
+export const STAGE_MEANINGS: { label: string; meaning: string }[] = [
+  { label: "Queued", meaning: "Chosen, waiting for its turn to be sent to a provider." },
+  { label: "Waiting for a provider", meaning: "No provider could take it yet. Theatarr tries again at the time shown." },
+  { label: "Starting", meaning: "Being added to the provider or download client." },
+  { label: "Waiting to start", meaning: "The provider has it but has not begun." },
+  { label: "Downloading", meaning: "Being transferred. The bar is its progress." },
+  { label: "Download complete", meaning: "Finished at the provider, not yet linked into the library." },
+  { label: "Waiting for the mount", meaning: "Finished, but its files are not visible on the mount yet." },
+  { label: "Linking", meaning: "Being linked into the library folder." },
+  { label: "Partly linked", meaning: "Some files are linked. The rest are tried again." },
+  { label: "Rejected by the library", meaning: "The file failed the library's check (a sample, the wrong length, not an upgrade). Details says which." },
+  { label: "Linking failed", meaning: "Linking hit an error and is tried again." },
+  { label: "Linked", meaning: "In the library." },
+  { label: "Failed", meaning: "The download failed. Retry sends it again; Dismiss clears the row." },
+  { label: "Not started", meaning: "It was still waiting when downloads were paused or its library was Watch only, and was never sent. Retry starts it." },
+];
+
+/** The meaning of a stageLabel word; "" for a state the list does not know. */
+export function stageMeaning(label: string): string {
+  return STAGE_MEANINGS.find((m) => m.label === label)?.meaning ?? "";
+}
+
+/** A bulk action's outcome in words: "Removed 3 downloads." or "Removed 2 of 3. Not removed: Alpha (reason)." */
+export function bulkWords(verb: string, notVerb: string, noun: [string, string], total: number, failed: { name: string; reason: string }[]): string {
+  const done = total - failed.length;
+  if (failed.length === 0) return `${verb} ${total} ${total === 1 ? noun[0] : noun[1]}.`;
+  return `${verb} ${done} of ${total}. ${notVerb}: ${failed.map((f) => `${f.name} (${f.reason})`).join(", ")}.`;
+}

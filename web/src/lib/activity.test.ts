@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { activityHref } from "./copies";
-import { filterDownloads, fmtSpan, isWaiting, needsAttention, parseShow, showCounts, stageLabel, timing } from "./activity";
+import { filterDownloads, fmtSpan, isWaiting, needsAttention, parseShow, showCounts, STAGE_MEANINGS, stageLabel, stageMeaning, timing } from "./activity";
 
 const NOW = Date.parse("2026-10-26T12:00:00Z");
 const ago = (ms: number) => new Date(NOW - ms).toISOString();
@@ -83,5 +83,22 @@ describe("stage words", () => {
     expect(timing(d({ next_retry: ago(60_000), updated_at: undefined as unknown as string }), NOW)).toEqual({});
     expect(fmtSpan(45_000)).toBe("45 s");
     expect(fmtSpan(3 * 86_400_000)).toBe("3 d");
+  });
+});
+
+describe("status meanings", () => {
+  it("has a meaning for every status stageLabel can return", () => {
+    const states = ["queued", "adding", "added", "downloading", "ready", "importing", "imported", "failed"];
+    const imports = [undefined, "waiting_mount", "linked", "partial", "rejected", "dry_run", "failed"];
+    const labels = new Set<string>();
+    for (const state of states) {
+      for (const import_state of imports) {
+        for (const extra of [{}, { next_retry: "2026-10-26T12:10:00Z" }, { not_started: true }]) {
+          labels.add(stageLabel({ ...d({ state: state as D["state"], import_state: import_state as D["import_state"] }), ...extra }));
+        }
+      }
+    }
+    for (const l of labels) expect(stageMeaning(l), l).not.toBe("");
+    expect(STAGE_MEANINGS.map((m) => m.label).sort()).toEqual([...labels].sort());
   });
 });

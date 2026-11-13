@@ -7,6 +7,7 @@
 import { Eye } from "lucide-react";
 import { lazy, Suspense } from "react";
 import { Link, Navigate, useParams, useSearchParams } from "react-router";
+import { useAuth } from "@/api/auth";
 import { usePerms } from "@/api/library";
 import { BlocklistTab } from "@/components/activity/blocklist-tab";
 import { HistoryTab } from "@/components/activity/history-tab";
@@ -22,6 +23,7 @@ const JournalList = lazy(() => import("./admin/journal").then((m) => ({ default:
 
 export function ActivityPageView() {
   const { tab = "queue" } = useParams();
+  const me = useAuth();
   const perms = usePerms();
   const [sp, setSp] = useSearchParams();
   // The file detail (release names, providers, attempts) and the blocked list are for accounts that see files.
@@ -44,6 +46,8 @@ export function ActivityPageView() {
     ...(isAdmin && !asUser ? [{ id: "blocklist", label: "Blocklist", to: "/activity/blocklist" }] : []),
     ...(journal ? [{ id: "journal", label: "Decision journal", to: journalHome() }] : []),
   ];
+  // Who is looking decides the table or the simple rows: wait for it rather than draw one and swap.
+  if (me.isPending) return <Loading />;
   // The user view has Queue and History only.
   if ((tab === "blocklist" || (tab === "journal" && perms.admin)) && asUser) return <Navigate to={`/activity${suffix}`} replace />;
   if (!["queue", "history", "blocklist", "journal"].includes(tab) || (tab === "blocklist" && !isAdmin) || (tab === "journal" && !journal)) {

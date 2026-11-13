@@ -1,8 +1,9 @@
-// Activity's recovery actions (docs/design/ui.md "Recovery actions"), for managers: in a download's Inspect/Details,
-// Remove, Remove + blocklist + search again, and Retry (route the failed release again, or import a finished
-// download now); on a history row about a failed download, Retry; on a blocked release, Unblock (optionally
-// searching again). Removing ends Theatarr's record only: the torrent at the debrid provider is shared and stays.
-import { RotateCcw, ShieldOff, Trash2, Undo2 } from "lucide-react";
+// Activity's recovery actions (docs/design/ui.md "Recovery actions"), for managers: on a Queue row, Retry (route the
+// failed release again, or import a finished download now) and Remove, whose confirmation can also blocklist the
+// release and search again; on a history row about a failed download, Retry; on a blocked release, Unblock
+// (optionally searching again). Removing ends Theatarr's record only: the torrent at the debrid provider is shared
+// and stays.
+import { RotateCcw, Trash2, Undo2 } from "lucide-react";
 import { useState } from "react";
 import type { ActivityBlocked, ActivityDownload, ActivityEvent } from "@/api/activity";
 import { usePerms } from "@/api/library";
@@ -11,24 +12,27 @@ import { Button } from "@/components/ui/button";
 import { Choice, ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { failedDownloadId, removeDownloadScope, retryKind, retryScope, unblockScope, type RemoveMode } from "@/lib/ops";
 
-type Open = RemoveMode | "retry" | null;
+type Open = "remove" | "retry" | null;
 
-/** The actions row in a download's open panel. */
+/** A Queue row's actions after Details: Retry or Import now when it applies, and Remove (Dismiss for a failed one). */
 export function DownloadActions({ d }: { d: ActivityDownload }) {
   const perms = usePerms();
   const [open, setOpen] = useState<Open>(null);
+  const [block, setBlock] = useState(false);
   const remove = useRemoveDownload();
   const retry = useRetryDownload();
   if (!perms.manage) return null;
   const close = () => {
     setOpen(null);
+    setBlock(false);
     remove.reset();
     retry.reset();
   };
+  const mode: RemoveMode = block ? "block" : "remove";
   const subject = <span className="font-mono">{d.release || d.title.name}</span>;
   const kind = retryKind(d.state);
   return (
-    <div className="mt-3 flex flex-wrap gap-2" data-testid="download-actions">
+    <span className="inline-flex flex-wrap gap-1.5" data-testid="download-actions">
       {kind ? (
         <Button size="xs" variant="outline" onClick={() => setOpen("retry")} data-testid="download-retry">
           <RotateCcw /> {kind === "import" ? "Import now" : "Retry"}
@@ -37,20 +41,23 @@ export function DownloadActions({ d }: { d: ActivityDownload }) {
       <Button size="xs" variant="outline" onClick={() => setOpen("remove")} data-testid="download-remove">
         <Trash2 /> {d.state === "failed" ? "Dismiss" : "Remove"}
       </Button>
-      <Button size="xs" variant="outline" onClick={() => setOpen("block")} disabled={!d.info_hash} data-testid="download-block">
-        <ShieldOff /> Remove, blocklist and search
-      </Button>
-      {open === "remove" || open === "block" ? (
+      {open === "remove" ? (
         <ConfirmDialog
-          scope={removeDownloadScope(d, open, d.version)}
+          scope={removeDownloadScope(d, mode, d.version)}
           subject={subject}
           busy={remove.isPending}
           error={remove.error}
           done={remove.data?.message}
           onClose={close}
-          onConfirm={() => remove.mutate({ id: d.id, titleId: d.title.id, blocklist: open === "block", search: open === "block" })}
+          onConfirm={() => remove.mutate({ id: d.id, titleId: d.title.id, blocklist: block, search: block })}
           testid="remove-download-dialog"
-        />
+        >
+          {remove.data ? null : (
+            <Choice checked={block} onChange={setBlock} disabled={!d.info_hash} testid="download-block">
+              Also blocklist this release and search again
+            </Choice>
+          )}
+        </ConfirmDialog>
       ) : null}
       {open === "retry" ? (
         <ConfirmDialog
@@ -66,7 +73,7 @@ export function DownloadActions({ d }: { d: ActivityDownload }) {
           testid="retry-download-dialog"
         />
       ) : null}
-    </div>
+    </span>
   );
 }
 
@@ -117,7 +124,7 @@ export function UnblockAction({ b }: { b: ActivityBlocked }) {
   const unblock = useUnblock();
   if (!perms.manage) return null;
   return (
-    <div className="mt-2">
+    <>
       <Button size="xs" variant="outline" onClick={() => setOpen(true)} data-testid="blocked-unblock">
         <Undo2 /> Unblock
       </Button>
@@ -144,6 +151,6 @@ export function UnblockAction({ b }: { b: ActivityBlocked }) {
           )}
         </ConfirmDialog>
       ) : null}
-    </div>
+    </>
   );
 }
