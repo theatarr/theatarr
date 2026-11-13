@@ -154,12 +154,9 @@ func TestPeriodicSceneRefresh(t *testing.T) {
 	if e.count(t, `SELECT COUNT(*) FROM episode_number WHERE title_id=? AND scheme='scene'`, id) != 0 {
 		t.Fatal("empty XEM numbering did not clear prior mappings")
 	}
-	// Arr-owned series keep imported names/numbers until the feed is removed, including followed versions.
+	// Imported names and numbers (another source) are replaced by the next refresh.
 	empty = false
 	clock = clock.Add(sceneAge)
-	if _, err := e.st.Writer().Exec(`INSERT INTO version_source(version_id,instance,arr_id) VALUES(?,'sonarr_4k_debrid',1)`, vid); err != nil {
-		t.Fatal(err)
-	}
 	if _, err := e.st.Writer().Exec(`INSERT INTO episode_number(episode_id,title_id,scheme,season,number,source) SELECT id,title_id,'scene',9,99,'sonarr_4k_debrid' FROM episode WHERE title_id=? AND season=1 AND number=1`, id); err != nil {
 		t.Fatal(err)
 	}
@@ -167,20 +164,12 @@ func TestPeriodicSceneRefresh(t *testing.T) {
 		t.Fatal(err)
 	}
 	refresh()
-	if e.count(t, `SELECT COUNT(*) FROM episode_number WHERE title_id=? AND source='sonarr_4k_debrid'`, id) != 1 {
-		t.Fatal("arr numbers overwritten")
-	}
-	if e.count(t, `SELECT COUNT(*) FROM title_scene_mapping WHERE title_id=? AND name='Imported Alias'`, id) != 1 {
-		t.Fatal("arr alias overwritten")
-	}
-	delete(e.pol.Import.Arr, "sonarr_4k_debrid")
-	refresh()
 	check(31)
 	if e.count(t, `SELECT COUNT(*) FROM episode_number WHERE title_id=? AND source='sonarr_4k_debrid'`, id) != 0 {
-		t.Fatal("stale imported numbers after cutover")
+		t.Fatal("stale imported numbers")
 	}
 	if e.count(t, `SELECT COUNT(*) FROM title_scene_mapping WHERE title_id=? AND name='Imported Alias'`, id) != 0 {
-		t.Fatal("stale imported alias after cutover")
+		t.Fatal("stale imported alias")
 	}
 }
 

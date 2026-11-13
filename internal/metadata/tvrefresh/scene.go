@@ -14,10 +14,6 @@ const sceneSource = "tvrefresh:tvdb"
 // sceneMappings replaces only our names. The title itself and imported mappings take precedence, including season limits.
 // Keep the display name; compare with the same CleanSeriesTitle that decide and Sonarr's SceneMappingService use.
 func (s *Service) sceneMappings(ctx context.Context, tx *sql.Tx, titleID int64, names []string) error {
-	owned, err := s.arrOwned(ctx, tx, titleID)
-	if err != nil || owned {
-		return err
-	}
 	if err := s.exec(ctx, tx, `DELETE FROM title_scene_mapping WHERE title_id = ? AND source = ?`, titleID,
 		sceneSource); err != nil {
 		return err

@@ -273,8 +273,7 @@ func TestSonarrTVDB(t *testing.T) {
 	mustExec(t, w, `INSERT INTO episode (id, title_id, season, number, name, air_date, runtime_minutes, created_at, updated_at)
 		VALUES (1, 1, 1, 1, 'One', '2016-04-04', 50, 0, 0), (2, 1, 0, 1, 'Special', NULL, NULL, 0, 0)`)
 	mustExec(t, w, `INSERT INTO episode_number (episode_id, title_id, scheme, number, source) VALUES (1, 1, 'absolute_tvdb', 1, 'x')`)
-	mustExec(t, w, `INSERT INTO arr_alias (instance, kind, arr_id, target_id, created_at) VALUES ('sonarr_anime_debrid', 'episode', 9, 1, 0)`)
-	src := animestore.SonarrTVDB{DB: st, Instance: "sonarr_anime_debrid"}
+	src := animestore.SonarrTVDB{DB: st}
 	sh, err := src.Show(ctx, 77)
 	if err != nil {
 		t.Fatal(err)
@@ -288,17 +287,6 @@ func TestSonarrTVDB(t *testing.T) {
 	}
 	if _, err := src.Show(ctx, 78); err == nil {
 		t.Error("unknown series")
-	}
-	eps, err := src.SonarrEpisodes(ctx, []int{77, 78})
-	if err != nil || len(eps) != 1 || !eps[77][anime.SE{1, 1}] || eps[77][anime.SE{0, 1}] {
-		t.Errorf("sonarr episodes %v %v", eps, err)
-	}
-	// No instance: any imported instance; another instance: none of these.
-	if eps, err := (animestore.SonarrTVDB{DB: st}).SonarrEpisodes(ctx, []int{77}); err != nil || !eps[77][anime.SE{1, 1}] {
-		t.Errorf("any instance %v %v", eps, err)
-	}
-	if eps, err := (animestore.SonarrTVDB{DB: st, Instance: "other"}).SonarrEpisodes(ctx, []int{77}); err != nil || len(eps) != 0 {
-		t.Errorf("other instance %v %v", eps, err)
 	}
 }
 

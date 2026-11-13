@@ -61,8 +61,6 @@ type SourceOptions struct {
 	Doer live.Doer
 	// TVDB is the TVDB v4 client, or nil without its key: TVDB episodes then come from the imported Sonarr only.
 	TVDB anime.TVDB
-	// SonarrInstance limits the imported Sonarr episodes (the "in Sonarr" check) to one instance; empty means any.
-	SonarrInstance string
 	Logger         *slog.Logger
 }
 
@@ -89,9 +87,9 @@ func LiveSources(pol *policy.Policy, o SourceOptions) (*Live, error) {
 	urls := live.URLs{AniList: sourceURL(pol, live.SourceAniList), ScudLee: sourceURL(pol, live.SourceScudLee),
 		Fribb: sourceURL(pol, live.SourceFribb), Anibridge: sourceURL(pol, live.SourceAnibridge),
 		Manami: sourceURL(pol, live.SourceManami)}
-	db := animestore.SonarrTVDB{DB: o.Store, Instance: o.SonarrInstance}
+	db := animestore.SonarrTVDB{DB: o.Store}
 	l := &Live{Fetcher: f, URLs: urls, base: anime.Sources{AniList: live.AniList{F: f, URL: urls.AniList},
-		Kitsu: live.Kitsu{F: f}, TVDB: db, XEM: live.XEM{F: f}, Library: db}}
+		Kitsu: live.Kitsu{F: f}, TVDB: db, XEM: live.XEM{F: f}}}
 	if o.TVDB != nil {
 		l.base.TVDB = anime.TVDBChain{o.TVDB, db}
 	} else {

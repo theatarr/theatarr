@@ -6,7 +6,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"strings"
 
 	"github.com/theatarr/theatarr/internal/metadata/anime"
 	"github.com/theatarr/theatarr/internal/store"
@@ -20,8 +19,6 @@ import (
 // overview, so the recap flag from TVDB overviews never fires. A TVDB v4 client goes behind the same interface.
 type SonarrTVDB struct {
 	DB *store.Store
-	// Instance limits SonarrEpisodes (the Library side) to one arr instance; empty means any imported instance.
-	Instance string
 }
 
 // ErrNoSeries is returned for a TVDB series no imported instance has.
@@ -94,37 +91,4 @@ func nInt(n sql.NullInt64) *int {
 	}
 	v := int(n.Int64)
 	return &v
-}
-
-// SonarrEpisodes implements anime.Library: the episodes the instance lists, per TVDB series it has.
-func (s SonarrTVDB) SonarrEpisodes(ctx context.Context, tvdbIDs []int) (map[int]map[anime.SE]bool, error) {
-	out := map[int]map[anime.SE]bool{}
-	if len(tvdbIDs) == 0 {
-		return out, nil
-	}
-	args := []any{s.Instance, s.Instance}
-	ph := make([]string, len(tvdbIDs))
-	for i, t := range tvdbIDs {
-		ph[i] = "?"
-		args = append(args, t)
-	}
-	rows, err := s.DB.Reader().QueryContext(ctx, `SELECT t.tvdb_id, e.season, e.number FROM arr_alias a
-		JOIN episode e ON e.id = a.target_id JOIN title t ON t.id = e.title_id
-		WHERE (? = '' OR a.instance = ?) AND a.kind = 'episode' AND t.tvdb_id IN (`+strings.Join(ph, ", ")+`)`, args...)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	for rows.Next() {
-		var t int
-		var se anime.SE
-		if err := rows.Scan(&t, &se[0], &se[1]); err != nil {
-			return nil, err
-		}
-		if out[t] == nil {
-			out[t] = map[anime.SE]bool{}
-		}
-		out[t][se] = true
-	}
-	return out, rows.Err()
 }

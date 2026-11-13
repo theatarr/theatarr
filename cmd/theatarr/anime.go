@@ -77,7 +77,6 @@ func runAnimeBuild(args []string) error {
 	db := fs.String("db", defaultDBPath(), "database file (env THEATARR_DB); live builds and -save use it")
 	policyDir := policyDirDefault()
 	envFile := fs.String("env-file", "", "read KEY=VALUE secrets from this file (variables already set win)")
-	instance := fs.String("sonarr-instance", "", "live: limit the \"in Sonarr\" check to this imported Sonarr instance (default: any)")
 	tvdbCache := fs.String("tvdb-cache", "", "live: also read TVDB series the Sonarr lacks from an offline cache (its skyhook/)")
 	if err := fs.Parse(args); err != nil {
 		return err
@@ -199,7 +198,7 @@ func runAnimeBuild(args []string) error {
 			return err
 		}
 		source = "live"
-		if src, fetcher, err = liveSources(ctx, pol, st, *instance); err != nil {
+		if src, fetcher, err = liveSources(ctx, pol, st); err != nil {
 			return err
 		}
 		if *tvdbCache != "" {
@@ -314,13 +313,13 @@ func reviewSection(res *anime.Result) string {
 
 // liveSources wires the live sources the service uses too (autobuild.LiveSources), with the TVDB client when its key
 // is set, and loads the mapping lists.
-func liveSources(ctx context.Context, pol *policy.Policy, st *store.Store, instance string) (*anime.Sources, *live.Fetcher, error) {
+func liveSources(ctx context.Context, pol *policy.Policy, st *store.Store) (*anime.Sources, *live.Fetcher, error) {
 	log := slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelWarn}))
 	gw, err := gateway.New(ctx, pol, gateway.Options{Store: st, Version: buildinfo.Version, Logger: log})
 	if err != nil {
 		return nil, nil, err
 	}
-	o := autobuild.SourceOptions{Store: st, Doer: gw, SonarrInstance: instance, Logger: log}
+	o := autobuild.SourceOptions{Store: st, Doer: gw, Logger: log}
 	// TVDB v4 first when the policy has it and the key is set (cmd/theatarr/tvdb.go); the imported Sonarr when TVDB is
 	// down with nothing cached, or does not have the series
 	if tc, err := newTVDBClient(pol, st, gw); err != nil {

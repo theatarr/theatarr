@@ -21,26 +21,6 @@ import (
 const sceneJob = "meta.scene"
 const sceneAge = 3 * time.Hour
 
-// arrOwned checks current policy, not just historical imports: removing the feed hands the title to Theatarr.
-func (s *Service) arrOwned(ctx context.Context, tx *sql.Tx, id int64) (bool, error) {
-	rows, err := tx.QueryContext(ctx, `SELECT vs.instance FROM version_source vs JOIN version v ON v.id = vs.version_id
-  WHERE v.title_id = ? UNION SELECT instance FROM arr_alias WHERE kind = 'series' AND target_id = ?`, id, id)
-	if err != nil {
-		return false, err
-	}
-	defer rows.Close()
-	for rows.Next() {
-		var instance string
-		if err := rows.Scan(&instance); err != nil {
-			return false, err
-		}
-		if s.pol.ArrFed(instance) {
-			return true, nil
-		}
-	}
-	return false, rows.Err()
-}
-
 type sceneName struct {
 	Title       string `json:"title"`
 	SearchTitle string `json:"searchTitle"`
@@ -145,10 +125,6 @@ func (s *Service) sceneNames(ctx context.Context, id int64, tvdb int, source str
 		return nil
 	}
 	return s.st.WriteTx(ctx, func(tx *sql.Tx) error {
-		owned, err := s.arrOwned(ctx, tx, id)
-		if err != nil || owned {
-			return err
-		}
 		if err := s.exec(ctx, tx, `DELETE FROM title_scene_mapping WHERE title_id = ? AND source = ?`, id, "tvrefresh:"+source); err != nil {
 			return err
 		}
@@ -166,16 +142,11 @@ func (s *Service) sceneNames(ctx context.Context, id int64, tvdb int, source str
 	})
 }
 
-// Imported alternate titles combine both providers. Retire them only after the configured name providers succeed.
+// Imported alternate titles (any source that is not the refresh's own) combine both providers. Retire them only
+// after the configured name providers succeed.
 func (s *Service) clearImportedSceneNames(ctx context.Context, id int64) error {
 	return s.st.WriteTx(ctx, func(tx *sql.Tx) error {
-		owned, err := s.arrOwned(ctx, tx, id)
-		if err != nil || owned {
-			return err
-		}
-		return s.exec(ctx, tx, `DELETE FROM title_scene_mapping WHERE title_id = ? AND source IN
-  (SELECT instance FROM arr_title WHERE title_id = ? UNION SELECT vs.instance FROM version_source vs
-   JOIN version v ON v.id = vs.version_id WHERE v.title_id = ?)`, id, id, id)
+		return s.exec(ctx, tx, `DELETE FROM title_scene_mapping WHERE title_id = ? AND source NOT LIKE 'tvrefresh:%'`, id)
 	})
 }
 
@@ -293,16 +264,6 @@ func (s *Service) refreshScene(ctx context.Context, titleID int64) error {
 		if !have[t.tvdb] && !used {
 			continue
 		}
-		// Do not fetch episode mappings for titles still owned by an arr.
-		var owned bool
-		err := s.st.WriteTx(ctx, func(tx *sql.Tx) error { var err error; owned, err = s.arrOwned(ctx, tx, t.id); return err })
-		if err != nil {
-			errs = append(errs, err)
-			continue
-		}
-		if owned {
-			continue
-		}
 		var result struct {
 			Data []xemMapping `json:"data"`
 		}
@@ -325,11 +286,7 @@ func (s *Service) refreshScene(ctx context.Context, titleID int64) error {
 
 func (s *Service) sceneNumbers(ctx context.Context, id int64, mappings []xemMapping) error {
 	return s.st.WriteTx(ctx, func(tx *sql.Tx) error {
-		owned, err := s.arrOwned(ctx, tx, id)
-		if err != nil || owned {
-			return err
-		}
-		// After cutover imported scene numbers must also be replaced; absolute TVDB/anime numbers are separate.
+		// Imported scene numbers must also be replaced; absolute TVDB/anime numbers are separate.
 		if err := s.exec(ctx, tx, `DELETE FROM episode_number WHERE title_id = ? AND scheme IN ('scene', 'scene_absolute')`, id); err != nil {
 			return err
 		}

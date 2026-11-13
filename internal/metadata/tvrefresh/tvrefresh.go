@@ -2,7 +2,7 @@
 // RefreshSeriesService and RefreshEpisodeService do (src/NzbDrone.Core/Tv @ cab419a): episodes from TVDB v4
 // (metadata.sources.tvdb), or from TMDb for a series TVDB lacks (not anime), stored with their source id, numbers,
 // absolute number, air date and time, runtime and name; TVDB slots keep their row even when ids change; dropped episodes
-// are deleted unless something hangs off them (a file, a link, a download, an arr alias), then marked removed.
+// are deleted unless something hangs off them (a file, a link, a download), then marked removed.
 // Each series version's per-episode states follow its durable monitoring intent (series_monitor: monitor new items
 // all or none, and its season choices), so new episodes of a monitored series come in monitored and the wanted loop
 // searches them.
@@ -17,19 +17,12 @@
 // /updates read queues the series it names at once. POST titles/{id}/refresh and the arr RefreshSeries command
 // queue a refresh that skips the cache.
 //
-// # Shadow mode: the Sonarr import and the refresh side by side
+// # Matching
 //
-// While an arr instance is under import.arr it still owns what it lists. A version whose version_source is a fed
-// instance keeps the per-episode states the import writes; the refresh never writes them. An episode row a fed
-// instance lists (an arr_alias) is matched by its season and number only, as Sonarr matches, and the refresh only
-// fills what it lacks there (its TVDB id, an empty name, a missing date, runtime or absolute number); it never moves
-// or renames it. Other TVDB rows match by slot too (Sonarr RefreshEpisodeService.cs:56-79); TMDb rows match by source
-// id first. The import, for its part, no longer deletes an episode the refresh stored (one with a source id).
-// Removing an instance from import.arr at cutover hands its rows and versions to the refresh.
+// TVDB rows match by season and number (Sonarr RefreshEpisodeService.cs:56-79); TMDb rows match by source id first.
 //
-// The owning arr supplies series identity and scene mappings until cutover. Otherwise each refresh updates the
-// title, sort title, year and runtime, preserving user series type and monitoring. Add-time monitor modes wait for
-// episodes, then apply once. TVDB names become all-season aliases; meta.scene refreshes Sonarr/XEM seasonal names
+// Each refresh updates the title, sort title, year and runtime, preserving user series type and monitoring.
+// Add-time monitor modes wait for episodes, then apply once. TVDB names become all-season aliases; meta.scene refreshes Sonarr/XEM seasonal names
 // and XEM episode numbers every three hours through configured metadata sources. The existing catalog stores display
 // names only, so separate searchTitle, filterRegex and searchMode fields remain unsupported by its readers.
 // Sort names use Theatarr's lowercase convention (the arrs receive sort titles from their metadata servers).

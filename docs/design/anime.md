@@ -436,7 +436,7 @@ What it took to be exact, rather than close:
 | AniDB titles dump | — | Reserved fetch/cache policy; no active titles-dump caller | 1 day | — |
 | SeaDex | — | `live.SeaDex` per AniList id | 1 day | 2 s |
 | Movie lookup | `cache/arr` (Radarr's lookup) | the TMDb client: by id, and `search/movie` for entries without an id (`tmdb.SearchMovie`, adult titles left out) | movies per the client's TTLs; searches a week | TMDb client's |
-| Sonarr library | `cache/arr` | the `arr_alias` episodes of any imported Sonarr (`-sonarr-instance` limits it to one) | — | — |
+| Sonarr library | `cache/arr` | offline cache only; live builds have no "in Sonarr" check | — | — |
 
 Responses go into `metadata_cache` (gzip, keyed by method + URL (+ body hash for POSTs), with `etag` and
 `last_modified` from 00017). A stale entry is revalidated with `If-None-Match`/`If-Modified-Since`; a 304 extends it.
@@ -490,8 +490,6 @@ theatarr anime build -franchise re-zero -cache ... -db /data/theatarr.db -save
 theatarr anime build -franchise re-zero -env-file .../theatarr.env -db /data/theatarr.db -save
 # ad hoc
 theatarr anime build -franchise one-piece -seed 21 -db ...
-# live builds use the same sources as theatarr serve; the "in Sonarr" check covers every imported Sonarr
-theatarr anime build -franchise re-zero -sonarr-instance sonarr_anime ...
 # the queue
 theatarr anime review [-franchise re-zero] [-state open|accepted|rejected|superseded|all] [-json]
 theatarr anime review -accept 12 -note "anibridge is right"      # or -reject 12

@@ -530,98 +530,6 @@ func TestRenumberAndRemoval(t *testing.T) {
 	}
 }
 
-// TestShadowPrecedence: rows a fed Sonarr lists keep the arr's values and ids, the fed version's states stay the
-// import's, and the refresh only fills what the arr's rows lack. A nonempty id on a fed row is never replaced or
-// cleared, even when the source now gives it to another episode: that episode goes without an id until cutover.
-func TestShadowPrecedence(t *testing.T) {
-	t.Parallel()
-	e := setup(t)
-	ctx := context.Background()
-	id := e.add(t, catalog.Input{TvdbID: 372264, Title: "Slow Horses"})
-	ms := store.Millis(now)
-	// As the Sonarr import leaves it: the version owned by sonarr_4k_debrid, S01E01-E02 with arr aliases and states,
-	// S01E02 carrying the episode id TVDB now has at S01E03.
-	if err := e.st.WriteTx(ctx, func(tx *sql.Tx) error {
-		var vid int64
-		if err := tx.QueryRow(`SELECT id FROM version WHERE title_id = ?`, id).Scan(&vid); err != nil {
-			return err
-		}
-		if _, err := tx.Exec(`INSERT INTO version_source (version_id, instance, arr_id) VALUES (?, 'sonarr_4k_debrid', 7)`,
-			vid); err != nil {
-			return err
-		}
-		for _, x := range []struct {
-			n    int
-			name string
-			ext  any
-		}{{1, "Sonarr One", nil}, {2, "TBA", 9876543}} {
-			res, err := tx.Exec(`INSERT INTO episode (title_id, season, number, name, air_date, air_date_utc_at,
-				runtime_minutes, monitored, tvdb_episode_id, created_at, updated_at) VALUES (?, 1, ?, ?, '2022-04-01', 1, 50, 1, ?, ?, ?)`,
-				id, x.n, x.name, x.ext, ms, ms)
-			if err != nil {
-				return err
-			}
-			eid, _ := res.LastInsertId()
-			if _, err := tx.Exec(`INSERT INTO arr_alias (instance, kind, arr_id, target_id, created_at)
-				VALUES ('sonarr_4k_debrid', 'episode', ?, ?, ?)`, 100+x.n, eid, ms); err != nil {
-				return err
-			}
-			if _, err := tx.Exec(`INSERT INTO episode_version_state (version_id, episode_id, monitored, state, updated_at)
-				VALUES (?, ?, 0, 'wanted', ?)`, vid, eid, ms); err != nil {
-				return err
-			}
-		}
-		return nil
-	}); err != nil {
-		t.Fatal(err)
-	}
-	e1, e2 := e.ep(t, id, 1, 1), e.ep(t, id, 1, 2)
-	// TVDB's S01E03 gets the id the arr's S01E02 row held.
-	e.tvdb.edit("/series/372264/episodes/default?page=0", func(eps []map[string]any) []map[string]any {
-		for _, x := range eps {
-			if x["seasonNumber"].(float64) == 1 && x["number"].(float64) == 3 {
-				x["id"] = 9876543
-			}
-		}
-		return eps
-	})
-	r := e.refresh(t, id)
-	if r.Moved != 0 || r.States != 0 {
-		t.Fatalf("result %+v", r)
-	}
-	x1, x2 := e.ep(t, id, 1, 1), e.ep(t, id, 1, 2)
-	if x1.id != e1.id || x1.name != "Sonarr One" || x1.utc.Int64 != 1 || x1.runtime.Int64 != 50 || !x1.ext.Valid {
-		t.Errorf("fed S01E01 %+v", x1)
-	}
-	// A TBA name is filled; the arr's id stays.
-	if x2.id != e2.id || x2.name == "TBA" || x2.ext.Int64 != 9876543 {
-		t.Errorf("fed S01E02 %+v", x2)
-	}
-	if x3 := e.ep(t, id, 1, 3); x3 == nil || x3.ext.Valid {
-		t.Errorf("S01E03 %+v", x3)
-	}
-	// A second shadow refresh changes nothing: the id stays held.
-	if r := e.refresh(t, id); r.Added+r.Updated+r.Moved+r.Deleted+r.Removed != 0 {
-		t.Errorf("second refresh %+v", r)
-	}
-	// The fed version gets no states from the refresh; its own stay.
-	if n := e.count(t, `SELECT COUNT(*) FROM episode_version_state`); n != 2 {
-		t.Errorf("%d states", n)
-	}
-	if e.state(t, id, "tv-2160p", e1.id) != 0 {
-		t.Error("the import's state changed")
-	}
-	// Removing the instance from import.arr (cutover) hands the rows to the refresh.
-	delete(e.pol.Import.Arr, "sonarr_4k_debrid")
-	r = e.refresh(t, id)
-	if x1 := e.ep(t, id, 1, 1); x1.name == "Sonarr One" || x1.utc.Int64 == 1 {
-		t.Errorf("after cutover S01E01 %+v", x1)
-	}
-	if r.States != 39-2 {
-		t.Errorf("after cutover %d states", r.States)
-	}
-}
-
 // TestSlotReplacementKeepsIdentity: TVDB drops an episode and puts a new record at its number. The old row, with a
 // link, keeps its id and link and takes the new TVDB id.
 func TestSlotReplacementKeepsIdentity(t *testing.T) {
@@ -701,33 +609,6 @@ func TestManualFileMappingKeepsEpisode(t *testing.T) {
 	}
 	if x := e.ep(t, id, 1, 5); x == nil || x.id != e5.id || !x.removed {
 		t.Errorf("S01E05 %+v", x)
-	}
-}
-
-// TestFillTitleRechecksOwnership: the title was read before the fetch; fields the arr import fills while the
-// refresh fetches stay the arr's.
-func TestFillTitleRechecksOwnership(t *testing.T) {
-	t.Parallel()
-	e := setup(t)
-	id := e.add(t, catalog.Input{TvdbID: 371980})
-	e.tvdb.during = func() {
-		if _, err := e.st.Writer().Exec(`INSERT INTO version_source (version_id, instance, arr_id) SELECT id, 'sonarr_4k_debrid', 7 FROM version WHERE title_id = ?`, id); err != nil {
-			t.Error(err)
-		}
-		if _, err := e.st.Writer().Exec(`UPDATE title SET name = 'Sonarr Name', runtime_minutes = 33, year = 2001
-			WHERE id = ?`, id); err != nil {
-			t.Error(err)
-		}
-	}
-	e.refresh(t, id)
-	var name string
-	var runtime, year int
-	if err := e.st.Reader().QueryRow(`SELECT name, runtime_minutes, year FROM title WHERE id = ?`, id).
-		Scan(&name, &runtime, &year); err != nil {
-		t.Fatal(err)
-	}
-	if name != "Sonarr Name" || runtime != 33 || year != 2001 {
-		t.Errorf("title %q %d %d", name, runtime, year)
 	}
 }
 

@@ -18,14 +18,12 @@ absolute order) and store it in one transaction:
   air times spread (up to 3, not specials), direct-to-DVD air dates, anime absolute mapping.
 - **Renumbering:** TVDB identity follows the slot, including when TVDB moves an id between slots. A TMDb episode
   that moves keeps its row; moves use a temporary negative number to preserve the unique slot index.
-- **Removals:** a row TVDB no longer lists is deleted only when nothing refers to it. A row with an arr alias, a file,
-  a link, a download (its episodes, or a file mapping of it: `download_file.episodes`, as a pending manual import
+- **Removals:** a row TVDB no longer lists is deleted only when nothing refers to it. A row with a file, a link, a download (its episodes, or a file mapping of it: `download_file.episodes`, as a pending manual import
   keeps them, `TestManualFileMappingKeepsEpisode`) or a non-wanted state is kept with `removed_at` set (and parked at number `-id` when its slot is
   needed). Removed rows are never searched (acquire filters them unless asked for by id). The calendar and the arr/native
   episode APIs list them.
 - **Series row:** status, air time, zone, episode count and errors in `series_meta`; name, sort name, year,
-  runtime and IMDb id refresh on each successful fetch. A fed arr remains authoritative until cutover, checked in
-  the write transaction (`TestFillTitleRechecksOwnership`). User settings, including explicit standard/daily/anime
+  runtime and IMDb id refresh on each successful fetch. User settings, including explicit standard/daily/anime
   series type, stay. Arr API adds (for a series with no type) and edits persist that type on the catalog row every
   reader uses (`docs/design/series.md` "Series type").
 - **Scene names:** TVDB names and translations become all-season aliases (`tvrefresh:tvdb`). A separate
@@ -60,22 +58,11 @@ from the title or `find` by TVDB id). Anime takes TVDB only.
 
 Policy: `metadata.series {enabled, interval, per_run}` (enabled by default when a `tvdb` or `tmdb` source exists).
 
-## Shadow precedence (Sonarr import still runs)
+## Imported rows
 
-The arr instances in `import.arr` are **fed**. Rule:
-
-1. On rows that came from a fed instance (`arr_alias` kind episode), the refresh matches by slot and only fills empty
-   fields and an empty TVDB id; the import stays authoritative and the refresh never moves, renames or removes them.
-   Fill-only means fill-only: a nonempty id on such a row is never replaced or cleared, even when TVDB now gives that
-   id to another episode. That episode then goes without an id (inserted, or left as it is) until cutover; its row
-   is matched by slot meanwhile (`TestShadowPrecedence`).
-2. Versions fed by an instance keep the import's monitoring: the refresh writes no states for them. Series identity,
-   scene names and scene numbering also remain the owning arr's.
-3. The import does not delete rows that carry a TVDB or TMDb episode id when Sonarr drops them.
-4. At cutover, removing the instance from `import.arr` hands the series to the refresh. Successful scene-name reads
-   retire imported aliases; XEM replaces imported scene numbers. Failed reads preserve the previous mappings.
-
-During shadow, episodes TVDB has and Sonarr lacks appear in the episode table and the shadow decisions see them.
+Episode rows the arr import wrote are ordinary rows: TVDB rows match by slot, the refresh writes their values and
+the states of every version. Successful scene-name reads retire imported aliases (any source other than
+`tvrefresh:*`); XEM replaces imported scene numbers. Failed reads preserve the previous mappings.
 
 ## Anime
 
