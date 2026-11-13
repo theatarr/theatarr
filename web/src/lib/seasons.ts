@@ -163,6 +163,9 @@ export function episodeNumber(e: Pick<Episode, "number" | "absolute">, anime: bo
   return anime && e.absolute ? `${n} · absolute ${e.absolute}` : n;
 }
 
+/** "<reason> — <where to change it>", unless the reason already names it (forced Pause names THEATARR_FORCE_OFF). */
+const withFix = (reason: string, fix: string) => (reason.includes(fix) ? reason : `${reason} — ${fix}`);
+
 /**
  * Read-only monitoring and disabled search, said once for the whole tab rather than on every season line: one line
  * per distinct reason, naming the copies it applies to when not all of them.
@@ -176,7 +179,7 @@ export function restrictions(versions: { label: string; control?: VersionControl
     for (const v of versions) {
       const c = v.control;
       if (!c || (kind === "search" && global(c))) continue;
-      const reason = kind === "edit" ? (!c.can_edit ? c.edit_reason : "") : (!c.can_search || c.grab_state?.will_grab === false) ? `${downloadReason(c)} — ${downloadSettings(c.grab_state).label}` : "";
+      const reason = kind === "edit" ? (!c.can_edit ? c.edit_reason : "") : (!c.can_search || c.grab_state?.will_grab === false) ? withFix(downloadReason(c), downloadSettings(c.grab_state).label) : "";
       if (!reason) continue;
       groups.set(reason, [...(groups.get(reason) ?? []), v.label]);
     }

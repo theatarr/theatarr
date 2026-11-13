@@ -18,7 +18,13 @@ it("states a library no longer in the policy once with the server's reason", () 
 });
 
 it("states forced Pause once", () => {
-  expect(restrictions([{ label: "Anime", control: { mode: "active", can_edit: true, live_releases: false, can_search: false, search_reason: "Paused: nothing is searched or downloaded", grab_state: { mode: "active", paused: true, pause_forced: true, will_grab: false } } }])).toEqual(["Anime: Paused by the environment (THEATARR_FORCE_OFF) — THEATARR_FORCE_OFF"]);
+  expect(restrictions([{ label: "Anime", control: { mode: "active", can_edit: true, live_releases: false, can_search: false, search_reason: "Paused: nothing is searched or downloaded", grab_state: { mode: "active", paused: true, pause_forced: true, will_grab: false } } }])).toEqual(["Anime: Paused by the environment (THEATARR_FORCE_OFF)"]);
+});
+
+it("says forced Pause once in a library's note", async () => {
+  mockFetch([{ method: "GET", path: "/auth/me", reply: { id: 1, permissions: ["admin", "manage"] } }]);
+  renderPage(<ControlNote kind="search" c={{ mode: "active", can_edit: true, live_releases: false, can_search: false, search_reason: "Paused: nothing is searched or downloaded", grab_state: { mode: "active", paused: true, pause_forced: true, will_grab: false } }} />);
+  expect((await screen.findByTestId("control-note")).textContent).toBe("Paused by the environment (THEATARR_FORCE_OFF)");
 });
 
 

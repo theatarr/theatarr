@@ -68,7 +68,8 @@ export function ControlNote({ c, kind, globalSaid = false, verdictSaid = false }
       {lines.map((l, i) => (
         <p key={i} className="flex items-start gap-1.5">
           <Search className="mt-0.5 size-3 shrink-0" />
-          <span>{l.text}{l.search ? <> — {admin && fix.to ? <Link className="underline" to={fix.to}>{fix.label}</Link> : fix.label}</> : null}</span>
+          {/* Forced Pause names THEATARR_FORCE_OFF in its reason already: the fix is not said twice. */}
+          <span>{l.text}{l.search && !l.text.includes(fix.label) ? <> — {admin && fix.to ? <Link className="underline" to={fix.to}>{fix.label}</Link> : fix.label}</> : null}</span>
         </p>
       ))}
     </div>
