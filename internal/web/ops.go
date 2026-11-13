@@ -974,7 +974,22 @@ func (w *Web) apiRemove(rw http.ResponseWriter, r *http.Request) {
 				Target: u.Path, Detail: "moved to " + orDash(u.Trash) + " when its library was removed", By: by})
 		}
 	}
-	what := "Removed " + strings.Join(out.Removed, ", ")
+	// The libraries by the names the title page shows (the scope's labels), and whether they had files to keep.
+	names := make([]string, 0, len(out.Removed))
+	links := 0
+	for _, k := range out.Removed {
+		name := k
+		for _, c := range scope.Copies {
+			if c.Key == k {
+				links += c.Links
+				if c.Label != "" {
+					name = c.Label
+				}
+			}
+		}
+		names = append(names, name)
+	}
+	what := "Removed " + strings.Join(names, ", ")
 	switch {
 	case out.Title:
 		what = "Removed " + scope.Name + " from the library"
@@ -983,16 +998,18 @@ func (w *Web) apiRemove(rw http.ResponseWriter, r *http.Request) {
 	}
 	switch {
 	case !req.Unlink:
-		what += "; its files stay in the library"
+		if links > 0 {
+			what += "; its files stay in the library"
+		}
 	case len(out.Kept) > 0 || len(out.Failed) > 0:
 		what += fmt.Sprintf("; %d file(s) unlinked, %d left in place", len(out.Unlinked), len(out.Kept)+len(out.Failed))
-	default:
+	case len(out.Unlinked) > 0:
 		what += fmt.Sprintf("; %d file(s) unlinked", len(out.Unlinked))
 	}
 	if len(out.Failed) > 0 {
 		what += fmt.Sprintf("; moving %d to the trash failed: remove again with unlink to retry", len(out.Failed))
 	}
-	out.Message = what
+	out.Message = what + "."
 	w.log.Info("copies removed by hand", "title", id, "versions", strings.Join(out.Removed, ","), "title_removed",
 		out.Title, "downloads_ended", out.DownloadsEnded, "unlinked", len(out.Unlinked), "kept", len(out.Kept),
 		"failed", len(out.Failed), "by", by)

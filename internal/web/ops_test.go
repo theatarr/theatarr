@@ -532,6 +532,10 @@ func TestRemoveCopiesAndTitle(t *testing.T) {
 		len(scope.Copies) != 2 || scope.Copies[0].Key != "movie-remux" {
 		t.Fatalf("scope: %d %+v", code, scope)
 	}
+	webLabel := scope.Copies[1].Label
+	if webLabel == "" || webLabel == "movie-web" {
+		t.Fatalf("web copy label %q", webLabel)
+	}
 	if code := o.jsonCall("GET", APIBase+"/titles/1/removal?versions=tv-2160p", nil, o.mc, "", nil); code != 400 {
 		t.Errorf("unknown copy: %d", code)
 	}
@@ -540,6 +544,10 @@ func TestRemoveCopiesAndTitle(t *testing.T) {
 	if code := o.jsonCall("POST", APIBase+"/titles/1/remove", RemoveRequest{Versions: []string{"movie-web"}}, o.mc,
 		o.mcsrf, &got); code != 200 || got.Title || len(got.Removed) != 1 || len(o.ops.unlinks) != 0 {
 		t.Fatalf("remove copy: %d %+v", code, got)
+	}
+	// Named as the title page names it; it had no files there, so none are said to stay.
+	if got.Message != "Removed "+webLabel+"." {
+		t.Errorf("message %q", got.Message)
 	}
 	if n := o.count(`SELECT COUNT(*) FROM arrview_removed_version WHERE version_id = 2 AND view = 'ui'`); n != 1 {
 		t.Errorf("removed rows %d", n)
