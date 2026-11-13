@@ -31,25 +31,26 @@ func (e *Engine) minimumSeeders(key string) int {
 var episodeTitleToken = netregex.MustCompile(`(?<escaped>\{\{|\}\})|\{(?<prefix>[- ._\[(]*)(?<token>(?:[a-z0-9]+)(?:(?<separator>[- ._]+)(?:[a-z0-9]+))?)(?::(?<customFormat>[ ,a-z0-9+-]+(?<![- ])))?(?<suffix>[- ._)\]]*)\}`, netregex.IgnoreCase)
 
 func (e *Engine) requiresEpisodeTitle(t *Title, v Version, episodes []*Episode) bool {
-	cfg := v.Naming
-	if cfg == nil {
-		n := v.Policy.Naming
-		if n.FromArr != "" {
-			return false // the caller has not loaded the arr naming snapshot
-		}
-		c := naming.DefaultSeriesConfig()
-		c.Rename = true
-		if n.File != "" {
-			c.StandardEpisodeFormat = n.File
-		}
-		if n.Daily != "" {
-			c.DailyEpisodeFormat = n.Daily
-		}
-		if n.Anime != "" {
-			c.AnimeEpisodeFormat = n.Anime
-		}
-		cfg = &c
+	return requiresEpisodeTitle(t, seriesNaming(v.Policy.Naming), episodes)
+}
+
+// seriesNaming is a version's episode naming as the namer applies it: the policy's templates over Sonarr's defaults.
+func seriesNaming(n policy.Naming) *naming.Config {
+	c := naming.DefaultSeriesConfig()
+	c.Rename = true
+	if n.File != "" {
+		c.StandardEpisodeFormat = n.File
 	}
+	if n.Daily != "" {
+		c.DailyEpisodeFormat = n.Daily
+	}
+	if n.Anime != "" {
+		c.AnimeEpisodeFormat = n.Anime
+	}
+	return &c
+}
+
+func requiresEpisodeTitle(t *Title, cfg *naming.Config, episodes []*Episode) bool {
 	if !cfg.Rename {
 		return false
 	}

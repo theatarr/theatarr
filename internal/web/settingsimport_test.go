@@ -362,7 +362,7 @@ func (se *settingsEnv) storedSections() []string {
 	return keys
 }
 
-const allSections = "cardigann,clients,egress,import,library,metadata,notify,playlists,provider_sync,router,shadow,torrents,ui"
+const allSections = "cardigann,clients,egress,library,metadata,notify,playlists,provider_sync,router,shadow,torrents,ui"
 
 // The first save on a fresh database, a section's or a record's, creates generation 1 with every settings section:
 // the saved one as sent, the others at their defaults.

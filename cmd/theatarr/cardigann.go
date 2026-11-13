@@ -166,7 +166,7 @@ func (c *cardigannCatalog) Refresh(ctx context.Context) error           { return
 // errNoProwlarr answers a proposal request without cardigann.prowlarr.
 var errNoProwlarr = errors.New("cardigann.prowlarr is not configured")
 
-// ProwlarrProposals reads Prowlarr's indexer list (GET only, on the LAN, like import.arr) and proposes native
+// ProwlarrProposals reads Prowlarr's indexer list (GET only, on the LAN) and proposes native
 // indexers for it. Nothing is written anywhere.
 func (c *cardigannCatalog) ProwlarrProposals(ctx context.Context) ([]cardigann.Proposal, error) {
 	var prowlarr *policy.CardigannProwlarr

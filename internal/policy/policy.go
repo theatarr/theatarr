@@ -58,7 +58,6 @@ type Policy struct {
 	Views           map[string]*View          `yaml:"views"`
 	Budgets         map[string]*Budget        `yaml:"budgets"`
 	Metadata        *Metadata                 `yaml:"metadata"`
-	Import          *Import                   `yaml:"import"`
 	Egress          *Egress                   `yaml:"egress"`
 	// ProviderSync schedules the provider registry sync in theatarr serve.
 	ProviderSync *ProviderSync `yaml:"provider_sync"`
@@ -201,9 +200,6 @@ type Naming struct {
 	Colon string `yaml:"colon"`
 	// MultiEpisode is Sonarr's multi-episode style: extend, duplicate, repeat, scene, range or prefixed_range.
 	MultiEpisode string `yaml:"multi_episode"`
-	// FromArr takes the whole naming config (and quality titles) from an import.arr instance's
-	// GET /api/v3/config/naming, so links get exactly the names that instance gives. Nothing else may be set with it.
-	FromArr string `yaml:"from_arr"`
 }
 
 // Profile is a quality profile with format scores, shared by versions.
@@ -233,11 +229,6 @@ type Profile struct {
 	// TMDb's original_language) or a Radarr language name ("English", "French"). Movie profiles only: Sonarr v4
 	// profiles have no language.
 	Language string `yaml:"language"`
-
-	// FromArr takes the whole profile from an arr instance's live profile instead: "<instance>/<profile name>",
-	// where the instance is a key of import.arr. The profile, its formats and the instance's quality definitions are
-	// read from the arr (or a snapshot of it), for shadow parity. Nothing else may be set alongside it but Propers.
-	FromArr string `yaml:"from_arr"`
 	// Propers is the arrs' "Propers and Repacks" setting the profile is judged with: prefer_and_upgrade (the arr
 	// default), do_not_upgrade or do_not_prefer (TRaSH's advice when formats score repacks).
 	Propers string `yaml:"propers"`
@@ -638,8 +629,6 @@ type View struct {
 	Profiles map[string][]string `yaml:"profiles"`
 	// APIKeyEnv names the env var holding this view's API key.
 	APIKeyEnv string `yaml:"api_key_env"`
-	// AliasFrom lists the arr instances whose ids this view answers (Seerr's stored ids; docs/migration.md).
-	AliasFrom []string `yaml:"alias_from"`
 }
 
 // Budget is a token bucket, plus optional hourly and daily caps. The bucket refills at Requests per Per and holds
@@ -896,14 +885,6 @@ func (p *Policy) merge(file string, part *Policy, errs *Errors) {
 		} else {
 			p.Metadata = part.Metadata
 			p.origin["metadata"] = file
-		}
-	}
-	if part.Import != nil {
-		if p.Import != nil {
-			errs.add("import", "defined in both %s and %s", p.origin["import"], file)
-		} else {
-			p.Import = part.Import
-			p.origin["import"] = file
 		}
 	}
 	if part.Egress != nil {

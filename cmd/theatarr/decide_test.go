@@ -76,9 +76,8 @@ func decideFixture(t *testing.T, vpnIP string) (policyDir, db string) {
 
 func TestDecideCommand(t *testing.T) {
 	dir, db := decideFixture(t, "192.0.2.1")
-	snap := filepath.Join("..", "..", "internal", "decide", "testdata", "arr")
 	var out bytes.Buffer
-	err := runDecide(commandSettingsArgs(t, []string{"-policy", dir, "-db", db, "-arr-snapshot", snap, "-tmdb", "693134", "-version", "movie-remux",
+	err := runDecide(commandSettingsArgs(t, []string{"-policy", dir, "-db", db, "-tmdb", "693134", "-version", "movie-remux",
 		"-size", "40GB", "-indexer", "public",
 		"Dune.Part.Two.2024.2160p.UHD.BluRay.REMUX.HDR.HEVC.TrueHD.Atmos.7.1-FraMeSToR"}), &out, nil)
 	if err != nil {
@@ -94,7 +93,7 @@ func TestDecideCommand(t *testing.T) {
 	}
 
 	out.Reset()
-	err = runDecide(commandSettingsArgs(t, []string{"-policy", dir, "-db", db, "-arr-snapshot", snap, "-title", "7", "-version", "movie-remux",
+	err = runDecide(commandSettingsArgs(t, []string{"-policy", dir, "-db", db, "-title", "7", "-version", "movie-remux",
 		"-json", "Dune.Part.Two.2024.2160p.MA.WEB-DL.DDP5.1-FLUX"}), &out, nil)
 	if err != nil {
 		t.Fatal(err)
@@ -113,7 +112,6 @@ func TestDecideCommand(t *testing.T) {
 
 func TestDecideSearchRefusesOffVPN(t *testing.T) {
 	dir, db := decideFixture(t, "192.0.2.1")
-	snap := filepath.Join("..", "..", "internal", "decide", "testdata", "arr")
 	var out bytes.Buffer
 	dial := func(ctx context.Context, network, addr string) (net.Conn, error) {
 		if !strings.HasPrefix(addr, "127.0.0.1:") {
@@ -123,7 +121,7 @@ func TestDecideSearchRefusesOffVPN(t *testing.T) {
 		var d net.Dialer
 		return d.DialContext(ctx, network, addr)
 	}
-	err := runDecide(commandSettingsArgs(t, []string{"-policy", dir, "-db", db, "-arr-snapshot", snap, "-title", "7", "-version", "movie-remux",
+	err := runDecide(commandSettingsArgs(t, []string{"-policy", dir, "-db", db, "-title", "7", "-version", "movie-remux",
 		"-search"}), &out, dial)
 	if !errors.Is(err, errNotOnVPN) {
 		t.Fatalf("off the VPN: %v", err)
@@ -170,7 +168,7 @@ func TestSearchToolsOptionalVPN(t *testing.T) {
 					var d net.Dialer
 					return d.DialContext(ctx, network, addr)
 				}
-				args := []string{"-policy", dir, "-db", db, "-arr-snapshot", filepath.Join("..", "..", "internal", "decide", "testdata", "arr"), "-title", "7", "-version", "movie-remux"}
+				args := []string{"-policy", dir, "-db", db, "-title", "7", "-version", "movie-remux"}
 				var out bytes.Buffer
 				switch tool {
 				case "decide":

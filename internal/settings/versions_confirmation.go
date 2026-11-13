@@ -166,7 +166,7 @@ func snapshotConfirmationEffects(ctx context.Context, q rootQueryer, previous, n
 }
 
 // snapshotWriteEffects are snapshotConfirmationEffects without the credential addresses: a library going Live,
-// Pause off, importing an arr into a Live library, and removing a library. Every other change saves at once after validation. A startup fallback checks only
+// Pause off, and removing a library. Every other change saves at once after validation. A startup fallback checks only
 // these (FallbackEffects): the last published generation already sent its credentials to its own addresses.
 func snapshotWriteEffects(ctx context.Context, q rootQueryer, previous, next *Snapshot) ([]ConfirmationEffect, error) {
 	if previous == nil || next == nil {
@@ -176,8 +176,7 @@ func snapshotWriteEffects(ctx context.Context, q rootQueryer, previous, next *Sn
 	if err != nil {
 		return nil, err
 	}
-	effects = append(effects, globalSwitchEffects(previous, next)...)
-	return append(effects, importAcquisitionEffects(previous.Policy, next.Policy)...), nil
+	return append(effects, globalSwitchEffects(previous, next)...), nil
 }
 
 func versionConfirmationEffects(ctx context.Context, q rootQueryer, previous, next *policy.Policy) ([]ConfirmationEffect, error) {

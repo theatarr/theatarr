@@ -110,7 +110,7 @@ func (w *Web) mcpTools() []mcpTool {
 	view := func() map[string]any {
 		return map[string]any{"key": mcpString(), "generation": mcpInteger(0),
 			"flavour": map[string]any{"type": "string", "enum": []string{"radarr", "sonarr"}}, "path": mcpString(),
-			"alias_from": mcpStrings(), "versions": mcpStrings(), "profiles": mcpMap(mcpStrings()),
+			"versions": mcpStrings(), "profiles": mcpMap(mcpStrings()),
 			"api_key": mcpString(), "clear_api_key": map[string]any{"type": "boolean"}}
 	}
 	add("settings_view_create", "Create a view.", "POST", "/settings/view-bindings",

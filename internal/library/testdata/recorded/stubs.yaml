@@ -23,9 +23,3 @@ views:
     path: /radarr
     versions: [movie-web, movie-remux, anime-movie]
     api_key_env: FIXTURE_VIEW_KEY
-import:
-  arr:
-    radarr_4k_web: {flavour: radarr, url: 'http://127.0.0.1', api_key_env: FIXTURE_ARR_KEY, version: movie-web}
-    radarr_4k_debrid: {flavour: radarr, url: 'http://127.0.0.1', api_key_env: FIXTURE_ARR_KEY, version: movie-remux}
-    sonarr_4k_debrid: {flavour: sonarr, url: 'http://127.0.0.1', api_key_env: FIXTURE_ARR_KEY, version: tv-2160p}
-    sonarr_anime_debrid: {flavour: sonarr, url: 'http://127.0.0.1', api_key_env: FIXTURE_ARR_KEY, version: anime-tv}

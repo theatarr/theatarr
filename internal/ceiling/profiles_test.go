@@ -9,7 +9,7 @@ import (
 
 func TestProfiles(t *testing.T) {
 	pol := testPolicy()
-	pol.Profiles["imported"] = &policy.Profile{FromArr: "arr/Shared"}
+	pol.Profiles["imported"] = &policy.Profile{}
 	pol.Versions["imported"] = &policy.VersionPolicy{Profile: "imported"}
 	pol.Versions["no-profile"] = &policy.VersionPolicy{Profile: "absent"}
 	pol.Profiles["tv"] = &policy.Profile{Qualities: []policy.QualityItem{{Name: "WEBDL-2160p"}}, Cutoff: "WEBDL-2160p"}
@@ -33,7 +33,7 @@ func TestProfiles(t *testing.T) {
 			t.Fatalf("version %d: batch %+v, single %+v", v.ID, got[v.ID], want)
 		}
 	}
-	// A profile taken from an arr has no qualities of its own: no profile, as for a missing one.
+	// A profile with no qualities: no profile, as for a missing one.
 	if got[1] != nil || got[3] != nil || got[4] != nil || got[2] == nil || got[5] == nil {
 		t.Fatalf("profiles %+v", got)
 	}

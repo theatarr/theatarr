@@ -98,8 +98,7 @@ func diagnosticCandidate(base *policy.Policy, records Records) (*policy.Policy, 
 		view := p.Views[r.Key]
 		if r.Identity != nil {
 			// The key is the binding's credential; without one the view accepts no key, as with an unset variable.
-			view = &policy.View{Flavour: r.Identity.Flavour, Path: r.Identity.Path, AliasFrom: slices.Clone(r.Identity.AliasFrom),
-				APIKeyEnv: settingsSecretEnv("views/"+r.Key, "api_key")}
+			view = &policy.View{Flavour: r.Identity.Flavour, Path: r.Identity.Path, APIKeyEnv: settingsSecretEnv("views/"+r.Key, "api_key")}
 			p.Views[r.Key] = view
 		}
 		if view == nil {

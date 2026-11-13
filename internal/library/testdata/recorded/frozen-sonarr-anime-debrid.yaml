@@ -310,5 +310,4 @@ profiles:
       v3 - Notifiarr: 3
       v4 - Notifiarr: 4
     language: ""
-    from_arr: ""
     propers: prefer_and_upgrade

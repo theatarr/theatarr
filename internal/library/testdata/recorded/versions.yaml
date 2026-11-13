@@ -21,7 +21,6 @@ versions:
       anime: ""
       colon: delete
       multi_episode: ""
-      from_arr: ""
   movie-web:
     mode: shadow
     kind: movie
@@ -41,7 +40,6 @@ versions:
       anime: ""
       colon: delete
       multi_episode: ""
-      from_arr: ""
   anime-movie:
     mode: shadow
     kind: movie
@@ -71,7 +69,6 @@ versions:
       anime: '{Series CleanTitleWithoutYear} {(Series Year)} - S{season:00}E{episode:00} - {absolute:000} - {Episode CleanTitle:90} {[Custom Formats]}{[Quality Full]}{[Mediainfo AudioCodec}{ Mediainfo AudioChannels]}{MediaInfo AudioLanguages}{[MediaInfo VideoDynamicRangeType]}[{Mediainfo VideoCodec }{MediaInfo VideoBitDepth}bit]{-Release Group}'
       colon: delete
       multi_episode: prefixed_range
-      from_arr: ""
   anime-tv:
     mode: shadow
     kind: series
@@ -91,4 +88,3 @@ versions:
       anime: '{Series CleanTitleWithoutYear} {(Series Year)} - S{season:00}E{episode:00} - {absolute:000} - {Episode CleanTitle:90} {[Custom Formats]}{[Quality Full]}{[Mediainfo AudioCodec}{ Mediainfo AudioChannels]}{MediaInfo AudioLanguages}{[MediaInfo VideoDynamicRangeType]}[{Mediainfo VideoCodec }{MediaInfo VideoBitDepth}bit]{-Release Group}'
       colon: delete
       multi_episode: prefixed_range
-      from_arr: ""

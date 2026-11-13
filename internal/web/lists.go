@@ -295,7 +295,7 @@ func checkListMonitor(listType, v string) error {
 
 // normalListURL checks a Radarr or Sonarr list's address and writes it one way (no surrounding space or trailing
 // slash, lower-case scheme and host), so the same instance is the same address. An IP-literal host must be a LAN
-// address, as for import.arr: the list's key goes only there.
+// address: the list's key goes only there.
 func normalListURL(raw string) (string, error) {
 	u, err := url.Parse(strings.TrimSpace(raw))
 	if err != nil || u.Host == "" || (!strings.EqualFold(u.Scheme, "http") && !strings.EqualFold(u.Scheme, "https")) {

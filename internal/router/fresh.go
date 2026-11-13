@@ -3,7 +3,6 @@ package router
 import (
 	"context"
 	"database/sql"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"slices"
@@ -489,46 +488,6 @@ func (r *Router) routeProfile(ctx context.Context, vp *policy.VersionPolicy) (*r
 		if p := r.profiles(vp.Profile, fl); p != nil && p.Profile != nil && p.Engine != nil {
 			return &routeProfile{quality: p.Profile, propers: p.Engine.Config.DownloadPropersAndRepacks}, nil
 		}
-	}
-	if pr.FromArr != "" {
-		instance, name, ok := policy.SplitFromArr(pr.FromArr)
-		if !ok {
-			return nil, fmt.Errorf("invalid arr profile %q", pr.FromArr)
-		}
-		var raw string
-		if err := r.st.Writer().QueryRowContext(ctx, `SELECT body FROM arr_policy_snapshot WHERE instance = ?`, instance).
-			Scan(&raw); err != nil {
-			return nil, fmt.Errorf("arr profile %s: %w", instance, err)
-		}
-		var snapshot map[string]json.RawMessage
-		if err := json.Unmarshal([]byte(raw), &snapshot); err != nil {
-			return nil, err
-		}
-		profiles, err := profile.ParseArrProfiles(fl, snapshot["qualityprofile"])
-		if err != nil {
-			return nil, err
-		}
-		for _, p := range profiles {
-			if strings.EqualFold(p.Name, name) {
-				proper := profile.PreferAndUpgrade
-				var settings struct {
-					DownloadPropersAndRepacks string `json:"downloadPropersAndRepacks"`
-				}
-				if raw := snapshot["config/mediamanagement"]; len(raw) > 0 {
-					if err := json.Unmarshal(raw, &settings); err != nil {
-						return nil, err
-					}
-				}
-				if settings.DownloadPropersAndRepacks != "" {
-					proper, err = profile.ParseProperDownloadTypes(settings.DownloadPropersAndRepacks)
-					if err != nil {
-						return nil, err
-					}
-				}
-				return &routeProfile{quality: p, propers: proper}, nil
-			}
-		}
-		return nil, fmt.Errorf("arr profile %q is missing from instance %q", name, instance)
 	}
 	allowed := map[string]bool{}
 	for _, q := range pr.Qualities {

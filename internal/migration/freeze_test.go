@@ -6,7 +6,6 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/theatarr/theatarr/internal/decide"
 	"github.com/theatarr/theatarr/internal/decide/format"
 	"github.com/theatarr/theatarr/internal/policy"
 )
@@ -14,9 +13,12 @@ import (
 // freezeFixture is radarr_4k_debrid's GET bodies as the wizard reads them, with its naming.
 func freezeFixture(t *testing.T) map[string]json.RawMessage {
 	t.Helper()
-	s, err := decide.SnapshotDir("../decide/testdata/arr").Snapshot("radarr_4k_debrid")
-	if err != nil {
-		t.Fatal(err)
+	read := func(name string) json.RawMessage {
+		b, err := os.ReadFile("testdata/radarr_4k_debrid/snapshot/" + name + ".json")
+		if err != nil {
+			t.Fatal(err)
+		}
+		return b
 	}
 	golden, err := os.ReadFile("../library/naming/testdata/golden/radarr_4k_debrid.json")
 	if err != nil {
@@ -26,8 +28,8 @@ func freezeFixture(t *testing.T) map[string]json.RawMessage {
 	if err := json.Unmarshal(golden, &g); err != nil {
 		t.Fatal(err)
 	}
-	return map[string]json.RawMessage{"qualityprofile": s.QualityProfile, "customformat": s.CustomFormat,
-		"qualitydefinition": s.QualityDefinition, "config/mediamanagement": json.RawMessage(`{}`),
+	return map[string]json.RawMessage{"qualityprofile": read("qualityprofile"), "customformat": read("customformat"),
+		"qualitydefinition": read("qualitydefinition"), "config/mediamanagement": json.RawMessage(`{}`),
 		"config/indexer": json.RawMessage(`{}`), "config/naming": g.Naming}
 }
 

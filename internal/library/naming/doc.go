@@ -20,7 +20,7 @@
 //     itself with CustomFormatCalculationService and keeps those with includeCustomFormatWhenRenaming. The import
 //     takes them from the grab's decision.
 //   - Quality titles are passed in ([Quality.Title]): the arr reads them from its quality definitions, which a user
-//     may rename. Callers give the instance's definitions (from_arr) or the default names.
+//     may rename. Callers give the default names.
 //   - Translations ({Movie Title:xx}) have no data here: the token falls back to the movie title, as Radarr does when
 //     a movie has no translation in that language.
 //   - UpdateMediaInfoIfNeeded (re-probing old files whose media info schema is too old) has no equivalent: our probe

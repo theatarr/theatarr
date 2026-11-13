@@ -1,4 +1,4 @@
-package importarr
+package arrimport
 
 import (
 	"context"
@@ -6,8 +6,8 @@ import (
 )
 
 // ReadTitles reads one Radarr or Sonarr instance for a one-time import: its version, root folders, quality profiles
-// and titles with their files (and, for Sonarr, episodes), in the same shape FetchRadarr/FetchSonarr fill. It reads
-// nothing else (no tags, custom formats, naming, delay or release profiles, collections, history or blocklist).
+// and titles with their files (and, for Sonarr, episodes). It reads nothing else (no tags, custom formats, naming,
+// delay or release profiles, collections, history or blocklist).
 // progress, when not nil, is called per series (Sonarr) or once at the end (Radarr).
 func ReadTitles(ctx context.Context, g Getter, flavour string, progress func(done, total int)) (*Snapshot, error) {
 	var app string
@@ -19,14 +19,14 @@ func ReadTitles(ctx context.Context, g Getter, flavour string, progress func(don
 	default:
 		return nil, fmt.Errorf("unknown arr flavour %q", flavour)
 	}
-	s := &Snapshot{Flavour: flavour, Tags: map[int]string{}}
+	s := &Snapshot{Flavour: flavour}
 	if err := readStatus(ctx, g, s, app); err != nil {
 		return nil, err
 	}
 	if err := readRootFolders(ctx, g, s); err != nil {
 		return nil, err
 	}
-	if _, err := readProfiles(ctx, g, s); err != nil {
+	if err := readProfiles(ctx, g, s); err != nil {
 		return nil, err
 	}
 	if flavour == "sonarr" {

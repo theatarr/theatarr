@@ -594,7 +594,7 @@ func (l *Library) importDownload(ctx context.Context, d *importDownload, dryRun 
 	}
 
 	// 3. Which file goes where.
-	vn, err := NamingFor(ctx, l.st.Reader(), l.pol, v.Key)
+	vn, err := NamingFor(l.pol, v.Key)
 	if err != nil {
 		return nil, err
 	}

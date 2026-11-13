@@ -18,7 +18,6 @@ import (
 	"github.com/theatarr/theatarr/internal/arr"
 	"github.com/theatarr/theatarr/internal/catalog"
 	"github.com/theatarr/theatarr/internal/decide"
-	"github.com/theatarr/theatarr/internal/importarr"
 	"github.com/theatarr/theatarr/internal/library"
 	"github.com/theatarr/theatarr/internal/library/probe"
 	"github.com/theatarr/theatarr/internal/metadata/tmdb"
@@ -193,7 +192,7 @@ func (e *env) newLib() *orderLib {
 
 func (e *env) deps(g *fakeArr) Deps {
 	return Deps{Store: e.st, Policy: e.pol, Titles: e.intake, Series: e.series, TVDB: true, Library: e.lib, Now: func() time.Time { return testNow },
-		Arr: func(u, key string) (importarr.Getter, error) {
+		Arr: func(u, key string) (Getter, error) {
 			if key != "secret" {
 				return nil, errors.New("bad key")
 			}
@@ -504,7 +503,7 @@ func TestRunFolderMapping(t *testing.T) {
 // TestCheckPlainWords: Check says in plain words that the address is not a URL, that the key was refused, and that
 // nothing answered, the last within a few seconds rather than after the client's retries.
 func TestCheckPlainWords(t *testing.T) {
-	d := Deps{Arr: func(u, k string) (importarr.Getter, error) { return arr.New(u, k, arr.Options{}) }}
+	d := Deps{Arr: func(u, k string) (Getter, error) { return arr.New(u, k, arr.Options{}) }}
 	_, err := Check(context.Background(), d, "radarr", "notaurl", "k")
 	var in *InputError
 	if !errors.As(err, &in) || in.Msg != "Enter the address as http://host:port." {

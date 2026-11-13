@@ -15,7 +15,7 @@ import (
 // nameMovie and nameSeries are the single naming path used by imports and rename previews.
 func (l *Library) nameMovie(ctx context.Context, v *importVersion, vn *VersionNaming, root, rel string,
 	facts decide.FileFacts, p *probe.Result, formats []string, mi *naming.MediaInfo) (string, error) {
-	q := naming.Quality{Title: vn.QualityTitle(facts.Quality), Version: max(facts.Revision, 1), Real: facts.Real}
+	q := naming.Quality{Title: facts.Quality, Version: max(facts.Revision, 1), Real: facts.Real}
 	mf := &naming.MovieFile{Quality: q, ReleaseGroup: facts.ReleaseGroup, Edition: facts.Edition,
 		SceneName: facts.SceneName, RelativePath: filepath.Base(rel), CustomFormats: formats}
 	if p != nil {
@@ -52,7 +52,7 @@ func (l *Library) nameSeries(ctx context.Context, v *importVersion, vn *VersionN
 	for _, e := range eps {
 		neps = append(neps, naming.Episode{Season: e.Season, Number: e.Number, Absolute: e.Absolute, Title: e.Name, AirDate: e.AirDate})
 	}
-	q := naming.Quality{Title: vn.QualityTitle(facts.Quality), Version: max(facts.Revision, 1), Real: facts.Real}
+	q := naming.Quality{Title: facts.Quality, Version: max(facts.Revision, 1), Real: facts.Real}
 	ef := &naming.EpisodeFile{Quality: q, ReleaseGroup: facts.ReleaseGroup, ReleaseHash: facts.ReleaseHash,
 		SceneName: facts.SceneName, RelativePath: filepath.Base(rel), CustomFormats: formats}
 	if p != nil {

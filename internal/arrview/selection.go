@@ -8,8 +8,7 @@ import (
 // Delay profiles and release profiles. A typical arr setup has no
 // release profile and only the default delay profile with no delay, so Theatarr has neither: every release is decided as it
 // is found, and no must-contain / must-not-contain terms apply. The views read them as that (one delay profile with no
-// delay, no release profiles) and refuse writes with 405, so a client cannot believe it configured one. theatarr import-arr
-// warns when an arr gains either (internal/importarr selection.go).
+// delay, no release profiles) and refuse writes with 405, so a client cannot believe it configured one.
 
 // delayProfileResource is DelayProfileResource (Radarr and Sonarr have the same fields).
 type delayProfileResource struct {

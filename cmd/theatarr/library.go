@@ -13,7 +13,6 @@ import (
 	"text/tabwriter"
 	"time"
 
-	"github.com/theatarr/theatarr/internal/arr"
 	"github.com/theatarr/theatarr/internal/buildinfo"
 	"github.com/theatarr/theatarr/internal/decide"
 	"github.com/theatarr/theatarr/internal/decide/format"
@@ -43,8 +42,6 @@ const libraryUsage = `usage:
   theatarr library rename-preview -library KEY [flags]
                                                  read-only: every link of the library whose name would change under its
                                                  naming, link_id<TAB>existing<TAB>new. Opens the database read-only
-  theatarr library naming-sync [flags]            read config/naming and qualitydefinition (GET) from the import.arr
-                                                 instances into the database
   theatarr library dangling [-scan] [-tsv] [flags]
                                                  the latest dangling-link report (links whose target is gone) from the
                                                  database; -scan walks the roots now first (read-only)
@@ -61,7 +58,7 @@ func runLibrary(args []string, out io.Writer) error {
 		if helpArg(args) {
 			return flag.ErrHelp
 		}
-		return errors.New("give dry-run, verify, relink, rename-preview, dangling or naming-sync")
+		return errors.New("give dry-run, verify, relink, rename-preview or dangling")
 	}
 	fs := flag.NewFlagSet("library "+args[0], flag.ContinueOnError)
 	fs.Usage = func() { fmt.Fprint(fs.Output(), libraryUsage+"\nflags:\n"); fs.PrintDefaults() }
@@ -205,27 +202,6 @@ func runLibrary(args []string, out io.Writer) error {
 		}
 		fmt.Fprintf(os.Stderr, "%d links would be renamed, %d skipped\n", len(p.Files), p.Skipped)
 		return nil
-	case "naming-sync":
-		getters := map[string]library.ArrGetter{}
-		if pol.Import != nil {
-			for k, a := range pol.Import.Arr {
-				if !pol.ArrFed(k) {
-					continue
-				}
-				key := pol.Getenv(a.APIKeyEnv)
-				if key == "" {
-					continue
-				}
-				cl, err := arr.New(a.URL, key, arr.Options{})
-				if err != nil {
-					return err
-				}
-				getters[k] = cl
-			}
-		}
-		done, err := library.SyncNaming(ctx, st, pol, getters, time.Now())
-		fmt.Fprintf(out, "naming read from: %s\n", strings.Join(done, ", "))
-		return err
 	}
 	fmt.Fprint(os.Stderr, libraryUsage)
 	return fmt.Errorf("unknown library command %q", args[0])

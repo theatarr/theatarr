@@ -7,7 +7,6 @@ import (
 	"path/filepath"
 	"reflect"
 	"sort"
-	"strings"
 	"sync"
 	"time"
 
@@ -23,7 +22,7 @@ type Profile struct {
 	baseEngine *profile.Engine // stable cache identity across per-version copies
 	Key        string
 	Flavour    format.Flavour
-	// Source is "policy", or "from_arr <instance>/<profile>".
+	// Source is "policy".
 	Source  string
 	Profile *profile.Profile
 	Formats []*format.Format
@@ -36,8 +35,6 @@ type Profile struct {
 type Options struct {
 	// TrashRoot is a TRaSH-Guides checkout (its docs/json is read), for formats referenced by trash_id.
 	TrashRoot string
-	// Arr gives the snapshots from_arr profiles read.
-	Arr ArrSource
 	// Now is the engine clock (release ages); nil is time.Now.
 	Now func() time.Time
 	// Previous reuses profiles whose policy inputs did not change.
@@ -67,7 +64,7 @@ func flavourOf(k policy.Kind) format.Flavour {
 }
 
 // New builds the profile of every version in the policy. Problems are returned as *policy.Errors, each with the
-// policy path it concerns (profiles[x].formats[y], formats[z].file, profiles[x].from_arr, ...).
+// policy path it concerns (profiles[x].formats[y], formats[z].file, ...).
 func New(pol *policy.Policy, opt Options) (*Engine, error) {
 	b := &builder{pol: pol, opt: opt, trash: map[format.Flavour]*format.Trash{}, errs: &policy.Errors{}}
 	e := &Engine{Policy: pol, profiles: map[string]*Profile{}}
@@ -108,9 +105,6 @@ func reusableProfile(pol *policy.Policy, previous *Engine, key string) bool {
 	profile := pol.Profiles[key]
 	if profile == nil {
 		return false
-	}
-	if profile.FromArr != "" {
-		return true
 	}
 	oldProfile := previous.Policy.Profiles[key]
 	if profile.FormatSet != "" {
@@ -170,12 +164,7 @@ func (b *builder) fail(path, f string, args ...any) {
 func (b *builder) profile(key string, fl format.Flavour) *Profile {
 	pr := b.pol.Profiles[key]
 	path := fmt.Sprintf("profiles[%s]", key)
-	var p *Profile
-	if pr.FromArr != "" {
-		p = b.fromArr(path, key, pr, fl)
-	} else {
-		p = b.fromPolicy(path, key, pr, fl)
-	}
+	p := b.fromPolicy(path, key, pr, fl)
 	if p == nil {
 		return nil
 	}
@@ -194,83 +183,6 @@ func propersSetting(s string) profile.ProperDownloadTypes {
 		return profile.DoNotPrefer
 	}
 	return profile.PreferAndUpgrade
-}
-
-// fromArr takes a profile, every custom format and the quality definitions from an arr snapshot.
-func (b *builder) fromArr(path, key string, pr *policy.Profile, fl format.Flavour) *Profile {
-	fp := path + ".from_arr"
-	inst, name, ok := policy.SplitFromArr(pr.FromArr)
-	if !ok {
-		b.fail(fp, "%q must be <instance>/<profile name>", pr.FromArr)
-		return nil
-	}
-	if b.opt.Arr == nil {
-		b.fail(fp, "no arr source to read instance %q from", inst)
-		return nil
-	}
-	s, err := b.opt.Arr.Snapshot(inst)
-	if err != nil {
-		b.fail(fp, "%s: %v", inst, err)
-		return nil
-	}
-	if s.Flavour != fl {
-		b.fail(fp, "instance %q is %s, the versions using this profile need %s", inst, s.Flavour, fl)
-		return nil
-	}
-	profiles, err := profile.ParseArrProfiles(fl, s.QualityProfile)
-	if err != nil {
-		b.fail(fp, "%s: %v", inst, err)
-		return nil
-	}
-	var qp *profile.Profile
-	for _, p := range profiles {
-		if p.Name == name {
-			qp = p
-			break
-		}
-	}
-	if qp == nil {
-		for _, p := range profiles {
-			if strings.EqualFold(p.Name, name) {
-				qp = p
-				break
-			}
-		}
-	}
-	if qp == nil {
-		names := make([]string, len(profiles))
-		for i, p := range profiles {
-			names[i] = p.Name
-		}
-		b.fail(fp, "%s has no profile %q (it has %s)", inst, name, strings.Join(names, ", "))
-		return nil
-	}
-	var customFormats []format.FormatJSON
-	if err := json.Unmarshal(s.CustomFormat, &customFormats); err != nil {
-		b.fail(fp, "%s: %v", inst, err)
-		return nil
-	}
-	formats, err := format.ParseArrFormats(fl, s.CustomFormat)
-	if err != nil {
-		b.fail(fp, "%s: %v", inst, err)
-		return nil
-	}
-	defs, err := profile.ParseArrDefinitions(fl, s.QualityDefinition)
-	if err != nil {
-		b.fail(fp, "%s: %v", inst, err)
-		return nil
-	}
-	cfg, err := arrConfig(s)
-	if err != nil {
-		b.fail(fp, "%s: %v", inst, err)
-		return nil
-	}
-	if problems := qp.Validate(); len(problems) > 0 {
-		b.fail(fp, "%s profile %q: %s", inst, name, strings.Join(problems, "; "))
-		return nil
-	}
-	return &Profile{Key: key, Flavour: fl, Source: "from_arr " + pr.FromArr, Profile: qp, Formats: formats, CustomFormats: customFormats,
-		Engine: &profile.Engine{Flavour: fl, Config: cfg, Definitions: defs}}
 }
 
 // fromPolicy builds a profile from the policy's qualities, sizes and format scores.

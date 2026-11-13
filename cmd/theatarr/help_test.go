@@ -37,31 +37,22 @@ func TestLibraryUsageListsRenamePreview(t *testing.T) {
 	}
 }
 
-// theatarr library rename-preview fails, printing nothing, when the profile its names need cannot be built (movie-shadow
-// reads its profile from an arr snapshot, and there is none). With the snapshot it runs. The commands open the database read-only: a copy in rollback
-// journal mode stays so, with its permissions.
+// theatarr library rename-preview runs on a database it opens read-only: a copy in rollback journal mode stays so,
+// with its permissions.
 func TestLibraryRenamePreviewNeedsProfile(t *testing.T) {
 	dir := t.TempDir()
 	if err := copyPolicyDir(filepath.Join("..", "..", "internal", "decide", "testdata", "policy"), dir); err != nil {
 		t.Fatal(err)
 	}
 	db := filepath.Join(t.TempDir(), "settings.db")
-	base := commandSettingsArgs(t, []string{"rename-preview", "-policy", dir, "-db", db, "-library", "movie-shadow"})
+	args := commandSettingsArgs(t, []string{"rename-preview", "-policy", dir, "-db", db, "-library", "movie-remux"})
 	journalMode(t, db, "delete")
 	if err := os.Chmod(db, 0o640); err != nil {
 		t.Fatal(err)
 	}
-	snap := filepath.Join("..", "..", "internal", "decide", "testdata", "arr")
-	for _, lib := range []string{"movie-shadow"} {
-		args := append(append([]string(nil), base...), "-library", lib)
-		var out bytes.Buffer
-		if err := runLibrary(append(args, "-arr-snapshot", t.TempDir()), &out); err == nil ||
-			!strings.Contains(err.Error(), "names cannot be rebuilt") || out.Len() != 0 {
-			t.Fatalf("%s without the profile: %v, printed %q", lib, err, out.String())
-		}
-		if err := runLibrary(append(args, "-arr-snapshot", snap), &out); err != nil {
-			t.Fatalf("%s with the profile: %v", lib, err)
-		}
+	var out bytes.Buffer
+	if err := runLibrary(args, &out); err != nil {
+		t.Fatalf("movie-remux: %v", err)
 	}
 	if fi, err := os.Stat(db); err != nil || fi.Mode().Perm() != 0o640 {
 		t.Fatalf("permissions changed: %v %v", fi.Mode(), err)

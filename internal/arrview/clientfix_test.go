@@ -12,34 +12,6 @@ import (
 	"github.com/theatarr/theatarr/internal/policy"
 )
 
-func TestAliasIDsScopedToView(t *testing.T) {
-	t.Parallel()
-	e := newEnv(t)
-	// Both views hold both titles, so only alias_from can distinguish the two instances' id 7.
-	e.pol.Views["web"] = &policy.View{Flavour: Radarr, Path: "/web", Versions: []string{"movie-remux", "movie-web"},
-		AliasFrom: []string{"radarr_4k_web"}}
-	e.start()
-	for _, base := range []string{"/radarr", "/web", "/radarr", "/web"} {
-		want := "Alpha"
-		if base == "/web" {
-			want = "Beta"
-		}
-		var movie movieResource
-		e.call("GET", base+"/api/v3/movie/7", nil, 200, &movie)
-		if movie.Title != want {
-			t.Fatalf("%s alias 7: %s, want %s", base, movie.Title, want)
-		}
-	}
-	e.cutover()
-	e.call("DELETE", "/web/api/v3/movie/7", nil, 200, nil)
-	e.call("GET", "/web/api/v3/movie/7", nil, 404, nil)
-	var movie movieResource
-	e.call("GET", "/radarr/api/v3/movie/7", nil, 200, &movie)
-	if movie.Title != "Alpha" || e.one(`SELECT COUNT(*) FROM arrview_removed_version WHERE version_id IN (1, 2)`) != 0 {
-		t.Fatal("deleting web's alias removed the other instance's title")
-	}
-}
-
 func TestDeleteTitleFiles(t *testing.T) {
 	t.Parallel()
 	for _, mode := range []string{"delete files", "keep files", "gate closed", "outside root", "regular file", "no trash", "no library", "arr files only"} {
@@ -79,7 +51,6 @@ func TestDeleteTitleFiles(t *testing.T) {
 				t.Fatal(err)
 			}
 			e.exec(`UPDATE version_file SET path = ? WHERE id = 1`, arrPath)
-			e.pol.Import = nil // after cutover: no arr owns movie-remux
 			e.pol.Versions["movie-remux"].Mode = policy.ModeActive
 			e.pol.Versions["movie-remux"].Library = remux
 			e.pol.Versions["movie-web"].Library = web

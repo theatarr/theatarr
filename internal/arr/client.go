@@ -28,8 +28,7 @@ import (
 
 // Endpoints the client may call, relative to /api/v3/. Nothing here triggers a search, a command or a write: the
 // client sends GETs only, and a GET on each of these reads. The library endpoints (movie, series, episode, files,
-// root folders) are for theatarr import-arr; the settings ones (media management, indexer config) feed the decision engine's
-// settings in Theatarr profiles check, and import-arr reads delay and release profiles to warn about the ones Theatarr lacks.
+// root folders) are for the one-time import (Admin › Import from Sonarr/Radarr).
 var allowedEndpoints = map[string]bool{
 	"config/mediamanagement": true,
 	"config/indexer":         true,
@@ -59,8 +58,7 @@ var allowedEndpoints = map[string]bool{
 	// The Connect targets and import lists: read only. Only names, switches and hosts are printed from them.
 	"notification": true,
 	"importlist":   true,
-	// theatarr import-arr reads Radarr's collections to carry the monitored ones over (importarr/collections.go).
-	"collection": true,
+	"collection":   true,
 }
 
 // prowlarrEndpoints are what a Prowlarr client (Options.Prowlarr) may call, relative to /api/v1/: its indexer list,

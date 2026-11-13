@@ -259,11 +259,8 @@ func TestSeerrRadarrContract(t *testing.T) {
 	if got := e.versionsOf(3); len(got) != 1 || !got["anime-movie"] {
 		t.Errorf("Gamma versions %v", got)
 	}
-	// Seerr's stored id from the replaced instance still answers (alias table).
-	c.must("GET", "/movie/7", nil, nil, 200, &byID)
-	if byID["tmdbId"].(float64) != 101 {
-		t.Errorf("alias 7: %v", byID["tmdbId"])
-	}
+	// An id Seerr stored from the replaced instance answers nothing: Seerr syncs again.
+	c.must("GET", "/movie/7", nil, nil, 404, nil)
 
 	// Remove (radarr.ts removeMovie): lookup, then DELETE by its id; afterwards 404, which Seerr reads as gone.
 	var lk []map[string]any
@@ -403,7 +400,7 @@ func TestSeerrSonarrContract(t *testing.T) {
 	if len(all) != 2 {
 		t.Errorf("series %d", len(all))
 	}
-	c.must("GET", "/series/3", nil, nil, 200, nil) // the replaced instance's id
+	c.must("GET", "/series/3", nil, nil, 404, nil) // the replaced instance's id answers nothing
 
 	// Remove.
 	var lk []map[string]any

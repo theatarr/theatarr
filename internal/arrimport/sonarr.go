@@ -1,4 +1,4 @@
-package importarr
+package arrimport
 
 import (
 	"context"
@@ -10,7 +10,7 @@ import (
 	"time"
 )
 
-// Sonarr v3 resources, the fields the importer reads (Sonarr.Api.V3 @ v4.0.20).
+// Sonarr v3 resources, the fields ReadTitles reads (Sonarr.Api.V3 @ v4.0.20).
 
 type sonarrSeries struct {
 	ID              int    `json:"id"`
@@ -83,36 +83,6 @@ type sonarrEpisodeFile struct {
 	QualityCutoffNotMet bool            `json:"qualityCutoffNotMet"`
 }
 
-// FetchSonarr reads one Sonarr instance: the same reference data as Radarr, every series with its scene mappings,
-// and per series its episodes (GET episode?seriesId=) and episode files (GET episodefile?seriesId=). known reports
-// whether a history id is already stored.
-func FetchSonarr(ctx context.Context, g Getter, instance string, known func(int) bool) (*Snapshot, error) {
-	s := &Snapshot{Instance: instance, Flavour: "sonarr", Tags: map[int]string{}}
-
-	if err := readStatus(ctx, g, s, "Sonarr"); err != nil {
-		return nil, err
-	}
-	if err := fetchReference(ctx, g, s); err != nil {
-		return nil, err
-	}
-	if err := readSonarrSeries(ctx, g, s, nil); err != nil {
-		return nil, err
-	}
-
-	recs, total, err := fetchHistory(ctx, g, known)
-	if err != nil {
-		return nil, err
-	}
-	s.HistoryTotal = total
-	for _, r := range recs {
-		s.History = append(s.History, toEvent(r))
-	}
-	if err := fetchBlocklist(ctx, g, s); err != nil {
-		return nil, err
-	}
-	return s, nil
-}
-
 // readSonarrSeries reads the series (GET series) and, per series with a TVDB id, its episodes and episode files into
 // s.Titles. progress, when not nil, is called after each series.
 func readSonarrSeries(ctx context.Context, g Getter, s *Snapshot, progress func(done, total int)) error {
@@ -161,30 +131,6 @@ func readSonarrSeries(ctx context.Context, g Getter, s *Snapshot, progress func(
 	return nil
 }
 
-// fetchReference reads root folders, tags, quality profiles, and delay and release profiles (the same shape in both
-// arrs).
-func fetchReference(ctx context.Context, g Getter, s *Snapshot) error {
-	if err := readRootFolders(ctx, g, s); err != nil {
-		return err
-	}
-	var tags []radarrTag
-	if err := g.GetJSON(ctx, "tag", nil, &tags); err != nil {
-		return err
-	}
-	for _, t := range tags {
-		s.Tags[t.ID] = t.Label
-	}
-	body, err := readProfiles(ctx, g, s)
-	if err != nil {
-		return err
-	}
-	s.PolicySnapshot = map[string]json.RawMessage{"qualityprofile": body}
-	if err := fetchPolicySnapshot(ctx, g, s); err != nil {
-		return err
-	}
-	return fetchSelection(ctx, g, s)
-}
-
 // readRootFolders reads the instance's root folders into s.RootFolders, sorted.
 func readRootFolders(ctx context.Context, g Getter, s *Snapshot) error {
 	var roots []radarrRootFolder
@@ -198,16 +144,15 @@ func readRootFolders(ctx context.Context, g Getter, s *Snapshot) error {
 	return nil
 }
 
-// readProfiles reads the quality profiles into s.Profiles and returns the response body (kept for the policy
-// snapshot).
-func readProfiles(ctx context.Context, g Getter, s *Snapshot) (json.RawMessage, error) {
+// readProfiles reads the quality profiles into s.Profiles.
+func readProfiles(ctx context.Context, g Getter, s *Snapshot) error {
 	var body json.RawMessage
 	if err := g.GetJSON(ctx, "qualityprofile", nil, &body); err != nil {
-		return nil, err
+		return err
 	}
 	var profiles []radarrProfile
 	if err := json.Unmarshal(body, &profiles); err != nil {
-		return nil, err
+		return err
 	}
 	for _, p := range profiles {
 		items, _ := json.Marshal(p.Items)
@@ -216,7 +161,7 @@ func readProfiles(ctx context.Context, g Getter, s *Snapshot) (json.RawMessage, 
 			MinFormatScore: p.MinFormatScore, CutoffFormatScore: p.CutoffFormatScore,
 		})
 	}
-	return body, nil
+	return nil
 }
 
 // fetchEpisodes reads one series' episodes and episode files.

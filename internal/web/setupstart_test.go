@@ -22,16 +22,12 @@ import (
 )
 
 // startEnv is a settings database the serve bootstrap has reached (switches, sections and quality records seeded,
-// the switches off), with or without the example's import.arr instances: without them Setup offers the one-step
-// start. area is a directory library roots may live under.
-func startEnv(t *testing.T, arr bool) (se *settingsEnv, area string) {
+// the switches off). area is a directory library roots may live under.
+func startEnv(t *testing.T) (se *settingsEnv, area string) {
 	t.Helper()
 	area = t.TempDir()
 	var coord *settings.RuntimeCoordinator
 	se = newSettingsEnvBase(t, nil, func(p *policy.Policy) {
-		if !arr {
-			p.Import = nil
-		}
 		p.Library.Dangling.Roots = []string{area}
 	}, func(c *Config) {
 		ctx := context.Background()
@@ -98,14 +94,11 @@ func (se *settingsEnv) switchesOn() (router, library bool) {
 	return on, on
 }
 
-// POST setup/start on an install no arr feeds: one refusal that lists the activation and Pause off with one token,
+// POST setup/start: one refusal that lists the activation and Pause off with one token,
 // then one generation that holds all of it, whatever mode the body asked for.
 func TestSetupStart(t *testing.T) {
 	t.Parallel()
-	se, area := startEnv(t, false)
-	if s := se.setupState(); s.ArrInstances != 0 {
-		t.Fatalf("arr_instances %d on an install without import.arr", s.ArrInstances)
-	}
+	se, area := startEnv(t)
 	if router, library := se.switchesOn(); router || library {
 		t.Fatal("the switches start on: the test proves nothing")
 	}
@@ -180,7 +173,7 @@ func TestSetupStart(t *testing.T) {
 // the library's key, from the bundled TRaSH defaults.
 func TestSetupStartWithPreset(t *testing.T) {
 	t.Parallel()
-	se, area := startEnv(t, false)
+	se, area := startEnv(t)
 	root := filepath.Join(area, "films")
 	if err := os.Mkdir(root, 0o700); err != nil {
 		t.Fatal(err)
@@ -218,30 +211,10 @@ func TestSetupStartWithPreset(t *testing.T) {
 	}
 }
 
-// An install that migrates from an arr is refused by the endpoint itself, and nothing is written.
-func TestSetupStartRefusedWithArr(t *testing.T) {
-	t.Parallel()
-	se, area := startEnv(t, true)
-	if s := se.setupState(); s.ArrInstances == 0 {
-		t.Fatal("arr_instances 0 with import.arr in the example policy")
-	}
-	gen := se.generation()
-	out := se.start(se.startBody("films", area))
-	if out["status"] != 409 || !strings.Contains(fmt.Sprint(out["error"]), "migrates from an arr") {
-		t.Fatalf("start with import.arr: %v", out)
-	}
-	if router, library := se.switchesOn(); se.generation() != gen || router || library {
-		t.Fatal("the refused start wrote settings")
-	}
-	if rec := se.call("GET", "/versions/films", nil); rec.Code != 404 {
-		t.Fatalf("the refused start created the library: %d", rec.Code)
-	}
-}
-
 // THEATARR_FORCE_OFF does not refuse the start: the save happens and the answer says it keeps Pause on.
 func TestSetupStartForcedOff(t *testing.T) {
 	t.Setenv("THEATARR_FORCE_OFF", "router,notify")
-	se, area := startEnv(t, false)
+	se, area := startEnv(t)
 	body := se.startBody("films", area)
 	refused := se.start(body)
 	if refused["status"] != 422 {
@@ -262,7 +235,7 @@ func TestSetupStartForcedOff(t *testing.T) {
 // refuse a Live library; with it off all three let it through.
 func TestPauseClosesBothGates(t *testing.T) {
 	t.Parallel()
-	se, area := startEnv(t, false)
+	se, area := startEnv(t)
 	root := filepath.Join(area, "films")
 	if err := os.Mkdir(root, 0o700); err != nil {
 		t.Fatal(err)
@@ -308,7 +281,7 @@ func TestSetupStartWithoutSettings(t *testing.T) {
 // install-wide counts are not enough. GET /setup names the ready ones and whether the trash folder is set.
 func TestSetupStartNeedsUsableSources(t *testing.T) {
 	t.Parallel()
-	se, area := startEnv(t, false)
+	se, area := startEnv(t)
 	s := se.setupState()
 	if !s.Trash || !slices.Contains(s.ReadyProviders, "rd") || !slices.Contains(s.ReadyIndexers, "torrentio") ||
 		len(s.ReadyProviders) != s.Providers || len(s.ReadyIndexers) != s.Indexers {

@@ -13,7 +13,6 @@ import (
 	"github.com/theatarr/theatarr/internal/metadata/tvrefresh"
 	"github.com/theatarr/theatarr/internal/policy"
 	"github.com/theatarr/theatarr/internal/router"
-	"github.com/theatarr/theatarr/internal/shadow"
 )
 
 // serveLoops is what the serve workers run on: the startup services, which resolve the settings generation in force
@@ -21,7 +20,6 @@ import (
 type serveLoops struct {
 	router  *router.Router
 	sync    *providerSync
-	shadow  *shadow.Runner
 	rss     *rss.Runner
 	current func(context.Context) (context.Context, *serveRuntime)
 	log     *slog.Logger
@@ -88,13 +86,6 @@ func (l serveLoops) workers() []serveWorker {
 				return err
 			}
 			<-ctx.Done()
-			return nil
-		}},
-		// arr.import scheduling (import.arr; every 15 minutes).
-		{name: "shadow", key: func(rt *serveRuntime) string {
-			return keyOf(rt.Policy.Import != nil && len(rt.Policy.Import.Arr) > 0)
-		}, run: func(ctx context.Context, _ *serveRuntime, _ string) error {
-			l.shadow.Schedule(ctx, time.Minute)
 			return nil
 		}},
 		// shadow.rss scheduling: always on; the schedule follows each generation's shadow.rss, rss_interval and

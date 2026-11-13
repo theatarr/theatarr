@@ -136,9 +136,8 @@ func TestDeleteUnlinksOnlyTheView(t *testing.T) {
 	if n := e.one(`SELECT COUNT(*) FROM version WHERE title_id = 1`); n != 2 {
 		t.Errorf("%d version rows", n)
 	}
-	// /radarr's DELETE (Seerr's remove, by the alias it stored) unlinks the rest.
-	e.call("DELETE", "/radarr/api/v3/movie/7?deleteFiles=true&addImportExclusion=false", nil, 200, nil)
-	e.call("GET", "/radarr/api/v3/movie/7", nil, 404, nil)
+	// /radarr's DELETE (Seerr's remove) unlinks the rest.
+	e.call("DELETE", "/radarr/api/v3/movie/"+alpha+"?deleteFiles=true&addImportExclusion=false", nil, 200, nil)
 	e.call("GET", "/radarr/api/v3/movie/"+alpha, nil, 404, nil)
 	var lk []map[string]any
 	e.call("GET", "/radarr/api/v3/movie/lookup?term=tmdb:101", nil, 200, &lk)
@@ -225,7 +224,7 @@ func TestCommands(t *testing.T) {
 		t.Errorf("refresh %v", c)
 	}
 	e.call("POST", "/radarr/api/v3/command", map[string]any{"name": "EpisodeSearch"}, 400, nil)
-	e.call("POST", "/sonarr/api/v3/command", map[string]any{"name": "SeasonSearch", "seriesId": 3, "seasonNumber": 1},
+	e.call("POST", "/sonarr/api/v3/command", map[string]any{"name": "SeasonSearch", "seriesId": IDBase + 10, "seasonNumber": 1},
 		201, &c)
 	if c["message"] != "Watch only: nothing searched or grabbed (libraries tv-2160p)" {
 		t.Errorf("season search %v", c["message"])
@@ -275,7 +274,7 @@ func TestSonarrWrites(t *testing.T) {
 	e.call("PUT", "/sonarr/api/v3/episode/monitor", map[string]any{"episodeIds": []int{}, "monitored": true}, 400, nil)
 	// PUT series with seasons: season 0 monitored creates/updates per-version rows.
 	var one map[string]any
-	e.call("GET", "/sonarr/api/v3/series/3", nil, 200, &one)
+	e.call("GET", "/sonarr/api/v3/series/"+strconv.Itoa(IDBase+10), nil, 200, &one)
 	one["seasons"] = []map[string]any{{"seasonNumber": 0, "monitored": true}, {"seasonNumber": 1, "monitored": true}}
 	e.call("PUT", "/sonarr/api/v3/series", one, 202, &one)
 	for _, se := range one["seasons"].([]any) {
@@ -284,8 +283,8 @@ func TestSonarrWrites(t *testing.T) {
 		}
 	}
 	// DELETE from /sonarr after cutover, then the per-version view hides it too.
-	e.cutover()
-	e.call("DELETE", "/sonarr/api/v3/series/3?deleteFiles=true", nil, 200, nil)
+	e.start()
+	e.call("DELETE", "/sonarr/api/v3/series/"+strconv.Itoa(IDBase+10)+"?deleteFiles=true", nil, 200, nil)
 	e.call("GET", "/v/tv-2160p/sonarr/api/v3/series/"+strconv.Itoa(IDBase+10), nil, 404, nil)
 }
 
@@ -303,13 +302,6 @@ func TestSeriesTypeStoredOnAddAndUpdate(t *testing.T) {
 	if e.one(`SELECT COUNT(*) FROM title WHERE id=? AND series_type='standard'`, tid) != 1 {
 		t.Fatal("series type update not stored")
 	}
-}
-
-// cutover drops the policy's arr imports, as at cutover: no arr instance owns a version any more.
-func (e *env) cutover() {
-	e.t.Helper()
-	e.pol.Import = nil
-	e.start()
 }
 
 // An arr view's DELETE ends the removed versions' downloads in hand in our records (they are not imported back).
@@ -391,7 +383,7 @@ func TestDeleteAddImportExclusion(t *testing.T) {
 			t.Parallel()
 			e := newEnv(t)
 			e.pol.Versions["movie-remux"].Mode = policy.ModeActive
-			e.cutover()
+			e.start()
 			e.call("DELETE", "/v/movie-web/radarr/api/v3/movie/"+beta+c.query, nil, 200, nil)
 			rows, own := e.one(`SELECT COUNT(*) FROM movie_exclusion`),
 				e.one(`SELECT COUNT(*) FROM movie_exclusion WHERE tmdb_id = 102`)
@@ -416,7 +408,7 @@ func TestDeleteAddImportExclusion(t *testing.T) {
 	}
 	// Sonarr has no such list: both spellings of the flag are ignored.
 	e := newEnv(t)
-	e.cutover()
+	e.start()
 	show := strconv.Itoa(IDBase + 10)
 	e.call("DELETE", "/sonarr/api/v3/series/"+show+"?addImportListExclusion=true&addImportExclusion=true", nil, 200,
 		nil)

@@ -547,7 +547,7 @@ func (w *Web) apiNamingPreview(rw http.ResponseWriter, r *http.Request) {
 		w.settingsError(rw, r, err, nil)
 		return
 	}
-	vn, err := library.NamingFor(r.Context(), w.st.Reader(), p, body.Version)
+	vn, err := library.NamingFor(p, body.Version)
 	if err != nil {
 		badRequest(rw, err.Error())
 		return
@@ -558,7 +558,7 @@ func (w *Web) apiNamingPreview(rw http.ResponseWriter, r *http.Request) {
 			body.Movie = naming.Movie{Title: "Example Movie", Year: 2026, TmdbID: 123}
 		}
 		if body.MovieFile.Quality.Title == "" {
-			body.MovieFile.Quality = naming.Quality{Title: vn.QualityTitle("WEBDL-1080p"), Version: 1}
+			body.MovieFile.Quality = naming.Quality{Title: "WEBDL-1080p", Version: 1}
 		}
 		file, err = naming.MovieFileName(&vn.Config, &body.Movie, &body.MovieFile)
 		if err == nil {
@@ -572,7 +572,7 @@ func (w *Web) apiNamingPreview(rw http.ResponseWriter, r *http.Request) {
 			body.Episodes = []naming.Episode{{Season: 1, Number: 1, Title: "Pilot"}}
 		}
 		if body.EpisodeFile.Quality.Title == "" {
-			body.EpisodeFile.Quality = naming.Quality{Title: vn.QualityTitle("WEBDL-1080p"), Version: 1}
+			body.EpisodeFile.Quality = naming.Quality{Title: "WEBDL-1080p", Version: 1}
 		}
 		file, err = naming.SeriesFileName(&vn.Config, &body.Series, body.Episodes, &body.EpisodeFile, ".mkv", "")
 		if err == nil {

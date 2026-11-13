@@ -63,22 +63,3 @@ func (p *Policy) validateSeriesMeta(e *Errors) {
 		e.add("metadata.series", "needs metadata.sources.tvdb or metadata.sources.tmdb")
 	}
 }
-
-// ArrFed reports whether an arr instance still owns imported state.
-func (p *Policy) ArrFed(instance string) bool {
-	return instance != "" && p.Import != nil && p.Import.Arr[instance] != nil
-}
-
-// ArrFedInstances lists the owning import.arr instances.
-func (p *Policy) ArrFedInstances() []string {
-	if p.Import == nil {
-		return nil
-	}
-	var out []string
-	for _, k := range sortedKeys(p.Import.Arr) {
-		if p.ArrFed(k) {
-			out = append(out, k)
-		}
-	}
-	return out
-}

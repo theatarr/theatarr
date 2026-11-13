@@ -636,7 +636,7 @@ func (a *Acquirer) seriesTargets(ctx context.Context, db *sql.DB, versionID, tit
 	return out, nil
 }
 
-// upgradesAllowed is the version's profile's upgradeAllowed: from the engine's built profile (from_arr included),
+// upgradesAllowed is the version's profile's upgradeAllowed: from the engine's built profile,
 // else the policy profile's upgrades (default true).
 func (a *Acquirer) upgradesAllowed(key string) bool {
 	vp := a.pol.Versions[key]

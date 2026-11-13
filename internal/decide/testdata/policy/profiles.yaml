@@ -24,5 +24,3 @@ profiles:
     language: French
     qualities: [Remux-2160p, WEBDL-2160p]
     cutoff: Remux-2160p
-  shadow:
-    from_arr: radarr_4k_debrid/Remux + WEB 2160p

@@ -66,13 +66,4 @@ sizes:
 	if len(pr.QualityOrder) != 2 || !pr.QualityOrder[0].Group || !pr.Sizes["BR-DISK"].PreferredZero {
 		t.Fatalf("lost explicit order/zero: %+v", pr)
 	}
-	p, err := Load(exampleDir)
-	if err != nil {
-		t.Fatal(err)
-	}
-	e := &Errors{}
-	p.validateFromArr(e, "fixture", &Profile{FromArr: "radarr_4k_debrid/Profile", QualityOrder: pr.QualityOrder})
-	if err := e.err(); err == nil || !strings.Contains(err.Error(), "remove quality_order") {
-		t.Fatalf("from_arr accepted quality_order: %v", err)
-	}
 }

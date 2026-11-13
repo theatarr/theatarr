@@ -1,16 +1,14 @@
-// Package migration holds the arr profile and naming converter; kept for phase D's from_arr decision.
+// Package migration holds the arr profile and naming converter.
 package migration
 
 import (
 	"bytes"
-	"context"
 	"crypto/sha256"
 	"encoding/json"
 	"fmt"
 	"sort"
 	"strings"
 
-	"github.com/theatarr/theatarr/internal/decide"
 	"github.com/theatarr/theatarr/internal/decide/format"
 	"github.com/theatarr/theatarr/internal/decide/profile"
 	"github.com/theatarr/theatarr/internal/library"
@@ -20,10 +18,20 @@ import (
 	"go.yaml.in/yaml/v3"
 )
 
+// arrSnapshot is what the converter reads from an arr instance: the raw GET /api/v3 bodies.
+type arrSnapshot struct {
+	Flavour           format.Flavour
+	QualityProfile    []byte // qualityprofile
+	CustomFormat      []byte // customformat
+	QualityDefinition []byte // qualitydefinition
+	MediaManagement   []byte // config/mediamanagement
+	IndexerConfig     []byte // config/indexer
+}
+
 // arrExport is an arr instance's profiles and formats frozen into policy fragments, and its naming.
 type arrExport struct {
 	Instance string
-	Snapshot *decide.ArrSnapshot
+	Snapshot *arrSnapshot
 	// Files holds profiles.yaml, formats.yaml and the formats' JSON (formats/<name>.json).
 	Files       map[string][]byte
 	Naming      *policy.Naming
@@ -49,33 +57,40 @@ func freezeArr(instance, flavour string, raw map[string]json.RawMessage, selecte
 			return nil, fmt.Errorf("%s: missing %s", instance, ep)
 		}
 	}
-	e.Snapshot = &decide.ArrSnapshot{Flavour: format.Flavour(flavour), QualityProfile: raw["qualityprofile"], CustomFormat: raw["customformat"], QualityDefinition: raw["qualitydefinition"], MediaManagement: raw["config/mediamanagement"], IndexerConfig: raw["config/indexer"]}
+	e.Snapshot = &arrSnapshot{Flavour: format.Flavour(flavour), QualityProfile: raw["qualityprofile"], CustomFormat: raw["customformat"], QualityDefinition: raw["qualitydefinition"], MediaManagement: raw["config/mediamanagement"], IndexerConfig: raw["config/indexer"]}
 	if err := e.convert(selected); err != nil {
 		return nil, err
 	}
-	if body := raw["config/naming"]; len(body) != 0 {
-		// The quality titles, as library.SyncNaming stores them: only those that differ from the quality's name.
-		var defs []struct {
-			Title   string `json:"title"`
-			Quality struct {
-				Name string `json:"name"`
-			} `json:"quality"`
-		}
-		if err := json.Unmarshal(raw["qualitydefinition"], &defs); err != nil {
-			return nil, err
-		}
-		titles := map[string]string{}
-		for _, d := range defs {
-			if d.Title != "" && d.Title != d.Quality.Name {
-				titles[d.Quality.Name] = d.Title
-			}
-		}
-		qb, _ := json.Marshal(titles)
-		if err := e.convertNaming(body, qb); err != nil {
+	if len(raw["config/naming"]) != 0 {
+		if err := e.namingFrom(raw); err != nil {
 			return nil, err
 		}
 	}
 	return e, nil
+}
+
+// namingFrom converts the instance's config/naming, with the quality titles of its qualitydefinition, into e.Naming.
+func (e *arrExport) namingFrom(raw map[string]json.RawMessage) error {
+	// The quality titles: only those that differ from the quality's name.
+	var defs []struct {
+		Title   string `json:"title"`
+		Quality struct {
+			Name string `json:"name"`
+		} `json:"quality"`
+	}
+	if len(raw["qualitydefinition"]) != 0 {
+		if err := json.Unmarshal(raw["qualitydefinition"], &defs); err != nil {
+			return err
+		}
+	}
+	titles := map[string]string{}
+	for _, d := range defs {
+		if d.Title != "" && d.Title != d.Quality.Name {
+			titles[d.Quality.Name] = d.Title
+		}
+	}
+	qb, _ := json.Marshal(titles)
+	return e.convertNaming(raw["config/naming"], qb)
 }
 
 // Fragments decodes the exported profiles and format sets (the profiles.yaml and formats.yaml files). A format set's
@@ -331,7 +346,7 @@ func (e *arrExport) convertNaming(body, qualities []byte) error {
 	}
 	// Check the actual native naming loader, including its defaults for empty templates.
 	pol := &policy.Policy{Versions: map[string]*policy.VersionPolicy{"export": {Kind: e.kind, Naming: n}}}
-	native, err := library.NamingFor(context.Background(), nil, pol, "export")
+	native, err := library.NamingFor(pol, "export")
 	if err != nil {
 		return err
 	}

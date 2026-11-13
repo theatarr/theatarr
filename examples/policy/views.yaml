@@ -1,7 +1,6 @@
 # arr v3 views (docs/design/arrview.md). Per-version views at /v/<version>/radarr|sonarr exist without configuration.
 # A view answers its own key (api_key_env) or any API key made in Settings. profiles are the "quality profiles" it
-# lists, as version sets; their ids are kept in the database once given. alias_from: the arr instances whose movie or
-# series ids it still answers (Seerr's stored ids), first match wins. See docs/design/arrview.md.
+# lists, as version sets; their ids are kept in the database once given. See docs/design/arrview.md.
 views:
   radarr:
     flavour: radarr
@@ -12,7 +11,6 @@ views:
       Rules default: [movie-remux, movie-web]
       WEB only: [movie-web]
       Anime: [anime-movie]
-    alias_from: [radarr_4k_debrid, radarr_4k_web, radarr_anime]
   sonarr:
     flavour: sonarr
     path: /sonarr
@@ -21,6 +19,5 @@ views:
     profiles:
       Rules default: [tv-2160p]
       Anime: [anime-tv]
-    alias_from: [sonarr_4k_debrid, sonarr_anime_debrid]
 # POST release/push (autobrr and other release pushers) needs an API key; the pushed release's indexer must match, by name, a
 # configured indexer that the version lists, or the push is rejected (IndexerNotInVersion).

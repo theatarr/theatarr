@@ -365,7 +365,6 @@ func (s *seeder) meta(t *title) {
 func (s *seeder) library() {
 	s.content = map[string]int64{}
 	s.arrTitles, s.arrFileIDs = map[string]int64{}, map[string]int64{}
-	s.arrInstances()
 	for _, t := range s.titles {
 		var tmdb, tvdb any = t.tmdb, nil
 		var seriesType any
@@ -765,31 +764,13 @@ func (s *seeder) latestAired(t *title) *episode {
 	return last
 }
 
-// arrTitle writes the arr instance's record of a title once.
+// arrTitle gives a title its arr id in the version's former instance once (version_source).
 func (s *seeder) arrTitle(t *title, v *version) {
 	if _, ok := t.arrIDs[v.instance]; ok {
 		return
 	}
 	s.arrTitles[v.instance]++
-	arrID := s.arrTitles[v.instance]
-	t.arrIDs[v.instance] = arrID
-	folder := path.Join(v.vp.Library, s.folder(t))
-	status := "released"
-	if t.kind == "series" {
-		status = map[bool]string{true: "continuing", false: "ended"}[t.status == "Returning Series"]
-	} else if t.first.After(s.now) {
-		status = "announced"
-	}
-	stype := ""
-	if t.kind == "series" {
-		stype = map[bool]string{true: "anime", false: "standard"}[t.anime]
-	}
-	s.exec(`INSERT INTO arr_title (instance, arr_id, kind, title_id, version_id, monitored, quality_profile_id,
-		minimum_availability, status, path, root_folder_path, tags, added_at, series_type)
-		VALUES (?, ?, ?, ?, ?, ?, 1, ?, ?, ?, ?, '[]', ?, ?)`, v.instance, arrID, t.kind, t.id, v.id, b01(v.monitored),
-		map[bool]string{true: "released", false: ""}[t.kind == "movie"], status, folder, v.vp.Library, ms(t.added), stype)
-	s.exec(`INSERT INTO arr_alias (instance, kind, arr_id, target_id, created_at) VALUES (?, ?, ?, ?, ?)`, v.instance,
-		t.kind, arrID, t.id, ms(t.added))
+	t.arrIDs[v.instance] = s.arrTitles[v.instance]
 }
 
 func (s *seeder) folder(t *title) string {

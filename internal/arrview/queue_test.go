@@ -70,10 +70,10 @@ func TestQueueFromDownloads(t *testing.T) {
 	if q.TotalRecords != 1 || q.Records[0]["id"].(float64) != 1 {
 		t.Errorf("per-version queue %v", q.Records)
 	}
-	// movieIds by view id and by alias (radarr_4k_web's 9 is title 1).
-	e.call("GET", "/radarr/api/v3/queue?movieIds=9", nil, 200, &q)
+	// movieIds by view id.
+	e.call("GET", "/radarr/api/v3/queue?movieIds="+strconv.Itoa(IDBase+1), nil, 200, &q)
 	if q.TotalRecords != 2 {
-		t.Errorf("by alias: %v", q.Records)
+		t.Errorf("by id: %v", q.Records)
 	}
 	e.call("GET", "/radarr/api/v3/queue?movieIds=999", nil, 200, &q)
 	if q.TotalRecords != 0 {

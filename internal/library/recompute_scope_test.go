@@ -39,23 +39,6 @@ func TestRecomputeWantedSeriesVersion(t *testing.T) {
 	}
 }
 
-// A version an arr still manages keeps the arr's verdict on its files, but Theatarr's own links in it are
-// judged.
-func TestRecomputeManagedVersionLinks(t *testing.T) {
-	t.Parallel()
-	e := newEnv(t, true, policy.ModeActive)
-	e.importSeries()
-	e.exec(`INSERT INTO version_source (version_id, instance, arr_id) VALUES (20, 'sonarr_old', 7)`)
-	e.pol.Import = &policy.Import{Arr: map[string]*policy.ArrSource{"sonarr_old": {}}}
-	e.scoreFormat(100, 10000)
-	if n, err := e.lib.RecomputeLinkStates(e.ctx); err != nil || n != 1 {
-		t.Fatalf("recomputed %d, %v", n, err)
-	}
-	if got := e.one(`SELECT state FROM episode_version_state WHERE version_id = 20 AND episode_id = 201`); got != "filled" {
-		t.Fatalf("managed version's link stays %s", got)
-	}
-}
-
 // After a settings save only the versions whose judging settings changed are recomputed.
 func TestRecomputeAfterSaveOnlyChangedVersions(t *testing.T) {
 	t.Parallel()

@@ -9,7 +9,6 @@ import (
 	"sync"
 	"time"
 
-	"github.com/theatarr/theatarr/internal/arr"
 	"github.com/theatarr/theatarr/internal/decide"
 	"github.com/theatarr/theatarr/internal/gateway"
 	"github.com/theatarr/theatarr/internal/jobs"
@@ -151,7 +150,7 @@ func providerTorrentFiles(st *store.Store, provs map[string]provider.Provider) l
 	}
 }
 
-// decider returns the engine shared with the acquirer (from_arr profiles were read GET-only at startup).
+// decider returns the engine shared with the acquirer.
 func (s *serveLibrary) decider() *decide.Engine {
 	return s.engine
 }
@@ -210,7 +209,6 @@ func (s *serveLibrary) Run(ctx context.Context) {
 		return
 	}
 	startCtx, initial := s.forOperation(ctx)
-	initial.syncNaming(startCtx)
 	// zurg's renames, as soon as it logs them; the hourly sweep stays the safety net.
 	// rotated asks the loop below for a sweep now: renames logged just before an HTTP-followed log rotated are lost.
 	rotated := make(chan struct{}, 1)
@@ -318,7 +316,6 @@ func (s *serveLibrary) Run(ctx context.Context) {
 			}
 		case <-dailyTick.C:
 			ctx, current := s.forOperation(ctx)
-			current.syncNaming(ctx)
 			if n, err := current.lib.PurgeTrash(ctx); err != nil || n > 0 {
 				s.log.Info("library: trash purge", "removed", n, "err", err)
 			}
@@ -362,24 +359,5 @@ func (s *serveLibrary) danglingReport(ctx context.Context) {
 		s.log.Warn("library: dangling links", attrs...)
 	default:
 		s.log.Info("library: no dangling links", "links", sum.Links, "took_ms", sum.Took.Milliseconds())
-	}
-}
-
-func (s *serveLibrary) syncNaming(ctx context.Context) {
-	getters := map[string]library.ArrGetter{}
-	if s.pol.Import != nil {
-		for k, a := range s.pol.Import.Arr {
-			if !s.pol.ArrFed(k) {
-				continue
-			}
-			if key := s.pol.Getenv(a.APIKeyEnv); key != "" {
-				if cl, err := arr.New(a.URL, key, arr.Options{}); err == nil {
-					getters[k] = cl
-				}
-			}
-		}
-	}
-	if done, err := library.SyncNaming(ctx, s.st, s.pol, getters, time.Now()); err != nil {
-		s.log.Warn("library: naming sync", "err", err, "done", done)
 	}
 }

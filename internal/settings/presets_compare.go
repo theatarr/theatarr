@@ -70,7 +70,6 @@ type ProfileSummary struct {
 	Cutoff    string         `json:"cutoff"`
 	FormatSet string         `json:"format_set"`
 	Formats   int            `json:"formats"`
-	FromArr   string         `json:"from_arr,omitempty"`
 	UsedBy    []VersionUse   `json:"used_by"`
 	Origin    *ProfileOrigin `json:"origin"`
 	// Guessed marks an origin that is not stored: the closest preset (with modifiers) Theatarr found.
@@ -328,7 +327,7 @@ func QualityOverviewOf(in OverviewInput) QualityOverview {
 		fl := profileFlavour(p, key, pr)
 		t := in.Trash[fl]
 		s := ProfileSummary{Key: key, Flavour: fl, Qualities: allowedNames(pr.Qualities), Cutoff: pr.Cutoff, FormatSet: pr.FormatSet,
-			Formats: len(pr.Formats), FromArr: pr.FromArr, UsedBy: []VersionUse{}, Scores: []ScoreRow{}}
+			Formats: len(pr.Formats), UsedBy: []VersionUse{}, Scores: []ScoreRow{}}
 		if r, ok := records[key]; ok {
 			s.ID = r.ID
 			if r.Origin != nil {
@@ -379,7 +378,7 @@ func QualityOverviewOf(in OverviewInput) QualityOverview {
 			fs := addFormat(fl, display, scopeOf(pr, ref), ref, 0)
 			fs.ScoredBy = append(fs.ScoredBy, FormatUse{Profile: key, Score: row.Score, State: row.State})
 		}
-		if t != nil && pr.FromArr == "" {
+		if t != nil {
 			if s.Origin == nil {
 				if guess := guessOrigin(t, p, pr, in.Formats); guess != nil {
 					s.Origin, s.Guessed = guess, true

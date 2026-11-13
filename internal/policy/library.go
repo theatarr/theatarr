@@ -413,22 +413,6 @@ var multiEpisodeStyles = setOf("extend", "duplicate", "repeat", "scene", "range"
 func (p *Policy) validateNaming(e *Errors, k string, v *VersionPolicy) {
 	path := fmt.Sprintf("versions[%s].naming", k)
 	n := v.Naming
-	if n.FromArr != "" {
-		var src *ArrSource
-		if p.Import != nil {
-			src = p.Import.Arr[n.FromArr]
-		}
-		if src == nil {
-			e.add(path+".from_arr", "unknown import.arr instance %q", n.FromArr)
-		} else if kind, ok := flavours[src.Flavour]; ok && kind != v.Kind {
-			e.add(path+".from_arr", "%s instance %q cannot name a %s library", src.Flavour, n.FromArr, v.Kind)
-		}
-		if n.Folder != "" || n.File != "" || n.Season != "" || n.Specials != "" || n.Daily != "" || n.Anime != "" ||
-			n.Colon != "" || n.MultiEpisode != "" {
-			e.add(path, "from_arr takes the whole naming from the instance; set nothing else")
-		}
-		return
-	}
 	if n.Colon != "" && !colonFormats[n.Colon] {
 		e.add(path+".colon", "must be one of %s, got %q", list(colonFormats), n.Colon)
 	}

@@ -6,7 +6,6 @@ import (
 
 	"github.com/theatarr/theatarr/internal/arr"
 	"github.com/theatarr/theatarr/internal/arrimport"
-	"github.com/theatarr/theatarr/internal/importarr"
 	"github.com/theatarr/theatarr/internal/settings"
 	"github.com/theatarr/theatarr/internal/store"
 )
@@ -25,7 +24,7 @@ func (s serveArrImport) deps(ctx context.Context) (arrimport.Deps, error) {
 		return arrimport.Deps{}, err
 	}
 	d := arrimport.Deps{Store: s.st, Policy: active.Policy, Log: s.log,
-		Arr: func(url, key string) (importarr.Getter, error) { return arr.New(url, key, arr.Options{}) }}
+		Arr: func(url, key string) (arrimport.Getter, error) { return arr.New(url, key, arr.Options{}) }}
 	if m := active.Metadata; m != nil {
 		if m.intake != nil {
 			d.Titles = m.intake

@@ -329,17 +329,14 @@ func TestMovies(t *testing.T) {
 		t.Errorf("Delta is in no view: %v", byTmdb)
 	}
 
-	// Ids: ours, the alias of the first alias_from instance that has it, and 404s.
+	// Ids: ours, and 404s; an old arr instance's id answers nothing.
 	for _, c := range []struct {
 		path, title string
 		code        int
 	}{
 		{"/radarr/api/v3/movie/" + strconv.Itoa(IDBase+2), "Beta", 200},
-		{"/radarr/api/v3/movie/7", "Alpha", 200},                    // radarr_4k_debrid's 7 before radarr_4k_web's 7
-		{"/radarr/api/v3/movie/9", "Alpha", 200},                    // radarr_4k_web's 9
-		{"/radarr/api/v3/movie/8", "", 404},                         // no alias
+		{"/radarr/api/v3/movie/7", "", 404},                         // radarr_4k_debrid's 7
 		{"/radarr/api/v3/movie/" + strconv.Itoa(IDBase+4), "", 404}, // Delta: in no view
-		{"/v/anime-movie/radarr/api/v3/movie/7", "", 404},           // no alias_from on per-version views
 		{"/v/anime-movie/radarr/api/v3/movie/" + strconv.Itoa(IDBase+1), "", 404},
 	} {
 		var m map[string]any
@@ -348,7 +345,7 @@ func TestMovies(t *testing.T) {
 			t.Errorf("%s: %v", c.path, m["title"])
 		}
 	}
-	rec = e.call("GET", "/radarr/api/v3/movie/7", nil, 200, nil)
+	rec = e.call("GET", "/radarr/api/v3/movie/"+strconv.Itoa(IDBase+1), nil, 200, nil)
 	e.golden("radarr-movie-alpha", rec.Body.Bytes())
 
 	// Gamma: not released, so not available (Movie.IsAvailable); status from the dates (SkyHookProxy).
@@ -467,9 +464,9 @@ func TestQueueAndFriends(t *testing.T) {
 	wantKeys(t, "history", any(hist.Records[0]), fields(`id movieId sourceTitle languages quality customFormats
 		customFormatScore qualityCutoffNotMet date downloadId eventType data`))
 	var hm []map[string]any
-	e.call("GET", "/radarr/api/v3/history/movie?movieId=7", nil, 200, &hm)
+	e.call("GET", "/radarr/api/v3/history/movie?movieId="+strconv.Itoa(IDBase+1), nil, 200, &hm)
 	if len(hm) != 2 {
-		t.Errorf("history/movie via alias: %d", len(hm))
+		t.Errorf("history/movie: %d", len(hm))
 	}
 	e.call("GET", "/v/movie-web/radarr/api/v3/history", nil, 200, &hist)
 	if hist.TotalRecords != 0 {
@@ -508,9 +505,10 @@ func TestSeries(t *testing.T) {
 		t.Errorf("tvdbId=201: %v", byTvdb)
 	}
 	var one map[string]any
-	e.call("GET", "/sonarr/api/v3/series/3", nil, 200, &one) // sonarr_4k_debrid's id
+	e.call("GET", "/sonarr/api/v3/series/3", nil, 404, nil) // sonarr_4k_debrid's id
+	e.call("GET", "/sonarr/api/v3/series/"+strconv.Itoa(IDBase+10), nil, 200, &one)
 	if one["id"].(float64) != IDBase+10 {
-		t.Errorf("alias series %v", one["id"])
+		t.Errorf("series %v", one["id"])
 	}
 	e.call("GET", "/v/anime-tv/sonarr/api/v3/series/"+strconv.Itoa(IDBase+10), nil, 404, nil)
 
@@ -525,7 +523,7 @@ func TestSeries(t *testing.T) {
 			sonarrEpisodeFields...)
 	}
 	var s1eps []map[string]any
-	e.call("GET", "/sonarr/api/v3/episode?seriesId=3&seasonNumber=1", nil, 200, &s1eps)
+	e.call("GET", "/sonarr/api/v3/episode?seriesId="+strconv.Itoa(IDBase+10)+"&seasonNumber=1", nil, 200, &s1eps)
 	if len(s1eps) != 3 || s1eps[0]["hasFile"] != true || s1eps[1]["hasFile"] != false {
 		t.Errorf("season 1 episodes %v", s1eps)
 	}

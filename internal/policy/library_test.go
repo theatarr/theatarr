@@ -219,10 +219,6 @@ func TestNamingValidation(t *testing.T) {
 	for _, tc := range []struct {
 		yaml, err string
 	}{
-		{"    naming: {from_arr: radarr_4k_debrid}\n", ""},
-		{"    naming: {from_arr: sonarr_4k_debrid}\n", "cannot name a movie library"},
-		{"    naming: {from_arr: nope}\n", "unknown import.arr instance"},
-		{"    naming: {from_arr: radarr_4k_debrid, colon: dash}\n", "set nothing else"},
 		{"    naming: {colon: sideways}\n", "versions[x-movie].naming.colon"},
 		{"    naming: {multi_episode: range}\n", "only for series"},
 		{"    naming: {season: \"Season {season}\"}\n", "for series libraries"},

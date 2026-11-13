@@ -23,8 +23,7 @@ func testEngine(t *testing.T) *Engine {
 	if err != nil {
 		t.Fatalf("policy: %v", err)
 	}
-	e, err := New(pol, Options{Arr: SnapshotDir("testdata/arr"),
-		Now: func() time.Time { return time.Date(2026, 10, 26, 0, 0, 0, 0, time.UTC) }})
+	e, err := New(pol, Options{Now: func() time.Time { return time.Date(2026, 10, 26, 0, 0, 0, 0, time.UTC) }})
 	if err != nil {
 		t.Fatalf("build: %v", err)
 	}
@@ -94,36 +93,16 @@ func TestBuildPolicyProfile(t *testing.T) {
 	}
 }
 
-func TestBuildFromArr(t *testing.T) {
-	t.Parallel()
-	e := testEngine(t)
-	p := e.Profile("shadow", format.Radarr)
-	if p == nil || p.Source != "from_arr radarr_4k_debrid/Remux + WEB 2160p" {
-		t.Fatalf("shadow not built: %+v", p)
-	}
-	if p.Profile.Cutoff != 31 || p.Profile.Language != format.LanguageOriginal || p.Profile.CutoffFormatScore != 10000 {
-		t.Errorf("profile %+v", p.Profile)
-	}
-	if len(p.Formats) != 11 {
-		t.Errorf("%d formats", len(p.Formats))
-	}
-	def := p.Engine.Definitions.Get(mustQuality(t, "Remux-2160p"))
-	if def.MinSize == nil || *def.MinSize != 187.4 {
-		t.Errorf("Remux-2160p definition from the arr: %+v", def)
-	}
-}
-
 func TestBuildErrors(t *testing.T) {
 	t.Parallel()
 	pol, err := policy.Load("testdata/policy")
 	if err != nil {
 		t.Fatal(err)
 	}
-	pol.Profiles["shadow"].FromArr = "radarr_4k_debrid/Nope"
 	pol.Formats["Seadex"] = &policy.FormatRef{File: "formats/seadex.json"}
 	pol.Profiles["remux-2160p"].Formats["Seadex"] = 5000
 	pol.Dir = t.TempDir()
-	_, err = New(pol, Options{Arr: SnapshotDir("testdata/arr")})
+	_, err = New(pol, Options{})
 	var pe *policy.Errors
 	if !errors.As(err, &pe) {
 		t.Fatalf("want *policy.Errors, got %v", err)
@@ -131,7 +110,6 @@ func TestBuildErrors(t *testing.T) {
 	msg := err.Error()
 	for _, want := range []string{
 		`profiles[remux-2160p].formats[Seadex]: open `,
-		`profiles[shadow].from_arr: radarr_4k_debrid has no profile "Nope" (it has Remux + WEB 2160p)`,
 	} {
 		if !strings.Contains(msg, want) {
 			t.Errorf("missing %q in:\n%s", want, msg)
@@ -147,15 +125,12 @@ func TestBuildReusesUnchangedProfilesWhenOtherInputsChange(t *testing.T) {
 		t.Fatal(err)
 	}
 	pol.Profiles["remux-2160p"].MinScore++
-	arrUnavailable := ArrSourceFunc(func(string) (*ArrSnapshot, error) {
-		return nil, errors.New("arr unavailable")
-	})
-	next, err := New(pol, Options{Arr: arrUnavailable, Previous: previous})
+	next, err := New(pol, Options{Previous: previous})
 	if err != nil {
-		t.Fatalf("unrelated from_arr profile depended on arr availability: %v", err)
+		t.Fatal(err)
 	}
-	if next.Profile("shadow", format.Radarr) != previous.Profile("shadow", format.Radarr) {
-		t.Fatal("unchanged from_arr profile was rebuilt")
+	if next.Profile("original", format.Radarr) != previous.Profile("original", format.Radarr) {
+		t.Fatal("unchanged profile was rebuilt")
 	}
 	if next.Profile("remux-2160p", format.Radarr) == previous.Profile("remux-2160p", format.Radarr) {
 		t.Fatal("changed profile was reused")
@@ -169,9 +144,9 @@ func TestBuildReusesUnchangedProfilesWhenOtherInputsChange(t *testing.T) {
 		budgetOnly.Budgets = map[string]*policy.Budget{}
 	}
 	budgetOnly.Budgets["reload-test"] = &policy.Budget{Requests: 1}
-	budgetReload, err := New(budgetOnly, Options{Arr: arrUnavailable, Previous: previous})
-	if err != nil || budgetReload.Profile("shadow", format.Radarr) != previous.Profile("shadow", format.Radarr) {
-		t.Fatalf("budget-only reload rebuilt an arr profile: %v", err)
+	budgetReload, err := New(budgetOnly, Options{Previous: previous})
+	if err != nil || budgetReload.Profile("original", format.Radarr) != previous.Profile("original", format.Radarr) {
+		t.Fatalf("budget-only reload rebuilt a profile: %v", err)
 	}
 }
 
@@ -188,7 +163,7 @@ func TestBuildUnknownImplementation(t *testing.T) {
 	for _, p := range pol.Profiles {
 		p.Formats = nil
 	}
-	e, err := New(pol, Options{Arr: SnapshotDir("testdata/arr")})
+	e, err := New(pol, Options{})
 	if err != nil {
 		t.Fatalf("an unscored broken format should only warn: %v", err)
 	}
@@ -201,7 +176,7 @@ func TestBuildUnknownImplementation(t *testing.T) {
 		}
 	}
 	pol.Profiles["remux-2160p"].Formats = map[string]int{"Broken": 5000}
-	if _, err := New(pol, Options{Arr: SnapshotDir("testdata/arr")}); err == nil ||
+	if _, err := New(pol, Options{}); err == nil ||
 		!strings.Contains(err.Error(), "profiles[remux-2160p].formats[Broken]") {
 		t.Errorf("scored broken format: %v", err)
 	}
@@ -221,8 +196,7 @@ func TestSeaDexFormat(t *testing.T) {
 		p.Formats = nil
 	}
 	pol.Profiles["remux-2160p"].Formats = map[string]int{"Seadex": 5000}
-	e, err := New(pol, Options{Arr: SnapshotDir("testdata/arr"),
-		Now: func() time.Time { return time.Date(2026, 10, 26, 0, 0, 0, 0, time.UTC) }})
+	e, err := New(pol, Options{Now: func() time.Time { return time.Date(2026, 10, 26, 0, 0, 0, 0, time.UTC) }})
 	if err != nil {
 		t.Fatalf("build: %v", err)
 	}
@@ -341,13 +315,6 @@ func TestDecide(t *testing.T) {
 			rel:      rel("Dune.Part.Two.2024.2160p.WEB-DL.DDP5.1-FLUX", "public", 25*gb),
 			mutateFn: func(r *Release) { r.Extras = map[string]string{"downloadvolumefactor": "0"} },
 			formats:  "Freeleech,WEB Tier 01", score: 1701},
-		{name: "from_arr profile", version: "movie-shadow",
-			rel:     rel("Dune.Part.Two.2024.2160p.UHD.BluRay.REMUX.HDR.HEVC.TrueHD.Atmos.7.1-FraMeSToR", "public", 60*gb),
-			quality: "Remux-2160p", formats: "HDR,Remux Tier 01,TrueHD ATMOS", score: 500 + 1950 + 5000},
-		{name: "from_arr profile wants the original language", version: "movie-shadow",
-			rel:   rel("Dune.Part.Two.2024.ENGLISH.2160p.UHD.BluRay.REMUX.HDR.HEVC.TrueHD.Atmos.7.1-FraMeSToR", "public", 60*gb),
-			title: &Title{ID: 7, Name: "Dune: Part Two", Year: 2024, Runtime: 166, OriginalLanguage: "fr"},
-			want:  "WantedLanguage", langs: "English"},
 		{name: "policy language original: the original language", version: "movie-original",
 			rel:   rel("Dune.Part.Two.2024.2160p.WEB-DL.DDP5.1-FLUX", "public", 25*gb),
 			langs: "English"},

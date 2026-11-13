@@ -59,7 +59,7 @@ const (
 
 // Options tune the seed.
 type Options struct {
-	// Policy is the policy the demo runs with (examples/policy): its versions, roots, arr instances and providers.
+	// Policy is the policy the demo runs with (examples/policy): its versions, roots and providers.
 	Policy *policy.Policy
 	// Seed picks the generated details (dates, sizes, hashes, states within a scenario). Default 1.
 	Seed uint64
@@ -238,25 +238,20 @@ func (s *seeder) versionKeys(kind policy.Kind, anime bool) []string {
 	return out
 }
 
-// instanceFor is the arr instance the policy imports a version from ("" when none).
-func (s *seeder) instanceFor(key string) (name, flavour string) {
-	if s.pol.Import == nil {
-		return "", ""
-	}
-	names := make([]string, 0, len(s.pol.Import.Arr))
-	for n := range s.pol.Import.Arr {
-		names = append(names, n)
-	}
-	sort.Strings(names)
-	for _, n := range names {
-		if a := s.pol.Import.Arr[n]; a.Version == key {
-			return n, a.Flavour
-		}
-	}
-	return "", ""
+// demoInstances are the former arr instances whose files the demo's arr-fed versions hold (version_file): the
+// libraries a migrated install filled from Sonarr/Radarr before the periodic import went.
+var demoInstances = map[string][2]string{
+	"movie-remux": {"radarr_4k_debrid", "radarr"},
+	"movie-web":   {"radarr_4k_web", "radarr"},
+	"tv-2160p":    {"sonarr_4k_debrid", "sonarr"},
+	"anime-tv":    {"sonarr_anime_debrid", "sonarr"},
 }
 
-func sortStrings(xs []string) { sort.Strings(xs) }
+// instanceFor is the former arr instance whose files a version holds ("" when none).
+func (s *seeder) instanceFor(key string) (name, flavour string) {
+	in := demoInstances[key]
+	return in[0], in[1]
+}
 
 func sortedKeys[V any](m map[string]V) []string {
 	out := make([]string, 0, len(m))

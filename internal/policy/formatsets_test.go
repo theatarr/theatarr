@@ -14,7 +14,6 @@ func TestFormatSetsValidation(t *testing.T) {
 		{"mixed flavours", "format_sets:\n  scoped:\n    flavour: sonarr\n    formats:\n      WEB: {ref: 'WEB Tier 01'}\n", "cannot mix flavours"},
 		{"unknown definition", "format_sets:\n  scoped:\n    flavour: sonarr\n    formats:\n      WEB: {ref: missing}\n", "unknown global format"},
 		{"duplicate display name", "format_sets:\n  scoped:\n    flavour: sonarr\n    formats:\n      WEB: {ref: 'WEB Tier 01'}\n      WEB: {ref: 'WEB Tier 02'}\n", "already defined"},
-		{"from arr with set", "profiles:\n  scoped:\n    from_arr: radarr_4k_debrid/Remux + WEB 2160p\n    format_set: scoped\n", "remove format_set"},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			dir := copyExample(t)

@@ -32,12 +32,4 @@ func TestRecomputeJudgesArrFilesAfterProfileChange(t *testing.T) {
 	if got := e.one(`SELECT state FROM version WHERE id = 10`); got != "filled" {
 		t.Fatalf("arr file below the raised cutoff stays %s, want filled", got)
 	}
-
-	// An arr that still manages the version keeps its verdict.
-	e.exec(`INSERT INTO version_source (version_id, instance, arr_id) VALUES (10, 'radarr_old', 900)`)
-	e.exec(`UPDATE version SET state = 'cutoff_met' WHERE id = 10`)
-	e.pol.Import = &policy.Import{Arr: map[string]*policy.ArrSource{"radarr_old": {}}}
-	if n, err := e.lib.RecomputeLinkStates(e.ctx); err != nil || n != 0 {
-		t.Fatalf("managed version recomputed: %d %v", n, err)
-	}
 }

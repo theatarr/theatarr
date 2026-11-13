@@ -145,11 +145,11 @@ func TestSearchCommandActiveVersion(t *testing.T) {
 	}
 
 	// Sonarr: a season, an episode, the missing episodes of a series (aired only), each its own search.
-	e.call("POST", "/sonarr/api/v3/command", map[string]any{"name": "SeasonSearch", "seriesId": 3, "seasonNumber": 1},
+	e.call("POST", "/sonarr/api/v3/command", map[string]any{"name": "SeasonSearch", "seriesId": IDBase + 10, "seasonNumber": 1},
 		201, &c)
 	e.call("POST", "/sonarr/api/v3/command", map[string]any{"name": "EpisodeSearch", "episodeIds": []int{102}}, 201, &c)
 	e.drain()
-	e.call("POST", "/sonarr/api/v3/command", map[string]any{"name": "MissingEpisodeSearch", "seriesId": 3}, 201, &c)
+	e.call("POST", "/sonarr/api/v3/command", map[string]any{"name": "MissingEpisodeSearch", "seriesId": IDBase + 10}, 201, &c)
 	// S01E02 is in flight now (the episode search's download): the missing search skips it.
 	e.drain()
 	if got := e.searches(); strings.Join(got, "|") != "tv-2160p The Show s1e0|tv-2160p The Show s1e2" {

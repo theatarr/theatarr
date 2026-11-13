@@ -2,6 +2,7 @@ package main
 
 import (
 	"log/slog"
+	"net/http"
 	"time"
 
 	"github.com/theatarr/theatarr/internal/gateway"
@@ -32,4 +33,14 @@ func newServeAdd(pol *policy.Policy, st *store.Store, gw *gateway.Gateway, ac we
 	}
 	cfg.TMDb = tc
 	return cfg, nil
+}
+
+// gatewayDoer sends a request through the gateway for one target (tmdb.Doer).
+type gatewayDoer struct {
+	gw     *gateway.Gateway
+	target gateway.Target
+}
+
+func (d gatewayDoer) Do(r *http.Request) (*http.Response, error) {
+	return d.gw.Do(r.Context(), d.target, r)
 }

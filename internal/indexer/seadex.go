@@ -38,8 +38,8 @@ import (
 //     is told to the ranking through seeders: 1000 for a preferred Nyaa entry, 10 for the others (the arrs compare
 //     seeders on a log scale after quality and score). The recent feed prefers best entries, as seadexerr's does.
 //   - Every entry carries seadexerr's rare indexer flag combination (download factor 0.75, upload factor 2,
-//     internal, scene), so an arr-style "Seadex" format requiring all four (the one the arr profiles score +5000,
-//     read by from_arr profiles) matches exactly the releases it matches in the arrs.
+//     internal, scene), so an arr-style "Seadex" format requiring all four (the one the arr profiles score +5000)
+//     matches exactly the releases it matches in the arrs.
 //   - The AniList id comes from the query, else from the service's resolver (TVDB id and season, or TMDb/IMDb id
 //     for a movie), as seadexerr maps them through anibridge.
 //   - Titles retain seadexerr's mapped identity and record id, but use the feature filenames' actual quality

@@ -237,7 +237,6 @@ type viewBody struct {
 	Key               string               `json:"key"`
 	Flavour           *string              `json:"flavour"`
 	Path              *string              `json:"path"`
-	AliasFrom         *[]string            `json:"alias_from"`
 	Versions          *[]string            `json:"versions"`
 	Profiles          *map[string][]string `json:"profiles"`
 	APIKey            *string              `json:"api_key"`
@@ -301,7 +300,7 @@ func (w *Web) writeView(rw http.ResponseWriter, r *http.Request, create bool) {
 		if view.Identity != nil {
 			identity := *view.Identity
 			view.Identity = &identity
-		} else if body.Flavour != nil || body.Path != nil || body.AliasFrom != nil || body.APIKey != nil || body.ClearAPIKey {
+		} else if body.Flavour != nil || body.Path != nil || body.APIKey != nil || body.ClearAPIKey {
 			// Until the first start of this version seeds it, the view's identity and key are the policy files'.
 			writeJSON(rw, http.StatusConflict, apiError{Error: "this view has not been seeded; restart the service"})
 			return
@@ -312,9 +311,6 @@ func (w *Web) writeView(rw http.ResponseWriter, r *http.Request, create bool) {
 	}
 	if body.Path != nil {
 		view.Identity.Path = *body.Path
-	}
-	if body.AliasFrom != nil {
-		view.Identity.AliasFrom = *body.AliasFrom
 	}
 	// Versions and profiles are replaced together, as the binding editor sends them.
 	if body.Versions != nil || body.Profiles != nil {

@@ -486,5 +486,4 @@ profiles:
       iT: 0
       x265 (no HDR/DV): -10000
     language: original
-    from_arr: ""
     propers: do_not_prefer

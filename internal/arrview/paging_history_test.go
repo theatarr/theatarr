@@ -89,7 +89,7 @@ func TestHistorySQLFilters(t *testing.T) {
 		{"radarr", "eventType=downloadFailed", 1}, {"radarr", "eventType=999", 0},
 		{"radarr", "downloadId=bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb", 2}, {"radarr", "downloadId=AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA", 1},
 		{"radarr", "movieIds=1000001", 3}, {"radarr", "movieIds=1000002", 1}, {"radarr", "movieIds=1000001,1000002", 4},
-		{"radarr", "movieIds=7&movieIds=1000002", 4}, {"radarr", "movieIds=999", 0},
+		{"radarr", "movieIds=1000001&movieIds=1000002", 4}, {"radarr", "movieIds=999", 0},
 		{"radarr", "movieIds=1000002&eventType=1", 0},
 		// The local pack grab of 101 and 102 is one record per episode.
 		{"sonarr", "", 4}, {"sonarr", "episodeId=101", 1}, {"sonarr", "episodeId=102", 3},

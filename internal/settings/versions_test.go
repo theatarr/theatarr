@@ -251,12 +251,6 @@ func TestVersionRootChecksAndNoLinkDeletion(t *testing.T) {
 			req.Records.Views[i] = v
 		}
 	}
-	// The owning arr remains YAML-owned; this fixture removes its reference before the coordinator starts.
-	for key, src := range p.Import.Arr {
-		if src.Version == "movie-web" {
-			delete(p.Import.Arr, key)
-		}
-	}
 	m := versionCoordinator(t, s, p, initial)
 	if _, err := m.SaveAndApply(ctx, req); err == nil {
 		t.Fatal("removed linked version without confirmation")
@@ -425,11 +419,6 @@ func TestVersionDeletionRechecksLinksAtCommit(t *testing.T) {
 	t.Parallel()
 	s, db, p, initial := versionFixture(t)
 	ctx := context.Background()
-	for key, src := range p.Import.Arr {
-		if src.Version == "movie-web" {
-			delete(p.Import.Arr, key)
-		}
-	}
 	req := saveRequest(p, initial)
 	for i, v := range req.Records.Versions {
 		if v.Key == "movie-web" {

@@ -46,11 +46,6 @@ func (p *Policy) OutboundHosts() []OutboundHost {
 			add(fmt.Sprintf("metadata.sources[%s]", k), p.Metadata.Sources[k].URL)
 		}
 	}
-	if p.Import != nil {
-		for _, k := range sortedKeys(p.Import.Arr) {
-			add(fmt.Sprintf("import.arr[%s]", k), p.Import.Arr[k].URL)
-		}
-	}
 	if p.Egress != nil {
 		add("egress.check_url", p.Egress.CheckURL)
 	}
@@ -113,11 +108,6 @@ func (p *Policy) SecretEnvs() map[string][]string {
 	if p.Metadata != nil {
 		for _, k := range sortedKeys(p.Metadata.Sources) {
 			add(fmt.Sprintf("metadata.sources[%s].api_key_env", k), p.Metadata.Sources[k].APIKeyEnv)
-		}
-	}
-	if p.Import != nil {
-		for _, k := range sortedKeys(p.Import.Arr) {
-			add(fmt.Sprintf("import.arr[%s].api_key_env", k), p.Import.Arr[k].APIKeyEnv)
 		}
 	}
 	if p.Cardigann != nil && p.Cardigann.Prowlarr != nil {

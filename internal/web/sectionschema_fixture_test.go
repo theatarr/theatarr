@@ -161,8 +161,7 @@ func TestSectionPlainLabels(t *testing.T) {
 		"router.cache_evidence.torbox_check":     "Check TorBox cache",
 		"router.cache_evidence.torbox_check.top": "Maximum releases checked per search",
 		"cardigann.flaresolverr_url":             "FlareSolverr address",
-		"import.arr":                             "Sonarr/Radarr instances", "import.arr.*.flavour": "Sonarr or Radarr",
-		"library.mount.rclone_rc": "rclone remote control", "notify.targets.*.native": "Send Theatarr events",
+		"library.mount.rclone_rc":                "rclone remote control", "notify.targets.*.native": "Send Theatarr events",
 		"router.stalled_after": "Stalled download timeout", "router.downloading_timeout": "No progress timeout",
 	}
 	var walk func(string, []SchemaField)

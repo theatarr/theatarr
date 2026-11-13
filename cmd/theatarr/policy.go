@@ -1,17 +1,12 @@
 package main
 
 import (
-	"context"
 	"errors"
 	"flag"
 	"fmt"
-	"net/url"
 	"os"
-	"sort"
 	"strings"
-	"time"
 
-	"github.com/theatarr/theatarr/internal/arr"
 	"github.com/theatarr/theatarr/internal/policy"
 )
 
@@ -49,33 +44,6 @@ func runPolicy(args []string) error {
 			return fmt.Errorf("%s: %d problem(s)", fs.Arg(0), len(verr.List))
 		}
 		return err
-	}
-	// The arr hosts get their API keys: a name must resolve, and only to LAN addresses. Validation itself makes no
-	// DNS lookups (it checks IP literals); this command does.
-	if p.Import != nil {
-		var bad []string
-		keys := make([]string, 0, len(p.Import.Arr))
-		for k := range p.Import.Arr {
-			keys = append(keys, k)
-		}
-		sort.Strings(keys)
-		for _, k := range keys {
-			u, err := url.Parse(p.Import.Arr[k].URL)
-			if err != nil {
-				continue
-			}
-			ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-			if err := arr.CheckHost(ctx, u.Hostname()); err != nil {
-				bad = append(bad, fmt.Sprintf("import.arr[%s].url: %v", k, err))
-			}
-			cancel()
-		}
-		for _, b := range bad {
-			fmt.Fprintln(os.Stderr, b)
-		}
-		if len(bad) > 0 {
-			return fmt.Errorf("%s: %d problem(s)", fs.Arg(0), len(bad))
-		}
 	}
 	if *quiet {
 		return nil

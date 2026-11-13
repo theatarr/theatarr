@@ -371,42 +371,11 @@ func (s *Service) loadOne(ctx context.Context, v *View, titleID int64) (*entry, 
 	return es[0], nil
 }
 
-// resolve maps an id a client sent to a title id: ids from IDBase up are ours; smaller ones are the replaced
-// instances' ids, looked up in the alias table for the view's alias_from instances, in order (docs/migration.md).
-func (s *Service) resolve(ctx context.Context, v *View, id int64) (int64, error) {
+// resolve maps an id a client sent to a title id: ids from IDBase up are ours; a smaller one (an old arr instance's
+// id) resolves to nothing.
+func (s *Service) resolve(_ context.Context, _ *View, id int64) (int64, error) {
 	if id >= IDBase {
 		return id - IDBase, nil
-	}
-	if len(v.AliasFrom) == 0 || id <= 0 {
-		return 0, nil
-	}
-	q := `SELECT instance, target_id FROM arr_alias WHERE kind = ? AND arr_id = ? AND instance IN (` +
-		store.Placeholders(len(v.AliasFrom)) + `)`
-	args := []any{string(v.kind()), id}
-	for _, in := range v.AliasFrom {
-		args = append(args, in)
-	}
-	rows, err := s.st.Reader().QueryContext(ctx, q, args...)
-	if err != nil {
-		return 0, err
-	}
-	found := map[string]int64{}
-	for rows.Next() {
-		var in string
-		var tid int64
-		if err := rows.Scan(&in, &tid); err != nil {
-			rows.Close()
-			return 0, err
-		}
-		found[in] = tid
-	}
-	if err := closeRows(rows); err != nil {
-		return 0, err
-	}
-	for _, in := range v.AliasFrom {
-		if tid, ok := found[in]; ok {
-			return tid, nil
-		}
 	}
 	return 0, nil
 }

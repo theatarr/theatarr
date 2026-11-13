@@ -87,11 +87,7 @@ func runRouterOffer(args []string, out io.Writer) error {
 	if err != nil {
 		return err
 	}
-	src := liveArr(pol)
-	if df.arrSnapshot != "" {
-		src = decide.SnapshotDir(df.arrSnapshot)
-	}
-	eng, err := decide.New(pol, decide.Options{TrashRoot: df.trash, Arr: src})
+	eng, err := decide.New(pol, decide.Options{TrashRoot: df.trash})
 	if eng == nil {
 		return err
 	}

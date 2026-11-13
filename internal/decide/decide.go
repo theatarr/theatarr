@@ -14,7 +14,6 @@ import (
 	"github.com/theatarr/theatarr/internal/decide/parser/radarr"
 	"github.com/theatarr/theatarr/internal/decide/profile"
 	"github.com/theatarr/theatarr/internal/indexer"
-	"github.com/theatarr/theatarr/internal/library/naming"
 	"github.com/theatarr/theatarr/internal/metadata/anime/animemap"
 	"github.com/theatarr/theatarr/internal/policy"
 )
@@ -104,8 +103,6 @@ type Version struct {
 	ID     int64
 	Key    string
 	Policy *policy.VersionPolicy
-	// Naming is the stored arr naming configuration, when naming.from_arr is used.
-	Naming *naming.Config
 }
 
 // ExistingFile is the version's current file, from an active link or an arr file.

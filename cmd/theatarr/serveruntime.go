@@ -25,7 +25,6 @@ import (
 	"github.com/theatarr/theatarr/internal/provider"
 	"github.com/theatarr/theatarr/internal/router"
 	"github.com/theatarr/theatarr/internal/settings"
-	"github.com/theatarr/theatarr/internal/shadow"
 	"github.com/theatarr/theatarr/internal/store"
 )
 
@@ -83,25 +82,6 @@ func (s serveEgressSource) EgressSummary() map[string]any { return s.current().E
 func (s serveEgressSource) State() gateway.State          { return s.current().State() }
 func (s serveEgressSource) StateFor(ctx context.Context) gateway.State {
 	return s.forContext(ctx).StateFor(ctx)
-}
-
-type shadowRuntimeSource struct{ manager *settings.RuntimeCoordinator }
-
-func (s shadowRuntimeSource) Resolve(ctx context.Context, _ int64) (shadow.Runtime, bool) {
-	current := settings.ContextRuntime(ctx)
-	if current == nil {
-		current = s.manager.Current()
-	}
-	components, ok := current.Components.(*serveRuntime)
-	if !ok || components == nil {
-		return shadow.Runtime{}, false
-	}
-	out := shadow.Runtime{Generation: current.Generation, Settings: current, Policy: current.Policy}
-	// The arr import reads the instances of the import section in force.
-	if current.Policy != nil && current.Policy.Import != nil && len(current.Policy.Import.Arr) > 0 {
-		out.Arr = arrGetters(current.Policy)
-	}
-	return out, true
 }
 
 type serveRouter struct {
@@ -253,10 +233,9 @@ func runtimePolicy(manager *settings.RuntimeCoordinator) func(context.Context) *
 	}
 }
 
-// newDecisionEngine builds the decision engine: TRaSH formats from THEATARR_TRASH, from_arr profiles with GETs to the
-// import.arr instances.
+// newDecisionEngine builds the decision engine, with TRaSH formats from THEATARR_TRASH.
 func newDecisionEngine(pol *policy.Policy, log *slog.Logger, previous *decide.Engine) (*decide.Engine, error) {
-	e, err := decide.New(pol, decide.Options{TrashRoot: os.Getenv("THEATARR_TRASH"), Arr: liveArr(pol), Previous: previous})
+	e, err := decide.New(pol, decide.Options{TrashRoot: os.Getenv("THEATARR_TRASH"), Previous: previous})
 	if err != nil {
 		if previous != nil || e == nil {
 			return nil, err

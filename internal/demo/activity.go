@@ -11,18 +11,6 @@ import (
 	"github.com/theatarr/theatarr/internal/journal/snapshot"
 )
 
-func (s *seeder) instances() []string {
-	if s.pol.Import == nil {
-		return nil
-	}
-	var out []string
-	for n := range s.pol.Import.Arr {
-		out = append(out, n)
-	}
-	sortStrings(out)
-	return out
-}
-
 // registry adds content the library does not use (unreferenced, absent, gone) and the provider sync runs.
 func (s *seeder) registry() {
 	states := []string{"unreferenced", "unreferenced", "absent", "gone", "unknown"}
@@ -680,20 +668,6 @@ func (s *seeder) libraryExtras() {
 	s.exec(`INSERT INTO library_action (at, kind, mode, version_key, detail) VALUES (?, 'scan', 'dry_run', 'tv-2160p',
 		'Plex partial scan of one folder (dry run: the library is off)'), (?, 'alert', 'applied', 'movie-remux',
 		'waiting for the mount past 6m0s')`, ms(s.ago(days(0.1))), ms(s.ago(7*time.Hour)))
-}
-
-// arrInstances writes the arr instances of the policy's import section and their quality profiles.
-func (s *seeder) arrInstances() {
-	for _, name := range s.instances() {
-		a := s.pol.Import.Arr[name]
-		s.exec(`INSERT INTO arr_instance (name, flavour, policy_key, app_version, root_folders, created_at, updated_at)
-			VALUES (?, ?, ?, ?, ?, ?, ?)`, name, a.Flavour, a.Version,
-			map[string]string{"radarr": "6.4.4.10685", "sonarr": "4.0.20.3014"}[a.Flavour],
-			jsonOf([]string{s.pol.Versions[a.Version].Library}), ms(s.ago(days(400))), ms(s.ago(days(0.2))))
-		s.exec(`INSERT INTO arr_quality_profile (instance, arr_id, name, cutoff, upgrade_allowed, min_format_score,
-			cutoff_format_score) VALUES (?, 1, ?, ?, 1, 0, 2000)`, name, "Demo "+a.Version, quality(&version{key: a.Version,
-			vp: s.pol.Versions[a.Version]}, false))
-	}
 }
 
 // verdicts records two verdicts: "wrong" on the grab named for the wrong year (its hash blocklisted for the version,

@@ -368,58 +368,6 @@ func TestRouterSectionAllDebridDeleteUncached(t *testing.T) {
 	}
 }
 
-func TestArrImportIntoGrabbingVersionNeedsConfirmation(t *testing.T) {
-	t.Parallel()
-	p, err := policy.Load(exampleDir)
-	if err != nil {
-		t.Fatal(err)
-	}
-	p.Router.Enabled = true
-	for _, v := range p.Versions {
-		v.Mode = policy.ModeActive
-	}
-	const instance = "radarr_4k_debrid"
-	src := p.Import.Arr[instance]
-	if src == nil {
-		t.Fatal("fixture missing arr source")
-	}
-	for _, change := range []string{"version", "new"} {
-		t.Run(change, func(t *testing.T) {
-			before, _ := p.Clone()
-			after, _ := p.Clone()
-			switch change {
-			case "version":
-				before.Import.Arr[instance].Version = "other"
-			case "new":
-				delete(before.Import.Arr, instance)
-			}
-			effects := importAcquisitionEffects(before, after)
-			found := false
-			for _, e := range effects {
-				found = found || strings.Contains(e.Effect, " from import.arr.")
-			}
-			if !found {
-				t.Fatalf("import remap effects: %+v", effects)
-			}
-			// Pause does not matter: turning it off later names no import source.
-			after.Router.Enabled = false
-			found = false
-			for _, e := range importAcquisitionEffects(before, after) {
-				found = found || strings.Contains(e.Effect, " from import.arr.")
-			}
-			if !found {
-				t.Fatal("paused: import remap onto a Live version needs no confirmation")
-			}
-			after.Versions[src.Version].Mode = policy.ModeShadow
-			for _, e := range importAcquisitionEffects(before, after) {
-				if strings.Contains(e.Effect, " from import.arr.") {
-					t.Fatalf("Watch-only effect: %+v", e)
-				}
-			}
-		})
-	}
-}
-
 // Section reads, the MCP tools and the audit (MaskSectionConfig) mask a credential in any URL of a
 // section, not only notify targets; the mask sent back keeps the stored URL, and a mask moved to another host is
 // refused.
@@ -474,6 +422,61 @@ func TestSectionSaveDropsRemovedSectionRow(t *testing.T) {
 	}
 	if n != 0 {
 		t.Fatalf("removed section row kept: %d", n)
+	}
+}
+
+// Settings stored before the periodic arr import went still load: the import section's row, a view's alias_from and
+// an empty FromArr in a profile or naming row are ignored when read, and the next save drops the import row.
+func TestStoredArrSettingsLoad(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+	s, base, _ := sectionsFixture(t)
+	if _, err := s.BootstrapQuality(ctx, base, "test"); err != nil {
+		t.Fatal(err)
+	}
+	if err := s.db.WriteTx(ctx, func(tx *sql.Tx) error {
+		for _, q := range []string{
+			`INSERT INTO setting_section (key, config, created_at, updated_at) VALUES ('import',
+				'{"arr":{"radarr_4k":{"flavour":"radarr","url":"http://127.0.0.1:7878","version":"movie-remux"}}}', 1, 1)`,
+			`UPDATE setting_view_binding SET config = json_set(config, '$.identity.alias_from', json_array('radarr_4k'))
+				WHERE key = 'radarr'`,
+			`UPDATE setting_quality_profile SET config = json_set(config, '$.FromArr', '')`,
+			`UPDATE setting_version_naming SET config = json_set(config, '$.FromArr', '')`,
+		} {
+			if _, err := tx.ExecContext(ctx, q); err != nil {
+				return err
+			}
+		}
+		return nil
+	}); err != nil {
+		t.Fatal(err)
+	}
+	var n int
+	if err := s.db.Reader().QueryRowContext(ctx, `SELECT (SELECT COUNT(*) FROM setting_view_binding
+		WHERE json_type(config, '$.identity.alias_from') = 'array') + (SELECT COUNT(*) FROM setting_quality_profile
+		WHERE json_type(config, '$.FromArr') = 'text') + (SELECT COUNT(*) FROM setting_version_naming
+		WHERE json_type(config, '$.FromArr') = 'text')`).Scan(&n); err != nil || n < 3 {
+		t.Fatalf("fixture rows %d %v", n, err)
+	}
+	loaded, err := s.Load(ctx, base)
+	if err != nil {
+		t.Fatalf("stored arr settings do not load: %v", err)
+	}
+	for _, r := range loaded.Records.Sections {
+		if r.Key == "import" {
+			t.Fatal("the import section loaded")
+		}
+	}
+	if v := loaded.Policy.Views["radarr"]; v == nil || v.Path != base.Views["radarr"].Path {
+		t.Fatalf("view radarr %+v", v)
+	}
+	req := saveRequest(base, loaded)
+	req.Records.Sections = []Section{editSection(t, loaded, "notify", func(c map[string]any) { c["poll"] = "45s" })}
+	if _, err := s.Save(ctx, req); err != nil {
+		t.Fatalf("save refused with arr settings stored: %v", err)
+	}
+	if err := s.db.Reader().QueryRowContext(ctx, "SELECT count(*) FROM setting_section WHERE key = 'import'").Scan(&n); err != nil || n != 0 {
+		t.Fatalf("import section row kept: %d %v", n, err)
 	}
 }
 

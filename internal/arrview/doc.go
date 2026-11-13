@@ -20,10 +20,9 @@
 //
 // # Ids
 //
-// A movie or series id is IDBase (1,000,000) plus our title id, the same in every view. A smaller id is a replaced
-// arr instance's id: it is looked up in the alias table (arr_alias, written by the import) for the view's alias_from
-// instances, in order, so the ids Seerr stored (externalServiceId) keep answering after cutover (docs/migration.md). The
-// offset keeps the two id spaces apart: without it, title 7 and radarr_4k_debrid's movie 7 would be the same id.
+// A movie or series id is IDBase (1,000,000) plus our title id, the same in every view. A smaller id (one a client
+// kept from a replaced arr instance) answers nothing: such a client syncs again. The offset keeps the two id spaces
+// apart: without it, title 7 and an arr's movie 7 would be the same id.
 // Episode, movie file, tag and command ids are ours and global.
 //
 // # Writes

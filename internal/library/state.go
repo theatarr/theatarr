@@ -172,8 +172,7 @@ func episodesLostFile(ctx context.Context, tx *sql.Tx, versionID int64, episodes
 // verdict: a cutoff_met file below a raised cutoff would never be searched again. Only filled and
 // cutoff_met move, and only between each other; a movie is judged by its current file, an episode by its file (the
 // files decide compares a release with). A series version is judged whatever its own state (one missing episode
-// makes it wanted while its other episodes hold files). A version an arr still manages (import.arr) keeps the arr's
-// verdict on the arr's files; Theatarr's links in it are judged. Idempotent; Run does it once per process and again, for
+// makes it wanted while its other episodes hold files. Idempotent; Run does it once per process and again, for
 // the versions whose settings changed, after each settings change (a new policy revision).
 func (l *Library) RecomputeLinkStates(ctx context.Context) (int, error) {
 	return l.recomputeStates(ctx, nil)
@@ -194,22 +193,18 @@ func (l *Library) recomputeStates(ctx context.Context, keys []string) (int, erro
 		only = string(b)
 	}
 	db := l.st.Reader()
-	rows, err := db.QueryContext(ctx, `SELECT v.id, v.title_id, v.policy_key, EXISTS (SELECT 1 FROM version_source vs
-			WHERE vs.version_id = v.id AND vs.instance IN (SELECT value FROM json_each(?))) AS managed
+	rows, err := db.QueryContext(ctx, `SELECT v.id, v.title_id, v.policy_key
 		FROM version v WHERE (? = '' OR v.policy_key IN (SELECT value FROM json_each(?)))
 		AND (EXISTS (SELECT 1 FROM link_version lv JOIN link l ON l.id = lv.link_id
 			WHERE lv.version_id = v.id AND l.state = 'active')
-		OR (EXISTS (SELECT 1 FROM version_file vf WHERE vf.version_id = v.id)
-			AND NOT EXISTS (SELECT 1 FROM version_source vs WHERE vs.version_id = v.id AND vs.instance IN (
-				SELECT value FROM json_each(?))))) ORDER BY v.id`,
-		managedJSON(l.pol), only, only, managedJSON(l.pol))
+		OR EXISTS (SELECT 1 FROM version_file vf WHERE vf.version_id = v.id)) ORDER BY v.id`, only, only)
 	if err != nil {
 		return 0, err
 	}
 	var versions []stateVersion
 	for rows.Next() {
 		var v stateVersion
-		if err := rows.Scan(&v.id, &v.titleID, &v.key, &v.managed); err != nil {
+		if err := rows.Scan(&v.id, &v.titleID, &v.key); err != nil {
 			rows.Close()
 			return 0, err
 		}
@@ -241,8 +236,6 @@ func (l *Library) recomputeStates(ctx context.Context, keys []string) (int, erro
 type stateVersion struct {
 	id, titleID int64
 	key         string
-	// managed: an arr still manages the version (import.arr); only Theatarr's links are judged.
-	managed bool
 }
 
 // recomputeVersion is RecomputeLinkStates for one version; true when a state changed. A version that is not mode:
@@ -275,12 +268,12 @@ func (l *Library) recomputeVersion(ctx context.Context, v stateVersion) (bool, e
 	}
 	now := store.Millis(l.now())
 	if dv.Policy.Kind != policy.KindSeries {
-		f, fileID, err := decide.LoadExistingFile(ctx, db, v.id)
+		f, _, err := decide.LoadExistingFile(ctx, db, v.id)
 		if err != nil {
 			return false, err
 		}
-		if f == nil || (v.managed && fileID >= 0) {
-			return false, nil // its link went meanwhile, or the managing arr's file
+		if f == nil {
+			return false, nil // its link went meanwhile
 		}
 		state, err := stateOf(f)
 		if err != nil {
@@ -312,8 +305,8 @@ func (l *Library) recomputeVersion(ctx context.Context, v stateVersion) (bool, e
 	states := map[int64]string{} // by file id (a link's negative, an arr file's positive)
 	want := map[int64]string{}   // by episode
 	for _, ep := range eps {
-		if ep.File == nil || (v.managed && ep.FileID >= 0) {
-			continue // no file, or the managing arr's
+		if ep.File == nil {
+			continue
 		}
 		s, ok := states[ep.FileID]
 		if !ok {
@@ -439,13 +432,13 @@ func (l *Library) recomputeOnce(ctx context.Context) {
 }
 
 // versionPrints fingerprints, per version key, the settings a file's state is judged under: the version, its
-// profile, the formats and format sets, and which arrs still manage versions.
+// profile, and the formats and format sets.
 func versionPrints(p *policy.Policy) map[string]string {
 	out := map[string]string{}
 	if p == nil {
 		return out
 	}
-	shared, _ := json.Marshal([]any{p.Formats, p.FormatSets, managedJSON(p)})
+	shared, _ := json.Marshal([]any{p.Formats, p.FormatSets})
 	for k, vp := range p.Versions {
 		var prof *policy.Profile
 		if vp != nil {
@@ -456,18 +449,6 @@ func versionPrints(p *policy.Policy) map[string]string {
 		out[k] = hex.EncodeToString(sum[:])
 	}
 	return out
-}
-
-// managedJSON is the JSON list of arr instances that still manage their versions (import.arr, policy.ManagedBy).
-func managedJSON(p *policy.Policy) string {
-	out := []string{}
-	if p != nil && p.Import != nil {
-		for inst := range p.Import.Arr {
-			out = append(out, inst)
-		}
-	}
-	b, _ := json.Marshal(out)
-	return string(b)
 }
 
 type cutoffTitlesKey struct{}

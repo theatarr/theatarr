@@ -254,7 +254,7 @@ func validateSpecifications(p *policy.Policy) error {
 	// Unspecified global flavours may be shared; scored specifications must build for each actual consumer.
 	for version, v := range p.Versions {
 		pr := p.Profiles[v.Profile]
-		if pr == nil || pr.FromArr != "" {
+		if pr == nil {
 			continue
 		}
 		flavour := format.Radarr

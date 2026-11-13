@@ -104,7 +104,7 @@ func newManageEnv(t *testing.T, mutate func(*policy.Policy)) *manageEnv {
 	return m
 }
 
-// seedManage: The Show's tv-2160p is imported from sonarr_4k_debrid (an import.arr instance in the example policy);
+// seedManage: The Show's tv-2160p was imported from sonarr_4k_debrid;
 // S01E01 and S01E02 have files below the cutoff; an RSS read upgrades S01E01.
 // Alpha's movie-remux has a file below the cutoff, and a search after it found an upgrade.
 func (e *manageEnv) seedManage() {
@@ -297,7 +297,6 @@ func TestManageActive(t *testing.T) {
 	e := newManageEnv(t, func(p *policy.Policy) {
 		p.Versions["tv-2160p"].Mode = policy.ModeActive
 		p.Router = &policy.Router{Enabled: true}
-		delete(p.Import.Arr, "sonarr_4k_debrid")
 	})
 	var d TitleDetail
 	e.call("GET", APIBase+"/titles/10", nil, 200, &d)

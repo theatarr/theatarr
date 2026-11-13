@@ -26,11 +26,6 @@ func TestRecreatedVersionWithOtherRootChecksActiveLinks(t *testing.T) {
 			t.Fatal(err)
 		}
 	}
-	for key, src := range p.Import.Arr {
-		if src.Version == "movie-web" {
-			delete(p.Import.Arr, key)
-		}
-	}
 	req := saveRequest(p, initial)
 	for i, v := range req.Records.Views {
 		if v.Key == "radarr" {

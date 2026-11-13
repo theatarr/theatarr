@@ -132,7 +132,6 @@ func runtimeFixture(t *testing.T, edits ...func(*policy.Policy)) (*store.Store, 
 	}
 	for _, p := range base.Profiles {
 		p.Formats = nil
-		p.FromArr = ""
 		p.FormatSet = ""
 	}
 	for _, edit := range edits {
@@ -182,7 +181,7 @@ func TestStartupFallbackRegistersGatewayCollectorsOnce(t *testing.T) {
 func TestStartupProfilesTolerantReloadStrict(t *testing.T) {
 	t.Parallel()
 	p := &policy.Policy{Versions: map[string]*policy.VersionPolicy{"good": {Kind: policy.KindMovie, Profile: "good"}, "bad": {Kind: policy.KindMovie, Profile: "bad"}},
-		Profiles: map[string]*policy.Profile{"good": {Qualities: []policy.QualityItem{{Name: "WEBDL-1080p"}}, Cutoff: "WEBDL-1080p"}, "bad": {FromArr: "invalid"}}}
+		Profiles: map[string]*policy.Profile{"good": {Qualities: []policy.QualityItem{{Name: "WEBDL-1080p"}}, Cutoff: "WEBDL-1080p"}, "bad": {Qualities: []policy.QualityItem{{Name: "No-Such-Quality"}}, Cutoff: "No-Such-Quality"}}}
 	log := slog.New(slog.NewTextHandler(io.Discard, nil))
 	for _, source := range []string{"yaml", "first-db"} {
 		t.Run(source, func(t *testing.T) {

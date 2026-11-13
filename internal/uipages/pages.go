@@ -15,7 +15,6 @@ const (
 	Users       = "Users & access"
 	Setup       = "Setup"
 	Limits      = "Advanced › Request limits"
-	Migration   = "Advanced › Sonarr/Radarr migration"
 	Import      = "Advanced › YAML settings › Import & export"
 	Tasks       = "System › Tasks"
 	Torrents    = "Torrents"

@@ -27,7 +27,6 @@ import (
 	"github.com/theatarr/theatarr/internal/errinbox"
 	"github.com/theatarr/theatarr/internal/gateway"
 	"github.com/theatarr/theatarr/internal/health"
-	"github.com/theatarr/theatarr/internal/importarr"
 	"github.com/theatarr/theatarr/internal/jobs"
 	"github.com/theatarr/theatarr/internal/journal"
 	"github.com/theatarr/theatarr/internal/library"
@@ -448,9 +447,6 @@ func runServe(args []string) error {
 	eng, idx := serveSnapshot.Engine, serveSnapshot.Indexers
 	rssRunner := newRSSRunner(pol, st, q, gw, reg, log, routeService, serveSnapshot, rssRuntimeSource{manager: runtimeManager})
 	rssRunner.RegisterJobs(w)
-	// The periodic arr import (import.arr).
-	sh := newShadowRunner(pol, st, q, log, shadowRuntimeSource{manager: runtimeManager})
-	sh.RegisterJobs(w)
 
 	ceiling.RegisterJobs(w, st, pol)
 	// The torrent manager (docs/design/torrents.md): backups and restores run as jobs; deletes only on request.
@@ -776,7 +772,7 @@ func runServe(args []string) error {
 	// The loops whose schedule or source is a settings section run as workers: a published generation that changes
 	// their settings stops and restarts them (serveliveworkers.go).
 	startRuntime := serveSnapshot
-	loops := serveLoops{router: rt, sync: ps, shadow: sh, rss: rssRunner, log: log, current: func(ctx context.Context) (context.Context, *serveRuntime) {
+	loops := serveLoops{router: rt, sync: ps, rss: rssRunner, log: log, current: func(ctx context.Context) (context.Context, *serveRuntime) {
 		ctx = runtimeManager.Capture(ctx)
 		if runtime, err := runtimeForSearch(ctx, runtimeManager); err == nil {
 			return ctx, runtime
@@ -1036,12 +1032,6 @@ func (n *nightly) run(ctx context.Context, j *jobs.Job) (err error) {
 		defer cancel()
 		err = errors.Join(err, n.schedule(scheduleCtx, time.Now()))
 	}()
-	// import_run grows by one row per instance and shadow import (every 15 minutes): keep a week and each latest.
-	if pruned, err := importarr.PruneRuns(ctx, n.st, time.Now(), importarr.RunKeep); err != nil {
-		n.log.Warn("import run prune", "err", err)
-	} else if pruned > 0 {
-		n.log.Info("import runs pruned", "count", pruned)
-	}
 	// The journal's own decision rows: in full for 180 days, then trimmed or dropped (journal.Prune).
 	if sum, err := journal.Prune(ctx, n.st, time.Now()); err != nil {
 		n.log.Warn("journal prune", "err", err)

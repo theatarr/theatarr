@@ -70,7 +70,7 @@ func metadataKeys(pol *policy.Policy, dbPath string) serveMetadataKeys {
 	if pol.Metadata != nil {
 		sources = pol.Metadata.Sources
 	}
-	k.tv = keyOf(k.tvdb, k.tmdb, pol.SeriesMetaSettings(), sources, pol.ArrFedInstances())
+	k.tv = keyOf(k.tvdb, k.tmdb, pol.SeriesMetaSettings(), sources)
 	var plexURL, plexToken string
 	if p := pol.LibrarySettings().Plex; p != nil {
 		plexURL, plexToken = p.URL, secretHash(pol.Getenv(p.TokenEnv))

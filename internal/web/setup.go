@@ -63,9 +63,6 @@ type SetupState struct {
 	// TMDb: the metadata source tmdb has its address and a key that resolves, stored in settings or in the
 	// environment variable the source names: what search and adding titles need.
 	TMDb bool `json:"tmdb"`
-	// ArrInstances counts the arr instances the install migrates from (import.arr). With none, Setup offers the
-	// one-step start (POST setup/start); with any, a library starts in shadow.
-	ArrInstances int `json:"arr_instances"`
 	// LastPreflight is the latest POST preflight this server ran since it started, nil before the first. Setup's
 	// readiness step reads it, so the step survives a page reload; a restart forgets it and the step is open again.
 	LastPreflight *LastPreflight `json:"last_preflight,omitempty"`
@@ -149,7 +146,6 @@ func (w *Web) apiSetup(rw http.ResponseWriter, r *http.Request) {
 			}
 		}
 	}
-	out.ArrInstances = arrInstances(p)
 	out.TMDb = tmdbReady(p, settings.Credentials{Policy: p, Snap: snap, Lookup: w.settingsLookup})
 	out.Missing = preflight.Missing(p, out.Indexers, out.Providers)
 	out.FirstRun = out.Versions == 0

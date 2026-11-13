@@ -3,12 +3,6 @@
     "auto_build": "This builds franchises for anime series without one and rebuilds old ones (default true). Building only writes mappings; episodes whose mapping is not settled import through Sonarr's numbering, and their conflicts show in Admin › Reviews.",
     "refresh_interval": "This is how old a franchise's build may get before it is rebuilt. Default 168h (7 days), minimum 24h. Rebuilds are spread over the interval; a franchise with a refresh held for review waits for the review."
   },
-  "ArrSource": {
-    "api_key_env": "This names the environment variable holding the instance's API key.",
-    "flavour": "This is radarr or sonarr.",
-    "url": "This is the instance base url, without /api/v3. Its host must be a LAN address (loopback, RFC 1918 or ULA), since every request carries the API key.",
-    "version": "This is the version key the instance's titles and files map to. Several instances may map to one version; the import then reports titles whose files differ between them."
-  },
   "Art": {
     "interval": "This is the time between scheduled runs. Default 6h, minimum 10m.",
     "per_run": "This caps the titles one run fetches. Default 200.",
@@ -56,9 +50,6 @@
     "dir": "This is the cache directory, absolute. Default: images next to the database (/data/images in the container).",
     "max_bytes": "This caps the cache; the least recently used files go first. Default 2GiB, minimum 16MiB.",
     "original": "This allows the \"original\" size (full-resolution files, often several MB). Default false."
-  },
-  "Import": {
-    "arr": "This maps an arr instance name (radarr_4k_debrid) to its source settings."
   },
   "Library": {
     "dangling": "This configures the read-only report of dangling links into the mount.",

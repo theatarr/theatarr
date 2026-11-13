@@ -55,7 +55,6 @@ func (p *Policy) Validate() error {
 	}
 	p.validateViews(e)
 	p.validateMetadata(e)
-	p.validateImport(e)
 	p.validateEgress(e)
 	p.validateCardigann(e)
 	p.validateProviderSync(e)
@@ -204,10 +203,6 @@ func (p *Policy) validateProfile(e *Errors, k string, pr *Profile) {
 	path := fmt.Sprintf("profiles[%s]", k)
 	checkKey(e, path, k)
 	p.validatePropers(e, path, pr)
-	if pr.FromArr != "" {
-		p.validateFromArr(e, path, pr)
-		return
-	}
 	if pr.FormatSet != "" {
 		checkRef(e, path+".format_set", "format set", pr.FormatSet, p.FormatSets, true)
 	}
@@ -311,10 +306,6 @@ func validateQualityItems(e *Errors, path string, items []QualityItem) (map[stri
 
 // checkProfileFits checks that a profile's qualities and formats suit a version of the given kind.
 func (p *Policy) checkProfileFits(e *Errors, path string, pr *Profile, kind Kind) {
-	if pr.FromArr != "" {
-		p.checkFromArrFits(e, path, pr, kind)
-		return
-	}
 	if pr.Language != "" && kind == KindSeries {
 		e.add(path+".language", "a series library uses this profile, and Sonarr v4 profiles have no language; remove it")
 	}
@@ -671,11 +662,6 @@ func (p *Policy) validateViews(e *Errors) {
 				if !in[vk] {
 					e.add(pp, "library %q is not served by this view", vk)
 				}
-			}
-		}
-		for i, inst := range v.AliasFrom {
-			if inst == "" {
-				e.add(fmt.Sprintf("%s.alias_from[%d]", path, i), "empty instance name")
 			}
 		}
 	}

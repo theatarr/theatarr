@@ -25,8 +25,6 @@ type View struct {
 	Versions []string
 	// Profiles are the "quality profiles" the view lists: named version sets. IDs come from the database.
 	Profiles []*Profile
-	// AliasFrom lists the arr instances whose ids this view answers (docs/migration.md), in precedence order.
-	AliasFrom []string
 	// keyEnv names the environment variable holding the view's own key (configured views only).
 	keyEnv string
 }
@@ -77,7 +75,7 @@ func BuildViews(p *policy.Policy) ([]*View, error) {
 	for _, k := range sortedKeys(p.Views) {
 		pv := p.Views[k]
 		v := &View{Key: k, Flavour: pv.Flavour, Base: pv.Path, Versions: append([]string(nil), pv.Versions...),
-			AliasFrom: append([]string(nil), pv.AliasFrom...), keyEnv: pv.APIKeyEnv}
+			keyEnv: pv.APIKeyEnv}
 		for _, name := range sortedKeys(pv.Profiles) {
 			v.Profiles = append(v.Profiles, &Profile{Name: name, Versions: append([]string(nil), pv.Profiles[name]...)})
 		}

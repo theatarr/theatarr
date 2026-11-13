@@ -32,7 +32,7 @@ func TestRescanReconcilesLinks(t *testing.T) {
 		reconciled      []string
 		status          string
 	}{
-		{"radarr", "RescanMovie", "movieId", 7, []string{"anime-movie[1]", "movie-remux[1]", "movie-web[1]"}, "completed"},
+		{"radarr", "RescanMovie", "movieId", IDBase + 1, []string{"anime-movie[1]", "movie-remux[1]", "movie-web[1]"}, "completed"},
 		{"radarr", "DownloadedMoviesScan", "", 0, nil, "failed"},
 	} {
 		t.Run(tc.name, func(t *testing.T) {

@@ -69,7 +69,6 @@ func TestSeriesTitleHoldAndSeeders(t *testing.T) {
 
 func TestRequiresEpisodeTitle(t *testing.T) {
 	t.Parallel()
-	e := seriesEngine(t)
 	for _, tc := range []struct {
 		name, kind, standard, daily, anime string
 		absolute                           int
@@ -86,30 +85,11 @@ func TestRequiresEpisodeTitle(t *testing.T) {
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			cfg := naming.Config{Rename: tc.rename, StandardEpisodeFormat: tc.standard, DailyEpisodeFormat: tc.daily, AnimeEpisodeFormat: tc.anime}
-			got := e.requiresEpisodeTitle(&Title{SeriesType: tc.kind}, Version{Naming: &cfg}, []*Episode{{Absolute: tc.absolute}})
+			got := requiresEpisodeTitle(&Title{SeriesType: tc.kind}, &cfg, []*Episode{{Absolute: tc.absolute}})
 			if got != tc.want {
 				t.Fatalf("got %v, want %v", got, tc.want)
 			}
 		})
-	}
-}
-
-func TestLoadArrNamingAndConfig(t *testing.T) {
-	t.Parallel()
-	st := linkedDB(t)
-	ctx := context.Background()
-	e := seriesEngine(t)
-	e.Policy.Versions["tv"].Naming = policy.Naming{FromArr: "sonarr"}
-	if _, err := st.Writer().Exec(`INSERT INTO library_naming (instance, naming, qualities, fetched_at) VALUES ('sonarr', ?, '{}', 1)`, `{"renameEpisodes":true,"standardEpisodeFormat":"{Episode Title}"}`); err != nil {
-		t.Fatal(err)
-	}
-	v, err := LoadVersion(ctx, st.Reader(), e.Policy, 1, "tv")
-	if err != nil || v.Naming == nil || !e.requiresEpisodeTitle(&Title{}, v, nil) {
-		t.Fatalf("stored naming: %+v %v", v, err)
-	}
-	c, err := arrConfig(&ArrSnapshot{MediaManagement: []byte(`{"episodeTitleRequired":"Never"}`), DownloadClientConfig: []byte(`{"enableCompletedDownloadHandling":false}`)})
-	if err != nil || c.EpisodeTitleRequired != "Never" || !c.CompletedDownloadHandlingDisabled {
-		t.Fatalf("config: %+v %v", c, err)
 	}
 }
 

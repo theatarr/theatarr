@@ -683,7 +683,7 @@ func TestSeriesSearchSkipsFilledSeasonsWithoutUpgrades(t *testing.T) {
 	if got := targets(Selection{TitleIDs: []int64{10}, Season: &one}); got != "s01:3" {
 		t.Errorf("season search: %s", got)
 	}
-	// The engine's profile decides when there is one (from_arr profiles have no policy upgrades).
+	// The engine's profile decides when there is one.
 	eng, err := decide.New(e.pol, decide.Options{})
 	if err != nil {
 		t.Fatal(err)

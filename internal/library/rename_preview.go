@@ -98,7 +98,7 @@ func (l *Library) previewRename(ctx context.Context, titleID int64, season *int,
 			out.Skipped++
 			continue
 		}
-		vn, err := NamingFor(ctx, l.st.Reader(), l.pol, key)
+		vn, err := NamingFor(l.pol, key)
 		if err != nil {
 			return nil, err
 		}
@@ -265,6 +265,6 @@ func (l *Library) adoptedRenameFormats(ctx context.Context, linkID int64, v *imp
 	if len(f) != 2 {
 		return nil, false
 	}
-	q := vn.QualityTitle(facts.Quality) + properSuffix(facts.Revision, v.Title.SeriesType)
+	q := facts.Quality + properSuffix(facts.Revision, v.Title.SeriesType)
 	return l.adoptFormats(ctx, v.Key, v.Title.ID, path.Base(f[1]), q, facts.SceneName), true
 }

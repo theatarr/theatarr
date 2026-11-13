@@ -16,7 +16,6 @@ import (
 	"text/tabwriter"
 	"time"
 
-	"github.com/theatarr/theatarr/internal/arr"
 	"github.com/theatarr/theatarr/internal/buildinfo"
 	"github.com/theatarr/theatarr/internal/decide"
 	"github.com/theatarr/theatarr/internal/decide/format"
@@ -45,16 +44,13 @@ The first decides one release title, with optional indexer attributes (-size, -f
 -indexer, -imdb). The second searches the library's indexers through the gateway first and ranks what
 comes back; like theatarr search it applies the configured VPN requirements.
 
-Profiles with from_arr read the arr's profile from -arr-snapshot (a corpus directory) or, without it, with GET
-requests to the instance under import.arr (key from the environment or -env-file).
-
 flags:
 `
 
 type decideFlags struct {
-	policyDir, db, envFile, trash, arrSnapshot string
-	settingsSource                             string
-	snap                                       *settings.Snapshot // the stored settings engine loaded
+	policyDir, db, envFile, trash string
+	settingsSource                string
+	snap                          *settings.Snapshot // the stored settings engine loaded
 	// readOnly opens the database read-only (store.Options.ReadOnly) to load the settings.
 	readOnly bool
 }
@@ -65,8 +61,6 @@ func (f *decideFlags) register(fs *flag.FlagSet) {
 	fs.StringVar(&f.db, "db", defaultDBPath(), "database file (env THEATARR_DB); read only")
 	fs.StringVar(&f.envFile, "env-file", "", "read KEY=VALUE secrets from this file (variables already set win)")
 	fs.StringVar(&f.trash, "trash", os.Getenv("THEATARR_TRASH"), "TRaSH-Guides checkout, for trash_id formats (env THEATARR_TRASH)")
-	fs.StringVar(&f.arrSnapshot, "arr-snapshot", os.Getenv("THEATARR_ARR_SNAPSHOT"),
-		"corpus directory with arr snapshots for from_arr profiles (env THEATARR_ARR_SNAPSHOT); empty reads the arrs live (GET)")
 }
 
 // engine loads the policy and builds the engine. A profile that fails to build is fatal only when version needs it.
@@ -85,13 +79,7 @@ func (f *decideFlags) engine(version string, warn io.Writer) (*policy.Policy, *d
 	if v == nil {
 		return nil, nil, fmt.Errorf("the policy has no library %q", version)
 	}
-	var src decide.ArrSource
-	if f.arrSnapshot != "" {
-		src = decide.SnapshotDir(f.arrSnapshot)
-	} else {
-		src = liveArr(pol)
-	}
-	e, err := decide.New(pol, decide.Options{TrashRoot: f.trash, Arr: src})
+	e, err := decide.New(pol, decide.Options{TrashRoot: f.trash})
 	fl := format.Radarr
 	if v.Kind == policy.KindSeries {
 		fl = format.Sonarr
@@ -109,40 +97,6 @@ func (f *decideFlags) engine(version string, warn io.Writer) (*policy.Policy, *d
 }
 
 func indent(s string) string { return "#   " + strings.ReplaceAll(s, "\n", "\n#   ") }
-
-// liveArr reads from_arr snapshots with GET requests to the instances under import.arr.
-func liveArr(pol *policy.Policy) decide.ArrSource {
-	return decide.ArrSourceFunc(func(instance string) (*decide.ArrSnapshot, error) {
-		if pol.Import == nil || pol.Import.Arr[instance] == nil {
-			return nil, fmt.Errorf("instance %q is not under import.arr", instance)
-		}
-		a := pol.Import.Arr[instance]
-		key := pol.Getenv(a.APIKeyEnv)
-		if key == "" {
-			return nil, fmt.Errorf("%s is not set (use -env-file, or -arr-snapshot for a corpus)", a.APIKeyEnv)
-		}
-		cl, err := arr.New(a.URL, key, arr.Options{})
-		if err != nil {
-			return nil, err
-		}
-		s := &decide.ArrSnapshot{Flavour: format.Flavour(a.Flavour)}
-		for _, x := range []struct {
-			ep  string
-			dst *[]byte
-		}{{"qualityprofile", &s.QualityProfile}, {"customformat", &s.CustomFormat},
-			{"qualitydefinition", &s.QualityDefinition}, {"config/mediamanagement", &s.MediaManagement},
-			{"config/indexer", &s.IndexerConfig}} {
-			ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
-			r, err := cl.Get(ctx, x.ep, nil)
-			cancel()
-			if err != nil {
-				return nil, fmt.Errorf("%s %s: %w", instance, x.ep, err)
-			}
-			*x.dst = r.Body
-		}
-		return s, nil
-	})
-}
 
 func runDecide(args []string, out io.Writer, dial func(context.Context, string, string) (net.Conn, error)) error {
 	fs := flag.NewFlagSet("decide", flag.ContinueOnError)

@@ -106,7 +106,7 @@ func TestTagsSkipRemovedVersions(t *testing.T) {
 	tid, oid := tag["id"].(float64), other["id"].(float64)
 	e.call("PUT", "/v/movie-web/radarr/api/v3/movie/editor", map[string]any{"movieIds": []int{IDBase + 1},
 		"tags": []float64{tid}, "applyTags": "add"}, 202, nil)
-	e.cutover()
+	e.start()
 	e.call("DELETE", "/v/movie-web/radarr/api/v3/movie/"+strconv.Itoa(IDBase+1), nil, 200, nil)
 
 	var m map[string]any

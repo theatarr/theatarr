@@ -195,7 +195,7 @@ func (d DB) AniListTargets(ctx context.Context, anilist int) ([]indexer.AniListT
 }
 
 // TitleName names one of our titles: a series by TVDB id, a movie by TMDb id (else IMDb id). seadexerr takes the
-// name from Sonarr or Radarr; ours is the arr's name import-arr stored, or the one the title was added with.
+// name from Sonarr or Radarr; ours is the arr's name an arr import stored, or the one the title was added with.
 func (d DB) TitleName(ctx context.Context, q indexer.Query) (string, int, bool, error) {
 	var where string
 	var args []any

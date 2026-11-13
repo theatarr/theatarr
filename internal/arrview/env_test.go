@@ -165,9 +165,6 @@ func (e *env) seed() {
 		 '/media/tv/The Show', '/media/tv', '[]', 0, ?)`, added, added, added)
 	e.exec(`INSERT INTO version_source (version_id, instance, arr_id) VALUES (1, 'radarr_4k_debrid', 7),
 		(3, 'radarr_4k_web', 7), (10, 'sonarr_4k_debrid', 3)`)
-	e.exec(`INSERT INTO arr_alias (instance, kind, arr_id, target_id, created_at) VALUES
-		('radarr_4k_debrid', 'movie', 7, 1, ?), ('radarr_4k_web', 'movie', 7, 2, ?), ('radarr_4k_web', 'movie', 9, 1, ?),
-		('sonarr_4k_debrid', 'series', 3, 10, ?)`, now, now, now, now)
 	fileAdded := ms(time.Date(2025, 3, 5, 0, 0, 0, 0, time.UTC))
 	e.exec(`INSERT INTO version_file (id, version_id, title_id, instance, arr_file_id, path, relative_path, size_bytes,
 		quality, quality_revision, release_group, scene_name, languages, media_info, custom_format_score,

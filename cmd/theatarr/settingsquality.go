@@ -24,19 +24,7 @@ func newQualitySync(st *settings.Store, db *store.Store, manager *settings.Runti
 			if err != nil {
 				return settings.DecisionImpact{}, err
 			}
-			snapshots := map[string]*decide.ArrSnapshot{}
-			arr := liveArr(before)
-			source := decide.ArrSourceFunc(func(key string) (*decide.ArrSnapshot, error) {
-				if snapshot := snapshots[key]; snapshot != nil {
-					return snapshot, nil
-				}
-				snapshot, err := arr.Snapshot(key)
-				if err == nil {
-					snapshots[key] = snapshot
-				}
-				return snapshot, err
-			})
-			return qualityDecisionImpactWithOptions(ctx, db, before, after, decide.Options{TrashRoot: trash, Previous: runtime.Engine, Arr: source})
+			return qualityDecisionImpactWithOptions(ctx, db, before, after, decide.Options{TrashRoot: trash, Previous: runtime.Engine})
 		},
 		FetchArchive: func(ctx context.Context, c settings.QualitySyncConfig) ([]byte, error) {
 			ctx = manager.Capture(ctx)

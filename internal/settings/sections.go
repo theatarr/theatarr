@@ -34,7 +34,7 @@ type SectionSpec struct {
 var Sections = []SectionSpec{
 	{Key: "metadata", Live: true}, {Key: "library", Live: true}, {Key: "notify", Live: true}, {Key: "clients", Live: true},
 	{Key: "egress", Live: true}, {Key: "torrents", Live: true}, {Key: "cardigann", Live: true}, {Key: "shadow", Live: true},
-	{Key: "import", Live: true}, {Key: "playlists", Live: true}, {Key: "ui", Live: true}, {Key: "provider_sync", Live: true},
+	{Key: "playlists", Live: true}, {Key: "ui", Live: true}, {Key: "provider_sync", Live: true},
 	{Key: "router", Live: true},
 }
 
@@ -57,17 +57,16 @@ type Section struct {
 	SecretsSet []string        `json:"secrets_set,omitempty"`
 }
 
-// ViewIdentity is a view's own settings besides its version sets: where it answers, as which arr, and the arr
-// instances whose ids it answers. Its API key is the binding's credential; api_key_env is import-only, as for the
-// indexers and providers.
+// ViewIdentity is a view's own settings besides its version sets: where it answers and as which arr. Its API key is
+// the binding's credential; api_key_env is import-only, as for the indexers and providers. A stored alias_from (the
+// old arr ids a view used to answer) is ignored when read.
 type ViewIdentity struct {
-	Flavour   string   `json:"flavour"`
-	Path      string   `json:"path"`
-	AliasFrom []string `json:"alias_from,omitempty"`
+	Flavour string `json:"flavour"`
+	Path    string `json:"path"`
 }
 
 func viewIdentity(v *policy.View) *ViewIdentity {
-	return &ViewIdentity{Flavour: v.Flavour, Path: v.Path, AliasFrom: slices.Clone(v.AliasFrom)}
+	return &ViewIdentity{Flavour: v.Flavour, Path: v.Path}
 }
 
 // settingsSecretEnv is the environment-shaped name a stored credential takes in the runtime policy. It is derived
@@ -660,6 +659,6 @@ func sameJSON(a, b json.RawMessage) bool {
 // library roots other records own.
 func SectionConfig(p *policy.Policy, key string) (json.RawMessage, error) { return sectionJSON(p, key) }
 
-// removedSections are stored sections the policy no longer has: release_push went when privacy became a label only.
-// A stored row of one is ignored when the records are read.
-var removedSections = map[string]bool{"release_push": true}
+// removedSections are stored sections the policy no longer has: release_push went when privacy became a label only,
+// import when the periodic import from Sonarr/Radarr went. A stored row of one is ignored when the records are read.
+var removedSections = map[string]bool{"release_push": true, "import": true}

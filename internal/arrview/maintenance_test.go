@@ -33,7 +33,7 @@ func TestMetadataCommandsFollowJobs(t *testing.T) {
 		base, name, key string
 		id, title       int64
 	}{
-		{"radarr", "RefreshMovie", "movieId", 7, 1}, // imported arr id
+		{"radarr", "RefreshMovie", "movieId", IDBase + 1, 1},
 		{"sonarr", "RefreshSeries", "seriesId", IDBase + 10, 10},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
@@ -224,13 +224,13 @@ func TestImportPassCommands(t *testing.T) {
 		want                  []string
 		removed               bool
 	}{
-		{"radarr", "RescanMovie", "movieId", "", 7, []string{"1", "2"}, false},
+		{"radarr", "RescanMovie", "movieId", "", IDBase + 1, []string{"1", "2"}, false},
 		{"sonarr", "RescanSeries", "seriesId", "", IDBase + 10, []string{"3"}, false},
 		{"radarr", "DownloadedMoviesScan", "", "/mount/alpha", 0, []string{"1"}, false},
 		{"sonarr", "DownloadedEpisodesScan", "", "/mount/show", 0, []string{"3"}, false},
 		{"radarr", "DownloadedMoviesScan", "", "/mount/alph", 0, nil, false}, // directory boundary
 		{"radarr", "RescanMovie", "movieId", "", 12345, nil, false},
-		{"radarr", "RescanMovie", "movieId", "", 7, []string{"1"}, true},
+		{"radarr", "RescanMovie", "movieId", "", IDBase + 1, []string{"1"}, true},
 	} {
 		t.Run(tc.name+tc.path+strconv.Itoa(tc.id), func(t *testing.T) {
 			e := newEnv(t)
@@ -319,7 +319,7 @@ func TestImportPassFailures(t *testing.T) {
 			w := jobs.NewWorker(q, jobs.WorkerOptions{})
 			e.svc.RegisterJobs(w)
 			var c map[string]any
-			e.call("POST", "/radarr/api/v3/command", map[string]any{"name": "RescanMovie", "movieId": 7}, 201, &c)
+			e.call("POST", "/radarr/api/v3/command", map[string]any{"name": "RescanMovie", "movieId": IDBase + 1}, 201, &c)
 			id := strconv.Itoa(int(c["id"].(float64)))
 			if ran, err := w.RunOne(context.Background()); !ran || err != nil {
 				t.Fatalf("worker: %v %v", ran, err)

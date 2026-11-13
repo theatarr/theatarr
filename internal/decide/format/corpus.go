@@ -1,7 +1,7 @@
 package format
 
 // The agreement check: our formats and scores against the arrs' own, on a corpus collected from arr instances
-// (the layout SnapshotDir in internal/decide reads).
+// (<dir>/<instance>/snapshot/<endpoint>.json per instance).
 //
 // Parse check. For each parse.jsonl line, the Input is rebuilt from the arr's own parse (see arrparse.go), the
 // instance's snapshot/customformat.json is evaluated, and the matched names are compared with the response's

@@ -17,9 +17,6 @@ func TestSeriesMetaSettings(t *testing.T) {
 	if s := p.SeriesMetaSettings(); !s.Enabled || s.Interval != time.Hour || s.PerRun != 50 {
 		t.Errorf("example %+v", s)
 	}
-	if !p.ArrFed("sonarr_4k_debrid") || p.ArrFed("sonarr_nope") || p.ArrFed("") {
-		t.Error("ArrFed")
-	}
 	if s := (&Policy{}).SeriesMetaSettings(); !s.Enabled || s.Interval != DefaultSeriesMetaInterval ||
 		s.PerRun != DefaultSeriesMetaPerRun {
 		t.Errorf("defaults %+v", s)

@@ -17,7 +17,6 @@ import (
 	"time"
 
 	"github.com/theatarr/theatarr/internal/catalog"
-	"github.com/theatarr/theatarr/internal/importarr"
 	"github.com/theatarr/theatarr/internal/library"
 	"github.com/theatarr/theatarr/internal/metadata/tvrefresh"
 	"github.com/theatarr/theatarr/internal/policy"
@@ -71,7 +70,7 @@ type Deps struct {
 	Store  *store.Store
 	Policy *policy.Policy
 	// Arr opens the read-only client of the instance (arr.New with the default options in serve).
-	Arr func(url, key string) (importarr.Getter, error)
+	Arr func(url, key string) (Getter, error)
 	// Titles is nil without TMDb: the import then refuses.
 	Titles Titles
 	// Series is nil when series metadata is off.
@@ -275,7 +274,7 @@ func Run(ctx context.Context, d Deps, req Request, progress func(Progress)) (*Re
 	key := req.APIKey
 	req.APIKey = ""
 	progress(Progress{Phase: "reading"})
-	snap, err := importarr.ReadTitles(ctx, g, req.Flavour, func(done, total int) {
+	snap, err := ReadTitles(ctx, g, req.Flavour, func(done, total int) {
 		progress(Progress{Phase: "reading", Done: done, Total: total})
 	})
 	g = nil
@@ -343,7 +342,7 @@ func scrub(msg, key string) string {
 type runner struct {
 	d        Deps
 	req      Request
-	snap     *importarr.Snapshot
+	snap     *Snapshot
 	rep      *Report
 	profiles map[int]bool
 	source   string
@@ -355,7 +354,7 @@ type runner struct {
 // title imports one title. It returns the title id when this run added the library's copy, and an error only when
 // the run must stop (a cancelled context, the mount or a library root down, a gate refusal); a title's own failure
 // is counted and the run goes on.
-func (r *runner) title(ctx context.Context, t *importarr.Title) (int64, error) {
+func (r *runner) title(ctx context.Context, t *Title) (int64, error) {
 	rep := r.rep
 	if !r.profiles[t.QualityProfileID] {
 		rep.Skipped.Profile++
@@ -393,7 +392,7 @@ func (r *runner) title(ctx context.Context, t *importarr.Title) (int64, error) {
 	}
 	files := t.Files
 	if !series && t.File != nil {
-		files = []*importarr.File{t.File}
+		files = []*File{t.File}
 	}
 	rep.Files += len(files)
 	if r.req.DryRun {
@@ -419,7 +418,7 @@ func (r *runner) title(ctx context.Context, t *importarr.Title) (int64, error) {
 }
 
 // failed counts a title's own error, or returns err when the run must stop.
-func (r *runner) failed(ctx context.Context, t *importarr.Title, err error) error {
+func (r *runner) failed(ctx context.Context, t *Title, err error) error {
 	if ctx.Err() != nil || library.Unavailable(err) || errors.Is(err, library.ErrRefused) {
 		return err
 	}
@@ -449,7 +448,7 @@ func removedTitles(ctx context.Context, d Deps, key string) (map[int64]bool, err
 }
 
 // importTitle is the catalogue's view of an instance title.
-func importTitle(t *importarr.Title, kind policy.Kind) catalog.ArrImportTitle {
+func importTitle(t *Title, kind policy.Kind) catalog.ArrImportTitle {
 	at := catalog.ArrImportTitle{Kind: kind, TmdbID: int64(t.TmdbID), TvdbID: int64(t.TvdbID), ImdbID: t.ImdbID,
 		Name: t.Name, Year: t.Year, SeriesType: t.SeriesType, Monitored: t.Monitored,
 		MinimumAvailability: t.MinimumAvailability}
@@ -464,7 +463,7 @@ func importTitle(t *importarr.Title, kind policy.Kind) catalog.ArrImportTitle {
 }
 
 // preview counts what a real run could link, without writing.
-func (r *runner) preview(ctx context.Context, t *importarr.Title, files []*importarr.File) error {
+func (r *runner) preview(ctx context.Context, t *Title, files []*File) error {
 	rep := r.rep
 	if rep.TVDBMissing {
 		rep.notLinked(ReasonNumbering, len(files))
@@ -490,7 +489,7 @@ func (r *runner) preview(ctx context.Context, t *importarr.Title, files []*impor
 }
 
 // link links the title's files; a series' episode list and monitoring are in place (episodes).
-func (r *runner) link(ctx context.Context, t *importarr.Title, titleID int64, files []*importarr.File) error {
+func (r *runner) link(ctx context.Context, t *Title, titleID int64, files []*File) error {
 	if len(files) == 0 {
 		return nil
 	}
@@ -539,7 +538,7 @@ func (r *runner) link(ctx context.Context, t *importarr.Title, titleID int64, fi
 // episodes makes sure the series has an episode list in Sonarr's (TVDB) numbering and brings Sonarr's monitoring
 // over to a copy added in this run, or to a present copy whose list this run switched to TVDB. ok is false when the
 // files cannot be matched (counted with the reason).
-func (r *runner) episodes(ctx context.Context, t *importarr.Title, titleID int64, at catalog.ArrImportTitle,
+func (r *runner) episodes(ctx context.Context, t *Title, titleID int64, at catalog.ArrImportTitle,
 	added bool, files int) (ok bool, err error) {
 	rep := r.rep
 	var before string
@@ -594,13 +593,13 @@ func (r *runner) episodes(ctx context.Context, t *importarr.Title, titleID int64
 
 // episodeIndex maps a Sonarr series' files to Theatarr's episodes by season and number.
 type episodeIndex struct {
-	byArr map[int]importarr.Episode
+	byArr map[int]Episode
 	bySE  map[[2]int]int64 // season, number -> episode id
 }
 
 // seriesEpisodes loads the series' episodes once for all its files.
-func (r *runner) seriesEpisodes(ctx context.Context, t *importarr.Title, titleID int64) (*episodeIndex, error) {
-	x := &episodeIndex{byArr: make(map[int]importarr.Episode, len(t.Episodes)), bySE: map[[2]int]int64{}}
+func (r *runner) seriesEpisodes(ctx context.Context, t *Title, titleID int64) (*episodeIndex, error) {
+	x := &episodeIndex{byArr: make(map[int]Episode, len(t.Episodes)), bySE: map[[2]int]int64{}}
 	for _, e := range t.Episodes {
 		x.byArr[e.ArrID] = e
 	}
@@ -624,7 +623,7 @@ func (r *runner) seriesEpisodes(ctx context.Context, t *importarr.Title, titleID
 }
 
 // ids are the Theatarr episodes of a Sonarr file; nil when any has no match.
-func (x *episodeIndex) ids(f *importarr.File) []int64 {
+func (x *episodeIndex) ids(f *File) []int64 {
 	var ids []int64
 	for _, arrID := range f.EpisodeArrIDs {
 		e, ok := x.byArr[arrID]
@@ -641,7 +640,7 @@ func (x *episodeIndex) ids(f *importarr.File) []int64 {
 }
 
 // importFile is the library's record of one instance file.
-func (r *runner) importFile(titleID int64, f *importarr.File, episodes []int64) library.ImportFile {
+func (r *runner) importFile(titleID int64, f *File, episodes []int64) library.ImportFile {
 	in := library.ImportFile{TitleID: titleID, Source: r.source + " " + f.Path,
 		Path: r.folders.apply(f.Path), RelativePath: f.RelativePath, Quality: f.Quality,
 		ReleaseGroup: f.ReleaseGroup, SceneName: f.SceneName, Edition: f.Edition, OriginalFilePath: f.OriginalFilePath,

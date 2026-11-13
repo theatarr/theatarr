@@ -204,7 +204,7 @@ func (l *Library) reassignEpisodes(ctx context.Context, linkID int64, episodeIDs
 	if err != nil && !errors.Is(err, sql.ErrNoRows) {
 		return nil, err
 	}
-	vn, err := NamingFor(ctx, db, l.pol, v.Key)
+	vn, err := NamingFor(l.pol, v.Key)
 	if err != nil {
 		return nil, err
 	}

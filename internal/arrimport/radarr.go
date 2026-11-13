@@ -1,4 +1,4 @@
-package importarr
+package arrimport
 
 import (
 	"context"
@@ -10,7 +10,7 @@ import (
 	"time"
 )
 
-// Radarr v3 resources, the fields the importer reads (Radarr.Api.V3 @ v6.4.4).
+// Radarr v3 resources, the fields ReadTitles reads (Radarr.Api.V3 @ v6.4.4).
 
 type radarrStatus struct {
 	Version string `json:"version"`
@@ -20,11 +20,6 @@ type radarrStatus struct {
 type radarrRootFolder struct {
 	ID   int    `json:"id"`
 	Path string `json:"path"`
-}
-
-type radarrTag struct {
-	ID    int    `json:"id"`
-	Label string `json:"label"`
 }
 
 type radarrProfile struct {
@@ -121,39 +116,6 @@ type radarrMovieFile struct {
 // movieFileBatch is how many movie ids go in one GET moviefile?movieId=...
 const movieFileBatch = 50
 
-// FetchRadarr reads one Radarr instance. known reports whether a history id is already stored, so history paging
-// stops at the stored part.
-func FetchRadarr(ctx context.Context, g Getter, instance string, known func(int) bool) (*Snapshot, error) {
-	s := &Snapshot{Instance: instance, Flavour: "radarr", Tags: map[int]string{}}
-
-	if err := readStatus(ctx, g, s, "Radarr"); err != nil {
-		return nil, err
-	}
-	if err := fetchReference(ctx, g, s); err != nil {
-		return nil, err
-	}
-	if err := readRadarrMovies(ctx, g, s); err != nil {
-		return nil, err
-	}
-
-	if err := fetchCollections(ctx, g, s); err != nil {
-		return nil, err
-	}
-
-	recs, total, err := fetchHistory(ctx, g, known)
-	if err != nil {
-		return nil, err
-	}
-	s.HistoryTotal = total
-	for _, r := range recs {
-		s.History = append(s.History, toEvent(r))
-	}
-	if err := fetchBlocklist(ctx, g, s); err != nil {
-		return nil, err
-	}
-	return s, nil
-}
-
 // readStatus reads system/status into s.AppVersion and checks that the instance is app (Radarr or Sonarr).
 func readStatus(ctx context.Context, g Getter, s *Snapshot, app string) error {
 	var st radarrStatus
@@ -161,11 +123,7 @@ func readStatus(ctx context.Context, g Getter, s *Snapshot, app string) error {
 		return err
 	}
 	if st.AppName != "" && st.AppName != app {
-		name := s.Instance
-		if name == "" {
-			name = "the instance"
-		}
-		return fmt.Errorf("%s: system/status says %q, not %s", name, st.AppName, app)
+		return fmt.Errorf("the instance: system/status says %q, not %s", st.AppName, app)
 	}
 	s.AppVersion = st.Version
 	return nil
@@ -265,4 +223,30 @@ func radarrFile(mf *radarrMovieFile, moviePath string) *File {
 		f.MediaInfo = mf.MediaInfo
 	}
 	return f
+}
+
+type idName struct {
+	ID   int    `json:"id"`
+	Name string `json:"name"`
+}
+
+type qualityModel struct {
+	Quality struct {
+		ID   int    `json:"id"`
+		Name string `json:"name"`
+	} `json:"quality"`
+	Revision struct {
+		Version int `json:"version"`
+		Real    int `json:"real"`
+	} `json:"revision"`
+}
+
+func languageNames(l []idName) []string {
+	out := make([]string, 0, len(l))
+	for _, x := range l {
+		if x.Name != "" {
+			out = append(out, x.Name)
+		}
+	}
+	return out
 }

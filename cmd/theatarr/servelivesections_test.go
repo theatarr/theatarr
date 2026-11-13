@@ -173,7 +173,7 @@ func TestLiveSectionSaveRestartsOnlyItsWorkers(t *testing.T) {
 	}
 	settled(f.initial.Generation)
 	before := rec.snapshot()
-	for _, name := range []string{"library", "provider-sync", "router-poll", "shadow", "rss", "playlists", "art", "series-metadata"} {
+	for _, name := range []string{"library", "provider-sync", "router-poll", "rss", "playlists", "art", "series-metadata"} {
 		if before[name] != 1 {
 			t.Fatalf("fixture: %s started %d times: %v", name, before[name], before)
 		}
@@ -371,30 +371,6 @@ func TestLiveCardigannSectionAppliesOnSave(t *testing.T) {
 	}
 	if cardigannWorkerKey(live) == key {
 		t.Fatal("a changed source left the refresh loop running")
-	}
-}
-
-// The import section applies on save: the arr clients come from the generation in force (an instance added later
-// resolves, one removed answers an error rather than a panic).
-func TestLiveImportSectionArr(t *testing.T) {
-	f := newLiveFixture(t)
-	ctx := context.Background()
-	pol, err := f.base.Clone()
-	if err != nil {
-		t.Fatal(err)
-	}
-	pol.Import = &policy.Import{Arr: map[string]*policy.ArrSource{
-		"radarr-new": {URL: "http://radarr.example:7878", APIKeyEnv: "THEATARR_TEST_UNSET_RADARR_KEY"}}}
-	rt := &serveRuntime{Generation: 9, Policy: pol}
-	resolved, ok := shadowRuntimeSource{}.Resolve(settings.WithRuntime(ctx, &settings.Runtime{Generation: 9, Policy: pol, Components: rt}), 0)
-	if !ok || resolved.Arr == nil {
-		t.Fatal("shadow runtime without the generation's arr clients")
-	}
-	if _, err := resolved.Arr("radarr-new"); err == nil || !strings.Contains(err.Error(), "THEATARR_TEST_UNSET_RADARR_KEY") {
-		t.Fatalf("new instance: %v", err)
-	}
-	if _, err := resolved.Arr("radarr-gone"); err == nil {
-		t.Fatal("removed instance resolved")
 	}
 }
 

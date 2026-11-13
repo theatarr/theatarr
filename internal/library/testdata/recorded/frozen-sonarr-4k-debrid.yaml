@@ -400,5 +400,4 @@ profiles:
       iT - Notifiarr: 75
       x265 (HD): -10000
     language: ""
-    from_arr: ""
     propers: do_not_prefer

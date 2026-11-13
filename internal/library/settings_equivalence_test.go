@@ -240,11 +240,11 @@ func TestSettingsQualityDecisionAndNamingEquivalence(t *testing.T) {
 				if string(aj) != string(bj) {
 					t.Fatal("ranking changed", key)
 				}
-				oldName, err := library.NamingFor(ctx, db.Reader(), before, key)
+				oldName, err := library.NamingFor(before, key)
 				if err != nil {
 					t.Fatal(err)
 				}
-				newName, err := library.NamingFor(ctx, db.Reader(), after, key)
+				newName, err := library.NamingFor(after, key)
 				if err != nil {
 					t.Fatal(err)
 				}
@@ -281,7 +281,7 @@ func TestSettingsQualityDecisionAndNamingEquivalence(t *testing.T) {
 // TestDetachedFollowerKeepsNaming: rows as the settings store writes them (a naming row is policy.Naming as JSON, Go
 // field names at the top level; a library row is its YAML fields under config), given the old follower shape (a
 // naming row with FromVersion, a library row with follows), migrated by 00121 and loaded: each former follower names
-// its files as the library it followed did, for templates, empty templates, from_arr and no naming row at all.
+// its files as the library it followed did, for templates, empty templates and no naming row at all.
 func TestDetachedFollowerKeepsNaming(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
@@ -321,8 +321,8 @@ func TestDetachedFollowerKeepsNaming(t *testing.T) {
 			t.Fatalf("%s: %v", q, err)
 		}
 	}
-	// The key names the migration reads: FromVersion sat beside FromArr and Folder, follows beside mode.
-	if got := one(`SELECT json_type(config, '$.FromArr') || ' ' || json_extract(config, '$.Folder')
+	// The key names the migration reads: FromVersion sat beside Folder, follows beside mode.
+	if got := one(`SELECT json_type(config, '$.Folder') || ' ' || json_extract(config, '$.Folder')
 		FROM setting_version_naming WHERE key = 'movie-remux'`); got != "text "+pol.Versions["movie-remux"].Naming.Folder {
 		t.Fatalf("naming row: %s", got)
 	}
@@ -339,12 +339,7 @@ func TestDetachedFollowerKeepsNaming(t *testing.T) {
 	if _, err := p.DownTo(ctx, 120); err != nil {
 		t.Fatal(err)
 	}
-	// movie-remux: folder and file templates, the rest empty. movie-web: from_arr. tv-2160p: its own templates.
-	// anime-movie: no naming row.
-	exec(`UPDATE setting_version_naming SET config = json_set(config, '$.FromArr', 'radarr_4k_web') WHERE key = 'movie-web'`)
-	exec(`INSERT INTO library_naming (instance, naming, qualities, fetched_at) VALUES ('radarr_4k_web',
-		'{"renameMovies":true,"movieFolderFormat":"{Movie Title} ({Release Year})","standardMovieFormat":"{Movie Title} {Quality Full}","colonReplacementFormat":"dash"}',
-		'{"WEBDL-2160p":"WEB 2160p"}', 0)`)
+	// movie-remux: folder and file templates, the rest empty. tv-2160p: its own templates. anime-movie: no naming row.
 	exec(`DELETE FROM setting_version_naming WHERE key = 'anime-movie'`)
 	followed := []string{"movie-remux", "movie-web", "tv-2160p", "anime-movie"}
 	for _, f := range followed {
@@ -368,20 +363,17 @@ func TestDetachedFollowerKeepsNaming(t *testing.T) {
 		t.Fatal(err)
 	}
 	for _, f := range followed {
-		want, err := library.NamingFor(ctx, db.Reader(), snap.Policy, f)
+		want, err := library.NamingFor(snap.Policy, f)
 		if err != nil {
 			t.Fatal(err)
 		}
-		got, err := library.NamingFor(ctx, db.Reader(), snap.Policy, f+"-copy")
+		got, err := library.NamingFor(snap.Policy, f+"-copy")
 		if err != nil {
 			t.Fatal(err)
 		}
-		if !reflect.DeepEqual(got.Config, want.Config) || !reflect.DeepEqual(got.QualityTitles, want.QualityTitles) ||
+		if !reflect.DeepEqual(got.Config, want.Config) ||
 			got.Source != want.Source {
 			t.Errorf("%s-copy names as %+v (%s), %s as %+v (%s)", f, got, got.Source, f, want, want.Source)
 		}
-	}
-	if got := snap.Policy.Versions["movie-web-copy"].Naming.FromArr; got != "radarr_4k_web" {
-		t.Errorf("from_arr not copied: %q", got)
 	}
 }

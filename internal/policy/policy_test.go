@@ -105,11 +105,8 @@ func TestExampleIsValid(t *testing.T) {
 			t.Errorf("host with credentials: %s", h.Host)
 		}
 	}
-	if a := p.Import.Arr["radarr_4k_debrid"]; a == nil || a.Version != "movie-remux" || a.Flavour != "radarr" {
-		t.Errorf("import.arr[radarr_4k_debrid] decoded as %+v", a)
-	}
-	if users := p.SecretEnvs()["THEATARR_ARR_RADARR_4K_WEB_KEY"]; len(users) != 1 {
-		t.Errorf("THEATARR_ARR_RADARR_4K_WEB_KEY users %v", users)
+	if users := p.SecretEnvs()["THEATARR_TMDB_KEY"]; len(users) != 1 {
+		t.Errorf("THEATARR_TMDB_KEY users %v", users)
 	}
 	if users := p.SecretEnvs()["THEATARR_RD_KEY"]; len(users) != 1 {
 		t.Errorf("THEATARR_RD_KEY users %v", users)
@@ -246,27 +243,8 @@ func TestBadPolicies(t *testing.T) {
 			want: []string{`profiles[remux-2160p].formats[HDR10+ Bost]: unknown format "HDR10+ Bost"; declare it under formats`},
 		},
 		{
-			name: "from_arr with other profile fields",
-			file: "extra.yaml", new: "profiles:\n  shadow:\n    from_arr: radarr_4k_debrid/Remux + WEB 2160p\n    cutoff: Remux-2160p\n    min_score: 5\n",
-			want: []string{"profiles[shadow]: from_arr takes the whole profile from the arr; remove cutoff, min_score"},
-		},
-		{
-			name: "from_arr unknown instance and bad reference",
-			file: "extra.yaml", new: "profiles:\n  a:\n    from_arr: radarr_x/Any\n  b:\n    from_arr: radarr_4k_debrid\n",
-			want: []string{
-				`profiles[a].from_arr: unknown arr instance "radarr_x"; declare it under import.arr`,
-				`profiles[b].from_arr: "radarr_4k_debrid" must be <instance>/<profile name>`,
-			},
-		},
-		{
-			name: "from_arr profile on a version of the other kind",
-			file: "profiles.yaml", old: "  tv-2160p:\n    qualities:\n      - Bluray-2160p Remux\n      - group: WEB 2160p\n        qualities: [WEBDL-2160p, WEBRip-2160p]\n    cutoff: Bluray-2160p Remux\n    min_score: 0\n    cutoff_score: 10000\n    formats:\n      WEB Tier 01 (tv): 1700\n      WEB Tier 02 (tv): 1650\n      BR-DISK (tv): -10000\n      LQ (tv): -10000\n",
-			new:  "  tv-2160p:\n    from_arr: radarr_4k_debrid/Remux + WEB 2160p\n",
-			want: []string{`versions[tv-2160p].profile: profile comes from radarr instance "radarr_4k_debrid", but the library is a series`},
-		},
-		{
 			name: "bad propers and multi languages",
-			file: "extra.yaml", new: "profiles:\n  shadow:\n    from_arr: radarr_4k_debrid/Remux + WEB 2160p\n    propers: always\n" +
+			file: "extra.yaml", new: "profiles:\n  shadow:\n    qualities: [Remux-2160p]\n    propers: always\n" +
 				"indexers:\n  multi:\n    kind: torznab\n    url: http://prowlarr:9696/1/api\n    privacy: public\n    multi_languages: [French, Klingon, Any, French]\n",
 			want: []string{
 				`profiles[shadow].propers: must be prefer_and_upgrade, do_not_upgrade or do_not_prefer, got "always"`,
@@ -281,12 +259,10 @@ func TestBadPolicies(t *testing.T) {
 			want: []string{`versions[tv-2160p].profile.language: a series library uses this profile, and Sonarr v4 profiles have no language; remove it`},
 		},
 		{
-			name: "unknown profile language and language with from_arr",
-			file: "extra.yaml", new: "profiles:\n  shadow:\n    from_arr: radarr_4k_debrid/Remux + WEB 2160p\n    language: original\n" +
-				"  klingon:\n    language: Klingon\n    qualities: [Remux-2160p]\n",
+			name: "unknown profile language",
+			file: "extra.yaml", new: "profiles:\n  klingon:\n    language: Klingon\n    qualities: [Remux-2160p]\n",
 			want: []string{
 				`profiles[klingon].language: unknown language "Klingon" (any, original, or the arr's name, e.g. English, French)`,
-				`profiles[shadow]: from_arr takes the whole profile from the arr; remove language`,
 			},
 		},
 		{
@@ -376,41 +352,6 @@ func TestBadPolicies(t *testing.T) {
 			name: "overrides dir missing",
 			file: "metadata.yaml", old: "overrides_dir: overrides", new: "overrides_dir: nowhere",
 			want: []string{"metadata.overrides_dir:"},
-		},
-		{
-			name: "import version of the wrong kind",
-			file: "import.yaml", old: "version: movie-web", new: "version: tv-2160p",
-			want: []string{`import.arr[radarr_4k_web].version: library "tv-2160p" is a series library; a radarr instance holds movies`},
-		},
-		{
-			name: "import unknown version and flavour",
-			file: "import.yaml", old: "flavour: radarr\n      url: http://192.168.1.10:7878", new: "flavour: lidarr\n      url: http://192.168.1.10:7878",
-			want: []string{`import.arr[radarr_4k_debrid].flavour: must be radarr or sonarr, got "lidarr"`},
-		},
-		{
-			name: "import without key env",
-			file: "import.yaml", old: "      api_key_env: THEATARR_ARR_RADARR_4K_WEB_KEY\n", new: "",
-			want: []string{"import.arr[radarr_4k_web].api_key_env: required"},
-		},
-		{
-			name: "import key in URL",
-			file: "import.yaml", old: "url: http://192.168.1.10:7879", new: "url: http://192.168.1.10:7879/?apikey=abc",
-			want: []string{"import.arr[radarr_4k_web].url: secrets in the URL are not allowed"},
-		},
-		{
-			name: "import host off the LAN",
-			file: "import.yaml", old: "url: http://192.168.1.10:7879", new: "url: http://203.0.113.9:7881",
-			want: []string{"import.arr[radarr_4k_web].url: host 203.0.113.9: arr: not a LAN address"},
-		},
-		{
-			name: "import host public IPv6",
-			file: "import.yaml", old: "url: http://192.168.1.10:7879", new: "url: http://[2001:db8::1]:7881",
-			want: []string{"import.arr[radarr_4k_web].url: host 2001:db8::1: arr: not a LAN address"},
-		},
-		{
-			name: "import missing version",
-			file: "import.yaml", old: "version: movie-remux", new: "version: movie-nope",
-			want: []string{`import.arr[radarr_4k_debrid].version: unknown library "movie-nope"`},
 		},
 		{
 			name: "seedbox version without a client",

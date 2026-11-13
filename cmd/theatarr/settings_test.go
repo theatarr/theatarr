@@ -45,7 +45,7 @@ func TestSettingsImport(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if snap.Generation != 1 || len(snap.Records.Sections) != 13 || time.Duration(snap.Policy.ProviderSync.Interval).String() != "8h0m0s" || snap.Policy.Router.Enabled {
+	if snap.Generation != 1 || len(snap.Records.Sections) != 12 || time.Duration(snap.Policy.ProviderSync.Interval).String() != "8h0m0s" || snap.Policy.Router.Enabled {
 		t.Fatalf("unexpected import: %+v", snap)
 	}
 	if snap.Policy.Metadata.OverridesDir != "overrides" {
@@ -232,7 +232,7 @@ func TestSettingsImportCompletesLegacyGeneration(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if snap.Generation != 2 || len(snap.Records.Sections) != 13 || time.Duration(p.ProviderSync.Interval) != 8*time.Hour {
+	if snap.Generation != 2 || len(snap.Records.Sections) != 12 || time.Duration(p.ProviderSync.Interval) != 8*time.Hour {
 		t.Fatalf("legacy import: generation=%d sections=%d policy=%+v", snap.Generation, len(snap.Records.Sections), p.ProviderSync)
 	}
 }

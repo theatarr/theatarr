@@ -66,7 +66,7 @@ func TestCLISearchResolvesAniList(t *testing.T) {
 		var d net.Dialer
 		return d.DialContext(ctx, network, addr)
 	}
-	args := []string{"-policy", dir, "-db", db, "-arr-snapshot", filepath.Join("..", "..", "internal", "decide", "testdata", "arr"), "-title", "7", "-version", "movie-remux"}
+	args := []string{"-policy", dir, "-db", db, "-title", "7", "-version", "movie-remux"}
 	for name, run := range map[string]func() error{
 		"decide -search": func() error {
 			return runDecide(commandSettingsArgs(t, append(append([]string{}, args...), "-search")), io.Discard, dial)

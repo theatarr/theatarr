@@ -87,13 +87,3 @@ profiles:
       Uncensored: 0
       Seadex: 5000
 
-  # Shadow mode: the two 4K movie versions use the arr's own profiles, so the shadow report measures the engine
-  # against what Radarr actually does. The profiles above take over at cutover.
-  arr-zurg:
-    from_arr: radarr_4k_debrid/Remux + WEB 2160p
-  arr-web:
-    from_arr: radarr_4k_web/WEB 2160p
-  arr-tv:
-    from_arr: sonarr_4k_debrid/4k Preferred
-  arr-anime-tv:
-    from_arr: sonarr_anime_debrid/Remux-2160p Anime

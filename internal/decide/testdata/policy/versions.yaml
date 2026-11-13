@@ -15,14 +15,6 @@ versions:
     storage: seedbox
     indexers: [public, tracker]
     client: seedbox
-  movie-shadow:
-    kind: movie
-    profile: shadow
-    library: /media/movies-shadow
-    storage: debrid
-    indexers: [public]
-    providers: [rd]
-    client: decypharr
   movie-original:
     kind: movie
     profile: original

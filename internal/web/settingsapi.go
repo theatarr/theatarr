@@ -218,7 +218,7 @@ func importPreview(p *settings.Preview) SettingsImportPreview {
 		for _, r := range rs.Views {
 			config := map[string]any{"versions": r.Versions, "profiles": r.Profiles}
 			if r.Identity != nil {
-				config["flavour"], config["path"], config["alias_from"] = r.Identity.Flavour, r.Identity.Path, r.Identity.AliasFrom
+				config["flavour"], config["path"] = r.Identity.Flavour, r.Identity.Path
 			}
 			out["views"] = append(out["views"], SettingsRecord{ID: r.ID, Key: r.Key, Config: config})
 		}

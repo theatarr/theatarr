@@ -114,7 +114,7 @@ func (l *Library) Verify(ctx context.Context, version string) ([]*LinkScan, erro
 // Custom formats are read back from the arr's own name, since the import does not store them per file.
 func (l *Library) checkNames(ctx context.Context, version, root string) *NameCheck {
 	nc := &NameCheck{}
-	vn, err := NamingFor(ctx, l.st.Reader(), l.pol, version)
+	vn, err := NamingFor(l.pol, version)
 	if err != nil {
 		nc.Error = err.Error()
 		return nc
@@ -155,7 +155,7 @@ func (l *Library) checkNames(ctx context.Context, version, root string) *NameChe
 		nc.Files++
 		base := path.Base(r.p)
 		ext := path.Ext(r.p)
-		q := naming.Quality{Title: vn.QualityTitle(r.quality), Version: max(r.rev, 1)}
+		q := naming.Quality{Title: r.quality, Version: max(r.rev, 1)}
 		proper := ""
 		if r.rev > 1 {
 			proper = " Proper"

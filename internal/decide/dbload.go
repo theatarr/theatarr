@@ -14,14 +14,13 @@ import (
 
 	"github.com/theatarr/theatarr/internal/decide/parser/radarr"
 	"github.com/theatarr/theatarr/internal/decide/parser/sonarr"
-	"github.com/theatarr/theatarr/internal/library/naming"
 	"github.com/theatarr/theatarr/internal/metadata/anime/animemap"
 	"github.com/theatarr/theatarr/internal/policy"
 	"github.com/theatarr/theatarr/internal/store"
 )
 
 // Loading decision inputs from our database (internal/store schema): titles with their cached TMDb details,
-// versions, and current files (active links and version_file, from theatarr import-arr). Reads only.
+// versions, and current files (active links and version_file, from the former arr import). Reads only.
 
 // tmdbDetails is what a title takes from the TMDb movie response the importer cached.
 type tmdbDetails struct {
@@ -492,21 +491,6 @@ func LoadVersion(ctx context.Context, db *sql.DB, pol *policy.Policy, titleID in
 	err := db.QueryRowContext(ctx, `SELECT id FROM version WHERE title_id = ? AND policy_key = ?`, titleID, key).Scan(&v.ID)
 	if errors.Is(err, sql.ErrNoRows) {
 		err = nil
-	}
-	if err == nil && v.Policy.Kind == policy.KindSeries {
-		n := v.Policy.Naming
-		if n.FromArr != "" {
-			var body string
-			err = db.QueryRowContext(ctx, `SELECT naming FROM library_naming WHERE instance = ?`, n.FromArr).Scan(&body)
-			if errors.Is(err, sql.ErrNoRows) {
-				return v, nil
-			}
-			if err == nil {
-				cfg, parseErr := naming.ParseArrConfig([]byte(body))
-				err = parseErr
-				v.Naming = &cfg
-			}
-		}
 	}
 	return v, err
 }

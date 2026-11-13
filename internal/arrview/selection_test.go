@@ -52,7 +52,7 @@ func TestDeleteTag(t *testing.T) {
 	e.call("PUT", "/radarr/api/v3/movie/editor", map[string]any{"movieIds": []int{IDBase + 1},
 		"tags": []int{hiddenTag}, "applyTags": "add"}, 202, nil)
 	e.call("DELETE", "/radarr/api/v3/tag/"+hidden, nil, 409, nil)
-	e.cutover()
+	e.start()
 	e.call("DELETE", "/radarr/api/v3/movie/"+strconv.Itoa(IDBase+1), nil, 200, nil)
 	e.call("DELETE", "/radarr/api/v3/tag/"+hidden, nil, 200, nil)
 	if n := e.one(`SELECT COUNT(*) FROM arrview_title_tag WHERE tag_id = ?`, hidden); n != 0 {

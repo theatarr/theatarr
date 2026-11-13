@@ -122,7 +122,7 @@ func (l *Library) adoptSetup(ctx context.Context, version string) (context.Conte
 // adoptAll adopts files into version, named by its naming, and queues the Plex scans of the folders it linked into.
 func (l *Library) adoptAll(ctx context.Context, version string, vp *policy.VersionPolicy, files []adoptFile,
 	rep *AdoptReport) error {
-	vn, err := NamingFor(ctx, l.st.Reader(), l.pol, version)
+	vn, err := NamingFor(l.pol, version)
 	if err != nil {
 		return err
 	}
@@ -374,7 +374,7 @@ func (l *Library) adoptPath(ctx context.Context, key string, vp *policy.VersionP
 	if err != nil {
 		return "", err
 	}
-	q := naming.Quality{Title: vn.QualityTitle(f.quality), Version: max(f.rev, 1)}
+	q := naming.Quality{Title: f.quality, Version: max(f.rev, 1)}
 	ext := path.Ext(f.path)
 	cfs := l.adoptFormats(ctx, key, f.titleID, path.Base(f.path), q.Title+properSuffix(f.rev, f.stype), f.scene)
 	media := mediaInfoFromAPI(f.mi, f.scene, f.orig, f.rel)

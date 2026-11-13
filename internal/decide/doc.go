@@ -3,9 +3,8 @@
 // quality, matched formats with each one's score, total score, and whether and why it upgrades the file).
 //
 // [New] builds the policy's profiles into engine profiles: a policy profile's qualities (best first), cutoff,
-// scores and sizes, with its formats from TRaSH (by trash_id) or arr-shaped JSON files; or a whole arr profile
-// (from_arr: <instance>/<profile>) with that instance's formats, quality definitions and settings, for shadow
-// parity. Problems come back as *policy.Errors with their policy paths.
+// scores and sizes, with its formats from TRaSH (by trash_id) or arr-shaped JSON files. Problems come back as
+// *policy.Errors with their policy paths.
 //
 // [Engine.Decide] runs, for a movie version, what Radarr's DownloadDecisionMaker does for a searched movie:
 //   - parse with the Radarr port (no title: UnableToParse);
@@ -50,16 +49,16 @@
 //     or a language); sizes override the arr's default quality definitions for that profile only (the arrs have
 //     one global table).
 //   - A movie's original language is TMDb's original_language from the cached TMDb answer, mapped as Radarr's
-//     SkyHookProxy does (IsoLanguages.Find, else English); without a cached answer, the arr's name import-arr
+//     SkyHookProxy does (IsoLanguages.Find, else English); without a cached answer, the arr's name an arr import
 //     stored (title.original_language); with neither it is Unknown, where Radarr's would be English (the
 //     MovieMetadata default): an "original" profile then rejects every release with a known language rather
 //     than taking an English one for a film that may not be English.
-//   - A series' original language is the arr's name import-arr stored (title.original_language); without one, the
+//   - A series' original language is the arr's name an arr import stored (title.original_language); without one, the
 //     metadata's code (title_meta.original_language, else series_meta.original_language from the series refresh)
 //     through Sonarr's IsoLanguages.Find (the code, else its base language before a hyphen, plus a few aliases such
 //     as TMDb's "cn"), else English.
 //   - The engine settings (propers, maximum size, prefer indexer flags) are the arr defaults, except propers when
-//     the policy profile sets it; a from_arr profile takes the instance's config when the snapshot has it.
+//     the policy profile sets it.
 //   - Indexer flags are computed from torznab tags and volume factors as TorznabRssParser.GetFlags does.
 //   - The existing file's formats follow ParseCustomFormat(MovieFile): release title from the scene name, else the
 //     original file name, else the relative path's file name; an empty group or edition counts as none.
@@ -69,12 +68,11 @@
 //   - Movie search callers use WithSearch to skip RSS-only Proper; series use DecideSearch. Minimum availability
 //     is enforced by acquisition and release routing, except for interactive/user-invoked searches and grabs.
 //   - Deferred arr specifications (queue, blocklist and the rest listed in docs/design/profiles.md) are not run.
-//     Delay and release profiles are not supported at all: a typical arr setup uses
-//     none, and theatarr import-arr warns if an arr gains one.
+//     Delay and release profiles are not supported at all: a typical arr setup uses none.
 //
 // Series deviations (docs/design/series.md):
 //   - Sonarr's import-time EpisodeTitle hold is applied before download as a temporary rejection. It reads the
-//     selected version's standard/daily/anime naming; missing from_arr naming snapshots skip the check.
+//     selected version's standard/daily/anime naming.
 //   - The library is the one series under decision. A release naming another series is UnknownSeries, where the
 //     arr would map it there and reject it as WrongSeries or MatchesAnotherSeries; the verdict is the same.
 //   - Scene mappings are what Sonarr's API exposes (alternateTitles): no filter regex, no mapping type. Mappings
