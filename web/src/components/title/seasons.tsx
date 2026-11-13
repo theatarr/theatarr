@@ -342,9 +342,9 @@ function LibraryTable({ episodes, copies, anime, manage, seeFiles, selected, onS
           {manage ? <SelectAllHead ids={ids} selected={selected} onSelect={onSelect} /> : null}
           {act ? <TableHead className="w-10"><span className="sr-only">Monitored</span></TableHead> : null}
           <TableHead className={anime ? "w-36" : "w-14"}>#</TableHead>
-          <TableHead>Title</TableHead>
+          <TableHead className="min-w-40">Title</TableHead>
           {columns.map((id) => (
-            <TableHead key={id} className={COLUMN_HEAD[id].className} data-col={id}>
+            <TableHead key={id} className={cn("whitespace-nowrap", COLUMN_HEAD[id].className)} data-col={id}>
               {COLUMN_HEAD[id].label}
             </TableHead>
           ))}
