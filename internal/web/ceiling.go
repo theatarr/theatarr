@@ -55,7 +55,7 @@ func (w *Web) loadCeilings(ctx context.Context, db *sql.DB, vs []upgradeVersion,
 		}
 	}
 	var err error
-	s.profiles, err = ceiling.Profiles(ctx, db, w.pol, profiles)
+	s.profiles, err = ceiling.Profiles(w.pol, profiles)
 	return err
 }
 

@@ -157,7 +157,7 @@ func TestRowUpgradeStateBatch(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			p, err := ceiling.Profile(ctx, w.st.Reader(), w.pol, v.id, v.key, v.kind)
+			p, err := ceiling.Profile(w.pol, v.key, v.kind)
 			if err != nil {
 				t.Fatal(err)
 			}

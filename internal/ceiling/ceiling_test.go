@@ -187,8 +187,7 @@ func TestRecordEmptySearchCoverageAndVersionIsolation(t *testing.T) {
 
 func TestProfileGroupsAndDisplay(t *testing.T) {
 	pol := testPolicy()
-	st := testStore(t)
-	p, err := Profile(context.Background(), st.Reader(), pol, 1, "remux", "movie")
+	p, err := Profile(pol, "remux", "movie")
 	if err != nil {
 		t.Fatal(err)
 	}

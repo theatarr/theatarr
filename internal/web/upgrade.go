@@ -427,9 +427,7 @@ func (w *Web) loadUpgrades(ctx context.Context, db *sql.DB, vs []upgradeVersion,
 		return nil, err
 	}
 	if cutoffs {
-		if s.cutoffs, err = w.loadCutoffs(ctx, db, vs); err != nil {
-			return nil, err
-		}
+		s.cutoffs = w.loadCutoffs(vs)
 	}
 	if cutoffs {
 		if err := w.loadCeilings(ctx, db, vs, s); err != nil {
@@ -564,10 +562,10 @@ func (s *upgradeSet) episodeSeen(v upgradeVersion) map[int64]bool {
 
 // loadCutoffs finds each version's cutoff from its library's profile. A profile without qualities of its own (one
 // taken from an arr) gives none.
-func (w *Web) loadCutoffs(_ context.Context, _ *sql.DB, vs []upgradeVersion) (map[int64]*Cutoff, error) {
+func (w *Web) loadCutoffs(vs []upgradeVersion) map[int64]*Cutoff {
 	out := map[int64]*Cutoff{}
 	if w.pol == nil {
-		return out, nil
+		return out
 	}
 	for _, v := range vs {
 		vp := w.pol.Versions[v.key]
@@ -582,7 +580,7 @@ func (w *Web) loadCutoffs(_ context.Context, _ *sql.DB, vs []upgradeVersion) (ma
 		out[v.id] = &Cutoff{Quality: pr.Cutoff, Score: &score, Profile: vp.Profile, From: "policy",
 			Upgrades: pr.Upgrades == nil || *pr.Upgrades}
 	}
-	return out, nil
+	return out
 }
 
 // rowUpgradeRank orders upgrade states for a list row's badge: the most pressing one wins.

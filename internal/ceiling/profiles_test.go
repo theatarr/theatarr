@@ -1,7 +1,6 @@
 package ceiling
 
 import (
-	"context"
 	"reflect"
 	"testing"
 
@@ -9,8 +8,6 @@ import (
 )
 
 func TestProfiles(t *testing.T) {
-	st := testStore(t)
-	ctx := context.Background()
 	pol := testPolicy()
 	pol.Profiles["imported"] = &policy.Profile{FromArr: "arr/Shared"}
 	pol.Versions["imported"] = &policy.VersionPolicy{Profile: "imported"}
@@ -23,12 +20,12 @@ func TestProfiles(t *testing.T) {
 	for i := int64(7); i < 610; i++ {
 		vs = append(vs, ProfileVersion{i, "remux", "movie"})
 	}
-	got, err := Profiles(ctx, st.Reader(), pol, vs)
+	got, err := Profiles(pol, vs)
 	if err != nil {
 		t.Fatal(err)
 	}
 	for _, v := range vs {
-		want, err := Profile(ctx, st.Reader(), pol, v.ID, v.Key, v.Kind)
+		want, err := Profile(pol, v.Key, v.Kind)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -43,7 +40,7 @@ func TestProfiles(t *testing.T) {
 	if got[2] != got[609] || got[5] == got[6] {
 		t.Fatal("a profile was decoded more than once, or shared across flavours")
 	}
-	if got, err := Profiles(ctx, st.Reader(), nil, nil); err != nil || len(got) != 0 {
+	if got, err := Profiles(nil, nil); err != nil || len(got) != 0 {
 		t.Fatalf("empty batch: %v, %v", got, err)
 	}
 }

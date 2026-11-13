@@ -1,8 +1,6 @@
 package ceiling
 
 import (
-	"context"
-
 	"github.com/theatarr/theatarr/internal/decide/format"
 	"github.com/theatarr/theatarr/internal/decide/profile"
 	"github.com/theatarr/theatarr/internal/policy"
@@ -16,7 +14,7 @@ type ProfileVersion struct {
 
 // Profiles is Profile for a page of versions; each distinct profile is decoded once per flavour, with caches scoped
 // to this call.
-func Profiles(_ context.Context, _ DB, pol *policy.Policy, vs []ProfileVersion) (map[int64]*profile.Profile, error) {
+func Profiles(pol *policy.Policy, vs []ProfileVersion) (map[int64]*profile.Profile, error) {
 	out := map[int64]*profile.Profile{}
 	type profileKey struct {
 		name string

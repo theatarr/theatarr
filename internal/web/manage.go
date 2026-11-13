@@ -106,17 +106,16 @@ type manageVersion struct {
 	key       string
 	state     string
 	monitored bool
-	source    string
 }
 
 func (w *Web) titleVersions(ctx context.Context, titleID int64) ([]manageVersion, error) {
 	var out []manageVersion
-	err := scanAll(ctx, w.st.Reader(), `SELECT v.id, v.policy_key, v.state, v.monitored, COALESCE(vs.instance, '')
-		FROM version v LEFT JOIN version_source vs ON vs.version_id = v.id WHERE v.title_id = ? AND NOT EXISTS
+	err := scanAll(ctx, w.st.Reader(), `SELECT v.id, v.policy_key, v.state, v.monitored
+		FROM version v WHERE v.title_id = ? AND NOT EXISTS
 		(SELECT 1 FROM arrview_removed_version r WHERE r.version_id = v.id) ORDER BY v.policy_key`, []any{titleID},
 		func(r *sql.Rows) error {
 			var v manageVersion
-			if err := r.Scan(&v.id, &v.key, &v.state, &v.monitored, &v.source); err != nil {
+			if err := r.Scan(&v.id, &v.key, &v.state, &v.monitored); err != nil {
 				return err
 			}
 			out = append(out, v)

@@ -556,8 +556,10 @@ removes a view tag (`TestImportCopiesTagsToVersions`).
 - **History ids** are `1,000,000,000 + download id × 10 + event code` (Theatarr's downloads; the arrs' own history is
   not shown, and an id below that base is answered 404); event types are the arr's names. In the Sonarr view a local event has one record per episode of the download, as Sonarr writes them: the episode at position i of the download's episodes adds `i × 2^40` (the first keeps the plain id), so `episodeId` filters, paging and `history/failed/{id}` work for every episode of a pack.
 - **Path, added date and status** come from the view's own record (`arrview_title`: root folder, added date), else
-  the primary library's root with the computed folder and the copy's creation date; a movie's status from its dates,
-  a series' from the series refresh (`series_meta.status`), else `continuing`. The arrs' own records are not read.
+  the primary library's root and the copy's creation date. The path is the folder a file of the title already has
+  under that root (an active link's, else an imported file's), else the computed `Title (Year)`
+  (`TestViewPathFromFiles`). A movie with a file is `released`, else its status follows its dates; a series' status
+  is the series refresh's (`series_meta.status`), else `continuing`. The arrs' own records are not read.
 - **Episode files**: `episodeFileId` is `1,000,000,000 + link id` when a Theatarr link holds the episode, else the
   arr's file id (`version_file`), else 0; `episodefile` is in [devices](devices.md).
 - **Languages** map by name through Radarr's list for both flavours.

@@ -141,7 +141,7 @@ func EffectiveCutoff(p *profile.Profile, tier string) (int, string) {
 }
 
 // Profile reads only the quality part of the library's own profile.
-func Profile(_ context.Context, _ DB, pol *policy.Policy, _ int64, key, kind string) (*profile.Profile, error) {
+func Profile(pol *policy.Policy, key, kind string) (*profile.Profile, error) {
 	return policyProfile(pol, key, flavour(kind))
 }
 
@@ -249,7 +249,7 @@ func Compute(ctx context.Context, db DB, pol *policy.Policy, titleID int64, now 
 			info := Judge(ev, searches, discOnly, ov, now)
 			// The stored ceiling shows the latest searches only; the full history stays in ceiling_search.
 			info.Searches = info.Searches[max(len(info.Searches)-maxInfoSearches, 0):]
-			p, err := Profile(ctx, db, pol, v.id, v.key, v.kind)
+			p, err := Profile(pol, v.key, v.kind)
 			if err != nil {
 				return err
 			}

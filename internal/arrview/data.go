@@ -33,7 +33,7 @@ type entry struct {
 	tags           []int64
 	dates          map[string]time.Time // theatrical, digital, physical
 	datesRefreshed bool
-	seriesStatus   string // series_meta.status in lower case (Sonarr's names), "" when not refreshed
+	seriesStatus   string   // series_meta.status in lower case (Sonarr's names), "" when not refreshed
 	paths          []string // a file path of each of the view's versions that has one (link, else imported file)
 }
 

@@ -61,8 +61,9 @@ Policy: `metadata.series {enabled, interval, per_run}` (enabled by default when 
 ## Imported rows
 
 Episode rows the arr import wrote are ordinary rows: TVDB rows match by slot, the refresh writes their values and
-the states of every version. Successful scene-name reads retire imported aliases (any source other than
-`tvrefresh:*`); XEM replaces imported scene numbers. Failed reads preserve the previous mappings.
+the states of every version. Imported scene names (any source other than `tvrefresh:*`) are never deleted: the
+refresh only adds its own, and a name already held by an imported row is not added again. XEM replaces imported scene
+numbers. Failed reads preserve the previous mappings.
 
 ## Anime
 
