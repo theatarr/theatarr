@@ -91,7 +91,8 @@ function PrimaryAction({ target, has, className }: { target: Target; has: boolea
   const opts = useAddOptions(perms.add && has ? { kind: target.kind, name: target.name, title_id: target.title_id } : null, !!target.anime);
   if (perms.add && has && inEveryLibrary(opts.data)) {
     return (
-      <Button variant="secondary" disabled className={className} data-testid="hero-add">
+      // Opaque (no disabled fade), as the phone's bar floats over the page.
+      <Button variant="secondary" disabled className={cn(className, "text-[var(--ink-3)] disabled:opacity-100")} data-testid="hero-add">
         In every library
       </Button>
     );
