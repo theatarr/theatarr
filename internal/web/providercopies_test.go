@@ -65,7 +65,7 @@ func TestProviderCopiesAPI(t *testing.T) {
 	e.exec(`INSERT INTO provider_copy (info_hash, name, provider, state, message, created_at, updated_at)
 		VALUES (?, 'x', 'tb', 'not_cached', 'Not cached on TB', 0, ?)`, hashA, store.Millis(testNow.Add(-time.Hour)))
 	if body := e.get(APIBase+"/titles/1", sess).Body.String(); !strings.Contains(body,
-		`"copies":[{"provider":"tb","state":"not_cached","message":"Not cached on TB"`) {
+		`"copies":[{"provider":"tb","code":"tb","state":"not_cached","message":"Not cached on TB"`) {
 		t.Fatalf("admin title page: %s", body)
 	}
 	uid := e.account("viewer", "user", "active", false)
@@ -98,7 +98,7 @@ func TestProviderCopiesSameHashAndPoll(t *testing.T) {
 	}
 	e.exec(`INSERT INTO provider_copy (info_hash, name, provider, state, created_at, updated_at)
 		VALUES (?, 'x', 'tb', 'queued', 0, 0)`, strings.ToLower(dl))
-	if body := e.get(APIBase+"/titles/2", sess).Body.String(); !strings.Contains(body, `"copies":[{"provider":"tb","state":"queued"`) {
+	if body := e.get(APIBase+"/titles/2", sess).Body.String(); !strings.Contains(body, `"copies":[{"provider":"tb","code":"tb","state":"queued"`) {
 		t.Fatalf("the page does not show the action's copies: %s", body)
 	}
 	if code := e.jsonCall("POST", APIBase+"/torrents/copy", CopyTorrentRequest{Provider: "rd", ID: "10"}, sess, csrf,
@@ -137,5 +137,46 @@ func TestProviderCopiesOneHash(t *testing.T) {
 	if code := e.jsonCall("POST", APIBase+"/titles/1/copies", CopyTitleRequest{Version: "movie-web"}, sess,
 		e.csrfFor(sess), nil); code != 200 || f.got[len(f.got)-1].Hash != adopted {
 		t.Fatalf("adopted link: %d %+v", code, f.got)
+	}
+}
+
+// A copy with several files (a series: an arr episode held on RD, a linked episode held on TB) keeps Cached on for
+// all of them; only a single current file follows its own hash.
+func TestProviderCopiesSeriesCachedOn(t *testing.T) {
+	t.Parallel()
+	e := newEnv(t)
+	e.exec(`INSERT INTO version (id, title_id, policy_key, state, created_at, updated_at) VALUES (9, 3, 'tv-2160p', 'filled', 0, 0)`)
+	e.exec(`INSERT INTO content (id, info_hash, name, state, first_seen_at, last_seen_at) VALUES
+		(11, 'eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee', 'a', 'present', 0, 0),
+		(12, 'ffffffffffffffffffffffffffffffffffffffff', 'b', 'present', 0, 0)`)
+	e.exec(`INSERT INTO content_provider (content_id, provider, torrent_id, seen_at, state, progress) VALUES
+		(11, 'rd', '1', 0, 'present', 100), (12, 'tb', '2', 0, 'present', 100)`)
+	e.exec(`INSERT INTO version_file (version_id, title_id, instance, arr_file_id, path, size_bytes, quality, languages,
+		content_id) VALUES (9, 3, 'sonarr', 7, '/tv/Gamma/S01E01.mkv', 1, 'WEBDL-2160p', '[]', 11)`)
+	e.exec(`INSERT INTO content_file (id, content_id, path, size_bytes) VALUES (21, 12, 'S01E02.mkv', 1)`)
+	e.exec(`INSERT INTO link (id, path, target, content_file_id, title_id, state, created_at, updated_at)
+		VALUES (51, '/tv/Gamma/S01E02.mkv', '/mnt/b/S01E02.mkv', 21, 3, 'active', 0, 0)`)
+	e.exec(`INSERT INTO link_version (link_id, version_id) VALUES (51, 9)`)
+	if body := e.get(APIBase+"/titles/3", e.login()).Body.String(); !strings.Contains(body, `"cached_on":["rd","tb"]`) {
+		t.Fatalf("series Cached on: %s", body)
+	}
+}
+
+// Copy rows carry the provider's kind code beside its key, so a custom key reads as Cached on does.
+func TestProviderCopiesCode(t *testing.T) {
+	t.Parallel()
+	e := newEnvWith(t, func(c *Config) {
+		tb := *c.Policy.Providers["tb"]
+		c.Policy.Providers["torbox-home"] = &tb
+	})
+	e.exec(`INSERT INTO provider_copy (info_hash, name, provider, state, created_at, updated_at)
+		VALUES (?, 'x', 'torbox-home', 'not_cached', 0, 0)`, hashA)
+	var out CopiesResult
+	if code := e.getKey(APIBase+"/torrents/copies?hash="+hashA, e.apiKey(), &out); code != 200 || len(out.Copies) != 1 ||
+		out.Copies[0].Code != "tb" {
+		t.Fatalf("%d %+v", code, out)
+	}
+	if body := e.get(APIBase+"/titles/1", e.login()).Body.String(); !strings.Contains(body, `"provider":"torbox-home","code":"tb"`) {
+		t.Fatalf("title page: %s", body)
 	}
 }

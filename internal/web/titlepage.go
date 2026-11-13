@@ -191,8 +191,8 @@ func (w *Web) enrichTitle(ctx context.Context, d *TitleDetail) error {
 				}
 			}
 		}
-		// A single current file: Cached on and its copies follow the file's own hash, the one the Torrent link and
-		// "Add to other providers" use (linkHashSQL, fileHashSQL).
+		// The current file's copies, and for a single current file Cached on too, follow the file's own hash, the one
+		// the Torrent link and "Add to other providers" use (linkHashSQL, fileHashSQL).
 		var hashes []string
 		for _, v := range byID {
 			if v.Current != nil && v.Current.InfoHash != "" {
@@ -210,8 +210,11 @@ func (w *Web) enrichTitle(ctx context.Context, d *TitleDetail) error {
 					continue
 				}
 				h := strings.ToLower(v.Current.InfoHash)
-				v.Providers, v.CachedOn = held[h], w.cacheCodes(held[h])
 				v.Current.Copies = copies[h]
+				if v.Current.Files == 1 {
+					// Only a single current file's Cached on follows its hash; several files keep the aggregate.
+					v.Providers, v.CachedOn = held[h], w.cacheCodes(held[h])
+				}
 			}
 		}
 		if size > 0 {

@@ -8,6 +8,7 @@ import (
 	"strings"
 
 	"github.com/theatarr/theatarr/internal/auth"
+	"github.com/theatarr/theatarr/internal/indexer"
 	"github.com/theatarr/theatarr/internal/router"
 )
 
@@ -61,7 +62,7 @@ func (w *Web) apiTorrentCopies(rw http.ResponseWriter, r *http.Request) {
 	if copies == nil {
 		copies = []router.CopyView{}
 	}
-	writeJSON(rw, http.StatusOK, CopiesResult{Copies: copies})
+	writeJSON(rw, http.StatusOK, CopiesResult{Copies: w.withCodes(copies)})
 }
 
 // copier is the request's router, or nil after answering 503.
@@ -144,7 +145,7 @@ func (w *Web) queueCopiesWith(rw http.ResponseWriter, r *http.Request, c Copier,
 	if out == nil {
 		out = []router.CopyView{}
 	}
-	writeJSON(rw, http.StatusOK, CopiesResult{Copies: out})
+	writeJSON(rw, http.StatusOK, CopiesResult{Copies: w.withCodes(out)})
 }
 
 // fileTorrent is the torrent hash and name of a library's file exactly as the file objects show them (the movie's
@@ -190,12 +191,28 @@ func (w *Web) fileTorrent(ctx context.Context, titleID int64, version string, ep
 	return "", nil, false, nil
 }
 
-// fileCopies reads the copies of the torrents behind hashes for the file objects (see files only).
+// fileCopies reads the copies of the torrents behind hashes for the file objects (see files only), with their codes.
 func (w *Web) fileCopies(ctx context.Context, hashes []string) map[string][]router.CopyView {
 	out, err := router.CopiesByHash(ctx, w.st.Reader(), hashes)
 	if err != nil {
 		w.log.Warn("copies to other providers not read", "err", err)
 		return nil
 	}
+	for h, vs := range out {
+		out[h] = w.withCodes(vs)
+	}
 	return out
+}
+
+// withCodes fills each copy's cache code (rd, ad, tb) from its provider key, so the UI labels and matches it as Cached
+// on does.
+func (w *Web) withCodes(vs []router.CopyView) []router.CopyView {
+	for i := range vs {
+		if w.pol != nil {
+			if p := w.pol.Providers[vs[i].Provider]; p != nil {
+				vs[i].Code = indexer.CacheCode(p.Kind)
+			}
+		}
+	}
+	return vs
 }

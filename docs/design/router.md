@@ -1268,8 +1268,10 @@ registry row does not hold the hash complete ("Cached on"); one job (`router.cop
   again. Gone (confirmed by a fresh listing that shows neither id nor hash when the read failed: TorBox answers a
   missing id with a 500): `not_cached`. Complete meanwhile: Cached on, `added`. Another hash, or in use on this
   provider (a download of ours naming the id, or the hash there in any state but failed; a registry entry giving the
-  id another hash; another copy with the id): `failed`, "left in place". The use check, the gate and the delete run
-  under the add lock, so no route adopts the torrent in between. Complete at that read: cached evidence replaces the
+  id another hash; another copy with the id): `failed`, "left in place". The torrent is read again under the add
+  lock, and that read, the use check, the gate and the delete decide together, so no route adopts the torrent and no
+  completion goes unseen in between. A not-found read counts as gone only when a successful listing then shows
+  neither the id nor the hash. Complete at that read: cached evidence replaces the
   uncached verdict, as on a settle.
 - **Real-Debrid with nothing playable to select** (an .iso, a DVD's .vob): `failed`, "Real-Debrid cannot serve this
   file type", and our trial add is deleted under the same checks.
@@ -1288,6 +1290,8 @@ registry row does not hold the hash complete ("Cached on"); one job (`router.cop
   and the registry's names; every read is by hash. Any refused name makes the copy `refused`, never sent; a queued
   row a later request finds refused becomes `refused`.
 - **Hold times** are `provider_copy.until_at`, sent as `until`; the browser shows them in its own zone.
+- **A worker that lost its row stops**: every state change is conditional on the state the worker read; when a new
+  request changed the row meanwhile (a refused name, say), nothing more is sent.
 
 **Recovery.** At start (`ResumeCopies`, every unfinished row without a queued job) and on each job run, the row's
 state says what is left. `adding` without a torrent id waits `addSettle` from its last update, then the account's
@@ -1303,11 +1307,19 @@ registry, else the display and original names from a read of the provider. Both
 answer the rows; 409 with the Pause words while paused; 422 "Cannot add to other providers: Theatarr has no torrent
 hash on record for this file." `GET /torrents/copies?hash=` (admin) reads one torrent's copies for the Torrents page
 to poll. The movie's current file, the episode file and the Torrents row carry `copies` (`provider`, `state`,
-`message`, `updated_at`, `until`), see files only.
+`message`, `updated_at`, `until`, and `code`, the provider's cache code, so a custom key reads as Cached on
+does), see files only.
 
 Tests: `TestCopyTorBox`, `TestCopyRealDebridTrial`, `TestCopyAllDebridList`, `TestCopyRefusedAndPaused`,
 `TestCopyWaitsForMinGap`, `TestCopyRestartInChecking`, `TestCopyLostDeleteAnswer`, `TestCopyRecoversAdding`,
-`TestCopyDedupe`, `TestCopyRule*`, `TestCopyRound2*`, `TestProviderCopiesOneHash`, `TestProviderCopiesSameHashAndPoll`, `TestCopyAfterImport`, `TestProviderCopiesAPI`, `TestRouterSectionCopyToProviders`.
+`TestCopyDedupe`, `TestCopyRule*`, `TestCopyRound2*`, `TestCopyFinal*`, `TestProviderCopiesOneHash`, `TestProviderCopiesSeriesCachedOn`,
+`TestProviderCopiesCode`, `TestProviderCopiesSameHashAndPoll`, `TestCopyAfterImport`, `TestProviderCopiesAPI`, `TestRouterSectionCopyToProviders`.
+
+**Known limits** (accepted, not handled):
+- The names Real-Debrid's rule sees for a file whose hash is resolved only through a shared symlink target.
+- A retry while negative evidence is live for a torrent kept after a lost add answer.
+- The uncached verdict of a copy that was not provably ours can be counted twice after an interruption.
+- Per-provider and per-version query tidy-ups.
 
 ## Policy (`router`, `examples/policy/router.yaml`)
 

@@ -83,7 +83,9 @@ const (
 
 // CopyView is one copy as the title page and the Torrents page show it.
 type CopyView struct {
-	Provider  string    `json:"provider"`
+	Provider string `json:"provider"`
+	// Code is the provider's cache code (rd, ad, tb) as Cached on shows it; the web API fills it from the policy.
+	Code      string    `json:"code,omitempty"`
 	State     string    `json:"state"`
 	Message   string    `json:"message,omitempty"`
 	UpdatedAt time.Time `json:"updated_at"`
@@ -441,7 +443,12 @@ func (r *Router) loadCopy(ctx context.Context, id int64) (*copyRow, error) {
 	return c, nil
 }
 
+// errCopyLost: the row is no longer in the state this worker read (a new request changed it): the worker stops and
+// sends nothing more.
+var errCopyLost = errors.New("router: the copy changed under this worker")
+
 // setCopy moves the row from the state it is in to state with msg (and set, a further assignment with args).
+// errCopyLost when the row is no longer in that state.
 func (r *Router) setCopy(ctx context.Context, c *copyRow, state, msg string, set string, args ...any) error {
 	q := `UPDATE provider_copy SET state = ?, message = ?, updated_at = ?`
 	if set != "" {
@@ -449,9 +456,12 @@ func (r *Router) setCopy(ctx context.Context, c *copyRow, state, msg string, set
 	}
 	all := append([]any{state, msg, store.Millis(r.now())}, args...)
 	all = append(all, c.id, c.state)
-	_, err := r.st.Writer().ExecContext(context.WithoutCancel(ctx), q+` WHERE id = ? AND state = ?`, all...)
+	res, err := r.st.Writer().ExecContext(context.WithoutCancel(ctx), q+` WHERE id = ? AND state = ?`, all...)
 	if err != nil {
 		return fmt.Errorf("router: copy %d: %w", c.id, err)
+	}
+	if n, err := res.RowsAffected(); err != nil || n != 1 {
+		return errCopyLost
 	}
 	c.state, c.message, c.updatedAt = state, msg, r.now()
 	return nil
@@ -473,6 +483,9 @@ func (r *Router) runCopy(ctx context.Context, id int64) error {
 		return err
 	}
 	err = r.workCopy(ctx, c)
+	if errors.Is(err, errCopyLost) {
+		return nil // another request owns the row now
+	}
 	if err == nil || isLater(err) || ctx.Err() != nil || !copyOpen(c.state) {
 		return err
 	}
@@ -1037,10 +1050,19 @@ func (r *Router) uncachedVerdict(ctx context.Context, c *copyRow, msg string) er
 		if msg == "" {
 			return true, nil
 		}
-		_, err := tx.ExecContext(ctx, `UPDATE provider_copy SET message = ?, updated_at = ? WHERE id = ? AND state = ?`,
+		res, err := tx.ExecContext(ctx, `UPDATE provider_copy SET message = ?, updated_at = ? WHERE id = ? AND state = ?`,
 			msg, store.Millis(now), c.id, c.state)
-		return true, err
+		if err != nil {
+			return false, err
+		}
+		if n, err := res.RowsAffected(); err != nil || n != 1 {
+			return false, errCopyLost
+		}
+		return true, nil
 	})
+	if errors.Is(err, errCopyLost) {
+		return err
+	}
 	if err != nil {
 		return fmt.Errorf("router: copy %d: %w", c.id, err)
 	}
@@ -1063,8 +1085,9 @@ func (r *Router) keepComplete(ctx context.Context, c *copyRow, code string) erro
 	return r.setCopy(ctx, c, CopyAdded, "Added to "+code, "")
 }
 
-// copyRead reads the copy's torrent: present, or absent on a not-found answer (TorBox's read lists the account
-// itself before it says so, rule I). err: no answer either way.
+// copyRead reads the copy's torrent: present, or absent only when the read answers not found AND a successful listing
+// of the account shows neither the id nor the hash (rule I; a provider can answer a short-lived 404, and TorBox's
+// read cannot tell its own listing apart, so it is listed again). err: no answer either way.
 func (r *Router) copyRead(ctx context.Context, c *copyRow) (*provider.Torrent, bool, error) {
 	rp := r.provs[c.pk]
 	if rp == nil {
@@ -1074,10 +1097,19 @@ func (r *Router) copyRead(ctx context.Context, c *copyRow) (*provider.Torrent, b
 	switch {
 	case err == nil:
 		return t, true, nil
-	case errors.Is(err, provider.ErrNotFound):
-		return nil, false, nil
+	case !errors.Is(err, provider.ErrNotFound):
+		return nil, false, fmt.Errorf("router: copy to %s: reading torrent %s: %w", c.pk, c.tid, err)
 	}
-	return nil, false, fmt.Errorf("router: copy to %s: reading torrent %s: %w", c.pk, c.tid, err)
+	list, err := rp.Torrents(ctx)
+	if err != nil {
+		return nil, false, fmt.Errorf("router: copy to %s: listing after a not-found read: %w", c.pk, err)
+	}
+	for _, x := range list {
+		if x.ID == c.tid || strings.EqualFold(x.Hash, c.hash) {
+			return nil, false, fmt.Errorf("router: copy to %s: torrent %s not found but still listed", c.pk, c.tid)
+		}
+	}
+	return nil, false, nil
 }
 
 // copyInUse says what on this provider uses the copy's torrent ("" when nothing): a download of ours that names its
@@ -1108,16 +1140,24 @@ func (r *Router) deleteCopy(ctx context.Context, c *copyRow, pv *policy.Provider
 	if strings.HasSuffix(c.message, copyUnplayable) {
 		state, done = CopyFailed, copyUnplayable
 	}
-	t, present, err := r.copyRead(ctx, c)
-	switch {
-	case err != nil:
+	// decide ends the copy from a read when it must not be deleted; ok when the delete may go on.
+	decide := func() (bool, error) {
+		t, present, err := r.copyRead(ctx, c)
+		switch {
+		case err != nil:
+			return false, err
+		case !present:
+			return false, r.setCopy(ctx, c, state, done, "")
+		case t.State == provider.StateDownloaded:
+			return false, r.keepComplete(ctx, c, code)
+		case t.Hash != "" && !strings.EqualFold(t.Hash, c.hash):
+			return false, r.setCopy(ctx, c, CopyFailed, "Not cached on "+code+"; left in place: the entry holds "+
+				"another hash", "")
+		}
+		return true, nil
+	}
+	if ok, err := decide(); !ok || err != nil { // an early exit before the lock
 		return err
-	case !present:
-		return r.setCopy(ctx, c, state, done, "")
-	case t.State == provider.StateDownloaded:
-		return r.keepComplete(ctx, c, code)
-	case t.Hash != "" && !strings.EqualFold(t.Hash, c.hash):
-		return r.setCopy(ctx, c, CopyFailed, "Not cached on "+code+"; left in place: the entry holds another hash", "")
 	}
 	del, ok := ad.(adder.StalledDeleter)
 	if !ok {
@@ -1125,6 +1165,10 @@ func (r *Router) deleteCopy(ctx context.Context, c *copyRow, pv *policy.Provider
 	}
 	r.mu.Lock()
 	defer r.mu.Unlock()
+	// The decision comes from a read under the lock: the torrent may have completed while the lock was waited for.
+	if ok, err := decide(); !ok || err != nil {
+		return err
+	}
 	if why, err := r.copyInUse(ctx, c); err != nil {
 		return err
 	} else if why != "" {
@@ -1137,7 +1181,7 @@ func (r *Router) deleteCopy(ctx context.Context, c *copyRow, pv *policy.Provider
 		return err
 	}
 	wctx, cancel := context.WithTimeout(ctx, providerWriteLimit)
-	err = del.DeleteOwnStalledAdd(wctx, c.tid, adder.OwnAdd{NotOnAccountBefore: true, NewEntry: true})
+	err := del.DeleteOwnStalledAdd(wctx, c.tid, adder.OwnAdd{NotOnAccountBefore: true, NewEntry: true})
 	cancel()
 	if err != nil {
 		return fmt.Errorf("router: copy to %s: deleting our add %s: %w", c.pk, c.tid, err)
