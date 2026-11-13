@@ -13,7 +13,6 @@ How Theatarr works inside, one part per page. Start with the overview.
 - [profiles.md](profiles.md): profiles, the quality half of a decision.
 - [formats.md](formats.md): the custom-format engine and TRaSH formats.
 - [series.md](series.md): Sonarr import, series decisions and series RSS.
-- [sonarr-v5.md](sonarr-v5.md): the Sonarr v5 parser and mapping mode.
 - [rss.md](rss.md): the RSS sync for Live libraries.
 
 ## Acquisition

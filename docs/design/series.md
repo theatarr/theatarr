@@ -88,11 +88,14 @@ from ordinary matching loads.
   (`series_test.go`: FullSeason, SameEpisodes, SingleEpisodeAge, MonitoredEpisode, SingleEpisodeSearchMatch).
 - **`theatarr decide -tvdb N -version KEY [-season N [-episode N]] 'Title'`** decides a series release; `-search` with
   `-season` searches that season.
-- **Sonarr version** (`versions.<k>.sonarr: v4 | v5`, default `v4`, series only): a `v5` version parses and maps
-  as Sonarr v5 (`develop` `a6171f0ca`): multi-season packs, anime season packs named by a season title, seven new
-  languages, `ENG SUBS` as subtitles, diacritics removed for matching, the series' original title (from the cached
-  TVDB record) and aliases with a year. `v4` parses as Sonarr v4. Items, fixtures (v5 ParserTests 1,688/1,688) and the v4
-  against v5 measurement: `docs/design/sonarr-v5.md`.
+- **Parser and season packs** (every series library, no setting): release names parse as v4plus, the Sonarr v4
+  port with the Sonarr v5 parser changes chosen one by one and a few fixes of our own (the table in
+  `internal/decide/parser/sonarr/parser_v4plus.go`): multi-episode anime ranges with a subgroup, more language tags,
+  `WEB` with `EAC3` as WEB-DL. Multi-season packs, packs named by a season title, original titles and partial seasons
+  are not read (v5's mapping is not ported). A season pack, or any multi-episode release, is taken when it fills or
+  upgrades at least one episode (the actuallyevan fork's `ACCEPT_RELEASE_ANY_UPGRADABLE`); episodes that already have
+  a better file keep it: the import upgrade check (library.md) leaves their files in place. The decision's upgrade
+  reason ends `; N episode(s) keep their file`.
 
 ### RSS for series
 
@@ -111,8 +114,9 @@ non-removed episode reaches its stored UTC air time, without fetching metadata.
   TVDB id, file with more episodes, search mismatch, special by title, unmonitored), anime (absolute, batch, scene
   mapping with a scene season, alias, pack ranking), daily, the database loading, Levenshtein.
 - `internal/decide/profile`: the Sonarr fixtures above.
-- `internal/decide`: `TestSeriesDecisionsV5` and `TestSeriesV5Languages` (each case under v4 and v5), the original
-  title in `TestLoadSeriesVersion`; `internal/decide/profile`: v5 season matching.
+- `internal/decide`: `TestSeasonPackRule` and `TestDefaultSeriesLibraryRules` (the pack rule and the v4plus range on
+  a library with no settings); `internal/decide/parser/sonarr`: `TestV4Plus` (each v4plus change against the v4 base)
+  and `TestExportedParserIsV4Plus`.
 - `internal/acquire/rss`: an RSS TV item routed by scene mapping name (`TestRSSSeriesBySceneName`), series batch
   coverage and partly in-flight series.
 

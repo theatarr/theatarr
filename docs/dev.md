@@ -126,7 +126,7 @@ Code notes:
   The commits the ports follow are in [NOTICE](../NOTICE): Radarr `a96bf7c` (v6.4.4.10685) and Sonarr `cab419a`
   (v4.0.20.3014).
 - **Keep the arr names** for enums, ids and JSON fields, so the output marshals like the arr's `GET /api/v3/parse` and
-  can be compared field by field. `theatarr sonarr-parse` prints the Sonarr port's parse of a release title.
+  can be compared field by field. `theatarr sonarr-parse` prints the parse every series library uses (v4plus) of a release title.
 - **List every deviation** in the package doc comment, with the reason. Known differences between .NET and regexp2
   belong there too.
 - **Licence.** The arrs are GPL-3.0; the Cardigann engine is ported from Mediarium, which is AGPL-3.0. Theatarr is

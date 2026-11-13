@@ -350,8 +350,8 @@ mount never lengthen that back-off (`TestPartialAfterWaitsStartsBackoffAgain`).
    Not checked: a link already pointing at the same mount file (a retry
    or repeat of the import), a client's explicit files (manual import: the arrs' `ManualImport` executes its choices
    without the import specifications), an existing file with no known quality (replaced), and a library
-   without a decision engine. Shadow and dry-run plans run the same check against the arr's files. Why: `packs:
-   any_upgradable` takes a pack when any episode is missing or upgradable; without this check the import would replace
+   without a decision engine. Shadow and dry-run plans run the same check against the arr's files. Why: a series
+   library takes a pack when any episode is missing or upgradable; without this check the import would replace
    every episode (a WEB-DL batch taken for a missing E12 would move eleven BD remuxes to the trash).
    Tests: `TestImportUpgradeCheck` (mixed set: better remux and higher-scored file kept, missing filled, worse
    upgraded, retry), `TestImportUpgradeCheckShadow`, `TestImportEqualIsNotAnUpgrade`, `TestImportUpgradePropers`,
