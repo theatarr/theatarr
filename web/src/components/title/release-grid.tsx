@@ -12,6 +12,7 @@ import type { Candidate, ReleaseOutcome, Releases } from "@/api/add";
 import { useAuth } from "@/api/auth";
 import { useGrab } from "@/api/ops";
 import { ColumnPicker } from "@/components/library/view-options";
+import { ProviderPills } from "@/components/provider-pills";
 import { GrabDialog, lateRejections, type GrabTarget } from "@/components/title/release-grab";
 import { toast } from "@/components/toaster";
 import { Badge } from "@/components/ui/badge";
@@ -24,7 +25,6 @@ import { fmtBytes } from "@/lib/format";
 import {
   FLAG_LABEL,
   NO_FILTER,
-  PROVIDER_PILL,
   SOURCE_LABEL,
   columnSortKey,
   episodesText,
@@ -105,12 +105,7 @@ function Score({ c }: { c: Candidate }) {
 }
 
 function Cached({ c }: { c: Candidate }) {
-  if (!c.cached_on?.length) return <span className="text-[var(--ink-3)]" title="No cache evidence (not the same as uncached)">—</span>;
-  return (
-    <span className="flex flex-wrap gap-1">
-      {c.cached_on.map((p) => <Badge key={p} tone="ok" data-testid="release-cached">{PROVIDER_PILL[p] ?? p.toUpperCase()}</Badge>)}
-    </span>
-  );
+  return <ProviderPills codes={c.cached_on} testid="release-cached" empty={<span className="text-[var(--ink-3)]" title="No cache evidence (not the same as uncached)">—</span>} />;
 }
 
 function Quality({ c }: { c: Candidate }) {
@@ -391,9 +386,16 @@ export function ReleaseGrid({
                   <Score c={c} />
                 </div>
                 <div className="mt-1 text-xs text-[var(--ink-2)]">
-                  {[c.quality || "—", c.size ? fmtBytes(c.size) : "", fmtAge(c.published) !== "—" ? fmtAge(c.published) : "", `${peersText(c)} peers`].filter(Boolean).join(" · ")}
+                  {[c.quality || "—", c.size ? fmtBytes(c.size) : "", fmtAge(c.published) !== "—" ? fmtAge(c.published) : "", `${peersText(c)} peers`, c.indexer ?? ""].filter(Boolean).join(" · ")}
                 </div>
-                {c.cached_on?.length ? <div className="mt-1.5"><Cached c={c} /></div> : null}
+                {kind === "series" && c.episodes?.length ? <div className="mt-1 font-mono text-[12px] text-[var(--ink-2)]" data-testid="release-card-episodes">{episodesText(c.episodes)}</div> : null}
+                {c.cached_on?.length || c.languages?.length || c.flags?.length ? (
+                  <div className="mt-1.5 flex flex-wrap items-center gap-1.5 text-xs text-[var(--ink-2)]">
+                    {c.cached_on?.length ? <Cached c={c} /> : null}
+                    {c.languages?.length ? <Languages c={c} /> : null}
+                    {c.flags?.length ? <Cell id="flags" c={c} /> : null}
+                  </div>
+                ) : null}
                 <div className="mt-1.5 flex flex-col items-start gap-1">
                   <Status c={c} />
                   <Outcome o={outcomeOf(c, outcomes)} />

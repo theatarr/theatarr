@@ -36,8 +36,10 @@ it("says what the shown search did and picks out the followed release", async ()
       grabbed: "Grabbed #2 via rd → imported (the current file)", grab: false,
     } },
   ]);
-  renderPage(<ShowReleases titleId={7} defaultOpen initialVersion="movie-web" focus="BBB" />);
+  renderPage(<ShowReleases titleId={7} defaultOpen initialVersion="movie-web" focus="BBB" labels={{ "movie-web": "Movies WEB" }} />);
   expect((await screen.findByTestId("releases-grabbed")).textContent).toBe("Grabbed #2 via rd → imported (the current file)");
+  const tab = screen.getByRole("tab", { name: "Movies WEB" });
+  expect(tab.querySelector("[data-vkey]")?.getAttribute("title")).toBe("movie-web");
   const rows = within(screen.getByTestId("releases-table")).getAllByRole("row").filter((r) => r.dataset.releaseHash);
   expect(rows.map((r) => r.dataset.focus ?? "")).toEqual(["", "true"]);
   expect(screen.queryByTestId("releases-focus-missing")).toBeNull();

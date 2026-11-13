@@ -183,13 +183,13 @@ it("searches a season or an episode, each library once per opening, and again on
   );
   open();
   await table();
-  fireEvent.click(screen.getByRole("tab", { name: /movie-remux/i }));
+  fireEvent.click(screen.getByRole("tab", { name: "Remux" }));
   await waitFor(() => expect(api.calls("GET", "/titles/7/releases")).toHaveLength(2));
   await table();
-  fireEvent.click(screen.getByRole("tab", { name: /movie-web/i }));
+  fireEvent.click(screen.getByRole("tab", { name: "WEB" }));
   await table();
   expect(api.calls("GET", "/titles/7/releases").map((g) => g.search)).toEqual(["?version=movie-web&live=1&season=2", "?version=movie-remux&live=1&season=2"]);
-  expect(screen.queryByRole("tab", { name: /movie-arr/i })).toBeNull();
+  expect(screen.queryByRole("tab", { name: "Arr" })).toBeNull();
   fireEvent.click(screen.getByTestId("interactive-close"));
   open();
   await waitFor(() => expect(api.calls("GET", "/titles/7/releases")).toHaveLength(3));
@@ -211,7 +211,7 @@ it("a release sent for one library is not shown as sent for another", async () =
   open();
   fireEvent.click(await grabIn(0));
   await within(await table()).findByTestId("release-sent");
-  fireEvent.click(screen.getByRole("tab", { name: /movie-remux/i }));
+  fireEvent.click(screen.getByRole("tab", { name: "Remux" }));
   await waitFor(async () => expect(within(await table()).getAllByTestId("release-grab")).toHaveLength(2));
   expect(screen.queryByTestId("release-sent")).toBeNull();
 });
@@ -221,6 +221,31 @@ it("leaves a removed copy out: no tab, and a search asked for it opens on a curr
   renderPage(<InteractiveSearchButton titleId={7} version="movie-web" />);
   open();
   await table();
-  expect(screen.queryByRole("tab", { name: /movie-web/i })).toBeNull();
+  expect(screen.queryByRole("tab", { name: "WEB" })).toBeNull();
   expect(api.calls("GET", "/titles/7/releases").map((g) => g.search)).toEqual(["?version=movie-remux&live=1"]);
+});
+
+it("names each library tab, with the settings key as tooltip", async () => {
+  mockFetch([ME, TITLE, CURRENT, { method: "GET", path: "/titles/7/releases", reply: answer() }]);
+  renderPage(<InteractiveSearchButton titleId={7} version="movie-web" />);
+  open();
+  await table();
+  const tabs = screen.getAllByRole("tab");
+  expect(tabs.map((t) => t.textContent)).toEqual(["WEB", "Remux"]);
+  expect(tabs.map((t) => t.querySelector("[data-vkey]")?.getAttribute("title"))).toEqual(["movie-web", "movie-remux"]);
+});
+
+it("a phone card shows the indexer, the episodes covered, languages and flags", async () => {
+  const series: Route = { ...TITLE, reply: { ...(TITLE.reply as object), kind: "series" } };
+  const pack = { ...accepted, episodes: ["S02E01", "S02E02", "S02E03"], flags: ["freeleech"] };
+  mockFetch([ME, series, CURRENT, { method: "GET", path: "/titles/7/releases", reply: answer("movie-web", { candidates: [pack, rejected] }) }]);
+  renderPage(<InteractiveSearchButton titleId={7} version="movie-web" season={2} />);
+  open();
+  const list = await screen.findByTestId("releases-list");
+  const card = within(list).getAllByRole("listitem").find((li) => li.dataset.releaseHash === "aaa")!;
+  expect(card.textContent).toContain("120 / 8 peers · Nyaa");
+  expect(within(card).getByTestId("release-card-episodes").textContent).toBe("S02E01–E03 (3)");
+  expect(within(card).getByTestId("release-cached").textContent).toBe("RD");
+  expect(card.textContent).toContain("English");
+  expect(card.textContent).toContain("Freeleech");
 });

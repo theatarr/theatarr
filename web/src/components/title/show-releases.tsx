@@ -9,8 +9,8 @@ import { useState } from "react";
 import { useReleases, type Releases } from "@/api/add";
 import { usePerms } from "@/api/library";
 import { VersionStatus } from "@/components/version-status";
-import { Empty, ErrorState, VersionTag } from "@/components/page";
-import { InteractiveSearchButton } from "@/components/title/interactive-search";
+import { Empty, ErrorState } from "@/components/page";
+import { InteractiveSearchButton, LibraryTabLabel } from "@/components/title/interactive-search";
 import { AddByHash } from "@/components/title/release-grab";
 import { ReleaseGrid } from "@/components/title/release-grid";
 import { Badge } from "@/components/ui/badge";
@@ -51,7 +51,22 @@ export function Summary({ r }: { r: Releases }) {
 }
 
 /** The panel. Collapsed until opened (a closed panel loads nothing). */
-export function ShowReleases({ titleId, kind = "movie", defaultOpen = false, initialVersion, focus }: { titleId: number; kind?: "movie" | "series"; defaultOpen?: boolean; initialVersion?: string; focus?: string }) {
+export function ShowReleases({
+  titleId,
+  kind = "movie",
+  defaultOpen = false,
+  initialVersion,
+  focus,
+  labels,
+}: {
+  titleId: number;
+  kind?: "movie" | "series";
+  defaultOpen?: boolean;
+  initialVersion?: string;
+  focus?: string;
+  /** Library names by settings key (from the title), for the tabs. */
+  labels?: Record<string, string>;
+}) {
   const [open, setOpen] = useState(defaultOpen);
   return (
     <Card className="p-0" data-testid="show-releases">
@@ -66,12 +81,12 @@ export function ShowReleases({ titleId, kind = "movie", defaultOpen = false, ini
         <span className="hidden text-xs text-muted-foreground sm:inline">the last search Theatarr decided for each library</span>
         <ChevronDown className={cn("size-4 transition-transform", !open && "-rotate-90")} />
       </button>
-      {open ? <Panel titleId={titleId} kind={kind} initialVersion={initialVersion} focus={focus} /> : null}
+      {open ? <Panel titleId={titleId} kind={kind} initialVersion={initialVersion} focus={focus} labels={labels} /> : null}
     </Card>
   );
 }
 
-function Panel({ titleId, kind, initialVersion, focus }: { titleId: number; kind: "movie" | "series"; initialVersion?: string; focus?: string }) {
+function Panel({ titleId, kind, initialVersion, focus, labels }: { titleId: number; kind: "movie" | "series"; initialVersion?: string; focus?: string; labels?: Record<string, string> }) {
   const perms = usePerms();
   const [version, setVersion] = useState<string | undefined>(initialVersion);
   const q = useReleases(titleId, version, false);
@@ -93,7 +108,7 @@ function Panel({ titleId, kind, initialVersion, focus }: { titleId: number; kind
               onClick={() => setVersion(k)}
               className={cn("rounded-md p-0.5 ring-offset-0 transition", r?.version === k ? "ring-2 ring-[var(--line-focus)]" : "opacity-70 hover:opacity-100")}
             >
-              <VersionTag k={k} />
+              <LibraryTabLabel k={k} name={labels?.[k]} />
             </button>
           ))}
           {r ? <VersionStatus state={r.grab_state} showMode settingsKey={r.version} canManage={perms.admin} /> : null}

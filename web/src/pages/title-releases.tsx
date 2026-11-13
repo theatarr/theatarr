@@ -31,6 +31,7 @@ export function TitleReleasesPage() {
   if (q.error) return <ErrorState error={q.error} />;
   const t = q.data;
   const name = t.name ?? `Title ${id}`;
+  const labels = Object.fromEntries((t.versions ?? []).flatMap((v) => (v.key ? [[v.key, v.label ?? v.key]] : [])));
   return (
     <div>
       <PageHeader
@@ -49,7 +50,7 @@ export function TitleReleasesPage() {
       />
       <div className="space-y-5">
         <TitleAddActions titleId={id} name={name} year={t.year} kind={t.kind === "series" ? "series" : "movie"} poster={t.poster} anime={t.anime} />
-        <ShowReleases titleId={id} kind={t.kind === "series" ? "series" : "movie"} defaultOpen initialVersion={params.get("version") ?? undefined} focus={params.get("hash") ?? undefined} />
+        <ShowReleases titleId={id} kind={t.kind === "series" ? "series" : "movie"} labels={labels} defaultOpen initialVersion={params.get("version") ?? undefined} focus={params.get("hash") ?? undefined} />
       </div>
     </div>
   );

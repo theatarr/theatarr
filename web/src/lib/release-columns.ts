@@ -186,8 +186,6 @@ export function episodesText(eps: string[] | undefined): string {
   return `${first}–${sameSeason ? last.slice(3) : last} (${eps.length})`;
 }
 
-export const PROVIDER_PILL: Record<string, string> = { rd: "RD", ad: "AD", tb: "TB" };
-
 export const SOURCE_LABEL: Record<string, string> = {
   torznab: "Torznab",
   cardigann: "Built-in",
