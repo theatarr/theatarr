@@ -212,7 +212,7 @@ The database migrations run at start; nothing needs doing first. What an install
 - **Watch-only libraries that copied a Sonarr/Radarr instance** (through the old periodic import) stay, with their
   titles, as ordinary Watch-only libraries. They are no longer updated. Each gets one **System › Errors** card:
   "Library K copied a Sonarr/Radarr instance. That copy is no longer updated. Delete the library when you no longer
-  need it." Remove it with **Stop managing library** when you no longer need it, and resolve the card.
+  need it." Remove it with **Stop managing library** when you no longer need it; that also resolves the card.
 - **A quality profile or naming taken from an instance** (`from_arr`) becomes a stored copy of what the library used,
   keeping its key. Each library concerned gets one **System › Errors** message asking you to check the copy in
   **Settings › Profiles** or **Settings › Libraries**. If no copy could be made (no stored snapshot of the instance),
