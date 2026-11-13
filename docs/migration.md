@@ -227,6 +227,10 @@ The database migrations run at start; nothing needs doing first. What an install
   was.
 - **One parser.** Every library uses the same release parser and pack rule. Picks can differ from before on installs
   that used the old defaults.
+- **One search schedule.** Every missing or upgradable item has a next search time, shown with its reason on
+  **Wanted** and on the title page. The **Automatic searches** switch, the round interval and **Retry new releases
+  sooner** are gone (`router.wanted.enabled`, `interval`, `retry_new`); older policy files that hold them still load.
+  If automatic search was off, **Search for missing items** and **Search for upgrades** are both off after the upgrade.
 
 ### Removed in this release
 

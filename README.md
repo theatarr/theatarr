@@ -12,10 +12,13 @@ and would rather run one service.
 ## Screenshots
 
 ![Theatarr's Home page](docs/images/home.png)
-*Home: recently added, upcoming, missing and upgrades found.*
+*Home: downloads getting ready, requests, recently added, upcoming, missing and upgrades found.*
+
+![The Movies list in table view](docs/images/library.png)
+*The Movies list as a table: one line per title, with its state in each library.*
 
 ![A movie's page in Theatarr with its libraries](docs/images/title.png)
-*A movie's page, with its copy in each library.*
+*A movie's page: the action bar, and its libraries in one table with the debrid providers that hold each file.*
 
 ![A decision in the decision journal](docs/images/journal.png)
 *A decision in the journal: the chosen release, the runners-up and why the rest were rejected.*
@@ -101,7 +104,7 @@ Theatarr does not do these yet. If you rely on one of them, keep the tool you us
 - **Real torrent clients.** Grabs go to debrid providers or to a qBittorrent-API debrid bridge such as decypharr.
   A seedbox qBittorrent, and hardlink or copy imports of real files, are not supported.
 - **Jellyfin and Emby.** They work from the library folders alone; Theatarr does not scan them or sign in with them.
-- **Delay profiles and release profiles.** Migration reads them only to warn that they are not carried over.
+- **Delay profiles and release profiles.** The import from Sonarr or Radarr does not bring them over.
 - **OIDC, LDAP and two-factor sign-in.** Sign-in is a local password or Plex.
 
 [docs/not-supported.md](docs/not-supported.md) has the details and the workarounds.
