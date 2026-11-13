@@ -17,7 +17,7 @@ import {
   withHistoryFilter,
   type HistoryFilters as Filters,
 } from "@/lib/activity-history";
-import { distinctLabels, libraryLabel, relabel } from "@/lib/copies";
+import { distinctLabels, plainLabels, relabel } from "@/lib/copies";
 import { today } from "@/lib/library";
 
 const FIELD = "h-8 rounded-[5px] border border-input bg-field px-2 text-[13.5px]";
@@ -28,17 +28,7 @@ export function useHistoryFilters(): Filters {
   return parseHistoryFilters(sp);
 }
 
-/** Library names without their keys, for accounts that do not see files: the plain label, and "(2)", "(3)" after a
- * name already taken. */
-export function plainLabels<T extends { key?: string; label?: string }>(vs: readonly T[]): T[] {
-  const seen = new Map<string, number>();
-  return vs.map((v) => {
-    const base = v.label ? libraryLabel(v.key ?? "", v.label) : "Library";
-    const n = (seen.get(base) ?? 0) + 1;
-    seen.set(base, n);
-    return { ...v, label: n > 1 ? `${base} (${n})` : base };
-  });
-}
+export { plainLabels };
 
 /** tools: buttons at the row's end (the table's Columns); plain: library names without keys (household views). */
 export function HistoryFilters({ tools, plain = false }: { tools?: ReactNode; plain?: boolean } = {}) {

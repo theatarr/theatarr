@@ -66,22 +66,27 @@ export const useFacets = (kind?: string, anime?: boolean) =>
     staleTime: 60_000,
   });
 
-// A title's copies shown together get labels that tell same-named ones apart (lib/copies distinctLabels).
-const titleLabels = (d: TitleDetail): TitleDetail => (d.versions ? { ...d, versions: withDistinctLabels(d.versions) as TitleDetail["versions"] } : d);
-const episodeLabels = (l: EpisodeList): EpisodeList => (l.versions ? { ...l, versions: withDistinctLabels(l.versions) } : l);
+// A title's copies shown together get labels that tell same-named ones apart (lib/copies withDistinctLabels): by key
+// for accounts that see files, by number for the others.
+export const titleLabels = (d: TitleDetail, plain = false): TitleDetail => (d.versions ? { ...d, versions: withDistinctLabels(d.versions, plain) as TitleDetail["versions"] } : d);
+const episodeLabels = (l: EpisodeList, plain = false): EpisodeList => (l.versions ? { ...l, versions: withDistinctLabels(l.versions, plain) } : l);
 
-export const useTitle = (id: string, enabled = true) =>
-  useQuery({ queryKey: qk.title(id), queryFn: () => api<TitleDetail>(`/titles/${encodeURIComponent(id)}`), enabled, select: titleLabels });
+export function useTitle(id: string, enabled = true) {
+  const plain = !usePerms().seeFiles;
+  return useQuery({ queryKey: qk.title(id), queryFn: () => api<TitleDetail>(`/titles/${encodeURIComponent(id)}`), enabled, select: (d) => titleLabels(d, plain) });
+}
 
-export const useEpisodes = (id: string, season?: number, enabled = true) =>
-  useQuery({
+export function useEpisodes(id: string, season?: number, enabled = true) {
+  const plain = !usePerms().seeFiles;
+  return useQuery({
     queryKey: qk.episodes(id, season),
     queryFn: () => api<EpisodeList>(`/titles/${encodeURIComponent(id)}/episodes` + qs({ season })),
     enabled,
-    select: episodeLabels,
+    select: (l) => episodeLabels(l, plain),
     // "aired" is as of the response, and no event says an episode's air time has passed: ask again while the page is open.
     refetchInterval: 3 * 60_000,
   });
+}
 
 /** One Home row in full (GET /discover/{row}), paged as the grid scrolls: every kind, the row's own order. */
 export function useDiscoverRow(row: string) {
