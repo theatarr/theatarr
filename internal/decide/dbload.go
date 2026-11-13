@@ -181,11 +181,6 @@ func LoadSeriesVersion(ctx context.Context, db *sql.DB, t *Title, versionID int6
 	if err := rows.Err(); err != nil {
 		return err
 	}
-	if t.OriginalTitle == "" && t.TVDB > 0 {
-		if t.OriginalTitle, err = seriesOriginalTitle(ctx, db, t.TVDB); err != nil {
-			return err
-		}
-	}
 	eps, err := LoadEpisodes(ctx, db, t.ID, versionID)
 	if err != nil {
 		return err
@@ -603,52 +598,3 @@ func NewLibrary(titles map[int64]Title) Library {
 
 func (l *titleLibrary) ByIMDb(id string) *Title { return l.byIMDb[id] }
 func (l *titleLibrary) ByTMDb(id int) *Title    { return l.byTMDb[id] }
-
-// tvdbSeriesTitles is what seriesOriginalTitle reads from a cached TVDB extended series record (tvdb.Series).
-type tvdbSeriesTitles struct {
-	Data struct {
-		OriginalLanguage string `json:"originalLanguage"`
-		Translations     *struct {
-			NameTranslations []struct {
-				Language string `json:"language"`
-				Name     string `json:"name"`
-				IsAlias  bool   `json:"isAlias"`
-			} `json:"nameTranslations"`
-		} `json:"translations"`
-	} `json:"data"`
-}
-
-// seriesOriginalTitle is a series' original title as Sonarr v5's SkyHookProxy.MapSeries takes it (the translation
-// in the series' original language), from the TVDB extended record our TVDB client cached (tvdb.Client.Series: GET
-// <base>/series/<id>/extended?meta=translations&short=true; stale entries too). "" when nothing is cached or no
-// name translation is in the original language. The series mapping does not match it (Sonarr v5 did; removed).
-func seriesOriginalTitle(ctx context.Context, db *sql.DB, tvdbID int) (string, error) {
-	suffix := fmt.Sprintf("/series/%d/extended?meta=translations&short=true", tvdbID)
-	var body []byte
-	err := db.QueryRowContext(ctx, `SELECT body FROM metadata_cache WHERE source = 'tvdb' AND substr(key, 1, 4) = 'GET '
-		AND substr(key, -length(?)) = ? ORDER BY fetched_at DESC LIMIT 1`, suffix, suffix).Scan(&body)
-	if errors.Is(err, sql.ErrNoRows) {
-		return "", nil
-	}
-	if err != nil {
-		return "", err
-	}
-	zr, err := gzip.NewReader(bytes.NewReader(body))
-	if err != nil {
-		return "", nil // a broken entry is a miss
-	}
-	raw, err := io.ReadAll(zr)
-	if err != nil {
-		return "", nil
-	}
-	var s tvdbSeriesTitles
-	if json.Unmarshal(raw, &s) != nil || s.Data.Translations == nil || s.Data.OriginalLanguage == "" {
-		return "", nil
-	}
-	for _, tr := range s.Data.Translations.NameTranslations {
-		if tr.Language == s.Data.OriginalLanguage && !tr.IsAlias && strings.TrimSpace(tr.Name) != "" {
-			return tr.Name, nil
-		}
-	}
-	return "", nil
-}

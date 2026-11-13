@@ -41,7 +41,7 @@ type Title struct {
 	Name          string
 	Year          int
 	SecondaryYear int
-	// OriginalTitle and Aliases (alternative titles, translations) are matched like the arr's clean titles.
+	// OriginalTitle (films) and Aliases (alternative titles, translations) are matched like the arr's clean titles.
 	OriginalTitle string
 	Aliases       []string
 	IMDb          string // tt…

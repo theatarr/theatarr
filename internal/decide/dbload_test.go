@@ -253,20 +253,18 @@ func TestLoadSeriesVersion(t *testing.T) {
 	if !d.Accepted || !d.Upgrade || d.Existing == nil || d.Existing.Quality != "WEBDL-1080p" {
 		t.Errorf("E01-02: %s %v %s", reasons(d), d.Upgrade, d.UpgradeReason)
 	}
-	// The original title (Sonarr v5's CleanOriginalTitle) comes from the cached TVDB extended record: the name
-	// translation in the original language, not an alias.
+	// A series' original title is not loaded or matched, even with a cached TVDB record naming it.
 	if _, err := st.Writer().ExecContext(ctx, `INSERT INTO metadata_cache (source, key, status, body, fetched_at, expires_at)
 		VALUES ('tvdb', 'GET https://api4.thetvdb.com/v4/series/2002/extended?meta=translations&short=true', 200, ?, 0, 0)`,
 		gz(t, `{"status":"success","data":{"id":2002,"name":"Isekai Story","originalLanguage":"jpn","translations":
-			{"nameTranslations":[{"language":"jpn","name":"Isekai Alias","isAlias":true},
-			{"language":"eng","name":"Isekai Story"},{"language":"jpn","name":"Isekai Monogatari Gaiden"}]}}}`)); err != nil {
+			{"nameTranslations":[{"language":"eng","name":"Isekai Story"},{"language":"jpn","name":"Isekai Monogatari Gaiden"}]}}}`)); err != nil {
 		t.Fatal(err)
 	}
 	t2 := series[5]
 	if err := LoadSeriesVersion(ctx, st.Reader(), &t2, 8); err != nil {
 		t.Fatal(err)
 	}
-	if t2.OriginalTitle != "Isekai Monogatari Gaiden" {
+	if t2.OriginalTitle != "" {
 		t.Errorf("original title %q", t2.OriginalTitle)
 	}
 	d4, _ := e.Decide(ctx, rel("[G] Isekai Monogatari Gaiden - 01-02 (BD 1080p)", "public", 3*gb), t2, v, nil)
