@@ -151,7 +151,7 @@ func Record(ctx context.Context, db DB, pol *policy.Policy, titleID int64, versi
 	ds []*decide.Decision, rels map[*decide.Decision]indexer.Release, coverage []Coverage, at time.Time) error {
 	// RSS decides many items per pass: without a matched candidate there is nothing to record, so skip the write
 	// transaction and the recompute.
-	if source != "search" && source != "shadow_search" && !slices.ContainsFunc(ds, func(d *decide.Decision) bool {
+	if source != "search" && !slices.ContainsFunc(ds, func(d *decide.Decision) bool {
 		return d != nil && d.MatchType != decide.MatchNone
 	}) {
 		return nil
@@ -168,7 +168,7 @@ func Record(ctx context.Context, db DB, pol *policy.Policy, titleID int64, versi
 		return tx.Commit()
 	}
 	seasons := map[int]bool{}
-	if source == "search" || source == "shadow_search" {
+	if source == "search" {
 		if target == "movie" {
 			seasons[-1] = true
 		} else {
@@ -239,7 +239,7 @@ func Record(ctx context.Context, db DB, pol *policy.Policy, titleID int64, versi
 			return err
 		}
 	}
-	if source == "search" || source == "shadow_search" {
+	if source == "search" {
 		for s := range seasons {
 			tier := best[s]
 			if tier == "" {

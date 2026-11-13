@@ -24,7 +24,7 @@ func TestGetSendsKeyHeaderAndQuery(t *testing.T) {
 		if r.Method != http.MethodGet {
 			t.Errorf("method %s", r.Method)
 		}
-		if r.URL.Path != "/base/api/v3/parse" {
+		if r.URL.Path != "/base/api/v3/movie" {
 			t.Errorf("path %s", r.URL.Path)
 		}
 		if r.Header.Get("X-Api-Key") != testKey {
@@ -43,7 +43,7 @@ func TestGetSendsKeyHeaderAndQuery(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	resp, err := c.Parse(context.Background(), "A.Movie.2020.1080p&x=1")
+	resp, err := c.Get(context.Background(), "movie", url.Values{"title": {"A.Movie.2020.1080p&x=1"}})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -80,19 +80,19 @@ func TestNonGETIsImpossible(t *testing.T) {
 		t.Fatal(err)
 	}
 	for _, m := range []string{http.MethodPost, http.MethodPut, http.MethodDelete, http.MethodPatch, http.MethodHead} {
-		req, _ := http.NewRequest(m, srv.URL+"/api/v3/parse", strings.NewReader("{}"))
+		req, _ := http.NewRequest(m, srv.URL+"/api/v3/movie", strings.NewReader("{}"))
 		_, err := c.hc.Do(req)
 		if !errors.Is(err, ErrNotAllowed) {
 			t.Errorf("%s: err = %v, want ErrNotAllowed", m, err)
 		}
 	}
 	// A GET with a body is refused too.
-	req, _ := http.NewRequest(http.MethodGet, srv.URL+"/api/v3/parse", strings.NewReader("{}"))
+	req, _ := http.NewRequest(http.MethodGet, srv.URL+"/api/v3/movie", strings.NewReader("{}"))
 	if _, err := c.hc.Do(req); !errors.Is(err, ErrNotAllowed) {
 		t.Errorf("GET with body: %v", err)
 	}
 	// Endpoints off the allowlist (command, release, a movie by id) are refused at both layers.
-	for _, ep := range []string{"command", "release", "movie/1", "movie/lookup", "../api/v3/command", "parse/../command"} {
+	for _, ep := range []string{"command", "release", "movie/1", "movie/lookup", "../api/v3/command", "movie/../command", "history", "parse", "tag"} {
 		if _, err := c.Get(context.Background(), ep, nil); !errors.Is(err, ErrNotAllowed) {
 			t.Errorf("Get(%q): %v", ep, err)
 		}
@@ -112,7 +112,7 @@ func TestRedirectRefused(t *testing.T) {
 	}))
 	defer srv.Close()
 	c, _ := New(srv.URL, testKey, fastOpts())
-	if _, err := c.Get(context.Background(), "tag", nil); err == nil {
+	if _, err := c.Get(context.Background(), "system/status", nil); err == nil {
 		t.Fatal("redirect followed")
 	}
 }
@@ -122,9 +122,9 @@ func TestKeyNeverInErrors(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		k := r.Header.Get("X-Api-Key")
 		switch r.URL.Path {
-		case "/api/v3/tag":
+		case "/api/v3/system/status":
 			http.Error(w, "bad key "+k+" "+url.QueryEscape(k), http.StatusInternalServerError)
-		case "/api/v3/language":
+		case "/api/v3/rootfolder":
 			http.Error(w, "unauthorised "+k, http.StatusUnauthorized)
 		case "/api/v3/qualityprofile":
 			w.Write([]byte("not json " + k))
@@ -135,13 +135,13 @@ func TestKeyNeverInErrors(t *testing.T) {
 	ctx := context.Background()
 	var v any
 	errs := []error{
-		c.GetJSON(ctx, "tag", nil, &v),
-		c.GetJSON(ctx, "language", nil, &v),
+		c.GetJSON(ctx, "system/status", nil, &v),
+		c.GetJSON(ctx, "rootfolder", nil, &v),
 		c.GetJSON(ctx, "qualityprofile", nil, &v),
 	}
 	// Network error: closed server.
 	dead, _ := New("http://127.0.0.1:1", testKey, fastOpts())
-	errs = append(errs, dead.GetJSON(ctx, "tag", nil, &v))
+	errs = append(errs, dead.GetJSON(ctx, "system/status", nil, &v))
 	for i, err := range errs {
 		if err == nil {
 			t.Errorf("case %d: no error", i)
@@ -165,7 +165,7 @@ func TestRetriesOn5xxThenSucceeds(t *testing.T) {
 	}))
 	defer srv.Close()
 	c, _ := New(srv.URL, testKey, fastOpts())
-	resp, err := c.Get(context.Background(), "tag", nil)
+	resp, err := c.Get(context.Background(), "system/status", nil)
 	if err != nil || resp.Status != 200 {
 		t.Fatalf("resp %v err %v", resp, err)
 	}
@@ -182,7 +182,7 @@ func TestNoRetryOn4xx(t *testing.T) {
 	}))
 	defer srv.Close()
 	c, _ := New(srv.URL, testKey, fastOpts())
-	resp, err := c.Get(context.Background(), "parse", nil)
+	resp, err := c.Get(context.Background(), "movie", nil)
 	if err != nil || resp.Status != 400 || n.Load() != 1 {
 		t.Fatalf("resp %v err %v attempts %d", resp, err, n.Load())
 	}
@@ -214,7 +214,7 @@ func TestGivesUp(t *testing.T) {
 	}))
 	defer srv.Close()
 	c, _ := New(srv.URL, testKey, fastOpts())
-	_, err := c.Get(context.Background(), "tag", nil)
+	_, err := c.Get(context.Background(), "system/status", nil)
 	var se *StatusError
 	if !errors.As(err, &se) && !strings.Contains(err.Error(), "503") {
 		t.Fatalf("err %v", err)
@@ -229,7 +229,7 @@ func TestRateLimit(t *testing.T) {
 	c, _ := New(srv.URL, testKey, o)
 	start := time.Now()
 	for i := 0; i < 5; i++ {
-		if _, err := c.Get(context.Background(), "tag", nil); err != nil {
+		if _, err := c.Get(context.Background(), "system/status", nil); err != nil {
 			t.Fatal(err)
 		}
 	}
@@ -248,7 +248,7 @@ func TestContextCancel(t *testing.T) {
 	c, _ := New(srv.URL, testKey, o)
 	ctx, cancel := context.WithTimeout(context.Background(), 100*time.Millisecond)
 	defer cancel()
-	if _, err := c.Get(ctx, "tag", nil); !errors.Is(err, context.DeadlineExceeded) {
+	if _, err := c.Get(ctx, "system/status", nil); !errors.Is(err, context.DeadlineExceeded) {
 		t.Fatalf("err %v", err)
 	}
 }
@@ -261,23 +261,6 @@ func TestNewRejectsBadInput(t *testing.T) {
 	}
 	if _, err := New("http://h", "", Options{}); err == nil {
 		t.Error("empty key accepted")
-	}
-}
-
-func TestGrabbedHistoryQuery(t *testing.T) {
-	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		q := r.URL.Query()
-		if r.URL.Path != "/api/v3/history" || q.Get("eventType") != "1" || q.Get("page") != "3" ||
-			q.Get("pageSize") != "50" || q.Get("sortKey") != "date" || q.Get("sortDirection") != "ascending" {
-			t.Errorf("query %s %s", r.URL.Path, r.URL.RawQuery)
-		}
-		w.Write([]byte(`{"page":3,"pageSize":50,"totalRecords":120,"records":[{"id":1},{"id":2}]}`))
-	}))
-	defer srv.Close()
-	c, _ := New(srv.URL, testKey, fastOpts())
-	hp, err := c.GrabbedHistory(context.Background(), 3, 50)
-	if err != nil || hp.TotalRecords != 120 || len(hp.Records) != 2 {
-		t.Fatalf("hp %+v err %v", hp, err)
 	}
 }
 
@@ -318,70 +301,5 @@ func TestProwlarrClientReadsIndexersOnly(t *testing.T) {
 	}
 	if len(paths) != 1 || paths[0] != "GET /prowlarr/api/v1/indexer" {
 		t.Fatalf("server saw %v", paths)
-	}
-}
-
-func TestProwlarrInventoryAndSeerrClientsReadTheirAllowlistOnly(t *testing.T) {
-	for _, tc := range []struct {
-		name    string
-		set     func(*Options)
-		base    string
-		allowed []string
-		refused []string
-	}{
-		{"prowlarr inventory", func(o *Options) { o.ProwlarrInventory = true }, "/prowlarr",
-			[]string{"indexer", "applications", "system/status"},
-			[]string{"search", "command", "indexer/1/newznab", "applications/1", "settings/radarr"}},
-		{"seerr", func(o *Options) { o.Seerr = true }, "/seerr",
-			[]string{"status", "settings/radarr", "settings/sonarr", "media"},
-			[]string{"request", "settings/main", "settings/radarr/1", "user", "indexer", "media/1", "media/1/available"}},
-	} {
-		t.Run(tc.name, func(t *testing.T) {
-			var paths []string
-			srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-				paths = append(paths, r.Method+" "+r.URL.Path)
-				if r.Header.Get("X-Api-Key") != testKey {
-					w.WriteHeader(http.StatusUnauthorized)
-					return
-				}
-				w.Write([]byte(`{}`))
-			}))
-			defer srv.Close()
-			o := fastOpts()
-			tc.set(&o)
-			c, err := New(srv.URL+tc.base, testKey, o)
-			if err != nil {
-				t.Fatal(err)
-			}
-			var want []string
-			for _, ep := range tc.allowed {
-				var v map[string]any
-				if err := c.GetJSON(context.Background(), ep, nil, &v); err != nil {
-					t.Errorf("%s: %v", ep, err)
-				}
-				want = append(want, "GET "+tc.base+"/api/v1/"+ep)
-			}
-			for _, ep := range tc.refused {
-				if _, err := c.Get(context.Background(), ep, nil); !errors.Is(err, ErrNotAllowed) {
-					t.Errorf("Get(%q): %v", ep, err)
-				}
-				req, _ := http.NewRequest(http.MethodPost, srv.URL+tc.base+"/api/v1/"+ep, nil)
-				if _, err := c.hc.Do(req); !errors.Is(err, ErrNotAllowed) {
-					t.Errorf("transport POST %q: %v", ep, err)
-				}
-			}
-			req, _ := http.NewRequest(http.MethodPost, srv.URL+tc.base+"/api/v1/"+tc.allowed[0], nil)
-			if _, err := c.hc.Do(req); !errors.Is(err, ErrNotAllowed) {
-				t.Errorf("POST to an allowed endpoint: %v", err)
-			}
-			if !reflect.DeepEqual(paths, want) {
-				t.Fatalf("server saw %v, want %v", paths, want)
-			}
-		})
-	}
-	o := fastOpts()
-	o.Prowlarr, o.Seerr = true, true
-	if _, err := New("http://127.0.0.1:1", testKey, o); err == nil {
-		t.Fatal("two client modes at once were accepted")
 	}
 }

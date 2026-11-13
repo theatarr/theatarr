@@ -1,5 +1,4 @@
-// Package arr is a read-only client for the Radarr and Sonarr v3 API, for Prowlarr's v1 indexer list (and, for
-// theatarr migrate inspect, its status and applications), and for the Seerr/Overseerr v1 settings naming its arr servers.
+// Package arr is a read-only client for the Radarr and Sonarr v3 API and for Prowlarr's v1 indexer list.
 //
 // The client can only send GET requests, and only to a fixed allowlist of endpoints. This holds by construction:
 //
@@ -27,63 +26,23 @@ import (
 )
 
 // Endpoints the client may call, relative to /api/v3/. Nothing here triggers a search, a command or a write: the
-// client sends GETs only, and a GET on each of these reads. The library endpoints (movie, series, episode, files,
-// root folders) are for the one-time import (Admin › Import from Sonarr/Radarr).
+// client sends GETs only, and a GET on each of these reads. They are what the one-time import (Admin › Import from
+// Sonarr/Radarr) and Radarr/Sonarr lists read.
 var allowedEndpoints = map[string]bool{
-	"config/mediamanagement": true,
-	"config/indexer":         true,
-	"delayprofile":           true,
-	"releaseprofile":         true,
-	"system/status":          true,
-	"history":                true,
-	"blocklist":              true,
-	"parse":                  true,
-	"customformat":           true,
-	"qualityprofile":         true,
-	"qualitydefinition":      true,
-	"language":               true,
-	"tag":                    true,
-	"config/naming":          true,
-	"rootfolder":             true,
-	"movie":                  true,
-	"moviefile":              true,
-	"series":                 true,
-	"episode":                true,
-	"episodefile":            true,
-	// The queue, indexers and download clients, read only. Nothing is printed from the
-	// indexer and client settings but names and switches.
-	"queue":          true,
-	"indexer":        true,
-	"downloadclient": true,
-	// The Connect targets and import lists: read only. Only names, switches and hosts are printed from them.
-	"notification": true,
-	"importlist":   true,
-	"collection":   true,
+	"system/status":  true,
+	"qualityprofile": true,
+	"rootfolder":     true,
+	"movie":          true,
+	"moviefile":      true,
+	"series":         true,
+	"episode":        true,
+	"episodefile":    true,
 }
 
 // prowlarrEndpoints are what a Prowlarr client (Options.Prowlarr) may call, relative to /api/v1/: its indexer list,
-// for the cardigann migration reader. Nothing else.
+// for Link Prowlarr. Nothing else.
 var prowlarrEndpoints = map[string]bool{
 	"indexer": true,
-}
-
-// prowlarrInventoryEndpoints are what theatarr migrate inspect reads from Prowlarr (Options.ProwlarrInventory): the
-// indexer list, the status and the applications it syncs indexers to. Nothing that searches or changes anything.
-var prowlarrInventoryEndpoints = map[string]bool{
-	"indexer":       true,
-	"applications":  true,
-	"system/status": true,
-}
-
-// seerrEndpoints are what a Seerr or Overseerr client (Options.Seerr) may call, relative to /api/v1/: its status and
-// the Radarr and Sonarr servers it sends requests to (theatarr migrate inspect). Their answers carry the arrs' API
-// keys; callers copy only the fields they need. media is Seerr's media list with each item's stored arr ids
-// (theatarr migrate seerr-ids).
-var seerrEndpoints = map[string]bool{
-	"status":          true,
-	"settings/radarr": true,
-	"settings/sonarr": true,
-	"media":           true,
 }
 
 // Allowed reports whether endpoint (relative to /api/v3/) is on the read-only allowlist.
@@ -106,10 +65,6 @@ type Options struct {
 	Transport http.RoundTripper
 	// Prowlarr makes a Prowlarr client: requests go under /api/v1/ and only to prowlarrEndpoints.
 	Prowlarr bool
-	// ProwlarrInventory is a Prowlarr client for theatarr migrate inspect: /api/v1/ and prowlarrInventoryEndpoints.
-	ProwlarrInventory bool
-	// Seerr makes a Seerr/Overseerr client: requests go under /api/v1/ and only to seerrEndpoints.
-	Seerr bool
 }
 
 // Client talks to one arr instance.
@@ -158,15 +113,8 @@ func New(baseURL, key string, opt Options) (*Client, error) {
 		rt = lanTransport()
 	}
 	c := &Client{base: u, api: "/api/v3/", allowed: allowedEndpoints, key: key, opt: opt, limiter: &limiter{interval: opt.MinInterval}}
-	switch {
-	case opt.Prowlarr && !opt.ProwlarrInventory && !opt.Seerr:
+	if opt.Prowlarr {
 		c.api, c.allowed = "/api/v1/", prowlarrEndpoints
-	case opt.ProwlarrInventory && !opt.Prowlarr && !opt.Seerr:
-		c.api, c.allowed = "/api/v1/", prowlarrInventoryEndpoints
-	case opt.Seerr && !opt.Prowlarr && !opt.ProwlarrInventory:
-		c.api, c.allowed = "/api/v1/", seerrEndpoints
-	case opt.Prowlarr || opt.ProwlarrInventory || opt.Seerr:
-		return nil, errors.New("arr: choose one of Prowlarr, ProwlarrInventory and Seerr")
 	}
 	c.hc = &http.Client{
 		Transport: &getOnly{next: rt, prefix: u.Path + c.api, allowed: c.allowed},

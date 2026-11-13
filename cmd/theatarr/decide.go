@@ -235,11 +235,11 @@ func runDecide(args []string, out io.Writer, dial func(context.Context, string, 
 		enc.SetIndent("", "  ")
 		return enc.Encode(d)
 	}
-	printDecision(out, t, v, e, d)
+	printDecision(out, t, v, d)
 	return nil
 }
 
-func printDecision(out io.Writer, t decide.Title, v decide.Version, e *decide.Engine, d *decide.Decision) {
+func printDecision(out io.Writer, t decide.Title, v decide.Version, d *decide.Decision) {
 	tw := tabwriter.NewWriter(out, 0, 4, 2, ' ', 0)
 	fmt.Fprintf(tw, "release\t%s\n", d.Release)
 	fmt.Fprintf(tw, "title\t#%d %s (%d)\tversion %s (#%d), profile %s\n", t.ID, t.Name, t.Year, v.Key, v.ID, d.Profile)

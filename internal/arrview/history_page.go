@@ -47,10 +47,7 @@ func (s *Service) historyPage(r *request, titleID int64, p *pagingResource) ([]h
 	if r.v.Flavour == Sonarr {
 		key = "seriesIds"
 	}
-	ids, given, err := s.titleFilter(r.Context(), r, key)
-	if err != nil {
-		return nil, err
-	}
+	ids, given := s.titleFilter(r, key)
 	if given {
 		q += ` AND h.tid IN (SELECT value FROM json_each(?))`
 		args = append(args, jsonIDs(ids))

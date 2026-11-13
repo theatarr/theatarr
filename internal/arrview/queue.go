@@ -312,7 +312,7 @@ func (s *Service) queueEpisodes(ctx context.Context, v *View, rows []queueRow) (
 }
 
 // titleFilter resolves movieIds / seriesIds (view ids or aliases) to title ids; nil when none were given.
-func (s *Service) titleFilter(ctx context.Context, r *request, names ...string) ([]int64, bool, error) {
+func (s *Service) titleFilter(r *request, names ...string) ([]int64, bool) {
 	var ids []int64
 	given := false
 	for _, n := range names {
@@ -324,7 +324,7 @@ func (s *Service) titleFilter(ctx context.Context, r *request, names ...string) 
 			}
 		}
 	}
-	return ids, given, nil
+	return ids, given
 }
 
 // GET queue (QueueController.GetQueue): paged, default sort timeleft ascending, pageSize 10. Every sort key orders
@@ -362,13 +362,10 @@ func (s *Service) queue(w http.ResponseWriter, r *request) {
 // GET queue/details (QueueDetailsController.GetQueue): every item, unpaged; movieId (Radarr) or seriesId and
 // episodeIds (Sonarr) filter it.
 func (s *Service) queueDetails(w http.ResponseWriter, r *request) {
-	ids, given, err := s.titleFilter(r.Context(), r, "movieId", "seriesId")
-	if err != nil {
-		s.internal(w, r, err)
-		return
-	}
+	ids, given := s.titleFilter(r, "movieId", "seriesId")
 	items := []queueResource{}
 	if !given || len(ids) > 0 {
+		var err error
 		if items, err = s.queueItems(r.Context(), r, ids, r.queryBool("includeEpisode", false)); err != nil {
 			s.internal(w, r, err)
 			return

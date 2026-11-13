@@ -171,11 +171,7 @@ func (s *Service) blocklist(w http.ResponseWriter, r *request) {
 	if r.v.Flavour == Sonarr {
 		key = "seriesIds"
 	}
-	ids, given, err := s.titleFilter(ctx, r, key)
-	if err != nil {
-		s.internal(w, r, err)
-		return
-	}
+	ids, given := s.titleFilter(r, key)
 	if given {
 		q += ` AND b.title_id IN (SELECT value FROM json_each(?))`
 		args = append(args, jsonIDs(ids))

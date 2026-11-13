@@ -62,10 +62,7 @@ func queueSQL(v *View, titleIDs []int64, now time.Time) (string, []any) {
 }
 
 func (s *Service) queuePage(r *request, p *pagingResource) ([]queueIdentity, error) {
-	ids, given, err := s.titleFilter(r.Context(), r, "movieIds", "seriesIds")
-	if err != nil {
-		return nil, err
-	}
+	ids, given := s.titleFilter(r, "movieIds", "seriesIds")
 	if given && ids == nil {
 		ids = []int64{}
 	}
