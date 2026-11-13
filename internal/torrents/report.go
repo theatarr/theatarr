@@ -3,6 +3,7 @@ package torrents
 import (
 	"context"
 	"fmt"
+	"regexp"
 	"sort"
 	"strings"
 	"time"
@@ -279,14 +280,37 @@ func (r *Report) group() {
 	}
 }
 
+// seriesMarker is an explicit episode or season in a name: S01, S01E02, 1x02, "season".
+var seriesMarker = regexp.MustCompile(`(?i)\bS\d{1,4}(E\d{1,4})?\b|\b\d{1,2}x\d{2,4}\b|\bseason\b`)
+
+// bareYear: the series parser read nothing but the movie's year as the episode ("2012" as S20E12, or "2000" as
+// absolute episode 2000) of the same title, and the name has no explicit series marker (seriesMarker, a daily date)
+// nor a leading "[Group]" tag (anime).
+func bareYear(name string, ep *sonarr.ParsedEpisodeInfo, mv *radarr.ParsedMovieInfo, now time.Time) bool {
+	if mv == nil || len(mv.MovieTitles) == 0 || mv.Year < 1900 || mv.Year > now.Year()+1 ||
+		norm(ep.SeriesTitle) != norm(mv.MovieTitles[0]) {
+		return false
+	}
+	if ep.FullSeason || ep.IsDaily() || seriesMarker.MatchString(name) || strings.HasPrefix(strings.TrimSpace(name), "[") {
+		return false
+	}
+	seasonEp := len(ep.EpisodeNumbers) == 1 && len(ep.AbsoluteEpisodeNumbers) == 0 &&
+		ep.SeasonNumber*100+ep.EpisodeNumbers[0] == mv.Year
+	absolute := len(ep.AbsoluteEpisodeNumbers) == 1 && len(ep.EpisodeNumbers) == 0 && ep.AbsoluteEpisodeNumbers[0] == mv.Year
+	return seasonEp || absolute
+}
+
 // parseName parses a torrent name as an episode or season (title, season, episodes) or else as a movie (title,
-// year): the duplicate-title key, a label, and the quality. A name that parses as neither has no key.
+// year): the duplicate-title key, a label, and the quality. A name that parses as neither has no key. A film whose
+// year the series parser reads as its episode (bareYear) is the film.
 func parseName(name string) (key, label, quality string) {
 	if name == "" {
 		return "", "", ""
 	}
+	mv := radarr.ParseMovieTitle(name, false)
 	if ep := sonarr.ParseTitle(name); ep != nil && ep.SeriesTitle != "" &&
-		(len(ep.EpisodeNumbers) > 0 || len(ep.AbsoluteEpisodeNumbers) > 0 || ep.FullSeason || ep.SeasonNumber > 0) {
+		(len(ep.EpisodeNumbers) > 0 || len(ep.AbsoluteEpisodeNumbers) > 0 || ep.FullSeason || ep.SeasonNumber > 0) &&
+		!bareYear(name, ep, mv, time.Now()) {
 		label = fmt.Sprintf("%s S%02d", ep.SeriesTitle, ep.SeasonNumber)
 		key = "series:" + norm(ep.SeriesTitle) + fmt.Sprintf(":s%d", ep.SeasonNumber)
 		switch {
@@ -309,7 +333,7 @@ func parseName(name string) (key, label, quality string) {
 		}
 		return key, label, ep.Quality.Quality.Name
 	}
-	if mv := radarr.ParseMovieTitle(name, false); mv != nil && len(mv.MovieTitles) > 0 && mv.Year > 0 {
+	if mv != nil && len(mv.MovieTitles) > 0 && mv.Year > 0 {
 		return fmt.Sprintf("movie:%s:%d", norm(mv.MovieTitles[0]), mv.Year),
 			fmt.Sprintf("%s (%d)", mv.MovieTitles[0], mv.Year), mv.Quality.Quality.Name
 	}

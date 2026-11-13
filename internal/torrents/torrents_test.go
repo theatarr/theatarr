@@ -396,6 +396,28 @@ func TestReportGroups(t *testing.T) {
 	}
 }
 
+// A film whose year the series parser reads as an episode is the film; real series names stay series.
+func TestParseNameFilmYear(t *testing.T) {
+	t.Parallel()
+	for _, c := range []struct{ name, label string }{
+		{"The.Dark.Knight.Rises.2012.UHD.BluRay.2160p.TrueHD.Atmos.7.1.DV.HEVC.REMUX-FraMeSToR", "The Dark Knight Rises (2012)"},
+		{"Transformers.The.Last.Knight.2017.1080p.BluRay.x264-SPARKS", "Transformers The Last Knight (2017)"},
+		{"Gladiator.2000.1080p.BluRay.x264-GRP", "Gladiator (2000)"},
+		{"A.Knight.of.the.Seven.Kingdoms.S01.1080p.WEB-DL.DDP5.1.H.264-NTb", "A Knight of the Seven Kingdoms S01"},
+		{"Show.2020.S01E02.1080p.WEB-DL-GRP", "Show 2020 S01E02"},
+		{"[SubsPlease] One Piece - 1085 (1080p) [ABCD1234].mkv", "One Piece 1085"},
+		{"[Sub] Anime (2023) - 05 [ABCD1234]", "Anime (2023) 5"},
+		{"The.Daily.Show.2024.03.14.1080p.WEB.h264-GRP", "The Daily Show (2024)"},
+	} {
+		if _, label, _ := parseName(c.name); label != c.label {
+			t.Errorf("%s: %q, want %q", c.name, label, c.label)
+		}
+	}
+	if key, _, _ := parseName("The.Dark.Knight.Rises.2012.1080p.BluRay"); key != "movie:thedarkknightrises:2012" {
+		t.Errorf("duplicate-title key of a film: %q", key)
+	}
+}
+
 func TestBackup(t *testing.T) {
 	t.Parallel()
 	e := newEnv(t)
