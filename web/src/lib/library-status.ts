@@ -4,7 +4,7 @@
 import type { Schemas } from "@/api/client";
 import type { TitleRow } from "@/api/library";
 import { chipWords, copyBar } from "@/lib/copies";
-import { upcomingRelease, type PosterStatus } from "@/lib/library";
+import { notAiredYet, upcomingRelease, type PosterStatus } from "@/lib/library";
 
 type VersionBrief = Schemas["VersionBrief"];
 
@@ -12,7 +12,7 @@ type VersionBrief = Schemas["VersionBrief"];
 export type CopyTone = "ok" | "bad" | "progress" | "warn" | "idle";
 
 /** The facts of the title the rule reads: its kind and, for a movie, its release days. */
-export type ToneTitle = Pick<TitleRow, "kind" | "release_date" | "home_release">;
+export type ToneTitle = Pick<TitleRow, "kind" | "release_date" | "home_release"> & Partial<Pick<TitleRow, "status">>;
 
 /** A download in hand for the library is blocked. A row summarises all of a library's downloads (the most advanced
  *  stage, blocked first), so for a series it does not say which episodes the blocked one covers: no counts are given
@@ -65,7 +65,12 @@ export function copyWords(v: VersionBrief, t: ToneTitle, day?: string): string {
   const blocked = hasBlocked(v);
   const off = v.monitored === false ? "not monitored" : "";
   if (t.kind === "series") {
-    if (!v.coverage || v.coverage.total === 0) return ["nothing aired yet", blocked ? "a download is blocked" : "", off].filter(Boolean).join(", ");
+    // Empty coverage is "nothing aired yet" only when the badge reads Upcoming (notAiredYet, the same evidence);
+    // otherwise the episodes are not known yet.
+    if (!v.coverage || v.coverage.total === 0) {
+      const none = notAiredYet({ ...t, versions: [v] }, day) ? "nothing aired yet" : "no episode information yet";
+      return [none, blocked ? "a download is blocked" : "", off].filter(Boolean).join(", ");
+    }
     const bar = copyBar(v, "series");
     const linked = `${bar.have} of ${bar.total} episode${bar.total === 1 ? "" : "s"} linked`;
     const going = blocked ? "a download is blocked" : bar.flight ? `${bar.flight} in progress` : "";

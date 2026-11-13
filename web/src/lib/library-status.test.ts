@@ -91,3 +91,16 @@ describe("copyWords", () => {
     expect(copyTone({ monitored: true, coverage: cov(0, 3, { in_flight: 1 }), acquisition: acq("blocked") }, series)).toBe("idle");
   });
 });
+
+describe("a series library with no episodes known", () => {
+  const v = { monitored: true, coverage: { have: 0, total: 0, aired: 0, upcoming: 0 } };
+  it("says nothing aired yet only when the badge reads Upcoming, else that the episodes are not known yet", () => {
+    const coming = { kind: "series" as const, release_date: "2099-01-01", status: "Returning Series" };
+    expect(copyWords(v, coming, day)).toBe("nothing aired yet");
+    expect(posterStatus("missing", false, false, undefined, { ...coming, versions: [v] })).toBe("upcoming");
+    const old = { kind: "series" as const, release_date: "2009-04-01", status: "Ended" };
+    expect(copyWords(v, old, day)).toBe("no episode information yet");
+    expect(posterStatus("missing", false, false, undefined, { ...old, versions: [v] })).toBe("wanted");
+    expect(copyTone(v, old, day)).toBe("idle");
+  });
+});
