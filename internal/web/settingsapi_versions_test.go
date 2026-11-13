@@ -65,7 +65,9 @@ func TestSettingsVersionsCRUDAndConfirmation(t *testing.T) {
 	if se.coord.Current().Policy.Router.Enabled || se.coord.Current().Policy.Library.Enabled || se.coord.Current().Policy.Notify.Enabled {
 		t.Fatal("changed YAML gates")
 	}
-	se.want(se.call("DELETE", fmt.Sprintf("/versions/test-version?generation=%d", se.generation()), nil), 200, "delete unlinked")
+	path := fmt.Sprintf("/versions/test-version?generation=%d", se.generation())
+	token := confirmRefusal(t, se.want(se.call("DELETE", path, nil), 422, "unconfirmed delete unlinked"), "Library test-version is removed")
+	se.want(confirmedDelete(se, path, token), 200, "delete unlinked")
 	se.want(se.call("GET", "/versions/test-version", nil), 404, "deleted")
 }
 
@@ -237,7 +239,9 @@ func TestSettingsVersionsCreateDeleteWithQualityNaming(t *testing.T) {
 	if fmt.Sprint(refusal["uses"]) != "[versions[test-version]]" {
 		t.Fatalf("refusal: %+v", refusal)
 	}
-	se.want(se.call("DELETE", fmt.Sprintf("/versions/test-version?generation=%d", se.generation()), nil), 200, "delete with its naming")
+	path := fmt.Sprintf("/versions/test-version?generation=%d", se.generation())
+	token := confirmRefusal(t, se.want(se.call("DELETE", path, nil), 422, "unconfirmed delete with its naming"), "Library test-version is removed")
+	se.want(confirmedDelete(se, path, token), 200, "delete with its naming")
 	se.want(se.call("GET", "/versions/test-version", nil), 404, "deleted")
 	if list := se.call("GET", "/naming", nil); list.Code != 200 || strings.Contains(list.Body.String(), `"key":"test-version"`) {
 		t.Fatal("naming record left behind")

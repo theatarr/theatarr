@@ -349,23 +349,6 @@ func (s *Store) ActiveVersionLinks(ctx context.Context, key string) (int, error)
 	return activeVersionLinks(ctx, s.db.Reader(), key)
 }
 
-func versionLinks(ctx context.Context, q rootQueryer, key string) (int, error) {
-	var count int
-	err := q.QueryRowContext(ctx, `SELECT COUNT(*) FROM link l
-		JOIN link_version lv ON lv.link_id = l.id
-		JOIN version v ON v.id = lv.version_id
-		WHERE v.policy_key = ? AND l.state != 'unlinked'`, key).Scan(&count)
-	if err != nil {
-		return 0, errors.New("settings: cannot inspect library links")
-	}
-	return count, nil
-}
-
-// VersionLinks counts live or dangling managed link rows; it never changes them.
-func (s *Store) VersionLinks(ctx context.Context, key string) (int, error) {
-	return versionLinks(ctx, s.db.Reader(), key)
-}
-
 // ValidateRoot performs the no-write path check used by the admin root validator.
 func (s *Store) ValidateRoot(ctx context.Context, base *policy.Policy, key, root string) (RootCheck, error) {
 	snap, err := s.Load(ctx, base)

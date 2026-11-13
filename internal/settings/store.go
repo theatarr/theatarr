@@ -795,6 +795,11 @@ func (s *Store) saveWithHook(ctx context.Context, req SaveRequest, operation str
 					return err
 				}
 			}
+			if prev.Entity == "versions" {
+				if err := removeLibraryRows(ctx, tx, prev.Key, store.Millis(now)); err != nil {
+					return err
+				}
+			}
 			if err := writeAudit(ctx, tx, req.Actor, now, gen, prev.Entity, prev.Key, "delete", prev, nil); err != nil {
 				return err
 			}

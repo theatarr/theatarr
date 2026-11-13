@@ -236,7 +236,8 @@ func TestVersionRootChecksAndNoLinkDeletion(t *testing.T) {
 	if _, err := s.Candidate(ctx, req); err == nil || !strings.Contains(err.Error(), "active link") || !strings.Contains(err.Error(), "docs/migration.md#changing-a-root-with-links") {
 		t.Fatalf("root change: %v", err)
 	}
-	// Remove an unreferenced version with a link: the confirmation only stops management.
+	// Remove an unreferenced version with a link: confirmed, its link rows go (the trash entry stays, without its
+	// link), and nothing changes on disk.
 	req = saveRequest(p, initial)
 	req.Records.Versions = nil
 	for _, v := range initial.Records.Versions {
@@ -263,10 +264,10 @@ func TestVersionRootChecksAndNoLinkDeletion(t *testing.T) {
 	if _, err := m.SaveAndApply(ctx, req); err != nil {
 		t.Fatal(err)
 	}
-	for _, table := range []string{"link", "link_version", "link_trash"} {
+	for table, want := range map[string]int{"link": 0, "link_version": 0, "version": 0, "link_trash": 1} {
 		var n int
-		if err := db.Reader().QueryRow("SELECT COUNT(*) FROM " + table).Scan(&n); err != nil || n != 1 {
-			t.Fatalf("%s was changed: %d %v", table, n, err)
+		if err := db.Reader().QueryRow("SELECT COUNT(*) FROM " + table).Scan(&n); err != nil || n != want {
+			t.Fatalf("%s: %d rows, want %d: %v", table, n, want, err)
 		}
 	}
 	for _, path := range []string{keptLink, keptTrash} {
@@ -435,7 +436,7 @@ func TestVersionDeletionRechecksLinksAtCommit(t *testing.T) {
 	}
 	m := versionCoordinator(t, s, p, initial)
 	proof, err := m.Confirm(ctx, req)
-	if err != nil || len(proof.Effects) != 0 {
+	if err != nil || len(proof.Effects) != 1 || strings.Contains(proof.Effects[0].Effect, "linked files") {
 		t.Fatalf("unlinked deletion: %+v %v", proof, err)
 	}
 	m.prepare = func(context.Context, *Snapshot, *Runtime) (any, error) {

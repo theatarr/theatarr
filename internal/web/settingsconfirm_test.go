@@ -60,13 +60,19 @@ func TestSettingsVersionDeleteTokenNotInURL(t *testing.T) {
 		}
 	}
 	path := fmt.Sprintf("/versions/test-version?generation=%d", se.generation())
-	token := confirmRefusal(t, se.want(se.call("DELETE", path, nil), 422, "unconfirmed delete"), "stops being managed")
+	token := confirmRefusal(t, se.want(se.call("DELETE", path, nil), 422, "unconfirmed delete"),
+		"is removed with its entries on every title (monitoring, wanted state, history). 1 linked files stay on disk")
 	se.want(se.call("DELETE", path+"&confirmation_token="+token, nil), 400, "token in the URL")
+	se.want(confirmedDelete(se, path, token), 200, "confirmed delete")
+}
+
+// confirmedDelete sends a DELETE with the confirmation token in its header.
+func confirmedDelete(se *settingsEnv, path, token string) *httptest.ResponseRecorder {
 	r := httptest.NewRequest("DELETE", APIBase+"/settings"+path, nil)
 	r.AddCookie(se.cookie)
 	r.Header.Set(auth.CSRFHeader, se.csrf)
 	r.Header.Set("X-Confirmation-Token", token)
-	se.want(se.do(r), 200, "confirmed delete")
+	return se.do(r)
 }
 
 // Editing a profile a Live library uses saves at once: no 422, no token.

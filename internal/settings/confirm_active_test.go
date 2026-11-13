@@ -5,12 +5,11 @@ import (
 	"os"
 	"path/filepath"
 	"slices"
-	"strings"
 	"testing"
 )
 
-// Deleting a version and re-creating its key with another root must not skip the refusal a root change
-// gets while active links of the key stay at the old root.
+// Deleting a version removes its links (removeLibraryRows), so re-creating its key with another root is not refused
+// for links left at the old root; re-creating it at the old root is allowed too.
 func TestRecreatedVersionWithOtherRootChecksActiveLinks(t *testing.T) {
 	t.Parallel()
 	s, db, p, initial := versionFixture(t)
@@ -63,10 +62,14 @@ func TestRecreatedVersionWithOtherRootChecksActiveLinks(t *testing.T) {
 	removed.Config.Library = newRoot
 	removed.Roots = []string{newRoot}
 	req.Records.Versions = append(req.Records.Versions, removed)
-	if _, err := m.Confirm(ctx, req); err == nil || !strings.Contains(err.Error(), "active link") {
+	var links int
+	if err := db.Reader().QueryRow(`SELECT COUNT(*) FROM link`).Scan(&links); err != nil || links != 0 {
+		t.Fatalf("links after the deletion: %d %v", links, err)
+	}
+	if _, err := m.Confirm(ctx, req); err != nil {
 		t.Fatalf("re-created with another root: %v", err)
 	}
-	// The same root again keeps its links where they are: allowed.
+	// The same root again: allowed.
 	req = saveRequest(p, deleted)
 	removed.Config.Library = oldRoot
 	removed.Roots = []string{oldRoot}

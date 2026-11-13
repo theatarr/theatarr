@@ -359,7 +359,7 @@ func TestKeptConfirmations(t *testing.T) {
 	next, _ := initial.Policy.Clone()
 	delete(next.Versions, "movie-web")
 	effects, err := versionConfirmationEffects(ctx, db.Reader(), initial.Policy, next)
-	if err != nil || len(effects) != 1 || !strings.Contains(effects[0].Effect, "Library movie-web stops being managed. 1 linked item(s)") {
+	if err != nil || len(effects) != 1 || effects[0].Effect != "Library movie-web is removed with its entries on every title (monitoring, wanted state, history). 1 linked files stay on disk and are no longer tracked." {
 		t.Fatalf("removal effects: %+v %v", effects, err)
 	}
 }

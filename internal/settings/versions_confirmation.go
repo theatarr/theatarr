@@ -166,7 +166,7 @@ func snapshotConfirmationEffects(ctx context.Context, q rootQueryer, previous, n
 }
 
 // snapshotWriteEffects are snapshotConfirmationEffects without the credential addresses: a library going Live,
-// Pause off, and removing a library. Every other change saves at once after validation. A startup fallback checks only
+// Pause off, and removing a library (always: its rows go with it). Every other change saves at once after validation. A startup fallback checks only
 // these (FallbackEffects): the last published generation already sent its credentials to its own addresses.
 func snapshotWriteEffects(ctx context.Context, q rootQueryer, previous, next *Snapshot) ([]ConfirmationEffect, error) {
 	if previous == nil || next == nil {
@@ -207,14 +207,18 @@ func versionConfirmationEffects(ctx context.Context, q rootQueryer, previous, ne
 		if next.Versions[key] != nil {
 			continue
 		}
-		links, err := versionLinks(ctx, q, key)
+		links, downloads, err := libraryRowCounts(ctx, q, key)
 		if err != nil {
 			return nil, err
 		}
+		effect := fmt.Sprintf("Library %s is removed with its entries on every title (monitoring, wanted state, history).", key)
 		if links > 0 {
-			effects = append(effects, ConfirmationEffect{Version: key, Effect: fmt.Sprintf(
-				"Library %s stops being managed. %d linked item(s), link rows and trash entries remain where they are; nothing is removed.", key, links)})
+			effect += fmt.Sprintf(" %d linked files stay on disk and are no longer tracked.", links)
 		}
+		if downloads > 0 {
+			effect += fmt.Sprintf(" %d downloads in progress stay at the provider and are no longer tracked.", downloads)
+		}
+		effects = append(effects, ConfirmationEffect{Version: key, Effect: effect})
 	}
 	return effects, nil
 }
