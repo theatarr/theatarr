@@ -100,10 +100,11 @@ DELETE FROM router_offer WHERE version_key IN (SELECT key FROM arr_gone_key)
 DELETE FROM search_request WHERE version_key IN (SELECT key FROM arr_gone_key);
 DELETE FROM arrview_title_tag WHERE version IN (SELECT key FROM arr_gone_key);
 DELETE FROM arrview_title WHERE view IN (SELECT 'v/' || key FROM arr_gone_key);
-UPDATE episode SET monitored = s.m, updated_at = CAST(strftime('%s', 'now') AS INTEGER) * 1000
-    FROM (SELECT episode_id, MAX(monitored) AS m FROM episode_version_state GROUP BY episode_id) s
-    WHERE s.episode_id = episode.id AND episode.monitored <> s.m
-        AND episode.title_id IN (SELECT title_id FROM arr_gone_version);
+UPDATE episode SET monitored = x.m, updated_at = CAST(strftime('%s', 'now') AS INTEGER) * 1000
+    FROM (SELECT e.id AS eid, COALESCE((SELECT MAX(s.monitored) FROM episode_version_state s
+            WHERE s.episode_id = e.id), 0) AS m FROM episode e
+        WHERE e.title_id IN (SELECT title_id FROM arr_gone_version)) x
+    WHERE x.eid = episode.id AND episode.monitored <> x.m;
 UPDATE title SET monitored = t.m, updated_at = CAST(strftime('%s', 'now') AS INTEGER) * 1000
     FROM (SELECT g.title_id, COALESCE(MAX(v.monitored), 0) AS m FROM (SELECT DISTINCT title_id FROM arr_gone_version) g
         LEFT JOIN version v ON v.title_id = g.title_id AND NOT EXISTS (SELECT 1 FROM arrview_removed_version r

@@ -904,7 +904,8 @@ the library's rows in the same transaction (`internal/settings/libraryrows.go`),
 can serve two libraries), the links it alone holds go, then its versions with what cascades from them (downloads,
 decisions, episode states, file records, wanted and ceiling state), its offers (as target or source), wanted search
 rows, view tags and its own view rows (`arrview_title` `v/<key>`). The episode and title monitoring of its titles is
-recomputed from the remaining libraries (monitored in any of them), and movie collections drop the key. Files on
+recomputed from the remaining libraries (monitored in any of them; unmonitored when none is left), and movie
+collections drop the key. Files on
 disk, mount content, `link_trash` entries and downloads at the provider are not touched; a title left with no
 library stays as an unmonitored title. Migration 00125 did the same once for libraries already gone from the stored
 settings. There is no start-up prune of unknown libraries: it could delete everything if the settings loaded empty.

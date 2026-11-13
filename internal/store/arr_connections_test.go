@@ -45,16 +45,18 @@ var arrFixture = []string{
 	`INSERT INTO setting_view_binding (key, config, created_at, updated_at) VALUES
 		('radarr', '{"identity":{"alias_from":["radarr_mirror"],"name":"Radarr"}}', 1, 1)`,
 	`INSERT INTO title (id, kind, name, created_at, updated_at, monitored) VALUES (1, 'movie', 'Shared', 0, 0, 1),
-		(2, 'movie', 'Fed', 0, 0, 1), (3, 'series', 'Show', 0, 0, 1), (4, 'movie', 'Old', 0, 0, 1)`,
+		(2, 'movie', 'Fed', 0, 0, 1), (3, 'series', 'Show', 0, 0, 1), (4, 'movie', 'Old', 0, 0, 1),
+		(5, 'series', 'OldShow', 0, 0, 1)`,
 	`INSERT INTO version (id, title_id, policy_key, monitored, state, created_at, updated_at) VALUES
 		(11, 1, 'movie-mm', 0, 'filled', 0, 0), (12, 1, 'movie-mirror', 1, 'filled', 0, 0),
 		(13, 1, 'movie-old', 1, 'wanted', 0, 0), (21, 2, 'movie-fed', 1, 'wanted', 0, 0),
 		(22, 2, 'movie-mm', 1, 'wanted', 0, 0), (31, 3, 'tv-mm', 0, 'wanted', 0, 0),
-		(32, 3, 'tv-old', 1, 'wanted', 0, 0), (41, 4, 'movie-old', 1, 'wanted', 0, 0)`,
+		(32, 3, 'tv-old', 1, 'wanted', 0, 0), (41, 4, 'movie-old', 1, 'wanted', 0, 0),
+		(52, 5, 'tv-old', 1, 'wanted', 0, 0)`,
 	`INSERT INTO episode (id, title_id, season, number, monitored, created_at, updated_at) VALUES
-		(301, 3, 1, 1, 1, 0, 0), (302, 3, 1, 2, 1, 0, 0)`,
+		(301, 3, 1, 1, 1, 0, 0), (302, 3, 1, 2, 1, 0, 0), (501, 5, 1, 1, 1, 0, 0)`,
 	`INSERT INTO episode_version_state (version_id, episode_id, monitored, updated_at) VALUES
-		(31, 301, 0, 0), (32, 301, 1, 0), (31, 302, 1, 0), (32, 302, 0, 0)`,
+		(31, 301, 0, 0), (32, 301, 1, 0), (31, 302, 1, 0), (32, 302, 0, 0), (52, 501, 1, 0)`,
 	`INSERT INTO download (id, title_id, version_id, version_key, info_hash, release_title, indexer, state, created_at,
 		updated_at) VALUES (500, 1, 11, 'movie-mm', 'h500', 'Shared.2160p', 'ix', 'imported', 0, 0),
 		(501, 1, 13, 'movie-old', 'h501', 'Shared.1080p', 'ix', 'imported', 0, 0),
@@ -254,8 +256,8 @@ func TestMigrationArrConnections(t *testing.T) {
 		`SELECT group_concat(version_key, ' ') FROM search_request`:                                               "movie-mm",
 		`SELECT group_concat(version, ' ') FROM arrview_title_tag`:                                                "movie-mm",
 		`SELECT group_concat(tmdb_id || versions, ' ') FROM movie_collection`:                                     `900["movie-mm"] 901["movie-mm"]`,
-		`SELECT group_concat(id || ':' || monitored, ' ') FROM (SELECT * FROM title ORDER BY id)`:                 "1:1 2:1 3:0 4:0",
-		`SELECT group_concat(id || ':' || monitored, ' ') FROM episode`:                                           "301:0 302:1",
+		`SELECT group_concat(id || ':' || monitored, ' ') FROM (SELECT * FROM title ORDER BY id)`:                 "1:1 2:1 3:0 4:0 5:0",
+		`SELECT group_concat(id || ':' || monitored, ' ') FROM (SELECT * FROM episode ORDER BY id)`:               "301:0 302:1 501:0",
 		`SELECT COUNT(*) FROM pragma_foreign_key_check`:                                                           "0",
 	} {
 		if got := query(t, db, q); got != want {
@@ -283,13 +285,13 @@ func TestMigrationArrConnectionsBeforeBootstrap(t *testing.T) {
 	}
 	db := st.Reader()
 	for q, want := range map[string]string{
-		`SELECT group_concat(id, ' ') FROM (SELECT id FROM version ORDER BY id)`:                                  "11 12 13 21 22 31 32 41",
+		`SELECT group_concat(id, ' ') FROM (SELECT id FROM version ORDER BY id)`:                                  "11 12 13 21 22 31 32 41 52",
 		`SELECT group_concat(id || ':' || COALESCE(download_id, '-'), ' ') FROM (SELECT * FROM link ORDER BY id)`: "100:500 101:501 102:502",
 		`SELECT COUNT(*) FROM router_offer`:                                                                 "3",
 		`SELECT group_concat(tmdb_id || versions, ' ') FROM movie_collection`:                               `900["movie-mm","movie-old"] 901["movie-mm"]`,
 		`SELECT group_concat(key, ' ') FROM (SELECT key FROM setting_quality_profile ORDER BY key)`:         "arr-mirror fed-prof mm-prof tv-prof",
 		`SELECT group_concat(instance, ' ') FROM (SELECT instance FROM arr_frozen_input ORDER BY instance)`: "radarr_fed radarr_mirror",
-		`SELECT group_concat(id || ':' || monitored, ' ') FROM title`:                                       "1:1 2:1 3:1 4:1",
+		`SELECT group_concat(id || ':' || monitored, ' ') FROM title`:                                       "1:1 2:1 3:1 4:1 5:1",
 	} {
 		if got := query(t, db, q); got != want {
 			t.Errorf("%s\n got %s\nwant %s", q, got, want)

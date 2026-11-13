@@ -207,7 +207,7 @@ func versionConfirmationEffects(ctx context.Context, q rootQueryer, previous, ne
 		if next.Versions[key] != nil {
 			continue
 		}
-		links, downloads, err := libraryRowCounts(ctx, q, key)
+		links, downloads, queued, err := libraryRowCounts(ctx, q, key)
 		if err != nil {
 			return nil, err
 		}
@@ -216,7 +216,10 @@ func versionConfirmationEffects(ctx context.Context, q rootQueryer, previous, ne
 			effect += fmt.Sprintf(" %d linked files stay on disk and are no longer tracked.", links)
 		}
 		if downloads > 0 {
-			effect += fmt.Sprintf(" %d downloads in progress stay at the provider and are no longer tracked.", downloads)
+			effect += fmt.Sprintf(" %d downloads in progress stay at the provider or client and are no longer tracked.", downloads)
+		}
+		if queued > 0 {
+			effect += fmt.Sprintf(" %d queued downloads that were not sent yet are dropped.", queued)
 		}
 		effects = append(effects, ConfirmationEffect{Version: key, Effect: effect})
 	}
