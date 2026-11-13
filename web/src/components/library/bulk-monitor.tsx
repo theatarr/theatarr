@@ -2,7 +2,7 @@
 // picks the target copy and the monitoring, and Review asks the server for a preview (POST /titles/monitor dry_run)
 // listing what changes, what is already set and what is excluded (a title without the copy has nothing to change). Apply sends the preview's values as expect, so a copy changed since is skipped,
 // and lists each item's outcome. Monitoring only: nothing is searched or grabbed, no copy is added.
-// Admins also get Search now: the selection goes to POST /wanted/search (the Wanted page's queue, under the hourly
+// Managers also get Search now: the selection goes to POST /wanted/search (the Wanted page's queue, under the hourly
 // limit) for the one library picked, 200 titles a request, and the bar shows what the server answered.
 import { Loader2, X } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
@@ -114,7 +114,7 @@ export function BulkBar({ titles, columns, onClear }: { titles: TitleRow[]; colu
         </select>
         <span className="grow" />
         <Button variant="ghost" size="sm" onClick={onClear}>Clear</Button>
-        {perms.admin ? (
+        {perms.manage ? (
           <Button variant="outline" size="sm" disabled={!target || ids.length === 0 || busy} title={target ? undefined : "Pick a library to search"} onClick={() => setAsk(true)}>
             Search now
           </Button>
@@ -126,7 +126,7 @@ export function BulkBar({ titles, columns, onClear }: { titles: TitleRow[]; colu
         {p.missing ? ` · ${plural(p.missing, "title")} without this library` : ""}
         {" · "}Files stay in place. No search is started.
       </p>
-      {perms.admin && !target ? <p className="mt-1 text-xs text-[var(--ink-3)]">Search now needs one library: pick it above.</p> : null}
+      {perms.manage && !target ? <p className="mt-1 text-xs text-[var(--ink-3)]">Search now needs one library: pick it above.</p> : null}
       {result ? (
         <p className="mt-2 text-[13px] text-[var(--ink-2)]" data-testid="bulk-search-result">
           {result.sent > 0 ? <span role="status">{searchWords(result)} </span> : null}
@@ -157,7 +157,7 @@ export function BulkBar({ titles, columns, onClear }: { titles: TitleRow[]; colu
   );
 }
 
-/** The confirmation before a selection is queued. The hourly limit is read here (GET /wanted, admins), not by the bar. */
+/** The confirmation before a selection is queued. The hourly limit is read here (GET /wanted), not by the bar. */
 function SearchConfirm({ count, target, label, busy, onClose, onConfirm }: { count: number; target: string; label: string; busy: boolean; onClose: () => void; onConfirm: () => void }) {
   const wanted = useWanted({ only: "missing", version: target, limit: 1, offset: 0 });
   const perHour = wanted.data?.per_hour;

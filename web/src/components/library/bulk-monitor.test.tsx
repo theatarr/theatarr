@@ -36,8 +36,13 @@ async function searchNow(n: number) {
 }
 
 describe("Bulk Search now", () => {
-  it("is hidden without admin", async () => {
-    const api = setup(3, [me(["see_files", "manage"])]);
+  it("is offered to managers", async () => {
+    setup(3, [me(["see_files", "manage"])]);
+    expect(await screen.findByRole("button", { name: "Search now" })).toBeTruthy();
+  });
+
+  it("is hidden without manage", async () => {
+    const api = setup(3, [me(["see_files"])]);
     await waitFor(() => expect(api.calls("GET", "/auth/me")).toHaveLength(1));
     await new Promise((r) => setTimeout(r, 20));
     const bar = screen.getByRole("region", { name: "Bulk edit" });
