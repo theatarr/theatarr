@@ -6,12 +6,14 @@ import (
 	"encoding/json"
 	"fmt"
 	"sort"
+	"strings"
 	"time"
 
 	"github.com/theatarr/theatarr/internal/activity"
 	"github.com/theatarr/theatarr/internal/availability"
 	"github.com/theatarr/theatarr/internal/decide"
 	"github.com/theatarr/theatarr/internal/journal/snapshot"
+	"github.com/theatarr/theatarr/internal/router"
 	"github.com/theatarr/theatarr/internal/store"
 )
 
@@ -46,6 +48,9 @@ type CurrentFile struct {
 	Instance     string `json:"instance,omitempty"`
 	// Media is a movie file's media info (manage.go).
 	Media *MediaInfo `json:"media,omitempty"`
+	// Copies are the file's torrent's copies to other providers ("Add to other providers", router copy.go), by
+	// InfoHash; omitted when none.
+	Copies []router.CopyView `json:"copies,omitempty"`
 }
 
 // HistoryEvent is one step in a version's history.
@@ -183,6 +188,20 @@ func (w *Web) enrichTitle(ctx context.Context, d *TitleDetail) error {
 				}
 				if v.Current.AddedAt != nil {
 					added = max(added, v.Current.AddedAt.UnixMilli())
+				}
+			}
+		}
+		var hashes []string
+		for _, v := range byID {
+			if v.Current != nil && v.Current.InfoHash != "" {
+				hashes = append(hashes, v.Current.InfoHash)
+			}
+		}
+		if len(hashes) > 0 {
+			copies := w.fileCopies(ctx, hashes)
+			for _, v := range byID {
+				if v.Current != nil && v.Current.InfoHash != "" {
+					v.Current.Copies = copies[strings.ToLower(v.Current.InfoHash)]
 				}
 			}
 		}

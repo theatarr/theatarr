@@ -136,6 +136,9 @@ type Config struct {
 	SettingsLookup settings.LookupSecret
 	// Torrents is the provider torrent manager (docs/design/torrents.md); nil answers 503.
 	Torrents TorrentsSource
+	// ProviderCopies is the request's router for "Add to other providers" (providercopies.go); nil, or a nil answer,
+	// answers 503.
+	ProviderCopies func(context.Context) Copier
 	// NowPlaying is the now playing tracker's state (docs/design/now-playing.md); nil, or a nil answer, shows it off.
 	NowPlaying        NowPlayingSource
 	RcloneTestGateway RcloneTestGateway
@@ -196,6 +199,7 @@ type Web struct {
 	live              liveCache
 	onRequest         func(RequestEvent)
 	torrents          TorrentsSource
+	copies            func(context.Context) Copier
 	nowPlaying        NowPlayingSource
 	rcloneTestGateway RcloneTestGateway
 	animeBuilds       func(context.Context) AnimeBuilder
@@ -252,7 +256,7 @@ func New(cfg Config) (*Web, error) {
 		logLevel: cfg.LogLevel, logDir: cfg.LogDir, reloadSettings: cfg.ReloadSettings,
 		captureRuntime: cfg.CaptureRuntime, settings: cfg.Settings, settingsTester: cfg.SettingsTester, qualitySync: cfg.QualitySync, trashRoot: cfg.TrashRoot,
 		settingsTests: cfg.SettingsTests, settingsLookup: cfg.SettingsLookup, cardigann: cfg.Cardigann, preflight: cfg.Preflight,
-		backups: cfg.Backups, restart: cfg.Restart, torrents: cfg.Torrents, nowPlaying: cfg.NowPlaying, rcloneTestGateway: cfg.RcloneTestGateway, animeBuilds: cfg.AnimeBuilds,
+		backups: cfg.Backups, restart: cfg.Restart, torrents: cfg.Torrents, copies: cfg.ProviderCopies, nowPlaying: cfg.NowPlaying, rcloneTestGateway: cfg.RcloneTestGateway, animeBuilds: cfg.AnimeBuilds,
 		notifyTest: cfg.NotifyTest, arrImport: cfg.ArrImport}, nil
 }
 
@@ -314,6 +318,7 @@ func (w *Web) Mount(mux *http.ServeMux) {
 	w.mountCardigannAPI(mux)
 	w.mountArrImportAPI(mux)
 	w.mountTorrentsAPI(mux)
+	w.mountProviderCopiesAPI(mux)
 	w.mountBackupsAPI(mux)
 	w.mountNowPlayingAPI(mux)
 	w.mountSetupAPI(mux)

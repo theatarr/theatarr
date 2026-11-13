@@ -14,6 +14,7 @@ import (
 	"github.com/theatarr/theatarr/internal/indexer"
 	"github.com/theatarr/theatarr/internal/policy"
 	"github.com/theatarr/theatarr/internal/provider"
+	"github.com/theatarr/theatarr/internal/router"
 )
 
 // Groups a torrent can be in (Torrent.Groups, the report's lists).
@@ -62,6 +63,9 @@ type Torrent struct {
 	Parsed  string   `json:"parsed,omitempty"`
 	Quality string   `json:"quality,omitempty"`
 	Groups  []string `json:"groups,omitempty"`
+	// Copies are the torrent's copies to other providers ("Add to other providers", router copy.go), filled by the
+	// web API; omitted when none.
+	Copies []router.CopyView `json:"copies,omitempty"`
 
 	titleKey string
 }
