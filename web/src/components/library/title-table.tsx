@@ -6,13 +6,15 @@
 // columns) scrolls sideways instead, so every column stays reachable (useFitsFrame). Below the sm
 // breakpoint the rows stack as cards, the extra columns as lines under the title. Libraries under a title opens its
 // copy dialog (copy-dialog.tsx). Without "See files" one Availability column replaces the per-library ones.
-import { ArrowDown, ArrowUp } from "lucide-react";
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { Link } from "react-router";
 import { usePerms, type TitleRow } from "@/api/library";
 import { VersionStatus } from "@/components/version-status";
 import { Card } from "@/components/ui/card";
 import { Checkbox } from "@/components/ui/checkbox";
+import { useFitsFrame } from "@/components/ui/data-table";
+import type { RowSelection } from "@/components/ui/row-select";
+import { SortHead } from "@/components/ui/sort-head";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { TitleThumb } from "@/components/poster-card";
 import {
@@ -37,7 +39,7 @@ type Version = NonNullable<TitleRow["versions"]>[number];
 
 export type TableSort = { sort: string; sortVersion?: string; desc: boolean };
 
-export type Selection = { chosen: ReadonlySet<number>; toggle: (id: number, on: boolean) => void; all: (on: boolean) => void };
+export type Selection = RowSelection;
 
 type Props = {
   titles: TitleRow[];
@@ -59,19 +61,9 @@ const TONE = {
   neutral: "text-muted-foreground",
 } as const;
 
-function SortButton({ children, s, sort, onSort, label }: { children: React.ReactNode; s?: { sort: string; sort_version?: string }; sort: TableSort; onSort: Props["onSort"]; label: string }) {
-  if (!s) return <>{children}</>;
-  const active = sort.sort === s.sort && (sort.sortVersion ?? "") === (s.sort_version ?? "");
-  return (
-    <button type="button" onClick={() => onSort(s)} aria-label={`Sort by ${label}`} className="inline-flex min-w-0 items-center gap-1 text-left hover:text-foreground">
-      {children}
-      {active ? (sort.desc ? <ArrowDown className="size-3 shrink-0" aria-hidden /> : <ArrowUp className="size-3 shrink-0" aria-hidden />) : null}
-    </button>
-  );
-}
-
-const ariaSort = (sort: TableSort, s?: { sort: string; sort_version?: string }) =>
-  s && sort.sort === s.sort && (sort.sortVersion ?? "") === (s.sort_version ?? "") ? (sort.desc ? "descending" : "ascending") : undefined;
+/** The direction to show on a header whose sort is s: set only when the grid is sorted by it. */
+const dirOf = (sort: TableSort, s?: { sort: string; sort_version?: string }) =>
+  s && sort.sort === s.sort && (sort.sortVersion ?? "") === (s.sort_version ?? "") ? (sort.desc ? "desc" : "asc") : undefined;
 
 /** One copy of one title: state, quality, bar, stage and the monitor switch. */
 function CopyCell({ t, v, seeFiles, manage }: { t: TitleRow; v: Version | undefined; seeFiles: boolean; manage: boolean }) {
@@ -155,29 +147,6 @@ function TitleCell({ t, onCopies }: { t: TitleRow; onCopies?: () => void }) {
   );
 }
 
-/**
- * Whether the table fits its frame, measured (a ResizeObserver on both): the libraries and the chosen columns decide
- * its width, not the viewport. A fitting table clips so its header can stick (a scrolling wrapper is its own scroll
- * box); a wider one scrolls sideways. The table's width does not depend on which, so the answer is stable. Until
- * measured it scrolls, which never hides a column.
- */
-function useFitsFrame(): [(el: HTMLElement | null) => void, boolean] {
-  const [box, setBox] = useState<HTMLElement | null>(null);
-  const [fits, setFits] = useState(false);
-  useEffect(() => {
-    const table = box?.querySelector("table");
-    const frame = table?.parentElement;
-    if (!table || !frame || typeof ResizeObserver === "undefined") return;
-    const check = () => setFits(table.getBoundingClientRect().width <= frame.getBoundingClientRect().width + 0.5);
-    const ro = new ResizeObserver(check);
-    ro.observe(table);
-    ro.observe(frame);
-    check();
-    return () => ro.disconnect();
-  }, [box]);
-  return [setBox, fits];
-}
-
 const label = (id: ColumnId) => TABLE_COLUMNS.find((c) => c.id === id)?.label ?? id;
 
 export function TitleTable({ titles, more, onMore, seeFiles, manage, columns, extra, sort, onSort, select }: Props) {
@@ -249,27 +218,23 @@ export function TitleTable({ titles, more, onMore, seeFiles, manage, columns, ex
                     <Checkbox aria-label="Select all shown titles" checked={allChosen} onChange={(e) => select.all(e.target.checked)} />
                   </TableHead>
                 ) : null}
-                <TableHead aria-sort={ariaSort(sort, headerSort("title"))}>
-                  <SortButton s={headerSort("title")} sort={sort} onSort={onSort} label="title">Title</SortButton>
-                </TableHead>
+                <SortHead dir={dirOf(sort, headerSort("title"))} onSort={() => onSort(headerSort("title")!)} sortLabel="title">Title</SortHead>
                 {!seeFiles ? <TableHead>Availability</TableHead> : null}
                 {copyCols.map((c) => {
                   const s = headerSort("copy", c.key);
                   return (
-                    <TableHead key={c.key} aria-sort={ariaSort(sort, s)} data-copy-col={c.key} className="align-bottom">
-                      <SortButton s={s} sort={sort} onSort={onSort} label={`${c.label} completion`}>
-                        <CopyDot vkey={c.key} />
-                        {c.label}
-                      </SortButton>
-                    </TableHead>
+                    <SortHead key={c.key} dir={dirOf(sort, s)} onSort={s ? () => onSort(s) : undefined} sortLabel={`${c.label} completion`} data-copy-col={c.key} className="align-bottom">
+                      <CopyDot vkey={c.key} />
+                      {c.label}
+                    </SortHead>
                   );
                 })}
                 {extra.map((id) => {
                   const s = headerSort(id);
                   return (
-                    <TableHead key={id} aria-sort={ariaSort(sort, s)} className={cn(id === "size" && "text-right")}>
-                      <SortButton s={s} sort={sort} onSort={onSort} label={label(id).toLowerCase()}>{label(id)}</SortButton>
-                    </TableHead>
+                    <SortHead key={id} dir={dirOf(sort, s)} onSort={s ? () => onSort(s) : undefined} sortLabel={label(id).toLowerCase()} className={cn(id === "size" && "text-right")}>
+                      {label(id)}
+                    </SortHead>
                   );
                 })}
               </TableRow>

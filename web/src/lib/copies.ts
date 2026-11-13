@@ -1,6 +1,7 @@
 // The library views' copy helpers (docs/design/ui.md "Library views"): a copy is one version of a title. Each copy has
 // a coverage bar (episodes held of those aired; a movie is held or not) with the part in progress striped, and an
-// acquisition stage. Plus the table's columns, the poster options and the per-user preferences that keep them.
+// acquisition stage. The table's columns, the poster options and the preferences moved to lib/index-columns.ts,
+// lib/poster-options.ts and lib/prefs.ts; they are re-exported here.
 import type { Schemas } from "@/api/client";
 import { fmtDay, stateWords } from "@/lib/library";
 
@@ -168,137 +169,20 @@ export function titleAcquisition(t: Row): { version: VersionBrief; acquisition: 
   return best;
 }
 
-// ---- Table columns ----
+// ---- Table columns, poster options, preferences, header sorting (moved; kept here for the existing imports) ----
 
-export type ColumnId = "next" | "quality" | "size" | "added" | "network";
-
-export const TABLE_COLUMNS: { id: ColumnId; label: string; hint: string; seeFiles?: boolean }[] = [
-  { id: "next", label: "Next / activity", hint: "What is in progress, else the next episode or release" },
-  { id: "quality", label: "Quality per library", hint: "Each library's current quality", seeFiles: true },
-  { id: "size", label: "Size", hint: "The title's library size", seeFiles: true },
-  { id: "added", label: "Added", hint: "When the title was added" },
-  { id: "network", label: "Network / studio", hint: "From the title's metadata" },
-];
-
-export type ColumnPrefs = { order: ColumnId[]; shown: ColumnId[] };
-
-export const DEFAULT_COLUMNS: ColumnPrefs = { order: TABLE_COLUMNS.map((c) => c.id), shown: ["next", "size"] };
-
-const isColumn = (x: unknown): x is ColumnId => TABLE_COLUMNS.some((c) => c.id === x);
-
-/** Column prefs read back: unknown ids dropped, columns added since appended (hidden). */
-export function normalizeColumns(p: unknown): ColumnPrefs {
-  if (!p || typeof p !== "object") return DEFAULT_COLUMNS;
-  const o = p as { order?: unknown; shown?: unknown };
-  const order = Array.isArray(o.order) ? [...new Set(o.order.filter(isColumn))] : [];
-  for (const c of TABLE_COLUMNS) if (!order.includes(c.id)) order.push(c.id);
-  const shown = Array.isArray(o.shown) ? [...new Set(o.shown.filter(isColumn))] : DEFAULT_COLUMNS.shown;
-  return { order, shown };
-}
-
-/** Move a column one place up (-1) or down (+1) in the order. */
-export function moveColumn<P extends { order: string[] }>(p: P, id: P["order"][number], by: -1 | 1): P {
-  const order = [...p.order];
-  const i = order.indexOf(id);
-  const j = i + by;
-  if (i < 0 || j < 0 || j >= order.length) return p;
-  [order[i], order[j]] = [order[j], order[i]];
-  return { ...p, order };
-}
-
-/** Swap two columns' places in the order (the picker moves a column past the next one it lists, skipping columns it
- *  does not list). */
-export function swapColumns<P extends { order: string[] }>(p: P, a: P["order"][number], b: P["order"][number]): P {
-  const order = [...p.order];
-  const i = order.indexOf(a);
-  const j = order.indexOf(b);
-  if (i < 0 || j < 0) return p;
-  [order[i], order[j]] = [order[j], order[i]];
-  return { ...p, order };
-}
-
-/** The extra columns shown, in order, for this account. */
-export function visibleColumns(p: ColumnPrefs, seeFiles: boolean): ColumnId[] {
-  return p.order.filter((id) => p.shown.includes(id) && (seeFiles || !TABLE_COLUMNS.find((c) => c.id === id)?.seeFiles));
-}
-
-// ---- Poster options ----
-
-export type PosterSize = "small" | "medium" | "large";
-export type PosterDetail = "year" | "next" | "network" | "quality" | "copy_size" | "added";
-
-export const POSTER_DETAILS: { id: PosterDetail; label: string; seeFiles?: boolean }[] = [
-  { id: "year", label: "Year" },
-  { id: "next", label: "Next episode / release" },
-  { id: "network", label: "Network / studio" },
-  { id: "quality", label: "Each library's current quality", seeFiles: true },
-  { id: "copy_size", label: "Each library's size", seeFiles: true },
-  { id: "added", label: "Added to Theatarr" },
-];
-
-export type PosterPrefs = { size: PosterSize; details: PosterDetail[] };
-
-export const DEFAULT_POSTERS: PosterPrefs = { size: "medium", details: ["year", "next", "quality"] };
-
-export function normalizePosters(p: unknown): PosterPrefs {
-  if (!p || typeof p !== "object") return DEFAULT_POSTERS;
-  const o = p as { size?: unknown; details?: unknown };
-  const size = o.size === "small" || o.size === "large" || o.size === "medium" ? o.size : DEFAULT_POSTERS.size;
-  const details = Array.isArray(o.details)
-    ? [...new Set(o.details.filter((d): d is PosterDetail => POSTER_DETAILS.some((x) => x.id === d)))]
-    : DEFAULT_POSTERS.details;
-  return { size, details };
-}
-
-// ---- Preferences ----
-
-/** The localStorage key of a per-user library preference: theatarr.library.<what>.<user>. */
-export function prefKey(what: string, user: number | string | undefined): string {
-  return `theatarr.library.${what}.${user ?? "anon"}`;
-}
-
-export function readPref<T>(what: string, user: number | string | undefined, normalize: (v: unknown) => T): T {
-  try {
-    const raw = window.localStorage.getItem(prefKey(what, user));
-    return normalize(raw ? JSON.parse(raw) : undefined);
-  } catch {
-    return normalize(undefined);
-  }
-}
-
-export function writePref(what: string, user: number | string | undefined, value: unknown) {
-  try {
-    window.localStorage.setItem(prefKey(what, user), JSON.stringify(value));
-  } catch {
-    // not kept
-  }
-}
-
-// ---- Header sorting ----
-
-/** The grid sort a table header asks for: a copy column sorts by that library's completion. */
-export function headerSort(col: "title" | "copy" | ColumnId, key?: string): { sort: string; sort_version?: string } | undefined {
-  switch (col) {
-    case "title":
-      return { sort: "name" };
-    case "copy":
-      return key ? { sort: "completion", sort_version: key } : undefined;
-    case "next":
-      return { sort: "next" };
-    case "quality":
-      return { sort: "quality" };
-    case "size":
-      return { sort: "size" };
-    case "added":
-      return { sort: "added" };
-  }
-  return undefined;
-}
-
-/** The order a sort starts in: names and next dates ascending, the rest descending (as the server defaults). */
-export function defaultDesc(sort: string): boolean {
-  return sort !== "name" && sort !== "next";
-}
+export {
+  DEFAULT_COLUMNS,
+  TABLE_COLUMNS,
+  defaultDesc,
+  headerSort,
+  normalizeColumns,
+  visibleColumns,
+  type ColumnId,
+  type ColumnPrefs,
+} from "./index-columns";
+export { DEFAULT_POSTERS, POSTER_DETAILS, normalizePosters, type PosterDetail, type PosterPrefs, type PosterSize } from "./poster-options";
+export { moveColumn, prefKey, readPref, swapColumns, writePref } from "./prefs";
 
 // ---- Bulk review ----
 
