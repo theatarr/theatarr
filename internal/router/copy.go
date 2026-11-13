@@ -1165,6 +1165,10 @@ func (r *Router) deleteCopy(ctx context.Context, c *copyRow, pv *policy.Provider
 	}
 	r.mu.Lock()
 	defer r.mu.Unlock()
+	// The add lock is shared with routes: what runs under it is bounded, and a copy that runs out of time is retried.
+	var cancel context.CancelFunc
+	ctx, cancel = context.WithTimeout(ctx, time.Minute)
+	defer cancel()
 	// The decision comes from a read under the lock: the torrent may have completed while the lock was waited for.
 	if ok, err := decide(); !ok || err != nil {
 		return err

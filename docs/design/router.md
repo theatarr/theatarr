@@ -1323,6 +1323,11 @@ Tests: `TestCopyTorBox`, `TestCopyRealDebridTrial`, `TestCopyAllDebridList`, `Te
 - A retry while negative evidence is live for a torrent kept after a lost add answer.
 - The uncached verdict of a copy that was not provably ours can be counted twice after an interruption.
 - Per-provider and per-version query tidy-ups.
+- A delete whose answer was lost, followed by a restore of the same hash under a new id before the retry, leaves the
+  copy unfinished (the old id is gone, the hash is listed); routes for that hash on that provider defer meanwhile.
+- A worker that lost its row to a second request keeps its pacing reservation (the next add may wait one gap).
+- The provider can complete a torrent between the last read and the delete; closing that needs a conditional delete
+  the providers do not offer.
 
 ## Policy (`router`, `examples/policy/router.yaml`)
 
