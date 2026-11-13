@@ -190,8 +190,8 @@ it("confirms Search all with the count, the library and the time the hourly limi
   const dialog = await screen.findByTestId("search-now-confirm");
   expect(within(dialog).getByRole("heading", { name: "Search all 312 missing in 4K WEB" })).toBeTruthy();
   const estimate = within(dialog).getByTestId("search-now-estimate");
-  expect(estimate.textContent).toContain("312 searches. Up to 10 start each hour (4 used this hour), so this takes about 31 hours.");
-  expect(estimate.textContent).not.toContain("round");
+  expect(estimate.textContent).toContain("312 searches. They start as the hourly limit allows: up to 10 an hour (4 used this hour).");
+  expect(estimate.textContent).not.toMatch(/round|takes about|start now|oldest/);
   expect(within(estimate).getByRole("link", { name: "Settings › Download clients" }).getAttribute("href")).toBe("/admin/settings/downloads/behaviour#searches");
   expect(fetch.calls("POST", "/wanted/search")).toHaveLength(0);
   await user.click(within(dialog).getByRole("button", { name: "Queue 312 searches" }));
@@ -212,7 +212,7 @@ it("confirms a selection larger than the budget left; the cutoff tab asks for cu
   await user.click(screen.getByRole("checkbox", { name: "Select Alpha, Movie, 4K WEB" }));
   await user.click(screen.getByRole("button", { name: "Search selected (1)" }));
   const dialog = await screen.findByTestId("search-now-confirm");
-  expect(within(dialog).getByTestId("search-now-estimate").textContent).toContain("1 search. Up to 4 start each hour (4 used this hour), so this takes about 1 hour.");
+  expect(within(dialog).getByTestId("search-now-estimate").textContent).toContain("1 search. They start as the hourly limit allows: up to 4 an hour (4 used this hour).");
   await user.click(within(dialog).getByRole("button", { name: "Queue 1 search" }));
   await waitFor(() => expect(fetch.calls("POST", "/wanted/search")[0]?.body).toEqual({ only: "cutoff", items: [{ title_id: 1, version: "movie-web" }] }));
 });
@@ -227,6 +227,21 @@ it("disables a row's Search now with the reason where a search could not start",
   expect(button(0).title).toBe("A download for it is in progress");
   expect(within(rows[0]).getByTestId("search-blocked").textContent).toBe("A download for it is in progress");
   expect(screen.getByRole("button", { name: "Search all 1 missing" })).toBeTruthy();
+});
+
+it("leaves rows with a download in flight out of the selection", async () => {
+  const user = userEvent.setup();
+  const items = (["in_flight", undefined] as const).map((search_blocked, i) => ({ ...row, title_id: i + 1, waiting: search_blocked ? "in_flight" as const : "due" as const, search_blocked }));
+  const fetch = mockFetch([{ method: "GET", path: "/wanted", reply: { ...page, total: 2, searchable: 1, items, titles: { "1": "Busy", "2": "Free" } } }, status,
+    { method: "POST", path: "/wanted/search", reply: answer }]);
+  renderPage(<WantedPage />, "/wanted");
+  await screen.findAllByTestId("wanted-row");
+  await user.click(screen.getByRole("checkbox", { name: "Select Busy, Movie, 4K WEB" }));
+  expect(screen.getByRole("button", { name: "Search selected (0)" })).toBeTruthy();
+  await user.click(screen.getByRole("checkbox", { name: "Select all on this page" }));
+  await user.click(screen.getByRole("button", { name: "Search selected (1)" }));
+  await waitFor(() => expect(fetch.calls("POST", "/wanted/search")).toHaveLength(1));
+  expect(fetch.calls("POST", "/wanted/search")[0].body).toEqual({ only: "missing", items: [{ title_id: 2, version: "movie-web" }] });
 });
 
 it("shows the asked rows not started yet and cancels them", async () => {

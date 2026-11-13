@@ -150,16 +150,18 @@ export function WantedPage() {
   const [picker, setPicker] = useState(false);
   const [prefs, savePrefs] = useColumnPrefs<Column>("wanted-columns", COLUMNS, ALL_COLUMNS);
   const items = d?.items ?? [];
-  const chosen = items.filter(row => picked.has(rowKey(row)));
+  // Only rows Search now can search are chosen: a row with a download in flight can be ticked in the table (its box
+  // cannot be disabled there) but is neither counted nor sent.
+  const selectable = items.filter(row => !blocked(row));
+  const chosen = selectable.filter(row => picked.has(rowKey(row)));
   const left = d ? Math.max(0, d.per_hour - d.searched_last_hour) : 0;
   const send = (body: WantedSearchBody) => search.mutate(body, { onSuccess: () => { setPicked(new Set()); setAsk(undefined); } });
-  // A request the hour cannot start at once is confirmed first, with how long it will take.
+  // A request larger than what is left of the hour is confirmed first.
   const request = (a: Ask, confirm: boolean) => {
     search.reset();
     if (confirm) setAsk(a); else send(a.body);
   };
   const what = only === "cutoff" ? "cutoff unmet" : "missing";
-  const waitingHours = ask && d ? Math.ceil(Math.max(0, ask.count + d.search_now_pending - left) / d.per_hour) : 0;
   const tabQuery = version ? `?version=${encodeURIComponent(version)}` : "";
   const switchOff = d ? (only === "missing" ? !d.missing : d.cutoff_unmet === "off") : false;
   const name = (row: WantedRow) => d?.titles[row.title_id] || `Title ${row.title_id}`;
@@ -217,12 +219,12 @@ export function WantedPage() {
         rows={items}
         rowKey={rowKey}
         columns={columns}
-        // While paused nothing can be searched, so nothing is offered for selection. A row with a download in
-        // progress can be picked; Search now skips it and says why.
+        // While paused nothing can be searched, so nothing is offered for selection; select-all takes only the rows
+        // that can be searched.
         select={d.downloads_enabled ? {
           chosen: picked,
-          toggle: (key, on) => setPicked(old => { const next = new Set(old); if (on) next.add(key); else next.delete(key); return next; }),
-          all: on => setPicked(on ? new Set(items.map(rowKey)) : new Set()),
+          toggle: (key, on) => setPicked(old => { const next = new Set(old); if (on && selectable.some(row => rowKey(row) === key)) next.add(key); else next.delete(key); return next; }),
+          all: on => setPicked(on ? new Set(selectable.map(rowKey)) : new Set()),
         } : undefined}
         selectAllLabel="Select all on this page"
         rowLabel={row => `${name(row)}, ${targetWords(row.targets)}, ${label(row.version)}`}
@@ -235,7 +237,7 @@ export function WantedPage() {
     {picker ? <ColumnPicker label="Wanted columns" note="Title and the row's links always stay. On a phone the columns show under each title." columns={COLUMNS} prefs={prefs} onChange={savePrefs} onClose={() => setPicker(false)} /> : null}
     {ask && d ? <ConfirmDialog danger={false} testid="search-now-confirm" busy={search.isPending} error={search.error} onClose={() => setAsk(undefined)} onConfirm={() => send(ask.body)}
       scope={{ title: ask.title, confirm: `Queue ${plural(ask.count, "search")}`, does: [`Queue ${plural(ask.count, "search")}; they start as the hourly limit allows`], keeps: ["The hourly limit: no search goes around it", "Searches that already started"] }}>
-      <p data-testid="search-now-estimate">{plural(ask.count, "search")}. Up to {d.per_hour} start each hour ({d.searched_last_hour} used this hour){waitingHours > 0 ? `, so this takes about ${waitingHours} hour${waitingHours === 1 ? "" : "s"}` : ", so they start now"}. Raise <em>Searches per hour</em> in {perms.admin ? <Link className="text-primary hover:underline" to={settingHref("router", "wanted.per_hour") ?? "/admin/settings/downloads"}>Settings › Download clients</Link> : "Settings › Download clients"} to go faster.</p>
+      <p data-testid="search-now-estimate">{plural(ask.count, "search")}. They start as the hourly limit allows: up to {d.per_hour} an hour ({d.searched_last_hour} used this hour). Raise <em>Searches per hour</em> in {perms.admin ? <Link className="text-primary hover:underline" to={settingHref("router", "wanted.per_hour") ?? "/admin/settings/downloads"}>Settings › Download clients</Link> : "Settings › Download clients"} to go faster.</p>
     </ConfirmDialog> : null}
   </div>;
 }

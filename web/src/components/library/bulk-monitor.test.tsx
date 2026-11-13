@@ -30,7 +30,7 @@ async function searchNow(n: number) {
   await user.selectOptions(within(bar).getByLabelText("Target libraries"), "movies-hd");
   await user.click(await within(bar).findByRole("button", { name: "Search now" }));
   const dialog = await screen.findByRole("dialog", { name: `Search ${n} titles in HD` });
-  await waitFor(() => expect(within(dialog).getByTestId("bulk-search-estimate").textContent).toBe("Searches run at most 20 an hour, oldest first."));
+  await waitFor(() => expect(within(dialog).getByTestId("bulk-search-estimate").textContent).toBe("Searches start as the hourly limit allows: up to 20 an hour."));
   await user.click(within(dialog).getByRole("button", { name: `Queue ${n} titles` }));
   return bar;
 }

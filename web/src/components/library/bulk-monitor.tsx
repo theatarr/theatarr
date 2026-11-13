@@ -176,7 +176,7 @@ function SearchConfirm({ count, target, label, busy, onClose, onConfirm }: { cou
       }}
     >
       <p data-testid="bulk-search-estimate">
-        {perHour ? `Searches run at most ${perHour} an hour, oldest first.` : "Searches start oldest first, as the hourly limit allows."}
+        {perHour ? `Searches start as the hourly limit allows: up to ${perHour} an hour.` : "Searches start as the hourly limit allows."}
       </p>
     </ConfirmDialog>
   );
