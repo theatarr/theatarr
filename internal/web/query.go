@@ -114,18 +114,21 @@ func (f TitleFilter) where() (string, []any) {
 		args = append(args, "%"+likeEscape(f.Q)+"%")
 	}
 	if f.With != "" {
-		conds = append(conds, "EXISTS (SELECT 1 FROM version v WHERE v.title_id = t.id AND v.policy_key = ? AND "+hasFileSQL+")")
+		conds = append(conds, "EXISTS (SELECT 1 FROM version v WHERE v.title_id = t.id AND v.policy_key = ? AND "+
+			liveVersion+" AND "+hasFileSQL+")")
 		args = append(args, f.With)
 	}
 	if f.Without != "" {
-		conds = append(conds, "NOT EXISTS (SELECT 1 FROM version v WHERE v.title_id = t.id AND v.policy_key = ? AND "+hasFileSQL+")")
+		conds = append(conds, "NOT EXISTS (SELECT 1 FROM version v WHERE v.title_id = t.id AND v.policy_key = ? AND "+
+			liveVersion+" AND "+hasFileSQL+")")
 		args = append(args, f.Without)
 	}
 	switch {
 	case f.State == "filled" && f.plainState:
-		conds = append(conds, "EXISTS (SELECT 1 FROM version v WHERE v.title_id = t.id AND v.state IN ('filled', 'cutoff_met'))")
+		conds = append(conds, "EXISTS (SELECT 1 FROM version v WHERE v.title_id = t.id AND "+liveVersion+
+			" AND v.state IN ('filled', 'cutoff_met'))")
 	case f.State != "":
-		conds = append(conds, "EXISTS (SELECT 1 FROM version v WHERE v.title_id = t.id AND v.state = ?)")
+		conds = append(conds, "EXISTS (SELECT 1 FROM version v WHERE v.title_id = t.id AND "+liveVersion+" AND v.state = ?)")
 		args = append(args, f.State)
 	}
 	conds, args = f.TitleGridFilter.where(conds, args)
@@ -419,31 +422,36 @@ func (w *Web) getTitle(ctx context.Context, id int64) (*TitleDetail, error) {
 	if d.Versions, err = w.versions(ctx, "v.title_id = ?", []any{id}, 0, 0); err != nil {
 		return nil, err
 	}
+	if len(d.Versions) > 0 {
+		var removed []int64
+		if err := scanAll(ctx, db, `SELECT r.version_id FROM arrview_removed_version r JOIN version v
+			ON v.id = r.version_id WHERE v.title_id = ?`, []any{id}, func(r *sql.Rows) error {
+			var vid int64
+			if err := r.Scan(&vid); err != nil {
+				return err
+			}
+			removed = append(removed, vid)
+			return nil
+		}); err != nil {
+			return nil, err
+		}
+		for i := range d.Versions {
+			d.Versions[i].Removed = slices.Contains(removed, d.Versions[i].ID)
+		}
+	}
 	switch {
 	case d.Kind == "series":
 		if d.SeriesType, err = store.SeriesType(ctx, db, id); err != nil {
 			return nil, err
 		}
 		if w.pol != nil && len(d.Versions) > 0 {
-			var removed []int64
-			if err := scanAll(ctx, db, `SELECT r.version_id FROM arrview_removed_version r JOIN version v
-				ON v.id = r.version_id WHERE v.title_id = ?`, []any{id}, func(r *sql.Rows) error {
-				var vid int64
-				if err := r.Scan(&vid); err != nil {
-					return err
-				}
-				removed = append(removed, vid)
-				return nil
-			}); err != nil {
-				return nil, err
-			}
 			anime := d.Anime || d.SeriesType == "anime"
 			for i := range d.Versions {
 				v := &d.Versions[i]
 				vp := w.pol.Versions[v.Key]
 				// Only a library searches run for: search now already says why another one is left out.
 				active, _ := catalog.Searchable(w.pol, []string{v.Key})
-				v.AnimeSkip = vp != nil && len(active) > 0 && v.Monitored && !slices.Contains(removed, v.ID) &&
+				v.AnimeSkip = vp != nil && len(active) > 0 && v.Monitored && !v.Removed &&
 					!catalog.Fits(vp, policy.KindSeries, anime)
 			}
 		}

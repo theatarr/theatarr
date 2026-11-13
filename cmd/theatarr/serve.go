@@ -769,6 +769,9 @@ func runServe(args []string) error {
 	var wg sync.WaitGroup
 	wg.Add(1)
 	go errinbox.Go("quality-sync", func() { defer wg.Done(); qualitySync.Run(ctx) })()
+	// Planner statistics: PRAGMA optimize after the startup migrations, then daily.
+	wg.Add(1)
+	go errinbox.Go("store-optimize", func() { defer wg.Done(); runStoreOptimize(ctx, st, log) })()
 	// Scheduled torrent backups: off unless torrents.backup.every is set. Each check reads the settings in force.
 	wg.Add(1)
 	go errinbox.Go("torrents", func() { defer wg.Done(); torrents.RunSchedule(ctx, q, torrentManager, 10*time.Minute) })()
@@ -1104,4 +1107,20 @@ func startRequestFlush(ctx context.Context, gw *gateway.Gateway) (stop func()) {
 	done := make(chan struct{})
 	go errinbox.Go("indexer-requests", func() { defer close(done); gw.RunRequestFlush(fctx) })()
 	return func() { cancel(); <-done }
+}
+
+// runStoreOptimize runs the store's PRAGMA optimize now and then every day until ctx ends.
+func runStoreOptimize(ctx context.Context, st *store.Store, log *slog.Logger) {
+	t := time.NewTicker(24 * time.Hour)
+	defer t.Stop()
+	for {
+		start := time.Now()
+		err := st.Optimize(ctx)
+		log.Debug("store: optimize", "took_ms", time.Since(start).Milliseconds(), "err", err)
+		select {
+		case <-ctx.Done():
+			return
+		case <-t.C:
+		}
+	}
 }

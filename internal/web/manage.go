@@ -262,6 +262,9 @@ func (w *Web) enrichManage(ctx context.Context, db *sql.DB, d *TitleDetail) erro
 			if err == nil {
 				c.Media = linkMedia(pr, am, adopted, scene, false)
 				linkFacts(c, meta.String)
+				if len(c.Formats) == 0 && v.Upgrade != nil {
+					v.Upgrade.Score = nil // as current.score: never a score beside empty formats
+				}
 				continue
 			}
 			if !errors.Is(err, sql.ErrNoRows) {
@@ -945,10 +948,12 @@ func (w *Web) episodeFile(ctx context.Context, db *sql.DB, versionID, eid int64)
 	case err == nil:
 		f.LinkID, f.Score, f.SizeBytes, f.Instance = linkID, nullInt(score), nullInt(size), "theatarr"
 		f.Media = linkMedia(pr, am, adopted, f.ReleaseTitle, true)
-		if f.CachedOn, err = w.heldBy(ctx, db, `SELECT cp.provider FROM link l JOIN content_provider cp
-			ON cp.content_id = `+linkContentSQL+` WHERE l.id = ? AND `+providerHolds+` ORDER BY 1`, linkID); err != nil {
+		held, err := scanProviders(ctx, db, `SELECT l.id, cp.provider FROM link l JOIN content_provider cp
+			ON cp.content_id = `+linkContentSQL+` WHERE l.id = ? AND `+providerHolds+` ORDER BY 1, 2`, []any{linkID})
+		if err != nil {
 			return nil, err
 		}
+		f.CachedOn = w.cacheCodes(held[linkID])
 		if err := scanAll(ctx, db, `SELECT e.season, e.number FROM link_episode le JOIN episode e ON e.id = le.episode_id
 			WHERE le.link_id = ? ORDER BY e.season, e.number`, []any{linkID}, func(r *sql.Rows) error {
 			var s, n int64
@@ -982,10 +987,12 @@ func (w *Web) episodeFile(ctx context.Context, db *sql.DB, versionID, eid int64)
 	}
 	f.Score, f.SizeBytes, f.AddedAt, f.Media = nullInt(score), &sz, nullTS(added), parseMedia(media)
 	_ = json.Unmarshal([]byte(langs), &f.Languages)
-	if f.CachedOn, err = w.heldBy(ctx, db, `SELECT cp.provider FROM version_file vf JOIN content_provider cp
-		ON cp.content_id = vf.content_id WHERE vf.id = ? AND `+providerHolds+` ORDER BY 1`, fileID); err != nil {
+	held, err := scanProviders(ctx, db, `SELECT vf.id, cp.provider FROM version_file vf JOIN content_provider cp
+		ON cp.content_id = vf.content_id WHERE vf.id = ? AND `+providerHolds+` ORDER BY 1, 2`, []any{fileID})
+	if err != nil {
 		return nil, err
 	}
+	f.CachedOn = w.cacheCodes(held[fileID])
 	err = scanAll(ctx, db, `SELECT e.season, e.number FROM version_file_episode fe JOIN episode e ON e.id = fe.episode_id
 		WHERE fe.version_file_id = ? ORDER BY e.season, e.number`, []any{fileID}, func(r *sql.Rows) error {
 		var s, n int64
@@ -996,20 +1003,6 @@ func (w *Web) episodeFile(ctx context.Context, db *sql.DB, versionID, eid int64)
 		return nil
 	})
 	return &f, err
-}
-
-// heldBy runs q (one provider key per row, for the one argument) and gives the keys as cache codes.
-func (w *Web) heldBy(ctx context.Context, db *sql.DB, q string, arg any) ([]string, error) {
-	var keys []string
-	err := scanAll(ctx, db, q, []any{arg}, func(r *sql.Rows) error {
-		var k string
-		if err := r.Scan(&k); err != nil {
-			return err
-		}
-		keys = append(keys, k)
-		return nil
-	})
-	return w.cacheCodes(keys), err
 }
 
 // episodeHistory is one episode's history in a version: Theatarr's downloads that held it, newest first, at most

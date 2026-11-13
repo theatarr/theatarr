@@ -162,9 +162,9 @@ func (w *Web) titleFacets(ctx context.Context, f TitleFilter, seeFiles bool) (Ti
 	twice := append(append([]any{}, args...), args...)
 	qualities := `SELECT t.id AS tid, vf.quality AS q` + titleFrom + ` JOIN version v ON v.title_id = t.id
 			JOIN version_file vf ON vf.version_id = v.id LEFT JOIN version_source vs ON vs.version_id = v.id` +
-		andWhere(where, curFile) + `
+		andWhere(where, liveVersion+" AND "+curFile) + `
 		UNION ALL SELECT t.id, COALESCE(l.quality, '')` + titleFrom + ` JOIN link l ON l.title_id = t.id` +
-		andWhere(where, "l.state = 'active'")
+		andWhere(where, "l.state = 'active' AND "+liveLink)
 	if seeFiles {
 		if out.Qualities, err = counts(`SELECT q, COUNT(DISTINCT tid) FROM (`+qualities+`) GROUP BY q`, twice); err != nil {
 			return out, err

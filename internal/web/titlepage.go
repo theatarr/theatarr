@@ -116,8 +116,8 @@ type FranchiseRef struct {
 	Name string `json:"name"`
 }
 
-// enrichTitle adds the title page's fields to d (from getTitle). A version removed from the library is marked Removed
-// and counts in none of the title's rollups (availability, size, added).
+// enrichTitle adds the title page's fields to d (from getTitle). A version removed from the library (Removed, set by
+// getTitle) counts in none of the title's rollups (availability, size, added).
 func (w *Web) enrichTitle(ctx context.Context, d *TitleDetail) error {
 	db := w.st.Reader()
 	byID := map[int64]*Version{}
@@ -130,21 +130,6 @@ func (w *Web) enrichTitle(ctx context.Context, d *TitleDetail) error {
 		ids = append(ids, v.ID)
 	}
 	d.Franchises = []FranchiseRef{}
-	if len(ids) > 0 {
-		if err := scanAll(ctx, db, `SELECT version_id FROM arrview_removed_version WHERE version_id IN (`+
-			store.Placeholders(len(ids))+`)`, ids, func(r *sql.Rows) error {
-			var vid int64
-			if err := r.Scan(&vid); err != nil {
-				return err
-			}
-			if v := byID[vid]; v != nil {
-				v.Removed = true
-			}
-			return nil
-		}); err != nil {
-			return err
-		}
-	}
 	d.Availability = availabilityOf(liveStates(d.Versions))
 	if d.Kind == "movie" {
 		dates, err := availability.DatesFor(ctx, db, []any{d.ID})

@@ -97,16 +97,21 @@ const liveLink = `EXISTS (SELECT 1 FROM link_version lv_l JOIN version v ON v.id
 
 // Per-title expressions over t (the title row).
 const (
-	nameExpr  = `CASE WHEN t.sort_name = '' THEN lower(t.name) ELSE t.sort_name END`
+	nameExpr = `CASE WHEN t.sort_name = '' THEN lower(t.name) ELSE t.sort_name END`
+	// addedExpr and sizeExpr read the copies in the library (liveVersion, liveLink), as the rows show them.
 	addedExpr = `NULLIF(MAX(
 		COALESCE((SELECT MAX(vf.added_at) FROM version v JOIN version_file vf ON vf.version_id = v.id
-			LEFT JOIN version_source vs ON vs.version_id = v.id WHERE v.title_id = t.id AND ` + curFile + `), 0),
-		COALESCE((SELECT MAX(l.created_at) FROM link l WHERE l.title_id = t.id AND l.state = 'active'), 0)), 0)`
+			LEFT JOIN version_source vs ON vs.version_id = v.id WHERE v.title_id = t.id AND ` + liveVersion + ` AND ` +
+		curFile + `), 0),
+		COALESCE((SELECT MAX(l.created_at) FROM link l WHERE l.title_id = t.id AND l.state = 'active' AND ` + liveLink +
+		`), 0)), 0)`
 	sizeExpr = `NULLIF(
 		COALESCE((SELECT SUM(vf.size_bytes) FROM version v JOIN version_file vf ON vf.version_id = v.id
-			LEFT JOIN version_source vs ON vs.version_id = v.id WHERE v.title_id = t.id AND ` + curFile + `), 0) +
+			LEFT JOIN version_source vs ON vs.version_id = v.id WHERE v.title_id = t.id AND ` + liveVersion + ` AND ` +
+		curFile + `), 0) +
 		COALESCE((SELECT SUM(COALESCE(` + linkSizeSQL + `, 0)) FROM link l
-			LEFT JOIN content_file cf ON cf.id = l.content_file_id WHERE l.title_id = t.id AND l.state = 'active'), 0), 0)`
+			LEFT JOIN content_file cf ON cf.id = l.content_file_id WHERE l.title_id = t.id AND l.state = 'active' AND ` +
+		liveLink + `), 0), 0)`
 	// The availability counts are over the versions in the library (liveVersion), as the list's rows show them.
 	nVersions = `(SELECT COUNT(*) FROM version v WHERE v.title_id = t.id AND ` + liveVersion + `)`
 	// nMissing: wanted versions with no file; nWantedFile: wanted versions that have some (a series part-way).
@@ -174,19 +179,19 @@ func availabilityOf(vs []versionState) string {
 	return "available"
 }
 
-// hasQuality is a condition on title t: some current file (arr file or active link) has the quality given twice
-// as arguments.
-func hasQuality() string {
-	return `(EXISTS (SELECT 1 FROM version v JOIN version_file vf ON vf.version_id = v.id
-		LEFT JOIN version_source vs ON vs.version_id = v.id WHERE v.title_id = t.id AND ` + curFile + ` AND vf.quality = ?)
-		OR EXISTS (SELECT 1 FROM link l WHERE l.title_id = t.id AND l.state = 'active' AND l.quality = ?))`
-}
+// hasQuality is a condition on title t: some current file (arr file or active link) of a copy in the library has the
+// quality given twice as arguments.
+func hasQuality() string { return qualityCond("= ?") }
 
 // hasQualityLike is hasQuality with a LIKE pattern.
-func hasQualityLike() string {
+func hasQualityLike() string { return qualityCond("LIKE ?") }
+
+func qualityCond(match string) string {
 	return `(EXISTS (SELECT 1 FROM version v JOIN version_file vf ON vf.version_id = v.id
-		LEFT JOIN version_source vs ON vs.version_id = v.id WHERE v.title_id = t.id AND ` + curFile + ` AND vf.quality LIKE ?)
-		OR EXISTS (SELECT 1 FROM link l WHERE l.title_id = t.id AND l.state = 'active' AND l.quality LIKE ?))`
+		LEFT JOIN version_source vs ON vs.version_id = v.id WHERE v.title_id = t.id AND ` + liveVersion + ` AND ` + curFile +
+		` AND vf.quality ` + match + `)
+		OR EXISTS (SELECT 1 FROM link l WHERE l.title_id = t.id AND l.state = 'active' AND ` + liveLink +
+		` AND l.quality ` + match + `))`
 }
 
 // hasProvider is the same for a debrid provider holding the file's content now (providerHolds), with n provider
@@ -194,11 +199,13 @@ func hasQualityLike() string {
 // currentFiles and the provider facet read it.
 func hasProvider(n int) string {
 	in := store.Placeholders(n)
-	return `(EXISTS (SELECT 1 FROM version v JOIN version_file vf ON vf.version_id = v.id
-		LEFT JOIN version_source vs ON vs.version_id = v.id JOIN content_provider cp ON cp.content_id = vf.content_id
+	// CROSS JOIN keeps the title's versions and links as the outer loop: without statistics SQLite would otherwise
+	// scan the provider's rows for every title.
+	return `(EXISTS (SELECT 1 FROM version v CROSS JOIN version_file vf ON vf.version_id = v.id
+		LEFT JOIN version_source vs ON vs.version_id = v.id CROSS JOIN content_provider cp ON cp.content_id = vf.content_id
 		WHERE v.title_id = t.id AND ` + liveVersion + ` AND ` + curFile + ` AND ` + providerHolds + `
 		AND cp.provider IN (` + in + `))
-		OR EXISTS (SELECT 1 FROM link l JOIN content_provider cp ON cp.content_id = ` + linkContentSQL + `
+		OR EXISTS (SELECT 1 FROM link l CROSS JOIN content_provider cp ON cp.content_id = ` + linkContentSQL + `
 		WHERE l.title_id = t.id AND l.state = 'active' AND ` + liveLink + ` AND ` + providerHolds + `
 		AND cp.provider IN (` + in + `)))`
 }
@@ -600,24 +607,29 @@ func (w *Web) currentFiles(ctx context.Context, db *sql.DB, ids []any) (map[int6
 		GROUP BY lv.version_id, l.quality ORDER BY lv.version_id`, ids, scan); err != nil {
 		return nil, nil, err
 	}
-	provs := map[int64][]string{}
-	err := scanAll(ctx, db, `SELECT vf.version_id, cp.provider FROM version_file vf
+	provs, err := scanProviders(ctx, db, `SELECT vf.version_id, cp.provider FROM version_file vf
 		LEFT JOIN version_source vs ON vs.version_id = vf.version_id JOIN content_provider cp ON cp.content_id = vf.content_id
 		WHERE vf.version_id IN (`+in+`) AND `+curFile+` AND `+providerHolds+`
 		UNION SELECT lv.version_id, cp.provider FROM link_version lv JOIN link l ON l.id = lv.link_id
 		JOIN content_provider cp ON cp.content_id = `+linkContentSQL+`
 		WHERE lv.version_id IN (`+in+`) AND l.state = 'active' AND `+providerHolds+` ORDER BY 1, 2`,
-		append(append([]any{}, ids...), ids...),
-		func(r *sql.Rows) error {
-			var vid int64
-			var p string
-			if err := r.Scan(&vid, &p); err != nil {
-				return err
-			}
-			provs[vid] = append(provs[vid], p)
-			return nil
-		})
+		append(append([]any{}, ids...), ids...))
 	return aggs, provs, err
+}
+
+// scanProviders runs q, which yields (id, provider key) rows, and groups the keys by id.
+func scanProviders(ctx context.Context, db *sql.DB, q string, args []any) (map[int64][]string, error) {
+	out := map[int64][]string{}
+	err := scanAll(ctx, db, q, args, func(r *sql.Rows) error {
+		var id int64
+		var p string
+		if err := r.Scan(&id, &p); err != nil {
+			return err
+		}
+		out[id] = append(out[id], p)
+		return nil
+	})
+	return out, err
 }
 
 // cacheCodes turns provider keys into cache codes (rd, ad, tb) by their kind in the running settings; a key of no

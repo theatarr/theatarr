@@ -215,6 +215,17 @@ func (s *Store) Reader() *sql.DB { return s.reader }
 // that need no transaction.
 func (s *Store) Writer() *sql.DB { return s.writer }
 
+// Optimize runs PRAGMA optimize on the writer: ANALYZE for the tables whose statistics the query planner lacks or
+// that changed much. 0x10000 makes it consider every table, since the reads run on the other (query-only) pool. A
+// read-only store does nothing.
+func (s *Store) Optimize(ctx context.Context) error {
+	if s.opts.ReadOnly {
+		return nil
+	}
+	_, err := s.writer.ExecContext(ctx, `PRAGMA optimize=0x10002`)
+	return err
+}
+
 // Close closes both pools.
 func (s *Store) Close() error {
 	if s.writer == s.reader {

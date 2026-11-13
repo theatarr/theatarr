@@ -94,6 +94,9 @@ func TestTitleCurrentFromLink(t *testing.T) {
 	var d TitleDetail
 	e.call("GET", APIBase+"/titles/1", nil, 200, &d)
 	c := d.Versions[0].Current
+	if u := d.Versions[0].Upgrade; u == nil || u.Score == nil || *u.Score != 1500 {
+		t.Errorf("upgrade: want the score: %+v", u)
+	}
 	if c == nil || c.ReleaseGroup != "GRP" || c.Edition != "IMAX" || !slices.Equal(c.Languages, []string{"English", "French"}) ||
 		len(c.Formats) != 1 || c.Formats[0].Name != "DV HDR10" || c.Formats[0].Score != 1500 || c.Score == nil || *c.Score != 1500 {
 		t.Fatalf("current %+v", c)
@@ -114,6 +117,9 @@ func TestTitleCurrentFromLink(t *testing.T) {
 	e.call("GET", APIBase+"/titles/1", nil, 200, &d)
 	if c := d.Versions[0].Current; c == nil || c.Score != nil || c.Formats != nil {
 		t.Errorf("adopted current: %+v", c)
+	}
+	if u := d.Versions[0].Upgrade; u == nil || u.Score != nil {
+		t.Errorf("adopted upgrade: want no score: %+v", u)
 	}
 }
 
@@ -235,5 +241,61 @@ func TestEpisodeCellFromLink(t *testing.T) {
 				t.Errorf("%s as user shows %s", path, s)
 			}
 		}
+	}
+}
+
+// TestRemovedCopySortsAndFilters: a removed copy's files count in no sort, filter or facet of the list. Alpha shows
+// 9 GB (its removed WEB copy holds a newer 20 GB 720p link), Beta 10 GB: the size and added sorts follow what the
+// rows show, the library and quality filters agree with the facets and the rows.
+func TestRemovedCopySortsAndFilters(t *testing.T) {
+	t.Parallel()
+	e := newManageEnv(t, nil)
+	e.exec(`INSERT INTO title (id, kind, name, sort_name, year, created_at, updated_at) VALUES
+		(2, 'movie', 'Beta', 'beta', 2021, 0, 0)`)
+	e.exec(`INSERT INTO version (id, title_id, policy_key, monitored, state, created_at, updated_at) VALUES
+		(2, 1, 'movie-web', 0, 'wanted', 0, 0), (3, 2, 'movie-remux', 1, 'filled', 0, 0)`)
+	e.exec(`INSERT INTO link (id, path, target, title_id, quality, file_metadata, state, created_at, updated_at) VALUES
+		(1, '/web/Alpha.mkv', '/mount/Alpha.mkv', 1, 'WEBDL-720p', '{"Size":20000000000}', 'active', 9000, 0),
+		(2, '/remux/Beta.mkv', '/mount/Beta.mkv', 2, 'Remux-1080p', '{"Size":10000000000}', 'active', 5000, 0)`)
+	e.exec(`INSERT INTO link_version (link_id, version_id) VALUES (1, 2), (2, 3)`)
+	e.exec(`INSERT INTO arrview_removed_version (version_id, view, removed_at) VALUES (2, 'web', 0)`)
+
+	list := func(q string) TitlePage {
+		var p TitlePage
+		e.call("GET", APIBase+"/titles?kind=movie&"+q, nil, 200, &p)
+		return p
+	}
+	if p := list("sort=size&order=desc"); names(p) != "Beta,Alpha" || *p.Items[0].SizeBytes != 10000000000 ||
+		*p.Items[1].SizeBytes != 9000000000 {
+		t.Errorf("size sort: %s", names(p))
+	}
+	if p := list("sort=added&order=desc"); names(p) != "Beta,Alpha" {
+		t.Errorf("added sort: %s", names(p))
+	}
+	var f TitleFacets
+	e.call("GET", APIBase+"/titles/facets?kind=movie", nil, 200, &f)
+	web := 0
+	for _, v := range f.Versions {
+		if v.Key == "movie-web" {
+			web = v.WithFile
+		}
+	}
+	for q, want := range map[string]int{"with=movie-web": web, "without=movie-web": 2, "state=wanted": 0,
+		"quality=WEBDL-720p": 0, "quality=720p": 0, "quality=Remux-1080p": 1} {
+		if p := list(q); p.Total != want || len(p.Items) != want {
+			t.Errorf("%s: total %d, rows %d, want %d", q, p.Total, len(p.Items), want)
+		}
+	}
+	for _, q := range f.Qualities {
+		if q.Value == "WEBDL-720p" {
+			t.Errorf("quality facet counts a removed copy: %+v", f.Qualities)
+		}
+	}
+	var picks struct {
+		Items []TitleRow `json:"items"`
+	}
+	e.call("GET", APIBase+"/discover/recent", nil, 200, &picks)
+	if len(picks.Items) == 0 || picks.Items[0].Name != "Beta" {
+		t.Errorf("recent: %+v", picks.Items)
 	}
 }
