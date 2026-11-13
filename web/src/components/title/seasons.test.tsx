@@ -137,6 +137,17 @@ it("words a Watch-only library's closed download gate without policy keys", asyn
   expect(within(note).getByRole("link", { name: "Settings › Libraries" }).getAttribute("href")).toBe("/admin/settings/libraries");
 });
 
+it("says restrictions only about the library in view", async () => {
+  mockFetch(routes);
+  const user = userEvent.setup();
+  renderPage(<Seasons id="1" anime />, "/title/1");
+  expect((await screen.findByTestId("episode-restrictions")).textContent).toContain("Anime Blu-ray");
+  await user.click(screen.getByRole("radio", { name: "Anime WEB" }));
+  expect(screen.queryByTestId("episode-restrictions")).toBeNull();
+  await user.click(screen.getByRole("radio", { name: "Anime Blu-ray" }));
+  expect(screen.getByTestId("episode-restrictions").textContent).toContain("Anime Blu-ray");
+});
+
 it("leaves Pause for every library to the title page's bar: no notice or restriction line in the tab", async () => {
   const control = { ...managed, can_search: false, search_reason: "Paused: nothing is searched or downloaded", grab_state: { mode: "active", paused: true, pause_forced: false, will_grab: false } };
   mockFetch([{ ...routes[0], reply: { id: 1, permissions: ["admin", "manage", "see_files"] } }, { method: "GET", path: "/titles/1/episodes", reply: { ...episodes, versions: [{ ...episodes.versions[1], control }] } }]);

@@ -890,7 +890,8 @@ export function Seasons({ id, anime, franchises = [] }: { id: string; anime: boo
   const live = liveOn ? { titleId, version: one?.key } : undefined;
   const columns = colPrefs.order.filter((c) => colPrefs.shown.includes(c));
   const columnsButton = layout.mode === "table" && layout.columns === "selected";
-  const limits = manage ? restrictions(l.versions, { globalSaid: true }) : [];
+  // About the libraries in view only: one picked library's notice never speaks of another.
+  const limits = manage ? restrictions(one ? [one] : l.versions, { globalSaid: true }) : [];
   const watchOrder = anime ? franchises : [];
   return (
     <div className="space-y-2.5">
