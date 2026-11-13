@@ -142,19 +142,23 @@ func availabilityConds(c airClock) map[string]string {
 	st := availStateSQL(c)
 	live := `FROM version v WHERE v.title_id = t.id AND ` + liveVersion
 	nVersions := `(SELECT COUNT(*) ` + live + `)`
-	// nMissing: wanted versions with no file; nWantedFile: wanted versions that have some (a series part-way).
+	// nMissing: wanted versions with no file; nGap: those that make the title partial (a movie's only when
+	// monitored); nWantedFile: wanted versions that have some (a series part-way).
 	nMissing := `(SELECT COUNT(*) ` + live + ` AND ` + st + ` = 'wanted' AND NOT ` + hasFileSQL + `)`
+	nGap := `(SELECT COUNT(*) ` + live + ` AND ` + st + ` = 'wanted' AND NOT ` + hasFileSQL +
+		` AND (t.kind <> 'movie' OR v.monitored = 1))`
 	nWantedFile := `(SELECT COUNT(*) ` + live + ` AND ` + st + ` = 'wanted' AND ` + hasFileSQL + `)`
 	nFilled := `(SELECT COUNT(*) ` + live + ` AND ` + st + ` = 'filled')`
 	// anyFile: some version has a file; completeVersion: some version is complete (filled or at cutoff).
 	anyFile := `EXISTS (SELECT 1 ` + live + ` AND ` + hasFileSQL + `)`
 	completeVersion := `EXISTS (SELECT 1 ` + live + ` AND ` + st + ` IN ('filled', 'cutoff_met'))`
 	return map[string]string{
-		"missing":   nVersions + ` > 0 AND ` + nMissing + ` = ` + nVersions,
-		"partial":   `(` + nMissing + ` > 0 AND ` + nMissing + ` < ` + nVersions + `) OR ` + nWantedFile + ` > 0`,
-		"upgrade":   nMissing + ` = 0 AND ` + nWantedFile + ` = 0 AND ` + nFilled + ` > 0`,
-		"available": nVersions + ` > 0 AND ` + nMissing + ` = 0 AND ` + nWantedFile + ` = 0 AND ` + nFilled + ` = 0`,
-		"none":      nVersions + ` = 0`,
+		"missing": nVersions + ` > 0 AND ` + nMissing + ` = ` + nVersions,
+		"partial": `(` + nGap + ` > 0 AND ` + nMissing + ` < ` + nVersions + `) OR ` + nWantedFile + ` > 0`,
+		"upgrade": nGap + ` = 0 AND ` + nWantedFile + ` = 0 AND ` + nFilled + ` > 0`,
+		"available": nVersions + ` > 0 AND ` + nMissing + ` < ` + nVersions + ` AND ` + nGap + ` = 0 AND ` +
+			nWantedFile + ` = 0 AND ` + nFilled + ` = 0`,
+		"none": nVersions + ` = 0`,
 		// The watchable availabilities, what available, partial and missing mean to a caller without "see files"
 		// (plainFilter), matching plainAvailability.
 		"watch_available": nVersions + ` > 0 AND ((t.kind = 'movie' AND ` + anyFile + `) OR (t.kind <> 'movie' AND ` +
@@ -174,22 +178,27 @@ func availOr(avail, state string) string {
 
 // versionState is what availabilityOf needs of a version.
 type versionState struct {
-	state   string
-	hasFile bool
+	state     string
+	hasFile   bool
+	monitored bool
 }
 
 // availabilityOf is a title's poster badge from its versions: missing when no version has a file and all are
-// wanted; partial when some are missing, or a wanted version has some files (a series part-way); upgrade when all
-// have files and some are below cutoff; available when all are at cutoff.
-func availabilityOf(vs []versionState) string {
+// wanted; partial when some are missing (for a movie, some monitored version: an unmonitored empty one is left
+// out), or a wanted version has some files (a series part-way); upgrade when the rest have files and some are below
+// cutoff; available when they are at cutoff.
+func availabilityOf(kind string, vs []versionState) string {
 	if len(vs) == 0 {
 		return "none"
 	}
-	missing, wantedFile, filled := 0, 0, 0
+	missing, gap, wantedFile, filled := 0, 0, 0, 0
 	for _, v := range vs {
 		switch {
 		case v.state == "wanted" && !v.hasFile:
 			missing++
+			if kind != "movie" || v.monitored {
+				gap++
+			}
 		case v.state == "wanted":
 			wantedFile++
 		case v.state == "filled":
@@ -199,7 +208,7 @@ func availabilityOf(vs []versionState) string {
 	switch {
 	case missing == len(vs):
 		return "missing"
-	case missing > 0 || wantedFile > 0:
+	case gap > 0 || wantedFile > 0:
 		return "partial"
 	case filled > 0:
 		return "upgrade"
@@ -641,7 +650,7 @@ func (w *Web) fillVersionFiles(ctx context.Context, db *sql.DB, items []TitleRow
 		states := make([]versionState, len(it.Versions))
 		var size, added int64
 		for j, v := range it.Versions {
-			states[j] = versionState{availOr(v.availState, v.State), v.HasFile}
+			states[j] = versionState{availOr(v.availState, v.State), v.HasFile, v.Monitored}
 			if v.SizeBytes != nil {
 				size += *v.SizeBytes
 			}
@@ -649,7 +658,7 @@ func (w *Web) fillVersionFiles(ctx context.Context, db *sql.DB, items []TitleRow
 				added = max(added, v.AddedAt.UnixMilli())
 			}
 		}
-		it.Availability = availabilityOf(states)
+		it.Availability = availabilityOf(it.Kind, states)
 		if size > 0 {
 			it.SizeBytes = &size
 		}

@@ -120,7 +120,7 @@ func redactVersionBrief(v *VersionBrief) {
 func redactRow(r *TitleRow) {
 	states := make([]versionState, len(r.Versions))
 	for i, v := range r.Versions {
-		states[i] = versionState{availOr(v.availState, v.State), v.HasFile}
+		states[i] = versionState{availOr(v.availState, v.State), v.HasFile, v.Monitored}
 	}
 	redactRowWith(r, states)
 }

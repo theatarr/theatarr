@@ -105,7 +105,7 @@ describe("Library table", () => {
     await screen.findAllByText("Copper Sky");
     expect(screen.getAllByRole("columnheader").map((h) => h.textContent)).toEqual(["Title", "Status", "Libraries", "Studio", "Size", "Added"]);
     const row = screen.getByRole("link", { name: "Copper Sky" }).closest("tr") as HTMLElement;
-    expect(within(row).getByTestId("status-cell").textContent).toBe("Best quality known");
+    expect(within(row).getByTestId("status-cell").textContent).toBe("Partly available");
     expect(within(row).queryByText(/preferred quality not met/)).toBeNull();
     expect(within(row).getAllByTestId("library-pill").map((p) => [p.textContent, p.getAttribute("data-tone"), p.getAttribute("aria-label")])).toEqual([
       ["4K · Remux-2160p", "ok", "4K: has a file"],
@@ -418,9 +418,9 @@ describe("Library posters", () => {
 
     // Held in one library and missing in the other: the whole bar takes the badge's tone; the pills say which.
     const two = card("Copper Sky");
-    expect(within(two).getByRole("link", { name: /^Copper Sky \(2022\), Available,/ })).toBeTruthy();
+    expect(within(two).getByRole("link", { name: /^Copper Sky \(2022\), Partly available,/ })).toBeTruthy();
     expect(within(two).getAllByTestId("status-bar")).toHaveLength(1);
-    expect(within(two).getByTestId("status-bar").getAttribute("data-tone")).toBe("ok");
+    expect(within(two).getByTestId("status-bar").getAttribute("data-tone")).toBe("warn");
     expect(within(two).getAllByTestId("library-pill").map((p) => [p.getAttribute("aria-label"), p.getAttribute("data-tone")])).toEqual([
       ["4K: has a file", "ok"],
       ["WEB: missing", "bad"],

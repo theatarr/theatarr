@@ -163,18 +163,31 @@ func TestTitlesSortAndFilters(t *testing.T) {
 
 func TestAvailabilityOf(t *testing.T) {
 	t.Parallel()
-	w, f := versionState{"wanted", false}, versionState{"filled", true}
-	part, done := versionState{"wanted", true}, versionState{"cutoff_met", true}
-	for want, vs := range map[string][]versionState{
-		"none": nil, "missing": {w, w}, "partial": {w, done}, "upgrade": {f, done}, "available": {done, done},
-	} {
-		if got := availabilityOf(vs); got != want {
-			t.Errorf("%v: %s, want %s", vs, got, want)
+	w, f := versionState{"wanted", false, true}, versionState{"filled", true, true}
+	part, done := versionState{"wanted", true, true}, versionState{"cutoff_met", true, true}
+	for _, kind := range []string{"movie", "series"} {
+		for want, vs := range map[string][]versionState{
+			"none": nil, "missing": {w, w}, "partial": {w, done}, "upgrade": {f, done}, "available": {done, done},
+		} {
+			if got := availabilityOf(kind, vs); got != want {
+				t.Errorf("%s %v: %s, want %s", kind, vs, got, want)
+			}
 		}
 	}
 	// A series part-way: wanted, with some episode files.
-	if got := availabilityOf([]versionState{part}); got != "partial" {
+	if got := availabilityOf("series", []versionState{part}); got != "partial" {
 		t.Errorf("series part-way: %s", got)
+	}
+	// A movie's unmonitored empty library is not a gap: the held file decides; with no file anywhere it is missing.
+	off := versionState{"wanted", false, false}
+	for want, vs := range map[string][]versionState{"available": {done, off}, "upgrade": {f, off}, "missing": {off, w}} {
+		if got := availabilityOf("movie", vs); got != want {
+			t.Errorf("movie %v: %s, want %s", vs, got, want)
+		}
+	}
+	// A series keeps its own rule: an unmonitored empty copy still reads partial.
+	if got := availabilityOf("series", []versionState{done, off}); got != "partial" {
+		t.Errorf("series with an unmonitored empty copy: %s", got)
 	}
 }
 

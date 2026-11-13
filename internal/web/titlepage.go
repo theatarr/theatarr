@@ -157,7 +157,7 @@ func (w *Web) enrichTitle(ctx context.Context, d *TitleDetail) error {
 			return err
 		}
 	}
-	d.Availability = availabilityOf(liveStates(d.Versions))
+	d.Availability = availabilityOf(d.Kind, liveStates(d.Versions))
 	if d.Kind == "movie" {
 		dates, err := availability.DatesFor(ctx, db, []any{d.ID})
 		if err != nil {
@@ -216,7 +216,7 @@ func liveStates(vs []Version) []versionState {
 	var out []versionState
 	for _, v := range vs {
 		if !v.Removed {
-			out = append(out, versionState{availOr(v.availState, v.State), v.HasFile})
+			out = append(out, versionState{availOr(v.availState, v.State), v.HasFile, v.Monitored})
 		}
 	}
 	return out

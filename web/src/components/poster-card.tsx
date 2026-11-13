@@ -18,6 +18,7 @@ export type { PosterStatus } from "@/lib/library";
 // 160 px (the Home rows) the chip is the dot alone and the word moves to the year line.
 const DOT: Record<PosterStatus, string> = {
   available: "bg-[var(--ok)]",
+  partly_available: "bg-[var(--warn)]",
   some_episodes: "bg-[var(--accent)]",
   upgrade: "bg-[var(--warn)]",
   best_known: "bg-[var(--ok)]",

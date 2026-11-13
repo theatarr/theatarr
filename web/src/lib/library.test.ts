@@ -8,8 +8,8 @@ const label = (...a: Parameters<typeof posterStatus>) => {
 };
 
 describe("the poster badge", () => {
-  it("says one of eight words, never Upgrade waiting", () => {
-    expect(Object.values(POSTER_STATUS_LABEL).sort()).toEqual(["Available", "Best quality known", "Getting ready", "Missing", "Not available", "Some episodes", "Upcoming", "Upgrade found"]);
+  it("says one of nine words, never Upgrade waiting", () => {
+    expect(Object.values(POSTER_STATUS_LABEL).sort()).toEqual(["Available", "Best quality known", "Getting ready", "Missing", "Not available", "Partly available", "Some episodes", "Upcoming", "Upgrade found"]);
   });
   const series = (have: number, missing: number) => ({ kind: "series", versions: [{ key: "tv", coverage: { have, missing, total: have + missing } }] }) as Parameters<typeof posterStatus>[4];
   it.each([
@@ -73,7 +73,7 @@ it("gives missing and episode gaps precedence over upgrades", () => {
   expect(label("available", true)).toBe("Upgrade found");
   expect(label("available", false, false, "higher_source_exists")).toBe("Best quality known");
   expect(label("available", false)).toBe("Available");
-  expect(Object.values(POSTER_STATUS_LABEL).sort()).toEqual(["Available", "Best quality known", "Getting ready", "Missing", "Not available", "Some episodes", "Upcoming", "Upgrade found"]);
+  expect(Object.values(POSTER_STATUS_LABEL).sort()).toEqual(["Available", "Best quality known", "Getting ready", "Missing", "Not available", "Partly available", "Some episodes", "Upcoming", "Upgrade found"]);
 });
 
 
@@ -83,12 +83,12 @@ it("uses monitored gaps and preserves family watchability", () => {
   expect(label("upgrade", true, false, undefined, series)).toBe("Upgrade found");
   const mixed = { ...series, versions: [...series.versions, { coverage: { have: 1, total: 24, missing: 23, aired: 24, upcoming: 0 } }] };
   expect(label("available", false, true, undefined, mixed)).toBe("Available");
-  // A movie playable in one library while another still lacks it: an upgrade found, else what the held copy says.
-  expect(label("partial", true, false, undefined, { kind: "movie", versions: [{ state: "wanted" }] })).toBe("Upgrade found");
-  expect(label("partial", false, false, undefined, { kind: "movie", versions: [{ state: "wanted" }, { state: "filled" }] })).toBe("Best quality known");
-  expect(label("partial", false, false, undefined, { kind: "movie", versions: [{ state: "wanted" }] })).toBe("Available");
+  // A movie playable in one library while a monitored one still lacks it reads Partly available, whatever the held
+  // copy says; without see files it is Available.
+  expect(label("partial", true, false, undefined, { kind: "movie", versions: [{ state: "wanted" }] })).toBe("Partly available");
+  expect(label("partial", false, false, undefined, { kind: "movie", versions: [{ state: "wanted" }, { state: "filled" }] })).toBe("Partly available");
   expect(label("partial", false, true, undefined, { kind: "movie" })).toBe("Available");
-  expect(label("partial", false, false, undefined, { kind: "movie" })).toBe("Available");
+  expect(label("partial", false, false, undefined, { kind: "movie" })).toBe("Partly available");
 });
 
 describe("a movie before its release", () => {
@@ -225,16 +225,28 @@ describe("a series with nothing aired yet", () => {
 });
 
 describe("a movie held in one library and missing in another", () => {
-  // Listed under Partly; the badge keeps the held copy's word and the missing library shows in red.
+  // Listed under Partly (the server's partial: a monitored library has no file); the badge says so in amber and the
+  // missing library's pill stays red.
   const t = { kind: "movie" as const, release_date: "2020-01-01", versions: [
     { key: "4k", label: "4K", monitored: true, has_file: true, state: "cutoff_met" as const },
     { key: "web", label: "WEB", monitored: true, has_file: false, state: "wanted" as const },
   ] };
-  it("keeps Available on the badge and its green whole-title bar, with a red pill for the missing library", () => {
+  const word = (s: ReturnType<typeof posterStatus>) => (s ? POSTER_STATUS_LABEL[s] : undefined);
+  it("reads Partly available in amber, with a red pill for the missing library", () => {
     const s = posterStatus("partial", false, false, undefined, t);
-    expect(s ? POSTER_STATUS_LABEL[s] : undefined).toBe("Available");
-    expect(badgeTone(s)).toBe("ok");
+    expect(word(s)).toBe("Partly available");
+    expect(badgeTone(s)).toBe("warn");
     expect(t.versions.map((v) => copyTone(v, t))).toEqual(["ok", "bad"]);
+  });
+  it("reads Available when the empty library is not monitored (the server sends the held file's availability)", () => {
+    const off = { ...t, versions: [t.versions[0], { ...t.versions[1], monitored: false }] };
+    const s = posterStatus("available", false, false, "cutoff_met", off);
+    expect(word(s)).toBe("Available");
+    expect(badgeTone(s)).toBe("ok");
+    expect(off.versions.map((v) => copyTone(v, off))).toEqual(["ok", "idle"]);
+  });
+  it("reads Available without see files", () => {
+    expect(word(posterStatus("available", false, true, undefined, t))).toBe("Available");
   });
 });
 

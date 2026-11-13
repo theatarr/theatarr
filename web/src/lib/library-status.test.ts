@@ -59,6 +59,8 @@ describe("copyTone", () => {
     expect(badgeTone("best_known")).toBe("ok");
     // The Upgrade found badge is amber, so its bar is too.
     expect(badgeTone("upgrade")).toBe("warn");
+    // Partly available (a movie a monitored library lacks) is amber too.
+    expect(badgeTone("partly_available")).toBe("warn");
     expect(badgeTone("wanted")).toBe("bad");
     expect(badgeTone("upcoming")).toBe("idle");
     expect(badgeTone(undefined)).toBe("idle");

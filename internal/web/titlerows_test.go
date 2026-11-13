@@ -499,3 +499,53 @@ func TestStaleCompleteSeriesIsPartial(t *testing.T) {
 		t.Errorf("user partial filter: %s", body)
 	}
 }
+
+// TestMoviePartlyAvailable: a movie held in one library and missing in a second, monitored library is partial in the
+// row, the filters, the facets and the title page. Unmonitored, or removed, the empty library does not count and the
+// held file decides (Alpha's is below cutoff: upgrade). A caller without "see files" reads available throughout.
+func TestMoviePartlyAvailable(t *testing.T) {
+	t.Parallel()
+	e := newManageEnv(t, nil)
+	e.exec(`INSERT INTO version (id, title_id, policy_key, monitored, state, created_at, updated_at) VALUES
+		(2, 1, 'movie-web', 1, 'wanted', 0, 0)`)
+	check := func(name, want string) {
+		t.Helper()
+		var p TitlePage
+		e.call("GET", APIBase+"/titles?kind=movie&q=Alpha", nil, 200, &p)
+		if len(p.Items) != 1 || p.Items[0].Availability != want {
+			t.Errorf("%s: row %+v, want %s", name, p.Items, want)
+		}
+		for _, a := range []string{"partial", "upgrade"} {
+			p = TitlePage{}
+			e.call("GET", APIBase+"/titles?kind=movie&q=Alpha&availability="+a, nil, 200, &p)
+			if (p.Total == 1) != (a == want) {
+				t.Errorf("%s: availability=%s lists %d", name, a, p.Total)
+			}
+		}
+		var f TitleFacets
+		e.call("GET", APIBase+"/titles/facets?kind=movie&q=Alpha", nil, 200, &f)
+		if f.Availability[want] != 1 || f.Availability["partial"]+f.Availability["upgrade"] != 1 {
+			t.Errorf("%s: facets %v", name, f.Availability)
+		}
+		var d TitleDetail
+		e.call("GET", APIBase+"/titles/1", nil, 200, &d)
+		if d.Availability != want {
+			t.Errorf("%s: title page %q", name, d.Availability)
+		}
+		if body := e.userBody(APIBase + "/titles?kind=movie&q=Alpha"); !strings.Contains(body, `"availability":"available"`) {
+			t.Errorf("%s: user row %s", name, body)
+		}
+		if body := e.userBody(APIBase + "/titles?kind=movie&q=Alpha&availability=available"); !strings.Contains(body, `"total":1`) {
+			t.Errorf("%s: user available filter %s", name, body)
+		}
+		if body := e.userBody(APIBase + "/titles/1"); !strings.Contains(body, `"availability":"available"`) {
+			t.Errorf("%s: user title page %s", name, body)
+		}
+	}
+	check("monitored", "partial")
+	e.exec(`UPDATE version SET monitored = 0 WHERE id = 2`)
+	check("unmonitored", "upgrade")
+	e.exec(`UPDATE version SET monitored = 1 WHERE id = 2`)
+	e.exec(`INSERT INTO arrview_removed_version (version_id, view, removed_at) VALUES (2, 'web', 0)`)
+	check("removed", "upgrade")
+}

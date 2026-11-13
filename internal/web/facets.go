@@ -86,16 +86,16 @@ func (w *Web) titleFacets(ctx context.Context, f TitleFilter, seeFiles bool) (Ti
 	states := map[int64][]versionState{}
 	kinds := map[int64]string{}
 	keys := map[string]*VersionFacet{}
-	err := scanAll(ctx, db, `SELECT t.id, t.kind, v.policy_key, v.state, `+hasFileSQL+`, `+
+	err := scanAll(ctx, db, `SELECT t.id, t.kind, v.policy_key, v.state, v.monitored, `+hasFileSQL+`, `+
 		availStateSQL(newAirClock(w.now()))+titleFrom+` JOIN version v ON v.title_id = t.id`+andWhere(where, liveVersion),
 		args, func(r *sql.Rows) error {
 			var tid int64
 			var kind, key, state, avail string
-			var has bool
-			if err := r.Scan(&tid, &kind, &key, &state, &has, &avail); err != nil {
+			var has, mon bool
+			if err := r.Scan(&tid, &kind, &key, &state, &mon, &has, &avail); err != nil {
 				return err
 			}
-			states[tid] = append(states[tid], versionState{avail, has})
+			states[tid] = append(states[tid], versionState{avail, has, mon})
 			kinds[tid] = kind
 			vf := keys[key]
 			if vf == nil {
@@ -120,7 +120,7 @@ func (w *Web) titleFacets(ctx context.Context, f TitleFilter, seeFiles bool) (Ti
 		return out, err
 	}
 	for tid, s := range states {
-		a := availabilityOf(s)
+		a := availabilityOf(kinds[tid], s)
 		if !seeFiles {
 			a = plainAvailability(kinds[tid], s)
 		}

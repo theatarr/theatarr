@@ -55,6 +55,7 @@ export function badgeTone(s: PosterStatus | undefined): CopyTone {
     case "best_known":
       return "ok";
     case "upgrade":
+    case "partly_available":
       return "warn";
     case "wanted":
       return "bad";

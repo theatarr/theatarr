@@ -4,10 +4,11 @@ import type { Availability, GridQuery, TitleRow } from "@/api/library";
 import { availableIn, BEST_KNOWN } from "@/lib/upgrade";
 
 /** A poster card's availability badge. */
-export type PosterStatus = "available" | "wanted" | "upgrade" | "best_known" | "some_episodes" | "upcoming" | "getting_ready" | "not_available";
+export type PosterStatus = "available" | "partly_available" | "wanted" | "upgrade" | "best_known" | "some_episodes" | "upcoming" | "getting_ready" | "not_available";
 
 export const POSTER_STATUS_LABEL: Record<PosterStatus, string> = {
   available: "Available",
+  partly_available: "Partly available",
   wanted: "Missing",
   upgrade: "Upgrade found",
   best_known: BEST_KNOWN,
@@ -67,7 +68,8 @@ export function notAiredYet(t: Pick<TitleRow, "kind" | "versions" | "release_dat
 /** Missing takes priority (Getting ready without "see files" while a download is in hand, else Upcoming for a movie
  * not out at home yet, upcomingRelease, or a series with nothing aired yet, notAiredYet; else Missing, which reads Not
  * available without "see files" as in the table),
- * then episode gaps, then an upgrade found (a better release was seen), then best quality known (a copy below its
+ * then episode gaps, then a movie a monitored library still lacks (partial: Partly available; without "see files" it
+ * reads Available), then an upgrade found (a better release was seen), then best quality known (a copy below its
  * preferred quality with nothing better found), then available. */
 export function posterStatus(a: Availability | undefined, upgradeSeen?: boolean, plain = false, upgradeState?: string, title?: Pick<TitleRow, "kind" | "versions" | "release_date" | "home_release" | "next_up" | "acquiring" | "status">): PosterStatus | undefined {
   if (a === "missing") return plain && title?.acquiring ? "getting_ready" : upcomingRelease(title) || notAiredYet(title) ? "upcoming" : plain ? "not_available" : "wanted";
@@ -75,6 +77,7 @@ export function posterStatus(a: Availability | undefined, upgradeSeen?: boolean,
   const episodes = title?.kind === "series" && title.versions?.some(v => (v.coverage?.missing ?? 0) > 0);
   if (episodes && title?.versions?.some(v => (v.coverage?.have ?? 0) > 0)) return "some_episodes";
   if (a === "partial") {
+    if (title?.kind === "movie") return "partly_available";
     return upgradeSeen ? "upgrade" : title?.versions?.some(v => v.state === "filled") ? "best_known" : "available";
   }
   const found = upgradeSeen || upgradeState === "upgrade_available";
