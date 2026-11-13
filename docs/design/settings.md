@@ -157,8 +157,10 @@ once. `section-panel.test.tsx` exercises partial writes, credentials, 422, 409, 
 
 The stored record is one flag, `{"paused": bool}` (`setting_global_switches`). Both runtime switches are derived from it
 when settings load: `router.enabled` and `library.enabled` are each `!paused`, so every gate reader stays as it was.
-Pause stops searches, new downloads and library changes (links, renames, deletes, Plex updates) for every library.
-Downloads already at a provider finish there and are imported when Pause is turned off. A fresh install starts paused.
+Pause stops searches, new downloads, list syncs and library changes (links, renames, deletes, Plex updates) for every
+library. Automatic list syncs and collection refreshes are skipped while paused and add their titles at their next run
+after Pause is turned off; Sync now on a list still runs. Downloads already at a provider finish there and are imported
+when Pause is turned off. A fresh install starts paused.
 Notifications are not part of it: `notify.enabled` is a field of the `notify` section like any other.
 
 `PUT /settings/switches` takes `{generation, paused}`. The removed fields `router_enabled`, `library_enabled` and

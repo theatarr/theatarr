@@ -271,8 +271,8 @@ editor. Going **Live** asks for a confirmation first; going back to Watch only s
 downloads and links nothing for this library. Live searches, downloads and links. Beside the control, the row says
 when Pause holds a Live library back: **Live, paused**.
 
-**Pause**, at the top of every admin page, stops searches, new downloads and changes in your library folders, for
-every library. Downloads already at a provider finish there and are imported when you turn Pause off. Turning it off
+**Pause**, at the top of every admin page, stops searches, new downloads, list syncs and changes in your library
+folders, for every library. Downloads already at a provider finish there and are imported when you turn Pause off. Turning it off
 asks for a confirmation that names the Live libraries; turning it on does not. **Send notifications** is a field on
 **Settings › Notifications**.
 

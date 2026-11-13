@@ -26,7 +26,7 @@ describe("Pause in the admin header", () => {
     renderPage(<PauseSwitch />);
     const pause = await screen.findByRole("switch", { name: "Pause" });
     expect((pause as HTMLInputElement).checked).toBe(false);
-    expect(screen.getByTestId("pause").getAttribute("title")).toBe("Pause stops searches, new downloads and changes in your library folders, for every library. Downloads already started finish at the provider and are imported when you turn Pause off.");
+    expect(screen.getByTestId("pause").getAttribute("title")).toBe("Pause stops searches, new downloads, list syncs and changes in your library folders, for every library. Downloads already started finish at the provider and are imported when you turn Pause off.");
     await userEvent.setup().click(pause);
     await waitFor(() => expect(fetch.calls("PUT", "/settings/switches")).toHaveLength(1));
     expect(fetch.calls("PUT", "/settings/switches")[0].body).toEqual({ generation: 7, paused: true });

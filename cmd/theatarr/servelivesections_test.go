@@ -9,15 +9,20 @@ import (
 	"sort"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"testing"
+	"time"
 
 	"github.com/theatarr/theatarr/internal/acquire"
+	"github.com/theatarr/theatarr/internal/catalog"
 	"github.com/theatarr/theatarr/internal/gateway"
 	"github.com/theatarr/theatarr/internal/health"
 	"github.com/theatarr/theatarr/internal/jobs"
+	"github.com/theatarr/theatarr/internal/metadata/tmdb"
 	"github.com/theatarr/theatarr/internal/policy"
 	"github.com/theatarr/theatarr/internal/settings"
 	"github.com/theatarr/theatarr/internal/store"
+	"github.com/theatarr/theatarr/internal/store/storetest"
 )
 
 // liveFixture is a settings database with every section seeded (as theatarr serve's first start does) and a runtime
@@ -429,5 +434,72 @@ func TestServeLibraryCurrentFollowsSaves(t *testing.T) {
 	saved, _ := manager.Current().Components.(*serveRuntime)
 	if saved == nil || saved == first || lb.current() != saved.Library.lib || lb.current() == lb.lib {
 		t.Fatal("current did not follow the save")
+	}
+}
+
+// pauseIntakeSource is a TMDb source that counts its reads: one monitored collection and one list of one movie each.
+type pauseIntakeSource struct{ reads atomic.Int32 }
+
+func (s *pauseIntakeSource) Collection(context.Context, int) (*tmdb.Collection, error) {
+	s.reads.Add(1)
+	return &tmdb.Collection{ID: 7, Name: "Collection", Parts: []tmdb.MovieSummary{{ID: 101, Title: "Part", ReleaseDate: "2020-01-01"}}}, nil
+}
+
+func (s *pauseIntakeSource) List(context.Context, int) (*tmdb.List, error) {
+	s.reads.Add(1)
+	return &tmdb.List{Items: []tmdb.MovieSummary{{ID: 201}}}, nil
+}
+
+func (s *pauseIntakeSource) MovieDetails(_ context.Context, id int) (*tmdb.Movie, error) {
+	s.reads.Add(1)
+	return &tmdb.Movie{ID: id, Title: "Movie", ReleaseDate: "2020-01-01"}, nil
+}
+
+// TestMovieIntakeSkipsWhilePaused: while Theatarr is paused the periodic intake (collections, TMDb lists, arr lists)
+// reads no source, adds nothing and starts no add-time search, also at start; unpaused the same run adds and searches.
+func TestMovieIntakeSkipsWhilePaused(t *testing.T) {
+	for _, paused := range []bool{true, false} {
+		ctx := context.Background()
+		st, err := store.Open(ctx, storetest.Seed(t, filepath.Join(t.TempDir(), "theatarr.db")), store.Options{})
+		if err != nil {
+			t.Fatal(err)
+		}
+		t.Cleanup(func() { st.Close() })
+		if _, err := st.Migrate(ctx); err != nil {
+			t.Fatal(err)
+		}
+		if _, err := st.Writer().Exec(`INSERT INTO import_list(name,tmdb_id,versions,minimum_availability,search_on_add,created_at,updated_at) VALUES('list',9,'["movie-web"]','released',1,0,0)`); err != nil {
+			t.Fatal(err)
+		}
+		if _, err := st.Writer().Exec(`INSERT INTO movie_collection(tmdb_id,name,monitored,versions,minimum_availability,updated_at) VALUES(7,'Collection',1,'["movie-web"]','released',0)`); err != nil {
+			t.Fatal(err)
+		}
+		pol := &policy.Policy{Router: &policy.Router{Enabled: !paused}, Versions: map[string]*policy.VersionPolicy{
+			"movie-web": {Kind: policy.KindMovie, Enable: "default", Mode: policy.ModeActive},
+		}}
+		src := &pauseIntakeSource{}
+		var searches atomic.Int32
+		mi := &catalog.MovieIntake{Store: st, Policy: pol, TMDb: src, Now: time.Now, Log: slog.New(slog.NewTextHandler(io.Discard, nil)),
+			OnAdd: func(context.Context, int64, []string) error { searches.Add(1); return nil }}
+		// The start runs the collections and TMDb lists, then the arr lists; the second current ends the run.
+		runCtx, cancel := context.WithCancel(ctx)
+		calls := 0
+		runMovieIntake(runCtx, time.Hour, true, func(context.Context) *catalog.MovieIntake {
+			if calls++; calls == 2 {
+				cancel()
+			}
+			return mi
+		}, slog.New(slog.NewTextHandler(io.Discard, nil)))
+		cancel()
+		var titles int
+		if err := st.Reader().QueryRow(`SELECT count(*) FROM title`).Scan(&titles); err != nil {
+			t.Fatal(err)
+		}
+		if paused && (src.reads.Load() != 0 || titles != 0 || searches.Load() != 0) {
+			t.Fatalf("paused: reads=%d titles=%d searches=%d, want none", src.reads.Load(), titles, searches.Load())
+		}
+		if !paused && (src.reads.Load() == 0 || titles == 0 || searches.Load() == 0) {
+			t.Fatalf("unpaused: reads=%d titles=%d searches=%d, want the intake to add and search", src.reads.Load(), titles, searches.Load())
+		}
 	}
 }

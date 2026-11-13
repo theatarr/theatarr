@@ -5,7 +5,7 @@ import { qk } from "@/api/query-keys";
 import { confirmationHeaders, useSettings } from "@/api/settings";
 import { useWriteConfirmation } from "./confirm-write";
 
-// Pause stops searches, new downloads and library changes for every library; RSS skips its runs while paused.
+// Pause stops searches, new downloads, list syncs and library changes for every library; RSS skips its runs while paused.
 // Notifications are the notify section's own "Send notifications" setting.
 
 /** One PUT /settings/switches with paused; a refusal that needs confirmation (Pause off) opens the shared dialog
@@ -53,7 +53,7 @@ export function PauseSwitch() {
   return (
     <>
       <label className={PILL} data-testid="pause" data-paused={paused || undefined}
-        title={paused ? "Paused: nothing is searched, downloaded or linked. Turn off to resume." : "Pause stops searches, new downloads and changes in your library folders, for every library. Downloads already started finish at the provider and are imported when you turn Pause off."}>
+        title={paused ? "Paused: nothing is searched, downloaded or linked. Turn off to resume." : "Pause stops searches, new downloads, list syncs and changes in your library folders, for every library. Downloads already started finish at the provider and are imported when you turn Pause off."}>
         <input type="checkbox" role="switch" aria-label="Pause" checked={paused} disabled={busy || !o.writable || o.source !== "db"}
           onChange={(e) => void save(e.target.checked, o.generation)} />
         <span className={paused ? "whitespace-nowrap font-medium text-[var(--warn-ink)]" : "whitespace-nowrap"}>{paused ? "Paused" : "Pause"}</span>

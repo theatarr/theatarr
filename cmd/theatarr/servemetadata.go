@@ -191,6 +191,8 @@ func movieIntakeSearch(ac *serveAcquirer) func(context.Context, int64, []string)
 
 // runMovieIntake refreshes Radarr collections and TMDb import lists every interval, and Radarr and Sonarr lists every
 // catalog.ArrListInterval, with the intake of the settings in force at each refresh, and once at start when now is true.
+// While Theatarr is paused (router.enabled false, as for RSS) a run adds nothing and skips whole: its add-time searches
+// would be spent on grabs Pause blocks. The next run after Pause is turned off adds and searches as usual.
 func runMovieIntake(ctx context.Context, interval time.Duration, now bool, current func(context.Context) *catalog.MovieIntake,
 	log *slog.Logger) {
 	if interval <= 0 {
@@ -199,6 +201,10 @@ func runMovieIntake(ctx context.Context, interval time.Duration, now bool, curre
 	refresh := func() {
 		mi := current(ctx)
 		if mi == nil {
+			return
+		}
+		if intakePaused(mi) {
+			log.Info("movie collections and lists: skipped, Theatarr is paused")
 			return
 		}
 		if _, err := mi.RefreshCollections(ctx); err != nil && ctx.Err() == nil {
@@ -212,6 +218,10 @@ func runMovieIntake(ctx context.Context, interval time.Duration, now bool, curre
 	arrLists := func() {
 		mi := current(ctx)
 		if mi == nil {
+			return
+		}
+		if intakePaused(mi) {
+			log.Info("lists: arr sync skipped, Theatarr is paused")
 			return
 		}
 		if _, err := mi.SyncArrLists(ctx); err != nil && ctx.Err() == nil {
@@ -236,6 +246,11 @@ func runMovieIntake(ctx context.Context, interval time.Duration, now bool, curre
 			arrLists()
 		}
 	}
+}
+
+// intakePaused is whether Theatarr is paused for mi: router.enabled false in its pinned policy, the switch RSS reads too.
+func intakePaused(mi *catalog.MovieIntake) bool {
+	return mi.Policy != nil && !mi.Policy.RouterSettings().Enabled
 }
 
 // runTVDBUpdates reads TVDB's /updates every hour through tvc and queues a refresh of the changed series with the

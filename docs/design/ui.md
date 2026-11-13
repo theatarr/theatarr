@@ -538,8 +538,8 @@ their editors, with Edit links. VPN status is above its settings. **Send notific
 Notifications page's Destinations panel (`notify.enabled`; "Off: events are recorded, nothing is sent.").
 
 **Pause.** Admins see one **Pause** switch in the top bar of every page; it sends `{generation, paused}` in one
-`PUT /settings/switches`. Off, its tooltip says "Pause stops searches, new downloads and changes in your library
-folders, for every library. Downloads already started wait and are imported when you turn Pause off."; on, "Paused:
+`PUT /settings/switches`. Off, its tooltip says "Pause stops searches, new downloads, list syncs and changes in your
+library folders, for every library. Downloads already started wait and are imported when you turn Pause off."; on, "Paused:
 nothing is searched, downloaded or linked. Turn off to resume." Turning it off asks for confirmation; turning it on
 does not. When `THEATARR_FORCE_OFF` forces it, the switch is a disabled pill **Paused (locked)** titled "Paused by
 THEATARR_FORCE_OFF. Remove it and restart to resume." Queued searches (Search now) wait while paused and start on resume; downloads already sent keep
