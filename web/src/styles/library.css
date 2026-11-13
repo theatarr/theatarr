@@ -26,7 +26,7 @@
   );
 }
 .dark .copy-track,
-.dark .status-track:not([data-tone="bad"]) {
+.dark .status-track:not([data-tone="bad"]):not([data-tone="warn"]) {
   background: color-mix(in srgb, var(--line) 70%, var(--sunken));
 }
 .dark .copy-track > .copy-flight {
@@ -40,7 +40,7 @@
 /*
  * Status bars and library pills (components/library/library-pill.tsx): one colour rule for every library, the tone
  * (lib/library-status.ts copyTone) in data-tone. The held part is in the tone's colour, the part in progress striped in
- * the accent (amber when blocked); a bad series library's empty part is a pale red.
+ * the accent (amber when blocked); the empty part of a bad track is a pale red, of a warn track a pale amber.
  */
 [data-tone="ok"] { --tc: var(--ok); }
 [data-tone="bad"] { --tc: var(--bad); }
@@ -52,6 +52,7 @@
 }
 .status-track[data-tone="warn"] {
   --fc: var(--warn);
+  background: color-mix(in srgb, var(--warn) 28%, transparent);
 }
 .status-track[data-tone="bad"] {
   background: color-mix(in srgb, var(--bad) 28%, transparent);
