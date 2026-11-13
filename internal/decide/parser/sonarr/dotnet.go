@@ -157,26 +157,3 @@ func reverseRunes(s string) string {
 	}
 	return string(r)
 }
-
-// diacriticsNonDecomposing are the letters Diacritical.Net maps that Unicode decomposition leaves alone, with
-// v5's AdditionalDiacriticsProvider (ð, Ð, þ) included; the same table as internal/library/naming.
-var diacriticsNonDecomposing = map[rune]string{'ø': "o", 'Ø': "O", 'ł': "l", 'Ł': "L", 'đ': "d", 'Đ': "D", 'ß': "ss",
-	'æ': "ae", 'Æ': "AE", 'œ': "oe", 'Œ': "OE", 'þ': "th", 'Þ': "TH", 'ð': "d", 'Ð': "D", 'ı': "i"}
-
-// removeDiacritics is Sonarr v5's StringExtensions.RemoveDiacritics (Diacritical.Net plus
-// AdditionalDiacriticsProvider): decomposition with the combining marks dropped, plus the letters that do not
-// decompose. RemoveAccent (v4) leaves those letters as they are.
-func removeDiacritics(s string) string {
-	var b strings.Builder
-	for _, r := range norm.NFD.String(s) {
-		if unicode.Is(unicode.Mn, r) {
-			continue
-		}
-		if m, ok := diacriticsNonDecomposing[r]; ok {
-			b.WriteString(m)
-			continue
-		}
-		b.WriteRune(r)
-	}
-	return norm.NFC.String(b.String())
-}

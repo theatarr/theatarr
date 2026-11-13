@@ -17,11 +17,11 @@ func TestFranchiseFallbackSkipsSpecials(t *testing.T) {
 		"[Group] Isekai Story 2nd Season - S00E01 (BD 1080p).mkv",
 		"[Group] Isekai Monogatari - S01E02 (BD 1080p).mkv",
 	} {
-		without, err := ResolveFile(&ti, "", FileInput{Path: name, OtherVideoFiles: true})
+		without, err := ResolveFile(&ti, FileInput{Path: name, OtherVideoFiles: true})
 		if err != nil {
 			t.Fatal(err)
 		}
-		with, err := ResolveFile(&ti, "", FileInput{Path: name, OtherVideoFiles: true, Mapping: m})
+		with, err := ResolveFile(&ti, FileInput{Path: name, OtherVideoFiles: true, Mapping: m})
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -39,7 +39,7 @@ func TestAltCutFallbackPreservesSpecial(t *testing.T) {
 	ti.Episodes = append(ti.Episodes, Episode{ID: 399, Season: 0, Number: 1, Title: "OVA", Runtime: 24, Monitored: true})
 	m := &EpisodeMap{How: "alt_cut:Director's Cut", Entry: "kitsu:9"}
 	name := "[Group] Isekai Monogatari - S00E01 (BD 1080p).mkv"
-	with, err := ResolveFile(&ti, "", FileInput{Path: name, OtherVideoFiles: true, Mapping: m})
+	with, err := ResolveFile(&ti, FileInput{Path: name, OtherVideoFiles: true, Mapping: m})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -56,7 +56,7 @@ func TestResolveFileAltCutGapIsRefused(t *testing.T) {
 		{Path: "[Group] Isekai Monogatari - 03 (BD 1080p).mkv", OtherVideoFiles: true, Mapping: &EpisodeMap{How: "alt_cut:Director's Cut"}},
 		{Path: "[Group] Isekai Monogatari - 01-03 (BD 1080p).mkv", OtherVideoFiles: true, Mapping: &EpisodeMap{How: "alt_cut:Director's Cut"}},
 	} {
-		got, err := ResolveFile(&ti, "", in)
+		got, err := ResolveFile(&ti, in)
 		if err != nil || got.Refused == "" || len(got.EpisodeIDs) != 0 {
 			t.Errorf("%s: %+v %v", in.Path, got, err)
 		}

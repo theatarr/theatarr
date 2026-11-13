@@ -1,7 +1,6 @@
 package decide
 
 import (
-	"fmt"
 	"path/filepath"
 	"regexp"
 	"strings"
@@ -95,13 +94,9 @@ type FileEpisodes struct {
 }
 
 // ResolveFile maps one file of a release to episodes of the series t (loaded with LoadSeriesVersion), with the
-// version's Sonarr parser ("" is v4). No episodes is not an error: the file is unmatched.
-func ResolveFile(t *Title, sonarrVersion string, in FileInput) (FileEpisodes, error) {
-	ver, err := sonarr.ParseVersion(sonarrVersion)
-	if err != nil {
-		return FileEpisodes{}, fmt.Errorf("decide: %w", err)
-	}
-	s := newSeries(t, ver)
+// Sonarr parser. No episodes is not an error: the file is unmatched.
+func ResolveFile(t *Title, in FileInput) (FileEpisodes, error) {
+	s := newSeries(t)
 	s.known = true
 	p, how := s.bestFileInfo(in)
 	if p == nil {
@@ -151,15 +146,15 @@ func (s *series) fileEpisodes(p *sonarr.ParsedEpisodeInfo) ([]*Episode, error) {
 // video file and its name is not a scene title, when the release title's parse (else the folder's) is preferred
 // unless it is a full season or absolute where the file's is not; with no parse at all, the special-episode title.
 func (s *series) bestFileInfo(in FileInput) (*sonarr.ParsedEpisodeInfo, string) {
-	file := s.ver.ParsePath(in.Path)
+	file := sonarr.ParsePath(in.Path)
 	how := "file"
 	if !in.OtherVideoFiles && !sonarr.IsSceneTitle(fileTitle(in.Path)) {
 		var release, folder *sonarr.ParsedEpisodeInfo
 		if in.Release != "" {
-			release = s.ver.ParseTitle(in.Release)
+			release = sonarr.ParseTitle(in.Release)
 		}
 		if in.Folder != "" {
-			folder = s.ver.ParseTitle(in.Folder)
+			folder = sonarr.ParseTitle(in.Folder)
 		}
 		switch {
 		case release != nil && !release.FullSeason && preferOther(file, release):

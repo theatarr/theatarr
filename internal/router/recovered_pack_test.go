@@ -18,7 +18,6 @@ func TestRecoveredWantedPackKeepsCriteria(t *testing.T) {
 	e.pol.Profiles = map[string]*policy.Profile{"tv": {Qualities: []policy.QualityItem{{Name: "WEBDL-2160p"}}, Cutoff: "WEBDL-2160p"}}
 	e.pol.Versions["series"].Profile = "tv"
 	e.pol.Versions["series"].PreferSeaDex = true
-	e.pol.Versions["series"].Packs = policy.PacksAnyUpgradable
 	e.exec(`UPDATE title SET runtime_minutes=45 WHERE id=2`)
 	e.exec(`INSERT INTO episode(id,title_id,season,number,name,air_date,created_at,updated_at) VALUES(101,2,1,1,'Pilot','2024-01-01',0,0),(102,2,1,2,'Second','2024-01-02',0,0)`)
 	e.exec(`UPDATE episode SET air_date_utc_at=1000 WHERE title_id=2`)

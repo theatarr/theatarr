@@ -528,8 +528,8 @@ func (l *Library) importDownload(ctx context.Context, d *importDownload, dryRun 
 	}
 
 	// 2. Probe and guard.
-	resolution := releaseResolution(d.ReleaseTitle, v.Title.Kind, v.Policy.Sonarr)
-	labels := claimOf(d.ReleaseTitle, v.Title.Kind, v.Policy.Sonarr)
+	resolution := releaseResolution(d.ReleaseTitle, v.Title.Kind)
+	labels := claimOf(d.ReleaseTitle, v.Title.Kind)
 	for _, f := range files {
 		// Probing a large pack can outlast the claim: it is renewed as the files are read.
 		if !dryRun {
@@ -1307,10 +1307,6 @@ func (l *Library) planSeries(ctx context.Context, d *importDownload, vn *Version
 			byAbs[*e.Absolute] = e
 		}
 	}
-	ver, err := sonarr.ParseVersion(v.Policy.Sonarr)
-	if err != nil {
-		return errf(d.ID, "%w", err)
-	}
 	existing, err := existingFiles(ctx, l.st.Reader(), v.VersionID, v.Title.ID)
 	if err != nil {
 		return err
@@ -1339,9 +1335,9 @@ func (l *Library) planSeries(ctx context.Context, d *importDownload, vn *Version
 			continue
 		}
 		if len(eps) == 0 && how != HowManual && unresolved == "" {
-			info := ver.ParsePath(f.Rel)
+			info := sonarr.ParsePath(f.Rel)
 			if info == nil {
-				info = ver.ParseTitle(filepath.Base(f.Rel))
+				info = sonarr.ParseTitle(filepath.Base(f.Rel))
 			}
 			if info != nil {
 				how = HowNumber
@@ -1448,15 +1444,14 @@ func overlaps(a, b []int64) bool {
 }
 
 // releaseResolution is the release title's parsed resolution (0 when unknown).
-func releaseResolution(title, kind, sonarrVersion string) int {
+func releaseResolution(title, kind string) int {
 	if kind == "movie" {
 		if p := radarr.ParseMovieTitle(title, false); p != nil {
 			return p.Quality.Quality.Resolution
 		}
 		return 0
 	}
-	ver, _ := sonarr.ParseVersion(sonarrVersion)
-	if p := ver.ParseTitle(title); p != nil {
+	if p := sonarr.ParseTitle(title); p != nil {
 		return p.Quality.Quality.Resolution
 	}
 	return 0
@@ -1501,7 +1496,7 @@ func (l *Library) mislabel(d *importDownload, release labelClaim, f *PlannedFile
 	if !l.set.Mislabel {
 		return ""
 	}
-	refuse, note := mislabelCheck(fileClaim(release, f, d.Version.Title.Kind, d.Version.Policy.Sonarr), f)
+	refuse, note := mislabelCheck(fileClaim(release, f, d.Version.Title.Kind), f)
 	if refuse != "" && len(d.Manual) > 0 {
 		refuse, note = "", "not refused (manual import): "+refuse
 	}

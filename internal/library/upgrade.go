@@ -116,7 +116,7 @@ func planSeriesReplacements(plan *Plan, existing []existingFile) {
 // upgradeCheck is the import's UpgradeSpecification (decide.Engine.ImportUpgrade): a file of the download is linked
 // over the version's current files only when it upgrades every one it would replace, as Sonarr's and Radarr's
 // imports refuse a file that is "Not an upgrade for existing episode file(s)". A season pack accepted because one
-// episode was missing (packs: any_upgradable) so fills that episode and upgrades only the files it betters.
+// episode was missing (every series library's pack rule) so fills that episode and upgrades only the files it betters.
 //
 // The current files are the ones the decision compares with: per episode, the active link, else the arr's file
 // (decide.LoadEpisodes); for a movie, decide.LoadExisting. A link already pointing at the file is the same file and

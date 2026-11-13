@@ -12,7 +12,7 @@ import (
 	"testing"
 )
 
-// TestCorpusAgreement compares ParseTitle with Sonarr's own parsedEpisodeInfo on the collected corpus
+// TestCorpusAgreement compares the v4 base (v4d) with Sonarr's own parsedEpisodeInfo on the collected corpus
 // It is opt-in: it skips unless THEATARR_CORPUS points at the corpus directory. It only
 // reports; the agreement table belongs to the corpus check. THEATARR_CORPUS_STRICT=1 fails on any difference.
 func TestCorpusAgreement(t *testing.T) {
@@ -68,7 +68,7 @@ func TestCorpusAgreement(t *testing.T) {
 			if len(line.Body.ParsedEpisodeInfo) > 0 {
 				_ = json.Unmarshal(line.Body.ParsedEpisodeInfo, &want)
 			}
-			gotJSON, _ := json.Marshal(ParseTitle(line.Title))
+			gotJSON, _ := json.Marshal(v4d.parseTitle(line.Title))
 			var got any
 			_ = json.Unmarshal(gotJSON, &got)
 			n++

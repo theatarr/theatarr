@@ -175,7 +175,7 @@ var iso639BTMap = map[string]string{
 // FindIsoLanguage is IsoLanguages.Find. It returns nil where Sonarr returns null.
 //
 // IsoLanguages.All is a HashSet in Sonarr, iterated in insertion order (no removals), so the slice order matches.
-func FindIsoLanguage(isoCode string) *IsoLanguage { return v4d.findIsoLanguage(isoCode) }
+func FindIsoLanguage(isoCode string) *IsoLanguage { return v4plusd.findIsoLanguage(isoCode) }
 
 func (d *dialect) findIsoLanguage(isoCode string) *IsoLanguage {
 	isoArray := strings.Split(isoCode, "-")
@@ -230,7 +230,7 @@ func (d *dialect) findIsoLanguage(isoCode string) *IsoLanguage {
 }
 
 // GetIsoLanguage is IsoLanguages.Get.
-func GetIsoLanguage(language Language) *IsoLanguage { return v4d.getIsoLanguage(language) }
+func GetIsoLanguage(language Language) *IsoLanguage { return v4plusd.getIsoLanguage(language) }
 
 func (d *dialect) getIsoLanguage(language Language) *IsoLanguage {
 	for _, l := range d.isoLanguages {

@@ -98,7 +98,7 @@ func TestDecisionKeepsUnresolvedHeldRank(t *testing.T) {
 	t.Logf("loaded held rank=%d entry=%d", held.SeaDexPreference, held.SeaDexEntry)
 	rel := indexer.Release{Title: "Show.S01E01.1080p.WEB-DL-GRP", InfoHash: better, Size: 2700000000, Indexer: "public"}
 	refreshed := decide.RefreshSeaDexRelease(ctx, rel)
-	nf := decide.LinkedFile(policy.KindSeries, "", decide.Release{Release: refreshed}, "WEBDL-1080p")
+	nf := decide.LinkedFile(policy.KindSeries, decide.Release{Release: refreshed}, "WEBDL-1080p")
 	v := decide.Version{ID: 20, Key: "tv", Policy: e.pol.Versions["tv"]}
 	ok, why, err := e.lib.engine.ImportUpgrade(&title, v, nf, held)
 	if err != nil {

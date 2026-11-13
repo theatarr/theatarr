@@ -33,7 +33,7 @@ func TestConflictingIdentityKeepsCoveringAlternatives(t *testing.T) {
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			rel := RefreshSeaDexRelease(ctx, indexer.Release{InfoHash: b, Magnet: indexer.BareMagnet(a), Extras: map[string]string{"anilist": "11"}})
-			f := LinkedFile("series", "", Release{Release: rel}, "WEBDL-1080p")
+			f := LinkedFile("series", Release{Release: rel}, "WEBDL-1080p")
 			ResolveIncomingSeaDexFile(ctx, title, f, tc.ids)
 			if f.SeaDexPreference != 0 || f.SeaDex != format.SeaDexNone || f.SeaDexEntry != 0 {
 				t.Fatalf("conflicting identity gained standing: %+v", f)

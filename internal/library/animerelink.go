@@ -131,11 +131,7 @@ func (l *Library) relinkAnime(ctx context.Context, tvdbID int) (*AnimeRelinked, 
 			c.downloadID).Scan(&files); err != nil {
 			return nil, err
 		}
-		sv := ""
-		if d.Version.Policy != nil {
-			sv = d.Version.Policy.Sonarr
-		}
-		res, err := decide.ResolveFile(t, sv, decide.FileInput{Path: rel, Release: d.ReleaseTitle, Folder: d.Name,
+		res, err := decide.ResolveFile(t, decide.FileInput{Path: rel, Release: d.ReleaseTitle, Folder: d.Name,
 			OtherVideoFiles: files > 1, Mapping: d.EpisodeMap})
 		if err != nil || res.Refused != "" || len(res.EpisodeIDs) == 0 || !franchisePlaced(res.How) {
 			continue // only a placement through the franchise moves a file

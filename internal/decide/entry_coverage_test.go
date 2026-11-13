@@ -124,7 +124,7 @@ func TestSeriesIncomingStandingStaleOnImport(t *testing.T) {
 	rel := indexer.Release{Title: "The.Show.S01E01.2160p.BluRay.REMUX-GRP", InfoHash: hash, Flags: []string{indexer.FlagSeaDex, indexer.FlagSeaDexPreferred}}
 	got := RefreshSeaDexRelease(ctx, rel)
 	plain := RefreshSeaDexRelease(ctx, indexer.Release{Title: rel.Title, InfoHash: hash})
-	f := LinkedFile(policy.KindSeries, vp.Sonarr, Release{Release: got}, "Bluray-2160p Remux")
+	f := LinkedFile(policy.KindSeries, Release{Release: got}, "Bluray-2160p Remux")
 	if err = ResolveSeaDexFiles(ctx, st.Reader(), []*ExistingFile{f}); err != nil {
 		t.Fatal(err)
 	}
@@ -210,7 +210,7 @@ func TestUnresolvedIncomingHasNoStanding(t *testing.T) {
 	if rank := indexer.SeaDexPreference(&got); rank != 0 {
 		t.Fatalf("unresolved incoming rank=%d", rank)
 	}
-	held := LinkedFile(policy.KindMovie, "", Release{Release: incoming}, "Unknown")
+	held := LinkedFile(policy.KindMovie, Release{Release: incoming}, "Unknown")
 	resolved := resolveSeaDex(ctx, held)
 	if resolved.SeaDexPreference != 3 {
 		t.Fatal("unresolved held protection lost")

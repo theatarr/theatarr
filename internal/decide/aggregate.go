@@ -180,13 +180,13 @@ func aggregateLanguages(augments ...[]string) []string {
 	return langs
 }
 
-func sonarrLanguages(p *sonarr.ParsedEpisodeInfo, ver sonarr.Version, episodeTitles []string) []string {
+func sonarrLanguages(p *sonarr.ParsedEpisodeInfo, episodeTitles []string) []string {
 	if p == nil {
 		return nil
 	}
 	drop := map[int]bool{}
 	for _, t := range episodeTitles {
-		for _, l := range ver.ParseLanguages(t) {
+		for _, l := range sonarr.ParseLanguages(t) {
 			drop[l.ID] = true
 		}
 	}
@@ -206,19 +206,15 @@ func strOr(p *string) string {
 	return *p
 }
 
-// AggregateSeriesFile aggregates one file of a series release with the version's Sonarr parser ("" is v4).
-func AggregateSeriesFile(sonarrVersion string, in ImportFile) (FileFacts, error) {
-	ver, err := sonarr.ParseVersion(sonarrVersion)
-	if err != nil {
-		return FileFacts{}, err
-	}
-	file := ver.ParsePath(in.Path)
+// AggregateSeriesFile aggregates one file of a series release with the Sonarr parser.
+func AggregateSeriesFile(in ImportFile) (FileFacts, error) {
+	file := sonarr.ParsePath(in.Path)
 	var folder, client *sonarr.ParsedEpisodeInfo
 	if in.Folder != "" {
-		folder = ver.ParseTitle(in.Folder)
+		folder = sonarr.ParseTitle(in.Folder)
 	}
 	if in.Client != "" {
-		client = ver.ParseTitle(in.Client)
+		client = sonarr.ParseTitle(in.Client)
 	}
 	quality := func(p *sonarr.ParsedEpisodeInfo) *augmentQuality {
 		if p == nil {
@@ -232,7 +228,7 @@ func AggregateSeriesFile(sonarrVersion string, in ImportFile) (FileFacts, error)
 			return int(m.Quality.Source), 0, m.SourceDetectionSource == sonarr.DetectionName
 		})}
 	if in.Grabbed != "" {
-		augments = append(augments, sonarrAugment(ver.ParseQuality(in.Grabbed)))
+		augments = append(augments, sonarrAugment(sonarr.ParseQuality(in.Grabbed)))
 	}
 	source, resolution, _, rev := aggregateQuality(augments, int(sonarr.SourceUnknown))
 	f := FileFacts{Quality: sonarr.FindBySourceAndResolution(sonarr.QualitySource(source), resolution).Name,
@@ -259,10 +255,10 @@ func AggregateSeriesFile(sonarrVersion string, in ImportFile) (FileFacts, error)
 			break
 		}
 	}
-	f.Languages = aggregateLanguages(sonarrLanguages(file, ver, in.EpisodeTitles),
-		sonarrLanguages(folder, ver, in.EpisodeTitles), sonarrLanguages(client, ver, in.EpisodeTitles),
+	f.Languages = aggregateLanguages(sonarrLanguages(file, in.EpisodeTitles),
+		sonarrLanguages(folder, in.EpisodeTitles), sonarrLanguages(client, in.EpisodeTitles),
 		mediaLanguages(in.Media, func(code string) string {
-			if l := ver.FindIsoLanguage(code); l != nil {
+			if l := sonarr.FindIsoLanguage(code); l != nil {
 				return l.Language.Name
 			}
 			return ""

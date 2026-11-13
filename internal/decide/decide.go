@@ -337,20 +337,15 @@ func profileRank(pr *profile.Profile, fl format.Flavour, name string) (rank, of 
 	return rank, of
 }
 
-// withVersionRules applies per-version pack and curator preferences to a copy of the shared profile engine.
+// withVersionRules applies the version's pack rule (every series version takes a pack that upgrades or fills any
+// episode) and curator preference to a copy of the shared profile engine.
 func withVersionRules(p *Profile, v *policy.VersionPolicy) *Profile {
-	anyRule := v.Kind == policy.KindSeries && v.Packs == policy.PacksAnyUpgradable
-	threshold := 0.0
-	if v.Kind == policy.KindSeries && v.Packs == policy.PacksThreshold && v.PacksThreshold != nil {
-		threshold = *v.PacksThreshold
-	}
-	if anyRule == p.Engine.Config.AcceptReleaseAnyUpgradable && threshold == p.Engine.Config.SeasonPackUpgradeThreshold &&
-		v.PreferSeaDex == p.Engine.Config.PreferSeaDex {
+	anyRule := v.Kind == policy.KindSeries
+	if anyRule == p.Engine.Config.AcceptReleaseAnyUpgradable && v.PreferSeaDex == p.Engine.Config.PreferSeaDex {
 		return p
 	}
 	eng := *p.Engine
 	eng.Config.AcceptReleaseAnyUpgradable = anyRule
-	eng.Config.SeasonPackUpgradeThreshold = threshold
 	eng.Config.PreferSeaDex = v.PreferSeaDex
 	q := *p
 	q.baseEngine = p.Engine

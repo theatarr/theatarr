@@ -95,9 +95,9 @@ func TestPackParsedOnce(t *testing.T) {
 	f := &ExistingFile{Quality: q.Name, Revision: 1, SeaDexAlternatives: []indexer.SeaDexStanding{{InfoHash: strings.Repeat("a", 40), Quality: q.Name, Preference: 3, Size: 200 * 10000000}}}
 	setStandingFeatures(t, &f.SeaDexAlternatives[0], names...)
 	calls := 0
-	resolve := func(ti *Title, ver string, in FileInput) (FileEpisodes, error) {
+	resolve := func(ti *Title, in FileInput) (FileEpisodes, error) {
 		calls++
-		return ResolveFile(ti, ver, in)
+		return ResolveFile(ti, in)
 	}
 	p := e.Profile(v.Policy.Profile, format.Sonarr)
 	start := time.Now()

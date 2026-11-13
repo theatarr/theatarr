@@ -44,7 +44,7 @@ func (l *Library) fileFacts(d *importDownload, plan *Plan, f *PlannedFile, episo
 		d.Manual[f.Rel].Overrides.Apply(&facts)
 		return facts, nil
 	}
-	facts, err := decide.AggregateSeriesFile(v.Policy.Sonarr, in)
+	facts, err := decide.AggregateSeriesFile(in)
 	d.Manual[f.Rel].Overrides.Apply(&facts)
 	return facts, err
 }

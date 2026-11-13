@@ -33,8 +33,7 @@ package profile
 //	                      missing or null size is null (unlimited)
 //	config                {propers: preferAndUpgrade|doNotUpgrade|doNotPrefer, maximumSize (MB),
 //	                      preferIndexerFlags, preferredProtocol: usenet|torrent, acceptReleaseAnyUpgradable (the
-//	                      actuallyevan fork's switch), seasonPackUpgrade: all|threshold|any and
-//	                      seasonPackUpgradeThreshold (Sonarr v5)}; Moq defaults when absent (preferAndUpgrade, 0, false, unknown)
+//	                      actuallyevan fork's switch)}; Moq defaults when absent (preferAndUpgrade, 0, false, unknown)
 //	media                 {title, runtime, originalLanguage, anime, file, pilot}
 //	release               {title, size (bytes), container, quality, releaseGroup, languages [names], formats [names],
 //	                      formatScore (else computed from the profile), protocol, indexerPriority, indexerFlags,
@@ -133,10 +132,6 @@ type tconfig struct {
 	PreferredProtocol  string `json:"preferredProtocol"`
 	// AcceptReleaseAnyUpgradable is the fork's ACCEPT_RELEASE_ANY_UPGRADABLE.
 	AcceptReleaseAnyUpgradable bool `json:"acceptReleaseAnyUpgradable"`
-	// SeasonPackUpgrade is Sonarr v5's setting: all (v4's rule), threshold (with SeasonPackUpgradeThreshold) or any
-	// (run as the fork's switch; v5's Any differs from it only outside full-season packs and in its reasons).
-	SeasonPackUpgrade          string  `json:"seasonPackUpgrade"`
-	SeasonPackUpgradeThreshold float64 `json:"seasonPackUpgradeThreshold"`
 }
 
 type tquality struct {
@@ -489,15 +484,6 @@ func runCase(c tcase) (fail string) {
 	e.Config.PreferIndexerFlags = c.Config.PreferIndexerFlags
 	e.Config.PreferredProtocol = protocol(c.Config.PreferredProtocol)
 	e.Config.AcceptReleaseAnyUpgradable = c.Config.AcceptReleaseAnyUpgradable
-	switch c.Config.SeasonPackUpgrade {
-	case "", "all":
-	case "threshold":
-		e.Config.SeasonPackUpgradeThreshold = c.Config.SeasonPackUpgradeThreshold
-	case "any":
-		e.Config.AcceptReleaseAnyUpgradable = true
-	default:
-		return "unknown seasonPackUpgrade " + c.Config.SeasonPackUpgrade
-	}
 
 	boolResult := func(got bool) string {
 		if c.Expect.Result == nil {

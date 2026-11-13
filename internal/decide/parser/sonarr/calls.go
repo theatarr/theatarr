@@ -15,14 +15,9 @@ import (
 // parseReleaseGroup, cleanSeriesTitle, parseSeriesName, normalizeEpisodeTitle, parseSubtitleLanguage,
 // parseSubtitleLanguageInformation, findIsoLanguage, isSceneTitle, parseTitleExpand (args year/month/day or
 // daysFromNow), parsedEpisodeInfo (args: the fields), validateForSeriesType (args parsedEpisodeInfo, seriesType).
-func Call(name, input string, args map[string]any) (any, error) { return V4.Call(name, input, args) }
-
-// Call is the package Call with the version's parser. V5 adds parseSeasonTitle, parseTitleExpandDate (args
-// daysFromNow: {isNull, airDateIsTarget}, the target being today plus daysFromNow) and
-// parsedEpisodeInfoStringContains (args fields, expected: ToString contains expected); its parsedEpisodeInfo takes
-// seasonNumbers.
-func (v Version) Call(name, input string, args map[string]any) (any, error) {
-	out, err := v.Run(name, input, args)
+// The tests call it on v4d, the Sonarr v4 base.
+func (d *dialect) Call(name, input string, args map[string]any) (any, error) {
+	out, err := d.Run(name, input, args)
 	if err != nil {
 		return nil, err
 	}
@@ -45,22 +40,19 @@ func detectionSources(m QualityModel) map[string]QualityDetectionSource {
 }
 
 // Run is Call without the JSON round trip: it returns the typed result, which marshals with Sonarr's field order.
-func Run(name, input string, args map[string]any) (any, error) { return V4.Run(name, input, args) }
-
-// Run is the package Run with the version's parser.
-func (v Version) Run(name, input string, args map[string]any) (any, error) {
+func (d *dialect) Run(name, input string, args map[string]any) (any, error) {
 	switch name {
 	case "parseTitle":
-		return v.ParseTitle(input), nil
+		return d.parseTitle(input), nil
 	case "parsePath":
-		return v.ParsePath(input), nil
+		return d.parsePath(input), nil
 	case "parseQuality":
-		return v.ParseQuality(input), nil
+		return d.parseQuality(input), nil
 	case "parseQualityDetection":
-		return detectionSources(v.ParseQuality(input)), nil
+		return detectionSources(d.parseQuality(input)), nil
 	case "parseTitleQualityDetection":
 		// The detection sources of ParseTitle(input).Quality, plus "quality" (the Quality itself).
-		r := v.ParseTitle(input)
+		r := d.parseTitle(input)
 		if r == nil {
 			return nil, nil
 		}
@@ -70,13 +62,13 @@ func (v Version) Run(name, input string, args map[string]any) (any, error) {
 		}
 		return out, nil
 	case "parseLanguages":
-		return v.ParseLanguages(input), nil
+		return d.parseLanguages(input), nil
 	case "parseReleaseGroup":
-		return v.ParseReleaseGroup(input), nil
+		return d.parseReleaseGroup(input), nil
 	case "cleanSeriesTitle":
-		return v.CleanSeriesTitle(input), nil
+		return d.cleanSeriesTitle(input), nil
 	case "parseSeriesName":
-		return v.ParseSeriesName(input), nil
+		return d.parseSeriesName(input), nil
 	case "normalizeEpisodeTitle":
 		return NormalizeEpisodeTitle(input), nil
 	case "parseSubtitleLanguage":
@@ -84,30 +76,17 @@ func (v Version) Run(name, input string, args map[string]any) (any, error) {
 	case "parseSubtitleLanguageInformation":
 		return ParseSubtitleLanguageInformation(input), nil
 	case "findIsoLanguage":
-		return v.FindIsoLanguage(input), nil
+		return d.findIsoLanguage(input), nil
 	case "isSceneTitle":
 		return IsSceneTitle(input), nil
 	case "parseTitleExpand":
 		// StringExtensions.Expand on the template: {year}, {month}, {day} from args, or from today plus daysFromNow
 		// with two-digit month and day.
-		return v.ParseTitle(expandDate(input, args)), nil
-	case "parseTitleExpandDate":
-		r := v.ParseTitle(expandDate(input, args))
-		n, _ := args["daysFromNow"].(float64)
-		target := time.Now().AddDate(0, 0, int(n)).Format("2006-01-02")
-		return map[string]bool{"isNull": r == nil, "airDateIsTarget": r != nil && r.AirDate != nil && *r.AirDate == target}, nil
-	case "parseSeasonTitle":
-		return v.ParseSeasonTitle(input), nil
+		return d.parseTitle(expandDate(input, args)), nil
 	case "parsedEpisodeInfo":
-		return v.episodeInfoFromArgs(args)
-	case "parsedEpisodeInfoStringContains":
-		p, err := v.episodeInfoFromArgs(asMap(args["fields"]))
-		if err != nil {
-			return nil, err
-		}
-		return strings.Contains(p.String(), fmt.Sprint(args["expected"])), nil
+		return episodeInfoFromArgs(args)
 	case "validateForSeriesType":
-		p, err := v.episodeInfoFromArgs(asMap(args["parsedEpisodeInfo"]))
+		p, err := episodeInfoFromArgs(asMap(args["parsedEpisodeInfo"]))
 		if err != nil {
 			return nil, err
 		}
@@ -137,8 +116,7 @@ func expandDate(input string, args map[string]any) string {
 }
 
 // episodeInfoFromArgs builds a ParsedEpisodeInfo from JSON fields over the defaults of new ParsedEpisodeInfo().
-// V5 reads seasonNumbers (default []).
-func (v Version) episodeInfoFromArgs(fields map[string]any) (*ParsedEpisodeInfo, error) {
+func episodeInfoFromArgs(fields map[string]any) (*ParsedEpisodeInfo, error) {
 	p := NewParsedEpisodeInfo()
 	b, err := json.Marshal(fields)
 	if err != nil {
@@ -146,19 +124,6 @@ func (v Version) episodeInfoFromArgs(fields map[string]any) (*ParsedEpisodeInfo,
 	}
 	if err := json.Unmarshal(b, p); err != nil {
 		return nil, err
-	}
-	if v == V5 {
-		var s struct {
-			SeasonNumbers []int `json:"seasonNumbers"`
-		}
-		if err := json.Unmarshal(b, &s); err != nil {
-			return nil, err
-		}
-		if s.SeasonNumbers == nil {
-			s.SeasonNumbers = []int{}
-		}
-		p.Parser = V5
-		p.setSeasonNumbers(s.SeasonNumbers)
 	}
 	return p, nil
 }

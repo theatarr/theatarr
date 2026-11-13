@@ -105,7 +105,7 @@ func TestImportEpisodeScopedCurrentStanding(t *testing.T) {
 		t.Fatal(err)
 	}
 	incoming := decide.RefreshSeaDexRelease(ctx, indexer.Release{InfoHash: c})
-	nf := decide.LinkedFile(policy.KindSeries, "", decide.Release{Release: incoming}, "WEBDL-1080p")
+	nf := decide.LinkedFile(policy.KindSeries, decide.Release{Release: incoming}, "WEBDL-1080p")
 	for _, ep := range eps {
 		if ep.ID == 201 {
 			ok, why, err := e.lib.engine.ImportUpgrade(&title, decide.Version{ID: 20, Key: "tv", Policy: e.pol.Versions["tv"]}, nf, ep.File)

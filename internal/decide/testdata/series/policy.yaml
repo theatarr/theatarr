@@ -35,38 +35,6 @@ versions:
     indexers: [public]
     providers: [rd]
     client: decypharr
-  tv-any:
-    kind: series
-    anime: false
-    profile: tv
-    packs: any_upgradable
-    library: /media/tv-any
-    storage: debrid
-    indexers: [public]
-    providers: [rd]
-    client: decypharr
-  tv-thr60:
-    kind: series
-    anime: false
-    profile: tv
-    packs: threshold
-    packs_threshold: 60
-    library: /media/tv-thr60
-    storage: debrid
-    indexers: [public]
-    providers: [rd]
-    client: decypharr
-  tv-thr70:
-    kind: series
-    anime: false
-    profile: tv
-    packs: threshold
-    packs_threshold: 70
-    library: /media/tv-thr70
-    storage: debrid
-    indexers: [public]
-    providers: [rd]
-    client: decypharr
   anime-tv:
     kind: series
     anime: true

@@ -53,7 +53,7 @@ func TestVerifiedRecordIdentityAndRetirement(t *testing.T) {
 	}
 	resolved := resolveSeaDex(WithSeaDex(context.Background(), []indexer.SeaDexSnapshot{snapshot}), current)
 	current = &resolved
-	newFile := LinkedFile(cfg.Kind, cfg.Sonarr, r, "Remux-2160p")
+	newFile := LinkedFile(cfg.Kind, r, "Remux-2160p")
 	ok, why, err := e.ImportUpgrade(&dune, v, newFile, current)
 	if err != nil || !ok || strings.Contains(why, "preferred SeaDex") {
 		t.Fatalf("same-record import invented curator upgrade: %v %s %v", ok, why, err)

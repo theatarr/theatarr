@@ -47,7 +47,7 @@ func TestLoadExistingLinks(t *testing.T) {
 		t.Fatalf("arr-only owner precedence: %+v, %v", arr, err)
 	}
 	low := rel("Dune.Part.Two.2024.2160p.MA.WEB-DL.DDP5.1-FLUX", "public", 25*gb)
-	f := LinkedFile(policy.KindMovie, "", low, "WEBDL-2160p")
+	f := LinkedFile(policy.KindMovie, low, "WEBDL-2160p")
 	f.Formats, f.Score = []FormatScore{{Name: "saved format", Score: 99}}, new(99)
 	body, err := json.Marshal(f)
 	if err != nil {
@@ -83,7 +83,7 @@ func TestLoadExistingLinks(t *testing.T) {
 		t.Fatalf("theatarr-only file: %+v, %v", got, err)
 	}
 	// A better existing link must prevent the worse release from looking like a fill.
-	body, _ = json.Marshal(LinkedFile(policy.KindMovie, "", high, "Remux-2160p"))
+	body, _ = json.Marshal(LinkedFile(policy.KindMovie, high, "Remux-2160p"))
 	exec(`UPDATE link SET file_metadata = ? WHERE id = 1`, string(body))
 	got, err = LoadExisting(ctx, st.Reader(), 1)
 	if err != nil {
@@ -120,7 +120,7 @@ func TestLoadEpisodeLinks(t *testing.T) {
 	if err != nil || before[1].FileID != 1 || before[3].FileID != 1 {
 		t.Fatalf("arr-only episodes: %+v, %v", before, err)
 	}
-	f := LinkedFile(policy.KindSeries, "", rel("The.Show.S01E01E02.2160p.WEB-DL-GRP", "public", 16*gb), "WEBDL-2160p")
+	f := LinkedFile(policy.KindSeries, rel("The.Show.S01E01E02.2160p.WEB-DL-GRP", "public", 16*gb), "WEBDL-2160p")
 	body, _ := json.Marshal(f)
 	exec(`INSERT INTO link (id, title_id, path, target, file_metadata, created_at, updated_at)
 		VALUES (1, 1, '/renamed.mkv', '/mount/file.mkv', ?, 5, 5)`, string(body))

@@ -109,7 +109,7 @@ func queueRefusal(s *routeState, c *Candidate, quality string, score int, rel in
 		return fmt.Sprintf("the queued release's quality %q is unknown", quality)
 	}
 	model := func(q profile.Quality, r indexer.Release, name string) profile.QualityModel {
-		f := decide.LinkedFile(s.vp.Kind, s.vp.Sonarr, decide.Release{Release: r}, name)
+		f := decide.LinkedFile(s.vp.Kind, decide.Release{Release: r}, name)
 		return profile.QualityModel{Quality: q, SeaDexPreference: f.SeaDexPreference, Revision: profile.Revision{Version: max(f.Revision, 1), Real: f.Real}}
 	}
 	x := newRouteComparison(p, s.vp, model(curQ, rel, quality), score, model(newQ, c.Release, c.Quality), c.Score)

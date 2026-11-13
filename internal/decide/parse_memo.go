@@ -11,16 +11,10 @@ import (
 
 type parseMemoKey struct{}
 
-type seriesParseKey struct {
-	title       string
-	version     sonarr.Version
-	seasonTitle bool
-}
-
 type parseMemo struct {
 	mu     sync.Mutex
 	movies map[string]*radarr.ParsedMovieInfo
-	series map[seriesParseKey]*sonarr.ParsedEpisodeInfo
+	series map[string]*sonarr.ParsedEpisodeInfo
 }
 
 // WithParseMemo scopes release parsing to one search or RSS item, shared across versions and criteria.
@@ -65,30 +59,21 @@ func ParseMovieRelease(ctx context.Context, title string) *radarr.ParsedMovieInf
 	return &out
 }
 
-// ParseSeriesRelease parses a release title in the version's Sonarr dialect, returning a caller-owned value.
-func ParseSeriesRelease(ctx context.Context, version sonarr.Version, title string) *sonarr.ParsedEpisodeInfo {
-	return parseSeriesRelease(ctx, version, title, false)
-}
-
-func parseSeriesRelease(ctx context.Context, version sonarr.Version, title string, seasonTitle bool) *sonarr.ParsedEpisodeInfo {
-	parse := version.ParseTitle
-	if seasonTitle {
-		parse = version.ParseSeasonTitle
-	}
+// ParseSeriesRelease parses a release title with the Sonarr parser, returning a caller-owned value.
+func ParseSeriesRelease(ctx context.Context, title string) *sonarr.ParsedEpisodeInfo {
 	m := releaseParseMemo(ctx)
 	if m == nil {
-		return parse(title)
+		return sonarr.ParseTitle(title)
 	}
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	if m.series == nil {
-		m.series = map[seriesParseKey]*sonarr.ParsedEpisodeInfo{}
+		m.series = map[string]*sonarr.ParsedEpisodeInfo{}
 	}
-	key := seriesParseKey{title: title, version: version, seasonTitle: seasonTitle}
-	p, ok := m.series[key]
+	p, ok := m.series[title]
 	if !ok {
-		p = parse(title)
-		m.series[key] = p
+		p = sonarr.ParseTitle(title)
+		m.series[title] = p
 	}
 	if p == nil {
 		return nil
@@ -96,7 +81,7 @@ func parseSeriesRelease(ctx context.Context, version sonarr.Version, title strin
 	out := *p
 	out.EpisodeNumbers, out.AbsoluteEpisodeNumbers = slices.Clone(p.EpisodeNumbers), slices.Clone(p.AbsoluteEpisodeNumbers)
 	out.SpecialAbsoluteEpisodeNumbers = slices.Clone(p.SpecialAbsoluteEpisodeNumbers)
-	out.Languages, out.SeasonNumbers = slices.Clone(p.Languages), slices.Clone(p.SeasonNumbers)
+	out.Languages = slices.Clone(p.Languages)
 	out.ReleaseGroup, out.AirDate = copyParsePointer(p.ReleaseGroup), copyParsePointer(p.AirDate)
 	out.DailyPart = copyParsePointer(p.DailyPart)
 	if p.SeriesTitleInfo != nil {

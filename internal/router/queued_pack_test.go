@@ -17,7 +17,6 @@ func TestQueuedSearchPackKeepsSeason(t *testing.T) {
 	e.exec(`INSERT INTO episode(id,title_id,season,number,name,air_date,created_at,updated_at) VALUES(101,2,1,1,'Pilot','2024-01-01',0,0),(102,2,1,2,'Second','2024-01-02',0,0)`)
 	e.link(2, 20, 101, "WEBDL-2160p", 0, 1000)
 	e.exec(`UPDATE episode SET air_date_utc_at=1000 WHERE title_id=2`)
-	e.pol.Versions["series"].Packs = policy.PacksAnyUpgradable
 	eng, err := decide.New(e.pol, decide.Options{})
 	if err != nil {
 		t.Fatal(err)

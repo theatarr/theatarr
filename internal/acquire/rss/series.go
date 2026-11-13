@@ -99,7 +99,7 @@ func (r *Runner) decideSeriesItem(ctx context.Context, rel, ranked indexer.Relea
 		ids = append(ids, id)
 	}
 	if len(ids) == 0 {
-		p := decide.ParseSeriesRelease(ctx, sonarr.V4, rel.Title)
+		p := decide.ParseSeriesRelease(ctx, rel.Title)
 		if p == nil {
 			return false, nil
 		}

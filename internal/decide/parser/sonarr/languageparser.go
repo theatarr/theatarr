@@ -29,7 +29,7 @@ var (
 )
 
 // ParseLanguages is LanguageParser.ParseLanguages. The result is never empty.
-func ParseLanguages(title string) []Language { return v4d.parseLanguages(title) }
+func ParseLanguages(title string) []Language { return v4plusd.parseLanguages(title) }
 
 func (d *dialect) parseLanguages(title string) []Language {
 	for _, r := range languageCleanSeriesTitleRegex {
@@ -74,10 +74,6 @@ func (d *dialect) parseLanguages(title string) []Language {
 	add(has("brazilian") || has("dublado"), LanguagePortugueseBrazil)
 	add(has("latino"), LanguageSpanishLatino)
 	add(has("latvian"), LanguageLatvian)
-	if d.v5 {
-		add(has("azerbaijani") || has("azerbaijan"), LanguageAzerbaijani)
-		add(has("uzbek") || has("uzbekistan"), LanguageUzbek)
-	}
 
 	languages = append(languages, d.regexLanguage(title)...)
 

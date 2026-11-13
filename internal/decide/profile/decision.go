@@ -40,7 +40,6 @@ const (
 	ReasonDiskCustomFormatScore          Reason = "DiskCustomFormatScore"
 	ReasonDiskCustomFormatScoreIncrement Reason = "DiskCustomFormatScoreIncrement"
 	ReasonDiskUpgradesNotAllowed         Reason = "DiskUpgradesNotAllowed"
-	ReasonDiskNotUpgrade                 Reason = "DiskNotUpgrade" // Sonarr v5 SeasonPackUpgrade (packs: threshold)
 )
 
 // Decision is a DownloadSpecDecision: accepted, or rejected with a reason and the arr's message text.
@@ -146,11 +145,6 @@ type Config struct {
 	// UpgradeDisk accepts a release when any of its episodes has no file or a file it would upgrade, instead of
 	// requiring every file to be upgraded.
 	AcceptReleaseAnyUpgradable bool
-	// SeasonPackUpgradeThreshold, when above 0 (and AcceptReleaseAnyUpgradable is off), is Sonarr v5's
-	// SeasonPackUpgrade = Threshold with SeasonPackUpgradeThreshold, in percent (Sonarr only): a full-season release is
-	// accepted when at least that share of its episodes has no file or a file it upgrades. Other releases keep the
-	// all-files rule.
-	SeasonPackUpgradeThreshold float64
 }
 
 // Engine evaluates releases for one flavour with its settings and quality definitions.
@@ -256,11 +250,6 @@ type Release struct {
 	EpisodeNumbers []int
 	MultiSeason    bool
 	SplitEpisode   bool
-	// V5 is a Sonarr v5 parse: the season search specifications match SeasonNumbers (every season of a pack), else
-	// MappedSeasonNumber (nil: no season), instead of SeasonNumber.
-	V5                 bool
-	SeasonNumbers      []int
-	MappedSeasonNumber *int
 	// SeasonSearchMaximumSingleEpisodeAge is the indexer's setting (days, 0 off).
 	SeasonSearchMaximumSingleEpisodeAge int
 }

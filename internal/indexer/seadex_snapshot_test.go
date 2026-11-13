@@ -99,6 +99,24 @@ func TestSeaDexDoesNotInventMissingQualityDimensions(t *testing.T) {
 	}
 }
 
+// SeaDex reads a file's quality with the series parser (v4plus): a BD file is Bluray, and WEB with EAC3 is WEB-DL by
+// name, where the v4 base found no source in the name and the quality stayed unknown.
+func TestSeaDexQualityReadsV4Plus(t *testing.T) {
+	for name, want := range map[string]sonarr.Quality{
+		"Show S01E01 BD 1080p.mkv":                          sonarr.QualityBluray1080p,
+		"Show.S01E01.2160p.HDR.WEB.EAC3.Atmos.H265-GRP.mkv": sonarr.QualityWEBDL2160p,
+	} {
+		var tor sdTorrent
+		body, _ := json.Marshal(map[string]any{"files": []any{map[string]any{"name": name, "length": 1000}}})
+		if err := json.Unmarshal(body, &tor); err != nil {
+			t.Fatal(err)
+		}
+		if got := seadexQuality(&tor); got != want {
+			t.Errorf("%s: %s, want %s", name, got.Name, want.Name)
+		}
+	}
+}
+
 func TestSeaDexRSSAndSearchUseSamePreference(t *testing.T) {
 	n := newNet(t)
 	// Best is a 1080p single-audio encode. The scoring table deliberately prefers the 720p dual-audio alternative.

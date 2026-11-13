@@ -17,7 +17,7 @@ import (
 
 // LinkedFile takes the file's parse from the original release, never its library name. The quality is the
 // imported decision's quality, which may differ from what the name alone says (manual imports).
-func LinkedFile(kind policy.Kind, dialect string, rel Release, quality string) *ExistingFile {
+func LinkedFile(kind policy.Kind, rel Release, quality string) *ExistingFile {
 	title := rel.Title
 	f := &ExistingFile{Quality: quality, Revision: 1, SceneName: title, Size: rel.Size, InfoHash: rel.InfoHash,
 		SeaDex: SeaDexRank(&rel.Release), SeaDexPreference: indexer.SeaDexPreference(&rel.Release)}
@@ -30,8 +30,7 @@ func LinkedFile(kind policy.Kind, dialect string, rel Release, quality string) *
 	}
 	f.IndexerFlags = indexerFlags(fl, &rel)
 	if kind == policy.KindSeries {
-		ver, _ := sonarr.ParseVersion(dialect)
-		if p := ver.ParseTitle(title); p != nil {
+		if p := sonarr.ParseTitle(title); p != nil {
 			f.Revision, f.Real = max(p.Quality.Revision.Version, 1), p.Quality.Revision.Real
 			f.ReleaseType = p.ReleaseType().String()
 			if p.ReleaseGroup != nil {
@@ -99,7 +98,7 @@ func loadLinks(ctx context.Context, db *sql.DB, versionID int64) (map[int64]*Exi
 				if rel.Title == "" {
 					rel.Title = title
 				}
-				parsed := LinkedFile(policy.Kind(kind), "", Release{Release: rel}, f.Quality)
+				parsed := LinkedFile(policy.Kind(kind), Release{Release: rel}, f.Quality)
 				parsed.Size, parsed.InfoHash = f.Size, f.InfoHash
 				parsed.Formats, parsed.Score = f.Formats, f.Score
 				parsed.Added = f.Added

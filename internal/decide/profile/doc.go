@@ -20,11 +20,8 @@
 //
 // Config.AcceptReleaseAnyUpgradable ports the actuallyevan Sonarr fork's ACCEPT_RELEASE_ANY_UPGRADABLE (fork
 // v4.0.20.3014-1 @ 9a75b78, UpgradeDiskSpecification only): a Sonarr release is accepted when any of its episodes has
-// no file or a file it upgrades. Off, UpgradeDisk is plain Sonarr's.
-// Config.SeasonPackUpgradeThreshold ports Sonarr v5's SeasonPackUpgrade = Threshold (develop @ a6171f0ca, PR #7975):
-// a full-season Sonarr release is accepted when at least that percentage of its episodes has no file or a file it
-// upgrades, else rejected with DiskNotUpgrade. v5's All and Any modes are not ported (All is v4's rule here, Any the
-// fork's switch).
+// no file or a file it upgrades. Off, UpgradeDisk is plain Sonarr's. The decision engine turns it on for every series
+// version.
 //
 // Deviations:
 //   - Specifications are listed by class name. The arrs resolve them by assembly scanning; within a priority group

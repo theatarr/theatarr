@@ -66,7 +66,7 @@ const (
 )
 
 // ParseQuality is QualityParser.ParseQuality.
-func ParseQuality(name string) QualityModel { return v4d.parseQuality(name) }
+func ParseQuality(name string) QualityModel { return v4plusd.parseQuality(name) }
 
 func (d *dialect) parseQuality(name string) QualityModel {
 	if strings.TrimSpace(name) == "" {
@@ -88,7 +88,7 @@ func (d *dialect) parseQuality(name string) QualityModel {
 }
 
 // ParseQualityName is QualityParser.ParseQualityName.
-func ParseQualityName(name string) QualityModel { return v4d.parseQualityName(name) }
+func ParseQualityName(name string) QualityModel { return v4plusd.parseQualityName(name) }
 
 func (d *dialect) parseQualityName(name string) QualityModel {
 	normalizedName := trimDotNet(strings.ReplaceAll(name, "_", " "))

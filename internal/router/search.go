@@ -77,24 +77,17 @@ var searchNow = time.Now
 // relatedRows is the Query.Related of a title's searches: a row of an id request is kept when it is about the title
 // for any target's version (decide.Related).
 func relatedRows(ctx context.Context, t decide.Title, targets []SearchTarget) func(indexer.Release) bool {
-	type check struct {
-		title  decide.Title
-		sonarr string
-	}
-	checks := make([]check, 0, len(targets))
+	checks := make([]decide.Title, 0, len(targets))
 	for _, target := range targets {
-		c := check{title: t}
+		c := t
 		if target.Title != nil {
-			c.title = *target.Title
-		}
-		if target.Version.Policy != nil {
-			c.sonarr = target.Version.Policy.Sonarr
+			c = *target.Title
 		}
 		checks = append(checks, c)
 	}
 	return func(rel indexer.Release) bool {
 		for i := range checks {
-			if decide.Related(ctx, rel, &checks[i].title, checks[i].sonarr) {
+			if decide.Related(ctx, rel, &checks[i]) {
 				return true
 			}
 		}

@@ -12,19 +12,12 @@
 //
 // # Versions
 //
-// The plain functions are Sonarr v4. Version (V4, V5) picks the parser per call: V5 is Sonarr v5 (develop @
-// a6171f0ca, the v5 betas), parser_v5.go, with its own pattern tables (dialect) and logic (multi-season ranges,
-// SeasonNumbers, ParseSeasonTitle, short-month and early daily dates, path pre-substitutions, release groups, the
-// seven new languages, subtitle-aware language parsing, diacritics removal in CleanSeriesTitle). A V5 parse carries
-// Parser = V5, SeasonNumbers and IsSeasonTitle and marshals with seasonNumbers and isSeasonTitle; V4 output is
-// unchanged. testdata/parsertests_v5 holds v5's ParserTests, run by TestParserTestsV5.
-//
-// V4Plus is ours (parser_v4plus.go): the v4 dialect with the v5 changes we chose one by one and a few fixes of our
-// own, listed there with their sources (docs/design/sonarr-v5.md "v4plus"). Its parses have the v4 shape, marked
-// Parser = V4Plus; TestV4Plus covers each change.
+// The plain functions are V4Plus, ours (parser_v4plus.go): the Sonarr v4 port (v4d, the base) with the Sonarr v5
+// changes we chose one by one and a few fixes of our own, listed there with their sources. Its parses have the v4
+// shape. TestV4Plus covers each change against the v4 base.
 //
 // Tests: testdata/parsertests holds Sonarr's ParserTests cases as data (regenerate with testdata/extract.py), run by
-// TestParserTests. TestRecordedSamples compares the JSON byte for byte with answers recorded from Sonarr. TestCorpusAgreement
+// TestParserTests on the v4 base. TestRecordedSamples compares the JSON byte for byte with answers recorded from Sonarr. TestCorpusAgreement
 // compares with the collected corpus when THEATARR_CORPUS is set.
 //
 // # Deviations from Sonarr
@@ -44,9 +37,6 @@
 //   - Sonarr logs (debug, warnings in ValidateForSeriesType); the port does not log.
 //   - Null strings: ParseReleaseGroup returns nil and ParsedEpisodeInfo.ReleaseGroup is a nil pointer where Sonarr
 //     has null; NormalizeImdbID returns "" for null.
-//   - V5's RemoveDiacritics (Diacritical.Net 1.0.5 plus AdditionalDiacriticsProvider) is Unicode decomposition with
-//     the combining marks dropped plus the letters that do not decompose (ø ł đ ß æ œ þ ð ı), as
-//     internal/library/naming has it; Diacritical.Net's own table may map a few rarer letters too.
 //   - Case-insensitive matching uses regexp2's Unicode simple case folding; .NET 6+ uses its own case equivalence
 //     table. They agree on the ASCII and Latin text the patterns target.
 package sonarr

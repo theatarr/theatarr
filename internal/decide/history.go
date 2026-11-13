@@ -56,7 +56,7 @@ func loadGrabHistory(ctx context.Context, db *sql.DB, versionID int64, kind poli
 			return nil, err
 		}
 		// The download quality comes from the decision; the revision is parsed from its original release title.
-		f := LinkedFile(kind, "", Release{Release: indexer.Release{Title: title}}, quality)
+		f := LinkedFile(kind, Release{Release: indexer.Release{Title: title}}, quality)
 		qm := historyQuality(kind, f)
 		for _, ep := range ids {
 			events = append(events, grabEvent{episode: ep, at: at, id: id, source: "theatarr", download: strings.ToUpper(hash), title: title, quality: qm})
@@ -71,7 +71,7 @@ func loadGrabHistory(ctx context.Context, db *sql.DB, versionID int64, kind poli
 				file.Quality = fileQuality
 			}
 			if file.Revision == 0 {
-				file = *LinkedFile(kind, "", Release{Release: indexer.Release{Title: fileTitle}}, file.Quality)
+				file = *LinkedFile(kind, Release{Release: indexer.Release{Title: fileTitle}}, file.Quality)
 			}
 			events = append(events, grabEvent{episode: epID, at: imported.Int64, id: id, source: "theatarr", download: strings.ToUpper(hash), quality: historyQuality(kind, &file), imported: true})
 		}

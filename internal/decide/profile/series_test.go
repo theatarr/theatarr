@@ -208,31 +208,6 @@ func TestEpisodeRequestedAndSeasonMatch(t *testing.T) {
 	if got := run(t, "SeasonMatch", &Subject{Release: &Release{SeasonNumber: 3}, Search: search}); got.Reason != ReasonWrongSeason {
 		t.Errorf("season match: %+v", got)
 	}
-	// Sonarr v5: SeasonNumbers holds every season of a pack; with none, the mapped season (nil: no season) counts.
-	two, three := 2, 3
-	for _, c := range []struct {
-		name string
-		r    Release
-		ok   bool
-	}{
-		{"v5 pack holding the season", Release{V5: true, SeasonNumber: 1, SeasonNumbers: []int{1, 2, 3}}, true},
-		{"v5 pack without it", Release{V5: true, SeasonNumber: 3, SeasonNumbers: []int{3, 4}}, false},
-		{"v5 season title, mapped", Release{V5: true, MappedSeasonNumber: &two}, true},
-		{"v5 season title, mapped elsewhere", Release{V5: true, MappedSeasonNumber: &three}, false},
-		{"v5 season title, no season", Release{V5: true}, false},
-		{"v4 compares the parsed season", Release{SeasonNumber: 1, SeasonNumbers: []int{1, 2}}, false},
-	} {
-		got := run(t, "SeasonMatch", &Subject{Release: &c.r, Search: search})
-		if got.Accepted != c.ok {
-			t.Errorf("season match, %s: %+v", c.name, got)
-		}
-		single := &Search{Kind: SearchSingleEpisode, SeasonNumber: 2, EpisodeNumber: 3}
-		r := c.r
-		r.EpisodeNumbers = []int{3}
-		if got := run(t, "SingleEpisodeSearchMatch", &Subject{Release: &r, Search: single}); got.Accepted != c.ok {
-			t.Errorf("single episode search, %s: %+v", c.name, got)
-		}
-	}
 	if got := run(t, "SceneMapping", &Subject{Release: &Release{}, SceneMapping: &SceneMapping{SceneOrigin: "mixed"}}); got.Message != "Ambiguous numbering" {
 		t.Errorf("scene mapping: %+v", got)
 	}

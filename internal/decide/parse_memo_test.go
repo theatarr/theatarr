@@ -14,7 +14,7 @@ import (
 	"github.com/theatarr/theatarr/internal/decide/parser/sonarr"
 )
 
-func TestReleaseParseMemoCopiesAndDialects(t *testing.T) {
+func TestReleaseParseMemoCopies(t *testing.T) {
 	t.Parallel()
 	ctx := WithParseMemo(context.Background())
 	movie := "Dune.Part.Two.2024.FRENCH.1080p.WEB-DL-OLD"
@@ -27,25 +27,23 @@ func TestReleaseParseMemoCopiesAndDialects(t *testing.T) {
 	if got := ParseMovieRelease(ctx, movie); !reflect.DeepEqual(got, want) {
 		t.Fatalf("movie parse was shared: %+v, want %+v", got, want)
 	}
-	for _, version := range []sonarr.Version{sonarr.V4, sonarr.V5, sonarr.V4Plus} {
-		title := "The.Show.S01E01E02.1080p.WEB-DL-GRP"
-		want := version.ParseTitle(title)
-		p := ParseSeriesRelease(ctx, version, title)
-		p.EpisodeNumbers[0] = 99
-		p.SeriesTitleInfo.Title = "Changed"
-		*p.ReleaseGroup = "Manual"
-		p.Quality.Revision.Version++
-		if got := ParseSeriesRelease(ctx, version, title); !reflect.DeepEqual(got, want) {
-			t.Fatalf("%s parse was shared or changed dialect: %+v, want %+v", version, got, want)
-		}
+	title := "The.Show.S01E01E02.1080p.WEB-DL-GRP"
+	wantSeries := sonarr.ParseTitle(title)
+	ps := ParseSeriesRelease(ctx, title)
+	ps.EpisodeNumbers[0] = 99
+	ps.SeriesTitleInfo.Title = "Changed"
+	*ps.ReleaseGroup = "Manual"
+	ps.Quality.Revision.Version++
+	if got := ParseSeriesRelease(ctx, title); !reflect.DeepEqual(got, wantSeries) {
+		t.Fatalf("series parse was shared: %+v, want %+v", got, wantSeries)
 	}
 }
 
 func TestReleaseParseMemoAvoidsRepeatedParserWork(t *testing.T) {
 	ctx := WithParseMemo(context.Background())
 	title := "The.Show.S01E01E02.1080p.WEB-DL-GRP"
-	ParseSeriesRelease(ctx, sonarr.V4, title)
-	if n := testing.AllocsPerRun(10, func() { ParseSeriesRelease(ctx, sonarr.V4, title) }); n > 30 {
+	ParseSeriesRelease(ctx, title)
+	if n := testing.AllocsPerRun(10, func() { ParseSeriesRelease(ctx, title) }); n > 30 {
 		t.Fatalf("%.0f allocations for a repeated parse; expected only an independent copy", n)
 	}
 }
@@ -71,14 +69,14 @@ func TestReleaseParseMemoManualOverridesAndScope(t *testing.T) {
 		t.Fatalf("manual group leaked into another decision: %+v, %v", d, err)
 	}
 	for range 2 {
-		if ParseMovieRelease(ctx, "123") != nil || ParseSeriesRelease(ctx, sonarr.V4, "123") != nil {
+		if ParseMovieRelease(ctx, "123") != nil || ParseSeriesRelease(ctx, "123") != nil {
 			t.Fatal("unparseable release unexpectedly parsed")
 		}
 	}
 	if p, ok := releaseParseMemo(ctx).movies["123"]; !ok || p != nil {
 		t.Fatal("nil movie parse was not memoized")
 	}
-	if p, ok := releaseParseMemo(ctx).series[seriesParseKey{title: "123", version: sonarr.V4}]; !ok || p != nil {
+	if p, ok := releaseParseMemo(ctx).series["123"]; !ok || p != nil {
 		t.Fatal("nil series parse was not memoized")
 	}
 }
@@ -87,30 +85,25 @@ func TestReleaseParseMemoDecisionsMatchUncached(t *testing.T) {
 	t.Parallel()
 	e := seriesEngine(t)
 	ctx := WithParseMemo(context.Background())
-	for _, version := range []sonarr.Version{sonarr.V4, sonarr.V4Plus, sonarr.V5} {
-		v := tvVersion(e, "tv")
-		vp := *v.Policy
-		vp.Sonarr = version.String()
-		v.Policy = &vp
-		for _, release := range []string{
-			"The.Show.S01E01E02.1080p.WEB-DL-GRP", "Show.Alt.Name.S01.2160p.BluRay.REMUX-GRP",
-			"The Show - Special Name (1080p)", "123",
-		} {
-			for _, search := range []*SeriesSearch{nil, {Season: 1, Episode: 1}, {Season: 1}} {
-				r := rel(release, "public", 20*gb)
-				want, err := e.DecideSearch(context.Background(), r, show(), v, search)
-				if err != nil {
-					t.Fatal(err)
-				}
-				got, err := e.DecideSearch(ctx, r, show(), v, search)
-				if err != nil {
-					t.Fatal(err)
-				}
-				wantJSON, _ := json.Marshal(want)
-				gotJSON, _ := json.Marshal(got)
-				if string(gotJSON) != string(wantJSON) {
-					t.Fatalf("%s %s: cached %s, uncached %s", version, release, gotJSON, wantJSON)
-				}
+	v := tvVersion(e, "tv")
+	for _, release := range []string{
+		"The.Show.S01E01E02.1080p.WEB-DL-GRP", "Show.Alt.Name.S01.2160p.BluRay.REMUX-GRP",
+		"The Show - Special Name (1080p)", "123",
+	} {
+		for _, search := range []*SeriesSearch{nil, {Season: 1, Episode: 1}, {Season: 1}} {
+			r := rel(release, "public", 20*gb)
+			want, err := e.DecideSearch(context.Background(), r, show(), v, search)
+			if err != nil {
+				t.Fatal(err)
+			}
+			got, err := e.DecideSearch(ctx, r, show(), v, search)
+			if err != nil {
+				t.Fatal(err)
+			}
+			wantJSON, _ := json.Marshal(want)
+			gotJSON, _ := json.Marshal(got)
+			if string(gotJSON) != string(wantJSON) {
+				t.Fatalf("%s: cached %s, uncached %s", release, gotJSON, wantJSON)
 			}
 		}
 	}
@@ -167,7 +160,7 @@ func BenchmarkSearchParse(b *testing.B) {
 						if kind == "movie" {
 							movieParseResult = ParseMovieRelease(ctx, movies[i])
 						} else {
-							seriesParseResult = ParseSeriesRelease(ctx, sonarr.V4, series[i])
+							seriesParseResult = ParseSeriesRelease(ctx, series[i])
 						}
 					}
 				}

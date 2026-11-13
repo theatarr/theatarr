@@ -621,7 +621,7 @@ type tvdbSeriesTitles struct {
 // seriesOriginalTitle is a series' original title as Sonarr v5's SkyHookProxy.MapSeries takes it (the translation
 // in the series' original language), from the TVDB extended record our TVDB client cached (tvdb.Client.Series: GET
 // <base>/series/<id>/extended?meta=translations&short=true; stale entries too). "" when nothing is cached or no
-// name translation is in the original language. Only a series version with sonarr: v5 matches it.
+// name translation is in the original language. The series mapping does not match it (Sonarr v5 did; removed).
 func seriesOriginalTitle(ctx context.Context, db *sql.DB, tvdbID int) (string, error) {
 	suffix := fmt.Sprintf("/series/%d/extended?meta=translations&short=true", tvdbID)
 	var body []byte

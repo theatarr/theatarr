@@ -8,7 +8,7 @@ import (
 )
 
 // TestRecordedSamples checks the JSON byte for byte, field order included, against parsedEpisodeInfo answers captured
-// from Sonarr 4.0.20.3014 (GET /api/v3/parse) in testdata/samples.json.
+// from Sonarr 4.0.20.3014 (GET /api/v3/parse) in testdata/samples.json, on the v4 base (v4d).
 func TestRecordedSamples(t *testing.T) {
 	t.Parallel()
 	b, err := os.ReadFile("testdata/samples.json")
@@ -31,7 +31,7 @@ func TestRecordedSamples(t *testing.T) {
 		var got bytes.Buffer
 		enc := json.NewEncoder(&got)
 		enc.SetEscapeHTML(false)
-		if err := enc.Encode(ParseTitle(s.Title)); err != nil {
+		if err := enc.Encode(v4d.parseTitle(s.Title)); err != nil {
 			t.Fatal(err)
 		}
 		if g := bytes.TrimSpace(got.Bytes()); !bytes.Equal(g, want.Bytes()) {

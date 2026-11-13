@@ -216,22 +216,8 @@ func seasonMatch(e *Engine, s *Subject) Decision {
 	return Accept()
 }
 
-// seasonMatches is the season test of SeasonMatch and SingleEpisodeSearchMatch: v4 compares the parsed season; v5
-// looks for the season in SeasonNumbers, else compares the mapped season.
-func (r *Release) seasonMatches(season int) bool {
-	if !r.V5 {
-		return season == r.SeasonNumber
-	}
-	if len(r.SeasonNumbers) > 0 {
-		for _, n := range r.SeasonNumbers {
-			if n == season {
-				return true
-			}
-		}
-		return false
-	}
-	return r.MappedSeasonNumber != nil && *r.MappedSeasonNumber == season
-}
+// seasonMatches is the season test of SeasonMatch and SingleEpisodeSearchMatch: the parsed season.
+func (r *Release) seasonMatches(season int) bool { return season == r.SeasonNumber }
 
 // singleEpisodeSearchMatch is Search/SingleEpisodeSearchMatchSpecification.
 func singleEpisodeSearchMatch(e *Engine, s *Subject) Decision {

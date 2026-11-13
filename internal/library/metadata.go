@@ -55,7 +55,7 @@ func (l *Library) loadLinkedMetadata(ctx context.Context, d *importDownload) (*d
 		// Incoming evidence must never inherit a grab-time rank. Held files use ResolveSeaDexFiles.
 		rel = decide.RefreshSeaDexRelease(ctx, rel)
 	}
-	f := decide.LinkedFile(policy.Kind(v.Title.Kind), v.Policy.Sonarr, decide.Release{Release: rel}, v.Quality)
+	f := decide.LinkedFile(policy.Kind(v.Title.Kind), decide.Release{Release: rel}, v.Quality)
 	f.Score = &v.Score
 	if formats.Valid {
 		_ = json.Unmarshal([]byte(formats.String), &f.Formats)

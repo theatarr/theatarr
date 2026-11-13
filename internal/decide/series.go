@@ -6,18 +6,10 @@ package decide
 // DataAugmentation/Scene/SceneMappingService.cs (FindSceneMapping, FindMappings, FilterSceneMappings,
 // GetSceneSeasonNumber) @ cab419a. The "library" is the one series under decision: a decision is always for one
 // title, so lookups by title, id or scene mapping either find it or find nothing.
-//
-// A version with sonarr: v5 maps as Sonarr v5 does (ParsingService, SeriesRepository and SeriesService on develop
-// @ a6171f0ca): its parser and clean titles; SeasonNumbers (scene mapping lookups by the first season or -1, a
-// nullable mapped season, every season of a multi-season pack); anime season packs named by a season title
-// (IsSeasonTitle: the season from the scene mapping); the series' original title wherever its clean title is
-// matched (CleanOriginalTitle, PR #8990); aliases with a year (GetSeriesAliasTitleAndYear) and titles with a year
-// in GetSeriesByAllTitles (PR #8411).
 
 import (
 	"errors"
 	"sort"
-	"strconv"
 	"strings"
 
 	"github.com/theatarr/theatarr/internal/decide/parser/sonarr"
@@ -50,11 +42,9 @@ type remoteEpisode struct {
 	parsed       *sonarr.ParsedEpisodeInfo
 	sceneMapping *SceneMapping
 	mappedSeason int
-	// noMappedSeason is v5's null MappedSeasonNumber: a season-title release whose scene mapping names no season.
-	noMappedSeason bool
-	matched        bool
-	matchType      MatchType
-	episodes       []*Episode
+	matched      bool
+	matchType    MatchType
+	episodes     []*Episode
 }
 
 // series is the one series the mapping knows, with its lookups.
@@ -62,38 +52,23 @@ type series struct {
 	t          *Title
 	clean      string
 	typ        sonarr.SeriesType
-	ver        sonarr.Version
 	parseTitle func(string) *sonarr.ParsedEpisodeInfo
-	// origClean is v5's CleanOriginalTitle: the clean original title, "" when the series has none (always "" in v4).
-	origClean string
 	// known is an import's mapping: the series is given (Map(parsedEpisodeInfo, 0, 0, null, series, criteria)), so
 	// FindSeries is not asked (resolve.go).
 	known bool
 }
 
-func newSeries(t *Title, ver sonarr.Version) *series {
+func newSeries(t *Title) *series {
 	typ, ok := sonarr.ParseSeriesType(t.SeriesType)
 	if !ok {
 		typ = sonarr.SeriesTypeStandard
 	}
-	s := &series{t: t, clean: ver.CleanSeriesTitle(t.Name), typ: typ, ver: ver, parseTitle: ver.ParseTitle}
-	if ver == sonarr.V5 && strings.TrimSpace(t.OriginalTitle) != "" {
-		// SkyHookProxy.MapSeries: CleanOriginalTitle is null when the cleaned original title is blank.
-		if c := ver.CleanSeriesTitle(t.OriginalTitle); strings.TrimSpace(c) != "" {
-			s.origClean = c
-		}
-	}
-	return s
+	return &series{t: t, clean: sonarr.CleanSeriesTitle(t.Name), typ: typ, parseTitle: sonarr.ParseTitle}
 }
 
-// v5 reports whether the series maps as Sonarr v5.
-func (s *series) v5() bool { return s.ver == sonarr.V5 }
-
-// findByTitle is SeriesRepository.FindByTitle(cleanTitle): the series whose clean title is title's (v5: or whose
-// clean original title is).
+// findByTitle is SeriesRepository.FindByTitle(cleanTitle): the series whose clean title is title's.
 func (s *series) findByTitle(title string) bool {
-	clean := strings.ToLower(s.ver.CleanSeriesTitle(title))
-	return clean == s.clean || s.origClean != "" && clean == s.origClean
+	return strings.ToLower(sonarr.CleanSeriesTitle(title)) == s.clean
 }
 
 // findByTitleYear is FindByTitle(title, year).
@@ -101,11 +76,9 @@ func (s *series) findByTitleYear(title string, year int) bool {
 	return s.findByTitle(title) && s.t.Year == year
 }
 
-// findByTitleInexact is SeriesService.FindByTitleInexact: the series' clean title (v5: or clean original title)
-// occurs in the title's.
+// findByTitleInexact is SeriesService.FindByTitleInexact: the series' clean title occurs in the title's.
 func (s *series) findByTitleInexact(title string) bool {
-	clean := s.ver.CleanSeriesTitle(title)
-	return strings.Contains(clean, s.clean) || s.origClean != "" && strings.Contains(clean, s.origClean)
+	return strings.Contains(sonarr.CleanSeriesTitle(title), s.clean)
 }
 
 func (s *series) byTvdb(id int) bool { return id > 0 && id == s.t.TVDB }
@@ -118,14 +91,14 @@ func (s *series) byImdb(id string) bool { return strings.TrimSpace(id) != "" && 
 // "Limited matching") match only release titles the regex accepts; the API does not expose the regex, so they are
 // left out (deviation).
 func (s *series) mappingsFor(seriesTitle string) []*SceneMapping {
-	clean := s.ver.CleanSeriesTitle(seriesTitle)
+	clean := sonarr.CleanSeriesTitle(seriesTitle)
 	var out []*SceneMapping
 	for i := range s.t.SceneMappings {
 		m := &s.t.SceneMappings[i]
 		if m.Comment == "Limited matching" {
 			continue
 		}
-		if s.ver.CleanSeriesTitle(m.Title) == clean {
+		if sonarr.CleanSeriesTitle(m.Title) == clean {
 			out = append(out, m)
 		}
 	}
@@ -364,7 +337,7 @@ func (s *series) byAirDate(date string, part *int) (*Episode, error) {
 // occurs leftmost (longest first) in the normalized release title, or in its clean form.
 func (s *series) findByEpisodeTitle(season int, releaseTitle string) *Episode {
 	norm := sonarr.NormalizeEpisodeTitle(releaseTitle)
-	cleanNorm := s.ver.CleanSeriesTitle(norm)
+	cleanNorm := sonarr.CleanSeriesTitle(norm)
 	normLower, cleanLower := strings.ToLower(norm), strings.ToLower(cleanNorm)
 	type cand struct {
 		pos, length int
@@ -380,7 +353,7 @@ func (s *series) findByEpisodeTitle(season int, releaseTitle string) *Episode {
 		if p := runeIndex(normLower, strings.ToLower(et)); p >= 0 {
 			cs = append(cs, cand{p, length, e})
 		}
-		if p := runeIndex(cleanLower, strings.ToLower(s.ver.CleanSeriesTitle(et))); p >= 0 {
+		if p := runeIndex(cleanLower, strings.ToLower(sonarr.CleanSeriesTitle(et))); p >= 0 {
 			cs = append(cs, cand{p, length, e})
 		}
 	}
@@ -412,7 +385,7 @@ func (s *series) getSeries(title string) bool {
 	if p == nil {
 		return s.findByTitle(title)
 	}
-	if s.findSceneMapping(p.SeriesTitle, s.lookupSeason(p)) != nil {
+	if s.findSceneMapping(p.SeriesTitle, p.SeasonNumber) != nil {
 		return true
 	}
 	if s.findByTitle(p.SeriesTitle) {
@@ -430,35 +403,12 @@ func (s *series) getSeries(title string) bool {
 // byAllTitles is GetSeriesByAllTitles: every title that resolves must resolve to the same series; with one series
 // that is any title resolving to it.
 func (s *series) byAllTitles(p *sonarr.ParsedEpisodeInfo) bool {
-	year := p.SeriesTitleInfo.Year
 	for _, t := range p.SeriesTitleInfo.AllTitles {
-		found := s.findByTitle(t)
-		if s.v5() && year > 0 {
-			// v5: the title with the year, else the title and year as one title (PR #8411).
-			found = s.findByTitleYear(t, year) || s.findByTitle(t+" "+strconv.Itoa(year))
-		}
-		if found || s.findSceneMapping(t, s.lookupSeason(p)) != nil {
+		if s.findByTitle(t) || s.findSceneMapping(t, p.SeasonNumber) != nil {
 			return true
 		}
 	}
 	return false
-}
-
-// lookupSeason is the season a scene mapping lookup takes: v4's SeasonNumber, v5's SeasonNumbers.FirstOrDefault(-1).
-func (s *series) lookupSeason(p *sonarr.ParsedEpisodeInfo) int {
-	if p.Parser == sonarr.V5 {
-		if len(p.SeasonNumbers) == 0 {
-			return -1
-		}
-		return p.SeasonNumbers[0]
-	}
-	return p.SeasonNumber
-}
-
-// aliasTitleAndYear is v5's GetSeriesAliasTitleAndYear: the title without its year names a scene mapping of the
-// series, and the release's year is the series' year.
-func (s *series) aliasTitleAndYear(p *sonarr.ParsedEpisodeInfo) bool {
-	return s.findSceneMapping(p.SeriesTitleInfo.TitleWithoutYear, s.lookupSeason(p)) != nil && s.t.Year == p.SeriesTitleInfo.Year
 }
 
 // parseSpecialEpisodeTitle is ParseSpecialEpisodeTitle(parsed, releaseTitle, tvdbId, tvRageId, imdbId, criteria).
@@ -495,22 +445,16 @@ func (s *series) parseSpecialFor(p *sonarr.ParsedEpisodeInfo, releaseTitle strin
 	info.SeriesTitle = s.t.Name
 	info.SeriesTitleInfo = &sonarr.SeriesTitleInfo{Title: s.t.Name}
 	info.SeasonNumber = e.Season
-	if s.v5() {
-		info.Parser, info.SeasonNumbers = sonarr.V5, []int{e.Season}
-	}
 	info.EpisodeNumbers = []int{e.Number}
-	info.Quality = s.ver.ParseQuality(releaseTitle)
-	info.ReleaseGroup = s.ver.ParseReleaseGroup(releaseTitle)
-	info.Languages = s.ver.ParseLanguages(releaseTitle)
+	info.Quality = sonarr.ParseQuality(releaseTitle)
+	info.ReleaseGroup = sonarr.ParseReleaseGroup(releaseTitle)
+	info.Languages = sonarr.ParseLanguages(releaseTitle)
 	info.Special = true
 	return info
 }
 
 // mapRelease is ParsingService.Map(parsedEpisodeInfo, tvdbId, tvRageId, imdbId, searchCriteria).
 func (s *series) mapRelease(p *sonarr.ParsedEpisodeInfo, tvdbID int, imdbID string, search *SeriesSearch) (*remoteEpisode, error) {
-	if p.Parser == sonarr.V5 {
-		return s.mapRelease5(p, tvdbID, imdbID, search)
-	}
 	sm := s.findSceneMapping(p.SeriesTitle, p.SeasonNumber)
 	r := &remoteEpisode{parsed: p, sceneMapping: sm, mappedSeason: p.SeasonNumber}
 	sceneSource := true
@@ -545,59 +489,6 @@ func (s *series) mapKnown(p *sonarr.ParsedEpisodeInfo, search *SeriesSearch) (*r
 	return s.mapRelease(p, 0, "", search)
 }
 
-// mapRelease5 is v5's Map: the mapped season is nullable (no season parsed); a season-title release takes its
-// season from the scene mapping. Non-official episode orders (SeasonType) do not exist here: series are TVDB official
-// order, as on the v4 arrs.
-func (s *series) mapRelease5(p *sonarr.ParsedEpisodeInfo, tvdbID int, imdbID string, search *SeriesSearch) (*remoteEpisode, error) {
-	var season *int
-	if len(p.SeasonNumbers) > 0 {
-		x := p.SeasonNumbers[0]
-		season = &x
-	}
-	sm := s.findSceneMapping(p.SeriesTitle, s.lookupSeason(p))
-	r := &remoteEpisode{parsed: p, sceneMapping: sm}
-	if season != nil {
-		r.mappedSeason = *season
-	} else {
-		r.noMappedSeason = true
-	}
-	sceneSource := true
-	if sm != nil {
-		if sm.SeasonNumber != nil && *sm.SeasonNumber >= 0 && sm.SceneSeasonNumber != nil && season != nil &&
-			*sm.SceneSeasonNumber <= *season {
-			r.mappedSeason += *sm.SeasonNumber - *sm.SceneSeasonNumber
-		}
-		if p.IsSeasonTitle {
-			// Assign the season number from the mapping so we have a valid season number
-			if m := nonNegative(sm.SceneSeasonNumber); m != nil {
-				r.mappedSeason, r.noMappedSeason = *m, false
-			} else if m := nonNegative(sm.SeasonNumber); m != nil {
-				r.mappedSeason, r.noMappedSeason = *m, false
-			}
-		}
-		if sm.SceneOrigin == "tvdb" {
-			sceneSource = false
-		}
-	}
-	r.matched, r.matchType = s.findSeries(p, tvdbID, imdbID, sm, search)
-	if r.matched && !r.noMappedSeason && sonarr.ValidateForSeriesType(p, s.typ) {
-		eps, err := s.getEpisodes(p, r.mappedSeason, sceneSource, search)
-		if err != nil {
-			return nil, err
-		}
-		r.episodes = eps
-	}
-	return r, nil
-}
-
-// nonNegative is NzbDrone's int?.NonNegative(): the value when it is 0 or more, else null.
-func nonNegative(p *int) *int {
-	if p == nil || *p < 0 {
-		return nil
-	}
-	return p
-}
-
 // findSeries is FindSeries over the one series.
 func (s *series) findSeries(p *sonarr.ParsedEpisodeInfo, tvdbID int, imdbID string, sm *SceneMapping,
 	search *SeriesSearch) (bool, MatchType) {
@@ -608,11 +499,7 @@ func (s *series) findSeries(p *sonarr.ParsedEpisodeInfo, tvdbID int, imdbID stri
 		return true, MatchAlias
 	}
 	if search != nil {
-		clean := s.ver.CleanSeriesTitle(p.SeriesTitle)
-		if s.origClean != "" && s.origClean == clean {
-			return true, MatchTitle
-		}
-		if s.clean == clean {
+		if s.clean == sonarr.CleanSeriesTitle(p.SeriesTitle) {
 			return true, MatchTitle
 		}
 		if tvdbID > 0 && tvdbID == s.t.TVDB {
@@ -631,9 +518,6 @@ func (s *series) findSeries(p *sonarr.ParsedEpisodeInfo, tvdbID int, imdbID stri
 	if p.SeriesTitleInfo != nil && p.SeriesTitleInfo.Year > 0 {
 		if s.findByTitleYear(p.SeriesTitleInfo.TitleWithoutYear, p.SeriesTitleInfo.Year) {
 			return true, MatchTitle
-		}
-		if s.v5() && s.aliasTitleAndYear(p) {
-			return true, MatchAlias
 		}
 	}
 	if s.byTvdb(tvdbID) {
@@ -665,16 +549,6 @@ func (s *series) searchEpisodes(search *SeriesSearch) []*Episode {
 // getEpisodes is GetEpisodes(parsed, series, mappedSeasonNumber, sceneSource, criteria).
 func (s *series) getEpisodes(p *sonarr.ParsedEpisodeInfo, mapped int, sceneSource bool, search *SeriesSearch) ([]*Episode, error) {
 	if p.FullSeason {
-		if p.Parser == sonarr.V5 && p.IsMultiSeason {
-			// Scene numbering is per-season, so it isn't meaningful for a pack spanning multiple seasons; apply
-			// the scene-mapping offset (if any) to every season instead (v5, PR #8958).
-			offset := mapped - p.SeasonNumbers[0]
-			var out []*Episode
-			for _, n := range p.SeasonNumbers {
-				out = append(out, s.bySeason(n+offset)...)
-			}
-			return out, nil
-		}
 		if s.t.UseSceneNumbering && sceneSource {
 			if eps := s.bySceneSeason(mapped); len(eps) > 0 {
 				return eps, nil
@@ -788,7 +662,7 @@ func (s *series) standardEpisodes(p *sonarr.ParsedEpisodeInfo, mapped int, scene
 		if s.t.UseSceneNumbering && sceneSource {
 			var eps []*Episode
 			for _, e := range requested {
-				if e.SceneSeason != nil && e.SceneNumber != nil && *e.SceneSeason == s.lookupSeason(p) && *e.SceneNumber == n {
+				if e.SceneSeason != nil && e.SceneNumber != nil && *e.SceneSeason == p.SeasonNumber && *e.SceneNumber == n {
 					eps = append(eps, e)
 				}
 			}

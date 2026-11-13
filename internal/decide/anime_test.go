@@ -149,7 +149,7 @@ func TestAnimeFallbackMatchesFileResolution(t *testing.T) {
 			t.Errorf("%s %s: accepted %v %v, episodes %v, want %s", c.status, c.release, d.Accepted, d.Rejections,
 				d.Episodes, c.episodes)
 		}
-		file, err := ResolveFile(&ti, "", FileInput{Path: c.release + ".mkv", Release: c.release})
+		file, err := ResolveFile(&ti, FileInput{Path: c.release + ".mkv", Release: c.release})
 		if err != nil {
 			t.Fatal(err)
 		}

@@ -1,7 +1,7 @@
 package sonarr
 
-// V4Plus (versions.<k>.sonarr: v4plus): Sonarr v4.0.20.3014 with the Sonarr v5 parser changes we chose one by one,
-// and a few fixes of our own, measured on a corpus of real release titles (docs/design/sonarr-v5.md "v4plus").
+// V4Plus (the package's plain functions, what every series library parses with): Sonarr v4.0.20.3014 with the
+// Sonarr v5 parser changes we chose one by one, and a few fixes of our own, measured on a corpus of real release titles.
 // Everything not listed here is v4: the pattern order, the mapping, the languages (ids to 46), CleanSeriesTitle and
 // the parse shape (SeasonNumber, no SeasonNumbers).
 //
@@ -112,7 +112,7 @@ var languageGroups4p = append(append([]languageGroup{}, languageGroups4[:len(lan
 	languageGroup{"portuguese", LanguagePortuguese},
 	languageGroups4[len(languageGroups4)-1])
 
-// v4plusd is V4Plus: v4d with the tables above.
+// v4plusd is V4Plus: v4d with the tables above. The package's plain functions use it.
 var v4plusd = func() *dialect {
 	d := *v4d
 	d.v4plus = true
@@ -123,7 +123,7 @@ var v4plusd = func() *dialect {
 	d.language = languageRegex4p
 	d.caseSensitiveLanguage = caseSensitiveLanguageRegex4p
 	d.languageGroups = languageGroups4p
-	d.caseSensitiveGroups = append(append([]languageGroup{}, caseSensitiveGroups5...),
+	d.caseSensitiveGroups = append(append([]languageGroup{}, caseSensitiveGroups4...), languageGroup{"german", LanguageGerman},
 		languageGroup{"english", LanguageEnglish}, languageGroup{"japanese", LanguageJapanese})
 	d.source = sourceRegex4p
 	return &d

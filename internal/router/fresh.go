@@ -467,7 +467,7 @@ func freshUpgrade(p *routeProfile, vp *policy.VersionPolicy, c Candidate, cur it
 	if cur.score != nil {
 		oldScore = int(*cur.score)
 	}
-	newFile := decide.LinkedFile(vp.Kind, vp.Sonarr, decide.Release{Release: c.Release}, c.Quality)
+	newFile := decide.LinkedFile(vp.Kind, decide.Release{Release: c.Release}, c.Quality)
 	newModel := profile.QualityModel{Quality: quality, SeaDexPreference: newFile.SeaDexPreference, Revision: profile.Revision{Version: max(newFile.Revision, 1), Real: newFile.Real}}
 	currentModel := profile.QualityModel{Quality: current, SeaDexPreference: decide.FileSeaDexPreference(cur.file), Revision: profile.Revision{Version: max(cur.revision, 1), Real: cur.real}}
 	return newRouteComparison(p, vp, currentModel, oldScore, newModel, c.Score).upgradable() == profile.UpgradeNone, nil

@@ -49,15 +49,13 @@ func TestRelated(t *testing.T) {
 	film, tv := relatedCases()
 	series := show()
 	for _, c := range film {
-		if got := Related(ctx, c.rel, &arrival, ""); got != c.keep {
+		if got := Related(ctx, c.rel, &arrival); got != c.keep {
 			t.Errorf("film %s: Related %v, want %v", c.name, got, c.keep)
 		}
 	}
-	for _, sonarr := range []string{"", "v5"} {
-		for _, c := range tv {
-			if got := Related(ctx, c.rel, &series, sonarr); got != c.keep {
-				t.Errorf("series (%q) %s: Related %v, want %v", sonarr, c.name, got, c.keep)
-			}
+	for _, c := range tv {
+		if got := Related(ctx, c.rel, &series); got != c.keep {
+			t.Errorf("series %s: Related %v, want %v", c.name, got, c.keep)
 		}
 	}
 }
@@ -83,7 +81,7 @@ func TestRelatedKeepsWhatDecideMaps(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		check("film", c.name, Related(ctx, c.rel, &arrival, ""), d)
+		check("film", c.name, Related(ctx, c.rel, &arrival), d)
 	}
 	se := seriesEngine(t)
 	v := tvVersion(se, "tv")
@@ -94,6 +92,6 @@ func TestRelatedKeepsWhatDecideMaps(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		check("series", c.name, Related(ctx, c.rel, &series, v.Policy.Sonarr), d)
+		check("series", c.name, Related(ctx, c.rel, &series), d)
 	}
 }

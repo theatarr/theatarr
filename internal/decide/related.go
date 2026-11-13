@@ -12,8 +12,8 @@ import (
 // Related reports whether a release an id search returned is about title t, by the decision engine's own mapping:
 // it carries one of t's ids, or its name maps to t (findMovie for a film; the series parse, FindSeries with scene
 // mappings, or a franchise name for a series). A release it refuses is one Decide rejects as UnableToParse,
-// UnknownMovie or UnknownSeries. sonarrParser is the version's Sonarr parser (versions[*].sonarr; "" is v4).
-func Related(ctx context.Context, rel indexer.Release, t *Title, sonarrParser string) bool {
+// UnknownMovie or UnknownSeries.
+func Related(ctx context.Context, rel indexer.Release, t *Title) bool {
 	if id := releaseIMDb(rel.IMDb); id != "0" && id == releaseIMDb(t.IMDb) {
 		return true
 	}
@@ -27,40 +27,31 @@ func Related(ctx context.Context, rel indexer.Release, t *Title, sonarrParser st
 		}
 		return findMovie(p, releaseIMDb(rel.IMDb), rel.TMDb, t, nil) != nil
 	}
-	ver, err := sonarr.ParseVersion(sonarrParser)
-	if err != nil {
-		return true
-	}
-	s := seriesFor(ctx, t, ver)
-	parsed := s.parseRelease(ctx, rel, nil)
+	s := seriesFor(ctx, t)
+	parsed := s.parseRelease(rel, nil)
 	if parsed == nil || strings.TrimSpace(parsed.SeriesTitle) == "" {
 		return false
 	}
-	if ok, _ := s.findSeries(parsed, rel.TVDB, rel.IMDb, s.findSceneMapping(parsed.SeriesTitle, s.lookupSeason(parsed)), nil); ok {
+	if ok, _ := s.findSeries(parsed, rel.TVDB, rel.IMDb, s.findSceneMapping(parsed.SeriesTitle, parsed.SeasonNumber), nil); ok {
 		return true
 	}
-	return t.AnimeMap.Named(ver.CleanSeriesTitle(parsed.SeriesTitle), rel.Title, ver.CleanSeriesTitle)
+	return t.AnimeMap.Named(sonarr.CleanSeriesTitle(parsed.SeriesTitle), rel.Title, sonarr.CleanSeriesTitle)
 }
 
 // seriesFor is the mapping's series for t, parsing release names through the search's parse memo.
-func seriesFor(ctx context.Context, t *Title, ver sonarr.Version) *series {
-	s := newSeries(t, ver)
-	s.parseTitle = func(title string) *sonarr.ParsedEpisodeInfo { return ParseSeriesRelease(ctx, ver, title) }
+func seriesFor(ctx context.Context, t *Title) *series {
+	s := newSeries(t)
+	s.parseTitle = func(title string) *sonarr.ParsedEpisodeInfo { return ParseSeriesRelease(ctx, title) }
 	return s
 }
 
-// parseRelease is decideSeries' parse of a release name: the parse, the special-episode fallback, and v5's parse of
-// a season's own title.
-func (s *series) parseRelease(ctx context.Context, rel indexer.Release, search *SeriesSearch) *sonarr.ParsedEpisodeInfo {
+// parseRelease is decideSeries' parse of a release name: the parse and the special-episode fallback.
+func (s *series) parseRelease(rel indexer.Release, search *SeriesSearch) *sonarr.ParsedEpisodeInfo {
 	parsed := s.parseTitle(rel.Title)
 	if parsed == nil || parsed.IsPossibleSpecialEpisode() {
 		if sp := s.parseSpecialEpisodeTitle(parsed, rel.Title, rel.TVDB, rel.IMDb, search); sp != nil {
 			parsed = sp
 		}
-	}
-	if parsed == nil {
-		// v5: a release named by a season's own title (an anime season pack), ParseSeasonTitle (nil in v4).
-		parsed = parseSeriesRelease(ctx, s.ver, rel.Title, true)
 	}
 	return parsed
 }

@@ -7,7 +7,6 @@ import (
 	"time"
 
 	"github.com/theatarr/theatarr/internal/decide/format"
-	"github.com/theatarr/theatarr/internal/decide/parser/sonarr"
 	"github.com/theatarr/theatarr/internal/decide/profile"
 	"github.com/theatarr/theatarr/internal/indexer"
 	animemeta "github.com/theatarr/theatarr/internal/metadata/anime"
@@ -77,11 +76,7 @@ func TestPartialEntryCoverage(t *testing.T) {
 	e, v, q := reviewCutoffEngine(t, "tv")
 	title := show()
 	title.AnimeMap = animemap.New(title.TVDB, []*animemap.Entry{{Key: "al:11", Status: "auto", Episodes: []animemeta.SE{{1, 1}}}}, nil)
-	ver, err := sonarr.ParseVersion(v.Policy.Sonarr)
-	if err != nil {
-		t.Fatal(err)
-	}
-	cour, _, mapped, _, err := newSeries(&title, ver).seadexCour("11", 1, title.AnimeMap)
+	cour, _, mapped, _, err := newSeries(&title).seadexCour("11", 1, title.AnimeMap)
 	if err != nil || !mapped || len(cour) != 1 || cour[0].Number != 1 {
 		t.Fatalf("bad cour fixture: %v %v %v", cour, mapped, err)
 	}
@@ -119,7 +114,7 @@ func TestAltCutReleaseMapping(t *testing.T) {
 		t.Fatal(err)
 	}
 	for _, name := range alt.FeatureNames() {
-		mapped, err := ResolveFile(&title, v.Policy.Sonarr, FileInput{Path: name, Release: "[Group] Isekai Story Directors Cut S01 (BD 1080p)", OtherVideoFiles: true, Mapping: &EpisodeMap{How: AnimeMapFranchise, Entry: "al:1"}})
+		mapped, err := ResolveFile(&title, FileInput{Path: name, Release: "[Group] Isekai Story Directors Cut S01 (BD 1080p)", OtherVideoFiles: true, Mapping: &EpisodeMap{How: AnimeMapFranchise, Entry: "al:1"}})
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -206,7 +201,7 @@ func TestSuffixedEntry(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	mapped, err := ResolveFile(&title, v.Policy.Sonarr, FileInput{Path: f.SeaDexAlternatives[0].FeatureNames()[0], OtherVideoFiles: true, Mapping: &EpisodeMap{How: AnimeMapFranchise, Entry: "al:2#1"}})
+	mapped, err := ResolveFile(&title, FileInput{Path: f.SeaDexAlternatives[0].FeatureNames()[0], OtherVideoFiles: true, Mapping: &EpisodeMap{How: AnimeMapFranchise, Entry: "al:2#1"}})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -248,11 +243,7 @@ func TestAmbiguousEntryIsUnknown(t *testing.T) {
 	if got {
 		t.Fatal("ambiguous AniList mapping was curator-wanted")
 	}
-	ver, err := sonarr.ParseVersion(v.Policy.Sonarr)
-	if err != nil {
-		t.Fatal(err)
-	}
-	eps, key, mapped, _, err := newSeries(&title, ver).seadexCour("2", 2, title.AnimeMap)
+	eps, key, mapped, _, err := newSeries(&title).seadexCour("2", 2, title.AnimeMap)
 	if err != nil || !mapped || len(eps) != 0 || key != "" {
 		t.Fatalf("ambiguous cour: %v %s %v %v", eps, key, mapped, err)
 	}

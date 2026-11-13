@@ -15,7 +15,6 @@ import (
 	"github.com/theatarr/theatarr/internal/availability"
 	"github.com/theatarr/theatarr/internal/decide"
 	"github.com/theatarr/theatarr/internal/decide/parser/radarr"
-	"github.com/theatarr/theatarr/internal/decide/parser/sonarr"
 	"github.com/theatarr/theatarr/internal/gateway"
 	"github.com/theatarr/theatarr/internal/indexer"
 	"github.com/theatarr/theatarr/internal/policy"
@@ -663,7 +662,7 @@ func animeEpisodeItem(ctx context.Context, rel indexer.Release) bool {
 	if rel.TVDB > 0 || rssBatchRE.MatchString(rel.Title) {
 		return true
 	}
-	p := decide.ParseSeriesRelease(ctx, sonarr.V4, rel.Title)
+	p := decide.ParseSeriesRelease(ctx, rel.Title)
 	// Sonarr also reads a bare film year as compact season/episode numbering (1988 -> S19E88).
 	// Keep the movie path when the only episode number is precisely that year.
 	if movie := decide.ParseMovieRelease(ctx, rel.Title); movie != nil && movie.Year >= 1800 && p != nil &&

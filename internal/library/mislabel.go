@@ -49,14 +49,13 @@ func remuxFloor(res int) int64 {
 }
 
 // claimOf parses a name's quality label for the guard.
-func claimOf(name, kind, sonarrVersion string) labelClaim {
+func claimOf(name, kind string) labelClaim {
 	if kind == "movie" {
 		m := radarr.ParseQuality(name)
 		return labelClaim{Resolution: m.Quality.Resolution, Remux: m.Quality.Modifier == radarr.ModifierREMUX,
 			Source: m.SourceDetectionSource == radarr.DetectionName, Named: m.ResolutionDetectionSource == radarr.DetectionName}
 	}
-	ver, _ := sonarr.ParseVersion(sonarrVersion)
-	m := ver.ParseQuality(name)
+	m := sonarr.ParseQuality(name)
 	return labelClaim{Resolution: m.Quality.Resolution, Remux: m.Quality.Source == sonarr.SourceBlurayRaw,
 		Source: m.SourceDetectionSource == sonarr.DetectionName, Named: m.ResolutionDetectionSource == sonarr.DetectionName}
 }
@@ -67,10 +66,10 @@ func claimOf(name, kind, sonarrVersion string) labelClaim {
 // resolution keeps the release's when it names no other source (Amelie.2001.BluRay.REMUX.mkv in a 2160p release is
 // not the parser's inferred 1080p); a name with another source and no resolution claims none (Show.S01E05.HDTV.mkv in
 // a 2160p remux pack makes no 2160p claim, so its 1080 lines are no lie).
-func fileClaim(release labelClaim, f *PlannedFile, kind, sonarrVersion string) labelClaim {
+func fileClaim(release labelClaim, f *PlannedFile, kind string) labelClaim {
 	name := filepath.Base(f.Rel)
 	name = strings.TrimSuffix(name, filepath.Ext(name)) // the parsers read .mkv alone as HDTV-720p
-	c := claimOf(name, kind, sonarrVersion)
+	c := claimOf(name, kind)
 	if !c.Named {
 		c.Resolution = release.Resolution
 		if c.Source && !c.Remux {

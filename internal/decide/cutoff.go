@@ -8,7 +8,6 @@ import (
 
 	"github.com/theatarr/theatarr/internal/decide/adapt"
 	"github.com/theatarr/theatarr/internal/decide/format"
-	"github.com/theatarr/theatarr/internal/decide/parser/sonarr"
 	"github.com/theatarr/theatarr/internal/decide/profile"
 	"github.com/theatarr/theatarr/internal/indexer"
 	"github.com/theatarr/theatarr/internal/metadata/anime/animemap"
@@ -164,9 +163,8 @@ func (e *Engine) curatedReleaseAllowed(title *Title, v *policy.VersionPolicy, p 
 	var in *format.Input
 	var err error
 	if fl == format.Sonarr {
-		ver, verr := sonarr.ParseVersion(v.Sonarr)
-		parsed := ParseSeriesRelease(ctx, ver, rel.Title)
-		if verr != nil || parsed == nil {
+		parsed := ParseSeriesRelease(ctx, rel.Title)
+		if parsed == nil {
 			return false
 		}
 		var eps []adapt.Episode
@@ -249,7 +247,7 @@ type cutoffCandidate struct {
 
 // cutoffAlternative is cutoffAlternativeIn for the entry's own lowest regular season.
 func cutoffAlternative(title *Title, v *policy.VersionPolicy, p *Profile, t indexer.SeaDexStanding, q profile.Quality,
-	resolve func(*Title, string, FileInput) (FileEpisodes, error)) cutoffCandidate {
+	resolve func(*Title, FileInput) (FileEpisodes, error)) cutoffCandidate {
 	return cutoffAlternativeIn(title, v, p, t, q, 0, resolve)
 }
 
@@ -257,7 +255,7 @@ func cutoffAlternative(title *Title, v *policy.VersionPolicy, p *Profile, t inde
 // season would return for it: the same synthetic title (indexer.SeaDexCandidateRelease) for the curator search, the
 // filename mapping and the format checks. Season 0 is the entry's lowest regular season.
 func cutoffAlternativeIn(title *Title, v *policy.VersionPolicy, p *Profile, t indexer.SeaDexStanding, q profile.Quality,
-	season int, resolve func(*Title, string, FileInput) (FileEpisodes, error)) (result cutoffCandidate) {
+	season int, resolve func(*Title, FileInput) (FileEpisodes, error)) (result cutoffCandidate) {
 	if p.Profile.Flavour == format.Sonarr {
 		cutoffInit.Lock()
 		if title.cutoff == nil {
@@ -318,7 +316,7 @@ func cutoffAlternativeIn(title *Title, v *policy.VersionPolicy, p *Profile, t in
 		}
 		release := result.release.Title
 		for _, name := range names {
-			mapped, err := resolve(title, v.Sonarr, FileInput{Path: name, Release: release, Mapping: mapping, OtherVideoFiles: len(names) > 1})
+			mapped, err := resolve(title, FileInput{Path: name, Release: release, Mapping: mapping, OtherVideoFiles: len(names) > 1})
 			if err != nil || len(mapped.EpisodeIDs) == 0 {
 				return
 			}

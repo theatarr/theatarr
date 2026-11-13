@@ -103,7 +103,7 @@ func TestSeriesDecisions(t *testing.T) {
 			setup: func(t *Title) {
 				ep(t, 101).File, ep(t, 101).FileID = webFile, 1
 				ep(t, 103).File, ep(t, 103).FileID = remuxFile, 2
-			}, reasons: "DiskHigherPreference", episodes: "S01E01,S01E02,S01E03", score: 510},
+			}, accepted: true, upgrade: true, episodes: "S01E01,S01E02,S01E03", score: 510},
 		{name: "season pack not aired", release: "The.Show.S02.2160p.WEB-DL.DDP5.1.H.265-GRP", size: 20 * gb,
 			reasons: "FullSeasonNotAired", episodes: "S02E01,S02E02", score: 10},
 		{name: "unknown series", release: "Another.Show.S01E01.2160p.WEB-DL-GRP", size: 8 * gb, reasons: "UnknownSeries"},
@@ -275,9 +275,9 @@ func TestLevenshtein(t *testing.T) {
 	}
 }
 
-// The season pack rule: the S01 pack over a WEB file (E01) and a remux at its best (E03), E02 with no file. Plain
-// Sonarr (packs: all) refuses it on E03's file; the fork's rule (packs: any_upgradable) takes it, as it upgrades E01
-// and fills E02. A pack that upgrades nothing and fills nothing is refused under both, with the first file's reason.
+// The season pack rule (the fork's ACCEPT_RELEASE_ANY_UPGRADABLE, every series version's): the S01 pack over a WEB
+// file (E01) and a remux at its best (E03), E02 with no file, is taken, as it upgrades E01 and fills E02. A pack that
+// upgrades nothing and fills nothing is refused, with the first file's reason.
 func TestSeasonPackRule(t *testing.T) {
 	t.Parallel()
 	e := seriesEngine(t)
@@ -288,38 +288,26 @@ func TestSeasonPackRule(t *testing.T) {
 		ReleaseGroup: "GRP", Size: 30 * gb, ReleaseType: "singleEpisode"}
 	pack := rel("The.Show.S01.2160p.UHD.BluRay.x265.HDR-GRP", "public", 60*gb)
 	for _, c := range []struct {
-		name, version string
-		files         map[int64]*ExistingFile
-		accepted      bool
-		reason        string
-		upgrade       string
+		name     string
+		files    map[int64]*ExistingFile
+		accepted bool
+		reason   string
+		upgrade  string
 	}{
-		{"mixed, all", "tv", map[int64]*ExistingFile{101: webFile, 103: remuxFile}, false, "DiskHigherPreference", ""},
-		{"mixed, any_upgradable", "tv-any", map[int64]*ExistingFile{101: webFile, 103: remuxFile}, true, "",
-			"better quality: Bluray-2160p over WEBDL-2160p; fills 1 episode(s) with no file; 1 episode(s) keep their file (packs: any_upgradable)"},
-		{"fills only, any_upgradable", "tv-any", map[int64]*ExistingFile{101: remuxFile, 103: remuxFile}, true, "",
-			"fills 1 episode(s) with no file; 2 episode(s) keep their file (packs: any_upgradable)"},
-		{"fills only, all", "tv", map[int64]*ExistingFile{101: remuxFile, 103: remuxFile}, false, "DiskHigherPreference", ""},
-		{"every file at its best, any_upgradable", "tv-any",
-			map[int64]*ExistingFile{101: remuxFile, 102: remuxFile, 103: remuxFile}, false, "DiskHigherPreference", ""},
-		{"every file upgraded, both rules", "tv-any", map[int64]*ExistingFile{101: webFile, 102: webFile, 103: webFile}, true, "",
+		{"mixed", map[int64]*ExistingFile{101: webFile, 103: remuxFile}, true, "",
+			"better quality: Bluray-2160p over WEBDL-2160p; fills 1 episode(s) with no file; 1 episode(s) keep their file"},
+		{"fills only", map[int64]*ExistingFile{101: remuxFile, 103: remuxFile}, true, "",
+			"fills 1 episode(s) with no file; 2 episode(s) keep their file"},
+		{"every file at its best", map[int64]*ExistingFile{101: remuxFile, 102: remuxFile, 103: remuxFile}, false,
+			"DiskHigherPreference", ""},
+		{"every file upgraded", map[int64]*ExistingFile{101: webFile, 102: webFile, 103: webFile}, true, "",
 			"better quality: Bluray-2160p over WEBDL-2160p"},
-		// packs: threshold (Sonarr v5): 2 of 3 episodes upgradable (one filled, one upgraded) is 66.67%.
-		{"mixed, threshold 60", "tv-thr60", map[int64]*ExistingFile{101: webFile, 103: remuxFile}, true, "",
-			"better quality: Bluray-2160p over WEBDL-2160p; fills 1 episode(s) with no file; 1 episode(s) keep their file (packs: threshold)"},
-		{"mixed, threshold 70", "tv-thr70", map[int64]*ExistingFile{101: webFile, 103: remuxFile}, false, "DiskNotUpgrade", ""},
-		{"fills only, threshold 60", "tv-thr60", map[int64]*ExistingFile{101: remuxFile, 103: remuxFile}, false, "DiskNotUpgrade", ""},
-		{"every file at its best, threshold", "tv-thr60",
-			map[int64]*ExistingFile{101: remuxFile, 102: remuxFile, 103: remuxFile}, false, "DiskNotUpgrade", ""},
-		{"every file upgraded, threshold", "tv-thr70", map[int64]*ExistingFile{101: webFile, 102: webFile, 103: webFile}, true, "",
-			"better quality: Bluray-2160p over WEBDL-2160p"},
-		{"nothing on disk, threshold", "tv-thr70", nil, true, "", ""},
 	} {
 		tt := show()
 		for id, f := range c.files {
 			ep(&tt, id).File, ep(&tt, id).FileID = f, id
 		}
-		d, err := e.Decide(ctx, pack, tt, tvVersion(e, c.version), nil)
+		d, err := e.Decide(ctx, pack, tt, tvVersion(e, "tv"), nil)
 		if err != nil {
 			t.Fatalf("%s: %v", c.name, err)
 		}
@@ -329,31 +317,20 @@ func TestSeasonPackRule(t *testing.T) {
 		if c.accepted && c.upgrade != "" && (!d.Upgrade || d.UpgradeReason != c.upgrade) {
 			t.Errorf("%s: upgrade %v %q, want %q", c.name, d.Upgrade, d.UpgradeReason, c.upgrade)
 		}
-		if c.reason == "DiskNotUpgrade" && !strings.HasPrefix(d.Rejections[0].Message, "Season pack does not meet the upgrade criteria. Upgradable: ") {
-			t.Errorf("%s: message %q", c.name, d.Rejections[0].Message)
-		}
 	}
+}
 
-	// Threshold applies to full-season packs only (v5's scope): a multi-episode release keeps the all-files rule.
-	tt := show()
-	ep(&tt, 101).File, ep(&tt, 101).FileID = webFile, 101
-	ep(&tt, 102).File, ep(&tt, 102).FileID = remuxFile, 102
-	multi := rel("The.Show.S01E01E02.2160p.UHD.BluRay.x265.HDR-GRP", "public", 20*gb)
-	d, err := e.Decide(ctx, multi, tt, tvVersion(e, "tv-thr60"), nil)
+// TestDefaultSeriesLibraryRules: a series library with no parser or pack settings reads an anime episode range with
+// a subgroup as the whole range (v4plus) and accepts it.
+func TestDefaultSeriesLibraryRules(t *testing.T) {
+	t.Parallel()
+	e := seriesEngine(t)
+	d, err := e.Decide(context.Background(), rel("[PMR] The Show S01E01-03 (BD Remux 2160p HEVC FLAC)", "public", 60*gb),
+		show(), tvVersion(e, "tv"), nil)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if d.Accepted || len(d.Rejections) == 0 || d.Rejections[0].Reason != "DiskHigherPreference" {
-		t.Errorf("multi-episode under threshold: accepted %v %v, want DiskHigherPreference", d.Accepted, d.Rejections)
-	}
-	// The message is v5's, with "0.##" percentages.
-	tt = show()
-	ep(&tt, 101).File, ep(&tt, 101).FileID = webFile, 101
-	ep(&tt, 103).File, ep(&tt, 103).FileID = remuxFile, 103
-	if d, err = e.Decide(ctx, pack, tt, tvVersion(e, "tv-thr70"), nil); err != nil {
-		t.Fatal(err)
-	}
-	if want := "Season pack does not meet the upgrade criteria. Upgradable: 2/3 (66.67%), Mode: Threshold, Threshold: 70%"; len(d.Rejections) == 0 || d.Rejections[0].Message != want {
-		t.Errorf("message %v, want %q", d.Rejections, want)
+	if !d.Accepted || strings.Join(d.Episodes, ",") != "S01E01,S01E02,S01E03" {
+		t.Errorf("S01E01-03: accepted %v %v, episodes %v", d.Accepted, d.Rejections, d.Episodes)
 	}
 }

@@ -80,13 +80,9 @@ func (l *Library) rescope(ctx context.Context, d *importDownload, files []Planne
 	for _, e := range all {
 		byID[e.ID] = e
 	}
-	sv := ""
-	if v.Policy != nil {
-		sv = v.Policy.Sonarr
-	}
 	// placed is where a file that passes the import guards maps (nothing for one that does not).
 	placed := func(t *decide.Title, f PlannedFile, m *decide.EpisodeMap) (decide.FileEpisodes, bool) {
-		res, err := decide.ResolveFile(t, sv, decide.FileInput{Path: f.Rel, Release: d.ReleaseTitle, Folder: d.Name,
+		res, err := decide.ResolveFile(t, decide.FileInput{Path: f.Rel, Release: d.ReleaseTitle, Folder: d.Name,
 			OtherVideoFiles: len(files) > 1, Mapping: m})
 		if err != nil || res.Refused != "" || len(res.EpisodeIDs) == 0 {
 			return res, false
@@ -293,11 +289,7 @@ func (r *resolver) episodes(rel string, taken map[int64]bool) (eps []episodeInfo
 			return eps, f.How, "", nil
 		}
 	}
-	sv := ""
-	if p := r.d.Version.Policy; p != nil {
-		sv = p.Sonarr
-	}
-	res, err := decide.ResolveFile(r.title, sv, decide.FileInput{Path: rel, Release: r.d.ReleaseTitle,
+	res, err := decide.ResolveFile(r.title, decide.FileInput{Path: rel, Release: r.d.ReleaseTitle,
 		Folder: r.d.Name, OtherVideoFiles: r.pack, Mapping: r.d.EpisodeMap})
 	if err != nil {
 		return nil, "", "ambiguous: " + err.Error(), nil

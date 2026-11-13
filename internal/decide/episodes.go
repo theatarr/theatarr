@@ -12,7 +12,6 @@ import (
 	"github.com/theatarr/theatarr/internal/decide/parser/sonarr"
 	"github.com/theatarr/theatarr/internal/decide/profile"
 	"github.com/theatarr/theatarr/internal/indexer"
-	"github.com/theatarr/theatarr/internal/policy"
 )
 
 // decideSeries is Sonarr's DownloadDecisionMaker.GetDecisions for one release and one series version: parse (with
@@ -20,12 +19,8 @@ import (
 // formats and score, and run the specifications with every mapped episode's file.
 func (e *Engine) decideSeries(ctx context.Context, d *Decision, p *Profile, rel Release, t *Title, v Version, search *SeriesSearch) error {
 	fl := format.Sonarr
-	ver, err := sonarr.ParseVersion(v.Policy.Sonarr)
-	if err != nil {
-		return fmt.Errorf("decide: version %s: %w", v.Key, err)
-	}
-	s := seriesFor(ctx, t, ver)
-	parsed := s.parseRelease(ctx, rel.Release, search)
+	s := seriesFor(ctx, t)
+	parsed := s.parseRelease(rel.Release, search)
 	if rel.Manual != nil {
 		if parsed == nil {
 			parsed = s.parseTitle(t.Name + ".S01E01")
@@ -38,16 +33,15 @@ func (e *Engine) decideSeries(ctx context.Context, d *Decision, p *Profile, rel 
 		}
 	}
 	if parsed == nil || strings.TrimSpace(parsed.SeriesTitle) == "" {
-		q := ver.ParseQuality(rel.Title)
+		q := sonarr.ParseQuality(rel.Title)
 		d.Quality, d.Revision = q.Quality.Name, profile.Revision{Version: q.Revision.Version, Real: q.Revision.Real}
 		d.Rejections = append(e.ourRules(rel, v), Rejection{Reason: "UnableToParse", Message: "Unable to parse release"})
 		return nil
 	}
 	d.Parsed = true
 	d.SeriesTitle = parsed.SeriesTitle
-	if season, ok := decisionSeason(parsed); ok {
-		d.Season = &season
-	}
+	season := parsed.SeasonNumber
+	d.Season = &season
 	d.Numbers, d.Absolute = parsed.EpisodeNumbers, parsed.AbsoluteEpisodeNumbers
 	d.ReleaseType = parsed.ReleaseType().String()
 	if parsed.ReleaseGroup != nil {
@@ -78,7 +72,7 @@ func (e *Engine) decideSeries(ctx context.Context, d *Decision, p *Profile, rel 
 			}
 		}
 	}
-	if !r.matched && t.AnimeMap.Named(ver.CleanSeriesTitle(parsed.SeriesTitle), rel.Title, ver.CleanSeriesTitle) {
+	if !r.matched && t.AnimeMap.Named(sonarr.CleanSeriesTitle(parsed.SeriesTitle), rel.Title, sonarr.CleanSeriesTitle) {
 		r.matched, r.matchType, r.episodes = true, MatchAlias, nil // a franchise entry's name or an alternate cut
 	}
 	if !r.matched {
@@ -112,7 +106,7 @@ func (e *Engine) decideSeries(ctx context.Context, d *Decision, p *Profile, rel 
 	ar := &adapt.Release{Title: rel.Title, Size: rel.Size, IndexerFlags: flags,
 		Languages:      languageIDs(fl, rel.Languages),
 		MultiLanguages: languageIDs(fl, indexerMulti(e.Policy, rel.Indexer))}
-	if len(ar.Languages) == 0 && len(ar.MultiLanguages) > 0 && ver.HasMultipleLanguages(rel.Title) {
+	if len(ar.Languages) == 0 && len(ar.MultiLanguages) > 0 && sonarr.HasMultipleLanguages(rel.Title) {
 		ar.Languages = append([]int{}, ar.MultiLanguages...)
 	}
 	var epTitles []adapt.Episode
@@ -185,13 +179,6 @@ func (e *Engine) decideSeries(ctx context.Context, d *Decision, p *Profile, rel 
 	if parsed.ReleaseGroup != nil {
 		pr.ReleaseGroup = *parsed.ReleaseGroup
 	}
-	if parsed.Parser == sonarr.V5 {
-		pr.V5, pr.SeasonNumbers = true, parsed.SeasonNumbers
-		if !r.noMappedSeason {
-			x := r.mappedSeason
-			pr.MappedSeasonNumber = &x
-		}
-	}
 	if rel.Usenet {
 		pr.Protocol = profile.ProtocolUsenet
 	} else {
@@ -232,19 +219,12 @@ func (e *Engine) decideSeries(ctx context.Context, d *Decision, p *Profile, rel 
 	}
 
 	// Upgrade: the release upgrades every file it replaces (UpgradeDisk rejects it otherwise); the reason is the
-	// first file's. A release whose episodes have no file fills them. Under packs: any_upgradable (and threshold, for
-	// a full-season pack) an accepted pack may keep some files: the reason is the first upgraded file's, or the
-	// episodes it fills.
+	// first file's. A release whose episodes have no file fills them. A series version takes a pack that upgrades or
+	// fills any episode (AcceptReleaseAnyUpgradable), so an accepted pack may keep some files: the reason is the first
+	// upgraded file's, or the episodes it fills.
 	if firstFile != nil {
 		file, kept := firstFile, 0
-		rule := ""
-		switch {
-		case p.Engine.Config.AcceptReleaseAnyUpgradable:
-			rule = policy.PacksAnyUpgradable
-		case p.Engine.Config.SeasonPackUpgradeThreshold > 0 && pr.FullSeason:
-			rule = policy.PacksThreshold
-		}
-		if rule != "" && len(d.Rejections) == 0 {
+		if p.Engine.Config.AcceptReleaseAnyUpgradable && len(d.Rejections) == 0 {
 			file, kept = firstUpgraded(p, episodes, qm, matched)
 		}
 		if file == nil {
@@ -259,22 +239,10 @@ func (e *Engine) decideSeries(ctx context.Context, d *Decision, p *Profile, rel 
 			}
 		}
 		if d.Upgrade && kept > 0 {
-			d.UpgradeReason += fmt.Sprintf("; %d episode(s) keep their file (packs: %s)", kept, rule)
+			d.UpgradeReason += fmt.Sprintf("; %d episode(s) keep their file", kept)
 		}
 	}
 	return nil
-}
-
-// decisionSeason is the season the decision reports: the parsed season; for a v5 parse the first of SeasonNumbers,
-// none when it has none (a season-title release).
-func decisionSeason(p *sonarr.ParsedEpisodeInfo) (int, bool) {
-	if p.Parser == sonarr.V5 {
-		if len(p.SeasonNumbers) == 0 {
-			return 0, false
-		}
-		return p.SeasonNumbers[0], true
-	}
-	return p.SeasonNumber, true
 }
 
 // firstUpgraded is the first episode file the release upgrades (cutoff not met and an upgrade, as UpgradeDisk

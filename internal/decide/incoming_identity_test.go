@@ -16,7 +16,7 @@ func TestIncomingRejectsConflictingIdentity(t *testing.T) {
 		map[int64][]int{1: {1}}, 1)
 	rel := indexer.Release{Title: "Movie 2020 1080p", InfoHash: b, Magnet: indexer.BareMagnet(a)}
 	rel = RefreshSeaDexRelease(ctx, rel) // loadLinkedMetadata
-	f := LinkedFile("movie", "", Release{Release: rel}, "Bluray-1080p")
+	f := LinkedFile("movie", Release{Release: rel}, "Bluray-1080p")
 	t.Logf("after RefreshSeaDexRelease (upgrade gate view): rank=%d entry=%d", f.SeaDexPreference, f.SeaDexEntry)
 	ResolveIncomingSeaDexFile(ctx, nil, f, nil) // apply.go:68
 	t.Logf("after ResolveIncomingSeaDexFile (stored metadata/state): rank=%d entry=%d", f.SeaDexPreference, f.SeaDexEntry)
@@ -51,7 +51,7 @@ func TestIncomingEntryOnlyBreaksCoveringTies(t *testing.T) {
 		{"unknown scope", nil, 0, 0},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			f := LinkedFile("series", "", Release{Release: indexer.Release{InfoHash: hash, Extras: map[string]string{"anilist": "12"}}}, "WEBDL-1080p")
+			f := LinkedFile("series", Release{Release: indexer.Release{InfoHash: hash, Extras: map[string]string{"anilist": "12"}}}, "WEBDL-1080p")
 			ResolveIncomingSeaDexFile(ctx, title, f, tc.ids)
 			if f.SeaDexPreference != tc.rank || f.SeaDexEntry != tc.entry {
 				t.Fatalf("rank/entry=%d/%d want %d/%d", f.SeaDexPreference, f.SeaDexEntry, tc.rank, tc.entry)

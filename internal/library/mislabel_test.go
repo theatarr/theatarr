@@ -22,13 +22,13 @@ func mbps(m float64) int64 { return int64(m * 1e6 * 7200 / 8) }
 
 func TestMislabelCheck(t *testing.T) {
 	t.Parallel()
-	uhdRemux := claimOf("Frankenstein.2025.2160p.UHD.BluRay.REMUX.DV.HDR.HEVC.TrueHD.Atmos-GRP", "movie", "")
-	fhdRemux := claimOf("Frankenstein.2025.1080p.BluRay.REMUX.AVC.DTS-HD.MA.5.1-GRP", "movie", "")
-	uhdWeb := claimOf("Frankenstein.2025.2160p.NF.WEB-DL.DDP5.1.HDR.H.265-GRP", "movie", "")
+	uhdRemux := claimOf("Frankenstein.2025.2160p.UHD.BluRay.REMUX.DV.HDR.HEVC.TrueHD.Atmos-GRP", "movie")
+	fhdRemux := claimOf("Frankenstein.2025.1080p.BluRay.REMUX.AVC.DTS-HD.MA.5.1-GRP", "movie")
+	uhdWeb := claimOf("Frankenstein.2025.2160p.NF.WEB-DL.DDP5.1.HDR.H.265-GRP", "movie")
 	if !uhdRemux.Remux || uhdRemux.Resolution != 2160 || !fhdRemux.Remux || fhdRemux.Resolution != 1080 || uhdWeb.Remux {
 		t.Fatalf("claims %+v %+v %+v", uhdRemux, fhdRemux, uhdWeb)
 	}
-	if c := claimOf("Show.S01E01.2160p.UHD.BluRay.Remux.HEVC-GRP", "series", ""); !c.Remux || c.Resolution != 2160 {
+	if c := claimOf("Show.S01E01.2160p.UHD.BluRay.Remux.HEVC-GRP", "series"); !c.Remux || c.Resolution != 2160 {
 		t.Fatalf("series claim %+v", c)
 	}
 	for _, tc := range []struct {
@@ -81,52 +81,52 @@ func TestMislabelCheck(t *testing.T) {
 // A pack's file is judged by its own name's label when it has one.
 func TestMislabelFileClaim(t *testing.T) {
 	t.Parallel()
-	pack := claimOf("Show.S01.2160p.BluRay.REMUX-PACK", "series", "")
+	pack := claimOf("Show.S01.2160p.BluRay.REMUX-PACK", "series")
 	web := &PlannedFile{Rel: "Show.S01E01.1080p.WEB-DL-FILE.mkv", Size: mbps(5), Probe: probed("h264", 1920, 1080, "", "")}
-	if c := fileClaim(pack, web, "series", ""); c.Remux || c.Resolution != 1080 {
+	if c := fileClaim(pack, web, "series"); c.Remux || c.Resolution != 1080 {
 		t.Errorf("file claim %+v", c)
 	}
-	if refuse, _ := mislabelCheck(fileClaim(pack, web, "series", ""), web); refuse != "" {
+	if refuse, _ := mislabelCheck(fileClaim(pack, web, "series"), web); refuse != "" {
 		t.Errorf("a WEB-DL file in a remux pack refused: %s", refuse)
 	}
 	bare := &PlannedFile{Rel: "Show.S01E02.mkv", Size: mbps(5), Probe: probed("h264", 1920, 1080, "", "")}
-	if c := fileClaim(pack, bare, "series", ""); c != pack {
+	if c := fileClaim(pack, bare, "series"); c != pack {
 		t.Errorf("a bare name takes the release's claim: %+v", c)
 	}
 	// A name with only a resolution keeps the release's Remux claim: the CRF encode is refused.
-	remux := claimOf("Amelie.2001.2160p.BDRemux.HEVC.TrueHD.7.1-FAN", "movie", "")
+	remux := claimOf("Amelie.2001.2160p.BDRemux.HEVC.TrueHD.7.1-FAN", "movie")
 	resOnly := &PlannedFile{Rel: "Amelie.2001.2160p.mkv", Size: mbps(25), Probe: probed("hevc", 3840, 1600, "x265", "crf=18.0")}
-	if c := fileClaim(remux, resOnly, "movie", ""); !c.Remux || c.Resolution != 2160 {
+	if c := fileClaim(remux, resOnly, "movie"); !c.Remux || c.Resolution != 2160 {
 		t.Errorf("resolution-only movie file claim %+v", c)
 	}
-	if refuse, _ := mislabelCheck(fileClaim(remux, resOnly, "movie", ""), resOnly); refuse != "mislabelled remux: x265 encode with crf=18.0 (disc video is never CRF)" {
+	if refuse, _ := mislabelCheck(fileClaim(remux, resOnly, "movie"), resOnly); refuse != "mislabelled remux: x265 encode with crf=18.0 (disc video is never CRF)" {
 		t.Errorf("a resolution-only file in a remux release: %q", refuse)
 	}
 	ep := &PlannedFile{Rel: "Show.S01E03.1080p.mkv"}
-	if c := fileClaim(pack, ep, "series", ""); !c.Remux || c.Resolution != 1080 {
+	if c := fileClaim(pack, ep, "series"); !c.Remux || c.Resolution != 1080 {
 		t.Errorf("resolution-only episode claim %+v", c)
 	}
 	// A name with a source but no resolution keeps the release's 2160p: the parser's inferred 1080p is no claim.
 	noRes := &PlannedFile{Rel: "Amelie.2001.BluRay.REMUX.mkv", Size: mbps(40), Probe: probed("h264", 1920, 1080, "", "")}
-	if c := fileClaim(remux, noRes, "movie", ""); !c.Remux || c.Resolution != 2160 {
+	if c := fileClaim(remux, noRes, "movie"); !c.Remux || c.Resolution != 2160 {
 		t.Errorf("source-only movie file claim %+v", c)
 	}
-	if refuse, _ := mislabelCheck(fileClaim(remux, noRes, "movie", ""), noRes); refuse != "mislabelled 2160p: the video is 1920x1080" {
+	if refuse, _ := mislabelCheck(fileClaim(remux, noRes, "movie"), noRes); refuse != "mislabelled 2160p: the video is 1920x1080" {
 		t.Errorf("a 1080-line source-only file in a 2160p release: %q", refuse)
 	}
-	if c := fileClaim(pack, &PlannedFile{Rel: "Show.S01E04.BluRay.REMUX.mkv"}, "series", ""); !c.Remux || c.Resolution != 2160 {
+	if c := fileClaim(pack, &PlannedFile{Rel: "Show.S01E04.BluRay.REMUX.mkv"}, "series"); !c.Remux || c.Resolution != 2160 {
 		t.Errorf("source-only episode claim %+v", c)
 	}
 	// Another source without a resolution claims no resolution: a 1080-line HDTV file in a 2160p remux pack is no lie.
 	hdtvEp := &PlannedFile{Rel: "Show.S01E05.HDTV.mkv", Size: mbps(8), Probe: probed("h264", 1920, 1080, "", "")}
-	if c := fileClaim(pack, hdtvEp, "series", ""); c.Remux || c.Resolution != 0 {
+	if c := fileClaim(pack, hdtvEp, "series"); c.Remux || c.Resolution != 0 {
 		t.Errorf("source-only HDTV episode claim %+v", c)
 	}
-	if refuse, _ := mislabelCheck(fileClaim(pack, hdtvEp, "series", ""), hdtvEp); refuse != "" {
+	if refuse, _ := mislabelCheck(fileClaim(pack, hdtvEp, "series"), hdtvEp); refuse != "" {
 		t.Errorf("a 1080-line HDTV file in a 2160p remux pack refused: %q", refuse)
 	}
 	hdtv := &PlannedFile{Rel: "Amelie.2001.2160p.HDTV.mkv"}
-	if c := fileClaim(remux, hdtv, "movie", ""); c.Remux {
+	if c := fileClaim(remux, hdtv, "movie"); c.Remux {
 		t.Errorf("a file naming its source is judged by it: %+v", c)
 	}
 }

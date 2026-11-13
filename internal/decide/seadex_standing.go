@@ -520,7 +520,7 @@ func RefreshSeaDexRelease(ctx context.Context, r indexer.Release) indexer.Releas
 		return r
 	}
 	r.InfoHash = h
-	f := LinkedFile("movie", "", Release{Release: r}, "Unknown")
+	f := LinkedFile("movie", Release{Release: r}, "Unknown")
 	f.SceneName = ""
 	f.SeaDexPreference, f.SeaDex = 0, format.SeaDexNone
 	state := seaDexView(ctx)

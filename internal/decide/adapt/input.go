@@ -51,18 +51,6 @@ var sonarrLangs = langOps{
 	multi:     sonarr.HasMultipleLanguages,
 }
 
-// sonarrLangsOf is sonarrLangs with the language parser of the Sonarr version that made the parse (v5, v4plus).
-func sonarrLangsOf(v sonarr.Version) langOps {
-	if v == sonarr.V4 {
-		return sonarrLangs
-	}
-	return langOps{
-		parse:     func(s string) []int { return sonarrIDs(v.ParseLanguages(s)) },
-		normalize: sonarr.NormalizeEpisodeTitle,
-		multi:     v.HasMultipleLanguages,
-	}
-}
-
 // Radarr builds the format input for a Radarr parse, as ParseCustomFormat(remoteMovie, 0) sees it after mapping and
 // augmentation. m is the mapped movie, or nil. A nil parse gives a nil input: the arr computes no formats then.
 func Radarr(p *radarr.ParsedMovieInfo, m *Movie) (*format.Input, error) {
@@ -151,8 +139,7 @@ func SonarrRelease(p *sonarr.ParsedEpisodeInfo, s *Series, episodes []Episode, r
 		original = s.OriginalLanguage
 		in.Media = &format.Media{Year: s.Year, OriginalLanguage: s.OriginalLanguage}
 	}
-	ops := sonarrLangsOf(p.Parser)
-	if in.Languages, in.LanguagesAssumed, err = aggregateLanguages(ops, sonarrIDs(p.Languages), tokens, s != nil, titles,
+	if in.Languages, in.LanguagesAssumed, err = aggregateLanguages(sonarrLangs, sonarrIDs(p.Languages), tokens, s != nil, titles,
 		original, rel); err != nil {
 		return nil, err
 	}

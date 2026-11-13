@@ -269,14 +269,9 @@ func TestLoadSeriesVersion(t *testing.T) {
 	if t2.OriginalTitle != "Isekai Monogatari Gaiden" {
 		t.Errorf("original title %q", t2.OriginalTitle)
 	}
-	v5 := v
-	p5 := *v.Policy
-	p5.Sonarr = "v5"
-	v5.Policy = &p5
 	d4, _ := e.Decide(ctx, rel("[G] Isekai Monogatari Gaiden - 01-02 (BD 1080p)", "public", 3*gb), t2, v, nil)
-	d5, _ := e.Decide(ctx, rel("[G] Isekai Monogatari Gaiden - 01-02 (BD 1080p)", "public", 3*gb), t2, v5, nil)
-	if reasons(d4) != "UnknownSeries" || !d5.Accepted || d5.MatchType != MatchTitle {
-		t.Errorf("original title: v4 %s, v5 %s %s", reasons(d4), reasons(d5), d5.MatchType)
+	if reasons(d4) != "UnknownSeries" {
+		t.Errorf("original title: %s", reasons(d4))
 	}
 	// S2 by scene mapping, but the episode is not monitored in this version (RSS path).
 	d, _ = e.Decide(ctx, rel("[G] Isekai Story S2 - 01 (BD 1080p)", "public", 2*gb), tt, v, nil)

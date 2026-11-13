@@ -55,7 +55,7 @@ func TestResolveFile(t *testing.T) {
 		{"unparseable", show(), FileInput{Path: "random.mkv", OtherVideoFiles: true}, "[] "},
 	}
 	for _, c := range cases {
-		got, err := ResolveFile(&c.t, "", c.in)
+		got, err := ResolveFile(&c.t, c.in)
 		if err != nil {
 			t.Errorf("%s: %v", c.name, err)
 			continue

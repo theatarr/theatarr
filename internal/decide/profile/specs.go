@@ -5,7 +5,6 @@ package profile
 
 import (
 	"fmt"
-	"math"
 	"strconv"
 	"strings"
 	"time"
@@ -341,9 +340,6 @@ func upgradeDisk(e *Engine, s *Subject) Decision {
 	if e.Flavour == format.Sonarr && e.Config.AcceptReleaseAnyUpgradable {
 		return upgradeDiskAny(e, s)
 	}
-	if e.Flavour == format.Sonarr && e.Config.SeasonPackUpgradeThreshold > 0 && s.Release != nil && s.Release.FullSeason {
-		return upgradeDiskSeasonPackThreshold(e, s)
-	}
 	for _, file := range e.files(s) {
 		if d, upgradable := upgradeDiskFile(e, s, file); !upgradable {
 			return d
@@ -377,44 +373,6 @@ func upgradeDiskAny(e *Engine, s *Subject) Decision {
 		return Accept()
 	}
 	return *rejection
-}
-
-// upgradeDiskSeasonPackThreshold is the full-season branch of Sonarr v5's UpgradeDiskSpecification (develop @
-// a6171f0ca, PR #7975 cf6b21aef) under SeasonPackUpgrade = Threshold: episodes with no file count as upgradable,
-// and so does each existing file the release upgrades (cutoff not met and IsUpgradable None); the pack is accepted
-// when the upgradable share reaches the threshold, else rejected with DiskNotUpgrade. v5's All and Any modes are not
-// used: all stays v4's rule and any_upgradable the fork's.
-func upgradeDiskSeasonPackThreshold(e *Engine, s *Subject) Decision {
-	total := len(s.Episodes)
-	if total == 0 {
-		return Accept()
-	}
-	upgraded, existing := 0, 0
-	for _, ep := range s.Episodes {
-		if ep.File == nil {
-			upgraded++
-			continue
-		}
-		existing++
-		if _, ok := upgradeDiskFile(e, s, ep.File); ok {
-			upgraded++
-		}
-	}
-	if existing == 0 {
-		return Accept()
-	}
-	threshold := e.Config.SeasonPackUpgradeThreshold
-	pct := float64(upgraded) / float64(total) * 100
-	if pct >= threshold {
-		return Accept()
-	}
-	return Reject(ReasonDiskNotUpgrade, fmt.Sprintf("Season pack does not meet the upgrade criteria. Upgradable: %d/%d (%s%%), Mode: Threshold, Threshold: %s%%",
-		upgraded, total, netPercent(pct), strconv.FormatFloat(threshold, 'f', -1, 64)))
-}
-
-// netPercent is .NET's "0.##" format: at most two decimals, trailing zeros dropped.
-func netPercent(x float64) string {
-	return strconv.FormatFloat(math.Round(x*100)/100, 'f', -1, 64)
 }
 
 // upgradeDiskFile is the loop body of UpgradeDiskSpecification for one existing file: whether the release upgrades

@@ -14,7 +14,7 @@ func TestMovieProperSearchAndSeeders(t *testing.T) {
 	t.Parallel()
 	e := testEngine(t)
 	r := rel("Dune.Part.Two.2024.PROPER.2160p.MA.WEB-DL.DDP5.1-FLUX", "public", 25*gb)
-	f := LinkedFile(policy.KindMovie, "", rel("Dune.Part.Two.2024.2160p.MA.WEB-DL.DDP5.1-FLUX", "public", 25*gb), "WEBDL-2160p")
+	f := LinkedFile(policy.KindMovie, rel("Dune.Part.Two.2024.2160p.MA.WEB-DL.DDP5.1-FLUX", "public", 25*gb), "WEBDL-2160p")
 	f.Added = time.Date(2020, 1, 1, 0, 0, 0, 0, time.UTC)
 	d, err := e.Decide(context.Background(), r, dune, Version{Key: "movie-remux"}, f)
 	if err != nil || reasons(d) != "ProperForOldFile" {

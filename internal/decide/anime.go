@@ -81,13 +81,13 @@ func (s *series) franchiseEpisodes(p *sonarr.ParsedEpisodeInfo, releaseTitle str
 	if len(nums) == 0 || p.FullSeason || p.Special {
 		return nil, "", "", false, nil, nil
 	}
-	clean := s.ver.CleanSeriesTitle(p.SeriesTitle)
+	clean := sonarr.CleanSeriesTitle(p.SeriesTitle)
 	var fit *animemap.Entry
 	var namedEntries []*animemap.Entry
 	for _, e := range am.Entries {
 		named := false
 		for _, n := range e.Names {
-			if s.ver.CleanSeriesTitle(n) == clean {
+			if sonarr.CleanSeriesTitle(n) == clean {
 				named = true
 				break
 			}
@@ -176,8 +176,7 @@ func (s *series) applyAnimeMap(d *Decision, p *sonarr.ParsedEpisodeInfo, rel Rel
 			if err != nil {
 				return nil, err
 			}
-			r.mappedSeason, r.noMappedSeason, r.sceneMapping, r.episodes = known.mappedSeason, known.noMappedSeason,
-				known.sceneMapping, known.episodes
+			r.mappedSeason, r.sceneMapping, r.episodes = known.mappedSeason, known.sceneMapping, known.episodes
 		}
 	}
 	var fallback []AnimeFallback

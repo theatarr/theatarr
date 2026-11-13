@@ -6,7 +6,7 @@ import (
 	"testing"
 )
 
-// TestV4Plus covers every row of the v4plus change table (parser_v4plus.go, docs/design/sonarr-v5.md) with a corpus
+// TestV4Plus covers every row of the v4plus change table (parser_v4plus.go) with a corpus
 // title, and each v5 regression class it must not show. want is the parse as "S<season>E<episodes> | languages |
 // group | quality"; v4 is what plain v4 gives, to show the change.
 func TestV4Plus(t *testing.T) {
@@ -81,15 +81,11 @@ func TestV4Plus(t *testing.T) {
 	}
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
-			p := V4Plus.ParseTitle(c.title)
-			if got := summarizeV4Plus(p); got != c.want {
+			if got := summarizeV4Plus(ParseTitle(c.title)); got != c.want {
 				t.Errorf("v4plus %q\n got %s\nwant %s", c.title, got, c.want)
 			}
-			if p != nil && p.Parser != V4Plus {
-				t.Errorf("parse marked %v, want v4plus", p.Parser)
-			}
 			if c.v4 != "" {
-				if got := summarizeV4Plus(V4.ParseTitle(c.title)); got != c.v4 {
+				if got := summarizeV4Plus(v4d.parseTitle(c.title)); got != c.v4 {
 					t.Errorf("v4 %q\n got %s\nwant %s", c.title, got, c.v4)
 				}
 			}
@@ -134,7 +130,7 @@ func TestV4PlusSubtitleLanguages(t *testing.T) {
 		"[Erai-raws].Akuyaku.Reijou.Level.99.-.06.[1080p][Multiple.Subtitle].[ENG][POR-BR][SPA-LA][SPA][ARA][FRE][GER][ITA][RUS]": "Unknown",
 	} {
 		var got []string
-		for _, l := range V4Plus.ParseLanguages(title) {
+		for _, l := range ParseLanguages(title) {
 			got = append(got, l.Name)
 		}
 		if g := strings.Join(got, ","); g != want {
@@ -143,17 +139,22 @@ func TestV4PlusSubtitleLanguages(t *testing.T) {
 	}
 }
 
-// TestV4PlusVersion checks the policy names.
-func TestV4PlusVersion(t *testing.T) {
+// TestExportedParserIsV4Plus checks that the package's plain functions are V4Plus, not the v4 base: the three titles
+// where the two differ most in practice.
+func TestExportedParserIsV4Plus(t *testing.T) {
 	t.Parallel()
-	v, err := ParseVersion("v4plus")
-	if err != nil || v != V4Plus || v.String() != VersionNameV4Plus {
-		t.Fatalf("ParseVersion(v4plus) = %v, %v", v, err)
+	p := ParseTitle("[PMR] Re ZERO Starting Life in Another World S03E01-12 (BD Remux 1080p AVC FLAC E-AC-3) [Dual Audio]")
+	if p == nil || len(p.EpisodeNumbers) != 12 {
+		t.Errorf("S03E01-12: %v, want 12 episodes", p)
 	}
-	if V4Plus.ParseSeasonTitle("[Group] Series Title Curse (BD 1080p)") != nil {
-		t.Error("v4plus has no season-title parse")
+	if q := ParseQuality("Silo.S03E02.MULTi.VFF.2160p.HDR.WEB.EAC3.Atmos.5.1.H265-MRD").Quality; q != QualityWEBDL2160p {
+		t.Errorf("WEB EAC3: %v, want WEBDL-2160p", q)
 	}
-	if len(V4Plus.Languages()) != len(V4.Languages()) {
-		t.Error("v4plus keeps v4's languages")
+	var langs []string
+	for _, l := range ParseLanguages("The Expanse 2015 S06E06 Ger Eng DL EAC3 2160p DV HDR AMZN WEB H265-ZeroTwo mkv") {
+		langs = append(langs, l.Name)
+	}
+	if g := strings.Join(langs, ","); g != "German,English" {
+		t.Errorf("Ger Eng DL: %s, want German,English", g)
 	}
 }

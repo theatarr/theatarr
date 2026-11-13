@@ -33,7 +33,7 @@ func TestAggregateSeriesFile(t *testing.T) {
 			FileFacts{Quality: "Bluray-1080p", Revision: 1, ReleaseGroup: "Group", ReleaseHash: "ABCD1234"}},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			got, err := AggregateSeriesFile("", tc.in)
+			got, err := AggregateSeriesFile(tc.in)
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -41,9 +41,6 @@ func TestAggregateSeriesFile(t *testing.T) {
 				t.Errorf("got  %+v\nwant %+v", got, tc.want)
 			}
 		})
-	}
-	if _, err := AggregateSeriesFile("v9", ImportFile{Path: "x.mkv"}); err == nil {
-		t.Error("an unknown parser dialect was accepted")
 	}
 }
 

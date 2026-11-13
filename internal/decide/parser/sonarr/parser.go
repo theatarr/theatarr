@@ -363,16 +363,12 @@ var numbers = []string{"zero", "one", "two", "three", "four", "five", "six", "se
 var now = time.Now
 
 // ParsePath is Parser.ParsePath.
-func ParsePath(path string) *ParsedEpisodeInfo { return v4d.parsePath(path) }
+func ParsePath(path string) *ParsedEpisodeInfo { return v4plusd.parsePath(path) }
 
 func (d *dialect) parsePath(path string) *ParsedEpisodeInfo {
 	name := pathFileName(path)
 	dirName, hasDir := pathDirectoryName(path)
 	ext := pathGetExtension(name)
-	// v5: ParserCommon.PathPreSubstitutionRegex on the file name (none in v4).
-	for _, r := range d.pathPreSubstitution {
-		r.TryReplace(&name)
-	}
 	result := d.parseTitle(name)
 
 	// Parse using the folder and file separately, but combine if they both parse correctly.
@@ -462,7 +458,7 @@ func (e invalidDateError) Error() string { return string(e) }
 
 // ParseTitle is Parser.ParseTitle. It returns nil where Sonarr returns null, including when Sonarr catches an
 // exception thrown while parsing.
-func ParseTitle(title string) *ParsedEpisodeInfo { return v4d.parseTitle(title) }
+func ParseTitle(title string) *ParsedEpisodeInfo { return v4plusd.parseTitle(title) }
 
 func (d *dialect) parseTitle(title string) (result *ParsedEpisodeInfo) {
 	defer func() {
@@ -546,9 +542,6 @@ func (d *dialect) parseTitle(title string) (result *ParsedEpisodeInfo) {
 
 		res.ReleaseHash = getReleaseHash(ms)
 
-		if d.v4plus {
-			res.Parser = V4Plus
-		}
 		return res
 	}
 
@@ -556,7 +549,7 @@ func (d *dialect) parseTitle(title string) (result *ParsedEpisodeInfo) {
 }
 
 // ParseSeriesName is Parser.ParseSeriesName.
-func ParseSeriesName(title string) string { return v4d.parseSeriesName(title) }
+func ParseSeriesName(title string) string { return v4plusd.parseSeriesName(title) }
 
 func (d *dialect) parseSeriesName(title string) string {
 	parseResult := d.parseTitle(title)
@@ -569,7 +562,7 @@ func (d *dialect) parseSeriesName(title string) string {
 }
 
 // CleanSeriesTitle is Parser.CleanSeriesTitle.
-func CleanSeriesTitle(title string) string { return v4d.cleanSeriesTitle(title) }
+func CleanSeriesTitle(title string) string { return v4plusd.cleanSeriesTitle(title) }
 
 func (d *dialect) cleanSeriesTitle(title string) string {
 	if strings.TrimSpace(title) == "" {
@@ -584,9 +577,6 @@ func (d *dialect) cleanSeriesTitle(title string) string {
 	// Replace `%` with `percent` to deal with the 3% case
 	title = replace(percentRegex, title, "percent")
 
-	if d.v5 {
-		return removeDiacritics(strings.ToLower(normalizeRegex.Replace(title)))
-	}
 	return removeAccent(strings.ToLower(normalizeRegex.Replace(title)))
 }
 
@@ -636,7 +626,7 @@ func NormalizeImdbID(imdbID string) string {
 }
 
 // ParseReleaseGroup is Parser.ParseReleaseGroup. It returns nil where Sonarr returns null.
-func ParseReleaseGroup(title string) *string { return v4d.parseReleaseGroup(title) }
+func ParseReleaseGroup(title string) *string { return v4plusd.parseReleaseGroup(title) }
 
 func (d *dialect) parseReleaseGroup(title string) *string {
 	title = trimDotNet(title)
@@ -696,7 +686,7 @@ func RemoveFileExtension(title string) string {
 }
 
 // HasMultipleLanguages is Parser.HasMultipleLanguages.
-func HasMultipleLanguages(title string) bool { return isMatch(multiRegex, title) }
+func HasMultipleLanguages(title string) bool { return isMatch(v4plusd.multi, title) }
 
 func (d *dialect) getSeriesTitleInfo(title string, ms []*regexp2.Match) *SeriesTitleInfo {
 	info := &SeriesTitleInfo{Title: title}
@@ -808,8 +798,6 @@ func (d *dialect) parseMatchCollection(ms []*regexp2.Match, releaseTitle string)
 				if strings.TrimSpace(seasonPart) != "" {
 					result.SeasonPart = convertToInt32(seasonPart)
 					result.IsPartialSeason = true
-				} else if d.v5 && success(m0, "special") {
-					result.Special = true
 				} else {
 					result.FullSeason = true
 				}
@@ -830,11 +818,7 @@ func (d *dialect) parseMatchCollection(ms []*regexp2.Match, releaseTitle string)
 			}
 		}
 
-		if d.v5 {
-			d.setSeasons5(result, seasons)
-		} else {
-			setSeasons4(result, seasons)
-		}
+		setSeasons4(result, seasons)
 	} else {
 		// Try to Parse as a daily show
 		var err error
@@ -891,27 +875,14 @@ func (d *dialect) parseDaily(m0 *regexp2.Match, releaseTitle string, airYear int
 
 		airmonth = ambiguousAirMonth
 		airday = ambiguousAirDay
-	case d.v5 && success(m0, "shortairmonth"):
-		shortMonthValue := value(m0, "shortairmonth")
-		shortMonth, ok := shortMonths[strings.ToLower(shortMonthValue)]
-		if !ok {
-			return nil, invalidDateError(fmt.Sprintf("Unable to determine air month from month: %s", shortMonthValue))
-		}
-		airmonth = shortMonth
-		airday = convertToInt32(value(m0, "airday"))
 	default:
 		airmonth = convertToInt32(value(m0, "airmonth"))
 		airday = convertToInt32(value(m0, "airday"))
 
 		// Swap day and month if month is bigger than 12 (scene fail)
-		if !d.v5 && airmonth > 12 {
+		if airmonth > 12 {
 			airday, airmonth = airmonth, airday
 		}
-	}
-
-	// v5 swaps after every branch (an ambiguous date too).
-	if d.v5 && airmonth > 12 {
-		airday, airmonth = airmonth, airday
 	}
 
 	airDate, ok := newDate(airYear, airmonth, airday)
@@ -919,13 +890,9 @@ func (d *dialect) parseDaily(m0 *regexp2.Match, releaseTitle string, airYear int
 		return nil, invalidDateError(fmt.Sprintf("Invalid date found: %d-%d-%d", airYear, airmonth, airday))
 	}
 
-	// Check if episode is in the future (most likely a parse error). v5 allows early releases: up to 14 days ahead.
-	ahead := 1
-	if d.v5 {
-		ahead = 14
-	}
+	// Check if episode is in the future (most likely a parse error).
 	n := now()
-	limit := time.Date(n.Year(), n.Month(), n.Day()+ahead, 0, 0, 0, 0, time.UTC)
+	limit := time.Date(n.Year(), n.Month(), n.Day()+1, 0, 0, 0, 0, time.UTC)
 	if airDate.After(limit) {
 		return nil, invalidDateError(fmt.Sprintf("Invalid date found: %s", airDate))
 	}
@@ -943,10 +910,6 @@ func (d *dialect) parseDaily(m0 *regexp2.Match, releaseTitle string, airYear int
 	result.ReleaseTitle = releaseTitle
 	ad := airDate.Format("2006-01-02")
 	result.AirDate = &ad
-	if d.v5 {
-		result.Parser = V5
-		result.setSeasonNumbers([]int{0})
-	}
 
 	if success(m0, "part") {
 		part := convertToInt32(value(m0, "part"))
