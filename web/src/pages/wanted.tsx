@@ -164,6 +164,8 @@ export function WantedPage() {
   const what = only === "cutoff" ? "cutoff unmet" : "missing";
   const tabQuery = version ? `?version=${encodeURIComponent(version)}` : "";
   const switchOff = d ? (only === "missing" ? !d.missing : d.cutoff_unmet === "off") : false;
+  // The regular repeat runs only while a backlog switch is on.
+  const backlogOn = d ? d.missing || d.cutoff_unmet !== "off" : false;
   const name = (row: WantedRow) => d?.titles[row.title_id] || `Title ${row.title_id}`;
   const titleLink = (row: WantedRow) => <Link className="font-semibold text-[var(--ink)] hover:text-[var(--accent-ink)] [overflow-wrap:anywhere]" to={`/title/${row.title_id}`}>{name(row)}</Link>;
   const cells: Record<Column, DataColumn<WantedRow>> = {
@@ -189,7 +191,7 @@ export function WantedPage() {
     <PageHeader title="Wanted" description="What is waiting for a search and when each item is searched next. Search now starts a search under the hourly limit." />
     <WantedTabs active={only} query={tabQuery} admin={perms.admin} />
     {q.isLoading ? <Loading /> : q.error ? <ErrorState error={q.error} /> : d ? <div className="space-y-4">
-      <p className="text-sm text-muted-foreground" data-testid="wanted-pace">Up to {d.per_hour} searches an hour ({d.searched_last_hour} in the last hour). Items are searched again every {fmtGoDuration(d.again_after)}. A missing new release is tried sooner: after 1, 2, 4, 8 and 16 hours, never more than {fmtGoDuration(d.again_after)} apart, until a week after its release.</p>
+      <p className="text-sm text-muted-foreground" data-testid="wanted-pace">Up to {d.per_hour} searches an hour ({d.searched_last_hour} in the last hour). {backlogOn ? `Items are searched again every ${fmtGoDuration(d.again_after)}. ` : ""}A missing new release is tried again sooner: the wait starts at 1 hour and doubles each time, up to {fmtGoDuration(d.again_after)}, until a week after its release.</p>
       {switchOff ? <p role="status" data-testid="wanted-switch-off" className="rounded-[5px] border border-[var(--line)] bg-[var(--sunken)] px-3 py-2 text-[13px] text-[var(--ink-2)]">Theatarr is not searching for {only === "cutoff" ? "upgrades" : "missing items"} by itself. Items here are searched when you ask, or after a failed download.{perms.admin ? <> <Link className="text-primary hover:underline" to={settingHref("router", only === "cutoff" ? "wanted.cutoff_unmet" : "wanted.missing") ?? "/admin/settings/downloads"}>Automatic search settings</Link></> : null}</p> : null}
       <DownloadsOffNotice off={off} canManage={perms.admin} />
       <label className="flex items-center gap-2 text-sm text-[var(--ink-3)]">Library

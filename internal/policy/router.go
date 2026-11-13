@@ -92,8 +92,8 @@ type Wanted struct {
 	// Default 10, 1 to 200.
 	PerHour int `yaml:"per_hour"`
 	// AgainAfter is how long after its last search an older item is searched again. A missing new release is tried
-	// sooner: after 1, 2, 4, 8 and 16 hours, never more than this apart, until a week after its release. Default 24h,
-	// 1h to 30d.
+	// again sooner: the wait starts at 1 hour and doubles each time, up to this, until a week after its release.
+	// Default 24h, 1h to 30d.
 	AgainAfter Duration `yaml:"again_after"`
 	// Missing searches items with no file by themselves (default true). Off: they are searched when you ask, or after
 	// a failed download.

@@ -24,7 +24,7 @@ it("shows read-only waits and handoffs, filters and pages on the server", async 
   renderPage(<WantedPage />, "/wanted");
   expect(await screen.findByText("Alpha")).toBeTruthy();
   expect(screen.getByText("What is waiting for a search and when each item is searched next. Search now starts a search under the hourly limit.")).toBeTruthy();
-  expect(screen.getByTestId("wanted-pace").textContent).toBe("Up to 20 searches an hour (4 in the last hour). Items are searched again every 24 h. A missing new release is tried sooner: after 1, 2, 4, 8 and 16 hours, never more than 24 h apart, until a week after its release.");
+  expect(screen.getByTestId("wanted-pace").textContent).toBe("Up to 20 searches an hour (4 in the last hour). Items are searched again every 24 h. A missing new release is tried again sooner: the wait starts at 1 hour and doubles each time, up to 24 h, until a week after its release.");
   expect(screen.queryByTestId("wanted-switch-off")).toBeNull();
   expect(screen.getAllByRole("columnheader").map(h => h.textContent)).toEqual(["", "Title", "Library", "What", "Next search", "Last search", "Actions"]);
   expect(within(screen.getByTestId("wanted-row")).getByText("Now")).toBeTruthy();
@@ -78,6 +78,8 @@ it("says the tab's switch is off, every row reads Not scheduled, and Search now 
   expect(banner.textContent).toBe("Theatarr is not searching for missing items by itself. Items here are searched when you ask, or after a failed download. Automatic search settings");
   expect(within(banner).getByRole("link", { name: "Automatic search settings" }).getAttribute("href")).toBe("/admin/settings/downloads/behaviour#searches");
   const r = screen.getByTestId("wanted-row");
+  // Both switches off: no regular repeat is promised, only the new-release retries.
+  expect(screen.getByTestId("wanted-pace").textContent).toBe("Up to 20 searches an hour (4 in the last hour). A missing new release is tried again sooner: the wait starts at 1 hour and doubles each time, up to 24 h, until a week after its release.");
   expect(r.querySelector('[data-column="next"]')?.textContent).toBe("Not scheduled");
   await user.click(within(r).getByRole("button", { name: "Search now" }));
   await waitFor(() => expect(fetch.calls("POST", "/wanted/search")).toHaveLength(1));

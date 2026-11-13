@@ -283,8 +283,8 @@ run only for libraries that are Live while Pause is off. To see how a library ju
   quality, the matched formats, the score, any rejection and whether it would upgrade the file. It searches nothing
   and records nothing.
 - The title's **Last search** page (on the title page, a library row's **Details** › **Last search results**): the
-  last stored decision, if there is one; for a Live library it offers **Interactive search**, which searches the
-  indexers now.
+  last stored decision, if there is one. To search the indexers now in a Live library, use **Interactive search**:
+  for a movie in the title's action bar, for a series on a season or an episode in the **Episodes** tab.
 
 To search a Watch only library's indexers for a title right away, run the decision engine from the shell. It prints the
 ranked decisions with their score breakdown and records nothing:

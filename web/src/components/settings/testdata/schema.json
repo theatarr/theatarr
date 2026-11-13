@@ -1050,7 +1050,7 @@
             "default": "24h",
             "label": "Search older items again after",
             "type": "duration",
-            "help": "This is how long after its last search an older item is searched again. A missing new release is tried sooner: after 1, 2, 4, 8 and 16 hours, never more than this apart, until a week after its release. Default 24h, 1h to 30d."
+            "help": "This is how long after its last search an older item is searched again. A missing new release is tried again sooner: the wait starts at 1 hour and doubles each time, up to this, until a week after its release. Default 24h, 1h to 30d."
           },
           {
             "name": "missing",
