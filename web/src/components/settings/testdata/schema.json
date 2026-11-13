@@ -734,7 +734,7 @@
             "default": "1h",
             "label": "Refresh interval",
             "type": "duration",
-            "help": "This is the time between due-series sweeps. Default 1h, minimum 10m. Which series are due follows sonarr's ShouldRefreshSeries (continuing every 12h, ended monthly)."
+            "help": "This is the time between due-series sweeps. Default 1h, minimum 10m. Which series are due follows Sonarr's ShouldRefreshSeries (continuing every 12h, ended monthly)."
           },
           {
             "name": "per_run",
@@ -776,7 +776,7 @@
             "default": "true",
             "label": "Build franchises automatically",
             "type": "boolean",
-            "help": "This builds franchises for anime series without one and rebuilds old ones (default true). Building only writes mappings; episodes whose mapping is not settled import through sonarr's numbering, and their conflicts show in Admin › Reviews.",
+            "help": "This builds franchises for anime series without one and rebuilds old ones (default true). Building only writes mappings; episodes whose mapping is not settled import through Sonarr's numbering, and their conflicts show in Admin › Reviews.",
             "nullable": true
           },
           {
