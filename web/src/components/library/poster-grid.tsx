@@ -9,7 +9,7 @@ import { usePerms, type TitleRow } from "@/api/library";
 import { PosterCard } from "@/components/poster-card";
 import { Checkbox } from "@/components/ui/checkbox";
 import { activityHref, chipWords, copyBar, nextWords, titleAcquisition, type PosterPrefs } from "@/lib/copies";
-import { badgeTone, copyTone, copyWords } from "@/lib/library-status";
+import { badgeTone, copyTone, copyWords, hasBlocked } from "@/lib/library-status";
 import { fmtAgo, fmtBytes } from "@/lib/format";
 import { kindOf, posterStatus, utcToday, type PosterStatus } from "@/lib/library";
 import { cn } from "@/lib/utils";
@@ -76,7 +76,7 @@ function statusLines(t: TitleRow, badge: PosterStatus | undefined, day: string, 
       return (
         <div key={v.key} className="flex min-w-0 items-center gap-1.5" data-testid="library-line">
           {vs.length > 1 ? <span aria-hidden className={cn("w-[38%] shrink truncate text-[var(--ink-2)]", small ? "text-[9px]" : "text-[10px]")}>{label}</span> : null}
-          <StatusBar tone={tone} label={named[i]} have={bar.have} flight={bar.flight} total={bar.total} />
+          <StatusBar tone={tone} label={named[i]} have={bar.have} flight={hasBlocked(v) ? 0 : bar.flight} total={bar.total} />
           <span aria-hidden className={count}>{bar.count}</span>
         </div>
       );

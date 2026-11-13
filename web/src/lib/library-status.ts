@@ -14,43 +14,46 @@ export type CopyTone = "ok" | "bad" | "progress" | "warn" | "idle";
 /** The facts of the title the rule reads: its kind and, for a movie, its release days. */
 export type ToneTitle = Pick<TitleRow, "kind" | "release_date" | "home_release">;
 
-/** A blocked download in hand for what the library lacks; a blocked upgrade of a file it holds is not. */
-function blockedMissing(v: VersionBrief, t: ToneTitle): boolean {
-  const a = v.acquisition;
-  return a?.stage === "blocked" && !(t.kind === "series" ? a.upgrade : v.has_file);
+/** A download in hand for the library is blocked. A row summarises all of a library's downloads (the most advanced
+ *  stage, blocked first), so for a series it does not say which episodes the blocked one covers: no counts are given
+ *  then, and nothing is drawn as in progress. */
+export function hasBlocked(v: VersionBrief): boolean {
+  return v.acquisition?.stage === "blocked";
 }
 
 /**
- * A library's tone. A blocked download for what it lacks is warn (a blocked upgrade of a held file is not). A movie: a
- * file is ok; else a download in hand is progress; else not monitored or not released yet is idle; else bad. A series:
- * nothing aired yet is idle; a monitored, aired episode missing in a monitored library is bad; else episodes held is
- * ok; else episodes in hand is progress; else idle.
+ * A library's tone. A movie: a file is ok (a blocked upgrade too); else a blocked download is warn; else a download in
+ * hand is progress; else not monitored or not released yet is idle; else bad. A series: nothing aired yet is idle; a
+ * monitored, aired episode missing in a monitored library is bad, or warn when a download is blocked; else episodes
+ * held is ok; else episodes in hand (none blocked) is progress; else idle.
  */
 export function copyTone(v: VersionBrief, t: ToneTitle, day?: string): CopyTone {
-  if (blockedMissing(v, t)) return "warn";
+  const blocked = hasBlocked(v);
   if (t.kind === "series") {
     const c = v.coverage;
     if (!c || c.total === 0) return "idle";
-    if (v.monitored !== false && (c.missing ?? 0) > 0) return "bad";
+    if (v.monitored !== false && (c.missing ?? 0) > 0) return blocked ? "warn" : "bad";
     if (c.have > 0) return "ok";
-    return (c.in_flight ?? 0) > 0 ? "progress" : "idle";
+    return !blocked && (c.in_flight ?? 0) > 0 ? "progress" : "idle";
   }
   if (v.has_file) return "ok";
+  if (blocked) return "warn";
   if (v.acquisition) return "progress";
   if (v.monitored === false || upcomingRelease(t, day)) return "idle";
   return "bad";
 }
 
-/** The tone of the badge's own status, for a whole-title bar that must agree with the badge. */
+/** The tone of the badge's own status (its dot's colour), for a whole-title bar that must agree with the badge. */
 export function badgeTone(s: PosterStatus | undefined): CopyTone {
   switch (s) {
     case "available":
     case "best_known":
-    case "upgrade":
-    case "some_episodes":
       return "ok";
+    case "upgrade":
+      return "warn";
     case "wanted":
       return "bad";
+    case "some_episodes":
     case "getting_ready":
       return "progress";
   }
@@ -59,18 +62,17 @@ export function badgeTone(s: PosterStatus | undefined): CopyTone {
 
 /** A library's status in words, without its label: "13 of 17 episodes linked, 2 in progress", "missing", "not monitored". */
 export function copyWords(v: VersionBrief, t: ToneTitle, day?: string): string {
-  const blocked = blockedMissing(v, t);
-  const upgradeBlocked = v.acquisition?.stage === "blocked" && !blocked;
+  const blocked = hasBlocked(v);
   const off = v.monitored === false ? "not monitored" : "";
   if (t.kind === "series") {
-    if (!v.coverage || v.coverage.total === 0) return ["nothing aired yet", blocked ? "download blocked" : "", off].filter(Boolean).join(", ");
+    if (!v.coverage || v.coverage.total === 0) return ["nothing aired yet", blocked ? "a download is blocked" : "", off].filter(Boolean).join(", ");
     const bar = copyBar(v, "series");
     const linked = `${bar.have} of ${bar.total} episode${bar.total === 1 ? "" : "s"} linked`;
-    const flight = !bar.flight ? "" : blocked ? `${bar.flight} with a blocked download` : `${bar.flight} in progress`;
-    return [linked, flight, blocked && !bar.flight ? "download blocked" : "", upgradeBlocked ? "upgrade download blocked" : "", off].filter(Boolean).join(", ");
+    const going = blocked ? "a download is blocked" : bar.flight ? `${bar.flight} in progress` : "";
+    return [linked, going, off].filter(Boolean).join(", ");
   }
+  if (v.has_file) return blocked ? "has a file, upgrade download blocked" : "has a file";
   if (blocked) return "download blocked";
-  if (v.has_file) return upgradeBlocked ? "has a file, upgrade download blocked" : "has a file";
   if (v.acquisition) return chipWords(v.acquisition).toLowerCase();
   if (v.monitored === false) return "not monitored";
   if (upcomingRelease(t, day)) return "not released yet";

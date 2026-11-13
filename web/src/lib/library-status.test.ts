@@ -49,7 +49,7 @@ describe("copyTone", () => {
     // An unmonitored library keeps its missing count from the server; it is not red.
     expect(copyTone({ monitored: false, coverage: cov(0, 17, { missing: 17 }) }, series)).toBe("idle");
     expect(copyTone({ monitored: false, coverage: cov(13, 17, { missing: 4 }) }, series)).toBe("ok");
-    expect(copyTone({ monitored: false, coverage: cov(13, 17, { missing: 4 }), acquisition: acq("blocked") }, series)).toBe("warn");
+    expect(copyTone({ monitored: false, coverage: cov(13, 17, { missing: 4 }), acquisition: acq("blocked") }, series)).toBe("ok");
     expect(copyWords({ monitored: false, coverage: cov(0, 17, { missing: 17 }) }, series)).toBe("0 of 17 episodes linked, not monitored");
     expect(copyTone({ monitored: true, coverage: cov(0, 17, { in_flight: 3 }) }, series)).toBe("progress");
   });
@@ -57,7 +57,8 @@ describe("copyTone", () => {
   it("gives a whole-title bar the badge's own tone", () => {
     expect(badgeTone("available")).toBe("ok");
     expect(badgeTone("best_known")).toBe("ok");
-    expect(badgeTone("upgrade")).toBe("ok");
+    // The Upgrade found badge is amber, so its bar is too.
+    expect(badgeTone("upgrade")).toBe("warn");
     expect(badgeTone("wanted")).toBe("bad");
     expect(badgeTone("upcoming")).toBe("idle");
     expect(badgeTone(undefined)).toBe("idle");
@@ -74,8 +75,19 @@ describe("copyWords", () => {
     expect(copyWords({ monitored: true, acquisition: acq("blocked") }, movie, day)).toBe("download blocked");
   });
 
-  it("does not call a blocked series download in progress", () => {
-    const v = { monitored: true, coverage: cov(13, 17, { missing: 4, in_flight: 2 }), acquisition: acq("blocked", { episodes: 2 }) };
-    expect(copyWords(v, series)).toBe("13 of 17 episodes linked, 2 with a blocked download");
+  it("gives no counts for a series library with a blocked download: the row does not say which episodes it covers", () => {
+    // One episode blocked, another downloading: not "both blocked", not "in progress".
+    const mixed = { monitored: true, coverage: cov(13, 17, { missing: 4, in_flight: 2 }), acquisition: acq("blocked", { episodes: 2, stages: { blocked: 1, downloading: 1 } }) };
+    expect(copyWords(mixed, series)).toBe("13 of 17 episodes linked, a download is blocked");
+    expect(copyTone(mixed, series)).toBe("warn");
+    // A blocked upgrade of a held episode, nothing missing: no warning.
+    const held = { monitored: true, coverage: cov(17, 17, { in_flight: 1 }), acquisition: acq("blocked", { episodes: 1, upgrade: true }) };
+    expect(copyTone(held, series)).toBe("ok");
+    expect(copyWords(held, series)).toBe("17 of 17 episodes linked, a download is blocked");
+    // The only download a blocked upgrade: never "in progress".
+    const only = { monitored: true, coverage: cov(2, 3, { in_flight: 1 }), acquisition: acq("blocked", { episodes: 1, upgrade: true }) };
+    expect(copyWords(only, series)).toBe("2 of 3 episodes linked, a download is blocked");
+    expect(copyTone(only, series)).toBe("ok");
+    expect(copyTone({ monitored: true, coverage: cov(0, 3, { in_flight: 1 }), acquisition: acq("blocked") }, series)).toBe("idle");
   });
 });

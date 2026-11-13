@@ -290,6 +290,22 @@ describe("Library posters", () => {
     expect(within(one).queryByTestId("unmonitored-chip")).toBeNull();
   });
 
+  it("draws no in-progress stripe for a series library whose download is blocked", async () => {
+    const rows = [
+      { id: 9, kind: "series", name: "Saltmarsh", year: 2021, monitored: true, availability: "partial",
+        versions: [{ id: 91, key: "tv-web", label: "1080p WEB", monitored: true, has_file: true, state: "wanted", control: managed,
+          coverage: { have: 2, total: 3, aired: 3, upcoming: 0, in_flight: 1 },
+          acquisition: { stage: "blocked", words: "Blocked", download_id: 9, downloads: 1, episodes: 1, upgrade: true, updated_at: "2026-10-29T00:00:00Z" } }] },
+    ];
+    mockFetch(routes().map((r) => (r.path === "/titles" ? { ...r, reply: { items: rows, total: 1, offset: 0 } } : r)));
+    renderPage(<Catalog id="series" />, "/series");
+    await screen.findAllByText("Saltmarsh");
+    expect(screen.getByTestId("flight-chip").textContent).toBe("Blocked");
+    const bar = screen.getByRole("img", { name: "1080p WEB: 2 of 3 episodes linked, a download is blocked" });
+    expect(bar.querySelector(".status-flight")).toBeNull();
+    expect(bar.getAttribute("data-tone")).toBe("ok");
+  });
+
   it("selects on posters into the same bulk bar", async () => {
     mockFetch(routes());
     const user = userEvent.setup();
