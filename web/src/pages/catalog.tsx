@@ -209,23 +209,25 @@ export function Catalog({ id }: { id: CatalogId }) {
             : " "
         }
       />
-      <div className="mb-3 flex flex-wrap items-center gap-2" data-testid="catalog-toolbar">
+      <div className="mb-3 flex flex-wrap items-center gap-1.5 sm:gap-2" data-testid="catalog-toolbar">
         <TitleSearch value={values.q} set={set} className="w-full sm:w-64" />
         {perms.manage ? (
           <Button
             variant={selecting ? "default" : "outline"}
             size="sm"
             aria-pressed={selecting}
+            aria-label={selecting ? "Done" : "Select"}
             onClick={() => {
               setSelecting(!selecting);
               setChosen(new Set());
             }}
           >
             <CheckSquare />
-            {selecting ? "Done" : "Select"}
+            <span className="hidden sm:inline">{selecting ? "Done" : "Select"}</span>
           </Button>
         ) : null}
-        <div className="ml-auto flex min-w-0 flex-wrap items-center justify-end gap-2">
+        {/* On a phone the right-hand controls join Select's row and wrap one by one; from sm they sit at the right. */}
+        <div className="contents sm:ml-auto sm:flex sm:min-w-0 sm:flex-wrap sm:items-center sm:justify-end sm:gap-2">
           {view === "table" ? (
             <Button variant="outline" size="sm" aria-label="Columns" onClick={() => setDialog("columns")}>
               <Columns3 />
@@ -253,7 +255,7 @@ export function Catalog({ id }: { id: CatalogId }) {
             ))}
           </div>
           <span className="flex min-w-0 items-center gap-1">
-            <select aria-label="Sort by" className={cn(SELECT, "w-auto min-w-0 max-w-[9.5rem] sm:max-w-none")} value={sort} onChange={(e) => onPick(e.target.value)}>
+            <select aria-label="Sort by" className={cn(SELECT, "w-auto min-w-0 max-w-[7.5rem] sm:max-w-none")} value={sort} onChange={(e) => onPick(e.target.value)}>
               {SORTS.filter((s) => !("seeFiles" in s) || perms.seeFiles).map((s) => (
                 <option key={s.id} value={s.id}>{s.label}</option>
               ))}

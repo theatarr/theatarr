@@ -100,9 +100,10 @@ function WatchCell({ t }: { t: TitleRow }) {
   return <span data-testid="watch-cell" className={cn("text-[13px] font-medium", WATCH_INK[w.tone])}>{w.label}</span>;
 }
 
-/** A library pill's detail: a movie's quality or what it lacks ("Missing", "Downloading 37%"); a series' count. */
-function pillDetail(v: Version, t: TitleRow): string {
-  if (t.kind === "series") return v.coverage && v.coverage.total > 0 ? copyBar(v, "series").count : cap(copyWords(v, t));
+/** A library pill's detail: a movie's quality or what it lacks ("Missing", "Downloading 37%"); a series' count, none
+ *  before anything has aired (the grey dot, the Status column's Upcoming and the pill's tooltip say so). */
+function pillDetail(v: Version, t: TitleRow): string | undefined {
+  if (t.kind === "series") return v.coverage && v.coverage.total > 0 ? copyBar(v, "series").count : undefined;
   if (v.has_file && v.acquisition?.stage !== "blocked") return v.quality || "Has a file";
   return cap(copyWords(v, t));
 }
@@ -232,7 +233,7 @@ export function TitleTable({ titles, more, onMore, seeFiles, manage, columns, so
       sortable: !!columnSort(id),
       card: id === "status" ? "none" : id === "libraries" ? "full" : "line",
       headClassName: cn("whitespace-nowrap", id === "size" && "text-right"),
-      cellClassName: cn("whitespace-nowrap text-sm", id === "size" && "text-right", id === "libraries" && "whitespace-normal [&>span]:flex-nowrap"),
+      cellClassName: cn("whitespace-nowrap text-sm", id === "size" && "text-right", (id === "libraries" || id === "provider") && "[&>span]:flex-nowrap"),
       cell: (t) => (id === "status" && !seeFiles ? <WatchCell t={t} /> : cell(id, t, () => setCopiesOf(t.id ?? null))),
     })),
   ];
