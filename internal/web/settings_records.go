@@ -159,15 +159,12 @@ func (w *Web) apiSettingsGet(entity string) http.HandlerFunc {
 }
 
 func (w *Web) apiSettingsSchema(rw http.ResponseWriter, r *http.Request) {
-	p := w.pol
 	if w.settings != nil {
-		snap, ok := w.settingsHead(rw, r)
-		if !ok {
+		if _, ok := w.settingsHead(rw, r); !ok {
 			return
 		}
-		p = snap.Policy
 	}
-	writeJSON(rw, http.StatusOK, settingsSchemaForPolicy(p))
+	writeJSON(rw, http.StatusOK, settingsSchema())
 }
 
 func (w *Web) apiSettingsExport(rw http.ResponseWriter, r *http.Request) {

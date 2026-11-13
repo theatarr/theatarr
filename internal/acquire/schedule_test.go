@@ -123,7 +123,7 @@ func TestRoundBacklogOffStartsNothing(t *testing.T) {
 		t.Fatalf("%d runs and rows", n)
 	}
 	list, err := e.a.WantedList(e.ctx, WantedQuery{Only: OnlyMissing, Limit: 200})
-	if err != nil || list.Total < 50 || list.Counts["loop_off"] != list.Total {
+	if err != nil || list.Total < 50 || list.Counts[WaitNotScheduled] != list.Total {
 		t.Fatalf("list %+v %v", list.Counts, err)
 	}
 	e.research(router.ResearchRequest{TitleID: 120, VersionID: 1120, Version: "movie", Reason: router.ReasonStalled})

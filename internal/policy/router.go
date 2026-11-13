@@ -55,7 +55,7 @@ type Router struct {
 	// Trackers lists public tracker announce URLs added to every debrid magnet. Default none: the magnet is bare.
 	// Each must be udp, http or https with no credentials, no query and a path of "" or /announce.
 	Trackers []string `yaml:"trackers"`
-	// Wanted is the search loop for the active versions' missing and cutoff-unmet titles and episodes.
+	// Wanted is the search schedule of the Live libraries' missing and cutoff-unmet titles and episodes.
 	Wanted *Wanted `yaml:"wanted"`
 	// CacheEvidence is what the router and the release views know about which providers hold a release cached.
 	CacheEvidence *CacheEvidence `yaml:"cache_evidence"`
@@ -83,28 +83,22 @@ type TorBoxCheck struct {
 	PerHour int `yaml:"per_hour"`
 }
 
-// Wanted paces the wanted search loop (internal/acquire): every Interval it searches the active versions' missing
-// and cutoff-unmet items, at most PerHour searches in any hour, an item no sooner than AgainAfter since its last
-// search, and hands the accepted releases to the router. It runs only while router.enabled is true. Every field is
-// optional.
+// Wanted paces the search schedule (internal/acquire): the Live libraries' missing and cutoff-unmet items are
+// searched at most PerHour times in any hour, an older item again AgainAfter after its last search, and the accepted
+// releases go to the router. New content is retried sooner by a fixed rule. Nothing is searched while paused
+// (router.enabled false). Every field is optional.
 type Wanted struct {
-	// Enabled turns the loop on. Default: on when some library is active, off otherwise.
-	Enabled *bool `yaml:"enabled"`
-	// Interval is the time between rounds. Default 15m, 5m to 24h.
-	Interval Duration `yaml:"interval"`
-	// PerHour caps the loop's searches (one title, season or episode each) in any hour. Default 10, 1 to 200.
+	// PerHour caps the automatic searches (one title, season or episode each) in any hour, Search now included.
+	// Default 10, 1 to 200.
 	PerHour int `yaml:"per_hour"`
-	// AgainAfter is how long an item waits before it is searched again. Default 24h, 1h to 30d.
+	// AgainAfter is how long after its last search an older item is searched again. New releases are tried again
+	// sooner: after 1, 2, 4, 8 and 16 hours, then daily for a week. Default 24h, 1h to 30d.
 	AgainAfter Duration `yaml:"again_after"`
-	// Missing searches items with no file (default true). Which items with a file are searched for an upgrade is the
-	// upgrade search target below.
+	// Missing searches items with no file by themselves (default true). Off: they are searched when you ask, or after
+	// a failed download.
 	Missing *bool `yaml:"missing"`
-	// CutoffUnmet chooses automatic upgrade searches: quality, score or off.
+	// CutoffUnmet chooses which files are searched for an upgrade by themselves: quality, score or off.
 	CutoffUnmet CutoffMode `yaml:"cutoff_unmet"`
-	// RetryNew searches again 1, 2, 4 and 8 hours (and so on) after an automatic search for a missing episode or film
-	// that came out in the last 7 days finds nothing, instead of a day later. Each retry counts against the hourly
-	// limit. On by default; off waits for the next regular search.
-	RetryNew *bool `yaml:"retry_new,omitempty" json:",omitempty"`
 }
 
 // CutoffMode is router.wanted.cutoff_unmet: which files the wanted loop searches an upgrade for. It changes only the
@@ -169,9 +163,6 @@ const (
 	MinRouterReadyTimeout           = time.Minute
 	MaxRouterReadyTimeout           = 7 * 24 * time.Hour
 
-	DefaultWantedInterval   = 15 * time.Minute
-	MinWantedInterval       = 5 * time.Minute
-	MaxWantedInterval       = 24 * time.Hour
 	DefaultWantedPerHour    = 10
 	MaxWantedPerHour        = 200
 	DefaultWantedAgainAfter = 24 * time.Hour
@@ -224,31 +215,20 @@ func (p *Policy) CacheEvidenceSettings() CacheEvidenceSettings {
 
 // WantedSettings is router.wanted with every default applied.
 type WantedSettings struct {
-	Enabled     bool
-	Interval    time.Duration
 	PerHour     int
 	AgainAfter  time.Duration
 	Missing     bool
 	CutoffUnmet CutoffMode // never ""
-	RetryNew    bool
 }
 
-// WantedSettings returns router.wanted with defaults: on when some version is active (and the section does not turn
-// it off), but it searches only while router.enabled is true.
+// WantedSettings returns router.wanted with defaults. Searches run only while router.enabled is true.
 func (p *Policy) WantedSettings() WantedSettings {
-	s := WantedSettings{Enabled: len(p.ActiveVersions()) > 0, Interval: DefaultWantedInterval,
-		PerHour: DefaultWantedPerHour, AgainAfter: DefaultWantedAgainAfter, Missing: true, CutoffUnmet: CutoffQuality,
-		RetryNew: true}
+	s := WantedSettings{PerHour: DefaultWantedPerHour, AgainAfter: DefaultWantedAgainAfter, Missing: true,
+		CutoffUnmet: CutoffQuality}
 	if p.Router == nil || p.Router.Wanted == nil {
 		return s
 	}
 	w := p.Router.Wanted
-	if w.Enabled != nil {
-		s.Enabled = *w.Enabled
-	}
-	if w.Interval != 0 {
-		s.Interval = w.Interval.D()
-	}
 	if w.PerHour != 0 {
 		s.PerHour = w.PerHour
 	}
@@ -260,9 +240,6 @@ func (p *Policy) WantedSettings() WantedSettings {
 	}
 	if w.CutoffUnmet != "" {
 		s.CutoffUnmet = w.CutoffUnmet
-	}
-	if w.RetryNew != nil {
-		s.RetryNew = *w.RetryNew
 	}
 	return s
 }
@@ -386,9 +363,6 @@ func (p *Policy) validateRouter(e *Errors) {
 		e.add("router.ready_timeout", "%v is outside %v to %v", d, MinRouterReadyTimeout, MaxRouterReadyTimeout)
 	}
 	if w := c.Wanted; w != nil {
-		if d := w.Interval.D(); d != 0 && (d < MinWantedInterval || d > MaxWantedInterval) {
-			e.add("router.wanted.interval", "%v is outside %v to %v", d, MinWantedInterval, MaxWantedInterval)
-		}
 		if w.PerHour < 0 || w.PerHour > MaxWantedPerHour {
 			e.add("router.wanted.per_hour", "must be 1 to %d, got %d", MaxWantedPerHour, w.PerHour)
 		}

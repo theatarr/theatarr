@@ -30,18 +30,15 @@ router:
       enabled: true    # does nothing without a TorBox key
       top: 10          # best hashes of one search checked; 1 to 100
       per_hour: 60     # checkcached requests in any hour; 1 to 1000
-  # The wanted search loop (internal/acquire): searches the active versions' missing and cutoff-unmet items and hands
-  # the accepted releases to the router. Off while router.enabled is false; on by default once a version is active.
+  # The search schedule (internal/acquire): each missing or cutoff-unmet item of a Live library has a next search
+  # time. New releases that are not found are tried again after 1, 2, 4, 8 and 16 hours, then daily for a week; older
+  # items every again_after. A failed download and Search now make an item due at once. Nothing is searched while
+  # router.enabled is false (Pause).
   wanted:
-    # enabled: true      # default: on when some library is active
-    interval: 15m        # between rounds; 5m to 24h
     per_hour: 10         # searches (a title, season or episode each) in any hour; 1 to 200
-    again_after: 24h     # an item waits this long before it is searched again; 1h to 30d
-    missing: true        # items with no file
-    # Files searched for an upgrade: quality (default; below the profile's quality cutoff, the arrs' Cutoff Unmet
-    # search), score (also those at the cutoff quality but below cutoff_score) or off. States, feeds and upgrade
-    # decisions always use the full cutoff.
+    again_after: 24h     # older items are searched again after this; 1h to 30d
+    missing: true        # search for missing items by themselves
+    # Search for upgrades: quality (default; below the profile's quality cutoff, the arrs' Cutoff Unmet search),
+    # score (also those at the cutoff quality but below cutoff_score) or off. States, feeds and upgrade decisions
+    # always use the full cutoff.
     cutoff_unmet: quality
-    # retry_new: false   # default on. Off: a missing search by the loop or by Search now that finds nothing for
-                         # an episode aired (or a movie released) in the last 7 days is searched again only
-                         # after again_after.

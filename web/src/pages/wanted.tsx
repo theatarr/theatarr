@@ -1,3 +1,4 @@
+import { Columns3 } from "lucide-react";
 import { useState } from "react";
 import { Link, useLocation, useSearchParams } from "react-router";
 import { useStatus } from "@/api/hooks";
@@ -8,19 +9,24 @@ import { InteractiveSearchButton } from "@/components/title/interactive-search";
 import { WantedTabs } from "@/components/wanted-tabs";
 import { journalLink } from "@/lib/admin-links";
 import { Card } from "@/components/ui/card";
+import { ColumnPicker } from "@/components/ui/column-picker";
+import { DataTable, type DataColumn } from "@/components/ui/data-table";
+import { Pager } from "@/components/ui/pager";
 import { Select } from "@/components/ui/select";
 import { Button } from "@/components/ui/button";
-import { Checkbox } from "@/components/ui/checkbox";
 import { ConfirmDialog, errText } from "@/components/ui/confirm-dialog";
 import { DownloadsOffNotice, VersionStatus } from "@/components/version-status";
 import { fmtAgo, fmtGoDuration, fmtTime } from "@/lib/format";
+import { useColumnPrefs, type ColumnDef } from "@/lib/prefs";
 import { settingHref } from "@/lib/settings-map";
 import { globalDownloadsOff, willGrab, type VersionGrabState } from "@/lib/version-grab";
 
 const waits = [
-  ["", "All"], ["due", "Due"], ["searched_recently", "Searched recently"], ["in_flight", "Downloading"],
-  ["loop_off", "Loop off"], ["downloads_off", "Paused"],
+  ["", "All"], ["due", "Due"], ["scheduled", "Scheduled"], ["in_flight", "Downloading"],
+  ["not_scheduled", "Not scheduled"], ["downloads_off", "Paused"],
 ] as const;
+
+const PAGE = 50;
 
 /** "unknown": Pause is on but /status (the lock state) has not answered, so no cause is named. */
 type GlobalOff = ReturnType<typeof globalDownloadsOff> | "unknown";
@@ -55,24 +61,31 @@ export function targetWords(targets: string[]) {
   return words.join(", ");
 }
 
-/** Why a row waits (settings links for admins only). The library's own state comes from the server's grab state (GET /status), worded by the shared
- * verdict: "Paused" while Pause is on, and a library whose download gate is closed says so even while
- * the search loop is off. Without that state (loading or failed) the row falls back to the wanted reason, worded
- * without a cause. */
-function Waiting({ row, enabled, missing, state, off, admin }: { row: WantedRow; enabled: boolean; missing: boolean; state?: VersionGrabState; off: GlobalOff; admin: boolean }) {
+/** Why a scheduled row is early, in words: a retry of a new release (with the try it will be), or a failed download. */
+function whyWords(row: WantedRow): string {
+  if (row.why === "new") return `New release, try ${(row.tries ?? 0) + 1}`;
+  if (row.why && row.why !== "asked") return "After a failed download";
+  return "";
+}
+
+/** The "Next search" cell. A due row says "Now": the hourly limit decides when it starts, so no time is promised. A
+ * row never shows a time while paused. The library's own closed gate (from GET /status, admins) is shown under
+ * "Not scheduled" and in place of "Paused". */
+function NextSearch({ row, state, off, admin }: { row: WantedRow; state?: VersionGrabState; off: GlobalOff; admin: boolean }) {
   const library = state ? <VersionStatus state={state} canManage={admin} settingsKey={row.version} /> : null;
-  if (row.search_queued) return <>Queued for search (#{row.search_queued})</>;
   switch (row.waiting) {
-    case "due": return <>Next in line (#{row.position})</>;
-    case "searched_recently": return <>Searched {fmtAgo(row.last_run?.at)}; again {fmtAgo(row.next_at)}</>;
+    case "due": return <>Now{row.why === "asked" ? " · asked by Search now" : ""}</>;
+    case "scheduled": {
+      const why = whyWords(row);
+      return <><span title={fmtTime(row.next_at)}>{fmtAgo(row.next_at)}</span>{why ? <span className="text-[var(--ink-3)]"> · {why}</span> : null}</>;
+    }
     case "in_flight": return <>Downloading</>;
-    case "loop_off": return <>{enabled && row.reason === "cutoff" ? "Cutoff-unmet searches are off" : enabled && !missing ? "Missing searches are off" : "Automatic searches are off"}{state && !willGrab(state) ? <div className="mt-1">{library}</div> : null}</>;
+    case "not_scheduled": return <>Not scheduled{state && !willGrab(state) ? <div className="mt-1">{library}</div> : null}</>;
     case "downloads_off": return library ?? <>{OFF_WORD[off ?? "unknown"]}</>;
   }
 }
 
-/** Why a row cannot be searched now ("" when it can): its search could only be refused or dropped. The server names
- * it apart from the loop's waiting reason, which says "loop off" first. */
+/** Why a row cannot be searched now ("" when it can). */
 function blocked(row: WantedRow): string {
   switch (row.search_blocked) {
     case "downloads_off": return "Paused";
@@ -81,19 +94,28 @@ function blocked(row: WantedRow): string {
   }
 }
 
+const asked = (row: WantedRow) => row.waiting === "due" && row.why === "asked";
 const rowKey = (row: WantedRow) => `${row.title_id}/${row.version}/${row.season ?? ""}`;
 const rowItem = (row: WantedRow) => ({ title_id: row.title_id, version: row.version, ...(row.season === undefined ? {} : { season: row.season }) });
 const plural = (n: number, word: string) => `${n} ${word}${n === 1 ? "" : "es"}`;
-const clock = (iso: string | null | undefined) => iso ? new Date(iso).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }) : "";
 
-/** What a Search now request did, in words: "Started 6, queued 306; next at 14:05", then what was skipped and why. */
+/** What a Search now request did, in words: "Started 6, queued 306", then what was skipped and why. */
 export function searchNowWords(r: WantedSearchResult): string {
-  const parts = [`Started ${r.started}, queued ${r.pending}${r.pending && r.next_at ? `; next at ${clock(r.next_at)}` : ""}`];
+  const parts = [`Started ${r.started}, queued ${r.pending}`];
   const why = new Map<string, number>();
   for (const s of r.skipped) why.set(s.reason, (why.get(s.reason) ?? 0) + 1);
   for (const [reason, n] of why) parts.push(`Skipped ${n}: ${reason}`);
   return parts.join(". ") + ".";
 }
+
+type Column = "library" | "what" | "next" | "last";
+const COLUMNS: ColumnDef<Column>[] = [
+  { id: "library", label: "Library", hint: "The library the item is wanted in" },
+  { id: "what", label: "What", hint: "The film, or the season's episodes" },
+  { id: "next", label: "Next search", hint: "When the item is searched next" },
+  { id: "last", label: "Last search", hint: "When it was last searched, and what that found" },
+];
+const ALL_COLUMNS = COLUMNS.map(c => c.id);
 
 type Ask = { body: WantedSearchBody; count: number; title: string };
 
@@ -103,7 +125,7 @@ export function WantedPage() {
   const version = sp.get("version") || undefined;
   const waiting = sp.get("waiting") || undefined;
   const offset = Math.max(0, Number(sp.get("offset")) || 0);
-  const q = useWanted({ only, version, waiting, limit: 50, offset });
+  const q = useWanted({ only, version, waiting, limit: PAGE, offset });
   const perms = usePerms();
   const status = useStatus(perms.admin); // /status is admin-only: managers word rows from the wanted list alone
   const states = new Map((status.data?.versions ?? []).map((v) => [v.key, v.grab_state]));
@@ -114,14 +136,21 @@ export function WantedPage() {
     if (value) next.set(key, value); else next.delete(key);
     setSp(next);
   };
+  const page = (to: number) => {
+    const next = new URLSearchParams(sp);
+    if (to > 0) next.set("offset", String(to)); else next.delete("offset");
+    setSp(next);
+  };
   const label = (key: string) => q.data?.libraries[key] || key;
   const d = q.data;
   const search = useWantedSearch();
   const clear = useClearWantedSearch();
   const [picked, setPicked] = useState<Set<string>>(new Set());
   const [ask, setAsk] = useState<Ask>();
-  const searchable = (d?.items ?? []).filter(row => !blocked(row));
-  const chosen = searchable.filter(row => picked.has(rowKey(row)));
+  const [picker, setPicker] = useState(false);
+  const [prefs, savePrefs] = useColumnPrefs<Column>("wanted-columns", COLUMNS, ALL_COLUMNS);
+  const items = d?.items ?? [];
+  const chosen = items.filter(row => picked.has(rowKey(row)));
   const left = d ? Math.max(0, d.per_hour - d.searched_last_hour) : 0;
   const send = (body: WantedSearchBody) => search.mutate(body, { onSuccess: () => { setPicked(new Set()); setAsk(undefined); } });
   // A request the hour cannot start at once is confirmed first, with how long it will take.
@@ -129,60 +158,84 @@ export function WantedPage() {
     search.reset();
     if (confirm) setAsk(a); else send(a.body);
   };
-  const toggle = (key: string, on: boolean) => setPicked(old => { const next = new Set(old); if (on) next.add(key); else next.delete(key); return next; });
   const what = only === "cutoff" ? "cutoff unmet" : "missing";
   const waitingHours = ask && d ? Math.ceil(Math.max(0, ask.count + d.search_now_pending - left) / d.per_hour) : 0;
   const tabQuery = version ? `?version=${encodeURIComponent(version)}` : "";
+  const switchOff = d ? (only === "missing" ? !d.missing : d.cutoff_unmet === "off") : false;
+  const name = (row: WantedRow) => d?.titles[row.title_id] || `Title ${row.title_id}`;
+  const titleLink = (row: WantedRow) => <Link className="font-semibold text-[var(--ink)] hover:text-[var(--accent-ink)] [overflow-wrap:anywhere]" to={`/title/${row.title_id}`}>{name(row)}</Link>;
+  const cells: Record<Column, DataColumn<WantedRow>> = {
+    library: { id: "library", label: "Library", cell: row => <div className="min-w-0">{label(row.version)}<div className="mt-0.5"><VersionTag k={row.version} /></div></div> },
+    what: { id: "what", label: "What", cell: row => targetWords(row.targets) },
+    next: { id: "next", label: "Next search", cell: row => <NextSearch row={row} state={states.get(row.version)} off={off} admin={perms.admin} /> },
+    last: { id: "last", label: "Last search", cell: row => <>{row.last_run ? <span title={fmtTime(row.last_run.at)}>{fmtAgo(row.last_run.at)} · </span> : null}{searchResult(row.last_run)}</> },
+  };
+  const columns: DataColumn<WantedRow>[] = [
+    { id: "title", label: "Title", cell: titleLink, card: "none", cellClassName: "min-w-[10rem]" },
+    ...prefs.order.filter(id => prefs.shown.includes(id)).map(id => cells[id]),
+  ];
+  const actions = (row: WantedRow) => {
+    const why = blocked(row);
+    return <div className="flex flex-wrap items-baseline gap-2 md:flex-nowrap md:justify-end">
+      <InteractiveSearchButton titleId={row.title_id} version={row.version} season={row.season} size="xs" variant="ghost" />
+      {row.decision_id && perms.admin ? <Link className="text-primary hover:underline" to={journalLink(String(row.decision_id))}>Decision</Link> : null}
+      <button type="button" className="text-primary hover:underline disabled:cursor-not-allowed disabled:text-[var(--ink-3)] disabled:no-underline" disabled={!!why || asked(row) || search.isPending} title={why || (asked(row) ? "Already asked for" : undefined)} onClick={() => request({ body: { only, items: [rowItem(row)] }, count: 1, title: "Search now" }, false)}>Search now</button>
+      {why && row.waiting !== "downloads_off" && row.waiting !== "in_flight" ? <span className="text-[var(--ink-3)]" data-testid="search-blocked">{why}</span> : null}
+    </div>;
+  };
   return <div>
-    <PageHeader title="Wanted" description="What automatic searches are waiting for. Viewing this page never starts a search; Search now queues one under the hourly limit." />
+    <PageHeader title="Wanted" description="What is waiting for a search and when each item is searched next. Search now starts a search under the hourly limit." />
     <WantedTabs active={only} query={tabQuery} admin={perms.admin} />
     {q.isLoading ? <Loading /> : q.error ? <ErrorState error={q.error} /> : d ? <div className="space-y-4">
-      <p className="text-sm text-muted-foreground">Searches every {fmtGoDuration(d.interval)}, up to {d.per_hour} an hour, again after {fmtGoDuration(d.again_after)}. {plural(d.searched_last_hour, "search")} in the last hour.</p>
-      {!d.enabled || (only === "missing" ? !d.missing : d.cutoff_unmet === "off") ? <p role="status" className="rounded-[5px] border border-[var(--line)] bg-[var(--sunken)] px-3 py-2 text-[13px] text-[var(--ink-2)]">{!d.enabled ? "Automatic searches are off." : only === "cutoff" ? "Cutoff-unmet searches are off." : "Missing searches are off."}{perms.admin ? <> <Link className="text-primary hover:underline" to={settingHref("router", "wanted.enabled") ?? "/admin/settings/downloads"}>Automatic search settings</Link></> : null}</p> : null}
+      <p className="text-sm text-muted-foreground" data-testid="wanted-pace">Up to {d.per_hour} searches an hour ({d.searched_last_hour} in the last hour). New releases are tried again after 1, 2, 4, 8 and 16 hours, then daily for a week; older items every {fmtGoDuration(d.again_after)}.</p>
+      {switchOff ? <p role="status" data-testid="wanted-switch-off" className="rounded-[5px] border border-[var(--line)] bg-[var(--sunken)] px-3 py-2 text-[13px] text-[var(--ink-2)]">Theatarr is not searching for {only === "cutoff" ? "upgrades" : "missing items"} by itself. Items here are searched when you ask, or after a failed download.{perms.admin ? <> <Link className="text-primary hover:underline" to={settingHref("router", only === "cutoff" ? "wanted.cutoff_unmet" : "wanted.missing") ?? "/admin/settings/downloads"}>Automatic search settings</Link></> : null}</p> : null}
       <DownloadsOffNotice off={off} canManage={perms.admin} />
       <label className="flex items-center gap-2 text-sm text-[var(--ink-3)]">Library
         <Select aria-label="Library" className="w-auto max-w-full" value={version ?? ""} onChange={e => change("version", e.target.value)}>
           <option value="">All libraries</option>
-          {Object.entries(d.libraries).map(([key, name]) => <option key={key} value={key}>{name} · {key}</option>)}
+          {Object.entries(d.libraries).map(([key, lib]) => <option key={key} value={key}>{lib} · {key}</option>)}
         </Select>
       </label>
-      <div className="flex flex-wrap gap-2" aria-label="Waiting filters">{waits.map(([key, name]) => {
+      <div className="flex flex-wrap gap-2" aria-label="Waiting filters">{waits.map(([key, word]) => {
         const count = key ? d.counts[key] ?? 0 : Object.values(d.counts).reduce((a, b) => a + b, 0);
-        const word = key === "downloads_off" && off ? OFF_WORD[off] : name;
-        return key && !count ? null : <Button key={key} variant={waiting === key || !waiting && !key ? "default" : "outline"} size="sm" aria-pressed={(waiting ?? "") === key} onClick={() => change("waiting", key)}>{word} ({count})</Button>;
+        const shown = key === "downloads_off" && off ? OFF_WORD[off] : word;
+        return key && !count ? null : <Button key={key} variant={waiting === key || !waiting && !key ? "default" : "outline"} size="sm" aria-pressed={(waiting ?? "") === key} onClick={() => change("waiting", key)}>{shown} ({count})</Button>;
       })}</div>
       {d.search_now_pending > 0 ? <p role="status" data-testid="search-now-queue" className="flex flex-wrap items-center gap-x-2 gap-y-1 rounded-[5px] border border-[var(--line)] bg-[var(--sunken)] px-3 py-2 text-[13px] text-[var(--ink-2)]">
-        <span>{plural(d.search_now_pending, "search")} queued by Search now{!d.downloads_enabled ? " · waiting until Pause is off" : d.search_now_next_at ? ` · next at ${clock(d.search_now_next_at)}` : ""}</span>
+        <span>{plural(d.search_now_pending, "search")} queued by Search now{!d.downloads_enabled ? " · waiting until Pause is off" : ""}</span>
         <Button variant="outline" size="sm" disabled={clear.isPending} onClick={() => clear.mutate()}>Cancel queued searches</Button>
       </p> : null}
       <div className="flex flex-wrap items-center gap-2" aria-label="Search now">
         <Button variant="outline" size="sm" disabled={!chosen.length || search.isPending} onClick={() => request({ body: { only, items: chosen.map(rowItem) }, count: chosen.length, title: `Search ${chosen.length} selected` }, chosen.length > left)}>Search selected ({chosen.length})</Button>
         <Button variant="outline" size="sm" disabled={!d.searchable || !d.downloads_enabled || search.isPending} title={!d.downloads_enabled ? "Paused" : !d.searchable ? "Nothing in this list can be searched now" : undefined} onClick={() => request({ body: { only, all: { ...(version ? { version } : {}), ...(waiting ? { waiting: waiting as NonNullable<WantedSearchBody["all"]>["waiting"] } : {}) } }, count: d.searchable, title: `Search all ${d.searchable} ${what}${version ? ` in ${label(version)}` : ""}` }, true)}>Search all {d.searchable > 0 ? `${d.searchable} ` : ""}{what}{version ? ` in ${label(version)}` : ""}</Button>
-        {search.data && !ask ? <span role="status" className="text-[13px] text-[var(--ink-2)]" data-testid="search-now-result">{searchNowWords(search.data)}</span> : null}
-        {(search.error && !ask) || clear.error ? <span role="alert" className="text-[13px] text-[var(--bad-ink)]">{errText(search.error ?? clear.error)}</span> : null}
+        <Button variant="outline" size="sm" className="ml-auto" aria-label="Columns" onClick={() => setPicker(true)}><Columns3 /><span className="hidden sm:inline">Columns</span></Button>
+        {search.data && !ask ? <span role="status" className="basis-full text-[13px] text-[var(--ink-2)]" data-testid="search-now-result">{searchNowWords(search.data)}</span> : null}
+        {(search.error && !ask) || clear.error ? <span role="alert" className="basis-full text-[13px] text-[var(--bad-ink)]">{errText(search.error ?? clear.error)}</span> : null}
       </div>
-      {!d.items.length ? <Card><Empty>No items waiting in this selection.</Empty></Card> : <Card className="overflow-hidden p-0">
-        <div className="flex items-center gap-3 border-b border-[var(--line)] bg-[var(--sunken)] px-3 py-1.5 text-[11px] font-semibold uppercase tracking-[0.08em] text-[var(--ink-3)]">
-          <Checkbox aria-label="Select all on this page" disabled={!searchable.length} checked={searchable.length > 0 && chosen.length === searchable.length} indeterminate={chosen.length > 0 && chosen.length < searchable.length} onChange={e => setPicked(e.target.checked ? new Set(searchable.map(rowKey)) : new Set())} />
-          <div className="hidden flex-1 grid-cols-[2fr_1fr_1fr_2fr_2fr_1fr] gap-3 md:grid" aria-hidden>{["Title", "Library", "What", "Why waiting", "Last search", "Links"].map(h => <span key={h}>{h}</span>)}</div>
-        </div>
-        <ul className="divide-y divide-[var(--line)]">{d.items.map(row => { const name = d.titles[row.title_id] || `Title ${row.title_id}`; const why = blocked(row); return <li key={`${row.title_id}/${row.version}/${row.targets.join()}`} className="flex min-w-0 items-baseline gap-3 px-3 py-2 text-[13px]" data-testid="wanted-row">
-          <Checkbox className="self-start md:self-baseline" aria-label={`Select ${name}, ${targetWords(row.targets)}, ${label(row.version)}`} disabled={!!why} title={why || undefined} checked={!why && picked.has(rowKey(row))} onChange={e => toggle(rowKey(row), e.target.checked)} />
-          <div className="grid min-w-0 flex-1 gap-1.5 md:grid-cols-[2fr_1fr_1fr_2fr_2fr_1fr] md:items-baseline md:gap-3">
-          <Link className="font-semibold text-[var(--ink)] hover:text-[var(--accent-ink)] [overflow-wrap:anywhere]" to={`/title/${row.title_id}`}>{name}</Link>
-          <div className="min-w-0">{label(row.version)}<div className="mt-0.5"><VersionTag k={row.version} /></div></div>
-          <div>{targetWords(row.targets)}</div>
-          <div><Waiting row={row} enabled={d.enabled} missing={d.missing} state={states.get(row.version)} off={off} admin={perms.admin} /></div>
-          <div>{row.last_run ? <span title={fmtTime(row.last_run.at)}>{fmtAgo(row.last_run.at)} · </span> : null}{searchResult(row.last_run)}</div>
-          <div className="flex flex-wrap items-baseline gap-2"><InteractiveSearchButton titleId={row.title_id} version={row.version} season={row.season} size="xs" variant="ghost" />{row.decision_id && perms.admin ? <Link className="text-primary hover:underline" to={journalLink(String(row.decision_id))}>Decision</Link> : null}<button type="button" className="text-primary hover:underline disabled:cursor-not-allowed disabled:text-[var(--ink-3)] disabled:no-underline" disabled={!!why || !!row.search_queued || search.isPending} title={why || (row.search_queued ? "Already queued" : undefined)} onClick={() => request({ body: { only, items: [rowItem(row)] }, count: 1, title: "Search now" }, false)}>Search now</button>{why && row.waiting !== "downloads_off" && row.waiting !== "in_flight" ? <span className="text-[var(--ink-3)]" data-testid="search-blocked">{why}</span> : null}</div>
-          </div>
-        </li>; })}</ul>
-      </Card>}
-      <div className="flex items-center justify-between gap-3"><Button variant="outline" disabled={offset === 0 || q.isPlaceholderData} onClick={() => change("offset", String(Math.max(0, offset - 50)))}>Previous</Button><span className="text-sm text-muted-foreground">{d.total ? `${offset + 1}–${Math.min(offset + 50, d.total)} of ${d.total}` : "0 items"}</span><Button variant="outline" disabled={offset + 50 >= d.total || q.isPlaceholderData} onClick={() => change("offset", String(offset + 50))}>Next</Button></div>
+      {!items.length ? <Card><Empty>No items waiting in this selection.</Empty></Card> : <DataTable
+        testid="wanted-table"
+        rows={items}
+        rowKey={rowKey}
+        columns={columns}
+        // While paused nothing can be searched, so nothing is offered for selection. A row with a download in
+        // progress can be picked; Search now skips it and says why.
+        select={d.downloads_enabled ? {
+          chosen: picked,
+          toggle: (key, on) => setPicked(old => { const next = new Set(old); if (on) next.add(key); else next.delete(key); return next; }),
+          all: on => setPicked(on ? new Set(items.map(rowKey)) : new Set()),
+        } : undefined}
+        selectAllLabel="Select all on this page"
+        rowLabel={row => `${name(row)}, ${targetWords(row.targets)}, ${label(row.version)}`}
+        actions={actions}
+        cardHead={titleLink}
+        rowProps={() => ({ "data-testid": "wanted-row" })}
+      />}
+      <Pager offset={offset} limit={PAGE} total={d.total} onPage={page} />
     </div> : null}
+    {picker ? <ColumnPicker label="Wanted columns" note="Title and the row's links always stay. On a phone the columns show under each title." columns={COLUMNS} prefs={prefs} onChange={savePrefs} onClose={() => setPicker(false)} /> : null}
     {ask && d ? <ConfirmDialog danger={false} testid="search-now-confirm" busy={search.isPending} error={search.error} onClose={() => setAsk(undefined)} onConfirm={() => send(ask.body)}
-      scope={{ title: ask.title, confirm: `Queue ${plural(ask.count, "search")}`, does: [`Queue ${plural(ask.count, "search")}; they start oldest first as the hourly limit allows`], keeps: ["The hourly limit: no search goes around it", "Searches that already started"] }}>
-      <p data-testid="search-now-estimate">{plural(ask.count, "search")}. Up to {d.per_hour} start each hour ({d.searched_last_hour} used this hour){waitingHours > 0 ? `, so this takes about ${waitingHours} hour${waitingHours === 1 ? "" : "s"}` : ", so they start now"}. While they wait, each automatic search round starts them before its own searches. Raise <em>Searches per hour</em> in {perms.admin ? <Link className="text-primary hover:underline" to={settingHref("router", "wanted.per_hour") ?? "/admin/settings/downloads"}>Settings › Download clients</Link> : "Settings › Download clients"} to go faster.</p>
+      scope={{ title: ask.title, confirm: `Queue ${plural(ask.count, "search")}`, does: [`Queue ${plural(ask.count, "search")}; they start as the hourly limit allows`], keeps: ["The hourly limit: no search goes around it", "Searches that already started"] }}>
+      <p data-testid="search-now-estimate">{plural(ask.count, "search")}. Up to {d.per_hour} start each hour ({d.searched_last_hour} used this hour){waitingHours > 0 ? `, so this takes about ${waitingHours} hour${waitingHours === 1 ? "" : "s"}` : ", so they start now"}. Raise <em>Searches per hour</em> in {perms.admin ? <Link className="text-primary hover:underline" to={settingHref("router", "wanted.per_hour") ?? "/admin/settings/downloads"}>Settings › Download clients</Link> : "Settings › Download clients"} to go faster.</p>
     </ConfirmDialog> : null}
   </div>;
 }

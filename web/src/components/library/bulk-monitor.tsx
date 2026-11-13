@@ -37,7 +37,7 @@ const SEARCH_CHUNK = 200;
 
 /** What the Search now requests of one selection answered, added up: queued (the searches a request added) and skipped
  * are per request and started is what each request let start; started and pending count the whole Search now queue,
- * not only this selection's part, and pending and next_at are the last answer's. */
+ * not only this selection's part, and pending is the last answer's. */
 type SearchSum = {
   /** The selection and library it was for; the bar shows it only while they are unchanged. */
   key: string;
@@ -47,15 +47,13 @@ type SearchSum = {
   queued: number;
   started: number;
   pending: number;
-  nextAt?: string | null;
   skipped: Map<string, number>;
   error?: unknown;
 };
 
-const clock = (iso: string) => new Date(iso).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
 
 function searchWords(r: SearchSum): string {
-  const parts = [`Queued ${plural(r.queued, "search", "es")}. ${r.started} started now, ${r.pending} waiting in the queue${r.pending && r.nextAt ? ` (next at ${clock(r.nextAt)})` : ""}`];
+  const parts = [`Queued ${plural(r.queued, "search", "es")}. ${r.started} started now, ${r.pending} waiting in the queue`];
   for (const [reason, n] of r.skipped) parts.push(`Skipped ${plural(n, "title")}: ${reason}`);
   return parts.join(". ") + ".";
 }
@@ -74,7 +72,7 @@ export function BulkBar({ titles, columns, onClear }: { titles: TitleRow[]; colu
   const key = `${target}/${ids.join()}`;
   const targetLabel = columns.find((c) => c.key === target)?.label ?? target;
   const result = sum?.key === key ? sum : undefined;
-  // One request after another: each answer's pending and next_at are the queue after it.
+  // One request after another: each answer's pending is the queue after it.
   const runSearch = async () => {
     const out: SearchSum = { key, sent: 0, of: ids.length, queued: 0, started: 0, pending: 0, skipped: new Map() };
     setBusy(true);
@@ -86,7 +84,6 @@ export function BulkBar({ titles, columns, onClear }: { titles: TitleRow[]; colu
         out.queued += r.queued;
         out.started += r.started;
         out.pending = r.pending;
-        out.nextAt = r.next_at;
         for (const s of r.skipped ?? []) out.skipped.set(s.reason, (out.skipped.get(s.reason) ?? 0) + 1);
       }
     } catch (e) {

@@ -262,7 +262,7 @@ export const SETTINGS_PANELS: SettingsPanel[] = [
   {
     "id": "searches",
     "page": "downloads",
-    "title": "Automatic searches",
+    "title": "Automatic search",
     "section": "router",
     "keys": [
       "wanted"

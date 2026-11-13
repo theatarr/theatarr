@@ -20,8 +20,8 @@ describe("settings map", () => {
  it("links Plex to its home", () => expect(settingHref("library", "plex")).toBe("/admin/settings/plex#plex"));
 });
 
-it("links wanted enable and Send notifications to their owners", () => {
- expect(settingHref("router", "wanted.enabled")).toBe("/admin/settings/downloads/behaviour#searches");
+it("links the wanted switches and Send notifications to their owners", () => {
+ expect(settingHref("router", "wanted.missing")).toBe("/admin/settings/downloads/behaviour#searches");
  expect(settingHref("notify", "enabled")).toBe("/admin/settings/notifications#targets");
  // Send notifications is the first field of the notify Destinations panel.
  expect(SETTINGS_PANELS.find(p => p.id === "targets")?.keys[0]).toBe("enabled");

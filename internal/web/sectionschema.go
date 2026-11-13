@@ -179,7 +179,6 @@ func durationBounds(min, max time.Duration, def string) SchemaField {
 }
 
 var sectionAnnotations = map[string]SchemaField{
-	"router.wanted.enabled":                       {Default: "false"},
 	"metadata.series.interval":                    durationBounds(policy.MinSeriesMetaInterval, 0, "1h"),
 	"metadata.series.per_run":                     bounds(1, policy.MaxSeriesMetaPerRun, "50"),
 	"metadata.lists.interval":                     durationBounds(policy.MinListInterval, 0, "24h"),
@@ -227,7 +226,6 @@ var sectionAnnotations = map[string]SchemaField{
 	"router.cached_grace":                         durationBounds(policy.MinRouterCachedGrace, policy.MaxRouterCachedGrace, "2s"),
 	"router.ready_timeout":                        durationBounds(policy.MinRouterReadyTimeout, policy.MaxRouterReadyTimeout, "6h"),
 	"router.max_candidates":                       bounds(1, policy.MaxRouterMaxCandidates, "5"),
-	"router.wanted.interval":                      durationBounds(policy.MinWantedInterval, policy.MaxWantedInterval, "15m"),
 	"router.wanted.again_after":                   durationBounds(policy.MinWantedAgainAfter, policy.MaxWantedAgainAfter, "24h"),
 	"router.wanted.per_hour":                      bounds(1, policy.MaxWantedPerHour, "10"),
 	"router.cache_evidence.ttl":                   durationBounds(policy.MinCacheEvidenceTTL, policy.MaxCacheEvidenceTTL, "24h"),
@@ -237,7 +235,7 @@ var sectionAnnotations = map[string]SchemaField{
 
 func floatPtr(v float64) *float64 { return &v }
 func init() {
-	for _, path := range []string{"metadata.series.enabled", "metadata.anime.auto_build", "library.sample.resolution", "library.sample.mislabel", "library.plex.now_playing", "library.plex.prewarm", "shadow.rss", "playlists.routes", "router.cached_only", "router.wanted.missing", "router.wanted.retry_new", "router.cache_evidence.torbox_check.enabled"} {
+	for _, path := range []string{"metadata.series.enabled", "metadata.anime.auto_build", "library.sample.resolution", "library.sample.mislabel", "library.plex.now_playing", "library.plex.prewarm", "shadow.rss", "playlists.routes", "router.cached_only", "router.wanted.missing", "router.cache_evidence.torbox_check.enabled"} {
 		a := sectionAnnotations[path]
 		a.Default = "true"
 		sectionAnnotations[path] = a
@@ -384,13 +382,11 @@ var sectionLabels = map[string]string{
 	"router.miss_ttl":                             "Remember uncached results for",
 	"router.poll_interval":                        "Download check interval",
 	"router.max_candidates":                       "Maximum candidate releases",
-	"router.wanted":                               "Automatic wanted searches",
-	"router.wanted.interval":                      "Search interval",
+	"router.wanted":                               "Automatic search",
 	"router.wanted.per_hour":                      "Searches per hour",
-	"router.wanted.again_after":                   "Wait before searching again",
-	"router.wanted.missing":                       "Search for missing files",
-	"router.wanted.cutoff_unmet":                  "Upgrade search target",
-	"router.wanted.retry_new":                     "Retry new releases sooner",
+	"router.wanted.again_after":                   "Search older items again after",
+	"router.wanted.missing":                       "Search for missing items",
+	"router.wanted.cutoff_unmet":                  "Search for upgrades",
 	"router.cache_evidence":                       "Provider cache results",
 	"router.cache_evidence.ttl":                   "Remember cached results for",
 	"router.cache_evidence.torbox_check":          "Check TorBox cache",
@@ -404,20 +400,4 @@ var sectionLabels = map[string]string{
 	"ui.images.dir":                               "Folder",
 	"ui.images.max_bytes":                         "Maximum size",
 	"ui.images.original":                          "Allow original-size images",
-}
-
-// Wanted's default depends on whether any version is active, unlike the other switches.
-func settingsSchemaForPolicy(p *policy.Policy) SettingsSchema {
-	schema := settingsSchema()
-	for i := range schema.Sections["router"] {
-		f := &schema.Sections["router"][i]
-		if f.Name == "wanted" {
-			for j := range f.Fields {
-				if f.Fields[j].Name == "enabled" {
-					f.Fields[j].Default = fmt.Sprint(p.WantedSettings().Enabled)
-				}
-			}
-		}
-	}
-	return schema
 }

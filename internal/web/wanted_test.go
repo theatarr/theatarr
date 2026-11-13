@@ -25,7 +25,7 @@ type wantedAcquirer struct {
 
 func (f *wantedAcquirer) WantedList(_ context.Context, q acquire.WantedQuery) (*acquire.WantedList, error) {
 	f.queries = append(f.queries, q)
-	return &acquire.WantedList{Items: []acquire.WantedRow{{TitleID: 1, Version: "movie-web", Targets: []string{"movie"}, Reason: q.Only, Waiting: "due", Position: 2}}, Total: 3, Counts: map[string]int{"due": 3}, Limit: q.Limit, Offset: q.Offset}, nil
+	return &acquire.WantedList{Items: []acquire.WantedRow{{TitleID: 1, Version: "movie-web", Targets: []string{"movie"}, Reason: q.Only, Waiting: "due"}}, Total: 3, Counts: map[string]int{"due": 3}, Limit: q.Limit, Offset: q.Offset}, nil
 }
 
 func TestWantedAPI(t *testing.T) {

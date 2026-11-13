@@ -43,12 +43,11 @@ func TestWantedListReadOnlyAndRound(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if missing.Limit != 50 || missing.Offset != 0 || missing.SearchedLastHour != 0 || !missing.Enabled || !missing.DownloadsEnabled {
+	if missing.Limit != 50 || missing.Offset != 0 || missing.SearchedLastHour != 0 || !missing.DownloadsEnabled {
 		t.Fatalf("settings: %+v", missing)
 	}
-	expected := map[string]string{"1/movie": "due", "2/movie": "in_flight", "4/movie": "searched_recently", "10/series": "due"}
+	expected := map[string]string{"1/movie": "due", "2/movie": "in_flight", "4/movie": "scheduled", "10/series": "due"}
 	due := []string{}
-	pos := 0
 	for _, row := range missing.Items {
 		key := fmt.Sprintf("%d/%s", row.TitleID, row.Version)
 		if row.Waiting != expected[key] {
@@ -56,9 +55,8 @@ func TestWantedListReadOnlyAndRound(t *testing.T) {
 		}
 		delete(expected, key)
 		if row.Waiting == "due" {
-			pos++
-			if row.Position != pos {
-				t.Errorf("position: %+v", row)
+			if row.NextAt == nil || !row.NextAt.Equal(t0) {
+				t.Errorf("due from now: %+v", row)
 			}
 			for _, target := range row.Targets {
 				due = append(due, fmt.Sprintf("%d/%s/%s", row.TitleID, row.Version, target))
@@ -68,7 +66,7 @@ func TestWantedListReadOnlyAndRound(t *testing.T) {
 			if row.NextAt == nil || !row.NextAt.Equal(t0.Add(5*time.Hour)) || row.LastRun == nil || row.LastRun.ID != 7 || row.LastRun.Results != 3 || row.LastRun.Accepted != 0 || row.LastRun.State != "nothing" || row.LastRun.Message != "No acceptable results" || !row.LastRun.At.Equal(t0.Add(-time.Hour)) || row.DecisionID == nil || *row.DecisionID != 19 {
 				t.Errorf("recent: %+v", row)
 			}
-		} else if row.LastRun != nil || row.NextAt != nil || row.DecisionID != nil {
+		} else if row.LastRun != nil || row.DecisionID != nil || (row.Waiting == "in_flight") != (row.NextAt == nil) {
 			t.Errorf("never searched: %+v", row)
 		}
 	}
@@ -87,7 +85,7 @@ func TestWantedListReadOnlyAndRound(t *testing.T) {
 			t.Errorf("cutoff row: %+v", row)
 		}
 		if row.Version == "movie" {
-			if row.Waiting != "due" || row.Position != 1 {
+			if row.Waiting != "due" {
 				t.Errorf("cutoff due: %+v", row)
 			}
 			due = append(due, "3/movie/movie")
@@ -97,7 +95,7 @@ func TestWantedListReadOnlyAndRound(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if page.Total != 2 || len(page.Items) != 1 || page.Items[0].Position != 2 || !reflect.DeepEqual(page.Counts, missing.Counts) {
+	if page.Total != 2 || len(page.Items) != 1 || !reflect.DeepEqual(page.Counts, missing.Counts) {
 		t.Errorf("page: %+v", page)
 	}
 	if runs != e.count(`SELECT COUNT(*) FROM acquire_run`) || jobs != e.count(`SELECT COUNT(*) FROM job`) || states != e.count(`SELECT SUM(updated_at) + SUM(state = 'wanted') FROM version`) {
@@ -159,14 +157,12 @@ func TestWantedListGatesAndPartialRecency(t *testing.T) {
 	}
 	e.pol.Router.Enabled = false
 	assert(OnlyMissing, "downloads_off")
-	e.a.set.Enabled = false
-	assert(OnlyMissing, "loop_off")
-	e.a.set.Enabled = true
 	e.a.set.Missing = false
-	assert(OnlyMissing, "loop_off")
-	e.a.set.CutoffUnmet = policy.CutoffOff
-	assert(OnlyCutoff, "loop_off")
+	assert(OnlyMissing, "downloads_off")
 	e.pol.Router.Enabled = true
+	assert(OnlyMissing, "not_scheduled")
+	e.a.set.CutoffUnmet = policy.CutoffOff
+	assert(OnlyCutoff, "not_scheduled")
 	e.a.set.Missing = true
 	at := t0.Add(-10 * time.Minute)
 	if _, err := e.st.Writer().Exec(`INSERT INTO acquire_run(source,title_id,version_id,version_key,target,state,infra,created_at,updated_at)
@@ -175,7 +171,7 @@ func TestWantedListGatesAndPartialRecency(t *testing.T) {
 	}
 	l := list(OnlyMissing)
 	for _, r := range l.Items {
-		if r.TitleID == 1 && (r.Waiting != "searched_recently" || r.NextAt == nil || !r.NextAt.Equal(at.Add(min(partialAgain, e.a.set.AgainAfter)))) {
+		if r.TitleID == 1 && (r.Waiting != "scheduled" || r.NextAt == nil || !r.NextAt.Equal(at.Add(min(partialAgain, e.a.set.AgainAfter)))) {
 			t.Errorf("partial: %+v", r)
 		}
 	}
@@ -233,7 +229,7 @@ func TestRoundBacklogOrder(t *testing.T) {
 	}
 }
 
-func TestWantedListPendingDownloadedAndPositionJSON(t *testing.T) {
+func TestWantedListDownloaded(t *testing.T) {
 	e := newEnv(t, true, nil)
 	exec := func(q string, args ...any) {
 		t.Helper()
@@ -247,24 +243,8 @@ func TestWantedListPendingDownloadedAndPositionJSON(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	raw, err := json.Marshal(list)
-	if err != nil {
-		t.Fatal(err)
-	}
-	var wire struct {
-		Items []map[string]any `json:"items"`
-	}
-	if err := json.Unmarshal(raw, &wire); err != nil {
-		t.Fatal(err)
-	}
-	for _, row := range wire.Items {
-		if _, ok := row["position"]; ok {
-			t.Errorf("position on waiting row: %s", raw)
-		}
-	}
-	for _, row := range wire.Items {
-		run, ok := row["last_run"].(map[string]any)
-		if !ok || run["downloaded"] != (row["title_id"] == float64(2)) {
+	for _, row := range list.Items {
+		if row.LastRun == nil || row.LastRun.Downloaded != (row.TitleID == 2) {
 			t.Errorf("downloaded: %+v", row)
 		}
 	}
@@ -278,25 +258,6 @@ func TestWantedListPendingDownloadedAndPositionJSON(t *testing.T) {
 		if it.LastRun != nil && it.LastRun.Downloaded {
 			t.Errorf("not started counted as grabbed: %+v", it.LastRun)
 		}
-	}
-}
-
-func TestWantedListSharedPositions(t *testing.T) {
-	e := newEnv(t, true, nil)
-	e.pol.Versions["movie-shadow"].Mode = policy.ModeActive
-	list, err := e.a.WantedList(e.ctx, WantedQuery{Only: OnlyMissing})
-	if err != nil {
-		t.Fatal(err)
-	}
-	positions := map[int64]int{}
-	for _, row := range list.Items {
-		if row.Waiting != "due" || row.Version == "series" {
-			continue
-		}
-		if pos := positions[row.TitleID]; pos != 0 && pos != row.Position {
-			t.Fatalf("shared title positions: %+v", list.Items)
-		}
-		positions[row.TitleID] = row.Position
 	}
 }
 
@@ -376,23 +337,23 @@ func TestWantedListTwoThousandTargetsOneFlightRead(t *testing.T) {
 	}
 }
 
-// The list names each row's season and its place among the due Search now rows, and "Search all" asks for exactly
+// The list names each row's season and the due Search now rows, and "Search all" asks for exactly
 // the rows the list shows for the same filter; what the hour does not allow stays due.
 func TestWantedListSearchNowQueue(t *testing.T) {
 	t.Parallel()
-	e := newEnv(t, true, &policy.Wanted{Enabled: new(bool), PerHour: 1})
+	e := newEnv(t, true, &policy.Wanted{Missing: new(false), CutoffUnmet: policy.CutoffOff, PerHour: 1})
 	e.accept = false
 	before, err := e.a.WantedList(e.ctx, WantedQuery{Only: OnlyMissing, Version: "series"})
-	if err != nil || before.Total != 3 || before.SearchNowPending != 0 || before.SearchNowNextAt != nil {
+	if err != nil || before.Total != 3 || before.SearchNowPending != 0 {
 		t.Fatalf("before %+v %v", before, err)
 	}
 	for _, row := range before.Items {
-		if row.Season == nil || row.SearchQueued != 0 || row.Waiting != "loop_off" || row.Targets[0][:3] != fmt.Sprintf("s%02d", *row.Season) {
+		if row.Season == nil || row.Why != "" || row.Waiting != "not_scheduled" || row.Targets[0][:3] != fmt.Sprintf("s%02d", *row.Season) {
 			t.Errorf("row %+v", row)
 		}
 	}
 	res, err := e.a.RequestSearchNowAll(e.ctx, WantedQuery{Only: OnlyMissing, Version: "series", Limit: 1})
-	if err != nil || res.Queued != 3 || res.Started != 1 || res.Pending != 2 || res.NextAt != nil {
+	if err != nil || res.Queued != 3 || res.Started != 1 || res.Pending != 2 {
 		t.Fatalf("all %+v %v", res, err)
 	}
 	if n := e.count(`SELECT COUNT(*) FROM search_request WHERE version_key = 'series' AND reason = 'missing' AND why = 'asked'`); n != 3 {
@@ -404,24 +365,117 @@ func TestWantedListSearchNowQueue(t *testing.T) {
 		t.Fatalf("again %+v %v", again, err)
 	}
 	after, err := e.a.WantedList(e.ctx, WantedQuery{Only: OnlyMissing})
-	if err != nil || after.SearchNowPending != 2 || after.SearchNowNextAt != nil {
+	if err != nil || after.SearchNowPending != 2 {
 		t.Fatalf("after %+v %v", after, err)
 	}
-	var places []int
+	asked := 0
 	for _, row := range after.Items {
 		switch {
-		case row.Version == "movie" && (row.Season != nil || row.SearchQueued != 0):
+		case row.Version == "movie" && (row.Season != nil || row.Why != ""):
 			t.Errorf("movie row %+v", row)
-		case row.Version == "series":
-			places = append(places, row.SearchQueued)
+		case row.Version == "series" && row.Waiting == WaitDue && row.Why == whyAsked:
+			asked++
 		}
 	}
-	sort.Ints(places)
-	if !reflect.DeepEqual(places, []int{0, 1, 2}) {
-		t.Fatalf("places %v", places)
+	if asked != 2 {
+		t.Fatalf("%d due asked rows: %+v", asked, after.Items)
 	}
 	raw, _ := json.Marshal(after.Items[0])
-	if after.Items[0].Version == "movie" && (strings.Contains(string(raw), `"season"`) || strings.Contains(string(raw), `"search_queued"`)) {
+	if after.Items[0].Version == "movie" && (strings.Contains(string(raw), `"season"`) || strings.Contains(string(raw), `"why"`)) {
 		t.Errorf("movie row JSON %s", raw)
+	}
+}
+
+// Each waiting state of the Wanted list with its next search time, why and tries: a scheduled retry of a new release,
+// a due failure re-search (its stored time), a regular row due later, a download in flight. With the switch off only
+// rows with a why stay scheduled; while paused no row has a time.
+func TestWantedListNextSearch(t *testing.T) {
+	t.Parallel()
+	e := newEnv(t, true, &policy.Wanted{PerHour: 10})
+	for _, id := range []int{4, 5} {
+		e.exec(`INSERT INTO title (id, kind, name, created_at, updated_at) VALUES (?, 'movie', 'M', 0, 0)`, id)
+		e.exec(`INSERT INTO title_release_date (title_id, source, type, date) VALUES (?, 'fixture', 'digital', '2024-01-01')`, id)
+		e.exec(`INSERT INTO version (id, title_id, policy_key, state, created_at, updated_at) VALUES (?, ?, 'movie', 'wanted', 0, 0)`, 100+id, id)
+	}
+	ms := func(d time.Duration) int64 { return store.Millis(t0.Add(d)) }
+	e.exec(`INSERT INTO search_request (title_id, version_key, reason, season, created_at, next_at, tries, why) VALUES
+		(1, 'movie', 'missing', -1, 0, ?, 2, 'new'), (4, 'movie', 'missing', -1, 0, ?, 0, 'stalled'),
+		(5, 'movie', 'missing', -1, 0, ?, 0, NULL)`, ms(2*time.Hour), ms(-10*time.Minute), ms(3*time.Hour))
+	e.exec(`INSERT INTO download (title_id, version_id, version_key, info_hash, release_title, indexer, state, created_at, updated_at)
+		VALUES (2, 102, 'movie', ?, 'x', 'pub', 'downloading', 0, 0)`, h("f"))
+	type want struct {
+		waiting, why string
+		tries        int
+		at           *time.Duration
+	}
+	at := func(d time.Duration) *time.Duration { return &d }
+	check := func(name string, wants map[int64]want) {
+		t.Helper()
+		l, err := e.a.WantedList(e.ctx, WantedQuery{Only: OnlyMissing, Version: "movie"})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if l.Total != len(wants) {
+			t.Fatalf("%s: %d rows", name, l.Total)
+		}
+		for _, r := range l.Items {
+			w := wants[r.TitleID]
+			ok := r.Waiting == w.waiting && r.Why == w.why && r.Tries == w.tries && (r.NextAt == nil) == (w.at == nil)
+			if ok && w.at != nil {
+				ok = r.NextAt.Equal(t0.Add(*w.at))
+			}
+			if !ok {
+				t.Errorf("%s: title %d: %+v, want %+v", name, r.TitleID, r, w)
+			}
+		}
+	}
+	check("on", map[int64]want{
+		1: {WaitScheduled, whyNew, 2, at(2 * time.Hour)},
+		2: {WaitInFlight, "", 0, nil},
+		4: {WaitDue, "stalled", 0, at(-10 * time.Minute)},
+		5: {WaitScheduled, "", 0, at(3 * time.Hour)},
+	})
+	e.a.set.Missing = false
+	check("switch off", map[int64]want{
+		1: {WaitScheduled, whyNew, 2, at(2 * time.Hour)},
+		2: {WaitInFlight, "", 0, nil},
+		4: {WaitDue, "stalled", 0, at(-10 * time.Minute)},
+		5: {WaitNotScheduled, "", 0, nil},
+	})
+	e.pol.Router.Enabled = false
+	check("paused", map[int64]want{
+		1: {WaitDownloadsOff, whyNew, 2, nil},
+		2: {WaitDownloadsOff, "", 0, nil},
+		4: {WaitDownloadsOff, "stalled", 0, nil},
+		5: {WaitDownloadsOff, "", 0, nil},
+	})
+}
+
+// A season row's last run is the newest run of that library and season, whatever its target: an episode search of
+// the season counts, as it does for the schedule.
+func TestWantedListLastRunBySeason(t *testing.T) {
+	t.Parallel()
+	e := newEnv(t, true, nil)
+	vid := e.count(`SELECT id FROM version WHERE title_id = 10 AND policy_key = 'series'`)
+	e.exec(`INSERT INTO acquire_run (id, source, title_id, version_id, version_key, target, season, state, results, created_at, updated_at)
+		VALUES (77, 'command', 10, ?, 'series', 's01e01', 1, 'nothing', 2, ?, ?)`, vid, store.Millis(t0.Add(-time.Hour)), store.Millis(t0.Add(-time.Hour)))
+	l, err := e.a.WantedList(e.ctx, WantedQuery{Only: OnlyMissing, Version: "series"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	seen := false
+	for _, r := range l.Items {
+		switch {
+		case r.Season != nil && *r.Season == 1:
+			seen = true
+			if r.LastRun == nil || r.LastRun.ID != 77 {
+				t.Errorf("season 1: %+v %+v", r, r.LastRun)
+			}
+		case r.LastRun != nil:
+			t.Errorf("other season with a run: %+v", r)
+		}
+	}
+	if !seen {
+		t.Fatalf("no season 1 row: %+v", l.Items)
 	}
 }

@@ -632,7 +632,7 @@ func TestWantedLoopPacing(t *testing.T) {
 	if e.rt.Writes() != 0 {
 		t.Errorf("writes %d with nothing accepted", e.rt.Writes())
 	}
-	off := newEnv(t, true, &policy.Wanted{Enabled: new(bool)})
+	off := newEnv(t, true, &policy.Wanted{Missing: new(false), CutoffUnmet: policy.CutoffOff})
 	if sum, _ := off.a.Round(off.ctx, nil); sum.Due != 0 || sum.Queued != 0 {
 		t.Errorf("off: %+v", sum)
 	}

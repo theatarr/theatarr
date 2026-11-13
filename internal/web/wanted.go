@@ -30,16 +30,17 @@ func (w *Web) mountWantedAPI(mux *http.ServeMux) {
 
 func wantedWaiting(v string) bool {
 	switch v {
-	case "", "due", "searched_recently", "in_flight", "loop_off", "downloads_off":
+	case "", acquire.WaitDue, acquire.WaitScheduled, acquire.WaitInFlight, acquire.WaitNotScheduled,
+		acquire.WaitDownloadsOff:
 		return true
 	}
 	return false
 }
 
 // POST /wanted/search {only, items: [{title_id, version, season?}]} or {only, all: {version?, waiting?}}: queue a
-// search of the named rows of the Wanted list, or of every row the list shows for the filter. The searches start
-// oldest first under router.wanted.per_hour; the answer says how many started at once and how many wait. 409 while
-// new downloads are off.
+// search of the named rows of the Wanted list, or of every row the list shows for the filter: they become due, asked
+// for, and start first under router.wanted.per_hour; the answer says how many started at once and how many wait. 409
+// while paused.
 func (w *Web) apiWantedSearch(rw http.ResponseWriter, r *http.Request) {
 	var req struct {
 		Only  string                  `json:"only"`
@@ -99,7 +100,8 @@ func (w *Web) apiWantedSearch(rw http.ResponseWriter, r *http.Request) {
 	writeJSON(rw, http.StatusOK, out)
 }
 
-// DELETE /wanted/search: drop the queued Search now requests. Searches already started are not touched.
+// DELETE /wanted/search: the rows Search now made due go back to the regular schedule. Searches already started are
+// not touched.
 func (w *Web) apiWantedSearchClear(rw http.ResponseWriter, r *http.Request) {
 	sn, ok := w.add.Acquirer.(searchNower)
 	if !ok {

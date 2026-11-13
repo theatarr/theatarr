@@ -60,7 +60,6 @@ func TestSectionDefaultTrue(t *testing.T) {
 		"playlists.routes":                           p.PlaylistSettings().Routes,
 		"router.cached_only":                         p.RouterSettings().CachedOnly,
 		"router.wanted.missing":                      p.WantedSettings().Missing,
-		"router.wanted.retry_new":                    p.WantedSettings().RetryNew,
 		"router.cache_evidence.torbox_check.enabled": p.CacheEvidenceSettings().CheckEnabled,
 	}
 	var walk func(string, []SchemaField)
@@ -131,25 +130,6 @@ func TestSectionHelpHasNoGoFieldNames(t *testing.T) {
 	}
 	for key, fields := range sectionSchemas() {
 		check(key, fields)
-	}
-}
-
-func TestWantedSchemaDefaultFollowsActiveVersions(t *testing.T) {
-	for _, active := range []bool{false, true} {
-		p := &policy.Policy{}
-		if active {
-			p.Versions = map[string]*policy.VersionPolicy{"main": {Mode: policy.ModeActive}}
-		}
-		schema := settingsSchemaForPolicy(p)
-		for _, f := range schema.Sections["router"] {
-			if f.Name == "wanted" {
-				for _, child := range f.Fields {
-					if child.Name == "enabled" && (child.Default == "true") != p.WantedSettings().Enabled {
-						t.Errorf("active %v: %s", active, child.Default)
-					}
-				}
-			}
-		}
 	}
 }
 

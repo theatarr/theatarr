@@ -15,7 +15,7 @@ const columns = [{ key: "movies-hd", label: "HD" }, { key: "movies-4k", label: "
 
 const me = (permissions: string[]) => ({ method: "GET", path: "/auth/me", reply: { id: 7, username: "owner", permissions, csrf_token: "t" } });
 const wanted = { method: "GET", path: "/wanted", reply: { per_hour: 20, searched_last_hour: 0, items: [], total: 0 } };
-const answer = (over: Record<string, unknown> = {}) => ({ queued: 0, started: 0, pending: 0, skipped: [], next_at: null, ...over });
+const answer = (over: Record<string, unknown> = {}) => ({ queued: 0, started: 0, pending: 0, skipped: [], ...over });
 
 function setup(n: number, routes: Route[]) {
   const api = mockFetch(routes);
@@ -57,13 +57,13 @@ describe("Bulk Search now", () => {
 
   it("sends 3 titles in one request and shows the answer", async () => {
     const api = setup(3, [me(["manage", "admin"]), wanted,
-      { method: "POST", path: "/wanted/search", reply: answer({ queued: 3, started: 2, pending: 1, next_at: "2026-11-09T14:05:00Z" }) }]);
+      { method: "POST", path: "/wanted/search", reply: answer({ queued: 3, started: 2, pending: 1 }) }]);
     const bar = await searchNow(3);
     const result = await within(bar).findByTestId("bulk-search-result");
     const posts = api.calls("POST", "/wanted/search");
     expect(posts).toHaveLength(1);
     expect(posts[0].body).toEqual({ only: "missing", items: [1, 2, 3].map((id) => ({ title_id: id, version: "movies-hd" })) });
-    expect(result.textContent).toMatch(/^Queued 3 searches\. 2 started now, 1 waiting in the queue \(next at .+\)\. Wanted$/);
+    expect(result.textContent).toMatch(/^Queued 3 searches\. 2 started now, 1 waiting in the queue\. Wanted$/);
     expect(within(result).getByRole("link", { name: "Wanted" }).getAttribute("href")).toBe("/wanted?version=movies-hd");
     expect(screen.queryByRole("dialog")).toBeNull();
   });

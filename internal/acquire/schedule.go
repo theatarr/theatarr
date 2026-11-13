@@ -73,11 +73,8 @@ func seasonKey(versionID int64, season int) string {
 	return strconv.FormatInt(versionID, 10) + "/" + strconv.Itoa(season)
 }
 
-// switchOn says whether the backlog switch of reason is on. router.wanted.enabled false turns both off.
+// switchOn says whether the backlog switch of reason is on.
 func (a *Acquirer) switchOn(reason string) bool {
-	if !a.set.Enabled {
-		return false
-	}
 	if reason == OnlyMissing {
 		return a.set.Missing
 	}

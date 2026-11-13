@@ -1029,28 +1029,11 @@
       },
       {
         "name": "wanted",
-        "label": "Automatic wanted searches",
+        "label": "Automatic search",
         "type": "object",
-        "help": "This is the search loop for the active versions' missing and cutoff-unmet titles and episodes.",
+        "help": "This is the search schedule of the Live libraries' missing and cutoff-unmet titles and episodes.",
         "nullable": true,
         "fields": [
-          {
-            "name": "enabled",
-            "default": "false",
-            "label": "Enabled",
-            "type": "boolean",
-            "help": "This turns the loop on. Default: on when some library is active, off otherwise.",
-            "nullable": true
-          },
-          {
-            "name": "interval",
-            "min": 300,
-            "max": 86400,
-            "default": "15m",
-            "label": "Search interval",
-            "type": "duration",
-            "help": "This is the time between rounds. Default 15m, 5m to 24h."
-          },
           {
             "name": "per_hour",
             "min": 1,
@@ -1058,43 +1041,35 @@
             "default": "10",
             "label": "Searches per hour",
             "type": "integer",
-            "help": "This caps the loop's searches (one title, season or episode each) in any hour. Default 10, 1 to 200."
+            "help": "This caps the automatic searches (one title, season or episode each) in any hour, Search now included. Default 10, 1 to 200."
           },
           {
             "name": "again_after",
             "min": 3600,
             "max": 2592000,
             "default": "24h",
-            "label": "Wait before searching again",
+            "label": "Search older items again after",
             "type": "duration",
-            "help": "This is how long an item waits before it is searched again. Default 24h, 1h to 30d."
+            "help": "This is how long after its last search an older item is searched again. New releases are tried again sooner: after 1, 2, 4, 8 and 16 hours, then daily for a week. Default 24h, 1h to 30d."
           },
           {
             "name": "missing",
             "default": "true",
-            "label": "Search for missing files",
+            "label": "Search for missing items",
             "type": "boolean",
-            "help": "This searches items with no file (default true). Which items with a file are searched for an upgrade is the upgrade search target below.",
+            "help": "This searches items with no file by themselves (default true). Off: they are searched when you ask, or after a failed download.",
             "nullable": true
           },
           {
             "name": "cutoff_unmet",
-            "label": "Upgrade search target",
+            "label": "Search for upgrades",
             "type": "enum",
             "enum": [
               "quality",
               "score",
               "off"
             ],
-            "help": "This chooses automatic upgrade searches: quality, score or off."
-          },
-          {
-            "name": "retry_new",
-            "default": "true",
-            "label": "Retry new releases sooner",
-            "type": "boolean",
-            "help": "This searches again 1, 2, 4 and 8 hours (and so on) after an automatic search for a missing episode or film that came out in the last 7 days finds nothing, instead of a day later. Each retry counts against the hourly limit.",
-            "nullable": true
+            "help": "This chooses which files are searched for an upgrade by themselves: quality, score or off."
           }
         ]
       },

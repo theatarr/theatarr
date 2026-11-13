@@ -87,29 +87,18 @@ func TestWantedSettings(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if got := p.WantedSettings(); got.Enabled || got.Interval != 15*time.Minute || got.PerHour != 10 ||
-		got.AgainAfter != 24*time.Hour || !got.Missing || got.CutoffUnmet != CutoffQuality {
-		t.Errorf("example (no active version): %+v", got)
-	}
-	// retry_new is on unless the section turns it off.
-	for _, q := range []*Policy{p, {}, {Router: &Router{}}, {Router: &Router{Wanted: &Wanted{}}}} {
-		if !q.WantedSettings().RetryNew {
-			t.Errorf("retry_new off by default: %+v", q.Router)
-		}
-	}
-	if (&Policy{Router: &Router{Wanted: &Wanted{RetryNew: new(false)}}}).WantedSettings().RetryNew {
-		t.Error("retry_new: false is not applied")
-	}
-	active := &Policy{Versions: map[string]*VersionPolicy{"a": {Mode: ModeActive}}}
-	if !active.WantedSettings().Enabled {
-		t.Error("the loop should default on once a version is active")
+	if got := p.WantedSettings(); got.PerHour != 10 || got.AgainAfter != 24*time.Hour || !got.Missing ||
+		got.CutoffUnmet != CutoffQuality {
+		t.Errorf("example: %+v", got)
 	}
 	for _, tc := range []struct {
 		yaml, err string
 	}{
-		{"router:\n  wanted:\n    enabled: true\n    interval: 30m\n    per_hour: 4\n    again_after: 6h\n" +
+		{"router:\n  wanted:\n    per_hour: 4\n    again_after: 6h\n" +
 			"    missing: true\n    cutoff_unmet: false\n", ""},
-		{"router:\n  wanted:\n    interval: 1m\n", "router.wanted.interval"},
+		{"router:\n  wanted:\n    enabled: true\n", "enabled"},
+		{"router:\n  wanted:\n    interval: 30m\n", "interval"},
+		{"router:\n  wanted:\n    retry_new: false\n", "retry_new"},
 		{"router:\n  wanted:\n    per_hour: 500\n", "router.wanted.per_hour"},
 		{"router:\n  wanted:\n    again_after: 10m\n", "router.wanted.again_after"},
 		{"router:\n  wanted:\n    bogus: 1\n", "bogus"},
@@ -128,7 +117,7 @@ func TestWantedSettings(t *testing.T) {
 			t.Errorf("%q: want an error about %s, got %v", tc.yaml, tc.err, err)
 		case tc.err == "":
 			s := p.WantedSettings()
-			if !s.Enabled || s.Interval != 30*time.Minute || s.PerHour != 4 || s.AgainAfter != 6*time.Hour ||
+			if s.PerHour != 4 || s.AgainAfter != 6*time.Hour ||
 				!s.Missing || s.CutoffUnmet != CutoffOff {
 				t.Errorf("settings %+v", s)
 			}
@@ -198,32 +187,6 @@ func TestCacheEvidenceSettings(t *testing.T) {
 				s.CheckTop != 5 || s.CheckPerHour != 20 {
 				t.Errorf("settings %+v", s)
 			}
-		}
-	}
-}
-
-// router.wanted.retry_new is on when the router section has no wanted block or the block leaves the field out, and
-// off only when the file says false. The stored-section side (an explicit false is kept) is in internal/settings.
-func TestRetryNewDefaultOn(t *testing.T) {
-	t.Parallel()
-	for _, tc := range []struct {
-		yaml string
-		want bool
-	}{
-		{"router:\n  enabled: false\n", true},
-		{"router:\n  wanted:\n    per_hour: 20\n", true},
-		{"router:\n  wanted:\n    retry_new: false\n", false},
-	} {
-		dir := copyExample(t)
-		if err := os.WriteFile(filepath.Join(dir, "router.yaml"), []byte(tc.yaml), 0o644); err != nil {
-			t.Fatal(err)
-		}
-		p, err := Load(dir)
-		if err != nil {
-			t.Fatalf("%q: %v", tc.yaml, err)
-		}
-		if got := p.WantedSettings().RetryNew; got != tc.want {
-			t.Errorf("%q: retry_new %v, want %v", tc.yaml, got, tc.want)
 		}
 	}
 }

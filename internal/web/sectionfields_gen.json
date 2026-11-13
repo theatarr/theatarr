@@ -185,7 +185,7 @@
     "ready_timeout": "This fails a download still ready this long after ready_at, blocklists it and searches again. Default 6h, 1m to 7d. No torrent is deleted on the provider.",
     "stalled_after": "This fails a download still in state added (accepted, not ready, nothing fetched yet) this long after its add, as stalled (decypharr's remove_stalled_after): its hash is blocklisted for the version, our own Real-Debrid add is deleted,…",
     "trackers": "This lists public tracker announce URLs added to every debrid magnet. Default none: the magnet is bare. Each must be udp, http or https with no credentials, no query and a path of \"\" or /announce.",
-    "wanted": "This is the search loop for the active versions' missing and cutoff-unmet titles and episodes."
+    "wanted": "This is the search schedule of the Live libraries' missing and cutoff-unmet titles and episodes."
   },
   "SeriesMeta": {
     "enabled": "This turns the refresh on; default true when a tvdb or tmdb source is configured.",
@@ -213,12 +213,9 @@
     "images": "This configures the image cache on disk."
   },
   "Wanted": {
-    "again_after": "This is how long an item waits before it is searched again. Default 24h, 1h to 30d.",
-    "cutoff_unmet": "This chooses automatic upgrade searches: quality, score or off.",
-    "enabled": "This turns the loop on. Default: on when some library is active, off otherwise.",
-    "interval": "This is the time between rounds. Default 15m, 5m to 24h.",
-    "missing": "This searches items with no file (default true). Which items with a file are searched for an upgrade is the upgrade search target below.",
-    "per_hour": "This caps the loop's searches (one title, season or episode each) in any hour. Default 10, 1 to 200.",
-    "retry_new": "This searches again 1, 2, 4 and 8 hours (and so on) after an automatic search for a missing episode or film that came out in the last 7 days finds nothing, instead of a day later. Each retry counts against the hourly limit."
+    "again_after": "This is how long after its last search an older item is searched again. New releases are tried again sooner: after 1, 2, 4, 8 and 16 hours, then daily for a week. Default 24h, 1h to 30d.",
+    "cutoff_unmet": "This chooses which files are searched for an upgrade by themselves: quality, score or off.",
+    "missing": "This searches items with no file by themselves (default true). Off: they are searched when you ask, or after a failed download.",
+    "per_hour": "This caps the automatic searches (one title, season or episode each) in any hour, Search now included. Default 10, 1 to 200."
   }
 }

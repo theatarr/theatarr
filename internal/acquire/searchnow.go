@@ -36,14 +36,13 @@ type SearchNowSkip struct {
 }
 
 // SearchNowResult is what a request did: Queued are the rows it made due (one already asked for and due is not
-// counted again), Started the searches its round started, Pending the asked rows still due. NextAt is always nil: a
-// waiting row starts at a later round.
+// counted again), Started the searches its round started, Pending the asked rows still due (they start at later
+// rounds as the hourly limit allows).
 type SearchNowResult struct {
 	Queued  int             `json:"queued"`
 	Started int             `json:"started"`
 	Pending int             `json:"pending"`
 	Skipped []SearchNowSkip `json:"skipped"`
-	NextAt  *time.Time      `json:"next_at"`
 }
 
 // Reasons an item is skipped.
@@ -118,7 +117,7 @@ func (a *Acquirer) RequestSearchNowAll(ctx context.Context, q WantedQuery) (*Sea
 	for _, row := range rows {
 		if row.SearchBlocked != "" {
 			why := skipInFlight
-			if row.SearchBlocked == "downloads_off" {
+			if row.SearchBlocked == WaitDownloadsOff {
 				why = ErrDownloadsOff.Error()
 			}
 			out.Skipped = append(out.Skipped, SearchNowSkip{TitleID: row.TitleID, Version: row.Version, Reason: why})
