@@ -150,7 +150,7 @@ func (a *Acquirer) wantedRows(ctx context.Context, q WantedQuery, out *WantedLis
 		}
 		versions = []string{q.Version}
 	}
-	v, err := a.wantedView(ctx, versions, 0, out.DownloadsEnabled)
+	v, err := a.wantedView(ctx, versions, 0)
 	if err != nil {
 		return nil, err
 	}
@@ -186,8 +186,8 @@ type wantedView struct {
 	flight      wantedFlights
 }
 
-func (a *Acquirer) wantedView(ctx context.Context, versions []string, titleID int64, downloadsOn bool) (*wantedView, error) {
-	v := &wantedView{now: store.Millis(a.now()), downloadsOn: downloadsOn}
+func (a *Acquirer) wantedView(ctx context.Context, versions []string, titleID int64) (*wantedView, error) {
+	v := &wantedView{now: store.Millis(a.now()), downloadsOn: a.pol.RouterSettings().Enabled}
 	var scope []int64
 	if titleID != 0 {
 		scope = []int64{titleID}
@@ -314,7 +314,7 @@ func (a *Acquirer) NextSearches(ctx context.Context, titleID int64) ([]NextSearc
 	if len(versions) == 0 {
 		return nil, nil
 	}
-	v, err := a.wantedView(ctx, versions, titleID, true)
+	v, err := a.wantedView(ctx, versions, titleID)
 	if err != nil {
 		return nil, err
 	}
