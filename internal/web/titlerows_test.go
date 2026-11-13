@@ -415,3 +415,46 @@ func TestLibraryLabelsWithoutKeys(t *testing.T) {
 		t.Errorf("user labels: %v", got)
 	}
 }
+
+// TestCaughtUpSeriesOneAnswerWithoutSeeFiles: for an account without "see files", a series holding every aired
+// episode reads the same everywhere the server answers: the title's availability, its library's episode counts (what
+// the hero and the request box read: have > 0, missing 0) and the episode cells (aired ones held; the one to come is
+// not aired and not missing).
+func TestCaughtUpSeriesOneAnswerWithoutSeeFiles(t *testing.T) {
+	t.Parallel()
+	e := newManageEnv(t, nil)
+	e.exec(`UPDATE episode_version_state SET state = 'cutoff_met' WHERE episode_id IN (101, 102)`)
+	e.exec(`UPDATE episode SET air_date = '2099-01-01', air_date_utc_at = NULL WHERE id = 103`)
+	var d TitleDetail
+	if err := json.Unmarshal([]byte(e.userBody(APIBase+"/titles/10")), &d); err != nil {
+		t.Fatal(err)
+	}
+	if d.Availability != "available" || len(d.Versions) != 1 {
+		t.Fatalf("title: %q %+v", d.Availability, d.Versions)
+	}
+	if c := d.Versions[0].Episodes; c == nil || c.Have != 2 || c.Missing != 0 || !d.Versions[0].HasFile {
+		t.Errorf("episode counts: %+v", c)
+	}
+	var el EpisodeList
+	if err := json.Unmarshal([]byte(e.userBody(APIBase+"/titles/10/episodes")), &el); err != nil {
+		t.Fatal(err)
+	}
+	for _, ep := range el.Episodes {
+		c := ep.Versions["tv-2160p"]
+		switch {
+		case ep.Season == 0:
+		case ep.Aired && !c.HasFile, !ep.Aired && c.HasFile, ep.ID == 103 && ep.Aired:
+			t.Errorf("episode %d: aired %v cell %+v", ep.ID, ep.Aired, c)
+		}
+	}
+	var p TitlePage
+	if err := json.Unmarshal([]byte(e.userBody(APIBase+"/titles?kind=series")), &p); err != nil {
+		t.Fatal(err)
+	}
+	if len(p.Items) != 1 || p.Items[0].Availability != "available" {
+		t.Errorf("row: %+v", p.Items)
+	}
+	if c := p.Items[0].Versions[0].Coverage; c == nil || c.Missing != 0 || c.Have != 2 {
+		t.Errorf("row coverage: %+v", c)
+	}
+}
