@@ -3,6 +3,7 @@ import { screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 import { Seasons } from "./seasons";
+import { Toaster } from "@/components/toaster";
 import { expectNamedControls, mockFetch, renderPage } from "@/test/page";
 
 const readOnly = { mode: "shadow", can_edit: false, edit_reason: "Your account may not change this", can_search: false, live_releases: false };
@@ -47,31 +48,38 @@ const routes = [
 ];
 
 describe("Series page copies", () => {
-  it("shows each copy's season bar, stages and the episode stage with anime numbering", async () => {
+  it("badges each library's season in All, and one library's badge and facts once it is picked, with anime numbering", async () => {
     mockFetch(routes);
+    const user = userEvent.setup();
     renderPage(<Seasons id="1" anime />, "/title/1");
-    const bars = await screen.findByTestId("season-copies");
-    const tv = within(bars).getByText("Anime Blu-ray").closest("[data-season-copy]") as HTMLElement;
-    expect(within(tv).getByText("1 / 3")).toBeTruthy();
-    expect(within(tv).getByTestId("copy-flight")).toBeTruthy();
-    expect(within(tv).getByTestId("season-stages").textContent).toBe("1 queued · 1 downloading");
+    const header = await screen.findByTestId("season-header");
+    const tv = within(header).getAllByTestId("season-badge").find((b) => b.getAttribute("data-vkey") === "anime-tv") as HTMLElement;
+    expect(tv.textContent).toBe("Anime Blu-ray1 / 3");
+    expect(tv.getAttribute("data-tone")).toBe("bad");
+    expect(within(header).getAllByTestId("season-badge").find((b) => b.getAttribute("data-vkey") === "anime-web")?.getAttribute("data-tone")).toBe("ok");
+    expect(within(header).getByTestId("season-summary").textContent).toBe("3 of 3 available · 2 missing in Anime Blu-ray");
     expect(await screen.findByText("E13 · absolute 13")).toBeTruthy();
     const row = screen.getByRole("button", { name: /Episode 13/ });
     expect(within(row).getByText("Downloading · 37%")).toBeTruthy();
     expect(within(row).getByRole("progressbar")).toBeTruthy();
     expectNamedControls();
+    await user.click(screen.getByRole("radio", { name: "Anime Blu-ray" }));
+    expect(within(header).getByTestId("season-badge").textContent).toBe("1 / 3");
+    expect(within(header).getByTestId("season-facts").textContent).toBe("1 missing · 1 queued · 1 downloading");
+    expect(within(header).queryByTestId("season-summary")).toBeNull();
   });
 
-  it("shows the per-library season bars only to accounts that see files; others keep the season summary", async () => {
+  it("shows the per-library badges only to accounts that see files; others keep the season summary", async () => {
     mockFetch(routes);
     const first = renderPage(<Seasons id="1" anime />, "/title/1");
-    expect(await screen.findByTestId("season-copies")).toBeTruthy();
+    expect((await screen.findAllByTestId("season-badge")).length).toBe(2);
     first.unmount();
     vi.unstubAllGlobals();
     mockFetch([{ ...routes[0], reply: { id: 9, username: "family", permissions: [], csrf_token: "t" } }, routes[1]]);
     renderPage(<Seasons id="1" anime />, "/title/1");
     expect(await screen.findByTestId("season-summary")).toBeTruthy();
-    expect(screen.queryByTestId("season-copies")).toBeNull();
+    expect(screen.queryByTestId("season-badge")).toBeNull();
+    expect(screen.queryByTestId("copy-selector")).toBeNull();
     expect(screen.queryByText("1 / 3")).toBeNull();
   });
 
@@ -85,11 +93,11 @@ describe("Series page copies", () => {
     expect(screen.getAllByRole("button", { name: /^Episode \d+/ }).map((e) => e.getAttribute("aria-label"))).toEqual(["Episode 13: Copper Harbour"]);
   });
 
-  it("tells same-named copies apart in the bars, the summary, the notices and the episode table", async () => {
+  it("tells same-named copies apart in the badges, the summary, the notices and the episode table", async () => {
     const same = { ...episodes, versions: episodes.versions.map((v) => ({ ...v, label: "Anime" })) };
     mockFetch([routes[0], { method: "GET", path: "/titles/1/episodes", reply: same }]);
     renderPage(<Seasons id="1" anime />, "/title/1");
-    const bars = await screen.findByTestId("season-copies");
+    const bars = await screen.findByTestId("season-header");
     expect(within(bars).getByText("Anime · anime-tv")).toBeTruthy();
     expect(within(bars).getByText("Anime · anime-web")).toBeTruthy();
     expect(screen.queryByText("Anime")).toBeNull();
@@ -132,6 +140,9 @@ it("names phone library radios distinctly", async () => {
   renderPage(<Seasons id="1" anime />, "/title/1");
   expect(await screen.findByRole("radio", { name: "Anime · anime-tv" })).toBeTruthy();
   expect(screen.getByRole("radio", { name: "Anime · anime-web" })).toBeTruthy();
+  // Phones have no All: the first library is in view.
+  expect(screen.queryByRole("radio", { name: "All libraries" })).toBeNull();
+  expect(screen.getByRole("radio", { name: "Anime · anime-tv" }).getAttribute("aria-checked")).toBe("true");
 });
 
 it("leaves season settings destinations as text for non-admin managers", async () => {
@@ -184,5 +195,110 @@ describe("Interactive search from the episodes", () => {
     renderPage(<Seasons id="1" anime />, "/title/1");
     await screen.findByTestId("season-summary");
     expect(screen.queryByTestId("interactive-search-open")).toBeNull();
+  });
+});
+
+describe("Acting on the libraries in view", () => {
+  const outcome = { started: true, versions: ["anime-web"], skipped: [], queued: 1, found: 0, message: "Searching 1 library" };
+  const changed = { versions: ["anime-web"], skipped: [], episodes: 3, message: "Monitoring changed in 1 library" };
+  const acting = [
+    ...routes,
+    { method: "PUT", path: "/titles/1/seasons/1/monitor", reply: changed },
+    { method: "POST", path: "/titles/1/seasons/1/search", reply: outcome },
+    { method: "PUT", path: "/titles/1/episodes/monitor", reply: changed },
+    { method: "POST", path: "/titles/1/episodes/search", reply: outcome },
+  ];
+
+  it("sends the season header's switch and Search to every library in All and to the picked library alone", async () => {
+    const api = mockFetch(acting);
+    const user = userEvent.setup();
+    renderPage(<><Seasons id="1" anime /><Toaster /></>, "/title/1");
+    const header = await screen.findByTestId("season-header");
+    await user.click(within(header).getByRole("switch", { name: "Stop monitoring season 1 in every library" }));
+    await user.click(within(header).getByRole("button", { name: "Search season 1 now in every library" }));
+    await vi.waitFor(() => expect(api.calls("POST", "/titles/1/seasons/1/search")).toHaveLength(1));
+    expect(api.calls("PUT", "/titles/1/seasons/1/monitor")[0].body).toEqual({ monitored: false });
+    expect(api.calls("POST", "/titles/1/seasons/1/search")[0].body).toEqual({});
+    expect(await screen.findByText("Search started")).toBeTruthy();
+    expect(screen.getByText("Searching 1 library")).toBeTruthy();
+
+    await user.click(screen.getByRole("radio", { name: "Anime WEB" }));
+    await user.click(within(header).getByRole("switch", { name: "Stop monitoring season 1 in Anime WEB" }));
+    await user.click(within(header).getByRole("button", { name: "Search season 1 now in Anime WEB" }));
+    await vi.waitFor(() => expect(api.calls("POST", "/titles/1/seasons/1/search")).toHaveLength(2));
+    expect(api.calls("PUT", "/titles/1/seasons/1/monitor")[1].body).toEqual({ monitored: false, versions: ["anime-web"] });
+    expect(api.calls("POST", "/titles/1/seasons/1/search")[1].body).toEqual({ versions: ["anime-web"] });
+  });
+
+  it("sends a row's switch and Search for that episode in the library in view", async () => {
+    const api = mockFetch(acting);
+    const user = userEvent.setup();
+    renderPage(<Seasons id="1" anime />, "/title/1");
+    await user.click(await screen.findByRole("radio", { name: "Anime WEB" }));
+    const row = document.querySelector('[data-episode="1x13"]') as HTMLElement;
+    await user.click(within(row).getByRole("switch", { name: "Stop monitoring S01E13 in Anime WEB" }));
+    await user.click(within(row).getByRole("button", { name: "Search S01E13 now in Anime WEB" }));
+    await vi.waitFor(() => expect(api.calls("POST", "/titles/1/episodes/search")).toHaveLength(1));
+    expect(api.calls("PUT", "/titles/1/episodes/monitor")[0].body).toEqual({ monitored: false, versions: ["anime-web"], episode_ids: [102] });
+    expect(api.calls("POST", "/titles/1/episodes/search")[0].body).toEqual({ versions: ["anime-web"], episode_ids: [102] });
+    // The row's icons do not open the episode overview.
+    expect(api.calls("GET", "/titles/1/episodes/102")).toHaveLength(0);
+  });
+
+  it("shows a chosen column for the library in view, and cache pills by default", async () => {
+    const withFacts = { ...episodes, episodes: episodes.episodes.map((e) => ({ ...e, versions: { ...e.versions, "anime-web": cell(true, { release_group: "NTb", cached_on: ["rd"] }) } })) };
+    mockFetch([routes[0], { method: "GET", path: "/titles/1/episodes", reply: withFacts }]);
+    const user = userEvent.setup();
+    renderPage(<Seasons id="1" anime />, "/title/1");
+    // All libraries: the matrix, no Columns button.
+    await screen.findByTestId("episode-table");
+    expect(screen.queryByTestId("episode-columns")).toBeNull();
+    await user.click(screen.getByRole("radio", { name: "Anime WEB" }));
+    const table = screen.getByTestId("episode-table");
+    expect(table.getAttribute("data-library")).toBe("anime-web");
+    expect(within(table).getAllByText("RD")).toHaveLength(3);
+    expect(within(table).queryByRole("columnheader", { name: "Release group" })).toBeNull();
+    await user.click(screen.getByTestId("episode-columns"));
+    await user.click(within(screen.getByTestId("column-list")).getByRole("checkbox", { name: /Release group/ }));
+    await user.click(screen.getByRole("button", { name: "Done" }));
+    expect(within(screen.getByTestId("episode-table")).getByRole("columnheader", { name: "Release group" })).toBeTruthy();
+    expect(within(screen.getByTestId("episode-table")).getAllByText("NTb")).toHaveLength(3);
+  });
+
+  it("names the library in view on the bulk bar and acts only there", async () => {
+    const api = mockFetch(acting);
+    const user = userEvent.setup();
+    renderPage(<Seasons id="1" anime />, "/title/1");
+    const row = (await screen.findByRole("button", { name: /Episode 13/ })) as HTMLElement;
+    await user.click(within(row).getByRole("checkbox", { name: "Select episode 13" }));
+    expect(screen.getByTestId("bulk-scope").textContent).toBe("1 selected · every library");
+    await user.click(screen.getByRole("radio", { name: "Anime Blu-ray" }));
+    expect(screen.getByTestId("bulk-scope").textContent).toBe("1 selected · Anime Blu-ray");
+    // Anime Blu-ray is read-only and may not search: nothing reaches Anime WEB from here.
+    expect((screen.getByTestId("bulk-monitor") as HTMLButtonElement).disabled).toBe(true);
+    expect((screen.getByTestId("bulk-search") as HTMLButtonElement).disabled).toBe(true);
+    await user.click(screen.getByRole("radio", { name: "Anime WEB" }));
+    expect(screen.getByTestId("bulk-scope").textContent).toBe("1 selected · Anime WEB");
+    await user.click(screen.getByTestId("bulk-search"));
+    await vi.waitFor(() => expect(api.calls("POST", "/titles/1/episodes/search")).toHaveLength(1));
+    expect(api.calls("POST", "/titles/1/episodes/search")[0].body).toEqual({ versions: ["anime-web"], episode_ids: [102] });
+  });
+});
+
+describe("Episode window", () => {
+  it("has Details, History and Last search tabs, with the file's facts and Cached on open in Details", async () => {
+    const withFile = { ...detail, versions: [detail.versions[0], { ...detail.versions[1], file: { quality: "WEBDL-1080p", release_title: "Tsukikage.Signal.S01E13.1080p.WEB-DL-NTb", cached_on: ["rd"] }, history: [] }] };
+    mockFetch([routes[0], routes[1], { method: "GET", path: "/titles/1/episodes/102", reply: withFile }]);
+    const user = userEvent.setup();
+    renderPage(<Seasons id="1" anime />, "/title/1?episode=102");
+    const dialog = await screen.findByRole("dialog");
+    expect((await within(dialog).findAllByRole("tab")).map((t) => t.textContent)).toEqual(["Details", "History", "Last search"]);
+    const file = await within(dialog).findByTestId("episode-file");
+    expect(within(file).getByText("Tsukikage.Signal.S01E13.1080p.WEB-DL-NTb")).toBeTruthy();
+    expect(within(file).getByText("Cached on")).toBeTruthy();
+    expect(within(file).getByText("RD")).toBeTruthy();
+    await user.click(within(dialog).getByRole("tab", { name: "History" }));
+    expect(within(dialog).getAllByTestId("episode-history")).toHaveLength(2);
+    expect(within(dialog).queryByTestId("episode-file")).toBeNull();
   });
 });

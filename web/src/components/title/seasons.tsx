@@ -2,69 +2,80 @@
 // (GET /titles/{id}/episodes). Managed the way Sonarr does it (docs/design/manage.md), laid out phone first
 // (docs/design/ui.md, Title page / Episodes; the logic is lib/seasons.ts):
 //
-// - a season header with a compact completion summary ("8 of 10 available · 2 missing · 1 upgrade found"); per library
-//   counts, size, the upgrade status with Why?, the monitor switch and "Search season" sit behind its Details;
+// - a library selector with two or more libraries: All libraries (from the md width, the default there) or one
+//   library (phones have no All and show the first). Every action here acts on the libraries in view, and in All on
+//   every library, which its tooltip says;
+// - a season header on one line: chevron, monitor switch, the season's name; with one library in view its badge
+//   ("8 / 10", red when something is missing) and facts (missing, upgrades found, downloads, size, the upgrade status
+//   with Why?, and the next search when the server sends it); in All a badge per library and the summary sentence;
+//   at the right Search and Interactive search;
 // - read-only monitoring and disabled search said once above the seasons, not on every line;
-// - All / Missing / Upgrade found filters per season, and a selection of episodes for bulk monitor, unmonitor and
-//   search whose toolbar shows only while something is selected;
-// - on desktop a table with a column per library (the two-copy matrix); on phones rows for one copy at a time with a
-//   copy selector; every state in words (Available, Missing, Not aired, Upgrade found), never a bare icon;
+// - All / In progress / Missing / Upgrade found filters per season, and a selection of episodes for bulk monitor,
+//   unmonitor and search whose bar shows only while something is selected and names the libraries it acts on;
+// - one library in view on desktop: Sonarr's table (checkbox, monitor switch, number, title, the chosen columns of
+//   lib/episode-columns.ts, Search and Interactive search); All: a column per library (the matrix); phones: rows for
+//   the library in view; every state in words (Available, Missing, Not aired, Upgrade found), never a bare icon;
 // - accounts without "see files" get one availability column across copies and nothing about files or quality
 //   beyond the resolution (the API sends nothing more);
-// - episode rows open the episode overview (?episode=<id>, episode-drawer.tsx);
-// - for managers, when a current library of the series searches live: Interactive search (interactive-search.tsx) on each
-//   season header (season packs and that season's episodes) and an icon button at the end of each episode row, in the
-//   default library; the window's tabs switch library.
+// - outcomes of Search and monitoring come back as toasts;
+// - episode rows open the episode overview (?episode=<id>, episode-drawer.tsx).
 //
 // The section header and episode table follow Scryer (github.com/scryer-media/scryer)
 // apps/scryer-web/components/views/series-overview/season-section.tsx @ 2ef7757c, GPL-3.0: the bordered season
 // block, its clickable header row, the episode table columns, the row and season checkboxes, and the season's
 // monitored state counted from its episodes (all, some, none).
-import { Bookmark, ChevronDown, ChevronRight, ListOrdered, Loader2, Lock, Search, SlidersHorizontal, X } from "lucide-react";
+import { Bookmark, ChevronDown, ChevronRight, Columns3, ListOrdered, Loader2, Lock, Search, X } from "lucide-react";
 import { useEffect, useState, type KeyboardEvent, type ReactNode } from "react";
 import { Link, useSearchParams } from "react-router";
 import type { SearchOutcome } from "@/api/add";
 import { usePerms, useEpisodes, type Episode, type EpisodeList } from "@/api/library";
 import { useMonitor, useScopedSearch, type ManageOutcome } from "@/api/manage";
-import { ErrorState, Loading } from "@/components/page";
+import { ErrorState, Loading, Mono } from "@/components/page";
+import { ProviderPills } from "@/components/provider-pills";
+import { toast } from "@/components/toaster";
 import { EpisodeOverview } from "@/components/title/episode-drawer";
 import { InteractiveSearchButton, useLiveLibraries } from "@/components/title/interactive-search";
-import { CopyDot, CopyTrack } from "@/components/library/copy-bits";
 import { MonitorSwitch } from "@/components/title/manage-bits";
 import { DownloadsOffNotice } from "@/components/version-status";
 import { ProgressBar } from "@/components/activity-bits";
 import { UpgradeStatus } from "@/components/title/upgrade-why";
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
+import { ColumnPicker } from "@/components/ui/column-picker";
+import { errText } from "@/components/ui/confirm-dialog";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { fmtBytes, fmtNumber } from "@/lib/format";
-import { seasonBar, stageCounts, stageTone, stageWords } from "@/lib/copies";
-import { fmtDay } from "@/lib/library";
-import { globalDownloadsOff } from "@/lib/version-grab";
+import { stageCounts, stageTone, stageWords } from "@/lib/copies";
+import { DEFAULT_EPISODE_COLUMNS, EPISODE_COLUMNS, EPISODE_COLUMNS_PREF, type EpisodeColumnId } from "@/lib/episode-columns";
+import { fmtAgo, fmtBytes, fmtNumber } from "@/lib/format";
+import { fmtDay, fmtRuntime } from "@/lib/library";
+import { useColumnPrefs } from "@/lib/prefs";
 import {
   aired,
   cellStatus,
   copiesInView,
   episodeLayout,
   episodeNumber,
-  heldOf,
   matchesFilter,
   mergedStatus,
   plainAvailable,
   restrictions,
+  seasonBadge,
   seasonSummary,
   statusWords,
   type Cell,
   type EpisodeFilter,
   type Layout,
+  type Picked,
   type Status,
 } from "@/lib/seasons";
+import { globalDownloadsOff } from "@/lib/version-grab";
 import { cn } from "@/lib/utils";
 
 type SeasonT = EpisodeList["seasons"][number];
 type VersionT = EpisodeList["versions"][number];
 
-/** Desktop from the md breakpoint: the copy matrix; below it, rows with a copy selector. */
+/** Desktop from the md breakpoint: All libraries and tables; below it, rows for one library. */
 const WIDE = "(min-width: 768px)";
 
 function useWide(): boolean {
@@ -89,6 +100,10 @@ const TONE: Record<Status, { text: string; dot: string }> = {
   unmonitored: { text: "text-[var(--ink-3)]", dot: "bg-[var(--line)]" },
   none: { text: "text-[var(--ink-3)]", dot: "bg-[var(--line)]" },
 };
+
+/** Icon buttons are 36 px below the md width (wave 1: they were 24 px). */
+const PHONE_ICON = "max-md:size-9";
+const PHONE_ICON_WRAP = "contents max-md:[&_button]:size-9";
 
 /** What one place (a copy's cell, or the merged column) says about an episode: the word, and the quality for managers. */
 function statusOf(e: Episode, keys: string[], merged: boolean, seeFiles: boolean): { s: Status; label: string; quality?: string; cell?: Cell } {
@@ -134,31 +149,6 @@ function CellStage({ cell, className }: { cell: Cell | undefined; className?: st
   );
 }
 
-/** Each library's bar for a season, under its header: held of aired, in progress striped, and the downloads by stage. */
-function SeasonCopies({ season, copies, seeFiles }: { season: SeasonT; copies: VersionT[]; seeFiles: boolean }) {
-  if (copies.length === 0 || season.season === 0) return null;
-  return (
-    <div className="grid gap-x-4 gap-y-1.5 px-4 pb-2.5 sm:grid-cols-2" data-testid="season-copies">
-      {copies.map((v) => {
-        const c = season.versions[v.key];
-        const bar = seasonBar(c, season);
-        const stages = seeFiles ? stageCounts(c?.stages) : "";
-        return (
-          <div key={v.key} className="min-w-0" data-season-copy={v.key}>
-            <div className="flex min-w-0 items-center gap-1.5 text-[11.5px]">
-              <CopyDot vkey={v.key} />
-              <span className="truncate font-medium">{v.label}</span>
-              <span className="ml-auto shrink-0 tabular-nums text-muted-foreground">{bar.have} / {bar.total}</span>
-            </div>
-            <CopyTrack vkey={v.key} bar={bar} className="mt-1 flex" />
-            {stages ? <div className="mt-0.5 truncate text-[11px] text-[var(--accent-ink)]" data-testid="season-stages">{stages}</div> : null}
-          </div>
-        );
-      })}
-    </div>
-  );
-}
-
 function Check({ checked, indeterminate, onChange, label }: { checked: boolean; indeterminate?: boolean; onChange: (v: boolean) => void; label: string }) {
   return (
     <input
@@ -175,6 +165,55 @@ function Check({ checked, indeterminate, onChange, label }: { checked: boolean; 
   );
 }
 
+// ---- Acting on the libraries in view ----
+
+/**
+ * The libraries an action reaches: one library (its key and name) or, in All, every library of the series (keys
+ * undefined: the routes then act on all of them). edit / search: whether any library in view allows it, and why not.
+ */
+type Scope = { keys?: string[]; name: string; edit: boolean; editWhy?: string; search: boolean; searchWhy?: string };
+
+function scopeOf(copies: VersionT[], all: boolean): Scope {
+  const editWhy = copies.find((v) => v.control && !v.control.can_edit)?.control?.edit_reason;
+  const searchWhy = copies.find((v) => v.control && !v.control.can_search)?.control?.search_reason;
+  return {
+    keys: all ? undefined : copies.map((v) => v.key),
+    name: all ? "every library" : (copies[0]?.label ?? ""),
+    edit: copies.some((v) => v.control?.can_edit),
+    editWhy,
+    search: copies.some((v) => v.control?.can_search),
+    searchWhy,
+  };
+}
+
+function searched(o: SearchOutcome) {
+  toast(o.started ? { tone: "ok", title: "Search started", body: o.message } : { tone: "warn", title: "Not searched", body: o.message });
+}
+
+function monitored(on: boolean) {
+  return (o: ManageOutcome) => toast({ tone: "ok", title: on ? "Monitored" : "Not monitored", body: o.message });
+}
+
+function failed(title: string) {
+  return (e: unknown) => toast({ tone: "bad", title, body: errText(e) });
+}
+
+/** One season's actions on the libraries in view: monitor or search the season, or some of its episodes. */
+function useSeasonActions(titleId: number, scope: Scope) {
+  const monitor = useMonitor(titleId);
+  const search = useScopedSearch(titleId);
+  return {
+    busy: monitor.isPending || search.isPending,
+    searching: search.isPending,
+    monitor: (t: { season?: number; episode_ids?: number[] }, on: boolean) => monitor.mutate({ ...t, versions: scope.keys, monitored: on }, { onSuccess: monitored(on), onError: failed("Not changed") }),
+    search: (t: { season?: number; episode_ids?: number[] }) => search.mutate({ ...t, versions: scope.keys }, { onSuccess: searched, onError: failed("Not searched") }),
+  };
+}
+
+type Actions = ReturnType<typeof useSeasonActions>;
+
+// ---- Episode lists ----
+
 type ListProps = {
   episodes: Episode[];
   copies: VersionT[];
@@ -185,8 +224,12 @@ type ListProps = {
   selected: Set<number>;
   onSelect: (ids: number[], on: boolean) => void;
   onOpen: (id: number) => void;
-  /** Interactive search per episode row (a manager, and a current library of the series searches live). */
-  live?: { titleId: number };
+  /** Interactive search per episode row (a manager, and a library in view searches live); version: the one in view. */
+  live?: { titleId: number; version?: string };
+  /** Search and monitoring per row (managers). */
+  act?: { scope: Scope; actions: Actions };
+  /** The chosen columns, in order (one library in view on desktop). */
+  columns: EpisodeColumnId[];
 };
 
 const epCode = (e: Episode) => `S${String(e.season).padStart(2, "0")}E${String(e.number).padStart(2, "0")}`;
@@ -199,20 +242,185 @@ function openOnKey(e: KeyboardEvent, id: number, onOpen: (id: number) => void) {
   }
 }
 
-/** Desktop: a table with a column per library (or one availability column). */
-function EpisodeTable({ episodes, copies, merged, anime, manage, seeFiles, selected, onSelect, onOpen, live }: ListProps) {
+/** The row's Search (the libraries in view) and Interactive search icons. They never open the episode overview. */
+function RowIcons({ e, live, act }: { e: Episode; live: ListProps["live"]; act: ListProps["act"] }) {
+  if (!act && !live) return null;
+  const what = `Search ${epCode(e)} now in ${act?.scope.name}`;
+  return (
+    <span className="inline-flex items-center justify-end gap-0.5" onClick={(ev) => ev.stopPropagation()} onKeyDown={(ev) => ev.stopPropagation()}>
+      {act ? (
+        <Button
+          size="icon-xs"
+          variant="ghost"
+          className={PHONE_ICON}
+          aria-label={what}
+          title={act.scope.search ? what : act.scope.searchWhy}
+          disabled={!act.scope.search || act.actions.busy}
+          onClick={() => act.actions.search({ episode_ids: [e.id] })}
+          data-testid="episode-search"
+        >
+          <Search />
+        </Button>
+      ) : null}
+      {live ? (
+        <span className={PHONE_ICON_WRAP}>
+          <InteractiveSearchButton titleId={live.titleId} version={live.version} episode={{ id: e.id, code: epCode(e) }} iconOnly size="xs" variant="ghost" />
+        </span>
+      ) : null}
+    </span>
+  );
+}
+
+const rowClass = "cv-auto-row-sm cursor-pointer hover:bg-accent/60 data-[selected=true]:bg-[color-mix(in_srgb,var(--accent)_8%,transparent)]";
+
+function SelectAllHead({ ids, selected, onSelect }: { ids: number[]; selected: Set<number>; onSelect: ListProps["onSelect"] }) {
+  const n = ids.filter((i) => selected.has(i)).length;
+  return (
+    <TableHead className="w-9 pr-0">
+      <Check checked={n === ids.length && ids.length > 0} indeterminate={n > 0} onChange={(v) => onSelect(ids, v)} label="Select every episode shown" />
+    </TableHead>
+  );
+}
+
+const COLUMN_HEAD: Record<EpisodeColumnId, { label: string; className?: string }> = {
+  air: { label: "Air date", className: "w-28" },
+  status: { label: "Status", className: "w-40" },
+  quality: { label: "Quality", className: "w-32" },
+  size: { label: "Size", className: "w-20 text-right" },
+  cached: { label: "Cached on", className: "w-24" },
+  score: { label: "Score", className: "w-16 text-right" },
+  group: { label: "Release group", className: "w-28" },
+  release: { label: "Release" },
+  file: { label: "File" },
+  runtime: { label: "Runtime", className: "w-20" },
+};
+
+/** A chosen column's cell for the library in view. Blank, never "0" or "None", for a fact the file lacks. */
+function ColumnCell({ id, e, c, seeFiles }: { id: EpisodeColumnId; e: Episode; c: Cell | undefined; seeFiles: boolean }) {
+  const file = c?.has_file ? c : undefined;
+  const long = (v: string | undefined) => (v ? <span className="block max-w-[22rem] truncate" title={v}><Mono className="text-[11.5px]">{v}</Mono></span> : null);
+  switch (id) {
+    case "air":
+      return <TableCell className="whitespace-nowrap text-muted-foreground">{e.air_date ? fmtDay(e.air_date) : "—"}</TableCell>;
+    case "status": {
+      const s = cellStatus(c, aired(e), seeFiles);
+      return (
+        <TableCell title={cellTitle(c)} data-col="status">
+          <StatusText st={{ s, label: statusWords(s, seeFiles).label }} manage={false} />
+          <CellStage cell={c} />
+        </TableCell>
+      );
+    }
+    case "quality":
+      return <TableCell className="whitespace-nowrap">{file?.quality ?? ""}</TableCell>;
+    case "size":
+      return <TableCell className="whitespace-nowrap text-right tabular-nums">{file?.size_bytes ? fmtBytes(file.size_bytes) : ""}</TableCell>;
+    case "cached":
+      return <TableCell data-col="cached">{file ? <ProviderPills codes={file.cached_on} /> : null}</TableCell>;
+    case "score":
+      return <TableCell className="text-right tabular-nums">{file?.score != null ? String(file.score) : ""}</TableCell>;
+    case "group":
+      return <TableCell className="whitespace-nowrap">{file?.release_group ?? ""}</TableCell>;
+    case "release":
+      return <TableCell>{long(file?.release_title)}</TableCell>;
+    case "file":
+      return <TableCell>{long(file?.path)}</TableCell>;
+    case "runtime":
+      return <TableCell className="whitespace-nowrap text-muted-foreground">{fmtRuntime(e.runtime_minutes) ?? ""}</TableCell>;
+  }
+}
+
+/** Desktop, one library in view (Sonarr's layout): checkbox, monitor switch, number, title, the chosen columns, then
+ *  Search and Interactive search. */
+function LibraryTable({ episodes, copies, anime, manage, seeFiles, selected, onSelect, onOpen, live, act, columns }: ListProps) {
+  const v = copies[0];
   const ids = episodes.map((e) => e.id);
-  const nSel = ids.filter((i) => selected.has(i)).length;
+  return (
+    <Table density="dense" data-testid="episode-table" data-library={v?.key}>
+      <TableHeader>
+        <TableRow>
+          {manage ? <SelectAllHead ids={ids} selected={selected} onSelect={onSelect} /> : null}
+          {act ? <TableHead className="w-10"><span className="sr-only">Monitored</span></TableHead> : null}
+          <TableHead className={anime ? "w-36" : "w-14"}>#</TableHead>
+          <TableHead>Title</TableHead>
+          {columns.map((id) => (
+            <TableHead key={id} className={COLUMN_HEAD[id].className} data-col={id}>
+              {COLUMN_HEAD[id].label}
+            </TableHead>
+          ))}
+          {act || live ? <TableHead className="w-16"><span className="sr-only">Search</span></TableHead> : null}
+        </TableRow>
+      </TableHeader>
+      <TableBody>
+        {episodes.map((e) => {
+          const c = v ? e.versions[v.key] : undefined;
+          const st = statusOf(e, v ? [v.key] : [], false, seeFiles);
+          const on = !!c?.monitored;
+          const what = `${on ? "Stop monitoring" : "Monitor"} ${epCode(e)} in ${act?.scope.name}`;
+          return (
+            <TableRow
+              key={e.id}
+              className={rowClass}
+              data-episode={`${e.season}x${e.number}`}
+              data-selected={selected.has(e.id)}
+              data-state={st.s}
+              tabIndex={0}
+              role="button"
+              aria-label={`Episode ${e.number}: ${e.name || ""}`}
+              onClick={() => onOpen(e.id)}
+              onKeyDown={(ev) => openOnKey(ev, e.id, onOpen)}
+            >
+              {manage ? (
+                <TableCell className="pr-0">
+                  <Check checked={selected.has(e.id)} onChange={(x) => onSelect([e.id], x)} label={`Select episode ${e.number}`} />
+                </TableCell>
+              ) : null}
+              {act ? (
+                <TableCell className="pr-0">
+                  {c ? (
+                    <MonitorSwitch
+                      size="sm"
+                      on={on}
+                      disabled={!act.scope.edit || act.actions.busy}
+                      reason={act.scope.edit ? undefined : act.scope.editWhy}
+                      label={what}
+                      onChange={(m) => act.actions.monitor({ episode_ids: [e.id] }, m)}
+                      testid={`episode-monitor-${e.id}`}
+                    />
+                  ) : null}
+                </TableCell>
+              ) : null}
+              <TableCell className="whitespace-nowrap tabular-nums text-muted-foreground" data-testid="episode-number">
+                {episodeNumber(e, anime)}
+              </TableCell>
+              <TableCell>
+                <div className={cn("font-medium", manage && !on && "text-muted-foreground")}>{e.name || `Episode ${e.number}`}</div>
+              </TableCell>
+              {columns.map((id) => (
+                <ColumnCell key={id} id={id} e={e} c={c} seeFiles={seeFiles} />
+              ))}
+              {act || live ? (
+                <TableCell className="pl-0 text-right">
+                  <RowIcons e={e} live={live} act={act} />
+                </TableCell>
+              ) : null}
+            </TableRow>
+          );
+        })}
+      </TableBody>
+    </Table>
+  );
+}
+
+/** Desktop, All libraries: a column per library (or one availability column), then Search and Interactive search. */
+function MatrixTable({ episodes, copies, merged, anime, manage, seeFiles, selected, onSelect, onOpen, live, act }: ListProps) {
+  const ids = episodes.map((e) => e.id);
   const keys = copies.map((v) => v.key);
   return (
     <Table density="dense" data-testid="episode-table">
       <TableHeader>
         <TableRow>
-          {manage ? (
-            <TableHead className="w-9 pr-0">
-              <Check checked={nSel === ids.length && ids.length > 0} indeterminate={nSel > 0} onChange={(v) => onSelect(ids, v)} label="Select every episode shown" />
-            </TableHead>
-          ) : null}
+          {manage ? <SelectAllHead ids={ids} selected={selected} onSelect={onSelect} /> : null}
           <TableHead className={anime ? "w-36" : "w-14"}>#</TableHead>
           <TableHead>Episode</TableHead>
           <TableHead className="w-32">Air date</TableHead>
@@ -228,14 +436,14 @@ function EpisodeTable({ episodes, copies, merged, anime, manage, seeFiles, selec
               </TableHead>
             ))
           )}
-          {live ? <TableHead className="w-10"><span className="sr-only">Interactive search</span></TableHead> : null}
+          {act || live ? <TableHead className="w-16"><span className="sr-only">Search</span></TableHead> : null}
         </TableRow>
       </TableHeader>
       <TableBody>
         {episodes.map((e) => (
           <TableRow
             key={e.id}
-            className="cv-auto-row-sm cursor-pointer hover:bg-accent/60 data-[selected=true]:bg-[color-mix(in_srgb,var(--accent)_8%,transparent)]"
+            className={rowClass}
             data-episode={`${e.season}x${e.number}`}
             data-selected={selected.has(e.id)}
             tabIndex={0}
@@ -271,9 +479,9 @@ function EpisodeTable({ episodes, copies, merged, anime, manage, seeFiles, selec
                 );
               })
             )}
-            {live ? (
+            {act || live ? (
               <TableCell className="pl-0 text-right">
-                <InteractiveSearchButton titleId={live.titleId} episode={{ id: e.id, code: epCode(e) }} iconOnly size="xs" variant="ghost" />
+                <RowIcons e={e} live={live} act={act} />
               </TableCell>
             ) : null}
           </TableRow>
@@ -283,8 +491,8 @@ function EpisodeTable({ episodes, copies, merged, anime, manage, seeFiles, selec
   );
 }
 
-/** Phones: one row per episode for the copy in view (or across copies), with its state in words. */
-function EpisodeRows({ episodes, copies, merged, anime, manage, seeFiles, selected, onSelect, onOpen, live }: ListProps) {
+/** Phones: one row per episode for the library in view (or across copies), with its state in words. */
+function EpisodeRows({ episodes, copies, merged, anime, manage, seeFiles, selected, onSelect, onOpen, live, act }: ListProps) {
   const keys = copies.map((v) => v.key);
   const ids = episodes.map((e) => e.id);
   const nSel = ids.filter((i) => selected.has(i)).length;
@@ -322,73 +530,15 @@ function EpisodeRows({ episodes, copies, merged, anime, manage, seeFiles, select
                 </div>
               </div>
               <div className="flex shrink-0 flex-col items-end gap-0.5 text-right">
-                <StatusText st={{ ...st, quality: undefined }} manage={false} />
+                <StatusText st={{ ...st, quality: undefined }} manage={manage} />
                 {st.quality ? <span className="max-w-[9rem] truncate text-[11px] text-muted-foreground">{st.quality}</span> : null}
                 <CellStage cell={st.cell} className="max-w-[9rem] text-right" />
               </div>
-              {live ? <InteractiveSearchButton titleId={live.titleId} episode={{ id: e.id, code: epCode(e) }} iconOnly size="xs" variant="ghost" /> : null}
+              <RowIcons e={e} live={live} act={act} />
             </li>
           );
         })}
       </ul>
-    </div>
-  );
-}
-
-/** One copy's line in a season's Details: counts, size, the upgrade status with Why?, monitor switch and search season. */
-function SeasonVersion({ titleId, season, v, manage, seeFiles }: { titleId: number; season: SeasonT; v: VersionT; manage: boolean; seeFiles: boolean }) {
-  const c = season.versions[v.key] ?? { have: 0, missing: 0, total: 0, below_cutoff: 0, upgrade_seen: 0, monitored: 0 };
-  const monitor = useMonitor(titleId);
-  const search = useScopedSearch(titleId);
-  const [msg, setMsg] = useState<string>("");
-  const ctl = v.control;
-  const all = c.monitored >= season.episodes && season.episodes > 0;
-  const some = c.monitored > 0 && !all;
-  const facts = [
-    heldOf(c, season),
-    c.missing ? `${fmtNumber(c.missing)} missing` : "",
-    seeFiles && c.below_cutoff ? `${fmtNumber(c.below_cutoff)} under preferred quality` : "",
-    seeFiles && c.upgrade_seen ? `${fmtNumber(c.upgrade_seen)} upgrade${c.upgrade_seen === 1 ? "" : "s"} found` : "",
-    c.size_bytes ? fmtBytes(c.size_bytes) : "",
-  ].filter(Boolean);
-  return (
-    <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5 px-4 py-2 text-xs" data-season-version={v.key}>
-      <span data-vkey={v.key} className="inline-flex items-center gap-1.5 rounded-md border border-border bg-muted px-2 py-0.5 font-medium">
-        <span className="size-2 rounded-[2px] bg-[var(--vc)]" />
-        {v.label}
-      </span>
-      <span className="text-muted-foreground" data-testid="season-facts">{facts.join(" · ")}</span>
-      {seeFiles && c.have > 0 && c.upgrade ? (
-        <UpgradeStatus u={c.upgrade} what={`Season ${season.season} · ${v.label}`} titleId={titleId} season={season.season} score={c.score} cutoff={v.cutoff} />
-      ) : null}
-      <span className="flex-1" />
-      {manage && ctl ? (
-        <>
-          <label className="flex items-center gap-1.5" title={ctl.can_edit ? undefined : ctl.edit_reason}>
-            <MonitorSwitch
-              size="sm"
-              on={all || some}
-              disabled={!ctl.can_edit || monitor.isPending}
-              reason={ctl.edit_reason}
-              label={`${all ? "Unmonitor" : "Monitor"} season ${season.season} in ${v.key}`}
-              onChange={(m) => monitor.mutate({ season: season.season, versions: [v.key], monitored: m }, { onSuccess: (o: ManageOutcome) => setMsg(o.message), onError: (e) => setMsg((e as Error).message) })}
-              testid={`season-monitor-${season.season}-${v.key}`}
-            />
-            <span className="text-muted-foreground">{some ? `${c.monitored}/${season.episodes} monitored` : all ? "Monitored" : "Not monitored"}</span>
-          </label>
-          <Button
-            size="xs"
-            variant="outline"
-            disabled={!ctl.can_search || search.isPending}
-            title={ctl.can_search ? `Search season ${season.season} for ${v.key}` : ctl.search_reason}
-            onClick={() => search.mutate({ season: season.season, versions: [v.key] }, { onSuccess: (o: SearchOutcome) => setMsg(o.message), onError: (e) => setMsg((e as Error).message) })}
-            data-testid={`season-search-${season.season}-${v.key}`}
-          >
-            {search.isPending ? <Loader2 className="animate-spin" /> : <Search />} Search season
-          </Button>
-        </>
-      ) : null}
-      {msg ? <p className="w-full text-[11px] text-[var(--accent-ink)]">{msg}</p> : null}
     </div>
   );
 }
@@ -421,6 +571,59 @@ function FilterChips({ value, onChange, counts, seeFiles }: { value: EpisodeFilt
 
 const EMPTY: Record<EpisodeFilter, string> = { all: "No episodes.", active: "Nothing in progress here.", missing: "Nothing missing here.", upgrade: "No upgrade found in this season." };
 
+// ---- Season header ----
+
+/** Phase E's next search for a season in one library, when the server sends it (a field that may not be there yet). */
+type NextSearch = { next_search_at?: unknown; next_search_why?: unknown };
+
+function nextSearchText(c: object | undefined): string {
+  const n = (c ?? {}) as NextSearch;
+  if (typeof n.next_search_at !== "string" || !n.next_search_at) return "";
+  const at = new Date(n.next_search_at).getTime();
+  if (Number.isNaN(at)) return "";
+  const when = at <= Date.now() ? "now" : fmtAgo(n.next_search_at);
+  return `Next search: ${when}${typeof n.next_search_why === "string" && n.next_search_why ? ` (${n.next_search_why})` : ""}`;
+}
+
+/** A library's badge in All: its colour, name and "8 / 10" in the badge's tone. */
+function LibraryBadge({ v, season }: { v: VersionT; season: SeasonT }) {
+  const b = seasonBadge(season.versions[v.key], season);
+  return (
+    <span data-vkey={v.key} data-tone={b.tone} data-testid="season-badge" className="inline-flex h-[22px] items-center gap-1.5 whitespace-nowrap rounded-[3px] px-1.5 text-xs shadow-[inset_0_0_0_1px_var(--line-2)]">
+      <span className="size-2 rounded-[2px] bg-[var(--vc)]" />
+      <span className="font-medium">{v.label}</span>
+      <span className={cn("tabular-nums", b.tone === "bad" ? "text-[var(--bad-ink)]" : b.tone === "ok" ? "text-[var(--ok-ink)]" : "text-muted-foreground")}>{b.text}</span>
+    </span>
+  );
+}
+
+/** The facts beside the badge with one library in view: missing, upgrades found, downloads by stage, size; the
+ *  upgrade status with Why?; the next search when sent. */
+function OneLibraryFacts({ titleId, season, v, seeFiles }: { titleId: number; season: SeasonT; v: VersionT; seeFiles: boolean }) {
+  const c = season.versions[v.key];
+  const b = seasonBadge(c, season);
+  const facts = [
+    c?.missing ? `${fmtNumber(c.missing)} missing` : "",
+    seeFiles && c?.upgrade_seen ? `${fmtNumber(c.upgrade_seen)} upgrade${c.upgrade_seen === 1 ? "" : "s"} found` : "",
+    seeFiles ? stageCounts(c?.stages) : "",
+    c?.size_bytes ? fmtBytes(c.size_bytes) : "",
+    nextSearchText(c),
+  ].filter(Boolean);
+  return (
+    <>
+      <Badge tone={b.tone === "neutral" ? "neutral" : b.tone} data-testid="season-badge" className="tabular-nums">
+        {b.text}
+      </Badge>
+      {facts.length ? <span className="min-w-0 truncate text-xs text-muted-foreground" data-testid="season-facts">{facts.join(" · ")}</span> : null}
+      {seeFiles && c && c.have > 0 && c.upgrade ? (
+        <span onClick={(e) => e.stopPropagation()} className="contents">
+          <UpgradeStatus u={c.upgrade} what={`Season ${season.season} · ${v.label}`} titleId={titleId} season={season.season} score={c.score} cutoff={v.cutoff} />
+        </span>
+      ) : null}
+    </>
+  );
+}
+
 function SeasonBlock({
   titleId,
   season,
@@ -436,6 +639,8 @@ function SeasonBlock({
   selected,
   onSelect,
   onOpen,
+  scope,
+  columns,
 }: {
   titleId: number;
   season: SeasonT;
@@ -446,18 +651,21 @@ function SeasonBlock({
   open: boolean;
   onToggle: () => void;
   manage: boolean;
-  /** Interactive search on the header and the episode rows. */
-  live: boolean;
+  /** Interactive search on the header and the episode rows; version: the library in view. */
+  live?: { titleId: number; version?: string };
   seeFiles: boolean;
   selected: Set<number>;
   onSelect: (ids: number[], on: boolean) => void;
   onOpen: (id: number) => void;
+  scope: Scope;
+  columns: EpisodeColumnId[];
 }) {
   const [filter, setFilter] = useState<EpisodeFilter>("all");
-  const [details, setDetails] = useState(false);
+  const actions = useSeasonActions(titleId, scope);
   const keys = copies.map((v) => v.key);
   const all = list.episodes.filter((e) => e.season === season.season);
   const merged = layout.columns === "merged";
+  const one = layout.columns === "selected" ? copies[0] : undefined;
   const sum = seasonSummary(all, copies, seeFiles, merged);
   const counts: Record<EpisodeFilter, number> = {
     all: all.length,
@@ -467,57 +675,78 @@ function SeasonBlock({
   };
   const shown = all.filter((e) => matchesFilter(e, filter, keys, seeFiles, merged));
   const Chevron = open ? ChevronDown : ChevronRight;
-  const props: ListProps = { episodes: shown, copies, merged, anime, manage, seeFiles, selected, onSelect, onOpen, live: live ? { titleId } : undefined };
+  const name = season.season === 0 ? "Specials" : `Season ${season.season}`;
+  const act = manage && copies.length > 0 ? { scope, actions } : undefined;
+  // The season is on when any library in view monitors any of its episodes; the switch then stops monitoring.
+  const mon = copies.map((v) => season.versions[v.key]?.monitored ?? 0);
+  const on = mon.some((n) => n > 0);
+  const monitorWhat = `${on ? "Stop monitoring" : "Monitor"} ${name.toLowerCase()} in ${scope.name}`;
+  const searchWhat = `Search ${name.toLowerCase()} now in ${scope.name}`;
+  const props: ListProps = { episodes: shown, copies, merged, anime, manage, seeFiles, selected, onSelect, onOpen, live, act, columns };
   return (
     <div className="overflow-hidden rounded-lg border border-border bg-background/40" data-season={season.season}>
-      <div className="flex items-stretch bg-card/60">
-        <button type="button" onClick={onToggle} aria-expanded={open} className="flex min-w-0 flex-1 cursor-pointer items-center gap-2 px-4 py-2.5 text-left transition hover:bg-accent/80">
-          <Chevron className="size-4 shrink-0 text-muted-foreground" />
-          <span className="min-w-0">
-            <span className="block text-sm font-semibold text-foreground">{season.season === 0 ? "Specials" : `Season ${season.season}`}</span>
-            <span className="block text-xs text-muted-foreground" data-testid="season-summary">
-              {sum.text}
-            </span>
-          </span>
+      <div className="flex cursor-pointer flex-wrap items-center gap-x-2 gap-y-1 bg-card/60 px-2 py-1.5 transition hover:bg-accent/40 md:flex-nowrap" onClick={onToggle} data-testid="season-header">
+        <button type="button" onClick={(e) => { e.stopPropagation(); onToggle(); }} aria-expanded={open} aria-label={name} className={cn("grid size-7 shrink-0 place-items-center rounded-md text-muted-foreground hover:bg-accent", PHONE_ICON)}>
+          <Chevron className="size-4" />
         </button>
-        {live ? (
-          // The label is hidden on phones, as Details' is (the button keeps its name for screen readers).
-          <span className="flex shrink-0 items-center px-1 max-sm:[&_button]:gap-0 max-sm:[&_button]:text-[0px]" data-testid="season-interactive">
-            <InteractiveSearchButton titleId={titleId} season={season.season} size="xs" variant="ghost" />
-          </span>
+        {act ? (
+          <MonitorSwitch
+            size="sm"
+            on={on}
+            disabled={!scope.edit || actions.busy}
+            reason={scope.edit ? undefined : scope.editWhy}
+            label={monitorWhat}
+            onChange={(m) => actions.monitor({ season: season.season }, m)}
+            testid={`season-monitor-${season.season}`}
+          />
         ) : null}
-        {seeFiles && list.versions.length > 0 ? (
-          <button
-            type="button"
-            onClick={() => setDetails(!details)}
-            aria-expanded={details}
-            aria-label={`Season ${season.season} details`}
-            className="flex shrink-0 items-center gap-1 px-3 text-xs font-medium text-muted-foreground transition hover:bg-accent/80 hover:text-foreground aria-expanded:text-foreground"
-            data-testid="season-details-toggle"
-          >
-            <SlidersHorizontal className="size-3.5" />
-            <span className="max-sm:sr-only">Details</span>
-          </button>
-        ) : null}
+        <span className="shrink-0 text-sm font-semibold text-foreground">{name}</span>
+        <span className="flex min-w-0 items-center gap-2 max-md:order-last max-md:basis-full max-md:flex-wrap md:flex-1">
+          {one && seeFiles ? (
+            <OneLibraryFacts titleId={titleId} season={season} v={one} seeFiles={seeFiles} />
+          ) : (
+            <>
+              {seeFiles && !merged ? copies.map((v) => <LibraryBadge key={v.key} v={v} season={season} />) : null}
+              <span className="min-w-0 truncate text-xs text-muted-foreground" data-testid="season-summary">
+                {sum.text}
+              </span>
+            </>
+          )}
+        </span>
+        <span className="ml-auto flex shrink-0 items-center gap-0.5" onClick={(e) => e.stopPropagation()}>
+          {act ? (
+            <Button
+              size="icon-sm"
+              variant="ghost"
+              className={PHONE_ICON}
+              aria-label={searchWhat}
+              title={scope.search ? searchWhat : scope.searchWhy}
+              disabled={!scope.search || actions.busy}
+              onClick={() => actions.search({ season: season.season })}
+              data-testid={`season-search-${season.season}`}
+            >
+              {actions.searching ? <Loader2 className="animate-spin" /> : <Search />}
+            </Button>
+          ) : null}
+          {live ? (
+            // An icon: the label is hidden but stays the button's name (iconOnly would name it "… for this title").
+            <span className={cn(PHONE_ICON_WRAP, "[&_button]:gap-0 [&_button]:text-[0px]")} data-testid="season-interactive">
+              <InteractiveSearchButton titleId={titleId} version={live.version} season={season.season} size="sm" variant="ghost" />
+            </span>
+          ) : null}
+        </span>
       </div>
-      {/* Per-library bars are file detail: accounts without See files get the combined summary only. */}
-      {seeFiles ? <SeasonCopies season={season} copies={list.versions} seeFiles={seeFiles} /> : null}
-      {details ? (
-        <div className="divide-y divide-[var(--line)] border-t border-border bg-card/30" data-testid="season-details">
-          {list.versions.map((v) => (
-            <SeasonVersion key={v.key} titleId={titleId} season={season} v={v} manage={manage} seeFiles={seeFiles} />
-          ))}
-        </div>
-      ) : null}
       {open ? (
         <div className="border-t border-border bg-card/40">
           {all.length > 0 ? <FilterChips value={filter} onChange={setFilter} counts={counts} seeFiles={seeFiles} /> : null}
           {shown.length === 0 ? (
             <p className="px-4 pb-3 text-sm text-muted-foreground">{EMPTY[filter]}</p>
-          ) : layout.mode === "table" ? (
-            <EpisodeTable {...props} />
-          ) : (
+          ) : layout.mode === "rows" ? (
             <EpisodeRows {...props} />
+          ) : layout.columns === "selected" ? (
+            <LibraryTable {...props} />
+          ) : (
+            <MatrixTable {...props} />
           )}
         </div>
       ) : null}
@@ -525,36 +754,29 @@ function SeasonBlock({
   );
 }
 
-/** The bar that acts on the selected episodes: monitor, unmonitor, search, clear. */
-function BulkBar({ titleId, list, selected, onClear }: { titleId: number; list: EpisodeList; selected: number[]; onClear: () => void }) {
-  const monitor = useMonitor(titleId);
-  const search = useScopedSearch(titleId);
-  const [msg, setMsg] = useState("");
-  const editable = list.versions.filter((v) => v.control?.can_edit).map((v) => v.key);
-  const searchable = list.versions.filter((v) => v.control?.can_search).map((v) => v.key);
-  const editWhy = list.versions.find((v) => v.control && !v.control.can_edit)?.control?.edit_reason;
-  const searchWhy = list.versions.find((v) => v.control && !v.control.can_search)?.control?.search_reason;
-  const busy = monitor.isPending || search.isPending;
-  const done = (o: ManageOutcome | SearchOutcome) => setMsg(o.message);
-  const fail = (e: unknown) => setMsg((e as Error).message);
+/** The bar that acts on the selected episodes in the libraries in view: monitor, unmonitor, search, clear. */
+function BulkBar({ titleId, scope, selected, onClear }: { titleId: number; scope: Scope; selected: number[]; onClear: () => void }) {
+  const actions = useSeasonActions(titleId, scope);
+  const where = `in ${scope.name}`;
   return (
     <div className="sticky bottom-[calc(env(safe-area-inset-bottom)+4.5rem)] z-20 md:bottom-4" data-testid="bulk-bar">
       <div className="flex flex-wrap items-center gap-2 rounded-xl border border-[var(--th-baccent)] bg-[var(--surface)] px-3 py-2 shadow-[var(--shadow-2)]">
-        <span className="text-sm font-semibold">{fmtNumber(selected.length)} selected</span>
+        <span className="min-w-0 truncate text-sm font-semibold" data-testid="bulk-scope">
+          {fmtNumber(selected.length)} selected · {scope.name}
+        </span>
         <span className="flex-1" />
-        <Button size="xs" variant="outline" disabled={busy || editable.length === 0} title={editable.length ? undefined : editWhy} onClick={() => monitor.mutate({ episode_ids: selected, versions: editable, monitored: true }, { onSuccess: done, onError: fail })} data-testid="bulk-monitor">
+        <Button size="xs" variant="outline" disabled={actions.busy || !scope.edit} title={scope.edit ? `Monitor ${where}` : scope.editWhy} onClick={() => actions.monitor({ episode_ids: selected }, true)} data-testid="bulk-monitor">
           Monitor
         </Button>
-        <Button size="xs" variant="outline" disabled={busy || editable.length === 0} title={editable.length ? undefined : editWhy} onClick={() => monitor.mutate({ episode_ids: selected, versions: editable, monitored: false }, { onSuccess: done, onError: fail })} data-testid="bulk-unmonitor">
+        <Button size="xs" variant="outline" disabled={actions.busy || !scope.edit} title={scope.edit ? `Stop monitoring ${where}` : scope.editWhy} onClick={() => actions.monitor({ episode_ids: selected }, false)} data-testid="bulk-unmonitor">
           Unmonitor
         </Button>
-        <Button size="xs" disabled={busy || searchable.length === 0} title={searchable.length ? undefined : searchWhy} onClick={() => search.mutate({ episode_ids: selected, versions: searchable }, { onSuccess: done, onError: fail })} data-testid="bulk-search">
-          {search.isPending ? <Loader2 className="animate-spin" /> : <Search />} Search
+        <Button size="xs" disabled={actions.busy || !scope.search} title={scope.search ? `Search now ${where}` : scope.searchWhy} onClick={() => actions.search({ episode_ids: selected })} data-testid="bulk-search">
+          {actions.searching ? <Loader2 className="animate-spin" /> : <Search />} Search
         </Button>
-        <Button size="icon-xs" variant="ghost" aria-label="Clear the selection" onClick={onClear}>
+        <Button size="icon-xs" variant="ghost" className={PHONE_ICON} aria-label="Clear the selection" onClick={onClear}>
           <X />
         </Button>
-        {msg ? <p className="w-full text-[11px] text-[var(--accent-ink)]">{msg}</p> : null}
       </div>
     </div>
   );
@@ -569,6 +791,42 @@ function Note({ icon, children, testid }: { icon: ReactNode; children: ReactNode
   );
 }
 
+/** The library selector: All libraries (desktop) or one library. */
+function LibrarySelector({ versions, all, view, wide, onPick }: { versions: VersionT[]; all: boolean; view?: string; wide: boolean; onPick: (p: Picked) => void }) {
+  const opt = (key: string, on: boolean, body: ReactNode, vkey?: string) => (
+    <button
+      key={key}
+      type="button"
+      role="radio"
+      aria-checked={on}
+      data-vkey={vkey}
+      onClick={() => onPick(key === "*" ? "all" : key)}
+      className={cn("inline-flex flex-1 items-center justify-center gap-1.5 whitespace-nowrap rounded-md px-2.5 py-1.5 text-xs font-medium transition", on ? "bg-[var(--hover)] text-foreground" : "text-muted-foreground hover:text-foreground")}
+    >
+      {body}
+    </button>
+  );
+  return (
+    <div className="flex min-w-0 flex-1 items-center gap-2" data-testid="copy-selector">
+      <span className="text-xs text-muted-foreground">Library</span>
+      <div className="flex min-w-0 flex-1 gap-1 overflow-x-auto rounded-lg border border-border p-0.5 [scrollbar-width:none] md:flex-none" role="radiogroup" aria-label="Library">
+        {wide ? opt("*", all, "All libraries") : null}
+        {versions.map((v) =>
+          opt(
+            v.key,
+            !all && view === v.key,
+            <>
+              <span className="size-2 rounded-[2px] bg-[var(--vc)]" />
+              {v.label}
+            </>,
+            v.key,
+          ),
+        )}
+      </div>
+    </div>
+  );
+}
+
 export function Seasons({ id, anime, franchises = [] }: { id: string; anime: boolean; franchises?: { slug: string; name: string }[] }) {
   const list = useEpisodes(id);
   const perms = usePerms();
@@ -576,9 +834,11 @@ export function Seasons({ id, anime, franchises = [] }: { id: string; anime: boo
   const [params, setParams] = useSearchParams();
   const [open, setOpen] = useState<number[] | null>(null);
   const [selected, setSelected] = useState<Set<number>>(new Set());
-  const [copy, setCopy] = useState<string | null>(null);
+  const [picked, setPicked] = useState<Picked>(null);
+  const [picker, setPicker] = useState(false);
+  const [colPrefs, setColPrefs] = useColumnPrefs(EPISODE_COLUMNS_PREF, EPISODE_COLUMNS, DEFAULT_EPISODE_COLUMNS);
   const titleId = Number(id);
-  const live = useLiveLibraries(titleId, perms.manage).libs.length > 0;
+  const liveLibs = useLiveLibraries(titleId, perms.manage).libs;
   const episode = Number(params.get("episode")) || null;
   const openEpisode = (eid: number | null) => {
     const p = new URLSearchParams(params);
@@ -604,8 +864,16 @@ export function Seasons({ id, anime, franchises = [] }: { id: string; anime: boo
   };
   const manage = perms.manage;
   const seeFiles = perms.seeFiles;
-  const layout = episodeLayout({ wide, copies: l.versions.length, seeFiles });
-  const copies = copiesInView(layout, l.versions, copy);
+  const layout = episodeLayout({ wide, copies: l.versions.length, seeFiles, picked });
+  const copies = copiesInView(layout, l.versions, picked);
+  const all = layout.columns !== "selected";
+  const scope = scopeOf(copies, all);
+  const one = all ? undefined : copies[0];
+  // Interactive search: in one library only when that library searches live (it opens there); in All, the default.
+  const liveOn = manage && (one ? liveLibs.some((v) => v.key === one.key) : liveLibs.length > 0);
+  const live = liveOn ? { titleId, version: one?.key } : undefined;
+  const columns = colPrefs.order.filter((c) => colPrefs.shown.includes(c));
+  const columnsButton = layout.mode === "table" && layout.columns === "selected";
   const off = globalDownloadsOff(l.versions.map((v) => v.control?.grab_state));
   const limits = manage ? restrictions(l.versions, { globalSaid: true }) : [];
   const watchOrder = anime ? franchises : [];
@@ -634,28 +902,14 @@ export function Seasons({ id, anime, franchises = [] }: { id: string; anime: boo
           ))}
         </Note>
       ) : null}
-      {layout.selector ? (
-        <div className="flex items-center gap-2" data-testid="copy-selector">
-          <span className="text-xs text-muted-foreground">Library</span>
-          <div className="flex min-w-0 flex-1 gap-1 overflow-x-auto rounded-lg border border-border p-0.5 [scrollbar-width:none]" role="radiogroup" aria-label="Library">
-            {l.versions.map((v) => {
-              const on = copies[0]?.key === v.key;
-              return (
-                <button
-                  key={v.key}
-                  type="button"
-                  role="radio"
-                  aria-checked={on}
-                  data-vkey={v.key}
-                  onClick={() => setCopy(v.key)}
-                  className={cn("inline-flex flex-1 items-center justify-center gap-1.5 whitespace-nowrap rounded-md px-2.5 py-1.5 text-xs font-medium transition", on ? "bg-[var(--hover)] text-foreground" : "text-muted-foreground hover:text-foreground")}
-                >
-                  <span className="size-2 rounded-[2px] bg-[var(--vc)]" />
-                  {v.label}
-                </button>
-              );
-            })}
-          </div>
+      {layout.selector || columnsButton ? (
+        <div className="flex items-center gap-2">
+          {layout.selector ? <LibrarySelector versions={l.versions} all={all} view={one?.key} wide={wide} onPick={setPicked} /> : <span className="flex-1" />}
+          {columnsButton ? (
+            <Button size="xs" variant="outline" onClick={() => setPicker(true)} data-testid="episode-columns">
+              <Columns3 /> Columns
+            </Button>
+          ) : null}
         </div>
       ) : null}
       {l.seasons.map((s) => (
@@ -670,17 +924,29 @@ export function Seasons({ id, anime, franchises = [] }: { id: string; anime: boo
           open={opened.includes(s.season)}
           onToggle={() => toggle(s.season)}
           manage={manage}
-          live={manage && live}
+          live={live}
           seeFiles={seeFiles}
           selected={selected}
           onSelect={select}
           onOpen={openEpisode}
+          scope={scope}
+          columns={columns}
         />
       ))}
       <p className="pt-1 text-xs text-muted-foreground">
         {manage ? "Open an episode for its file, history and releases; tick episodes to act on several." : "Open an episode for its details."}
       </p>
-      {manage && selected.size > 0 ? <BulkBar titleId={titleId} list={l} selected={[...selected]} onClear={() => setSelected(new Set())} /> : null}
+      {manage && selected.size > 0 && copies.length > 0 ? <BulkBar titleId={titleId} scope={scope} selected={[...selected]} onClear={() => setSelected(new Set())} /> : null}
+      {picker ? (
+        <ColumnPicker
+          label="Episode columns"
+          note="The number, title, monitor switch and search buttons always show."
+          columns={EPISODE_COLUMNS}
+          prefs={colPrefs}
+          onChange={setColPrefs}
+          onClose={() => setPicker(false)}
+        />
+      ) : null}
       {episode ? (
         <EpisodeOverview
           titleId={titleId}
