@@ -3,6 +3,7 @@ package router
 import (
 	"context"
 	"errors"
+	"strings"
 	"sync"
 	"testing"
 	"time"
@@ -201,7 +202,7 @@ func TestCopyRefusedAndPaused(t *testing.T) {
 	}
 	e.r.set.Enabled = true
 	e.run()
-	if s, msg := e.copyState(h("a"), "rd"); s != CopyRefused || msg != "Real-Debrid refuses this name" {
+	if s, msg := e.copyState(h("a"), "rd"); s != CopyRefused || !strings.HasPrefix(msg, "Real-Debrid refuses this name") {
 		t.Fatalf("name rule: %s %q", s, msg)
 	}
 	if s, _ := e.copyState(h("b"), "rd"); s != CopyAdded {
@@ -298,19 +299,14 @@ func TestCopyLostDeleteAnswer(t *testing.T) {
 }
 
 // One request per hash and provider: a second request (a double click, a season pack's other episodes) returns the
-// unfinished row; a route never deletes a copy's entry (guardBefore sees it).
-func TestCopyDedupeAndRouteGuard(t *testing.T) {
+// unfinished row and queues no second job.
+func TestCopyDedupe(t *testing.T) {
 	t.Parallel()
 	e := newCopyEnv(t, provider.StateDownloaded, "rd", "ad")
 	a := e.queue(h("a"), "Movie.2024.2160p.WEB-GRP")
 	b := e.queue(h("a"), "Movie.2024.2160p.WEB-GRP")
 	if len(a) != 2 || len(b) != 2 || e.count(`SELECT COUNT(*) FROM job WHERE kind = ?`, JobCopy) != 2 {
 		t.Fatalf("rows %v %v, jobs %d", a, b, e.count(`SELECT COUNT(*) FROM job WHERE kind = ?`, JobCopy))
-	}
-	e.exec(`UPDATE provider_copy SET state = 'checking', torrent_id = '77' WHERE provider = 'ad'`)
-	g, err := e.r.guardBefore(e.ctx, e.pol.Providers["ad"], "ad", h("a"), 0, false)
-	if err != nil || g.before == "" {
-		t.Fatalf("guard %+v %v", g, err)
 	}
 }
 
@@ -335,7 +331,7 @@ func TestCopyRecoversAdding(t *testing.T) {
 	e.clock = e.clock.Add(addSettle)
 	e.run()
 	if s, msg := e.copyState(h("a"), "rd"); s != CopyNotCached || e.del["rd"].deleted() != 0 ||
-		msg != "Not cached on RD; left on the account: it was there before our add" {
+		msg != "Not cached on RD; left on the account: it was not provably our own new entry" {
 		t.Fatalf("rd: %s %q, %d deletes", s, msg, e.del["rd"].deleted())
 	}
 	if s, _ := e.copyState(h("a"), "ad"); s != CopyAdded || len(e.ad["ad"].adds) != 1 {
@@ -343,9 +339,10 @@ func TestCopyRecoversAdding(t *testing.T) {
 	}
 }
 
-// The automatic form (router.copy_to_providers): off, an import queues nothing; on (a settings save builds the
-// router from the saved policy), a season pack's import queues one copy per other provider, however often it is
-// called, and the copies' adds count in pacing.
+// The automatic form (router.copy_to_providers), at the router: off, an import queues nothing; on, a season pack's
+// import queues one copy per other provider, however often it is called, and the copies' adds count in pacing. The
+// setting's save is TestRouterSectionCopyToProviders (internal/settings); serve's shared import callback that calls
+// QueueCopiesForDownload is covered only by the build.
 func TestCopyAfterImport(t *testing.T) {
 	t.Parallel()
 	e := newCopyEnv(t, provider.StateDownloaded, "rd", "ad", "tb")

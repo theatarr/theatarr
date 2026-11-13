@@ -273,11 +273,14 @@ requested_targets AS (
 
 // A file's torrent hash, the same on the title page and in the episode window: the registry content Cached on reads
 // (a link's linkContentSQL, an arr file's content), else the unique hash of the symlink target it shares
-// (uniqueLinkedTargetHash). linkHashJoin / fileHashJoin bring in uth for link l / version file vf.
+// (uniqueLinkedTargetHash); an arr file's download id when it is a v1 hash (a torrent client's download id).
+// linkHashJoin / fileHashJoin bring in uth for link l / version file vf.
 const (
 	linkHashSQL  = `COALESCE((SELECT c_h.info_hash FROM content c_h WHERE c_h.id = ` + linkContentSQL + `), uth.info_hash, '')`
 	linkHashJoin = ` LEFT JOIN unique_target_hash uth ON uth.target = l.target AND l.state = 'active' AND l.kind = 'symlink' `
-	fileHashSQL  = `COALESCE((SELECT c_h.info_hash FROM content c_h WHERE c_h.id = vf.content_id), uth.info_hash, '')`
+	fileHashSQL  = `COALESCE((SELECT c_h.info_hash FROM content c_h WHERE c_h.id = vf.content_id), uth.info_hash,
+		CASE WHEN length(vf.download_id) = 40 AND lower(vf.download_id) NOT GLOB '*[^0-9a-f]*'
+			THEN lower(vf.download_id) END, '')`
 	fileHashJoin = ` LEFT JOIN link vf_link ON vf_link.path = vf.path AND vf_link.state = 'active' AND vf_link.kind = 'symlink'
 		LEFT JOIN unique_target_hash uth ON uth.target = vf_link.target `
 )

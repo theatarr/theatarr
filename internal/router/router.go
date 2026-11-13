@@ -1162,6 +1162,14 @@ func (r *Router) provider(ctx context.Context, s *routeState, c *Candidate, m ad
 	case !errors.Is(err, sql.ErrNoRows):
 		return 0, time.Time{}, Step{}, fmt.Errorf("router: unsettled adds: %w", err)
 	}
+	// A copy of this hash to this provider (copy.go) is adding or settling: a second add would make a second entry
+	// (Real-Debrid) or share the copy's (AllDebrid). Wait for it, as for another download's add.
+	if why, err := r.copyUnsettled(ctx, pk, hash); err != nil {
+		return 0, time.Time{}, Step{}, err
+	} else if why != "" {
+		until := now.Add(reconcileAfter)
+		return vUnavailable, until, Step{Outcome: "deferred", Code: codeUnsettled, RetryAt: until, Message: why}, nil
+	}
 	// Add pacing (p was loaded before the reuse check).
 	pc := pv.EffectivePacing()
 	if until, why := p.blocked(now, pc); !until.IsZero() {

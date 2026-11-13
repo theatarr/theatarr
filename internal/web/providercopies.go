@@ -18,7 +18,7 @@ import (
 // Copier is the active router's copy work (router.QueueCopies, router.TorrentHash).
 type Copier interface {
 	QueueCopies(ctx context.Context, req router.CopyRequest) ([]router.CopyView, error)
-	TorrentHash(ctx context.Context, pk, id string) (hash, name string, err error)
+	TorrentHash(ctx context.Context, pk, id string) (hash string, names []string, err error)
 }
 
 // CopiesResult is the answer of both routes: the copies of the torrent, one per provider that did not hold it.
@@ -41,6 +41,27 @@ type CopyTorrentRequest struct {
 func (w *Web) mountProviderCopiesAPI(mux *http.ServeMux) {
 	w.handle(mux, "POST "+APIBase+"/titles/{id}/copies", SignedIn, auth.PermManage, w.apiCopyTitle)
 	w.handle(mux, "POST "+APIBase+"/torrents/copy", SignedIn, auth.PermAdmin, w.apiCopyTorrent)
+	w.handle(mux, "GET "+APIBase+"/torrents/copies", SignedIn, auth.PermAdmin, w.apiTorrentCopies)
+}
+
+// GET /torrents/copies?hash=: the copies of one torrent, which the Torrents page reads again while one is unfinished
+// instead of the whole report (which reads every account).
+func (w *Web) apiTorrentCopies(rw http.ResponseWriter, r *http.Request) {
+	hash := strings.ToLower(strings.TrimSpace(r.URL.Query().Get("hash")))
+	if hash == "" {
+		badRequest(rw, "hash is required")
+		return
+	}
+	out, err := router.CopiesByHash(r.Context(), w.st.Reader(), []string{hash})
+	if err != nil {
+		w.internal(rw, err)
+		return
+	}
+	copies := out[hash]
+	if copies == nil {
+		copies = []router.CopyView{}
+	}
+	writeJSON(rw, http.StatusOK, CopiesResult{Copies: copies})
 }
 
 // copier is the request's router, or nil after answering 503.
@@ -93,12 +114,16 @@ func (w *Web) apiCopyTorrent(rw http.ResponseWriter, r *http.Request) {
 	if c == nil {
 		return
 	}
-	hash, name, err := c.TorrentHash(r.Context(), req.Provider, req.ID)
+	hash, names, err := c.TorrentHash(r.Context(), req.Provider, req.ID)
 	if err != nil {
 		w.internal(rw, err)
 		return
 	}
-	w.queueCopiesWith(rw, r, c, router.CopyRequest{Hash: hash, Name: name, Except: req.Provider})
+	cr := router.CopyRequest{Hash: hash, Except: req.Provider}
+	if len(names) > 0 {
+		cr.Name, cr.Names = names[0], names[1:]
+	}
+	w.queueCopiesWith(rw, r, c, cr)
 }
 
 func (w *Web) queueCopies(rw http.ResponseWriter, r *http.Request, req router.CopyRequest) {
@@ -111,10 +136,10 @@ func (w *Web) queueCopiesWith(rw http.ResponseWriter, r *http.Request, c Copier,
 	out, err := c.QueueCopies(r.Context(), req)
 	switch {
 	case errors.Is(err, router.ErrCopyPaused):
-		writeJSON(rw, http.StatusConflict, apiError{Error: err.Error()})
+		writeJSON(rw, http.StatusConflict, apiError{Error: router.CopyPausedWords})
 		return
 	case errors.Is(err, router.ErrCopyNoHash):
-		writeJSON(rw, http.StatusUnprocessableEntity, apiError{Error: err.Error()})
+		writeJSON(rw, http.StatusUnprocessableEntity, apiError{Error: router.CopyNoHashWords})
 		return
 	case err != nil:
 		w.internal(rw, err)

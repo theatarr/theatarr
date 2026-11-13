@@ -28,8 +28,8 @@ func (f *fakeCopier) QueueCopies(_ context.Context, req router.CopyRequest) ([]r
 	return []router.CopyView{{Provider: "tb", State: router.CopyQueued, UpdatedAt: testNow}}, nil
 }
 
-func (f *fakeCopier) TorrentHash(_ context.Context, pk, id string) (string, string, error) {
-	return hashA, "Alpha.2020.2160p.BluRay.REMUX-GRP", nil
+func (f *fakeCopier) TorrentHash(_ context.Context, pk, id string) (string, []string, error) {
+	return hashA, []string{"Alpha.2020.2160p.BluRay.REMUX-GRP", "alpha.mkv"}, nil
 }
 
 // "Add to other providers": the file's hash is resolved and handed to the router; a file without one is refused
@@ -50,7 +50,7 @@ func TestProviderCopiesAPI(t *testing.T) {
 	}
 	var fail apiError
 	if code := e.jsonCall("POST", APIBase+"/titles/1/copies", CopyTitleRequest{Version: "movie-web"}, sess, csrf,
-		&fail); code != 422 || fail.Error != router.ErrCopyNoHash.Error() {
+		&fail); code != 422 || fail.Error != router.CopyNoHashWords {
 		t.Fatalf("no hash: %d %+v", code, fail)
 	}
 	f.paused = true
@@ -76,5 +76,38 @@ func TestProviderCopiesAPI(t *testing.T) {
 	if code := e.jsonCall("POST", APIBase+"/titles/1/copies", CopyTitleRequest{Version: "movie-remux"}, us,
 		e.auth.SessionCSRF(us.Value), nil); code != http.StatusForbidden {
 		t.Fatalf("user may copy: %d", code)
+	}
+}
+
+// J2, J3, K: the action resolves the hash the page shows (an arr file whose torrent hash is its download id), the
+// page shows that file's copies, a Torrents row's every name reaches the router, and GET /torrents/copies reads one
+// torrent's copies for the Torrents page to poll.
+func TestProviderCopiesSameHashAndPoll(t *testing.T) {
+	t.Parallel()
+	f := &fakeCopier{}
+	e := newEnvWith(t, func(c *Config) {
+		c.ProviderCopies = func(context.Context) Copier { return f }
+	})
+	const dl = "BBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB"
+	e.exec(`UPDATE version_file SET download_id = ? WHERE version_id = 3`, dl)
+	sess := e.login()
+	csrf := e.csrfFor(sess)
+	if code := e.jsonCall("POST", APIBase+"/titles/2/copies", CopyTitleRequest{Version: "movie-web"}, sess, csrf,
+		nil); code != 200 || f.got[0].Hash != strings.ToLower(dl) {
+		t.Fatalf("download id hash: %d %+v", code, f.got)
+	}
+	e.exec(`INSERT INTO provider_copy (info_hash, name, provider, state, created_at, updated_at)
+		VALUES (?, 'x', 'tb', 'queued', 0, 0)`, strings.ToLower(dl))
+	if body := e.get(APIBase+"/titles/2", sess).Body.String(); !strings.Contains(body, `"copies":[{"provider":"tb","state":"queued"`) {
+		t.Fatalf("the page does not show the action's copies: %s", body)
+	}
+	if code := e.jsonCall("POST", APIBase+"/torrents/copy", CopyTorrentRequest{Provider: "rd", ID: "10"}, sess, csrf,
+		nil); code != 200 || len(f.got[1].Names) != 1 || f.got[1].Names[0] != "alpha.mkv" {
+		t.Fatalf("names: %d %+v", code, f.got)
+	}
+	var out CopiesResult
+	if code := e.getKey(APIBase+"/torrents/copies?hash="+dl, e.apiKey(), &out); code != 200 || len(out.Copies) != 1 ||
+		out.Copies[0].State != "queued" {
+		t.Fatalf("poll: %d %+v", code, out)
 	}
 }

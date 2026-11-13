@@ -119,22 +119,12 @@ func (r *Router) guardBefore(ctx context.Context, pv *policy.Provider, pk, hash 
 			return nil, fmt.Errorf("router: downloads: %w", err)
 		}
 	}
-	if why == "" {
-		// A copy to another provider (copy.go) whose add is out or not settled: its entry is not this add's.
-		err = r.st.Writer().QueryRowContext(ctx, `SELECT 'copy to other providers (' || state || '): torrent ' ||
-			COALESCE(torrent_id, '?') FROM provider_copy WHERE info_hash = ? AND provider = ?
-			AND state IN ('adding', 'checking')`, hash, pk).Scan(&why)
-		if err != nil && !errors.Is(err, sql.ErrNoRows) {
-			return nil, fmt.Errorf("router: copies: %w", err)
-		}
-	}
 	g.before = why
-	if pv.Kind == provider.KindRealDebrid || !fresh {
+	if pv.Kind != provider.KindAllDebrid || !fresh {
 		return g, nil
 	}
-	// AllDebrid (and TorBox, for a copy to other providers): the registry may be stale (another client added the hash
-	// since the last sync), and an upload of a hash already there returns the existing id. One read lists every magnet
-	// (no paging on AllDebrid).
+	// AllDebrid: the registry may be stale (another client added the hash since the last sync), and an upload of a
+	// hash already there returns the existing id. One read lists every magnet (no paging).
 	g.listed = false
 	rp := r.provs[pk]
 	if rp == nil {
@@ -179,9 +169,7 @@ func (r *Router) proof(ctx context.Context, g *ownGuard, pv *policy.Provider, pk
 	var known string
 	err := r.st.Writer().QueryRowContext(ctx, `SELECT 'registry' FROM content_provider WHERE provider = ?
 		AND torrent_id = ? UNION ALL SELECT 'download ' || id FROM download WHERE provider = ?
-		AND provider_torrent_id = ? AND id != ? UNION ALL SELECT 'copy to other providers ' || id FROM provider_copy
-		WHERE provider = ? AND torrent_id = ? AND state IN ('adding', 'checking') LIMIT 1`, pk, a.ID, pk, a.ID, dl,
-		pk, a.ID).Scan(&known)
+		AND provider_torrent_id = ? AND id != ? LIMIT 1`, pk, a.ID, pk, a.ID, dl).Scan(&known)
 	if err != nil && !errors.Is(err, sql.ErrNoRows) {
 		return adder.OwnAdd{}, "", fmt.Errorf("router: torrent ids: %w", err)
 	}
