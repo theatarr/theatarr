@@ -60,7 +60,7 @@ export const DEFAULT_LIBRARY_COLUMNS: readonly LibraryColumn[] = ["status", "qua
 /** The columns offered for a title: its kind's, and Next search only when a row carries the server's time. */
 export function libraryColumns(kind: Kind, versions: readonly Version[]): ColumnDef<LibraryColumn>[] {
   const next = versions.some((v) => !!nextSearchOf(v));
-  return LIBRARY_COLUMNS.filter((c) => c.kinds.includes(kind) && (c.id !== "next_search" || next)).map(({ id, label, hint }) => ({ id, label, hint }));
+  return LIBRARY_COLUMNS.filter((c) => c.kinds.includes(kind) && (c.id !== "next_search" || next));
 }
 
 /** The libraries the title is in now: a library it was removed from has no row. */
@@ -107,6 +107,17 @@ export function libraryStatus(v: Version, kind: Kind, upcoming?: string): Librar
   const sub = a ? stageWords({ ...a, upgrade: true }) : undefined;
   if (!badge) return { label: "Available", tone: "positive", sub };
   return { label: badge.label, tone: badge.tone, upgrade: true, sub };
+}
+
+/** A rename's two sides as shown: the file names, or, when only folders change (equal names), each path from the first
+ *  folder that differs, so the change is visible. */
+export function renameSides(from: string, to: string): [string, string] {
+  const a = from.split("/");
+  const b = to.split("/");
+  if (a[a.length - 1] !== b[b.length - 1]) return [a[a.length - 1], b[b.length - 1]];
+  let i = 0;
+  while (i < a.length - 1 && i < b.length - 1 && a[i] === b[i]) i++;
+  return [a.slice(i).join("/"), b.slice(i).join("/")];
 }
 
 /** The file name of a path (the last segment). */

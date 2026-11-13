@@ -76,7 +76,7 @@ describe("recovery scopes", () => {
     const unlink = removalScope(one, true);
     expect(unlink.does).toContain("2 library links move to Theatarr's trash");
     expect(unlink.keeps).not.toContain("2 library files stay linked and playable");
-    expect(unlink.confirm).toBe("Remove this copy");
+    expect(unlink.confirm).toBe("Remove from this library");
     expect(keep.cleanup).toEqual({ text: "To free space at the provider, delete torrents nothing uses any more under", label: "Admin › Torrents (the Unused filter)", to: "/admin/torrents", admin: true });
     expect(keep.keeps).toContain("Its history stays; adding Dune to the library again restores it");
   });

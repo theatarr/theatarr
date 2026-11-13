@@ -21,8 +21,8 @@ import { DownloadsOffNotice } from "@/components/version-status";
 import { Button } from "@/components/ui/button";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { Modal } from "@/components/ui/modal";
-import { fileName } from "@/lib/library-rows";
-import { renameButton } from "@/lib/rename";
+import { renameSides } from "@/lib/library-rows";
+import { renameError } from "@/lib/rename";
 import { cn } from "@/lib/utils";
 import { globalDownloadsOff, verdict } from "@/lib/version-grab";
 
@@ -32,7 +32,7 @@ const plural = (n: number, one: string, many = `${one}s`) => `${n} ${n === 1 ? o
 function RenameDialog({ titleId, labels, onClose }: { titleId: number; labels: Record<string, string>; onClose: () => void }) {
   const preview = useRenamePreview(titleId, true);
   const rename = useRename(titleId);
-  const state = renameButton(preview, rename);
+  const error = renameError(preview, rename);
   const p = preview.data;
   const files = p?.files ?? [];
   const done = rename.data;
@@ -52,23 +52,26 @@ function RenameDialog({ titleId, labels, onClose }: { titleId: number; labels: R
           <>
             {files.length ? (
               <ul className="divide-y divide-[var(--line)] border-y border-[var(--line)]" data-testid="rename-files">
-                {files.map((f) => (
+                {files.map((f) => {
+                  const [from, to] = renameSides(f.existing_path, f.new_path);
+                  return (
                   <li key={f.link_id} className="py-2" data-testid="rename-file">
                     <div className="text-xs text-[var(--ink-3)]">{labels[f.version] ?? f.version}</div>
                     <div className="flex flex-col gap-x-2 sm:flex-row sm:items-baseline">
-                      <Mono className="min-w-0 text-muted-foreground [overflow-wrap:anywhere]"><span title={f.existing_path}>{fileName(f.existing_path)}</span></Mono>
+                      <Mono className="min-w-0 text-muted-foreground [overflow-wrap:anywhere]"><span title={f.existing_path}>{from}</span></Mono>
                       <span aria-label="becomes" className="text-[var(--ink-3)]">→</span>
-                      <Mono className="min-w-0 [overflow-wrap:anywhere]"><span title={f.new_path}>{fileName(f.new_path)}</span></Mono>
+                      <Mono className="min-w-0 [overflow-wrap:anywhere]"><span title={f.new_path}>{to}</span></Mono>
                     </div>
                   </li>
-                ))}
+                  );
+                })}
               </ul>
             ) : null}
             {p.skipped ? <p className="text-[var(--ink-3)]" data-testid="rename-skipped">{plural(p.skipped, "file")} could not be checked.</p> : null}
             {!files.length && !p.skipped ? <p data-testid="rename-none">Every file already has the name the naming settings give it.</p> : null}
           </>
         ) : null}
-        {state.error ? <p role="alert" className="text-[var(--bad-ink)]" data-testid="rename-error">{state.error}</p> : null}
+        {error ? <p role="alert" className="text-[var(--bad-ink)]" data-testid="rename-error">{error}</p> : null}
       </div>
       <div className="flex justify-end gap-2 border-t border-[var(--line)] p-3">
         <Button size="sm" variant="ghost" onClick={onClose}>{done ? "Close" : "Cancel"}</Button>
@@ -130,7 +133,7 @@ export function TitleToolbar({ titleId, name, year, kind, poster, anime, version
   // The title page says Pause once, above its rows (no row repeats it).
   const pageOff = titlePage ? globalDownloadsOff(versions.map((v) => v.control?.grab_state)) : undefined;
   const labels = Object.fromEntries([...versions, ...removed].flatMap((v) => (v.key ? [[v.key, v.label ?? v.key]] : [])));
-  const searchTip = kind === "series" ? "Search every missing monitored episode now, in every Live library" : "Search every monitored Live library now";
+  const searchTip = kind === "series" ? "Search every monitored episode now, in every Live library (missing episodes and upgrades)" : "Search every monitored Live library now";
 
   const more: { id: string; label: string; icon: typeof Search; run: () => void; disabled?: boolean; tip?: string }[] = [];
   if (titlePage) {

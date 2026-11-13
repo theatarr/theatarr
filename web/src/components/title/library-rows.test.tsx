@@ -1,8 +1,9 @@
 // @vitest-environment jsdom
 // The title page's Libraries table: one row per current library, provider pills and the file name, the Watch-only
 // row's limits, the removed library's leftover line, chosen columns kept, and the details panel. Invented keys.
-import { screen, waitFor, within } from "@testing-library/react";
+import { act, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
+import { useState } from "react";
 import { afterEach, describe, expect, it } from "vitest";
 import { json, mockFetch, renderPage } from "@/test/page";
 import { LibraryRows } from "./library-rows";
@@ -117,3 +118,78 @@ describe("row details", () => {
     expect(within(panel).getByTestId("copy-remove-movie-1080").textContent).toContain("Remove from this library");
   });
 });
+
+describe("fix round 1", () => {
+  it("keeps a row removal scoped to its library when it is the title's last, and keeps the result after the row goes", async () => {
+    const links = [{ id: 9, kind: "symlink", state: "active", path: "/media/remux/Alpha/a.mkv" }];
+    const fetch = manager([
+      { method: "GET", path: "/titles/7/removal", reply: { title_id: 7, name: "Alpha", title: true, copies: [{ key: "movie-web", label: "WEB", links: 1, downloads: 0 }], leftover: [] } },
+      { method: "POST", path: "/titles/7/remove", reply: { message: "Alpha was removed from WEB.", kept: [{ path: "/media/movies/Alpha/a.mkv", reason: "unlink refused" }] } },
+    ]);
+    const user = userEvent.setup();
+    let setVersions: (v: object[]) => void = () => {};
+    function Page() {
+      const [versions, set] = useState<object[]>([web, { ...remux, removed: true, links }]);
+      setVersions = set;
+      return <LibraryRows title={title as never} versions={versions as never} />;
+    }
+    renderPage(<Page />);
+    await user.click(await screen.findByTestId("copy-details-movie-web"));
+    await user.click(screen.getByTestId("copy-remove-movie-web"));
+    await user.click(await screen.findByTestId("remove-unlink"));
+    await user.click(screen.getByTestId("confirm-ok"));
+    await waitFor(() => expect(fetch.calls("POST", "/titles/7/remove")).toHaveLength(1));
+    expect(fetch.calls("POST", "/titles/7/remove")[0].body).toEqual({ versions: ["movie-web"], unlink: true });
+    expect((await screen.findByTestId("confirm-done")).textContent).toContain("unlink refused");
+    // The title data comes back without the row: the result stays until dismissed.
+    act(() => setVersions([{ ...web, removed: true }, { ...remux, removed: true, links }]));
+    expect(screen.queryAllByTestId("library-row")).toHaveLength(0);
+    expect(screen.getByTestId("confirm-done").textContent).toContain("unlink refused");
+  });
+
+  it("says a row's search may serve the title's other Live libraries", async () => {
+    manager();
+    renderPage(<LibraryRows title={title as never} versions={[web, { ...remux, control: live }] as never} />);
+    const search = await screen.findByTestId("version-search-movie-web");
+    expect(search.parentElement?.getAttribute("title")).toBe("Search WEB now. Other Live libraries that want this title may use the results too.");
+  });
+
+  it("leaves a score without its formats blank", async () => {
+    manager();
+    renderPage(<LibraryRows title={title as never} versions={[{ ...web, current: { ...web.current, formats: undefined } }] as never} />);
+    await waitFor(() => expect(rowOf("movie-web").querySelector('[data-column="score"]')?.textContent).toBe(""));
+  });
+
+  it("offers Why? in Details when the Status column is hidden, and on a series row", async () => {
+    window.localStorage.setItem("theatarr.library.title-libraries.3", JSON.stringify({ order: ["status", "quality"], shown: ["quality"] }));
+    manager();
+    const user = userEvent.setup();
+    const page = renderPage(<LibraryRows title={title as never} versions={[web] as never} />);
+    await waitFor(() => expect(rowOf("movie-web").querySelector('[data-column="status"]')).toBeNull());
+    await user.click(screen.getByTestId("copy-details-movie-web"));
+    expect(within(screen.getByTestId("library-row-details-movie-web")).getByTestId("upgrade-why")).toBeTruthy();
+    page.unmount();
+    window.localStorage.clear();
+    renderPage(<LibraryRows title={{ ...title, kind: "series" } as never} versions={[{ ...web, episodes: { have: 3, total: 3, missing: 0 }, upgrade: { state: "below_cutoff" } }] as never} />);
+    await user.click(await screen.findByTestId("copy-details-movie-web"));
+    expect(within(screen.getByTestId("library-row-details-movie-web")).getByTestId("upgrade-why")).toBeTruthy();
+  });
+
+  it("shows an imported tba without offering it, says when nothing changed, and gives a non-manager text", async () => {
+    window.localStorage.setItem("theatarr.library.title-libraries.3", JSON.stringify({ order: ["minimum_availability"], shown: ["minimum_availability"] }));
+    manager([{ method: "POST", path: "/titles/minimum-availability", reply: { changed: 0 } }]);
+    const user = userEvent.setup();
+    const page = renderPage(<LibraryRows title={title as never} versions={[{ ...web, minimum_availability: "tba" }] as never} />);
+    const imported = (await screen.findByTestId("version-minimum-availability-movie-web")) as HTMLSelectElement;
+    expect(imported.value).toBe("tba");
+    expect([...imported.options].map((o) => o.value)).toEqual(["tba", "announced", "inCinemas", "released"]);
+    await user.selectOptions(imported, "released");
+    expect(await screen.findByText(/the movie is not in this library now/)).toBeTruthy();
+    page.unmount();
+    mockFetch([{ method: "GET", path: "/auth/me", reply: { id: 3, permissions: ["browse", "see_files"] } }]);
+    renderPage(<LibraryRows title={title as never} versions={[{ ...web, minimum_availability: "inCinemas" }] as never} />);
+    await waitFor(() => expect(rowOf("movie-web").querySelector('[data-column="minimum_availability"]')?.textContent).toBe("In cinemas"));
+    expect(screen.queryByTestId("version-minimum-availability-movie-web")).toBeNull();
+  });
+});
+

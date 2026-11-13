@@ -160,7 +160,7 @@ export function removalScope(s: RemovalScopeLike, unlink: boolean): Scope {
     title: s.title ? `Remove ${s.name}` : `Remove from ${names}`,
     does,
     keeps,
-    confirm: s.title ? "Remove title" : s.copies.length === 1 ? "Remove this copy" : "Remove these copies",
+    confirm: s.title ? "Remove title" : s.copies.length === 1 ? "Remove from this library" : "Remove from these libraries",
     cleanup: UNUSED_TORRENTS,
     blocked: s.copies.length === 0 ? "Nothing to remove" : undefined,
   };

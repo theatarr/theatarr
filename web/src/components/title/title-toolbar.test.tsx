@@ -100,3 +100,17 @@ it("does not claim the names match when files could not be checked", async () =>
   expect((await screen.findByTestId("rename-skipped")).textContent).toBe("2 files could not be checked.");
   expect(screen.queryByTestId("rename-none")).toBeNull();
 });
+
+it("shows the changed folders when a rename keeps the file name", async () => {
+  renameBar({ files: [{ link_id: 5, version: "movie-web", existing_path: "/media/movies/Alpha/Alpha.mkv", new_path: "/media/movies/Alpha (2020)/Alpha.mkv" }], skipped: 0 });
+  const user = userEvent.setup();
+  await user.click(await screen.findByTestId("title-rename"));
+  expect((await screen.findByTestId("rename-file")).textContent).toBe("WEBAlpha/Alpha.mkv→Alpha (2020)/Alpha.mkv");
+});
+
+it("says a series' Search now also looks for upgrades", async () => {
+  mockFetch([{ method: "GET", path: "/auth/me", reply: { id: 1, permissions: ["manage"] } }, options([{ ...lib("tv-web", gates), searchable: true }])]);
+  renderPage(<SearchProvider><TitleToolbar titleId={7} name="Alpha" kind="series" versions={[]} /></SearchProvider>);
+  expect((await screen.findByTestId("title-search-now")).getAttribute("title")).toBe("Search every monitored episode now, in every Live library (missing episodes and upgrades)");
+});
+

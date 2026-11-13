@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { Version } from "@/api/library";
-import { currentLibraries, fileName, lastSearch, libraryColumns, libraryStatus, nextSearch, nextSearchOf } from "./library-rows";
+import { currentLibraries, fileName, renameSides, lastSearch, libraryColumns, libraryStatus, nextSearch, nextSearchOf } from "./library-rows";
 
 const v = (o: Partial<Version>): Version => ({ id: 1, key: "movie-web", label: "WEB", monitored: true, has_file: false, state: "wanted", ...o }) as Version;
 const downloading = { stage: "downloading" as const, words: "", progress: 37, download_id: 1, downloads: 1, updated_at: "2026-11-12T00:00:00Z" };
@@ -62,6 +62,10 @@ describe("row readers", () => {
       { event: "searched", date: "2026-11-02T00:00:00Z" },
     ] })).toBe("2026-11-02T00:00:00Z");
     expect(lastSearch({ history: [] })).toBeUndefined();
+  });
+  it("shows a rename's names, or the changed folders when the names are equal", () => {
+    expect(renameSides("/media/tv/A/Season 1/a.mkv", "/media/tv/A/Season 1/b.mkv")).toEqual(["a.mkv", "b.mkv"]);
+    expect(renameSides("/media/tv/A/Season 1/a.mkv", "/media/tv/A (2020)/Season 01/a.mkv")).toEqual(["A/Season 1/a.mkv", "A (2020)/Season 01/a.mkv"]);
   });
   it("words the next search", () => {
     const now = new Date("2026-11-12T12:00:00Z");

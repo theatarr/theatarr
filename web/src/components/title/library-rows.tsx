@@ -14,7 +14,7 @@ import { usePerms, type TitleDetail, type Version } from "@/api/library";
 import { CopyDot, StageLink, useMinWidth } from "@/components/library/copy-bits";
 import { KV, Mono } from "@/components/page";
 import { ProviderPills } from "@/components/provider-pills";
-import { CopyActions, LeftoverLinks } from "@/components/title/copy-actions";
+import { CopyActions, LeftoverLinks, RemoveDialog } from "@/components/title/copy-actions";
 import { InfoHash } from "@/components/title/info-hash";
 import { InteractiveSearch } from "@/components/title/interactive-search";
 import { ControlNote, MonitorSwitch } from "@/components/title/manage-bits";
@@ -40,7 +40,6 @@ import { mediaLine } from "@/lib/media";
 type Kind = "movie" | "series";
 
 const PREFS = "title-libraries";
-const DEFS = LIBRARY_COLUMNS.map(({ id, label, hint }) => ({ id, label, hint }));
 
 const nameOf = (v: Version) => v.label || v.key || "";
 
@@ -97,7 +96,8 @@ function cellOf(id: LibraryColumn, v: Version, kind: Kind, upcoming: string | un
     case "quality":
       return held && c?.quality ? <span className="whitespace-nowrap">{c.quality}</span> : blank;
     case "score":
-      return held && c?.score != null ? (
+      // A score without its formats (files kept from a former Sonarr/Radarr, adopted links) stays blank, as Formats does.
+      return held && c?.score != null && c.formats?.length ? (
         <span className="tabular-nums" title={c.formats?.length ? c.formats.map((f) => `${f.name} ${f.score >= 0 ? "+" : ""}${fmtNumber(f.score)}`).join(", ") : undefined}>{fmtNumber(c.score)}</span>
       ) : blank;
     case "size":
@@ -140,7 +140,7 @@ function cellOf(id: LibraryColumn, v: Version, kind: Kind, upcoming: string | un
 }
 
 /** What Details opens under a row: what has no column and is rarely needed. */
-function RowDetails({ v, kind, minimumShown }: { v: Version; kind: Kind; minimumShown: boolean }) {
+function RowDetails({ v, kind, minimumShown, statusShown, onRemove }: { v: Version; kind: Kind; minimumShown: boolean; statusShown: boolean; onRemove: () => void }) {
   const perms = usePerms();
   const c = v.current;
   const key = v.key ?? "";
@@ -152,6 +152,11 @@ function RowDetails({ v, kind, minimumShown }: { v: Version; kind: Kind; minimum
   if (kind === "series" && v.episodes) {
     const e = v.episodes;
     rows.push(["Episodes", `${fmtNumber(e.have)} of ${fmtNumber(e.total)}${e.missing ? ` · ${fmtNumber(e.missing)} aired and missing` : ""}`]);
+  }
+  // The upgrade explanation (Why?, and the source ceiling for a movie) when no Status cell offers it: a series row
+  // always (its status is an episode count), a movie when the Status column is hidden.
+  if (v.has_file && (kind === "series" || !statusShown) && v.upgrade && v.upgrade.state !== "none") {
+    rows.push(["Upgrade status", <UpgradeStatus key="u" u={v.upgrade} what={nameOf(v)} titleId={titleId} releases={releasesHref(titleId, key)} ceilingControl={kind === "movie"} />]);
   }
   const below = belowCount(v.upgrade);
   if (below) rows.push(["Upgrades", below]);
@@ -168,7 +173,7 @@ function RowDetails({ v, kind, minimumShown }: { v: Version; kind: Kind; minimum
         {active && (v.state === "filled" || !!v.upgrade?.below) ? <Link className="text-primary hover:underline" to={`/wanted/cutoff?version=${encodeURIComponent(key)}`}>See in Cutoff unmet</Link> : null}
         {perms.manage && titleId ? <Link className="text-primary hover:underline" to={releasesHref(titleId, key)}>Last search results</Link> : null}
       </div>
-      {perms.manage ? <CopyActions v={v} label={nameOf(v)} /> : null}
+      {perms.manage ? <CopyActions v={v} label={nameOf(v)} onRemove={onRemove} /> : null}
     </div>
   );
 }
@@ -180,7 +185,7 @@ export function LibraryRows({ title, versions }: { title: TitleDetail; versions:
   const rows = currentLibraries(versions);
   const leftover = versions.filter((v) => v.removed && unlinkable(v.links).length > 0);
   const offered = libraryColumns(kind, rows);
-  const [prefs, savePrefs] = useColumnPrefs(PREFS, DEFS, DEFAULT_LIBRARY_COLUMNS);
+  const [prefs, savePrefs] = useColumnPrefs(PREFS, LIBRARY_COLUMNS, DEFAULT_LIBRARY_COLUMNS);
   const shown = prefs.order.filter((id) => prefs.shown.includes(id) && offered.some((c) => c.id === id));
   const [picking, setPicking] = useState(false);
   const [open, setOpen] = useState<ReadonlySet<string>>(new Set());
@@ -188,6 +193,8 @@ export function LibraryRows({ title, versions }: { title: TitleDetail; versions:
   const setVersion = useSetVersion(titleId);
   const searchNow = useSearchNow(titleId);
   const [interactive, setInteractive] = useState<string | null>(null);
+  // The removal dialog lives here, not in the row: its result stays on screen after the row goes.
+  const [removing, setRemoving] = useState<string | null>(null);
   const upcoming = upcomingRelease(title);
   const toggle = (key: string) => setOpen((o) => {
     const n = new Set(o);
@@ -206,6 +213,12 @@ export function LibraryRows({ title, versions }: { title: TitleDetail; versions:
     );
   };
 
+  // The server's search for one library may also grab for the title's other Live libraries that want it.
+  const searchTip = (v: Version) =>
+    rows.some((o) => o.key !== v.key && o.control?.mode === "active")
+      ? `Search ${nameOf(v)} now. Other Live libraries that want this title may use the results too.`
+      : `Search ${nameOf(v)} now`;
+
   const actions = (v: Version) => {
     const c = v.control;
     const key = v.key ?? "";
@@ -218,7 +231,7 @@ export function LibraryRows({ title, versions }: { title: TitleDetail; versions:
       <span className={cn("inline-flex items-center justify-end gap-1", !wide && "flex-wrap")}>
         {perms.manage && c ? (
           // A disabled button shows no tooltip: the wrapper carries the reason.
-          <span title={searchable ? `Search ${name} now` : downloadReason(c)} className="inline-flex">
+          <span title={searchable ? searchTip(v) : downloadReason(c)} className="inline-flex">
             <Button size={iconSize} variant="ghost" className={phone} disabled={!searchable || searchNow.isPending}
               aria-label={`Search ${name} now`} onClick={() => searchNow.mutate([key])} data-testid={`version-search-${key}`}>
               {searchNow.isPending && searchNow.variables?.[0] === key ? <Loader2 className="animate-spin" /> : <Search />}
@@ -296,7 +309,10 @@ export function LibraryRows({ title, versions }: { title: TitleDetail; versions:
           rowKey={(v) => v.key ?? String(v.id)}
           columns={columns}
           actions={actions}
-          expanded={(v) => (open.has(v.key ?? "") ? <RowDetails v={v} kind={kind} minimumShown={shown.includes("minimum_availability")} /> : null)}
+          expanded={(v) => (open.has(v.key ?? "") ? (
+            <RowDetails v={v} kind={kind} minimumShown={wide && shown.includes("minimum_availability")} statusShown={!wide || shown.includes("status")}
+              onRemove={() => setRemoving(v.key ?? "")} />
+          ) : null)}
           cardHead={cardHead}
           rowProps={(v) => ({ "data-testid": "library-row", "data-version": v.key })}
           minWidth={768}
@@ -321,6 +337,7 @@ export function LibraryRows({ title, versions }: { title: TitleDetail; versions:
         <ColumnPicker label="Columns" note="Monitored, Library and the actions always stay. Kept for your account in this browser."
           columns={offered} prefs={prefs} onChange={savePrefs} onClose={() => setPicking(false)} />
       ) : null}
+      {removing ? <RemoveDialog titleId={titleId} versions={[removing]} onClose={() => setRemoving(null)} /> : null}
       {interactive ? <InteractiveSearch titleId={titleId} version={interactive} onClose={() => setInteractive(null)} /> : null}
     </section>
   );

@@ -1,9 +1,8 @@
 // Season and episode management (docs/design/manage.md): the episode detail, episode-scoped releases, season and
-// episode monitoring and search, and a version's journal entries.
+// episode monitoring and search.
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { api, qs, type Schemas } from "./client";
 import type { Releases, SearchOutcome } from "./add";
-import type { JournalPage } from "./library";
 
 export type UpgradeInfo = Schemas["UpgradeInfo"];
 export type UpgradeNext = Schemas["UpgradeNext"];
@@ -33,14 +32,6 @@ export function useEpisodeReleases(titleId: number, eid: number, version: string
     ...(live ? { retry: false } : {}),
   });
 }
-
-/** The journal's entries for one version of a title, newest first (see files only). */
-export const useVersionJournal = (titleId: number, version: string, enabled: boolean) =>
-  useQuery({
-    queryKey: ["journal", "title", String(titleId), version],
-    queryFn: () => api<JournalPage>("/journal" + qs({ title: titleId, version, limit: 10 })),
-    enabled,
-  });
 
 function useInvalidateTitle(titleId: number) {
   const qc = useQueryClient();

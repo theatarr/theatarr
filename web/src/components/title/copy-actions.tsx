@@ -46,7 +46,10 @@ export function RemoveDialog({ titleId, versions, onClose }: { titleId: number; 
       onClose={onClose}
       onConfirm={() =>
         remove.mutate({
-          versions: s.title ? [] : [...s.copies, ...(s.leftover ?? [])].map((c) => c.key),
+          // A removal asked for named libraries (a row, a leftover line) stays scoped to them even when they are the
+          // title's last: an empty list would be the whole title, and would also unlink links kept from a library
+          // removed earlier.
+          versions: versions?.length ? versions : s.title ? [] : [...s.copies, ...(s.leftover ?? [])].map((c) => c.key),
           unlink: unlink || leftoverOnly,
         })
       }
@@ -61,8 +64,9 @@ export function RemoveDialog({ titleId, versions, onClose }: { titleId: number; 
   );
 }
 
-/** Unlink the library's files one by one, and Remove from this library: the library row's Details. */
-export function CopyActions({ v, label }: { v: Version; label: string }) {
+/** Unlink the library's files one by one, and Remove from this library: the library row's Details. onRemove opens the
+ *  removal dialog outside the row (the Libraries table), so its result stays on screen after the row goes. */
+export function CopyActions({ v, label, onRemove }: { v: Version; label: string; onRemove?: () => void }) {
   const titleId = v.title_id ?? 0;
   const [open, setOpen] = useState(false);
   const [path, setPath] = useState<{ id: number; path: string } | null>(null);
@@ -86,7 +90,7 @@ export function CopyActions({ v, label }: { v: Version; label: string }) {
           </ul>
         </div>
       ) : null}
-      <Button size="xs" variant="outline" onClick={() => setOpen(true)} data-testid={`copy-remove-${v.key}`}>
+      <Button size="xs" variant="outline" onClick={() => (onRemove ? onRemove() : setOpen(true))} data-testid={`copy-remove-${v.key}`}>
         <Trash2 /> Remove from this library
       </Button>
       {open ? <RemoveDialog titleId={titleId} versions={[v.key]} onClose={() => setOpen(false)} /> : null}
