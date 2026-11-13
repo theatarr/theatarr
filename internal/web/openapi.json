@@ -126,7 +126,7 @@
           { "name": "availability", "in": "query", "schema": { "$ref": "#/components/schemas/Availability" } },
           { "name": "genre", "in": "query", "description": "TMDb genre names, comma-separated or repeated; any of them", "schema": { "type": "string" } },
           { "name": "quality", "in": "query", "description": "Some current file has this quality (WEBDL-2160p), or this resolution (2160p, 1080p). Without see_files, a resolution only (403 otherwise)", "schema": { "type": "string" } },
-          { "name": "provider", "in": "query", "description": "Some current file is held by this debrid provider. Needs see_files (403 otherwise)", "schema": { "type": "string" } },
+          { "name": "provider", "in": "query", "description": "Some current file is held now by this debrid provider: a cache code (rd, ad, tb: every provider of that kind) or a provider key. Needs see_files (403 otherwise)", "schema": { "type": "string" } },
           { "name": "year_from", "in": "query", "schema": { "type": "integer", "minimum": 0 } },
           { "name": "year_to", "in": "query", "schema": { "type": "integer", "minimum": 0 } },
           { "name": "sort", "in": "query", "description": "added: newest current file; release: TMDb release or first air date; size: current files (see files only, else 403); completion: the share of a series' aired episodes a copy holds (a movie copy: 1 with a file, else 0); quality: a copy's best current quality, resolution then source (see files only); activity: the newest change of a download in hand (see files only); next: the next episode's air date or a coming movie release (ascending by default). Default name. Titles without a value come last", "schema": { "type": "string", "enum": ["added", "name", "year", "release", "rating", "size", "completion", "quality", "activity", "next"] } },
@@ -159,7 +159,7 @@
     },
     "/titles/{id}/episodes": {
       "get": {
-        "summary": "A series' seasons with counts per version, and its episodes with a cell per version. Callers without see_files get no paths, sizes, scores or groups",
+        "summary": "A series' seasons with counts per version, and its episodes with a cell per version. A copy removed from the library has no column. Callers without see_files get no paths, sizes, scores, groups, release titles or providers",
         "parameters": [{ "$ref": "#/components/parameters/id" }, { "name": "season", "in": "query", "description": "Only this season's episodes (the season list is always whole)", "schema": { "type": "integer", "minimum": 0 } }],
         "responses": {
           "200": { "description": "OK", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/EpisodeList" } } } },
@@ -984,7 +984,7 @@
           "files": { "type": "integer", "description": "Current files (episode files for a series); see_files only, absent when none" },
           "added_at": { "type": "string", "format": "date-time", "description": "see_files only" },
           "size_bytes": { "type": "integer", "description": "see_files only" },
-          "providers": { "type": "array", "items": { "type": "string" }, "description": "see_files only" },
+          "providers": { "type": "array", "items": { "type": "string" }, "description": "see_files only: cache codes (rd, ad, tb; a provider of another kind by its key) of the providers that hold a current file now" },
           "upgrade_seen": { "type": "boolean", "description": "Below cutoff, and a better release than the current file has been seen" },
           "control": { "$ref": "#/components/schemas/VersionControl", "description": "What the controls may do for the copy. see_files only" },
           "coverage": { "$ref": "#/components/schemas/CopyCoverage" },
@@ -1032,7 +1032,7 @@
           "qualities": { "type": "array", "items": { "$ref": "#/components/schemas/FacetCount" }, "description": "Titles per current-file quality; without see_files, per resolution (2160p, 1080p, ...), highest first" },
           "genres": { "type": "array", "items": { "$ref": "#/components/schemas/FacetCount" } },
           "certifications": { "type": "array", "items": { "$ref": "#/components/schemas/FacetCount" } },
-          "providers": { "type": "array", "items": { "$ref": "#/components/schemas/FacetCount" }, "description": "see_files only; absent otherwise" },
+          "providers": { "type": "array", "items": { "$ref": "#/components/schemas/FacetCount" }, "description": "see_files only; absent otherwise. Values are cache codes (rd, ad, tb; a provider of another kind by its key): titles with a current file a provider of that kind holds now, as the provider filter finds them" },
           "year_min": { "type": "integer" }, "year_max": { "type": "integer" }
         }
       },
@@ -1053,7 +1053,7 @@
         "properties": {
           "id": { "type": "integer" }, "season": { "type": "integer" }, "number": { "type": "integer" }, "absolute": { "type": "integer" },
           "name": { "type": "string" }, "air_date": { "type": "string" }, "aired": { "type": "boolean", "description": "The air instant has passed; without an instant, air_date is today (UTC) or earlier" }, "runtime_minutes": { "type": "integer" }, "monitored": { "type": "boolean" },
-          "versions": { "type": "object", "description": "By version key", "additionalProperties": { "type": "object", "required": ["state", "monitored", "has_file"], "properties": { "upgrade": { "$ref": "#/components/schemas/UpgradeInfo" }, "state": { "$ref": "#/components/schemas/VersionState" }, "monitored": { "type": "boolean" }, "has_file": { "type": "boolean" }, "quality": { "type": "string" }, "size_bytes": { "type": "integer", "description": "see_files only" }, "score": { "type": "integer", "description": "see_files only" }, "release_group": { "type": "string", "description": "see_files only" }, "path": { "type": "string", "description": "see_files only" }, "upgrade_seen": { "type": "boolean", "description": "Below cutoff, and a better release than its file has been seen" }, "acquisition": { "$ref": "#/components/schemas/Acquisition" } } } }
+          "versions": { "type": "object", "description": "By version key", "additionalProperties": { "type": "object", "required": ["state", "monitored", "has_file"], "properties": { "upgrade": { "$ref": "#/components/schemas/UpgradeInfo" }, "state": { "$ref": "#/components/schemas/VersionState" }, "monitored": { "type": "boolean" }, "has_file": { "type": "boolean" }, "quality": { "type": "string" }, "size_bytes": { "type": "integer", "description": "see_files only" }, "score": { "type": "integer", "description": "see_files only" }, "release_group": { "type": "string", "description": "see_files only; a Theatarr link's from its file metadata" }, "release_title": { "type": "string", "description": "see_files only" }, "path": { "type": "string", "description": "see_files only" }, "cached_on": { "type": "array", "items": { "type": "string" }, "description": "see_files only: cache codes (rd, ad, tb) of the providers that hold the episode's link's content now" }, "upgrade_seen": { "type": "boolean", "description": "Below cutoff, and a better release than its file has been seen" }, "acquisition": { "$ref": "#/components/schemas/Acquisition" } } } }
         }
       },
       "DiscoverRow": {
@@ -1123,7 +1123,9 @@
           "links": { "type": "array", "items": { "$ref": "#/components/schemas/Link" } },
           "label": { "type": "string", "description": "Title page only: the version's name for people" },
           "current": { "$ref": "#/components/schemas/CurrentFile" },
-          "providers": { "type": "array", "items": { "type": "string" }, "description": "Title page, see_files only" },
+          "providers": { "type": "array", "items": { "type": "string" }, "description": "Title page, see_files only: the provider keys that hold a current file now (listed on the account and downloaded there), an adopted link's file found through the hash it stores" },
+          "cached_on": { "type": "array", "items": { "type": "string" }, "description": "Title page, see_files only: providers as cache codes (rd, ad, tb; a provider of another kind by its key), the codes list rows and releases carry" },
+          "removed": { "type": "boolean", "description": "Title page: the copy was removed from the library (its rows and links stay); it counts in none of the title's rollups (availability, size, added). Sent to every caller; absent when false" },
           "episodes": { "type": "object", "description": "Title page, series: episodes outside the specials", "required": ["total", "have", "missing"], "properties": { "total": { "type": "integer", "description": "Aired or held" }, "have": { "type": "integer" }, "missing": { "type": "integer", "description": "Aired, monitored, wanted" } } },
           "history": { "type": "array", "description": "Title page: newest first, at most 50", "items": { "$ref": "#/components/schemas/HistoryEvent" } },
           "upgrade": { "$ref": "#/components/schemas/UpgradeInfo" },
@@ -1135,13 +1137,14 @@
       },
       "CurrentFile": {
         "type": "object",
-        "description": "A version's current file in brief (for a series, its episode files together). Without see_files, only the resolution as quality (2160p, 1080p), languages and edition. Size, score, release, path, hash and instance are see_files only; release, path and hash are set for a single file. files and cutoff_met are absent when 0 or false",
+        "description": "A version's current file in brief (for a series, its episode files together). Without see_files, only the resolution as quality (2160p, 1080p), languages and edition. Size, score, formats, release, release group, path, hash and instance are see_files only; release group, languages and edition of a Theatarr link come from its stored file metadata; release, path and hash are set for a single file. files and cutoff_met are absent when 0 or false",
         "properties": {
           "quality": { "type": "string" }, "files": { "type": "integer" }, "added_at": { "type": "string", "format": "date-time" },
           "languages": { "type": "array", "items": { "type": "string" } }, "edition": { "type": "string" }, "cutoff_met": { "type": "boolean" },
           "size_bytes": { "type": "integer" }, "score": { "type": "integer" }, "release_title": { "type": "string" }, "release_group": { "type": "string" },
           "path": { "type": "string" }, "info_hash": { "type": "string" }, "instance": { "type": "string" },
-          "media": { "$ref": "#/components/schemas/MediaInfo" }
+          "media": { "$ref": "#/components/schemas/MediaInfo" },
+          "formats": { "type": "array", "description": "see_files only, a movie's single file: the custom formats it matched, with their scores (a Theatarr link's, from its import). An adopted link stores none, and then score is absent too", "items": { "type": "object", "required": ["name", "score"], "properties": { "name": { "type": "string" }, "score": { "type": "integer" } } } }
         }
       },
       "Cutoff": { "type": "object", "description": "What a version's files are measured against: the library's profile", "required": ["upgrades"], "properties": { "quality": { "type": "string", "description": "Cutoff quality or group" }, "upgrades": { "type": "boolean", "description": "False when the profile allows no upgrades" }, "score": { "type": "integer", "description": "see_files only: cutoff format score" }, "profile": { "type": "string", "description": "see_files only" }, "from": { "type": "string", "description": "see_files only: the arr instance, or policy" } } },
@@ -1157,7 +1160,7 @@
       "MediaInfo": { "type": "object", "properties": { "resolution": { "type": "string" }, "video_codec": { "type": "string" }, "video_bit_depth": { "type": "integer" }, "video_dynamic_range": { "type": "string" }, "audio_codec": { "type": "string" }, "audio_channels": { "type": "number" }, "audio_languages": { "type": "string" }, "subtitles": { "type": "string" }, "run_time": { "type": "string" } } },
       "MonitorRequest": { "type": "object", "required": ["monitored"], "properties": { "monitored": { "type": "boolean" }, "versions": { "type": "array", "items": { "type": "string" }, "description": "Absent: every version of the title" }, "episode_ids": { "type": "array", "items": { "type": "integer" }, "description": "PUT episodes/monitor only" } } },
       "ManageOutcome": { "type": "object", "required": ["versions", "skipped", "episodes", "message"], "properties": { "versions": { "type": "array", "items": { "type": "string" }, "description": "Versions changed" }, "skipped": { "type": "array", "items": { "$ref": "#/components/schemas/SearchSkip" } }, "episodes": { "type": "integer" }, "message": { "type": "string" }, "error": { "type": "string", "description": "The message again, on 409" } } },
-      "EpisodeFile": { "type": "object", "description": "see_files only", "properties": { "link_id": { "type": "integer", "description": "Theatarr's link holding the episode (absent for an arr's file): the target of POST /links/{id}/episodes" }, "quality": { "type": "string" }, "score": { "type": "integer" }, "size_bytes": { "type": "integer" }, "release_title": { "type": "string" }, "scene_name": { "type": "string" }, "release_group": { "type": "string" }, "path": { "type": "string" }, "instance": { "type": "string" }, "languages": { "type": "array", "items": { "type": "string" } }, "added_at": { "type": "string", "format": "date-time" }, "media": { "$ref": "#/components/schemas/MediaInfo" }, "episodes": { "type": "array", "items": { "type": "string" }, "description": "Every episode the file holds" } } },
+      "EpisodeFile": { "type": "object", "description": "see_files only", "properties": { "link_id": { "type": "integer", "description": "Theatarr's link holding the episode (absent for an arr's file): the target of POST /links/{id}/episodes" }, "quality": { "type": "string" }, "score": { "type": "integer" }, "size_bytes": { "type": "integer" }, "release_title": { "type": "string" }, "scene_name": { "type": "string" }, "release_group": { "type": "string" }, "path": { "type": "string" }, "instance": { "type": "string" }, "languages": { "type": "array", "items": { "type": "string" } }, "added_at": { "type": "string", "format": "date-time" }, "media": { "$ref": "#/components/schemas/MediaInfo" }, "episodes": { "type": "array", "items": { "type": "string" }, "description": "Every episode the file holds" }, "cached_on": { "type": "array", "items": { "type": "string" }, "description": "Cache codes (rd, ad, tb) of the providers that hold the file's content now" } } },
       "EpisodeDetail": { "type": "object", "required": ["title_id", "title_name", "episode", "versions"], "properties": { "title_id": { "type": "integer" }, "title_name": { "type": "string" }, "episode": { "$ref": "#/components/schemas/Episode" }, "versions": { "type": "array", "items": { "type": "object", "required": ["key", "label", "state", "monitored", "has_file", "control"], "properties": { "key": { "type": "string" }, "label": { "type": "string" }, "state": { "$ref": "#/components/schemas/VersionState" }, "monitored": { "type": "boolean" }, "has_file": { "type": "boolean" }, "upgrade": { "$ref": "#/components/schemas/UpgradeInfo" }, "control": { "$ref": "#/components/schemas/VersionControl" }, "file": { "$ref": "#/components/schemas/EpisodeFile" }, "history": { "type": "array", "items": { "$ref": "#/components/schemas/HistoryEvent" }, "description": "see_files only" }, "journal": { "type": "array", "description": "see_files only: the journal's entries about the episode, newest first, at most 20", "items": { "$ref": "#/components/schemas/JournalEntry" } } } } } } },
       "HistoryEvent": {
         "type": "object",

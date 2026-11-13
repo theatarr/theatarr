@@ -147,6 +147,9 @@ func (w *Web) listTitles(ctx context.Context, f TitleFilter) (TitlePage, error) 
 		f.Offset = 0
 	}
 	page := TitlePage{Limit: f.Limit, Offset: f.Offset, Items: []TitleRow{}}
+	if f.Provider != "" {
+		f.providerKeys = w.providerKeys(f.Provider)
+	}
 	where, args := f.where()
 	db := w.st.Reader()
 	if err := db.QueryRowContext(ctx, "SELECT COUNT(*)"+titleFrom+where, args...).Scan(&page.Total); err != nil {
@@ -196,7 +199,8 @@ func (w *Web) titleRows(ctx context.Context, db *sql.DB, q string, args []any) (
 		return items, err
 	}
 	err = scanAll(ctx, db, `SELECT v.title_id, v.id, v.policy_key, v.state, v.monitored, `+hasFileSQL+`
-		FROM version v WHERE v.title_id IN (`+store.Placeholders(len(ids))+`) ORDER BY v.policy_key`, ids, func(vrows *sql.Rows) error {
+		FROM version v WHERE v.title_id IN (`+store.Placeholders(len(ids))+`) AND `+liveVersion+`
+		ORDER BY v.policy_key`, ids, func(vrows *sql.Rows) error {
 		var tid int64
 		var v VersionBrief
 		if err := vrows.Scan(&tid, &v.ID, &v.Key, &v.State, &v.Monitored, &v.HasFile); err != nil {
@@ -297,11 +301,13 @@ type Version struct {
 	Files     []File    `json:"files"`
 	Links     []Link    `json:"links"`
 	// The title page's additions (titlepage.go); empty on other routes.
-	Label     string         `json:"label,omitempty"`
-	Current   *CurrentFile   `json:"current,omitempty"`
-	Providers []string       `json:"providers,omitempty"`
-	Episodes  *EpisodeCounts `json:"episodes,omitempty"`
-	History   []HistoryEvent `json:"history,omitempty"`
+	Label     string       `json:"label,omitempty"`
+	Current   *CurrentFile `json:"current,omitempty"`
+	Providers []string     `json:"providers,omitempty"`
+	// CachedOn is Providers as cache codes (rd, ad, tb; cacheCodes), the codes list rows and releases carry.
+	CachedOn []string       `json:"cached_on,omitempty"`
+	Episodes *EpisodeCounts `json:"episodes,omitempty"`
+	History  []HistoryEvent `json:"history,omitempty"`
 	// Upgrade explains the state against the cutoff; Control says what the title page's controls may do (manage.go).
 	Upgrade *UpgradeInfo    `json:"upgrade,omitempty"`
 	Control *VersionControl `json:"control,omitempty"`
@@ -315,6 +321,9 @@ type Version struct {
 	// acquisition does not search, because the library's anime rule does not fit the series (its anime flag, or its
 	// type anime; acquire's targets).
 	AnimeSkip bool `json:"anime_skip,omitempty"`
+	// Removed (title page): the version was removed from the library (arrview_removed_version); its rows and links
+	// stay. It counts in none of the title's rollups (availability, size, added).
+	Removed bool `json:"removed,omitempty"`
 }
 
 // RegistryEntry is a content tied to a version of a title.

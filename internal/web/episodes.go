@@ -64,7 +64,11 @@ type EpisodeCell struct {
 	SizeBytes    *int64 `json:"size_bytes,omitempty"`
 	Score        *int64 `json:"score,omitempty"`
 	ReleaseGroup string `json:"release_group,omitempty"`
+	ReleaseTitle string `json:"release_title,omitempty"`
 	Path         string `json:"path,omitempty"`
+	// CachedOn is the cache codes (rd, ad, tb; cacheCodes) of the providers that hold the episode's link's content
+	// now (providerHolds), for callers who see files.
+	CachedOn []string `json:"cached_on,omitempty"`
 	// UpgradeSeen: below cutoff, and a better release than its file has been seen.
 	UpgradeSeen bool `json:"upgrade_seen,omitempty"`
 	// Acquisition is the download in hand for the episode in this version (copies.go), for callers who see files.
@@ -140,7 +144,9 @@ func (w *Web) titleEpisodes(ctx context.Context, id int64, season int, seeFiles 
 	}
 	out := &EpisodeList{TitleID: id, Versions: []EpisodeVersion{}, Seasons: []Season{}, Episodes: []Episode{}}
 	keyOf := map[int64]string{}
-	if err := scanAll(ctx, db, `SELECT id, policy_key, monitored FROM version WHERE title_id = ? ORDER BY policy_key`,
+	// A version removed from the library (liveVersion) has no column; its cells are dropped with it.
+	if err := scanAll(ctx, db, `SELECT v.id, v.policy_key, v.monitored FROM version v WHERE v.title_id = ? AND `+
+		liveVersion+` ORDER BY v.policy_key`,
 		[]any{id}, func(r *sql.Rows) error {
 			var v EpisodeVersion
 			if err := r.Scan(&v.ID, &v.Key, &v.Monitored); err != nil {
@@ -189,7 +195,7 @@ func (w *Web) titleEpisodes(ctx context.Context, id int64, season int, seeFiles 
 		return nil, err
 	}
 	// The current files that hold each episode: arr files, then active links (which win).
-	setFile := func(eid, vid int64, quality string, size, score sql.NullInt64, group, path string) {
+	setFile := func(eid, vid int64, quality string, size, score sql.NullInt64, group, release, path string) {
 		i, ok := idx[eid]
 		key := keyOf[vid]
 		if !ok || key == "" {
@@ -201,40 +207,76 @@ func (w *Web) titleEpisodes(ctx context.Context, id int64, season int, seeFiles 
 		}
 		c.HasFile, c.Quality = true, quality
 		if seeFiles {
-			c.SizeBytes, c.Score, c.ReleaseGroup, c.Path = nullInt(size), nullInt(score), group, path
+			c.SizeBytes, c.Score, c.ReleaseGroup, c.ReleaseTitle, c.Path = nullInt(size), nullInt(score), group, release,
+				path
 		}
 		all[i].Versions[key] = c
 	}
 	if err := scanAll(ctx, db, `SELECT fe.episode_id, vf.version_id, vf.quality, vf.size_bytes, vf.custom_format_score,
-		vf.release_group, vf.path FROM version_file vf JOIN version_file_episode fe ON fe.version_file_id = vf.id
+		vf.release_group, COALESCE(NULLIF(vf.release_title, ''), vf.scene_name), vf.path FROM version_file vf
+		JOIN version_file_episode fe ON fe.version_file_id = vf.id
 		LEFT JOIN version_source vs ON vs.version_id = vf.version_id
 		WHERE vf.version_id IN (SELECT id FROM version WHERE title_id = ?) AND `+curFile,
 		[]any{id}, func(r *sql.Rows) error {
 			var eid, vid int64
-			var q, group, path string
+			var q, group, release, path string
 			var size, score sql.NullInt64
-			if err := r.Scan(&eid, &vid, &q, &size, &score, &group, &path); err != nil {
+			if err := r.Scan(&eid, &vid, &q, &size, &score, &group, &release, &path); err != nil {
 				return err
 			}
-			setFile(eid, vid, q, size, score, group, path)
+			setFile(eid, vid, q, size, score, group, release, path)
 			return nil
 		}); err != nil {
 		return nil, err
 	}
-	if err := scanAll(ctx, db, `SELECT le.episode_id, lv.version_id, COALESCE(l.quality, ''), `+linkSizeSQL+`, l.score, l.path
+	// Links: the release group their file metadata keeps (decide.ExistingFile), and the providers holding their
+	// content now.
+	linkMeta := `CASE WHEN json_valid(l.file_metadata) THEN json_extract(l.file_metadata, '$.ReleaseGroup') END`
+	if err := scanAll(ctx, db, `SELECT le.episode_id, lv.version_id, COALESCE(l.quality, ''), `+linkSizeSQL+`, l.score,
+		COALESCE(`+linkMeta+`, ''), COALESCE(l.release_title, ''), l.path
 		FROM link l JOIN link_episode le ON le.link_id = l.id JOIN link_version lv ON lv.link_id = l.id
 		LEFT JOIN content_file cf ON cf.id = l.content_file_id WHERE l.title_id = ? AND l.state = 'active'`,
 		[]any{id}, func(r *sql.Rows) error {
 			var eid, vid int64
-			var q, path string
+			var q, group, release, path string
 			var size, score sql.NullInt64
-			if err := r.Scan(&eid, &vid, &q, &size, &score, &path); err != nil {
+			if err := r.Scan(&eid, &vid, &q, &size, &score, &group, &release, &path); err != nil {
 				return err
 			}
-			setFile(eid, vid, q, size, score, "", path)
+			setFile(eid, vid, q, size, score, group, release, path)
 			return nil
 		}); err != nil {
 		return nil, err
+	}
+	if seeFiles {
+		held := map[[2]int64][]string{}
+		if err := scanAll(ctx, db, `SELECT DISTINCT le.episode_id, lv.version_id, cp.provider FROM link l
+			JOIN link_episode le ON le.link_id = l.id JOIN link_version lv ON lv.link_id = l.id
+			JOIN content_provider cp ON cp.content_id = `+linkContentSQL+`
+			WHERE l.title_id = ? AND l.state = 'active' AND `+providerHolds+` ORDER BY 1, 2, 3`,
+			[]any{id}, func(r *sql.Rows) error {
+				var eid, vid int64
+				var p string
+				if err := r.Scan(&eid, &vid, &p); err != nil {
+					return err
+				}
+				k := [2]int64{eid, vid}
+				held[k] = append(held[k], p)
+				return nil
+			}); err != nil {
+			return nil, err
+		}
+		for k, ps := range held {
+			i, ok := idx[k[0]]
+			key := keyOf[k[1]]
+			if !ok || key == "" {
+				continue
+			}
+			if c, ok := all[i].Versions[key]; ok {
+				c.CachedOn = w.cacheCodes(ps)
+				all[i].Versions[key] = c
+			}
+		}
 	}
 
 	seasons := map[int64]*Season{}

@@ -158,7 +158,7 @@ func redactVersion(v *Version) {
 	v.State = plainState(v.State)
 	v.Source = ""
 	v.Files, v.Links = []File{}, []Link{}
-	v.Providers = nil
+	v.Providers, v.CachedOn = nil, nil
 	if c := v.Current; c != nil {
 		*c = CurrentFile{Quality: Resolution(c.Quality), Languages: c.Languages, Edition: c.Edition}
 	}
@@ -169,12 +169,8 @@ func redactVersion(v *Version) {
 }
 
 func redactTitle(d *TitleDetail) {
-	// The title page's versions are d.Versions (TitleRow.Versions stays empty there).
-	states := make([]versionState, len(d.Versions))
-	for i, v := range d.Versions {
-		states[i] = versionState{v.State, v.HasFile}
-	}
-	redactRowWith(&d.TitleRow, states)
+	// The title page's versions are d.Versions (TitleRow.Versions stays empty there); removed ones count in nothing.
+	redactRowWith(&d.TitleRow, liveStates(d.Versions))
 	d.Registry = []RegistryEntry{}
 	for i := range d.Versions {
 		redactVersion(&d.Versions[i])

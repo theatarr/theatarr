@@ -8,6 +8,8 @@ import (
 	"sort"
 	"time"
 
+	"github.com/theatarr/theatarr/internal/availability"
+	"github.com/theatarr/theatarr/internal/decide"
 	"github.com/theatarr/theatarr/internal/journal/snapshot"
 	"github.com/theatarr/theatarr/internal/store"
 )
@@ -27,6 +29,10 @@ type CurrentFile struct {
 	AddedAt   *time.Time `json:"added_at,omitempty"`
 	Languages []string   `json:"languages,omitempty"`
 	Edition   string     `json:"edition,omitempty"`
+	// Formats are the custom formats a movie's single file matched, with their scores (see files only). A Theatarr
+	// link keeps them from its import (link.file_metadata); an adopted link keeps none, and then Score is left out
+	// too, so a score never shows beside empty formats (enrichManage).
+	Formats []decide.FormatScore `json:"formats,omitempty"`
 	// CutoffMet is true when the version's state is cutoff_met: no upgrade wanted.
 	CutoffMet bool `json:"cutoff_met,omitempty"`
 	// The rest is for callers who see files. Release, path and hash are set for a single file only.
@@ -110,22 +116,45 @@ type FranchiseRef struct {
 	Name string `json:"name"`
 }
 
-// enrichTitle adds the title page's fields to d (from getTitle).
+// enrichTitle adds the title page's fields to d (from getTitle). A version removed from the library is marked Removed
+// and counts in none of the title's rollups (availability, size, added).
 func (w *Web) enrichTitle(ctx context.Context, d *TitleDetail) error {
 	db := w.st.Reader()
 	byID := map[int64]*Version{}
 	var ids []any
-	states := make([]versionState, len(d.Versions))
 	for i := range d.Versions {
 		v := &d.Versions[i]
 		v.Label = w.versionLabel(v.Key)
 		v.History = []HistoryEvent{}
 		byID[v.ID] = v
 		ids = append(ids, v.ID)
-		states[i] = versionState{v.State, v.HasFile}
 	}
-	d.Availability = availabilityOf(states)
 	d.Franchises = []FranchiseRef{}
+	if len(ids) > 0 {
+		if err := scanAll(ctx, db, `SELECT version_id FROM arrview_removed_version WHERE version_id IN (`+
+			store.Placeholders(len(ids))+`)`, ids, func(r *sql.Rows) error {
+			var vid int64
+			if err := r.Scan(&vid); err != nil {
+				return err
+			}
+			if v := byID[vid]; v != nil {
+				v.Removed = true
+			}
+			return nil
+		}); err != nil {
+			return err
+		}
+	}
+	d.Availability = availabilityOf(liveStates(d.Versions))
+	if d.Kind == "movie" {
+		dates, err := availability.DatesFor(ctx, db, []any{d.ID})
+		if err != nil {
+			return err
+		}
+		if h := availability.HomeRelease(dates[d.ID]); !h.IsZero() {
+			d.HomeRelease = h.Format(time.DateOnly)
+		}
+	}
 	if len(ids) > 0 {
 		aggs, provs, err := w.currentFiles(ctx, db, ids)
 		if err != nil {
@@ -134,8 +163,9 @@ func (w *Web) enrichTitle(ctx context.Context, d *TitleDetail) error {
 		var size, added int64
 		for id, v := range byID {
 			v.Providers = provs[id]
+			v.CachedOn = w.cacheCodes(provs[id])
 			v.Current = currentOf(v, briefFiles(v.Label, aggs[id], nil))
-			if v.Current != nil {
+			if v.Current != nil && !v.Removed {
 				if v.Current.SizeBytes != nil {
 					size += *v.Current.SizeBytes
 				}
@@ -167,6 +197,17 @@ func (w *Web) enrichTitle(ctx context.Context, d *TitleDetail) error {
 		}
 	}
 	return w.titleFranchises(ctx, db, d)
+}
+
+// liveStates is what availabilityOf needs of the versions still in the library (not Removed).
+func liveStates(vs []Version) []versionState {
+	var out []versionState
+	for _, v := range vs {
+		if !v.Removed {
+			out = append(out, versionState{v.State, v.HasFile})
+		}
+	}
+	return out
 }
 
 // currentOf builds the current-file brief: the single current file's details when there is one.

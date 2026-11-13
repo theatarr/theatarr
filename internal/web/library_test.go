@@ -36,7 +36,8 @@ func (e *env) seedLibrary() {
 		(80, 1, 1, 'movie-remux', ?, 'Alpha.Old', 'dmm', 'Remux-2160p', 'imported', '[]', ?, ?, ?, ?),
 		(81, 1, 1, 'movie-remux', ?, 'Alpha.2020.2160p.BluRay.REMUX-GRP', 'dmm', 'Remux-2160p', 'imported', '[]', ?, ?, ?, ?)`,
 		strings.Repeat("8", 40), now-1000, now-900, now-1000, now-900, hashA, now-600, now-500, now-600, now-500)
-	e.exec(`INSERT INTO content_provider (content_id, provider, torrent_id, seen_at) VALUES (1, 'rd', 'T1', ?)`, now)
+	e.exec(`INSERT INTO content_provider (content_id, provider, torrent_id, seen_at, status, progress) VALUES
+		(1, 'rd', 'T1', ?, 'downloaded', 100)`, now)
 	e.exec(`INSERT INTO title_release_date (title_id, source, country, type, date) VALUES
 		(1, 'tmdb', 'US', 'digital', '2020-08-01'), (1, 'tmdb', 'US', 'digital', '2026-11-01'),
 		(2, 'tmdb', 'US', 'digital', '2026-11-05'),
@@ -640,7 +641,7 @@ func TestNoFilesWithoutSeeFiles(t *testing.T) {
 	}
 	secret := []string{hashA, "/movies/", "/anime/", ".mkv", "Alpha.2020.2160p", "Alpha.Old", "radarr_4k_debrid",
 		"SubsPlease", `"size_bytes"`, `"providers"`, `"score"`, `"path"`, `"info_hash"`, `"release_title"`,
-		`"custom_format_score"`, `"rd"`}
+		`"custom_format_score"`, `"rd"`, `"cached_on"`, `"formats"`}
 	for _, p := range []string{"/titles", "/titles/1", "/titles/2", "/titles/4", "/titles/4/episodes",
 		"/titles/facets", "/discover", "/discover/upgrades", "/discover/recent", "/versions", "/versions/1"} {
 		code, body := get(APIBase + p)

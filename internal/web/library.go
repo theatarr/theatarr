@@ -6,11 +6,13 @@ import (
 	"errors"
 	"net/http"
 	"regexp"
+	"slices"
 	"strconv"
 	"strings"
 	"time"
 
 	"github.com/theatarr/theatarr/internal/auth"
+	"github.com/theatarr/theatarr/internal/indexer"
 	"github.com/theatarr/theatarr/internal/metadata/art"
 	"github.com/theatarr/theatarr/internal/store"
 )
@@ -33,7 +35,7 @@ type TitleGridFilter struct {
 	Monitored *bool    // the title is monitored
 	Genres    []string // TMDb genre names; any of them
 	Quality   string   // some current file of the title has this quality (WEBDL-2160p)
-	Provider  string   // some current file is held by this debrid provider (see files only)
+	Provider  string   // some current file is held by this debrid provider: a cache code (rd) or a provider key (see files only)
 	YearFrom  int
 	YearTo    int
 	// Availability is the poster badge (availabilityOf): missing, partial, upgrade, available or none.
@@ -49,6 +51,9 @@ type TitleGridFilter struct {
 	// clock is what the completion and next sorts count aired and coming episodes (and coming releases, by its day)
 	// against; listTitles sets it.
 	clock airClock
+	// providerKeys are the provider keys Provider stands for (providerKeys: a cache code's keys); listTitles sets
+	// them. Empty: Provider itself.
+	providerKeys []string
 }
 
 var (
@@ -67,6 +72,29 @@ const curFile = `(vs.instance IS NULL OR vs.instance = vf.instance)`
 // file) the size its file metadata keeps. cf is the LEFT JOINed content_file.
 const linkSizeSQL = `COALESCE(cf.size_bytes, json_extract(l.file_metadata, '$.Size'))`
 
+// linkContentSQL is the registry content (content.id) of link l's file, or NULL: its content file's content, else
+// the content of the first hash the link records: its download's, the file metadata's InfoHash, the adopted source's
+// hash (an adopted link has no content file). An empty string counts as missing at every step. It reads l only.
+const linkContentSQL = `COALESCE((SELECT cf_c.content_id FROM content_file cf_c WHERE cf_c.id = l.content_file_id),
+	(SELECT c_l.id FROM content c_l WHERE c_l.info_hash = lower(COALESCE(
+		(SELECT NULLIF(d_l.info_hash, '') FROM download d_l WHERE d_l.id = l.download_id),
+		CASE WHEN json_valid(l.file_metadata) THEN NULLIF(json_extract(l.file_metadata, '$.InfoHash'), '') END,
+		CASE WHEN json_valid(l.adopted_source) THEN NULLIF(json_extract(l.adopted_source, '$.hash'), '') END))))`
+
+// providerHolds is the condition on content_provider cp that the provider holds the content now, complete: listed
+// on the account (present) and downloaded there (progress 100; the provider sync stores every provider's progress
+// as 0-100). A torrent still downloading or never finished is not counted.
+const providerHolds = `cp.state = 'present' AND cp.progress >= 100`
+
+// liveVersion is the condition that version v is in the library: not removed (catalog.Remove lists removed versions
+// in arrview_removed_version and keeps their rows).
+const liveVersion = `NOT EXISTS (SELECT 1 FROM arrview_removed_version rv WHERE rv.version_id = v.id)`
+
+// liveLink is the condition that link l files into some version in the library (liveVersion): the links whose
+// providers the list rows show.
+const liveLink = `EXISTS (SELECT 1 FROM link_version lv_l JOIN version v ON v.id = lv_l.version_id
+	WHERE lv_l.link_id = l.id AND ` + liveVersion + `)`
+
 // Per-title expressions over t (the title row).
 const (
 	nameExpr  = `CASE WHEN t.sort_name = '' THEN lower(t.name) ELSE t.sort_name END`
@@ -79,11 +107,14 @@ const (
 			LEFT JOIN version_source vs ON vs.version_id = v.id WHERE v.title_id = t.id AND ` + curFile + `), 0) +
 		COALESCE((SELECT SUM(COALESCE(` + linkSizeSQL + `, 0)) FROM link l
 			LEFT JOIN content_file cf ON cf.id = l.content_file_id WHERE l.title_id = t.id AND l.state = 'active'), 0), 0)`
-	nVersions = `(SELECT COUNT(*) FROM version v WHERE v.title_id = t.id)`
+	// The availability counts are over the versions in the library (liveVersion), as the list's rows show them.
+	nVersions = `(SELECT COUNT(*) FROM version v WHERE v.title_id = t.id AND ` + liveVersion + `)`
 	// nMissing: wanted versions with no file; nWantedFile: wanted versions that have some (a series part-way).
-	nMissing    = `(SELECT COUNT(*) FROM version v WHERE v.title_id = t.id AND v.state = 'wanted' AND NOT ` + hasFileSQL + `)`
-	nWantedFile = `(SELECT COUNT(*) FROM version v WHERE v.title_id = t.id AND v.state = 'wanted' AND ` + hasFileSQL + `)`
-	nFilled     = `(SELECT COUNT(*) FROM version v WHERE v.title_id = t.id AND v.state = 'filled')`
+	nMissing = `(SELECT COUNT(*) FROM version v WHERE v.title_id = t.id AND ` + liveVersion +
+		` AND v.state = 'wanted' AND NOT ` + hasFileSQL + `)`
+	nWantedFile = `(SELECT COUNT(*) FROM version v WHERE v.title_id = t.id AND ` + liveVersion +
+		` AND v.state = 'wanted' AND ` + hasFileSQL + `)`
+	nFilled = `(SELECT COUNT(*) FROM version v WHERE v.title_id = t.id AND ` + liveVersion + ` AND v.state = 'filled')`
 )
 
 // availabilitySQL is the condition for each availability, matching availabilityOf.
@@ -103,8 +134,9 @@ var availabilitySQL = map[string]string{
 
 const (
 	// anyFile: some version of title t has a file; completeVersion: some version is complete (filled or at cutoff).
-	anyFile         = `EXISTS (SELECT 1 FROM version v WHERE v.title_id = t.id AND ` + hasFileSQL + `)`
-	completeVersion = `EXISTS (SELECT 1 FROM version v WHERE v.title_id = t.id AND v.state IN ('filled', 'cutoff_met'))`
+	anyFile         = `EXISTS (SELECT 1 FROM version v WHERE v.title_id = t.id AND ` + liveVersion + ` AND ` + hasFileSQL + `)`
+	completeVersion = `EXISTS (SELECT 1 FROM version v WHERE v.title_id = t.id AND ` + liveVersion +
+		` AND v.state IN ('filled', 'cutoff_met'))`
 )
 
 // versionState is what availabilityOf needs of a version.
@@ -157,13 +189,18 @@ func hasQualityLike() string {
 		OR EXISTS (SELECT 1 FROM link l WHERE l.title_id = t.id AND l.state = 'active' AND l.quality LIKE ?))`
 }
 
-// hasProvider is the same for a debrid provider holding the file's content.
-func hasProvider() string {
+// hasProvider is the same for a debrid provider holding the file's content now (providerHolds), with n provider
+// keys given twice as arguments, over the versions in the library. An active link's content is linkContentSQL, as
+// currentFiles and the provider facet read it.
+func hasProvider(n int) string {
+	in := store.Placeholders(n)
 	return `(EXISTS (SELECT 1 FROM version v JOIN version_file vf ON vf.version_id = v.id
 		LEFT JOIN version_source vs ON vs.version_id = v.id JOIN content_provider cp ON cp.content_id = vf.content_id
-		WHERE v.title_id = t.id AND ` + curFile + ` AND cp.provider = ?)
-		OR EXISTS (SELECT 1 FROM link l JOIN content_file cf ON cf.id = l.content_file_id
-		JOIN content_provider cp ON cp.content_id = cf.content_id WHERE l.title_id = t.id AND l.state = 'active' AND cp.provider = ?))`
+		WHERE v.title_id = t.id AND ` + liveVersion + ` AND ` + curFile + ` AND ` + providerHolds + `
+		AND cp.provider IN (` + in + `))
+		OR EXISTS (SELECT 1 FROM link l JOIN content_provider cp ON cp.content_id = ` + linkContentSQL + `
+		WHERE l.title_id = t.id AND l.state = 'active' AND ` + liveLink + ` AND ` + providerHolds + `
+		AND cp.provider IN (` + in + `)))`
 }
 
 func (g TitleGridFilter) where(conds []string, args []any) ([]string, []any) {
@@ -192,8 +229,16 @@ func (g TitleGridFilter) where(conds []string, args []any) ([]string, []any) {
 		args = append(args, g.Quality, g.Quality)
 	}
 	if g.Provider != "" {
-		conds = append(conds, hasProvider())
-		args = append(args, g.Provider, g.Provider)
+		keys := g.providerKeys
+		if len(keys) == 0 {
+			keys = []string{g.Provider}
+		}
+		conds = append(conds, hasProvider(len(keys)))
+		for range 2 {
+			for _, k := range keys {
+				args = append(args, k)
+			}
+		}
 	}
 	if g.YearFrom > 0 {
 		conds = append(conds, "t.year >= ?")
@@ -346,7 +391,8 @@ type VersionFiles struct {
 	// Files and AddedAt are for callers who see files.
 	Files   int        `json:"files,omitempty"`
 	AddedAt *time.Time `json:"added_at,omitempty"`
-	// SizeBytes and Providers are for callers who see files.
+	// SizeBytes and Providers are for callers who see files. Providers are cache codes (rd, ad, tb; cacheCodes) of
+	// the providers that hold a current file now.
 	SizeBytes *int64   `json:"size_bytes,omitempty"`
 	Providers []string `json:"providers,omitempty"`
 }
@@ -477,7 +523,7 @@ func (w *Web) fillVersionFiles(ctx context.Context, db *sql.DB, items []TitleRow
 			return err
 		}
 		for id, v := range byID {
-			v.VersionFiles = briefFiles(v.Label, aggs[id], provs[id])
+			v.VersionFiles = briefFiles(v.Label, aggs[id], w.cacheCodes(provs[id]))
 		}
 	}
 	for i := range items {
@@ -527,7 +573,8 @@ func briefFiles(label string, aggs []fileAgg, provs []string) VersionFiles {
 	return vf
 }
 
-// currentFiles groups the current files of versions ids by quality, and lists their providers.
+// currentFiles groups the current files of versions ids by quality, and lists the providers (keys) that hold them
+// now (providerHolds; a link's content is linkContentSQL).
 func (w *Web) currentFiles(ctx context.Context, db *sql.DB, ids []any) (map[int64][]fileAgg, map[int64][]string, error) {
 	in := store.Placeholders(len(ids))
 	aggs := map[int64][]fileAgg{}
@@ -556,10 +603,11 @@ func (w *Web) currentFiles(ctx context.Context, db *sql.DB, ids []any) (map[int6
 	provs := map[int64][]string{}
 	err := scanAll(ctx, db, `SELECT vf.version_id, cp.provider FROM version_file vf
 		LEFT JOIN version_source vs ON vs.version_id = vf.version_id JOIN content_provider cp ON cp.content_id = vf.content_id
-		WHERE vf.version_id IN (`+in+`) AND `+curFile+`
+		WHERE vf.version_id IN (`+in+`) AND `+curFile+` AND `+providerHolds+`
 		UNION SELECT lv.version_id, cp.provider FROM link_version lv JOIN link l ON l.id = lv.link_id
-		JOIN content_file cf ON cf.id = l.content_file_id JOIN content_provider cp ON cp.content_id = cf.content_id
-		WHERE lv.version_id IN (`+in+`) AND l.state = 'active' ORDER BY 1, 2`, append(append([]any{}, ids...), ids...),
+		JOIN content_provider cp ON cp.content_id = `+linkContentSQL+`
+		WHERE lv.version_id IN (`+in+`) AND l.state = 'active' AND `+providerHolds+` ORDER BY 1, 2`,
+		append(append([]any{}, ids...), ids...),
 		func(r *sql.Rows) error {
 			var vid int64
 			var p string
@@ -570,4 +618,43 @@ func (w *Web) currentFiles(ctx context.Context, db *sql.DB, ids []any) (map[int6
 			return nil
 		})
 	return aggs, provs, err
+}
+
+// cacheCodes turns provider keys into cache codes (rd, ad, tb) by their kind in the running settings; a key of no
+// known kind stays as it is. No duplicates; rd, ad, tb first, then the rest in order. nil for none.
+func (w *Web) cacheCodes(keys []string) []string {
+	var codes, rest []string
+	for _, k := range keys {
+		c := ""
+		if w.pol != nil {
+			if p := w.pol.Providers[k]; p != nil {
+				c = indexer.CacheCode(p.Kind)
+			}
+		}
+		if c == "" {
+			if !slices.Contains(rest, k) {
+				rest = append(rest, k)
+			}
+		} else if !slices.Contains(codes, c) {
+			codes = append(codes, c)
+		}
+	}
+	order := map[string]int{"rd": 0, "ad": 1, "tb": 2}
+	slices.SortFunc(codes, func(a, b string) int { return order[a] - order[b] })
+	return append(codes, rest...)
+}
+
+// providerKeys is what a provider filter value stands for: the keys of every provider whose kind has that cache
+// code, and the value itself as a key.
+func (w *Web) providerKeys(v string) []string {
+	out := []string{v}
+	if w.pol != nil {
+		for k, p := range w.pol.Providers {
+			if p != nil && indexer.CacheCode(p.Kind) == v && k != v {
+				out = append(out, k)
+			}
+		}
+	}
+	slices.Sort(out[1:])
+	return out
 }

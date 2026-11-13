@@ -41,7 +41,8 @@ type TitleFacets struct {
 	Genres       []FacetCount   `json:"genres"`
 	// Certifications are US ratings (title_meta).
 	Certifications []FacetCount `json:"certifications"`
-	// Providers is for callers who see files; absent otherwise.
+	// Providers is for callers who see files; absent otherwise. Values are cache codes (rd, ad, tb), as list rows
+	// carry them and the provider filter takes them.
 	Providers []FacetCount `json:"providers,omitempty"`
 	YearMin   *int64       `json:"year_min,omitempty"`
 	YearMax   *int64       `json:"year_max,omitempty"`
@@ -86,7 +87,7 @@ func (w *Web) titleFacets(ctx context.Context, f TitleFilter, seeFiles bool) (Ti
 	kinds := map[int64]string{}
 	keys := map[string]*VersionFacet{}
 	err := scanAll(ctx, db, `SELECT t.id, t.kind, v.policy_key, v.state, `+hasFileSQL+titleFrom+`
-		JOIN version v ON v.title_id = t.id`+where, args, func(r *sql.Rows) error {
+		JOIN version v ON v.title_id = t.id`+andWhere(where, liveVersion), args, func(r *sql.Rows) error {
 		var tid int64
 		var kind, key, state string
 		var has bool
@@ -180,15 +181,44 @@ func (w *Web) titleFacets(ctx context.Context, f TitleFilter, seeFiles bool) (Ti
 		return out, err
 	}
 	if seeFiles {
-		if out.Providers, err = counts(`SELECT p, COUNT(DISTINCT tid) FROM (
+		// As the rows' pills and the provider filter: providers holding a current file of a version in the library
+		// now (providerHolds; a link's content is linkContentSQL), counted by cache code.
+		titles := map[string]map[int64]bool{}
+		err := scanAll(ctx, db, `SELECT DISTINCT p, tid FROM (
 			SELECT t.id AS tid, cp.provider AS p`+titleFrom+` JOIN version v ON v.title_id = t.id
 				JOIN version_file vf ON vf.version_id = v.id LEFT JOIN version_source vs ON vs.version_id = v.id
-				JOIN content_provider cp ON cp.content_id = vf.content_id`+andWhere(where, curFile)+`
+				JOIN content_provider cp ON cp.content_id = vf.content_id`+
+			andWhere(where, liveVersion+" AND "+curFile+" AND "+providerHolds)+`
 			UNION ALL SELECT t.id, cp.provider`+titleFrom+` JOIN link l ON l.title_id = t.id
-				JOIN content_file cf ON cf.id = l.content_file_id JOIN content_provider cp ON cp.content_id = cf.content_id`+
-			andWhere(where, "l.state = 'active'")+`) GROUP BY p`, twice); err != nil {
+				JOIN content_provider cp ON cp.content_id = `+linkContentSQL+
+			andWhere(where, "l.state = 'active' AND "+liveLink+" AND "+providerHolds)+`)`, twice, func(r *sql.Rows) error {
+			var p string
+			var tid int64
+			if err := r.Scan(&p, &tid); err != nil {
+				return err
+			}
+			for _, c := range w.cacheCodes([]string{p}) {
+				if titles[c] == nil {
+					titles[c] = map[int64]bool{}
+				}
+				titles[c][tid] = true
+			}
+			return nil
+		})
+		if err != nil {
 			return out, err
 		}
+		out.Providers = []FacetCount{}
+		for c, ts := range titles {
+			out.Providers = append(out.Providers, FacetCount{Value: c, Count: len(ts)})
+		}
+		sort.Slice(out.Providers, func(i, j int) bool {
+			a, b := out.Providers[i], out.Providers[j]
+			if a.Count != b.Count {
+				return a.Count > b.Count
+			}
+			return strings.ToLower(a.Value) < strings.ToLower(b.Value)
+		})
 	}
 	return out, nil
 }

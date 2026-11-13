@@ -16,6 +16,7 @@ import (
 	"github.com/theatarr/theatarr/internal/acquire"
 	"github.com/theatarr/theatarr/internal/auth"
 	"github.com/theatarr/theatarr/internal/catalog"
+	"github.com/theatarr/theatarr/internal/decide"
 	"github.com/theatarr/theatarr/internal/journal"
 	"github.com/theatarr/theatarr/internal/journal/snapshot"
 	"github.com/theatarr/theatarr/internal/library/probe"
@@ -203,6 +204,34 @@ func linkMedia(probeRaw, adoptedMedia sql.NullString, adopted bool, scene string
 	return nil
 }
 
+// linkFacts fills a movie's current file from its link's stored file metadata (decide.ExistingFile): release group,
+// languages, edition and matched formats where the link has them. A link with no formats (an adopted one: adoption
+// stores none) shows no score either, so a score never stands beside empty formats.
+func linkFacts(c *CurrentFile, meta string) {
+	var m struct {
+		Formats      []decide.FormatScore
+		ReleaseGroup string
+		Edition      string
+		Languages    []string
+	}
+	if meta != "" {
+		_ = json.Unmarshal([]byte(meta), &m)
+	}
+	if m.ReleaseGroup != "" {
+		c.ReleaseGroup = m.ReleaseGroup
+	}
+	if m.Edition != "" {
+		c.Edition = m.Edition
+	}
+	if len(m.Languages) > 0 {
+		c.Languages = m.Languages
+	}
+	c.Formats = m.Formats
+	if len(c.Formats) == 0 {
+		c.Score = nil
+	}
+}
+
 // enrichManage adds the title page's upgrade explanation and controls to each version, and the media of a movie
 // version's single current file. Redaction for callers without "see files" happens in redactVersion.
 func (w *Web) enrichManage(ctx context.Context, db *sql.DB, d *TitleDetail) error {
@@ -223,15 +252,16 @@ func (w *Web) enrichManage(ctx context.Context, db *sql.DB, d *TitleDetail) erro
 		v.Control = w.control(v.Key)
 		if c := v.Current; c != nil && c.Files == 1 && d.Kind == "movie" {
 			// The version's newest active link first; the arr's file only when the version has none.
-			var pr, am sql.NullString
+			var pr, am, meta sql.NullString
 			var adopted bool
 			var scene string
 			err := db.QueryRowContext(ctx, `SELECT cf.probe, l.adopted_media, l.download_id IS NULL,
-				COALESCE(l.release_title, '') FROM link l JOIN link_version lv ON lv.link_id = l.id
+				COALESCE(l.release_title, ''), l.file_metadata FROM link l JOIN link_version lv ON lv.link_id = l.id
 				LEFT JOIN content_file cf ON cf.id = l.content_file_id WHERE lv.version_id = ? AND l.state = 'active'
-				ORDER BY l.created_at DESC, l.id DESC LIMIT 1`, v.ID).Scan(&pr, &am, &adopted, &scene)
+				ORDER BY l.created_at DESC, l.id DESC LIMIT 1`, v.ID).Scan(&pr, &am, &adopted, &scene, &meta)
 			if err == nil {
 				c.Media = linkMedia(pr, am, adopted, scene, false)
+				linkFacts(c, meta.String)
 				continue
 			}
 			if !errors.Is(err, sql.ErrNoRows) {
@@ -746,6 +776,9 @@ type EpisodeFile struct {
 	Media        *MediaInfo `json:"media,omitempty"`
 	// Episodes lists every episode the file holds (S01E01), for a multi-episode file or a link.
 	Episodes []string `json:"episodes,omitempty"`
+	// CachedOn is the cache codes (rd, ad, tb; cacheCodes) of the providers that hold the file's content now
+	// (providerHolds; a link's content is linkContentSQL).
+	CachedOn []string `json:"cached_on,omitempty"`
 }
 
 // EpisodeVersionDetail is one version of an episode.
@@ -912,6 +945,10 @@ func (w *Web) episodeFile(ctx context.Context, db *sql.DB, versionID, eid int64)
 	case err == nil:
 		f.LinkID, f.Score, f.SizeBytes, f.Instance = linkID, nullInt(score), nullInt(size), "theatarr"
 		f.Media = linkMedia(pr, am, adopted, f.ReleaseTitle, true)
+		if f.CachedOn, err = w.heldBy(ctx, db, `SELECT cp.provider FROM link l JOIN content_provider cp
+			ON cp.content_id = `+linkContentSQL+` WHERE l.id = ? AND `+providerHolds+` ORDER BY 1`, linkID); err != nil {
+			return nil, err
+		}
 		if err := scanAll(ctx, db, `SELECT e.season, e.number FROM link_episode le JOIN episode e ON e.id = le.episode_id
 			WHERE le.link_id = ? ORDER BY e.season, e.number`, []any{linkID}, func(r *sql.Rows) error {
 			var s, n int64
@@ -945,6 +982,10 @@ func (w *Web) episodeFile(ctx context.Context, db *sql.DB, versionID, eid int64)
 	}
 	f.Score, f.SizeBytes, f.AddedAt, f.Media = nullInt(score), &sz, nullTS(added), parseMedia(media)
 	_ = json.Unmarshal([]byte(langs), &f.Languages)
+	if f.CachedOn, err = w.heldBy(ctx, db, `SELECT cp.provider FROM version_file vf JOIN content_provider cp
+		ON cp.content_id = vf.content_id WHERE vf.id = ? AND `+providerHolds+` ORDER BY 1`, fileID); err != nil {
+		return nil, err
+	}
 	err = scanAll(ctx, db, `SELECT e.season, e.number FROM version_file_episode fe JOIN episode e ON e.id = fe.episode_id
 		WHERE fe.version_file_id = ? ORDER BY e.season, e.number`, []any{fileID}, func(r *sql.Rows) error {
 		var s, n int64
@@ -955,6 +996,20 @@ func (w *Web) episodeFile(ctx context.Context, db *sql.DB, versionID, eid int64)
 		return nil
 	})
 	return &f, err
+}
+
+// heldBy runs q (one provider key per row, for the one argument) and gives the keys as cache codes.
+func (w *Web) heldBy(ctx context.Context, db *sql.DB, q string, arg any) ([]string, error) {
+	var keys []string
+	err := scanAll(ctx, db, q, []any{arg}, func(r *sql.Rows) error {
+		var k string
+		if err := r.Scan(&k); err != nil {
+			return err
+		}
+		keys = append(keys, k)
+		return nil
+	})
+	return w.cacheCodes(keys), err
 }
 
 // episodeHistory is one episode's history in a version: Theatarr's downloads that held it, newest first, at most
