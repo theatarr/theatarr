@@ -1,6 +1,6 @@
 {
   "AnimeBuild": {
-    "auto_build": "This builds franchises for anime series without one and rebuilds old ones (default true). Building only writes mappings; episodes whose mapping is not settled import through Sonarr's numbering, and their conflicts show in Admin › Reviews.",
+    "auto_build": "This builds franchises for anime series without one and rebuilds old ones (default true). Building only writes mappings; episodes whose mapping is not settled import through TVDB's numbering, and their conflicts show in Admin › Reviews.",
     "refresh_interval": "This is how old a franchise's build may get before it is rebuilt. Default 168h (7 days), minimum 24h. Rebuilds are spread over the interval; a franchise with a refresh held for review waits for the review."
   },
   "Art": {

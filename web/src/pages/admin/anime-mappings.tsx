@@ -142,7 +142,7 @@ function UncoveredSection() {
             {!builds?.ready ? `Builds cannot run: ${builds?.off ?? "unknown"}.`
               : builds.auto_build ? `Built automatically, one at a time; franchises are rebuilt every ${fmtDays(builds.refresh_interval)}.`
               : "Automatic builds are off (metadata.anime.auto_build); Build and Rebuild still work."}
-            {" "}Building only writes mappings; episodes whose mapping is not settled import through Sonarr's numbering, and their conflicts show in the review queue above.
+            {" "}Building only writes mappings; episodes whose mapping is not settled import through TVDB's numbering, and their conflicts show in the review queue above.
           </p>
           {items.length === 0 ? <Card><Empty>Every anime series has a franchise.</Empty></Card> : (
             <Card className="p-0">
@@ -256,7 +256,7 @@ export function MetadataFranchise() {
             <TableBody>{(f.numbering ?? []).map((n, i) => <TableRow key={i}>
               <TableCell>{n.tvdb}</TableCell><TableCell><Mono>{n.episode}</Mono></TableCell><TableCell>{n.absolute ?? "—"}</TableCell>
               <TableCell><span>{n.entry_title}</span><div className="text-xs"><Mono>{n.entry}</Mono></div></TableCell><TableCell>{n.entry_number}</TableCell>
-              <TableCell><Badge tone={n.importable ? "positive" : "warning"}>{n.status}</Badge>{!n.importable ? <span className="ml-2">Sonarr's numbering</span> : null}</TableCell><TableCell>{n.source}</TableCell>
+              <TableCell><Badge tone={n.importable ? "positive" : "warning"}>{n.status}</Badge>{!n.importable ? <span className="ml-2">TVDB's numbering</span> : null}</TableCell><TableCell>{n.source}</TableCell>
             </TableRow>)}</TableBody>
           </Table>}
         </Card>

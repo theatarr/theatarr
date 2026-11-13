@@ -178,7 +178,7 @@ it("shows a conflict as a plain question with links and sample episodes, and the
   expect(screen.getByText(/“Pride”/)).toBeTruthy(); // TVDB names of both options
   expect(screen.getByText(/“New Start”/)).toBeTruthy();
   expect(screen.getByText("Theatarr's pick")).toBeTruthy();
-  expect(screen.getByText("TVDB · in use now: TVDB's numbering")).toBeTruthy();
+  expect(screen.getByText("TVDB's numbering · in use now")).toBeTruthy();
   expect(screen.queryByText(/mappings:/)).toBeNull();
   fireEvent.click(screen.getByRole("button", { name: "Show the raw rule" }));
   expect(screen.getByText(/mappings:/)).toBeTruthy();

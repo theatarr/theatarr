@@ -36,10 +36,10 @@ The arbitration's decision is kept as it is (that is what the golden outputs che
 |---|---|---|
 | `auto` | the two lists agree, or one list maps it and the TVDB air dates fit (or there are no dates to check) | yes |
 | `arbitrated` | the lists disagree and the winner leads by ≥ 0.5 (score range 0–5) or its placement matches TVDB airsBefore; or one list kept although the dates don't fit (the decision's "lists agree / title matches / direct AniDB join") | yes |
-| `conflict` | the lists disagree within 0.5, or the winner's placement contradicts TVDB airsBefore | **no** (Sonarr's numbering), review item |
+| `conflict` | the lists disagree within 0.5, or the winner's placement contradicts TVDB airsBefore | **no** (TVDB's numbering), review item |
 | `heuristic` | no list maps it; matched by air date and title | yes, review item |
 | `override` | set by an overrides file, or accepted in review | yes |
-| `rejected` | every candidate dropped (TVDB lacks the episodes, dates don't fit, no date), or rejected in review | no (Sonarr's numbering) |
+| `rejected` | every candidate dropped (TVDB lacks the episodes, dates don't fit, no date), or rejected in review | no (TVDB's numbering) |
 
 **Anchor signal**: ScudLee's `<before>;1-13;</before>` says AniDB special 1 goes before episode 13. The special
 is found through the record's season-0 mapping list (or as the candidate's n-th episode for a record whose default
@@ -93,7 +93,7 @@ the sunny day special stay alternates.
 `animemap.Load` reads every franchise mapping into a TVDB series (`anime_mapping`, entry names from `anime_entry`,
 `anime_alt_cut`). Importable: `auto`, `arbitrated`, `override`, `heuristic` (a heuristic rejected in review becomes
 `rejected`). A mapping that is not importable (`conflict`, `rejected`) is never used, and nothing waits for it: its
-episodes import through Sonarr's numbering, exactly like an episode no entry maps (so specials land in Season 00 the
+episodes import through TVDB's numbering, exactly like an episode no entry maps (so specials land in Season 00 the
 way Sonarr puts them). The best-scoring candidate of a conflict is never imported under. The review item is still
 created, and Admin › Reviews shows it; playlists leave such an entry out ("missing") until it is reviewed.
 
@@ -115,7 +115,7 @@ SeaDex season packs carry their AniList entry id. When the franchise maps that e
 season (one cour), the decision covers only those regular episodes, keeping the entry mapping for import (for an
 entry split into parts, `al:N#1..k`, the AniList entry `al:N` they share: files never map through one part). A pack
 for one cour cannot take the rest of the season's episode slots (`TestSeaDexEntryCoversOnlyItsCour`). An entry whose
-mapping (or a split part's) is not importable does not narrow the pack: Sonarr's numbering takes the season
+mapping (or a split part's) is not importable does not narrow the pack: TVDB's numbering takes the season
 (`TestSeaDexUnreviewedEntryUsesSonarrNumbering`).
 
 Then every episode only non-importable ranges cover, and every episode of a release that named a non-importable
@@ -128,17 +128,17 @@ name: review may pick another): `anime_entry` beside `anime_mapping: sonarr`, an
 (`TestAnimeFallbackMatchesFileResolution`).
 
 **Library**: files resolve through the same rules (`decide.ResolveFile`); a decision's stored entry that is no longer
-importable at import time falls back to Sonarr's numbering too, and a fallback's stored entry maps files named only
+importable at import time falls back to TVDB's numbering too, and a fallback's stored entry maps files named only
 "01" once it is importable. Nothing is held (`TestAnimeUnreviewedImports`). When the mapping of the entry a download
 stored changed between the grab and the import, the download's episodes no longer match where its files resolve, so
 the import first reconciles them (`library/resolve.go` `rescope`), in two cases:
 
 - the stored franchise entry (or one of its split parts) is no longer importable (`EpisodeMap.Stale`): its files now
-  map through Sonarr's numbering. The episodes become the ones the decision now gives the release as the download
+  map through TVDB's numbering. The episodes become the ones the decision now gives the release as the download
   stored it (`release_data`: its TVDB id, kind and extras, so a pack matched by id keeps Sonarr's season:
   `TestAnimeRejectedMappingKeepsReleaseIdentity`), or its files' when the release places nothing (a pack named by
   the entry) (`TestAnimeRejectedMappingImports`);
-- the download was grabbed through Sonarr's numbering for an entry that was not importable (a fallback) and review
+- the download was grabbed through TVDB's numbering for an entry that was not importable (a fallback) and review
   has accepted the entry, or another candidate for it, since (`TestAnimeAcceptBeforeImport`,
   `TestAnimeCandidateBeforeImport`). Each file the entry now places, whose Sonarr placement is among the download's
   episodes, swaps those episodes for the entry's. The release title is not decided again, and episodes no such file
@@ -148,7 +148,7 @@ the import first reconciles them (`library/resolve.go` `rescope`), in two cases:
 
 Three rules keep this safe (`internal/library/animerescope_test.go`):
 
-- Only a stored entry re-scopes. A download with no stored mapping (grabbed through Sonarr's numbering for a release
+- Only a stored entry re-scopes. A download with no stored mapping (grabbed through TVDB's numbering for a release
   that named no entry) keeps its episodes whatever the franchise mappings do; so does a mapping still importable, and
   one stored without an entry key (a split-parts pack grabbed before the key was kept: `TestAnimeSplitPackScope`).
 - A file that cannot pass the import guards (a sample) moves nothing (`TestAnimeSampleDoesNotRescope`).
@@ -186,7 +186,7 @@ another file already has on disk, is skipped: both files stay, nothing is overwr
 `internal/library/animerelink_test.go`, `TestRelinkQueued`.
 
 Known limit: a file named by another alias (neither the entry's name nor a cut) moves only through the decision's
-stored entry. A download whose decision stored none (grabbed through Sonarr's numbering for a release that named no
+stored entry. A download whose decision stored none (grabbed through TVDB's numbering for a release that named no
 entry, or before fallbacks kept their entry) keeps Sonarr's placement; Change episodes moves it by hand. The resolver
 does not infer the entry from the release title, which would change the placement of every anime grab.
 
@@ -205,12 +205,12 @@ range moves before the import (a refresh or another candidate): files outside it
 files intact; Change episodes places them.
 
 Known limit: a grab through an entry that review then rejects is decided again whole, so a pack the router had
-narrowed (an episode turned unmonitored while it waited) gets back every episode Sonarr's numbering gives its
+narrowed (an episode turned unmonitored while it waited) gets back every episode TVDB's numbering gives its
 release: a narrowed two-episode pack imports both files. Nothing is replaced (a new episode that already has a file
 stops the re-scope). The download does not record which episodes the router dropped, and the same path rightly grows
 a split-parts pack to its season (`TestAnimeSplitPackScope`).
 
-Known limit: a download with no stored entry is not re-scoped. One grabbed through Sonarr's numbering before the
+Known limit: a download with no stored entry is not re-scoped. One grabbed through TVDB's numbering before the
 series had a franchise mapping, whose file the series' first build then maps to another episode before the import,
 is held as out of scope, files intact (`TestAnimeFirstBuildBeforeImport`, `TestAnimeFirstBuildKeepsOtherEpisodesLink`,
 `TestAnimeFirstBuildKeepsIdMatchedPack`; a build that agrees with Sonarr changes nothing:
@@ -234,10 +234,10 @@ next sync.
 
   | Kind | Question | Import today | Accept does | Reject does |
   |---|---|---|---|---|
-  | `conflict` ("Lists disagree") | "Which {series} episodes are “{entry}”? The mapping lists disagree, so until you choose its episodes keep Sonarr's numbering." | not used: Sonarr's numbering | the mapping is used (override), relink of the series queued | stays out (rejected); nothing moves |
-  | `heuristic` ("Matched by date and title") | "Is “{entry}” {series} {range}? No mapping list covers it; Theatarr matched it by air date and title and uses this match now." | used | kept as override; stops asking | not used from now on; new files take Sonarr's numbering; linked files stay (no relink) |
+  | `conflict` ("Lists disagree") | "Which {series} episodes are “{entry}”? The mapping lists disagree, so until you choose its episodes keep TVDB's numbering." | not used: TVDB's numbering | the mapping is used (override), relink of the series queued | stays out (rejected); nothing moves |
+  | `heuristic` ("Matched by date and title") | "Is “{entry}” {series} {range}? No mapping list covers it; Theatarr matched it by air date and title and uses this match now." | used | kept as override; stops asking | not used from now on; new files take TVDB's numbering; linked files stay (no relink) |
   | `refresh_shrink` ("Refresh would unmap episodes") | "Apply the refresh of {franchise}? It would map {after} of the {before} {series} episodes mapped now. Nothing changes until you choose." | current mapping kept, rebuild held | applies the whole held rebuild | drops it; the next rebuild may ask again |
-  | `refresh_moves_linked` ("Refresh changes linked episodes") | "…The refresh maps “{entry}” to {to} instead of {from}. {n} of these episodes have files; files already linked for them may be moved to match." When the held build maps the entry to nothing importable (a conflict counts as nothing): "…The refresh stops mapping “{entry}” ({from}), so new files take Sonarr's numbering." plus the same files sentence. The card never promises that files move: the server cannot preview which links a relink changes. | as above | as above; linked files may be relinked to match | as above |
+  | `refresh_moves_linked` ("Refresh changes linked episodes") | "…The refresh maps “{entry}” to {to} instead of {from}. {n} of these episodes have files; files already linked for them may be moved to match." When the held build maps the entry to nothing importable (a conflict counts as nothing): "…The refresh stops mapping “{entry}” ({from}), so new files take TVDB's numbering." plus the same files sentence. The card never promises that files move: the server cannot preview which links a relink changes. | as above | as above; linked files may be relinked to match | as above |
 
   Beside the question: the AniList entry (title, English title, format, episode count, dates, AniList and AniDB links)
   and, for conflict and heuristic, one TVDB box per option: the proposed mapping (labelled "In use now" on an open
@@ -247,13 +247,13 @@ next sync.
   used). A held refresh shows "Now" (the entry's importable mapping in use) and "After the refresh" (the held
   build's, or the episode counts and up to five episodes no longer mapped); these are filled only while the item is
   open, so a resolved one shows its summary and what was chosen.
-  On an open conflict the TVDB column heading reads "TVDB · in use now: Sonarr's numbering".
-  Buttons, no browser confirm: conflict **Edit season/offset…** and **Keep Sonarr's numbering** (reject); heuristic
+  On an open conflict the TVDB column heading reads "TVDB's numbering · in use now".
+  Buttons, no browser confirm: conflict **Edit season/offset…** and **Keep TVDB's numbering** (reject); heuristic
   **Edit season/offset…** and **Don't use this match** (reject), with the note "Don't use this match: new files take
-  Sonarr's numbering; files already in the library stay where they are."; held refresh **Apply the refresh** (accept) and
+  TVDB's numbering; files already in the library stay where they are."; held refresh **Apply the refresh** (accept) and
   **Keep current mapping** (reject), with "This answers all {n} changes of this refresh." when one answer settles
   several items. A resolved item asks its question in the past tense and says what was decided ("Rejected: the match
-  is not used; new files follow Sonarr's numbering."). **Edit season/offset…** sets one contiguous run of one season of one of the options' series by hand
+  is not used; new files follow TVDB's numbering."). **Edit season/offset…** sets one contiguous run of one season of one of the options' series by hand
   (accepted like a candidate: status `override`, winner `manual`; the choice sticks across rebuilds while the same
   mapping is proposed: `anime_review.choice`); a split or multi-season mapping still goes through the overrides
   file. **Show the raw rule** opens the summary, kind, entry key, the candidate table with score parts (exists, date
@@ -316,7 +316,7 @@ playlists:
 `theatarr serve` builds franchises on its own while `metadata.anime.auto_build` is on (default true) and the policy
 has the anime sources (`anilist`, `kitsu`, `thexem`, `anime-lists`, `fribb`, `anibridge`, `manami`; the gateway
 refuses any other target). Building only writes mappings; episodes whose mapping is not settled import through
-Sonarr's numbering, and their conflicts show in Admin › Reviews. With a source missing, the "Anime builds" health
+TVDB's numbering, and their conflicts show in Admin › Reviews. With a source missing, the "Anime builds" health
 check says which, and nothing builds; manual builds are refused the same way.
 
 **Discovery.** Every anime series (`title.anime`, kind series, with a TVDB id) that no franchise maps into gets a

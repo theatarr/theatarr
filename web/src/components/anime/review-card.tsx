@@ -246,7 +246,7 @@ export function ReviewCard({ it }: { it: ReviewItem }) {
         <div className="mt-3 grid gap-3 md:grid-cols-[minmax(0,1fr)_minmax(0,2fr)]">
           <EntryColumn it={it} />
           <div className={`space-y-2 ${it.entry ? "" : "md:col-span-2"}`}>
-            {!held && (it.options ?? []).length > 0 ? <div className="text-xs font-medium uppercase tracking-wide text-muted-foreground">{open && it.kind === "conflict" ? "TVDB · in use now: TVDB's numbering" : "TVDB"}</div> : null}
+            {!held && (it.options ?? []).length > 0 ? <div className="text-xs font-medium uppercase tracking-wide text-muted-foreground">{open && it.kind === "conflict" ? "TVDB's numbering · in use now" : "TVDB"}</div> : null}
             {held ? <RefreshBoxes it={it} /> : (it.options ?? []).map((o, i) => (
               <OptionBox key={i} o={o} pick={open && it.kind === "heuristic" ? "In use now" : undefined} action={open ? (
                 <Button size="xs" variant="outline" disabled={busy}

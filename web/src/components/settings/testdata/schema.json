@@ -729,7 +729,7 @@
             "default": "true",
             "label": "Build franchises automatically",
             "type": "boolean",
-            "help": "This builds franchises for anime series without one and rebuilds old ones (default true). Building only writes mappings; episodes whose mapping is not settled import through Sonarr's numbering, and their conflicts show in Admin › Reviews.",
+            "help": "This builds franchises for anime series without one and rebuilds old ones (default true). Building only writes mappings; episodes whose mapping is not settled import through TVDB's numbering, and their conflicts show in Admin › Reviews.",
             "nullable": true
           },
           {

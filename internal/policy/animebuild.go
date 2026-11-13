@@ -6,7 +6,7 @@ import "time"
 // builds").
 type AnimeBuild struct {
 	// AutoBuild builds franchises for anime series without one and rebuilds old ones (default true). Building only
-	// writes mappings; episodes whose mapping is not settled import through Sonarr's numbering, and their conflicts
+	// writes mappings; episodes whose mapping is not settled import through TVDB's numbering, and their conflicts
 	// show in Admin › Reviews.
 	AutoBuild *bool `yaml:"auto_build"`
 	// RefreshInterval is how old a franchise's build may get before it is rebuilt. Default 168h (7 days), minimum
