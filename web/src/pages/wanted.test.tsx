@@ -24,7 +24,7 @@ it("shows read-only waits and handoffs, filters and pages on the server", async 
   renderPage(<WantedPage />, "/wanted");
   expect(await screen.findByText("Alpha")).toBeTruthy();
   expect(screen.getByText("What is waiting for a search and when each item is searched next. Search now starts a search under the hourly limit.")).toBeTruthy();
-  expect(screen.getByTestId("wanted-pace").textContent).toBe("Up to 20 searches an hour (4 in the last hour). New releases are tried again after 1, 2, 4, 8 and 16 hours, then daily for a week; older items every 24 h.");
+  expect(screen.getByTestId("wanted-pace").textContent).toBe("Up to 20 searches an hour (4 in the last hour). Items are searched again every 24 h. A missing new release is tried sooner: after 1, 2, 4, 8 and 16 hours, never more than 24 h apart, until a week after its release.");
   expect(screen.queryByTestId("wanted-switch-off")).toBeNull();
   expect(screen.getAllByRole("columnheader").map(h => h.textContent)).toEqual(["", "Title", "Library", "What", "Next search", "Last search", "Actions"]);
   expect(within(screen.getByTestId("wanted-row")).getByText("Now")).toBeTruthy();

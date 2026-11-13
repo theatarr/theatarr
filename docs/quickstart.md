@@ -282,8 +282,9 @@ run only for libraries that are Live while Pause is off. To see how a library ju
 - **Settings › Profiles › Check a release**: paste a release name and pick a title and library. It shows the parsed
   quality, the matched formats, the score, any rejection and whether it would upgrade the file. It searches nothing
   and records nothing.
-- The title's **Releases** page (from the title page): for a Live library it can search the indexers now; for a
-  Watch only library it shows the last stored decision, if there is one.
+- The title's **Last search** page (on the title page, a library row's **Details** › **Last search results**): the
+  last stored decision, if there is one; for a Live library it offers **Interactive search**, which searches the
+  indexers now.
 
 To search a Watch only library's indexers for a title right away, run the decision engine from the shell. It prints the
 ranked decisions with their score breakdown and records nothing:
@@ -405,8 +406,8 @@ With a live library (**Live**, and **Pause** off), add a title and watch it arri
 2. Open **Activity › Queue**. A release that a provider has cached shows there as a download and is then linked
    into the library root; with Plex connected, Theatarr asks Plex to scan that folder.
 3. If nothing shows up, open **Wanted**: each row says when the title is searched next and why, and **Search
-   now** on the title page searches it again at once. The title's **Releases** page lists what the indexers
-   returned and why each release was accepted or rejected.
+   now** on the title page searches it again at once. The title's **Last search** page (a library row's **Details**)
+   lists what the indexers returned and why each release was accepted or rejected.
 
 By default only releases a provider already has cached are added (**Settings › Download clients › Behaviour**,
 **What to grab › Only add cached releases**), so a title with no cached release stays wanted and is searched again

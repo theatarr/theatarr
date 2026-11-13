@@ -72,7 +72,7 @@ folder.
 **Fix:**
 
 - To see how it judges a release, paste a release name into **Settings › Profiles › Check a release**. Decisions it
-  has recorded are in **Activity › Decision journal** and on the title's **Releases** page; a title added a
+  has recorded are in **Activity › Decision journal** and on the title's **Last search** page; a title added a
   moment ago may have none yet. To search the indexers for one title now, run
   `docker compose exec theatarr theatarr decide -tmdb <id> -library <library> -search` (it records nothing).
 - To start downloading, follow [quickstart.md](quickstart.md#9-go-live-deliberately): set the library to
@@ -94,15 +94,15 @@ returned and why each release was accepted or rejected) and **System › Status*
   **Next search** column says when each item may be searched; **Not scheduled** means **Search for missing items**
   (or **Search for upgrades**) is off, so it is searched only when you ask or after a failed download. **Search
   now** on the title page searches it at once. **Search now** on the **Wanted** page makes the item due at once;
-  searches start as the hourly limit allows, so a long list takes hours. To search many titles of one library, an
-  admin can also choose **Select** on **Library › Movies** or **Series**, tick the titles, pick the library in the
+  searches start as the hourly limit allows, so a long list takes hours. To search many titles of one library, a
+  manager or admin can also choose **Select** on **Library › Movies** or **Series**, tick the titles, pick the library in the
   bar (not **Every library**) and choose **Search now**: they are searched the same way under the same limit, a series season by season, and a
   title with nothing missing in that library is skipped. The bar then says how many searches were queued and
   links to **Wanted**.
 - **The movie is not available yet.** A movie is searched automatically only once it has reached its **Minimum
   availability**: Released (the default: a digital or physical release date has passed, or 90 days since the
-  cinema date), In cinemas, or Announced. The movie's library card on the title page shows the value in force
-  for that library and lets a manager change it; a movie library can set its own default and an **Availability
+  cinema date), In cinemas, or Announced. The title page's **Libraries** table shows the value in force
+  for each library (the **Minimum availability** column, or the row's **Details**) and lets a manager change it; a movie library can set its own default and an **Availability
   delay** in days (**Settings › Libraries**, **Which releases**). **Search now** on the title page searches
   regardless.
 - **An episode aired a few hours ago.** The automatic search usually runs before any release exists. A new
@@ -142,7 +142,7 @@ returned and why each release was accepted or rejected) and **System › Status*
 
 ## Search does not find a release you know exists
 
-An admin can add it by hand. Open the title, open a library's Details and choose **Show releases**; **Add by magnet
+An admin can add it by hand. Open the title, open a library row's **Details** and choose **Last search results**; **Add by magnet
 or hash** is under the list: paste the magnet link or the 40-character info hash and give the release name (a magnet's
 own name is filled in). For a series the name must carry the season or episode, for example `S02` for a season
 pack or `S02E05` for one episode. The release is checked against the library's profile like any other; a rejection

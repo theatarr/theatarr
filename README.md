@@ -64,7 +64,7 @@ It is built so that nothing happens until you say so:
   (ScudLee, Fribb, manami), on its own for every anime series in the library and again weekly, and maps every entry onto
   TVDB and TMDb. Specials, OVAs, recaps, movies and split cours land on the right episodes. Releases numbered by
   absolute episode or named after a franchise entry or an alternate cut map through it. An episode it can't map with
-  confidence imports through Sonarr's numbering, and the mapping waits in a review queue. A SeaDex pack covers only the
+  confidence imports through TVDB's numbering, and the mapping waits in a review queue. A SeaDex pack covers only the
   cour it belongs to. Plex gets per-franchise playlists in watch or story order. Details:
   [docs/design/anime.md (internals)](docs/design/anime.md).
 - **Decision journal.** Every grab, upgrade and search decision with its reasoning, runners-up and suspect flags.

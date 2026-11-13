@@ -5,17 +5,23 @@ catalog,title}.tsx`, `web/src/components/{library,title}/`.
 
 ## API
 
-- **`GET titles`** takes `sort` (added, name, year, release, rating, size), `order`, and the filters `anime`,
-  `monitored`, `availability`, `genre` (any of, comma-separated), `quality`, `provider` (see files only), `year_from`
-  and `year_to`. Rows carry genres, rating, certification, runtime, release date, `availability` (the poster badge),
-  `added_at` (newest current file) and `size_bytes`; each version carries `label` ("4K WEB"), `quality`, `files`,
-  `added_at`, `size_bytes` and `providers`. A current file is the owning instance's, or any file when no instance
+- **`GET titles`** takes `sort` (added: the newest current file; created: when the title was added; name, year,
+  release, rating, runtime, certification, network, size, completion, next, quality, activity), `order`, and the
+  filters `anime`, `monitored`, `availability`, `genre` (any of, comma-separated), `quality`, `provider` (see files
+  only; a cache code `rd`, `ad`, `tb` or a provider key), `year_from` and `year_to`. Rows carry genres, rating,
+  certification, runtime, release date, `availability` (the poster badge), `added_at` (newest current file),
+  `title_added_at`, `status`, `original_language`, a movie's `in_cinemas`, `digital_release` and `physical_release`,
+  a series' `series_type`, `season_count` and `previous_airing`, and `size_bytes`; each version carries `label` ("4K
+  WEB"), `quality`, `files`, `added_at`, `size_bytes`, `providers` (cache codes of the providers that hold a current
+  file complete now), and, see files only, `profile`, `minimum_availability` (movies) and `folder`. A copy removed
+  from the library is in no row, filter, sort or facet. A current file is the owning instance's, or any file when no instance
   owns the version; active links count too.
 - **`availability`:** missing (every version wanted, no files); partial (a version has no file, or a wanted version
   has some, i.e. a series part-way); upgrade (all have files, some below cutoff); available; none (no versions).
 - **`GET titles/facets?kind=&anime=`** counts per availability, monitoring, version key, quality, genre,
-  certification and (see files) provider, over one grid; the grid's other filters are ignored.
-- **`GET titles/{id}`** adds per version `label`, `current` (the current file in brief), `providers`, `episodes`
+  certification and (see files) provider cache code, over one grid; the grid's other filters are ignored.
+- **`GET titles/{id}`** adds per version `label`, `current` (the current file in brief, with `formats`), `providers`,
+  `cached_on` (cache codes), `removed` (a copy removed from the library, counted in none of the rollups), `episodes`
   (series counts without specials) and `history` (arr history plus Theatarr downloads, newest first, at most 50; a movie's
   second import is an upgrade), and `franchises` for the anime order panel.
 - **`GET titles/{id}/episodes?season=`**: seasons (specials last) with have/missing per version, and episodes with a
@@ -30,7 +36,7 @@ catalog,title}.tsx`, `web/src/components/{library,title}/`.
   filtered by `availability=`, which means something else (a movie missing one of two versions is `partial` there but
   in the Missing row).
 - **See files.** `perms.go` holds the field filter: without `see_files` there are no paths, hashes, release names,
-  sizes, scores, providers, arr records or registry rows in any of these answers, and `provider=` is refused (403).
+  sizes, scores, providers, profiles, minimum availability, folders, arr records or registry rows in any of these answers, and `provider=` is refused (403).
   `availability` is watchability for these callers (`plainAvailability`): a movie with a file
   in any version is available (one missing copy does not make it partial); a series is available when some version
   is complete, partial ("Some episodes available") when versions have files but none is complete, missing ("Not
@@ -51,10 +57,10 @@ catalog,title}.tsx`, `web/src/components/{library,title}/`.
   hover. Family wording: Available, Some episodes, Not available, and Getting ready for a missing title with a
   download in hand (`acquiring`). A missing movie reads Upcoming until its `home_release` (the earlier of digital and
   disc, else cinema plus 90 days), not only until its cinema date.
-- **Movies, Series, Anime:** Movies and Series leave anime out. Poster grid paged by 60 as you scroll, off-screen
-  cards skipped (content-visibility); a table view; the filter panel on the right (a sheet below 1024 px); filters
-  and sort in the URL. Family accounts' Movies filters leave out Some episodes (a movie has none).
-- **Title page:** a compact hero, copies under it for managers, then tabs (docs/design/ui.md §2, Title page).
+- **Movies, Series, Anime:** Movies and Series leave anime out. Full width. Poster grid paged by 60 as you scroll,
+  off-screen cards skipped (content-visibility); a one-line table with columns chosen per list; filters in a sheet
+  with the active ones as chips; filters and sort in the URL; view, columns and poster options kept per list. Family accounts' Movies filters leave out Some episodes (a movie has none).
+- **Title page:** a compact hero, then for callers who see files the action bar and the Libraries table, then tabs (docs/design/ui.md §2, Title page).
 - **Redirects:** `/library` goes to `/movies` (or `/series` for `kind=series`), keeping its `q`, `with`, `without`
   and `state` filters; `/titles/{id}` goes to `/title/{id}` (`internal/web/spa.go`).
 

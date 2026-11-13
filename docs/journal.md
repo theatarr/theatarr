@@ -76,7 +76,7 @@ The **id** names the source row. Ids are stable, so they work as keys in your no
 | `at`, `kind`, `source` | When it happened, and who decided or acted: `theatarr`, `router`, `library`, `journal` or `web` |
 | `title`, `version`, `mode` | `mode` is the version's mode in the running policy: `active` (Live) writes, `shadow` (Watch only) only plans |
 | `summary` | One line saying what happened |
-| `release` | Title, indexer, info hash, size, quality, score, formats, languages, episodes (`S01E02`), and `how` it was found (`Rss`, `Search`, `InteractiveSearch`; `acquire:<run>`, `rss`) |
+| `release` | Title, indexer, info hash, size, quality, score, formats, languages, episodes (`S01E02`), and `how` it was found (`Rss`, `Search`, `InteractiveSearch`; `acquire:<run>`, `rss`). A `link` entry for a link action carries the title and quality of its own download when it has one; a replace or a link without a download has none. Activity › History shows these facts as columns |
 | `reasoning` | Why this release was chosen (next table) |
 | `download` | Theatarr's download: state, provider, cached, reused, error |
 | `attempts` | Every provider the router considered, with outcome, code and message |

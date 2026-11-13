@@ -90,19 +90,23 @@ routes answer 403. The permission check is `canManage` in
 
 ## SPA
 
-- **Version card:** the upgrade block (badge, "Bluray-1080p · 6,302 / 10,000 · cutoff Bluray-2160p Remux", what
-  falls short, what Theatarr would take next or "No better release seen yet", "Show releases"), media, the monitor switch
-  and search now (off with the reason), Interactive search for that copy (a movie, managers, a current copy that
-  searches live; a series has it per season and episode), history, and the version's journal.
-- **Seasons** (laid out phone first, docs/design/ui.md Title page / Episodes): a completion summary
-  per season; behind its Details per version a line (have, missing, below cutoff, upgrades seen, size, upgrade
-  status with Why?), a season monitor switch and "Search season"; All / Missing / Upgrade found filters; episode
-  rows open the episode overview (`?episode=<id>`); checkboxes select episodes for bulk monitor, unmonitor and
-  search. Managers get Interactive search on each season header and an icon button per episode row.
-  A season's Interactive search (also the Wanted row's) requests every episode of that season, Specials included.
-- **Episode overview** (a shared-Modal dialog): per version the state, monitor switch, search now, Interactive search
-  (managers, a version that searches live), upgrade block, then File, History (with the journal) and Last search (the
-  stored decision scoped to the episode, read-only) as closed disclosures.
+- **Libraries table row** (docs/design/ui.md Title page): the monitor switch, the status (for a held movie the
+  upgrade badge with Why?: "Bluray-1080p · 6,302 / 10,000 · cutoff Bluray-2160p Remux", what falls short, what
+  Theatarr would take next or "No better release seen yet", "Show releases"), the chosen file columns, Search now
+  (off with the reason) and Interactive search for that library (a movie, managers, a current library that searches
+  live; a series has it per season and episode). The row's Details holds the rest; history and the journal are on
+  the History tab.
+- **Seasons** (laid out phone first, docs/design/ui.md Title page / Episodes): the season monitor switch, a badge
+  per library in view ("8 / 10"), with one library its facts (missing, upgrades found, downloads, size, upgrade
+  status with Why?), and Search and Interactive search on the header, all acting on the libraries in view; All /
+  In progress / Missing / Upgrade found filters; episode rows open the episode overview (`?episode=<id>`) and end in
+  Search and Interactive search icons; checkboxes select episodes for bulk monitor, unmonitor and search in the
+  libraries in view. A season's Interactive search (also the Wanted row's) requests every episode of that season,
+  Specials included.
+- **Episode overview** (a shared-Modal dialog) with three tabs: **Details** (per version the state, monitor switch,
+  search now, Interactive search for managers and a version that searches live, the download in hand, the upgrade
+  block and the file's facts with Cached on), **History** (with the journal) and **Last search** (the stored decision
+  scoped to the episode, read-only).
 
 ## Checked
 
