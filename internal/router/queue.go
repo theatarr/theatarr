@@ -80,7 +80,7 @@ func (r *Router) movieInFlight(ctx context.Context, s *routeState, c *Candidate)
 		return 0, "", nil
 	}
 	if !s.profiled {
-		s.profile, s.profileErr = r.routeProfile(ctx, s.vp)
+		s.profile, s.profileErr = r.routeProfile(s.vp)
 		s.profiled = true
 	}
 	for _, q := range qs {

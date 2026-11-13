@@ -241,16 +241,8 @@ func runDecide(args []string, out io.Writer, dial func(context.Context, string, 
 
 func printDecision(out io.Writer, t decide.Title, v decide.Version, e *decide.Engine, d *decide.Decision) {
 	tw := tabwriter.NewWriter(out, 0, 4, 2, ' ', 0)
-	src := ""
-	fl := format.Radarr
-	if t.Kind == policy.KindSeries {
-		fl = format.Sonarr
-	}
-	if p := e.Profile(d.Profile, fl); p != nil {
-		src = " (" + p.Source + ")"
-	}
 	fmt.Fprintf(tw, "release\t%s\n", d.Release)
-	fmt.Fprintf(tw, "title\t#%d %s (%d)\tversion %s (#%d), profile %s%s\n", t.ID, t.Name, t.Year, v.Key, v.ID, d.Profile, src)
+	fmt.Fprintf(tw, "title\t#%d %s (%d)\tversion %s (#%d), profile %s\n", t.ID, t.Name, t.Year, v.Key, v.ID, d.Profile)
 	if d.Parsed && t.Kind == policy.KindSeries {
 		fmt.Fprintf(tw, "parsed\t%s, %s, group %s, match %s, languages %s\n", d.SeriesTitle, d.ReleaseType,
 			orDash(d.ReleaseGroup), orDash(string(d.MatchType)), orDash(strings.Join(d.Languages, ", ")))

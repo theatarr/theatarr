@@ -446,11 +446,7 @@ func (s *Service) editor(w http.ResponseWriter, r *request) {
 	// Non-nil: load reads nil as every title, and ids that resolve to none must edit none.
 	tids := []int64{}
 	for _, id := range ids {
-		tid, err := s.resolve(ctx, r.v, id)
-		if err != nil {
-			s.internal(w, r, err)
-			return
-		}
+		tid := resolveID(id)
 		if tid > 0 && !slices.Contains(tids, tid) {
 			tids = append(tids, tid)
 		}

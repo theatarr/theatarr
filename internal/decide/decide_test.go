@@ -58,7 +58,7 @@ func TestBuildPolicyProfile(t *testing.T) {
 	t.Parallel()
 	e := testEngine(t)
 	p := e.Profile("remux-2160p", format.Radarr)
-	if p == nil || p.Source != "policy" {
+	if p == nil {
 		t.Fatalf("remux-2160p not built: %+v", p)
 	}
 	allowed := map[string]bool{}

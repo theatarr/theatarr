@@ -371,20 +371,20 @@ func (s *Service) loadOne(ctx context.Context, v *View, titleID int64) (*entry, 
 	return es[0], nil
 }
 
-// resolve maps an id a client sent to a title id: ids from IDBase up are ours; a smaller one (an old arr instance's
-// id) resolves to nothing.
-func (s *Service) resolve(_ context.Context, _ *View, id int64) (int64, error) {
+// resolveID maps an id a client sent to a title id: ids from IDBase up are ours; a smaller one (an old arr
+// instance's id) resolves to 0, nothing.
+func resolveID(id int64) int64 {
 	if id >= IDBase {
-		return id - IDBase, nil
+		return id - IDBase
 	}
-	return 0, nil
+	return 0
 }
 
 // resolveEntry resolves a client id and loads the title, nil when the view does not have it.
 func (s *Service) resolveEntry(ctx context.Context, v *View, id int64) (*entry, error) {
-	tid, err := s.resolve(ctx, v, id)
-	if err != nil || tid == 0 {
-		return nil, err
+	tid := resolveID(id)
+	if tid == 0 {
+		return nil, nil
 	}
 	return s.loadOne(ctx, v, tid)
 }

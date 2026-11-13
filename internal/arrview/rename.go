@@ -114,16 +114,13 @@ func (s *Service) rename(w http.ResponseWriter, r *request) {
 		badRequest(w, "", "movieId or seriesId must be provided", nil)
 		return
 	}
-	tid, err := s.resolve(r.Context(), r.v, titleID)
-	if err != nil {
-		s.internal(w, r, err)
-		return
-	}
+	tid := resolveID(titleID)
 	if tid == 0 {
 		w.WriteHeader(http.StatusNotFound)
 		return
 	}
 	var p *library.RenamePreview
+	var err error
 	if scoped, ok := s.library.(scopedRenameLibrary); ok {
 		p, err = scoped.PreviewRenameVersions(r.Context(), tid, season, r.v.Versions)
 	} else {

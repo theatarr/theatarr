@@ -254,11 +254,7 @@ func (s *Service) blocklist(w http.ResponseWriter, r *request) {
 
 // GET blocklist/movie?movieId= (Radarr's GetMovieBlocklist): a plain list.
 func (s *Service) movieBlocklist(w http.ResponseWriter, r *request) {
-	tid, err := s.resolve(r.Context(), r.v, int64(r.queryInt("movieId", 0)))
-	if err != nil {
-		s.internal(w, r, err)
-		return
-	}
+	tid := resolveID(int64(r.queryInt("movieId", 0)))
 	bs := []blocklistResource{}
 	if tid != 0 {
 		rows, err := s.blocklistRows(r.Context(), r.v, tid)

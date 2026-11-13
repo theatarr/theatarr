@@ -103,7 +103,7 @@ func (r *Router) freshCandidates(ctx context.Context, s *routeState) ([]Candidat
 	profileLoaded := false
 	loadProfile := func() (*routeProfile, error) {
 		if !profileLoaded {
-			info, err = r.routeProfile(ctx, s.vp)
+			info, err = r.routeProfile(s.vp)
 			if err != nil {
 				return nil, err
 			}
@@ -475,7 +475,7 @@ func freshUpgrade(p *routeProfile, vp *policy.VersionPolicy, c Candidate, cur it
 // routeProfile is the version's profile for the freshness and queue checks: the decision engine's compiled profile
 // when the router has one (SetProfiles), so both judge with the thresholds the decision did; without
 // one (a CLI route, tests) it is built here the same way.
-func (r *Router) routeProfile(ctx context.Context, vp *policy.VersionPolicy) (*routeProfile, error) {
+func (r *Router) routeProfile(vp *policy.VersionPolicy) (*routeProfile, error) {
 	pr := r.pol.Profiles[vp.Profile]
 	fl := format.Radarr
 	if vp.Kind == policy.KindSeries {

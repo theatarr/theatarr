@@ -552,11 +552,7 @@ func (s *Service) titleHistory(w http.ResponseWriter, r *request) {
 	if r.v.Flavour == Sonarr {
 		key = "seriesId"
 	}
-	tid, err := s.resolve(r.Context(), r.v, int64(r.queryInt(key, 0)))
-	if err != nil {
-		s.internal(w, r, err)
-		return
-	}
+	tid := resolveID(int64(r.queryInt(key, 0)))
 	if tid == 0 {
 		writeJSON(w, http.StatusOK, []historyResource{})
 		return

@@ -22,10 +22,8 @@ type Profile struct {
 	baseEngine *profile.Engine // stable cache identity across per-version copies
 	Key        string
 	Flavour    format.Flavour
-	// Source is "policy".
-	Source  string
-	Profile *profile.Profile
-	Formats []*format.Format
+	Profile    *profile.Profile
+	Formats    []*format.Format
 	// CustomFormats retains the JSON used to build this runtime, for arr-view reads.
 	CustomFormats []format.FormatJSON
 	Engine        *profile.Engine
@@ -315,7 +313,7 @@ func (b *builder) fromPolicy(path, key string, pr *policy.Profile, fl format.Fla
 	if !ok {
 		return nil
 	}
-	return &Profile{Key: key, Flavour: fl, Source: "policy", Profile: qp, Formats: formats, CustomFormats: customFormats,
+	return &Profile{Key: key, Flavour: fl, Profile: qp, Formats: formats, CustomFormats: customFormats,
 		Engine: &profile.Engine{Flavour: fl, Config: profile.Config{PreferredProtocol: profile.ProtocolTorrent}, Definitions: defs}}
 }
 

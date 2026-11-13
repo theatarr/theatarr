@@ -722,12 +722,7 @@ func (s *Service) manualImportReprocess(w http.ResponseWriter, r *request) {
 		}
 		var tid int64
 		if f, ok := it[key].(float64); ok && f > 0 {
-			t, err := s.resolve(ctx, r.v, int64(f))
-			if err != nil {
-				s.internal(w, r, err)
-				return
-			}
-			tid = t
+			tid = resolveID(int64(f))
 		}
 		var eps []int64
 		if arr, ok := it["episodeIds"].([]any); ok {
@@ -834,10 +829,7 @@ func (s *Service) manualImportCommand(ctx context.Context, v *View, body map[str
 		}
 		var titleID int64
 		if x, ok := m[key].(float64); ok && x > 0 {
-			if titleID, err = s.resolve(ctx, v, int64(x)); err != nil {
-				fail(err.Error())
-				continue
-			}
+			titleID = resolveID(int64(x))
 		}
 		g := &group{folder: loc.Folder, path: p}
 		if dl, _ := m["downloadId"].(string); dl != "" {

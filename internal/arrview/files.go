@@ -351,11 +351,7 @@ func (s *Service) movieFiles(w http.ResponseWriter, r *request) {
 	if len(movies) > 0 {
 		titles = []int64{}
 		for _, m := range movies {
-			tid, err := s.resolve(ctx, r.v, m)
-			if err != nil {
-				s.internal(w, r, err)
-				return
-			}
+			tid := resolveID(m)
 			if tid > 0 {
 				titles = append(titles, tid)
 			}
@@ -389,11 +385,7 @@ func (s *Service) episodeFiles(w http.ResponseWriter, r *request) {
 		ids, one = []int64{id}, true
 	} else if sid, ok := r.query("seriesId"); ok {
 		n, _ := strconv.ParseInt(sid, 10, 64)
-		tid, err := s.resolve(ctx, r.v, n)
-		if err != nil {
-			s.internal(w, r, err)
-			return
-		}
+		tid := resolveID(n)
 		titles = []int64{tid}
 	} else if ids = r.queryInts("episodeFileIds"); len(ids) == 0 {
 		badRequest(w, "", "seriesId or episodeFileIds must be provided", nil)

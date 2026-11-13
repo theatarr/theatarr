@@ -323,10 +323,7 @@ func (s *Service) commandScope(ctx context.Context, v *View, canon string, body 
 		return sc, nil
 	}
 	for _, id := range ids {
-		tid, err := s.resolve(ctx, v, id)
-		if err != nil {
-			return nil, err
-		}
+		tid := resolveID(id)
 		if tid > 0 {
 			sc.sel.TitleIDs = append(sc.sel.TitleIDs, tid)
 		}

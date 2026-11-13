@@ -480,12 +480,7 @@ func (s *Service) searchReleases(w http.ResponseWriter, r *request) {
 			writeJSON(w, http.StatusOK, []releaseResource{})
 			return
 		}
-		tid, err := s.resolve(ctx, r.v, id)
-		if err != nil {
-			s.internal(w, r, err)
-			return
-		}
-		titleID = tid
+		titleID = resolveID(id)
 	} else {
 		if eid := int64(r.queryInt("episodeId", 0)); eid > 0 {
 			var sn int
@@ -497,11 +492,7 @@ func (s *Service) searchReleases(w http.ResponseWriter, r *request) {
 			}
 			season, episodes = &sn, []int64{eid}
 		} else if sid, sn := int64(r.queryInt("seriesId", 0)), r.queryInt("seasonNumber", -1); sid > 0 && sn >= 0 {
-			tid, err := s.resolve(ctx, r.v, sid)
-			if err != nil {
-				s.internal(w, r, err)
-				return
-			}
+			tid := resolveID(sid)
 			titleID, season = tid, &sn
 			rows, err := s.st.Reader().QueryContext(ctx, `SELECT id FROM episode WHERE title_id = ? AND season = ?
 				ORDER BY number`, tid, sn)
@@ -658,11 +649,7 @@ func (s *Service) grabRelease(w http.ResponseWriter, r *request) {
 	}
 	var titleID int64
 	if b.TitleID > 0 {
-		tid, err := s.resolve(r.Context(), r.v, b.TitleID)
-		if err != nil {
-			s.internal(w, r, err)
-			return
-		}
+		tid := resolveID(b.TitleID)
 		if tid == 0 {
 			notFound(w, "Couldn't find requested release in cache, try searching again")
 			return

@@ -318,10 +318,7 @@ func (s *Service) titleFilter(ctx context.Context, r *request, names ...string) 
 	for _, n := range names {
 		for _, id := range r.queryInts(n) {
 			given = true
-			t, err := s.resolve(ctx, r.v, id)
-			if err != nil {
-				return nil, true, err
-			}
+			t := resolveID(id)
 			if t > 0 {
 				ids = append(ids, t)
 			}

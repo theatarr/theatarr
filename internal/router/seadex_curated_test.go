@@ -16,7 +16,7 @@ func TestCuratedQueue(t *testing.T) {
 	e.exec(`INSERT INTO metadata_cache(source,key,status,body,fetched_at,expires_at) VALUES('seadex-standing','1',200,?,0,253402214400000)`, fmt.Sprintf(`{"anilist":1,"torrents":[{"info_hash":"%s","preference":3,"is_best":true,"facts":{"isBest":true}}]}`, h("a")))
 	vp := e.pol.Versions["movie"]
 	vp.PreferSeaDex = true
-	p, err := e.r.routeProfile(e.ctx, vp)
+	p, err := e.r.routeProfile(vp)
 	if err != nil {
 		t.Fatal(err)
 	}
