@@ -1261,33 +1261,45 @@ registry row does not hold the hash complete ("Cached on"); one job (`router.cop
 
 **The rules** (the fix round of 2026-11-13; `copy_rules_test.go`):
 - **Ownership** (`own_add`): true only when a successful listing read just before the add showed neither the hash nor
-  the id the add returned, and no registry row shows the hash on that provider. Otherwise the entry is never deleted.
+  the id the add returned, no registry row shows the hash present on that provider, and the returned id is not a
+  registry entry of the hash (an absent registry row, an old torrent since removed, does not count). Otherwise the
+  entry is never deleted. Known limit: after a lost add answer, an entry found by hash is treated as not ours and kept.
 - **Before every delete** (the first, each retry, after a restart; an owed delete included): the torrent is read
   again. Gone (confirmed by a fresh listing that shows neither id nor hash when the read failed: TorBox answers a
   missing id with a 500): `not_cached`. Complete meanwhile: Cached on, `added`. Another hash, or in use on this
   provider (a download of ours naming the id, or the hash there in any state but failed; a registry entry giving the
-  id another hash; another copy with the id): `failed`, "left in place". Then the gate, then the delete.
+  id another hash; another copy with the id): `failed`, "left in place". The use check, the gate and the delete run
+  under the add lock, so no route adopts the torrent in between. Complete at that read: cached evidence replaces the
+  uncached verdict, as on a settle.
+- **Real-Debrid with nothing playable to select** (an .iso, a DVD's .vob): `failed`, "Real-Debrid cannot serve this
+  file type", and our trial add is deleted under the same checks.
 - **Pause**: the gate is read before every provider write (add, file selection, delete). A queued copy is
-  `skipped`; one past `queued` only waits.
+  `skipped`; one past `queued` only waits (an `adding` row is not rewound while paused).
 - **Never stranded**: anything an unfinished copy cannot do now hands the job back (`jobs.Later`) after the time it
   has waited since its last change, 1 to 30 minutes; the job's attempts are never used up. A new request for an
-  unfinished row whose job is gone queues one.
+  unfinished row whose job is gone queues one, and so does every poller pass (`ResumeCopies`). The uncached verdict is
+  counted in the transaction that records the owed delete.
 - **Routes and copies wait for each other**: a route defers (`unsettled`, a minute) while a copy of the hash to that
-  provider is `adding` or `checking`; a copy waits while a route's add there is unsettled.
-- **Every known name**: Real-Debrid's name rule is applied to the torrent's display and original names, the
-  recorded release names of its downloads, links and arr files, an adopted link's source release and the registry's
-  names; any refused name makes the copy `refused`, never sent.
-- **Hold times** travel as `until` (a timestamp) beside the message; the browser shows them in its own zone.
+  provider is `adding` or `checking`, before it would reuse a registry entry of the hash there; a copy waits while a
+  route's add there is unsettled, checked under the add lock just before its listing.
+- **Every known name**, once per request: Real-Debrid's name rule is applied to the request's names (the file's
+  release and scene names, a provider entry's display and original names), its downloads' release and original
+  names, the release names of the links and arr files tied to it by content, download or an arr file's download id,
+  and the registry's names; every read is by hash. Any refused name makes the copy `refused`, never sent; a queued
+  row a later request finds refused becomes `refused`.
+- **Hold times** are `provider_copy.until_at`, sent as `until`; the browser shows them in its own zone.
 
 **Recovery.** At start (`ResumeCopies`, every unfinished row without a queued job) and on each job run, the row's
 state says what is left. `adding` without a torrent id waits `addSettle` from its last update, then the account's
 list is read: a torrent of the hash there is taken up (`own_add` false: it may be an older one, so it is never
 deleted); none: `queued` again. `checking` is settled from the account, an owed delete through the checks above.
 
-**API.** `POST /titles/{id}/copies {version, episode_id?}` (manage) takes the hash and name of the file the page
-shows (the movie's current file, the episode window's file: `linkHashSQL`/`fileHashSQL`, the same resolution as Cached
-on and the Torrent link; an arr file's download id counts when it is a v1 hash). `POST /torrents/copy {provider, id}`
-(admin) takes the hash and the display and original names from a read of the provider, else the registry. Both
+**API.** `POST /titles/{id}/copies {version, episode_id?}` (manage) takes the hash and names of the file the page
+shows (the movie's current file, the episode window's file). One resolution gives that file's hash to the action, the
+Torrent link, `copies` and Cached on (`linkHashSQL`/`fileHashSQL`, `heldByHash`): a link's content, else the hash it
+records (download, file metadata, adopted source) with or without a content row; an arr file's content, else its
+download id when that is a v1 hash. `POST /torrents/copy {provider, id}` (admin) takes the hash and name from the
+registry, else the display and original names from a read of the provider. Both
 answer the rows; 409 with the Pause words while paused; 422 "Cannot add to other providers: Theatarr has no torrent
 hash on record for this file." `GET /torrents/copies?hash=` (admin) reads one torrent's copies for the Torrents page
 to poll. The movie's current file, the episode file and the Torrents row carry `copies` (`provider`, `state`,
@@ -1295,7 +1307,7 @@ to poll. The movie's current file, the episode file and the Torrents row carry `
 
 Tests: `TestCopyTorBox`, `TestCopyRealDebridTrial`, `TestCopyAllDebridList`, `TestCopyRefusedAndPaused`,
 `TestCopyWaitsForMinGap`, `TestCopyRestartInChecking`, `TestCopyLostDeleteAnswer`, `TestCopyRecoversAdding`,
-`TestCopyDedupe`, `TestCopyRule*`, `TestProviderCopiesSameHashAndPoll`, `TestCopyAfterImport`, `TestProviderCopiesAPI`, `TestRouterSectionCopyToProviders`.
+`TestCopyDedupe`, `TestCopyRule*`, `TestCopyRound2*`, `TestProviderCopiesOneHash`, `TestProviderCopiesSameHashAndPoll`, `TestCopyAfterImport`, `TestProviderCopiesAPI`, `TestRouterSectionCopyToProviders`.
 
 ## Policy (`router`, `examples/policy/router.yaml`)
 

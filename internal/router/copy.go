@@ -87,16 +87,16 @@ type CopyView struct {
 	State     string    `json:"state"`
 	Message   string    `json:"message,omitempty"`
 	UpdatedAt time.Time `json:"updated_at"`
-	// Until is when a hold that skipped the copy ends, for the browser to show in its own zone.
+	// Until is when a hold that skipped or failed the copy ends (until_at), for the browser to show in its own zone.
 	Until *time.Time `json:"until,omitempty"`
 }
 
 // CopyRequest names the torrent to add to the other providers.
 type CopyRequest struct {
-	Hash, Name string
-	TitleID    int64
-	// Names are the torrent's other known names (a provider entry's original name): Real-Debrid's name rule is
-	// applied to every one (rule J1).
+	Hash    string
+	TitleID int64
+	// Names are the torrent's known names, the one shown first (the file's release, a provider entry's display and
+	// original names): Real-Debrid's name rule is applied to every one (rule J1).
 	Names []string
 	// Except is a provider known to hold it (the download's, a Torrents row's): no row for it.
 	Except string
@@ -181,12 +181,15 @@ func (r *Router) QueueCopies(ctx context.Context, req CopyRequest) ([]CopyView, 
 	if req.TitleID != 0 {
 		titleID = req.TitleID
 	}
+	name := ""
+	if len(req.Names) > 0 {
+		name = req.Names[0]
+	}
+	// Real-Debrid's name rule, once per request (rule J1).
 	refused := ""
-	for _, pk := range keys {
-		if r.pol.Providers[pk].Kind == provider.KindRealDebrid && refused == "" {
-			if refused, err = r.copyRefusedName(ctx, hash, append([]string{req.Name}, req.Names...)...); err != nil {
-				return nil, err
-			}
+	if slices.ContainsFunc(keys, func(k string) bool { return r.pol.Providers[k].Kind == provider.KindRealDebrid }) {
+		if refused, err = r.copyRefusedName(ctx, hash, req.Names...); err != nil {
+			return nil, err
 		}
 	}
 	for _, pk := range keys {
@@ -202,6 +205,8 @@ func (r *Router) QueueCopies(ctx context.Context, req CopyRequest) ([]CopyView, 
 			err := tx.QueryRowContext(ctx, `SELECT id, state FROM provider_copy WHERE info_hash = ? AND provider = ?`,
 				hash, pk).Scan(&id, &cur)
 			switch {
+			case err == nil && cur == CopyQueued && state == CopyRefused:
+				// Not sent yet, and this request brings a refused name: refused.
 			case err == nil && copyOpen(cur):
 				unfinished = true
 				return nil // unfinished: returned as it is (a double click, a season pack's other episodes)
@@ -212,8 +217,8 @@ func (r *Router) QueueCopies(ctx context.Context, req CopyRequest) ([]CopyView, 
 			return tx.QueryRowContext(ctx, `INSERT INTO provider_copy (info_hash, name, title_id, provider, state,
 				message, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?) ON CONFLICT (info_hash, provider) DO UPDATE
 				SET name = excluded.name, title_id = COALESCE(excluded.title_id, provider_copy.title_id),
-				torrent_id = NULL, own_add = 0, state = excluded.state, message = excluded.message,
-				created_at = excluded.created_at, updated_at = excluded.updated_at RETURNING id`, hash, req.Name, titleID,
+				torrent_id = NULL, own_add = 0, state = excluded.state, message = excluded.message, until_at = NULL,
+				created_at = excluded.created_at, updated_at = excluded.updated_at RETURNING id`, hash, name, titleID,
 				pk, state, msg, at, at).Scan(&id)
 		})
 		if err != nil {
@@ -250,8 +255,10 @@ func (r *Router) QueueCopiesForDownload(ctx context.Context, dl int64) error {
 		return nil
 	}
 	var req CopyRequest
+	var name string
 	err := r.st.Writer().QueryRowContext(ctx, `SELECT info_hash, release_title, title_id, COALESCE(provider, '')
-		FROM download WHERE id = ? AND client IS NULL`, dl).Scan(&req.Hash, &req.Name, &req.TitleID, &req.Except)
+		FROM download WHERE id = ? AND client IS NULL`, dl).Scan(&req.Hash, &name, &req.TitleID, &req.Except)
+	req.Names = []string{name}
 	if errors.Is(err, sql.ErrNoRows) || err == nil && req.Except == "" {
 		return nil
 	}
@@ -336,7 +343,7 @@ func CopiesByHash(ctx context.Context, db interface {
 	if len(args) == 0 {
 		return out, nil
 	}
-	rows, err := db.QueryContext(ctx, `SELECT info_hash, provider, state, message, updated_at FROM provider_copy
+	rows, err := db.QueryContext(ctx, `SELECT info_hash, provider, state, message, updated_at, until_at FROM provider_copy
 		WHERE info_hash IN (`+store.Placeholders(len(args))+`) ORDER BY info_hash, provider`, args...)
 	if err != nil {
 		return nil, fmt.Errorf("router: copies: %w", err)
@@ -346,17 +353,16 @@ func CopiesByHash(ctx context.Context, db interface {
 		var h string
 		var v CopyView
 		var at int64
-		if err := rows.Scan(&h, &v.Provider, &v.State, &v.Message, &at); err != nil {
+		var until sql.NullInt64
+		if err := rows.Scan(&h, &v.Provider, &v.State, &v.Message, &at, &until); err != nil {
 			return nil, err
+		}
+		if until.Valid {
+			t := store.FromMillis(until.Int64)
+			v.Until = &t
 		}
 		if strings.HasPrefix(v.Message, copyDeletingPrefix) {
 			v.Message = "" // the owed delete's journal is internal
-		}
-		if msg, at, ok := strings.Cut(v.Message, holdSep); ok {
-			v.Message = msg
-			if t, err := time.Parse(time.RFC3339, at); err == nil {
-				v.Until = &t
-			}
 		}
 		v.UpdatedAt = store.FromMillis(at)
 		out[h] = append(out[h], v)
@@ -364,27 +370,29 @@ func CopiesByHash(ctx context.Context, db interface {
 	return out, rows.Err()
 }
 
-// TorrentHash is the hash and the known names of torrent id on provider pk: a read of the provider (its display and
-// original names), else the registry's when the provider cannot be read. The registry's names of the hash are added
-// by the copy itself (copyRefusedName).
+// TorrentHash is the hash and the known names of torrent id on provider pk: the registry's, else (no hash there) a
+// read of the provider (its display and original names).
 func (r *Router) TorrentHash(ctx context.Context, pk, id string) (string, []string, error) {
-	if rp := r.provs[pk]; rp != nil {
-		if t, err := rp.Torrent(ctx, id); err == nil {
-			return indexer.NormalizeHash(t.Hash), slices.DeleteFunc([]string{t.OriginalName, t.Name},
-				func(s string) bool { return s == "" }), nil
-		}
-	}
 	var hash, name string
 	err := r.st.Writer().QueryRowContext(ctx, `SELECT c.info_hash, COALESCE(NULLIF(cp.folder_name, ''), c.name)
 		FROM content_provider cp JOIN content c ON c.id = cp.content_id WHERE cp.provider = ? AND cp.torrent_id = ?
 		LIMIT 1`, pk, id).Scan(&hash, &name)
-	if errors.Is(err, sql.ErrNoRows) {
+	if err != nil && !errors.Is(err, sql.ErrNoRows) {
+		return "", nil, err
+	}
+	if h := indexer.NormalizeHash(hash); h != "" {
+		return h, []string{name}, nil
+	}
+	rp := r.provs[pk]
+	if rp == nil {
 		return "", nil, nil
 	}
+	t, err := rp.Torrent(ctx, id)
 	if err != nil {
 		return "", nil, err
 	}
-	return indexer.NormalizeHash(hash), []string{name}, nil
+	return indexer.NormalizeHash(t.Hash), slices.DeleteFunc([]string{t.Name, t.OriginalName},
+		func(s string) bool { return s == "" }), nil
 }
 
 // heldComplete lists the providers whose account holds hash complete (the registry, as "Cached on" shows it).
@@ -509,27 +517,25 @@ func (r *Router) workCopy(ctx context.Context, c *copyRow) error {
 	}
 }
 
-// copyRefusedName returns the first known name of hash Real-Debrid's name rule refuses (rule J1): the given names,
-// the recorded release names of its downloads and links, an adopted link's source release, and the registry's names.
+// copyRefusedName returns the first known name of hash Real-Debrid's name rule refuses (rule J1): the given names
+// (the file's, a provider entry's), the release and original names of its downloads, the release names of the links
+// and arr files tied to it (by content, download or an arr file's download id) and the registry's names. Every read
+// is by hash.
 func (r *Router) copyRefusedName(ctx context.Context, hash string, names ...string) (string, error) {
 	err := func() error {
-		rows, err := r.st.Writer().QueryContext(ctx, `SELECT release_title FROM download WHERE info_hash = ?
-			UNION SELECT COALESCE(l.release_title, '') FROM link l LEFT JOIN download d ON d.id = l.download_id
-				LEFT JOIN content_file cf ON cf.id = l.content_file_id LEFT JOIN content c ON c.id = cf.content_id
-				WHERE lower(COALESCE(NULLIF(c.info_hash, ''), NULLIF(d.info_hash, ''),
-					CASE WHEN json_valid(l.file_metadata) THEN json_extract(l.file_metadata, '$.InfoHash') END,
-					CASE WHEN json_valid(l.adopted_source) THEN json_extract(l.adopted_source, '$.hash') END)) = ?
-			UNION SELECT CASE WHEN json_valid(l.file_metadata) THEN COALESCE(json_extract(l.file_metadata, '$.SceneName'), '') ELSE '' END
-				FROM link l WHERE json_valid(l.file_metadata) AND lower(json_extract(l.file_metadata, '$.InfoHash')) = ?
-			UNION SELECT CASE WHEN json_valid(l.adopted_source) THEN COALESCE(json_extract(l.adopted_source, '$.release'), '') ELSE '' END
-				FROM link l WHERE json_valid(l.adopted_source) AND lower(json_extract(l.adopted_source, '$.hash')) = ?
-			UNION SELECT name FROM content WHERE info_hash = ?
-			UNION SELECT COALESCE(cp.folder_name, '') FROM content_provider cp JOIN content c ON c.id = cp.content_id
-				WHERE c.info_hash = ?
-			UNION SELECT COALESCE(vf.release_title, '') FROM version_file vf JOIN content c ON c.id = vf.content_id
-				WHERE c.info_hash = ?
-			UNION SELECT COALESCE(vf.scene_name, '') FROM version_file vf JOIN content c ON c.id = vf.content_id
-				WHERE c.info_hash = ?`, hash, hash, hash, hash, hash, hash, hash, hash)
+		rows, err := r.st.Writer().QueryContext(ctx, `SELECT release_title FROM download WHERE info_hash = ?1
+			UNION SELECT COALESCE(original_name, '') FROM download WHERE info_hash = ?1
+			UNION SELECT COALESCE(l.release_title, '') FROM download d JOIN link l ON l.download_id = d.id
+				WHERE d.info_hash = ?1
+			UNION SELECT name FROM content WHERE info_hash = ?1
+			UNION SELECT COALESCE(cp.folder_name, '') FROM content c JOIN content_provider cp ON cp.content_id = c.id
+				WHERE c.info_hash = ?1
+			UNION SELECT COALESCE(l.release_title, '') FROM content c JOIN content_file cf ON cf.content_id = c.id
+				JOIN link l ON l.content_file_id = cf.id WHERE c.info_hash = ?1
+			UNION SELECT COALESCE(vf.release_title, '') || char(10) || COALESCE(vf.scene_name, '') FROM content c
+				JOIN version_file vf ON vf.content_id = c.id WHERE c.info_hash = ?1
+			UNION SELECT COALESCE(release_title, '') || char(10) || COALESCE(scene_name, '') FROM version_file
+				WHERE download_id IN (?1, upper(?1))`, hash)
 		if err != nil {
 			return err
 		}
@@ -539,7 +545,7 @@ func (r *Router) copyRefusedName(ctx context.Context, hash string, names ...stri
 			if err := rows.Scan(&n); err != nil {
 				return err
 			}
-			names = append(names, n)
+			names = append(names, strings.Split(n, "\n")...)
 		}
 		return rows.Err()
 	}()
@@ -585,24 +591,12 @@ func (r *Router) startCopy(ctx context.Context, c *copyRow) error {
 		if p.HoldUntil.After(until) {
 			until = p.HoldUntil
 		}
-		return r.setCopy(ctx, c, CopySkipped, holdMessage("Skipped: "+providerWords(pv.Kind)+" is holding adds", until), "")
+		return r.setCopy(ctx, c, CopySkipped, "Skipped: "+providerWords(pv.Kind)+" is holding adds", "until_at = ?",
+			store.Millis(until))
 	}
 	m, err := adder.BareMagnet(c.hash, c.name, r.set.Trackers)
 	if err != nil {
 		return r.setCopy(ctx, c, CopyFailed, err.Error(), "")
-	}
-	if pv.Kind == provider.KindRealDebrid {
-		if n, err := r.copyRefusedName(ctx, c.hash, c.name); err != nil {
-			return err
-		} else if n != "" {
-			return r.setCopy(ctx, c, CopyRefused, "Real-Debrid refuses this name ("+n+")", "")
-		}
-	}
-	// A route's add of the hash there is not settled: wait for it (rule E).
-	if busy, err := r.routeAddUnsettled(ctx, c.pk, c.hash); err != nil {
-		return err
-	} else if busy {
-		return r.laterUntil(now.Add(reconcileAfter))
 	}
 	switch cached, err := r.checkHash(ctx, pv, c.pk, c.hash); {
 	case err != nil:
@@ -747,6 +741,12 @@ func (r *Router) addCopy(ctx context.Context, c *copyRow, pv *policy.Provider, a
 		}
 	}
 	defer unlock()
+	// A route's add of the hash there is not settled: wait for it, under the add lock (rule E).
+	if busy, err := r.routeAddUnsettled(ctx, c.pk, c.hash); err != nil {
+		return err
+	} else if busy {
+		return r.laterUntil(r.now().Add(reconcileAfter))
+	}
 	rp := r.provs[c.pk]
 	if rp == nil {
 		return fmt.Errorf("router: copy to %s waits: no read-only client", c.pk)
@@ -766,22 +766,25 @@ func (r *Router) addCopy(ctx context.Context, c *copyRow, pv *policy.Provider, a
 	if limit := pv.TorrentLimit(); policy.NearTorrentLimit(len(list), limit) {
 		return r.setCopy(ctx, c, CopySkipped, copyNearLimit, "")
 	}
-	// The registry's entries of the hash on this provider, whatever their state: an id among them is not ours.
+	// The registry's entries of the hash on this provider: an id among them is not ours, and one shown present makes
+	// nothing the add makes provably ours (an absent one is an old torrent since removed).
 	regIDs := map[string]bool{}
 	inRegistry := false
 	if err := func() error {
-		rows, err := r.st.Writer().QueryContext(ctx, `SELECT COALESCE(cp.torrent_id, '') FROM content_provider cp
-			JOIN content c ON c.id = cp.content_id WHERE c.info_hash = ? AND cp.provider = ?`, c.hash, c.pk)
+		rows, err := r.st.Writer().QueryContext(ctx, `SELECT COALESCE(cp.torrent_id, ''), cp.state = 'present'
+			FROM content_provider cp JOIN content c ON c.id = cp.content_id WHERE c.info_hash = ? AND cp.provider = ?`,
+			c.hash, c.pk)
 		if err != nil {
 			return err
 		}
 		defer rows.Close()
 		for rows.Next() {
 			var id string
-			if err := rows.Scan(&id); err != nil {
+			var present bool
+			if err := rows.Scan(&id, &present); err != nil {
 				return err
 			}
-			inRegistry = true
+			inRegistry = inRegistry || present
 			regIDs[id] = true
 		}
 		return rows.Err()
@@ -880,8 +883,8 @@ func (r *Router) addCopy(ctx context.Context, c *copyRow, pv *policy.Provider, a
 			if err := r.liftMisses(rctx, c.pk, explained); err != nil {
 				return err
 			}
-			return r.setCopy(rctx, c, CopyFailed, holdMessage(providerWords(pv.Kind)+" is holding adds", st.RetryAt),
-				"own_add = 0")
+			return r.setCopy(rctx, c, CopyFailed, providerWords(pv.Kind)+" is holding adds", "own_add = 0, until_at = ?",
+				store.Millis(st.RetryAt))
 		}
 		if err := r.setCache(rctx, c.hash, c.pk, "miss", "451", now.Add(r.set.MissTTL), now); err != nil {
 			return err
@@ -907,19 +910,14 @@ func (r *Router) addCopy(ctx context.Context, c *copyRow, pv *policy.Provider, a
 	return r.settleCopy(ctx, c, added)
 }
 
-// holdMessage joins words and the time a hold ends, which CopiesByHash hands to the browser as Until.
-func holdMessage(words string, until time.Time) string {
-	return words + holdSep + until.UTC().Format(time.RFC3339)
-}
-
-// holdSep separates a stored message from the hold's end (CopiesByHash splits them).
-const holdSep = "\x1funtil "
-
 // recoverAdding finishes an adding row (no torrent id) from the account: after addSettle, a torrent of the hash
 // found there is taken up with own_add false (it may be an older one), else the copy is queued again.
 func (r *Router) recoverAdding(ctx context.Context, c *copyRow) error {
 	if wait := c.updatedAt.Add(addSettle); wait.After(r.now()) {
 		return r.laterUntil(wait)
+	}
+	if r.copyPaused() {
+		return jobs.Later(5 * time.Minute) // postponed, not rewound (rule C)
 	}
 	rp := r.provs[c.pk]
 	if rp == nil {
@@ -939,9 +937,10 @@ func (r *Router) recoverAdding(ctx context.Context, c *copyRow) error {
 }
 
 // settleCopy is step 4: read the add back (Real-Debrid: select every playable file, then the grace). Complete:
-// "Cached on" learns it, added. Not complete (or dead): the uncached verdict is recorded and counted once, and our
-// add is deleted under deleteCopy's checks. A delete already owed goes straight to those checks. Pause postpones it
-// all (rule C). a is the add of this run (nil after a restart).
+// "Cached on" learns it, added. Not complete (or dead): the uncached verdict is recorded and counted once, with the
+// owed delete, and our add is deleted under deleteCopy's checks. Real-Debrid with no playable file to select: the
+// copy fails (the file type), and our add is deleted the same way. A delete already owed goes straight to the checks.
+// Pause postpones it all (rule C). a is the add of this run (nil after a restart).
 func (r *Router) settleCopy(ctx context.Context, c *copyRow, a *adder.Added) error {
 	pv := r.pol.Providers[c.pk]
 	ad := r.adders[c.pk]
@@ -958,11 +957,12 @@ func (r *Router) settleCopy(ctx context.Context, c *copyRow, a *adder.Added) err
 	if a == nil {
 		a = &adder.Added{ID: c.tid, Hash: c.hash}
 	}
-	paused := false
+	paused, unplayable := false, false
 	cv, t, why := r.readBack(ctx, pv, c.pk, a, func(t *provider.Torrent) (string, error) {
 		ids := PlayableIDs(t.Files)
 		if len(ids) == 0 {
-			return "no playable file to select", nil
+			unplayable = true
+			return copyUnplayable, nil
 		}
 		if r.copyPaused() { // the gate right before the write
 			paused = true
@@ -976,27 +976,30 @@ func (r *Router) settleCopy(ctx context.Context, c *copyRow, a *adder.Added) err
 	now := r.now()
 	switch {
 	case cv == cvCached:
-		if err := r.setCacheSource(ctx, c.hash, c.pk, "cached", "add:"+c.pk,
-			now.Add(r.pol.CacheEvidenceSettings().TTL), now); err != nil {
-			return err
-		}
-		if err := r.writeCachedOn(ctx, c.hash, c.name, c.pk, c.tid); err != nil {
-			return err
-		}
-		return r.setCopy(ctx, c, CopyAdded, "Added to "+code, "")
-	case cv == cvUncached, t != nil && t.State == provider.StateError:
-		// The verdict, recorded and counted once (rule H), whatever the delete then does.
-		rctx := context.WithoutCancel(ctx)
-		if err := r.setCache(rctx, c.hash, c.pk, "uncached", "add", now.Add(r.set.MissTTL), now); err != nil {
-			return err
-		}
-		r.uncachedAdd(rctx, c.pk)
-		r.log.Info("copy: not cached", "provider", c.pk, "hash", c.hash, "torrent", c.tid, "why", why)
+		return r.keepComplete(ctx, c, code)
+	case unplayable:
 		if !c.ownAdd {
+			return r.setCopy(ctx, c, CopyFailed, copyUnplayable, "")
+		}
+		if err := r.oweDelete(ctx, c, false); err != nil {
+			return err
+		}
+		return r.deleteCopy(ctx, c, pv, ad)
+	case cv == cvUncached, t != nil && t.State == provider.StateError:
+		r.log.Info("copy: not cached", "provider", c.pk, "hash", c.hash, "torrent", c.tid, "why", why)
+		if err := r.setCache(context.WithoutCancel(ctx), c.hash, c.pk, "uncached", "add", now.Add(r.set.MissTTL),
+			now); err != nil {
+			return err
+		}
+		if !c.ownAdd {
+			// Counted, and kept: it was not provably our own new entry.
+			if err := r.uncachedVerdict(ctx, c, ""); err != nil {
+				return err
+			}
 			return r.setCopy(ctx, c, CopyNotCached, "Not cached on "+code+"; left on the account: it was not "+
 				"provably our own new entry", "")
 		}
-		if err := r.setCopy(ctx, c, CopyChecking, copyDeletingPrefix+c.tid+" on "+c.pk, ""); err != nil {
+		if err := r.oweDelete(ctx, c, true); err != nil {
 			return err
 		}
 		return r.deleteCopy(ctx, c, pv, ad)
@@ -1008,28 +1011,73 @@ func (r *Router) settleCopy(ctx context.Context, c *copyRow, a *adder.Added) err
 	return fmt.Errorf("router: copy to %s not settled: %s", c.pk, why)
 }
 
-// copyRead reads the copy's torrent. A failed or not-found read is confirmed by a fresh listing (TorBox answers a
-// missing id with a 500, rule I): absent only when a successful listing shows neither the id nor the hash. err: no
-// answer either way.
+// copyUnplayable ends a Real-Debrid copy whose torrent has no file Real-Debrid's selection takes (an .iso, a DVD's
+// .vob); its owed delete ends with these words too.
+const copyUnplayable = "Real-Debrid cannot serve this file type"
+
+// oweDelete records on the row, before any delete is sent, that our add's delete is owed; uncached also counts the
+// uncached verdict in the same transaction (rule H), so an interruption can neither lose nor repeat the count.
+func (r *Router) oweDelete(ctx context.Context, c *copyRow, uncached bool) error {
+	msg := copyDeletingPrefix + c.tid + " on " + c.pk
+	if !uncached {
+		msg += "; " + copyUnplayable
+	}
+	if uncached {
+		return r.uncachedVerdict(ctx, c, msg)
+	}
+	return r.setCopy(ctx, c, CopyChecking, msg, "")
+}
+
+// uncachedVerdict counts the uncached verdict in pacing and, with msg, records the owed delete on the row, in one
+// transaction.
+func (r *Router) uncachedVerdict(ctx context.Context, c *copyRow, msg string) error {
+	now := r.now()
+	err := updatePace(context.WithoutCancel(ctx), r.st, c.pk, now, func(tx *sql.Tx, p *pace) (bool, error) {
+		p.uncached(now)
+		if msg == "" {
+			return true, nil
+		}
+		_, err := tx.ExecContext(ctx, `UPDATE provider_copy SET message = ?, updated_at = ? WHERE id = ? AND state = ?`,
+			msg, store.Millis(now), c.id, c.state)
+		return true, err
+	})
+	if err != nil {
+		return fmt.Errorf("router: copy %d: %w", c.id, err)
+	}
+	if msg != "" {
+		c.message, c.updatedAt = msg, now
+	}
+	return nil
+}
+
+// keepComplete ends a copy whose torrent is complete: cached evidence, Cached on, added.
+func (r *Router) keepComplete(ctx context.Context, c *copyRow, code string) error {
+	now := r.now()
+	if err := r.setCacheSource(ctx, c.hash, c.pk, "cached", "add:"+c.pk, now.Add(r.pol.CacheEvidenceSettings().TTL),
+		now); err != nil {
+		return err
+	}
+	if err := r.writeCachedOn(ctx, c.hash, c.name, c.pk, c.tid); err != nil {
+		return err
+	}
+	return r.setCopy(ctx, c, CopyAdded, "Added to "+code, "")
+}
+
+// copyRead reads the copy's torrent: present, or absent on a not-found answer (TorBox's read lists the account
+// itself before it says so, rule I). err: no answer either way.
 func (r *Router) copyRead(ctx context.Context, c *copyRow) (*provider.Torrent, bool, error) {
 	rp := r.provs[c.pk]
 	if rp == nil {
 		return nil, false, fmt.Errorf("router: copy to %s: no read-only client", c.pk)
 	}
-	t, rerr := rp.Torrent(ctx, c.tid)
-	if rerr == nil {
+	t, err := rp.Torrent(ctx, c.tid)
+	switch {
+	case err == nil:
 		return t, true, nil
+	case errors.Is(err, provider.ErrNotFound):
+		return nil, false, nil
 	}
-	list, err := rp.Torrents(ctx)
-	if err != nil {
-		return nil, false, fmt.Errorf("router: copy to %s: reading torrent %s: %v; listing: %w", c.pk, c.tid, rerr, err)
-	}
-	for _, x := range list {
-		if x.ID == c.tid || strings.EqualFold(x.Hash, c.hash) {
-			return nil, false, fmt.Errorf("router: copy to %s: torrent %s listed but not readable: %w", c.pk, c.tid, rerr)
-		}
-	}
-	return nil, false, nil
+	return nil, false, fmt.Errorf("router: copy to %s: reading torrent %s: %w", c.pk, c.tid, err)
 }
 
 // copyInUse says what on this provider uses the copy's torrent ("" when nothing): a download of ours that names its
@@ -1050,33 +1098,37 @@ func (r *Router) copyInUse(ctx context.Context, c *copyRow) (string, error) {
 }
 
 // deleteCopy deletes our add, owed since the verdict, after checking again, every attempt (rule B): the torrent is
-// still on the account (gone: our delete's work, not_cached), still not complete (complete: Cached on, added), still
-// holds the hash, and nothing on this provider uses it; then the gate (rule C). A failed delete waits and is checked
-// again; a lost answer is settled by the next read.
+// still on the account (gone: our delete's work), still not complete (complete: kept, cached evidence, Cached on,
+// added), still holds the hash; then, under the add lock so no route adopts it in between, nothing on this provider
+// uses it, the gate (rule C) and the delete. A failed delete waits and is checked again; a lost answer is settled by
+// the next read.
 func (r *Router) deleteCopy(ctx context.Context, c *copyRow, pv *policy.Provider, ad adder.Adder) error {
 	code := copyCode(pv, c.pk)
+	state, done := CopyNotCached, "Not cached on "+code+"; our add was deleted"
+	if strings.HasSuffix(c.message, copyUnplayable) {
+		state, done = CopyFailed, copyUnplayable
+	}
 	t, present, err := r.copyRead(ctx, c)
 	switch {
 	case err != nil:
 		return err
 	case !present:
-		return r.setCopy(ctx, c, CopyNotCached, "Not cached on "+code+"; our add was deleted", "")
+		return r.setCopy(ctx, c, state, done, "")
 	case t.State == provider.StateDownloaded:
-		if err := r.writeCachedOn(ctx, c.hash, c.name, c.pk, c.tid); err != nil {
-			return err
-		}
-		return r.setCopy(ctx, c, CopyAdded, "Added to "+code, "")
+		return r.keepComplete(ctx, c, code)
 	case t.Hash != "" && !strings.EqualFold(t.Hash, c.hash):
 		return r.setCopy(ctx, c, CopyFailed, "Not cached on "+code+"; left in place: the entry holds another hash", "")
-	}
-	if why, err := r.copyInUse(ctx, c); err != nil {
-		return err
-	} else if why != "" {
-		return r.setCopy(ctx, c, CopyFailed, "Not cached on "+code+"; left in place: in use ("+why+")", "")
 	}
 	del, ok := ad.(adder.StalledDeleter)
 	if !ok {
 		return r.setCopy(ctx, c, CopyFailed, "Not cached on "+code+"; left in place: the adder cannot delete", "")
+	}
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	if why, err := r.copyInUse(ctx, c); err != nil {
+		return err
+	} else if why != "" {
+		return r.setCopy(ctx, c, CopyFailed, "Not cached on "+code+"; left in place: in use ("+why+")", "")
 	}
 	if r.copyPaused() {
 		return jobs.Later(5 * time.Minute)
@@ -1091,7 +1143,7 @@ func (r *Router) deleteCopy(ctx context.Context, c *copyRow, pv *policy.Provider
 		return fmt.Errorf("router: copy to %s: deleting our add %s: %w", c.pk, c.tid, err)
 	}
 	r.log.Info("copy: our add was deleted", "provider", c.pk, "hash", c.hash, "torrent", c.tid)
-	return r.setCopy(ctx, c, CopyNotCached, "Not cached on "+code+"; our add was deleted", "")
+	return r.setCopy(ctx, c, state, done, "")
 }
 
 // writeCachedOn records that pk holds hash complete under torrent tid, as an import does (library apply.go): the

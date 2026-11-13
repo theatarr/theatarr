@@ -25,11 +25,16 @@ type copyDeleter struct {
 	// deleted it, the answer was lost).
 	fail int
 	gone func(id string)
+	// during is called as a delete is sent (before it is recorded).
+	during func()
 }
 
 func (d *copyDeleter) DeleteOwnStalledAdd(_ context.Context, id string, p adder.OwnAdd) error {
 	if !p.NotOnAccountBefore || !p.NewEntry {
 		return adder.ErrNotOwnAdd
+	}
+	if d.during != nil {
+		d.during()
 	}
 	d.mu.Lock()
 	d.stalled = append(d.stalled, id)
@@ -115,7 +120,7 @@ func (e *copyEnv) copyState(hash, pk string) (state, msg string) {
 
 func (e *copyEnv) queue(hash, name string) []CopyView {
 	e.t.Helper()
-	v, err := e.r.QueueCopies(e.ctx, CopyRequest{Hash: hash, Name: name, TitleID: 1})
+	v, err := e.r.QueueCopies(e.ctx, CopyRequest{Hash: hash, Names: []string{name}, TitleID: 1})
 	if err != nil {
 		e.t.Fatal(err)
 	}

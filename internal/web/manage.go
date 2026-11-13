@@ -1019,12 +1019,11 @@ func (w *Web) episodeFile(ctx context.Context, db *sql.DB, versionID, eid int64)
 	case err == nil:
 		f.LinkID, f.Score, f.SizeBytes, f.Instance = linkID, nullInt(score), nullInt(size), "theatarr"
 		f.Media = linkMedia(pr, am, adopted, f.ReleaseTitle, true)
-		held, err := scanProviders(ctx, db, `SELECT l.id, cp.provider FROM link l JOIN content_provider cp
-			ON cp.content_id = `+linkContentSQL+` WHERE l.id = ? AND `+providerHolds+` ORDER BY 1, 2`, []any{linkID})
+		held, err := heldByHash(ctx, db, f.InfoHash)
 		if err != nil {
 			return nil, err
 		}
-		f.CachedOn = w.cacheCodes(held[linkID])
+		f.CachedOn = w.cacheCodes(held[f.InfoHash])
 		if err := scanAll(ctx, db, `SELECT e.season, e.number FROM link_episode le JOIN episode e ON e.id = le.episode_id
 			WHERE le.link_id = ? ORDER BY e.season, e.number`, []any{linkID}, func(r *sql.Rows) error {
 			var s, n int64
@@ -1059,12 +1058,11 @@ func (w *Web) episodeFile(ctx context.Context, db *sql.DB, versionID, eid int64)
 	}
 	f.Score, f.SizeBytes, f.AddedAt, f.Media = nullInt(score), &sz, nullTS(added), parseMedia(media)
 	_ = json.Unmarshal([]byte(langs), &f.Languages)
-	held, err := scanProviders(ctx, db, `SELECT vf.id, cp.provider FROM version_file vf JOIN content_provider cp
-		ON cp.content_id = vf.content_id WHERE vf.id = ? AND `+providerHolds+` ORDER BY 1, 2`, []any{fileID})
+	held, err := heldByHash(ctx, db, f.InfoHash)
 	if err != nil {
 		return nil, err
 	}
-	f.CachedOn = w.cacheCodes(held[fileID])
+	f.CachedOn = w.cacheCodes(held[f.InfoHash])
 	err = scanAll(ctx, db, `SELECT e.season, e.number FROM version_file_episode fe JOIN episode e ON e.id = fe.episode_id
 		WHERE fe.version_file_id = ? ORDER BY e.season, e.number`, []any{fileID}, func(r *sql.Rows) error {
 		var s, n int64

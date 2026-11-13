@@ -2,7 +2,8 @@
 -- the torrent was (or is being) added to beside the provider that already holds it. A new request for the same pair
 -- replaces a finished row; an unfinished one is returned as it is. state: queued, adding (written before the add is
 -- sent; own_add says a successful account listing did not show the hash), checking (torrent_id stored right after the
--- add), then added, not_cached, refused, skipped or failed. message holds the plain reason. Nothing reads this table
+-- add), then added, not_cached, refused, skipped or failed. message holds the plain reason; until_at the end of a hold
+-- that skipped or failed it. Nothing reads this table
 -- but the copy code and the copies fields of the title page and the Torrents page.
 -- +goose Up
 CREATE TABLE provider_copy (
@@ -16,6 +17,7 @@ CREATE TABLE provider_copy (
     state       TEXT    NOT NULL CHECK (state IN ('queued', 'adding', 'checking', 'added', 'not_cached', 'refused',
                                                  'skipped', 'failed')),
     message     TEXT    NOT NULL DEFAULT '',
+    until_at    INTEGER,
     created_at  INTEGER NOT NULL,
     updated_at  INTEGER NOT NULL,
     UNIQUE (info_hash, provider)

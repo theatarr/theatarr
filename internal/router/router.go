@@ -1112,6 +1112,14 @@ func (r *Router) provider(ctx context.Context, s *routeState, c *Candidate, m ad
 		return vUnavailable, p.BackoffUntil, Step{Outcome: "deferred", Code: "paced", Message: "backoff: " + p.Reason,
 			RetryAt: p.BackoffUntil}, nil
 	}
+	// A copy of this hash to this provider (copy.go) is adding or settling: neither reuse its entry (the copy may
+	// still delete it) nor add a second one. Wait for it, as for another download's add.
+	if why, err := r.copyUnsettled(ctx, pk, hash); err != nil {
+		return 0, time.Time{}, Step{}, err
+	} else if why != "" {
+		until := now.Add(reconcileAfter)
+		return vUnavailable, until, Step{Outcome: "deferred", Code: codeUnsettled, RetryAt: until, Message: why}, nil
+	}
 	// Already on the provider: point at that torrent; nothing is added. A known id the provider did not answer for
 	// is not reused (its presence is not verified, and the provider is likely down): this provider is deferred for
 	// the route, which tries the next one.
@@ -1161,14 +1169,6 @@ func (r *Router) provider(ctx context.Context, s *routeState, c *Candidate, m ad
 			Message: fmt.Sprintf("download %d's add of this hash to %s is not settled yet", other, pk)}, nil
 	case !errors.Is(err, sql.ErrNoRows):
 		return 0, time.Time{}, Step{}, fmt.Errorf("router: unsettled adds: %w", err)
-	}
-	// A copy of this hash to this provider (copy.go) is adding or settling: a second add would make a second entry
-	// (Real-Debrid) or share the copy's (AllDebrid). Wait for it, as for another download's add.
-	if why, err := r.copyUnsettled(ctx, pk, hash); err != nil {
-		return 0, time.Time{}, Step{}, err
-	} else if why != "" {
-		until := now.Add(reconcileAfter)
-		return vUnavailable, until, Step{Outcome: "deferred", Code: codeUnsettled, RetryAt: until, Message: why}, nil
 	}
 	// Add pacing (p was loaded before the reuse check).
 	pc := pv.EffectivePacing()

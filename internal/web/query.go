@@ -271,16 +271,24 @@ requested_targets AS (
 )
 `
 
-// A file's torrent hash, the same on the title page and in the episode window: the registry content Cached on reads
-// (a link's linkContentSQL, an arr file's content), else the unique hash of the symlink target it shares
-// (uniqueLinkedTargetHash); an arr file's download id when it is a v1 hash (a torrent client's download id).
-// linkHashJoin / fileHashJoin bring in uth for link l / version file vf.
+// A file's torrent hash: the one resolution the title page's current file, the episode window's file, their Cached on
+// (heldByHash), the Torrent link and "Add to other providers" all use. A link's: its content file's content, else
+// the hash it records (its download's, the file metadata's InfoHash, the adopted source's), with or without a content
+// row; an arr file's: its content, else its download id when that is a v1 hash (a torrent client's download id); for
+// both, else the unique hash of the symlink target they share (uniqueLinkedTargetHash). linkHashJoin / fileHashJoin
+// bring in uth for link l / version file vf.
 const (
-	linkHashSQL  = `COALESCE((SELECT c_h.info_hash FROM content c_h WHERE c_h.id = ` + linkContentSQL + `), uth.info_hash, '')`
+	linkHashSQL = `COALESCE(lower(COALESCE(
+		(SELECT NULLIF(c_h.info_hash, '') FROM content_file cf_h JOIN content c_h ON c_h.id = cf_h.content_id
+			WHERE cf_h.id = l.content_file_id),
+		(SELECT NULLIF(d_h.info_hash, '') FROM download d_h WHERE d_h.id = l.download_id),
+		CASE WHEN json_valid(l.file_metadata) THEN NULLIF(json_extract(l.file_metadata, '$.InfoHash'), '') END,
+		CASE WHEN json_valid(l.adopted_source) THEN NULLIF(json_extract(l.adopted_source, '$.hash'), '') END)),
+		uth.info_hash, '')`
 	linkHashJoin = ` LEFT JOIN unique_target_hash uth ON uth.target = l.target AND l.state = 'active' AND l.kind = 'symlink' `
-	fileHashSQL  = `COALESCE((SELECT c_h.info_hash FROM content c_h WHERE c_h.id = vf.content_id), uth.info_hash,
+	fileHashSQL  = `COALESCE((SELECT c_h.info_hash FROM content c_h WHERE c_h.id = vf.content_id),
 		CASE WHEN length(vf.download_id) = 40 AND lower(vf.download_id) NOT GLOB '*[^0-9a-f]*'
-			THEN lower(vf.download_id) END, '')`
+			THEN lower(vf.download_id) END, uth.info_hash, '')`
 	fileHashJoin = ` LEFT JOIN link vf_link ON vf_link.path = vf.path AND vf_link.state = 'active' AND vf_link.kind = 'symlink'
 		LEFT JOIN unique_target_hash uth ON uth.target = vf_link.target `
 )

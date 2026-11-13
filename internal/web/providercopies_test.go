@@ -45,7 +45,7 @@ func TestProviderCopiesAPI(t *testing.T) {
 	var out CopiesResult
 	if code := e.jsonCall("POST", APIBase+"/titles/1/copies", CopyTitleRequest{Version: "movie-remux"}, sess, csrf,
 		&out); code != 200 || len(out.Copies) != 1 || len(f.got) != 1 || f.got[0].Hash != hashA ||
-		f.got[0].Name != "Alpha.2020.2160p.BluRay.REMUX-GRP" || f.got[0].TitleID != 1 {
+		f.got[0].Names[0] != "Alpha.2020.2160p.BluRay.REMUX-GRP" || f.got[0].TitleID != 1 {
 		t.Fatalf("movie: %d %+v %+v", code, out, f.got)
 	}
 	var fail apiError
@@ -102,12 +102,40 @@ func TestProviderCopiesSameHashAndPoll(t *testing.T) {
 		t.Fatalf("the page does not show the action's copies: %s", body)
 	}
 	if code := e.jsonCall("POST", APIBase+"/torrents/copy", CopyTorrentRequest{Provider: "rd", ID: "10"}, sess, csrf,
-		nil); code != 200 || len(f.got[1].Names) != 1 || f.got[1].Names[0] != "alpha.mkv" {
+		nil); code != 200 || len(f.got[1].Names) != 2 || f.got[1].Names[1] != "alpha.mkv" {
 		t.Fatalf("names: %d %+v", code, f.got)
 	}
 	var out CopiesResult
 	if code := e.getKey(APIBase+"/torrents/copies?hash="+dl, e.apiKey(), &out); code != 200 || len(out.Copies) != 1 ||
 		out.Copies[0].State != "queued" {
 		t.Fatalf("poll: %d %+v", code, out)
+	}
+}
+
+// One effective hash: an arr file with no content but a v1 download id shows Cached on from that hash, and an
+// adopted link with only a stored hash (no content row) gives the action that hash.
+func TestProviderCopiesOneHash(t *testing.T) {
+	t.Parallel()
+	f := &fakeCopier{}
+	e := newEnvWith(t, func(c *Config) {
+		c.ProviderCopies = func(context.Context) Copier { return f }
+	})
+	const dl = "cccccccccccccccccccccccccccccccccccccccc"
+	const adopted = "dddddddddddddddddddddddddddddddddddddddd"
+	e.exec(`UPDATE version_file SET download_id = ? WHERE version_id = 3`, dl)
+	e.exec(`INSERT INTO content (id, info_hash, name, state, first_seen_at, last_seen_at) VALUES (9, ?, 'x', 'present', 0, 0)`, dl)
+	e.exec(`INSERT INTO content_provider (content_id, provider, torrent_id, seen_at, state, progress)
+		VALUES (9, 'tb', '5', 0, 'present', 100)`)
+	sess := e.login()
+	if body := e.get(APIBase+"/titles/2", sess).Body.String(); !strings.Contains(body, `"cached_on":["tb"]`) {
+		t.Fatalf("Cached on of the download id's hash: %s", body)
+	}
+	e.exec(`INSERT INTO link (id, path, target, title_id, release_title, adopted_source, state, created_at, updated_at)
+		VALUES (50, '/movies/Alpha/Alpha.Web.mkv', '/mnt/x/Alpha.Web.mkv', 1, 'Alpha.2020.WEB', ?, 'active', 0, 0)`,
+		`{"from":"radarr:1","hash":"`+adopted+`"}`)
+	e.exec(`INSERT INTO link_version (link_id, version_id) VALUES (50, 2)`)
+	if code := e.jsonCall("POST", APIBase+"/titles/1/copies", CopyTitleRequest{Version: "movie-web"}, sess,
+		e.csrfFor(sess), nil); code != 200 || f.got[len(f.got)-1].Hash != adopted {
+		t.Fatalf("adopted link: %d %+v", code, f.got)
 	}
 }

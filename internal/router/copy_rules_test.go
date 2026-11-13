@@ -3,11 +3,11 @@ package router
 import (
 	"context"
 	"errors"
+	"strings"
 	"testing"
 	"time"
 
 	"github.com/theatarr/theatarr/internal/provider"
-	"github.com/theatarr/theatarr/internal/provider/adder"
 )
 
 // The fix round's rules for copies (copy.go "The rules"): ownership, the checks before every delete, Pause before
@@ -43,7 +43,8 @@ func TestCopyRuleListingBeforeAdd(t *testing.T) {
 }
 
 // A: AllDebrid hands back an id that was already on the account (a list entry without a hash): not ours, never
-// deleted. A registry row showing the hash on the provider: not ours either.
+// deleted. A registry row showing the hash present on the provider: not ours either; an absent one (an old torrent
+// since removed) does not count.
 func TestCopyRuleOwnershipFromTheListing(t *testing.T) {
 	t.Parallel()
 	e := newCopyEnv(t, provider.StateDownloading, "ad")
@@ -57,10 +58,18 @@ func TestCopyRuleOwnershipFromTheListing(t *testing.T) {
 	e2.exec(`INSERT INTO content (id, info_hash, state, first_seen_at, last_seen_at) VALUES (7, ?, 'present', 0, 0)`, h("b"))
 	e2.exec(`INSERT INTO content_provider (content_id, provider, torrent_id, seen_at, state, progress)
 		VALUES (7, 'rd', 'OLD', 0, 'absent', 0)`)
+	e2.exec(`INSERT INTO content (id, info_hash, state, first_seen_at, last_seen_at) VALUES (8, ?, 'present', 0, 0)`, h("c"))
+	e2.exec(`INSERT INTO content_provider (content_id, provider, torrent_id, seen_at, state, progress)
+		VALUES (8, 'rd', 'HELD', 0, 'present', 40)`)
 	e2.queue(h("b"), "Movie.2024.2160p.WEB-GRP")
+	e2.queue(h("c"), "Movie.2024.2160p.WEB-GRP")
 	e2.run()
-	if s, _ := e2.copyState(h("b"), "rd"); s != CopyNotCached || e2.del["rd"].deleted() != 0 {
-		t.Fatalf("registry row: %s, %d deletes", s, e2.del["rd"].deleted())
+	if s, _ := e2.copyState(h("b"), "rd"); s != CopyNotCached || e2.del["rd"].deleted() != 1 {
+		t.Fatalf("absent registry row: %s, %d deletes", s, e2.del["rd"].deleted())
+	}
+	if s, msg := e2.copyState(h("c"), "rd"); s != CopyNotCached || e2.del["rd"].deleted() != 1 ||
+		!strings.Contains(msg, "left on the account") {
+		t.Fatalf("present registry row: %s %q, %d deletes", s, msg, e2.del["rd"].deleted())
 	}
 }
 
@@ -204,7 +213,8 @@ func TestCopyRuleUncachedCountAndTorBoxAnswer(t *testing.T) {
 	}
 	e2 := newCopyEnv(t, provider.StateDownloading, "tb")
 	e2.seedChecking("tb", "tb-1", provider.StateDownloading, true)
-	e2.pr["tb"].readErr = map[string]error{"tb-1": &adder.Error{Code: adder.CodeUnavailable, Status: 500}}
+	// TorBox's read lists the account itself after its 500 and answers not found.
+	e2.pr["tb"].readErr = map[string]error{"tb-1": provider.ErrNotFound}
 	e2.run()
 	if s, _ := e2.copyState(h("a"), "tb"); s != CopyNotCached || e2.del["tb"].deleted() != 0 {
 		t.Fatalf("TorBox 500 for a deleted id: %s, %d deletes", s, e2.del["tb"].deleted())

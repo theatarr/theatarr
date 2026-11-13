@@ -91,7 +91,7 @@ func (w *Web) apiCopyTitle(rw http.ResponseWriter, r *http.Request) {
 		badRequest(rw, "invalid JSON: "+err.Error())
 		return
 	}
-	hash, name, found, err := w.fileTorrent(r.Context(), id, req.Version, req.EpisodeID)
+	hash, names, found, err := w.fileTorrent(r.Context(), id, req.Version, req.EpisodeID)
 	if err != nil {
 		w.internal(rw, err)
 		return
@@ -100,7 +100,7 @@ func (w *Web) apiCopyTitle(rw http.ResponseWriter, r *http.Request) {
 		notFound(rw)
 		return
 	}
-	w.queueCopies(rw, r, router.CopyRequest{Hash: hash, Name: name, TitleID: id})
+	w.queueCopies(rw, r, router.CopyRequest{Hash: hash, Names: names, TitleID: id})
 }
 
 // POST /torrents/copy {provider, id}: add a Torrents row's torrent to the other providers.
@@ -119,11 +119,7 @@ func (w *Web) apiCopyTorrent(rw http.ResponseWriter, r *http.Request) {
 		w.internal(rw, err)
 		return
 	}
-	cr := router.CopyRequest{Hash: hash, Except: req.Provider}
-	if len(names) > 0 {
-		cr.Name, cr.Names = names[0], names[1:]
-	}
-	w.queueCopiesWith(rw, r, c, cr)
+	w.queueCopiesWith(rw, r, c, router.CopyRequest{Hash: hash, Names: names, Except: req.Provider})
 }
 
 func (w *Web) queueCopies(rw http.ResponseWriter, r *http.Request, req router.CopyRequest) {
@@ -154,48 +150,44 @@ func (w *Web) queueCopiesWith(rw http.ResponseWriter, r *http.Request, c Copier,
 // fileTorrent is the torrent hash and name of a library's file exactly as the file objects show them (the movie's
 // current file on the title page, the episode window's file: linkHashSQL, fileHashSQL), so "Cached on", the Torrent
 // link and this action always name the same torrent. found is false for an unknown title or version.
-func (w *Web) fileTorrent(ctx context.Context, titleID int64, version string, episodeID int64) (hash, name string,
-	found bool, err error) {
+func (w *Web) fileTorrent(ctx context.Context, titleID int64, version string, episodeID int64) (hash string,
+	names []string, found bool, err error) {
 	if episodeID != 0 {
 		var versionID int64
 		err := w.st.Reader().QueryRowContext(ctx, `SELECT v.id FROM version v JOIN episode e ON e.title_id = v.title_id
 			WHERE v.title_id = ? AND v.policy_key = ? AND e.id = ?`, titleID, version, episodeID).Scan(&versionID)
 		if errors.Is(err, sql.ErrNoRows) {
-			return "", "", false, nil
+			return "", nil, false, nil
 		}
 		if err != nil {
-			return "", "", false, err
+			return "", nil, false, err
 		}
 		f, err := w.episodeFile(ctx, w.st.Reader(), versionID, episodeID)
 		if err != nil || f == nil {
-			return "", "", true, err
+			return "", nil, true, err
 		}
-		name = f.ReleaseTitle
-		if name == "" {
-			name = f.SceneName
-		}
-		return strings.ToLower(f.InfoHash), name, true, nil
+		return strings.ToLower(f.InfoHash), []string{f.ReleaseTitle, f.SceneName}, true, nil
 	}
 	d, err := w.getTitle(ctx, titleID)
 	if errors.Is(err, sql.ErrNoRows) || err == nil && d == nil {
-		return "", "", false, nil
+		return "", nil, false, nil
 	}
 	if err != nil {
-		return "", "", false, err
+		return "", nil, false, err
 	}
 	if err := w.enrichTitle(ctx, d); err != nil {
-		return "", "", false, err
+		return "", nil, false, err
 	}
 	for _, v := range d.Versions {
 		if v.Key != version {
 			continue
 		}
 		if v.Current == nil {
-			return "", "", true, nil
+			return "", nil, true, nil
 		}
-		return strings.ToLower(v.Current.InfoHash), v.Current.ReleaseTitle, true, nil
+		return strings.ToLower(v.Current.InfoHash), []string{v.Current.ReleaseTitle}, true, nil
 	}
-	return "", "", false, nil
+	return "", nil, false, nil
 }
 
 // fileCopies reads the copies of the torrents behind hashes for the file objects (see files only).

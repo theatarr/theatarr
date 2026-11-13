@@ -275,6 +275,10 @@ func (r *Router) pollSweeps(ctx context.Context, now time.Time, sum *PollSummary
 		return nil, nil, err
 	}
 	sum.Resumed, sum.Failed = resumed, sum.Failed+failed
+	// Unfinished copies to other providers left without a job (an expired last lease): queued again (copy.go).
+	if _, err := r.ResumeCopies(ctx); err != nil {
+		r.log.Warn("poll: unfinished copies not resumed", "err", err)
+	}
 	ended, err := r.endDeletedVersions(ctx, now)
 	if err != nil {
 		return nil, nil, err

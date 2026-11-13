@@ -297,8 +297,9 @@ See [quickstart](../quickstart.md#readiness-led-setup) for the completion rules;
   providers"); the answer says which ("Adding to AD, TB. The result shows here when it ends."), and the page asks
   again every 5 s while a copy is unfinished. Disabled with the Pause words while paused; a file with no hash on
   record answers "Cannot add to other providers: Theatarr has no torrent hash on record for this file." Details then
-  shows **Other providers**: only what Cached on does not ("AD not cached · RD adding…, 2 h ago"; each reason as its
-  tooltip); an added copy shows in Cached on.
+  shows **Other providers**: all but an added copy whose provider Cached on shows ("AD not cached · RD adding…, 2 h
+  ago", "AD still downloading (12%)"; each reason as its tooltip). The action's words follow the current copies and
+  go once nothing is being added.
   **Status:** a download in hand and no file reads its stage ("Downloading · 37%", "Waiting for mount", "Blocked"),
   linked to Activity; a movie without a file "Not monitored", "Upcoming · Jan 14" (not out at home yet, the posters'
   rule) or "Missing"; a held movie the upgrade badge, with Why? unless it is plainly Available without a manual ceiling (Available, Upgrade found, Best quality known), with

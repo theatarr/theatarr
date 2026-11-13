@@ -760,6 +760,32 @@ func (w *Web) currentFiles(ctx context.Context, db *sql.DB, ids []any) (map[int6
 	return aggs, provs, err
 }
 
+// heldByHash lists, by lower-case hash, the providers that hold each torrent complete now (providerHolds): Cached on
+// of a file whose hash is resolved (linkHashSQL, fileHashSQL).
+func heldByHash(ctx context.Context, db *sql.DB, hashes ...string) (map[string][]string, error) {
+	out := map[string][]string{}
+	var args []any
+	for _, h := range hashes {
+		if h != "" {
+			args = append(args, strings.ToLower(h))
+		}
+	}
+	if len(args) == 0 {
+		return out, nil
+	}
+	err := scanAll(ctx, db, `SELECT c.info_hash, cp.provider FROM content c JOIN content_provider cp ON cp.content_id = c.id
+		WHERE c.info_hash IN (`+store.Placeholders(len(args))+`) AND `+providerHolds+` ORDER BY 1, 2`, args,
+		func(r *sql.Rows) error {
+			var h, p string
+			if err := r.Scan(&h, &p); err != nil {
+				return err
+			}
+			out[h] = append(out[h], p)
+			return nil
+		})
+	return out, err
+}
+
 // scanProviders runs q, which yields (id, provider key) rows, and groups the keys by id.
 func scanProviders(ctx context.Context, db *sql.DB, q string, args []any) (map[int64][]string, error) {
 	out := map[int64][]string{}
