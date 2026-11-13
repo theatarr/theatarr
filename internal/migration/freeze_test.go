@@ -207,6 +207,25 @@ func TestFreezeStored(t *testing.T) {
 	exec(`UPDATE setting_quality_profile SET config = '{"FromArr":"radarr_4k_debrid/remux + web 2160p","Propers":"do_not_prefer"}'
 		WHERE key = 'web-2160p'`)
 	exec(`UPDATE setting_quality_profile SET config = '{"FromArr":"sonarr_gone/Any"}' WHERE key = 'tv-2160p'`)
+	// A Radarr profile with upgrades off, minimum format score 1 and cutoff score 0 builds in the arr, but the copy
+	// would fail validation (cutoff_score below min_score): it falls back.
+	odd := freezeFixture(t)
+	var qps []map[string]any
+	if err := json.Unmarshal(odd["qualityprofile"], &qps); err != nil {
+		t.Fatal(err)
+	}
+	for _, qp := range qps {
+		qp["upgradeAllowed"], qp["minFormatScore"], qp["cutoffFormatScore"] = false, 1, 0
+	}
+	if odd["qualityprofile"], err = json.Marshal(qps); err != nil {
+		t.Fatal(err)
+	}
+	oddBody, err := json.Marshal(odd)
+	if err != nil {
+		t.Fatal(err)
+	}
+	exec(`INSERT INTO arr_frozen_input (instance, flavour, body) VALUES ('radarr_odd', 'radarr', ?)`, string(oddBody))
+	exec(`UPDATE setting_quality_profile SET config = '{"FromArr":"radarr_odd/Remux + WEB 2160p"}' WHERE key = 'anime-remux-1080p-movie'`)
 	exec(`INSERT INTO setting_version_naming (key, config, created_at, updated_at) VALUES ('movie-remux', '{"FromArr":"radarr_4k_debrid"}', 1, 1)
 		ON CONFLICT (key) DO UPDATE SET config = excluded.config`)
 	if _, err := st.Load(ctx, base); err == nil {
@@ -231,6 +250,9 @@ func TestFreezeStored(t *testing.T) {
 	if v := snap.Policy.Versions["tv-2160p"]; v.Mode != policy.ModeShadow || len(snap.Policy.Profiles["tv-2160p"].Qualities) != 1 {
 		t.Fatalf("tv-2160p %s, profile %+v", v.Mode, snap.Policy.Profiles["tv-2160p"])
 	}
+	if v := snap.Policy.Versions["anime-movie"]; v.Mode != policy.ModeShadow {
+		t.Fatalf("anime-movie %s", v.Mode)
+	}
 	if base.Versions["movie-web"].Mode != snap.Policy.Versions["movie-web"].Mode {
 		t.Fatalf("movie-web mode %s", snap.Policy.Versions["movie-web"].Mode)
 	}
@@ -249,12 +271,13 @@ func TestFreezeStored(t *testing.T) {
 	rows.Close()
 	for key, want := range map[string]string{"arr-freeze:movie-web": "saved a copy of it. Check it in Settings › Profiles",
 		"arr-freeze:movie-remux": "naming taken from Sonarr/Radarr. Theatarr saved a copy",
-		"arr-freeze:tv-2160p":    "could not be copied. It is now Watch only"} {
+		"arr-freeze:tv-2160p":    "could not be copied. It is now Watch only",
+		"arr-freeze:anime-movie": "could not be copied. It is now Watch only"} {
 		if !strings.Contains(messages[key], want) {
 			t.Errorf("%s: %q", key, messages[key])
 		}
 	}
-	if len(messages) != 3 {
+	if len(messages) != 4 {
 		t.Errorf("messages %v", messages)
 	}
 	exec(`DROP TABLE arr_frozen_input`)

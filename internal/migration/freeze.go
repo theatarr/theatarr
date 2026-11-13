@@ -461,7 +461,8 @@ func freezeStored(ctx context.Context, tx *sql.Tx, now int64) error {
 			e.kind = policy.KindSeries
 		}
 		naming, msg := policy.Naming{}, frozenNamingMessage
-		if in.raw == nil || (in.flavour != "radarr" && in.flavour != "sonarr") || e.namingFrom(in.raw) != nil {
+		if in.raw == nil || (in.flavour != "radarr" && in.flavour != "sonarr") || e.namingFrom(in.raw) != nil ||
+			validNative(e.kind, nil, nil, e.Naming) != nil {
 			watchOnly[n.key], msg = true, notFrozenMessage
 		} else {
 			naming = *e.Naming
@@ -575,6 +576,30 @@ func frozenProfile(ctx context.Context, tx *sql.Tx, p frozenRef, flavour string,
 	for _, x := range frags {
 		pr = x
 	}
+	var propers string
+	if err := tx.QueryRowContext(ctx, `SELECT COALESCE(json_extract(config, '$.Propers'), '') FROM setting_quality_profile
+		WHERE key = ?`, p.key).Scan(&propers); err != nil {
+		return nil, err
+	}
+	if propers != "" {
+		pr.Propers = propers
+	}
+	// The copy must pass the validation settings loading applies; the caller falls back when it does not.
+	check := map[string]*policy.FormatSet{}
+	for setKey, set := range fsets {
+		refs := map[string]*policy.FormatRef{}
+		for k, ref := range set.Formats {
+			refs[k] = &policy.FormatRef{Flavour: ref.Flavour, Specification: json.RawMessage(e.Files[ref.File])}
+		}
+		check[setKey] = &policy.FormatSet{Flavour: set.Flavour, Formats: refs}
+	}
+	kind := policy.KindMovie
+	if flavour == "sonarr" {
+		kind = policy.KindSeries
+	}
+	if err := validNative(kind, pr, check, nil); err != nil {
+		return nil, err
+	}
 	for setKey, set := range fsets {
 		if stored, ok := sets[setKey]; ok {
 			pr.FormatSet = stored
@@ -612,13 +637,38 @@ func frozenProfile(ctx context.Context, tx *sql.Tx, p frozenRef, flavour string,
 		}
 		sets[setKey], pr.FormatSet = key, key
 	}
-	var propers string
-	if err := tx.QueryRowContext(ctx, `SELECT COALESCE(json_extract(config, '$.Propers'), '') FROM setting_quality_profile
-		WHERE key = ?`, p.key).Scan(&propers); err != nil {
-		return nil, err
-	}
-	if propers != "" {
-		pr.Propers = propers
-	}
 	return pr, nil
+}
+
+// validNative runs the policy validation settings loading applies on a converted profile (with its format sets) or
+// naming, in a policy that holds only them and one library of the kind using them; problems of that stand-in
+// library's other settings are not the copy's and are left out.
+func validNative(kind policy.Kind, pr *policy.Profile, sets map[string]*policy.FormatSet, n *policy.Naming) error {
+	const lib, prof = "frozen-check", "frozen-check"
+	v := &policy.VersionPolicy{Kind: kind}
+	p := &policy.Policy{Versions: map[string]*policy.VersionPolicy{lib: v}, FormatSets: sets}
+	if pr != nil {
+		cp := *pr
+		p.Profiles, v.Profile = map[string]*policy.Profile{prof: &cp}, prof
+	}
+	if n != nil {
+		v.Naming = *n
+	}
+	err := p.Validate()
+	var pe *policy.Errors
+	if !errors.As(err, &pe) {
+		return err
+	}
+	var kept []policy.FieldError
+	own := "versions[" + lib + "]"
+	for _, fe := range pe.List {
+		if !strings.HasPrefix(fe.Path, own) || strings.HasPrefix(fe.Path, own+".naming") ||
+			(pr != nil && strings.HasPrefix(fe.Path, own+".profile")) {
+			kept = append(kept, fe)
+		}
+	}
+	if len(kept) == 0 {
+		return nil
+	}
+	return &policy.Errors{List: kept}
 }
