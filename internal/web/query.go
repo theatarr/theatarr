@@ -71,6 +71,8 @@ type VersionBrief struct {
 	Profile             string `json:"profile,omitempty"`
 	MinimumAvailability string `json:"minimum_availability,omitempty"`
 	Folder              string `json:"folder,omitempty"`
+	// availState is the state availability reads (availStateSQL).
+	availState string
 }
 
 // TitleRow is a title on a list.
@@ -172,12 +174,12 @@ func (w *Web) listTitles(ctx context.Context, f TitleFilter) (TitlePage, error) 
 	if f.Provider != "" {
 		f.providerKeys = w.providerKeys(f.Provider)
 	}
+	f.clock = newAirClock(w.now())
 	where, args := f.where()
 	db := w.st.Reader()
 	if err := db.QueryRowContext(ctx, "SELECT COUNT(*)"+titleFrom+where, args...).Scan(&page.Total); err != nil {
 		return page, err
 	}
-	f.clock = newAirClock(w.now())
 	order, orderArgs := f.orderBy()
 	items, err := w.titleRows(ctx, db, `SELECT `+titleCols+titleFrom+where+order+` LIMIT ? OFFSET ?`,
 		append(append(args, orderArgs...), f.Limit, f.Offset))
@@ -221,12 +223,12 @@ func (w *Web) titleRows(ctx context.Context, db *sql.DB, q string, args []any) (
 	if err := w.fillArt(ctx, db, items); err != nil {
 		return items, err
 	}
-	err = scanAll(ctx, db, `SELECT v.title_id, v.id, v.policy_key, v.state, v.monitored, `+hasFileSQL+`
-		FROM version v WHERE v.title_id IN (`+store.Placeholders(len(ids))+`) AND `+liveVersion+`
-		ORDER BY v.policy_key`, ids, func(vrows *sql.Rows) error {
+	err = scanAll(ctx, db, `SELECT v.title_id, v.id, v.policy_key, v.state, v.monitored, `+hasFileSQL+`, `+
+		availStateSQL(newAirClock(w.now()))+` FROM version v WHERE v.title_id IN (`+store.Placeholders(len(ids))+`) AND `+
+		liveVersion+` ORDER BY v.policy_key`, ids, func(vrows *sql.Rows) error {
 		var tid int64
 		var v VersionBrief
-		if err := vrows.Scan(&tid, &v.ID, &v.Key, &v.State, &v.Monitored, &v.HasFile); err != nil {
+		if err := vrows.Scan(&tid, &v.ID, &v.Key, &v.State, &v.Monitored, &v.HasFile, &v.availState); err != nil {
 			return err
 		}
 		it := &items[idx[tid]]
@@ -347,6 +349,8 @@ type Version struct {
 	// Removed (title page): the version was removed from the library (arrview_removed_version); its rows and links
 	// stay. It counts in none of the title's rollups (availability, size, added).
 	Removed bool `json:"removed,omitempty"`
+	// availState is the state availability reads (availStateSQL; enrichTitle).
+	availState string
 }
 
 // RegistryEntry is a content tied to a version of a title.

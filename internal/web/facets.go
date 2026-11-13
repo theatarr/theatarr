@@ -86,35 +86,36 @@ func (w *Web) titleFacets(ctx context.Context, f TitleFilter, seeFiles bool) (Ti
 	states := map[int64][]versionState{}
 	kinds := map[int64]string{}
 	keys := map[string]*VersionFacet{}
-	err := scanAll(ctx, db, `SELECT t.id, t.kind, v.policy_key, v.state, `+hasFileSQL+titleFrom+`
-		JOIN version v ON v.title_id = t.id`+andWhere(where, liveVersion), args, func(r *sql.Rows) error {
-		var tid int64
-		var kind, key, state string
-		var has bool
-		if err := r.Scan(&tid, &kind, &key, &state, &has); err != nil {
-			return err
-		}
-		states[tid] = append(states[tid], versionState{state, has})
-		kinds[tid] = kind
-		vf := keys[key]
-		if vf == nil {
-			vf = &VersionFacet{Key: key, Label: w.versionLabel(key)}
-			keys[key] = vf
-		}
-		vf.Titles++
-		if has {
-			vf.WithFile++
-		}
-		switch state {
-		case "wanted":
-			vf.Wanted++
-		case "filled":
-			vf.Filled++
-		case "cutoff_met":
-			vf.CutoffMet++
-		}
-		return nil
-	})
+	err := scanAll(ctx, db, `SELECT t.id, t.kind, v.policy_key, v.state, `+hasFileSQL+`, `+
+		availStateSQL(newAirClock(w.now()))+titleFrom+` JOIN version v ON v.title_id = t.id`+andWhere(where, liveVersion),
+		args, func(r *sql.Rows) error {
+			var tid int64
+			var kind, key, state, avail string
+			var has bool
+			if err := r.Scan(&tid, &kind, &key, &state, &has, &avail); err != nil {
+				return err
+			}
+			states[tid] = append(states[tid], versionState{avail, has})
+			kinds[tid] = kind
+			vf := keys[key]
+			if vf == nil {
+				vf = &VersionFacet{Key: key, Label: w.versionLabel(key)}
+				keys[key] = vf
+			}
+			vf.Titles++
+			if has {
+				vf.WithFile++
+			}
+			switch state {
+			case "wanted":
+				vf.Wanted++
+			case "filled":
+				vf.Filled++
+			case "cutoff_met":
+				vf.CutoffMet++
+			}
+			return nil
+		})
 	if err != nil {
 		return out, err
 	}

@@ -130,6 +130,22 @@ func (w *Web) enrichTitle(ctx context.Context, d *TitleDetail) error {
 		ids = append(ids, v.ID)
 	}
 	d.Franchises = []FranchiseRef{}
+	if len(ids) > 0 {
+		if err := scanAll(ctx, db, `SELECT v.id, `+availStateSQL(newAirClock(w.now()))+` FROM version v
+			WHERE v.title_id = ?`, []any{d.ID}, func(r *sql.Rows) error {
+			var vid int64
+			var st string
+			if err := r.Scan(&vid, &st); err != nil {
+				return err
+			}
+			if v := byID[vid]; v != nil {
+				v.availState = st
+			}
+			return nil
+		}); err != nil {
+			return err
+		}
+	}
 	d.Availability = availabilityOf(liveStates(d.Versions))
 	if d.Kind == "movie" {
 		dates, err := availability.DatesFor(ctx, db, []any{d.ID})
@@ -189,7 +205,7 @@ func liveStates(vs []Version) []versionState {
 	var out []versionState
 	for _, v := range vs {
 		if !v.Removed {
-			out = append(out, versionState{v.State, v.HasFile})
+			out = append(out, versionState{availOr(v.availState, v.State), v.HasFile})
 		}
 	}
 	return out

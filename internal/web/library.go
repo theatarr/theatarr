@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"errors"
+	"fmt"
 	"net/http"
 	"regexp"
 	"slices"
@@ -115,37 +116,58 @@ const (
 		COALESCE((SELECT SUM(COALESCE(` + linkSizeSQL + `, 0)) FROM link l
 			LEFT JOIN content_file cf ON cf.id = l.content_file_id WHERE l.title_id = t.id AND l.state = 'active' AND ` +
 		liveLink + `), 0), 0)`
-	// The availability counts are over the versions in the library (liveVersion), as the list's rows show them.
-	nVersions = `(SELECT COUNT(*) FROM version v WHERE v.title_id = t.id AND ` + liveVersion + `)`
-	// nMissing: wanted versions with no file; nWantedFile: wanted versions that have some (a series part-way).
-	nMissing = `(SELECT COUNT(*) FROM version v WHERE v.title_id = t.id AND ` + liveVersion +
-		` AND v.state = 'wanted' AND NOT ` + hasFileSQL + `)`
-	nWantedFile = `(SELECT COUNT(*) FROM version v WHERE v.title_id = t.id AND ` + liveVersion +
-		` AND v.state = 'wanted' AND ` + hasFileSQL + `)`
-	nFilled = `(SELECT COUNT(*) FROM version v WHERE v.title_id = t.id AND ` + liveVersion + ` AND v.state = 'filled')`
 )
 
-// availabilitySQL is the condition for each availability, matching availabilityOf.
-var availabilitySQL = map[string]string{
-	"missing":   nVersions + ` > 0 AND ` + nMissing + ` = ` + nVersions,
-	"partial":   `(` + nMissing + ` > 0 AND ` + nMissing + ` < ` + nVersions + `) OR ` + nWantedFile + ` > 0`,
-	"upgrade":   nMissing + ` = 0 AND ` + nWantedFile + ` = 0 AND ` + nFilled + ` > 0`,
-	"available": nVersions + ` > 0 AND ` + nMissing + ` = 0 AND ` + nWantedFile + ` = 0 AND ` + nFilled + ` = 0`,
-	"none":      nVersions + ` = 0`,
-	// The watchable availabilities, what available, partial and missing mean to a caller without "see files"
-	// (plainFilter), matching plainAvailability.
-	"watch_available": nVersions + ` > 0 AND ((t.kind = 'movie' AND ` + anyFile + `) OR (t.kind <> 'movie' AND ` +
-		completeVersion + `))`,
-	"watch_partial": `t.kind <> 'movie' AND NOT ` + completeVersion + ` AND ` + anyFile,
-	"watch_missing": nVersions + ` > 0 AND NOT ` + anyFile + ` AND NOT (t.kind <> 'movie' AND ` + completeVersion + `)`,
+// availStateSQL is version v's state as availability reads it (versionState.state): a series copy that holds files
+// and is wanted only for episodes still to air or not monitored is complete over what has aired, as its episode
+// counts say: filled when some held episode is below cutoff, else cutoff_met. Anything else keeps v.state. The
+// clock's values are written into the SQL (a number and a YYYY-MM-DD day).
+func availStateSQL(c airClock) string {
+	aired := fmt.Sprintf(`(CASE WHEN e.air_date_utc_at IS NOT NULL THEN e.air_date_utc_at <= %d
+		ELSE e.air_date IS NOT NULL AND e.air_date <= '%s' END)`, c.nowMs, c.today)
+	return `(CASE WHEN v.state = 'wanted' AND (SELECT tk.kind FROM title tk WHERE tk.id = v.title_id) <> 'movie' AND ` +
+		hasFileSQL + ` AND NOT EXISTS (SELECT 1 FROM episode_version_state s JOIN episode e ON e.id = s.episode_id
+			WHERE s.version_id = v.id AND e.season > 0 AND s.state = 'wanted' AND s.monitored = 1 AND ` + aired + `)
+		THEN CASE WHEN EXISTS (SELECT 1 FROM episode_version_state s WHERE s.version_id = v.id AND s.state = 'filled')
+			THEN 'filled' ELSE 'cutoff_met' END
+		ELSE v.state END)`
 }
 
-const (
-	// anyFile: some version of title t has a file; completeVersion: some version is complete (filled or at cutoff).
-	anyFile         = `EXISTS (SELECT 1 FROM version v WHERE v.title_id = t.id AND ` + liveVersion + ` AND ` + hasFileSQL + `)`
-	completeVersion = `EXISTS (SELECT 1 FROM version v WHERE v.title_id = t.id AND ` + liveVersion +
-		` AND v.state IN ('filled', 'cutoff_met'))`
-)
+// availabilityConds is the condition for each availability, matching availabilityOf over the versions in the
+// library (liveVersion) and their availStateSQL, as the list's rows show them.
+func availabilityConds(c airClock) map[string]string {
+	st := availStateSQL(c)
+	live := `FROM version v WHERE v.title_id = t.id AND ` + liveVersion
+	nVersions := `(SELECT COUNT(*) ` + live + `)`
+	// nMissing: wanted versions with no file; nWantedFile: wanted versions that have some (a series part-way).
+	nMissing := `(SELECT COUNT(*) ` + live + ` AND ` + st + ` = 'wanted' AND NOT ` + hasFileSQL + `)`
+	nWantedFile := `(SELECT COUNT(*) ` + live + ` AND ` + st + ` = 'wanted' AND ` + hasFileSQL + `)`
+	nFilled := `(SELECT COUNT(*) ` + live + ` AND ` + st + ` = 'filled')`
+	// anyFile: some version has a file; completeVersion: some version is complete (filled or at cutoff).
+	anyFile := `EXISTS (SELECT 1 ` + live + ` AND ` + hasFileSQL + `)`
+	completeVersion := `EXISTS (SELECT 1 ` + live + ` AND ` + st + ` IN ('filled', 'cutoff_met'))`
+	return map[string]string{
+		"missing":   nVersions + ` > 0 AND ` + nMissing + ` = ` + nVersions,
+		"partial":   `(` + nMissing + ` > 0 AND ` + nMissing + ` < ` + nVersions + `) OR ` + nWantedFile + ` > 0`,
+		"upgrade":   nMissing + ` = 0 AND ` + nWantedFile + ` = 0 AND ` + nFilled + ` > 0`,
+		"available": nVersions + ` > 0 AND ` + nMissing + ` = 0 AND ` + nWantedFile + ` = 0 AND ` + nFilled + ` = 0`,
+		"none":      nVersions + ` = 0`,
+		// The watchable availabilities, what available, partial and missing mean to a caller without "see files"
+		// (plainFilter), matching plainAvailability.
+		"watch_available": nVersions + ` > 0 AND ((t.kind = 'movie' AND ` + anyFile + `) OR (t.kind <> 'movie' AND ` +
+			completeVersion + `))`,
+		"watch_partial": `t.kind <> 'movie' AND NOT ` + completeVersion + ` AND ` + anyFile,
+		"watch_missing": nVersions + ` > 0 AND NOT ` + anyFile + ` AND NOT (t.kind <> 'movie' AND ` + completeVersion + `)`,
+	}
+}
+
+// availOr is a version's availability state (availStateSQL) when it was read, else its state.
+func availOr(avail, state string) string {
+	if avail != "" {
+		return avail
+	}
+	return state
+}
 
 // versionState is what availabilityOf needs of a version.
 type versionState struct {
@@ -258,7 +280,7 @@ func (g TitleGridFilter) where(conds []string, args []any) ([]string, []any) {
 		conds = append(conds, "t.year <= ?")
 		args = append(args, g.YearTo)
 	}
-	if c, ok := availabilitySQL[g.Availability]; ok {
+	if c, ok := availabilityConds(g.clock)[g.Availability]; ok {
 		conds = append(conds, "("+c+")")
 	}
 	return conds, args
@@ -568,7 +590,7 @@ func (w *Web) fillVersionFiles(ctx context.Context, db *sql.DB, items []TitleRow
 		states := make([]versionState, len(it.Versions))
 		var size, added int64
 		for j, v := range it.Versions {
-			states[j] = versionState{v.State, v.HasFile}
+			states[j] = versionState{availOr(v.availState, v.State), v.HasFile}
 			if v.SizeBytes != nil {
 				size += *v.SizeBytes
 			}

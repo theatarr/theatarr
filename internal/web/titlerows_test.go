@@ -299,3 +299,54 @@ func TestRemovedCopySortsAndFilters(t *testing.T) {
 		t.Errorf("recent: %+v", picks.Items)
 	}
 }
+
+// TestCaughtUpSeriesIsAvailable: a series whose aired monitored episodes all have files is available, though its
+// copy stays wanted for an episode still to air: in the row, the availability filters, the facets and the title page,
+// for managers and for accounts without "see files". With that episode aired and missing it is partial again.
+func TestCaughtUpSeriesIsAvailable(t *testing.T) {
+	t.Parallel()
+	e := newManageEnv(t, nil)
+	e.exec(`UPDATE episode_version_state SET state = 'cutoff_met' WHERE episode_id IN (101, 102)`)
+	e.exec(`UPDATE episode SET air_date = '2099-01-01', air_date_utc_at = NULL WHERE id = 103`)
+	check := func(want, watch string) {
+		t.Helper()
+		var p TitlePage
+		e.call("GET", APIBase+"/titles?kind=series", nil, 200, &p)
+		if len(p.Items) != 1 || p.Items[0].Availability != want {
+			t.Errorf("row: %+v, want %s", p.Items, want)
+		}
+		for _, a := range []string{"partial", "available"} {
+			p = TitlePage{}
+			e.call("GET", APIBase+"/titles?kind=series&availability="+a, nil, 200, &p)
+			if (p.Total == 1) != (a == want) {
+				t.Errorf("availability=%s: %d titles (want %s)", a, p.Total, want)
+			}
+		}
+		var f TitleFacets
+		e.call("GET", APIBase+"/titles/facets?kind=series", nil, 200, &f)
+		if f.Availability[want] != 1 {
+			t.Errorf("facets %v, want %s", f.Availability, want)
+		}
+		var d TitleDetail
+		e.call("GET", APIBase+"/titles/10", nil, 200, &d)
+		if d.Availability != want {
+			t.Errorf("title page %q, want %s", d.Availability, want)
+		}
+		for _, path := range []string{"/titles/10", "/titles?kind=series", "/titles/facets?kind=series"} {
+			body := e.userBody(APIBase + path)
+			if strings.Contains(path, "facets") {
+				if !strings.Contains(body, `"`+watch+`":1`) {
+					t.Errorf("user %s: want %s: %s", path, watch, body)
+				}
+			} else if !strings.Contains(body, `"availability":"`+watch+`"`) {
+				t.Errorf("user %s: want %s: %s", path, watch, body)
+			}
+		}
+		if body := e.userBody(APIBase + "/titles?kind=series&availability=" + watch); !strings.Contains(body, `"total":1`) {
+			t.Errorf("user filter %s: %s", watch, body)
+		}
+	}
+	check("available", "available")
+	e.exec(`UPDATE episode SET air_date = '2020-01-01', air_date_utc_at = 1577836800000 WHERE id = 103`)
+	check("partial", "partial")
+}
