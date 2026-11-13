@@ -28,6 +28,8 @@ function useSwitchSave() {
       // An open title page's Search now and library rows read Pause from the add options and the title.
       void qc.invalidateQueries({ queryKey: qk.addOptions.all });
       void qc.invalidateQueries({ queryKey: ["title"] });
+      // The lists' row actions read Pause from each row's libraries.
+      void qc.invalidateQueries({ queryKey: qk.titles.all });
     } catch (e) {
       if (!confirm.ask(e, (next) => void save(paused, generation, next))) setError(e instanceof Error ? e.message : String(e));
     } finally {

@@ -220,6 +220,8 @@ export function VersionsPage({ embedded = false }: { embedded?: boolean }) {
     try {
       await saveVersion(body, create);
       void qc.invalidateQueries({ queryKey: setupKey });
+      // A library's Watch only / Live change shows on the lists' row actions.
+      void qc.invalidateQueries({ queryKey: qk.titles.all });
       // The header Pause saves with the overview's generation, which this save moved on.
       void qc.invalidateQueries({ queryKey: qk.settings.overview });
       setNotice(`${body.key} ${body.delete ? "is no longer managed" : "saved"}.`);
