@@ -285,8 +285,8 @@ export function TitleTable({ titles, more, onMore, seeFiles, manage, columns, so
       label: "Title",
       sortable: true,
       card: "none",
-      headClassName: "min-w-[12rem]",
-      cellClassName: "max-w-[24rem]",
+      headClassName: "min-w-[11rem]",
+      cellClassName: "w-full max-w-0",
       cell: (t) => <TitleCell t={t} seeFiles={seeFiles} />,
     },
     ...columns.map(({ id, label }): DataColumn<TitleRow> => ({
