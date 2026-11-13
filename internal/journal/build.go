@@ -730,15 +730,16 @@ func (b *builder) run(e *Entry, rest string) error {
 	var research sql.NullString
 	var results, accepted int
 	var created int64
+	var failure bool
 	if err := b.db.QueryRowContext(b.ctx, `SELECT source, target, state, message, research, results, accepted,
-		policy_rev, created_at FROM acquire_run WHERE id = ?`, id).Scan(&source, &target, &state, &message, &research,
-		&results, &accepted, &queuedRev, &created); err != nil {
+		policy_rev, created_at, COALESCE(`+failureRunSQL+`, 0) FROM acquire_run WHERE id = ?`, id).Scan(&source, &target,
+		&state, &message, &research, &results, &accepted, &queuedRev, &created, &failure); err != nil {
 		return err
 	}
 	e.QueuedPolicyRev = queuedRev
 	e.Source = "theatarr"
 	e.Summary = fmt.Sprintf("%s search of %s: %s: %s", source, target, state, cleanMessage(message))
-	if failureResearch(research.String) {
+	if failure {
 		e.Summary = fmt.Sprintf("re-search (%s) of %s: %s: %s", research.String, target, state, cleanMessage(message))
 	}
 	r, err := b.snapshotFor("acquire:"+rest, e.Title.ID, e.Version, created+24*3600*1000)

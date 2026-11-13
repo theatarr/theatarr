@@ -49,6 +49,11 @@ const (
 	ReasonDeadLink = "dead_link"
 )
 
+// FailureResearchSQL is the acquire_run condition of a search after a failure: research holds a failure reason,
+// not the search schedule's Search now (asked) or new-content retry (new), nor a marker of the retry chains before
+// the schedule (retry_new, fresh). The acquirer and the journal share it.
+const FailureResearchSQL = `research IS NOT NULL AND research NOT IN ('asked', 'new', 'retry_new', 'fresh')`
+
 // researchSources are the blocklist sources that trigger a re-search.
 var researchSources = []string{BlocklistStalled, BlocklistTorrentFiles, BlocklistLibrary, BlocklistProvider,
 	BlocklistReadyTimeout}

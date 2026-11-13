@@ -47,6 +47,7 @@ import (
 
 	"github.com/theatarr/theatarr/internal/jobs"
 	"github.com/theatarr/theatarr/internal/policy"
+	"github.com/theatarr/theatarr/internal/router"
 	"github.com/theatarr/theatarr/internal/store"
 )
 
@@ -225,14 +226,9 @@ func (j *Journal) hasOwnTables(ctx context.Context) bool {
 	return ok
 }
 
-// failureRunSQL says an acquire run (r) is a re-search after a failure: its research is a failure reason. The
-// search schedule also marks Search now (asked) and the retries of a new release (new); those are ordinary searches.
-const failureRunSQL = `COALESCE(r.research, '') NOT IN ('', 'asked', 'new')`
-
-// failureResearch is failureRunSQL for one run's research.
-func failureResearch(research string) bool {
-	return research != "" && research != "asked" && research != "new"
-}
+// failureRunSQL says an acquire run is a re-search after a failure (router.FailureResearchSQL): Search now, the
+// retries of a new release and the old retry chains are ordinary searches.
+const failureRunSQL = `(` + router.FailureResearchSQL + `)`
 
 const runHeadSQL = `SELECT 'run:' || r.id AS id, r.created_at AS at, r.title_id, r.version_key,
 	CASE WHEN ` + failureRunSQL + ` THEN 'research' ELSE 'search' END AS kind FROM acquire_run r`

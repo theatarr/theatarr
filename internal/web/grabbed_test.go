@@ -38,6 +38,7 @@ func TestGrabWords(t *testing.T) {
 		{"acquire:4", run(runOrigin{source: "wanted", research: "download_failed"}), "search again after a failure"},
 		{"acquire:4", run(runOrigin{source: "wanted", research: "asked"}), "Search now"},
 		{"acquire:4", run(runOrigin{source: "wanted", research: "new", reason: "missing"}), "retry of a new release"},
+		{"acquire:4", run(runOrigin{source: "wanted", research: "fresh"}), "retry of a new release"},
 		{"acquire:4", run(runOrigin{source: "command"}), "manual search"},
 		{"acquire:4", run(runOrigin{source: "command", command: true, view: "radarr", agent: "Jellyseerr/2.7"}), "Seerr request"},
 		{"acquire:4", run(runOrigin{source: "command", command: true, view: "radarr", agent: "LunaSea/10"}), "arr search (radarr)"},

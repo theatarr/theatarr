@@ -101,8 +101,7 @@ func (a *Acquirer) Research(ctx context.Context, p router.ResearchRequest) error
 		if p.Reason != router.ReasonDeadLink {
 			var recent bool
 			if err := db.QueryRowContext(ctx, `SELECT EXISTS (SELECT 1 FROM acquire_run WHERE version_id = ?
-				AND COALESCE(season, -1) = ? AND source = ? AND research IS NOT NULL
-				AND research NOT IN ('asked', 'new', 'retry_new', 'fresh')
+				AND COALESCE(season, -1) = ? AND source = ? AND `+router.FailureResearchSQL+`
 				AND ((infra = 0 AND created_at > ?) OR (infra = 2 AND created_at > ?)))`, p.VersionID, r.season,
 				SourceWanted, again, partial).Scan(&recent); err != nil {
 				return err
