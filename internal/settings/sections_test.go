@@ -625,7 +625,7 @@ func TestSectionShadowLoadsAfterComparisonDrop(t *testing.T) {
 	ctx := context.Background()
 	s, db, base, _ := versionFixture(t)
 	s.SetLookup(fixtureLookup)
-	if _, err := s.BootstrapSwitches(ctx, base, "test", nil); err != nil {
+	if _, err := s.BootstrapSwitches(ctx, base, "test"); err != nil {
 		t.Fatal(err)
 	}
 	if _, err := s.BootstrapSections(ctx, base, "test", nil); err != nil {

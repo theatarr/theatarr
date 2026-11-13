@@ -16,7 +16,7 @@ import (
 )
 
 // withRouter rebuilds the runner with a router over logging fake adders (router.enabled true, so only the versions'
-// modes keep it from writing), only the given versions Live (with grab on; the others Watch only), and TorBox added
+// modes keep it from writing), only the given versions Live (the others Watch only), and TorBox added
 // after Real-Debrid for every debrid version (TorBox has no name rule, so a WEB-DL can be placed).
 func (e *env) withRouter(t *testing.T, active ...string) (*routertest.Fake, *jobs.Queue, *jobs.Worker) {
 	t.Helper()

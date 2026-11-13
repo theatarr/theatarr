@@ -493,8 +493,8 @@ func (r *Router) pollOne(ctx context.Context, x pollRow, t *provider.Torrent, er
 		}
 		return nil
 	}
-	// Waiting for a file selection the router may not send now (grab or the router off, a gate: our own switch):
-	// the stall clock waits with it, so turning grab off does not blocklist the release as stalled.
+	// Waiting for a file selection the router may not send now (Pause on, a gate: our own switch):
+	// the stall clock waits with it, so turning Pause on does not blocklist the release as stalled.
 	// This is the only pause of the stall clock.
 	gated := r.selectionGated(x, kind, t)
 	if gated {

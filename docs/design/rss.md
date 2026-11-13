@@ -59,7 +59,7 @@ index is reloaded all the same.
 - **Routed:** the accepted items are ranked per title and library for the whole sync and handed to the router as one
   `router.route` job (source `rss`), unless every candidate overlaps an in-flight download. The router skips
   individual overlaps and places the disjoint releases in the same job. The grab journal records what the read decided
-  between. The router's gate decides whether it writes: with a library's grab off the route is a dry run. The summary
+  between. The router's gate decides whether it writes (a run is skipped altogether while Pause is on). The summary
   counts `routed` and `route_skipped`.
 
 ## SeaDex standing

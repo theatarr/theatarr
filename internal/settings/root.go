@@ -126,7 +126,7 @@ func validateVersionRoots(ctx context.Context, previous, next *policy.Policy, bo
 			}
 		}
 	}
-	// A save that changes no root and makes no version active (switches, sections, grab off, a version back to
+	// A save that changes no root and makes no version active (Pause, sections, a version back to
 	// shadow) touches no filesystem, so a stuck check of some root never holds it.
 	var keys []string
 	for _, key := range sortedPolicyKeys(next.Versions) {

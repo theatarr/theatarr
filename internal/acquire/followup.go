@@ -26,7 +26,7 @@ import (
 // started one is new: a miss starts one only when no chain of the title is pending or was queued since the newest new
 // date (so neither a follow-up's own miss nor the re-search it causes restarts it).
 //
-// A follow-up is a re-search: nothing for a version not active, router.enabled off or grab off, and it counts against
+// A follow-up is a re-search: nothing for a version not active or while Pause is on, and it counts against
 // router.wanted.per_hour (a spent hour skips that step; the next is queued already). It is not held back by
 // again_after (the re-search at once used it), and stops when nothing is new any more, the title's version is
 // unmonitored, or its new items are filled, unmonitored or have a download in flight.

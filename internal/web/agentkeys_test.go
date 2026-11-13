@@ -40,7 +40,7 @@ func (se *settingsEnv) lastActor(entity string) string {
 	return actor
 }
 
-// An admin's key creates, activates and turns grab on for a version through the same 422/preview and token round
+// An admin's key creates and activates a version through the same 422/preview and token round
 // trips as the UI; its saves are audited as the key, confirmed by the key.
 func TestAgentKeyActivatesVersion(t *testing.T) {
 	t.Parallel()

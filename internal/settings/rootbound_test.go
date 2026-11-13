@@ -128,8 +128,8 @@ func waitRootChecksIdle(t *testing.T) {
 	}
 }
 
-// A check stuck on one root holds only checks of that root: saves that touch no root (grab off, a version back to
-// shadow, the router switch) and saves of other roots go through, and a save of the stuck root names it.
+// A check stuck on one root holds only checks of that root: saves that touch no root (Pause, a version back to
+// shadow) and saves of other roots go through, and a save of the stuck root names it.
 func TestStuckRootCheckHoldsOnlyItsRoot(t *testing.T) {
 	s, _, p, initial := versionFixture(t)
 	hung := filepath.Join(p.Library.Dangling.Roots[0], "hung")
@@ -160,7 +160,7 @@ func TestStuckRootCheckHoldsOnlyItsRoot(t *testing.T) {
 	req.Records.Switches = &GlobalSwitches{Paused: true}
 	saved, err := s.Save(ctx, req)
 	if err != nil {
-		t.Fatalf("grab off and router off while a root check is stuck: %v", err)
+		t.Fatalf("Pause on while a root check is stuck: %v", err)
 	}
 
 	req = saveRequest(p, saved)

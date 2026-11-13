@@ -367,7 +367,7 @@ func TestDeadLinkSearchesOnce(t *testing.T) {
 	}
 }
 
-// A dead-link search checks when it runs: grabbing off (router, grab, version not active, the library not writing
+// A dead-link search checks when it runs: grabbing off (Pause, version not active, the library not writing
 // for the version) ends it skipped with no search, no provider call and nothing queued to fire later; unmonitored,
 // filled again or in flight stops it.
 func TestDeadLinkStops(t *testing.T) {

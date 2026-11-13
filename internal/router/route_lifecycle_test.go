@@ -87,8 +87,8 @@ func TestCancelledRouteDoesNotFailAnImportedDownload(t *testing.T) {
 	}
 }
 
-// A queued download of a version whose grab switch was turned off ends at its next route, as a switch to shadow
-// ends it: it is not resumed every ten minutes and grabbed when grab comes back on.
+// A queued download ends at its next route while Pause is on, as a switch to shadow ends it: it is not resumed every
+// ten minutes and grabbed when Pause goes off.
 func TestGrabOffQueuedDownloadIsEnded(t *testing.T) {
 	t.Parallel()
 	e := newEnv(t, true, policy.ModeActive)
@@ -123,10 +123,10 @@ func TestGrabOffQueuedDownloadIsEnded(t *testing.T) {
 	state := ""
 	_ = e.st.Reader().QueryRow(`SELECT state FROM download WHERE id = ?`, dl).Scan(&state)
 	if state != StateFailed || resumed > 1 {
-		t.Errorf("after an hour with grab off: download %s, resumed %d times", state, resumed)
+		t.Errorf("after an hour paused: download %s, resumed %d times", state, resumed)
 	}
 	if e.writes() != 0 {
-		t.Errorf("%d provider writes with grab off", e.writes())
+		t.Errorf("%d provider writes while paused", e.writes())
 	}
 }
 

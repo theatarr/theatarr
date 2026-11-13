@@ -134,8 +134,8 @@ func (r *Runner) setVersions(pol *policy.Policy, eng *decide.Engine, rt Router) 
 	}
 }
 
-// ActiveVersions lists the Live versions whose RSS picks go to the router. With grab off the router's gate makes each
-// route a dry run: a "would add" plan, no add and no re-search. Items routed this way are not marked seen, so they are
+// ActiveVersions lists the Live versions whose RSS picks go to the router. A run is skipped while Pause is on; a route
+// the router's gate still refuses is a dry run: a "would add" plan, no add and no re-search. Items routed this way are not marked seen, so they are
 // decided again each sync while they stay in the feed (at most one page, indexer.DefaultPageCap items, per feed and
 // sync).
 func (r *Runner) ActiveVersions() []string { return sortedKeys(r.active) }
