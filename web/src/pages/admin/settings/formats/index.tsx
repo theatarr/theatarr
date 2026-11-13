@@ -15,7 +15,7 @@ import { Input } from "@/components/ui/input";
 import { API_BASE } from "@/api/client";
 import { QualityPanel, type QualityRecord } from "../quality";
 import { DEFINITION, StateTag } from "../profiles/parts";
-import { matchesWords } from "@/lib/words";
+import { wordMatcher } from "@/lib/words";
 
 function FormatRow({ f, onEdit }: { f: FormatSummary; onEdit?: () => void }) {
   const d = DEFINITION[f.definition] ?? DEFINITION.ours;
@@ -44,19 +44,21 @@ export function FormatsPage({ compact = false }: { compact?: boolean }) {
   const [filter, setFilter] = useState(() => params.get("filter") ?? "");
   const groups = useMemo(() => {
     const q = filter.trim().toLowerCase();
+    const match = wordMatcher(filter);
     const m = new Map<string, FormatSummary[]>();
     for (const f of overview.data?.formats ?? []) {
       // A profile's scores may be keyed by TRaSH ID or format key, so those match exactly too.
-      if (q && !matchesWords(q, ...f.names, ...f.scored_by.map((u) => u.profile)) && f.trash_id?.toLowerCase() !== q && f.key?.toLowerCase() !== q) continue;
+      if (!match(...f.names, ...f.scored_by.map((u) => u.profile)) && f.trash_id?.toLowerCase() !== q && f.key?.toLowerCase() !== q) continue;
       m.set(f.group, [...(m.get(f.group) ?? []), f]);
     }
     return [...m.entries()];
   }, [overview.data, filter]);
   // The same filter for a definition listed under Standalone formats: words in its key or name, its TRaSH ID exactly.
+  const matchRecord = wordMatcher(filter);
   const recordMatches = (r: QualityRecord) => {
     const q = filter.trim().toLowerCase();
-    const name = String(r.config.name ?? r.specification?.name ?? "").toLowerCase();
-    return matchesWords(q, r.key, name) || String(r.config.trash_id ?? "").toLowerCase() === q;
+    const name = String(r.config.name ?? r.specification?.name ?? "");
+    return matchRecord(r.key, name) || String(r.config.trash_id ?? "").toLowerCase() === q;
   };
   const edit = (key: string) => setParams((prev) => { const next = new URLSearchParams(prev); next.set("edit", key); return next; }, { replace: true });
   const o = overview.data;

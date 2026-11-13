@@ -17,10 +17,10 @@ func Words(text string) []string {
 	return w
 }
 
+var likeEscaper = strings.NewReplacer(`\`, `\\`, `%`, `\%`, `_`, `\_`)
+
 // LikeEscape escapes s for a LIKE pattern written with ESCAPE '\'.
-func LikeEscape(s string) string {
-	return strings.NewReplacer(`\`, `\\`, `%`, `\%`, `_`, `\_`).Replace(s)
-}
+func LikeEscape(s string) string { return likeEscaper.Replace(s) }
 
 // Where returns one condition per word of text, joined with AND, and its arguments: each word must be a substring
 // of at least one of cols. It is "" with no arguments when text has no words.

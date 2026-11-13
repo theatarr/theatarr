@@ -52,7 +52,7 @@ import { AddIndexer, HoldsCard } from "./add-indexer";
 import { useCardigannCatalog, type CardigannDefinition } from "@/api/cardigann";
 import { useVersions } from "@/api/settings-versions";
 import type { LibraryList } from "./indexer-libraries";
-import { matchesWords } from "@/lib/words";
+import { wordMatcher } from "@/lib/words";
 
 const KIND: Record<string, string> = { realdebrid: "Real-Debrid", alldebrid: "AllDebrid", torbox: "TorBox" };
 
@@ -269,9 +269,9 @@ export function rssProblemsOf(defs: CardigannDefinition[] | undefined): Record<s
 }
 
 /** Whether a record matches the filter box: every word in its key, kind, definition, address or privacy. */
-export function matchesFilter(r: SettingsRecord, q: string): boolean {
+export function matchesFilter(r: SettingsRecord, match: ReturnType<typeof wordMatcher>): boolean {
   const text = (v: unknown) => (typeof v === "string" ? v : undefined);
-  return matchesWords(q, r.key, r.kind, text(r.config?.definition), text(r.config?.url), text(r.config?.privacy));
+  return match(r.key, r.kind, text(r.config?.definition), text(r.config?.url), text(r.config?.privacy));
 }
 
 /** The provider fallback order, as the versions use it: 1 RD › 2 AD › 3 TB. */
@@ -296,7 +296,8 @@ function FallbackOrder({ records }: { records: SettingsRecord[] }) {
 export function SourcesView(p: SourcesViewProps) {
   const { entity, records } = p;
   const [filter, setFilter] = useState("");
-  const shown = records.filter((r) => matchesFilter(r, filter));
+  const match = wordMatcher(filter);
+  const shown = records.filter((r) => matchesFilter(r, match));
   const view: SourcesViewProps = { ...p, filtered: filter.trim() !== "" };
   return (
     <div data-testid={`${entity}-list`}>

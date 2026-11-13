@@ -77,7 +77,7 @@ export function BlocklistTab() {
       <div className="mb-4 grid grid-cols-1 gap-2 sm:flex sm:flex-wrap sm:items-center" data-testid="blocked-filters">
         <div className="relative min-w-0 sm:max-w-64 sm:flex-1">
           <Search className="pointer-events-none absolute left-2.5 top-1/2 size-3.5 -translate-y-1/2 text-muted-foreground" />
-          <Input aria-label="Title" placeholder="Title" value={text} onChange={(e) => setText(e.target.value)} className="h-8 pl-8" data-testid="blocked-title" />
+          <Input aria-label="Title" placeholder="Title or release" value={text} onChange={(e) => setText(e.target.value)} className="h-8 pl-8" data-testid="blocked-title" />
         </div>
         <Select aria-label="Library" value={version} onChange={(e) => setVersion(e.target.value)} className="sm:w-auto" data-testid="blocked-copy">
           <option value="">All libraries</option>

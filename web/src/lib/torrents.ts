@@ -4,7 +4,7 @@ import type { Schemas } from "@/api/client";
 import type { Scope } from "@/lib/ops";
 import { fmtBytes, fmtNumber, fmtTime } from "@/lib/format";
 import { PROVIDER_SERVICES } from "@/lib/settings";
-import { matchesWords } from "@/lib/words";
+import { wordMatcher } from "@/lib/words";
 
 export type Torrent = Schemas["Torrent"];
 export type TorrentReport = Schemas["TorrentReport"];
@@ -61,12 +61,13 @@ export function groupKeys(r: TorrentReport, g: GroupID): Set<string> | null {
 export function filterTorrents(r: TorrentReport, provider: string, group: GroupID, text: string): Torrent[] {
   const keys = groupKeys(r, group);
   const q = text.trim().toLowerCase();
+  const match = wordMatcher(text);
   const out: Torrent[] = [];
   for (const p of r.providers) {
     if (provider && p.provider !== provider) continue;
     for (const t of p.torrents) {
       if (keys && !keys.has(keyOf(t))) continue;
-      if (q && !matchesWords(q, t.name, t.parsed) && !t.hash.startsWith(q)) continue;
+      if (q && !match(t.name, t.parsed) && !t.hash.startsWith(q)) continue;
       out.push(t);
     }
   }

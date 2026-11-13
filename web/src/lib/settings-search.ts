@@ -1,6 +1,6 @@
 import type { SchemaField, SettingsSchema, SettingsSections } from "@/api/settings";
 import { ADVANCED_SETTINGS_PAGES, SETTINGS_PAGES, SETTINGS_PANELS, SETTINGS_ALIASES, panelHref } from "./settings-map";
-import { matchesWords } from "@/lib/words";
+import { wordMatcher } from "@/lib/words";
 export type SettingResult = { href: string; label: string; field?: string; path?: string; terms: string };
 /** Every page, tab, panel and field, plus each named record the saved settings hold (a metadata source such as tmdb,
  * a client, a notification target) with its fields: "tmdb key" finds the tmdb source's API key. */
@@ -42,7 +42,16 @@ export function settingsIndex(schema?: SettingsSchema, sections?: SettingsSectio
  return results;
 }
 const record = (v: unknown): Record<string, unknown> => v && typeof v === "object" && !Array.isArray(v) ? v as Record<string, unknown> : {};
+/** The first 20 rows with every word typed: rows holding the whole typed phrase first, then the other matches,
+ * each in index order. */
 export function findSettings(index: SettingResult[], query: string) {
  const q = query.trim().toLowerCase();
- return q ? index.filter(r => matchesWords(q, r.terms)).slice(0, 12) : [];
+ if (!q) return [];
+ const match = wordMatcher(q);
+ const phrase: SettingResult[] = [], words: SettingResult[] = [];
+ for (const r of index) {
+  if (r.terms.toLowerCase().includes(q)) phrase.push(r);
+  else if (match(r.terms)) words.push(r);
+ }
+ return [...phrase, ...words].slice(0, 20);
 }

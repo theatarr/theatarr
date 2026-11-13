@@ -4,7 +4,7 @@
 // ticks in the same save (docs/design/settings.md, "Adding an indexer").
 import type { CardigannDefinition, CardigannSetting, ProwlarrProposal } from "@/api/cardigann";
 import type { VersionRecord } from "@/api/settings-versions";
-import { matchesWords } from "@/lib/words";
+import { wordMatcher } from "@/lib/words";
 
 export type CatalogCategory = "movies" | "tv" | "anime";
 export type CatalogFilter = { q: string; privacy: string; category: "" | CatalogCategory; language: string; runsHere: boolean };
@@ -23,11 +23,11 @@ export function contentOf(categories: number[]): CatalogCategory[] {
 export const runsHere = (d: CardigannDefinition) => d.status === "runs" || d.status === "needs_account";
 
 export function filterCatalog(defs: CardigannDefinition[], f: CatalogFilter): CardigannDefinition[] {
-  const q = f.q.trim().toLowerCase();
+  const match = wordMatcher(f.q);
   const lang = f.language.toLowerCase();
   return defs.filter(
     (d) =>
-      matchesWords(q, d.id, d.name, d.description) &&
+      match(d.id, d.name, d.description) &&
       (!f.privacy || d.privacy === f.privacy) &&
       (!f.category || contentOf(d.categories).includes(f.category)) &&
       (!lang || d.language.toLowerCase().startsWith(lang)) &&

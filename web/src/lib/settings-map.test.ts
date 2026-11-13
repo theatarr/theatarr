@@ -85,3 +85,14 @@ it("finds a named record's fields by its name, such as the tmdb source's API key
  expect(found.some(r => r.path === "metadata.sources.tvdb")).toBe(false);
  expect(findSettings(settingsIndex(schema as never), "tmdb key")).toEqual([]);
 });
+
+it("lists rows with the whole typed phrase before rows with only its words", () => {
+ const index = settingsIndex(schema as never);
+ for (const [query, field] of [["plex library", "Plex library ID"], ["check interval", "RSS feed check interval"]]) {
+  const found = findSettings(index, query);
+  expect(found.some(r => r.field === field), query).toBe(true);
+  const firstWordsOnly = found.findIndex(r => !r.terms.toLowerCase().includes(query));
+  if (firstWordsOnly >= 0) expect(found.slice(firstWordsOnly).every(r => !r.terms.toLowerCase().includes(query)), query).toBe(true);
+ }
+ expect(findSettings(index, "interval check").length).toBeGreaterThan(0);
+});
