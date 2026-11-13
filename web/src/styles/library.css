@@ -35,6 +35,51 @@
   );
 }
 
+/*
+ * Status bars and library pills (components/library/library-pill.tsx): one colour rule for every library, the tone
+ * (lib/library-status.ts copyTone) in data-tone. The held part is in the tone's colour, the part in progress striped in
+ * the accent (amber when blocked); a bad series library's empty part is a pale red.
+ */
+[data-tone="ok"] { --tc: var(--ok); }
+[data-tone="bad"] { --tc: var(--bad); }
+[data-tone="progress"] { --tc: var(--accent); }
+[data-tone="warn"] { --tc: var(--warn); }
+[data-tone="idle"] { --tc: var(--ink-3); }
+.status-track {
+  --fc: var(--accent);
+  display: flex;
+  height: 5px;
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  border-radius: 3px;
+  background: color-mix(in srgb, var(--line) 80%, transparent);
+}
+.status-track[data-tone="warn"] {
+  --fc: var(--warn);
+}
+.status-track[data-tone="bad"] {
+  background: color-mix(in srgb, var(--bad) 28%, transparent);
+}
+.status-track > .status-have {
+  height: 100%;
+  background: var(--tc);
+}
+.status-track > .status-flight {
+  height: 100%;
+  background: repeating-linear-gradient(
+    115deg,
+    var(--fc) 0 3px,
+    color-mix(in srgb, var(--fc) 38%, var(--surface)) 3px 5px
+  );
+}
+.dark .status-track:not([data-tone="bad"]) {
+  background: color-mix(in srgb, var(--line) 70%, var(--sunken));
+}
+.status-dot {
+  background: var(--tc);
+}
+
 /* Poster sizes (Poster options). Phones: small fits three across, medium and large two. */
 .poster-grid-responsive.poster-size-small {
   grid-template-columns: repeat(auto-fill, minmax(118px, 1fr));
