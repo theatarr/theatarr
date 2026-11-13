@@ -107,7 +107,7 @@ func TestDeleteLibraryRemovesRows(t *testing.T) {
 	if err != nil || len(proof.Effects) != 1 || proof.Effects[0].Effect != "Library movie-web is removed with its "+
 		"entries on every title (monitoring, wanted state, history). 1 linked files stay on disk and are no longer "+
 		"tracked. 1 downloads in progress stay at the provider or client and are no longer tracked. 1 queued "+
-		"downloads that were not sent yet are dropped." {
+		"downloads are dropped; a copy sent earlier may remain at the provider or client." {
 		t.Fatalf("confirmation: %+v %v", proof, err)
 	}
 	req.ConfirmationToken = proof.Token
@@ -119,7 +119,7 @@ func TestDeleteLibraryRemovesRows(t *testing.T) {
 	}
 	// A series library removed the same way (the store call): a shared series' episodes follow the remaining Live
 	// library (303 has no state in it yet and is left as it was); a series that had only the removed library ends
-	// unmonitored, episodes included.
+	// unmonitored, its episodes keep their flags.
 	if err := db.WriteTx(ctx, func(tx *sql.Tx) error { return removeLibraryRows(ctx, tx, "anime-tv", 9) }); err != nil {
 		t.Fatal(err)
 	}
@@ -143,7 +143,7 @@ func TestDeleteLibraryRemovesRows(t *testing.T) {
 		`SELECT group_concat(view, ' ') FROM arrview_title`:                                                                                      "v/movie-remux",
 		`SELECT versions FROM movie_collection`:                                                                                                  `["movie-remux"]`,
 		`SELECT group_concat(id || ':' || monitored, ' ') FROM (SELECT * FROM title ORDER BY id)`:                                                "1:0 2:0 3:1 4:0",
-		`SELECT group_concat(id || ':' || monitored, ' ') FROM (SELECT * FROM episode ORDER BY id)`:                                              "301:0 302:1 303:1 401:0",
+		`SELECT group_concat(id || ':' || monitored, ' ') FROM (SELECT * FROM episode ORDER BY id)`:                                              "301:0 302:1 303:1 401:1",
 		`SELECT group_concat(version_id || ':' || episode_id || ':' || monitored, ' ') FROM (SELECT * FROM episode_version_state ORDER BY 1, 2)`: "31:301:0 31:302:1",
 		`SELECT COUNT(*) FROM pragma_foreign_key_check`:                                                                                          "0",
 	} {

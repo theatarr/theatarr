@@ -903,7 +903,8 @@ the stored head, on record, quality and version saves, secret saves, import appl
 - turning Pause off ("Global switches" above);
 - removing a library, always ("Library K is removed with its entries on every title (monitoring, wanted state,
   history). N linked files stay on disk and are no longer tracked. M downloads in progress stay at the provider or
-  client and are no longer tracked. Q queued downloads that were not sent yet are dropped.", the last three sentences
+  client and are no longer tracked. Q queued downloads are dropped; a copy sent earlier may remain at
+  the provider or client.", the last three sentences
   only when not zero). The save that removes it deletes its rows in
   the same transaction ([library.md](library.md) "Removing a library");
 - a provider or indexer, enabled or not and whatever versions use it, whose address (`settings.SourceAddress`:

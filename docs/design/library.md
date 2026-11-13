@@ -904,7 +904,7 @@ the library's rows in the same transaction (`internal/settings/libraryrows.go`),
 can serve two libraries), the links it alone holds go, then its versions with what cascades from them (downloads,
 decisions, episode states, file records, wanted and ceiling state), its offers (as target or source), wanted search
 rows, view tags and its own view rows (`arrview_title` `v/<key>`). The episode and title monitoring of its titles is
-recomputed from the remaining libraries (monitored in any of them; an episode without a state left is unmonitored only when its title has no library left, otherwise kept as it is), and movie
+recomputed from the remaining libraries (an episode with states left is monitored when any of them is; one with none left keeps its flag), and movie
 collections drop the key. Files on
 disk, mount content, `link_trash` entries and downloads at the provider are not touched; a title left with no
 library stays as an unmonitored title. Migration 00125 did the same once for libraries already gone from the stored

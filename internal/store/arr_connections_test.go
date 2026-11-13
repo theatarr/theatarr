@@ -257,7 +257,7 @@ func TestMigrationArrConnections(t *testing.T) {
 		`SELECT group_concat(version, ' ') FROM arrview_title_tag`:                                                "movie-mm",
 		`SELECT group_concat(tmdb_id || versions, ' ') FROM movie_collection`:                                     `900["movie-mm"] 901["movie-mm"]`,
 		`SELECT group_concat(id || ':' || monitored, ' ') FROM (SELECT * FROM title ORDER BY id)`:                 "1:1 2:1 3:0 4:0 5:0",
-		`SELECT group_concat(id || ':' || monitored, ' ') FROM (SELECT * FROM episode ORDER BY id)`:               "301:0 302:1 303:1 501:0",
+		`SELECT group_concat(id || ':' || monitored, ' ') FROM (SELECT * FROM episode ORDER BY id)`:               "301:0 302:1 303:1 501:1",
 		`SELECT COUNT(*) FROM pragma_foreign_key_check`:                                                           "0",
 	} {
 		if got := query(t, db, q); got != want {

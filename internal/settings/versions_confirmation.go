@@ -219,7 +219,7 @@ func versionConfirmationEffects(ctx context.Context, q rootQueryer, previous, ne
 			effect += fmt.Sprintf(" %d downloads in progress stay at the provider or client and are no longer tracked.", downloads)
 		}
 		if queued > 0 {
-			effect += fmt.Sprintf(" %d queued downloads that were not sent yet are dropped.", queued)
+			effect += fmt.Sprintf(" %d queued downloads are dropped; a copy sent earlier may remain at the provider or client.", queued)
 		}
 		effects = append(effects, ConfirmationEffect{Version: key, Effect: effect})
 	}
