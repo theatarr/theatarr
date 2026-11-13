@@ -119,12 +119,22 @@ func (r *Router) guardBefore(ctx context.Context, pv *policy.Provider, pk, hash 
 			return nil, fmt.Errorf("router: downloads: %w", err)
 		}
 	}
+	if why == "" {
+		// A copy to another provider (copy.go) whose add is out or not settled: its entry is not this add's.
+		err = r.st.Writer().QueryRowContext(ctx, `SELECT 'copy to other providers (' || state || '): torrent ' ||
+			COALESCE(torrent_id, '?') FROM provider_copy WHERE info_hash = ? AND provider = ?
+			AND state IN ('adding', 'checking')`, hash, pk).Scan(&why)
+		if err != nil && !errors.Is(err, sql.ErrNoRows) {
+			return nil, fmt.Errorf("router: copies: %w", err)
+		}
+	}
 	g.before = why
-	if pv.Kind != provider.KindAllDebrid || !fresh {
+	if pv.Kind == provider.KindRealDebrid || !fresh {
 		return g, nil
 	}
-	// AllDebrid: the registry may be stale (another client added the hash since the last sync), and an upload of a
-	// hash already there returns the existing id. One read lists every magnet (no paging).
+	// AllDebrid (and TorBox, for a copy to other providers): the registry may be stale (another client added the hash
+	// since the last sync), and an upload of a hash already there returns the existing id. One read lists every magnet
+	// (no paging on AllDebrid).
 	g.listed = false
 	rp := r.provs[pk]
 	if rp == nil {
@@ -169,7 +179,9 @@ func (r *Router) proof(ctx context.Context, g *ownGuard, pv *policy.Provider, pk
 	var known string
 	err := r.st.Writer().QueryRowContext(ctx, `SELECT 'registry' FROM content_provider WHERE provider = ?
 		AND torrent_id = ? UNION ALL SELECT 'download ' || id FROM download WHERE provider = ?
-		AND provider_torrent_id = ? AND id != ? LIMIT 1`, pk, a.ID, pk, a.ID, dl).Scan(&known)
+		AND provider_torrent_id = ? AND id != ? UNION ALL SELECT 'copy to other providers ' || id FROM provider_copy
+		WHERE provider = ? AND torrent_id = ? AND state IN ('adding', 'checking') LIMIT 1`, pk, a.ID, pk, a.ID, dl,
+		pk, a.ID).Scan(&known)
 	if err != nil && !errors.Is(err, sql.ErrNoRows) {
 		return adder.OwnAdd{}, "", fmt.Errorf("router: torrent ids: %w", err)
 	}
@@ -197,6 +209,22 @@ const (
 // recorded the last read (a selection, or a rejected torrent); t is then nil.
 func (r *Router) readAfterAdd(ctx context.Context, s *routeState, pv *policy.Provider, pk, hash string,
 	a *adder.Added) (cacheVerdict, *provider.Torrent, string) {
+	return r.readBack(ctx, pv, pk, a, func(t *provider.Torrent) (string, error) {
+		sel, err := r.applyStatus(ctx, s.dlID, s.req.Version, s.vp.Kind, pk, t, false)
+		if err != nil {
+			return "", err
+		}
+		if state, _ := r.downloadState(ctx, s.dlID); state != StateAdded || !sel {
+			return "files not selected (download " + state + ")", nil
+		}
+		return "", nil
+	})
+}
+
+// readBack is readAfterAdd's reads, shared with the copies to other providers (copy.go): selectFiles sends a
+// Real-Debrid torrent's file selection when it waits for one, and says why not when it did not ("" when it did).
+func (r *Router) readBack(ctx context.Context, pv *policy.Provider, pk string, a *adder.Added,
+	selectFiles func(t *provider.Torrent) (string, error)) (cacheVerdict, *provider.Torrent, string) {
 	if pv.Kind == provider.KindAllDebrid && a.Ready {
 		return cvCached, nil, "AllDebrid answered ready"
 	}
@@ -219,12 +247,12 @@ func (r *Router) readAfterAdd(ctx context.Context, s *routeState, pv *policy.Pro
 		case t.State == provider.StateDownloaded:
 			return cvCached, t, "status " + t.Status
 		case pv.Kind == provider.KindRealDebrid && t.Status == rdWaitingFiles && !selected:
-			sel, err := r.applyStatus(ctx, s.dlID, s.req.Version, s.vp.Kind, pk, t, false)
+			why, err := selectFiles(t)
 			if err != nil {
 				return cvUnknown, nil, "selecting files: " + err.Error()
 			}
-			if state, _ := r.downloadState(ctx, s.dlID); state != StateAdded || !sel {
-				return cvUnknown, nil, "files not selected (download " + state + ")"
+			if why != "" {
+				return cvUnknown, nil, why
 			}
 			if last {
 				limit++ // selected on the last read (after a slow conversion): read the outcome once more

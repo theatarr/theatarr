@@ -447,6 +447,12 @@ func runServe(args []string) error {
 	router.RegisterRuntimeJobs(w, q, routeService.forOperation)
 	rt.SetRuntimeResolver(routeService.forOperation)
 	rt.LogState()
+	// Copies to other providers a restart interrupted are finished from the account (router copy.go).
+	if n, err := rt.ResumeCopies(ctx); err != nil {
+		log.Warn("router: unfinished copies to other providers not resumed", "err", err)
+	} else if n > 0 {
+		log.Info("router: unfinished copies to other providers resumed", "copies", n)
+	}
 
 	// The RSS sync (docs/design/rss.md): the Live libraries' feeds, their accepted items to the router. It is the
 	// decision engine's film index.

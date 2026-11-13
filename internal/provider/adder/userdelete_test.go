@@ -118,3 +118,33 @@ func TestRestore(t *testing.T) {
 		t.Errorf("add: %+v %v", a, err)
 	}
 }
+
+// A copy of ours on TorBox (router copy.go) is deleted with the same request as a person's choice, with the full proof
+// only; BareMagnet makes the bare magnet of a library hash and applies Real-Debrid's name rule loosely.
+func TestCopyDeleteAndBareMagnet(t *testing.T) {
+	ctx := context.Background()
+	f := newFakeNet(t)
+	f.serve("tb.test", func(w http.ResponseWriter, r *http.Request) { reply(t, w, 200, "tb/control_ok.json") })
+	sd := f.adder("tb").(StalledDeleter)
+	if err := sd.DeleteOwnStalledAdd(ctx, "678", OwnAdd{NewEntry: true}); !errors.Is(err, ErrNotOwnAdd) {
+		t.Errorf("no proof: %v", err)
+	}
+	if n := len(f.requests()); n != 0 {
+		t.Fatalf("%d requests for a refused delete", n)
+	}
+	if err := sd.DeleteOwnStalledAdd(ctx, "678", OwnAdd{NotOnAccountBefore: true, NewEntry: true}); err != nil {
+		t.Fatal(err)
+	}
+	if r := f.requests(); len(r) != 1 || r[0].path != "/v1/api/torrents/controltorrent" ||
+		!r[0].form.Has(`{"torrent_id":678,"operation":"delete"}`) {
+		t.Errorf("tb %+v", r)
+	}
+	if _, err := BareMagnet("nothex", "x", nil); !errors.Is(err, ErrNoHash) {
+		t.Errorf("bad hash: %v", err)
+	}
+	m, err := BareMagnet(strings.ToUpper(h("a")), "Movie 2024 2160p", []string{"udp://tracker.example:1337/announce"})
+	if err != nil || !m.valid() || m.Hash() != h("a") || m.URI() != "magnet:?xt=urn:btih:"+h("a")+
+		"&tr=udp%3A%2F%2Ftracker.example%3A1337%2Fannounce" {
+		t.Errorf("magnet %v %v %q", m, err, m.URI())
+	}
+}

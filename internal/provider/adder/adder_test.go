@@ -403,14 +403,15 @@ func TestTorBoxAdd(t *testing.T) {
 }
 
 // Nothing here can restart or unrestrict, and the only deletes are in delete.go, outside the Adder interface: the
-// router's two (DeleteOwnUncachedAdd on Real-Debrid and AllDebrid, DeleteOwnStalledAdd on Real-Debrid) and the torrent
-// manager's DeleteUserChosen (all three; who may call it is boundary_test.go's).
+// router's two (DeleteOwnUncachedAdd on Real-Debrid and AllDebrid, DeleteOwnStalledAdd on all three: AllDebrid and
+// TorBox for copies to other providers) and the torrent manager's DeleteUserChosen (all three; who may call it is
+// boundary_test.go's).
 func TestNoDeletes(t *testing.T) {
 	bad := regexp.MustCompile(`(?i)delete|remove|unrestrict|restart|requestdl|controltorrent|magnet/delete|links`)
 	allowed := map[reflect.Type][]string{
 		reflect.TypeFor[*realDebrid](): {"DeleteOwnUncachedAdd", "DeleteOwnStalledAdd", "deleteTorrent", "DeleteUserChosen"},
-		reflect.TypeFor[*allDebrid]():  {"DeleteOwnUncachedAdd", "DeleteUserChosen"},
-		reflect.TypeFor[*torBox]():     {"DeleteUserChosen"}}
+		reflect.TypeFor[*allDebrid]():  {"DeleteOwnUncachedAdd", "DeleteOwnStalledAdd", "DeleteUserChosen"},
+		reflect.TypeFor[*torBox]():     {"DeleteOwnStalledAdd", "DeleteUserChosen"}}
 	types := []reflect.Type{reflect.TypeFor[Adder](), reflect.TypeFor[*realDebrid](), reflect.TypeFor[*allDebrid](),
 		reflect.TypeFor[*torBox](), reflect.TypeFor[*poster](), reflect.TypeFor[*ledger]()}
 	for _, typ := range types {
@@ -426,8 +427,11 @@ func TestNoDeletes(t *testing.T) {
 	if _, ok := any(&torBox{}).(Deleter); ok {
 		t.Error("TorBox can delete")
 	}
-	if _, ok := any(&allDebrid{}).(StalledDeleter); ok {
-		t.Error("AllDebrid can delete a stalled magnet")
+	if _, ok := any(&allDebrid{}).(StalledDeleter); !ok {
+		t.Error("AllDebrid cannot delete a copy of ours")
+	}
+	if _, ok := any(&torBox{}).(StalledDeleter); !ok {
+		t.Error("TorBox cannot delete a copy of ours")
 	}
 	paths := regexp.MustCompile(`"/[^"]*"`)
 	entries, _ := os.ReadDir(".")
@@ -595,6 +599,24 @@ func TestDeleteOwnUncachedAdd(t *testing.T) {
 	if err := sd.DeleteOwnStalledAdd(ctx, "RDOLD", proof); err != nil ||
 		count(http.MethodDelete, "/rest/1.0/torrents/delete/RDOLD") != 1 {
 		t.Errorf("stalled delete: %v", err)
+	}
+	// A copy of ours on AllDebrid (router copy.go): the same request, with the full proof only.
+	adSD := ad.(StalledDeleter)
+	adFile = "ad/delete_ok.json"
+	if err := adSD.DeleteOwnStalledAdd(ctx, "77", OwnAdd{NotOnAccountBefore: true}); !errors.Is(err, ErrNotOwnAdd) {
+		t.Errorf("AD stalled without proof: %v", err)
+	}
+	if err := adSD.DeleteOwnStalledAdd(ctx, "77", proof); err != nil {
+		t.Errorf("AD stalled: %v", err)
+	}
+	var adLast request
+	for _, r := range f.requests() {
+		if r.host == "ad.test" {
+			adLast = r
+		}
+	}
+	if adLast.path != "/v4/magnet/delete" || adLast.form.Get("id") != "77" {
+		t.Errorf("AD stalled request %+v", adLast)
 	}
 	// The two adders' ledgers are separate: an RD add can't be deleted through AD.
 	a4, _ := rd.AddMagnet(ctx, magnet(t, h("a"), "x"), AddOptions{})

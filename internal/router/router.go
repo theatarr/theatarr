@@ -49,8 +49,11 @@ type Config struct {
 	// Clients are the download clients a client-routed version sends its grabs to (versions[*].add_via: client;
 	// BuildClients), by client key. A version whose client has none skips its releases (no_client).
 	Clients map[string]*qbit.Client
-	Logger  *slog.Logger
-	Now     func() time.Time
+	// AvailabilityHash asks DMM's availability about one hash for a provider code (rd, ad): the copies to other
+	// providers' read-only evidence (copy.go; indexer.Service.CheckAvailabilityHash). nil: not asked.
+	AvailabilityHash func(ctx context.Context, code, hash string) (listed, ok bool, err error)
+	Logger           *slog.Logger
+	Now              func() time.Time
 }
 
 // Router places releases on debrid providers (docs/design/router.md). See the package doc.
@@ -66,6 +69,7 @@ type Router struct {
 	adders          map[string]adder.Adder
 	provs           map[string]provider.Provider
 	clients         map[string]*qbit.Client
+	availHash       func(ctx context.Context, code, hash string) (listed, ok bool, err error)
 	log             *slog.Logger
 	now             func() time.Time
 	q               *jobs.Queue // deferred routes; nil until RegisterJobs
@@ -167,7 +171,7 @@ func New(cfg Config) (*Router, error) {
 	}
 	r := &Router{st: cfg.Store, pol: cfg.Policy, set: cfg.Policy.RouterSettings(), adders: cfg.Adders, clients: cfg.Clients,
 		generation: cfg.Generation, settingsManaged: cfg.SettingsManaged, providerEpoch: cfg.ProviderEpoch, providerKeys: cfg.ProviderKeys,
-		provs: cfg.Providers, log: cfg.Logger.With("component", "router"), now: cfg.Now, sleep: sleepCtx, q: cfg.Queue,
+		provs: cfg.Providers, availHash: cfg.AvailabilityHash, log: cfg.Logger.With("component", "router"), now: cfg.Now, sleep: sleepCtx, q: cfg.Queue,
 		mu: mu, shared: sh, ignoreMissingUntil: map[string]time.Time{}}
 	for key, until := range cfg.IgnoreMissingUntil {
 		r.ignoreMissingUntil[key] = until

@@ -420,3 +420,31 @@ func TestAvailabilityEvidenceKeepsFirstPartyRows(t *testing.T) {
 		t.Fatalf("provider_cache %v, want %v", got, want)
 	}
 }
+
+// One hash outside a search ("Add to other providers"): a listed hash is stored as feed evidence for the providers of
+// its code (keyed by provider key); an unlisted one is unknown and writes nothing.
+func TestCheckAvailabilityHash(t *testing.T) {
+	n := newNet(t)
+	dmm := &availServer{listed: map[string][]string{"rd": {hx("2")}}}
+	dmm.serve(t, n)
+	p := evidencePolicy()
+	h := newHarness(t, n, p, false)
+	st := openStore(t)
+	h.svc.SetEvidence(NewEvidence(EvidenceConfig{Store: st, Policy: p, Now: h.clock}))
+	ctx := context.Background()
+	if listed, ok, err := h.svc.CheckAvailabilityHash(ctx, "rd", hx("2")); !listed || !ok || err != nil {
+		t.Fatalf("listed %v ok %v err %v", listed, ok, err)
+	}
+	if listed, ok, err := h.svc.CheckAvailabilityHash(ctx, "ad", hx("2")); listed || !ok || err != nil {
+		t.Fatalf("ad: listed %v ok %v err %v", listed, ok, err)
+	}
+	if _, ok, _ := h.svc.CheckAvailabilityHash(ctx, "tb", hx("2")); ok {
+		t.Fatal("asked DMM about TorBox")
+	}
+	if got := fmt.Sprint(cacheRows(t, st)); got != fmt.Sprint(map[string]string{"2222/rd": "cached feed:dmm/availability"}) {
+		t.Fatalf("provider_cache %s", got)
+	}
+	if r := dmm.requests(); len(r) != 2 || !slices.Equal(r[0].hashes, []string{hx("2")}) {
+		t.Fatalf("requests %+v", r)
+	}
+}

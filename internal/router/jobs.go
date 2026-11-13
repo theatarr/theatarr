@@ -84,6 +84,7 @@ func (r *Router) deferSlot(pk string, at, now time.Time) (slot time.Time, take f
 func (r *Router) RegisterJobs(w *jobs.Worker, q *jobs.Queue) {
 	r.q = q
 	w.Handle(JobRoute, r.handleRoute)
+	w.Handle(JobCopy, r.handleCopyJob)
 }
 
 // RegisterRuntimeJobs dispatches each queued route to the runtime captured when the job starts.
@@ -102,6 +103,13 @@ func RegisterRuntimeJobs(w *jobs.Worker, q *jobs.Queue,
 			return fmt.Errorf("router: active router is not bound to the route queue")
 		}
 		return active.handleRoutePayload(ctx, j, p)
+	})
+	w.Handle(JobCopy, func(ctx context.Context, j *jobs.Job) error {
+		ctx, active := resolve(ctx)
+		if active == nil {
+			return fmt.Errorf("router: active settings runtime is unavailable")
+		}
+		return active.handleCopyJob(ctx, j)
 	})
 }
 

@@ -122,6 +122,35 @@ func (s *Service) CheckAvailability(ctx context.Context, versions []*policy.Vers
 	return e.availability(ctx, src, versions, rs)
 }
 
+// CheckAvailabilityHash asks DMM's availability about one hash for one provider code ("rd" or "ad"), outside a search:
+// the router's "Add to other providers" (internal/router copy.go). listed is true when DMM lists it; the answer is then
+// stored like a search's (a DMM cached feed's evidence for every provider of the code). Not listed is unknown, never
+// uncached, and nothing is written. ok is false when there is no DMM indexer with its key set (or the code is not
+// one DMM answers for), and nothing was asked.
+func (s *Service) CheckAvailabilityHash(ctx context.Context, code, hash string) (listed, ok bool, err error) {
+	h := NormalizeHash(hash)
+	if h == "" || (code != "rd" && code != "ad") {
+		return false, false, nil
+	}
+	src := s.availabilitySource()
+	if src == nil {
+		return false, false, nil
+	}
+	cctx, cancel := context.WithTimeout(ctx, availabilityTimeout)
+	defer cancel()
+	got, err := src.availability(cctx, code, []string{h})
+	if err != nil {
+		return false, true, err
+	}
+	if !slices.Contains(got, h) {
+		return false, true, nil
+	}
+	if e := s.evidence(); e != nil {
+		e.recordAvailability(ctx, map[string][]string{h: {code}}, cacheSourceFeed+src.Key()+cacheSourceAvailability)
+	}
+	return true, true, nil
+}
+
 func (e *Evidence) availability(ctx context.Context, src availabilityAsker, versions []*policy.VersionPolicy,
 	rs []Release) int {
 	// Candidates per code, in release order: hashed, from an indexer a debrid version being searched sends to that

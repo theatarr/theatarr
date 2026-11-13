@@ -434,7 +434,7 @@ func prepareServeRuntime(ctx context.Context, snap *settings.Snapshot, previous 
 	rt, err := router.New(router.Config{Store: st, Policy: active, Adders: adders, Previous: previousRouter,
 		Generation: snap.Generation, SettingsManaged: true, ProviderEpoch: epoch, ProviderKeys: providerKeys,
 		Providers: ps.syncer.Providers, Clients: router.BuildClients(active, gw, active.Getenv, log), Logger: log,
-		Queue: q})
+		Queue: q, AvailabilityHash: idx.CheckAvailabilityHash})
 	if err != nil {
 		return nil, err
 	}

@@ -11,7 +11,8 @@
 //     (the version's indexer list), checked by the decision engine, not here.
 //   - [Adder.SelectFiles] selects files of a Real-Debrid torrent. AllDebrid and TorBox take every file.
 //   - [Restore] makes the magnet that puts a torrent from a backup back on an account (internal/torrents): a hash
-//     with no release (restore.go).
+//     with no release (restore.go). [BareMagnet] makes the magnet of a torrent already in the library for another
+//     provider ("Add to other providers", internal/router copy.go): a hash and its name, with no release.
 //   - The one delete in Theatarr is [Deleter.DeleteOwnUncachedAdd] (delete.go), on Real-Debrid and AllDebrid only and not
 //     part of Adder: it removes an add this adder made moments ago in the same route attempt, when the router proves
 //     the entry is ours and it turned out uncached (router.cached_only, and the one second selection a cached-only
@@ -85,7 +86,7 @@ type Added struct {
 // ErrNoSelection: the provider takes every file; there is nothing to select.
 var ErrNoSelection = errors.New("adder: this provider takes every file")
 
-// Magnet is a debrid magnet: a bare v1 hash. Only NewMagnet and Restore make one; the zero Magnet is refused by every
+// Magnet is a debrid magnet: a bare v1 hash. Only NewMagnet, Restore and BareMagnet make one; the zero Magnet is refused by every
 // Adder.
 type Magnet struct {
 	hash     string
@@ -94,6 +95,7 @@ type Magnet struct {
 	refused  bool // Real-Debrid's name rule matches the title
 	trackers []string
 	restore  bool // made by Restore: a hash from a backup, with no release (indexer is "")
+	bare     bool // made by BareMagnet: a hash already in the library, added to another provider (no release)
 }
 
 // Hash is the v1 info hash, lower-case hex.
@@ -120,7 +122,7 @@ func (m Magnet) URI() string {
 // String never shows trackers.
 func (m Magnet) String() string { return "magnet " + m.hash }
 
-func (m Magnet) valid() bool { return len(m.hash) == 40 && (m.indexer != "" || m.restore) }
+func (m Magnet) valid() bool { return len(m.hash) == 40 && (m.indexer != "" || m.restore || m.bare) }
 
 // ErrNoHash: NewMagnet was given a release with no v1 info hash.
 var ErrNoHash = errors.New("adder: the release has no v1 info hash")
@@ -139,6 +141,22 @@ func NewMagnet(r *indexer.Release, trackers []string) (Magnet, error) {
 		return Magnet{}, err
 	}
 	return Magnet{hash: h, indexer: r.Indexer, title: r.Title, refused: indexer.RealDebridRefusesRelease(r),
+		trackers: append([]string(nil), trackers...)}, nil
+}
+
+// BareMagnet makes the magnet that adds hash, a torrent already in the library, to another provider (the router's
+// "Add to other providers"): the bare hash plus the policy's public trackers, as for NewMagnet. name is the torrent's
+// name, for logs and Real-Debrid's name rule (indexer.RealDebridRefuses, loosely); it is not sent. ErrNoHash for
+// anything but a v1 info hash.
+func BareMagnet(hash, name string, trackers []string) (Magnet, error) {
+	h := indexer.NormalizeHash(hash)
+	if h == "" {
+		return Magnet{}, ErrNoHash
+	}
+	if err := checkTrackers(trackers); err != nil {
+		return Magnet{}, err
+	}
+	return Magnet{hash: h, title: name, refused: indexer.RealDebridRefuses(name, true), bare: true,
 		trackers: append([]string(nil), trackers...)}, nil
 }
 
