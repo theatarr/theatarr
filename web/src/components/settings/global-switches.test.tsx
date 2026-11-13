@@ -15,6 +15,13 @@ function StatusAndWanted() {
   return null;
 }
 
+/** Reads what a title page reads for Search now: the add options and the title. */
+function TitleReads() {
+  useQuery({ queryKey: qk.addOptions.one("movie", undefined, 7, false), queryFn: () => api("/add/options") });
+  useQuery({ queryKey: qk.title(7), queryFn: () => api("/titles/7") });
+  return null;
+}
+
 const overview = (paused: boolean, extra: Record<string, unknown> = {}, pause_forced = false) => ({
   source: "db", writable: true, generation: 7, active_generation: 7, provider_epoch: 0, policy_dir: "/policy", yaml_owned: [], indexers: [], providers: [], budgets: [],
   switches: { paused, pause_forced, versions: [] }, ...extra,
@@ -47,6 +54,22 @@ describe("Pause in the admin header", () => {
     await userEvent.setup().click(pause);
     await waitFor(() => expect(fetch.calls("GET", "/wanted")).toHaveLength(2));
     expect(fetch.calls("GET", "/status")).toHaveLength(2);
+  });
+
+  it("turning Pause off reads an open title page's add options and title again, so its Search now follows", async () => {
+    const fetch = mockFetch([
+      { method: "GET", path: "/settings", reply: overview(true) },
+      { method: "GET", path: "/add/options", reply: { versions: [] } },
+      { method: "GET", path: "/titles/7", reply: {} },
+      { method: "PUT", path: "/settings/switches", reply: { generation: 8 } },
+    ]);
+    renderPage(<><PauseSwitch /><TitleReads /></>);
+    const pause = await screen.findByRole("switch", { name: "Pause" });
+    await waitFor(() => expect(fetch.calls("GET", "/titles/7")).toHaveLength(1));
+    expect(fetch.calls("GET", "/add/options")).toHaveLength(1);
+    await userEvent.setup().click(pause);
+    await waitFor(() => expect(fetch.calls("GET", "/add/options")).toHaveLength(2));
+    expect(fetch.calls("GET", "/titles/7")).toHaveLength(2);
   });
 
   it("off: goes through the confirmation showing the server's effect as given", async () => {
