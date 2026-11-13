@@ -30,7 +30,8 @@ type RenamePreview struct {
 	Skipped int
 }
 
-// PreviewRename rebuilds names from the link's frozen import inputs and the current version naming.
+// PreviewRename rebuilds names from the link's frozen import inputs and the current version naming. Links of a copy
+// removed from the library are left out; a link of a library no longer in the settings counts as skipped.
 func (l *Library) PreviewRename(ctx context.Context, titleID int64, season *int) (*RenamePreview, error) {
 	return l.previewRename(ctx, titleID, season, nil)
 }
@@ -55,7 +56,8 @@ func (l *Library) previewRename(ctx context.Context, titleID int64, season *int,
 			COALESCE(t.tmdb_id, 0), COALESCE(t.tvdb_id, 0), `+store.SeriesTypeSQL("t")+`, l.file_metadata,
 			COALESCE(l.adopted_media, '')
 		FROM link l JOIN link_version lv ON lv.link_id = l.id JOIN version v ON v.id = lv.version_id
-		JOIN title t ON t.id = l.title_id WHERE l.title_id = ? AND l.state = 'active' ORDER BY l.id`, titleID)
+		JOIN title t ON t.id = l.title_id WHERE l.title_id = ? AND l.state = 'active'
+			AND NOT EXISTS (SELECT 1 FROM arrview_removed_version r WHERE r.version_id = v.id) ORDER BY l.id`, titleID)
 	if err != nil {
 		return nil, err
 	}
@@ -96,6 +98,10 @@ func (l *Library) previewRename(ctx context.Context, titleID int64, season *int,
 		p, err = probeResult(ctx, l.st.Reader(), linkID)
 		if err != nil && !errors.Is(err, sql.ErrNoRows) {
 			out.Skipped++
+			continue
+		}
+		if l.pol.Versions[key] == nil {
+			out.Skipped++ // a library no longer in the settings: no naming to check against
 			continue
 		}
 		vn, err := NamingFor(l.pol, key)

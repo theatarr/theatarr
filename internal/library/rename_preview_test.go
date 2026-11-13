@@ -100,3 +100,40 @@ func TestRenameApplyGateAndIdempotent(t *testing.T) {
 		t.Fatalf("closed gate changed old link: %v", err)
 	}
 }
+
+// TestRenameSkipsRemovedAndUnknownLibraries: a removed copy's links are neither previewed nor renamed, and a link of
+// a library no longer in the settings is skipped (counted), not an error.
+func TestRenameSkipsRemovedAndUnknownLibraries(t *testing.T) {
+	t.Parallel()
+	e := newEnv(t, true, policy.ModeActive)
+	old := filepath.Join(e.movies, "Amelie (2001)", "old.mkv")
+	gone := filepath.Join(e.movies, "Amelie (2001)", "gone.mkv")
+	target := filepath.Join(e.mount, "__all__", "x.mkv")
+	if err := os.MkdirAll(filepath.Dir(old), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	for _, p := range []string{old, gone} {
+		if err := os.Symlink(target, p); err != nil {
+			t.Fatal(err)
+		}
+	}
+	meta := linkMetadata(t, decide.ExistingFile{Quality: "Remux-2160p", Revision: 1, RelativePath: "source.mkv", SceneName: "Movie.Release"})
+	e.exec(`INSERT INTO version (id, title_id, policy_key, state, created_at, updated_at) VALUES (99, 1, 'gone-lib', 'wanted', 0, 0)`)
+	e.exec(`INSERT INTO link (id,path,target,title_id,release_title,quality,file_metadata,state,created_at,updated_at) VALUES
+		(1,?,?,1,'r','Remux-2160p',?,'active',0,0), (2,?,?,1,'r','Remux-2160p',?,'active',0,0)`, old, target, meta, gone, target, meta)
+	e.exec(`INSERT INTO link_version (link_id,version_id) VALUES (1,10), (2,99)`)
+	p, err := e.lib.PreviewRename(e.ctx, 1, nil)
+	if err != nil || len(p.Files) != 1 || p.Files[0].LinkID != 1 || p.Skipped != 1 {
+		t.Fatalf("preview: %+v %v", p, err)
+	}
+	e.exec(`INSERT INTO arrview_removed_version (version_id, view, removed_at) VALUES (10, 'web', 0)`)
+	if p, err = e.lib.PreviewRename(e.ctx, 1, nil); err != nil || len(p.Files) != 0 || p.Skipped != 1 {
+		t.Fatalf("preview after removal: %+v %v", p, err)
+	}
+	if p, err = e.lib.ApplyRename(e.ctx, 1, nil); err != nil || len(p.Files) != 0 {
+		t.Fatalf("apply after removal: %+v %v", p, err)
+	}
+	if _, err := os.Lstat(old); err != nil {
+		t.Fatalf("a removed copy's link was renamed: %v", err)
+	}
+}
