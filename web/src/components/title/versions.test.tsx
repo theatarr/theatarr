@@ -68,3 +68,12 @@ describe("release history", () => {
     expect(screen.getAllByTestId("history-trigger").map((l) => l.textContent)).toEqual(triggers.map((t) => t[0].toUpperCase() + t.slice(1)));
   });
 });
+
+it("says Not started, in a neutral tone, for a download never tried", async () => {
+  mockFetch([{ method: "GET", path: "/auth/me", reply: { permissions: ["browse", "see_files", "manage"] } }]);
+  renderPage(<History events={[{ event: "not_started", date: "2026-11-02T01:00:00Z", release_title: "Alpha.2020.2160p.WEB-A", reason: "Not started: downloads were off" }]} />);
+  expect(await screen.findByText("Not started")).toBeTruthy();
+  const reason = screen.getByTestId("history-reason");
+  expect(reason.textContent).toBe("Not started: downloads were off");
+  expect(reason.className).not.toContain("bad");
+});

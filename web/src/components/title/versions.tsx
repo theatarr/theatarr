@@ -1,6 +1,6 @@
 // A library's (or an episode's) release history on the title page's History tab and in the episode window
 // (docs/design/ui.md, Title page), and the link to a library's releases view. The library rows are in library-rows.tsx.
-import { ArrowUpCircle, CheckCircle2, CircleDashed, Download, FileX2, PencilLine, Search, XCircle } from "lucide-react";
+import { ArrowUpCircle, CheckCircle2, CircleDashed, CirclePause, Download, FileX2, PencilLine, Search, XCircle } from "lucide-react";
 import { useState } from "react";
 import { Link } from "react-router";
 import { usePerms, type HistoryEvent } from "@/api/library";
@@ -16,6 +16,8 @@ const EVENTS: Record<HistoryEvent["event"], { label: string; icon: typeof Downlo
   imported: { label: "Imported", icon: CheckCircle2, cls: "text-[var(--ok-ink)]" },
   upgraded: { label: "Upgraded", icon: ArrowUpCircle, cls: "text-[var(--ok-ink)]" },
   failed: { label: "Failed", icon: XCircle, cls: "text-[var(--bad-ink)]" },
+  // A download never tried (downloads were off when its turn came): not a failure, so not red.
+  not_started: { label: "Not started", icon: CirclePause, cls: "text-[var(--ink-3)]" },
   deleted: { label: "File removed", icon: FileX2, cls: "text-[var(--ink-3)]" },
   renamed: { label: "Renamed", icon: PencilLine, cls: "text-[var(--ink-3)]" },
   ignored: { label: "Ignored", icon: CircleDashed, cls: "text-[var(--ink-3)]" },
@@ -72,6 +74,7 @@ export function History({ events, titleId, version }: { events: HistoryEvent[]; 
                 )
               ) : null}
               {h.event === "failed" && h.reason ? <div className="text-xs text-[var(--bad-ink)]" data-testid="history-reason">{h.reason}</div> : null}
+              {h.event === "not_started" && h.reason ? <div className="text-xs text-[var(--ink-3)]" data-testid="history-reason">{h.reason}</div> : null}
               {h.event === "searched" && searchLine(h) ? <div className="text-xs text-muted-foreground" data-testid="history-search">{searchLine(h)}</div> : null}
               {h.trigger || h.source ? <div className="text-[11.5px] text-[var(--ink-3)]" data-testid="history-trigger">{cap(h.trigger || h.source || "")}</div> : null}
               {h.event === "searched" && h.latest && target ? (
