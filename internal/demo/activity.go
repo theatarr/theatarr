@@ -11,110 +11,6 @@ import (
 	"github.com/theatarr/theatarr/internal/journal/snapshot"
 )
 
-// arrHistory writes the arrs' history for every arr file: a grab and an import per release (one row per episode, as
-// Sonarr writes them), plus a couple of failed downloads.
-func (s *seeder) arrHistory() {
-	next := map[string]int64{}
-	aliased := map[string]bool{}
-	for _, g := range s.grabs {
-		t, v, rel := g.t, g.v, g.rel
-		if t.scenario == scCeilingUnknown {
-			continue
-		}
-		eps := []*episode{nil}
-		if t.kind == "series" {
-			eps = eps[:0]
-			for _, f := range rel.files {
-				eps = append(eps, f.ep)
-			}
-		}
-		imported := rel.at.Add(time.Duration(4+s.r.IntN(50)) * time.Minute)
-		if imported.After(s.now) {
-			imported = s.now.Add(-time.Minute)
-		}
-		for _, ev := range []struct {
-			kind string
-			at   time.Time
-			data map[string]string
-		}{
-			{"grabbed", rel.at, map[string]string{"indexer": indexerLabel(rel.indexer), "releaseGroup": rel.group,
-				"size": fmt.Sprint(rel.size), "downloadClient": "decypharr"}},
-			{"downloadFolderImported", imported, map[string]string{"downloadClient": "decypharr", "releaseGroup": rel.group}},
-		} {
-			first := int64(0)
-			for _, e := range eps {
-				next[g.instance]++
-				id := next[g.instance]
-				if first == 0 {
-					first = id
-				}
-				var arrEp any
-				if e != nil {
-					a := int64(100000) + e.id
-					arrEp = a
-					if k := fmt.Sprint(g.instance, a); !aliased[k] {
-						aliased[k] = true
-						s.exec(`INSERT INTO arr_alias (instance, kind, arr_id, target_id, created_at) VALUES (?, 'episode', ?, ?, ?)`,
-							g.instance, a, e.id, ms(t.added))
-					}
-				}
-				s.exec(`INSERT INTO arr_history (instance, arr_id, event_type, date_at, arr_title_id, arr_episode_id,
-					title_id, version_id, download_id, info_hash, protocol, source_title, quality, custom_format_score,
-					languages, data) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'torrent', ?, ?, ?, ?, ?)`, g.instance, id,
-					ev.kind, ms(ev.at), t.arrIDs[g.instance], arrEp, t.id, v.id, strings.ToUpper(rel.hash), rel.hash,
-					rel.name, rel.quality, rel.score, jsonOf(rel.langs), jsonOf(ev.data))
-			}
-			if ev.kind == "grabbed" {
-				g.grabID = first
-			} else {
-				g.importID = first
-			}
-		}
-	}
-	// Two downloads the arrs gave up on.
-	for i, name := range []string{"Cinderhook", "The Quiet Ledger"} {
-		t := s.byName[name]
-		if t == nil || len(t.versions) == 0 {
-			continue
-		}
-		v := t.versions[0]
-		if v.instance == "" {
-			continue
-		}
-		next[v.instance]++
-		var rel *release
-		var arrEp any
-		if t.kind == "movie" {
-			rel = s.movieRelease(t, quality(v, false))
-		} else {
-			e := t.episodes[0]
-			rel = s.seriesRelease(t, quality(v, false), []*episode{e}, false)
-			a := int64(100000) + e.id
-			arrEp = a
-			s.exec(`INSERT OR IGNORE INTO arr_alias (instance, kind, arr_id, target_id, created_at) VALUES (?, 'episode', ?, ?, ?)`,
-				v.instance, a, e.id, ms(t.added))
-		}
-		at := s.ago(days(float64(3 + i*4)))
-		s.exec(`INSERT INTO arr_history (instance, arr_id, event_type, date_at, arr_title_id, arr_episode_id, title_id,
-			version_id, download_id, info_hash, protocol, source_title, quality, custom_format_score, languages, data)
-			VALUES (?, ?, 'downloadFailed', ?, ?, ?, ?, ?, ?, ?, 'torrent', ?, ?, ?, '["English"]', ?)`, v.instance,
-			next[v.instance], ms(at), t.arrIDs[v.instance], arrEp, t.id, v.id, strings.ToUpper(rel.hash), rel.hash, rel.name,
-			rel.quality, rel.score, jsonOf(map[string]string{"message": "Download wasn't grabbed by the client in time",
-				"downloadClient": "decypharr"}))
-	}
-	// The import runs.
-	for _, name := range s.instances() {
-		for k := range 3 {
-			start := s.ago(days(float64(k)*0.5 + 0.1))
-			s.exec(`INSERT INTO import_run (instance, started_at, finished_at, summary) VALUES (?, ?, ?, ?)`, name,
-				ms(start), ms(start.Add(time.Duration(3+s.r.IntN(20))*time.Second)), jsonOf(map[string]any{
-					"instance": name, "titles": map[string]int{"total": s.countArrTitles(name), "new": 0, "updated": k},
-					"files": map[string]int{"new": 0, "changed": 0}, "history": map[string]int{"new": 2 * k},
-				}))
-		}
-	}
-}
-
 func indexerLabel(k string) string {
 	return map[string]string{"dmm": "DMM", "torrentio": "Torrentio", "prowlarr-public": "Prowlarr (public)",
 		"zilean": "Zilean", "seadex": "SeaDex"}[k]
@@ -131,8 +27,6 @@ func (s *seeder) instances() []string {
 	sortStrings(out)
 	return out
 }
-
-func (s *seeder) countArrTitles(instance string) int { return int(s.arrTitles[instance]) }
 
 // registry adds content the library does not use (unreferenced, absent, gone) and the provider sync runs.
 func (s *seeder) registry() {

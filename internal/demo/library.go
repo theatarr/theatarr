@@ -814,15 +814,6 @@ func (s *seeder) libraryPath(t *title, v *version, rel *release, f relFile) stri
 		e.name, rel.quality))
 }
 
-// arrGrab is one arr grab and import, written to arr_history later and used by the shadow rows.
-type arrGrab struct {
-	instance         string
-	t                *title
-	v                *version
-	rel              *release
-	grabID, importID int64
-}
-
 // arrFiles writes the files of rel as the arr holds them, with the content registry rows behind them.
 func (s *seeder) arrFiles(t *title, v *version, rel *release, below bool) {
 	cid := s.contentFor(rel, s.pick([]string{"rd", "rd", "rd", "ad", "tb"}))
@@ -861,7 +852,6 @@ func (s *seeder) arrFiles(t *title, v *version, rel *release, below bool) {
 	}
 	s.exec(`INSERT OR IGNORE INTO content_version (content_id, version_id, release_title, source, grabbed_at, imported_at)
 		VALUES (?, ?, ?, 'arr_history', ?, ?)`, cid, v.id, rel.name, ms(rel.at), ms(imported))
-	s.grabs = append(s.grabs, &arrGrab{instance: v.instance, t: t, v: v, rel: rel})
 }
 
 // contentFor writes (once) the registry content of a release: the content, its files with their probe, and the

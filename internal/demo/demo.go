@@ -129,7 +129,6 @@ func Seed(ctx context.Context, st *store.Store, o Options) (*Result, error) {
 		s.err = nil
 		s.library()
 		s.registry()
-		s.arrHistory()
 		s.downloads()
 		s.upgradesFound()
 		s.system()
@@ -174,7 +173,6 @@ type seeder struct {
 
 	titles  []*title
 	byName  map[string]*title
-	grabs   []*arrGrab // arr grab events, for the shadow runner's rows
 	runID   int64
 	content map[string]int64 // info hash -> content id
 	// arr ids given so far per instance

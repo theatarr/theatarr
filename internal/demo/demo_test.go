@@ -296,7 +296,6 @@ func TestDemoScreens(t *testing.T) {
 		"/anime/review":                              {"items"},
 		"/anime/playlists":                           {"items"},
 		"/gateway":                                   {"budgets", "backoffs"},
-		"/imports":                                   {"items"},
 		"/sources":                                   {"indexers", "providers"},
 		"/policy":                                    {"versions"},
 		"/keys":                                      {"items"},
@@ -976,7 +975,7 @@ func TestDemoTwoCopiesScreens(t *testing.T) {
 	}
 }
 
-// TestDemoLibraryViews: the library views' per-copy reads have something to show: followed and Theatarr-managed
+// TestDemoLibraryViews: the library views' per-copy reads have something to show: editable
 // copies, series coverage, downloads in hand at each stage, next episodes and releases, episodes in flight, and a
 // missing movie in cinemas with its home release ahead (Upcoming with that date), none of them in Home's Missing row.
 func TestDemoLibraryViews(t *testing.T) {
@@ -1018,7 +1017,7 @@ func TestDemoLibraryViews(t *testing.T) {
 		}
 	}
 	stages := map[string]int{}
-	var followed, managed, coverage, next, movieNext, movieTwo, inCinemas int
+	var editable, coverage, next, movieNext, movieTwo, inCinemas int
 	today := now().UTC().Format(time.DateOnly)
 	for _, kind := range []string{"movie", "series"} {
 		var page web.TitlePage
@@ -1040,10 +1039,10 @@ func TestDemoLibraryViews(t *testing.T) {
 				switch {
 				case v.Control == nil:
 					t.Errorf("%s %s: no control", r.Name, v.Key)
-				case v.Control.ManagedBy != "":
-					followed++
+				case !v.Control.CanEdit:
+					t.Errorf("%s %s: not editable", r.Name, v.Key)
 				default:
-					managed++
+					editable++
 				}
 				if v.Coverage != nil && v.Coverage.Total > 0 {
 					coverage++
@@ -1054,9 +1053,9 @@ func TestDemoLibraryViews(t *testing.T) {
 			}
 		}
 	}
-	if followed == 0 || managed == 0 || coverage == 0 || movieNext == 0 || next <= movieNext || movieTwo == 0 {
-		t.Errorf("followed %d, managed %d, coverage %d, next %d (movies %d), two-copy movies %d", followed, managed,
-			coverage, next, movieNext, movieTwo)
+	if editable == 0 || coverage == 0 || movieNext == 0 || next <= movieNext || movieTwo == 0 {
+		t.Errorf("editable %d, coverage %d, next %d (movies %d), two-copy movies %d", editable, coverage, next,
+			movieNext, movieTwo)
 	}
 	if inCinemas == 0 {
 		t.Error("no missing movie is in cinemas with its home release ahead")
@@ -1090,7 +1089,7 @@ func TestDemoLibraryViews(t *testing.T) {
 	if inFlight == 0 {
 		t.Error("Kiraboshi Mechanics: no episode in flight")
 	}
-	t.Logf("stages %v; followed %d managed %d next %d movies with two copies %d", stages, followed, managed, next, movieTwo)
+	t.Logf("stages %v; editable %d next %d movies with two copies %d", stages, editable, next, movieTwo)
 }
 
 // TestDemoJournalCounts checks that a download's journal entry counts the results its run and its notes report.

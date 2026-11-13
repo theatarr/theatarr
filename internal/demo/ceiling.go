@@ -4,33 +4,10 @@ import (
 	"strings"
 
 	"github.com/theatarr/theatarr/internal/ceiling"
-	"github.com/theatarr/theatarr/internal/decide/format"
-	"github.com/theatarr/theatarr/internal/decide/profile"
 )
 
 // ceilings adds auditably known, likely, higher-source and unknown examples, with no live lookups.
 func (s *seeder) ceilings() error {
-	// The demo imports also keep their quality order, as the ordinary arr importer does.
-	for _, instance := range s.instances() {
-		vp := s.pol.Versions[s.pol.Import.Arr[instance].Version]
-		pr := s.pol.Profiles[vp.Profile]
-		if pr == nil || pr.FromArr != "" {
-			continue
-		}
-		fl := format.Radarr
-		if vp.Kind == "series" {
-			fl = format.Sonarr
-		}
-		var items []format.TrashQualityItem
-		for _, it := range pr.Qualities {
-			items = append(items, format.TrashQualityItem{Name: it.Name, Allowed: true, Items: it.Qualities})
-		}
-		p, err := profile.FromItems(fl, vp.Profile, items, pr.Cutoff, true)
-		if err != nil {
-			return err
-		}
-		s.exec(`UPDATE arr_quality_profile SET quality_items=? WHERE instance=?`, jsonOf(p.JSON().Items), instance)
-	}
 	for _, t := range s.titles {
 		if !strings.HasPrefix(t.scenario, "ceiling_") {
 			continue
