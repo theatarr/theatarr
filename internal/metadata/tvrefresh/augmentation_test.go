@@ -154,7 +154,7 @@ func TestPeriodicSceneRefresh(t *testing.T) {
 	if e.count(t, `SELECT COUNT(*) FROM episode_number WHERE title_id=? AND scheme='scene'`, id) != 0 {
 		t.Fatal("empty XEM numbering did not clear prior mappings")
 	}
-	// Imported names and numbers (another source) are replaced by the next refresh.
+	// Imported scene numbers are replaced by the next refresh; imported names are never deleted.
 	empty = false
 	clock = clock.Add(sceneAge)
 	if _, err := e.st.Writer().Exec(`INSERT INTO episode_number(episode_id,title_id,scheme,season,number,source) SELECT id,title_id,'scene',9,99,'sonarr_4k_debrid' FROM episode WHERE title_id=? AND season=1 AND number=1`, id); err != nil {
@@ -168,8 +168,8 @@ func TestPeriodicSceneRefresh(t *testing.T) {
 	if e.count(t, `SELECT COUNT(*) FROM episode_number WHERE title_id=? AND source='sonarr_4k_debrid'`, id) != 0 {
 		t.Fatal("stale imported numbers")
 	}
-	if e.count(t, `SELECT COUNT(*) FROM title_scene_mapping WHERE title_id=? AND name='Imported Alias'`, id) != 0 {
-		t.Fatal("stale imported alias")
+	if e.count(t, `SELECT COUNT(*) FROM title_scene_mapping WHERE title_id=? AND name='Imported Alias'`, id) != 1 {
+		t.Fatal("imported alias deleted")
 	}
 }
 

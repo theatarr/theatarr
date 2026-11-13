@@ -142,14 +142,6 @@ func (s *Service) sceneNames(ctx context.Context, id int64, tvdb int, source str
 	})
 }
 
-// Imported alternate titles (any source that is not the refresh's own) combine both providers. Retire them only
-// after the configured name providers succeed.
-func (s *Service) clearImportedSceneNames(ctx context.Context, id int64) error {
-	return s.st.WriteTx(ctx, func(tx *sql.Tx) error {
-		return s.exec(ctx, tx, `DELETE FROM title_scene_mapping WHERE title_id = ? AND source NOT LIKE 'tvrefresh:%'`, id)
-	})
-}
-
 // RefreshScene refreshes all catalog series independently of their TVDB refresh cadence.
 func (s *Service) RefreshScene(ctx context.Context) error { return s.refreshScene(ctx, 0) }
 
@@ -184,33 +176,19 @@ func (s *Service) refreshScene(ctx context.Context, titleID int64) error {
 		return nil
 	}
 	var errs []error
-	clearImports := func() {
-		for _, t := range titles {
-			if err := s.clearImportedSceneNames(ctx, t.id); err != nil {
-				errs = append(errs, err)
-			}
-		}
-	}
-	namesOK, namesSeen := true, false
 	if s.pol.Metadata.Sources["sonarr"] != nil {
 		var names []sceneName
 		if err := s.sceneGet(ctx, "sonarr", "/scenemapping", &names); err != nil {
 			errs = append(errs, err)
-			namesOK = false
 		} else {
-			namesSeen = len(names) > 0
 			for _, t := range titles {
 				if err := s.sceneNames(ctx, t.id, t.tvdb, "sonarr", names); err != nil {
 					errs = append(errs, err)
-					namesOK = false
 				}
 			}
 		}
 	}
 	if s.pol.Metadata.Sources["thexem"] == nil {
-		if namesOK && namesSeen {
-			clearImports()
-		}
 		return errors.Join(errs...)
 	}
 	var named struct {
@@ -218,7 +196,6 @@ func (s *Service) refreshScene(ctx context.Context, titleID int64) error {
 	}
 	if err := s.sceneGet(ctx, "thexem", "/allNames?seasonNumbers=true&origin=tvdb", &named); err != nil {
 		errs = append(errs, err)
-		namesOK = false
 	} else {
 		var names []sceneName
 		for key, entries := range named.Data {
@@ -236,13 +213,8 @@ func (s *Service) refreshScene(ctx context.Context, titleID int64) error {
 		for _, t := range titles {
 			if err := s.sceneNames(ctx, t.id, t.tvdb, "thexem", names); err != nil {
 				errs = append(errs, err)
-				namesOK = false
 			}
 		}
-		namesSeen = namesSeen || len(names) > 0
-	}
-	if namesOK && namesSeen {
-		clearImports()
 	}
 	var mapped struct {
 		Data []json.RawMessage `json:"data"`
