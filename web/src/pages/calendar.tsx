@@ -66,7 +66,7 @@ function EventChip({ e, plain, now }: { e: CalendarEntry; plain: boolean; now: D
       title={tooltip(e, s.label)}
       data-testid="cal-event"
       data-tone={s.tone}
-      className={cn("theatarr-cal-event", `theatarr-cal-tone-${s.tone}`, !e.monitored && "is-unmonitored")}
+      className={cn("theatarr-cal-event", `theatarr-cal-tone-${s.tone}`, !plain && !e.monitored && "is-unmonitored")}
     >
       <div className="theatarr-cal-event-title">{e.title.name}</div>
       <div className="theatarr-cal-event-meta">
