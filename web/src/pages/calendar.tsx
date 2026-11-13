@@ -245,11 +245,14 @@ export function CalendarPageView() {
     }
     return m;
   }, [placed, facets]);
+  // The toggles count the month shown, in both views: the grid's days of the neighbouring months are not counted.
   const counts = useMemo(() => {
+    const first = ymd(new Date(anchor.y, anchor.m, 1));
+    const last = ymd(new Date(anchor.y, anchor.m + 1, 0));
     const c: Record<Facet, number> = { movie: 0, series: 0, anime: 0 };
-    for (const { e } of placed) c[e.title.kind as Facet] = (c[e.title.kind as Facet] ?? 0) + 1;
+    for (const { day, e } of placed) if (day >= first && day <= last) c[e.title.kind as Facet] = (c[e.title.kind as Facet] ?? 0) + 1;
     return c;
-  }, [placed]);
+  }, [placed, anchor]);
 
   const move = (n: number) => {
     setSelected(null);

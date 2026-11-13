@@ -1,10 +1,11 @@
 // @vitest-environment jsdom
 import { screen } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, expect, it } from "vitest";
 import { CalendarPageView } from "./calendar";
 import { mockFetch, renderPage } from "@/test/page";
 import type { Schemas } from "@/api/client";
-import { ymd } from "@/lib/calendar";
+import { monthDays, ymd } from "@/lib/calendar";
 
 type Entry = Schemas["CalendarEntry"];
 
@@ -47,4 +48,24 @@ it("gives an account without see files the household words, no red missing", asy
   expect(screen.getByText("Not available")).toBeTruthy();
   expect(screen.queryByText("Missing")).toBeNull();
   expect(screen.getByTestId("cal-legend").textContent).toBe("AvailableGetting ready, upcoming or not available yet");
+});
+
+it("counts the month shown in both views, not the grid's days of the neighbouring months", async () => {
+  const user = userEvent.setup();
+  const now = new Date();
+  const grid = monthDays(now.getFullYear(), now.getMonth()).map(ymd);
+  const before = day(0); // the last day of the month before
+  const after = ymd(new Date(now.getFullYear(), now.getMonth() + 1, 1));
+  const ep = (id: number, date: string, name: string): Entry => ({ ...items[0], episode_id: id, date, title: title(id, name, "series") });
+  const reply = { from: grid[0], to: grid.at(-1), items: [ep(51, before, "Before"), ep(52, day(10), "Inside"), ep(53, after, "After")] };
+  mockFetch([{ method: "GET", path: "/auth/me", reply: { id: 1, permissions: ["see_files"] } }, { method: "GET", path: "/calendar", reply }]);
+  renderPage(<CalendarPageView />, "/calendar");
+  expect(await screen.findByText("Inside")).toBeTruthy();
+  const series = () => screen.getByRole("button", { name: /^Series/ }).textContent;
+  expect(series()).toBe("Series1");
+  await user.click(screen.getByRole("button", { name: "Month" }));
+  // The grid still shows a neighbouring day's entry when that day is on it.
+  const shown = [before, after].filter((d) => grid.includes(d));
+  for (const d of shown) expect(await screen.findByText(d === before ? "Before" : "After")).toBeTruthy();
+  expect(series()).toBe("Series1");
 });
