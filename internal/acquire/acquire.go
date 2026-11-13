@@ -844,8 +844,8 @@ func (a *Acquirer) run(ctx context.Context, sj SearchJob, claim string) error {
 	var eps, state, source string
 	var season sql.NullInt64
 	err := a.st.Reader().QueryRowContext(ctx, `SELECT title_id, version_id, version_key, target, reason, season,
-		episodes, state, source FROM acquire_run WHERE id = ?`, runID).Scan(&t.titleID,
-		&t.versionID, &t.key, &t.name, &t.reason, &season, &eps, &state, &source)
+		episodes, state, source, COALESCE(research, '') FROM acquire_run WHERE id = ?`, runID).Scan(&t.titleID,
+		&t.versionID, &t.key, &t.name, &t.reason, &season, &eps, &state, &source, &t.why)
 	if errors.Is(err, sql.ErrNoRows) {
 		return jobs.Permanent(fmt.Errorf("acquire: no run %d", runID))
 	}
@@ -1034,7 +1034,8 @@ type fanoutOutcome struct {
 // outcome. A retry therefore resumes the whole shared search without routing any target twice.
 func (a *Acquirer) runFanout(ctx context.Context, rootID int64, claim, rootState string) error {
 	rows, err := a.st.Reader().QueryContext(ctx, `SELECT id, title_id, version_id, version_key, target, reason,
-		season, episodes, state, source FROM acquire_run WHERE id = ? OR search_run = ? ORDER BY id`, rootID, rootID)
+		season, episodes, state, source, COALESCE(research, '') FROM acquire_run WHERE id = ? OR search_run = ? ORDER BY id`,
+		rootID, rootID)
 	if err != nil {
 		return err
 	}
@@ -1043,7 +1044,7 @@ func (a *Acquirer) runFanout(ctx context.Context, rootID int64, claim, rootState
 		var r fanoutRun
 		var season sql.NullInt64
 		var eps string
-		if err := rows.Scan(&r.id, &r.titleID, &r.versionID, &r.key, &r.name, &r.reason, &season, &eps, &r.state, &r.source); err != nil {
+		if err := rows.Scan(&r.id, &r.titleID, &r.versionID, &r.key, &r.name, &r.reason, &season, &eps, &r.state, &r.source, &r.why); err != nil {
 			rows.Close()
 			return err
 		}

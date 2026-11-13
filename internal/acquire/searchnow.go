@@ -132,13 +132,13 @@ func (a *Acquirer) RequestSearchNowAll(ctx context.Context, q WantedQuery) (*Sea
 // askSearch makes the requested rows due now with why asked and runs a round of their titles.
 func (a *Acquirer) askSearch(ctx context.Context, reqs []searchRequest, out *SearchNowResult) (*SearchNowResult, error) {
 	var titles []int64
+	running, err := a.busySet(ctx)
+	if err != nil {
+		return nil, err
+	}
 	var ready []searchRequest
 	for _, r := range reqs {
-		busy, err := a.searching(ctx, r.titleID, r.key, r.season)
-		if err != nil {
-			return nil, err
-		}
-		if busy {
+		if running[requestKey(r.titleID, r.key, r.reason, r.season)] {
 			out.Skipped = append(out.Skipped, SearchNowSkip{TitleID: r.titleID, Version: r.key, Reason: skipSearching})
 			continue
 		}
@@ -174,7 +174,6 @@ func (a *Acquirer) askSearch(ctx context.Context, reqs []searchRequest, out *Sea
 		}
 		out.Started = sum.Queued
 	}
-	var err error
 	out.Pending, err = a.askedDue(ctx)
 	return out, err
 }

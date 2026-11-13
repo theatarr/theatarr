@@ -131,28 +131,27 @@ func (a *Acquirer) fresh(ctx context.Context, t target) (bool, error) {
 }
 
 // reschedule applies nextSearch to the rows a finished run of t searched, in the run's transaction: for a loop run
-// (source wanted) its own row, for any other its item's regular and new rows. kind runGated (Pause overtook a loop
-// run) leaves the row due.
+// (source wanted) its own row while it still has the why the run started for (a failure event or Search now that
+// marked it again meanwhile keeps it due), for any other its item's regular and new rows. kind runGated (Pause
+// overtook a loop run) leaves the row due.
 func (a *Acquirer) reschedule(ctx context.Context, tx *sql.Tx, source string, t target, kind int) error {
 	now := store.Millis(a.now())
 	season := seasonOf(t.season)
 	if kind == runGated {
 		if source == SourceWanted {
 			_, err := tx.ExecContext(ctx, `UPDATE search_request SET next_at = ? WHERE title_id = ? AND version_key = ?
-				AND reason = ? AND season = ?`, now, t.titleID, t.key, t.reason, season)
+				AND reason = ? AND season = ? AND COALESCE(why, '') = ?`, now, t.titleID, t.key, t.reason, season, t.why)
 			return err
 		}
 		return nil
 	}
 	q := `SELECT id, reason, tries, COALESCE(why, '') FROM search_request WHERE title_id = ? AND version_key = ?
-		AND season = ? AND reason = ?`
+		AND season = ? AND reason = ? AND COALESCE(why, '') = ?`
+	args := []any{t.titleID, t.key, season, t.reason, t.why}
 	if source != SourceWanted {
 		q = `SELECT id, reason, tries, COALESCE(why, '') FROM search_request WHERE title_id = ? AND version_key = ?
 			AND season = ? AND (reason = ? OR ? = '') AND COALESCE(why, 'new') = 'new'`
-	}
-	args := []any{t.titleID, t.key, season, t.reason}
-	if source != SourceWanted {
-		args = append(args, t.reason)
+		args = []any{t.titleID, t.key, season, t.reason, t.reason}
 	}
 	rows, err := tx.QueryContext(ctx, q, args...)
 	if err != nil {
@@ -193,17 +192,27 @@ func (a *Acquirer) reschedule(ctx context.Context, tx *sql.Tx, source string, t 
 	return nil
 }
 
-// failureRun is the acquire_run condition of a search after a failure the router reported: not one of Search now,
-// of the new-content retries, or of the retry chains before the schedule (retry_new, fresh).
-const failureRun = `research IS NOT NULL AND research NOT IN ('` + whyAsked + `', '` + whyNew + `', 'retry_new', 'fresh')`
-
-// searching says whether a search of the item's library and season (-1: a film) is queued or running.
-func (a *Acquirer) searching(ctx context.Context, titleID int64, key string, season int) (bool, error) {
-	var busy bool
-	err := a.st.Reader().QueryRowContext(ctx, `SELECT EXISTS (SELECT 1 FROM acquire_run WHERE title_id = ?
-		AND version_key = ? AND COALESCE(season, -1) = ? AND state IN ('queued', 'searching'))`, titleID, key, season).
-		Scan(&busy)
-	return busy, err
+// busySet keys (requestKey) the items a loop search started within the last hour is queued or running for: a
+// round and Search now do not start them again. Searches by name never count.
+func (a *Acquirer) busySet(ctx context.Context) (map[string]bool, error) {
+	rows, err := a.st.Reader().QueryContext(ctx, `SELECT title_id, version_key, reason, COALESCE(season, -1)
+		FROM acquire_run WHERE source = ? AND state IN ('queued', 'searching') AND created_at > ?`, SourceWanted,
+		store.Millis(a.now().Add(-time.Hour)))
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	out := map[string]bool{}
+	for rows.Next() {
+		var title int64
+		var key, reason string
+		var season int
+		if err := rows.Scan(&title, &key, &reason, &season); err != nil {
+			return nil, err
+		}
+		out[requestKey(title, key, reason, season)] = true
+	}
+	return out, rows.Err()
 }
 
 func nullString(s string) any {
@@ -311,6 +320,10 @@ func (a *Acquirer) Round(ctx context.Context, scope []int64) (*WantedSummary, er
 		}
 	}
 	rows, err := a.scheduleRows(ctx, active, scope)
+	if err != nil {
+		return nil, err
+	}
+	running, err := a.busySet(ctx)
 	if err != nil {
 		return nil, err
 	}
@@ -442,10 +455,8 @@ func (a *Acquirer) Round(ctx context.Context, scope []int64) (*WantedSummary, er
 				sum.InFlight++
 				continue
 			}
-			// A search of it already queued or running (by name, or an earlier round's): its row stays as it is.
-			if busy, err = a.searching(ctx, t.titleID, t.key, seasonOf(t.season)); err != nil {
-				return nil, err
-			} else if busy {
+			// A loop search of it already queued or running: its row stays as it is (due).
+			if running[targetKey(t)] {
 				continue
 			}
 			ready = append(ready, t)

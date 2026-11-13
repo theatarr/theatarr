@@ -101,7 +101,8 @@ func (a *Acquirer) Research(ctx context.Context, p router.ResearchRequest) error
 		if p.Reason != router.ReasonDeadLink {
 			var recent bool
 			if err := db.QueryRowContext(ctx, `SELECT EXISTS (SELECT 1 FROM acquire_run WHERE version_id = ?
-				AND COALESCE(season, -1) = ? AND source = ? AND `+failureRun+`
+				AND COALESCE(season, -1) = ? AND source = ? AND research IS NOT NULL
+				AND research NOT IN ('asked', 'new', 'retry_new', 'fresh')
 				AND ((infra = 0 AND created_at > ?) OR (infra = 2 AND created_at > ?)))`, p.VersionID, r.season,
 				SourceWanted, again, partial).Scan(&recent); err != nil {
 				return err
@@ -111,13 +112,6 @@ func (a *Acquirer) Research(ctx context.Context, p router.ResearchRequest) error
 					"title", p.TitleID, "version", p.Version, "season", r.season, "reason", p.Reason)
 				continue
 			}
-		}
-		if busy, err := a.searching(ctx, p.TitleID, p.Version, r.season); err != nil {
-			return err
-		} else if busy {
-			a.log.Info("re-search skipped: a search of it is queued or running", "title", p.TitleID,
-				"version", p.Version, "season", r.season, "reason", p.Reason)
-			continue
 		}
 		if _, err := a.st.Writer().ExecContext(ctx, `INSERT INTO search_request (title_id, version_key, reason, season,
 			created_at, next_at, tries, why) VALUES (?, ?, ?, ?, ?, ?, 0, ?) ON CONFLICT DO UPDATE

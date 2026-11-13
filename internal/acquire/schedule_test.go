@@ -300,30 +300,49 @@ func TestLegacyRunsDoNotBlockFailure(t *testing.T) {
 	}
 }
 
-// A search already queued is not started again: Search now twice before the worker runs, a round while a search
-// by name waits, a failure event meanwhile.
+// A loop search already queued or running is not started again, and nothing else counts as busy: Search now twice
+// before the worker runs gives one search; a failure event meanwhile leaves its row due, searched once that search
+// has ended (backlog switch off); a search by name of one episode does not block Search now of its season; a queued
+// cutoff search does not block the missing row.
 func TestQueuedSearchNotDuplicated(t *testing.T) {
 	t.Parallel()
 	e := newEnv(t, true, &policy.Wanted{Missing: new(false), CutoffUnmet: policy.CutoffOff})
+	e.accept = false
 	for range 2 {
 		if _, err := e.a.RequestSearchNow(e.ctx, OnlyMissing, []SearchNowItem{{TitleID: 1, Version: "movie"}}); err != nil {
 			t.Fatal(err)
 		}
 	}
-	e.research(router.ResearchRequest{TitleID: 1, VersionID: 101, Version: "movie", Reason: router.ReasonStalled})
 	if n := e.count(`SELECT COUNT(*) FROM acquire_run WHERE version_id = 101`); n != 1 {
 		t.Fatalf("%d searches of movie 1: %s", n, e.runs())
 	}
-	if _, _, err := e.a.Submit(e.ctx, 0, Selection{Versions: []string{"movie"}, TitleIDs: []int64{2}}); err != nil {
+	e.research(router.ResearchRequest{TitleID: 1, VersionID: 101, Version: "movie", Reason: router.ReasonStalled})
+	if at, _, why := e.rowOf(1, "movie", OnlyMissing, -1); !at.Equal(t0) || why != router.ReasonStalled {
+		t.Fatalf("failure row %v %q", at, why)
+	}
+	if n := e.count(`SELECT COUNT(*) FROM acquire_run WHERE version_id = 101`); n != 1 {
+		t.Fatalf("started beside the running search: %s", e.runs())
+	}
+	e.drain()
+	if _, _, why := e.rowOf(1, "movie", OnlyMissing, -1); why != router.ReasonStalled {
+		t.Fatalf("the ended search took the failure row: %q", why)
+	}
+	e.round()
+	if n := e.count(`SELECT COUNT(*) FROM acquire_run WHERE version_id = 101 AND research = 'stalled'`); n != 1 {
+		t.Fatalf("failure not searched after the search ended: %s", e.runs())
+	}
+	if _, _, err := e.a.Submit(e.ctx, 0, Selection{Versions: []string{"series"}, EpisodeIDs: []int64{1001}}); err != nil {
 		t.Fatal(err)
 	}
-	e.row(2, "movie", OnlyMissing, -1, t0, router.ReasonExhausted, 0)
-	e.advance(10 * time.Minute)
-	e.round()
-	if n := e.count(`SELECT COUNT(*) FROM acquire_run WHERE version_id = 102`); n != 1 {
-		t.Fatalf("a round duplicated a queued search by name: %s", e.runs())
+	one := 1
+	if res, err := e.a.RequestSearchNow(e.ctx, OnlyMissing, []SearchNowItem{{TitleID: 10, Version: "series",
+		Season: &one}}); err != nil || res.Started != 1 {
+		t.Fatalf("an episode search by name blocked the season: %+v %v", res, err)
 	}
-	if _, _, why := e.rowOf(2, "movie", OnlyMissing, -1); why != router.ReasonExhausted {
-		t.Fatalf("row changed: %q", why)
+	e.exec(`INSERT INTO acquire_run (source, title_id, version_id, version_key, target, reason, state, created_at,
+		updated_at) VALUES ('wanted', 2, 102, 'movie', 'movie', 'cutoff', 'queued', ?, ?)`, store.Millis(t0), store.Millis(t0))
+	if res, err := e.a.RequestSearchNow(e.ctx, OnlyMissing, []SearchNowItem{{TitleID: 2, Version: "movie"}}); err != nil ||
+		res.Started != 1 {
+		t.Fatalf("a cutoff search blocked the missing row: %+v %v", res, err)
 	}
 }
