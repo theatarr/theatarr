@@ -191,9 +191,9 @@ export function TorrentsPage() {
                 <TableHeader>
                   <TableRow>
                     <TableHead className="w-8"><input type="checkbox" aria-label="Select all shown" checked={allShown} onChange={toggleAll} /></TableHead>
-                    {provider ? null : <TableHead className="w-px">Provider</TableHead>}
+                    {provider ? null : <TableHead className="w-px px-1 sm:px-3">Provider</TableHead>}
                     <TableHead>Name</TableHead>
-                    <TableHead className="text-right">Size</TableHead>
+                    <TableHead className="hidden text-right sm:table-cell">Size</TableHead>
                     <TableHead className="hidden sm:table-cell">Added</TableHead>
                     <TableHead className="hidden md:table-cell">Status</TableHead>
                     <TableHead>Usage</TableHead>
@@ -263,17 +263,19 @@ function TorrentRow({ t, checked, onToggle, code }: { t: Torrent; checked: boole
       <TableRow data-testid="torrent-row">
         <TableCell><input type="checkbox" aria-label={`Select ${t.name}`} checked={checked} onChange={onToggle} /></TableCell>
         {code === undefined ? null : (
-          <TableCell title={t.provider} data-testid="torrent-provider"><ProviderPills codes={[code]} /></TableCell>
+          <TableCell className="px-1 sm:px-3" title={t.provider} data-testid="torrent-provider"><ProviderPills codes={[code]} /></TableCell>
         )}
         <TableCell className="max-w-[32rem] text-[13px]">
-          <div className="break-words [overflow-wrap:anywhere]">{t.name}</div>
+          <div className="[overflow-wrap:anywhere]">{t.name}</div>
           <div className="text-xs text-muted-foreground">
+            {/* Below 640 px the size sits here, not in its column, so the table fits a phone. */}
+            <span className="sm:hidden">{fmtBytes(t.bytes)} · </span>
             {t.parsed ? `${t.parsed}${t.quality ? ` · ${t.quality}` : ""} · ` : ""}<Mono>{t.hash.slice(0, 12)}</Mono>
             {t.files >= 0 ? ` · ${t.files} file${t.files === 1 ? "" : "s"}` : ""}
             {t.added_by_theatarr ? " · added by Theatarr" : ""}
           </div>
         </TableCell>
-        <TableCell className="whitespace-nowrap text-right tabular-nums">{fmtBytes(t.bytes)}</TableCell>
+        <TableCell className="hidden whitespace-nowrap text-right tabular-nums sm:table-cell">{fmtBytes(t.bytes)}</TableCell>
         <TableCell className="hidden whitespace-nowrap sm:table-cell" title={t.added ? fmtTime(t.added) : undefined}>{t.added ? fmtAgo(t.added) : "—"}</TableCell>
         <TableCell className="hidden md:table-cell">{t.status}{t.state !== "downloaded" && t.progress < 100 ? ` ${Math.round(t.progress)}%` : ""}</TableCell>
         <TableCell>

@@ -262,7 +262,8 @@ any order, or the text as a hash prefix; `?q=` in the address fills it, so other
 **Torrent** link sends the hash's first 12), sort by size, age or name, under "All providers" a **Provider** column
 with the account's tag (RD, AD, TB, as **Cached on** shows it; the account key as tooltip), a usage column whose
 references show on hover and expand on click (the expanded references link their titles to the title page), one
-table at every width, multi-select and **Delete selected**: the preview opens a
+table at every width (below 640 px Added, Status and the Size column hide; the size leads the name's second line),
+multi-select and **Delete selected**: the preview opens a
 confirmation with the count, size, the backup it takes first and the shared-account warning; refused torrents are
 listed with why, and used or unknown ones with a checkbox naming their references to override. **Saved inventory** (`/admin/torrents/inventory`) shows known hashes and provider holdings.
 The torrent journal remains below the provider list. **System › Backup** holds torrent-list backups: **Back up
