@@ -21,7 +21,7 @@ import (
 // a full round takes it while its backlog switch (router.wanted.missing, cutoff_unmet) is on, unless its latest run
 // of any source is recent enough (then the row is written with the time that run gives).
 //
-// what sets a row due early (why): Search now (asked), a failure the router reported (Research: the router's reason),
+// what sets a row due early (why): Search now (asked), an add by a list or a timed collection sync (added), a failure the router reported (Research: the router's reason),
 // and the retries of new content (new). A row with a why is searched whatever the backlog switches say. When a
 // search of an item ends, whatever started it, its row is rescheduled by nextSearch; a search the loop started
 // reschedules its own row, any other search the item's regular or new rows. A loop search overtaken by Pause leaves
@@ -35,6 +35,8 @@ import (
 const (
 	whyAsked = "asked"
 	whyNew   = "new"
+	// whyAdded: a title a list sync or a timed collection sync added (RequestSearchLater).
+	whyAdded = "added"
 )
 
 // roundEvery is the time between full rounds.
@@ -129,7 +131,7 @@ func (a *Acquirer) fresh(ctx context.Context, t target) (bool, error) {
 
 // reschedule applies nextSearch to the rows a finished run of t searched, in the run's transaction: for a loop run
 // (source wanted) its own row while it still has the why the run started for (a failure event or Search now that
-// marked it again meanwhile keeps it due), for any other its item's regular and new rows. kind runGated (Pause
+// marked it again meanwhile keeps it due), for any other its item's regular, new and added rows. kind runGated (Pause
 // overtook a loop run) leaves the row due.
 func (a *Acquirer) reschedule(ctx context.Context, tx *sql.Tx, source string, t target, kind int) error {
 	now := store.Millis(a.now())
@@ -147,7 +149,7 @@ func (a *Acquirer) reschedule(ctx context.Context, tx *sql.Tx, source string, t 
 	args := []any{t.titleID, t.key, season, t.reason, t.why}
 	if source != SourceWanted {
 		q = `SELECT id, reason, tries, COALESCE(why, '') FROM search_request WHERE title_id = ? AND version_key = ?
-			AND season = ? AND (reason = ? OR ? = '') AND COALESCE(why, 'new') = 'new'`
+			AND season = ? AND (reason = ? OR ? = '') AND COALESCE(why, 'new') IN ('new', 'added')`
 		args = []any{t.titleID, t.key, season, t.reason, t.reason}
 	}
 	rows, err := tx.QueryContext(ctx, q, args...)

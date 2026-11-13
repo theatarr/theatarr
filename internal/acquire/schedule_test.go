@@ -346,3 +346,137 @@ func TestQueuedSearchNotDuplicated(t *testing.T) {
 		t.Fatalf("a cutoff search blocked the missing row: %+v %v", res, err)
 	}
 }
+
+// A title a list sync added (RequestSearchLater): its row is due now with why added and no search starts at once;
+// an asked row stays asked and goes first; with both backlog switches off the added row is searched within
+// per_hour, and nothing found on old content removes it. Wanted lists it with its why. While paused nothing is
+// written.
+func TestAddedRowOnTheSchedule(t *testing.T) {
+	t.Parallel()
+	e := newEnv(t, true, &policy.Wanted{Missing: new(false), CutoffUnmet: policy.CutoffOff, PerHour: 1})
+	e.accept = false
+	e.pol.Router.Enabled = false
+	if err := e.a.RequestSearchLater(e.ctx, 1, []string{"movie"}); err != nil {
+		t.Fatal(err)
+	}
+	if n := e.count(`SELECT COUNT(*) FROM search_request`); n != 0 {
+		t.Fatalf("%d rows written while paused", n)
+	}
+	e.pol.Router.Enabled = true
+	e.row(2, "movie", OnlyMissing, -1, t0, whyAsked, 0)
+	for _, id := range []int64{1, 2} {
+		if err := e.a.RequestSearchLater(e.ctx, id, []string{"movie", "movie-shadow"}); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if at, _, why := e.rowOf(1, "movie", OnlyMissing, -1); !at.Equal(t0) || why != whyAdded {
+		t.Fatalf("added row %v %q", at, why)
+	}
+	if _, _, why := e.rowOf(2, "movie", OnlyMissing, -1); why != whyAsked {
+		t.Fatalf("an asked row became %q", why)
+	}
+	if n := e.count(`SELECT COUNT(*) FROM acquire_run`) + e.count(`SELECT COUNT(*) FROM search_request
+		WHERE version_key = 'movie-shadow'`); n != 0 {
+		t.Fatalf("searched at once or scheduled a shadow library: %s", e.runs())
+	}
+	list, err := e.a.WantedList(e.ctx, WantedQuery{Only: OnlyMissing, Limit: 200})
+	if err != nil {
+		t.Fatal(err)
+	}
+	var whys []string
+	for _, r := range list.Items {
+		if r.Version == "movie" && r.TitleID == 1 {
+			whys = append(whys, r.Waiting+"/"+r.Why)
+		}
+	}
+	if len(whys) != 1 || whys[0] != WaitDue+"/"+whyAdded {
+		t.Fatalf("wanted rows of movie 1: %v", whys)
+	}
+	if sum := e.round(); sum.Queued != 1 || e.runs() != "102:movie" {
+		t.Fatalf("first round %+v %s", sum, e.runs())
+	}
+	e.drain()
+	e.advance(time.Hour + time.Minute)
+	e.round()
+	if n := e.count(`SELECT COUNT(*) FROM acquire_run WHERE version_id = 101 AND research = 'added'`); n != 1 {
+		t.Fatalf("added row not searched in the next hour: %s", e.runs())
+	}
+	e.drain()
+	if _, _, why := e.rowOf(1, "movie", OnlyMissing, -1); why != "-" {
+		t.Fatalf("old content kept its added row with the switch off: %q", why)
+	}
+}
+
+// A new series from a list: it has no episodes until its metadata refresh, so it waits (as later) and the refresh
+// makes one added row per season with something wanted; the loop searches them, nothing at once.
+func TestAddedSeriesWaitsForMetadata(t *testing.T) {
+	t.Parallel()
+	e := newEnv(t, true, &policy.Wanted{Missing: new(false), CutoffUnmet: policy.CutoffOff})
+	e.accept = false
+	m := &fakeMeta{}
+	e.a.SetMetadata(m)
+	e.exec(`INSERT INTO series_meta (title_id, added_at) VALUES (10, 1)`)
+	if err := e.a.RequestSearchLater(e.ctx, 10, []string{"series"}); err != nil {
+		t.Fatal(err)
+	}
+	if n := e.count(`SELECT COUNT(*) FROM series_search_wait`); n != 1 || len(m.queued) != 1 ||
+		e.count(`SELECT COUNT(*) FROM search_request`) != 0 {
+		t.Fatalf("not held: %d, %v", n, m.queued)
+	}
+	e.exec(`UPDATE series_meta SET added_at = NULL, refreshed_at = 2`)
+	if err := e.a.ReleaseWaiting(e.ctx, 10); err != nil {
+		t.Fatal(err)
+	}
+	if n := e.count(`SELECT COUNT(*) FROM acquire_run`) + e.count(`SELECT COUNT(*) FROM series_search_wait`); n != 0 {
+		t.Fatalf("searched at once or still held: %s", e.runs())
+	}
+	if n := e.count(`SELECT COUNT(*) FROM search_request WHERE title_id = 10 AND version_key = 'series'
+		AND reason = 'missing' AND why = 'added' AND season IN (0, 1, 2)`); n != 3 {
+		t.Fatalf("%d added season rows, want 3", n)
+	}
+	if sum := e.round(); sum.Queued != 3 {
+		t.Fatalf("round %+v %s", sum, e.runs())
+	}
+}
+
+// The first failed download of an added title is still searched again: a run marked added is not a failure.
+func TestAddedRunDoesNotBlockFailure(t *testing.T) {
+	t.Parallel()
+	e := newEnv(t, true, &policy.Wanted{Missing: new(false), CutoffUnmet: policy.CutoffOff})
+	e.accept = false
+	if err := e.a.RequestSearchLater(e.ctx, 1, []string{"movie"}); err != nil {
+		t.Fatal(err)
+	}
+	e.round()
+	e.drain()
+	if n := e.count(`SELECT COUNT(*) FROM acquire_run WHERE version_id = 101 AND research = 'added'`); n != 1 {
+		t.Fatalf("added row not searched: %s", e.runs())
+	}
+	e.research(router.ResearchRequest{TitleID: 1, VersionID: 101, Version: "movie", Reason: router.ReasonStalled})
+	if n := e.count(`SELECT COUNT(*) FROM acquire_run WHERE version_id = 101 AND research = 'stalled'`); n != 1 {
+		t.Fatalf("the added run blocked the failure re-search: %s", e.runs())
+	}
+}
+
+// A search by name before the round takes the added row is not followed by a second, scheduled search.
+func TestManualSearchTakesAddedRow(t *testing.T) {
+	t.Parallel()
+	e := newEnv(t, true, nil)
+	e.accept = false
+	e.exec(`UPDATE version SET monitored = 0 WHERE title_id IN (2, 3, 10)`)
+	if err := e.a.RequestSearchLater(e.ctx, 1, []string{"movie"}); err != nil {
+		t.Fatal(err)
+	}
+	if _, _, err := e.a.Submit(e.ctx, 0, Selection{Versions: []string{"movie"}, TitleIDs: []int64{1}}); err != nil {
+		t.Fatal(err)
+	}
+	e.drain()
+	if at, _, why := e.rowOf(1, "movie", OnlyMissing, -1); !at.Equal(t0.Add(24*time.Hour)) || why != "" {
+		t.Fatalf("added row after the search by name: %v %q", at, why)
+	}
+	e.advance(10 * time.Minute)
+	e.round()
+	if n := e.count(`SELECT COUNT(*) FROM acquire_run WHERE version_id = 101`); n != 1 {
+		t.Fatalf("searched again: %s", e.runs())
+	}
+}

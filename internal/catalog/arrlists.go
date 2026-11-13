@@ -180,7 +180,7 @@ func (s *MovieIntake) addSeries(ctx context.Context, it arrSeries, cfg movieInta
 		return 0, false, err
 	}
 	if cfg.search && cfg.monitored && s.OnAdd != nil {
-		return titleID, true, s.OnAdd(ctx, titleID, added)
+		return titleID, true, s.OnAdd(ctx, titleID, added, cfg.later)
 	}
 	return titleID, true, nil
 }

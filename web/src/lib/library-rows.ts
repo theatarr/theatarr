@@ -156,10 +156,10 @@ export function nextSearchOf(v: Pick<Version, "control">): { at: string; why?: s
   return { at: c.next_search_at, why: typeof c.next_search_why === "string" && c.next_search_why ? c.next_search_why : undefined };
 }
 
-const WHY: Record<string, string> = { new: "new release", asked: "Search now" };
+const WHY: Record<string, string> = { new: "new release", asked: "Search now", added: "Added by a list" };
 
-/** Why a search is early, in the words the title page and Wanted share: "new release", "Search now", "after a failed
- *  download"; "" on the regular schedule. */
+/** Why a search is early, in the words the title page and Wanted share: "new release", "Search now", "Added by a
+ *  list", "after a failed download"; "" on the regular schedule. */
 export function nextSearchWhy(why: string | undefined | null): string {
   return why ? WHY[why] ?? "after a failed download" : "";
 }

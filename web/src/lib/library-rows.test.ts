@@ -87,7 +87,7 @@ describe("row readers", () => {
     expect(renameSides("/media/tv/A/Season 1/a.mkv", "/media/tv/A (2020)/Season 01/a.mkv")).toEqual(["A/Season 1/a.mkv", "A (2020)/Season 01/a.mkv"]);
   });
   it("gives Wanted and the title page one reason wording", () => {
-    expect(["new", "asked", "stalled", undefined].map(nextSearchWhy)).toEqual(["new release", "Search now", "after a failed download", ""]);
+    expect(["new", "asked", "added", "stalled", undefined].map(nextSearchWhy)).toEqual(["new release", "Search now", "Added by a list", "after a failed download", ""]);
   });
   it("words the next search", () => {
     const now = new Date("2026-11-12T12:00:00Z");

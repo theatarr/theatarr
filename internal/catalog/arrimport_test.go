@@ -37,7 +37,7 @@ func TestImportArrTitleCopiesMonitoring(t *testing.T) {
 	ctx := context.Background()
 	s, st := newIntake(t, intakeSource{})
 	s.Policy.Versions["tv"] = &policy.VersionPolicy{Kind: policy.KindSeries, Mode: policy.ModeActive}
-	s.OnAdd = func(context.Context, int64, []string) error { return errors.New("OnAdd called") }
+	s.OnAdd = func(context.Context, int64, []string, bool) error { return errors.New("OnAdd called") }
 
 	change, id := importTitle(t, s, "movie-web", ArrImportTitle{Kind: policy.KindMovie, TmdbID: 601, Name: "Off",
 		Monitored: false, MinimumAvailability: "inCinemas"}, false)

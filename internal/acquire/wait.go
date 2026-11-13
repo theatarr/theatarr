@@ -11,8 +11,9 @@ import (
 
 // hold takes out of sel the series whose first metadata refresh has not finished (series_meta.added_at, set by an
 // add) and keeps their search in series_search_wait, one row per title, until ReleaseWaiting. A search naming
-// episodes is never held: its episodes exist. It returns how many titles it held.
-func (a *Acquirer) hold(ctx context.Context, commandID int64, sel *Selection) (int, error) {
+// episodes is never held: its episodes exist. later marks a search the schedule serves (RequestSearchLater). It
+// returns how many titles it held.
+func (a *Acquirer) hold(ctx context.Context, commandID int64, sel *Selection, later bool) (int, error) {
 	if a.meta == nil || len(sel.TitleIDs) == 0 || len(sel.EpisodeIDs) > 0 {
 		return 0, nil
 	}
@@ -48,7 +49,7 @@ func (a *Acquirer) hold(ctx context.Context, commandID int64, sel *Selection) (i
 	now := store.Millis(a.now())
 	err = a.st.WriteTx(ctx, func(tx *sql.Tx) error {
 		for _, id := range wait {
-			one := *sel
+			one := heldSearch{Selection: *sel, Later: later}
 			one.TitleIDs = []int64{id}
 			b, err := json.Marshal(one)
 			if err != nil {
@@ -74,8 +75,16 @@ func (a *Acquirer) hold(ctx context.Context, commandID int64, sel *Selection) (i
 	return len(wait), nil
 }
 
-// ReleaseWaiting starts the searches held for a series (tvrefresh calls it after the series' first refresh). A
-// command whose held search finds nothing is completed with a message saying so.
+// heldSearch is a series_search_wait row's selection. Later (absent in rows written before it) marks a search the
+// schedule serves: ReleaseWaiting makes its rows due with why added instead of searching.
+type heldSearch struct {
+	Selection
+	Later bool `json:",omitempty"`
+}
+
+// ReleaseWaiting starts the searches held for a series (tvrefresh calls it after the series' first refresh), or for
+// a later one puts the seasons with something wanted on the search schedule. A command whose held search finds
+// nothing is completed with a message saying so.
 func (a *Acquirer) ReleaseWaiting(ctx context.Context, titleID int64) error {
 	rows, err := a.st.Reader().QueryContext(ctx, `SELECT id, COALESCE(command_id, 0), selection FROM series_search_wait
 		WHERE title_id = ? ORDER BY id`, titleID)
@@ -84,7 +93,7 @@ func (a *Acquirer) ReleaseWaiting(ctx context.Context, titleID int64) error {
 	}
 	type held struct {
 		id, command int64
-		sel         Selection
+		sel         heldSearch
 	}
 	var hs []held
 	for rows.Next() {
@@ -103,7 +112,16 @@ func (a *Acquirer) ReleaseWaiting(ctx context.Context, titleID int64) error {
 		return err
 	}
 	for _, h := range hs {
-		queued, _, err := a.Submit(ctx, h.command, h.sel)
+		if h.sel.Later {
+			if err := a.scheduleAdded(ctx, h.sel.Selection); err != nil {
+				return err
+			}
+			if _, err := a.st.Writer().ExecContext(ctx, `DELETE FROM series_search_wait WHERE id = ?`, h.id); err != nil {
+				return err
+			}
+			continue
+		}
+		queued, _, err := a.Submit(ctx, h.command, h.sel.Selection)
 		if err != nil {
 			return err
 		}

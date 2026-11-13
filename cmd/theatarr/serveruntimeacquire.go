@@ -116,6 +116,11 @@ func (s *serveAcquirer) RequestSearchNowAll(ctx context.Context, q acquire.Wante
 	return ac.RequestSearchNowAll(ctx, q)
 }
 
+func (s *serveAcquirer) RequestSearchLater(ctx context.Context, titleID int64, versions []string) error {
+	ctx, ac := s.forOperation(ctx)
+	return ac.RequestSearchLater(ctx, titleID, versions)
+}
+
 func (s *serveAcquirer) ClearSearchNow(ctx context.Context) (int, error) {
 	ctx, ac := s.forOperation(ctx)
 	return ac.ClearSearchNow(ctx)

@@ -48,6 +48,8 @@ from the title or `find` by TVDB id). Anime takes TVDB only.
   (add with search, arr `SeriesSearch`/`SeasonSearch` without episode ids) wait in `series_search_wait` and go to the
   acquirer when the first refresh finishes, or when no source has the series (Sonarr's SeriesScannedHandler). A held
   search counts as one queued item; a released search that finds nothing completes its arr command with a message.
+  A list's add waits the same way, marked later: its release puts the seasons on the search schedule (router.md,
+  Adds by lists).
 - **On demand:** the title refresh job (`POST .../refresh`, UI) and arr `RefreshSeries` queue it forced (cache
   invalidated); `theatarr tvdb refresh TITLE-ID [-force]` runs it inline.
 - **Periodically:** a sweep every `metadata.series.interval` (default 1h, at most `per_run` 50 series) after Sonarr's

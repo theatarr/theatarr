@@ -563,7 +563,8 @@ func (w *Web) apiDeleteList(rw http.ResponseWriter, r *http.Request) {
 	rw.WriteHeader(http.StatusNoContent)
 }
 
-// POST /lists/{id}/sync: import the list now, enabled or not, as the scheduled sync does.
+// POST /lists/{id}/sync: import the list now, enabled or not, as the scheduled sync does. While Pause is on it is
+// refused (409) before anything is added: its titles could not be put on the search schedule.
 func (w *Web) apiSyncList(rw http.ResponseWriter, r *http.Request) {
 	id, ok := pathID(r)
 	if !ok {
@@ -571,6 +572,10 @@ func (w *Web) apiSyncList(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if w.noTMDb(rw) {
+		return
+	}
+	if w.pol != nil && !w.pol.RouterSettings().Enabled {
+		writeJSON(rw, http.StatusConflict, apiError{Error: "Theatarr is paused, so nothing can be searched."})
 		return
 	}
 	ctx := r.Context()

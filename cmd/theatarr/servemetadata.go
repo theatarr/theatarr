@@ -181,9 +181,13 @@ func prepareServeMetadata(prev *serveMetadata, pol *policy.Policy, gw *gateway.G
 	return m, nil
 }
 
-// movieIntakeSearch starts the add-time search of a movie the intake added.
-func movieIntakeSearch(ac *serveAcquirer) func(context.Context, int64, []string) error {
-	return func(ctx context.Context, titleID int64, versions []string) error {
+// movieIntakeSearch asks the add-time search of a title the intake added: on the search schedule when later (list
+// syncs, the timed collection sync), else at once (a person adding or refreshing one collection).
+func movieIntakeSearch(ac *serveAcquirer) func(context.Context, int64, []string, bool) error {
+	return func(ctx context.Context, titleID int64, versions []string, later bool) error {
+		if later {
+			return ac.RequestSearchLater(ctx, titleID, versions)
+		}
 		_, _, err := ac.Submit(ctx, 0, acquire.Selection{TitleIDs: []int64{titleID}, Versions: versions})
 		return err
 	}

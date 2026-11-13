@@ -83,6 +83,13 @@ func TestListsAPI(t *testing.T) {
 		t.Errorf("native row: %q %d %q %v", view, profile, root, err)
 	}
 
+	// Sync now while paused is refused before anything is added.
+	rec = e.sendCollection("POST", "/lists/1/sync", ``, key, "")
+	if rec.Code != 409 || !strings.Contains(rec.Body.String(), "Theatarr is paused") ||
+		e.count(`SELECT count(*) FROM title WHERE tmdb_id = 903`) != 0 {
+		t.Fatalf("paused sync %d %s", rec.Code, rec.Body)
+	}
+	e.web.pol.Router.Enabled = true
 	// Sync now: the list's movie is added to its library; the series on the list is skipped.
 	rec = e.sendCollection("POST", "/lists/1/sync", ``, key, "")
 	var synced ListSynced
@@ -350,6 +357,7 @@ func TestArrListsAPI(t *testing.T) {
 		t.Errorf("preview %d %s", rec.Code, rec.Body)
 	}
 	var synced ListSynced
+	e.web.pol.Router.Enabled = true
 	rec = e.sendCollection("POST", "/lists/"+strconv.FormatInt(radarr, 10)+"/sync", ``, key, "")
 	if rec.Code != 200 || json.Unmarshal(rec.Body.Bytes(), &synced) != nil || synced.Added != 1 || synced.SyncError != "" {
 		t.Errorf("sync %d %s", rec.Code, rec.Body)

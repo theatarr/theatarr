@@ -32,7 +32,9 @@ The same `movie_collection` rows back the native **Collections** page (Library â
 and admins; `GET /collections`, `PUT /collections/{id}`): name and poster after the first refresh, movies in the
 library out of the collection's total, the monitored switch, target libraries, search on add and minimum
 availability. Monitoring a collection adds its missing movies at the next refresh. Search on add starts the usual
-search through the acquirer and router, so nothing grabs while `router.enabled` is off.
+search through the acquirer and router, so nothing grabs while `router.enabled` is off: at once when a person adds or
+refreshes the collection, on the search schedule (`per_hour`) for the timed refresh and every list sync
+(router.md, Adds by lists).
 
 **Add collection** on the page adds a collection that has no movie in the library yet: `GET /collections/search?q=`
 searches TMDb (`/search/collection`, first page, cached a week; each result says whether it is already known), and

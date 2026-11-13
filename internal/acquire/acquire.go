@@ -269,7 +269,7 @@ func (a *Acquirer) Submit(ctx context.Context, commandID int64, sel Selection) (
 	}
 	sel.Versions = requested
 	named := len(sel.TitleIDs) > 0
-	held, err := a.hold(ctx, commandID, &sel)
+	held, err := a.hold(ctx, commandID, &sel, false)
 	if err != nil {
 		return 0, 0, err
 	}

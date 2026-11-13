@@ -170,10 +170,10 @@ func TestIntakeAvailabilityAndSearchOnAdd(t *testing.T) {
 				t.Fatal(err)
 			}
 			searched := 0
-			s.OnAdd = func(_ context.Context, id int64, keys []string) error {
+			s.OnAdd = func(_ context.Context, id int64, keys []string, later bool) error {
 				searched++
-				if len(keys) != 1 || keys[0] != "movie-web" {
-					t.Fatalf("keys=%v", keys)
+				if len(keys) != 1 || keys[0] != "movie-web" || !later {
+					t.Fatalf("keys=%v later=%v", keys, later)
 				}
 				return nil
 			}
@@ -220,7 +220,7 @@ func TestListMonitoringExclusionsAndEnableFlags(t *testing.T) {
 		t.Fatal(err)
 	}
 	searches := 0
-	s.OnAdd = func(context.Context, int64, []string) error { searches++; return nil }
+	s.OnAdd = func(context.Context, int64, []string, bool) error { searches++; return nil }
 	got, err := s.SyncLists(context.Background())
 	if err != nil {
 		t.Fatal(err)
@@ -315,7 +315,13 @@ func TestCollectionDiscoveryAndNewMembership(t *testing.T) {
 		t.Fatal(err)
 	}
 	searches := 0
-	s.OnAdd = func(context.Context, int64, []string) error { searches++; return nil }
+	s.OnAdd = func(_ context.Context, _ int64, _ []string, later bool) error {
+		if !later {
+			t.Error("the timed collection sync searched at once")
+		}
+		searches++
+		return nil
+	}
 	got, err = s.RefreshCollections(ctx)
 	if err != nil {
 		t.Fatal(err)
@@ -621,7 +627,7 @@ func TestIntakeSearchOnAddPerLibraryDelay(t *testing.T) {
 			}
 			var searched []string
 			calls := 0
-			s.OnAdd = func(_ context.Context, _ int64, keys []string) error {
+			s.OnAdd = func(_ context.Context, _ int64, keys []string, _ bool) error {
 				calls++
 				searched = slices.Sorted(slices.Values(keys))
 				return nil
@@ -764,7 +770,10 @@ func TestSonarrListAddsSeries(t *testing.T) {
 		{"tvdbId":404,"title":"Elsewhere"},
 		{"tvdbId":405,"tmdbId":505,"title":"By TMDb id","seriesType":"anime"}]`}})
 	var searched []string
-	s.OnAdd = func(_ context.Context, id int64, keys []string) error {
+	s.OnAdd = func(_ context.Context, id int64, keys []string, later bool) error {
+		if !later {
+			t.Error("a Sonarr list searched at once")
+		}
 		searched = append(searched, strconv.FormatInt(id, 10)+":"+strings.Join(keys, ","))
 		return nil
 	}
@@ -876,5 +885,37 @@ func TestListPreviewWritesNothing(t *testing.T) {
 	}
 	if _, err := s.PreviewList(context.Background(), 9); !errors.Is(err, sql.ErrNoRows) {
 		t.Errorf("preview of no list: %v", err)
+	}
+}
+
+// A list sync a person starts goes on the search schedule like the timed one (later); a person refreshing one
+// collection searches at once.
+func TestIntakeLaterByEntryPoint(t *testing.T) {
+	t.Parallel()
+	src := intakeSource{list: &tmdb.List{Items: []tmdb.MovieSummary{{ID: 201}}},
+		collection: &tmdb.Collection{ID: 7, Name: "Collection", Parts: []tmdb.MovieSummary{{ID: 101}}}}
+	s, st := newIntake(t, src)
+	for _, q := range []string{
+		`INSERT INTO import_list(id,name,tmdb_id,versions,search_on_add,created_at,updated_at) VALUES(1,'list',9,'["movie-web"]',1,0,0)`,
+		`INSERT INTO movie_collection(tmdb_id,name,monitored,versions,search_on_add,updated_at) VALUES(7,'Collection',1,'["movie-web"]',1,0)`,
+	} {
+		if _, err := st.Writer().Exec(q); err != nil {
+			t.Fatal(err)
+		}
+	}
+	var calls []bool
+	s.OnAdd = func(_ context.Context, _ int64, _ []string, later bool) error {
+		calls = append(calls, later)
+		return nil
+	}
+	ctx := context.Background()
+	if got, err := s.SyncList(ctx, 1); err != nil || got.Added != 1 {
+		t.Fatalf("list sync %+v %v", got, err)
+	}
+	if got, err := s.RefreshCollection(ctx, 7); err != nil || got.Added != 1 {
+		t.Fatalf("collection refresh %+v %v", got, err)
+	}
+	if !slices.Equal(calls, []bool{true, false}) {
+		t.Fatalf("later per call %v, want list sync later, one collection at once", calls)
 	}
 }

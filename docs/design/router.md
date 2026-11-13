@@ -685,8 +685,9 @@ one series season. Its next search is a row of `search_request`, keyed `(title_i
 
 - `next_at`: from when the item may be searched;
 - `tries`: empty searches of new content in a row (or searches no indexer answered, for other rows);
-- `why`: NULL on the regular schedule, `asked` for Search now, `new` for a retry of new content, else the failure the
-  router reported (`exhausted`, `stalled`, `dead_link`, ...).
+- `why`: NULL on the regular schedule, `asked` for Search now, `added` for a title a list sync or the timed
+  collection sync added, `new` for a retry of new content, else the failure the router reported (`exhausted`,
+  `stalled`, `dead_link`, ...).
 
 An item with no row is unscheduled. Rows go with the title and with the library.
 
@@ -774,8 +775,19 @@ Tests: `TestWantedListSearchNowQueue`, `TestWantedListNextSearch`, `web.TestWant
 
 **Searches by name.** The title page's Search, the search after an add made in Theatarr and arr-view commands keep
 their own path (`Submit`, source `command`): they start at once, outside `per_hour`, and are not scheduled. They only
-reschedule an item's existing row (above), and the next full round counts them for an unscheduled item. Automatic adds
-from lists and collections also search at once, outside `per_hour`.
+reschedule an item's existing row (above), and the next full round counts them for an unscheduled item. So does a
+person adding or refreshing one collection with Search on add.
+
+**Adds by lists.** A list sync (timed or Sync now) and the timed collection sync do not search at once: with Search
+on add, `RequestSearchLater` makes the missing rows of the libraries the title was added to due now with
+`why = 'added'` and starts no round; the loop searches them under `per_hour`, after the asked rows, whatever the
+switches say, and reschedules them by the ordinary rule (old content with "Search for missing items" off loses its
+row). It writes nothing while Pause is on, never turns a due row into `added` (an asked row stays asked), and leaves
+out items with a download in flight or a loop search queued or running. A new series has no episodes until its first
+metadata refresh: its request waits in `series_search_wait` marked later, and `ReleaseWaiting` then makes one
+`added` row per season with something wanted. Sync now while Pause is on is refused (409) before anything is added.
+History calls such a search "added by a list". Tests: `TestAddedRowOnTheSchedule`, `TestAddedSeriesWaitsForMetadata`,
+`TestAddedRunDoesNotBlockFailure`, `TestManualSearchTakesAddedRow`.
 
 **Upgrading from the wanted loop.** Migration 00126 adds the columns; Search now requests still queued become due
 `asked` rows; queued `acquire.searchnow` jobs and the queued retry chains of new content (`acquire.research` with

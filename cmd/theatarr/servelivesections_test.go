@@ -480,7 +480,7 @@ func TestMovieIntakeSkipsWhilePaused(t *testing.T) {
 		src := &pauseIntakeSource{}
 		var searches atomic.Int32
 		mi := &catalog.MovieIntake{Store: st, Policy: pol, TMDb: src, Now: time.Now, Log: slog.New(slog.NewTextHandler(io.Discard, nil)),
-			OnAdd: func(context.Context, int64, []string) error { searches.Add(1); return nil }}
+			OnAdd: func(context.Context, int64, []string, bool) error { searches.Add(1); return nil }}
 		// The start runs the collections and TMDb lists, then the arr lists; the second current ends the run.
 		runCtx, cancel := context.WithCancel(ctx)
 		calls := 0

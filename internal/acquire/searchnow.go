@@ -130,38 +130,9 @@ func (a *Acquirer) RequestSearchNowAll(ctx context.Context, q WantedQuery) (*Sea
 
 // askSearch makes the requested rows due now with why asked and runs a round of their titles.
 func (a *Acquirer) askSearch(ctx context.Context, reqs []searchRequest, out *SearchNowResult) (*SearchNowResult, error) {
-	var titles []int64
-	running, err := a.busySet(ctx)
+	titles, err := a.markDue(ctx, reqs, whyAsked, out)
 	if err != nil {
 		return nil, err
-	}
-	var ready []searchRequest
-	for _, r := range reqs {
-		if running[requestKey(r.titleID, r.key, r.reason, r.season)] {
-			out.Skipped = append(out.Skipped, SearchNowSkip{TitleID: r.titleID, Version: r.key, Reason: skipSearching})
-			continue
-		}
-		ready = append(ready, r)
-	}
-	if len(ready) > 0 {
-		now := store.Millis(a.now())
-		if err := a.st.WriteTx(ctx, func(tx *sql.Tx) error {
-			for _, r := range ready {
-				res, err := tx.ExecContext(ctx, `INSERT INTO search_request (title_id, version_key, reason, season, created_at,
-					next_at, tries, why) VALUES (?, ?, ?, ?, ?, ?, 0, ?) ON CONFLICT DO UPDATE SET next_at = excluded.next_at,
-					tries = 0, why = excluded.why WHERE NOT (search_request.why IS excluded.why
-					AND search_request.next_at <= excluded.next_at)`, r.titleID, r.key, r.reason, r.season, now, now, whyAsked)
-				if err != nil {
-					return err
-				}
-				n, _ := res.RowsAffected()
-				out.Queued += int(n)
-				titles = append(titles, r.titleID)
-			}
-			return nil
-		}); err != nil {
-			return nil, err
-		}
 	}
 	// The rows are stored: starting them no longer depends on the caller (a cancelled HTTP request must not leave
 	// them unstarted until the next round).
@@ -175,6 +146,103 @@ func (a *Acquirer) askSearch(ctx context.Context, reqs []searchRequest, out *Sea
 	}
 	out.Pending, err = a.askedDue(ctx)
 	return out, err
+}
+
+// markDue makes the requested rows due now with why, skipping those a loop search is queued or running for, and
+// returns their titles. Asked rewrites any row but one already asked and due; added only a row that is not due yet
+// (a due row keeps its why: an asked one stays first).
+func (a *Acquirer) markDue(ctx context.Context, reqs []searchRequest, why string, out *SearchNowResult) ([]int64, error) {
+	running, err := a.busySet(ctx)
+	if err != nil {
+		return nil, err
+	}
+	var ready []searchRequest
+	for _, r := range reqs {
+		if running[requestKey(r.titleID, r.key, r.reason, r.season)] {
+			out.Skipped = append(out.Skipped, SearchNowSkip{TitleID: r.titleID, Version: r.key, Reason: skipSearching})
+			continue
+		}
+		ready = append(ready, r)
+	}
+	if len(ready) == 0 {
+		return nil, nil
+	}
+	cond := `NOT (search_request.why IS excluded.why AND search_request.next_at <= excluded.next_at)`
+	if why == whyAdded {
+		cond = `search_request.next_at > excluded.next_at`
+	}
+	var titles []int64
+	now := store.Millis(a.now())
+	err = a.st.WriteTx(ctx, func(tx *sql.Tx) error {
+		for _, r := range ready {
+			res, err := tx.ExecContext(ctx, `INSERT INTO search_request (title_id, version_key, reason, season, created_at,
+				next_at, tries, why) VALUES (?, ?, ?, ?, ?, ?, 0, ?) ON CONFLICT DO UPDATE SET next_at = excluded.next_at,
+				tries = 0, why = excluded.why WHERE `+cond, r.titleID, r.key, r.reason, r.season, now, now, why)
+			if err != nil {
+				return err
+			}
+			n, _ := res.RowsAffected()
+			out.Queued += int(n)
+			titles = append(titles, r.titleID)
+		}
+		return nil
+	})
+	return titles, err
+}
+
+// RequestSearchLater puts the missing items of a title a list sync or a timed collection sync added (versions: the
+// libraries it was added to) on the search schedule: their rows are made due now with why added and the loop
+// searches them under router.wanted.per_hour, whatever the backlog switches say. It starts no round. A series whose
+// first metadata refresh has not finished waits in series_search_wait as later; ReleaseWaiting makes its rows. Items
+// with a download in flight or a loop search queued or running are left out. While paused it writes nothing.
+func (a *Acquirer) RequestSearchLater(ctx context.Context, titleID int64, versions []string) error {
+	ctx = a.captureRuntime(ctx)
+	if !a.pol.RouterSettings().Enabled {
+		return nil
+	}
+	keys := a.Active(versions)
+	if len(keys) == 0 {
+		return nil
+	}
+	sel := Selection{Versions: keys, TitleIDs: []int64{titleID}, Only: OnlyMissing}
+	if _, err := a.hold(ctx, 0, &sel, true); err != nil || len(sel.TitleIDs) == 0 {
+		return err
+	}
+	return a.scheduleAdded(ctx, sel)
+}
+
+// scheduleAdded makes the rows of sel's missing targets due now with why added (one per library and film or season),
+// leaving out targets with a download in flight.
+func (a *Acquirer) scheduleAdded(ctx context.Context, sel Selection) error {
+	ts, err := a.targets(ctx, sel)
+	if err != nil {
+		return err
+	}
+	var reqs []searchRequest
+	seen := map[string]bool{}
+	for _, t := range ts {
+		k := targetKey(t)
+		if seen[k] {
+			continue
+		}
+		busy, err := a.inFlight(ctx, t)
+		if err != nil {
+			return err
+		}
+		if busy {
+			continue
+		}
+		seen[k] = true
+		reqs = append(reqs, searchRequest{titleID: t.titleID, key: t.key, reason: t.reason, season: seasonOf(t.season)})
+	}
+	out := &SearchNowResult{}
+	if _, err := a.markDue(ctx, reqs, whyAdded, out); err != nil {
+		return err
+	}
+	if out.Queued > 0 {
+		a.log.Info("added title scheduled for search", "titles", sel.TitleIDs, "rows", out.Queued)
+	}
+	return nil
 }
 
 // askedDue counts the asked rows that are due.

@@ -55,12 +55,13 @@ it("words each Next search state; no time is promised for a due row or while pau
     { ...row, title_id: 5, waiting: "scheduled", next_at: inHours(5), why: "stalled" },
     { ...row, title_id: 6, waiting: "in_flight", next_at: null, search_blocked: "in_flight" },
     { ...row, title_id: 7, waiting: "not_scheduled", next_at: null },
+    { ...row, title_id: 8, why: "added" },
   ];
   mockFetch([admin, { method: "GET", path: "/wanted", reply: { ...page, items, total: items.length, titles: {} } }, status]);
   renderPage(<WantedPage />, "/wanted");
   const rows = await screen.findAllByTestId("wanted-row");
   const next = rows.map(r => r.querySelector('[data-column="next"]')?.textContent);
-  expect(next).toEqual(["Now", "Now (Search now)", "in 3 h", "in 2 h (new release) · try 3", "in 5 h (after a failed download)", "Downloading", "Not scheduled"]);
+  expect(next).toEqual(["Now", "Now (Search now)", "in 3 h", "in 2 h (new release) · try 3", "in 5 h (after a failed download)", "Downloading", "Not scheduled", "Now (Added by a list)"]);
   // The exact time is the tooltip of a scheduled row.
   expect(within(rows[2]).getByText("in 3 h").getAttribute("title")).toMatch(/^\w{3} \d+ \d\d:\d\d$/);
   // A row asked for already cannot be asked again.

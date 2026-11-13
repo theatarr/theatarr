@@ -33,8 +33,10 @@ type MovieIntake struct {
 	TMDb   MovieMetadataSource
 	Now    func() time.Time
 	Log    *slog.Logger
-	// OnAdd starts the existing add-time search after commit, only for monitored, available movies.
-	OnAdd func(context.Context, int64, []string) error
+	// OnAdd asks the add-time search after commit, only for monitored, available movies (title id, the libraries).
+	// later is true for list syncs and the timed collection sync (the search schedule serves them, under the hourly
+	// limit) and false when a person adds or refreshes one collection (searched at once).
+	OnAdd func(ctx context.Context, titleID int64, versions []string, later bool) error
 	// Arr opens the read-only client of a Radarr or Sonarr list's instance; nil: arr.New with the default options.
 	Arr func(url, key string) (ArrReader, error)
 
@@ -102,6 +104,8 @@ type movieIntakeConfig struct {
 	versions, minimum, monitor, view, root string
 	profile                                int64
 	search, monitored                      bool
+	// later: the add's search goes on the search schedule (OnAdd's later).
+	later bool
 	// listType is an import list's source (tmdb, radarr, sonarr); "" for a collection. url and apiKey are a Radarr
 	// or Sonarr list's instance.
 	listType, url, apiKey string
@@ -163,6 +167,7 @@ func (s *MovieIntake) RefreshCollections(ctx context.Context) (IntakeResult, err
 	var out IntakeResult
 	var errs []error
 	for _, cfg := range configs {
+		cfg.later = true
 		soft, err := s.refreshCollection(ctx, cfg, &out)
 		if err != nil {
 			return out, err
@@ -304,6 +309,7 @@ func (s *MovieIntake) SyncList(ctx context.Context, id int64) (IntakeResult, err
 func (s *MovieIntake) syncList(ctx context.Context, cfg movieIntakeConfig, out *IntakeResult) (soft []error, err error) {
 	out.Lists++
 	cfg.monitored = cfg.monitor != "none"
+	cfg.later = true
 	switch cfg.listType {
 	case "radarr":
 		soft = s.syncRadarr(ctx, cfg, out)
@@ -471,14 +477,14 @@ func (s *MovieIntake) addMissingVersions(ctx context.Context, titleID int64, ani
 		return false, err
 	}
 	if cfg.search && cfg.monitored {
-		return true, s.searchReady(ctx, titleID, added, now)
+		return true, s.searchReady(ctx, titleID, added, now, cfg.later)
 	}
 	return true, nil
 }
 
 // searchReady hands OnAdd the libraries of keys the movie is available in now, each by its own stored rule and
-// dates (availability.Movie, the gate of every automatic search).
-func (s *MovieIntake) searchReady(ctx context.Context, titleID int64, keys []string, now time.Time) error {
+// dates (availability.Movie, the gate of every automatic search), with later.
+func (s *MovieIntake) searchReady(ctx context.Context, titleID int64, keys []string, now time.Time, later bool) error {
 	if s.OnAdd == nil {
 		return nil
 	}
@@ -500,7 +506,7 @@ func (s *MovieIntake) searchReady(ctx context.Context, titleID int64, keys []str
 	if len(ready) == 0 {
 		return nil
 	}
-	return s.OnAdd(ctx, titleID, ready)
+	return s.OnAdd(ctx, titleID, ready, later)
 }
 
 func (s *MovieIntake) addMovie(ctx context.Context, summary tmdb.MovieSummary, cfg movieIntakeConfig, collectionID int64) (bool, error) {
@@ -632,7 +638,7 @@ func (s *MovieIntake) addNewMovie(ctx context.Context, summary tmdb.MovieSummary
 		return 0, false, nil
 	}
 	if cfg.search && cfg.monitored {
-		return result.TitleID, true, s.searchReady(ctx, result.TitleID, result.Versions, now)
+		return result.TitleID, true, s.searchReady(ctx, result.TitleID, result.Versions, now, cfg.later)
 	}
 	return result.TitleID, true, nil
 }

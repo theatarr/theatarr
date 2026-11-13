@@ -96,7 +96,7 @@ func TestListIntakeMinimumReachesAddedLibraryOnly(t *testing.T) {
 				exec(`INSERT INTO arrview_title(view,title_id,quality_profile_id,root_folder_path,added_at,updated_at) VALUES('radarr',50,3,'/held',1,1)`)
 			}
 			var searched []string
-			s.OnAdd = func(_ context.Context, _ int64, keys []string) error {
+			s.OnAdd = func(_ context.Context, _ int64, keys []string, _ bool) error {
 				searched = append(searched, keys...)
 				return nil
 			}
