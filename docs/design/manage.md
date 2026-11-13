@@ -56,17 +56,13 @@ retained for `last_search`, even when it predates the file. Empty newer searches
 searches keep the first record, and there is no history limit. The stored episode releases panel visits newest
 decisions first and skips candidate decoding for older or non-covering decisions.
 
-The cutoff a file is measured against is the owning arr instance's profile while an arr imports the version (that
-profile decided the state), else the policy profile.
+The cutoff a file is measured against is the library's own profile.
 
-## Shadow ownership
+## Monitoring and searches
 
-`arr.import` rewrites a version's monitored flags and files from its owning instance every 15 minutes
-(`docs/design/series.md`, Ownership). So a version with a `version_source` whose instance is still under `import.arr`
-is **managed by that arr** while the instance stays under `import.arr`: its monitor switches show the arr's state read-only with that note, and
-every monitor write refuses it (409, `PUT titles/{id}/versions/{key}` too). Searches keep the existing rule
+Every copy's monitoring may be changed here, also one an arr imports. Searches keep the existing rule
 (`catalog.Searchable`: mode active and `router.enabled`), and the episode releases panel answers from what is stored
-unless the version is active. A shadow version Theatarr owns (no arr source) may be monitored here.
+unless the version is active.
 
 ## API
 
@@ -78,14 +74,14 @@ Discord and ntfy targets (`format: discord` or `format: ntfy`, docs/design/devic
 
 | Route | What |
 |---|---|
-| `GET titles/{id}` | per version `upgrade` (state, quality, score, cutoff, below/seen counts, next, last search) and `control` (mode, managed_by, can_edit, can_search with reasons, live_releases); a movie file's `current.media`: for the version's newest active link, Theatarr's own probe stored at import (`content_file.probe`, formatted as the arrs format theirs), else for an adopted link the media info its arr had recorded (`link.adopted_media`, 00117); the arr file's `media_info` only when the version has no active link |
+| `GET titles/{id}` | per version `upgrade` (state, quality, score, cutoff, below/seen counts, next, last search) and `control` (mode, can_edit, can_search with reasons, live_releases); a movie file's `current.media`: for the version's newest active link, Theatarr's own probe stored at import (`content_file.probe`, formatted as the arrs format theirs), else for an adopted link the media info its arr had recorded (`link.adopted_media`, 00117); the arr file's `media_info` only when the version has no active link |
 | `GET titles`, `discover` | `upgrade_seen` per row and version; the Home row `upgrades` lists only titles with an upgrade found (seen), its notes say "upgrade found" |
 | `GET titles/{id}/episodes` | per version `control` and `cutoff`; per season and version `below_cutoff`, `upgrade_seen`, `monitored`, `quality`, `size_bytes`, `score`; per cell `upgrade_seen` |
 | `GET titles/{id}/episodes/{eid}` | the episode drawer: per version state, upgrade, control, file (release, quality, score, size, media, path; `media` of a link as for `current.media`), history, journal entries |
 | `GET titles/{id}/episodes/{eid}/releases?version=&live=` | the releases panel for one episode |
-| `PUT titles/{id}/seasons/{season}/monitor`, `PUT titles/{id}/episodes/monitor` | monitor a season or episodes, per version; arr-managed versions refused with the reason |
+| `PUT titles/{id}/seasons/{season}/monitor`, `PUT titles/{id}/episodes/monitor` | monitor a season or episodes, per version |
 | `POST titles/{id}/seasons/{season}/search`, `POST titles/{id}/episodes/search` | search a season or episodes through the acquirer's selection |
-| `POST titles/monitor` | the library's copy-targeted bulk monitor (docs/design/ui.md "Library views"): sets `monitored` on existing copies of up to 500 titles, `dry_run` previews, `expect` skips copies changed since the preview (stale); arr-managed copies come back `read_only`, a title without the copy `missing`; never adds a copy or searches. Manage only |
+| `POST titles/monitor` | the library's copy-targeted bulk monitor (docs/design/ui.md "Library views"): sets `monitored` on existing copies of up to 500 titles, `dry_run` previews, `expect` skips copies changed since the preview (stale); a title without the copy comes back `missing`; never adds a copy or searches. Manage only |
 
 Callers without "see files" get availability only (`docs/design/users.md`): whether there is a file and its resolution,
 no upgrade explanation, cutoff, history, scores, releases, next, paths, sizes or journal, and the write and releases
@@ -110,6 +106,6 @@ routes answer 403. The permission check is `canManage` in
 
 ## Checked
 
-Go tests (`manage_test.go`): the rule's cases, the API on a seeded series and movie, shadow and arr-managed
-versions get no writes and no searches (state compared before and after, zero acquirer calls), the active path, and
+Go tests (`manage_test.go`): the rule's cases, the API on a seeded series and movie, shadow versions get no
+searches (state compared before and after, zero acquirer calls), the active path, and
 users get no scores.

@@ -14,9 +14,9 @@ qualities and candidates outside the journal sample. Only release names and pars
 links or credentials. Each aggregate carries its source kind, positive-only flag, first/last sightings and count.
 
 Active and interactive searches and the shadow runner record their successful indexers, best tier and timestamp,
-including empty answers. RSS decisions supply sightings, not searches. Imported arr grabs/imports are seeded as
-positive non-search evidence, skipping synthetic SeaDex names; unresolvable series episodes are not assigned to a
-season. Facts are shared across versions, but absence coverage is counted separately for each version and season.
+including empty answers. RSS decisions supply sightings, not searches. Sightings of arr grabs and imports seeded
+before the arr history stopped being read stay as positive non-search evidence (`TestCeilingKeepsStoredArrSightings`);
+no new ones are added. Facts are shared across versions, but absence coverage is counted separately for each version and season.
 
 Search history is bounded per title, season and version when a search is recorded: every search of the last week,
 then one per day to 90 days and one per week to two years, nothing older. A bucket keeps its earliest successful search
@@ -33,8 +33,8 @@ window. `versions.<key>.ceiling.disc_only: true` ignores WEB/TV tiers for that v
 the profile's preference for 2160p WEB over a 1080p disc.
 
 The display cutoff is the lower of the real profile cutoff and its highest allowed item whose entire quality group
-fits the ceiling. An owning arr's order/groups are retained during its ordinary profile import; older imports with
-no item order keep the old explanation until their next refresh. A manual tier overrides the computed one (status
+fits the ceiling. The profile is always the library's own; a profile taken from an arr (no qualities of its own) gives
+no cutoff. A manual tier overrides the computed one (status
 `override`); sightings above a pinned tier remain in the evidence. Optional expiry restores the computed result.
 
 Evidence writes recompute locally. Imports mark existing ceilings due; the `ceiling.compute` job takes at most 25

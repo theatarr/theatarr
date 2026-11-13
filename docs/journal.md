@@ -69,7 +69,6 @@ The **id** names the source row. Ids are stable, so they work as keys in your no
 | `sg:<n>` | Shadow grab n |
 | `sd:<n>` | Shadow diff n |
 | `plan:<n>` | Router plan n |
-| `arr:<instance>:<history id>` | The first history row of one arr grab, import or failure. Sonarr writes one row per episode. |
 | `v:<n>` | Verdict n |
 | `act:<n>` | Web UI action n |
 
@@ -77,7 +76,7 @@ The **id** names the source row. Ids are stable, so they work as keys in your no
 
 | Field | What |
 |---|---|
-| `at`, `kind`, `source` | When it happened, and who decided or acted: `theatarr`, `shadow`, `router`, `library`, `journal` or `arr:<instance>` |
+| `at`, `kind`, `source` | When it happened, and who decided or acted: `theatarr`, `shadow`, `router`, `library` or `journal` |
 | `title`, `version`, `mode` | `mode` is the version's mode in the running policy: `active` writes, `shadow` only plans |
 | `summary` | One line saying what happened |
 | `release` | Title, indexer, info hash, size, quality, score, formats, languages, episodes (`S01E02`), and `how` it was found (`Rss`, `Search`, `InteractiveSearch`; `acquire:<run>`, `rss`) |
@@ -163,8 +162,6 @@ What to do:
 2. For each one, read `flags`, `release`, `reasoning` and `after`. Fetch the `related` entries you need.
 3. Give a verdict on the decision entry itself: the `grab`, `upgrade`, `shadow` or `plan` entry, not the `failure`
    or `import` that followed. That entry carries the hash and the version.
-4. Don't give a verdict on arr entries just to blocklist them. The arrs still own those versions until cutover, so
-   your verdict is only recorded. That is still useful: it is the audit trail, and it clears the flag.
 
 ## Retention
 
@@ -178,6 +175,5 @@ The journal is mostly a reader, so its entries live as long as their source rows
     searches a day, the whole table stays under 10 MB.
 - **`journal_verdict`** is kept for good.
 
-The source tables keep their own rules. `arr_history` is frozen once the arrs are retired, and on a migrated install
-it is usually the bulk of the journal. Listing the whole journal takes seconds for thousands of entries; one entry
+The source tables keep their own rules. The arrs' history is not part of the journal. Listing the whole journal takes seconds for thousands of entries; one entry
 takes about a millisecond.

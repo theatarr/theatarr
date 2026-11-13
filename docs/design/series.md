@@ -15,7 +15,7 @@ releases as Sonarr does, and RSS reads series feeds for Live libraries. Where th
   | Table | Holds |
   |---|---|
   | `title` | One per TVDB id. New columns: `series_type`, `use_scene_numbering`, `runtime_minutes`, `original_language` |
-  | `arr_title.series_type` | The type as each instance had it, kept as a record. It does not decide anything: the title's type does (Series type, below) |
+  | `arr_title.series_type` | The type as each instance had it, kept as a record. Nothing reads it: the title's type decides (Series type, below) |
   | `title_scene_mapping` | Sonarr's scene mappings as its API exposes them (`alternateTitles`): name, season, scene season, origin, comment; source = the instance |
   | `episode` | One per (title, season, number) in TVDB numbering, shared by the title's versions; name, air date (and UTC), runtime |
   | `episode_number` | `absolute_tvdb`, `scene` (season and number) and `scene_absolute`, source = the instance |
@@ -41,10 +41,8 @@ releases as Sonarr does, and RSS reads series feeds for Live libraries. Where th
 A series has one type (standard, daily or anime), the same for every library and every view: `title.series_type`.
 
 - **Resolver.** `store.SeriesTypeSQL` (and `store.SeriesType` for one title) is the only place the rule lives:
-  the title's value; when it is empty, `anime` if the title's anime flag is set, else `standard`. Between the two,
-  a title with no value takes the first non-empty `arr_title.series_type` by instance: the import copies an arr's
-  type onto a title that has none on every run, so no code path leaves a title in that state; the fallback only
-  covers a database that somehow has one.
+  the title's value; when it is empty, `anime` if the title's anime flag is set, else `standard`. The arr's own type
+  is not read (migration 00121 copied it onto titles without one).
 - **Readers.** All of them read the resolver: decisions and search style (`decide.LoadTitle`, `LoadSeries`),
   import naming (`library` `completeDownload`), `checkNames`, the one-time import's adoption, rename preview, reassign,
   now-playing's next episode, the anime-library filter of acquisition (the flag or the type), the TV metadata

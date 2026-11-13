@@ -1524,21 +1524,19 @@ router did with the run's source:
 **Imported-release offers.** `router.offer` offers an imported movie or series release to the title's other versions
 of the same kind. Series decisions use the imported download's episode ids as Sonarr search criteria; accepted offers
 route one release, so the router reuses the provider torrent and the library links the season pack or episodes.
-The six-hour sweep also covers adopted links and imported arr files, using recorded hashes (including
-unambiguous mount-folder identities); `-sweep -dry-run` lists decisions, unknown hashes are remembered as `no_hash`,
+The six-hour sweep also covers adopted links, from their stored source (below); `-sweep -dry-run` lists decisions, unknown hashes are remembered as `no_hash`,
 and neither the source version nor the arr's own library receive its files. Pending offers retry every
 15 minutes for six hours, then daily for at most seven further attempts; readiness changes can retry early within
 that cap, and the final `gave_up` carries `retry_limit`. Recorded replacements retire sources and cancel their
 pending offers as `declined` with reason `superseded`; every accepted offer still passes the existing router,
 mode, version-indexer, blocklist and library gates.
 
-For an adopted link, what the arr history gives (hash, release and the arr's indexer names, with the library the arr filled) is read once and kept on
-the link (`link.adopted_source`, with the `adopted_from` it was read for); a real sweep stores it, a dry run does not.
-From then on the sweep uses the stored value instead of the mount folder and the history, resolving the names with
-`IndexerByName` as before and keeping the arr's library out of the offer once the arr instance is gone, so an adopted file keeps qualifying for offers after the arr history tables are gone. A
-different `adopted_from` reads the history again, and adoption clears the stored value when it records a changed
-file at the same path (`TestAdoptedLinkOffersWithoutFollowing`). A history row that arrives after a link's source was stored
-is not read again.
+An adopted link is offered from the source stored on it (`link.adopted_source`: hash, release, the arr's indexer
+names and the library the arr filled, with the `adopted_from` it was read for), resolving the names with
+`IndexerByName` and keeping the arr's library out of the offer (`TestAdoptedLinkOffersWithoutFollowing`). The arr
+history is not read: an adopted link without a stored source, or whose `adopted_from` has changed since, has no
+indexer and is not offered (`TestAdoptedLinkWithoutStoredSourceNotOffered`), as unknown indexers already are. Imported
+arr files (`version_file`) are not offered.
 
 Arr history names an indexer by the arr's own name ("TheRARBG (Prowlarr)", "DMM RD (Prowlarr)"), never a policy key.
 `Policy.IndexerByName` matches it to a configured indexer: the key itself, a name an indexer's `arr_names` lists

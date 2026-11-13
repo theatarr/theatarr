@@ -99,11 +99,10 @@ the router list the same operations. JSON errors are `{"error": "..."}`. The bas
 |---|---|
 | `GET /status` | version, schema version, row counts |
 | `GET /titles` | titles with version coverage. Filters: `kind`, `q` (name contains), `with=<key>` (has a file for that version), `without=<key>` (no file: no such version or it is wanted; `without=movie-web` is "no WEB version"), `state`, `limit` (≤500), `offset` |
-| `GET /titles/{id}` | title, external ids, release dates, versions (each with arr files, current file marked, links, arr records), registry entries |
+| `GET /titles/{id}` | title, external ids, release dates, versions (each with arr files, current file marked, links), registry entries |
 | `GET /versions`, `/versions/{id}` | versions; filters `key`, `state`, `has_file` |
 | `GET /registry` | contents, newest first; `q` = hash prefix or name, `state` |
-| `GET /registry/{hash}` | a content: versions and titles, arr files, library links, providers, files, arr history for the hash |
-| `GET /imports`, `/imports/{id}` | import runs with their JSON summary |
+| `GET /registry/{hash}` | a content: versions and titles, arr files, library links, providers, files |
 | `GET /jobs` | counts by state and jobs (running, queued by run time, latest finished); `state`, `kind`, `limit`. Payloads are left out |
 | `GET /gateway` | egress paths (VPN ok, exit IP, age, stale), budgets (rate, caps, this hour's and today's use, users, back-off), all back-offs |
 | `GET /policy`, `/policy/validate` | the running policy summarised (env var names, never values); a fresh validation of the policy directory when one is configured, which never reloads |

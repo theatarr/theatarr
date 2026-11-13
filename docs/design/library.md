@@ -149,7 +149,7 @@ the instance's naming config and quality definitions) and compared with the arr'
   the same way now.
 - Folder differences are folders the arrs did not build from the format: titles changed since, or series added with
   an explicit path that keeps `&`, `'` or `(US)`. So **an import reuses the folder the version already has for the
-  title** (an active link's, else the arr's `arr_title.path`), and computes one only for a new title.
+  title** (an active link's), and computes one only for a new title.
 - Custom format names are not stored per file, so the fixture reads them back from the bracket before
   `[Quality Full]`; the import gets them from the decision engine (the release's matched formats with
   `includeCustomFormatWhenRenaming`, in profile order).

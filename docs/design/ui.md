@@ -32,7 +32,6 @@ Marks: **U** user-facing (the library app), **A** admin panel.
 | `GET titles`, `titles/{id}` | titles with version coverage, art fields, sort and facets (§6); one title in full | U | |
 | `GET versions`, `versions/{id}` | versions by key, state, has_file | U | wanted lists; Home "Missing" row |
 | `GET registry`, `registry/{hash}` | contents and everything that points at them | A | |
-| `GET imports`, `imports/{id}` | arr import runs and summaries | A | Advanced › Sonarr/Radarr migration › Import runs |
 | `GET jobs` | counts and jobs | A | System › Tasks |
 | `GET gateway` | egress, budgets, back-offs | A | Settings › Indexers › VPN / Advanced › Request limits |
 | `GET policy`, `policy/validate` | policy summary, validation | A | |
@@ -268,7 +267,7 @@ See [quickstart](../quickstart.md#readiness-led-setup) for the completion rules;
   **Release history** (`History` in `components/title/versions.tsx`, also on the History tab and in the episode
   overview): every event says what started it in plain words (`trigger`: automatic search, automatic upgrade search,
   search again after a failure, RSS, manual search, manual grab by a person, manual retry, approved upgrade, Seerr
-  request (an arr command whose client names Seerr), arr search, release push, offer, manual import, old manager);
+  request (an arr command whose client names Seerr), arr search, release push, offer, manual import);
   grabs and failures name the provider and the release, a failure its short reason ("RD status error"); a search
   shows one line, "12 results, 3 accepted · Grabbed #1 via rd → imported" or "Nothing grabbed: why", about the
   download that search opened (a later retry of the same release does not change it). For managers the
@@ -281,7 +280,7 @@ See [quickstart](../quickstart.md#readiness-led-setup) for the completion rules;
   the read-only "Last search" page.
 - **Tabs:** Episodes (series and anime, the default) / Libraries (series, "see files") / Watch order (anime with a
   franchise) / About (overview when long, the fact table, outside links, Refresh metadata for managers; admins also
-  identifiers, release dates, files, arr records and registry) / History ("see files": each copy's release
+  identifiers, release dates, files and registry) / History ("see files": each copy's release
   history; admins the title's journal). About's Files inventory includes old-manager files and active native library
   links, deduplicated by path. Old `?tab=seasons|versions|details` links open Episodes, Libraries, About.
 - **Minimum availability and series type.** A movie's library card shows **Minimum availability**, the value in
@@ -413,23 +412,19 @@ requests come from one `GET requests?mine=1&status=open` (the caller's own only)
 TMDb id. Global search reads "Search movies, series and anime".
 
 **Library views** (`web/src/lib/copies.ts`,
-`web/src/components/library/`, `internal/web/copies.go`). A library holds one rendition of a title. Each library shows its
-**ownership**: *followed* when an arr still imports it (`control.managed_by`; its monitoring is read-only here and
-the server refuses changes) or *Theatarr-managed*. Its **coverage** is the episodes it holds against those aired (a
+`web/src/components/library/`, `internal/web/copies.go`). A library holds one rendition of a title; its monitoring
+can be changed whether or not an arr imports it. Its **coverage** is the episodes it holds against those aired (a
 movie copy is held or not), and its **acquisition** is one summary of the downloads in hand for it, in stages:
 Queued, Starting, Downloading N %, Download complete, Waiting for mount, Linking, Blocked ("Upgrade …" when the
 copy keeps a file meanwhile). Bars are solid for what is linked and striped (the copy's colour) for what is in
 progress. Every stage links to Activity (`?show=downloading`, `waiting`, `attention` for Blocked).
 
 **Library labels**: a library uses its generated display label while it is unique among the libraries shown together.
-When labels collide, each becomes “Label · key” (for example “4K · tv-2160p”). Ownership stays separate.
-Title cards show ownership separately as “mirrors <arr name>”. Setup activation cards are headed by the key, the
+When labels collide, each becomes “Label · key” (for example “4K · tv-2160p”). Setup activation cards are headed by the key, the
 display label beside it, so same-labelled libraries can be told apart. There is no editable display-name field.
 
-- **Table:** a column per copy key whose header names the copy and its ownership ("Followed · sonarr_4k ·
-  read-only", "Theatarr-managed", "Some followed (read-only)"). A cell has the state ("13 / 17 available", or the
-  movie state words), current quality, the stage, the bar and, for managers, the monitor switch (locked with the
-  reason on a followed copy). **Columns** shows and orders the extra columns: Next / activity, Quality per copy,
+- **Table:** a column per copy key whose header names the copy. A cell has the state ("13 / 17 available", or the
+  movie state words), current quality, the stage, the bar and, for managers, the monitor switch. **Columns** shows and orders the extra columns: Next / activity, Quality per copy,
   Size, Added, Network / studio. The headers sort the grid (a copy header sorts by that copy's completion,
   `sort=completion&sort_version=<key>`). Below 640 px the rows stack as cards and the extra columns become lines.
   **Libraries** under a title opens its library dialog (each copy's file, state, stage and monitoring; search and files
@@ -443,11 +438,10 @@ display label beside it, so same-labelled libraries can be told apart. There is 
   Per-library grab badges are not shown. Source-ceiling evidence stays in **Why?**. One bar line per library between the art and the title, an in-flight chip over the art (the most
   advanced stage, linked to Activity), and **Poster options**: size (small, medium, large; on a phone small fits
   three across, the others two) and the details under each poster (year, next episode / release, network /
-  studio, each copy's quality, each copy's size, added). Each copy's monitoring and ownership always show, shortened
-  to "Followed · read-only" (the instance in its tooltip) or "Theatarr-managed".
+  studio, each copy's quality, each copy's size, added). Each copy's monitoring always shows, with the copy's name.
 - **Select** (managers) works on both: tick titles, pick the target library (or **Every library**) and Monitor on / off;
   **Review changes** asks `POST titles/monitor` with `dry_run` and lists what changes, what is already set and what
-  is excluded (followed copies, titles without the copy); **Apply** sends the preview's values as `expect`, so a
+  is excluded (titles without the copy); **Apply** sends the preview's values as `expect`, so a
   copy changed since is skipped as stale, and lists each outcome. It only sets `monitored` on existing copies: no
   copy is added, nothing is searched or grabbed, and `router.enabled` is untouched. A table cell's switch uses the
   same route for one copy.
@@ -498,7 +492,7 @@ list projection of media facts).
 | Settings | `/admin/settings` | Search and task pages below. |
 | Users & access | `/admin/users` | Users, roles, permissions, sessions and API/view keys. |
 | Advanced | `/admin/advanced` | Exactly Sonarr/Radarr migration, YAML settings, Settings history and Request limits. |
-| Sonarr/Radarr migration | `/admin/advanced/arr` | Instances; Comparison (`/comparison`, detail `/:id`) and Import runs (`/imports`). Comparison detail shows candidate formats, scores, rejection reasons and arr/search/RSS decisions in React. |
+| Sonarr/Radarr migration | `/admin/advanced/arr` | Instances. |
 
 Two admin-only screens live outside `/admin`, beside the pages they belong with:
 

@@ -198,7 +198,7 @@ reference type that is null is left out; value types are always written; `id` 0 
 | `GET customformat`, `customformat/{id}` | `CustomFormatResource` | The captured runtime's full specifications; format IDs are scoped to the view and agree with its profile scores. No format/profile writes |
 | `GET rootfolder` | `RootFolderResource` | The libraries of the view's versions; `freeSpace` from statfs when the folder exists. Stat and statfs give up after 3 s per root (`internal/rootprobe`): a root on a share that stops answering is `accessible: false`, and is skipped without another call while a stat on its filesystem (mount) is stuck |
 | `GET tag`, `tag/{id}`, `POST tag`, `PUT tag[/{id}]` | `TagResource` | `TagService.Add`: an existing label (any case) returns the existing tag, new labels are stored lower-case; label must match `^[a-z0-9-]+$`. POST 201, PUT 202 |
-| `GET movie[?tmdbId=]`, `movie/{id}` | `MovieResource` with `movieFile` (`MovieFileResource`) and `statistics` | Only the view's versions count. `hasFile` = any of them has a file; `movieFile` = the file of the first version in the view's order that has one; `statistics.movieFileCount` counts distinct files. `status` uses refreshed canonical dates (SkyHookProxy), falling back to the imported arr status until refreshed; `minimumAvailability`, `isAvailable` and `releaseDate` follow "Minimum availability" below. 404 when the view does not have the title |
+| `GET movie[?tmdbId=]`, `movie/{id}` | `MovieResource` with `movieFile` (`MovieFileResource`) and `statistics` | Only the view's versions count. `hasFile` = any of them has a file; `movieFile` = the file of the first version in the view's order that has one; `statistics.movieFileCount` counts distinct files. `status` uses the canonical dates (SkyHookProxy); `minimumAvailability`, `isAvailable` and `releaseDate` follow "Minimum availability" below. 404 when the view does not have the title |
 | `GET movie/lookup?term=`, `movie/lookup/tmdb?tmdbId=` | `MovieResource` | `tmdb:N`, `imdb:tt…` or text. Text: the catalog's titles by name, then TMDb's title search for movies the catalog lacks (below) |
 | `GET moviefile/{id}` | `MovieFileResource` | Files of the view's versions |
 | `POST movie`, `PUT movie[/{id}]`, `DELETE movie/{id}` | | See Writes. POST 201, PUT 202, DELETE 200 with no body |
@@ -210,7 +210,7 @@ reference type that is null is left out; value types are always written; `id` 0 
 | `GET queue/status` | `QueueStatusResource` | Counts of the queue items; warnings and errors include held imports and failures awaiting manual resolution |
 | `GET queue/details` | `QueueResource[]` | Every queue item, unpaged; `movieId`, or `seriesId` and `episodeIds`, filter it. Homepage calls it always |
 | `GET wanted/missing` | `PagingResource<MovieResource>` / `<EpisodeResource>` | Radarr: monitored without a file, sort `movieMetadata.sortTitle`; Sonarr: monitored, aired, no file, series monitored, sort `episodes.airDateUtc`. `monitored=false` inverts |
-| `GET history`, `history/since?date=`, `history/movie?movieId=`, `history/series?seriesId=` | `PagingResource<HistoryResource>` for history; `HistoryResource[]` for the other routes | Imported and local download history; SQL filters `eventType` (number or name, repeated or comma-separated), `downloadId`, `movieIds`/`seriesIds`, Sonarr `episodeId` and title history `seasonNumber`. Optional `includeMovie`, `includeSeries`, `includeEpisode` embed the matching resources. Default date descending; `/since` is inclusive and ascending |
+| `GET history`, `history/since?date=`, `history/movie?movieId=`, `history/series?seriesId=` | `PagingResource<HistoryResource>` for history; `HistoryResource[]` for the other routes | Theatarr's download history; SQL filters `eventType` (number or name, repeated or comma-separated), `downloadId`, `movieIds`/`seriesIds`, Sonarr `episodeId` and title history `seasonNumber`. Optional `includeMovie`, `includeSeries`, `includeEpisode` embed the matching resources. Default date descending; `/since` is inclusive and ascending |
 | `GET health` | `HealthResource[]` | One `notice` while any of the view's versions is in shadow mode; one `warning` while `router.enabled` is off and any is active ([devices](devices.md)) |
 | `GET diskspace` | `DiskSpaceResource[]` | One per existing root folder (statfs), bounded like `rootfolder`: a root that does not answer is left out |
 | `GET config/downloadclient` | `DownloadClientConfigResource`, `id` 1 | Completed download handling on, auto-redownload on |
@@ -313,8 +313,6 @@ Left as before, on purpose:
   title; the view then shows the earliest value including that library's, so this one unchanged PUT can answer
   another value (and `isAvailable`) than the GET did. The echo guarantee and its acceptance test exclude this
   recovery: the libraries shown before the PUT keep their values and sources, the answer does not.
-- `isAvailable` uses the canonical dates, while acquisition uses the owning arr's dates for a library an arr still
-  feeds, until its cutover: the two can disagree for such a library when the arr's dates differ.
 
 ## Writes
 
@@ -555,7 +553,11 @@ removes a view tag (`TestImportCopiesTagsToVersions`).
 - **Quality profiles are version sets**: every quality allowed, no formats, cutoff the best quality.
 - **Metadata Theatarr does not hold** (overview, images, genres, ratings, runtime, certification) is written empty, not
   null, where the arr's type is a value or list.
-- **History ids** are row ids for imported history, or `1,000,000,000 + download id × 10 + event code` for local events; event types are the arr's names. In the Sonarr view a local event has one record per episode of the download, as Sonarr writes them: the episode at position i of the download's episodes adds `i × 2^40` (the first keeps the plain id), so `episodeId` filters, paging and `history/failed/{id}` work for every episode of a pack.
+- **History ids** are `1,000,000,000 + download id × 10 + event code` (Theatarr's downloads; the arrs' own history is
+  not shown, and an id below that base is answered 404); event types are the arr's names. In the Sonarr view a local event has one record per episode of the download, as Sonarr writes them: the episode at position i of the download's episodes adds `i × 2^40` (the first keeps the plain id), so `episodeId` filters, paging and `history/failed/{id}` work for every episode of a pack.
+- **Path, added date and status** come from the view's own record (`arrview_title`: root folder, added date), else
+  the primary library's root with the computed folder and the copy's creation date; a movie's status from its dates,
+  a series' from the series refresh (`series_meta.status`), else `continuing`. The arrs' own records are not read.
 - **Episode files**: `episodeFileId` is `1,000,000,000 + link id` when a Theatarr link holds the episode, else the
   arr's file id (`version_file`), else 0; `episodefile` is in [devices](devices.md).
 - **Languages** map by name through Radarr's list for both flavours.
