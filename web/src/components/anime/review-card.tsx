@@ -29,12 +29,17 @@ const STATE_WORDS: Record<string, string> = { accepted: "Accepted", rejected: "R
 const ext = "text-xs font-medium text-primary hover:underline";
 const pad = (n: number | undefined) => String(n ?? 0).padStart(2, "0");
 
-/** S02E13 “Name” · Apr 8, 2024 */
-function SampleLine({ e }: { e: Sample }) {
-  return (
-    <li>
+/** S02E13 “Name” · Apr 8, 2024; a link to the episode when the series is a Theatarr title and the episode is in its list. */
+function SampleLine({ e, titleId }: { e: Sample; titleId?: number }) {
+  const text = (
+    <>
       <Mono>S{pad(e.season)}E{pad(e.number)}</Mono>
       {e.name ? ` “${e.name}”` : ""}
+    </>
+  );
+  return (
+    <li>
+      {titleId && (e.id ?? 0) > 0 ? <Link className="hover:text-primary" to={`/title/${titleId}?tab=episodes&episode=${e.id}`}>{text}</Link> : text}
       {e.air_date ? <span className="text-muted-foreground"> · {fmtDay(e.air_date)}</span> : null}
     </li>
   );
@@ -57,7 +62,7 @@ function OptionBox({ o, heading, action, pick = "Theatarr's pick" }: { o: Review
         {o.proposed && !heading ? <Badge tone="accent">{pick}</Badge> : null}
       </div>
       {o.source ? <div className="text-xs text-muted-foreground">{sourceWords(o.source)}</div> : null}
-      {(o.samples ?? []).length > 0 ? <ul className="mt-2 space-y-0.5 text-[13px]">{(o.samples ?? []).map((e, i) => <SampleLine key={i} e={e} />)}</ul> : null}
+      {(o.samples ?? []).length > 0 ? <ul className="mt-2 space-y-0.5 text-[13px]">{(o.samples ?? []).map((e, i) => <SampleLine key={i} e={e} titleId={o.series?.title_id} />)}</ul> : null}
       <div className="mt-2 flex flex-wrap items-center gap-3">
         <a className={ext} href={tvdbUrl(o.series?.tvdb)} target="_blank" rel="noreferrer">TVDB</a>
         {o.dropped ? <span className="text-xs text-[var(--bad-ink)]">Can't be used: {o.dropped}</span> : action}
@@ -106,7 +111,7 @@ function RefreshBoxes({ it }: { it: ReviewItem }) {
             {(r.lost ?? []).length > 0 ? (
               <>
                 <div className="mt-2 text-xs text-muted-foreground">No longer mapped</div>
-                <ul className="space-y-0.5 text-[13px]">{(r.lost ?? []).map((e, i) => <SampleLine key={i} e={e} />)}</ul>
+                <ul className="space-y-0.5 text-[13px]">{(r.lost ?? []).map((e, i) => <SampleLine key={i} e={e} titleId={s?.title_id} />)}</ul>
               </>
             ) : null}
             {s?.tvdb ? <a className={`${ext} mt-2 inline-block`} href={tvdbUrl(s.tvdb)} target="_blank" rel="noreferrer">TVDB</a> : null}
@@ -117,8 +122,8 @@ function RefreshBoxes({ it }: { it: ReviewItem }) {
   }
   return (
     <>
-      {r.from ? <OptionBox o={r.from} heading="Now" /> : box("Now", "Not mapped: imports take Sonarr's numbering.")}
-      {r.to ? <OptionBox o={r.to} heading="After the refresh" /> : box("After the refresh", "Not mapped: new files take Sonarr's numbering.")}
+      {r.from ? <OptionBox o={r.from} heading="Now" /> : box("Now", "Not mapped: imports take TVDB's numbering.")}
+      {r.to ? <OptionBox o={r.to} heading="After the refresh" /> : box("After the refresh", "Not mapped: new files take TVDB's numbering.")}
     </>
   );
 }
@@ -241,7 +246,7 @@ export function ReviewCard({ it }: { it: ReviewItem }) {
         <div className="mt-3 grid gap-3 md:grid-cols-[minmax(0,1fr)_minmax(0,2fr)]">
           <EntryColumn it={it} />
           <div className={`space-y-2 ${it.entry ? "" : "md:col-span-2"}`}>
-            {!held && (it.options ?? []).length > 0 ? <div className="text-xs font-medium uppercase tracking-wide text-muted-foreground">{open && it.kind === "conflict" ? "TVDB · in use now: Sonarr's numbering" : "TVDB"}</div> : null}
+            {!held && (it.options ?? []).length > 0 ? <div className="text-xs font-medium uppercase tracking-wide text-muted-foreground">{open && it.kind === "conflict" ? "TVDB · in use now: TVDB's numbering" : "TVDB"}</div> : null}
             {held ? <RefreshBoxes it={it} /> : (it.options ?? []).map((o, i) => (
               <OptionBox key={i} o={o} pick={open && it.kind === "heuristic" ? "In use now" : undefined} action={open ? (
                 <Button size="xs" variant="outline" disabled={busy}
@@ -259,7 +264,7 @@ export function ReviewCard({ it }: { it: ReviewItem }) {
       {open ? (
         <div className="mt-3 flex flex-wrap items-center gap-2">
           {mappingKind && (it.options ?? []).length > 0 && !editing ? <Button size="sm" variant="outline" disabled={busy} onClick={() => setEditing(true)}>Edit season/offset…</Button> : null}
-          {it.kind === "conflict" ? <Button size="sm" variant="outline" disabled={busy} onClick={() => act({ accept: false, chose: "Keep Sonarr's numbering" })}>Keep Sonarr's numbering</Button> : null}
+          {it.kind === "conflict" ? <Button size="sm" variant="outline" disabled={busy} onClick={() => act({ accept: false, chose: "Keep TVDB's numbering" })}>Keep TVDB's numbering</Button> : null}
           {it.kind === "heuristic" ? <Button size="sm" variant="outline" disabled={busy} onClick={() => act({ accept: false, chose: "Don't use this match" })}>Don't use this match</Button> : null}
           {held ? (
             <>
@@ -270,7 +275,7 @@ export function ReviewCard({ it }: { it: ReviewItem }) {
           {err ? <span className="text-sm text-[var(--bad-ink)]">{err}</span> : null}
         </div>
       ) : null}
-      {open && it.kind === "heuristic" ? <p className="mt-1 text-xs text-muted-foreground">Don't use this match: new files take Sonarr's numbering; files already in the library stay where they are.</p> : null}
+      {open && it.kind === "heuristic" ? <p className="mt-1 text-xs text-muted-foreground">Don't use this match: new files take TVDB's numbering; files already in the library stay where they are.</p> : null}
       {open && held && (it.refresh?.items ?? 0) > 1 ? <p className="mt-1 text-xs text-muted-foreground">This answers all {it.refresh?.items} changes of this refresh.</p> : null}
       <Button size="xs" variant="ghost" className="mt-2" aria-expanded={raw} onClick={() => setRaw(!raw)}>{raw ? "Hide the raw rule" : "Show the raw rule"}</Button>
       {raw ? <RawRule it={it} note={note} setNote={setNote} /> : null}

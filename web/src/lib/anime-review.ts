@@ -76,7 +76,7 @@ export function reviewQuestion(it: ReviewItem): string {
   switch (it.kind) {
     case "conflict":
       if (!open) return `Which ${series} episodes are “${entry}”? The mapping lists disagreed.`;
-      return `Which ${series} episodes are “${entry}”? The mapping lists disagree, so until you choose its episodes keep Sonarr's numbering.`;
+      return `Which ${series} episodes are “${entry}”? The mapping lists disagree, so until you choose its episodes keep TVDB's numbering.`;
     case "heuristic":
       if (!open) return `Is “${entry}” ${series} ${range}? No mapping list covered it; Theatarr matched it by air date and title.`;
       return `Is “${entry}” ${series} ${range}? No mapping list covers it; Theatarr matched it by air date and title and uses this match now.`;
@@ -85,10 +85,10 @@ export function reviewQuestion(it: ReviewItem): string {
       return `Apply the refresh of ${franchise}? It would map ${r.after ?? 0} of the ${r.before ?? 0} ${seriesName(r.series)} episodes mapped now. Nothing changes until you choose.`;
     case "refresh_moves_linked": {
       if (!r) return `Apply the refresh of ${franchise}?`;
-      const from = r.from ? optionWords(r.from) : "Sonarr's numbering";
+      const from = r.from ? optionWords(r.from) : "TVDB's numbering";
       const n = r.with_files ?? 0;
       const files = `${n} of these episodes have files; files already linked for them may be moved to match.`;
-      if (!r.to) return `Apply the refresh of ${franchise}? The refresh stops mapping “${entry}” (${from}), so new files take Sonarr's numbering. ${files}`;
+      if (!r.to) return `Apply the refresh of ${franchise}? The refresh stops mapping “${entry}” (${from}), so new files take TVDB's numbering. ${files}`;
       return `Apply the refresh of ${franchise}? The refresh maps “${entry}” to ${optionWords(r.to)} instead of ${from}. ${files}`;
     }
     default:
@@ -104,8 +104,8 @@ const OUTCOME: Record<string, Record<string, string>> = {
     refresh_moves_linked: "Accepted: the refresh was applied.",
   },
   rejected: {
-    conflict: "Rejected: its episodes keep Sonarr's numbering.",
-    heuristic: "Rejected: the match is not used; new files follow Sonarr's numbering.",
+    conflict: "Rejected: its episodes keep TVDB's numbering.",
+    heuristic: "Rejected: the match is not used; new files follow TVDB's numbering.",
     refresh_shrink: "Rejected: the current mapping was kept.",
     refresh_moves_linked: "Rejected: the current mapping was kept.",
   },

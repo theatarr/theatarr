@@ -178,14 +178,28 @@ it("shows a conflict as a plain question with links and sample episodes, and the
   expect(screen.getByText(/“Pride”/)).toBeTruthy(); // TVDB names of both options
   expect(screen.getByText(/“New Start”/)).toBeTruthy();
   expect(screen.getByText("Theatarr's pick")).toBeTruthy();
-  expect(screen.getByText("TVDB · in use now: Sonarr's numbering")).toBeTruthy();
+  expect(screen.getByText("TVDB · in use now: TVDB's numbering")).toBeTruthy();
   expect(screen.queryByText(/mappings:/)).toBeNull();
   fireEvent.click(screen.getByRole("button", { name: "Show the raw rule" }));
   expect(screen.getByText(/mappings:/)).toBeTruthy();
   expect(screen.getByText("lists disagree for al:166873")).toBeTruthy();
 });
 
-it("uses another candidate and keeps Sonarr's numbering without a browser confirm", async () => {
+it("a sample episode links to its episode", async () => {
+  // the first sample is in Theatarr's episode list; the others have no id, and an unknown series gives no links
+  const linked = { ...conflict, options: [
+    { ...conflict.options[0], samples: [{ ...sample(2, 13, "Pride", "2024-04-08"), id: 913 }, sample(2, 14, "Respite", "2024-04-15")] },
+    { ...conflict.options[1], series: { tvdb: 999, name: "Elsewhere" }, samples: [{ ...sample(3, 1, "New Start", "2024-04-08"), id: 5 }] },
+  ] };
+  mockFetch(lists([linked]));
+  renderPage(<AnimeMappings />);
+  const pride = (await screen.findByText(/“Pride”/)).closest("a")!;
+  expect(pride.getAttribute("href")).toBe("/title/9?tab=episodes&episode=913");
+  expect(screen.getByText(/“Respite”/).closest("a")).toBeNull();
+  expect(screen.getByText(/“New Start”/).closest("a")).toBeNull();
+});
+
+it("uses another candidate and keeps TVDB's numbering without a browser confirm", async () => {
   const confirm = vi.spyOn(window, "confirm");
   const api = mockFetch([
     ...lists([conflict]),
@@ -197,7 +211,7 @@ it("uses another candidate and keeps Sonarr's numbering without a browser confir
   fireEvent.click(within(other).getByRole("button", { name: "Use this mapping" }));
   await waitFor(() => expect(api.calls("POST", "/anime/review/1/accept")).toHaveLength(1));
   expect(api.calls("POST", "/anime/review/1/accept")[0].body).toEqual({ candidate: 1 });
-  fireEvent.click(screen.getByRole("button", { name: "Keep Sonarr's numbering" }));
+  fireEvent.click(screen.getByRole("button", { name: "Keep TVDB's numbering" }));
   await waitFor(() => expect(api.calls("POST", "/anime/review/1/reject")).toHaveLength(1));
   expect(api.calls("POST", "/anime/review/1/reject")[0].body).toEqual({});
   expect(confirm).not.toHaveBeenCalled();
@@ -216,7 +230,7 @@ it("sets a heuristic match by hand with Edit season/offset… and shows a refusa
   expect(screen.getByText("Don't use this match")).toBeTruthy();
   expect(screen.getByText("In use now")).toBeTruthy();
   expect(screen.queryByText("Theatarr's pick")).toBeNull();
-  expect(screen.getByText(/^Don't use this match: new files take Sonarr's numbering/)).toBeTruthy();
+  expect(screen.getByText(/^Don't use this match: new files take TVDB's numbering/)).toBeTruthy();
   expect(screen.queryByText(/\(12\)/)).toBeNull();
   expect(screen.getByText(/12 episodes/)).toBeTruthy();
   fireEvent.click(screen.getByRole("button", { name: "Edit season/offset…" }));

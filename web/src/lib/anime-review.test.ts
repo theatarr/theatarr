@@ -22,7 +22,7 @@ describe("reviewQuestion", () => {
   it("asks one plain question per kind", () => {
     const base: ReviewItem = { id: 1, franchise: "mushoku-tensei", franchise_name: "Mushoku Tensei", entry_key: "al:166873", state: "open", entry };
     expect(reviewQuestion({ ...base, kind: "conflict", options: [opt([[2, 13], [2, 14]])] })).toBe(
-      "Which Mushoku Tensei episodes are “Mushoku Tensei II Part 2”? The mapping lists disagree, so until you choose its episodes keep Sonarr's numbering.");
+      "Which Mushoku Tensei episodes are “Mushoku Tensei II Part 2”? The mapping lists disagree, so until you choose its episodes keep TVDB's numbering.");
     expect(reviewQuestion({ ...base, kind: "heuristic", options: [opt([[2, 13], [2, 14]])] })).toBe(
       "Is “Mushoku Tensei II Part 2” Mushoku Tensei Season 2, episodes 13–14? No mapping list covers it; Theatarr matched it by air date and title and uses this match now.");
     expect(reviewQuestion({ ...base, kind: "refresh_shrink", entry: undefined, entry_key: "tvdb:371310", refresh: { series: mt, before: 48, after: 36, items: 1 } })).toBe(
@@ -35,7 +35,7 @@ describe("reviewQuestion", () => {
     const it: ReviewItem = { id: 2, franchise: "mushoku-tensei", franchise_name: "Mushoku Tensei", entry_key: "al:166873", kind: "refresh_moves_linked",
       state: "open", entry, refresh: { from: opt([[2, 13], [2, 14]]), with_files: 2, items: 1 } };
     expect(reviewQuestion(it)).toBe(
-      "Apply the refresh of Mushoku Tensei? The refresh stops mapping “Mushoku Tensei II Part 2” (Mushoku Tensei Season 2, episodes 13–14), so new files take Sonarr's numbering. 2 of these episodes have files; files already linked for them may be moved to match.");
+      "Apply the refresh of Mushoku Tensei? The refresh stops mapping “Mushoku Tensei II Part 2” (Mushoku Tensei Season 2, episodes 13–14), so new files take TVDB's numbering. 2 of these episodes have files; files already linked for them may be moved to match.");
   });
 
   it("falls back to TVDB {id} and the English title", () => {
@@ -50,7 +50,7 @@ describe("a resolved item", () => {
     const it: ReviewItem = { id: 5, franchise: "mushoku-tensei", entry_key: "al:166873", kind: "heuristic", state: "rejected", entry,
       options: [opt([[2, 13], [2, 14]])] };
     expect(reviewQuestion(it)).toBe("Is “Mushoku Tensei II Part 2” Mushoku Tensei Season 2, episodes 13–14? No mapping list covered it; Theatarr matched it by air date and title.");
-    expect(outcomeWords(it)).toBe("Rejected: the match is not used; new files follow Sonarr's numbering.");
+    expect(outcomeWords(it)).toBe("Rejected: the match is not used; new files follow TVDB's numbering.");
     expect(outcomeWords({ ...it, state: "accepted", note: "checked" })).toBe("Accepted: the match or the mapping chosen is used. Note: checked");
   });
 });
