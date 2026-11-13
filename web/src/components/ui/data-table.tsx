@@ -98,13 +98,15 @@ export function DataTable<T, K extends string | number>({
 }: Props<T, K>) {
   const wide = useMinWidth(minWidth);
   const [box, fits] = useFitsFrame();
-  const chosenCount = select ? rows.filter((r) => select.chosen.has(rowKey(r))).length : 0;
-  const allChosen = rows.length > 0 && chosenCount === rows.length;
+  const can = (r: T) => !select?.selectable || select.selectable(rowKey(r));
+  const pickable = select?.selectable ? rows.filter(can) : rows;
+  const chosenCount = select ? pickable.filter((r) => select.chosen.has(rowKey(r))).length : 0;
+  const allChosen = pickable.length > 0 && chosenCount === pickable.length;
   const selectAll = select ? (
-    <Checkbox aria-label={selectAllLabel} checked={allChosen} indeterminate={chosenCount > 0 && !allChosen} onChange={(e) => select.all(e.target.checked)} />
+    <Checkbox aria-label={selectAllLabel} checked={allChosen} indeterminate={chosenCount > 0 && !allChosen} disabled={!!select.selectable && !pickable.length} onChange={(e) => select.all(e.target.checked)} />
   ) : null;
   const rowBox = (r: T) =>
-    select ? <Checkbox aria-label={`Select ${rowLabel?.(r) ?? rowKey(r)}`} checked={select.chosen.has(rowKey(r))} onChange={(e) => select.toggle(rowKey(r), e.target.checked)} /> : null;
+    select ? <Checkbox aria-label={`Select ${rowLabel?.(r) ?? rowKey(r)}`} checked={can(r) && select.chosen.has(rowKey(r))} disabled={!can(r)} onChange={(e) => select.toggle(rowKey(r), e.target.checked)} /> : null;
 
   if (!wide) {
     return (

@@ -5,4 +5,7 @@ export type RowSelection<K extends string | number = number> = {
   chosen: ReadonlySet<K>;
   toggle: (id: K, on: boolean) => void;
   all: (on: boolean) => void;
+  /** Whether a row may be chosen; without it every row may. A row that may not gets a disabled box, and the
+   *  select-all box counts and takes only the rows that may. */
+  selectable?: (id: K) => boolean;
 };

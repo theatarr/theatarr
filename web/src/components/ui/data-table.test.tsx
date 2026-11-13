@@ -57,6 +57,31 @@ it("selects every row from the select-all box and shows an open row's panel unde
   expect(screen.getByRole("button", { name: "Remove Alpha" })).toBeTruthy();
 });
 
+it("disables the box of a row that may not be chosen and counts select-all over the others", async () => {
+  const three = [...rows, { id: 3, name: "Gamma", size: "3 GB" }];
+  function Harness() {
+    const [chosen, setChosen] = useState<ReadonlySet<number>>(new Set());
+    const select = {
+      chosen,
+      toggle: (id: number, on: boolean) => setChosen((s) => { const n = new Set(s); if (on) n.add(id); else n.delete(id); return n; }),
+      all: (on: boolean) => setChosen(new Set(on ? [1, 3] : [])),
+      selectable: (id: number) => id !== 2,
+    };
+    return <DataTable rows={three} rowKey={(r) => r.id} columns={columns} select={select} selectAllLabel="Select all" rowLabel={(r) => r.name} />;
+  }
+  render(<Harness />);
+  const user = userEvent.setup();
+  const box = (name: string) => screen.getByRole("checkbox", { name }) as HTMLInputElement;
+  expect(box("Select Beta").disabled).toBe(true);
+  expect(box("Select Alpha").disabled).toBe(false);
+  await user.click(box("Select all"));
+  expect([box("Select all").checked, box("Select all").indeterminate]).toEqual([true, false]);
+  await user.click(box("Select all"));
+  expect([box("Select Alpha").checked, box("Select Gamma").checked]).toEqual([false, false]);
+  await user.click(box("Select Alpha"));
+  expect(box("Select all").indeterminate).toBe(true);
+});
+
 it("draws cards with each column as a labelled line on a phone", () => {
   phone();
   render(<DataTable rows={rows} rowKey={(r) => r.id} columns={columns} cardHead={(r) => <strong>{r.name}</strong>} testid="things" />);

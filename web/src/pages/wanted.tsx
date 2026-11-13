@@ -150,8 +150,8 @@ export function WantedPage() {
   const [picker, setPicker] = useState(false);
   const [prefs, savePrefs] = useColumnPrefs<Column>("wanted-columns", COLUMNS, ALL_COLUMNS);
   const items = d?.items ?? [];
-  // Only rows Search now can search are chosen: a row with a download in flight can be ticked in the table (its box
-  // cannot be disabled there) but is neither counted nor sent.
+  // Only rows Search now can search may be chosen (the table disables the others); a row that became blocked after it
+  // was ticked is not sent.
   const selectable = items.filter(row => !blocked(row));
   const chosen = selectable.filter(row => picked.has(rowKey(row)));
   const left = d ? Math.max(0, d.per_hour - d.searched_last_hour) : 0;
@@ -219,12 +219,13 @@ export function WantedPage() {
         rows={items}
         rowKey={rowKey}
         columns={columns}
-        // While paused nothing can be searched, so nothing is offered for selection; select-all takes only the rows
-        // that can be searched.
+        // While paused nothing can be searched, so nothing is offered for selection; a row with a download in flight
+        // cannot be chosen.
         select={d.downloads_enabled ? {
           chosen: picked,
-          toggle: (key, on) => setPicked(old => { const next = new Set(old); if (on && selectable.some(row => rowKey(row) === key)) next.add(key); else next.delete(key); return next; }),
+          toggle: (key, on) => setPicked(old => { const next = new Set(old); if (on) next.add(key); else next.delete(key); return next; }),
           all: on => setPicked(on ? new Set(selectable.map(rowKey)) : new Set()),
+          selectable: key => selectable.some(row => rowKey(row) === key),
         } : undefined}
         selectAllLabel="Select all on this page"
         rowLabel={row => `${name(row)}, ${targetWords(row.targets)}, ${label(row.version)}`}

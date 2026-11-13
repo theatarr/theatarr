@@ -231,17 +231,25 @@ it("disables a row's Search now with the reason where a search could not start",
 
 it("leaves rows with a download in flight out of the selection", async () => {
   const user = userEvent.setup();
-  const items = (["in_flight", undefined] as const).map((search_blocked, i) => ({ ...row, title_id: i + 1, waiting: search_blocked ? "in_flight" as const : "due" as const, search_blocked }));
-  const fetch = mockFetch([{ method: "GET", path: "/wanted", reply: { ...page, total: 2, searchable: 1, items, titles: { "1": "Busy", "2": "Free" } } }, status,
+  const items = (["in_flight", undefined, undefined] as const).map((search_blocked, i) => ({ ...row, title_id: i + 1, waiting: search_blocked ? "in_flight" as const : "due" as const, search_blocked }));
+  const fetch = mockFetch([{ method: "GET", path: "/wanted", reply: { ...page, total: 3, searchable: 2, items, titles: { "1": "Busy", "2": "Alpha", "3": "Beta" } } }, status,
     { method: "POST", path: "/wanted/search", reply: answer }]);
   renderPage(<WantedPage />, "/wanted");
   await screen.findAllByTestId("wanted-row");
-  await user.click(screen.getByRole("checkbox", { name: "Select Busy, Movie, 4K WEB" }));
+  const box = (name: string) => screen.getByRole("checkbox", { name }) as HTMLInputElement;
+  expect(box("Select Busy, Movie, 4K WEB").disabled).toBe(true);
+  // Select all takes the two that can be searched; clicking it again clears them.
+  await user.click(box("Select all on this page"));
+  expect(box("Select all on this page").checked).toBe(true);
+  expect(screen.getByRole("button", { name: "Search selected (2)" })).toBeTruthy();
+  await user.click(box("Select all on this page"));
   expect(screen.getByRole("button", { name: "Search selected (0)" })).toBeTruthy();
-  await user.click(screen.getByRole("checkbox", { name: "Select all on this page" }));
+  // Select all, then untick Alpha: exactly Beta is sent.
+  await user.click(box("Select all on this page"));
+  await user.click(box("Select Alpha, Movie, 4K WEB"));
   await user.click(screen.getByRole("button", { name: "Search selected (1)" }));
   await waitFor(() => expect(fetch.calls("POST", "/wanted/search")).toHaveLength(1));
-  expect(fetch.calls("POST", "/wanted/search")[0].body).toEqual({ only: "missing", items: [{ title_id: 2, version: "movie-web" }] });
+  expect(fetch.calls("POST", "/wanted/search")[0].body).toEqual({ only: "missing", items: [{ title_id: 3, version: "movie-web" }] });
 });
 
 it("shows the asked rows not started yet and cancels them", async () => {
