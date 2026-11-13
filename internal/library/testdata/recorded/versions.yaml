@@ -57,8 +57,6 @@ versions:
     kind: series
     anime: false
     profile: sonarr-4k-debrid
-    packs: any_upgradable # the actuallyevan fork's season pack rule
-    sonarr: v4plus # v4 plus the good v5 fixes; shadow counts parser-only differences as explained
     library: /media/tv
     storage: debrid
     indexers: [prowlarr-tpb, prowlarr-therarbg, dmm, dmm-ad, dmm-tb, torrentio, zilean]
@@ -79,8 +77,6 @@ versions:
     kind: series
     anime: true
     profile: sonarr-anime-debrid
-    packs: any_upgradable # the actuallyevan fork's season pack rule
-    sonarr: v4plus # v4 plus the good v5 fixes; shadow counts parser-only differences as explained
     library: /media/anime
     storage: debrid
     indexers: [prowlarr-tpb, prowlarr-therarbg, seadex, dmm, dmm-ad, dmm-tb]

@@ -58,17 +58,8 @@ versions:
     kind: series
     anime: false
     profile: tv-2160p
-    # Season packs: any_upgradable takes a pack when any episode in it has no file or would be upgraded (the
-    # actuallyevan Sonarr fork's ACCEPT_RELEASE_ANY_UPGRADABLE). threshold, with
-    # packs_threshold: <percent>, takes a full-season pack when at least that share of its episodes would be filled
-    # or upgraded (Sonarr v5). all (the default) is plain Sonarr: every episode's file must be upgraded.
-    packs: any_upgradable
-    # Sonarr version releases are parsed and mapped as: v4plus (recommended: v4 with the v5 parser fixes that measure
-    # better on a release corpus and a few fixes of its own, without v5's regressions; docs/design/sonarr-v5.md "v4plus"), v4 (the
-    # default, exactly as Sonarr v4) or v5 (Sonarr v5's parser and mapping: multi-season packs, anime season
-    # packs named by season title, original titles). The shadow counts a difference v4plus explains as
-    # agree / parser_mode.
-    sonarr: v4plus
+    # Every series library reads release names the same way and takes a season pack when it fills or improves at
+    # least one episode; episodes that already have a better file keep it.
     library: /media/tv
     storage: debrid
     indexers: [prowlarr-public, dmm, torrentio, zilean]
@@ -81,8 +72,6 @@ versions:
     anime: true
     profile: anime-tv
     prefer_seadex: true
-    packs: any_upgradable
-    sonarr: v4plus                             # as tv-2160p
     library: /media/anime
     storage: debrid
     indexers: [prowlarr-public, seadex, dmm]

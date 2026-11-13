@@ -181,19 +181,6 @@ type VersionPolicy struct {
 	Client string `yaml:"client"`
 	// Import is symlink, hardlink or copy. Debrid versions symlink.
 	Import string `yaml:"import"`
-	// Packs is the season pack rule of a series version: all (the default, Sonarr's: a pack must upgrade every
-	// episode's file) or any_upgradable (the actuallyevan fork's ACCEPT_RELEASE_ANY_UPGRADABLE: a pack is taken when
-	// any of its episodes has no file or would be upgraded) or threshold (Sonarr v5's SeasonPackUpgrade = Threshold:
-	// a full-season pack is taken when at least PacksThreshold percent of its episodes have no file or would be
-	// upgraded; other releases keep the all rule).
-	Packs string `yaml:"packs"`
-	// PacksThreshold is the percentage for packs: threshold (Sonarr v5's SeasonPackUpgradeThreshold), 1 to 100.
-	// Required with threshold and refused with any other rule.
-	PacksThreshold *float64 `yaml:"packs_threshold"`
-	// Sonarr is the Sonarr version a series version parses and maps releases as: v4 (the default: Sonarr
-	// v4.0.20.3014, the parser a Sonarr v4 install runs) or v5 (Sonarr v5's parser and mapping: multi-season packs, anime season
-	// packs named by season title, original-title matching, the new languages; docs/design/sonarr-v5.md). Series only.
-	Sonarr string `yaml:"sonarr"`
 	// Upgrades is what happens when a release would replace a file the version already has: auto (the default:
 	// routed like any other release) or off (never; the file stays). A release for items with no file is never
 	// refused by it (docs/design/router.md "Upgrades").

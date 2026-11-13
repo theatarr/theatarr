@@ -1,7 +1,7 @@
 package policy
 
-// ApplyDefaults fills in what an empty field means (a version's mode, enable, import, add_via, packs, upgrades,
-// provider preference and Sonarr version; egress timing and classes) without checking anything. Validate starts with
+// ApplyDefaults fills in what an empty field means (a version's mode, enable, import, add_via, upgrades and
+// provider preference; egress timing and classes) without checking anything. Validate starts with
 // it; a settings import uses it alone on files that may be valid only once merged with the stored settings.
 func (p *Policy) ApplyDefaults() {
 	for _, v := range p.Versions {
@@ -38,17 +38,11 @@ func (v *VersionPolicy) applyDefaults() {
 	if v.AddVia == "" {
 		v.AddVia = AddViaProviders
 	}
-	if v.Packs == "" {
-		v.Packs = PacksAll
-	}
 	// approve was removed (2026-11): a stored or imported approve is automatic.
 	if v.Upgrades == legacyUpgradesApprove || v.Upgrades == "" {
 		v.Upgrades = UpgradesAuto
 	}
 	if v.ProviderPreference == "" {
 		v.ProviderPreference = ProviderPreferenceOrdered
-	}
-	if v.Sonarr == "" && v.Kind == KindSeries {
-		v.Sonarr = SonarrV4
 	}
 }

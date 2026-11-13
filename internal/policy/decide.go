@@ -1,8 +1,7 @@
 package policy
 
 // Policy settings the decision engine (internal/decide) reads beyond the profile's own qualities and scores: a
-// profile taken from an arr instance (from_arr), the propers setting, a series version's season pack rule, and an
-// indexer's multi languages.
+// profile taken from an arr instance (from_arr), the propers setting, and an indexer's multi languages.
 
 import (
 	"fmt"
@@ -17,55 +16,6 @@ const (
 	PropersDoNotUpgrade     = "do_not_upgrade"
 	PropersDoNotPrefer      = "do_not_prefer"
 )
-
-// Season pack rules (versions[*].packs).
-const (
-	PacksAll           = "all"
-	PacksAnyUpgradable = "any_upgradable"
-	PacksThreshold     = "threshold"
-)
-
-// Sonarr versions (versions[*].sonarr).
-const (
-	SonarrV4     = "v4"
-	SonarrV5     = "v5"
-	SonarrV4Plus = "v4plus" // v4 with the v5 fixes we chose and our own (docs/design/sonarr-v5.md "v4plus")
-)
-
-// validateSonarr checks a version's Sonarr version; "" is v4. Only series versions take it.
-func validateSonarr(e *Errors, path string, v *VersionPolicy) {
-	switch v.Sonarr {
-	case "": // a movie version (ApplyDefaults gives a series version v4)
-	case SonarrV4, SonarrV5, SonarrV4Plus:
-		if v.Kind == KindMovie {
-			e.add(path+".sonarr", "only series libraries take a Sonarr version")
-		}
-	default:
-		e.add(path+".sonarr", "must be %s, %s or %s, got %q", SonarrV4, SonarrV4Plus, SonarrV5, v.Sonarr)
-	}
-}
-
-// validatePacks checks a version's pack rule; "" is all. Only series versions take packs other than all, and
-// packs_threshold goes with threshold only.
-func validatePacks(e *Errors, path string, v *VersionPolicy) {
-	switch v.Packs {
-	case PacksAll, PacksAnyUpgradable, PacksThreshold:
-		if v.Packs != PacksAll && v.Kind == KindMovie {
-			e.add(path+".packs", "only series libraries take season packs")
-		}
-	default:
-		e.add(path+".packs", "must be %s, %s or %s, got %q", PacksAll, PacksAnyUpgradable, PacksThreshold, v.Packs)
-		return
-	}
-	switch {
-	case v.Packs == PacksThreshold && v.PacksThreshold == nil:
-		e.add(path+".packs_threshold", "required with packs: %s (a percentage, 1 to 100)", PacksThreshold)
-	case v.Packs != PacksThreshold && v.PacksThreshold != nil:
-		e.add(path+".packs_threshold", "only taken with packs: %s", PacksThreshold)
-	case v.PacksThreshold != nil && !(*v.PacksThreshold >= 1 && *v.PacksThreshold <= 100):
-		e.add(path+".packs_threshold", "must be a percentage from 1 to 100, got %v", *v.PacksThreshold)
-	}
-}
 
 // SplitFromArr splits a from_arr reference "<instance>/<profile name>". The profile name may itself contain a
 // slash; the instance is everything before the first one.

@@ -8,8 +8,6 @@ versions:
     kind: series
     anime: false
     profile: tv-2160p
-    packs: any_upgradable
-    sonarr: v4plus
     library: /media/library/tv
     storage: debrid
     indexers: [prowlarr-public, dmm, torrentio, zilean]
@@ -21,8 +19,6 @@ versions:
     kind: series
     anime: true
     profile: anime-tv
-    packs: any_upgradable
-    sonarr: v4plus
     library: /media/library/anime
     storage: debrid
     indexers: [prowlarr-public, seadex, dmm]

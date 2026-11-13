@@ -534,8 +534,6 @@ func (p *Policy) validateVersion(e *Errors, k string, v *VersionPolicy) {
 	if kindOK {
 		p.validateNaming(e, k, v)
 	}
-	validatePacks(e, path, v)
-	validateSonarr(e, path, v)
 	validateUpgrades(e, path, v)
 	validateProviderPreference(e, path, v)
 	validateAvailability(e, path, v)

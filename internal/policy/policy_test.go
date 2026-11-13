@@ -88,16 +88,6 @@ func TestExampleIsValid(t *testing.T) {
 	if !g.Group || g.Name != "WEB 2160p" || len(g.Qualities) != 2 {
 		t.Errorf("quality group decoded as %+v", g)
 	}
-	for k, want := range map[string]string{"movie-remux": PacksAll, "tv-2160p": PacksAnyUpgradable, "anime-tv": PacksAnyUpgradable} {
-		if got := p.Versions[k].Packs; got != want {
-			t.Errorf("version %s packs %q, want %q", k, got, want)
-		}
-	}
-	for k, want := range map[string]string{"movie-remux": "", "tv-2160p": SonarrV4Plus, "anime-tv": SonarrV4Plus} {
-		if got := p.Versions[k].Sonarr; got != want {
-			t.Errorf("version %s sonarr %q, want %q", k, got, want)
-		}
-	}
 	for k, want := range map[string]string{"movie-remux": UpgradesAuto, "movie-web": UpgradesAuto, "tv-2160p": UpgradesAuto} {
 		if got := p.Versions[k].Upgrades; got != want {
 			t.Errorf("version %s upgrades %q, want %q", k, got, want)
@@ -170,56 +160,26 @@ func TestBadPolicies(t *testing.T) {
 		},
 		{
 			name: "availability settings on a series library",
-			file: "versions.yaml", old: "plain Sonarr: every episode's file must be upgraded.\n    packs: any_upgradable", new: "plain Sonarr: every episode's file must be upgraded.\n    packs: any_upgradable\n    minimum_availability: released\n    availability_delay: -2",
+			file: "versions.yaml", old: "    profile: tv-2160p\n", new: "    profile: tv-2160p\n    minimum_availability: released\n    availability_delay: -2\n",
 			want: []string{
 				`versions[tv-2160p].availability_delay: is for movie libraries only`,
 				`versions[tv-2160p].minimum_availability: is for movie libraries only`,
 			},
 		},
 		{
-			name: "unknown pack rule",
-			file: "versions.yaml", old: "plain Sonarr: every episode's file must be upgraded.\n    packs: any_upgradable", new: "plain Sonarr: every episode's file must be upgraded.\n    packs: some",
-			want: []string{`versions[tv-2160p].packs: must be all, any_upgradable or threshold, got "some"`},
+			name: "removed pack rule",
+			file: "versions.yaml", old: "    profile: tv-2160p\n", new: "    profile: tv-2160p\n    packs: all\n",
+			want: []string{"versions.yaml", "field packs not found"},
 		},
 		{
-			name: "threshold without a percentage",
-			file: "versions.yaml", old: "plain Sonarr: every episode's file must be upgraded.\n    packs: any_upgradable", new: "plain Sonarr: every episode's file must be upgraded.\n    packs: threshold",
-			want: []string{`versions[tv-2160p].packs_threshold: required with packs: threshold (a percentage, 1 to 100)`},
+			name: "removed pack threshold",
+			file: "versions.yaml", old: "    profile: tv-2160p\n", new: "    profile: tv-2160p\n    packs_threshold: 80\n",
+			want: []string{"versions.yaml", "field packs_threshold not found"},
 		},
 		{
-			name: "threshold out of range",
-			file: "versions.yaml", old: "plain Sonarr: every episode's file must be upgraded.\n    packs: any_upgradable", new: "plain Sonarr: every episode's file must be upgraded.\n    packs: threshold\n    packs_threshold: 0",
-			want: []string{`versions[tv-2160p].packs_threshold: must be a percentage from 1 to 100, got 0`},
-		},
-		{
-			name: "threshold above 100",
-			file: "versions.yaml", old: "plain Sonarr: every episode's file must be upgraded.\n    packs: any_upgradable", new: "plain Sonarr: every episode's file must be upgraded.\n    packs: threshold\n    packs_threshold: 100.5",
-			want: []string{`versions[tv-2160p].packs_threshold: must be a percentage from 1 to 100, got 100.5`},
-		},
-		{
-			name: "percentage without threshold",
-			file: "versions.yaml", old: "plain Sonarr: every episode's file must be upgraded.\n    packs: any_upgradable", new: "plain Sonarr: every episode's file must be upgraded.\n    packs: any_upgradable\n    packs_threshold: 80",
-			want: []string{`versions[tv-2160p].packs_threshold: only taken with packs: threshold`},
-		},
-		{
-			name: "threshold on a movie version",
-			file: "versions.yaml", old: "    profile: web-2160p\n", new: "    profile: web-2160p\n    packs: threshold\n    packs_threshold: 80\n",
-			want: []string{`versions[movie-web].packs: only series libraries take season packs`},
-		},
-		{
-			name: "pack rule on a movie version",
-			file: "versions.yaml", old: "    profile: web-2160p\n", new: "    profile: web-2160p\n    packs: any_upgradable\n",
-			want: []string{`versions[movie-web].packs: only series libraries take season packs`},
-		},
-		{
-			name: "unknown Sonarr version",
-			file: "versions.yaml", old: "    sonarr: v4plus\n", new: "    sonarr: v6\n",
-			want: []string{`versions[tv-2160p].sonarr: must be v4, v4plus or v5, got "v6"`},
-		},
-		{
-			name: "Sonarr version on a movie version",
-			file: "versions.yaml", old: "    profile: web-2160p\n", new: "    profile: web-2160p\n    sonarr: v5\n",
-			want: []string{`versions[movie-web].sonarr: only series libraries take a Sonarr version`},
+			name: "removed Sonarr version",
+			file: "versions.yaml", old: "    profile: tv-2160p\n", new: "    profile: tv-2160p\n    sonarr: v4plus\n",
+			want: []string{"versions.yaml", "field sonarr not found"},
 		},
 		{
 			name: "unknown field",
