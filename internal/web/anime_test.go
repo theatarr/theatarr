@@ -188,6 +188,13 @@ func TestAnimeReviewCard(t *testing.T) {
 		len(p.Samples) != 3 || p.Samples[0].Name != fmt.Sprintf("Ep %d", proposed[0][1]) || p.Samples[0].AirDate != "2024-04-08" {
 		t.Errorf("proposed option %+v", p)
 	}
+	// A sample in the title's episode list carries its episode id (the review links to it).
+	var epID int64
+	e.st.Reader().QueryRow(`SELECT id FROM episode WHERE title_id = 9 AND season = ? AND number = ?`,
+		p.Samples[0].Season, p.Samples[0].Number).Scan(&epID)
+	if epID <= 0 || p.Samples[0].ID != epID {
+		t.Errorf("sample episode id %d, want %d", p.Samples[0].ID, epID)
+	}
 	for _, o := range it.Options[1:] {
 		if o.Proposed || o.Candidate == nil || *o.Candidate >= len(it.Mapping.Candidates) ||
 			it.Mapping.Candidates[*o.Candidate].Source != o.Source {

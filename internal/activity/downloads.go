@@ -34,6 +34,7 @@ type Download struct {
 	Score                  int
 	Size                   int64
 	Episodes               []int64
+	Formats                string // the routed decision's matched custom formats (download.formats, JSON); "" when none
 	Provider, TorrentID    string
 	Client                 string // the download client of a client-routed download (add_via: client)
 	Name                   string
@@ -76,7 +77,7 @@ func Downloads(ctx context.Context, db *sql.DB, f Filter) ([]Download, error) {
 	q := `SELECT d.id, d.title_id, d.version_id, d.version_key, d.info_hash, d.release_title, d.indexer, d.quality,
 		d.score, COALESCE(d.size_bytes, 0), d.episodes, COALESCE(d.provider, ''), COALESCE(d.provider_torrent_id, ''),
 		COALESCE(d.client, ''), d.name, d.progress, d.state, COALESCE(d.error, ''), d.source, d.cached, d.reused, d.created_at, d.updated_at,
-		COALESCE(d.added_at, 0), COALESCE(d.ready_at, 0), COALESCE(d.imported_at, 0),
+		COALESCE(d.added_at, 0), COALESCE(d.ready_at, 0), COALESCE(d.imported_at, 0), COALESCE(d.formats, ''),
 		COALESCE(t.name, ''), COALESCE(t.kind, ''), COALESCE(t.year, 0), COALESCE(t.anime, 0),
 		COALESCE(li.state, ''), COALESCE(li.last_error, ''), COALESCE(li.waiting_since, 0), COALESCE(li.attempts, 0),
 		COALESCE(li.updated_at, 0), COALESCE((SELECT a.retry_at FROM download_attempt a WHERE a.download_id = d.id
@@ -137,7 +138,7 @@ func Downloads(ctx context.Context, db *sql.DB, f Filter) ([]Download, error) {
 		var created, updated, added, ready, imported, waiting, liUpdated, retry int64
 		if err := rows.Scan(&x.ID, &x.TitleID, &x.VersionID, &x.Version, &x.Hash, &x.Release, &x.Indexer, &x.Quality,
 			&x.Score, &x.Size, &eps, &x.Provider, &x.TorrentID, &x.Client, &x.Name, &x.Progress, &x.State, &x.Error, &x.Source,
-			&cached, &x.Reused, &created, &updated, &added, &ready, &imported, &x.TitleName, &x.TitleKind, &x.TitleYear,
+			&cached, &x.Reused, &created, &updated, &added, &ready, &imported, &x.Formats, &x.TitleName, &x.TitleKind, &x.TitleYear,
 			&x.Anime, &x.ImportState, &x.ImportErr, &waiting, &x.ImportAttempts, &liUpdated, &retry, &x.tried); err != nil {
 			return nil, err
 		}

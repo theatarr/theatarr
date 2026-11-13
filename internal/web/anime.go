@@ -167,6 +167,8 @@ type AnimeReviewSeries struct {
 
 // AnimeReviewEpisode is a sample TVDB episode; name and air date are empty when Theatarr's episode list lacks them.
 type AnimeReviewEpisode struct {
+	// ID is Theatarr's episode id; absent when the episode is not in the title's episode list (no link then).
+	ID      int64  `json:"id,omitempty"`
 	Season  int    `json:"season"`
 	Number  int    `json:"number"`
 	Name    string `json:"name"`
@@ -778,10 +780,10 @@ func (en *reviewEnricher) episodes(ctx context.Context, s AnimeReviewSeries, eps
 	known := en.eps[s.TitleID]
 	if known == nil && s.TitleID != 0 {
 		known = map[anime.SE]AnimeReviewEpisode{}
-		err := scanAll(ctx, en.db, `SELECT season, number, name, COALESCE(air_date, '') FROM episode WHERE title_id = ?`,
+		err := scanAll(ctx, en.db, `SELECT id, season, number, name, COALESCE(air_date, '') FROM episode WHERE title_id = ?`,
 			[]any{s.TitleID}, func(rows *sql.Rows) error {
 				var e AnimeReviewEpisode
-				if err := rows.Scan(&e.Season, &e.Number, &e.Name, &e.AirDate); err != nil {
+				if err := rows.Scan(&e.ID, &e.Season, &e.Number, &e.Name, &e.AirDate); err != nil {
 					return err
 				}
 				known[anime.SE{e.Season, e.Number}] = e

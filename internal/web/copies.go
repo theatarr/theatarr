@@ -212,20 +212,35 @@ func (w *Web) fillCopies(ctx context.Context, db *sql.DB, items []TitleRow) erro
 	eps := map[int64][]ep{}
 	mon := map[[2]int64]bool{}
 	var held map[[2]int64]bool
-	if len(seriesVIDs) > 0 {
-		if err := scanAll(ctx, db, `SELECT title_id, id, air_date_utc_at, COALESCE(air_date, '') FROM episode WHERE season > 0 AND title_id IN (`+
+	// The same scan gives each series its season count and latest aired day.
+	seasons := map[int64]map[int64]bool{}
+	if len(seriesIDs) > 0 {
+		if err := scanAll(ctx, db, `SELECT title_id, id, season, air_date_utc_at, COALESCE(air_date, '') FROM episode WHERE season > 0 AND title_id IN (`+
 			store.Placeholders(len(seriesIDs))+`)`, seriesIDs, func(r *sql.Rows) error {
-			var tid, id int64
+			var tid, id, season int64
 			var at sql.NullInt64
 			var day string
-			if err := r.Scan(&tid, &id, &at, &day); err != nil {
+			if err := r.Scan(&tid, &id, &season, &at, &day); err != nil {
 				return err
 			}
-			eps[tid] = append(eps[tid], ep{id, clock.aired(at, day)})
+			aired := clock.aired(at, day)
+			eps[tid] = append(eps[tid], ep{id, aired})
+			if seasons[tid] == nil {
+				seasons[tid] = map[int64]bool{}
+			}
+			seasons[tid][season] = true
+			if it := titleOf[tid]; aired && it != nil && day > it.PreviousAiring {
+				it.PreviousAiring = day
+			}
 			return nil
 		}); err != nil {
 			return err
 		}
+		for tid, ss := range seasons {
+			titleOf[tid].SeasonCount = len(ss)
+		}
+	}
+	if len(seriesVIDs) > 0 {
 		if err := scanAll(ctx, db, `SELECT version_id, episode_id FROM episode_version_state WHERE monitored = 1 AND
 			version_id IN (`+store.Placeholders(len(seriesVIDs))+`)`, seriesVIDs, func(r *sql.Rows) error {
 			var vid, eid int64
@@ -345,13 +360,32 @@ func (w *Web) fillNext(ctx context.Context, db *sql.DB, items []TitleRow, tids, 
 		if err != nil {
 			return err
 		}
+		var rules map[int64]availability.Rule
+		if w.pol != nil {
+			ids := make([]int64, len(movieIDs))
+			for i, id := range movieIDs {
+				ids[i] = id.(int64)
+			}
+			if rules, err = availability.Rules(ctx, db, w.pol, ids); err != nil {
+				return err
+			}
+		}
+		day := func(t time.Time) string {
+			if t.IsZero() {
+				return ""
+			}
+			return t.Format(time.DateOnly)
+		}
 		for _, id := range movieIDs {
 			it := idx[id.(int64)]
 			if it.Next == nil && it.ReleaseDate >= today {
 				it.Next = &NextUp{Date: it.ReleaseDate}
 			}
-			if d := availability.HomeRelease(dates[it.ID]); !d.IsZero() {
-				it.HomeRelease = d.Format(time.DateOnly)
+			ds := dates[it.ID]
+			it.HomeRelease = day(availability.HomeRelease(ds))
+			it.InCinemas, it.DigitalRelease, it.PhysicalRelease = day(ds["theatrical"]), day(ds["digital"]), day(ds["physical"])
+			for j := range it.Versions {
+				it.Versions[j].MinimumAvailability = rules[it.Versions[j].ID].Minimum
 			}
 		}
 	}
@@ -498,16 +532,16 @@ func copySortExpr(sort, key string, clock airClock) (string, []any) {
 		return `(SELECT MAX(CASE WHEN t.kind = 'movie' THEN (CASE WHEN ` + hasFileSQL + ` THEN 1.0 ELSE 0.0 END) ELSE
 			(SELECT CAST(SUM(CASE WHEN ` + episodeHeld + ` THEN 1 ELSE 0 END) AS REAL) / NULLIF(SUM(CASE WHEN
 				` + aired + ` OR ` + episodeHeld + ` THEN 1 ELSE 0 END), 0) FROM episode e WHERE e.title_id = t.id
-				AND e.season > 0) END) FROM version v WHERE v.title_id = t.id` + versionCond + `)`, args
+				AND e.season > 0) END) FROM version v WHERE v.title_id = t.id AND ` + liveVersion + versionCond + `)`, args
 	case "quality":
 		if key != "" {
 			args = append(args, key, key)
 		}
 		return `NULLIF(MAX(
 			COALESCE((SELECT MAX(` + qualityRank("vf.quality") + `) FROM version v JOIN version_file vf ON vf.version_id = v.id
-				LEFT JOIN version_source vs ON vs.version_id = v.id WHERE v.title_id = t.id AND ` + curFile + versionCond + `), -1),
+				LEFT JOIN version_source vs ON vs.version_id = v.id WHERE v.title_id = t.id AND ` + curFile + ` AND ` + liveVersion + versionCond + `), -1),
 			COALESCE((SELECT MAX(` + qualityRank("l.quality") + `) FROM link l JOIN link_version lv ON lv.link_id = l.id
-				JOIN version v ON v.id = lv.version_id WHERE l.title_id = t.id AND l.state = 'active'` + versionCond + `), -1)), -1)`, args
+				JOIN version v ON v.id = lv.version_id WHERE l.title_id = t.id AND l.state = 'active' AND ` + liveVersion + versionCond + `), -1)), -1)`, args
 	case "activity":
 		cond := ""
 		if key != "" {

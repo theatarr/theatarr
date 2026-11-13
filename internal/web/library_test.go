@@ -75,37 +75,52 @@ func TestTitlesSortAndFilters(t *testing.T) {
 	e := newEnv(t)
 	e.seedLibrary()
 	key := e.apiKey()
+	// For the created, runtime and network sorts: Gamma's empty runtime and Alpha's empty network count as none.
+	now := store.Millis(testNow)
+	day := int64(24 * time.Hour / time.Millisecond)
+	e.exec(`UPDATE title SET created_at = CASE id WHEN 1 THEN ? WHEN 2 THEN ? WHEN 3 THEN ? ELSE created_at END`,
+		now-3*day, now-day, now-2*day)
+	e.exec(`UPDATE title_meta SET runtime_minutes = CASE title_id WHEN 1 THEN 120 WHEN 2 THEN 95 ELSE 0 END,
+		network = CASE title_id WHEN 2 THEN 'apple' WHEN 3 THEN 'Zed' ELSE '' END`)
 	for q, want := range map[string]string{
-		"":                             "Alpha,Beta,Delta,Gamma",
-		"sort=name&order=desc":         "Gamma,Delta,Beta,Alpha",
-		"sort=added":                   "Beta,Delta,Alpha,Gamma",
-		"sort=added&order=asc":         "Alpha,Delta,Beta,Gamma",
-		"sort=rating":                  "Alpha,Beta,Delta,Gamma",
-		"sort=rating&order=asc":        "Beta,Alpha,Delta,Gamma",
-		"sort=year":                    "Delta,Beta,Alpha,Gamma",
-		"sort=size":                    "Alpha,Beta,Delta,Gamma",
-		"sort=release":                 "Delta,Beta,Alpha,Gamma",
-		"kind=movie&sort=added":        "Beta,Alpha",
-		"anime=true":                   "Delta",
-		"anime=false":                  "Alpha,Beta,Gamma",
-		"kind=series&anime=false":      "Gamma",
-		"genre=Drama":                  "Alpha,Gamma",
-		"genre=Comedy,Action":          "Alpha,Beta",
-		"genre=Comedy&genre=Action":    "Alpha,Beta",
-		"quality=WEBDL-2160p":          "Beta",
-		"quality=Bluray-1080p":         "Delta",
-		"provider=rd":                  "Alpha",
-		"year_from=2021":               "Beta,Delta",
-		"year_to=2020":                 "Alpha,Gamma",
-		"year_from=2020&year_to=2021":  "Alpha,Beta",
-		"monitored=false":              "Gamma",
-		"availability=partial":         "Alpha",
-		"availability=upgrade":         "Beta,Delta",
-		"availability=none":            "Gamma",
-		"availability=missing":         "",
-		"availability=available":       "",
-		"sort=added&limit=2&offset=1":  "Delta,Alpha",
-		"without=movie-web&sort=added": "Delta,Alpha,Gamma",
+		"sort=created":                  "Delta,Beta,Gamma,Alpha",
+		"sort=created&order=asc":        "Alpha,Gamma,Beta,Delta",
+		"sort=runtime":                  "Alpha,Beta,Delta,Gamma",
+		"sort=runtime&order=asc":        "Beta,Alpha,Delta,Gamma",
+		"sort=certification":            "Beta,Alpha,Delta,Gamma",
+		"sort=certification&order=desc": "Alpha,Beta,Delta,Gamma",
+		"sort=network":                  "Beta,Gamma,Alpha,Delta",
+		"sort=network&order=desc":       "Gamma,Beta,Alpha,Delta",
+		"":                              "Alpha,Beta,Delta,Gamma",
+		"sort=name&order=desc":          "Gamma,Delta,Beta,Alpha",
+		"sort=added":                    "Beta,Delta,Alpha,Gamma",
+		"sort=added&order=asc":          "Alpha,Delta,Beta,Gamma",
+		"sort=rating":                   "Alpha,Beta,Delta,Gamma",
+		"sort=rating&order=asc":         "Beta,Alpha,Delta,Gamma",
+		"sort=year":                     "Delta,Beta,Alpha,Gamma",
+		"sort=size":                     "Alpha,Beta,Delta,Gamma",
+		"sort=release":                  "Delta,Beta,Alpha,Gamma",
+		"kind=movie&sort=added":         "Beta,Alpha",
+		"anime=true":                    "Delta",
+		"anime=false":                   "Alpha,Beta,Gamma",
+		"kind=series&anime=false":       "Gamma",
+		"genre=Drama":                   "Alpha,Gamma",
+		"genre=Comedy,Action":           "Alpha,Beta",
+		"genre=Comedy&genre=Action":     "Alpha,Beta",
+		"quality=WEBDL-2160p":           "Beta",
+		"quality=Bluray-1080p":          "Delta",
+		"provider=rd":                   "Alpha",
+		"year_from=2021":                "Beta,Delta",
+		"year_to=2020":                  "Alpha,Gamma",
+		"year_from=2020&year_to=2021":   "Alpha,Beta",
+		"monitored=false":               "Gamma",
+		"availability=partial":          "Alpha",
+		"availability=upgrade":          "Beta,Delta",
+		"availability=none":             "Gamma",
+		"availability=missing":          "",
+		"availability=available":        "",
+		"sort=added&limit=2&offset=1":   "Delta,Alpha",
+		"without=movie-web&sort=added":  "Delta,Alpha,Gamma",
 	} {
 		var p TitlePage
 		if code := e.getKey(APIBase+"/titles?"+q, key, &p); code != 200 {
@@ -678,6 +693,24 @@ func TestNoFilesWithoutSeeFiles(t *testing.T) {
 	var adm map[string]any
 	if e.getKey(APIBase+"/auth/me", key, &adm); !strings.Contains(fmt.Sprint(adm["permissions"]), "see_files") {
 		t.Errorf("admin me: %v", adm)
+	}
+
+	// List rows carry no library profile, availability rule or folder; an admin's do.
+	e.exec(`INSERT INTO link (id, path, target, title_id, quality, state, created_at, updated_at) VALUES
+		(70, '/media/movies-web/Alpha (2020)/Alpha.mkv', '/zurg/__all__/Alpha/a.mkv', 1, 'WEBDL-2160p', 'active', 1, 1)`)
+	e.exec(`INSERT INTO link_version (link_id, version_id) VALUES (70, 2)`)
+	for _, p := range []string{"/titles", "/discover", "/discover/upgrades", "/discover/recent"} {
+		_, body := get(APIBase + p)
+		for _, s := range []string{`"profile"`, `"minimum_availability"`, `"folder"`} {
+			if strings.Contains(body, s) {
+				t.Errorf("%s shows %s to a caller without see_files", p, s)
+			}
+		}
+	}
+	var ap TitlePage
+	e.getKey(APIBase+"/titles?q=Alpha", key, &ap)
+	if v := ap.Items[0].Versions[1]; v.Profile == "" || v.MinimumAvailability == "" || v.Folder != "/media/movies-web/Alpha (2020)" {
+		t.Errorf("admin's Alpha copy: %+v", v)
 	}
 }
 

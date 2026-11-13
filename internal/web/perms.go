@@ -100,13 +100,14 @@ func plainAvailability(kind string, vs []versionState) string {
 }
 
 // redactVersionBrief drops what a caller without SeeFiles may not see from a list row's version: sizes, providers,
-// the file count and date, and the source in the quality.
+// the file count and date, the source in the quality, and the profile, availability rule and folder.
 func redactVersionBrief(v *VersionBrief) {
 	v.SizeBytes = nil
 	v.Providers = nil
 	v.State = plainState(v.State)
 	v.Quality = Resolution(v.Quality)
 	v.Files, v.AddedAt, v.UpgradeSeen = 0, nil, false
+	v.Profile, v.MinimumAvailability, v.Folder = "", "", ""
 	// Copies are a household detail: no ownership or downloads; coverage stays as watchability.
 	v.Control, v.Acquisition = nil, nil
 	if c := v.Coverage; c != nil {

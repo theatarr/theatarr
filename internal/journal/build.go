@@ -644,11 +644,17 @@ func (b *builder) libAction(e *Entry, rest string) error {
 		return sql.ErrNoRows
 	}
 	var kind, mode, detail string
-	var path, target sql.NullString
+	var path, target, release, quality sql.NullString
 	var dl, link sql.NullInt64
-	if err := b.db.QueryRowContext(b.ctx, `SELECT kind, mode, path, target, detail, download_id, link_id
-		FROM library_action WHERE id = ?`, id).Scan(&kind, &mode, &path, &target, &detail, &dl, &link); err != nil {
+	// The release title and quality are the download's: the action's, else its link's.
+	if err := b.db.QueryRowContext(b.ctx, `SELECT a.kind, a.mode, a.path, a.target, a.detail, a.download_id, a.link_id,
+		d.release_title, d.quality FROM library_action a LEFT JOIN link l ON l.id = a.link_id
+		LEFT JOIN download d ON d.id = COALESCE(a.download_id, l.download_id) WHERE a.id = ?`, id).Scan(&kind, &mode,
+		&path, &target, &detail, &dl, &link, &release, &quality); err != nil {
 		return err
+	}
+	if release.Valid {
+		e.Release = &Release{Title: clean(release.String), Quality: quality.String}
 	}
 	e.Source = "library"
 	e.Import = &Import{State: mode, Links: []Link{{ID: link.Int64, Path: path.String, Target: target.String,

@@ -65,6 +65,12 @@ type VersionBrief struct {
 	Control     *VersionControl `json:"control,omitempty"`
 	Coverage    *CopyCoverage   `json:"coverage,omitempty"`
 	Acquisition *Acquisition    `json:"acquisition,omitempty"`
+	// Profile is the library's quality profile; MinimumAvailability (movies) the copy's availability rule in force
+	// (availability.Rules); Folder the title's folder in the library: the library root holding the copy's first
+	// active link plus the first path element below it, empty without one. For callers who see files.
+	Profile             string `json:"profile,omitempty"`
+	MinimumAvailability string `json:"minimum_availability,omitempty"`
+	Folder              string `json:"folder,omitempty"`
 }
 
 // TitleRow is a title on a list.
@@ -86,6 +92,19 @@ type TitleRow struct {
 	// Acquiring: some copy has a download in hand that is not blocked and is not an upgrade (copies.go). Every caller
 	// gets it; it carries no provider, file or stage detail.
 	Acquiring bool `json:"acquiring,omitempty"`
+	// TitleAddedAt is when the title was added to Theatarr (title.created_at); list rows only (the title page has
+	// created_at).
+	TitleAddedAt *time.Time `json:"title_added_at,omitempty"`
+	// SeriesType is a series' type in force (store.SeriesTypeSQL: standard, daily or anime); empty for a movie.
+	SeriesType string `json:"series_type,omitempty"`
+	// A movie's first canonical release of each kind (availability.DatesFor), YYYY-MM-DD.
+	InCinemas       string `json:"in_cinemas,omitempty"`
+	DigitalRelease  string `json:"digital_release,omitempty"`
+	PhysicalRelease string `json:"physical_release,omitempty"`
+	// SeasonCount is how many seasons (specials left out) a series has episodes in; PreviousAiring is the latest
+	// aired episode's day (YYYY-MM-DD). Series only.
+	SeasonCount    int    `json:"season_count,omitempty"`
+	PreviousAiring string `json:"previous_airing,omitempty"`
 	TitleArt
 	TitleFacts
 }
@@ -170,21 +189,22 @@ func (w *Web) listTitles(ctx context.Context, f TitleFilter) (TitlePage, error) 
 }
 
 // titleCols and titleFrom are the list row's columns and tables; m is the title's title_meta row, if any.
-const (
-	titleCols = `t.id, t.kind, t.name, t.year, t.tmdb_id, t.tvdb_id, COALESCE(t.imdb_id, ''), t.anime, t.monitored`
-	titleFrom = ` FROM title t LEFT JOIN title_meta m ON m.title_id = t.id`
-)
+var titleCols = `t.id, t.kind, t.name, t.year, t.tmdb_id, t.tvdb_id, COALESCE(t.imdb_id, ''), t.anime, t.monitored,
+	t.created_at, ` + store.SeriesTypeSQL("t")
+
+const titleFrom = ` FROM title t LEFT JOIN title_meta m ON m.title_id = t.id`
 
 // titleRows runs q (selecting titleCols) and fills each row's art, facts and versions, in q's order.
 func (w *Web) titleRows(ctx context.Context, db *sql.DB, q string, args []any) ([]TitleRow, error) {
 	items := []TitleRow{}
 	err := scanAll(ctx, db, q, args, func(rows *sql.Rows) error {
 		var r TitleRow
-		var year, tmdb, tvdb sql.NullInt64
-		if err := rows.Scan(&r.ID, &r.Kind, &r.Name, &year, &tmdb, &tvdb, &r.IMDbID, &r.Anime, &r.Monitored); err != nil {
+		var year, tmdb, tvdb, created sql.NullInt64
+		if err := rows.Scan(&r.ID, &r.Kind, &r.Name, &year, &tmdb, &tvdb, &r.IMDbID, &r.Anime, &r.Monitored, &created,
+			&r.SeriesType); err != nil {
 			return err
 		}
-		r.Year, r.TMDbID, r.TVDbID = nullInt(year), nullInt(tmdb), nullInt(tvdb)
+		r.Year, r.TMDbID, r.TVDbID, r.TitleAddedAt = nullInt(year), nullInt(tmdb), nullInt(tvdb), nullTS(created)
 		r.Versions = []VersionBrief{}
 		items = append(items, r)
 		return nil

@@ -370,9 +370,46 @@ func TestListRowFacts(t *testing.T) {
 		(30, 30, 30, 'movie-web', 'e0', 'Cinema.2026.WEB', 'dmm', 'WEBDL-1080p', '[]', 12, 'downloading', ?, ?),
 		(31, 31, 31, 'movie-web', 'e1', 'Disc.2026.WEB', 'dmm', 'WEBDL-1080p', '[]', 100, 'ready', ?, ?)`, now, now, now, now)
 	e.exec(`INSERT INTO library_import (download_id, state, created_at, updated_at) VALUES (31, 'failed', ?, ?)`, now, now)
+	// Facts: Cinema is in cinemas, in English; Recent has a link in the library; Disc has an explicit availability choice
+	// on its library's own view; The Show is a returning series.
+	e.exec(`UPDATE title_meta SET status = 'inCinemas', original_language = 'en' WHERE title_id = 30`)
+	e.exec(`INSERT INTO title_meta (title_id, status, attempted_at, refresh_after) VALUES (10, 'Returning Series', 1, 1)`)
+	e.exec(`INSERT INTO arrview_title (view, title_id, minimum_availability, added_at, updated_at) VALUES
+		('v/movie-web', 31, 'announced', 1, 1)`)
+	e.exec(`INSERT INTO link (id, path, target, title_id, quality, state, created_at, updated_at) VALUES
+		(30, '/media/movies-web/Recent (2026)/Recent.2026.mkv', '/zurg/__all__/Recent/r.mkv', 32, 'WEBDL-1080p', 'active', ?, ?)`,
+		now, now)
+	e.exec(`INSERT INTO link_version (link_id, version_id) VALUES (30, 32)`)
 
 	var page TitlePage
 	e.call("GET", APIBase+"/titles?limit=100", nil, 200, &page)
+	cin, disc, show := rowOf(t, page, 30), rowOf(t, page, 31), rowOf(t, page, 10)
+	if cin.TitleAddedAt == nil || !cin.TitleAddedAt.Equal(store.FromMillis(now)) || cin.Status != "inCinemas" ||
+		cin.OriginalLanguage != "en" || cin.InCinemas != "2026-10-01" || cin.DigitalRelease != "2026-11-20" ||
+		cin.PhysicalRelease != "" || cin.SeriesType != "" || cin.SeasonCount != 0 {
+		t.Errorf("Cinema facts: %+v", cin)
+	}
+	if disc.InCinemas != "2026-08-01" || disc.DigitalRelease != "2026-10-01" || disc.PhysicalRelease != "2026-12-01" {
+		t.Errorf("Disc dates: %+v", disc)
+	}
+	// movie-web has no minimum_availability in the example settings: released; Disc's own choice wins.
+	if v := copyOf(t, cin, "movie-web"); v.Profile != "web-2160p" || v.MinimumAvailability != "released" || v.Folder != "" {
+		t.Errorf("Cinema copy: %+v", v)
+	}
+	if v := copyOf(t, rowOf(t, page, 32), "movie-web"); v.Folder != "/media/movies-web/Recent (2026)" {
+		t.Errorf("Recent copy: %+v", v)
+	}
+	if v := copyOf(t, disc, "movie-web"); v.MinimumAvailability != "announced" || v.Folder != "" {
+		t.Errorf("Disc copy: %+v", v)
+	}
+	// Seasons 1 and 2 (the special left out); S02E01 is still to come.
+	if show.SeriesType != "standard" || show.SeasonCount != 2 || show.PreviousAiring != "2020-01-01" ||
+		show.Status != "Returning Series" || show.InCinemas != "" {
+		t.Errorf("The Show facts: %+v", show)
+	}
+	if v := copyOf(t, show, "tv-2160p"); v.Profile != "tv-2160p" || v.MinimumAvailability != "" {
+		t.Errorf("The Show copy: %+v", v)
+	}
 	for id, want := range map[int64]string{30: "2026-11-20", 31: "2026-10-01", 32: "2026-12-25", 33: "2026-10-16", 34: "", 10: ""} {
 		r := rowOf(t, page, id)
 		if r.HomeRelease != want {
@@ -407,8 +444,12 @@ func TestListRowFacts(t *testing.T) {
 	if !cinema.Acquiring || cinema.HomeRelease != "2026-11-20" || cinema.SizeBytes != nil {
 		t.Errorf("user's Cinema row: %+v", cinema)
 	}
-	for _, v := range cinema.Versions {
-		if v.Acquisition != nil || v.SizeBytes != nil || v.Providers != nil {
+	if cinema.Status != "inCinemas" || cinema.TitleAddedAt == nil || cinema.InCinemas != "2026-10-01" {
+		t.Errorf("user's Cinema row lost its title facts: %+v", cinema)
+	}
+	for _, v := range append(cinema.Versions, rowOf(t, up, 32).Versions...) {
+		if v.Acquisition != nil || v.SizeBytes != nil || v.Providers != nil || v.Profile != "" ||
+			v.MinimumAvailability != "" || v.Folder != "" {
 			t.Errorf("user's Cinema copy %s: %+v", v.Key, v)
 		}
 	}

@@ -144,11 +144,118 @@ func TestActivityBlockedAndParams(t *testing.T) {
 			t.Errorf("%s: %d entries, want %d", q, len(f.History), want)
 		}
 	}
+	// Blocklist filters: title (name part) and copy narrow the rows and the total; a row whose download is known
+	// carries its quality and indexer.
+	e.exec(`INSERT INTO download (id, title_id, version_id, version_key, info_hash, release_title, indexer, quality,
+		episodes, state, created_at, updated_at) VALUES (5, 2, 3, 'movie-web', 'b5', 'Beta.2021.WEB', 'torrentio',
+		'WEBDL-2160p', '[]', 'failed', ?, ?)`, now, now)
+	e.exec(`INSERT INTO router_blocklist (version_key, info_hash, title_id, release_title, reason, source, download_id,
+		created_at) VALUES ('movie-web', 'b5', 2, 'Beta.2021.WEB', 'stalled', 'stalled', 5, ?),
+		('movie-remux', 'a6', 1, 'Alpha.Remux', 'wrong', 'queue', NULL, ?)`, now+1, now+2)
+	for q, want := range map[string]string{"": "Alpha.Remux,Beta.2021.WEB,Alpha.Sample.Release",
+		"title=alp": "Alpha.Remux,Alpha.Sample.Release", "version=movie-web": "Beta.2021.WEB,Alpha.Sample.Release",
+		"title=BET&version=movie-web": "Beta.2021.WEB", "title=beta&version=movie-remux": "",
+		"version=movie-web&limit=1": "Beta.2021.WEB"} {
+		var f ActivityPage
+		if code := e.getKey(APIBase+"/activity?state=blocked&"+q, key, &f); code != 200 {
+			t.Fatalf("blocked %s: %d", q, code)
+		}
+		var got []string
+		for _, b := range f.Blocked {
+			got = append(got, b.Release)
+		}
+		n := len(strings.Split(want, ","))
+		if want == "" {
+			n = 0
+		}
+		if q == "version=movie-web&limit=1" {
+			n = 2
+		}
+		if strings.Join(got, ",") != want || f.Total != n {
+			t.Errorf("blocked %s: %v (total %d), want %s (total %d)", q, got, f.Total, want, n)
+		}
+	}
+	var bf ActivityPage
+	e.getKey(APIBase+"/activity?state=blocked&title=beta", key, &bf)
+	if b := bf.Blocked[0]; b.Quality != "WEBDL-2160p" || b.Indexer != "torrentio" {
+		t.Errorf("blocked Beta: %+v", b)
+	}
+	if b := p.Blocked[0]; b.Quality != "" || b.Indexer != "" {
+		t.Errorf("blocked Alpha without a download: %+v", b)
+	}
 	for _, bad := range []string{"state=later", "kind=music", "title_id=x", "state=history&kinds=shadow",
 		"state=history&cursor=bm8", "state=history&since=yesterday"} {
 		if code := e.getKey(APIBase+"/activity?"+bad, key, nil); code != 400 {
 			t.Errorf("%s: %d", bad, code)
 		}
+	}
+}
+
+// TestActivityReleaseFacts: a grab's history row carries the release's quality, score, indexer, size, formats and
+// episodes for an admin and none of them in the user view; a "Linked into the library" row the release title and
+// quality of the link's download, and no score; a queue row its formats for an admin only.
+func TestActivityReleaseFacts(t *testing.T) {
+	t.Parallel()
+	e := newEnv(t)
+	key := e.apiKey()
+	now := store.Millis(testNow)
+	e.exec(`INSERT INTO download (id, title_id, version_id, version_key, info_hash, release_title, indexer, quality,
+		score, size_bytes, formats, episodes, progress, state, created_at, updated_at) VALUES
+		(1, 1, 2, 'movie-web', 'f1', 'Alpha.2020.2160p.WEB', 'dmm', 'WEBDL-2160p', 1500, 18400000000,
+		'[{"name":"DV HDR10","score":1500}]', '[]', 40, 'downloading', ?, ?)`, now, now)
+	e.exec(`INSERT INTO library_action (at, kind, mode, version_key, download_id, path, target, detail) VALUES
+		(?, 'link', 'applied', 'movie-web', 1, '/media/movies-web/Alpha (2020)/Alpha.mkv', '/zurg/a.mkv', ''),
+		(?, 'link', 'applied', 'movie-web', NULL, '/media/movies-web/Alpha (2020)/Alpha.srt', '/zurg/a.srt', '')`,
+		now+1, now+2)
+
+	var h ActivityPage
+	if code := e.getKey(APIBase+"/activity?state=history", key, &h); code != 200 {
+		t.Fatalf("history: %d", code)
+	}
+	byID := map[string]ActivityEvent{}
+	for _, x := range h.History {
+		byID[x.ID] = x
+	}
+	g := byID["dl:1"]
+	if g.Kind != "grab" || g.Quality != "WEBDL-2160p" || g.Score == nil || *g.Score != 1500 || g.Indexer != "dmm" ||
+		g.Size != 18400000000 || len(g.Formats) != 1 || g.Formats[0].Name != "DV HDR10" || g.Formats[0].Score != 1500 {
+		t.Errorf("grab row: %+v", g)
+	}
+	var link, bare ActivityEvent
+	for _, x := range h.History {
+		if x.Kind == "link" && x.Release != "" {
+			link = x
+		} else if x.Kind == "link" {
+			bare = x
+		}
+	}
+	if link.Words != "Linked into the library" || link.Release != "Alpha.2020.2160p.WEB" || link.Quality != "WEBDL-2160p" ||
+		link.Score != nil {
+		t.Errorf("link row: %+v", link)
+	}
+	if bare.Words != "Linked into the library" || bare.Quality != "" || bare.Score != nil {
+		t.Errorf("link row without a download: %+v", bare)
+	}
+
+	var u ActivityPage
+	e.getKey(APIBase+"/activity?state=history&as=user", key, &u)
+	if len(u.History) != len(h.History) {
+		t.Fatalf("user history: %+v", u.History)
+	}
+	for _, x := range u.History {
+		if x.Quality != "" || x.Score != nil || x.Indexer != "" || x.Size != 0 || x.Formats != nil || x.Episodes != nil {
+			t.Errorf("user history row has release facts: %+v", x)
+		}
+	}
+
+	var q, uq ActivityPage
+	e.getKey(APIBase+"/activity?state=now", key, &q)
+	e.getKey(APIBase+"/activity?state=now&as=user", key, &uq)
+	if len(q.Now) != 1 || len(q.Now[0].Formats) != 1 || q.Now[0].Formats[0].Name != "DV HDR10" {
+		t.Errorf("queue: %+v", q.Now)
+	}
+	if len(uq.Now) != 1 || uq.Now[0].Formats != nil {
+		t.Errorf("user queue: %+v", uq.Now)
 	}
 }
 

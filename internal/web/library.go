@@ -14,6 +14,7 @@ import (
 	"github.com/theatarr/theatarr/internal/auth"
 	"github.com/theatarr/theatarr/internal/indexer"
 	"github.com/theatarr/theatarr/internal/metadata/art"
+	"github.com/theatarr/theatarr/internal/policy"
 	"github.com/theatarr/theatarr/internal/store"
 )
 
@@ -40,8 +41,9 @@ type TitleGridFilter struct {
 	YearTo    int
 	// Availability is the poster badge (availabilityOf): missing, partial, upgrade, available or none.
 	Availability string
-	// Sort is added (newest current file), name, year, release (TMDb release or first air date), rating or size
-	// (current files); Order is asc or desc (default: asc for name and next, desc for the rest). Titles with no
+	// Sort is added (newest current file), created (when the title was added), name, year, release (TMDb release or
+	// first air date), rating, runtime, certification, network or size (current files); Order is asc or desc
+	// (default: asc for name, certification, network and next, desc for the rest). Titles with no
 	// value for the sort key come last either way. The library views' sorts (copies.go): completion (the share of a
 	// series' aired episodes a copy holds; a movie copy's file), quality (a copy's best current quality), activity
 	// (the newest change of a download in hand) and next (the next episode's air date, or a coming movie release).
@@ -58,7 +60,8 @@ type TitleGridFilter struct {
 
 var (
 	titleSorts = map[string]bool{"": true, "added": true, "name": true, "year": true, "release": true, "rating": true,
-		"size": true, "completion": true, "quality": true, "activity": true, "next": true}
+		"size": true, "completion": true, "quality": true, "activity": true, "next": true, "created": true, "runtime": true,
+		"certification": true, "network": true}
 	// versionKeyRE is what a sort_version may look like (a policy version key).
 	versionKeyRE   = regexp.MustCompile(`^[a-z0-9][a-z0-9_-]{0,63}$`)
 	availabilities = map[string]bool{"": true, "missing": true, "partial": true, "upgrade": true, "available": true, "none": true}
@@ -275,11 +278,20 @@ func (g TitleGridFilter) orderBy() (string, []any) {
 		expr = "CASE WHEN m.rating_votes > 0 THEN m.rating END"
 	case "size":
 		expr = sizeExpr
+	case "created":
+		expr = "t.created_at"
+	case "runtime":
+		expr = "NULLIF(m.runtime_minutes, 0)"
+	case "certification":
+		expr = "NULLIF(m.certification, '')"
+	case "network":
+		expr = "NULLIF(lower(m.network), '')"
 	case "completion", "quality", "activity", "next":
 		expr, args = copySortExpr(g.Sort, g.SortVersion, g.clock)
 	}
 	dir := "DESC"
-	if g.Order == "asc" || (g.Order == "" && (expr == "" || g.Sort == "next")) {
+	if g.Order == "asc" || (g.Order == "" && (expr == "" || g.Sort == "next" || g.Sort == "certification" ||
+		g.Sort == "network")) {
 		dir = "ASC"
 	}
 	if expr == "" {
@@ -327,7 +339,8 @@ func gridFilter(r *http.Request) (TitleGridFilter, error) {
 		return g, err
 	}
 	if !titleSorts[g.Sort] {
-		return g, errors.New("sort must be added, name, year, release, rating, size, completion, quality, activity or next")
+		return g, errors.New("sort must be added, created, name, year, release, rating, runtime, certification, network, size, " +
+			"completion, quality, activity or next")
 	}
 	g.SortVersion = q.Get("sort_version")
 	if g.SortVersion != "" && !versionKeyRE.MatchString(g.SortVersion) {
@@ -366,6 +379,11 @@ type TitleFacts struct {
 	SizeBytes *int64 `json:"size_bytes,omitempty"`
 	// Network is the series' network (a movie's first production company).
 	Network string `json:"network,omitempty"`
+	// Status is the stored title_meta status: a movie's release status (availability.Status: announced, inCinemas,
+	// released) or a series' TMDb status (Returning Series, Ended, Canceled, In Production, Planned, Pilot).
+	Status string `json:"status,omitempty"`
+	// OriginalLanguage is TMDb's original language (ISO 639-1).
+	OriginalLanguage string `json:"original_language,omitempty"`
 }
 
 func factsFor(m *art.Meta) TitleFacts {
@@ -385,6 +403,7 @@ func factsFor(m *art.Meta) TitleFacts {
 		f.RuntimeMinutes = &v
 	}
 	f.Certification, f.ReleaseDate, f.Network = m.Certification, m.ReleaseDate, m.Network
+	f.Status, f.OriginalLanguage = m.Status, m.OriginalLanguage
 	return f
 }
 
@@ -509,6 +528,7 @@ type fileAgg struct {
 	n       int
 	size    int64
 	added   int64
+	path    string // the first active link's path (links only)
 }
 
 // fillVersionFiles sets each version's label and current files, and each row's availability, added time and
@@ -529,8 +549,18 @@ func (w *Web) fillVersionFiles(ctx context.Context, db *sql.DB, items []TitleRow
 		if err != nil {
 			return err
 		}
+		var lib map[string]*policy.LibraryVersion
+		if w.pol != nil {
+			lib = w.pol.LibrarySettings().Versions
+		}
 		for id, v := range byID {
 			v.VersionFiles = briefFiles(v.Label, aggs[id], w.cacheCodes(provs[id]))
+			if w.pol != nil && w.pol.Versions[v.Key] != nil {
+				v.Profile = w.pol.Versions[v.Key].Profile
+			}
+			if lv := lib[v.Key]; lv != nil {
+				v.Folder = titleFolder(lv.Roots, firstPath(aggs[id]))
+			}
 		}
 	}
 	for i := range items {
@@ -556,6 +586,37 @@ func (w *Web) fillVersionFiles(ctx context.Context, db *sql.DB, items []TitleRow
 		}
 	}
 	return w.markUpgradeSeen(ctx, db, items)
+}
+
+// firstPath is the smallest link path of aggs, "" when none.
+func firstPath(aggs []fileAgg) string {
+	p := ""
+	for _, a := range aggs {
+		if a.path != "" && (p == "" || a.path < p) {
+			p = a.path
+		}
+	}
+	return p
+}
+
+// titleFolder is the folder of a library path p: the root of roots that holds it (the longest) plus the first path
+// element below it. "" when p is under no root or sits directly in one.
+func titleFolder(roots []string, p string) string {
+	best := ""
+	for _, r := range roots {
+		r = strings.TrimRight(r, "/")
+		if r != "" && strings.HasPrefix(p, r+"/") && len(r) > len(best) {
+			best = r
+		}
+	}
+	if best == "" {
+		return ""
+	}
+	first, _, ok := strings.Cut(p[len(best)+1:], "/")
+	if !ok || first == "" {
+		return ""
+	}
+	return best + "/" + first
 }
 
 func briefFiles(label string, aggs []fileAgg, provs []string) VersionFiles {
@@ -588,21 +649,21 @@ func (w *Web) currentFiles(ctx context.Context, db *sql.DB, ids []any) (map[int6
 	scan := func(r *sql.Rows) error {
 		var vid int64
 		var a fileAgg
-		if err := r.Scan(&vid, &a.quality, &a.n, &a.size, &a.added); err != nil {
+		if err := r.Scan(&vid, &a.quality, &a.n, &a.size, &a.added, &a.path); err != nil {
 			return err
 		}
 		aggs[vid] = append(aggs[vid], a)
 		return nil
 	}
 	if err := scanAll(ctx, db, `SELECT vf.version_id, vf.quality, COUNT(*), COALESCE(SUM(vf.size_bytes), 0),
-		COALESCE(MAX(vf.added_at), 0) FROM version_file vf LEFT JOIN version_source vs ON vs.version_id = vf.version_id
+		COALESCE(MAX(vf.added_at), 0), '' FROM version_file vf LEFT JOIN version_source vs ON vs.version_id = vf.version_id
 		WHERE vf.version_id IN (`+in+`) AND `+curFile+` GROUP BY vf.version_id, vf.quality ORDER BY vf.version_id, vf.quality`,
 		ids, scan); err != nil {
 		return nil, nil, err
 	}
 	if err := scanAll(ctx, db, `SELECT lv.version_id, COALESCE(l.quality, ''), COUNT(*),
 		COALESCE(SUM(COALESCE(`+linkSizeSQL+`, 0)), 0),
-		COALESCE(MAX(l.created_at), 0) FROM link_version lv JOIN link l ON l.id = lv.link_id
+		COALESCE(MAX(l.created_at), 0), COALESCE(MIN(l.path), '') FROM link_version lv JOIN link l ON l.id = lv.link_id
 		LEFT JOIN content_file cf ON cf.id = l.content_file_id WHERE lv.version_id IN (`+in+`) AND l.state = 'active'
 		GROUP BY lv.version_id, l.quality ORDER BY lv.version_id`, ids, scan); err != nil {
 		return nil, nil, err

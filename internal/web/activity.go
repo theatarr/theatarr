@@ -6,6 +6,7 @@ import (
 	"crypto/sha256"
 	"database/sql"
 	"encoding/hex"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"net/http"
@@ -16,6 +17,7 @@ import (
 
 	"github.com/theatarr/theatarr/internal/activity"
 	"github.com/theatarr/theatarr/internal/auth"
+	"github.com/theatarr/theatarr/internal/decide"
 	"github.com/theatarr/theatarr/internal/journal"
 	"github.com/theatarr/theatarr/internal/library"
 	"github.com/theatarr/theatarr/internal/metadata/art"
@@ -166,6 +168,8 @@ type ActivityDownload struct {
 	AttemptsMore bool               `json:"attempts_more,omitempty"`
 	Cache        []journal.Evidence `json:"cache,omitempty"`
 	Journal      string             `json:"journal,omitempty"` // the journal entry id (dl:<id>)
+	// Formats are the routed decision's matched custom formats with their scores (download.formats).
+	Formats []decide.FormatScore `json:"formats,omitempty"`
 }
 
 // ActivityEvent is one history entry: a journal entry in plain words.
@@ -184,6 +188,15 @@ type ActivityEvent struct {
 	Release  string `json:"release,omitempty"`
 	Provider string `json:"provider,omitempty"`
 	Suspect  bool   `json:"suspect,omitempty"`
+	// The release's facts as the journal entry keeps them: a grab's from its download; a link's release title and
+	// quality from the link's download when it has one; a blocklist entry's from the blocked download. Score is
+	// left out when the entry has none.
+	Quality  string               `json:"quality,omitempty"`
+	Score    *int                 `json:"score,omitempty"`
+	Indexer  string               `json:"indexer,omitempty"`
+	Size     int64                `json:"size,omitempty"`
+	Formats  []decide.FormatScore `json:"formats,omitempty"`
+	Episodes []string             `json:"episodes,omitempty"`
 }
 
 // ActivityBlocked is a release a version never routes again (admin).
@@ -198,6 +211,9 @@ type ActivityBlocked struct {
 	DownloadID int64         `json:"download_id,omitempty"`
 	Created    time.Time     `json:"created_at"`
 	Researched *time.Time    `json:"researched_at,omitempty"`
+	// Quality and Indexer are the blocked download's, when it is known.
+	Quality string `json:"quality,omitempty"`
+	Indexer string `json:"indexer,omitempty"`
 }
 
 // ActivityPage is GET /activity: one of now, history or blocked.
@@ -341,7 +357,8 @@ func (w *Web) apiActivity(rw http.ResponseWriter, r *http.Request) {
 			badRequest(rw, err.Error())
 			return
 		}
-		bs, total, err := activity.BlockedReleases(ctx, w.st.Reader(), limit, offset)
+		bf := activity.BlockedFilter{Title: strings.TrimSpace(q.Get("title")), Version: strings.TrimSpace(q.Get("version"))}
+		bs, total, err := activity.BlockedReleases(ctx, w.st.Reader(), bf, limit, offset)
 		if err != nil {
 			w.internal(rw, err)
 			return
@@ -358,7 +375,7 @@ func (w *Web) apiActivity(rw http.ResponseWriter, r *http.Request) {
 		page.Blocked = []ActivityBlocked{}
 		for _, b := range bs {
 			x := ActivityBlocked{Version: b.Version, Hash: b.Hash, Release: b.Release, Reason: b.Reason, Source: b.Source,
-				Words: blockWords(b.Source), DownloadID: b.DownloadID, Created: b.Created,
+				Words: blockWords(b.Source), DownloadID: b.DownloadID, Created: b.Created, Quality: b.Quality, Indexer: b.Indexer,
 				Title: activityTitle(b.TitleID, b.TitleName, b.TitleYear, b.TitleKind, b.Anime, posters)}
 			if !b.Researched.IsZero() {
 				t := b.Researched
@@ -509,6 +526,9 @@ func (w *Web) downloadViews(ctx context.Context, ds []activity.Download, admin b
 			}
 			x.Detail, x.Cached, x.Reused, x.Source = d.Words(by), d.Cached, d.Reused, d.Source
 			x.Journal = "dl:" + strconv.FormatInt(d.ID, 10)
+			if d.Formats != "" {
+				_ = json.Unmarshal([]byte(d.Formats), &x.Formats)
+			}
 			x.Error = activityMessage(d.Error)
 			if notStarted != "" {
 				x.Error = activity.NotStartedMessage(notStarted)
@@ -610,8 +630,9 @@ func (w *Web) historyEvents(ctx context.Context, es []*journal.Entry, admin bool
 			if notStarted != "" {
 				x.Summary = activity.NotStartedMessage(notStarted) // the journal entry keeps its own text
 			}
-			if e.Release != nil {
-				x.Release = e.Release.Title
+			if r := e.Release; r != nil {
+				x.Release, x.Quality, x.Score, x.Indexer, x.Size = r.Title, r.Quality, r.Score, r.Indexer, r.Size
+				x.Formats, x.Episodes = r.Formats, r.Episodes
 			}
 			if e.Download != nil {
 				x.Provider = e.Download.Provider
