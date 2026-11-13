@@ -202,6 +202,11 @@ func TestLegacyWantedKeys(t *testing.T) {
 		{"enabled: null\n    interval: 15m\n    missing: false\n    cutoff_unmet: \"off\"\n    per_hour: 10", false, CutoffOff, 2},
 		{"enabled: false\n    interval: 30m\n    missing: true\n    cutoff_unmet: score", false, CutoffOff, 2},
 		{"enabled: false", false, CutoffOff, 1},
+		{"enabled: off\n    missing: true", false, CutoffOff, 1},
+		{"enabled: no", false, CutoffOff, 1},
+		{"enabled: OFF", false, CutoffOff, 1},
+		{"enabled: \"off\"", false, CutoffOff, 1},
+		{"enabled: yes", true, CutoffQuality, 1},
 		{"enabled: true\n    per_hour: 5", true, CutoffQuality, 1},
 		{"retry_new: false\n    missing: true", true, CutoffQuality, 1},
 	} {

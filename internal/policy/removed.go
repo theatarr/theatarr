@@ -46,8 +46,10 @@ func dropRemovedWanted(router *yaml.Node) []string {
 			fields = append(fields, w.Content[i], value)
 			continue
 		}
-		var on bool
-		if name == "enabled" && value.Kind == yaml.ScalarNode && value.ShortTag() == "!!bool" && value.Decode(&on) == nil && !on {
+		// Decoded as the old field was (*bool), so every false it accepted (false, off, no, ...) counts; null leaves
+		// the switches as written.
+		var on *bool
+		if name == "enabled" && value.Decode(&on) == nil && on != nil && !*on {
 			off = true
 		}
 		dropped = append(dropped, "router.wanted."+name+" "+wantedIgnoredNote)
