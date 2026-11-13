@@ -310,6 +310,8 @@ func (w *Web) fillRequests(ctx context.Context, items []Request, viewer *auth.Id
 	if len(items) == 0 {
 		return nil
 	}
+	// Library keys only for a viewer who sees files (and the managers' notifications, which have no viewer).
+	seeFiles := (viewer == nil && manager) || (viewer != nil && w.perms != nil && w.perms(viewer).SeeFiles)
 	var ids []int64
 	var sharedIDs []int64
 	for _, r := range items {
@@ -389,7 +391,7 @@ func (w *Web) fillRequests(ctx context.Context, items []Request, viewer *auth.Id
 			r.Poster = "/img/tmdb/" + tmdbPosterSize + "/" + f
 		}
 		r.Versions = []RequestVersion{}
-		names := w.keyLabels(r.keys)
+		names := w.keyLabelsFor(r.keys, seeFiles)
 		for _, k := range r.keys {
 			v := RequestVersion{Key: k, Label: names[k], GrabState: versionGrabState(w.pol, k)}
 			if r.Status != ReqPending && r.Status != ReqDeclined && r.Status != ReqCanceled {

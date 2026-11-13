@@ -1,12 +1,14 @@
 package web
 
 import (
+	"encoding/json"
 	"net/http/httptest"
 	"slices"
 	"strings"
 	"testing"
 
 	"github.com/theatarr/theatarr/internal/auth"
+	"github.com/theatarr/theatarr/internal/policy"
 )
 
 // userBody is GET path as a caller without "see files" (manageEnv.userMux).
@@ -382,5 +384,34 @@ func TestHistoryNotStarted(t *testing.T) {
 	e.call("GET", APIBase+"/titles/10/episodes/101", nil, 200, &ep)
 	if got := ends(ep.Versions[0].History); got["Show.S01E01.Untried"] != "not_started:Not started: downloads were off" {
 		t.Errorf("episode history: %v", got)
+	}
+}
+
+// TestLibraryLabelsWithoutKeys: two libraries with the same label are told apart by key for a caller who sees files,
+// by number for one who does not (no library key in the labels).
+func TestLibraryLabelsWithoutKeys(t *testing.T) {
+	t.Parallel()
+	e := newManageEnv(t, func(p *policy.Policy) {
+		v := *p.Versions["tv-2160p"]
+		p.Versions["tv-2160p-theatarr"] = &v
+	})
+	labels := func(o AddOptions) map[string]string {
+		out := map[string]string{}
+		for _, v := range o.Versions {
+			out[v.Key] = v.Label
+		}
+		return out
+	}
+	var o AddOptions
+	e.call("GET", APIBase+"/add/options?kind=series&title_id=10", nil, 200, &o)
+	if got := labels(o); got["tv-2160p"] != "4K · tv-2160p" || got["tv-2160p-theatarr"] != "4K · tv-2160p-theatarr" {
+		t.Errorf("admin labels: %v", got)
+	}
+	o = AddOptions{}
+	if err := json.Unmarshal([]byte(e.userBody(APIBase+"/add/options?kind=series&title_id=10")), &o); err != nil {
+		t.Fatal(err)
+	}
+	if got := labels(o); got["tv-2160p"] != "4K" || got["tv-2160p-theatarr"] != "4K (2)" {
+		t.Errorf("user labels: %v", got)
 	}
 }

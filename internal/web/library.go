@@ -545,6 +545,28 @@ func (w *Web) keyLabels(keys []string) map[string]string {
 	return distinctLabels(cs)
 }
 
+// keyLabelsFor is keyLabels for a caller: one without "see files" never sees a library key, so same-named libraries
+// are numbered in key order instead ("4K", "4K (2)"), as the SPA's plainLabels does.
+func (w *Web) keyLabelsFor(keys []string, seeFiles bool) map[string]string {
+	if seeFiles {
+		return w.keyLabels(keys)
+	}
+	names := map[string]string{}
+	n := map[string]int{}
+	for _, k := range keys {
+		if _, ok := names[k]; ok || k == "" {
+			continue
+		}
+		l := w.versionLabel(k)
+		n[l]++
+		if n[l] > 1 {
+			l += " (" + strconv.Itoa(n[l]) + ")"
+		}
+		names[k] = l
+	}
+	return names
+}
+
 type fileAgg struct {
 	quality string
 	n       int

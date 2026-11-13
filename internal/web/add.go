@@ -248,7 +248,7 @@ func (w *Web) apiAddOptions(rw http.ResponseWriter, r *http.Request) {
 			return
 		}
 	}
-	names := w.keyLabels(keys)
+	names := w.keyLabelsFor(keys, w.permsOf(r).SeeFiles)
 	for _, k := range keys {
 		vp := w.pol.Versions[k]
 		var open []int
