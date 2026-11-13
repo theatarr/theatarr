@@ -375,6 +375,7 @@ var sectionLabels = map[string]string{
 	"provider_sync.interval":                      "Sync interval",
 	"router.alldebrid_delete_uncached":            "Delete uncached AllDebrid adds",
 	"router.cached_only":                          "Only add cached releases",
+	"router.copy_to_providers":                    "Add new downloads to the other providers when cached there",
 	"router.cached_grace":                         "Cached download startup wait",
 	"router.stalled_after":                        "Stalled download timeout",
 	"router.downloading_timeout":                  "No progress timeout",

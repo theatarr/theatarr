@@ -342,6 +342,28 @@ func TestSectionRefusesDerivedCredentialName(t *testing.T) {
 	}
 }
 
+// router.copy_to_providers ("Add new downloads to the other providers when cached there") saves and applies at once,
+// off again too.
+func TestRouterSectionCopyToProviders(t *testing.T) {
+	t.Parallel()
+	s, base, snap := sectionsFixture(t)
+	m := versionCoordinator(t, s, base, snap)
+	for _, on := range []bool{true, false} {
+		req := saveRequest(base, snap)
+		req.Records.Sections = []Section{editSection(t, snap, "router", func(c map[string]any) {
+			c["copy_to_providers"] = on
+		})}
+		saved, err := m.SaveAndApply(context.Background(), req)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if saved.Policy.RouterSettings().CopyToProviders != on || m.Current().Policy.RouterSettings().CopyToProviders != on {
+			t.Fatalf("copy_to_providers did not apply: want %v", on)
+		}
+		snap = saved
+	}
+}
+
 // The DB-owned router section carries the opt-in into every published generation, including turning it off.
 func TestRouterSectionAllDebridDeleteUncached(t *testing.T) {
 	t.Parallel()

@@ -100,7 +100,7 @@ once. `section-panel.test.tsx` exercises partial writes, credentials, 422, 409, 
 | Indexers › Catalog | Indexer catalog and Prowlarr (`#catalog`) | `cardigann` | `definitions`, `flaresolverr_url`, `prowlarr` |  |
 | Indexers › RSS | RSS feed checks (`#rss`) | `shadow` | `rss`, `rss_interval` |  |
 | Download clients › Other clients | Other download clients (`#clients`) | `clients` | `"" (root keyed object)` |  |
-| Download clients › Behaviour | What to grab (`#grabbing`) | `router` | `cached_only`, `alldebrid_delete_uncached` |  |
+| Download clients › Behaviour | What to grab (`#grabbing`) | `router` | `cached_only`, `alldebrid_delete_uncached`, `copy_to_providers` |  |
 | Download clients › Behaviour | Automatic search (`#searches`) | `router` | `wanted` |  |
 | Download clients › Behaviour | Cache checks (`#cache-checks`) | `router` | `cache_evidence` |  |
 | Download clients › Behaviour | Retries and timing (`#timing`) | `router` | `cached_grace`, `stalled_after`, `downloading_timeout`, `ready_timeout`, `miss_ttl`, `poll_interval`, `max_candidates`, `trackers` | Yes |

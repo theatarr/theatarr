@@ -194,6 +194,28 @@ func (r *Router) QueueCopies(ctx context.Context, req CopyRequest) ([]CopyView, 
 	return views[hash], nil
 }
 
+// QueueCopiesForDownload is the automatic form (router.copy_to_providers), after download dl was imported: the same
+// work for its torrent, when the setting is on and the download came from a provider. No provider is asked here.
+func (r *Router) QueueCopiesForDownload(ctx context.Context, dl int64) error {
+	if !r.pol.RouterSettings().CopyToProviders || r.copyPaused() {
+		return nil
+	}
+	var req CopyRequest
+	err := r.st.Writer().QueryRowContext(ctx, `SELECT info_hash, release_title, title_id, COALESCE(provider, '')
+		FROM download WHERE id = ? AND client IS NULL`, dl).Scan(&req.Hash, &req.Name, &req.TitleID, &req.Except)
+	if errors.Is(err, sql.ErrNoRows) || err == nil && req.Except == "" {
+		return nil
+	}
+	if err != nil {
+		return fmt.Errorf("router: download %d: %w", dl, err)
+	}
+	_, err = r.QueueCopies(ctx, req)
+	if errors.Is(err, ErrCopyNoHash) || errors.Is(err, ErrCopyPaused) {
+		return nil
+	}
+	return err
+}
+
 // copyJobOptions: the run time is in the dedupe key, so a new request for a row whose last job is still finishing is
 // not dropped (an enqueue with the key of a running job is a no-op).
 func copyJobOptions(id int64, at time.Time) jobs.EnqueueOptions {

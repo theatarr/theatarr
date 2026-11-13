@@ -342,3 +342,37 @@ func TestCopyRecoversAdding(t *testing.T) {
 		t.Fatalf("ad: %s, adds %v", s, e.ad["ad"].adds)
 	}
 }
+
+// The automatic form (router.copy_to_providers): off, an import queues nothing; on (a settings save builds the
+// router from the saved policy), a season pack's import queues one copy per other provider, however often it is
+// called, and the copies' adds count in pacing.
+func TestCopyAfterImport(t *testing.T) {
+	t.Parallel()
+	e := newCopyEnv(t, provider.StateDownloaded, "rd", "ad", "tb")
+	e.pr["tb"].cache = map[string]bool{h("a"): true}
+	e.exec(`INSERT INTO download (id, title_id, version_id, version_key, info_hash, release_title, indexer, provider,
+		provider_torrent_id, state, created_at, updated_at) VALUES (5, 2, 20, 'series', ?, 'Show.S01.2160p.WEB-GRP',
+		'pub', 'rd', 'RD1', 'imported', 0, 0)`, h("a"))
+	if err := e.r.QueueCopiesForDownload(e.ctx, 5); err != nil || e.count(`SELECT COUNT(*) FROM provider_copy`) != 0 {
+		t.Fatalf("setting off: %v, %d rows", err, e.count(`SELECT COUNT(*) FROM provider_copy`))
+	}
+	e.pol.Router.CopyToProviders = true
+	for range 5 { // five episodes of the pack, one download
+		if err := e.r.QueueCopiesForDownload(e.ctx, 5); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if n := e.count(`SELECT COUNT(*) FROM provider_copy WHERE provider IN ('ad', 'tb') AND title_id = 2`); n != 2 ||
+		e.count(`SELECT COUNT(*) FROM provider_copy`) != 2 {
+		t.Fatalf("%d rows", e.count(`SELECT COUNT(*) FROM provider_copy`))
+	}
+	e.run()
+	for _, pk := range []string{"ad", "tb"} {
+		if s, _ := e.copyState(h("a"), pk); s != CopyAdded {
+			t.Fatalf("%s: %s", pk, s)
+		}
+		if p, _ := loadPace(e.ctx, e.st.Writer(), pk); p.WindowAdds != 1 {
+			t.Fatalf("%s pacing %+v", pk, p)
+		}
+	}
+}

@@ -177,6 +177,7 @@
     "cache_evidence": "This is what the router and the release views know about which providers hold a release cached.",
     "cached_grace": "This is how long the router waits before reading a fresh Real-Debrid or AllDebrid add again when the first read shows it still converting or downloading (one re-read; on Real-Debrid also after selecting files), before it calls the add…",
     "cached_only": "This skips a provider where a release is known to be uncached (an earlier refusal, a cache check) and asks TorBox to add only if cached.",
+    "copy_to_providers": "This adds each new download, after its import, to the other providers when it is cached there (\"Add to other providers\", docs/design/router.md \"Copies to other providers\"). An add that is not cached is deleted again. Default off.",
     "downloading_timeout": "This fails a download in state downloading whose provider progress has not risen for this long (a dead swarm, a magnet that never leaves the provider's queue): its hash is blocklisted for the version, our own Real-Debrid add is deleted…",
     "enabled": "This lets the router write to debrid providers (add a magnet, select files). With database settings it is derived from Pause (true when Pause is off). False: every version is dry-run only, whatever its mode.",
     "max_candidates": "This caps how many accepted releases of one search are tried, best first. Default 5, 1 to 50.",

@@ -954,6 +954,12 @@
         "nullable": true
       },
       {
+        "name": "copy_to_providers",
+        "label": "Add new downloads to the other providers when cached there",
+        "type": "boolean",
+        "help": "This adds each new download, after its import, to the other providers when it is cached there (\"Add to other providers\", docs/design/router.md \"Copies to other providers\"). An add that is not cached is deleted again. Default off."
+      },
+      {
         "name": "cached_grace",
         "min": 1,
         "max": 30,

@@ -475,12 +475,21 @@ func runServe(args []string) error {
 	// rules decide, and an accepted offer reuses the provider's torrent.
 	off := newServeOfferer(st, pol, eng, routeService, q, log, runtimeManager)
 	off.RegisterJobs(w)
-	lb, err := newServeLibrary(pol, st, q, gw, log, eng, helper, ps.syncer.Providers, func(ctx context.Context, id int64) {
+	// After each import: the offer, and with router.copy_to_providers the copies to the other providers (router
+	// copy.go; queued only, no provider is asked here). One function for the startup library and every library a
+	// settings save builds, so the automatic copies survive a save.
+	onImported := func(ctx context.Context, id int64) {
 		ctx = captureRuntime(ctx)
 		if err := router.EnqueueOffer(ctx, q, id, time.Now()); err != nil {
 			log.Warn("offer not queued", "download", id, "err", err)
 		}
-	})
+		if _, active := routeService.forOperation(ctx); active != nil {
+			if err := active.QueueCopiesForDownload(ctx, id); err != nil {
+				log.Warn("copies to other providers not queued", "download", id, "err", err)
+			}
+		}
+	}
+	lb, err := newServeLibrary(pol, st, q, gw, log, eng, helper, ps.syncer.Providers, onImported)
 	if err != nil {
 		return err
 	}
@@ -530,7 +539,7 @@ func runServe(args []string) error {
 		wireIndexerLookups(runtime.Policy, st, runtime.Gateway, runtime.Indexers, runtime.Metadata.tvc, log)
 		wireCacheEvidence(runtime.Policy, st, runtime.Indexers, runtime.Providers.syncer.Providers, log)
 		runtime.Library, err = newServeLibrary(runtime.Policy, st, q, runtime.Gateway, log, runtime.Engine, helper,
-			runtime.Providers.syncer.Providers, func(ctx context.Context, id int64) { _ = router.EnqueueOffer(ctx, q, id, time.Now()) })
+			runtime.Providers.syncer.Providers, onImported)
 		if err != nil {
 			return err
 		}
@@ -702,7 +711,12 @@ func runServe(args []string) error {
 		Version: version, Devices: av, Art: refresher, Journal: jr, Logs: logs, Add: add, Jobs: q, Plex: pl, Health: hc,
 		Ops: serveOps{av}, OnRequest: requestNotify, LogLevel: logLevel, LogDir: *logDir, ReloadSettings: runtimeManager.Reload,
 		CaptureRuntime: captureRuntime, SettingsTests: newSettingsTestLimits(), SettingsLookup: os.LookupEnv, TrashRoot: os.Getenv("THEATARR_TRASH"),
-		Torrents: torrentSvc, NowPlaying: nowPlayingSnapshot, ArrImport: serveArrImport{manager: runtimeManager, st: st, log: log},
+		Torrents: torrentSvc, ProviderCopies: func(ctx context.Context) web.Copier {
+			if _, active := routeService.forOperation(ctx); active != nil {
+				return active
+			}
+			return nil
+		}, NowPlaying: nowPlayingSnapshot, ArrImport: serveArrImport{manager: runtimeManager, st: st, log: log},
 		RcloneTestGateway: rcloneTestGateway(runtimeManager, gw, log), NotifyTest: nt.SendTest,
 		AnimeBuilds: func(ctx context.Context) web.AnimeBuilder {
 			if _, s := currentAnime(ctx); s != nil {

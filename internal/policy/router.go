@@ -28,6 +28,10 @@ type Router struct {
 	// our upload hands us its magnet, which would then look like ours. Real-Debrid creates a new torrent id per add,
 	// so its delete needs no switch. Copies to other providers delete regardless.
 	AllDebridDeleteUncached *bool `yaml:"alldebrid_delete_uncached"`
+	// CopyToProviders adds each new download, after its import, to the other providers when it is cached there
+	// ("Add to other providers", docs/design/router.md "Copies to other providers"). An add that is not cached is
+	// deleted again. Default off. New imports only; the existing library is not swept.
+	CopyToProviders bool `yaml:"copy_to_providers"`
 	// CachedGrace is how long the router waits before reading a fresh Real-Debrid or AllDebrid add again when the
 	// first read shows it still converting or downloading (one re-read; on Real-Debrid also after selecting files),
 	// before it calls the add uncached. Default 2s (decypharr's), 1s to 30s.
@@ -251,11 +255,13 @@ type RouterSettings struct {
 	CachedOnly bool
 	// AllDebridDeleteUncached: cached_only may delete an uncached AllDebrid add of ours (default true).
 	AllDebridDeleteUncached bool
-	MissTTL                 time.Duration
-	PollInterval            time.Duration
-	MaxCandidates           int
-	Trackers                []string
-	CachedGrace             time.Duration
+	// CopyToProviders: each import queues its torrent's copies to the other providers (default false).
+	CopyToProviders bool
+	MissTTL         time.Duration
+	PollInterval    time.Duration
+	MaxCandidates   int
+	Trackers        []string
+	CachedGrace     time.Duration
 	// StalledAfter is 0 when the stall timeout is off.
 	StalledAfter time.Duration
 	// DownloadingTimeout is 0 when the no-progress timeout is off.
@@ -274,6 +280,7 @@ func (p *Policy) RouterSettings() RouterSettings {
 		return s
 	}
 	s.Enabled = c.Enabled
+	s.CopyToProviders = c.CopyToProviders
 	if c.AllDebridDeleteUncached != nil {
 		s.AllDebridDeleteUncached = *c.AllDebridDeleteUncached
 	}
