@@ -1,9 +1,10 @@
 import { downloadReason, downloadSettings } from "@/lib/version-grab";
 // The Episodes tab's logic (docs/design/ui.md, Title page / Episodes; components/title/seasons.tsx lays it out): an
 // episode's availability in words for each copy or across copies, a season's compact completion summary, the All /
-// Missing / Upgrade found filters, the anime numbering label, the read-only and search restrictions said once, and
-// which layout a caller gets (the two-copy matrix on desktop, rows with a copy selector on phones, one merged
-// availability column for accounts without "see files").
+// Missing / Upgrade found filters, the anime numbering label, the read-only and search restrictions said once, a
+// season's badge per library, and which layout a caller gets (the library in view: All libraries as the matrix on
+// desktop or one library with its chosen columns, rows for one library on phones, one merged availability column for
+// accounts without "see files").
 import type { Episode, EpisodeList } from "@/api/library";
 import type { VersionControl } from "@/api/manage";
 import { fmtNumber } from "./format";
@@ -198,29 +199,45 @@ export function restrictions(versions: { label: string; control?: VersionControl
 }
 
 export type Layout = {
-  /** A table with a column per copy (desktop), or stacked rows (phones). */
+  /** A table (desktop), or stacked rows (phones). */
   mode: "table" | "rows";
-  /** The copies shown: every copy, the one picked in the selector, or one merged availability column. */
+  /** Every copy as a column (All libraries), the one library in view with its chosen columns, or one merged
+   *  availability column. */
   columns: "each" | "selected" | "merged";
-  /** Whether the copy selector shows. */
+  /** Whether the library selector shows. */
   selector: boolean;
 };
 
+/** The library in view: "all" or a library key; null until the user picks (the default for the width). */
+export type Picked = "all" | string | null;
+
 /**
  * Which Episodes layout a caller gets. Accounts without "see files" get one availability column across copies
- * (copies are a household detail). Others get the copy matrix on desktop and, on a phone, rows for one copy at a
- * time with a selector when there are two or more.
+ * (copies are a household detail). Others see one library at a time, or all of them as the matrix: a selector with
+ * two or more; All libraries is the default from the md width, phones have no All and show the first library.
  */
-export function episodeLayout(o: { wide: boolean; copies: number; seeFiles: boolean }): Layout {
+export function episodeLayout(o: { wide: boolean; copies: number; seeFiles: boolean; picked: Picked }): Layout {
   const mode = o.wide ? "table" : "rows";
   if (!o.seeFiles) return { mode, columns: "merged", selector: false };
-  if (o.wide || o.copies < 2) return { mode, columns: "each", selector: false };
-  return { mode, columns: "selected", selector: true };
+  if (o.copies < 2) return { mode, columns: "selected", selector: false };
+  const all = o.wide && (o.picked === null || o.picked === "all");
+  return { mode, columns: all ? "each" : "selected", selector: true };
 }
 
-/** The copies a layout shows. */
-export function copiesInView(l: Layout, versions: EpisodeList["versions"], selected: string | null): EpisodeList["versions"] {
+/** The copies a layout shows: every copy, or the picked one (the first when the pick is All or gone). */
+export function copiesInView(l: Layout, versions: EpisodeList["versions"], picked: Picked): EpisodeList["versions"] {
   if (l.columns !== "selected") return versions;
-  const v = versions.find((x) => x.key === selected);
+  const v = versions.find((x) => x.key === picked);
   return v ? [v] : versions.slice(0, 1);
+}
+
+/**
+ * A library's badge on a season header: "8 / 10" held of aired-or-held (the whole season while none has aired or is
+ * held); bad when something is missing, ok when nothing is, neutral while there is nothing to hold yet.
+ */
+export function seasonBadge(c: { have: number; missing: number; total?: number } | undefined, season: { episodes: number }): { text: string; tone: "ok" | "bad" | "neutral" } {
+  const have = c?.have ?? 0;
+  const total = c?.total || season.episodes;
+  const tone = (c?.missing ?? 0) > 0 ? "bad" : have > 0 ? "ok" : "neutral";
+  return { text: `${fmtNumber(have)} / ${fmtNumber(total)}`, tone };
 }

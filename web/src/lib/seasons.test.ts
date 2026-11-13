@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { Episode, EpisodeList } from "@/api/library";
-import { cellStatus, copiesInView, episodeLayout, episodeNumber, heldOf, matchesFilter, mergedStatus, plainAvailable, restrictions, seasonSummary, statusWords, type Cell } from "./seasons";
+import { cellStatus, copiesInView, episodeLayout, episodeNumber, heldOf, matchesFilter, mergedStatus, plainAvailable, restrictions, seasonBadge, seasonSummary, statusWords, type Cell } from "./seasons";
 
 const today = "2026-10-26";
 const cell = (o: Partial<Cell>): Cell => ({ state: "wanted", monitored: true, has_file: false, ...o }) as Cell;
@@ -135,19 +135,35 @@ describe("layout", () => {
     { id: 1, key: k4.key, label: k4.label, monitored: true },
     { id: 2, key: k1.key, label: k1.label, monitored: true },
   ] as EpisodeList["versions"];
-  it("keeps the matrix on desktop and a copy selector on phones", () => {
-    expect(episodeLayout({ wide: true, copies: 2, seeFiles: true })).toEqual({ mode: "table", columns: "each", selector: false });
-    const phone = episodeLayout({ wide: false, copies: 2, seeFiles: true });
+  it("shows All libraries as the matrix on desktop by default, one picked library at either width, never All on phones", () => {
+    const desk = episodeLayout({ wide: true, copies: 2, seeFiles: true, picked: null });
+    expect(desk).toEqual({ mode: "table", columns: "each", selector: true });
+    expect(episodeLayout({ wide: true, copies: 2, seeFiles: true, picked: "all" })).toEqual(desk);
+    expect(copiesInView(desk, versions, null)).toHaveLength(2);
+    const deskOne = episodeLayout({ wide: true, copies: 2, seeFiles: true, picked: k1.key });
+    expect(deskOne).toEqual({ mode: "table", columns: "selected", selector: true });
+    expect(copiesInView(deskOne, versions, k1.key).map((v) => v.key)).toEqual([k1.key]);
+    const phone = episodeLayout({ wide: false, copies: 2, seeFiles: true, picked: null });
     expect(phone).toEqual({ mode: "rows", columns: "selected", selector: true });
-    expect(copiesInView(phone, versions, k1.key).map((v) => v.key)).toEqual([k1.key]);
     expect(copiesInView(phone, versions, null).map((v) => v.key)).toEqual([k4.key]);
-    expect(copiesInView(episodeLayout({ wide: true, copies: 2, seeFiles: true }), versions, k1.key)).toHaveLength(2);
+    // All picked on the desktop, then the window narrows: the first library, not every library.
+    const narrowed = episodeLayout({ wide: false, copies: 2, seeFiles: true, picked: "all" });
+    expect(narrowed.columns).toBe("selected");
+    expect(copiesInView(narrowed, versions, "all").map((v) => v.key)).toEqual([k4.key]);
+    expect(copiesInView(phone, versions, k1.key).map((v) => v.key)).toEqual([k1.key]);
   });
-  it("needs no selector for one copy", () => {
-    expect(episodeLayout({ wide: false, copies: 1, seeFiles: true })).toEqual({ mode: "rows", columns: "each", selector: false });
+  it("shows the one library with its columns and no selector", () => {
+    expect(episodeLayout({ wide: false, copies: 1, seeFiles: true, picked: null })).toEqual({ mode: "rows", columns: "selected", selector: false });
+    expect(episodeLayout({ wide: true, copies: 1, seeFiles: true, picked: null })).toEqual({ mode: "table", columns: "selected", selector: false });
   });
   it("merges copies for family accounts at any width", () => {
-    expect(episodeLayout({ wide: false, copies: 2, seeFiles: false })).toEqual({ mode: "rows", columns: "merged", selector: false });
-    expect(episodeLayout({ wide: true, copies: 2, seeFiles: false })).toEqual({ mode: "table", columns: "merged", selector: false });
+    expect(episodeLayout({ wide: false, copies: 2, seeFiles: false, picked: null })).toEqual({ mode: "rows", columns: "merged", selector: false });
+    expect(episodeLayout({ wide: true, copies: 2, seeFiles: false, picked: k1.key })).toEqual({ mode: "table", columns: "merged", selector: false });
+  });
+  it("badges a library's season: held of aired, red when something is missing", () => {
+    expect(seasonBadge({ have: 8, missing: 2, total: 10 }, { episodes: 12 })).toEqual({ text: "8 / 10", tone: "bad" });
+    expect(seasonBadge({ have: 10, missing: 0, total: 10 }, { episodes: 10 })).toEqual({ text: "10 / 10", tone: "ok" });
+    expect(seasonBadge({ have: 0, missing: 0, total: 0 }, { episodes: 6 })).toEqual({ text: "0 / 6", tone: "neutral" });
+    expect(seasonBadge(undefined, { episodes: 6 })).toEqual({ text: "0 / 6", tone: "neutral" });
   });
 });
