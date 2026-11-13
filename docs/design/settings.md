@@ -153,10 +153,12 @@ once. `section-panel.test.tsx` exercises partial writes, credentials, 422, 409, 
 - **Automatic search** (`router.wanted`): **Search for missing items** (`missing`, on by default), **Search for
   upgrades** (`cutoff_unmet`: quality, score or off; quality by default), **Searches per hour** (`per_hour`, 10) and
   **Search older items again after** (`again_after`, 24 h). There is no round interval, no "Retry new releases
-  sooner" and no "Automatic searches" on/off switch: new releases are always tried again after 1, 2, 4, 8 and 16
-  hours, then daily for a week, and Pause stops all automatic searching ([router.md](router.md), "The search
+  sooner" and no "Automatic searches" on/off switch: a new release that is not found is tried again after 1, 2, 4,
+  8 and 16 hours, then every **Search older items again after** (each wait never longer than that setting), until
+  seven days after its release date; Pause stops all automatic searching ([router.md](router.md), "The search
   schedule"). With a switch off, its items are searched only when someone asks (Search now) or after a failed
-  download, and the Wanted page shows them as "Not scheduled".
+  download, and the Wanted page shows them as "Not scheduled". The exception: a missing new release that such a
+  search did not find gets the retries above, and Wanted shows it as scheduled.
 - **Field rows:** labels wrap and Reset is one word, named "Reset <field>" for screen readers, so Cache checks fits at
   400 px.
 

@@ -744,20 +744,23 @@ search usually runs before any release is cached. Content is new for 7 days afte
 episode's air date; a movie's digital or physical date, either one (a later disc release makes it new again); never a
 theatrical date (nothing worth caching exists yet) nor a torrent's date. Removed episodes are never new, and a
 route's freshness is its latest episode aired by now. A missing item on the schedule whose content is new is retried
-by the first rows of the table, then daily while it stays new. Upgrades never use the fast retries. For a route of
+by the first rows of the table, then every `again_after` while it stays new (seven days from its date). With its
+switch off, this holds for an item that Search now or a failure put on the schedule: its row is kept while the
+content is new. Upgrades never use the fast retries. For a route of
 new content the uncached add (`router:add`) and the miss on every provider (`router:miss`) last 1 hour instead of
 `miss_ttl` (at most `miss_ttl`; a 451 keeps `miss_ttl`), so a retry can add a release once it is cached. Each retry
 whose release is still uncached costs one add and delete on RD or AD, counted in `uncached_adds_per_hour`. Tests:
 `TestFresh`, `TestFreshContentMissLivesAnHour`, `TestFreshEpisodes`, `TestFailureThenLadder`.
 
-**Pause.** Rounds do nothing and Search now answers 409. Rows already due wait and start at the round that runs when
-Pause is turned off. The router does not ask for re-searches while paused (its gate is closed). A loop search whose
+**Pause.** Rounds do nothing and Search now answers 409. Rows already due wait. Turning Pause off starts a round at
+once: due items start as the hourly limit allows, and the rest stay due for later rounds. The router does not ask for re-searches while paused (its gate is closed). A loop search whose
 job runs after Pause was turned on ends skipped before it asks any indexer (`acquire_run.infra` 3, gated): it counts
 in no hourly limit and its row stays due (`TestPauseHoldsDueItems`).
 
 **Search now** (`internal/acquire/searchnow.go`). The Wanted page's buttons (one row, the selected rows, or every row
 of the tab with its library and waiting filter, without paging and without a cap) go through `POST /wanted/search`. A
-request names rows of the list (`season`; -1 for a movie). `RequestSearchNow` skips, with the reason, an item whose
+request names rows of the list: `title_id`, `version` and, for a series, `season` (0 or more; left out for a movie,
+and for a series it asks for every season with something wanted). `RequestSearchNow` skips, with the reason, an item whose
 library is not active, that has nothing wanted now, or that a loop search is already queued or running for; it
 refuses everything while Pause is on (409). Each other row is made due now with `why = 'asked'` (asking again for a row
 already asked and due keeps its time), and a round of those titles runs at once. The answer says how many started

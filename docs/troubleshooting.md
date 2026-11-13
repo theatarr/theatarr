@@ -106,9 +106,11 @@ returned and why each release was accepted or rejected) and **System › Status*
   delay** in days (**Settings › Libraries**, **Which releases**). **Search now** on the title page searches
   regardless.
 - **An episode aired a few hours ago.** The automatic search usually runs before any release exists. A new
-  episode or film that is not found is tried again after 1, 2, 4, 8 and 16 hours, then daily for a week, within the
-  same hourly limit, while **Search for missing items** is on or after a failed download; the **Wanted** page shows
-  the next try ("New release, try 3"). There is no separate setting for it.
+  episode or film that is not found is tried again after 1, 2, 4, 8 and 16 hours, then every **Search older items
+  again after** (24 hours by default; no wait is longer than it), until seven days after its release date, within
+  the same hourly limit. That happens while **Search for missing items** is on, and also with it off after a
+  **Search now** or a failed download that found nothing. The **Wanted** page shows the next try ("New release, try
+  3"). There is no separate setting for it.
 - **An anime series sits in a library that does not take anime (or the reverse).** The title page says so next
   to **Series type**. Add the series to a fitting library or change its type.
 - **No release is cached.** **Only add cached releases** (**Settings › Download clients › Behaviour**, **What to grab**) is on by
