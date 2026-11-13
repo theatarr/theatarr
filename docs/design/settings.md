@@ -101,7 +101,7 @@ once. `section-panel.test.tsx` exercises partial writes, credentials, 422, 409, 
 | Indexers › RSS | RSS feed checks (`#rss`) | `shadow` | `rss`, `rss_interval` |  |
 | Download clients › Other clients | Other download clients (`#clients`) | `clients` | `"" (root keyed object)` |  |
 | Download clients › Behaviour | What to grab (`#grabbing`) | `router` | `cached_only`, `alldebrid_delete_uncached` |  |
-| Download clients › Behaviour | Automatic searches (`#searches`) | `router` | `wanted` |  |
+| Download clients › Behaviour | Automatic search (`#searches`) | `router` | `wanted` |  |
 | Download clients › Behaviour | Cache checks (`#cache-checks`) | `router` | `cache_evidence` |  |
 | Download clients › Behaviour | Retries and timing (`#timing`) | `router` | `cached_grace`, `stalled_after`, `downloading_timeout`, `ready_timeout`, `miss_ttl`, `poll_interval`, `max_candidates`, `trackers` | Yes |
 | Notifications | Destinations (`#targets`) | `notify` | `targets`, `digest_at` |  |
@@ -150,6 +150,13 @@ once. `section-panel.test.tsx` exercises partial writes, credentials, 422, 409, 
   cursor (`before` without `order=desc`, `after` with it) and a malformed cursor are a 400.
 - **Moved panels** sit before content that loads later (Provider account sync above provider status, Other
   libraries' folders above the torrent list), so `#provider-sync` and `#scan-roots` links stay on target.
+- **Automatic search** (`router.wanted`): **Search for missing items** (`missing`, on by default), **Search for
+  upgrades** (`cutoff_unmet`: quality, score or off; quality by default), **Searches per hour** (`per_hour`, 10) and
+  **Search older items again after** (`again_after`, 24 h). There is no round interval, no "Retry new releases
+  sooner" and no "Automatic searches" on/off switch: new releases are always tried again after 1, 2, 4, 8 and 16
+  hours, then daily for a week, and Pause stops all automatic searching ([router.md](router.md), "The search
+  schedule"). With a switch off, its items are searched only when someone asks (Search now) or after a failed
+  download, and the Wanted page shows them as "Not scheduled".
 - **Field rows:** labels wrap and Reset is one word, named "Reset <field>" for screen readers, so Cache checks fits at
   400 px.
 
@@ -188,7 +195,7 @@ Each save publishes a runtime generation without a restart. New routes and libra
 
 Forms keep the loaded config intact: an untouched default is not inserted, leaf Reset removes only that key,
 and unknown keys survive edits. Objects and named-record collections have no Reset. Default-on switches show
-the effective default and a click writes an explicit false; the wanted-loop default follows active versions.
+the effective default and a click writes an explicit false.
 Duration presets compare parsed values (`6h0m0s` selects 6h); Off removes the key for off-by-default
 settings, including the Torrents schedule control. The router’s stalled and no-progress timeouts retain
 explicit `0s` for Off: omitting them restores their nonzero runtime defaults. Weekly is `168h` because
@@ -235,7 +242,7 @@ paths (for example `mount.rclone_rc.password` in the library section).
 | `torrents` (scan roots, scheduled backups) | live: each scan, backup and the 10-minute backup check read the generation in force |
 | `cardigann` (catalog, flaresolverr_url, Prowlarr reader) | live: the catalog is on exactly when `definitions` is set (Indexers › Catalog says which; **Turn the catalog on** fills in `prowlarr/indexers` for the panel's Save, and the add-indexer sheet's **Turn on the catalog** saves it directly); a new install's first settings save turns it on (Prowlarr/Indexers); the catalog is made when a save first sets `definitions`; source, FlareSolverr and the Prowlarr reader are read at use; the refresh loop restarts (and reads a changed source at once) when `definitions` changes; indexers already built keep their engine and sessions |
 | `shadow` | live: RSS follows each generation (no restart) |
-| `playlists`, `ui`, `provider_sync`, `router` (options) | live: rebuilt per generation; the playlist, provider sync, download poll and wanted loops restart when their interval changes |
+| `playlists`, `ui`, `provider_sync`, `router` (options) | live: rebuilt per generation; the playlist, provider sync and download poll loops restart when their interval changes |
 | views (path, flavour, versions, profiles, API key) | live: the HTTP routes are rebuilt per generation |
 
 **Removed settings.** `release_push`, `indexers.<key>.private_delivery` and `notify.private_delivery` are not
@@ -246,6 +253,12 @@ still have them load: a stored `release_push` section row is ignored (`settings.
 the removed keys stripped before the strict decode, each named in `Policy.Ignored` and logged at serve start ("policy setting
 ignored"). `indexers.<key>.providers` is an optional allowlist of the providers the indexer's releases may go to
 (empty: all; each must be a configured provider, no duplicates).
+
+`router.wanted.enabled`, `router.wanted.interval` and `router.wanted.retry_new` are gone (one search schedule).
+Migration 00127 removed them from stored settings, and policy YAML or an import that still has them loads: an
+`enabled` of false first turns **Search for missing items** and **Search for upgrades** off (as the old switch did),
+then the three keys are dropped and each is named in `Policy.Ignored` ("ignored: removed setting (one search
+schedule)").
 
 **Live sections.** Every section applies on save; `PUT /settings/sections/{key}` answers
 `restart_required: false` and the editor shows "live". Short-lived uses (requests, jobs, imports, searches) capture

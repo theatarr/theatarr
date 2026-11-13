@@ -78,7 +78,7 @@ from ordinary matching loads.
 RSS ([rss.md](rss.md)) reads category 5000 for the feeds Live series libraries list; TV items map by TVDB id or by
 the parsed series title against titles and scene mappings, and are decided per series library (RSS path). RSS
 considers monitored series libraries in `wanted`, `filled` and `cutoff_met`; existing per-episode upgrade
-specifications still reject non-upgrades. Each enabled wanted round marks a series wanted when a monitored missing
+specifications still reject non-upgrades. Each full round of the search schedule marks a series wanted when a monitored missing
 non-removed episode reaches its stored UTC air time, without fetching metadata.
 
 ## Tests

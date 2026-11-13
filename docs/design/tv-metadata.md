@@ -109,5 +109,5 @@ arrive and one-shot consumption. Movie tests cover cadence boundaries, identity 
 ## Limits
 
 - Removed rows show in the calendar and episode APIs (flag only).
-- New episodes that aired recently are searched by the wanted loop, not at refresh time.
+- New episodes that aired recently are searched by the search schedule, not at refresh time.
 - Specials' airsBefore fields come from the listing only (no extended fetch per special, unlike `Show`).

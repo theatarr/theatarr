@@ -141,9 +141,9 @@ Content-Type: application/json
   off, it also does two things in the same transaction:
   - blocklists the hash for that version (`router_blocklist`, source `journal`), so the router never routes it again for
     that version;
-  - queues `acquire.research` for the title, and for series the entry's episodes. The acquirer applies its usual
-    pacing (`router.wanted.per_hour`, `again_after`): a search over the hour's budget is queued again for when the
-    budget frees, and one within `again_after` of the last is skipped.
+  - queues `acquire.research` for the title, and for series the entry's episodes. The item is then due for a search
+    at once and starts as `router.wanted.per_hour` allows; one within `again_after` of the last search after a
+    failure is skipped.
 - **For a Watch-only library, or with Pause on**, `wrong` is only recorded. `action_note` says why.
 - The response's `action` is `recorded` or `blocklisted`, and `research_job` is the job id when one was queued.
 - **Nothing is ever deleted**, on a debrid provider or anywhere else, and the current link stays. The new grab
@@ -165,7 +165,7 @@ The journal is mostly a reader, so its entries live as long as their source rows
 - **`journal_decision`**, the candidates a route was chosen from. Kept in full for 180 days. After that, a decision
   that routed nothing is deleted, and the others keep only the chosen release and one runner-up. This runs nightly in
   `theatarr serve`, in the `db.nightly` job.
-  - A full row is about 3–6 KB. At the wanted loop's ceiling of 10 searches an hour, the 180-day window is at most
+  - A full row is about 3–6 KB. At the default limit of 10 automatic searches an hour, the 180-day window is at most
     about 45 MB, and the trimmed history grows by about 9 MB a year after that. At the expected pace of tens of
     searches a day, the whole table stays under 10 MB.
 - **`journal_verdict`** is kept for good.

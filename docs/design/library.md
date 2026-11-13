@@ -292,7 +292,7 @@ mount never lengthen that back-off (`TestPartialAfterWaitsStartsBackoffAgain`).
    did: "the rest of the release linked" when it made links (link rows, not the plan's), "blocklisted and searched
    again" when the failed import has the library's `router_blocklist` row (a hold for review has none), and for a
    dry run that nothing was linked, blocklisted or searched. A file skipped as not an upgrade is no guard refusal.
-   The limit: the pack's hash is not blocklisted, so the wanted loop can pick the same pack again for those
+   The limit: the pack's hash is not blocklisted, so the search schedule can pick the same pack again for those
    episodes, and the same file is refused again each time.
    The note is the plan file's `note`; the journal shows it on the file and as a `library_guard`
    info check. A client's explicit files (manual import) are only noted (`not refused (manual import): ...`), and

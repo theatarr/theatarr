@@ -78,9 +78,10 @@ can be undone.
    `theatarr router reconcile -apply` settles the automatic rows; manual rows need a new selection. Work in flight
    is left alone ([router.md (internals)](design/router.md)).
 5. **Start conservatively.** Write down the settings and the success criteria below before you turn anything on.
-   In **Settings › Download clients › Behaviour**, keep cached-only adds on, keep the wanted loop's missing and
-   cutoff-unmet searches off, and use a low searches-per-hour limit. Set the providers' pacing to what their API
-   limits allow. Don't cap Real-Debrid or AllDebrid with an uncached-adds-per-hour limit: on those providers the
+   In **Settings › Download clients › Behaviour**, keep cached-only adds on, turn **Search for missing items** and
+   **Search for upgrades** off (**Automatic search**), and use a low searches-per-hour limit. Set the providers'
+   pacing to what their API limits allow. Don't cap Real-Debrid or AllDebrid with an uncached-adds-per-hour limit:
+   on those providers the
    cache check is itself an add. Keep **Send notifications** (**Settings › Notifications**) off, and review the
    request budgets under **Advanced › Request limits**.
 6. **Set the library Live and turn Pause off.** Set it **Live** in **Settings › Libraries**, then turn **Pause** off
@@ -192,8 +193,9 @@ reviewing its removal confirmation; Theatarr never migrates or deletes the old l
 Imported links are judged as a Theatarr import is (`importedState`, `decide.Engine.FileCutoffNotMet`): the quality
 cutoff and the profile's `cutoff_score`, with the library's own profile. With a profile whose `cutoff_score` no arr
 file reaches, the library holds every imported file as `filled` where the arr showed `cutoff_met`; both are right by
-their own definition. With `router.wanted.cutoff_unmet: quality` (the default) the wanted loop searches only files
-below the quality cutoff, as the arrs' Cutoff Unmet search does ([router.md](design/router.md), "The wanted loop").
+their own definition. With `router.wanted.cutoff_unmet: quality` (the default) the search schedule searches only
+files below the quality cutoff, as the arrs' Cutoff Unmet search does ([router.md](design/router.md), "What the
+search schedule searches").
 Files at the cutoff quality but below the score are upgraded only when a feed or another search brings a
 better-scored release, as the arrs' RSS sync does.
 

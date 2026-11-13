@@ -404,9 +404,9 @@ With a live library (**Live**, and **Pause** off), add a title and watch it arri
    Neither is offered for a series that is already in a library.
 2. Open **Activity › Queue**. A release that a provider has cached shows there as a download and is then linked
    into the library root; with Plex connected, Theatarr asks Plex to scan that folder.
-3. If nothing shows up, open **Wanted**: each row says what the title is waiting for, and **Search now** on the
-   title page searches it again at once. The title's **Releases** page lists what the indexers returned and why
-   each release was accepted or rejected.
+3. If nothing shows up, open **Wanted**: each row says when the title is searched next and why, and **Search
+   now** on the title page searches it again at once. The title's **Releases** page lists what the indexers
+   returned and why each release was accepted or rejected.
 
 By default only releases a provider already has cached are added (**Settings › Download clients › Behaviour**,
 **What to grab › Only add cached releases**), so a title with no cached release stays wanted and is searched again

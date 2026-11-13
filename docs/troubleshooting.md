@@ -89,12 +89,14 @@ returned and why each release was accepted or rejected) and **System › Status*
 
 - **The title has not been searched yet.** **Search now** in the add dialog is off, unless you left it on the
   last time you added a title in this browser. Without it a new title
-  waits for the automatic search: a round every 15 minutes, at most 10 searches an hour, and the same item again
-  only after 24 hours (**Settings › Download clients › Behaviour**, **Automatic searches**). **Search now** on
-  the title page searches it at once. **Search now** on the **Wanted** page queues the search under the same hourly
-  limit, so a long list takes hours. To search many titles of one library, an admin can also choose **Select**
-  on **Library › Movies** or **Series**, tick the titles, pick the library in the bar (not **Every library**) and
-  choose **Search now**: the titles join the same queue under the same limit, a series season by season, and a
+  waits for the automatic search: a round every 15 minutes, at most 10 searches an hour, and an older item again
+  only after 24 hours (**Settings › Download clients › Behaviour**, **Automatic search**). The **Wanted** page's
+  **Next search** column says when each item may be searched; **Not scheduled** means **Search for missing items**
+  (or **Search for upgrades**) is off, so it is searched only when you ask or after a failed download. **Search
+  now** on the title page searches it at once. **Search now** on the **Wanted** page makes the item due at once;
+  searches start as the hourly limit allows, so a long list takes hours. To search many titles of one library, an
+  admin can also choose **Select** on **Library › Movies** or **Series**, tick the titles, pick the library in the
+  bar (not **Every library**) and choose **Search now**: they are searched the same way under the same limit, a series season by season, and a
   title with nothing missing in that library is skipped. The bar then says how many searches were queued and
   links to **Wanted**.
 - **The movie is not available yet.** A movie is searched automatically only once it has reached its **Minimum
@@ -103,10 +105,10 @@ returned and why each release was accepted or rejected) and **System › Status*
   for that library and lets a manager change it; a movie library can set its own default and an **Availability
   delay** in days (**Settings › Libraries**, **Which releases**). **Search now** on the title page searches
   regardless.
-- **An episode aired a few hours ago.** The automatic search usually runs before any release exists and then
-  would wait a day before it tries the episode again. **Retry new releases sooner** (**Settings › Download
-  clients › Behaviour**, **Automatic searches**; on by default) repeats an empty search of a new episode after
-  1, 2, 4, 8 ... hours, within the same hourly limit. Check it is still on.
+- **An episode aired a few hours ago.** The automatic search usually runs before any release exists. A new
+  episode or film that is not found is tried again after 1, 2, 4, 8 and 16 hours, then daily for a week, within the
+  same hourly limit, while **Search for missing items** is on or after a failed download; the **Wanted** page shows
+  the next try ("New release, try 3"). There is no separate setting for it.
 - **An anime series sits in a library that does not take anime (or the reverse).** The title page says so next
   to **Series type**. Add the series to a fitting library or change its type.
 - **No release is cached.** **Only add cached releases** (**Settings › Download clients › Behaviour**, **What to grab**) is on by

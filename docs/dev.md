@@ -76,7 +76,7 @@ subcommands; each one takes `-h`.
 | `internal/qbit` | The qBittorrent Web API subset a library's grabs go through when it adds via an external client ([design/external-clients.md](design/external-clients.md)) |
 | `internal/torrents` | The torrent manager ([design/torrents.md](design/torrents.md)): what uses each provider torrent, reports, backups (DMM export and import), paced restore through `adder.Restore`, and deleting chosen torrents after a fresh check and a full backup; journaled in `torrent_journal` |
 | `internal/router` | Download router: fallback, refusals, pacing, poller; gated by `mode: active` and `router.enabled` ([design/router.md](design/router.md)) |
-| `internal/acquire` | Searches for active libraries: arr-view commands and the wanted loop, into the router |
+| `internal/acquire` | Searches for active libraries: arr-view commands and the search schedule, into the router |
 | `internal/pipeline` | Shared acquisition and series-refresh wiring for the service and the end-to-end tests |
 | `internal/e2e` | Active pipeline tests over local HTTP fixtures and temporary mount and library roots |
 | `internal/router/routertest` | Test helper: a real router over logging fake adders |

@@ -15,10 +15,10 @@ The router writes to a provider (adds a magnet, selects Real-Debrid files) only 
 
 1. `router.enabled: true`. With DB settings it is derived from **Pause** (true when Pause is off; Admin header,
    `PUT /settings/switches {paused}`); without the section it is off. The other `router` options are a settings
-   section that applies on save (the poll and wanted loops restart on a changed interval).
+   section that applies on save (the poll loop restarts on a changed interval).
 2. The version's `mode` is `active` (Live). A Watch-only version (`mode: shadow`) gets dry runs only. There is no
    per-library downloads switch (the former `grab` field went in migration 00122: a Live library without it became
-   Watch only). The automatic searches (wanted loop, re-searches) run only for the Live versions while Pause is off
+   Watch only). The automatic searches (the search schedule, re-searches) run only for the Live versions while Pause is off
    (`Policy.SearchVersions`). User-invoked searches (interactive, arr commands) still run and their routes are dry
    runs while the gate is closed. `theatarr router status` shows Pause and each library's state and whether it
    downloads.
@@ -148,9 +148,9 @@ The writes live in their own package. `internal/provider` stays GET-only: its `T
     as a grab by hand fails: a miss on every provider records the miss (cache-miss evidence for `miss_ttl`, no
     blocklist entry), and a download that fails later (stalled, provider failure, ready deadline, dangerous files,
     a library guard) is blocklisted for the version. But neither queues the re-search of "Re-search after a
-    failure", so there are no follow-ups either (`manualAdd` in `research.go`; the blocklist row is marked
-    researched). A release grabbed by hand from a search is searched again as before. The wanted loop, when on,
-    still searches a title that stays missing on its own schedule. `TestFailedManualAddStartsNoSearch` (e2e),
+    failure" (`manualAdd` in `research.go`; the blocklist row is marked researched). A release grabbed by hand
+    from a search is searched again as before. The search schedule still searches a title that stays missing,
+    when its switch is on. `TestFailedManualAddStartsNoSearch` (e2e),
     `TestMissedManualAddStartsNoSearch`, `TestStalledManualAddStartsNoSearch`.
 
   `TestManualAddByHash` (e2e) runs it from the add to the filled title.
@@ -676,10 +676,117 @@ Expiry checks the state and library claim in one transaction: live import claims
 the failure too. Tests: `TestReadyDeadline`, `TestReadyDeadlineKeepsOtherStates`, `TestReadyDeadlineWaitsForMount`,
 `TestFailureAndBlocklistAtomic`.
 
-## Re-search after a failure
+## The search schedule
+
+Every automatic search starts from one place: the search schedule (`internal/acquire/schedule.go`, migrations 00126
+and 00127). A wanted item is one row of the Wanted page: one library's missing or cutoff-unmet part of a film, or of
+one series season. Its next search is a row of `search_request`, keyed `(title_id, version_key, reason, season)`
+(`season` -1 for a film):
+
+- `next_at`: from when the item may be searched;
+- `tries`: empty searches of new content in a row (or searches no indexer answered, for other rows);
+- `why`: NULL on the regular schedule, `asked` for Search now, `new` for a retry of new content, else the failure the
+  router reported (`exhausted`, `stalled`, `dead_link`, ...).
+
+An item with no row is unscheduled. Rows go with the title and with the library.
+
+The settings are `router.wanted`: `per_hour` (searches in any hour, default 10), `again_after` (when an older item is
+searched again, default 24 h), and the two backlog switches, `missing` ("Search for missing items", default on) and
+`cutoff_unmet` ("Search for upgrades": `quality`, `score` or `off`, default `quality`). There is no interval, no
+separate retry switch and no on/off switch for the whole schedule: Pause stops it.
+
+**Rounds.** `Round` starts what is due. A full round runs every 15 minutes (job `acquire.wanted`, worker `wanted`
+while a library is Live and Pause is off; the first 5 minutes after start, or at once when Pause is turned off).
+Search now and a failure run a round of their own titles only. A round:
+
+- does nothing while Pause is on or no library is Live;
+- (full round) marks a series wanted when a monitored missing episode passes its stored air time;
+- takes the due rows whose item still has something to search: a row with a `why` whatever the switches say, a
+  regular row only while its switch is on. A due row with nothing left to search, or a regular row whose switch is
+  off, is deleted;
+- (full round, per switch that is on) takes the unscheduled items. One whose latest run of any source (a search by
+  name, an add's search, an arr command) is recent enough gets a row with the time the rule below gives that run,
+  and is not searched now; the rest are due (`TestRoundCountsManualSearch`);
+- orders what it took: `asked`, then the other rows with a `why`, then the backlog (unscheduled items newest added
+  first, then regular rows); inside each, the earliest due first (`TestRoundOrder`, `TestRoundBacklogOrder`);
+- groups the targets that share one search, skips an item with a download in flight or with a search the schedule
+  started still queued or running (its row stays due, `TestQueuedSearchNotDuplicated`), and starts groups while
+  `router.wanted.per_hour` allows. What the hour does not allow waits for a later round.
+
+So a due time says from when an item may be searched, not when it starts. Each search a round starts (a loop
+search) is a run with source `wanted` and `acquire_run.research` set to its row's `why`. Rounds hold the acquirer's
+`drainMu`, so two of them never spend the same slot. With both switches off a full round reads only the due rows, and nothing on the
+backlog is searched (`TestRoundBacklogOffStartsNothing`).
+
+**After a search.** When a search of an item ends, whatever started it, its row is rescheduled (`nextSearch`,
+`TestNextSearchRule`): a loop search reschedules its own row, any other search (title page, add, arr command) the
+item's regular and `new` rows. A search by hand is therefore not followed by a scheduled one minutes later.
+
+| Outcome | Next search | `tries`, `why` |
+|---|---|---|
+| No indexer answered (`infra = 1`), a `new` row | after 1 hour | unchanged |
+| No indexer answered, another row, fewer than three times in a row | after 1 hour | `tries` + 1, `why` kept |
+| A missing item whose content is new (below) | after 1, 2, 4, 8 and 16 hours, then `again_after` (never longer than `again_after`) | `tries` + 1, `new` |
+| Otherwise, its switch off | the row is deleted: not scheduled | |
+| A partial answer (`infra = 2`) | after 6 hours (`again_after` when shorter) | 0, regular |
+| Otherwise | after `again_after` | 0, regular |
+
+A search no indexer answered (a VPN refusal, `ErrVPNRequired`, or `Searched.NoAnswer`) does not count as a search of
+the item. A search where some indexer answered and some request failed (an error, a back-off or a spent budget, a
+page that failed, a failed Cardigann keyword query, a plain Cardigann series query without episode criteria:
+`Searched.Incomplete`) counts, routes what it accepted, and is due again sooner. Theatarr's own `page_cap` stopping
+the paging (DMM's 200) is not a failure (`indexer.Result.Capped`). Both spend the hourly limit. Tests:
+`TestPartialSearchCountsAsSearchedSooner`, `router.TestSearchPartialAnswerIsIncomplete`,
+`router.TestPlainKeywordAnswerDoesNotCountAsSeasonSearch`.
+
+**New content.** Debrid caches pick a new release up within minutes to hours, but RSS lists it once and the first
+search usually runs before any release is cached. Content is new for 7 days after its date (`availability.Fresh`): an
+episode's air date; a movie's digital or physical date, either one (a later disc release makes it new again); never a
+theatrical date (nothing worth caching exists yet) nor a torrent's date. Removed episodes are never new, and a
+route's freshness is its latest episode aired by now. A missing item on the schedule whose content is new is retried
+by the first rows of the table, then daily while it stays new. Upgrades never use the fast retries. For a route of
+new content the uncached add (`router:add`) and the miss on every provider (`router:miss`) last 1 hour instead of
+`miss_ttl` (at most `miss_ttl`; a 451 keeps `miss_ttl`), so a retry can add a release once it is cached. Each retry
+whose release is still uncached costs one add and delete on RD or AD, counted in `uncached_adds_per_hour`. Tests:
+`TestFresh`, `TestFreshContentMissLivesAnHour`, `TestFreshEpisodes`, `TestFailureThenLadder`.
+
+**Pause.** Rounds do nothing and Search now answers 409. Rows already due wait and start at the round that runs when
+Pause is turned off. The router does not ask for re-searches while paused (its gate is closed). A loop search whose
+job runs after Pause was turned on ends skipped before it asks any indexer (`acquire_run.infra` 3, gated): it counts
+in no hourly limit and its row stays due (`TestPauseHoldsDueItems`).
+
+**Search now** (`internal/acquire/searchnow.go`). The Wanted page's buttons (one row, the selected rows, or every row
+of the tab with its library and waiting filter, without paging and without a cap) go through `POST /wanted/search`. A
+request names rows of the list (`season`; -1 for a movie). `RequestSearchNow` skips, with the reason, an item whose
+library is not active, that has nothing wanted now, or that a loop search is already queued or running for; it
+refuses everything while Pause is on (409). Each other row is made due now with `why = 'asked'` (asking again for a row
+already asked and due keeps its time), and a round of those titles runs at once. The answer says how many started
+and how many asked rows still wait (`started`, `pending`). An asked row is searched whatever the switches say and
+whatever `again_after` says (`TestSearchNowTakesDueRegularRow`). `DELETE /wanted/search` ("Cancel queued searches")
+puts the asked rows that are due back on the regular schedule (`again_after` from now); searches already started
+stay started. The list reports what stops a search by hand apart from the row's waiting state
+(`WantedRow.search_blocked`: `downloads_off` (Pause), `in_flight`), the page's controls follow it, and "all" asks only
+for the rows without it (`searchable`). `GET /wanted` counts the asked rows that are due (`search_now_pending`).
+Tests: `TestWantedListSearchNowQueue`, `TestWantedListNextSearch`, `web.TestWantedSearchAPI`.
+
+**Searches by name.** The title page's Search, the search after an add made in Theatarr and arr-view commands keep
+their own path (`Submit`, source `command`): they start at once, outside `per_hour`, and are not scheduled. They only
+reschedule an item's existing row (above), and the next full round counts them for an unscheduled item. Automatic adds
+from lists and collections also search at once, outside `per_hour`.
+
+**Upgrading from the wanted loop.** Migration 00126 adds the columns; Search now requests still queued become due
+`asked` rows; queued `acquire.searchnow` jobs and the queued retry chains of new content (`acquire.research` with
+reason `fresh`) are deleted. Migration 00127 removes `router.wanted.enabled`, `interval` and `retry_new` from the
+stored settings; a stored `enabled: false` first becomes `missing: false` and `cutoff_unmet: off` (a stored null
+changes nothing). A policy file with those keys loads the same way, and each key is named in `Policy.Ignored`
+("ignored: removed setting (one search schedule)"). At the first full round every item is unscheduled, and those
+searched recently get their time from their last run, so the upgrade starts no burst. Tests:
+`TestMigrationSearchSchedule`, `TestMigrationWantedSettings`, `policy.TestLegacyWantedKeys`.
+
+### Re-search after a failure
 
 When a download fails for a reason the arrs and decypharr answer with "blocklist and search again", the router asks
-for a search at once instead of waiting for the wanted loop. Code: `internal/router/research.go`,
+for a search at once instead of waiting for the item's next search. Code: `internal/router/research.go`,
 `internal/acquire/research.go`.
 
 | Failure | Found by |
@@ -694,188 +801,47 @@ provider errors and torrents without video take precedence over the stalled time
 stalled-torrent cleanup.
 
 The router enqueues job `acquire.research` (`router.ResearchRequest`: title, version, the failed download's
-episodes, reason) only when its gate allows writes for the version. The acquirer then:
-- skips a version that is not active, or `router.enabled: false`;
-- builds the targets like the wanted loop: the movie; for series the download's episodes, one season search per
-  season with several, an episode search for one;
-- skips a target with a download in flight;
-- counts the run against `router.wanted.per_hour` (source `wanted`, `acquire_run.research` = the reason); when the
-  hour's searches are used it queues the re-search again for when the oldest search of the hour leaves the window,
-  so the item is still searched with the wanted loop's missing and cutoff searches off. Test: `TestResearchPastPerHourRunsLater`;
-- searches a target again after a failure at most once per `router.wanted.again_after` (6 hours after a partial
-  answer, below), so a release that keeps failing cannot loop. A re-search that got no answer (below) does not count,
-  and is asked for again after 15 minutes, 1 hour and 4 hours, then not again (`TestResearchInfraFailureAskedAgain`,
-  `TestNoAnswerResearchGivesUp`, `TestPartialResearchDoesNotRepeat`).
+episodes, reason) only when its gate allows writes for the version (so not while paused). The acquirer (`Research`):
 
-**New content is tried again later** (`internal/acquire/followup.go`). Debrid caches pick a new release up within
-minutes to hours, but RSS lists it once and the re-search at once runs while the miss is still live. Content is new
-for 7 days after its date (`availability.Fresh`): an episode's air date; a movie's digital or physical date, either
-one (a later disc release makes it new again); never a theatrical date (nothing worth caching exists yet) nor a
-torrent's date. For a route of new
-content the uncached add (`router:add`) and the miss on every provider (`router:miss`) last 1 hour instead of
-`miss_ttl` (at most `miss_ttl`; a 451 keeps `miss_ttl`), and an `exhausted` re-search also queues follow-up
-re-searches (reason `fresh`) 1, 2, 4, 8, ... hours after the miss while the content is new: about 8, most in the first
-day. There is one chain per title and version (misses on overlapping episode sets share it), one follow-up of it
-pending at a time. Each follow-up searches what is new when it runs: a series' monitored, wanted episodes that aired
-within the last 7 days, each by its own air date (an old episode that came in a batch with a new one is not
-followed), or the movie; in arr terms a search of new monitored items only, the missing search stays as set. The chain stops when nothing is new any more, the title's version is unmonitored, the new items are filled,
-unmonitored or have a download in flight, or the version is off (not active, or Pause on). A title
-gets one chain per fresh window: a miss starts none while a chain of the title is pending or was queued since its
-newest new date (the `job` rows, finished ones kept 14 days), so neither a follow-up's miss nor the re-search it causes
-restarts it, and a release that stays uncached costs the first add and one per follow-up. A follow-up asked for again
-after no indexer answered searches only the failed run's episodes that are still new. Removed episodes are never new,
-and a route's freshness is its latest episode aired by now (one not aired yet does not hide it). It counts against `router.wanted.per_hour` (a used hour skips that
-step) but not `again_after`. Each follow-up whose release is still uncached costs one add and delete on RD or AD,
-counted in `uncached_adds_per_hour`; RSS, which decides its whole page each sync, may also try a release still on the
-feed's page again once the hour's miss expires. Tests: `TestFresh`, `TestFreshContentMissLivesAnHour`,
-`TestFreshEpisodes`, `TestFollowUpsAfterMissOnNewContent`, `TestFollowUpStops`, `TestFollowUpAddsOnceCached`,
-`TestFollowUpOneChainPerTitle`, `TestFollowUpPersistentMiss`, `TestFollowUpRetrySearchesItsEpisodes`.
+- skips a version that is not Live;
+- finds the item's rows: a movie's (missing while the movie is wanted, else cutoff), or for a series one per season
+  of the failed episodes (missing when one of them is wanted). The search covers that season's whole missing (or
+  cutoff) set, not only the failed episodes;
+- skips a row whose library and season had a search after a failure within `router.wanted.again_after` (6 hours after
+  a partial answer), so a release that keeps failing cannot loop. Search now and retries of new content do not count
+  here (`TestLegacyRunsDoNotBlockFailure`);
+- makes the row due now with the reason as its `why` and runs a round of the title. It is searched under
+  `router.wanted.per_hour`, ahead of the backlog, whatever the backlog switches say; afterwards the row follows the
+  table above (a missing item of new content goes on to the new-content retries).
 
-**An empty search of new content can start a chain of the same kind** (`router.wanted.retry_new`, on by default since this release; `false` turns it off).
-The wanted loop takes a missing episode as soon as it has aired, usually before any release exists; that search accepts
-nothing, no route runs, so nothing above applies and the loop takes the item again only after `again_after` (a day).
-With the switch on, a search that ends with nothing accepted starts the follow-up chain for its target's new content
-when it is a missing search (not an upgrade search) started by the wanted loop's own selection or by the Search now
-queue. A manual search, a search on add, and a re-search's or a follow-up's own search start none. The run row
-cannot tell a loop search from a search on add, so the search job's payload carries the
-mark (`retry_new`, left out when unset; set only while the switch is on) and the switch is read again when the search
-ends. It runs like the chain above: the same steps (1, 2, 4, 8 ... hours after the empty search, while the content
-is new), stops and `per_hour` charge.
+Tests: `TestExhaustedRouteResearches`, `TestBlocklistedFailuresResearch`, `TestStalledDownload` (router);
+`TestProviderFailuresBlocklistAndResearch`, `TestReadyDeadline`, `TestFailureAndBlocklistAtomic` (router);
+`TestResearchAfterFailure`, `TestResearchInfraFailureAskedAgain`, `TestNoAnswerResearchGivesUp`,
+`TestFailureThenLadder` (acquire).
 
-It is built to one rule: nothing the chain writes is read by an ordinary path, and turning the switch off removes
-its queued work. What is promised: with the switch off, every search is started, held back, ordered and paced
-exactly as on a build without it, and its queries keep their query plans, and nothing of a chain starts a search on
-this build. After the switch was on and is turned off, other searches are not promised to run exactly as if it had
-never been on: the known limits are listed below. An install upgraded from a build where the switch was off by
-default has it on; one that had turned it off must turn it off again (an off switch was not stored before).
+Blocklisted hashes are skipped by the new route, and known misses don't count against `max_candidates`, so the new
+search reaches releases the first one never tried.
 
-- Its jobs are its own: the steps have their own key (`acquire.research/retry_new/<version>/<title>/<step>`; the
-  chain above keeps `acquire.research/fresh/...`) and its requests carry `retry_new`. Its searches are marked in the
-  run history: `acquire_run.research` is `retry_new` (their search job holds the run's id and nothing else, like
-  any other).
-- Every reader of the run history that decides for an ordinary search leaves those runs out, whatever their
-  outcome (searched, partial, no answer, skipped, still queued): `again_after` for the wanted loop and for a
-  re-search after a failure, the loop's oldest-attempt-first order, a Search now request's "a search of it is queued or running" (so a request is never dropped for a chain's search;
-  the two may then both search the target), and the number of unanswered searches that sets when a re-search is
-  asked for again. The chain's own searches asked for again count the chain's unanswered runs only.
-- An install with the switch off reads the run history with the query plans of a build without the
-  switch, for every query that build runs, and adds three small reads (below). The chain's mark is in no index, so
-  with the switch off the reader an index answers alone (the loop's "last searched") runs its query without the
-  switch, and leave the chain's runs out only for the
-  versions a chain has a request for in the job table. Finding those versions is the first added read: every kept
-  re-search job (`acquire.research`), once for each "last searched". The nightly
-  prune deletes finished jobs once they finished more than 14 days ago (nothing else deletes jobs).
-  Limit: with the switch off, once that prune has removed the last request of a version's chains (the first night
-  after it finished or was cancelled 14 days before), the searches those chains made count for these two readers
-  as ordinary searches of their targets (they can move a target back in the loop's order, and hold it back when
-  `again_after` is longer than 14 days). With the switch on they leave every chain run out, whatever its age.
-- Retention keeps a target's latest ordinary run (and the parent of a shared search that holds it) also when a
-  chain's run of the target is newer, so pruning never makes the loop forget its own last search. Without chain
-  runs it prunes by the condition it had before; to know, it looks for a chain run once a night, which reads the
-  whole run table when there is none (the second added read).
-- `per_hour` is one budget while the switch is on: the chain's searches take slots like any wanted search. With the
-  switch off the hourly count leaves out what the chain searched before, so those searches take no slot from a
-  search started after that (what was deferred before stays deferred, see the limits).
-- The chain after an `exhausted` route reads nothing of this one: it starts by its own key alone and never looks at
-  the switch, also while a `retry_new` chain of the title is queued or after one ended for any reason. A route
-  started by a chain's search that then misses everywhere is an ordinary miss: it gets its re-search at once and
-  its own chain.
-- Each request of the chain (a step, a search asked for again) and each of its searches looks at the switch before
-  any other check: with the switch off the request does nothing and the run ends skipped without a search, also
-  when the library was turned off with it.
-- Turning the switch off cancels what is queued: the chain's requests and the queued search jobs of its runs end
-  as done ("cancelled"), those runs as skipped. That includes a search a shutdown interrupted (its job is queued
-  again, its run still says searching). A search that is running is not cancelled. The cancellation is not part of
-  the save's own transaction: it is one transaction of its own, run right after the saved settings are published,
-  again for every later published generation, and at start once the acquirer is built, before any job runs (so a
-  stop between the save and it loses nothing). It first looks for a queued job of a chain, and without one opens
-  no transaction and writes nothing: that look is the third added read, at start and with every published
-  generation, of the queued re-search requests and the queued search jobs with their runs by id (the job index,
-  no read of the run table). Limit: a chain's run still queued or searching whose search job is neither queued nor
-  running (the job ended without ending its run) is not found by that look; no job is left to search it, and it
-  ends skipped only when a later cancellation finds a queued job of a chain.
-- A search or request already running when the switch is turned off keeps the settings it started with: it
-  finishes as if the switch were on, and may still queue a step or a search after the cancellation. On this build
-  that one does nothing when it runs; it stays queued until then, or until the next start cancels it.
+### A dead link is searched once
 
-The `retry_new` chain gives way to the other: it does not start, and ends at its next step without a search, once
-an `exhausted` chain of the title and version is queued or ran in the fresh window. So a title can get both kinds
-of chain in one week, one after the other (for example when a `retry_new` follow-up finds a release that then
-misses everywhere), and no total number of searches per title is promised: each chain alone is bounded by its steps
-within the week, and every search by `per_hour`. A chain ended by turning the switch off does not start again for
-the same content when the switch is turned on again within the week.
-
-Known limits of the switch:
-
-- A re-search or a Search now request that was put off to the next hour because a chain's search had taken the
-  hour's last slot stays put off until the time it was given (at most the rest of that hour) after the switch is
-  turned off. Turning the switch off does not wake it. A Search now request can run sooner all the same: an
-  ordinary wanted round that comes before that time runs the waiting requests too.
-- Turning the switch off and on again within an hour can let more than `per_hour` searches run in that hour:
-  while it is off the chain's earlier searches are not counted, and searches started then come on top of them.
-- A retry step runs at the moment a slot frees and can take it ahead of a Search now request that has waited
-  longer; with a small `per_hour` this can happen several hours in a row.
-- A search already running when the switch is turned off finishes under the old setting (it may ask the indexers
-  and queue a step, which then does nothing on this build).
-- With the switch off, a chain's searches count as ordinary searches of their targets for the loop's "last
-  searched" once the nightly job prune has removed the version's last chain
-  request, which it does the first night after that request finished or was cancelled 14 days before, not at the
-  14-day mark itself (above).
-- An install with the switch off still does three reads a build without it does not: every kept
-  re-search job for each "last searched"; the run table once a night when it holds no chain run; and the queued re-search requests and queued
-  search jobs at start and with every published settings generation (above). None of them writes.
-- A chain's run left queued or searching without a queued or running search job is not ended by turning the
-  switch off unless a queued job of a chain is found with it (above). It is never searched.
-- A chain ended by turning the switch off does not start again for the same content within the week.
-
-Rolling back to a build without the switch: turn the switch off and save, restart this build once, then roll
-back. An older build does not know the mark and would run a queued step or search of a chain as an ordinary
-follow-up. The save cancels what is queued; the restart cancels what a search still running at the save queued
-after it, and a search the shutdown itself interrupted. Not covered: a search whose process was killed (its job
-still marked running) is run by the older build when its lease expires. Tests: `internal/acquire/retrynew_test.go`, `internal/acquire/retrynew_readers_test.go`.
-
-**A dead link is searched once** (reason `dead_link`). When relink marks an active version's
-link dead (`docs/design/library.md` "Relink and verify": two misses at least 30 min apart, the mount healthy, not within
-zurg's repair grace, and no provider folder holds the hash, since relink repoints by hash to any provider first), the
-library queues one `acquire.research` job in the dead mark's transaction for each of the link's versions the library
-gate lets write (a version the link shares that is shadow or not listed gets none): the movie, or the dead
-link's own episodes, keyed per version, title and episodes so a pending one is not queued twice. It runs through the
-follow-up path with the same stops as `fresh`, without the freshness rule:
-- nothing while Pause is on, the version is not active, or the library no longer writes for it
-  (disabled, not listed): the job ends skipped and never waits to fire later. Its search job checks these again
-  before it asks any indexer or provider, and ends skipped when one turned off in between (this recheck holds for
-  every re-search's search, `fresh` included; a `reconcile` one waits for grabbing again, as its job does). Such a
-  run is recorded with `acquire_run.infra` 3 (gated): nothing was searched, so `again_after`, the wanted loop, the
-  Search now drain and every `router.wanted.per_hour` count (and a deferral's time) leave it out
-  (`TestGatedRunNotInHourlyBudget`);
-- nothing when the version or episode is unmonitored, the item is filled again (revived or replaced) or a download
-  is in flight;
-- it runs whatever `router.wanted.missing` says and counts against `router.wanted.per_hour`; a used hour defers it,
-  like a re-search after a failure, to when the hour's oldest search expires, and the stops are checked again then.
-  A deferral's key holds its episodes (for every re-search), so two dead links of one series deferred to the same
-  window stay two jobs.
+When relink marks an active version's link dead (`docs/design/library.md` "Relink and verify": two misses at least
+30 min apart, the mount healthy, not within zurg's repair grace, and no provider folder holds the hash, since relink
+repoints by hash to any provider first), the library queues one `acquire.research` job (reason `dead_link`) in the
+dead mark's transaction for each of the link's versions the library gate lets write (a version the link shares that
+is shadow or not listed gets none): the movie, or the dead link's own episodes. The acquirer makes the item's row due
+as above, without the `again_after` skip, and only while the library still writes for the version.
 
 It stays one search: the run and its route carry the reason (`acquire_run.research`, read by the router through the
 route's `acquire:<run>` source). A route of it adds only while its target is still missing: the movie still
 `wanted`, or a candidate that covers one of the dead link's episodes still `wanted`; filled again before the route
 runs, the route is cancelled (`not_wanted`), even for a release that would upgrade the new file. A route of it that
-misses everywhere queues no `exhausted` re-search, so no fresh follow-ups. A search no indexer answered is not asked
-for again (one attempt, unlike other re-searches). If it finds nothing or gets no answer, the item stays wanted for
+misses everywhere queues no `exhausted` re-search. If it finds nothing, the item stays wanted for its next search,
 RSS and hand searches. The dead release is not blocklisted: found cached again, re-adding it is the repair; uncached,
-the cached-only check rejects it. Gated versions (shadow, library disabled) only record the dead mark as a
-dry run and queue nothing. The dead mark waits only through zurg's existing repair grace; a repair zurg still
-reports after the grace does not hold the search back. Tests: `TestDeadLinkSearchesOnce`, `TestDeadLinkStops`,
-`TestDeadLinkDeferredPastPerHour`, `TestDeadLinkTwoDeferralsKeepTheirEpisodes`, `TestResearchSearchRechecksSwitches`,
-`TestGatedResearchRunNotASearch`, `TestDeadLinkNoChain`,
-`TestDeadLinkRouteStopsOnceFilled`, `TestRelinkDeadQueuesOneSearch`, `TestRelinkDeadSeriesQueuesItsEpisodes`,
-`TestRelinkDeadSharedLinkQueuesActiveVersionOnly`, `TestRelinkDeadWhileGated`.
-
-Blocklisted hashes are skipped by the new route, and known misses don't count against `max_candidates`, so the new
-search reaches releases the first one never tried.
-
-Tests: `TestExhaustedRouteResearches`, `TestBlocklistedFailuresResearch`, `TestStalledDownload` (router);
-`TestProviderFailuresBlocklistAndResearch`, `TestReadyDeadline`, `TestFailureAndBlocklistAtomic` (router);
-`TestResearchAfterFailure` (acquire).
+the cached-only check rejects it. Gated versions (shadow, library disabled) only record the dead mark as a dry run
+and queue nothing. The dead mark waits only through zurg's existing repair grace; a repair zurg still reports after
+the grace does not hold the search back. Tests: `TestRelinkDeadQueuesOneSearch`,
+`TestRelinkDeadSeriesQueuesItsEpisodes`, `TestRelinkDeadSharedLinkQueuesActiveVersionOnly`,
+`TestRelinkDeadWhileGated`.
 
 ## Pacing (`router_pacing`, persisted)
 
@@ -1262,12 +1228,10 @@ router:
       enabled: true    # nothing without a TorBox key
       top: 10          # hashes of one search, best first; 1 to 100
       per_hour: 60     # checkcached requests in any hour; 1 to 1000
-  wanted:              # the wanted search loop (Triggers)
-    # enabled: true    # default: on when some library is active; searches only while enabled is true
-    interval: 15m      # 5m to 24h
+  wanted:              # the search schedule ("The search schedule"); nothing is searched while paused
     per_hour: 10       # searches in any hour; 1 to 200
-    again_after: 24h   # 1h to 30d
-    missing: true
+    again_after: 24h   # older items are searched again after this; 1h to 30d
+    missing: true      # search for missing items by themselves
     cutoff_unmet: quality  # quality (default), score or off; true = quality, false = off
 ```
 
@@ -1365,7 +1329,7 @@ serving the version wins over its imported arr setting; without one, the default
 | Trigger | Versions | What reaches the router |
 |---|---|---|
 | Arr view search commands and an add's search option | **active only** | `Router.Enqueue` per search, through `internal/acquire` |
-| The wanted search loop | **active only** | `Router.Enqueue` per search, through `internal/acquire` |
+| The search schedule | **active only** | `Router.Enqueue` per search, through `internal/acquire` |
 | RSS read, items of active versions | **active only** | `Router.Enqueue` per title and version, its items ranked |
 
 **The acquirer (`internal/acquire`).**
@@ -1400,16 +1364,15 @@ serving the version wins over its imported arr setting; without one, the default
   - **upgrades off** (Sonarr v5 `b94cf9b3b`): a whole-series search (`SeriesSearch`) of a version whose profile
     has `upgrades: false` (or an arr profile with `upgradeAllowed` false) takes only the episodes without a file, so a
     season whose episodes all have one is not searched. As in v5 a season, episode, missing or cutoff search is
-    unchanged; the wanted loop's missing pass never searched such a season anyway, and with upgrades off the cutoff is
+    unchanged; the search schedule's missing pass never searched such a season anyway, and with upgrades off the cutoff is
     the first allowed quality, so files are rarely below it. `TestSeriesSearchSkipsFilledSeasonsWithoutUpgrades`.
 - A command over a whole view (`MissingMoviesSearch` and the like) starts at most 100 searches (`acquire.MaxBulk`),
   the title-target groups searched longest ago first.
 
-**The wanted loop (`acquire.wanted`, every `router.wanted.interval`).** It defaults to on whenever a version is
-active (`router.wanted.enabled` unset: on, `missing: true`, `cutoff_unmet: quality`). A policy without those keys
-searches the whole backlog at `per_hour` from the first active start; `missing: false` and `cutoff_unmet: off` leave
-the backlog to RSS, searches on add and searches by hand. The loop paces by `per_hour` and the router by provider
-pacing only; there is no separate per-season bulk pacing.
+**What the search schedule searches.** When it searches is "The search schedule" above; this is what it takes. With
+no `router.wanted` keys it searches the whole backlog at `per_hour` from the first Live start; `missing: false` and
+`cutoff_unmet: off` leave the backlog to RSS, searches on add, searches by hand and the re-searches after a failure.
+The schedule paces by `per_hour` and the router by provider pacing only; there is no separate per-season bulk pacing.
 - It takes the active versions' missing (`wanted`) and cutoff-unmet (`filled`) movies and episodes; cutoff-unmet
   ones only of versions whose `upgrades` is not `off` ("Upgrades").
 - `router.wanted.cutoff_unmet` says which cutoff-unmet files it searches:
@@ -1421,7 +1384,7 @@ pacing only; there is no separate per-season bulk pacing.
   - `score` searches every `filled` file, also one at the cutoff quality but below `cutoff_score`.
   - `off` searches no file for an upgrade.
   - `true` and `false`, the earlier schema, still load as `quality` and `off`; anything else fails validation.
-- Only the loop's selection changes. Version and episode states (`filled` while below the quality or the score
+- Only the schedule's selection changes. Version and episode states (`filled` while below the quality or the score
   cutoff), feeds and every upgrade decision keep the full cutoff, as the arrs' RSS sync and searches do
   (`UpgradableSpecification.CutoffNotMet`). A file at the cutoff quality but below the score is still upgraded when
   a feed or another search brings a better-scored release.
@@ -1429,74 +1392,13 @@ pacing only; there is no separate per-season bulk pacing.
   decision engine the state alone decides, as with `score`. `TestWantedCutoffMode`, `TestQualityCutoffSelection`.
 - The arr views always use the quality cutoff, whatever this setting: `GET wanted/cutoff` and the
   `CutOffUnmetMoviesSearch` / `CutoffUnmetEpisodeSearch` commands list and search what the arr would. The setting
-  governs Theatarr's own loop only. `TestWantedCutoffQualityOnly`, `TestCutoffUnmetCommandsQualityOnly`.
+  governs Theatarr's own schedule only. `TestWantedCutoffQualityOnly`, `TestCutoffUnmetCommandsQualityOnly`.
 - Why: imported arr profiles often set a `cutoff_score` (10000, say) that no real file reaches. With
-  `score`, the loop would search every title with a file again every `again_after`. The arrs never search those.
-- It skips items searched within `again_after` and items with a download in flight, and searches the rest attempted
-  longest ago first (any attempt, one that got no answer too, so items that keep failing do not stay in front).
-- **No answer is not a search; a partial answer is a shorter one** (`acquire_run.infra`, migrations
-  00084 and 00100). A VPN refusal (`ErrVPNRequired`) or a search no indexer answered (`Searched.NoAnswer`) records
-  `infra = 1`: it does not count as searched, so the next round can take the item again (after the items attempted
-  less recently), and re-searches start it again after 15 minutes, 1 hour and 4 hours, then give it up. A search where some indexer answered and some request failed (an error, a back-off or a spent budget, a
-  page that failed, a failed Cardigann keyword query, a plain Cardigann series query without episode criteria:
-  `Searched.Incomplete`) records `infra = 2`: it counts as searched, routes what it accepted as usual, and is due
-  again after 6 hours (`again_after` when shorter) instead of `again_after`. Theatarr's own `page_cap` stopping the paging
-  (DMM's 200) is not a failure (`indexer.Result.Capped`); it still leaves the indexer's coverage incomplete for the
-  ceiling. All of them spend the hourly budget. Counting a partial answer as no search at all would search popular titles
-  (always past DMM's cap) again at every round and drain, starving the rest. Tests:
-  `TestPartialSearchCountsAsSearchedSooner`, `TestPartialSearchDoesNotStarveBacklog`,
-  `TestNoAnswerSearchDoesNotStarveBacklog`, `router.TestSearchPartialAnswerIsIncomplete`,
-  `router.TestPlainKeywordAnswerDoesNotCountAsSeasonSearch`.
-- At most `per_hour` shared searches start in any hour, counted from root `acquire_run` rows; child version rows do
-  not spend another search.
-- **Search now (`search_request`, 00111; `internal/acquire/searchnow.go`).** The Wanted page's buttons (one row, the
-  selected rows, or every row of the tab with its library and waiting filter) go through `POST /wanted/search`. A
-  request is one row of the list: one library's missing or cutoff-unmet targets of a movie, or of one series season
-  (`season`; -1 for a movie). `RequestSearchNow` skips, with the reason, an item whose library is not active or that
-  has nothing wanted now, and refuses everything while `router.enabled` is false (409);
-  `RequestSearchNowAll` takes the rows `WantedList` builds for the same filter (one helper, `wantedRows`), without
-  paging and without a cap. Asking again for a queued row keeps its place. There is no path around the budget, for
-  one row or for many: `DrainSearchNow` starts the requests oldest first while the hour has searches left, each as
-  one shared search with source `wanted`, so it is counted in `per_hour` with the loop's searches and the
-  re-searches. It resolves each request with the list's selector (`targets` with the title, library,
-  reason and season), does not consult `again_after` (the user asked), and deletes the request when its search
-  starts and when it asks for nothing any more (imported meanwhile, a download in flight, a search of it already
-  queued or running, unmonitored, the
-  library not active). A search that fails is recorded on its run and not repeated from the request. While
-  `router.enabled` is false (Pause) nothing new is accepted and the queue waits: a drain
-  starts nothing, no drain job is scheduled (the serve worker that schedules one is off while the switch is), and once
-  it is true again the restarted worker (`StartQueued`: Search now, then the job is scheduled for what is left; `TestResumeStartsSearchNowWithBudgetLeft`) or the next round drains it, oldest first, under the budget, with the wanted loop on or off. `DELETE /wanted/search` drops
-  it on request ("Cancel queued searches"), also during a drain: the drain claims each request by deleting it just
-  before it starts that row's search, so a cancelled request does not start. A search that has started stays
-  started. The list reports what stops a search by hand apart from the loop's waiting reason
-  (`WantedRow.search_blocked`: `downloads_off` (Pause), `in_flight`; `waiting` says `loop_off` first), the page's
-  controls follow it, and "all" queues only the rows without it (`searchable`).
-- **One budget, one lock.** A wanted round's own searches, the Search now drain and a re-search after a failure check and
-  spend the hour under the acquirer's `drainMu`, so two of them never spend the same slot and `per_hour` holds when
-  a request arrives during a round.
-- **Order inside a wanted round:** Search now, then the loop's own selection; the round runs the drain first, with
-  the loop on or off. The Search now job (`StartQueued`) keeps the same order. The order is
-  not enforced across paths: a request drains Search now only, and a re-search after a failure may take a slot that frees while requests wait.
-- **The Search now job (`acquire.searchnow`).** What the hour does not allow is drained by a job that runs when the
-  oldest counted search of the hour leaves the window (`budgetFreeAt`, shared with the deferred re-search), never
-  sooner than a minute from now. Each run drains Search now and queues the next run while requests remain. Its dedupe key carries the run time
-  (`acquire.searchnow/<run at ms>`): an enqueue is a no-op while a job with the same key is queued or running, so a
-  constant key queued from inside the handler would end the chain. A request, a drain that left some, and the start
-  of `theatarr serve` or a resume (worker `search-now`, also with the wanted loop off, which drains at once first) schedule it, so a large selection drains
-  without the loop and a queue survives a restart. `GET /wanted` reports the queue (`search_now_pending`,
-  `search_now_next_at`) and each row's place in it (`search_queued`). Title-page searches, the search after an add
-  made in Theatarr and arr-view commands keep their own path (`Submit`, source `command`), outside `per_hour`.
-  After its rows are stored a request drains and schedules without the caller's context, so a cancelled HTTP request
-  does not leave a queue without its job.
-  Tests: `TestSearchNowDuringARoundKeepsTheHourlyBudget`, `TestSearchNowCancelDuringADrain`,
-  `TestSearchNowSkipsARowAlreadyBeingSearched`, `TestWantedListSearchBlockedBehindLoopOff`,
-  `TestSearchNowAllPacedByTheHourlyBudget`, `TestSearchNowSearchesARecentlySearchedRow`,
-  `TestSearchNowCutoffAndSeasons`, `TestSearchNowDropsRequestsThatAskForNothing`, `TestSearchNowSkipsWithReasons`,
-  `TestSearchNowRefusedWhileDownloadsAreOff`, `TestSearchNowDuplicateAndClear`,
-  `TestSearchNowDrainsAfterAddTimeSearches`, `TestSearchNowScheduledAtStart`, `TestWantedListSearchNowQueue`,
-  `web.TestWantedSearchAPI`.
+  `score`, the schedule would search every title with a file again every `again_after`. The arrs never search those.
+- At most `per_hour` shared searches start in any hour, counted from root `acquire_run` rows of source `wanted`;
+  child version rows do not spend another search, and gated runs (Pause) spend none.
 - It does nothing while Pause is on (`router.enabled` false), and searches only Live versions
-  (`Policy.SearchVersions`). Tests: `TestAddTimeSearchWaitsForGrab`, `catalog.TestSearchable`.
+  (`Policy.SearchVersions`). Test: `catalog.TestSearchable`.
 
 **Command status.** A command's status follows its runs (`acquire.LoadCommandStatus`), the route job, and what the
 router did with the run's source:
@@ -1564,12 +1466,12 @@ shadow picks:
   no run, zero writes.
 - `TestSearchCommandActiveVersion` (arrview): searches and adds for the active versions only, and the command status
   follows them.
-- `TestShadowVersionsNeverSearchedOrWritten` (acquire): Submit, a stale run for a now-shadow version, and the wanted
-  loop.
+- `TestShadowVersionsNeverSearchedOrWritten` (acquire): Submit, a stale run for a now-shadow version, and the search
+  schedule.
 - `TestCommandFanoutSearchesTitleOnceAndRecordsServedVersions` (acquire) and `TestSearchRequestsSharesQueriesAcrossVersions`
   (router): a shared query records both version targets and runs the upstream request once.
 - `TestKillSwitchDryRun` (acquire): an active version with the switch off. A dry-run plan and zero writes, and the
-  loop is off.
+  schedule searches nothing.
 
 ## Decision formats and the blocklist (00016)
 
@@ -1598,7 +1500,7 @@ the entry.
 | Rule | What a route does with an upgrade | Arr equivalent |
 |---|---|---|
 | `auto` (default) | routes it like any other release | profile `upgradeAllowed` on |
-| `off` | skips it (`upgrades_off`); the file stays whatever is found. Cutoff-unmet searches (wanted loop and commands) skip the version | `upgradeAllowed` off (`UpgradeAllowedSpecification`), for the version rather than the profile |
+| `off` | skips it (`upgrades_off`); the file stays whatever is found. Cutoff-unmet searches (the search schedule and commands) skip the version | `upgradeAllowed` off (`UpgradeAllowedSpecification`), for the version rather than the profile |
 
 The profile's own `upgrades: false` (arr `upgradeAllowed`) still applies inside the decision engine; the version rule
 sits on top of it in the router. `Router.Route` reads the version's current files for the release's items before any
@@ -1661,7 +1563,7 @@ own debrid account, so `router.cached_only`, the providers' pacing and `stalled_
 ## Limits
 
 - **The acquirer has no planner budget checks of its own.** The gateway enforces the budgets and back-offs, and the
-  wanted loop's `per_hour` paces it.
+  search schedule's `per_hour` paces it.
 - **Hash-less releases.** Releases with only a `.torrent` link (nyaa through SeaDex) are skipped (`no_hash`):
   `.torrent` files are not fetched and converted to their hash.
 - **Usenet and seedbox routing** are not part of the router.
@@ -1670,7 +1572,7 @@ own debrid account, so `router.cached_only`, the providers' pacing and `stalled_
 
   1. Run `theatarr router dry-run` for a few titles.
   2. Check `theatarr router status`, and the router plans in **Activity › Decision journal** (`plan` entries).
-  3. Set one library Live and turn **Pause** off. The wanted loop then starts at its default pace (10 searches
+  3. Set one library Live and turn **Pause** off. The search schedule then starts at its default pace (10 searches
      an hour).
   4. Watch the log line and the first adds.
 

@@ -15,7 +15,7 @@ claim of Sonarr v5 API parity. Recyclarr has no web pages; its table maps the CL
 
 | Arr page or tab | Theatarr page (route and menu path) | Difference |
 |---|---|---|
-| Series | Library › Series — `/series` | One title can have multiple libraries. The arrs' "Search Selected": **Select**, tick the titles, pick one library in the bar and choose **Search now** (admins). It searches what is missing in that library, through the Wanted queue and its hourly limit. |
+| Series | Library › Series — `/series` | One title can have multiple libraries. The arrs' "Search Selected": **Select**, tick the titles, pick one library in the bar and choose **Search now** (admins). It searches what is missing in that library, as the Wanted page's Search now does, under its hourly limit. |
 | Series › Add New | Search — `/search` | Choose libraries when adding. A series new to the library gets **Monitor** (the seasons you pick, or All, Future or Missing episodes, First or Latest season, Pilot only, None) and **Monitor seasons that appear later**. **Search now** is off until you turn it on; the browser then remembers it. A new series also gets **Series type** (Standard, Daily or Anime); it is one value per series, shown on every Sonarr view, and is changed later on the title page. |
 | Series › Library Import | Admin › Import from Sonarr/Radarr — `/admin/arr-import` | Brings a Sonarr instance's series, their monitoring and the files on the debrid mount into one library, once; Wanted › Manual import (`/wanted/manual-import`) handles other existing files. |
 | Calendar | Calendar — `/calendar` | Movies and episodes together. |
@@ -44,14 +44,14 @@ claim of Sonarr v5 API parity. Recyclarr has no web pages; its table maps the CL
 | Activity › Queue | Activity › Queue — `/activity` | Downloads and imports; each action follows the account's permissions. |
 | Activity › History | Activity › History — `/activity/history` | Grabs, imports, failures and search decisions; admin decision links explain outcomes. |
 | Activity › Blocklist | Activity › Blocklist — `/activity/blocklist` | Requires See files; provider deletes remain separate. |
-| Wanted › Missing | Wanted › Missing — `/wanted` | Managers and admins: automatic queue with waiting reasons. **Search now** for a row, the selection or the whole tab queues searches under the hourly limit. |
+| Wanted › Missing | Wanted › Missing — `/wanted` | Managers and admins: each item's next automatic search and why. **Search now** for a row, the selection or the whole tab makes them due; searches start as the hourly limit allows. |
 | Wanted › Cutoff Unmet | Wanted › Cutoff unmet — `/wanted/cutoff` | Upgrade queue with the same **Search now** actions; library and global gates remain visible. |
 
 ## Radarr
 
 | Arr page or tab | Theatarr page (route and menu path) | Difference |
 |---|---|---|
-| Movies | Library › Movies — `/movies` | Multiple libraries per movie. The arrs' "Search Selected": **Select**, tick the titles, pick one library in the bar and choose **Search now** (admins). It searches what is missing in that library, through the Wanted queue and its hourly limit. |
+| Movies | Library › Movies — `/movies` | Multiple libraries per movie. The arrs' "Search Selected": **Select**, tick the titles, pick one library in the bar and choose **Search now** (admins). It searches what is missing in that library, as the Wanted page's Search now does, under its hourly limit. |
 | Movies › Add New | Search — `/search` | Choose libraries when adding. **Search now** is off until you turn it on; the browser then remembers it. **Minimum availability** is **Library default** unless you pick Announced, In cinemas or Released; a pick is kept per library and is changed later on the movie's library card. |
 | Movies › Import Library | Admin › Import from Sonarr/Radarr — `/admin/arr-import` | Brings a Radarr instance's movies, their monitoring and the files on the debrid mount into one library, once; Wanted › Manual import (`/wanted/manual-import`) handles other files. |
 | Movies › Collections | Library › Collections — `/collections` | Managers and admins. **Add collection** searches TMDb; targets are libraries. |
@@ -79,7 +79,7 @@ claim of Sonarr v5 API parity. Recyclarr has no web pages; its table maps the CL
 | Activity › Queue | Activity › Queue — `/activity` | Downloads and imports; each action follows the account's permissions. |
 | Activity › History | Activity › History — `/activity/history` | Grabs, imports, failures and search decisions; admin decision links explain outcomes. |
 | Activity › Blocklist | Activity › Blocklist — `/activity/blocklist` | Requires See files; provider deletes remain separate. |
-| Wanted › Missing | Wanted › Missing — `/wanted` | Managers and admins: automatic queue with waiting reasons. **Search now** for a row, the selection or the whole tab queues searches under the hourly limit. |
+| Wanted › Missing | Wanted › Missing — `/wanted` | Managers and admins: each item's next automatic search and why. **Search now** for a row, the selection or the whole tab makes them due; searches start as the hourly limit allows. |
 | Wanted › Cutoff Unmet | Wanted › Cutoff unmet — `/wanted/cutoff` | Upgrade queue with the same **Search now** actions; library and global gates remain visible. |
 
 ## Prowlarr
