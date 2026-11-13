@@ -125,6 +125,28 @@ func TestCalendar(t *testing.T) {
 	if len(cal.Items) != 2 || cal.Items[0].Title.Name != "Alpha" || cal.Items[0].Available || !cal.Items[1].Available {
 		t.Errorf("removed copy counted: %+v", cal.Items)
 	}
+	// Gamma's episode 1 is monitored and held only by a removed copy; the remaining copy does not monitor it: the
+	// entry is not monitored (not missing). Once the remaining copy monitors it, it is.
+	e.exec(`INSERT INTO version (id, title_id, policy_key, state, monitored, created_at, updated_at) VALUES
+		(5, 3, 'tv-web', 'filled', 1, ?, ?)`, now, now)
+	e.exec(`INSERT INTO arrview_removed_version (version_id, view, removed_at) VALUES (5, 'sonarr_web', ?)`, now)
+	e.exec(`INSERT INTO episode_version_state (version_id, episode_id, monitored, state, updated_at) VALUES
+		(5, 1, 1, 'filled', ?), (4, 1, 0, 'wanted', ?)`, now, now)
+	gamma := func() CalendarEntry {
+		cal = CalendarPage{}
+		e.getKey(APIBase+"/calendar?from=2026-11-01&to=2026-11-30&kind=series", key, &cal)
+		if len(cal.Items) != 1 {
+			t.Fatalf("series: %+v", cal.Items)
+		}
+		return cal.Items[0]
+	}
+	if g := gamma(); g.Monitored || g.Available {
+		t.Errorf("removed copy's monitoring counted: %+v", g)
+	}
+	e.exec(`UPDATE episode_version_state SET monitored = 1 WHERE version_id = 4`)
+	if g := gamma(); !g.Monitored || g.Available {
+		t.Errorf("remaining copy's monitoring: %+v", g)
+	}
 	for _, bad := range []string{"from=2026-13-01", "from=2026-11-01&to=2026-10-01", "from=2026-01-01&to=2026-12-31",
 		"kind=music"} {
 		if code := e.getKey(APIBase+"/calendar?"+bad, key, nil); code != 400 {

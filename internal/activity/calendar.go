@@ -84,7 +84,11 @@ func Calendar(ctx context.Context, db *sql.DB, from, to string, unmonitored bool
 	if unmonitored {
 		epMon = ``
 	}
-	rows, err = db.QueryContext(ctx, `SELECT t.id, t.name, COALESCE(t.year, 0), t.anime, t.monitored AND e.monitored,
+	// An episode is monitored when a library that was not removed monitors it (its version and its episode row).
+	rows, err = db.QueryContext(ctx, `SELECT t.id, t.name, COALESCE(t.year, 0), t.anime, t.monitored AND e.monitored
+		AND EXISTS (SELECT 1 FROM episode_version_state s JOIN version v ON v.id = s.version_id WHERE s.episode_id = e.id
+			AND s.monitored = 1 AND v.monitored = 1
+			AND NOT EXISTS (SELECT 1 FROM arrview_removed_version r WHERE r.version_id = v.id)),
 		e.id, e.season, e.number, e.name, e.air_date, COALESCE(e.air_date_utc_at, 0), COALESCE(sm.time_zone, ''),
 		COALESCE((SELECT MIN(x.air_date_utc_at) FROM episode x WHERE x.title_id = e.title_id AND x.season = e.season
 			AND x.air_date = e.air_date), 0),
