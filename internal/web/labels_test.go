@@ -2,7 +2,6 @@ package web
 
 import (
 	"maps"
-	"strings"
 	"testing"
 
 	"github.com/theatarr/theatarr/internal/policy"
@@ -15,17 +14,17 @@ func TestDistinctLabels(t *testing.T) {
 		in   []copyName
 		want map[string]string
 	}{
-		{"no collision", []copyName{{"tv-2160p", "4K", ownerFollowed}, {"tv-web", "1080p WEB", ""}},
+		{"no collision", []copyName{{"tv-2160p", "4K"}, {"tv-web", "1080p WEB"}},
 			map[string]string{"tv-2160p": "4K", "tv-web": "1080p WEB"}},
-		{"ownership", []copyName{{"tv-2160p", "4K", ownerFollowed}, {"tv-2160p-theatarr", "4K", ownerManaged}, {"tv-web", "WEB", ""}},
+		{"collision", []copyName{{"tv-2160p", "4K"}, {"tv-2160p-theatarr", "4K"}, {"tv-web", "WEB"}},
 			map[string]string{"tv-2160p": "4K · tv-2160p", "tv-2160p-theatarr": "4K · tv-2160p-theatarr", "tv-web": "WEB"}},
-		{"same owner", []copyName{{"anime-tv", "Anime", ownerManaged}, {"anime-tv-theatarr", "Anime", ownerManaged}},
+		{"two collide", []copyName{{"anime-tv", "Anime"}, {"anime-tv-theatarr", "Anime"}},
 			map[string]string{"anime-tv": "Anime · anime-tv", "anime-tv-theatarr": "Anime · anime-tv-theatarr"}},
-		{"unknown owner", []copyName{{"a", "4K", ""}, {"b", "4K", ownerFollowed}},
+		{"two of two", []copyName{{"a", "4K"}, {"b", "4K"}},
 			map[string]string{"a": "4K · a", "b": "4K · b"}},
-		{"three", []copyName{{"a", "4K", ownerFollowed}, {"b", "4K", ownerManaged}, {"c", "4K", ownerManaged}},
+		{"three", []copyName{{"a", "4K"}, {"b", "4K"}, {"c", "4K"}},
 			map[string]string{"a": "4K · a", "b": "4K · b", "c": "4K · c"}},
-		{"once per key", []copyName{{"a", "4K", ownerFollowed}, {"a", "4K", ownerManaged}, {"b", "", ""}, {"", "x", ""}},
+		{"once per key", []copyName{{"a", "4K"}, {"a", "4K"}, {"b", ""}, {"", "x"}},
 			map[string]string{"a": "4K", "b": "b"}},
 	} {
 		if got := distinctLabels(c.in); !maps.Equal(got, c.want) {
@@ -46,7 +45,7 @@ func TestSameNamedCopiesServerWords(t *testing.T) {
 	t.Parallel()
 	e := newManageEnv(t, twinPolicy)
 	now := addNow.UnixMilli()
-	// The Show's second 4K copy, Theatarr-managed (tv-2160p is followed by sonarr_4k_debrid).
+	// The Show's second 4K copy.
 	e.exec(`INSERT INTO version (id, title_id, policy_key, monitored, state, created_at, updated_at) VALUES
 		(11, 10, 'tv-2160p-theatarr', 1, 'wanted', ?, ?)`, now, now)
 	e.exec(`INSERT INTO episode_version_state (version_id, episode_id, monitored, state, updated_at) VALUES
@@ -79,11 +78,6 @@ func TestSameNamedCopiesServerWords(t *testing.T) {
 	if len(scope.Copies) != 1 || scope.Copies[0].Label != "4K · tv-2160p-theatarr" {
 		t.Errorf("removal scope: %+v", scope.Copies)
 	}
-	var refused apiError
-	e.call("POST", APIBase+"/titles/10/remove", RemoveRequest{Versions: []string{"tv-2160p"}}, 409, &refused)
-	if !strings.HasPrefix(refused.Error, "4K · tv-2160p: Managed by sonarr_4k_debrid") {
-		t.Errorf("removal refusal: %q", refused.Error)
-	}
 
 	var ep EpisodeDetail
 	e.call("GET", APIBase+"/titles/10/episodes/102", nil, 200, &ep)
@@ -95,7 +89,7 @@ func TestSameNamedCopiesServerWords(t *testing.T) {
 		t.Errorf("episode overview: %v", got)
 	}
 
-	// Without ownership (request lists, cross-title notes) the key tells them apart.
+	// Request lists and cross-title notes: the key tells them apart.
 	if got := e.web.keyLabels([]string{"tv-2160p", "tv-2160p-theatarr", "movie-remux"}); !maps.Equal(got,
 		map[string]string{"tv-2160p": "4K · tv-2160p", "tv-2160p-theatarr": "4K · tv-2160p-theatarr", "movie-remux": "4K Remux"}) {
 		t.Errorf("key labels: %v", got)

@@ -220,9 +220,8 @@ func TestTitleSearchDecisionHandoff(t *testing.T) {
 func TestTitleSearchHistoryKeepsReleaseEvents(t *testing.T) {
 	e := newEnv(t)
 	now := store.Millis(testNow)
-	e.exec(`DELETE FROM arr_history WHERE title_id=1`)
 	for i := 1; i <= 3; i++ {
-		e.exec(`INSERT INTO arr_history(instance,arr_id,event_type,date_at,title_id,version_id,source_title,quality) VALUES('radarr_4k_debrid',?,'grabbed',?,1,1,'Release','Remux-2160p')`, i, now-int64(1000+i))
+		e.exec(`INSERT INTO download(id,title_id,version_id,version_key,info_hash,release_title,indexer,quality,state,episodes,created_at,updated_at,added_at) VALUES(?,1,1,'movie-remux',printf('%040x',?),'Release','dmm','Remux-2160p','added','[]',?,?,?)`, 900+i, i, now-int64(1000+i), now-int64(1000+i), now-int64(1000+i))
 	}
 	for i := 1; i <= 51; i++ {
 		e.exec(`INSERT INTO acquire_run(id,source,title_id,version_id,version_key,target,state,created_at,updated_at) VALUES(?,'wanted',1,1,'movie-remux','movie','nothing',?,0)`, i, now+int64(i))

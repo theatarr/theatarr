@@ -8,8 +8,7 @@
 // The journal is a reader over the tables that already record all of this; nothing is copied:
 //
 //   - download, download_attempt, provider_cache, router_blocklist (router), acquire_run (acquirer), router_plan;
-//   - library_import, library_action, link, content_file (the library);
-//   - arr_history and version_file (the arr import): the arrs' grabs, imports and failures, as arr:<instance>.
+//   - library_import, library_action, link, content_file (the library).
 //
 // Two tables are its own (migration 00024): journal_decision, the candidates a search decided between when it
 // handed work to the router (written by internal/journal/snapshot), and journal_verdict.
@@ -18,15 +17,13 @@
 //
 // An entry id names its source row: dl:<download> (grab or upgrade), dl:<download>:fail (failure or stall),
 // dl:<download>:import, lib:<library_action>, bl:<router_blocklist rowid>, run:<acquire_run>,
-// plan:<router_plan>, arr:<instance>:<history id> (the first
-// history row of one grab, import or failure: Sonarr writes one row per episode), v:<journal_verdict>,
-// act:<journal_action> (an operator action through the web UI, migration 00039: action.go).
+// plan:<router_plan>, v:<journal_verdict>, act:<journal_action> (an operator action through the web UI, migration 00039: action.go).
 //
 // # Safety
 //
 // Every free-text field goes through clean (provider.CleanMessage and the arr history's unsafe-value test): no URL,
 // key, passkey, token or magnet is ever returned. GUIDs, download links and magnets are never read. File checks use
-// what the library's probe (which reads through the zurg mount only) or the arr stored; the journal reads no media
+// what the library's probe (which reads through the zurg mount only) stored; the journal reads no media
 // and talks to no provider.
 //
 // # Retention
@@ -231,9 +228,7 @@ func (j *Journal) hasOwnTables(ctx context.Context) bool {
 const runHeadSQL = `SELECT 'run:' || r.id AS id, r.created_at AS at, r.title_id, r.version_key,
 	CASE WHEN r.research IS NOT NULL AND r.research <> '' THEN 'research' ELSE 'search' END AS kind FROM acquire_run r`
 
-// headParts are every source's entries as (id, at, title_id, version_key, kind), by id prefix. The arr history is
-// grouped per grab, import or failure (one row per episode in Sonarr): same instance, event, download id and hour.
-// A grab is an upgrade when the last import or file deletion of the same movie or episode before it was an import.
+// headParts are every source's entries as (id, at, title_id, version_key, kind), by id prefix.
 var headParts = []struct{ prefix, sql string }{
 	{"dl", `SELECT 'dl:' || d.id, d.created_at, d.title_id, d.version_key,
 	CASE WHEN EXISTS (SELECT 1 FROM version_file vf WHERE vf.version_id = d.version_id
@@ -259,17 +254,6 @@ FROM library_action la WHERE la.kind IN ('link', 'replace', 'relink', 'dead')`},
 	{"bl", `SELECT 'bl:' || b.rowid, b.created_at, COALESCE(b.title_id, 0), b.version_key, 'blocklist' FROM router_blocklist b`},
 	{"run", runHeadSQL + ` WHERE (r.research IS NOT NULL AND r.research <> '') OR r.state IN ('nothing', 'failed')`},
 	{"plan", `SELECT 'plan:' || p.id, p.created_at, p.title_id, p.version_key, 'plan' FROM router_plan p`},
-	{"arr", `SELECT 'arr:' || h.instance || ':' || MIN(h.arr_id), MIN(h.date_at), h.title_id, v.policy_key,
-	CASE h.event_type WHEN 'grabbed' THEN
-		CASE WHEN (SELECT p.event_type FROM arr_history p WHERE p.instance = h.instance
-			AND p.arr_title_id = h.arr_title_id AND p.date_at < h.date_at
-			AND p.event_type IN ('downloadFolderImported', 'movieFileDeleted', 'episodeFileDeleted')
-			AND (h.arr_episode_id IS NULL OR p.arr_episode_id = h.arr_episode_id)
-			ORDER BY p.date_at DESC LIMIT 1) = 'downloadFolderImported' THEN 'upgrade' ELSE 'grab' END
-	WHEN 'downloadFailed' THEN 'failure' ELSE 'import' END
-FROM arr_history h JOIN version v ON v.id = h.version_id
-WHERE h.event_type IN ('grabbed', 'downloadFolderImported', 'downloadFailed') AND h.title_id IS NOT NULL
-GROUP BY h.instance, h.event_type, COALESCE(h.download_id, '#' || h.arr_id), h.date_at / 3600000`},
 }
 
 // headSQL is the union of every part.

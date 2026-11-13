@@ -33,8 +33,6 @@ func (w *Web) mountAPI(mux *http.ServeMux) {
 	w.handle(mux, "GET "+b+"/versions/{id}", SignedIn, auth.PermBrowse, w.apiVersion)
 	w.handle(mux, "GET "+b+"/registry", SignedIn, auth.PermAdmin, w.apiRegistryList)
 	w.handle(mux, "GET "+b+"/registry/{hash}", SignedIn, auth.PermAdmin, w.apiRegistry)
-	w.handle(mux, "GET "+b+"/imports", SignedIn, auth.PermAdmin, w.apiImports)
-	w.handle(mux, "GET "+b+"/imports/{id}", SignedIn, auth.PermAdmin, w.apiImport)
 	w.handle(mux, "GET "+b+"/gateway", SignedIn, auth.PermAdmin, w.apiGateway)
 	w.handle(mux, "GET "+b+"/policy", SignedIn, auth.PermAdmin, w.apiPolicy)
 	w.handle(mux, "GET "+b+"/policy/validate", SignedIn, auth.PermAdmin, w.apiPolicyValidate)
@@ -320,38 +318,6 @@ func (w *Web) apiRegistry(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 	writeJSON(rw, http.StatusOK, c)
-}
-
-func (w *Web) apiImports(rw http.ResponseWriter, r *http.Request) {
-	limit, err := intParam(r, "limit", 50)
-	if err != nil {
-		badRequest(rw, err.Error())
-		return
-	}
-	runs, err := w.listImports(r.Context(), r.URL.Query().Get("instance"), limit)
-	if err != nil {
-		w.internal(rw, err)
-		return
-	}
-	writeJSON(rw, http.StatusOK, map[string]any{"items": runs})
-}
-
-func (w *Web) apiImport(rw http.ResponseWriter, r *http.Request) {
-	id, ok := pathID(r)
-	if !ok {
-		notFound(rw)
-		return
-	}
-	run, err := w.getImport(r.Context(), id)
-	if errors.Is(err, errNotFound) {
-		notFound(rw)
-		return
-	}
-	if err != nil {
-		w.internal(rw, err)
-		return
-	}
-	writeJSON(rw, http.StatusOK, run)
 }
 
 func (w *Web) apiGateway(rw http.ResponseWriter, r *http.Request) {

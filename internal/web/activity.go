@@ -602,7 +602,7 @@ func (w *Web) historyEvents(ctx context.Context, es []*journal.Entry, admin bool
 		words, tone := entryWords(e, notStarted)
 		x := ActivityEvent{ID: e.ID, At: e.At, Kind: e.Kind, Title: t, Version: e.Version, Words: words, Tone: tone}
 		if !admin {
-			// Journal ids name the arr instance (arr:<instance>:<id>); users get an opaque one.
+			// Journal ids name their source rows; users get an opaque one.
 			x.ID = opaqueID(e.ID)
 		}
 		if admin {
@@ -670,22 +670,12 @@ func historyWords(e *journal.Entry) (words, tone string) { return entryWords(e, 
 
 // entryWords is historyWords with the entry's historyNotStarted reason already known.
 func entryWords(e *journal.Entry, notStarted string) (words, tone string) {
-	arr := strings.HasPrefix(e.Source, "arr:")
 	switch e.Kind {
 	case journal.KindGrab:
-		if arr {
-			return "Grabbed by the old manager", "info"
-		}
 		return "Found a release", "info"
 	case journal.KindUpgrade:
-		if arr {
-			return "Upgrade grabbed by the old manager", "info"
-		}
 		return "Found a better release", "info"
 	case journal.KindImport:
-		if arr {
-			return "Imported by the old manager", "ok"
-		}
 		state := ""
 		if e.Import != nil {
 			state = e.Import.State
@@ -725,9 +715,6 @@ func entryWords(e *journal.Entry, notStarted string) (words, tone string) {
 	case journal.KindFailure:
 		if notStarted != "" {
 			return activity.NotStartedHistory(notStarted), "info"
-		}
-		if arr {
-			return "Download failed (old manager)", "bad"
 		}
 		return "Download failed", "bad"
 	case journal.KindStall:

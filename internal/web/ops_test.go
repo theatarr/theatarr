@@ -529,13 +529,8 @@ func TestRemoveCopiesAndTitle(t *testing.T) {
 
 	var scope RemovalScope
 	if code := o.jsonCall("GET", APIBase+"/titles/1/removal", nil, o.mc, "", &scope); code != 200 || !scope.Title ||
-		len(scope.Copies) != 2 || scope.Copies[0].Key != "movie-remux" || scope.Copies[0].ManagedBy != "radarr_4k_debrid" {
+		len(scope.Copies) != 2 || scope.Copies[0].Key != "movie-remux" {
 		t.Fatalf("scope: %d %+v", code, scope)
-	}
-	var apiErr apiError
-	if code := o.jsonCall("POST", APIBase+"/titles/1/remove", RemoveRequest{}, o.mc, o.mcsrf, &apiErr); code != 409 ||
-		!strings.Contains(apiErr.Error, "radarr_4k_debrid") {
-		t.Fatalf("managed: %d %+v", code, apiErr)
 	}
 	if code := o.jsonCall("GET", APIBase+"/titles/1/removal?versions=tv-2160p", nil, o.mc, "", nil); code != 400 {
 		t.Errorf("unknown copy: %d", code)

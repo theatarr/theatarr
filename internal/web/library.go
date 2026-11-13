@@ -402,15 +402,8 @@ func labelFor(key, profile string) string {
 	return out
 }
 
-// Ownership of a copy as a label suffix needs it (copyName.owner); "" is unknown to the caller, or mixed.
-const (
-	ownerFollowed = "followed"
-	ownerManaged  = "managed"
-)
-
-// copyName is one copy named next to others: its version key, its label, and its ownership as the caller may know
-// it.
-type copyName struct{ key, label, owner string }
+// copyName is one copy named next to others: its version key and its label.
+type copyName struct{ key, label string }
 
 // distinctLabels gives each copy (one per key) a label unique among the copies named together, as the SPA's
 // distinctLabels (web/src/lib/copies.ts) does: labels that collide ("4K" for tv-2160p and tv-2160p-theatarr) get the
@@ -448,22 +441,14 @@ func distinctLabels(cs []copyName) map[string]string {
 	return names
 }
 
-// keyLabels is distinctLabels for keys named together without their ownership (request lists, cross-title
-// notes): same-named copies are told apart by key.
+// keyLabels is distinctLabels for keys named together (request lists, cross-title notes): same-named copies are told
+// apart by key.
 func (w *Web) keyLabels(keys []string) map[string]string {
 	cs := make([]copyName, len(keys))
 	for i, k := range keys {
 		cs[i] = copyName{key: k, label: w.versionLabel(k)}
 	}
 	return distinctLabels(cs)
-}
-
-// ownerOf is a copy's ownership from its owning arr instance (managedBy), for distinctLabels.
-func ownerOf(managedBy string) string {
-	if managedBy != "" {
-		return ownerFollowed
-	}
-	return ownerManaged
 }
 
 type fileAgg struct {

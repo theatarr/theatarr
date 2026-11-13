@@ -827,14 +827,6 @@ func (w *Web) apiSetVersion(rw http.ResponseWriter, r *http.Request) {
 		badRequest(rw, err.Error())
 		return
 	}
-	// A version an arr still imports gets its monitoring from the arr every 15 minutes (manage.go).
-	if m, err := w.versionManagedBy(ctx, id, key); err != nil {
-		w.internal(rw, err)
-		return
-	} else if m != "" {
-		writeJSON(rw, http.StatusConflict, apiError{Error: managedReason(m)})
-		return
-	}
 	now := w.now()
 	err = w.st.WriteTx(ctx, func(tx *sql.Tx) error {
 		if *req.Monitored {

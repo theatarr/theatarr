@@ -31,11 +31,11 @@ func (e *env) seedLibrary() {
 		now, now, now, now, now, now, now, now, now)
 	e.exec(`UPDATE version_file SET added_at = ? WHERE arr_file_id = 501`, now-10*day)
 	e.exec(`UPDATE version_file SET added_at = ? WHERE arr_file_id = 502`, now-1*day)
-	e.exec(`UPDATE arr_history SET version_id = 1`)
-	e.exec(`INSERT INTO arr_history (instance, arr_id, event_type, date_at, title_id, version_id, info_hash, source_title,
-		quality) VALUES ('radarr_4k_debrid', 2, 'downloadFolderImported', ?, 1, 1, ?, 'Alpha.Old', 'Remux-2160p'),
-		('radarr_4k_debrid', 3, 'downloadFolderImported', ?, 1, 1, ?, 'Alpha.2020.2160p.BluRay.REMUX-GRP', 'Remux-2160p')`,
-		now-900, hashA, now-500, hashA)
+	e.exec(`INSERT INTO download (id, title_id, version_id, version_key, info_hash, release_title, indexer, quality, state,
+		episodes, created_at, updated_at, added_at, imported_at) VALUES
+		(80, 1, 1, 'movie-remux', ?, 'Alpha.Old', 'dmm', 'Remux-2160p', 'imported', '[]', ?, ?, ?, ?),
+		(81, 1, 1, 'movie-remux', ?, 'Alpha.2020.2160p.BluRay.REMUX-GRP', 'dmm', 'Remux-2160p', 'imported', '[]', ?, ?, ?, ?)`,
+		strings.Repeat("8", 40), now-1000, now-900, now-1000, now-900, hashA, now-600, now-500, now-600, now-500)
 	e.exec(`INSERT INTO content_provider (content_id, provider, torrent_id, seen_at) VALUES (1, 'rd', 'T1', ?)`, now)
 	e.exec(`INSERT INTO title_release_date (title_id, source, country, type, date) VALUES
 		(1, 'tmdb', 'US', 'digital', '2020-08-01'), (1, 'tmdb', 'US', 'digital', '2026-11-01'),
@@ -592,7 +592,7 @@ func TestTitlePage(t *testing.T) {
 	for _, h := range v.History {
 		events = append(events, h.Event)
 	}
-	if got := strings.Join(events, ","); got != "upgraded,imported,grabbed" {
+	if got := strings.Join(events, ","); got != "upgraded,grabbed,imported,grabbed" {
 		t.Errorf("history: %s", got)
 	}
 	if d.Versions[1].Current != nil || d.Availability != "partial" || d.AddedAt == nil {

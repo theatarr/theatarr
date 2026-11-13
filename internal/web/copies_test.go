@@ -60,7 +60,7 @@ func copyOf(t *testing.T, r TitleRow, key string) VersionBrief {
 	return VersionBrief{}
 }
 
-// TestCopyProjections: list rows carry each copy's ownership, a series copy's coverage and one acquisition summary
+// TestCopyProjections: list rows carry each copy's controls, a series copy's coverage and one acquisition summary
 // per copy; the episode grid and the title page carry it per episode and per version; users get none of it.
 func TestCopyProjections(t *testing.T) {
 	t.Parallel()
@@ -71,11 +71,11 @@ func TestCopyProjections(t *testing.T) {
 	show, alpha := rowOf(t, page, 10), rowOf(t, page, 1)
 
 	tv := copyOf(t, show, "tv-2160p")
-	if tv.Control == nil || tv.Control.ManagedBy != "sonarr_4k_debrid" || tv.Control.CanEdit {
-		t.Errorf("followed copy: %+v", tv.Control)
+	if tv.Control == nil || !tv.Control.CanEdit {
+		t.Errorf("a copy an arr imports is editable: %+v", tv.Control)
 	}
-	if c := copyOf(t, alpha, "movie-web").Control; c == nil || c.ManagedBy != "" || !c.CanEdit {
-		t.Errorf("Theatarr-managed copy: %+v", c)
+	if c := copyOf(t, alpha, "movie-web").Control; c == nil || !c.CanEdit {
+		t.Errorf("Theatarr's copy: %+v", c)
 	}
 	// S01E01 and S01E02 held, S02E01 not aired yet, the special left out.
 	if c := tv.Coverage; c == nil || *c != (CopyCoverage{Have: 2, Total: 2, Aired: 2, Upcoming: 1, Missing: 0,
@@ -246,8 +246,8 @@ func TestCopySorts(t *testing.T) {
 	}
 }
 
-// TestBulkMonitor: the copy-targeted bulk monitor previews and applies per item; followed copies are refused by the
-// server, a copy the title lacks is never added, items changed since the preview are stale, and nothing searches.
+// TestBulkMonitor: the copy-targeted bulk monitor previews and applies per item, a copy an arr imports included; a
+// copy the title lacks is never added, items changed since the preview are stale, and nothing searches.
 func TestBulkMonitor(t *testing.T) {
 	t.Parallel()
 	e := newManageEnv(t, nil)
@@ -264,7 +264,7 @@ func TestBulkMonitor(t *testing.T) {
 	for _, it := range pre.Items {
 		got[it.Version+"@"+it.Title] = it.Outcome
 	}
-	want := map[string]string{"tv-2160p@The Show": "read_only", "movie-remux@Alpha": "changed",
+	want := map[string]string{"tv-2160p@The Show": "changed", "movie-remux@Alpha": "changed",
 		"movie-web@Alpha": "changed", "@": "missing"}
 	if len(got) != len(want) {
 		t.Fatalf("preview items: %+v", pre.Items)
@@ -274,12 +274,12 @@ func TestBulkMonitor(t *testing.T) {
 			t.Errorf("preview %s: %q, want %q", k, got[k], v)
 		}
 	}
-	if pre.Items[0].TitleID != 10 || !strings.Contains(pre.Items[0].Reason, "sonarr_4k_debrid") || pre.Changed != 2 ||
-		pre.ReadOnly != 1 || pre.Missing != 1 || !strings.HasPrefix(pre.Message, "Would unmonitor 2 libraries") {
+	if pre.Items[0].TitleID != 10 || pre.Changed != 3 || pre.Missing != 1 ||
+		!strings.HasPrefix(pre.Message, "Would unmonitor 3 libraries") {
 		t.Errorf("preview: %+v", pre)
 	}
 
-	// movie-web changes after the preview: the apply refuses it as stale and changes movie-remux only.
+	// movie-web changes after the preview: the apply refuses it as stale and changes movie-remux and tv-2160p.
 	e.exec(`UPDATE version SET monitored = 0 WHERE id = 2`)
 	var expect []BulkExpect
 	for _, it := range pre.Items {
@@ -290,23 +290,18 @@ func TestBulkMonitor(t *testing.T) {
 	var out BulkMonitorResult
 	e.call("POST", APIBase+"/titles/monitor", BulkMonitorRequest{TitleIDs: []int64{10, 1}, Monitored: &f,
 		Expect: expect}, 200, &out)
-	if out.DryRun || out.Changed != 1 || out.Stale != 1 || out.ReadOnly != 1 {
+	if out.DryRun || out.Changed != 2 || out.Stale != 1 {
 		t.Errorf("apply: %+v", out)
 	}
 	var remux, web, show, alpha int
 	e.st.Reader().QueryRow(`SELECT (SELECT monitored FROM version WHERE id = 1), (SELECT monitored FROM version WHERE id = 2),
 		(SELECT monitored FROM version WHERE id = 10), (SELECT monitored FROM title WHERE id = 1)`).Scan(&remux, &web, &show, &alpha)
-	if remux != 0 || web != 0 || show != 1 || alpha != 0 {
+	if remux != 0 || web != 0 || show != 0 || alpha != 0 {
 		t.Errorf("after apply: remux %d web %d show %d title %d", remux, web, show, alpha)
 	}
 
-	// A followed copy is refused even when named alone; a copy the title lacks is reported, never added.
+	// A copy the title lacks is reported, never added.
 	tr := true
-	e.call("POST", APIBase+"/titles/monitor", BulkMonitorRequest{TitleIDs: []int64{10}, Versions: []string{"tv-2160p"},
-		Monitored: &f}, 200, &out)
-	if out.Changed != 0 || out.ReadOnly != 1 || out.Items[0].Outcome != "read_only" {
-		t.Errorf("followed copy: %+v", out)
-	}
 	e.call("POST", APIBase+"/titles/monitor", BulkMonitorRequest{TitleIDs: []int64{10}, Versions: []string{"anime-tv"},
 		Monitored: &tr}, 200, &out)
 	var n int

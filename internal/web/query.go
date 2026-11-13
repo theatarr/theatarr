@@ -284,19 +284,18 @@ type Link struct {
 
 // Version is a version with its files.
 type Version struct {
-	ID         int64     `json:"id"`
-	TitleID    int64     `json:"title_id"`
-	TitleName  string    `json:"title_name,omitempty"`
-	Key        string    `json:"key"`
-	State      string    `json:"state"`
-	Monitored  bool      `json:"monitored"`
-	HasFile    bool      `json:"has_file"`
-	Source     string    `json:"source,omitempty"` // owning arr instance
-	CreatedAt  time.Time `json:"created_at"`
-	UpdatedAt  time.Time `json:"updated_at"`
-	Files      []File    `json:"files"`
-	Links      []Link    `json:"links"`
-	ArrRecords []ArrRec  `json:"arr_records"`
+	ID        int64     `json:"id"`
+	TitleID   int64     `json:"title_id"`
+	TitleName string    `json:"title_name,omitempty"`
+	Key       string    `json:"key"`
+	State     string    `json:"state"`
+	Monitored bool      `json:"monitored"`
+	HasFile   bool      `json:"has_file"`
+	Source    string    `json:"source,omitempty"` // owning arr instance
+	CreatedAt time.Time `json:"created_at"`
+	UpdatedAt time.Time `json:"updated_at"`
+	Files     []File    `json:"files"`
+	Links     []Link    `json:"links"`
 	// The title page's additions (titlepage.go); empty on other routes.
 	Label     string         `json:"label,omitempty"`
 	Current   *CurrentFile   `json:"current,omitempty"`
@@ -316,17 +315,6 @@ type Version struct {
 	// acquisition does not search, because the library's anime rule does not fit the series (its anime flag, or its
 	// type anime; acquire's targets).
 	AnimeSkip bool `json:"anime_skip,omitempty"`
-}
-
-// ArrRec is how an arr instance holds the title for this version.
-type ArrRec struct {
-	Instance       string   `json:"instance"`
-	ArrID          int64    `json:"arr_id"`
-	Monitored      bool     `json:"monitored"`
-	QualityProfile string   `json:"quality_profile,omitempty"`
-	Status         string   `json:"status"`
-	Path           string   `json:"path"`
-	Tags           []string `json:"tags"`
 }
 
 // RegistryEntry is a content tied to a version of a title.
@@ -498,7 +486,7 @@ func (w *Web) versions(ctx context.Context, cond string, args []any, limit, offs
 			return err
 		}
 		v.CreatedAt, v.UpdatedAt = ts(c), ts(u)
-		v.Files, v.Links, v.ArrRecords = []File{}, []Link{}, []ArrRec{}
+		v.Files, v.Links = []File{}, []Link{}
 		idx[v.ID] = len(out)
 		ids = append(ids, v.ID)
 		out = append(out, v)
@@ -564,21 +552,7 @@ func (w *Web) versions(ctx context.Context, cond string, args []any, limit, offs
 	if err != nil {
 		return nil, err
 	}
-	err = scanAll(ctx, db, `SELECT a.version_id, a.instance, a.arr_id, a.monitored, COALESCE(p.name, ''), a.status,
-		a.path, a.tags FROM arr_title a LEFT JOIN arr_quality_profile p ON p.instance = a.instance AND p.arr_id = a.quality_profile_id
-		WHERE a.version_id IN (`+in+`) ORDER BY a.instance`, ids, func(r *sql.Rows) error {
-		var vid int64
-		var a ArrRec
-		var tags string
-		if err := r.Scan(&vid, &a.Instance, &a.ArrID, &a.Monitored, &a.QualityProfile, &a.Status, &a.Path, &tags); err != nil {
-			return err
-		}
-		a.Tags = jsonStrings(tags)
-		v := &out[idx[vid]]
-		v.ArrRecords = append(v.ArrRecords, a)
-		return nil
-	})
-	return out, err
+	return out, nil
 }
 
 // VersionFilter selects versions.
@@ -634,7 +608,6 @@ type Content struct {
 	Versions    []CVersion `json:"versions"`
 	ArrFiles    []ArrFile  `json:"arr_files"`
 	Links       []Link     `json:"links"`
-	History     []Event    `json:"history"`
 }
 
 // Provider is where a content is held.
@@ -674,17 +647,6 @@ type ArrFile struct {
 	Quality    string `json:"quality"`
 }
 
-// Event is an arr history event for a hash.
-type Event struct {
-	Instance    string    `json:"instance"`
-	EventType   string    `json:"event_type"`
-	Date        time.Time `json:"date"`
-	TitleID     *int64    `json:"title_id,omitempty"`
-	SourceTitle string    `json:"source_title"`
-	Quality     string    `json:"quality"`
-	Score       *int64    `json:"custom_format_score,omitempty"`
-}
-
 func normHash(h string) string { return strings.ToLower(strings.TrimSpace(h)) }
 
 func validHash(h string) bool {
@@ -703,7 +665,7 @@ func (w *Web) getContent(ctx context.Context, hash string) (*Content, error) {
 	hash = normHash(hash)
 	db := w.st.Reader()
 	c := &Content{Providers: []Provider{}, Files: []CFile{}, Versions: []CVersion{}, ArrFiles: []ArrFile{},
-		Links: []Link{}, History: []Event{}}
+		Links: []Link{}}
 	var mount sql.NullString
 	var size sql.NullInt64
 	var first, last int64
@@ -783,19 +745,7 @@ func (w *Web) getContent(ctx context.Context, hash string) (*Content, error) {
 			return nil, err
 		}
 	}
-	err = scanAll(ctx, db, `SELECT instance, event_type, date_at, title_id, source_title, quality, custom_format_score
-		FROM arr_history WHERE info_hash = ? ORDER BY date_at DESC LIMIT 200`, []any{hash}, func(r *sql.Rows) error {
-		var e Event
-		var d int64
-		var tid, score sql.NullInt64
-		if err := r.Scan(&e.Instance, &e.EventType, &d, &tid, &e.SourceTitle, &e.Quality, &score); err != nil {
-			return err
-		}
-		e.Date, e.TitleID, e.Score = ts(d), nullInt(tid), nullInt(score)
-		c.History = append(c.History, e)
-		return nil
-	})
-	return c, err
+	return c, nil
 }
 
 // ContentRow is a registry list row.
@@ -842,66 +792,6 @@ func (w *Web) listContent(ctx context.Context, q, state string, limit, offset in
 			return nil
 		})
 	return out, total, err
-}
-
-// ImportRun is one theatarr import-arr run.
-type ImportRun struct {
-	ID         int64           `json:"id"`
-	Instance   string          `json:"instance"`
-	StartedAt  time.Time       `json:"started_at"`
-	FinishedAt time.Time       `json:"finished_at"`
-	Summary    json.RawMessage `json:"summary"`
-}
-
-// Took is the run's duration.
-func (r ImportRun) Took() time.Duration { return r.FinishedAt.Sub(r.StartedAt) }
-
-func (w *Web) listImports(ctx context.Context, instance string, limit int) ([]ImportRun, error) {
-	if limit <= 0 || limit > 500 {
-		limit = 50
-	}
-	cond, args := "", []any{}
-	if instance != "" {
-		cond, args = " WHERE instance = ?", append(args, instance)
-	}
-	out := []ImportRun{}
-	err := scanAll(ctx, w.st.Reader(), `SELECT id, instance, started_at, finished_at, summary FROM import_run`+cond+`
-		ORDER BY started_at DESC, id DESC LIMIT ?`, append(args, limit), func(r *sql.Rows) error {
-		var run ImportRun
-		var s, f int64
-		var sum string
-		if err := r.Scan(&run.ID, &run.Instance, &s, &f, &sum); err != nil {
-			return err
-		}
-		run.StartedAt, run.FinishedAt = ts(s), ts(f)
-		if !json.Valid([]byte(sum)) {
-			sum = "{}"
-		}
-		run.Summary = json.RawMessage(sum)
-		out = append(out, run)
-		return nil
-	})
-	return out, err
-}
-
-func (w *Web) getImport(ctx context.Context, id int64) (*ImportRun, error) {
-	var run ImportRun
-	var s, f int64
-	var sum string
-	err := w.st.Reader().QueryRowContext(ctx, `SELECT id, instance, started_at, finished_at, summary FROM import_run
-		WHERE id = ?`, id).Scan(&run.ID, &run.Instance, &s, &f, &sum)
-	if errors.Is(err, sql.ErrNoRows) {
-		return nil, errNotFound
-	}
-	if err != nil {
-		return nil, err
-	}
-	run.StartedAt, run.FinishedAt = ts(s), ts(f)
-	if !json.Valid([]byte(sum)) {
-		sum = "{}"
-	}
-	run.Summary = json.RawMessage(sum)
-	return &run, nil
 }
 
 // Job is a queue entry. The payload is left out: handlers may put anything there. For a failed job, resolved_by,
@@ -1135,7 +1025,7 @@ func (w *Web) status(ctx context.Context) (Status, error) {
 	if err != nil {
 		return s, err
 	}
-	for _, t := range []string{"title", "version", "version_file", "content", "link", "import_run", "job"} {
+	for _, t := range []string{"title", "version", "version_file", "content", "link", "job"} {
 		var n int
 		if err := w.st.Reader().QueryRowContext(ctx, "SELECT COUNT(*) FROM "+t).Scan(&n); err != nil {
 			return s, fmt.Errorf("count %s: %w", t, err)

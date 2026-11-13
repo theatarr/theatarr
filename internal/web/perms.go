@@ -157,7 +157,7 @@ func redactRowFor(p Perms, r *TitleRow) {
 func redactVersion(v *Version) {
 	v.State = plainState(v.State)
 	v.Source = ""
-	v.Files, v.Links, v.ArrRecords = []File{}, []Link{}, []ArrRec{}
+	v.Files, v.Links = []File{}, []Link{}
 	v.Providers = nil
 	if c := v.Current; c != nil {
 		*c = CurrentFile{Quality: Resolution(c.Quality), Languages: c.Languages, Edition: c.Edition}

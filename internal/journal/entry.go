@@ -214,7 +214,7 @@ type Entry struct {
 	ID   string    `json:"id"`
 	At   time.Time `json:"at"`
 	Kind string    `json:"kind"`
-	// Source is who decided or acted: Theatarr, router, library, arr:<instance>, journal.
+	// Source is who decided or acted: Theatarr, router, library, journal.
 	Source  string   `json:"source"`
 	Title   TitleRef `json:"title"`
 	Version string   `json:"version,omitempty"`

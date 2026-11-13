@@ -160,10 +160,6 @@ func (e *env) seed() {
 		(1, 1, 'radarr_4k_debrid', 501, '/movies/Alpha (2020)/Alpha.mkv', 50000000000, 'Remux-2160p', '["English"]', 3200,
 		'Alpha.2020.2160p.BluRay.REMUX-GRP', 1),
 		(3, 2, 'radarr_4k_web', 502, '/movies/Beta (2021)/Beta.mkv', 9000000000, 'WEBDL-2160p', '[]', 1500, NULL, NULL)`)
-	e.exec(`INSERT INTO arr_history (instance, arr_id, event_type, date_at, title_id, info_hash, source_title, quality)
-		VALUES ('radarr_4k_debrid', 1, 'grabbed', ?, 1, ?, 'Alpha.2020.2160p.BluRay.REMUX-GRP', 'Remux-2160p')`, now-1000, hashA)
-	e.exec(`INSERT INTO import_run (instance, started_at, finished_at, summary) VALUES
-		('radarr_4k_debrid', ?, ?, '{"instance":"radarr_4k_debrid","titles":{"total":2}}')`, now-60000, now-30000)
 	e.exec(`INSERT INTO job (kind, state, run_at, created_at, updated_at) VALUES ('db.nightly', 'queued', ?, ?, ?),
 		('db.nightly', 'failed', ?, ?, ?)`, now+3600000, now, now, now, now, now)
 	e.exec(`UPDATE job SET last_error = 'disk full' WHERE state = 'failed'`)
@@ -507,7 +503,7 @@ func TestAPIOther(t *testing.T) {
 	if code := e.getKey(APIBase+"/registry/"+strings.ToUpper(hashA), key, &c); code != 200 {
 		t.Fatalf("registry: %d", code)
 	}
-	if len(c.Versions) != 1 || c.Versions[0].TitleName != "Alpha" || len(c.ArrFiles) != 1 || len(c.History) != 1 {
+	if len(c.Versions) != 1 || c.Versions[0].TitleName != "Alpha" || len(c.ArrFiles) != 1 {
 		t.Errorf("content: %+v", c)
 	}
 	if code := e.getKey(APIBase+"/registry/xyz", key, nil); code != 400 {
@@ -522,15 +518,6 @@ func TestAPIOther(t *testing.T) {
 	}
 	if code := e.getKey(APIBase+"/registry?q=aaaa", key, &rl); code != 200 || rl.Total != 1 || rl.Items[0].Versions != 1 {
 		t.Errorf("registry list: %d %+v", code, rl)
-	}
-
-	var il struct{ Items []ImportRun }
-	if code := e.getKey(APIBase+"/imports", key, &il); code != 200 || len(il.Items) != 1 || il.Items[0].Took() != 30*time.Second {
-		t.Errorf("imports: %d %+v", code, il)
-	}
-	var run ImportRun
-	if code := e.getKey(APIBase+"/imports/1", key, &run); code != 200 || !strings.Contains(string(run.Summary), "titles") {
-		t.Errorf("import 1: %d %+v", code, run)
 	}
 
 	var jl JobList

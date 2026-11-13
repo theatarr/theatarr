@@ -168,12 +168,12 @@ func TestVersionGrabStateAPI(t *testing.T) {
 func TestRedactVersionKeepsGrabState(t *testing.T) {
 	t.Parallel()
 	gs := VersionGrabState{Mode: "shadow"}
-	v := Version{Key: "tv-2160p", State: "wanted", Control: &VersionControl{GrabState: gs, Mode: "shadow", ManagedBy: "sonarr_4k", CanSearch: true}}
+	v := Version{Key: "tv-2160p", State: "wanted", Control: &VersionControl{GrabState: gs, Mode: "shadow", CanEdit: true, CanSearch: true}}
 	redactVersion(&v)
 	if v.Control == nil || v.Control.GrabState != gs {
 		t.Fatalf("control after redaction = %+v, want grab_state %+v kept", v.Control, gs)
 	}
-	if v.Control.ManagedBy != "" || v.Control.CanSearch {
+	if v.Control.CanEdit || v.Control.CanSearch {
 		t.Fatalf("redaction kept manager-only fields: %+v", v.Control)
 	}
 }

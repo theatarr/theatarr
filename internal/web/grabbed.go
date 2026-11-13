@@ -125,14 +125,6 @@ func grabWords(source string, run *runOrigin) string {
 	return source
 }
 
-// arrWords says an arr's own history event came from that arr instance: the old manager.
-func arrWords(instance string) string {
-	if instance == "" {
-		return "old manager"
-	}
-	return "old manager (" + instance + ")"
-}
-
 // runIDOf is the acquire run of an acquire:<run> source, 0 for any other.
 func runIDOf(source string) int64 {
 	s, ok := strings.CutPrefix(source, "acquire:")

@@ -265,36 +265,21 @@ func TestSnapshotCandidates(t *testing.T) {
 	}
 }
 
-// arrGrab inserts one arr history event (one row per episode for series).
-func (e *env) arrEvent(instance string, id int64, event string, at time.Time, title, version int64, dl, release,
-	quality string, score int, size int64, eps []int64, data map[string]string) {
-	if data == nil {
-		data = map[string]string{}
+// dlEvent inserts one download of ours: added (a grab), imported, or failed with errText.
+func (e *env) dlEvent(id int64, state string, at time.Time, title, version int64, key, hash, release, quality string,
+	score int, size int64, eps []int64, errText string) {
+	if eps == nil {
+		eps = []int64{}
 	}
-	if size > 0 {
-		data["size"] = fmt.Sprint(size)
+	ej, _ := json.Marshal(eps)
+	var imported any
+	if state == "imported" {
+		imported = msOf(at.Add(time.Hour))
 	}
-	dj, _ := json.Marshal(data)
-	if len(eps) == 0 {
-		eps = []int64{0}
-	}
-	for i, ep := range eps {
-		var arrEp any
-		arrTitle := title
-		if ep != 0 {
-			arrEp = ep
-			e.exec(`INSERT OR IGNORE INTO arr_alias (instance, kind, arr_id, target_id, created_at) VALUES (?, 'episode',
-				?, ?, 0)`, instance, ep, ep)
-		}
-		var hash any
-		if dl != "" {
-			hash = strings.ToLower(dl)
-		}
-		e.exec(`INSERT INTO arr_history (instance, arr_id, event_type, date_at, arr_title_id, arr_episode_id, title_id,
-			version_id, download_id, info_hash, protocol, source_title, quality, custom_format_score, languages, data)
-			VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'torrent', ?, ?, ?, '["English"]', ?)`, instance, id+int64(i), event,
-			msOf(at), arrTitle, arrEp, title, version, nullStr(dl), hash, release, quality, score, string(dj))
-	}
+	e.exec(`INSERT INTO download (id, title_id, version_id, version_key, info_hash, release_title, indexer, quality, score,
+		size_bytes, episodes, state, error, source, created_at, updated_at, added_at, imported_at)
+		VALUES (?, ?, ?, ?, ?, ?, 'dmm', ?, ?, ?, ?, ?, ?, 'rss', ?, ?, ?, ?)`, id, title, version, key, hash, release,
+		quality, score, size, string(ej), state, nullStr(errText), msOf(at), msOf(at), msOf(at), imported)
 }
 
 func nullStr(s string) any {
@@ -304,36 +289,32 @@ func nullStr(s string) any {
 	return s
 }
 
-func TestArrChecks(t *testing.T) {
+func TestDownloadChecks(t *testing.T) {
 	e := newEnv(t)
 	base := testNow.Add(-40 * 24 * time.Hour)
 	// 20 ordinary WEBDL-2160p grabs of Beta (~170 MB/min over 120 min) make the size median.
 	for i := range 20 {
-		e.arrEvent("radarr_4k_debrid", int64(1000+i), "grabbed", base.Add(time.Duration(i)*time.Hour), 2, 4,
-			fmt.Sprintf("%040d", i), "Beta.Story.2021.2160p.WEB-DL-G", "WEBDL-2160p", 1000, 20<<30, nil, nil)
+		e.dlEvent(int64(1000+i), "imported", base.Add(time.Duration(i)*time.Hour), 2, 4, "movie-remux",
+			fmt.Sprintf("%040d", i), "Beta.Story.2021.2160p.WEB-DL-G", "WEBDL-2160p", 1000, 20<<30, nil, "")
 	}
 	// Alpha: imported Remux at 8550, then an "upgrade" to a 1 GB WEBDL named for another movie and year.
-	e.arrEvent("radarr_4k_debrid", 1, "grabbed", base.Add(-48*time.Hour), 1, 1, hashC, "Alpha.2020.Remux-2160p-GRP",
-		"Remux-2160p", 8550, 60<<30, nil, map[string]string{"releaseSource": "Search"})
-	e.arrEvent("radarr_4k_debrid", 2, "downloadFolderImported", base.Add(-47*time.Hour), 1, 1, hashC,
-		"Alpha.2020.Remux-2160p-GRP", "Remux-2160p", 8550, 0, nil, nil)
-	e.arrEvent("radarr_4k_debrid", 3, "grabbed", base.Add(24*time.Hour), 1, 1, hashA,
-		"Totally.Different.Film.2011.2160p.WEB-DL.ITA-X", "WEBDL-2160p", 200, 1<<30, nil,
-		map[string]string{"releaseSource": "Rss", "movieMatchType": "Id"})
-	e.exec(`UPDATE arr_history SET languages = '["Italian"]' WHERE arr_id = 3`)
+	e.dlEvent(1, "imported", base.Add(-48*time.Hour), 1, 1, "movie-remux", hashC, "Alpha.2020.Remux-2160p-GRP",
+		"Remux-2160p", 8550, 60<<30, nil, "")
+	e.dlEvent(3, "added", base.Add(24*time.Hour), 1, 1, "movie-remux", hashA,
+		"Totally.Different.Film.2011.2160p.WEB-DL.ITA-X", "WEBDL-2160p", 200, 1<<30, nil, "")
 	// Gamma: a season 5 pack (the series has 2 seasons) filed under season 1 episodes; then failures.
-	e.arrEvent("sonarr_4k_debrid", 50, "grabbed", base.Add(30*time.Hour), 3, 3, hashB, "Gamma.S05.2160p.WEB-DL-X",
-		"WEBDL-2160p", 100, 40<<30, []int64{101, 102}, nil)
+	e.dlEvent(50, "added", base.Add(30*time.Hour), 3, 3, "tv-2160p", hashB, "Gamma.S05.2160p.WEB-DL-X",
+		"WEBDL-2160p", 100, 40<<30, []int64{101, 102}, "")
 	for i := range 4 {
-		e.arrEvent("sonarr_4k_debrid", int64(60+i), "downloadFailed", base.Add(time.Duration(31+i)*time.Hour), 3, 3,
-			fmt.Sprintf("dl%d", i), "Gamma.S01E01.2160p", "WEBDL-2160p", 0, 0, []int64{101},
-			map[string]string{"message": "see https://tracker.example/announce?passkey=SECRETKEY5"})
+		e.dlEvent(int64(60+i), "failed", base.Add(time.Duration(31+i)*time.Hour), 3, 3, "tv-2160p",
+			fmt.Sprintf("%040d", 60+i), "Gamma.S01E01.2160p", "WEBDL-2160p", 0, 0, []int64{101},
+			"see https://tracker.example/announce?passkey=SECRETKEY5")
 	}
-	up := e.get("arr:radarr_4k_debrid:3")
-	if up.Kind != KindUpgrade || up.Source != "arr:radarr_4k_debrid" {
+	up := e.get("dl:3")
+	if up.Kind != KindUpgrade || up.Source != "theatarr" {
 		t.Fatalf("upgrade: %+v", up)
 	}
-	for _, code := range []string{CheckTitle, CheckYear, CheckSize, CheckLanguage, CheckLowerScore, CheckLowerQual} {
+	for _, code := range []string{CheckTitle, CheckYear, CheckSize, CheckLowerScore, CheckLowerQual} {
 		if code == CheckLowerScore {
 			continue // the lower quality flag wins
 		}
@@ -347,18 +328,18 @@ func TestArrChecks(t *testing.T) {
 	if !up.Suspect || up.Severity != SevError {
 		t.Errorf("suspect: %v %s", up.Suspect, up.Severity)
 	}
-	pack := e.get("arr:sonarr_4k_debrid:50")
+	pack := e.get("dl:50")
 	if f := hasFlag(pack, CheckEpisodes); f == nil || f.Severity != SevError || len(pack.Release.Episodes) != 2 {
 		t.Errorf("pack: %+v %+v", pack.Flags, pack.Release)
 	}
 	// Only the latest failure of the run is flagged.
-	if f := hasFlag(e.get("arr:sonarr_4k_debrid:63"), CheckFailures); f == nil || f.Severity != SevWarn {
+	if f := hasFlag(e.get("dl:63:fail"), CheckFailures); f == nil || f.Severity != SevWarn {
 		t.Errorf("latest failure: %+v", f)
 	}
-	if f := hasFlag(e.get("arr:sonarr_4k_debrid:62"), CheckFailures); f != nil {
+	if f := hasFlag(e.get("dl:62:fail"), CheckFailures); f != nil {
 		t.Errorf("earlier failure flagged: %+v", f)
 	}
-	fail := e.get("arr:sonarr_4k_debrid:63")
+	fail := e.get("dl:63:fail")
 	if b, _ := json.Marshal(fail); strings.Contains(string(b), "SECRETKEY") || strings.Contains(string(b), "passkey") {
 		t.Errorf("failure leaks: %s", b)
 	}
@@ -371,7 +352,7 @@ func TestArrChecks(t *testing.T) {
 			t.Errorf("not suspect: %s", it.ID)
 		}
 	}
-	if !ids["arr:radarr_4k_debrid:3"] || !ids["arr:sonarr_4k_debrid:50"] || !ids["arr:sonarr_4k_debrid:63"] || len(ids) != 3 {
+	if !ids["dl:3"] || !ids["dl:50"] || !ids["dl:63:fail"] || len(ids) != 3 {
 		t.Errorf("suspects: %v", ids)
 	}
 	if p := e.list(Filter{Severity: SevError, Limit: 500}); len(p.Items) != 2 {
@@ -380,10 +361,10 @@ func TestArrChecks(t *testing.T) {
 	if p := e.list(Filter{Kinds: []string{KindFailure}, Title: "gam"}); len(p.Items) != 4 {
 		t.Errorf("failures of Gamma: %d", len(p.Items))
 	}
-	if p := e.list(Filter{Version: "tv-2160p", Since: base.Add(33 * time.Hour)}); len(p.Items) != 2 {
+	if p := e.list(Filter{Version: "tv-2160p", Since: base.Add(33 * time.Hour)}); len(p.Items) != 4 {
 		t.Errorf("since: %d", len(p.Items))
 	}
-	if p := e.list(Filter{Title: "1"}); len(p.Items) != 3 {
+	if p := e.list(Filter{Title: "1"}); len(p.Items) != 2 {
 		t.Errorf("title id: %d", len(p.Items))
 	}
 	// Cursor: pages of 3 cover everything once, newest first.
@@ -417,7 +398,7 @@ func TestArrChecks(t *testing.T) {
 	if _, err := e.j.List(context.Background(), Filter{Kinds: []string{"nope"}}); err == nil {
 		t.Error("bad kind accepted")
 	}
-	if _, err := e.j.Get(context.Background(), "arr:nope:1"); err != ErrNotFound {
+	if _, err := e.j.Get(context.Background(), "dl:999"); err != ErrNotFound {
 		t.Errorf("missing: %v", err)
 	}
 }
@@ -427,20 +408,20 @@ func TestVerdicts(t *testing.T) {
 	e.seedRoute()
 	ctx := context.Background()
 	// Shadow mode: recorded only, and the flags are acknowledged.
-	e.arrEvent("radarr_4k_debrid", 3, "grabbed", testNow.Add(-time.Hour), 1, 1, hashC, "Other.Film.1999.2160p.WEB-DL-X",
-		"WEBDL-2160p", 100, 0, nil, nil)
-	before := e.get("arr:radarr_4k_debrid:3")
+	e.dlEvent(3, "added", testNow.Add(-time.Hour), 1, 1, "movie-remux", hashC, "Other.Film.1999.2160p.WEB-DL-X",
+		"WEBDL-2160p", 100, 0, nil, "")
+	before := e.get("dl:3")
 	if !before.Suspect {
 		t.Fatalf("not suspect: %+v", before.Flags)
 	}
-	v, err := e.j.Judge(ctx, "arr:radarr_4k_debrid:3", VerdictRequest{Verdict: "wrong", Reason: "another film"}, "admin")
+	v, err := e.j.Judge(ctx, "dl:3", VerdictRequest{Verdict: "wrong", Reason: "another film"}, "admin")
 	if err != nil {
 		t.Fatal(err)
 	}
 	if v.Action != ActionRecorded || !strings.Contains(v.Note, "Watch only") || v.ResearchJob != 0 {
 		t.Errorf("shadow verdict: %+v", v)
 	}
-	after := e.get("arr:radarr_4k_debrid:3")
+	after := e.get("dl:3")
 	if after.Suspect || after.Verdict == nil || after.Verdict.Verdict != "wrong" || !after.Flags[0].Acked {
 		t.Errorf("after: %+v", after)
 	}
@@ -450,7 +431,7 @@ func TestVerdicts(t *testing.T) {
 		t.Errorf("shadow verdict blocklisted")
 	}
 	// The verdict is an entry too.
-	if ve := e.get("v:1"); ve.Kind != KindVerdict || ve.Judged != "arr:radarr_4k_debrid:3" {
+	if ve := e.get("v:1"); ve.Kind != KindVerdict || ve.Judged != "dl:3" {
 		t.Errorf("verdict entry: %+v", ve)
 	}
 	if _, err := e.j.Judge(ctx, "v:1", VerdictRequest{Verdict: "ok", Reason: "x"}, "admin"); err == nil {

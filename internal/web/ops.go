@@ -698,8 +698,6 @@ type RemovalCopy struct {
 	// whose records end (the provider's copies are left alone).
 	Links     int `json:"links"`
 	Downloads int `json:"downloads"`
-	// ManagedBy is the arr instance that still owns the copy; such a copy cannot be removed here.
-	ManagedBy string `json:"managed_by,omitempty"`
 }
 
 // RemovalScope is what removing copies (or the whole title) would do: GET /titles/{id}/removal?versions=.
@@ -724,21 +722,19 @@ func (w *Web) removalScope(ctx context.Context, titleID int64, keys []string) (*
 	out := &RemovalScope{TitleID: titleID, Name: t.name, Copies: []RemovalCopy{}, Leftover: []RemovalCopy{}}
 	var all []string
 	var named []copyName
-	err = scanAll(ctx, w.st.Reader(), `SELECT v.policy_key, COALESCE(vs.instance, ''),
+	err = scanAll(ctx, w.st.Reader(), `SELECT v.policy_key,
 		(SELECT COUNT(*) FROM link l JOIN link_version lv ON lv.link_id = l.id WHERE lv.version_id = v.id
 			AND l.state = 'active' AND l.kind = 'symlink'),
 		(SELECT COUNT(*) FROM download d WHERE d.version_id = v.id AND d.state NOT IN ('failed', 'imported'))
-		FROM version v LEFT JOIN version_source vs ON vs.version_id = v.id WHERE v.title_id = ?
+		FROM version v WHERE v.title_id = ?
 		AND NOT EXISTS (SELECT 1 FROM arrview_removed_version r WHERE r.version_id = v.id) ORDER BY v.policy_key`,
 		[]any{titleID}, func(r *sql.Rows) error {
 			var c RemovalCopy
-			var inst string
-			if err := r.Scan(&c.Key, &inst, &c.Links, &c.Downloads); err != nil {
+			if err := r.Scan(&c.Key, &c.Links, &c.Downloads); err != nil {
 				return err
 			}
 			all = append(all, c.Key)
-			c.ManagedBy = w.managedBy(inst)
-			named = append(named, copyName{key: c.Key, label: w.versionLabel(c.Key), owner: ownerOf(c.ManagedBy)})
+			named = append(named, copyName{key: c.Key, label: w.versionLabel(c.Key)})
 			if len(keys) > 0 && !slices.Contains(keys, c.Key) {
 				return nil
 			}
@@ -754,22 +750,19 @@ func (w *Web) removalScope(ctx context.Context, titleID int64, keys []string) (*
 		out.Copies[i].Label = labels[out.Copies[i].Key]
 	}
 	var hidden []string
-	err = scanAll(ctx, w.st.Reader(), `SELECT v.policy_key, COALESCE(vs.instance, ''), COUNT(DISTINCT l.id)
+	err = scanAll(ctx, w.st.Reader(), `SELECT v.policy_key, COUNT(DISTINCT l.id)
 		FROM version v JOIN arrview_removed_version r ON r.version_id = v.id
-		LEFT JOIN version_source vs ON vs.version_id = v.id
 		JOIN link_version lv ON lv.version_id = v.id JOIN link l ON l.id = lv.link_id
 		WHERE v.title_id = ? AND l.state = 'active' AND l.kind = 'symlink'
 		GROUP BY v.id ORDER BY v.policy_key`, []any{titleID}, func(r *sql.Rows) error {
 		var c RemovalCopy
-		var inst string
-		if err := r.Scan(&c.Key, &inst, &c.Links); err != nil {
+		if err := r.Scan(&c.Key, &c.Links); err != nil {
 			return err
 		}
 		hidden = append(hidden, c.Key)
 		if len(keys) > 0 && !slices.Contains(keys, c.Key) {
 			return nil
 		}
-		c.ManagedBy = w.managedBy(inst)
 		c.Label = w.versionLabel(c.Key)
 		out.Leftover = append(out.Leftover, c)
 		return nil
@@ -850,9 +843,9 @@ type RemoveResult struct {
 // library, as the arr views' DELETE movie|series does (catalog.Remove): each copy is unmonitored and hidden from
 // every view, its rows and history stay, and adding it again restores it. Its downloads in hand end in Theatarr's records
 // (never at the provider). With unlink, its library symlinks move to the trash through the library's gate (a link
-// the gate refuses stays, with the reason); without, the files stay in the library. A copy an arr still owns is
-// refused (409). A link whose move fails otherwise stays too (Failed): the copies are hidden by then, and a removal
-// with unlink of the same scope moves what is left (RemovalScope.Leftover).
+// the gate refuses stays, with the reason); without, the files stay in the library. A link whose move fails
+// otherwise stays too (Failed): the copies are hidden by then, and a removal with unlink of the same scope moves what
+// is left (RemovalScope.Leftover).
 func (w *Web) apiRemove(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	id, ok := pathID(r)
@@ -889,19 +882,11 @@ func (w *Web) apiRemove(rw http.ResponseWriter, r *http.Request) {
 	}
 	var keys, unlinkKeys []string
 	for _, c := range scope.Copies {
-		if c.ManagedBy != "" {
-			writeJSON(rw, http.StatusConflict, apiError{Error: c.Label + ": " + managedReason(c.ManagedBy)})
-			return
-		}
 		keys = append(keys, c.Key)
 	}
 	unlinkKeys = append(unlinkKeys, keys...)
 	if req.Unlink {
 		for _, c := range scope.Leftover {
-			if c.ManagedBy != "" {
-				writeJSON(rw, http.StatusConflict, apiError{Error: c.Label + ": " + managedReason(c.ManagedBy)})
-				return
-			}
 			unlinkKeys = append(unlinkKeys, c.Key)
 		}
 	}

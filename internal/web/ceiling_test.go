@@ -12,6 +12,7 @@ import (
 
 	"github.com/theatarr/theatarr/internal/auth"
 	"github.com/theatarr/theatarr/internal/ceiling"
+	"github.com/theatarr/theatarr/internal/policy"
 )
 
 func TestCeilingAPI(t *testing.T) {
@@ -83,11 +84,12 @@ func TestCeilingAPI(t *testing.T) {
 
 func TestSeasonCeilingAndRedaction(t *testing.T) {
 	t.Parallel()
-	e := newManageEnv(t, nil)
-	// Preserve the owning arr profile's groups and order, without fetching it again.
-	e.exec(`UPDATE arr_quality_profile SET quality_items='[
- {"id":0,"quality":{"id":3,"name":"WEBDL-1080p"},"allowed":true,"items":[]},
- {"id":0,"quality":{"id":21,"name":"Bluray-2160p Remux"},"allowed":true,"items":[]} ]' WHERE instance='sonarr_4k_debrid'`)
+	// The library's profile also allows WEB 1080p, so a web_1080 ceiling has an effective cutoff.
+	e := newManageEnv(t, func(p *policy.Policy) {
+		pr := *p.Profiles["tv-2160p"]
+		pr.Qualities = append(append([]policy.QualityItem(nil), pr.Qualities...), policy.QualityItem{Name: "WEBDL-1080p"})
+		p.Profiles["tv-2160p"] = &pr
+	})
 	e.exec(`DELETE FROM journal_decision WHERE title_id=10 AND target='rss'`)
 	e.call("PUT", APIBase+"/titles/10/ceiling", map[string]any{"tier": "web_1080", "season": 1, "note": "season one only"}, 200, nil)
 	var list EpisodeList

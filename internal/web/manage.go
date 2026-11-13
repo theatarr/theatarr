@@ -27,10 +27,7 @@ import (
 // monitoring, whether a search would run), season and episode monitoring, season and episode search, the episode
 // detail, and episode-scoped releases.
 //
-// Shadow ownership. A version an arr instance owns (version_source) while that instance is still imported
-// (policy import.arr) has its monitoring and files rewritten from the arr every 15 minutes (arr.import), so Theatarr's
-// controls show the arr's state read-only: every monitor write here refuses such a version ("Managed by <instance>
-// until cutover"). Searches follow the existing rule (catalog.Searchable: mode active and router.enabled), and
+// Every copy's monitoring may be changed here. Searches follow the existing rule (catalog.Searchable: mode active and router.enabled), and
 // releases answer from what is stored unless the version is active, so a Watch-only version gets no writes and no
 // indexer traffic from these controls.
 
@@ -55,8 +52,6 @@ type VersionControl struct {
 	GrabState VersionGrabState `json:"grab_state"`
 	// Mode is the version's policy mode: shadow or active.
 	Mode string `json:"mode"`
-	// ManagedBy is the arr instance that owns the version's monitoring and files until cutover; empty when Theatarr does.
-	ManagedBy string `json:"managed_by,omitempty"`
 	// CanEdit: monitoring may be changed here; EditReason says why not.
 	CanEdit    bool   `json:"can_edit"`
 	EditReason string `json:"edit_reason,omitempty"`
@@ -71,43 +66,19 @@ func redactControl(c *VersionControl) {
 	if c == nil {
 		return
 	}
-	c.ManagedBy = ""
 	c.CanEdit, c.CanSearch, c.LiveReleases = false, false, false
 	c.EditReason, c.SearchReason = noManage, noManage
 }
 
 const noManage = "Your account may not change this"
 
-// managedBy is the instance that owns the version while it is still imported, or "" (policy.ManagedBy).
-func (w *Web) managedBy(instance string) string {
-	return w.pol.ManagedBy(instance)
-}
-
-// versionManagedBy is managedBy for a title's version by key ("" when the title lacks it).
-func (w *Web) versionManagedBy(ctx context.Context, titleID int64, key string) (string, error) {
-	var inst string
-	err := w.st.Reader().QueryRowContext(ctx, `SELECT vs.instance FROM version v JOIN version_source vs
-		ON vs.version_id = v.id WHERE v.title_id = ? AND v.policy_key = ?`, titleID, key).Scan(&inst)
-	if errors.Is(err, sql.ErrNoRows) {
-		return "", nil
-	}
-	return w.managedBy(inst), err
-}
-
-func managedReason(instance string) string {
-	return policy.ManagedReason(instance)
-}
-
-// control builds a version's controls; source is the owning arr instance ("" when none).
-func (w *Web) control(key, source string) *VersionControl {
+// control builds a version's controls.
+func (w *Web) control(key string) *VersionControl {
 	c := &VersionControl{GrabState: versionGrabState(w.pol, key), Mode: string(policy.ModeShadow), CanEdit: true}
 	if w.pol != nil {
 		if vp := w.pol.Versions[key]; vp != nil && vp.Mode != "" {
 			c.Mode = string(vp.Mode)
 		}
-	}
-	if m := w.managedBy(source); m != "" {
-		c.ManagedBy, c.CanEdit, c.EditReason = m, false, managedReason(m)
 	}
 	c.SearchReason = w.searchBlock(key)
 	c.CanSearch = c.SearchReason == ""
@@ -250,7 +221,7 @@ func (w *Web) enrichManage(ctx context.Context, db *sql.DB, d *TitleDetail) erro
 	for i := range d.Versions {
 		v := &d.Versions[i]
 		v.Upgrade = s.explain(vs[i], 0)
-		v.Control = w.control(v.Key, v.Source)
+		v.Control = w.control(v.Key)
 		if c := v.Current; c != nil && c.Files == 1 && d.Kind == "movie" {
 			// The version's newest active link first; the arr's file only when the version has none.
 			var pr, am sql.NullString
@@ -285,14 +256,6 @@ func (w *Web) enrichEpisodes(ctx context.Context, db *sql.DB, out *EpisodeList, 
 	if len(out.Versions) == 0 {
 		return nil
 	}
-	mvs, err := w.titleVersions(ctx, out.TitleID)
-	if err != nil {
-		return err
-	}
-	source := map[int64]string{}
-	for _, v := range mvs {
-		source[v.id] = v.source
-	}
 	vs := make([]upgradeVersion, len(out.Versions))
 	for i, v := range out.Versions {
 		vs[i] = upgradeVersion{id: v.ID, titleID: out.TitleID, key: v.Key, kind: "series"}
@@ -304,7 +267,7 @@ func (w *Web) enrichEpisodes(ctx context.Context, db *sql.DB, out *EpisodeList, 
 	seen := map[string]map[int64]bool{}
 	for i := range out.Versions {
 		v := &out.Versions[i]
-		v.Control = w.control(v.Key, source[v.ID])
+		v.Control = w.control(v.Key)
 		v.Cutoff = s.cutoffs[v.ID]
 		seen[v.Key] = s.episodeSeen(vs[i])
 		if !seeFiles {
@@ -606,10 +569,6 @@ func (w *Web) monitor(rw http.ResponseWriter, r *http.Request, season *int) {
 	}
 	out := ManageOutcome{Versions: []string{}, Skipped: []catalog.Skip{}}
 	for _, v := range picked {
-		if m := w.managedBy(v.source); m != "" {
-			out.Skipped = append(out.Skipped, catalog.Skip{Version: v.key, Reason: managedReason(m)})
-			continue
-		}
 		out.Versions = append(out.Versions, v.key)
 	}
 	if len(out.Versions) == 0 {
@@ -875,19 +834,16 @@ func (w *Web) apiEpisode(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 	code := episodeCode(int64(season), out.Episode.Number)
-	// Named apart among the title's copies as the title page names them; ownership only for callers who see it.
+	// Named apart among the title's copies as the title page names them.
 	named := make([]copyName, len(mvs))
 	for i, v := range mvs {
 		named[i] = copyName{key: v.key, label: w.versionLabel(v.key)}
-		if seeFiles {
-			named[i].owner = ownerOf(w.managedBy(v.source))
-		}
 	}
 	labels := distinctLabels(named)
 	for i, v := range mvs {
 		c := out.Episode.Versions[v.key]
 		d := EpisodeVersionDetail{Key: v.key, Label: labels[v.key], State: c.State, Monitored: c.Monitored,
-			HasFile: c.HasFile, Upgrade: us.explain(vs[i], eid), Control: w.control(v.key, v.source),
+			HasFile: c.HasFile, Upgrade: us.explain(vs[i], eid), Control: w.control(v.key),
 			History: []HistoryEvent{}}
 		if d.State == "" {
 			d.State = "wanted"
@@ -1002,36 +958,10 @@ func (w *Web) episodeFile(ctx context.Context, db *sql.DB, versionID, eid int64)
 	return &f, err
 }
 
-// episodeHistory is one episode's history in a version: the arr's events for it, then Theatarr's downloads that held it,
-// newest first, at most historyLimit.
+// episodeHistory is one episode's history in a version: Theatarr's downloads that held it, newest first, at most
+// historyLimit.
 func (w *Web) episodeHistory(ctx context.Context, db *sql.DB, titleID, versionID, eid int64) ([]HistoryEvent, error) {
 	out := []HistoryEvent{}
-	err := scanAll(ctx, db, `SELECT h.event_type, h.date_at, h.quality, h.instance, h.source_title, h.custom_format_score,
-		COALESCE(h.info_hash, '') FROM arr_history h JOIN arr_alias a ON a.instance = h.instance AND a.kind = 'episode'
-		AND a.arr_id = h.arr_episode_id WHERE h.title_id = ? AND h.version_id = ? AND a.target_id = ?`,
-		[]any{titleID, versionID, eid}, func(r *sql.Rows) error {
-			var typ string
-			var at int64
-			var score sql.NullInt64
-			var h HistoryEvent
-			if err := r.Scan(&typ, &at, &h.Quality, &h.Source, &h.ReleaseTitle, &score, &h.InfoHash); err != nil {
-				return err
-			}
-			ev, ok := arrEvents[typ]
-			if !ok {
-				return nil
-			}
-			if ev == "renamed" || ev == "deleted" {
-				// Their source title is a path, not a release.
-				h.ReleaseTitle = ""
-			}
-			h.Event, h.Date, h.Score, h.Trigger = ev, ts(at), nullInt(score), arrWords(h.Source)
-			out = append(out, h)
-			return nil
-		})
-	if err != nil {
-		return nil, err
-	}
 	origins, err := runOrigins(ctx, db, titleID)
 	if err != nil {
 		return nil, err

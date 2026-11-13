@@ -104,17 +104,13 @@ func newManageEnv(t *testing.T, mutate func(*policy.Policy)) *manageEnv {
 	return m
 }
 
-// seedManage: The Show's tv-2160p is owned by sonarr_4k_debrid (an import.arr instance in the example policy) with
-// its "4k Preferred" profile; S01E01 and S01E02 have files below the cutoff; an RSS read upgrades S01E01.
+// seedManage: The Show's tv-2160p is imported from sonarr_4k_debrid (an import.arr instance in the example policy);
+// S01E01 and S01E02 have files below the cutoff; an RSS read upgrades S01E01.
 // Alpha's movie-remux has a file below the cutoff, and a search after it found an upgrade.
 func (e *manageEnv) seedManage() {
 	e.exec(`INSERT INTO arr_instance (name, flavour, policy_key, created_at, updated_at) VALUES
 		('sonarr_4k_debrid', 'sonarr', 'tv-2160p', 0, 0)`)
 	e.exec(`INSERT INTO version_source (version_id, instance, arr_id) VALUES (10, 'sonarr_4k_debrid', 77)`)
-	e.exec(`INSERT INTO arr_title (instance, arr_id, kind, title_id, version_id, monitored, quality_profile_id) VALUES
-		('sonarr_4k_debrid', 77, 'series', 10, 10, 1, 7)`)
-	e.exec(`INSERT INTO arr_quality_profile (instance, arr_id, name, cutoff, upgrade_allowed, min_format_score,
-		cutoff_format_score) VALUES ('sonarr_4k_debrid', 7, '4k Preferred', 'Bluray-2160p Remux', 1, 0, 10000)`)
 	e.exec(`UPDATE episode SET air_date = '2020-01-01'`)
 	airAtMidnight(e.exec)
 	e.exec(`UPDATE episode_version_state SET state = 'filled' WHERE episode_id IN (101, 102)`)
@@ -125,11 +121,6 @@ func (e *manageEnv) seedManage() {
 		(901, 10, 10, 'sonarr_4k_debrid', 2, '/tv/Show/S01E02.mkv', 2000000000, 'WEBDL-1080p', 1700, 1000,
 		 'The.Show.S01E02.1080p.WEB-DL-GRP', 'GRP', '{}')`)
 	e.exec(`INSERT INTO version_file_episode (version_file_id, episode_id) VALUES (900, 101), (901, 102)`)
-	e.exec(`INSERT INTO arr_alias (instance, kind, arr_id, target_id, created_at) VALUES ('sonarr_4k_debrid', 'episode', 5001, 101, 0)`)
-	e.exec(`INSERT INTO arr_history (instance, arr_id, event_type, date_at, arr_episode_id, title_id, version_id,
-		source_title, quality, custom_format_score) VALUES
-		('sonarr_4k_debrid', 1, 'grabbed', 900, 5001, 10, 10, 'The.Show.S01E01.1080p.WEB-DL-GRP', 'WEBDL-1080p', 1700),
-		('sonarr_4k_debrid', 2, 'downloadFolderImported', 1000, 5001, 10, 10, 'The.Show.S01E01.1080p.WEB-DL-GRP', 'WEBDL-1080p', 1700)`)
 	e.exec(`INSERT INTO journal_decision (source, title_id, version_key, target, results, accepted, candidates,
 		created_at) VALUES ('rss', 10, 'tv-2160p', 'rss', 1, 1,
 		'[{"release":"The.Show.S01E01.2160p.WEB-DL-BETTER","indexer":"dmm","accepted":true,"upgrade":true,
@@ -193,8 +184,8 @@ func TestUpgradeEvidence(t *testing.T) {
 		t.Fatalf("series upgrade: %+v next %+v", u, u.Next)
 	}
 	if c := u.Cutoff; c == nil || c.Quality != "Bluray-2160p Remux" || c.Score == nil || *c.Score != 10000 ||
-		c.From != "sonarr_4k_debrid" || c.Profile != "4k Preferred" {
-		t.Fatalf("cutoff from the owning arr's profile: %+v", u.Cutoff)
+		c.From != "policy" || c.Profile != "tv-2160p" {
+		t.Fatalf("cutoff from the library's profile: %+v", u.Cutoff)
 	}
 	var m TitleDetail
 	e.call("GET", APIBase+"/titles/1", nil, 200, &m)
@@ -225,7 +216,7 @@ func TestUpgradeEvidence(t *testing.T) {
 		t.Errorf("season 1: %+v", s1)
 	}
 	if v := l.Versions[0]; v.Cutoff == nil || v.Cutoff.Quality != "Bluray-2160p Remux" || v.Control == nil ||
-		v.Control.ManagedBy != "sonarr_4k_debrid" {
+		!v.Control.CanEdit {
 		t.Errorf("episode list version: %+v", v)
 	}
 
@@ -233,7 +224,7 @@ func TestUpgradeEvidence(t *testing.T) {
 	e.call("GET", APIBase+"/titles/10/episodes/101", nil, 200, &ep)
 	ev := ep.Versions[0]
 	if ev.Upgrade.State != "upgrade_available" || ev.File == nil || ev.File.ReleaseTitle != "The.Show.S01E01.1080p.WEB-DL-GRP" ||
-		ev.File.Media == nil || ev.File.Media.VideoCodec != "x265" || len(ev.History) != 2 || ev.History[0].Event != "imported" {
+		ev.File.Media == nil || ev.File.Media.VideoCodec != "x265" || len(ev.History) != 0 {
 		t.Fatalf("episode 101: %+v file %+v history %+v", ev.Upgrade, ev.File, ev.History)
 	}
 	ep = EpisodeDetail{}
@@ -268,27 +259,17 @@ func TestUpgradeEvidence(t *testing.T) {
 	}
 }
 
-// shadow versions get no writes and no searches from these controls.
+// shadow versions get no searches from these controls; their monitoring is editable, even when an arr imports them.
 func TestManageShadowNoWrites(t *testing.T) {
 	t.Parallel()
 	e := newManageEnv(t, nil)
 	before := e.state()
 	var d TitleDetail
 	e.call("GET", APIBase+"/titles/10", nil, 200, &d)
-	if c := d.Versions[0].Control; c == nil || c.ManagedBy != "sonarr_4k_debrid" || c.CanEdit || c.CanSearch ||
-		!strings.Contains(c.EditReason, "Managed by sonarr_4k_debrid until cutover") || !strings.Contains(c.SearchReason, "Watch only") {
+	if c := d.Versions[0].Control; c == nil || !c.CanEdit || c.CanSearch || c.EditReason != "" ||
+		!strings.Contains(c.SearchReason, "Watch only") {
 		t.Fatalf("control: %+v", d.Versions[0].Control)
 	}
-	off := false
-	var out ManageOutcome
-	e.call("PUT", APIBase+"/titles/10/seasons/1/monitor", map[string]any{"monitored": off}, 409, &out)
-	if len(out.Skipped) != 1 || !strings.Contains(out.Message, "Managed by sonarr_4k_debrid") {
-		t.Errorf("season monitor: %+v", out)
-	}
-	e.call("PUT", APIBase+"/titles/10/episodes/monitor", map[string]any{"monitored": off, "episode_ids": []int64{101}}, 409, nil)
-	e.call("PUT", APIBase+"/titles/10/episodes/monitor", map[string]any{"monitored": off, "episode_ids": []int64{101},
-		"versions": []string{"tv-2160p"}}, 409, nil)
-	e.call("PUT", APIBase+"/titles/10/versions/tv-2160p", map[string]any{"monitored": off}, 409, nil)
 	var so SearchOutcome
 	e.call("POST", APIBase+"/titles/10/seasons/1/search", nil, 200, &so)
 	if so.Started || !strings.Contains(so.Message, "Watch only") {
@@ -309,17 +290,6 @@ func TestManageShadowNoWrites(t *testing.T) {
 	if after := e.state(); after != before {
 		t.Fatalf("shadow controls wrote:\n%s\n%s", before, after)
 	}
-
-	// Still managed after the version goes active (the arr import still rewrites it): no monitor writes.
-	e = newManageEnv(t, func(p *policy.Policy) {
-		p.Versions["tv-2160p"].Mode = policy.ModeActive
-		p.Router = &policy.Router{Enabled: true}
-	})
-	before = e.state()
-	e.call("PUT", APIBase+"/titles/10/seasons/1/monitor", map[string]any{"monitored": off}, 409, nil)
-	if e.state() != before {
-		t.Fatal("an arr-managed active version was written")
-	}
 }
 
 func TestManageActive(t *testing.T) {
@@ -331,7 +301,7 @@ func TestManageActive(t *testing.T) {
 	})
 	var d TitleDetail
 	e.call("GET", APIBase+"/titles/10", nil, 200, &d)
-	if c := d.Versions[0].Control; c.ManagedBy != "" || !c.CanEdit || !c.CanSearch || !c.LiveReleases {
+	if c := d.Versions[0].Control; !c.CanEdit || !c.CanSearch || !c.LiveReleases {
 		t.Fatalf("active control: %+v", c)
 	}
 	var out ManageOutcome

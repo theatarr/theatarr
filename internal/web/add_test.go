@@ -1108,11 +1108,10 @@ func TestAddMinimumAvailabilityArrView(t *testing.T) {
 	}
 }
 
-// TestAddMinimumAvailabilityKeepsImportedDate: the row the choice is stored on carries no added date of its own, so
-// when a fed Radarr imports the movie later, the view shows the date that Radarr gives, as after a default add.
-func TestAddMinimumAvailabilityKeepsImportedDate(t *testing.T) {
+// TestAddMinimumAvailabilityKeepsAddedDate: the row the choice is stored on carries no added date of its own, so the
+// view shows the copy's own date, as after a default add.
+func TestAddMinimumAvailabilityKeepsAddedDate(t *testing.T) {
 	t.Parallel()
-	imported := time.Date(2021, 3, 4, 5, 6, 7, 0, time.UTC)
 	for _, minimum := range []string{"", "announced"} {
 		e := newAddEnvWith(t, nil, true)
 		body := map[string]any{"kind": "movie", "tmdb_id": 105, "title": "Epsilon", "year": 2024, "versions": []string{"movie-web"}}
@@ -1131,16 +1130,8 @@ func TestAddMinimumAvailabilityKeepsImportedDate(t *testing.T) {
 			e.call("GET", fmt.Sprintf("/v/movie-web/radarr/api/v3/movie/%d", arrview.IDBase+res.Title.ID), nil, 200, &m)
 			return m["added"]
 		}
-		// Before an import: the copy's own date.
 		if got := added(); got != addNow.UTC().Format(time.RFC3339) {
-			t.Errorf("minimum %q: added %v before the import, want %s", minimum, got, addNow.UTC().Format(time.RFC3339))
-		}
-		e.exec(`INSERT INTO arr_instance (name, flavour, policy_key, created_at, updated_at) VALUES ('radarr-web', 'radarr', 'movie-web', 0, 0)`)
-		e.exec(`INSERT INTO arr_title (instance, arr_id, kind, title_id, version_id, monitored, added_at)
-			SELECT 'radarr-web', 5, 'movie', title_id, id, 1, ? FROM version WHERE title_id = ?`, store.Millis(imported), res.Title.ID)
-		e.exec(`INSERT INTO version_source (version_id, instance, arr_id) SELECT id, 'radarr-web', 5 FROM version WHERE title_id = ?`, res.Title.ID)
-		if got := added(); got != imported.Format(time.RFC3339) {
-			t.Errorf("minimum %q: added %v after the import, want %s", minimum, got, imported.Format(time.RFC3339))
+			t.Errorf("minimum %q: added %v, want %s", minimum, got, addNow.UTC().Format(time.RFC3339))
 		}
 	}
 }

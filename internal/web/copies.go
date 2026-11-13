@@ -18,10 +18,9 @@ import (
 )
 
 // The library views' per-copy reads and the copy-targeted bulk monitor (docs/design/ui.md, Library views). A copy is a
-// version of a title. Its ownership is the version's control (followed: an arr still imports it, so it is
-// read-only here; else Theatarr manages it), its coverage the episodes it holds against those aired, and its
-// acquisition one summary of the downloads in hand for it (activity.Stage). Every read is batched over the page's
-// titles; the live title and download events already invalidate the views that show them.
+// version of a title. Its controls are the version's control, its coverage the episodes it holds against those
+// aired, and its acquisition one summary of the downloads in hand for it (activity.Stage). Every read is batched over
+// the page's titles; the live title and download events already invalidate the views that show them.
 
 // CopyCoverage is a series copy's episodes, specials left out.
 type CopyCoverage struct {
@@ -193,24 +192,8 @@ func (w *Web) fillCopies(ctx context.Context, db *sql.DB, items []TitleRow) erro
 	if len(items) == 0 {
 		return nil
 	}
-	// Ownership.
-	source := map[int64]string{}
-	if len(vids) > 0 {
-		if err := scanAll(ctx, db, `SELECT version_id, instance FROM version_source WHERE version_id IN (`+
-			store.Placeholders(len(vids))+`)`, vids, func(r *sql.Rows) error {
-			var id int64
-			var inst string
-			if err := r.Scan(&id, &inst); err != nil {
-				return err
-			}
-			source[id] = inst
-			return nil
-		}); err != nil {
-			return err
-		}
-	}
-	for id, v := range byID {
-		v.Control = w.control(v.Key, source[id])
+	for _, v := range byID {
+		v.Control = w.control(v.Key)
 	}
 	hand, err := w.inHand(ctx, db, titleIDs)
 	if err != nil {
@@ -544,8 +527,8 @@ func copySortExpr(sort, key string, clock airClock) (string, []any) {
 }
 
 // POST titles/monitor: copy-targeted monitoring for many titles at once (the library's select mode). It sets the
-// monitored flag of existing copies only: a copy the title lacks is reported missing, never added; a followed copy
-// (an arr still imports it) is refused as read-only; nothing is searched. dry_run previews; expect (the preview's
+// monitored flag of existing copies only: a copy the title lacks is reported missing, never added; nothing is
+// searched. dry_run previews; expect (the preview's
 // from values) makes an apply refuse items changed since, as stale.
 
 // BulkMonitorRequest is the body of POST titles/monitor.
@@ -565,8 +548,8 @@ type BulkExpect struct {
 	Monitored bool   `json:"monitored"`
 }
 
-// BulkItem is one title's copy and what the request does (or would do) to it: changed, unchanged, read_only
-// (followed), missing (no such copy or title) or stale (changed since the preview).
+// BulkItem is one title's copy and what the request does (or would do) to it: changed, unchanged, missing (no such
+// copy or title) or stale (changed since the preview).
 type BulkItem struct {
 	TitleID int64  `json:"title_id"`
 	Title   string `json:"title"`
@@ -584,7 +567,6 @@ type BulkMonitorResult struct {
 	Items     []BulkItem `json:"items"`
 	Changed   int        `json:"changed"`
 	Unchanged int        `json:"unchanged"`
-	ReadOnly  int        `json:"read_only"`
 	Missing   int        `json:"missing"`
 	Stale     int        `json:"stale"`
 	Message   string     `json:"message"`
@@ -843,8 +825,6 @@ func (w *Web) apiBulkMonitor(rw http.ResponseWriter, r *http.Request) {
 			out.Changed++
 		case "unchanged":
 			out.Unchanged++
-		case "read_only":
-			out.ReadOnly++
 		case "missing":
 			out.Missing++
 		case "stale":
@@ -853,8 +833,7 @@ func (w *Web) apiBulkMonitor(rw http.ResponseWriter, r *http.Request) {
 	}
 	out.Message = bulkWords(out, *req.Monitored)
 	if out.Changed > 0 && !out.DryRun {
-		w.log.Info("bulk monitor", "source", "ui", "monitored", *req.Monitored, "changed", out.Changed,
-			"read_only", out.ReadOnly)
+		w.log.Info("bulk monitor", "source", "ui", "monitored", *req.Monitored, "changed", out.Changed)
 	}
 	writeJSON(rw, http.StatusOK, out)
 }
@@ -901,16 +880,15 @@ func (w *Web) bulkPlan(ctx context.Context, q queryer, req BulkMonitorRequest, i
 	type copyRow struct {
 		key       string
 		monitored bool
-		source    string
 	}
 	copies := map[int64][]copyRow{}
-	if err := queryEach(ctx, q, `SELECT v.title_id, v.policy_key, v.monitored, COALESCE(vs.instance, '') FROM version v
-		LEFT JOIN version_source vs ON vs.version_id = v.id WHERE v.title_id IN (`+store.Placeholders(len(ids))+`)
+	if err := queryEach(ctx, q, `SELECT v.title_id, v.policy_key, v.monitored FROM version v
+		WHERE v.title_id IN (`+store.Placeholders(len(ids))+`)
 		AND NOT EXISTS (SELECT 1 FROM arrview_removed_version r WHERE r.version_id = v.id) ORDER BY v.policy_key`, args,
 		func(r *sql.Rows) error {
 			var tid int64
 			var c copyRow
-			if err := r.Scan(&tid, &c.key, &c.monitored, &c.source); err != nil {
+			if err := r.Scan(&tid, &c.key, &c.monitored); err != nil {
 				return err
 			}
 			copies[tid] = append(copies[tid], c)
@@ -918,10 +896,10 @@ func (w *Web) bulkPlan(ctx context.Context, q queryer, req BulkMonitorRequest, i
 		}); err != nil {
 		return nil, err
 	}
-	var held [][2]string
+	var held []string
 	for _, cs := range copies {
 		for _, c := range cs {
-			held = append(held, [2]string{c.key, c.source})
+			held = append(held, c.key)
 		}
 	}
 	labels := w.bulkLabels(req.Versions, held)
@@ -965,9 +943,7 @@ func (w *Web) bulkPlan(ctx context.Context, q queryer, req BulkMonitorRequest, i
 			from := c.monitored
 			it.From = &from
 			want, expected := expect[fmt.Sprintf("%d/%s", id, k)]
-			switch m := w.managedBy(c.source); {
-			case m != "":
-				it.Outcome, it.Reason = "read_only", "Followed: "+managedReason(m)
+			switch {
 			case expected && want != from:
 				it.Outcome, it.Reason = "stale", "Changed since the preview: now "+monitoredWord(from)
 			case from == to:
@@ -982,30 +958,19 @@ func (w *Web) bulkPlan(ctx context.Context, q queryer, req BulkMonitorRequest, i
 }
 
 // bulkLabels names the copies of a bulk request apart (distinctLabels) as the library's columns do: among every
-// copy of the selected titles (copies, as key and source instance pairs) and the targeted keys. A key's ownership is
-// its copies' when they agree, unknown when they are mixed or the titles lack the key.
-func (w *Web) bulkLabels(keys []string, copies [][2]string) map[string]string {
-	owners := map[string]string{}
+// copy of the selected titles (held, their keys) and the targeted keys.
+func (w *Web) bulkLabels(keys, held []string) map[string]string {
 	var order []string
-	for _, c := range copies {
-		k, source := c[0], c[1]
-		o := ownerOf(w.managedBy(source))
-		if prev, ok := owners[k]; !ok {
-			owners[k] = o
-			order = append(order, k)
-		} else if prev != o {
-			owners[k] = ""
-		}
-	}
-	for _, k := range keys {
-		if _, ok := owners[k]; !ok {
-			owners[k] = ""
+	seen := map[string]bool{}
+	for _, k := range append(append([]string(nil), held...), keys...) {
+		if !seen[k] {
+			seen[k] = true
 			order = append(order, k)
 		}
 	}
 	cs := make([]copyName, len(order))
 	for i, k := range order {
-		cs[i] = copyName{key: k, label: w.versionLabel(k), owner: owners[k]}
+		cs[i] = copyName{key: k, label: w.versionLabel(k)}
 	}
 	return distinctLabels(cs)
 }
@@ -1017,7 +982,7 @@ func monitoredWord(m bool) string {
 	return "not monitored"
 }
 
-// bulkWords says what a bulk monitor did (or would do): "Monitored 3 copies · 1 read-only (followed) · 2 already".
+// bulkWords says what a bulk monitor did (or would do): "Monitored 3 copies · 2 already monitored".
 func bulkWords(o BulkMonitorResult, to bool) string {
 	verb := "Monitored"
 	if !to {
@@ -1035,9 +1000,6 @@ func bulkWords(o BulkMonitorResult, to bool) string {
 	parts := []string{verb + " " + n(o.Changed, "library", "libraries")}
 	if o.Unchanged > 0 {
 		parts = append(parts, fmt.Sprintf("%d already %s", o.Unchanged, monitoredWord(to)))
-	}
-	if o.ReadOnly > 0 {
-		parts = append(parts, fmt.Sprintf("%d read-only (followed)", o.ReadOnly))
 	}
 	if o.Missing > 0 {
 		parts = append(parts, fmt.Sprintf("%d missing", o.Missing))

@@ -4,7 +4,6 @@ import (
 	"context"
 	"database/sql"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"maps"
 	"slices"
@@ -13,7 +12,6 @@ import (
 
 	"github.com/theatarr/theatarr/internal/ceiling"
 	"github.com/theatarr/theatarr/internal/decide/profile"
-	"github.com/theatarr/theatarr/internal/policy"
 	"github.com/theatarr/theatarr/internal/store"
 )
 
@@ -564,59 +562,20 @@ func (s *upgradeSet) episodeSeen(v upgradeVersion) map[int64]bool {
 	return out
 }
 
-// loadCutoffs finds each version's cutoff: the owning arr instance's profile for a version an arr imports (that
-// profile decided the state), else the policy profile (an arr profile by name for from_arr).
-func (w *Web) loadCutoffs(ctx context.Context, db *sql.DB, vs []upgradeVersion) (map[int64]*Cutoff, error) {
+// loadCutoffs finds each version's cutoff from its library's profile. A profile without qualities of its own (one
+// taken from an arr) gives none.
+func (w *Web) loadCutoffs(_ context.Context, _ *sql.DB, vs []upgradeVersion) (map[int64]*Cutoff, error) {
 	out := map[int64]*Cutoff{}
-	if len(vs) == 0 {
+	if w.pol == nil {
 		return out, nil
 	}
-	ids := make([]any, len(vs))
-	for i, v := range vs {
-		ids[i] = v.id
-	}
-	err := scanAll(ctx, db, `SELECT vs.version_id, vs.instance, p.name, p.cutoff, p.cutoff_format_score, p.upgrade_allowed
-		FROM version_source vs JOIN arr_title a ON a.instance = vs.instance AND a.arr_id = vs.arr_id
-		JOIN arr_quality_profile p ON p.instance = a.instance AND p.arr_id = a.quality_profile_id
-		WHERE vs.version_id IN (`+store.Placeholders(len(ids))+`)`, ids, func(r *sql.Rows) error {
-		var vid int64
-		var c Cutoff
-		var score int64
-		if err := r.Scan(&vid, &c.From, &c.Profile, &c.Quality, &score, &c.Upgrades); err != nil {
-			return err
-		}
-		c.Score = &score
-		out[vid] = &c
-		return nil
-	})
-	if err != nil {
-		return nil, err
-	}
 	for _, v := range vs {
-		if out[v.id] != nil || w.pol == nil {
-			continue
-		}
 		vp := w.pol.Versions[v.key]
 		if vp == nil {
 			continue
 		}
 		pr := w.pol.Profiles[vp.Profile]
-		if pr == nil {
-			continue
-		}
-		if inst, name, ok := policy.SplitFromArr(pr.FromArr); ok {
-			var c Cutoff
-			var score int64
-			err := db.QueryRowContext(ctx, `SELECT name, cutoff, cutoff_format_score, upgrade_allowed FROM arr_quality_profile
-				WHERE instance = ? AND name = ?`, inst, name).Scan(&c.Profile, &c.Quality, &score, &c.Upgrades)
-			if errors.Is(err, sql.ErrNoRows) {
-				continue
-			}
-			if err != nil {
-				return nil, err
-			}
-			c.Score, c.From = &score, inst
-			out[v.id] = &c
+		if pr == nil || len(pr.Qualities) == 0 {
 			continue
 		}
 		score := int64(pr.CutoffScore)

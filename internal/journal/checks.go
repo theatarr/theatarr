@@ -2,7 +2,6 @@ package journal
 
 import (
 	"context"
-	"database/sql"
 	"encoding/json"
 	"fmt"
 	"regexp"
@@ -583,24 +582,6 @@ func (j *Journal) computeSizes(ctx context.Context) (*sizeStats, error) {
 		k := strings.ToLower(quality)
 		s.byQuality[k] = append(s.byQuality[k], float64(size)/(1<<20)/float64(minutes))
 	}
-	rows, err = db.QueryContext(ctx, `SELECT title_id, quality, MAX(CAST(json_extract(data, '$.size') AS INTEGER)),
-		COUNT(DISTINCT COALESCE(arr_episode_id, 0)) FROM arr_history WHERE event_type = 'grabbed' AND title_id IS NOT NULL
-		GROUP BY instance, COALESCE(download_id, '#' || arr_id)`)
-	if err != nil {
-		return nil, err
-	}
-	for rows.Next() {
-		var title int64
-		var q string
-		var size sql.NullInt64
-		var eps int
-		if err := rows.Scan(&title, &q, &size, &eps); err != nil {
-			rows.Close()
-			return nil, err
-		}
-		add(title, q, size.Int64, eps)
-	}
-	rows.Close()
 	rows, err = db.QueryContext(ctx, `SELECT title_id, quality, COALESCE(size_bytes, 0), episodes FROM download`)
 	if err != nil {
 		return nil, err

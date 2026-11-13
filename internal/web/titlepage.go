@@ -110,12 +110,6 @@ type FranchiseRef struct {
 	Name string `json:"name"`
 }
 
-var arrEvents = map[string]string{
-	"grabbed": "grabbed", "downloadFolderImported": "imported", "downloadFailed": "failed",
-	"movieFileDeleted": "deleted", "episodeFileDeleted": "deleted", "movieFileRenamed": "renamed",
-	"episodeFileRenamed": "renamed", "downloadIgnored": "ignored",
-}
-
 // enrichTitle adds the title page's fields to d (from getTitle).
 func (w *Web) enrichTitle(ctx context.Context, d *TitleDetail) error {
 	db := w.st.Reader()
@@ -213,41 +207,8 @@ func currentOf(v *Version, files VersionFiles) *CurrentFile {
 	return c
 }
 
-// versionHistory loads the title's versions' arr history, downloads and acquisition searches.
+// versionHistory loads the title's versions' downloads and acquisition searches.
 func (w *Web) versionHistory(ctx context.Context, db *sql.DB, titleID int64, kind string, byID map[int64]*Version) error {
-	err := scanAll(ctx, db, `SELECT h.version_id, h.event_type, h.date_at, h.quality, h.instance, h.source_title,
-		h.custom_format_score, COALESCE(h.info_hash, ''), e.season, e.number
-		FROM arr_history h LEFT JOIN arr_alias a ON a.instance = h.instance AND a.kind = 'episode' AND a.arr_id = h.arr_episode_id
-		LEFT JOIN episode e ON e.id = a.target_id
-		WHERE h.title_id = ? AND h.version_id IS NOT NULL ORDER BY h.date_at, h.arr_id`, []any{titleID},
-		func(r *sql.Rows) error {
-			var vid, at int64
-			var typ string
-			var score, season, number sql.NullInt64
-			var h HistoryEvent
-			if err := r.Scan(&vid, &typ, &at, &h.Quality, &h.Source, &h.ReleaseTitle, &score, &h.InfoHash, &season,
-				&number); err != nil {
-				return err
-			}
-			v := byID[vid]
-			ev, ok := arrEvents[typ]
-			if v == nil || !ok {
-				return nil
-			}
-			h.Event, h.Date, h.Score, h.Trigger = ev, ts(at), nullInt(score), arrWords(h.Source)
-			if ev == "renamed" || ev == "deleted" {
-				// Their source title is the file's path, not a release.
-				h.ReleaseTitle = ""
-			}
-			if season.Valid && number.Valid {
-				h.Episode = episodeCode(season.Int64, number.Int64)
-			}
-			v.History = append(v.History, h)
-			return nil
-		})
-	if err != nil {
-		return err
-	}
 	origins, err := runOrigins(ctx, db, titleID)
 	if err != nil {
 		return err

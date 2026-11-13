@@ -132,13 +132,6 @@ func TestReleaseOutcomesAndHistory(t *testing.T) {
 		if v.Key == "movie-web" {
 			hist = v.History
 		}
-		if v.Key == "movie-remux" {
-			for _, h := range v.History {
-				if h.Event == "grabbed" && h.Trigger != "old manager (radarr_4k_debrid)" {
-					t.Errorf("arr event trigger %q", h.Trigger)
-				}
-			}
-		}
 	}
 	type ev struct{ event, trigger, provider, reason, summary string }
 	var got []ev

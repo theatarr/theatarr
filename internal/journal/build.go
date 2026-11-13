@@ -73,8 +73,6 @@ func (b *builder) build(h head) (*Entry, error) {
 		err = b.run(e, rest)
 	case "plan":
 		err = b.plan(e, rest)
-	case "arr":
-		err = b.arr(e, rest)
 	case "v":
 		err = b.verdictEntry(e, rest)
 	case "act":
@@ -503,7 +501,7 @@ func (b *builder) researchAfter(e *Entry, titleID int64, version string, after i
 }
 
 // failures counts failure-like events of a title's version in the 30 days up to at (our failed downloads, the
-// blocklist without a download, the arr's failed downloads), and those in the 30 days after it.
+// blocklist without a download), and those in the 30 days after it.
 func (b *builder) failures(e *Entry, titleID int64, version string, at int64) error {
 	const window = 30 * 24 * 3600 * 1000
 	count := func(from, to int64) (int, error) {
@@ -512,11 +510,7 @@ func (b *builder) failures(e *Entry, titleID int64, version string, at int64) er
 			(SELECT COUNT(*) FROM download WHERE title_id = ?1 AND version_key = ?2 AND state = 'failed'
 				AND updated_at BETWEEN ?3 AND ?4)
 			+ (SELECT COUNT(*) FROM router_blocklist WHERE title_id = ?1 AND version_key = ?2 AND download_id IS NULL
-				AND created_at BETWEEN ?3 AND ?4)
-			+ (SELECT COUNT(DISTINCT COALESCE(h.download_id, h.arr_id)) FROM arr_history h
-				JOIN version v ON v.id = h.version_id
-				WHERE h.title_id = ?1 AND v.policy_key = ?2 AND h.event_type = 'downloadFailed'
-				AND h.date_at BETWEEN ?3 AND ?4)`, titleID, version, from, to).Scan(&n)
+				AND created_at BETWEEN ?3 AND ?4)`, titleID, version, from, to).Scan(&n)
 		return n, err
 	}
 	var err error
