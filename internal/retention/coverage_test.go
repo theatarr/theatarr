@@ -24,7 +24,7 @@ func init() {
 	for _, tb := range strings.Fields(`anime_alt_cut anime_discovery anime_entry anime_franchise anime_mapping anime_node anime_order anime_review anime_stage arrview_removed_version arrview_title arrview_title_tag content content_file content_provider content_version episode episode_number episode_version_state link link_episode link_trash link_version movie_collection movie_exclusion series_meta series_monitor source_ceiling title title_alias title_external_id title_meta title_release_date title_scene_mapping version version_ceiling version_file version_file_episode version_source request request_user`) {
 		keptByDesign[tb] = "catalog and library state: grows with the library, not with runs"
 	}
-	for _, tb := range strings.Fields(`router_pacing gateway_backoff gateway_budget_window shadow_rss_cursor notify_state tvdb_sync scene_refresh library_lease library_dangling_scan cardigann_session search_request series_search_wait error_inbox_state`) {
+	for _, tb := range strings.Fields(`router_pacing provider_copy gateway_backoff gateway_budget_window shadow_rss_cursor notify_state tvdb_sync scene_refresh library_lease library_dangling_scan cardigann_session search_request series_search_wait error_inbox_state`) {
 		keptByDesign[tb] = "state per key, overwritten in place"
 	}
 	for _, tb := range strings.Fields(`job journal_decision shadow_run ceiling_search ceiling_search_indexer web_session source_sighting library_dangling router_refusal_451 arrview_command shadow_rss_seen notify_rename torrent_restore_pending gateway_indexer_request`) {

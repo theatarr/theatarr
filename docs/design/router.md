@@ -1221,6 +1221,64 @@ states from `queued` to `importing`, for the view's versions.
 - `queue/status` counts the items.
 - The empty goldens are unchanged. `TestQueueFromDownloads` covers the filled queue.
 
+## Copies to other providers
+
+"Add to other providers" (the owner's decision of 2026-11-13, phase H part 2) adds a torrent the library holds to every
+configured provider that does not hold it yet, so a provider outage leaves the file streamable from another. It adds
+the torrent; an add that is not cached is deleted on every provider; it is a manual action (managers: a movie's file
+on the title page, an episode's in the episode window; admins: a Torrents row) plus `router.copy_to_providers`
+(off by default), which queues the same work after each import of a download that came from a provider. New imports
+only: the existing library is not swept. Code: `internal/router/copy.go`; table `provider_copy` (migration 00128).
+
+A copy is not a download: no `download` row, import, offer, blocklist, failure re-search or History entry. One row per
+hash and provider (`unique (info_hash, provider)`); a new request for a pair replaces a finished row and returns an
+unfinished one as it is (a double click, a season pack's episodes). Rows are made for the providers with a key whose
+registry row does not hold the hash complete ("Cached on"); one job (`router.copy`) works each row:
+
+1. **Stop early.** Paused (or the router off): `skipped` ("Skipped: paused"). Held complete meanwhile: `added`. The
+   account at `TorrentLimitWarnPercent` of its limit (the last complete sync, as the health check counts it):
+   `skipped`. A running back-off or Real-Debrid hold: `skipped` with its end. Real-Debrid and
+   `indexer.RealDebridRefuses(name, loose)`: `refused`, never sent.
+2. **Read-only evidence** (`checkHash`): a live `provider_cache` row; else DMM's availability for that one hash on
+   Real-Debrid and AllDebrid (`indexer.Service.CheckAvailabilityHash`, handed to the router as
+   `Config.AvailabilityHash`; a listed hash is stored like a search's, an unlisted one is unknown, never uncached);
+   on TorBox its own cache check. Uncached: `not_cached`, nothing added.
+3. **The add**, under the add lock only for this step, as the torrent manager's restore holds it: AllDebrid and
+   TorBox read the account's list first (`guardBefore`); a failed listing is not absence, so nothing is sent and the
+   job tries again; the hash on the list is `added` ("Already on AD"), nothing sent. The pacing reservation is the
+   route's (`updatePace`); a provider paced out (Real-Debrid's `min_gap`, a burst, the uncached cap) hands the job
+   back (`jobs.Later`) until it frees up. `adding` with `own_add` is written before the add (`adder.BareMagnet`:
+   the hash plus `router.trackers`; TorBox with `add_only_if_cached`), then `checking` with the torrent id. Outcomes
+   go to pacing as the route's `classify` records them; a 451 is the route's hold handling (`note451`) and ends
+   `failed` with the hold's words, never retried; TorBox's not-cached refusal ends `not_cached`.
+4. **Settle** with the route's read-back (`readBack`, shared with `readAfterAdd`; Real-Debrid selects every playable
+   file, then the grace). Complete: the registry row present at 100 and the content present, as an import writes
+   them, so "Cached on" shows the provider; `added`. Not complete (or dead): our add is deleted when `own_add` holds,
+   the entry still shows the hash and no download or other content knows its id: `not_cached`, `provider_cache`
+   uncached for `miss_ttl`, counted in `uncached_adds_per_hour`. The delete is `adder.StalledDeleter` on all three
+   providers (AllDebrid and TorBox implement it for copies only), so it needs no in-memory ledger and survives a
+   restart. Copies delete regardless of `alldebrid_delete_uncached`.
+
+**Recovery.** At start (`ResumeCopies`, every unfinished row without a queued job) and on each job retry, the row's
+state says what is left. `adding` without a torrent id waits `addSettle` from its last update, then the account's
+list is read: a torrent of the hash there is taken up (`own_add` forced false: it may be an older one, so it is never
+deleted); none: `queued` again. `checking` is settled from the account. Before a delete is sent the row records it
+(`message` starts "deleting our add"); a lost answer is settled by reading the torrent back, and a torrent then gone
+ends `not_cached`; it is never added again. Pause postpones a settle or a cleanup; it does not mark the copy skipped.
+Routes and copies see each other: `guardBefore` counts an unfinished copy's entry as on the account before a route's
+add, and `proof` refuses an id a copy holds, so neither deletes the other's AllDebrid magnet.
+
+**API.** `POST /titles/{id}/copies {version, episode_id?}` (manage) resolves the file's hash (the newest active link's
+content, download, `file_metadata.InfoHash` or `adopted_source.hash`, else the arr file's content) and name;
+`POST /torrents/copy {provider, id}` (admin) takes the hash from the registry, else a read of the provider. Both
+answer the rows; 409 with the Pause words while paused; 422 "Cannot add to other providers: Theatarr has no torrent
+hash on record for this file." The movie's current file, the episode file and the Torrents row carry `copies`
+(`provider`, `state`, `message`, `updated_at`), see files only.
+
+Tests: `TestCopyTorBox`, `TestCopyRealDebridTrial`, `TestCopyAllDebridList`, `TestCopyRefusedAndPaused`,
+`TestCopyWaitsForMinGap`, `TestCopyRestartInChecking`, `TestCopyLostDeleteAnswer`, `TestCopyRecoversAdding`,
+`TestCopyDedupeAndRouteGuard`, `TestCopyAfterImport`, `TestProviderCopiesAPI`, `TestRouterSectionCopyToProviders`.
+
 ## Policy (`router`, `examples/policy/router.yaml`)
 
 ```yaml
@@ -1228,6 +1286,7 @@ router:
   enabled: false       # the kill switch; default false
   cached_only: true    # skip known-uncached providers; TorBox adds only if cached; RD/AD: add, read, delete Theatarr's own
   alldebrid_delete_uncached: true   # default; delete Theatarr's own uncached AD add (see the accepted race above); false keeps it
+  copy_to_providers: false  # default; after each import add the torrent to the other providers ("Copies to other providers")
   cached_grace: 2s     # RD/AD: wait before the one re-read of a fresh add; 1s to 30s
   stalled_after: 10m   # fail, blocklist and re-search a download still added this long; 1m to 24h; 0s = off
                        # (providers.<key>.stalled_after overrides it; AllDebrid defaults to at least 25m)

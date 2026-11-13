@@ -6,12 +6,13 @@ router:
   enabled: false
   cached_only: true    # skip a provider where the release is known uncached; TorBox adds only if cached; an RD
                        # add not ready at once is deleted again when provably ours, and the next provider tried
-  alldebrid_delete_uncached: true  # opt-in for an account with no other writers; default false
+  alldebrid_delete_uncached: true  # default true
                        # Off: AD keeps an uncached add of ours (uncached_kept), and is not tried again in that route. On: AD behaves as decypharr with
                        # download_uncached off: add, read, delete our own just-made uncached add, try the next
                        # provider. The one hole: another client uploading the same hash in the second between our
-                       # list read and our upload gets the same magnet, which would look like ours and be deleted.
-                       # Turn it on only for an account nothing else writes to (docs/design/router.md).
+                       # list read and our upload gets the same magnet, which would look like ours and be deleted
+                       # (docs/design/router.md).
+  copy_to_providers: false  # after each import, add the torrent to the other providers when cached there
   cached_grace: 2s     # RD/AD: wait this long before the one re-read of a fresh add; 1s to 30s
   stalled_after: 10m   # a download still not fetching this long after its add fails as stalled, is blocklisted and
                        # searched again (our own RD add is deleted); 1m to 24h, 0s turns it off

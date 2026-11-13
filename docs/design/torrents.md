@@ -244,7 +244,8 @@ or an admin's API key, which confirms like a session, as with settings; the toke
 ### The third delete path
 
 `internal/provider/adder/delete.go` holds every provider delete. Besides the router's two (Theatarr's own just-made
-uncached add, its own stalled RD add) there is `DeleteUserChosen`, which takes a `UserChoice` only
+uncached add, its own stalled add: on RD for a stalled download, on every provider for a copy to another provider that
+is not complete, router.md "Copies to other providers") there is `DeleteUserChosen`, which takes a `UserChoice` only
 `adder.ChooseForDelete` makes, from an id, a v1 hash, a backup id and a confirmation digest. Fences:
 
 - `TestNoDeletes`: the method sets, paths and HTTP methods per provider (three deletes per kind's set), and
@@ -268,7 +269,8 @@ confirmation with the count, size, the backup it takes first and the shared-acco
 listed with why, and used or unknown ones with a checkbox naming their references to override. **Saved inventory** (`/admin/torrents/inventory`) shows known hashes and provider holdings.
 The torrent journal remains below the provider list. **System › Backup** holds torrent-list backups: **Back up
 now**, import (Theatarr or DMM, to a chosen provider), the list with download (Theatarr or DMM format) and **Restore…**
-with its preview. Code: `web/src/pages/admin/torrents.tsx`, `web/src/components/backups/torrent-backups.tsx`, `web/src/lib/torrents.ts`.
+with its preview. A row's expanded area has **Add to other providers** (router.md "Copies to other providers":
+`POST /torrents/copy`), and the row's `copies` show how each other provider ended. Code: `web/src/pages/admin/torrents.tsx`, `web/src/components/backups/torrent-backups.tsx`, `web/src/lib/torrents.ts`.
 
 ## Out of scope
 
