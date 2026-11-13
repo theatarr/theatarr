@@ -101,6 +101,11 @@ func (s *serveAcquirer) WantedList(ctx context.Context, q acquire.WantedQuery) (
 	return ac.WantedList(ctx, q)
 }
 
+func (s *serveAcquirer) NextSearches(ctx context.Context, titleID int64) ([]acquire.NextSearch, error) {
+	ctx, ac := s.forOperation(ctx)
+	return ac.NextSearches(ctx, titleID)
+}
+
 func (s *serveAcquirer) RequestSearchNow(ctx context.Context, only string, items []acquire.SearchNowItem) (*acquire.SearchNowResult, error) {
 	ctx, ac := s.forOperation(ctx)
 	return ac.RequestSearchNow(ctx, only, items)

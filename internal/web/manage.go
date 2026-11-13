@@ -112,36 +112,22 @@ type nextSearch struct {
 	why string
 }
 
-// nextSearches reads the Wanted list of one title (both tabs, acquire.WantedList) and keeps, per library and season
-// (-1: a film), its earliest row with a time: a due row (its time is now or earlier, also for an item the next full
-// round takes) or a scheduled one. The list holds only monitored items of Live libraries that want a file or an
-// upgrade, and gives no time while paused, with a download in flight or when the item is not scheduled, so the title
-// page says what Wanted says.
+// nextSearches is the title's next search per library and season (-1: a film), as acquire.NextSearches gives it:
+// the earliest time its Wanted rows of both tabs give, so the title page says what Wanted says.
 func (w *Web) nextSearches(ctx context.Context, titleID int64) (map[string]map[int]nextSearch, error) {
 	out := map[string]map[int]nextSearch{}
 	if w.add.Acquirer == nil {
 		return out, nil
 	}
-	for _, only := range []string{acquire.OnlyMissing, acquire.OnlyCutoff} {
-		l, err := w.add.Acquirer.WantedList(ctx, acquire.WantedQuery{Only: only, TitleID: titleID, Limit: 200})
-		if err != nil {
-			return nil, err
+	list, err := w.add.Acquirer.NextSearches(ctx, titleID)
+	if err != nil {
+		return nil, err
+	}
+	for _, n := range list {
+		if out[n.Version] == nil {
+			out[n.Version] = map[int]nextSearch{}
 		}
-		for _, r := range l.Items {
-			if r.NextAt == nil {
-				continue
-			}
-			season := -1
-			if r.Season != nil {
-				season = *r.Season
-			}
-			if out[r.Version] == nil {
-				out[r.Version] = map[int]nextSearch{}
-			}
-			if cur, ok := out[r.Version][season]; !ok || r.NextAt.Before(cur.at) {
-				out[r.Version][season] = nextSearch{at: *r.NextAt, why: r.Why}
-			}
-		}
+		out[n.Version][n.Season] = nextSearch{at: n.At, why: n.Why}
 	}
 	return out, nil
 }

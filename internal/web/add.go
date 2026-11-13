@@ -56,6 +56,8 @@ type MovieIntake interface {
 // Acquirer is the part of acquire.Acquirer search and add use.
 type Acquirer interface {
 	WantedList(context.Context, acquire.WantedQuery) (*acquire.WantedList, error)
+	// NextSearches is the title page's next search (manage.go).
+	NextSearches(ctx context.Context, titleID int64) ([]acquire.NextSearch, error)
 	Submit(ctx context.Context, commandID int64, sel acquire.Selection) (queued, found int, err error)
 	Interactive(ctx context.Context, titleID int64, version string, season *int, episodes []int64) (*router.Searched,
 		error)

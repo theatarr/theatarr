@@ -435,10 +435,23 @@ func TestWantedListNextSearch(t *testing.T) {
 		4: {WaitDue, "stalled", 0, at(-10 * time.Minute)},
 		5: {WaitScheduled, "", 0, at(3 * time.Hour)},
 	})
-	// One title (the title page): its rows only, the same as in the whole list.
-	if one, err := e.a.WantedList(e.ctx, WantedQuery{Only: OnlyMissing, TitleID: 4}); err != nil || one.Total != 1 ||
-		one.Items[0].Waiting != WaitDue || one.Items[0].Why != "stalled" {
-		t.Fatalf("title 4: %+v %v", one, err)
+	// The title page's next search says what the list says: a time where the list has one, nothing else.
+	next := func(title int64) string {
+		t.Helper()
+		ns, err := e.a.NextSearches(e.ctx, title)
+		if err != nil {
+			t.Fatal(err)
+		}
+		var out []string
+		for _, n := range ns {
+			out = append(out, fmt.Sprintf("%s/%d %s %s", n.Version, n.Season, n.At.Sub(t0), n.Why))
+		}
+		return strings.Join(out, ", ")
+	}
+	for title, want := range map[int64]string{1: "movie/-1 2h0m0s new", 2: "", 4: "movie/-1 -10m0s stalled", 5: "movie/-1 3h0m0s "} {
+		if got := next(title); got != want {
+			t.Errorf("next search of %d: %q, want %q", title, got, want)
+		}
 	}
 	e.a.set.Missing = false
 	check("switch off", map[int64]want{
@@ -447,7 +460,13 @@ func TestWantedListNextSearch(t *testing.T) {
 		4: {WaitDue, "stalled", 0, at(-10 * time.Minute)},
 		5: {WaitNotScheduled, "", 0, nil},
 	})
+	if got := next(5); got != "" {
+		t.Errorf("next search of 5 with the switch off: %q", got)
+	}
 	e.pol.Router.Enabled = false
+	if got := next(1); got != "" {
+		t.Errorf("next search while paused: %q", got)
+	}
 	check("paused", map[int64]want{
 		1: {WaitDownloadsOff, whyNew, 2, nil},
 		2: {WaitDownloadsOff, "", 0, nil},

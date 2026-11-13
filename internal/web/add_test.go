@@ -43,10 +43,16 @@ type fakeAcquirer struct {
 	interactive []string
 	// noAnswer: every indexer of an interactive search fails.
 	noAnswer bool
-	// wanted are the Wanted rows WantedList answers, by tab (the title page's next search); wantedQueries what it was
-	// asked.
-	wanted        map[string][]acquire.WantedRow
-	wantedQueries []acquire.WantedQuery
+	// next is what NextSearches answers (the title page's next search); nextTitles the titles it was asked for.
+	next       []acquire.NextSearch
+	nextTitles []int64
+}
+
+func (f *fakeAcquirer) NextSearches(_ context.Context, titleID int64) ([]acquire.NextSearch, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.nextTitles = append(f.nextTitles, titleID)
+	return f.next, nil
 }
 
 func (f *fakeAcquirer) Submit(_ context.Context, _ int64, sel acquire.Selection) (int, int, error) {
@@ -719,12 +725,8 @@ func TestReleasesShadowNoLive(t *testing.T) {
 	e.call("GET", APIBase+"/titles/99/releases", nil, 404, nil)
 }
 
-func (f *fakeAcquirer) WantedList(_ context.Context, q acquire.WantedQuery) (*acquire.WantedList, error) {
-	f.mu.Lock()
-	defer f.mu.Unlock()
-	f.wantedQueries = append(f.wantedQueries, q)
-	items := append([]acquire.WantedRow{}, f.wanted[q.Only]...)
-	return &acquire.WantedList{Items: items, Total: len(items), Counts: map[string]int{}}, nil
+func (f *fakeAcquirer) WantedList(context.Context, acquire.WantedQuery) (*acquire.WantedList, error) {
+	return &acquire.WantedList{Items: []acquire.WantedRow{}, Counts: map[string]int{}}, nil
 }
 
 func (e *addEnv) count(q string, args ...any) int {

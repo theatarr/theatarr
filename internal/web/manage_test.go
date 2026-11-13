@@ -339,24 +339,14 @@ func TestManageActive(t *testing.T) {
 	}
 }
 
-// The title page's next search: per movie copy on its control, per season on the episodes route, the earliest time
-// the title's Wanted rows of both tabs give (a due row's time is now, also for an item no row holds yet); rows without
-// a time (not scheduled, in flight, paused) give none.
+// The title page's next search: per movie copy on its control, per season on the episodes route, as the acquirer's
+// NextSearches gives it for the title; a copy or season it names nothing for has none.
 func TestManageNextSearch(t *testing.T) {
 	t.Parallel()
 	e := newManageEnv(t, nil)
-	at := func(d time.Duration) *time.Time { x := addNow.Add(d); return &x }
-	one := 1
-	e.acq.wanted = map[string][]acquire.WantedRow{
-		acquire.OnlyMissing: {
-			{TitleID: 1, Version: "movie-remux", Waiting: acquire.WaitDue, NextAt: at(0)},
-			{TitleID: 1, Version: "movie-web", Waiting: acquire.WaitNotScheduled},
-			{TitleID: 10, Version: "tv-2160p", Season: &one, Waiting: acquire.WaitScheduled, NextAt: at(2 * time.Hour), Why: "new", Tries: 1},
-		},
-		acquire.OnlyCutoff: {
-			{TitleID: 1, Version: "movie-remux", Waiting: acquire.WaitScheduled, NextAt: at(3 * time.Hour)},
-			{TitleID: 10, Version: "tv-2160p", Season: &one, Waiting: acquire.WaitDue, NextAt: at(-5 * time.Minute), Why: "stalled"},
-		},
+	e.acq.next = []acquire.NextSearch{
+		{Version: "movie-remux", Season: -1, At: addNow},
+		{Version: "tv-2160p", Season: 1, At: addNow.Add(-5 * time.Minute), Why: "stalled"},
 	}
 	var d TitleDetail
 	e.call("GET", APIBase+"/titles/1", nil, 200, &d)
@@ -378,10 +368,8 @@ func TestManageNextSearch(t *testing.T) {
 			t.Errorf("season %d %+v", se.Season, sc)
 		}
 	}
-	for _, q := range e.acq.wantedQueries {
-		if q.TitleID != 1 && q.TitleID != 10 {
-			t.Errorf("query %+v", q)
-		}
+	if !slices.Equal(e.acq.nextTitles, []int64{1, 10}) {
+		t.Errorf("asked for %v", e.acq.nextTitles)
 	}
 }
 
