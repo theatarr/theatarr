@@ -16,6 +16,7 @@ import (
 	"github.com/theatarr/theatarr/internal/jobs"
 	"github.com/theatarr/theatarr/internal/library/probe"
 	"github.com/theatarr/theatarr/internal/policy"
+	"github.com/theatarr/theatarr/internal/provider"
 	"github.com/theatarr/theatarr/internal/store"
 	"github.com/theatarr/theatarr/internal/store/storetest"
 )
@@ -708,5 +709,118 @@ func TestImportRefusesDangerousFiles(t *testing.T) {
 	}
 	if got := e4.one(`SELECT COUNT(*) FROM router_blocklist WHERE download_id = 1`); got != "1" {
 		t.Errorf("selected dangerous file blocklist rows: %q", got)
+	}
+}
+
+// cpFake is a provider whose list is fixed, for the provider sync after an import.
+type cpFake struct {
+	provider.Provider
+	list []provider.Torrent
+}
+
+func (p *cpFake) Key() string                                          { return "rd" }
+func (p *cpFake) Kind() string                                         { return provider.KindRealDebrid }
+func (p *cpFake) Torrents(context.Context) ([]provider.Torrent, error) { return p.list, nil }
+
+// cpRow is the download's content_provider row for rd: state, progress, torrent id, folder, size, seen_at.
+func (e *env) cpRow() string {
+	e.t.Helper()
+	return e.one(`SELECT group_concat(cp.state || '|' || COALESCE(cp.progress, '') || '|' || COALESCE(cp.torrent_id, '') ||
+		'|' || COALESCE(cp.folder_name, '') || '|' || COALESCE(cp.size_bytes, '') || '|' || cp.seen_at, ';')
+		FROM content_provider cp JOIN content c ON c.id = cp.content_id WHERE c.info_hash = ? AND cp.provider = 'rd'`, hashA)
+}
+
+// TestImportRecordsProvider: importing a debrid provider's download records that the provider holds the content
+// (content_provider present, progress 100), so the link's file shows Cached on at once, before any provider sync. A
+// download whose provider is not a configured debrid provider records nothing.
+func TestImportRecordsProvider(t *testing.T) {
+	t.Parallel()
+	e := newEnv(t, true, policy.ModeActive)
+	e.pol.Providers = map[string]*policy.Provider{"rd": {Kind: "realdebrid", Order: 1}}
+	e.release(movieRelease, map[string]float64{"movie.mkv": 7000})
+	e.download(1, "movie-remux", 1, 10, movieRelease, movieRelease, "[]")
+	e.exec(`UPDATE download SET provider_torrent_id = 'T1' WHERE id = 1`)
+	if _, err := e.lib.Import(e.ctx, 1, false); err != nil {
+		t.Fatal(err)
+	}
+	want := fmt.Sprintf("present|100.0|T1|%s||%d", movieRelease, store.Millis(e.now))
+	if got := e.cpRow(); got != want {
+		t.Fatalf("content_provider %q, want %q", got, want)
+	}
+	// The link's content satisfies the read side's providerHolds (internal/web/library.go) for rd.
+	if got := e.one(`SELECT count(*) FROM link l JOIN content_file cf ON cf.id = l.content_file_id
+		JOIN content_provider cp ON cp.content_id = cf.content_id
+		WHERE l.download_id = 1 AND cp.provider = 'rd' AND cp.state = 'present' AND cp.progress >= 100`); got != "1" {
+		t.Errorf("links held by rd: %s", got)
+	}
+
+	f := newEnv(t, true, policy.ModeActive)
+	f.release(movieRelease, map[string]float64{"movie.mkv": 7000})
+	f.download(1, "movie-remux", 1, 10, movieRelease, movieRelease, "[]")
+	if _, err := f.lib.Import(f.ctx, 1, false); err != nil {
+		t.Fatal(err)
+	}
+	if got := f.one(`SELECT count(*) FROM content_provider`); got != "0" {
+		t.Errorf("unconfigured provider recorded: %s rows", got)
+	}
+}
+
+// TestImportProviderRowAndSync: the provider sync after an import keeps the import's row present and fills in the
+// rest, in the one row; an import never degrades a row the sync wrote, and brings an absent one back to present.
+func TestImportProviderRowAndSync(t *testing.T) {
+	t.Parallel()
+	e := newEnv(t, true, policy.ModeActive)
+	e.pol.Providers = map[string]*policy.Provider{"rd": {Kind: "realdebrid", Order: 1}}
+	e.release(movieRelease, map[string]float64{"movie.mkv": 7000})
+	e.download(1, "movie-remux", 1, 10, movieRelease, movieRelease, "[]")
+	e.exec(`UPDATE download SET provider_torrent_id = 'T1' WHERE id = 1`)
+	if _, err := e.lib.Import(e.ctx, 1, false); err != nil {
+		t.Fatal(err)
+	}
+	fp := &cpFake{list: []provider.Torrent{{ID: "T1", Hash: hashA, Name: movieRelease, Bytes: 5000,
+		Status: "downloaded", State: provider.StateDownloaded, Progress: 100, Links: 1}}}
+	syncAt := e.now.Add(time.Hour)
+	s := &provider.Syncer{Store: e.st, Providers: map[string]provider.Provider{"rd": fp}, Configured: []string{"rd"},
+		Now: func() time.Time { return syncAt }}
+	if _, err := s.Run(e.ctx, provider.SyncOptions{}); err != nil {
+		t.Fatal(err)
+	}
+	synced := fmt.Sprintf("present|100.0|T1|%s|5000|%d", movieRelease, store.Millis(e.now))
+	if got := e.cpRow(); got != synced {
+		t.Fatalf("after sync %q, want %q", got, synced)
+	}
+	if got := e.one(`SELECT status FROM content_provider WHERE provider = 'rd'`); got != "downloaded" {
+		t.Errorf("status %q", got)
+	}
+
+	// Importing again (another torrent id on the download) leaves the sync's complete row as it is.
+	e.now = e.now.Add(2 * time.Hour)
+	e.exec(`UPDATE download SET state = 'ready', provider_torrent_id = 'T9' WHERE id = 1`)
+	if _, err := e.lib.Import(e.ctx, 1, false); err != nil {
+		t.Fatal(err)
+	}
+	if got := e.cpRow(); got != synced {
+		t.Errorf("import changed the synced row: %q, want %q", got, synced)
+	}
+
+	// Gone from the account: the sync marks it absent; a later import of it brings it back present.
+	fp.list = nil
+	if _, err := s.Run(e.ctx, provider.SyncOptions{}); err != nil {
+		t.Fatal(err)
+	}
+	if got := e.one(`SELECT state FROM content_provider WHERE provider = 'rd'`); got != "absent" {
+		t.Fatalf("state after empty list %s", got)
+	}
+	e.now = e.now.Add(time.Hour)
+	e.exec(`UPDATE download SET state = 'ready' WHERE id = 1`)
+	if _, err := e.lib.Import(e.ctx, 1, false); err != nil {
+		t.Fatal(err)
+	}
+	back := fmt.Sprintf("present|100.0|T9|%s|5000|%d", movieRelease, store.Millis(e.now))
+	if got := e.cpRow(); got != back {
+		t.Errorf("after re-import %q, want %q", got, back)
+	}
+	if got := e.one(`SELECT absent_at IS NULL FROM content_provider WHERE provider = 'rd'`); got != "1" {
+		t.Errorf("absent_at kept")
 	}
 }
