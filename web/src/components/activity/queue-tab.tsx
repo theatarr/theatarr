@@ -6,13 +6,13 @@
 // (github.com/scryer-media/scryer apps/scryer-web/components/views/activity/queue-row-presentation.tsx @ 2ef7757c,
 // GPL-3.0: the status pill, title and release lines, and the details panel's small uppercase labels).
 import { ChevronDown, ChevronUp, Columns3, HelpCircle, Inbox, NotebookPen } from "lucide-react";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { Link } from "react-router";
 import { useActivityAttempts, useActivityNow, type ActivityDownload } from "@/api/activity";
 import { useAuth } from "@/api/auth";
 import { usePerms } from "@/api/library";
 import { DownloadActions } from "@/components/activity/download-actions";
-import { Dash, episodesWords, FormatPills, Poster, TitleLine } from "@/components/activity/row-bits";
+import { Dash, episodesWords, FormatPills, Poster, tight, TitleLine } from "@/components/activity/row-bits";
 import { ProgressBar, StepTrack, toneOf } from "@/components/activity-bits";
 import { Empty, ErrorState, Loading, Mono, VersionTag } from "@/components/page";
 import { Badge } from "@/components/ui/badge";
@@ -166,13 +166,13 @@ function Progress({ d, now }: { d: ActivityDownload; now: number }) {
 
 /** The table's Progress cell: the bar while it moves, and how long it has waited and the next try (Last update is its
  * own column). */
-function QueueProgress({ d, now }: { d: ActivityDownload; now: number }) {
+function QueueProgress({ d, now, empty = <Dash /> }: { d: ActivityDownload; now: number; empty?: ReactNode }) {
   const showBar = hasBar(d);
   const t = timing(d, now);
   const parts = [t.waited ? `waiting ${t.waited}` : null, t.retry ? `next try ${t.retry}` : null].filter(Boolean);
-  if (!showBar && parts.length === 0) return <Dash />;
+  if (!showBar && parts.length === 0) return <>{empty}</>;
   return (
-    <div className="w-40 min-w-0">
+    <div className="w-[5.5rem] min-w-0">
       {showBar ? (
         <div className="flex items-center gap-2">
           <ProgressBar pct={d.progress} tone={toneOf(d)} />
@@ -226,11 +226,23 @@ function DownloadRow({ d, now }: { d: ActivityDownload; now: number }) {
   );
 }
 
-function DetailsButton({ attention, open, onClick }: { attention: boolean; open: boolean; onClick: () => void }) {
+/** Details, or Inspect when the row needs attention; the chevron is left out in the table, where width is short. */
+function DetailsButton({ attention, open, onClick, chevron = true }: { attention: boolean; open: boolean; onClick: () => void; chevron?: boolean }) {
   return (
     <Button size="xs" variant={attention ? "outline" : "ghost"} onClick={onClick} aria-expanded={open} data-testid="download-details">
-      {attention ? "Inspect" : "Details"} {open ? <ChevronUp /> : <ChevronDown />}
+      {attention ? "Inspect" : "Details"} {chevron ? open ? <ChevronUp /> : <ChevronDown /> : null}
     </Button>
+  );
+}
+
+/** The title's name and year on one line (the library tag says the kind). */
+function TableTitle({ t }: { t: ActivityDownload["title"] }) {
+  const name = "min-w-0 truncate font-semibold text-[var(--ink)]";
+  return (
+    <div className="flex min-w-0 items-baseline gap-1.5">
+      {t.id ? <Link to={`/title/${t.id}`} className={`${name} hover:text-primary`} title={t.name}>{t.name}</Link> : <span className={name} title={t.name}>{t.name}</span>}
+      {t.year ? <span className="shrink-0 text-xs text-muted-foreground">{t.year}</span> : null}
+    </div>
   );
 }
 
@@ -238,10 +250,15 @@ function DetailsButton({ attention, open, onClick }: { attention: boolean; open:
 function ProviderCell({ d }: { d: ActivityDownload }) {
   if (!d.provider_name && !d.client) return <Dash />;
   return (
-    <span className="inline-flex items-center gap-1.5 whitespace-nowrap">
-      {d.provider_name ? <span>{d.provider_name}</span> : <span>client {d.client}</span>}
-      {d.cached ? <Badge tone="positive">cached</Badge> : null}
-      {d.reused ? <Badge tone="neutral">reused</Badge> : null}
+    <span className="block whitespace-nowrap">
+      {d.provider_name ? <span className="block">{d.provider_name}</span> : <span className="block">client {d.client}</span>}
+      {d.cached || d.reused ? (
+        <span className="block text-[11px] leading-tight">
+          {d.cached ? <span className="text-[var(--ok-ink)]">cached</span> : null}
+          {d.cached && d.reused ? " · " : null}
+          {d.reused ? <span className="text-muted-foreground">reused</span> : null}
+        </span>
+      ) : null}
     </span>
   );
 }
@@ -254,15 +271,15 @@ function Ago({ iso }: { iso: string }) {
 function queueColumns(now: number): { fixed: DataColumn<ActivityDownload>[]; optional: Record<QueueColumnId, DataColumn<ActivityDownload>> } {
   return {
     fixed: [
-      { id: "status", label: "Status", card: "none", cellClassName: "max-w-[14rem]", cell: (d) => <Stage d={d} admin attention={needsAttention(d, now)} /> },
+      { id: "status", label: "Status", card: "none", cellClassName: "max-w-[8rem]", cell: (d) => <Stage d={d} admin attention={needsAttention(d, now)} /> },
       {
         id: "title",
         label: "Title",
         card: "none",
-        cellClassName: "max-w-[22rem]",
+        cellClassName: "max-w-[10rem]",
         cell: (d) => (
           <div className="min-w-0">
-            <TitleLine t={d.title} />
+            <TableTitle t={d.title} />
             {d.episodes?.length ? <p className="truncate text-xs text-muted-foreground">{episodesWords(d.episodes)}</p> : null}
           </div>
         ),
@@ -306,7 +323,7 @@ function QueueTable({ items, now, prefs, sort, onSort }: { items: ActivityDownlo
   const [open, setOpen] = useState<ReadonlySet<number>>(new Set());
   const rows = useMemo(() => sortDownloads(items, sort), [items, sort]);
   const { fixed, optional } = queueColumns(now);
-  const columns = [...fixed, ...prefs.order.filter((id) => prefs.shown.includes(id)).map((id) => optional[id])];
+  const columns = tight([...fixed, ...prefs.order.filter((id) => prefs.shown.includes(id)).map((id) => optional[id])]);
   const toggle = (id: number) =>
     setOpen((s) => {
       const n = new Set(s);
@@ -337,12 +354,12 @@ function QueueTable({ items, now, prefs, sort, onSort }: { items: ActivityDownlo
             {d.episodes?.length ? <span>{episodesWords(d.episodes)}</span> : null}
           </div>
           <Stage d={d} admin attention={needsAttention(d, now)} />
-          <QueueProgress d={d} now={now} />
+          <QueueProgress d={d} now={now} empty={null} />
         </>
       )}
       actions={(d) => (
-        <span className="inline-flex flex-wrap items-center gap-1.5">
-          <DetailsButton attention={needsAttention(d, now)} open={open.has(d.id)} onClick={() => toggle(d.id)} />
+        <span className="inline-flex items-center gap-1">
+          <DetailsButton attention={needsAttention(d, now)} open={open.has(d.id)} onClick={() => toggle(d.id)} chevron={false} />
           <DownloadActions d={d} />
         </span>
       )}

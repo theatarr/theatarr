@@ -2,6 +2,7 @@
 // episodes in short, the matched formats as pills, and the dash an unknown value shows.
 import { Link } from "react-router";
 import type { ActivityDownload } from "@/api/activity";
+import type { DataColumn } from "@/components/ui/data-table";
 import { kindLabel } from "@/components/activity-bits";
 import { cn } from "@/lib/utils";
 
@@ -54,4 +55,9 @@ export function FormatPills({ formats }: { formats?: readonly { name: string; sc
       ))}
     </span>
   );
+}
+
+/** Tighter cells than the kit's, so the default columns fit a 1400 px window beside the sidebar. */
+export function tight<T>(columns: readonly DataColumn<T>[]): DataColumn<T>[] {
+  return columns.map((c) => ({ ...c, headClassName: cn("px-2", c.headClassName), cellClassName: cn("px-2", c.cellClassName) }));
 }

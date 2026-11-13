@@ -10,7 +10,7 @@ import { useActivityHistory, type ActivityEvent } from "@/api/activity";
 import { usePerms } from "@/api/library";
 import { HistoryRetry } from "@/components/activity/download-actions";
 import { HistoryFilters, useHistoryFilters } from "@/components/activity/history-filters";
-import { Dash, episodesWords, FormatPills, Poster } from "@/components/activity/row-bits";
+import { Dash, episodesWords, FormatPills, Poster, tight } from "@/components/activity/row-bits";
 import { Empty, ErrorState, Loading, VersionTag } from "@/components/page";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -75,9 +75,9 @@ function EventRow({ e }: { e: ActivityEvent }) {
 function EventWords({ e }: { e: ActivityEvent }) {
   const tip = [eventMeaning(e.words), e.summary].filter(Boolean).join("\n");
   return (
-    <span className="flex min-w-0 items-center gap-2" title={tip || undefined}>
-      <span className={cn("size-2 shrink-0 rounded-full", EVENT_TONE[e.tone])} aria-hidden />
-      <span className="text-sm font-medium">{e.words}</span>
+    <span className="flex min-w-0 items-baseline gap-2" title={tip || undefined}>
+      <span className={cn("size-2 shrink-0 translate-y-[-1px] rounded-full", EVENT_TONE[e.tone])} aria-hidden />
+      <span className="text-[13px] font-medium leading-snug">{e.words}</span>
     </span>
   );
 }
@@ -94,8 +94,8 @@ function TitleCell({ e }: { e: ActivityEvent }) {
 }
 
 const HISTORY_FIXED: DataColumn<ActivityEvent>[] = [
-  { id: "event", label: "Event", card: "none", cellClassName: "max-w-[16rem]", cell: (e) => <EventWords e={e} /> },
-  { id: "title", label: "Title", card: "none", cellClassName: "max-w-[18rem]", cell: (e) => <TitleCell e={e} /> },
+  { id: "event", label: "Event", card: "none", cellClassName: "min-w-[8rem] max-w-[10rem]", cell: (e) => <EventWords e={e} /> },
+  { id: "title", label: "Title", card: "none", cellClassName: "max-w-[12rem]", cell: (e) => <TitleCell e={e} /> },
 ];
 
 const HISTORY_OPTIONAL: Record<HistoryColumnId, DataColumn<ActivityEvent>> = {
@@ -106,8 +106,8 @@ const HISTORY_OPTIONAL: Record<HistoryColumnId, DataColumn<ActivityEvent>> = {
   release: {
     id: "release",
     label: "Release",
-    cellClassName: "max-w-[22rem]",
-    cell: (e) => (e.release ? <span className="block truncate font-mono text-[12px]" title={e.release}>{e.release}</span> : <Dash />),
+    cellClassName: "max-w-[13rem]",
+    cell: (e) => (e.release ? <span className="block font-mono text-[12px] max-sm:break-all sm:truncate" title={e.release}>{e.release}</span> : <Dash />),
   },
   provider: { id: "provider", label: "Provider", cellClassName: "whitespace-nowrap", cell: (e) => e.provider || <Dash /> },
   indexer: { id: "indexer", label: "Indexer", cellClassName: "whitespace-nowrap", cell: (e) => e.indexer || <Dash /> },
@@ -188,7 +188,7 @@ function HistoryList({ q, admin, prefs, filtered }: { q: ReturnType<typeof useAc
     </div>
   ) : null;
   if (admin) {
-    const columns = [...HISTORY_FIXED, ...prefs.order.filter((id) => prefs.shown.includes(id)).map((id) => HISTORY_OPTIONAL[id])];
+    const columns = tight([...HISTORY_FIXED, ...prefs.order.filter((id) => prefs.shown.includes(id)).map((id) => HISTORY_OPTIONAL[id])]);
     return (
       <div className="space-y-4">
         <DataTable

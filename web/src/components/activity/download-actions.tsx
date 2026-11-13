@@ -3,7 +3,7 @@
 // release and search again; on a history row about a failed download, Retry; on a blocked release, Unblock
 // (optionally searching again). Removing ends Theatarr's record only: the torrent at the debrid provider is shared
 // and stays.
-import { RotateCcw, Trash2, Undo2 } from "lucide-react";
+import { RotateCcw, Undo2 } from "lucide-react";
 import { useState } from "react";
 import type { ActivityBlocked, ActivityDownload, ActivityEvent } from "@/api/activity";
 import { usePerms } from "@/api/library";
@@ -32,14 +32,14 @@ export function DownloadActions({ d }: { d: ActivityDownload }) {
   const subject = <span className="font-mono">{d.release || d.title.name}</span>;
   const kind = retryKind(d.state);
   return (
-    <span className="inline-flex flex-wrap gap-1.5" data-testid="download-actions">
+    <span className="inline-flex gap-1" data-testid="download-actions">
       {kind ? (
         <Button size="xs" variant="outline" onClick={() => setOpen("retry")} data-testid="download-retry">
-          <RotateCcw /> {kind === "import" ? "Import now" : "Retry"}
+          {kind === "import" ? "Import now" : "Retry"}
         </Button>
       ) : null}
       <Button size="xs" variant="outline" onClick={() => setOpen("remove")} data-testid="download-remove">
-        <Trash2 /> {d.state === "failed" ? "Dismiss" : "Remove"}
+        {d.state === "failed" ? "Dismiss" : "Remove"}
       </Button>
       {open === "remove" ? (
         <ConfirmDialog

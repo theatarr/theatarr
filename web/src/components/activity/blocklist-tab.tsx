@@ -7,9 +7,8 @@ import { BLOCKED_PAGE, useActivityBlocked, type ActivityBlocked } from "@/api/ac
 import { useDebounced } from "@/api/add";
 import { useFacets } from "@/api/library";
 import { UnblockAction } from "@/components/activity/download-actions";
-import { Dash } from "@/components/activity/row-bits";
+import { Dash, tight } from "@/components/activity/row-bits";
 import { Empty, ErrorState, Loading, VersionTag } from "@/components/page";
-import { Badge } from "@/components/ui/badge";
 import { Card } from "@/components/ui/card";
 import { DataTable, type DataColumn } from "@/components/ui/data-table";
 import { Input } from "@/components/ui/input";
@@ -20,14 +19,14 @@ import { fmtTime } from "@/lib/format";
 
 const titleName = (b: ActivityBlocked) => `${b.title.name}${b.title.year ? ` (${b.title.year})` : ""}`;
 
-const COLUMNS: DataColumn<ActivityBlocked>[] = [
-  { id: "title", label: "Title", card: "none", cellClassName: "max-w-[16rem]", cell: (b) => <span className="block truncate font-medium text-[var(--ink)]">{titleName(b)}</span> },
+const COLUMNS: DataColumn<ActivityBlocked>[] = tight([
+  { id: "title", label: "Title", card: "none", cellClassName: "max-w-[10.5rem]", cell: (b) => <span className="block truncate font-medium text-[var(--ink)]">{titleName(b)}</span> },
   { id: "library", label: "Library", cell: (b) => <VersionTag k={b.version} className="text-[11px]" /> },
   {
     id: "release",
     label: "Release",
     card: "full",
-    cellClassName: "max-w-[22rem]",
+    cellClassName: "max-w-[12rem]",
     cell: (b) => <span className="block font-mono text-[12px] max-sm:break-all sm:truncate" title={b.release}>{b.release}</span>,
   },
   { id: "quality", label: "Quality", card: "none", cellClassName: "whitespace-nowrap", cell: (b) => b.quality || <Dash /> },
@@ -36,15 +35,16 @@ const COLUMNS: DataColumn<ActivityBlocked>[] = [
     id: "reason",
     label: "Reason",
     card: "full",
+    cellClassName: "min-w-[9rem] max-w-[12rem]",
     cell: (b) => (
-      <span className="inline-flex flex-wrap items-center gap-1.5" title={b.reason || undefined}>
-        <Badge tone="warning">{b.words}</Badge>
-        {b.researched_at ? <Badge tone="neutral">searched again</Badge> : null}
+      <span className="block text-[12.5px] leading-snug" title={b.reason || undefined}>
+        <span className="text-[var(--warn-ink)]">{b.words}</span>
+        {b.researched_at ? <span className="block text-[11px] text-muted-foreground">searched again</span> : null}
       </span>
     ),
   },
   { id: "blocked", label: "Blocked", cellClassName: "whitespace-nowrap tabular-nums", cell: (b) => fmtTime(b.created_at) },
-];
+]);
 
 export function BlocklistTab() {
   const [text, setText] = useState("");
