@@ -97,9 +97,9 @@ sort titles come from their metadata servers.
 Movie metadata follows Radarr `Movies/ShouldRefreshMovie.cs:30–57` @ a96bf7c: refresh every 12 hours while
 announced/in cinemas or physically released within 30 days, otherwise every 180 days. Physical release falls back
 to cinema + 90 days, then an unknown future date (`MovieMetadata.cs:77–80`); digital dates do not set this cadence.
-TMDb refreshes and arr imports update nonempty title, sort name and year so decision year checks and text searches
-read current identity; user monitoring stays. A movie version an arr feeds takes canonical release dates from its
-owning arr while that feed is active, including later corrections; other versions use Theatarr's successful TMDb dates.
+TMDb refreshes update nonempty title, sort name and year so decision year checks and text searches read current
+identity; user monitoring stays. Every library uses Theatarr's successful TMDb dates (arr-fed dates went with the
+periodic arr import).
 
 ## Tests
 

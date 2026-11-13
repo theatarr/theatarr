@@ -769,12 +769,14 @@ func blockWords(source string) string {
 
 // ContinueItem is one title on Home's "Continue" row: its most advanced download in hand.
 type ContinueItem struct {
-	ID       int64   `json:"id"` // the title id
-	Name     string  `json:"name"`
-	Year     int     `json:"year,omitempty"`
-	Kind     string  `json:"kind"`
-	Poster   string  `json:"poster"`
-	Version  string  `json:"version"`
+	ID      int64  `json:"id"` // the title id
+	Name    string `json:"name"`
+	Year    int    `json:"year,omitempty"`
+	Kind    string `json:"kind"`
+	Poster  string `json:"poster"`
+	Version string `json:"version"`
+	// Label names the library for people (its label; same-labelled libraries told apart as elsewhere).
+	Label    string  `json:"label"`
 	Download int64   `json:"download"`
 	State    string  `json:"state"`
 	Step     string  `json:"step"`
@@ -861,6 +863,14 @@ func (w *Web) apiContinue(rw http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		w.internal(rw, err)
 		return
+	}
+	keys := make([]string, len(row.Items))
+	for i, it := range row.Items {
+		keys[i] = it.Version
+	}
+	names := w.keyLabelsFor(keys, w.permsOf(r).SeeFiles)
+	for i := range row.Items {
+		row.Items[i].Label = names[row.Items[i].Version]
 	}
 	writeJSON(rw, http.StatusOK, row)
 }

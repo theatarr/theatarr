@@ -17,12 +17,15 @@ catalog,title}.tsx`, `web/src/components/{library,title}/`.
   from the library is in no row, filter, sort or facet. A current file is the owning instance's, or any file when no instance
   owns the version; active links count too.
 - **`availability`:** missing (every version wanted, no files); partial (a version has no file, or a wanted version
-  has some, i.e. a series part-way); upgrade (all have files, some below cutoff); available; none (no versions).
+  has some, i.e. a series part-way; for a movie only a monitored version without a file counts, so an unmonitored
+  empty one leaves it as its held copies read); upgrade (the rest have files, some below cutoff); available; none
+  (no versions). The row, the `availability=` filter and the facet counts share this rule; the UI words a movie's
+  partial **Partly available**.
 - **`GET titles/facets?kind=&anime=`** counts per availability, monitoring, version key, quality, genre,
   certification and (see files) provider cache code, over one grid; the grid's other filters are ignored.
 - **`GET titles/{id}`** adds per version `label`, `current` (the current file in brief, with `formats`), `providers`,
   `cached_on` (cache codes), `removed` (a copy removed from the library, counted in none of the rollups), `episodes`
-  (series counts without specials) and `history` (arr history plus Theatarr downloads, newest first, at most 50; a movie's
+  (series counts without specials) and `history` (Theatarr's downloads and searches, newest first, at most 50; a movie's
   second import is an upgrade), and `franchises` for the anime order panel.
 - **`GET titles/{id}/episodes?season=`**: seasons (specials last) with have/missing per version, and episodes with a
   cell per version.

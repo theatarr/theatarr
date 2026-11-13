@@ -58,7 +58,7 @@ it("says how entries appear when the journal is empty, and keeps the short text 
     { method: "GET", path: "/status", reply: {} },
   ]);
   const first = renderPage(<JournalList />, "/activity/journal");
-  expect(await screen.findByText(/No entries yet\. One appears each time a library judges a release/)).toBeTruthy();
+  expect(await screen.findByText(/No entries yet\. One appears each time a Live library judges a release/)).toBeTruthy();
   first.unmount();
   renderPage(<JournalList />, "/activity/journal?kind=grab");
   expect(await screen.findByText("No entries.")).toBeTruthy();

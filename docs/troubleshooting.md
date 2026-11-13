@@ -93,12 +93,17 @@ returned and why each release was accepted or rejected) and **System › Status*
   only after 24 hours (**Settings › Download clients › Behaviour**, **Automatic search**). The **Wanted** page's
   **Next search** column says when each item may be searched; **Not scheduled** means **Search for missing items**
   (or **Search for upgrades**) is off, so it is searched only when you ask or after a failed download. **Search
-  now** on the title page searches it at once. **Search now** on the **Wanted** page makes the item due at once;
+  now** on the title page, or at the end of the title's row in a list's table view, searches it at once. **Search
+  now** on the **Wanted** page makes the item due at once;
   searches start as the hourly limit allows, so a long list takes hours. To search many titles of one library, a
   manager or admin can also choose **Select** on **Library › Movies** or **Series**, tick the titles, pick the library in the
   bar (not **Every library**) and choose **Search now**: they are searched the same way under the same limit, a series season by season, and a
   title with nothing missing in that library is skipped. The bar then says how many searches were queued and
   links to **Wanted**.
+- **A list added it.** Titles a list sync adds (timed or **Sync now**), and movies a timed collection refresh
+  adds, are not searched at once: with the list's **Search on add** they become due on the same automatic search,
+  under its hourly limit, and **Wanted** says "Added by a list". **Sync now** is refused while **Pause** is on.
+  Adding or refreshing one collection yourself with **Search on add** still searches at once.
 - **The movie is not available yet.** A movie is searched automatically only once it has reached its **Minimum
   availability**: Released (the default: a digital or physical release date has passed, or 90 days since the
   cinema date), In cinemas, or Announced. The title page's **Libraries** table shows the value in force

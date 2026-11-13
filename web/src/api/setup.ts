@@ -33,6 +33,6 @@ export const setupUnfinished = (state?: SetupState) => !!state && (state.first_r
 export const setupLinkShown = (state: SetupState | undefined, live: boolean | undefined, readiness: boolean) =>
   setupUnfinished(state) || (!!state && live === false && !readiness);
 
-/** The one-step start of an install no arr feeds: the library active, the optional preset as
+/** The one-step start of a new install: the library active, the optional preset as
  * its profile, and Pause off, in one save. A 422 lists the effects with a token. */
 export const startSetup = (body: SetupStartBody) => api<SetupStarted>("/setup/start", { method: "POST", body });

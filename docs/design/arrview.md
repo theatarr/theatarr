@@ -129,8 +129,8 @@ key or by a stored list's id.
   libraries, and all-anime targets making a movie anime).
 - Monitoring: Radarr `movieOnly` or `none`; Sonarr `all` (default) or `none`. `all` adds the series monitored with
   Theatarr's own monitoring for a new library (every season, and new seasons); the seasons monitored in the instance
-  are not copied, so a later request for another season there is still followed. Search on add asks for the libraries
-  added (a series' first search waits for its metadata, as for every add).
+  are not copied, so a later request for another season there is still followed. Search on add puts the libraries
+  added on the search schedule (router.md, Adds by lists); a series waits for its first metadata refresh first.
 - Theatarr only reads the instance: it never copies files, monitoring changes or blocklists, never undoes a removal
   in Theatarr, and never reports back, so apps that ask the instance (Seerr) do not see what Theatarr has. Arr views
   never list a Radarr or Sonarr row (`readImportLists` and their duplicate check read `list_type = 'tmdb'` only). Lists

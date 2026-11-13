@@ -568,6 +568,15 @@ func TestActivityScopedToRequestedCopies(t *testing.T) {
 	if len(row.Items) != 2 || row.Items[0].Downloads+row.Items[1].Downloads != 4 {
 		t.Errorf("manager's continue row: %+v", row.Items)
 	}
+	// Each card names its library by label, not by key (Home's "Getting ready" subtitle).
+	labels := map[string]string{}
+	for _, it := range row.Items {
+		labels[it.Version] = it.Label
+	}
+	if len(labels) != 2 || labels["tv-2160p"] != "4K" || labels["movie-remux"] != "" && labels["movie-remux"] != "4K Remux" ||
+		labels["movie-web"] != "" && labels["movie-web"] == "movie-web" {
+		t.Errorf("manager's continue row labels %v", labels)
+	}
 
 	// History: the grab of each download; by version, so both seasons of The Show.
 	versions := func(key string) []string {

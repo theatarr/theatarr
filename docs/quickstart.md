@@ -390,10 +390,11 @@ Sonarr/Radarr** brings in its titles, their monitoring and the files on the debr
 
 With a live library (**Live**, and **Pause** off), add a title and watch it arrive:
 
-1. Type a film or series into the search in the top bar (or open **Search**) and choose **Add** on the result.
-   Tick the library and turn **Search now** on: it is off by default, and without it the title waits for the
-   automatic search, which runs every 15 minutes and starts at most 10 searches an hour. Once you turn it on, this
-   browser keeps it on for the next add, until you turn it off again.
+1. Type a film or series into the search in the top bar (or open **Search**, or press **Add movie**, **Add series**
+   or **Add anime** on those lists) and choose **Add** on the result. Tick the library and press **Add and search**
+   to search it now. **Add** only adds it: the title then waits for the automatic search, which runs every 15
+   minutes and starts at most 10 searches an hour. The footer counts the ticked libraries and the Live ones among
+   them.
 
    A series that is not in the library yet has two more choices, and leaving them alone adds it as before:
    - **Monitor**: the seasons you tick (**Seasons I pick below**; **Every season** while the episodes are not

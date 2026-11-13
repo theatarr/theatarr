@@ -95,7 +95,7 @@ export function CollectionsPage() {
     {adding && d ? <AddCollectionDialog libraries={d.libraries} onClose={() => setAdding(false)} onExisting={show}
       onAdded={r => { setDone(`Added ${refreshWords(r)}`); show(r.collection.tmdb_id); }} /> : null}
     {q.isLoading ? <Loading /> : q.error ? <ErrorState error={q.error} /> : d ? <div className="space-y-4">
-      <p className="text-sm text-muted-foreground">{d.collections.length} collections, {monitored} monitored. Collections Radarr monitors are carried over with each Radarr import. {perms.admin ? <Link className="text-primary hover:underline" to="/admin/settings/metadata#refresh">Refresh schedule</Link> : null}</p>
+      <p className="text-sm text-muted-foreground">{d.collections.length} collections, {monitored} monitored. {perms.admin ? <Link className="text-primary hover:underline" to="/admin/settings/metadata#refresh">Refresh schedule</Link> : null}</p>
       {d.can_add ? null : <p className="text-sm text-muted-foreground">TMDb is not set up, so collections cannot be added or refreshed here.</p>}
       {done ? <p role="status" className="text-sm text-[var(--ink)]" data-testid="collections-done">{done}</p> : null}
       {set.error ? <ErrorState error={set.error} /> : null}
