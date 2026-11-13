@@ -1,7 +1,7 @@
 // The library views' copy helpers (docs/design/ui.md "Library views"): a copy is one version of a title. Each copy has
 // a coverage bar (episodes held of those aired; a movie is held or not) with the part in progress striped, and an
-// acquisition stage. The table's columns, the poster options and the preferences moved to lib/index-columns.ts,
-// lib/poster-options.ts and lib/prefs.ts; they are re-exported here.
+// acquisition stage. The table's columns live in lib/index-columns.ts; the poster options and the preferences moved to
+// lib/poster-options.ts and lib/prefs.ts and are re-exported here.
 import type { Schemas } from "@/api/client";
 import { fmtDay, stateWords } from "@/lib/library";
 
@@ -169,18 +169,9 @@ export function titleAcquisition(t: Row): { version: VersionBrief; acquisition: 
   return best;
 }
 
-// ---- Table columns, poster options, preferences, header sorting (moved; kept here for the existing imports) ----
+// ---- Sort order, poster options, preferences (moved; kept here for the existing imports) ----
 
-export {
-  DEFAULT_COLUMNS,
-  TABLE_COLUMNS,
-  defaultDesc,
-  headerSort,
-  normalizeColumns,
-  visibleColumns,
-  type ColumnId,
-  type ColumnPrefs,
-} from "./index-columns";
+export { defaultDesc } from "./index-columns";
 export { DEFAULT_POSTERS, POSTER_DETAILS, normalizePosters, type PosterDetail, type PosterPrefs, type PosterSize } from "./poster-options";
 export { moveColumn, prefKey, readPref, swapColumns, writePref } from "./prefs";
 

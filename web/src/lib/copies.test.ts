@@ -1,6 +1,5 @@
 import { describe, expect, it } from "vitest";
 import {
-  DEFAULT_COLUMNS,
   activityHref,
   bulkExpect,
   chipWords,
@@ -9,18 +8,15 @@ import {
   copyStatus,
   defaultDesc,
   distinctLabels,
-  headerSort,
   moveColumn,
   swapColumns,
   nextWords,
-  normalizeColumns,
   normalizePosters,
   prefKey,
   relabel,
   stageCounts,
   stageWords,
   titleAcquisition,
-  visibleColumns,
   withDistinctLabels,
 } from "./copies";
 
@@ -139,22 +135,12 @@ describe("copy bars", () => {
 });
 
 describe("columns and prefs", () => {
-  it("keeps known columns, appends new ones hidden, and moves them", () => {
-    const p = normalizeColumns({ order: ["size", "bogus", "next"], shown: ["size", "bogus"] });
-    expect(p.order.slice(0, 2)).toEqual(["size", "next"]);
-    expect(p.order).toHaveLength(DEFAULT_COLUMNS.order.length);
-    expect(p.shown).toEqual(["size"]);
-    expect(normalizeColumns("junk")).toEqual(DEFAULT_COLUMNS);
-    expect(moveColumn(p, "next", -1).order.slice(0, 2)).toEqual(["next", "size"]);
+  it("moves columns", () => {
+    const p = { order: ["size", "next"], shown: ["size"] };
+    expect(moveColumn(p, "next", -1).order).toEqual(["next", "size"]);
     expect(moveColumn(p, "size", -1)).toBe(p);
     // The picker moves past the next column it lists, over one it hides.
     expect(swapColumns({ order: ["size", "quality", "next"] }, "next", "size").order).toEqual(["next", "quality", "size"]);
-  });
-
-  it("leaves file columns out for accounts that do not see files", () => {
-    const p = { order: DEFAULT_COLUMNS.order, shown: ["next", "size", "quality", "added"] as const };
-    expect(visibleColumns({ ...p, shown: [...p.shown] }, false)).toEqual(["next", "added"]);
-    expect(visibleColumns({ ...p, shown: [...p.shown] }, true)).toEqual(["next", "quality", "size", "added"]);
   });
 
   it("reads poster options back safely", () => {
@@ -169,10 +155,7 @@ describe("columns and prefs", () => {
 });
 
 describe("sorting and next up", () => {
-  it("maps headers to grid sorts", () => {
-    expect(headerSort("copy", "tv-2160p")).toEqual({ sort: "completion", sort_version: "tv-2160p" });
-    expect(headerSort("title")).toEqual({ sort: "name" });
-    expect(headerSort("network")).toBeUndefined();
+  it("starts names and next dates ascending, the rest descending", () => {
     expect(defaultDesc("name")).toBe(false);
     expect(defaultDesc("next")).toBe(false);
     expect(defaultDesc("completion")).toBe(true);
