@@ -947,9 +947,11 @@
       },
       {
         "name": "alldebrid_delete_uncached",
+        "default": "true",
         "label": "Delete uncached AllDebrid adds",
         "type": "boolean",
-        "help": "This lets \"Only add cached releases\" delete an uncached AllDebrid add the router believes is its own. Default false: the add is kept, it finishes downloading on AllDebrid, and the next provider is tried."
+        "help": "This lets \"Only add cached releases\" delete an uncached AllDebrid add the router believes is its own. Off: the add is kept, it finishes downloading on AllDebrid, and the next provider is tried.",
+        "nullable": true
       },
       {
         "name": "cached_grace",

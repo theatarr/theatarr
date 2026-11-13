@@ -21,13 +21,13 @@ type Router struct {
 	// and the next provider is tried. Default true.
 	CachedOnly *bool `yaml:"cached_only"`
 	// AllDebridDeleteUncached lets "Only add cached releases" delete an uncached AllDebrid add the router believes is
-	// its own. Default false: the add is kept, it finishes downloading on AllDebrid, and the next provider is tried. The reason is a race the router cannot close: AllDebrid answers an upload of a hash already on the
-	// account with the existing magnet's id, and the router's proof that the magnet is new is a list read made just
-	// before the upload. Another client adding the same hash between that read and our upload hands us its magnet,
-	// which would then look like ours and be deleted, though debrid torrents are shared and never deleted. Real-Debrid
-	// creates a new torrent id per add, so its delete needs no switch. The race is acceptable only on an account
-	// nothing else writes to, so the delete is an opt-in.
-	AllDebridDeleteUncached bool `yaml:"alldebrid_delete_uncached"`
+	// its own. Off: the add is kept, it finishes downloading on AllDebrid, and the next provider is tried. Default on
+	// (the owner's decision, 2026-11-13); a stored false is kept. The proof has a race the router cannot close: AllDebrid answers an
+	// upload of a hash already on the account with the existing magnet's id, and the router's proof that the magnet
+	// is new is a list read made just before the upload. Another client adding the same hash between that read and
+	// our upload hands us its magnet, which would then look like ours. Real-Debrid creates a new torrent id per add,
+	// so its delete needs no switch. Copies to other providers delete regardless.
+	AllDebridDeleteUncached *bool `yaml:"alldebrid_delete_uncached"`
 	// CachedGrace is how long the router waits before reading a fresh Real-Debrid or AllDebrid add again when the
 	// first read shows it still converting or downloading (one re-read; on Real-Debrid also after selecting files),
 	// before it calls the add uncached. Default 2s (decypharr's), 1s to 30s.
@@ -249,7 +249,7 @@ func (p *Policy) WantedSettings() WantedSettings {
 type RouterSettings struct {
 	Enabled    bool
 	CachedOnly bool
-	// AllDebridDeleteUncached: cached_only may delete an uncached AllDebrid add of ours (default false).
+	// AllDebridDeleteUncached: cached_only may delete an uncached AllDebrid add of ours (default true).
 	AllDebridDeleteUncached bool
 	MissTTL                 time.Duration
 	PollInterval            time.Duration
@@ -265,7 +265,7 @@ type RouterSettings struct {
 
 // RouterSettings returns the router section with defaults. With no section the router is disabled.
 func (p *Policy) RouterSettings() RouterSettings {
-	s := RouterSettings{CachedOnly: true, MissTTL: DefaultRouterMissTTL, PollInterval: DefaultRouterPollInterval,
+	s := RouterSettings{CachedOnly: true, AllDebridDeleteUncached: true, MissTTL: DefaultRouterMissTTL, PollInterval: DefaultRouterPollInterval,
 		MaxCandidates: DefaultRouterMaxCandidates, CachedGrace: DefaultRouterCachedGrace,
 		StalledAfter: DefaultRouterStalledAfter, DownloadingTimeout: DefaultRouterDownloadingTimeout,
 		ReadyTimeout: DefaultRouterReadyTimeout}
@@ -274,7 +274,9 @@ func (p *Policy) RouterSettings() RouterSettings {
 		return s
 	}
 	s.Enabled = c.Enabled
-	s.AllDebridDeleteUncached = c.AllDebridDeleteUncached
+	if c.AllDebridDeleteUncached != nil {
+		s.AllDebridDeleteUncached = *c.AllDebridDeleteUncached
+	}
 	if c.CachedOnly != nil {
 		s.CachedOnly = *c.CachedOnly
 	}

@@ -238,6 +238,7 @@ func TestAllDebridUncachedKeptOncePerRoute(t *testing.T) {
 	}
 	t.Run("kept", func(t *testing.T) {
 		e, f, _ := newDebridEnv(t, true, policy.ModeActive, true)
+		e.r.set.AllDebridDeleteUncached = false
 		res, err := e.r.Route(e.ctx, series())
 		if err != nil {
 			t.Fatal(err)

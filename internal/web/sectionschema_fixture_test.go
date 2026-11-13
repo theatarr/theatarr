@@ -59,6 +59,7 @@ func TestSectionDefaultTrue(t *testing.T) {
 		"shadow.rss":                                 p.ShadowSettings().RSS,
 		"playlists.routes":                           p.PlaylistSettings().Routes,
 		"router.cached_only":                         p.RouterSettings().CachedOnly,
+		"router.alldebrid_delete_uncached":           p.RouterSettings().AllDebridDeleteUncached,
 		"router.wanted.missing":                      p.WantedSettings().Missing,
 		"router.cache_evidence.torbox_check.enabled": p.CacheEvidenceSettings().CheckEnabled,
 	}

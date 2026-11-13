@@ -62,7 +62,7 @@
 //
 // The router deletes on a provider in two cases only, through adder.Deleter and adder.StalledDeleter, the only
 // deletes in Theatarr: an add of this route attempt on Real-Debrid or AllDebrid that turned out uncached with
-// router.cached_only (AllDebrid also needs router.alldebrid_delete_uncached, default off), and a stalled
+// router.cached_only (AllDebrid also needs router.alldebrid_delete_uncached, default on), and a stalled
 // Real-Debrid add. Both need proof that the entry is a new one of ours (the hash
 // was not on the account before the add, the id is new); a reused or possibly shared entry is never deleted. A
 // cached-only movie on Real-Debrid whose every playable file came back uncached is added once more with its

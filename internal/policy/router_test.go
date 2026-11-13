@@ -18,7 +18,7 @@ func TestRouterSettings(t *testing.T) {
 	def := (&Policy{}).RouterSettings()
 	if def.Enabled || !def.CachedOnly || def.MissTTL != 6*time.Hour || def.PollInterval != time.Minute ||
 		def.MaxCandidates != 5 || len(def.Trackers) != 0 || def.CachedGrace != 2*time.Second ||
-		def.StalledAfter != 10*time.Minute || def.ReadyTimeout != 6*time.Hour || def.AllDebridDeleteUncached {
+		def.StalledAfter != 10*time.Minute || def.ReadyTimeout != 6*time.Hour || !def.AllDebridDeleteUncached {
 		t.Errorf("defaults %+v", def)
 	}
 	if got := p.RouterSettings(); got.Enabled || !got.CachedOnly || got.MissTTL != def.MissTTL ||

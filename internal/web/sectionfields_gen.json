@@ -173,7 +173,7 @@
     "username_env": "This and password_env name the basic auth credentials (--rc-user, --rc-pass). Optional."
   },
   "Router": {
-    "alldebrid_delete_uncached": "This lets \"Only add cached releases\" delete an uncached AllDebrid add the router believes is its own. Default false: the add is kept, it finishes downloading on AllDebrid, and the next provider is tried.",
+    "alldebrid_delete_uncached": "This lets \"Only add cached releases\" delete an uncached AllDebrid add the router believes is its own. Off: the add is kept, it finishes downloading on AllDebrid, and the next provider is tried.",
     "cache_evidence": "This is what the router and the release views know about which providers hold a release cached.",
     "cached_grace": "This is how long the router waits before reading a fresh Real-Debrid or AllDebrid add again when the first read shows it still converting or downloading (one re-read; on Real-Debrid also after selecting files), before it calls the add…",
     "cached_only": "This skips a provider where a release is known to be uncached (an earlier refusal, a cache check) and asks TorBox to add only if cached.",

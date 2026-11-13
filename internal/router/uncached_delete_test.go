@@ -30,7 +30,7 @@ func TestUncachedDeleteErrorReadBack(t *testing.T) {
 		t.Run(outcome, func(t *testing.T) {
 			e := newEnv(t, true, policy.ModeActive)
 			e.pol.Versions["movie"].Providers = []string{"ad", "tb"}
-			e.pol.Router.AllDebridDeleteUncached = true
+			e.pol.Router.AllDebridDeleteUncached = new(true)
 			e.r.set = e.pol.RouterSettings()
 			e.pr["ad"].set("ad-aaaa", provider.Torrent{Hash: h("a"), State: provider.StateDownloading, Status: "Downloading"})
 			reads := 0

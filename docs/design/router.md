@@ -448,12 +448,12 @@ a converting Real-Debrid magnet the remaining reads, as its poller does not judg
 **Then:**
 - **cached:** `accepted/added`; `provider_cache` `cached`, source `add:<provider>`, for `cache_evidence.ttl`; the
   download is recorded ready at once when the read showed it.
-- **uncached, provably Theatarr's (AllDebrid only with `router.alldebrid_delete_uncached: true`)** (the hash was not on the account, and the id is new: RD always, AD not in the list read
+- **uncached, provably Theatarr's (on AllDebrid with `router.alldebrid_delete_uncached`, on by default)** (the hash was not on the account, and the id is new: RD always, AD not in the list read
   before; on both no registry row or other download knows the id; the entry shows the hash added): deleted
   (`adder.Deleter.DeleteOwnUncachedAdd`), `provider_cache` `uncached` (source `router:add`) for `miss_ttl`, counted in
   `uncached_adds_per_hour`, the download back to `queued` with no provider, step and attempt `refused/uncached_deleted`,
   and the next provider is tried. If every provider misses, the usual miss rule applies.
-- **uncached, provably Theatarr's, on AllDebrid with `router.alldebrid_delete_uncached: false` (the default):** nothing is
+- **uncached, provably Theatarr's, on AllDebrid with `router.alldebrid_delete_uncached: false`:** nothing is
   deleted. Logged at INFO, `provider_cache` `uncached` for `miss_ttl`, counted in `uncached_adds_per_hour`, step and
   attempt `refused/uncached_kept`, the download back to `queued`, and the next provider is tried, exactly as after a
   delete. The magnet stays on AllDebrid and finishes downloading there (no uncached-add limit is known for AD); the
@@ -554,8 +554,8 @@ check `CachedOnlyCheck` warns when one has been open more than 30 minutes after 
   leaves at most one magnet per route on the shared account. The next route (a deferred retry is a new route) may
   try it again.
 
-**Opt-in for an account with no other writers:** `router.alldebrid_delete_uncached: true`, with `uncached_adds_per_hour`
-only on `tb` (60, TorBox's own limit; unset on `rd` and `ad`, see "Pacing"). The switch's default is `false`.
+**On by default (the owner's decision, 2026-11-13):** `router.alldebrid_delete_uncached` is `true` unless a stored `false`
+keeps it off, with `uncached_adds_per_hour` only on `tb` (60, TorBox's own limit; unset on `rd` and `ad`, see "Pacing").
 Where a cap is set it works the same on every provider (`TestUncachedCapOnRealDebridAndAllDebrid`): once used, the
 provider is `paced` until the next clock hour and the route moves on, or waits when no other provider is free.
 
@@ -1227,7 +1227,7 @@ states from `queued` to `importing`, for the view's versions.
 router:
   enabled: false       # the kill switch; default false
   cached_only: true    # skip known-uncached providers; TorBox adds only if cached; RD/AD: add, read, delete Theatarr's own
-  alldebrid_delete_uncached: false  # default; opt-in: delete Theatarr's own uncached AD add (see the accepted race above)
+  alldebrid_delete_uncached: true   # default; delete Theatarr's own uncached AD add (see the accepted race above); false keeps it
   cached_grace: 2s     # RD/AD: wait before the one re-read of a fresh add; 1s to 30s
   stalled_after: 10m   # fail, blocklist and re-search a download still added this long; 1m to 24h; 0s = off
                        # (providers.<key>.stalled_after overrides it; AllDebrid defaults to at least 25m)
@@ -1288,9 +1288,9 @@ default; `-apply` writes only to the database (no provider call).
   is decypharr's add, read, delete-and-try-next. decypharr deletes whatever id the add returned; Theatarr deletes only an
   entry it can prove is its own new one, and keeps (and downloads) any other. The proof has a hole on AllDebrid:
   another client uploading the same hash between Theatarr's list read and Theatarr's upload (about a second) gets the same magnet,
-  which Theatarr would take for its own. So AllDebrid deletes nothing unless
-  `router.alldebrid_delete_uncached: true`; by default an uncached AD add of Theatarr's is kept (`uncached_kept`) and
-  the next provider tried. The opt-in suits an account nothing else writes to.
+  which Theatarr would take for its own. The owner accepted the race: `router.alldebrid_delete_uncached` is on by
+  default (2026-11-13); with it off an uncached AD add of Theatarr's is kept (`uncached_kept`) and the next provider
+  tried.
 - **Cache tie-break.** The arrs' comparer never looks at cache evidence. Theatarr ranks a debrid release cached on
   more providers ahead of an otherwise equal one, because it has fallbacks: when one provider fails, the route tries
   the next that holds it. One comparer step (`compareCached`), for Radarr right after the format score, for Sonarr after the lowest

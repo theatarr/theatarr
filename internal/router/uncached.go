@@ -38,7 +38,7 @@ import (
 //
 // On AllDebrid the proof has a hole: another client uploading the same hash between our list read and our upload
 // gets the same magnet, and we would take it for ours. So AllDebrid deletes only with
-// router.alldebrid_delete_uncached (default off); otherwise an uncached add of ours is kept there (uncached_kept)
+// router.alldebrid_delete_uncached (default on; a stored false is kept); otherwise an uncached add of ours is kept there (uncached_kept)
 // and the next provider is tried, as after a delete. The option is for an AllDebrid account nothing else
 // writes to.
 // The delete itself is adder.Deleter, the only delete in Theatarr, which also refuses anything but an *Added its own
@@ -329,7 +329,7 @@ func (r *Router) settle(ctx context.Context, s *routeState, pv *policy.Provider,
 	if err != nil {
 		return 0, time.Time{}, Step{}, err
 	}
-	// AllDebrid: deleting needs router.alldebrid_delete_uncached (default off). The proof cannot rule out another
+	// AllDebrid: deleting needs router.alldebrid_delete_uncached (default on). The proof cannot rule out another
 	// client uploading the same hash between our list read and our upload, which hands us its magnet's id.
 	keep := notOurs == "" && pv.Kind == provider.KindAllDebrid && !r.set.AllDebridDeleteUncached
 	del, canDelete := ad.(adder.Deleter)

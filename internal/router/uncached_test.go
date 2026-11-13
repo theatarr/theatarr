@@ -444,11 +444,12 @@ func TestCachedOnlyUncachedAddDeleted(t *testing.T) {
 		t.Errorf("rd state %q", st)
 	}
 
-	// Uncached on both, with the default router.alldebrid_delete_uncached false: RD's add is deleted, AD's is kept
+	// Uncached on both, with router.alldebrid_delete_uncached off: RD's add is deleted, AD's is kept
 	// (uncached_kept, it finishes there) and never deleted, and TorBox (add only if cached) takes it, unchanged.
-	if e.r.set.AllDebridDeleteUncached {
-		t.Fatal("alldebrid_delete_uncached is on by default")
+	if !e.r.set.AllDebridDeleteUncached {
+		t.Fatal("alldebrid_delete_uncached is off by default")
 	}
+	e.r.set.AllDebridDeleteUncached = false
 	res, err = e.r.Route(e.ctx, grabReq(cand(h("c"), "Movie.2024.2160p.WEB.H265-GRP")))
 	if err != nil {
 		t.Fatal(err)
@@ -587,6 +588,7 @@ func TestCachedOnlyNeverDeletesKnownHash(t *testing.T) {
 	e.exec(`INSERT INTO download (id, title_id, version_id, version_key, info_hash, release_title, indexer, provider,
 		provider_torrent_id, state, created_at, updated_at) VALUES (5, 2, 20, 'series', ?, 'x', 'pub', 'rd', 'OLD',
 		'failed', 0, 0)`, h("a"))
+	e.r.set.AllDebridDeleteUncached = false
 	res, err = e.r.Route(e.ctx, movieReq(cand(h("a"), "Movie.2024.2160p.WEB.H265-GRP")))
 	if err != nil || steps(res) != "aaaa/rd/refused/uncached_deleted; aaaa/ad/refused/uncached_kept; aaaa/tb/accepted/added; " {
 		t.Fatalf("%+v %v: %s", res, err, steps(res))
@@ -767,7 +769,7 @@ func TestAllDebridUncachedDeleteOptIn(t *testing.T) {
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			e := newEnv(t, true, policy.ModeActive)
-			e.pol.Router.AllDebridDeleteUncached = tc.enabled
+			e.pol.Router.AllDebridDeleteUncached = &tc.enabled
 			e.r.set = e.pol.RouterSettings()
 			e.r.sleep = func(context.Context, time.Duration) error { return nil }
 			e.pr["ad"].set("ad-aaaa", provider.Torrent{Hash: h("a"), State: provider.StateDownloading, Status: "Downloading"})
