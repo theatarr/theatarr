@@ -305,6 +305,15 @@ func TestUsage(t *testing.T) {
 	if got := find(r, "rd", "2"); got.LinkedFiles != 1 || !strings.Contains(got.RefList[0].Detail, "(dead)") {
 		t.Errorf("a dead link is a reference, shown as dead: %+v", got)
 	}
+	for _, id := range []string{"1", "3", "4"} {
+		if got := find(r, "rd", id); len(got.Titles) != 1 || got.Titles[0] != (LinkedTitle{ID: 1, Name: "M"}) ||
+			got.RefList[0].TitleID != 1 {
+			t.Errorf("rd %s: its references name title 1: %+v", id, got)
+		}
+	}
+	if got := find(r, "rd", "5"); len(got.Titles) != 0 {
+		t.Errorf("a scanned link names no title: %+v", got.Titles)
+	}
 	if got := find(r, "rd", "6"); !got.AddedByTheatarr || got.Files != 2 {
 		t.Errorf("F was added by the router and has 2 registry files: %+v", got)
 	}
@@ -317,6 +326,40 @@ func TestUsage(t *testing.T) {
 	}
 	if len(r.Unused) != 1 || r.Unused[0] != (Member{Provider: "rd", ID: "6"}) {
 		t.Errorf("unused group: %+v", r.Unused)
+	}
+}
+
+// The titles of a torrent are those of all its references, also the ones past RefList's cut.
+func TestReportTitlesBeforeCut(t *testing.T) {
+	t.Parallel()
+	e := newEnv(t)
+	e.synced("rd")
+	e.rd.list = []provider.Torrent{tor("1", hA, "Show.S01.1080p.WEB-DL", 100, e.now, provider.StateDownloaded)}
+	c := e.content(hA, 1)
+	var file int64
+	if err := e.st.Reader().QueryRow(`SELECT id FROM content_file WHERE content_id = ?`, c).Scan(&file); err != nil {
+		t.Fatal(err)
+	}
+	e.exec(`INSERT INTO title (id, kind, name, created_at, updated_at) VALUES (2, 'series', 'Another', 0, 0)`)
+	for i := range maxRefList + 1 {
+		title := 1
+		if i == maxRefList {
+			title = 2
+		}
+		e.exec(`INSERT INTO link (path, target, content_file_id, title_id, created_at, updated_at)
+			VALUES (?, '/elsewhere/x.mkv', ?, ?, 0, 0)`, "/lib/"+string(rune('a'+i))+".mkv", file, title)
+	}
+	r, err := e.m.Report(context.Background())
+	if err != nil {
+		t.Fatal(err)
+	}
+	got := find(r, "rd", "1")
+	if len(got.RefList) != maxRefList || got.Refs[RefLink] != maxRefList+1 {
+		t.Fatalf("refs: %d listed, %v", len(got.RefList), got.Refs)
+	}
+	want := []LinkedTitle{{ID: 2, Name: "Another"}, {ID: 1, Name: "M"}}
+	if len(got.Titles) != 2 || got.Titles[0] != want[0] || got.Titles[1] != want[1] {
+		t.Errorf("titles: %+v, want %+v", got.Titles, want)
 	}
 }
 

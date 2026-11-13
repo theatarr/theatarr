@@ -39,6 +39,15 @@ const (
 type Ref struct {
 	Kind   string `json:"kind"`
 	Detail string `json:"detail"` // a path, or the download
+	// TitleID and Title name the title a library link, arr file or download belongs to (0: none, e.g. a scanned link).
+	TitleID int64  `json:"title_id,omitempty"`
+	Title   string `json:"title,omitempty"`
+}
+
+// LinkedTitle is a title a torrent's references belong to.
+type LinkedTitle struct {
+	ID   int64  `json:"id"`
+	Name string `json:"name"`
 }
 
 // activeDownloadStates are the download states that still need their torrent.
@@ -152,7 +161,7 @@ const (
 func (m *Manager) deleteUsage(ctx context.Context, key string, t provider.Torrent, ix *refIndex,
 	reload func(provider.Torrent) (*refIndex, error)) (Usage, map[string]int, []Ref, []string, error) {
 	// The base usage decides the read (zurg's name never stands in for the original name), then usage adds zurg's.
-	if u, _, _, _ := ix.baseUsage(key, t); u != Unused || !ix.folderOnly || secondName(t) != "" {
+	if u, _, _, _, _ := ix.baseUsage(key, t); u != Unused || !ix.folderOnly || secondName(t) != "" {
 		u, refs, list, reasons := ix.usage(key, t)
 		return u, refs, list, reasons, nil
 	}
@@ -261,11 +270,13 @@ func (m *Manager) loadDBRefsFor(ctx context.Context, sc *refScope) (*refIndex, e
 
 	// Library links: by the content's hash, the download's, the recorded file metadata's, and the mount folder of the
 	// target. A link with none of them in a configured mount cannot be tied to a torrent.
-	q := `SELECT path, target, state, h FROM (SELECT l.id, l.path, l.target, l.state,
+	q := `SELECT path, target, state, h, tid, tname FROM (SELECT l.id, l.path, l.target, l.state,
 		lower(COALESCE(NULLIF(c.info_hash, ''), NULLIF(d.info_hash, ''), CASE WHEN json_valid(l.file_metadata)
-		THEN NULLIF(json_extract(l.file_metadata, '$.InfoHash'), '') END, '')) AS h
+		THEN NULLIF(json_extract(l.file_metadata, '$.InfoHash'), '') END, '')) AS h,
+		l.title_id AS tid, COALESCE(t.name, '') AS tname
 		FROM link l LEFT JOIN content_file cf ON cf.id = l.content_file_id LEFT JOIN content c ON c.id = cf.content_id
-		LEFT JOIN download d ON d.id = l.download_id WHERE l.state != 'unlinked')`
+		LEFT JOIN download d ON d.id = l.download_id LEFT JOIN title t ON t.id = l.title_id
+		WHERE l.state != 'unlinked')`
 	var args []any
 	if sc != nil {
 		q += ` WHERE h = ? OR h = ''`
@@ -281,12 +292,13 @@ func (m *Manager) loadDBRefsFor(ctx context.Context, sc *refScope) (*refIndex, e
 	}
 	untied := 0
 	for rows.Next() {
-		var path, target, state, hash string
-		if err := rows.Scan(&path, &target, &state, &hash); err != nil {
+		var path, target, state, hash, tname string
+		var tid int64
+		if err := rows.Scan(&path, &target, &state, &hash, &tid, &tname); err != nil {
 			rows.Close()
 			return nil, err
 		}
-		r := Ref{Kind: RefLink, Detail: path}
+		r := Ref{Kind: RefLink, Detail: path, TitleID: tid, Title: tname}
 		if state != "active" {
 			r.Detail += " (" + state + ")"
 		}
@@ -313,8 +325,9 @@ func (m *Manager) loadDBRefsFor(ctx context.Context, sc *refScope) (*refIndex, e
 
 	// Arr files: the content the import tied to them, else the arr's download id (the hash for torrents).
 	// Scoped, a value that is not a plain hex hash (base32, padded) is normalized here like the rest.
-	q = `SELECT instance, path, h FROM (SELECT vf.id, vf.instance, vf.path,
-		lower(COALESCE(c.info_hash, vf.download_id, '')) AS h FROM version_file vf LEFT JOIN content c ON c.id = vf.content_id)`
+	q = `SELECT instance, path, h, tid, tname FROM (SELECT vf.id, vf.instance, vf.path,
+		lower(COALESCE(c.info_hash, vf.download_id, '')) AS h, COALESCE(t.id, 0) AS tid, COALESCE(t.name, '') AS tname
+		FROM version_file vf LEFT JOIN content c ON c.id = vf.content_id LEFT JOIN title t ON t.id = vf.title_id)`
 	args = nil
 	if sc != nil {
 		q += ` WHERE h = ? OR length(h) <> 40`
@@ -325,13 +338,15 @@ func (m *Manager) loadDBRefsFor(ctx context.Context, sc *refScope) (*refIndex, e
 		return nil, fmt.Errorf("torrents: reading arr files: %w", err)
 	}
 	for rows.Next() {
-		var inst, path, hash string
-		if err := rows.Scan(&inst, &path, &hash); err != nil {
+		var inst, path, hash, tname string
+		var tid int64
+		if err := rows.Scan(&inst, &path, &hash, &tid, &tname); err != nil {
 			rows.Close()
 			return nil, err
 		}
 		if h := indexer.NormalizeHash(hash); h != "" {
-			ix.byHash[h] = append(ix.byHash[h], Ref{Kind: RefArrFile, Detail: inst + ": " + path})
+			ix.byHash[h] = append(ix.byHash[h], Ref{Kind: RefArrFile, Detail: inst + ": " + path, TitleID: tid,
+				Title: tname})
 		}
 	}
 	rows.Close()
@@ -340,14 +355,14 @@ func (m *Manager) loadDBRefsFor(ctx context.Context, sc *refScope) (*refIndex, e
 	}
 
 	// Downloads still needing their torrent; and which torrents the router added.
-	q = `SELECT id, lower(info_hash), state, COALESCE(provider, ''), COALESCE(provider_torrent_id, ''), reused
-		FROM download`
+	q = `SELECT d.id, lower(d.info_hash), d.state, COALESCE(d.provider, ''), COALESCE(d.provider_torrent_id, ''),
+		d.reused, COALESCE(t.id, 0), COALESCE(t.name, '') FROM download d LEFT JOIN title t ON t.id = d.title_id`
 	args = nil
 	if sc != nil {
-		q += ` WHERE lower(info_hash) = ?`
+		q += ` WHERE lower(d.info_hash) = ?`
 		args = append(args, sc.hash)
 	}
-	rows, err = db.QueryContext(ctx, q+` ORDER BY id`, args...)
+	rows, err = db.QueryContext(ctx, q+` ORDER BY d.id`, args...)
 	if err != nil {
 		return nil, fmt.Errorf("torrents: reading downloads: %w", err)
 	}
@@ -357,15 +372,16 @@ func (m *Manager) loadDBRefsFor(ctx context.Context, sc *refScope) (*refIndex, e
 	}
 	for rows.Next() {
 		var id int64
-		var hash, state, prov, tid string
+		var hash, state, prov, tid, tname string
 		var reused int
-		if err := rows.Scan(&id, &hash, &state, &prov, &tid, &reused); err != nil {
+		var titleID int64
+		if err := rows.Scan(&id, &hash, &state, &prov, &tid, &reused, &titleID, &tname); err != nil {
 			rows.Close()
 			return nil, err
 		}
 		if active[state] {
 			ix.byHash[hash] = append(ix.byHash[hash], Ref{Kind: RefDownload,
-				Detail: fmt.Sprintf("download %d (%s)", id, state)})
+				Detail: fmt.Sprintf("download %d (%s)", id, state), TitleID: titleID, Title: tname})
 		}
 		if prov != "" && tid != "" && reused == 0 {
 			ix.added[prov+"\x00"+tid] = true
@@ -493,30 +509,38 @@ const maxRefList = 20
 // usage decides one torrent of provider key: baseUsage, plus the references under the folders of zurg's name for its
 // hash when that is used or unused. zurg only adds references: it turns unused into used and never touches unknown.
 func (ix *refIndex) usage(key string, t provider.Torrent) (Usage, map[string]int, []Ref, []string) {
-	u, counts, refs, reasons := ix.baseUsage(key, t)
-	h := indexer.NormalizeHash(t.Hash)
-	if u == Unknown || h == "" {
-		return u, counts, refs, reasons
-	}
-	z, ok := ix.zurg.Name(h)
-	if !ok {
-		return u, counts, refs, reasons
-	}
-	folders := append(torrentFolders(ix.decy, nil, h, t), library.ReleaseFolderNames(h, z)...)
-	if c, r := ix.refsOf(h, folders); len(c) > 0 {
-		return Used, c, r, nil
-	}
+	u, counts, refs, reasons, _ := ix.usageTitles(key, t)
 	return u, counts, refs, reasons
 }
 
-// refsOf are the references to hash (none for "") and to the folders, counted by kind and listed up to maxRefList.
-func (ix *refIndex) refsOf(h string, folders []string) (map[string]int, []Ref) {
+// usageTitles is usage with the distinct titles of all its references (before the list's cut to maxRefList).
+func (ix *refIndex) usageTitles(key string, t provider.Torrent) (Usage, map[string]int, []Ref, []string, []LinkedTitle) {
+	u, counts, refs, reasons, titles := ix.baseUsage(key, t)
+	h := indexer.NormalizeHash(t.Hash)
+	if u == Unknown || h == "" {
+		return u, counts, refs, reasons, titles
+	}
+	z, ok := ix.zurg.Name(h)
+	if !ok {
+		return u, counts, refs, reasons, titles
+	}
+	folders := append(torrentFolders(ix.decy, nil, h, t), library.ReleaseFolderNames(h, z)...)
+	if c, r, ts := ix.refsOf(h, folders); len(c) > 0 {
+		return Used, c, r, nil, ts
+	}
+	return u, counts, refs, reasons, titles
+}
+
+// refsOf are the references to hash (none for "") and to the folders, counted by kind and listed up to maxRefList,
+// and the distinct titles of all of them, by name.
+func (ix *refIndex) refsOf(h string, folders []string) (map[string]int, []Ref, []LinkedTitle) {
 	var refs []Ref
-	seen := map[Ref]bool{}
+	type refKey struct{ kind, detail string }
+	seen := map[refKey]bool{}
 	add := func(rs []Ref) {
 		for _, r := range rs {
-			if !seen[r] {
-				seen[r] = true
+			if k := (refKey{r.Kind, r.Detail}); !seen[k] {
+				seen[k] = true
 				refs = append(refs, r)
 			}
 		}
@@ -529,21 +553,28 @@ func (ix *refIndex) refsOf(h string, folders []string) (map[string]int, []Ref) {
 	}
 	sort.SliceStable(refs, func(i, j int) bool { return refs[i].Kind < refs[j].Kind })
 	counts := map[string]int{}
+	var titles []LinkedTitle
+	byID := map[int64]bool{}
 	for _, r := range refs {
 		counts[r.Kind]++
+		if r.TitleID != 0 && !byID[r.TitleID] {
+			byID[r.TitleID] = true
+			titles = append(titles, LinkedTitle{ID: r.TitleID, Name: r.Title})
+		}
 	}
+	sort.SliceStable(titles, func(i, j int) bool { return titles[i].Name < titles[j].Name })
 	if len(refs) > maxRefList {
 		refs = refs[:maxRefList]
 	}
-	return counts, refs
+	return counts, refs, titles
 }
 
 // baseUsage decides one torrent of provider key from its hash and the folders of its own names, without zurg's.
-func (ix *refIndex) baseUsage(key string, t provider.Torrent) (Usage, map[string]int, []Ref, []string) {
+func (ix *refIndex) baseUsage(key string, t provider.Torrent) (Usage, map[string]int, []Ref, []string, []LinkedTitle) {
 	h := indexer.NormalizeHash(t.Hash)
-	counts, refs := ix.refsOf(h, torrentFolders(ix.decy, nil, h, t))
+	counts, refs, titles := ix.refsOf(h, torrentFolders(ix.decy, nil, h, t))
 	if len(counts) > 0 {
-		return Used, counts, refs, nil
+		return Used, counts, refs, nil, titles
 	}
 	var reasons []string
 	if h == "" {
@@ -565,7 +596,7 @@ func (ix *refIndex) baseUsage(key string, t provider.Torrent) (Usage, map[string
 	}
 	reasons = append(reasons, ix.unknown...)
 	if len(reasons) > 0 {
-		return Unknown, nil, nil, reasons
+		return Unknown, nil, nil, reasons, nil
 	}
-	return Unused, nil, nil, nil
+	return Unused, nil, nil, nil, nil
 }

@@ -54,6 +54,8 @@ type Torrent struct {
 	// Refs counts the references by kind; RefList lists the first of them.
 	Refs    map[string]int `json:"refs,omitempty"`
 	RefList []Ref          `json:"ref_list,omitempty"`
+	// Titles are the distinct titles all its references belong to (not only those RefList lists), by name.
+	Titles []LinkedTitle `json:"titles,omitempty"`
 	// AddedByTheatarr: Theatarr's router added it (a download of ours names it and did not reuse it).
 	AddedByTheatarr bool `json:"added_by_theatarr"`
 	// Parsed is the title the name parses to ("Title (2020)", "Title S01E02"), Quality its quality.
@@ -187,7 +189,7 @@ func (ix *refIndex) torrent(key string, lt provider.Torrent, now time.Time) Torr
 	} else if n, ok := ix.files[h]; ok {
 		t.Files = n
 	}
-	t.Usage, t.Refs, t.RefList, t.Reasons = ix.usage(key, lt)
+	t.Usage, t.Refs, t.RefList, t.Reasons, t.Titles = ix.usageTitles(key, lt)
 	t.LinkedFiles = t.Refs[RefLink] + t.Refs[RefScan]
 	t.titleKey, t.Parsed, t.Quality = parseName(lt.Name)
 	if t.Usage == Unused {
