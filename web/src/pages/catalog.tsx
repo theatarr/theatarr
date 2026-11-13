@@ -1,48 +1,69 @@
-// Movies, Series and Anime (docs/design/ui.md): a poster grid (or a table) with the filter panel on the right, as
-// Scryer's catalogue has it, and sort in the toolbar. Filters and sort live in the URL, so links such as
-// /movies?availability=missing open a filtered grid. Below lg the panel opens as a sheet. Each title shows its
-// copies (docs/design/ui.md "Library views"): bars per copy on the posters, a column per copy in the table. The view,
-// the table's columns and the poster options are kept per user; Select (managers) feeds the bulk monitor.
-import { ArrowDownWideNarrow, ArrowUpNarrowWide, CheckSquare, Columns3, LayoutGrid, Rows3, Settings2, SlidersHorizontal } from "lucide-react";
+// Movies, Series and Anime (docs/design/ui.md "Library views"): posters or a table across the full width. The toolbar
+// has the title search and Select (managers) on the left; Columns or Poster options, the view switch, Sort and Filter on
+// the right. Filters open in a sheet at every width and show as removable chips under the toolbar. Filters and sort live
+// in the URL, so links such as /movies?availability=missing open a filtered list; the view, the table's columns and the
+// poster options are kept per list and per user in this browser (lib/prefs.ts). Select (managers) feeds the bulk bar.
+import { ArrowDownWideNarrow, ArrowUpNarrowWide, CheckSquare, Columns3, LayoutGrid, Rows3, Settings2, SlidersHorizontal, X } from "lucide-react";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useSearchParams } from "react-router";
 import { useAuth } from "@/api/auth";
 import { useFacets, usePerms, useTitleGrid } from "@/api/library";
 import { BulkBar } from "@/components/library/bulk-monitor";
-import { FiltersPanel, SELECT, type FilterValues } from "@/components/library/filters";
+import { FiltersPanel, SELECT, TitleSearch, type FilterValues } from "@/components/library/filters";
 import { PosterGrid } from "@/components/library/poster-grid";
 import { TitleTable, type Selection } from "@/components/library/title-table";
 import { ColumnPicker, PosterOptions } from "@/components/library/view-options";
 import { Empty, ErrorState, Loading, PageHeader } from "@/components/page";
+import { providerLabel } from "@/components/provider-pills";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Modal } from "@/components/ui/modal";
+import { copyColumns, distinctLabels, relabel } from "@/lib/copies";
 import { fmtBytes, fmtNumber } from "@/lib/format";
-import {
-  copyColumns,
-  defaultDesc,
-  distinctLabels,
-  relabel,
-  TABLE_COLUMNS,
-  normalizeColumns,
-  normalizePosters,
-  readPref,
-  visibleColumns,
-  writePref,
-  type ColumnPrefs,
-  type PosterPrefs,
-} from "@/lib/copies";
-import { activeFilters, CATALOGS, FILTER_KEYS, gridQuery, SORTS, type CatalogId } from "@/lib/library";
+import { defaultColumns, defaultDesc, indexColumns, listColumns, visibleIndexColumns } from "@/lib/index-columns";
+import { activeFilters, CATALOGS, FILTER_KEYS, filterChips, gridQuery, SORTS, withoutChip, type CatalogId } from "@/lib/library";
+import { normalizePosters, type PosterPrefs } from "@/lib/poster-options";
+import { prefKey, readPref, useColumnPrefs, writePref } from "@/lib/prefs";
+import { resolutionWords } from "@/lib/upgrade";
 import { cn } from "@/lib/utils";
 
-const VIEW_KEY = "theatarr.catalog.view";
+/** The view kept before views were per list; read when a list has none of its own. */
+const OLD_VIEW_KEY = "theatarr.catalog.view";
 
-function readView(): "grid" | "table" {
+type View = "grid" | "table";
+
+function readView(list: CatalogId, uid: number | undefined): View {
+  const norm = (v: unknown): View | undefined => (v === "table" || v === "grid" ? v : undefined);
+  const own = readPref<View | undefined>(`view.${list}`, uid, norm);
+  if (own) return own;
   try {
-    return window.localStorage.getItem(VIEW_KEY) === "table" ? "table" : "grid";
+    return window.localStorage.getItem(OLD_VIEW_KEY) === "table" ? "table" : "grid";
   } catch {
     return "grid";
   }
+}
+
+/** Poster options per list, falling back to the shared ones kept before (so the size carries over). */
+function readPosters(list: CatalogId, uid: number | undefined): PosterPrefs {
+  try {
+    if (window.localStorage.getItem(prefKey(`posters.${list}`, uid)) === null) return readPref("posters", uid, normalizePosters);
+  } catch {
+    // fall through to the default
+  }
+  return readPref(`posters.${list}`, uid, normalizePosters);
+}
+
+/** A choice kept per list and user: what was saved in this session for that key, else what the browser holds. */
+function useListPref<T>(key: string, read: () => T, what: string, uid: number | undefined): [T, (v: T) => void] {
+  const [saved, setSaved] = useState<{ key: string; value: T } | null>(null);
+  const value = saved?.key === key ? saved.value : read();
+  return [
+    value,
+    (v: T) => {
+      setSaved({ key, value: v });
+      writePref(what, uid, v);
+    },
+  ];
 }
 
 function FilterSheet({ open, onClose, children }: { open: boolean; onClose: () => void; children: React.ReactNode }) {
@@ -51,11 +72,10 @@ function FilterSheet({ open, onClose, children }: { open: boolean; onClose: () =
     <Modal
       label="Filters"
       onClose={onClose}
-      className="z-50 lg:hidden"
-      closeFrom={1024}
+      className="z-50"
       testid="filter-sheet"
       backdropClassName="bg-[var(--scrim)] backdrop-blur-sm animate-in fade-in-0"
-      panelClassName="absolute inset-y-0 right-0 flex w-[min(380px,92vw)] flex-col overflow-y-auto border-l border-[var(--line)] bg-[var(--surface)] shadow-[var(--shadow-2)] animate-in slide-in-from-right"
+      panelClassName="absolute inset-y-0 right-0 flex w-[min(380px,100vw)] flex-col overflow-y-auto border-l border-[var(--line)] bg-[var(--surface)] shadow-[var(--shadow-2)] animate-in slide-in-from-right"
     >
       {children}
     </Modal>
@@ -70,12 +90,11 @@ export function Catalog({ id }: { id: CatalogId }) {
   const grid = useTitleGrid(query);
   const facets = useFacets(cat.kind, cat.anime);
   const [sheet, setSheet] = useState(false);
-  const [view, setView] = useState(readView);
   const uid = useAuth().data?.id;
-  const [colPrefs, setColPrefs] = useState<ColumnPrefs | null>(null);
-  const [posterPrefs, setPosterPrefs] = useState<PosterPrefs | null>(null);
-  const columnsPref = colPrefs ?? readPref("columns", uid, normalizeColumns);
-  const postersPref = posterPrefs ?? readPref("posters", uid, normalizePosters);
+  const [view, setView] = useListPref<View>(prefKey(`view.${id}`, uid), () => readView(id, uid), `view.${id}`, uid);
+  const [postersPref, savePosters] = useListPref<PosterPrefs>(prefKey(`posters.${id}`, uid), () => readPosters(id, uid), `posters.${id}`, uid);
+  const allColumns = useMemo(() => listColumns(id), [id]);
+  const [columnsPref, saveColumns] = useColumnPrefs(`columns.${id}`, allColumns, defaultColumns(id));
   const [dialog, setDialog] = useState<"columns" | "posters" | null>(null);
   const [selecting, setSelecting] = useState(false);
   const [chosen, setChosen] = useState<ReadonlySet<number>>(new Set());
@@ -111,53 +130,37 @@ export function Catalog({ id }: { id: CatalogId }) {
     [setParams],
   );
   const values: FilterValues = Object.fromEntries(FILTER_KEYS.map((k) => [k, params.get(k) ?? undefined]));
-  const changeView = (v: "grid" | "table") => {
-    setView(v);
-    try {
-      window.localStorage.setItem(VIEW_KEY, v);
-    } catch {
-      // not kept
-    }
-  };
 
   const raw = useMemo(() => grid.data?.pages.flatMap((p) => p.items ?? []) ?? [], [grid.data]);
   // One display label per copy for the whole page (posters, table, filters, bulk): same-named copies told apart.
   const rawColumns = useMemo(() => copyColumns(raw), [raw]);
   const names = useMemo(() => distinctLabels([...rawColumns, ...(facets.data?.versions ?? [])]), [rawColumns, facets.data]);
   const titles = useMemo(() => raw.map((t) => (t.versions ? { ...t, versions: relabel(t.versions, names) } : t)), [raw, names]);
-  const columns = useMemo(() => relabel(rawColumns, names), [rawColumns, names]);
+  const libraries = useMemo(() => relabel(rawColumns, names), [rawColumns, names]);
   const facetsShown = useMemo(() => (facets.data ? { ...facets.data, versions: relabel(facets.data.versions ?? [], names) } : undefined), [facets.data, names]);
   const total = grid.data?.pages[0]?.total;
   const more = !!grid.hasNextPage && !grid.isFetchingNextPage;
   const onMore = useCallback(() => void grid.fetchNextPage(), [grid]);
   const sort = query.sort ?? "name";
   const desc = query.order ? query.order === "desc" : defaultDesc(sort);
-  const extra = visibleColumns(columnsPref, perms.seeFiles);
-  const saveColumns = (p: ColumnPrefs) => {
-    setColPrefs(p);
-    writePref("columns", uid, p);
-  };
-  const savePosters = (p: PosterPrefs) => {
-    setPosterPrefs(p);
-    writePref("posters", uid, p);
-  };
+  const offered = indexColumns(id, perms.seeFiles);
+  const shown = visibleIndexColumns(columnsPref, id, perms.seeFiles).map((c) => offered.find((o) => o.id === c)!);
   // A header asks for a sort: the same one again flips the order, a new one starts in its default order.
-  const onSort = (s: { sort: string; sort_version?: string }) =>
+  const onSort = (s: string) =>
     setParams(
       (p) => {
         const n = new URLSearchParams(p);
-        const same = (n.get("sort") ?? "name") === s.sort && (n.get("sort_version") ?? "") === (s.sort_version ?? "");
+        const same = (n.get("sort") ?? "name") === s && !n.get("sort_version");
         if (same) n.set("order", desc ? "asc" : "desc");
         else n.delete("order");
-        if (s.sort === "name") n.delete("sort");
-        else n.set("sort", s.sort);
-        if (s.sort_version) n.set("sort_version", s.sort_version);
-        else n.delete("sort_version");
+        if (s === "name") n.delete("sort");
+        else n.set("sort", s);
+        n.delete("sort_version");
         return n;
       },
       { replace: true },
     );
-  // The dropdown sets the sort and drops the copy and order in one URL update: separate updates in one event each
+  // The menu sets the sort and drops the copy and order in one URL update: separate updates in one event each
   // start from the same render's params, so only the last one would stick.
   const onPick = (s: string) =>
     setParams(
@@ -186,41 +189,43 @@ export function Catalog({ id }: { id: CatalogId }) {
     : undefined;
   const chosenTitles = titles.filter((t) => chosen.has(t.id ?? 0));
   const n = activeFilters(params);
+  const chips = filterChips(params, {
+    seeFiles: perms.seeFiles,
+    kind: cat.kind,
+    names,
+    quality: perms.seeFiles ? undefined : resolutionWords,
+    provider: providerLabel,
+  });
+  const removeChip = (c: (typeof chips)[number]) => setParams((p) => withoutChip(p, c), { replace: true });
   const size = titles.reduce((s, t) => s + (t.size_bytes ?? 0), 0);
 
-  const panel = (onClose?: () => void) => (
-    <FiltersPanel values={values} set={set} clear={clear} facets={facetsShown} seeFiles={perms.seeFiles} kind={cat.kind} onClose={onClose} />
-  );
-
   return (
-    <div className="lg:grid lg:grid-cols-[minmax(0,1fr)_300px] lg:gap-6 xl:grid-cols-[minmax(0,1fr)_330px]">
-      <div className="min-w-0">
-        <PageHeader
-          title={cat.title}
-          description={
-            total !== undefined
-              ? `${fmtNumber(total)} title${total === 1 ? "" : "s"}${n ? " match the filters" : ""}${perms.seeFiles && size && !grid.hasNextPage ? ` · ${fmtBytes(size)}` : ""}`
-              : " "
-          }
-        />
-        <div className="mb-4 flex flex-wrap items-center gap-2">
-          <label className="flex min-w-0 items-center gap-2 text-sm text-muted-foreground">
-            <span className="hidden sm:inline">Sort</span>
-            <select aria-label="Sort by" className={cn(SELECT, "w-auto")} value={sort} onChange={(e) => onPick(e.target.value)}>
-              {SORTS.filter((s) => !("seeFiles" in s) || perms.seeFiles).map((s) => (
-                <option key={s.id} value={s.id}>{s.label}</option>
-              ))}
-            </select>
-          </label>
+    <div className="min-w-0">
+      <PageHeader
+        title={cat.title}
+        description={
+          total !== undefined
+            ? `${fmtNumber(total)} title${total === 1 ? "" : "s"}${n ? " match the filters" : ""}${perms.seeFiles && size && !grid.hasNextPage ? ` · ${fmtBytes(size)}` : ""}`
+            : " "
+        }
+      />
+      <div className="mb-3 flex flex-wrap items-center gap-2" data-testid="catalog-toolbar">
+        <TitleSearch value={values.q} set={set} className="w-full sm:w-64" />
+        {perms.manage ? (
           <Button
-            variant="outline"
-            size="icon-sm"
-            aria-label={desc ? "Descending" : "Ascending"}
-            title={desc ? "Descending" : "Ascending"}
-            onClick={() => set("order", desc ? "asc" : "desc")}
+            variant={selecting ? "default" : "outline"}
+            size="sm"
+            aria-pressed={selecting}
+            onClick={() => {
+              setSelecting(!selecting);
+              setChosen(new Set());
+            }}
           >
-            {desc ? <ArrowDownWideNarrow /> : <ArrowUpNarrowWide />}
+            <CheckSquare />
+            {selecting ? "Done" : "Select"}
           </Button>
+        ) : null}
+        <div className="ml-auto flex min-w-0 flex-wrap items-center justify-end gap-2">
           {view === "table" ? (
             <Button variant="outline" size="sm" aria-label="Columns" onClick={() => setDialog("columns")}>
               <Columns3 />
@@ -232,21 +237,7 @@ export function Catalog({ id }: { id: CatalogId }) {
               <span className="hidden sm:inline">Poster options</span>
             </Button>
           )}
-          {perms.manage ? (
-            <Button
-              variant={selecting ? "default" : "outline"}
-              size="sm"
-              aria-pressed={selecting}
-              onClick={() => {
-                setSelecting(!selecting);
-                setChosen(new Set());
-              }}
-            >
-              <CheckSquare />
-              {selecting ? "Done" : "Select"}
-            </Button>
-          ) : null}
-          <div role="radiogroup" aria-label="View" className="ml-auto flex rounded-lg border border-[var(--line)] p-0.5">
+          <div role="radiogroup" aria-label="View" className="flex rounded-lg border border-[var(--line)] p-0.5">
             {([["grid", LayoutGrid], ["table", Rows3]] as const).map(([v, Icon]) => (
               <button
                 key={v}
@@ -254,62 +245,103 @@ export function Catalog({ id }: { id: CatalogId }) {
                 role="radio"
                 aria-checked={view === v}
                 aria-label={v === "grid" ? "Posters" : "Table"}
-                onClick={() => changeView(v)}
+                onClick={() => setView(v)}
                 className={cn("grid size-8 place-items-center rounded-md text-[var(--ink-3)] transition", view === v && "bg-[color-mix(in_srgb,var(--accent)_22%,transparent)] text-[var(--accent-ink)]")}
               >
                 <Icon className="size-4" />
               </button>
             ))}
           </div>
-          <Button variant="outline" size="sm" className="lg:hidden" onClick={() => setSheet(true)} data-testid="filters-button">
+          <span className="flex min-w-0 items-center gap-1">
+            <select aria-label="Sort by" className={cn(SELECT, "w-auto min-w-0 max-w-[9.5rem] sm:max-w-none")} value={sort} onChange={(e) => onPick(e.target.value)}>
+              {SORTS.filter((s) => !("seeFiles" in s) || perms.seeFiles).map((s) => (
+                <option key={s.id} value={s.id}>{s.label}</option>
+              ))}
+            </select>
+            <Button
+              variant="outline"
+              size="icon-sm"
+              aria-label={desc ? "Descending" : "Ascending"}
+              title={desc ? "Descending" : "Ascending"}
+              onClick={() => set("order", desc ? "asc" : "desc")}
+            >
+              {desc ? <ArrowDownWideNarrow /> : <ArrowUpNarrowWide />}
+            </Button>
+          </span>
+          <Button variant="outline" size="sm" aria-label={n ? `Filter, ${n} active` : "Filter"} onClick={() => setSheet(true)} data-testid="filters-button">
             <SlidersHorizontal />
-            Filters{n ? <span className="rounded-md bg-[color-mix(in_srgb,var(--accent)_20%,transparent)] px-1.5 text-xs text-[var(--accent-ink)]">{n}</span> : null}
+            <span className="hidden sm:inline">Filter</span>
+            {n ? <span className="rounded-md bg-[color-mix(in_srgb,var(--accent)_20%,transparent)] px-1.5 text-xs text-[var(--accent-ink)]">{n}</span> : null}
           </Button>
         </div>
-        {grid.isPending ? (
-          <Loading />
-        ) : grid.error ? (
-          <ErrorState error={grid.error} />
-        ) : titles.length === 0 ? (
-          <Card>
-            <Empty>{n ? "No titles match these filters." : `No ${cat.title.toLowerCase()} yet.`}</Empty>
-          </Card>
-        ) : view === "table" ? (
-          <TitleTable
-            titles={titles}
-            more={more}
-            onMore={onMore}
-            seeFiles={perms.seeFiles}
-            manage={perms.manage}
-            columns={columns}
-            extra={extra}
-            sort={{ sort, sortVersion: query.sort_version, desc }}
-            onSort={onSort}
-            select={select}
-          />
-        ) : (
-          <>
-            {select ? (
-              <div className="mb-3 flex flex-wrap gap-3 text-sm">
-                <button type="button" className="text-[var(--accent-ink)] hover:underline" onClick={() => select.all(true)}>Select all shown</button>
-                <button type="button" className="text-[var(--accent-ink)] hover:underline" onClick={() => select.all(false)}>Clear selection</button>
-              </div>
-            ) : null}
-            <PosterGrid titles={titles} more={more} onMore={onMore} library={{ prefs: postersPref, select }} />
-          </>
-        )}
-        {grid.isFetchingNextPage ? <Loading label="Loading more" /> : null}
-        {selecting ? <BulkBar titles={chosenTitles} columns={columns} onClear={() => setChosen(new Set())} /> : null}
-        {dialog === "columns" ? <ColumnPicker label="Library columns" note="Title and the library columns always stay. On a phone the extra columns show under each title." columns={TABLE_COLUMNS.filter((c) => perms.seeFiles || !c.seeFiles)} prefs={columnsPref} onChange={saveColumns} onClose={() => setDialog(null)} /> : null}
-        {dialog === "posters" ? <PosterOptions prefs={postersPref} seeFiles={perms.seeFiles} onChange={savePosters} onClose={() => setDialog(null)} /> : null}
       </div>
-      <div className="hidden lg:block">
-        <div className="sticky top-[88px] max-h-[calc(100dvh-104px)] overflow-y-auto rounded-xl border border-[var(--line)] [scrollbar-width:thin]">
-          {panel()}
+      {chips.length ? (
+        <div className="mb-4 flex flex-wrap items-center gap-1.5" data-testid="active-filters">
+          {chips.map((c) => (
+            <button
+              key={`${c.key}/${c.label}`}
+              type="button"
+              aria-label={`Remove filter: ${c.label}`}
+              onClick={() => removeChip(c)}
+              className="inline-flex max-w-full items-center gap-1 rounded-[4px] border border-[color-mix(in_srgb,var(--accent)_45%,transparent)] bg-[color-mix(in_srgb,var(--accent)_14%,transparent)] px-2 py-0.5 text-xs font-medium text-[var(--accent-ink)] hover:bg-[color-mix(in_srgb,var(--accent)_24%,transparent)]"
+            >
+              <span className="truncate">{c.label}</span>
+              <X aria-hidden className="size-3 shrink-0" />
+            </button>
+          ))}
+          <button type="button" onClick={clear} className="px-1 text-xs font-medium text-[var(--accent-ink)] hover:underline">
+            Clear all
+          </button>
         </div>
-      </div>
+      ) : (
+        <div className="mb-1" />
+      )}
+      {grid.isPending ? (
+        <Loading />
+      ) : grid.error ? (
+        <ErrorState error={grid.error} />
+      ) : titles.length === 0 ? (
+        <Card>
+          {n ? (
+            <Empty>
+              <span className="flex flex-col items-center gap-3">
+                No titles match these filters.
+                <Button variant="outline" size="sm" onClick={clear}>Clear filters</Button>
+              </span>
+            </Empty>
+          ) : (
+            <Empty>{`No ${cat.title.toLowerCase()} yet.`}</Empty>
+          )}
+        </Card>
+      ) : view === "table" ? (
+        <TitleTable
+          titles={titles}
+          more={more}
+          onMore={onMore}
+          seeFiles={perms.seeFiles}
+          manage={perms.manage}
+          columns={shown}
+          sort={{ sort, sortVersion: query.sort_version, desc }}
+          onSort={onSort}
+          select={select}
+        />
+      ) : (
+        <>
+          {select ? (
+            <div className="mb-3 flex flex-wrap gap-3 text-sm">
+              <button type="button" className="text-[var(--accent-ink)] hover:underline" onClick={() => select.all(true)}>Select all {titles.length} shown</button>
+              <button type="button" className="text-[var(--accent-ink)] hover:underline" onClick={() => select.all(false)}>Clear selection</button>
+            </div>
+          ) : null}
+          <PosterGrid titles={titles} more={more} onMore={onMore} library={{ prefs: postersPref, select }} />
+        </>
+      )}
+      {grid.isFetchingNextPage ? <Loading label="Loading more" /> : null}
+      {selecting ? <BulkBar titles={chosenTitles} columns={libraries} onClear={() => setChosen(new Set())} /> : null}
+      {dialog === "columns" ? <ColumnPicker label="Columns" note="Title always stays. On a phone the chosen columns show as lines under each title." columns={offered} prefs={columnsPref} onChange={saveColumns} onClose={() => setDialog(null)} /> : null}
+      {dialog === "posters" ? <PosterOptions prefs={postersPref} seeFiles={perms.seeFiles} onChange={savePosters} onClose={() => setDialog(null)} /> : null}
       <FilterSheet open={sheet} onClose={() => setSheet(false)}>
-        {panel(() => setSheet(false))}
+        <FiltersPanel values={values} set={set} clear={clear} facets={facetsShown} seeFiles={perms.seeFiles} kind={cat.kind} onClose={() => setSheet(false)} />
       </FilterSheet>
     </div>
   );

@@ -1,38 +1,37 @@
-// The grid's table view (docs/design/ui.md "Library views"): a row per title and a column per library (version key), each
-// header naming the copy. A copy cell has its state, current quality, bar (linked solid, in progress striped),
-// acquisition stage and, for managers, its monitor switch. The extra columns (next / activity, quality, size, added, network) are picked and
-// ordered in the column picker; the headers sort the grid. In select mode a checkbox column feeds the bulk bar.
-// Dense rows under a sticky header while the table fits its frame; a table wider than its frame (many libraries or
-// columns) scrolls sideways instead, so every column stays reachable (useFitsFrame). Below the sm
-// breakpoint the rows stack as cards, the extra columns as lines under the title. Libraries under a title opens its
-// copy dialog (copy-dialog.tsx). Without "See files" one Availability column replaces the per-library ones.
-import { useState } from "react";
+// The lists' table view (docs/design/ui.md "Library views"), on the shared DataTable: one line per title, a fixed Title
+// column (thumbnail, name, an eye-off icon when not monitored) and the columns chosen for this list
+// (lib/index-columns.ts), in order. Libraries are one pill each in the status colour (LibraryPill: "4K ·
+// Remux-2160p", "WEB · Missing", "4K · 13/17"); a click on a pill opens the title's Libraries dialog
+// (copy-dialog.tsx: file, stage, monitor switch). Status uses the poster badge's word, the same precedence as the
+// posters (posterStatus), or a download's stage linked to Activity. Headers sort the grid where the server can. Below
+// the phone width the rows are cards: title and Status, the pills, then each chosen column as a line. Without "See
+// files" the file columns are not offered and Status reads today's watchability words, headed Availability.
+import { EyeOff } from "lucide-react";
+import { useState, type ReactNode } from "react";
 import { Link } from "react-router";
-import { usePerms, type TitleRow } from "@/api/library";
-import { VersionStatus } from "@/components/version-status";
-import { Card } from "@/components/ui/card";
-import { Checkbox } from "@/components/ui/checkbox";
-import { useFitsFrame } from "@/components/ui/data-table";
-import type { RowSelection } from "@/components/ui/row-select";
-import { SortHead } from "@/components/ui/sort-head";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import type { TitleRow } from "@/api/library";
 import { TitleThumb } from "@/components/poster-card";
+import { ProviderPills } from "@/components/provider-pills";
+import { DataTable, type DataColumn } from "@/components/ui/data-table";
+import type { RowSelection } from "@/components/ui/row-select";
+import { copyBar, nextWords, titleAcquisition } from "@/lib/copies";
+import { fmtAgo, fmtBytes, localDay } from "@/lib/format";
 import {
-  TABLE_COLUMNS,
-  copyBar,
-  copyStatus,
-  headerSort,
-  nextWords,
-  titleAcquisition,
-  type ColumnId,
-  type CopyColumn,
-} from "@/lib/copies";
-import { fmtAgo, fmtBytes } from "@/lib/format";
-import { titleWatchWords, upcomingRelease } from "@/lib/library";
-import { resolutionWords } from "@/lib/upgrade";
+  columnSort,
+  languageWords,
+  minAvailabilityWords,
+  perLibrary,
+  seriesTypeWords,
+  sortColumn,
+  statusWords,
+  type IndexColumnId,
+} from "@/lib/index-columns";
+import { copyTone, copyWords, type CopyTone } from "@/lib/library-status";
+import { fmtDay, fmtRuntime, notAiredYet, POSTER_STATUS_LABEL, posterStatus, titleWatchWords, upcomingRelease } from "@/lib/library";
 import { cn } from "@/lib/utils";
-import { CopyBarLine, CopyDot, StageLink, useMinWidth } from "./copy-bits";
-import { CopyDialog, CopyMonitor } from "./copy-dialog";
+import { StageLink } from "./copy-bits";
+import { CopyDialog } from "./copy-dialog";
+import { LibraryPill } from "./library-pill";
 import { useEndReached } from "./poster-grid";
 
 type Version = NonNullable<TitleRow["versions"]>[number];
@@ -47,227 +46,222 @@ type Props = {
   onMore: () => void;
   seeFiles: boolean;
   manage: boolean;
-  columns: CopyColumn[];
-  extra: ColumnId[];
+  /** The chosen columns, in order, with this list's labels. */
+  columns: { id: IndexColumnId; label: string }[];
   sort: TableSort;
-  onSort: (s: { sort: string; sort_version?: string }) => void;
+  /** A header asks for this grid sort. */
+  onSort: (sort: string) => void;
   select?: Selection;
 };
 
-const TONE = {
-  positive: "text-[var(--ok-ink)]",
-  warning: "text-[var(--warn-ink)]",
-  negative: "text-[var(--bad-ink)]",
-  neutral: "text-muted-foreground",
-} as const;
+const TONE_INK: Record<CopyTone, string> = {
+  ok: "text-[var(--ok-ink)]",
+  bad: "text-[var(--bad-ink)]",
+  warn: "text-[var(--warn-ink)]",
+  progress: "text-[var(--accent-ink)]",
+  idle: "text-muted-foreground",
+};
 
-/** The direction to show on a header whose sort is s: set only when the grid is sorted by it. */
-const dirOf = (sort: TableSort, s?: { sort: string; sort_version?: string }) =>
-  s && sort.sort === s.sort && (sort.sortVersion ?? "") === (s.sort_version ?? "") ? (sort.desc ? "desc" : "asc") : undefined;
+const WATCH_INK = { positive: "text-[var(--ok-ink)]", partial: "text-[var(--warn-ink)]", neutral: "text-muted-foreground" } as const;
 
-/** One copy of one title: state, quality, bar, stage and the monitor switch. */
-function CopyCell({ t, v, seeFiles, manage }: { t: TitleRow; v: Version | undefined; seeFiles: boolean; manage: boolean }) {
-  const admin = usePerms().admin;
-  if (!v) return <span className="text-xs text-[var(--ink-3)]">Not in this library</span>;
-  const st = copyStatus(v, t.kind, !seeFiles, upcomingRelease(t));
-  const q = seeFiles ? v.quality : resolutionWords(v.quality);
-  const bar = copyBar(v, t.kind);
+const STATUS_TONE: Record<string, CopyTone> = {
+  available: "ok",
+  best_known: "ok",
+  upgrade: "progress",
+  some_episodes: "warn",
+  wanted: "bad",
+  upcoming: "idle",
+};
+
+const dash = <span className="text-[var(--ink-3)]">—</span>;
+const or = (s: string | number | undefined | null, cls?: string): ReactNode => (s || s === 0 ? <span className={cls}>{s}</span> : dash);
+const cap = (s: string) => s.charAt(0).toUpperCase() + s.slice(1);
+
+/** Status for an account that sees files: a download's stage (linked to Activity) while one is in hand, else the poster
+ *  badge's word, with the day for Upcoming. */
+function StatusCell({ t }: { t: TitleRow }) {
+  const a = titleAcquisition(t);
+  if (a) return <StageLink a={a.acquisition} className="text-[13px]" />;
+  const s = posterStatus(t.availability, t.upgrade_seen, false, t.upgrade_state, t);
+  if (!s) return dash;
+  const day = s === "upcoming" ? (upcomingRelease(t) ?? (notAiredYet(t) ? t.next_up?.date : undefined)) : undefined;
   return (
-    <div className="space-y-1" data-copy={v.key}>
-      <div className={cn("text-[13px] font-semibold", TONE[st.tone])}>{st.label}</div>
-      {q ? <div className="text-xs text-muted-foreground">{q}</div> : null}
-      {v.control?.grab_state ? <VersionStatus state={v.control.grab_state} why={false} canManage={admin} settingsKey={v.key} /> : null}
-      <StageLink a={v.acquisition} />
-      {t.kind === "series" || bar.flight ? <CopyBarLine vkey={v.key} label={v.label ?? v.key ?? ""} bar={bar} /> : null}
-      {manage ? <CopyMonitor t={t} v={v} /> : null}
-    </div>
-  );
-}
-
-/** Without "See files" (a household account): one watchability line for the title (titleWatchWords) instead of a cell
- * per library. */
-function WatchCell({ t }: { t: TitleRow }) {
-  const w = titleWatchWords(t);
-  if (!w) return <span className="text-[var(--ink-3)]">—</span>;
-  return <span data-testid="watch-cell" className={cn("text-[13px] font-semibold", TONE[w.tone === "partial" ? "warning" : w.tone])}>{w.label}</span>;
-}
-
-/** An extra column's value for a title. */
-function Extra({ id, t, seeFiles }: { id: ColumnId; t: TitleRow; seeFiles: boolean }) {
-  switch (id) {
-    case "next": {
-      const a = titleAcquisition(t);
-      if (a) {
-        return (
-          <span className="block min-w-0">
-            <StageLink a={a.acquisition} />
-            <span className="flex items-center gap-1 text-[11px] text-[var(--ink-3)]"><CopyDot vkey={a.version.key} className="size-1.5" />{a.version.label}</span>
-          </span>
-        );
-      }
-      const n = nextWords(t.next_up, t.kind);
-      return <span className={n ? "" : "text-[var(--ink-3)]"}>{n || "—"}</span>;
-    }
-    case "quality":
-      return (
-        <span className="block space-y-0.5">
-          {(t.versions ?? []).map((v) => (
-            <span key={v.key} className="flex items-center gap-1.5 text-xs">
-              <CopyDot vkey={v.key} className="size-1.5" />
-              {(seeFiles ? v.quality : resolutionWords(v.quality)) || "—"}
-            </span>
-          ))}
-        </span>
-      );
-    case "size":
-      return <span className="tabular-nums">{t.size_bytes ? fmtBytes(t.size_bytes) : "—"}</span>;
-    case "added":
-      return <span className="text-muted-foreground">{t.added_at ? fmtAgo(t.added_at) : "—"}</span>;
-    case "network":
-      return <span className="text-muted-foreground">{t.network || "—"}</span>;
-  }
-}
-
-function TitleCell({ t, onCopies }: { t: TitleRow; onCopies?: () => void }) {
-  return (
-    <span className="flex min-w-0 items-center gap-3">
-      <TitleThumb id={t.id} />
-      <span className="min-w-0">
-        <Link to={`/title/${t.id}`} className="font-medium hover:text-primary [overflow-wrap:anywhere]">{t.name}</Link>
-        <span className="block text-xs text-muted-foreground">
-          {[t.year, t.anime ? "anime" : t.kind, t.monitored ? null : "not monitored"].filter(Boolean).join(" · ")}
-        </span>
-        {onCopies && (t.versions ?? []).length ? (
-          <button type="button" onClick={onCopies} className="text-xs text-[var(--accent-ink)] hover:underline" aria-label={`${t.name}: libraries`}>
-            Libraries
-          </button>
-        ) : null}
-      </span>
+    <span data-testid="status-cell" className={cn("text-[13px] font-medium", TONE_INK[STATUS_TONE[s] ?? "idle"])}>
+      {POSTER_STATUS_LABEL[s]}
+      {day ? ` · ${fmtDay(day)}` : ""}
     </span>
   );
 }
 
-const label = (id: ColumnId) => TABLE_COLUMNS.find((c) => c.id === id)?.label ?? id;
+/** Without "See files": the title's one watchability line, today's words. */
+function WatchCell({ t }: { t: TitleRow }) {
+  const w = titleWatchWords(t);
+  if (!w) return dash;
+  return <span data-testid="watch-cell" className={cn("text-[13px] font-medium", WATCH_INK[w.tone])}>{w.label}</span>;
+}
 
-export function TitleTable({ titles, more, onMore, seeFiles, manage, columns, extra, sort, onSort, select }: Props) {
-  const end = useEndReached(onMore, more);
-  const wide = useMinWidth(640);
-  const [box, fits] = useFitsFrame();
-  const [copiesOf, setCopiesOf] = useState<TitleRow | null>(null);
-  const dialog = copiesOf ? <CopyDialog t={titles.find((x) => x.id === copiesOf.id) ?? copiesOf} seeFiles={seeFiles} manage={manage} onClose={() => setCopiesOf(null)} /> : null;
-  const allChosen = !!select && titles.length > 0 && titles.every((t) => select.chosen.has(t.id ?? 0));
-  const byKey = (t: TitleRow, key: string) => t.versions?.find((v) => v.key === key);
-  const copyCols = seeFiles ? columns : [];
-  if (!wide) {
-    return (
-      <>
-        {select ? (
-          <label className="mb-2 flex items-center gap-2 text-sm">
-            <Checkbox checked={allChosen} onChange={(e) => select.all(e.target.checked)} />
-            Select all shown titles
-          </label>
-        ) : null}
-        <ul className="space-y-2" data-testid="title-list">
-          {titles.map((t) => (
-            <li key={t.id} className="cv-auto-row">
-              <Card className={cn("space-y-2 p-3", select?.chosen.has(t.id ?? 0) && "ring-2 ring-[var(--accent)]")}>
-                <div className="flex min-w-0 items-start gap-2">
-                  {select ? (
-                    <Checkbox aria-label={`Select ${t.name}`} className="mt-2" checked={select.chosen.has(t.id ?? 0)} onChange={(e) => select.toggle(t.id ?? 0, e.target.checked)} />
-                  ) : null}
-                  <div className="min-w-0 flex-1"><TitleCell t={t} onCopies={seeFiles ? () => setCopiesOf(t) : undefined} /></div>
-                </div>
-                {!seeFiles ? <WatchCell t={t} /> : (
-                <div className="grid grid-cols-1 gap-2 min-[360px]:grid-cols-2">
-                  {(t.versions ?? []).map((v) => (
-                    <div key={v.key} className="min-w-0 rounded-lg border border-[var(--line)] p-2">
-                      <div className="flex min-w-0 items-center gap-1.5 text-xs font-medium"><CopyDot vkey={v.key} />{v.label}</div>
-                      <CopyCell t={t} v={v} seeFiles={seeFiles} manage={manage} />
-                    </div>
-                  ))}
-                </div>
-                )}
-                {extra.length ? (
-                  <dl className="space-y-0.5 text-xs">
-                    {extra.map((id) => (
-                      <div key={id} className="flex min-w-0 gap-2">
-                        <dt className="shrink-0 text-[var(--ink-3)]">{label(id)}</dt>
-                        <dd className="min-w-0 [overflow-wrap:anywhere]"><Extra id={id} t={t} seeFiles={seeFiles} /></dd>
-                      </div>
-                    ))}
-                  </dl>
-                ) : null}
-              </Card>
-            </li>
-          ))}
-        </ul>
-        {more ? <div ref={end} aria-hidden className="h-12" /> : null}
-        {dialog}
-      </>
-    );
+/** A library pill's detail: a movie's quality or what it lacks ("Missing", "Downloading 37%"); a series' count. */
+function pillDetail(v: Version, t: TitleRow): string {
+  if (t.kind === "series") return v.coverage && v.coverage.total > 0 ? copyBar(v, "series").count : cap(copyWords(v, t));
+  if (v.has_file && v.acquisition?.stage !== "blocked") return v.quality || "Has a file";
+  return cap(copyWords(v, t));
+}
+
+function Pills({ t, onOpen }: { t: TitleRow; onOpen: () => void }) {
+  const vs = t.versions ?? [];
+  if (!vs.length) return dash;
+  return (
+    <span className="flex min-w-0 flex-wrap gap-x-1.5 gap-y-1">
+      {vs.map((v) => {
+        const label = v.label ?? v.key ?? "";
+        const words = copyWords(v, t);
+        return (
+          <button
+            key={v.key}
+            type="button"
+            onClick={onOpen}
+            aria-label={`${t.name}, ${label}: ${words}`}
+            className="inline-flex min-w-0 max-w-full items-center rounded-[4px] border border-[var(--line)] px-1.5 py-0.5 hover:border-[var(--line-2)] hover:bg-[var(--hover)]"
+          >
+            <LibraryPill label={label} tone={copyTone(v, t)} words={words} detail={pillDetail(v, t)} className="text-[11.5px]" />
+          </button>
+        );
+      })}
+    </span>
+  );
+}
+
+const dayOf = (d: string | undefined | null) => (d ? fmtDay(d.slice(0, 10)) : "");
+
+/** A chosen column's value for a title. */
+function cell(id: IndexColumnId, t: TitleRow, open: () => void): ReactNode {
+  const vs = t.versions ?? [];
+  switch (id) {
+    case "status":
+      return <StatusCell t={t} />;
+    case "libraries":
+      return <Pills t={t} onOpen={open} />;
+    case "network":
+      return or(t.network, "text-muted-foreground");
+    case "next":
+      return or(nextWords(t.next_up, t.kind));
+    case "seasons":
+      return or(t.season_count, "tabular-nums");
+    case "size":
+      return or(t.size_bytes ? fmtBytes(t.size_bytes) : "", "tabular-nums");
+    case "added":
+      return or(t.title_added_at ? fmtDay(localDay(t.title_added_at)) : "", "text-muted-foreground");
+    case "latest_file":
+      return or(t.added_at ? fmtAgo(t.added_at) : "", "text-muted-foreground");
+    case "previous":
+      return or(dayOf(t.previous_airing));
+    case "quality":
+      return or(vs.length === 1 ? vs[0].quality : vs.map((v) => `${v.label ?? v.key}: ${v.quality || "no file"}`).join(" · "));
+    case "profile":
+      return or(perLibrary(vs, (i) => vs[i].profile));
+    case "year":
+      return or(t.year, "tabular-nums");
+    case "release":
+      return or(dayOf(t.release_date));
+    case "in_cinemas":
+      return or(dayOf(t.in_cinemas));
+    case "digital":
+      return or(dayOf(t.digital_release));
+    case "physical":
+      return or(dayOf(t.physical_release));
+    case "title_status":
+      return or(statusWords(t.kind, t.status));
+    case "series_type":
+      return or(seriesTypeWords(t.series_type));
+    case "runtime":
+      return or(fmtRuntime(t.runtime_minutes));
+    case "certification":
+      return or(t.certification);
+    case "rating":
+      return or(t.rating ? t.rating.toFixed(1) : "", "tabular-nums");
+    case "genres":
+      return or((t.genres ?? []).slice(0, 3).join(", "));
+    case "language":
+      return or(languageWords(t.original_language));
+    case "min_availability":
+      return or(perLibrary(vs, (i) => minAvailabilityWords(vs[i].minimum_availability)));
+    case "provider":
+      return <ProviderPills codes={[...new Set(vs.flatMap((v) => v.providers ?? []))]} />;
+    case "folder": {
+      const f = perLibrary(vs, (i) => vs[i].folder);
+      return f ? <span className="block max-w-[22rem] truncate font-mono text-xs" title={f}>{f}</span> : dash;
+    }
   }
+}
+
+function TitleCell({ t, seeFiles }: { t: TitleRow; seeFiles: boolean }) {
+  return (
+    <span className="flex min-w-0 items-center gap-2.5">
+      <TitleThumb id={t.id} className="w-6" />
+      <Link to={`/title/${t.id}`} className="min-w-0 truncate font-medium hover:text-primary" title={t.name}>
+        {t.name}
+      </Link>
+      {seeFiles && t.monitored === false ? (
+        <span className="shrink-0 text-[var(--ink-3)]" title="Not monitored">
+          <EyeOff aria-hidden className="size-3.5" />
+          <span className="sr-only">Not monitored</span>
+        </span>
+      ) : null}
+    </span>
+  );
+}
+
+export function TitleTable({ titles, more, onMore, seeFiles, manage, columns, sort, onSort, select }: Props) {
+  const end = useEndReached(onMore, more);
+  const [copiesOf, setCopiesOf] = useState<number | null>(null);
+  const open = titles.find((x) => x.id === copiesOf);
+  const sorted = sortColumn(sort.sort);
+  const cols: DataColumn<TitleRow>[] = [
+    {
+      id: "title",
+      label: "Title",
+      sortable: true,
+      card: "none",
+      headClassName: "min-w-[12rem]",
+      cellClassName: "max-w-[24rem]",
+      cell: (t) => <TitleCell t={t} seeFiles={seeFiles} />,
+    },
+    ...columns.map(({ id, label }): DataColumn<TitleRow> => ({
+      id,
+      label,
+      sortable: !!columnSort(id),
+      card: id === "status" ? "none" : id === "libraries" ? "full" : "line",
+      headClassName: cn("whitespace-nowrap", id === "size" && "text-right"),
+      cellClassName: cn("whitespace-nowrap text-sm", id === "size" && "text-right", id === "libraries" && "whitespace-normal [&>span]:flex-nowrap"),
+      cell: (t) => (id === "status" && !seeFiles ? <WatchCell t={t} /> : cell(id, t, () => setCopiesOf(t.id ?? null))),
+    })),
+  ];
+  const showStatus = columns.some((c) => c.id === "status");
   return (
     <>
-      <div ref={box} data-fits={fits || undefined}>
-        <Card className="p-0">
-          <Table density="dense" overflow={fits ? "clip" : "auto"}>
-            <TableHeader>
-              <TableRow>
-                {select ? (
-                  <TableHead className="w-8">
-                    <Checkbox aria-label="Select all shown titles" checked={allChosen} onChange={(e) => select.all(e.target.checked)} />
-                  </TableHead>
-                ) : null}
-                <SortHead dir={dirOf(sort, headerSort("title"))} onSort={() => onSort(headerSort("title")!)} sortLabel="title">Title</SortHead>
-                {!seeFiles ? <TableHead>Availability</TableHead> : null}
-                {copyCols.map((c) => {
-                  const s = headerSort("copy", c.key);
-                  return (
-                    <SortHead key={c.key} dir={dirOf(sort, s)} onSort={s ? () => onSort(s) : undefined} sortLabel={`${c.label} completion`} data-copy-col={c.key} className="align-bottom">
-                      <CopyDot vkey={c.key} />
-                      {c.label}
-                    </SortHead>
-                  );
-                })}
-                {extra.map((id) => {
-                  const s = headerSort(id);
-                  return (
-                    <SortHead key={id} dir={dirOf(sort, s)} onSort={s ? () => onSort(s) : undefined} sortLabel={label(id).toLowerCase()} className={cn(id === "size" && "text-right")}>
-                      {label(id)}
-                    </SortHead>
-                  );
-                })}
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {titles.map((t) => (
-                <TableRow key={t.id} className="cv-auto-row" data-selected={select?.chosen.has(t.id ?? 0) || undefined}>
-                  {select ? (
-                    <TableCell>
-                      <Checkbox aria-label={`Select ${t.name}`} checked={select.chosen.has(t.id ?? 0)} onChange={(e) => select.toggle(t.id ?? 0, e.target.checked)} />
-                    </TableCell>
-                  ) : null}
-                  <TableCell className="min-w-[150px]"><TitleCell t={t} onCopies={seeFiles ? () => setCopiesOf(t) : undefined} /></TableCell>
-                  {!seeFiles ? <TableCell className="align-top"><WatchCell t={t} /></TableCell> : null}
-                  {copyCols.map((c) => (
-                    <TableCell key={c.key} className="align-top">
-                      <CopyCell t={t} v={byKey(t, c.key)} seeFiles={seeFiles} manage={manage} />
-                    </TableCell>
-                  ))}
-                  {extra.map((id) => (
-                    <TableCell key={id} className={cn("align-top text-sm", id === "size" && "whitespace-nowrap text-right")}>
-                      <Extra id={id} t={t} seeFiles={seeFiles} />
-                    </TableCell>
-                  ))}
-                </TableRow>
-              ))}
-            </TableBody>
-          </Table>
-        </Card>
-      </div>
-      {seeFiles ? <p className="mt-2 text-xs text-[var(--ink-3)]">Bars count linked episodes; striped parts are in progress. A library's state is separate from its current quality.</p> : null}
+      <DataTable
+        testid="title-table"
+        rows={titles}
+        rowKey={(t) => t.id ?? 0}
+        columns={cols}
+        sort={sorted && !sort.sortVersion ? { column: sorted, dir: sort.desc ? "desc" : "asc" } : undefined}
+        onSort={(c) => {
+          const s = columnSort(c as IndexColumnId | "title");
+          if (s) onSort(s);
+        }}
+        select={select}
+        selectAllLabel={`Select all ${titles.length} shown`}
+        rowLabel={(t) => t.name ?? String(t.id)}
+        rowProps={() => ({ className: "cv-auto-row-sm" })}
+        cardHead={(t) => (
+          <div className="flex min-w-0 items-center justify-between gap-2">
+            <TitleCell t={t} seeFiles={seeFiles} />
+            {showStatus ? <span className="shrink-0">{seeFiles ? <StatusCell t={t} /> : <WatchCell t={t} />}</span> : null}
+          </div>
+        )}
+      />
       {more ? <div ref={end} aria-hidden className="h-12" /> : null}
-      {dialog}
+      {open ? <CopyDialog t={open} seeFiles={seeFiles} manage={manage} onClose={() => setCopiesOf(null)} /> : null}
     </>
   );
 }

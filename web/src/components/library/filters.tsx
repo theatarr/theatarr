@@ -1,6 +1,6 @@
-// The grid's filter panel: search, availability and monitoring as split buttons with counts, quality, genres, years
-// and (for callers who see files) version has/lacks and provider. Counts come from GET /titles/facets; the values
-// live in the URL. Adapted from Scryer (github.com/scryer-media/scryer) apps/scryer-web/components/views/
+// The lists' filter sheet: availability and monitoring as split buttons with counts, quality, genres, years and (for
+// callers who see files) version has/lacks and provider. Counts come from GET /titles/facets and are for the whole
+// list, before other filters; the values live in the URL. The title search sits in the toolbar (TitleSearch). Adapted from Scryer (github.com/scryer-media/scryer) apps/scryer-web/components/views/
 // media-content/catalog-filters-panel.tsx, title-quick-filters.tsx and components/common/underline-filter-button.tsx
 // @ 2ef7757c, GPL-3.0: the panel header, the underline filter button, the split filter groups, the label and chip
 // styles. Changes: our facets and URL state; selects instead of the range sliders (their inline widths break the
@@ -22,6 +22,7 @@ import {
 } from "lucide-react";
 import { useEffect, useState, type ReactNode } from "react";
 import type { TitleFacets } from "@/api/library";
+import { providerLabel } from "@/components/provider-pills";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { SELECT_CLASS } from "@/components/ui/select";
@@ -147,6 +148,23 @@ function Chip({ selected, onClick, children, title }: { selected: boolean; onCli
 
 export type FilterValues = Record<string, string | undefined>;
 
+/** The toolbar's title search: writes q to the URL a moment (250 ms) after typing stops. */
+export function TitleSearch({ value, set, className }: { value: string | undefined; set: (key: string, value: string | undefined) => void; className?: string }) {
+  const [q, setQ] = useState(value ?? "");
+  useEffect(() => setQ(value ?? ""), [value]);
+  useEffect(() => {
+    if ((value ?? "") === q) return;
+    const t = window.setTimeout(() => set("q", q.trim() || undefined), 250);
+    return () => window.clearTimeout(t);
+  }, [q, value, set]);
+  return (
+    <div className={cn("relative", className)}>
+      <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-[var(--ink-3)]" />
+      <Input aria-label="Filter by title" placeholder="Filter by title" value={q} onChange={(e) => setQ(e.target.value)} className="pl-9" />
+    </div>
+  );
+}
+
 export function FiltersPanel({
   values,
   set,
@@ -168,15 +186,6 @@ export function FiltersPanel({
   onClose?: () => void;
   className?: string;
 }) {
-  // The search box writes to the URL a moment after typing stops.
-  const [q, setQ] = useState(values.q ?? "");
-  useEffect(() => setQ(values.q ?? ""), [values.q]);
-  useEffect(() => {
-    if ((values.q ?? "") === q) return;
-    const t = window.setTimeout(() => set("q", q.trim() || undefined), 250);
-    return () => window.clearTimeout(t);
-  }, [q, values.q, set]);
-
   const any = Object.values(values).some(Boolean);
   const toggle = (key: string, v: string) => set(key, values[key] === v ? undefined : v);
   const genres = (values.genre ?? "").split(",").filter(Boolean);
@@ -188,7 +197,7 @@ export function FiltersPanel({
 
   return (
     <aside data-testid="filters-panel" className={cn("flex min-h-0 flex-col bg-[var(--surface)] px-[18px] py-4", className)}>
-      <div className="mb-4 flex items-center justify-between gap-3">
+      <div className="mb-1 flex items-center justify-between gap-3">
         <div className="flex min-w-0 items-center gap-3">
           <div className="flex size-9 shrink-0 items-center justify-center rounded-[5px] border border-[var(--th-baccent)] bg-[var(--accent-soft)] text-[var(--accent-ink)]">
             <SlidersHorizontal className="size-[18px]" />
@@ -197,10 +206,7 @@ export function FiltersPanel({
           <button
             type="button"
             disabled={!any}
-            onClick={() => {
-              setQ("");
-              clear();
-            }}
+            onClick={clear}
             className="rounded-[3px] text-xs font-medium text-[var(--accent-ink)] outline-none transition hover:underline focus-visible:outline-solid focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--line-focus)] disabled:cursor-default disabled:no-underline disabled:opacity-40"
           >
             Clear all
@@ -213,16 +219,7 @@ export function FiltersPanel({
         ) : null}
       </div>
 
-      <div className="relative mb-4">
-        <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-[var(--ink-3)]" />
-        <Input
-          aria-label="Filter by title"
-          placeholder="Filter by title"
-          value={q}
-          onChange={(e) => setQ(e.target.value)}
-          className="pl-9"
-        />
-      </div>
+      <p className="mb-4 text-xs text-[var(--ink-3)]">Counts are for the whole list, before other filters.</p>
 
       <div className="mb-4 space-y-1.5 border-b border-[var(--line)] pb-4">
         <div role="group" aria-label="Monitoring" className={SPLIT_GROUP}>
@@ -290,7 +287,7 @@ export function FiltersPanel({
               <option value="">Any provider</option>
               {(facets?.providers ?? []).map((p) => (
                 <option key={p.value} value={p.value}>
-                  {p.value} ({p.count})
+                  {providerLabel(p.value)} ({p.count})
                 </option>
               ))}
             </select>

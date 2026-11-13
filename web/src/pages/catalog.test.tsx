@@ -11,7 +11,7 @@ const managed = { mode: "active", can_edit: true, can_search: true, live_release
 const titles = [
   {
     id: 1, kind: "series", name: "The Pellbrook Inquiries", year: 2017, monitored: true, network: "Northstar Network",
-    next_up: { date: "2099-11-04", season: 3, number: 6 }, size_bytes: 184e9, added_at: "2026-10-28T00:00:00Z",
+    next_up: { date: "2099-11-04", season: 3, number: 6 }, size_bytes: 184e9, added_at: "2026-10-28T00:00:00Z", title_added_at: "2025-10-01T12:00:00Z",
     versions: [
       { id: 11, key: "tv-2160p", label: "4K", monitored: true, has_file: true, quality: "WEBDL-2160p", state: "wanted", control: shadow,
         coverage: { have: 13, total: 17, aired: 17, upcoming: 1, in_flight: 2 },
@@ -71,29 +71,94 @@ describe("Library table", () => {
     expect(table.parentElement?.className).toContain("overflow-x-clip");
   });
 
-  it("shows a column per copy with its stage and bar, and sorts by a copy", async () => {
+  it("draws one line per title: the default series columns, one pill per library and the stage as Status", async () => {
+    mockFetch(routes());
+    renderPage(<Catalog id="series" />, "/series");
+    await screen.findAllByText("The Pellbrook Inquiries");
+    expect(screen.getAllByRole("columnheader").map((h) => h.textContent)).toEqual(["Title", "Status", "Libraries", "Network", "Next airing", "Seasons", "Size"]);
+    const row = screen.getByRole("link", { name: "The Pellbrook Inquiries" }).closest("tr") as HTMLElement;
+    expect(within(row).getAllByTestId("library-pill").map((p) => [p.textContent, p.getAttribute("data-tone")])).toEqual([
+      ["4K · 13/17", "ok"],
+      ["1080p WEB · 17/17", "ok"],
+    ]);
+    expect(within(row).getByRole("link", { name: "Downloading · 37%" }).getAttribute("href")).toBe("/activity?show=downloading");
+    // No monitor switch on the row: it is in the Libraries dialog a pill opens.
+    expect(within(row).queryByRole("switch")).toBeNull();
+    // Ferrous Bay's library is not monitored but the title is.
+    const other = screen.getByRole("link", { name: "Ferrous Bay" }).closest("tr") as HTMLElement;
+    expect(within(other).getByTestId("library-pill").textContent).toBe("4K · 8/18");
+    expectNamedControls();
+  });
+
+  it("uses the badge words for Status and a red pill for the missing library of a partly held movie", async () => {
+    const movies = [
+      { id: 6, kind: "movie", name: "Copper Sky", year: 2022, monitored: true, release_date: "2022-05-01", availability: "partial",
+        versions: [
+          { id: 61, key: "movie-4k", label: "4K", monitored: true, has_file: true, quality: "Remux-2160p", state: "filled", control: managed },
+          { id: 62, key: "movie-web", label: "WEB", monitored: true, has_file: false, state: "wanted", control: managed },
+        ] },
+      { id: 7, kind: "movie", name: "Sundial", year: 2099, monitored: false, release_date: "2099-06-01", availability: "missing",
+        versions: [{ id: 71, key: "movie-4k", label: "4K", monitored: true, has_file: false, state: "wanted", control: managed }] },
+    ];
+    mockFetch(routes().map((r) => (r.path === "/titles" ? { ...r, reply: { items: movies, total: 2, offset: 0 } } : r)));
+    renderPage(<Catalog id="movies" />, "/movies");
+    await screen.findAllByText("Copper Sky");
+    expect(screen.getAllByRole("columnheader").map((h) => h.textContent)).toEqual(["Title", "Status", "Libraries", "Studio", "Size", "Added"]);
+    const row = screen.getByRole("link", { name: "Copper Sky" }).closest("tr") as HTMLElement;
+    expect(within(row).getByTestId("status-cell").textContent).toBe("Best quality known");
+    expect(within(row).queryByText(/preferred quality not met/)).toBeNull();
+    expect(within(row).getAllByTestId("library-pill").map((p) => [p.textContent, p.getAttribute("data-tone"), p.getAttribute("aria-label")])).toEqual([
+      ["4K · Remux-2160p", "ok", "4K: has a file"],
+      ["WEB · Missing", "bad", "WEB: missing"],
+    ]);
+    const coming = screen.getByRole("link", { name: "Sundial" }).closest("tr") as HTMLElement;
+    expect(within(coming).getByTestId("status-cell").textContent).toBe("Upcoming · Jun 1, 2099");
+    expect(within(coming).getByTestId("library-pill").textContent).toBe("4K · Not released yet");
+    expect(within(coming).getByText("Not monitored")).toBeTruthy();
+  });
+
+  it("opens the Libraries dialog from a pill, and its switch monitors through the bulk route, never a search", async () => {
+    const fetch = mockFetch(routes([
+      { method: "POST", path: "/titles/monitor", reply: { dry_run: false, items: [], changed: 1, unchanged: 0, missing: 0, stale: 0, message: "Unmonitored 1 library" } },
+    ]));
+    const user = userEvent.setup();
+    renderPage(<Catalog id="series" />, "/series");
+    await user.click(await screen.findByRole("button", { name: "The Pellbrook Inquiries, 1080p WEB: 17 of 17 episodes linked" }));
+    const dialog = await screen.findByRole("dialog", { name: "The Pellbrook Inquiries libraries" });
+    await user.click(within(dialog).getByRole("switch", { name: "Monitor The Pellbrook Inquiries 1080p WEB" }));
+    await waitFor(() => expect(fetch.calls("POST", "/titles/monitor")).toHaveLength(1));
+    expect(fetch.calls("POST", "/titles/monitor")[0].body).toEqual({ title_ids: [1], versions: ["tv-web"], monitored: false });
+    expect(fetch.requests.filter((r) => r.method !== "GET").map((r) => r.path)).toEqual(["/titles/monitor"]);
+  });
+
+  it("sorts Added by the day the title was added and Latest file by the newest file", async () => {
     const fetch = mockFetch(routes());
     const user = userEvent.setup();
     renderPage(<Catalog id="series" />, "/series");
     await screen.findAllByText("The Pellbrook Inquiries");
-    expect(await screen.findByText("13 / 17 available")).toBeTruthy();
-    expect(screen.queryByTestId("column-owner")).toBeNull();
-    // In the copy cell and in Next / activity.
-    const stage = screen.getAllByRole("link", { name: "Downloading · 37%" });
-    expect(stage).toHaveLength(2);
-    expect(stage[0].getAttribute("href")).toBe("/activity?show=downloading");
-    expect(screen.getAllByTestId("copy-flight").length).toBeGreaterThan(0);
-    expect(screen.getByText("Not in this library")).toBeTruthy();
-    // Every copy's switch is editable, also one an arr imports.
-    expect(screen.getByRole("switch", { name: "Monitor The Pellbrook Inquiries 4K" }).getAttribute("aria-disabled")).toBeNull();
-    expect(screen.getByRole("switch", { name: "Monitor The Pellbrook Inquiries 1080p WEB" }).getAttribute("aria-disabled")).toBeNull();
-
-    await user.click(screen.getByRole("button", { name: "Sort by 4K completion" }));
-    await waitFor(() => expect(fetch.requests.some((r) => r.path === "/titles" && r.search.includes("sort=completion") && r.search.includes("sort_version=tv-2160p"))).toBe(true));
-    expectNamedControls();
+    await user.click(screen.getByRole("button", { name: "Columns" }));
+    const dialog = await screen.findByRole("dialog", { name: "Columns" });
+    await user.click(within(dialog).getByRole("checkbox", { name: /^Added/ }));
+    await user.click(within(dialog).getByRole("checkbox", { name: /^Latest file/ }));
+    await user.click(within(dialog).getByRole("button", { name: "Done" }));
+    const last = () => fetch.requests.filter((r) => r.path === "/titles").at(-1)!.search;
+    await user.click(screen.getByRole("button", { name: "Sort by added" }));
+    await waitFor(() => expect(last()).toContain("sort=created"));
+    expect(screen.getByRole("columnheader", { name: /^Added/ }).getAttribute("aria-sort")).toBe("descending");
+    await user.click(screen.getByRole("button", { name: "Sort by latest file" }));
+    await waitFor(() => expect(last()).toContain("sort=added"));
+    expect(last()).not.toContain("sort=created");
+    expect(screen.getByRole("columnheader", { name: /^Latest file/ }).getAttribute("aria-sort")).toBe("descending");
+    // The same header again flips the order.
+    await user.click(screen.getByRole("button", { name: "Sort by latest file" }));
+    await waitFor(() => expect(last()).toContain("order=asc"));
+    // Added shows the day the title was added, Latest file how long ago the newest file came.
+    const row = screen.getByRole("link", { name: "The Pellbrook Inquiries" }).closest("tr") as HTMLElement;
+    expect(row.querySelector('[data-column="added"]')?.textContent).toBe("Oct 1, 2025");
+    expect(row.querySelector('[data-column="latest_file"]')?.textContent).toMatch(/ago$/);
   });
 
-  it("keeps a sort picked from the dropdown, dropping the copy and the order with it", async () => {
+  it("keeps a sort picked from the menu, dropping the copy and the order with it", async () => {
     const fetch = mockFetch(routes());
     const user = userEvent.setup();
     renderPage(<Catalog id="series" />, "/series?sort=completion&sort_version=tv-2160p&order=asc");
@@ -109,38 +174,49 @@ describe("Library table", () => {
     await user.click(screen.getByRole("button", { name: "Descending" }));
     await waitFor(() => expect(fetch.requests.some((r) => r.path === "/titles" && r.search.includes("sort=year") && r.search.includes("order=asc"))).toBe(true));
     expect(pick.value).toBe("year");
-    await user.selectOptions(pick, "rating");
-    await waitFor(() => expect(pick.value).toBe("rating"));
-    expect(screen.getByRole("button", { name: "Descending" })).toBeTruthy();
+    await user.selectOptions(pick, "network");
+    await waitFor(() => expect(pick.value).toBe("network"));
+    // Network starts A to Z, as the server does.
+    expect(screen.getByRole("button", { name: "Ascending" })).toBeTruthy();
   });
 
-  it("monitors one copy through the bulk route, never a search", async () => {
-    const fetch = mockFetch(routes([
-      { method: "POST", path: "/titles/monitor", reply: { dry_run: false, items: [], changed: 1, unchanged: 0, missing: 0, stale: 0, message: "Unmonitored 1 library" } },
-    ]));
-    const user = userEvent.setup();
-    renderPage(<Catalog id="series" />, "/series");
-    await user.click(await screen.findByRole("switch", { name: "Monitor The Pellbrook Inquiries 1080p WEB" }));
-    await waitFor(() => expect(fetch.calls("POST", "/titles/monitor")).toHaveLength(1));
-    expect(fetch.calls("POST", "/titles/monitor")[0].body).toEqual({ title_ids: [1], versions: ["tv-web"], monitored: false });
-    expect(fetch.requests.filter((r) => r.method !== "GET").map((r) => r.path)).toEqual(["/titles/monitor"]);
-  });
-
-  it("picks and reorders columns, kept per user", async () => {
+  it("keeps columns per list: a choice on Movies does not change Series", async () => {
     mockFetch(routes());
     const user = userEvent.setup();
+    const { unmount } = renderPage(<Catalog id="movies" />, "/movies");
+    await screen.findAllByText("The Pellbrook Inquiries");
+    await user.click(screen.getByRole("button", { name: "Columns" }));
+    const dialog = await screen.findByRole("dialog", { name: "Columns" });
+    expect(within(dialog).queryByRole("checkbox", { name: /^Seasons/ })).toBeNull();
+    await user.click(within(dialog).getByRole("checkbox", { name: /^Runtime/ }));
+    await user.click(within(dialog).getByRole("button", { name: "Move Runtime up" }));
+    await user.click(within(dialog).getByRole("button", { name: "Done" }));
+    expect(screen.getByRole("columnheader", { name: /Runtime/ })).toBeTruthy();
+    const kept = JSON.parse(window.localStorage.getItem("theatarr.library.columns.movies.7") ?? "{}");
+    expect(kept.shown).toContain("runtime");
+    expect(kept.order.indexOf("runtime")).toBeLessThan(kept.order.indexOf("certification"));
+    unmount();
+    mockFetch(routes());
     renderPage(<Catalog id="series" />, "/series");
     await screen.findAllByText("The Pellbrook Inquiries");
-    expect(screen.getByRole("columnheader", { name: /Next \/ activity/ })).toBeTruthy();
-    await user.click(screen.getByRole("button", { name: "Columns" }));
-    const dialog = await screen.findByRole("dialog", { name: "Library columns" });
-    await user.click(within(dialog).getByRole("checkbox", { name: /Network \/ studio/ }));
-    await user.click(within(dialog).getByRole("button", { name: "Move Network / studio up" }));
-    await user.click(within(dialog).getByRole("button", { name: "Done" }));
-    expect(screen.getByText("Northstar Network")).toBeTruthy();
-    const kept = JSON.parse(window.localStorage.getItem("theatarr.library.columns.7") ?? "{}");
-    expect(kept.shown).toContain("network");
-    expect(kept.order.indexOf("network")).toBeLessThan(kept.order.indexOf("added"));
+    expect(screen.queryByRole("columnheader", { name: /Runtime/ })).toBeNull();
+    expect(screen.getByRole("columnheader", { name: /Seasons/ })).toBeTruthy();
+    expect(window.localStorage.getItem("theatarr.library.columns.series.7")).toBeNull();
+  });
+
+  it("keeps the view per list, starting from the old shared one", async () => {
+    mockFetch(routes());
+    const user = userEvent.setup();
+    const { unmount } = renderPage(<Catalog id="movies" />, "/movies");
+    await screen.findAllByText("The Pellbrook Inquiries");
+    expect(screen.getByRole("radio", { name: "Table" }).getAttribute("aria-checked")).toBe("true");
+    await user.click(screen.getByRole("radio", { name: "Posters" }));
+    expect(screen.getByTestId("poster-grid")).toBeTruthy();
+    unmount();
+    mockFetch(routes());
+    renderPage(<Catalog id="series" />, "/series");
+    await screen.findAllByText("The Pellbrook Inquiries");
+    expect(screen.getByRole("table")).toBeTruthy();
   });
 
   it("selects titles, previews with unchanged copies apart, and applies with expect", async () => {
@@ -158,9 +234,11 @@ describe("Library table", () => {
     renderPage(<Catalog id="series" />, "/series");
     await screen.findAllByText("The Pellbrook Inquiries");
     await user.click(screen.getByRole("button", { name: "Select" }));
-    await user.click(screen.getByRole("checkbox", { name: "Select all shown titles" }));
+    await user.click(screen.getByRole("checkbox", { name: "Select all 2 shown" }));
     const bar = screen.getByRole("region", { name: "Bulk edit" });
     expect(within(bar).getByText("2 titles selected")).toBeTruthy();
+    // A manager (here also admin) gets Search now.
+    expect(within(bar).getByRole("button", { name: "Search now" })).toBeTruthy();
     await user.selectOptions(within(bar).getByRole("combobox", { name: "Target libraries" }), "tv-2160p");
     expect(within(bar).getByTestId("bulk-local").textContent).toContain("2 editable libraries");
     expectNamedControls();
@@ -192,7 +270,7 @@ describe("Library table", () => {
     ]);
     const user = userEvent.setup();
     renderPage(<Catalog id="movies" />, "/movies");
-    await user.click(await screen.findByRole("button", { name: "Saltglass Meridian: libraries" }));
+    await user.click(await screen.findByRole("button", { name: /^Saltglass Meridian, 4K Remux: / }));
     const dialog = await screen.findByRole("dialog", { name: "Saltglass Meridian libraries" });
     const remux = within(dialog).getByText("4K Remux").closest("[data-copy]") as HTMLElement;
     expect(within(remux).getByText("Remux-2160p")).toBeTruthy();
@@ -202,13 +280,65 @@ describe("Library table", () => {
     expect(within(dialog).getByRole("link", { name: "Open title page" }).getAttribute("href")).toBe("/title/9");
   });
 
-  it("stacks rows on a phone with no table", async () => {
+  it("stacks rows on a phone with no table: title and Status, the pills, then each column as a line", async () => {
     vi.stubGlobal("matchMedia", (q: string) => ({ matches: !q.includes("min-width"), media: q, addEventListener() {}, removeEventListener() {} }));
     mockFetch(routes());
     renderPage(<Catalog id="series" />, "/series");
-    await screen.findByTestId("title-list");
+    await screen.findAllByText("The Pellbrook Inquiries");
     expect(screen.queryByRole("table")).toBeNull();
-    expect(screen.queryByTestId("copy-owner")).toBeNull();
+    const card = screen.getByRole("link", { name: "The Pellbrook Inquiries" }).closest("li") as HTMLElement;
+    expect(within(card).getByRole("link", { name: "Downloading · 37%" })).toBeTruthy();
+    expect(within(card).getAllByTestId("library-pill")).toHaveLength(2);
+    expect(within(card).getByText("Network")).toBeTruthy();
+    expect(within(card).queryByText("Status")).toBeNull();
+  });
+});
+
+describe("Toolbar and filters", () => {
+  it("has no filter panel in the page: the Filter button opens the sheet, without the title box", async () => {
+    mockFetch(routes().map((r) => (r.path === "/titles/facets" ? { ...r, reply: { total: 2, providers: [{ value: "rd", count: 2 }] } } : r)));
+    const user = userEvent.setup();
+    renderPage(<Catalog id="series" />, "/series");
+    await screen.findAllByText("The Pellbrook Inquiries");
+    expect(screen.queryByTestId("filters-panel")).toBeNull();
+    expect(screen.getAllByRole("textbox", { name: "Filter by title" })).toHaveLength(1);
+    await user.click(screen.getByRole("button", { name: "Filter" }));
+    const sheet = await screen.findByTestId("filters-panel");
+    expect(within(sheet).getByText("Counts are for the whole list, before other filters.")).toBeTruthy();
+    expect(within(sheet).queryByRole("textbox", { name: "Filter by title" })).toBeNull();
+    // Providers are cache codes, labelled as the pills are.
+    expect(within(sheet).getByRole("option", { name: "RD (2)" })).toBeTruthy();
+    await user.click(within(sheet).getByRole("button", { name: "Close filters" }));
+    await waitFor(() => expect(screen.queryByTestId("filters-panel")).toBeNull());
+  });
+
+  it("shows each active filter as a chip; removing one changes the address", async () => {
+    const fetch = mockFetch(routes());
+    const user = userEvent.setup();
+    renderPage(<Catalog id="series" />, "/series?availability=missing&genre=Drama,Crime&provider=rd&year_from=2019&year_to=2024&q=dune");
+    await screen.findAllByText("The Pellbrook Inquiries");
+    const line = screen.getByTestId("active-filters");
+    expect(within(line).getAllByRole("button", { name: /^Remove filter: / }).map((b) => b.textContent)).toEqual([
+      "Title: “dune”", "Missing", "Provider: RD", "2019–2024", "Drama", "Crime",
+    ]);
+    expect(screen.getByRole("button", { name: "Filter, 6 active" })).toBeTruthy();
+    expect(screen.getByText(/match the filters/)).toBeTruthy();
+    await user.click(within(line).getByRole("button", { name: "Remove filter: Missing" }));
+    await waitFor(() => expect(fetch.requests.filter((r) => r.path === "/titles").at(-1)!.search).not.toContain("availability"));
+    await user.click(within(line).getByRole("button", { name: "Remove filter: Drama" }));
+    await waitFor(() => expect(fetch.requests.filter((r) => r.path === "/titles").at(-1)!.search).toContain("genre=Crime"));
+    expect(fetch.requests.filter((r) => r.path === "/titles").at(-1)!.search).not.toContain("Drama");
+    await user.click(within(line).getByRole("button", { name: "Clear all" }));
+    await waitFor(() => expect(screen.queryByTestId("active-filters")).toBeNull());
+  });
+
+  it("offers Clear filters when nothing matches", async () => {
+    mockFetch(routes().map((r) => (r.path === "/titles" ? { ...r, reply: { items: [], total: 0, offset: 0 } } : r)));
+    const user = userEvent.setup();
+    renderPage(<Catalog id="movies" />, "/movies?monitored=false");
+    expect(await screen.findByText("No titles match these filters.")).toBeTruthy();
+    await user.click(screen.getByRole("button", { name: "Clear filters" }));
+    expect(await screen.findByText("No movies yet.")).toBeTruthy();
   });
 });
 
@@ -240,7 +370,7 @@ describe("Library posters", () => {
     expect(screen.getByText("S03E06 · Nov 4, 2099")).toBeTruthy();
     expect(screen.getByText("4K: WEBDL-2160p · 1080p WEB: WEBDL-1080p")).toBeTruthy();
     expect(screen.getByTestId("poster-grid").className).toContain("poster-size-small");
-    expect(JSON.parse(window.localStorage.getItem("theatarr.library.posters.7") ?? "{}").size).toBe("small");
+    expect(JSON.parse(window.localStorage.getItem("theatarr.library.posters.series.7") ?? "{}").size).toBe("small");
   });
 
   it("draws one bar for a movie, a pill per library only when it is in several, and never Missing under Upcoming", async () => {
@@ -342,7 +472,21 @@ describe("Household view (no See files)", () => {
     expect(screen.getAllByTestId("watch-cell").map((e) => e.textContent)).toEqual(["Some episodes available", "Available in 1080p"]);
     expect(screen.queryByText("0 / 8 available")).toBeNull();
     expect(document.querySelector("[data-copy-col]")).toBeNull();
-    expect(screen.queryByRole("button", { name: /: libraries$/ })).toBeNull();
+    expect(screen.queryAllByTestId("library-pill")).toHaveLength(0);
+    expect(screen.getAllByRole("columnheader").map((h) => h.textContent)).toEqual(["Title", "Availability", "Network", "Next airing", "Seasons"]);
+  });
+
+  it("does not offer the file columns", async () => {
+    window.localStorage.setItem("theatarr.catalog.view", "table");
+    mockFetch(household);
+    const user = userEvent.setup();
+    renderPage(<Catalog id="movies" />, "/movies");
+    await screen.findAllByText("The Pellbrook Inquiries");
+    await user.click(screen.getByRole("button", { name: "Columns" }));
+    const dialog = await screen.findByRole("dialog", { name: "Columns" });
+    const offered = within(dialog).getAllByRole("button", { name: / up$/ }).map((b) => b.getAttribute("aria-label")!.slice(5, -3));
+    expect(offered).toContain("Availability");
+    for (const file of ["Libraries", "Quality", "Quality profile", "Size", "Minimum availability", "Provider", "Folder"]) expect(offered).not.toContain(file);
   });
 
   it("offers no per-library has/lacks filter, which those who see files keep", async () => {
@@ -350,7 +494,8 @@ describe("Household view (no See files)", () => {
     for (const [perms, shown] of [[[], false], [["see_files"], true]] as const) {
       const fetch = mockFetch(household.map((r) => (r.path === "/titles/facets" ? { ...r, reply: { total: 2, versions } } : r.path === "/auth/me" ? { ...r, reply: { ...r.reply, permissions: perms } } : r)));
       const { unmount } = renderPage(<Catalog id="movies" />, "/movies");
-      const panel = (await screen.findAllByTestId("filters-panel"))[0];
+      await userEvent.setup().click(await screen.findByTestId("filters-button"));
+      const panel = await screen.findByTestId("filters-panel");
       await waitFor(() => expect(fetch.calls("GET", "/titles/facets").length).toBeGreaterThan(0));
       await new Promise((r) => setTimeout(r, 50));
       await waitFor(() => expect(within(panel).queryAllByRole("button", { name: /^Has / }).length > 0).toBe(shown));
@@ -419,14 +564,14 @@ describe("Same-named copies", () => {
     { method: "GET", path: "/titles/facets", reply: facets },
   ];
 
-  it("names them apart in the table headers and the filter panel", async () => {
+  it("names them apart in the table's pills and the filter sheet", async () => {
     window.localStorage.setItem("theatarr.catalog.view", "table");
     mockFetch(twinRoutes);
     renderPage(<Catalog id="series" />, "/series");
     await screen.findAllByText("Brindlewood Bakers");
-    expect(screen.getByRole("button", { name: "Sort by 4K · tv-2160p completion" })).toBeTruthy();
-    expect(screen.getByRole("button", { name: "Sort by 4K · tv-2160p-theatarr completion" })).toBeTruthy();
-    const panel = (await screen.findAllByTestId("filters-panel"))[0];
+    expect(screen.getAllByTestId("library-pill").map((p) => p.textContent)).toEqual(["4K · tv-2160p · 24/24", "4K · tv-2160p-theatarr · 12/24"]);
+    await userEvent.setup().click(screen.getByTestId("filters-button"));
+    const panel = await screen.findByTestId("filters-panel");
     expect(await within(panel).findByText("4K · tv-2160p")).toBeTruthy();
     expect(within(panel).getByText("4K · tv-2160p-theatarr")).toBeTruthy();
     expect(within(panel).queryByText("4K")).toBeNull();
