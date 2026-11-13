@@ -36,7 +36,7 @@ it("links an episode to its episode window, colours by status and shows the lege
   const alpha = screen.getByText("Alpha").closest("a")!;
   expect(alpha.getAttribute("href")).toBe("/title/1");
   expect(alpha.dataset.tone).toBe("ok");
-  expect(screen.getByTestId("cal-legend").textContent).toBe("DownloadedDownloadingMissingUpcomingNot monitored");
+  expect(screen.getByTestId("cal-legend").textContent).toBe("DownloadedDownloadingMissingUpcoming or in cinemasNot monitored");
 });
 
 it("gives an account without see files the household words, no red missing", async () => {

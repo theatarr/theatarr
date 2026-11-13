@@ -80,11 +80,18 @@ describe("calendarTone", () => {
     expect(tone(ep)).toEqual({ tone: "bad", label: "Missing" });
   });
 
-  it("uses the air time when known, else the day (today is still upcoming)", () => {
+  it("uses the air time when known, else the day against today's UTC day, as the title page and lists do", () => {
     expect(tone({ ...ep, date: "2026-11-13", at: new Date(2026, 10, 13, 11, 0).toISOString() }).tone).toBe("bad");
     expect(tone({ ...ep, date: "2026-11-13", at: new Date(2026, 10, 13, 21, 0).toISOString() }).tone).toBe("neutral");
-    expect(tone({ ...ep, date: "2026-11-13" }).tone).toBe("neutral");
-    expect(tone({ ...ep, date: "2026-11-12" }).tone).toBe("bad");
+    // A date alone has aired (or is out) on its own UTC day; upcoming only from the next day.
+    const utcNoon = new Date(Date.UTC(2026, 10, 13, 12));
+    expect(calendarTone({ ...ep, date: "2026-11-13" }, utcNoon).tone).toBe("bad");
+    expect(calendarTone(movie("digital", "2026-11-13"), utcNoon).tone).toBe("bad");
+    expect(calendarTone({ ...ep, date: "2026-11-14" }, utcNoon).tone).toBe("neutral");
+    // Late on the 13th west of UTC it is already the 14th in UTC: the 14th has aired, whatever the local day.
+    const utcEarly14 = new Date(Date.UTC(2026, 10, 14, 2));
+    expect(calendarTone({ ...ep, date: "2026-11-14" }, utcEarly14).tone).toBe("bad");
+    expect(calendarTone({ ...ep, date: "2026-11-15" }, utcEarly14).tone).toBe("neutral");
   });
 
   it("never calls a past cinema date missing; the digital and physical dates are", () => {
@@ -104,7 +111,9 @@ describe("calendarTone", () => {
   });
 
   it("has a legend per account", () => {
-    expect(calendarLegend(false).map((l) => l.label)).toEqual(["Downloaded", "Downloading", "Missing", "Upcoming", "Not monitored"]);
+    expect(calendarLegend(false).map((l) => l.label)).toEqual(["Downloaded", "Downloading", "Missing", "Upcoming or in cinemas", "Not monitored"]);
+    // The neutral colour's label covers a past cinema date, which uses it too.
+    expect(calendarLegend(false).find((l) => l.tone === calendarTone({ kind: "movie", type: "theatrical", date: "2026-01-01", monitored: true, available: false, acquiring: false }, new Date()).tone)?.label).toBe("Upcoming or in cinemas");
     expect(calendarLegend(true).map((l) => l.tone)).toEqual(["ok", "neutral"]);
   });
 

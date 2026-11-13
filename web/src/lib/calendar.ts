@@ -1,5 +1,5 @@
 // Date helpers for the calendar: local dates as YYYY-MM-DD and the weeks of a month grid (weeks start on Sunday).
-import { watchWords } from "@/lib/library";
+import { utcToday, watchWords } from "@/lib/library";
 
 export function ymd(d: Date): string {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
@@ -75,8 +75,9 @@ type Toned = { kind: string; type: string; date: string; at?: string; monitored:
 export type CalendarTone = "ok" | "progress" | "bad" | "neutral" | "idle";
 
 /**
- * What a calendar entry's status is, as a colour and a word: downloaded, downloading, not monitored, upcoming (the
- * air moment, or the day when the time is unknown, is still ahead), else missing. A movie's past cinema date is never
+ * What a calendar entry's status is, as a colour and a word: downloaded, downloading, not monitored, upcoming, else
+ * missing. Upcoming is the rule the title page and the lists use: an air moment still ahead; a date alone strictly
+ * after today's UTC day (upcomingRelease, the server's aired rule). A movie's past cinema date is never
  * missing: a film is missing from its digital or physical date. plain (accounts without "see files") gets the title
  * page's household words (titleWatchWords): Available in green; Getting ready, Upcoming and Not available in grey.
  */
@@ -85,7 +86,7 @@ export function calendarTone(e: Toned, now: Date, plain = false): { tone: Calend
   if (e.available) return { tone: "ok", label: plain ? (watchWords("available", [])?.label ?? "Available") : "Downloaded" };
   if (e.acquiring) return plain ? { tone: "neutral", label: "Getting ready" } : { tone: "progress", label: "Downloading" };
   if (!e.monitored) return plain ? { tone: "neutral", label: notAvailable } : { tone: "idle", label: "Not monitored" };
-  const ahead = e.at && !Number.isNaN(new Date(e.at).getTime()) ? new Date(e.at) > now : e.date >= ymd(now);
+  const ahead = e.at && !Number.isNaN(new Date(e.at).getTime()) ? new Date(e.at) > now : e.date > utcToday(now);
   if (ahead) return { tone: "neutral", label: "Upcoming" };
   if (plain) return { tone: "neutral", label: notAvailable };
   if (e.kind === "movie" && e.type === "theatrical") return { tone: "neutral", label: "Released in cinemas" };
@@ -104,7 +105,7 @@ export function calendarLegend(plain: boolean): { tone: CalendarTone; label: str
     { tone: "ok", label: "Downloaded" },
     { tone: "progress", label: "Downloading" },
     { tone: "bad", label: "Missing" },
-    { tone: "neutral", label: "Upcoming" },
+    { tone: "neutral", label: "Upcoming or in cinemas" },
     { tone: "idle", label: "Not monitored" },
   ];
 }
