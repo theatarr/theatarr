@@ -3,9 +3,10 @@
 // (lib/index-columns.ts), in order. Libraries are one pill each in the status colour (LibraryPill: "4K ·
 // Remux-2160p", "WEB · Missing", "4K · 13/17"); a click on a pill opens the title's Libraries dialog
 // (copy-dialog.tsx: file, stage, monitor switch). Status uses the poster badge's word, the same precedence as the
-// posters (posterStatus), or a download's stage linked to Activity. Headers sort the grid where the server can. Below
-// the phone width the rows are cards: title and Status, the pills, then each chosen column as a line. Without "See
-// files" the file columns are not offered and Status reads today's watchability words, headed Availability.
+// posters (posterStatus), in the badge's tone (badgeTone), or a download's stage linked to Activity. Headers sort the
+// grid where the server can. Below the phone width the rows are cards: title and Status, the pills, then each chosen
+// column as a line. Without "See files" the file columns are not offered and Status reads today's watchability words,
+// headed Availability.
 import { EyeOff } from "lucide-react";
 import { useState, type ReactNode } from "react";
 import { Link } from "react-router";
@@ -26,7 +27,7 @@ import {
   statusWords,
   type IndexColumnId,
 } from "@/lib/index-columns";
-import { copyTone, copyWords, type CopyTone } from "@/lib/library-status";
+import { badgeTone, copyTone, copyWords, type CopyTone } from "@/lib/library-status";
 import { fmtDay, fmtRuntime, notAiredYet, POSTER_STATUS_LABEL, posterStatus, titleWatchWords, upcomingRelease } from "@/lib/library";
 import { cn } from "@/lib/utils";
 import { StageLink } from "./copy-bits";
@@ -64,15 +65,6 @@ const TONE_INK: Record<CopyTone, string> = {
 
 const WATCH_INK = { positive: "text-[var(--ok-ink)]", partial: "text-[var(--warn-ink)]", neutral: "text-muted-foreground" } as const;
 
-const STATUS_TONE: Record<string, CopyTone> = {
-  available: "ok",
-  best_known: "ok",
-  upgrade: "progress",
-  some_episodes: "warn",
-  wanted: "bad",
-  upcoming: "idle",
-};
-
 const dash = <span className="text-[var(--ink-3)]">—</span>;
 const or = (s: string | number | undefined | null, cls?: string): ReactNode => (s || s === 0 ? <span className={cls}>{s}</span> : dash);
 const cap = (s: string) => s.charAt(0).toUpperCase() + s.slice(1);
@@ -86,7 +78,7 @@ function StatusCell({ t }: { t: TitleRow }) {
   if (!s) return dash;
   const day = s === "upcoming" ? (upcomingRelease(t) ?? (notAiredYet(t) ? t.next_up?.date : undefined)) : undefined;
   return (
-    <span data-testid="status-cell" className={cn("text-[13px] font-medium", TONE_INK[STATUS_TONE[s] ?? "idle"])}>
+    <span data-testid="status-cell" className={cn("text-[13px] font-medium", TONE_INK[badgeTone(s)])}>
       {POSTER_STATUS_LABEL[s]}
       {day ? ` · ${fmtDay(day)}` : ""}
     </span>

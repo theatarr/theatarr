@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { availabilityFilters, filterChips, isFamily, POSTER_STATUS_LABEL, posterStatus, relDay, titleWatchWords, upcomingRelease, utcToday, watchWords, withoutChip } from "./library";
-import { copyTone, worstTone } from "./library-status";
+import { badgeTone, copyTone } from "./library-status";
 
 const label = (...a: Parameters<typeof posterStatus>) => {
   const s = posterStatus(...a);
@@ -220,11 +220,11 @@ describe("a movie held in one library and missing in another", () => {
     { key: "4k", label: "4K", monitored: true, has_file: true, state: "cutoff_met" as const },
     { key: "web", label: "WEB", monitored: true, has_file: false, state: "wanted" as const },
   ] };
-  it("keeps Available on the badge, with a red whole-title bar and a red pill for the missing library", () => {
-    expect(label("partial", false, false, undefined, t)).toBe("Available");
-    const tones = t.versions.map((v) => copyTone(v, t));
-    expect(tones).toEqual(["ok", "bad"]);
-    expect(worstTone(tones)).toBe("bad");
+  it("keeps Available on the badge and its green whole-title bar, with a red pill for the missing library", () => {
+    const s = posterStatus("partial", false, false, undefined, t);
+    expect(s ? POSTER_STATUS_LABEL[s] : undefined).toBe("Available");
+    expect(badgeTone(s)).toBe("ok");
+    expect(t.versions.map((v) => copyTone(v, t))).toEqual(["ok", "bad"]);
   });
 });
 
