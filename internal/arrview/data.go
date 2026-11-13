@@ -33,8 +33,7 @@ type entry struct {
 	tags           []int64
 	dates          map[string]time.Time // theatrical, digital, physical
 	datesRefreshed bool
-	seriesStatus   string   // series_meta.status in lower case (Sonarr's names), "" when not refreshed
-	paths          []string // a file path of each of the view's versions that has one (link, else imported file)
+	seriesStatus   string // series_meta.status in lower case (Sonarr's names), "" when not refreshed
 }
 
 type ver struct {
@@ -44,6 +43,8 @@ type ver struct {
 	state     string
 	created   int64
 	file      *vfile
+	// path is a file of the version: its first active link's, else its imported file's; "" without one.
+	path string
 	// monitorNew is a series version's monitorNewItems intent (series_monitor), "" without a row.
 	monitorNew string
 	// rule is a movie version's availability rule (availability.Rules); Radarr views only.
@@ -244,6 +245,7 @@ func (s *Service) load(ctx context.Context, v *View, titleIDs []int64) ([]*entry
 		if x == nil || x.file != nil {
 			continue
 		}
+		x.path = f.path
 		_ = json.Unmarshal([]byte(langs), &f.languages)
 		if mi != "" && mi != "{}" && json.Valid([]byte(mi)) {
 			f.mediaInfo = json.RawMessage(mi)
@@ -260,34 +262,18 @@ func (s *Service) load(ctx context.Context, v *View, titleIDs []int64) ([]*entry
 	if err != nil {
 		return nil, err
 	}
+	linked := map[int64]bool{}
 	for _, l := range links {
-		if x := vers[l.versionID]; x != nil && (x.file == nil || !l.adopted) {
+		x := vers[l.versionID]
+		if x == nil {
+			continue
+		}
+		if !linked[x.id] {
+			linked[x.id], x.path = true, l.f.path
+		}
+		if x.file == nil || !l.adopted {
 			x.file = l.f
 		}
-	}
-
-	// One file path per version (an active link's, else an imported file's): the folder a title already has.
-	rows, err = db.QueryContext(ctx, `SELECT v.title_id, COALESCE(
-		(SELECT MIN(l.path) FROM link l JOIN link_version lv ON lv.link_id = l.id WHERE lv.version_id = v.id
-			AND l.state = 'active'),
-		(SELECT MIN(vf.path) FROM version_file vf WHERE vf.version_id = v.id), '')
-		FROM version v JOIN title t ON t.id = v.title_id WHERE `+where, args...)
-	if err != nil {
-		return nil, err
-	}
-	for rows.Next() {
-		var tid int64
-		var p string
-		if err := rows.Scan(&tid, &p); err != nil {
-			rows.Close()
-			return nil, err
-		}
-		if e := byID[tid]; e != nil && p != "" {
-			e.paths = append(e.paths, p)
-		}
-	}
-	if err := closeRows(rows); err != nil {
-		return nil, err
 	}
 
 	// The view's own records and tags, restricted to the requested titles.

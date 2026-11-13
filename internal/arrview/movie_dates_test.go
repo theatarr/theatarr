@@ -64,4 +64,22 @@ func TestViewPathFromFiles(t *testing.T) {
 	if m["path"] != "/media/movies-web/Beta Old Name" {
 		t.Fatalf("linked movie: path %v root %v", m["path"], m["rootFolderPath"])
 	}
+	// A movie file directly in the root: the root is its folder.
+	e.exec(`UPDATE link SET path = '/media/movies-web/Beta.mkv' WHERE id = 7`)
+	e.call("GET", fmt.Sprintf("/v/movie-web/radarr/api/v3/movie/%d", IDBase+2), nil, 200, &m)
+	if m["path"] != "/media/movies-web" {
+		t.Fatalf("movie in the root: path %v", m["path"])
+	}
+	// Two libraries: the first version's file lies outside the selected root, so the next one's names the folder,
+	// a nested one whose season folder is left out.
+	e.exec(`UPDATE version_file SET path = '/elsewhere/The Show/Season 01/The Show - S01E01.mkv' WHERE id = 3`)
+	e.exec(`INSERT INTO version (id, title_id, policy_key, monitored, state, created_at, updated_at) VALUES
+		(11, 10, 'anime-tv', 1, 'wanted', 0, 0)`)
+	e.exec(`INSERT INTO link (id, path, target, kind, title_id, state, created_at, updated_at) VALUES
+		(8, '/media/tv/Drama/The Show/Season 01/x.mkv', '/mnt/zurg/x.mkv', 'symlink', 10, 'active', 0, 0)`)
+	e.exec(`INSERT INTO link_version (link_id, version_id) VALUES (8, 11)`)
+	e.call("GET", fmt.Sprintf("/sonarr/api/v3/series/%d", IDBase+10), nil, 200, &s)
+	if s["path"] != "/media/tv/Drama/The Show" || s["rootFolderPath"] != "/media/tv" {
+		t.Fatalf("two roots, nested series: path %v root %v", s["path"], s["rootFolderPath"])
+	}
 }

@@ -428,8 +428,6 @@ func (w *Web) loadUpgrades(ctx context.Context, db *sql.DB, vs []upgradeVersion,
 	}
 	if cutoffs {
 		s.cutoffs = w.loadCutoffs(vs)
-	}
-	if cutoffs {
 		if err := w.loadCeilings(ctx, db, vs, s); err != nil {
 			return nil, err
 		}

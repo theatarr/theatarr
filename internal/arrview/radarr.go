@@ -171,7 +171,8 @@ func qualityProfileID(v *View, e *entry) int64 {
 }
 
 // rootAndPath give the title's root folder and folder: the client's root, else the primary version's library. The
-// folder is the one a file of the title already has under that root, else computed from its name and year.
+// folder is that of the first version (in view rank order) with a file under that root: the file's directory, or for
+// a series its parent when the directory is a season folder. Without one it is computed from the name and year.
 func (s *Service) rootAndPath(v *View, e *entry) (root, p string) {
 	if e.rec != nil {
 		root = e.rec.root
@@ -187,14 +188,26 @@ func (s *Service) rootAndPath(v *View, e *entry) (root, p string) {
 		return "", ""
 	}
 	clean := path.Clean(root)
-	for _, f := range e.paths {
-		for dir := path.Dir(f); dir != "/" && dir != "."; dir = path.Dir(dir) {
-			if path.Dir(dir) == clean {
-				return root, dir
-			}
+	for _, x := range e.versions {
+		if x.path == "" {
+			continue
 		}
+		dir := path.Dir(path.Clean(x.path))
+		if dir != clean && !strings.HasPrefix(dir, clean+"/") {
+			continue
+		}
+		if e.kind == "series" && dir != clean && seasonFolder(path.Base(dir)) {
+			dir = path.Dir(dir)
+		}
+		return root, dir
 	}
 	return root, path.Join(root, folderName(e.name, e.year))
+}
+
+// seasonFolder: a directory name as Sonarr names season folders ("Season 01", "Season 1", "Specials").
+func seasonFolder(name string) bool {
+	n := strings.ToLower(name)
+	return strings.HasPrefix(n, "season") || n == "specials"
 }
 
 func folderName(name string, year int) string {
