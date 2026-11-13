@@ -46,12 +46,23 @@ export function kindOf(t: { anime?: boolean; kind?: string }): CardKind {
   return t.anime ? "anime" : t.kind === "series" ? "series" : "movie";
 }
 
+/**
+ * A series none of whose episodes has aired yet (every library's coverage is empty): it reads Upcoming, as the bars
+ * and pills read "nothing aired yet" (lib/library-status.ts copyTone), never Missing. Undefined coverage (an older
+ * row) is not "nothing aired".
+ */
+export function notAiredYet(t: Pick<TitleRow, "kind" | "versions"> | undefined): boolean {
+  const vs = t?.versions ?? [];
+  return t?.kind === "series" && vs.length > 0 && vs.every((v) => v.coverage !== undefined && v.coverage.total === 0);
+}
+
 /** Missing takes priority (Getting ready without "see files" while a download is in hand, else Upcoming for a movie
- * not out at home yet, upcomingRelease; else Missing, which reads Not available without "see files" as in the table),
+ * not out at home yet, upcomingRelease, or a series with nothing aired yet, notAiredYet; else Missing, which reads Not
+ * available without "see files" as in the table),
  * then episode gaps, then an upgrade found (a better release was seen), then best quality known (a copy below its
  * preferred quality with nothing better found), then available. */
 export function posterStatus(a: Availability | undefined, upgradeSeen?: boolean, plain = false, upgradeState?: string, title?: Pick<TitleRow, "kind" | "versions" | "release_date" | "home_release" | "next_up" | "acquiring">): PosterStatus | undefined {
-  if (a === "missing") return plain && title?.acquiring ? "getting_ready" : upcomingRelease(title) ? "upcoming" : plain ? "not_available" : "wanted";
+  if (a === "missing") return plain && title?.acquiring ? "getting_ready" : upcomingRelease(title) || notAiredYet(title) ? "upcoming" : plain ? "not_available" : "wanted";
   if (plain) return a === "partial" && title?.kind !== "movie" ? "some_episodes" : a === "available" || a === "upgrade" || a === "partial" ? "available" : undefined;
   const episodes = title?.kind === "series" && title.versions?.some(v => (v.coverage?.missing ?? 0) > 0);
   if (episodes && title?.versions?.some(v => (v.coverage?.have ?? 0) > 0)) return "some_episodes";
@@ -92,12 +103,14 @@ export function watchWords(a: Availability | undefined, qualities: readonly (str
 }
 
 /** A library title's one watchability line for accounts without "see files" (the table's cell, search results): a
- * missing title with a download in hand reads Getting ready, before Upcoming; else watchWords. */
-export function titleWatchWords(t: Pick<TitleRow, "kind" | "availability" | "acquiring" | "versions" | "release_date" | "home_release">): { label: string; tone: "positive" | "partial" | "neutral" } | null {
+ * missing title with a download in hand reads Getting ready, before Upcoming (a movie not out at home, with its day; a
+ * series with nothing aired yet, with its first episode's day when known); else watchWords. */
+export function titleWatchWords(t: Pick<TitleRow, "kind" | "availability" | "acquiring" | "versions" | "release_date" | "home_release" | "next_up">): { label: string; tone: "positive" | "partial" | "neutral" } | null {
   const missing = t.availability === "missing";
   const up = missing && !t.acquiring ? upcomingRelease(t) : undefined;
   if (missing && t.acquiring) return { label: "Getting ready", tone: "neutral" };
   if (up) return { label: `Upcoming · ${fmtDay(up)}`, tone: "neutral" };
+  if (missing && notAiredYet(t)) return { label: t.next_up?.date ? `Upcoming · ${fmtDay(t.next_up.date)}` : "Upcoming", tone: "neutral" };
   return watchWords(t.availability, (t.versions ?? []).map((v) => v.quality));
 }
 
@@ -189,17 +202,22 @@ export const CATALOGS = {
 } as const;
 export type CatalogId = keyof typeof CATALOGS;
 
+/** The Sort menu. Added is the day the title was added (created); Latest file is the newest current file (added). */
 export const SORTS = [
   { id: "name", label: "Title" },
-  { id: "added", label: "Date added" },
+  { id: "created", label: "Added" },
+  { id: "added", label: "Latest file" },
   { id: "release", label: "Release date" },
   { id: "year", label: "Year" },
   { id: "rating", label: "Rating" },
+  { id: "runtime", label: "Runtime" },
   { id: "size", label: "Size", seeFiles: true },
   { id: "completion", label: "Completion" },
   { id: "next", label: "Next episode / release" },
   { id: "quality", label: "Quality", seeFiles: true },
   { id: "activity", label: "Latest activity", seeFiles: true },
+  { id: "network", label: "Network / studio" },
+  { id: "certification", label: "Certification" },
 ] as const;
 
 /** The filter keys the URL carries (the grid's own; kind and anime come from the catalog). */
@@ -235,4 +253,61 @@ export function gridQuery(c: CatalogId, p: URLSearchParams): GridQuery {
 
 export function activeFilters(p: URLSearchParams): number {
   return FILTER_KEYS.filter((k) => p.get(k)).length;
+}
+
+/** One active filter as a removable chip: its words and the URL value left once it is removed (undefined: the key goes). */
+export type FilterChip = { key: string; label: string; next?: string };
+
+/**
+ * The active filters as chips (the line under the toolbar): "Title: “dune”", "Monitored", the availability label,
+ * "Has 4K", "Lacks 4K", "Quality: WEBDL-2160p", "Provider: RD", "2019–2024" (or "From 2019", "Up to 2024"), one chip
+ * per genre, "State: wanted" for an old link that carries state. names: library labels by key; quality and provider
+ * word their values as the filter sheet does.
+ */
+export function filterChips(
+  p: URLSearchParams,
+  o: { seeFiles: boolean; kind?: string; names?: ReadonlyMap<string, string>; quality?: (v: string) => string; provider?: (v: string) => string },
+): FilterChip[] {
+  const out: FilterChip[] = [];
+  const get = (k: string) => p.get(k) || undefined;
+  const q = get("q");
+  if (q) out.push({ key: "q", label: `Title: “${q}”` });
+  const mon = get("monitored");
+  if (mon === "true") out.push({ key: "monitored", label: "Monitored" });
+  if (mon === "false") out.push({ key: "monitored", label: "Not monitored" });
+  const av = get("availability");
+  if (av) out.push({ key: "availability", label: availabilityFilters(o.seeFiles, o.kind).find((a) => a.id === av)?.label ?? AVAILABILITY.find((a) => a.id === av)?.label ?? av });
+  const lib = (k: string) => o.names?.get(k) ?? k;
+  const w = get("with");
+  if (w) out.push({ key: "with", label: `Has ${lib(w)}` });
+  const wo = get("without");
+  if (wo) out.push({ key: "without", label: `Lacks ${lib(wo)}` });
+  const ql = get("quality");
+  if (ql) out.push({ key: "quality", label: `Quality: ${o.quality?.(ql) || ql}` });
+  const pr = get("provider");
+  if (pr) out.push({ key: "provider", label: `Provider: ${o.provider?.(pr) ?? pr}` });
+  const from = get("year_from");
+  const to = get("year_to");
+  if (from && to) out.push({ key: "years", label: `${from}–${to}` });
+  else if (from) out.push({ key: "year_from", label: `From ${from}` });
+  else if (to) out.push({ key: "year_to", label: `Up to ${to}` });
+  const genres = (get("genre") ?? "").split(",").filter(Boolean);
+  for (const g of genres) {
+    const rest = genres.filter((x) => x !== g).join(",");
+    out.push({ key: "genre", label: g, next: rest || undefined });
+  }
+  const st = get("state");
+  if (st) out.push({ key: "state", label: `State: ${st}` });
+  return out;
+}
+
+/** The URL after removing a chip: its key set to what is left, or gone ("years" removes both years). */
+export function withoutChip(p: URLSearchParams, c: FilterChip): URLSearchParams {
+  const n = new URLSearchParams(p);
+  if (c.key === "years") {
+    n.delete("year_from");
+    n.delete("year_to");
+  } else if (c.next) n.set(c.key, c.next);
+  else n.delete(c.key);
+  return n;
 }

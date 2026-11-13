@@ -1,5 +1,6 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { availabilityFilters, isFamily, POSTER_STATUS_LABEL, posterStatus, relDay, titleWatchWords, upcomingRelease, utcToday, watchWords } from "./library";
+import { availabilityFilters, filterChips, isFamily, POSTER_STATUS_LABEL, posterStatus, relDay, titleWatchWords, upcomingRelease, utcToday, watchWords, withoutChip } from "./library";
+import { copyTone, worstTone } from "./library-status";
 
 const label = (...a: Parameters<typeof posterStatus>) => {
   const s = posterStatus(...a);
@@ -194,5 +195,55 @@ describe("relDay", () => {
     // An hour ago is today here, whatever day it already is in UTC.
     expect(relDay(new Date(2026, 10, 9, 22, 0).toISOString(), now)).toBe("today");
     expect(relDay(new Date(2026, 10, 8, 23, 30).toISOString(), now)).toBe("yesterday");
+  });
+});
+
+describe("a series with nothing aired yet", () => {
+  const coming = { kind: "series" as const, versions: [{ key: "tv", monitored: true, coverage: { have: 0, total: 0, aired: 0, upcoming: 10 } }], next_up: { date: "2099-03-02", season: 1, number: 1 } };
+  it("reads Upcoming, as its bar and pills read nothing aired yet, not Missing", () => {
+    expect(label("missing", false, false, undefined, coming)).toBe("Upcoming");
+    expect(label("missing", false, true, undefined, coming)).toBe("Upcoming");
+    expect(copyTone(coming.versions[0], coming)).toBe("idle");
+    expect(titleWatchWords({ ...coming, availability: "missing" })?.label).toBe("Upcoming · Mar 2, 2099");
+    // Once an episode has aired and is missing, it is Missing again; a library with aired episodes keeps it Missing.
+    const aired = { kind: "series" as const, versions: [{ coverage: { have: 0, total: 3, missing: 3, aired: 3, upcoming: 7 } }] };
+    expect(label("missing", false, false, undefined, aired)).toBe("Missing");
+    expect(label("missing", false, false, undefined, { kind: "series", versions: [...coming.versions, ...aired.versions] })).toBe("Missing");
+    // Without coverage (nothing known) it stays Missing.
+    expect(label("missing", false, false, undefined, { kind: "series", versions: [{ key: "tv" }] })).toBe("Missing");
+  });
+});
+
+describe("a movie held in one library and missing in another", () => {
+  // Listed under Partly; the badge keeps the held copy's word and the missing library shows in red.
+  const t = { kind: "movie" as const, release_date: "2020-01-01", versions: [
+    { key: "4k", label: "4K", monitored: true, has_file: true, state: "cutoff_met" as const },
+    { key: "web", label: "WEB", monitored: true, has_file: false, state: "wanted" as const },
+  ] };
+  it("keeps Available on the badge, with a red whole-title bar and a red pill for the missing library", () => {
+    expect(label("partial", false, false, undefined, t)).toBe("Available");
+    const tones = t.versions.map((v) => copyTone(v, t));
+    expect(tones).toEqual(["ok", "bad"]);
+    expect(worstTone(tones)).toBe("bad");
+  });
+});
+
+describe("filter chips", () => {
+  const p = new URLSearchParams("q=dune&monitored=false&availability=upgrade&with=tv-4k&without=tv-web&quality=WEBDL-2160p&provider=rd&year_from=2019&genre=Drama,Crime&state=wanted");
+  const names = new Map([["tv-4k", "4K"], ["tv-web", "WEB"]]);
+  it("words each active filter", () => {
+    expect(filterChips(p, { seeFiles: true, names, provider: (v) => v.toUpperCase() }).map((c) => c.label)).toEqual([
+      "Title: “dune”", "Not monitored", "Preferred quality not met", "Has 4K", "Lacks WEB", "Quality: WEBDL-2160p", "Provider: RD", "From 2019", "Drama", "Crime", "State: wanted",
+    ]);
+    expect(filterChips(new URLSearchParams("year_to=2024"), { seeFiles: true }).map((c) => c.label)).toEqual(["Up to 2024"]);
+    expect(filterChips(new URLSearchParams("availability=missing"), { seeFiles: false, kind: "movie" }).map((c) => c.label)).toEqual(["Not available"]);
+  });
+  it("removes one chip's value only", () => {
+    const chips = filterChips(p, { seeFiles: true });
+    const drama = chips.find((c) => c.label === "Drama")!;
+    expect(withoutChip(p, drama).get("genre")).toBe("Crime");
+    const years = filterChips(new URLSearchParams("year_from=2019&year_to=2024"), { seeFiles: true });
+    expect(years.map((c) => c.label)).toEqual(["2019–2024"]);
+    expect(withoutChip(new URLSearchParams("year_from=2019&year_to=2024&q=x"), years[0]).toString()).toBe("q=x");
   });
 });
