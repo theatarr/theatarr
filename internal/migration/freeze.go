@@ -1,13 +1,18 @@
-// Package migration holds the arr profile and naming converter.
+// Package migration holds the arr profile and naming converter, and FreezeStored, which turns a stored profile or
+// naming that was taken from Sonarr/Radarr (from_arr) into a stored native copy.
 package migration
 
 import (
 	"bytes"
+	"context"
 	"crypto/sha256"
+	"database/sql"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"sort"
 	"strings"
+	"time"
 
 	"github.com/theatarr/theatarr/internal/decide/format"
 	"github.com/theatarr/theatarr/internal/decide/profile"
@@ -15,6 +20,7 @@ import (
 	"github.com/theatarr/theatarr/internal/library/naming"
 	"github.com/theatarr/theatarr/internal/policy"
 	"github.com/theatarr/theatarr/internal/recyclarr"
+	"github.com/theatarr/theatarr/internal/store"
 	"go.yaml.in/yaml/v3"
 )
 
@@ -359,4 +365,260 @@ func (e *arrExport) convertNaming(body, qualities []byte) error {
 	}
 	e.Naming = &n
 	return nil
+}
+
+// Messages FreezeStored leaves in the error inbox, one per library (%s is the library key).
+const (
+	frozenProfileMessage = "Library %s used a profile taken from Sonarr/Radarr. Theatarr saved a copy of it. Check it in Settings › Profiles."
+	frozenNamingMessage  = "Library %s used a naming taken from Sonarr/Radarr. Theatarr saved a copy of it. Check it in Settings › Libraries."
+	notFrozenMessage     = "Library %s used a profile or naming taken from Sonarr/Radarr that could not be copied. It is now Watch only. Check its profile and naming in Settings › Libraries, then set it Live."
+)
+
+// fallbackProfile is the native profile a from_arr profile becomes when it cannot be converted: valid for films and
+// series alike, for libraries that are then Watch only.
+var fallbackProfile = policy.Profile{Qualities: []policy.QualityItem{{Name: "WEBDL-1080p"}}, Cutoff: "WEBDL-1080p"}
+
+// FreezeStored replaces every stored quality profile and library naming that is taken from an arr instance (the
+// removed from_arr: FromArr in the stored rows) with a native copy made by the converter, from the instance's last
+// stored snapshot in arr_frozen_input (instance, flavour, body: the JSON object of GET bodies by endpoint, as
+// arr_policy_snapshot kept them). A profile keeps its key, so the libraries naming it keep working; its formats go
+// in a new format set. Each library concerned gets one error inbox message asking the user to check the copy. What
+// cannot be converted (no snapshot, or the converter refuses it) becomes a minimal native profile or the default
+// naming, and the libraries concerned are set Watch only, with a message saying so. One write transaction; a no-op
+// (arr_frozen_input is not read) when no stored row has FromArr.
+func FreezeStored(ctx context.Context, st *store.Store, now time.Time) error {
+	return st.WriteTx(ctx, func(tx *sql.Tx) error { return freezeStored(ctx, tx, store.Millis(now)) })
+}
+
+type frozenRef struct{ key, instance, profile string }
+
+func freezeStored(ctx context.Context, tx *sql.Tx, now int64) error {
+	profiles, err := fromArrRows(ctx, tx, `SELECT key, json_extract(config, '$.FromArr') FROM setting_quality_profile
+		WHERE COALESCE(json_extract(config, '$.FromArr'), '') <> '' ORDER BY key`)
+	if err != nil {
+		return err
+	}
+	namings, err := fromArrRows(ctx, tx, `SELECT key, json_extract(config, '$.FromArr') FROM setting_version_naming
+		WHERE COALESCE(json_extract(config, '$.FromArr'), '') <> '' ORDER BY key`)
+	if err != nil || len(profiles)+len(namings) == 0 {
+		return err
+	}
+	inputs := map[string]struct {
+		flavour string
+		raw     map[string]json.RawMessage
+	}{}
+	rows, err := tx.QueryContext(ctx, `SELECT instance, flavour, body FROM arr_frozen_input`)
+	if err != nil {
+		return err
+	}
+	for rows.Next() {
+		var instance, flavour, body string
+		if err := rows.Scan(&instance, &flavour, &body); err != nil {
+			rows.Close()
+			return err
+		}
+		var raw map[string]json.RawMessage
+		if json.Unmarshal([]byte(body), &raw) == nil {
+			inputs[instance] = struct {
+				flavour string
+				raw     map[string]json.RawMessage
+			}{flavour, raw}
+		}
+	}
+	if err := rows.Close(); err != nil {
+		return err
+	}
+	// The libraries, by the profile they name.
+	byProfile := map[string][]string{}
+	vrows, err := tx.QueryContext(ctx, `SELECT key, COALESCE(json_extract(config, '$.config.profile'), '') FROM setting_version
+		ORDER BY key`)
+	if err != nil {
+		return err
+	}
+	for vrows.Next() {
+		var key, profile string
+		if err := vrows.Scan(&key, &profile); err != nil {
+			vrows.Close()
+			return err
+		}
+		byProfile[profile] = append(byProfile[profile], key)
+	}
+	if err := vrows.Close(); err != nil {
+		return err
+	}
+	messages := map[string]string{} // by library; a failure wins over a copy
+	note := func(library, msg string) {
+		if messages[library] != fmt.Sprintf(notFrozenMessage, library) {
+			messages[library] = fmt.Sprintf(msg, library)
+		}
+	}
+	watchOnly := map[string]bool{}
+	// Namings first: a library whose profile and naming were both copied gets the profile's message.
+	for _, n := range namings {
+		in := inputs[n.instance]
+		e := &arrExport{Instance: n.instance, kind: policy.KindMovie}
+		if in.flavour == "sonarr" {
+			e.kind = policy.KindSeries
+		}
+		naming, msg := policy.Naming{}, frozenNamingMessage
+		if in.raw == nil || (in.flavour != "radarr" && in.flavour != "sonarr") || e.namingFrom(in.raw) != nil {
+			watchOnly[n.key], msg = true, notFrozenMessage
+		} else {
+			naming = *e.Naming
+		}
+		b, err := json.Marshal(naming)
+		if err != nil {
+			return err
+		}
+		if _, err := tx.ExecContext(ctx, `UPDATE setting_version_naming SET config = ?, updated_at = ? WHERE key = ?`,
+			string(b), now, n.key); err != nil {
+			return err
+		}
+		note(n.key, msg)
+	}
+	sets := map[string]string{} // the stored key of each format set written by this run, by the converter's key
+	for _, p := range profiles {
+		pr, err := frozenProfile(ctx, tx, p, inputs[p.instance].flavour, inputs[p.instance].raw, sets, now)
+		msg := frozenProfileMessage
+		if err != nil {
+			pr, msg = &fallbackProfile, notFrozenMessage
+			for _, library := range byProfile[p.key] {
+				watchOnly[library] = true
+			}
+		}
+		b, err := json.Marshal(pr)
+		if err != nil {
+			return err
+		}
+		if _, err := tx.ExecContext(ctx, `UPDATE setting_quality_profile SET config = ?, updated_at = ? WHERE key = ?`,
+			string(b), now, p.key); err != nil {
+			return err
+		}
+		for _, library := range byProfile[p.key] {
+			note(library, msg)
+		}
+	}
+	for library := range watchOnly {
+		if _, err := tx.ExecContext(ctx, `UPDATE setting_version SET config = json_set(config, '$.config.mode', ?),
+			updated_at = ? WHERE key = ?`, string(policy.ModeShadow), now, library); err != nil {
+			return err
+		}
+	}
+	for library, msg := range messages {
+		if _, err := tx.ExecContext(ctx, `INSERT INTO error_event (fingerprint, source, component, level, message,
+			first_seen, last_seen, updated_at) VALUES (?, 'log', 'settings', 'error', ?, ?, ?, ?)
+			ON CONFLICT (fingerprint) DO UPDATE SET message = excluded.message, last_seen = excluded.last_seen,
+			status = 'new', updated_at = excluded.updated_at`, "arr-freeze:"+library, msg, now, now, now); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func fromArrRows(ctx context.Context, tx *sql.Tx, q string) ([]frozenRef, error) {
+	rows, err := tx.QueryContext(ctx, q)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var out []frozenRef
+	for rows.Next() {
+		var r frozenRef
+		var ref string
+		if err := rows.Scan(&r.key, &ref); err != nil {
+			return nil, err
+		}
+		// A profile names "<instance>/<profile name>" (the name may hold a slash); a naming names the instance.
+		r.instance, r.profile, _ = strings.Cut(ref, "/")
+		r.instance, r.profile = strings.TrimSpace(r.instance), strings.TrimSpace(r.profile)
+		out = append(out, r)
+	}
+	return out, rows.Err()
+}
+
+// frozenProfile converts one from_arr profile and stores the format set its formats go in (once per instance and
+// run). The arr profile is matched by name, else by name ignoring case. The stored Propers, when set, stays.
+func frozenProfile(ctx context.Context, tx *sql.Tx, p frozenRef, flavour string, raw map[string]json.RawMessage,
+	sets map[string]string, now int64) (*policy.Profile, error) {
+	if raw == nil {
+		return nil, fmt.Errorf("%s: no stored snapshot", p.instance)
+	}
+	var listed []struct {
+		Name string `json:"name"`
+	}
+	_ = json.Unmarshal(raw["qualityprofile"], &listed)
+	name := p.profile
+	for _, l := range listed {
+		if l.Name != p.profile && strings.EqualFold(l.Name, p.profile) {
+			name = l.Name
+		}
+		if l.Name == p.profile {
+			name = l.Name
+			break
+		}
+	}
+	only := make(map[string]json.RawMessage, len(raw))
+	for k, v := range raw {
+		if k != "config/naming" {
+			only[k] = v
+		}
+	}
+	e, err := freezeArr(p.instance, flavour, only, name)
+	if err != nil {
+		return nil, err
+	}
+	frags, fsets, err := e.Fragments()
+	if err != nil || len(frags) != 1 || len(fsets) != 1 {
+		return nil, fmt.Errorf("%s/%s: converted to %d profiles and %d format sets", p.instance, name, len(frags), len(fsets))
+	}
+	var pr *policy.Profile
+	for _, x := range frags {
+		pr = x
+	}
+	for setKey, set := range fsets {
+		if stored, ok := sets[setKey]; ok {
+			pr.FormatSet = stored
+			continue
+		}
+		// A set of that name already stored: take a free name.
+		key := setKey
+		for n := 2; ; n++ {
+			var found int
+			err := tx.QueryRowContext(ctx, `SELECT 1 FROM setting_format_set WHERE key = ?`, key).Scan(&found)
+			if errors.Is(err, sql.ErrNoRows) {
+				break
+			}
+			if err != nil {
+				return nil, err
+			}
+			key = fmt.Sprintf("%s-%d", setKey, n)
+		}
+		specs := map[string]json.RawMessage{}
+		formats := map[string]*policy.FormatRef{}
+		for k, ref := range set.Formats {
+			specs[k] = json.RawMessage(e.Files[ref.File])
+			formats[k] = &policy.FormatRef{Flavour: ref.Flavour}
+		}
+		b, err := json.Marshal(struct {
+			Config         policy.FormatSet           `json:"config"`
+			Specifications map[string]json.RawMessage `json:"specifications,omitempty"`
+		}{policy.FormatSet{Flavour: set.Flavour, Formats: formats}, specs})
+		if err != nil {
+			return nil, err
+		}
+		if _, err := tx.ExecContext(ctx, `INSERT INTO setting_format_set (key, config, created_at, updated_at)
+			VALUES (?, ?, ?, ?)`, key, string(b), now, now); err != nil {
+			return nil, err
+		}
+		sets[setKey], pr.FormatSet = key, key
+	}
+	var propers string
+	if err := tx.QueryRowContext(ctx, `SELECT COALESCE(json_extract(config, '$.Propers'), '') FROM setting_quality_profile
+		WHERE key = ?`, p.key).Scan(&propers); err != nil {
+		return nil, err
+	}
+	if propers != "" {
+		pr.Propers = propers
+	}
+	return pr, nil
 }

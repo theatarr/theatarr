@@ -1,13 +1,19 @@
 package migration
 
 import (
+	"context"
 	"encoding/json"
 	"os"
+	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/theatarr/theatarr/internal/decide/format"
 	"github.com/theatarr/theatarr/internal/policy"
+	"github.com/theatarr/theatarr/internal/settings"
+	"github.com/theatarr/theatarr/internal/store"
+	"github.com/theatarr/theatarr/internal/store/storetest"
 )
 
 // freezeFixture is radarr_4k_debrid's GET bodies as the wizard reads them, with its naming.
@@ -151,5 +157,108 @@ func TestFreezeArrProfileFields(t *testing.T) {
 		if p.Sizes["Remux-2160p"].Min != 187.4 {
 			t.Fatal("lost quality definitions")
 		}
+	}
+}
+
+// FreezeStored turns stored from_arr rows into native copies from arr_frozen_input: a profile (matched by name,
+// ignoring case) keeps its key and its stored propers and gets a format set; a naming gets the instance's templates;
+// a profile whose instance has no snapshot becomes a minimal profile and its library Watch only. The settings then
+// load, each library has one message, and a second run reads nothing.
+func TestFreezeStored(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+	db, err := store.Open(ctx, storetest.Seed(t, filepath.Join(t.TempDir(), "theatarr.db")), store.Options{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { db.Close() })
+	if _, err := db.Migrate(ctx); err != nil {
+		t.Fatal(err)
+	}
+	base, err := policy.Load("../../examples/policy")
+	if err != nil {
+		t.Fatal(err)
+	}
+	st, err := settings.New(db)
+	if err != nil {
+		t.Fatal(err)
+	}
+	st.SetTrashRoot("../settings/testdata/trash")
+	lookup := func(name string) (string, bool) { return "fixture-" + name, true }
+	if _, err := st.Bootstrap(ctx, base, settings.ImportRequest{Dir: base.Dir, Actor: "test", Lookup: lookup}); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := st.BootstrapQuality(ctx, base, "test"); err != nil {
+		t.Fatal(err)
+	}
+	body, err := json.Marshal(freezeFixture(t))
+	if err != nil {
+		t.Fatal(err)
+	}
+	exec := func(q string, args ...any) {
+		t.Helper()
+		if _, err := db.Writer().ExecContext(ctx, q, args...); err != nil {
+			t.Fatalf("%s: %v", q, err)
+		}
+	}
+	// The table part C's migration creates before it drops the arr tables.
+	exec(`CREATE TABLE arr_frozen_input (instance TEXT, flavour TEXT, body TEXT)`)
+	exec(`INSERT INTO arr_frozen_input (instance, flavour, body) VALUES ('radarr_4k_debrid', 'radarr', ?)`, string(body))
+	exec(`UPDATE setting_quality_profile SET config = '{"FromArr":"radarr_4k_debrid/remux + web 2160p","Propers":"do_not_prefer"}'
+		WHERE key = 'web-2160p'`)
+	exec(`UPDATE setting_quality_profile SET config = '{"FromArr":"sonarr_gone/Any"}' WHERE key = 'tv-2160p'`)
+	exec(`INSERT INTO setting_version_naming (key, config, created_at, updated_at) VALUES ('movie-remux', '{"FromArr":"radarr_4k_debrid"}', 1, 1)
+		ON CONFLICT (key) DO UPDATE SET config = excluded.config`)
+	if _, err := st.Load(ctx, base); err == nil {
+		t.Fatal("the stored from_arr rows loaded before the copy")
+	}
+
+	if err := FreezeStored(ctx, db, time.UnixMilli(5000)); err != nil {
+		t.Fatal(err)
+	}
+	snap, err := st.Load(ctx, base)
+	if err != nil {
+		t.Fatalf("settings after the copy: %v", err)
+	}
+	pr := snap.Policy.Profiles["web-2160p"]
+	if pr == nil || pr.FormatSet == "" || snap.Policy.FormatSets[pr.FormatSet] == nil || len(pr.Formats) == 0 ||
+		pr.Cutoff == "" || pr.Propers != policy.PropersDoNotPrefer {
+		t.Fatalf("copied profile %+v", pr)
+	}
+	if n := snap.Policy.Versions["movie-remux"].Naming; n.Folder != "{Movie CleanTitle} ({Release Year})" || n.Colon != "delete" {
+		t.Fatalf("copied naming %+v", n)
+	}
+	if v := snap.Policy.Versions["tv-2160p"]; v.Mode != policy.ModeShadow || len(snap.Policy.Profiles["tv-2160p"].Qualities) != 1 {
+		t.Fatalf("tv-2160p %s, profile %+v", v.Mode, snap.Policy.Profiles["tv-2160p"])
+	}
+	if base.Versions["movie-web"].Mode != snap.Policy.Versions["movie-web"].Mode {
+		t.Fatalf("movie-web mode %s", snap.Policy.Versions["movie-web"].Mode)
+	}
+	messages := map[string]string{}
+	rows, err := db.Reader().QueryContext(ctx, `SELECT fingerprint, message FROM error_event WHERE fingerprint LIKE 'arr-freeze:%'`)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for rows.Next() {
+		var k, m string
+		if err := rows.Scan(&k, &m); err != nil {
+			t.Fatal(err)
+		}
+		messages[k] = m
+	}
+	rows.Close()
+	for key, want := range map[string]string{"arr-freeze:movie-web": "saved a copy of it. Check it in Settings › Profiles",
+		"arr-freeze:movie-remux": "naming taken from Sonarr/Radarr. Theatarr saved a copy",
+		"arr-freeze:tv-2160p":    "could not be copied. It is now Watch only"} {
+		if !strings.Contains(messages[key], want) {
+			t.Errorf("%s: %q", key, messages[key])
+		}
+	}
+	if len(messages) != 3 {
+		t.Errorf("messages %v", messages)
+	}
+	exec(`DROP TABLE arr_frozen_input`)
+	if err := FreezeStored(ctx, db, time.UnixMilli(6000)); err != nil {
+		t.Fatalf("second run: %v", err)
 	}
 }
