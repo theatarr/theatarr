@@ -46,21 +46,22 @@ export function kindOf(t: { anime?: boolean; kind?: string }): CardKind {
   return t.anime ? "anime" : t.kind === "series" ? "series" : "movie";
 }
 
-/** TMDb statuses of a series that has aired. */
+/** TMDb statuses of a series that has aired, read only when the row has no first air date (a series still to premiere
+ *  can already be called Returning Series). */
 const AIRED_STATUS = new Set(["Returning Series", "Ended", "Canceled"]);
 
 /**
  * A series none of whose episodes has aired yet: it reads Upcoming, as the bars and pills read "nothing aired yet"
  * (lib/library-status.ts copyTone), never Missing. Empty coverage alone is not proof (the API also sends it before the
- * episodes are loaded), so the row must not say it has aired: its first air date (release_date) is missing or still to
- * come (the UTC day, as upcomingRelease), and its status is not Returning Series, Ended or Canceled. Undefined coverage
- * is not "nothing aired".
+ * episodes are loaded), so the row must not say it has aired: its first air date (release_date) is still to come (the
+ * UTC day, as upcomingRelease); without that date, its status is not Returning Series, Ended or Canceled. Undefined
+ * coverage is not "nothing aired".
  */
 export function notAiredYet(t: Pick<TitleRow, "kind" | "versions" | "release_date" | "status"> | undefined, day: string = utcToday()): boolean {
   const vs = t?.versions ?? [];
   if (t?.kind !== "series" || !vs.length || !vs.every((v) => v.coverage !== undefined && v.coverage.total === 0)) return false;
   const first = t.release_date?.slice(0, 10);
-  return (!first || first > day) && !AIRED_STATUS.has(t.status ?? "");
+  return first ? first > day : !AIRED_STATUS.has(t.status ?? "");
 }
 
 /** Missing takes priority (Getting ready without "see files" while a download is in hand, else Upcoming for a movie
