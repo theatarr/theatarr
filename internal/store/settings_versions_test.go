@@ -330,7 +330,7 @@ func TestMigrateControls(t *testing.T) {
 func TestMigrationStripsParserAndPackFields(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
-	st := openAt(t, 122)
+	st := openAt(t, 123)
 	p, err := st.provider(false)
 	if err != nil {
 		t.Fatal(err)
