@@ -6,6 +6,7 @@ import (
 	"errors"
 	"net/http"
 	"sort"
+	"time"
 )
 
 // GET titles/{id}/episodes?season=: a series' seasons with counts per version, and its episodes (all, or one
@@ -43,6 +44,12 @@ type SeasonCounts struct {
 	// stage (copies.go). For callers who see files.
 	InFlight int            `json:"in_flight,omitempty"`
 	Stages   map[string]int `json:"stages,omitempty"`
+	// NextSearchAt is from when the season's next automatic search in the version may start, the earliest of its
+	// Wanted rows (in the past: due now), and NextSearchWhy why it is early (searchSchedule, manage.go). Unset unless
+	// the version is Live and monitored, the season has missing episodes or files below the cutoff, and never while
+	// paused. Schedules are per season: there is no time per episode.
+	NextSearchAt  *time.Time `json:"next_search_at,omitempty"`
+	NextSearchWhy string     `json:"next_search_why,omitempty"`
 }
 
 // Season is one season in brief.

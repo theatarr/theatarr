@@ -338,6 +338,60 @@ func TestManageActive(t *testing.T) {
 	}
 }
 
+// The title page's next search: a movie copy's earliest row on its control, a series' per season on the episodes
+// route. A missing row of a film with a file and a regular row whose switch is off are left out; nothing while paused
+// or for an unmonitored copy.
+func TestManageNextSearch(t *testing.T) {
+	t.Parallel()
+	e := newManageEnv(t, func(p *policy.Policy) {
+		p.Versions["tv-2160p"].Mode = policy.ModeActive
+		p.Versions["movie-remux"].Mode = policy.ModeActive
+		p.Router = &policy.Router{Enabled: true, Wanted: &policy.Wanted{}}
+	})
+	ms := func(d time.Duration) int64 { return addNow.Add(d).UnixMilli() }
+	e.exec(`INSERT INTO search_request (title_id, version_key, reason, season, created_at, next_at, tries, why) VALUES
+		(1, 'movie-remux', 'cutoff', -1, 0, ?, 0, NULL), (1, 'movie-remux', 'missing', -1, 0, ?, 0, 'asked'),
+		(10, 'tv-2160p', 'cutoff', 1, 0, ?, 0, 'stalled'), (10, 'tv-2160p', 'missing', 1, 0, ?, 0, NULL)`,
+		ms(3*time.Hour), ms(-time.Minute), ms(-5*time.Minute), ms(-time.Hour))
+	check := func(name string, movieAt *time.Duration, movieWhy string, seasonAt *time.Duration, seasonWhy string) {
+		t.Helper()
+		var d TitleDetail
+		e.call("GET", APIBase+"/titles/1", nil, 200, &d)
+		var c *VersionControl
+		for _, v := range d.Versions {
+			if v.Key == "movie-remux" {
+				c = v.Control
+			}
+		}
+		same := func(got *time.Time, want *time.Duration) bool {
+			return (got == nil) == (want == nil) && (got == nil || got.Equal(addNow.Add(*want)))
+		}
+		if c == nil || !same(c.NextSearchAt, movieAt) || c.NextSearchWhy != movieWhy {
+			t.Errorf("%s: movie control %+v", name, c)
+		}
+		var l EpisodeList
+		e.call("GET", APIBase+"/titles/10/episodes", nil, 200, &l)
+		for _, se := range l.Seasons {
+			sc := se.Versions["tv-2160p"]
+			if se.Season == 1 && (!same(sc.NextSearchAt, seasonAt) || sc.NextSearchWhy != seasonWhy) ||
+				se.Season != 1 && sc.NextSearchAt != nil {
+				t.Errorf("%s: season %d %+v", name, se.Season, sc)
+			}
+		}
+	}
+	d := func(x time.Duration) *time.Duration { return &x }
+	// Season 1 has no missing episode, so only its cutoff row counts.
+	check("on", d(3*time.Hour), "", d(-5*time.Minute), "stalled")
+	e.pol.Router.Wanted.CutoffUnmet = policy.CutoffOff
+	check("upgrades off", nil, "", d(-5*time.Minute), "stalled")
+	e.pol.Router.Wanted.CutoffUnmet = ""
+	e.exec(`UPDATE version SET monitored = 0`)
+	check("unmonitored", nil, "", nil, "")
+	e.exec(`UPDATE version SET monitored = 1`)
+	e.pol.Router.Enabled = false
+	check("paused", nil, "", nil, "")
+}
+
 // Users (availability only) get no scores, release names, sizes or controls.
 func TestManageNoScoresForUsers(t *testing.T) {
 	t.Parallel()

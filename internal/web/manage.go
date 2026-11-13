@@ -61,6 +61,11 @@ type VersionControl struct {
 	SearchReason string `json:"search_reason,omitempty"`
 	// LiveReleases: the releases panel may search the indexers now (mode active).
 	LiveReleases bool `json:"live_releases"`
+	// NextSearchAt (a movie copy) is from when the copy's next automatic search may start, the earliest of its Wanted
+	// rows (in the past: due now), and NextSearchWhy why it is early (searchSchedule). Unset unless the copy is Live,
+	// monitored and not at its cutoff, and never while paused.
+	NextSearchAt  *time.Time `json:"next_search_at,omitempty"`
+	NextSearchWhy string     `json:"next_search_why,omitempty"`
 }
 
 func redactControl(c *VersionControl) {
@@ -99,6 +104,60 @@ func (w *Web) searchBlock(key string) string {
 		return "The acquirer is not running"
 	}
 	return ""
+}
+
+// nextSearchRow is one row of the search schedule (search_request, internal/acquire) of a title.
+type nextSearchRow struct {
+	key, reason string
+	season      int // -1: a film
+	at          int64
+	why         string
+}
+
+// searchSchedule reads the rows of a title's search schedule that a round would start: one with a why (asked: Search
+// now, new: a retry of a new release, else the failure the router reported), or a regular one whose backlog switch
+// (router.wanted.missing, cutoff_unmet) is on. Nothing while paused.
+func (w *Web) searchSchedule(ctx context.Context, db *sql.DB, titleID int64) ([]nextSearchRow, error) {
+	if w.pol == nil || !w.pol.RouterSettings().Enabled {
+		return nil, nil
+	}
+	set := w.pol.WantedSettings()
+	var out []nextSearchRow
+	err := scanAll(ctx, db, `SELECT version_key, reason, season, next_at, COALESCE(why, '') FROM search_request
+		WHERE title_id = ?`, []any{titleID}, func(r *sql.Rows) error {
+		var x nextSearchRow
+		if err := r.Scan(&x.key, &x.reason, &x.season, &x.at, &x.why); err != nil {
+			return err
+		}
+		on := set.Missing
+		if x.reason == acquire.OnlyCutoff {
+			on = set.CutoffUnmet != policy.CutoffOff
+		}
+		if x.why != "" || on {
+			out = append(out, x)
+		}
+		return nil
+	})
+	return out, err
+}
+
+// nextSearch is the earliest of rows for a Live copy (key) and season whose reason wants is true for.
+func (w *Web) nextSearch(rows []nextSearchRow, key string, season int, wants func(reason string) bool) (*time.Time,
+	string) {
+	if vp := w.pol.Versions[key]; vp == nil || vp.Mode != policy.ModeActive {
+		return nil, ""
+	}
+	var best *nextSearchRow
+	for i, x := range rows {
+		if x.key == key && x.season == season && wants(x.reason) && (best == nil || x.at < best.at) {
+			best = &rows[i]
+		}
+	}
+	if best == nil {
+		return nil, ""
+	}
+	at := time.UnixMilli(best.at).UTC()
+	return &at, best.why
 }
 
 // manageVersion is one version of a title as these handlers see it.
@@ -246,10 +305,22 @@ func (w *Web) enrichManage(ctx context.Context, db *sql.DB, d *TitleDetail) erro
 	if err != nil {
 		return err
 	}
+	var sched []nextSearchRow
+	if d.Kind == "movie" {
+		if sched, err = w.searchSchedule(ctx, db, d.ID); err != nil {
+			return err
+		}
+	}
 	for i := range d.Versions {
 		v := &d.Versions[i]
 		v.Upgrade = s.explain(vs[i], 0)
 		v.Control = w.control(v.Key)
+		if v.Monitored {
+			// A missing row while the film is wanted, a cutoff row while its file is below the cutoff.
+			v.Control.NextSearchAt, v.Control.NextSearchWhy = w.nextSearch(sched, v.Key, -1, func(reason string) bool {
+				return reason == acquire.OnlyMissing && v.State == "wanted" || reason == acquire.OnlyCutoff && v.State == "filled"
+			})
+		}
 		if c := v.Current; c != nil && c.Files == 1 && d.Kind == "movie" {
 			// The version's newest active link first; the arr's file only when the version has none.
 			var pr, am, meta sql.NullString
@@ -433,6 +504,23 @@ func (w *Web) enrichEpisodes(ctx context.Context, db *sql.DB, out *EpisodeList, 
 				sc.Score = &x
 			}
 			bySeason[season].Versions[key] = sc
+		}
+	}
+	sched, err := w.searchSchedule(ctx, db, out.TitleID)
+	if err != nil || len(sched) == 0 {
+		return err
+	}
+	for _, v := range out.Versions {
+		if !v.Monitored {
+			continue
+		}
+		for _, se := range bySeason {
+			sc := se.Versions[v.Key]
+			// A missing row while the season has missing episodes, a cutoff row while it has files below the cutoff.
+			sc.NextSearchAt, sc.NextSearchWhy = w.nextSearch(sched, v.Key, int(se.Season), func(reason string) bool {
+				return reason == acquire.OnlyMissing && sc.Missing > 0 || reason == acquire.OnlyCutoff && sc.BelowCutoff > 0
+			})
+			se.Versions[v.Key] = sc
 		}
 	}
 	return nil
