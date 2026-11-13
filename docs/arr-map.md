@@ -54,7 +54,7 @@ claim of Sonarr v5 API parity. Recyclarr has no web pages; its table maps the CL
 | Movies | Library › Movies — `/movies` | Multiple libraries per movie. The arrs' "Search Selected": **Select**, tick the titles, pick one library in the bar and choose **Search now** (admins). It searches what is missing in that library, through the Wanted queue and its hourly limit. |
 | Movies › Add New | Search — `/search` | Choose libraries when adding. **Search now** is off until you turn it on; the browser then remembers it. **Minimum availability** is **Library default** unless you pick Announced, In cinemas or Released; a pick is kept per library and is changed later on the movie's library card. |
 | Movies › Import Library | Admin › Import from Sonarr/Radarr — `/admin/arr-import` | Brings a Radarr instance's movies, their monitoring and the files on the debrid mount into one library, once; Wanted › Manual import (`/wanted/manual-import`) handles other files. |
-| Movies › Collections | Library › Collections — `/collections` | Managers and admins. **Add collection** searches TMDb; targets are libraries; the arrs' monitored collections are carried over at each Radarr import. |
+| Movies › Collections | Library › Collections — `/collections` | Managers and admins. **Add collection** searches TMDb; targets are libraries. |
 | Movies › Discover | Home — `/` | Discovery rows and search share one library for every user. |
 | Calendar | Calendar — `/calendar` | Movies and episodes together. |
 | Settings | Admin › Settings — `/admin/settings` | Search by task or an arr page name. |

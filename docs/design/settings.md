@@ -56,8 +56,8 @@ Other settings-dependent commands take their settings from `-db`; `preflight -po
 inspection/import tools retain directory inputs.
 
 `THEATARR_FORCE_OFF` forces Pause on (`pause`, `router` and `library` all do) and notifications off (`notify`). Saves
-cannot override it. Turning Pause off, making a library Live, removing a library, an address change that keeps a
-stored key, and an arr import into a Live library require confirmation; other changes save at once ("Confirmations"
+cannot override it. Turning Pause off, making a library Live, removing a library, and an address change that keeps a
+stored key require confirmation; other changes save at once ("Confirmations"
 below).
 
 
@@ -116,7 +116,6 @@ once. `section-panel.test.tsx` exercises partial writes, credentials, 422, 409, 
 | Metadata & artwork | Artwork cache (`#artwork-cache`) | `ui` | `images` |  |
 | System › Backup | Torrent-list backups (`#torrent-backups`) | `torrents` | `backup` |  |
 | Torrents (Admin › Torrents) | Other libraries’ folders (`#scan-roots`) | `torrents` | `scan_roots` |  |
-| Advanced › Sonarr/Radarr instances | Sonarr and Radarr instances (`#arr`) | `import` | `arr` |  |
 
 ### Form details
 
@@ -178,7 +177,7 @@ Live library whose `grab` was not true (a missing `grab` was false: the field wa
 default) became Watch only, and every library lost `grab`; `notify_enabled` true set `$.enabled` on the `notify`
 section (inserting the row if missing), false removed it.
 
-Each save publishes a runtime generation without a restart. New routes and library operations use the new gates; the router's final-write check also refuses further adds from retired generations. A provider request already sent is not canceled, and existing downloads continue to be polled as with the router off. Library operations already in flight keep their captured generation; subsequent operations do the same dry run as startup with the switch off. Notification recording, tests and delivery sending read the runtime switch; queued deliveries are dropped while off. Health and arr/native views use the active generation. Pause is not part of history: startup fallback takes it from the stored head (paused when there is none), so recovery cannot turn Pause off. Versions get the same treatment: a recovered version stays active only while the head's version is active, and a version the head no longer has is recovered as shadow. Anything else the fallback would allow that the head does not (the confirmation effects of going from the head to it: a Live library that follows an arr library where the head's does not, an arr import into a grabbing library the head does not map, or a library the head has, with links or a follows relationship, that the fallback lacks) refuses the fallback, and the start fails with both reasons instead of running looser settings than the saved ones. An address the fallback gives a provider or indexer with its kept key is not checked: that generation was published with it (`TestFallbackEffectsIgnoreOwnAddress`). While a fallback runs, the health check `SettingsFallbackCheck` is an error naming the running and the stored generation (Admin › System › Status lists it under Needs attention, linking to Settings, whose banner offers the reload); it is OK again once the head is loaded (`TestSettingsFallbackHealth`). It compares the running generation with the stored head (one row), so it can also flag, for a moment, a save committed but not yet published.
+Each save publishes a runtime generation without a restart. New routes and library operations use the new gates; the router's final-write check also refuses further adds from retired generations. A provider request already sent is not canceled, and existing downloads continue to be polled as with the router off. Library operations already in flight keep their captured generation; subsequent operations do the same dry run as startup with the switch off. Notification recording, tests and delivery sending read the runtime switch; queued deliveries are dropped while off. Health and arr/native views use the active generation. Pause is not part of history: startup fallback takes it from the stored head (paused when there is none), so recovery cannot turn Pause off. Versions get the same treatment: a recovered version stays active only while the head's version is active, and a version the head no longer has is recovered as shadow. Anything else the fallback would allow that the head does not (the confirmation effects of going from the head to it: a library going Live, Pause off, or a library the head has that the fallback lacks) refuses the fallback, and the start fails with both reasons instead of running looser settings than the saved ones. An address the fallback gives a provider or indexer with its kept key is not checked: that generation was published with it (`TestFallbackEffectsIgnoreOwnAddress`). While a fallback runs, the health check `SettingsFallbackCheck` is an error naming the running and the stored generation (Admin › System › Status lists it under Needs attention, linking to Settings, whose banner offers the reload); it is OK again once the head is loaded (`TestSettingsFallbackHealth`). It compares the running generation with the stored head (one row), so it can also flag, for a moment, a save committed but not yet published.
 
 
 ## Sections and views
@@ -304,7 +303,7 @@ parameters in configured URLs by the same name rule (`secrets.CredentialQueryNam
 
 **Confirmations.** A save answers 422 with effects and a token (the shared dialog) only when it makes a library Live
 (or creates one Live), turns Pause off, removes a library, changes a provider's or indexer's address
-while it keeps its stored key, or maps an arr import into a Live library. Every other change, other addresses, folders, the VPN guard, `router.cached_only`, profiles, formats,
+while it keeps its stored key. Every other change, other addresses, folders, the VPN guard, `router.cached_only`, profiles, formats,
 naming, indexers, providers, views, notifications and credential names included, saves at once after validation.
 Validation itself is unchanged (`TestEverydayLiveEditsSaveDirectly`, `TestKeptConfirmations`).
 
@@ -322,7 +321,7 @@ same way: the 422 carries the effects and a token, the confirm endpoints issue o
 token (`confirmation_token` or `X-Confirmation-Token`) applies it. A session's tokens are bound to its user
 (`settings.WithConfirmer`, "user:<id>"); a key's to that key (`settings.WithKeyConfirmer`, "key:<id>"), so a key's
 token is refused for another key, for a session and after the key is revoked, and a session's for a key. This covers
-every flow: records (an address with a kept key), sections (an arr import), versions (activation and removal), Pause, `orphan_active_downloads`, migration apply steps and torrent delete and restore. Torrent delete and restore store no
+every flow: records (an address with a kept key), versions (activation and removal), Pause, `orphan_active_downloads` and torrent delete and restore. Torrent delete and restore store no
 token: theirs is an HMAC, under a random per-process key, of the confirmer (`settings.Confirmer`) and the plan digest,
 so only a preview gives it and only the same caller can use it; a restart means preview again
 ([torrents.md](torrents.md)). Permissions still decide what a key
@@ -354,7 +353,7 @@ generation. Only data files such as the overrides are read from the directory at
 | `providers`, `provider_sync`, `router`, `clients` | Provider sync registry and clients, router provider adapters, pacing, fallback and adders, as one generation (`cmd/theatarr/serve.go`, `cmd/theatarr/router.go`) |
 | `versions`, `profiles`, `formats`, `format_sets`, `shadow` | Decide engines, the RSS sync, acquisition and search, offers, all from the same snapshot (`cmd/theatarr/serve.go`, `cmd/theatarr/decide.go`) |
 | `library`, version roots and naming, `playlists` | Library import, relink and Plex gates, root mapping, naming and playlist sync (`cmd/theatarr/servelibrary.go`) |
-| `metadata`, `import` | TMDb, TVDB and other metadata sources, arr imports, series refresh, indexer helper lookups and Plex sign-in, with their schedules |
+| `metadata` | TMDb, TVDB and other metadata sources, series refresh, indexer helper lookups and Plex sign-in, with their schedules |
 | `views` | Arr-view routes, version exposure and release push; a route identity or path change replaces the route registration (`internal/policy/policy.go` `View`) |
 | `notify` | Webhook targets and sender; the outbox and retry state are kept |
 | `ui`, metadata `art` and `series` | Art proxy and cache, metadata refresh schedules and clients (`cmd/theatarr/serveart.go`, `cmd/theatarr/servetvmeta.go`) |

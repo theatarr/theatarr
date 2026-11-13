@@ -38,7 +38,6 @@ Marks: **U** user-facing (the library app), **A** admin panel.
 | `GET events` (SSE) | `jobs`, `gateway` and the user events (§6) | A | |
 | `POST auth/login`, `auth/logout`, `GET auth/me` | session login, who am I (with role and permissions) + CSRF | U | |
 | `GET/POST keys`, `DELETE keys/{id}` | API keys | A | per user (§3) |
-| `GET shadow/summary`, `shadow/diffs`, `shadow/diffs/{id}` | shadow report; active compare sources use `basis: live` for real grabs, timing, per-version agreement and disagreement reasons | A | |
 | `GET anime/franchises`, `franchises/{slug}`, `review`, `review/{id}/snippet`, `POST review/{id}/accept|reject`, `GET anime/playlists` | anime metadata | A (review), U (franchise orders, playlists) | A playlist plan's items keep their order for every browsing account; their file `path`, `from` and `rating_key` need see_files (`TestAnimePlaylistPlanHidesFilesWithoutSeeFiles`) |
 | `POST decide`, `POST import` | native decision and import for devices (`internal/arrview/nativeapi`) | A | API only; a "Test a release" box in Admin uses `decide` |
 
@@ -200,8 +199,7 @@ The remaining pages use the same tokens and primitives:
   not shrink a table cell); the indexer rows' phone grid drops the cell height. Request budgets (settings and Request
   limits) and gateway back-offs stack below sm as labelled lines (Rate, Caps, This hour, Today, Used by, Failures,
   Reason), so no value is hidden on a phone; from sm up they are table columns, Used by included. Home's poster rows, the anime YAML
-  preview, the franchise episode map and the comparison evidence grid still scroll inside their own frame; the
-  comparison's release names wrap, so at 1440 px the whole grid fits. A journal entry's summary wraps long release names.
+  preview, the franchise episode map still scroll inside their own frame. A journal entry's summary wraps long release names.
 - Cancel closes a sheet or dialog; Discard resets a form's draft to saved (both sit in the record forms).
 
 ### Navigation
@@ -258,7 +256,7 @@ See [quickstart](../quickstart.md#readiness-led-setup) for the completion rules;
   else **Request** / **View request** (request). On phones that action also sticks above the bottom tabs.
 - **Libraries** (callers with "see files"): one compact card per library, side by side from 1024 px, stacked on
   phones; right under the hero for a movie, on the Libraries tab for a series. Each card keeps separate fields:
-  **Library** (the display label, with “mirrors <arr name>” shown separately), **Current file** (resolution and source in words, "4K WEB"),
+  **Library** (the display label), **Current file** (resolution and source in words, "4K WEB"),
   **Preferred quality** (the profile's cutoff in words, "4K Remux"), **Upgrade status** (the vocabulary in
   docs/design/manage.md, with Why?), monitoring (switch, "auto upgrades on/off", read-only
   while an arr manages it), Search now and, on a movie's card for managers when the library searches live
@@ -272,7 +270,7 @@ See [quickstart](../quickstart.md#readiness-led-setup) for the completion rules;
   shows one line, "12 results, 3 accepted · Grabbed #1 via rd → imported" or "Nothing grabbed: why", about the
   download that search opened (a later retry of the same release does not change it). For managers the
   release of a grab or failure links to its row in the releases page (`?version=&hash=`), and the newest search
-  (`latest`, the one the releases page shows: none when the shadow runner searched since) links to "See this search's results"; older searches have no results
+  (`latest`, the one the releases page shows) links to "See this search's results"; older searches have no results
   link, the releases page keeping only the newest. Admins get a quiet "Journal entry" link on a search.
   This is the one place copies are managed: the section header has Search now for all copies and, for a movie, for
   managers when any current library of it searches live, Interactive search (the releases page uses the same header). There is no
@@ -413,7 +411,7 @@ TMDb id. Global search reads "Search movies, series and anime".
 
 **Library views** (`web/src/lib/copies.ts`,
 `web/src/components/library/`, `internal/web/copies.go`). A library holds one rendition of a title; its monitoring
-can be changed whether or not an arr imports it. Its **coverage** is the episodes it holds against those aired (a
+can be changed. Its **coverage** is the episodes it holds against those aired (a
 movie copy is held or not), and its **acquisition** is one summary of the downloads in hand for it, in stages:
 Queued, Starting, Downloading N %, Download complete, Waiting for mount, Linking, Blocked ("Upgrade …" when the
 copy keeps a file meanwhile). Bars are solid for what is linked and striped (the copy's colour) for what is in
@@ -502,7 +500,7 @@ Two admin-only screens live outside `/admin`, beside the pages they belong with:
 
 Older Jobs, Errors, Logs, Database, Metadata review, inventory, migration, journal (`/admin/journal[/:id]`,
 `/admin/advanced/journal[/:id]`) and manual import (`/admin/advanced/manual-import`) URLs redirect in one hop to the current
-pages, preserving query and hash, including detail parameters. The General #torrent-backups bookmark goes to System Backup with its query; server registry, shadow and anime detail redirects go directly to the current inventory, comparison and Reviews routes. `/admin/system` and `/admin/system/health`
+pages, preserving query and hash, including detail parameters. The General #torrent-backups bookmark goes to System Backup with its query; server registry and anime detail redirects go directly to the current inventory and Reviews routes; the old Sonarr/Radarr migration, imports and comparison addresses go to **Import from Sonarr/Radarr** (`/admin/arr-import`). `/admin/system` and `/admin/system/health`
 redirect only on exact matches; they do not shadow the System pages. `/classic/` routes return 404. Inventory and journal detail links
 remain admin-only; managers keep copyable hashes and unlinked summaries.
 
@@ -582,8 +580,8 @@ values have a Changed mark but no Undo (a record's Service, which fills a new re
 Root and Write roots); Discard resets the whole draft. Undo under an object the saved settings
 did not have leaves it absent, so the draft equals the saved value again. The Libraries editor has the same marks (a new
 library's key included), count and Discard (it has no schema defaults, so no Reset); list rows tie their indexed error and the help to their
-control. Most saves apply at once; the few changes the server confirms (going Live, Pause off, removing a library, an address change that keeps a stored key or an arr import into a
-Live library; [Settings](settings.md#sections-and-views)) keep its 422 confirmation: the dialog (`EffectsConfirmDialog`) lists the effects word for word as the server returns them,
+control. Most saves apply at once; the few changes the server confirms (going Live, Pause off, removing a library, or an address change that keeps a stored
+key; [Settings](settings.md#sections-and-views)) keep its 422 confirmation: the dialog (`EffectsConfirmDialog`) lists the effects word for word as the server returns them,
 grouped by library (effects that name none first, under "This change"; nothing is added to what the server sends), says which libraries are affected and, when the change is about one
 library, names the other libraries it also affects; Cancel has the focus.
 The torrent-backups panel is owned by the System Backup page and is searchable without appearing in Settings navigation. The field placement table is in [Settings](settings.md).
@@ -622,7 +620,7 @@ A role is a preset of permission bits; an admin can tick extra bits per user (Se
 | Approve / decline others' requests | yes | yes | no |
 | See files, paths, hashes, providers, scores | yes | yes | no (quality and size only) |
 | Search now, show releases, relink, remove a version | yes | yes | no |
-| Admin panel (system, shadow, registry, policy, logs) | yes | no | no |
+| Admin panel (system, registry, policy, logs) | yes | no | no |
 | Users and API keys of others | yes | no | no |
 | Own API key | yes | yes | optional |
 

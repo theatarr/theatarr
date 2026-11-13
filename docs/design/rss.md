@@ -91,4 +91,4 @@ shadow:
 |---|---|
 | `shadow_rss_cursor` | per feed, the head's key and publish date |
 | `shadow_rss_seen` | feed items already decided (14 days) |
-| `shadow_run` | one row per run with its summary (30 days); also the arr import's runs |
+| `shadow_run` | one row per run with its summary (30 days) |

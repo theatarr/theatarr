@@ -202,10 +202,10 @@ recheck empty fields in SQL so a stale preload never replaces another writer's n
 
 | State | Rule |
 |---|---|
-| `present` | On at least one configured provider, and referenced: a `content_version` (arr history), a `version_file`, or a live `link` |
+| `present` | On at least one configured provider, and referenced: a `content_version` (an import), a `version_file`, or a live `link` |
 | `unreferenced` | On at least one provider, referenced by nothing. The "unreferenced content" report to prune by hand |
 | `absent` | On no provider, and **every configured provider has had a complete listing**. A provider with no key set therefore keeps contents `unknown` |
-| `unknown` | Seeded from history, and not every provider has been listed yet |
+| `unknown` | Not every configured provider has been listed yet |
 | `gone` | Set on purpose later (trumps, nukes). Sync leaves it unless a provider has the hash |
 
 **Rules:**
@@ -266,7 +266,7 @@ Inside the `theatarr` container (settings in its database, keys in its environme
    - Check that the cache line says TorBox `checkcached` and none for RD and AD.
 2. `theatarr providers sync -dry-run -provider rd`
    - The torrent count should match RD's web UI. `bad hash` should be 0.
-   - `content state changes` shows what import-arr's `unknown` contents would become.
+   - `content state changes` shows what `unknown` contents would become.
    - `-v` logs each request.
 3. The same for `-provider ad` and `-provider tb`. AD is a single request; if it fails with an HTTP error, see the GET
    note above.
@@ -280,13 +280,10 @@ Inside the `theatarr` container (settings in its database, keys in its environme
 
 | Choice | Why |
 |---|---|
-| Registry states `absent` and `unreferenced` beside present and gone; `unknown` from import-arr | Absent everywhere differs from not yet known, and unreferenced content is the prune report |
-| "Unreferenced" = no `content_version`, `version_file` or live `link` | Those are the references: arr history, arr files and Theatarr's links |
+| Registry states `absent` and `unreferenced` beside present and gone; `unknown` until every provider is listed | Absent everywhere differs from not yet known, and unreferenced content is the prune report |
+| "Unreferenced" = no `content_version`, `version_file` or live `link` | Those are the references: imports, files kept from a former arr instance and Theatarr's links |
 | Only TorBox has a provider cache check; RD and AD answer from feeds and refusals | Both providers removed their endpoints |
 | AllDebrid: a full list per sync, not live mode | One request either way, and no session state to keep |
-
-**Limit:** `import-arr` inserts contents as `unknown` and never changes an existing state. So a hash first seen by a
-sync (`unreferenced`) stays so until the next sync after its history import.
 
 Registry sync treats a successful empty inventory as a complete listing, so an account whose owner removed its
 last torrent can become absent. A listing error (including a partial listing) keeps presence unchanged.

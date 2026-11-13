@@ -35,7 +35,7 @@ once, and the route's next add is refused (`TestPausePublishedDuringRunningRoute
 When the gate refuses, `Route` runs the same decisions as a **dry run**:
 - it sends nothing to any provider and makes no cache check;
 - it records what it would have done in `router_plan`: mode `shadow` or `disabled`, the release, the provider, and
-  every step with its reason, for the shadow report;
+  every step with its reason, for the journal (`plan` entries);
 - a queued download it resumes ends (`failed`, `route ended: ...`), as a switch to shadow ends it through the
   freshness check. It is not resumed every 10 minutes while Pause is on and then
   grabbed whenever they come back on; the next search grabs the title then (`TestGrabOffQueuedDownloadIsEnded`).
@@ -214,16 +214,13 @@ Candidate order is `decide.Rank`'s: the arr comparer with Theatarr's cache tie-b
 `cached_on` extra, which the search fills from the feeds, DMM's availability, stored `provider_cache` rows in state
 `cached` and the TorBox check. The TorBox check runs on the ranked releases (`checkTop`); when it adds evidence to any
 of them the search ranks again, so the order the releases page shows (`#`) is the order the route tries
-(`TestCheckTopEvidenceReranks`). RSS and the shadow searches apply the same release-carried and stored evidence
-before deciding (`ApplyCachedOn`; no DMM or TorBox request: `TestRSSStoredCacheBreaksTie`); a shadow search gives
-the arr's release the same evidence as its results (`TestShadowGrabArrReleaseCacheEvidence`). A route decided again
+(`TestCheckTopEvidenceReranks`). RSS applies the same release-carried and stored evidence
+before deciding (`ApplyCachedOn`; no DMM or TorBox request: `TestRSSStoredCacheBreaksTie`). A route decided again
 under a newer policy revision reads the stored rows again for its candidates first (stored evidence only:
 `TestRedecideReadsStoredCacheEvidence`). Per-account stored rows order the accounts; their projection onto provider
-kinds only ranks: in RSS, the re-decision and the shadow searches the routed or planned candidates keep the releases
+kinds only ranks: in RSS and the re-decision the routed or planned candidates keep the releases
 as read or queued, and step 4 orders the provider accounts from its own per-account rows
-(`TestRSSKeepsAccountOrder`, `TestRedecideKeepsAccountOrder`, `TestShadowGrabPlanKeepsAccountOrder`). The arr's
-release in a shadow search counts only the providers its own indexer allows
-(`TestShadowGrabArrStandingIndexerAllowlist`).
+(`TestRSSKeepsAccountOrder`, `TestRedecideKeepsAccountOrder`).
 
 At most `router.max_candidates` releases are tried, best first. A release skipped without a request to any provider
 (a live miss or known uncached everywhere, blocklisted, no provider its indexer allows, no hash) does not count, so a search made again after
@@ -1512,15 +1509,6 @@ router did with the run's source:
 | All ended | `completed`, with "added X on P", "no accepted release", "a download is in flight", or "dry run (disabled): would add X on P" while the kill switch is off |
 | All failed | `failed` |
 
-**Shadow plans.**
-- After each shadow grab is stored, the runner calls `Route` with the grab's ranked accepted decisions (the arr's
-  release among them), `Source` `shadow.grab`.
-- Each new shadow RSS pick gets `Route` with that release alone, `Source` `shadow.rss`.
-- The plan id goes on `shadow_grab.router_plan_id` / `shadow_rss_pick.router_plan_id`.
-- The runner calls `Route` only for versions it shadows. The router's gate refuses writes for them anyway, so the plan
-  is a dry run recorded in `router_plan` even with `router.enabled: true`.
-- The report shows `router.PlanSummary`: "would add X on P", "would wait to add X", or "would add nothing: <codes>".
-
 **Imported-release offers.** `router.offer` offers an imported movie or series release to the title's other versions
 of the same kind. Series decisions use the imported download's episode ids as Sonarr search criteria; accepted offers
 route one release, so the router reuses the provider torrent and the library links the season pack or episodes.
@@ -1588,7 +1576,7 @@ shadow picks:
 
 ## Decision formats and the blocklist (00016)
 
-Blocklist entries an older arr import mirrored stay until the arr tables go. Hashless entries match source titles
+Blocklist entries the former periodic arr import mirrored stay. Hashless entries match source titles
 (ignoring case and surrounding whitespace); either a hash or title match prevents routing. Title-only entries use a
 `title:` key in the blocklist's `info_hash` field; an unblock is reset by the next import while the arr still lists
 the entry.
@@ -1675,9 +1663,8 @@ own debrid account, so `router.cached_only`, the providers' pacing and `stalled_
 
 ## Limits
 
-- **`theatarr shadow run-once` makes no plans.** Only `theatarr serve` gives the runner a router.
-- **The acquirer searches without the shadow runner's planner budget checks.** The gateway still enforces the
-  budgets and back-offs, and the wanted loop's `per_hour` paces it.
+- **The acquirer has no planner budget checks of its own.** The gateway enforces the budgets and back-offs, and the
+  wanted loop's `per_hour` paces it.
 - **Hash-less releases.** Releases with only a `.torrent` link (nyaa through SeaDex) are skipped (`no_hash`):
   `.torrent` files are not fetched and converted to their hash.
 - **Usenet and seedbox routing** are not part of the router.
@@ -1685,8 +1672,8 @@ own debrid account, so `router.cached_only`, the providers' pacing and `stalled_
 ## Turning the router on
 
   1. Run `theatarr router dry-run` for a few titles.
-  2. Check `theatarr router status`, and the router plans in the shadow report.
-  3. Set one version `active` and `router.enabled: true`. The wanted loop then starts at its default pace (10 searches
+  2. Check `theatarr router status`, and the router plans in **Activity › Decision journal** (`plan` entries).
+  3. Set one library Live and turn **Pause** off. The wanted loop then starts at its default pace (10 searches
      an hour).
   4. Watch the log line and the first adds.
 

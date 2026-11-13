@@ -69,8 +69,7 @@ Accounting only: a purpose changes no limit, budget or share.
 | `interactive` | `Acquirer.InteractiveMany`: the releases list and the arr views' interactive search |
 | `wanted` | An acquire run (`run`, `runFanout`) for something missing: wanted runs, search commands, follow-up and re-searches |
 | `upgrade` | An acquire run with reason `cutoff`, or a run for a movie that has a file or for episodes that each have one (`searchPurpose`, `held`); a shared search is `upgrade` only when every target it serves is one |
-| `rss` | The RSS sync (`shadow` `rssPages`) |
-| `shadow` | The shadow comparison's own search for an arr grab (`shadow` `searchTitle`) |
+| `rss` | The RSS sync (`internal/acquire/rss` `rssPages`) |
 | `test` | A source test from the settings pages (`testIndexerSource`). A source probe counts only tagged requests, so the quality sync and the cardigann definitions fetch (indexer-class probe targets) are not counted |
 | `other` | Anything untagged; the `theatarr search`, `decide` and `router` command-line searches |
 
@@ -81,7 +80,7 @@ upstream search, whose requests count under the first caller's purpose; a cached
 Counts are kept 30 UTC days (today included) in memory and in `gateway_indexer_request`. A request only counts in
 memory; `theatarr serve` writes the new counts every minute and when it stops (`RunRequestFlush`; the last write comes after the HTTP server
 and the workers have stopped, so a search finishing during shutdown keeps its count; a search still running when the HTTP server's shutdown grace ends, or one cancelled mid-request by the shutdown, may not be counted: by choice, no more shutdown machinery for accounting), keeping counts whose write
-failed for the next try, and `theatarr search` and `theatarr shadow run-once` write theirs as they exit. A crash loses at most the
+failed for the next try, and `theatarr search` writes its own as they exit. A crash loses at most the
 last minute's counts. The first count of a new day drops older days in memory, and the next write prunes their rows. `Gateway.State().Requests` sums today and the last 7 UTC days (today and the 6 before) per indexer.
 The settings overview (`GET /settings`) gives each indexer a `requests` object (`today`, `week`, and `purposes`: the
 purposes with a request in the 7 days, in the order above, each with `today` and `week`), and the Indexers page shows

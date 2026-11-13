@@ -43,9 +43,9 @@ One vocabulary for managers on the grid, the title page, season headers and epis
 Per item below cutoff (a movie version's file, or one episode's file):
 
 1. Only evidence newer than the item's current file counts.
-2. The newest search after the file that covers the item (a journal search of the title, its season or episode;
-   a shadow runner search for an arr grab of those episodes) stands for every earlier search.
-3. RSS sightings (journal RSS reads, shadow RSS picks) newer than both the file and that search add to it.
+2. The newest search after the file that covers the item (a journal search of the title, its season or
+   episode) stands for every earlier search.
+3. RSS sightings (journal RSS reads) newer than both the file and that search add to it.
 4. A release counts when it was accepted and marked an upgrade over the file (`upgrade` on the stored candidate),
    and maps to the item.
 5. The best counted release (score, then newest) is what Theatarr would take next, with the engine's reason.
@@ -60,7 +60,7 @@ The cutoff a file is measured against is the library's own profile.
 
 ## Monitoring and searches
 
-Every copy's monitoring may be changed here, also one an arr imports. Searches keep the existing rule
+Every copy's monitoring may be changed here. Searches keep the existing rule
 (`catalog.Searchable`: mode active and `router.enabled`), and the episode releases panel answers from what is stored
 unless the version is active.
 

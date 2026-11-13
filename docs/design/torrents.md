@@ -202,12 +202,12 @@ or an admin's API key, which confirms like a session, as with settings; the toke
    full read, so its usage and override token are the same (`TestScopedRefsMatchFullIndex`).
    **The reference fence** (`internal/torrents/reffence`): the writers of those references hold it
    around their write transaction: library link creation and retargeting (an import, a manual import, adopt, a
-   relink) and the arr import's files (`version_file`). A delete holds it from its last usage check until the
+   relink). A delete holds it from its last usage check until the
    provider answered (that call is bounded to 4 minutes), so no reference lands in between. In one process it is a
    read-write lock: writers wait for the one delete in flight and a delete waits for the writes in progress. Across
    processes (the CLI and the service) the delete also holds the lease `torrents:delete` in `library_lease` (5
    minutes, written before the check); a writer's transaction refuses while another process holds it (a link write
-   as a link change: the import retries, a client gets 409; an arr import run fails and the next one writes), and a
+   as a link change: the import retries, a client gets 409), and a
    second process's delete skips its torrents. No SQLite transaction stays open across a provider call
    (`TestDeleteFencesReferenceWriters`, `TestDeleteFenceLeaseAcrossProcesses`).
    A library link is a reference on disk before its row records it, so the writers that make or repoint a symlink

@@ -72,8 +72,8 @@ The worker leases jobs by priority then age, with two refinements (`jobs.WorkerO
 - The acquisition and import kinds (`acquire.search`, `acquire.wanted`, `acquire.research`, `router.route`,
   `router.offer`, `plex.scan`) are leased before any other ready job, ahead of priority and age.
 - One extra slot (`--workers-reserved`, env `THEATARR_WORKERS_RESERVED`, default 1) runs those kinds only, on top of the
-  general slots (`--workers`, env `THEATARR_WORKERS`, default 2). A backlog of `meta.art`, `arrview.maintenance`,
-  `provider.sync` or `arr.import` can hold both general slots and a grab still runs at once.
+  general slots (`--workers`, env `THEATARR_WORKERS`, default 2). A backlog of `meta.art`, `arrview.maintenance`
+  or `provider.sync` can hold both general slots and a grab still runs at once.
 - Queue age per kind: `jobs.Queue.Backlog`, the metrics `theatarr_jobs_ready{kind}` and
   `theatarr_jobs_oldest_ready_seconds{kind}`, and `JobBacklogCheck`.
 

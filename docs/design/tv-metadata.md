@@ -35,8 +35,7 @@ absolute order) and store it in one transaction:
   over a day ago are unmonitored on a series that already had episodes (UnmonitorReaddedEpisodes). Set by the add
   (`monitor_new` on `POST /api/theatarr/v1/titles`, `monitorNewItems`, seasons and `addOptions.monitor` on the arr add),
   season monitor changes in the UI and arr views (PUT `series` applies only changed seasons), `monitorNewItems` from
-  PUT `series` and `series/editor`, and the arr import (the arr's `monitorNewItems` and season flags, by the instance
-  that owns the version). Add-time modes (all, future, recent, missing, existing, pilot, first/last season, none
+  PUT `series` and `series/editor`, and the one-time import (the arr's `monitorNewItems` and season flags). Add-time modes (all, future, recent, missing, existing, pilot, first/last season, none
   and specials) wait in `series_monitor.pending_monitor` when episodes do not exist, then apply once after the first
   refresh supplies episodes, before held searches run. Later refreshes preserve the user’s episode choices.
 

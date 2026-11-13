@@ -125,7 +125,7 @@ other methods are writes, audited like the other write tools.
 
 A user's API key, and MCP on one, confirms a risky change the way a signed-in user does in the UI. Only these changes
 need confirmation: making a library Live (or creating one Live), turning Pause off (`PUT /settings/switches
-{generation, paused: false}`), deletes, an arr import into a Live library, and changing a provider's or indexer's
+{generation, paused: false}`), deletes, and changing a provider's or indexer's
 address while keeping its stored key. Everything else, views, profiles, formats, folders and other addresses included, saves at once after validation.
 A change whose effects need confirmation answers 422 with the effects and a `confirmation.token`; over MCP that is the tool result
 (status 422, `isError: true`). Show the effects to the user and, once they agree, call the same tool again with the

@@ -90,8 +90,7 @@ queued or running job refers to (a finished import or an expired claim does not 
 `link`/`replace` library actions whose download is kept or whose path is still an active or dead link (the offer
 sources and the superseded check read them; adoption provenance lives on `link.adopted_from`); acquire
 runs that are not finished, the latest run of each version and target (the wanted loop's "last searched") and runs a
-queued or running job refers to, and a run whose children are kept; router plans a kept shadow grab or RSS pick
-refers to; the current settings generation's audit rows; pending shadow grabs and open RSS picks.
+queued or running job refers to, and a run whose children are kept; the current settings generation's audit rows.
 
 Not pruned, by design: `router_offer` (one row per version, title and release; deleting one re-offers that release
 at the next sweep), `notify_event` (the once-only memory of scanned events), and imported downloads (offer sources, and the journal keeps routed decisions by

@@ -13,7 +13,7 @@ per-indexer successful coverage (`ceiling_search`, `ceiling_search_indexer`), an
 qualities and candidates outside the journal sample. Only release names and parsed quality are stored, without
 links or credentials. Each aggregate carries its source kind, positive-only flag, first/last sightings and count.
 
-Active and interactive searches and the shadow runner record their successful indexers, best tier and timestamp,
+Active and interactive searches record their successful indexers, best tier and timestamp,
 including empty answers. RSS decisions supply sightings, not searches. Sightings of arr grabs and imports seeded
 before the arr history stopped being read stay as positive non-search evidence (`TestCeilingKeepsStoredArrSightings`);
 no new ones are added. Facts are shared across versions, but absence coverage is counted separately for each version and season.
