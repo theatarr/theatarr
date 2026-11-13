@@ -213,7 +213,7 @@ describe("Library table", () => {
 });
 
 describe("Library posters", () => {
-  it("draws a bar per copy, the in-flight chip and the chosen details", async () => {
+  it("draws a series' libraries as lines with counts, the in-flight chip and only the year until more details are chosen", async () => {
     mockFetch(routes());
     const user = userEvent.setup();
     renderPage(<Catalog id="series" />, "/series");
@@ -221,18 +221,70 @@ describe("Library posters", () => {
     expect(screen.getByRole("radio", { name: "Posters" }).getAttribute("aria-checked")).toBe("true");
     const chip = screen.getByTestId("flight-chip");
     expect(chip.textContent).toBe("Downloading 37%");
-    expect(screen.getAllByTestId("copy-bar")).toHaveLength(3);
-    expect(screen.getByText("S03E06 · Nov 4, 2099")).toBeTruthy();
+    const lines = screen.getAllByTestId("library-line");
+    expect(lines.map((l) => l.textContent)).toEqual(["4K13/17", "1080p WEB17/17", "8/18"]);
+    expect(within(lines[0]).getByRole("img", { name: "4K: 13 of 17 episodes linked, 2 in progress" })).toBeTruthy();
+    expect(within(screen.getByTestId("poster-grid")).queryByText("Series")).toBeNull();
+    expect(screen.getByText("2017")).toBeTruthy();
+    expect(screen.queryByText("S03E06 · Nov 4, 2099")).toBeNull();
     expect(screen.queryByText("Northstar Network")).toBeNull();
 
     await user.click(screen.getByRole("button", { name: "Poster options" }));
     const dialog = await screen.findByRole("dialog", { name: "Poster options" });
     await user.click(within(dialog).getByRole("button", { name: "Small" }));
     await user.click(within(dialog).getByRole("checkbox", { name: "Network / studio" }));
+    await user.click(within(dialog).getByRole("checkbox", { name: "Next episode / release" }));
+    await user.click(within(dialog).getByRole("checkbox", { name: "Quality" }));
     await user.click(within(dialog).getByRole("button", { name: "Done" }));
     expect(screen.getByText("Northstar Network")).toBeTruthy();
+    expect(screen.getByText("S03E06 · Nov 4, 2099")).toBeTruthy();
+    expect(screen.getByText("4K: WEBDL-2160p · 1080p WEB: WEBDL-1080p")).toBeTruthy();
     expect(screen.getByTestId("poster-grid").className).toContain("poster-size-small");
     expect(JSON.parse(window.localStorage.getItem("theatarr.library.posters.7") ?? "{}").size).toBe("small");
+  });
+
+  it("draws one bar for a movie, a pill per library only when it is in several, and never Missing under Upcoming", async () => {
+    const movies = [
+      { id: 5, kind: "movie", name: "Harrow Lane", year: 2021, monitored: true, release_date: "2021-05-01", availability: "available", upgrade_state: "cutoff_met",
+        versions: [{ id: 51, key: "movie-4k", label: "4K", monitored: true, has_file: true, quality: "Remux-2160p", state: "cutoff_met", control: managed }] },
+      { id: 6, kind: "movie", name: "Copper Sky", year: 2022, monitored: true, release_date: "2022-05-01", availability: "partial",
+        versions: [
+          { id: 61, key: "movie-4k", label: "4K", monitored: true, has_file: true, quality: "Remux-2160p", state: "cutoff_met", control: managed },
+          { id: 62, key: "movie-web", label: "WEB", monitored: true, has_file: false, state: "wanted", control: managed },
+        ] },
+      { id: 7, kind: "movie", name: "Sundial", year: 2099, monitored: true, release_date: "2099-06-01", availability: "missing",
+        versions: [{ id: 71, key: "movie-4k", label: "4K", monitored: true, has_file: false, state: "wanted", control: managed }] },
+      { id: 8, kind: "movie", name: "Grey Orchard", year: 2020, monitored: false, release_date: "2020-05-01", availability: "missing",
+        versions: [{ id: 81, key: "movie-4k", label: "4K", monitored: false, has_file: false, state: "wanted", control: managed }] },
+    ];
+    mockFetch(routes().map((r) => (r.path === "/titles" ? { ...r, reply: { items: movies, total: 4, offset: 0 } } : r)));
+    renderPage(<Catalog id="movies" />, "/movies");
+    await screen.findAllByText("Harrow Lane");
+    const card = (name: string) => screen.getByRole("link", { name: new RegExp(`^${name} \\(`) }).parentElement as HTMLElement;
+
+    const one = card("Harrow Lane");
+    expect(within(one).getAllByTestId("status-bar")).toHaveLength(1);
+    expect(within(one).getByTestId("status-bar").getAttribute("data-tone")).toBe("ok");
+    expect(within(one).queryByTestId("library-pills")).toBeNull();
+    expect(one.textContent).not.toContain("1/1");
+    expect(within(one).queryByText("Movie")).toBeNull();
+
+    const two = card("Copper Sky");
+    expect(within(two).getByTestId("status-bar").getAttribute("data-tone")).toBe("bad");
+    expect(within(two).getAllByTestId("library-pill").map((p) => [p.getAttribute("aria-label"), p.getAttribute("data-tone")])).toEqual([
+      ["4K: has a file", "ok"],
+      ["WEB: missing", "bad"],
+    ]);
+
+    const coming = card("Sundial");
+    expect(within(coming).getByRole("link", { name: /Upcoming/ })).toBeTruthy();
+    expect(within(coming).getByTestId("status-bar").getAttribute("data-tone")).toBe("idle");
+    expect(within(coming).getByRole("img", { name: "4K: not released yet" })).toBeTruthy();
+
+    const off = card("Grey Orchard");
+    expect(within(off).getByTestId("unmonitored-chip").textContent).toBe("Not monitored");
+    expect(within(off).getByRole("link", { name: /not monitored/ })).toBeTruthy();
+    expect(within(one).queryByTestId("unmonitored-chip")).toBeNull();
   });
 
   it("selects on posters into the same bulk bar", async () => {
@@ -315,7 +367,10 @@ describe("Household view (no See files)", () => {
     mockFetch(household);
     renderPage(<Catalog id="series" />, "/series");
     await screen.findAllByText("The Pellbrook Inquiries");
-    expect(screen.queryAllByTestId("copy-bar")).toHaveLength(0);
+    expect(screen.queryAllByTestId("status-bar")).toHaveLength(0);
+    expect(screen.queryAllByTestId("library-pill")).toHaveLength(0);
+    expect(screen.queryAllByTestId("library-line")).toHaveLength(0);
+    expect(screen.queryByTestId("unmonitored-chip")).toBeNull();
     expect(screen.getByRole("link", { name: /^The Pellbrook Inquiries \(2017\), Some episodes$/ })).toBeTruthy();
   });
 });
@@ -362,10 +417,10 @@ describe("Same-named copies", () => {
     mockFetch(twinRoutes);
     renderPage(<Catalog id="series" />, "/series");
     await screen.findAllByText("Brindlewood Bakers");
-    const copies = screen.getByTestId("poster-copies");
-    expect(within(copies).getByText("4K · tv-2160p")).toBeTruthy();
-    expect(within(copies).getByText("4K · tv-2160p-theatarr")).toBeTruthy();
-    expect(within(screen.getByTestId("poster-grid")).getAllByTestId("copy-bar").map((e) => e.getAttribute("aria-label"))).toEqual([
+    const lines = screen.getAllByTestId("library-line");
+    expect(within(lines[0]).getByText("4K · tv-2160p")).toBeTruthy();
+    expect(within(lines[1]).getByText("4K · tv-2160p-theatarr")).toBeTruthy();
+    expect(within(screen.getByTestId("poster-grid")).getAllByTestId("status-bar").map((e) => e.getAttribute("aria-label"))).toEqual([
       "4K · tv-2160p: 24 of 24 episodes linked",
       "4K · tv-2160p-theatarr: 12 of 24 episodes linked",
     ]);

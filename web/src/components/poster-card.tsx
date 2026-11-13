@@ -1,10 +1,12 @@
-// A poster card in Seerr's style: rounded 2:3 card, a type pill top left, a status badge top right, and on hover a
+// A poster card in Seerr's style: rounded 2:3 card, a type pill top left (the library lists leave it out: the page
+// says it; they put an eye-off chip there for a title not monitored), a status badge top right, and on hover a
 // dark overlay with the overview. Adapted from Seerr (github.com/seerr-team/seerr) src/components/
 // TitleCard/index.tsx @ c167958a, MIT (Copyright (c) 2020 sct). Without an image the card draws a generated gradient
 // with the title (no inline style: the gradient is one of twelve classes picked by a hash). Under the card, always:
 // the title (two lines at most) and the year, as the search's TMDb card has them, so a title reads without hover on a
 // phone; then the caption (a Home row's note), which is ours, and in the library the copy bars (between the art and
 // the title) and the poster details (docs/design/ui.md "Library views").
+import { EyeOff } from "lucide-react";
 import type { ReactNode } from "react";
 import { Link } from "react-router";
 import { POSTER_STATUS_LABEL, type PosterStatus } from "@/lib/library";
@@ -40,6 +42,7 @@ export function PosterCard({
   title,
   year,
   kind,
+  unmonitored,
   status,
   image,
   overview,
@@ -55,7 +58,10 @@ export function PosterCard({
   href?: string;
   title: string;
   year?: number;
-  kind: "movie" | "series" | "anime";
+  /** The type pill; the library lists leave it out. */
+  kind?: "movie" | "series" | "anime";
+  /** A small eye-off chip top left (named "Not monitored"). */
+  unmonitored?: boolean;
   status?: PosterStatus;
   /** Shown in the hover overlay. */
   overview?: string;
@@ -86,13 +92,18 @@ export function PosterCard({
         </div>
       ) : null}
       <div className="absolute inset-x-0 top-0 flex items-start justify-between gap-1 p-2">
-        <span
-          className={cn(
-            "pointer-events-none rounded-[3px] bg-[var(--art-scrim)] px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-white",
-          )}
-        >
-          {kind === "movie" ? "Movie" : kind === "anime" ? "Anime" : "Series"}
-        </span>
+        {kind ? (
+          <span className="pointer-events-none rounded-[3px] bg-[var(--art-scrim)] px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-white">
+            {kind === "movie" ? "Movie" : kind === "anime" ? "Anime" : "Series"}
+          </span>
+        ) : unmonitored ? (
+          <span data-testid="unmonitored-chip" title="Not monitored" className="dark pointer-events-none grid place-items-center rounded-[3px] bg-[var(--art-scrim)] p-1 text-white backdrop-blur-sm">
+            <EyeOff aria-hidden className="size-3" />
+            <span className="sr-only">Not monitored</span>
+          </span>
+        ) : (
+          <span />
+        )}
         {status ? (
           <span
             data-status={status}
@@ -105,7 +116,7 @@ export function PosterCard({
       </div>
     </div>
   );
-  const label = [year ? `${title} (${year})` : title, status ? POSTER_STATUS_LABEL[status] : "", extraLabel ?? ""].filter(Boolean).join(", ");
+  const label = [year ? `${title} (${year})` : title, status ? POSTER_STATUS_LABEL[status] : "", unmonitored ? "not monitored" : "", extraLabel ?? ""].filter(Boolean).join(", ");
   const inner = (
     <>
       {body}
