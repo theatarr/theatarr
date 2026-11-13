@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { Schemas } from "@/api/client";
-import { copyTone, copyWords, worstTone } from "./library-status";
+import { badgeTone, copyTone, copyWords } from "./library-status";
 import { posterStatus } from "./library";
 
 type V = Schemas["VersionBrief"];
@@ -21,6 +21,14 @@ describe("copyTone", () => {
     expect(copyTone({ monitored: false, has_file: false }, movie, day)).toBe("idle");
   });
 
+  it("keeps a library with a file ok when only its upgrade download is blocked", () => {
+    const v = { monitored: true, has_file: true, acquisition: acq("blocked", { upgrade: true }) };
+    expect(copyTone(v, movie, day)).toBe("ok");
+    expect(copyWords(v, movie, day)).toBe("has a file, upgrade download blocked");
+    const s = { monitored: true, coverage: cov(17, 17), acquisition: acq("blocked", { upgrade: true }) };
+    expect(copyTone(s, series)).toBe("ok");
+  });
+
   it("reads not released yet as idle, not bad, by the badge's own rule", () => {
     const coming = { kind: "movie" as const, release_date: "2026-12-20" };
     const v = { monitored: true, has_file: false, state: "wanted" as const };
@@ -38,15 +46,21 @@ describe("copyTone", () => {
     expect(copyTone({ monitored: true, coverage: cov(13, 17, { missing: 4 }), acquisition: acq("blocked") }, series)).toBe("warn");
     expect(copyTone({ monitored: true, coverage: cov(0, 0, { upcoming: 8 }) }, series)).toBe("idle");
     expect(copyTone({ monitored: false, coverage: cov(0, 17) }, series)).toBe("idle");
+    // An unmonitored library keeps its missing count from the server; it is not red.
+    expect(copyTone({ monitored: false, coverage: cov(0, 17, { missing: 17 }) }, series)).toBe("idle");
+    expect(copyTone({ monitored: false, coverage: cov(13, 17, { missing: 4 }) }, series)).toBe("ok");
+    expect(copyTone({ monitored: false, coverage: cov(13, 17, { missing: 4 }), acquisition: acq("blocked") }, series)).toBe("warn");
+    expect(copyWords({ monitored: false, coverage: cov(0, 17, { missing: 17 }) }, series)).toBe("0 of 17 episodes linked, not monitored");
     expect(copyTone({ monitored: true, coverage: cov(0, 17, { in_flight: 3 }) }, series)).toBe("progress");
   });
 
-  it("gives the whole title the worst tone", () => {
-    expect(worstTone(["ok", "bad", "progress"])).toBe("bad");
-    expect(worstTone(["ok", "progress", "warn"])).toBe("warn");
-    expect(worstTone(["idle", "progress", "ok"])).toBe("progress");
-    expect(worstTone(["idle", "ok"])).toBe("ok");
-    expect(worstTone([])).toBe("idle");
+  it("gives a whole-title bar the badge's own tone", () => {
+    expect(badgeTone("available")).toBe("ok");
+    expect(badgeTone("best_known")).toBe("ok");
+    expect(badgeTone("upgrade")).toBe("ok");
+    expect(badgeTone("wanted")).toBe("bad");
+    expect(badgeTone("upcoming")).toBe("idle");
+    expect(badgeTone(undefined)).toBe("idle");
   });
 });
 
@@ -57,5 +71,11 @@ describe("copyWords", () => {
     expect(copyWords({ monitored: false, has_file: false }, movie, day)).toBe("not monitored");
     expect(copyWords({ monitored: true, acquisition: acq("downloading", { progress: 37 }) }, movie, day)).toBe("downloading 37%");
     expect(copyWords({ monitored: true, has_file: true }, movie, day)).toBe("has a file");
+    expect(copyWords({ monitored: true, acquisition: acq("blocked") }, movie, day)).toBe("download blocked");
+  });
+
+  it("does not call a blocked series download in progress", () => {
+    const v = { monitored: true, coverage: cov(13, 17, { missing: 4, in_flight: 2 }), acquisition: acq("blocked", { episodes: 2 }) };
+    expect(copyWords(v, series)).toBe("13 of 17 episodes linked, 2 with a blocked download");
   });
 });

@@ -9,9 +9,9 @@ import { usePerms, type TitleRow } from "@/api/library";
 import { PosterCard } from "@/components/poster-card";
 import { Checkbox } from "@/components/ui/checkbox";
 import { activityHref, chipWords, copyBar, nextWords, titleAcquisition, type PosterPrefs } from "@/lib/copies";
-import { copyTone, copyWords, worstTone } from "@/lib/library-status";
+import { badgeTone, copyTone, copyWords } from "@/lib/library-status";
 import { fmtAgo, fmtBytes } from "@/lib/format";
-import { kindOf, posterStatus } from "@/lib/library";
+import { kindOf, posterStatus, utcToday, type PosterStatus } from "@/lib/library";
 import { cn } from "@/lib/utils";
 import { LibraryPill, StatusBar } from "./library-pill";
 import type { Selection } from "./title-table";
@@ -60,13 +60,14 @@ function PosterDetails({ t, prefs, seeFiles }: { t: TitleRow; prefs: PosterPrefs
   );
 }
 
-/** The status line(s) between the art and the title (accounts that see files). A movie: one bar for the whole title,
- * then, in several libraries, one pill per library. A series: one bar with its count, or one line per library. words:
- * the same in words, for the card's accessible name. */
-function statusLines(t: TitleRow, small: boolean): { lines: ReactNode; words: string } | undefined {
+/** The status line(s) between the art and the title (accounts that see files). A movie: one bar (in several libraries
+ * the bar takes the badge's tone, so it never contradicts it, and one pill per library carries the differences). A
+ * series: one bar with its count, or one line per library. words: the same in words, for the card's accessible name.
+ * day: today as the server decides "released" (utcToday), once per grid render. */
+function statusLines(t: TitleRow, badge: PosterStatus | undefined, day: string, small: boolean): { lines: ReactNode; words: string } | undefined {
   const vs = t.versions ?? [];
   if (!vs.length) return undefined;
-  const each = vs.map((v) => ({ v, label: v.label ?? v.key ?? "", tone: copyTone(v, t), words: copyWords(v, t) }));
+  const each = vs.map((v) => ({ v, label: v.label ?? v.key ?? "", tone: copyTone(v, t, day), words: copyWords(v, t, day) }));
   const named = each.map((c) => `${c.label}: ${c.words}`);
   const count = cn("shrink-0 text-right tabular-nums text-[var(--ink-3)]", small ? "text-[9px]" : "text-[10px]");
   if (t.kind === "series") {
@@ -82,7 +83,7 @@ function statusLines(t: TitleRow, small: boolean): { lines: ReactNode; words: st
     });
     return { lines, words: named.join("; ") };
   }
-  const whole = worstTone(each.map((c) => c.tone));
+  const whole = vs.length > 1 ? badgeTone(badge) : each[0].tone;
   const lines = (
     <>
       <StatusBar tone={whole} label={vs.length > 1 ? named.join("; ") : named[0]} />
@@ -115,6 +116,7 @@ export function PosterGrid<T extends TitleRow>({
 }) {
   const end = useEndReached(onMore, more);
   const perms = usePerms();
+  const day = utcToday();
   return (
     <div className="poster-grid-container">
       <div data-testid="poster-grid" className={cn("poster-grid-responsive grid gap-3.5 sm:gap-4", library && `poster-size-${library.prefs.size}`)}>
@@ -137,7 +139,8 @@ export function PosterGrid<T extends TitleRow>({
           }
           const small = library.prefs.size === "small";
           // Without "See files" the badge's watchability is the whole story: no bars, no pills.
-          const status = perms.seeFiles ? statusLines(t, small) : undefined;
+          const badge = posterStatus(t.availability, t.upgrade_seen, !perms.seeFiles, t.upgrade_state, t);
+          const status = perms.seeFiles ? statusLines(t, badge, day, small) : undefined;
           const flight = titleAcquisition(t);
           const sel = library.select;
           const chosen = !!sel?.chosen.has(t.id ?? 0);
@@ -148,7 +151,7 @@ export function PosterGrid<T extends TitleRow>({
                 title={t.name ?? "?"}
                 year={library.prefs.details.includes("year") ? t.year : undefined}
                 unmonitored={perms.seeFiles && t.monitored === false}
-                status={posterStatus(t.availability, t.upgrade_seen, !perms.seeFiles, t.upgrade_state, t)}
+                status={badge}
                 image={t.poster}
                 overview={t.overview}
                 extraLabel={status?.words}

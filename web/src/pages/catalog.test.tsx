@@ -269,8 +269,11 @@ describe("Library posters", () => {
     expect(one.textContent).not.toContain("1/1");
     expect(within(one).queryByText("Movie")).toBeNull();
 
+    // Held in one library and missing in the other: the whole bar takes the badge's tone; the pills say which.
     const two = card("Copper Sky");
-    expect(within(two).getByTestId("status-bar").getAttribute("data-tone")).toBe("bad");
+    expect(within(two).getByRole("link", { name: /^Copper Sky \(2022\), Available,/ })).toBeTruthy();
+    expect(within(two).getAllByTestId("status-bar")).toHaveLength(1);
+    expect(within(two).getByTestId("status-bar").getAttribute("data-tone")).toBe("ok");
     expect(within(two).getAllByTestId("library-pill").map((p) => [p.getAttribute("aria-label"), p.getAttribute("data-tone")])).toEqual([
       ["4K: has a file", "ok"],
       ["WEB: missing", "bad"],

@@ -3,7 +3,8 @@
  * is linked, striped for what is in progress, in the copy's colour (--vc, from [data-vkey]). Widths come from the
  * 5 % step classes (no inline styles: CSP).
  */
-.copy-track {
+.copy-track,
+.status-track {
   display: flex;
   height: 5px;
   flex: 1 1 auto;
@@ -24,7 +25,8 @@
     color-mix(in srgb, var(--vc) 38%, var(--surface)) 3px 5px
   );
 }
-.dark .copy-track {
+.dark .copy-track,
+.dark .status-track:not([data-tone="bad"]) {
   background: color-mix(in srgb, var(--line) 70%, var(--sunken));
 }
 .dark .copy-track > .copy-flight {
@@ -47,13 +49,6 @@
 [data-tone="idle"] { --tc: var(--ink-3); }
 .status-track {
   --fc: var(--accent);
-  display: flex;
-  height: 5px;
-  flex: 1 1 auto;
-  min-width: 0;
-  overflow: hidden;
-  border-radius: 3px;
-  background: color-mix(in srgb, var(--line) 80%, transparent);
 }
 .status-track[data-tone="warn"] {
   --fc: var(--warn);
@@ -72,9 +67,6 @@
     var(--fc) 0 3px,
     color-mix(in srgb, var(--fc) 38%, var(--surface)) 3px 5px
   );
-}
-.dark .status-track:not([data-tone="bad"]) {
-  background: color-mix(in srgb, var(--line) 70%, var(--sunken));
 }
 .status-dot {
   background: var(--tc);
