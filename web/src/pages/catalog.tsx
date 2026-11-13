@@ -53,8 +53,10 @@ function readPosters(list: CatalogId, uid: number | undefined): PosterPrefs {
   return readPref(`posters.${list}`, uid, normalizePosters);
 }
 
-/** A choice kept per list and user: what was saved in this session for that key, else what the browser holds. */
-function useListPref<T>(key: string, read: () => T, what: string, uid: number | undefined): [T, (v: T) => void] {
+/** A choice kept per user under theatarr.library.<what>.<user>: what was saved in this session, else what the browser
+ *  holds (read). */
+function useListPref<T>(what: string, uid: number | undefined, read: () => T): [T, (v: T) => void] {
+  const key = prefKey(what, uid);
   const [saved, setSaved] = useState<{ key: string; value: T } | null>(null);
   const value = saved?.key === key ? saved.value : read();
   return [
@@ -91,8 +93,8 @@ export function Catalog({ id }: { id: CatalogId }) {
   const facets = useFacets(cat.kind, cat.anime);
   const [sheet, setSheet] = useState(false);
   const uid = useAuth().data?.id;
-  const [view, setView] = useListPref<View>(prefKey(`view.${id}`, uid), () => readView(id, uid), `view.${id}`, uid);
-  const [postersPref, savePosters] = useListPref<PosterPrefs>(prefKey(`posters.${id}`, uid), () => readPosters(id, uid), `posters.${id}`, uid);
+  const [view, setView] = useListPref<View>(`view.${id}`, uid, () => readView(id, uid));
+  const [postersPref, savePosters] = useListPref<PosterPrefs>(`posters.${id}`, uid, () => readPosters(id, uid));
   const allColumns = useMemo(() => listColumns(id), [id]);
   const [columnsPref, saveColumns] = useColumnPrefs(`columns.${id}`, allColumns, defaultColumns(id));
   const [dialog, setDialog] = useState<"columns" | "posters" | null>(null);
@@ -145,31 +147,19 @@ export function Catalog({ id }: { id: CatalogId }) {
   const desc = query.order ? query.order === "desc" : defaultDesc(sort);
   const offered = indexColumns(id, perms.seeFiles);
   const shown = visibleIndexColumns(columnsPref, id, perms.seeFiles).map((c) => offered.find((o) => o.id === c)!);
-  // A header asks for a sort: the same one again flips the order, a new one starts in its default order.
-  const onSort = (s: string) =>
+  // A sort is asked for in one URL update (separate updates in one event each start from the same render's params, so
+  // only the last would stick): the copy goes; a header asking for the sort already shown flips the order, anything
+  // else starts in the sort's default order.
+  const setSort = (s: string, header = false) =>
     setParams(
       (p) => {
         const n = new URLSearchParams(p);
         const same = (n.get("sort") ?? "name") === s && !n.get("sort_version");
-        if (same) n.set("order", desc ? "asc" : "desc");
+        if (header && same) n.set("order", desc ? "asc" : "desc");
         else n.delete("order");
         if (s === "name") n.delete("sort");
         else n.set("sort", s);
         n.delete("sort_version");
-        return n;
-      },
-      { replace: true },
-    );
-  // The menu sets the sort and drops the copy and order in one URL update: separate updates in one event each
-  // start from the same render's params, so only the last one would stick.
-  const onPick = (s: string) =>
-    setParams(
-      (p) => {
-        const n = new URLSearchParams(p);
-        if (s === "name") n.delete("sort");
-        else n.set("sort", s);
-        n.delete("sort_version");
-        n.delete("order");
         return n;
       },
       { replace: true },
@@ -255,7 +245,7 @@ export function Catalog({ id }: { id: CatalogId }) {
             ))}
           </div>
           <span className="flex min-w-0 items-center gap-1">
-            <select aria-label="Sort by" className={cn(SELECT, "w-auto min-w-0 max-w-[6rem] sm:max-w-none")} value={sort} onChange={(e) => onPick(e.target.value)}>
+            <select aria-label="Sort by" className={cn(SELECT, "w-auto min-w-0 max-w-[6rem] sm:max-w-none")} value={sort} onChange={(e) => setSort(e.target.value)}>
               {SORTS.filter((s) => !("seeFiles" in s) || perms.seeFiles).map((s) => (
                 <option key={s.id} value={s.id}>{s.label}</option>
               ))}
@@ -324,7 +314,7 @@ export function Catalog({ id }: { id: CatalogId }) {
           manage={perms.manage}
           columns={shown}
           sort={{ sort, sortVersion: query.sort_version, desc }}
-          onSort={onSort}
+          onSort={(s) => setSort(s, true)}
           select={select}
         />
       ) : (
