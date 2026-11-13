@@ -1,7 +1,7 @@
 // The Movies, Series and Anime tables' columns (docs/design/ui.md "Library views"): which columns each list offers and
 // under which label, which are on by default, which the account may see, the grid sort a header asks for, and the
 // words some cells read (release and series status, series type, minimum availability, language). Title is fixed and
-// not in this list. The choice is kept per list and per user (lib/prefs.ts useColumnPrefs, key columns.<list>).
+// not in this list, nor is the managers' last column of row actions (title-table.tsx RowActions). The choice is kept per list and per user (lib/prefs.ts useColumnPrefs, key columns.<list>).
 import type { ColumnDef } from "@/lib/prefs";
 
 export type ListId = "movies" | "series" | "anime";

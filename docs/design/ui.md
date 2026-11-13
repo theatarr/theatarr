@@ -500,7 +500,11 @@ display label beside it, so same-labelled libraries can be told apart. There is 
   Missing", "4K · 13/17" (a series has no count before anything aired); a click opens the title's Libraries dialog
   (each library's file, state, stage and monitor switch; search and files stay on the title page). **Added** is the
   day the title was added (sort `created`); **Latest file** is when the newest current file came (sort `added`).
-  Provider shows RD, AD, TB pills. Headers sort where the server can: Title, Studio / Network, Next, Size, Added,
+  Provider shows RD, AD, TB pills. Managers get a fixed last column (not in **Columns**) with **Search now** (the
+  title page's: every monitored Live library, missing and upgrades; the answer is a toast) and, for a movie,
+  **Interactive search** in its first Live library, for a series **Choose season or episode** (a link to the Episodes
+  tab). Each is disabled from the row's own data with the reason as tooltip: Pause, "No library of this title is
+  Live.", "No library is monitored."; on a phone they end the card with their words. Headers sort where the server can: Title, Studio / Network, Next, Size, Added,
   Latest file, Quality, Year, Release date, Runtime, Certification and Rating. The per-library completion sort
   (`sort=completion&sort_version=<key>`) stays in the API and old links, but no header offers it. Below 640 px rows
   are cards: thumbnail, title and Status, then the pills, then each chosen column as a line. Without See files the

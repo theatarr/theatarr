@@ -6,13 +6,17 @@
 // posters (posterStatus), in the badge's tone (badgeTone), or a download's stage linked to Activity. Headers sort the
 // grid where the server can. Below the phone width the rows are cards: title and Status, the pills, then each chosen
 // column as a line. Without "See files" the file columns are not offered and Status reads today's watchability words,
-// headed Availability.
-import { EyeOff } from "lucide-react";
+// headed Availability. Managers get Search now and Interactive search at the end of each row and card (RowActions).
+import { EyeOff, ListVideo, Loader2, Search, UserSearch } from "lucide-react";
 import { useState, type ReactNode } from "react";
 import { Link } from "react-router";
+import { useSearchNow } from "@/api/add";
 import type { TitleRow } from "@/api/library";
 import { TitleThumb } from "@/components/poster-card";
 import { ProviderPills } from "@/components/provider-pills";
+import { InteractiveSearch } from "@/components/title/interactive-search";
+import { failed, searched } from "@/components/title/seasons";
+import { Button } from "@/components/ui/button";
 import { DataTable, type DataColumn } from "@/components/ui/data-table";
 import type { RowSelection } from "@/components/ui/row-select";
 import { copyBar, nextWords, titleAcquisition } from "@/lib/copies";
@@ -30,7 +34,8 @@ import {
 import { badgeTone, copyTone, copyWords, type CopyTone } from "@/lib/library-status";
 import { fmtDay, fmtRuntime, notAiredYet, POSTER_STATUS_LABEL, posterStatus, titleWatchWords, upcomingRelease } from "@/lib/library";
 import { cn } from "@/lib/utils";
-import { StageLink } from "./copy-bits";
+import { globalDownloadsOff, verdict } from "@/lib/version-grab";
+import { StageLink, useMinWidth } from "./copy-bits";
 import { CopyDialog } from "./copy-dialog";
 import { LibraryPill } from "./library-pill";
 import { useEndReached } from "./poster-grid";
@@ -212,11 +217,68 @@ function TitleCell({ t, seeFiles }: { t: TitleRow; seeFiles: boolean }) {
   );
 }
 
+/** Why the title's Search now would search nothing, from the row's libraries (each one's control and monitoring), in
+ *  the title page's order: Pause, then no Live library, then no monitored library, else each monitored library's
+ *  verdict; "" when a monitored library can search. */
+export function searchOff(vs: readonly Version[]): string {
+  if (vs.some((v) => v.monitored && v.control?.can_search)) return "";
+  const paused = globalDownloadsOff(vs.map((v) => v.control?.grab_state));
+  if (paused) return paused === "locked" ? "Paused by the environment (THEATARR_FORCE_OFF): nothing is searched, downloaded or linked for any library." : "Paused: nothing is searched, downloaded or linked for any library.";
+  if (!vs.some((v) => v.control?.mode === "active")) return "No library of this title is Live.";
+  const on = vs.filter((v) => v.monitored);
+  if (!on.length) return "No library is monitored.";
+  return `Nothing is searched now: ${on.map((v) => `${v.label || v.key}: ${v.control?.grab_state ? verdict(v.control.grab_state).word : "Downloads off"}`).join(" · ")}`;
+}
+
+/** A row's actions for managers: Search now (the title page's: every monitored Live library, missing and upgrades;
+ *  the answer is a toast), then for a movie Interactive search in its first Live library, for a series a link to its
+ *  Episodes tab (interactive search is per season or episode). Disabled with the reason as tooltip from the row's own
+ *  data; a disabled button still shows its tooltip. On a phone the buttons carry their words. */
+function RowActions({ t, wide }: { t: TitleRow; wide: boolean }) {
+  const id = t.id ?? 0;
+  const name = t.name ?? `Title ${id}`;
+  const vs = t.versions ?? [];
+  const search = useSearchNow(id);
+  const [interactive, setInteractive] = useState(false);
+  const off = searchOff(vs);
+  const series = t.kind === "series";
+  const live = vs.find((v) => v.control?.live_releases && v.key);
+  const size = wide ? "icon-sm" : "sm";
+  const tip = cn("disabled:pointer-events-auto disabled:cursor-not-allowed", !wide && "h-9");
+  return (
+    <span className="inline-flex items-center gap-0.5" data-testid="row-actions">
+      <Button size={size} variant="ghost" className={tip} disabled={!!off || search.isPending} aria-label={`Search now, ${name}`}
+        title={off || (series ? "Search every monitored episode now, in every Live library (missing episodes and upgrades)" : "Search every monitored Live library now")}
+        onClick={() => search.mutate(undefined, { onSuccess: (o) => searched(o, `/img/t/${id}/poster/w92`), onError: failed("Not searched") })}
+        data-testid="row-search">
+        {search.isPending ? <Loader2 className="animate-spin" /> : <Search />}
+        {wide ? null : "Search now"}
+      </Button>
+      {series ? (
+        <Button asChild size={size} variant="ghost" className={wide ? undefined : "h-9"}>
+          <Link to={`/title/${id}?tab=episodes`} aria-label={`Choose season or episode, ${name}`} title="Choose season or episode" data-testid="row-episodes">
+            <ListVideo />
+            {wide ? null : "Choose season or episode"}
+          </Link>
+        </Button>
+      ) : (
+        <Button size={size} variant="ghost" className={tip} disabled={!live} aria-label={`Interactive search, ${name}`}
+          title={live ? "Search now and choose the release yourself" : "No library of this title is Live."} onClick={() => setInteractive(true)} data-testid="row-interactive">
+          <UserSearch />
+          {wide ? null : "Interactive search"}
+        </Button>
+      )}
+      {interactive && live ? <InteractiveSearch titleId={id} version={live.key} onClose={() => setInteractive(false)} /> : null}
+    </span>
+  );
+}
+
 export function TitleTable({ titles, more, onMore, seeFiles, manage, columns, sort, onSort, select }: Props) {
   const end = useEndReached(onMore, more);
   const [copiesOf, setCopiesOf] = useState<number | null>(null);
   const open = titles.find((x) => x.id === copiesOf);
   const sorted = sortColumn(sort.sort);
+  const wide = useMinWidth(640);
   const cols: DataColumn<TitleRow>[] = [
     {
       id: "title",
@@ -254,6 +316,7 @@ export function TitleTable({ titles, more, onMore, seeFiles, manage, columns, so
         selectAllLabel={`Select all ${titles.length} shown`}
         rowLabel={(t) => t.name ?? String(t.id)}
         rowProps={() => ({ className: "cv-auto-row-sm" })}
+        actions={manage ? (t) => <RowActions t={t} wide={wide} /> : undefined}
         cardHead={(t) => (
           <div className="flex min-w-0 items-center justify-between gap-2">
             <TitleCell t={t} seeFiles={seeFiles} />

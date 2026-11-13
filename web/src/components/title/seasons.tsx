@@ -187,15 +187,16 @@ function scopeOf(copies: VersionT[], all: boolean): Scope {
   };
 }
 
-function searched(o: SearchOutcome) {
-  toast(o.started ? { tone: "ok", title: "Search started", body: o.message } : { tone: "warn", title: "Not searched", body: o.message });
+/** A search's answer as a toast (also the list rows' Search now, with the title's poster as image). */
+export function searched(o: SearchOutcome, image?: string) {
+  toast(o.started ? { tone: "ok", title: "Search started", body: o.message, image } : { tone: "warn", title: "Not searched", body: o.message, image });
 }
 
 function monitored(on: boolean) {
   return (o: ManageOutcome) => toast({ tone: "ok", title: on ? "Monitored" : "Not monitored", body: o.message });
 }
 
-function failed(title: string) {
+export function failed(title: string) {
   return (e: unknown) => toast({ tone: "bad", title, body: errText(e) });
 }
 
@@ -207,7 +208,7 @@ function useSeasonActions(titleId: number, scope: Scope) {
     busy: monitor.isPending || search.isPending,
     searching: search.isPending,
     monitor: (t: { season?: number; episode_ids?: number[] }, on: boolean) => monitor.mutate({ ...t, versions: scope.keys, monitored: on }, { onSuccess: monitored(on), onError: failed("Not changed") }),
-    search: (t: { season?: number; episode_ids?: number[] }) => search.mutate({ ...t, versions: scope.keys }, { onSuccess: searched, onError: failed("Not searched") }),
+    search: (t: { season?: number; episode_ids?: number[] }) => search.mutate({ ...t, versions: scope.keys }, { onSuccess: (o) => searched(o), onError: failed("Not searched") }),
   };
 }
 

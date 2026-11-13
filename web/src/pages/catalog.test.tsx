@@ -3,6 +3,8 @@ import { screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { Catalog } from "./catalog";
+import { Toaster } from "@/components/toaster";
+import { searchOff } from "@/components/library/title-table";
 import { expectNamedControls, mockFetch, renderPage } from "@/test/page";
 
 const shadow = { mode: "shadow", can_edit: true, can_search: false, live_releases: false };
@@ -75,7 +77,7 @@ describe("Library table", () => {
     mockFetch(routes());
     renderPage(<Catalog id="series" />, "/series");
     await screen.findAllByText("The Pellbrook Inquiries");
-    expect(screen.getAllByRole("columnheader").map((h) => h.textContent)).toEqual(["Title", "Status", "Libraries", "Network", "Next airing", "Seasons", "Size"]);
+    expect(screen.getAllByRole("columnheader").map((h) => h.textContent)).toEqual(["Title", "Status", "Libraries", "Network", "Next airing", "Seasons", "Size", "Actions"]);
     const row = screen.getByRole("link", { name: "The Pellbrook Inquiries" }).closest("tr") as HTMLElement;
     expect(within(row).getAllByTestId("library-pill").map((p) => [p.textContent, p.getAttribute("data-tone")])).toEqual([
       ["4K · 13/17", "ok"],
@@ -103,7 +105,7 @@ describe("Library table", () => {
     mockFetch(routes().map((r) => (r.path === "/titles" ? { ...r, reply: { items: movies, total: 2, offset: 0 } } : r)));
     renderPage(<Catalog id="movies" />, "/movies");
     await screen.findAllByText("Copper Sky");
-    expect(screen.getAllByRole("columnheader").map((h) => h.textContent)).toEqual(["Title", "Status", "Libraries", "Studio", "Size", "Added"]);
+    expect(screen.getAllByRole("columnheader").map((h) => h.textContent)).toEqual(["Title", "Status", "Libraries", "Studio", "Size", "Added", "Actions"]);
     const row = screen.getByRole("link", { name: "Copper Sky" }).closest("tr") as HTMLElement;
     expect(within(row).getByTestId("status-cell").textContent).toBe("Partly available");
     expect(within(row).queryByText(/preferred quality not met/)).toBeNull();
@@ -620,5 +622,109 @@ describe("Same-named copies", () => {
       "4K · tv-2160p: 24 of 24 episodes linked",
       "4K · tv-2160p-theatarr: 12 of 24 episodes linked",
     ]);
+  });
+});
+
+describe("Row actions", () => {
+  beforeEach(() => window.localStorage.setItem("theatarr.catalog.view", "table"));
+  afterEach(() => vi.unstubAllGlobals());
+
+  const on = { mode: "active", paused: false, pause_forced: false, will_grab: true };
+  const live = { ...managed, grab_state: on };
+  const movies = [
+    { id: 6, kind: "movie", name: "Copper Sky", year: 2022, monitored: true, availability: "missing",
+      versions: [
+        { id: 61, key: "movie-4k", label: "4K", monitored: true, has_file: false, state: "wanted", control: { ...shadow, grab_state: { ...on, mode: "shadow", will_grab: false } } },
+        { id: 62, key: "movie-web", label: "WEB", monitored: true, has_file: false, state: "wanted", control: live },
+      ] },
+    { id: 7, kind: "movie", name: "Sundial", year: 2021, monitored: true, availability: "missing",
+      versions: [{ id: 71, key: "movie-4k", label: "4K", monitored: true, has_file: false, state: "wanted", control: { ...shadow, grab_state: { ...on, mode: "shadow", will_grab: false } } }] },
+  ];
+  const movieRoutes = (perms = me.permissions) => [
+    { method: "GET", path: "/auth/me", reply: { ...me, permissions: perms } },
+    { method: "GET", path: "/titles", reply: { items: movies, total: 2, offset: 0 } },
+    { method: "GET", path: "/titles/facets", reply: {} },
+  ];
+  const rowOf = (name: string) => screen.getByRole("link", { name }).closest("tr") as HTMLElement;
+
+  it("shows the buttons only to managers", async () => {
+    mockFetch(movieRoutes(["see_files"]));
+    renderPage(<Catalog id="movies" />, "/movies");
+    await screen.findAllByText("Copper Sky");
+    expect(screen.queryByTestId("row-actions")).toBeNull();
+    expect(screen.getAllByRole("columnheader").map((h) => h.textContent)).not.toContain("Actions");
+  });
+
+  it("searches that row's title only and shows the answer as a toast", async () => {
+    const fetch = mockFetch([...movieRoutes(), { method: "POST", path: "/titles/6/search", reply: { started: true, message: "Searching 1 item(s) for movie-web", versions: ["movie-web"], skipped: [] } }]);
+    const user = userEvent.setup();
+    renderPage(<><Catalog id="movies" /><Toaster /></>, "/movies");
+    await screen.findAllByText("Copper Sky");
+    const search = within(rowOf("Copper Sky")).getByRole("button", { name: "Search now, Copper Sky" });
+    expect(search.getAttribute("title")).toBe("Search every monitored Live library now");
+    await user.click(search);
+    expect(await screen.findByText("Search started")).toBeTruthy();
+    expect(screen.getByText("Searching 1 item(s) for movie-web")).toBeTruthy();
+    expect(fetch.requests.filter((r) => r.method !== "GET").map((r) => [r.path, r.body])).toEqual([["/titles/6/search", {}]]);
+  });
+
+  it("disables Search now with the reason when nothing of the title would search", async () => {
+    mockFetch(movieRoutes());
+    renderPage(<Catalog id="movies" />, "/movies");
+    await screen.findAllByText("Sundial");
+    const row = rowOf("Sundial");
+    const search = within(row).getByRole("button", { name: "Search now, Sundial" }) as HTMLButtonElement;
+    expect(search.disabled).toBe(true);
+    expect(search.getAttribute("title")).toBe("No library of this title is Live.");
+    const interactive = within(row).getByRole("button", { name: "Interactive search, Sundial" }) as HTMLButtonElement;
+    expect(interactive.disabled).toBe(true);
+    expect(interactive.getAttribute("title")).toBe("No library of this title is Live.");
+    // Each reason, from the row's own libraries.
+    const v = (control: object, monitored = true) => ({ key: "movie-web", label: "WEB", monitored, control }) as never;
+    expect(searchOff([v({ ...live, can_search: false, grab_state: { ...on, paused: true, will_grab: false } })])).toBe("Paused: nothing is searched, downloaded or linked for any library.");
+    expect(searchOff([v({ ...live, can_search: false, grab_state: { ...on, pause_forced: true, will_grab: false } })])).toBe("Paused by the environment (THEATARR_FORCE_OFF): nothing is searched, downloaded or linked for any library.");
+    expect(searchOff([v({ ...shadow, grab_state: { ...on, mode: "shadow", will_grab: false } })])).toBe("No library of this title is Live.");
+    expect(searchOff([v(live, false)])).toBe("No library is monitored.");
+    expect(searchOff([v(live)])).toBe("");
+  });
+
+  it("opens Interactive search on a movie's first Live library", async () => {
+    const title = { id: 6, kind: "movie", name: "Copper Sky", year: 2022, versions: movies[0].versions };
+    const fetch = mockFetch([
+      ...movieRoutes(),
+      { method: "GET", path: "/titles/6", reply: title },
+      { method: "GET", path: "/titles/6/removal", reply: { copies: [{ key: "movie-4k" }, { key: "movie-web" }] } },
+      { method: "GET", path: "/titles/6/releases", reply: { version: "movie-web", source: "live", candidates: [] } },
+    ]);
+    const user = userEvent.setup();
+    renderPage(<Catalog id="movies" />, "/movies");
+    await screen.findAllByText("Copper Sky");
+    await user.click(within(rowOf("Copper Sky")).getByRole("button", { name: "Interactive search, Copper Sky" }));
+    expect(await screen.findByRole("dialog", { name: "Interactive search" })).toBeTruthy();
+    await waitFor(() => expect(fetch.calls("GET", "/titles/6/releases").map((r) => new URLSearchParams(r.search).get("version"))).toEqual(["movie-web"]));
+    expect(fetch.requests.some((r) => r.method !== "GET")).toBe(false);
+  });
+
+  it("links a series row to its Episodes tab instead of searching interactively", async () => {
+    mockFetch(routes());
+    renderPage(<Catalog id="series" />, "/series");
+    await screen.findAllByText("The Pellbrook Inquiries");
+    const row = rowOf("The Pellbrook Inquiries");
+    expect(within(row).queryByRole("button", { name: /^Interactive search/ })).toBeNull();
+    const link = within(row).getByRole("link", { name: "Choose season or episode, The Pellbrook Inquiries" });
+    expect(link.getAttribute("href")).toBe("/title/1?tab=episodes");
+    expect(link.getAttribute("title")).toBe("Choose season or episode");
+    // The 1080p WEB library is monitored and Live: Search now is on, with the series words.
+    expect(within(row).getByRole("button", { name: "Search now, The Pellbrook Inquiries" }).getAttribute("title")).toBe("Search every monitored episode now, in every Live library (missing episodes and upgrades)");
+  });
+
+  it("puts the same buttons, with their words, at the end of a phone card", async () => {
+    vi.stubGlobal("matchMedia", (q: string) => ({ matches: !q.includes("min-width"), media: q, addEventListener() {}, removeEventListener() {} }));
+    mockFetch(movieRoutes());
+    renderPage(<Catalog id="movies" />, "/movies");
+    await screen.findAllByText("Copper Sky");
+    const card = screen.getByRole("link", { name: "Copper Sky" }).closest("li") as HTMLElement;
+    expect(within(card).getByRole("button", { name: "Search now, Copper Sky" }).textContent).toBe("Search now");
+    expect(within(card).getByRole("button", { name: "Interactive search, Copper Sky" }).textContent).toBe("Interactive search");
   });
 });
