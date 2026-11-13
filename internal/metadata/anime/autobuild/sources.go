@@ -60,8 +60,8 @@ type SourceOptions struct {
 	// Doer sends every request: the gateway.
 	Doer live.Doer
 	// TVDB is the TVDB v4 client, or nil without its key: TVDB episodes then come from the imported Sonarr only.
-	TVDB anime.TVDB
-	Logger         *slog.Logger
+	TVDB   anime.TVDB
+	Logger *slog.Logger
 }
 
 // Live is a live source set: the paced, cached fetcher and the adapters. The mapping lists load on first use and
