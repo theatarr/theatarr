@@ -30,7 +30,8 @@ type CalendarItem struct {
 	Number     int
 	Episode    string // the episode's name
 	Monitored  bool
-	// Available is true when some version holds the movie or the episode (state filled or cutoff_met).
+	// Available is true when some version holds the movie or the episode (state filled or cutoff_met); a version
+	// removed from its library (arrview_removed_version) does not count.
 	Available bool
 }
 
@@ -59,7 +60,8 @@ func Calendar(ctx context.Context, db *sql.DB, from, to string, unmonitored bool
 	best AS (SELECT title_id, type, date FROM d d1 WHERE pref = (SELECT MIN(pref) FROM d d2
 		WHERE d2.title_id = d1.title_id AND d2.type = d1.type))
 	SELECT t.id, t.name, COALESCE(t.year, 0), t.anime, t.monitored, best.type, best.date,
-		EXISTS (SELECT 1 FROM version v WHERE v.title_id = t.id AND v.state IN ('filled', 'cutoff_met'))
+		EXISTS (SELECT 1 FROM version v WHERE v.title_id = t.id AND v.state IN ('filled', 'cutoff_met')
+			AND NOT EXISTS (SELECT 1 FROM arrview_removed_version r WHERE r.version_id = v.id))
 	FROM best JOIN title t ON t.id = best.title_id
 	WHERE t.kind = 'movie' AND best.date >= ? AND best.date <= ?`+mon, from, to)
 	if err != nil {
@@ -86,7 +88,8 @@ func Calendar(ctx context.Context, db *sql.DB, from, to string, unmonitored bool
 		e.id, e.season, e.number, e.name, e.air_date, COALESCE(e.air_date_utc_at, 0), COALESCE(sm.time_zone, ''),
 		COALESCE((SELECT MIN(x.air_date_utc_at) FROM episode x WHERE x.title_id = e.title_id AND x.season = e.season
 			AND x.air_date = e.air_date), 0),
-		EXISTS (SELECT 1 FROM episode_version_state s WHERE s.episode_id = e.id AND s.state IN ('filled', 'cutoff_met'))
+		EXISTS (SELECT 1 FROM episode_version_state s WHERE s.episode_id = e.id AND s.state IN ('filled', 'cutoff_met')
+			AND NOT EXISTS (SELECT 1 FROM arrview_removed_version r WHERE r.version_id = s.version_id))
 	FROM episode e JOIN title t ON t.id = e.title_id LEFT JOIN series_meta sm ON sm.title_id = t.id
 	WHERE t.kind = 'series' AND e.air_date IS NOT NULL AND e.air_date >= ? AND e.air_date <= ?`+epMon, from, to)
 	if err != nil {

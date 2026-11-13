@@ -168,8 +168,10 @@ default; a library the movie already had keeps its rule.
   inline under the title.
 - **Colours**: the library key colours (`--v-*`) have light and dark values, each at least 3:1 on the page and the
   surface; Theatarr's own copies (the `-theatarr` keys) have their own rather than the
-  accent. Calendar entries are surface chips with a 3 px facet-coloured edge. Labels over artwork (poster chips,
-  hover shade, Continue watching) sit on `--art-scrim`, which is dark in both themes. Modal backdrops use `--scrim`.
+  accent. Calendar entries are surface chips with a 3 px edge coloured by status (`--ok` downloaded, the accent
+  downloading, `--bad` missing, grey upcoming and not monitored; accounts without see files get only green or grey),
+  with a legend under the header; the media kind is the badge text. Labels over artwork (poster chips, hover shade,
+  Continue watching) sit on `--art-scrim`, which is dark in both themes. Modal backdrops use `--scrim`.
 - Wanted, Collections, Requests and Home use the shared Card, Chip, Tag, Checkbox and Select primitives.
 
 ### Other pages

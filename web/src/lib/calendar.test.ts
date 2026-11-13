@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it } from "vitest";
-import { entryDay, episodeCode, monthDays, placeEntries, shiftDay, ymd } from "./calendar";
+import { calendarHref, calendarLegend, calendarTone, entryDay, episodeCode, monthDays, placeEntries, shiftDay, ymd } from "./calendar";
 
 describe("monthDays", () => {
   it("covers whole weeks around the month", () => {
@@ -63,5 +63,53 @@ describe("the day an entry sits on", () => {
     ]);
     expect(shiftDay("2026-11-01", -1)).toBe("2026-10-31");
     expect(shiftDay("2026-11-30", 1)).toBe("2026-12-01");
+  });
+});
+
+describe("calendarTone", () => {
+  const now = new Date(2026, 10, 13, 12, 0);
+  const ep = { kind: "episode", type: "episode", date: "2026-11-10", monitored: true, available: false, acquiring: false };
+  const movie = (type: string, date: string) => ({ ...ep, kind: "movie", type, date });
+  const tone = (e: Parameters<typeof calendarTone>[0], plain = false) => calendarTone(e, now, plain);
+
+  it("gives each status its colour, in the rule's order", () => {
+    expect(tone({ ...ep, available: true, acquiring: true })).toEqual({ tone: "ok", label: "Downloaded" });
+    expect(tone({ ...ep, acquiring: true, monitored: false })).toEqual({ tone: "progress", label: "Downloading" });
+    expect(tone({ ...ep, monitored: false, date: "2026-12-01" })).toEqual({ tone: "idle", label: "Not monitored" });
+    expect(tone({ ...ep, date: "2026-12-01" })).toEqual({ tone: "neutral", label: "Upcoming" });
+    expect(tone(ep)).toEqual({ tone: "bad", label: "Missing" });
+  });
+
+  it("uses the air time when known, else the day (today is still upcoming)", () => {
+    expect(tone({ ...ep, date: "2026-11-13", at: new Date(2026, 10, 13, 11, 0).toISOString() }).tone).toBe("bad");
+    expect(tone({ ...ep, date: "2026-11-13", at: new Date(2026, 10, 13, 21, 0).toISOString() }).tone).toBe("neutral");
+    expect(tone({ ...ep, date: "2026-11-13" }).tone).toBe("neutral");
+    expect(tone({ ...ep, date: "2026-11-12" }).tone).toBe("bad");
+  });
+
+  it("never calls a past cinema date missing; the digital and physical dates are", () => {
+    expect(tone(movie("theatrical", "2026-10-01"))).toEqual({ tone: "neutral", label: "Released in cinemas" });
+    expect(tone(movie("digital", "2026-10-01")).tone).toBe("bad");
+    expect(tone(movie("physical", "2026-10-01")).tone).toBe("bad");
+    expect(tone(movie("digital", "2026-12-01")).tone).toBe("neutral");
+  });
+
+  it("gives accounts without see files the title page's words, never a red missing", () => {
+    expect(tone({ ...ep, available: true }, true)).toEqual({ tone: "ok", label: "Available" });
+    expect(tone({ ...ep, acquiring: true }, true)).toEqual({ tone: "neutral", label: "Getting ready" });
+    expect(tone({ ...ep, date: "2026-12-01" }, true)).toEqual({ tone: "neutral", label: "Upcoming" });
+    expect(tone(ep, true)).toEqual({ tone: "neutral", label: "Not available" });
+    expect(tone({ ...ep, monitored: false }, true)).toEqual({ tone: "neutral", label: "Not available" });
+    expect(tone(movie("digital", "2026-10-01"), true)).toEqual({ tone: "neutral", label: "Not available" });
+  });
+
+  it("has a legend per account", () => {
+    expect(calendarLegend(false).map((l) => l.label)).toEqual(["Downloaded", "Downloading", "Missing", "Upcoming", "Not monitored"]);
+    expect(calendarLegend(true).map((l) => l.tone)).toEqual(["ok", "neutral"]);
+  });
+
+  it("opens an episode in its series' episode window, a movie on its page", () => {
+    expect(calendarHref({ kind: "episode", title: { id: 3 }, episode_id: 41 })).toBe("/title/3?tab=episodes&episode=41");
+    expect(calendarHref({ kind: "movie", title: { id: 1 } })).toBe("/title/1");
   });
 });

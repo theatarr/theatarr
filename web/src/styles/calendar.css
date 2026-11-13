@@ -11,15 +11,22 @@
   --th-cal-cell-bg-active: var(--surface);
   --th-cal-cell-bg-other: var(--bg);
 }
-/* Facet marks (an edge and dots): the theme's facet tokens, so both themes keep their contrast. */
-.theatarr-cal-facet-movie {
-  --ev-color: var(--th-facet-movie);
+/* Status marks (an edge and dots): the theme's status tokens, so both themes keep their contrast. The media kind is
+ * the chip's badge text. */
+.theatarr-cal-tone-ok {
+  --ev-color: var(--ok);
 }
-.theatarr-cal-facet-series {
+.theatarr-cal-tone-progress {
   --ev-color: var(--accent);
 }
-.theatarr-cal-facet-anime {
-  --ev-color: var(--th-facet-anime);
+.theatarr-cal-tone-bad {
+  --ev-color: var(--bad);
+}
+.theatarr-cal-tone-neutral {
+  --ev-color: var(--ink-3);
+}
+.theatarr-cal-tone-idle {
+  --ev-color: var(--ink-4);
 }
 .theatarr-cal-grid {
   border: 1px solid var(--th-cal-grid-line);

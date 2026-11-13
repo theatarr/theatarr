@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"maps"
 	"net/http"
 	"net/http/httptest"
 	"path/filepath"
@@ -100,6 +101,29 @@ func TestCalendar(t *testing.T) {
 	e.getKey(APIBase+"/calendar?from=2026-11-01&to=2026-11-30&kind=movie", key, &cal)
 	if len(cal.Items) != 2 {
 		t.Errorf("movies only: %d items", len(cal.Items))
+	}
+	// Downloads in hand: Beta's movie, and Gamma's episode 1 (not episode 2). One finished download does not count.
+	e.exec(`INSERT INTO download (id, title_id, version_id, version_key, info_hash, release_title, indexer, quality,
+		state, episodes, created_at, updated_at) VALUES
+		(90, 2, 3, 'movie-web', ?, 'Beta.2021.2160p.WEB-DL', 'dmm', 'WEBDL-2160p', 'downloading', '[]', ?, ?),
+		(91, 3, 4, 'tv-2160p', ?, 'Gamma.S01E01.2160p.WEB-DL', 'dmm', 'WEBDL-2160p', 'queued', '[1]', ?, ?),
+		(92, 1, 2, 'movie-web', ?, 'Alpha.2020.2160p.WEB-DL', 'dmm', 'WEBDL-2160p', 'imported', '[]', ?, ?)`,
+		strings.Repeat("9", 40), now, now, strings.Repeat("a", 40), now, now, strings.Repeat("b", 40), now, now)
+	cal = CalendarPage{}
+	e.getKey(APIBase+"/calendar?from=2026-11-01&to=2026-11-30&unmonitored=true", key, &cal)
+	acq := map[string]bool{}
+	for _, it := range cal.Items {
+		acq[fmt.Sprintf("%s %d", it.Title.Name, it.EpisodeID)] = it.Acquiring
+	}
+	if want := map[string]bool{"Alpha 0": false, "Beta 0": true, "Gamma 1": true, "Gamma 2": false}; !maps.Equal(acq, want) {
+		t.Errorf("acquiring: got %v, want %v", acq, want)
+	}
+	// A copy removed from its library does not make the date available: Alpha's only file is in movie-remux.
+	e.exec(`INSERT INTO arrview_removed_version (version_id, view, removed_at) VALUES (1, 'radarr_4k_debrid', ?)`, now)
+	cal = CalendarPage{}
+	e.getKey(APIBase+"/calendar?from=2026-11-01&to=2026-11-30&kind=movie", key, &cal)
+	if len(cal.Items) != 2 || cal.Items[0].Title.Name != "Alpha" || cal.Items[0].Available || !cal.Items[1].Available {
+		t.Errorf("removed copy counted: %+v", cal.Items)
 	}
 	for _, bad := range []string{"from=2026-13-01", "from=2026-11-01&to=2026-10-01", "from=2026-01-01&to=2026-12-31",
 		"kind=music"} {

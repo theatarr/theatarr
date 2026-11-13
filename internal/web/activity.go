@@ -878,6 +878,8 @@ type CalendarEntry struct {
 	Episode   string        `json:"episode,omitempty"`
 	Monitored bool          `json:"monitored"`
 	Available bool          `json:"available"`
+	// Acquiring: a download is in hand (as on the list rows) for the movie, or for this very episode.
+	Acquiring bool `json:"acquiring"`
 }
 
 // CalendarPage is GET /calendar.
@@ -939,6 +941,21 @@ func (w *Web) apiCalendar(rw http.ResponseWriter, r *http.Request) {
 		w.internal(rw, err)
 		return
 	}
+	// One read of the downloads in hand for the page: movies by title, episodes by episode.
+	hand, err := w.inHand(r.Context(), w.st.Reader(), ids)
+	if err != nil {
+		w.internal(rw, err)
+		return
+	}
+	movieInHand, episodeInHand := map[int64]bool{}, map[int64]bool{}
+	for _, ds := range hand.byVersion {
+		for _, d := range ds {
+			movieInHand[d.TitleID] = true
+			for _, ep := range d.Episodes {
+				episodeInHand[ep] = true
+			}
+		}
+	}
 	page := CalendarPage{From: from.Format(time.DateOnly), To: to.Format(time.DateOnly), Items: []CalendarEntry{}}
 	for _, it := range items {
 		tk := "movie"
@@ -957,6 +974,9 @@ func (w *Web) apiCalendar(rw http.ResponseWriter, r *http.Request) {
 		if it.Kind == "episode" {
 			s, n := it.Season, it.Number
 			x.EpisodeID, x.Season, x.Number, x.Episode = it.EpisodeID, &s, &n, it.Episode
+			x.Acquiring = episodeInHand[it.EpisodeID]
+		} else {
+			x.Acquiring = movieInHand[it.TitleID]
 		}
 		page.Items = append(page.Items, x)
 	}
