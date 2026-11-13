@@ -55,6 +55,7 @@ describe("filterReleases", () => {
     expect(ranks(filterReleases(items, { ...NO_FILTER, text: "nyaa" }))).toEqual([1]);
     expect(ranks(filterReleases(items, { ...NO_FILTER, text: "2160P" }))).toEqual([2]);
     expect(ranks(filterReleases(items, { ...NO_FILTER, text: "japanese" }))).toEqual([2]);
+    expect(ranks(filterReleases(items, { ...NO_FILTER, text: "web nyaa" }))).toEqual([1]); // every word, any field
   });
   it("keeps accepted, cached or packs only", () => {
     expect(ranks(filterReleases(items, { ...NO_FILTER, accepted: true }))).toEqual([1, 3]);

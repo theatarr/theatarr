@@ -4,6 +4,7 @@ import type { Schemas } from "@/api/client";
 import type { Scope } from "@/lib/ops";
 import { fmtBytes, fmtNumber, fmtTime } from "@/lib/format";
 import { PROVIDER_SERVICES } from "@/lib/settings";
+import { matchesWords } from "@/lib/words";
 
 export type Torrent = Schemas["Torrent"];
 export type TorrentReport = Schemas["TorrentReport"];
@@ -65,7 +66,7 @@ export function filterTorrents(r: TorrentReport, provider: string, group: GroupI
     if (provider && p.provider !== provider) continue;
     for (const t of p.torrents) {
       if (keys && !keys.has(keyOf(t))) continue;
-      if (q && !t.name.toLowerCase().includes(q) && !t.hash.startsWith(q) && !(t.parsed ?? "").toLowerCase().includes(q)) continue;
+      if (q && !matchesWords(q, t.name, t.parsed) && !t.hash.startsWith(q)) continue;
       out.push(t);
     }
   }

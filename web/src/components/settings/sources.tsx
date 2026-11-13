@@ -52,6 +52,7 @@ import { AddIndexer, HoldsCard } from "./add-indexer";
 import { useCardigannCatalog, type CardigannDefinition } from "@/api/cardigann";
 import { useVersions } from "@/api/settings-versions";
 import type { LibraryList } from "./indexer-libraries";
+import { matchesWords } from "@/lib/words";
 
 const KIND: Record<string, string> = { realdebrid: "Real-Debrid", alldebrid: "AllDebrid", torbox: "TorBox" };
 
@@ -267,11 +268,10 @@ export function rssProblemsOf(defs: CardigannDefinition[] | undefined): Record<s
   return out;
 }
 
-/** Whether a record matches the filter box: key, kind, definition or address. */
+/** Whether a record matches the filter box: every word in its key, kind, definition, address or privacy. */
 export function matchesFilter(r: SettingsRecord, q: string): boolean {
-  const t = q.trim().toLowerCase();
-  if (!t) return true;
-  return [r.key, r.kind, r.config?.definition, r.config?.url, r.config?.privacy].some((v) => typeof v === "string" && v.toLowerCase().includes(t));
+  const text = (v: unknown) => (typeof v === "string" ? v : undefined);
+  return matchesWords(q, r.key, r.kind, text(r.config?.definition), text(r.config?.url), text(r.config?.privacy));
 }
 
 /** The provider fallback order, as the versions use it: 1 RD › 2 AD › 3 TB. */

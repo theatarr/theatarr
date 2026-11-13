@@ -962,6 +962,15 @@ document is hidden, and resumes on visibility changes.
 5. **Name:** the product is Theatarr. The name lives in one place in
    the SPA (`web/src/brand.ts`), so a rename is one change.
 6. **Admins land on Home**, with the status dot in the top bar linking to System › Status.
+7. **Filter boxes:** every free-text filter matches every word typed, in any order: the text is split on whitespace
+   and each word must be found, case-insensitively, as a substring (`knight frame` finds
+   "The.Dark.Knight…-FraMeSToR"). Empty text matches everything; at most 10 words count. No fuzzy matching, ranking
+   or operators. The client uses `matchesWords` (`web/src/lib/words.ts`), the server's LIKE filters
+   `internal/textsearch` (title lists and the top search's library section, the inventory, the blocklist, the
+   journal and history title filter); `%` and `_` typed are literal, and SQLite folds case for ASCII only. Kept
+   beside it: a whole number in the journal's title filter is a title id, and the whole text as a hash prefix still
+   finds a torrent (Torrents, inventory). TMDb/TVDB lookups, indexer searches and the Sonarr/Radarr compatible views
+   are not filters and keep their own matching.
 
 ## 9. Visual sources
 

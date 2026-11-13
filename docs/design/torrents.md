@@ -252,7 +252,8 @@ uncached add, its own stalled RD add) there is `DeleteUserChosen`, which takes a
 ## UI
 
 Admin › Torrents: a strip per provider (torrents, of the limit on AllDebrid, size, unused), provider tabs, group filters (unused, duplicate
-hash, duplicate title, failed, stalled, largest), a name or hash filter, sort by size, age or name, a usage column
+hash, duplicate title, failed, stalled, largest), a name or hash filter (every word in the name or parsed title, in
+any order, or the text as a hash prefix), sort by size, age or name, a usage column
 whose references show on hover and expand on click, multi-select and **Delete selected**: the preview opens a
 confirmation with the count, size, the backup it takes first and the shared-account warning; refused torrents are
 listed with why, and used or unknown ones with a checkbox naming their references to override. **Saved inventory** (`/admin/torrents/inventory`) shows known hashes and provider holdings.

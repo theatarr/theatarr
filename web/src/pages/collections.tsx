@@ -20,6 +20,7 @@ import { Input } from "@/components/ui/input";
 import { Select } from "@/components/ui/select";
 import { Forbidden } from "./library";
 import { cn } from "@/lib/utils";
+import { matchesWords } from "@/lib/words";
 
 function CollectionRow({ c, libraries, save, busy, refresh }: { c: Collection; libraries: Record<string, string>; save: (u: CollectionUpdate) => void; busy: boolean;
   /** Add missing movies now; absent when TMDb is not set up. */
@@ -80,7 +81,7 @@ export function CollectionsPage() {
   if (!perms.manage) return <Forbidden description="Collections are for managers and admins." />;
   const d = q.data;
   const f = filter.trim().toLowerCase();
-  const shown = (d?.collections ?? []).filter(c => (!onlyMonitored || c.monitored) && (!f || (c.name || String(c.tmdb_id)).toLowerCase().includes(f)));
+  const shown = (d?.collections ?? []).filter(c => (!onlyMonitored || c.monitored) && matchesWords(f, c.name || String(c.tmdb_id)));
   const monitored = d?.collections.filter(c => c.monitored).length ?? 0;
   // An already added collection chosen in the dialog: its row, whatever the filters hid.
   const show = (id: number) => {

@@ -43,6 +43,7 @@ describe("catalog filters", () => {
     expect(filterCatalog(all, NO_FILTER).map((d) => d.id)).toEqual(["thepiratebay", "privatesite"]);
     expect(filterCatalog(all, { ...NO_FILTER, runsHere: false })).toHaveLength(4);
     expect(filterCatalog(all, { ...NO_FILTER, q: "PIRATE" }).map((d) => d.id)).toEqual(["thepiratebay"]);
+    expect(filterCatalog(all, { ...NO_FILTER, q: "bay pirate" }).map((d) => d.id)).toEqual(["thepiratebay"]);
     expect(filterCatalog(all, { ...NO_FILTER, privacy: "private" }).map((d) => d.id)).toEqual(["privatesite"]);
     expect(filterCatalog(all, { ...NO_FILTER, category: "anime" }).map((d) => d.id)).toEqual(["privatesite"]);
     expect(filterCatalog(all, { ...NO_FILTER, language: "fr" }).map((d) => d.id)).toEqual(["privatesite"]);

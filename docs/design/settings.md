@@ -143,7 +143,7 @@ once. `section-panel.test.tsx` exercises partial writes, credentials, 422, 409, 
   row; Standalone formats below keeps Add format and lists only a stored definition the merged list leaves out (two
   sharing a TRaSH ID and flavour merge into one row carrying the last one's key), so every definition keeps Edit,
   Export and Delete; the page filter applies to those rows too. Each score chip links to its profile (`/admin/settings/profiles?edit=`), and a profile's score
-  rows link to `/admin/settings/formats?filter=<key>`; the filter matches names and profiles as text and a TRaSH ID or
+  rows link to `/admin/settings/formats?filter=<key>`; the filter matches names and profiles by every word typed, in any order, and a TRaSH ID or
   format key exactly, so scores keyed by TRaSH ID find their format.
 - **Settings history** opens at the newest change: `GET /settings/audit?order=desc&before=<id>` (Older follows
   `next`, Newer goes back). Without `order` the endpoint still pages oldest first with `after`. The other order's
@@ -982,7 +982,7 @@ Contrast, editors and the indexer pages. Profiles and presets are in the next se
   the profile, and the editor says which.
 - **Indexers page.** One table: indexer (badges and an active back-off in the row), via (adapter and host, or the
   catalog definition), privacy, priority with arrows, last test, and labelled Test and Edit buttons. A filter box
-  narrows it by key, kind, definition, URL or privacy (the arrows are off while it filters). Providers keep their
+  narrows it by key, kind, definition, URL or privacy, every word typed in any order (the arrows are off while it filters). Providers keep their
   cards, under a fallback line such as "1 RD › 2 AD › 3 TB". Definition updates held for review
   ([cardigann](cardigann.md#the-definition-catalog-sync-source)) are listed above the table with Approve, which asks first.
 - **Adding providers and built-in indexers.** Choose the service, review Enabled and set its write-only API key

@@ -4,6 +4,7 @@
 // when a grab asks first. Title and Grab are fixed columns, not in the list.
 import type { Candidate } from "@/api/add";
 import { grabScope, type Scope } from "@/lib/ops";
+import { matchesWords } from "@/lib/words";
 
 export type ReleaseColumnId =
   | "source"
@@ -146,7 +147,7 @@ export type ReleaseFilter = { text: string; accepted: boolean; cached: boolean; 
 
 export const NO_FILTER: ReleaseFilter = { text: "", accepted: false, cached: false, packs: false };
 
-/** The rows the filters keep: text in the name, indexer, quality or languages; accepted only; cached only; packs only. */
+/** The rows the filters keep: every word in the name, indexer, quality or languages; accepted only; cached only; packs only. */
 export function filterReleases(items: Candidate[], f: ReleaseFilter): Candidate[] {
   const q = f.text.trim().toLowerCase();
   return items.filter((c) => {
@@ -154,7 +155,7 @@ export function filterReleases(items: Candidate[], f: ReleaseFilter): Candidate[
     if (f.cached && !c.cached_on?.length) return false;
     if (f.packs && (c.episodes?.length ?? 0) <= 1) return false;
     if (!q) return true;
-    return [c.release, c.indexer, c.quality, ...(c.languages ?? [])].some((s) => !!s && s.toLowerCase().includes(q));
+    return matchesWords(q, c.release, c.indexer, c.quality, ...(c.languages ?? []));
   });
 }
 

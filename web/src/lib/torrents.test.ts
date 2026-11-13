@@ -44,6 +44,7 @@ describe("filters", () => {
     expect(filterTorrents(report, "", "unused", "").map((x) => x.id)).toEqual(["1"]);
     expect(filterTorrents(report, "", "duplicate_title", "").map((x) => x.id)).toEqual(["1", "3"]);
     expect(filterTorrents(report, "", "", "beta").map((x) => x.id)).toEqual(["2"]);
+    expect(filterTorrents(report, "", "", " 2160P  beta ").map((x) => x.id)).toEqual(["2"]);
     expect(groupKeys(report, "")).toBeNull();
   });
   it("sorts by size, age and name", () => {
