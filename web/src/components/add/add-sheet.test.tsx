@@ -193,6 +193,15 @@ it("offers neither series choice for a series already in the library", async () 
   expect(await bodyOf(fetch)).toEqual({ title_id: 10, kind: "series", versions: ["tv-web", "tv-old"], seasons: [{ season: 1, monitored: true }], search: false });
 });
 
+it("counts only the libraries this click adds for a film already in two", async () => {
+  const two = versions.map((v) => ({ ...v, on: v.key === "movie-web" || v.key === "movie-remux", default: v.key === "movie-4k" }));
+  mockFetch(routes({ ...options, title_id: 5, versions: two }));
+  renderPage(<AddSheet target={{ kind: "movie", name: "Alpha", title_id: 5 }} onClose={() => {}} />);
+  await screen.findByTestId("add-versions");
+  expect(screen.getByTestId("add-count").textContent).toBe("1 library · 1 Live");
+  expect(screen.getByTestId("add-submit").textContent).toBe("Add libraries");
+});
+
 it("sends a new series' type only when it differs from the one the series would get", async () => {
   const fetch = mockFetch(routes(seriesOptions));
   const user = userEvent.setup();
