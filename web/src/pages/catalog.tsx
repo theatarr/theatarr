@@ -21,7 +21,7 @@ import { Modal } from "@/components/ui/modal";
 import { copyColumns, distinctLabels, relabel } from "@/lib/copies";
 import { fmtBytes, fmtNumber } from "@/lib/format";
 import { defaultColumns, defaultDesc, indexColumns, listColumns, visibleIndexColumns } from "@/lib/index-columns";
-import { activeFilters, CATALOGS, FILTER_KEYS, filterChips, gridQuery, SORTS, withoutChip, type CatalogId } from "@/lib/library";
+import { activeFilters, CATALOGS, FILTER_KEYS, filterChips, gridQuery, offeredSorts, withoutChip, type CatalogId } from "@/lib/library";
 import { normalizePosters, type PosterPrefs } from "@/lib/poster-options";
 import { prefKey, readPref, useColumnPrefs, writePref } from "@/lib/prefs";
 import { resolutionWords } from "@/lib/upgrade";
@@ -88,7 +88,7 @@ export function Catalog({ id }: { id: CatalogId }) {
   const cat = CATALOGS[id];
   const [params, setParams] = useSearchParams();
   const perms = usePerms();
-  const query = useMemo(() => gridQuery(id, params), [id, params]);
+  const query = useMemo(() => gridQuery(id, params, perms.seeFiles), [id, params, perms.seeFiles]);
   const grid = useTitleGrid(query);
   const facets = useFacets(cat.kind, cat.anime);
   const [sheet, setSheet] = useState(false);
@@ -246,7 +246,7 @@ export function Catalog({ id }: { id: CatalogId }) {
           </div>
           <span className="flex min-w-0 items-center gap-1">
             <select aria-label="Sort by" className={cn(SELECT, "w-auto min-w-0 max-w-[6rem] sm:max-w-none")} value={sort} onChange={(e) => setSort(e.target.value)}>
-              {SORTS.filter((s) => !("seeFiles" in s) || perms.seeFiles).map((s) => (
+              {offeredSorts(perms.seeFiles).map((s) => (
                 <option key={s.id} value={s.id}>{s.label}</option>
               ))}
             </select>

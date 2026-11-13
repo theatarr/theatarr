@@ -510,6 +510,17 @@ describe("Household view (no See files)", () => {
     for (const file of ["Latest file", "Size", "Quality", "Latest activity"]) expect(sorts).not.toContain(file);
   });
 
+  it("opens an old address with a sort it is not offered on Title, in the request and the menu", async () => {
+    window.localStorage.setItem("theatarr.catalog.view", "table");
+    const fetch = mockFetch(household);
+    renderPage(<Catalog id="movies" />, "/movies?sort=added&order=asc");
+    await screen.findAllByText("The Pellbrook Inquiries");
+    expect((screen.getByRole("combobox", { name: "Sort by" }) as HTMLSelectElement).value).toBe("name");
+    const sent = fetch.requests.filter((r) => r.path === "/titles");
+    expect(sent.at(-1)!.search).toContain("sort=name");
+    expect(sent.some((r) => r.search.includes("sort=added"))).toBe(false);
+  });
+
   it("offers no per-library has/lacks filter, which those who see files keep", async () => {
     const versions = [{ key: "movie-remux", label: "4K Remux", titles: 2, with_file: 1, wanted: 1, filled: 1, cutoff_met: 0 }];
     for (const [perms, shown] of [[[], false], [["see_files"], true]] as const) {

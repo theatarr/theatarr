@@ -231,8 +231,18 @@ export const SORTS = [
 /** The filter keys the URL carries (the grid's own; kind and anime come from the catalog). */
 export const FILTER_KEYS = ["q", "with", "without", "state", "availability", "genre", "quality", "provider", "year_from", "year_to", "monitored"] as const;
 
-export function gridQuery(c: CatalogId, p: URLSearchParams): GridQuery {
+/** The sorts the Sort menu offers this account. */
+export function offeredSorts(seeFiles: boolean) {
+  return SORTS.filter((s) => !("seeFiles" in s) || seeFiles);
+}
+
+/** The grid's query from the address. A sort the account is not offered (an old link, Latest file without "see files")
+ *  falls back to the default, Title, with its library and order dropped, so the request and the menu agree. The
+ *  account is signed in before a list opens, so seeFiles is known. */
+export function gridQuery(c: CatalogId, p: URLSearchParams, seeFiles: boolean): GridQuery {
   const cat = CATALOGS[c];
+  const asked = p.get("sort") || "name";
+  const sortOK = offeredSorts(seeFiles).some((s) => s.id === asked);
   const num = (k: string) => {
     const v = Number(p.get(k));
     return Number.isFinite(v) && v > 0 ? v : undefined;
@@ -253,9 +263,9 @@ export function gridQuery(c: CatalogId, p: URLSearchParams): GridQuery {
     year_from: num("year_from"),
     year_to: num("year_to"),
     monitored: mon === "true" ? true : mon === "false" ? false : undefined,
-    sort: str("sort") ?? "name",
-    sort_version: str("sort_version"),
-    order: str("order"),
+    sort: sortOK ? asked : "name",
+    sort_version: sortOK ? str("sort_version") : undefined,
+    order: sortOK ? str("order") : undefined,
   };
 }
 
