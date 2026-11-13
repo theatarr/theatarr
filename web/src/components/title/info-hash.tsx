@@ -4,12 +4,14 @@
 import { Check, Copy } from "lucide-react";
 import { useRef, useState } from "react";
 import { Link } from "react-router";
+import { usePerms } from "@/api/library";
 import { Button } from "@/components/ui/button";
 import { adminLink, inventoryLink, torrentsLink } from "@/lib/admin-links";
 
 /** "Torrent": the file's torrent on Admin › Torrents, beside Cached on; admins only (the page is admin-only). */
-export function TorrentLink({ hash, admin }: { hash?: string | null; admin: boolean }) {
-  const to = hash ? adminLink(admin, torrentsLink(hash)) : undefined;
+export function TorrentLink({ hash }: { hash?: string | null }) {
+  const perms = usePerms();
+  const to = hash ? adminLink(perms.admin, torrentsLink(hash)) : undefined;
   if (!to) return null;
   return (
     <Link to={to} className="whitespace-nowrap text-xs text-primary hover:underline" title="See this torrent on Admin › Torrents" data-testid="torrent-link">

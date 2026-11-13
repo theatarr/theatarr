@@ -80,7 +80,7 @@ function Releases({ titleId, eid, d }: { titleId: number; eid: number; d: Episod
   );
 }
 
-function fileRows(f: EpisodeVersionDetail["file"], admin: boolean): [React.ReactNode, React.ReactNode][] {
+function fileRows(f: EpisodeVersionDetail["file"]): [React.ReactNode, React.ReactNode][] {
   const rows: [React.ReactNode, React.ReactNode][] = [];
   if (!f) return rows;
   if (f.release_title || f.scene_name) rows.push(["Release", <Mono key="r" className="break-all">{f.release_title || f.scene_name}</Mono>]);
@@ -88,7 +88,7 @@ function fileRows(f: EpisodeVersionDetail["file"], admin: boolean): [React.React
   if (f.score !== undefined && f.score !== null) rows.push(["Profile score", String(f.score)]);
   if (f.size_bytes) rows.push(["Size", fmtBytes(f.size_bytes)]);
   if (f.release_group) rows.push(["Group", f.release_group]);
-  rows.push(["Cached on", <span key="c" className="flex flex-wrap items-center gap-x-2 gap-y-1"><ProviderPills codes={f.cached_on} /><TorrentLink hash={f.info_hash} admin={admin} /></span>]);
+  rows.push(["Cached on", <span key="c" className="flex flex-wrap items-center gap-x-2 gap-y-1"><ProviderPills codes={f.cached_on} /><TorrentLink hash={f.info_hash} /></span>]);
   if (f.languages?.length) rows.push(["Languages", f.languages.join(", ")]);
   const media = mediaLine(f.media);
   if (media) rows.push(["Media", media]);
@@ -153,7 +153,7 @@ function DetailsPart({ titleId, eid, epCode, d, aired, manage, admin, single, ac
   const [msg, setMsg] = useState("");
   const c = d.control;
   const badge = stateBadge(d, aired);
-  const rows = fileRows(d.file, admin);
+  const rows = fileRows(d.file);
   if (rows.length === 0 && d.has_file && d.upgrade?.quality) rows.push(["Quality", d.upgrade.quality]);
   return (
     <section className={cn("space-y-3", !single && "rounded-xl border border-[var(--line)] p-3")} data-episode-version={d.key}>

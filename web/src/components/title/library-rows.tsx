@@ -86,7 +86,7 @@ function StatusCell({ v, title, kind }: { v: Version; title: TitleDetail; kind: 
 const blank = null;
 
 /** One optional column's cell. Blank, never "0" or "None", for a fact the file does not have. */
-function cellOf(id: LibraryColumn, v: Version, kind: Kind, title: TitleDetail, admin: boolean): ReactNode {
+function cellOf(id: LibraryColumn, v: Version, kind: Kind, title: TitleDetail): ReactNode {
   const c = v.current;
   const held = !!v.has_file;
   switch (id) {
@@ -105,7 +105,7 @@ function cellOf(id: LibraryColumn, v: Version, kind: Kind, title: TitleDetail, a
       return (
         <span className="flex flex-wrap items-center gap-x-2 gap-y-1">
           <ProviderPills codes={held ? v.cached_on : undefined} testid="cached-on" />
-          {held ? <TorrentLink hash={c?.info_hash} admin={admin} /> : null}
+          {held ? <TorrentLink hash={c?.info_hash} /> : null}
         </span>
       );
     case "file":
@@ -151,7 +151,7 @@ function RowDetails({ v, kind, minimumShown, statusShown, onRemove }: { v: Versi
   const titleId = v.title_id ?? 0;
   const rows: [ReactNode, ReactNode][] = [["Library key", <Mono key="k">{key}</Mono>]];
   if (c?.path) rows.push(["Path", <Mono key="p" className="break-all text-muted-foreground">{c.path}</Mono>]);
-  if (c?.info_hash) rows.push(["Hash", <span key="h" className="flex flex-wrap items-baseline gap-x-2"><InfoHash hash={c.info_hash} admin={perms.admin} /><TorrentLink hash={c.info_hash} admin={perms.admin} /></span>]);
+  if (c?.info_hash) rows.push(["Hash", <span key="h" className="flex flex-wrap items-baseline gap-x-2"><InfoHash hash={c.info_hash} admin={perms.admin} /><TorrentLink hash={c.info_hash} /></span>]);
   if (c?.edition) rows.push(["Edition", c.edition]);
   if (kind === "series" && v.episodes) {
     const e = v.episodes;
@@ -264,7 +264,7 @@ export function LibraryRows({ title, versions }: { title: TitleDetail; versions:
     ...shown.map((id): DataColumn<Version> => ({
       id,
       label: offered.find((c) => c.id === id)?.label ?? id,
-      cell: (v) => cellOf(id, v, kind, title, perms.admin),
+      cell: (v) => cellOf(id, v, kind, title),
       headClassName: "whitespace-nowrap",
       cellClassName: id === "file" ? "max-w-[16rem]" : id === "release" ? "max-w-[22rem]" : undefined,
       card: "none",
@@ -286,7 +286,7 @@ export function LibraryRows({ title, versions }: { title: TitleDetail; versions:
           <div className="flex flex-wrap items-center gap-2 text-xs text-[var(--ink-2)]">
             {facts ? <span>{facts}</span> : null}
             <ProviderPills codes={v.cached_on} testid="cached-on" />
-            <TorrentLink hash={c?.info_hash} admin={perms.admin} />
+            <TorrentLink hash={c?.info_hash} />
           </div>
         ) : null}
         {v.has_file && c?.path ? <div className="truncate font-mono text-[12px] text-muted-foreground" title={c.path} data-testid="library-file">{fileName(c.path)}</div> : null}

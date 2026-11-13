@@ -452,11 +452,11 @@ func TestParseNameFilmYear(t *testing.T) {
 		{"[Sub] Anime (2023) - 05 [ABCD1234]", "Anime (2023) 5"},
 		{"The.Daily.Show.2024.03.14.1080p.WEB.h264-GRP", "The Daily Show (2024)"},
 	} {
-		if _, label, _ := parseName(c.name); label != c.label {
+		if _, label, _ := parseName(c.name, 2026); label != c.label {
 			t.Errorf("%s: %q, want %q", c.name, label, c.label)
 		}
 	}
-	if key, _, _ := parseName("The.Dark.Knight.Rises.2012.1080p.BluRay"); key != "movie:thedarkknightrises:2012" {
+	if key, _, _ := parseName("The.Dark.Knight.Rises.2012.1080p.BluRay", 2026); key != "movie:thedarkknightrises:2012" {
 		t.Errorf("duplicate-title key of a film: %q", key)
 	}
 }

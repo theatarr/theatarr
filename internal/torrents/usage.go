@@ -162,7 +162,7 @@ func (m *Manager) deleteUsage(ctx context.Context, key string, t provider.Torren
 	reload func(provider.Torrent) (*refIndex, error)) (Usage, map[string]int, []Ref, []string, error) {
 	// The base usage decides the read (zurg's name never stands in for the original name), then usage adds zurg's.
 	if u, _, _, _, _ := ix.baseUsage(key, t); u != Unused || !ix.folderOnly || secondName(t) != "" {
-		u, refs, list, reasons := ix.usage(key, t)
+		u, refs, list, reasons, _ := ix.usage(key, t)
 		return u, refs, list, reasons, nil
 	}
 	p := m.Providers[key]
@@ -181,7 +181,7 @@ func (m *Manager) deleteUsage(ctx context.Context, key string, t provider.Torren
 	if ix, err = reload(t); err != nil {
 		return "", nil, nil, nil, err
 	}
-	u, refs, list, reasons := ix.usage(key, t)
+	u, refs, list, reasons, _ := ix.usage(key, t)
 	return u, refs, list, reasons, nil
 }
 
@@ -508,13 +508,8 @@ const maxRefList = 20
 
 // usage decides one torrent of provider key: baseUsage, plus the references under the folders of zurg's name for its
 // hash when that is used or unused. zurg only adds references: it turns unused into used and never touches unknown.
-func (ix *refIndex) usage(key string, t provider.Torrent) (Usage, map[string]int, []Ref, []string) {
-	u, counts, refs, reasons, _ := ix.usageTitles(key, t)
-	return u, counts, refs, reasons
-}
-
-// usageTitles is usage with the distinct titles of all its references (before the list's cut to maxRefList).
-func (ix *refIndex) usageTitles(key string, t provider.Torrent) (Usage, map[string]int, []Ref, []string, []LinkedTitle) {
+// The titles are the distinct titles of all its references (before the list's cut to maxRefList).
+func (ix *refIndex) usage(key string, t provider.Torrent) (Usage, map[string]int, []Ref, []string, []LinkedTitle) {
 	u, counts, refs, reasons, titles := ix.baseUsage(key, t)
 	h := indexer.NormalizeHash(t.Hash)
 	if u == Unknown || h == "" {

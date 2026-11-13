@@ -173,13 +173,13 @@ func TestScopedRefsMatchFullIndex(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		fu, fc, fl, fr := full.usage(key, tr)
-		su, scnt, sl, sr := scoped.usage(key, tr)
+		fu, fc, fl, fr, _ := full.usage(key, tr)
+		su, scnt, sl, sr, _ := scoped.usage(key, tr)
 		if fu != su || overrideToken(key, tr, fu, fc, fl, fr) != overrideToken(key, tr, su, scnt, sl, sr) {
 			t.Errorf("%s %s: full %s %v %v %v, scoped %s %v %v %v", key, tr.ID, fu, fc, fl, fr, su, scnt, sl, sr)
 		}
 	}
-	if u, refs, _, _ := full.usage("rd", e.rd.list[5]); u != Used || refs[RefArrFile] != 1 {
+	if u, refs, _, _, _ := full.usage("rd", e.rd.list[5]); u != Used || refs[RefArrFile] != 1 {
 		t.Fatalf("base32 arr hash not tied: %s %v", u, refs)
 	}
 }
