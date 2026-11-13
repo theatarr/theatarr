@@ -23,9 +23,8 @@ type grabEvent struct {
 	imported bool
 }
 
-// loadGrabHistory reconstructs the last grab and matching import for each item in this version, from its own
-// version_id only. Theatarr always handles completed downloads;
-// imported arr history retains quality names only (revision information was not stored by import-arr).
+// loadGrabHistory reconstructs the last grab and matching import for each item in this version from Theatarr's own
+// downloads of this version_id only. Theatarr always handles completed downloads.
 func loadGrabHistory(ctx context.Context, db *sql.DB, versionID int64, kind policy.Kind) (map[int64]*profile.ImportedGrab, error) {
 	out := map[int64]*profile.ImportedGrab{}
 	var events []grabEvent
@@ -75,33 +74,6 @@ func loadGrabHistory(ctx context.Context, db *sql.DB, versionID int64, kind poli
 			}
 			events = append(events, grabEvent{episode: epID, at: imported.Int64, id: id, source: "theatarr", download: strings.ToUpper(hash), quality: historyQuality(kind, &file), imported: true})
 		}
-	}
-	rows.Close()
-	if err := rows.Err(); err != nil {
-		return nil, err
-	}
-	rows, err = db.QueryContext(ctx, `SELECT h.instance, h.arr_id, h.event_type, h.date_at,
-  COALESCE(a.target_id, 0), COALESCE(h.download_id, ''), h.source_title, h.quality
-  FROM arr_history h LEFT JOIN arr_alias a ON a.instance = h.instance AND a.kind = 'episode' AND a.arr_id = h.arr_episode_id
-  WHERE h.version_id = ? AND h.event_type IN ('grabbed', 'downloadFolderImported')
-  ORDER BY h.date_at DESC, h.arr_id DESC`, versionID)
-	if err != nil {
-		return nil, err
-	}
-	for rows.Next() {
-		var ev grabEvent
-		var event, quality string
-		if err := rows.Scan(&ev.source, &ev.id, &event, &ev.at, &ev.episode, &ev.download, &ev.title, &quality); err != nil {
-			rows.Close()
-			return nil, err
-		}
-		if kind == policy.KindMovie {
-			ev.episode = 0
-		} else if ev.episode == 0 {
-			continue
-		}
-		ev.quality, ev.imported = historyQuality(kind, &ExistingFile{Quality: quality, Revision: 1}), event == "downloadFolderImported"
-		events = append(events, ev)
 	}
 	rows.Close()
 	if err := rows.Err(); err != nil {

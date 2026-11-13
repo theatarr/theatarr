@@ -11,7 +11,6 @@ import (
 
 	"github.com/theatarr/theatarr/internal/auth"
 	"github.com/theatarr/theatarr/internal/ceiling"
-	"github.com/theatarr/theatarr/internal/decide/format"
 	"github.com/theatarr/theatarr/internal/decide/profile"
 	"github.com/theatarr/theatarr/internal/policy"
 	"github.com/theatarr/theatarr/internal/store"
@@ -36,9 +35,12 @@ func ceilingPage(t testing.TB, titles int) *Web {
 			remux = "Bluray-2160p Remux"
 		}
 		pol.Profiles[kind] = &policy.Profile{Qualities: []policy.QualityItem{{Name: remux}, {Name: "WEBDL-2160p"}}, Cutoff: remux}
-		pol.Profiles[kind+"-arr"] = &policy.Profile{FromArr: kind + "/Shared"}
+		all := []policy.QualityItem{{Name: remux}, {Name: "WEBDL-2160p"}, {Name: "WEBDL-1080p"}}
+		pol.Profiles[kind+"-shared"] = &policy.Profile{Qualities: all, Cutoff: remux}
+		pol.Profiles[kind+"-owner"] = &policy.Profile{Qualities: all, Cutoff: "WEBDL-2160p"}
 		pol.Versions[kind+"-local"] = &policy.VersionPolicy{Profile: kind}
-		pol.Versions[kind+"-imported"] = &policy.VersionPolicy{Profile: kind + "-arr"}
+		pol.Versions[kind+"-imported"] = &policy.VersionPolicy{Profile: kind + "-shared"}
+		pol.Versions[kind+"-owner"] = &policy.VersionPolicy{Profile: kind + "-owner"}
 	}
 	err = st.WriteTx(ctx, func(tx *sql.Tx) error {
 		exec := func(q string, args ...any) {
@@ -46,18 +48,6 @@ func ceilingPage(t testing.TB, titles int) *Web {
 			if _, err := tx.ExecContext(ctx, q, args...); err != nil {
 				t.Fatal(err)
 			}
-		}
-		for _, kind := range []string{"movie", "series"} {
-			fl, remux := format.Radarr, "Remux-2160p"
-			if kind == "series" {
-				fl, remux = format.Sonarr, "Bluray-2160p Remux"
-			}
-			exec(`INSERT INTO arr_instance(name,flavour,policy_key,created_at,updated_at) VALUES(?,?,?,0,0)`, kind, fl, kind+"-imported")
-			web1080, _ := profile.QualityByName(fl, "WEBDL-1080p")
-			web2160, _ := profile.QualityByName(fl, "WEBDL-2160p")
-			disc, _ := profile.QualityByName(fl, remux)
-			items := fmt.Sprintf(`[{"quality":{"id":%d,"name":"WEBDL-1080p"},"allowed":true},{"quality":{"id":%d,"name":"WEBDL-2160p"},"allowed":true},{"quality":{"id":%d,"name":%q},"allowed":true}]`, web1080.ID, web2160.ID, disc.ID, remux)
-			exec(`INSERT INTO arr_quality_profile(instance,arr_id,name,cutoff,quality_items) VALUES(?,1,'Shared',?,?),(?,2,'Owner',?,?)`, kind, remux, items, kind, "WEBDL-2160p", items)
 		}
 		for i := 0; i < titles; i++ {
 			tid := int64(i + 1)
@@ -68,12 +58,11 @@ func ceilingPage(t testing.TB, titles int) *Web {
 			exec(`INSERT INTO title(id,kind,name,sort_name,created_at,updated_at) VALUES(?,?,?,?,0,0)`, tid, kind, fmt.Sprintf("Title %03d", i), fmt.Sprintf("title %03d", i))
 			for j, source := range []string{"local", "imported"} {
 				vid := tid*2 + int64(j)
+				if source == "imported" && i%2 == 0 {
+					source = "owner"
+				}
 				key := kind + "-" + source
 				exec(`INSERT INTO version(id,title_id,policy_key,state,monitored,created_at,updated_at) VALUES(?,?,?,'filled',1,0,0)`, vid, tid, key)
-				if i%2 == 0 {
-					exec(`INSERT INTO version_source(version_id,instance,arr_id) VALUES(?,?,?)`, vid, kind, vid)
-					exec(`INSERT INTO arr_title(instance,arr_id,kind,title_id,version_id,monitored,quality_profile_id) VALUES(?,?,?,?,?,1,2)`, kind, vid, kind, tid, vid)
-				}
 				quality := "WEBDL-2160p"
 				if i%8 == 4 {
 					quality = "WEBDL-1080p"

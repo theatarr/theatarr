@@ -156,35 +156,3 @@ func TestImportedGrabHistory(t *testing.T) {
 		t.Fatalf("legacy imported quality: %+v %v", f, err)
 	}
 }
-
-func TestArrGrabHistoryEpisodeScope(t *testing.T) {
-	t.Parallel()
-	ctx := context.Background()
-	st := linkedDB(t)
-	exec := func(q string, args ...any) {
-		t.Helper()
-		if _, err := st.Writer().ExecContext(ctx, q, args...); err != nil {
-			t.Fatal(err)
-		}
-	}
-	exec(`INSERT INTO title (id,kind,name,created_at,updated_at) VALUES (1,'series','Show',0,0)`)
-	exec(`INSERT INTO version (id,title_id,policy_key,created_at,updated_at) VALUES (1,1,'tv',0,0),(2,1,'follower',0,0)`)
-	exec(`INSERT INTO arr_instance (name,flavour,policy_key,created_at,updated_at) VALUES ('sonarr','sonarr','tv',0,0)`)
-	exec(`INSERT INTO arr_alias VALUES ('sonarr','episode',10,101,0),('sonarr','episode',20,102,0)`)
-	exec(`INSERT INTO arr_history (instance,arr_id,event_type,date_at,title_id,version_id,arr_episode_id,download_id,source_title,quality) VALUES
- ('sonarr',1,'grabbed',1,1,1,10,'HASH','Show.S01E01.1080p.WEB-DL','WEBDL-1080p'),
- ('sonarr',2,'downloadFolderImported',2,1,1,10,'HASH','Show.S01E01.1080p.WEB-DL','HDTV-720p'),
- ('sonarr',3,'grabbed',3,1,1,20,'OTHER','Show.S01E02.1080p.WEB-DL','WEBDL-1080p'),
- ('sonarr',4,'downloadFolderImported',4,1,1,20,'MISMATCH','Show.S01E02.1080p.WEB-DL','HDTV-720p')`)
-	h, err := loadGrabHistory(ctx, st.Reader(), 1, policy.KindSeries)
-	if err != nil || len(h) != 2 || !h[101].Imported || h[102].Imported {
-		t.Fatalf("episode history: %+v %v", h, err)
-	}
-	if h[101].GrabbedQuality.Quality.ID == h[101].ImportedQuality.Quality.ID {
-		t.Fatal("lost quality mismatch")
-	}
-	h, err = loadGrabHistory(ctx, st.Reader(), 2, policy.KindSeries)
-	if err != nil || len(h) != 0 {
-		t.Fatalf("follower history: %+v %v", h, err)
-	}
-}

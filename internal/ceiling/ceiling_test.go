@@ -292,14 +292,20 @@ func TestEveryMatchedTierAndScope(t *testing.T) {
 	}
 }
 
-func TestImportedHistoryNeverCountsAsSearches(t *testing.T) {
+// TestCeilingKeepsStoredArrSightings: sightings the arr history left in source_sighting still count, unchanged, and
+// arr history is no longer read.
+func TestCeilingKeepsStoredArrSightings(t *testing.T) {
 	st := testStore(t)
 	ctx := context.Background()
+	at := time.UnixMilli(1000).UTC()
+	if err := Sight(ctx, st.Writer(), 1, -1, Evidence{Source: "arr_history:arr", Kind: "arr_history", PositiveOnly: true,
+		Tier: Tier("Remux-1080p"), Example: "A.1080p.BluRay", Quality: "Remux-1080p", Count: 2, FirstSeen: at,
+		LastSeen: at}); err != nil {
+		t.Fatal(err)
+	}
 	if _, err := st.Writer().Exec(`INSERT INTO arr_instance(name,flavour,policy_key,created_at,updated_at) VALUES('arr','radarr','remux',0,0);
  INSERT INTO arr_history(instance,arr_id,event_type,date_at,title_id,version_id,quality,source_title) VALUES
- ('arr',1,'grabbed',1,1,1,'Remux-1080p','A.1080p.BluRay'),
- ('arr',2,'downloadFolderImported',1000,1,1,'Remux-1080p','A.1080p.BluRay'),
- ('arr',3,'grabbed',2000,1,1,'Remux-2160p','Seadex synthetic')`); err != nil {
+ ('arr',3,'grabbed',2000,1,1,'Remux-2160p','A.2160p.UHD.BluRay.REMUX')`); err != nil {
 		t.Fatal(err)
 	}
 	for range 2 {
@@ -310,13 +316,13 @@ func TestImportedHistoryNeverCountsAsSearches(t *testing.T) {
 	var tier, status string
 	var n int
 	if err := st.Reader().QueryRow(`SELECT json_extract(ceiling,'$.tier'),json_extract(ceiling,'$.status') FROM version_ceiling WHERE version_id=1`).Scan(&tier, &status); err != nil || tier != "bd" || status != "likely" {
-		t.Fatalf("history: %s/%s %v", tier, status, err)
+		t.Fatalf("stored sighting: %s/%s %v", tier, status, err)
 	}
 	if err := st.Reader().QueryRow(`SELECT COUNT(*) FROM ceiling_search`).Scan(&n); err != nil || n != 0 {
-		t.Fatal("arr history became searches")
+		t.Fatal("arr sightings became searches")
 	}
-	if err := st.Reader().QueryRow(`SELECT count FROM source_sighting WHERE source_kind='arr_history'`).Scan(&n); err != nil || n != 2 {
-		t.Fatalf("history replay changed count: %d %v", n, err)
+	if err := st.Reader().QueryRow(`SELECT SUM(count) FROM source_sighting WHERE source_kind='arr_history'`).Scan(&n); err != nil || n != 2 {
+		t.Fatalf("stored sighting changed: %d %v", n, err)
 	}
 }
 

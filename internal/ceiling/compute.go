@@ -5,7 +5,6 @@ import (
 	"database/sql"
 	"encoding/json"
 	"errors"
-	"fmt"
 	"strings"
 	"time"
 
@@ -141,49 +140,27 @@ func EffectiveCutoff(p *profile.Profile, tier string) (int, string) {
 	return 0, ""
 }
 
-// Profile reads only the quality part of the owning arr profile, or of the policy profile.
-func Profile(ctx context.Context, db DB, pol *policy.Policy, vid int64, key, kind string) (*profile.Profile, error) {
-	fl := format.Radarr
-	if kind == "series" {
-		fl = format.Sonarr
-	}
-	var items, cutoff string
-	err := db.QueryRowContext(ctx, `SELECT p.quality_items,p.cutoff FROM version_source vs
- JOIN arr_title a ON a.instance=vs.instance AND a.arr_id=vs.arr_id
- JOIN arr_quality_profile p ON p.instance=a.instance AND p.arr_id=a.quality_profile_id WHERE vs.version_id=?`, vid).Scan(&items, &cutoff)
-	if err != nil && !errors.Is(err, sql.ErrNoRows) {
-		return nil, err
-	}
-	if errors.Is(err, sql.ErrNoRows) {
-		if pol == nil || pol.Versions[key] == nil {
-			return nil, nil
-		}
-		pr := pol.Profiles[pol.Versions[key].Profile]
-		if pr == nil {
-			return nil, nil
-		}
-		if inst, name, ok := policy.SplitFromArr(pr.FromArr); ok {
-			err = db.QueryRowContext(ctx, `SELECT quality_items,cutoff FROM arr_quality_profile WHERE instance=? AND name=?`, inst, name).Scan(&items, &cutoff)
-			if errors.Is(err, sql.ErrNoRows) {
-				return nil, nil
-			}
-			if err != nil {
-				return nil, err
-			}
-		} else {
-			return policyProfile(pol, key, fl)
-		}
-	}
-	return arrProfile(items, cutoff, fl)
+// Profile reads only the quality part of the library's own profile.
+func Profile(_ context.Context, _ DB, pol *policy.Policy, _ int64, key, kind string) (*profile.Profile, error) {
+	return policyProfile(pol, key, flavour(kind))
 }
 
+func flavour(kind string) format.Flavour {
+	if kind == "series" {
+		return format.Sonarr
+	}
+	return format.Radarr
+}
+
+// policyProfile is nil for a library without a profile, or whose profile has no qualities of its own (one taken from
+// an arr).
 func policyProfile(pol *policy.Policy, key string, fl format.Flavour) (*profile.Profile, error) {
 	if pol == nil || pol.Versions[key] == nil {
 		return nil, nil
 	}
 	name := pol.Versions[key].Profile
 	pr := pol.Profiles[name]
-	if pr == nil {
+	if pr == nil || len(pr.Qualities) == 0 {
 		return nil, nil
 	}
 	var wanted []format.TrashQualityItem
@@ -193,75 +170,9 @@ func policyProfile(pol *policy.Policy, key string, fl format.Flavour) (*profile.
 	return profile.FromItems(fl, name, wanted, pr.Cutoff, true)
 }
 
-func arrProfile(items, cutoff string, fl format.Flavour) (*profile.Profile, error) {
-	var itemsJSON []struct {
-		ID      int
-		Name    string
-		Allowed bool
-		Quality *struct {
-			ID   int
-			Name string
-		}
-		Items []struct {
-			Quality *struct {
-				ID   int
-				Name string
-			}
-			Allowed bool
-		}
-	}
-	if err := json.Unmarshal([]byte(items), &itemsJSON); err != nil {
-		return nil, err
-	}
-	if len(itemsJSON) == 0 {
-		return nil, nil
-	}
-	p := &profile.Profile{}
-	for _, j := range itemsJSON {
-		it := profile.Item{ID: j.ID, Name: j.Name, Allowed: j.Allowed}
-		quality := func(id int, name string) (*profile.Quality, error) {
-			q, ok := profile.QualityByID(fl, id)
-			if !ok || q.Name != name {
-				return nil, fmt.Errorf("ceiling: unknown %s quality %d/%s", fl, id, name)
-			}
-			return &q, nil
-		}
-		if j.Quality != nil {
-			q, err := quality(j.Quality.ID, j.Quality.Name)
-			if err != nil {
-				return nil, err
-			}
-			it.Quality = q
-			if strings.EqualFold(q.Name, cutoff) {
-				p.Cutoff = q.ID
-			}
-		} else {
-			if strings.EqualFold(j.Name, cutoff) {
-				p.Cutoff = j.ID
-			}
-			for _, child := range j.Items {
-				if child.Quality == nil {
-					continue
-				}
-				q, err := quality(child.Quality.ID, child.Quality.Name)
-				if err != nil {
-					return nil, err
-				}
-				it.Items = append(it.Items, profile.Item{Quality: q, Allowed: child.Allowed})
-			}
-		}
-		p.Items = append(p.Items, it)
-	}
-	return p, nil
-
-}
-
 // Compute refreshes a title from local data only; effective cutoffs in this package must never enter the release
 // decision engine.
 func Compute(ctx context.Context, db DB, pol *policy.Policy, titleID int64, now time.Time) error {
-	if err := seedHistory(ctx, db, titleID); err != nil {
-		return err
-	}
 	if err := seedTMDb(ctx, db, titleID, now); err != nil {
 		return err
 	}
@@ -440,46 +351,6 @@ func loadOverride(ctx context.Context, db DB, titleID int64, season int) (*Overr
 		o.Until = &t
 	}
 	return o, nil
-}
-
-// seedHistory is idempotent: aggregates come from imported events, not the number of recomputes.
-func seedHistory(ctx context.Context, db DB, titleID int64) error {
-	rows, err := db.QueryContext(ctx, `SELECT COALESCE(e.season,-1),h.quality,h.source_title,h.date_at,h.instance,t.kind
- FROM arr_history h JOIN title t ON t.id=h.title_id LEFT JOIN arr_alias a ON a.instance=h.instance AND a.kind='episode' AND a.arr_id=h.arr_episode_id
- LEFT JOIN episode e ON e.id=a.target_id WHERE h.title_id=? AND h.event_type IN ('grabbed','downloadFolderImported') ORDER BY h.date_at`, titleID)
-	if err != nil {
-		return err
-	}
-	type sight struct {
-		season           int
-		quality, example string
-		at               int64
-		source, kind     string
-	}
-	var ss []sight
-	for rows.Next() {
-		var s sight
-		if err := rows.Scan(&s.season, &s.quality, &s.example, &s.at, &s.source, &s.kind); err != nil {
-			rows.Close()
-			return err
-		}
-		ss = append(ss, s)
-	}
-	err = rows.Err()
-	rows.Close()
-	if err != nil {
-		return err
-	}
-	for _, s := range ss {
-		if (s.kind == "series" && s.season < 0) || strings.Contains(strings.ToLower(s.example), "seadex") {
-			continue
-		}
-		at := time.UnixMilli(s.at).UTC()
-		if err := Sight(ctx, db, titleID, s.season, Evidence{Source: "arr_history:" + s.source, Kind: "arr_history", PositiveOnly: true, Tier: Tier(s.quality), Example: s.example, Quality: s.quality, FirstSeen: at, LastSeen: at}); err != nil {
-			return err
-		}
-	}
-	return nil
 }
 
 // seedTMDb uses notes already fetched by the ordinary enrichment path. Old rows without a fetch time are ignored.
