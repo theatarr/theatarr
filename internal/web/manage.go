@@ -1073,14 +1073,15 @@ func (w *Web) episodeHistory(ctx context.Context, db *sql.DB, titleID, versionID
 		return nil, err
 	}
 	err = scanAll(ctx, db, `SELECT state, created_at, COALESCE(imported_at, updated_at), release_title, info_hash,
-		COALESCE(provider, ''), quality, score, source, COALESCE(error, '') FROM download d WHERE d.version_id = ?
-		AND EXISTS (SELECT 1 FROM json_each(d.episodes) j WHERE j.value = ?)`, []any{versionID, eid},
-		func(r *sql.Rows) error {
+		COALESCE(provider, ''), quality, score, source, COALESCE(error, ''), `+notStartedCol+` FROM download
+		WHERE version_id = ? AND EXISTS (SELECT 1 FROM json_each(download.episodes) j WHERE j.value = ?)`,
+		[]any{versionID, eid}, func(r *sql.Rows) error {
 			var state, source, errText string
 			var created, done, score int64
+			var notStarted bool
 			var h HistoryEvent
 			if err := r.Scan(&state, &created, &done, &h.ReleaseTitle, &h.InfoHash, &h.Source, &h.Quality, &score,
-				&source, &errText); err != nil {
+				&source, &errText, &notStarted); err != nil {
 				return err
 			}
 			var run *runOrigin
@@ -1088,7 +1089,7 @@ func (w *Web) episodeHistory(ctx context.Context, db *sql.DB, titleID, versionID
 				run = &o
 			}
 			h.Score = &score
-			out = downloadEvents(out, h, state, created, done, source, errText, run)
+			out = downloadEvents(out, h, state, created, done, source, errText, notStarted, run)
 			return nil
 		})
 	if err != nil {

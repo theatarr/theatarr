@@ -350,3 +350,37 @@ func TestCaughtUpSeriesIsAvailable(t *testing.T) {
 	e.exec(`UPDATE episode SET air_date = '2020-01-01', air_date_utc_at = 1577836800000 WHERE id = 103`)
 	check("partial", "partial")
 }
+
+// TestHistoryNotStarted: a download that ended because downloads were off, never tried at a provider, is not_started
+// in the title's and the episode's history (Activity's words), not failed; one that was tried and failed stays failed.
+func TestHistoryNotStarted(t *testing.T) {
+	t.Parallel()
+	e := newManageEnv(t, nil)
+	const paused = "route ended: router: Theatarr is paused"
+	e.exec(`INSERT INTO download (id, title_id, version_id, version_key, info_hash, release_title, indexer, size_bytes,
+		state, error, episodes, created_at, updated_at) VALUES
+		(1, 1, 1, 'movie-remux', 'aa', 'Alpha.Untried', 'dmm', 1, 'failed', ?, '[]', 10, 20),
+		(2, 1, 1, 'movie-remux', 'bb', 'Alpha.Tried', 'dmm', 1, 'failed', ?, '[]', 30, 40),
+		(3, 10, 10, 'tv-2160p', 'cc', 'Show.S01E01.Untried', 'dmm', 1, 'failed', ?, '[101]', 50, 60)`, paused, paused, paused)
+	e.exec(`INSERT INTO download_attempt (download_id, provider, outcome, attempted_at) VALUES (2, 'rd', 'error', 35)`)
+	ends := func(hs []HistoryEvent) map[string]string {
+		out := map[string]string{}
+		for _, h := range hs {
+			if h.Event != "grabbed" && h.Event != "searched" {
+				out[h.ReleaseTitle] = h.Event + ":" + h.Reason
+			}
+		}
+		return out
+	}
+	var d TitleDetail
+	e.call("GET", APIBase+"/titles/1", nil, 200, &d)
+	got := ends(d.Versions[0].History)
+	if got["Alpha.Untried"] != "not_started:Not started: downloads were off" || !strings.HasPrefix(got["Alpha.Tried"], "failed:") {
+		t.Errorf("title history: %v", got)
+	}
+	var ep EpisodeDetail
+	e.call("GET", APIBase+"/titles/10/episodes/101", nil, 200, &ep)
+	if got := ends(ep.Versions[0].History); got["Show.S01E01.Untried"] != "not_started:Not started: downloads were off" {
+		t.Errorf("episode history: %v", got)
+	}
+}

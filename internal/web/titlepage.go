@@ -8,6 +8,7 @@ import (
 	"sort"
 	"time"
 
+	"github.com/theatarr/theatarr/internal/activity"
 	"github.com/theatarr/theatarr/internal/availability"
 	"github.com/theatarr/theatarr/internal/decide"
 	"github.com/theatarr/theatarr/internal/journal/snapshot"
@@ -51,7 +52,8 @@ type CurrentFile struct {
 type HistoryEvent struct {
 	DecisionID *int64 `json:"decision_id,omitempty"`
 	RunID      *int64 `json:"run_id,omitempty"`
-	// Event is grabbed, imported, upgraded, failed, deleted, renamed, ignored or searched.
+	// Event is grabbed, imported, upgraded, failed, not_started (a download never tried because downloads were off;
+	// Reason says why), deleted, renamed, ignored or searched.
 	Event   string    `json:"event"`
 	Date    time.Time `json:"date"`
 	Quality string    `json:"quality,omitempty"`
@@ -77,10 +79,15 @@ type HistoryEvent struct {
 	Latest   bool   `json:"latest,omitempty"`
 }
 
-// downloadEvents appends a Theatarr download's events: grabbed, then imported or failed. h carries the release
-// fields; run is the acquire run of an acquire:<run> source.
+// notStartedCol is a column of a query on the table download (unaliased): the download failed without ever being
+// tried, because downloads were off when its turn came (activity.NotStartedSQL, as Activity reads it).
+const notStartedCol = `(state = 'failed' AND ` + activity.NotStartedSQL + `)`
+
+// downloadEvents appends a Theatarr download's events: grabbed, then imported or failed; a download that was never
+// tried (notStarted, notStartedCol) ends with not_started and Activity's words as the reason, not failed. h carries
+// the release fields; run is the acquire run of an acquire:<run> source.
 func downloadEvents(out []HistoryEvent, h HistoryEvent, state string, created, done int64, source, errText string,
-	run *runOrigin) []HistoryEvent {
+	notStarted bool, run *runOrigin) []HistoryEvent {
 	h.Provider = h.Source
 	if h.Source == "" {
 		h.Source = "theatarr"
@@ -95,7 +102,11 @@ func downloadEvents(out []HistoryEvent, h HistoryEvent, state string, created, d
 		h.Event, h.Date = "imported", ts(done)
 		out = append(out, h)
 	case "failed":
-		h.Event, h.Date, h.Reason = "failed", ts(done), shortReason(errText, h.Provider)
+		if r := activity.NotStarted(errText); notStarted && r != "" {
+			h.Event, h.Date, h.Reason = "not_started", ts(done), activity.NotStartedHistory(r)
+		} else {
+			h.Event, h.Date, h.Reason = "failed", ts(done), shortReason(errText, h.Provider)
+		}
 		out = append(out, h)
 	}
 	return out
@@ -257,14 +268,15 @@ func (w *Web) versionHistory(ctx context.Context, db *sql.DB, titleID int64, kin
 	}
 	runDLs := map[int64][]runDownload{}
 	err = scanAll(ctx, db, `SELECT version_id, state, created_at, COALESCE(imported_at, updated_at), release_title,
-		info_hash, COALESCE(provider, ''), quality, score, source, COALESCE(error, '') FROM download WHERE title_id = ?
-		ORDER BY created_at, id`,
+		info_hash, COALESCE(provider, ''), quality, score, source, COALESCE(error, ''), `+notStartedCol+`
+		FROM download WHERE title_id = ? ORDER BY created_at, id`,
 		[]any{titleID}, func(r *sql.Rows) error {
 			var vid, created, done, score int64
 			var state, source, errText string
+			var notStarted bool
 			var h HistoryEvent
 			if err := r.Scan(&vid, &state, &created, &done, &h.ReleaseTitle, &h.InfoHash, &h.Source, &h.Quality,
-				&score, &source, &errText); err != nil {
+				&score, &source, &errText, &notStarted); err != nil {
 				return err
 			}
 			v := byID[vid]
@@ -280,7 +292,7 @@ func (w *Web) versionHistory(ctx context.Context, db *sql.DB, titleID int64, kin
 				}
 			}
 			h.Score = &score
-			v.History = downloadEvents(v.History, h, state, created, done, source, errText, run)
+			v.History = downloadEvents(v.History, h, state, created, done, source, errText, notStarted, run)
 			return nil
 		})
 	if err != nil {

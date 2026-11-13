@@ -1179,7 +1179,7 @@
         "required": ["event", "date"],
         "properties": {
           "decision_id": {"type":"integer"}, "run_id": {"type":"integer"},
-          "event": { "type": "string", "enum": ["grabbed", "imported", "upgraded", "failed", "deleted", "renamed", "ignored", "searched"] },
+          "event": { "type": "string", "enum": ["grabbed", "imported", "upgraded", "failed", "not_started", "deleted", "renamed", "ignored", "searched"], "description": "not_started: a download never tried because downloads were off when its turn came (reason says why, in Activity's words); failed otherwise" },
           "date": { "type": "string", "format": "date-time" }, "quality": { "type": "string" }, "episode": { "type": "string", "description": "S01E02" },
           "source": { "type": "string", "description": "see_files only: the arr instance, or theatarr" }, "release_title": { "type": "string", "description": "see_files only" },
           "score": { "type": "integer", "description": "see_files only" }, "info_hash": { "type": "string", "description": "see_files only; a searched event: the first release it grabbed" },
