@@ -33,17 +33,8 @@ const OLD_VIEW_KEY = "theatarr.catalog.view";
 
 type View = "grid" | "table";
 
-/** The list's Add button: it opens the top search (which finds every kind), where a result's Add opens the add sheet. */
+/** The list's Add button opens the top search (it finds every kind), where a result's Add opens the add sheet. */
 const ADD_LABEL: Record<CatalogId, string> = { movies: "Add movie", series: "Add series", anime: "Add anime" };
-function AddButton({ id }: { id: CatalogId }) {
-  const { openOverlay } = useSearchUI();
-  return (
-    <Button onClick={() => openOverlay()} data-testid="catalog-add">
-      <Plus />
-      {ADD_LABEL[id]}
-    </Button>
-  );
-}
 
 function readView(list: CatalogId, uid: number | undefined): View {
   const norm = (v: unknown): View | undefined => (v === "table" || v === "grid" ? v : undefined);
@@ -101,7 +92,7 @@ export function Catalog({ id }: { id: CatalogId }) {
   const cat = CATALOGS[id];
   const [params, setParams] = useSearchParams();
   const perms = usePerms();
-  const { canAdd } = useSearchUI();
+  const { openOverlay } = useSearchUI();
   const query = useMemo(() => gridQuery(id, params, perms.seeFiles), [id, params, perms.seeFiles]);
   const grid = useTitleGrid(query);
   const facets = useFacets(cat.kind, cat.anime);
@@ -202,6 +193,12 @@ export function Catalog({ id }: { id: CatalogId }) {
   });
   const removeChip = (c: (typeof chips)[number]) => setParams((p) => withoutChip(p, c), { replace: true });
   const size = titles.reduce((s, t) => s + (t.size_bytes ?? 0), 0);
+  const addButton = perms.add ? (
+    <Button onClick={() => openOverlay()} data-testid="catalog-add">
+      <Plus />
+      {ADD_LABEL[id]}
+    </Button>
+  ) : null;
 
   return (
     <div className="min-w-0">
@@ -212,7 +209,7 @@ export function Catalog({ id }: { id: CatalogId }) {
             ? `${fmtNumber(total)} title${total === 1 ? "" : "s"}${n ? " match the filters" : ""}${perms.seeFiles && size && !grid.hasNextPage ? ` · ${fmtBytes(size)}` : ""}`
             : " "
         }
-        actions={canAdd ? <AddButton id={id} /> : undefined}
+        actions={addButton}
       />
       <div className="mb-3 flex flex-wrap items-center gap-1.5 sm:gap-2" data-testid="catalog-toolbar">
         <TitleSearch value={values.q} set={set} className="w-full sm:w-64" />
@@ -334,7 +331,7 @@ export function Catalog({ id }: { id: CatalogId }) {
             <Empty>
               <span className="flex flex-col items-center gap-3">
                 {`No ${cat.title.toLowerCase()} yet.`}
-                {canAdd ? <AddButton id={id} /> : null}
+                {addButton}
               </span>
             </Empty>
           )}

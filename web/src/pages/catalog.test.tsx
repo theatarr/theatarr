@@ -8,7 +8,7 @@ import { searchOff } from "@/components/library/title-table";
 import { expectNamedControls, mockFetch, renderPage } from "@/test/page";
 
 // The lists open the shell's search overlay; the provider lives in the shell, so the context is stubbed here.
-const search = vi.hoisted(() => ({ openOverlay: vi.fn(), canAdd: true }));
+const search = vi.hoisted(() => ({ openOverlay: vi.fn() }));
 vi.mock("@/components/search/search-context", () => ({ useSearchUI: () => search }));
 
 const shadow = { mode: "shadow", can_edit: true, can_search: false, live_releases: false };
@@ -737,20 +737,21 @@ describe("Add button", () => {
   afterEach(() => {
     vi.unstubAllGlobals();
     search.openOverlay.mockClear();
-    search.canAdd = true;
   });
+  const adder = (titlesReply?: unknown) =>
+    routes().map((r) => (r.path === "/auth/me" ? { ...r, reply: { ...me, permissions: [...me.permissions, "add"] } } : r.path === "/titles" && titlesReply ? { ...r, reply: titlesReply } : r));
 
   it("shows Add movie, Add series or Add anime in the header only to accounts that may add, and opens the search unfiltered", async () => {
     const user = userEvent.setup();
     for (const [id, label] of [["movies", "Add movie"], ["series", "Add series"], ["anime", "Add anime"]] as const) {
-      mockFetch(routes());
+      mockFetch(adder());
       const page = renderPage(<Catalog id={id} />, `/${id}`);
       await screen.findAllByText("The Pellbrook Inquiries");
       await user.click(screen.getByRole("button", { name: label }));
       expect(search.openOverlay).toHaveBeenLastCalledWith();
       page.unmount();
     }
-    search.canAdd = false;
+    // The owner here manages but has no add permission.
     mockFetch(routes());
     renderPage(<Catalog id="movies" />, "/movies");
     await screen.findAllByText("The Pellbrook Inquiries");
@@ -758,7 +759,7 @@ describe("Add button", () => {
   });
 
   it("offers the same button under the empty list's text", async () => {
-    mockFetch(routes().map((r) => (r.path === "/titles" ? { ...r, reply: { items: [], total: 0, offset: 0 } } : r)));
+    mockFetch(adder({ items: [], total: 0, offset: 0 }));
     const user = userEvent.setup();
     renderPage(<Catalog id="movies" />, "/movies");
     await screen.findByText("No movies yet.");

@@ -149,19 +149,17 @@ export function AddSheet({ target, onClose }: { target: AddTarget; onClose: () =
   const chosen = versions.filter((v) => !v.on && isOn(v)).map((v) => v.key);
   const fitting = versions.filter((v) => v.fits || v.on);
   const other = versions.filter((v) => !v.fits && !v.on);
-  const searchable = versions.filter((v) => isOn(v) && v.searchable).map((v) => v.key);
   // The footer counts the ticked libraries and the Live ones among them, by mode (Pause does not stop a library being Live).
   const selected = versions.filter(isOn);
   const live = selected.filter((v) => v.grab_state?.mode === "active").length;
   const globalOff = globalDownloadsOff(versions.map((v) => v.grab_state));
-  const canSearch = searchable.length > 0;
+  const canSearch = selected.some((v) => v.searchable);
   const seasonOn = (n: number, def: boolean) => seasons[n] ?? def;
   const seasonsChanged = (o?.seasons ?? []).some((s) => seasons[s.season] !== undefined && seasons[s.season] !== (s.monitored ?? true));
   const epKnown = Boolean(o?.episodes_known);
   // Two buttons, "Add" and "Add and search", when something new is ticked and a ticked library can search; a change of
   // seasons alone keeps its one "Save seasons".
   const searchOffered = !!o && canSearch && chosen.length > 0;
-  const addLabel = !inLibrary ? "Add" : "Add libraries";
   // The type a new series has without a choice: anime for an anime title, else standard.
   const typeDefault = anime ? "anime" : "standard";
 
@@ -342,23 +340,16 @@ export function AddSheet({ target, onClose }: { target: AddTarget; onClose: () =
               )}
               <div className="ml-auto flex min-w-0 flex-wrap justify-end gap-2">
                 <Button variant="ghost" onClick={onClose}>Cancel</Button>
+                <Button variant={searchOffered ? "outline" : "default"} onClick={() => submit(false)} disabled={!o || (chosen.length === 0 && !seasonsChanged) || add.isPending} data-testid="add-submit">
+                  {add.isPending && !add.variables?.search ? <Loader2 className="animate-spin" /> : <Plus />}
+                  {!inLibrary ? "Add" : chosen.length > 0 || o?.kind !== "series" ? "Add libraries" : "Save seasons"}
+                </Button>
                 {searchOffered ? (
-                  <>
-                    <Button variant="outline" onClick={() => submit(false)} disabled={add.isPending} data-testid="add-submit">
-                      <Plus />
-                      {addLabel}
-                    </Button>
-                    <Button onClick={() => submit(true)} disabled={add.isPending} data-testid="add-submit-search">
-                      {add.isPending ? <Loader2 className="animate-spin" /> : <Search />}
-                      {addLabel} and search
-                    </Button>
-                  </>
-                ) : (
-                  <Button onClick={() => submit(false)} disabled={!o || (chosen.length === 0 && !seasonsChanged) || add.isPending} data-testid="add-submit">
-                    {add.isPending ? <Loader2 className="animate-spin" /> : <Plus />}
-                    {!inLibrary ? "Add" : chosen.length > 0 || o?.kind !== "series" ? "Add libraries" : "Save seasons"}
+                  <Button onClick={() => submit(true)} disabled={add.isPending} data-testid="add-submit-search">
+                    {add.isPending && add.variables?.search ? <Loader2 className="animate-spin" /> : <Search />}
+                    {inLibrary ? "Add libraries and search" : "Add and search"}
                   </Button>
-                )}
+                ) : null}
               </div>
             </div>
           </>
