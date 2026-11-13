@@ -210,15 +210,10 @@ export function nextWords(n: { date: string; season?: number; number?: number; t
   return `${t} · ${day}`;
 }
 
-/** A copy cell's headline: a series copy's "13 / 17 available", a movie copy's state in words (lib/library.ts
- * stateWords). upcoming: the movie's release day when it is not released yet (upcomingRelease), so a copy without a
- * file reads "Upcoming · Jan 14" instead of Missing. */
+/** A movie copy's headline: its state in words (lib/library.ts stateWords). upcoming: the movie's release day when it
+ * is not released yet (upcomingRelease), so a copy without a file reads "Upcoming · Jan 14" instead of Missing. A
+ * series copy's headline is the index's (lib/library-status.ts copyWords and copyTone). */
 export function copyStatus(v: VersionBrief, kind: string | undefined, plain: boolean, upcoming?: string): { label: string; tone: "positive" | "warning" | "negative" | "neutral" } {
-  if (kind === "series" && v.coverage) {
-    const { have, total } = v.coverage;
-    if (total === 0) return { label: "Nothing aired yet", tone: "neutral" };
-    return { label: `${have} / ${total} available`, tone: have >= total ? "positive" : have === 0 ? "negative" : "warning" };
-  }
   if (kind === "movie" && upcoming && v.state === "wanted" && !v.has_file) return { label: `Upcoming · ${fmtDay(upcoming)}`, tone: "neutral" };
   return stateWords(v.state, v.has_file, plain);
 }

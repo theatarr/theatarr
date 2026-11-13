@@ -43,6 +43,11 @@ export function copyTone(v: VersionBrief, t: ToneTitle, day?: string): CopyTone 
   return "bad";
 }
 
+/** A tone as a badge's (Badge tone): the title page's status words and the libraries window use the same colours. */
+export const TONE: Record<CopyTone, "positive" | "negative" | "info" | "warning" | "neutral"> = {
+  ok: "positive", bad: "negative", progress: "info", warn: "warning", idle: "neutral",
+};
+
 /** The tone of the badge's own status (its dot's colour), for a whole-title bar that must agree with the badge. */
 export function badgeTone(s: PosterStatus | undefined): CopyTone {
   switch (s) {

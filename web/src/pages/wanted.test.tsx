@@ -60,7 +60,7 @@ it("words each Next search state; no time is promised for a due row or while pau
   renderPage(<WantedPage />, "/wanted");
   const rows = await screen.findAllByTestId("wanted-row");
   const next = rows.map(r => r.querySelector('[data-column="next"]')?.textContent);
-  expect(next).toEqual(["Now", "Now · asked by Search now", "in 3 h", "in 2 h · New release, try 3", "in 5 h · After a failed download", "Downloading", "Not scheduled"]);
+  expect(next).toEqual(["Now", "Now (Search now)", "in 3 h", "in 2 h (new release) · try 3", "in 5 h (after a failed download)", "Downloading", "Not scheduled"]);
   // The exact time is the tooltip of a scheduled row.
   expect(within(rows[2]).getByText("in 3 h").getAttribute("title")).toMatch(/^\w{3} \d+ \d\d:\d\d$/);
   // A row asked for already cannot be asked again.
@@ -266,7 +266,7 @@ it("shows the asked rows not started yet and cancels them", async () => {
   expect(line.textContent).toMatch(/^306 searches queued by Search now/);
   expect(line.textContent).not.toMatch(/next at/);
   const r = screen.getByTestId("wanted-row");
-  expect(within(r).getByText("Now · asked by Search now")).toBeTruthy();
+  expect(within(r).getByText("Now (Search now)")).toBeTruthy();
   expect((within(r).getByRole("button", { name: "Search now" }) as HTMLButtonElement).disabled).toBe(true);
   await user.click(within(line).getByRole("button", { name: "Cancel queued searches" }));
   await waitFor(() => expect(fetch.calls("DELETE", "/wanted/search")).toHaveLength(1));

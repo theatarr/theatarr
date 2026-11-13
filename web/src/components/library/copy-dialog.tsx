@@ -14,6 +14,7 @@ import { Button } from "@/components/ui/button";
 import { errText } from "@/components/ui/confirm-dialog";
 import { Modal } from "@/components/ui/modal";
 import { copyBar, copyStatus } from "@/lib/copies";
+import { copyTone, copyWords, TONE as STATUS_TONE } from "@/lib/library-status";
 import { fmtBytes } from "@/lib/format";
 import { upcomingRelease } from "@/lib/library";
 import { resolutionWords } from "@/lib/upgrade";
@@ -52,6 +53,7 @@ const TONE = {
   warning: "text-[var(--warn-ink)]",
   negative: "text-[var(--bad-ink)]",
   neutral: "text-muted-foreground",
+  info: "text-[var(--accent-ink)]",
 } as const;
 
 export function CopyDialog({ t, seeFiles, manage, onClose }: { t: TitleRow; seeFiles: boolean; manage: boolean; onClose: () => void }) {
@@ -78,7 +80,11 @@ export function CopyDialog({ t, seeFiles, manage, onClose }: { t: TitleRow; seeF
       </div>
       <div className="grid min-h-0 flex-1 gap-3 overflow-y-auto p-4 text-sm sm:grid-cols-2">
         {vs.map((v) => {
-          const st = copyStatus(v, t.kind, !seeFiles, upcomingRelease(t));
+          // A series library reads as on the index (its pill's colour and words).
+          const words = t.kind === "series" ? copyWords(v, t) : "";
+          const st = t.kind === "series"
+            ? { label: words.charAt(0).toUpperCase() + words.slice(1), tone: STATUS_TONE[copyTone(v, t)] }
+            : copyStatus(v, t.kind, !seeFiles, upcomingRelease(t));
           const q = seeFiles ? v.quality : resolutionWords(v.quality);
           const a = v.acquisition;
           return (

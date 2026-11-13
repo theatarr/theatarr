@@ -6,11 +6,13 @@ import type { Schemas } from "@/api/client";
 import type { Version } from "@/api/library";
 import { stageWords } from "./copies";
 import { fmtAgo } from "./format";
-import { fmtDay } from "./library";
+import { fmtDay, upcomingRelease } from "./library";
+import { copyTone, copyWords, TONE, type ToneTitle } from "./library-status";
 import type { ColumnDef } from "./prefs";
 import { upgradeBadge, type Tone } from "./upgrade";
 
 type Acquisition = Schemas["Acquisition"];
+type VersionBrief = Schemas["VersionBrief"];
 
 export type LibraryColumn =
   | "status"
@@ -81,31 +83,42 @@ export type LibraryStatus = {
   sub?: string;
 };
 
+/** A title-page library as the list rows carry it (VersionBrief), so the index's rules (lib/library-status.ts) read
+ *  it: the episode counts become its coverage (missing is the same aired, monitored, not held count). */
+export function versionBrief(v: Version): VersionBrief {
+  const e = v.episodes;
+  return {
+    key: v.key, label: v.label, state: v.state, monitored: v.monitored, has_file: v.has_file, acquisition: v.acquisition,
+    coverage: e ? { have: e.have, total: e.total, aired: e.total, upcoming: 0, missing: e.missing } : undefined,
+  };
+}
+
 /**
- * The status of a library row. A download in hand and no file: the stage words ("Downloading · 37%"). A movie without
- * a file: "Not monitored", else "Upcoming · Jan 14" when not out at home yet (upcoming: lib/library.ts upcomingRelease),
- * else "Missing". A held movie: the upgrade badge ("Available", "Upgrade found", "Best quality known"), with "Upgrade
- * downloading · 37%" under it when one is in hand. A series: "42 / 48 episodes" (positive when complete, negative when
- * none, warning between; "Nothing aired yet" when none aired), with "6 missing" under it.
+ * The status of a library row, in the index's colours (copyTone) for every row. A series: the index's words
+ * (copyWords: "20 of 24 episodes linked", "nothing aired yet" or "no episode information yet"), with "6 missing" under
+ * them. A movie without a file: the stage words ("Downloading · 37%"), else "Not monitored", else "Upcoming · Jan 14"
+ * when not out at home yet, else "Missing" (the poster badge words). A held movie: the upgrade badge ("Available",
+ * "Upgrade found", "Best quality known"), with "Upgrade downloading · 37%" under it when one is in hand.
  */
-export function libraryStatus(v: Version, kind: Kind, upcoming?: string): LibraryStatus {
+export function libraryStatus(v: Version, t: ToneTitle, day?: string): LibraryStatus {
   const a = v.acquisition;
-  if (kind === "series") {
-    const e = v.episodes;
-    if (!v.has_file && a) return { label: stageWords(a), tone: a.stage === "blocked" ? "warning" : "info", stage: a };
-    if (!e || e.total === 0) return { label: "Nothing aired yet", tone: "neutral" };
-    const tone: Tone = e.have >= e.total ? "positive" : e.have === 0 ? "negative" : "warning";
-    return { label: `${e.have} / ${e.total} episodes`, tone, sub: e.missing > 0 ? `${e.missing} missing` : undefined };
+  const b = versionBrief(v);
+  const tone = TONE[copyTone(b, t, day)];
+  if (t.kind === "series") {
+    const words = copyWords(b, t, day);
+    const missing = v.episodes?.missing ?? 0;
+    return { label: words.charAt(0).toUpperCase() + words.slice(1), tone, sub: missing > 0 ? `${missing} missing` : undefined };
   }
   if (!v.has_file) {
-    if (a) return { label: stageWords(a), tone: a.stage === "blocked" ? "warning" : "info", stage: a };
-    if (!v.monitored) return { label: "Not monitored", tone: "neutral" };
-    if (upcoming) return { label: `Upcoming · ${fmtDay(upcoming)}`, tone: "neutral" };
-    return { label: "Missing", tone: "negative" };
+    if (a) return { label: stageWords(a), tone, stage: a };
+    if (!v.monitored) return { label: "Not monitored", tone };
+    const upcoming = upcomingRelease(t, day);
+    if (upcoming) return { label: `Upcoming · ${fmtDay(upcoming)}`, tone };
+    return { label: "Missing", tone };
   }
   const badge = upgradeBadge(v.upgrade);
   const sub = a ? stageWords({ ...a, upgrade: true }) : undefined;
-  if (!badge) return { label: "Available", tone: "positive", sub };
+  if (!badge) return { label: "Available", tone, sub };
   return { label: badge.label, tone: badge.tone, upgrade: true, sub };
 }
 
@@ -145,12 +158,18 @@ export function nextSearchOf(v: Pick<Version, "control">): { at: string; why?: s
 
 const WHY: Record<string, string> = { new: "new release", asked: "Search now" };
 
+/** Why a search is early, in the words the title page and Wanted share: "new release", "Search now", "after a failed
+ *  download"; "" on the regular schedule. */
+export function nextSearchWhy(why: string | undefined | null): string {
+  return why ? WHY[why] ?? "after a failed download" : "";
+}
+
 /** "now" when due, else "in 3 h", with why it is early: "(new release)", "(Search now)", "(after a failed download)". */
 export function nextSearch(x: { at: string; why?: string } | undefined, now: Date = new Date()): string {
   if (!x) return "";
   const t = new Date(x.at).getTime();
   if (Number.isNaN(t)) return "";
   const when = t <= now.getTime() ? "now" : fmtAgo(x.at, now);
-  const why = x.why ? WHY[x.why] ?? "after a failed download" : "";
+  const why = nextSearchWhy(x.why);
   return why ? `${when} (${why})` : when;
 }

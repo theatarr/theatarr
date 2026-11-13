@@ -125,8 +125,6 @@ describe("copy bars", () => {
   });
 
   it("heads a copy cell", () => {
-    expect(copyStatus({ coverage: { have: 3, total: 6, aired: 6, upcoming: 0 } }, "series", false)).toEqual({ label: "3 / 6 available", tone: "warning" });
-    expect(copyStatus({ coverage: { have: 0, total: 0, aired: 0, upcoming: 4 } }, "series", false).label).toBe("Nothing aired yet");
     expect(copyStatus({ state: "cutoff_met", has_file: true }, "movie", false).label).toBe("Available");
     // A wanted movie not released yet reads Upcoming with its date, not Missing.
     expect(copyStatus({ state: "wanted", has_file: false }, "movie", false, "2026-12-01").label).toMatch(/^Upcoming · /);

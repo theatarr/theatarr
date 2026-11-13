@@ -28,7 +28,6 @@ import { Card } from "@/components/ui/card";
 import { ColumnPicker } from "@/components/ui/column-picker";
 import { DataTable, type DataColumn } from "@/components/ui/data-table";
 import { fmtAgo, fmtBytes, fmtNumber, fmtTime } from "@/lib/format";
-import { upcomingRelease } from "@/lib/library";
 import { currentLibraries, DEFAULT_LIBRARY_COLUMNS, fileName, LIBRARY_COLUMNS, lastSearch, libraryColumns, libraryStatus, nextSearch, nextSearchOf, type LibraryColumn } from "@/lib/library-rows";
 import { unlinkable } from "@/lib/ops";
 import { useColumnPrefs } from "@/lib/prefs";
@@ -65,8 +64,8 @@ function LibraryName({ v, wrap = false }: { v: Version; wrap?: boolean }) {
 }
 
 /** The Status cell: the stage linked to Activity, the upgrade badge with Why?, or the words; a second line under it. */
-function StatusCell({ v, kind, upcoming }: { v: Version; kind: Kind; upcoming?: string }) {
-  const s = libraryStatus(v, kind, upcoming);
+function StatusCell({ v, title, kind }: { v: Version; title: TitleDetail; kind: Kind }) {
+  const s = libraryStatus(v, { ...title, kind });
   const titleId = v.title_id ?? 0;
   return (
     <span className="flex flex-col items-start gap-0.5" data-testid="library-status">
@@ -87,12 +86,12 @@ function StatusCell({ v, kind, upcoming }: { v: Version; kind: Kind; upcoming?: 
 const blank = null;
 
 /** One optional column's cell. Blank, never "0" or "None", for a fact the file does not have. */
-function cellOf(id: LibraryColumn, v: Version, kind: Kind, upcoming: string | undefined): ReactNode {
+function cellOf(id: LibraryColumn, v: Version, kind: Kind, title: TitleDetail): ReactNode {
   const c = v.current;
   const held = !!v.has_file;
   switch (id) {
     case "status":
-      return <StatusCell v={v} kind={kind} upcoming={upcoming} />;
+      return <StatusCell v={v} title={title} kind={kind} />;
     case "quality":
       return held && c?.quality ? <span className="whitespace-nowrap">{c.quality}</span> : blank;
     case "score":
@@ -195,7 +194,6 @@ export function LibraryRows({ title, versions }: { title: TitleDetail; versions:
   const [interactive, setInteractive] = useState<string | null>(null);
   // The removal dialog lives here, not in the row: its result stays on screen after the row goes.
   const [removing, setRemoving] = useState<string | null>(null);
-  const upcoming = upcomingRelease(title);
   const toggle = (key: string) => setOpen((o) => {
     const n = new Set(o);
     if (n.has(key)) n.delete(key);
@@ -261,7 +259,7 @@ export function LibraryRows({ title, versions }: { title: TitleDetail; versions:
     ...shown.map((id): DataColumn<Version> => ({
       id,
       label: offered.find((c) => c.id === id)?.label ?? id,
-      cell: (v) => cellOf(id, v, kind, upcoming),
+      cell: (v) => cellOf(id, v, kind, title),
       headClassName: "whitespace-nowrap",
       cellClassName: id === "file" ? "max-w-[16rem]" : id === "release" ? "max-w-[22rem]" : undefined,
       card: "none",
@@ -277,7 +275,7 @@ export function LibraryRows({ title, versions }: { title: TitleDetail; versions:
         <div className="flex items-start gap-2">
           {monitor(v)}
           <div className="min-w-0 flex-1"><LibraryName v={v} wrap /></div>
-          <div className="shrink-0"><StatusCell v={v} kind={kind} upcoming={upcoming} /></div>
+          <div className="shrink-0"><StatusCell v={v} title={title} kind={kind} /></div>
         </div>
         {v.has_file ? (
           <div className="flex flex-wrap items-center gap-2 text-xs text-[var(--ink-2)]">

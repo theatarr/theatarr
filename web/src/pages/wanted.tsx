@@ -17,6 +17,7 @@ import { Button } from "@/components/ui/button";
 import { ConfirmDialog, errText } from "@/components/ui/confirm-dialog";
 import { DownloadsOffNotice, VersionStatus } from "@/components/version-status";
 import { fmtAgo, fmtGoDuration, fmtTime } from "@/lib/format";
+import { nextSearchWhy } from "@/lib/library-rows";
 import { useColumnPrefs, type ColumnDef } from "@/lib/prefs";
 import { settingHref } from "@/lib/settings-map";
 import { globalDownloadsOff, willGrab, type VersionGrabState } from "@/lib/version-grab";
@@ -61,24 +62,18 @@ export function targetWords(targets: string[]) {
   return words.join(", ");
 }
 
-/** Why a scheduled row is early, in words: a retry of a new release (with the try it will be), or a failed download. */
-function whyWords(row: WantedRow): string {
-  if (row.why === "new") return `New release, try ${(row.tries ?? 0) + 1}`;
-  if (row.why && row.why !== "asked") return "After a failed download";
-  return "";
-}
 
-/** The "Next search" cell. A due row says "Now": the hourly limit decides when it starts, so no time is promised. A
- * row never shows a time while paused. The library's own closed gate (from GET /status, admins) is shown under
+/** The "Next search" cell, in the title page's words (lib/library-rows.ts nextSearchWhy): "Now (new release)", "in 3 h
+ * (after a failed download)", with the try a new release's retry will be. A due row says "Now": the hourly limit
+ * decides when it starts, so no time is promised. A row never shows a time while paused. The library's own closed gate (from GET /status, admins) is shown under
  * "Not scheduled" and in place of "Paused". */
 function NextSearch({ row, state, off, admin }: { row: WantedRow; state?: VersionGrabState; off: GlobalOff; admin: boolean }) {
+  const why = nextSearchWhy(row.why);
   const library = state ? <VersionStatus state={state} canManage={admin} settingsKey={row.version} /> : null;
   switch (row.waiting) {
-    case "due": return <>Now{row.why === "asked" ? " · asked by Search now" : ""}</>;
-    case "scheduled": {
-      const why = whyWords(row);
-      return <><span title={fmtTime(row.next_at)}>{fmtAgo(row.next_at)}</span>{why ? <span className="text-[var(--ink-3)]"> · {why}</span> : null}</>;
-    }
+    case "due": return <>Now{why ? ` (${why})` : ""}</>;
+    case "scheduled":
+      return <><span title={fmtTime(row.next_at)}>{fmtAgo(row.next_at)}</span>{why ? ` (${why})` : null}{row.why === "new" ? <span className="text-[var(--ink-3)]"> · try {(row.tries ?? 0) + 1}</span> : null}</>;
     case "in_flight": return <>Downloading</>;
     case "not_scheduled": return <>Not scheduled{state && !willGrab(state) ? <div className="mt-1">{library}</div> : null}</>;
     case "downloads_off": return library ?? <>{OFF_WORD[off ?? "unknown"]}</>;

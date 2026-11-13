@@ -1,33 +1,52 @@
 import { describe, expect, it } from "vitest";
 import type { Version } from "@/api/library";
-import { currentLibraries, fileName, renameSides, lastSearch, libraryColumns, libraryStatus, nextSearch, nextSearchOf } from "./library-rows";
+import { copyTone, copyWords, TONE } from "./library-status";
+import { currentLibraries, fileName, renameSides, versionBrief, nextSearchWhy, lastSearch, libraryColumns, libraryStatus, nextSearch, nextSearchOf } from "./library-rows";
 
 const v = (o: Partial<Version>): Version => ({ id: 1, key: "movie-web", label: "WEB", monitored: true, has_file: false, state: "wanted", ...o }) as Version;
 const downloading = { stage: "downloading" as const, words: "", progress: 37, download_id: 1, downloads: 1, updated_at: "2026-11-12T00:00:00Z" };
 
+const movie = { kind: "movie" as const };
+const series = { kind: "series" as const, release_date: "2019-03-01", status: "Ended" };
+const DAY = "2026-11-12";
+
 describe("library status", () => {
   it("says what a movie without a file is waiting for", () => {
-    expect(libraryStatus(v({}), "movie")).toMatchObject({ label: "Missing", tone: "negative" });
-    expect(libraryStatus(v({ monitored: false }), "movie").label).toBe("Not monitored");
-    const day = `${new Date().getFullYear()}-12-31`;
-    expect(libraryStatus(v({}), "movie", day).label).toBe("Upcoming · Dec 31");
-    const s = libraryStatus(v({ acquisition: downloading }), "movie", day);
-    expect(s.label).toBe("Downloading · 37%");
+    expect(libraryStatus(v({}), movie, DAY)).toMatchObject({ label: "Missing", tone: "negative" });
+    expect(libraryStatus(v({ monitored: false }), movie, DAY)).toMatchObject({ label: "Not monitored", tone: "neutral" });
+    expect(libraryStatus(v({}), { ...movie, home_release: "2026-12-31" }, DAY)).toMatchObject({ label: "Upcoming · Dec 31", tone: "neutral" });
+    const s = libraryStatus(v({ acquisition: downloading }), movie, DAY);
+    expect(s).toMatchObject({ label: "Downloading · 37%", tone: "info" });
     expect(s.stage?.stage).toBe("downloading");
   });
   it("uses the poster badge words for a held movie, with an upgrade in hand under them", () => {
-    expect(libraryStatus(v({ has_file: true, upgrade: { state: "cutoff_met" } }), "movie")).toMatchObject({ label: "Available", upgrade: true });
-    expect(libraryStatus(v({ has_file: true, upgrade: { state: "upgrade_available" } }), "movie").label).toBe("Upgrade found");
-    expect(libraryStatus(v({ has_file: true, upgrade: { state: "below_cutoff" } }), "movie").label).toBe("Best quality known");
-    expect(libraryStatus(v({ has_file: true, upgrade: { state: "cutoff_met" }, acquisition: downloading }), "movie").sub).toBe("Upgrade downloading · 37%");
-    expect(libraryStatus(v({ has_file: true }), "movie")).toMatchObject({ label: "Available", tone: "positive" });
+    expect(libraryStatus(v({ has_file: true, upgrade: { state: "cutoff_met" } }), movie, DAY)).toMatchObject({ label: "Available", upgrade: true });
+    expect(libraryStatus(v({ has_file: true, upgrade: { state: "upgrade_available" } }), movie, DAY).label).toBe("Upgrade found");
+    expect(libraryStatus(v({ has_file: true, upgrade: { state: "below_cutoff" } }), movie, DAY).label).toBe("Best quality known");
+    expect(libraryStatus(v({ has_file: true, upgrade: { state: "cutoff_met" }, acquisition: downloading }), movie, DAY).sub).toBe("Upgrade downloading · 37%");
+    expect(libraryStatus(v({ has_file: true }), movie, DAY)).toMatchObject({ label: "Available", tone: "positive" });
   });
-  it("counts a series' episodes", () => {
-    expect(libraryStatus(v({ has_file: true, episodes: { have: 42, total: 48, missing: 6 } }), "series")).toEqual({ label: "42 / 48 episodes", tone: "warning", sub: "6 missing" });
-    expect(libraryStatus(v({ has_file: true, episodes: { have: 48, total: 48, missing: 0 } }), "series")).toMatchObject({ tone: "positive", sub: undefined });
-    expect(libraryStatus(v({ episodes: { have: 0, total: 3, missing: 3 } }), "series").tone).toBe("negative");
-    expect(libraryStatus(v({ episodes: { have: 0, total: 0, missing: 0 } }), "series").label).toBe("Nothing aired yet");
-    expect(libraryStatus(v({ acquisition: { ...downloading, stage: "queued" }, episodes: { have: 0, total: 3, missing: 3 } }), "series").label).toBe("Queued");
+  it("reads a series library as the index does: same words, same colour", () => {
+    const cases: [Partial<Version>, string, string][] = [
+      // Monitored aired episodes missing: red, as on the index pill.
+      [{ has_file: true, episodes: { have: 42, total: 48, missing: 6 } }, "42 of 48 episodes linked", "negative"],
+      // Gaps nobody monitors: green.
+      [{ has_file: true, episodes: { have: 42, total: 48, missing: 0 } }, "42 of 48 episodes linked", "positive"],
+      // Nothing aired yet only when the series has not started; an older series without episode data says so.
+      [{ episodes: { have: 0, total: 0, missing: 0 } }, "No episode information yet", "neutral"],
+      [{ episodes: undefined }, "No episode information yet", "neutral"],
+    ];
+    for (const [o, words, tone] of cases) {
+      const lib = v(o);
+      const s = libraryStatus(lib, series, DAY);
+      expect(s.label).toBe(words);
+      expect(s.tone).toBe(tone);
+      const pill = copyWords(versionBrief(lib), series, DAY);
+      expect(pill.charAt(0).toUpperCase() + pill.slice(1)).toBe(s.label);
+      expect(TONE[copyTone(versionBrief(lib), series, DAY)]).toBe(s.tone);
+    }
+    expect(libraryStatus(v({ episodes: { have: 0, total: 0, missing: 0 } }), { ...series, release_date: "2027-02-01", status: "Planned" }, DAY).label).toBe("Nothing aired yet");
+    expect(libraryStatus(v({ has_file: true, episodes: { have: 42, total: 48, missing: 6 } }), series, DAY).sub).toBe("6 missing");
   });
 });
 
@@ -66,6 +85,9 @@ describe("row readers", () => {
   it("shows a rename's names, or the changed folders when the names are equal", () => {
     expect(renameSides("/media/tv/A/Season 1/a.mkv", "/media/tv/A/Season 1/b.mkv")).toEqual(["a.mkv", "b.mkv"]);
     expect(renameSides("/media/tv/A/Season 1/a.mkv", "/media/tv/A (2020)/Season 01/a.mkv")).toEqual(["A/Season 1/a.mkv", "A (2020)/Season 01/a.mkv"]);
+  });
+  it("gives Wanted and the title page one reason wording", () => {
+    expect(["new", "asked", "stalled", undefined].map(nextSearchWhy)).toEqual(["new release", "Search now", "after a failed download", ""]);
   });
   it("words the next search", () => {
     const now = new Date("2026-11-12T12:00:00Z");
