@@ -20,7 +20,7 @@ func newRSSRunner(pol *policy.Policy, st *store.Store, q *jobs.Queue, gw *gatewa
 	log *slog.Logger, rt rss.Router, prepared *serveRuntime, runtime rss.RuntimeSource) *rss.Runner {
 	r := rss.New(rss.Config{Store: st, Policy: pol, Engine: prepared.Engine, Queue: q, Indexers: prepared.Indexers,
 		Budgets: gw, Router: rt, Logger: log, Registerer: reg, Runtime: runtime})
-	log.Info("shadow runner", "rss_to_router", r.ActiveVersions())
+	log.Info("rss runner", "rss_to_router", r.ActiveVersions())
 	return r
 }
 

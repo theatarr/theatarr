@@ -51,8 +51,8 @@ func runAnimePlaylists(args []string, out io.Writer) error {
 	fs.Usage = func() {
 		fmt.Fprint(fs.Output(), "usage: theatarr anime playlists [-franchise SLUG] [-dry-run] [flags]\n\n"+
 			"Plans the watch-order playlists (policy playlists.orders, one per route) from the library's linked episodes\n"+
-			"and movies, and syncs them to Plex when library.enabled and playlists.enabled are both true and the Plex\n"+
-			"token is set. Otherwise, or with -dry-run, it calls nothing and prints what it would create.\n\n")
+			"and movies, and syncs them to Plex when Pause is off, playlists.enabled is true and the Plex token is\n"+
+			"set. Otherwise, or with -dry-run, it calls nothing and prints what it would create.\n\n")
 		fs.PrintDefaults()
 	}
 	policyDir := policyDirDefault()

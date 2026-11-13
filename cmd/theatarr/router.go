@@ -43,7 +43,7 @@ const routerUsage = `usage:
 dry-run searches the library's indexers through the gateway (with the configured VPN requirements, like
 theatarr decide -search), decides every result, and shows what the router would do with the accepted
 ones: which release, which provider, and why each was skipped. It sends nothing to any provider and records nothing,
-whatever router.enabled and the library's mode say. status reads the database: Pause, which libraries the
+whatever Pause and the library's mode say. status reads the database: Pause, which libraries the
 router may write for, provider pacing, downloads by state, and recent downloads and dry-run plans. offer offers an
 imported download to the title's other libraries (-sweep also offers adopted
 links): each library's own profile decides, an accepted offer queues a route that reuses the provider's torrent
