@@ -170,6 +170,16 @@ describe("fix round 1", () => {
     expect(search.parentElement?.getAttribute("title")).toBe("Search WEB now. Other Live libraries that want this title may use the results too.");
   });
 
+  it("has no Why? beside a plainly Available copy, and keeps it when a manual ceiling is set", async () => {
+    manager();
+    const page = renderPage(<LibraryRows title={title as never} versions={[web] as never} />);
+    await waitFor(() => expect(within(rowOf("movie-web")).getByTestId("upgrade-status")).toBeTruthy());
+    expect(within(rowOf("movie-web")).queryByTestId("upgrade-why")).toBeNull();
+    page.unmount();
+    renderPage(<LibraryRows title={title as never} versions={[{ ...web, upgrade: { state: "cutoff_met", ceiling: { override: { tier: "web" } } } }] as never} />);
+    await waitFor(() => expect(within(rowOf("movie-web")).getByTestId("upgrade-why")).toBeTruthy());
+  });
+
   it("leaves a score without its formats blank", async () => {
     manager();
     renderPage(<LibraryRows title={title as never} versions={[{ ...web, current: { ...web.current, formats: undefined } }] as never} />);
@@ -180,7 +190,7 @@ describe("fix round 1", () => {
     window.localStorage.setItem("theatarr.library.title-libraries.3", JSON.stringify({ order: ["status", "quality"], shown: ["quality"] }));
     manager();
     const user = userEvent.setup();
-    const page = renderPage(<LibraryRows title={title as never} versions={[web] as never} />);
+    const page = renderPage(<LibraryRows title={title as never} versions={[{ ...web, upgrade: { state: "best_available" } }] as never} />);
     await waitFor(() => expect(rowOf("movie-web").querySelector('[data-column="status"]')).toBeNull());
     await user.click(screen.getByTestId("copy-details-movie-web"));
     expect(within(screen.getByTestId("library-row-details-movie-web")).getByTestId("upgrade-why")).toBeTruthy();

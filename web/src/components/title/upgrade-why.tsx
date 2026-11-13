@@ -17,7 +17,10 @@ import { Modal } from "@/components/ui/modal";
 import { cutoffLine, nextLine, shortfall, upgradeBadge, whyOf } from "@/lib/upgrade";
 import { cn } from "@/lib/utils";
 
-/** The status badge, and a Why? button when the caller sees files. */
+/**
+ * The status badge, and a Why? button when the caller sees files and there is something to explain: not on a plain
+ * Available copy (the preferred quality is met), unless it carries a manual ceiling that Why? lets a manager clear.
+ */
 export function UpgradeStatus({
   u,
   what,
@@ -53,7 +56,7 @@ export function UpgradeStatus({
         {u.state === "upgrade_available" ? <ArrowUpCircle /> : null}
         {w.label}
       </Badge>
-      {perms.seeFiles ? (
+      {perms.seeFiles && (u.state !== "cutoff_met" || u.ceiling?.override) ? (
         <button
           type="button"
           onClick={() => setOpen(true)}

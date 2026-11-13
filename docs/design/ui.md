@@ -292,7 +292,7 @@ See [quickstart](../quickstart.md#readiness-led-setup) for the completion rules;
   hash their link records), "—" when none does. A fact the file does not have is blank, never 0.
   **Status:** a download in hand and no file reads its stage ("Downloading · 37%", "Waiting for mount", "Blocked"),
   linked to Activity; a movie without a file "Not monitored", "Upcoming · Jan 14" (not out at home yet, the posters'
-  rule) or "Missing"; a held movie the upgrade badge with Why? (Available, Upgrade found, Best quality known), with
+  rule) or "Missing"; a held movie the upgrade badge, with Why? unless it is plainly Available without a manual ceiling (Available, Upgrade found, Best quality known), with
   "Upgrade downloading · 37%" under it while one is in hand; a series "42 / 48 episodes" (green when complete, red
   when none, amber between; "Nothing aired yet" before any episode), with "6 missing" under it.
   **Row actions:** **Search now** (icon, managers; disabled with the reason; when other Live libraries want the
