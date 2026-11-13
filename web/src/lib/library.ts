@@ -46,14 +46,21 @@ export function kindOf(t: { anime?: boolean; kind?: string }): CardKind {
   return t.anime ? "anime" : t.kind === "series" ? "series" : "movie";
 }
 
+/** TMDb statuses of a series that has aired. */
+const AIRED_STATUS = new Set(["Returning Series", "Ended", "Canceled"]);
+
 /**
- * A series none of whose episodes has aired yet (every library's coverage is empty): it reads Upcoming, as the bars
- * and pills read "nothing aired yet" (lib/library-status.ts copyTone), never Missing. Undefined coverage (an older
- * row) is not "nothing aired".
+ * A series none of whose episodes has aired yet: it reads Upcoming, as the bars and pills read "nothing aired yet"
+ * (lib/library-status.ts copyTone), never Missing. Empty coverage alone is not proof (the API also sends it before the
+ * episodes are loaded), so the row must not say it has aired: its first air date (release_date) is missing or still to
+ * come (the UTC day, as upcomingRelease), and its status is not Returning Series, Ended or Canceled. Undefined coverage
+ * is not "nothing aired".
  */
-export function notAiredYet(t: Pick<TitleRow, "kind" | "versions"> | undefined): boolean {
+export function notAiredYet(t: Pick<TitleRow, "kind" | "versions" | "release_date" | "status"> | undefined, day: string = utcToday()): boolean {
   const vs = t?.versions ?? [];
-  return t?.kind === "series" && vs.length > 0 && vs.every((v) => v.coverage !== undefined && v.coverage.total === 0);
+  if (t?.kind !== "series" || !vs.length || !vs.every((v) => v.coverage !== undefined && v.coverage.total === 0)) return false;
+  const first = t.release_date?.slice(0, 10);
+  return (!first || first > day) && !AIRED_STATUS.has(t.status ?? "");
 }
 
 /** Missing takes priority (Getting ready without "see files" while a download is in hand, else Upcoming for a movie
@@ -61,7 +68,7 @@ export function notAiredYet(t: Pick<TitleRow, "kind" | "versions"> | undefined):
  * available without "see files" as in the table),
  * then episode gaps, then an upgrade found (a better release was seen), then best quality known (a copy below its
  * preferred quality with nothing better found), then available. */
-export function posterStatus(a: Availability | undefined, upgradeSeen?: boolean, plain = false, upgradeState?: string, title?: Pick<TitleRow, "kind" | "versions" | "release_date" | "home_release" | "next_up" | "acquiring">): PosterStatus | undefined {
+export function posterStatus(a: Availability | undefined, upgradeSeen?: boolean, plain = false, upgradeState?: string, title?: Pick<TitleRow, "kind" | "versions" | "release_date" | "home_release" | "next_up" | "acquiring" | "status">): PosterStatus | undefined {
   if (a === "missing") return plain && title?.acquiring ? "getting_ready" : upcomingRelease(title) || notAiredYet(title) ? "upcoming" : plain ? "not_available" : "wanted";
   if (plain) return a === "partial" && title?.kind !== "movie" ? "some_episodes" : a === "available" || a === "upgrade" || a === "partial" ? "available" : undefined;
   const episodes = title?.kind === "series" && title.versions?.some(v => (v.coverage?.missing ?? 0) > 0);
@@ -105,7 +112,7 @@ export function watchWords(a: Availability | undefined, qualities: readonly (str
 /** A library title's one watchability line for accounts without "see files" (the table's cell, search results): a
  * missing title with a download in hand reads Getting ready, before Upcoming (a movie not out at home, with its day; a
  * series with nothing aired yet, with its first episode's day when known); else watchWords. */
-export function titleWatchWords(t: Pick<TitleRow, "kind" | "availability" | "acquiring" | "versions" | "release_date" | "home_release" | "next_up">): { label: string; tone: "positive" | "partial" | "neutral" } | null {
+export function titleWatchWords(t: Pick<TitleRow, "kind" | "availability" | "acquiring" | "versions" | "release_date" | "home_release" | "next_up" | "status">): { label: string; tone: "positive" | "partial" | "neutral" } | null {
   const missing = t.availability === "missing";
   const up = missing && !t.acquiring ? upcomingRelease(t) : undefined;
   if (missing && t.acquiring) return { label: "Getting ready", tone: "neutral" };
@@ -206,7 +213,7 @@ export type CatalogId = keyof typeof CATALOGS;
 export const SORTS = [
   { id: "name", label: "Title" },
   { id: "created", label: "Added" },
-  { id: "added", label: "Latest file" },
+  { id: "added", label: "Latest file", seeFiles: true },
   { id: "release", label: "Release date" },
   { id: "year", label: "Year" },
   { id: "rating", label: "Rating" },
@@ -277,14 +284,16 @@ export function filterChips(
   if (mon === "false") out.push({ key: "monitored", label: "Not monitored" });
   const av = get("availability");
   if (av) out.push({ key: "availability", label: availabilityFilters(o.seeFiles, o.kind).find((a) => a.id === av)?.label ?? AVAILABILITY.find((a) => a.id === av)?.label ?? av });
+  // Libraries, providers and copy states are file detail: no chip for them without "see files".
+  const files = o.seeFiles;
   const lib = (k: string) => o.names?.get(k) ?? k;
-  const w = get("with");
+  const w = files && get("with");
   if (w) out.push({ key: "with", label: `Has ${lib(w)}` });
-  const wo = get("without");
+  const wo = files && get("without");
   if (wo) out.push({ key: "without", label: `Lacks ${lib(wo)}` });
   const ql = get("quality");
   if (ql) out.push({ key: "quality", label: `Quality: ${o.quality?.(ql) || ql}` });
-  const pr = get("provider");
+  const pr = files && get("provider");
   if (pr) out.push({ key: "provider", label: `Provider: ${o.provider?.(pr) ?? pr}` });
   const from = get("year_from");
   const to = get("year_to");
@@ -296,7 +305,7 @@ export function filterChips(
     const rest = genres.filter((x) => x !== g).join(",");
     out.push({ key: "genre", label: g, next: rest || undefined });
   }
-  const st = get("state");
+  const st = files && get("state");
   if (st) out.push({ key: "state", label: `State: ${st}` });
   return out;
 }

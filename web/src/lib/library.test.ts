@@ -209,6 +209,14 @@ describe("a series with nothing aired yet", () => {
     const aired = { kind: "series" as const, versions: [{ coverage: { have: 0, total: 3, missing: 3, aired: 3, upcoming: 7 } }] };
     expect(label("missing", false, false, undefined, aired)).toBe("Missing");
     expect(label("missing", false, false, undefined, { kind: "series", versions: [...coming.versions, ...aired.versions] })).toBe("Missing");
+    // Empty coverage on a series that has aired (episodes not loaded yet) stays Missing: an old first air date, or a
+    // status that says it aired.
+    const loading = { kind: "series" as const, versions: [{ key: "tv", coverage: { have: 0, total: 0, aired: 0, upcoming: 0 } }] };
+    expect(label("missing", false, false, undefined, { ...loading, release_date: "2009-04-01", status: "Ended" })).toBe("Missing");
+    expect(label("missing", false, false, undefined, { ...loading, release_date: "2009-04-01" })).toBe("Missing");
+    expect(label("missing", false, false, undefined, { ...loading, status: "Returning Series" })).toBe("Missing");
+    expect(label("missing", false, false, undefined, { ...loading, release_date: "2099-01-01", status: "In Production" })).toBe("Upcoming");
+    expect(titleWatchWords({ ...loading, availability: "missing", release_date: "2009-04-01", status: "Ended" })?.label).toBe("Not available");
     // Without coverage (nothing known) it stays Missing.
     expect(label("missing", false, false, undefined, { kind: "series", versions: [{ key: "tv" }] })).toBe("Missing");
   });
@@ -236,6 +244,10 @@ describe("filter chips", () => {
       "Title: “dune”", "Not monitored", "Preferred quality not met", "Has 4K", "Lacks WEB", "Quality: WEBDL-2160p", "Provider: RD", "From 2019", "Drama", "Crime", "State: wanted",
     ]);
     expect(filterChips(new URLSearchParams("year_to=2024"), { seeFiles: true }).map((c) => c.label)).toEqual(["Up to 2024"]);
+    // Libraries, providers and copy states are file detail: no chip without see files.
+    expect(filterChips(p, { seeFiles: false, names }).map((c) => c.label)).toEqual([
+      "Title: “dune”", "Not monitored", "Preferred quality not met", "Quality: WEBDL-2160p", "From 2019", "Drama", "Crime",
+    ]);
     expect(filterChips(new URLSearchParams("availability=missing"), { seeFiles: false, kind: "movie" }).map((c) => c.label)).toEqual(["Not available"]);
   });
   it("removes one chip's value only", () => {
