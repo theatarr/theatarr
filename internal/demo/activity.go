@@ -11,11 +11,6 @@ import (
 	"github.com/theatarr/theatarr/internal/journal/snapshot"
 )
 
-func indexerLabel(k string) string {
-	return map[string]string{"dmm": "DMM", "torrentio": "Torrentio", "prowlarr-public": "Prowlarr (public)",
-		"zilean": "Zilean", "seadex": "SeaDex"}[k]
-}
-
 func (s *seeder) instances() []string {
 	if s.pol.Import == nil {
 		return nil

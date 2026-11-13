@@ -126,12 +126,8 @@ func (b *builder) checkName(e *Entry, ti *titleInfo) {
 		}
 	}
 	if best < 0.6 {
-		how := ""
-		if strings.EqualFold(e.f.matchType, "Id") {
-			how = "; the arr matched it by an id the indexer gave, not by name" // how mis-tagged releases get in
-		}
-		e.flag(CheckTitle, SevWarn, "the release names %q; closest title name %q (similarity %.2f)%s",
-			p.MovieTitles[0], bestName, best, how)
+		e.flag(CheckTitle, SevWarn, "the release names %q; closest title name %q (similarity %.2f)",
+			p.MovieTitles[0], bestName, best)
 	}
 	if p.Year > 0 && ti.t.Year > 0 && abs(p.Year-ti.t.Year) > 1 && p.Year != ti.t.SecondaryYear {
 		e.flag(CheckYear, SevWarn, "the release says %d; the title is from %d", p.Year, ti.t.Year)

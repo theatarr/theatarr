@@ -1,6 +1,6 @@
 // The library's copy-targeted bulk monitor (POST /titles/monitor, docs/design/ui.md "Library views"): a preview
-// (dry_run) first, then the apply with the preview's values as expect. It only sets monitored on existing copies;
-// followed copies come back read_only, and nothing is searched.
+// (dry_run) first, then the apply with the preview's values as expect. It only sets monitored on existing copies, and
+// nothing is searched.
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { api, type Schemas } from "./client";
 import { titleChanged } from "./query-keys";

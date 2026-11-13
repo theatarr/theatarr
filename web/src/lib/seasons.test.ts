@@ -118,7 +118,7 @@ describe("numbering", () => {
 describe("restrictions", () => {
   const ctl = (o: object) => ({ mode: "shadow", can_edit: true, can_search: true, live_releases: false, ...o }) as const;
   it("says each reason once and names the copies only when not all share it", () => {
-    const why = "sonarr_anime imports this version; change monitoring there until cutover";
+    const why = "Your account may not change this";
     expect(
       restrictions([
         { label: "4K", control: ctl({ can_edit: false, edit_reason: why, can_search: false, search_reason: "shadow mode" }) },

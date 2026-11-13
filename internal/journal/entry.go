@@ -262,8 +262,6 @@ type facts struct {
 	fileAudio     []string
 	failureCount  int
 	failuresAfter int
-	sizeEpisodes  int
-	matchType     string
 	importRejects []string // the guard's refusals (reason and episodes), not-upgrade skips left out
 	importLinked  bool     // the import made links (link rows), not only planned them
 	// importBlocklisted: the failed import blocklisted the release (its router_blocklist row, source library).

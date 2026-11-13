@@ -172,7 +172,7 @@ func (w *Web) fillCopies(ctx context.Context, db *sql.DB, items []TitleRow) erro
 	now := w.now()
 	clock := newAirClock(now)
 	var titleIDs []int64
-	var tids, vids, seriesIDs []any
+	var tids, seriesIDs []any
 	byID := map[int64]*VersionBrief{}
 	titleOf := map[int64]*TitleRow{}
 	for i := range items {
@@ -186,7 +186,6 @@ func (w *Web) fillCopies(ctx context.Context, db *sql.DB, items []TitleRow) erro
 		for j := range it.Versions {
 			v := &it.Versions[j]
 			byID[v.ID] = v
-			vids = append(vids, v.ID)
 		}
 	}
 	if len(items) == 0 {
