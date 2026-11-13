@@ -295,15 +295,23 @@ func (l *Library) apply(ctx context.Context, d *importDownload, vn *VersionNamin
 		// registry row (content_provider, else written only by the provider sync) shows that at once; a row the sync
 		// wrote stays as it is unless it was absent or unfinished. The next sync fills in or corrects the rest.
 		if contentID != 0 && len(linked) > 0 && l.pol.Providers[d.Provider] != nil {
-			if _, err := tx.ExecContext(ctx, `INSERT INTO content_provider (content_id, provider, torrent_id,
+			res, err := tx.ExecContext(ctx, `INSERT INTO content_provider (content_id, provider, torrent_id,
 				folder_name, seen_at, state, progress) VALUES (?, ?, NULLIF(?, ''), NULLIF(?, ''), ?, 'present', 100)
 				ON CONFLICT (content_id, provider) DO UPDATE SET state = 'present', progress = 100, absent_at = NULL,
 					seen_at = excluded.seen_at, torrent_id = COALESCE(excluded.torrent_id, content_provider.torrent_id),
 					folder_name = COALESCE(excluded.folder_name, content_provider.folder_name)
 				WHERE content_provider.state <> 'present' OR content_provider.progress IS NULL
 					OR content_provider.progress < 100`,
-				contentID, d.Provider, d.TorrentID, d.Name, now); err != nil {
+				contentID, d.Provider, d.TorrentID, d.Name, now)
+			if err != nil {
 				return err
+			}
+			// Held by a provider and linked: present, as the sync's recompute (nextState) would set it.
+			if n, _ := res.RowsAffected(); n > 0 {
+				if _, err := tx.ExecContext(ctx, `UPDATE content SET state = 'present' WHERE id = ? AND state <> 'present'`,
+					contentID); err != nil {
+					return err
+				}
 			}
 		}
 		for _, lk := range linked {

@@ -811,6 +811,9 @@ func TestImportProviderRowAndSync(t *testing.T) {
 	if got := e.one(`SELECT state FROM content_provider WHERE provider = 'rd'`); got != "absent" {
 		t.Fatalf("state after empty list %s", got)
 	}
+	if got := e.one(`SELECT state FROM content WHERE info_hash = ?`, hashA); got != "absent" {
+		t.Fatalf("content state after empty list %s", got)
+	}
 	e.now = e.now.Add(time.Hour)
 	e.exec(`UPDATE download SET state = 'ready' WHERE id = 1`)
 	if _, err := e.lib.Import(e.ctx, 1, false); err != nil {
@@ -822,5 +825,8 @@ func TestImportProviderRowAndSync(t *testing.T) {
 	}
 	if got := e.one(`SELECT absent_at IS NULL FROM content_provider WHERE provider = 'rd'`); got != "1" {
 		t.Errorf("absent_at kept")
+	}
+	if got := e.one(`SELECT state FROM content WHERE info_hash = ?`, hashA); got != "present" {
+		t.Errorf("content state after re-import %s", got)
 	}
 }
