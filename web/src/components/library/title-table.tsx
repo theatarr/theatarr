@@ -7,10 +7,11 @@
 // grid where the server can. Below the phone width the rows are cards: title and Status, the pills, then each chosen
 // column as a line. Without "See files" the file columns are not offered and Status reads today's watchability words,
 // headed Availability. Managers get Search now and Interactive search at the end of each row and card (RowActions).
-import { EyeOff, ListVideo, Loader2, Search, UserSearch } from "lucide-react";
+import { Download, EyeOff, ListVideo, Loader2, Search, UserSearch } from "lucide-react";
 import { useState, type ReactNode } from "react";
 import { Link } from "react-router";
 import { useSearchNow } from "@/api/add";
+import type { Schemas } from "@/api/client";
 import type { TitleRow } from "@/api/library";
 import { TitleThumb } from "@/components/poster-card";
 import { ProviderPills } from "@/components/provider-pills";
@@ -20,7 +21,7 @@ import { Button } from "@/components/ui/button";
 import { NO_LIVE_LIBRARY, searchOffWords } from "@/components/version-status";
 import { DataTable, type DataColumn } from "@/components/ui/data-table";
 import type { RowSelection } from "@/components/ui/row-select";
-import { copyBar, nextWords, titleAcquisition } from "@/lib/copies";
+import { activityHref, copyBar, nextWords, stageTone, stageWords, titleAcquisition } from "@/lib/copies";
 import { fmtAgo, fmtBytes, localDay } from "@/lib/format";
 import {
   columnSort,
@@ -41,6 +42,7 @@ import { LibraryPill } from "./library-pill";
 import { useEndReached } from "./poster-grid";
 
 type Version = NonNullable<TitleRow["versions"]>[number];
+type Acquisition = Schemas["Acquisition"];
 
 export type TableSort = { sort: string; sortVersion?: string; desc: boolean };
 
@@ -77,14 +79,25 @@ const cap = (s: string) => s.charAt(0).toUpperCase() + s.slice(1);
 /** The badge words of a title that already has a file somewhere. */
 const HELD: ReadonlySet<PosterStatus> = new Set(["available", "partly_available", "upgrade", "best_known", "some_episodes"]);
 
+/** A download's stage beside the badge word, short so the Status column stays narrow: the percent while downloading,
+ *  else a download icon; the stage's words are its tooltip and name. Linked to Activity, as StageLink. */
+function CompactStage({ a }: { a: Acquisition }) {
+  const words = stageWords(a);
+  return (
+    <Link to={activityHref(a.stage)} data-stage={a.stage} title={words} aria-label={words}
+      className={cn("inline-flex items-center text-[13px] font-medium tabular-nums hover:underline", stageTone(a.stage) === "warning" ? "text-[var(--warn-ink)]" : "text-[var(--accent-ink)]")}>
+      {a.stage === "downloading" && a.progress !== undefined ? `${Math.round(Math.max(0, Math.min(a.progress, 100)))}%` : <Download aria-hidden className="size-3.5" />}
+    </Link>
+  );
+}
+
 /** Status for an account that sees files: the poster badge's word (the day for Upcoming), and a download in hand's
- *  stage linked to Activity after it ("Partly available · Downloading 64%"); a title with no file yet shows the
- *  download's stage alone. */
+ *  short stage after it ("Partly available · 64%", CompactStage); a title with no file yet shows the download's stage
+ *  alone, in words. */
 function StatusCell({ t }: { t: TitleRow }) {
   const a = titleAcquisition(t);
   const s = posterStatus(t.availability, t.upgrade_seen, false, t.upgrade_state, t);
-  const stage = a ? <StageLink a={a.acquisition} className="text-[13px]" /> : null;
-  if (stage && !(s && HELD.has(s))) return stage;
+  if (a && !(s && HELD.has(s))) return <StageLink a={a.acquisition} className="text-[13px]" />;
   if (!s) return dash;
   const day = s === "upcoming" ? (upcomingRelease(t) ?? (notAiredYet(t) ? t.next_up?.date : undefined)) : undefined;
   const word = (
@@ -93,12 +106,12 @@ function StatusCell({ t }: { t: TitleRow }) {
       {day ? ` · ${fmtDay(day)}` : ""}
     </span>
   );
-  if (!stage) return word;
+  if (!a) return word;
   return (
     <span className="inline-flex min-w-0 items-baseline gap-1 whitespace-nowrap">
       {word}
       <span aria-hidden className="text-[var(--ink-3)]">·</span>
-      {stage}
+      <CompactStage a={a.acquisition} />
     </span>
   );
 }

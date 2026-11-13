@@ -112,9 +112,27 @@ describe("Library table", () => {
     await screen.findAllByText("Corvid Hour");
     const status = (name: string) => (screen.getByRole("link", { name }).closest("tr") as HTMLElement).querySelector("td[data-column=status]") as HTMLElement;
     expect(within(status("Corvid Hour")).getByTestId("status-cell").textContent).toBe("Partly available");
-    expect(within(status("Corvid Hour")).getByRole("link", { name: "Downloading · 64%" }).getAttribute("href")).toBe("/activity?show=downloading");
+    // The short stage: the percent, with the stage's words as name and tooltip, linked as before.
+    const stage = within(status("Corvid Hour")).getByRole("link", { name: "Downloading · 64%" });
+    expect([stage.textContent, stage.getAttribute("title"), stage.getAttribute("href")]).toEqual(["64%", "Downloading · 64%", "/activity?show=downloading"]);
     expect(within(status("Sundial")).queryByTestId("status-cell")).toBeNull();
     expect(status("Sundial").textContent).toBe("Downloading · 64%");
+  });
+
+  it("shows a download icon after the badge word for a stage without a percent", async () => {
+    const movie = { id: 6, kind: "movie", name: "Kestrel Nine", year: 2022, monitored: true, availability: "partial",
+      versions: [
+        { id: 61, key: "movie-4k", label: "4K", monitored: true, has_file: false, state: "wanted", control: managed,
+          acquisition: { stage: "queued", words: "Queued", download_id: 4, downloads: 1, updated_at: "2026-10-29T00:00:00Z" } },
+        { id: 62, key: "movie-web", label: "WEB", monitored: true, has_file: true, quality: "WEBDL-2160p", state: "cutoff_met", control: managed },
+      ] };
+    mockFetch(routes().map((r) => (r.path === "/titles" ? { ...r, reply: { items: [movie], total: 1, offset: 0 } } : r)));
+    renderPage(<Catalog id="movies" />, "/movies");
+    await screen.findAllByText("Kestrel Nine");
+    const cell = (screen.getByRole("link", { name: "Kestrel Nine" }).closest("tr") as HTMLElement).querySelector("td[data-column=status]") as HTMLElement;
+    const stage = within(cell).getByRole("link", { name: "Queued" });
+    expect([stage.textContent, stage.getAttribute("title"), !!stage.querySelector("svg")]).toEqual(["", "Queued", true]);
+    expect(within(cell).getByTestId("status-cell").textContent).toBe("Partly available");
   });
 
   it("uses the badge words for Status and a red pill for the missing library of a partly held movie", async () => {
