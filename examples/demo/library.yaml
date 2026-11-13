@@ -3,8 +3,8 @@
 # directory (docs/demo.md "Two copies"); internal/demo's tests keep it equal to the example's otherwise.
 #
 # Library: imports of ready downloads into the version roots, relinks and Plex scans (docs/design/library.md).
-# Off by default. With enabled: false nothing writes to any filesystem and nothing calls Plex; shadow versions only
-# record what they would link. A version writes only when it is mode: active, listed below, and only under its roots.
+# Off by default; with database settings enabled follows Pause. With enabled: false nothing writes to any filesystem
+# and nothing calls Plex. A version writes only when it is Live (mode: active), listed below, and only under its roots.
 library:
   enabled: false
   mount:

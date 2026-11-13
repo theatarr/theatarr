@@ -10,7 +10,7 @@ episode title checks are made before download ([below](#arr-rules-propers-seeder
 Search callers establish a request-scoped parse memo, shared across versions and search criteria. Movie release
 parses and each Sonarr dialect's title/season-title parses are cached separately, including failed parses. Every
 caller receives an independent copy of slices, nested title info and optional values, so manual overrides and
-episode mapping cannot change another decision. Shadow grabs and each RSS item use the same scoped mechanism;
+episode mapping cannot change another decision. Each RSS item uses the same scoped mechanism;
 there is no global cache. `BenchmarkSearchParse` reads 300 releases from a scratch SQLite database under `/tmp`
 and models three versions with two criteria each.
 

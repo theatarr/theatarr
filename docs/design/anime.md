@@ -177,7 +177,7 @@ version's naming for the new episodes, the gated compare-and-swap rename, the li
 the download's recorded file identity (with the resolver's `how`, not `manual`), and the Plex scans of both folders.
 Nothing is replaced, so nothing goes to the trash. Each move is recorded in `library_action` (kind `link`, with the
 download, detail `relinked after review: S00E26 → S01E12`), which the journal lists as a link entry related to the
-download's decision. Writes need the gate: for a version it refuses (library off, a followed or shadow version) the
+download's decision. Writes need the gate: for a version it refuses (Pause on, or a Watch-only version) the
 job records the same action as `dry_run` (the reason appended) and changes nothing; a root that does not answer
 retries the job. Passes repeat while a move succeeds, so a shifted range (E01-E03 to E02-E04) frees its own targets
 in turn. A target episode that still has another file afterwards (Theatarr's link or the arr's; a swap), or a new name

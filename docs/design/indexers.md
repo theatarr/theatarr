@@ -183,7 +183,7 @@ engine rejects anyway as unable to parse, unknown film or unknown series. A tier
 empty, so the title search runs as after an empty id search, and an id answer with a related row makes no extra
 request. Rows of keyword requests are never checked. Each `search` log line counts the dropped rows as `unrelated=N`;
 the UI does not show them. RSS, Torrentio, Zilean, SeaDex and the command-line tools (`theatarr search`,
-`theatarr decide`), preflight, the indexer test and the Watch-only comparison search set no check and are not
+`theatarr decide`), preflight and the indexer test set no check and are not
 filtered. A single-tier id search (a plain series query, an id-only scene mapping) only drops its padding; it gets no
 title tier.
 

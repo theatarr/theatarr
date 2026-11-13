@@ -416,7 +416,7 @@ formats are calculated from the link's frozen inputs (`file_metadata`) exactly a
 (`decide.Engine.FileCutoffNotMet`), so a version is pursued for a format upgrade exactly when a release could upgrade
 it (the quality alone would stop RSS and the cutoff sweep at every import at the cutoff quality). Radarr's and Sonarr's Wanted → Cutoff Unmet list is quality-only; Theatarr's `filled` also covers files below the
 format cutoff, as their RSS upgrade check does. Series files update each linked episode and the version summary;
-shadow versions keep their arr-owned state. Partial imports update only linked files and never lower an existing
+Watch-only versions keep their state. Partial imports update only linked files and never lower an existing
 state. Moving or unlinking a file returns its version or episodes to `wanted` only when no active link or arr file
 remains for them.
 
@@ -784,7 +784,7 @@ folder and, without manual files, only the files under the path. A path anywhere
     same target elsewhere (the rename), or the row at the path unlinked with the same target (the stray), in both
     cases a row that changed after the symlink was made, so a rename still in flight (its new symlink is newer) is
     left. A symlink put back from the trash by hand (its recorded trash copy, not purged, is gone; `mv` keeps the
-    copy's older mtime) is kept (`TestRestoredFromTrashMovedAsideAgain`); its row stays `unlinked`. Only versions Theatarr may write to are checked, never a followed arr root; only symlinks into the mount, never a
+    copy's older mtime) is kept (`TestRestoredFromTrashMovedAsideAgain`); its row stays `unlinked`. Only versions Theatarr may write to are checked, never an arr root; only symlinks into the mount, never a
     regular file or the mount (`TestRelinkMovesAsideCrashLeftovers`).
 - Following zurg's log (`internal/library/zurglog*.go`): when `library.mount.zurg_log` is set, `theatarr serve` relinks
   as soon as zurg logs a folder rename (its two rename lines), batching a burst for 10 s and folding chains

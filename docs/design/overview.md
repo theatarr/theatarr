@@ -41,8 +41,8 @@ flowchart LR
   prov --> mount["Debrid mount<br/>(zurg, rclone)"]
   mount --> lib["Library import<br/>probe, link, rename"]
   lib --> plex["Plex scan"]
-  rt -. "shadow / dry-run" .-> rec["Recorded plan only"]
-  lib -. "library.enabled off" .-> rec
+  rt -. "Watch only / Pause" .-> rec["Recorded plan only"]
+  lib -. "Pause" .-> rec
 ```
 
 1. **Add.** A request through a view (`POST movie`, `POST series`), the UI, or an import list goes through the one
@@ -80,7 +80,7 @@ flowchart LR
    each episode into the version's root with its naming, and records the content and its links.
 6. Plex scans those folders. Seerr sees progress through the view's `queue` and availability through Plex.
 
-In shadow, or with `router.enabled` off, the same request stops after step 4 with a recorded plan.
+For a Watch-only library, or with Pause on, the same request stops after step 4 with a recorded plan.
 
 Around the pipeline:
 

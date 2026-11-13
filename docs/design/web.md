@@ -191,7 +191,7 @@ Code: `internal/web/setup.go`, `internal/preflight`, `cmd/theatarr/preflight.go`
   The form has two buttons: **Create library and start downloading** sends `POST /setup/start`
   (the preset in the same request, no separate profile save) and shows the 422's effects in the settings
   confirmation dialog before sending the token; it is disabled, with the reason, unless one of the picked providers
-  and one of the picked indexers is ready and the mount and the trash folder are set. **Create in shadow (decide later)** is the flow above with the same request. A
+  and one of the picked indexers is ready and the mount and the trash folder are set. **Create as Watch only (decide later)** is the flow above with the same request. A
   non-empty `forced_off` is shown after the library is created.
   `GET /setup` also carries `last_preflight`, the summary of the latest `POST /preflight` (time, settings generation,
   whether the source tests ran, counts), kept in memory until a restart. Readiness counts the latest run in the

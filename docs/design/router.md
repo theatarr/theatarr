@@ -1366,8 +1366,7 @@ serving the version wins over its imported arr setting; without one, the default
 |---|---|---|
 | Arr view search commands and an add's search option | **active only** | `Router.Enqueue` per search, through `internal/acquire` |
 | The wanted search loop | **active only** | `Router.Enqueue` per search, through `internal/acquire` |
-| Shadow RSS read, items of active versions | **active only** | `Router.Enqueue` per title and version, its items ranked |
-| Shadow grab decisions and shadow RSS picks | **shadow only** | `Router.Route`, which for a shadow version only records a dry-run plan |
+| RSS read, items of active versions | **active only** | `Router.Enqueue` per title and version, its items ranked |
 
 **The acquirer (`internal/acquire`).**
 - A search group is one root `acquire_run`, one `acquire.search` job, and a row for every version-target it serves.
@@ -1559,10 +1558,8 @@ shadow picks:
   (`TestRSSSeenPerPolicyRevision`).
 
 **Proof (tests).** The fake adders (`internal/router/routertest`) log every call.
-- `TestShadowPlansNeverWrite` (shadow): plans for every grab and pick, zero adds, no download, no route job, with the
-  switch on.
-- `TestActiveRSSRoutes` (shadow): movie-web active, movie-remux shadow. The active picks are added, there are no
-  downloads for the shadow version, and its pick has a plan.
+- `TestActiveRSSRoutes` (`internal/acquire/rss`): movie-web active, movie-remux shadow. The active picks are added,
+  and there are no downloads for the shadow version.
 - `TestSearchCommandsShadowNeverWrite` (arrview): every search command and the add option on shadow views. No search,
   no run, zero writes.
 - `TestSearchCommandActiveVersion` (arrview): searches and adds for the active versions only, and the command status
