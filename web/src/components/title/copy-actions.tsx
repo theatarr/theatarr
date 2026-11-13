@@ -15,8 +15,12 @@ import { removalLinks, removalScope, unlinkable, unlinkScope } from "@/lib/ops";
 
 /** The removal confirmation: the server's scope for versions (none: the whole title), with the unlink choice. */
 export function RemoveDialog({ titleId, versions, onClose }: { titleId: number; versions?: string[]; onClose: () => void }) {
-  const q = useRemovalScope(titleId, versions, true);
   const remove = useRemove(titleId);
+  // The scope the dialog was opened with stays: once the removal runs, the title's refresh must not read it again
+  // (it would describe what is left, or fail when nothing is).
+  // Set in the confirm click itself (a discrete event renders before the request answers), so no refresh refetches it.
+  const [started, setStarted] = useState(false);
+  const q = useRemovalScope(titleId, versions, !started);
   const [unlink, setUnlink] = useState(false);
   if (!q.data) {
     return (
@@ -44,15 +48,15 @@ export function RemoveDialog({ titleId, versions, onClose }: { titleId: number; 
       error={remove.error}
       done={done}
       onClose={onClose}
-      onConfirm={() =>
+      onConfirm={() => {
+        setStarted(true);
         remove.mutate({
           // A removal asked for named libraries (a row, a leftover line) stays scoped to them even when they are the
-          // title's last: an empty list would be the whole title, and would also unlink links kept from a library
-          // removed earlier.
-          versions: versions?.length ? versions : s.title ? [] : [...s.copies, ...(s.leftover ?? [])].map((c) => c.key),
+          // title's last; none (the action bar) is the whole title, with the links of libraries removed earlier.
+          versions: versions ?? [],
           unlink: unlink || leftoverOnly,
-        })
-      }
+        });
+      }}
       testid="remove-dialog"
     >
       {links > 0 && !r && !leftoverOnly ? (
@@ -66,9 +70,8 @@ export function RemoveDialog({ titleId, versions, onClose }: { titleId: number; 
 
 /** Unlink the library's files one by one, and Remove from this library: the library row's Details. onRemove opens the
  *  removal dialog outside the row (the Libraries table), so its result stays on screen after the row goes. */
-export function CopyActions({ v, label, onRemove }: { v: Version; label: string; onRemove?: () => void }) {
+export function CopyActions({ v, label, onRemove }: { v: Version; label: string; onRemove: () => void }) {
   const titleId = v.title_id ?? 0;
-  const [open, setOpen] = useState(false);
   const [path, setPath] = useState<{ id: number; path: string } | null>(null);
   const unlink = useUnlink(titleId);
   const links = unlinkable(v.links);
@@ -90,10 +93,9 @@ export function CopyActions({ v, label, onRemove }: { v: Version; label: string;
           </ul>
         </div>
       ) : null}
-      <Button size="xs" variant="outline" onClick={() => (onRemove ? onRemove() : setOpen(true))} data-testid={`copy-remove-${v.key}`}>
+      <Button size="xs" variant="outline" onClick={onRemove} data-testid={`copy-remove-${v.key}`}>
         <Trash2 /> Remove from this library
       </Button>
-      {open ? <RemoveDialog titleId={titleId} versions={[v.key]} onClose={() => setOpen(false)} /> : null}
       {path ? (
         <ConfirmDialog
           scope={unlinkScope(path.path, label)}

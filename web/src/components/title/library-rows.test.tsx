@@ -122,9 +122,17 @@ describe("row details", () => {
 describe("fix round 1", () => {
   it("keeps a row removal scoped to its library when it is the title's last, and keeps the result after the row goes", async () => {
     const links = [{ id: 9, kind: "symlink", state: "active", path: "/media/remux/Alpha/a.mkv" }];
+    let removed = false;
     const fetch = manager([
-      { method: "GET", path: "/titles/7/removal", reply: { title_id: 7, name: "Alpha", title: true, copies: [{ key: "movie-web", label: "WEB", links: 1, downloads: 0 }], leftover: [] } },
-      { method: "POST", path: "/titles/7/remove", reply: { message: "Alpha was removed from WEB.", kept: [{ path: "/media/movies/Alpha/a.mkv", reason: "unlink refused" }] } },
+      // Before the removal the scope is the library; afterwards the server has nothing to scope (400).
+      { method: "GET", path: "/titles/7/removal", reply: () => removed
+        ? json({ error: "the title has no copy \"movie-web\"" }, 400)
+        : { title_id: 7, name: "Alpha", title: true, copies: [{ key: "movie-web", label: "WEB", links: 1, downloads: 0 }], leftover: [] } },
+      { method: "POST", path: "/titles/7/remove", reply: () => {
+        removed = true;
+        return { message: "Alpha was removed from WEB.", kept: [{ path: "/media/movies/Alpha/a.mkv", reason: "unlink refused" }] };
+      } },
+      { method: "GET", path: "/titles/7", reply: {} },
     ]);
     const user = userEvent.setup();
     let setVersions: (v: object[]) => void = () => {};
@@ -144,6 +152,11 @@ describe("fix round 1", () => {
     // The title data comes back without the row: the result stays until dismissed.
     act(() => setVersions([{ ...web, removed: true }, { ...remux, removed: true, links }]));
     expect(screen.queryAllByTestId("library-row")).toHaveLength(0);
+    expect(screen.getByTestId("confirm-done").textContent).toContain("unlink refused");
+    // The scope is not read again after the removal: the dialog keeps its heading and result.
+    await new Promise((r) => setTimeout(r, 50));
+    expect(fetch.calls("GET", "/titles/7/removal")).toHaveLength(1);
+    expect(within(screen.getByTestId("remove-dialog")).getByRole("heading").textContent).toBe("Remove Alpha");
     expect(screen.getByTestId("confirm-done").textContent).toContain("unlink refused");
   });
 

@@ -98,7 +98,7 @@ function cellOf(id: LibraryColumn, v: Version, kind: Kind, upcoming: string | un
     case "score":
       // A score without its formats (files kept from a former Sonarr/Radarr, adopted links) stays blank, as Formats does.
       return held && c?.score != null && c.formats?.length ? (
-        <span className="tabular-nums" title={c.formats?.length ? c.formats.map((f) => `${f.name} ${f.score >= 0 ? "+" : ""}${fmtNumber(f.score)}`).join(", ") : undefined}>{fmtNumber(c.score)}</span>
+        <span className="tabular-nums" title={c.formats.map((f) => `${f.name} ${f.score >= 0 ? "+" : ""}${fmtNumber(f.score)}`).join(", ")}>{fmtNumber(c.score)}</span>
       ) : blank;
     case "size":
       return held && c?.size_bytes ? <span className="whitespace-nowrap tabular-nums">{fmtBytes(c.size_bytes)}</span> : blank;
