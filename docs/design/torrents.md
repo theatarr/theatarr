@@ -48,12 +48,17 @@ torrents:
 `GET /torrents/report`, `theatarr torrents report [-json] [-group G]`. Per provider: every torrent with its id, hash,
 name, size, added date, status, selected file count (`-1` when the list gives none and the registry has no files),
 linked file count (library and scanned links), usage with references or reasons, and whether Theatarr's router added
-it (a Theatarr download with this provider id that did not reuse an existing torrent). Groups:
+it (a Theatarr download with this provider id that did not reuse an existing torrent). Each reference of a library
+link, arr file or download names its title (`title_id`, `title`); `titles` lists the distinct titles of all the
+references, also those past the listed 20, read with the references themselves (no extra query). Groups:
 
 - **unused**;
 - **duplicate hash**: the same hash twice on one account or on several accounts;
 - **duplicate title**: the same parsed title and episode (Sonarr's parser) or title and year (Radarr's) across
-  different hashes, with each one's quality;
+  different hashes, with each one's quality. A film whose year the series parser reads as its episode
+  ("The.Dark.Knight.Rises.2012" as S20E12, "Gladiator.2000" as absolute episode 2000) is parsed as the film: when the
+  series result is nothing but the movie parser's year (1900 to next year) under the same title, and the name has no
+  explicit series marker (`S01`, `S01E02`, `1x02`, "season", a daily date) and does not start with a `[Group]` tag;
 - **failed** (the provider's error states), **stalled** (queued or downloading for over a day), **largest** (25).
 
 An account that cannot be listed is reported with its error; its torrents are not guessed.
@@ -253,8 +258,11 @@ uncached add, its own stalled RD add) there is `DeleteUserChosen`, which takes a
 
 Admin › Torrents: a strip per provider (torrents, of the limit on AllDebrid, size, unused), provider tabs, group filters (unused, duplicate
 hash, duplicate title, failed, stalled, largest), a name or hash filter (every word in the name or parsed title, in
-any order, or the text as a hash prefix), sort by size, age or name, a usage column
-whose references show on hover and expand on click, multi-select and **Delete selected**: the preview opens a
+any order, or the text as a hash prefix; `?q=` in the address fills it, so other pages link to one torrent: a title's
+**Torrent** link sends the hash's first 12), sort by size, age or name, under "All providers" a **Provider** column
+with the account's tag (RD, AD, TB, as **Cached on** shows it; the account key as tooltip), a usage column whose
+references show on hover and expand on click (the expanded references link their titles to the title page), one
+table at every width, multi-select and **Delete selected**: the preview opens a
 confirmation with the count, size, the backup it takes first and the shared-account warning; refused torrents are
 listed with why, and used or unknown ones with a checkbox naming their references to override. **Saved inventory** (`/admin/torrents/inventory`) shows known hashes and provider holdings.
 The torrent journal remains below the provider list. **System › Backup** holds torrent-list backups: **Back up

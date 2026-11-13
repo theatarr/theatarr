@@ -289,7 +289,9 @@ See [quickstart](../quickstart.md#readiness-led-setup) for the completion rules;
   Added and Last search. Quality is the technical name ("WEBDL-2160p"). Score shows only with the matched formats
   (its tooltip): a file Theatarr adopted stores none, and then Score and Formats are both blank. **Cached on** has a
   pill per debrid provider that holds the file complete now (RD, AD, TB), adopted files included (found through the
-  hash their link records), "—" when none does. A fact the file does not have is blank, never 0.
+  hash their link records), "—" when none does. For admins a small **Torrent** link beside it (and beside the hash in
+  Details) opens Admin › Torrents filtered to the file's torrent (`?q=` the hash's first 12) when the row has one file
+  with a known hash; a series row of several files has none (the episode window has it per episode). A fact the file does not have is blank, never 0.
   **Status:** a download in hand and no file reads its stage ("Downloading · 37%", "Waiting for mount", "Blocked"),
   linked to Activity; a movie without a file "Not monitored", "Upcoming · Jan 14" (not out at home yet, the posters'
   rule) or "Missing"; a held movie the upgrade badge, with Why? unless it is plainly Available without a manual ceiling (Available, Upgrade found, Best quality known), with
@@ -425,7 +427,8 @@ See [quickstart](../quickstart.md#readiness-led-setup) for the completion rules;
     (`?episode=<id>`): number, name, air date, runtime; then three tabs. **Details**: per library its state in the
     upgrade vocabulary, monitor switch and Search now (managers), Interactive search for that episode in that library
     (managers, a library that searches live), the download in hand, the upgrade block with Why?, and the file's facts
-    (release, quality, score, size, group, **Cached on**, languages, media, added, path), shown openly. **History**:
+    (release, quality, score, size, group, **Cached on** with the admins' **Torrent** link, languages, media, added,
+    path), shown openly. **History**:
     each library's history with the episode's journal entries. **Last search**: the stored decision for the episode,
     read-only.
   - **Family accounts** (no "see files"): one availability column across libraries at every width (an episode is
@@ -603,7 +606,7 @@ column (no list projection of media facts).
 | System › Errors | `/admin/system/errors` | Existing error inbox and its actions. |
 | System › Logs | `/admin/system/logs` | Existing log viewer and filters. |
 | Reviews | `/admin/reviews` | Waiting cards for Anime mappings (`/anime`, franchise detail `/:slug`, with alternate cuts and episode numbering), Indexer definitions (`/indexers`) and Flagged decisions (`/decisions`). These suffixes are under `/admin/reviews`; the old `/admin/reviews/quality` opens the Waiting tab (TRaSH and Recyclarr updates apply by themselves, Settings › Quality sync logs them). Counts poll every 60 seconds for admins; catalog off returns an empty holds list (HTTP 200). Pending counts show Loading and failed counts show unavailable. Journal has no total: a full page or next_cursor marks a lower bound (`50+`, `1+`, or `?` when no matches were found in the scan). Waiting and Status never give an all-clear for unknown counts; Status names failed review sources. An empty scanned window says “None in the newest entries.” and links to all flagged decisions. Definition reviews show loading, errors, or “No definition updates waiting.”. Flagged rows link to the journal verdict controls. Wrong blocks and searches again only with new downloads on, an active library and a known release; otherwise it records the verdict. |
-| Torrents | `/admin/torrents` | Provider torrents: usage, filters, sorting, confirmed deletes and journal. An account that cannot be read gets one line: the provider's name, why in plain words (the provider asked to slow down, paused after failed requests, request limit used up, VPN not confirmed) and the next try in local time, with the raw error under Details. Saved inventory (`/inventory`, detail `/:hash`) shows known hashes and provider holdings. Backups live in System › Backup. |
+| Torrents | `/admin/torrents` | Provider torrents: usage, filters (`?q=` fills the name or hash filter), sorting, a Provider column with the RD/AD/TB tag under All providers, the references' titles linked, confirmed deletes and journal. An account that cannot be read gets one line: the provider's name, why in plain words (the provider asked to slow down, paused after failed requests, request limit used up, VPN not confirmed) and the next try in local time, with the raw error under Details. Saved inventory (`/inventory`, detail `/:hash`) shows known hashes and provider holdings. Backups live in System › Backup. |
 | Settings | `/admin/settings` | Search and task pages below. |
 | Users & access | `/admin/users` | Users, roles, permissions, sessions and API/view keys. |
 | Advanced | `/admin/advanced` | Exactly YAML settings, Settings history and Request limits. The old `/admin/advanced/arr` pages redirect to Admin › Import from Sonarr/Radarr (`/admin/arr-import`). |
