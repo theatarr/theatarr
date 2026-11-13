@@ -3,7 +3,7 @@
 // acquisition stage. The table's columns live in lib/index-columns.ts; the poster options and the preferences moved to
 // lib/poster-options.ts and lib/prefs.ts and are re-exported here.
 import type { Schemas } from "@/api/client";
-import { fmtDay, stateWords } from "@/lib/library";
+import { fmtDay } from "@/lib/library";
 
 type VersionBrief = Schemas["VersionBrief"];
 type Acquisition = Schemas["Acquisition"];
@@ -224,14 +224,6 @@ export function nextWords(n: { date: string; season?: number; number?: number; t
   }
   const t = n.type ? `${n.type.charAt(0).toUpperCase()}${n.type.slice(1)} release` : "Release";
   return `${t} · ${day}`;
-}
-
-/** A movie copy's headline: its state in words (lib/library.ts stateWords). upcoming: the movie's release day when it
- * is not released yet (upcomingRelease), so a copy without a file reads "Upcoming · Jan 14" instead of Missing. A
- * series copy's headline is the index's (lib/library-status.ts copyWords and copyTone). */
-export function copyStatus(v: VersionBrief, kind: string | undefined, plain: boolean, upcoming?: string): { label: string; tone: "positive" | "warning" | "negative" | "neutral" } {
-  if (kind === "movie" && upcoming && v.state === "wanted" && !v.has_file) return { label: `Upcoming · ${fmtDay(upcoming)}`, tone: "neutral" };
-  return stateWords(v.state, v.has_file, plain);
 }
 
 /** A copy's bar in one season: episodes held of those aired (or of all, before any airs), with the part in flight. */

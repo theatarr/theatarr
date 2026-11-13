@@ -5,7 +5,6 @@ import {
   chipWords,
   copyBar,
   copyColumns,
-  copyStatus,
   defaultDesc,
   distinctLabels,
   moveColumn,
@@ -122,13 +121,6 @@ describe("copy bars", () => {
     expect(copyBar({ has_file: true }, "movie")).toMatchObject({ have: 1, flight: 0, count: "1/1" });
     expect(copyBar({ has_file: false, acquisition: acq("downloading") }, "movie")).toMatchObject({ have: 0, flight: 1, count: "0/1" });
     expect(copyBar({ has_file: true, acquisition: acq("downloading", { upgrade: true }) }, "movie").label).toBe("Linked, upgrade in progress");
-  });
-
-  it("heads a copy cell", () => {
-    expect(copyStatus({ state: "cutoff_met", has_file: true }, "movie", false).label).toBe("Available");
-    // A wanted movie not released yet reads Upcoming with its date, not Missing.
-    expect(copyStatus({ state: "wanted", has_file: false }, "movie", false, "2026-12-01").label).toMatch(/^Upcoming · /);
-    expect(copyStatus({ state: "cutoff_met", has_file: true }, "movie", false, "2026-12-01").label).toBe("Available");
   });
 });
 
