@@ -94,9 +94,8 @@ queued or running job refers to, and a run whose children are kept; router plans
 refers to; the current settings generation's audit rows; pending shadow grabs and open RSS picks.
 
 Not pruned, by design: `router_offer` (one row per version, title and release; deleting one re-offers that release
-at the next sweep), `notify_event` (the once-only memory of scanned events), `arr_history` (a mirror of the arrs'
-own history that decisions read), and imported downloads (offer sources, and the journal keeps routed decisions by
-them). `import_run`, `shadow_run`, `journal_decision` and finished jobs keep their own pruning in the nightly job. A
+at the next sweep), `notify_event` (the once-only memory of scanned events), and imported downloads (offer sources, and the journal keeps routed decisions by
+them). `shadow_run`, `journal_decision` and finished jobs keep their own pruning in the nightly job. A
 journal decision older than 180 days whose only download was a pruned failed one is deleted instead of trimmed.
 `TestRetentionCoversEveryTable` checks that every table the migrations create is pruned by a rule, goes
 with a pruned row (`ON DELETE CASCADE`), or is listed in `keptByDesign` with its reason (configuration, catalog and

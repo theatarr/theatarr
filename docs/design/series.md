@@ -11,7 +11,8 @@ releases as Sonarr does, and RSS reads series feeds for Live libraries. Where th
 The one-time import (Admin › Import from Sonarr/Radarr, `internal/arrimport`) reads a Sonarr's series, episodes and
 episode files (GET only) and adds them to a library through the normal add and link paths
 ([migration.md](../migration.md)). The periodic import that kept `arr_title`, `version_file` and `arr_alias` rows in
-step with a Sonarr is gone; the `version_file` rows it left stay as the library's files.
+step with a Sonarr is gone, and migration 00125 dropped its tables; the `version_file` rows it left stay as the
+library's files.
 
 ### Series type
 

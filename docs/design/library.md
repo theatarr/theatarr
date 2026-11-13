@@ -896,6 +896,19 @@ not answer stops it before anything under it is read (`library.ErrRootDown`, `Te
 overlap with the library's own episodes preserves its files and skips the whole source pack, counted under
 `missing_episodes` and `partial_packs`.
 
+## Removing a library
+
+Every save that removes a library record (Stop managing library, a settings import or restore without it) deletes
+the library's rows in the same transaction (`internal/settings/libraryrows.go`), after the confirmation in
+[settings.md](settings.md) "Confirmation on every path". In order: links of its downloads lose the download (a link
+can serve two libraries), the links it alone holds go, then its versions with what cascades from them (downloads,
+decisions, episode states, file records, wanted and ceiling state), its offers (as target or source), wanted search
+rows, view tags and its own view rows (`arrview_title` `v/<key>`). The episode and title monitoring of its titles is
+recomputed from the remaining libraries (monitored in any of them), and movie collections drop the key. Files on
+disk, mount content, `link_trash` entries and downloads at the provider are not touched; a title left with no
+library stays as an unmonitored title. Migration 00125 did the same once for libraries already gone from the stored
+settings. There is no start-up prune of unknown libraries: it could delete everything if the settings loaded empty.
+
 ## Commands
 
 Manual rename applies only to theatarr-owned links: the new symlink is written under its version root, the link row is
@@ -921,7 +934,7 @@ or database.
 ## Migration 00015
 
 `library_import` (the library's progress per download), `library_action` (every action: applied, dry run, refused,
-failed), `link_trash`, `library_naming`. The `download` table is the router's (00014); the library sets only
+failed), `link_trash`, `library_naming` (dropped by 00125). The `download` table is the router's (00014); the library sets only
 `importing`, `imported`, `failed`, `error` and `imported_at`.
 
 Migration 00038 adds `link.file_metadata` and `download.release_data`. Existing links are backfilled from their

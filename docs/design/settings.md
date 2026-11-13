@@ -303,7 +303,7 @@ name) or with another scheme or host is refused, so a stored URL never moves to 
 parameters in configured URLs by the same name rule (`secrets.CredentialQueryName`): put them in the `*_env` fields.
 
 **Confirmations.** A save answers 422 with effects and a token (the shared dialog) only when it makes a library Live
-(or creates one Live), turns Pause off, removes a library that has links, changes a provider's or indexer's address
+(or creates one Live), turns Pause off, removes a library, changes a provider's or indexer's address
 while it keeps its stored key, or maps an arr import into a Live library. Every other change, other addresses, folders, the VPN guard, `router.cached_only`, profiles, formats,
 naming, indexers, providers, views, notifications and credential names included, saves at once after validation.
 Validation itself is unchanged (`TestEverydayLiveEditsSaveDirectly`, `TestKeptConfirmations`).
@@ -882,11 +882,11 @@ refuse a settings save. A refused save shows each field's message beside Root an
 reported as that alone, not also as a library folder "under none of the roots". The view editor
 (Connected apps) picks libraries and profile members as checkboxes, so there is no typed list to normalize.
 
-Creating a library Live, Watch only to Live, turning downloads on for a Live library and removing a library with
-links require review of effects naming
+Creating a library Live, Watch only to Live, turning downloads on for a Live library and removing a library
+require review of effects naming
 roots, providers and current global gates (the full list is under "Confirmation on every path"). Every other version
 change, a Live library's root, providers, profile, indexers, upgrades, naming and storage included, saves at once
-after validation; so do view-binding changes. Removing a library only stops management. Tokens expire after ten
+after validation; so do view-binding changes. Removing a library removes its rows (see below). Tokens expire after ten
 minutes, are one-use and bind the next generation, candidate revision and effects, and the signed-in user or API key
 they were issued to (another user's attempt neither uses nor uses up the token; a commit that fails restores it for
 the same user only); saves recheck managed links in the transaction. Imports use the same flow; ordinary save, direct
@@ -901,7 +901,10 @@ the stored head, on record, quality and version saves, secret saves, import appl
 - a library created Live, or going from Watch only to Live ("Library X becomes Live: it searches, downloads to P and
   writes links under R.", with "Pause is on, so nothing starts until you turn it off." while paused);
 - turning Pause off ("Global switches" above);
-- removing a library that has managed links ("stops being managed … nothing is removed");
+- removing a library, always ("Library K is removed with its entries on every title (monitoring, wanted state,
+  history). N linked files stay on disk and are no longer tracked. M downloads in progress stay at the provider and
+  are no longer tracked.", the last two sentences only when not zero). The save that removes it deletes its rows in
+  the same transaction ([library.md](library.md) "Removing a library");
 - a provider or indexer, enabled or not and whatever versions use it, whose address (`settings.SourceAddress`:
   kind, url scheme, host and port, proxy scheme/host/port, a cardigann `definition` or `hosts`) changes while it
   keeps its credential

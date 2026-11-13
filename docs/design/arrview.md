@@ -216,10 +216,11 @@ marker, makes existing movies due for refresh and clears the RSS seen cache.
 Theatarr owns a movie's minimum availability, one rule per library (`availability.Rules`, by version). In order:
 
 1. **Choice**: the newest `arrview_title` row with a value (by `updated_at`, then view key) whose view is the
-   library's own (`v/<key>`) or a configured view that holds the library today.
-2. **Imported**: the owning arr's value (`arr_title`); without an owner,
-   the first other arr record's, by instance name.
-3. **Default**: the library's `minimum_availability` setting (`announced`, `inCinemas` or `released`; movie libraries
+   library's own (`v/<key>`) or a configured view that holds the library today. A value an arr import set (the
+   owning arr's record, else the first other one by instance name) was copied to the library's own row with
+   `updated_at` 0 by migration 00125 (00121 for former followers), so it ranks behind any later choice; a value equal
+   to the library's default needs no row.
+2. **Default**: the library's `minimum_availability` setting (`announced`, `inCinemas` or `released`; movie libraries
    only, left out of the stored settings when unset), else `released`.
 
 The rule also carries the library's `availability_delay` (days, negative for earlier, unset is 0), applied as Radarr's

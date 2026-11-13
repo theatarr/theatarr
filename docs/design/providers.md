@@ -196,7 +196,7 @@ recheck empty fields in SQL so a stale preload never replaces another writer's n
 |---|---|
 | `content` | `state` gains `absent` and `unreferenced`. SQLite can't change a CHECK in place, so the table is rebuilt with foreign keys off (the migration is `NO TRANSACTION` with its own `BEGIN ... COMMIT`; with keys on, dropping `content` would cascade). A test seeds rows at version 3, migrates, and checks that `content_version`, `content_provider` and `content_file` survive, plus down and up again |
 | `content_provider` | New columns `state` (`present`/`absent`), `status` (raw), `progress`, `size_bytes`, `links` (count), `duplicates`, `added_at`, `absent_at`. `torrent_id` and `folder_name` (the torrent name) are filled. `seen_at` is when the current presence started |
-| `provider_sync_run` | One row per provider per run: `ok`, `error`, and the JSON summary. The `import_run` counterpart |
+| `provider_sync_run` | One row per provider per run: `ok`, `error`, and the JSON summary |
 
 **Content states:**
 

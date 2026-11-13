@@ -245,12 +245,17 @@ uses a backup set ([restore.md](restore.md)); it cannot undo provider adds or fi
 ### Stopping or removing a library
 
 With DB settings, edit mode, root and view bindings in **Admin › Settings › Libraries**. Watch only stops new work;
-removing a library with links requires the specific confirmation shown there.
-Removal only stops management: operational link rows, filesystem links, mount content and trash remain intact.
+**Stop managing library** removes the library after a confirmation that names what it leaves behind.
 
-Set K to `mode: shadow` (Theatarr stops searching, adding and linking for it; its links stay and Plex keeps showing them)
-or remove K from `versions` and `library.versions` (its links stay on disk until removed by hand; the Plex sections
-can be deleted). Nothing to undo on the arr side.
+Set K to Watch only (Theatarr stops searching, adding and linking for it; its links stay and Plex keeps showing them)
+or remove it: its entries on every title go (versions, monitoring, wanted state, downloads, the link rows it alone
+holds, its own view rows), while its symlinks stay on disk, untracked, until removed by hand, and downloads at the
+provider stay there; the Plex sections can be deleted. Nothing to undo on the arr side.
+
+A Watch-only library that copied a Sonarr/Radarr instance through the old periodic import stays after the upgrade
+to 00125 as an ordinary Watch-only library, with one System › Errors card: "Library K copied a Sonarr/Radarr
+instance. That copy is no longer updated. Delete the library when you no longer need it." Remove it as above and
+resolve the card.
 
 ### Changing a root with links
 

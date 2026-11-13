@@ -121,7 +121,10 @@ warns that a SeaDex-curated release may be judged differently. It records, searc
 with the arr's own profile and formats. On upgrade, `FreezeStored` uses it to replace a stored profile or naming that
 was taken from an arr (the removed `from_arr`) with a native copy under the same key, and leaves one message per
 library on System › Errors asking to check it; what cannot be converted becomes a minimal profile or the default
-naming, and its library Watch only.
+naming, and its library Watch only. Migration 00125 keeps the arr snapshots it needs (`arr_frozen_input`, from
+`arr_policy_snapshot`, for the instances a remaining `from_arr` profile or naming names) before it drops the arr
+tables; `serve` calls `FreezeStored` right after the migrations, before the settings load. Other commands do not, so
+on such an install `serve` must run once after the upgrade before them.
 
 Native profiles may select a set with `format_set`. Its keys are the arr's display names, so the same name can
 exist in several sets, and zero-score formats outside the selected set cannot enter names or rejection text:
