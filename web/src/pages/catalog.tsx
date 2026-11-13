@@ -255,7 +255,7 @@ export function Catalog({ id }: { id: CatalogId }) {
             ))}
           </div>
           <span className="flex min-w-0 items-center gap-1">
-            <select aria-label="Sort by" className={cn(SELECT, "w-auto min-w-0 max-w-[7.5rem] sm:max-w-none")} value={sort} onChange={(e) => onPick(e.target.value)}>
+            <select aria-label="Sort by" className={cn(SELECT, "w-auto min-w-0 max-w-[6rem] sm:max-w-none")} value={sort} onChange={(e) => onPick(e.target.value)}>
               {SORTS.filter((s) => !("seeFiles" in s) || perms.seeFiles).map((s) => (
                 <option key={s.id} value={s.id}>{s.label}</option>
               ))}
