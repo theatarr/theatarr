@@ -499,3 +499,28 @@ func TestAdoptedLinkOffersWithoutFollowing(t *testing.T) {
 		t.Fatalf("offers %+v", sr.Offers)
 	}
 }
+
+// TestArrFileOfferForgotten: an open offer (pending or retry memory) whose source was an imported arr file is
+// deleted, not declined, so the same file from an adopted link with a stored source is offered normally.
+func TestArrFileOfferForgotten(t *testing.T) {
+	t.Parallel()
+	for _, outcome := range []string{OfferPending, OfferGaveUp} {
+		t.Run(outcome, func(t *testing.T) {
+			e := newOfferEnv(t)
+			hash := strings.Repeat("e", 40)
+			e.exec(`INSERT INTO router_offer (version_key, title_id, info_hash, from_version, release_title, outcome,
+				reasons, attempts, first_at, next_at, updated_at, source_kind, source_id) VALUES ('movie-extra', 1, ?,
+				'movie-remux', 'Movie.2001.2160p.WEB-DL-GRP', ?, '[]', 1, 0, 0, 0, 'arr_file', 1)`, hash, outcome)
+			e.sourceFile("adopted", hash)
+			e.storeSource(hash, "dmm")
+			sr, err := e.off.Sweep(e.ctx, false, 0)
+			if err != nil || sr.Outcomes[OfferDeclined] != 0 || e.outcome("movie-extra", 1, hash) != OfferPlanned {
+				t.Fatalf("sweep: %+v, outcome %q, %v", sr, e.outcome("movie-extra", 1, hash), err)
+			}
+			var n int
+			if err := e.st.Reader().QueryRow(`SELECT COUNT(*) FROM router_offer WHERE source_kind = 'arr_file'`).Scan(&n); err != nil || n != 0 {
+				t.Fatalf("arr file offers left: %d, %v", n, err)
+			}
+		})
+	}
+}

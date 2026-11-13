@@ -164,6 +164,17 @@ func (o *Offerer) cancelSource(ctx context.Context, s *offerSource, dryRun bool)
 }
 
 func (o *Offerer) cancelSuperseded(ctx context.Context, dryRun bool) ([]OfferResult, error) {
+	// Imported arr files are no source any more: their open offers are forgotten, not declined, so the same file
+	// offered from an adopted link is decided afresh.
+	if !dryRun {
+		if err := o.Store.WriteTx(ctx, func(tx *sql.Tx) error {
+			_, err := tx.ExecContext(ctx, `DELETE FROM router_offer WHERE source_kind = 'arr_file'
+				AND outcome IN ('pending', 'gave_up')`)
+			return err
+		}); err != nil {
+			return nil, err
+		}
+	}
 	files, err := o.fileSources(ctx)
 	if err != nil {
 		return nil, err
@@ -174,7 +185,7 @@ func (o *Offerer) cancelSuperseded(ctx context.Context, dryRun bool) ([]OfferRes
 		live[key(f.sourceKind, f.id, f.version)] = f.hash
 	}
 	rows, err := o.Store.Reader().QueryContext(ctx, `SELECT DISTINCT source_kind, source_id, title_id, from_version,
-		info_hash, release_title FROM router_offer WHERE outcome IN ('pending', 'gave_up')`)
+		info_hash, release_title FROM router_offer WHERE outcome IN ('pending', 'gave_up') AND source_kind <> 'arr_file'`)
 	if err != nil {
 		return nil, err
 	}
