@@ -27,8 +27,10 @@ type WantedSummary struct {
 
 // WantedQuery selects a view of the automatic search backlog.
 type WantedQuery struct {
-	Only          string
-	Version       string
+	Only    string
+	Version string
+	// TitleID limits the list to one title (the title page's next search); 0: every title.
+	TitleID       int64
 	Waiting       string
 	Limit, Offset int
 }
@@ -159,11 +161,15 @@ func (a *Acquirer) wantedRows(ctx context.Context, q WantedQuery, out *WantedLis
 		}
 		versions = []string{q.Version}
 	}
-	sched, err := a.scheduleRows(ctx, versions, nil)
+	var scope []int64
+	if q.TitleID != 0 {
+		scope = []int64{q.TitleID}
+	}
+	sched, err := a.scheduleRows(ctx, versions, scope)
 	if err != nil {
 		return nil, err
 	}
-	ts, err := a.targets(ctx, Selection{Versions: versions, Only: q.Only, QualityCutoff: a.set.CutoffUnmet == policy.CutoffQuality})
+	ts, err := a.targets(ctx, Selection{Versions: versions, TitleIDs: scope, Only: q.Only, QualityCutoff: a.set.CutoffUnmet == policy.CutoffQuality})
 	if err != nil {
 		return nil, err
 	}

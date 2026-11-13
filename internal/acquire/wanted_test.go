@@ -435,6 +435,11 @@ func TestWantedListNextSearch(t *testing.T) {
 		4: {WaitDue, "stalled", 0, at(-10 * time.Minute)},
 		5: {WaitScheduled, "", 0, at(3 * time.Hour)},
 	})
+	// One title (the title page): its rows only, the same as in the whole list.
+	if one, err := e.a.WantedList(e.ctx, WantedQuery{Only: OnlyMissing, TitleID: 4}); err != nil || one.Total != 1 ||
+		one.Items[0].Waiting != WaitDue || one.Items[0].Why != "stalled" {
+		t.Fatalf("title 4: %+v %v", one, err)
+	}
 	e.a.set.Missing = false
 	check("switch off", map[int64]want{
 		1: {WaitScheduled, whyNew, 2, at(2 * time.Hour)},
