@@ -6,6 +6,11 @@ export function inventoryLink(hash: string): string {
   return `/admin/torrents/inventory/${encodeURIComponent(hash)}`;
 }
 
+/** Admin › Torrents filtered to one torrent: the first 12 hex of its hash, which the filter matches as a prefix. */
+export function torrentsLink(hash: string): string {
+  return `/admin/torrents?q=${encodeURIComponent(hash.slice(0, 12).toLowerCase())}`;
+}
+
 export function journalLink(id: string): string {
   return `/activity/journal/${encodeURIComponent(id)}`;
 }

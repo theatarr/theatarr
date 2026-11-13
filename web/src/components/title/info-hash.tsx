@@ -5,7 +5,18 @@ import { Check, Copy } from "lucide-react";
 import { useRef, useState } from "react";
 import { Link } from "react-router";
 import { Button } from "@/components/ui/button";
-import { adminLink, inventoryLink } from "@/lib/admin-links";
+import { adminLink, inventoryLink, torrentsLink } from "@/lib/admin-links";
+
+/** "Torrent": the file's torrent on Admin › Torrents, beside Cached on; admins only (the page is admin-only). */
+export function TorrentLink({ hash, admin }: { hash?: string | null; admin: boolean }) {
+  const to = hash ? adminLink(admin, torrentsLink(hash)) : undefined;
+  if (!to) return null;
+  return (
+    <Link to={to} className="whitespace-nowrap text-xs text-primary hover:underline" title="See this torrent on Admin › Torrents" data-testid="torrent-link">
+      Torrent
+    </Link>
+  );
+}
 
 export function InfoHash({ hash, admin }: { hash: string; admin: boolean }) {
   const text = useRef<HTMLSpanElement>(null);

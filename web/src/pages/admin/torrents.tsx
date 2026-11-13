@@ -5,8 +5,10 @@
 // folders (torrents.scan_roots, which the usage check reads) are edited here, below the list.
 import { TorrentTabs } from "./torrent-tabs";
 import { useMemo, useState } from "react";
+import { Link, useSearchParams } from "react-router";
 import { useTorrentActions, useTorrentJournal, useTorrentReport } from "@/api/torrents";
 import { Empty, ErrorState, Loading, Mono, PageHeader, Section, Strip } from "@/components/page";
+import { ProviderPills } from "@/components/provider-pills";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -18,10 +20,12 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { fmtAgo, fmtBytes, fmtNumber, fmtTime } from "@/lib/format";
 import {
   GROUPS,
+  REF_LABEL,
   deleteScope,
   deleteSelection,
   filterTorrents,
   keyOf,
+  providerCodes,
   providerProblem,
   refSummary,
   sortTorrents,
@@ -43,7 +47,9 @@ export function TorrentsPage() {
   const report = useTorrentReport();
   const [provider, setProvider] = useState("");
   const [group, setGroup] = useState<GroupID>("");
-  const [text, setText] = useState("");
+  // ?q= fills the filter, so other pages can link to one torrent (a title's "Torrent" link: its hash's first 12).
+  const [params] = useSearchParams();
+  const [text, setText] = useState(() => params.get("q") ?? "");
   const [sort, setSort] = useState<SortKey>("size");
   const [selected, setSelected] = useState<Record<string, Torrent>>({});
   const [plan, setPlan] = useState<DeletePlan | null>(null);
@@ -105,6 +111,7 @@ export function TorrentsPage() {
   };
 
   const r = report.data;
+  const codes = useMemo(() => (r ? providerCodes(r) : {}), [r]);
   return (
     <div>
       <PageHeader
@@ -184,6 +191,7 @@ export function TorrentsPage() {
                 <TableHeader>
                   <TableRow>
                     <TableHead className="w-8"><input type="checkbox" aria-label="Select all shown" checked={allShown} onChange={toggleAll} /></TableHead>
+                    {provider ? null : <TableHead className="w-px">Provider</TableHead>}
                     <TableHead>Name</TableHead>
                     <TableHead className="text-right">Size</TableHead>
                     <TableHead className="hidden sm:table-cell">Added</TableHead>
@@ -193,7 +201,7 @@ export function TorrentsPage() {
                 </TableHeader>
                 <TableBody>
                   {rows.map((t) => (
-                    <TorrentRow key={keyOf(t)} t={t} checked={!!selected[keyOf(t)]} onToggle={() => toggle(t)} showProvider={!provider} />
+                    <TorrentRow key={keyOf(t)} t={t} checked={!!selected[keyOf(t)]} onToggle={() => toggle(t)} code={provider ? undefined : codes[t.provider] ?? t.provider} />
                   ))}
                 </TableBody>
               </Table>
@@ -247,14 +255,18 @@ export function TorrentsPage() {
   );
 }
 
-function TorrentRow({ t, checked, onToggle, showProvider }: { t: Torrent; checked: boolean; onToggle: () => void; showProvider: boolean }) {
+/** One torrent; code is its account's cache code for the Provider column (All providers only). */
+function TorrentRow({ t, checked, onToggle, code }: { t: Torrent; checked: boolean; onToggle: () => void; code?: string }) {
   const [open, setOpen] = useState(false);
   return (
     <>
       <TableRow data-testid="torrent-row">
         <TableCell><input type="checkbox" aria-label={`Select ${t.name}`} checked={checked} onChange={onToggle} /></TableCell>
+        {code === undefined ? null : (
+          <TableCell title={t.provider} data-testid="torrent-provider"><ProviderPills codes={[code]} /></TableCell>
+        )}
         <TableCell className="max-w-[32rem] text-[13px]">
-          <div className="break-words">{showProvider ? <Mono className="mr-1">{t.provider}</Mono> : null}{t.name}</div>
+          <div className="break-words [overflow-wrap:anywhere]">{t.name}</div>
           <div className="text-xs text-muted-foreground">
             {t.parsed ? `${t.parsed}${t.quality ? ` · ${t.quality}` : ""} · ` : ""}<Mono>{t.hash.slice(0, 12)}</Mono>
             {t.files >= 0 ? ` · ${t.files} file${t.files === 1 ? "" : "s"}` : ""}
@@ -274,10 +286,39 @@ function TorrentRow({ t, checked, onToggle, showProvider }: { t: Torrent; checke
       {open ? (
         <TableRow>
           <TableCell />
-          <TableCell colSpan={5} className="whitespace-pre-wrap text-xs text-muted-foreground [overflow-wrap:anywhere]">{usageDetail(t)}</TableCell>
+          <TableCell colSpan={code === undefined ? 5 : 6} className="text-xs text-muted-foreground [overflow-wrap:anywhere]" data-testid="torrent-refs">
+            {t.usage === "used" ? <RefDetail t={t} /> : <span className="whitespace-pre-wrap">{usageDetail(t)}</span>}
+          </TableCell>
         </TableRow>
       ) : null}
     </>
+  );
+}
+
+/** The expanded references of a used torrent: the count, the titles they belong to (all of them, not only the listed
+ *  references) as links to the title page, and the listed references, each with its title. */
+function RefDetail({ t }: { t: Torrent }) {
+  const titles = t.titles ?? [];
+  return (
+    <div className="space-y-1">
+      <div>{refSummary(t.refs)}</div>
+      {titles.length > 0 ? (
+        <div data-testid="torrent-titles">
+          {titles.length === 1 ? "Title: " : "Titles: "}
+          {titles.map((x, i) => (
+            <span key={x.id}>{i > 0 ? ", " : ""}<Link to={`/title/${x.id}`} className="text-primary hover:underline">{x.name}</Link></span>
+          ))}
+        </div>
+      ) : null}
+      <ul className="space-y-0.5">
+        {(t.ref_list ?? []).map((x, i) => (
+          <li key={i}>
+            {REF_LABEL[x.kind] ?? x.kind}: {x.detail}
+            {x.title_id ? <> · <Link to={`/title/${x.title_id}`} className="text-primary hover:underline">{x.title || `title ${x.title_id}`}</Link></> : null}
+          </li>
+        ))}
+      </ul>
+    </div>
   );
 }
 

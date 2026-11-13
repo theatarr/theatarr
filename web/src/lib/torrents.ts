@@ -26,6 +26,13 @@ export type GroupID = (typeof GROUPS)[number]["id"];
 
 export type SortKey = "size" | "age" | "name";
 
+const CACHE_CODES: Record<string, string> = { realdebrid: "rd", alldebrid: "ad", torbox: "tb" };
+
+/** Each account's cache code (rd, ad, tb) by its kind, for the Provider tag; an account of another kind keeps its key. */
+export function providerCodes(r: TorrentReport): Record<string, string> {
+  return Object.fromEntries(r.providers.map((p) => [p.provider, CACHE_CODES[p.kind ?? ""] ?? p.provider]));
+}
+
 /** The key a torrent is selected by. */
 export const keyOf = (t: { provider: string; id: string }) => `${t.provider}:${t.id}`;
 
@@ -85,7 +92,8 @@ export function sortTorrents(list: Torrent[], key: SortKey, desc = key !== "name
   return [...list].sort((a, b) => (desc ? -cmp(a, b) : cmp(a, b)) || keyOf(a).localeCompare(keyOf(b)));
 }
 
-const REF_LABEL: Record<string, string> = { link: "library link", arr_file: "arr file", download: "download", scan: "scanned link" };
+/** A reference kind in words. */
+export const REF_LABEL: Record<string, string> = { link: "library link", arr_file: "arr file", download: "download", scan: "scanned link" };
 
 /** "2 library links, 1 arr file": a torrent's references counted by kind. */
 export function refSummary(refs?: Record<string, number>): string {

@@ -217,5 +217,21 @@ describe("fix round 1", () => {
     await waitFor(() => expect(rowOf("movie-web").querySelector('[data-column="minimum_availability"]')?.textContent).toBe("In cinemas"));
     expect(screen.queryByTestId("version-minimum-availability-movie-web")).toBeNull();
   });
+  it("links an admin from Cached on to the file's torrent on Admin › Torrents; a manager gets no link", async () => {
+    const hash = "abcdef0123456789abcdef0123456789abcdef01";
+    const versions = [{ ...web, current: { ...web.current, info_hash: hash } }];
+    mockFetch([{ method: "GET", path: "/auth/me", reply: { id: 1, permissions: ["browse", "see_files", "manage", "admin"] } }]);
+    renderPage(<LibraryRows title={title as never} versions={versions as never} />);
+    const link = await within(await waitFor(() => rowOf("movie-web"))).findByTestId("torrent-link");
+    expect(link.getAttribute("href")).toBe("/admin/torrents?q=abcdef012345");
+    expect(link.closest('[data-column="cached_on"]')).toBeTruthy();
+  });
+
+  it("gives a manager no Torrent link", async () => {
+    manager();
+    renderPage(<LibraryRows title={title as never} versions={[{ ...web, current: { ...web.current, info_hash: "ab".repeat(20) } }] as never} />);
+    await screen.findByTestId("version-search-movie-web");
+    expect(screen.queryByTestId("torrent-link")).toBeNull();
+  });
 });
 

@@ -76,6 +76,32 @@ describe("torrents page", () => {
     expect((sent[0].body as { confirmation_token: string }).confirmation_token).toBe("d1-2");
   });
 
+  it("shows each account's Provider tag under All providers, takes ?q= into the filter, and links a used torrent's titles", async () => {
+    const tb = { provider: "tb", kind: "torbox", ok: true, count: 1, bytes: 1024, usage: { used: 0, unused: 0, unknown: 1, unused_bytes: 0, unknown_bytes: 1024 },
+      torrents: [{ ...torrent("9", "9".repeat(40), "Other.Movie", "unknown"), provider: "tb" }] };
+    const used = torrent("2", h2, "Used.Movie", "used", { refs: { link: 1 }, ref_list: [{ kind: "link", detail: "/lib/Used.mkv", title_id: 7, title: "Used" }], titles: [{ id: 7, name: "Used" }, { id: 8, name: "Also" }] });
+    const rep = { ...report, providers: [{ ...report.providers[0], torrents: [report.providers[0].torrents[0], used] }, tb] };
+    mockFetch([
+      { method: "GET", path: "/torrents/report", reply: rep },
+      { method: "GET", path: "/torrents/journal", reply: { entries: [] } },
+    ]);
+    const page = renderPage(<TorrentsPage />);
+    await screen.findByText("Used.Movie");
+    expect(screen.getByRole("columnheader", { name: "Provider" })).toBeTruthy();
+    expect(screen.getAllByTestId("torrent-provider").map((c) => c.textContent).sort()).toEqual(["RD", "RD", "TB"]);
+    fireEvent.click(screen.getByRole("tab", { name: "tb" }));
+    expect(screen.queryByRole("columnheader", { name: "Provider" })).toBeNull();
+    page.unmount();
+
+    renderPage(<TorrentsPage />, `/admin/torrents?q=${h2.slice(0, 12)}`);
+    await screen.findByText("Used.Movie");
+    expect((screen.getByLabelText("Filter torrents") as HTMLInputElement).value).toBe(h2.slice(0, 12));
+    expect(screen.getAllByTestId("torrent-row")).toHaveLength(1);
+    fireEvent.click(screen.getByRole("button", { expanded: false }));
+    const refs = screen.getByTestId("torrent-refs");
+    expect([...refs.querySelectorAll("a")].map((l) => [l.textContent, l.getAttribute("href")])).toEqual([["Used", "/title/7"], ["Also", "/title/8"], ["Used", "/title/7"]]);
+  });
+
   it("shows an AllDebrid account's count against its limit and warns near it", async () => {
     const ad = { provider: "ad", kind: "alldebrid", ok: true, count: 4600, limit: 5000, near_limit: true, bytes: 0,
       usage: { used: 0, unused: 0, unknown: 0, unused_bytes: 0, unknown_bytes: 0 }, torrents: [] };
