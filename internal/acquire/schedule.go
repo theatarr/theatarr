@@ -86,10 +86,15 @@ func (a *Acquirer) switchOn(reason string) bool {
 
 // nextSearch is the back-off rule: how long after a search of row ends it is searched again, and the row's new
 // tries and why; keep is false when the row goes (not scheduled). kind is the run's acquire_run.infra; fresh says
-// whether the row's content is new (availability.Fresh), on whether its backlog switch is on.
+// whether the row's content is new (availability.Fresh), on whether its backlog switch is on. When no indexer
+// answered, a new row is tried again an hour later as it is (an outage does not advance the ladder); another row an
+// hour later at most noAnswerTries times in a row, then by the ordinary rule.
 func nextSearch(r schedRow, kind int, fresh, on bool, againAfter time.Duration) (wait time.Duration, tries int,
 	why string, keep bool) {
-	if kind == runInfra && r.why != whyNew && r.tries < noAnswerTries {
+	if kind == runInfra && r.why == whyNew {
+		return time.Hour, r.tries, r.why, true
+	}
+	if kind == runInfra && r.tries < noAnswerTries {
 		return time.Hour, r.tries + 1, r.why, true
 	}
 	if fresh && r.reason == OnlyMissing {
@@ -186,6 +191,19 @@ func (a *Acquirer) reschedule(ctx context.Context, tx *sql.Tx, source string, t 
 		}
 	}
 	return nil
+}
+
+// failureRun is the acquire_run condition of a search after a failure the router reported: not one of Search now,
+// of the new-content retries, or of the retry chains before the schedule (retry_new, fresh).
+const failureRun = `research IS NOT NULL AND research NOT IN ('` + whyAsked + `', '` + whyNew + `', 'retry_new', 'fresh')`
+
+// searching says whether a search of the item's library and season (-1: a film) is queued or running.
+func (a *Acquirer) searching(ctx context.Context, titleID int64, key string, season int) (bool, error) {
+	var busy bool
+	err := a.st.Reader().QueryRowContext(ctx, `SELECT EXISTS (SELECT 1 FROM acquire_run WHERE title_id = ?
+		AND version_key = ? AND COALESCE(season, -1) = ? AND state IN ('queued', 'searching'))`, titleID, key, season).
+		Scan(&busy)
+	return busy, err
 }
 
 func nullString(s string) any {
@@ -422,6 +440,12 @@ func (a *Acquirer) Round(ctx context.Context, scope []int64) (*WantedSummary, er
 			}
 			if busy {
 				sum.InFlight++
+				continue
+			}
+			// A search of it already queued or running (by name, or an earlier round's): its row stays as it is.
+			if busy, err = a.searching(ctx, t.titleID, t.key, seasonOf(t.season)); err != nil {
+				return nil, err
+			} else if busy {
 				continue
 			}
 			ready = append(ready, t)

@@ -398,13 +398,13 @@ func TestWantedListSearchNowQueue(t *testing.T) {
 	if n := e.count(`SELECT COUNT(*) FROM search_request WHERE version_key = 'series' AND reason = 'missing' AND why = 'asked'`); n != 3 {
 		t.Fatalf("%d asked rows", n)
 	}
-	// Asking again for rows already due counts nothing new.
+	// Asking again counts nothing new: two rows are due already, the third's search is queued.
 	if again, err := e.a.RequestSearchNowAll(e.ctx, WantedQuery{Only: OnlyMissing, Version: "series"}); err != nil ||
-		again.Queued != 1 || again.Started != 0 {
+		again.Queued != 0 || again.Started != 0 || len(again.Skipped) != 1 || again.Skipped[0].Reason != skipSearching {
 		t.Fatalf("again %+v %v", again, err)
 	}
 	after, err := e.a.WantedList(e.ctx, WantedQuery{Only: OnlyMissing})
-	if err != nil || after.SearchNowPending != 3 || after.SearchNowNextAt != nil {
+	if err != nil || after.SearchNowPending != 2 || after.SearchNowNextAt != nil {
 		t.Fatalf("after %+v %v", after, err)
 	}
 	var places []int
@@ -417,7 +417,7 @@ func TestWantedListSearchNowQueue(t *testing.T) {
 		}
 	}
 	sort.Ints(places)
-	if !reflect.DeepEqual(places, []int{1, 2, 3}) {
+	if !reflect.DeepEqual(places, []int{0, 1, 2}) {
 		t.Fatalf("places %v", places)
 	}
 	raw, _ := json.Marshal(after.Items[0])

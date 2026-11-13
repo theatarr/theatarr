@@ -63,7 +63,7 @@ func TestNextSearchRule(t *testing.T) {
 		{"switch off", schedRow{reason: OnlyMissing, why: "exhausted"}, runComplete, false, false, 0, 0, "", false},
 		{"no answer keeps why", schedRow{reason: OnlyMissing, why: "stalled", tries: 1}, runInfra, false, false, time.Hour, 2, "stalled", true},
 		{"no answer three times: ordinary rule", schedRow{reason: OnlyMissing, why: "stalled", tries: 3}, runInfra, false, false, 0, 0, "", false},
-		{"no answer on new content: the ladder", schedRow{reason: OnlyMissing, why: whyNew, tries: 2}, runInfra, true, false, 4 * time.Hour, 3, whyNew, true},
+		{"no answer on new content: the ladder waits", schedRow{reason: OnlyMissing, why: whyNew, tries: 2}, runInfra, true, false, time.Hour, 2, whyNew, true},
 	} {
 		wait, tries, why, keep := nextSearch(tc.row, tc.kind, tc.fresh, tc.on, day)
 		if wait != tc.wait || tries != tc.tries || why != tc.why || keep != tc.keep {
@@ -262,5 +262,68 @@ func TestRoundCountsManualSearch(t *testing.T) {
 		if at, _, _ := e.rowOf(id, "movie", OnlyMissing, -1); !at.Equal(t0.Add(24 * time.Hour)) {
 			t.Errorf("movie %d: next search %v", id, at)
 		}
+	}
+}
+
+// Search now on a due regular row with the hour spent and the backlog switch off: the row becomes asked, is
+// reported pending and is searched in the next hour.
+func TestSearchNowTakesDueRegularRow(t *testing.T) {
+	t.Parallel()
+	e := newEnv(t, true, &policy.Wanted{Missing: new(false), CutoffUnmet: policy.CutoffOff, PerHour: 1})
+	e.accept = false
+	e.exec(`INSERT INTO acquire_run (source, title_id, version_id, version_key, target, reason, state, created_at,
+		updated_at) VALUES ('wanted', 2, 102, 'movie', 'movie', 'missing', 'nothing', ?, ?)`, store.Millis(t0), store.Millis(t0))
+	e.row(1, "movie", OnlyMissing, -1, t0, "", 0)
+	res, err := e.a.RequestSearchNow(e.ctx, OnlyMissing, []SearchNowItem{{TitleID: 1, Version: "movie"}})
+	if err != nil || res.Queued != 1 || res.Started != 0 || res.Pending != 1 {
+		t.Fatalf("search now %+v %v", res, err)
+	}
+	e.advance(time.Hour + time.Minute)
+	e.round()
+	if n := e.count(`SELECT COUNT(*) FROM acquire_run WHERE version_id = 101 AND research = 'asked'`); n != 1 {
+		t.Fatalf("asked row not searched in the next hour: %s", e.runs())
+	}
+}
+
+// Runs of the retry chains before the schedule (retry_new, fresh) do not block a failure re-search.
+func TestLegacyRunsDoNotBlockFailure(t *testing.T) {
+	t.Parallel()
+	for i, marker := range []string{"retry_new", "fresh"} {
+		e := newEnv(t, true, &policy.Wanted{Missing: new(false), CutoffUnmet: policy.CutoffOff})
+		e.exec(`INSERT INTO acquire_run (source, title_id, version_id, version_key, target, reason, state, research,
+			created_at, updated_at) VALUES ('wanted', 1, 101, 'movie', 'movie', 'missing', 'nothing', ?, ?, ?)`, marker,
+			store.Millis(t0.Add(-time.Hour)), store.Millis(t0.Add(-time.Hour)))
+		e.research(router.ResearchRequest{TitleID: 1, VersionID: 101, Version: "movie", Reason: router.ReasonStalled})
+		if n := e.count(`SELECT COUNT(*) FROM acquire_run WHERE research = 'stalled'`); n != 1 {
+			t.Fatalf("%d: a %s run blocked the failure re-search", i, marker)
+		}
+	}
+}
+
+// A search already queued is not started again: Search now twice before the worker runs, a round while a search
+// by name waits, a failure event meanwhile.
+func TestQueuedSearchNotDuplicated(t *testing.T) {
+	t.Parallel()
+	e := newEnv(t, true, &policy.Wanted{Missing: new(false), CutoffUnmet: policy.CutoffOff})
+	for range 2 {
+		if _, err := e.a.RequestSearchNow(e.ctx, OnlyMissing, []SearchNowItem{{TitleID: 1, Version: "movie"}}); err != nil {
+			t.Fatal(err)
+		}
+	}
+	e.research(router.ResearchRequest{TitleID: 1, VersionID: 101, Version: "movie", Reason: router.ReasonStalled})
+	if n := e.count(`SELECT COUNT(*) FROM acquire_run WHERE version_id = 101`); n != 1 {
+		t.Fatalf("%d searches of movie 1: %s", n, e.runs())
+	}
+	if _, _, err := e.a.Submit(e.ctx, 0, Selection{Versions: []string{"movie"}, TitleIDs: []int64{2}}); err != nil {
+		t.Fatal(err)
+	}
+	e.row(2, "movie", OnlyMissing, -1, t0, router.ReasonExhausted, 0)
+	e.advance(10 * time.Minute)
+	e.round()
+	if n := e.count(`SELECT COUNT(*) FROM acquire_run WHERE version_id = 102`); n != 1 {
+		t.Fatalf("a round duplicated a queued search by name: %s", e.runs())
+	}
+	if _, _, why := e.rowOf(2, "movie", OnlyMissing, -1); why != router.ReasonExhausted {
+		t.Fatalf("row changed: %q", why)
 	}
 }

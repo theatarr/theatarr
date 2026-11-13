@@ -51,6 +51,7 @@ const (
 	skipNotActive = "the library is not active"
 	skipNothing   = "nothing of it is wanted now"
 	skipInFlight  = "a download for it is in progress"
+	skipSearching = "a search of it is queued or running"
 )
 
 type searchRequest struct {
@@ -131,13 +132,25 @@ func (a *Acquirer) RequestSearchNowAll(ctx context.Context, q WantedQuery) (*Sea
 // askSearch makes the requested rows due now with why asked and runs a round of their titles.
 func (a *Acquirer) askSearch(ctx context.Context, reqs []searchRequest, out *SearchNowResult) (*SearchNowResult, error) {
 	var titles []int64
-	if len(reqs) > 0 {
+	var ready []searchRequest
+	for _, r := range reqs {
+		busy, err := a.searching(ctx, r.titleID, r.key, r.season)
+		if err != nil {
+			return nil, err
+		}
+		if busy {
+			out.Skipped = append(out.Skipped, SearchNowSkip{TitleID: r.titleID, Version: r.key, Reason: skipSearching})
+			continue
+		}
+		ready = append(ready, r)
+	}
+	if len(ready) > 0 {
 		now := store.Millis(a.now())
 		if err := a.st.WriteTx(ctx, func(tx *sql.Tx) error {
-			for _, r := range reqs {
+			for _, r := range ready {
 				res, err := tx.ExecContext(ctx, `INSERT INTO search_request (title_id, version_key, reason, season, created_at,
 					next_at, tries, why) VALUES (?, ?, ?, ?, ?, ?, 0, ?) ON CONFLICT DO UPDATE SET next_at = excluded.next_at,
-					tries = 0, why = excluded.why WHERE NOT (search_request.why = excluded.why
+					tries = 0, why = excluded.why WHERE NOT (search_request.why IS excluded.why
 					AND search_request.next_at <= excluded.next_at)`, r.titleID, r.key, r.reason, r.season, now, now, whyAsked)
 				if err != nil {
 					return err
