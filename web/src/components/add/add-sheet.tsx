@@ -340,7 +340,7 @@ export function AddSheet({ target, onClose }: { target: AddTarget; onClose: () =
                   {chosen.length > 0 || seasonsChanged ? `${selected.length} ${selected.length === 1 ? "library" : "libraries"}${live > 0 ? ` · ${live} Live` : ""}` : "Nothing new ticked"}
                 </span>
               )}
-              <div className="ml-auto flex shrink-0 gap-2">
+              <div className="ml-auto flex min-w-0 flex-wrap justify-end gap-2">
                 <Button variant="ghost" onClick={onClose}>Cancel</Button>
                 {searchOffered ? (
                   <>
