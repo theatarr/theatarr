@@ -185,12 +185,13 @@ describe("quality editors", () => {
     vi.useRealTimers();
   });
 
-  it("offers no copy notice and no naming-from-library field", async () => {
+  it("offers no copy notice and no naming taken from an arr or a library", async () => {
     mockFetch([...baseRoutes("naming", [{ id: 2, key: "movie-remux-mm", config: { colon: "dash" } }]), { method: "POST", path: "/settings/naming/preview", reply: json({ folder: "f", file: "f.mkv" }) }]);
     const user = userEvent.setup();
     renderPage(<QualityPanel entity="naming" />);
     await user.click(await screen.findByRole("button", { name: "Edit movie-remux-mm" }));
-    expect(screen.getByRole("textbox", { name: "Naming from arr" })).toBeTruthy();
+    expect(await screen.findByRole("textbox", { name: "File name" })).toBeTruthy();
+    expect(screen.queryByRole("textbox", { name: "Naming from arr" })).toBeNull();
     expect(screen.queryByRole("textbox", { name: "Naming from library" })).toBeNull();
     expect(screen.queryByTestId("copy-naming")).toBeNull();
   });

@@ -19,7 +19,7 @@ const ROLES = {
 const paths = (groups: NavGroup[]) => flatItems(groups).map((i) => i.to);
 const ADMIN_PAGES = ["/admin", "/admin", ...["tasks", "backup", "errors", "logs"].map(p => `/admin/system/${p}`), "/admin/reviews", "/admin/torrents", "/admin/settings",
  ...["libraries", "profiles", "formats", "quality-sync", "indexers", "downloads", "notifications", "plex", "metadata", "apps"].map(p => `/admin/settings/${p}`),
- "/admin/users", "/admin/advanced", ...["arr", "config", "history", "limits"].map(p => `/admin/advanced/${p}`)];
+ "/admin/users", "/admin/advanced", ...["config", "history", "limits"].map(p => `/admin/advanced/${p}`)];
 const MAIN = ["/", "/movies", "/series", "/anime", "/requests", "/activity", "/now-playing", "/calendar"];
 // Managers and admins also have Collections in Library.
 const MAIN_MANAGE = MAIN.flatMap(p => p === "/anime" ? [p, "/collections"] : [p]);
