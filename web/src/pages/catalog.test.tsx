@@ -117,6 +117,23 @@ describe("Library table", () => {
     expect(within(coming).getByText("Not monitored")).toBeTruthy();
   });
 
+  it("says a library without a file that is not monitored has no file, so a Partly row explains itself", async () => {
+    const movies = [
+      { id: 6, kind: "movie", name: "Plumtree", year: 2022, monitored: true, release_date: "2022-05-01", availability: "partial", upgrade_state: "cutoff_met",
+        versions: [
+          { id: 61, key: "movie-4k", label: "4K", monitored: true, has_file: true, quality: "Remux-2160p", state: "cutoff_met", control: managed },
+          { id: 62, key: "movie-web", label: "WEB", monitored: false, has_file: false, state: "wanted", control: managed },
+        ] },
+    ];
+    mockFetch(routes().map((r) => (r.path === "/titles" ? { ...r, reply: { items: movies, total: 1, offset: 0 } } : r)));
+    renderPage(<Catalog id="movies" />, "/movies?availability=partial");
+    await screen.findAllByText("Plumtree");
+    const web = screen.getAllByTestId("library-pill")[1];
+    expect(web.textContent).toBe("WEB · No file · Not monitored");
+    expect(web.getAttribute("aria-label")).toBe("WEB: no file, not monitored");
+    expect(screen.getByRole("button", { name: "Plumtree, WEB: no file, not monitored" })).toBeTruthy();
+  });
+
   it("opens the Libraries dialog from a pill, and its switch monitors through the bulk route, never a search", async () => {
     const fetch = mockFetch(routes([
       { method: "POST", path: "/titles/monitor", reply: { dry_run: false, items: [], changed: 1, unchanged: 0, missing: 0, stale: 0, message: "Unmonitored 1 library" } },
@@ -486,7 +503,11 @@ describe("Household view (no See files)", () => {
     const dialog = await screen.findByRole("dialog", { name: "Columns" });
     const offered = within(dialog).getAllByRole("button", { name: / up$/ }).map((b) => b.getAttribute("aria-label")!.slice(5, -3));
     expect(offered).toContain("Availability");
-    for (const file of ["Libraries", "Quality", "Quality profile", "Size", "Minimum availability", "Provider", "Folder"]) expect(offered).not.toContain(file);
+    for (const file of ["Libraries", "Quality", "Quality profile", "Size", "Latest file", "Minimum availability", "Provider", "Folder"]) expect(offered).not.toContain(file);
+    await user.click(within(dialog).getByRole("button", { name: "Done" }));
+    const sorts = [...(screen.getByRole("combobox", { name: "Sort by" }) as HTMLSelectElement).options].map((o) => o.textContent);
+    expect(sorts).toContain("Added");
+    for (const file of ["Latest file", "Size", "Quality", "Latest activity"]) expect(sorts).not.toContain(file);
   });
 
   it("offers no per-library has/lacks filter, which those who see files keep", async () => {

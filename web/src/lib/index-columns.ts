@@ -59,7 +59,7 @@ const DEFS: Def[] = [
   { id: "seasons", series: "Seasons", hint: "Seasons with episodes, specials left out", on: "s" },
   { id: "size", ...both("Size"), hint: "The title's current files in total", sort: "size", seeFiles: true, on: "ms" },
   { id: "added", ...both("Added"), hint: "The day the title was added to Theatarr", sort: "created", on: "m" },
-  { id: "latest_file", ...both("Latest file"), hint: "When the newest current file came", sort: "added" },
+  { id: "latest_file", ...both("Latest file"), hint: "When the newest current file came", sort: "added", seeFiles: true },
   { id: "previous", series: "Previous airing", hint: "The latest aired episode's day" },
   { id: "quality", ...both("Quality"), hint: "Each library's current quality", sort: "quality", seeFiles: true },
   { id: "profile", ...both("Quality profile"), hint: "Each library's quality profile", seeFiles: true },
@@ -156,11 +156,13 @@ export function minAvailabilityWords(v: string | undefined | null): string {
   return v ? (MIN_AVAIL[v] ?? v) : "";
 }
 
+const LANGUAGES = typeof Intl.DisplayNames === "function" ? new Intl.DisplayNames(["en"], { type: "language" }) : undefined;
+
 /** "Japanese" for "ja"; the code as given when the browser cannot name it. */
 export function languageWords(code: string | undefined | null): string {
   if (!code) return "";
   try {
-    return new Intl.DisplayNames(["en"], { type: "language" }).of(code) ?? code;
+    return LANGUAGES?.of(code) ?? code;
   } catch {
     return code;
   }

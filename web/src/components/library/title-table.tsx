@@ -92,12 +92,20 @@ function WatchCell({ t }: { t: TitleRow }) {
   return <span data-testid="watch-cell" className={cn("text-[13px] font-medium", WATCH_INK[w.tone])}>{w.label}</span>;
 }
 
-/** A library pill's detail: a movie's quality or what it lacks ("Missing", "Downloading 37%"); a series' count, none
- *  before anything has aired (the grey dot, the Status column's Upcoming and the pill's tooltip say so). */
+/** A library's words on its pill and in its name (copyWords), saying for a movie library without a file that is not
+ *  monitored that it has no file, so a title listed under Partly explains itself. */
+function pillWords(v: Version, t: TitleRow): string {
+  if (t.kind !== "series" && !v.has_file && !v.acquisition && v.monitored === false) return "no file, not monitored";
+  return copyWords(v, t);
+}
+
+/** A library pill's detail: a movie's quality or what it lacks ("Missing", "Downloading 37%", "No file · Not
+ *  monitored"); a series' count, none before anything has aired (the grey dot, the Status column's Upcoming and the
+ *  pill's tooltip say so). */
 function pillDetail(v: Version, t: TitleRow): string | undefined {
   if (t.kind === "series") return v.coverage && v.coverage.total > 0 ? copyBar(v, "series").count : undefined;
-  if (v.has_file && v.acquisition?.stage !== "blocked") return v.quality || "Has a file";
-  return cap(copyWords(v, t));
+  if (v.has_file) return v.quality || "Has a file";
+  return pillWords(v, t).split(", ").map(cap).join(" · ");
 }
 
 function Pills({ t, onOpen }: { t: TitleRow; onOpen: () => void }) {
@@ -107,7 +115,7 @@ function Pills({ t, onOpen }: { t: TitleRow; onOpen: () => void }) {
     <span className="flex min-w-0 flex-wrap gap-x-1.5 gap-y-1">
       {vs.map((v) => {
         const label = v.label ?? v.key ?? "";
-        const words = copyWords(v, t);
+        const words = pillWords(v, t);
         return (
           <button
             key={v.key}
