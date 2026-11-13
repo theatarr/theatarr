@@ -58,3 +58,25 @@ it("says nothing matches when a filter leaves no row", async () => {
   await userEvent.setup().type(screen.getByTestId("blocked-title"), "zzz");
   expect(await screen.findByText("No blocked release matches.")).toBeTruthy();
 });
+
+it("unblocks the selected releases one by one", async () => {
+  const fetch = mockFetch([
+    { method: "GET", path: "/auth/me", reply: me },
+    { method: "GET", path: "/titles/facets", reply: {} },
+    { method: "GET", path: "/activity", reply: { state: "blocked", admin: true, total: 2, blocked: [blocked(1), blocked(2)] } },
+    { method: "POST", path: "/activity/blocked/unblock", reply: { version: "movie-web", info_hash: "h", release: "r", message: "Unblocked" } },
+  ]);
+  renderPage(<BlocklistTab />, "/activity/blocklist");
+  const user = userEvent.setup();
+  await user.click(await screen.findByRole("checkbox", { name: "Select Release.1.1080p" }));
+  await user.click(screen.getByRole("checkbox", { name: "Select Release.2.1080p" }));
+  await user.click(screen.getByRole("button", { name: "Unblock selected…" }));
+  expect(screen.getByText("These 2 releases may be picked again for their libraries")).toBeTruthy();
+  expect(screen.getByText("Nothing is searched now")).toBeTruthy();
+  await user.click(screen.getByRole("button", { name: "Unblock 2 releases" }));
+  expect((await screen.findByTestId("confirm-done")).textContent).toBe("Unblocked 2 releases.");
+  expect(fetch.calls("POST", "/activity/blocked/unblock").map((r) => r.body)).toEqual([
+    { version: "movie-web", info_hash: "h1", search: false },
+    { version: "movie-web", info_hash: "h2", search: false },
+  ]);
+});

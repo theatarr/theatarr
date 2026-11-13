@@ -3,9 +3,10 @@
 // title and version; the total is the filtered count). Each row has Unblock, which can also search the library again.
 import { CircleSlash, Search } from "lucide-react";
 import { useEffect, useState } from "react";
-import { BLOCKED_PAGE, useActivityBlocked, type ActivityBlocked } from "@/api/activity";
+import { BLOCKED_PAGE, unblockRelease, useActivityBlocked, type ActivityBlocked } from "@/api/activity";
 import { useDebounced } from "@/api/add";
-import { useFacets } from "@/api/library";
+import { useFacets, usePerms } from "@/api/library";
+import { BulkDialog, SelectionLine, useChosen } from "@/components/activity/bulk";
 import { UnblockAction } from "@/components/activity/download-actions";
 import { Dash, tight } from "@/components/activity/row-bits";
 import { Empty, ErrorState, Loading, VersionTag } from "@/components/page";
@@ -14,8 +15,12 @@ import { DataTable, type DataColumn } from "@/components/ui/data-table";
 import { Input } from "@/components/ui/input";
 import { Pager } from "@/components/ui/pager";
 import { Select } from "@/components/ui/select";
+import { bulkWords } from "@/lib/activity";
 import { distinctLabels, relabel } from "@/lib/copies";
 import { fmtTime } from "@/lib/format";
+
+const rowKey = (b: ActivityBlocked) => `${b.version}\n${b.info_hash}`;
+const releases = (n: number) => `${n} ${n === 1 ? "release" : "releases"}`;
 
 const titleName = (b: ActivityBlocked) => `${b.title.name}${b.title.year ? ` (${b.title.year})` : ""}`;
 
@@ -64,6 +69,9 @@ export function BlocklistTab() {
   }, [q.data, offset, total]);
   const filtered = title !== "" || version !== "";
   const items = q.data?.blocked ?? [];
+  const manage = usePerms().manage;
+  const select = useChosen(items.map(rowKey));
+  const [unblocking, setUnblocking] = useState(false);
   return (
     <div>
       <div className="mb-4 grid grid-cols-1 gap-2 sm:flex sm:flex-wrap sm:items-center" data-testid="blocked-filters">
@@ -97,10 +105,14 @@ export function BlocklistTab() {
         </Card>
       ) : (
         <div className="space-y-4">
+          <SelectionLine count={select.count} action="Unblock selected…" onAct={() => setUnblocking(true)} onClear={select.clear} />
           <DataTable
             rows={items}
-            rowKey={(b) => `${b.version}\n${b.info_hash}`}
+            rowKey={rowKey}
             columns={COLUMNS}
+            select={manage ? select : undefined}
+            selectAllLabel={`Select all ${items.length} shown`}
+            rowLabel={(b) => b.release}
             testid="blocked-table"
             rowProps={() => ({ "data-testid": "blocked-row" })}
             cardHead={(b) => <span className="block font-medium text-[var(--ink)]">{titleName(b)}</span>}
@@ -109,6 +121,23 @@ export function BlocklistTab() {
           <Pager offset={offset} limit={BLOCKED_PAGE} total={total} onPage={setOffset} />
         </div>
       )}
+      {unblocking ? (
+        <BulkDialog
+          items={items.filter((b) => select.chosen.has(rowKey(b)))}
+          scope={(n) => ({
+            title: `Unblock ${releases(n)}`,
+            does: [`${n === 1 ? "This release" : `These ${n} releases`} may be picked again for ${n === 1 ? "its library" : "their libraries"}`],
+            keeps: ["Nothing is searched now"],
+            confirm: `Unblock ${releases(n)}`,
+          })}
+          run={unblockRelease}
+          words={(n, failed) => bulkWords("Unblocked", "Not unblocked", ["release", "releases"], n, failed)}
+          onDone={select.clear}
+          onClose={() => setUnblocking(false)}
+          danger={false}
+          testid="unblock-releases-dialog"
+        />
+      ) : null}
     </div>
   );
 }

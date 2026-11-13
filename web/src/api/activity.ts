@@ -1,9 +1,9 @@
 // Query hooks for the activity, the calendar and Home's Continue row (GET /activity, /activity/continue, /calendar).
 // The live stream's download and title events invalidate these keys (api/events.tsx), so screens update without a
 // reload.
-import { keepPreviousData, useInfiniteQuery, useQuery } from "@tanstack/react-query";
+import { keepPreviousData, useInfiniteQuery, useQuery, useQueryClient } from "@tanstack/react-query";
 import { api, qs, type Schemas } from "./client";
-import { qk } from "./query-keys";
+import { qk, titleChanged } from "./query-keys";
 
 export type ActivityPage = Schemas["ActivityPage"];
 export type ActivityDownload = Schemas["ActivityDownload"];
@@ -74,3 +74,30 @@ export const useActivityAttempts = (id: number) =>
     queryKey: [...activityKeys.all, "attempts", id],
     queryFn: () => api<Schemas["ActivityAttempts"]>(`/activity/downloads/${id}/attempts`),
   });
+
+/** Remove one download (POST /activity/downloads/:id/remove), optionally blocklisting it and searching again. */
+export const removeDownload = (id: number, block: boolean) =>
+  api<Schemas["RemoveDownloadResult"]>(`/activity/downloads/${id}/remove`, { method: "POST", body: { blocklist: block, search: block } });
+
+/** Unblock one release (POST /activity/blocked/unblock) without searching. */
+export const unblockRelease = (b: { version: string; info_hash: string }) =>
+  api<Schemas["UnblockResult"]>("/activity/blocked/unblock", { method: "POST", body: { version: b.version, info_hash: b.info_hash, search: false } });
+
+/** Runs a single-row action for each item, one after another (no bulk route), then refreshes Activity, the journal and
+ * the titles touched. Returns the items that failed with their errors. */
+export function useRunEach() {
+  const qc = useQueryClient();
+  return async <T extends { title: { id?: number } }>(items: readonly T[], call: (item: T) => Promise<unknown>) => {
+    const failed: { item: T; error: unknown }[] = [];
+    for (const item of items) {
+      try {
+        await call(item);
+      } catch (error) {
+        failed.push({ item, error });
+      }
+    }
+    const titles = new Set(items.map((i) => i.title.id || 0).filter(Boolean));
+    for (const queryKey of [qk.activity.all, qk.journal.all, ...[...titles].flatMap((id) => titleChanged(id))]) void qc.invalidateQueries({ queryKey });
+    return failed;
+  };
+}

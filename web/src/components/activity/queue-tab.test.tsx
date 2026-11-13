@@ -65,3 +65,22 @@ it("removes with blocklist and search again when the box is ticked", async () =>
   await waitFor(() => expect(fetch.calls("POST", "/activity/downloads/7/remove")).toHaveLength(1));
   expect(fetch.calls("POST", "/activity/downloads/7/remove")[0].body).toEqual({ blocklist: true, search: true });
 });
+
+it("removes the selected downloads one by one and names the one that was not removed", async () => {
+  const fetch = show([
+    { method: "POST", path: "/activity/downloads/7/remove", reply: { id: 7, state: "failed", ended: true, message: "Removed" } },
+    { method: "POST", path: "/activity/downloads/8/remove", reply: { status: 409, body: { error: "already ended" } } },
+    { method: "POST", path: "/activity/downloads/9/remove", reply: { id: 9, state: "failed", ended: false, message: "Dismissed" } },
+  ]);
+  const user = userEvent.setup();
+  await user.click(await screen.findByRole("checkbox", { name: "Select all 3 shown" }));
+  expect(screen.getByTestId("selection-line").textContent).toContain("3 selected");
+  await user.click(screen.getByRole("button", { name: "Remove selected…" }));
+  const dialog = screen.getByTestId("remove-downloads-dialog");
+  expect(within(dialog).getByText("Removes 3 downloads from Theatarr's queue")).toBeTruthy();
+  expect(within(dialog).getByText(/torrent at the debrid provider stays/)).toBeTruthy();
+  await user.click(within(dialog).getByRole("button", { name: "Remove 3 downloads" }));
+  expect((await within(dialog).findByTestId("confirm-done")).textContent).toBe("Removed 2 of 3. Not removed: Beta (already ended).");
+  for (const id of [7, 8, 9]) expect(fetch.calls("POST", `/activity/downloads/${id}/remove`)).toHaveLength(1);
+  expect(fetch.calls("POST", "/activity/downloads/7/remove")[0].body).toEqual({ blocklist: false, search: false });
+});

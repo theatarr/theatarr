@@ -8,9 +8,10 @@
 import { ChevronDown, ChevronUp, Columns3, HelpCircle, Inbox, NotebookPen } from "lucide-react";
 import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { Link } from "react-router";
-import { useActivityAttempts, useActivityNow, type ActivityDownload } from "@/api/activity";
+import { removeDownload, useActivityAttempts, useActivityNow, type ActivityDownload } from "@/api/activity";
 import { useAuth } from "@/api/auth";
 import { usePerms } from "@/api/library";
+import { BulkDialog, SelectionLine, useChosen } from "@/components/activity/bulk";
 import { DownloadActions } from "@/components/activity/download-actions";
 import { Dash, episodesWords, FormatPills, Poster, tight, TitleLine } from "@/components/activity/row-bits";
 import { ProgressBar, StepTrack, toneOf } from "@/components/activity-bits";
@@ -19,9 +20,10 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { ColumnPicker, OptionsDialog } from "@/components/ui/column-picker";
+import { Choice } from "@/components/ui/confirm-dialog";
 import { DataTable, type DataColumn } from "@/components/ui/data-table";
 import { fmtAgo, fmtBytes, fmtTime } from "@/lib/format";
-import { filterDownloads, needsAttention, showCounts, SHOWS, STAGE_MEANINGS, stageLabel, stageMeaning, timing, type ActivityShow } from "@/lib/activity";
+import { bulkWords, filterDownloads, needsAttention, showCounts, SHOWS, STAGE_MEANINGS, stageLabel, stageMeaning, timing, type ActivityShow } from "@/lib/activity";
 import {
   isQueueSortColumn,
   nextQueueSort,
@@ -34,6 +36,7 @@ import {
   type QueueSort,
 } from "@/lib/activity-queue-columns";
 import { readPref, useColumnPrefs, writePref } from "@/lib/prefs";
+import { SHARED_TORRENT } from "@/lib/ops";
 import { resolutionWords } from "@/lib/upgrade";
 import { cn } from "@/lib/utils";
 import { adminLink, journalLink } from "@/lib/admin-links";
@@ -322,6 +325,10 @@ function OpenPanel({ d }: { d: ActivityDownload }) {
 function QueueTable({ items, now, prefs, sort, onSort }: { items: ActivityDownload[]; now: number; prefs: { order: QueueColumnId[]; shown: QueueColumnId[] }; sort: QueueSort; onSort: (c: string) => void }) {
   const [open, setOpen] = useState<ReadonlySet<number>>(new Set());
   const rows = useMemo(() => sortDownloads(items, sort), [items, sort]);
+  const manage = usePerms().manage;
+  const select = useChosen(rows.map((d) => d.id));
+  const [removing, setRemoving] = useState(false);
+  const [block, setBlock] = useState(false);
   const { fixed, optional } = queueColumns(now);
   const columns = tight([...fixed, ...prefs.order.filter((id) => prefs.shown.includes(id)).map((id) => optional[id])]);
   const toggle = (id: number) =>
@@ -332,40 +339,79 @@ function QueueTable({ items, now, prefs, sort, onSort }: { items: ActivityDownlo
       return n;
     });
   return (
-    <DataTable
-      rows={rows}
-      rowKey={(d) => d.id}
-      columns={columns}
-      sort={sort}
-      onSort={onSort}
-      testid="queue-table"
-      rowProps={(d) => ({
-        "data-testid": "download",
-        "data-state": d.state,
-        "data-attention": needsAttention(d, now) || undefined,
-        className: open.has(d.id) ? "bg-[var(--sunken)]" : undefined,
-      })}
-      cardHead={(d) => (
-        <>
-          <TitleLine t={d.title} />
-          <div className="flex flex-wrap items-center gap-1.5 text-xs text-muted-foreground">
-            <VersionTag k={d.version} className="text-[11px]" />
-            {d.quality ? <Badge tone="outline">{d.quality}</Badge> : null}
-            {d.episodes?.length ? <span>{episodesWords(d.episodes)}</span> : null}
-          </div>
-          <Stage d={d} admin attention={needsAttention(d, now)} />
-          <QueueProgress d={d} now={now} empty={null} />
-        </>
-      )}
-      actions={(d) => (
-        <span className="inline-flex items-center gap-1">
-          <DetailsButton attention={needsAttention(d, now)} open={open.has(d.id)} onClick={() => toggle(d.id)} chevron={false} />
-          <DownloadActions d={d} />
-        </span>
-      )}
-      expanded={(d) => (open.has(d.id) ? <OpenPanel d={d} /> : null)}
-    />
+    <>
+      <SelectionLine count={select.count} action="Remove selected…" onAct={() => setRemoving(true)} onClear={select.clear} />
+      <DataTable
+        rows={rows}
+        rowKey={(d) => d.id}
+        columns={columns}
+        sort={sort}
+        onSort={onSort}
+        select={manage ? select : undefined}
+        selectAllLabel={`Select all ${rows.length} shown`}
+        rowLabel={(d) => d.title.name}
+        testid="queue-table"
+        rowProps={(d) => ({
+          "data-testid": "download",
+          "data-state": d.state,
+          "data-attention": needsAttention(d, now) || undefined,
+          className: open.has(d.id) ? "bg-[var(--sunken)]" : undefined,
+        })}
+        cardHead={(d) => (
+          <>
+            <TitleLine t={d.title} />
+            <div className="flex flex-wrap items-center gap-1.5 text-xs text-muted-foreground">
+              <VersionTag k={d.version} className="text-[11px]" />
+              {d.quality ? <Badge tone="outline">{d.quality}</Badge> : null}
+              {d.episodes?.length ? <span>{episodesWords(d.episodes)}</span> : null}
+            </div>
+            <Stage d={d} admin attention={needsAttention(d, now)} />
+            <QueueProgress d={d} now={now} empty={null} />
+          </>
+        )}
+        actions={(d) => (
+          <span className="inline-flex items-center gap-1">
+            <DetailsButton attention={needsAttention(d, now)} open={open.has(d.id)} onClick={() => toggle(d.id)} chevron={false} />
+            <DownloadActions d={d} />
+          </span>
+        )}
+        expanded={(d) => (open.has(d.id) ? <OpenPanel d={d} /> : null)}
+      />
+      {removing ? (
+        <BulkDialog
+          items={rows.filter((d) => select.chosen.has(d.id))}
+          scope={(n) => removeManyScope(n, block)}
+          run={(d) => removeDownload(d.id, block)}
+          words={(n, failed) => bulkWords("Removed", "Not removed", ["download", "downloads"], n, failed)}
+          onDone={select.clear}
+          onClose={() => {
+            setRemoving(false);
+            setBlock(false);
+          }}
+          testid="remove-downloads-dialog"
+        >
+          <Choice checked={block} onChange={setBlock} testid="downloads-block">
+            Also blocklist these releases and search again
+          </Choice>
+        </BulkDialog>
+      ) : null}
+    </>
   );
+}
+
+const downloads = (n: number) => `${n} ${n === 1 ? "download" : "downloads"}`;
+
+/** What removing n chosen downloads does and leaves alone. */
+function removeManyScope(n: number, block: boolean) {
+  return {
+    title: `Remove ${downloads(n)}`,
+    does: [
+      `Removes ${downloads(n)} from Theatarr's queue`,
+      ...(block ? ["Each release is blocklisted for its library, and a search for that library starts now (when it is monitored and active)"] : []),
+    ],
+    keeps: [SHARED_TORRENT, "Files already linked into the library stay", ...(block ? [] : ["The releases are not blocklisted: a later search may pick them again"])],
+    confirm: `Remove ${downloads(n)}`,
+  };
 }
 
 /** The clock the waiting times count from, ticking every 30 s. */
