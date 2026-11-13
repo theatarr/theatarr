@@ -14,7 +14,7 @@
 import { ExternalLink, Plus, Star } from "lucide-react";
 import { useEffect, useState, type ReactNode } from "react";
 import { Link, useParams, useSearchParams } from "react-router";
-import type { AddTarget } from "@/api/add";
+import { useAddOptions, type AddTarget } from "@/api/add";
 import { ApiError } from "@/api/client";
 import { usePerms, useTitle, type TitleDetail, type Version } from "@/api/library";
 import { PRODUCT_NAME } from "@/brand";
@@ -24,7 +24,7 @@ import { AnimeOrder } from "@/components/title/anime-order";
 import { Details, TitleJournal, outsideLinks } from "@/components/title/details";
 import { Seasons } from "@/components/title/seasons";
 import { LibraryRows } from "@/components/title/library-rows";
-import { TitleToolbar } from "@/components/title/title-toolbar";
+import { TitleToolbar, inEveryLibrary } from "@/components/title/title-toolbar";
 import { RequestMoreSeasons, TitleRequest, TitleRequestButton } from "@/components/title/title-request";
 import { SeriesTypeControl } from "@/components/title/title-choices";
 import { History } from "@/components/title/versions";
@@ -82,10 +82,20 @@ function Synopsis({ text }: { text: string }) {
 
 type Target = AddTarget & { title_id: number };
 
-/** The primary action the role allows: Add to another library (add), else Request / View request (request). */
+/** The primary action the role allows: Add to another library (add), else Request / View request (request). A title
+ * already in every library the add options offer gets a disabled secondary "In every library" instead. */
 function PrimaryAction({ target, has, className }: { target: Target; has: boolean; className?: string }) {
   const perms = usePerms();
   const { openAdd } = useSearchUI();
+  // The toolbar's query (no tmdb_id), so one request serves both.
+  const opts = useAddOptions(perms.add && has ? { kind: target.kind, name: target.name, title_id: target.title_id } : null, !!target.anime);
+  if (perms.add && has && inEveryLibrary(opts.data)) {
+    return (
+      <Button variant="secondary" disabled className={className} data-testid="hero-add">
+        In every library
+      </Button>
+    );
+  }
   if (perms.add) {
     return (
       <Button onClick={() => openAdd(target)} className={className} data-testid="hero-add">

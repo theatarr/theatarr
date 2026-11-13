@@ -57,6 +57,26 @@ describe("Title page", () => {
     expect(screen.getAllByTestId("downloads-off-notice")).toHaveLength(1);
     expect(within(screen.getByTestId("library-row")).queryByText("Paused")).toBeNull();
     expect(document.body.textContent?.split("for any library")).toHaveLength(2);
+    // Search now stays, disabled, with Pause as its tooltip (not another line on the page).
+    const search = screen.getByTestId("title-search-now");
+    expect(search.hasAttribute("disabled")).toBe(true);
+    expect(search.getAttribute("title")).toBe("Paused: nothing is searched, downloaded or linked for any library.");
+  });
+
+  it("offers a disabled In every library instead of Add to another library when no library is left", async () => {
+    const adder = { ...me, permissions: ["see_files", "manage", "add"] };
+    const lib = { kind: "movie", mode: "active", enable: "", fits: true, default: true, on: true, searchable: true, label: "WEB" };
+    for (const [versions, want] of [[[{ ...lib, key: "movie-web" }], "In every library"], [[{ ...lib, key: "movie-web" }, { ...lib, key: "movie-2160", on: false }], "Add to another library"]] as const) {
+      document.body.innerHTML = "";
+      mockFetch([
+        { method: "GET", path: "/auth/me", reply: adder },
+        { method: "GET", path: "/titles/70", reply: { ...title, versions: [{ id: 5, key: "movie-web", label: "WEB", state: "wanted", monitored: true }] } },
+        { method: "GET", path: "/add/options", reply: { kind: "movie", anime: false, title_id: 70, router_enabled: true, episodes_known: false, can_search: true, seasons: [], versions } },
+      ]);
+      renderPage(<SearchProvider><Routes><Route path="/title/:id" element={<TitlePage />} /></Routes></SearchProvider>, "/title/70");
+      await waitFor(() => expect(screen.getAllByTestId("hero-add")[0].textContent?.trim()).toBe(want));
+      expect(screen.getAllByTestId("hero-add")[0].hasAttribute("disabled")).toBe(want === "In every library");
+    }
   });
 
   it("reads Getting ready to a household account for a missing title with a download in hand", async () => {

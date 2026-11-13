@@ -114,3 +114,50 @@ it("says a series' Search now also looks for upgrades", async () => {
   expect((await screen.findByTestId("title-search-now")).getAttribute("title")).toBe("Search every monitored episode now, in every Live library (missing episodes and upgrades)");
 });
 
+
+it("links an admin from the Watch-only notice to the library's settings; others get the sentence only", async () => {
+  bar(["admin", "manage", "add"], false);
+  const note = await screen.findByTestId("title-no-interactive");
+  expect(note.textContent).toBe("Interactive search needs a Live library. This film's libraries are Watch only. Library settings");
+  expect(within(note).getByRole("link", { name: "Library settings" }).getAttribute("href")).toBe("/admin/settings/libraries?edit=movie-web");
+  document.body.innerHTML = "";
+  bar(["manage", "add"], false);
+  expect((await screen.findByTestId("title-no-interactive")).textContent).toBe("Interactive search needs a Live library. This film's libraries are Watch only.");
+  expect(screen.queryByRole("link", { name: "Library settings" })).toBeNull();
+});
+
+it("shows Search now disabled with the reason when nothing would search, and none to a non-manager", async () => {
+  const cases: [object[], boolean, string][] = [
+    [[lib("movie-web", { ...gates, paused: true, will_grab: false })], true, "Paused: nothing is searched, downloaded or linked for any library."],
+    [[lib("movie-web", { ...gates, mode: "shadow", will_grab: false })], false, "No library of this title is Live."],
+    [[{ ...lib("movie-web", gates), on: false }], true, "No library is monitored."],
+    [[lib("movie-web", { ...gates, will_grab: false })], true, "Nothing is searched now: MOVIE-WEB: Downloads off"],
+  ];
+  for (const [versions, live, reason] of cases) {
+    document.body.innerHTML = "";
+    mockFetch([{ method: "GET", path: "/auth/me", reply: { id: 1, permissions: ["manage"] } }, options(versions)]);
+    renderPage(<SearchProvider><TitleToolbar titleId={7} name="Alpha" kind="movie" versions={[{ id: 1, key: "movie-web", label: "WEB", control: control(live) }] as never} /></SearchProvider>);
+    const button = await screen.findByTestId("title-search-now");
+    expect(button.hasAttribute("disabled")).toBe(true);
+    expect(button.getAttribute("title")).toBe(reason);
+  }
+  document.body.innerHTML = "";
+  const a = mockFetch([{ method: "GET", path: "/auth/me", reply: { id: 1, permissions: ["add"] } }, options([lib("movie-web", gates)])]);
+  renderPage(<SearchProvider><TitleToolbar titleId={7} name="Alpha" kind="movie" versions={[]} /></SearchProvider>);
+  await waitFor(() => expect(a.calls("GET", "/add/options").length).toBeGreaterThan(0));
+  await new Promise((r) => setTimeout(r, 20));
+  expect(screen.queryByTestId("title-search-now")).toBeNull();
+});
+
+it("says In every library, disabled, when the add options offer no library the title is not in", async () => {
+  show([lib("movie-web", gates)]);
+  const add = await screen.findByTestId("title-add-versions");
+  await waitFor(() => expect(add.textContent).toBe("In every library"));
+  expect(add.hasAttribute("disabled")).toBe(true);
+  document.body.innerHTML = "";
+  show([lib("movie-web", gates), { ...lib("movie-2160", gates), on: false }]);
+  const open = await screen.findByTestId("title-add-versions");
+  await new Promise((r) => setTimeout(r, 20));
+  expect(open.textContent?.trim()).toBe("Add to another library");
+  expect(open.hasAttribute("disabled")).toBe(false);
+});

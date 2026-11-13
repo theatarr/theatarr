@@ -4,11 +4,13 @@
 // preview first), History, Refresh metadata and Remove title; the Last search page has Add to another library
 // instead. Below 768 px the title page's other actions sit under More. The notices under the bar: Pause once for the
 // page, why a movie has no Interactive search, the Search now outcome or failure with Retry, and why nothing is
-// searched. Search now is offered only when it would run: a monitored library in mode active while router.enabled is
-// true (the add options say which). Nothing here changes what is searched: the same routes as before.
+// searched. Search now runs only when it would search: a monitored library in mode active while router.enabled is
+// true (the add options say which); otherwise managers see it disabled with the reason as its tooltip. A Watch-only
+// film's notice links admins to Settings › Libraries. Nothing here changes what is searched: the same routes as before.
 import { AlertTriangle, History as HistoryIcon, Loader2, MoreHorizontal, PencilLine, Plus, RefreshCw, RotateCcw, Search, Trash2, UserSearch } from "lucide-react";
 import { useState } from "react";
-import { useAddOptions, useSearchNow, type AddTarget } from "@/api/add";
+import { Link } from "react-router";
+import { useAddOptions, useSearchNow, type AddOptions, type AddTarget } from "@/api/add";
 import { ApiError } from "@/api/client";
 import { usePerms, useRefreshTitle, type Version } from "@/api/library";
 import { useRename, useRenamePreview } from "@/api/rename";
@@ -17,7 +19,7 @@ import { Mono } from "@/components/page";
 import { useSearchUI } from "@/components/search/search-context";
 import { RemoveDialog } from "@/components/title/copy-actions";
 import { InteractiveSearch } from "@/components/title/interactive-search";
-import { DownloadsOffNotice } from "@/components/version-status";
+import { DownloadsOffNotice, pausedWords } from "@/components/version-status";
 import { Button } from "@/components/ui/button";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { Modal } from "@/components/ui/modal";
@@ -27,6 +29,9 @@ import { cn } from "@/lib/utils";
 import { globalDownloadsOff, verdict } from "@/lib/version-grab";
 
 const plural = (n: number, one: string, many = `${one}s`) => `${n} ${n === 1 ? one : many}`;
+
+/** The add options offer no library the title is not already in (monitored): Add to another library has nothing to add. */
+export const inEveryLibrary = (o?: AddOptions) => !!o && o.versions.length > 0 && o.versions.every((v) => v.on);
 
 /** The rename preview: each file's library, old and new name; Rename only on confirm. */
 function RenameDialog({ titleId, labels, onClose }: { titleId: number; labels: Record<string, string>; onClose: () => void }) {
@@ -114,6 +119,9 @@ export function TitleToolbar({ titleId, name, year, kind, poster, anime, version
   const movie = kind === "movie" && perms.manage;
   const live = movie && versions.some((v) => v.control?.live_releases);
   const watchOnly = movie && !live && versions.some((v) => v.control?.mode === "shadow");
+  // Admins get the place to make a library Live: the one Watch-only library's editor, else the list.
+  const shadow = versions.filter((v) => v.control?.mode === "shadow" && v.key);
+  const librarySettings = "/admin/settings/libraries" + (shadow.length === 1 ? `?edit=${encodeURIComponent(shadow[0].key!)}` : "");
   // The mutation holds the last try: its answer, its error, or nothing while a new one runs (mutate resets both).
   const outcome = searchNow.data ?? null;
   const runSearch = () => searchNow.mutate(undefined);
@@ -123,13 +131,19 @@ export function TitleToolbar({ titleId, name, year, kind, poster, anime, version
   // verdict. On the title page each library row states its own, so only "No library is monitored" is said here.
   const on = (o?.versions ?? []).filter((v) => v.on);
   const globalOff = globalDownloadsOff(on.map((v) => v.grab_state));
+  const perLibrary = `Nothing is searched now: ${on.map((v) => `${v.label || v.key}: ${v.grab_state ? verdict(v.grab_state).word : "Downloads off"}`).join(" · ")}`;
   const why = !o || !perms.manage || (titlePage && on.length)
     ? ""
     : !on.length
       ? "No library is monitored."
       : globalOff
         ? <DownloadsOffNotice off={globalOff} canManage={perms.admin} />
-        : <>Nothing is searched now: {on.map((v) => `${v.label || v.key}: ${v.grab_state ? verdict(v.grab_state).word : "Downloads off"}`).join(" · ")}</>;
+        : perLibrary;
+  // The disabled Search now's reason in plain text, from the same verdicts: Pause (global, so any library carries it),
+  // then no Live library of this title, then no monitored library, else each monitored library's verdict.
+  const paused = globalDownloadsOff((o?.versions ?? []).map((v) => v.grab_state));
+  const noLive = versions.some((v) => v.control) && !versions.some((v) => v.control?.mode === "active");
+  const searchOff = paused ? pausedWords(paused) : noLive ? "No library of this title is Live." : !on.length ? "No library is monitored." : perLibrary;
   // The title page says Pause once, above its rows (no row repeats it).
   const pageOff = titlePage ? globalDownloadsOff(versions.map((v) => v.control?.grab_state)) : undefined;
   const labels = Object.fromEntries([...versions, ...removed].flatMap((v) => (v.key ? [[v.key, v.label ?? v.key]] : [])));
@@ -146,8 +160,8 @@ export function TitleToolbar({ titleId, name, year, kind, poster, anime, version
   return (
     <div className="space-y-2" data-testid="title-toolbar">
       <div className="flex flex-wrap items-center gap-2">
-        {searchable.length > 0 ? (
-          <Button size="sm" variant="outline" className="max-md:h-9" onClick={runSearch} disabled={searchNow.isPending} title={searchTip} data-testid="title-search-now">
+        {o && perms.manage ? (
+          <Button size="sm" variant="outline" className={cn("max-md:h-9", !searchable.length && "disabled:pointer-events-auto disabled:cursor-not-allowed")} onClick={runSearch} disabled={searchNow.isPending || !searchable.length} title={searchable.length ? searchTip : searchOff} data-testid="title-search-now">
             {searchNow.isPending ? <Loader2 className="animate-spin" /> : <Search />} Search now
           </Button>
         ) : null}
@@ -157,8 +171,8 @@ export function TitleToolbar({ titleId, name, year, kind, poster, anime, version
           </Button>
         ) : null}
         {!titlePage && perms.add ? (
-          <Button size="sm" variant="outline" onClick={() => openAdd(target)} data-testid="title-add-versions">
-            <Plus /> Add to another library
+          <Button size="sm" variant="outline" onClick={() => openAdd(target)} disabled={inEveryLibrary(o)} data-testid="title-add-versions">
+            {inEveryLibrary(o) ? "In every library" : <><Plus /> Add to another library</>}
           </Button>
         ) : null}
         {more.length && wide
@@ -187,7 +201,10 @@ export function TitleToolbar({ titleId, name, year, kind, poster, anime, version
       </div>
       {pageOff ? <DownloadsOffNotice off={pageOff} canManage={perms.admin} /> : null}
       {watchOnly ? (
-        <p className="text-xs text-[var(--ink-3)]" data-testid="title-no-interactive">Interactive search needs a Live library. This film's libraries are Watch only.</p>
+        <p className="text-xs text-[var(--ink-3)]" data-testid="title-no-interactive">
+          Interactive search needs a Live library. This film's libraries are Watch only.
+          {perms.admin ? <> <Link className="underline" to={librarySettings} data-testid="title-library-settings">Library settings</Link></> : null}
+        </p>
       ) : null}
       {refresh.error ? (
         <p role="alert" className="rounded-[5px] border border-[var(--th-danger-border)] bg-[var(--bad-soft)] px-3 py-2 text-xs" data-testid="title-refresh-error">
