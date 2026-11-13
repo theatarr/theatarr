@@ -11,7 +11,8 @@
 //   at the right Search and Interactive search;
 // - read-only monitoring and disabled search said once above the seasons, not on every line;
 // - All / In progress / Missing / Upgrade found filters per season, and a selection of episodes for bulk monitor,
-//   unmonitor and search whose bar shows only while something is selected and names the libraries it acts on;
+//   unmonitor and search whose bar shows only while something is selected and names the libraries it acts on; it acts
+//   only on ticked episodes the filters show (a tick a filter hides is dropped, as is one from another library view);
 // - one library in view on desktop: Sonarr's table (checkbox, monitor switch, number, title, the chosen columns of
 //   lib/episode-columns.ts, Search and Interactive search); All: a column per library (the matrix); phones: rows for
 //   the library in view; every state in words (Available, Missing, Not aired, Upgrade found), never a bare icon;
@@ -637,6 +638,8 @@ function SeasonBlock({
   onOpen,
   scope,
   columns,
+  filter,
+  onFilter,
 }: {
   titleId: number;
   season: SeasonT;
@@ -655,8 +658,10 @@ function SeasonBlock({
   onOpen: (id: number) => void;
   scope: Scope;
   columns: EpisodeColumnId[];
+  /** The season's filter (kept by Seasons, which acts only on ticked episodes the filters show). */
+  filter: EpisodeFilter;
+  onFilter: (f: EpisodeFilter) => void;
 }) {
-  const [filter, setFilter] = useState<EpisodeFilter>("all");
   const actions = useSeasonActions(titleId, scope);
   const keys = copies.map((v) => v.key);
   const all = list.episodes.filter((e) => e.season === season.season);
@@ -734,7 +739,7 @@ function SeasonBlock({
       </div>
       {open ? (
         <div className="border-t border-border bg-card/40">
-          {all.length > 0 ? <FilterChips value={filter} onChange={setFilter} counts={counts} seeFiles={seeFiles} /> : null}
+          {all.length > 0 ? <FilterChips value={filter} onChange={onFilter} counts={counts} seeFiles={seeFiles} /> : null}
           {shown.length === 0 ? (
             <p className="px-4 pb-3 text-sm text-muted-foreground">{EMPTY[filter]}</p>
           ) : layout.mode === "rows" ? (
@@ -831,6 +836,7 @@ export function Seasons({ id, anime, franchises = [] }: { id: string; anime: boo
   const [open, setOpen] = useState<number[] | null>(null);
   // The ticked episodes belong to the library view they were ticked in: another view starts with none.
   const [ticked, setTicked] = useState<{ view: string; ids: Set<number> }>({ view: "", ids: new Set() });
+  const [filters, setFilters] = useState<Record<number, EpisodeFilter>>({});
   const [picked, setPicked] = useState<Picked>(null);
   const [picker, setPicker] = useState(false);
   const [colPrefs, setColPrefs] = useColumnPrefs(EPISODE_COLUMNS_PREF, EPISODE_COLUMNS, DEFAULT_EPISODE_COLUMNS);
@@ -860,8 +866,15 @@ export function Seasons({ id, anime, franchises = [] }: { id: string; anime: boo
   // The view in sight (a pick, All, or the switch between desktop and phone on resize).
   const view = one?.key ?? "*";
   // Another view clears the ticks for good (React's state-from-render pattern), so a round trip does not bring them back.
+  // A ticked episode a season's filter hides is dropped the same way: a bulk action and its count only ever cover
+  // episodes that are ticked and shown.
+  const merged = layout.columns === "merged";
+  const keys = copies.map((v) => v.key);
+  const shown = (e: Episode) => matchesFilter(e, filters[e.season] ?? "all", keys, seeFiles, merged);
+  const hidden = new Set(l.episodes.filter((e) => !shown(e)).map((e) => e.id));
   if (ticked.view !== view) setTicked({ view, ids: new Set() });
-  const selected = ticked.view === view ? ticked.ids : new Set<number>();
+  else if ([...ticked.ids].some((id) => hidden.has(id))) setTicked({ view, ids: new Set([...ticked.ids].filter((id) => !hidden.has(id))) });
+  const selected = ticked.view === view ? new Set([...ticked.ids].filter((id) => !hidden.has(id))) : new Set<number>();
   const setSelected = (ids: Set<number>) => setTicked({ view, ids });
   const select = (ids: number[], on: boolean) => {
     const next = new Set(selected);
@@ -932,6 +945,8 @@ export function Seasons({ id, anime, franchises = [] }: { id: string; anime: boo
           onOpen={openEpisode}
           scope={scope}
           columns={columns}
+          filter={filters[s.season] ?? "all"}
+          onFilter={(f) => setFilters({ ...filters, [s.season]: f })}
         />
       ))}
       <p className="pt-1 text-xs text-muted-foreground">

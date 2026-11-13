@@ -333,6 +333,24 @@ describe("Acting on the libraries in view", () => {
     expect(api.calls("POST", "/titles/1/episodes/search")[0].body).toEqual({ episode_ids: [102] });
   });
 
+  it("acts only on ticked episodes the season's filter shows, and drops the hidden ones", async () => {
+    const api = mockFetch(acting);
+    const user = userEvent.setup();
+    renderPage(<Seasons id="1" anime />, "/title/1");
+    await screen.findByRole("button", { name: /Episode 12/ });
+    await user.click(within(screen.getByTestId("episode-table")).getByRole("checkbox", { name: "Select every episode shown" }));
+    expect(screen.getByTestId("bulk-scope").textContent).toBe("3 selected · every library");
+    await user.click(within(screen.getByTestId("season-filters")).getByRole("button", { name: /Missing/ }));
+    expect(screen.getByTestId("bulk-scope").textContent).toBe("2 selected · every library");
+    await user.click(screen.getByTestId("bulk-unmonitor"));
+    await vi.waitFor(() => expect(api.calls("PUT", "/titles/1/episodes/monitor")).toHaveLength(1));
+    expect(api.calls("PUT", "/titles/1/episodes/monitor")[0].body).toEqual({ monitored: false, episode_ids: [102, 103] });
+    // Back under All, the episode the filter hid stays unticked.
+    await user.click(within(screen.getByTestId("season-filters")).getByRole("button", { name: /^All/ }));
+    expect(screen.getByTestId("bulk-scope").textContent).toBe("2 selected · every library");
+    expect((screen.getByRole("checkbox", { name: "Select episode 12" }) as HTMLInputElement).checked).toBe(false);
+  });
+
   it("names the library in view on the bulk bar and acts only there", async () => {
     const api = mockFetch(acting);
     const user = userEvent.setup();
