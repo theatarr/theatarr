@@ -292,6 +292,13 @@ See [quickstart](../quickstart.md#readiness-led-setup) for the completion rules;
   hash their link records), "—" when none does. For admins a small **Torrent** link beside it (and beside the hash in
   Details) opens Admin › Torrents filtered to the file's torrent (`?q=` the hash's first 12) when the row has one file
   with a known hash; a series row of several files has none (the episode window has it per episode). A fact the file does not have is blank, never 0.
+  **Add to other providers** (managers, a movie's file, in the row's Details; a series adds per episode in the episode
+  window): adds the file's torrent to every configured provider that does not hold it (router.md "Copies to other
+  providers"); the answer says which ("Adding to AD, TB. The result shows here when it ends."), and the page asks
+  again every 5 s while a copy is unfinished. Disabled with the Pause words while paused; a file with no hash on
+  record answers "Cannot add to other providers: Theatarr has no torrent hash on record for this file." Details then
+  shows **Other providers**: only what Cached on does not ("AD not cached · RD adding…, 2 h ago"; each reason as its
+  tooltip); an added copy shows in Cached on.
   **Status:** a download in hand and no file reads its stage ("Downloading · 37%", "Waiting for mount", "Blocked"),
   linked to Activity; a movie without a file "Not monitored", "Upcoming · Jan 14" (not out at home yet, the posters'
   rule) or "Missing"; a held movie the upgrade badge, with Why? unless it is plainly Available without a manual ceiling (Available, Upgrade found, Best quality known), with
@@ -427,8 +434,8 @@ See [quickstart](../quickstart.md#readiness-led-setup) for the completion rules;
     (`?episode=<id>`): number, name, air date, runtime; then three tabs. **Details**: per library its state in the
     upgrade vocabulary, monitor switch and Search now (managers), Interactive search for that episode in that library
     (managers, a library that searches live), the download in hand, the upgrade block with Why?, and the file's facts
-    (release, quality, score, size, group, **Cached on** with the admins' **Torrent** link, languages, media, added,
-    path), shown openly. **History**:
+    (release, quality, score, size, group, **Cached on** with the admins' **Torrent** link, **Other providers**,
+    languages, media, added, path), shown openly, with **Add to other providers** for the episode's file (managers). **History**:
     each library's history with the episode's journal entries. **Last search**: the stored decision for the episode,
     read-only.
   - **Family accounts** (no "see files"): one availability column across libraries at every width (an episode is

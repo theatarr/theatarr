@@ -270,7 +270,9 @@ listed with why, and used or unknown ones with a checkbox naming their reference
 The torrent journal remains below the provider list. **System › Backup** holds torrent-list backups: **Back up
 now**, import (Theatarr or DMM, to a chosen provider), the list with download (Theatarr or DMM format) and **Restore…**
 with its preview. A row's expanded area has **Add to other providers** (router.md "Copies to other providers":
-`POST /torrents/copy`), and the row's `copies` show how each other provider ended. Code: `web/src/pages/admin/torrents.tsx`, `web/src/components/backups/torrent-backups.tsx`, `web/src/lib/torrents.ts`.
+`POST /torrents/copy`; disabled with the Pause words while paused), with an **Other providers:** line for the copies
+the provider list does not show yet (in progress, not cached, refused, skipped, failed); while one is unfinished the
+report is read again every 20 s. Code: `web/src/pages/admin/torrents.tsx`, `web/src/components/backups/torrent-backups.tsx`, `web/src/lib/torrents.ts`.
 
 ## Out of scope
 
