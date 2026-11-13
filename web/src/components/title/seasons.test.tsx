@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { screen, within } from "@testing-library/react";
+import { act, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 import { Seasons } from "./seasons";
@@ -290,6 +290,47 @@ describe("Acting on the libraries in view", () => {
     await user.click(screen.getByTestId("bulk-unmonitor"));
     await vi.waitFor(() => expect(api.calls("PUT", "/titles/1/episodes/monitor")).toHaveLength(1));
     expect(api.calls("PUT", "/titles/1/episodes/monitor")[0].body).toEqual({ monitored: false, versions: ["anime-web"], episode_ids: [102] });
+  });
+
+  it("does not bring old ticks back after a round trip through another view", async () => {
+    const api = mockFetch(acting);
+    const user = userEvent.setup();
+    const tick = async (ep: string, n: number) => user.click(within(document.querySelector(`[data-episode="${ep}"]`) as HTMLElement).getByRole("checkbox", { name: `Select episode ${n}` }));
+    renderPage(<Seasons id="1" anime />, "/title/1");
+    await screen.findByRole("button", { name: /Episode 12/ });
+    await tick("1x12", 12);
+    await user.click(screen.getByRole("radio", { name: "Anime WEB" }));
+    await user.click(screen.getByRole("radio", { name: "All libraries" }));
+    expect(screen.queryByTestId("bulk-bar")).toBeNull();
+    await tick("1x13", 13);
+    expect(screen.getByTestId("bulk-scope").textContent).toBe("1 selected · every library");
+    await user.click(screen.getByTestId("bulk-search"));
+    await vi.waitFor(() => expect(api.calls("POST", "/titles/1/episodes/search")).toHaveLength(1));
+    expect(api.calls("POST", "/titles/1/episodes/search")[0].body).toEqual({ episode_ids: [102] });
+  });
+
+  it("does not bring old ticks back after a resize to phone and back", async () => {
+    let listener: (() => void) | undefined;
+    const mql = { matches: true, addEventListener: (_: string, l: () => void) => (listener = l), removeEventListener: vi.fn() };
+    vi.stubGlobal("matchMedia", () => mql);
+    const api = mockFetch(acting);
+    const user = userEvent.setup();
+    const tick = async (ep: string, n: number) => user.click(within(document.querySelector(`[data-episode="${ep}"]`) as HTMLElement).getByRole("checkbox", { name: `Select episode ${n}` }));
+    renderPage(<Seasons id="1" anime />, "/title/1");
+    await screen.findByRole("button", { name: /Episode 12/ });
+    await tick("1x12", 12);
+    const resize = async (wide: boolean) => {
+      mql.matches = wide;
+      await act(async () => listener?.());
+    };
+    await resize(false);
+    expect(screen.queryByTestId("bulk-bar")).toBeNull();
+    await resize(true);
+    expect(screen.queryByTestId("bulk-bar")).toBeNull();
+    await tick("1x13", 13);
+    await user.click(screen.getByTestId("bulk-search"));
+    await vi.waitFor(() => expect(api.calls("POST", "/titles/1/episodes/search")).toHaveLength(1));
+    expect(api.calls("POST", "/titles/1/episodes/search")[0].body).toEqual({ episode_ids: [102] });
   });
 
   it("names the library in view on the bulk bar and acts only there", async () => {

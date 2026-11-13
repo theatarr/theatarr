@@ -866,6 +866,8 @@ export function Seasons({ id, anime, franchises = [] }: { id: string; anime: boo
   const one = all ? undefined : copies[0];
   // The view in sight (a pick, All, or the switch between desktop and phone on resize).
   const view = one?.key ?? "*";
+  // Another view clears the ticks for good (React's state-from-render pattern), so a round trip does not bring them back.
+  if (ticked.view !== view) setTicked({ view, ids: new Set() });
   const selected = ticked.view === view ? ticked.ids : new Set<number>();
   const setSelected = (ids: Set<number>) => setTicked({ view, ids });
   const select = (ids: number[], on: boolean) => {
