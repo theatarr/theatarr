@@ -2,10 +2,11 @@
 
 Coming from the arrs? See the [arr-to-Theatarr page map](arr-map.md) for routes and menu paths.
 
-The one-time [import](#import-from-sonarrradarr) brings a Sonarr or Radarr instance's titles, their monitoring and
-the files already on the debrid mount into a library you made in Setup. The [staged path](#who-this-is-for) below,
-with Watch-only libraries at the arrs' own folders and Live libraries of Theatarr's own beside them, describes
-installs that already run that way.
+Moving to Theatarr means one thing now: the one-time [import](#import-from-sonarrradarr) brings a Sonarr or Radarr
+instance's titles, their monitoring and the files already on the debrid mount into a Live library you made in Setup.
+New titles then arrive through a list sync or by running the import again. [Moving off the arr](#moving-off-the-arr)
+below is the order to do it in, and [Upgrading to this release](#upgrading-to-this-release) says what an install
+that used the older tools (following, the comparison, the periodic import) sees after the upgrade.
 
 ## Import from Sonarr/Radarr
 
@@ -46,97 +47,37 @@ What comes in:
 - A Sonarr series has its monitoring and files brought over only when its episode list comes from TVDB, so episodes
   match Sonarr's numbering. Without a TVDB key (**Settings › Metadata & artwork**) series are added, but their
   monitoring and files are not; the Preview says so first.
-- A library that is Watch only, or without **Write library links**, can be previewed but not imported into.
+- A library that is Watch only, or while **Pause** is on, can be previewed but not imported into.
 
 Running it again adds only titles that are new and links files that are still missing; it never changes a title
 already in the library or monitoring you set in Theatarr, with one exception: a series whose episode list the run
 switches from TMDb to TVDB numbering takes Sonarr's season and episode monitoring. So after adding a TVDB key,
-running it again brings series' monitoring and files over. To keep adding titles that are added to the instance later, add it as a list under
-**Collections › Lists** ([arrview.md](design/arrview.md#lists)).
+running it again brings series' monitoring and files over. To keep adding titles that are added to the instance
+later, add it as a list under **Collections › Lists** ([arrview.md](design/arrview.md#lists)).
 
 If the instance keeps running and upgrades a file after the import, Theatarr's link to the old file stops working
 and Theatarr looks for that title again.
 
-### The periodic import is gone
+## Moving off the arr
 
-Theatarr no longer keeps a library in step with a Sonarr/Radarr instance: the `import` settings section,
-`theatarr import-arr` and the Instances page are gone. A library an instance filled keeps its titles, monitoring and
-links, but nothing new arrives from the instance; use a list sync or the one-time import. A quality profile or
-naming taken from an instance (`from_arr`) becomes a stored copy on upgrade, with a message on **System › Errors**
-asking you to check it; one that cannot be copied leaves its library Watch only, with a message saying so. Views no
-longer answer the old instances' ids (`alias_from`): a client that kept them (Seerr) gets 404 until its Radarr or
-Sonarr scan stores Theatarr's ids. Policy files with `import:`, `from_arr` or `alias_from` are refused.
-
-## Who this is for
-
-The staged path below, with Watch-only libraries beside the arrs, is the older one; most installs only need the
-import above. It goes from an existing Sonarr/Radarr setup (with Prowlarr, Seerr and Recyclarr) to Theatarr in
-stages. The old services are never changed, nothing here turns grabbing on by itself, and every stage can be undone.
-Go one library at a time: every step is a setting you change and confirm.
-
-Anyone with a running arr whose libraries should move to Theatarr. A fresh library with no arr behind it does not
-need this guide: it only needs the check and the switches ([quickstart.md](quickstart.md#9-go-live-deliberately)), or
-starts live from Setup: **Create library and start downloading**
-creates the library **Live** with its downloads on and turns **Pause** off (**Allow new downloads** and **Write
-library links** on) in one confirmed save ([quickstart.md](quickstart.md#6-a-first-library)).
-
-| Stage | What you do | Where | How to undo |
-|---|---|---|---|
-| [2. Shadow](#2-shadow-compare-with-the-arr) | Let the migrated library decide without grabbing, and compare its decisions with the arr's grabs | **Advanced › Sonarr/Radarr migration › Comparison**, **Activity › Decision journal** | Nothing to undo: a shadow library adds and links nothing |
-| [3. A Live library](#3-a-live-library-beside-the-arr) | Add a Live library with a root and a Plex library of its own, import the arr's titles and files once, run a trial | **Settings › Libraries**, **Settings › Plex & playback**, **Admin › Import from Sonarr/Radarr** | Turn the library's downloads off or set it to Watch only; the arr never stopped ([stage 6](#6-stop-switches-and-rollback)) |
-| [5. Hand over](#5-hand-over-clients-and-plex-retire-the-arr) | Move Seerr, the apps and Plex to the new library, then retire the arr | **Settings › Connected apps**, **Users & access**, each client | Restore the client settings and Plex sharing you saved; keep the arr's database and roots through the rollback window |
-| [6. Stop and roll back](#6-stop-switches-and-rollback) | Stop one library or everything, without double downloads | **Settings › Libraries**, **Settings › Download clients**, `THEATARR_FORCE_OFF` | Turn the switches back on deliberately, one side at a time, never both as a catch-up |
-
-[Reference](#7-reference) at the end has states and the cutoff, and known limits. Run `theatarr preflight` (or
-**Setup**'s checks) before the trial, during it and before the handover.
-
-## 2. Shadow: compare with the arr
-
-A migrated library starts in shadow with its downloads off, and its arr keeps running. The shadow runner decides on
-the arr's grabs and on the RSS feeds and records what Theatarr would have done; nothing is added or linked.
-
-Let the library decide in shadow for a while and compare its decisions with the arr's grabs in **Advanced ›
-Sonarr/Radarr migration › Comparison** and **Activity › Decision journal** ([journal.md](journal.md)). Explain each
-difference before you go on.
-
-Once the new library grabs ([stage 3](#3-a-live-library-beside-the-arr)), compare its decisions with the arr's grabs in the
-same places.
-
-## 3. A Live library beside the arr
-
-A library migrated from an arr, **F**, stays Watch only and its arr keeps running. You add a Live library **K** of
-the same kind with its own root and its own Plex section, and bring F's titles, monitoring and files into it with the
-[one-time import](#import-from-sonarrradarr). New titles reach K through a list sync (the arr as a list under
-**Collections › Lists**) or by running the import again. F's roots stay read-only to Theatarr throughout. Going live
-means proving K, moving clients and Plex to K, then retiring F's arr. Theatarr never takes over F's folders in place.
-
-Below, `movie-remux` is F and `movie-remux-theatarr` is K. Use your own keys.
-
-### Libraries that followed another
-
-Following (`follows:` on a library, `naming.from_version`, `theatarr library adopt` and `theatarr parallel`) is
-gone. A library that followed another keeps its titles, monitoring, links, profile and naming, and stops receiving
-titles and file changes from the followed library: new titles arrive through a list sync or the one-time import, and
-files the arr upgrades are no longer mirrored. Migration 00121 copies what it inherited to its own rows: the followed
-library's naming (templates, empty templates and `from_arr` as they were), and each movie's minimum availability where
-the arr's value differs from the library's default (as a choice older than any you made). Policy files must not
-contain `follows:` or `from_version:`: the strict reader refuses them. An add that names no library now also adds to
-former followers.
+Go one library at a time. The arr is never changed by Theatarr and keeps running until you retire it, so every step
+can be undone.
 
 ### Before the trial
 
-1. **Read the shadow evidence** ([stage 2](#2-shadow-compare-with-the-arr)). Explain each difference between F's
-   decisions and the arr's grabs before you go on.
-2. **Create K.** In **Settings › Libraries**, add a Live library of F's kind, with a root of its own (for example
-   `/media/library/movies-remux`), the profile and naming you want, its indexers and providers, and **Don't download
-   for this library** (under **Advanced**) ticked. Check the mount, the trash and the roots.
-3. **Give K a Plex library.** Create one Plex library on K's root, shared with no one yet, and set its section for K
-   under **Settings › Plex & playback**. Your users keep watching F's sections.
+1. **Create the library.** In **Settings › Libraries**, add a library of the arr's kind with a root of its own (for
+   example `/media/library/movies`), the profile and naming you want, its indexers and providers. Keep it **Watch
+   only** for now. Check the mount, the trash and the roots.
+2. **Give it a Plex library.** Create one Plex library on its root, shared with no one yet, and set its section
+   under **Settings › Plex & playback**. Your users keep watching the arr's sections.
+3. **Check how it judges releases.** A Watch-only library searches nothing on its own. **Settings › Profiles › Check
+   a release** judges one release name for a title and library, and `theatarr decide -search` searches its indexers
+   for one title and prints the ranked decisions ([quickstart.md](quickstart.md#6-a-first-library)); neither records
+   anything.
 4. **Review legacy queued work.** `theatarr router reconcile` lists queued work left from before. Review it, then
    `theatarr router reconcile -apply` settles the automatic rows; manual rows need a new selection. Work in flight
    is left alone ([router.md (internals)](design/router.md)).
-5. **Import F's arr into K** (**Admin › Import from Sonarr/Radarr**), with **Write library links** on, right before
-   the trial, then:
+5. **Set the library Live and import** (**Admin › Import from Sonarr/Radarr**) right before the trial, then:
 
    ```sh
    docker compose exec theatarr theatarr preflight
@@ -144,26 +85,23 @@ former followers.
    ```
 
    Resolve every FAIL. The import skips missing or off-mount files; it cannot repair them. Keep the backup set.
-   Scan K's Plex library once after the import.
+   Scan the new Plex library once after the import.
 
 ### The trial
 
 Write down the settings and the success criteria before you turn anything on.
 
-1. **Settings › Libraries:** K is Live and the only new library whose downloads will be on (**Don't download for
-   this library** unticked). F stays Watch only. **Write library links** stays on for K's imports.
-2. **Settings › Download clients › Behaviour:** start conservatively. Keep cached-only adds on, keep the wanted loop's
+1. **Settings › Download clients › Behaviour:** start conservatively. Keep cached-only adds on, keep the wanted loop's
    missing and cutoff-unmet searches off, and use a low searches-per-hour limit. Set the providers' pacing to what
    their API limits allow. Don't cap Real-Debrid or AllDebrid with an uncached-adds-per-hour limit: on those
-   providers the cache check is itself an add. Keep **Send notifications** off, and review the request budgets under
-   **Advanced › Request limits**.
-3. Untick K's **Don't download for this library**, then turn **Allow new downloads** on (or **Pause** off). Review each confirmation's
-   effects. Check `theatarr router status` and run `theatarr preflight` again.
-4. **Test the stop switch in the first minutes:** tick K's **Don't download for this library** and check that
-   no new provider adds start. A request already sent may finish, and ready downloads can still import. Turn it back
-   on once the behaviour is clear.
-5. Run the trial for about a week. Try at least three different cached releases (a new episode, a season pack, an
-   upgrade, or their movie equivalents) and play each in K's Plex library.
+   providers the cache check is itself an add. Keep **Send notifications** (**Settings › Notifications**) off, and
+   review the request budgets under **Advanced › Request limits**.
+2. Turn **Pause** off at the top of any admin page. Review the Live libraries its confirmation names. Check
+   `theatarr router status` and run `theatarr preflight` again.
+3. **Test Pause in the first minutes:** turn it on and check that no new provider adds start. A request already sent
+   may finish; downloads already at a provider are imported when Pause is turned off again.
+4. Run the trial for about a week. Try at least three different cached releases (a new episode, a season pack, an
+   upgrade, or their movie equivalents) and play each in the new Plex library.
 
 **Success criteria**
 
@@ -171,12 +109,10 @@ Write down the settings and the success criteria before you turn anything on.
   adding, added or ready, and the unsettled-adds health check stays PASS.
 - No uncached add remains on the provider. Automatic cleanup deletes only Theatarr's own adds, never reused or
   foreign torrents.
-- Links land only in K's root, replaced links go to the trash, and Plex shows new files within a minute. Every trial
-  release plays.
+- Links land only in the library's root, replaced links go to the trash, and Plex shows new files within a minute.
+  Every trial release plays.
 - No repeat add of the same hash for the same title and library; a release imported before is recognised.
-- K's dangling-link count stays at zero, no unexplained errors appear, and the stop-switch test passes.
-- After a week, compare K's routes with the arr's grabs ([stage 2](#2-shadow-compare-with-the-arr)). Explain the differences and check that nothing was
-  added twice. A good overall percentage does not excuse an unexplained choice.
+- The dangling-link count stays at zero, no unexplained errors appear, and the Pause test passes.
 
 ### What to watch
 
@@ -184,16 +120,11 @@ Write down the settings and the success criteria before you turn anything on.
 Decision journal**. Follow each download from add to poll, import, link and Plex; watch provider refusals and their
 reasons, mount and VPN health, and playback.
 
-**First day and week:** cached-only behaviour in **Admin › Torrents**, imports and upgrades confined to K's root and
-trash, dangling links, repeated hashes, comparison differences and new errors. Check **System › Backup** for a
-complete nightly set. Test requests through K's own view before you switch your users' clients.
+**First day and week:** cached-only behaviour in **Admin › Torrents**, imports and upgrades confined to the library's
+root and trash, dangling links, repeated hashes and new errors. Check **System › Backup** for a complete nightly set.
+Test requests through the library's own view before you switch your users' clients.
 
-## 5. Hand over clients and Plex, retire the arr
-
-For a Watch-only library F, the handover means switching clients and Plex libraries to the Live library K's roots. F's arr roots stay read-only throughout; after clients and Plex move, retire F's arr and roots. Theatarr
-never takes over F's folders in place.
-
-### Before retiring the arr
+### Hand over clients and Plex, then retire the arr
 
 List what still depends on the arr and decide what replaces each piece:
 
@@ -203,59 +134,49 @@ List what still depends on the arr and decide what replaces each piece:
 - indexers that only Prowlarr reaches, if you plan to retire Prowlarr too;
 - usenet downloads, which Theatarr does not handle.
 
-Keep Prowlarr while any library still uses one of its feeds.
+Keep Prowlarr while any library still uses one of its feeds. Then, for a library `movies` (use your own key):
 
-### Hand over clients and Plex, then retire F's arr
-
-1. Back up each client's settings and pick a quiet time for requests. Prepare K's views under **Settings ›
-   Connected apps** and client API keys under **Users & access**. K's own test view is
-   `/v/movie-remux-theatarr/radarr` (`/sonarr` for series).
-2. Repoint **Seerr or Overseerr** server by server: pick the view, profile and K's root again. Test an existing request
-   and a new one against the intended titles and libraries.
-3. Repoint the phone apps, autobrr and Homepage to K's view and a client key. Test browsing, requests, release
-   pushes and widgets. A pushed release must name an indexer K lists.
-4. Switch your users' Plex access to K's library after checking playback and sharing. Keep F's Plex libraries and
-   roots available for a rollback; don't point K at F's folders.
+1. Back up each client's settings and pick a quiet time for requests. Prepare the views under **Settings ›
+   Connected apps** and client API keys under **Users & access**. The library's own test view is
+   `/v/movies/radarr` (`/sonarr` for series).
+2. Repoint **Seerr or Overseerr** server by server: pick the view, profile and root again, and let Seerr scan the
+   view so it stores Theatarr's ids. Test an existing request and a new one.
+3. Repoint the phone apps, autobrr and Homepage to the view and a client key. Test browsing, requests, release
+   pushes and widgets. A pushed release must name an indexer the library lists.
+4. Switch your users' Plex access to the new library after checking playback and sharing. Keep the arr's Plex
+   libraries and roots available for a rollback; don't point Theatarr at the arr's folders.
 5. When every client has moved, stop new arr searches, drain its queue, disable its download clients and stop the
    arr. Keep its database, configuration and roots through the rollback window.
-6. Check that K's monitoring and requests stand on their own. Run `theatarr preflight` and a request and playback test again.
+6. Check that the library's monitoring and requests stand on their own. Run `theatarr preflight` and a request and
+   playback test again.
 
-## 6. Stop switches and rollback
+### Stopping and rolling back
 
-**During the trial (the arr never stopped):** tick K's **Don't download for this library** in **Settings ›
-Libraries** (under **Advanced**), then turn **Allow new downloads** off if no other library should grab. This stops new adds; a provider request
-already sent can finish. Ready downloads can still import while **Write library links** is on. Review them in
-**Activity** and remove unwanted queued or ready work there (ending Theatarr's record does not delete the provider
-torrent).
+**During the trial (the arr never stopped):** set the library to **Watch only** in **Settings › Libraries**, or turn
+**Pause** on to stop every library. A provider request already sent can finish. Review queued or ready work in
+**Activity** and remove what you don't want there (ending Theatarr's record does not delete the provider torrent).
+Existing links stay available in Plex. The arr kept doing its job, so there is no arr catch-up search to cause
+duplicates.
 
-The arr keeps doing its job, so there is no arr catch-up search to cause duplicates. To stop all work for K, set it
-to Watch only as well: that stops new links too. Existing links stay available in Plex.
+**After the handover:** turn Pause on first, account for every download in flight, and restore the client settings
+and Plex sharing you saved. If the arr was stopped, keep its searches off while you compare its catalogue and files
+with what Theatarr acquired. Add new requests deliberately and reconcile missing content before you allow arr
+searches; the arr does not adopt Theatarr's roots. Never turn both sides back on at once as a catch-up.
 
-**After the handover:** stop K's downloads first, account for every download in flight, and restore the client
-settings and Plex sharing you saved. If the arr was stopped, keep its searches off while you compare its catalogue
-and files with what K acquired. Add new requests deliberately and reconcile missing content before you allow arr
-searches; the arr does not adopt K's roots. Never turn both sides back on at once as a catch-up. Keep the original
-roots; don't move K's links into F's root.
-
-**Emergency stop:** turn **Pause** on at the top of any admin page (it turns **Allow new downloads** and **Write
-library links** off; when it reads **Custom**, turn the one still on off on its Settings page), and **Send notifications** off on its Settings page; they affect every library. `THEATARR_FORCE_OFF=router,library,notify` forces them off at startup
-whatever the saved settings say; it needs a restart and can never turn anything on. A database or image rollback
-uses a backup set ([restore.md](restore.md)); it cannot undo provider adds or filesystem changes.
+**Emergency stop:** turn **Pause** on at the top of any admin page, and **Send notifications** off on **Settings ›
+Notifications**. `THEATARR_FORCE_OFF=pause,notify` forces both at startup whatever the saved settings say; it needs a
+restart and can never turn anything on. A database or image rollback uses a backup set ([restore.md](restore.md)); it
+cannot undo provider adds or filesystem changes.
 
 ### Stopping or removing a library
 
 With DB settings, edit mode, root and view bindings in **Admin › Settings › Libraries**. Watch only stops new work;
 **Stop managing library** removes the library after a confirmation that names what it leaves behind.
 
-Set K to Watch only (Theatarr stops searching, adding and linking for it; its links stay and Plex keeps showing them)
-or remove it: its entries on every title go (versions, monitoring, wanted state, downloads, the link rows it alone
-holds, its own view rows), while its symlinks stay on disk, untracked, until removed by hand, and downloads at the
-provider stay there; the Plex sections can be deleted. Nothing to undo on the arr side.
-
-A Watch-only library that copied a Sonarr/Radarr instance through the old periodic import stays after the upgrade
-to 00125 as an ordinary Watch-only library, with one System › Errors card: "Library K copied a Sonarr/Radarr
-instance. That copy is no longer updated. Delete the library when you no longer need it." Removing it as above
-resolves the card.
+A Watch-only library keeps its links, and Plex keeps showing them. A removed library's entries on every title go
+(versions, monitoring, wanted state, downloads, the link rows it alone holds, its own view rows), while its symlinks
+stay on disk, untracked, until removed by hand, and downloads at the provider stay there; its Plex sections can be
+deleted.
 
 ### Changing a root with links
 
@@ -264,23 +185,61 @@ with a separate existing root, configure its naming in the naming editor, then r
 switching Plex and clients. Retire the old library only after
 reviewing its removal confirmation; Theatarr never migrates or deletes the old links as part of a settings edit.
 
-## 7. Reference
-
 ### States and the cutoff
 
-The two libraries' states use different cutoffs and cannot be compared one to one:
-- **The arr-fed library F** takes its state from the arr's `qualityCutoffNotMet` (`arr.import`). That flag checks
-  the quality cutoff only (Radarr `MovieFileResource`, Sonarr `EpisodeFileResource`).
-- **K's imported links** (the one-time import) are judged as a Theatarr import is (`importedState`, `decide.Engine.FileCutoffNotMet`): the
-  quality cutoff and the profile's `cutoff_score`, with K's own profile.
-- **What that means:** with a profile whose `cutoff_score` no arr file reaches, K holds every adopted file as
-  `filled` while F shows most as `cutoff_met`. Both are right by their own definition.
-- **What the wanted loop searches** follows the arrs: with `router.wanted.cutoff_unmet: quality` (the default) it
-  searches only files below the quality cutoff, as the arrs' Cutoff Unmet search does (docs/design/router.md "The
-  wanted loop"). Files at the cutoff quality but below the score are upgraded only when a feed or another search
-  brings a better-scored release, as the arrs' RSS sync does. Adopted links need no repair.
+Imported links are judged as a Theatarr import is (`importedState`, `decide.Engine.FileCutoffNotMet`): the quality
+cutoff and the profile's `cutoff_score`, with the library's own profile. With a profile whose `cutoff_score` no arr
+file reaches, the library holds every imported file as `filled` where the arr showed `cutoff_met`; both are right by
+their own definition. With `router.wanted.cutoff_unmet: quality` (the default) the wanted loop searches only files
+below the quality cutoff, as the arrs' Cutoff Unmet search does ([router.md](design/router.md), "The wanted loop").
+Files at the cutoff quality but below the score are upgraded only when a feed or another search brings a
+better-scored release, as the arrs' RSS sync does.
 
-### Known limits
+Imported links keep neither the arr's score nor its custom format list. That changes no decision: the cutoff and
+every upgrade comparison recalculate them from the file's inputs.
 
-- Imported links keep neither the arr's score nor its custom format list. That changes no decision: the cutoff and
-  every upgrade comparison recalculate them from the file's inputs.
+## Upgrading to this release
+
+The database migrations run at start; nothing needs doing first. What an install that used the older tools sees:
+
+- **Libraries that followed another** (`follows:`) are ordinary libraries now. Each keeps its titles, monitoring,
+  links, profile and naming; migration 00121 copies the naming it inherited and each movie's minimum availability
+  where it differed from the library's default. They no longer receive titles or file changes from the library they
+  followed: new titles arrive through a list sync or the one-time import, and files the arr upgrades are no longer
+  mirrored. An add that names no library now also adds to former followers.
+- **Watch-only libraries that copied a Sonarr/Radarr instance** (through the old periodic import) stay, with their
+  titles, as ordinary Watch-only libraries. They are no longer updated. Each gets one **System › Errors** card:
+  "Library K copied a Sonarr/Radarr instance. That copy is no longer updated. Delete the library when you no longer
+  need it." Remove it with **Stop managing library** when you no longer need it, and resolve the card.
+- **A quality profile or naming taken from an instance** (`from_arr`) becomes a stored copy of what the library used,
+  keeping its key. Each library concerned gets one **System › Errors** message asking you to check the copy in
+  **Settings › Profiles** or **Settings › Libraries**. If no copy could be made (no stored snapshot of the instance),
+  that library alone is set Watch only, with a message saying so; check its profile and naming, then set it Live.
+- **Old arr ids in the views no longer answer** (`alias_from` is gone). A client that kept a title's Radarr or Sonarr
+  id from before (Seerr, for example) gets 404 for it until its next scan of the view stores Theatarr's ids. Point
+  the client at the view and let it sync.
+- **One Pause.** Pause is on after the upgrade if the router or the library switch was off. A Live library whose
+  downloads were off is now Watch only. **Send notifications** is a setting on **Settings › Notifications**, kept as it
+  was.
+- **One parser.** Every library uses the same release parser and pack rule. Picks can differ from before on installs
+  that used the old defaults.
+
+### Removed in this release
+
+- **Commands:** `theatarr golive`, `theatarr parallel`, `theatarr import-arr`, `theatarr shadow` (`run-once`,
+  `status`, `reclassify`), `theatarr decide shadow`, `theatarr library adopt` and `library naming-sync`, and the guided
+  move in `theatarr migrate` (`inspect`, `plan`, `apply`, `verify`, `seerr-ids`); `theatarr migrate` keeps `up` and
+  `status`. `theatarr sonarr-parse` lost `-sonarr`.
+- **Pages:** **Advanced › Sonarr/Radarr migration** (the comparison, the arr imports and the guided migration).
+- **Settings and policy fields:** the `import` section (`import.arr`, the periodic arr import), `from_arr` on
+  profiles and naming, `alias_from` on views, `follows` on libraries and `naming.from_version`, `grab` on libraries,
+  the separate router, library and notification switches (`router_enabled`, `library_enabled`, `notify_enabled`; use
+  `paused`), the parser and pack fields (`sonarr`, `packs`, `packs_threshold`), and the comparison fields of the
+  `shadow` section (`import_interval`, `search`, `searches_per_hour`, `search_reuse`, `keep_results`,
+  `link_window`; `rss` and `rss_interval` stay). Policy files that still contain them are refused.
+- **The comparison data** (arr grabs decided again, the comparison report and its journal entries) is dropped.
+- **SeaDex quality reading:** a SeaDex file name with WEB and EAC3 and no other source tag now reads as WEBDL (it was
+  Unknown). With **Prefer SeaDex** and a profile that allows WEB-1080p, a SeaDex-listed 1080p WEB entry that used to
+  wait as "quality pending" can now be picked ahead of a Blu-ray alternative.
+- **Already-imported guard:** with the arr history gone, a release an arr imported whose name overstated its quality
+  can be grabbed again until a matching Theatarr import exists (tracked per library and episode, not once per title).

@@ -1,6 +1,6 @@
 # Quickstart
 
-From nothing to a first library: live at once, or deciding as Watch only first. Theatarr replaces Sonarr, Radarr, Prowlarr,
+From nothing to a first library: live at once, or Watch only first. Theatarr replaces Sonarr, Radarr, Prowlarr,
 Recyclarr and a debrid bridge (decypharr or similar) with one service. Seerr, Overseerr, Homepage and the arr phone
 apps keep working: they talk to Theatarr's arr-compatible views.
 
@@ -276,24 +276,14 @@ every library. Downloads already at a provider finish there and are imported whe
 asks for a confirmation that names the Live libraries; turning it on does not. **Send notifications** is a field on
 **Settings › Notifications**.
 
-**Where a Watch only library's decisions come from.** The scheduled search for wanted titles runs only for a library
-that is Live while Pause is off, so a Watch only library
-is not searched on a schedule. It gets decisions two ways:
-
-- **RSS.** Every 15 minutes Theatarr reads the RSS feeds of the library's indexers that have one: Torznab feeds
-  (Prowlarr, Jackett), DMM's cached feed, SeaDex's recent feed and catalog indexers. Torrentio and Zilean have no
-  feed; they answer per title. A standalone Watch only library needs at least one indexer with a feed.
-- **Comparison with an arr.** A library fed by a Sonarr or Radarr instance (migration) decides each arr grab and
-  runs its own search for it.
-
-To see how the library judges releases, start in the UI:
+**A Watch only library makes no decisions of its own.** The scheduled search for wanted titles and the RSS sync
+run only for libraries that are Live while Pause is off. To see how a library judges releases, start in the UI:
 
 - **Settings › Profiles › Check a release**: paste a release name and pick a title and library. It shows the parsed
   quality, the matched formats, the score, any rejection and whether it would upgrade the file. It searches nothing
   and records nothing.
 - The title's **Releases** page (from the title page): for a Live library it can search the indexers now; for a
-  Watch only library it shows the last stored decision (from RSS or from an arr grab it compared), so a title added a
-  moment ago may show nothing yet.
+  Watch only library it shows the last stored decision, if there is one.
 
 To search a Watch only library's indexers for a title right away, run the decision engine from the shell. It prints the
 ranked decisions with their score breakdown and records nothing:
@@ -370,8 +360,8 @@ A library created with **Create library and start downloading** (step 6) is alre
 Pause is off. Watch it as in item 3 below. The rest of this step is for a
 library created as Watch only.
 
-For a fresh library, read its decisions first: **Activity › Decision journal** (**Open the decision journal** in Setup)
-shows what it would have grabbed and why ([journal.md](journal.md)). Then run preflight:
+For a fresh library, check how it judges releases first: **Settings › Profiles › Check a release**, or
+`theatarr decide -search` for a title ([step 6](#6-a-first-library)). Then run preflight:
 
 ```sh
 docker compose exec theatarr theatarr preflight
@@ -454,13 +444,13 @@ after a restart, or once the settings change, run the preflight again. Activatio
 library runs as **Live** and Pause is off; otherwise it says
 **Not yet**.
 
-Theatarr turns these on for you only through **Create library and start downloading** in step 4, on an install no
-arr feeds, after you confirm the list. Setup stays available from Settings after the reminder disappears.
+Theatarr turns these on for you only through **Create library and start downloading** in step 4, after you confirm
+the list. Setup stays available from Settings after the reminder disappears.
 
 ## More
 
 - [migration.md](migration.md): moving an existing Sonarr/Radarr, Prowlarr, Seerr and Recyclarr setup into Theatarr:
-  the one-time import, shadow, a Live library beside the arr, client and Plex handover, rollback
+  the one-time import, a trial, client and Plex handover, rollback, and what an upgrade from the older tools changes
 - [restore.md](restore.md): backups, restore and upgrades
 - [mcp.md](mcp.md): set up and run Theatarr from an MCP client
 - [design/settings.md (internals)](design/settings.md): the settings database and API, presets and profiles

@@ -36,7 +36,7 @@ It is built so that nothing happens until you say so:
   downloads already at a provider finish there and are imported when Pause is turned off. Making a library Live,
   turning Pause off, sending a stored key to a new address and deletes ask for a confirmation; other settings save at
   once. Notifications are an ordinary setting.
-- On a fresh install with no arr to migrate from, Setup can do all of that in one step, **Create library and start
+- On a fresh install, Setup can do all of that in one step, **Create library and start
   downloading**, after one confirmation that lists what it turns on.
 - `THEATARR_FORCE_OFF=pause,notify` forces Pause on and notifications off at startup, whatever the saved settings say
   (`router` and `library` still work and also force Pause).
@@ -45,8 +45,8 @@ It is built so that nothing happens until you say so:
 
 - **Libraries per title.** Each library has a kind, a quality profile, a root, indexers and debrid providers. A title
   can belong to several libraries.
-- **Shadow mode.** A library records its decisions without acting on them, so you can compare before it goes live.
-  A migrated library can watch an arr side by side until you hand over.
+- **Watch only or Live.** A library starts Watch only (Theatarr searches, downloads and links nothing for it) until
+  you set it Live; one Pause stops every library at once.
 - **Indexers.** Prowlarr and other Torznab feeds, the Cardigann definition catalog run natively, and built-in
   sources: DMM, Torrentio, Zilean and SeaDex. Each library lists the indexers it searches.
 - **Debrid providers.** Real-Debrid, AllDebrid and TorBox, in a fallback order per library, with cache checks,
@@ -67,11 +67,10 @@ It is built so that nothing happens until you say so:
   confidence imports through Sonarr's numbering, and the mapping waits in a review queue. A SeaDex pack covers only the
   cour it belongs to. Plex gets per-franchise playlists in watch or story order. Details:
   [docs/design/anime.md (internals)](docs/design/anime.md).
-- **Decision journal.** Every grab, upgrade and shadow decision with its reasoning, runners-up and suspect flags.
-- **Migration from an arr stack.** Reads Sonarr, Radarr, Prowlarr, Seerr and Recyclarr with GET requests only and
-  plans the move; everything lands disabled or in shadow.
-- **MCP.** An MCP endpoint and a stdio bridge, so an AI agent can set up, migrate and check an install with an API
-  key.
+- **Decision journal.** Every grab, upgrade and search decision with its reasoning, runners-up and suspect flags.
+- **Import from an arr.** A one-time import reads a Sonarr or Radarr instance with GET requests only and brings its
+  titles, monitoring and debrid-mount files into a library. Radarr and Sonarr lists keep adding new titles.
+- **MCP.** An MCP endpoint and a stdio bridge, so an AI agent can set up and check an install with an API key.
 
 ## How it works
 
@@ -90,7 +89,7 @@ A request, an RSS feed or a scheduled search makes a title wanted in one or more
 library's indexers through one outbound gateway (budgets, back-offs and the optional VPN check), scores the releases
 with the library's profile the way the arrs do, and adds the best cached one to the first provider that takes it.
 When the files show up on the debrid mount, the library checks them and links them into its root under arr naming,
-then asks Plex to scan. In shadow mode the same chain stops after the decision. See
+then asks Plex to scan. See
 [docs/design/overview.md (internals)](docs/design/overview.md) for the architecture.
 
 ## Not supported yet
@@ -161,8 +160,7 @@ compose volume is for, is [docs/quickstart.md](docs/quickstart.md).
 
 ## Using Theatarr
 
-**A first library, Watch only.** Setup can create the first library as Watch only (always, when the install migrates
-from an arr): Theatarr searches, downloads and links nothing for it until you set it Live. Add titles from **Search**, or let requests come in.
+**A first library, Watch only.** Setup can create the first library as Watch only: Theatarr searches, downloads and links nothing for it until you set it Live. Add titles from **Search**, or let requests come in.
 See [docs/quickstart.md](docs/quickstart.md#6-a-first-library).
 
 **Reading its decisions.** **Activity › Decision journal** lists every decision; an entry opens from its
@@ -217,8 +215,8 @@ The environment sets what the service needs before it can read its database. Mos
 | `THEATARR_TVDB_PIN` | unset | The subscriber PIN for a TVDB key that needs one (a user-supported key); other TVDB keys need none |
 | `TZ` | UTC | Time zone; the nightly backup runs at 03:00 local time (`-backup-hour`) |
 
-The CLI tools that talk to a running service read an admin API key from `THEATARR_API_KEY` (`theatarr migrate`) or
-the variable you name (`theatarr mcp --key-env`). A source can also read its credential from an environment
+The MCP bridge reads an admin API key from the variable you name (`theatarr mcp --key-env`) or a file
+(`--key-file`). A source can also read its credential from an environment
 variable you name in its settings (`api_key_env`); a credential stored in Settings wins.
 
 ## Backups and upgrades
