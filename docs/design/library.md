@@ -907,7 +907,8 @@ rows, view tags and its own view rows (`arrview_title` `v/<key>`). The episode a
 recomputed from the remaining libraries (an episode with states left is monitored when any of them is; one with none left keeps its flag), and movie
 collections drop the key. Files on
 disk, mount content, `link_trash` entries and downloads at the provider are not touched; a title left with no
-library stays as an unmonitored title. Migration 00125 did the same once for libraries already gone from the stored
+library stays as an unmonitored title. The library's upgrade cards on System › Errors (`arr-mirror:<key>`,
+`arr-freeze:<key>`) are resolved. Migration 00125 did the same once for libraries already gone from the stored
 settings. There is no start-up prune of unknown libraries: it could delete everything if the settings loaded empty.
 
 ## Commands

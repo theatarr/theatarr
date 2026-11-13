@@ -56,6 +56,10 @@ func TestDeleteLibraryRemovesRows(t *testing.T) {
 		`INSERT INTO arrview_title (view, title_id, minimum_availability, added_at, updated_at) VALUES
 			('v/movie-web', 1, 'announced', 1, 1), ('v/movie-remux', 1, 'inCinemas', 1, 1)`,
 		`INSERT INTO movie_collection (tmdb_id, versions, updated_at) VALUES (900, '["movie-remux","movie-web"]', 0)`,
+		// Upgrade cards of the removed library, and the Live library's, which stays open.
+		`INSERT INTO error_event (fingerprint, source, message, first_seen, last_seen, updated_at) VALUES
+			('arr-mirror:movie-web', 'log', 'mirror', 0, 0, 0), ('arr-freeze:movie-web', 'log', 'copy', 0, 0, 0),
+			('arr-freeze:movie-remux', 'log', 'copy', 0, 0, 0)`,
 	} {
 		if _, err := db.Writer().Exec(q); err != nil {
 			t.Fatalf("%s: %v", q, err)
@@ -132,20 +136,21 @@ func TestDeleteLibraryRemovesRows(t *testing.T) {
 		return s.String
 	}
 	for q, want := range map[string]string{
-		`SELECT group_concat(id, ' ') FROM (SELECT id FROM version ORDER BY id)`:                                                                 "11 31",
-		`SELECT group_concat(id || ':' || COALESCE(download_id, '-'), ' ') FROM (SELECT * FROM link ORDER BY id)`:                                "100:500 101:-",
-		`SELECT group_concat(link_id || ':' || version_id, ' ') FROM link_version`:                                                               "100:11 101:11",
-		`SELECT group_concat(id, ' ') FROM download`:                                                                                             "500",
-		`SELECT COUNT(*) FROM version_file`:                                                                                                      "0",
-		`SELECT group_concat(info_hash, ' ') FROM router_offer`:                                                                                  "h3",
-		`SELECT group_concat(version_key, ' ') FROM search_request`:                                                                              "movie-remux",
-		`SELECT group_concat(version, ' ') FROM arrview_title_tag`:                                                                               "movie-remux",
-		`SELECT group_concat(view, ' ') FROM arrview_title`:                                                                                      "v/movie-remux",
-		`SELECT versions FROM movie_collection`:                                                                                                  `["movie-remux"]`,
-		`SELECT group_concat(id || ':' || monitored, ' ') FROM (SELECT * FROM title ORDER BY id)`:                                                "1:0 2:0 3:1 4:0",
-		`SELECT group_concat(id || ':' || monitored, ' ') FROM (SELECT * FROM episode ORDER BY id)`:                                              "301:0 302:1 303:1 401:1",
-		`SELECT group_concat(version_id || ':' || episode_id || ':' || monitored, ' ') FROM (SELECT * FROM episode_version_state ORDER BY 1, 2)`: "31:301:0 31:302:1",
-		`SELECT COUNT(*) FROM pragma_foreign_key_check`:                                                                                          "0",
+		`SELECT group_concat(id, ' ') FROM (SELECT id FROM version ORDER BY id)`:                                                                      "11 31",
+		`SELECT group_concat(id || ':' || COALESCE(download_id, '-'), ' ') FROM (SELECT * FROM link ORDER BY id)`:                                     "100:500 101:-",
+		`SELECT group_concat(link_id || ':' || version_id, ' ') FROM link_version`:                                                                    "100:11 101:11",
+		`SELECT group_concat(id, ' ') FROM download`:                                                                                                  "500",
+		`SELECT COUNT(*) FROM version_file`:                                                                                                           "0",
+		`SELECT group_concat(info_hash, ' ') FROM router_offer`:                                                                                       "h3",
+		`SELECT group_concat(version_key, ' ') FROM search_request`:                                                                                   "movie-remux",
+		`SELECT group_concat(version, ' ') FROM arrview_title_tag`:                                                                                    "movie-remux",
+		`SELECT group_concat(view, ' ') FROM arrview_title`:                                                                                           "v/movie-remux",
+		`SELECT versions FROM movie_collection`:                                                                                                       `["movie-remux"]`,
+		`SELECT group_concat(id || ':' || monitored, ' ') FROM (SELECT * FROM title ORDER BY id)`:                                                     "1:0 2:0 3:1 4:0",
+		`SELECT group_concat(id || ':' || monitored, ' ') FROM (SELECT * FROM episode ORDER BY id)`:                                                   "301:0 302:1 303:1 401:1",
+		`SELECT group_concat(version_id || ':' || episode_id || ':' || monitored, ' ') FROM (SELECT * FROM episode_version_state ORDER BY 1, 2)`:      "31:301:0 31:302:1",
+		`SELECT group_concat(fingerprint || ':' || status, ' ') FROM (SELECT * FROM error_event WHERE fingerprint LIKE 'arr-%' ORDER BY fingerprint)`: "arr-freeze:movie-remux:new arr-freeze:movie-web:resolved arr-mirror:movie-web:resolved",
+		`SELECT COUNT(*) FROM pragma_foreign_key_check`:                                                                                               "0",
 	} {
 		if got := str(q); got != want {
 			t.Errorf("%s\n got %s\nwant %s", q, got, want)

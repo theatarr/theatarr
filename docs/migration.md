@@ -254,8 +254,8 @@ provider stay there; the Plex sections can be deleted. Nothing to undo on the ar
 
 A Watch-only library that copied a Sonarr/Radarr instance through the old periodic import stays after the upgrade
 to 00125 as an ordinary Watch-only library, with one System › Errors card: "Library K copied a Sonarr/Radarr
-instance. That copy is no longer updated. Delete the library when you no longer need it." Remove it as above and
-resolve the card.
+instance. That copy is no longer updated. Delete the library when you no longer need it." Removing it as above
+resolves the card.
 
 ### Changing a root with links
 

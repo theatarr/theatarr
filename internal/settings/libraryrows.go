@@ -39,6 +39,11 @@ func removeLibraryRows(ctx context.Context, tx *sql.Tx, key string, now int64) e
 			return fmt.Errorf("settings: remove rows of library %s: %w", key, err)
 		}
 	}
+	// Its upgrade cards (migration 00125's mirror card, FreezeStored's copy card) are resolved: their cause is gone.
+	if _, err := tx.ExecContext(ctx, `UPDATE error_event SET status = 'resolved', resolved_at = ?1, updated_at = ?1
+		WHERE fingerprint IN ('arr-mirror:' || ?2, 'arr-freeze:' || ?2) AND status IN ('new', 'seen')`, now, key); err != nil {
+		return fmt.Errorf("settings: remove rows of library %s: %w", key, err)
+	}
 	// An episode with states left is monitored when any of them is; one with none left keeps its flag (a remaining
 	// library may have no state for it yet, and a series added again keeps its flags). A title is monitored when any
 	// version not removed from the views is (catalog.SyncMonitored).
