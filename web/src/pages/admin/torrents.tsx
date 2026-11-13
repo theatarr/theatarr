@@ -7,7 +7,7 @@ import { TorrentTabs } from "./torrent-tabs";
 import { useMemo, useState } from "react";
 import { Link, useSearchParams } from "react-router";
 import { useTorrentActions, useTorrentJournal, useTorrentReport } from "@/api/torrents";
-import { useCopyTorrent } from "@/api/provider-copies";
+import { useCopyTorrent, useTorrentCopies } from "@/api/provider-copies";
 import { useStatus } from "@/api/hooks";
 import { AddToProviders, OtherProviders } from "@/components/title/provider-copies";
 import { otherProvidersLine } from "@/lib/provider-copies";
@@ -305,12 +305,13 @@ function TorrentRow({ t, checked, onToggle, code }: { t: Torrent; checked: boole
 
 /** "Add to other providers" for one torrent, and how its copies ended where the row does not show them. */
 function TorrentCopies({ t }: { t: Torrent }) {
-  const m = useCopyTorrent();
+  const m = useCopyTorrent(t.hash);
+  const copies = useTorrentCopies(t.hash, t.copies).data?.copies;
   const status = useStatus();
   const paused = globalDownloadsOff((status.data?.versions ?? []).map((v) => v.grab_state));
   return (
     <div className="mt-2 space-y-1" data-testid="torrent-copies">
-      {otherProvidersLine(t.copies) ? <div>Other providers: <OtherProviders copies={t.copies} /></div> : null}
+      {otherProvidersLine(copies) ? <div>Other providers: <OtherProviders copies={copies} /></div> : null}
       <AddToProviders m={m} vars={{ provider: t.provider, id: t.id }} paused={paused} />
     </div>
   );

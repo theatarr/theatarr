@@ -30,6 +30,25 @@ const plan = (override: boolean) => ({
 });
 
 describe("torrents page", () => {
+  it("adds a row's torrent to the other providers and polls only that torrent's copies, not the report", async () => {
+    const fetch = mockFetch([
+      { method: "GET", path: "/torrents/report", reply: report },
+      { method: "GET", path: "/torrents/journal", reply: { entries: [] } },
+      { method: "GET", path: "/status", reply: { versions: [] } },
+      { method: "POST", path: "/torrents/copy", reply: { copies: [{ provider: "ad", state: "queued", updated_at: "2026-11-13T12:00:00Z" }] } },
+      { method: "GET", path: "/torrents/copies", reply: { copies: [{ provider: "ad", state: "not_cached", updated_at: "2026-11-13T12:00:00Z" }] } },
+    ]);
+    renderPage(<TorrentsPage />);
+    await screen.findByText("Unused.Movie");
+    fireEvent.click(screen.getAllByRole("button", { expanded: false })[0]);
+    fireEvent.click(await screen.findByTestId("add-to-providers"));
+    await waitFor(() => expect(fetch.calls("POST", "/torrents/copy")).toHaveLength(1));
+    expect(fetch.calls("POST", "/torrents/copy")[0].body).toEqual({ provider: "rd", id: "1" });
+    await waitFor(() => expect(fetch.calls("GET", "/torrents/copies").length).toBeGreaterThan(0), { timeout: 8000 });
+    await waitFor(() => expect(screen.getByTestId("other-providers").textContent).toMatch(/^AD not cached/));
+    expect(fetch.calls("GET", "/torrents/report")).toHaveLength(1);
+  }, 15000);
+
   it("edits other libraries' folders (moved from Settings › General) above the list", async () => {
     mockFetch([
       { method: "GET", path: "/torrents/report", reply: report },

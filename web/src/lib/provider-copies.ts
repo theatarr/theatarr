@@ -3,7 +3,7 @@
 // providers" line lists only the rest: in progress, not cached, refused, skipped, failed.
 import type { Schemas } from "@/api/client";
 import { providerLabel } from "@/components/provider-pills";
-import { fmtAgo } from "@/lib/format";
+import { fmtAgo, fmtTime } from "@/lib/format";
 
 export type ProviderCopy = Schemas["ProviderCopy"];
 
@@ -39,7 +39,7 @@ export function otherProvidersLine(copies?: readonly ProviderCopy[] | null, now?
 
 /** Each copy's reason, for the line's tooltip. */
 export const copyReasons = (copies?: readonly ProviderCopy[] | null) =>
-  otherCopies(copies).map((c) => `${providerLabel(c.provider)}: ${c.message || WORDS[c.state] || c.state}`).join("\n");
+  otherCopies(copies).map((c) => `${providerLabel(c.provider)}: ${c.message || WORDS[c.state] || c.state}${c.until ? ` until ${fmtTime(c.until)}` : ""}`).join("\n");
 
 /** What the action answered, in one line: the providers it is adding to, or that none was left. */
 export function queuedWords(copies: readonly ProviderCopy[]): string {
