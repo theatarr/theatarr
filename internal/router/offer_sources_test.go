@@ -5,8 +5,6 @@ import (
 	"database/sql"
 	"encoding/json"
 	"fmt"
-	"os"
-	"path/filepath"
 	"strings"
 	"testing"
 	"time"
@@ -17,35 +15,16 @@ import (
 	"github.com/theatarr/theatarr/internal/store"
 )
 
-func (e *offerEnv) arrHistory(hash, download, indexer string) {
+// storeSource stores the source the arr history gave for the adopted link 1 (link.adopted_source).
+func (e *offerEnv) storeSource(hash, indexer string) {
 	e.t.Helper()
-	e.exec(`INSERT OR IGNORE INTO arr_instance (name, flavour, policy_key, created_at, updated_at)
-		VALUES ('radarr', 'radarr', 'movie-remux', 0, 0)`)
-	data, _ := json.Marshal(map[string]string{"indexer": indexer, "fileId": "1"})
-	e.exec(`INSERT INTO arr_history (instance, arr_id, event_type, date_at, title_id, version_id,
-		download_id, info_hash, source_title, data) VALUES ('radarr', 1, 'downloadFolderImported', 0, 1, 10, ?, ?,
-		'Movie.2001.2160p.WEB-DL-GRP', ?)`, download, hash, string(data))
-}
-
-// withoutWeb takes movie-web out of the policy, for a source that is the arr's own file: movie-web follows nothing and
-// would be offered it like any other library.
-func (e *offerEnv) withoutWeb() {
-	e.t.Helper()
-	delete(e.off.Policy.Versions, "movie-web")
+	raw, _ := json.Marshal(adoptedSource{From: "radarr /arr/Movie.mkv", Hash: hash, Release: "Movie.2001.2160p.WEB-DL-GRP",
+		Indexers: []string{indexer}, Version: "movie-remux"})
+	e.exec(`UPDATE link SET adopted_source = ? WHERE id = 1`, string(raw))
 }
 
 func (e *offerEnv) sourceFile(kind, hash string) {
 	e.t.Helper()
-	if kind == "arr_file" {
-		e.exec(`INSERT INTO version_file (id, version_id, title_id, instance, arr_file_id, path, download_id,
-			release_title, quality, size_bytes) VALUES (1, 10, 1, 'radarr', 1, '/arr/Movie.mkv', 'torrent-1',
-			'Movie.2001.2160p.WEB-DL-GRP', 'WEBDL-2160p', 1000)`)
-		if hash != "" {
-			e.exec(`INSERT INTO content (id, info_hash, first_seen_at, last_seen_at) VALUES (1, ?, 0, 0)`, hash)
-			e.exec(`UPDATE version_file SET content_id = 1 WHERE id = 1`)
-		}
-		return
-	}
 	meta, _ := json.Marshal(map[string]any{"InfoHash": hash, "Size": 1000})
 	e.exec(`INSERT INTO link (id, title_id, path, target, release_title, quality, file_metadata,
 		created_at, updated_at) VALUES (1, 1, '/theatarr/Movie.mkv', '/mount/__all__/Movie/video.mkv',
@@ -61,94 +40,62 @@ func (e *offerEnv) sourceFile(kind, hash string) {
 
 func TestOfferFileSources(t *testing.T) {
 	t.Parallel()
-	for _, kind := range []string{"adopted", "arr_file"} {
-		t.Run(kind, func(t *testing.T) {
-			e := newOfferEnv(t)
-			hash := strings.Repeat("a", 40)
-			e.off.Policy.Import = &policy.Import{Arr: map[string]*policy.ArrSource{"radarr": {Version: "movie-remux"}}}
-			e.arrHistory(hash, "torrent-1", "dmm")
-			e.sourceFile(kind, strings.ToUpper(hash))
-			if kind == "arr_file" {
-				e.withoutWeb()
-			}
-			// A second version may accept an active route too.
-			e.off.Policy.Versions["movie-active"] = &policy.VersionPolicy{Kind: policy.KindMovie, Mode: policy.ModeActive}
-			e.exec(`INSERT INTO version (id, title_id, policy_key, created_at, updated_at) VALUES (15, 1, 'movie-active', 0, 0)`)
-			sr, err := e.off.Sweep(e.ctx, true, 0)
-			if err != nil || sr.Downloads != 1 || len(sr.Offers) != 2 || sr.Outcomes[OfferPlanned] != 1 || sr.Outcomes[OfferRouted] != 1 {
-				t.Fatalf("dry run: %+v, %v", sr, err)
-			}
-			if len(e.enq.reqs) != 0 || e.outcome("movie-extra", 1, hash) != "" {
-				t.Fatal("dry run recorded or queued")
-			}
-			sr, err = e.off.Sweep(e.ctx, false, 0)
-			if err != nil || sr.Downloads != 1 || len(e.enq.reqs) != 2 {
-				t.Fatalf("sweep: %+v, routes %+v, %v", sr, e.enq.reqs, err)
-			}
-			for _, req := range e.enq.reqs {
-				if req.Version != "movie-extra" && req.Version != "movie-active" {
-					t.Errorf("offered to the source or the arr's library: %+v", req)
-				}
-				if req.Candidates[0].Release.InfoHash != hash || req.Candidates[0].Release.Size != 1000 {
-					t.Errorf("lost file identity: %+v", req)
-				}
-			}
-			if sr, err = e.off.Sweep(e.ctx, false, 0); err != nil || sr.Downloads != 0 || len(sr.Outcomes) != 0 || len(e.enq.reqs) != 2 {
-				t.Fatalf("repeated sweep: %+v, %v", sr, err)
-			}
-		})
+	e := newOfferEnv(t)
+	hash := strings.Repeat("a", 40)
+	e.sourceFile("adopted", strings.ToUpper(hash))
+	e.storeSource(hash, "dmm")
+	// A second version may accept an active route too.
+	e.off.Policy.Versions["movie-active"] = &policy.VersionPolicy{Kind: policy.KindMovie, Mode: policy.ModeActive}
+	e.exec(`INSERT INTO version (id, title_id, policy_key, created_at, updated_at) VALUES (15, 1, 'movie-active', 0, 0)`)
+	sr, err := e.off.Sweep(e.ctx, true, 0)
+	if err != nil || sr.Downloads != 1 || len(sr.Offers) != 2 || sr.Outcomes[OfferPlanned] != 1 || sr.Outcomes[OfferRouted] != 1 {
+		t.Fatalf("dry run: %+v, %v", sr, err)
+	}
+	if len(e.enq.reqs) != 0 || e.outcome("movie-extra", 1, hash) != "" {
+		t.Fatal("dry run recorded or queued")
+	}
+	sr, err = e.off.Sweep(e.ctx, false, 0)
+	if err != nil || sr.Downloads != 1 || len(e.enq.reqs) != 2 {
+		t.Fatalf("sweep: %+v, routes %+v, %v", sr, e.enq.reqs, err)
+	}
+	for _, req := range e.enq.reqs {
+		if req.Version != "movie-extra" && req.Version != "movie-active" {
+			t.Errorf("offered to the source or the arr's library: %+v", req)
+		}
+		if req.Candidates[0].Release.InfoHash != hash || req.Candidates[0].Release.Size != 1000 {
+			t.Errorf("lost file identity: %+v", req)
+		}
+	}
+	if sr, err = e.off.Sweep(e.ctx, false, 0); err != nil || sr.Downloads != 0 || len(sr.Outcomes) != 0 || len(e.enq.reqs) != 2 {
+		t.Fatalf("repeated sweep: %+v, %v", sr, err)
 	}
 }
 
+// The adopted link's hash is its own (content) when it has one, else the stored source's; without either it is
+// declined as no_hash.
 func TestOfferFileHashDiscovery(t *testing.T) {
 	t.Parallel()
-	for _, method := range []string{"content", "history", "adopted_history", "mount_folder", "ambiguous_folder", "decypharr_folder", "no_hash"} {
+	for _, method := range []string{"content", "stored", "no_hash"} {
 		t.Run(method, func(t *testing.T) {
 			e := newOfferEnv(t)
 			hash := strings.Repeat("b", 40)
 			e.sourceFile("adopted", "")
-			if method != "no_hash" {
-				e.arrHistory(hash, "torrent-1", "dmm")
-			} else {
-				// The arr instance is known (its library is never offered the file); its history is not.
-				e.exec(`INSERT INTO arr_instance (name, flavour, policy_key, created_at, updated_at)
-					VALUES ('radarr', 'radarr', 'movie-remux', 0, 0)`)
-			}
 			switch method {
 			case "content":
+				e.storeSource("", "dmm")
 				e.exec(`INSERT INTO content (id, info_hash, first_seen_at, last_seen_at) VALUES (1, ?, 0, 0)`, hash)
 				e.exec(`INSERT INTO content_file (id, content_id, path, size_bytes) VALUES (1, 1, 'video.mkv', 1000)`)
 				e.exec(`UPDATE link SET content_file_id = 1 WHERE id = 1`)
-			case "history":
-				// The arr's import ties its file to the download/hash even without a content row.
-				e.sourceFile("arr_file", "")
-			case "adopted_history":
-				e.exec(`UPDATE arr_history SET info_hash = NULL, data = '{"fileId":"1","importedPath":"/arr/Movie.mkv"}'`)
-				e.exec(`INSERT INTO arr_history (instance, arr_id, event_type, date_at, title_id, version_id,
-					download_id, info_hash, source_title, data) VALUES ('radarr', 2, 'grabbed', 0, 1, 10,
-					'torrent-1', ?, 'Movie.2001.2160p.WEB-DL-GRP', '{"indexer":"dmm"}')`, hash)
-			case "mount_folder", "ambiguous_folder", "decypharr_folder":
-				e.off.Policy.Library = &policy.Library{Mount: policy.LibraryMount{Path: "/mount"}}
-				e.exec(`INSERT INTO content (info_hash, mount_folder, first_seen_at, last_seen_at) VALUES (?, 'Movie', 0, 0)`, hash)
-				if method == "ambiguous_folder" {
-					e.exec(`INSERT INTO content (info_hash, mount_folder, first_seen_at, last_seen_at) VALUES (?, 'Movie', 0, 0)`, strings.Repeat("c", 40))
-				}
-				if method == "decypharr_folder" {
-					// decypharr serves same-named torrents from one folder: its name alone names no torrent.
-					e.off.Policy.Library.Mount.Decypharr = &policy.LibraryDecypharr{URL: "http://decypharr.invalid"}
-				}
-			}
-			if method == "history" {
-				// Only the arr file supplies the identity; the hashless adopted link has no matching history.
-				e.exec(`DELETE FROM link_version`)
-				e.exec(`DELETE FROM link`)
-				e.withoutWeb()
+			case "stored":
+				e.storeSource(hash, "dmm")
+			case "no_hash":
+				e.storeSource("", "dmm")
 			}
 			sr, err := e.off.Sweep(e.ctx, false, 0)
 			if err != nil {
 				t.Fatal(err)
 			}
-			if method == "no_hash" || method == "ambiguous_folder" || method == "decypharr_folder" {
+			if method == "no_hash" {
 				var reasons string
 				if err := e.st.Reader().QueryRow(`SELECT reasons FROM router_offer WHERE version_key = 'movie-extra' AND info_hash = ''`).Scan(&reasons); err != nil {
 					t.Fatal(err)
@@ -166,40 +113,12 @@ func TestOfferFileHashDiscovery(t *testing.T) {
 	}
 }
 
-func TestOfferFileConflictingHistory(t *testing.T) {
-	t.Parallel()
-	for _, conflict := range []string{"hash", "unknown"} {
-		t.Run(conflict, func(t *testing.T) {
-			e := newOfferEnv(t)
-			hash := strings.Repeat("7", 40)
-			e.withoutWeb()
-			e.sourceFile("arr_file", "")
-			e.arrHistory(hash, "torrent-1", "dmm")
-			otherHash, otherIndexer := hash, "unknown"
-			if conflict == "hash" {
-				otherHash, otherIndexer = strings.Repeat("8", 40), "dmm"
-			}
-			e.exec(`INSERT INTO arr_history (instance, arr_id, event_type, date_at, title_id, version_id,
-				download_id, info_hash, data) VALUES ('radarr', 2, 'grabbed', 1, 1, 10, 'torrent-1', ?, ?)`,
-				otherHash, fmt.Sprintf(`{"indexer":%q}`, otherIndexer))
-			sr, err := e.off.Sweep(e.ctx, true, 0)
-			want := "unknown_indexer"
-			if conflict == "hash" {
-				want = "no_hash"
-			}
-			if err != nil || len(sr.Offers) != 1 || sr.Offers[0].Reasons[0] != want || len(e.enq.reqs) != 0 {
-				t.Fatalf("conflicting history: %+v, %v", sr, err)
-			}
-		})
-	}
-}
-
 func TestOfferFileAlreadyHeld(t *testing.T) {
 	t.Parallel()
 	e := newOfferEnv(t)
 	hash := strings.Repeat("9", 40)
-	e.arrHistory(hash, "torrent-1", "dmm")
 	e.sourceFile("adopted", strings.ToUpper(hash))
+	e.storeSource(hash, "dmm")
 	e.download(1, 1, 10, "movie-remux", hash, "Movie.2001.2160p.WEB-DL-GRP", "imported")
 	res, err := e.off.Offer(e.ctx, 1, false)
 	if err != nil || byVersion(res)["movie-web"].Outcome != OfferSame || len(e.enq.reqs) != 1 {
@@ -209,51 +128,36 @@ func TestOfferFileAlreadyHeld(t *testing.T) {
 
 func TestOfferFileSeriesPack(t *testing.T) {
 	t.Parallel()
-	for _, kind := range []string{"link", "arr_file"} {
-		t.Run(kind, func(t *testing.T) {
-			e := newOfferEnv(t)
-			e.off.Policy.Versions["tv-web"] = &policy.VersionPolicy{Kind: policy.KindSeries, Mode: policy.ModeActive}
-			e.exec(`INSERT INTO title (id, kind, name, series_type, created_at, updated_at) VALUES (3, 'series', 'Show', 'standard', 0, 0)`)
-			e.exec(`INSERT INTO version (id, title_id, policy_key, created_at, updated_at) VALUES (30, 3, 'tv', 0, 0), (31, 3, 'tv-web', 0, 0)`)
-			e.exec(`INSERT INTO episode (id, title_id, season, number, name, created_at, updated_at) VALUES
-				(301, 3, 1, 1, 'One', 0, 0), (302, 3, 1, 2, 'Two', 0, 0)`)
-			hash := strings.Repeat("a", 40)
-			e.exec(`INSERT INTO arr_instance (name, flavour, policy_key, created_at, updated_at) VALUES ('sonarr', 'sonarr', 'tv', 0, 0)`)
-			e.exec(`INSERT INTO arr_history (instance, arr_id, event_type, date_at, title_id, version_id,
-				info_hash, source_title, data) VALUES ('sonarr', 1, 'grabbed', 0, 3, 30, ?, 'Show.S01.2160p.WEB-DL', '{"indexer":"dmm"}')`, hash)
-			for i := 1; i <= 2; i++ {
-				if kind == "arr_file" {
-					e.exec(`INSERT OR IGNORE INTO content (id, info_hash, first_seen_at, last_seen_at) VALUES (1, ?, 0, 0)`, hash)
-					e.exec(`INSERT INTO version_file (id, title_id, version_id, instance, arr_file_id, path, content_id,
-						release_title, quality, size_bytes) VALUES (?, 3, 30, 'sonarr', ?, ?, 1, 'Show.S01.2160p.WEB-DL', 'WEBDL-2160p', 1000)`,
-						i, i, fmt.Sprintf("/arr/%d.mkv", i))
-					e.exec(`INSERT INTO version_file_episode (version_file_id, episode_id) VALUES (?, ?)`, i, 300+i)
-				} else {
-					e.exec(`INSERT INTO link (id, title_id, path, target, release_title, file_metadata, created_at, updated_at)
-						VALUES (?, 3, ?, ?, 'Show.S01.2160p.WEB-DL', ?, 0, 0)`, i, fmt.Sprintf("/theatarr/%d.mkv", i),
-						fmt.Sprintf("/mount/%d.mkv", i), fmt.Sprintf(`{"InfoHash":%q,"Size":1000}`, hash))
-					e.exec(`INSERT INTO link_version (link_id, version_id) VALUES (?, 30)`, i)
-					e.exec(`INSERT INTO link_episode (link_id, episode_id) VALUES (?, ?)`, i, 300+i)
-					e.exec(`INSERT INTO library_action (at, kind, mode, version_key, link_id, path, target, detail)
-						VALUES (0, 'link', 'applied', 'tv', ?, ?, ?, ?)`, i, fmt.Sprintf("/theatarr/%d.mkv", i),
-						fmt.Sprintf("/mount/%d.mkv", i), fmt.Sprintf("adopted from sonarr /arr/%d.mkv", i))
-					e.exec(`UPDATE link SET adopted_from = ? WHERE id = ?`, fmt.Sprintf("sonarr /arr/%d.mkv", i), i)
-				}
-			}
-			e.off.DecideSeries = func(_ context.Context, rel decide.Release, _ decide.Title, _ decide.Version,
-				search *decide.SeriesSearch) (*decide.Decision, error) {
-				if search == nil || len(search.Episodes) != 2 || rel.Size != 2000 {
-					t.Fatalf("incomplete pack: search %+v, release %+v", search, rel)
-				}
-				return &decide.Decision{Accepted: true, EpisodeIDs: search.Episodes}, nil
-			}
-			if sr, err := e.off.Sweep(e.ctx, false, 0); err != nil || sr.Outcomes[OfferRouted] != 1 || len(e.enq.reqs) != 1 {
-				t.Fatalf("series file offer: %+v, %v", sr, err)
-			}
-			if got := e.enq.reqs[0].Candidates[0].Episodes; len(got) != 2 || got[0] != 301 || got[1] != 302 {
-				t.Fatalf("pack episodes: %v", got)
-			}
-		})
+	e := newOfferEnv(t)
+	e.off.Policy.Versions["tv-web"] = &policy.VersionPolicy{Kind: policy.KindSeries, Mode: policy.ModeActive}
+	e.exec(`INSERT INTO title (id, kind, name, series_type, created_at, updated_at) VALUES (3, 'series', 'Show', 'standard', 0, 0)`)
+	e.exec(`INSERT INTO version (id, title_id, policy_key, created_at, updated_at) VALUES (30, 3, 'tv', 0, 0), (31, 3, 'tv-web', 0, 0)`)
+	e.exec(`INSERT INTO episode (id, title_id, season, number, name, created_at, updated_at) VALUES
+		(301, 3, 1, 1, 'One', 0, 0), (302, 3, 1, 2, 'Two', 0, 0)`)
+	hash := strings.Repeat("a", 40)
+	for i := 1; i <= 2; i++ {
+		from := fmt.Sprintf("sonarr /arr/%d.mkv", i)
+		raw, _ := json.Marshal(adoptedSource{From: from, Hash: hash, Release: "Show.S01.2160p.WEB-DL",
+			Indexers: []string{"dmm"}, Version: "tv"})
+		e.exec(`INSERT INTO link (id, title_id, path, target, release_title, file_metadata, adopted_from, adopted_source,
+			created_at, updated_at) VALUES (?, 3, ?, ?, 'Show.S01.2160p.WEB-DL', ?, ?, ?, 0, 0)`, i,
+			fmt.Sprintf("/theatarr/%d.mkv", i), fmt.Sprintf("/mount/%d.mkv", i), fmt.Sprintf(`{"InfoHash":%q,"Size":1000}`, hash),
+			from, string(raw))
+		e.exec(`INSERT INTO link_version (link_id, version_id) VALUES (?, 30)`, i)
+		e.exec(`INSERT INTO link_episode (link_id, episode_id) VALUES (?, ?)`, i, 300+i)
+	}
+	e.off.DecideSeries = func(_ context.Context, rel decide.Release, _ decide.Title, _ decide.Version,
+		search *decide.SeriesSearch) (*decide.Decision, error) {
+		if search == nil || len(search.Episodes) != 2 || rel.Size != 2000 {
+			t.Fatalf("incomplete pack: search %+v, release %+v", search, rel)
+		}
+		return &decide.Decision{Accepted: true, EpisodeIDs: search.Episodes}, nil
+	}
+	if sr, err := e.off.Sweep(e.ctx, false, 0); err != nil || sr.Outcomes[OfferRouted] != 1 || len(e.enq.reqs) != 1 {
+		t.Fatalf("series file offer: %+v, %v", sr, err)
+	}
+	if got := e.enq.reqs[0].Candidates[0].Episodes; len(got) != 2 || got[0] != 301 || got[1] != 302 {
+		t.Fatalf("pack episodes: %v", got)
 	}
 }
 
@@ -266,16 +170,16 @@ func TestOfferFilePrivateAndUnknownIndexer(t *testing.T) {
 			e := newOfferEnv(t)
 			hash := strings.Repeat("d", 40)
 			e.off.Policy.Indexers["private"] = &policy.Indexer{Privacy: policy.PrivacyPrivate}
-			e.arrHistory(hash, "torrent-1", indexer)
-			e.sourceFile("arr_file", hash)
+			e.sourceFile("adopted", hash)
+			e.storeSource(hash, indexer)
 			sr, err := e.off.Sweep(e.ctx, false, 0)
 			if indexer == "private" {
-				if err != nil || sr.Outcomes[OfferRouted] != 1 || len(e.asked) == 0 {
+				if err != nil || sr.Outcomes[OfferPlanned] != 1 || len(e.asked) == 0 {
 					t.Fatalf("private-labelled source: %+v, routes %+v, %v", sr, e.enq.reqs, err)
 				}
 				return
 			}
-			if err != nil || sr.Outcomes[OfferDeclined] != 2 || len(e.enq.reqs) != 0 || len(e.asked) != 0 {
+			if err != nil || sr.Outcomes[OfferDeclined] != 1 || len(e.enq.reqs) != 0 || len(e.asked) != 0 {
 				t.Fatalf("unknown source: %+v, routes %+v, %v", sr, e.enq.reqs, err)
 			}
 		})
@@ -359,8 +263,8 @@ func TestOfferGaveUpEarlyWhenReadable(t *testing.T) {
 	t.Parallel()
 	e := newOfferEnv(t)
 	hash := strings.Repeat("1", 40)
-	e.arrHistory(hash, "torrent-1", "dmm")
 	e.sourceFile("adopted", hash)
+	e.storeSource(hash, "dmm")
 	e.exec(`INSERT INTO library_dangling (path, target, root, first_seen_at, last_seen_at)
 		VALUES ('/theatarr/Movie.mkv', '/mount/__all__/Movie/video.mkv', '/theatarr', 0, 0)`)
 	if _, err := e.off.Sweep(e.ctx, false, 0); err != nil {
@@ -382,8 +286,8 @@ func TestOfferFileRetryJob(t *testing.T) {
 	e := newOfferEnv(t)
 	hash := strings.Repeat("b", 40)
 	e.off.Queue = jobs.NewQueue(e.st)
-	e.arrHistory(hash, "torrent-1", "dmm")
 	e.sourceFile("adopted", hash)
+	e.storeSource(hash, "dmm")
 	e.exec(`DELETE FROM version WHERE id = 12`)
 	if _, err := e.off.Sweep(e.ctx, false, 0); err != nil {
 		t.Fatal(err)
@@ -482,87 +386,39 @@ func TestOfferSupersededDownload(t *testing.T) {
 
 func TestOfferSupersededFileSources(t *testing.T) {
 	t.Parallel()
-	for _, kind := range []string{"adopted", "arr_file", "arr_in_place"} {
-		t.Run(kind, func(t *testing.T) {
-			e := newOfferEnv(t)
-			hash := strings.Repeat("4", 40)
-			e.arrHistory(hash, "torrent-1", "dmm")
-			if kind == "arr_in_place" {
-				e.sourceFile("arr_file", hash)
-			} else {
-				e.sourceFile(kind, hash)
-			}
-			e.exec(`DELETE FROM version WHERE id = 12`)
-			if kind == "arr_file" {
-				e.withoutWeb()
-			}
-			if _, err := e.off.Sweep(e.ctx, false, 0); err != nil {
-				t.Fatal(err)
-			}
-			e.enq.reqs = nil // what the arr's file was offered before it was replaced (movie-web, arr_in_place)
-			if kind == "arr_file" {
-				e.exec(`DELETE FROM version_file WHERE id = 1`)
-			} else if kind == "arr_in_place" {
-				e.download(1, 1, 10, "movie-remux", strings.Repeat("5", 40), "Movie.2001.2160p.WEB-DL-GRP", "imported")
-				e.exec(`INSERT INTO link (title_id, download_id, path, target, created_at, updated_at)
-					VALUES (1, 1, '/arr/Movie.mkv', '/mount/new/video.mkv', 0, 0)`)
-				e.exec(`INSERT INTO link_version (link_id, version_id) VALUES (1, 10)`)
-				e.exec(`INSERT INTO library_action (at, kind, mode, version_key, download_id, path, target)
-					VALUES (0, 'replace', 'applied', 'movie-remux', 1, '/arr/Movie.mkv', '/mount/old/video.mkv')`)
-			} else {
-				// Refresh may reuse the adopted link id, overwriting its old hash and target.
-				meta, _ := json.Marshal(map[string]string{"InfoHash": strings.Repeat("5", 40)})
-				e.exec(`UPDATE link SET file_metadata = ?, target = '/mount/new/video.mkv' WHERE id = 1`, string(meta))
-				e.exec(`INSERT INTO library_action (at, kind, mode, version_key, link_id, path, target)
-					VALUES (0, 'replace', 'applied', 'movie-web', 1, '/theatarr/Movie.mkv', '/mount/__all__/Movie/video.mkv')`)
-			}
-			sr, err := e.off.Sweep(e.ctx, false, 0)
-			if err != nil || sr.Outcomes[OfferDeclined] < 1 || e.outcome("movie-extra", 1, hash) != OfferDeclined {
-				t.Fatalf("superseded file: %+v, %v", sr, err)
-			}
-			var reasons string
-			var next sql.NullInt64
-			if err := e.st.Reader().QueryRow(`SELECT reasons, next_at FROM router_offer WHERE version_key = 'movie-extra' AND info_hash = ?`, hash).Scan(&reasons, &next); err != nil {
-				t.Fatal(err)
-			}
-			if reasons != `["superseded"]` || next.Valid || (kind != "arr_in_place" && len(e.enq.reqs) != 0) {
-				t.Fatalf("cancellation reasons %s, next %+v, routes %+v", reasons, next, e.enq.reqs)
-			}
-			if kind == "arr_in_place" && (len(e.enq.reqs) != 1 || e.enq.reqs[0].Candidates[0].Release.InfoHash != strings.Repeat("5", 40)) {
-				t.Fatalf("only the replacing download should be offered: %+v", e.enq.reqs)
-			}
-		})
-	}
-}
-
-func TestOfferArrMountFolder(t *testing.T) {
-	t.Parallel()
 	e := newOfferEnv(t)
-	e.withoutWeb()
-	hash := strings.Repeat("6", 40)
-	dir := t.TempDir()
-	path := filepath.Join(dir, "movie.mkv")
-	if err := os.Symlink("/mount/__all__/Movie/video.mkv", path); err != nil {
+	hash := strings.Repeat("4", 40)
+	e.sourceFile("adopted", hash)
+	e.storeSource(hash, "dmm")
+	e.exec(`DELETE FROM version WHERE id = 12`)
+	if _, err := e.off.Sweep(e.ctx, false, 0); err != nil {
 		t.Fatal(err)
 	}
-	e.off.Policy.Library = &policy.Library{Mount: policy.LibraryMount{Path: "/mount"}}
-	e.arrHistory(hash, "different-download", "dmm")
-	e.sourceFile("arr_file", "")
-	e.exec(`UPDATE version_file SET path = ?, download_id = NULL, arr_file_id = 2`, path)
-	e.exec(`INSERT INTO content (info_hash, mount_folder, first_seen_at, last_seen_at) VALUES (?, 'Movie', 0, 0)`, hash)
+	// Refresh may reuse the adopted link id, overwriting its old hash and target.
+	meta, _ := json.Marshal(map[string]string{"InfoHash": strings.Repeat("5", 40)})
+	e.exec(`UPDATE link SET file_metadata = ?, target = '/mount/new/video.mkv' WHERE id = 1`, string(meta))
+	e.exec(`INSERT INTO library_action (at, kind, mode, version_key, link_id, path, target)
+		VALUES (0, 'replace', 'applied', 'movie-web', 1, '/theatarr/Movie.mkv', '/mount/__all__/Movie/video.mkv')`)
 	sr, err := e.off.Sweep(e.ctx, false, 0)
-	if err != nil || sr.Outcomes[OfferPlanned] != 1 || len(e.enq.reqs) != 1 {
-		t.Fatalf("arr folder identity: %+v, %v", sr, err)
+	if err != nil || sr.Outcomes[OfferDeclined] < 1 || e.outcome("movie-extra", 1, hash) != OfferDeclined {
+		t.Fatalf("superseded file: %+v, %v", sr, err)
+	}
+	var reasons string
+	var next sql.NullInt64
+	if err := e.st.Reader().QueryRow(`SELECT reasons, next_at FROM router_offer WHERE version_key = 'movie-extra' AND info_hash = ?`, hash).Scan(&reasons, &next); err != nil {
+		t.Fatal(err)
+	}
+	if reasons != `["superseded"]` || next.Valid || len(e.enq.reqs) != 0 {
+		t.Fatalf("cancellation reasons %s, next %+v, routes %+v", reasons, next, e.enq.reqs)
 	}
 }
 
-// adoptedHistoryEnv is an adopted link without a hash of its own whose arr history (import by path) gives the hash,
-// release and indexer; indexers records the indexer each decision was given.
-func adoptedHistoryEnv(t *testing.T, hash string) (*offerEnv, *[]string) {
+// adoptedEnv is an adopted link without a hash of its own whose stored source gives the hash, release and indexer;
+// indexers records the indexer each decision was given.
+func adoptedEnv(t *testing.T, hash string) (*offerEnv, *[]string) {
 	e := newOfferEnv(t)
 	e.sourceFile("adopted", "")
-	e.arrHistory(hash, "torrent-1", "dmm")
-	e.exec(`UPDATE arr_history SET data = '{"indexer":"dmm","importedPath":"/arr/Movie.mkv"}'`)
+	e.storeSource(hash, "dmm")
 	var indexers []string
 	decideFn := e.off.Decide
 	e.off.Decide = func(ctx context.Context, rel decide.Release, t decide.Title, v decide.Version, f *decide.ExistingFile) (*decide.Decision, error) {
@@ -572,82 +428,65 @@ func adoptedHistoryEnv(t *testing.T, hash string) (*offerEnv, *[]string) {
 	return e, &indexers
 }
 
+// TestOfferAdoptedSourceStored: an adopted link is offered from its stored source, with the stored indexer; a dry run
+// decides the same and writes nothing to the link.
 func TestOfferAdoptedSourceStored(t *testing.T) {
 	t.Parallel()
 	hash := strings.Repeat("e", 40)
-	e, indexers := adoptedHistoryEnv(t, hash)
+	e, indexers := adoptedEnv(t, hash)
 	before, err := e.off.Sweep(e.ctx, true, 0)
 	if err != nil || before.Outcomes[OfferPlanned] != 1 {
 		t.Fatalf("dry run: %+v, %v", before, err)
 	}
-	if sr, err := e.off.Sweep(e.ctx, false, 0); err != nil || sr.Outcomes[OfferPlanned] != 1 {
-		t.Fatalf("sweep: %+v, %v", sr, err)
-	}
-	want := `{"from":"radarr /arr/Movie.mkv","hash":"` + hash + `","release":"Movie.2001.2160p.WEB-DL-GRP","indexers":["dmm"],"version":"movie-remux"}`
-	var stored string
-	if err := e.st.Reader().QueryRow(`SELECT adopted_source FROM link WHERE id = 1`).Scan(&stored); err != nil || stored != want {
-		t.Fatalf("stored %s, %v", stored, err)
-	}
-	// The arr history and instance gone, the stored source gives the same outcome and indexer.
-	e.exec(`DELETE FROM arr_history`)
-	e.exec(`DELETE FROM arr_instance`)
-	e.exec(`DELETE FROM router_offer`)
-	*indexers = nil
-	after, err := e.off.Sweep(e.ctx, true, 0)
-	if err != nil || fmt.Sprint(after.Offers) != fmt.Sprint(before.Offers) || fmt.Sprint(after.Outcomes) != fmt.Sprint(before.Outcomes) {
-		t.Fatalf("without history: %+v, before %+v, %v", after, before, err)
-	}
 	if len(*indexers) == 0 || (*indexers)[0] != "dmm" {
 		t.Fatalf("indexers %v", *indexers)
 	}
-}
-
-func TestOfferAdoptedSourceRereadWhenMoved(t *testing.T) {
-	t.Parallel()
-	hash, moved := strings.Repeat("e", 40), strings.Repeat("f", 40)
-	e, _ := adoptedHistoryEnv(t, hash)
-	if _, err := e.off.Sweep(e.ctx, false, 0); err != nil {
+	var stored string
+	if err := e.st.Reader().QueryRow(`SELECT adopted_source FROM link WHERE id = 1`).Scan(&stored); err != nil {
 		t.Fatal(err)
 	}
-	// A refresh moved the link to another arr file, whose history names another torrent.
-	e.exec(`UPDATE link SET adopted_from = 'radarr /arr/Movie.2.mkv' WHERE id = 1`)
-	e.exec(`UPDATE arr_history SET info_hash = ?, download_id = 'torrent-2',
-		data = '{"indexer":"dmm","importedPath":"/arr/Movie.2.mkv"}'`, moved)
-	e.enq.reqs = nil
-	if sr, err := e.off.Sweep(e.ctx, false, 0); err != nil || len(e.enq.reqs) != 1 ||
-		e.enq.reqs[0].Candidates[0].Release.InfoHash != moved {
-		t.Fatalf("moved: %+v, routes %+v, %v", sr, e.enq.reqs, err)
+	sr, err := e.off.Sweep(e.ctx, false, 0)
+	if err != nil || fmt.Sprint(sr.Outcomes) != fmt.Sprint(before.Outcomes) || len(e.enq.reqs) != 1 ||
+		e.enq.reqs[0].Candidates[0].Release.InfoHash != hash {
+		t.Fatalf("sweep: %+v, before %+v, routes %+v, %v", sr, before, e.enq.reqs, err)
 	}
-	var from, stored string
-	if err := e.st.Reader().QueryRow(`SELECT json_extract(adopted_source, '$.from'), json_extract(adopted_source, '$.hash')
-		FROM link WHERE id = 1`).Scan(&from, &stored); err != nil || from != "radarr /arr/Movie.2.mkv" || stored != moved {
-		t.Fatalf("stored %s %s, %v", from, stored, err)
+	var after string
+	if err := e.st.Reader().QueryRow(`SELECT adopted_source FROM link WHERE id = 1`).Scan(&after); err != nil || after != stored {
+		t.Fatalf("stored source changed: %s, %v", after, err)
 	}
 }
 
-func TestOfferAdoptedSourceDryRunWritesNothing(t *testing.T) {
+// TestAdoptedLinkWithoutStoredSourceNotOffered: an adopted link with no stored source, or one stored for the arr file
+// it was adopted from before a refresh moved it, has no indexer and is not offered; the arr history is not read.
+func TestAdoptedLinkWithoutStoredSourceNotOffered(t *testing.T) {
 	t.Parallel()
-	e, _ := adoptedHistoryEnv(t, strings.Repeat("e", 40))
-	if sr, err := e.off.Sweep(e.ctx, true, 0); err != nil || sr.Outcomes[OfferPlanned] != 1 {
-		t.Fatalf("dry run: %+v, %v", sr, err)
-	}
-	var n int
-	if err := e.st.Reader().QueryRow(`SELECT COUNT(*) FROM link WHERE adopted_source IS NOT NULL`).Scan(&n); err != nil || n != 0 {
-		t.Fatalf("stored %d, %v", n, err)
+	for _, c := range []string{"none", "moved"} {
+		t.Run(c, func(t *testing.T) {
+			hash := strings.Repeat("e", 40)
+			e := newOfferEnv(t)
+			e.sourceFile("adopted", hash)
+			e.exec(`INSERT INTO arr_instance (name, flavour, policy_key, created_at, updated_at)
+				VALUES ('radarr', 'radarr', 'movie-remux', 0, 0)`)
+			e.exec(`INSERT INTO arr_history (instance, arr_id, event_type, date_at, title_id, version_id, download_id,
+				info_hash, source_title, data) VALUES ('radarr', 1, 'grabbed', 0, 1, 10, 'torrent-1', ?,
+				'Movie.2001.2160p.WEB-DL-GRP', '{"indexer":"dmm","importedPath":"/arr/Movie.mkv"}')`, hash)
+			if c == "moved" {
+				e.storeSource(hash, "dmm")
+				e.exec(`UPDATE link SET adopted_from = 'radarr /arr/Movie.2.mkv' WHERE id = 1`)
+			}
+			sr, err := e.off.Sweep(e.ctx, false, 0)
+			if err != nil || sr.Downloads != 0 || len(sr.Outcomes) != 0 || len(e.asked) != 0 || len(e.enq.reqs) != 0 {
+				t.Fatalf("offered: %+v, routes %+v, %v", sr, e.enq.reqs, err)
+			}
+		})
 	}
 }
 
-// TestAdoptedLinkOffersWithoutFollowing: an adopted link in a library that follows nothing, with its source stored
-// and the arr instance gone, is offered to the title's other libraries and never to the arr's library.
+// TestAdoptedLinkOffersWithoutFollowing: an adopted link in a library that follows nothing, with its source stored,
+// is offered to the title's other libraries and never to the arr's library.
 func TestAdoptedLinkOffersWithoutFollowing(t *testing.T) {
 	t.Parallel()
-	e, _ := adoptedHistoryEnv(t, strings.Repeat("e", 40))
-	if _, err := e.off.Sweep(e.ctx, false, 0); err != nil {
-		t.Fatal(err)
-	}
-	e.exec(`DELETE FROM arr_history`)
-	e.exec(`DELETE FROM arr_instance`)
-	e.exec(`DELETE FROM router_offer`)
+	e, _ := adoptedEnv(t, strings.Repeat("e", 40))
 	sr, err := e.off.Sweep(e.ctx, true, 0)
 	if err != nil {
 		t.Fatal(err)

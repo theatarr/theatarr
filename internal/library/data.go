@@ -386,9 +386,8 @@ func deadFiles(ctx context.Context, db *sql.DB, versionID, titleID int64) ([]exi
 	return out, rows.Err()
 }
 
-// titleFolder returns the folder this version already uses for the title under root: an active link's, or the
-// arr's (arr_title.path). The arrs created many folders by other means (copies, imports from older names), and a
-// new link must land in the folder Plex already has, so a known folder wins over the computed one.
+// titleFolder returns the folder this version already uses for the title under root: an active link's. A new link
+// must land in the folder Plex already has, so a known folder wins over the computed one.
 func titleFolder(ctx context.Context, db *sql.DB, versionID, titleID int64, kind, root string) (string, error) {
 	rows, err := db.QueryContext(ctx, `
 		SELECT l.path FROM link l JOIN link_version lv ON lv.link_id = l.id
@@ -412,14 +411,5 @@ func titleFolder(ctx context.Context, db *sql.DB, versionID, titleID int64, kind
 		}
 	}
 	rows.Close()
-	var p string
-	err = db.QueryRowContext(ctx, `SELECT path FROM arr_title WHERE version_id = ? AND title_id = ? AND path != ''
-		ORDER BY instance LIMIT 1`, versionID, titleID).Scan(&p)
-	if err == nil && filepath.Dir(filepath.Clean(p)) == root {
-		return filepath.Base(p), nil
-	}
-	if err != nil && err != sql.ErrNoRows && !strings.Contains(err.Error(), "no such table") {
-		return "", err
-	}
-	return "", nil
+	return "", rows.Err()
 }

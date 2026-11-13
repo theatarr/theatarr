@@ -13,7 +13,7 @@ import (
 	"github.com/theatarr/theatarr/internal/policy"
 )
 
-// An upgrade that moves the arr's file aside drops its version_file row (and file aliases), as the arr deletes the
+// An upgrade that moves the arr's file aside drops its version_file row, as the arr deletes the
 // file it upgrades: a later removal of the new link then leaves the version wanted, not filled by a phantom.
 func TestUpgradeRetiresArrFile(t *testing.T) {
 	t.Parallel()
@@ -29,14 +29,13 @@ func TestUpgradeRetiresArrFile(t *testing.T) {
 		t.Fatal(err)
 	}
 	e.exec(`INSERT INTO version_file (id, version_id, title_id, instance, arr_file_id, path) VALUES (5, 10, 1, 'radarr', 1, ?)`, old)
-	e.exec(`INSERT INTO arr_alias (instance, kind, arr_id, target_id, created_at) VALUES ('radarr', 'moviefile', 77, 5, 0)`)
 	e.download(1, "movie-remux", 1, 10, movieRelease, movieRelease, "[]")
 	plan, err := e.lib.Import(e.ctx, 1, false)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if n := e.one(`SELECT COUNT(*) FROM version_file`) + e.one(`SELECT COUNT(*) FROM arr_alias`); n != "00" {
-		t.Fatalf("arr file rows left (version_file, alias): %s", n)
+	if n := e.one(`SELECT COUNT(*) FROM version_file`); n != "0" {
+		t.Fatalf("arr file rows left: %s", n)
 	}
 	var linkID int64
 	if err := e.st.Reader().QueryRowContext(e.ctx, `SELECT id FROM link WHERE path = ?`, plan.Links[0].Path).Scan(&linkID); err != nil {

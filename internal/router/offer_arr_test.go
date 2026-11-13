@@ -7,25 +7,25 @@ import (
 	"github.com/theatarr/theatarr/internal/policy"
 )
 
-// Arr history names an indexer by the arr's own name ("DMM RD (Prowlarr)"), never a
+// An adopted link's stored source names an indexer by the arr's own name ("DMM RD (Prowlarr)"), never a
 // policy key. The name is matched to a configured indexer by name; an unmatched one is declined (unknown_indexer)
 // and decided again once an indexer of that name is configured. Its privacy label does not matter.
 func TestOfferArrIndexerMatchedByName(t *testing.T) {
 	t.Parallel()
 	e := newOfferEnv(t)
 	hash := strings.Repeat("d", 40)
-	e.arrHistory(hash, "torrent-1", "DMM RD (Prowlarr)")
-	e.sourceFile("arr_file", hash)
+	e.sourceFile("adopted", hash)
+	e.storeSource(hash, "DMM RD (Prowlarr)")
 	sr, err := e.off.Sweep(e.ctx, false, 0)
-	if err != nil || sr.Outcomes[OfferDeclined] != 2 || len(e.enq.reqs) != 0 {
+	if err != nil || sr.Outcomes[OfferDeclined] != 1 || len(e.enq.reqs) != 0 {
 		t.Fatalf("unmatched: %+v, routes %d, %v", sr, len(e.enq.reqs), err)
 	}
-	if e.outcome("movie-web", 1, hash) != OfferDeclined {
+	if e.outcome("movie-extra", 1, hash) != OfferDeclined {
 		t.Fatal("decline not remembered")
 	}
 	e.off.Policy.Indexers["dmm-rd"] = &policy.Indexer{Kind: "dmm", Privacy: policy.PrivacyPrivate}
 	sr, err = e.off.Sweep(e.ctx, false, 0)
-	if err != nil || sr.Outcomes[OfferRouted] != 1 || len(e.enq.reqs) != 2 {
+	if err != nil || sr.Outcomes[OfferPlanned] != 1 || len(e.enq.reqs) != 1 {
 		t.Fatalf("matched: %+v, routes %+v, %v", sr, e.enq.reqs, err)
 	}
 	for _, r := range e.enq.reqs {
@@ -33,8 +33,8 @@ func TestOfferArrIndexerMatchedByName(t *testing.T) {
 			t.Errorf("routed release %+v", c)
 		}
 	}
-	if e.outcome("movie-web", 1, hash) != OfferRouted {
-		t.Errorf("outcome %q", e.outcome("movie-web", 1, hash))
+	if e.outcome("movie-extra", 1, hash) != OfferPlanned {
+		t.Errorf("outcome %q", e.outcome("movie-extra", 1, hash))
 	}
 }
 

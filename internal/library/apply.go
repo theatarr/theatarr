@@ -542,10 +542,6 @@ func retireArrFile(ctx context.Context, tx *sql.Tx, versionID int64, path string
 		if _, err := tx.ExecContext(ctx, `DELETE FROM version_file WHERE id = ?`, id); err != nil {
 			return err
 		}
-		if _, err := tx.ExecContext(ctx, `DELETE FROM arr_alias WHERE kind IN ('moviefile', 'episodefile')
-			AND target_id = ?`, id); err != nil {
-			return err
-		}
 	}
 	if len(episodes) == 0 {
 		return nil

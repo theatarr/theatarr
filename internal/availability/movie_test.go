@@ -89,7 +89,8 @@ func TestStatus(t *testing.T) {
 	}
 }
 
-func TestMovieDatesRespectOwnership(t *testing.T) {
+// TestMovieDates: every copy takes the title's canonical dates, also one an arr imports.
+func TestMovieDates(t *testing.T) {
 	ctx := context.Background()
 	st, err := store.Open(ctx, storetest.Seed(t, filepath.Join(t.TempDir(), "theatarr.db")), store.Options{})
 	if err != nil {
@@ -123,8 +124,7 @@ func TestMovieDatesRespectOwnership(t *testing.T) {
 			t.Fatalf("version %d available=%v want=%v: %v", vid, got, want, err)
 		}
 	}
-	check(1, true)
-	// A copy no arr feeds (a former follower) takes the title's canonical dates.
+	check(1, false)
 	check(2, false)
 	// DatesFor reads what Dates reads: the TMDb refresh over the import.
 	one, err := Dates(ctx, st.Reader(), 1)
@@ -145,13 +145,10 @@ func TestMovieDatesRespectOwnership(t *testing.T) {
 	if many, err := DatesFor(ctx, st.Reader(), ids); err != nil || len(many) != 2 || many[40000]["physical"].IsZero() {
 		t.Fatalf("batched dates for: %v %v", many, err)
 	}
-	// Corrections can move a date in either direction; the owning arr remains authoritative for the copy it feeds.
-	exec(`UPDATE title_release_date SET date='2027-01-01',fetched_at=3 WHERE source='radarr_4k_debrid'`)
+	// The arr's own dates are not read: only the canonical dates move the copy.
+	exec(`UPDATE title_release_date SET date='2026-09-01',fetched_at=3 WHERE source='radarr_4k_debrid'`)
 	check(1, false)
 	exec(`UPDATE title_release_date SET date='2026-10-01' WHERE source='tmdb-art'`)
-	check(1, false)
-	check(2, true)
-	delete(pol.Import.Arr, "radarr_4k_debrid")
 	check(1, true)
 	check(2, true)
 }

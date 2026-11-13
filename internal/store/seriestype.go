@@ -7,15 +7,10 @@ import (
 
 // SeriesTypeSQL is the SQL expression for a series' effective type (standard, daily or anime), given the alias of
 // its title row; ” for a movie. It is the one rule every reader of the type uses (docs/design/series.md "Series
-// type"): title.series_type; when that is empty, the type an arr import left on an arr_title row of the title (the
-// first by instance: the import copies it onto the title, so this only reads a title that missed the copy); else
-// anime when the title's anime flag is set, else standard. The per-instance imported types never override the
-// title's value.
+// type"): title.series_type; when that is empty, anime when the title's anime flag is set, else standard.
 func SeriesTypeSQL(alias string) string {
 	t := alias + "."
 	return `(CASE WHEN ` + t + `kind <> 'series' THEN '' ELSE COALESCE(NULLIF(` + t + `series_type, ''),
-		(SELECT a.series_type FROM arr_title a WHERE a.title_id = ` + t + `id AND a.kind = 'series'
-			AND a.series_type <> '' ORDER BY a.instance, a.arr_id LIMIT 1),
 		CASE WHEN ` + t + `anime = 1 THEN 'anime' ELSE 'standard' END) END)`
 }
 

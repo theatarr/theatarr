@@ -68,16 +68,7 @@ func Movie(ctx context.Context, db *sql.DB, pol *policy.Policy, titleID, version
 		return false, err
 	}
 	rule := rules[versionID]
-	// A version an arr feeds takes the owning arr's dates, including corrections after our TMDb fetch.
-	var instance string
-	err := db.QueryRowContext(ctx, `SELECT instance FROM version_source WHERE version_id = ?`, versionID).Scan(&instance)
-	if err != nil && err != sql.ErrNoRows {
-		return false, err
-	}
-	if !pol.ArrFed(instance) {
-		instance = ""
-	}
-	dates, err := datesFrom(ctx, db, titleID, instance)
+	dates, err := Dates(ctx, db, titleID)
 	if err != nil {
 		return false, err
 	}
@@ -86,13 +77,6 @@ func Movie(ctx context.Context, db *sql.DB, pol *policy.Policy, titleID, version
 
 // Dates reads canonical dates (empty country), preferring a successful TMDb refresh over imported dates.
 func Dates(ctx context.Context, db *sql.DB, titleID int64) (map[string]time.Time, error) {
-	return datesFrom(ctx, db, titleID, "")
-}
-
-func datesFrom(ctx context.Context, db *sql.DB, titleID int64, instance string) (map[string]time.Time, error) {
-	if instance != "" {
-		return readDates(ctx, db, `SELECT type, MIN(date) FROM title_release_date WHERE title_id = ? AND country = '' AND source = ? GROUP BY type`, titleID, instance)
-	}
 	return readDates(ctx, db, `SELECT type, MIN(date) FROM title_release_date d
 		WHERE title_id = ? AND `+canonical+` GROUP BY type`, titleID)
 }

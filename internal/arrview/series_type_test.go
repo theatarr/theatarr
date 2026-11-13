@@ -46,7 +46,7 @@ func TestSeriesTypeEchoChangesNothing(t *testing.T) {
 		{"daily over another imported type", "daily", 0, "anime", "daily"},
 		{"empty with the flag", nil, 1, "", "anime"},
 		{"empty without the flag", nil, 0, "", "standard"},
-		{"empty with an imported type", nil, 0, "daily", "daily"},
+		{"empty with an imported type", nil, 0, "daily", "standard"},
 	} {
 		for _, base := range seriesTypeViews {
 			t.Run(tc.name+" "+base, func(t *testing.T) {
