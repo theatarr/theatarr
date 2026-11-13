@@ -12,7 +12,7 @@ const overview = {
   source: "db", writable: true, generation: 7, active_generation: 7, provider_epoch: 0, policy_dir: "/policy", yaml_owned: [], indexers: [], providers: [], budgets: [],
   switches: { paused: true, pause_forced: false, versions: [] },
 };
-const radarr = { id: 1, key: "radarr", versions: ["movie-web"], profiles: { "WEB only": ["movie-web"] }, identity: { flavour: "radarr", path: "/radarr", alias_from: ["radarr_4k"] }, secret_set: true };
+const radarr = { id: 1, key: "radarr", versions: ["movie-web"], profiles: { "WEB only": ["movie-web"] }, identity: { flavour: "radarr", path: "/radarr" }, secret_set: true };
 const library = (key: string) => ({ id: 1, key, roots: [], config: { mode: key === "movie-web" ? "active" : "shadow", kind: "movie" } });
 const versionsReply = { source: "db", generation: 7, versions: ["movie-web", "movie-remux", "tv-web"].map(library), profiles: {}, format_sets: [], clients: [], indexers: [], providers: [],
   switches: { paused: true, pause_forced: false, versions: [{ key: "movie-web", mode: "shadow", grab_state: { mode: "shadow", paused: true, pause_forced: false } }] } };
@@ -55,7 +55,7 @@ describe("View editor", () => {
     await user.click(screen.getByRole("button", { name: "Confirm and save" }));
     await waitFor(() => expect(fetch.calls("POST", "/settings/view-bindings")).toHaveLength(2));
     const [first, second] = fetch.calls("POST", "/settings/view-bindings");
-    expect(first.body).toEqual({ generation: 7, key: "radarr2", flavour: "radarr", path: "/radarr2", alias_from: [],
+    expect(first.body).toEqual({ generation: 7, key: "radarr2", flavour: "radarr", path: "/radarr2",
       versions: ["movie-web", "movie-remux"], profiles: { "Rules default": ["movie-web"] }, api_key: "view-key-value" });
     expect(second.headers["x-confirmation-token"]).toBe("proof");
   });
@@ -85,7 +85,7 @@ describe("View editor", () => {
     await user.paste("/movies");
     await user.click(within(sheet).getByRole("button", { name: "Save" }));
     await waitFor(() => expect(fetch.calls("PUT", "/settings/view-bindings/radarr")).toHaveLength(1));
-    expect(fetch.calls("PUT", "/settings/view-bindings/radarr")[0].body).toEqual({ generation: 7, flavour: "radarr", path: "/movies", alias_from: ["radarr_4k"],
+    expect(fetch.calls("PUT", "/settings/view-bindings/radarr")[0].body).toEqual({ generation: 7, flavour: "radarr", path: "/movies",
       versions: ["movie-web"], profiles: { "WEB only": ["movie-web"] } });
   });
 

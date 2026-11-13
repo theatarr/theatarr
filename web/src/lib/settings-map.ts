@@ -154,7 +154,6 @@ export const ADVANCED_SETTINGS_PAGES: SettingsPage[] = [
  { id: "config", label: "YAML settings", route: "/admin/advanced/config", arr: "", description: "Edit settings sections as YAML, inspect policy files and export settings.", tabs: [{ id: "files", label: "Policy files", route: "/admin/advanced/config" }, { id: "sections", label: "Sections", route: "/admin/advanced/config/sections" }, { id: "import", label: "Import & export", route: "/admin/advanced/config/import" }] },
  { id: "history", label: "Settings history", route: "/admin/advanced/history", arr: "", description: "Changes to settings and who made them.", tabs: [] },
  { id: "limits", label: "Request limits", route: "/admin/advanced/limits", arr: "", description: "Request budgets and back-offs.", tabs: [] },
- { id: "arr", label: "Sonarr/Radarr migration", route: "/admin/advanced/arr", arr: "", description: "Connect instances and compare decisions.", tabs: [] },
 ];
 export const SETTINGS_PANELS: SettingsPanel[] = [
   {
@@ -423,15 +422,6 @@ export const SETTINGS_PANELS: SettingsPanel[] = [
       "scan_roots"
     ],
     "help": "Folders of other libraries to check before calling a provider torrent unused."
-  },
-  {
-    "id": "arr",
-    "page": "arr",
-    "title": "Sonarr and Radarr instances",
-    "section": "import",
-    "keys": [
-      "arr"
-    ]
   }
 ];
 export function panelHref(panel: SettingsPanel) {

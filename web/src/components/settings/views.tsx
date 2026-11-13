@@ -1,6 +1,6 @@
 // Admin › Settings › Connected apps (docs/design/settings.md "Views"): the arr-compatible views in the settings database,
 // the one place their library bindings and keys are edited. Create, edit and delete a view (key, flavour, path,
-// libraries and profiles as named choices, alias_from, API key) in the side sheet. A new view, a moved path or flavour, other aliases or a new key answer 422 with their effects; the shared
+// libraries and profiles as named choices, API key) in the side sheet. A new view, a moved path or flavour or a new key answer 422 with their effects; the shared
 // confirmation dialog sends the same request again with the token. The API key is write-only. Routes apply at once.
 // "Replace a library" swaps one library for another in the libraries and every profile of the draft; Save sends both.
 // The sheet keeps the view and generation it opened with: a save or delete after someone else's change answers 409
@@ -22,9 +22,6 @@ import { Sheet, SheetLayout } from "@/components/ui/sheet";
 import { type Explained, type SecretAction } from "@/lib/settings";
 import { useSettingsEditor } from "./use-settings-editor";
 import { ExplainBox, Field, NamedChoices, SecretField, SELECT_CLASS } from "./parts";
-
-const list = (text: string) => text.split(",").map((s) => s.trim()).filter(Boolean);
-
 
 /** The library choices: every library in the settings, or (before they load) just the saved ones. */
 const libraryOptions = (data: VersionList | undefined, saved: string[]) => (data ? data.versions.map((v) => v.key) : saved).map((key) => ({ key }));
@@ -124,7 +121,6 @@ export function ViewSheet({ view: opened, generation: openedAt, readOnly, onClos
       setPath(view.identity?.path ?? "");
       setVersions(view.versions);
       setProfiles(view.profiles ?? {});
-      setAliases((view.identity?.alias_from ?? []).join(", "));
       setAction("keep");
       setApiKey("");
     },
@@ -143,7 +139,6 @@ export function ViewSheet({ view: opened, generation: openedAt, readOnly, onClos
   const [profiles, setProfiles] = useState<Record<string, string[]>>(view?.profiles ?? {});
   const [newProfile, setNewProfile] = useState("");
   const libraries = useVersions();
-  const [aliases, setAliases] = useState((view?.identity?.alias_from ?? []).join(", "));
   const [action, setAction] = useState<SecretAction>(create ? "replace" : "keep");
   const [apiKey, setApiKey] = useState("");
   const [deleting, setDeleting] = useState(false);
@@ -168,7 +163,7 @@ export function ViewSheet({ view: opened, generation: openedAt, readOnly, onClos
       return;
     }
     const body: Record<string, unknown> = { generation, versions, profiles };
-    if (seeded) Object.assign(body, { flavour, path, alias_from: list(aliases) });
+    if (seeded) Object.assign(body, { flavour, path });
     if (create) body.key = key;
     if (action === "replace") body.api_key = apiKey;
     if (action === "clear") body.clear_api_key = true;
@@ -202,7 +197,7 @@ export function ViewSheet({ view: opened, generation: openedAt, readOnly, onClos
             Your changes are kept over the reloaded settings (generation {kept}). Saving them replaces what changed elsewhere in this view.
           </p>
         ) : null}
-        {!seeded ? <p className="mb-4 text-sm text-muted-foreground">Path, flavour, aliases and key come from the policy files until Theatarr restarts once on this release.</p> : null}
+        {!seeded ? <p className="mb-4 text-sm text-muted-foreground">Path, flavour and key come from the policy files until Theatarr restarts once on this release.</p> : null}
         <div className="grid gap-4 sm:grid-cols-2">
           {create ? <Field label="Key" help="A name for the view; it cannot be renamed later."><Input value={key} onChange={(e) => setKey(e.target.value)} disabled={off} /></Field> : null}
           <Field label="Flavour">
@@ -248,9 +243,6 @@ export function ViewSheet({ view: opened, generation: openedAt, readOnly, onClos
               </div>
             )}
           </div>
-          <Field label="Alias from" help="Comma-separated arr instances whose movie or series ids this view still answers." wide>
-            <Input value={aliases} onChange={(e) => setAliases(e.target.value)} disabled={off || !seeded} />
-          </Field>
           {seeded ? (
             <SecretField label="API key" set={!!view?.secret_set} action={action} value={apiKey} onAction={setAction} onValue={setApiKey} disabled={off}
               hint={<>Clients send it as X-Api-Key. Keys made under <Link className="underline" to="/admin/users">Users &amp; access</Link> work too.</>} />

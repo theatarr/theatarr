@@ -91,10 +91,9 @@ function blank(data: VersionList, defaults: Record<string, string> = {}): Versio
 
 const GROUPS: Category[] = ["movie", "series", "anime_movie", "anime_series"];
 
-/** "from TRaSH WEB 2160p + 1080p fallbacks", "copy of arr profile …", "our own": where a profile came from. */
+/** "from TRaSH WEB 2160p + 1080p fallbacks", "our own": where a profile came from. */
 function profileOrigin(p: ProfileSummary | undefined): string {
   if (!p) return "";
-  if (p.from_arr) return `copy of arr profile ${p.from_arr}`;
   if (p.origin) return `from TRaSH ${originLabel(p.origin)}${p.guessed ? " (closest preset)" : ""}`;
   return "our own profile";
 }

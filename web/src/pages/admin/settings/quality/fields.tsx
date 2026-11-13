@@ -81,7 +81,6 @@ export function ProfileFields({ config: c, onChange }: { config: Config; onChang
       <TextField label="Format set key" value={c.format_set} onChange={(v) => set("format_set", v)} />
       <TextField label="Language" value={c.language} onChange={(v) => set("language", v)} />
       <Select label="Propers and repacks" value={text(c.propers)} values={PROPERS} labels={PROPERS_LABELS} onChange={(v) => set("propers", v)} />
-      <TextField label="Profile from arr (instance/profile; exclusive)" value={c.from_arr} onChange={(v) => set("from_arr", v)} />
     </FormGrid>
     <fieldset className="space-y-2"><legend className="font-medium">Custom format scores</legend>
       {Object.entries(scores).map(([key, score]) => <div className="flex items-end gap-2" key={key}><TextField label={key} type="number" value={score} onChange={(v) => set("formats", { ...scores, [key]: Number(v) })} /><Button type="button" onClick={() => { const next = { ...scores }; delete next[key]; set("formats", next); }}>Remove</Button></div>)}

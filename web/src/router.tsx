@@ -189,7 +189,6 @@ export const routes: RouteObject[] = [
           { path: "/admin/settings", element: <SettingsHome /> },
           ...SETTINGS_PAGES.filter(p => !p.system).flatMap(p => [...new Set([p.route, ...p.tabs.map(t => t.route)])].map(path => ({ path, element: <SettingsPage key={path} /> }))),
           { path: "/admin/settings/profiles/format_sets", element: <SettingsPage /> },
-          { path: "/admin/advanced/arr", element: <SettingsPage /> },
           ...["config", "config/sections", "config/import", "history", "limits"].map(path => ({ path: `/admin/advanced/${path}`, element: <AdvancedSettingsPage /> })),
           { path: "/admin/torrents", element: <TorrentsPage /> },
           ...["", "/quality", "/anime", "/indexers", "/decisions"].map(tab => ({ path: `/admin/reviews${tab}`, element: <ReviewsPage /> })),

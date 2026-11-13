@@ -27,7 +27,6 @@ const NAMING_LABELS: Record<string, string> = {
   specials: "Specials folder",
   daily: "Daily episode file name",
   anime: "Anime episode file name",
-  from_arr: "Naming from arr",
 };
 
 const NOUN: Record<QualityEntity, string> = { profiles: "profile", formats: "format", format_sets: "format set", naming: "library naming", sync_sources: "sync source" };

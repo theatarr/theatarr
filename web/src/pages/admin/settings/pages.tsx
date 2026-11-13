@@ -1,4 +1,3 @@
-import { ArrTabs } from "../arr-tabs";
 import { PlexPlaylists } from "../anime-mappings";
 import { authority } from "@/lib/settings";
 import { Link, useLocation, useNavigate } from "react-router";
@@ -48,9 +47,8 @@ export function SettingsPage() {
  const tab = page.tabs.find(t => t.route === pathname)?.id ?? page.tabs[0]?.id;
  const o = overview.data; const s = schema.data;
  return <div>
-  <PageHeader crumb={[{ label: "Admin", to: "/admin" }, page.id === "arr" ? { label: "Advanced", to: "/admin/advanced" } : { label: "Settings", to: "/admin/settings" }]} title={page.label} description={page.description} actions={<ShowAdvancedToggle />} />
+  <PageHeader crumb={[{ label: "Admin", to: "/admin" }, { label: "Settings", to: "/admin/settings" }]} title={page.label} description={page.description} actions={<ShowAdvancedToggle />} />
   {SETTINGS_PAGES.some(p => p.id === page.id && !p.system) ? <SettingsPicker current={page.route} /> : null}
-  {page.id === "arr" ? <ArrTabs /> : null}
   {HELP[page.id] ? <p className="mb-4 text-sm text-muted-foreground">{HELP[page.id]}</p> : null}
   {o && !["profiles", "formats", "quality-sync"].includes(page.id) && !(page.id === "libraries" && tab === "naming") ? <SettingsAuthority overview={o} compact /> : null}
   {overview.error || schema.error ? <ErrorState error={overview.error ?? schema.error} /> : null}

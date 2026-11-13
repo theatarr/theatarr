@@ -72,7 +72,6 @@ const SETTINGS_ICONS: Record<string, LucideIcon> = { libraries: HardDrive, profi
 export const SETTINGS: NavItem[] = SETTINGS_PAGES.filter(p => !p.system).map(p => ({ to: p.route, label: p.label, icon: SETTINGS_ICONS[p.id], need: "admin" }));
 
 export const ADVANCED: NavItem[] = [
-  { to: "/admin/advanced/arr", label: "Sonarr/Radarr migration", icon: GitCompareArrows, need: "admin" },
   ...["config", "history", "limits"].map(id => { const page = ADVANCED_SETTINGS_PAGES.find(p => p.id === id)!; return { to: page.route, label: page.label, icon: FileText, need: "admin" as const }; }),
 ];
 

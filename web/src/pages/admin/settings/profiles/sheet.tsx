@@ -224,7 +224,7 @@ export function ProfileSheet({ session: initial, readOnly, onClose, onSaved, onR
         <section className="space-y-2" aria-label="Started from">
           <div className="flex flex-wrap items-center gap-2 text-sm">
             <span className="text-muted-foreground">Started from</span>
-            {origin ? <><span className="font-medium">TRaSH {originLabel(origin)}</span>{edit && summary?.guessed ? <Badge tone="outline" title="No origin is stored: this is the closest TRaSH preset.">closest preset</Badge> : null}</> : summary?.from_arr ? <span className="font-medium">a copy of arr profile {summary.from_arr}</span> : <span className="font-medium">our own profile</span>}
+            {origin ? <><span className="font-medium">TRaSH {originLabel(origin)}</span>{edit && summary?.guessed ? <Badge tone="outline" title="No origin is stored: this is the closest TRaSH preset.">closest preset</Badge> : null}</> : <span className="font-medium">our own profile</span>}
             {edit && summary?.diff ? <Button type="button" size="xs" variant="outline" aria-expanded={compare} onClick={() => setCompare(!compare)}>Compare with TRaSH</Button> : null}
           </div>
           {create?.preset?.built.notes.map((n) => <p key={n} className="text-[13px] text-[var(--warn-ink)]">{n}</p>)}

@@ -15,7 +15,7 @@ function OverviewReader() { useSettings(); return null; }
 
 const fresh: SetupState = {
   first_run: true, settings_source: "db", admin_password_generated: true, versions: 0, versions_with_roots: 0,
-  providers: 1, indexers: 1, profiles: 0, api_keys: 0, tmdb: false, arr_instances: 1, ready_providers: ["rd"], ready_indexers: ["feed"], trash: true,
+  providers: 1, indexers: 1, profiles: 0, api_keys: 0, tmdb: false, ready_providers: ["rd"], ready_indexers: ["feed"], trash: true,
   missing: ["No versions: nothing is searched, grabbed or linked", "No TMDb key: titles cannot be added or matched"],
 };
 const versions: VersionList = {
@@ -55,7 +55,7 @@ describe("setup", () => {
     expect((await screen.findByTestId("root-check")).textContent).toContain("writable");
     await screen.findByRole("option", { name: "TRaSH preset: HD Bluray + WEB" });
     await user.selectOptions(screen.getByLabelText("Quality profile"), `preset:${preset.trash_id}`);
-    await user.click(screen.getByRole("button", { name: "Review" }));
+    await user.click(screen.getByRole("button", { name: "Create as Watch only (decide later)" }));
     expect(screen.getByTestId("version-review").textContent).toContain("as Watch only, linking into");
     expect(screen.getByTestId("version-review").textContent).toContain('This creates a new profile "movies" from the TRaSH preset HD Bluray + WEB and the library movies');
     expect(fetch.calls("POST", "/settings/versions")).toHaveLength(0);
@@ -114,7 +114,7 @@ describe("setup", () => {
     await user.type(await screen.findByLabelText(/Library root/), "/media/movies");
     await screen.findByRole("option", { name: "Profile: hd-1080p" });
     await user.selectOptions(screen.getByLabelText("Quality profile"), "hd-1080p");
-    await user.click(screen.getByRole("button", { name: "Review" }));
+    await user.click(screen.getByRole("button", { name: "Create as Watch only (decide later)" }));
     const review = screen.getByTestId("version-review").textContent ?? "";
     expect(review).toContain("This creates the library movies (movie) with the existing profile hd-1080p as Watch only");
     expect(review).not.toContain("creates the profile");
@@ -229,7 +229,7 @@ describe("setup", () => {
     await user.type(await screen.findByLabelText(/Library root/), "/media/movies");
     await screen.findByRole("option", { name: "TRaSH preset: HD Bluray + WEB" });
     await user.selectOptions(screen.getByLabelText("Quality profile"), `preset:${preset.trash_id}`);
-    await user.click(screen.getByRole("button", { name: "Review" }));
+    await user.click(screen.getByRole("button", { name: "Create as Watch only (decide later)" }));
     await user.click(screen.getByRole("button", { name: "Create library" }));
     expect((await screen.findByRole("alert")).textContent).toContain("forbidden root");
     expect(fetch.calls("POST", "/settings/presets/create")).toHaveLength(1);
@@ -237,11 +237,11 @@ describe("setup", () => {
     // Another preset under the same key: the profile "movies" is preset A's, so the form asks for another key.
     await user.selectOptions(screen.getByLabelText("Quality profile"), `preset:${other.trash_id}`);
     expect(screen.getByText(/was already created from a different preset/)).toBeTruthy();
-    expect((screen.getByRole("button", { name: "Review" }) as HTMLButtonElement).disabled).toBe(true);
+    expect((screen.getByRole("button", { name: "Create as Watch only (decide later)" }) as HTMLButtonElement).disabled).toBe(true);
 
     // Back to the first preset: the retry reuses its profile and says so.
     await user.selectOptions(screen.getByLabelText("Quality profile"), `preset:${preset.trash_id}`);
-    await user.click(screen.getByRole("button", { name: "Review" }));
+    await user.click(screen.getByRole("button", { name: "Create as Watch only (decide later)" }));
     expect(screen.getByTestId("version-review").textContent).toContain("created earlier from the TRaSH preset HD Bluray + WEB");
     await user.click(screen.getByRole("button", { name: "Create library" }));
     await waitFor(() => expect(fetch.calls("POST", "/settings/versions")).toHaveLength(2));
@@ -260,7 +260,7 @@ describe("setup", () => {
     expect((await screen.findByTestId("presets-off")).textContent).toContain("THEATARR_TRASH is set but holds no TRaSH-Guides checkout");
     await user.type(screen.getByLabelText(/Library root/), "/media/movies");
     await user.selectOptions(screen.getByLabelText("Quality profile"), "hd");
-    await user.click(screen.getByRole("button", { name: "Review" }));
+    await user.click(screen.getByRole("button", { name: "Create as Watch only (decide later)" }));
     await user.click(screen.getByRole("button", { name: "Create library" }));
     await waitFor(() => expect(fetch.calls("POST", "/settings/versions")).toHaveLength(1));
     expect(fetch.calls("POST", "/settings/presets/create")).toHaveLength(0);
@@ -281,7 +281,7 @@ describe("setup", () => {
     renderPage(<SetupPage />);
     await user.type(await screen.findByLabelText(/Library root/), "/media/movies");
     await user.selectOptions(screen.getByLabelText("Quality profile"), "hd");
-    await user.click(screen.getByRole("button", { name: "Review" }));
+    await user.click(screen.getByRole("button", { name: "Create as Watch only (decide later)" }));
     await user.click(screen.getByRole("button", { name: "Create library" }));
     expect(await screen.findByText("movies: links into /media/movies")).toBeTruthy();
     await user.click(screen.getByRole("button", { name: "Confirm and create" }));
@@ -336,10 +336,10 @@ describe("setup", () => {
     { version: "", effect: "Turn Pause off: Live libraries search, download and link again: movies. Waiting downloads are imported." },
   ];
 
-  it.each([[1, "Review"], [0, "Create as Watch only (decide later)"]])("sends the same shadow request with arr_instances %i", async (arrInstances, button) => {
+  it("creates a Watch only library with one shadow request", async () => {
     const user = userEvent.setup();
     const fetch = mockFetch([
-      { method: "GET", path: "/setup", reply: { ...fresh, profiles: 1, arr_instances: arrInstances } },
+      { method: "GET", path: "/setup", reply: { ...fresh, profiles: 1 } },
       { method: "GET", path: "/settings/versions", reply: { ...versions, profiles: { "hd": "hd" } } },
       { method: "GET", path: "/settings/presets", reply: { flavour: "radarr", presets: [] } },
       { method: "POST", path: "/settings/versions", reply: { generation: 4, revision: "r" } },
@@ -347,11 +347,8 @@ describe("setup", () => {
     renderPage(<SetupPage />);
     await user.type(await screen.findByLabelText(/Library root/), "/media/movies");
     await user.selectOptions(screen.getByLabelText("Quality profile"), "hd");
-    // An install that migrates from an arr sees the form as it was: no start button, the Watch only wording, Review.
-    expect(!!screen.queryByTestId("one-step-start")).toBe(arrInstances === 0);
-    expect(!!screen.queryByText(/It starts as/)).toBe(arrInstances !== 0);
-    expect(!!screen.queryByText(/Theatarr doesn't do this for you/)).toBe(arrInstances !== 0);
-    await user.click(screen.getByRole("button", { name: button }));
+    expect(screen.getByTestId("one-step-start")).toBeTruthy();
+    await user.click(screen.getByRole("button", { name: "Create as Watch only (decide later)" }));
     expect(screen.getByTestId("version-review").textContent).toContain("as Watch only, linking into");
     await user.click(screen.getByRole("button", { name: "Create library" }));
     await waitFor(() => expect(fetch.calls("POST", "/settings/versions")).toHaveLength(1));
@@ -363,7 +360,7 @@ describe("setup", () => {
     const user = userEvent.setup();
     let created = false;
     const fetch = mockFetch([
-      { method: "GET", path: "/setup", reply: () => ({ ...fresh, arr_instances: 0, ...(created ? { first_run: false, versions: 1, versions_with_roots: 1 } : {}) }) },
+      { method: "GET", path: "/setup", reply: () => ({ ...fresh, ...(created ? { first_run: false, versions: 1, versions_with_roots: 1 } : {}) }) },
       { method: "GET", path: "/settings/versions", reply: versions },
       { method: "GET", path: "/settings/presets", reply: { flavour: "radarr", presets: [preset] } },
       { method: "POST", path: "/setup/start", reply: { status: 422, body: { error: "explicit confirmation required", effects: startEffects, confirmation: { token: "proof", generation: 3, effects: startEffects } } } },
@@ -405,7 +402,7 @@ describe("setup", () => {
     const user = userEvent.setup();
     let created = false;
     const fetch = mockFetch([
-      { method: "GET", path: "/setup", reply: () => ({ ...fresh, arr_instances: 0, ...(created ? { first_run: false, versions: 1, versions_with_roots: 1 } : {}) }) },
+      { method: "GET", path: "/setup", reply: () => ({ ...fresh, ...(created ? { first_run: false, versions: 1, versions_with_roots: 1 } : {}) }) },
       { method: "GET", path: "/settings/versions", reply: versions },
       { method: "GET", path: "/settings/presets", reply: { flavour: "radarr", presets: [preset] } },
       { method: "GET", path: "/settings", reply: { source: "db", writable: true, generation: 3, switches: { paused: true, pause_forced: false, versions: [] } } },
@@ -425,7 +422,7 @@ describe("setup", () => {
   it("cancelling the start confirmation saves nothing", async () => {
     const user = userEvent.setup();
     const fetch = mockFetch([
-      { method: "GET", path: "/setup", reply: { ...fresh, profiles: 1, arr_instances: 0 } },
+      { method: "GET", path: "/setup", reply: { ...fresh, profiles: 1 } },
       { method: "GET", path: "/settings/versions", reply: { ...versions, profiles: { "hd": "hd" } } },
       { method: "GET", path: "/settings/presets", reply: { flavour: "radarr", presets: [] } },
       { method: "POST", path: "/setup/start", reply: { status: 422, body: { error: "explicit confirmation required", effects: startEffects, confirmation: { token: "proof", generation: 3, effects: startEffects } } } },
@@ -453,7 +450,7 @@ describe("setup", () => {
   ])("disables the start with the reason: %j", async (lacking, reason) => {
     const user = userEvent.setup();
     mockFetch([
-      { method: "GET", path: "/setup", reply: { ...fresh, profiles: 1, arr_instances: 0, ...lacking } },
+      { method: "GET", path: "/setup", reply: { ...fresh, profiles: 1, ...lacking } },
       { method: "GET", path: "/settings/versions", reply: { ...versions, profiles: { "hd": "hd" } } },
       { method: "GET", path: "/settings/presets", reply: { flavour: "radarr", presets: [] } },
     ]);

@@ -54,8 +54,6 @@ export function SetupPage() {
   if (setup.isPending) return <Loading />;
   if (setup.error) return <ErrorState error={setup.error} />;
   const s = setup.data;
-  // An install no arr feeds: the first library may start downloading at once. An older server sends no count.
-  const oneStep = s.arr_instances === 0 && s.settings_source === "db";
   const refresh = () => { void setup.refetch(); void progress.versions.refetch(); };
   // An older server sent null for a complete install.
   const missing = s.missing ?? [];
@@ -95,7 +93,7 @@ export function SetupPage() {
 
         {s.versions > 0
           ? <p>{s.versions} {s.versions === 1 ? "library" : "libraries"}, {s.versions_with_roots} with a library root. Edit them under <Link className="underline" to="/admin/settings/libraries">Libraries</Link>.</p>
-          : <FirstVersion state={s} oneStep={oneStep} onDone={(forced) => { setForcedOff(forced ?? []); refresh(); void qc.invalidateQueries({ queryKey: qk.settings.overview }); }} />}
+          : <FirstVersion state={s} onDone={(forced) => { setForcedOff(forced ?? []); refresh(); void qc.invalidateQueries({ queryKey: qk.settings.overview }); }} />}
         {forcedOff.length ? <p role="status" data-testid="start-forced-off">The library was created and Pause is saved as off, but THEATARR_FORCE_OFF keeps Pause on: nothing is searched, downloaded or linked until that override is removed and the service restarted.</p> : null}
         <DownloadsOffNotice off={globalDownloadsOff((s.version_states ?? []).map((v) => v.grab_state))} canManage />
         <div className="space-y-1">{(s.version_states ?? []).map((v) => <div key={v.key} className="flex flex-wrap items-start gap-2"><span className="font-mono text-[13px]">{v.key}</span><VersionStatus state={v.grab_state} showMode settingsKey={v.key} canManage /></div>)}</div>
@@ -105,9 +103,7 @@ export function SetupPage() {
         <Link className="underline" to={journalHome()}>Open the decision journal</Link>
       </Step>
       <Step n={6} title="Review activation" done={progress.steps[5]}>
-        {oneStep
-          ? <p>A library created with "Create library and start downloading" is Live with Pause off already. For any other library: when you're ready, set it to Live on Libraries and turn Pause off at the top of the page.</p>
-          : <p>Theatarr doesn't do this for you. When you're ready, set a library to Live on Libraries and turn Pause off at the top of the page.</p>}
+        <p>A library created with "Create library and start downloading" is Live with Pause off already. For any other library: when you're ready, set it to Live on Libraries and turn Pause off at the top of the page.</p>
         {progress.versions.isPending ? <Loading /> : progress.versions.error ? <ErrorState error={progress.versions.error} /> : <Activation data={progress.versions.data} />}
       </Step>
     </ol>
@@ -171,14 +167,14 @@ function AdminPassword({ onDone }: { onDone: () => void }) {
 type Draft = { key: string; kind: "movie" | "series"; library: string; profile: string; indexers: string[]; providers: string[] };
 
 /** The profile choice: "preset:<trash_id>" builds a new profile from a TRaSH preset, else an existing profile key. */
-function FirstVersion({ state, oneStep, onDone }: { state: SetupState; oneStep: boolean; onDone: (forcedOff?: string[]) => void }) {
+function FirstVersion({ state, onDone }: { state: SetupState; onDone: (forcedOff?: string[]) => void }) {
   const versions = useVersions();
   if (versions.isPending) return <Loading />;
   if (versions.error) return <ErrorState error={versions.error} />;
-  return <VersionForm data={versions.data} state={state} oneStep={oneStep} onDone={onDone} reload={async () => (await versions.refetch()).data} />;
+  return <VersionForm data={versions.data} state={state} onDone={onDone} reload={async () => (await versions.refetch()).data} />;
 }
 
-function VersionForm({ data, state, oneStep, onDone, reload }: { data: VersionList; state: SetupState; oneStep: boolean; onDone: (forcedOff?: string[]) => void; reload: () => Promise<VersionList | undefined> }) {
+function VersionForm({ data, state, onDone, reload }: { data: VersionList; state: SetupState; onDone: (forcedOff?: string[]) => void; reload: () => Promise<VersionList | undefined> }) {
   const [draft, setDraft] = useState<Draft>({ key: "movies", kind: "movie", library: "", profile: Object.keys(data.profiles)[0] ?? "", indexers: data.indexers, providers: data.providers });
   const flavour = draft.kind === "series" ? "sonarr" : "radarr";
   const presets = usePresets(flavour);
@@ -304,10 +300,7 @@ function VersionForm({ data, state, oneStep, onDone, reload }: { data: VersionLi
   }
 
   return <div className="grid max-w-xl gap-3" data-testid="first-version">
-    {oneStep
-      ? <p>Each library has its own settings: a kind, a profile, a root it links into, the indexers it searches and the providers it adds to. Create it and start downloading at once, or create it as <strong>Watch only</strong>: Theatarr then searches, downloads and links nothing for it until you make it Live.</p>
-      : <p>Each library has its own settings: a kind, a profile, a root it links into, the indexers it searches and the providers it adds to. It starts as <strong>Watch only</strong>: Theatarr searches, downloads and links nothing for it until you make it Live.</p>}
-    {oneStep ? null : <VersionStatus showMode state={{ mode: "shadow", paused: data.switches.paused, pause_forced: data.switches.pause_forced }} />}
+    <p>Each library has its own settings: a kind, a profile, a root it links into, the indexers it searches and the providers it adds to. Create it and start downloading at once, or create it as <strong>Watch only</strong>: Theatarr then searches, downloads and links nothing for it until you make it Live.</p>
     <Field label="Key"><Input value={draft.key} onChange={(e) => set("key", e.target.value)} /></Field>
     <Field label="Kind"><select className={SELECT_CLASS} value={draft.kind} onChange={(e) => setKind(e.target.value as Draft["kind"])}><option value="movie">Movies</option><option value="series">Series</option></select></Field>
     <Field label="Library root (absolute path the library links into; not inside the debrid mount)">
@@ -326,13 +319,13 @@ function VersionForm({ data, state, oneStep, onDone, reload }: { data: VersionLi
     <Checks label="Debrid providers" choices={data.providers} values={draft.providers} onChange={(v) => set("providers", v)} empty="Add a provider first (step 2)." />
     {state.profiles === 0 && !presets.data?.presets.length ? <p>There is no profile yet. Create one in the <Link className="underline" to="/admin/settings/profiles?raw=1">raw profile editor</Link>.</p> : null}
     {missing.length ? <p>Still needed: {missing.join(", ")}.</p> : null}
-    {oneStep ? <div className="space-y-1" data-testid="one-step-start">
+    <div className="space-y-1" data-testid="one-step-start">
       <Button type="button" className="w-fit" disabled={busy || missing.length > 0 || blocked.length > 0} onClick={() => void start()}>Create library and start downloading</Button>
       {blocked.length ? <p data-testid="start-blocked">Starting is not possible yet: {blocked.join("; ")}.{noTrash ? <> Set the trash folder under <Link className="underline" to={settingHref("library", "trash")!}>Settings › Libraries › File management › Trash</Link>.</> : null}</p>
         : <p className="text-muted-foreground">Sets the library to Live and turns Pause off for the whole install. You confirm the list first.</p>}
-    </div> : null}
+    </div>
     {!review
-      ? <Button type="button" variant={oneStep ? "outline" : undefined} className="w-fit" disabled={missing.length > 0} onClick={() => setReview(true)}>{oneStep ? "Create as Watch only (decide later)" : "Review"}</Button>
+      ? <Button type="button" variant="outline" className="w-fit" disabled={missing.length > 0} onClick={() => setReview(true)}>Create as Watch only (decide later)</Button>
       : <div className="space-y-2 rounded-md border border-border p-3" data-testid="version-review">
         <p>This creates {newProfile}the library <strong>{draft.key}</strong> ({draft.kind}){profileUse} as Watch only, linking into {draft.library}, searching {draft.indexers.join(", ")} and adding to {draft.providers.join(", ")}. It downloads nothing until you make it Live on Libraries.</p>
         {effects?.length ? <><p>The settings API asks to confirm:</p><ul className="list-disc pl-5">{effects.map((e, i) => <li key={i}>{e.version}: {e.effect}</li>)}</ul><Button type="button" disabled={busy} onClick={() => void confirmEffects()}>Confirm and create</Button></>

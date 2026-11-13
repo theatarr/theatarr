@@ -21,7 +21,7 @@ const ABOUT: Record<string, string> = {
 export function AdvancedPage() {
   return (
     <div>
-      <PageHeader crumb={[{ label: "Admin", to: "/admin" }]} title="Advanced" description="YAML settings, request limits, settings history and the Sonarr/Radarr migration." />
+      <PageHeader crumb={[{ label: "Admin", to: "/admin" }]} title="Advanced" description="YAML settings, request limits and settings history." />
       <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
         {ADVANCED.map((it) => (
           <Link key={it.to} to={it.to!} className="group" data-testid={`advanced-${it.to!.split("/").pop()}`}>

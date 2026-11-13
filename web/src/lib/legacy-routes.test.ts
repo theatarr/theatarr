@@ -10,7 +10,7 @@ describe("old admin URLs", () => {
       ["/admin/system/health", "/admin"],
       ["/admin/system/jobs", "/admin/system/tasks"],
       ["/admin/system/network", "/admin/settings/indexers/vpn"],
-      ["/admin/system/imports", "/admin/advanced/arr"],
+      ["/admin/system/imports", "/admin/arr-import"],
       ["/admin/system/database", "/admin/system/backup"],
       ["/admin/sources", "/admin/settings/downloads"],
       ["/admin/policy", "/admin/settings"],
@@ -71,10 +71,11 @@ it.each([
  ["/admin/registry", "/admin/torrents/inventory"],
  ["/admin/registry/abc", "/admin/torrents/inventory/abc"],
  ["/admin/setup/migrate", "/admin/arr-import"],
+ ["/admin/advanced/arr", "/admin/arr-import"],
  ["/admin/advanced/arr/migrate", "/admin/arr-import"],
- ["/admin/advanced/imports", "/admin/advanced/arr"],
- ["/admin/advanced/arr/imports", "/admin/advanced/arr"],
- ["/admin/system/imports", "/admin/advanced/arr"],
+ ["/admin/advanced/imports", "/admin/arr-import"],
+ ["/admin/advanced/arr/imports", "/admin/arr-import"],
+ ["/admin/system/imports", "/admin/arr-import"],
 ])("ia2 redirects %s with query and hash intact", (from, to) => {
  expect(legacyTarget(from, "?x=1", "#y")).toBe(to + "?x=1#y");
 });

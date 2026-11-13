@@ -11,7 +11,7 @@ import { api } from "@/api/client";
 import { qk } from "@/api/query-keys";
 import { useSettings } from "@/api/settings";
 import { CATEGORY_LABEL, freeKey, keyFromName, originLabel, overviewKey, saveDefaults, useQualityOverview, type Category, type ProfileSummary } from "@/api/settings-profiles";
-import { ErrorState, Loading, Mono, Section } from "@/components/page";
+import { ErrorState, Loading, Section } from "@/components/page";
 import { Announcer, ExplainBox, SELECT_CLASS, useAnnouncement } from "@/components/settings/parts";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -27,7 +27,6 @@ import { ProfileSheet, type ProfileSession } from "./sheet";
 const CATEGORIES: Category[] = ["movie", "series", "anime_movie", "anime_series"];
 
 function OriginCell({ p }: { p: ProfileSummary }) {
-  if (p.from_arr) return <span className="text-[13px]">Copy of arr profile <Mono>{p.from_arr}</Mono></span>;
   if (!p.origin) return <span className="text-[13px] text-muted-foreground">Our own</span>;
   const lines = p.diff?.summary ?? [];
   return <div className="min-w-0 space-y-0.5 text-[13px]">

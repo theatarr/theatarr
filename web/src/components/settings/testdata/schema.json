@@ -3,7 +3,6 @@
     "cardigann": true,
     "clients": true,
     "egress": true,
-    "import": true,
     "library": true,
     "metadata": true,
     "notify": true,
@@ -223,52 +222,6 @@
           "metadata"
         ],
         "help": "This lists the classes that need a good check: indexers, providers, metadata. Omitted defaults to indexers; an explicit empty list monitors without refusing requests."
-      }
-    ],
-    "import": [
-      {
-        "name": "arr",
-        "label": "Sonarr/Radarr instances",
-        "type": "keyed",
-        "help": "This maps an arr instance name (radarr_4k_debrid) to its source settings.",
-        "fields": [
-          {
-            "name": "flavour",
-            "label": "Sonarr or Radarr",
-            "type": "enum",
-            "enum": [
-              "radarr",
-              "sonarr"
-            ],
-            "help": "This is radarr or sonarr."
-          },
-          {
-            "name": "url",
-            "label": "Server address",
-            "type": "string",
-            "help": "This is the instance base url, without /api/v3. Its host must be a LAN address (loopback, RFC 1918 or ULA), since every request carries the API key."
-          },
-          {
-            "name": "api_key",
-            "path": "import.arr.*.api_key",
-            "label": "API key",
-            "type": "secret",
-            "help": "Stored credential. Leave unchanged to keep the current value."
-          },
-          {
-            "name": "api_key_env",
-            "label": "API key environment variable fallback",
-            "advanced": true,
-            "type": "string",
-            "help": "This names the environment variable holding the instance's API key. Environment variable fallback."
-          },
-          {
-            "name": "version",
-            "label": "Version",
-            "type": "string",
-            "help": "This is the version key the instance's titles and files map to. Several instances may map to one version; the import then reports titles whose files differ between them."
-          }
-        ]
       }
     ],
     "library": [
