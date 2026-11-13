@@ -1,5 +1,6 @@
-// Removal on the title page (docs/design/ui.md "Recovery actions"), for managers: Remove a copy (in the copy's Details),
-// Unlink one of its library files, and Remove the whole title (About). Each confirmation spells out the scope the
+// Removal on the title page (docs/design/ui.md "Recovery actions"), for managers: Remove from this library (in the
+// library row's Details), Unlink one of its library files, Remove links left by a library the title was removed from
+// (the line under the Libraries table), and Remove the whole title (the action bar). Each confirmation spells out the scope the
 // server reports (copies, links, downloads in progress, an arr that still manages a copy) and what never happens:
 // a debrid torrent or a file on the mount deleted. An unlink moves only Theatarr's own symlink to the trash.
 import { FileX2, Loader2, Trash2 } from "lucide-react";
@@ -13,7 +14,7 @@ import { Modal } from "@/components/ui/modal";
 import { removalLinks, removalScope, unlinkable, unlinkScope } from "@/lib/ops";
 
 /** The removal confirmation: the server's scope for versions (none: the whole title), with the unlink choice. */
-function RemoveDialog({ titleId, versions, onClose }: { titleId: number; versions?: string[]; onClose: () => void }) {
+export function RemoveDialog({ titleId, versions, onClose }: { titleId: number; versions?: string[]; onClose: () => void }) {
   const q = useRemovalScope(titleId, versions, true);
   const remove = useRemove(titleId);
   const [unlink, setUnlink] = useState(false);
@@ -60,7 +61,7 @@ function RemoveDialog({ titleId, versions, onClose }: { titleId: number; version
   );
 }
 
-/** Remove this copy, and unlink its files one by one: shown in the copy's Details. */
+/** Unlink the library's files one by one, and Remove from this library: the library row's Details. */
 export function CopyActions({ v, label }: { v: Version; label: string }) {
   const titleId = v.title_id ?? 0;
   const [open, setOpen] = useState(false);
@@ -86,7 +87,7 @@ export function CopyActions({ v, label }: { v: Version; label: string }) {
         </div>
       ) : null}
       <Button size="xs" variant="outline" onClick={() => setOpen(true)} data-testid={`copy-remove-${v.key}`}>
-        <Trash2 /> Remove this copy
+        <Trash2 /> Remove from this library
       </Button>
       {open ? <RemoveDialog titleId={titleId} versions={[v.key]} onClose={() => setOpen(false)} /> : null}
       {path ? (
@@ -108,15 +109,16 @@ export function CopyActions({ v, label }: { v: Version; label: string }) {
   );
 }
 
-/** Remove the title from the library: About, managers only (the caller checks). */
-export function TitleRemove({ titleId }: { titleId: number }) {
+/** Remove links…: the links a library the title was removed from still has, moved to Theatarr's trash through the
+ *  removal dialog (the server's leftover case). */
+export function LeftoverLinks({ titleId, version }: { titleId: number; version: string }) {
   const [open, setOpen] = useState(false);
   return (
     <>
-      <Button variant="outline" size="sm" onClick={() => setOpen(true)} data-testid="title-remove">
-        <Trash2 /> Remove title
-      </Button>
-      {open ? <RemoveDialog titleId={titleId} onClose={() => setOpen(false)} /> : null}
+      <button type="button" className="font-medium text-primary hover:underline" onClick={() => setOpen(true)} data-testid={`leftover-remove-${version}`}>
+        Remove links…
+      </button>
+      {open ? <RemoveDialog titleId={titleId} versions={[version]} onClose={() => setOpen(false)} /> : null}
     </>
   );
 }

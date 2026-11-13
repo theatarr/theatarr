@@ -5,9 +5,10 @@ import { usePerms, useTitle } from "@/api/library";
 import { Empty, ErrorState, Loading, PageHeader } from "@/components/page";
 import { TitleThumb } from "@/components/poster-card";
 import { ShowReleases } from "@/components/title/show-releases";
-import { TitleAddActions } from "@/components/title/title-add-actions";
+import { TitleToolbar } from "@/components/title/title-toolbar";
 import { Card } from "@/components/ui/card";
 import { Forbidden } from "./library";
+import { currentLibraries } from "@/lib/library-rows";
 import { titleReleaseAccess } from "@/lib/title-layout";
 
 export function TitleReleasesPage() {
@@ -49,7 +50,7 @@ export function TitleReleasesPage() {
         }
       />
       <div className="space-y-5">
-        <TitleAddActions titleId={id} name={name} year={t.year} kind={t.kind === "series" ? "series" : "movie"} poster={t.poster} anime={t.anime} />
+        <TitleToolbar titleId={id} name={name} year={t.year} kind={t.kind === "series" ? "series" : "movie"} poster={t.poster} anime={t.anime} versions={currentLibraries(t.versions ?? [])} page="releases" />
         <ShowReleases titleId={id} kind={t.kind === "series" ? "series" : "movie"} labels={labels} defaultOpen initialVersion={params.get("version") ?? undefined} focus={params.get("hash") ?? undefined} />
       </div>
     </div>

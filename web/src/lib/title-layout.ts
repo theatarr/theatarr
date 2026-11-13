@@ -1,11 +1,11 @@
-// The title page's layout logic (docs/design/ui.md, Title page): which tabs a caller gets and which opens first, the
-// readiness line in the hero, and the fields of a copy card. Kept out of the components so it is tested.
+// The title page's layout logic (docs/design/ui.md, Title page): which tabs a caller gets and which opens first, and the
+// readiness line in the hero. Kept out of the components so it is tested.
 import type { Version } from "@/api/library";
 import { fmtNumber } from "./format";
 import { today } from "./library";
-import { resolutionWords, sourceWords } from "./upgrade";
+import { resolutionWords } from "./upgrade";
 
-export type TitleTab = "episodes" | "copies" | "order" | "about" | "history";
+export type TitleTab = "episodes" | "order" | "about" | "history";
 
 /** A positive safe title id from a route segment, or undefined when the link is malformed. */
 export function parseTitleID(raw: string): number | undefined {
@@ -24,22 +24,22 @@ export function titleReleaseAccess(raw: string, manage: boolean):
 }
 
 /**
- * The tabs, in order. Series and anime open on Episodes and have a Copies tab; a movie's copies sit right under the
- * hero instead (no tab). Watch order only for anime with a franchise; History only with "see files" (the API sends
- * history to no one else). Callers without "see files" get no copy management at all.
+ * The tabs, in order. Series and anime open on Episodes; the libraries sit right under the hero for both kinds (no
+ * tab). Watch order only for anime with a franchise; History only with "see files" (the API sends history to no one
+ * else).
  */
 export function titleTabs(o: { series: boolean; franchise: boolean; seeFiles: boolean }): { id: TitleTab; label: string }[] {
   const tabs: { id: TitleTab; label: string }[] = [];
   if (o.series) tabs.push({ id: "episodes", label: "Episodes" });
-  if (o.series && o.seeFiles) tabs.push({ id: "copies", label: "Libraries" });
   if (o.franchise) tabs.push({ id: "order", label: "Watch order" });
   tabs.push({ id: "about", label: "About" });
   if (o.seeFiles) tabs.push({ id: "history", label: "History" });
   return tabs;
 }
 
-/** Old ?tab= values (bookmarks, links) and what they are now. */
-const LEGACY: Record<string, TitleTab> = { seasons: "episodes", versions: "copies", details: "about" };
+/** Old ?tab= values (bookmarks, links) and what they are now; the old Libraries tab (versions, copies) opens the
+ *  first tab, as the libraries are under the hero now. */
+const LEGACY: Record<string, TitleTab | ""> = { seasons: "episodes", versions: "", copies: "", details: "about" };
 
 /** The open tab for a ?tab= value: the first tab when it names none the caller has. */
 export function resolveTab(param: string | null | undefined, tabs: { id: TitleTab }[]): TitleTab {
@@ -79,33 +79,4 @@ export function readiness(kind: string | undefined, versions: Version[], getting
 export function airFact(m: { next_air_date?: string; last_air_date?: string } | undefined | null, day: string = today()): { label: string; day: string } | undefined {
   if (m?.next_air_date && m.next_air_date.slice(0, 10) >= day) return { label: "Next episode", day: m.next_air_date };
   return m?.last_air_date ? { label: "Last aired", day: m.last_air_date } : undefined;
-}
-
-/** A copy card's fields (managers): the copy's name, what its file is, and what its profile prefers. */
-export type CopyFields = {
-  /** The version's display label: the lane, not the file. */
-  copy: string;
-  /** The held file in words ("4K WEB"), or "None yet". */
-  current: string;
-  /** The profile's cutoff in words ("4K Remux"); "" when unknown. */
-  preferred: string;
-  /** Availability names what is held, never the copy's label: "Available in 4K WEB", "12 of 24 episodes". */
-  availability: string;
-};
-
-export function copyFields(v: Version): CopyFields {
-  const current = v.has_file ? sourceWords(v.current?.quality ?? v.upgrade?.quality) || "On disk" : "None yet";
-  const eps = v.episodes;
-  let availability: string;
-  if (eps && eps.total > 0) {
-    availability =
-      eps.have === 0
-        ? "Not in the library yet"
-        : eps.missing > 0
-          ? `${fmtNumber(eps.have)} of ${fmtNumber(eps.total)} episodes`
-          : `All ${fmtNumber(eps.have)} episodes${current !== "On disk" ? ` · mostly ${current}` : ""}`;
-  } else {
-    availability = v.has_file ? (current === "On disk" ? "Available" : `Available in ${current}`) : "Not in the library yet";
-  }
-  return { copy: v.label ?? v.key ?? "", current, preferred: sourceWords(v.upgrade?.cutoff?.quality), availability };
 }

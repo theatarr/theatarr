@@ -31,7 +31,7 @@ describe("Title page", () => {
     expect(screen.getByRole("button", { name: /Refresh metadata/ })).toBeTruthy();
   });
 
-  it("says Pause once on the library tab, on the library's card", async () => {
+  it("says Pause once above the Libraries table", async () => {
     const grab_state = { mode: "active", paused: true, pause_forced: false, will_grab: false };
     const fetch = mockFetch([
       { method: "GET", path: "/auth/me", reply: me },
@@ -46,17 +46,17 @@ describe("Title page", () => {
           <Route path="/title/:id" element={<TitlePage />} />
         </Routes>
       </SearchProvider>,
-      "/title/70?tab=copies",
+      "/title/70",
     );
-    // One notice for the page; the card shows only its own verdict, and no card note repeats the global switch.
+    // One notice for the page; no row repeats Paused, and no note repeats the global switch.
     expect((await screen.findByTestId("downloads-off-notice")).textContent).toContain("Paused: nothing is searched, downloaded or linked for any library");
     await waitFor(() => expect(fetch.calls("GET", "/add/options")).toHaveLength(1));
     await act(() => new Promise((resolve) => setTimeout(resolve, 20)));
     expect(screen.queryByTestId("title-no-search")).toBeNull();
     expect(screen.queryByTestId("control-note")).toBeNull();
     expect(screen.getAllByTestId("downloads-off-notice")).toHaveLength(1);
-    expect(within(screen.getByTestId("copy-card")).getByText("Paused")).toBeTruthy();
-    expect(screen.getByTestId("title-copies").textContent?.split("for any library")).toHaveLength(2);
+    expect(within(screen.getByTestId("library-row")).queryByText("Paused")).toBeNull();
+    expect(document.body.textContent?.split("for any library")).toHaveLength(2);
   });
 
   it("reads Getting ready to a household account for a missing title with a download in hand", async () => {

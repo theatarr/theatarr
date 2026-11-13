@@ -2,38 +2,38 @@
 // year, essential facts (certification, runtime, genres, language, rating), whether it can be watched ("Ready to
 // watch in 4K"), a short synopsis with More, and the primary action the role allows (Add to another library, Request or View
 // request, title-request.tsx TitleRequestButton) beside the title; on phones that action also sticks above the bottom tabs. Callers with "see files" get
-// the copies right under it (a movie; a series has them on its Copies tab), the one place copies are managed
-// (versions.tsx). Then tabs (lib/title-layout.ts): Episodes (series, the default), Copies (series), Watch order (anime
-// with a franchise), About (overview, the fact table, links; admins also the technical details) and History.
+// the action bar (title-toolbar.tsx) and the Libraries table (library-rows.tsx) right under it, for a movie and a
+// series alike, the one place libraries are managed. Then tabs (lib/title-layout.ts): Episodes (series, the default),
+// Watch order (anime with a franchise), About (overview, the fact table, links; admins also the technical details)
+// and History.
 // Family accounts (no "see files") get readiness, languages and their requests, no copy management. The backdrop
 // fading into the theme's background and the poster/title arrangement are adapted from Seerr
 // (github.com/seerr-team/seerr) src/components/MovieDetails/index.tsx and src/styles/globals.css (.media-page,
 // .media-header, .media-poster, .media-title, .media-attributes, .media-facts) @ c167958a, MIT (Copyright (c) 2020
 // sct): the classes are inlined as Tailwind and the hero is made shorter.
-import { ExternalLink, Plus, RefreshCw, Star } from "lucide-react";
+import { ExternalLink, Plus, Star } from "lucide-react";
 import { useEffect, useState, type ReactNode } from "react";
 import { Link, useParams, useSearchParams } from "react-router";
 import type { AddTarget } from "@/api/add";
 import { ApiError } from "@/api/client";
-import { usePerms, useRefreshTitle, useTitle, type TitleDetail, type Version } from "@/api/library";
-import { useRename, useRenamePreview } from "@/api/rename";
-import { renameButton } from "@/lib/rename";
+import { usePerms, useTitle, type TitleDetail, type Version } from "@/api/library";
 import { PRODUCT_NAME } from "@/brand";
 import { Empty, ErrorState, Loading } from "@/components/page";
 import { useSearchUI } from "@/components/search/search-context";
 import { AnimeOrder } from "@/components/title/anime-order";
 import { Details, TitleJournal, outsideLinks } from "@/components/title/details";
 import { Seasons } from "@/components/title/seasons";
-import { TitleRemove } from "@/components/title/copy-actions";
-import { TitleAddActions } from "@/components/title/title-add-actions";
+import { LibraryRows } from "@/components/title/library-rows";
+import { TitleToolbar } from "@/components/title/title-toolbar";
 import { RequestMoreSeasons, TitleRequest, TitleRequestButton } from "@/components/title/title-request";
 import { SeriesTypeControl } from "@/components/title/title-choices";
-import { CopyCards, History } from "@/components/title/versions";
+import { History } from "@/components/title/versions";
 import { Button } from "@/components/ui/button";
 import { Chip } from "@/components/ui/badge";
 import { Card } from "@/components/ui/card";
 import { fmtAgo, fmtBytes } from "@/lib/format";
 import { fmtDay, fmtRuntime } from "@/lib/library";
+import { currentLibraries } from "@/lib/library-rows";
 import { airFact, readiness, resolveTab, titleTabs, type TitleTab } from "@/lib/title-layout";
 import { cn } from "@/lib/utils";
 
@@ -99,10 +99,6 @@ function PrimaryAction({ target, has, className }: { target: Target; has: boolea
 
 function About({ d }: { d: TitleDetail }) {
   const perms = usePerms();
-  const refresh = useRefreshTitle(String(d.id ?? ""));
-  const renamePreview = useRenamePreview(d.id ?? 0, perms.admin && !!d.id);
-  const rename = useRename(d.id ?? 0);
-  const renameState = renameButton(renamePreview, rename);
   const m = d.meta;
   const series = d.kind === "series";
   const runtime = fmtRuntime(d.runtime_minutes ?? m?.runtime_minutes);
@@ -130,31 +126,6 @@ function About({ d }: { d: TitleDetail }) {
                 </a>
               </Button>
             ))}
-            {perms.manage ? (
-              <Button variant="outline" size="sm" onClick={() => refresh.mutate()} disabled={refresh.isPending} title="Fetch the TMDb metadata and art again">
-                <RefreshCw className={cn(refresh.isPending && "animate-spin")} />
-                {refresh.isSuccess ? "Queued" : "Refresh metadata"}
-              </Button>
-            ) : null}
-            {perms.manage && refresh.error ? (
-              <p role="alert" className="w-full rounded-[5px] border border-[var(--th-danger-border)] bg-[var(--bad-soft)] px-3 py-2 text-xs" data-testid="title-refresh-error">
-                Refresh failed: {refresh.error.message}
-              </p>
-            ) : null}
-            {perms.manage && d.id && (d.versions?.length ?? 0) > 0 ? <TitleRemove titleId={d.id} /> : null}
-            {perms.admin && d.id ? (
-              <>
-                <Button variant="outline" size="sm" onClick={() => rename.mutate()} disabled={renameState.disabled} title={renameState.title}
-                  data-testid="title-rename">
-                  {renameState.label}
-                </Button>
-                {renameState.error ? (
-                  <p role="alert" className="w-full rounded-[5px] border border-[var(--th-danger-border)] bg-[var(--bad-soft)] px-3 py-2 text-xs" data-testid="title-rename-error">
-                    {renameState.error}
-                  </p>
-                ) : null}
-              </>
-            ) : null}
           </div>
         </div>
         <div className="w-full lg:w-80 lg:shrink-0">
@@ -179,7 +150,7 @@ function About({ d }: { d: TitleDetail }) {
   );
 }
 
-/** History: each copy's release history (see files), and the title's journal for admins. */
+/** History: each current library's release history (see files), and the title's journal for admins. */
 function TitleHistory({ d, versions }: { d: TitleDetail; versions: Version[] }) {
   const perms = usePerms();
   return (
@@ -198,16 +169,6 @@ function TitleHistory({ d, versions }: { d: TitleDetail; versions: Version[] }) 
       </div>
       {perms.admin ? <TitleJournal id={d.id ?? 0} /> : null}
     </div>
-  );
-}
-
-/** The copies block: header (search now, add) and the cards. */
-function Copies({ d, id, versions, target }: { d: TitleDetail; id: string; versions: Version[]; target: Target }) {
-  return (
-    <section className="space-y-3" data-testid="title-copies">
-      <TitleAddActions titleId={Number(id)} name={target.name} year={target.year} kind={target.kind} poster={target.poster} anime={!!d.anime} add={false} cardNotes />
-      <CopyCards versions={versions} />
-    </section>
   );
 }
 
@@ -231,7 +192,10 @@ export function TitlePage() {
     );
   }
 
-  const versions = (d.versions ?? []) as Version[];
+  // The libraries the title is in now: one it was removed from counts nowhere on the page (its leftover links are
+  // named under the Libraries table).
+  const all = (d.versions ?? []) as Version[];
+  const versions = currentLibraries(all);
   const m = d.meta;
   const series = d.kind === "series";
   const franchises = d.franchises ?? [];
@@ -307,10 +271,12 @@ export function TitlePage() {
         </div>
       ) : null}
 
-      {/* A movie's copies right under the hero (series: the Copies tab). */}
-      {perms.seeFiles && !series ? (
-        <div className="mt-6">
-          <Copies d={d} id={id} versions={versions} target={target} />
+      {/* The action bar and the Libraries table right under the hero, for a movie and a series alike. */}
+      {perms.seeFiles ? (
+        <div className="mt-6 space-y-4">
+          <TitleToolbar titleId={Number(id)} name={target.name} year={target.year} kind={target.kind} poster={target.poster} anime={!!d.anime} versions={versions}
+            onHistory={() => setParams({ tab: "history" }, { replace: true })} />
+          <LibraryRows title={d} versions={all} />
         </div>
       ) : null}
 
@@ -341,7 +307,6 @@ export function TitlePage() {
           <Seasons id={id} anime={!!d.anime} franchises={franchises} />
         </>
       ) : null}
-      {tab === "copies" ? <Copies d={d} id={id} versions={versions} target={target} /> : null}
       {tab === "order" ? <AnimeOrder franchises={franchises} admin={perms.admin} /> : null}
       {tab === "about" ? <About d={d} /> : null}
       {tab === "history" ? <TitleHistory d={d} versions={versions} /> : null}

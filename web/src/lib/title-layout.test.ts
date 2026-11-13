@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { Version } from "@/api/library";
-import { airFact, copyFields, parseTitleID, readiness, resolveTab, titleReleaseAccess, titleTabs } from "./title-layout";
+import { airFact, parseTitleID, readiness, resolveTab, titleReleaseAccess, titleTabs } from "./title-layout";
 
 const v = (o: Partial<Version>): Version => ({ id: 1, key: "movie-remux", label: "4K Remux", has_file: true, state: "filled", ...o }) as Version;
 
@@ -16,12 +16,12 @@ describe("title tabs", () => {
     expect(titleReleaseAccess("11", false)).toEqual({ kind: "forbidden", id: 11 });
     expect(titleReleaseAccess("11", true)).toEqual({ kind: "page", id: 11 });
   });
-  it("opens series on Episodes and gives managers Copies and History", () => {
+  it("opens series on Episodes and gives managers History", () => {
     const t = titleTabs({ series: true, franchise: true, seeFiles: true });
-    expect(t.map((x) => x.id)).toEqual(["episodes", "copies", "order", "about", "history"]);
+    expect(t.map((x) => x.id)).toEqual(["episodes", "order", "about", "history"]);
     expect(resolveTab(null, t)).toBe("episodes");
   });
-  it("keeps a movie's copies out of the tabs and family accounts out of management", () => {
+  it("keeps the libraries out of the tabs and family accounts out of History", () => {
     expect(titleTabs({ series: false, franchise: false, seeFiles: true }).map((x) => x.id)).toEqual(["about", "history"]);
     expect(titleTabs({ series: false, franchise: false, seeFiles: false }).map((x) => x.id)).toEqual(["about"]);
     expect(titleTabs({ series: true, franchise: false, seeFiles: false }).map((x) => x.id)).toEqual(["episodes", "about"]);
@@ -29,7 +29,9 @@ describe("title tabs", () => {
   it("follows old links and ignores tabs the caller lacks", () => {
     const t = titleTabs({ series: true, franchise: false, seeFiles: true });
     expect(resolveTab("seasons", t)).toBe("episodes");
-    expect(resolveTab("versions", t)).toBe("copies");
+    // The old Libraries tab: the libraries are under the hero now, so the first tab opens.
+    expect(resolveTab("versions", t)).toBe("episodes");
+    expect(resolveTab("copies", t)).toBe("episodes");
     expect(resolveTab("details", t)).toBe("about");
     expect(resolveTab("order", t)).toBe("episodes");
     const family = titleTabs({ series: false, franchise: false, seeFiles: false });
@@ -52,19 +54,6 @@ describe("readiness", () => {
     expect(readiness("series", [part])).toEqual({ label: "5 of 10 episodes ready", tone: "partial" });
     const full = v({ key: "anime", current: undefined, upgrade: { state: "below_cutoff", quality: "Bluray-1080p" }, episodes: { have: 12, total: 12, missing: 0 } });
     expect(readiness("series", [part, full]).label).toBe("Ready to watch in 1080p");
-  });
-});
-
-describe("copy fields", () => {
-  it("names the held file, never the copy's lane, as availability", () => {
-    const f = copyFields(v({ label: "4K Remux", current: { quality: "WEBDL-2160p" }, upgrade: { state: "best_available", quality: "WEBDL-2160p", cutoff: { quality: "Remux-2160p", upgrades: true } } }));
-    expect(f).toEqual({ copy: "4K Remux", current: "4K WEB", preferred: "4K Remux", availability: "Available in 4K WEB" });
-    expect(f.availability).not.toContain("Remux");
-  });
-  it("covers missing copies and series", () => {
-    expect(copyFields(v({ has_file: false, state: "wanted", current: undefined }))).toMatchObject({ current: "None yet", availability: "Not in the library yet", preferred: "" });
-    expect(copyFields(v({ label: "Anime", upgrade: { state: "below_cutoff", quality: "Bluray-1080p" }, episodes: { have: 3, total: 12, missing: 9 } })).availability).toBe("3 of 12 episodes");
-    expect(copyFields(v({ label: "Anime", upgrade: { state: "below_cutoff", quality: "Bluray-1080p" }, episodes: { have: 12, total: 12, missing: 0 } })).availability).toBe("All 12 episodes · mostly 1080p Blu-ray");
   });
 });
 
