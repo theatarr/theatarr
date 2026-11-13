@@ -219,11 +219,15 @@ func TestUpgradeEvidence(t *testing.T) {
 		t.Errorf("episode list version: %+v", v)
 	}
 
+	e.exec(`INSERT INTO content (id, info_hash, name, first_seen_at, last_seen_at) VALUES (77, ?, '', 0, 0)`,
+		strings.Repeat("ab", 20))
+	e.exec(`UPDATE version_file SET content_id = 77 WHERE id = 900`)
 	var ep EpisodeDetail
 	e.call("GET", APIBase+"/titles/10/episodes/101", nil, 200, &ep)
 	ev := ep.Versions[0]
 	if ev.Upgrade.State != "upgrade_available" || ev.File == nil || ev.File.ReleaseTitle != "The.Show.S01E01.1080p.WEB-DL-GRP" ||
-		ev.File.Media == nil || ev.File.Media.VideoCodec != "x265" || len(ev.History) != 0 {
+		ev.File.Media == nil || ev.File.Media.VideoCodec != "x265" || len(ev.History) != 0 ||
+		ev.File.InfoHash != strings.Repeat("ab", 20) {
 		t.Fatalf("episode 101: %+v file %+v history %+v", ev.Upgrade, ev.File, ev.History)
 	}
 	ep = EpisodeDetail{}
@@ -377,6 +381,9 @@ func TestManageNextSearch(t *testing.T) {
 func TestManageNoScoresForUsers(t *testing.T) {
 	t.Parallel()
 	e := newManageEnv(t, nil)
+	e.exec(`INSERT INTO content (id, info_hash, name, first_seen_at, last_seen_at) VALUES (77, ?, '', 0, 0)`,
+		strings.Repeat("ab", 20))
+	e.exec(`UPDATE version_file SET content_id = 77 WHERE id = 900`)
 	mux := e.userMux()
 	do := func(method, path string, body any) (int, string) {
 		var rd io.Reader
@@ -391,7 +398,8 @@ func TestManageNoScoresForUsers(t *testing.T) {
 		return rec.Code, rec.Body.String()
 	}
 	secret := []string{`"score"`, `"next"`, `"size_bytes"`, `"release_title"`, `"path"`, "BETTER", "REMUX-BEST",
-		"WEB-DL-GRP", "4k Preferred", "sonarr_4k_debrid", `"last_search"`, `"journal"`, `"media"`, "10000"}
+		"WEB-DL-GRP", "4k Preferred", "sonarr_4k_debrid", `"last_search"`, `"journal"`, `"media"`, "10000",
+		`"info_hash"`, "abababab"}
 	for _, p := range []string{"/titles/10", "/titles/1", "/titles/10/episodes", "/titles/10/episodes/101", "/titles",
 		"/discover"} {
 		code, body := do("GET", APIBase+p, nil)

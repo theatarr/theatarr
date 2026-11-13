@@ -841,6 +841,8 @@ type EpisodeFile struct {
 	// CachedOn is the cache codes (rd, ad, tb; cacheCodes) of the providers that hold the file's content now
 	// (providerHolds; a link's content is linkContentSQL).
 	CachedOn []string `json:"cached_on,omitempty"`
+	// InfoHash is the torrent the file's content came from, when known (callers who see files only, as the file).
+	InfoHash string `json:"info_hash,omitempty"`
 }
 
 // EpisodeVersionDetail is one version of an episode.
@@ -998,11 +1000,12 @@ func (w *Web) episodeFile(ctx context.Context, db *sql.DB, versionID, eid int64)
 	var pr, am sql.NullString
 	var adopted bool
 	err := db.QueryRowContext(ctx, `SELECT l.id, COALESCE(l.quality, ''), l.score, `+linkSizeSQL+`, COALESCE(l.release_title, ''),
-		l.path, l.created_at, cf.probe, l.adopted_media, l.download_id IS NULL FROM link l
+		l.path, l.created_at, cf.probe, l.adopted_media, l.download_id IS NULL,
+		COALESCE((SELECT c_h.info_hash FROM content c_h WHERE c_h.id = `+linkContentSQL+`), '') FROM link l
 		JOIN link_version lv ON lv.link_id = l.id JOIN link_episode le ON le.link_id = l.id
 		LEFT JOIN content_file cf ON cf.id = l.content_file_id WHERE lv.version_id = ? AND le.episode_id = ?
 		AND l.state = 'active' ORDER BY l.created_at DESC LIMIT 1`, versionID, eid).Scan(&linkID, &f.Quality, &score, &size,
-		&f.ReleaseTitle, &f.Path, new(int64), &pr, &am, &adopted)
+		&f.ReleaseTitle, &f.Path, new(int64), &pr, &am, &adopted, &f.InfoHash)
 	switch {
 	case err == nil:
 		f.LinkID, f.Score, f.SizeBytes, f.Instance = linkID, nullInt(score), nullInt(size), "theatarr"
@@ -1034,10 +1037,11 @@ func (w *Web) episodeFile(ctx context.Context, db *sql.DB, versionID, eid int64)
 	var sz int64
 	err = db.QueryRowContext(ctx, `SELECT vf.id, vf.quality, vf.custom_format_score, vf.size_bytes,
 		COALESCE(vf.release_title, ''), vf.scene_name, vf.release_group, vf.path, vf.instance, vf.languages, vf.added_at,
-		vf.media_info FROM version_file vf JOIN version_file_episode fe ON fe.version_file_id = vf.id
+		vf.media_info, COALESCE((SELECT c_h.info_hash FROM content c_h WHERE c_h.id = vf.content_id), '')
+		FROM version_file vf JOIN version_file_episode fe ON fe.version_file_id = vf.id
 		LEFT JOIN version_source vs ON vs.version_id = vf.version_id WHERE vf.version_id = ? AND fe.episode_id = ? AND `+
 		curFile+` ORDER BY vf.added_at DESC LIMIT 1`, versionID, eid).Scan(&fileID, &f.Quality, &score, &sz,
-		&f.ReleaseTitle, &f.SceneName, &f.ReleaseGroup, &f.Path, &f.Instance, &langs, &added, &media)
+		&f.ReleaseTitle, &f.SceneName, &f.ReleaseGroup, &f.Path, &f.Instance, &langs, &added, &media, &f.InfoHash)
 	if errors.Is(err, sql.ErrNoRows) {
 		return nil, nil
 	}
