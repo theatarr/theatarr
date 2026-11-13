@@ -39,12 +39,15 @@ func removeLibraryRows(ctx context.Context, tx *sql.Tx, key string, now int64) e
 			return fmt.Errorf("settings: remove rows of library %s: %w", key, err)
 		}
 	}
-	// An episode is monitored when any remaining version monitors it, unmonitored when none is left; a title when
-	// any version not removed from the views is (catalog.SyncMonitored).
+	// An episode with states left is monitored when any of them is; one with none is unmonitored only when its title
+	// has no version left (otherwise left as it is: a remaining library may not have a state for it yet). A title is
+	// monitored when any version not removed from the views is (catalog.SyncMonitored).
 	for _, q := range []string{
 		`UPDATE episode SET monitored = m, updated_at = ?1 FROM (SELECT e.id AS eid, COALESCE((SELECT MAX(s.monitored)
 			FROM episode_version_state s WHERE s.episode_id = e.id), 0) AS m FROM episode e
-			WHERE e.title_id IN (SELECT id FROM library_rows_title)) x WHERE x.eid = episode.id AND episode.monitored <> m`,
+			WHERE e.title_id IN (SELECT id FROM library_rows_title) AND (EXISTS (SELECT 1 FROM episode_version_state s
+			WHERE s.episode_id = e.id) OR NOT EXISTS (SELECT 1 FROM version v WHERE v.title_id = e.title_id))) x
+			WHERE x.eid = episode.id AND episode.monitored <> m`,
 		`UPDATE title SET monitored = m, updated_at = ?1 FROM (SELECT t.id AS tid, COALESCE((SELECT MAX(v.monitored)
 			FROM version v WHERE v.title_id = t.id AND NOT EXISTS (SELECT 1 FROM arrview_removed_version r
 			WHERE r.version_id = v.id)), 0) AS m FROM library_rows_title t) x WHERE x.tid = title.id AND title.monitored <> m`,

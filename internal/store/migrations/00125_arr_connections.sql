@@ -103,7 +103,8 @@ DELETE FROM arrview_title WHERE view IN (SELECT 'v/' || key FROM arr_gone_key);
 UPDATE episode SET monitored = x.m, updated_at = CAST(strftime('%s', 'now') AS INTEGER) * 1000
     FROM (SELECT e.id AS eid, COALESCE((SELECT MAX(s.monitored) FROM episode_version_state s
             WHERE s.episode_id = e.id), 0) AS m FROM episode e
-        WHERE e.title_id IN (SELECT title_id FROM arr_gone_version)) x
+        WHERE e.title_id IN (SELECT title_id FROM arr_gone_version) AND (EXISTS (SELECT 1 FROM episode_version_state s
+            WHERE s.episode_id = e.id) OR NOT EXISTS (SELECT 1 FROM version v WHERE v.title_id = e.title_id))) x
     WHERE x.eid = episode.id AND episode.monitored <> x.m;
 UPDATE title SET monitored = t.m, updated_at = CAST(strftime('%s', 'now') AS INTEGER) * 1000
     FROM (SELECT g.title_id, COALESCE(MAX(v.monitored), 0) AS m FROM (SELECT DISTINCT title_id FROM arr_gone_version) g

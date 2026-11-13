@@ -54,9 +54,9 @@ var arrFixture = []string{
 		(32, 3, 'tv-old', 1, 'wanted', 0, 0), (41, 4, 'movie-old', 1, 'wanted', 0, 0),
 		(52, 5, 'tv-old', 1, 'wanted', 0, 0)`,
 	`INSERT INTO episode (id, title_id, season, number, monitored, created_at, updated_at) VALUES
-		(301, 3, 1, 1, 1, 0, 0), (302, 3, 1, 2, 1, 0, 0), (501, 5, 1, 1, 1, 0, 0)`,
+		(301, 3, 1, 1, 1, 0, 0), (302, 3, 1, 2, 1, 0, 0), (303, 3, 1, 3, 1, 0, 0), (501, 5, 1, 1, 1, 0, 0)`,
 	`INSERT INTO episode_version_state (version_id, episode_id, monitored, updated_at) VALUES
-		(31, 301, 0, 0), (32, 301, 1, 0), (31, 302, 1, 0), (32, 302, 0, 0), (52, 501, 1, 0)`,
+		(31, 301, 0, 0), (32, 301, 1, 0), (31, 302, 1, 0), (32, 302, 0, 0), (32, 303, 0, 0), (52, 501, 1, 0)`,
 	`INSERT INTO download (id, title_id, version_id, version_key, info_hash, release_title, indexer, state, created_at,
 		updated_at) VALUES (500, 1, 11, 'movie-mm', 'h500', 'Shared.2160p', 'ix', 'imported', 0, 0),
 		(501, 1, 13, 'movie-old', 'h501', 'Shared.1080p', 'ix', 'imported', 0, 0),
@@ -257,7 +257,7 @@ func TestMigrationArrConnections(t *testing.T) {
 		`SELECT group_concat(version, ' ') FROM arrview_title_tag`:                                                "movie-mm",
 		`SELECT group_concat(tmdb_id || versions, ' ') FROM movie_collection`:                                     `900["movie-mm"] 901["movie-mm"]`,
 		`SELECT group_concat(id || ':' || monitored, ' ') FROM (SELECT * FROM title ORDER BY id)`:                 "1:1 2:1 3:0 4:0 5:0",
-		`SELECT group_concat(id || ':' || monitored, ' ') FROM (SELECT * FROM episode ORDER BY id)`:               "301:0 302:1 501:0",
+		`SELECT group_concat(id || ':' || monitored, ' ') FROM (SELECT * FROM episode ORDER BY id)`:               "301:0 302:1 303:1 501:0",
 		`SELECT COUNT(*) FROM pragma_foreign_key_check`:                                                           "0",
 	} {
 		if got := query(t, db, q); got != want {

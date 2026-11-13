@@ -31,10 +31,10 @@ func TestDeleteLibraryRemovesRows(t *testing.T) {
 			(22, 2, 'movie-web', 1, 'filled', 0, 0), (31, 3, 'tv-2160p', 1, 'wanted', 0, 0),
 			(32, 3, 'anime-tv', 1, 'wanted', 0, 0), (42, 4, 'anime-tv', 1, 'wanted', 0, 0)`,
 		`INSERT INTO episode (id, title_id, season, number, monitored, created_at, updated_at) VALUES
-			(301, 3, 1, 1, 1, 0, 0), (302, 3, 1, 2, 1, 0, 0), (401, 4, 1, 1, 1, 0, 0)`,
+			(301, 3, 1, 1, 1, 0, 0), (302, 3, 1, 2, 1, 0, 0), (303, 3, 1, 3, 1, 0, 0), (401, 4, 1, 1, 1, 0, 0)`,
 		`INSERT INTO episode_version_state (version_id, episode_id, monitored, state, updated_at) VALUES
 			(31, 301, 0, 'wanted', 0), (32, 301, 1, 'wanted', 0), (31, 302, 1, 'filled', 0), (32, 302, 0, 'wanted', 0),
-			(42, 401, 1, 'wanted', 0)`,
+			(32, 303, 0, 'wanted', 0), (42, 401, 1, 'wanted', 0)`,
 		`INSERT INTO download (id, title_id, version_id, version_key, info_hash, release_title, indexer, state,
 			created_at, updated_at) VALUES (500, 1, 11, 'movie-remux', 'h500', 'Shared.Remux', 'ix', 'imported', 0, 0),
 			(501, 1, 12, 'movie-web', 'h501', 'Shared.WEB', 'ix', 'imported', 0, 0),
@@ -118,7 +118,8 @@ func TestDeleteLibraryRemovesRows(t *testing.T) {
 		t.Errorf("the Live library changed:\nbefore\n%s\nafter\n%s", before, after)
 	}
 	// A series library removed the same way (the store call): a shared series' episodes follow the remaining Live
-	// library; a series that had only the removed library ends unmonitored, episodes included.
+	// library (303 has no state in it yet and is left as it was); a series that had only the removed library ends
+	// unmonitored, episodes included.
 	if err := db.WriteTx(ctx, func(tx *sql.Tx) error { return removeLibraryRows(ctx, tx, "anime-tv", 9) }); err != nil {
 		t.Fatal(err)
 	}
@@ -142,7 +143,7 @@ func TestDeleteLibraryRemovesRows(t *testing.T) {
 		`SELECT group_concat(view, ' ') FROM arrview_title`:                                                                                      "v/movie-remux",
 		`SELECT versions FROM movie_collection`:                                                                                                  `["movie-remux"]`,
 		`SELECT group_concat(id || ':' || monitored, ' ') FROM (SELECT * FROM title ORDER BY id)`:                                                "1:0 2:0 3:1 4:0",
-		`SELECT group_concat(id || ':' || monitored, ' ') FROM (SELECT * FROM episode ORDER BY id)`:                                              "301:0 302:1 401:0",
+		`SELECT group_concat(id || ':' || monitored, ' ') FROM (SELECT * FROM episode ORDER BY id)`:                                              "301:0 302:1 303:1 401:0",
 		`SELECT group_concat(version_id || ':' || episode_id || ':' || monitored, ' ') FROM (SELECT * FROM episode_version_state ORDER BY 1, 2)`: "31:301:0 31:302:1",
 		`SELECT COUNT(*) FROM pragma_foreign_key_check`:                                                                                          "0",
 	} {
