@@ -295,7 +295,7 @@ function queueColumns(now: number): { fixed: DataColumn<ActivityDownload>[]; opt
         id: "title",
         label: "Title",
         card: "none",
-        cellClassName: "max-w-[16rem]",
+        cellClassName: "max-w-[13rem]",
         cell: (d) => (
           <div className="min-w-0">
             <TableTitle t={d.title} />

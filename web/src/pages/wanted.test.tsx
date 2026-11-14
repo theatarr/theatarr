@@ -363,3 +363,12 @@ it("words a grab by the tab while the row is still wanted", () => {
   expect(searchResult(run, "cutoff")).toBe("Grabbed, still below the cutoff");
   expect(searchResult(run)).toBe("Grabbed");
 });
+
+it("says only Grabbed while the grab's download is still in progress, even when paused", async () => {
+  const run = { ...row.last_run!, state: "routed", downloaded: true };
+  const items: Row[] = [{ ...row, waiting: "downloads_off", next_at: null, search_blocked: "in_flight", last_run: run }];
+  mockFetch([admin, { method: "GET", path: "/wanted", reply: { ...page, items, total: 1 } }, status]);
+  renderPage(<WantedPage />, "/wanted");
+  const r = await screen.findByTestId("wanted-row");
+  expect(r.querySelector('[data-column="last"]')?.textContent).toMatch(/· Grabbed · Decision$/);
+});
