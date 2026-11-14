@@ -138,9 +138,13 @@ export function stageLabel(d: D): string {
  *  text (internal/router: "stalled: …", "ready timeout: …", "library: …"). A miss on every provider never reaches the
  *  queue (activity.NativeQueueFailureSQL). search: whether the panel offers Interactive search (its library searches
  *  the indexers and the caller may grab); without it the sentence does not mention it. "" for a row that did not fail. */
+/** Whether a row's panel opens with failedLead: it failed (and was started), or the library refused or failed it. */
+export const failedRow = (d: Pick<ActivityDownload, "state" | "import_state" | "not_started">) =>
+  (d.state === "failed" && !d.not_started) || d.import_state === "rejected" || d.import_state === "failed";
+
 export function failedLead(d: Pick<ActivityDownload, "state" | "error" | "import_state" | "not_started">, search = true): string {
   const refused = d.import_state === "rejected" || d.import_state === "failed";
-  if ((d.state !== "failed" || d.not_started) && !refused) return "";
+  if (!failedRow(d)) return "";
   const e = d.error ?? "";
   const again = d.state === "failed" ? "Retry sends the same release again" : "Import now tries again";
   const pick = search ? `${again}; Interactive search lets you choose another.` : `${again}.`;

@@ -23,7 +23,7 @@ import { ColumnPicker, OptionsDialog } from "@/components/ui/column-picker";
 import { Choice } from "@/components/ui/confirm-dialog";
 import { DataTable, type DataColumn } from "@/components/ui/data-table";
 import { fmtAgo, fmtBytes, fmtNumber, fmtTime, nameWithoutYear } from "@/lib/format";
-import { bulkWords, failedLead, filterDownloads, searchScope, needsAttention, showCounts, SHOWS, STAGE_MEANINGS, stageLabel, stageMeaning, timing, type ActivityShow } from "@/lib/activity";
+import { bulkWords, failedLead, failedRow, filterDownloads, searchScope, needsAttention, showCounts, SHOWS, STAGE_MEANINGS, stageLabel, stageMeaning, timing, type ActivityShow } from "@/lib/activity";
 import {
   isQueueSortColumn,
   nextQueueSort,
@@ -331,7 +331,7 @@ function queueColumns(now: number): { fixed: DataColumn<ActivityDownload>[]; opt
  *  A failed download leads with one sentence and Interactive search; its details are folded under Details. */
 function OpenPanel({ d }: { d: ActivityDownload }) {
   const manage = usePerms().manage;
-  const failed = failedLead(d) !== "";
+  const failed = failedRow(d);
   // Interactive search for the failed download's own library only: when that library does not search the indexers
   // now (Watch only, removed), no search of another library is offered and the sentence does not mention one.
   const live = useLiveLibraries(d.title.id, failed && manage && !!d.title.id);

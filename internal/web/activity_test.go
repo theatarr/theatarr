@@ -993,8 +993,9 @@ func TestActivityQueueFailureRule(t *testing.T) {
 	old := store.Millis(testNow.Add(-8 * 24 * time.Hour))
 	e.exec(`INSERT INTO version (id, title_id, policy_key, state, created_at, updated_at) VALUES (9, 3, 'tv-2160p', 'wanted', ?, ?)`,
 		now, now)
-	e.exec(`INSERT INTO episode (id, title_id, season, number, created_at, updated_at) VALUES (31, 3, 1, 1, ?, ?),
-		(32, 3, 1, 2, ?, ?), (33, 3, 1, 3, ?, ?)`, now, now, now, now, now, now)
+	e.exec(`INSERT INTO episode (id, title_id, season, number, created_at, updated_at) VALUES (31, 3, 1, 1, ?1, ?1),
+		(32, 3, 1, 2, ?1, ?1), (33, 3, 1, 3, ?1, ?1), (34, 3, 1, 4, ?1, ?1), (35, 3, 1, 5, ?1, ?1), (36, 3, 1, 6, ?1, ?1),
+		(37, 3, 1, 7, ?1, ?1), (38, 3, 1, 8, ?1, ?1)`, now)
 	type row struct {
 		id, title, version int
 		key, state, eps    string
@@ -1020,6 +1021,16 @@ func TestActivityQueueFailureRule(t *testing.T) {
 		{14, 3, 9, "tv-2160p", "imported", "[]", nil, now},
 		{15, 2, 3, "movie-web", "downloading", "[]", nil, now},
 		{16, 3, 9, "tv-2160p", "imported", "[33]", nil, now},
+		// Coverage split over two newer imports (E04 by 19, E05 by 20) hides 17; 18 stays, its E06 never linked.
+		{17, 3, 9, "tv-2160p", "failed", "[34,35]", "stalled: not ready", now},
+		{18, 3, 9, "tv-2160p", "failed", "[34,36]", "stalled: not ready", now},
+		{19, 3, 9, "tv-2160p", "imported", "[34]", nil, now},
+		{20, 3, 9, "tv-2160p", "imported", "[35]", nil, now},
+		// A manual import (episodes on download_file: E07) is not covered by a newer import of E08; a series download
+		// with no known episodes is never covered.
+		{21, 3, 9, "tv-2160p", "failed", "[]", "library: no file matched", now},
+		{22, 3, 9, "tv-2160p", "failed", "[]", "stalled: not ready", now},
+		{23, 3, 9, "tv-2160p", "imported", "[38]", nil, now},
 	} {
 		e.exec(`INSERT INTO download (id, title_id, version_id, version_key, info_hash, release_title, indexer, episodes,
 			state, error, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, 'dmm', ?, ?, ?, ?, ?)`,
@@ -1030,11 +1041,13 @@ func TestActivityQueueFailureRule(t *testing.T) {
 		(1, 'rd', 'skipped', 'uncached', ?), (3, 'rd', 'accepted', '', ?)`, now, now)
 	e.exec(`INSERT INTO link (id, path, target, title_id, download_id, state, created_at, updated_at) VALUES
 		(90, '/tv/G/S01E01.mkv', '/t1', 3, 12, 'active', ?1, ?1), (92, '/tv/G/S01E03.mkv', '/t3', 3, 16, 'active', ?1, ?1),
-		(93, '/movies/A/A.mkv', '/t4', 1, 7, 'active', ?1, ?1)`, now)
-	e.exec(`INSERT INTO link_episode (link_id, episode_id) VALUES (90, 31), (92, 33)`)
+		(93, '/movies/A/A.mkv', '/t4', 1, 7, 'active', ?1, ?1), (94, '/tv/G/S01E04.mkv', '/t5', 3, 19, 'active', ?1, ?1),
+		(95, '/tv/G/S01E05.mkv', '/t6', 3, 20, 'active', ?1, ?1), (96, '/tv/G/S01E08.mkv', '/t7', 3, 23, 'active', ?1, ?1)`, now)
+	e.exec(`INSERT INTO link_episode (link_id, episode_id) VALUES (90, 31), (92, 33), (94, 34), (95, 35), (96, 38)`)
+	e.exec(`INSERT INTO download_file (download_id, rel, episodes, source, updated_at) VALUES (21, 'G.S01E07.mkv', '[37]', 'manual', ?)`, now)
 	snapshot := func() string {
 		var b strings.Builder
-		for _, table := range []string{"download", "download_attempt", "library_import", "router_blocklist", "link", "link_episode"} {
+		for _, table := range []string{"download", "download_attempt", "library_import", "router_blocklist", "link", "link_episode", "download_file"} {
 			rows, err := e.st.Reader().Query(`SELECT * FROM ` + table + ` ORDER BY rowid`)
 			if err != nil {
 				t.Fatal(err)
@@ -1065,7 +1078,7 @@ func TestActivityQueueFailureRule(t *testing.T) {
 	}
 	var a, u ActivityPage
 	e.getKey(APIBase+"/activity?state=now", key, &a)
-	if got, want := ids(a), []int64{15, 11, 8, 5, 4, 3}; !slices.Equal(got, want) {
+	if got, want := ids(a), []int64{22, 21, 18, 15, 11, 8, 5, 4, 3}; !slices.Equal(got, want) {
 		t.Errorf("admin queue %v, want %v", got, want)
 	}
 	for _, d := range a.Now {

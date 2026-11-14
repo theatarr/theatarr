@@ -27,22 +27,29 @@ const QueueFailureSQL = `d.state='failed' AND d.dismissed_at IS NULL AND d.updat
   AND newer.version_key=d.version_key AND newer.id>d.id AND newer.state='imported')`
 
 // NativeQueueFailureSQL selects the failed downloads Activity's queue and System › Status still show (the arr queue
-// keeps QueueFailureSQL). The download alias is d; its one argument is the 7-day cutoff (ms). A miss on every
-// provider and a download never started (NotStarted) belong to History only. Any other failure (stalled, refused by
-// the library, not imported in time, a provider error) shows until each of its episodes (a movie: the title) holds an
-// active link in its title and library from an imported download newer than the failure (any of them: a pack, then
-// an upgrade of one episode, still covers it), for at most 7 days. It only reads: stored attempts and ownership
-// evidence are untouched.
+// keeps QueueFailureSQL). The download alias is d and its title t (Downloads joins it); its one argument is the 7-day
+// cutoff (ms). A miss on every provider and a download never started (NotStarted) belong to History only. Any other
+// failure (stalled, refused by the library, not imported in time, a provider error) shows until it is covered, for at
+// most 7 days: a movie when its title and library hold an active link from an imported download newer than the
+// failure; a series download when each of its episodes (download.episodes, and a manual import's download_file
+// episodes) holds such a link (any newer download: a pack, then an upgrade of one episode, still covers it). A series
+// download whose episodes are not known is never covered. It only reads: stored attempts and ownership evidence are
+// untouched.
 var NativeQueueFailureSQL = `d.state='failed' AND d.dismissed_at IS NULL AND d.updated_at > ?
  AND COALESCE(d.error, '') NOT GLOB 'miss on every provider*'
  AND NOT ` + notStartedSQL("d") + `
- AND NOT (CASE WHEN json_array_length(d.episodes) = 0 THEN EXISTS (` + newerLinkSQL + `)
-  ELSE NOT EXISTS (SELECT 1 FROM json_each(d.episodes) e WHERE NOT EXISTS (` + newerLinkSQL + `
-   AND EXISTS (SELECT 1 FROM link_episode le WHERE le.link_id = l.id AND le.episode_id = e.value))) END)`
+ AND ((t.kind = 'movie' AND NOT EXISTS (` + newerLinkSQL + `))
+  OR (COALESCE(t.kind, '') <> 'movie' AND (NOT EXISTS (` + scopeEpisodesSQL + `)
+   OR EXISTS (SELECT 1 FROM (` + scopeEpisodesSQL + `) e WHERE NOT EXISTS (` + newerLinkSQL + `
+    AND EXISTS (SELECT 1 FROM link_episode le WHERE le.link_id = l.id AND le.episode_id = e.value))))))`
 
 // newerLinkSQL selects the active links of d's title and library that an imported download newer than d made.
 const newerLinkSQL = `SELECT 1 FROM link l JOIN download n ON n.id = l.download_id WHERE l.state = 'active'
   AND n.title_id = d.title_id AND n.version_key = d.version_key AND n.id > d.id AND n.state = 'imported'`
+
+// scopeEpisodesSQL selects the episodes download d is for (value): its own list, and a manual import's per file.
+const scopeEpisodesSQL = `SELECT value FROM json_each(d.episodes)
+  UNION SELECT j.value FROM download_file f, json_each(f.episodes) j WHERE f.download_id = d.id`
 
 // Download is one download row with its title and its library import (migrations 00014, 00015).
 type Download struct {
