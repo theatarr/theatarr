@@ -1,7 +1,8 @@
-// The title page's technical details, for admins (under About): ids, release dates, every file per version and the
-// registry; the grab journal for the title (GET /journal?title=<id>) is TitleJournal, on the
-// History tab.
-import { ExternalLink } from "lucide-react";
+// The title page's details for admins (under About): the release dates, then one folded "Technical details" with the
+// identifiers in words (the TMDb collection linked to its page), every file per version and the saved inventory
+// entries, each only when it has something; the outside links are About's buttons, not repeated here. The grab
+// journal for the title (GET /journal?title=<id>) is TitleJournal, on the History tab.
+import { ChevronRight } from "lucide-react";
 import { useState } from "react";
 import { Link } from "react-router";
 import { useTitleJournal, type TitleDetail, type Version } from "@/api/library";
@@ -10,12 +11,13 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { journalHome, journalLink } from "@/lib/admin-links";
+import { inventoryLink, journalHome, journalLink } from "@/lib/admin-links";
 import { fmtBytes, fmtDayYear, fmtNumber, fmtTime } from "@/lib/format";
 import { readableCode } from "@/lib/code-words";
 import { fileInventoryRows } from "@/lib/file-inventory";
 import { chosenReleaseRows } from "@/lib/release-dates";
 import { releaseTypeWords } from "@/lib/tmdb-words";
+import { journalKindWords } from "@/lib/journal-words";
 
 function outside(d: TitleDetail): { label: string; url: string }[] {
   const out: { label: string; url: string }[] = [];
@@ -60,7 +62,7 @@ function Journal({ id }: { id: number }) {
             <TableRow key={e.id}>
               <TableCell className="whitespace-nowrap text-muted-foreground">{fmtTime(e.at)}</TableCell>
               <TableCell>
-                <Badge tone={e.suspect ? "warning" : "neutral"}>{e.kind}</Badge>
+                <Badge tone={e.suspect ? "warning" : "neutral"} title={e.kind}>{journalKindWords(e.kind)}</Badge>
               </TableCell>
               <TableCell className="hidden sm:table-cell">{e.version ? <VersionTag k={e.version} /> : "—"}</TableCell>
               <TableCell>
@@ -76,7 +78,6 @@ function Journal({ id }: { id: number }) {
 
 function Files({ versions }: { versions: Version[] }) {
   const rows = fileInventoryRows(versions);
-  if (rows.length === 0) return <Card><Empty>No files.</Empty></Card>;
   return (
     <Card className="p-0">
       <Table density="dense">
@@ -98,10 +99,10 @@ function Files({ versions }: { versions: Version[] }) {
                   <Mono className="break-all">{f.path}</Mono>
                   <div className="text-xs text-muted-foreground">
                     {facts}
-                    {f.info_hash ? <>{facts ? " · " : ""}<Link className="font-mono text-primary hover:underline" to={`/admin/registry/${f.info_hash}`}>{f.info_hash.slice(0, 12)}</Link></> : null}
+                    {f.info_hash ? <>{facts ? " · " : ""}<Link className="font-mono text-primary hover:underline" to={inventoryLink(f.info_hash)}>{f.info_hash.slice(0, 12)}</Link></> : null}
                   </div>
                 </TableCell>
-                <TableCell className="hidden md:table-cell">{f.quality || "—"}</TableCell>
+                <TableCell className="hidden whitespace-nowrap md:table-cell">{f.quality || "—"}</TableCell>
                 <TableCell className="hidden whitespace-nowrap text-right tabular-nums sm:table-cell">{f.size_bytes != null ? fmtBytes(f.size_bytes) : "—"}</TableCell>
               </TableRow>
             );
@@ -114,6 +115,20 @@ function Files({ versions }: { versions: Version[] }) {
 }
 
 type ReleaseDate = NonNullable<TitleDetail["release_dates"]>[number];
+
+/** Where a stored release date came from: TMDb (its refresh or the art job), else the importing arr instance. */
+export function releaseSourceWords(s: string | undefined): string {
+  if (!s) return "—";
+  return /^tmdb/i.test(s) ? "TMDb" : readableCode(s);
+}
+
+/** The labels of the further ids TMDb gives (title_external_id), in words. */
+const ID_LABELS: Record<string, string> = { tmdb_collection: "TMDb collection", wikidata: "Wikidata", facebook: "Facebook", instagram: "Instagram", twitter: "X (Twitter)", tvrage: "TVRage", freebase: "Freebase" };
+
+/** An identifier's label: a known source in words, else the source made readable. */
+export function idLabel(source: string): string {
+  return ID_LABELS[source] ?? readableCode(source);
+}
 
 /** The summary: the stored rows behind the release-date choice the calendar, Home and the lists use, one per type
  *  (chosenReleaseRows), and "Show all" for every stored row, which runs to a hundred and more for a big film. With no
@@ -135,7 +150,7 @@ function ReleaseDates({ rows, chosen }: { rows: ReleaseDate[]; chosen: Pick<Titl
               <TableCell className="whitespace-nowrap">{fmtDayYear(r.date)}</TableCell>
               <TableCell title={r.type}>{releaseTypeWords(r.type)}</TableCell>
               <TableCell>{r.country || "—"}</TableCell>
-              <TableCell className="hidden sm:table-cell" title={r.source}>{readableCode(r.source)}</TableCell>
+              <TableCell className="hidden sm:table-cell" title={r.source}>{releaseSourceWords(r.source)}</TableCell>
             </TableRow>
           ))}
         </TableBody>
@@ -156,55 +171,65 @@ export function Details({ d }: { d: TitleDetail }) {
   const m = d.meta;
   const ids: [React.ReactNode, React.ReactNode][] = [
     ["Theatarr id", <Mono key="id">{d.id}</Mono>],
-    ["Kind", `${d.kind}${d.anime ? " · anime" : ""}${d.monitored ? "" : " · not monitored"}`],
+    ["Kind", [d.kind === "series" ? "Series" : "Movie", d.anime ? "anime" : "", d.monitored ? "" : "not monitored"].filter(Boolean).join(" · ")],
   ];
   if (d.tmdb_id) ids.push(["TMDb", <Mono key="t">{d.tmdb_id}</Mono>]);
   if (d.tvdb_id) ids.push(["TVDB", <Mono key="v">{d.tvdb_id}</Mono>]);
   if (d.imdb_id) ids.push(["IMDb", <Mono key="i">{d.imdb_id}</Mono>]);
-  for (const e of d.external_ids ?? []) ids.push([e.source, <Mono key={`${e.source}${e.id}`}>{e.id}</Mono>]);
+  for (const e of d.external_ids ?? []) {
+    // The collection's own page when it is stored (managers).
+    const page = e.source === "tmdb_collection" && d.collection && String(d.collection.tmdb_id) === e.id ? `/collections/${d.collection.tmdb_id}` : undefined;
+    ids.push([idLabel(e.source ?? ""), page ? <Link key={`${e.source}${e.id}`} to={page} className="text-primary hover:underline">{d.collection?.name} <Mono>({e.id})</Mono></Link> : <Mono key={`${e.source}${e.id}`}>{e.id}</Mono>]);
+  }
   ids.push(["Added to Theatarr", fmtTime(d.created_at)], ["Updated", fmtTime(d.updated_at)]);
   if (m) {
     ids.push(["Metadata", <span key="m">{m.refreshed_at ? `fetched ${fmtTime(m.refreshed_at)}` : "never fetched"}{m.error ? <span className="text-[var(--bad-ink)]"> · {m.error}</span> : null}; next {fmtTime(m.refresh_after)}</span>]);
   }
-  const links = outside(d);
-  if (links.length) {
-    ids.push(["Links", <span key="l" className="flex flex-wrap gap-3">{links.map((l) => <a key={l.label} href={l.url} target="_blank" rel="noreferrer noopener" className="inline-flex items-center gap-1 text-primary hover:underline">{l.label}<ExternalLink className="size-3" /></a>)}</span>]);
-  }
+  const files = fileInventoryRows(versions).length;
+  const registry = d.registry ?? [];
   return (
     <div>
-      <Section title="Identifiers">
-        <Card><KV items={ids} /></Card>
-      </Section>
       <Section title="Release dates">
         <ReleaseDates rows={d.release_dates ?? []} chosen={d} />
       </Section>
-      <Section title="Files">
-        <Files versions={versions} />
-      </Section>
-      <Section title="Registry">
-        {(d.registry ?? []).length === 0 ? <Card><Empty>No registry entries.</Empty></Card> : (
-          <Card className="p-0">
-            <Table density="dense">
-              <TableHeader>
-                <TableRow><TableHead>Release</TableHead><TableHead className="hidden sm:table-cell">Library</TableHead><TableHead className="hidden md:table-cell">Imported</TableHead><TableHead>State</TableHead></TableRow>
-              </TableHeader>
-              <TableBody>
-                {(d.registry ?? []).map((r) => (
-                  <TableRow key={`${r.info_hash}-${r.version_id}`}>
-                    <TableCell>
-                      <Mono className="break-all">{r.release_title || r.name}</Mono>
-                      <div><Link className="font-mono text-xs text-primary hover:underline" to={`/admin/registry/${r.info_hash}`}>{r.info_hash}</Link></div>
-                    </TableCell>
-                    <TableCell className="hidden sm:table-cell"><VersionTag k={r.version_key ?? ""} /></TableCell>
-                    <TableCell className="hidden whitespace-nowrap text-muted-foreground md:table-cell">{fmtTime(r.imported_at ?? r.grabbed_at ?? r.failed_at)}</TableCell>
-                    <TableCell><Badge tone={r.failed_at ? "negative" : r.state === "present" ? "positive" : "neutral"}>{r.failed_at ? "failed" : r.state}</Badge></TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-          </Card>
-        )}
-      </Section>
+      <details className="group mt-8" data-testid="technical-details">
+        <summary className="flex cursor-pointer list-none items-center gap-2 text-[16px] font-semibold text-[var(--ink)] [&::-webkit-details-marker]:hidden">
+          <ChevronRight className="size-4 text-[var(--ink-3)] transition-transform group-open:rotate-90" aria-hidden />
+          Technical details
+        </summary>
+        <Section title="Identifiers" className="mt-4">
+          <Card><KV items={ids} /></Card>
+        </Section>
+        {files > 0 ? (
+          <Section title={`Files (${fmtNumber(files)})`}>
+            <Files versions={versions} />
+          </Section>
+        ) : null}
+        {registry.length > 0 ? (
+          <Section title="Saved inventory">
+            <Card className="p-0">
+              <Table density="dense">
+                <TableHeader>
+                  <TableRow><TableHead>Release</TableHead><TableHead className="hidden sm:table-cell">Library</TableHead><TableHead className="hidden md:table-cell">Imported</TableHead><TableHead>State</TableHead></TableRow>
+                </TableHeader>
+                <TableBody>
+                  {registry.map((r) => (
+                    <TableRow key={`${r.info_hash}-${r.version_id}`}>
+                      <TableCell>
+                        <Mono className="[overflow-wrap:anywhere]">{r.release_title || r.name}</Mono>
+                        <div><Link className="font-mono text-xs text-primary hover:underline" to={inventoryLink(r.info_hash ?? "")}>{r.info_hash}</Link></div>
+                      </TableCell>
+                      <TableCell className="hidden sm:table-cell"><VersionTag k={r.version_key ?? ""} /></TableCell>
+                      <TableCell className="hidden whitespace-nowrap text-muted-foreground md:table-cell">{fmtTime(r.imported_at ?? r.grabbed_at ?? r.failed_at)}</TableCell>
+                      <TableCell><Badge tone={r.failed_at ? "negative" : r.state === "present" ? "positive" : "neutral"}>{r.failed_at ? "Failed" : r.state === "present" ? "Present" : readableCode(r.state)}</Badge></TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </Card>
+          </Section>
+        ) : null}
+      </details>
     </div>
   );
 }

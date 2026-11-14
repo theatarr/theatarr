@@ -38,6 +38,8 @@ import { cn } from "@/lib/utils";
 import { downloadReason, globalDownloadsOff, linksOff, MODE_WORDS, verdict } from "@/lib/version-grab";
 import { otherProvidersLine } from "@/lib/provider-copies";
 import { mediaLine, subsList } from "@/lib/media";
+import { coverageWords, latestEvent, missingLine } from "@/lib/title-facts";
+import { upcomingRelease, undatedUpcoming } from "@/lib/library";
 
 type Kind = "movie" | "series";
 
@@ -66,10 +68,24 @@ function LibraryName({ v, wrap = false }: { v: Version; wrap?: boolean }) {
   );
 }
 
-/** The Status cell: the stage linked to Activity, the upgrade badge with Why?, or the words; a second line under it. */
+/** Why a library is missing and what comes next (a monitored library with nothing in hand that is missing a movie or
+ *  aired episodes): the last targeted search or "Never searched", and whether Theatarr searches by itself. */
+export function whyMissing(v: Version, title: TitleDetail, kind: Kind): string {
+  if (!v.monitored || v.acquisition || v.control?.mode !== "active") return "";
+  const missing = kind === "series" ? (v.episodes?.missing ?? 0) > 0 : !v.has_file && !upcomingRelease({ ...title, kind }) && !undatedUpcoming({ ...title, kind });
+  if (!missing) return "";
+  const n = nextSearchOf(v);
+  const next = n && title.auto_search?.enabled ? ` Next search ${nextSearch(n)}.` : "";
+  return missingLine(v, title.auto_search) + next;
+}
+
+/** The Status cell: the stage linked to Activity, the upgrade badge with Why?, or the words; a second line under it,
+ *  then a failed attempt (beside Upgrade found, never instead of it) and why a missing library is missing. */
 function StatusCell({ v, title, kind }: { v: Version; title: TitleDetail; kind: Kind }) {
   const s = libraryStatus(v, { ...title, kind });
   const titleId = v.title_id ?? 0;
+  const last = latestEvent(v);
+  const why = whyMissing(v, title, kind);
   return (
     <span className="flex flex-col items-start gap-0.5" data-testid="library-status">
       {s.stage ? (
@@ -85,6 +101,8 @@ function StatusCell({ v, title, kind }: { v: Version; title: TitleDetail; kind: 
       {s.sub ? (
         kind === "movie" && v.has_file && v.acquisition ? <StageLink a={{ ...v.acquisition, upgrade: true }} className="text-[11.5px]" /> : <span className="text-[11.5px] text-[var(--ink-3)]">{s.sub}</span>
       ) : null}
+      {last?.event === "failed" && !v.acquisition ? <span className="max-w-[22rem] text-[11.5px] text-[var(--warn-ink)]" data-testid="library-failed">{last.words}</span> : null}
+      {why ? <span className="max-w-[22rem] text-[11.5px] text-[var(--ink-3)]" data-testid="library-why">{why}</span> : null}
     </span>
   );
 }
@@ -146,7 +164,7 @@ function cellOf(id: LibraryColumn, v: Version, kind: Kind, title: TitleDetail): 
       return n ? <span className="whitespace-nowrap" title={fmtTime(n.at)}>{nextSearch(n)}</span> : blank;
     }
     case "path":
-      return held && c?.path ? <Mono className="break-all text-muted-foreground">{c.path}</Mono> : blank;
+      return held && c?.path ? <Mono className="text-muted-foreground [overflow-wrap:anywhere]">{c.path}</Mono> : blank;
   }
 }
 
@@ -156,15 +174,16 @@ function RowDetails({ v, kind, minimumShown, statusShown, onRemove }: { v: Versi
   const c = v.current;
   const key = v.key ?? "";
   const titleId = v.title_id ?? 0;
-  const rows: [ReactNode, ReactNode][] = [["Library key", <Mono key="k">{key}</Mono>]];
-  if (c?.path) rows.push(["Path", <Mono key="p" className="break-all text-muted-foreground">{c.path}</Mono>]);
+  const rows: [ReactNode, ReactNode][] = perms.admin ? [["Library key", <Mono key="k">{key}</Mono>]] : [];
+  // The path once: Library files lists each linked file's; a file with no link (an arr's) shows it here.
+  if (c?.path && unlinkable(v.links).length === 0) rows.push(["Path", <Mono key="p" className="text-muted-foreground [overflow-wrap:anywhere]">{c.path}</Mono>]);
   if (c?.info_hash) rows.push(["Hash", <span key="h" className="flex flex-wrap items-baseline gap-x-2"><InfoHash hash={c.info_hash} admin={perms.admin} /><TorrentLink hash={c.info_hash} /></span>]);
   if (c?.edition) rows.push(["Edition", c.edition]);
   // A movie's file: how its copies to other providers ended where Cached on does not show them.
   if (kind === "movie" && v.has_file && otherProvidersLine(c?.copies, v.cached_on)) rows.push(["Other providers", <OtherProviders key="o" copies={c?.copies} shown={v.cached_on} />]);
   if (kind === "series" && v.episodes) {
     const e = v.episodes;
-    rows.push(["Episodes", `${fmtNumber(e.have)} of ${fmtNumber(e.total)}${e.missing ? ` · ${fmtNumber(e.missing)} aired and missing` : ""}`]);
+    rows.push(["Episodes", coverageWords(e, !!v.monitored)]);
   }
   // The upgrade explanation (Why?, and the source ceiling for a movie) when no Status cell offers it: a series row
   // always (its status is an episode count), a movie when the Status column is hidden.

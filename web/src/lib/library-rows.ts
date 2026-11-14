@@ -10,6 +10,8 @@ import { statusDay, undatedUpcoming, upcomingRelease } from "./library";
 import { copyTone, copyWords, TONE, type ToneTitle } from "./library-status";
 import type { ColumnDef } from "./prefs";
 import { upgradeBadge, type Tone } from "./upgrade";
+import { fmtNumber } from "./format";
+import { searchingWords } from "./title-facts";
 
 type Acquisition = Schemas["Acquisition"];
 type VersionBrief = Schemas["VersionBrief"];
@@ -106,13 +108,24 @@ export function libraryStatus(v: Version, t: ToneTitle, day?: string): LibrarySt
   const b = versionBrief(v);
   const tone = TONE[copyTone(b, t, day)];
   if (t.kind === "series") {
+    const e = v.episodes;
+    // Nothing held yet and a download in hand: its stage, not "0 of 8".
+    if (a && !e?.have && a.stage !== "blocked") return { label: stageWords(a), tone: "info", stage: a };
+    const missing = e?.missing ?? 0;
+    // A monitored library with the monitored counts: "44 of 46 monitored episodes", then "2 missing · 30 not monitored".
+    if (e && v.monitored && e.monitored != null && e.total > 0) {
+      const off = Math.max(0, e.total - e.monitored);
+      const sub = [missing > 0 ? `${fmtNumber(missing)} missing` : "", off > 0 ? `${fmtNumber(off)} not monitored` : ""].filter(Boolean).join(" · ");
+      return { label: `${fmtNumber(e.monitored_have ?? 0)} of ${fmtNumber(e.monitored)} monitored ${e.monitored === 1 ? "episode" : "episodes"}`, tone, sub: sub || undefined };
+    }
     const words = copyWords(b, t, day);
-    const missing = v.episodes?.missing ?? 0;
     return { label: words.charAt(0).toUpperCase() + words.slice(1), tone, sub: missing > 0 ? `${missing} missing` : undefined };
   }
   if (!v.has_file) {
     if (a) return { label: stageWords(a), tone, stage: a };
     if (!v.monitored) return { label: "Not monitored", tone };
+    // A search the server says is under way (Search now waiting for its round, or running).
+    if (v.searching) return { label: searchingWords(v.searching), tone: "info" };
     const upcoming = upcomingRelease(t, day);
     if (upcoming) return { label: `Upcoming · ${statusDay(t, upcoming)}`, tone };
     if (undatedUpcoming(t)) return { label: "Upcoming, date unknown", tone };

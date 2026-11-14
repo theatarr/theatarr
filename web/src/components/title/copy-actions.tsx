@@ -91,6 +91,19 @@ export function RemoveDialog({ titleId, versions, onClose, kind, anime }: { titl
 
 /** Unlink the library's files one by one, and Remove from this library: the library row's Details. onRemove opens the
  *  removal dialog outside the row (the Libraries table), so its result stays on screen after the row goes. */
+/** Links grouped by their folder (a series' season folder), in path order; one group without a name when they share
+ *  a single folder. */
+export function linkGroups<T extends { path?: string }>(links: readonly T[]): { folder: string; links: T[] }[] {
+  const groups = new Map<string, T[]>();
+  for (const l of [...links].sort((a, b) => (a.path ?? "").localeCompare(b.path ?? ""))) {
+    const parts = (l.path ?? "").split("/");
+    const folder = parts.length > 1 ? parts[parts.length - 2] : "";
+    groups.set(folder, [...(groups.get(folder) ?? []), l]);
+  }
+  const out = [...groups].map(([folder, ls]) => ({ folder, links: ls }));
+  return out.length === 1 ? [{ folder: "", links: out[0].links }] : out;
+}
+
 export function CopyActions({ v, label, onRemove }: { v: Version; label: string; onRemove: () => void }) {
   const titleId = v.title_id ?? 0;
   const [path, setPath] = useState<{ id: number; path: string } | null>(null);
@@ -100,19 +113,27 @@ export function CopyActions({ v, label, onRemove }: { v: Version; label: string;
   return (
     <div className="space-y-2" data-testid="copy-actions">
       {links.length > 0 ? (
-        <div>
-          <div className="mb-2 text-xs font-bold uppercase tracking-[0.05em] text-[var(--ink-3)]">Library links</div>
-          <ul className="space-y-1.5">
-            {links.map((l) => (
-              <li key={l.id} className="flex items-start gap-2">
-                <Mono className="min-w-0 flex-1 break-all text-muted-foreground">{l.path}</Mono>
-                <Button size="xs" variant="ghost" onClick={() => setPath({ id: l.id ?? 0, path: l.path ?? "" })} data-testid="link-unlink">
-                  <FileX2 /> Unlink
-                </Button>
-              </li>
+        // Folded, by folder (a series' season), file names first and the full path as each name's tooltip.
+        <details className="group" data-testid="library-files">
+          <summary className="cursor-pointer text-xs font-bold uppercase tracking-[0.05em] text-[var(--ink-3)]">Library files ({links.length})</summary>
+          <div className="mt-2 space-y-2">
+            {linkGroups(links).map((g) => (
+              <div key={g.folder}>
+                {g.folder ? <div className="mb-1 text-xs font-medium text-[var(--ink-2)] [overflow-wrap:anywhere]">{g.folder}</div> : null}
+                <ul className="space-y-1">
+                  {g.links.map((l) => (
+                    <li key={l.id} className="flex items-start gap-2">
+                      <Mono className="min-w-0 flex-1 text-muted-foreground [overflow-wrap:anywhere]"><span title={l.path}>{(l.path ?? "").split("/").pop()}</span></Mono>
+                      <Button size="xs" variant="ghost" onClick={() => setPath({ id: l.id ?? 0, path: l.path ?? "" })} data-testid="link-unlink">
+                        <FileX2 /> Unlink
+                      </Button>
+                    </li>
+                  ))}
+                </ul>
+              </div>
             ))}
-          </ul>
-        </div>
+          </div>
+        </details>
       ) : null}
       <Button size="xs" variant="outline" onClick={onRemove} data-testid={`copy-remove-${v.key}`}>
         <Trash2 /> Remove from this library

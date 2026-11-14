@@ -43,6 +43,7 @@ import { mediaLine, subsList } from "@/lib/media";
 import { cellStatus, episodeNumber, mergedStatus, plainAvailable, statusWords } from "@/lib/seasons";
 import { activityHref, stageTone, stageWords } from "@/lib/copies";
 import { cn } from "@/lib/utils";
+import { missingLine } from "@/lib/title-facts";
 
 type Acquisition = Schemas["Acquisition"];
 
@@ -148,7 +149,7 @@ function CopyBlock({ d, single, children, testid }: { d: EpisodeVersionDetail; s
 }
 
 /** One copy's Details, for callers who see files: state, controls, the download in hand, the upgrade and the file. */
-function DetailsPart({ titleId, eid, epCode, d, aired, manage, admin, single, acquisition, onReleases }: { titleId: number; eid: number; epCode: string; d: EpisodeVersionDetail; aired: boolean; manage: boolean; admin: boolean; single: boolean; acquisition?: Acquisition; onReleases: () => void }) {
+function DetailsPart({ titleId, eid, epCode, d, aired, manage, admin, single, acquisition, onReleases, auto }: { titleId: number; eid: number; epCode: string; d: EpisodeVersionDetail; aired: boolean; manage: boolean; admin: boolean; single: boolean; acquisition?: Acquisition; onReleases: () => void; auto?: EpisodeDetail["auto_search"] }) {
   const monitor = useMonitor(titleId);
   const search = useScopedSearch(titleId);
   const nameOf = useLibraryName();
@@ -165,6 +166,10 @@ function DetailsPart({ titleId, eid, epCode, d, aired, manage, admin, single, ac
         <Badge tone={badge.tone}>{badge.label}</Badge>
       </div>
       {acquisition ? <AcquisitionPart a={acquisition} /> : null}
+      {/* Why it is missing and what next: the season's last targeted search in this library, and the switches. */}
+      {!acquisition && !d.has_file && aired && d.monitored && d.library_monitored && c?.mode === "active" ? (
+        <p className="text-xs text-[var(--ink-2)]" data-testid="episode-why">{missingLine(d, auto)}</p>
+      ) : null}
       {manage && c ? (
         <div className="flex flex-wrap items-center gap-3">
           <label className="flex items-center gap-2 text-sm">
@@ -251,7 +256,7 @@ function CopyTabs({ titleId, d, aired, manage, admin, acquisitions }: { titleId:
       <div className="min-h-0 flex-1 overflow-y-auto p-4">
         <TabsContent value="details" className="mt-0 space-y-4">
           {d.versions.map((v) => (
-            <DetailsPart key={v.key} titleId={titleId} eid={d.episode.id} epCode={epCode} d={v} aired={aired} manage={manage} admin={admin} single={single} acquisition={acquisitions?.[v.key]} onReleases={() => setTab("releases")} />
+            <DetailsPart key={v.key} titleId={titleId} eid={d.episode.id} epCode={epCode} d={v} aired={aired} manage={manage} admin={admin} single={single} acquisition={acquisitions?.[v.key]} onReleases={() => setTab("releases")} auto={d.auto_search} />
           ))}
         </TabsContent>
         <TabsContent value="history" className="mt-0 space-y-4">
@@ -280,6 +285,20 @@ function PlainAvailability({ e }: { e: EpisodeDetail["episode"] }) {
   return (
     <p className="flex items-center gap-2 text-sm" data-testid="episode-availability" data-status={s}>
       <Badge tone={w.tone}>{label}</Badge>
+    </p>
+  );
+}
+
+/** The episode's one status line under its name, across its libraries: "Missing since Apr 26", "Available",
+ *  "Not aired yet". Per library the Details tab says more. */
+function EpisodeStatusLine({ e }: { e: EpisodeDetail["episode"] }) {
+  const keys = Object.keys(e.versions);
+  const s = mergedStatus(e, keys);
+  const w = statusWords(s, true);
+  const since = s === "missing" && e.air_date ? ` since ${fmtDay(e.air_date)}` : "";
+  return (
+    <p className="mt-1 text-sm" data-testid="episode-status" data-status={s}>
+      <Badge tone={w.tone}>{w.label}{since}</Badge>
     </p>
   );
 }
@@ -328,6 +347,7 @@ export function EpisodeOverview({
             "Episode"
           )}
         </h2>
+        {e && d && perms.seeFiles && d.versions.length > 0 ? <EpisodeStatusLine e={e} /> : null}
         {e ? (
           <p className="mt-1 text-xs text-muted-foreground" data-testid="episode-meta">
             {[e.air_date ? `${aired ? "Aired" : "Airs"} ${fmtDay(e.air_date)}` : "No air date", runtime, anime && e.absolute ? episodeNumber(e, true) : ""].filter(Boolean).join(" · ")}

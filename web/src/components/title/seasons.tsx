@@ -163,20 +163,28 @@ function CellStage({ cell, className }: { cell: Cell | undefined; className?: st
   );
 }
 
+/** A selection checkbox: the box stays 16 px, its touch area is 40 px on phones (the padding around it is a label, and a
+ *  tap there never opens the episode). */
 function Check({ checked, indeterminate, onChange, label }: { checked: boolean; indeterminate?: boolean; onChange: (v: boolean) => void; label: string }) {
   return (
-    <input
-      type="checkbox"
-      aria-label={label}
-      checked={checked}
-      ref={(el) => {
-        if (el) el.indeterminate = !!indeterminate && !checked;
-      }}
-      onClick={(e) => e.stopPropagation()}
-      onChange={(e) => onChange(e.target.checked)}
-      className="size-4 cursor-pointer accent-[var(--accent)]"
-    />
+    <label className="inline-flex shrink-0 cursor-pointer items-center justify-center max-md:-m-3 max-md:p-3" onClick={(e) => e.stopPropagation()} data-testid="episode-check">
+      <input
+        type="checkbox"
+        aria-label={label}
+        checked={checked}
+        ref={(el) => {
+          if (el) el.indeterminate = !!indeterminate && !checked;
+        }}
+        onChange={(e) => onChange(e.target.checked)}
+        className="size-4 cursor-pointer accent-[var(--accent)]"
+      />
+    </label>
   );
+}
+
+/** A monitor switch that shows the stored flag of a library that is not monitored: its state kept, drawn inactive. */
+function Kept({ inactive, children }: { inactive: boolean; children: ReactNode }) {
+  return inactive ? <span className="inline-flex opacity-45 saturate-0" data-testid="switch-kept" title="Kept for when the library is monitored again">{children}</span> : <>{children}</>;
 }
 
 // ---- Acting on the libraries in view ----
@@ -245,6 +253,8 @@ type ListProps = {
   act?: { scope: Scope; actions: Actions };
   /** The chosen columns, in order (one library in view on desktop). */
   columns: EpisodeColumnId[];
+  /** No library in view is monitored: the episode switches show their kept state, inactive. */
+  inactive?: boolean;
 };
 
 const epCode = (e: Episode) => `S${String(e.season).padStart(2, "0")}E${String(e.number).padStart(2, "0")}`;
@@ -348,7 +358,7 @@ function ColumnCell({ id, e, c, seeFiles, day, off = false }: { id: EpisodeColum
 
 /** Desktop, one library in view (Sonarr's layout): checkbox, monitor switch, number, title, the chosen columns, then
  *  Search and Interactive search. */
-function LibraryTable({ episodes, copies, anime, manage, seeFiles, selected, onSelect, onOpen, live, act, columns }: ListProps) {
+function LibraryTable({ episodes, copies, anime, manage, seeFiles, selected, onSelect, onOpen, live, act, columns, inactive = false }: ListProps) {
   const day = dayFormatter(episodes.map((e) => e.air_date));
   const v = copies[0];
   const ids = episodes.map((e) => e.id);
@@ -395,15 +405,17 @@ function LibraryTable({ episodes, copies, anime, manage, seeFiles, selected, onS
               {act ? (
                 <TableCell className="pr-0">
                   {c ? (
-                    <MonitorSwitch
-                      size="sm"
-                      on={on}
-                      disabled={!act.scope.edit || act.actions.busy}
-                      reason={act.scope.edit ? undefined : act.scope.editWhy}
-                      label={what}
-                      onChange={(m) => act.actions.monitor({ episode_ids: [e.id] }, m)}
-                      testid={`episode-monitor-${e.id}`}
-                    />
+                    <Kept inactive={inactive}>
+                      <MonitorSwitch
+                        size="sm"
+                        on={on}
+                        disabled={!act.scope.edit || act.actions.busy}
+                        reason={act.scope.edit ? undefined : act.scope.editWhy}
+                        label={what}
+                        onChange={(m) => act.actions.monitor({ episode_ids: [e.id] }, m)}
+                        testid={`episode-monitor-${e.id}`}
+                      />
+                    </Kept>
                   ) : null}
                 </TableCell>
               ) : null}
@@ -516,10 +528,10 @@ function EpisodeRows({ episodes, copies, merged, anime, manage, seeFiles, select
   return (
     <div data-testid="episode-rows">
       {manage && ids.length > 0 ? (
-        <label className="flex items-center gap-2.5 border-b border-[var(--line)] px-3 py-2 text-xs text-muted-foreground">
+        <div className="flex items-center gap-2.5 border-b border-[var(--line)] px-3 py-2 text-xs text-muted-foreground">
           <Check checked={nSel === ids.length} indeterminate={nSel > 0} onChange={(v) => onSelect(ids, v)} label="Select every episode shown" />
           Select all shown
-        </label>
+        </div>
       ) : null}
       <ul className="divide-y divide-[var(--line)]">
         {episodes.map((e) => {
@@ -538,18 +550,19 @@ function EpisodeRows({ episodes, copies, merged, anime, manage, seeFiles, select
               onKeyDown={(ev) => openOnKey(ev, e.id, onOpen)}
             >
               {manage ? <Check checked={selected.has(e.id)} onChange={(v) => onSelect([e.id], v)} label={`Select episode ${e.number}`} /> : null}
+              {/* The name has the first line to itself; number, date, status and quality share the second. */}
               <div className="min-w-0 flex-1">
-                <div className={cn("truncate text-sm font-medium", manage && !e.monitored && "text-muted-foreground")}>{e.name || `Episode ${e.number}`}</div>
-                <div className="truncate text-xs text-muted-foreground">
-                  <span className="tabular-nums" data-testid="episode-number">{episodeNumber(e, anime)}</span>
-                  {" · "}
-                  {e.air_date ? day(e.air_date) : "No air date"}
+                <div className={cn("truncate text-sm font-medium", manage && !e.monitored && "text-muted-foreground")} data-testid="episode-name">{e.name || `Episode ${e.number}`}</div>
+                <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5 text-xs text-muted-foreground">
+                  <span className="whitespace-nowrap">
+                    <span className="tabular-nums" data-testid="episode-number">{episodeNumber(e, anime)}</span>
+                    {" · "}
+                    {e.air_date ? day(e.air_date) : "No air date"}
+                  </span>
+                  <StatusText st={{ ...st, quality: undefined }} manage={manage} />
+                  {st.quality ? <span className="max-w-[9rem] truncate text-[11px]">{st.quality}</span> : null}
                 </div>
-              </div>
-              <div className="flex shrink-0 flex-col items-end gap-0.5 text-right">
-                <StatusText st={{ ...st, quality: undefined }} manage={manage} />
-                {st.quality ? <span className="max-w-[9rem] truncate text-[11px] text-muted-foreground">{st.quality}</span> : null}
-                <CellStage cell={st.cell} className="max-w-[9rem] text-right" />
+                <CellStage cell={st.cell} className="max-w-[12rem]" />
               </div>
               <RowIcons e={e} live={live} act={act} />
             </li>
@@ -615,9 +628,18 @@ function LibraryBadge({ v, season }: { v: VersionT; season: SeasonT }) {
 
 /** The facts beside the badge with one library in view: missing, upgrades found, downloads by stage, size; the
  *  upgrade status with Why?; the next search when sent. */
+/** A season's "8 / 10" in one library, on the header's first line beside the name. */
+function SeasonCount({ season, v }: { season: SeasonT; v: VersionT }) {
+  const b = seasonBadge(season.versions[v.key], season);
+  return (
+    <Badge tone={b.tone === "neutral" ? "neutral" : b.tone} data-testid="season-badge" className="shrink-0 tabular-nums">
+      {b.text}
+    </Badge>
+  );
+}
+
 function OneLibraryFacts({ titleId, season, v, seeFiles }: { titleId: number; season: SeasonT; v: VersionT; seeFiles: boolean }) {
   const c = season.versions[v.key];
-  const b = seasonBadge(c, season);
   // The quality word with Why? (UpgradeStatus) says Upgrade found once; the count is said only without it.
   const quality = seeFiles && !!c && c.have > 0 && !!c.upgrade;
   const facts = [
@@ -629,9 +651,6 @@ function OneLibraryFacts({ titleId, season, v, seeFiles }: { titleId: number; se
   ].filter(Boolean);
   return (
     <>
-      <Badge tone={b.tone === "neutral" ? "neutral" : b.tone} data-testid="season-badge" className="tabular-nums">
-        {b.text}
-      </Badge>
       {facts.length ? <span className="min-w-0 truncate text-xs text-muted-foreground" data-testid="season-facts">{facts.join(" · ")}</span> : null}
       {quality && c ? (
         <span onClick={(e) => e.stopPropagation()} className="contents">
@@ -705,7 +724,9 @@ function SeasonBlock({
   const on = mon.some((n) => n > 0);
   const monitorWhat = `${on ? "Stop monitoring" : "Monitor"} ${name.toLowerCase()} in ${scope.name}`;
   const searchWhat = `Search ${name.toLowerCase()} now in ${scope.name}`;
-  const props: ListProps = { episodes: shown, copies, merged, anime, manage, seeFiles, selected, onSelect, onOpen, live, act, columns };
+  // Every library in view is not monitored: the switches show the episodes kept for when it is monitored again.
+  const inactive = seeFiles && copies.length > 0 && off.size === copies.length;
+  const props: ListProps = { episodes: shown, copies, merged, anime, manage, seeFiles, selected, onSelect, onOpen, live, act, columns, inactive };
   return (
     <div className="overflow-hidden rounded-lg border border-border bg-background/40" data-season={season.season}>
       <div className="flex cursor-pointer flex-wrap items-center gap-x-2 gap-y-1 bg-card/60 px-2 py-1.5 transition hover:bg-accent/40 md:flex-nowrap" onClick={onToggle} data-testid="season-header">
@@ -713,17 +734,20 @@ function SeasonBlock({
           <Chevron className="size-4" />
         </button>
         {act ? (
-          <MonitorSwitch
-            size="sm"
-            on={on}
-            disabled={!scope.edit || actions.busy}
-            reason={scope.edit ? undefined : scope.editWhy}
-            label={monitorWhat}
-            onChange={(m) => actions.monitor({ season: season.season }, m)}
-            testid={`season-monitor-${season.season}`}
-          />
+          <Kept inactive={inactive}>
+            <MonitorSwitch
+              size="sm"
+              on={on}
+              disabled={!scope.edit || actions.busy}
+              reason={scope.edit ? undefined : scope.editWhy}
+              label={monitorWhat}
+              onChange={(m) => actions.monitor({ season: season.season }, m)}
+              testid={`season-monitor-${season.season}`}
+            />
+          </Kept>
         ) : null}
         <span className="shrink-0 text-sm font-semibold text-foreground">{name}</span>
+        {one && seeFiles ? <SeasonCount season={season} v={one} /> : null}
         <span className="flex min-w-0 items-center gap-2 max-md:order-last max-md:basis-full max-md:flex-wrap md:flex-1">
           {one && seeFiles ? (
             <OneLibraryFacts titleId={titleId} season={season} v={one} seeFiles={seeFiles} />
@@ -850,6 +874,11 @@ function LibrarySelector({ versions, all, view, wide, onPick }: { versions: Vers
   );
 }
 
+/** Seasons newest first, specials last (Sonarr's order). */
+export function newestFirst<T extends { season: number }>(seasons: readonly T[]): T[] {
+  return [...seasons].sort((a, b) => (a.season === 0 ? 1 : b.season === 0 ? -1 : b.season - a.season));
+}
+
 export function Seasons({ id, anime, franchises = [] }: { id: string; anime: boolean; franchises?: { slug: string; name: string }[] }) {
   const list = useEpisodes(id);
   const perms = usePerms();
@@ -918,7 +947,7 @@ export function Seasons({ id, anime, franchises = [] }: { id: string; anime: boo
   const limits = manage ? restrictions(one ? [one] : l.versions, { globalSaid: true }) : [];
   const watchOrder = anime ? franchises : [];
   return (
-    <div className="space-y-2.5">
+    <div className={cn("space-y-2.5", manage && selected.size > 0 && "pb-16")}>
       {watchOrder.length > 0 ? (
         <Link
           to="?tab=order"
@@ -934,6 +963,11 @@ export function Seasons({ id, anime, franchises = [] }: { id: string; anime: boo
         </Link>
       ) : null}
       {l.versions.length === 0 ? <p className="text-sm text-muted-foreground">This series has no libraries.</p> : null}
+      {manage && seeFiles && copies.length > 0 && offCopies(copies, seeFiles).size === copies.length ? (
+        <Note icon={<Bookmark className="size-3.5" />} testid="episodes-kept">
+          <p>{copies.length === 1 ? `${copies[0].label} is not monitored` : "No library here is monitored"}: nothing is searched for these episodes. Their switches keep your choice for when it is monitored again.</p>
+        </Note>
+      ) : null}
       {limits.length > 0 ? (
         <Note icon={<Lock className="size-3.5" />} testid="episode-restrictions">
           {limits.map((s) => (
@@ -951,7 +985,7 @@ export function Seasons({ id, anime, franchises = [] }: { id: string; anime: boo
           ) : null}
         </div>
       ) : null}
-      {l.seasons.map((s) => (
+      {newestFirst(l.seasons).map((s) => (
         <SeasonBlock
           key={s.season}
           titleId={titleId}

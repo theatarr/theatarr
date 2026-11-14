@@ -119,11 +119,14 @@ describe("Title page", () => {
   it("offers no hero action when every library that fits is on the title, other libraries aside", async () => {
     const adder = { ...me, permissions: ["see_files", "manage", "add"] };
     const lib = { kind: "movie", mode: "active", enable: "", fits: true, default: true, on: true, searchable: true, label: "WEB" };
-    for (const [versions, want] of [[[{ ...lib, key: "movie-web" }, { ...lib, key: "movie-remux" }, { ...lib, key: "anime-movie", fits: false, default: false, on: false }], null], [[{ ...lib, key: "movie-web" }, { ...lib, key: "movie-2160", on: false }], "Add to another library"], [[{ ...lib, key: "movie-web", on: false }], "Monitor again"]] as const) {
+    for (const [versions, want] of [[[{ ...lib, key: "movie-web" }, { ...lib, key: "movie-remux" }, { ...lib, key: "anime-movie", fits: false, default: false, on: false }], null], [[{ ...lib, key: "movie-web" }, { ...lib, key: "movie-2160", on: false }], "Add to another library"], [[{ ...lib, key: "movie-web", on: false }], "Monitor again"],
+      // Both libraries held, one monitored: its switch in the Libraries table does it, no hero action.
+      [[{ ...lib, key: "movie-web" }, { ...lib, key: "movie-remux", on: false }], null]] as const) {
       document.body.innerHTML = "";
       const api = mockFetch([
         { method: "GET", path: "/auth/me", reply: adder },
-        { method: "GET", path: "/titles/70", reply: { ...title, versions: [{ id: 5, key: "movie-web", label: "WEB", state: "wanted", monitored: true }] } },
+        { method: "GET", path: "/titles/70", reply: { ...title, versions: [{ id: 5, key: "movie-web", label: "WEB", state: "wanted", monitored: versions[0].on },
+          ...(versions.length === 2 && versions[1].key === "movie-remux" && !versions[1].on ? [{ id: 6, key: "movie-remux", label: "Remux", state: "wanted", monitored: false }] : [])] } },
         { method: "GET", path: "/add/options", reply: { kind: "movie", anime: false, title_id: 70, router_enabled: true, episodes_known: false, can_search: true, seasons: [], versions } },
       ]);
       renderPage(<SearchProvider><Routes><Route path="/title/:id" element={<TitlePage />} /></Routes></SearchProvider>, "/title/70");

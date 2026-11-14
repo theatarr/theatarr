@@ -147,7 +147,7 @@ describe("upgrade words", () => {
 describe("media line", () => {
   it("joins what is known and drops repeated subtitle languages", () => {
     expect(mediaLine({ resolution: "1920x1080", video_codec: "x265", video_bit_depth: 10, audio_codec: "Opus", audio_channels: 2, audio_languages: "jpn/eng", subtitles: "eng/eng/ara" })).toBe(
-      "1920x1080 · x265 10-bit · Opus 2 · jpn/eng · subs eng/ara",
+      "1920x1080 · x265 10-bit · Opus 2 · Japanese, English · subtitles English, Arabic",
     );
     expect(mediaLine(undefined)).toBe("");
   });
