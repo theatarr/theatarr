@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { backupCheck, danglingNext, healthAttention, healthBadgeTone, healthEffect, healthLink, healthStatTone, type HealthCheck } from "./health";
+import { backupCheck, danglingNext, healthAttention, healthBadgeTone, healthEffect, healthLink, healthStatTone, premiumEnd, type HealthCheck } from "./health";
 
 const c = (source: string, type: HealthCheck["type"]): HealthCheck => ({ source, name: source, type, message: source });
 
@@ -67,4 +67,18 @@ it("links indexer and provider checks to their settings", () => {
 
 it("names Tasks in queue guidance", () => {
  expect(healthEffect("JobBacklogCheck").next).toBe("Look at the queue on Tasks.");
+});
+
+describe("premiumEnd", () => {
+  const now = new Date("2026-11-14T12:00:00Z");
+  const checks = [{ source: "ProviderAccountCheck", name: "Debrid accounts", type: "warning", message: "",
+    detail: { tb: { premium: true, expires: "2026-11-17T12:00:00Z" }, rd: { premium: true, expires: "2027-03-01T00:00:00Z" },
+      ad: { premium: false, expires: "2026-11-10T00:00:00Z" }, x: { error: "timeout" } } }] as HealthCheck[];
+  it("says a premium end within a week as a warning and an ended one as an error", () => {
+    expect(premiumEnd(checks, "tb", now)).toEqual({ text: "Premium ends Nov 17 (3 days)", tone: "warn" });
+    expect(premiumEnd(checks, "ad", now)).toEqual({ text: "Premium ended Nov 10", tone: "bad" });
+    expect(premiumEnd(checks, "rd", now)).toBeNull();
+    expect(premiumEnd(checks, "x", now)).toBeNull();
+    expect(premiumEnd(undefined, "tb", now)).toBeNull();
+  });
 });

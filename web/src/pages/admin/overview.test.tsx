@@ -215,6 +215,31 @@ it("names a failed download's item, error and release, and Inspect opens that do
  expect(within(row).queryByText(/No file from this download yet/)).toBeNull();
 });
 
+it("orders Needs attention by consequence and collapses several downloads into one line", async () => {
+ const base = { title: { id: 3, name: "The Kardashians" }, version: "tv-2160p", step: "", steps: [], words: "", progress: 0, created_at: "2026-11-01T12:00:00Z", updated_at: "2026-11-01T12:00:00Z" };
+ mockFetch([...reviewRoutes,
+  { method: "GET", path: "/readyz", reply: { status: "ok" } },
+  { method: "GET", path: "/status", reply: status },
+  { method: "GET", path: "/jobs", reply: { items: [], counts: {} } },
+  { method: "GET", path: "/gateway", reply: { egress: { vpn_ok: true }, backoffs: [] } },
+  { method: "GET", path: "/health", reply: { checks: [{ source: "ProviderAccountCheck", name: "Debrid accounts", type: "warning", message: "tb: premium ends Nov 17 (in 3d)", checked_at: "2026-11-14T10:00:00Z" }] } },
+  { method: "GET", path: "/activity", reply: { now: [
+   { ...base, id: 7, state: "failed", error: "stalled: not ready" },
+   { ...base, id: 8, state: "failed", error: "ready timeout: not imported after 6h0m0s" },
+   { ...base, id: 9, state: "queued", waiting_since: "2026-11-01T12:00:00Z" },
+  ] } },
+ ]);
+ renderPage(<Overview />);
+ const attention = await screen.findByTestId("attention");
+ const rows = within(attention).getAllByRole("listitem");
+ expect(rows).toHaveLength(2);
+ expect(rows[0].textContent).toContain("Debrid accounts");
+ expect(rows[1].textContent).toContain("3 downloads need a look");
+ expect(rows[1].textContent).toContain("2 failed, 1 stuck or waiting longer than usual.");
+ expect(within(rows[1]).getByRole("link", { name: "Open queue" }).getAttribute("href")).toBe("/activity?show=attention");
+ expect(screen.queryByTestId("attention-download-7")).toBeNull();
+});
+
 it("shows the download and task strips as loading, not as 0, until they load", async () => {
  mockFetch([...reviewRoutes,
   { method: "GET", path: "/readyz", reply: { status: "ok" } },

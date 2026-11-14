@@ -2,6 +2,7 @@
 // checks join Needs attention. The VPN and failed-job checks are left out there: that list already names the VPN
 // state and each failed job on its own.
 import type { Schemas } from "@/api/client";
+import { fmtDay } from "@/lib/format";
 
 export type HealthCheck = Schemas["HealthResult"];
 export type HealthType = NonNullable<HealthCheck["type"]>;
@@ -131,4 +132,20 @@ export function danglingNext(linkState?: string): string {
     default:
       return "Not a link Theatarr made";
   }
+}
+
+/** A debrid account's premium end for its provider card (Settings › Download clients), from the debrid-accounts
+ *  check's detail (internal/health Accounts: detail[key].expires): within 7 days "Premium ends Nov 17 (3 days)" as a
+ *  warning, after it "Premium ended Nov 10" as an error; null otherwise or when not known. */
+export function premiumEnd(checks: HealthCheck[] | undefined, key: string, now: Date = new Date()): { text: string; tone: "warn" | "bad" } | null {
+  const c = checks?.find((x) => x.source === "ProviderAccountCheck");
+  const d = (c?.detail as Record<string, { expires?: string } | undefined> | undefined)?.[key];
+  const at = d?.expires ? new Date(d.expires) : null;
+  if (!at || Number.isNaN(at.getTime())) return null;
+  const day = fmtDay(d!.expires!, now);
+  const left = at.getTime() - now.getTime();
+  if (left <= 0) return { text: `Premium ended ${day}`, tone: "bad" };
+  if (left >= 7 * 86_400_000) return null;
+  const days = Math.max(1, Math.round(left / 86_400_000));
+  return { text: `Premium ends ${day} (${days} day${days === 1 ? "" : "s"})`, tone: "warn" };
 }

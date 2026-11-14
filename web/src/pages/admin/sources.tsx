@@ -1,7 +1,7 @@
 import { Link } from "react-router";
 // Admin › Connections › Providers & indexers (GET /sources): each provider's sync, registry counts, router pacing and attempts;
 // each indexer's budget and its last failure or back-off from the gateway.
-import { useSources } from "@/api/hooks";
+import { useHealth, useSources } from "@/api/hooks";
 import { Empty, ErrorState, KV, Loading, Mono, Section, VersionTag } from "@/components/page";
 import { Badge } from "@/components/ui/badge";
 import { Card } from "@/components/ui/card";
@@ -9,6 +9,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { fmtAgo, fmtNumber, fmtTime } from "@/lib/format";
 import { PeriodUse } from "@/components/settings/sources";
 import { adapterWord } from "@/components/settings/record-form";
+import { premiumEnd } from "@/lib/health";
 
 const KIND: Record<string, string> = { realdebrid: "Real-Debrid", alldebrid: "AllDebrid", torbox: "TorBox" };
 
@@ -16,6 +17,7 @@ export function ProviderStatus() { return <SourcesPanel kind="providers" />; }
 export function IndexerStatus() { return <SourcesPanel kind="indexers" />; }
 export function SourcesPanel({ kind }: { kind?: "providers" | "indexers" }) {
   const q = useSources();
+  const health = useHealth();
   if (q.isPending) return <Loading />;
   if (q.error) return <ErrorState error={q.error} />;
   const s = q.data;
@@ -29,6 +31,7 @@ export function SourcesPanel({ kind }: { kind?: "providers" | "indexers" }) {
             {s.providers.map((p) => {
               const sync = p.last_sync;
               const tone = !sync ? "neutral" : sync.ok ? "positive" : "negative";
+              const premium = premiumEnd(health.data?.checks, p.key);
               const backedOff = p.backoff?.active || (p.pacing?.backoff_until && new Date(p.pacing.backoff_until) > new Date());
               return (
                 <Card key={p.key} className="min-w-0 [overflow-wrap:anywhere]" data-provider={p.key}>
@@ -42,6 +45,7 @@ export function SourcesPanel({ kind }: { kind?: "providers" | "indexers" }) {
                       <Link className="text-sm text-[var(--accent-ink)] underline-offset-2 hover:underline" to={`/admin/settings/downloads?edit=${encodeURIComponent(p.key)}`} aria-label={`Edit ${p.key}`}>Edit</Link>
                     </div>
                   </div>
+                  {premium ? <p className={`mt-2 text-[13px] font-medium ${premium.tone === "bad" ? "text-[var(--bad-ink)]" : "text-[var(--warn-ink)]"}`} data-testid="premium-end">{premium.text}</p> : null}
                   {sync && !sync.ok && sync.error ? <p className="mt-2 break-words text-[13px] text-[var(--bad-ink)]">{sync.error}</p> : null}
                   <div className="mt-3">
                     <KV items={[

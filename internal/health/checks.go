@@ -884,18 +884,26 @@ func Indexers(state func() gateway.State, indexers []string) Func {
 			}
 		}
 		if len(down) == 0 {
-			return Result{Type: OK, Message: fmt.Sprintf("%d indexer(s) available", len(indexers))}
+			return Result{Type: OK, Message: fmt.Sprintf("%d %s available", len(indexers), indexerWord(len(indexers)))}
 		}
 		// Which indexers and why stay in Detail (API, System › Status); Message is what the Health webhook sends, so it
 		// gives counts only.
 		detail := map[string]any{"unavailable": down}
 		if len(down) == len(indexers) {
-			return Result{Type: Error, Detail: detail, Message: fmt.Sprintf("All %d indexer(s) are unavailable "+
+			return Result{Type: Error, Detail: detail, Message: fmt.Sprintf("All %d indexers are unavailable "+
 				"(backed off or budget spent): see "+uipages.Indexers+" for which", len(indexers))}
 		}
-		return Result{Type: Warning, Detail: detail, Message: fmt.Sprintf("%d of %d indexer(s) unavailable "+
+		return Result{Type: Warning, Detail: detail, Message: fmt.Sprintf("%d of %d indexers unavailable "+
 			"(backed off or budget spent): see "+uipages.Indexers+" for which", len(down), len(indexers))}
 	}
+}
+
+// indexerWord is "indexer" for one, "indexers" otherwise.
+func indexerWord(n int) string {
+	if n == 1 {
+		return "indexer"
+	}
+	return "indexers"
 }
 
 // Egress checks the gateway's VPN egress check (policy egress): every path fresh and on a VPN exit. Without an egress

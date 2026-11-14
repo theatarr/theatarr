@@ -1,5 +1,6 @@
-// System › Status (docs/design/ui.md): what needs attention first (VPN egress, failing health checks, failed jobs,
-// back-offs, downloads stuck or waiting too long), each with its effect and the next step; then one summary strip
+// System › Status (docs/design/ui.md): what needs attention first, by consequence (VPN egress and failing health
+// checks, failed jobs and back-offs, Reviews, then downloads, collapsed into one line when more than one: the queue's
+// own rule, internal/activity NativeQueueFailureSQL), each with its effect and the next step; then one summary strip
 // each for downloads and jobs; then diagnostics (readiness, schema, version and every health check). The numbers are
 // the API's (/readyz, /status, /health, /jobs, /gateway, /activity); job counts and the gateway update live.
 import { useQuery } from "@tanstack/react-query";
@@ -11,7 +12,7 @@ import { useSettings, useSettingsSections } from "@/api/settings";
 import { useSetup, setupUnfinished } from "@/api/setup";
 import { useAppBackups } from "@/api/backups";
 import { SETTINGS_PAGES } from "@/lib/settings-map";
-import { useActivityNow } from "@/api/activity";
+import { type ActivityDownload, useActivityNow } from "@/api/activity";
 import { useDanglingLinks } from "@/api/dangling";
 import { type Gateway, useGateway, useHealth, useStatus } from "@/api/hooks";
 import { useJobCounts, useJobsFiltered } from "@/api/jobs";
@@ -62,8 +63,22 @@ type Attention = {
   grouped?: boolean;
 };
 
-/** How many stuck downloads Needs attention names one by one before it sums up the rest. */
-const DOWNLOADS_LISTED = 3;
+/** Needs attention's order by consequence: VPN and health checks (accounts, mount, backups) first, then tasks,
+ * back-offs and sources that did not load, then Reviews, and single downloads last. */
+function rank(key: string): number {
+  if (key === "vpn" || key.startsWith("check-")) return 0;
+  if (key.startsWith("job-") || key.startsWith("backoff-") || key.startsWith("unavailable-")) return 1;
+  if (key.startsWith("reviews")) return 2;
+  return 3;
+}
+
+/** What the downloads needing a look are, in words: "2 failed, 1 waiting longer than usual". */
+export function downloadsWords(ds: ActivityDownload[]): string {
+  const failed = ds.filter((d) => d.state === "failed" || d.steps?.some((s) => s.state === "failed") || d.import_state === "rejected" || d.import_state === "failed").length;
+  const partly = ds.filter((d) => d.import_state === "partial").length;
+  const waiting = ds.length - failed - partly;
+  return [failed ? `${fmtNumber(failed)} failed` : "", partly ? `${fmtNumber(partly)} partly linked` : "", waiting ? `${fmtNumber(waiting)} stuck or waiting longer than usual` : ""].filter(Boolean).join(", ");
+}
 
 export function Overview() {
   const reviews = useReviewCounts();
@@ -138,7 +153,8 @@ export function Overview() {
       to: subjectKind === "provider" ? "/admin/settings/downloads" : subjectKind === "indexer" ? "/admin/settings/indexers" : "/admin/advanced/limits",
     });
   }
-  for (const d of stuck.slice(0, DOWNLOADS_LISTED)) {
+  // One download is named; more collapse into one line that opens them in Activity.
+  for (const d of stuck.length === 1 ? stuck : []) {
     const w = timing(d, t);
     const failedDl = d.state === "failed" || d.steps?.some((s) => s.state === "failed");
     const eps = episodesWords(d.episodes);
@@ -155,9 +171,9 @@ export function Overview() {
       open: "Inspect",
     });
   }
-  if (stuck.length > DOWNLOADS_LISTED) {
-    const more = stuck.length - DOWNLOADS_LISTED;
-    items.push({ key: "downloads-more", tone: "warn", title: `${more} more download${more === 1 ? "" : "s"} need a look`, effect: "Stuck or waiting longer than usual.", next: "See them in Activity", to: "/activity?show=attention" });
+  if (stuck.length > 1) {
+    const words = downloadsWords(stuck);
+    items.push({ key: "downloads", tone: words.includes("failed") ? "bad" : "warn", title: `${fmtNumber(stuck.length)} downloads need a look`, effect: `${words.charAt(0).toUpperCase()}${words.slice(1)}.`, next: "See them in Activity", to: "/activity?show=attention", open: "Open queue" });
   }
   // A source that failed to load is said so: its alerts are unknown, never an all-clear.
   const sources = [
@@ -170,7 +186,7 @@ export function Overview() {
     items.push({ key: `unavailable-${key}`, tone: "warn", title: `Could not load ${name}`, effect: <>Alerts from it are unknown. <span className="text-[var(--ink-3)]">{q.error instanceof Error ? q.error.message : String(q.error)}</span></>, next: "Reload the page; check the server if it keeps failing", to });
   }
   const checking = reviews.isPending || sources.some((x) => x.q.isPending);
-  items.sort((a, b) => (a.tone === b.tone ? 0 : a.tone === "bad" ? -1 : 1));
+  items.sort((a, b) => rank(a.key) - rank(b.key) || (a.tone === b.tone ? 0 : a.tone === "bad" ? -1 : 1));
   const checks = hc.data?.checks ?? [];
   const schemaOK = st.data?.schema?.current === st.data?.schema?.target;
 
@@ -178,7 +194,7 @@ export function Overview() {
     <div>
       {header}
       <Readiness />
-      <Section title={`Needs attention${items.length > 0 ? ` (${items.length})` : ""}`} className="mt-0">
+      <Section title={`Needs attention${items.length > 0 ? ` (${items.length})` : ""}`}>
         <Card className="p-0">
           {items.length === 0 && checking ? (
             <Loading />
@@ -235,8 +251,7 @@ export function Overview() {
         <Card><div className="space-y-2">{(st.data?.versions ?? []).map((v) => <div key={v.key} className="flex flex-wrap items-start gap-2"><Link className="text-sm font-medium hover:underline" to={`/admin/settings/libraries?edit=${encodeURIComponent(v.key)}`} title={v.key}>{v.label || v.key}</Link><VersionStatus state={v.grab_state} showMode settingsKey={v.key} canManage /></div>)}</div></Card>
       </Section>
 
-      {!setupUnfinished(setup.data) ? <p className="mt-6"><Link className="text-primary underline" to="/admin/setup">Setup checklist</Link></p> : null}
-      <Section title="Diagnostics">
+      <Section title="Diagnostics" aside={!setupUnfinished(setup.data) ? <Link className="text-primary hover:underline" to="/admin/setup">Setup checklist</Link> : undefined}>
         <StatGrid>
           <Stat testid="health-status" value={<span className="flex items-center gap-2">{r.status === "ready" ? <CheckCircle2 className="size-5 text-[var(--ok)]" /> : <AlertTriangle className="size-5 text-[var(--bad)]" />}{r.status ?? "unknown"}</span>} label="readiness (/readyz)" />
           <Stat value={egress?.mode === "off" ? "Off" : egress?.mode === "monitor-only" ? "Monitor-only" : vpn === undefined ? "—" : vpn ? "Up" : "Down"} tone={vpnOptional ? "warn" : vpn === false ? "bad" : vpn ? "ok" : undefined} label="VPN egress" />

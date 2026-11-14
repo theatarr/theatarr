@@ -182,7 +182,7 @@ SignalR, Sonarr v5, `downloadclient`.
   - Payloads and the Health webhook read the views through the current settings runtime, so a version saved after
     startup shows up without a restart (`TestNotifyViewsFollowSettingsRuntime`).
   - Health webhook text is the check's `message`, which names no indexer keys and no provider error text (that can
-    hold torrent ids): `IndexerStatusCheck` says "2 of 3 indexer(s) unavailable …" and `UnsettledAddsCheck` gives counts
+    hold torrent ids): `IndexerStatusCheck` says "2 of 3 indexers unavailable …" and `UnsettledAddsCheck` gives counts
     and age; which indexers and the add's error stay in the check's `detail` for the API and Health page
     (`health.TestHealthWebhookTextNamesNoKeysOrTorrents`).
 - **Release details.** Webhook events always carry the release name and indexer. Rename arrays keep file IDs and

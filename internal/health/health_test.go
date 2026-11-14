@@ -328,13 +328,19 @@ func TestIndexersEgressDisk(t *testing.T) {
 	}
 	f := Indexers(func() gateway.State { return s }, []string{"dmm", "tpb", "zilean"})
 	r := f(ctx)
-	if r.Type != Warning || r.Message != "2 of 3 indexer(s) unavailable (backed off or budget spent): see Settings › Indexers for which" ||
+	if r.Type != Warning || r.Message != "2 of 3 indexers unavailable (backed off or budget spent): see Settings › Indexers for which" ||
 		fmt.Sprint(r.Detail) != "map[unavailable:map[dmm:backed off: 5 failures tpb:budget prowlarr spent]]" {
 		t.Errorf("indexers: %+v", r)
 	}
 	s.Backoffs[1].Active = true
-	if r := f(ctx); r.Type != Error {
+	if r := f(ctx); r.Type != Error || !strings.HasPrefix(r.Message, "All 3 indexers are unavailable") {
 		t.Errorf("all down: %+v", r)
+	}
+	if r := Indexers(func() gateway.State { return gateway.State{} }, []string{"dmm"})(ctx); r.Message != "1 indexer available" {
+		t.Errorf("one indexer: %+v", r)
+	}
+	if r := Indexers(func() gateway.State { return gateway.State{} }, []string{"dmm", "tpb"})(ctx); r.Message != "2 indexers available" {
+		t.Errorf("two indexers: %+v", r)
 	}
 	if r := Egress(nil, false)(ctx); r.Type != Warning || r.Message != "VPN guard off" {
 		t.Errorf("no egress: %+v", r)
