@@ -169,16 +169,19 @@ func TestConfirmedJobRetryWithKey(t *testing.T) {
 }
 
 // GET /jobs/recurring lists the recurring tasks the settings schedule, with their interval, the last finished run and
-// the next run only when one is queued for later.
+// the next run only when one is queued for later. A sweep kind's last run is its scheduled run ({}), not a one-item
+// job; the search round says when it is paused.
 func TestJobsRecurring(t *testing.T) {
 	t.Parallel()
 	e := newEnv(t)
 	now := store.Millis(testNow)
 	// The seed queues db.nightly an hour ahead (and has a failed one, never finished).
 	e.exec(`INSERT INTO job (id, kind, payload, state, run_at, created_at, updated_at, finished_at) VALUES
-		(10, 'shadow.rss', '{}', 'done', ?, ?, ?, ?), (11, 'shadow.rss', '{}', 'failed', ?, ?, ?, ?),
-		(12, 'meta.art', '{}', 'done', ?, ?, ?, ?)`,
-		now, now, now, now, now, now, now, now-60000, now, now, now, now)
+		(10, 'shadow.rss', 'null', 'done', ?1, ?1, ?1, ?1), (11, 'shadow.rss', 'null', 'failed', ?1, ?1, ?1, ?1 - 60000),
+		(12, 'provider.sync', '{}', 'done', ?1, ?1, ?1, ?1 - 3600000),
+		(13, 'provider.sync', '{"providers":["ad"],"retry":true}', 'failed', ?1, ?1, ?1, ?1),
+		(14, 'ceiling.compute', '{"title_id":4}', 'done', ?1, ?1, ?1, ?1),
+		(15, 'ceiling.compute', '{"title_id":5}', 'queued', ?1 + 60000, ?1, ?1, NULL)`, now)
 	var js JobSchedules
 	if code := e.getKey(APIBase+"/jobs/recurring", e.apiKey(), &js); code != 200 {
 		t.Fatalf("recurring: %d", code)
@@ -191,16 +194,51 @@ func TestJobsRecurring(t *testing.T) {
 	if rss.EverySeconds != 900 || rss.LastRun == nil || !rss.LastRun.Equal(testNow) || rss.LastState != "done" || rss.NextRun != nil {
 		t.Errorf("rss: %+v", rss)
 	}
-	if s := by["provider.sync"]; s.EverySeconds != 6*3600 || s.LastRun != nil {
-		t.Errorf("provider sync: %+v", s)
+	if s := by["provider.sync"]; s.EverySeconds != 6*3600 || s.LastRun == nil || !s.LastRun.Equal(testNow.Add(-time.Hour)) || s.LastState != "done" {
+		t.Errorf("provider sync takes the full sync, not the one-provider retry: %+v", s)
+	}
+	if s := by["ceiling.compute"]; s.EverySeconds != 60 || s.LastRun != nil || s.NextRun != nil {
+		t.Errorf("ceiling takes its scheduled run, not one title's: %+v", s)
 	}
 	if s := by["db.nightly"]; s.EverySeconds != 86400 || s.NextRun == nil || !s.NextRun.Equal(testNow.Add(time.Hour)) {
 		t.Errorf("nightly: %+v", s)
 	}
-	if _, ok := by["meta.art"]; ok {
-		t.Errorf("an on-demand task is listed: %+v", js.Items)
+	pol := e.web.pol
+	if s := by["acquire.wanted"]; s.EverySeconds != 900 || s.Paused != (len(pol.ActiveVersions()) == 0 || !pol.RouterSettings().Enabled) {
+		t.Errorf("search round: %+v", s)
+	}
+	if _, ok := by["meta.art"]; ok != e.web.metadataSourceOn("tmdb") {
+		t.Errorf("meta.art listed %v with TMDb %v", ok, e.web.metadataSourceOn("tmdb"))
 	}
 	if _, ok := by["notify.digest"]; ok {
 		t.Errorf("the digest is listed with notifications off: %+v", js.Items)
+	}
+}
+
+// The art refresh and the series sweeps are listed with their intervals when their metadata sources are on.
+func TestJobsRecurringMetadata(t *testing.T) {
+	e := newEnv(t)
+	pol := e.web.pol
+	if pol.Metadata == nil || pol.Metadata.Sources["tmdb"] == nil {
+		t.Skip("the example policy has no tmdb source")
+	}
+	src := *pol.Metadata.Sources["tmdb"]
+	src.APIKeyEnv = "THEATARR_TEST_TMDB_KEY"
+	t.Setenv(src.APIKeyEnv, "x")
+	pol.Metadata.Sources["tmdb"] = &src
+	by := map[string]JobSchedule{}
+	for _, s := range e.web.recurringJobs() {
+		by[s.Kind] = s
+	}
+	if s, ok := by["meta.art"]; !ok || s.EverySeconds != int64(pol.ArtSettings().Interval/time.Second) {
+		t.Errorf("art: %+v", by)
+	}
+	if pol.SeriesMetaSettings().Enabled {
+		if s := by["meta.series"]; s.EverySeconds != int64(pol.SeriesMetaSettings().Interval/time.Second) {
+			t.Errorf("series: %+v", s)
+		}
+		if s := by["meta.scene"]; s.EverySeconds != 3*3600 {
+			t.Errorf("scene: %+v", s)
+		}
 	}
 }

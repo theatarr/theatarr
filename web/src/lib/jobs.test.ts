@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { attentionCount, canDismiss, canRetry, groupJobs, jobEffect, jobName, jobNotes, needsAttention, type Job } from "./jobs";
+import { attentionCount, canDismiss, canRetry, collapseDone, everyWords, groupJobs, jobEffect, jobName, jobNotes, needsAttention, type Job } from "./jobs";
 
 const job = (j: Partial<Job>): Job => ({ id: 2, kind: "provider.sync", state: "failed", ...j });
 
@@ -53,5 +53,16 @@ describe("jobs", () => {
     expect(g.done.map((j) => j.id)).toEqual([9]);
     expect(needsAttention(job({}))).toBe(true);
     expect(needsAttention(job({ state: "done" }))).toBe(false);
+  });
+});
+
+describe("collapseDone", () => {
+  const j = (id: number, extra: Partial<Job> = {}): Job => ({ id, kind: "ceiling.compute", state: "done", attempts: 1, max_attempts: 3, finished_at: `2026-11-14T10:0${id}:00Z`, ...extra } as Job);
+  it("folds plain done runs of a kind into one row with the newest, and keeps retries, errors and failures apart", () => {
+    const rows = collapseDone([j(1), j(3), j(2), j(4, { retry_of: 9 }), j(5, { last_error: "busy", attempts: 2 }), j(6, { state: "failed" })]);
+    expect(rows.map((r) => [r.job.id, r.count])).toEqual([[3, 3], [4, 1], [5, 1], [6, 1]]);
+  });
+  it("says how often a task runs", () => {
+    expect([everyWords(900), everyWords(21600), everyWords(86400, "09:00"), everyWords(86400), everyWords(45)]).toEqual(["every 15 min", "every 6 h", "daily at 09:00", "daily", "every 45 s"]);
   });
 });

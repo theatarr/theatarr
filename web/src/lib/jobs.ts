@@ -98,12 +98,20 @@ export function everyWords(seconds: number, at?: string): string {
   return `every ${seconds} s`;
 }
 
-/** Finished jobs with one row per kind: the newest job, how many of that kind finished, in the list's order. */
+/** A finished job that may share a row with its kind's others: done on its first try, not a retry, no error. */
+const plainDone = (j: Job) => j.state === "done" && !j.retry_of && !j.last_error && (j.attempts ?? 1) <= 1;
+
+/** Finished jobs with the plain done runs of one kind as one row (the newest, and how many), in the list's order. A
+ *  failed job, a retry or a run with an earlier error keeps its own row. */
 export function collapseDone(done: Job[]): { job: Job; count: number }[] {
   const out: { job: Job; count: number }[] = [];
   const at = new Map<string, number>();
   for (const j of done) {
-    const k = `${j.kind}:${j.state}`;
+    if (!plainDone(j)) {
+      out.push({ job: j, count: 1 });
+      continue;
+    }
+    const k = j.kind ?? "";
     const i = at.get(k);
     if (i === undefined) {
       at.set(k, out.length);

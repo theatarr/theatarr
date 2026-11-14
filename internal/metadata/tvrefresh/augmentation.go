@@ -19,7 +19,11 @@ import (
 )
 
 const sceneJob = "meta.scene"
-const sceneAge = 3 * time.Hour
+
+// SceneAge is how often the scene names are read again (meta.scene; System › Tasks shows it).
+const SceneAge = 3 * time.Hour
+
+const sceneAge = SceneAge
 
 type sceneName struct {
 	Title       string `json:"title"`

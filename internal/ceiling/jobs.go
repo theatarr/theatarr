@@ -59,9 +59,12 @@ func RegisterJobs(w *jobs.Worker, st *store.Store, pol *policy.Policy) {
 	})
 }
 
+// RunEvery is how often Run queues a recomputation (System › Tasks shows it).
+const RunEvery = time.Minute
+
 // Run schedules local recomputation every minute. Titles are checked daily and overrides expire on the next pass.
 func Run(ctx context.Context, q *jobs.Queue, log *slog.Logger) {
-	tick := time.NewTicker(time.Minute)
+	tick := time.NewTicker(RunEvery)
 	defer tick.Stop()
 	for {
 		if _, _, err := q.Enqueue(ctx, JobKind, Payload{}, jobs.EnqueueOptions{DedupeKey: JobKind, Priority: -30}); err != nil && ctx.Err() == nil {

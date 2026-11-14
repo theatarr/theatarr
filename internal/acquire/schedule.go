@@ -40,8 +40,10 @@ const (
 	whyAdded = "added"
 )
 
-// roundEvery is the time between full rounds.
-const roundEvery = 15 * time.Minute
+// RoundEvery is the time between full rounds (System › Tasks shows it).
+const RoundEvery = 15 * time.Minute
+
+const roundEvery = RoundEvery
 
 // noAnswerTries is how many times in a row a row that is not new is tried again an hour after no indexer answered.
 const noAnswerTries = 3

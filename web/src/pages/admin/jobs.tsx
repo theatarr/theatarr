@@ -109,6 +109,7 @@ function RecurringRow({ s }: { s: JobSchedule }) {
     <li className="flex flex-wrap items-baseline gap-x-3 gap-y-0.5 px-4 py-2.5" data-kind={s.kind}>
       <span className="min-w-0 font-medium text-[var(--ink)] sm:w-72">{jobName(s.kind)}</span>
       <span className="text-sm text-muted-foreground sm:w-32" data-testid="recurring-every">{everyWords(s.every_seconds, s.at)}</span>
+      {s.paused ? <Badge tone="warning" title="Pause is on, or no library is Live" data-testid="recurring-paused">paused</Badge> : null}
       <span className="text-sm text-muted-foreground" data-testid="recurring-last">
         {s.last_run ? <>last run <span title={fmtTime(s.last_run)}>{fmtAgo(s.last_run)}</span>{s.last_state === "failed" ? <Badge tone="negative" className="ml-1.5">failed</Badge> : null}</> : "not run recently"}
         {s.next_run ? <> · next <span title={fmtTime(s.next_run)}>{fmtTime(s.next_run)}</span></> : null}
@@ -117,7 +118,7 @@ function RecurringRow({ s }: { s: JobSchedule }) {
   );
 }
 
-/** Finished jobs, identical ones (same kind and state) as one row: "×41, last 8 s ago". */
+/** Finished jobs, the plain done runs of one kind as one row: "×41, last 8 s ago" (lib/jobs collapseDone). */
 function DoneList({ items }: { items: Job[] }) {
   const rows = collapseDone(items);
   return (

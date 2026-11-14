@@ -288,7 +288,7 @@ it("lists the recurring tasks with how often they run, and folds identical finis
  const done = (id: number, at: string) => ({ id, kind: "ceiling.compute", state: "done", attempts: 1, max_attempts: 3, finished_at: at });
  mockFetch([
   { method: "GET", path: "/jobs", reply: { counts: {}, items: [done(1, "2026-11-14T10:00:00Z"), done(2, "2026-11-14T10:05:00Z"), done(3, "2026-11-14T10:01:00Z"), { id: 4, kind: "plex.scan", state: "done", attempts: 1, max_attempts: 3, finished_at: "2026-11-14T09:00:00Z" }] } },
-  { method: "GET", path: "/jobs/recurring", reply: { items: [{ kind: "shadow.rss", every_seconds: 900, last_run: "2026-11-14T10:00:00Z", last_state: "failed" }, { kind: "notify.digest", every_seconds: 86400, at: "09:00" }, { kind: "db.nightly", every_seconds: 86400, next_run: "2026-11-15T03:00:00Z" }] } },
+  { method: "GET", path: "/jobs/recurring", reply: { items: [{ kind: "shadow.rss", every_seconds: 900, last_run: "2026-11-14T10:00:00Z", last_state: "failed" }, { kind: "notify.digest", every_seconds: 86400, at: "09:00" }, { kind: "db.nightly", every_seconds: 86400, next_run: "2026-11-15T03:00:00Z" }, { kind: "acquire.wanted", every_seconds: 900, paused: true }] } },
  ]);
  renderPage(<JobsPage />);
  const rec = await screen.findByTestId("jobs-recurring");
@@ -299,6 +299,7 @@ it("lists the recurring tasks with how often they run, and folds identical finis
  expect(rec.querySelector("[data-kind='notify.digest']")!.textContent).toContain("daily at 09:00");
  expect(rec.querySelector("[data-kind='notify.digest']")!.textContent).toContain("not run recently");
  expect(rec.querySelector("[data-kind='db.nightly']")!.textContent).toContain("next");
+ expect(rec.querySelector("[data-kind='acquire.wanted'] [data-testid='recurring-paused']")).toBeTruthy();
  const group = screen.getByTestId("jobs-done-group");
  expect(group.textContent).toContain("Work out the best available quality");
  expect(group.textContent).toContain("×3, last");
