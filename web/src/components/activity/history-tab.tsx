@@ -22,6 +22,7 @@ import { adminLink, journalLink } from "@/lib/admin-links";
 import { historyFilterCount, historyParams } from "@/lib/activity-history";
 import { eventMeaning, HISTORY_COLUMNS, HISTORY_DEFAULT, type HistoryColumnId } from "@/lib/activity-history-columns";
 import { useColumnPrefs } from "@/lib/prefs";
+import { providerLabel } from "@/components/provider-pills";
 
 const EVENT_TONE = {
   ok: "bg-[var(--ok-ink)]",
@@ -109,7 +110,7 @@ const HISTORY_OPTIONAL: Record<HistoryColumnId, DataColumn<ActivityEvent>> = {
     cellClassName: "max-w-[13rem]",
     cell: (e) => (e.release ? <span className="block font-mono text-[12px] max-sm:break-all sm:truncate" title={e.release}>{e.release}</span> : <Dash />),
   },
-  provider: { id: "provider", label: "Provider", cellClassName: "whitespace-nowrap", cell: (e) => e.provider || <Dash /> },
+  provider: { id: "provider", label: "Provider", cellClassName: "whitespace-nowrap", cell: (e) => (e.provider ? <span title={e.provider}>{providerLabel(e.provider)}</span> : <Dash />) },
   indexer: { id: "indexer", label: "Indexer", cellClassName: "whitespace-nowrap", cell: (e) => e.indexer || <Dash /> },
   formats: { id: "formats", label: "Formats", cell: (e) => <FormatPills formats={e.formats} /> },
   size: { id: "size", label: "Size", cellClassName: "whitespace-nowrap tabular-nums", cell: (e) => (e.size ? fmtBytes(e.size) : <Dash />) },

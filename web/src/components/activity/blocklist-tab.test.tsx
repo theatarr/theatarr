@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { screen, waitFor } from "@testing-library/react";
+import { screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { expect, it } from "vitest";
 import { mockFetch, renderPage } from "@/test/page";
@@ -37,6 +37,8 @@ it("sends the typed title, pages with the filtered total, and shows quality and 
   const rows = await screen.findAllByTestId("blocked-row");
   expect(rows[0].querySelector('[data-column="quality"]')?.textContent).toBe("WEBDL-1080p");
   expect(rows[0].querySelector('[data-column="indexer"]')?.textContent).toBe("torrentio");
+  // The title opens its page.
+  expect(within(rows[0]).getAllByRole("link", { name: "Title 1" })[0].getAttribute("href")).toBe("/title/1");
   expect(screen.getByTestId("pager-range").textContent).toBe("1–50 of 312");
   const user = userEvent.setup();
   await user.click(screen.getByRole("button", { name: "Next" }));

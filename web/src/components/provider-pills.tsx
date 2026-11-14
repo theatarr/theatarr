@@ -5,8 +5,9 @@ import { Badge } from "@/components/ui/badge";
 
 const LABELS: Record<string, string> = { rd: "RD", ad: "AD", tb: "TB" };
 
-export function providerLabel(code: string): string {
-  return LABELS[code.toLowerCase()] ?? code.toUpperCase();
+export function providerLabel(code?: string | null): string {
+  const c = code ?? "";
+  return LABELS[c.toLowerCase()] ?? c.toUpperCase();
 }
 
 export function ProviderPills({ codes, empty, testid }: { codes?: readonly string[] | null; empty?: ReactNode; testid?: string }) {

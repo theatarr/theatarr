@@ -15,7 +15,7 @@ import { BulkDialog, SelectionLine, useChosen } from "@/components/activity/bulk
 import { DownloadActions } from "@/components/activity/download-actions";
 import { Dash, episodesWords, FormatPills, Poster, tight, TitleLine } from "@/components/activity/row-bits";
 import { ProgressBar, StepTrack, toneOf } from "@/components/activity-bits";
-import { Empty, ErrorState, Loading, Mono, VersionTag } from "@/components/page";
+import { Empty, ErrorState, Loading, VersionTag } from "@/components/page";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -41,6 +41,8 @@ import { resolutionWords } from "@/lib/upgrade";
 import { cn } from "@/lib/utils";
 import { adminLink, journalLink } from "@/lib/admin-links";
 import { FAILED_WORDS } from "@/lib/request-timeline";
+import { providerLabel } from "@/components/provider-pills";
+import { InfoHash } from "@/components/title/info-hash";
 
 const WORD_TONE = {
   active: "text-[var(--accent-ink)]",
@@ -72,7 +74,7 @@ function DownloadDetails({ d }: { d: ActivityDownload }) {
         {d.info_hash ? (
           <div>
             <Label>Hash</Label>
-            <Mono className="mt-1 block break-all text-muted-foreground">{d.info_hash}</Mono>
+            <div className="mt-1"><InfoHash hash={d.info_hash} admin={admin} /></div>
           </div>
         ) : null}
         {d.error ? (
@@ -94,7 +96,7 @@ function DownloadDetails({ d }: { d: ActivityDownload }) {
             <ul className="mt-1 space-y-1 text-sm">
               {attempts.map((a, i) => (
                 <li key={i} className="flex flex-wrap items-baseline gap-x-2">
-                  <span className="font-medium">{a.provider}</span>
+                  <span className="font-medium" title={a.provider}>{providerLabel(a.provider)}</span>
                   <Badge tone={a.outcome === "accepted" ? "positive" : a.outcome === "deferred" ? "warning" : a.outcome === "skipped" ? "neutral" : "negative"}>
                     {a.outcome}
                     {a.code ? ` · ${a.code}` : ""}
@@ -114,7 +116,7 @@ function DownloadDetails({ d }: { d: ActivityDownload }) {
             <div className="mt-1 flex flex-wrap gap-1.5">
               {(d.cache ?? []).map((c, i) => (
                 <Badge key={i} tone={c.state === "cached" ? "positive" : c.state === "miss" || c.state === "uncached" ? "negative" : "neutral"}>
-                  {c.provider} {c.state} <span className="opacity-70">({c.source})</span>
+                  {providerLabel(c.provider)} {c.state} <span className="opacity-70">({c.source})</span>
                 </Badge>
               ))}
             </div>

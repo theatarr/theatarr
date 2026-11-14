@@ -288,6 +288,18 @@ describe("Acting on the libraries in view", () => {
     expect(within(screen.getByTestId("episode-table")).getAllByText("NTb")).toHaveLength(3);
   });
 
+  it("links an episode's Cached on to its torrent for admins, as the episode window does", async () => {
+    const hash = "a".repeat(40);
+    const withHash = { ...episodes, episodes: episodes.episodes.map((e) => ({ ...e, versions: { ...e.versions, "anime-web": cell(true, { cached_on: ["rd"], info_hash: hash }) } })) };
+    mockFetch([{ ...routes[0], reply: { ...routes[0].reply, permissions: ["see_files", "manage", "admin"] } }, { method: "GET", path: "/titles/1/episodes", reply: withHash }]);
+    const user = userEvent.setup();
+    renderPage(<Seasons id="1" anime />, "/title/1");
+    await user.click(await screen.findByRole("radio", { name: "Anime WEB" }));
+    const links = within(screen.getByTestId("episode-table")).getAllByTestId("torrent-link");
+    expect(links).toHaveLength(3);
+    expect(links[0].getAttribute("href")).toBe(`/admin/torrents?q=${hash.slice(0, 12)}`);
+  });
+
   it("drops the ticked episodes when the library in view changes", async () => {
     const api = mockFetch(acting);
     const user = userEvent.setup();

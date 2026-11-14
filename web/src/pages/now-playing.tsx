@@ -13,6 +13,8 @@ import { Badge } from "@/components/ui/badge";
 import { Card } from "@/components/ui/card";
 import { fmtAgo, fmtBytes } from "@/lib/format";
 import { fmtClock, fmtMbps, healthBadge, itemLabel, placeLabel, prewarmText, progress, streamLabel } from "@/lib/now-playing";
+import { ProviderPills } from "@/components/provider-pills";
+import { TorrentLink } from "@/components/title/info-hash";
 
 export function NowPlayingPage() {
   const q = useNowPlaying();
@@ -93,9 +95,8 @@ function SessionCard({ s, seeFiles }: { s: NowPlayingSession; seeFiles: boolean 
       details.push([
         "Providers",
         <span className="flex flex-wrap items-center gap-1.5">
-          {(src.providers ?? []).map((p) => (
-            <Badge key={p} tone="outline">{p}</Badge>
-          ))}
+          {(src.providers ?? []).length ? <ProviderPills codes={src.providers} /> : null}
+          {src.hash ? <TorrentLink hash={src.hash} /> : null}
           {src.single_copy ? <Badge tone="warning">single copy</Badge> : null}
           {src.served_by ? <span className="text-muted-foreground">served by {src.served_by}</span> : null}
         </span>,

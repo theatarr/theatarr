@@ -3,6 +3,7 @@
 // title and version; the total is the filtered count). Each row has Unblock, which can also search the library again.
 import { CircleSlash, Search } from "lucide-react";
 import { useEffect, useState } from "react";
+import { Link } from "react-router";
 import { BLOCKED_PAGE, unblockRelease, useActivityBlocked, type ActivityBlocked } from "@/api/activity";
 import { useDebounced } from "@/api/add";
 import { useFacets, usePerms } from "@/api/library";
@@ -18,14 +19,21 @@ import { Select } from "@/components/ui/select";
 import { bulkWords } from "@/lib/activity";
 import { distinctLabels, relabel } from "@/lib/copies";
 import { fmtTime } from "@/lib/format";
+import { cn } from "@/lib/utils";
 
 const rowKey = (b: ActivityBlocked) => `${b.version}\n${b.info_hash}`;
 const releases = (n: number) => `${n} ${n === 1 ? "release" : "releases"}`;
 
 const titleName = (b: ActivityBlocked) => `${b.title.name}${b.title.year ? ` (${b.title.year})` : ""}`;
 
+/** The title, linked to its page when the row names one. */
+function TitleName({ b, className }: { b: ActivityBlocked; className?: string }) {
+  const cls = cn("font-medium text-[var(--ink)]", className);
+  return b.title.id ? <Link to={`/title/${b.title.id}`} className={cn(cls, "hover:text-[var(--accent-ink)] hover:underline")} title={titleName(b)}>{titleName(b)}</Link> : <span className={cls}>{titleName(b)}</span>;
+}
+
 const COLUMNS: DataColumn<ActivityBlocked>[] = tight([
-  { id: "title", label: "Title", card: "none", cellClassName: "max-w-[10.5rem]", cell: (b) => <span className="block truncate font-medium text-[var(--ink)]">{titleName(b)}</span> },
+  { id: "title", label: "Title", card: "none", cellClassName: "max-w-[10.5rem]", cell: (b) => <TitleName b={b} className="block truncate" /> },
   { id: "library", label: "Library", cell: (b) => <VersionTag k={b.version} className="text-[11px]" /> },
   {
     id: "release",
@@ -115,7 +123,7 @@ export function BlocklistTab() {
             rowLabel={(b) => b.release}
             testid="blocked-table"
             rowProps={() => ({ "data-testid": "blocked-row" })}
-            cardHead={(b) => <span className="block font-medium text-[var(--ink)]">{titleName(b)}</span>}
+            cardHead={(b) => <TitleName b={b} className="block" />}
             actions={(b) => <UnblockAction b={b} />}
           />
           <Pager offset={offset} limit={BLOCKED_PAGE} total={total} onPage={setOffset} />

@@ -128,7 +128,7 @@ describe("torrents page", () => {
     await screen.findByText("Used.Movie");
     expect(screen.getByRole("columnheader", { name: "Provider" })).toBeTruthy();
     expect(screen.getAllByTestId("torrent-provider").map((c) => c.textContent).sort()).toEqual(["RD", "RD", "TB"]);
-    fireEvent.click(screen.getByRole("tab", { name: "tb" }));
+    fireEvent.click(screen.getByRole("tab", { name: "TB" }));
     expect(screen.queryByRole("columnheader", { name: "Provider" })).toBeNull();
     page.unmount();
 
@@ -136,6 +136,9 @@ describe("torrents page", () => {
     await screen.findByText("Used.Movie");
     expect((screen.getByLabelText("Filter torrents") as HTMLInputElement).value).toBe(h2.slice(0, 12));
     expect(screen.getAllByTestId("torrent-row")).toHaveLength(1);
+    // The titles sit beside the usage without opening it; the hash leads to the Saved inventory entry.
+    expect([...screen.getByTestId("torrent-row-titles").querySelectorAll("a")].map((l) => [l.textContent, l.getAttribute("href")])).toEqual([["Used", "/title/7"], ["Also", "/title/8"]]);
+    expect(screen.getByTestId("torrent-hash").getAttribute("href")).toBe(`/admin/torrents/inventory/${h2}`);
     fireEvent.click(screen.getByRole("button", { expanded: false }));
     const refs = screen.getByTestId("torrent-refs");
     expect([...refs.querySelectorAll("a")].map((l) => [l.textContent, l.getAttribute("href")])).toEqual([["Used", "/title/7"], ["Also", "/title/8"], ["Used", "/title/7"]]);
@@ -152,7 +155,7 @@ describe("torrents page", () => {
     renderPage(<TorrentsPage />);
     expect((await screen.findByTestId("provider-count-ad")).textContent).toContain("4,600 of 5,000");
     expect(screen.getByTestId("provider-count-rd").textContent).not.toContain(" of ");
-    expect(screen.getByTestId("near-limit").textContent).toContain("ad holds 4,600 of its 5,000");
+    expect(screen.getByTestId("near-limit").textContent).toContain("AD holds 4,600 of its 5,000");
   });
 });
 

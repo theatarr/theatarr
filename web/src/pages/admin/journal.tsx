@@ -11,6 +11,8 @@ import { Input } from "@/components/ui/input";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { fmtBytes, fmtTime } from "@/lib/format";
 import { journalHome, journalLink } from "@/lib/admin-links";
+import { providerLabel } from "@/components/provider-pills";
+import { InfoHash } from "@/components/title/info-hash";
 
 const KINDS = ["grab", "upgrade", "plan", "search", "research", "failure", "stall", "blocklist", "import", "link", "verdict"];
 
@@ -197,7 +199,7 @@ export function JournalEntryPage() {
               ["Score", e.release.score ?? "—"],
               ["Size", fmtBytes(e.release.size)],
               ["Indexer", <Mono key="i">{e.release.indexer || "—"}</Mono>],
-              ["Hash", <Mono key="h" className="break-all">{e.release.info_hash || "—"}</Mono>],
+              ["Hash", e.release.info_hash ? <InfoHash key="h" hash={e.release.info_hash} admin /> : "—"],
             ]} />
           </Card>
         </Section>
@@ -225,7 +227,7 @@ export function JournalEntryPage() {
                 {(e.attempts ?? []).map((a, i) => (
                   <TableRow key={i}>
                     <TableCell className="whitespace-nowrap text-[13px]">{fmtTime(a.at)}</TableCell>
-                    <TableCell><Mono>{a.provider}</Mono></TableCell>
+                    <TableCell><span className="font-medium" title={a.provider}>{providerLabel(a.provider)}</span></TableCell>
                     <TableCell><Badge tone={a.outcome === "accepted" ? "positive" : "warning"}>{a.outcome}</Badge></TableCell>
                     <TableCell className="hidden break-words text-[13px] text-muted-foreground sm:table-cell">{a.message || a.code}</TableCell>
                   </TableRow>

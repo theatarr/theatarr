@@ -971,3 +971,46 @@ func TestAdoptedLinkFileSizes(t *testing.T) {
 		t.Errorf("upgrade item files %+v %v", files[4], err)
 	}
 }
+
+// The Episodes table's cell carries the torrent hash its episode window reads (an arr file's content, a link's
+// content file), so "Cached on" there gets the same Torrent link; never for a caller without see_files.
+func TestEpisodeCellInfoHash(t *testing.T) {
+	t.Parallel()
+	e := newEnv(t)
+	e.seedLibrary()
+	e.exec(`INSERT INTO content (id, info_hash, name, state, first_seen_at, last_seen_at) VALUES
+		(11, 'eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee', 'a', 'present', 0, 0),
+		(12, 'ffffffffffffffffffffffffffffffffffffffff', 'b', 'present', 0, 0)`)
+	e.exec(`UPDATE version_file SET content_id = 11 WHERE id = 90`)
+	e.exec(`INSERT INTO content_file (id, content_id, path, size_bytes) VALUES (21, 12, 'S01E02.mkv', 1)`)
+	e.exec(`INSERT INTO link (id, path, target, content_file_id, title_id, state, created_at, updated_at)
+		VALUES (51, '/anime/Delta/S01E02.mkv', '/mnt/b/S01E02.mkv', 21, 4, 'active', 0, 0)`)
+	e.exec(`INSERT INTO link_version (link_id, version_id) VALUES (51, 4)`)
+	e.exec(`INSERT INTO link_episode (link_id, episode_id) VALUES (51, 42)`)
+	key := e.apiKey()
+	var l EpisodeList
+	if code := e.getKey(APIBase+"/titles/4/episodes", key, &l); code != 200 {
+		t.Fatalf("episodes: %d", code)
+	}
+	got := map[int64]string{}
+	for _, ep := range l.Episodes {
+		got[ep.ID] = ep.Versions["anime-tv"].InfoHash
+	}
+	for _, eid := range []int64{41, 42} {
+		var d EpisodeDetail
+		if code := e.getKey(fmt.Sprintf("%s/titles/4/episodes/%d", APIBase, eid), key, &d); code != 200 || len(d.Versions) != 1 ||
+			d.Versions[0].File == nil {
+			t.Fatalf("episode %d window: %d %+v", eid, code, d)
+		}
+		if w := d.Versions[0].File.InfoHash; w == "" || got[eid] != w {
+			t.Errorf("episode %d: cell hash %q, window %q", eid, got[eid], w)
+		}
+	}
+	r := httptest.NewRequest("GET", APIBase+"/titles/4/episodes", nil)
+	r.Header.Set(auth.APIKeyHeader, key)
+	rec := httptest.NewRecorder()
+	e.userMux().ServeHTTP(rec, r)
+	if rec.Code != 200 || strings.Contains(rec.Body.String(), `"info_hash"`) {
+		t.Errorf("a caller without see_files: %d %s", rec.Code, rec.Body.String())
+	}
+}

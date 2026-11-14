@@ -12,8 +12,9 @@ import { useStatus } from "@/api/hooks";
 import { AddToProviders, OtherProviders } from "@/components/title/provider-copies";
 import { otherProvidersLine } from "@/lib/provider-copies";
 import { globalDownloadsOff } from "@/lib/version-grab";
-import { Empty, ErrorState, Loading, Mono, PageHeader, Section, Strip } from "@/components/page";
-import { ProviderPills } from "@/components/provider-pills";
+import { Empty, ErrorState, Loading, PageHeader, Section, Strip } from "@/components/page";
+import { ProviderPills, providerLabel } from "@/components/provider-pills";
+import { inventoryLink } from "@/lib/admin-links";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -141,7 +142,7 @@ export function TorrentsPage() {
           <Strip
             className="mb-3"
             items={r.providers.map((p) => ({
-              label: p.provider,
+              label: providerLabel(codes[p.provider] ?? p.provider),
               value: p.ok ? `${fmtNumber(p.count)}${p.limit ? ` of ${fmtNumber(p.limit)}` : ""} · ${fmtBytes(p.bytes)} · ${fmtNumber(p.usage.unused)} unused (${fmtBytes(p.usage.unused_bytes)})` : "unreadable",
               tone: !p.ok ? "bad" : p.near_limit ? "warn" : undefined,
               testid: `provider-count-${p.provider}`,
@@ -149,7 +150,7 @@ export function TorrentsPage() {
           />
           {r.providers.filter((p) => p.ok && p.near_limit).map((p) => (
             <p key={`limit-${p.provider}`} className="mb-2 text-sm text-[var(--warn-ink)]" data-testid="near-limit">
-              {p.provider} holds {fmtNumber(p.count)} of its {fmtNumber(p.limit ?? 0)} torrent limit (magnet_limit). Nothing is removed automatically.
+              {providerLabel(codes[p.provider] ?? p.provider)} holds {fmtNumber(p.count)} of its {fmtNumber(p.limit ?? 0)} torrent limit (magnet_limit). Nothing is removed automatically.
             </p>
           ))}
           {r.providers.filter((p) => p.error).map((p) => {
@@ -164,8 +165,8 @@ export function TorrentsPage() {
           ))}
           <div className="mb-2 flex flex-wrap gap-1" role="tablist" aria-label="Provider">
             {["", ...r.providers.map((p) => p.provider)].map((p) => (
-              <Button key={p || "all"} role="tab" aria-selected={p === provider} size="xs" variant={p === provider ? "secondary" : "ghost"} onClick={() => setProvider(p)}>
-                {p || "All providers"}
+              <Button key={p || "all"} role="tab" aria-selected={p === provider} size="xs" variant={p === provider ? "secondary" : "ghost"} title={p || undefined} onClick={() => setProvider(p)}>
+                {p ? providerLabel(codes[p] ?? p) : "All providers"}
               </Button>
             ))}
           </div>
@@ -232,7 +233,7 @@ export function TorrentsPage() {
           </Choice>
           {plan.items.filter((it) => it.action === "refuse").map((it) => (
             <div key={`${it.provider}:${it.id}`} className="rounded-md border border-[var(--line)] p-2 text-[13px]" data-testid="refused-item">
-              <div className="[overflow-wrap:anywhere]"><Mono>{it.provider}</Mono> {it.name || it.id}: {it.refusal}</div>
+              <div className="[overflow-wrap:anywhere]"><span className="font-medium" title={it.provider}>{providerLabel(codes[it.provider] ?? it.provider)}</span> {it.name || it.id}: {it.refusal}</div>
               {it.needs_override && it.expected_override_token ? (
                 <Choice
                   checked={overrides[`${it.provider}:${it.id}`] === it.expected_override_token}
@@ -275,7 +276,7 @@ function TorrentRow({ t, at, checked, onToggle, code }: { t: Torrent; at: string
           <div className="text-xs text-muted-foreground">
             {/* Below 640 px the size sits here, not in its column, so the table fits a phone. */}
             <span className="sm:hidden">{fmtBytes(t.bytes)} · </span>
-            {t.parsed ? `${t.parsed}${t.quality ? ` · ${t.quality}` : ""} · ` : ""}<Mono>{t.hash.slice(0, 12)}</Mono>
+            {t.parsed ? `${t.parsed}${t.quality ? ` · ${t.quality}` : ""} · ` : ""}<Link to={inventoryLink(t.hash)} className="font-mono text-[12.5px] text-primary hover:underline" title="See this torrent in Saved inventory" data-testid="torrent-hash">{t.hash.slice(0, 12)}</Link>
             {t.files >= 0 ? ` · ${t.files} file${t.files === 1 ? "" : "s"}` : ""}
             {t.added_by_theatarr ? " · added by Theatarr" : ""}
           </div>
@@ -288,6 +289,7 @@ function TorrentRow({ t, at, checked, onToggle, code }: { t: Torrent; at: string
             <Badge tone={usageTone(t.usage)}>{t.usage}</Badge>
             {t.usage === "used" ? <div className="text-xs text-muted-foreground">{refSummary(t.refs)}</div> : null}
           </button>
+          {t.usage === "used" && (t.titles ?? []).length > 0 ? <TitleLinks titles={t.titles ?? []} max={3} className="block text-xs [overflow-wrap:anywhere]" testid="torrent-row-titles" /> : null}
         </TableCell>
       </TableRow>
       {open ? (
@@ -327,9 +329,7 @@ function RefDetail({ t }: { t: Torrent }) {
       {titles.length > 0 ? (
         <div data-testid="torrent-titles">
           {titles.length === 1 ? "Title: " : "Titles: "}
-          {titles.map((x, i) => (
-            <span key={x.id}>{i > 0 ? ", " : ""}<Link to={`/title/${x.id}`} className="text-primary hover:underline">{x.name}</Link></span>
-          ))}
+          <TitleLinks titles={titles} />
         </div>
       ) : null}
       <ul className="space-y-0.5">
@@ -341,6 +341,19 @@ function RefDetail({ t }: { t: Torrent }) {
         ))}
       </ul>
     </div>
+  );
+}
+
+/** The titles a used torrent belongs to, as links to their title pages; max cuts the list ("and 2 more"). */
+function TitleLinks({ titles, max, testid, className }: { titles: readonly { id: number; name: string }[]; max?: number; testid?: string; className?: string }) {
+  const shown = max ? titles.slice(0, max) : titles;
+  return (
+    <span className={className} data-testid={testid}>
+      {shown.map((x, i) => (
+        <span key={x.id}>{i > 0 ? ", " : ""}<Link to={`/title/${x.id}`} className="text-primary hover:underline">{x.name}</Link></span>
+      ))}
+      {titles.length > shown.length ? ` and ${titles.length - shown.length} more` : null}
+    </span>
   );
 }
 
@@ -356,7 +369,7 @@ function JournalSection() {
                 <TableRow key={e.id}>
                   <TableCell className="whitespace-nowrap">{fmtTime(e.at)}</TableCell>
                   <TableCell><Badge tone={e.outcome === "failed" ? "negative" : "neutral"}>{e.action} {e.outcome}</Badge></TableCell>
-                  <TableCell className="text-[13px] [overflow-wrap:anywhere]">{e.provider ? <Mono className="mr-1">{e.provider}</Mono> : null}{e.name || e.hash || e.backup_id}{e.detail ? <div className="text-xs text-muted-foreground">{e.detail}</div> : null}</TableCell>
+                  <TableCell className="text-[13px] [overflow-wrap:anywhere]">{e.provider ? <span className="mr-1 font-medium" title={e.provider}>{providerLabel(e.provider)}</span> : null}{e.name || e.hash || e.backup_id}{e.detail ? <div className="text-xs text-muted-foreground">{e.detail}</div> : null}</TableCell>
                   <TableCell className="hidden whitespace-nowrap md:table-cell">{e.by}</TableCell>
                 </TableRow>
               ))}

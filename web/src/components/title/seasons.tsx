@@ -72,6 +72,7 @@ import {
   type Status,
 } from "@/lib/seasons";
 import { cn } from "@/lib/utils";
+import { TorrentLink } from "@/components/title/info-hash";
 
 type SeasonT = EpisodeList["seasons"][number];
 type VersionT = EpisodeList["versions"][number];
@@ -318,7 +319,7 @@ function ColumnCell({ id, e, c, seeFiles }: { id: EpisodeColumnId; e: Episode; c
     case "size":
       return <TableCell className="whitespace-nowrap text-right tabular-nums">{file?.size_bytes ? fmtBytes(file.size_bytes) : ""}</TableCell>;
     case "cached":
-      return <TableCell data-col="cached">{file ? <ProviderPills codes={file.cached_on} /> : null}</TableCell>;
+      return <TableCell data-col="cached">{file ? <span className="flex flex-wrap items-center gap-1.5"><ProviderPills codes={file.cached_on} /><TorrentLink hash={file.info_hash} /></span> : null}</TableCell>;
     case "score":
       return <TableCell className="text-right tabular-nums">{file?.score != null ? String(file.score) : ""}</TableCell>;
     case "group":

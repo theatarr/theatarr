@@ -13,6 +13,8 @@ import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { fmtAgo, fmtBytes, fmtNumber, fmtTime } from "@/lib/format";
+import { providerLabel } from "@/components/provider-pills";
+import { TorrentLink } from "@/components/title/info-hash";
 
 const STATES = ["", "present", "absent", "unreferenced", "gone", "unknown"];
 const HASH = /^[0-9a-fA-F]{40}$/;
@@ -107,7 +109,7 @@ export function RegistryContent() {
   const c = q.data;
   return (
     <div>
-      <PageHeader crumb={crumb} title={<span className="break-all">{c.name || hash}</span>} description={<span className="flex flex-wrap items-center gap-2"><StateBadge s={c.state} /><Mono className="break-all">{c.info_hash}</Mono></span>} />
+      <PageHeader crumb={crumb} title={<span className="break-all">{c.name || hash}</span>} description={<span className="flex flex-wrap items-center gap-2"><StateBadge s={c.state} /><Mono className="break-all">{c.info_hash}</Mono><TorrentLink hash={c.info_hash} /></span>} />
       <TorrentTabs />
       <Card>
         <KV items={[
@@ -133,7 +135,7 @@ export function RegistryContent() {
       <Section title="Providers">
         {(c.providers ?? []).length === 0 ? <Card><Empty>No provider lists it.</Empty></Card> : (
           <Card className="p-0"><Table><TableBody>{(c.providers ?? []).map((p, i) => (
-            <TableRow key={i}><TableCell><Mono>{p.provider}</Mono></TableCell><TableCell className="break-all text-[13px]">{p.folder_name}</TableCell><TableCell className="hidden sm:table-cell"><Mono>{p.torrent_id}</Mono></TableCell><TableCell className="hidden whitespace-nowrap md:table-cell">{fmtAgo(p.seen_at)}</TableCell></TableRow>
+            <TableRow key={i}><TableCell><span className="font-medium" title={p.provider}>{providerLabel(p.provider)}</span></TableCell><TableCell className="break-all text-[13px]">{p.folder_name}</TableCell><TableCell className="hidden sm:table-cell"><Mono>{p.torrent_id}</Mono></TableCell><TableCell className="hidden whitespace-nowrap md:table-cell">{fmtAgo(p.seen_at)}</TableCell></TableRow>
           ))}</TableBody></Table></Card>
         )}
       </Section>

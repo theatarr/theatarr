@@ -170,7 +170,7 @@ function UncoveredRow({ u }: { u: UncoveredItem }) {
   const o = u.outcome ? OUTCOME[u.outcome] : undefined;
   return (
     <TableRow>
-      <TableCell>{u.name}<div className="text-xs text-muted-foreground">TVDB <Mono>{u.tvdb_id}</Mono></div></TableCell>
+      <TableCell><Link className="font-medium hover:text-primary hover:underline" to={`/title/${u.title_id}`}>{u.name}</Link><div className="text-xs text-muted-foreground">TVDB <Mono>{u.tvdb_id}</Mono></div></TableCell>
       <TableCell className="text-[13px]">
         {o ? <Badge tone={o.tone}>{o.label}</Badge> : <span className="text-muted-foreground">not tried yet</span>}
         {u.franchise ? <Link className="ml-2 hover:text-primary" to={`/admin/reviews/anime/${u.franchise}`}><Mono>{u.franchise}</Mono></Link> : null}
