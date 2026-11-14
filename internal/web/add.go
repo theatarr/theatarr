@@ -78,8 +78,8 @@ func (w *Web) mountAddAPI(mux *http.ServeMux) {
 	w.handle(mux, "GET "+b+"/add/options", SignedIn, auth.PermBrowse, w.apiAddOptions)
 	w.handle(mux, "POST "+b+"/titles", SignedIn, auth.PermAdd, w.apiAddTitle)
 	w.handle(mux, "PUT "+b+"/titles/{id}/versions/{key}", SignedIn, auth.PermAdd, w.apiSetVersion)
-	w.handle(mux, "POST "+b+"/titles/{id}/search", SignedIn, auth.PermManage, w.inLibraryOnly(w.apiSearchNow))
-	w.handle(mux, "GET "+b+"/titles/{id}/releases", SignedIn, auth.PermManage, w.inLibraryOnly(w.apiReleases))
+	w.handle(mux, "POST "+b+"/titles/{id}/search", SignedIn, auth.PermManage, w.apiSearchNow)
+	w.handle(mux, "GET "+b+"/titles/{id}/releases", SignedIn, auth.PermManage, w.apiReleases)
 }
 
 // VersionOption is one version an add sheet offers.
@@ -149,11 +149,13 @@ type titleBits struct {
 	name   string
 	anime  bool
 	tmdbID int64
+	// inLib: the title is in the library (inLibrary), not every copy removed.
+	inLib bool
 }
 
 // findTitle reads a title by id, or by kind and TMDb id (title or title_meta); nil when none.
 func (w *Web) findTitle(ctx context.Context, id int64, kind policy.Kind, tmdbID int64) (*titleBits, error) {
-	q := `SELECT t.id, t.kind, t.name, t.anime, COALESCE(t.tmdb_id, m.tmdb_id, 0) FROM title t
+	q := `SELECT t.id, t.kind, t.name, t.anime, COALESCE(t.tmdb_id, m.tmdb_id, 0), ` + inLibrary + ` FROM title t
 		LEFT JOIN title_meta m ON m.title_id = t.id WHERE `
 	var args []any
 	switch {
@@ -168,7 +170,7 @@ func (w *Web) findTitle(ctx context.Context, id int64, kind policy.Kind, tmdbID 
 	}
 	var t titleBits
 	var k string
-	err := w.st.Reader().QueryRowContext(ctx, q, args...).Scan(&t.id, &k, &t.name, &t.anime, &t.tmdbID)
+	err := w.st.Reader().QueryRowContext(ctx, q, args...).Scan(&t.id, &k, &t.name, &t.anime, &t.tmdbID, &t.inLib)
 	if errors.Is(err, sql.ErrNoRows) {
 		return nil, nil
 	}
@@ -235,11 +237,7 @@ func (w *Web) apiAddOptions(rw http.ResponseWriter, r *http.Request) {
 	out := AddOptions{Kind: string(kind), Anime: anime, RouterEnabled: w.pol.RouterSettings().Enabled,
 		Versions: []VersionOption{}, Seasons: []SeasonOption{}}
 	if t != nil {
-		out.TitleID = &t.id
-		if out.InLibrary, err = w.titleInLibrary(ctx, t.id); err != nil {
-			w.internal(rw, err)
-			return
-		}
+		out.TitleID, out.InLibrary = &t.id, t.inLib
 	}
 	keys := make([]string, 0, len(w.pol.Versions))
 	for k, vp := range w.pol.Versions {
@@ -615,14 +613,34 @@ func (w *Web) addTitle(ctx context.Context, req AddRequest, source string) (*Add
 				return err
 			}
 		}
+		// A title every copy of which was removed is added like a new one: its choices (anime, monitoring, series
+		// type) apply, by the title id it keeps.
+		var restored bool
+		if err := tx.QueryRowContext(ctx, `SELECT EXISTS (SELECT 1 FROM title t WHERE t.kind = ?
+			AND (t.id = ? OR ? <= 0 AND (t.tmdb_id = ? OR t.kind = 'series' AND t.tvdb_id = ?)) AND NOT `+inLibrary+`)`,
+			string(kind), req.TitleID, req.TitleID, req.TMDbID, req.TVDbID).Scan(&restored); err != nil {
+			return err
+		}
 		if res, err = catalog.Add(ctx, tx, in, w.now(), w.log); err != nil {
 			return err
 		}
-		if !res.Created && req.Monitor != "" {
+		if restored && !res.Created {
+			if req.Anime != nil {
+				if _, err := tx.ExecContext(ctx, `UPDATE title SET anime = ? WHERE id = ?`, *req.Anime,
+					res.TitleID); err != nil {
+					return err
+				}
+				res.Anime = *req.Anime
+			}
+			if err := catalog.SetSeriesType(ctx, tx, res.TitleID, req.SeriesType); err != nil {
+				return err
+			}
+		}
+		if !res.Created && !restored && req.Monitor != "" {
 			// It would rewrite the monitoring of the copies the title has.
 			return &addError{http.StatusBadRequest, fmt.Sprintf("monitor is for a new title: this one is already in the library (title %d)", res.TitleID)}
 		}
-		if !res.Created && req.SeriesType != "" {
+		if !res.Created && !restored && req.SeriesType != "" {
 			// The type is the series' one value, shared by the copies it has: an add never changes it.
 			return &addError{http.StatusBadRequest, fmt.Sprintf("series_type is for a new title: this one is already in the library (title %d)", res.TitleID)}
 		}
@@ -766,7 +784,8 @@ func (w *Web) apiSearchNow(rw http.ResponseWriter, r *http.Request) {
 		w.internal(rw, err)
 		return
 	}
-	if t == nil {
+	// A title every copy of which was removed answers as one never added.
+	if t == nil || !t.inLib {
 		notFound(rw)
 		return
 	}
