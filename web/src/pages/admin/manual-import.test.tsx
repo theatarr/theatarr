@@ -31,8 +31,13 @@ describe("manual import", () => {
     expect(html).toContain('value="102" selected=""');
     expect(html).toContain('value="CHOSEN"');
   });
+  it("leaves out a format score of 0 with no matched formats", () => {
+    const html = renderToStaticMarkup(h(ManualImportFiles, { rows: [importRow({ ...candidate, customFormatScore: 0, customFormats: [] })], options, disabled: false, change: () => {} }));
+    expect(html).not.toContain("Format score");
+    expect(html).toContain('data-slot="select"');
+  });
   it("points an unknown download hash at Add by magnet or hash", () => {
-    expect(listedWords(0, "downloadId")).toBe("No download of Theatarr's has this hash. To add a new magnet or hash, open the title and use Add by magnet or hash.");
+    expect(listedWords(0, "downloadId")).toBe("No download of Theatarr's has this hash. To add a new magnet or hash, open the title's Last search and use Add by magnet or hash.");
     expect(listedWords(0, "folder")).toBe("0 candidate file(s)");
     expect(listedWords(2, "downloadId")).toBe("2 candidate file(s)");
   });

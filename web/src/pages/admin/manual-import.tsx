@@ -7,8 +7,9 @@ import { WantedTabs } from "@/components/wanted-tabs";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Select } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { fmtBytes } from "@/lib/format";
+import { fmtBytes, fmtNumber } from "@/lib/format";
 import { useLibraryName } from "@/lib/library-names";
 
 type Candidate = Schemas["ManualImportCandidate"];
@@ -25,6 +26,9 @@ export function importRow(candidate: Candidate): ImportRow {
   } };
 }
 
+/** A multiple select in the field's border and colours (Select is the single-line control). */
+const MULTI = "block w-full rounded-[5px] border border-input bg-field px-1.5 py-1 text-[13.5px] text-foreground";
+
 export function ManualImportFiles({ rows, options, disabled, change }: {
   rows: ImportRow[]; options: Options; disabled: boolean; change: (index: number, row: ImportRow) => void;
 }) {
@@ -38,20 +42,20 @@ export function ManualImportFiles({ rows, options, disabled, change }: {
         <TableCell><input type="checkbox" aria-label={`Import ${c.path}`} checked={row.selected} disabled={disabled} onChange={(e) => change(i, { ...row, selected: e.target.checked })} /></TableCell>
         <TableCell className="max-w-md break-words align-top"><div>{c.path}</div><div>{fmtBytes(c.size)}</div>
           <Badge tone={c.rejections.length ? "warning" : "positive"}>{c.rejections.length ? "Needs review" : "Accepted"}</Badge>
-          <ul>{c.rejections.map((r, n) => <li key={n}>{r.reason}</li>)}</ul><div>Format score: {c.customFormatScore}</div>
+          <ul>{c.rejections.map((r, n) => <li key={n}>{r.reason}</li>)}</ul>{c.customFormatScore || c.customFormats?.length ? <div>Format score: {fmtNumber(c.customFormatScore ?? 0)}</div> : null}
         </TableCell>
         <TableCell><fieldset disabled={disabled} className="grid min-w-64 gap-2"><legend className="sr-only">Choices for {c.path}</legend>
-          <label>Title<select className="block w-full" value={series ? f.seriesId ?? "" : f.movieId ?? ""} onChange={(e) => update({ movieId: series ? undefined : Number(e.target.value), seriesId: series ? Number(e.target.value) : undefined, episodeIds: [] })}>
+          <label>Title<Select value={series ? f.seriesId ?? "" : f.movieId ?? ""} onChange={(e) => update({ movieId: series ? undefined : Number(e.target.value), seriesId: series ? Number(e.target.value) : undefined, episodeIds: [] })}>
             <option value="">Choose a title</option>{options.titles.map((t) => <option key={t.id} value={t.id}>{t.name}</option>)}
-          </select></label>
-          {series && <label>Episodes<select multiple className="block w-full" value={(f.episodeIds ?? []).map(String)} onChange={(e) => update({ episodeIds: Array.from(e.target.selectedOptions, (o) => Number(o.value)) })}>
+          </Select></label>
+          {series && <label>Episodes<select multiple className={MULTI} value={(f.episodeIds ?? []).map(String)} onChange={(e) => update({ episodeIds: Array.from(e.target.selectedOptions, (o) => Number(o.value)) })}>
             {(title?.episodes ?? []).map((ep) => <option key={ep.id} value={ep.id}>S{ep.season}E{ep.number} {ep.name}</option>)}
           </select></label>}
-          <label>Quality<select className="block w-full" value={f.quality?.quality.id ?? 0} onChange={(e) => { const q = options.qualities.find((q) => q.id === Number(e.target.value)); if (q) update({ quality: { quality: q, revision: f.quality?.revision ?? { version: 1 } } }); }}>
+          <label>Quality<Select value={f.quality?.quality.id ?? 0} onChange={(e) => { const q = options.qualities.find((q) => q.id === Number(e.target.value)); if (q) update({ quality: { quality: q, revision: f.quality?.revision ?? { version: 1 } } }); }}>
             {options.qualities.map((q) => <option key={q.id} value={q.id}>{q.name}</option>)}
-          </select></label>
+          </Select></label>
           <label>Revision<Input type="number" min={1} value={f.quality?.revision.version ?? 1} onChange={(e) => { if (f.quality) update({ quality: { ...f.quality, revision: { ...f.quality.revision, version: Math.max(1, Number(e.target.value)) } } }); }} /></label>
-          <label>Languages<select multiple className="block w-full" value={(f.languages ?? []).map((l) => String(l.id))} onChange={(e) => { const ids = Array.from(e.target.selectedOptions, (o) => Number(o.value)); update({ languages: options.languages.filter((l) => ids.includes(l.id)) }); }}>
+          <label>Languages<select multiple className={MULTI} value={(f.languages ?? []).map((l) => String(l.id))} onChange={(e) => { const ids = Array.from(e.target.selectedOptions, (o) => Number(o.value)); update({ languages: options.languages.filter((l) => ids.includes(l.id)) }); }}>
             {options.languages.map((l) => <option key={l.id} value={l.id}>{l.name}</option>)}
           </select></label>
           <label>Release group<Input value={f.releaseGroup ?? ""} onChange={(e) => update({ releaseGroup: e.target.value })} /></label>
@@ -61,7 +65,7 @@ export function ManualImportFiles({ rows, options, disabled, change }: {
 }
 
 /** Where a magnet or hash Theatarr has not seen goes: this page only reads downloads Theatarr started. */
-const NEW_HASH_HELP = "To add a new magnet or hash, open the title and use Add by magnet or hash.";
+const NEW_HASH_HELP = "To add a new magnet or hash, open the title's Last search and use Add by magnet or hash.";
 
 /** What listing a source found; a hash with no download of ours says where a new hash goes instead of "0". */
 export function listedWords(files: number, kind: string): string {
@@ -112,8 +116,8 @@ export function ManualImportPage() {
     <div ref={errorRef} tabIndex={-1} role={problem ? "alert" : undefined}>{problem}</div>
     <div role="status" aria-live="polite">{busy ? "Working…" : result}</div>
     <form onSubmit={list} className="my-4 flex flex-wrap items-end gap-3">
-      <label>Library<select required disabled={busy} className="block" value={version} onChange={(e) => { setVersion(e.target.value); setRows([]); setResult(""); }}><option value="">Choose a library</option>{(policy.data?.versions ?? []).map((v) => <option key={v.key} value={v.key}>{nameOf(v.key)}</option>)}</select></label>
-      <label>Source<select disabled={busy} className="block" value={kind} onChange={(e) => setKind(e.target.value)}><option value="folder">Mount folder</option><option value="downloadId">Download hash</option></select></label>
+      <label>Library<Select required disabled={busy} className="block w-auto" value={version} onChange={(e) => { setVersion(e.target.value); setRows([]); setResult(""); }}><option value="">Choose a library</option>{(policy.data?.versions ?? []).map((v) => <option key={v.key} value={v.key}>{nameOf(v.key)}</option>)}</Select></label>
+      <label>Source<Select disabled={busy} className="block w-auto" value={kind} onChange={(e) => setKind(e.target.value)}><option value="folder">Mount folder</option><option value="downloadId">Download hash</option></Select></label>
       <label className="min-w-64 flex-1">{kind === "folder" ? "Folder under the mount" : "Download hash"}<Input required disabled={busy} value={source} onChange={(e) => setSource(e.target.value)} /></label>
       <Button disabled={busy || !version || !source.trim() || !options.data} type="submit">List files</Button>
     </form>
