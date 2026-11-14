@@ -157,3 +157,43 @@ func TestRemoveEmptyDirsStopsAtNestedRootsAndSymlinks(t *testing.T) {
 		t.Errorf("the folder behind the symlink went: %v", err)
 	}
 }
+
+// Every configured library root stays, whether it is a library's write root or its library folder
+// (versions.<key>.library), and in its resolved form too (a root configured through a symlink).
+func TestRemoveEmptyDirsKeepsEveryConfiguredRoot(t *testing.T) {
+	t.Parallel()
+	e := newEnv(t, true, policy.ModeActive)
+	kids := filepath.Join(e.shows, "Kids")
+	e.pol.Versions["tv"].Library = kids
+	g := NewGate(e.pol)
+	e.lib.gate, e.lib.w.gate = g, g
+	season := filepath.Join(kids, "Show (2020)", "Season 01")
+	if err := os.MkdirAll(season, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if got := e.lib.RemoveEmptyDirs("tv", filepath.Join(season, "e1.mkv")); !slices.Equal(got,
+		[]string{season, filepath.Dir(season)}) {
+		t.Errorf("removed %v", got)
+	}
+	if _, err := os.Stat(kids); err != nil {
+		t.Errorf("the library folder went: %v", err)
+	}
+
+	// A library folder configured through a symlink: its resolved folder stays.
+	f := newEnv(t, true, policy.ModeActive)
+	real := filepath.Join(f.shows, "Real")
+	if err := os.MkdirAll(filepath.Join(real, "Show (2021)"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	alias := filepath.Join(f.dir, "alias")
+	if err := os.Symlink(real, alias); err != nil {
+		t.Fatal(err)
+	}
+	f.pol.Versions["tv"].Library = alias
+	g = NewGate(f.pol)
+	f.lib.gate, f.lib.w.gate = g, g
+	f.lib.RemoveEmptyDirs("tv", filepath.Join(real, "Show (2021)", "e1.mkv"))
+	if _, err := os.Stat(real); err != nil {
+		t.Errorf("the resolved library folder went: %v", err)
+	}
+}

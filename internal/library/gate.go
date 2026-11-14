@@ -80,12 +80,30 @@ func (g *Gate) Active(version string) bool {
 // Roots returns a version's roots.
 func (g *Gate) Roots(version string) []string { return g.versions[version].roots }
 
-// allRoots are every version's roots, cleaned.
+// allRoots are every configured library root of every library, never to be removed: each version's write roots and
+// its library folder (versions.<key>.library), in their configured and their resolved (symlinks followed) forms.
 func (g *Gate) allRoots() []string {
 	var out []string
+	add := func(r string) {
+		if r == "" {
+			return
+		}
+		r = filepath.Clean(r)
+		out = append(out, r)
+		if real, err := filepath.EvalSymlinks(r); err == nil && real != r {
+			out = append(out, real)
+		}
+	}
 	for _, v := range g.versions {
 		for _, r := range v.roots {
-			out = append(out, filepath.Clean(r))
+			add(r)
+		}
+	}
+	if g.policy != nil {
+		for _, vp := range g.policy.Versions {
+			if vp != nil {
+				add(vp.Library)
+			}
 		}
 	}
 	return out

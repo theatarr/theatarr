@@ -176,6 +176,9 @@ func (w *writer) removeEmptyDirsBelow(version, root, dir string) []string {
 		if slices.Contains(roots, dir) {
 			break
 		}
+		if real, err := filepath.EvalSymlinks(dir); err != nil || slices.Contains(roots, real) {
+			break
+		}
 		if t := filepath.Clean(w.gate.trash); w.gate.trash != "" {
 			if r, err := filepath.Rel(t, dir); err == nil && !escapes(r) {
 				break
