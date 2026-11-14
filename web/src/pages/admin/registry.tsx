@@ -1,10 +1,17 @@
-// Admin › Advanced › Saved inventory (the registry): contents by hash or name (GET /registry) and one content with everything that points at it
-// (GET /registry/{hash}).
+// Admin › Torrents › Saved inventory (the registry): contents by hash or name (GET /registry) and one content with
+// everything that points at it (GET /registry/{hash}). "Used" is the Torrents page's answer from the record
+// (docs/design/torrents.md "Used, one answer"); the state is the inventory's own, said in words that do not claim usage.
 import { TorrentTabs } from "./torrent-tabs";
 import { Search } from "lucide-react";
 import { useState, type FormEvent } from "react";
 import { Link, useNavigate, useParams, useSearchParams } from "react-router";
-import { useContent, useRegistry } from "@/api/hooks";
+import { useContent, useRegistry, useStatus } from "@/api/hooks";
+import { useCopyTorrent, useTorrentCopies } from "@/api/provider-copies";
+import { AddToProviders, OtherProviders } from "@/components/title/provider-copies";
+import { UsageBadge, UsageDetail } from "@/components/torrent-usage";
+import { otherProvidersLine } from "@/lib/provider-copies";
+import { globalDownloadsOff } from "@/lib/version-grab";
+import { Pager } from "@/components/ui/pager";
 import { TitleThumb } from "@/components/poster-card";
 import { Empty, ErrorState, KV, Loading, Mono, PageHeader, Section, VersionTag } from "@/components/page";
 import { Badge } from "@/components/ui/badge";
@@ -12,18 +19,40 @@ import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { fmtAgo, fmtBytes, fmtTime, plural } from "@/lib/format";
+import { fmtAgo, fmtBytes, fmtDayYear, fmtTime, plural } from "@/lib/format";
 import { ProviderTag } from "@/components/provider-pills";
 import { TorrentLink } from "@/components/title/info-hash";
 import { ApiError } from "@/api/client";
 import { torrentsLink } from "@/lib/admin-links";
 
-const STATES = ["", "present", "absent", "unreferenced", "gone", "unknown"];
+/** The inventory's own states (content.state, docs/design/providers.md) in words. "Tied to an import" is the
+ *  inventory's rule (a Theatarr import, an arr file or a link recorded with this content), not whether anything uses
+ *  the torrent: that is the Used column. */
+const STATE_WORDS: Record<string, string> = {
+  present: "Held, tied to an import",
+  unreferenced: "Held, not tied to an import",
+  absent: "On no account",
+  gone: "Removed",
+  unknown: "Not known yet",
+};
+const STATES = ["", "present", "unreferenced", "absent", "gone", "unknown"];
+const STATE_HELP = "The saved inventory's own state. Tied to an import: a Theatarr import, an arr file or a link recorded with this torrent. Whether anything uses it is the Used column.";
 const HASH = /^[0-9a-fA-F]{40}$/;
 
 function StateBadge({ s }: { s?: string }) {
-  const tone = s === "present" ? "positive" : s === "gone" || s === "absent" ? "negative" : s === "unreferenced" ? "warning" : "neutral";
-  return <Badge tone={tone}>{s ?? "—"}</Badge>;
+  const tone = s === "present" ? "positive" : s === "absent" ? "negative" : "neutral";
+  return <Badge tone={tone} title={s}>{STATE_WORDS[s ?? ""] ?? s ?? "—"}</Badge>;
+}
+
+/** The Torrents page's usage of a hash with its link count; "—" when no account holds it in the record. */
+function UsedCell({ usage, links }: { usage?: string; links?: number }) {
+  if (!usage) return <span className="text-muted-foreground" title="No account holds it in the record">—</span>;
+  return (
+    <span className="flex flex-wrap items-baseline gap-x-1.5">
+      <UsageBadge u={{ usage }} />
+      {links ? <span className="text-xs text-muted-foreground tabular-nums">{plural(links, "link")}</span> : null}
+    </span>
+  );
 }
 
 export function Registry() {
@@ -62,9 +91,9 @@ export function Registry() {
         </div>
         <Button type="submit" variant="secondary">Search</Button>
       </form>
-      <div className="mb-4 flex flex-wrap gap-1">
+      <div className="mb-4 flex flex-wrap items-center gap-1" title={STATE_HELP}>
         {STATES.map((s) => (
-          <Button key={s || "any"} size="xs" variant={s === state ? "secondary" : "ghost"} onClick={() => setState(s)}>{s || "any state"}</Button>
+          <Button key={s || "any"} size="xs" variant={s === state ? "secondary" : "ghost"} onClick={() => setState(s)} data-testid={`state-${s || "any"}`}>{s ? STATE_WORDS[s] : "Any state"}</Button>
         ))}
       </div>
       {reg.isPending ? <Loading /> : reg.error ? <ErrorState error={reg.error} /> : (reg.data?.items ?? []).length === 0 ? <Card><Empty>Nothing matches.</Empty></Card> : (
@@ -74,8 +103,8 @@ export function Registry() {
               <TableRow>
                 <TableHead>Hash</TableHead>
                 <TableHead>Name</TableHead>
-                <TableHead>State</TableHead>
-                <TableHead className="hidden text-right sm:table-cell">Libraries</TableHead>
+                <TableHead title="The Torrents page's answer, as of the last read of the accounts">Used</TableHead>
+                <TableHead className="hidden sm:table-cell" title={STATE_HELP}>State</TableHead>
                 <TableHead className="hidden md:table-cell">Last seen</TableHead>
               </TableRow>
             </TableHeader>
@@ -84,8 +113,8 @@ export function Registry() {
                 <TableRow key={c.info_hash}>
                   <TableCell><Link className="hover:text-primary" to={`/admin/torrents/inventory/${c.info_hash}`}><Mono>{c.info_hash?.slice(0, 12)}</Mono></Link></TableCell>
                   <TableCell className="max-w-[30rem] text-[13px] [overflow-wrap:anywhere]">{c.name}</TableCell>
-                  <TableCell><StateBadge s={c.state} /></TableCell>
-                  <TableCell className="hidden text-right tabular-nums sm:table-cell">{c.versions}</TableCell>
+                  <TableCell data-testid="inventory-used"><UsedCell usage={c.usage} links={c.linked_files} /></TableCell>
+                  <TableCell className="hidden sm:table-cell"><StateBadge s={c.state} /></TableCell>
                   <TableCell className="hidden whitespace-nowrap md:table-cell">{fmtAgo(c.last_seen_at)}</TableCell>
                 </TableRow>
               ))}
@@ -93,10 +122,9 @@ export function Registry() {
           </Table>
         </Card>
       )}
-      <div className="mt-3 flex items-center gap-2 text-sm text-muted-foreground">
-        <span>{plural(total, "torrent")}{total > 0 ? ` · ${offset + 1}–${Math.min(total, offset + 50)}` : ""}</span>
-        <Button size="sm" variant="outline" disabled={offset === 0} onClick={() => { const n = new URLSearchParams(params); n.set("offset", String(Math.max(0, offset - 50))); setParams(n); }}>Previous</Button>
-        <Button size="sm" variant="outline" disabled={offset + 50 >= total} onClick={() => { const n = new URLSearchParams(params); n.set("offset", String(offset + 50)); setParams(n); }}>Next</Button>
+      <div className="mt-3 space-y-1">
+        <p className="text-center text-sm text-muted-foreground" data-testid="inventory-total">{plural(total, "torrent")} (unique hashes)</p>
+        <Pager offset={offset} limit={50} total={total} onPage={(o) => { const n = new URLSearchParams(params); if (o > 0) n.set("offset", String(o)); else n.delete("offset"); setParams(n); }} />
       </div>
     </div>
   );
@@ -121,7 +149,7 @@ export function RegistryContent() {
   const c = q.data;
   return (
     <div>
-      <PageHeader crumb={crumb} title={<span className="break-all">{c.name || hash}</span>} description={<span className="flex flex-wrap items-center gap-2"><StateBadge s={c.state} /><Mono className="break-all">{c.info_hash}</Mono><TorrentLink hash={c.info_hash} /></span>} />
+      <PageHeader crumb={crumb} title={<span className="break-all">{c.name || hash}</span>} description={<span className="flex flex-wrap items-center gap-2">{c.usage ? <UsageBadge u={c.usage} /> : null}<StateBadge s={c.state} /><Mono className="break-all">{c.info_hash}</Mono><TorrentLink hash={c.info_hash} /></span>} />
       <TorrentTabs />
       <Card>
         <KV items={[
@@ -131,8 +159,20 @@ export function RegistryContent() {
           ["Last seen", fmtTime(c.last_seen_at)],
         ]} />
       </Card>
-      <Section title="Libraries">
-        {(c.versions ?? []).length === 0 ? <Card><Empty>No library points at this content.</Empty></Card> : (
+      <Section title="Used">
+        <Card className="text-[13px]" data-testid="inventory-usage">
+          {c.usage ? (
+            <div className="space-y-1">
+              <div className="flex flex-wrap items-baseline gap-2"><UsageBadge u={c.usage} />{c.usage.linked_files > 0 ? <span className="text-muted-foreground">{plural(c.usage.linked_files, "link")} into it</span> : null}</div>
+              <div className="text-muted-foreground"><UsageDetail u={c.usage} /></div>
+              <p className="text-xs text-muted-foreground">As of the last read of the accounts (Torrents › Refresh reads them).</p>
+            </div>
+          ) : <p className="text-muted-foreground">No account holds it in the record, so its usage is not worked out.</p>}
+        </Card>
+      </Section>
+      {/* Theatarr's own imports recorded with this content; most library links are counted under Used instead. */}
+      {(c.versions ?? []).length > 0 ? (
+        <Section title="Imports">
           <Card className="p-0"><Table><TableHeader><TableRow><TableHead>Title</TableHead><TableHead>Library</TableHead><TableHead className="hidden md:table-cell">Release</TableHead><TableHead className="hidden sm:table-cell">Imported</TableHead></TableRow></TableHeader>
             <TableBody>{(c.versions ?? []).map((v, i) => (
               <TableRow key={i}>
@@ -142,22 +182,30 @@ export function RegistryContent() {
                 <TableCell className="hidden whitespace-nowrap sm:table-cell">{v.failed_at ? <Badge tone="negative">failed {fmtTime(v.failed_at)}</Badge> : fmtTime(v.imported_at ?? v.grabbed_at)}</TableCell>
               </TableRow>))}
             </TableBody></Table></Card>
-        )}
-      </Section>
+        </Section>
+      ) : null}
       <Section title="Providers">
         {(c.providers ?? []).length === 0 ? <Card><Empty>No provider lists it.</Empty></Card> : (
-          <Card className="p-0"><Table><TableBody>{(c.providers ?? []).map((p, i) => (
-            <TableRow key={i}><TableCell><ProviderTag account={p.provider ?? ""} className="font-medium" /></TableCell><TableCell className="break-all text-[13px]">{p.folder_name}</TableCell><TableCell className="hidden sm:table-cell"><Mono>{p.torrent_id}</Mono></TableCell><TableCell className="hidden whitespace-nowrap md:table-cell">{fmtAgo(p.seen_at)}</TableCell></TableRow>
-          ))}</TableBody></Table></Card>
+          <Card className="p-0"><Table>
+            <TableHeader><TableRow><TableHead>Provider</TableHead><TableHead>Name</TableHead><TableHead className="hidden sm:table-cell">Torrent id</TableHead><TableHead className="hidden md:table-cell">Held since</TableHead></TableRow></TableHeader>
+            <TableBody>{(c.providers ?? []).map((p, i) => (
+              <TableRow key={i} data-testid="inventory-provider">
+                <TableCell className="whitespace-nowrap"><ProviderTag account={p.provider ?? ""} className="font-medium" />{p.state === "absent" ? <Badge tone="negative" className="ml-2" data-testid="provider-gone">gone since {p.absent_at ? fmtDayYear(p.absent_at) : "?"}</Badge> : null}</TableCell>
+                <TableCell className="break-all text-[13px]">{p.folder_name}</TableCell>
+                <TableCell className="hidden sm:table-cell"><Mono>{p.torrent_id}</Mono></TableCell>
+                <TableCell className="hidden whitespace-nowrap md:table-cell" title={p.seen_at ? fmtTime(p.seen_at) : undefined}>{p.state === "absent" ? "—" : fmtAgo(p.seen_at)}</TableCell>
+              </TableRow>
+            ))}</TableBody></Table></Card>
         )}
+        <InventoryCopies hash={c.info_hash ?? hash} providers={c.providers ?? []} />
       </Section>
-      <Section title="Arr files">
-        {(c.arr_files ?? []).length === 0 ? <Card><Empty>No arr file has this hash.</Empty></Card> : (
+      {(c.arr_files ?? []).length > 0 ? (
+        <Section title="Arr files">
           <Card className="p-0"><Table><TableBody>{(c.arr_files ?? []).map((f, i) => (
             <TableRow key={i}><TableCell><Mono>{f.instance}</Mono></TableCell><TableCell><VersionTag k={f.version_key ?? "?"} /></TableCell><TableCell className="break-all text-[13px]">{f.path}</TableCell><TableCell className="hidden sm:table-cell">{f.quality}</TableCell></TableRow>
           ))}</TableBody></Table></Card>
-        )}
-      </Section>
+        </Section>
+      ) : null}
       <Section title="Files">
         {(c.files ?? []).length === 0 ? <Card><Empty>No files recorded.</Empty></Card> : (
           <Card className="p-0"><Table><TableBody>{(c.files ?? []).map((f, i) => (
@@ -165,6 +213,23 @@ export function RegistryContent() {
           ))}</TableBody></Table></Card>
         )}
       </Section>
+    </div>
+  );
+}
+
+/** "Add to other providers" from a provider that holds the hash now (the Torrents row's action, unchanged); nothing
+ *  when no provider holds it. */
+function InventoryCopies({ hash, providers }: { hash: string; providers: { provider?: string; torrent_id?: string; state?: string }[] }) {
+  const held = providers.find((p) => p.state !== "absent" && p.provider && p.torrent_id);
+  const m = useCopyTorrent(hash, "inventory");
+  const copies = useTorrentCopies(hash, "inventory").data?.copies;
+  const status = useStatus();
+  const paused = globalDownloadsOff((status.data?.versions ?? []).map((v) => v.grab_state));
+  if (!held) return null;
+  return (
+    <div className="mt-2 space-y-1 text-[13px]" data-testid="inventory-copies">
+      {otherProvidersLine(copies) ? <div>Other providers: <OtherProviders copies={copies} /></div> : null}
+      <AddToProviders m={m} vars={{ provider: held.provider ?? "", id: held.torrent_id ?? "" }} paused={paused} current={copies} />
     </div>
   );
 }
